@@ -30,7 +30,18 @@ class tf32 {
 };
 } // namespace precision
 
-enum class layout { row_major, col_major, packed, dynamic };
+enum class layout { row_major = 0, col_major = 1, dynamic = 3 };
+
+} // namespace matrix
+} // namespace experimental
+} // namespace oneapi
+namespace intel::experimental::matrix::layout {
+constexpr sycl::ext::oneapi::experimental::matrix::layout packed =
+    static_cast<sycl::ext::oneapi::experimental::matrix::layout>(2);
+}
+namespace oneapi {
+namespace experimental {
+namespace matrix {
 
 template <layout Layout> struct spv_matrix_layout_traits {
   static constexpr __spv::MatrixLayout value = __spv::MatrixLayout::Dynamic;
@@ -43,7 +54,8 @@ template <layout Layout> struct spv_matrix_layout_traits {
 
 SPV_MATRIX_LAYOUT_TRAITS(layout::row_major, __spv::MatrixLayout::RowMajor)
 SPV_MATRIX_LAYOUT_TRAITS(layout::col_major, __spv::MatrixLayout::ColumnMajor)
-SPV_MATRIX_LAYOUT_TRAITS(layout::packed, __spv::MatrixLayout::Packed)
+SPV_MATRIX_LAYOUT_TRAITS(sycl::ext::intel::experimental::matrix::layout::packed,
+                         __spv::MatrixLayout::Packed)
 SPV_MATRIX_LAYOUT_TRAITS(layout::dynamic, __spv::MatrixLayout::Dynamic)
 
 enum class use { a, b, accumulator };
@@ -70,18 +82,18 @@ template <int D> struct spv_scope_traits<sycl::group<D>> {
 };
 
 // forward declarations
-template <typename T, use Use, size_t Rows, size_t Cols, layout Layout,
-          typename Group>
+template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
+          layout Layout>
 struct joint_matrix;
 
 template <typename T, size_t NumRows, size_t NumCols, use Use,
           layout Layout = layout::dynamic, typename Group = sycl::sub_group>
 class wi_element {
-  joint_matrix<T, Use, NumRows, NumCols, Layout, Group> &M;
+  joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &M;
   std::size_t idx;
 
 public:
-  wi_element(joint_matrix<T, Use, NumRows, NumCols, Layout, Group> &Mat,
+  wi_element(joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &Mat,
              std::size_t i)
       : M(Mat), idx(i) {}
   operator T() {
@@ -155,13 +167,13 @@ template <size_t NumRows, size_t NumCols, use Use, layout Layout,
           typename Group>
 class wi_element<sycl::ext::oneapi::experimental::bfloat16, NumRows, NumCols,
                  Use, Layout, Group> {
-  joint_matrix<sycl::ext::oneapi::experimental::bfloat16, Use, NumRows, NumCols,
-               Layout, Group> &M;
+  joint_matrix<Group, sycl::ext::oneapi::experimental::bfloat16, Use, NumRows,
+               NumCols, Layout> &M;
   std::size_t idx;
 
 public:
-  wi_element(joint_matrix<sycl::ext::oneapi::experimental::bfloat16, Use,
-                          NumRows, NumCols, Layout, Group> &Mat,
+  wi_element(joint_matrix<Group, sycl::ext::oneapi::experimental::bfloat16, Use,
+                          NumRows, NumCols, Layout> &Mat,
              std::size_t i)
       : M(Mat), idx(i) {}
   operator sycl::ext::oneapi::experimental::bfloat16() {
@@ -302,13 +314,13 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
 };
 
-template <typename T, size_t NumRows, size_t NumCols, use Use, layout Layout,
-          typename Group>
+template <typename Group, typename T, use Use, size_t NumRows, size_t NumCols,
+          layout Layout>
 class wi_data {
-  joint_matrix<T, Use, NumRows, NumCols, Layout, Group> &M;
+  joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &M;
 
 public:
-  wi_data(joint_matrix<T, Use, NumRows, NumCols, Layout, Group> &Mat)
+  wi_data(joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &Mat)
       : M(Mat) {}
   size_t length() {
 #ifdef __SYCL_DEVICE_ONLY__

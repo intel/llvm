@@ -17,8 +17,8 @@ namespace oneapi {
 namespace experimental {
 namespace matrix {
 
-template <typename T, use Use, size_t Rows, size_t Cols,
-          layout Layout = layout::dynamic, typename Group = sycl::sub_group>
+template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
+          layout Layout = layout::dynamic>
 struct joint_matrix {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
@@ -36,67 +36,27 @@ struct joint_matrix {
                         PI_ERROR_INVALID_DEVICE);
 #endif // __SYCL_DEVICE_ONLY__
   }
-  joint_matrix(Group sg) {
-#ifndef __SYCL_DEVICE_ONLY__
-    std::ignore = sg;
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-  inline __SYCL_ALWAYS_INLINE decltype(auto) get_wi_data() {
-#if defined(__SYCL_DEVICE_ONLY__)
-#if defined(__NVPTX__)
-    // return wi_data(cuda_impl.wi_marray);
-#else
-    return wi_data<T, Rows, Cols, Use, Layout, Group>(*this);
-#endif
-#else
-    // Host version of get_wi_data required by compiler even though it will
-    // never be called because joint_matrix cannot be constructed on host.
-#if defined(__NVPTX__)
-    // return wi_data(cuda_impl.wi_marray);
-    if constexpr (std::is_same_v<T, precision::tf32>) {
-      marray<float, 1> unused{};
-      return wi_data<float, 1>(unused);
-    } else {
-      marray<T, 1> unused{};
-      return wi_data<T, 1>(unused);
-    }
-#else
-    return wi_data<T, Rows, Cols, Use, Layout, Group>(*this);
-#endif
-#endif
-  };
-
-    // get_wi_marray is only defined for the NVPTX backend.
-#if defined(__SYCL_DEVICE_ONLY__)
-#if defined(__NVPTX__)
-  inline __SYCL_ALWAYS_INLINE auto get_wi_marray()
-      -> decltype(cuda_impl.wi_marray) & {
-    return cuda_impl.wi_marray;
-  };
-#endif
-#else
-  // Host version of get_wi_marray required by compiler even though it will
-  // never be called because joint_matrix cannot be constructed on host.
-  decltype(auto) inline __SYCL_ALWAYS_INLINE get_wi_marray() {
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
-
-    if constexpr (std::is_same_v<T, precision::tf32>) {
-      return marray<float, 1>{};
-    } else {
-      return marray<T, 1>{};
-    }
-  };
-#endif
 };
+
+template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
+          layout Layout>
+inline __SYCL_ALWAYS_INLINE wi_data<Group, T, Use, Rows, Cols, Layout>
+get_wi_data(Group sg, joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm) {
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
+  // std::ignore = sg;
+  // return wi_data(jm);
+#else
+  return wi_data<Group, T, Use, Rows, Cols, Layout>(jm);
+#endif // defined(__NVPTX__)
+#endif // defined(__SYCL_DEVICE_ONLY__)
+}
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols, use Use,
           layout Layout, typename T2>
 inline __SYCL_ALWAYS_INLINE void
 joint_matrix_fill(Group sg,
-                  joint_matrix<T, Use, NumRows, NumCols, Layout, Group> &res,
+                  joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &res,
                   const T2 &v) {
   std::ignore = sg;
 #if defined(__SYCL_DEVICE_ONLY__)
@@ -125,9 +85,8 @@ template <
         true>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
     Group sg,
-    joint_matrix<S, use::accumulator, NumRows, NumCols,
-                 sycl::ext::oneapi::experimental::matrix::layout::dynamic,
-                 Group> &res,
+    joint_matrix<Group, S, use::accumulator, NumRows, NumCols,
+                 sycl::ext::oneapi::experimental::matrix::layout::dynamic> &res,
     multi_ptr<T, Space, IsDecorated> src, size_t stride,
     sycl::ext::oneapi::experimental::matrix::layout Layout) {
 #if defined(__SYCL_DEVICE_ONLY__)
@@ -157,7 +116,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
         Ptr, stride, __spv::MatrixLayout::ColumnMajor,
         spv_scope_traits<Group>::value);
     break;
-  case layout::packed:
+  case sycl::ext::intel::experimental::matrix::layout::packed:
     res.spvm = __spirv_JointMatrixLoadINTEL<
         T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
@@ -188,7 +147,7 @@ template <
                      bool> = true>
 inline __SYCL_ALWAYS_INLINE void
 joint_matrix_load(Group sg,
-                  joint_matrix<S, Use, NumRows, NumCols, Layout, Group> &res,
+                  joint_matrix<Group, S, Use, NumRows, NumCols, Layout> &res,
                   multi_ptr<T, Space, IsDecorated> src, size_t stride) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
@@ -222,9 +181,8 @@ template <typename Group, typename T, size_t NumRows, size_t NumCols,
           access::address_space Space, access::decorated IsDecorated>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
     Group sg,
-    joint_matrix<T, use::accumulator, NumRows, NumCols,
-                 sycl::ext::oneapi::experimental::matrix::layout::dynamic,
-                 Group> &src,
+    joint_matrix<Group, T, use::accumulator, NumRows, NumCols,
+                 sycl::ext::oneapi::experimental::matrix::layout::dynamic> &src,
     multi_ptr<T, Space, IsDecorated> dst, size_t stride,
     sycl::ext::oneapi::experimental::matrix::layout Layout) {
 #if defined(__SYCL_DEVICE_ONLY__)
@@ -254,7 +212,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
         Ptr, src.spvm, stride, __spv::MatrixLayout::ColumnMajor,
         spv_scope_traits<Group>::value);
     break;
-  case layout::packed:
+  case sycl::ext::intel::experimental::matrix::layout::packed:
     __spirv_JointMatrixStoreINTEL<
         T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
         spv_matrix_layout_traits<layout::dynamic>::value>(
@@ -278,21 +236,19 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
 template <typename Group, typename Ta, typename Tb, typename Tc, std::size_t M,
           std::size_t K, std::size_t N, layout LayoutA, layout LayoutB>
 inline __SYCL_ALWAYS_INLINE
-    joint_matrix<Tc, use::accumulator, M, N,
-                 sycl::ext::oneapi::experimental::matrix::layout::dynamic,
-                 Group>
+    joint_matrix<Group, Tc, use::accumulator, M, N,
+                 sycl::ext::oneapi::experimental::matrix::layout::dynamic>
     joint_matrix_mad(
-        Group sg, joint_matrix<Ta, use::a, M, K, LayoutA, Group> &A,
-        joint_matrix<Tb, use::b, K, N, LayoutB, Group> &B,
-        joint_matrix<Tc, use::accumulator, M, N,
-                     sycl::ext::oneapi::experimental::matrix::layout::dynamic,
-                     Group> &C) {
+        Group sg, joint_matrix<Group, Ta, use::a, M, K, LayoutA> &A,
+        joint_matrix<Group, Tb, use::b, K, N, LayoutB> &B,
+        joint_matrix<Group, Tc, use::accumulator, M, N,
+                     sycl::ext::oneapi::experimental::matrix::layout::dynamic>
+            &C) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
   if constexpr (std::is_same<Ta, Tb>::value) {
-    joint_matrix<Tc, use::accumulator, M, N,
-                 sycl::ext::oneapi::experimental::matrix::layout::dynamic,
-                 Group>
+    joint_matrix<Group, Tc, use::accumulator, M, N,
+                 sycl::ext::oneapi::experimental::matrix::layout::dynamic>
         D(sg);
     sycl::ext::oneapi::detail::joint_matrix_mad_cuda<Ta, Tc, M, K, N, LayoutA,
                                                      LayoutB>(
@@ -303,7 +259,7 @@ inline __SYCL_ALWAYS_INLINE
                     "requires that joint_matrix data types Ta and Tb match");
   }
 #else
-  joint_matrix<Tc, use::accumulator, M, N, layout::dynamic, Group> res(sg);
+  joint_matrix<Group, Tc, use::accumulator, M, N, layout::dynamic> res;
   if constexpr (std::is_same<Ta, uint16_t>::value &&
                 std::is_same<Tb, uint16_t>::value &&
                 std::is_same<Tc, float>::value)
