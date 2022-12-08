@@ -184,7 +184,8 @@ other devices.
 
 On many Intel devices, there is just one available queue index, and there is
 therefore no advantage to using the `compute_index` property.  However, this
-property can sometimes be useful when running on ATS-M or PVC.
+property can sometimes be useful when running on Data Center GPU Flex series
+devices (aka ATS-M) or Data Center GPU Max series devices (aka PVC).
 
 Some models of ATS-M support multiple queue indices with the semantics
 described in the sections above.  When a single process submits kernels to
