@@ -46,12 +46,7 @@ for the SPV_INTEL_usm_storage_classes SPIR-V extension.
 
 == Status
 
-This is an experimental extension specification, intended to provide early
-access to features and gather community feedback.  Interfaces defined in this
-specification are implemented in {dpcpp}, but they are not finalized and may
-change incompatibly in future versions of {dpcpp} without prior notice.
-*Shipping software products should not rely on APIs defined in this
-specification.*
+This extension is implemented and fully supported by {dpcpp}.
 
 
 == Overview
@@ -89,8 +84,13 @@ supports.
 |Description
 
 |1
-|The APIs of this experimental extension are not versioned, so the
- feature-test macro always has this value.
+|Initial version of this extension.
+
+|2
+|Adds `sycl::ext::intel::host_ptr`, `sycl::ext::intel::raw_host_ptr`,
+`sycl::ext::intel::decorated_host_ptr`, `sycl::ext::intel::device_ptr`,
+`sycl::ext::intel::raw_device_ptr` and `sycl::ext::intel::decorated_device_ptr`.
+`sycl::host_ptr` and `sycl::device_ptr` are deprecated.
 |===
 
 == Modifications to SYCL 2020
@@ -160,10 +160,47 @@ This constructor may only be called from within a command.
 Add `device_ptr` and `host_ptr` aliases to the list of `multi_ptr` aliases as
 follows:
 ```c++
-template<typename ElementType, access::decorated IsDecorated = access::decorated::legacy>
-using device_ptr = multi_ptr<ElementType, access::address_space::ext_intel_global_device_space, IsDecorated>
+namespace sycl {
 
-template<typename ElementType, access::decorated IsDecorated = access::decorated::legacy>
-using host_ptr = multi_ptr<ElementType, access::address_space::ext_intel_global_host_space, IsDecorated>
+// Deprecated.
+template<typename ElementType,
+         access::decorated IsDecorated = access::decorated::legacy>
+using device_ptr =
+    multi_ptr<ElementType, access::address_space::ext_intel_global_device_space,
+              IsDecorated>
+
+// Deprecated.
+template<typename ElementType,
+         access::decorated IsDecorated = access::decorated::legacy>
+using host_ptr =
+    multi_ptr<ElementType, access::address_space::ext_intel_global_host_space,
+              IsDecorated>
+
+namespace ext {
+namespace intel {
+
+template<typename ElementType>
+using raw_device_ptr =
+    multi_ptr<ElementType, access::address_space::ext_intel_global_device_space,
+              access::decorated::no>
+
+template<typename ElementType>
+using raw_host_ptr =
+    multi_ptr<ElementType, access::address_space::ext_intel_global_host_space,
+              access::decorated::no>
+
+template<typename ElementType>
+using decorated_device_ptr =
+    multi_ptr<ElementType, access::address_space::ext_intel_global_device_space,
+              access::decorated::yes>
+
+template<typename ElementType>
+using decorated_host_ptr =
+    multi_ptr<ElementType, access::address_space::ext_intel_global_host_space,
+              access::decorated::yes>
+
+} // namespace intel
+} // namespace ext
+} // namespace sycl
 ```
 
