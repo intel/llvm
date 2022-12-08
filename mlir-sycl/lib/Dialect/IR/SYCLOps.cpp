@@ -67,7 +67,7 @@ bool mlir::sycl::SYCLCastOp::areCastCompatible(::mlir::TypeRange Inputs,
   const bool IsLocalAccessorBase =
       Output.getElementType().isa<mlir::sycl::LocalAccessorBaseType>();
   if (HasLocalAccessorBaseTrait && IsLocalAccessorBase)
-    return true;    
+    return true;
 
   return false;
 }
