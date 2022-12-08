@@ -16,16 +16,20 @@
 // CHECK-DAG: !sycl_accessor_3_f32_rw_gb = !sycl.accessor<[3, f32, read_write, global_buffer], (!sycl_accessor_impl_device_3_, !llvm.struct<(ptr<f32, 1>)>)>
 // CHECK-DAG: !sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
 // CHECK-DAG: !sycl_group_2_ = !sycl.group<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
-// CHECK-DAG: ![[ITEM1:.*]] = !sycl.item<[1, true], (!sycl_item_base_1_)>
-// CHECK-DAG: ![[ITEM2:.*]] = !sycl.item<[1, false], (!sycl_item_base_1_1)>
-// CHECK-DAG: ![[ITEM3:.*]] = !sycl.item<[2, true], (!sycl_item_base_2_1)>
-// CHECK-DAG: ![[ITEM4:.*]] = !sycl.item<[2, false], (!sycl_item_base_2_)>
-// CHECK-DAG: !sycl_nd_item_1_ = !sycl.nd_item<[1], (![[ITEM1]], ![[ITEM2]], !sycl_group_1_)>
-// CHECK-DAG: !sycl_nd_item_2_ = !sycl.nd_item<[2], (![[ITEM3]], ![[ITEM4]], !sycl_group_2_)>
+// CHECK-DAG: ![[ITEM_1_F:.*]] = !sycl.item<[1, false], (![[ITEM_BASE_1_F:.*]])>
+// CHECK-DAG: ![[ITEM_1_T:.*]] = !sycl.item<[1, true], (![[ITEM_BASE_1_T:.*]])>
+// CHECK-DAG: ![[ITEM_2_F:.*]] = !sycl.item<[2, false], (![[ITEM_BASE_2_F:.*]])>
+// CHECK-DAG: ![[ITEM_2_T:.*]] = !sycl.item<[2, true], (![[ITEM_BASE_2_T:.*]])>
+// CHECK-DAG: ![[ITEM_BASE_1_F]] = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+// CHECK-DAG: ![[ITEM_BASE_1_T]] = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>
+// CHECK-DAG: ![[ITEM_BASE_2_F]] = !sycl.item_base<[2, false], (!sycl_range_2_, !sycl_id_2_)>
+// CHECK-DAG: ![[ITEM_BASE_2_T]] = !sycl.item_base<[2, true], (!sycl_range_2_, !sycl_id_2_, !sycl_id_2_)>
+// CHECK-DAG: !sycl_nd_item_1_ = !sycl.nd_item<[1], (![[ITEM_1_T]], ![[ITEM_1_F]], !sycl_group_1_)>
+// CHECK-DAG: !sycl_nd_item_2_ = !sycl.nd_item<[2], (![[ITEM_2_T]], ![[ITEM_2_F]], !sycl_group_2_)>
 // CHECK-DAG: !sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
 // CHECK-DAG: !sycl_nd_range_2_ = !sycl.nd_range<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
 // CHECK-DAG: !sycl_get_scalar_op_i32_ = !sycl.get_scalar_op<[i32], (i32)>
-// CHECK-DAG: !sycl_h_item_1_ = !sycl.h_item<[1], (!sycl_item_1_1, !sycl_item_1_1, !sycl_item_1_1)>
+// CHECK-DAG: !sycl_h_item_1_ = !sycl.h_item<[1], (![[ITEM_1_F]], ![[ITEM_1_F]], ![[ITEM_1_F]])>
 // CHECK-DAG: !sycl_tuple_value_holder_i32_ = !sycl.tuple_value_holder<[i32], (i32)>
 // CHECK-DAG: [[TUPLE_COPY_ASSIGNABLE_VALUE_HOLDER_TRUE:!sycl_tuple_copy_assignable_value_holder_i32_.*]] = !sycl.tuple_copy_assignable_value_holder<[i32, true], (!sycl_tuple_value_holder_i32_)>
 // CHECK-DAG: [[TUPLE_COPY_ASSIGNABLE_VALUE_HOLDER_FALSE:!sycl_tuple_copy_assignable_value_holder_i32_.*]] = !sycl.tuple_copy_assignable_value_holder<[i32, false], (!sycl_tuple_value_holder_i32_)>
@@ -98,12 +102,12 @@ SYCL_EXTERNAL void arr_1(sycl::detail::array<1> arr) {}
 SYCL_EXTERNAL void arr_2(sycl::detail::array<2> arr) {}
 
 // CHECK-LABEL: func.func @_Z11item_1_trueN4sycl3_V14itemILi1ELb1EEE(
-// CHECK:          %arg0: memref<?x![[ITEM1]]> {llvm.align = 8 : i64, llvm.byval = ![[ITEM1]], llvm.noundef})
+// CHECK:          %arg0: memref<?x![[ITEM_1_T]]> {llvm.align = 8 : i64, llvm.byval = ![[ITEM_1_T]], llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void item_1_true(sycl::item<1, true> item) {}
 
 // CHECK-LABEL: func.func @_Z12item_2_falseN4sycl3_V14itemILi2ELb0EEE(
-// CHECK:          %arg0: memref<?x![[ITEM4]]> {llvm.align = 8 : i64, llvm.byval = ![[ITEM4]], llvm.noundef})
+// CHECK:          %arg0: memref<?x![[ITEM_2_F]]> {llvm.align = 8 : i64, llvm.byval = ![[ITEM_2_F]], llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void item_2_false(sycl::item<2, false> item) {}
 
