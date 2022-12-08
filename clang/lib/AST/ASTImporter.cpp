@@ -7693,16 +7693,9 @@ ExpectedStmt ASTNodeImporter::VisitCXXDefaultArgExpr(CXXDefaultArgExpr *E) {
     if (Error Err = ImportDefaultArgOfParmVarDecl(*FromParam, ToParam))
       return std::move(Err);
   }
-  Expr *RewrittenInit = nullptr;
-  if (E->hasRewrittenInit()) {
-    ExpectedExpr ExprOrErr = import(E->getExpr());
-    if (!ExprOrErr)
-      return ExprOrErr.takeError();
-    RewrittenInit = ExprOrErr.get();
-  }
+
   return CXXDefaultArgExpr::Create(Importer.getToContext(), *ToUsedLocOrErr,
-                                   *ToParamOrErr, RewrittenInit,
-                                   *UsedContextOrErr);
+                                   *ToParamOrErr, *UsedContextOrErr);
 }
 
 ExpectedStmt
@@ -8394,16 +8387,8 @@ ExpectedStmt ASTNodeImporter::VisitCXXDefaultInitExpr(CXXDefaultInitExpr *E) {
     ToField->setInClassInitializer(*ToInClassInitializerOrErr);
   }
 
-  Expr *RewrittenInit = nullptr;
-  if (E->hasRewrittenInit()) {
-    ExpectedExpr ExprOrErr = import(E->getExpr());
-    if (!ExprOrErr)
-      return ExprOrErr.takeError();
-    RewrittenInit = ExprOrErr.get();
-  }
-
   return CXXDefaultInitExpr::Create(Importer.getToContext(), *ToBeginLocOrErr,
-                                    ToField, *UsedContextOrErr, RewrittenInit);
+                                    ToField, *UsedContextOrErr);
 }
 
 ExpectedStmt ASTNodeImporter::VisitCXXNamedCastExpr(CXXNamedCastExpr *E) {
