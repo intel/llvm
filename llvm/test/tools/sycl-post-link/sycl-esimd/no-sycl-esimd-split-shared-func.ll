@@ -48,7 +48,7 @@ define linkonce_odr x86_regcallcc <4 x float> @SIMD_CALLEE(<4 x float> %val) #3 
 }
 
 ;---- Function containing the invoke_simd call.
-define dso_local spir_func float @SPMD_CALLER(float %x) #0 !sycl_reqd_sub_group_size !2 {
+define dso_local spir_func float @SPMD_CALLER(float %x) #0 !intel_reqd_sub_group_size !2 {
   %res = call spir_func float @_Z33__regcall3____builtin_invoke_simdXX(<4 x float> (<4 x float> (<4 x float>)*, <4 x float>)* @SIMD_CALL_HELPER, <4 x float> (<4 x float>)* @SIMD_CALLEE, float %x)
   ret float %res
 }
