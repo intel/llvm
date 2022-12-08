@@ -456,6 +456,9 @@ unsigned getPrimitiveSizeInBits(mlir::Type Ty) {
       });
 }
 
+/// We allow calls to functions with no input arguments or those whose first
+/// argument is an Integer, Floating Point or SYCL type (or a pointer/memref to
+/// it).
 bool areSuitableSYCLOpArgTypes(mlir::TypeRange Types) {
   return Types.empty() || ::isSuitableSYCLOpArgTy(Types[0]);
 }
