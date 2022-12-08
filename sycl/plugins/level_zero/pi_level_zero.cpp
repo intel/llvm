@@ -6140,7 +6140,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
         continue;
       // Lock automatically releases when this goes out of scope.
       std::scoped_lock<pi_shared_mutex> lock(Queue->Mutex);
-      if (Queue->Device->useImmediateCommandLists()) {
+      //if (Queue->Device->useImmediateCommandLists()) {
         if (Queue->isInOrderQueue()) {
           // If this is the last command event
           if (EventList[I] == Queue->LastCommandEvent ||
@@ -6198,7 +6198,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
             return PI_SUCCESS;
           }
         }
-      }
+      //}
       if (auto Q = EventList[I]->Queue)
         Queues.insert(Q);
     }
