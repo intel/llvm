@@ -2418,16 +2418,18 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
         // bitcast to i8*
         else {
           RetTy = Int8PtrTyPrivate;
-          ValAsArg = Builder.CreateBitCast(Val, Int8PtrTyPrivate);
+          ValAsArg = Builder.CreateBitCast(Val, RetTy);
         }
         Value *Args[] = {ValAsArg, GS, UndefInt8Ptr, UndefInt32, UndefInt8Ptr};
-        auto *IntrinsicCall = Builder.CreateIntrinsic(IID, RetTy, Args);
+        auto *IntrinsicCall =
+            Builder.CreateIntrinsic(IID, {RetTy, GS->getType()}, Args);
         return mapValue(BV, IntrinsicCall);
       }
     }
 
     Value *Args[] = {ValAsArg, GS, UndefInt8Ptr, UndefInt32};
-    auto *IntrinsicCall = Builder.CreateIntrinsic(IID, RetTy, Args);
+    auto *IntrinsicCall =
+        Builder.CreateIntrinsic(IID, {RetTy, GS->getType()}, Args);
     return mapValue(BV, IntrinsicCall);
   }
 
@@ -3460,8 +3462,8 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
                             ? GEP->getType()
                             : Int8PtrTyPrivate;
 
-          auto AnnotationFn = llvm::Intrinsic::getDeclaration(
-              M, Intrinsic::ptr_annotation, IntTy);
+          auto *AnnotationFn = llvm::Intrinsic::getDeclaration(
+              M, Intrinsic::ptr_annotation, {IntTy, Int8PtrTyPrivate});
 
           llvm::Value *Args[] = {
               Builder.CreateBitCast(GEP, IntTy, GEP->getName()),
@@ -3496,11 +3498,11 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
         Inst = dyn_cast<Instruction>(Inst->getOperand(0));
         isStaticMemoryAttribute = (Inst && isa<AllocaInst>(Inst));
       }
-      auto AnnotationFn =
-          isStaticMemoryAttribute
-              ? llvm::Intrinsic::getDeclaration(M, Intrinsic::var_annotation)
-              : llvm::Intrinsic::getDeclaration(M, Intrinsic::ptr_annotation,
-                                                BaseInst->getType());
+      auto *AnnotationFn = llvm::Intrinsic::getDeclaration(
+          M,
+          isStaticMemoryAttribute ? Intrinsic::var_annotation
+                                  : Intrinsic::ptr_annotation,
+          {BaseInst->getType(), Int8PtrTyPrivate});
 
       llvm::Value *Args[] = {BaseInst,
                              Builder.CreateBitCast(GS, Int8PtrTyPrivate),
