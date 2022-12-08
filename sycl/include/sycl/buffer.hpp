@@ -159,11 +159,11 @@ public:
   // using same requirement for contiguous container as std::span
   template <class Container>
   using EnableIfContiguous =
-      detail::void_t<std::enable_if_t<std::is_convertible<
-                         detail::remove_pointer_t<
-                             decltype(std::declval<Container>().data())> (*)[],
-                         const T (*)[]>::value>,
-                     decltype(std::declval<Container>().size())>;
+      std::void_t<std::enable_if_t<std::is_convertible<
+                      detail::remove_pointer_t<
+                          decltype(std::declval<Container>().data())> (*)[],
+                      const T (*)[]>::value>,
+                  decltype(std::declval<Container>().size())>;
   template <class It>
   using EnableIfItInputIterator = std::enable_if_t<
       std::is_convertible<typename std::iterator_traits<It>::iterator_category,
@@ -344,9 +344,9 @@ public:
               using IteratorValueType =
                   detail::iterator_value_type_t<InputIterator>;
               using IteratorNonConstValueType =
-                  detail::remove_const_t<IteratorValueType>;
+                  std::remove_const_t<IteratorValueType>;
               using IteratorPointerToNonConstValueType =
-                  detail::add_pointer_t<IteratorNonConstValueType>;
+                  std::add_pointer_t<IteratorNonConstValueType>;
               std::copy(first, last,
                         static_cast<IteratorPointerToNonConstValueType>(ToPtr));
             },
@@ -377,9 +377,9 @@ public:
               using IteratorValueType =
                   detail::iterator_value_type_t<InputIterator>;
               using IteratorNonConstValueType =
-                  detail::remove_const_t<IteratorValueType>;
+                  std::remove_const_t<IteratorValueType>;
               using IteratorPointerToNonConstValueType =
-                  detail::add_pointer_t<IteratorNonConstValueType>;
+                  std::add_pointer_t<IteratorNonConstValueType>;
               std::copy(first, last,
                         static_cast<IteratorPointerToNonConstValueType>(ToPtr));
             },

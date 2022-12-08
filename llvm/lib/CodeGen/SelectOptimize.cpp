@@ -243,6 +243,10 @@ bool SelectOptimize::runOnFunction(Function &F) {
     return false;
 
   TTI = &getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);
+
+  if (!TTI->enableSelectOptimize())
+    return false;
+
   DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
   LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
   BPI.reset(new BranchProbabilityInfo(F, *LI));
@@ -978,7 +982,7 @@ Optional<uint64_t> SelectOptimize::computeInstCost(const Instruction *I) {
       TTI->getInstructionCost(I, TargetTransformInfo::TCK_Latency);
   if (auto OC = ICost.getValue())
     return Optional<uint64_t>(*OC);
-  return None;
+  return std::nullopt;
 }
 
 ScaledNumber<uint64_t>

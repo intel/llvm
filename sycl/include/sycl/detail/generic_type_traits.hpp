@@ -228,17 +228,17 @@ template <typename T>
 using is_geninteger64bit = is_gen_based_on_type_sizeof<T, 8, is_geninteger>;
 
 template <typename T>
-using is_genintptr = bool_constant<
+using is_genintptr = std::bool_constant<
     is_pointer<T>::value && is_genint<remove_pointer_t<T>>::value &&
     is_address_space_compliant<T, gvl::nonconst_address_space_list>::value>;
 
 template <typename T>
-using is_genfloatptr = bool_constant<
+using is_genfloatptr = std::bool_constant<
     is_pointer<T>::value && is_genfloat<remove_pointer_t<T>>::value &&
     is_address_space_compliant<T, gvl::nonconst_address_space_list>::value>;
 
 template <typename T>
-using is_genptr = bool_constant<
+using is_genptr = std::bool_constant<
     is_pointer<T>::value && is_gentype<remove_pointer_t<T>>::value &&
     is_address_space_compliant<T, gvl::nonconst_address_space_list>::value>;
 
@@ -424,10 +424,10 @@ using mptr_or_vec_elem_type_t = typename mptr_or_vec_elem_type<T>::type;
 // select_apply_cl_scalar_t selects from T8/T16/T32/T64 basing on
 // sizeof(IN).  expected to handle scalar types.
 template <typename T, typename T8, typename T16, typename T32, typename T64>
-using select_apply_cl_scalar_t =
-    conditional_t<sizeof(T) == 1, T8,
-                  conditional_t<sizeof(T) == 2, T16,
-                                conditional_t<sizeof(T) == 4, T32, T64>>>;
+using select_apply_cl_scalar_t = std::conditional_t<
+    sizeof(T) == 1, T8,
+    std::conditional_t<sizeof(T) == 2, T16,
+                       std::conditional_t<sizeof(T) == 4, T32, T64>>>;
 
 // Shortcuts for selecting scalar int/unsigned int/fp type.
 template <typename T>
@@ -447,21 +447,21 @@ using select_cl_scalar_float_t =
 
 template <typename T>
 using select_cl_scalar_integral_t =
-    conditional_t<std::is_signed<T>::value,
-                  select_cl_scalar_integral_signed_t<T>,
-                  select_cl_scalar_integral_unsigned_t<T>>;
+    std::conditional_t<std::is_signed<T>::value,
+                       select_cl_scalar_integral_signed_t<T>,
+                       select_cl_scalar_integral_unsigned_t<T>>;
 
 // select_cl_scalar_t picks corresponding cl_* type for input
 // scalar T or returns T if T is not scalar.
 template <typename T>
-using select_cl_scalar_t = conditional_t<
+using select_cl_scalar_t = std::conditional_t<
     std::is_integral<T>::value, select_cl_scalar_integral_t<T>,
-    conditional_t<
+    std::conditional_t<
         std::is_floating_point<T>::value, select_cl_scalar_float_t<T>,
         // half is a special case: it is implemented differently on host and
         // device and therefore, might lower to different types
-        conditional_t<std::is_same<T, half>::value,
-                      sycl::detail::half_impl::BIsRepresentationT, T>>>;
+        std::conditional_t<std::is_same<T, half>::value,
+                           sycl::detail::half_impl::BIsRepresentationT, T>>>;
 
 // select_cl_vector_or_scalar_or_ptr does cl_* type selection for element type
 // of a vector type T, pointer type substitution, and scalar type substitution.
@@ -476,9 +476,10 @@ struct select_cl_vector_or_scalar_or_ptr<
       // select_cl_scalar_t returns _Float16, so, we try to instantiate vec
       // class with _Float16 DataType, which is not expected there
       // So, leave vector<half, N> as-is
-      vec<conditional_t<std::is_same<mptr_or_vec_elem_type_t<T>, half>::value,
-                        mptr_or_vec_elem_type_t<T>,
-                        select_cl_scalar_t<mptr_or_vec_elem_type_t<T>>>,
+      vec<std::conditional_t<
+              std::is_same<mptr_or_vec_elem_type_t<T>, half>::value,
+              mptr_or_vec_elem_type_t<T>,
+              select_cl_scalar_t<mptr_or_vec_elem_type_t<T>>>,
           T::size()>;
 };
 
@@ -547,10 +548,10 @@ using SelectMatchingOpenCLType_t =
 // Converts T to OpenCL friendly
 //
 template <typename T>
-using ConvertToOpenCLType_t = conditional_t<
+using ConvertToOpenCLType_t = std::conditional_t<
     TryToGetVectorT<SelectMatchingOpenCLType_t<T>>::value,
     typename TryToGetVectorT<SelectMatchingOpenCLType_t<T>>::type,
-    conditional_t<
+    std::conditional_t<
         TryToGetPointerT<SelectMatchingOpenCLType_t<T>>::value,
         typename TryToGetPointerVecT<SelectMatchingOpenCLType_t<T>>::type,
         SelectMatchingOpenCLType_t<T>>>;
@@ -593,12 +594,12 @@ template <typename T> inline constexpr bool msbIsSet(const T x) {
 // TODO: marray support isn't implemented yet.
 template <typename T>
 using common_rel_ret_t =
-    conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>, bool>;
+    std::conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>, bool>;
 
 // TODO: Remove this when common_rel_ret_t is promoted.
 template <typename T>
 using internal_host_rel_ret_t =
-    conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>, int>;
+    std::conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>, int>;
 #else
 // SYCL 1.2.1 4.13.7 (Relation functions), e.g.
 //
@@ -612,7 +613,7 @@ using internal_host_rel_ret_t =
 // Fixing it would be an ABI-breaking change so isn't done.
 template <typename T>
 using common_rel_ret_t =
-    conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>, int>;
+    std::conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>, int>;
 template <typename T> using internal_host_rel_ret_t = common_rel_ret_t<T>;
 #endif
 

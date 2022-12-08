@@ -44,7 +44,7 @@ struct init_mode_key {
 struct implement_in_csr_key {
   template <bool Enable>
   using value_t =
-      property_value<implement_in_csr_key, sycl::detail::bool_constant<Enable>>;
+      property_value<implement_in_csr_key, std::bool_constant<Enable>>;
 };
 
 #if __cplusplus >= 201703L // inline variables

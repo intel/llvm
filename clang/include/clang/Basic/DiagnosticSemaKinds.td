@@ -7691,9 +7691,6 @@ def warn_deprecated_increment_decrement_volatile : Warning<
 def warn_deprecated_simple_assign_volatile : Warning<
   "use of result of assignment to object of volatile-qualified type %0 "
   "is deprecated">, InGroup<DeprecatedVolatile>;
-def warn_deprecated_compound_assign_volatile : Warning<
-  "compound assignment to object of volatile-qualified type %0 is deprecated">,
-  InGroup<DeprecatedVolatile>;
 def warn_deprecated_volatile_return : Warning<
   "volatile-qualified return type %0 is deprecated">,
   InGroup<DeprecatedVolatile>;
@@ -9178,10 +9175,10 @@ def err_operator_overload_needs_class_or_enum : Error<
   "or enumeration type">;
 
 def err_operator_overload_variadic : Error<"overloaded %0 cannot be variadic">;
+def warn_cxx20_compat_operator_overload_static : Warning<
+  "declaring overloaded %0 as 'static' is incompatible with C++ standards "
+  "before C++2b">, InGroup<CXXPre2bCompat>, DefaultIgnore;
 def ext_operator_overload_static : ExtWarn<
-  "declaring overloaded %0 as 'static' is a C++2b extension">,
-  InGroup<CXXPre2bCompat>, DefaultIgnore;
-def err_call_operator_overload_static : ExtWarn<
   "declaring overloaded %0 as 'static' is a C++2b extension">, InGroup<CXX2b>;
 def err_operator_overload_static : Error<
   "overloaded %0 cannot be a static member function">;

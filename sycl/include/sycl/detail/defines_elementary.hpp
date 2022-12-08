@@ -8,8 +8,6 @@
 
 #pragma once
 
-#define __SYCL_INLINE_NAMESPACE(X) inline namespace X
-
 #define __SYCL_INLINE_VER_NAMESPACE(X) inline namespace X
 
 #ifndef __has_attribute
@@ -55,15 +53,6 @@
 #endif
 #endif // __SYCL2020_DEPRECATED
 
-#ifndef __SYCL_INLINE_CONSTEXPR
-// inline constexpr is a C++17 feature
-#if __cplusplus >= 201703L
-#define __SYCL_INLINE_CONSTEXPR inline constexpr
-#else
-#define __SYCL_INLINE_CONSTEXPR static constexpr
-#endif
-#endif // __SYCL_INLINE_CONSTEXPR
-
 #ifndef __SYCL_HAS_CPP_ATTRIBUTE
 #if defined(__cplusplus) && defined(__has_cpp_attribute)
 #define __SYCL_HAS_CPP_ATTRIBUTE(x) __has_cpp_attribute(x)
@@ -71,21 +60,6 @@
 #define __SYCL_HAS_CPP_ATTRIBUTE(x) 0
 #endif
 #endif
-
-#ifndef __SYCL_FALLTHROUGH
-#if defined(__cplusplus) && __cplusplus >= 201703L &&                          \
-    __SYCL_HAS_CPP_ATTRIBUTE(fallthrough)
-#define __SYCL_FALLTHROUGH [[fallthrough]]
-#elif __SYCL_HAS_CPP_ATTRIBUTE(gnu::fallthrough)
-#define __SYCL_FALLTHROUGH [[gnu::fallthrough]]
-#elif __has_attribute(fallthrough)
-#define __SYCL_FALLTHROUGH __attribute__((fallthrough))
-#elif __SYCL_HAS_CPP_ATTRIBUTE(clang::fallthrough)
-#define __SYCL_FALLTHROUGH [[clang::fallthrough]]
-#else
-#define __SYCL_FALLTHROUGH
-#endif
-#endif // __SYCL_FALLTHROUGH
 
 // Stringify an argument to pass it in _Pragma directive below.
 #ifndef __SYCL_STRINGIFY

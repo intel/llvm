@@ -373,11 +373,11 @@ bool GlobalValue::isAbsoluteSymbolRef() const {
 Optional<ConstantRange> GlobalValue::getAbsoluteSymbolRange() const {
   auto *GO = dyn_cast<GlobalObject>(this);
   if (!GO)
-    return None;
+    return std::nullopt;
 
   MDNode *MD = GO->getMetadata(LLVMContext::MD_absolute_symbol);
   if (!MD)
-    return None;
+    return std::nullopt;
 
   return getConstantRangeFromMetadata(*MD);
 }
@@ -584,9 +584,7 @@ void GlobalIFunc::eraseFromParent() {
 }
 
 const Function *GlobalIFunc::getResolverFunction() const {
-  DenseSet<const GlobalAlias *> Aliases;
-  return dyn_cast<Function>(
-      findBaseObject(getResolver(), Aliases, [](const GlobalValue &) {}));
+  return dyn_cast<Function>(getResolver()->stripPointerCastsAndAliases());
 }
 
 void GlobalIFunc::applyAlongResolverPath(
