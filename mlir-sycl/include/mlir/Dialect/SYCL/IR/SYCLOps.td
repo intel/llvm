@@ -168,15 +168,15 @@ def SYCL_AccessorSubscriptType :
   let assemblyFormat = "`<` `[` $currentDimension `]` `,` `(` $body `)` `>`";
 }
 
-def SYCL_AssertHappenedType : SYCL_Type<"AssertHappened", "assert_happened"> {
-  let parameters = (ins ArrayRefParameter<"mlir::Type">:$body);
-  let assemblyFormat = "`<` `(` $body `)` `>`";
-}
-
 def SYCL_ArrayType : SYCL_Type<"Array", "array"> {
   let parameters = (ins "unsigned":$dimension,
                         ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_AssertHappenedType : SYCL_Type<"AssertHappened", "assert_happened"> {
+  let parameters = (ins ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `(` $body `)` `>`";
 }
 
 def SYCL_AtomicType : SYCL_Type<"Atomic", "atomic"> {
@@ -191,15 +191,15 @@ def SYCL_BFloat16Type : SYCL_Type<"BFloat16", "bfloat16"> {
   let assemblyFormat = "`<` `(` $body `)` `>`";
 }
 
+def SYCL_GetOpType : SYCL_Type<"GetOp", "get_op"> {
+  let parameters = (ins "::mlir::Type":$dataType);
+  let assemblyFormat = "`<` $dataType `>`";
+}
+
 def SYCL_GetScalarOpType : SYCL_Type<"GetScalarOp", "get_scalar_op"> {
   let parameters = (ins "::mlir::Type":$dataType,
                         ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `[` $dataType `]` `,` `(` $body `)` `>`";
-}
-
-def SYCL_GetOpType : SYCL_Type<"GetOp", "get_op"> {
-  let parameters = (ins "::mlir::Type":$dataType);
-  let assemblyFormat = "`<` $dataType `>`";
 }
 
 def SYCL_GroupType : SYCL_Type<"Group", "group"> {
@@ -238,6 +238,36 @@ def SYCL_ItemType : SYCL_Type<"Item", "item"> {
 def SYCL_KernelHandlerType : SYCL_Type<"KernelHandler", "kernel_handler"> {
   let parameters = (ins ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `(` $body `)` `>`";
+}
+
+def SYCL_LocalAccessorBaseDeviceType
+    : SYCL_Type<"LocalAccessorBaseDevice", "LocalAccessorBaseDevice"> {
+  let parameters = (ins "unsigned":$dimension,
+                        ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";                        
+}
+
+def SYCL_LocalAccessorBaseType
+    : SYCL_Type<"LocalAccessorBase", "local_accessor_base",
+        [SYCLInheritanceTypeTrait<"AccessorCommonType">]> {
+  let parameters = (ins "::mlir::Type":$type,
+                        "unsigned":$dimension,
+                        "mlir::sycl::MemoryAccessMode":$accessMode,
+                        ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat =
+      "`<` `[` $dimension `,` $type `,` ` ` custom<MemoryAccessMode>($accessMode) `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_LocalAccessorType
+    : SYCL_Type<"LocalAccessor", "local_accessor",
+        [SYCLInheritanceTypeTrait<"LocalAccessorBaseType">]> {
+  let summary = "Local Accessor";
+  let description = [{ Accessor to a local buffer.}];
+  let parameters = (ins "::mlir::Type":$type,
+                        "unsigned":$dimension,
+                        ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat =
+      "`<` `[` $dimension `,` $type `]` `,` `(` $body `)` `>`";
 }
 
 def SYCL_MaximumType : SYCL_Type<"Maximum", "maximum"> {
@@ -328,6 +358,9 @@ def GroupMemRef : MemRefOf<[SYCL_GroupType]>;
 def IDMemRef : MemRefOf<[SYCL_IDType]>;
 def ItemBaseMemRef : MemRefOf<[SYCL_ItemBaseType]>;
 def ItemMemRef : MemRefOf<[SYCL_ItemType]>;
+def LocalAccessorBaseDeviceMemRef : MemRefOf<[SYCL_LocalAccessorBaseDeviceType]>;
+def LocalAccessorBaseMemRef : MemRefOf<[SYCL_LocalAccessorBaseType]>;
+def LocalAccessorMemRef : MemRefOf<[SYCL_LocalAccessorType]>;
 def MultiPtrMemRef : MemRefOf<[SYCL_MultiPtrType]>;
 def NDItemMemRef : MemRefOf<[SYCL_NdItemType]>;
 def NDRangeMemRef : MemRefOf<[SYCL_NdRangeType]>;
@@ -350,6 +383,9 @@ def SYCLMemref : AnyTypeOf<[
   IDMemRef,
   ItemBaseMemRef,
   ItemMemRef,
+  LocalAccessorBaseDeviceMemRef,
+  LocalAccessorBaseMemRef,
+  LocalAccessorMemRef,
   MultiPtrMemRef,
   NDItemMemRef,
   NDRangeMemRef,

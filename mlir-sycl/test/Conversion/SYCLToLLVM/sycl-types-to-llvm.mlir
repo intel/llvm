@@ -44,6 +44,9 @@ func.func @test_range.2(%arg0: !sycl_range_2_) {
 !sycl_accessor_2_i32_rw_gb = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(ptr<i32, 1>)>)>
 !sycl_accessor_1_f32_rw_gb = !sycl.accessor<[1, f32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<f32, 1>)>)>
 !sycl_accessor_2_f32_rw_gb = !sycl.accessor<[2, f32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(ptr<f32, 1>)>)>
+!sycl_LocalAccessorBaseDevice_1_ = !sycl.LocalAccessorBaseDevice<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+!sycl_local_accessor_base_1_i32_rw = !sycl.local_accessor_base<[1, i32, read_write], (!sycl_LocalAccessorBaseDevice_1_, memref<?xi32, 3>)>
+!sycl_accessor_1_i32_rw_1 = !sycl.accessor<[1, i32, read_write, local], (!sycl_local_accessor_base_1_i32_rw)>
 !sycl_accessor_subscript_1_ = !sycl.accessor_subscript<[1], (!sycl_id_2_, !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(ptr<i32, 1>)>)>)>
 // CHECK: llvm.func @test_accessor_common(%arg0: !llvm.struct<"class.sycl::_V1::detail::accessor_common", (i8)>)
 func.func @test_accessor_common(%arg0: !sycl.accessor_common) {
@@ -69,11 +72,14 @@ func.func @test_accessor.3(%arg0: !sycl_accessor_1_f32_rw_gb) {
 func.func @test_accessor.4(%arg0: !sycl_accessor_2_f32_rw_gb) {
   return
 }
+// CHECK: llvm.func @test_accessor.5(%arg0: !llvm.struct<"class.sycl::_V1::accessor{{.*}}", (struct<"class.sycl::_V1::local_accessor_base{{.*}}", ([[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]], struct<(ptr<i32, 3>
+func.func @test_accessor.5(%arg0: !sycl_accessor_1_i32_rw_1) {
+  return
+}
 // CHECK: llvm.func @test_accessorSubscript(%arg0: !llvm.struct<"class.sycl::_V1::detail::accessor_common.AccessorSubscript{{.*}}", ([[ID_2]][[ARRAY_2]][[SUFFIX]], [[ACCESSOR_2]][[ACCESSORIMPLDEVICE_2]][[ID_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]], [[RANGE_2]][[ARRAY_2]][[SUFFIX]][[SUFFIX]], struct<(ptr<i32, 1>)>[[SUFFIX]]) 
 func.func @test_accessorSubscript(%arg0: !sycl_accessor_subscript_1_) {
   return
 }
-
 // CHECK: llvm.func @test_OwnerLessBase(%arg0: !llvm.struct<"class.sycl::_V1::detail::OwnerLessBase", (i8)>)
 func.func @test_OwnerLessBase(%arg0: !sycl.owner_less_base) {
   return
@@ -209,6 +215,27 @@ func.func @test_nd_range.2(%arg0: !sycl_nd_range_2_) {
 
 // CHECK: llvm.func @test_sub_group(%arg0: !llvm.[[SUB_GROUP:struct<"struct.sycl::_V1::ext::oneapi::sub_group", \(i8\)>]]) {
 func.func @test_sub_group(%arg0: !sycl.sub_group) {
+  return
+}
+
+// -----
+
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_LocalAccessorBaseDevice_1_ = !sycl.LocalAccessorBaseDevice<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+!sycl_local_accessor_base_1_i32_rw = !sycl.local_accessor_base<[1, i32, read_write], (!sycl_LocalAccessorBaseDevice_1_, memref<?xi32, 3>)>
+!sycl_local_accessor_1_i32_ = !sycl.local_accessor<[1, i32], (!sycl_local_accessor_base_1_i32_rw)>
+
+// CHECK: llvm.func @test_local_accessor_base_device(%arg0: !llvm.[[LOCAL_ACCESSOR_BASE_DEVICE:struct<"class.sycl::_V1::detail::LocalAccessorBaseDevice.*", \(]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]])
+func.func @test_local_accessor_base_device(%arg0: !sycl_LocalAccessorBaseDevice_1_) {
+  return
+}
+// CHECK: llvm.func @test_local_accessor_base(%arg0: !llvm.[[LOCAL_ACCESSOR_BASE:struct<"class.sycl::_V1::local_accessor_base.*", \(]][[LOCAL_ACCESSOR_BASE_DEVICE]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]])
+func.func @test_local_accessor_base(%arg0: !sycl_local_accessor_base_1_i32_rw) {
+  return
+}
+// CHECK: llvm.func @test_local_accessor(%arg0: !llvm.[[LOCAL_ACCESSOR:struct<"class.sycl::_V1::local_accessor.*", \(]][[LOCAL_ACCESSOR_BASE]][[LOCAL_ACCESSOR_BASE_DEVICE]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]], struct<(ptr<i32, 3>
+func.func @test_local_accessor(%arg0: !sycl_local_accessor_1_i32_) {
   return
 }
 

@@ -191,6 +191,34 @@ static Optional<Type> convertItemBaseType(sycl::ItemBaseType type,
                          type.getBody(), converter);
 }
 
+/// Converts SYCL local accessor base device type to LLVM type.
+static Optional<Type>
+convertLocalAccessorBaseDeviceType(sycl::LocalAccessorBaseDeviceType type,
+                                   LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::detail::LocalAccessorBaseDevice." +
+                             std::to_string(type.getDimension()),
+                         type.getBody(), converter);
+}
+
+/// Converts SYCL local accessor base type to LLVM type.
+static Optional<Type>
+convertLocalAccessorBaseType(sycl::LocalAccessorBaseType type,
+                             LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::local_accessor_base." +
+                             std::to_string(type.getDimension()),
+                         type.getBody(), converter);
+}
+
+/// Converts SYCL local accessor type to LLVM type.
+static Optional<Type> convertLocalAccessorType(sycl::LocalAccessorType type,
+                                               LLVMTypeConverter &converter) {
+  // FIXME: Make sure that we have llvm.ptr as the body, not memref, through
+  // the conversion done in ConvertTOLLVMABI pass
+  return convertBodyType("class.sycl::_V1::local_accessor." +
+                             std::to_string(type.getDimension()),
+                         type.getBody(), converter);
+}
+
 /// Converts SYCL maximum type to LLVM type.
 static Optional<Type> convertMaximumType(sycl::MaximumType type,
                                          LLVMTypeConverter &converter) {
@@ -473,29 +501,39 @@ private:
 
 void mlir::sycl::populateSYCLToLLVMTypeConversion(
     LLVMTypeConverter &typeConverter) {
+  // Same order as in SYCLOps.td
   typeConverter.addConversion([&](sycl::AccessorCommonType type) {
     return convertAccessorCommonType(type, typeConverter);
   });
   typeConverter.addConversion([&](sycl::AccessorImplDeviceType type) {
     return convertAccessorImplDeviceType(type, typeConverter);
   });
-  typeConverter.addConversion([&](sycl::AccessorSubscriptType type) {
-    return convertAccessorSubscriptType(type, typeConverter);
-  });
   typeConverter.addConversion([&](sycl::AccessorType type) {
     return convertAccessorType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::AccessorSubscriptType type) {
+    return convertAccessorSubscriptType(type, typeConverter);
   });
   typeConverter.addConversion([&](sycl::ArrayType type) {
     return convertArrayType(type, typeConverter);
   });
-  typeConverter.addConversion([&](sycl::GroupType type) {
-    return convertGroupType(type, typeConverter);
+  typeConverter.addConversion([&](sycl::AssertHappenedType type) {
+    return convertAssertHappenedType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::AtomicType type) {
+    return convertAtomicType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::BFloat16Type type) {
+    return convertBFloat16Type(type, typeConverter);
   });
   typeConverter.addConversion([&](sycl::GetOpType type) {
     return convertGetOpType(type, typeConverter);
   });
   typeConverter.addConversion([&](sycl::GetScalarOpType type) {
     return convertGetScalarOpType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::GroupType type) {
+    return convertGroupType(type, typeConverter);
   });
   typeConverter.addConversion([&](sycl::HItemType type) {
     return convertHItemType(type, typeConverter);
@@ -507,6 +545,18 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   });
   typeConverter.addConversion([&](sycl::ItemType type) {
     return convertItemType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::KernelHandlerType type) {
+    return convertKernelHandlerType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::LocalAccessorBaseDeviceType type) {
+    return convertLocalAccessorBaseDeviceType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::LocalAccessorBaseType type) {
+    return convertLocalAccessorBaseType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::LocalAccessorType type) {
+    return convertLocalAccessorType(type, typeConverter);
   });
   typeConverter.addConversion([&](sycl::MaximumType type) {
     return convertMaximumType(type, typeConverter);
@@ -523,39 +573,27 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   typeConverter.addConversion([&](sycl::OwnerLessBaseType type) {
     return convertOwnerLessBaseType(type, typeConverter);
   });
-  typeConverter.addConversion([&](sycl::RangeType type) {
-    return convertRangeType(type, typeConverter);
-  });
   typeConverter.addConversion([&](sycl::NdRangeType type) {
     return convertNdRangeType(type, typeConverter);
   });
-  typeConverter.addConversion([&](sycl::TupleValueHolderType type) {
-    return convertTupleValueHolderType(type, typeConverter);
+  typeConverter.addConversion([&](sycl::RangeType type) {
+    return convertRangeType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::SubGroupType type) {
+    return convertSubGroupType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::SwizzledVecType type) {
+    return convertSwizzledVecType(type, typeConverter);
   });
   typeConverter.addConversion(
       [&](sycl::TupleCopyAssignableValueHolderType type) {
         return convertTupleCopyAssignableValueHolderType(type, typeConverter);
       });
+  typeConverter.addConversion([&](sycl::TupleValueHolderType type) {
+    return convertTupleValueHolderType(type, typeConverter);
+  });
   typeConverter.addConversion(
       [&](sycl::VecType type) { return convertVecType(type, typeConverter); });
-  typeConverter.addConversion([&](sycl::SwizzledVecType type) {
-    return convertSwizzledVecType(type, typeConverter);
-  });
-  typeConverter.addConversion([&](sycl::AtomicType type) {
-    return convertAtomicType(type, typeConverter);
-  });
-  typeConverter.addConversion([&](sycl::AssertHappenedType type) {
-    return convertAssertHappenedType(type, typeConverter);
-  });
-  typeConverter.addConversion([&](sycl::BFloat16Type type) {
-    return convertBFloat16Type(type, typeConverter);
-  });
-  typeConverter.addConversion([&](sycl::KernelHandlerType type) {
-    return convertKernelHandlerType(type, typeConverter);
-  });
-  typeConverter.addConversion([&](sycl::SubGroupType type) {
-    return convertSubGroupType(type, typeConverter);
-  });
 }
 
 void mlir::sycl::populateSYCLToLLVMConversionPatterns(

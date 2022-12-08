@@ -1,4 +1,4 @@
-//===- type utils.cc ---------------------------------------------*- C++-*-===//
+//===- TypeUtils.cc ----------------------------------------------*- C++-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -103,7 +103,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
                        mlirclang::CodeGen::CodeGenTypes &CGT) {
 
   enum TypeEnum {
-    // Keep in alphabetical order.
+    // Same order as in SYCLOps.td
     AccessorCommon,
     AccessorImplDevice,
     Accessor,
@@ -120,6 +120,9 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     ItemBase,
     Item,
     KernelHandler,
+    LocalAccessorBaseDevice,
+    LocalAccessorBase,
+    LocalAccessor,
     Maximum,
     Minimum,
     MultiPtr,
@@ -135,7 +138,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
   };
 
   std::map<std::string, TypeEnum> StrToTypeEnum = {
-      // Keep in alphabetical order.
+      // Same order as in SYCLOps.td
       {"accessor_common", TypeEnum::AccessorCommon},
       {"AccessorImplDevice", TypeEnum::AccessorImplDevice},
       {"accessor", TypeEnum::Accessor},
@@ -152,6 +155,9 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       {"ItemBase", TypeEnum::ItemBase},
       {"item", TypeEnum::Item},
       {"kernel_handler", TypeEnum::KernelHandler},
+      {"LocalAccessorBaseDevice", TypeEnum::LocalAccessorBaseDevice},
+      {"local_accessor_base", TypeEnum::LocalAccessorBase},
+      {"local_accessor", TypeEnum::LocalAccessor},
       {"maximum", TypeEnum::Maximum},
       {"minimum", TypeEnum::Minimum},
       {"multi_ptr", MultiPtr},
@@ -194,6 +200,15 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
           CTS->getTemplateArgs().get(2).getAsIntegral().getExtValue());
       const auto MemTargetMode = static_cast<mlir::sycl::MemoryTargetMode>(
           CTS->getTemplateArgs().get(3).getAsIntegral().getExtValue());
+
+      // The SYCL RT specialize the accessor class for local memory accesses.
+      // That specialization is derived from a non-empty base class, so push it.
+      // TODO: we should push the non-empty base classes in a more general way.
+      if (MemTargetMode == mlir::sycl::MemoryTargetMode::Local) {
+        assert(Body.empty());
+        Body.push_back(CGT.getMLIRType(CTS->bases_begin()->getType()));
+      }
+
       return mlir::sycl::AccessorType::get(CGT.getModule()->getContext(), Type,
                                            Dim, MemAccessMode, MemTargetMode,
                                            Body);
@@ -219,16 +234,16 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
           CGT.getModule()->getContext(), Type,
           static_cast<mlir::sycl::AccessAddrSpace>(AddrSpace), Body);
     }
+    case TypeEnum::GetOp: {
+      const auto Type =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+      return mlir::sycl::GetOpType::get(CGT.getModule()->getContext(), Type);
+    }
     case TypeEnum::GetScalarOp: {
       const auto Type =
           CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
       return mlir::sycl::GetScalarOpType::get(CGT.getModule()->getContext(),
                                               Type, Body);
-    }
-    case TypeEnum::GetOp: {
-      const auto Type =
-          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
-      return mlir::sycl::GetOpType::get(CGT.getModule()->getContext(), Type);
     }
     case TypeEnum::Group: {
       const auto Dim =
@@ -263,6 +278,31 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
           CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
       return mlir::sycl::ItemType::get(CGT.getModule()->getContext(), Dim,
                                        Offset, Body);
+    }
+    case TypeEnum::LocalAccessorBaseDevice: {
+      const auto Dim =
+          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
+      return mlir::sycl::LocalAccessorBaseDeviceType::get(
+          CGT.getModule()->getContext(), Dim, Body);
+    }
+    case TypeEnum::LocalAccessorBase: {
+      const auto Type =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+      const auto Dim =
+          CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
+      const auto MemAccessMode = static_cast<mlir::sycl::MemoryAccessMode>(
+          CTS->getTemplateArgs().get(2).getAsIntegral().getExtValue());
+      return mlir::sycl::LocalAccessorBaseType::get(
+          CGT.getModule()->getContext(), Type, Dim, MemAccessMode, Body);
+    }
+    case TypeEnum::LocalAccessor: {
+      const auto Type =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+      const auto Dim =
+          CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
+      Body.push_back(CGT.getMLIRType(CTS->bases_begin()->getType()));
+      return mlir::sycl::LocalAccessorType::get(CGT.getModule()->getContext(),
+                                                Type, Dim, Body);
     }
     case TypeEnum::Maximum: {
       const auto Type =
