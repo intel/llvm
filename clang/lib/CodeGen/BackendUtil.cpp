@@ -889,7 +889,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
   if (LangOpts.SYCLIsDevice && !CodeGenOpts.DisableSYCLEarlyOpts)
     MPM.addPass(SYCLPropagateAspectsUsagePass());
-  
+
   if (!CodeGenOpts.DisableLLVMPasses) {
 
     // Map our optimization levels into one of the distinct levels used to
@@ -904,7 +904,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           });
 
     // Add the InferAddressSpaces pass for all the SPIR[V] targets
-    if ((TargetTriple.isSPIR() || TargetTriple.isSPIRV()) && !CodeGenOpts.DisableSYCLEarlyOpts) {
+    if ((TargetTriple.isSPIR() || TargetTriple.isSPIRV()) &&
+        !CodeGenOpts.DisableSYCLEarlyOpts) {
       PB.registerOptimizerLastEPCallback(
           [](ModulePassManager &MPM, OptimizationLevel Level) {
             MPM.addPass(createModuleToFunctionPassAdaptor(
@@ -944,8 +945,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       PB.registerPipelineStartEPCallback(
           [](ModulePassManager &MPM, OptimizationLevel Level) {
             MPM.addPass(LowerTypeTestsPass(/*ExportSummary=*/nullptr,
-                                          /*ImportSummary=*/nullptr,
-                                          /*DropTypeTests=*/true));
+                                           /*ImportSummary=*/nullptr,
+                                           /*DropTypeTests=*/true));
           });
 
     if (CodeGenOpts.InstrumentFunctions ||
@@ -1011,11 +1012,12 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       if (LangOpts.EnableDAEInSpirKernels)
         MPM.addPass(DeadArgumentEliminationSYCLPass());
     }
-    
+
     // Add SPIRITTAnnotations pass to the pass manager if
     // -fsycl-instrument-device-code option was passed. This option can be used
     // only with spir triple.
-    if (LangOpts.SYCLIsDevice && CodeGenOpts.SPIRITTAnnotations && !CodeGenOpts.DisableSYCLEarlyOpts) {
+    if (LangOpts.SYCLIsDevice && CodeGenOpts.SPIRITTAnnotations &&
+        !CodeGenOpts.DisableSYCLEarlyOpts) {
       assert(TargetTriple.isSPIR() &&
               "ITT annotations can only be added to a module with spir target");
       MPM.addPass(SPIRITTAnnotationsPass());
