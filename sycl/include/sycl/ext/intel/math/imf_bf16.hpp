@@ -32,7 +32,7 @@ namespace math {
 #if __cplusplus >= 201703L
 static_assert(sizeof(sycl::ext::oneapi::bfloat16) == sizeof(uint16_t),
               "sycl bfloat16 is not compatible with uint16_t.");
-
+// Bfloat16 type cast utils
 float bfloat162float(sycl::ext::oneapi::bfloat16 b) {
   return __imf_bfloat162float(__builtin_bit_cast(uint16_t, b));
 }
@@ -62,12 +62,17 @@ sycl::ext::oneapi::bfloat16 float2bfloat16_rz(float f) {
                             __imf_float2bfloat16_rz(f));
 }
 
+// Bfloat16 comparison utils
 bool hisnan(sycl::ext::oneapi::bfloat16 b) {
-  return sycl::isnan(bfloat162float(b));
+  uint16_t bf16_bits = __builtin_bit_cast(uint16_t, b);
+  return (((bf16_bits & 0x7F80) == 0x7F80) && (bf16_bits & 0x7F)) ? true
+                                                                  : false;
 }
 
 bool hisinf(sycl::ext::oneapi::bfloat16 b) {
-  return sycl::isinf(bfloat162float(b));
+  uint16_t bf16_bits = __builtin_bit_cast(uint16_t, b);
+  return (((bf16_bits & 0x7F80) == 0x7F80) && !(bf16_bits & 0x7F)) ? true
+                                                                   : false;
 }
 
 bool heq(sycl::ext::oneapi::bfloat16 b1, sycl::ext::oneapi::bfloat16 b2) {
@@ -224,6 +229,90 @@ sycl::ext::oneapi::bfloat16 hmin_nan(sycl::ext::oneapi::bfloat16 b1,
     return (hlt(b1, b2) ? b1 : b2);
 }
 
+// Bfloat16 Arithmetic utils
+sycl::ext::oneapi::bfloat16 hneg(sycl::ext::oneapi::bfloat16 b) {
+  uint16_t bf16_bits = __builtin_bit_cast(uint16_t, b);
+  return hisnan(b) ? b
+                   : (__builtin_bit_cast(sycl::ext::oneapi::bfloat16,
+                                         (bf16_bits ^ 0x8000)));
+}
+
+sycl::ext::oneapi::bfloat16 habs(sycl::ext::oneapi::bfloat16 b) {
+  uint16_t bf16_bits = __builtin_bit_cast(uint16_t, b);
+  return (hisnan(b) || !(bf_bits & 0x8000)) ? b : hneg(b);
+}
+
+sycl::ext::oneapi::bfloat16 hadd(sycl::ext::oneapi::bfloat16 b1,
+                                 sycl::ext::oneapi::bfloat16 b2) {
+  return b1 + b2;
+}
+
+sycl::ext::oneapi::bfloat16 hadd_sat(sycl::ext::oneapi::bfloat16 b1,
+                                     sycl::ext::oneapi::bfloat16 b2) {
+  float f1 = bfloat162float(b1);
+  float f2 = bfloat162float(b2);
+  return float2bfloat16(sycl::clamp((f1 + f2), 0.f, 1.0f));
+}
+
+sycl::ext::oneapi::bfloat16 hsub(sycl::ext::oneapi::bfloat16 b1,
+                                 sycl::ext::oneapi::bfloat16 b2) {
+  return b1 - b2;
+}
+
+sycl::ext::oneapi::bfloat16 hsub_sat(sycl::ext::oneapi::bfloat16 b1,
+                                     sycl::ext::oneapi::bfloat16 b2) {
+  float f1 = bfloat162float(b1);
+  float f2 = bfloat162float(b2);
+  return float2bfloat16(sycl::clamp((f1 - f2), 0.f, 1.0f));
+}
+
+sycl::ext::oneapi::bfloat16 hmul(sycl::ext::oneapi::bfloat16 b1,
+                                 sycl::ext::oneapi::bfloat16 b2) {
+  return b1 * b2;
+}
+
+sycl::ext::oneapi::bfloat16 hadd_sat(sycl::ext::oneapi::bfloat16 b1,
+                                     sycl::ext::oneapi::bfloat16 b2) {
+  float f1 = bfloat162float(b1);
+  float f2 = bfloat162float(b2);
+  return float2bfloat16(sycl::clamp((f1 * f2), 0.f, 1.0f));
+}
+
+sycl::ext::oneapi::bfloat16 hdiv(sycl::ext::oneapi::bfloat16 b1,
+                                 sycl::ext::oneapi::bfloat16 b2) {
+  return b1 / b2;
+}
+
+sycl::ext::oneapi::bfloat16 hfma(sycl::ext::oneapi::bfloat16 b1,
+                                 sycl::ext::oneapi::bfloat16 b2,
+                                 sycl::ext::oneapi::bfloat16 b3) {
+  float f1 = bfloat162float(b1);
+  float f2 = bfloat162float(b2);
+  float f3 = bfloat162float(b3);
+  return float2bfloat16(sycl::fma(f1, f2, f3));
+}
+
+sycl::ext::oneapi::bfloat16 hfma_sat(sycl::ext::oneapi::bfloat16 b1,
+                                     sycl::ext::oneapi::bfloat16 b2,
+                                     sycl::ext::oneapi::bfloat16 b3) {
+  float f1 = bfloat162float(b1);
+  float f2 = bfloat162float(b2);
+  float f3 = bfloat162float(b3);
+  return float2bfloat16(sycl::clamp(sycl::fma(f1, f2, f3), 0.f, 1.0f));
+}
+
+sycl::ext::oneapi::bfloat16 hfma_relu(sycl::ext::oneapi::bfloat16 b1,
+                                      sycl::ext::oneapi::bfloat16 b2,
+                                      sycl::ext::oneapi::bfloat16 b3) {
+  float f1 = bfloat162float(b1);
+  float f2 = bfloat162float(b2);
+  float f3 = bfloat162float(b3);
+  float f4 = sycl::fma(f1, f2, f3);
+  if (sycl::isnan(f4))
+    return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
+                              static_cast<uint16_t>(0x7FC0));
+  return (f4 < 0.f) ? float2bfloat16(0.f) : float2bfloat16(f4);
+}
 #endif
 } // namespace math
 } // namespace intel
