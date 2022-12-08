@@ -149,7 +149,7 @@ def SYCL_AccessorImplDeviceType :
 def SYCL_AccessorType
     : SYCL_Type<"Accessor", "accessor",
         [SYCLInheritanceTypeTrait<"AccessorCommonType">,
-        SYCLInheritanceTypeTrait<"LocalAccessorBaseType">,
+         SYCLInheritanceTypeTrait<"LocalAccessorBaseType">,
          SYCLInheritanceTypeTrait<"OwnerLessBaseType">]> {
   let summary = "Buffer Accessor";
   let description = [{ Accessor to a buffer object.}];
