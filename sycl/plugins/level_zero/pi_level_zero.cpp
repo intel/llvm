@@ -6647,7 +6647,8 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
     }
   }
 
-  resetCommandLists(Queue);
+  if (!Queue->Device->useImmediateCommandLists())
+    resetCommandLists(Queue);
 
   return PI_SUCCESS;
 }
