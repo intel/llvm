@@ -80,17 +80,17 @@ namespace detail {
 template <typename T, class BinaryOperation>
 using IsReduOptForFastAtomicFetch =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
-    bool_constant<false>;
+    std::bool_constant<false>;
 #else
-    bool_constant<((is_sgenfloat<T>::value && sizeof(T) == 4) ||
-                   is_sgeninteger<T>::value) &&
-                  IsValidAtomicType<T>::value &&
-                  (IsPlus<T, BinaryOperation>::value ||
-                   IsMinimum<T, BinaryOperation>::value ||
-                   IsMaximum<T, BinaryOperation>::value ||
-                   IsBitOR<T, BinaryOperation>::value ||
-                   IsBitXOR<T, BinaryOperation>::value ||
-                   IsBitAND<T, BinaryOperation>::value)>;
+    std::bool_constant<((is_sgenfloat<T>::value && sizeof(T) == 4) ||
+                        is_sgeninteger<T>::value) &&
+                       IsValidAtomicType<T>::value &&
+                       (IsPlus<T, BinaryOperation>::value ||
+                        IsMinimum<T, BinaryOperation>::value ||
+                        IsMaximum<T, BinaryOperation>::value ||
+                        IsBitOR<T, BinaryOperation>::value ||
+                        IsBitXOR<T, BinaryOperation>::value ||
+                        IsBitAND<T, BinaryOperation>::value)>;
 #endif
 
 // This type trait is used to detect if the atomic operation BinaryOperation
@@ -104,12 +104,12 @@ using IsReduOptForFastAtomicFetch =
 template <typename T, class BinaryOperation>
 using IsReduOptForAtomic64Op =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
-    bool_constant<false>;
+    std::bool_constant<false>;
 #else
-    bool_constant<(IsPlus<T, BinaryOperation>::value ||
-                   IsMinimum<T, BinaryOperation>::value ||
-                   IsMaximum<T, BinaryOperation>::value) &&
-                  is_sgenfloat<T>::value && sizeof(T) == 8>;
+    std::bool_constant<(IsPlus<T, BinaryOperation>::value ||
+                        IsMinimum<T, BinaryOperation>::value ||
+                        IsMaximum<T, BinaryOperation>::value) &&
+                       is_sgenfloat<T>::value && sizeof(T) == 8>;
 #endif
 
 // This type trait is used to detect if the group algorithm reduce() used with
@@ -120,14 +120,14 @@ using IsReduOptForAtomic64Op =
 template <typename T, class BinaryOperation>
 using IsReduOptForFastReduce =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
-    bool_constant<false>;
+    std::bool_constant<false>;
 #else
-    bool_constant<((is_sgeninteger<T>::value &&
-                    (sizeof(T) == 4 || sizeof(T) == 8)) ||
-                   is_sgenfloat<T>::value) &&
-                  (IsPlus<T, BinaryOperation>::value ||
-                   IsMinimum<T, BinaryOperation>::value ||
-                   IsMaximum<T, BinaryOperation>::value)>;
+    std::bool_constant<((is_sgeninteger<T>::value &&
+                         (sizeof(T) == 4 || sizeof(T) == 8)) ||
+                        is_sgenfloat<T>::value) &&
+                       (IsPlus<T, BinaryOperation>::value ||
+                        IsMinimum<T, BinaryOperation>::value ||
+                        IsMaximum<T, BinaryOperation>::value)>;
 #endif
 
 // std::tuple seems to be a) too heavy and b) not copyable to device now

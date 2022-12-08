@@ -1,4 +1,4 @@
-//==--------- FusionHelper.h - helpers to insert fused kernel stub ---------==//
+//==--------- FusionHelper.h - Helpers to insert fused kernel stub ---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

@@ -10,3 +10,5 @@ set(SYCL_JIT_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(LLVM_SPIRV_INCLUDE_DIRS "${LLVM_MAIN_SRC_DIR}/../llvm-spirv/include")
 
 add_subdirectory(jit-compiler)
+add_subdirectory(passes)
+add_subdirectory(test)
