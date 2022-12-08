@@ -32,7 +32,7 @@ params:
       name: phPlatforms
       desc: |
             [out][optional][range(0, NumEntries)] array of handle of platforms.
-            If NumEntries is less than the number of platforms available, then $xPlatform shall only retrieve that number of platforms.
+            If NumEntries is less than the number of platforms available, then $xPlatformGet shall only retrieve that number of platforms.
     - type: "uint32_t*"
       name: "pNumPlatforms"
       desc: |
