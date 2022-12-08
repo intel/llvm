@@ -28,7 +28,7 @@ int main(int argc, char const *argv[]) {
   // CHECK-NEXT:   call @_Z1fP1A(%3) : (!llvm.ptr<struct<(f32, f32)>>) -> ()
   // CHECK-NEXT:   return %c0_i32 : i32
 
-  // BUG: cgeist does not initialize the new struct (issue #).
+  // BUG: cgeist does not initialize the new struct (issue https://github.com/intel/llvm/issues/7709).
   // auto *a = new A{1.0f, 2.0f};
   auto *a = new A;
   *a = {1.0f, 2.0f};
