@@ -169,17 +169,17 @@ static Optional<Type> convertBFloat16Type(sycl::BFloat16Type type,
                          type.getBody(), converter);
 }
 
+/// Converts SYCL GetOp type to LLVM type.
+static Optional<Type> convertGetOpType(sycl::GetOpType type,
+                                       LLVMTypeConverter &converter) {
+  return getI8Struct("class.sycl::_V1::detail::GetOp", converter);
+}
+
 /// Converts SYCL GetScalarOp type to LLVM type.
 static Optional<Type> convertGetScalarOpType(sycl::GetScalarOpType type,
                                              LLVMTypeConverter &converter) {
   return convertBodyType("class.sycl::_V1::detail::GetScalarOp", type.getBody(),
                          converter);
-}
-
-/// Converts SYCL GetOp type to LLVM type.
-static Optional<Type> convertGetOpType(sycl::GetOpType type,
-                                       LLVMTypeConverter &converter) {
-  return getI8Struct("class.sycl::_V1::detail::GetOp", converter);
 }
 
 /// Converts SYCL group type to LLVM type.
@@ -526,11 +526,11 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   typeConverter.addConversion([&](sycl::BFloat16Type type) {
     return convertBFloat16Type(type, typeConverter);
   });
-  typeConverter.addConversion([&](sycl::GetScalarOpType type) {
-    return convertGetScalarOpType(type, typeConverter);
-  });
   typeConverter.addConversion([&](sycl::GetOpType type) {
     return convertGetOpType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::GetScalarOpType type) {
+    return convertGetScalarOpType(type, typeConverter);
   });
   typeConverter.addConversion([&](sycl::GroupType type) {
     return convertGroupType(type, typeConverter);
