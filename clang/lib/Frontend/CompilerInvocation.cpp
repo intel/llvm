@@ -1691,9 +1691,8 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
 
   Opts.DisableLLVMPasses = Args.hasArg(OPT_disable_llvm_passes);
 
-  Opts.DisableSYCLEarlyOpts =
-      Args.hasArg(OPT_fsycl_is_device) && T.isSPIR() &&
-      Args.hasArg(OPT_fno_sycl_early_optimizations);
+  Opts.DisableSYCLEarlyOpts = Args.hasArg(OPT_fsycl_is_device) && T.isSPIR() &&
+                              Args.hasArg(OPT_fno_sycl_early_optimizations);
 
   const llvm::Triple::ArchType DebugEntryValueArchs[] = {
       llvm::Triple::x86, llvm::Triple::x86_64, llvm::Triple::aarch64,

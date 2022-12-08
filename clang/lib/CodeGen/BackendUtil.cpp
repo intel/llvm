@@ -1049,7 +1049,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     if (LangOpts.SYCLIsDevice && CodeGenOpts.SPIRITTAnnotations &&
         !CodeGenOpts.DisableSYCLEarlyOpts) {
       assert(TargetTriple.isSPIR() &&
-              "ITT annotations can only be added to a module with spir target");
+             "ITT annotations can only be added to a module with spir target");
       MPM.addPass(SPIRITTAnnotationsPass());
     }
   }
