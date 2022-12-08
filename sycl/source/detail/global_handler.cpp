@@ -27,6 +27,36 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
+
+// Utility class to track references on object.
+// Used for Scheduler now and created as thread_local object.
+// Origin idea is to track usage of Scheduler from main and other used threads -
+// they increment MCounter; and to use but not add extra reference by our
+// thread_pool threads. For this control MIncrementCounter class member is used.
+template <class ResourceHandler> class ObjectUsageCounter {
+public:
+  ObjectUsageCounter(std::unique_ptr<ResourceHandler> &Obj, bool ModifyCounter)
+      : MModifyCounter(ModifyCounter), MObj(Obj) {
+    if (MModifyCounter)
+      MCounter++;
+  }
+  ~ObjectUsageCounter() {
+    if (!MModifyCounter)
+      return;
+
+    MCounter--;
+    if (!MCounter && MObj)
+      MObj->releaseResources();
+  }
+
+private:
+  static std::atomic_uint MCounter;
+  bool MModifyCounter;
+  std::unique_ptr<ResourceHandler> &MObj;
+};
+template <class ResourceHandler>
+std::atomic_uint ObjectUsageCounter<ResourceHandler>::MCounter{0};
+
 using LockGuard = std::lock_guard<SpinLock>;
 
 GlobalHandler::GlobalHandler() = default;
@@ -47,7 +77,24 @@ T &GlobalHandler::getOrCreate(InstWithLock<T> &IWL, Types... Args) {
   return *IWL.Inst;
 }
 
-Scheduler &GlobalHandler::getScheduler() { return getOrCreate(MScheduler); }
+void GlobalHandler::attachScheduler(Scheduler *Scheduler) {
+  // The method is used in unit tests only. Do not protect with lock since
+  // releaseResources will cause dead lock due to host queue release
+  if (MScheduler.Inst)
+    MScheduler.Inst->releaseResources();
+  MScheduler.Inst.reset(Scheduler);
+}
+
+Scheduler &GlobalHandler::getScheduler() {
+  getOrCreate(MScheduler);
+  registerSchedulerUsage();
+  return *MScheduler.Inst;
+}
+
+void GlobalHandler::registerSchedulerUsage(bool ModifyCounter) {
+  thread_local ObjectUsageCounter SchedulerCounter(MScheduler.Inst,
+                                                   ModifyCounter);
+}
 
 ProgramManager &GlobalHandler::getProgramManager() {
   return getOrCreate(MProgramManager);
@@ -141,9 +188,18 @@ void GlobalHandler::unloadPlugins() {
   GlobalHandler::instance().getPlugins().clear();
 }
 
+void GlobalHandler::drainThreadPool() {
+  if (MHostTaskThreadPool.Inst)
+    MHostTaskThreadPool.Inst->drain();
+}
+
 void shutdown() {
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
+
+  if (GlobalHandler::instance().MScheduler.Inst)
+    GlobalHandler::instance().MScheduler.Inst->releaseResources();
+
   if (GlobalHandler::instance().MHostTaskThreadPool.Inst)
     GlobalHandler::instance().MHostTaskThreadPool.Inst->finishAndWait();
 
