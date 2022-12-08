@@ -92,11 +92,25 @@ static Optional<Type> convertBodyType(StringRef name,
   return convertedTy;
 }
 
+/// Converts SYCL accessor common type to LLVM type.
+static Optional<Type> convertAccessorCommonType(sycl::AccessorCommonType type,
+                                                LLVMTypeConverter &converter) {
+  return getI8Struct("class.sycl::_V1::detail::accessor_common", converter);
+}
+
 /// Converts SYCL accessor implement device type to LLVM type.
 static Optional<Type>
 convertAccessorImplDeviceType(sycl::AccessorImplDeviceType type,
                               LLVMTypeConverter &converter) {
   return convertBodyType("class.sycl::_V1::detail::AccessorImplDevice." +
+                             std::to_string(type.getDimension()),
+                         type.getBody(), converter);
+}
+
+/// Converts SYCL accessor type to LLVM type.
+static Optional<Type> convertAccessorType(sycl::AccessorType type,
+                                          LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::accessor." +
                              std::to_string(type.getDimension()),
                          type.getBody(), converter);
 }
@@ -109,20 +123,6 @@ convertAccessorSubscriptType(sycl::AccessorSubscriptType type,
       "class.sycl::_V1::detail::accessor_common.AccessorSubscript." +
           std::to_string(type.getCurrentDimension()),
       type.getBody(), converter);
-}
-
-/// Converts SYCL accessor common type to LLVM type.
-static Optional<Type> convertAccessorCommonType(sycl::AccessorCommonType type,
-                                                LLVMTypeConverter &converter) {
-  return getI8Struct("class.sycl::_V1::detail::accessor_common", converter);
-}
-
-/// Converts SYCL accessor type to LLVM type.
-static Optional<Type> convertAccessorType(sycl::AccessorType type,
-                                          LLVMTypeConverter &converter) {
-  return convertBodyType("class.sycl::_V1::accessor." +
-                             std::to_string(type.getDimension()),
-                         type.getBody(), converter);
 }
 
 /// Converts SYCL array type to LLVM type.
@@ -147,11 +147,25 @@ static Optional<Type> convertArrayType(sycl::ArrayType type,
   return structTy;
 }
 
-/// Converts SYCL group type to LLVM type.
-static Optional<Type> convertGroupType(sycl::GroupType type,
-                                       LLVMTypeConverter &converter) {
-  return convertBodyType("class.sycl::_V1::group." +
-                             std::to_string(type.getDimension()),
+/// Converts SYCL AssertHappened type to LLVM type.
+static Optional<Type> convertAssertHappenedType(sycl::AssertHappenedType type,
+                                                LLVMTypeConverter &converter) {
+  return convertBodyType("struct.sycl::_V1::detail::AssertHappened",
+                         type.getBody(), converter);
+}
+
+/// Converts SYCL atomic type to LLVM type.
+static Optional<Type> convertAtomicType(sycl::AtomicType type,
+                                        LLVMTypeConverter &converter) {
+  // FIXME: Make sure that we have llvm.ptr as the body, not memref, through
+  // the conversion done in ConvertTOLLVMABI pass
+  return convertBodyType("class.sycl::_V1::atomic", type.getBody(), converter);
+}
+
+/// Converts SYCL bfloat16 type to LLVM type.
+static Optional<Type> convertBFloat16Type(sycl::BFloat16Type type,
+                                          LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::ext::oneapi::bfloat16",
                          type.getBody(), converter);
 }
 
@@ -166,6 +180,14 @@ static Optional<Type> convertGetScalarOpType(sycl::GetScalarOpType type,
                                              LLVMTypeConverter &converter) {
   return convertBodyType("class.sycl::_V1::detail::GetScalarOp", type.getBody(),
                          converter);
+}
+
+/// Converts SYCL group type to LLVM type.
+static Optional<Type> convertGroupType(sycl::GroupType type,
+                                       LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::group." +
+                             std::to_string(type.getDimension()),
+                         type.getBody(), converter);
 }
 
 /// Converts SYCL h_item type to LLVM type.
@@ -189,6 +211,22 @@ static Optional<Type> convertItemBaseType(sycl::ItemBaseType type,
                              std::to_string(type.getDimension()) +
                              (type.getWithOffset() ? ".true" : ".false"),
                          type.getBody(), converter);
+}
+
+/// Converts SYCL item type to LLVM type.
+static Optional<Type> convertItemType(sycl::ItemType type,
+                                      LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::item." +
+                             std::to_string(type.getDimension()) +
+                             (type.getWithOffset() ? ".true" : ".false"),
+                         type.getBody(), converter);
+}
+
+/// Converts SYCL kernel_handler type to LLVM type.
+static Optional<Type> convertKernelHandlerType(sycl::KernelHandlerType type,
+                                               LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::kernel_handler", type.getBody(),
+                         converter);
 }
 
 /// Converts SYCL local accessor base device type to LLVM type.
@@ -240,19 +278,18 @@ static Optional<Type> convertMultiPtrType(sycl::MultiPtrType type,
                          converter);
 }
 
-/// Converts SYCL item type to LLVM type.
-static Optional<Type> convertItemType(sycl::ItemType type,
-                                      LLVMTypeConverter &converter) {
-  return convertBodyType("class.sycl::_V1::item." +
-                             std::to_string(type.getDimension()) +
-                             (type.getWithOffset() ? ".true" : ".false"),
-                         type.getBody(), converter);
-}
-
 /// Converts SYCL nd item type to LLVM type.
 static Optional<Type> convertNdItemType(sycl::NdItemType type,
                                         LLVMTypeConverter &converter) {
   return convertBodyType("class.sycl::_V1::nd_item." +
+                             std::to_string(type.getDimension()),
+                         type.getBody(), converter);
+}
+
+/// Converts SYCL nd_range type to LLVM type.
+static Optional<Type> convertNdRangeType(sycl::NdRangeType type,
+                                         LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::nd_range." +
                              std::to_string(type.getDimension()),
                          type.getBody(), converter);
 }
@@ -271,20 +308,17 @@ static Optional<Type> convertRangeType(sycl::RangeType type,
                          type.getBody(), converter);
 }
 
-/// Converts SYCL nd_range type to LLVM type.
-static Optional<Type> convertNdRangeType(sycl::NdRangeType type,
-                                         LLVMTypeConverter &converter) {
-  return convertBodyType("class.sycl::_V1::nd_range." +
-                             std::to_string(type.getDimension()),
-                         type.getBody(), converter);
+/// Converts SYCL sub_group type to LLVM type.
+static Optional<Type> convertSubGroupType(sycl::SubGroupType type,
+                                          LLVMTypeConverter &converter) {
+  return getI8Struct("struct.sycl::_V1::ext::oneapi::sub_group", converter);
 }
 
-/// Converts SYCL TupleValueHolder type to LLVM type.
-static Optional<Type>
-convertTupleValueHolderType(sycl::TupleValueHolderType type,
-                            LLVMTypeConverter &converter) {
-  return convertBodyType("struct.sycl::_V1::detail::TupleValueHolder",
-                         type.getBody(), converter);
+/// Converts SYCL vec type to LLVM type.
+static Optional<Type> convertSwizzledVecType(sycl::SwizzledVecType type,
+                                             LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::detail::SwizzleOp", type.getBody(),
+                         converter);
 }
 
 /// Converts SYCL TupleCopyAssignableValueHolder type to LLVM type.
@@ -296,52 +330,18 @@ static Optional<Type> convertTupleCopyAssignableValueHolderType(
       type.getBody(), converter);
 }
 
+/// Converts SYCL TupleValueHolder type to LLVM type.
+static Optional<Type>
+convertTupleValueHolderType(sycl::TupleValueHolderType type,
+                            LLVMTypeConverter &converter) {
+  return convertBodyType("struct.sycl::_V1::detail::TupleValueHolder",
+                         type.getBody(), converter);
+}
+
 /// Converts SYCL vec type to LLVM type.
 static Optional<Type> convertVecType(sycl::VecType type,
                                      LLVMTypeConverter &converter) {
   return convertBodyType("class.sycl::_V1::vec", type.getBody(), converter);
-}
-
-/// Converts SYCL vec type to LLVM type.
-static Optional<Type> convertSwizzledVecType(sycl::SwizzledVecType type,
-                                             LLVMTypeConverter &converter) {
-  return convertBodyType("class.sycl::_V1::detail::SwizzleOp", type.getBody(),
-                         converter);
-}
-
-/// Converts SYCL atomic type to LLVM type.
-static Optional<Type> convertAtomicType(sycl::AtomicType type,
-                                        LLVMTypeConverter &converter) {
-  // FIXME: Make sure that we have llvm.ptr as the body, not memref, through
-  // the conversion done in ConvertTOLLVMABI pass
-  return convertBodyType("class.sycl::_V1::atomic", type.getBody(), converter);
-}
-
-/// Converts SYCL AssertHappened type to LLVM type.
-static Optional<Type> convertAssertHappenedType(sycl::AssertHappenedType type,
-                                                LLVMTypeConverter &converter) {
-  return convertBodyType("struct.sycl::_V1::detail::AssertHappened",
-                         type.getBody(), converter);
-}
-
-/// Converts SYCL bfloat16 type to LLVM type.
-static Optional<Type> convertBFloat16Type(sycl::BFloat16Type type,
-                                          LLVMTypeConverter &converter) {
-  return convertBodyType("class.sycl::_V1::ext::oneapi::bfloat16",
-                         type.getBody(), converter);
-}
-
-/// Converts SYCL kernel_handler type to LLVM type.
-static Optional<Type> convertKernelHandlerType(sycl::KernelHandlerType type,
-                                               LLVMTypeConverter &converter) {
-  return convertBodyType("class.sycl::_V1::kernel_handler", type.getBody(),
-                         converter);
-}
-
-/// Converts SYCL sub_group type to LLVM type.
-static Optional<Type> convertSubGroupType(sycl::SubGroupType type,
-                                          LLVMTypeConverter &converter) {
-  return getI8Struct("struct.sycl::_V1::ext::oneapi::sub_group", converter);
 }
 
 //===----------------------------------------------------------------------===//
@@ -570,11 +570,11 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   typeConverter.addConversion([&](sycl::NdItemType type) {
     return convertNdItemType(type, typeConverter);
   });
-  typeConverter.addConversion([&](sycl::OwnerLessBaseType type) {
-    return convertOwnerLessBaseType(type, typeConverter);
-  });
   typeConverter.addConversion([&](sycl::NdRangeType type) {
     return convertNdRangeType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::OwnerLessBaseType type) {
+    return convertOwnerLessBaseType(type, typeConverter);
   });
   typeConverter.addConversion([&](sycl::RangeType type) {
     return convertRangeType(type, typeConverter);

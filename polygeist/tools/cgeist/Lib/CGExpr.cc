@@ -680,7 +680,7 @@ ValueCategory MLIRScanner::VisitMaterializeTemporaryExpr(
     return V;
 
   CGEIST_WARNING(llvm::WithColor::warning()
-                 << "cleanup of materialized not handled");
+                 << "cleanup of materialized not handled\n");
   auto Op =
       createAllocOp(Glob.getTypes().getMLIRType(Expr->getSubExpr()->getType()),
                     nullptr, 0, /*isArray*/ IsArray, /*LLVMABI*/ LLVMABI);
