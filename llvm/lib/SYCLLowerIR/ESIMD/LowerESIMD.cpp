@@ -1253,9 +1253,7 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
                                               llvm::APInt(32, 1, true));
   } else if (SpirvGlobalName == "GlobalLinearId") {
     NewInst = llvm::Constant::getNullValue(LI->getType());
-  }
-
-  if (isa<GetElementPtrConstantExpr>(LI->getPointerOperand())) {
+  } else if (isa<GetElementPtrConstantExpr>(LI->getPointerOperand())) {
     // Translate the load that has getelementptr as an operand
     auto *GEPCE = cast<GetElementPtrConstantExpr>(LI->getPointerOperand());
     uint64_t IndexValue =
