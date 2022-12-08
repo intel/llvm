@@ -91,7 +91,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
   return Img;
 }
 
-static sycl::unittest::PiImage Imgs[4] = {
+static sycl::unittest::PiImage Imgs[] = {
     generateDefaultImage({"TestKernel"}, PI_DEVICE_BINARY_TYPE_SPIRV,
                          __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64),
     generateDefaultImage({"TestKernelExeOnly"}, PI_DEVICE_BINARY_TYPE_NATIVE,
@@ -102,7 +102,7 @@ static sycl::unittest::PiImage Imgs[4] = {
     generateDefaultImage(
         {"TestKernelWithAspects"}, PI_DEVICE_BINARY_TYPE_NATIVE,
         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, {sycl::aspect::gpu})};
-static sycl::unittest::PiImageArray<4> ImgArray{Imgs};
+static sycl::unittest::PiImageArray<std::size(Imgs)> ImgArray{Imgs};
 
 static pi_result redefinedDeviceGetInfoCPU(pi_device device,
                                            pi_device_info param_name,
@@ -572,11 +572,12 @@ TEST(KernelBundle, DescendentDevice) {
 TEST(KernelBundle, CheckIfBundleHasIncompatibleKernel) {
   sycl::unittest::PiMock Mock;
   // TestKernelWithAspects has GPU aspect, so it shouldn't be compatible with
-  // the CPU device and hence shouldn't be in the kernel bundle
+  // the CPU device and hence shouldn't be in the kernel bundle.
   Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
       redefinedDeviceGetInfoCPU);
   sycl::platform Plt = Mock.getPlatform();
   const sycl::device Dev = Plt.get_devices()[0];
+  EXPECT_TRUE(Dev.is_cpu());
 
   auto Bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
       sycl::context(Dev), {Dev});
@@ -590,8 +591,9 @@ TEST(KernelBundle, CheckIfBundleHasIncompatibleKernel) {
 TEST(KernelBundle, CheckIfBundleHasCompatibleKernel) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  // GPU by default
+  // GPU by default.
   const sycl::device Dev = Plt.get_devices()[0];
+  EXPECT_TRUE(Dev.is_gpu());
 
   auto Bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(
       sycl::context(Dev), {Dev});
@@ -605,11 +607,12 @@ TEST(KernelBundle, CheckIfBundleHasCompatibleKernel) {
 TEST(KernelBundle, CheckIfIncompatibleBundleExists) {
   sycl::unittest::PiMock Mock;
   // TestKernelWithAspects has GPU aspect, so it shouldn't be compatible with
-  // the CPU device and hence shouldn't be in the kernel bundle
+  // the CPU device and hence shouldn't be in the kernel bundle.
   Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
       redefinedDeviceGetInfoCPU);
   sycl::platform Plt = Mock.getPlatform();
   const sycl::device Dev = Plt.get_devices()[0];
+  EXPECT_TRUE(Dev.is_cpu());
 
   auto KernelId1 = sycl::get_kernel_id<TestKernelWithAspects>();
   auto KernelId2 = sycl::get_kernel_id<TestKernel>();
@@ -625,8 +628,9 @@ TEST(KernelBundle, CheckIfIncompatibleBundleExists) {
 TEST(KernelBundle, CheckIfCompatibleBundleExists2) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  // GPU by default
+  // GPU by default.
   const sycl::device Dev = Plt.get_devices()[0];
+  EXPECT_TRUE(Dev.is_gpu());
 
   auto KernelId1 = sycl::get_kernel_id<TestKernelWithAspects>();
   auto KernelId2 = sycl::get_kernel_id<TestKernel>();
@@ -638,11 +642,12 @@ TEST(KernelBundle, CheckIfCompatibleBundleExists2) {
 TEST(KernelBundle, CheckExceptionIfKernelIncompatible) {
   sycl::unittest::PiMock Mock;
   // TestKernelWithAspects has GPU aspect, so it shouldn't be compatible with
-  // the CPU device and hence shouldn't be in the kernel bundle
+  // the CPU device and hence shouldn't be in the kernel bundle.
   Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
       redefinedDeviceGetInfoCPU);
   sycl::platform Plt = Mock.getPlatform();
   const sycl::device Dev = Plt.get_devices()[0];
+  EXPECT_TRUE(Dev.is_cpu());
 
   auto KernelId = sycl::get_kernel_id<TestKernelWithAspects>();
   std::string msg = "";

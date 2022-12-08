@@ -1627,7 +1627,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
   if (!KernelIDs.empty()) {
     for (const auto &KID : KernelIDs) {
       bool isCompatibleWithAtLeastOneDev =
-          std::any_of(Devs.begin(), Devs.end(), [KID](const auto &Dev) {
+          std::any_of(Devs.begin(), Devs.end(), [&KID](const auto &Dev) {
             return sycl::is_compatible({KID}, Dev);
           });
       if (!isCompatibleWithAtLeastOneDev)
@@ -1664,7 +1664,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
 
     for (const sycl::device &Dev : Devs) {
       if (!compatibleWithDevice(BinImage, Dev) |
-          !isDevSupportImgAspects({BinImage}, Dev))
+          !doesDevSupportImgAspects(*BinImage, Dev))
         continue;
 
       std::shared_ptr<std::vector<sycl::kernel_id>> KernelIDs;
@@ -1743,7 +1743,7 @@ ProgramManager::getSYCLDeviceImages(const context &Ctx,
   // Collect device images with compatible state
   std::vector<device_image_plain> DeviceImages =
       getSYCLDeviceImagesWithCompatibleState(Ctx, Devs, TargetState);
-  // Bring device images with compatible state to desired state
+  // Bring device images with compatible state to desired state.
   bringSYCLDeviceImagesToState(DeviceImages, TargetState);
   return DeviceImages;
 }
@@ -1790,7 +1790,7 @@ std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
   std::vector<device_image_plain> DeviceImages =
       getSYCLDeviceImagesWithCompatibleState(Ctx, Devs, TargetState, KernelIDs);
 
-  // Bring device images with compatible state to desired state
+  // Bring device images with compatible state to desired state.
   bringSYCLDeviceImagesToState(DeviceImages, TargetState);
   return DeviceImages;
 }
@@ -2129,23 +2129,21 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
                         &(BuildResult->MBuildResultMutex));
 }
 
-bool isDevSupportImgAspects(std::set<RTDeviceBinaryImage *> BinImages,
-                            const device &Dev) {
-  for (RTDeviceBinaryImage *Img : BinImages) {
-    const RTDeviceBinaryImage::PropertyRange &PropRange =
-        Img->getDeviceRequirements();
-    for (RTDeviceBinaryImage::PropertyRange::ConstIterator It : PropRange) {
-      using namespace std::literals;
-      if ((*It)->Name != "aspects"sv)
-        continue;
-      ByteArray Aspects = DeviceBinaryProperty(*It).asByteArray();
-      // Drop 8 bytes describing the size of the byte array
-      Aspects.dropBytes(8);
-      while (!Aspects.empty()) {
-        aspect Aspect = Aspects.consume<aspect>();
-        if (!Dev.has(Aspect))
-          return false;
-      }
+bool doesDevSupportImgAspects(const RTDeviceBinaryImage &Img,
+                              const device &Dev) {
+  const RTDeviceBinaryImage::PropertyRange &PropRange =
+      Img.getDeviceRequirements();
+  for (RTDeviceBinaryImage::PropertyRange::ConstIterator It : PropRange) {
+    using namespace std::literals;
+    if ((*It)->Name != "aspects"sv)
+      continue;
+    ByteArray Aspects = DeviceBinaryProperty(*It).asByteArray();
+    // Drop 8 bytes describing the size of the byte array.
+    Aspects.dropBytes(8);
+    while (!Aspects.empty()) {
+      aspect Aspect = Aspects.consume<aspect>();
+      if (!Dev.has(Aspect))
+        return false;
     }
   }
   return true;

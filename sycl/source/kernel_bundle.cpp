@@ -293,7 +293,10 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
   std::set<sycl::detail::RTDeviceBinaryImage *> BinImages;
   sycl::detail::ProgramManager::getInstance().getRawDeviceImages(KernelIDs,
                                                                  BinImages);
-  return isDevSupportImgAspects(BinImages, Dev);
+  return std::all_of(BinImages.begin(), BinImages.end(),
+                     [&Dev](const sycl::detail::RTDeviceBinaryImage *Img) {
+                       return doesDevSupportImgAspects(*Img, Dev);
+                     });
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
