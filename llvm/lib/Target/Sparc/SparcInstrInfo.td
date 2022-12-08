@@ -78,6 +78,8 @@ def UseDeprecatedInsts : Predicate<"Subtarget->useDeprecatedV8Instructions()">;
 // Instruction Pattern Stuff
 //===----------------------------------------------------------------------===//
 
+def simm10  : PatLeaf<(imm), [{ return isInt<10>(N->getSExtValue()); }]>;
+
 def simm11  : PatLeaf<(imm), [{ return isInt<11>(N->getSExtValue()); }]>;
 
 def simm13  : PatLeaf<(imm), [{ return isInt<13>(N->getSExtValue()); }]>;
@@ -211,8 +213,10 @@ def simm13Op : Operand<i32> {
 }
 
 // Operand for printing out a condition code.
-let PrintMethod = "printCCOperand" in
+let PrintMethod = "printCCOperand" in {
   def CCOp : Operand<i32>;
+  def RegCCOp : Operand<i32>;
+}
 
 def SDTSPcmpicc :
 SDTypeProfile<0, 2, [SDTCisInt<0>, SDTCisSameAs<0, 1>]>;
@@ -222,6 +226,8 @@ def SDTSPbrcc :
 SDTypeProfile<0, 2, [SDTCisVT<0, OtherVT>, SDTCisVT<1, i32>]>;
 def SDTSPselectcc :
 SDTypeProfile<1, 3, [SDTCisSameAs<0, 1>, SDTCisSameAs<1, 2>, SDTCisVT<3, i32>]>;
+def SDTSPselectreg :
+SDTypeProfile<1, 4, [SDTCisSameAs<0, 1>, SDTCisSameAs<1, 2>, SDTCisVT<3, i32>, SDTCisVT<4, i64>]>;
 def SDTSPFTOI :
 SDTypeProfile<1, 1, [SDTCisVT<0, f32>, SDTCisFP<1>]>;
 def SDTSPITOF :
@@ -259,6 +265,7 @@ def SPxtof  : SDNode<"SPISD::XTOF", SDTSPXTOF>;
 def SPselecticc : SDNode<"SPISD::SELECT_ICC", SDTSPselectcc, [SDNPInGlue]>;
 def SPselectxcc : SDNode<"SPISD::SELECT_XCC", SDTSPselectcc, [SDNPInGlue]>;
 def SPselectfcc : SDNode<"SPISD::SELECT_FCC", SDTSPselectcc, [SDNPInGlue]>;
+def SPselectreg : SDNode<"SPISD::SELECT_REG", SDTSPselectreg, [SDNPInGlue]>;
 
 //  These are target-independent nodes, but have target-specific formats.
 def SDT_SPCallSeqStart : SDCallSeqStart<[ SDTCisVT<0, i32>,
@@ -352,6 +359,14 @@ def CPCC_023 : CPCC_VAL<44>;  // 0 or 2 or 3
 def CPCC_01  : CPCC_VAL<45>;  // 0 or 1
 def CPCC_013 : CPCC_VAL<46>;  // 0 or 1 or 3
 def CPCC_012 : CPCC_VAL<47>;  // 0 or 1 or 2
+
+class RegCC_VAL<int N> : PatLeaf<(i32 N)>;
+def RegCC_Z   : RegCC_VAL<49>;  // Zero
+def RegCC_LEZ : RegCC_VAL<50>;  // Lees or equal than zero
+def RegCC_LZ  : RegCC_VAL<51>;  // Less than zero
+def RegCC_NZ  : RegCC_VAL<53>;  // Not zero
+def RegCC_GZ  : RegCC_VAL<54>;  // Greater than zero
+def RegCC_GEZ : RegCC_VAL<55>;  // Greater or equal to zero
 
 //===----------------------------------------------------------------------===//
 // Instruction Class Templates
@@ -1767,7 +1782,8 @@ let Predicates = [HasV9] in {
 //===----------------------------------------------------------------------===//
 
 // Zero immediate.
-def : Pat<(i32 0), (COPY (i32 G0))>;
+def : Pat<(i32 0),
+          (ORrr (i32 G0), (i32 G0))>;
 // Small immediates.
 def : Pat<(i32 simm13:$val),
           (ORri (i32 G0), imm:$val)>;
@@ -1847,15 +1863,6 @@ def : Pat<(atomic_store_16 ADDRrr:$dst, i32:$val), (STHrr ADDRrr:$dst, $val)>;
 def : Pat<(atomic_store_16 ADDRri:$dst, i32:$val), (STHri ADDRri:$dst, $val)>;
 def : Pat<(atomic_store_32 ADDRrr:$dst, i32:$val), (STrr ADDRrr:$dst, $val)>;
 def : Pat<(atomic_store_32 ADDRri:$dst, i32:$val), (STri ADDRri:$dst, $val)>;
-
-// Zero register pair.
-// This forces zeroing of the upper half to be done with ORrr instead of COPY,
-// since there `COPY G0` will be converted into `COPY G0_G1` later on, which
-// is not what we want in this case.
-def : Pat<(build_vector (i32 0), (i32 0)),
-          (INSERT_SUBREG (INSERT_SUBREG (v2i32 (IMPLICIT_DEF)),
-            (ORrr (i32 G0), (i32 G0)), sub_even),
-            (i32 G0), sub_odd)>;
 
 // extract_vector
 def : Pat<(extractelt (v2i32 IntPair:$Rn), 0),
