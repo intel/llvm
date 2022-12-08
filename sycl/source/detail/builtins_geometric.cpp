@@ -58,47 +58,44 @@ template <typename T> inline T __FMul(T p0, T p1) {
 }
 
 template <typename T>
-inline typename sycl::detail::enable_if_t<d::is_sgengeo<T>::value, T>
-__length(T t) {
+inline typename std::enable_if_t<d::is_sgengeo<T>::value, T> __length(T t) {
   return std::sqrt(__FMul(t, t));
 }
 
 template <typename T>
-inline typename sycl::detail::enable_if_t<d::is_vgengeo<T>::value,
-                                          typename T::element_type>
-__length(T t) {
+inline
+    typename std::enable_if_t<d::is_vgengeo<T>::value, typename T::element_type>
+    __length(T t) {
   return std::sqrt(sycl_host_Dot(t, t));
 }
 
 template <typename T>
-inline typename sycl::detail::enable_if_t<d::is_sgengeo<T>::value, T>
-__normalize(T t) {
+inline typename std::enable_if_t<d::is_sgengeo<T>::value, T> __normalize(T t) {
   T r = __length(t);
   return t / T(r);
 }
 
 template <typename T>
-inline typename sycl::detail::enable_if_t<d::is_vgengeo<T>::value, T>
-__normalize(T t) {
+inline typename std::enable_if_t<d::is_vgengeo<T>::value, T> __normalize(T t) {
   typename T::element_type r = __length(t);
   return t / T(r);
 }
 
 template <typename T>
-inline typename sycl::detail::enable_if_t<d::is_sgengeo<T>::value, T>
+inline typename std::enable_if_t<d::is_sgengeo<T>::value, T>
 __fast_length(T t) {
   return std::sqrt(__FMul(t, t));
 }
 
 template <typename T>
-inline typename sycl::detail::enable_if_t<d::is_vgengeo<T>::value,
-                                          typename T::element_type>
-__fast_length(T t) {
+inline
+    typename std::enable_if_t<d::is_vgengeo<T>::value, typename T::element_type>
+    __fast_length(T t) {
   return std::sqrt(sycl_host_Dot(t, t));
 }
 
 template <typename T>
-inline typename sycl::detail::enable_if_t<d::is_vgengeo<T>::value, T>
+inline typename std::enable_if_t<d::is_vgengeo<T>::value, T>
 __fast_normalize(T t) {
   if (sycl_host_All(t == T(0.0f)))
     return t;

@@ -98,7 +98,7 @@ static ELFKind getELFKind(MemoryBufferRef mb, StringRef archiveName) {
 // the input objects have been compiled.
 static void updateARMVFPArgs(const ARMAttributeParser &attributes,
                              const InputFile *f) {
-  Optional<unsigned> attr =
+  std::optional<unsigned> attr =
       attributes.getAttributeValue(ARMBuildAttrs::ABI_VFP_args);
   if (!attr)
     // If an ABI tag isn't present then it is implicitly given the value of 0
@@ -145,7 +145,7 @@ static void updateARMVFPArgs(const ARMAttributeParser &attributes,
 // is compiled with an architecture that supports these features then lld is
 // permitted to use them.
 static void updateSupportedARMFeatures(const ARMAttributeParser &attributes) {
-  Optional<unsigned> attr =
+  std::optional<unsigned> attr =
       attributes.getAttributeValue(ARMBuildAttrs::CPU_arch);
   if (!attr)
     return;
@@ -810,7 +810,7 @@ void ObjFile<ELFT>::initializeSections(bool ignoreComdats,
       // is acceptable because section merging is optional.
       if (auto *ms = dyn_cast<MergeInputSection>(s)) {
         s = makeThreadLocal<InputSection>(
-            ms->file, ms->flags, ms->type, ms->alignment,
+            ms->file, ms->flags, ms->type, ms->addralign,
             ms->contentMaybeDecompress(), ms->name);
         sections[info] = s;
       }

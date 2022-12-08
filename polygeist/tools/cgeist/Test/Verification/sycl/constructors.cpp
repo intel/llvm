@@ -9,9 +9,10 @@
 // CHECK-DAG: !sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
 // CHECK-DAG: !sycl_id_2_ = !sycl.id<[2], (!sycl_array_2_)>
 // CHECK-DAG: !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
+// CHECK-DAG: !sycl_range_2_ = !sycl.range<[2], (!sycl_array_2_)>
 // CHECK-DAG: !sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
 // CHECK-DAG: !sycl_accessor_1_i32_w_gb = !sycl.accessor<[1, i32, write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 1>)>)>
-// CHECK-DAG: ![[ITEM_BASE:.*]] = !sycl.item_base<[2, true], (!sycl.range<[2], (!sycl_array_2_)>, !sycl_id_2_, !sycl_id_2_)>
+// CHECK-DAG: ![[ITEM_BASE:.*]] = !sycl.item_base<[2, true], (!sycl_range_2_, !sycl_id_2_, !sycl_id_2_)>
 // CHECK-DAG: ![[ITEM:.*]] = !sycl.item<[2, true], (![[ITEM_BASE]])>
 
 // Check globals referenced in device functions are created in the GPU module

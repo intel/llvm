@@ -37,6 +37,7 @@
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Path.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -63,7 +64,7 @@ class MCAsmStreamer final : public MCStreamer {
   void printDwarfFileDirective(unsigned FileNo, StringRef Directory,
                                StringRef Filename,
                                Optional<MD5::MD5Result> Checksum,
-                               Optional<StringRef> Source,
+                               std::optional<StringRef> Source,
                                bool UseDwarfDirectory,
                                raw_svector_ostream &OS) const;
   void emitCFIStartProcImpl(MCDwarfFrameInfo &Frame) override;
@@ -266,15 +267,15 @@ public:
   void emitFileDirective(StringRef Filename) override;
   void emitFileDirective(StringRef Filename, StringRef CompilerVerion,
                          StringRef TimeStamp, StringRef Description) override;
-  Expected<unsigned> tryEmitDwarfFileDirective(unsigned FileNo,
-                                               StringRef Directory,
-                                               StringRef Filename,
-                                               Optional<MD5::MD5Result> Checksum = None,
-                                               Optional<StringRef> Source = None,
-                                               unsigned CUID = 0) override;
+  Expected<unsigned>
+  tryEmitDwarfFileDirective(unsigned FileNo, StringRef Directory,
+                            StringRef Filename,
+                            Optional<MD5::MD5Result> Checksum = std::nullopt,
+                            std::optional<StringRef> Source = std::nullopt,
+                            unsigned CUID = 0) override;
   void emitDwarfFile0Directive(StringRef Directory, StringRef Filename,
                                Optional<MD5::MD5Result> Checksum,
-                               Optional<StringRef> Source,
+                               std::optional<StringRef> Source,
                                unsigned CUID = 0) override;
   void emitDwarfLocDirective(unsigned FileNo, unsigned Line, unsigned Column,
                              unsigned Flags, unsigned Isa,
@@ -769,6 +770,9 @@ bool MCAsmStreamer::emitSymbolAttribute(MCSymbol *Symbol,
   case MCSA_Exported:
     // Non-AIX assemblers currently do not support exported visibility.
     return false;
+  case MCSA_Memtag:
+    OS << "\t.memtag\t";
+    break;
   }
 
   Symbol->print(OS, MAI);
@@ -1496,7 +1500,7 @@ void MCAsmStreamer::emitCodeAlignment(Align Alignment,
     emitAlignmentDirective(Alignment.value(), MAI->getTextAlignFillValue(), 1,
                            MaxBytesToEmit);
   else
-    emitAlignmentDirective(Alignment.value(), None, 1, MaxBytesToEmit);
+    emitAlignmentDirective(Alignment.value(), std::nullopt, 1, MaxBytesToEmit);
 }
 
 void MCAsmStreamer::emitValueToOffset(const MCExpr *Offset,
@@ -1540,7 +1544,7 @@ void MCAsmStreamer::emitFileDirective(StringRef Filename,
 
 void MCAsmStreamer::printDwarfFileDirective(
     unsigned FileNo, StringRef Directory, StringRef Filename,
-    Optional<MD5::MD5Result> Checksum, Optional<StringRef> Source,
+    Optional<MD5::MD5Result> Checksum, std::optional<StringRef> Source,
     bool UseDwarfDirectory, raw_svector_ostream &OS) const {
   SmallString<128> FullPathName;
 
@@ -1571,7 +1575,8 @@ void MCAsmStreamer::printDwarfFileDirective(
 
 Expected<unsigned> MCAsmStreamer::tryEmitDwarfFileDirective(
     unsigned FileNo, StringRef Directory, StringRef Filename,
-    Optional<MD5::MD5Result> Checksum, Optional<StringRef> Source, unsigned CUID) {
+    Optional<MD5::MD5Result> Checksum, std::optional<StringRef> Source,
+    unsigned CUID) {
   assert(CUID == 0 && "multiple CUs not supported by MCAsmStreamer");
 
   MCDwarfLineTable &Table = getContext().getMCDwarfLineTable(CUID);
@@ -1605,7 +1610,7 @@ Expected<unsigned> MCAsmStreamer::tryEmitDwarfFileDirective(
 void MCAsmStreamer::emitDwarfFile0Directive(StringRef Directory,
                                             StringRef Filename,
                                             Optional<MD5::MD5Result> Checksum,
-                                            Optional<StringRef> Source,
+                                            std::optional<StringRef> Source,
                                             unsigned CUID) {
   assert(CUID == 0);
   // .file 0 is new for DWARF v5.
@@ -2380,7 +2385,7 @@ MCAsmStreamer::emitRelocDirective(const MCExpr &Offset, StringRef Name,
     Expr->print(OS, MAI);
   }
   EmitEOL();
-  return None;
+  return std::nullopt;
 }
 
 void MCAsmStreamer::emitAddrsig() {
