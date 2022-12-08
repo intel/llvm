@@ -35,6 +35,8 @@ namespace detail {
 // thread_pool threads. For this control MIncrementCounter class member is used.
 template <class ResourceHandler> class ObjectUsageCounter {
 public:
+  // Note: -Wctad-maybe-unsupported may generate warning if no ResourceHandler
+  // type explicitly declared.
   ObjectUsageCounter(std::unique_ptr<ResourceHandler> &Obj, bool ModifyCounter)
       : MModifyCounter(ModifyCounter), MObj(Obj) {
     if (MModifyCounter)
@@ -92,8 +94,8 @@ Scheduler &GlobalHandler::getScheduler() {
 }
 
 void GlobalHandler::registerSchedulerUsage(bool ModifyCounter) {
-  thread_local ObjectUsageCounter SchedulerCounter(MScheduler.Inst,
-                                                   ModifyCounter);
+  thread_local ObjectUsageCounter<Scheduler> SchedulerCounter(MScheduler.Inst,
+                                                              ModifyCounter);
 }
 
 ProgramManager &GlobalHandler::getProgramManager() {
