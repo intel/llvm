@@ -1390,9 +1390,11 @@ static pi_result resetCommandLists(pi_queue Queue, bool QueueLocked = false,
                                    pi_event CompletedEvent = nullptr) {
   // Handle immediate command lists here, they don't need to be reset and we
   // only need to cleanup events.
-  if (Queue->Device->useImmediateCommandLists())
+  if (Queue->Device->useImmediateCommandLists()) {
     PI_CALL(CleanupEventsInImmCmdLists(Queue, QueueLocked, QueueSynced,
                                        CompletedEvent));
+    return PI_SUCCESS;
+  }
 
   // We need events to be cleaned up out of scope where queue is locked to avoid
   // nested locks, because event cleanup requires event to be locked. Nested
