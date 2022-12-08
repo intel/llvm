@@ -12,7 +12,7 @@ double alloc() {
 // CHECK-NEXT:     %cst = arith.constant 9.9999999999999995E-7 : f64
 // CHECK-NEXT:     %c1_i64 = arith.constant 1 : i64
 // CHECK-NEXT:     %0 = llvm.alloca %c1_i64 x !llvm.struct<(i64, i64)> : (i64) -> !llvm.ptr<struct<(i64, i64)>>
-// CHECK-NEXT:     %1 = llvm.mlir.null : !llvm.ptr<struct<(i32, i32)>>
+// CHECK-NEXT:     %1 = llvm.mlir.null : !llvm.ptr<{{.*}}>
 // CHECK:          %{{.*}} = llvm.call @gettimeofday(%0, %{{.*}}) : (!llvm.ptr<struct<(i64, i64)>>, {{.*}}) -> i32
 // CHECK-NEXT:     [[T3:%.*]] = llvm.getelementptr %0[0, 0] : (!llvm.ptr<struct<(i64, i64)>>) -> !llvm.ptr<i64>
 // CHECK-NEXT:     [[T4:%.*]] = llvm.load [[T3]] : !llvm.ptr<i64>

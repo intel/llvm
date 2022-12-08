@@ -13,9 +13,9 @@ void kern() {
 // CHECK-DAG:     %c25 = arith.constant 25 : index
 // CHECK-DAG:     %c1 = arith.constant 1 : index
 // CHECK-DAG:     %c0 = arith.constant 0 : index
-// CHECK-DAG:     %c1_i64 = arith.constant 1 : i64
-// CHECK-NEXT:    llvm.alloca %c1_i64 x !llvm.array<25 x struct<(i32)>> : (i64) -> !llvm.ptr<array<25 x struct<(i32)>>>
-// CHECK-NEXT:    %1 = llvm.getelementptr %0[0, 0] : (!llvm.ptr<array<25 x struct<(i32)>>>) -> !llvm.ptr<struct<(i32)>>
+// CHECK-DAG:      %c1_i64 = arith.constant 1 : i64
+// CHECK-NEXT:     llvm.alloca %c1_i64 x !llvm.array<25 x struct<(i32)>> : (i64) -> !llvm.ptr<array<25 x struct<(i32)>>>
+// CHECK-NEXT:     %1 = llvm.getelementptr %0[0, 0] : (!llvm.ptr<array<25 x struct<(i32)>>>) -> !llvm.ptr<struct<(i32)>>
 // CHECK-NEXT:     scf.for %arg0 = %c0 to %c25 s
 // CHECK-NEXT:      %2 = arith.index_cast %arg0 : index to i64
 // CHECK-NEXT:      %3 = llvm.getelementptr %1[%2] : (!llvm.ptr<struct<(i32)>>, i64) -> !llvm.ptr<struct<(i32)>>

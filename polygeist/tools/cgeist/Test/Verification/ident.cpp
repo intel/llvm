@@ -57,7 +57,7 @@ void lt_kernel_cuda(MTensorIterator& iter) {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
-// CHECK:   func.func @_ZNK15MTensorIterator11input_dtypeEv(%arg0: !llvm.ptr<struct<(struct<(ptr<struct<(i8, i8)>>)>)>>) -> i8 attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} { 
+// CHECK:   func.func @_ZNK15MTensorIterator11input_dtypeEv(%arg0: !llvm.ptr<struct<(struct<(ptr<struct<(i8, i8)>>)>)>>) -> i8 attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
 // CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %0 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<struct<(struct<(ptr<struct<(i8, i8)>>)>)>>) -> !llvm.ptr<struct<(ptr<struct<(i8, i8)>>)>>
 // CHECK-NEXT:     %1 = call @_ZNK12MSmallVectorI12MOperandInfoEixEi(%0, %c0_i32) : (!llvm.ptr<struct<(ptr<struct<(i8, i8)>>)>>, i32) -> !llvm.ptr<struct<(i8, i8)>>

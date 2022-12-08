@@ -33,7 +33,7 @@ void kern() {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
-// CHECK:   func.func @_ZN11AIntDividerC1Ev(%arg0: !llvm.ptr<struct<(i32)>>) 
+// CHECK:   func.func @_ZN11AIntDividerC1Ev(%arg0: !llvm.ptr<struct<(i32)>>)  attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
 // CHECK-NEXT:     %c3_i32 = arith.constant 3 : i32
 // CHECK-NEXT:     %0 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<struct<(i32)>>) -> !llvm.ptr<i32>
 // CHECK-NEXT:     llvm.store %c3_i32, %0 : !llvm.ptr<i32>
