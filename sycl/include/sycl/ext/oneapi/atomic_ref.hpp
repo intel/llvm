@@ -44,16 +44,16 @@ template <typename T> struct IsValidAtomicRefType {
 };
 
 template <sycl::access::address_space AS>
-using IsValidAtomicAddressSpace =
-    bool_constant<AS == access::address_space::global_space ||
-                  AS == access::address_space::local_space ||
-                  AS == access::address_space::ext_intel_global_device_space>;
+using IsValidAtomicAddressSpace = std::bool_constant<
+    AS == access::address_space::global_space ||
+    AS == access::address_space::local_space ||
+    AS == access::address_space::ext_intel_global_device_space>;
 
 // DefaultOrder parameter is limited to read-modify-write orders
 template <memory_order Order>
-using IsValidDefaultOrder = bool_constant<Order == memory_order::relaxed ||
-                                          Order == memory_order::acq_rel ||
-                                          Order == memory_order::seq_cst>;
+using IsValidDefaultOrder = std::bool_constant<Order == memory_order::relaxed ||
+                                               Order == memory_order::acq_rel ||
+                                               Order == memory_order::seq_cst>;
 
 template <memory_order ReadModifyWriteOrder> struct memory_order_traits;
 

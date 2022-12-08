@@ -8,8 +8,6 @@
 
 #pragma once
 
-#define __SYCL_INLINE_NAMESPACE(X) inline namespace X
-
 #define __SYCL_INLINE_VER_NAMESPACE(X) inline namespace X
 
 #ifndef __has_attribute
@@ -54,15 +52,6 @@
 #define __SYCL2020_DEPRECATED(message)
 #endif
 #endif // __SYCL2020_DEPRECATED
-
-#ifndef __SYCL_INLINE_CONSTEXPR
-// inline constexpr is a C++17 feature
-#if __cplusplus >= 201703L
-#define __SYCL_INLINE_CONSTEXPR inline constexpr
-#else
-#define __SYCL_INLINE_CONSTEXPR static constexpr
-#endif
-#endif // __SYCL_INLINE_CONSTEXPR
 
 #ifndef __SYCL_HAS_CPP_ATTRIBUTE
 #if defined(__cplusplus) && defined(__has_cpp_attribute)

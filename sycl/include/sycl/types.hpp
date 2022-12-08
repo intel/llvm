@@ -121,14 +121,14 @@ template <typename T, int N> class BaseCLTypeConverter;
 
 // Element type for relational operator return value.
 template <typename DataT>
-using rel_t = typename detail::conditional_t<
+using rel_t = typename std::conditional_t<
     sizeof(DataT) == sizeof(cl_char), cl_char,
-    typename detail::conditional_t<
+    typename std::conditional_t<
         sizeof(DataT) == sizeof(cl_short), cl_short,
-        typename detail::conditional_t<
+        typename std::conditional_t<
             sizeof(DataT) == sizeof(cl_int), cl_int,
-            typename detail::conditional_t<sizeof(DataT) == sizeof(cl_long),
-                                           cl_long, bool>>>>;
+            typename std::conditional_t<sizeof(DataT) == sizeof(cl_long),
+                                        cl_long, bool>>>>;
 
 // Special type indicating that SwizzleOp should just read value from vector -
 // not trying to perform any operations. Should not be called.
@@ -317,17 +317,17 @@ std::enable_if_t<is_float_to_int<T, R>::value, R> convertImpl(T Value) {
 #else
 
 template <rounding_mode Mode>
-using RteOrAutomatic = detail::bool_constant<Mode == rounding_mode::automatic ||
-                                             Mode == rounding_mode::rte>;
+using RteOrAutomatic = std::bool_constant<Mode == rounding_mode::automatic ||
+                                          Mode == rounding_mode::rte>;
 
 template <rounding_mode Mode>
-using Rtz = detail::bool_constant<Mode == rounding_mode::rtz>;
+using Rtz = std::bool_constant<Mode == rounding_mode::rtz>;
 
 template <rounding_mode Mode>
-using Rtp = detail::bool_constant<Mode == rounding_mode::rtp>;
+using Rtp = std::bool_constant<Mode == rounding_mode::rtp>;
 
 template <rounding_mode Mode>
-using Rtn = detail::bool_constant<Mode == rounding_mode::rtn>;
+using Rtn = std::bool_constant<Mode == rounding_mode::rtn>;
 
 // convert types with an equal size and diff names
 template <typename T, typename R, rounding_mode roundingMode, typename OpenCLT,
@@ -566,20 +566,19 @@ template <typename Type, int NumElements> class vec {
 
   // SizeChecker is needed for vec(const argTN &... args) ctor to validate args.
   template <int Counter, int MaxValue, class...>
-  struct SizeChecker : detail::conditional_t<Counter == MaxValue,
-                                             std::true_type, std::false_type> {
-  };
+  struct SizeChecker : std::conditional_t<Counter == MaxValue, std::true_type,
+                                          std::false_type> {};
 
   template <int Counter, int MaxValue, typename DataT_, class... tail>
   struct SizeChecker<Counter, MaxValue, DataT_, tail...>
-      : detail::conditional_t<Counter + 1 <= MaxValue,
-                              SizeChecker<Counter + 1, MaxValue, tail...>,
-                              std::false_type> {};
+      : std::conditional_t<Counter + 1 <= MaxValue,
+                           SizeChecker<Counter + 1, MaxValue, tail...>,
+                           std::false_type> {};
 
 #define __SYCL_ALLOW_VECTOR_SIZES(num_elements)                                \
   template <int Counter, int MaxValue, typename DataT_, class... tail>         \
   struct SizeChecker<Counter, MaxValue, vec<DataT_, num_elements>, tail...>    \
-      : detail::conditional_t<                                                 \
+      : std::conditional_t<                                                    \
             Counter + (num_elements) <= MaxValue,                              \
             SizeChecker<Counter + (num_elements), MaxValue, tail...>,          \
             std::false_type> {};                                               \
@@ -590,7 +589,7 @@ template <typename Type, int NumElements> class vec {
       Counter, MaxValue,                                                       \
       detail::SwizzleOp<vec<DataT_, num_elements>, T2, T3, T4, T5...>,         \
       tail...>                                                                 \
-      : detail::conditional_t<                                                 \
+      : std::conditional_t<                                                    \
             Counter + sizeof...(T5) <= MaxValue,                               \
             SizeChecker<Counter + sizeof...(T5), MaxValue, tail...>,           \
             std::false_type> {};                                               \
@@ -601,7 +600,7 @@ template <typename Type, int NumElements> class vec {
       Counter, MaxValue,                                                       \
       detail::SwizzleOp<const vec<DataT_, num_elements>, T2, T3, T4, T5...>,   \
       tail...>                                                                 \
-      : detail::conditional_t<                                                 \
+      : std::conditional_t<                                                    \
             Counter + sizeof...(T5) <= MaxValue,                               \
             SizeChecker<Counter + sizeof...(T5), MaxValue, tail...>,           \
             std::false_type> {};
@@ -617,7 +616,7 @@ template <typename Type, int NumElements> class vec {
   template <class...> struct conjunction : std::true_type {};
   template <class B1, class... tail>
   struct conjunction<B1, tail...>
-      : detail::conditional_t<bool(B1::value), conjunction<tail...>, B1> {};
+      : std::conditional_t<bool(B1::value), conjunction<tail...>, B1> {};
 
   // TypeChecker is needed for vec(const argTN &... args) ctor to validate args.
   template <typename T, typename DataT_>
@@ -718,7 +717,7 @@ public:
   template <typename Ty = DataT>
   typename std::enable_if_t<
       std::is_fundamental<vec_data_t<Ty>>::value ||
-          std::is_same<typename detail::remove_const_t<Ty>, half>::value,
+          std::is_same<typename std::remove_const_t<Ty>, half>::value,
       vec &>
   operator=(const EnableIfNotHostHalf<Ty> &Rhs) {
     m_Data = (DataType)vec_data<Ty>::get(Rhs);
@@ -735,7 +734,7 @@ public:
   template <typename Ty = DataT>
   typename std::enable_if_t<
       std::is_fundamental<vec_data_t<Ty>>::value ||
-          std::is_same<typename detail::remove_const_t<Ty>, half>::value,
+          std::is_same<typename std::remove_const_t<Ty>, half>::value,
       vec &>
   operator=(const EnableIfHostHalf<Ty> &Rhs) {
     for (int i = 0; i < NumElements; ++i) {
@@ -753,7 +752,7 @@ public:
   template <typename Ty = DataT>
   typename std::enable_if_t<
       std::is_fundamental<vec_data_t<Ty>>::value ||
-          std::is_same<typename detail::remove_const_t<Ty>, half>::value,
+          std::is_same<typename std::remove_const_t<Ty>, half>::value,
       vec &>
   operator=(const DataT &Rhs) {
     for (int i = 0; i < NumElements; ++i) {
@@ -1002,7 +1001,7 @@ public:
   typename std::enable_if_t<                                                   \
       std::is_convertible<DataT, T>::value &&                                  \
           (std::is_fundamental<vec_data_t<T>>::value ||                        \
-           std::is_same<typename detail::remove_const_t<T>, half>::value),     \
+           std::is_same<typename std::remove_const_t<T>, half>::value),        \
       vec>                                                                     \
   operator BINOP(const T &Rhs) const {                                         \
     return *this BINOP vec(static_cast<const DataT &>(Rhs));                   \
@@ -1030,7 +1029,7 @@ public:
   typename std::enable_if_t<                                                   \
       std::is_convertible<DataT, T>::value &&                                  \
           (std::is_fundamental<vec_data_t<T>>::value ||                        \
-           std::is_same<typename detail::remove_const_t<T>, half>::value),     \
+           std::is_same<typename std::remove_const_t<T>, half>::value),        \
       vec>                                                                     \
   operator BINOP(const T &Rhs) const {                                         \
     return *this BINOP vec(static_cast<const DataT &>(Rhs));                   \
@@ -1437,13 +1436,13 @@ class SwizzleOp {
   using EnableIfScalarType = typename std::enable_if_t<
       std::is_convertible<DataT, T>::value &&
       (std::is_fundamental<vec_data_t<T>>::value ||
-       std::is_same<typename detail::remove_const_t<T>, half>::value)>;
+       std::is_same<typename std::remove_const_t<T>, half>::value)>;
 
   template <typename T>
   using EnableIfNoScalarType = typename std::enable_if_t<
       !std::is_convertible<DataT, T>::value ||
       !(std::is_fundamental<vec_data_t<T>>::value ||
-        std::is_same<typename detail::remove_const_t<T>, half>::value)>;
+        std::is_same<typename std::remove_const_t<T>, half>::value)>;
 
   template <int... Indices>
   using Swizzle =
@@ -1980,7 +1979,7 @@ private:
   template <typename T, int Num>                                               \
   typename std::enable_if_t<                                                   \
       std::is_fundamental<vec_data_t<T>>::value ||                             \
-          std::is_same<typename detail::remove_const_t<T>, half>::value,       \
+          std::is_same<typename std::remove_const_t<T>, half>::value,          \
       vec<T, Num>>                                                             \
   operator BINOP(const T &Lhs, const vec<T, Num> &Rhs) {                       \
     return vec<T, Num>(Lhs) BINOP Rhs;                                         \
@@ -1992,7 +1991,7 @@ private:
   typename std::enable_if_t<                                                   \
       std::is_convertible<T, T1>::value &&                                     \
           (std::is_fundamental<vec_data_t<T>>::value ||                        \
-           std::is_same<typename detail::remove_const_t<T>, half>::value),     \
+           std::is_same<typename std::remove_const_t<T>, half>::value),        \
       vec<T1, Num>>                                                            \
   operator BINOP(                                                              \
       const T &Lhs,                                                            \
@@ -2035,7 +2034,7 @@ __SYCL_BINOP(<<)
   typename std::enable_if_t<                                                   \
       std::is_convertible<T, DataT>::value &&                                  \
           (std::is_fundamental<vec_data_t<T>>::value ||                        \
-           std::is_same<typename detail::remove_const_t<T>, half>::value),     \
+           std::is_same<typename std::remove_const_t<T>, half>::value),        \
       vec<detail::rel_t<DataT>, Num>>                                          \
   operator RELLOGOP(const T &Lhs, const vec<DataT, Num> &Rhs) {                \
     return vec<T, Num>(static_cast<T>(Lhs)) RELLOGOP Rhs;                      \
@@ -2047,7 +2046,7 @@ __SYCL_BINOP(<<)
   typename std::enable_if_t<                                                   \
       std::is_convertible<T, T1>::value &&                                     \
           (std::is_fundamental<vec_data_t<T>>::value ||                        \
-           std::is_same<typename detail::remove_const_t<T>, half>::value),     \
+           std::is_same<typename std::remove_const_t<T>, half>::value),        \
       vec<detail::rel_t<T1>, Num>>                                             \
   operator RELLOGOP(                                                           \
       const T &Lhs,                                                            \
@@ -2144,10 +2143,10 @@ namespace detail {
 // select_apply_cl_t selects from T8/T16/T32/T64 basing on
 // sizeof(IN).  expected to handle scalar types in IN.
 template <typename T, typename T8, typename T16, typename T32, typename T64>
-using select_apply_cl_t =
-    conditional_t<sizeof(T) == 1, T8,
-                  conditional_t<sizeof(T) == 2, T16,
-                                conditional_t<sizeof(T) == 4, T32, T64>>>;
+using select_apply_cl_t = std::conditional_t<
+    sizeof(T) == 1, T8,
+    std::conditional_t<sizeof(T) == 2, T16,
+                       std::conditional_t<sizeof(T) == 4, T32, T64>>>;
 } // namespace detail
 
 #define __SYCL_DECLARE_CONVERTER(base, num)                                    \
@@ -2407,8 +2406,8 @@ template <> struct is_device_copyable<std::tuple<>> : std::true_type {};
 // is device copyable.
 template <typename T, typename... Ts>
 struct is_device_copyable<std::tuple<T, Ts...>>
-    : detail::bool_constant<is_device_copyable<T>::value &&
-                            is_device_copyable<std::tuple<Ts...>>::value> {};
+    : std::bool_constant<is_device_copyable<T>::value &&
+                         is_device_copyable<std::tuple<Ts...>>::value> {};
 
 // marray is device copyable if element type is device copyable and it is also
 // not trivially copyable (if the element type is trivially copyable, the marray

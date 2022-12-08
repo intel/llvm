@@ -25,10 +25,10 @@ class __SYCL2020_DEPRECATED("spelling is now: no_init") noinit
 
 } // namespace property
 
-__SYCL_INLINE_CONSTEXPR property::no_init no_init;
+inline constexpr property::no_init no_init;
 
 __SYCL2020_DEPRECATED("spelling is now: no_init")
-__SYCL_INLINE_CONSTEXPR property::noinit noinit;
+inline constexpr property::noinit noinit;
 
 namespace ext {
 namespace intel {
