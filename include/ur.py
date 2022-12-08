@@ -324,12 +324,11 @@ class ur_profiling_info_t(c_int):
 ###############################################################################
 ## @brief Event states for all events.
 class ur_execution_info_v(IntEnum):
-    EXECUTION_INFO_COMPLETE = 0                     ## Indicates that the event has completed
-    EXECUTION_INFO_RUNNING = 1                      ## Indicates that the device has started processing this event
-    EXECUTION_INFO_SUBMITTED = 2                    ## Indicates that the event has been submitted by the host to the device,
-                                                    ## this is the inital state of user events
+    EXECUTION_INFO_COMPLETE = 0                     ## Indicates that the event has completed.
+    EXECUTION_INFO_RUNNING = 1                      ## Indicates that the device has started processing this event.
+    EXECUTION_INFO_SUBMITTED = 2                    ## Indicates that the event has been submitted by the host to the device.
     EXECUTION_INFO_QUEUED = 3                       ## Indicates that the event has been queued, this is the initial state of
-                                                    ## all events except user events.
+                                                    ## events.
 
 class ur_execution_info_t(c_int):
     def __str__(self):
@@ -1094,13 +1093,6 @@ class ur_context_dditable_t(Structure):
     ]
 
 ###############################################################################
-## @brief Function-pointer for urEventCreate
-if __use_win_types:
-    _urEventCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_event_handle_t) )
-else:
-    _urEventCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_event_handle_t) )
-
-###############################################################################
 ## @brief Function-pointer for urEventGetInfo
 if __use_win_types:
     _urEventGetInfo_t = WINFUNCTYPE( ur_result_t, ur_event_handle_t, ur_event_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
@@ -1161,7 +1153,6 @@ else:
 ## @brief Table of Event functions pointers
 class ur_event_dditable_t(Structure):
     _fields_ = [
-        ("pfnCreate", c_void_p),                                        ## _urEventCreate_t
         ("pfnGetInfo", c_void_p),                                       ## _urEventGetInfo_t
         ("pfnGetProfilingInfo", c_void_p),                              ## _urEventGetProfilingInfo_t
         ("pfnWait", c_void_p),                                          ## _urEventWait_t
@@ -2002,7 +1993,6 @@ class UR_DDI:
         self.__dditable.Event = Event
 
         # attach function interface to function address
-        self.urEventCreate = _urEventCreate_t(self.__dditable.Event.pfnCreate)
         self.urEventGetInfo = _urEventGetInfo_t(self.__dditable.Event.pfnGetInfo)
         self.urEventGetProfilingInfo = _urEventGetProfilingInfo_t(self.__dditable.Event.pfnGetProfilingInfo)
         self.urEventWait = _urEventWait_t(self.__dditable.Event.pfnWait)
