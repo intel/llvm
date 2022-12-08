@@ -285,6 +285,13 @@ def SYCL_SubGroupType : SYCL_Type<"SubGroup", "sub_group"> {
   let assemblyFormat = "";
 }
 
+def SYCL_SwizzledVecType : SYCL_Type<"SwizzledVec", "swizzled_vec"> {
+  let parameters = (ins "::mlir::sycl::VecType":$vecType,
+                        ArrayRefParameter<"int">:$indexes,
+                        ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `[` $vecType `,` $indexes `]` `,` `(` $body `)` `>`";
+}
+
 def SYCL_TupleCopyAssignableValueHolderType
     : SYCL_Type<"TupleCopyAssignableValueHolder", "tuple_copy_assignable_value_holder",
         [SYCLInheritanceTypeTrait<"TupleValueHolderType">]> {
@@ -306,13 +313,6 @@ def SYCL_VecType : SYCL_Type<"Vec", "vec"> {
                         ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `[` $dataType `,` $numElements `]` `,` `(` $body `)` `>`";
   let genVerifyDecl = 1;
-}
-
-def SYCL_SwizzledVecType : SYCL_Type<"SwizzledVec", "swizzled_vec"> {
-  let parameters = (ins "::mlir::sycl::VecType":$vecType,
-                        ArrayRefParameter<"int">:$indexes,
-                        ArrayRefParameter<"mlir::Type">:$body);
-  let assemblyFormat = "`<` `[` $vecType `,` $indexes `]` `,` `(` $body `)` `>`";
 }
 
 // Define MemRef types (alphabetical order).
