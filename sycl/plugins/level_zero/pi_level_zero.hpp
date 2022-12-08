@@ -813,11 +813,19 @@ struct _pi_queue : _pi_object {
   createCommandList(bool UseCopyEngine, pi_command_list_ptr_t &CommandList,
                     ze_command_queue_handle_t *ForcedCmdQueue = nullptr);
 
-  // Resets the Command List and Associated fence in the ZeCommandListFenceMap.
-  // If the reset command list should be made available, then MakeAvailable
-  // needs to be set to true. The caller must verify that this command list and
-  // fence have been signalled. The EventListToCleanup contains a list of events
-  // from the command list which need to be cleaned up.
+  /// @brief Resets the command list and associated fence in the map and removes
+  /// events from the command list.
+  /// @param CommandList The caller must verify that this command list and fence
+  /// have been signalled.
+  /// @param MakeAvailable If the reset command list should be made available,
+  /// then MakeAvailable needs to be set to true.
+  /// @param EventListToCleanup  The EventListToCleanup contains a list of
+  /// events from the command list which need to be cleaned up.
+  /// @param CheckStatus Hint informing whether we need to check status of the
+  /// events before removing them from the immediate command list. This is
+  /// needed because immediate command lists are not associated with fences and
+  /// in general status of the event needs to be checked.
+  /// @return PI_SUCCESS if successful, PI error code otherwise.
   pi_result resetCommandList(pi_command_list_ptr_t CommandList,
                              bool MakeAvailable,
                              std::vector<_pi_event *> &EventListToCleanup,
@@ -1221,6 +1229,18 @@ struct _pi_ze_event_list_t {
     this->PiEventList = other.PiEventList;
     this->Length = other.Length;
     return *this;
+  }
+
+  /// @brief Method to check if this event list contains the event.
+  /// @param Event Event to look for in the wait list.
+  /// @return true if event is found in the event list, false otherwise.
+  bool contains(pi_event Event) {
+    std::vector WaitListVec(PiEventList, PiEventList + Length);
+    if (std::find(WaitListVec.begin(), WaitListVec.end(), Event) !=
+        WaitListVec.end())
+      return true;
+
+    return false;
   }
 };
 

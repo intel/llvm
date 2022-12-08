@@ -1289,10 +1289,111 @@ CleanupEventListFromResetCmdList(std::vector<pi_event> &EventListToCleanup,
   return PI_SUCCESS;
 }
 
-// Reset signalled command lists in the queue and put them to the cache of
-// command lists.
-pi_result resetCommandLists(pi_queue Queue, bool QueueLocked = false,
-                            bool CheckStatus = true) {
+/// @brief Cleanup events in the immediate lists of the queue.
+/// @param Queue Queue where events need to be cleaned up.
+/// @param QueueLocked Indicates if the queue mutex is locked by caller.
+/// @param QueueSynced Hint informing that queue was synchronized before the
+/// call and no other commands were submitted after synchronization.
+/// @param CompletedEvent Hint providing an event which was synchronized before
+/// the call, in case of in-order queue it allows to cleanup all preceding
+/// events.
+/// @return PI_SUCCESS if successful, PI error code otherwise.
+static pi_result CleanupEventsInImmCmdLists(pi_queue Queue,
+                                            bool QueueLocked = false,
+                                            bool QueueSynced = false,
+                                            pi_event CompletedEvent = nullptr) {
+  // Handle only immediate command lists here.
+  if (!Queue || !Queue->Device->useImmediateCommandLists())
+    return PI_SUCCESS;
+
+  std::vector<pi_event> EventListToCleanup;
+  {
+    std::unique_lock<pi_shared_mutex> QueueLock(Queue->Mutex, std::defer_lock);
+    if (!QueueLocked)
+      QueueLock.lock();
+    // If queue is locked and fully synchronized then cleanup all events.
+    // If queue is not locked then by this time there may be new submitted
+    // commands so we can't do full cleanup.
+    if (QueueLocked &&
+        (QueueSynced || (Queue->isInOrderQueue() &&
+                         (CompletedEvent == Queue->LastCommandEvent ||
+                          !Queue->LastCommandEvent)))) {
+      Queue->LastCommandEvent = nullptr;
+      for (auto &&It = Queue->CommandListMap.begin();
+           It != Queue->CommandListMap.end(); ++It) {
+        auto EventListToCleanup = std::move(It->second.EventList);
+        It->second.EventList.clear();
+      }
+    } else if (Queue->isInOrderQueue() && CompletedEvent) {
+      // If the queue is in-order and we have information about completed event
+      // then cleanup all events preceding to CompletedEvent including itself.
+
+      // Check that the comleted event has associated command list.
+      if (!(CompletedEvent->CommandList &&
+            CompletedEvent->CommandList.value() != Queue->CommandListMap.end()))
+        return PI_SUCCESS;
+
+      auto &CmdListEvents =
+          CompletedEvent->CommandList.value()->second.EventList;
+      auto CompletedEventIt =
+          std::find(CmdListEvents.begin(), CmdListEvents.end(), CompletedEvent);
+      if (CompletedEventIt != CmdListEvents.end()) {
+        // Remember the first event in this command list, we know that it
+        // is completed.
+        auto FirstEvent = CmdListEvents.front();
+        // We can cleanup all events prior to the completed event.
+        std::move(std::begin(CmdListEvents), CompletedEventIt + 1,
+                  std::back_inserter(EventListToCleanup));
+        CmdListEvents.erase(CmdListEvents.begin(), CompletedEventIt + 1);
+        // We can cleanup events from all command lists preceding the command
+        // list containing completed event.
+        for (auto &&It = Queue->CommandListMap.begin();
+             It != Queue->CommandListMap.end(); ++It) {
+          if (!It->second.EventList.empty()) {
+            auto LastEventInCmdList = It->second.EventList.back();
+            // If the command lists' last event is in the waitlist of the first
+            // event in the command list with completed event.
+            if (FirstEvent->WaitList.contains(LastEventInCmdList)) {
+              PI_CALL(Queue->resetCommandList(It, true, EventListToCleanup,
+                                              /* CheckStatus */ false));
+            }
+          }
+        }
+      }
+    } else {
+      // Fallback to resetCommandList over all command lists.
+      for (auto &&It = Queue->CommandListMap.begin();
+           It != Queue->CommandListMap.end(); ++It) {
+        PI_CALL(Queue->resetCommandList(It, true, EventListToCleanup,
+                                        /* CheckStatus */ true));
+      }
+    }
+  }
+  PI_CALL(CleanupEventListFromResetCmdList(EventListToCleanup, QueueLocked));
+  return PI_SUCCESS;
+}
+
+/// @brief Reset signalled command lists in the queue and put them to the cache
+/// of command lists. Also cleanup events associated with signalled command
+/// lists.
+/// @param Queue Queue where we look for signalled command lists and cleanup
+/// events.
+/// @param QueueLocked Indicates if the queue mutex is locked by caller.
+/// @param QueueSynced Hint informing that queue was synchronized before the
+/// call and no other commands were submitted after synchronization.
+/// @param CompletedEvent Hint providing an event which was synchronized before
+/// the call, in case of in-order queue it allows to cleanup all preceding
+/// events.
+/// @return PI_SUCCESS if successful, PI error code otherwise.
+static pi_result resetCommandLists(pi_queue Queue, bool QueueLocked = false,
+                                   bool QueueSynced = false,
+                                   pi_event CompletedEvent = nullptr) {
+  // Handle immediate command lists here, they don't need to be reset and we
+  // only need to cleanup events.
+  if (Queue->Device->useImmediateCommandLists())
+    PI_CALL(CleanupEventsInImmCmdLists(Queue, QueueLocked, QueueSynced,
+                                       CompletedEvent));
+
   // We need events to be cleaned up out of scope where queue is locked to avoid
   // nested locks, because event cleanup requires event to be locked. Nested
   // locks are hard to control and can cause deadlocks if mutexes are locked in
@@ -1309,21 +1410,19 @@ pi_result resetCommandLists(pi_queue Queue, bool QueueLocked = false,
     std::unique_lock<pi_shared_mutex> QueueLock(Queue->Mutex, std::defer_lock);
     if (!QueueLocked)
       QueueLock.lock();
+
     for (auto &&it = Queue->CommandListMap.begin();
          it != Queue->CommandListMap.end(); ++it) {
-      // Immediate commandlists don't use a fence but still need reset.
-      if (it->second.ZeFence == nullptr) {
-        PI_CALL(
-            Queue->resetCommandList(it, true, EventListToCleanup, CheckStatus));
-      } else {
-        // It is possible that the fence was already noted as signalled and
-        // reset. In that case the ZeFenceInUse flag will be false.
-        if (it->second.ZeFenceInUse) {
-          ze_result_t ZeResult =
-              ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
-          if (ZeResult == ZE_RESULT_SUCCESS)
-            PI_CALL(Queue->resetCommandList(it, true, EventListToCleanup));
-        }
+      // Immediate commandlists don't use a fence and are handled separately
+      // above.
+      assert(it->second.ZeFence != nullptr);
+      // It is possible that the fence was already noted as signalled and
+      // reset. In that case the ZeFenceInUse flag will be false.
+      if (it->second.ZeFenceInUse) {
+        ze_result_t ZeResult =
+            ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
+        if (ZeResult == ZE_RESULT_SUCCESS)
+          PI_CALL(Queue->resetCommandList(it, true, EventListToCleanup));
       }
     }
   }
@@ -3919,8 +4018,10 @@ pi_result piQueueFinish(pi_queue Queue) {
     }
   }
   // Reset signalled command lists and return them back to the cache of
-  // available command lists.
-  resetCommandLists(Queue);
+  // available command lists. Events in the immediate command lists are cleaned
+  // up in synchronize().
+  if (!Queue->Device->useImmediateCommandLists())
+    resetCommandLists(Queue);
   return PI_SUCCESS;
 }
 
@@ -6137,76 +6238,24 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
           EventList[I]->Completed = true;
         }
       }
-      auto Queue = EventList[I]->Queue;
-      if (!Queue)
-        continue;
-      // Lock automatically releases when this goes out of scope.
-      std::scoped_lock<pi_shared_mutex> lock(Queue->Mutex);
-      //if (Queue->Device->useImmediateCommandLists()) {
-        if (Queue->isInOrderQueue()) {
-          // If this is the last command event
-          if (EventList[I] == Queue->LastCommandEvent ||
-              !Queue->LastCommandEvent) {
-            Queue->LastCommandEvent = nullptr;
-            resetCommandLists(Queue, true, false);
-            return PI_SUCCESS;
-          } else {
-            // Check that we have associated command list.
-            if (!(EventList[I]->CommandList &&
-                  EventList[I]->CommandList.value() !=
-                      Queue->CommandListMap.end()))
-              continue;
-
-            // If it's not the last event then we can gather all predecessor
-            // events and clean them up.
-            std::vector<pi_event> EventListToCleanup;
-            auto &CommandListWithCompletedEvent =
-                EventList[I]->CommandList.value();
-            auto &CmdListEvents =
-                CommandListWithCompletedEvent->second.EventList;
-            auto CompletedEventIt = std::find(
-                CmdListEvents.begin(), CmdListEvents.end(), EventList[I]);
-            if (CompletedEventIt != CmdListEvents.end()) {
-              // Remember the first event in this command list, we know that it
-              // is completed.
-              auto FirstEvent = CmdListEvents.front();
-              // We can cleanup all events prior to the completed event.
-              std::move(std::begin(CmdListEvents), CompletedEventIt + 1,
-                        std::back_inserter(EventListToCleanup));
-              CmdListEvents.erase(CmdListEvents.begin(), CompletedEventIt + 1);
-              // We can cleanup events from command lists prior to the command
-              // list containing completed event.
-              for (auto &&it = Queue->CommandListMap.begin();
-                   it != Queue->CommandListMap.end(); ++it) {
-                if (!it->second.EventList.empty()) {
-                  auto LastEventInCmdList = it->second.EventList.back();
-                  std::vector WaitListVec(FirstEvent->WaitList.PiEventList,
-                                          FirstEvent->WaitList.PiEventList +
-                                              FirstEvent->WaitList.Length);
-                  // if the first event in command list with completed event
-                  // depends on current command list's last event then we can
-                  // cleanup all events from current command list.
-                  if (std::find(WaitListVec.begin(), WaitListVec.end(),
-                                LastEventInCmdList) != WaitListVec.end()) {
-                    std::move(std::begin(it->second.EventList),
-                              std::end(it->second.EventList),
-                              std::back_inserter(EventListToCleanup));
-                    it->second.EventList.clear();
-                  }
-                }
-              }
-            }
-            CleanupEventListFromResetCmdList(EventListToCleanup, true);
-            return PI_SUCCESS;
-          }
+      if (auto Q = EventList[I]->Queue) {
+        if (Q->Device->useImmediateCommandLists() && Q->isInOrderQueue())
+          // Use information about waited event to cleanup completed events in
+          // the in-order queue.
+          CleanupEventsInImmCmdLists(EventList[I]->Queue,
+                                     /* QueueLocked */ false,
+                                     /* QueueSynced */ false, EventList[I]);
+        else {
+          // NOTE: we are cleaning up after the event here to free resources
+          // sooner in case run-time is not calling piEventRelease soon enough.
+          CleanupCompletedEvent(EventList[I]);
+          // For the case when we have out-of-order queue or regular command
+          // lists its more efficient to check fences so put the queue in the
+          // set to cleanup later.
+          Queues.insert(Q);
         }
-      //}
-      if (auto Q = EventList[I]->Queue)
-        Queues.insert(Q);
+      }
     }
-    // NOTE: we are cleaning up after the event here to free resources
-    // sooner in case run-time is not calling piEventRelease soon enough.
-    CleanupCompletedEvent(EventList[I]);
   }
 
   // We waited some events above, check queue for signaled command lists and
@@ -6889,8 +6938,6 @@ pi_result _pi_queue::synchronize() {
       if (ZeQueue)
         ZE_CALL(zeHostSynchronize, (ZeQueue));
   }
-
-  resetCommandLists(this, /* QueueLocked */ true, /* CheckStatus */ false);
   LastCommandEvent = nullptr;
 
   // With the entire queue synchronized, the active barriers must be done so we
