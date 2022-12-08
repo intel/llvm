@@ -164,15 +164,18 @@ class ${N}_DDI:
         if "Windows" == platform.uname()[0]:
             self.__dll = WinDLL("${x}_loader.dll")
         else:
-            self.__dll = CDLL("${x}_loader.so")
+            self.__dll = CDLL("lib${x}_loader.so")
 
         # fill the ddi tables
         self.__dditable = ${n}_dditable_t()
 
+        # initialize the UR
+        self.__dll.urInit(0, 0)
+
         %for tbl in tables:
         # call driver to get function pointers
         ${tbl['name']} = ${tbl['type']}()
-        r = ${x}_result_v(self.__dll.${tbl['export']['name']}(version, byref(_${tbl['name']})))
+        r = ${x}_result_v(self.__dll.${tbl['export']['name']}(version, byref(${tbl['name']})))
         if r != ${x}_result_v.SUCCESS:
             raise Exception(r)
         self.__dditable.${tbl['name']} = ${tbl['name']}

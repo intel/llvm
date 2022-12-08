@@ -1956,14 +1956,17 @@ class UR_DDI:
         if "Windows" == platform.uname()[0]:
             self.__dll = WinDLL("ur_loader.dll")
         else:
-            self.__dll = CDLL("ur_loader.so")
+            self.__dll = CDLL("libur_loader.so")
 
         # fill the ddi tables
         self.__dditable = ur_dditable_t()
 
+        # initialize the UR
+        self.__dll.urInit(0, 0)
+
         # call driver to get function pointers
         Platform = ur_platform_dditable_t()
-        r = ur_result_v(self.__dll.urGetPlatformProcAddrTable(version, byref(_Platform)))
+        r = ur_result_v(self.__dll.urGetPlatformProcAddrTable(version, byref(Platform)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
         self.__dditable.Platform = Platform
@@ -1977,7 +1980,7 @@ class UR_DDI:
 
         # call driver to get function pointers
         Context = ur_context_dditable_t()
-        r = ur_result_v(self.__dll.urGetContextProcAddrTable(version, byref(_Context)))
+        r = ur_result_v(self.__dll.urGetContextProcAddrTable(version, byref(Context)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
         self.__dditable.Context = Context
@@ -1993,7 +1996,7 @@ class UR_DDI:
 
         # call driver to get function pointers
         Event = ur_event_dditable_t()
-        r = ur_result_v(self.__dll.urGetEventProcAddrTable(version, byref(_Event)))
+        r = ur_result_v(self.__dll.urGetEventProcAddrTable(version, byref(Event)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
         self.__dditable.Event = Event
@@ -2011,7 +2014,7 @@ class UR_DDI:
 
         # call driver to get function pointers
         Program = ur_program_dditable_t()
-        r = ur_result_v(self.__dll.urGetProgramProcAddrTable(version, byref(_Program)))
+        r = ur_result_v(self.__dll.urGetProgramProcAddrTable(version, byref(Program)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
         self.__dditable.Program = Program
@@ -2030,7 +2033,7 @@ class UR_DDI:
 
         # call driver to get function pointers
         Module = ur_module_dditable_t()
-        r = ur_result_v(self.__dll.urGetModuleProcAddrTable(version, byref(_Module)))
+        r = ur_result_v(self.__dll.urGetModuleProcAddrTable(version, byref(Module)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
         self.__dditable.Module = Module
@@ -2044,7 +2047,7 @@ class UR_DDI:
 
         # call driver to get function pointers
         Kernel = ur_kernel_dditable_t()
-        r = ur_result_v(self.__dll.urGetKernelProcAddrTable(version, byref(_Kernel)))
+        r = ur_result_v(self.__dll.urGetKernelProcAddrTable(version, byref(Kernel)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
         self.__dditable.Kernel = Kernel
@@ -2066,7 +2069,7 @@ class UR_DDI:
 
         # call driver to get function pointers
         Sampler = ur_sampler_dditable_t()
-        r = ur_result_v(self.__dll.urGetSamplerProcAddrTable(version, byref(_Sampler)))
+        r = ur_result_v(self.__dll.urGetSamplerProcAddrTable(version, byref(Sampler)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
         self.__dditable.Sampler = Sampler
@@ -2081,7 +2084,7 @@ class UR_DDI:
 
         # call driver to get function pointers
         Mem = ur_mem_dditable_t()
-        r = ur_result_v(self.__dll.urGetMemProcAddrTable(version, byref(_Mem)))
+        r = ur_result_v(self.__dll.urGetMemProcAddrTable(version, byref(Mem)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
         self.__dditable.Mem = Mem
@@ -2101,7 +2104,7 @@ class UR_DDI:
 
         # call driver to get function pointers
         Enqueue = ur_enqueue_dditable_t()
-        r = ur_result_v(self.__dll.urGetEnqueueProcAddrTable(version, byref(_Enqueue)))
+        r = ur_result_v(self.__dll.urGetEnqueueProcAddrTable(version, byref(Enqueue)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
         self.__dditable.Enqueue = Enqueue
@@ -2129,7 +2132,7 @@ class UR_DDI:
 
         # call driver to get function pointers
         USM = ur_usm_dditable_t()
-        r = ur_result_v(self.__dll.urGetUSMProcAddrTable(version, byref(_USM)))
+        r = ur_result_v(self.__dll.urGetUSMProcAddrTable(version, byref(USM)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
         self.__dditable.USM = USM
@@ -2141,7 +2144,7 @@ class UR_DDI:
 
         # call driver to get function pointers
         Global = ur_global_dditable_t()
-        r = ur_result_v(self.__dll.urGetGlobalProcAddrTable(version, byref(_Global)))
+        r = ur_result_v(self.__dll.urGetGlobalProcAddrTable(version, byref(Global)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
         self.__dditable.Global = Global
@@ -2153,7 +2156,7 @@ class UR_DDI:
 
         # call driver to get function pointers
         Queue = ur_queue_dditable_t()
-        r = ur_result_v(self.__dll.urGetQueueProcAddrTable(version, byref(_Queue)))
+        r = ur_result_v(self.__dll.urGetQueueProcAddrTable(version, byref(Queue)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
         self.__dditable.Queue = Queue
@@ -2170,7 +2173,7 @@ class UR_DDI:
 
         # call driver to get function pointers
         Device = ur_device_dditable_t()
-        r = ur_result_v(self.__dll.urGetDeviceProcAddrTable(version, byref(_Device)))
+        r = ur_result_v(self.__dll.urGetDeviceProcAddrTable(version, byref(Device)))
         if r != ur_result_v.SUCCESS:
             raise Exception(r)
         self.__dditable.Device = Device
