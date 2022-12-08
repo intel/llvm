@@ -16,10 +16,10 @@
 // CHECK-DAG: !sycl_get_scalar_op_i32_ = !sycl.get_scalar_op<[i32], (i32)>
 // CHECK-DAG: !sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
 // CHECK-DAG: !sycl_group_2_ = !sycl.group<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
-// CHECK-DAG: !sycl_h_item_1_ = !sycl.h_item<[1], (!sycl_item_1_, !sycl_item_1_, !sycl_item_1_)>
+// CHECK-DAG: !sycl_h_item_1_ = !sycl.h_item<[1], (![[ITEM_1_F:.*]], ![[ITEM_1_F]], ![[ITEM_1_F]])>
 // CHECK-DAG: !sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
 // CHECK-DAG: !sycl_id_2_ = !sycl.id<[2], (!sycl_array_2_)>
-// CHECK-DAG: ![[ITEM_1_F:.*]] = !sycl.item<[1, false], (![[ITEM_BASE_1_F:.*]])>
+// CHECK-DAG: ![[ITEM_1_F]] = !sycl.item<[1, false], (![[ITEM_BASE_1_F:.*]])>
 // CHECK-DAG: ![[ITEM_1_T:.*]] = !sycl.item<[1, true], (![[ITEM_BASE_1_T:.*]])>
 // CHECK-DAG: ![[ITEM_2_F:.*]] = !sycl.item<[2, false], (![[ITEM_BASE_2_F:.*]])>
 // CHECK-DAG: ![[ITEM_2_T:.*]] = !sycl.item<[2, true], (![[ITEM_BASE_2_T:.*]])>
