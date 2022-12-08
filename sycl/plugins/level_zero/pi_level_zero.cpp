@@ -1044,7 +1044,7 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
     for (auto it = EventList.begin(); it != EventList.end();) {
       std::scoped_lock<pi_shared_mutex> EventLock((*it)->Mutex);
       ze_result_t ZeResult =
-          ZE_CALL_NOCHECK(zeEventQueryStatus, ((*it)->ZeEvent));
+          (*it)->Completed ? ZE_RESULT_SUCCESS : ZE_CALL_NOCHECK(zeEventQueryStatus, ((*it)->ZeEvent));
       if (ZeResult == ZE_RESULT_SUCCESS) {
         EventListToCleanup.push_back(std::move((*it)));
         it = EventList.erase(it);
@@ -6054,6 +6054,7 @@ static pi_result CleanupCompletedEvent(pi_event Event, bool QueueLocked) {
   // code that preceded this implementation.
   while (!EventsToBeReleased.empty()) {
     pi_event DepEvent = EventsToBeReleased.front();
+    DepEvent->Completed = true;
     EventsToBeReleased.pop_front();
 
     pi_kernel DepEventKernel = nullptr;
@@ -6133,6 +6134,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
           ze_event_handle_t ZeEvent = HostVisibleEvent->ZeEvent;
           zePrint("ZeEvent = %#lx\n", pi_cast<std::uintptr_t>(ZeEvent));
           ZE_CALL(zeHostSynchronize, (ZeEvent));
+          EventList[I]->Completed = true;
         }
       }
       auto Queue = EventList[I]->Queue;
