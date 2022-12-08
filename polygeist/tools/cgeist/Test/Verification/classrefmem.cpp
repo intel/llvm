@@ -32,4 +32,4 @@ void Q(A& a) {
 // CHECK-NEXT:     %1 = llvm.load %0 : !llvm.ptr<memref<?xi32>>
 // CHECK-NEXT:     call @_Z4oaddRi(%1) : (memref<?xi32>) -> ()
 // CHECK-NEXT:     return
-// CHECK-NEXT:   } 
+// CHECK-NEXT:   }
