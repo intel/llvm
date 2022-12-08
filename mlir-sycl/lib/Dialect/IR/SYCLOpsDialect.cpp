@@ -182,6 +182,12 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
                << Ty.getDataType() << "_";
             return AliasResult::FinalAlias;
           })
+      .Case<mlir::sycl::SwizzledVecType>([&](auto Ty) {
+        const auto VecTy = Ty.getVecType();
+        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_"
+           << VecTy.getDataType() << "_" << VecTy.getNumElements() << "_";
+        return AliasResult::OverridableAlias;
+      })
       .Case<mlir::sycl::TupleCopyAssignableValueHolderType>([&](auto Ty) {
         OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDataType()
            << "_";

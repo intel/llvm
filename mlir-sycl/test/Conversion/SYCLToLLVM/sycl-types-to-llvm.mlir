@@ -259,5 +259,10 @@ func.func @test_tuple_copy_assignable_value_holder(%arg0: !sycl_tuple_copy_assig
 func.func @test_vec(%arg0: !sycl_vec_f32_4_) {
   return
 }
+!sycl_swizzled_vec_f32_4_ = !sycl.swizzled_vec<[!sycl_vec_f32_4_, 0, 2], (memref<?x!sycl_vec_f32_4_, 4>, !sycl.get_op<i8>, !sycl.get_op<i8>)>
+// CHECK: llvm.func @test_swizzled_vec(%arg0: !llvm.[[SWIZZLED_VEC:struct<"class.sycl::_V1::detail::SwizzleOp"]], (struct<(ptr<[[VEC]], 4>, ptr<[[VEC]], 4>, i64, array<1 x i64>, array<1 x i64>)>, [[GET_OP]], [[GET_OP]][[SUFFIX]]) {
+func.func @test_swizzled_vec(%arg0: !sycl_swizzled_vec_f32_4_) {
+  return
+}
 
 // -----

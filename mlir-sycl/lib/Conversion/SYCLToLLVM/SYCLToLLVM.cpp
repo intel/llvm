@@ -302,6 +302,13 @@ static Optional<Type> convertVecType(sycl::VecType type,
   return convertBodyType("class.sycl::_V1::vec", type.getBody(), converter);
 }
 
+/// Converts SYCL vec type to LLVM type.
+static Optional<Type> convertSwizzledVecType(sycl::SwizzledVecType type,
+                                             LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::detail::SwizzleOp", type.getBody(),
+                         converter);
+}
+
 /// Converts SYCL atomic type to LLVM type.
 static Optional<Type> convertAtomicType(sycl::AtomicType type,
                                         LLVMTypeConverter &converter) {
@@ -574,6 +581,9 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   });
   typeConverter.addConversion([&](sycl::SubGroupType type) {
     return convertSubGroupType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::SwizzledVecType type) {
+    return convertSwizzledVecType(type, typeConverter);
   });
   typeConverter.addConversion(
       [&](sycl::TupleCopyAssignableValueHolderType type) {

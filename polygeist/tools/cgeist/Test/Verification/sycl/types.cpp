@@ -38,6 +38,7 @@
 // CHECK-DAG: !sycl_nd_item_2_ = !sycl.nd_item<[2], (![[ITEM_2_T]], ![[ITEM_2_F]], !sycl_group_2_)>
 // CHECK-DAG: !sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
 // CHECK-DAG: !sycl_nd_range_2_ = !sycl.nd_range<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
+// CHECK-DAG: !sycl_swizzled_vec_f32_8_ = !sycl.swizzled_vec<[!sycl_vec_f32_8_, 0, 1, 2], (memref<?x!sycl_vec_f32_8_, 4>, !sycl.get_op<f32>, !sycl.get_op<f32>)>
 // CHECK-DAG: ![[TUPLE_COPY_ASSIGNABLE_VALUE_HOLDER_TRUE:.*]] = !sycl.tuple_copy_assignable_value_holder<[i32, true], (!sycl_tuple_value_holder_i32_)>
 // CHECK-DAG: ![[TUPLE_COPY_ASSIGNABLE_VALUE_HOLDER_FALSE:.*]] = !sycl.tuple_copy_assignable_value_holder<[i32, false], (!sycl_tuple_value_holder_i32_)>
 // CHECK-DAG: !sycl_tuple_value_holder_i32_ = !sycl.tuple_value_holder<[i32], (i32)>
@@ -216,6 +217,11 @@ SYCL_EXTERNAL void range_2(sycl::range<2> range) {}
 // CHECK:          %arg0: memref<?x!sycl.sub_group> {llvm.align = 1 : i64, llvm.byval = !sycl.sub_group, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void sub_group(sycl::ext::oneapi::sub_group sub_group) {}
+
+// CHECK-LABEL: func.func @_Z12swizzled_vecN4sycl3_V16detail9SwizzleOpINS0_3vecIfLi8EEENS1_5GetOpIfEES6_S5_JLi0ELi1ELi2EEEE(
+// CHECK-SAME:    %arg0: memref<?x!sycl_swizzled_vec_f32_8_> {llvm.noundef})
+// CHECK-SAME:  attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
+SYCL_EXTERNAL void swizzled_vec(sycl::detail::SwizzleOp<sycl::float8, sycl::detail::GetOp<float>, sycl::detail::GetOp<float>, sycl::detail::GetOp, 0, 1, 2> swizzle) {}
 
 // CHECK-LABEL: func.func @_Z36tuple_copy_assignable_value_holder_1N4sycl3_V16detail30TupleCopyAssignableValueHolderIiLb1EEE(
 // CHECK:          %arg0: memref<?x![[TUPLE_COPY_ASSIGNABLE_VALUE_HOLDER_TRUE]]> {llvm.align = 4 : i64, llvm.byval = ![[TUPLE_COPY_ASSIGNABLE_VALUE_HOLDER_TRUE]], llvm.noundef})
