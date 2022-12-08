@@ -21,6 +21,15 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/Casting.h"
 
+static bool isSuitableSYCLOpArgTy(mlir::Type Ty) {
+  return llvm::TypeSwitch<mlir::Type, bool>(Ty)
+      .Case<mlir::MemRefType, mlir::LLVM::LLVMPointerType>([](auto Type) {
+        return isSuitableSYCLOpArgTy(Type.getElementType());
+      })
+      .Case<mlir::IntegerType, mlir::FloatType>([](auto) { return true; })
+      .Default(mlir::sycl::isSYCLType);
+}
+
 namespace mlirclang {
 
 using namespace llvm;
@@ -445,6 +454,10 @@ unsigned getPrimitiveSizeInBits(mlir::Type Ty) {
         return VecTy.getNumElements() *
                getPrimitiveSizeInBits(VecTy.getElementType());
       });
+}
+
+bool areSuitableSYCLOpArgTypes(mlir::TypeRange Types) {
+  return Types.empty() || ::isSuitableSYCLOpArgTy(Types[0]);
 }
 
 } // namespace mlirclang

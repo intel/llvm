@@ -80,6 +80,7 @@ inline bool isAggregateType(mlir::Type Ty) {
 
 unsigned getPrimitiveSizeInBits(mlir::Type Ty);
 
+bool areSuitableSYCLOpArgTypes(mlir::TypeRange Types);
 } // namespace mlirclang
 
 #endif // MLIR_TOOLS_MLIRCLANG_TYPE_UTILS_H

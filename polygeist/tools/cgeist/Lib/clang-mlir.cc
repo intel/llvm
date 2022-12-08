@@ -93,6 +93,7 @@ static void checkFunctionParent(const FunctionOpInterface F,
 static void tryToRegisterSYCLMethod(const clang::FunctionDecl &FD,
                                     FunctionOpInterface Func) {
   if (!mlirclang::isNamespaceSYCL(FD.getEnclosingNamespaceContext()) ||
+      !mlirclang::areSuitableSYCLOpArgTypes(Func.getArgumentTypes()) ||
       !isa<clang::CXXMethodDecl>(FD) ||
       isa<clang::CXXConstructorDecl, clang::CXXDestructorDecl>(FD) ||
       !cast<clang::CXXMethodDecl>(FD).isInstance()) {
