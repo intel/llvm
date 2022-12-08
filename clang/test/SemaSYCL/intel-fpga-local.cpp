@@ -1,6 +1,6 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -Wno-return-type -fcxx-exceptions -fsyntax-only -verify -pedantic %s
 
-// Tests for diagnostic parts of Intel FPGA memory attributes
+// Tests for diagnostic parts of Intel FPGA memory attributes.
 
 #include "sycl.hpp"
 
