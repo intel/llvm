@@ -115,18 +115,23 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     GetScalarOp,
     GetOp,
     Group,
+    HItem,
     ID,
     ItemBase,
     Item,
+    KernelHandler,
     LocalAccessorBaseDevice,
     LocalAccessorBase,
     LocalAccessor,
+    Maximum,
+    Minimum,
     MultiPtr,
     NdItem,
     NdRange,
     OwnerLessBase,
     Range,
     SubGroup,
+    SwizzleOp,
     TupleCopyAssignableValueHolder,
     TupleValueHolder,
     Vec
@@ -145,18 +150,23 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       {"GetScalarOp", TypeEnum::GetScalarOp},
       {"GetOp", TypeEnum::GetOp},
       {"group", TypeEnum::Group},
+      {"h_item", TypeEnum::HItem},
       {"id", TypeEnum::ID},
       {"ItemBase", TypeEnum::ItemBase},
       {"item", TypeEnum::Item},
+      {"kernel_handler", TypeEnum::KernelHandler},
       {"LocalAccessorBaseDevice", TypeEnum::LocalAccessorBaseDevice},
       {"local_accessor_base", TypeEnum::LocalAccessorBase},
       {"local_accessor", TypeEnum::LocalAccessor},
+      {"maximum", TypeEnum::Maximum},
+      {"minimum", TypeEnum::Minimum},
       {"multi_ptr", MultiPtr},
       {"nd_item", TypeEnum::NdItem},
       {"nd_range", TypeEnum::NdRange},
       {"OwnerLessBase", TypeEnum::OwnerLessBase},
       {"range", TypeEnum::Range},
       {"sub_group", SubGroup},
+      {"SwizzleOp", SwizzleOp},
       {"TupleCopyAssignableValueHolder", TupleCopyAssignableValueHolder},
       {"TupleValueHolder", TypeEnum::TupleValueHolder},
       {"vec", TypeEnum::Vec},
@@ -241,6 +251,12 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       return mlir::sycl::GroupType::get(CGT.getModule()->getContext(), Dim,
                                         Body);
     }
+    case TypeEnum::HItem: {
+      const auto Dim =
+          CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
+      return mlir::sycl::HItemType::get(CGT.getModule()->getContext(), Dim,
+                                        Body);
+    }
     case TypeEnum::ID: {
       const auto Dim =
           CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
@@ -287,6 +303,16 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       Body.push_back(CGT.getMLIRType(CTS->bases_begin()->getType()));
       return mlir::sycl::LocalAccessorType::get(CGT.getModule()->getContext(),
                                                 Type, Dim, Body);
+    }
+    case TypeEnum::Maximum: {
+      const auto Type =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+      return mlir::sycl::MaximumType::get(CGT.getModule()->getContext(), Type);
+    }
+    case TypeEnum::Minimum: {
+      const auto Type =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+      return mlir::sycl::MinimumType::get(CGT.getModule()->getContext(), Type);
     }
     case TypeEnum::MultiPtr: {
       const auto Type =
@@ -344,6 +370,19 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       return mlir::sycl::VecType::get(CGT.getModule()->getContext(), ElemType,
                                       NumElems, Body);
     }
+    case TypeEnum::SwizzleOp: {
+      const auto VecType =
+          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType())
+              .cast<mlir::sycl::VecType>();
+      const auto IndexesArgs = CTS->getTemplateArgs().get(4).getPackAsArray();
+      SmallVector<int> Indexes;
+      Indexes.reserve(IndexesArgs.size());
+      std::transform(
+          IndexesArgs.begin(), IndexesArgs.end(), std::back_inserter(Indexes),
+          [](const auto &Arg) { return Arg.getAsIntegral().getSExtValue(); });
+      return mlir::sycl::SwizzledVecType::get(CGT.getModule()->getContext(),
+                                              VecType, Indexes, Body);
+    }
     default:
       llvm_unreachable(
           "ClassTemplateSpecializationDecl: SYCL type not handled (yet)");
@@ -358,6 +397,9 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
                                                  Body);
     case TypeEnum::BFloat16:
       return mlir::sycl::BFloat16Type::get(CGT.getModule()->getContext(), Body);
+    case TypeEnum::KernelHandler:
+      return mlir::sycl::KernelHandlerType::get(CGT.getModule()->getContext(),
+                                                Body);
     case TypeEnum::SubGroup:
       return mlir::sycl::SubGroupType::get(CGT.getModule()->getContext());
     default:

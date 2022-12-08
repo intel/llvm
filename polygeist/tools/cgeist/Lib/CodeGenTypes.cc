@@ -470,7 +470,8 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
       // sret things on win32 aren't void, they return the sret pointer.
       QualType Ret = FI.getReturnType();
       mlir::Type Ty = getMLIRType(Ret);
-      unsigned AddressSpace = CGM.getContext().getTargetAddressSpace(Ret);
+      unsigned AddressSpace =
+          CGM.getContext().getTargetAddressSpace(Ret.getAddressSpace());
       ResultType = getPointerOrMemRefType(Ty, AddressSpace);
     } else {
       ResultType = Builder.getNoneType();
@@ -510,7 +511,8 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
     llvm_unreachable("not implemented");
     QualType Ret = FI.getReturnType();
     mlir::Type Ty = getMLIRType(Ret);
-    unsigned AddressSpace = CGM.getContext().getTargetAddressSpace(Ret);
+    unsigned AddressSpace =
+        CGM.getContext().getTargetAddressSpace(Ret.getAddressSpace());
     ArgTypes[IRFunctionArgs.getSRetArgNo()] =
         getPointerOrMemRefType(Ty, AddressSpace);
   }
@@ -963,7 +965,7 @@ void CodeGenTypes::constructAttributeList(
         RetAttrsBuilder.addAttribute(
             llvm::Attribute::Dereferenceable,
             CGM.getMinimumObjectSize(PTy).getQuantity());
-      if (CGM.getContext().getTargetAddressSpace(PTy) == 0 &&
+      if (CGM.getContext().getTargetAddressSpace(PTy.getAddressSpace()) == 0 &&
           !CGM.getCodeGenOpts().NullPointerIsValid)
         RetAttrsBuilder.addAttribute(llvm::Attribute::NonNull);
       if (PTy->isObjectType()) {
@@ -1013,8 +1015,9 @@ void CodeGenTypes::constructAttributeList(
     QualType ThisTy =
         FI.arg_begin()->type.castAs<clang::PointerType>()->getPointeeType();
 
+    QualType QT = FI.arg_begin()->type;
     if (!CGM.getCodeGenOpts().NullPointerIsValid &&
-        CGM.getContext().getTargetAddressSpace(FI.arg_begin()->type) == 0) {
+        CGM.getContext().getTargetAddressSpace(QT.getAddressSpace()) == 0) {
       ParamAttrsBuilder.addAttribute(llvm::Attribute::NonNull);
       ParamAttrsBuilder.addAttribute(
           llvm::Attribute::Dereferenceable,
@@ -1151,7 +1154,7 @@ void CodeGenTypes::constructAttributeList(
         ParamAttrsBuilder.addAttribute(
             llvm::Attribute::Dereferenceable,
             CGM.getMinimumObjectSize(PTy).getQuantity());
-      if (CGM.getContext().getTargetAddressSpace(PTy) == 0 &&
+      if (CGM.getContext().getTargetAddressSpace(PTy.getAddressSpace()) == 0 &&
           !CGM.getCodeGenOpts().NullPointerIsValid)
         ParamAttrsBuilder.addAttribute(llvm::Attribute::NonNull);
       if (PTy->isObjectType()) {
@@ -1342,12 +1345,16 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
           TypeName == "array" || TypeName == "AssertHappened" ||
           TypeName == "atomic" || TypeName == "bfloat16" ||
           TypeName == "GetOp" || TypeName == "GetScalarOp" ||
-          TypeName == "group" || TypeName == "id" || TypeName == "item" ||
-          TypeName == "ItemBase" || TypeName == "LocalAccessorBaseDevice" ||
+          TypeName == "group" || TypeName == "h_item" || TypeName == "id" ||
+          TypeName == "item" || TypeName == "ItemBase" ||
+          TypeName == "kernel_handler" ||
+          TypeName == "LocalAccessorBaseDevice" ||
           TypeName == "local_accessor_base" || TypeName == "local_accessor" ||
+          TypeName == "maximum" || TypeName == "minimum" ||
           TypeName == "multi_ptr" || TypeName == "nd_item" ||
           TypeName == "nd_range" || TypeName == "OwnerLessBase" ||
           TypeName == "range" || TypeName == "sub_group" ||
+          TypeName == "SwizzleOp" ||
           TypeName == "TupleCopyAssignableValueHolder" ||
           TypeName == "TupleValueHolder" || TypeName == "vec") {
         return getSYCLType(RT, *this);
@@ -1474,9 +1481,9 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
           ET, (Size == ShapedType::kDynamic) ? 0 : Size);
     if (ImplicitRef)
       *ImplicitRef = true;
-    return mlir::MemRefType::get(
-        {Size}, ET, {},
-        CGM.getContext().getTargetAddressSpace(AT->getElementType()));
+    return mlir::MemRefType::get({Size}, ET, {},
+                                 CGM.getContext().getTargetAddressSpace(
+                                     AT->getElementType().getAddressSpace()));
   }
 
   if (const auto *AT = dyn_cast<clang::VectorType>(T)) {
@@ -1550,7 +1557,8 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
 
       if (!InnerSYCL)
         return LLVM::LLVMPointerType::get(
-            SubType, CGM.getContext().getTargetAddressSpace(PointeeType));
+            SubType, CGM.getContext().getTargetAddressSpace(
+                         PointeeType.getAddressSpace()));
     }
 
     if (isa<clang::ArrayType>(PTT)) {
@@ -1591,7 +1599,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     assert(!SubRef);
     return mlir::MemRefType::get(
         {Outer}, SubType, {},
-        CGM.getContext().getTargetAddressSpace(PointeeType));
+        CGM.getContext().getTargetAddressSpace(PointeeType.getAddressSpace()));
   }
 
   if (T->isBuiltinType() || isa<clang::EnumType>(T)) {

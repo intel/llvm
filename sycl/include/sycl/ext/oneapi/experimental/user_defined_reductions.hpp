@@ -17,7 +17,7 @@ namespace ext::oneapi::experimental {
 
 // ---- reduce_over_group
 template <typename GroupHelper, typename T, typename BinaryOperation>
-sycl::detail::enable_if_t<(is_group_helper_v<GroupHelper>), T>
+std::enable_if_t<(is_group_helper_v<GroupHelper>), T>
 reduce_over_group(GroupHelper group_helper, T x, BinaryOperation binary_op) {
   if constexpr (sycl::detail::is_native_op<T, BinaryOperation>::value) {
     return sycl::reduce_over_group(group_helper.get_group(), x, binary_op);
@@ -44,7 +44,7 @@ reduce_over_group(GroupHelper group_helper, T x, BinaryOperation binary_op) {
 
 template <typename GroupHelper, typename V, typename T,
           typename BinaryOperation>
-sycl::detail::enable_if_t<(is_group_helper_v<GroupHelper>), T>
+std::enable_if_t<(is_group_helper_v<GroupHelper>), T>
 reduce_over_group(GroupHelper group_helper, V x, T init,
                   BinaryOperation binary_op) {
   if constexpr (sycl::detail::is_native_op<V, BinaryOperation>::value &&
@@ -63,9 +63,9 @@ reduce_over_group(GroupHelper group_helper, V x, T init,
 
 // ---- joint_reduce
 template <typename GroupHelper, typename Ptr, typename BinaryOperation>
-sycl::detail::enable_if_t<(is_group_helper_v<GroupHelper> &&
-                           sycl::detail::is_pointer<Ptr>::value),
-                          typename std::iterator_traits<Ptr>::value_type>
+std::enable_if_t<(is_group_helper_v<GroupHelper> &&
+                  sycl::detail::is_pointer<Ptr>::value),
+                 typename std::iterator_traits<Ptr>::value_type>
 joint_reduce(GroupHelper group_helper, Ptr first, Ptr last,
              BinaryOperation binary_op) {
   if constexpr (sycl::detail::is_native_op<
@@ -97,7 +97,7 @@ joint_reduce(GroupHelper group_helper, Ptr first, Ptr last,
 
 template <typename GroupHelper, typename Ptr, typename T,
           typename BinaryOperation>
-sycl::detail::enable_if_t<
+std::enable_if_t<
     (is_group_helper_v<GroupHelper> && sycl::detail::is_pointer<Ptr>::value), T>
 joint_reduce(GroupHelper group_helper, Ptr first, Ptr last, T init,
              BinaryOperation binary_op) {

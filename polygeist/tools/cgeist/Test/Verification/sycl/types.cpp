@@ -3,10 +3,10 @@
 
 #include <sycl/sycl.hpp>
 
-// CHECK-DAG: !sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>, !llvm.struct<(ptr<i32, 1>)>)>
+// CHECK-DAG: !sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 1>)>)>
 // CHECK-DAG: !sycl_accessor_1_i32_rw_l = !sycl.accessor<[1, i32, read_write, local], (!sycl_local_accessor_base_1_i32_rw)>
-// CHECK-DAG: !sycl_accessor_2_i32_rw_gb = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl.accessor_impl_device<[2], (!sycl_id_2_, !sycl_range_2_, !sycl_range_2_)>, !llvm.struct<(ptr<i32, 1>)>)>
-// CHECK-DAG: !sycl_accessor_3_f32_rw_gb = !sycl.accessor<[3, f32, read_write, global_buffer], (!sycl.accessor_impl_device<[3], (!sycl.id<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>, !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>, !sycl.range<[3], (!sycl.array<[3], (memref<3xi64, 4>)>)>)>, !llvm.struct<(ptr<f32, 1>)>)>
+// CHECK-DAG: !sycl_accessor_2_i32_rw_gb = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(ptr<i32, 1>)>)>
+// CHECK-DAG: !sycl_accessor_3_f32_rw_gb = !sycl.accessor<[3, f32, read_write, global_buffer], (!sycl_accessor_impl_device_3_, !llvm.struct<(ptr<f32, 1>)>)>
 // CHECK-DAG: !sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
 // CHECK-DAG: !sycl_array_2_ = !sycl.array<[2], (memref<2xi64, 4>)>
 // CHECK-DAG: !sycl_assert_happened_ = !sycl.assert_happened<(i32, !llvm.array<257 x i8>, !llvm.array<257 x i8>, !llvm.array<129 x i8>, i32, i64, i64, i64, i64, i64, i64)>
@@ -16,18 +16,29 @@
 // CHECK-DAG: !sycl_get_scalar_op_i32_ = !sycl.get_scalar_op<[i32], (i32)>
 // CHECK-DAG: !sycl_group_1_ = !sycl.group<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
 // CHECK-DAG: !sycl_group_2_ = !sycl.group<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
+// CHECK-DAG: !sycl_h_item_1_ = !sycl.h_item<[1], (![[ITEM_1_F:.*]], ![[ITEM_1_F]], ![[ITEM_1_F]])>
 // CHECK-DAG: !sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
 // CHECK-DAG: !sycl_id_2_ = !sycl.id<[2], (!sycl_array_2_)>
-// CHECK-DAG: !sycl_item_1_ = !sycl.item<[1, true], (!sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>)>
-// CHECK-DAG: !sycl_item_2_ = !sycl.item<[2, false], (!sycl.item_base<[2, false], (!sycl_range_2_, !sycl_id_2_)>)>
+// CHECK-DAG: ![[ITEM_1_F]] = !sycl.item<[1, false], (![[ITEM_BASE_1_F:.*]])>
+// CHECK-DAG: ![[ITEM_1_T:.*]] = !sycl.item<[1, true], (![[ITEM_BASE_1_T:.*]])>
+// CHECK-DAG: ![[ITEM_2_F:.*]] = !sycl.item<[2, false], (![[ITEM_BASE_2_F:.*]])>
+// CHECK-DAG: ![[ITEM_2_T:.*]] = !sycl.item<[2, true], (![[ITEM_BASE_2_T:.*]])>
+// CHECK-DAG: ![[ITEM_BASE_1_F]] = !sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>
+// CHECK-DAG: ![[ITEM_BASE_1_T]] = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>
+// CHECK-DAG: ![[ITEM_BASE_2_F]] = !sycl.item_base<[2, false], (!sycl_range_2_, !sycl_id_2_)>
+// CHECK-DAG: ![[ITEM_BASE_2_T]] = !sycl.item_base<[2, true], (!sycl_range_2_, !sycl_id_2_, !sycl_id_2_)>
+// CHECK-DAG: !sycl_kernel_handler_ = !sycl.kernel_handler<(!llvm.ptr<i8, 4>)>
 // CHECK-DAG: !sycl_LocalAccessorBaseDevice_1_ = !sycl.LocalAccessorBaseDevice<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
 // CHECK-DAG: !sycl_local_accessor_base_1_i32_rw = !sycl.local_accessor_base<[1, i32, read_write], (!sycl_LocalAccessorBaseDevice_1_, memref<?xi32, 3>)>
 // CHECK-DAG: !sycl_local_accessor_1_i32_ = !sycl.local_accessor<[1, i32], (!sycl_local_accessor_base_1_i32_rw)>
+// CHECK-DAG: !sycl_maximum_i32_ = !sycl.maximum<i32>
+// CHECK-DAG: !sycl_minimum_i32_ = !sycl.minimum<i32>
 // CHECK-DAG: !sycl_multi_ptr_i32_1_ = !sycl.multi_ptr<[i32, 1, 1], (memref<?xi32, 1>)>
-// CHECK-DAG: !sycl_nd_item_1_ = !sycl.nd_item<[1], (!sycl_item_1_, !sycl.item<[1, false], (!sycl.item_base<[1, false], (!sycl_range_1_, !sycl_id_1_)>)>, !sycl_group_1_)>
-// CHECK-DAG: !sycl_nd_item_2_ = !sycl.nd_item<[2], (!sycl.item<[2, true], (!sycl.item_base<[2, true], (!sycl_range_2_, !sycl_id_2_, !sycl_id_2_)>)>, !sycl_item_2_, !sycl_group_2_)>
+// CHECK-DAG: !sycl_nd_item_1_ = !sycl.nd_item<[1], (![[ITEM_1_T]], ![[ITEM_1_F]], !sycl_group_1_)>
+// CHECK-DAG: !sycl_nd_item_2_ = !sycl.nd_item<[2], (![[ITEM_2_T]], ![[ITEM_2_F]], !sycl_group_2_)>
 // CHECK-DAG: !sycl_nd_range_1_ = !sycl.nd_range<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
 // CHECK-DAG: !sycl_nd_range_2_ = !sycl.nd_range<[2], (!sycl_range_2_, !sycl_range_2_, !sycl_id_2_)>
+// CHECK-DAG: !sycl_swizzled_vec_f32_8_ = !sycl.swizzled_vec<[!sycl_vec_f32_8_, 0, 1, 2], (memref<?x!sycl_vec_f32_8_, 4>, !sycl.get_op<f32>, !sycl.get_op<f32>)>
 // CHECK-DAG: ![[TUPLE_COPY_ASSIGNABLE_VALUE_HOLDER_TRUE:.*]] = !sycl.tuple_copy_assignable_value_holder<[i32, true], (!sycl_tuple_value_holder_i32_)>
 // CHECK-DAG: ![[TUPLE_COPY_ASSIGNABLE_VALUE_HOLDER_FALSE:.*]] = !sycl.tuple_copy_assignable_value_holder<[i32, false], (!sycl_tuple_value_holder_i32_)>
 // CHECK-DAG: !sycl_tuple_value_holder_i32_ = !sycl.tuple_value_holder<[i32], (i32)>
@@ -112,6 +123,11 @@ SYCL_EXTERNAL void group_1(sycl::group<1> group) {}
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void group_2(sycl::group<2> group) {}
 
+// CHECK-LABEL: func.func @_Z6h_itemN4sycl3_V16h_itemILi1EEE(
+// CHECK:          %arg0: memref<?x!sycl_h_item_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_h_item_1_, llvm.noundef})
+// CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
+SYCL_EXTERNAL void h_item(sycl::h_item<1> h_item) {}
+
 // CHECK-LABEL: func.func @_Z4id_1N4sycl3_V12idILi1EEE(
 // CHECK:          %arg0: memref<?x!sycl_id_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_id_1_, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
@@ -123,14 +139,19 @@ SYCL_EXTERNAL void id_1(sycl::id<1> id) {}
 SYCL_EXTERNAL void id_2(sycl::id<2> id) {}
 
 // CHECK-LABEL: func.func @_Z11item_1_trueN4sycl3_V14itemILi1ELb1EEE(
-// CHECK:          %arg0: memref<?x!sycl_item_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_item_1_, llvm.noundef})
+// CHECK:          %arg0: memref<?x![[ITEM_1_T]]> {llvm.align = 8 : i64, llvm.byval = ![[ITEM_1_T]], llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void item_1_true(sycl::item<1, true> item) {}
 
 // CHECK-LABEL: func.func @_Z12item_2_falseN4sycl3_V14itemILi2ELb0EEE(
-// CHECK:          %arg0: memref<?x!sycl_item_2_> {llvm.align = 8 : i64, llvm.byval = !sycl_item_2_, llvm.noundef})
+// CHECK:          %arg0: memref<?x![[ITEM_2_F]]> {llvm.align = 8 : i64, llvm.byval = ![[ITEM_2_F]], llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void item_2_false(sycl::item<2, false> item) {}
+
+// CHECK-LABEL: func.func @_Z14kernel_handlerN4sycl3_V114kernel_handlerE(
+// CHECK:          %arg0: memref<?x!sycl_kernel_handler_> {llvm.align = 8 : i64, llvm.byval = !sycl_kernel_handler_, llvm.noundef})
+// CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
+SYCL_EXTERNAL void kernel_handler(sycl::kernel_handler kernel_handler) {}
 
 // CHECK-LABEL: func.func @_Z26local_accessor_base_deviceN4sycl3_V16detail23LocalAccessorBaseDeviceILi1EEE(
 // CHECK:          %arg0: memref<?x!sycl_LocalAccessorBaseDevice_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_LocalAccessorBaseDevice_1_, llvm.noundef})
@@ -146,6 +167,16 @@ SYCL_EXTERNAL void local_accessor_base(sycl::local_accessor_base<sycl::cl_int, 1
 // CHECK:          %arg0: memref<?x!sycl_local_accessor_1_i32_> {llvm.align = 8 : i64, llvm.byval = !sycl_local_accessor_1_i32_, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void local_accessor(sycl::local_accessor<sycl::cl_int, 1> acc) {}
+
+// CHECK-LABEL: func.func @_Z7maximumN4sycl3_V17maximumIiEE(
+// CHECK:          %arg0: memref<?x!sycl_maximum_i32_> {llvm.align = 1 : i64, llvm.byval = !sycl_maximum_i32_, llvm.noundef})
+// CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
+SYCL_EXTERNAL void maximum(sycl::maximum<int> max) {}
+
+// CHECK-LABEL: func.func @_Z7minimumN4sycl3_V17minimumIiEE(
+// CHECK:          %arg0: memref<?x!sycl_minimum_i32_> {llvm.align = 1 : i64, llvm.byval = !sycl_minimum_i32_, llvm.noundef})
+// CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
+SYCL_EXTERNAL void minimum(sycl::minimum<int> min) {}
 
 // CHECK-LABEL: func.func @_Z9multi_ptrN4sycl3_V19multi_ptrIiLNS0_6access13address_spaceE1ELNS2_9decoratedE1EEE(
 // CHECK:          %arg0: memref<?x!sycl_multi_ptr_i32_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_multi_ptr_i32_1_, llvm.noundef})
@@ -185,7 +216,12 @@ SYCL_EXTERNAL void range_2(sycl::range<2> range) {}
 // CHECL-LABEL: func.func @_Z13sub_groupN4sycl3_V13ext6oneapi9sub_groupE(
 // CHECK:          %arg0: memref<?x!sycl.sub_group> {llvm.align = 1 : i64, llvm.byval = !sycl.sub_group, llvm.noundef})
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
-SYCL_EXTERNAL void sub_group(sycl::ext::oneapi::sub_group get_sub_group) {}
+SYCL_EXTERNAL void sub_group(sycl::ext::oneapi::sub_group sub_group) {}
+
+// CHECK-LABEL: func.func @_Z12swizzled_vecN4sycl3_V16detail9SwizzleOpINS0_3vecIfLi8EEENS1_5GetOpIfEES6_S5_JLi0ELi1ELi2EEEE(
+// CHECK-SAME:    %arg0: memref<?x!sycl_swizzled_vec_f32_8_> {llvm.noundef})
+// CHECK-SAME:  attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
+SYCL_EXTERNAL void swizzled_vec(sycl::detail::SwizzleOp<sycl::float8, sycl::detail::GetOp<float>, sycl::detail::GetOp<float>, sycl::detail::GetOp, 0, 1, 2> swizzle) {}
 
 // CHECK-LABEL: func.func @_Z36tuple_copy_assignable_value_holder_1N4sycl3_V16detail30TupleCopyAssignableValueHolderIiLb1EEE(
 // CHECK:          %arg0: memref<?x![[TUPLE_COPY_ASSIGNABLE_VALUE_HOLDER_TRUE]]> {llvm.align = 4 : i64, llvm.byval = ![[TUPLE_COPY_ASSIGNABLE_VALUE_HOLDER_TRUE]], llvm.noundef})

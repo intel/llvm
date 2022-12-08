@@ -57,12 +57,10 @@ int test_inc(int_vec *v, int idx, int el) {
 // CHECK-DAG:       %[[VAL_3:.*]] = arith.constant 2 : i32
 // CHECK-DAG:       %[[VAL_4:.*]] = arith.constant 1 : i32
 // CHECK-DAG:       %[[VAL_5:.*]] = arith.constant 0 : i32
-// CHECK-NEXT:      %[[VAL_6:.*]] = memref.alloca() : memref<1xvector<3xi32>>
-// CHECK-NEXT:      %[[VAL_7:.*]] = affine.load %[[VAL_6]][0] : memref<1xvector<3xi32>>
+// CHECK-DAG:       %[[VAL_7:.*]] = llvm.mlir.undef : vector<3xi32>
 // CHECK-NEXT:      %[[VAL_8:.*]] = vector.insertelement %[[VAL_0]], %[[VAL_7]]{{\[}}%[[VAL_5]] : i32] : vector<3xi32>
 // CHECK-NEXT:      %[[VAL_9:.*]] = vector.insertelement %[[VAL_1]], %[[VAL_8]]{{\[}}%[[VAL_4]] : i32] : vector<3xi32>
 // CHECK-NEXT:      %[[VAL_10:.*]] = vector.insertelement %[[VAL_2]], %[[VAL_9]]{{\[}}%[[VAL_3]] : i32] : vector<3xi32>
-// CHECK-NEXT:      affine.store %[[VAL_10]], %[[VAL_6]][0] : memref<1xvector<3xi32>>
 // CHECK-NEXT:      return %[[VAL_10]] : vector<3xi32>
 // CHECK-NEXT:    }
 

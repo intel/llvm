@@ -1,4 +1,4 @@
-; RUN: opt -opaque-pointers -instcombine -S < %s | FileCheck %s
+; RUN: opt -opaque-pointers -passes=instcombine -S < %s | FileCheck %s
 ; RUN: opt -opaque-pointers -debugify-each -instcombine -S < %s | FileCheck %s
 
 ; These are both direct calls, but make sure instcombine leaves the casts

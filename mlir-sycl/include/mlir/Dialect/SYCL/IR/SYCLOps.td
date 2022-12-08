@@ -209,6 +209,12 @@ def SYCL_GroupType : SYCL_Type<"Group", "group"> {
   let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
 }
 
+def SYCL_HItemType : SYCL_Type<"HItem", "h_item"> {
+  let parameters = (ins "unsigned":$dimension,
+                        ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `[` $dimension `]` `,` `(` $body `)` `>`";
+}
+
 def SYCL_IDType
     : SYCL_Type<"ID", "id", [SYCLInheritanceTypeTrait<"ArrayType">]> {
   let parameters = (ins "unsigned":$dimension,
@@ -228,6 +234,11 @@ def SYCL_ItemType : SYCL_Type<"Item", "item"> {
                         "bool":$withOffset,
                         ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat = "`<` `[` $dimension `,` $withOffset `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_KernelHandlerType : SYCL_Type<"KernelHandler", "kernel_handler"> {
+  let parameters = (ins ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `(` $body `)` `>`";
 }
 
 def SYCL_LocalAccessorBaseDeviceType
@@ -258,6 +269,16 @@ def SYCL_LocalAccessorType
                         ArrayRefParameter<"mlir::Type">:$body);
   let assemblyFormat =
       "`<` `[` $dimension `,` $type `]` `,` `(` $body `)` `>`";
+}
+
+def SYCL_MaximumType : SYCL_Type<"Maximum", "maximum"> {
+  let parameters = (ins "::mlir::Type":$dataType);
+  let assemblyFormat = "`<` $dataType `>`";
+}
+
+def SYCL_MinimumType : SYCL_Type<"Minimum", "minimum"> {
+  let parameters = (ins "::mlir::Type":$dataType);
+  let assemblyFormat = "`<` $dataType `>`";
 }
 
 def SYCL_MultiPtrType : SYCL_Type<"MultiPtr", "multi_ptr"> {
@@ -295,6 +316,13 @@ def SYCL_SubGroupType : SYCL_Type<"SubGroup", "sub_group"> {
   let assemblyFormat = "";
 }
 
+def SYCL_SwizzledVecType : SYCL_Type<"SwizzledVec", "swizzled_vec"> {
+  let parameters = (ins "::mlir::sycl::VecType":$vecType,
+                        ArrayRefParameter<"int">:$indexes,
+                        ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `[` $vecType `,` $indexes `]` `,` `(` $body `)` `>`";
+}
+
 def SYCL_TupleCopyAssignableValueHolderType
     : SYCL_Type<"TupleCopyAssignableValueHolder", "tuple_copy_assignable_value_holder",
         [SYCLInheritanceTypeTrait<"TupleValueHolderType">]> {
@@ -325,6 +353,8 @@ def AccessorMemRef : MemRefOf<[SYCL_AccessorType]>;
 def AccessorSubscriptMemRef : MemRefOf<[SYCL_AccessorSubscriptType]>;
 def ArrayMemRef : MemRefOf<[SYCL_ArrayType]>;
 def AtomicMemRef : MemRefOf<[SYCL_AtomicType]>;
+def GetOpMemRef : MemRefOf<[SYCL_GetOpType]>;
+def GetScalarOpMemRef : MemRefOf<[SYCL_GetScalarOpType]>;
 def GroupMemRef : MemRefOf<[SYCL_GroupType]>;
 def IDMemRef : MemRefOf<[SYCL_IDType]>;
 def ItemBaseMemRef : MemRefOf<[SYCL_ItemBaseType]>;
@@ -337,6 +367,7 @@ def NDItemMemRef : MemRefOf<[SYCL_NdItemType]>;
 def NDRangeMemRef : MemRefOf<[SYCL_NdRangeType]>;
 def OwnerLessBaseMemRef : MemRefOf<[SYCL_OwnerLessBaseType]>;
 def RangeMemRef : MemRefOf<[SYCL_RangeType]>;
+def SwizzledVecMemRef : MemRefOf<[SYCL_SwizzledVecType]>;
 def VecMemRef : MemRefOf<[SYCL_VecType]>;
 
 def SYCLMemref : AnyTypeOf<[
@@ -347,6 +378,8 @@ def SYCLMemref : AnyTypeOf<[
   AccessorSubscriptMemRef,
   ArrayMemRef,
   AtomicMemRef,
+  GetOpMemRef,
+  GetScalarOpMemRef,
   GroupMemRef,  
   IDMemRef,
   ItemBaseMemRef,
@@ -359,6 +392,7 @@ def SYCLMemref : AnyTypeOf<[
   NDRangeMemRef,
   OwnerLessBaseMemRef,
   RangeMemRef,
+  SwizzledVecMemRef,
   VecMemRef
 ]>;
 

@@ -96,6 +96,12 @@ ValueCategory ValueCategory::getNullValue(OpBuilder &Builder, Location Loc,
   return {ZeroVal, false};
 }
 
+ValueCategory ValueCategory::getUndefValue(OpBuilder &Builder, Location Loc,
+                                           Type Type) {
+  // TODO: Replace with higher-level undef operation when defined.
+  return {Builder.createOrFold<LLVM::UndefOp>(Loc, Type), false};
+}
+
 void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
   assert(isReference && "must be a reference");
   assert(val && "expect not-null");
