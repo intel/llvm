@@ -283,5 +283,29 @@ TEST_F(DependsOnTests, EnqueueNoMemObjDoubleKernelDepHost) {
   EventImplPtr Cmd3Event = Cmd3->getEvent();
 
   std::vector<detail::Command *> BlockedCommands{Cmd2, Cmd3};
-  VerifyBlockedCommandsEnqueue(Cmd1, BlockedCommands);
+  detail::EnqueueResultT Result;
+  for (detail::Command *BlockedCmd : BlockedCommands) {
+    EXPECT_FALSE(MS.enqueueCommand(BlockedCmd, Result,
+                                    detail::BlockingT::NON_BLOCKING));
+    EXPECT_EQ(Result.MResult, detail::EnqueueResultT::SyclEnqueueBlocked);
+    EXPECT_EQ(Result.MCmd, static_cast<detail::Command *>(Cmd1));
+    EXPECT_FALSE(BlockedCmd->isSuccessfullyEnqueued());
+  }
+  EXPECT_TRUE(Cmd1->isSuccessfullyEnqueued());
+
+  Cmd1->unblock();
+
+  auto BlockingEvent = Cmd1->getEvent();
+  BlockingEvent->wait(BlockingEvent);
+  {
+    auto Lock = MS.acquireOriginSchedGraphWriteLock();
+    Lock.lock();
+    for (detail::Command *BlockedCmd : BlockedCommands) {
+      EXPECT_TRUE(BlockedCmd->isSuccessfullyEnqueued());
+    }
+  }
+  for (detail::Command *BlockedCmd : BlockedCommands) {
+    auto BlockedEvent = BlockedCmd->getEvent();
+    BlockedEvent->wait(BlockedEvent);
+  }
 }
