@@ -102,7 +102,6 @@ public:
   queue(const async_handler &AsyncHandler, const property_list &PropList = {})
       : queue(default_selector(), AsyncHandler, PropList) {}
 
-#if __cplusplus >= 201703L
   /// Constructs a SYCL queue instance using the device identified by the
   /// device selector provided.
   /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
@@ -161,8 +160,6 @@ public:
                  const property_list &propList = {})
       : queue(syclContext, detail::select_device(deviceSelector, syclContext),
               AsyncHandler, propList) {}
-
-#endif
 
   /// Constructs a SYCL queue instance using the device returned by the
   /// DeviceSelector provided.

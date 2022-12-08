@@ -69,30 +69,11 @@ template <access_mode mode, target trgt> struct mode_target_tag_t {
   explicit mode_target_tag_t() = default;
 };
 
-#if __cplusplus >= 201703L
-
 inline constexpr mode_tag_t<access_mode::read> read_only{};
 inline constexpr mode_tag_t<access_mode::read_write> read_write{};
 inline constexpr mode_tag_t<access_mode::write> write_only{};
 inline constexpr mode_target_tag_t<access_mode::read, target::constant_buffer>
     read_constant{};
-
-#else
-
-namespace {
-
-constexpr const auto &read_only =
-    sycl::detail::InlineVariableHelper<mode_tag_t<access_mode::read>>::value;
-constexpr const auto &read_write = sycl::detail::InlineVariableHelper<
-    mode_tag_t<access_mode::read_write>>::value;
-constexpr const auto &write_only =
-    sycl::detail::InlineVariableHelper<mode_tag_t<access_mode::write>>::value;
-constexpr const auto &read_constant = sycl::detail::InlineVariableHelper<
-    mode_target_tag_t<access_mode::read, target::constant_buffer>>::value;
-
-} // namespace
-
-#endif
 
 namespace detail {
 
