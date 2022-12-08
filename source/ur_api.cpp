@@ -1143,35 +1143,6 @@ urEnqueueUSMMemAdvice(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Create an event object. Events allow applications to enqueue commands
-///        that wait on an event to finish or signal a command completion.
-/// 
-/// @remarks
-///   _Analogues_
-///     - **clCreateUserEvent**
-/// 
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phEvent`
-///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-ur_result_t UR_APICALL
-urEventCreate(
-    ur_context_handle_t hContext,                   ///< [in] handle of the context object
-    ur_event_handle_t* phEvent                      ///< [out] pointer to handle of the event object created
-    )
-{
-    ur_result_t result = UR_RESULT_SUCCESS;
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Get event object information
 /// 
 /// @remarks

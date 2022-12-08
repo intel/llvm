@@ -1393,31 +1393,6 @@ typedef enum ur_profiling_info_t
 } ur_profiling_info_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Create an event object. Events allow applications to enqueue commands
-///        that wait on an event to finish or signal a command completion.
-/// 
-/// @remarks
-///   _Analogues_
-///     - **clCreateUserEvent**
-/// 
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phEvent`
-///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
-///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-UR_APIEXPORT ur_result_t UR_APICALL
-urEventCreate(
-    ur_context_handle_t hContext,                   ///< [in] handle of the context object
-    ur_event_handle_t* phEvent                      ///< [out] pointer to handle of the event object created
-    );
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Get event object information
 /// 
 /// @remarks
@@ -1602,12 +1577,11 @@ urEventCreateWithNativeHandle(
 /// @brief Event states for all events.
 typedef enum ur_execution_info_t
 {
-    UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE = 0,  ///< Indicates that the event has completed
-    UR_EXECUTION_INFO_EXECUTION_INFO_RUNNING = 1,   ///< Indicates that the device has started processing this event
-    UR_EXECUTION_INFO_EXECUTION_INFO_SUBMITTED = 2, ///< Indicates that the event has been submitted by the host to the device,
-                                                    ///< this is the inital state of user events
+    UR_EXECUTION_INFO_EXECUTION_INFO_COMPLETE = 0,  ///< Indicates that the event has completed.
+    UR_EXECUTION_INFO_EXECUTION_INFO_RUNNING = 1,   ///< Indicates that the device has started processing this event.
+    UR_EXECUTION_INFO_EXECUTION_INFO_SUBMITTED = 2, ///< Indicates that the event has been submitted by the host to the device.
     UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED = 3,    ///< Indicates that the event has been queued, this is the initial state of
-                                                    ///< all events except user events.
+                                                    ///< events.
     UR_EXECUTION_INFO_FORCE_UINT32 = 0x7fffffff
 
 } ur_execution_info_t;
@@ -4616,29 +4590,6 @@ typedef struct ur_context_callbacks_t
 } ur_context_callbacks_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function parameters for urEventCreate 
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_event_create_params_t
-{
-    ur_context_handle_t* phContext;
-    ur_event_handle_t** pphEvent;
-} ur_event_create_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Callback function-pointer for urEventCreate 
-/// @param[in] params Parameters passed to this instance
-/// @param[in] result Return value
-/// @param[in] pTracerUserData Per-Tracer user data
-/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
-typedef void (UR_APICALL *ur_pfnEventCreateCb_t)(
-    ur_event_create_params_t* params,
-    ur_result_t result,
-    void* pTracerUserData,
-    void** ppTracerInstanceUserData
-    );
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Callback function parameters for urEventGetInfo 
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -4833,7 +4784,6 @@ typedef void (UR_APICALL *ur_pfnEventSetCallbackCb_t)(
 /// @brief Table of Event callback functions pointers
 typedef struct ur_event_callbacks_t
 {
-    ur_pfnEventCreateCb_t                                           pfnCreateCb;
     ur_pfnEventGetInfoCb_t                                          pfnGetInfoCb;
     ur_pfnEventGetProfilingInfoCb_t                                 pfnGetProfilingInfoCb;
     ur_pfnEventWaitCb_t                                             pfnWaitCb;

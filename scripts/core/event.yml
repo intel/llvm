@@ -41,25 +41,6 @@ etors:
       desc: "A 64-bit value of current device counter in nanoseconds when the event has finished execution"
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Create an event object. Events allow applications to enqueue commands that wait on an event to finish or signal a command completion."
-class: $xEvent
-name: Create
-ordinal: "0"
-analogue:
-    - "**clCreateUserEvent**"
-params:
-    - type: $x_context_handle_t
-      name: hContext
-      desc: "[in] handle of the context object"
-    - type: $x_event_handle_t*
-      name: phEvent
-      desc: "[out] pointer to handle of the event object created"
-returns:      
-    - $X_RESULT_ERROR_INVALID_CONTEXT
-    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
-    - $X_RESULT_ERROR_OUT_OF_RESOURCES
---- #--------------------------------------------------------------------------
-type: function
 desc: "Get event object information"
 class: $xEvent
 name: GetInfo
@@ -221,13 +202,13 @@ class: $xEvent
 name: $x_execution_info_t
 etors:
     - name: EXECUTION_INFO_COMPLETE
-      desc: "Indicates that the event has completed"
+      desc: "Indicates that the event has completed."
     - name: EXECUTION_INFO_RUNNING
-      desc: "Indicates that the device has started processing this event"
+      desc: "Indicates that the device has started processing this event."
     - name: EXECUTION_INFO_SUBMITTED
-      desc: "Indicates that the event has been submitted by the host to the device, this is the inital state of user events"
+      desc: "Indicates that the event has been submitted by the host to the device."
     - name: EXECUTION_INFO_QUEUED
-      desc: "Indicates that the event has been queued, this is the initial state of all events except user events."
+      desc: "Indicates that the event has been queued, this is the initial state of events."
 --- #--------------------------------------------------------------------------
 type: fptr_typedef
 desc: "Event callback function that can be registered by the application."

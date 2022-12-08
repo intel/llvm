@@ -179,13 +179,6 @@ typedef ur_result_t (UR_APICALL *ur_pfnGetContextProcAddrTable_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urEventCreate 
-typedef ur_result_t (UR_APICALL *ur_pfnEventCreate_t)(
-    ur_context_handle_t,
-    ur_event_handle_t*
-    );
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urEventGetInfo 
 typedef ur_result_t (UR_APICALL *ur_pfnEventGetInfo_t)(
     ur_event_handle_t,
@@ -252,7 +245,6 @@ typedef ur_result_t (UR_APICALL *ur_pfnEventSetCallback_t)(
 /// @brief Table of Event functions pointers
 typedef struct ur_event_dditable_t
 {
-    ur_pfnEventCreate_t                                         pfnCreate;
     ur_pfnEventGetInfo_t                                        pfnGetInfo;
     ur_pfnEventGetProfilingInfo_t                               pfnGetProfilingInfo;
     ur_pfnEventWait_t                                           pfnWait;
