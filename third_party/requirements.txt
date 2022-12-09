@@ -11,7 +11,7 @@ exhale==0.3.0
 idna==2.8
 imagesize==1.1.0
 Jinja2==2.11.3
-lxml==4.4.2
+lxml==4.9.1
 Mako==1.1.0
 MarkupSafe==1.1.1
 packaging==19.2
@@ -35,3 +35,4 @@ sphinxcontrib-serializinghtml==1.1.5
 sphinxcontrib-websupport==1.2.4
 sphinx-book-theme==0.3.3
 urllib3==1.25.7
+pytest>=7.0

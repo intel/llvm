@@ -1,11 +1,9 @@
-set(TARGET_NAME ur_test)
+# Copyright (C) 2022 Intel Corporation
+# SPDX-License-Identifier: MIT
 
-add_library(${TARGET_NAME}
-    STATIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/ur_api.cpp
-)
+add_definitions(-DUR_VERSION="${PROJECT_VERSION_MAJOR}")
+add_definitions(-DUR_VALIDATION_LAYER_SUPPORTED_VERSION="${PROJECT_VERSION_MAJOR}")
 
-target_link_libraries(${TARGET_NAME} PRIVATE
-    ${PROJECT_NAME}::headers
-    ${CMAKE_DL_LIBS}
-)
+add_subdirectory(loader)
+#add_subdirectory(layers)
+add_subdirectory(drivers)

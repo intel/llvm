@@ -53,6 +53,10 @@
 # Debug files
 scripts/**/*.json
 
+# Python cache
+__pycache__/
+*.py[cod]
+
 # Generated docs
 docs/
 

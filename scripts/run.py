@@ -99,6 +99,7 @@ def main():
     add_argument(parser, "rst", "generation of reStructuredText files.", True)
     parser.add_argument("--update_spec", type=str, help="root of integrated spec directory to update")
     parser.add_argument("--ver", type=str, default="0.5", required=False, help="specification version to generate.")
+    parser.add_argument("--api-json", type=str, default="unified_runtime.json", required=False, help="json output file for the spec")
     args = vars(parser.parse_args())
     args['rev'] = revision()
 
@@ -124,10 +125,7 @@ def main():
         specs, input['meta'], input['ref'] = parse_specs.parse(config['name'], args['ver'], config['tags'], input['meta'], input['ref'])
         input['specs'].append(specs)
 
-    if args['debug']:
-        util.jsonWrite("input.json", input)
-
-    util.jsonWrite("level_zero.json", input['ref'])
+    util.jsonWrite(args['api_json'], input)
 
     # phase 3: generate files
     if args['clean']:
