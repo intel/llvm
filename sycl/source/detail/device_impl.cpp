@@ -262,7 +262,7 @@ std::vector<device> device_impl::create_sub_devices() const {
   }
 
   const pi_device_partition_property Properties[2] = {
-      PI_DEVICE_EXT_INTEL_PARTITION_BY_CSLICE, 0};
+      PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE, 0};
 
   pi_uint32 SubDevicesCount = 0;
   const detail::plugin &Plugin = getPlugin();

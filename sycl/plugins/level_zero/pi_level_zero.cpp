@@ -2884,14 +2884,14 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
 
     if (ExposeCSliceInAffinityPartitioning) {
       if (PartitionedByCSlice)
-        return ReturnHelper(PI_DEVICE_EXT_INTEL_PARTITION_BY_CSLICE,
+        return ReturnHelper(PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE,
                             PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN);
 
       else
         return ReturnHelper(PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN);
     } else {
       return ReturnHelper(PartitionedByCSlice
-                              ? PI_DEVICE_EXT_INTEL_PARTITION_BY_CSLICE
+                              ? PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE
                               : PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN);
     }
   }
@@ -2907,7 +2907,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     if (Device->isCCS()) {
       struct {
         pi_device_partition_property Arr[2];
-      } PartitionProperties = {{PI_DEVICE_EXT_INTEL_PARTITION_BY_CSLICE, 0}};
+      } PartitionProperties = {{PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE, 0}};
       return ReturnValue(PartitionProperties);
     }
 
@@ -3293,7 +3293,7 @@ pi_result piDevicePartition(pi_device Device,
     if ((Properties[1] != PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE &&
          Properties[1] != PI_DEVICE_AFFINITY_DOMAIN_NUMA))
       return PI_ERROR_INVALID_VALUE;
-  } else if (Properties[0] == PI_DEVICE_EXT_INTEL_PARTITION_BY_CSLICE) {
+  } else if (Properties[0] == PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE) {
     if (Properties[1] != 0)
       return PI_ERROR_INVALID_VALUE;
   } else {
@@ -3322,7 +3322,7 @@ pi_result piDevicePartition(pi_device Device,
       if (Device->isSubDevice())
         return 0;
     }
-    if (Properties[0] == PI_DEVICE_EXT_INTEL_PARTITION_BY_CSLICE) {
+    if (Properties[0] == PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE) {
       // Not a CSlice-based partitioning.
       if (!Device->SubDevices[0]->isCCS())
         return 0;
