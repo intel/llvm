@@ -45,7 +45,7 @@ template <int dimensions = 1, bool with_offset = true> class item {
   class __private_class;
 
   template <bool B, typename T>
-  using EnableIfT = detail::conditional_t<B, T, __private_class>;
+  using EnableIfT = std::conditional_t<B, T, __private_class>;
 #endif // __SYCL_DISABLE_ITEM_TO_INT_CONV__
 public:
   item() = delete;

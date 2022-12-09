@@ -53,8 +53,6 @@ namespace ext {
 namespace intel {
 namespace math {
 
-#if __cplusplus >= 201703L
-
 static_assert(sizeof(sycl::half) == sizeof(_iml_half_internal),
               "sycl::half is not compatible with _iml_half_internal.");
 
@@ -200,8 +198,6 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half>, sycl::half> trunc(Tp x) {
 sycl::half2 trunc(sycl::half2 x) {
   return sycl::half2{trunc(x.s0()), trunc(x.s1())};
 }
-
-#endif
 } // namespace math
 } // namespace intel
 } // namespace ext
