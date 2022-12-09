@@ -2134,19 +2134,21 @@ bool doesDevSupportImgAspects(const device &Dev,
                               const RTDeviceBinaryImage &Img) {
   const RTDeviceBinaryImage::PropertyRange &PropRange =
       Img.getDeviceRequirements();
-  for (RTDeviceBinaryImage::PropertyRange::ConstIterator Prop : PropRange) {
-    using namespace std::literals;
-    if ((*Prop)->Name == "aspects"sv) {
-      ByteArray Aspects = DeviceBinaryProperty(*Prop).asByteArray();
-      // Drop 8 bytes describing the size of the byte array.
-      Aspects.dropBytes(8);
-      while (!Aspects.empty()) {
-        aspect Aspect = Aspects.consume<aspect>();
-        if (!Dev.has(Aspect))
-          return false;
-      }
-      break;
-    }
+  RTDeviceBinaryImage::PropertyRange::ConstIterator PropIt = std::find_if(
+      PropRange.begin(), PropRange.end(),
+      [](RTDeviceBinaryImage::PropertyRange::ConstIterator &&Prop) {
+        using namespace std::literals;
+        return (*Prop)->Name == "aspects"sv;
+      });
+  if (PropIt == PropRange.end())
+    return true;
+  ByteArray Aspects = DeviceBinaryProperty(*PropIt).asByteArray();
+  // Drop 8 bytes describing the size of the byte array.
+  Aspects.dropBytes(8);
+  while (!Aspects.empty()) {
+    aspect Aspect = Aspects.consume<aspect>();
+    if (!Dev.has(Aspect))
+      return false;
   }
   return true;
 }
