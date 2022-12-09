@@ -40,7 +40,7 @@ declare dso_local x86_regcallcc noundef float @_Z33__regcall3____builtin_invoke_
 
 ;---- This has linkonce_odr, so it should be removed after inlining into the
 ;---- helper.
-define linkonce_odr x86_regcallcc <4 x float> @SIMD_CALLEE(<4 x float> %val) #3 !sycl_explicit_simd !0 !intel_reqd_sub_group_size !1 {
+define linkonce_odr x86_regcallcc <4 x float> @SIMD_CALLEE(<4 x float> %val) #3 !sycl_explicit_simd !0 !sycl_reqd_sub_group_size !1 {
 ; CHECK-NOT: {{.*}} @SIMD_CALLEE(
   %data = call spir_func <4 x float> @SHARED_F(i64 100)
   %add = fadd <4 x float> %val, %data
@@ -48,7 +48,7 @@ define linkonce_odr x86_regcallcc <4 x float> @SIMD_CALLEE(<4 x float> %val) #3 
 }
 
 ;---- Function containing the invoke_simd call.
-define dso_local spir_func float @SPMD_CALLER(float %x) #0 !intel_reqd_sub_group_size !2 {
+define dso_local spir_func float @SPMD_CALLER(float %x) #0 !sycl_reqd_sub_group_size !2 {
   %res = call spir_func float @_Z33__regcall3____builtin_invoke_simdXX(<4 x float> (<4 x float> (<4 x float>)*, <4 x float>)* @SIMD_CALL_HELPER, <4 x float> (<4 x float>)* @SIMD_CALLEE, float %x)
   ret float %res
 }
@@ -114,9 +114,9 @@ attributes #3 = { "referenced-indirectly" }
 ;---- * %f removed
 ;---- * indirect call replaced with direct and inlined
 ;---- * linkonce_odr linkage replaced with weak_odr
-;---- * sycl_explicit_simd and intel_reqd_sub_group_size attributes added, which
+;---- * sycl_explicit_simd and sycl_reqd_sub_group_size attributes added, which
 ;----   is required for correct processing by LowerESIMD
-; CHECK: define weak_odr dso_local x86_regcallcc <4 x float> @[[NEW_HELPER_NAME]](<4 x float> %{{.*}}) #[[NEW_HELPER_ATTRS:[0-9]+]] !sycl_explicit_simd !1 !intel_reqd_sub_group_size !2 {
+; CHECK: define weak_odr dso_local x86_regcallcc <4 x float> @[[NEW_HELPER_NAME]](<4 x float> %{{.*}}) #[[NEW_HELPER_ATTRS:[0-9]+]] !sycl_explicit_simd !1 !sycl_reqd_sub_group_size !2 {
 ; CHECK-NEXT:  %{{.*}} = call spir_func <4 x float> @SHARED_F.esimd(i64 100)
 ; CHECK-NEXT:  %{{.*}} = fadd <4 x float> %{{.*}}, %{{.*}}
 ; CHECK-NEXT:  ret <4 x float> {{.*}}
