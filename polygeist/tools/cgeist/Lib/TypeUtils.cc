@@ -130,6 +130,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     NdRange,
     OwnerLessBase,
     Range,
+    Stream,
     SubGroup,
     SwizzleOp,
     TupleCopyAssignableValueHolder,
@@ -165,6 +166,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       {"nd_range", TypeEnum::NdRange},
       {"OwnerLessBase", TypeEnum::OwnerLessBase},
       {"range", TypeEnum::Range},
+      {"stream", TypeEnum::Stream},
       {"sub_group", SubGroup},
       {"SwizzleOp", SwizzleOp},
       {"TupleCopyAssignableValueHolder", TupleCopyAssignableValueHolder},
@@ -402,6 +404,8 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
                                                 Body);
     case TypeEnum::SubGroup:
       return mlir::sycl::SubGroupType::get(CGT.getModule()->getContext());
+    case TypeEnum::Stream:
+      return mlir::sycl::StreamType::get(CGT.getModule()->getContext(), Body);
     default:
       llvm_unreachable("CXXRecordDecl: SYCL type not handled (yet)");
     }

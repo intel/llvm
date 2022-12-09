@@ -44,6 +44,7 @@
 // CHECK-DAG: !sycl_tuple_value_holder_i32_ = !sycl.tuple_value_holder<[i32], (i32)>
 // CHECK-DAG: !sycl_vec_f32_8_ = !sycl.vec<[f32, 8], (vector<8xf32>)>
 // CHECK-DAG: !sycl_vec_i32_4_ = !sycl.vec<[i32, 4], (vector<4xi32>)>
+// CHECK-DAG: !sycl_stream_ = !sycl.stream<(!llvm.array<16 x i8>, !sycl_accessor_1_i8_rw_gb, !sycl_accessor_1_i32_ato_gb, !sycl_accessor_1_i8_rw_gb, i32, i64, i32, i32, i32, i32)>
 
 // CHECK-LABEL: func.func @_Z10accessor_1N4sycl3_V18accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE(
 // CHECK:          %arg0: memref<?x!sycl_accessor_1_i32_rw_gb> {llvm.align = 8 : i64, llvm.byval = !sycl_accessor_1_i32_rw_gb, llvm.noundef})
@@ -212,6 +213,11 @@ SYCL_EXTERNAL void range_1(sycl::range<1> range) {}
 // CHECK:          %arg0: memref<?x!sycl_range_2_> {llvm.align = 8 : i64, llvm.byval = !sycl_range_2_, llvm.noundef})  
 // CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
 SYCL_EXTERNAL void range_2(sycl::range<2> range) {}
+
+// CHECL-LABEL: func.func @_Z6streamN4sycl3_V16streamE(
+// CHECK:          %arg0: memref<?x!sycl_stream_> {llvm.align = 8 : i64, llvm.byval = !sycl_stream_, llvm.noundef})
+// CHECK-SAME: attributes {[[SPIR_FUNCCC]], [[LINKEXT]], [[PASSTHROUGH]]
+SYCL_EXTERNAL void stream(sycl::stream stream) {}
 
 // CHECL-LABEL: func.func @_Z13sub_groupN4sycl3_V13ext6oneapi9sub_groupE(
 // CHECK:          %arg0: memref<?x!sycl.sub_group> {llvm.align = 1 : i64, llvm.byval = !sycl.sub_group, llvm.noundef})
