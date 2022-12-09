@@ -80,9 +80,9 @@ inline bool isAggregateType(mlir::Type Ty) {
 
 unsigned getPrimitiveSizeInBits(mlir::Type Ty);
 
-/// Return whether the input types are suitable for a function abstracted by a
-/// SYCL operation.
-bool areSuitableSYCLOpArgTypes(mlir::TypeRange Types);
+/// Return whether the input types are suitable for a member function or
+/// constructor.
+bool areSYCLMemberFunctionOrConstructorArgs(mlir::TypeRange Types);
 } // namespace mlirclang
 
 #endif // MLIR_TOOLS_MLIRCLANG_TYPE_UTILS_H

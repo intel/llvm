@@ -1125,7 +1125,8 @@ MLIRScanner::emitSYCLOps(const clang::Expr *Expr,
 
     if (mlirclang::isNamespaceSYCL(Func->getEnclosingNamespaceContext()))
       if (const auto *RD = dyn_cast<clang::CXXRecordDecl>(Func->getParent());
-          mlirclang::areSuitableSYCLOpArgTypes(ValueRange{Args}.getTypes())) {
+          mlirclang::areSYCLMemberFunctionOrConstructorArgs(
+              ValueRange{Args}.getTypes())) {
         std::string Name =
             MLIRScanner::getMangledFuncName(*Func, Glob.getCGM());
         if (!RD->getName().empty())

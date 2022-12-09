@@ -21,15 +21,6 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/Casting.h"
 
-static bool isSuitableSYCLOpArgTy(mlir::Type Ty) {
-  return llvm::TypeSwitch<mlir::Type, bool>(Ty)
-      .Case<mlir::MemRefType, mlir::LLVM::LLVMPointerType>([](auto Type) {
-        return isSuitableSYCLOpArgTy(Type.getElementType());
-      })
-      .Case<mlir::IntegerType, mlir::FloatType>([](auto) { return true; })
-      .Default(mlir::sycl::isSYCLType);
-}
-
 namespace mlirclang {
 
 using namespace llvm;
@@ -456,11 +447,14 @@ unsigned getPrimitiveSizeInBits(mlir::Type Ty) {
       });
 }
 
-/// We allow calls to functions with no input arguments or those whose first
-/// argument is an Integer, Floating Point or SYCL type (or a pointer/memref to
-/// it).
-bool areSuitableSYCLOpArgTypes(mlir::TypeRange Types) {
-  return Types.empty() || ::isSuitableSYCLOpArgTy(Types[0]);
+/// There must be an argument and it must be a memref to a SYCL type.
+bool areSYCLMemberFunctionOrConstructorArgs(mlir::TypeRange Types) {
+  return !Types.empty() &&
+         TypeSwitch<mlir::Type, bool>(Types[0])
+             .Case<mlir::MemRefType, mlir::LLVM::LLVMPointerType>([](auto Ty) {
+               return mlir::sycl::isSYCLType(Ty.getElementType());
+             })
+             .Default([](auto) { return false; });
 }
 
 } // namespace mlirclang
