@@ -208,10 +208,6 @@ cl::opt<bool> DeviceGlobals{
     cl::desc("Lower and generate information about device global variables"),
     cl::cat(PostLinkCat)};
 
-cl::opt<bool> RelocatableDeviceCode{
-    "sycl-rdc", cl::desc("relocatable device code mode"), cl::Optional,
-    cl::init(true), cl::cat(PostLinkCat)};
-
 struct GlobalBinImageProps {
   bool EmitKernelParamInfo;
   bool EmitProgramMetadata;
@@ -1003,12 +999,6 @@ int main(int argc, char **argv) {
   }
   if (IROutputOnly && DoExportedSyms) {
     errs() << "error: -" << EmitExportedSymbols.ArgStr << " can't be used with"
-           << " -" << IROutputOnly.ArgStr << "\n";
-    return 1;
-  }
-  if (IROutputOnly && !RelocatableDeviceCode) {
-    errs() << "error: -" << RelocatableDeviceCode.ArgStr
-           << " can't be used with"
            << " -" << IROutputOnly.ArgStr << "\n";
     return 1;
   }

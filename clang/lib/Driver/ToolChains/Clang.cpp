@@ -9760,9 +9760,6 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
                      options::OPT_fno_sycl_esimd_force_stateless_mem, false))
     addArgs(CmdArgs, TCArgs, {"-lower-esimd-force-stateless-mem"});
 
-  if (SYCL::shouldDoPerObjectFileLinking(C))
-    addArgs(CmdArgs, TCArgs, {"-sycl-rdc=false"});
-
   // Add output file table file option
   assert(Output.isFilename() && "output must be a filename");
   addArgs(CmdArgs, TCArgs, {"-o", Output.getFilename()});

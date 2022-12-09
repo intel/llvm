@@ -343,9 +343,9 @@ struct TformCmd {
                 if (!Table1)
                   return Table1.takeError();
 
-                Error err = (*OutputTable)->merge(*Table1.get());
-                if (err)
-                  return err;
+                Error Err = (*OutputTable)->merge(*Table1.get());
+                if (Err)
+                  return Err;
               }
               raw_fd_ostream Out{Output, EC, sys::fs::OpenFlags::OF_None};
 
@@ -437,9 +437,6 @@ int main(int argc, char **argv) {
     HasCopySingleFileTform = P.second->Kind == OPT_COPY_SINGLE_FILE;
     HasMerge = P.second->Kind == OPT_MERGE;
   }
-  if (HasMerge && HasCopySingleFileTform)
-    CHECK_AND_EXIT(
-        makeUserError("copy_single_file and merge cannot be used together"));
 
   for (auto &P : Cmds) {
     TformCmd::UPtrTy &Cmd = P.second;
