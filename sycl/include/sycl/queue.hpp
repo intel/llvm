@@ -13,11 +13,13 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/service_kernel_names.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception_list.hpp>
+#include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/property_list.hpp>
@@ -83,7 +85,7 @@ static event submitAssertCapture(queue &, event &, queue *,
 /// \sa kernel
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT queue {
+class __SYCL_EXPORT queue : public detail::OwnerLessBase<queue> {
 public:
   /// Constructs a SYCL queue instance using the device returned by an instance
   /// of default_selector.
@@ -100,7 +102,6 @@ public:
   queue(const async_handler &AsyncHandler, const property_list &PropList = {})
       : queue(default_selector(), AsyncHandler, PropList) {}
 
-#if __cplusplus >= 201703L
   /// Constructs a SYCL queue instance using the device identified by the
   /// device selector provided.
   /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
@@ -159,8 +160,6 @@ public:
                  const property_list &propList = {})
       : queue(syclContext, detail::select_device(deviceSelector, syclContext),
               AsyncHandler, propList) {}
-
-#endif
 
   /// Constructs a SYCL queue instance using the device returned by the
   /// DeviceSelector provided.
@@ -738,9 +737,9 @@ public:
   single_task(PropertiesT Properties,
               _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     static_assert(
-        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+        (detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void()>::value ||
-         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+         detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void(kernel_handler)>::value),
         "sycl::queue.single_task() requires a kernel instead of command group. "
         "Use queue.submit() instead");
@@ -777,9 +776,9 @@ public:
   single_task(event DepEvent, PropertiesT Properties,
               _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     static_assert(
-        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+        (detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void()>::value ||
-         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+         detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void(kernel_handler)>::value),
         "sycl::queue.single_task() requires a kernel instead of command group. "
         "Use queue.submit() instead");
@@ -820,9 +819,9 @@ public:
   single_task(const std::vector<event> &DepEvents, PropertiesT Properties,
               _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     static_assert(
-        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+        (detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void()>::value ||
-         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+         detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void(kernel_handler)>::value),
         "sycl::queue.single_task() requires a kernel instead of command group. "
         "Use queue.submit() instead");
@@ -1271,6 +1270,12 @@ public:
   ///
   /// \return the backend associated with this queue.
   backend get_backend() const noexcept;
+
+  /// Allows to check status of the queue (completed vs noncompleted).
+  ///
+  /// \return returns true if all enqueued commands in the queue have been
+  /// completed, otherwise returns false.
+  bool ext_oneapi_empty() const;
 
 private:
   pi_native_handle getNative() const;

@@ -1605,6 +1605,17 @@ void ProgramManager::addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
   m_Ptr2DeviceGlobal.insert({DeviceGlobalPtr, NewEntry.first->second.get()});
 }
 
+void ProgramManager::getRawDeviceImages(
+    const std::vector<kernel_id> &KernelIDs,
+    std::set<RTDeviceBinaryImage *> &BinImages) {
+  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+  for (const kernel_id &KID : KernelIDs) {
+    auto Range = m_KernelIDs2BinImage.equal_range(KID);
+    for (auto It = Range.first, End = Range.second; It != End; ++It)
+      BinImages.insert(It->second);
+  }
+}
+
 std::vector<device_image_plain>
 ProgramManager::getSYCLDeviceImagesWithCompatibleState(
     const context &Ctx, const std::vector<device> &Devs,
@@ -1614,12 +1625,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
   // TODO: Can we avoid repacking?
   std::set<RTDeviceBinaryImage *> BinImages;
   if (!KernelIDs.empty()) {
-    std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
-    for (const kernel_id &KID : KernelIDs) {
-      auto Range = m_KernelIDs2BinImage.equal_range(KID);
-      for (auto It = Range.first, End = Range.second; It != End; ++It)
-        BinImages.insert(It->second);
-    }
+    getRawDeviceImages(KernelIDs, BinImages);
   } else {
     std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
     for (auto &ImagesSets : m_DeviceImages) {
@@ -1628,7 +1634,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
         BinImages.insert(ImageUPtr.get());
     }
   }
-  assert(BinImages.size() > 0 && "Expected to find at least on device image");
+  assert(BinImages.size() > 0 && "Expected to find at least one device image");
 
   std::vector<device_image_plain> SYCLDeviceImages;
   for (RTDeviceBinaryImage *BinImage : BinImages) {

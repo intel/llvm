@@ -122,6 +122,7 @@ LoongArchTargetLowering::LoongArchTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::i64, Custom);
     setOperationAction(ISD::READ_REGISTER, MVT::i64, Custom);
     setOperationAction(ISD::WRITE_REGISTER, MVT::i64, Custom);
+    setOperationAction(ISD::INTRINSIC_W_CHAIN, MVT::Other, Custom);
   }
 
   static const ISD::CondCode FPCCToExpand[] = {
@@ -597,9 +598,16 @@ LoongArchTargetLowering::lowerINTRINSIC_W_CHAIN(SDValue Op,
   switch (Op.getConstantOperandVal(1)) {
   default:
     return Op;
-  case Intrinsic::loongarch_crc_w_d_w: {
-    DAG.getContext()->emitError(
-        "llvm.loongarch.crc.w.d.w requires target: loongarch64");
+  case Intrinsic::loongarch_crc_w_b_w:
+  case Intrinsic::loongarch_crc_w_h_w:
+  case Intrinsic::loongarch_crc_w_w_w:
+  case Intrinsic::loongarch_crc_w_d_w:
+  case Intrinsic::loongarch_crcc_w_b_w:
+  case Intrinsic::loongarch_crcc_w_h_w:
+  case Intrinsic::loongarch_crcc_w_w_w:
+  case Intrinsic::loongarch_crcc_w_d_w: {
+    std::string Name = Op->getOperationName(0);
+    DAG.getContext()->emitError(Name + " requires target: loongarch64");
     return DAG.getMergeValues(
         {DAG.getUNDEF(Op.getValueType()), Op.getOperand(0)}, SDLoc(Op));
   }
@@ -814,6 +822,7 @@ static SDValue customLegalizeToWOp(SDNode *N, SelectionDAG &DAG, int NumOp,
 void LoongArchTargetLowering::ReplaceNodeResults(
     SDNode *N, SmallVectorImpl<SDValue> &Results, SelectionDAG &DAG) const {
   SDLoc DL(N);
+  EVT VT = N->getValueType(0);
   switch (N->getOpcode()) {
   default:
     llvm_unreachable("Don't know how to legalize this operation");
@@ -821,7 +830,7 @@ void LoongArchTargetLowering::ReplaceNodeResults(
   case ISD::SRA:
   case ISD::SRL:
   case ISD::ROTR:
-    assert(N->getValueType(0) == MVT::i32 && Subtarget.is64Bit() &&
+    assert(VT == MVT::i32 && Subtarget.is64Bit() &&
            "Unexpected custom legalisation");
     if (N->getOperand(1).getOpcode() != ISD::Constant) {
       Results.push_back(customLegalizeToWOp(N, DAG, 2));
@@ -836,32 +845,31 @@ void LoongArchTargetLowering::ReplaceNodeResults(
     }
     break;
   case ISD::FP_TO_SINT: {
-    assert(N->getValueType(0) == MVT::i32 && Subtarget.is64Bit() &&
+    assert(VT == MVT::i32 && Subtarget.is64Bit() &&
            "Unexpected custom legalisation");
     SDValue Src = N->getOperand(0);
-    EVT VT = EVT::getFloatingPointVT(N->getValueSizeInBits(0));
+    EVT FVT = EVT::getFloatingPointVT(N->getValueSizeInBits(0));
     if (getTypeAction(*DAG.getContext(), Src.getValueType()) !=
         TargetLowering::TypeSoftenFloat) {
-      SDValue Dst = DAG.getNode(LoongArchISD::FTINT, DL, VT, Src);
-      Results.push_back(DAG.getNode(ISD::BITCAST, DL, N->getValueType(0), Dst));
+      SDValue Dst = DAG.getNode(LoongArchISD::FTINT, DL, FVT, Src);
+      Results.push_back(DAG.getNode(ISD::BITCAST, DL, VT, Dst));
       return;
     }
     // If the FP type needs to be softened, emit a library call using the 'si'
     // version. If we left it to default legalization we'd end up with 'di'.
     RTLIB::Libcall LC;
-    LC = RTLIB::getFPTOSINT(Src.getValueType(), N->getValueType(0));
+    LC = RTLIB::getFPTOSINT(Src.getValueType(), VT);
     MakeLibCallOptions CallOptions;
     EVT OpVT = Src.getValueType();
-    CallOptions.setTypeListBeforeSoften(OpVT, N->getValueType(0), true);
+    CallOptions.setTypeListBeforeSoften(OpVT, VT, true);
     SDValue Chain = SDValue();
     SDValue Result;
     std::tie(Result, Chain) =
-        makeLibCall(DAG, LC, N->getValueType(0), Src, CallOptions, DL, Chain);
+        makeLibCall(DAG, LC, VT, Src, CallOptions, DL, Chain);
     Results.push_back(Result);
     break;
   }
   case ISD::BITCAST: {
-    EVT VT = N->getValueType(0);
     SDValue Src = N->getOperand(0);
     EVT SrcVT = Src.getValueType();
     if (VT == MVT::i32 && SrcVT == MVT::f32 && Subtarget.is64Bit() &&
@@ -873,7 +881,7 @@ void LoongArchTargetLowering::ReplaceNodeResults(
     break;
   }
   case ISD::FP_TO_UINT: {
-    assert(N->getValueType(0) == MVT::i32 && Subtarget.is64Bit() &&
+    assert(VT == MVT::i32 && Subtarget.is64Bit() &&
            "Unexpected custom legalisation");
     auto &TLI = DAG.getTargetLoweringInfo();
     SDValue Tmp1, Tmp2;
@@ -883,7 +891,6 @@ void LoongArchTargetLowering::ReplaceNodeResults(
   }
   case ISD::BSWAP: {
     SDValue Src = N->getOperand(0);
-    EVT VT = N->getValueType(0);
     assert((VT == MVT::i16 || VT == MVT::i32) &&
            "Unexpected custom legalization");
     MVT GRLenVT = Subtarget.getGRLenVT();
@@ -906,7 +913,6 @@ void LoongArchTargetLowering::ReplaceNodeResults(
   }
   case ISD::BITREVERSE: {
     SDValue Src = N->getOperand(0);
-    EVT VT = N->getValueType(0);
     assert((VT == MVT::i8 || (VT == MVT::i32 && Subtarget.is64Bit())) &&
            "Unexpected custom legalization");
     MVT GRLenVT = Subtarget.getGRLenVT();
@@ -927,27 +933,48 @@ void LoongArchTargetLowering::ReplaceNodeResults(
   }
   case ISD::CTLZ:
   case ISD::CTTZ: {
-    assert(N->getValueType(0) == MVT::i32 && Subtarget.is64Bit() &&
+    assert(VT == MVT::i32 && Subtarget.is64Bit() &&
            "Unexpected custom legalisation");
     Results.push_back(customLegalizeToWOp(N, DAG, 1));
     break;
   }
   case ISD::INTRINSIC_W_CHAIN: {
-    assert(N->getValueType(0) == MVT::i32 && Subtarget.is64Bit() &&
+    assert(VT == MVT::i32 && Subtarget.is64Bit() &&
            "Unexpected custom legalisation");
+    SDValue Op2 = N->getOperand(2);
+    SDValue Op3 = N->getOperand(3);
 
     switch (N->getConstantOperandVal(1)) {
     default:
       llvm_unreachable("Unexpected Intrinsic.");
-    case Intrinsic::loongarch_crc_w_d_w: {
-      Results.push_back(DAG.getNode(
-          ISD::TRUNCATE, DL, N->getValueType(0),
-          DAG.getNode(
-              LoongArchISD::CRC_W_D_W, DL, MVT::i64, N->getOperand(2),
-              DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i64, N->getOperand(3)))));
-      Results.push_back(N->getOperand(0));
-      break;
-    }
+#define CRC_CASE_EXT_BINARYOP(NAME, NODE)                                      \
+  case Intrinsic::loongarch_##NAME: {                                          \
+    Results.push_back(DAG.getNode(                                             \
+        ISD::TRUNCATE, DL, VT,                                                 \
+        DAG.getNode(LoongArchISD::NODE, DL, MVT::i64,                          \
+                    DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i64, Op2),           \
+                    DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i64, Op3))));        \
+    Results.push_back(N->getOperand(0));                                       \
+    break;                                                                     \
+  }
+      CRC_CASE_EXT_BINARYOP(crc_w_b_w, CRC_W_B_W)
+      CRC_CASE_EXT_BINARYOP(crc_w_h_w, CRC_W_H_W)
+      CRC_CASE_EXT_BINARYOP(crc_w_w_w, CRC_W_W_W)
+      CRC_CASE_EXT_BINARYOP(crcc_w_b_w, CRCC_W_B_W)
+      CRC_CASE_EXT_BINARYOP(crcc_w_h_w, CRCC_W_H_W)
+      CRC_CASE_EXT_BINARYOP(crcc_w_w_w, CRCC_W_W_W)
+
+#define CRC_CASE_EXT_UNARYOP(NAME, NODE)                                       \
+  case Intrinsic::loongarch_##NAME: {                                          \
+    Results.push_back(DAG.getNode(                                             \
+        ISD::TRUNCATE, DL, VT,                                                 \
+        DAG.getNode(LoongArchISD::NODE, DL, MVT::i64, Op2,                     \
+                    DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i64, Op3))));        \
+    Results.push_back(N->getOperand(0));                                       \
+    break;                                                                     \
+  }
+      CRC_CASE_EXT_UNARYOP(crc_w_d_w, CRC_W_D_W)
+      CRC_CASE_EXT_UNARYOP(crcc_w_d_w, CRCC_W_D_W)
     }
     break;
   }
@@ -958,7 +985,7 @@ void LoongArchTargetLowering::ReplaceNodeResults(
     else
       DAG.getContext()->emitError(
           "On LA32, only 32-bit registers can be read.");
-    Results.push_back(DAG.getUNDEF(N->getValueType(0)));
+    Results.push_back(DAG.getUNDEF(VT));
     Results.push_back(N->getOperand(0));
     break;
   }
@@ -1421,7 +1448,14 @@ const char *LoongArchTargetLowering::getTargetNodeName(unsigned Opcode) const {
     NODE_NAME_CASE(IBAR)
     NODE_NAME_CASE(BREAK)
     NODE_NAME_CASE(SYSCALL)
+    NODE_NAME_CASE(CRC_W_B_W)
+    NODE_NAME_CASE(CRC_W_H_W)
+    NODE_NAME_CASE(CRC_W_W_W)
     NODE_NAME_CASE(CRC_W_D_W)
+    NODE_NAME_CASE(CRCC_W_B_W)
+    NODE_NAME_CASE(CRCC_W_H_W)
+    NODE_NAME_CASE(CRCC_W_W_W)
+    NODE_NAME_CASE(CRCC_W_D_W)
   }
 #undef NODE_NAME_CASE
   return nullptr;
@@ -2325,6 +2359,10 @@ getIntrinsicForMaskedAtomicRMWBinOp(unsigned GRLen,
       return Intrinsic::loongarch_masked_atomicrmw_umax_i64;
     case AtomicRMWInst::UMin:
       return Intrinsic::loongarch_masked_atomicrmw_umin_i64;
+    case AtomicRMWInst::Max:
+      return Intrinsic::loongarch_masked_atomicrmw_max_i64;
+    case AtomicRMWInst::Min:
+      return Intrinsic::loongarch_masked_atomicrmw_min_i64;
       // TODO: support other AtomicRMWInst.
     }
   }
@@ -2396,8 +2434,24 @@ Value *LoongArchTargetLowering::emitMaskedAtomicRMWIntrinsic(
 
   Value *Result;
 
-  Result =
-      Builder.CreateCall(LlwOpScwLoop, {AlignedAddr, Incr, Mask, Ordering});
+  // Must pass the shift amount needed to sign extend the loaded value prior
+  // to performing a signed comparison for min/max. ShiftAmt is the number of
+  // bits to shift the value into position. Pass GRLen-ShiftAmt-ValWidth, which
+  // is the number of bits to left+right shift the value in order to
+  // sign-extend.
+  if (AI->getOperation() == AtomicRMWInst::Min ||
+      AI->getOperation() == AtomicRMWInst::Max) {
+    const DataLayout &DL = AI->getModule()->getDataLayout();
+    unsigned ValWidth =
+        DL.getTypeStoreSizeInBits(AI->getValOperand()->getType());
+    Value *SextShamt =
+        Builder.CreateSub(Builder.getIntN(GRLen, GRLen - ValWidth), ShiftAmt);
+    Result = Builder.CreateCall(LlwOpScwLoop,
+                                {AlignedAddr, Incr, Mask, SextShamt, Ordering});
+  } else {
+    Result =
+        Builder.CreateCall(LlwOpScwLoop, {AlignedAddr, Incr, Mask, Ordering});
+  }
 
   if (GRLen == 64)
     Result = Builder.CreateTrunc(Result, Builder.getInt32Ty());

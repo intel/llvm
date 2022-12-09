@@ -1,5 +1,4 @@
-//===------------ SYCLUtils.cpp - SYCL utility functions
-//------------------===//
+//===------------ SYCLUtils.cpp - SYCL utility functions ------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,13 +9,18 @@
 //===----------------------------------------------------------------------===//
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 
 namespace llvm {
 namespace sycl {
 namespace utils {
+
+using namespace llvm::esimd;
+
 void traverseCallgraphUp(llvm::Function *F, CallGraphNodeAction ActionF,
                          SmallPtrSetImpl<Function *> &FunctionsVisited,
-                         bool ErrorOnNonCallUse) {
+                         bool ErrorOnNonCallUse,
+                         const CallGraphFunctionFilter &functionFilter) {
   SmallVector<Function *, 32> Worklist;
 
   if (FunctionsVisited.count(F) == 0)
@@ -43,6 +47,10 @@ void traverseCallgraphUp(llvm::Function *F, CallGraphNodeAction ActionF,
         } else {
           // ... non-call is OK - add using function to the worklist
           if (auto *I = dyn_cast<Instruction>(FCall)) {
+            if (!functionFilter(I, CurF)) {
+              continue;
+            }
+
             auto UseF = I->getFunction();
 
             if (FunctionsVisited.count(UseF) == 0) {
