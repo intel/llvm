@@ -485,6 +485,10 @@ protected:
   // May lock graph with read and write modes during execution.
   void cleanupDeferredMemObjects(BlockingT Blocking);
 
+  void registerAuxiliaryResources(
+      EventImplPtr &Event, std::vector<std::shared_ptr<const void>> Resources);
+  void cleanupAuxiliaryResources(BlockingT Blocking);
+
   /// Graph builder class.
   ///
   /// The graph builder provides means to change an existing graph (e.g. add
@@ -534,8 +538,7 @@ protected:
 
     /// Removes finished non-leaf non-alloca commands from the subgraph
     /// (assuming that all its commands have been waited for).
-    void cleanupFinishedCommands(Command *FinishedCmd,
-                                 std::vector<std::shared_ptr<const void>> &);
+    void cleanupFinishedCommands(Command *FinishedCmd);
 
     /// Reschedules the command passed using Queue provided.
     ///
@@ -559,8 +562,7 @@ protected:
     void decrementLeafCountersForRecord(MemObjRecord *Record);
 
     /// Removes commands that use the given MemObjRecord from the graph.
-    void cleanupCommandsForRecord(MemObjRecord *Record,
-                                  std::vector<std::shared_ptr<const void>> &);
+    void cleanupCommandsForRecord(MemObjRecord *Record);
 
     /// Removes the MemObjRecord for the memory object passed.
     void removeRecordForMemObj(SYCLMemObjI *MemObject);
@@ -794,7 +796,26 @@ protected:
   std::vector<std::shared_ptr<SYCLMemObjI>> MDeferredMemObjRelease;
   std::mutex MDeferredMemReleaseMutex;
 
+  std::unordered_map<EventImplPtr, std::vector<std::shared_ptr<const void>>>
+      MAuxiliaryResources;
+  std::mutex MAuxiliaryResourcesMutex;
+
   QueueImplPtr DefaultHostQueue;
+
+  // This thread local flag is a workaround for a problem with managing
+  // auxiliary resources. We would like to release internal buffers used for
+  // reductions in a deferred manner, but marking them individually isn't an
+  // option since all auxiliary resources (buffers, host memory, USM) are passed
+  // to the library as type erased shared pointers. This flag makes it so that
+  // release of every memory object is deferred while it's set, and it should
+  // only be set during release of auxiliary resources.
+  // TODO Remove once ABI breaking changes are allowed.
+  friend class SYCLMemObjT;
+  static thread_local bool ForceDeferredMemObjRelease;
+  struct ForceDeferredReleaseWrapper {
+    ForceDeferredReleaseWrapper() { ForceDeferredMemObjRelease = true; };
+    ~ForceDeferredReleaseWrapper() { ForceDeferredMemObjRelease = false; };
+  };
 
   friend class Command;
   friend class DispatchHostTask;

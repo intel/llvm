@@ -1048,9 +1048,7 @@ void Scheduler::GraphBuilder::decrementLeafCountersForRecord(
   }
 }
 
-void Scheduler::GraphBuilder::cleanupCommandsForRecord(
-    MemObjRecord *Record,
-    std::vector<std::shared_ptr<const void>> &AuxResourcesToDeallocate) {
+void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
   std::vector<AllocaCommandBase *> &AllocaCommands = Record->MAllocaCommands;
   if (AllocaCommands.empty())
     return;
@@ -1098,17 +1096,6 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(
 
     if (!markNodeAsVisited(Cmd, MVisitedCmds))
       continue;
-
-    if (Cmd->getType() == Command::CommandType::RUN_CG) {
-      auto ExecCmd = static_cast<ExecCGCommand *>(Cmd);
-
-      // Transfer ownership of auxiliary resources.
-      std::vector<std::shared_ptr<const void>> AuxResources =
-          ExecCmd->getAuxiliaryResources();
-      ExecCmd->clearAuxiliaryResources();
-      AuxResourcesToDeallocate.insert(AuxResourcesToDeallocate.end(),
-                                      AuxResources.begin(), AuxResources.end());
-    }
 
     for (Command *UserCmd : Cmd->MUsers)
       if (UserCmd->getType() != Command::CommandType::ALLOCA)
@@ -1161,15 +1148,6 @@ void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd) {
   assert(CmdT != Command::RUN_CG ||
          (static_cast<ExecCGCommand *>(Cmd))->getCG().getType() !=
              CG::CGTYPE::CodeplayHostTask);
-#ifndef NDEBUG
-  if (CmdT == Command::RUN_CG) {
-    auto *ExecCGCmd = static_cast<ExecCGCommand *>(Cmd);
-    if (ExecCGCmd->getCG().getType() == CG::CGTYPE::Kernel) {
-      auto *ExecKernelCG = static_cast<CGExecKernel *>(&ExecCGCmd->getCG());
-      assert(!ExecKernelCG->hasAuxiliaryResources());
-    }
-  }
-#endif
   (void)CmdT;
 
   for (Command *UserCmd : Cmd->MUsers) {
@@ -1196,9 +1174,7 @@ void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd) {
   delete Cmd;
 }
 
-void Scheduler::GraphBuilder::cleanupFinishedCommands(
-    Command *FinishedCmd,
-    std::vector<std::shared_ptr<const void>> &AuxResourcesToDeallocate) {
+void Scheduler::GraphBuilder::cleanupFinishedCommands(Command *FinishedCmd) {
   assert(MCmdsToVisit.empty());
   MCmdsToVisit.push(FinishedCmd);
   MVisitedCmds.clear();
@@ -1210,17 +1186,6 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(
 
     if (!markNodeAsVisited(Cmd, MVisitedCmds))
       continue;
-
-    if (Cmd->getType() == Command::CommandType::RUN_CG) {
-      auto ExecCmd = static_cast<ExecCGCommand *>(Cmd);
-
-      // Transfer ownership of auxiliary resources.
-      std::vector<std::shared_ptr<const void>> AuxResources =
-          ExecCmd->getAuxiliaryResources();
-      ExecCmd->clearAuxiliaryResources();
-      AuxResourcesToDeallocate.insert(AuxResourcesToDeallocate.end(),
-                                      AuxResources.begin(), AuxResources.end());
-    }
 
     for (const DepDesc &Dep : Cmd->MDeps) {
       if (Dep.MDepCommand)

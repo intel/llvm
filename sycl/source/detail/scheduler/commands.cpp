@@ -1698,10 +1698,7 @@ ExecCGCommand::ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup,
     MEvent->setSubmittedQueue(
         static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue);
     MEvent->setNeedsCleanupAfterWait(true);
-  } else if (MCommandGroup->getType() == CG::CGTYPE::Kernel &&
-             static_cast<CGExecKernel *>(MCommandGroup.get())
-                 ->hasAuxiliaryResources())
-    MEvent->setNeedsCleanupAfterWait(true);
+  }
 
   emitInstrumentationDataProxy();
 }
@@ -2545,10 +2542,7 @@ bool ExecCGCommand::producesPiEvent() const {
 bool ExecCGCommand::supportsPostEnqueueCleanup() const {
   // TODO enable cleaning up host task commands after enqueue
   return Command::supportsPostEnqueueCleanup() &&
-         (MCommandGroup->getType() != CG::CGTYPE::CodeplayHostTask) &&
-         (MCommandGroup->getType() != CG::CGTYPE::Kernel ||
-          !static_cast<CGExecKernel *>(MCommandGroup.get())
-               ->hasAuxiliaryResources());
+         (MCommandGroup->getType() != CG::CGTYPE::CodeplayHostTask);
 }
 
 } // namespace detail
