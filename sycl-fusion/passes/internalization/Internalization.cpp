@@ -24,6 +24,8 @@
 
 using namespace llvm;
 
+// Corresponds to definition of spir_private and spir_local in
+// "clang/lib/Basic/Target/SPIR.h", "SPIRDefIsGenMap".
 constexpr static unsigned PrivateAS{0};
 constexpr static unsigned LocalAS{3};
 
@@ -191,15 +193,12 @@ static void remapIndices(GetElementPtrInst *GEPI, std::size_t LocalSize) {
   auto *NewIndex = [&]() -> Value * {
     if (LocalSize == 1) {
       return Builder.getInt64(0);
-    } else {
-      SmallVector<Value *> OldIndexValue = getIndices(Builder, GEPI);
-      auto *OldIndexSum =
-          std::accumulate(std::next(OldIndexValue.begin()), OldIndexValue.end(),
-                          OldIndexValue[0], [&](Value *Lhs, Value *Rhs) {
-                            return Builder.CreateAdd(Lhs, Rhs);
-                          });
-      return Builder.CreateURem(OldIndexSum, Builder.getInt64(LocalSize));
     }
+    SmallVector<Value *> OldIndexValue = getIndices(Builder, GEPI);
+    auto *OldIndexSum = std::accumulate(
+        std::next(OldIndexValue.begin()), OldIndexValue.end(), OldIndexValue[0],
+        [&](Value *Lhs, Value *Rhs) { return Builder.CreateAdd(Lhs, Rhs); });
+    return Builder.CreateURem(OldIndexSum, Builder.getInt64(LocalSize));
   }();
   GEPI->idx_begin()->set(NewIndex);
 }
@@ -323,7 +322,7 @@ Error SYCLInternalizerImpl::checkArgsPromotable(
                      << " of function " << F->getName().str() << ": "
                      << SE.getMessage() << "\n";
       });
-      llvm::Error NewErr =
+      Error NewErr =
           createStringError(inconvertibleErrorCode(), ErrorMessage.str());
       DeferredErrs = joinErrors(std::move(DeferredErrs), std::move(NewErr));
     }
@@ -346,9 +345,9 @@ void SYCLInternalizerImpl::promoteCall(CallBase *C, const Value *Val,
   const SmallVector<size_t> InternInfo =
       getUsagesInternalization(C, Val, LocalSize);
   assert(!InternInfo.empty() && "Value must be used at least once");
-  llvm::Function *NewF = promoteFunctionArgs(C->getCalledFunction(), InternInfo,
-                                             /* CreateAllocas */ false,
-                                             /*KeepOriginal*/ true);
+  Function *NewF = promoteFunctionArgs(C->getCalledFunction(), InternInfo,
+                                       /* CreateAllocas */ false,
+                                       /*KeepOriginal*/ true);
 
   C->setCalledFunction(NewF);
 }
@@ -369,9 +368,7 @@ void SYCLInternalizerImpl::promoteGEPI(GetElementPtrInst *GEPI,
 void SYCLInternalizerImpl::promoteValue(Value *Val,
                                         std::size_t LocalSize) const {
   for (auto *U : Val->users()) {
-    auto *I = dyn_cast<Instruction>(U);
-    assert(I &&
-           "Cannot promote value used in a place other than an instruction");
+    auto *I = cast<Instruction>(U);
     switch (I->getOpcode()) {
     case Instruction::Call:
     case Instruction::Invoke:
@@ -402,7 +399,7 @@ getPromotedFunctionType(FunctionType *OrigTypes,
     if (Arg.value() == 0) {
       continue;
     }
-    llvm::Type *&Ty = Types[Arg.index()];
+    Type *&Ty = Types[Arg.index()];
     // TODO: Catch this case earlier
     if (auto *PtrTy = dyn_cast<PointerType>(Ty)) {
       Ty = PointerType::getWithSamePointeeType(PtrTy, AS);
@@ -416,10 +413,10 @@ static Function *
 getPromotedFunctionDeclaration(Function *F,
                                ArrayRef<std::size_t> PromoteToLocal,
                                unsigned AS, bool ChangeTypes) {
-  llvm::FunctionType *Ty = F->getFunctionType();
+  FunctionType *Ty = F->getFunctionType();
   // If we do not need to change the types, we just copy the function
   // declaration.
-  llvm::FunctionType *NewTy =
+  FunctionType *NewTy =
       ChangeTypes ? getPromotedFunctionType(Ty, PromoteToLocal, AS) : Ty;
   return Function::Create(NewTy, F->getLinkage(), F->getAddressSpace(),
                           F->getName(), F->getParent());
@@ -479,7 +476,7 @@ Value *replaceByNewAlloca(Argument *Arg, unsigned AS, std::size_t LocalSize) {
   IRBuilder<> Builder{
       &*Arg->getParent()->getEntryBlock().getFirstInsertionPt()};
   auto *PtrTy = cast<PointerType>(Arg->getType());
-  llvm::Type *Ty = getElementTypeFromUses(Arg);
+  Type *Ty = getElementTypeFromUses(Arg);
   assert(Ty && "Could not determine pointer element type");
   auto *ArrTy = ArrayType::get(Ty, LocalSize);
   auto *Alloca = Builder.CreateAlloca(ArrTy, PtrTy->getAddressSpace());
@@ -502,7 +499,7 @@ Function *SYCLInternalizerImpl::promoteFunctionArgs(
       IntegerType::get(OldF->getContext(), AddressSpaceBitWidth), AS));
 
   // We first declare the promoted function with the new signature.
-  llvm::Function *NewF =
+  Function *NewF =
       getPromotedFunctionDeclaration(OldF, PromoteToLocal, AS,
                                      /*ChangeTypes*/ !CreateAllocas);
 
@@ -554,7 +551,7 @@ Function *SYCLInternalizerImpl::promoteFunctionArgs(
         const auto Index = I.index();
         if (const auto *PtrTy =
                 dyn_cast<PointerType>(NewF->getArg(Index)->getType())) {
-          if (PtrTy->getAddressSpace() == 3) {
+          if (PtrTy->getAddressSpace() == LocalAS) {
             NewInfo[Index] = NewAddrspace;
           }
         }
@@ -579,7 +576,7 @@ SYCLInternalizerImpl::operator()(Module &M, ModuleAnalysisManager &AM) const {
     }
   }
   for (auto *F : ToUpdate) {
-    llvm::Expected<SmallVector<size_t>> IndicesOrErr =
+    Expected<SmallVector<size_t>> IndicesOrErr =
         getInternalizationFromMD(F, Kind);
     if (auto E = IndicesOrErr.takeError()) {
       handleAllErrors(std::move(E), [](const StringError &SE) {
