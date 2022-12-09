@@ -30,11 +30,11 @@ namespace detail {
 // TODO: Align these checks with the SYCL specification when the behaviour
 // with void * is clarified.
 template <typename DataT>
-using EnableIfOutputPointerT = detail::enable_if_t<
+using EnableIfOutputPointerT = std::enable_if_t<
     /*is_output_iterator<DataT>::value &&*/ std::is_pointer<DataT>::value>;
 
 template <typename DataT>
-using EnableIfOutputIteratorT = detail::enable_if_t<
+using EnableIfOutputIteratorT = std::enable_if_t<
     /*is_output_iterator<DataT>::value &&*/ !std::is_pointer<DataT>::value>;
 
 #if !defined(NDEBUG) && (_MSC_VER > 1929 || __has_builtin(__builtin_FILE))
@@ -221,6 +221,14 @@ static inline std::string codeToString(pi_int32 code) {
   __SYCL_REPORT_ERR_TO_EXC_THROW_VIA_ERRC(X, ERRC)
 #endif
 
+// Helper for enabling empty-base optimizations on MSVC.
+// TODO: Remove this when MSVC has this optimization enabled by default.
+#ifdef _MSC_VER
+#define __SYCL_EBO __declspec(empty_bases)
+#else
+#define __SYCL_EBO
+#endif
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
@@ -246,7 +254,7 @@ template <class Obj> decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject) {
 // must make sure the returned pointer is not captured in a field or otherwise
 // stored - i.e. must live only as on-stack value.
 template <class T>
-typename detail::add_pointer_t<typename decltype(T::impl)::element_type>
+typename std::add_pointer_t<typename decltype(T::impl)::element_type>
 getRawSyclObjImpl(const T &SyclObject) {
   return SyclObject.impl.get();
 }

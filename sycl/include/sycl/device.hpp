@@ -67,7 +67,6 @@ public:
                         "use SYCL 2020 device selectors instead.")
   explicit device(const device_selector &DeviceSelector);
 
-#if __cplusplus >= 201703L
   /// Constructs a SYCL device instance using the device
   /// identified by the device selector provided.
   /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
@@ -77,7 +76,6 @@ public:
                 detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
   explicit device(const DeviceSelector &deviceSelector)
       : device(detail::select_device(deviceSelector)) {}
-#endif
 
   bool operator==(const device &rhs) const { return impl == rhs.impl; }
 
@@ -243,9 +241,8 @@ private:
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend
-      typename detail::add_pointer_t<typename decltype(T::impl)::element_type>
-      detail::getRawSyclObjImpl(const T &SyclObject);
+  friend typename std::add_pointer_t<typename decltype(T::impl)::element_type>
+  detail::getRawSyclObjImpl(const T &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);

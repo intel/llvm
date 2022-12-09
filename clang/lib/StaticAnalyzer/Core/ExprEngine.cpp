@@ -2717,7 +2717,7 @@ assumeCondition(const Stmt *Condition, ExplodedNode *N) {
 
   // If the condition is still unknown, give up.
   if (X.isUnknownOrUndef())
-    return None;
+    return std::nullopt;
 
   DefinedSVal V = X.castAs<DefinedSVal>();
 

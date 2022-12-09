@@ -351,7 +351,7 @@ getCharacterLengthIfStatic(mlir::Type t) {
           hlfir::getFortranElementType(t).dyn_cast<fir::CharacterType>())
     if (charType.hasConstantLen())
       return charType.getLen();
-  return llvm::None;
+  return std::nullopt;
 }
 
 mlir::LogicalResult hlfir::ConcatOp::verify() {
@@ -382,6 +382,37 @@ void hlfir::ConcatOp::build(mlir::OpBuilder &builder,
       fir::CharacterType::get(builder.getContext(), kind, resultTypeLen),
       false);
   build(builder, result, resultType, strings, len);
+}
+
+//===----------------------------------------------------------------------===//
+// AssociateOp
+//===----------------------------------------------------------------------===//
+
+void hlfir::AssociateOp::build(mlir::OpBuilder &builder,
+                               mlir::OperationState &result, mlir::Value source,
+                               llvm::StringRef uniq_name, mlir::Value shape,
+                               mlir::ValueRange typeparams,
+                               fir::FortranVariableFlagsAttr fortran_attrs) {
+  auto nameAttr = builder.getStringAttr(uniq_name);
+  // TODO: preserve polymorphism of polymorphic expr.
+  mlir::Type firVarType = fir::ReferenceType::get(
+      getFortranElementOrSequenceType(source.getType()));
+  mlir::Type hlfirVariableType =
+      DeclareOp::getHLFIRVariableType(firVarType, /*hasExplicitLbs=*/false);
+  mlir::Type i1Type = builder.getI1Type();
+  build(builder, result, {hlfirVariableType, firVarType, i1Type}, source, shape,
+        typeparams, nameAttr, fortran_attrs);
+}
+
+//===----------------------------------------------------------------------===//
+// EndAssociateOp
+//===----------------------------------------------------------------------===//
+
+void hlfir::EndAssociateOp::build(mlir::OpBuilder &builder,
+                                  mlir::OperationState &result,
+                                  hlfir::AssociateOp associate) {
+  return build(builder, result, associate.getFirBase(),
+               associate.getMustFreeStrorageFlag());
 }
 
 #define GET_OP_CLASSES

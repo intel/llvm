@@ -2330,7 +2330,7 @@ struct InsertSliceOpCastFolder final : public OpRewritePattern<InsertOpTy> {
     auto getSourceOfCastOp = [](Value v) -> Optional<Value> {
       auto castOp = v.getDefiningOp<tensor::CastOp>();
       if (!castOp || !canFoldIntoConsumerOp(castOp))
-        return llvm::None;
+        return std::nullopt;
       return castOp.getSource();
     };
     Optional<Value> sourceCastSource =
@@ -3170,6 +3170,8 @@ static LogicalResult commonVerifierPackAndUnPackOp(OpTy packOrUnPack) {
     return op->emitError("invalid inner_dims_pos vector");
   if (isInvalidPackingPosSpecification(outerDimPerm, unpackedRank))
     return op->emitError("invalid outer_dims_perm vector");
+  if (!outerDimPerm.empty() && outerDimPerm.size() != unpackedRank)
+    return op->emitError("outer_dims_perm must be a permutation or empty");
 
   // Tiling factors must be less than or equal to the input rank for pack (or
   // output rank for unpack), and must match the number of `inner_dims_pos`.
@@ -3236,6 +3238,26 @@ static LogicalResult commonVerifierPackAndUnPackOp(OpTy packOrUnPack) {
 
 void PackOp::getAsmResultNames(function_ref<void(Value, StringRef)> setNameFn) {
   setNameFn(getResult(), "pack");
+}
+
+void PackOp::build(OpBuilder &builder, OperationState &state, Value source,
+                   Value dest, ArrayRef<int64_t> innerDimsPos,
+                   ArrayRef<OpFoldResult> innerTiles,
+                   Optional<Value> paddingValue,
+                   ArrayRef<int64_t> outerDimsPerm) {
+  assert(innerDimsPos.size() == innerTiles.size() &&
+         "number of tile sizes specified must match the specified number of "
+         "original dimensions to be tiled");
+  SmallVector<int64_t> staticTileSizes;
+  SmallVector<Value> dynamicTileSizes;
+  dispatchIndexOpFoldResults(innerTiles, dynamicTileSizes, staticTileSizes,
+                             ShapedType::kDynamic);
+  build(builder, state, dest.getType(), source, dest,
+        paddingValue ? paddingValue.value() : nullptr,
+        outerDimsPerm.empty() ? nullptr
+                              : builder.getDenseI64ArrayAttr(outerDimsPerm),
+        builder.getDenseI64ArrayAttr(innerDimsPos), dynamicTileSizes,
+        builder.getDenseI64ArrayAttr(staticTileSizes));
 }
 
 LogicalResult
@@ -3395,6 +3417,20 @@ Speculation::Speculatability UnPackOp::getSpeculatability() {
     return Speculation::NotSpeculatable;
 
   return Speculation::Speculatable;
+}
+
+/// pack(unpack(x)) -> x
+LogicalResult UnPackOp::canonicalize(UnPackOp unpackOp,
+                                     PatternRewriter &rewriter) {
+  PackOp packOp = unpackOp.getSource().getDefiningOp<tensor::PackOp>();
+  if (!packOp || packOp.getDestType() != unpackOp.getSourceType())
+    return failure();
+  if (packOp.getInnerDimsPos() != unpackOp.getInnerDimsPos())
+    return failure();
+  if (packOp.getOuterDimsPerm() != unpackOp.getOuterDimsPerm())
+    return failure();
+  rewriter.replaceOp(unpackOp, packOp.getSource());
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
