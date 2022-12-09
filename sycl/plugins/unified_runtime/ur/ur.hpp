@@ -14,7 +14,7 @@
 #include <thread>
 #include <vector>
 
-#include <zer_api.h>
+#include <ur_api.h>
 
 // Terminates the process with a catastrophic error message.
 [[noreturn]] inline void die(const char *Message) {
@@ -116,6 +116,6 @@ extern bool PrintTrace;
 // deallocate them automatically at the end of the main program.
 // The heap memory allocated for these global variables reclaimed only at
 // explicit tear-down.
-extern std::vector<zer_platform_handle_t> *PiPlatformsCache;
+extern std::vector<ur_platform_handle_t> *PiPlatformsCache;
 extern SpinLock *PiPlatformsCacheMutex;
 extern bool PiPlatformCachePopulated;

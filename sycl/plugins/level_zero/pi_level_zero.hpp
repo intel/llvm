@@ -178,8 +178,8 @@ struct MemAllocRecord : _pi_object {
 // Define the types that are opaque in pi.h in a manner suitabale for Level Zero
 // plugin
 
-struct _pi_platform : public _ur_platform_handle_t {
-  using _ur_platform_handle_t::_ur_platform_handle_t;
+struct _pi_platform : public ur_adapter_platform_handle_t_ {
+  using ur_adapter_platform_handle_t_::ur_adapter_platform_handle_t_;
 
   // Cache pi_devices for reuse
   std::vector<std::unique_ptr<_pi_device>> PiDevicesCache;

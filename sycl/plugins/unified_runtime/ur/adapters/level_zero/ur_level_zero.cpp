@@ -223,7 +223,7 @@ template <> zes_structure_type_t getZesStructureType<zes_mem_properties_t>() {
   return ZES_STRUCTURE_TYPE_MEM_PROPERTIES;
 }
 
-zer_result_t _ur_platform_handle_t::initialize() {
+ur_result_t ur_adapter_platform_handle_t_::initialize() {
   // Cache driver properties
   ZeStruct<ze_driver_properties_t> ZeDriverProperties;
   ZE_CALL(zeDriverGetProperties, (ZeDriver, &ZeDriverProperties));
@@ -272,25 +272,21 @@ zer_result_t _ur_platform_handle_t::initialize() {
   // If yes, then set up L0 API pointers if the platform supports it.
   ZeUSMImport.setZeUSMImport(this);
 
-  return ZER_RESULT_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-ZER_APIEXPORT zer_result_t ZER_APICALL zerPlatformGet(
-    uint32_t
-        *NumPlatforms, ///< [in,out] pointer to the number of platforms.
-                       ///< if count is zero, then the call shall update the
-                       ///< value with the total number of platforms available.
-                       ///< if count is greater than the number of platforms
-                       ///< available, then the call shall update the value with
-                       ///< the correct number of platforms available.
-    zer_platform_handle_t
-        *Platforms ///< [out][optional][range(0, *pCount)] array of handle of
-                   ///< platforms. if count is less than the number of platforms
-                   ///< available, then platform shall only retrieve that number
-                   ///< of platforms.
-) {
-  PI_ASSERT(NumPlatforms, ZER_RESULT_INVALID_VALUE);
-
+UR_APIEXPORT ur_result_t UR_APICALL
+urPlatformGet(
+    uint32_t NumEntries,                            ///< [in] the number of platforms to be added to phPlatforms. 
+                                                    ///< If phPlatforms is not NULL, then NumEntries should be greater than
+                                                    ///< zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
+                                                    ///< will be returned.
+    ur_platform_handle_t* phPlatforms,              ///< [out][optional][range(0, NumEntries)] array of handle of platforms.
+                                                    ///< If NumEntries is less than the number of platforms available, then
+                                                    ///< ::urPlatformGet shall only retrieve that number of platforms.
+    uint32_t* pNumPlatforms                         ///< [out][optional] returns the total number of platforms available. 
+    )
+{
   static std::once_flag ZeCallCountInitialized;
   try {
     std::call_once(ZeCallCountInitialized, []() {
@@ -299,9 +295,16 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerPlatformGet(
       }
     });
   } catch (const std::bad_alloc &) {
-    return ZER_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
-    return ZER_RESULT_ERROR_UNKNOWN;
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  if (NumEntries == 0 && phPlatforms != nullptr) {
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+  if (phPlatforms == nullptr && pNumPlatforms == nullptr) {
+    return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
   // Setting these environment variables before running zeInit will enable the
@@ -327,9 +330,9 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerPlatformGet(
 
   // Absorb the ZE_RESULT_ERROR_UNINITIALIZED and just return 0 Platforms.
   if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
-    PI_ASSERT(NumPlatforms != 0, ZER_RESULT_INVALID_VALUE);
-    *NumPlatforms = 0;
-    return ZER_RESULT_SUCCESS;
+    PI_ASSERT(NumEntries != 0, UR_RESULT_ERROR_INVALID_VALUE);
+    *pNumPlatforms = 0;
+    return UR_RESULT_SUCCESS;
   }
 
   if (ZeResult != ZE_RESULT_SUCCESS) {
@@ -358,35 +361,33 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerPlatformGet(
 
         ZE_CALL(zeDriverGet, (&ZeDriverCount, ZeDrivers.data()));
         for (uint32_t I = 0; I < ZeDriverCount; ++I) {
-          auto Platform = new _zer_platform_handle_t(ZeDrivers[I]);
+          auto Platform = new ur_platform_handle_t_(ZeDrivers[I]);
           // Save a copy in the cache for future uses.
           PiPlatformsCache->push_back(Platform);
 
-          zer_result_t Result = Platform->initialize();
-          if (Result != ZER_RESULT_SUCCESS) {
+          ur_result_t Result = Platform->initialize();
+          if (Result != UR_RESULT_SUCCESS) {
             return Result;
           }
         }
         PiPlatformCachePopulated = true;
       }
     } catch (const std::bad_alloc &) {
-      return ZER_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+      return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     } catch (...) {
-      return ZER_RESULT_ERROR_UNKNOWN;
+      return UR_RESULT_ERROR_UNKNOWN;
     }
   }
 
   // Populate returned platforms from the cache.
-  if (Platforms) {
-    PI_ASSERT(*NumPlatforms <= PiPlatformsCache->size(),
-              ZER_RESULT_INVALID_PLATFORM);
-    std::copy_n(PiPlatformsCache->begin(), *NumPlatforms, Platforms);
+  if (phPlatforms) {
+    PI_ASSERT(NumEntries <= PiPlatformsCache->size(),
+              UR_RESULT_ERROR_INVALID_PLATFORM);
+    std::copy_n(PiPlatformsCache->begin(), NumEntries, phPlatforms);
   }
 
-  if (*NumPlatforms == 0)
-    *NumPlatforms = PiPlatformsCache->size();
-  else
-    *NumPlatforms = std::min(PiPlatformsCache->size(), (size_t)*NumPlatforms);
+  if (pNumPlatforms)
+    *pNumPlatforms = PiPlatformsCache->size();
 
-  return ZER_RESULT_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }

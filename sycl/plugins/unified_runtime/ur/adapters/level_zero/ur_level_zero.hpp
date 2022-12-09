@@ -17,7 +17,7 @@
 
 #include <ur/ur.hpp>
 #include <ze_api.h>
-#include <zer_api.h>
+#include <ur_api.h>
 #include <zes_api.h>
 
 // Returns the ze_structure_type_t to use in .stype of a structured descriptor.
@@ -81,40 +81,40 @@ public:
 };
 
 // Map Level Zero runtime error code to UR error code.
-static zer_result_t ze2urResult(ze_result_t ZeResult) {
-  static std::unordered_map<ze_result_t, zer_result_t> ErrorMapping = {
-      {ZE_RESULT_SUCCESS, ZER_RESULT_SUCCESS},
-      {ZE_RESULT_ERROR_DEVICE_LOST, ZER_RESULT_ERROR_DEVICE_LOST},
-      {ZE_RESULT_ERROR_INSUFFICIENT_PERMISSIONS, ZER_RESULT_INVALID_OPERATION},
-      {ZE_RESULT_ERROR_NOT_AVAILABLE, ZER_RESULT_INVALID_OPERATION},
-      {ZE_RESULT_ERROR_UNINITIALIZED, ZER_RESULT_INVALID_PLATFORM},
-      {ZE_RESULT_ERROR_INVALID_ARGUMENT, ZER_RESULT_ERROR_INVALID_ARGUMENT},
-      {ZE_RESULT_ERROR_INVALID_NULL_POINTER, ZER_RESULT_INVALID_VALUE},
-      {ZE_RESULT_ERROR_INVALID_SIZE, ZER_RESULT_INVALID_VALUE},
-      {ZE_RESULT_ERROR_UNSUPPORTED_SIZE, ZER_RESULT_INVALID_VALUE},
-      {ZE_RESULT_ERROR_UNSUPPORTED_ALIGNMENT, ZER_RESULT_INVALID_VALUE},
+static ur_result_t ze2urResult(ze_result_t ZeResult) {
+  static std::unordered_map<ze_result_t, ur_result_t> ErrorMapping = {
+      {ZE_RESULT_SUCCESS, UR_RESULT_SUCCESS},
+      {ZE_RESULT_ERROR_DEVICE_LOST, UR_RESULT_ERROR_DEVICE_LOST},
+      {ZE_RESULT_ERROR_INSUFFICIENT_PERMISSIONS, UR_RESULT_ERROR_INVALID_OPERATION},
+      {ZE_RESULT_ERROR_NOT_AVAILABLE, UR_RESULT_ERROR_INVALID_OPERATION},
+      {ZE_RESULT_ERROR_UNINITIALIZED, UR_RESULT_ERROR_INVALID_PLATFORM},
+      {ZE_RESULT_ERROR_INVALID_ARGUMENT, UR_RESULT_ERROR_INVALID_ARGUMENT},
+      {ZE_RESULT_ERROR_INVALID_NULL_POINTER, UR_RESULT_ERROR_INVALID_VALUE},
+      {ZE_RESULT_ERROR_INVALID_SIZE, UR_RESULT_ERROR_INVALID_VALUE},
+      {ZE_RESULT_ERROR_UNSUPPORTED_SIZE, UR_RESULT_ERROR_INVALID_VALUE},
+      {ZE_RESULT_ERROR_UNSUPPORTED_ALIGNMENT, UR_RESULT_ERROR_INVALID_VALUE},
       {ZE_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT,
-       ZER_RESULT_INVALID_EVENT},
-      {ZE_RESULT_ERROR_INVALID_ENUMERATION, ZER_RESULT_INVALID_VALUE},
-      {ZE_RESULT_ERROR_UNSUPPORTED_ENUMERATION, ZER_RESULT_INVALID_VALUE},
-      {ZE_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT, ZER_RESULT_INVALID_VALUE},
-      {ZE_RESULT_ERROR_INVALID_NATIVE_BINARY, ZER_RESULT_INVALID_BINARY},
-      {ZE_RESULT_ERROR_INVALID_KERNEL_NAME, ZER_RESULT_INVALID_KERNEL_NAME},
+       UR_RESULT_ERROR_INVALID_EVENT},
+      {ZE_RESULT_ERROR_INVALID_ENUMERATION, UR_RESULT_ERROR_INVALID_VALUE},
+      {ZE_RESULT_ERROR_UNSUPPORTED_ENUMERATION, UR_RESULT_ERROR_INVALID_VALUE},
+      {ZE_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT, UR_RESULT_ERROR_INVALID_VALUE},
+      {ZE_RESULT_ERROR_INVALID_NATIVE_BINARY, UR_RESULT_ERROR_INVALID_BINARY},
+      {ZE_RESULT_ERROR_INVALID_KERNEL_NAME, UR_RESULT_ERROR_INVALID_KERNEL_NAME},
       {ZE_RESULT_ERROR_INVALID_FUNCTION_NAME,
-       ZER_RESULT_ERROR_INVALID_FUNCTION_NAME},
-      {ZE_RESULT_ERROR_OVERLAPPING_REGIONS, ZER_RESULT_INVALID_OPERATION},
+       UR_RESULT_ERROR_INVALID_FUNCTION_NAME},
+      {ZE_RESULT_ERROR_OVERLAPPING_REGIONS, UR_RESULT_ERROR_INVALID_OPERATION},
       {ZE_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION,
-       ZER_RESULT_INVALID_WORK_GROUP_SIZE},
+       UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE},
       {ZE_RESULT_ERROR_MODULE_BUILD_FAILURE,
-       ZER_RESULT_ERROR_MODULE_BUILD_FAILURE},
+       UR_RESULT_ERROR_MODULE_BUILD_FAILURE},
       {ZE_RESULT_ERROR_OUT_OF_DEVICE_MEMORY,
-       ZER_RESULT_ERROR_OUT_OF_DEVICE_MEMORY},
+       UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY},
       {ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY,
-       ZER_RESULT_ERROR_OUT_OF_HOST_MEMORY}};
+       UR_RESULT_ERROR_OUT_OF_HOST_MEMORY}};
 
   auto It = ErrorMapping.find(ZeResult);
   if (It == ErrorMapping.end()) {
-    return ZER_RESULT_ERROR_UNKNOWN;
+    return UR_RESULT_ERROR_UNKNOWN;
   }
   return It->second;
 }
@@ -144,10 +144,10 @@ bool setEnvVar(const char *name, const char *value);
 #define ZE_CALL_NOCHECK(ZeName, ZeArgs)                                        \
   ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs, false)
 
-struct _ur_platform_handle_t : public _ur_platform {
-  _ur_platform_handle_t(ze_driver_handle_t Driver) : ZeDriver{Driver} {}
+struct ur_adapter_platform_handle_t_ : public _ur_platform {
+  ur_adapter_platform_handle_t_(ze_driver_handle_t Driver) : ZeDriver{Driver} {}
   // Performs initialization of a newly constructed PI platform.
-  zer_result_t initialize();
+  ur_result_t initialize();
 
   // Level Zero lacks the notion of a platform, but there is a driver, which is
   // a pretty good fit to keep here.
@@ -166,7 +166,7 @@ struct _ur_platform_handle_t : public _ur_platform {
   bool ZeDriverModuleProgramExtensionFound{false};
 };
 
-using ur_platform_handle_t = _ur_platform_handle_t *;
+using ur_adapter_platform_handle_t = ur_adapter_platform_handle_t_*;
 
 class ZeUSMImportExtension {
   // Pointers to functions that import/release host memory into USM
@@ -180,7 +180,7 @@ public:
 
   ZeUSMImportExtension() : Enabled{false} {}
 
-  void setZeUSMImport(ur_platform_handle_t Platform) {
+  void setZeUSMImport(ur_adapter_platform_handle_t Platform) {
     // Whether env var SYCL_USM_HOSTPTR_IMPORT has been set requesting
     // host ptr import during buffer creation.
     const char *USMHostPtrImportStr = std::getenv("SYCL_USM_HOSTPTR_IMPORT");
