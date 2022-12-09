@@ -2236,9 +2236,11 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
 
   if (AtomicRMWInst *ARMW = dyn_cast<AtomicRMWInst>(V)) {
     AtomicRMWInst::BinOp Op = ARMW->getOperation();
-    bool SupportedAtomicInst = AtomicRMWInst::isFPOperation(Op)
-                                   ? Op == AtomicRMWInst::FAdd
-                                   : Op != AtomicRMWInst::Nand;
+    bool SupportedAtomicInst =
+        AtomicRMWInst::isFPOperation(Op)
+            ? (Op == AtomicRMWInst::FAdd || Op == AtomicRMWInst::FMin ||
+               Op == AtomicRMWInst::FMax)
+            : Op != AtomicRMWInst::Nand;
     if (!BM->getErrorLog().checkError(
             SupportedAtomicInst, SPIRVEC_InvalidInstruction, V,
             "Atomic " + AtomicRMWInst::getOperationName(Op).str() +
