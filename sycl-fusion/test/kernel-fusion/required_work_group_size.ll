@@ -1,4 +1,4 @@
-; RUN: opt -load-pass-plugin %shlibdir/libSYCLKernelFusionPasses%shlibext\
+; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext\
 ; RUN: -passes=sycl-kernel-fusion\
 ; RUN: --sycl-info-path %S/required_work_group_size.yaml -S %s\
 ; RUN: | FileCheck %s

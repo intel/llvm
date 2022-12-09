@@ -1,4 +1,4 @@
-; RUN: opt -load-pass-plugin %shlibdir/libSYCLKernelFusionPasses%shlibext\
+; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext\
 ; RUN: -passes=print-sycl-module-info\
 ; RUN: --sycl-info-path %S/kernel-info.yaml -disable-output %s | FileCheck %s
 

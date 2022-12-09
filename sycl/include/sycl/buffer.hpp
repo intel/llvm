@@ -549,8 +549,6 @@ public:
         *this, accessRange, accessOffset, {}, CodeLoc);
   }
 
-#if __cplusplus >= 201703L
-
   template <typename... Ts> auto get_access(Ts... args) {
     return accessor{*this, args...};
   }
@@ -568,8 +566,6 @@ public:
   auto get_host_access(handler &commandGroupHandler, Ts... args) {
     return host_accessor{*this, commandGroupHandler, args...};
   }
-
-#endif
 
   template <typename Destination = std::nullptr_t>
   void set_final_data(Destination finalData = nullptr) {

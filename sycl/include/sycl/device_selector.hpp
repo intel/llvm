@@ -130,8 +130,6 @@ void fill_aspect_vector(std::vector<aspect> &V, FirstT F, OtherTs... O) {
   fill_aspect_vector(V, O...);
 }
 
-#if __cplusplus >= 201703L
-
 // Enable if DeviceSelector callable has matching signature, but
 // exclude if descended from filter_selector which is not purely callable or
 // if descended from it is descended from SYCL 1.2.1 device_selector.
@@ -141,7 +139,6 @@ using EnableIfSYCL2020DeviceSelectorInvocable = std::enable_if_t<
     std::is_invocable_r_v<int, DeviceSelector &, const device &> &&
     !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector> &&
     !std::is_base_of_v<device_selector, DeviceSelector>>;
-#endif
 
 __SYCL_EXPORT device
 select_device(const DSelectorInvocableType &DeviceSelectorInvocable);
