@@ -420,7 +420,11 @@ argument being `graph_state::modifiable` to reduce code verbosity on
 construction.
 
 .Graph State Diagram
-image::images/sycl_ext_oneapi_graph/command_graph-state.svg[]
+[source, mermaid]
+....
+graph LR
+    Modifiable -->|Finalize| Executable
+....
 
 ==== Executable Graph Update
 
@@ -721,8 +725,13 @@ are recorded to a graph object as new nodes for each submission. After recording
 has finished and the queue returns to the executing state, the recorded commands are
 not then executed, they are transparent to any following queue operations.
 
-.Queue State
-image::images/sycl_ext_oneapi_graph/queue-state.svg[]
+.Queue State Diagram
+[source, mermaid]
+....
+graph LR
+    Executing -->|Begin Recording| Recording
+    Recording -->|End Recording| Executing
+....
 
 The state of a queue can be queried with `queue::get_info` using template
 parameter `info::queue::state`. The following entry is added to the
