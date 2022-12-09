@@ -149,6 +149,7 @@ def SYCL_AccessorImplDeviceType :
 def SYCL_AccessorType
     : SYCL_Type<"Accessor", "accessor",
         [SYCLInheritanceTypeTrait<"AccessorCommonType">,
+         SYCLInheritanceTypeTrait<"LocalAccessorBaseType">,
          SYCLInheritanceTypeTrait<"OwnerLessBaseType">]> {
   let summary = "Buffer Accessor";
   let description = [{ Accessor to a buffer object.}];
@@ -457,7 +458,7 @@ def SYCLConstructorOp : SYCL_Op<"constructor", [CallOpInterface]> {
 ////////////////////////////////////////////////////////////////////////////////
 
 def CastArg : AnyTypeOf<[IDMemRef, RangeMemRef, AccessorMemRef]>;
-def CastRes : AnyTypeOf<[ArrayMemRef, AccessorCommonMemRef, OwnerLessBaseMemRef]>;
+def CastRes : AnyTypeOf<[ArrayMemRef, AccessorCommonMemRef, LocalAccessorBaseMemRef, OwnerLessBaseMemRef]>;
 def SYCLCastOp : SYCL_Op<"cast", [DeclareOpInterfaceMethods<CastOpInterface>, 
   Pure, MemRefsNormalizable]
 > {

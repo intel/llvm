@@ -175,6 +175,27 @@ func.func @test_kernel_handler(%arg0: !sycl_kernel_handler_) {
 
 // -----
 
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_LocalAccessorBaseDevice_1_ = !sycl.LocalAccessorBaseDevice<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
+!sycl_local_accessor_base_1_i32_rw = !sycl.local_accessor_base<[1, i32, read_write], (!sycl_LocalAccessorBaseDevice_1_, memref<?xi32, 3>)>
+!sycl_local_accessor_1_i32_ = !sycl.local_accessor<[1, i32], (!sycl_local_accessor_base_1_i32_rw)>
+
+// CHECK: llvm.func @test_local_accessor_base_device(%arg0: !llvm.[[LOCAL_ACCESSOR_BASE_DEVICE:struct<"class.sycl::_V1::detail::LocalAccessorBaseDevice.*", \(]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]])
+func.func @test_local_accessor_base_device(%arg0: !sycl_LocalAccessorBaseDevice_1_) {
+  return
+}
+// CHECK: llvm.func @test_local_accessor_base(%arg0: !llvm.[[LOCAL_ACCESSOR_BASE:struct<"class.sycl::_V1::local_accessor_base.*", \(]][[LOCAL_ACCESSOR_BASE_DEVICE]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]])
+func.func @test_local_accessor_base(%arg0: !sycl_local_accessor_base_1_i32_rw) {
+  return
+}
+// CHECK: llvm.func @test_local_accessor(%arg0: !llvm.[[LOCAL_ACCESSOR:struct<"class.sycl::_V1::local_accessor.*", \(]][[LOCAL_ACCESSOR_BASE]][[LOCAL_ACCESSOR_BASE_DEVICE]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]], struct<(ptr<i32, 3>
+func.func @test_local_accessor(%arg0: !sycl_local_accessor_1_i32_) {
+  return
+}
+
+// -----
+
 !sycl_maximum_i32_ = !sycl.maximum<i32>
 !sycl_minimum_i32_ = !sycl.minimum<i32>
 // CHECK: llvm.func @test_maximum(%arg0: !llvm.[[MAXIMUM:struct<"struct.sycl::_V1::maximum", \(i8\)>]]) {
@@ -215,27 +236,6 @@ func.func @test_nd_range.2(%arg0: !sycl_nd_range_2_) {
 
 // CHECK: llvm.func @test_sub_group(%arg0: !llvm.[[SUB_GROUP:struct<"struct.sycl::_V1::ext::oneapi::sub_group", \(i8\)>]]) {
 func.func @test_sub_group(%arg0: !sycl.sub_group) {
-  return
-}
-
-// -----
-
-!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
-!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
-!sycl_LocalAccessorBaseDevice_1_ = !sycl.LocalAccessorBaseDevice<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
-!sycl_local_accessor_base_1_i32_rw = !sycl.local_accessor_base<[1, i32, read_write], (!sycl_LocalAccessorBaseDevice_1_, memref<?xi32, 3>)>
-!sycl_local_accessor_1_i32_ = !sycl.local_accessor<[1, i32], (!sycl_local_accessor_base_1_i32_rw)>
-
-// CHECK: llvm.func @test_local_accessor_base_device(%arg0: !llvm.[[LOCAL_ACCESSOR_BASE_DEVICE:struct<"class.sycl::_V1::detail::LocalAccessorBaseDevice.*", \(]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]])
-func.func @test_local_accessor_base_device(%arg0: !sycl_LocalAccessorBaseDevice_1_) {
-  return
-}
-// CHECK: llvm.func @test_local_accessor_base(%arg0: !llvm.[[LOCAL_ACCESSOR_BASE:struct<"class.sycl::_V1::local_accessor_base.*", \(]][[LOCAL_ACCESSOR_BASE_DEVICE]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]])
-func.func @test_local_accessor_base(%arg0: !sycl_local_accessor_base_1_i32_rw) {
-  return
-}
-// CHECK: llvm.func @test_local_accessor(%arg0: !llvm.[[LOCAL_ACCESSOR:struct<"class.sycl::_V1::local_accessor.*", \(]][[LOCAL_ACCESSOR_BASE]][[LOCAL_ACCESSOR_BASE_DEVICE]][[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[RANGE_1]][[ARRAY_1]][[SUFFIX]], [[ID_1]][[ARRAY_1]][[SUFFIX]][[SUFFIX]], struct<(ptr<i32, 3>
-func.func @test_local_accessor(%arg0: !sycl_local_accessor_1_i32_) {
   return
 }
 
