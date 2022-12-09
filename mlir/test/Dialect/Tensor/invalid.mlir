@@ -455,7 +455,7 @@ func.func @gather_wrong_result_type(
 // -----
 
 func.func @scatter_empty_dims(
-    %source : tensor<f32>, 
+    %source : tensor<f32>,
     %dest : tensor<4x5x6xf32>, %indices: tensor<1x2x3xindex>) {
   // expected-error@+1 {{scatter_dims must be non-empty}}
   %out = tensor.scatter %source into %dest[%indices] scatter_dims([]) unique:
@@ -466,7 +466,7 @@ func.func @scatter_empty_dims(
 // -----
 
 func.func @scatter_coordinate_rank_overflow(
-    %source : tensor<f32>, 
+    %source : tensor<f32>,
     %dest : tensor<4x5x6xf32>, %indices: tensor<1x2x3xindex>) {
   // expected-error@+1 {{scatter_dims overflow dest rank}}
   %out = tensor.scatter %source into %dest[%indices] scatter_dims([0, 1, 2, 3]) unique:
@@ -477,7 +477,7 @@ func.func @scatter_coordinate_rank_overflow(
 // -----
 
 func.func @scatter_coordinate_negative(
-    %source : tensor<f32>, 
+    %source : tensor<f32>,
     %dest : tensor<4x5x6xf32>, %indices: tensor<1x2x3xindex>) {
   // expected-error@+1 {{scatter_dims value must be non-negative}}
   %out = tensor.scatter %source into %dest[%indices] scatter_dims([-1]) unique:
@@ -488,7 +488,7 @@ func.func @scatter_coordinate_negative(
 // -----
 
 func.func @scatter_coordinate_overflow(
-    %source : tensor<f32>, 
+    %source : tensor<f32>,
     %dest : tensor<4x5x6xf32>, %indices: tensor<1x2x3xindex>) {
   // expected-error@+1 {{scatter_dims value must be smaller than dest rank}}
   %out = tensor.scatter %source into %dest[%indices] scatter_dims([42]) unique:
@@ -499,7 +499,7 @@ func.func @scatter_coordinate_overflow(
 // -----
 
 func.func @scatter_coordinate_overflow(
-    %source : tensor<f32>, 
+    %source : tensor<f32>,
     %dest : tensor<4x5x6xf32>, %indices: tensor<1x2x3xindex>) {
   // expected-error@+1 {{scatter_dims values must be strictly increasing}}
   %out = tensor.scatter %source into %dest[%indices] scatter_dims([1, 0]) unique:
@@ -510,7 +510,7 @@ func.func @scatter_coordinate_overflow(
 // -----
 
 func.func @scatter_missing_unique(
-    %source : tensor<f32>, 
+    %source : tensor<f32>,
     %dest : tensor<4x5x6xf32>, %indices: tensor<1x2x3xindex>) {
   // expected-error@+1 {{requires 'unique' attribute to be set}}
   %out = tensor.scatter %source into %dest[%indices] scatter_dims([0, 2]):
@@ -521,7 +521,7 @@ func.func @scatter_missing_unique(
 // -----
 
 func.func @scatter_wrong_result_type(
-    %source : tensor<f32>, 
+    %source : tensor<f32>,
     %dest : tensor<4x5x6xf32>, %indices: tensor<1x2x3xindex>) {
   // expected-error@+1 {{source type mismatch: expected 'tensor<1x2x1x5x1xf32>' or its rank-reduced variant 'tensor<1x2x5xf32>' (got: 'tensor<f32>')}}
   %out = tensor.scatter %source into %dest[%indices] scatter_dims([0, 2]) unique:
@@ -583,6 +583,22 @@ func.func @unpack_invalid_out_of_bound_outer_perm(%input: tensor<256x128xf32>, %
   // expected-error@+1 {{invalid outer_dims_perm vector}}
   %0 = tensor.unpack %output outer_dims_perm = [2, 1] inner_dims_pos = [0, 1] inner_tiles = [2, 2] into %input : tensor<8x8x32x16xf32> -> tensor<256x128xf32>
   return %0 : tensor<256x128xf32>
+}
+
+// -----
+
+func.func @pack_invalid_outer_dims_perm(%source: tensor<128x256xf32>, %dest: tensor<16x4x32x16xf32>) -> tensor<16x4x32x16xf32> {
+  // expected-error@+1 {{outer_dims_perm must be a permutation or empty}}
+  %0 = tensor.pack %source outer_dims_perm = [0] inner_dims_pos = [0, 1] inner_tiles = [32, 16] into %dest : tensor<128x256xf32> -> tensor<16x4x32x16xf32>
+  return %0 : tensor<16x4x32x16xf32>
+}
+
+// -----
+
+func.func @unpack_invalid_outer_dims_perm(%source: tensor<128x256xf32>, %dest: tensor<16x4x32x16xf32>) -> tensor<128x256xf32> {
+  // expected-error@+1 {{outer_dims_perm must be a permutation or empty}}
+  %0 = tensor.unpack %dest outer_dims_perm = [1] inner_dims_pos = [0, 1] inner_tiles = [32, 16] into %source : tensor<16x4x32x16xf32> -> tensor<128x256xf32>
+  return %0 : tensor<128x256xf32>
 }
 
 // -----

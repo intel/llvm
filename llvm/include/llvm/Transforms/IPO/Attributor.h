@@ -1348,7 +1348,7 @@ struct AttributorConfig {
   DenseSet<const char *> *Allowed = nullptr;
 
   /// Maximum number of iterations to run until fixpoint.
-  std::optional<unsigned> MaxFixpointIterations = None;
+  std::optional<unsigned> MaxFixpointIterations = std::nullopt;
 
   /// A callback function that returns an ORE object from a Function pointer.
   ///{
@@ -1700,14 +1700,13 @@ struct Attributor {
     }
     Value &V = IRP.getAssociatedValue();
     auto &Entry = ToBeChangedValues[&V];
-    Value *&CurNV = Entry.first;
+    Value *CurNV = get<0>(Entry);
     if (CurNV && (CurNV->stripPointerCasts() == NV.stripPointerCasts() ||
                   isa<UndefValue>(CurNV)))
       return false;
     assert((!CurNV || CurNV == &NV || isa<UndefValue>(NV)) &&
            "Value replacement was registered twice with different values!");
-    CurNV = &NV;
-    Entry.second = ChangeDroppable;
+    Entry = {&NV, ChangeDroppable};
     return true;
   }
 
@@ -2265,7 +2264,8 @@ private:
 
   /// Values we replace with a new value after manifest is done. We will remove
   /// then trivially dead instructions as well.
-  SmallMapVector<Value *, std::pair<Value *, bool>, 32> ToBeChangedValues;
+  SmallMapVector<Value *, PointerIntPair<Value *, 1, bool>, 32>
+      ToBeChangedValues;
 
   /// Instructions we replace with `unreachable` insts after manifest is done.
   SmallSetVector<WeakVH, 16> ToBeChangedToUnreachableInsts;
@@ -4392,7 +4392,7 @@ struct AAValueConstantRange
           AA::getWithType(*ConstantInt::get(Ty->getContext(), *C), *Ty));
     }
     if (RangeV.isEmptySet())
-      return llvm::None;
+      return std::nullopt;
     return nullptr;
   }
 
@@ -4647,7 +4647,7 @@ struct AAPotentialConstantValues
     if (getAssumedSet().size() == 0) {
       if (undefIsContained())
         return UndefValue::get(getAssociatedValue().getType());
-      return llvm::None;
+      return std::nullopt;
     }
 
     return nullptr;

@@ -1,16 +1,16 @@
 // RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
 
 // Test that checks global constant variable (which allows the redeclaration) since
-// IntelFPGAConstVar is one of the subjects listed for [[intel::max_replicates()]] attribute.
+// SYCLIntelConstVar is one of the subjects listed for [[intel::max_replicates()]] attribute.
 
 // Check duplicate argument values with implicit memory attribute.
 //CHECK: VarDecl{{.*}}var_max_replicates
-//CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-//CHECK: IntelFPGAMaxReplicatesAttr
+//CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+//CHECK: SYCLIntelMaxReplicatesAttr
 //CHECK-NEXT: ConstantExpr
 //CHECK-NEXT: value:{{.*}}12
 //CHECK-NEXT: IntegerLiteral{{.*}}12{{$}}
-//CHECK: IntelFPGAMaxReplicatesAttr
+//CHECK: SYCLIntelMaxReplicatesAttr
 //CHECK-NEXT: ConstantExpr
 //CHECK-NEXT: value:{{.*}}12
 //CHECK-NEXT: IntegerLiteral{{.*}}12{{$}}
@@ -34,12 +34,12 @@
 
 // Checking of duplicate argument values.
 //CHECK: VarDecl{{.*}}force_pow2_depth
-//CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-//CHECK: IntelFPGAForcePow2DepthAttr
+//CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+//CHECK: SYCLIntelForcePow2DepthAttr
 //CHECK-NEXT: ConstantExpr
 //CHECK-NEXT: value:{{.*}}1
 //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
-//CHECK: IntelFPGAForcePow2DepthAttr
+//CHECK: SYCLIntelForcePow2DepthAttr
 //CHECK-NEXT: ConstantExpr
 //CHECK-NEXT: value:{{.*}}1
 //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
@@ -63,12 +63,12 @@
 
 // Checking of duplicate argument values.
 //CHECK: VarDecl{{.*}}numbanks
-//CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-//CHECK: IntelFPGANumBanksAttr
+//CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+//CHECK: SYCLIntelNumBanksAttr
 //CHECK-NEXT: ConstantExpr{{.*}}'int'
 //CHECK-NEXT: value: Int 16
 //CHECK-NEXT: IntegerLiteral{{.*}}'int' 16
-//CHECK: IntelFPGANumBanksAttr
+//CHECK: SYCLIntelNumBanksAttr
 //CHECK-NEXT: ConstantExpr{{.*}}'int'
 //CHECK-NEXT: value: Int 16
 //CHECK-NEXT: IntegerLiteral{{.*}}'int' 16
@@ -92,12 +92,12 @@
 
 // Checking of duplicate argument values.
 //CHECK: VarDecl{{.*}}bankwidth
-//CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
-//CHECK: IntelFPGABankWidthAttr
+//CHECK: SYCLIntelMemoryAttr{{.*}}Implicit
+//CHECK: SYCLIntelBankWidthAttr
 //CHECK-NEXT: ConstantExpr{{.*}}'int'
 //CHECK-NEXT: value: Int 8
 //CHECK-NEXT: IntegerLiteral{{.*}}'int' 8
-//CHECK: IntelFPGABankWidthAttr
+//CHECK: SYCLIntelBankWidthAttr
 //CHECK-NEXT: ConstantExpr{{.*}}'int'
 //CHECK-NEXT: value: Int 8
 //CHECK-NEXT: IntegerLiteral{{.*}}'int' 8

@@ -15,7 +15,6 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/AliasAnalysis.h"
@@ -127,7 +126,7 @@ public:
 
   Value *createHvxIntrinsic(IRBuilderBase &Builder, Intrinsic::ID IntID,
                             Type *RetTy, ArrayRef<Value *> Args,
-                            ArrayRef<Type *> ArgTys = None) const;
+                            ArrayRef<Type *> ArgTys = std::nullopt) const;
   SmallVector<Value *> splitVectorElements(IRBuilderBase &Builder, Value *Vec,
                                            unsigned ToWidth) const;
   Value *joinVectorElements(IRBuilderBase &Builder, ArrayRef<Value *> Values,
@@ -1381,7 +1380,7 @@ auto HvxIdioms::processFxpMul(Instruction &In, const FxpOp &Op) const
       break;
   }
 
-  if (Results.back() == nullptr)
+  if (Results.empty() || Results.back() == nullptr)
     return nullptr;
 
   Value *Cat = HVC.concat(Builder, Results);
@@ -2322,6 +2321,8 @@ auto HexagonVectorCombine::calculatePointerDifference(Value *Ptr0,
   auto *Gep1 = cast<GetElementPtrInst>(Ptr1);
   if (Gep0->getPointerOperand() != Gep1->getPointerOperand())
     return std::nullopt;
+  if (Gep0->getSourceElementType() != Gep1->getSourceElementType())
+    return std::nullopt;
 
   Builder B(Gep0->getParent());
   int Scale = getSizeOf(Gep0->getSourceElementType(), Alloc);
@@ -2389,7 +2390,8 @@ auto HexagonVectorCombine::isSafeToMoveBeforeInBB(const Instruction &In,
                                                   BasicBlock::const_iterator To,
                                                   const T &IgnoreInsts) const
     -> bool {
-  auto getLocOrNone = [this](const Instruction &I) -> Optional<MemoryLocation> {
+  auto getLocOrNone =
+      [this](const Instruction &I) -> std::optional<MemoryLocation> {
     if (const auto *II = dyn_cast<IntrinsicInst>(&I)) {
       switch (II->getIntrinsicID()) {
       case Intrinsic::masked_load:
