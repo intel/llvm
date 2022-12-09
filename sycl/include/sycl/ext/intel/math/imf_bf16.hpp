@@ -233,6 +233,66 @@ sycl::ext::oneapi::bfloat16 hmin_nan(sycl::ext::oneapi::bfloat16 b1,
     return (hlt(b1, b2) ? b1 : b2);
 }
 
+bool hbeq2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+           sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  return heq(b1[0], b2[0]) && heq(b1[1], b2[1]);
+}
+
+bool hbequ2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+            sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  return hequ(b1[0], b2[0]) && hequ(b1[1], b2[1]);
+}
+
+bool hbge2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+           sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  return hge(b1[0], b2[0]) && hge(b1[1], b2[1]);
+}
+
+bool hbgeu2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+            sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  return hgeu(b1[0], b2[0]) && hgeu(b1[1], b2[1]);
+}
+
+bool hbgt2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+           sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  return hgt(b1[0], b2[0]) && hgt(b1[1], b2[1]);
+}
+
+bool hbgtu2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+            sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  return hgtu(b1[0], b2[0]) && hgtu(b1[1], b2[1]);
+}
+
+bool hble2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+           sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  return hle(b1[0], b2[0]) && hle(b1[1], b2[1]);
+}
+
+bool hbleu2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+            sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  return hleu(b1[0], b2[0]) && hleu(b1[1], b2[1]);
+}
+
+bool hblt2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+           sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  return hlt(b1[0], b2[0]) && hlt(b1[1], b2[1]);
+}
+
+bool hbltu2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+            sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  return hltu(b1[0], b2[0]) && hltu(b1[1], b2[1]);
+}
+
+bool hbne2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+           sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  return hne(b1[0], b2[0]) && hne(b1[1], b2[1]);
+}
+
+bool hbneu2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+            sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  return hneu(b1[0], b2[0]) && hneu(b1[1], b2[1]);
+}
+
 // Bfloat16 Arithmetic utils
 sycl::ext::oneapi::bfloat16 hneg(sycl::ext::oneapi::bfloat16 b) {
   uint16_t bf16_bits = __builtin_bit_cast(uint16_t, b);
