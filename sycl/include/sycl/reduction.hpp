@@ -626,7 +626,12 @@ public:
       Func(Mem);
 
       reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
-        accessor Mem{*Buf, CopyHandler};
+        // MSVC (19.32.31329) has problems compiling the line below when used 
+        // as a host compiler in c++17 mode (but not in c++latest)
+        //   accessor Mem{*Buf, CopyHandler};
+        // so use the old-style API.
+        auto Mem =
+            Buf->template get_access<access::mode::read_write>(CopyHandler);
         if constexpr (is_usm) {
           // Can't capture whole reduction, copy into distinct variables.
           bool IsUpdateOfUserVar = !base::initializeToIdentity();
