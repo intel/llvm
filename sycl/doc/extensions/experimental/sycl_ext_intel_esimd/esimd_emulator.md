@@ -44,16 +44,29 @@ during ESIMD_EMULATOR plug-in software module generation. Details on
 building CM_EMU library for ESIMD_EMULATOR such as required packages
 are described in [ESIMD CPU Emulation](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#build-dpc-toolchain-with-support-for-esimd-cpu-emulation)
 
-## Command line option / environment variable options
+## Environment variable
 
-There is no special command line option or environment variable
-required for building ESIMD kernels with ESIMD_EMULATOR backend. For
-running, the CM_EMU library requires 'CM_RT_PLATFORM' environment
-variable set in order to specify the target platform you want to
-emulate. [List of target platform supported by
-CM_EMU](https://github.com/intel/cm-cpu-emulation/blob/0c5fc287f34ae38d3184ab70ea5513d9fb1ff338/common/emu_cfg_platform.cpp#L48)
+For running ESIMD kernels with the ESIMD_EMULATOR backend, the CM_EMU
+library requires 'CM_RT_PLATFORM' environment variable set in order to
+specify the target platform you want to emulate.
 
-> `$ export CM_RT_PLATFORM=skl`
+> `$ export CM_RT_PLATFORM=SKL`
+
+List of target platforms supported by CM_EMU is as follows
+
+- SKL
+- BXT
+- KBL
+- ICLLP
+- TGLLP
+- RKL
+- DG1
+- ADLP
+- ADLS
+- ADLN
+- DG2
+- MTL
+- PVC
 
 ## Running ESIMD code under emulation mode
 
