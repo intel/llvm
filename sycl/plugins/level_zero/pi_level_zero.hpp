@@ -1235,7 +1235,7 @@ struct _pi_ze_event_list_t {
   /// @param Event Event to look for in the wait list.
   /// @return true if event is found in the event list, false otherwise.
   bool contains(pi_event Event) {
-    std::vector WaitListVec(PiEventList, PiEventList + Length);
+    std::vector<pi_event> WaitListVec(PiEventList, PiEventList + Length);
     if (std::find(WaitListVec.begin(), WaitListVec.end(), Event) !=
         WaitListVec.end())
       return true;
