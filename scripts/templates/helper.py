@@ -287,12 +287,20 @@ class value_traits:
     Extracts traits from a parameter object
 """
 class param_traits:
+    RE_MBZ      = r".*\[mbz\].*"
     RE_IN       = r"^\[in\].*"
     RE_OUT      = r"^\[out\].*"
     RE_INOUT    = r"^\[in,out\].*"
     RE_OPTIONAL = r".*\[optional\].*"
     RE_RANGE    = r".*\[range\((.+),\s*(.+)\)\][\S\s]*"
     RE_RELEASE  = r".*\[release\].*"
+
+    @classmethod
+    def is_mbz(cls, item):
+        try:
+            return True if re.match(cls.RE_MBZ, item['desc']) else False
+        except:
+            return False
 
     @classmethod
     def is_input(cls, item):
@@ -942,7 +950,8 @@ def get_pfntables(specs, meta, namespace, tags):
                 'type': table,
                 'export': export,
                 'pfn': pfn,
-                'functions': objs
+                'functions': objs,
+                'experimental': False
             })
         if len(exp_objs) > 0:
             name = get_table_name(namespace, tags, exp_objs[0])
@@ -971,11 +980,28 @@ def get_pfntables(specs, meta, namespace, tags):
                 'type': table,
                 'export': export,
                 'pfn': pfn,
-                'functions': exp_objs
+                'functions': exp_objs,
+                'experimental': True
             })
         
         
     return tables
+
+"""
+Private:
+    returns the list of parameters, filtering based on desc tags
+"""
+def _filter_param_list(params, filters1=["[in]", "[in,out]", "[out]"], filters2=[""]):
+    lst = []
+    for p in params:
+        for f1 in filters1:
+            if f1 in p['desc']:
+                for f2 in filters2:
+                    if f2 in p['desc']:
+                        lst.append(p)
+                        break
+                break
+    return lst
 
 """
 Public:
@@ -996,4 +1022,84 @@ def get_pfncbtables(specs, meta, namespace, tags):
             })
     return tables
 
+"""
+Public:
+    returns a list of dict for converting loader input parameters
+"""
+def get_loader_prologue(namespace, tags, obj, meta):
+    prologue = []
+
+    params = _filter_param_list(obj['params'], ["[in]"])
+    for item in params:
+        if param_traits.is_mbz(item):
+            continue
+        if type_traits.is_class_handle(item['type'], meta):
+            name = subt(namespace, tags, item['name'])
+            tname = _remove_const_ptr(subt(namespace, tags, item['type']))
+
+            # e.g., "xe_device_handle_t" -> "xe_device_object_t"
+            obj_name = re.sub(r"(\w+)_handle_t", r"\1_object_t", tname)
+            fty_name = re.sub(r"(\w+)_handle_t", r"\1_factory", tname)
+
+            if type_traits.is_pointer(item['type']):
+                range_start = param_traits.range_start(item)
+                range_end   = param_traits.range_end(item)
+                prologue.append({
+                    'name': name,
+                    'obj': obj_name,
+                    'range': (range_start, range_end),
+                    'type': tname,
+                    'factory': fty_name,
+                    'pointer' : "*"
+                })
+            else:
+                prologue.append({
+                    'name': name,
+                    'obj': obj_name,
+                    'optional': param_traits.is_optional(item),
+                    'pointer' : ""
+                })
+
+    return prologue
+
+"""
+Public:
+    returns a list of dict for converting loader output parameters
+"""
+def get_loader_epilogue(namespace, tags, obj, meta):
+    epilogue = []
+
+    for i, item in enumerate(obj['params']):
+        if param_traits.is_mbz(item):
+            continue
+        if param_traits.is_release(item) or param_traits.is_output(item) or param_traits.is_inoutput(item):
+            if type_traits.is_class_handle(item['type'], meta):
+                name = subt(namespace, tags, item['name'])
+                tname = _remove_const_ptr(subt(namespace, tags, item['type']))
+
+                obj_name = re.sub(r"(\w+)_handle_t", r"\1_object_t", tname)
+                fty_name = re.sub(r"(\w+)_handle_t", r"\1_factory", tname)
+
+                if param_traits.is_range(item):
+                    range_start = param_traits.range_start(item)
+                    range_end   = param_traits.range_end(item)
+                    epilogue.append({
+                        'name': name,
+                        'type': tname,
+                        'obj': obj_name,
+                        'factory': fty_name,
+                        'release': param_traits.is_release(item),
+                        'range': (range_start, range_end)
+                    })
+                else:
+                    epilogue.append({
+                        'name': name,
+                        'type': tname,
+                        'obj': obj_name,
+                        'factory': fty_name,
+                        'release': param_traits.is_release(item),
+                        'optional': param_traits.is_optional(item)
+                    })
+
+    return epilogue
 
