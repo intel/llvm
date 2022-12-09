@@ -16,7 +16,7 @@ add_lit_testsuite(check-sycl-fusion-lit-tests "Running LLVM lit test suite"
     "${CMAKE_CURRENT_BINARY_DIR}"
 
     DEPENDS
-    SYCLKernelFusionPasses
+    SYCLKernelFusion
     opt
     FileCheck
 )
