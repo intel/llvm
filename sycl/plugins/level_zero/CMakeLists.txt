@@ -17,13 +17,16 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
   )
 
   # Suppress some pedantic warnings for Level Zero build
+  set(CMAKE_CXX_FLAGS_BAK "${CMAKE_CXX_FLAGS}")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-but-set-variable")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-pedantic")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-stringop-truncation")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-warning-option")
 
   FetchContent_MakeAvailable(level-zero-loader)
   FetchContent_GetProperties(level-zero-loader)
+
+  # Restore original flags
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
 
   set(LEVEL_ZERO_LIBRARY ze_loader)
   set(LEVEL_ZERO_INCLUDE_DIR
