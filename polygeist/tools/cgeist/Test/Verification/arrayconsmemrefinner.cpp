@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=* -S | FileCheck %s
+// RUN: cgeist -O0 -w %s --function=* -S | FileCheck %s
 
 struct AIntDivider {
     AIntDivider() : divisor(3) {}
@@ -29,13 +29,13 @@ void kern() {
 // CHECK-NEXT:     scf.for %arg1 = %c0 to %c25 step %c1 {
 // CHECK-NEXT:       %2 = arith.index_cast %arg1 : index to i64
 // CHECK-NEXT:       %3 = llvm.getelementptr %1[%2] : (!llvm.ptr<struct<(i32)>>, i64) -> !llvm.ptr<struct<(i32)>>
-// CHECK-NEXT:       %4 = "polygeist.pointer2memref"(%3) : (!llvm.ptr<struct<(i32)>>) -> memref<?x1xi32>
-// CHECK-NEXT:       call @_ZN11AIntDividerC1Ev(%4) : (memref<?x1xi32>) -> ()
+// CHECK-NEXT:       call @_ZN11AIntDividerC1Ev(%3) : (!llvm.ptr<struct<(i32)>>) -> ()
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
-// CHECK:   func @_ZN11AIntDividerC1Ev(%arg0: memref<?x1xi32>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+// CHECK:   func.func @_ZN11AIntDividerC1Ev(%arg0: !llvm.ptr<struct<(i32)>>)  attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
 // CHECK-NEXT:     %c3_i32 = arith.constant 3 : i32
-// CHECK-NEXT:     affine.store %c3_i32, %arg0[0, 0] : memref<?x1xi32>
+// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<struct<(i32)>>) -> !llvm.ptr<i32>
+// CHECK-NEXT:     llvm.store %c3_i32, %0 : !llvm.ptr<i32>
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

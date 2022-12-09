@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=* -S | FileCheck %s
+// RUN: cgeist -O0 -w %s --function=* -S | FileCheck %s
 
 extern "C" {
 
@@ -19,19 +19,21 @@ void kernel_deriche() {
 
 }
 
-// CHECK:   func @sub(%arg0: memref<?x2xi32>)
+// CHECK:   func @sub(%arg0: !llvm.ptr<struct<(i32, i32)>>)
 // CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
-// CHECK-NEXT:     %0 = affine.load %arg0[0, 0] : memref<?x2xi32>
-// CHECK-NEXT:     %1 = arith.addi %0, %c1_i32 : i32
-// CHECK-NEXT:     affine.store %1, %arg0[0, 0] : memref<?x2xi32>
+// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<struct<(i32, i32)>>) -> !llvm.ptr<i32>
+// CHECK-NEXT:     %1 = llvm.load %0 : !llvm.ptr<i32>
+// CHECK-NEXT:     %2 = arith.addi %1, %c1_i32 : i32
+// CHECK-NEXT:     llvm.store %2, %0 : !llvm.ptr<i32>
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 
 // CHECK:   func @kernel_deriche()
-// CHECK-NEXT:     %c32_i32 = arith.constant 32 : i32
-// CHECK-NEXT:     %alloca = memref.alloca() : memref<1x2xi32>
-// CHECK-NEXT:     %cast = memref.cast %alloca : memref<1x2xi32> to memref<?x2xi32>
-// CHECK-NEXT:     affine.store %c32_i32, %alloca[0, 0] : memref<1x2xi32>
-// CHECK-NEXT:     call @sub0(%cast) : (memref<?x2xi32>) -> ()
+// CHECK-DAG:      %c32_i32 = arith.constant 32 : i32
+// CHECK-DAG:      %c1_i64 = arith.constant 1 : i64
+// CHECK:          %0 = llvm.alloca %c1_i64 x !llvm.struct<(i32, i32)> : (i64) -> !llvm.ptr<struct<(i32, i32)>>
+// CHECK-NEXT:     %1 = llvm.getelementptr %0[0, 0] : (!llvm.ptr<struct<(i32, i32)>>) -> !llvm.ptr<i32>
+// CHECK-NEXT:     llvm.store %c32_i32, %1 : !llvm.ptr<i32>
+// CHECK-NEXT:     call @sub0(%0) : (!llvm.ptr<struct<(i32, i32)>>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
