@@ -379,6 +379,14 @@ struct _pi_device : _pi_object {
 
   bool isSubDevice() { return RootDevice != nullptr; }
 
+  // Is this a Data Center GPU Max series (aka PVC).
+  bool isPVC() { return (ZeDeviceProperties->deviceId & 0xff0) == 0xbd0; }
+
+  // Does this device represent a single compute slice?
+  bool isCCS() const {
+    return QueueGroup[_pi_device::queue_group_info_t::Compute].ZeIndex >= 0;
+  }
+
   // Cache of the immutable device properties.
   ZeCache<ZeStruct<ze_device_properties_t>> ZeDeviceProperties;
   ZeCache<ZeStruct<ze_device_compute_properties_t>> ZeDeviceComputeProperties;

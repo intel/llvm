@@ -2611,12 +2611,10 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
             Ordinals.push_back(i);
           }
         }
-        bool IsPVC =
-            (PiSubDevice->ZeDeviceProperties->deviceId & 0xff0) == 0xbd0;
 
         // If isn't PVC, then submissions to different CCS can be executed on
         // the same EUs still, so we cannot treat them as sub-sub-devices.
-        if (IsPVC) {
+        if (PiSubDevice->isPVC()) {
           // Create PI sub-sub-devices with the sub-device for all the ordinals.
           // Each {ordinal, index} points to a specific CCS which constructs
           // a sub-sub-device at this point.
@@ -2875,9 +2873,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     if (ZeSubDeviceCount < 2) {
       return ReturnValue(pi_device_partition_property{0});
     }
-    bool PartitionedByCSlice = Device->SubDevices[0]
-                                   ->QueueGroup[_pi_queue::queue_type::Compute]
-                                   .ZeIndex >= 0;
+    bool PartitionedByCSlice = Device->SubDevices[0]->isCCS();
 
     auto ReturnHelper = [&](auto... Partitions) {
       struct {
@@ -2908,7 +2904,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     if (!Device->isSubDevice())
       return ReturnValue(pi_device_partition_property{0});
 
-    if (Device->QueueGroup[_pi_queue::queue_type::Compute].ZeIndex >= 0) {
+    if (Device->isCCS()) {
       struct {
         pi_device_partition_property Arr[2];
       } PartitionProperties = {{PI_DEVICE_EXT_INTEL_PARTITION_BY_CSLICE, 0}};
@@ -3328,9 +3324,7 @@ pi_result piDevicePartition(pi_device Device,
     }
     if (Properties[0] == PI_DEVICE_EXT_INTEL_PARTITION_BY_CSLICE) {
       // Not a CSlice-based partitioning.
-      if (Device->SubDevices[0]
-              ->QueueGroup[_pi_queue::queue_type::Compute]
-              .ZeIndex < 0)
+      if (!Device->SubDevices[0]->isCCS())
         return 0;
     }
 
