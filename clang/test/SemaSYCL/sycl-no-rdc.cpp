@@ -4,14 +4,17 @@
 #include "sycl.hpp"
 
 // expected-error@+1{{invalid declaration of SYCL_EXTERNAL function in non-relocatable device code mode}}
-SYCL_EXTERNAL void syclExternal() {}
+SYCL_EXTERNAL void syclExternalDecl();
+
+// expected-error@+1{{invalid definition of SYCL_EXTERNAL function in non-relocatable device code mode}}
+SYCL_EXTERNAL void syclExternalDefn() {}
 
 using namespace sycl;
 queue q;
 
 void kernel_wrapper() {
   q.submit([&](handler &h) {
-    h.single_task([=] {    
+    h.single_task([=] {
     });
   });
 }

@@ -1789,7 +1789,7 @@ public:
         (ShouldEmitRootNode || InOMPDeviceContext))
       S.finalizeOpenMPDelayedAnalysis(Caller, FD, Loc);
     // Finalize analysis of SYCL-specific constructs.
-    if (S.LangOpts.SYCLIsDevice)
+    if (Caller && S.LangOpts.SYCLIsDevice)
       S.finalizeSYCLDelayedAnalysis(Caller, FD, Loc, RootReason);
     if (Caller)
       S.DeviceKnownEmittedFns[FD] = {Caller, Loc};
