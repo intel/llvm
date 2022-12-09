@@ -1119,15 +1119,14 @@ llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
 mlir::Operation *
 MLIRScanner::emitSYCLOps(const clang::Expr *Expr,
                          const llvm::SmallVectorImpl<mlir::Value> &Args) {
-  if (!mlirclang::areSuitableSYCLOpArgTypes(ValueRange{Args}.getTypes()))
-    return nullptr;
-
   const FunctionDecl *Func = nullptr;
   if (const auto *ConsExpr = dyn_cast<clang::CXXConstructExpr>(Expr)) {
     Func = ConsExpr->getConstructor()->getAsFunction();
 
     if (mlirclang::isNamespaceSYCL(Func->getEnclosingNamespaceContext()))
       if (const auto *RD = dyn_cast<clang::CXXRecordDecl>(Func->getParent())) {
+        if (!mlirclang::areSuitableSYCLOpArgTypes(ValueRange{Args}.getTypes()))
+          return nullptr;
         std::string Name =
             MLIRScanner::getMangledFuncName(*Func, Glob.getCGM());
         if (!RD->getName().empty())
