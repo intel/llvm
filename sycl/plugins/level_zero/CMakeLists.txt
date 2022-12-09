@@ -16,19 +16,17 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
     GIT_TAG           ${LEVEL_ZERO_LOADER_TAG}
   )
 
-  # Suppress some pedantic warnings for Level Zero build
-  set(CMAKE_CXX_FLAGS_BAK "${CMAKE_CXX_FLAGS}")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-but-set-variable")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-pedantic")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-stringop-truncation")
-
   FetchContent_MakeAvailable(level-zero-loader)
   FetchContent_GetProperties(level-zero-loader)
 
-  # Restore original flags
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
-
   set(LEVEL_ZERO_LIBRARY ze_loader)
+
+  target_compile_options(${LEVEL_ZERO_LIBRARY} PRIVATE
+    "-Wno-unused-but-set-variable"
+    "-Wno-pedantic"
+    "-Wno-stringop-truncation"
+  )
+
   set(LEVEL_ZERO_INCLUDE_DIR
     ${level-zero-loader_SOURCE_DIR}/include CACHE PATH "Path to Level Zero Headers")
 endif()
