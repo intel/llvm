@@ -820,7 +820,7 @@ static llvm::Constant *getPrologueSignature(CodeGenModule &CGM,
 
 /// Function checks whether given DeclContext contains a topmost
 /// namespace with name "sycl"
-static bool checkSYCLNamespace(const Decl *D) {
+static bool checkIfDeclaredInSYCLNamespace(const Decl *D) {
   const DeclContext *DC = D->getDeclContext()->getEnclosingNamespaceContext();
   const auto *ND = dyn_cast<NamespaceDecl>(DC);
   if (!ND)
@@ -1134,7 +1134,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     Fn->addFnAttrs(FnAttrBuilder);
   }
 
-  if (getLangOpts().SYCLIsDevice && D && checkSYCLNamespace(D)) {
+  if (getLangOpts().SYCLIsDevice && D && checkIfDeclaredInSYCLNamespace(D)) {
     Fn->setMetadata("sycl-framework", llvm::MDNode::get(getLLVMContext(), {}));
   }
 

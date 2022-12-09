@@ -2991,7 +2991,8 @@ def fsycl_max_parallel_jobs_EQ : Joined<["-"], "fsycl-max-parallel-link-jobs=">,
   "on SYCL device code post-link, i.e. the generation of SPIR-V device images "
   "or AOT compilation of each device image.">;
 def fsycl_optimize_framework : Flag<["-"], "fsycl-optimize-framework">,
-  Flags<[CC1Option, CoreOption]>, HelpText<"Option used with conjunction with -O0 flag to optimize SYCL framework utility functions and left unoptimized user kernel code. (experimental)">;
+  Flags<[CC1Option, CoreOption]>, HelpText<"Option used in conjunction with -O0 flag to "
+  "optimize SYCL framework utility functions and leave unoptimized user kernel code. (experimental)">;
 def fsyntax_only : Flag<["-"], "fsyntax-only">,
   Flags<[NoXarchOption,CoreOption,CC1Option,FC1Option,FlangOption]>, Group<Action_Group>,
   HelpText<"Run the preprocessor, parser and semantic analysis stages">;

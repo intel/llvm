@@ -4,7 +4,6 @@
 
 // RUN: %clangxx -fsycl -O0 -fsycl-optimize-framework -### %s 2>&1 | FileCheck %s -check-prefix=OPT-CHECK
 
-
 // OPT-CHECK: fsycl-optimize-framework
 
 // RUN: not %clangxx -fsycl -O1 -fsycl-optimize-framework %s 2>&1  | FileCheck %s -check-prefix=CHECK-ERROR

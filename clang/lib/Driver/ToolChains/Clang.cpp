@@ -9747,7 +9747,6 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
       addArgs(CmdArgs, TCArgs, {"-split-esimd"});
     addArgs(CmdArgs, TCArgs, {"-lower-esimd"});
   }
-
   addArgs(CmdArgs, TCArgs,
           {StringRef(getSYCLPostLinkOptimizationLevel(TCArgs))});
   // specialization constants processing is mandatory
