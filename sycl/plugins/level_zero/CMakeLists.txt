@@ -26,6 +26,9 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
     "-Wno-pedantic"
     "-Wno-stringop-truncation"
   )
+  target_compile_options(ze_tracing_layer PRIVATE
+    "-Wno-pedantic"
+  )
 
   set(LEVEL_ZERO_INCLUDE_DIR
     ${level-zero-loader_SOURCE_DIR}/include CACHE PATH "Path to Level Zero Headers")
