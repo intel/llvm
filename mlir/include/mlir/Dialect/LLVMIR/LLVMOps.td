@@ -810,7 +810,10 @@ def LLVM_ReturnOp : LLVM_TerminatorOp<"return", [Pure, ReturnLike]> {
       builder.CreateRetVoid();
   }];
   string mlirBuilder = [{
-    $_builder.create<LLVM::ReturnOp>($_location, convertValues(llvmOperands));
+    FailureOr<SmallVector<Value>> mlirOperands = convertValues(llvmOperands);
+    if (failed(mlirOperands))
+      return failure();
+    $_builder.create<LLVM::ReturnOp>($_location, *mlirOperands);
   }];
 }
 
@@ -1308,9 +1311,7 @@ def LLVM_LLVMFuncOp : LLVM_Op<"func", [
     DefaultValuedAttr<CConv, "CConv::C">:$CConv,
     OptionalAttr<FlatSymbolRefAttr>:$personality,
     OptionalAttr<StrAttr>:$garbageCollector,
-    OptionalAttr<ArrayAttr>:$passthrough,
-    OptionalAttr<DictArrayAttr>:$arg_attrs,
-    OptionalAttr<DictArrayAttr>:$res_attrs
+    OptionalAttr<ArrayAttr>:$passthrough
   );
 
   let regions = (region AnyRegion:$body);
