@@ -1818,8 +1818,7 @@ __SYCL_EXPORT pi_result piextUSMEnqueueFill2D(pi_queue queue, void *ptr,
 /// \param queue is the queue to submit to
 /// \param ptr is the ptr to fill
 /// \param pitch is the total width of the destination memory including padding
-/// \param pattern is a pointer with the bytes of the pattern to set
-/// \param pattern_size is the size in bytes of the pattern
+/// \param value the value to fill into the region in \param ptr
 /// \param width is width in bytes of each row to fill
 /// \param height is height the columns to fill
 /// \param num_events_in_waitlist is the number of events to wait on
