@@ -78,6 +78,7 @@
 #include "llvm/Transforms/Instrumentation/GCOVProfiler.h"
 #include "llvm/Transforms/Instrumentation/HWAddressSanitizer.h"
 #include "llvm/Transforms/Instrumentation/InstrProfiling.h"
+#include "llvm/Transforms/Instrumentation/KCFI.h"
 #include "llvm/Transforms/Instrumentation/MemProfiler.h"
 #include "llvm/Transforms/Instrumentation/MemorySanitizer.h"
 #include "llvm/Transforms/Instrumentation/SPIRITTAnnotations.h"
@@ -99,6 +100,7 @@
 #include "llvm/Transforms/Utils/NameAnonGlobals.h"
 #include "llvm/Transforms/Utils/SymbolRewriter.h"
 #include <memory>
+#include <optional>
 using namespace clang;
 using namespace llvm;
 
@@ -319,7 +321,7 @@ static CodeGenOpt::Level getCGOptLevel(const CodeGenOptions &CodeGenOpts) {
   }
 }
 
-static Optional<llvm::CodeModel::Model>
+static std::optional<llvm::CodeModel::Model>
 getCodeModel(const CodeGenOptions &CodeGenOpts) {
   unsigned CodeModel = llvm::StringSwitch<unsigned>(CodeGenOpts.CodeModel)
                            .Case("tiny", llvm::CodeModel::Tiny)
@@ -331,7 +333,7 @@ getCodeModel(const CodeGenOptions &CodeGenOpts) {
                            .Default(~0u);
   assert(CodeModel != ~0u && "invalid code model!");
   if (CodeModel == ~1u)
-    return None;
+    return std::nullopt;
   return static_cast<llvm::CodeModel::Model>(CodeModel);
 }
 
@@ -518,7 +520,7 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
 static Optional<GCOVOptions> getGCOVOptions(const CodeGenOptions &CodeGenOpts,
                                             const LangOptions &LangOpts) {
   if (!CodeGenOpts.EmitGcovArcs && !CodeGenOpts.EmitGcovNotes)
-    return None;
+    return std::nullopt;
   // Not using 'GCOVOptions::getDefault' allows us to avoid exiting if
   // LLVM's -default-gcov-version flag is set to something invalid.
   GCOVOptions Options;
@@ -536,7 +538,7 @@ static Optional<InstrProfOptions>
 getInstrProfOptions(const CodeGenOptions &CodeGenOpts,
                     const LangOptions &LangOpts) {
   if (!CodeGenOpts.hasProfileClangInstr())
-    return None;
+    return std::nullopt;
   InstrProfOptions Options;
   Options.NoRedZone = CodeGenOpts.DisableRedZone;
   Options.InstrProfileOutput = CodeGenOpts.InstrProfileOutput;
@@ -579,7 +581,7 @@ void EmitAssemblyHelper::CreateTargetMachine(bool MustCreateTM) {
     return;
   }
 
-  Optional<llvm::CodeModel::Model> CM = getCodeModel(CodeGenOpts);
+  std::optional<llvm::CodeModel::Model> CM = getCodeModel(CodeGenOpts);
   std::string FeaturesStr =
       llvm::join(TargetOpts.Features.begin(), TargetOpts.Features.end(), ",");
   llvm::Reloc::Model RM = CodeGenOpts.RelocationModel;
@@ -650,6 +652,31 @@ static OptimizationLevel mapToLevel(const CodeGenOptions &Opts) {
   case 3:
     return OptimizationLevel::O3;
   }
+}
+
+static void addKCFIPass(const Triple &TargetTriple, const LangOptions &LangOpts,
+                        PassBuilder &PB) {
+  // If the back-end supports KCFI operand bundle lowering, skip KCFIPass.
+  if (TargetTriple.getArch() == llvm::Triple::x86_64 ||
+      TargetTriple.isAArch64(64))
+    return;
+
+  // Ensure we lower KCFI operand bundles with -O0.
+  PB.registerOptimizerLastEPCallback(
+      [&](ModulePassManager &MPM, OptimizationLevel Level) {
+        if (Level == OptimizationLevel::O0 &&
+            LangOpts.Sanitize.has(SanitizerKind::KCFI))
+          MPM.addPass(createModuleToFunctionPassAdaptor(KCFIPass()));
+      });
+
+  // When optimizations are requested, run KCIFPass after InstCombine to
+  // avoid unnecessary checks.
+  PB.registerPeepholeEPCallback(
+      [&](FunctionPassManager &FPM, OptimizationLevel Level) {
+        if (Level != OptimizationLevel::O0 &&
+            LangOpts.Sanitize.has(SanitizerKind::KCFI))
+          FPM.addPass(KCFIPass());
+      });
 }
 
 static void addSanitizers(const Triple &TargetTriple,
@@ -833,9 +860,10 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   PrintPassOptions PrintPassOpts;
   PrintPassOpts.Indent = DebugPassStructure;
   PrintPassOpts.SkipAnalyses = DebugPassStructure;
-  StandardInstrumentations SI(CodeGenOpts.DebugPassManager ||
-                                  DebugPassStructure,
-                              /*VerifyEach*/ false, PrintPassOpts);
+  StandardInstrumentations SI(
+      TheModule->getContext(),
+      (CodeGenOpts.DebugPassManager || DebugPassStructure),
+      /*VerifyEach*/ false, PrintPassOpts);
   SI.registerCallbacks(PIC, &FAM);
   PassBuilder PB(TM.get(), PTO, PGOOpt, &PIC);
 
@@ -975,8 +1003,10 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
     // Don't add sanitizers if we are here from ThinLTO PostLink. That already
     // done on PreLink stage.
-    if (!IsThinLTOPostLink)
+    if (!IsThinLTOPostLink) {
       addSanitizers(TargetTriple, CodeGenOpts, LangOpts, PB);
+      addKCFIPass(TargetTriple, LangOpts, PB);
+    }
 
     if (Optional<GCOVOptions> Options = getGCOVOptions(CodeGenOpts, LangOpts))
       PB.registerPipelineStartEPCallback(
@@ -1164,7 +1194,7 @@ static void runThinLTOBackend(
   if (!lto::initImportList(*M, *CombinedIndex, ImportList))
     return;
 
-  auto AddStream = [&](size_t Task) {
+  auto AddStream = [&](size_t Task, const Twine &ModuleName) {
     return std::make_unique<CachedFileStream>(std::move(OS),
                                               CGOpts.ObjectFilenameForDebug);
   };

@@ -135,8 +135,8 @@ static void sanitizeDiagOpts(DiagnosticOptions &DiagOpts) {
   DiagOpts.ShowCarets = false;
   // Don't write out diagnostic file.
   DiagOpts.DiagnosticSerializationFile.clear();
-  // Don't treat warnings as errors.
-  DiagOpts.Warnings.push_back("no-error");
+  // Don't emit warnings as errors (and all other warnings too).
+  DiagOpts.IgnoreWarnings = true;
 }
 
 /// A clang tool that runs the preprocessor in a mode that's optimized for
@@ -147,7 +147,7 @@ public:
       StringRef WorkingDirectory, DependencyConsumer &Consumer,
       llvm::IntrusiveRefCntPtr<DependencyScanningWorkerFilesystem> DepFS,
       ScanningOutputFormat Format, bool OptimizeArgs, bool EagerLoadModules,
-      bool DisableFree, llvm::Optional<StringRef> ModuleName = None)
+      bool DisableFree, llvm::Optional<StringRef> ModuleName = std::nullopt)
       : WorkingDirectory(WorkingDirectory), Consumer(Consumer),
         DepFS(std::move(DepFS)), Format(Format), OptimizeArgs(OptimizeArgs),
         EagerLoadModules(EagerLoadModules), DisableFree(DisableFree),
@@ -219,7 +219,7 @@ public:
         if (llvm::ErrorOr<EntryRef> Entry =
                 LocalDepFS->getOrCreateFileSystemEntry(File.getName()))
           return Entry->getDirectiveTokens();
-        return None;
+        return std::nullopt;
       };
     }
 

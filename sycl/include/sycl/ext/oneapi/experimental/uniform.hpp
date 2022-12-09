@@ -15,7 +15,7 @@
 // 1 - Initial extension version. Base features are supported.
 #define SYCL_EXT_ONEAPI_UNIFORM 1
 
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL_INLINE_NAMESPACE
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_INLINE_VER_NAMESPACE
 
 #include <type_traits>
 

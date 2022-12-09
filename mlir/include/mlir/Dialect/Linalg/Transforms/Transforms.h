@@ -248,7 +248,7 @@ using CopyCallbackFn =
 
 struct LinalgPromotionOptions {
   /// Indices of subViews to promote. If `None`, try to promote all operands.
-  Optional<DenseSet<unsigned>> operandsToPromote = None;
+  Optional<DenseSet<unsigned>> operandsToPromote = std::nullopt;
   LinalgPromotionOptions &setOperandsToPromote(ArrayRef<int64_t> operands) {
     operandsToPromote = DenseSet<unsigned>();
     operandsToPromote->insert(operands.begin(), operands.end());
@@ -259,7 +259,7 @@ struct LinalgPromotionOptions {
   /// Otherwise the partial view will be used. The decision is defaulted to
   /// `useFullTileBuffersDefault` when `useFullTileBuffers` is None and for
   /// operands missing from `useFullTileBuffers`.
-  Optional<llvm::SmallBitVector> useFullTileBuffers = None;
+  Optional<llvm::SmallBitVector> useFullTileBuffers = std::nullopt;
   LinalgPromotionOptions &setUseFullTileBuffers(ArrayRef<bool> useFullTiles) {
     unsigned size = useFullTiles.size();
     llvm::SmallBitVector tmp(size, false);
@@ -276,7 +276,7 @@ struct LinalgPromotionOptions {
     return *this;
   }
   /// Alignment of promoted buffer. If `None` do not specify alignment.
-  Optional<unsigned> alignment = None;
+  Optional<unsigned> alignment = std::nullopt;
   LinalgPromotionOptions &setAlignment(unsigned align) {
     alignment = align;
     return *this;
@@ -290,8 +290,8 @@ struct LinalgPromotionOptions {
   /// Callback function to do the allocation of the promoted buffer. If None,
   /// then the default allocation scheme of allocating a memref<?xi8> buffer
   /// followed by a view operation is used.
-  Optional<AllocBufferCallbackFn> allocationFn = None;
-  Optional<DeallocBufferCallbackFn> deallocationFn = None;
+  Optional<AllocBufferCallbackFn> allocationFn = std::nullopt;
+  Optional<DeallocBufferCallbackFn> deallocationFn = std::nullopt;
   LinalgPromotionOptions &
   setAllocationDeallocationFns(AllocBufferCallbackFn const &allocFn,
                                DeallocBufferCallbackFn const &deallocFn) {
@@ -301,8 +301,8 @@ struct LinalgPromotionOptions {
   }
   /// Callback function to do the copy of data to and from the promoted
   /// subview. If None then a memref.copy is used.
-  Optional<CopyCallbackFn> copyInFn = None;
-  Optional<CopyCallbackFn> copyOutFn = None;
+  Optional<CopyCallbackFn> copyInFn = std::nullopt;
+  Optional<CopyCallbackFn> copyOutFn = std::nullopt;
   LinalgPromotionOptions &setCopyInOutFns(CopyCallbackFn const &copyIn,
                                           CopyCallbackFn const &copyOut) {
     copyInFn = copyIn;
@@ -598,7 +598,7 @@ struct LinalgTilingAndFusionOptions {
   SmallVector<int64_t> tileInterchange;
   /// When specified, specifies distribution of generated tile loops to
   /// processors.
-  Optional<LinalgLoopDistributionOptions> tileDistribution = None;
+  Optional<LinalgLoopDistributionOptions> tileDistribution = std::nullopt;
   LinalgTilingAndFusionOptions &
   setDistributionOptions(LinalgLoopDistributionOptions distributionOptions) {
     tileDistribution = std::move(distributionOptions);
@@ -651,7 +651,7 @@ struct LinalgTilingOptions {
 
   /// When specified, specifies distribution of generated tile loops to
   /// processors.
-  Optional<LinalgLoopDistributionOptions> distribution = None;
+  Optional<LinalgLoopDistributionOptions> distribution = std::nullopt;
 
   LinalgTilingOptions &
   setDistributionOptions(LinalgLoopDistributionOptions distributionOptions) {
@@ -1068,6 +1068,12 @@ FailureOr<SplitReductionResult>
 splitReductionByScaling(PatternRewriter &b, LinalgOp op,
                         const ControlSplitReductionFn &controlSplitReductionFn,
                         bool useAlloc = false);
+
+/// Collapses dimensions of linalg.generic operation. It also collapses inputs
+/// before the op and expands outputs after the op.
+FailureOr<SmallVector<Value>> collapseGenericOpIterationDims(
+    GenericOp genericOp, ArrayRef<ReassociationIndices> foldedIterationDims,
+    RewriterBase &rewriter);
 
 } // namespace linalg
 } // namespace mlir

@@ -18,6 +18,8 @@
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/Support/KnownBits.h"
 #include "llvm/Transforms/InstCombine/InstCombiner.h"
+#include <optional>
+
 using namespace llvm;
 using namespace PatternMatch;
 
@@ -166,6 +168,8 @@ Instruction *InstCombinerImpl::PromoteCastOfAllocation(BitCastInst &CI,
   New->setUsedWithInAlloca(AI.isUsedWithInAlloca());
   New->setMetadata(LLVMContext::MD_DIAssignID,
                    AI.getMetadata(LLVMContext::MD_DIAssignID));
+
+  replaceAllDbgUsesWith(AI, *New, *New, DT);
 
   // If the allocation has multiple real uses, insert a cast and change all
   // things that used it to use the new cast.  This will also hack on CI, but it
@@ -991,7 +995,7 @@ Instruction *InstCombinerImpl::visitTrunc(TruncInst &Trunc) {
         Trunc.getFunction()->hasFnAttribute(Attribute::VScaleRange)) {
       Attribute Attr =
           Trunc.getFunction()->getFnAttribute(Attribute::VScaleRange);
-      if (Optional<unsigned> MaxVScale = Attr.getVScaleRangeMax()) {
+      if (std::optional<unsigned> MaxVScale = Attr.getVScaleRangeMax()) {
         if (Log2_32(*MaxVScale) < DestWidth) {
           Value *VScale = Builder.CreateVScale(ConstantInt::get(DestTy, 1));
           return replaceInstUsesWith(Trunc, VScale);
@@ -1360,7 +1364,7 @@ Instruction *InstCombinerImpl::visitZExt(ZExtInst &CI) {
     if (CI.getFunction() &&
         CI.getFunction()->hasFnAttribute(Attribute::VScaleRange)) {
       Attribute Attr = CI.getFunction()->getFnAttribute(Attribute::VScaleRange);
-      if (Optional<unsigned> MaxVScale = Attr.getVScaleRangeMax()) {
+      if (std::optional<unsigned> MaxVScale = Attr.getVScaleRangeMax()) {
         unsigned TypeWidth = Src->getType()->getScalarSizeInBits();
         if (Log2_32(*MaxVScale) < TypeWidth) {
           Value *VScale = Builder.CreateVScale(ConstantInt::get(DestTy, 1));
@@ -1634,7 +1638,7 @@ Instruction *InstCombinerImpl::visitSExt(SExtInst &CI) {
     if (CI.getFunction() &&
         CI.getFunction()->hasFnAttribute(Attribute::VScaleRange)) {
       Attribute Attr = CI.getFunction()->getFnAttribute(Attribute::VScaleRange);
-      if (Optional<unsigned> MaxVScale = Attr.getVScaleRangeMax()) {
+      if (std::optional<unsigned> MaxVScale = Attr.getVScaleRangeMax()) {
         if (Log2_32(*MaxVScale) < (SrcBitSize - 1)) {
           Value *VScale = Builder.CreateVScale(ConstantInt::get(DestTy, 1));
           return replaceInstUsesWith(CI, VScale);

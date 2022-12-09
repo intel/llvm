@@ -574,8 +574,8 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
         DefaultLogical},
     {"llt", {{"string_a", SameCharNoLen}, {"string_b", SameCharNoLen}},
         DefaultLogical},
-    {"loc", {{"loc_argument", Addressable, Rank::anyOrAssumedRank}},
-        SubscriptInt, Rank::scalar},
+    {"loc", {{"x", Addressable, Rank::anyOrAssumedRank}}, SubscriptInt,
+        Rank::scalar},
     {"log", {{"x", SameFloating}}, SameFloating},
     {"log10", {{"x", SameReal}}, SameReal},
     {"logical", {{"l", AnyLogical}, DefaultingKIND}, KINDLogical},
@@ -917,7 +917,7 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
 // TODO: Coarray intrinsic functions
 //  IMAGE_INDEX, COSHAPE
 // TODO: Non-standard intrinsic functions
-//  LSHIFT, RSHIFT, SHIFT,
+//  SHIFT,
 //  COMPL, EQV, NEQV, INT8, JINT, JNINT, KNINT,
 //  QCMPLX, QEXT, QFLOAT, QREAL, DNUM,
 //  INUM, JNUM, KNUM, QNUM, RNUM, RAN, RANF, ILEN,
@@ -934,7 +934,9 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
 static const std::pair<const char *, const char *> genericAlias[]{
     {"and", "iand"},
     {"imag", "aimag"},
+    {"lshift", "shiftl"},
     {"or", "ior"},
+    {"rshift", "shifta"},
     {"xor", "ieor"},
     {"__builtin_ieee_selected_real_kind", "selected_real_kind"},
 };
@@ -2629,8 +2631,8 @@ static bool CheckAssociated(SpecificCall &call, FoldingContext &context) {
                     *targetProcDesignator, context);
                 targetName = targetProcDesignator->GetName();
               } else if (targetSymbol) {
-                // proc that's not a call
                 if (IsProcedure(*targetSymbol)) {
+                  // proc that's not a call
                   targetProc = characteristics::Procedure::Characterize(
                       *targetSymbol, context);
                 }
@@ -2691,6 +2693,11 @@ static bool CheckAssociated(SpecificCall &call, FoldingContext &context) {
                   for (SymbolRef ref : symbols) {
                     msg = AttachDeclaration(msg, *ref);
                   }
+                } else if (HasVectorSubscript(*targetExpr) ||
+                    ExtractCoarrayRef(*targetExpr)) {
+                  context.messages().Say(targetArg->sourceLocation(),
+                      "TARGET= argument '%s' may not have a vector subscript or coindexing"_err_en_US,
+                      targetExpr->AsFortran());
                 }
                 if (const auto pointerType{pointerArg->GetType()}) {
                   if (const auto targetType{targetArg->GetType()}) {

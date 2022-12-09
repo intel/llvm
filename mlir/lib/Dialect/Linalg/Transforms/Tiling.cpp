@@ -382,8 +382,8 @@ FailureOr<ForeachThreadTilingResult>
 linalg::tileToForeachThreadOp(RewriterBase &b, TilingInterface op,
                               ArrayRef<OpFoldResult> numThreads,
                               Optional<ArrayAttr> mapping) {
-  return tileToForeachThreadOpImpl(b, op, numThreads, /*nominalTileSizes=*/None,
-                                   mapping,
+  return tileToForeachThreadOpImpl(b, op, numThreads,
+                                   /*nominalTileSizes=*/std::nullopt, mapping,
                                    /*omitTileOffsetBoundsCheck=*/false);
 }
 
@@ -467,7 +467,7 @@ linalg::tileReductionUsingForeachThread(RewriterBase &b,
   calculateTileOffsetsAndSizes(
       b, loc, foreachThreadOp, numThreads, iterationDomain,
       /*omitTileOffsetBoundsCheck =*/false,
-      /*nominalTileSizes=*/llvm::None, tiledOffsets, tiledSizes);
+      /*nominalTileSizes=*/std::nullopt, tiledOffsets, tiledSizes);
 
   // 4. Clone the tileable op and update its destination operands to use the
   // output bbArgs of the ForeachThreadOp.
@@ -671,7 +671,7 @@ tileLinalgOpImpl(RewriterBase &b, LinalgOp op, ArrayRef<OpFoldResult> tileSizes,
 
     SmallVector<Type> resultTensorTypes =
         getTensorOutputTypes(op, tiledOperands);
-    res = op.clone(b, loc, resultTensorTypes, tiledOperands);
+    res = clone(b, op, resultTensorTypes, tiledOperands);
     tensorResults =
         insertSlicesBack(builder, loc, op, tiledOperands, res->getResults());
     return scf::ValueVector(tensorResults.begin(), tensorResults.end());
@@ -821,7 +821,7 @@ struct PadOpTilingPattern : public OpRewritePattern<tensor::PadOp> {
     if (failed(tilePadOp(rewriter, op, newPadOp, loopNest, options)))
       return failure();
     // Replace all uses of the original tensor::PadOp.
-    rewriter.replaceOp(op, loopNest.getResults()[0]);
+    rewriter.replaceOp(op, loopNest.results.front());
     return success();
   }
 
