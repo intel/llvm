@@ -10,7 +10,7 @@
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
 
 ; CHECK-WO-EXT: RequiresExtension: Feature requires the following SPIR-V extension:
-; CHECK-WO-EXT: The SPV_INTEL_non_constant_addrspace_printf extension should be allowed to translate this module, because this LLVM module contains the printf function with format string, whose address space is not equal to 2 (constant).
+; CHECK-WO-EXT: Either SPV_EXT_relaxed_printf_string_address_space or SPV_INTEL_non_constant_addrspace_printf extension should be allowed to translate this module, because this LLVM module contains the printf function with format string, whose address space is not equal to 2 (constant).
 
 ; CHECK-SPIRV: Capability NonConstantAddrspacePrintfINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_non_constant_addrspace_printf"
