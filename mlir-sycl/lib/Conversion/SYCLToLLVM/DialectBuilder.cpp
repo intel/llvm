@@ -143,18 +143,8 @@ LLVM::ConstantOp LLVMBuilder::genConstant(Type type, double val) const {
                               type, getIntegerAttr(type, APInt(type.getWidth(),
                                                                (int64_t)val)));
       })
-      .Case<Float16Type>([&](Type) {
-        return create<LLVM::ConstantOp>(type, getF16FloatAttr(val));
-      })
-      .Case<Float32Type>([&](Type) {
-        return create<LLVM::ConstantOp>(type, getF32FloatAttr(val));
-      })
-      .Case<Float64Type>([&](Type) {
-        return create<LLVM::ConstantOp>(type, getF64FloatAttr(val));
-      })
-      .Default([&](Type) {
-        llvm_unreachable("Missing support for type");
-        return LLVM::ConstantOp();
+      .Case<Float16Type, Float32Type, Float64Type>([&](auto Ty) {
+        return create<LLVM::ConstantOp>(type, builder.getFloatAttr(Ty, val));
       });
 }
 

@@ -202,7 +202,7 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
            << "_" << Ty.getNumElements() << "_";
         return AliasResult::FinalAlias;
       })
-      .Default([](auto) { return AliasResult::NoAlias; });
+      .Default(AliasResult::NoAlias);
 }
 } // namespace
 

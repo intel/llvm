@@ -271,10 +271,6 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
                       return mlir::MemRefType::get(Shape, Ty.getBody()[I],
                                                    MemRefLayoutAttrInterface(),
                                                    MT.getMemorySpace());
-                    })
-                    .Default([](auto Ty) -> mlir::MemRefType {
-                      Ty.dump();
-                      llvm_unreachable("not implemented");
                     });
           } else {
             ET = mlir::MemRefType::get(Shape, ElemTy,
@@ -1052,10 +1048,6 @@ static NamedAttrList getSYCLMethodOpAttrs(OpBuilder &Builder,
 /// This function relies on how arguments are casted to perform a function call.
 /// Should be updated if this changes.
 static llvm::Optional<mlir::sycl::SYCLCastOp> trackSYCLCast(Value Val) {
-  const auto TrackWithOperand =
-      [](Operation *Op) -> llvm::Optional<mlir::sycl::SYCLCastOp> {
-    return trackSYCLCast(Op->getOperand(0));
-  };
   auto *const DefiningOp = Val.getDefiningOp();
   if (!DefiningOp)
     return llvm::None;
@@ -1066,9 +1058,9 @@ static llvm::Optional<mlir::sycl::SYCLCastOp> trackSYCLCast(Value Val) {
           [](auto Cast) -> llvm::Optional<mlir::sycl::SYCLCastOp> {
             return Cast;
           })
-      .Case<mlir::LLVM::AddrSpaceCastOp>(TrackWithOperand)
-      .Case<mlir::polygeist::Memref2PointerOp>(TrackWithOperand)
-      .Case<mlir::polygeist::Pointer2MemrefOp>(TrackWithOperand)
+      .Case<mlir::LLVM::AddrSpaceCastOp, mlir::polygeist::Memref2PointerOp,
+            mlir::polygeist::Pointer2MemrefOp>(
+          [](auto Op) { return trackSYCLCast(Op->getOperand(0)); })
       .Default([](auto) -> llvm::Optional<mlir::sycl::SYCLCastOp> {
         return llvm::None;
       });

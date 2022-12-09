@@ -82,8 +82,7 @@ unsigned getAddressSpace(mlir::Type Ty) {
       .Case<mlir::MemRefType>(
           [](auto MemRefTy) { return MemRefTy.getMemorySpaceAsInt(); })
       .Case<mlir::LLVM::LLVMPointerType>(
-          [](auto PtrTy) { return PtrTy.getAddressSpace(); })
-      .Default([](auto) -> unsigned { llvm_unreachable("Invalid type"); });
+          [](auto PtrTy) { return PtrTy.getAddressSpace(); });
 }
 
 mlir::Type getPtrTyWithNewType(mlir::Type Orig, mlir::Type NewElementType) {
@@ -95,8 +94,7 @@ mlir::Type getPtrTyWithNewType(mlir::Type Orig, mlir::Type NewElementType) {
       .Case<mlir::LLVM::LLVMPointerType>([NewElementType](auto Ty) {
         return mlir::LLVM::LLVMPointerType::get(NewElementType,
                                                 Ty.getAddressSpace());
-      })
-      .Default([](auto) -> mlir::Type { llvm_unreachable("Invalid type"); });
+      });
 }
 
 mlir::Type getSYCLType(const clang::RecordType *RT,
@@ -439,16 +437,14 @@ bool isIntOrIntVectorTy(mlir::Type Ty) {
 
 unsigned getPrimitiveSizeInBits(mlir::Type Ty) {
   return llvm::TypeSwitch<mlir::Type, unsigned>(Ty)
-      .Case<mlir::IntegerType>([](auto IntTy) { return IntTy.getWidth(); })
-      .Case<mlir::FloatType>([](auto FloatTy) { return FloatTy.getWidth(); })
+      .Case<mlir::IntegerType, mlir::FloatType>(
+          [](auto Ty) { return Ty.getWidth(); })
       .Case<mlir::IndexType>(
           [](auto) { return mlir::IndexType::kInternalStorageBitWidth; })
       .Case<mlir::VectorType>([](auto VecTy) {
         return VecTy.getNumElements() *
                getPrimitiveSizeInBits(VecTy.getElementType());
-      })
-      .Default(
-          [](auto) -> unsigned { llvm_unreachable("Invalid primitive type"); });
+      });
 }
 
 } // namespace mlirclang

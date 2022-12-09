@@ -109,9 +109,7 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
     // Ad-hoc extension of booleans
     auto ElementType =
         llvm::TypeSwitch<Type, Type>(val.getType())
-            .Case<LLVM::LLVMPointerType>(
-                [](auto Ty) -> Type { return Ty.getElementType(); })
-            .Case<MemRefType>(
+            .Case<MemRefType, LLVM::LLVMPointerType>(
                 [](auto Ty) -> Type { return Ty.getElementType(); })
             .Default([](auto) -> Type { llvm_unreachable("Unhandled type"); });
     toStore = builder.createOrFold<arith::ExtUIOp>(builder.getUnknownLoc(),
@@ -745,8 +743,7 @@ ValueCategory ValueCategory::GEPOrSubIndex(OpBuilder &Builder, Location Loc,
         return SubIndex(Builder, Loc, Type, IdxList[0], IsInBounds);
       })
       .Case<LLVM::LLVMPointerType>(
-          [&](auto) { return GEP(Builder, Loc, Type, IdxList, IsInBounds); })
-      .Default([](auto) -> ValueCategory { llvm_unreachable("Invalid type"); });
+          [&](auto) { return GEP(Builder, Loc, Type, IdxList, IsInBounds); });
 }
 
 ValueCategory ValueCategory::InBoundsGEPOrSubIndex(OpBuilder &Builder,

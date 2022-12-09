@@ -15,22 +15,14 @@
 #include "llvm/ADT/TypeSwitch.h"
 
 static unsigned getDimensions(mlir::Type Type) {
-  const auto GetDimension = [](auto Ty) -> unsigned {
-    return Ty.getDimension();
-  };
   if (auto MemRefTy = Type.dyn_cast<mlir::MemRefType>()) {
     Type = MemRefTy.getElementType();
   }
   return llvm::TypeSwitch<mlir::Type, unsigned>(Type)
-      .Case<mlir::sycl::AccessorType>(GetDimension)
-      .Case<mlir::sycl::RangeType>(GetDimension)
-      .Case<mlir::sycl::IDType>(GetDimension)
-      .Case<mlir::sycl::ItemType>(GetDimension)
-      .Case<mlir::sycl::NdItemType>(GetDimension)
-      .Case<mlir::sycl::NdRangeType>(GetDimension)
-      .Case<mlir::sycl::GroupType>(GetDimension)
-      .Default(
-          [](auto) -> unsigned { llvm_unreachable("Invalid input type"); });
+      .Case<mlir::sycl::AccessorType, mlir::sycl::RangeType, mlir::sycl::IDType,
+            mlir::sycl::ItemType, mlir::sycl::NdItemType,
+            mlir::sycl::NdRangeType, mlir::sycl::GroupType>(
+          [](auto Ty) -> unsigned { return Ty.getDimension(); });
 }
 
 static mlir::LogicalResult
