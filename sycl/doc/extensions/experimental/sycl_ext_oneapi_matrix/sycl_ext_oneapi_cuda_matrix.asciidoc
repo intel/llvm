@@ -1,4 +1,4 @@
-# Additional CUDA only features/constraints matrix extension for DPC++ : sycl_ext_oneapi_cuda_matrix
+# `sycl_ext_oneapi_matrix` extension constraints specific to the `ext_oneapi_cuda` backend.
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 :dpcpp: pass:[DPC++]
@@ -36,7 +36,7 @@ extension to {dpcpp}. This is an initial experimental version to try out functio
 and performance, and **future versions of this API may change in ways that are incompatible with this experimental version**.
 
 ## Introduction
-The `ext_oneapi_cuda` backend supports `joint_matrix`, `joint_matrix_load`, `joint_matrix_store`, `joint_matrix_mad` and `joint_matrix_fill` as they are defined in the `sycl_ext_oneapi_matrix` extension. Only `row_major`, `col_major` and `dynamic` layouts are supported in the `ext_oneapi_cuda` backend. The complete set of `joint_matrix` types and shapes that are valid in the `ext_oneapi_cuda` backend are listed in this document.
+The `ext_oneapi_cuda` backend supports `joint_matrix`, `joint_matrix_load`, `joint_matrix_store`, `joint_matrix_mad` and `joint_matrix_fill` as they are defined in the `sycl_ext_oneapi_matrix` extension. The complete set of `joint_matrix` types and shapes that are valid in the `ext_oneapi_cuda` backend are listed in this document.
 This extension presents any constraints that apply specifically when using the `ext_oneapi_cuda` backend, which may not apply generally to the `sycl_ext_oneapi_matrix` extension.
 
 ### Valid `joint_matrix` types and shapes
