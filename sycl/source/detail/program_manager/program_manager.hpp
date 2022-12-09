@@ -258,8 +258,8 @@ public:
 
   bool kernelUsesAssert(OSModuleHandle M, const std::string &KernelName) const;
 
-  void getRawDeviceImages(const std::vector<kernel_id> &KernelIDs,
-                          std::set<RTDeviceBinaryImage *> &BinImages);
+  std::set<RTDeviceBinaryImage *>
+  getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
 
 private:
   ProgramManager(ProgramManager const &) = delete;

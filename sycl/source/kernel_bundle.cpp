@@ -290,9 +290,8 @@ std::vector<kernel_id> get_kernel_ids() {
 }
 
 bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
-  std::set<detail::RTDeviceBinaryImage *> BinImages;
-  detail::ProgramManager::getInstance().getRawDeviceImages(KernelIDs,
-                                                           BinImages);
+  std::set<detail::RTDeviceBinaryImage *> BinImages =
+      detail::ProgramManager::getInstance().getRawDeviceImages(KernelIDs);
   return std::all_of(BinImages.begin(), BinImages.end(),
                      [&Dev](const detail::RTDeviceBinaryImage *Img) {
                        return doesDevSupportImgAspects(Dev, *Img);

@@ -1605,15 +1605,16 @@ void ProgramManager::addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
   m_Ptr2DeviceGlobal.insert({DeviceGlobalPtr, NewEntry.first->second.get()});
 }
 
-void ProgramManager::getRawDeviceImages(
-    const std::vector<kernel_id> &KernelIDs,
-    std::set<RTDeviceBinaryImage *> &BinImages) {
+std::set<RTDeviceBinaryImage *>
+ProgramManager::getRawDeviceImages(const std::vector<kernel_id> &KernelIDs) {
+  std::set<RTDeviceBinaryImage *> BinImages;
   std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
   for (const kernel_id &KID : KernelIDs) {
     auto Range = m_KernelIDs2BinImage.equal_range(KID);
     for (auto It = Range.first, End = Range.second; It != End; ++It)
       BinImages.insert(It->second);
   }
+  return BinImages;
 }
 
 std::vector<device_image_plain>
@@ -1635,7 +1636,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
             make_error_code(errc::invalid),
             "Kernel is incompatible with all devices in devs");
     }
-    getRawDeviceImages(KernelIDs, BinImages);
+    BinImages = getRawDeviceImages(KernelIDs);
   } else {
     std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
     for (auto &ImagesSets : m_DeviceImages) {
@@ -2133,22 +2134,21 @@ bool doesDevSupportImgAspects(const device &Dev,
                               const RTDeviceBinaryImage &Img) {
   const RTDeviceBinaryImage::PropertyRange &PropRange =
       Img.getDeviceRequirements();
-  return std::all_of(
-      PropRange.begin(), PropRange.end(),
-      [&](RTDeviceBinaryImage::PropertyRange::ConstIterator &&Prop) {
-        using namespace std::literals;
-        if ((*Prop)->Name != "aspects"sv)
-          return true;
-        ByteArray Aspects = DeviceBinaryProperty(*Prop).asByteArray();
-        // Drop 8 bytes describing the size of the byte array.
-        Aspects.dropBytes(8);
-        while (!Aspects.empty()) {
-          aspect Aspect = Aspects.consume<aspect>();
-          if (!Dev.has(Aspect))
-            return false;
-        }
-        return true;
-      });
+  for (RTDeviceBinaryImage::PropertyRange::ConstIterator Prop : PropRange) {
+    using namespace std::literals;
+    if ((*Prop)->Name == "aspects"sv) {
+      ByteArray Aspects = DeviceBinaryProperty(*Prop).asByteArray();
+      // Drop 8 bytes describing the size of the byte array.
+      Aspects.dropBytes(8);
+      while (!Aspects.empty()) {
+        aspect Aspect = Aspects.consume<aspect>();
+        if (!Dev.has(Aspect))
+          return false;
+      }
+      break;
+    }
+  }
+  return true;
 }
 
 } // namespace detail
