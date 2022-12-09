@@ -126,7 +126,8 @@ public:
                        std::numeric_limits<unsigned long long>::max()))
       : scratch(scratch_.data()), scratch_size(scratch_.size()) {
     static_assert((std::is_arithmetic<ValT>::value ||
-                   std::is_same<ValT, sycl::half>::value),
+                   std::is_same<ValT, sycl::half>::value ||
+                   std::is_same<ValT, sycl::ext::oneapi::bfloat16>::value),
                   "radix sort is not usable");
 
     first_bit = 0;
@@ -148,6 +149,10 @@ public:
         g, first, /*empty*/ first, (last - first) > 0 ? (last - first) : 0,
         typename detail::ConvertToComp<ValT, OrderT>::Type{}, scratch,
         first_bit, last_bit);
+#else
+    throw sycl::exception(
+        std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
+        "radix_sorter is not supported on host device.");
 #endif
   }
 
@@ -164,7 +169,9 @@ public:
         first_bit, last_bit);
     return result[0];
 #else
-    return ValT{};
+    throw sycl::exception(
+        std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
+        "radix_sorter is not supported on host device.");
 #endif
   }
 

@@ -11,6 +11,7 @@
 #pragma once
 
 #include <sycl/detail/helpers.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/group_algorithm.hpp>
 #include <sycl/group_barrier.hpp>
 #include <sycl/multi_ptr.hpp>
@@ -327,14 +328,17 @@ struct Ordered<ValT, std::enable_if_t<std::is_integral<ValT>::value &&
 // for signed integrals or floatings we map: size -> corresponding unsigned
 // integral
 template <typename ValT>
-struct Ordered<ValT, std::enable_if_t<(std::is_integral<ValT>::value &&
-                                       std::is_signed<ValT>::value) ||
-                                      !std::is_integral<ValT>::value>> {
+struct Ordered<
+    ValT, std::enable_if_t<
+              (std::is_integral<ValT>::value && std::is_signed<ValT>::value) ||
+              std::is_floating_point<ValT>::value ||
+              std::is_same<ValT, sycl::half>::value ||
+              std::is_same<ValT, sycl::ext::oneapi::bfloat16>::value>> {
   using Type =
       typename GetOrdered<sizeof(ValT), std::is_integral<ValT>::value>::Type;
 };
 
-// shorthands
+// shorthand
 template <typename ValT> using OrderedT = typename Ordered<ValT>::Type;
 
 //------------------------------------------------------------------------
@@ -361,7 +365,9 @@ convertToOrdered(ValT value) {
 // converts floating type to Ordered (in terms of bitness) type
 template <typename ValT>
 std::enable_if_t<!std::is_same<ValT, OrderedT<ValT>>::value &&
-                     !std::is_integral<ValT>::value,
+                         std::is_floating_point<ValT>::value ||
+                     std::is_same<ValT, sycl::half>::value ||
+                     std::is_same<ValT, sycl::ext::oneapi::bfloat16>::value,
                  OrderedT<ValT>>
 convertToOrdered(ValT value) {
   OrderedT<ValT> uvalue = *reinterpret_cast<OrderedT<ValT> *>(&value);
