@@ -845,6 +845,25 @@ static const int ImmediateCommandlistsSetting = [] {
   return std::stoi(ImmediateCommandlistsSettingStr);
 }();
 
+// Get value of the threshold for number of events in immediate command lists.
+// If number of events in the immediate command list exceeds this threshold then
+// cleanup process for those events is executed.
+static const size_t ImmCmdListsEventCleanupThreshold = [] {
+  const char *ImmCmdListsEventCleanupThresholdStr = std::getenv(
+      "SYCL_PI_LEVEL_ZERO_IMMEDIATE_COMMANDLISTS_EVENT_CLEANUP_THRESHOLD");
+  static constexpr int Default = 100;
+  if (!ImmCmdListsEventCleanupThresholdStr)
+    return Default;
+
+  int Threshold = std::stoi(ImmCmdListsEventCleanupThresholdStr);
+
+  // Basically disable threshold if negative value is provided.
+  if (Threshold < 0)
+    return INT_MAX;
+
+  return Threshold;
+}();
+
 // Whether immediate commandlists will be used for kernel launches and copies.
 // The default is standard commandlists. Setting a value >=1 specifies use of
 // immediate commandlists. Note: when immediate commandlists are used then
@@ -1439,6 +1458,12 @@ pi_result _pi_context::getAvailableCommandList(
   // Immediate commandlists have been pre-allocated and are always available.
   if (Queue->Device->useImmediateCommandLists()) {
     CommandList = Queue->getQueueGroup(UseCopyEngine).getImmCmdList();
+    if (CommandList->second.EventList.size() >
+        ImmCmdListsEventCleanupThreshold) {
+      std::vector<pi_event> EventListToCleanup;
+      Queue->resetCommandList(CommandList, false, EventListToCleanup);
+      CleanupEventListFromResetCmdList(EventListToCleanup, true);
+    }
     PI_CALL(Queue->insertStartBarrierIfDiscardEventsMode(CommandList));
     if (auto Res = Queue->insertActiveBarriers(CommandList, UseCopyEngine))
       return Res;
