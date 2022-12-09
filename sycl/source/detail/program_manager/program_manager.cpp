@@ -1663,8 +1663,8 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
       continue;
 
     for (const sycl::device &Dev : Devs) {
-      if (!compatibleWithDevice(BinImage, Dev) |
-          !doesDevSupportImgAspects(*BinImage, Dev))
+      if (!compatibleWithDevice(BinImage, Dev) ||
+          !doesDevSupportImgAspects(Dev, *BinImage))
         continue;
 
       std::shared_ptr<std::vector<sycl::kernel_id>> KernelIDs;
@@ -2129,24 +2129,26 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
                         &(BuildResult->MBuildResultMutex));
 }
 
-bool doesDevSupportImgAspects(const RTDeviceBinaryImage &Img,
-                              const device &Dev) {
+bool doesDevSupportImgAspects(const device &Dev,
+                              const RTDeviceBinaryImage &Img) {
   const RTDeviceBinaryImage::PropertyRange &PropRange =
       Img.getDeviceRequirements();
-  for (RTDeviceBinaryImage::PropertyRange::ConstIterator It : PropRange) {
-    using namespace std::literals;
-    if ((*It)->Name != "aspects"sv)
-      continue;
-    ByteArray Aspects = DeviceBinaryProperty(*It).asByteArray();
-    // Drop 8 bytes describing the size of the byte array.
-    Aspects.dropBytes(8);
-    while (!Aspects.empty()) {
-      aspect Aspect = Aspects.consume<aspect>();
-      if (!Dev.has(Aspect))
-        return false;
-    }
-  }
-  return true;
+  return std::all_of(
+      PropRange.begin(), PropRange.end(),
+      [&](RTDeviceBinaryImage::PropertyRange::ConstIterator &&Prop) {
+        using namespace std::literals;
+        if ((*Prop)->Name != "aspects"sv)
+          return true;
+        ByteArray Aspects = DeviceBinaryProperty(*Prop).asByteArray();
+        // Drop 8 bytes describing the size of the byte array.
+        Aspects.dropBytes(8);
+        while (!Aspects.empty()) {
+          aspect Aspect = Aspects.consume<aspect>();
+          if (!Dev.has(Aspect))
+            return false;
+        }
+        return true;
+      });
 }
 
 } // namespace detail
