@@ -365,9 +365,9 @@ convertToOrdered(ValT value) {
 // converts floating type to Ordered (in terms of bitness) type
 template <typename ValT>
 std::enable_if_t<!std::is_same<ValT, OrderedT<ValT>>::value &&
-                         std::is_floating_point<ValT>::value ||
-                     std::is_same<ValT, sycl::half>::value ||
-                     std::is_same<ValT, sycl::ext::oneapi::bfloat16>::value,
+                     (std::is_floating_point<ValT>::value ||
+                      std::is_same<ValT, sycl::half>::value ||
+                      std::is_same<ValT, sycl::ext::oneapi::bfloat16>::value),
                  OrderedT<ValT>>
 convertToOrdered(ValT value) {
   OrderedT<ValT> uvalue = *reinterpret_cast<OrderedT<ValT> *>(&value);
