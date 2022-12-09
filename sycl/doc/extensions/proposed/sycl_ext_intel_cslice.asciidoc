@@ -78,8 +78,11 @@ device by cslice if the driver is in "2 CCS Mode" or "4 CCS Mode".  When in
 4 CCS Mode, a tile can be partitioned into four cslice sub-devices.
 
 This type of partitioning is currently supported only at the "tile" level.
-Therefore, a device must first be partitioned into per-tile sub-devices via
-`partition_by_affinity_domain`, and then each of the resulting sub-devices can
+A device should be queried using `info::device::partition_properties` to
+determine if it supports partitioning by `ext_intel_partition_by_cslice`. If a
+device does not support partitioning by `ext_intel_partition_by_cslice` it may
+first need to be partitioned into per-tile sub-devices via
+`partition_by_affinity_domain`, and then each of the resulting sub-devices may
 be further partitioned by `ext_intel_partition_by_cslice`.
 
 It is important to understand that the device driver virtualizes work
