@@ -174,7 +174,8 @@ sycl::ext::oneapi::bfloat16 hmax(sycl::ext::oneapi::bfloat16 b1,
     return b2;
   else if (hisnan(b2))
     return b1;
-  else if (((b1a | b2a) == 0x8000) && ((b1a & b2a) == 0x0))
+  else if (((b1a | b2a) == static_cast<uint16_t>(0x8000)) &&
+           ((b1a & b2a) == 0x0))
     return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
                               static_cast<uint16_t>(0x0));
   else {
@@ -189,7 +190,8 @@ sycl::ext::oneapi::bfloat16 hmax_nan(sycl::ext::oneapi::bfloat16 b1,
   uint16_t b2a = __builtin_bit_cast(uint16_t, b2);
   if (hisnan(b1) || hisnan(b2))
     return __builtin_bit_cast(sycl::ext::oneapi::bfloat16, canonical_nan);
-  else if (((b1a | b2a) == 0x8000) && ((b1a & b2a) == 0x0))
+  else if (((b1a | b2a) == static_cast<uint16_t>(0x8000)) &&
+           ((b1a & b2a) == 0x0))
     return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
                               static_cast<uint16_t>(0x0));
   else
@@ -207,7 +209,8 @@ sycl::ext::oneapi::bfloat16 hmin(sycl::ext::oneapi::bfloat16 b1,
     return b2;
   else if (hisnan(b2))
     return b1;
-  else if (((b1a | b2a) == 0x8000) && ((b1a & b2a) == 0x0))
+  else if (((b1a | b2a) == static_cast<uint16_t>(0x8000)) &&
+           ((b1a & b2a) == 0x0))
     return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
                               static_cast<uint16_t>(0x8000));
   else {
@@ -222,7 +225,8 @@ sycl::ext::oneapi::bfloat16 hmin_nan(sycl::ext::oneapi::bfloat16 b1,
   uint16_t b2a = __builtin_bit_cast(uint16_t, b2);
   if (hisnan(b1) || hisnan(b2))
     return __builtin_bit_cast(sycl::ext::oneapi::bfloat16, canonical_nan);
-  else if (((b1a | b2a) == 0x8000) && ((b1a & b2a) == 0x0))
+  else if (((b1a | b2a) == static_cast<uint16_t>(0x8000)) &&
+           ((b1a & b2a) == 0x0))
     return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
                               static_cast<uint16_t>(0x8000));
   else
@@ -232,14 +236,16 @@ sycl::ext::oneapi::bfloat16 hmin_nan(sycl::ext::oneapi::bfloat16 b1,
 // Bfloat16 Arithmetic utils
 sycl::ext::oneapi::bfloat16 hneg(sycl::ext::oneapi::bfloat16 b) {
   uint16_t bf16_bits = __builtin_bit_cast(uint16_t, b);
-  return hisnan(b) ? b
-                   : (__builtin_bit_cast(sycl::ext::oneapi::bfloat16,
-                                         (bf16_bits ^ 0x8000)));
+  uint16_t bf16_bits_n = bf16_bits ^ static_cast<uint16_t>(0x8000);
+  return hisnan(b)
+             ? b
+             : (__builtin_bit_cast(sycl::ext::oneapi::bfloat16, bf16_bits_n));
 }
 
 sycl::ext::oneapi::bfloat16 habs(sycl::ext::oneapi::bfloat16 b) {
   uint16_t bf16_bits = __builtin_bit_cast(uint16_t, b);
-  return (hisnan(b) || !(bf_bits & 0x8000)) ? b : hneg(b);
+  return (hisnan(b) || !(bf16_bits & static_cast<uint16_t>(0x8000))) ? b
+                                                                     : hneg(b);
 }
 
 sycl::ext::oneapi::bfloat16 hadd(sycl::ext::oneapi::bfloat16 b1,
@@ -249,9 +255,10 @@ sycl::ext::oneapi::bfloat16 hadd(sycl::ext::oneapi::bfloat16 b1,
 
 sycl::ext::oneapi::bfloat16 hadd_sat(sycl::ext::oneapi::bfloat16 b1,
                                      sycl::ext::oneapi::bfloat16 b2) {
-  float f1 = bfloat162float(b1);
-  float f2 = bfloat162float(b2);
-  return float2bfloat16(sycl::clamp((f1 + f2), 0.f, 1.0f));
+  float f = bfloat162float(b1) + bfloat162float(b2);
+  return sycl::isnan(f) ? __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
+                                             static_cast<uint16_t>(0x0))
+                        : float2bfloat16(sycl::clamp(f, 0.f, 1.0f));
 }
 
 sycl::ext::oneapi::bfloat16 hsub(sycl::ext::oneapi::bfloat16 b1,
@@ -261,9 +268,10 @@ sycl::ext::oneapi::bfloat16 hsub(sycl::ext::oneapi::bfloat16 b1,
 
 sycl::ext::oneapi::bfloat16 hsub_sat(sycl::ext::oneapi::bfloat16 b1,
                                      sycl::ext::oneapi::bfloat16 b2) {
-  float f1 = bfloat162float(b1);
-  float f2 = bfloat162float(b2);
-  return float2bfloat16(sycl::clamp((f1 - f2), 0.f, 1.0f));
+  float f = bfloat162float(b1) - bfloat162float(b2);
+  return sycl::isnan(f) ? __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
+                                             static_cast<uint16_t>(0x0))
+                        : float2bfloat16(sycl::clamp(f, 0.f, 1.0f));
 }
 
 sycl::ext::oneapi::bfloat16 hmul(sycl::ext::oneapi::bfloat16 b1,
@@ -271,11 +279,12 @@ sycl::ext::oneapi::bfloat16 hmul(sycl::ext::oneapi::bfloat16 b1,
   return b1 * b2;
 }
 
-sycl::ext::oneapi::bfloat16 hadd_sat(sycl::ext::oneapi::bfloat16 b1,
+sycl::ext::oneapi::bfloat16 hmul_sat(sycl::ext::oneapi::bfloat16 b1,
                                      sycl::ext::oneapi::bfloat16 b2) {
-  float f1 = bfloat162float(b1);
-  float f2 = bfloat162float(b2);
-  return float2bfloat16(sycl::clamp((f1 * f2), 0.f, 1.0f));
+  float f = bfloat162float(b1) * bfloat162float(b2);
+  return sycl::isnan(f) ? __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
+                                             static_cast<uint16_t>(0x0))
+                        : float2bfloat16(sycl::clamp(f, 0.f, 1.0f));
 }
 
 sycl::ext::oneapi::bfloat16 hdiv(sycl::ext::oneapi::bfloat16 b1,
@@ -295,10 +304,11 @@ sycl::ext::oneapi::bfloat16 hfma(sycl::ext::oneapi::bfloat16 b1,
 sycl::ext::oneapi::bfloat16 hfma_sat(sycl::ext::oneapi::bfloat16 b1,
                                      sycl::ext::oneapi::bfloat16 b2,
                                      sycl::ext::oneapi::bfloat16 b3) {
-  float f1 = bfloat162float(b1);
-  float f2 = bfloat162float(b2);
-  float f3 = bfloat162float(b3);
-  return float2bfloat16(sycl::clamp(sycl::fma(f1, f2, f3), 0.f, 1.0f));
+  float f =
+      sycl::fma(bfloat162float(b1), bfloat162float(b2), bfloat162float(b3));
+  return sycl::isnan(f) ? __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
+                                             static_cast<uint16_t>(0))
+                        : float2bfloat16(sycl::clamp(f, 0.f, 1.0f));
 }
 
 sycl::ext::oneapi::bfloat16 hfma_relu(sycl::ext::oneapi::bfloat16 b1,
@@ -313,6 +323,94 @@ sycl::ext::oneapi::bfloat16 hfma_relu(sycl::ext::oneapi::bfloat16 b1,
                               static_cast<uint16_t>(0x7FC0));
   return (f4 < 0.f) ? float2bfloat16(0.f) : float2bfloat16(f4);
 }
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+habs2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res{habs(b[0]), habs(b[1])};
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hadd2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+      sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  return b1 + b2;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hadd2_sat(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+          sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res{hadd_sat(b1[0], b2[0]),
+                                                   hadd_sat(b1[1], b2[1])};
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hsub2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+      sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  return b1 - b2;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hsub2_sat(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+          sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res{hsub_sat(b1[0], b2[0]),
+                                                   hsub_sat(b1[1], b2[1])};
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hmul2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+      sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  return b1 * b2;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hmul2_sat(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+          sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res{hmul_sat(b1[0], b2[0]),
+                                                   hmul_sat(b1[1], b2[1])};
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hdiv2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+      sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  return b1 / b2;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hneg2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res{hneg(b[0]), hneg(b[1])};
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hfma2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+      sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2,
+      sycl::marray<sycl::ext::oneapi::bfloat16, 2> b3) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res{hfma(b1[0], b2[0], b3[0]),
+                                                   hfma(b1[1], b2[1], b3[1])};
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hfma2_sat(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+          sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2,
+          sycl::marray<sycl::ext::oneapi::bfloat16, 2> b3) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res{
+      hfma_sat(b1[0], b2[0], b3[0]), hfma_sat(b1[1], b2[1], b3[1])};
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hfma2_relu(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+           sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2,
+           sycl::marray<sycl::ext::oneapi::bfloat16, 2> b3) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res{
+      hfma_relu(b1[0], b2[0], b3[0]), hfma_relu(b1[1], b2[1], b3[1])};
+  return res;
+}
+
 #endif
 } // namespace math
 } // namespace intel
