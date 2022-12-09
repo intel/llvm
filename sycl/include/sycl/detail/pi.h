@@ -1837,7 +1837,7 @@ __SYCL_EXPORT pi_result piextUSMEnqueueMemset2D(
 /// \param dst_pitch is the total width of the destination memory including
 /// padding
 /// \param src_ptr is the data to be copied
-/// \param dst_pitch is the total width of the source memory including padding
+/// \param src_pitch is the total width of the source memory including padding
 /// \param width is width in bytes of each row to be copied
 /// \param height is height the columns to be copied
 /// \param num_events_in_waitlist is the number of events to wait on
