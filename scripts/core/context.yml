@@ -70,6 +70,15 @@ etors:
     - name: DEVICES
       value: "2"
       desc: "[$x_context_handle_t...] The array of the device handles in the context"
+    - name: USM_MEMCPY2D_SUPPORT
+      value: "3"
+      desc: "[bool] to indicate if the $xEnqueueUSMMemcpy2D entrypoint is supported."
+    - name: USM_FILL2D_SUPPORT
+      value: "4"
+      desc: "[bool] to indicate if the $xEnqueueUSMFill2D entrypoint is supported."
+    - name: USM_MEMSET2D_SUPPORT
+      value: "5"
+      desc: "[bool] to indicate if the $xEnqueueUSMMemset2D entrypoint is supported."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Releases the context handle reference indicating end of its usage"

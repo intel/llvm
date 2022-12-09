@@ -1049,3 +1049,129 @@ returns:
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to fill 2D USM memory."
+class: $xEnqueue
+name: USMFill2D
+ordinal: "0"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue to submit to."
+    - type: void*
+      name: pMem
+      desc: "[in] pointer to memory to be filled."
+    - type: size_t
+      name: pitch
+      desc: "[in] the total width of the destination memory including padding."
+    - type: size_t
+      name: patternSize
+      desc: "[in] the size in bytes of the pattern."
+    - type: "const void*"
+      name: pPattern
+      desc: "[in] pointer with the bytes of the pattern to set."
+    - type: size_t
+      name: width
+      desc: "[in] the width in bytes of each row to fill." 
+    - type: size_t
+      name: height
+      desc: "[in] the height of the columns to fill."
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event. 
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [in,out][optional] return an event object that identifies this particular kernel execution instance.
+returns:
+  - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to set 2D USM memory."
+class: $xEnqueue
+name: USMMemset2D
+ordinal: "0"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue to submit to."
+    - type: void*
+      name: pMem
+      desc: "[in] pointer to memory to be filled."
+    - type: size_t
+      name: pitch
+      desc: "[in] the total width of the destination memory including padding."
+    - type: int
+      name: value
+      desc: "[in] the value to fill into the region in pMem."
+    - type: size_t
+      name: width
+      desc: "[in] the width in bytes of each row to set." 
+    - type: size_t
+      name: height
+      desc: "[in] the height of the columns to set."
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event. 
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [in,out][optional] return an event object that identifies this particular kernel execution instance.
+returns:
+  - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to copy 2D USM memory."
+class: $xEnqueue
+name: USMMemcpy2D
+ordinal: "0"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue to submit to."
+    - type: bool
+      name: blocking
+      desc: "[in] indicates if this operation should block the host."
+    - type: void*
+      name: pDst
+      desc: "[in] pointer to memory where data will be copied."
+    - type: size_t
+      name: dstPitch
+      desc: "[in] the total width of the source memory including padding."
+    - type: "const void*"
+      name: pSrc
+      desc: "[in] pointer to memory to be copied."
+    - type: size_t
+      name: srcPitch
+      desc: "[in] the total width of the source memory including padding."
+    - type: size_t
+      name: width
+      desc: "[in] the width in bytes of each row to be copied."
+    - type: size_t
+      name: height
+      desc: "[in] the height of columns to be copied."
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event. 
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [in,out][optional] return an event object that identifies this particular kernel execution instance.
+returns:
+  - $X_RESULT_ERROR_UNSUPPORTED_FEATURE

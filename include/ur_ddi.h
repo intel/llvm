@@ -1100,6 +1100,51 @@ typedef ur_result_t (UR_APICALL *ur_pfnEnqueueUSMMemAdvice_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueUSMFill2D 
+typedef ur_result_t (UR_APICALL *ur_pfnEnqueueUSMFill2D_t)(
+    ur_queue_handle_t,
+    void*,
+    size_t,
+    size_t,
+    const void*,
+    size_t,
+    size_t,
+    uint32_t,
+    const ur_event_handle_t*,
+    ur_event_handle_t*
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueUSMMemset2D 
+typedef ur_result_t (UR_APICALL *ur_pfnEnqueueUSMMemset2D_t)(
+    ur_queue_handle_t,
+    void*,
+    size_t,
+    int,
+    size_t,
+    size_t,
+    uint32_t,
+    const ur_event_handle_t*,
+    ur_event_handle_t*
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueUSMMemcpy2D 
+typedef ur_result_t (UR_APICALL *ur_pfnEnqueueUSMMemcpy2D_t)(
+    ur_queue_handle_t,
+    bool,
+    void*,
+    size_t,
+    const void*,
+    size_t,
+    size_t,
+    size_t,
+    uint32_t,
+    const ur_event_handle_t*,
+    ur_event_handle_t*
+    );
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Enqueue functions pointers
 typedef struct ur_enqueue_dditable_t
 {
@@ -1122,6 +1167,9 @@ typedef struct ur_enqueue_dditable_t
     ur_pfnEnqueueUSMMemcpy_t                                    pfnUSMMemcpy;
     ur_pfnEnqueueUSMPrefetch_t                                  pfnUSMPrefetch;
     ur_pfnEnqueueUSMMemAdvice_t                                 pfnUSMMemAdvice;
+    ur_pfnEnqueueUSMFill2D_t                                    pfnUSMFill2D;
+    ur_pfnEnqueueUSMMemset2D_t                                  pfnUSMMemset2D;
+    ur_pfnEnqueueUSMMemcpy2D_t                                  pfnUSMMemcpy2D;
 } ur_enqueue_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////
