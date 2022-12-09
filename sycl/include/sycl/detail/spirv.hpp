@@ -105,8 +105,9 @@ template <typename Group> bool GroupAny(bool pred) {
 // Native broadcasts map directly to a SPIR-V GroupBroadcast intrinsic
 // FIXME: Do not special-case for half once all backends support all data types.
 template <typename T>
-using is_native_broadcast = bool_constant<detail::is_arithmetic<T>::value &&
-                                          !std::is_same<T, half>::value>;
+using is_native_broadcast =
+    std::bool_constant<detail::is_arithmetic<T>::value &&
+                       !std::is_same<T, half>::value>;
 
 template <typename T, typename IdT = size_t>
 using EnableIfNativeBroadcast = std::enable_if_t<
@@ -115,7 +116,7 @@ using EnableIfNativeBroadcast = std::enable_if_t<
 // Bitcast broadcasts can be implemented using a single SPIR-V GroupBroadcast
 // intrinsic, but require type-punning via an appropriate integer type
 template <typename T>
-using is_bitcast_broadcast = bool_constant<
+using is_bitcast_broadcast = std::bool_constant<
     !is_native_broadcast<T>::value && std::is_trivially_copyable<T>::value &&
     (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8)>;
 
@@ -132,9 +133,9 @@ using ConvertToNativeBroadcastType_t = select_cl_scalar_integral_unsigned_t<T>;
 // - At most one 32-bit, 16-bit and 8-bit chunk left over
 template <typename T>
 using is_generic_broadcast =
-    bool_constant<!is_native_broadcast<T>::value &&
-                  !is_bitcast_broadcast<T>::value &&
-                  std::is_trivially_copyable<T>::value>;
+    std::bool_constant<!is_native_broadcast<T>::value &&
+                       !is_bitcast_broadcast<T>::value &&
+                       std::is_trivially_copyable<T>::value>;
 
 template <typename T, typename IdT = size_t>
 using EnableIfGenericBroadcast = std::enable_if_t<
@@ -142,10 +143,11 @@ using EnableIfGenericBroadcast = std::enable_if_t<
 
 // FIXME: Disable widening once all backends support all data types.
 template <typename T>
-using WidenOpenCLTypeTo32_t = conditional_t<
+using WidenOpenCLTypeTo32_t = std::conditional_t<
     std::is_same<T, cl_char>() || std::is_same<T, cl_short>(), cl_int,
-    conditional_t<std::is_same<T, cl_uchar>() || std::is_same<T, cl_ushort>(),
-                  cl_uint, T>>;
+    std::conditional_t<std::is_same<T, cl_uchar>() ||
+                           std::is_same<T, cl_ushort>(),
+                       cl_uint, T>>;
 
 // Broadcast with scalar local index
 // Work-group supports any integral type

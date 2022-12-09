@@ -8,7 +8,7 @@
 
 #pragma once
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/group_sort_impl.hpp>
 #include <sycl/detail/type_traits.hpp>
@@ -25,7 +25,7 @@ namespace detail {
 template <typename T, typename = void> struct has_difference_type {};
 
 template <typename T>
-struct has_difference_type<T, sycl::detail::void_t<typename T::difference_type>>
+struct has_difference_type<T, std::void_t<typename T::difference_type>>
     : std::true_type {};
 
 template <typename T> struct has_difference_type<T *> : std::true_type {};
@@ -49,9 +49,8 @@ struct is_sorter_impl {
 template <typename Sorter, typename Group,
           typename Ptr> // multi_ptr has difference_type and don't have other
                         // iterator's fields
-struct is_sorter_impl<
-    Sorter, Group, Ptr,
-    sycl::detail::void_t<typename has_difference_type<Ptr>::type>> {
+struct is_sorter_impl<Sorter, Group, Ptr,
+                      std::void_t<typename has_difference_type<Ptr>::type>> {
   template <typename G = Group>
   static decltype(std::declval<Sorter>()(std::declval<G>(), std::declval<Ptr>(),
                                          std::declval<Ptr>()),
@@ -137,4 +136,4 @@ joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
 } // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-#endif // __cplusplus >=201703L
+#endif

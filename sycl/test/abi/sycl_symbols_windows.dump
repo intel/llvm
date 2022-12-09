@@ -799,6 +799,7 @@
 ?depends_on@handler@_V1@sycl@@QEAAXAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
 ?depends_on@handler@_V1@sycl@@QEAAXVevent@23@@Z
 ?destructorNotification@buffer_impl@detail@_V1@sycl@@QEAAXPEAX@Z
+?detachMemoryObject@SYCLMemObjT@detail@_V1@sycl@@QEBAXAEBV?$shared_ptr@VSYCLMemObjT@detail@_V1@sycl@@@std@@@Z
 ?determineHostPtr@SYCLMemObjT@detail@_V1@sycl@@IEAAXAEBV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@_NAEAPEAXAEA_N@Z
 ?device_has@queue@_V1@sycl@@AEBA_NW4aspect@23@@Z
 ?die@pi@detail@_V1@sycl@@YAXPEBD@Z
@@ -987,6 +988,7 @@
 ?handleHostData@SYCLMemObjT@detail@_V1@sycl@@QEAAXAEBV?$shared_ptr@X@std@@_K_N@Z
 ?handleHostData@SYCLMemObjT@detail@_V1@sycl@@QEAAXPEAX_K@Z
 ?handleHostData@SYCLMemObjT@detail@_V1@sycl@@QEAAXPEBX_K@Z
+?handleRelease@buffer_plain@detail@_V1@sycl@@IEBAXXZ
 ?has@device@_V1@sycl@@QEBA_NW4aspect@23@@Z
 ?has@platform@_V1@sycl@@QEBA_NW4aspect@23@@Z
 ?hasUserDataPtr@SYCLMemObjT@detail@_V1@sycl@@QEBA_NXZ

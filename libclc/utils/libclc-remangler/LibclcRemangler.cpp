@@ -178,7 +178,8 @@ public:
   Remangler(ASTContext *ContextAST, const Node *Root,
             SmallDenseMap<const char *, const char *> TypeReplacements)
       : ContextAST(ContextAST), Root(Root), TypeReplacements(TypeReplacements) {
-    MangleContext.reset(ContextAST->createMangleContext());
+    MangleContext.reset(ItaniumMangleContext::create(
+        *ContextAST, ContextAST->getDiagnostics()));
   }
 
   bool hasFailed() { return Failed; }

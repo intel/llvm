@@ -42,10 +42,9 @@ struct init_mode_key {
 struct implement_in_csr_key {
   template <bool Enable>
   using value_t =
-      property_value<implement_in_csr_key, sycl::detail::bool_constant<Enable>>;
+      property_value<implement_in_csr_key, std::bool_constant<Enable>>;
 };
 
-#if __cplusplus >= 201703L // inline variables
 inline constexpr device_image_scope_key::value_t device_image_scope;
 
 template <host_access_enum Access>
@@ -69,7 +68,6 @@ template <bool Enable>
 inline constexpr implement_in_csr_key::value_t<Enable> implement_in_csr;
 inline constexpr implement_in_csr_key::value_t<true> implement_in_csr_on;
 inline constexpr implement_in_csr_key::value_t<false> implement_in_csr_off;
-#endif // __cplusplus >= 201703L
 
 template <> struct is_property_key<device_image_scope_key> : std::true_type {};
 template <> struct is_property_key<host_access_key> : std::true_type {};

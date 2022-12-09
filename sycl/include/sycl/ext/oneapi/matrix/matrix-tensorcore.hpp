@@ -202,7 +202,6 @@ constexpr int get_layout_id<
   return 1;
 }
 
-#if __cplusplus >= 201703L // if constexpr usage
 template <typename S, typename T,
           sycl::ext::oneapi::experimental::matrix::matrix_use Use,
           size_t NumRows, size_t NumCols,
@@ -383,7 +382,6 @@ struct joint_matrix_load_impl<
     }
   }
 };
-#endif // __cplusplus >= 201703L
 
 template <typename T, size_t NumRows, size_t NumCols,
           sycl::ext::oneapi::experimental::matrix::matrix_layout Layout,
@@ -397,7 +395,6 @@ struct joint_matrix_store_impl {
         multi_ptr<T, Space, IsDecorated> dst, size_t stride);
 };
 
-#if __cplusplus >= 201703L // if constexpr usage
 template <typename T, size_t NumRows, size_t NumCols,
           sycl::ext::oneapi::experimental::matrix::matrix_layout Layout,
           access::address_space Space, access::decorated IsDecorated>
@@ -461,7 +458,6 @@ struct joint_matrix_store_impl<
     }
   }
 };
-#endif // __cplusplus >= 201703L
 
 template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
           sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutA,
@@ -518,7 +514,6 @@ constexpr int get_layout_pair_id<
   return 3;
 }
 
-#if __cplusplus >= 201703L // if constexpr usage
 template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
           sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutA,
           sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutB,
@@ -684,8 +679,6 @@ struct joint_matrix_mad_impl<
     return D;
   }
 };
-#endif // __cplusplus >= 201703L
-
 } // namespace detail
 
 namespace experimental::matrix {
