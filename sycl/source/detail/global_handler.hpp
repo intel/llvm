@@ -75,13 +75,13 @@ public:
   static void registerDefaultContextReleaseHandler();
 
   void unloadPlugins();
+  void releaseDefaultContexts();
   void drainThreadPool();
 
   // For testing purposes only
   void attachScheduler(Scheduler *Scheduler);
 
 private:
-  friend void releaseDefaultContexts();
   friend void shutdown();
 
   // Constructor and destructor are declared out-of-line to allow incomplete
