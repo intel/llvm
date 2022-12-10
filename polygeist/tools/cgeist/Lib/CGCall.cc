@@ -499,9 +499,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
             return CommonArrayToPointer(ValueCategory(
                 Glob.getOrCreateGlobalLLVMString(
                     Loc, Builder, Val,
-                    isa<mlir::gpu::GPUModuleOp>(Function->getParentOp())
-                        ? FunctionContext::SYCLDevice
-                        : FunctionContext::Host),
+                    mlirclang::getFuncContext(Function)),
                 /*isReference*/ true));
           }
         }

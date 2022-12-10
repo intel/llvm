@@ -85,4 +85,10 @@ gpu::GPUModuleOp getDeviceModule(ModuleOp Module) {
       Module.lookupSymbol(MLIRASTConsumer::DeviceModuleName));
 }
 
+FunctionContext getFuncContext(FunctionOpInterface Function) {
+  return isa<mlir::gpu::GPUModuleOp>(Function->getParentOp())
+                        ? FunctionContext::SYCLDevice
+                        : FunctionContext::Host;
+}
+
 } // namespace mlirclang
