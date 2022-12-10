@@ -87,8 +87,8 @@ gpu::GPUModuleOp getDeviceModule(ModuleOp Module) {
 
 FunctionContext getFuncContext(FunctionOpInterface Function) {
   return isa<mlir::gpu::GPUModuleOp>(Function->getParentOp())
-                        ? FunctionContext::SYCLDevice
-                        : FunctionContext::Host;
+             ? FunctionContext::SYCLDevice
+             : FunctionContext::Host;
 }
 
 } // namespace mlirclang

@@ -498,8 +498,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
             std::string Val = cast<llvm::GlobalVariable>(LC)->getName().str();
             return CommonArrayToPointer(ValueCategory(
                 Glob.getOrCreateGlobalLLVMString(
-                    Loc, Builder, Val,
-                    mlirclang::getFuncContext(Function)),
+                    Loc, Builder, Val, mlirclang::getFuncContext(Function)),
                 /*isReference*/ true));
           }
         }

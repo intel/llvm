@@ -137,10 +137,10 @@ MLIRScanner::VisitCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *Expr) {
 
 ValueCategory MLIRScanner::VisitStringLiteral(clang::StringLiteral *Expr) {
   auto Loc = getMLIRLocation(Expr->getExprLoc());
-  return ValueCategory(Glob.getOrCreateGlobalLLVMString(
-                           Loc, Builder, Expr->getString(),
-                           mlirclang::getFuncContext(Function)),
-                       /*isReference*/ true);
+  return ValueCategory(
+      Glob.getOrCreateGlobalLLVMString(Loc, Builder, Expr->getString(),
+                                       mlirclang::getFuncContext(Function)),
+      /*isReference*/ true);
 }
 
 ValueCategory MLIRScanner::VisitParenExpr(clang::ParenExpr *Expr) {

@@ -67,7 +67,7 @@ FunctionContext getInputContext(const mlir::OpBuilder &Builder);
 /// Return the device module in the input module.
 mlir::gpu::GPUModuleOp getDeviceModule(mlir::ModuleOp Module);
 
-///Return the function context
+/// Return the function context
 FunctionContext getFuncContext(mlir::FunctionOpInterface Function);
 
 } // namespace mlirclang
