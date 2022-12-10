@@ -2614,7 +2614,7 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
 
         // If isn't PVC, then submissions to different CCS can be executed on
         // the same EUs still, so we cannot treat them as sub-sub-devices.
-        if (PiSubDevice->isPVC()) {
+        if (PiSubDevice->isPVC() || ExposeCSliceInAffinityPartitioning) {
           // Create PI sub-sub-devices with the sub-device for all the ordinals.
           // Each {ordinal, index} points to a specific CCS which constructs
           // a sub-sub-device at this point.
