@@ -3,11 +3,11 @@
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 %s -o %t.out
 // RUN: %t.out
 
-#include <sycl/ext/intel/experimental/device_architecture.hpp>
+#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
-using namespace sycl::ext::intel::experimental;
+using namespace sycl::ext::oneapi::experimental;
 
 int main() {
   std::vector<int> vec(2);
