@@ -3,6 +3,7 @@
 CR_TAG=$compute_runtime_tag
 IGC_TAG=$igc_tag
 CM_TAG=$cm_tag
+L0_TAG=$level_zero_tag
 TBB_TAG=$tbb_tag
 FPGA_TAG=$fpgaemu_tag
 CPU_TAG=$cpu_tag
@@ -47,6 +48,9 @@ InstallIGFX () {
     | wget -qi -
   sha256sum -c *.sum && \
   python3 $LOCATION/get_release.py intel/cm-compiler $CM_TAG \
+    | grep ".*deb" \
+    | wget -qi -
+  python3 $LOCATION/get_release.py oneapi-src/level-zero $L0_TAG \
     | grep ".*deb" \
     | wget -qi -
   dpkg -i *.deb && rm *.deb *.sum
