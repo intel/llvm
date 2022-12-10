@@ -15,8 +15,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 
 template <memory_order> struct order_tag_t {
   explicit order_tag_t() = default;
@@ -114,8 +113,6 @@ atomic_accessor(buffer<DataT, Dimensions, AllocatorT>, handler,
                 order_tag_t<Order>, scope_tag_t<Scope>, property_list = {})
     -> atomic_accessor<DataT, Dimensions, Order, Scope, target::device,
                        access::placeholder::false_t>;
-} // namespace oneapi
-} // namespace ext
-
+} // namespace ext::oneapi
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

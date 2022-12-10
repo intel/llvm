@@ -13,9 +13,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 namespace detail {
 
 // Base class for property values with a single non-type value
@@ -86,8 +84,6 @@ struct IsCompileTimePropertyValue<property_value<PropertyT, PropertyValueTs...>>
     : IsCompileTimeProperty<PropertyT> {};
 
 } // namespace detail
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

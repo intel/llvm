@@ -13,8 +13,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 
 template <typename T = void> using plus = std::plus<T>;
 template <typename T = void> using multiplies = std::multiplies<T>;
@@ -24,8 +23,7 @@ template <typename T = void> using bit_and = std::bit_and<T>;
 template <typename T = void> using maximum = sycl::maximum<T>;
 template <typename T = void> using minimum = sycl::minimum<T>;
 
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 #ifdef __SYCL_DEVICE_ONLY__
 namespace detail {
