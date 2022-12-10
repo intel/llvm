@@ -3308,7 +3308,7 @@ pi_result piDevicePartition(pi_device Device,
     return Res;
   }
 
-  auto EffectiveSize = [&]() -> decltype(Device->SubDevices.size()) {
+  auto EffectiveNumDevices = [&]() -> decltype(Device->SubDevices.size()) {
     if (Device->SubDevices.size() == 0)
       return 0;
 
@@ -3332,7 +3332,7 @@ pi_result piDevicePartition(pi_device Device,
   }();
 
   if (OutNumDevices) {
-    *OutNumDevices = EffectiveSize;
+    *OutNumDevices = EffectiveNumDevices;
   }
 
   if (OutDevices) {
@@ -3340,7 +3340,7 @@ pi_result piDevicePartition(pi_device Device,
     // Currently supported partitioning (by affinity domain/numa) would always
     // partition to all sub-devices.
     //
-    PI_ASSERT(NumDevices == EffectiveSize, PI_ERROR_INVALID_VALUE);
+    PI_ASSERT(NumDevices == EffectiveNumDevices, PI_ERROR_INVALID_VALUE);
 
     for (uint32_t I = 0; I < NumDevices; I++) {
       OutDevices[I] = Device->SubDevices[I];
