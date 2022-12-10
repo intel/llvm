@@ -15,10 +15,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
-namespace matrix {
+namespace ext::oneapi::experimental::matrix {
 
 enum class matrix_layout { row_major, col_major, packed_a, packed_b };
 
@@ -620,9 +617,6 @@ public:
 
 #undef SPV_MATRIX_LAYOUT_TRAITS
 
-} // namespace matrix
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental::matrix
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

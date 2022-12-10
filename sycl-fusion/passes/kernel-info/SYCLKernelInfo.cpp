@@ -25,8 +25,8 @@ llvm::AnalysisKey SYCLModuleInfoAnalysis::Key;
 
 void SYCLModuleInfoAnalysis::loadModuleInfoFromFile() {
   DiagnosticPrinterRawOStream Printer{llvm::errs()};
-  llvm::ErrorOr<std::unique_ptr<MemoryBuffer>> FileOrError =
-      llvm::MemoryBuffer::getFile(ModuleInfoFilePath);
+  ErrorOr<std::unique_ptr<MemoryBuffer>> FileOrError =
+      MemoryBuffer::getFile(ModuleInfoFilePath);
   if (std::error_code EC = FileOrError.getError()) {
     Printer << "Could not open file " << ModuleInfoFilePath << " due to error "
             << EC.message() << "\n";
@@ -50,8 +50,8 @@ SYCLModuleInfoAnalysis::run(Module &, ModuleAnalysisManager &) {
   return {ModuleInfo.get()};
 }
 
-PreservedAnalyses SYCLModuleInfoPrinter::run(llvm::Module &Mod,
-                                             llvm::ModuleAnalysisManager &MAM) {
+PreservedAnalyses SYCLModuleInfoPrinter::run(Module &Mod,
+                                             ModuleAnalysisManager &MAM) {
   jit_compiler::SYCLModuleInfo *ModuleInfo =
       MAM.getResult<SYCLModuleInfoAnalysis>(Mod).ModuleInfo;
   if (!ModuleInfo) {

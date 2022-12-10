@@ -148,7 +148,7 @@ ThreadPool &GlobalHandler::getHostTaskThreadPool() {
   return TP;
 }
 
-void releaseDefaultContexts() {
+void GlobalHandler::releaseDefaultContexts() {
   // Release shared-pointers to SYCL objects.
 #ifndef _WIN32
   GlobalHandler::instance().MPlatformToDefaultContextCache.Inst.reset(nullptr);
@@ -163,7 +163,9 @@ void releaseDefaultContexts() {
 }
 
 struct DefaultContextReleaseHandler {
-  ~DefaultContextReleaseHandler() { releaseDefaultContexts(); }
+  ~DefaultContextReleaseHandler() {
+    GlobalHandler::instance().releaseDefaultContexts();
+  }
 };
 
 void GlobalHandler::registerDefaultContextReleaseHandler() {
@@ -210,7 +212,7 @@ void shutdown() {
   // prior to closing the plugins.
   // Note: Releasing a default context here may cause failures in plugins with
   // global state as the global state may have been released.
-  releaseDefaultContexts();
+  GlobalHandler::instance().releaseDefaultContexts();
 
   // First, release resources, that may access plugins.
   GlobalHandler::instance().MPlatformCache.Inst.reset(nullptr);

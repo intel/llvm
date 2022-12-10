@@ -38,13 +38,13 @@ struct ConstantInfo {
 /// Reads constants from metadata.
 static Expected<SmallVector<ConstantInfo>> getCPFromMD(Function *F) {
   SmallVector<ConstantInfo> Info;
-  llvm::MDNode *MD = F->getMetadata(SYCLCP::Key);
+  MDNode *MD = F->getMetadata(SYCLCP::Key);
   if (!MD) {
     return createStringError(inconvertibleErrorCode(),
                              "Private promotion metadata not available");
   }
   for (auto I : enumerate(MD->operands())) {
-    llvm::Expected<SmallVector<unsigned char>> Val =
+    Expected<SmallVector<unsigned char>> Val =
         decodeConstantMetadata(I.value());
     if (auto Err = Val.takeError()) {
       // Do nothing
@@ -99,8 +99,7 @@ static Error initializeAggregateConstant(const unsigned char **ValPtr,
                                          ArrayRef<Value *> Indices) {
   if (CurrentTy->isIntegerTy() || CurrentTy->isFloatTy() ||
       CurrentTy->isDoubleTy()) {
-    llvm::Expected<llvm::Value *> CVal =
-        getConstantValue(ValPtr, CurrentTy, false);
+    Expected<Value *> CVal = getConstantValue(ValPtr, CurrentTy, false);
     if (auto E = CVal.takeError()) {
       return E;
     }
@@ -114,7 +113,7 @@ static Error initializeAggregateConstant(const unsigned char **ValPtr,
       SmallVector<Value *> ArrayIndices;
       ArrayIndices.insert(ArrayIndices.begin(), Indices.begin(), Indices.end());
       ArrayIndices.push_back(Builder.getInt32(I));
-      llvm::Error RetCode =
+      Error RetCode =
           initializeAggregateConstant(ValPtr, ArrTy->getElementType(), Builder,
                                       Alloca, RootTy, ArrayIndices);
       if (RetCode) {
@@ -131,7 +130,7 @@ static Error initializeAggregateConstant(const unsigned char **ValPtr,
       StructIndices.insert(StructIndices.begin(), Indices.begin(),
                            Indices.end());
       StructIndices.push_back(Builder.getInt32(IdxElem.index()));
-      llvm::Error RetCode = initializeAggregateConstant(
+      Error RetCode = initializeAggregateConstant(
           ValPtr, IdxElem.value(), Builder, Alloca, RootTy, StructIndices);
       if (RetCode) {
         return RetCode;
@@ -150,10 +149,8 @@ static Expected<Value *> createAggregateConstant(const unsigned char **ValPtr,
                                                  Type *Ty,
                                                  IRBuilder<> &Builder) {
   auto *Alloca = Builder.CreateAlloca(Ty);
-  SmallVector<Value *> Indices;
-  Indices.push_back(Builder.getInt32(0));
-  llvm::Error RetCode =
-      initializeAggregateConstant(ValPtr, Ty, Builder, Alloca, Ty, Indices);
+  Error RetCode = initializeAggregateConstant(ValPtr, Ty, Builder, Alloca, Ty,
+                                              Builder.getInt32(0));
   if (RetCode) {
     return std::move(RetCode);
   }
@@ -167,15 +164,15 @@ static bool propagateConstants(Function *F, ArrayRef<ConstantInfo> Constants) {
   // Create aggregates constant allocations and initialization at the begin of
   // the function.
   IRBuilder<> Builder{&F->getEntryBlock().front()};
-  llvm::MDNode *MD = F->getMetadata(SYCLCP::Key);
+  MDNode *MD = F->getMetadata(SYCLCP::Key);
   auto *EmptyMDString = MDString::get(F->getContext(), "");
   for (const auto &C : Constants) {
-    llvm::Argument *Arg = F->getArg(C.Index);
+    Argument *Arg = F->getArg(C.Index);
     const unsigned char *ValPtr = C.Value.data();
     Type *ArgTy = Arg->getType();
     Value *CVal;
     if (ArgTy->isPointerTy() && Arg->hasByValAttr()) {
-      llvm::Expected<Value *> AggVal =
+      Expected<Value *> AggVal =
           createAggregateConstant(&ValPtr, Arg->getParamByValType(), Builder);
       if (auto E = AggVal.takeError()) {
         handleAllErrors(std::move(E), [](const StringError &SE) {
@@ -188,7 +185,7 @@ static bool propagateConstants(Function *F, ArrayRef<ConstantInfo> Constants) {
       }
       CVal = AggVal.get();
     } else {
-      llvm::Expected<Constant *> ScalarVal =
+      Expected<Constant *> ScalarVal =
           getConstantValue(&ValPtr, ArgTy, Arg->hasByValAttr());
       if (auto E = ScalarVal.takeError()) {
         handleAllErrors(std::move(E), [](const StringError &SE) {
@@ -236,13 +233,13 @@ static void moduleCleanup(Module &M, ModuleAnalysisManager &AM) {
 PreservedAnalyses SYCLCP::run(Module &M, ModuleAnalysisManager &AM) {
   bool Changed{false};
   SmallVector<Function *> ToUpdate;
-  for (llvm::Function &F : M) {
+  for (Function &F : M) {
     if (F.hasMetadata(Key)) {
       ToUpdate.emplace_back(&F);
     }
   }
-  for (llvm::Function *F : ToUpdate) {
-    llvm::Expected<SmallVector<ConstantInfo>> ConstantsOrErr = getCPFromMD(F);
+  for (Function *F : ToUpdate) {
+    Expected<SmallVector<ConstantInfo>> ConstantsOrErr = getCPFromMD(F);
     if (auto E = ConstantsOrErr.takeError()) {
       handleAllErrors(std::move(E), [](const StringError &SE) {
         FUSION_DEBUG(llvm::dbgs() << SE.message() << "\n");
