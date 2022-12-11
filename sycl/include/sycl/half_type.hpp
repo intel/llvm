@@ -34,15 +34,9 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-namespace ext {
-namespace intel {
-namespace esimd {
-namespace detail {
+namespace ext::intel::esimd::detail {
 class WrapperElementTypeProxy;
-} // namespace detail
-} // namespace esimd
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel::esimd::detail
 
 namespace detail {
 
