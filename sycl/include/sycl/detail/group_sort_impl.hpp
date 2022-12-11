@@ -320,22 +320,21 @@ template <typename ValT, typename Enabled = void> struct Ordered {};
 
 // for unsigned integrals we use the same type
 template <typename ValT>
-struct Ordered<ValT, std::enable_if_t<std::is_integral<ValT>::value &&
-                                      std::is_unsigned<ValT>::value>> {
+struct Ordered<ValT, std::enable_if_t<std::is_integral_v<ValT> &&
+                                      std::is_unsigned_v<ValT>>> {
   using Type = ValT;
 };
 
 // for signed integrals or floatings we map: size -> corresponding unsigned
 // integral
 template <typename ValT>
-struct Ordered<
-    ValT, std::enable_if_t<
-              (std::is_integral<ValT>::value && std::is_signed<ValT>::value) ||
-              std::is_floating_point<ValT>::value ||
-              std::is_same<ValT, sycl::half>::value ||
-              std::is_same<ValT, sycl::ext::oneapi::bfloat16>::value>> {
+struct Ordered<ValT, std::enable_if_t<
+                         (std::is_integral_v<ValT> && std::is_signed_v<ValT>) ||
+                         std::is_floating_point_v<ValT> ||
+                         std::is_same_v<ValT, sycl::half> ||
+                         std::is_same_v<ValT, sycl::ext::oneapi::bfloat16>>> {
   using Type =
-      typename GetOrdered<sizeof(ValT), std::is_integral<ValT>::value>::Type;
+      typename GetOrdered<sizeof(ValT), std::is_integral_v<ValT>>::Type;
 };
 
 // shorthand
@@ -354,8 +353,8 @@ convertToOrdered(ValT value) {
 
 // converts integral type to Ordered (in terms of bitness) type
 template <typename ValT>
-std::enable_if_t<!std::is_same<ValT, OrderedT<ValT>>::value &&
-                     std::is_integral<ValT>::value,
+std::enable_if_t<!std::is_same_v<ValT, OrderedT<ValT>> &&
+                     std::is_integral_v<ValT>,
                  OrderedT<ValT>>
 convertToOrdered(ValT value) {
   ValT result = value ^ GetOrdered<sizeof(ValT), true>::mask;
@@ -364,10 +363,10 @@ convertToOrdered(ValT value) {
 
 // converts floating type to Ordered (in terms of bitness) type
 template <typename ValT>
-std::enable_if_t<!std::is_same<ValT, OrderedT<ValT>>::value &&
-                     (std::is_floating_point<ValT>::value ||
-                      std::is_same<ValT, sycl::half>::value ||
-                      std::is_same<ValT, sycl::ext::oneapi::bfloat16>::value),
+std::enable_if_t<!std::is_same_v<ValT, OrderedT<ValT>> &&
+                     (std::is_floating_point_v<ValT> ||
+                      std::is_same_v<ValT, sycl::half> ||
+                      std::is_same_v<ValT, sycl::ext::oneapi::bfloat16>),
                  OrderedT<ValT>>
 convertToOrdered(ValT value) {
   OrderedT<ValT> uvalue = *reinterpret_cast<OrderedT<ValT> *>(&value);

@@ -123,9 +123,9 @@ public:
                    std::bitset<sizeof(ValT) * CHAR_BIT>(
                        std::numeric_limits<unsigned long long>::max()))
       : scratch(scratch_.data()), scratch_size(scratch_.size()) {
-    static_assert((std::is_arithmetic<ValT>::value ||
-                   std::is_same<ValT, sycl::half>::value ||
-                   std::is_same<ValT, sycl::ext::oneapi::bfloat16>::value),
+    static_assert((std::is_arithmetic_v<ValT> ||
+                   std::is_same_v<ValT, sycl::half> ||
+                   std::is_same_v<ValT, sycl::ext::oneapi::bfloat16>),
                   "radix sort is not usable");
 
     first_bit = 0;
