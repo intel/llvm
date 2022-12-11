@@ -32,8 +32,7 @@ protected:
   void ctorHelper() {}
 
   template <typename... PropsT, class PropT>
-  typename detail::enable_if_t<
-      std::is_base_of<DataLessPropertyBase, PropT>::value>
+  typename std::enable_if_t<std::is_base_of<DataLessPropertyBase, PropT>::value>
   ctorHelper(PropT &, PropsT... Props) {
     const int PropKind = static_cast<int>(PropT::getKind());
     MDataLessProps[PropKind] = true;
@@ -41,8 +40,7 @@ protected:
   }
 
   template <typename... PropsT, class PropT>
-  typename detail::enable_if_t<
-      std::is_base_of<PropertyWithDataBase, PropT>::value>
+  typename std::enable_if_t<std::is_base_of<PropertyWithDataBase, PropT>::value>
   ctorHelper(PropT &Prop, PropsT... Props) {
     MPropsWithData.emplace_back(new PropT(Prop));
     ctorHelper(Props...);
@@ -50,7 +48,7 @@ protected:
 
   // Compile-time-constant properties are simply skipped
   template <typename... PropsT, class PropT>
-  typename detail::enable_if_t<
+  typename std::enable_if_t<
       !std::is_base_of<PropertyWithDataBase, PropT>::value &&
       !std::is_base_of<DataLessPropertyBase, PropT>::value>
   ctorHelper(PropT &, PropsT... Props) {
@@ -58,8 +56,8 @@ protected:
   }
 
   template <typename PropT>
-  typename detail::enable_if_t<
-      std::is_base_of<DataLessPropertyBase, PropT>::value, bool>
+  typename std::enable_if_t<std::is_base_of<DataLessPropertyBase, PropT>::value,
+                            bool>
   has_property_helper() const noexcept {
     const int PropKind = static_cast<int>(PropT::getKind());
     if (PropKind > detail::DataLessPropKind::LastKnownDataLessPropKind)
@@ -68,8 +66,8 @@ protected:
   }
 
   template <typename PropT>
-  typename detail::enable_if_t<
-      std::is_base_of<PropertyWithDataBase, PropT>::value, bool>
+  typename std::enable_if_t<std::is_base_of<PropertyWithDataBase, PropT>::value,
+                            bool>
   has_property_helper() const noexcept {
     const int PropKind = static_cast<int>(PropT::getKind());
     for (const std::shared_ptr<PropertyWithDataBase> &Prop : MPropsWithData)
@@ -79,16 +77,16 @@ protected:
   }
 
   template <typename PropT>
-  typename detail::enable_if_t<
-      std::is_base_of<DataLessPropertyBase, PropT>::value, PropT>
+  typename std::enable_if_t<std::is_base_of<DataLessPropertyBase, PropT>::value,
+                            PropT>
   get_property_helper() const {
     // In case of simple property we can just construct it
     return PropT{};
   }
 
   template <typename PropT>
-  typename detail::enable_if_t<
-      std::is_base_of<PropertyWithDataBase, PropT>::value, PropT>
+  typename std::enable_if_t<std::is_base_of<PropertyWithDataBase, PropT>::value,
+                            PropT>
   get_property_helper() const {
     const int PropKind = static_cast<int>(PropT::getKind());
     if (PropKind >= PropWithDataKind::PropWithDataKindSize)

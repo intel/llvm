@@ -13,11 +13,13 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/service_kernel_names.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception_list.hpp>
+#include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/property_list.hpp>
@@ -83,7 +85,7 @@ static event submitAssertCapture(queue &, event &, queue *,
 /// \sa kernel
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT queue {
+class __SYCL_EXPORT queue : public detail::OwnerLessBase<queue> {
 public:
   /// Constructs a SYCL queue instance using the device returned by an instance
   /// of default_selector.
@@ -100,7 +102,6 @@ public:
   queue(const async_handler &AsyncHandler, const property_list &PropList = {})
       : queue(default_selector(), AsyncHandler, PropList) {}
 
-#if __cplusplus >= 201703L
   /// Constructs a SYCL queue instance using the device identified by the
   /// device selector provided.
   /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
@@ -159,8 +160,6 @@ public:
                  const property_list &propList = {})
       : queue(syclContext, detail::select_device(deviceSelector, syclContext),
               AsyncHandler, propList) {}
-
-#endif
 
   /// Constructs a SYCL queue instance using the device returned by the
   /// DeviceSelector provided.
@@ -738,9 +737,9 @@ public:
   single_task(PropertiesT Properties,
               _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     static_assert(
-        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+        (detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void()>::value ||
-         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+         detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void(kernel_handler)>::value),
         "sycl::queue.single_task() requires a kernel instead of command group. "
         "Use queue.submit() instead");
@@ -777,9 +776,9 @@ public:
   single_task(event DepEvent, PropertiesT Properties,
               _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     static_assert(
-        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+        (detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void()>::value ||
-         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+         detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void(kernel_handler)>::value),
         "sycl::queue.single_task() requires a kernel instead of command group. "
         "Use queue.submit() instead");
@@ -820,9 +819,9 @@ public:
   single_task(const std::vector<event> &DepEvents, PropertiesT Properties,
               _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     static_assert(
-        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+        (detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void()>::value ||
-         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+         detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void(kernel_handler)>::value),
         "sycl::queue.single_task() requires a kernel instead of command group. "
         "Use queue.submit() instead");
@@ -1133,6 +1132,132 @@ public:
         CodeLoc);
   }
 
+  /// Copies data from a memory region pointed to by a placeholder accessor to
+  /// another memory region pointed to by a shared_ptr.
+  ///
+  /// \param Src is a placeholder accessor to the source memory.
+  /// \param Dest is a shared_ptr to the destination memory.
+  /// \return an event representing copy operation.
+  template <typename SrcT, int SrcDims, access_mode SrcMode, target SrcTgt,
+            access::placeholder IsPlaceholder, typename DestT>
+  event copy(accessor<SrcT, SrcDims, SrcMode, SrcTgt, IsPlaceholder> Src,
+             std::shared_ptr<DestT> Dest _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.require(Src);
+      CGH.copy(Src, Dest);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from a memory region pointed to by a shared_ptr to another
+  /// memory region pointed to by a placeholder accessor.
+  ///
+  /// \param Src is a shared_ptr to the source memory.
+  /// \param Dest is a placeholder accessor to the destination memory.
+  /// \return an event representing copy operation.
+  template <typename SrcT, typename DestT, int DestDims, access_mode DestMode,
+            target DestTgt, access::placeholder IsPlaceholder>
+  event copy(std::shared_ptr<SrcT> Src,
+             accessor<DestT, DestDims, DestMode, DestTgt, IsPlaceholder> Dest
+                 _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.require(Dest);
+      CGH.copy(Src, Dest);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from a memory region pointed to by a placeholder accessor to
+  /// another memory region pointed to by a raw pointer.
+  ///
+  /// \param Src is a placeholder accessor to the source memory.
+  /// \param Dest is a raw pointer to the destination memory.
+  /// \return an event representing copy operation.
+  template <typename SrcT, int SrcDims, access_mode SrcMode, target SrcTgt,
+            access::placeholder IsPlaceholder, typename DestT>
+  event copy(accessor<SrcT, SrcDims, SrcMode, SrcTgt, IsPlaceholder> Src,
+             DestT *Dest _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.require(Src);
+      CGH.copy(Src, Dest);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from a memory region pointed to by a raw pointer to another
+  /// memory region pointed to by a placeholder accessor.
+  ///
+  /// \param Src is a raw pointer to the source memory.
+  /// \param Dest is a placeholder accessor to the destination memory.
+  /// \return an event representing copy operation.
+  template <typename SrcT, typename DestT, int DestDims, access_mode DestMode,
+            target DestTgt, access::placeholder IsPlaceholder>
+  event copy(const SrcT *Src,
+             accessor<DestT, DestDims, DestMode, DestTgt, IsPlaceholder> Dest
+                 _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.require(Dest);
+      CGH.copy(Src, Dest);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, both pointed by placeholder
+  /// accessors.
+  ///
+  /// \param Src is a placeholder accessor to the source memory.
+  /// \param Dest is a placeholder accessor to the destination memory.
+  /// \return an event representing copy operation.
+  template <typename SrcT, int SrcDims, access_mode SrcMode, target SrcTgt,
+            access::placeholder IsSrcPlaceholder, typename DestT, int DestDims,
+            access_mode DestMode, target DestTgt,
+            access::placeholder IsDestPlaceholder>
+  event
+  copy(accessor<SrcT, SrcDims, SrcMode, SrcTgt, IsSrcPlaceholder> Src,
+       accessor<DestT, DestDims, DestMode, DestTgt, IsDestPlaceholder> Dest
+           _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.require(Src);
+      CGH.require(Dest);
+      CGH.copy(Src, Dest);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Provides guarantees that the memory object accessed via Acc is updated
+  /// on the host after operation is complete.
+  ///
+  /// \param Acc is a SYCL accessor that needs to be updated on host.
+  /// \return an event representing update_host operation.
+  template <typename T, int Dims, access_mode Mode, target Tgt,
+            access::placeholder IsPlaceholder>
+  event update_host(
+      accessor<T, Dims, Mode, Tgt, IsPlaceholder> Acc _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.require(Acc);
+      CGH.update_host(Acc);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Fills the specified memory with the specified data.
+  ///
+  /// \param Dest is the placeholder accessor to the memory to fill.
+  /// \param Src is the data to fill the memory with. T should be
+  /// trivially copyable.
+  /// \return an event representing fill operation.
+  template <typename T, int Dims, access_mode Mode, target Tgt,
+            access::placeholder IsPlaceholder>
+  event fill(accessor<T, Dims, Mode, Tgt, IsPlaceholder> Dest,
+             const T &Src _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.require(Dest);
+      CGH.fill<T>(Dest, Src);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// @brief Returns true if the queue was created with the
+  /// ext::codeplay::experimental::property::queue::enable_fusion property.
+  ///
+  /// Equivalent to
+  /// `has_property<ext::codeplay::experimental::property::queue::enable_fusion>()`.
+  ///
+  bool ext_codeplay_supports_fusion() const;
+
 // Clean KERNELFUNC macros.
 #undef _KERNELFUNCPARAM
 
@@ -1145,6 +1270,12 @@ public:
   ///
   /// \return the backend associated with this queue.
   backend get_backend() const noexcept;
+
+  /// Allows to check status of the queue (completed vs noncompleted).
+  ///
+  /// \return returns true if all enqueued commands in the queue have been
+  /// completed, otherwise returns false.
+  bool ext_oneapi_empty() const;
 
 private:
   pi_native_handle getNative() const;

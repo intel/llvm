@@ -186,12 +186,6 @@ attributeToExecModeMetadata(Module &M, const Attribute &Attr) {
       MDVals.push_back(ConstantAsMetadata::get(Constant::getIntegerValue(
           SizeTTy, APInt(SizeTBitSize, ValStr, 10))));
 
-    // The SPIR-V translator expects 3 values, so we pad the remaining
-    // dimensions with 1.
-    for (size_t I = MDVals.size(); I < 3; ++I)
-      MDVals.push_back(ConstantAsMetadata::get(
-          Constant::getIntegerValue(SizeTTy, APInt(SizeTBitSize, 1))));
-
     const char *MDName = (AttrKindStr == "sycl-work-group-size")
                              ? "reqd_work_group_size"
                              : "work_group_size_hint";

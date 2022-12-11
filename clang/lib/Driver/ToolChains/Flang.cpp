@@ -51,15 +51,15 @@ void Flang::addPreprocessingOptions(const ArgList &Args,
                    options::OPT_I, options::OPT_cpp, options::OPT_nocpp});
 }
 
-void Flang::forwardOptions(const ArgList &Args, ArgStringList &CmdArgs) const {
+void Flang::addOtherOptions(const ArgList &Args, ArgStringList &CmdArgs) const {
   Args.AddAllArgs(CmdArgs,
                   {options::OPT_module_dir, options::OPT_fdebug_module_writer,
                    options::OPT_fintrinsic_modules_path, options::OPT_pedantic,
                    options::OPT_std_EQ, options::OPT_W_Joined,
-                   options::OPT_fconvert_EQ});
+                   options::OPT_fconvert_EQ, options::OPT_fpass_plugin_EQ});
 }
 
-void Flang::AddPicOptions(const ArgList &Args, ArgStringList &CmdArgs) const {
+void Flang::addPicOptions(const ArgList &Args, ArgStringList &CmdArgs) const {
   // ParsePICArgs parses -fPIC/-fPIE and their variants and returns a tuple of
   // (RelocationModel, PICLevel, IsPIE).
   llvm::Reloc::Model RelocationModel;
@@ -78,6 +78,32 @@ void Flang::AddPicOptions(const ArgList &Args, ArgStringList &CmdArgs) const {
     if (IsPIE)
       CmdArgs.push_back("-pic-is-pie");
   }
+}
+
+void Flang::addTargetOptions(const ArgList &Args,
+                             ArgStringList &CmdArgs) const {
+  const ToolChain &TC = getToolChain();
+  const llvm::Triple &Triple = TC.getEffectiveTriple();
+  const Driver &D = TC.getDriver();
+
+  std::string CPU = getCPUName(D, Args, Triple);
+  if (!CPU.empty()) {
+    CmdArgs.push_back("-target-cpu");
+    CmdArgs.push_back(Args.MakeArgString(CPU));
+  }
+
+  // Add the target features.
+  switch (TC.getArch()) {
+  default:
+    break;
+  case llvm::Triple::aarch64:
+    [[fallthrough]];
+  case llvm::Triple::x86_64:
+    getTargetFeatures(D, Triple, Args, CmdArgs, /*ForAs*/ false);
+    break;
+  }
+
+  // TODO: Add target specific flags, ABI, mtune option etc.
 }
 
 static void addFloatingPointOptions(const Driver &D, const ArgList &Args,
@@ -104,7 +130,7 @@ static void addFloatingPointOptions(const Driver &D, const ArgList &Args,
       // Clang's "fast-honor-pragmas" option is not supported because it is
       // non-standard
       D.Diag(diag::err_drv_unsupported_option_argument)
-          << A->getOption().getName() << Val;
+          << A->getSpelling() << Val;
   }
 
   for (const Arg *A : Args) {
@@ -238,13 +264,16 @@ void Flang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fcolor-diagnostics");
 
   // -fPIC and related options.
-  AddPicOptions(Args, CmdArgs);
+  addPicOptions(Args, CmdArgs);
 
   // Floating point related options
   addFloatingPointOptions(D, Args, CmdArgs);
 
-  // Handle options which are simply forwarded to -fc1.
-  forwardOptions(Args, CmdArgs);
+  // Add target args, features, etc.
+  addTargetOptions(Args, CmdArgs);
+
+  // Add other compile options
+  addOtherOptions(Args, CmdArgs);
 
   // Forward -Xflang arguments to -fc1
   Args.AddAllArgValues(CmdArgs, options::OPT_Xflang);

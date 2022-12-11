@@ -129,6 +129,11 @@ public:
   /// specified instruction.
   void insertAfter(Instruction *InsertPos);
 
+  /// Inserts an unlinked instruction into \p BB at position \p It and returns
+  /// the iterator of the inserted instruction.
+  SymbolTableList<Instruction>::iterator
+  insertAt(BasicBlock *BB, SymbolTableList<Instruction>::iterator It);
+
   /// Unlink this instruction from its current basic block and insert it into
   /// the basic block that MovePos lives in, right before MovePos.
   void moveBefore(Instruction *MovePos);
@@ -320,7 +325,7 @@ public:
   /// this API if the Instruction being modified is a call.
   void dropUnknownNonDebugMetadata(ArrayRef<unsigned> KnownIDs);
   void dropUnknownNonDebugMetadata() {
-    return dropUnknownNonDebugMetadata(None);
+    return dropUnknownNonDebugMetadata(std::nullopt);
   }
   void dropUnknownNonDebugMetadata(unsigned ID1) {
     return dropUnknownNonDebugMetadata(makeArrayRef(ID1));
@@ -508,12 +513,27 @@ public:
   /// currently inserted into a function.
   void dropLocation();
 
+  /// Merge the DIAssignID metadata from this instruction and those attached to
+  /// instructions in \p SourceInstructions. This process performs a RAUW on
+  /// the MetadataAsValue uses of the merged DIAssignID nodes. Not every
+  /// instruction in \p SourceInstructions needs to have DIAssignID
+  /// metadata. If none of them do then nothing happens. If this instruction
+  /// does not have a DIAssignID attachment but at least one in \p
+  /// SourceInstructions does then the merged one will be attached to
+  /// it. However, instructions without attachments in \p SourceInstructions
+  /// are not modified.
+  void mergeDIAssignID(ArrayRef<const Instruction *> SourceInstructions);
+
 private:
   // These are all implemented in Metadata.cpp.
   MDNode *getMetadataImpl(unsigned KindID) const;
   MDNode *getMetadataImpl(StringRef Kind) const;
   void
   getAllMetadataImpl(SmallVectorImpl<std::pair<unsigned, MDNode *>> &) const;
+
+  /// Update the LLVMContext ID-to-Instruction(s) mapping. If \p ID is nullptr
+  /// then clear the mapping for this instruction.
+  void updateDIAssignIDMapping(DIAssignID *ID);
 
 public:
   //===--------------------------------------------------------------------===//

@@ -68,7 +68,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -yqq \
             clang-format-${{ env.LLVM_VERSION }} clang-tidy-${{ env.LLVM_VERSION }} \
-            llvm-${{ env.LLVM_VERSION }}-dev libomp-${{ env.LLVM_VERSION }}-dev \
+            llvm-${{ env.LLVM_VERSION }}-dev \
             mlir-${{ env.LLVM_VERSION }}-tools \
 
     - name: Generate compile command database

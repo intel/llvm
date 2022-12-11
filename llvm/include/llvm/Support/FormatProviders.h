@@ -63,10 +63,10 @@ protected:
     size_t Prec;
     Optional<size_t> Result;
     if (Str.empty())
-      Result = None;
+      Result = std::nullopt;
     else if (Str.getAsInteger(10, Prec)) {
       assert(false && "Invalid precision specifier");
-      Result = None;
+      Result = std::nullopt;
     } else {
       assert(Prec < 100 && "Precision out of range");
       Result = std::min<size_t>(99u, Prec);
@@ -355,7 +355,6 @@ struct range_item_has_provider
 
 template <typename IterT> class format_provider<llvm::iterator_range<IterT>> {
   using value = typename std::iterator_traits<IterT>::value_type;
-  using reference = typename std::iterator_traits<IterT>::reference;
 
   static StringRef consumeOneOption(StringRef &Style, char Indicator,
                                     StringRef Default) {
@@ -403,15 +402,13 @@ public:
     auto Begin = V.begin();
     auto End = V.end();
     if (Begin != End) {
-      auto Adapter =
-          detail::build_format_adapter(std::forward<reference>(*Begin));
+      auto Adapter = detail::build_format_adapter(*Begin);
       Adapter.format(Stream, ArgStyle);
       ++Begin;
     }
     while (Begin != End) {
       Stream << Sep;
-      auto Adapter =
-          detail::build_format_adapter(std::forward<reference>(*Begin));
+      auto Adapter = detail::build_format_adapter(*Begin);
       Adapter.format(Stream, ArgStyle);
       ++Begin;
     }

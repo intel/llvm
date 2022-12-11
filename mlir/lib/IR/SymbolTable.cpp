@@ -555,7 +555,7 @@ walkSymbolUses(MutableArrayRef<Region> regions,
   return walkSymbolTable(regions, [&](Operation *op) -> Optional<WalkResult> {
     // Check that this isn't a potentially unknown symbol table.
     if (isPotentiallyUnknownSymbolTable(op))
-      return llvm::None;
+      return std::nullopt;
 
     return walkSymbolRefs(op, callback);
   });
@@ -571,7 +571,7 @@ walkSymbolUses(Operation *from,
   // symbol table, so we can't opaquely know if we should traverse to find
   // nested uses.
   if (isPotentiallyUnknownSymbolTable(from))
-    return llvm::None;
+    return std::nullopt;
 
   // Walk the uses on this operation.
   if (walkSymbolRefs(from, callback).wasInterrupted())
@@ -740,7 +740,8 @@ static Optional<SymbolTable::UseRange> getSymbolUsesImpl(FromT from) {
     return WalkResult::advance();
   };
   auto result = walkSymbolUses(from, walkFn);
-  return result ? Optional<SymbolTable::UseRange>(std::move(uses)) : llvm::None;
+  return result ? Optional<SymbolTable::UseRange>(std::move(uses))
+                : std::nullopt;
 }
 
 /// Get an iterator range for all of the uses, for any symbol, that are nested
@@ -770,7 +771,7 @@ static Optional<SymbolTable::UseRange> getSymbolUsesImpl(SymbolT symbol,
           if (isReferencePrefixOf(scope.symbol, symbolUse.getSymbolRef()))
             uses.push_back(symbolUse);
         }))
-      return llvm::None;
+      return std::nullopt;
   }
   return SymbolTable::UseRange(std::move(uses));
 }
@@ -853,40 +854,31 @@ replaceAllSymbolUsesImpl(SymbolT symbol, StringAttr newSymbol, IRUnitT *limit) {
   for (SymbolScope &scope : collectSymbolScopes(symbol, limit)) {
     SymbolRefAttr oldAttr = scope.symbol;
     SymbolRefAttr newAttr = generateNewRefAttr(scope.symbol, newLeafAttr);
-
-    auto walkFn = [&](Operation *op) -> Optional<WalkResult> {
-      auto remapAttrFn =
-          [&](Attribute attr) -> std::pair<Attribute, WalkResult> {
-        // Regardless of the match, don't walk nested SymbolRefAttrs, we don't
-        // want to accidentally replace an inner reference.
-        if (attr == oldAttr)
-          return {newAttr, WalkResult::skip()};
-        // Handle prefix matches.
-        if (SymbolRefAttr symRef = attr.dyn_cast<SymbolRefAttr>()) {
-          if (isReferencePrefixOf(oldAttr, symRef)) {
+    AttrTypeReplacer replacer;
+    replacer.addReplacement(
+        [&](SymbolRefAttr attr) -> std::pair<Attribute, WalkResult> {
+          // Regardless of the match, don't walk nested SymbolRefAttrs, we don't
+          // want to accidentally replace an inner reference.
+          if (attr == oldAttr)
+            return {newAttr, WalkResult::skip()};
+          // Handle prefix matches.
+          if (isReferencePrefixOf(oldAttr, attr)) {
             auto oldNestedRefs = oldAttr.getNestedReferences();
-            auto nestedRefs = symRef.getNestedReferences();
+            auto nestedRefs = attr.getNestedReferences();
             if (oldNestedRefs.empty())
               return {SymbolRefAttr::get(newSymbol, nestedRefs),
                       WalkResult::skip()};
 
             auto newNestedRefs = llvm::to_vector<4>(nestedRefs);
             newNestedRefs[oldNestedRefs.size() - 1] = newLeafAttr;
-            return {
-                SymbolRefAttr::get(symRef.getRootReference(), newNestedRefs),
-                WalkResult::skip()};
+            return {SymbolRefAttr::get(attr.getRootReference(), newNestedRefs),
+                    WalkResult::skip()};
           }
           return {attr, WalkResult::skip()};
-        }
-        return {attr, WalkResult::advance()};
-      };
-      // Generate a new attribute dictionary by replacing references to the old
-      // symbol.
-      auto newDict = op->getAttrDictionary().replaceSubElements(remapAttrFn);
-      if (!newDict)
-        return WalkResult::interrupt();
+        });
 
-      op->setAttrs(newDict.template cast<DictionaryAttr>());
+    auto walkFn = [&](Operation *op) -> Optional<WalkResult> {
+      replacer.replaceElementsIn(op);
       return WalkResult::advance();
     };
     if (!scope.walkSymbolTable(walkFn))

@@ -190,11 +190,10 @@ jobs:
         id: deps
         run: |
           DEPS=`cat devops/dependencies.json`
-          DEPS="${DEPS//'%'/'%25'}"
-          DEPS="${DEPS//$'\n'/'%0A'}"
-          DEPS="${DEPS//$'\r'/'%0D'}"
+          DEPS="${DEPS//$'\r'/''}"
+          DEPS="${DEPS//$'\n'/' '}"
           echo $DEPS
-          echo "::set-output name=deps::$DEPS"
+          echo "deps=$DEPS" >>$GITHUB_OUTPUT
       - name: Build and Push Container
         uses: ./devops/actions/build_container
         with:
@@ -228,11 +227,10 @@ jobs:
         id: deps
         run: |
           DEPS=`cat devops/dependencies.json`
-          DEPS="${DEPS//'%'/'%25'}"
-          DEPS="${DEPS//$'\n'/'%0A'}"
-          DEPS="${DEPS//$'\r'/'%0D'}"
+          DEPS="${DEPS//$'\r'/''}"
+          DEPS="${DEPS//$'\n'/' '}"
           echo $DEPS
-          echo "::set-output name=deps::$DEPS"
+          echo "deps=$DEPS" >>$GITHUB_OUTPUT
       - name: Build and Push Container
         uses: ./devops/actions/build_container
         with:

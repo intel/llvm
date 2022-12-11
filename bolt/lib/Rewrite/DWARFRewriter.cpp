@@ -67,7 +67,7 @@ Optional<AttrInfo> findAttributeInfo(const DWARFDie DIE,
   for (dwarf::Attribute &Attr : Attrs)
     if (Optional<AttrInfo> Info = findAttributeInfo(DIE, Attr))
       return Info;
-  return None;
+  return std::nullopt;
 }
 } // namespace bolt
 } // namespace llvm
@@ -91,7 +91,7 @@ static cl::opt<bool> KeepARanges(
 
 static cl::opt<bool>
 DeterministicDebugInfo("deterministic-debuginfo",
-  cl::desc("disables parallel execution of tasks that may produce"
+  cl::desc("disables parallel execution of tasks that may produce "
            "nondeterministic debug info"),
   cl::init(true),
   cl::cat(BoltCategory));
@@ -302,7 +302,7 @@ void DWARFRewriter::updateDebugInfo() {
       DebugLocWriter->finalize(*DwoDebugInfoPatcher, *DWOAbbrevWriter);
       DwoDebugInfoPatcher->clearDestinationLabels();
       if (!DwoDebugInfoPatcher->getWasRangBasedUsed())
-        RangesBase = None;
+        RangesBase = std::nullopt;
       if (Unit->getVersion() >= 5)
         TempRangesSectionWriter->finalizeSection();
     }
@@ -821,7 +821,7 @@ void DWARFRewriter::updateDWARFObjectAddressRanges(
       DebugInfoPatcher.addLE32Patch(RangesBaseAttrInfo->Offset,
                                     static_cast<uint32_t>(*RangesBase),
                                     RangesBaseAttrInfo->Size);
-      RangesBase = None;
+      RangesBase = std::nullopt;
     }
   }
 
@@ -1218,7 +1218,7 @@ updateDebugData(DWARFContext &DWCtx, std::string &Storage,
 
   auto SectionIter = KnownSections.find(SectionName);
   if (SectionIter == KnownSections.end())
-    return None;
+    return std::nullopt;
 
   Streamer.switchSection(SectionIter->second.first);
   StringRef OutData = SectionContents;

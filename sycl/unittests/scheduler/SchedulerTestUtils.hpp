@@ -103,7 +103,9 @@ class MockScheduler : public sycl::detail::Scheduler {
 public:
   using sycl::detail::Scheduler::addCG;
   using sycl::detail::Scheduler::addCopyBack;
+  using sycl::detail::Scheduler::checkLeavesCompletion;
   using sycl::detail::Scheduler::cleanupCommands;
+  using sycl::detail::Scheduler::MDeferredMemObjRelease;
 
   sycl::detail::MemObjRecord *
   getOrInsertMemObjRecord(const sycl::detail::QueueImplPtr &Queue,
