@@ -42,13 +42,6 @@ void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event,
   GraphReadLock.unlock();
   Event->waitInternal();
 
-  if (Command *CmdAfterWait = static_cast<Command *>(Event->getCommand());
-      CmdAfterWait && CmdAfterWait->isBlocking())
-    // Wait if blocking. isBlocked path for task completion is handled above
-    // with Event->waitInternal().
-    while (CmdAfterWait->MIsManuallyBlocked == true)
-      ;
-
   if (LockTheLock)
     GraphReadLock.lock();
 }
@@ -59,12 +52,18 @@ bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
                                                   BlockingT Blocking) {
 
   // No error to be returned for root command.
-  if (Cmd == RootCommand || Blocking)
+  if (Cmd == RootCommand)
     return true;
-
-  {
-    std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
-    if (Cmd->isBlocking()) {
+  if (Blocking) {
+    // If Blocking & isBlocked -> we will successfully wait for event in
+    // enqueueImp. MIsManuallyBlocked should block enqueueCommand with BLOCKING
+    // and could not be moved to event.wait because should not affect simple
+    // wait case when no users of blocking command.
+    while (Cmd->MIsManuallyBlocked)
+      ;
+  } else {
+    std::lock_guard<std::recursive_mutex> Guard(Cmd->MBlockedUsersMutex);
+    if (Cmd->isBlocking() || Cmd->MIsManuallyBlocked) {
       const EventImplPtr &RootCmdEvent = RootCommand->getEvent();
       Cmd->addBlockedUserUnique(RootCmdEvent);
       EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
