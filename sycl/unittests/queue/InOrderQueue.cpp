@@ -11,7 +11,8 @@ pi_result piextQueueCreateRedefineBefore(pi_context context, pi_device device,
                                          pi_queue *queue) {
   EXPECT_TRUE(properties != nullptr);
   EXPECT_TRUE(properties[0] == PI_QUEUE_FLAGS);
-  InOrderFlagSeen = !(properties[1] & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE);
+  InOrderFlagSeen =
+      !(properties[1] & PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE);
   return PI_SUCCESS;
 }
 

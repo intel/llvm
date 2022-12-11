@@ -590,13 +590,15 @@ constexpr pi_usm_mem_properties PI_MEM_USM_ALLOC_BUFFER_LOCATION = 0x419E;
 using pi_queue_properties = pi_bitfield;
 constexpr pi_queue_properties PI_QUEUE_FLAGS = -1;
 constexpr pi_queue_properties PI_QUEUE_COMPUTE_INDEX = -2;
-constexpr pi_queue_properties PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE = (1 << 0);
-constexpr pi_queue_properties PI_QUEUE_PROFILING_ENABLE = (1 << 1);
-constexpr pi_queue_properties PI_QUEUE_ON_DEVICE = (1 << 2);
-constexpr pi_queue_properties PI_QUEUE_ON_DEVICE_DEFAULT = (1 << 3);
-constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS = (1 << 4);
-constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW = (1 << 5);
-constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH = (1 << 6);
+// clang-format off
+constexpr pi_queue_properties PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE = (1 << 0);
+constexpr pi_queue_properties PI_QUEUE_FLAG_PROFILING_ENABLE = (1 << 1);
+constexpr pi_queue_properties PI_QUEUE_FLAG_ON_DEVICE = (1 << 2);
+constexpr pi_queue_properties PI_QUEUE_FLAG_ON_DEVICE_DEFAULT = (1 << 3);
+constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS = (1 << 4);
+constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW = (1 << 5);
+constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH = (1 << 6);
+// clang-format on
 
 using pi_result = _pi_result;
 using pi_platform_info = _pi_platform_info;

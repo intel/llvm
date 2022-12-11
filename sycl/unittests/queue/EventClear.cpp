@@ -31,7 +31,7 @@ pi_result redefinedQueueCreateEx(pi_context context, pi_device device,
   assert(properties && properties[0] == PI_QUEUE_FLAGS);
   // Use in-order queues to force storing events for calling wait on them,
   // rather than calling piQueueFinish.
-  if (properties[1] & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
+  if (properties[1] & PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
     return PI_ERROR_INVALID_QUEUE_PROPERTIES;
   }
   return PI_SUCCESS;

@@ -309,10 +309,10 @@ public:
     RT::PiQueueProperties CreationFlags = 0;
 
     if (Order == QueueOrder::OOO) {
-      CreationFlags = PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+      CreationFlags = PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
     }
     if (MPropList.has_property<property::queue::enable_profiling>()) {
-      CreationFlags |= PI_QUEUE_PROFILING_ENABLE;
+      CreationFlags |= PI_QUEUE_FLAG_PROFILING_ENABLE;
     }
     if (MPropList.has_property<
             ext::oneapi::cuda::property::queue::use_default_stream>()) {
@@ -322,7 +322,7 @@ public:
             .has_property<ext::oneapi::property::queue::discard_events>()) {
       // Pass this flag to the Level Zero plugin to be able to check it from
       // queue property.
-      CreationFlags |= PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS;
+      CreationFlags |= PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS;
     }
     // Track that priority settings are not ambiguous.
     bool PrioritySeen = false;
@@ -337,7 +337,7 @@ public:
             make_error_code(errc::invalid),
             "Queue cannot be constructed with different priorities.");
       }
-      CreationFlags |= PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW;
+      CreationFlags |= PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW;
       PrioritySeen = true;
     }
     if (MPropList.has_property<ext::oneapi::property::queue::priority_high>()) {
@@ -346,7 +346,7 @@ public:
             make_error_code(errc::invalid),
             "Queue cannot be constructed with different priorities.");
       }
-      CreationFlags |= PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH;
+      CreationFlags |= PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH;
       PrioritySeen = true;
     }
     RT::PiQueue Queue{};

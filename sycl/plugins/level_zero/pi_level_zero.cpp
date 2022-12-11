@@ -995,19 +995,20 @@ bool pi_command_list_info_t::isCopy(pi_queue Queue) const {
 
 bool _pi_queue::isInOrderQueue() const {
   // If out-of-order queue property is not set, then this is a in-order queue.
-  return ((this->Properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) == 0);
+  return ((this->Properties & PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) ==
+          0);
 }
 
 bool _pi_queue::isDiscardEvents() const {
-  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS) != 0);
+  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS) != 0);
 }
 
 bool _pi_queue::isPriorityLow() const {
-  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW) != 0);
+  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW) != 0);
 }
 
 bool _pi_queue::isPriorityHigh() const {
-  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH) != 0);
+  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH) != 0);
 }
 
 pi_result
@@ -2915,8 +2916,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // TODO: To find out correct value
     return ReturnValue("");
   case PI_DEVICE_INFO_QUEUE_PROPERTIES:
-    return ReturnValue(pi_queue_properties{
-        PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE | PI_QUEUE_PROFILING_ENABLE});
+    return ReturnValue(
+        pi_queue_properties{PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
+                            PI_QUEUE_FLAG_PROFILING_ENABLE});
   case PI_DEVICE_INFO_EXECUTION_CAPABILITIES:
     return ReturnValue(
         pi_device_exec_capabilities{PI_DEVICE_EXEC_CAPABILITIES_NATIVE_KERNEL});
@@ -3591,13 +3593,14 @@ pi_result piextQueueCreate(pi_context Context, pi_device Device,
                                : -1; // Use default/round-robin.
 
   // Check that unexpected bits are not set.
-  PI_ASSERT(!(Flags & ~(PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
-                        PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_ON_DEVICE |
-                        PI_QUEUE_ON_DEVICE_DEFAULT |
-                        PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS |
-                        PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW |
-                        PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH)),
-            PI_ERROR_INVALID_VALUE);
+  PI_ASSERT(
+      !(Flags & ~(PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
+                  PI_QUEUE_FLAG_PROFILING_ENABLE | PI_QUEUE_FLAG_ON_DEVICE |
+                  PI_QUEUE_FLAG_ON_DEVICE_DEFAULT |
+                  PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS |
+                  PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW |
+                  PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH)),
+      PI_ERROR_INVALID_VALUE);
 
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
@@ -5783,7 +5786,7 @@ void _pi_context::addEventToContextCache(pi_event Event) {
 static pi_result EventCreate(pi_context Context, pi_queue Queue,
                              bool HostVisible, pi_event *RetEvent) {
   bool ProfilingEnabled =
-      !Queue || (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
+      !Queue || (Queue->Properties & PI_QUEUE_FLAG_PROFILING_ENABLE) != 0;
 
   if (auto CachedEvent =
           Context->getEventFromContextCache(HostVisible, ProfilingEnabled)) {
@@ -5926,7 +5929,7 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
 
   std::shared_lock<pi_shared_mutex> EventLock(Event->Mutex);
   if (Event->Queue &&
-      (Event->Queue->Properties & PI_QUEUE_PROFILING_ENABLE) == 0) {
+      (Event->Queue->Properties & PI_QUEUE_FLAG_PROFILING_ENABLE) == 0) {
     return PI_ERROR_PROFILING_INFO_NOT_AVAILABLE;
   }
 

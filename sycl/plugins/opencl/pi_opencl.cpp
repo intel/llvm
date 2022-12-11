@@ -489,9 +489,10 @@ pi_result piQueueCreate(pi_context context, pi_device device,
 
   // Check that unexpected bits are not set.
   assert(!(properties &
-           ~(PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
-             PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_ON_DEVICE |
-             PI_QUEUE_ON_DEVICE_DEFAULT | PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS)));
+           ~(PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
+             PI_QUEUE_FLAG_PROFILING_ENABLE | PI_QUEUE_FLAG_ON_DEVICE |
+             PI_QUEUE_FLAG_ON_DEVICE_DEFAULT |
+             PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS)));
 
   // Properties supported by OpenCL backend.
   cl_command_queue_properties SupportByOpenCL =
