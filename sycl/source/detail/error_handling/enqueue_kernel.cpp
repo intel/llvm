@@ -18,9 +18,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace detail {
-
-namespace enqueue_kernel_launch {
+namespace detail::enqueue_kernel_launch {
 
 void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
                                 const NDRDescT &NDRDesc) {
@@ -358,8 +356,6 @@ void handleErrorOrWarning(pi_result Error, const device_impl &DeviceImpl,
   }
 }
 
-} // namespace enqueue_kernel_launch
-
-} // namespace detail
+} // namespace detail::enqueue_kernel_launch
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

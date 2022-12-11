@@ -20,8 +20,7 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 template <int Dimensions> class group;
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 struct sub_group;
 
 namespace experimental {
@@ -35,8 +34,7 @@ struct is_group_helper<group_with_scratchpad<Group, Extent>> : std::true_type {
 };
 } // namespace detail
 } // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 namespace detail {
 

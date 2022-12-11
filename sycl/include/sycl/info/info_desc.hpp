@@ -179,17 +179,9 @@ template <typename T, T param> struct compatibility_param_traits {};
   } /*namespace info */                                                        \
   } /*namespace Namespace */
 
-namespace ext {
-namespace oneapi {
-namespace experimental {
-namespace info {
-namespace device {
+namespace ext::oneapi::experimental::info::device {
 template <int Dimensions> struct max_work_groups;
-} // namespace device
-} // namespace info
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental::info::device
 #include <sycl/info/ext_intel_device_traits.def>
 #include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC

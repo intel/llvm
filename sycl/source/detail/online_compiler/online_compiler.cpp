@@ -16,9 +16,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace intel {
-namespace experimental {
+namespace ext::intel::experimental {
 namespace detail {
 
 static std::vector<const char *>
@@ -236,9 +234,7 @@ __SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
                                 DeviceStepping, CompileToSPIRVHandle,
                                 FreeSPIRVOutputsHandle, CMUserArgs);
 }
-} // namespace experimental
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel::experimental
 
 namespace ext {
 namespace __SYCL2020_DEPRECATED(
