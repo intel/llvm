@@ -1,15 +1,15 @@
 ; Check IR produced by fusion pass:
-; RUN: opt -load-pass-plugin %shlibdir/libSYCLKernelFusionPasses%shlibext\
+; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext\
 ; RUN: -passes="sycl-kernel-fusion" --sycl-info-path %S/kernel-info.yaml -S %s\
 ; RUN: | FileCheck %s --implicit-check-not fused_kernel --check-prefix FUSION
 
 ; Check metadata attached to kernel by fusion pass:
-; RUN: opt -load-pass-plugin %shlibdir/libSYCLKernelFusionPasses%shlibext\
+; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext\
 ; RUN: -passes=sycl-kernel-fusion --sycl-info-path %S/kernel-info.yaml -S %s\
 ; RUN: | FileCheck %s --check-prefix MD
 
 ; Check kernel information produced by fusion pass:
-; RUN: opt -load-pass-plugin %shlibdir/libSYCLKernelFusionPasses%shlibext\
+; RUN: opt -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext\
 ; RUN: -passes=sycl-kernel-fusion,print-sycl-module-info -disable-output --sycl-info-path %S/kernel-info.yaml -S %s\
 ; RUN: | FileCheck %s --check-prefix INFO
 

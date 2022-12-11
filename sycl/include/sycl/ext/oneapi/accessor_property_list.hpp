@@ -25,8 +25,7 @@ namespace detail {
 // of each compile-time-constant property.
 template <typename T> struct IsCompileTimePropertyInstance : std::false_type {};
 } // namespace detail
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 
 template <typename T> struct is_compile_time_property : std::false_type {};
 
@@ -227,8 +226,7 @@ private:
                                   PropsT...>::value;
   }
 };
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
