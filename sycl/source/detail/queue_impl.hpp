@@ -363,7 +363,7 @@ public:
       Properties[2] = PI_QUEUE_COMPUTE_INDEX;
       Properties[3] = static_cast<RT::PiQueueProperties>(Idx);
     }
-    RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piQueueCreateEx>(
+    RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piextQueueCreate>(
         Context, Device, Properties, &Queue);
 
     // If creating out-of-order queue failed and this property is not

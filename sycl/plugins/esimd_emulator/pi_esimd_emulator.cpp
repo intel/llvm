@@ -925,8 +925,8 @@ bool _pi_context::checkSurfaceArgument(pi_mem_flags Flags, void *HostPtr) {
   return true;
 }
 
-pi_result piQueueCreateEx(pi_context Context, pi_device Device,
-                          pi_queue_properties *Properties, pi_queue *Queue) {
+pi_result piextQueueCreate(pi_context Context, pi_device Device,
+                           pi_queue_properties *Properties, pi_queue *Queue) {
   assert(Properties);
   // Expect flags mask to be passed first.
   assert(Properties[0] == PI_QUEUE_FLAGS);

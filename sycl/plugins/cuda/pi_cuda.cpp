@@ -2528,9 +2528,9 @@ pi_result cuda_piQueueCreate(pi_context context, pi_device device,
     return PI_ERROR_OUT_OF_RESOURCES;
   }
 }
-pi_result cuda_piQueueCreateEx(pi_context Context, pi_device Device,
-                               pi_queue_properties *Properties,
-                               pi_queue *Queue) {
+pi_result cuda_piextQueueCreate(pi_context Context, pi_device Device,
+                                pi_queue_properties *Properties,
+                                pi_queue *Queue) {
   assert(Properties);
   // Expect flags mask to be passed first.
   assert(Properties[0] == PI_QUEUE_FLAGS);
@@ -5488,7 +5488,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          cuda_piextContextCreateWithNativeHandle)
   // Queue
   _PI_CL(piQueueCreate, cuda_piQueueCreate)
-  _PI_CL(piQueueCreateEx, cuda_piQueueCreateEx)
+  _PI_CL(piextQueueCreate, cuda_piextQueueCreate)
   _PI_CL(piQueueGetInfo, cuda_piQueueGetInfo)
   _PI_CL(piQueueFinish, cuda_piQueueFinish)
   _PI_CL(piQueueFlush, cuda_piQueueFlush)

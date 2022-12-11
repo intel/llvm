@@ -466,8 +466,8 @@ pi_result piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
   return PI_SUCCESS;
 }
 
-pi_result piQueueCreateEx(pi_context Context, pi_device Device,
-                          pi_queue_properties *Properties, pi_queue *Queue) {
+pi_result piextQueueCreate(pi_context Context, pi_device Device,
+                           pi_queue_properties *Properties, pi_queue *Queue) {
   assert(Properties);
   // Expect flags mask to be passed first.
   assert(Properties[0] == PI_QUEUE_FLAGS);
@@ -1586,7 +1586,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextContextCreateWithNativeHandle, piextContextCreateWithNativeHandle)
   // Queue
   _PI_CL(piQueueCreate, piQueueCreate)
-  _PI_CL(piQueueCreateEx, piQueueCreateEx)
+  _PI_CL(piextQueueCreate, piextQueueCreate)
   _PI_CL(piQueueGetInfo, piQueueGetInfo)
   _PI_CL(piQueueFinish, clFinish)
   _PI_CL(piQueueFlush, clFlush)

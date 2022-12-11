@@ -322,9 +322,9 @@ inline pi_result mock_piQueueCreate(pi_context context, pi_device device,
   *queue = createDummyHandle<pi_queue>();
   return PI_SUCCESS;
 }
-inline pi_result mock_piQueueCreateEx(pi_context context, pi_device device,
-                                      pi_queue_properties *properties,
-                                      pi_queue *queue) {
+inline pi_result mock_piextQueueCreate(pi_context context, pi_device device,
+                                       pi_queue_properties *properties,
+                                       pi_queue *queue) {
   *queue = createDummyHandle<pi_queue>();
   return PI_SUCCESS;
 }

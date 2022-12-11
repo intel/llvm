@@ -2405,9 +2405,9 @@ pi_result hip_piQueueCreate(pi_context context, pi_device device,
     return PI_ERROR_OUT_OF_RESOURCES;
   }
 }
-pi_result hip_piQueueCreateEx(pi_context Context, pi_device Device,
-                              pi_queue_properties *Properties,
-                              pi_queue *Queue) {
+pi_result hip_piextQueueCreate(pi_context Context, pi_device Device,
+                               pi_queue_properties *Properties,
+                               pi_queue *Queue) {
   assert(Properties);
   // Expect flags mask to be passed first.
   assert(Properties[0] == PI_QUEUE_FLAGS);
@@ -5216,7 +5216,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          hip_piextContextCreateWithNativeHandle)
   // Queue
   _PI_CL(piQueueCreate, hip_piQueueCreate)
-  _PI_CL(piQueueCreateEx, hip_piQueueCreateEx)
+  _PI_CL(piextQueueCreate, hip_piextQueueCreate)
   _PI_CL(piQueueGetInfo, hip_piQueueGetInfo)
   _PI_CL(piQueueFinish, hip_piQueueFinish)
   _PI_CL(piQueueFlush, hip_piQueueFlush)

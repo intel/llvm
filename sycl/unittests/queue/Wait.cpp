@@ -78,7 +78,7 @@ pi_result redefinedEventRelease(pi_event event) {
 TEST(QueueWait, QueueWaitTest) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<detail::PiApiKind::piQueueCreateEx>(
+  Mock.redefineBefore<detail::PiApiKind::piextQueueCreate>(
       redefinedQueueCreateEx);
   Mock.redefineBefore<detail::PiApiKind::piQueueFinish>(redefinedQueueFinish);
   Mock.redefineBefore<detail::PiApiKind::piextUSMEnqueueMemset>(

@@ -60,7 +60,7 @@
 // PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH queue properties.
 // 11.18 Add new parameter name PI_EXT_ONEAPI_QUEUE_INFO_EMPTY to
 // _pi_queue_info.
-// 11.19 Added piQueueCreateEx API to be used instead of piQueueCreate, also
+// 11.19 Added piextQueueCreate API to be used instead of piQueueCreate, also
 // added PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES for piDeviceGetInfo.
 // Both are needed to support sycl_ext_intel_queue_index extension.
 
@@ -1127,14 +1127,14 @@ __SYCL_EXPORT pi_result piextContextCreateWithNativeHandle(
 // Queue
 //
 
-// TODO: Remove during next ABI break and rename piQueueCreateEx to
+// TODO: Remove during next ABI break and rename piextQueueCreate to
 // piQueueCreate.
 __SYCL_EXPORT pi_result piQueueCreate(pi_context context, pi_device device,
                                       pi_queue_properties properties,
                                       pi_queue *queue);
-__SYCL_EXPORT pi_result piQueueCreateEx(pi_context context, pi_device device,
-                                        pi_queue_properties *properties,
-                                        pi_queue *queue);
+__SYCL_EXPORT pi_result piextQueueCreate(pi_context context, pi_device device,
+                                         pi_queue_properties *properties,
+                                         pi_queue *queue);
 
 __SYCL_EXPORT pi_result piQueueGetInfo(pi_queue command_queue,
                                        pi_queue_info param_name,
