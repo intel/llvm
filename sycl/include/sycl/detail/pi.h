@@ -1134,6 +1134,9 @@ __SYCL_EXPORT pi_result piextContextCreateWithNativeHandle(
 __SYCL_EXPORT pi_result piQueueCreate(pi_context context, pi_device device,
                                       pi_queue_properties properties,
                                       pi_queue *queue);
+/// \param properties points to a zero-terminated array of extra data describing
+/// desired queue properties. Format is
+///  {[PROPERTY[, property-specific elements of data]*,]* 0}
 __SYCL_EXPORT pi_result piextQueueCreate(pi_context context, pi_device device,
                                          pi_queue_properties *properties,
                                          pi_queue *queue);
