@@ -33,7 +33,7 @@ uint32_t to_uint32_t(sycl::marray<bfloat16, N> x, size_t start) {
 // According to bfloat16 format, NAN value's exponent field is 0xFF and
 // significand has non-zero bits.
 template <typename T>
-std::enable_if_t<std::is_same<T, bfloat16>::value, T> isnan(T x) {
+std::enable_if_t<std::is_same<T, bfloat16>::value, bool> isnan(T x) {
   oneapi::detail::Bfloat16StorageT XBits = oneapi::detail::bfloat16ToBits(x);
   return (((XBits & 0x7F80) == 0x7F80) && (XBits & 0x7F)) ? true : false;
 }
