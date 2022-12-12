@@ -158,8 +158,8 @@ struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
       joint_matrix<Group, Tb, use::b, defaultK, defaultN,
                    sycl::ext::intel::experimental::matrix::layout::packed>;
   template <typename Group>
-  using joint_matrix_c = joint_matrix<Group, Tc, use::accumulator, defaultM,
-                                      defaultN, layout::row_major>;
+  using joint_matrix_c =
+      joint_matrix<Group, Tc, use::accumulator, defaultM, defaultN>;
 
   bool dynamic_p = false; // should be true in future implementations because
                           // AMX hardware supports dynamic sizes
@@ -213,8 +213,8 @@ struct tpu_params<
       joint_matrix<Group, Tb, use::b, defaultK, defaultN,
                    sycl::ext::intel::experimental::matrix::layout::packed>;
   template <typename Group>
-  using joint_matrix_c = joint_matrix<Group, Tc, use::accumulator, defaultM,
-                                      defaultN, layout::row_major>;
+  using joint_matrix_c =
+      joint_matrix<Group, Tc, use::accumulator, defaultM, defaultN>;
 
   bool dynamic_p = false; // should be true in future implementations
                           // because AMX hardware supports dynamic sizes
@@ -354,8 +354,8 @@ struct tpu_params<tpu::dpas, Ta, Tb, Tc, 0, 0, 0,
       joint_matrix<Group, Tb, use::b, defaultK, defaultN,
                    sycl::ext::intel::experimental::matrix::layout::packed>;
   template <typename Group>
-  using joint_matrix_c = joint_matrix<Group, Tc, use::accumulator, defaultM,
-                                      defaultN, layout::row_major>;
+  using joint_matrix_c =
+      joint_matrix<Group, Tc, use::accumulator, defaultM, defaultN>;
 
   bool dynamic_p = false; // no dynamic allocation on the GPU
   uint32_t numtiles = -1; // does not apply for DPAS
@@ -412,8 +412,8 @@ struct tpu_params<
       joint_matrix<Group, Tb, use::b, defaultK, defaultN,
                    sycl::ext::intel::experimental::matrix::layout::packed>;
   template <typename Group>
-  using joint_matrix_c = joint_matrix<Group, Tc, use::accumulator, defaultM,
-                                      defaultN, layout::row_major>;
+  using joint_matrix_c =
+      joint_matrix<Group, Tc, use::accumulator, defaultM, defaultN>;
 
   bool dynamic_p = false; // no dynamic allocation on the GPU
   uint32_t numtiles = -1; // does not apply for DPAS

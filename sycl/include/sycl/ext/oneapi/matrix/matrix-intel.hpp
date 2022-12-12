@@ -334,10 +334,58 @@ public:
     return wi_element<T, NumRows, NumCols, Use, Layout, Group>(M, i);
   }
 };
-
 } // namespace matrix
 } // namespace experimental
 } // namespace oneapi
+
+namespace intel::experimental::matrix {
+template <
+    typename Group, typename T,
+    sycl::ext::oneapi::experimental::matrix::use Use, size_t NumRows,
+    size_t NumCols, sycl::ext::oneapi::experimental::matrix::layout Layout,
+    access::address_space Space, access::decorated IsDecorated,
+    std::enable_if_t<Use == sycl::ext::oneapi::experimental::matrix::use::a ||
+                         Use == sycl::ext::oneapi::experimental::matrix::use::b,
+                     bool> = true>
+inline __SYCL_ALWAYS_INLINE void
+joint_matrix_store(Group sg,
+                   sycl::ext::oneapi::experimental::matrix::joint_matrix<
+                       Group, T, Use, NumRows, NumCols, Layout> &src,
+                   multi_ptr<T, Space, IsDecorated> dst, size_t stride) {
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
+  std::ignore = sg;
+  std::ignore = src;
+  std::ignore = dst;
+  std::ignore = stride;
+  throw runtime_error(
+      "This version of the matrix extension is only currently supported on "
+      "intel devices",
+      PI_ERROR_INVALID_DEVICE);
+#else
+  // intel's impl
+  T *Ptr = dst.get();
+  __spirv_JointMatrixStoreINTEL<T, NumRows, NumCols,
+                                sycl::ext::oneapi::experimental::matrix::
+                                    spv_matrix_use_traits<Use>::value,
+                                sycl::ext::oneapi::experimental::matrix::
+                                    spv_matrix_layout_traits<Layout>::value>(
+      Ptr, src.spvm, stride,
+      sycl::ext::oneapi::experimental::matrix::spv_matrix_layout_traits<
+          Layout>::value,
+      sycl::ext::oneapi::experimental::matrix::spv_scope_traits<Group>::value);
+#endif // defined(__NVPTX__)
+#else
+  std::ignore = sg;
+  std::ignore = src;
+  std::ignore = dst;
+  std::ignore = stride;
+  throw runtime_error("joint matrix is not supported on host device.",
+                      PI_ERROR_INVALID_DEVICE);
+#endif // defined(__SYCL_DEVICE_ONLY__)
+}
+} // namespace intel::experimental::matrix
+
 } // namespace ext
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
