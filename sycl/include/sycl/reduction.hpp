@@ -80,17 +80,17 @@ namespace detail {
 template <typename T, class BinaryOperation>
 using IsReduOptForFastAtomicFetch =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
-    bool_constant<false>;
+    std::bool_constant<false>;
 #else
-    bool_constant<((is_sgenfloat<T>::value && sizeof(T) == 4) ||
-                   is_sgeninteger<T>::value) &&
-                  IsValidAtomicType<T>::value &&
-                  (IsPlus<T, BinaryOperation>::value ||
-                   IsMinimum<T, BinaryOperation>::value ||
-                   IsMaximum<T, BinaryOperation>::value ||
-                   IsBitOR<T, BinaryOperation>::value ||
-                   IsBitXOR<T, BinaryOperation>::value ||
-                   IsBitAND<T, BinaryOperation>::value)>;
+    std::bool_constant<((is_sgenfloat<T>::value && sizeof(T) == 4) ||
+                        is_sgeninteger<T>::value) &&
+                       IsValidAtomicType<T>::value &&
+                       (IsPlus<T, BinaryOperation>::value ||
+                        IsMinimum<T, BinaryOperation>::value ||
+                        IsMaximum<T, BinaryOperation>::value ||
+                        IsBitOR<T, BinaryOperation>::value ||
+                        IsBitXOR<T, BinaryOperation>::value ||
+                        IsBitAND<T, BinaryOperation>::value)>;
 #endif
 
 // This type trait is used to detect if the atomic operation BinaryOperation
@@ -104,12 +104,12 @@ using IsReduOptForFastAtomicFetch =
 template <typename T, class BinaryOperation>
 using IsReduOptForAtomic64Op =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
-    bool_constant<false>;
+    std::bool_constant<false>;
 #else
-    bool_constant<(IsPlus<T, BinaryOperation>::value ||
-                   IsMinimum<T, BinaryOperation>::value ||
-                   IsMaximum<T, BinaryOperation>::value) &&
-                  is_sgenfloat<T>::value && sizeof(T) == 8>;
+    std::bool_constant<(IsPlus<T, BinaryOperation>::value ||
+                        IsMinimum<T, BinaryOperation>::value ||
+                        IsMaximum<T, BinaryOperation>::value) &&
+                       is_sgenfloat<T>::value && sizeof(T) == 8>;
 #endif
 
 // This type trait is used to detect if the group algorithm reduce() used with
@@ -120,14 +120,14 @@ using IsReduOptForAtomic64Op =
 template <typename T, class BinaryOperation>
 using IsReduOptForFastReduce =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
-    bool_constant<false>;
+    std::bool_constant<false>;
 #else
-    bool_constant<((is_sgeninteger<T>::value &&
-                    (sizeof(T) == 4 || sizeof(T) == 8)) ||
-                   is_sgenfloat<T>::value) &&
-                  (IsPlus<T, BinaryOperation>::value ||
-                   IsMinimum<T, BinaryOperation>::value ||
-                   IsMaximum<T, BinaryOperation>::value)>;
+    std::bool_constant<((is_sgeninteger<T>::value &&
+                         (sizeof(T) == 4 || sizeof(T) == 8)) ||
+                        is_sgenfloat<T>::value) &&
+                       (IsPlus<T, BinaryOperation>::value ||
+                        IsMinimum<T, BinaryOperation>::value ||
+                        IsMaximum<T, BinaryOperation>::value)>;
 #endif
 
 // std::tuple seems to be a) too heavy and b) not copyable to device now
@@ -626,7 +626,12 @@ public:
       Func(Mem);
 
       reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
-        accessor Mem{*Buf, CopyHandler};
+        // MSVC (19.32.31329) has problems compiling the line below when used 
+        // as a host compiler in c++17 mode (but not in c++latest)
+        //   accessor Mem{*Buf, CopyHandler};
+        // so use the old-style API.
+        auto Mem =
+            Buf->template get_access<access::mode::read_write>(CopyHandler);
         if constexpr (is_usm) {
           // Can't capture whole reduction, copy into distinct variables.
           bool IsUpdateOfUserVar = !base::initializeToIdentity();
@@ -1853,11 +1858,9 @@ void reduCGFuncImplArray(
    ...);
 }
 
-namespace reduction {
-namespace main_krn {
+namespace reduction::main_krn {
 template <class KernelName, class Accessor> struct NDRangeMulti;
-} // namespace main_krn
-} // namespace reduction
+} // namespace reduction::main_krn
 template <typename KernelName, typename KernelType, int Dims,
           typename PropertiesT, typename... Reductions, size_t... Is>
 void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
@@ -2103,11 +2106,9 @@ void reduAuxCGFuncImplArray(
    ...);
 }
 
-namespace reduction {
-namespace aux_krn {
+namespace reduction::aux_krn {
 template <class KernelName, class Predicate> struct Multi;
-} // namespace aux_krn
-} // namespace reduction
+} // namespace reduction::aux_krn
 template <typename KernelName, typename KernelType, typename... Reductions,
           size_t... Is>
 size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,

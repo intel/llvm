@@ -54,7 +54,7 @@ spirv::TargetEnv::allows(ArrayRef<spirv::Capability> caps) const {
   });
   if (chosen != caps.end())
     return *chosen;
-  return llvm::None;
+  return std::nullopt;
 }
 
 bool spirv::TargetEnv::allows(spirv::Extension extension) const {
@@ -68,7 +68,7 @@ spirv::TargetEnv::allows(ArrayRef<spirv::Extension> exts) const {
   });
   if (chosen != exts.end())
     return *chosen;
-  return llvm::None;
+  return std::nullopt;
 }
 
 spirv::Vendor spirv::TargetEnv::getVendorID() const {
@@ -120,15 +120,16 @@ bool spirv::needsInterfaceVarABIAttrs(spirv::TargetEnvAttr targetAttr) {
 StringRef spirv::getEntryPointABIAttrName() { return "spirv.entry_point_abi"; }
 
 spirv::EntryPointABIAttr
-spirv::getEntryPointABIAttr(ArrayRef<int32_t> localSize, MLIRContext *context) {
-  if (localSize.empty())
-    return spirv::EntryPointABIAttr::get(context, nullptr);
-
-  assert(localSize.size() == 3);
-  return spirv::EntryPointABIAttr::get(
-      context, DenseElementsAttr::get<int32_t>(
-                   VectorType::get(3, IntegerType::get(context, 32)), localSize)
-                   .cast<DenseIntElementsAttr>());
+spirv::getEntryPointABIAttr(MLIRContext *context,
+                            ArrayRef<int32_t> workgroupSize,
+                            llvm::Optional<int> subgroupSize) {
+  DenseI32ArrayAttr workgroupSizeAttr;
+  if (!workgroupSize.empty()) {
+    assert(workgroupSize.size() == 3);
+    workgroupSizeAttr = DenseI32ArrayAttr::get(context, workgroupSize);
+  }
+  return spirv::EntryPointABIAttr::get(context, workgroupSizeAttr,
+                                       subgroupSize);
 }
 
 spirv::EntryPointABIAttr spirv::lookupEntryPointABI(Operation *op) {
@@ -144,9 +145,9 @@ spirv::EntryPointABIAttr spirv::lookupEntryPointABI(Operation *op) {
   return {};
 }
 
-DenseIntElementsAttr spirv::lookupLocalWorkGroupSize(Operation *op) {
+DenseI32ArrayAttr spirv::lookupLocalWorkGroupSize(Operation *op) {
   if (auto entryPoint = spirv::lookupEntryPointABI(op))
-    return entryPoint.getLocalSize();
+    return entryPoint.getWorkgroupSize();
 
   return {};
 }
@@ -162,6 +163,8 @@ spirv::getDefaultResourceLimits(MLIRContext *context) {
       /*max_compute_workgroup_invocations=*/128,
       /*max_compute_workgroup_size=*/b.getI32ArrayAttr({128, 128, 64}),
       /*subgroup_size=*/32,
+      /*min_subgroup_size=*/std::nullopt,
+      /*max_subgroup_size=*/std::nullopt,
       /*cooperative_matrix_properties_nv=*/ArrayAttr());
 }
 

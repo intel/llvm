@@ -41,6 +41,18 @@ static bool acceptBitWidth(unsigned bitWidth) {
   }
 }
 
+Type SparseTensorEncodingAttr::getPointerType() const {
+  unsigned ptrWidth = getPointerBitWidth();
+  Type indexType = IndexType::get(getContext());
+  return ptrWidth ? IntegerType::get(getContext(), ptrWidth) : indexType;
+}
+
+Type SparseTensorEncodingAttr::getIndexType() const {
+  unsigned idxWidth = getIndexBitWidth();
+  Type indexType = IndexType::get(getContext());
+  return idxWidth ? IntegerType::get(getContext(), idxWidth) : indexType;
+}
+
 Attribute SparseTensorEncodingAttr::parse(AsmParser &parser, Type type) {
   if (failed(parser.parseLess()))
     return {};
@@ -300,7 +312,10 @@ uint64_t mlir::sparse_tensor::toStoredDim(const SparseTensorEncodingAttr &enc,
     auto order = enc.getDimOrdering();
     if (order) {
       assert(order.isPermutation());
-      return order.getPermutedPosition(d);
+      auto maybePos =
+          order.getResultPosition(getAffineDimExpr(d, enc.getContext()));
+      assert(maybePos.has_value());
+      return *maybePos;
     }
   }
   return d;
@@ -593,7 +608,7 @@ void ForeachOp::build(
     OpBuilder &builder, OperationState &result, Value tensor,
     function_ref<void(OpBuilder &, Location, ValueRange, Value, ValueRange)>
         bodyBuilder) {
-  build(builder, result, tensor, llvm::None, bodyBuilder);
+  build(builder, result, tensor, std::nullopt, bodyBuilder);
 }
 
 void ForeachOp::build(

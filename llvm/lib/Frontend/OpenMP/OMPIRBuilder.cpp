@@ -41,6 +41,7 @@
 #include "llvm/Transforms/Utils/UnrollLoop.h"
 
 #include <cstdint>
+#include <optional>
 
 #define DEBUG_TYPE "openmp-ir-builder"
 
@@ -261,8 +262,7 @@ void llvm::spliceBB(IRBuilderBase::InsertPoint IP, BasicBlock *New,
 
   // Move instructions to new block.
   BasicBlock *Old = IP.getBlock();
-  New->getInstList().splice(New->begin(), Old->getInstList(), IP.getPoint(),
-                            Old->end());
+  New->splice(New->begin(), Old, IP.getPoint(), Old->end());
 
   if (CreateBranch)
     BranchInst::Create(New, Old);
@@ -625,7 +625,7 @@ Constant *OpenMPIRBuilder::getOrCreateSrcLocStr(DebugLoc DL,
     return getOrCreateDefaultSrcLocStr(SrcLocStrSize);
   StringRef FileName = M.getName();
   if (DIFile *DIF = DIL->getFile())
-    if (Optional<StringRef> Source = DIF->getSource())
+    if (std::optional<StringRef> Source = DIF->getSource())
       FileName = *Source;
   StringRef Function = DIL->getScope()->getSubprogram()->getName();
   if (Function.empty() && F)
@@ -3195,8 +3195,8 @@ createTargetMachine(Function *F, CodeGenOpt::Level OptLevel) {
 
   llvm::TargetOptions Options;
   return std::unique_ptr<TargetMachine>(TheTarget->createTargetMachine(
-      Triple, CPU, Features, Options, /*RelocModel=*/None, /*CodeModel=*/None,
-      OptLevel));
+      Triple, CPU, Features, Options, /*RelocModel=*/std::nullopt,
+      /*CodeModel=*/std::nullopt, OptLevel));
 }
 
 /// Heuristically determine the best-performant unroll factor for \p CLI. This
@@ -3241,12 +3241,12 @@ static int32_t computeHeuristicUnrollFactor(CanonicalLoopInfo *CLI) {
       gatherUnrollingPreferences(L, SE, TTI,
                                  /*BlockFrequencyInfo=*/nullptr,
                                  /*ProfileSummaryInfo=*/nullptr, ORE, OptLevel,
-                                 /*UserThreshold=*/None,
-                                 /*UserCount=*/None,
+                                 /*UserThreshold=*/std::nullopt,
+                                 /*UserCount=*/std::nullopt,
                                  /*UserAllowPartial=*/true,
                                  /*UserAllowRuntime=*/true,
-                                 /*UserUpperBound=*/None,
-                                 /*UserFullUnrollMaxCount=*/None);
+                                 /*UserUpperBound=*/std::nullopt,
+                                 /*UserFullUnrollMaxCount=*/std::nullopt);
 
   UP.Force = true;
 
@@ -3948,6 +3948,62 @@ void OpenMPIRBuilder::createTargetDeinit(const LocationDescription &Loc,
       omp::RuntimeFunction::OMPRTL___kmpc_target_deinit);
 
   Builder.CreateCall(Fn, {Ident, IsSPMDVal, RequiresFullRuntimeVal});
+}
+
+void OpenMPIRBuilder::setOutlinedTargetRegionFunctionAttributes(
+    Function *OutlinedFn, int32_t NumTeams, int32_t NumThreads) {
+  if (Config.isEmbedded()) {
+    OutlinedFn->setLinkage(GlobalValue::WeakODRLinkage);
+    // TODO: Determine if DSO local can be set to true.
+    OutlinedFn->setDSOLocal(false);
+    OutlinedFn->setVisibility(GlobalValue::ProtectedVisibility);
+    if (Triple(M.getTargetTriple()).isAMDGCN())
+      OutlinedFn->setCallingConv(CallingConv::AMDGPU_KERNEL);
+  }
+
+  if (NumTeams > 0)
+    OutlinedFn->addFnAttr("omp_target_num_teams", std::to_string(NumTeams));
+  if (NumThreads > 0)
+    OutlinedFn->addFnAttr("omp_target_thread_limit",
+                          std::to_string(NumThreads));
+}
+
+Constant *OpenMPIRBuilder::createOutlinedFunctionID(Function *OutlinedFn,
+                                                    StringRef EntryFnIDName) {
+  if (Config.isEmbedded()) {
+    assert(OutlinedFn && "The outlined function must exist if embedded");
+    return ConstantExpr::getBitCast(OutlinedFn, Builder.getInt8PtrTy());
+  }
+
+  return new GlobalVariable(
+      M, Builder.getInt8Ty(), /*isConstant=*/true, GlobalValue::WeakAnyLinkage,
+      Constant::getNullValue(Builder.getInt8Ty()), EntryFnIDName);
+}
+
+Constant *OpenMPIRBuilder::createTargetRegionEntryAddr(Function *OutlinedFn,
+                                                       StringRef EntryFnName) {
+  if (OutlinedFn)
+    return OutlinedFn;
+
+  assert(!M.getGlobalVariable(EntryFnName, true) &&
+         "Named kernel already exists?");
+  return new GlobalVariable(
+      M, Builder.getInt8Ty(), /*isConstant=*/true, GlobalValue::InternalLinkage,
+      Constant::getNullValue(Builder.getInt8Ty()), EntryFnName);
+}
+
+Constant *OpenMPIRBuilder::registerTargetRegionFunction(
+    OffloadEntriesInfoManager &InfoManager, TargetRegionEntryInfo &EntryInfo,
+    Function *OutlinedFn, StringRef EntryFnName, StringRef EntryFnIDName,
+    int32_t NumTeams, int32_t NumThreads) {
+  if (OutlinedFn)
+    setOutlinedTargetRegionFunctionAttributes(OutlinedFn, NumTeams, NumThreads);
+  auto OutlinedFnID = createOutlinedFunctionID(OutlinedFn, EntryFnIDName);
+  auto EntryAddr = createTargetRegionEntryAddr(OutlinedFn, EntryFnName);
+  InfoManager.registerTargetRegionEntryInfo(
+      EntryInfo, EntryAddr, OutlinedFnID,
+      OffloadEntriesInfoManager::OMPTargetRegionEntryTargetRegion);
+  return OutlinedFnID;
 }
 
 std::string OpenMPIRBuilder::getNameWithSeparators(ArrayRef<StringRef> Parts,
