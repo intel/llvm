@@ -147,16 +147,12 @@ struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
   static constexpr std::size_t N = 16;
   static constexpr std::size_t K = ((sizeof(Ta) == 1) ? 64 : 32);
 
+  template <typename Group, layout Layout>
+  using joint_matrix_a = joint_matrix<Group, Ta, use::a, M, K, Layout>;
+  template <typename Group, layout Layout>
+  using joint_matrix_b = joint_matrix<Group, Tb, use::b, K, N, Layout>;
   template <typename Group>
-  using joint_matrix_a =
-      joint_matrix<Group, Ta, use::a, defaultM, defaultK, layout::row_major>;
-  template <typename Group>
-  using joint_matrix_b =
-      joint_matrix<Group, Tb, use::b, defaultK, defaultN,
-                   sycl::ext::intel::experimental::matrix::layout::packed>;
-  template <typename Group>
-  using joint_matrix_c =
-      joint_matrix<Group, Tc, use::accumulator, defaultM, defaultN>;
+  using joint_matrix_c = joint_matrix<Group, Tc, use::accumulator, M, N>;
 
   bool dynamic_p = false; // should be true in future implementations because
                           // AMX hardware supports dynamic sizes
@@ -202,16 +198,12 @@ struct tpu_params<
   static constexpr std::size_t K =
       (sK != 0) ? sK : ((sizeof(Ta) == 1) ? 64 : 32);
 
+  template <typename Group, layout Layout>
+  using joint_matrix_a = joint_matrix<Group, Ta, use::a, M, K, Layout>;
+  template <typename Group, layout Layout>
+  using joint_matrix_b = joint_matrix<Group, Tb, use::b, K, N, Layout>;
   template <typename Group>
-  using joint_matrix_a =
-      joint_matrix<Group, Ta, use::a, defaultM, defaultK, layout::row_major>;
-  template <typename Group>
-  using joint_matrix_b =
-      joint_matrix<Group, Tb, use::b, defaultK, defaultN,
-                   sycl::ext::intel::experimental::matrix::layout::packed>;
-  template <typename Group>
-  using joint_matrix_c =
-      joint_matrix<Group, Tc, use::accumulator, defaultM, defaultN>;
+  using joint_matrix_c = joint_matrix<Group, Tc, use::accumulator, M, N>;
 
   bool dynamic_p = false; // should be true in future implementations
                           // because AMX hardware supports dynamic sizes
@@ -341,16 +333,12 @@ struct tpu_params<tpu::dpas, Ta, Tb, Tc, 0, 0, 0,
   static constexpr std::size_t N = 8;
   static constexpr std::size_t K = ((sizeof(Ta) == 1) ? 32 : 16);
 
+  template <typename Group, layout Layout>
+  using joint_matrix_a = joint_matrix<Group, Ta, use::a, M, K, Layout>;
+  template <typename Group, layout Layout>
+  using joint_matrix_b = joint_matrix<Group, Tb, use::b, K, N, Layout>;
   template <typename Group>
-  using joint_matrix_a =
-      joint_matrix<Group, Ta, use::a, defaultM, defaultK, layout::row_major>;
-  template <typename Group>
-  using joint_matrix_b =
-      joint_matrix<Group, Tb, use::b, defaultK, defaultN,
-                   sycl::ext::intel::experimental::matrix::layout::packed>;
-  template <typename Group>
-  using joint_matrix_c =
-      joint_matrix<Group, Tc, use::accumulator, defaultM, defaultN>;
+  using joint_matrix_c = joint_matrix<Group, Tc, use::accumulator, M, N>;
 
   bool dynamic_p = false; // no dynamic allocation on the GPU
   uint32_t numtiles = -1; // does not apply for DPAS
@@ -400,16 +388,12 @@ struct tpu_params<
   static constexpr std::size_t K =
       (sK != 0) ? sK : ((sizeof(Ta) == 1) ? 32 : 16);
 
+  template <typename Group, layout Layout>
+  using joint_matrix_a = joint_matrix<Group, Ta, use::a, M, K, Layout>;
+  template <typename Group, layout Layout>
+  using joint_matrix_b = joint_matrix<Group, Tb, use::b, K, N, Layout>;
   template <typename Group>
-  using joint_matrix_a =
-      joint_matrix<Group, Ta, use::a, defaultM, defaultK, layout::row_major>;
-  template <typename Group>
-  using joint_matrix_b =
-      joint_matrix<Group, Tb, use::b, defaultK, defaultN,
-                   sycl::ext::intel::experimental::matrix::layout::packed>;
-  template <typename Group>
-  using joint_matrix_c =
-      joint_matrix<Group, Tc, use::accumulator, defaultM, defaultN>;
+  using joint_matrix_c = joint_matrix<Group, Tc, use::accumulator, M, N>;
 
   bool dynamic_p = false; // no dynamic allocation on the GPU
   uint32_t numtiles = -1; // does not apply for DPAS
