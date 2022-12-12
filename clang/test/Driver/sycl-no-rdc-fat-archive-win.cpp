@@ -1,4 +1,3 @@
-
 /// test behaviors of passing a fat static lib with -fno-sycl-rdc on Windows
 // REQUIRES: system-windows
 
