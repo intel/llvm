@@ -152,7 +152,8 @@ struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
   template <typename Group, layout Layout>
   using joint_matrix_b = joint_matrix<Group, Tb, use::b, K, N, Layout>;
   template <typename Group>
-  using joint_matrix_c = joint_matrix<Group, Tc, use::accumulator, M, N>;
+  using joint_matrix_accumulator =
+      joint_matrix<Group, Tc, use::accumulator, M, N>;
 
   bool dynamic_p = false; // should be true in future implementations because
                           // AMX hardware supports dynamic sizes
@@ -203,7 +204,8 @@ struct tpu_params<
   template <typename Group, layout Layout>
   using joint_matrix_b = joint_matrix<Group, Tb, use::b, K, N, Layout>;
   template <typename Group>
-  using joint_matrix_c = joint_matrix<Group, Tc, use::accumulator, M, N>;
+  using joint_matrix_accumulator =
+      joint_matrix<Group, Tc, use::accumulator, M, N>;
 
   bool dynamic_p = false; // should be true in future implementations
                           // because AMX hardware supports dynamic sizes
@@ -338,7 +340,8 @@ struct tpu_params<tpu::dpas, Ta, Tb, Tc, 0, 0, 0,
   template <typename Group, layout Layout>
   using joint_matrix_b = joint_matrix<Group, Tb, use::b, K, N, Layout>;
   template <typename Group>
-  using joint_matrix_c = joint_matrix<Group, Tc, use::accumulator, M, N>;
+  using joint_matrix_accumulator =
+      joint_matrix<Group, Tc, use::accumulator, M, N>;
 
   bool dynamic_p = false; // no dynamic allocation on the GPU
   uint32_t numtiles = -1; // does not apply for DPAS
@@ -393,7 +396,8 @@ struct tpu_params<
   template <typename Group, layout Layout>
   using joint_matrix_b = joint_matrix<Group, Tb, use::b, K, N, Layout>;
   template <typename Group>
-  using joint_matrix_c = joint_matrix<Group, Tc, use::accumulator, M, N>;
+  using joint_matrix_accumulator =
+      joint_matrix<Group, Tc, use::accumulator, M, N>;
 
   bool dynamic_p = false; // no dynamic allocation on the GPU
   uint32_t numtiles = -1; // does not apply for DPAS
