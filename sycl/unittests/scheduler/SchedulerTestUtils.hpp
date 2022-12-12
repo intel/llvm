@@ -202,6 +202,11 @@ public:
     return MGraphBuilder.addCG(std::move(CommandGroup), Queue, ToEnqueue)
         .NewCmd;
   }
+
+  void cancelFusion(sycl::detail::QueueImplPtr Queue,
+                    std::vector<sycl::detail::Command *> &ToEnqueue) {
+    MGraphBuilder.cancelFusion(Queue, ToEnqueue);
+  }
 };
 
 void addEdge(sycl::detail::Command *User, sycl::detail::Command *Dep,

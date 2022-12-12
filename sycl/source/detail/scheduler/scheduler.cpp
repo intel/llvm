@@ -565,14 +565,14 @@ void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
 thread_local bool Scheduler::ForceDeferredMemObjRelease = false;
 
 void Scheduler::startFusion(QueueImplPtr Queue) {
-  WriteLockT Lock(MGraphLock, std::defer_lock);
+  WriteLockT Lock = acquireWriteLock();
   MGraphBuilder.startFusion(Queue);
 }
 
 void Scheduler::cancelFusion(QueueImplPtr Queue) {
   std::vector<Command *> ToEnqueue;
   {
-    WriteLockT Lock{MGraphLock, std::defer_lock};
+    WriteLockT Lock = acquireWriteLock();
     MGraphBuilder.cancelFusion(Queue, ToEnqueue);
   }
   enqueueCommandForCG(nullptr, ToEnqueue);
@@ -583,7 +583,7 @@ EventImplPtr Scheduler::completeFusion(QueueImplPtr Queue,
   std::vector<Command *> ToEnqueue;
   EventImplPtr FusedEvent;
   {
-    WriteLockT Lock{MGraphLock, std::defer_lock};
+    WriteLockT Lock = acquireWriteLock();
     FusedEvent = MGraphBuilder.completeFusion(Queue, ToEnqueue, PropList);
   }
   enqueueCommandForCG(nullptr, ToEnqueue);
@@ -592,7 +592,7 @@ EventImplPtr Scheduler::completeFusion(QueueImplPtr Queue,
 }
 
 bool Scheduler::isInFusionMode(QueueIdT queue) {
-  ReadLockT Lock{MGraphLock, std::defer_lock};
+  ReadLockT Lock = acquireReadLock();
   return MGraphBuilder.isInFusionMode(queue);
 }
 

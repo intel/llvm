@@ -1367,7 +1367,7 @@ void Scheduler::GraphBuilder::removeNodeFromGraph(
         auto *DepReq = PrevDep.MDepRequirement;
         auto *DepRecord = getMemObjRecord(DepReq->MSYCLMemObj);
         if (DepRecord == Record) {
-          // Need to restore this as a leave, because we pushed it from the
+          // Need to restore this as a leaf, because we pushed it from the
           // leaves when adding the placeholder command.
           assert(Dep.MDepCommand);
           addNodeToLeaves(Record, Dep.MDepCommand, DepReq->MAccessMode,

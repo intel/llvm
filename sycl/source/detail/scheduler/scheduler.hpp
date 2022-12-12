@@ -439,7 +439,7 @@ public:
   static MemObjRecord *getMemObjRecord(const Requirement *const Req);
 
   void deferMemObjRelease(const std::shared_ptr<detail::SYCLMemObjI> &MemObj);
-  
+
   void startFusion(QueueImplPtr Queue);
 
   void cancelFusion(QueueImplPtr Queue);
@@ -499,7 +499,7 @@ protected:
 
   // May lock graph with read and write modes during execution.
   void cleanupDeferredMemObjects(BlockingT Blocking);
-  
+
   // POD struct to convey some additional information from GraphBuilder::addCG
   // to the Scheduler to support kernel fusion.
   struct GraphBuildResult {

@@ -32,7 +32,7 @@ std::vector<RT::PiEvent> getOrWaitEvents(std::vector<sycl::event> DepEvents,
       continue;
     }
     // The fusion command and its event are associated with a non-host context,
-    // but still does not produce a PI event,.
+    // but still does not produce a PI event.
     bool NoPiEvent =
         SyclEventImplPtr->MCommand &&
         !static_cast<Command *>(SyclEventImplPtr->MCommand)->producesPiEvent();

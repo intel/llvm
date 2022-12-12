@@ -147,8 +147,7 @@ event handler::finalize() {
       }
     }
 
-    const auto &type = getType();
-    if (type == detail::CG::Kernel && !MQueue->is_in_fusion_mode() &&
+    if (!MQueue->is_in_fusion_mode() &&
         MRequirements.size() + MEvents.size() + MStreamStorage.size() == 0) {
       // if user does not add a new dependency to the dependency graph, i.e.
       // the graph is not changed, and the queue is not in fusion mode, then
