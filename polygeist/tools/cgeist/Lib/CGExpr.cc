@@ -1061,9 +1061,7 @@ static llvm::Optional<mlir::sycl::SYCLCastOp> trackSYCLCast(Value Val) {
       .Case<mlir::LLVM::AddrSpaceCastOp, mlir::polygeist::Memref2PointerOp,
             mlir::polygeist::Pointer2MemrefOp>(
           [](auto Op) { return trackSYCLCast(Op->getOperand(0)); })
-      .Default([](auto) -> llvm::Optional<mlir::sycl::SYCLCastOp> {
-        return llvm::None;
-      });
+      .Default(static_cast<llvm::Optional<mlir::sycl::SYCLCastOp>>(llvm::None));
 }
 
 llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(

@@ -73,7 +73,7 @@ mlir::Value ValueCategory::getValue(mlir::OpBuilder &builder) const {
 
 ValueCategory ValueCategory::getNullValue(OpBuilder &Builder, Location Loc,
                                           Type Type) {
-  const auto ZeroVal =
+  const auto ZeroVal = static_cast<mlir::Value>(
       llvm::TypeSwitch<mlir::Type, mlir::Value>(Type)
           .Case<mlir::IntegerType>([&](auto Ty) {
             return Builder.createOrFold<arith::ConstantIntOp>(Loc, 0, Ty);
@@ -90,9 +90,7 @@ ValueCategory ValueCategory::getNullValue(OpBuilder &Builder, Location Loc,
                                      Builder, Loc, VecTy.getElementType())
                                      .val;
             return Builder.createOrFold<vector::SplatOp>(Loc, Element, Type);
-          })
-          .Default(
-              [](auto) -> mlir::Value { llvm_unreachable("Invalid type"); });
+          }));
   return {ZeroVal, false};
 }
 
@@ -107,11 +105,10 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
   assert(val && "expect not-null");
   if (toStore.getType().isInteger(1)) {
     // Ad-hoc extension of booleans
-    auto ElementType =
-        llvm::TypeSwitch<Type, Type>(val.getType())
+    auto ElementType = static_cast<Type>(
+        llvm::TypeSwitch<Type, Type>{val.getType()}
             .Case<MemRefType, LLVM::LLVMPointerType>(
-                [](auto Ty) -> Type { return Ty.getElementType(); })
-            .Default([](auto) -> Type { llvm_unreachable("Unhandled type"); });
+                [](auto Ty) -> Type { return Ty.getElementType(); }));
     toStore = builder.createOrFold<arith::ExtUIOp>(builder.getUnknownLoc(),
                                                    ElementType, toStore);
   }
