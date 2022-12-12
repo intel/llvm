@@ -1,4 +1,6 @@
 /// Tests for -fno-sycl-rdc
+// UNSUPPORTED: system-windows
+
 // RUN: touch %t1.cpp
 // RUN: touch %t2.cpp
 // RUN: %clang -### -fsycl -fno-sycl-rdc --sysroot=%S/Inputs/SYCL %t1.cpp %t2.cpp 2>&1 -ccc-print-phases | FileCheck %s
