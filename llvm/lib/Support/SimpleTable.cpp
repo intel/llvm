@@ -251,5 +251,14 @@ Expected<SimpleTable::UPtrTy> SimpleTable::read(const Twine &FileName,
   return read(MemBuf->get(), ColSep);
 }
 
+Error SimpleTable::merge(const SimpleTable &Other) {
+  if (getNumColumns() != Other.getNumColumns())
+    return makeError("different number of columns");
+  if (ColumnNames != Other.ColumnNames)
+    return makeError("different column names");
+  Rows.insert(Rows.end(), Other.Rows.begin(), Other.Rows.end());
+  return Error::success();
+}
+
 } // namespace util
 } // namespace llvm
