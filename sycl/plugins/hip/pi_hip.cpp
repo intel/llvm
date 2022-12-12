@@ -5208,6 +5208,10 @@ pi_result hip_piTearDown(void *PluginParameter) {
   return PI_SUCCESS;
 }
 
+pi_result hip_piGetDeviceAndHostTimer(pi_device device, uint64_t* deviceTime, uint64_t* hostTime){
+  assert(0 && "Method not implemented");
+}
+
 const char SupportedVersion[] = _PI_HIP_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -5350,6 +5354,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextKernelSetArgSampler, hip_piextKernelSetArgSampler)
   _PI_CL(piPluginGetLastError, hip_piPluginGetLastError)
   _PI_CL(piTearDown, hip_piTearDown)
+  _PI_CL(piGetDeviceAndHostTimer, hip_piGetDeviceAndHostTimer)
 
 #undef _PI_CL
 

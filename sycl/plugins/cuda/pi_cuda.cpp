@@ -5486,6 +5486,10 @@ pi_result cuda_piTearDown(void *) {
   return PI_SUCCESS;
 }
 
+pi_result cuda_piGetDeviceAndHostTimer(pi_device device, uint64_t* deviceTime, uint64_t* hostTime){
+  assert(0 && "Method not implemented");
+}
+
 const char SupportedVersion[] = _PI_CUDA_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -5634,6 +5638,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextKernelSetArgSampler, cuda_piextKernelSetArgSampler)
   _PI_CL(piPluginGetLastError, cuda_piPluginGetLastError)
   _PI_CL(piTearDown, cuda_piTearDown)
+  _PI_CL(piGetDeviceAndHostTimer, cuda_piGetDeviceAndHostTimer)
 
 #undef _PI_CL
 

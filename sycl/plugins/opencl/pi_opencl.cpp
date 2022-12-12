@@ -1665,6 +1665,10 @@ pi_result piTearDown(void *PluginParameter) {
   return PI_SUCCESS;
 }
 
+pi_result piGetDeviceAndHostTimer(pi_device device, uint64_t* deviceTime, uint64_t* hostTime){
+  assert(0 && "Method not implemented");
+}
+
 const char SupportedVersion[] = _PI_OPENCL_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -1802,6 +1806,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)
   _PI_CL(piPluginGetLastError, piPluginGetLastError)
   _PI_CL(piTearDown, piTearDown)
+  _PI_CL(piGetDeviceAndHostTimer, piGetDeviceAndHostTimer)
 
 #undef _PI_CL
 

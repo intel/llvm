@@ -53,6 +53,7 @@
 // 10.14 Add PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY as an extension for
 // piDeviceGetInfo.
 // 11.15 piEventCreate creates even in the signalled state now.
+<<<<<<< HEAD
 // 11.16 Add PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE and
 // PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH as an extension for
 // piDeviceGetInfo.
@@ -74,9 +75,11 @@
 // PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT, and
 // PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT context info query
 // descriptors.
+// 12.22 Add piGetDeviceAndHostTimer to query device wall-clock timestamp
 
 #define _PI_H_VERSION_MAJOR 12
-#define _PI_H_VERSION_MINOR 21
+#define _PI_H_VERSION_MINOR 22
+
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -319,7 +322,6 @@ typedef enum {
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D = 0x20002,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D = 0x20003,
   PI_EXT_ONEAPI_DEVICE_INFO_CUDA_ASYNC_BARRIER = 0x20004,
-  PI_DEVICE_CURRENT_TIME = 0x20005;
 } _pi_device_info;
 
 typedef enum {
@@ -1901,6 +1903,13 @@ __SYCL_EXPORT pi_result piTearDown(void *PluginParameter);
 /// error code indicates that plugin considers this to be a fatal error and the
 /// runtime must handle it or end the application.
 __SYCL_EXPORT pi_result piPluginGetLastError(char **message);
+
+/// Returns the global timestamp from \param device , and syncronized host timestamp
+///
+/// \param device device to query for timestamp
+/// \param deviceTime pointer to store device time
+/// \param hostTime pointer to store syncronized host time 
+__SYCL_EXPORT pi_result piGetDeviceAndHostTimer(pi_device device, uint64_t* deviceTime, uint64_t* hostTime);
 
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin
