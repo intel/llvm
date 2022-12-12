@@ -2191,6 +2191,9 @@ typedef enum ur_queue_flag_t
     UR_QUEUE_FLAG_PROFILING_ENABLE = UR_BIT(1),     ///< Enable/disable profiling
     UR_QUEUE_FLAG_ON_DEVICE = UR_BIT(2),            ///< Is a device queue
     UR_QUEUE_FLAG_ON_DEVICE_DEFAULT = UR_BIT(3),    ///< Is the default queue for a device
+    UR_QUEUE_FLAG_DISCARD_EVENTS = UR_BIT(4),       ///< Events will be discarded
+    UR_QUEUE_FLAG_PRIORITY_LOW = UR_BIT(5),         ///< Low priority queue
+    UR_QUEUE_FLAG_PRIORITY_HIGH = UR_BIT(6),        ///< High priority queue
     UR_QUEUE_FLAG_FORCE_UINT32 = 0x7fffffff
 
 } ur_queue_flag_t;
