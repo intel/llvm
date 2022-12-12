@@ -16,15 +16,6 @@
 #include <sycl/ext/oneapi/annotated_arg/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 
-#ifdef __SYCL_DEVICE_ONLY__
-#define __SYCL_HOST_NOT_SUPPORTED(Op)
-#else
-#define __SYCL_HOST_NOT_SUPPORTED(Op)                                          \
-  throw sycl::exception(                                                       \
-      sycl::make_error_code(sycl::errc::feature_not_supported),                \
-      Op " is not supported on host device.");
-#endif
-
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
@@ -41,14 +32,22 @@ struct HasSubscriptOperator
 
 } // namespace detail
 
+namespace {
+// Performs merge-sort on types with PropertyID.
+template <typename... Ts> struct SortedProperties {
+  using split = typename detail::CreateTuplePairs<Ts...>::type;
+  using type = typename detail::MergeAll<split>::type;
+};
+} // namespace
+
 // Deduction guide
 template <typename T, typename... Args>
-annotated_arg(T, Args... args)
+annotated_arg(T, detail::properties_t<Args...>)
     -> annotated_arg<T, detail::properties_t<Args...>>;
 
 template <typename T, typename... Args>
-annotated_arg(T, properties<std::tuple<Args...>>)
-    -> annotated_arg<T, detail::properties_t<Args...>>;
+annotated_arg(T, Args... args)
+    -> annotated_arg<T, properties<typename SortedProperties<Args...>::type>>;
 
 template <typename T, typename old, typename... ArgT>
 annotated_arg(annotated_arg<T, old>, properties<std::tuple<ArgT...>>)
@@ -92,8 +91,6 @@ public:
                 "Type T must be trivially destructible.");
   static_assert(is_property_list<property_list_t>::value,
                 "Property list is invalid.");
-  // static_assert(detail::SortedAllUnique<std::tuple<Props...>>::value,
-  // "Duplicate properties in property list.");
 
   annotated_arg() noexcept = default;
   annotated_arg(const annotated_arg &) = default;
@@ -103,23 +100,29 @@ public:
                 const property_list_t &PropList = properties{}) noexcept
       : obj(sycl::detail::cast_AS<global_pointer_t>(_ptr)) {}
 
+  // Constructs an annotated_arg object from a raw pointer and variadic
+  // properties. The new property set contains all properties of the input
+  // variadic properties. The same property in `Props...` and
+  // `PropertyValueTs...` must have the same property value.
   template <typename... PropertyValueTs>
-  annotated_arg(T *_ptr, PropertyValueTs... props) noexcept
+  annotated_arg(T *_ptr, const PropertyValueTs &...props) noexcept
       : obj(sycl::detail::cast_AS<global_pointer_t>(_ptr)) {
+    static_assert(detail::SortedAllUnique<
+                      typename detail::Sorted<PropertyValueTs...>::type>::value,
+                  "Duplicate properties in the variadic properties.");
     static_assert(
-        std::is_same<property_list_t,
-                     detail::merged_properties_t<
-                         property_list_t,
-                         detail::properties_t<PropertyValueTs...>>>::value,
+        std::is_same<
+            property_list_t,
+            detail::merged_properties_t<property_list_t,
+                                        decltype(properties{props...})>>::value,
         "The property list must contain all properties of the input of the "
         "constructor");
   }
 
   // Constructs an annotated_arg object from another annotated_arg object.
-  // The property set PropertyListT contains all properties of the input
-  // annotated_arg object. If there are duplicate properties present in the
-  // property list of the input annotated_arg object, the values of the
-  // duplicate properties must be the same.
+  // The new property set contains all properties of the input
+  // annotated_arg object. The same property in `Props...` and `PropertyList2`
+  // must have the same property value.
   template <typename T2, typename PropertyList2>
   explicit annotated_arg(const annotated_arg<T2, PropertyList2> &other) noexcept
       : obj(other.obj) {
@@ -135,6 +138,10 @@ public:
         "the input annotated_arg");
   }
 
+  // Constructs an annotated_arg object from another annotated_arg object and a
+  // property list. The new property set is the union of property lists
+  // `PropertyListU` and `PropertyListV`. The same property in `PropertyListU`
+  // and `PropertyListV` must have the same property value.
   template <typename T2, typename PropertyListU, typename PropertyListV>
   explicit annotated_arg(const annotated_arg<T2, PropertyListU> &other,
                          const PropertyListV &proplist) noexcept
@@ -202,22 +209,29 @@ public:
                 const property_list_t &PropList = properties{}) noexcept
       : obj(_obj) {}
 
+  // Constructs an annotated_arg object from a raw pointer and variadic
+  // properties. The new property set contains all properties of the input
+  // variadic properties. The same property in `Props...` and
+  // `PropertyValueTs...` must have the same property value.
   template <typename... PropertyValueTs>
   annotated_arg(const T &_obj, PropertyValueTs... props) noexcept : obj(_obj) {
+    static_assert(detail::SortedAllUnique<
+                      typename detail::Sorted<PropertyValueTs...>::type>::value,
+                  "Duplicate properties in the variadic properties.");
+
     static_assert(
-        std::is_same<property_list_t,
-                     detail::merged_properties_t<
-                         property_list_t,
-                         detail::properties_t<PropertyValueTs...>>>::value,
+        std::is_same<
+            property_list_t,
+            detail::merged_properties_t<property_list_t,
+                                        decltype(properties{props...})>>::value,
         "The property list must contain all properties of the input of the "
         "constructor");
   }
 
   // Constructs an annotated_arg object from another annotated_arg object.
-  // The property set PropertyListT contains all properties of the input
-  // annotated_arg object. If there are duplicate properties present in the
-  // property list of the input annotated_arg object, the values of the
-  // duplicate properties must be the same.
+  // The new property set contains all properties of the input
+  // annotated_arg object. The same property in `Props...` and `PropertyList2`
+  // must have the same property value.
   template <typename T2, typename PropertyList2>
   explicit annotated_arg(const annotated_arg<T2, PropertyList2> &other) noexcept
       : obj(other.obj) {
@@ -233,6 +247,10 @@ public:
         "the input annotated_arg");
   }
 
+  // Constructs an annotated_arg object from another annotated_arg object and a
+  // property list. The new property set is the union of property lists
+  // `PropertyListU` and `PropertyListV`. The same property in `PropertyListU`
+  // and `PropertyListV` must have the same property value.
   template <typename T2, typename PropertyListU, typename PropertyListV>
   explicit annotated_arg(const annotated_arg<T2, PropertyListU> &other,
                          const PropertyListV &proplist) noexcept
@@ -279,5 +297,3 @@ public:
 } // namespace ext
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-
-#undef __SYCL_HOST_NOT_SUPPORTED

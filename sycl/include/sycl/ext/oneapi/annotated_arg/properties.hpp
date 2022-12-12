@@ -75,7 +75,6 @@ struct wait_request_key {
       property_value<wait_request_key, std::integral_constant<int, K>>;
 };
 
-#if __cplusplus >= 201703L // inline variables
 // non-mmhost properties
 inline constexpr register_map_key::value_t register_map;
 inline constexpr conduit_key::value_t conduit;
@@ -101,8 +100,6 @@ inline constexpr read_write_mode_key::value_t<read_write_mode_enum::write>
     read_write_mode_write;
 inline constexpr read_write_mode_key::value_t<read_write_mode_enum::read_write>
     read_write_mode_readwrite;
-
-#endif // __cplusplus >= 201703L
 
 template <> struct is_property_key<register_map_key> : std::true_type {};
 template <> struct is_property_key<conduit_key> : std::true_type {};
