@@ -338,7 +338,7 @@ extern SYCL_EXTERNAL TempRetT __spirv_ImageSampleExplicitLod(SampledType,
 // of atomic min/max based on the type
 #define __SPIRV_ATOMIC_MINMAX(AS, Op)                                          \
   template <typename T>                                                        \
-  typename sycl::detail::enable_if_t<                                          \
+  typename std::enable_if_t<                                                   \
       std::is_integral<T>::value && std::is_signed<T>::value, T>               \
       __spirv_Atomic##Op(AS T *Ptr, __spv::Scope::Flag Memory,                 \
                          __spv::MemorySemanticsMask::Flag Semantics,           \
@@ -346,7 +346,7 @@ extern SYCL_EXTERNAL TempRetT __spirv_ImageSampleExplicitLod(SampledType,
     return __spirv_AtomicS##Op(Ptr, Memory, Semantics, Value);                 \
   }                                                                            \
   template <typename T>                                                        \
-  typename sycl::detail::enable_if_t<                                          \
+  typename std::enable_if_t<                                                   \
       std::is_integral<T>::value && !std::is_signed<T>::value, T>              \
       __spirv_Atomic##Op(AS T *Ptr, __spv::Scope::Flag Memory,                 \
                          __spv::MemorySemanticsMask::Flag Semantics,           \
@@ -354,7 +354,7 @@ extern SYCL_EXTERNAL TempRetT __spirv_ImageSampleExplicitLod(SampledType,
     return __spirv_AtomicU##Op(Ptr, Memory, Semantics, Value);                 \
   }                                                                            \
   template <typename T>                                                        \
-  typename sycl::detail::enable_if_t<std::is_floating_point<T>::value, T>      \
+  typename std::enable_if_t<std::is_floating_point<T>::value, T>               \
       __spirv_Atomic##Op(AS T *Ptr, __spv::Scope::Flag Memory,                 \
                          __spv::MemorySemanticsMask::Flag Semantics,           \
                          T Value) {                                            \
@@ -416,6 +416,14 @@ __SYCL_GenericCastToPtrExplicit_ToGlobal(const void *Ptr) noexcept {
 }
 
 template <typename dataT>
+extern volatile __attribute__((opencl_global)) dataT *
+__SYCL_GenericCastToPtrExplicit_ToGlobal(volatile void *Ptr) noexcept {
+  return (volatile __attribute__((opencl_global)) dataT *)
+      __spirv_GenericCastToPtrExplicit_ToGlobal(
+          Ptr, __spv::StorageClass::CrossWorkgroup);
+}
+
+template <typename dataT>
 extern const volatile __attribute__((opencl_global)) dataT *
 __SYCL_GenericCastToPtrExplicit_ToGlobal(const volatile void *Ptr) noexcept {
   return (const volatile __attribute__((opencl_global)) dataT *)
@@ -440,6 +448,14 @@ __SYCL_GenericCastToPtrExplicit_ToLocal(const void *Ptr) noexcept {
 }
 
 template <typename dataT>
+extern volatile __attribute__((opencl_local)) dataT *
+__SYCL_GenericCastToPtrExplicit_ToLocal(volatile void *Ptr) noexcept {
+  return (volatile __attribute__((opencl_local)) dataT *)
+      __spirv_GenericCastToPtrExplicit_ToLocal(Ptr,
+                                               __spv::StorageClass::Workgroup);
+}
+
+template <typename dataT>
 extern const volatile __attribute__((opencl_local)) dataT *
 __SYCL_GenericCastToPtrExplicit_ToLocal(const volatile void *Ptr) noexcept {
   return (const volatile __attribute__((opencl_local)) dataT *)
@@ -459,6 +475,14 @@ template <typename dataT>
 extern const __attribute__((opencl_private)) dataT *
 __SYCL_GenericCastToPtrExplicit_ToPrivate(const void *Ptr) noexcept {
   return (const __attribute__((opencl_private)) dataT *)
+      __spirv_GenericCastToPtrExplicit_ToPrivate(Ptr,
+                                                 __spv::StorageClass::Function);
+}
+
+template <typename dataT>
+extern volatile __attribute__((opencl_private)) dataT *
+__SYCL_GenericCastToPtrExplicit_ToPrivate(volatile void *Ptr) noexcept {
+  return (volatile __attribute__((opencl_private)) dataT *)
       __spirv_GenericCastToPtrExplicit_ToPrivate(Ptr,
                                                  __spv::StorageClass::Function);
 }

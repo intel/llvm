@@ -24,10 +24,10 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Target/TargetOptions.h"
-#include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/SimplifyCFG.h"
 #include "llvm/Transforms/Utils/SimplifyCFGOptions.h"
+#include <optional>
 using namespace llvm;
 
 static cl::
@@ -58,15 +58,15 @@ static std::string computeDataLayout(const Triple &TT) {
     return "e-m:e-p:64:64-i64:64-i128:128-n32:64-S128";
 }
 
-static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
+static Reloc::Model getEffectiveRelocModel(std::optional<Reloc::Model> RM) {
   return RM.value_or(Reloc::PIC_);
 }
 
 BPFTargetMachine::BPFTargetMachine(const Target &T, const Triple &TT,
                                    StringRef CPU, StringRef FS,
                                    const TargetOptions &Options,
-                                   Optional<Reloc::Model> RM,
-                                   Optional<CodeModel::Model> CM,
+                                   std::optional<Reloc::Model> RM,
+                                   std::optional<CodeModel::Model> CM,
                                    CodeGenOpt::Level OL, bool JIT)
     : LLVMTargetMachine(T, computeDataLayout(TT), TT, CPU, FS, Options,
                         getEffectiveRelocModel(RM),
@@ -100,28 +100,6 @@ public:
 
 TargetPassConfig *BPFTargetMachine::createPassConfig(PassManagerBase &PM) {
   return new BPFPassConfig(*this, PM);
-}
-
-void BPFTargetMachine::adjustPassManager(PassManagerBuilder &Builder) {
- Builder.addExtension(
-      PassManagerBuilder::EP_EarlyAsPossible,
-      [&](const PassManagerBuilder &, legacy::PassManagerBase &PM) {
-        PM.add(createBPFAbstractMemberAccess(this));
-        PM.add(createBPFPreserveDIType());
-        PM.add(createBPFIRPeephole());
-      });
-
-  Builder.addExtension(
-      PassManagerBuilder::EP_Peephole,
-      [&](const PassManagerBuilder &, legacy::PassManagerBase &PM) {
-        PM.add(createCFGSimplificationPass(
-            SimplifyCFGOptions().hoistCommonInsts(true)));
-      });
-  Builder.addExtension(
-      PassManagerBuilder::EP_ModuleOptimizerEarly,
-      [&](const PassManagerBuilder &, legacy::PassManagerBase &PM) {
-        PM.add(createBPFAdjustOpt());
-      });
 }
 
 void BPFTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {

@@ -224,7 +224,7 @@ Expected<std::string> getCachedOrDownloadArtifact(
   FileCache Cache = *CacheOrErr;
   // We choose an arbitrary Task parameter as we do not make use of it.
   unsigned Task = 0;
-  Expected<AddStreamFn> CacheAddStreamOrErr = Cache(Task, UniqueKey);
+  Expected<AddStreamFn> CacheAddStreamOrErr = Cache(Task, UniqueKey, "");
   if (!CacheAddStreamOrErr)
     return CacheAddStreamOrErr.takeError();
   AddStreamFn &CacheAddStream = *CacheAddStreamOrErr;
@@ -251,8 +251,8 @@ Expected<std::string> getCachedOrDownloadArtifact(
 
     // Perform the HTTP request and if successful, write the response body to
     // the cache.
-    StreamedHTTPResponseHandler Handler([&]() { return CacheAddStream(Task); },
-                                        Client);
+    StreamedHTTPResponseHandler Handler(
+        [&]() { return CacheAddStream(Task, ""); }, Client);
     HTTPRequest Request(ArtifactUrl);
     Request.Headers = getHeaders();
     Error Err = Client.perform(Request, Handler);
@@ -403,7 +403,7 @@ Error DebuginfodCollection::findBinaries(StringRef Path) {
         if (!Object)
           continue;
 
-        Optional<BuildIDRef> ID = getBuildID(Object);
+        std::optional<BuildIDRef> ID = getBuildID(Object);
         if (!ID)
           continue;
 
@@ -434,7 +434,7 @@ DebuginfodCollection::getBinaryPath(BuildIDRef ID) {
     std::string Path = Loc->getValue();
     return Path;
   }
-  return None;
+  return std::nullopt;
 }
 
 Expected<Optional<std::string>>
@@ -446,7 +446,7 @@ DebuginfodCollection::getDebugBinaryPath(BuildIDRef ID) {
     std::string Path = Loc->getValue();
     return Path;
   }
-  return None;
+  return std::nullopt;
 }
 
 Expected<std::string> DebuginfodCollection::findBinaryPath(BuildIDRef ID) {

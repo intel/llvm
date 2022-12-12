@@ -5,4 +5,5 @@ add_sycl_unittest(QueueTests OBJECT
   Wait.cpp
   GetProfilingInfo.cpp
   ShortcutFunctions.cpp
+  InOrderQueue.cpp
 )

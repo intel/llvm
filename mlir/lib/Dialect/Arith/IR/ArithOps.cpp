@@ -225,7 +225,7 @@ void arith::AddIOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 Optional<SmallVector<int64_t, 4>> arith::AddUICarryOp::getShapeForUnroll() {
   if (auto vt = getType(0).dyn_cast<VectorType>())
     return llvm::to_vector<4>(vt.getShape());
-  return None;
+  return std::nullopt;
 }
 
 // Returns the carry bit, assuming that `sum` is the result of addition of
@@ -612,6 +612,23 @@ OpFoldResult arith::RemSIOp::fold(ArrayRef<Attribute> operands) {
 // AndIOp
 //===----------------------------------------------------------------------===//
 
+/// Fold `and(a, and(a, b))` to `and(a, b)`
+static Value foldAndIofAndI(arith::AndIOp op) {
+  for (bool reversePrev : {false, true}) {
+    auto prev = (reversePrev ? op.getRhs() : op.getLhs())
+                    .getDefiningOp<arith::AndIOp>();
+    if (!prev)
+      continue;
+
+    Value other = (reversePrev ? op.getLhs() : op.getRhs());
+    if (other != prev.getLhs() && other != prev.getRhs())
+      continue;
+
+    return prev.getResult();
+  }
+  return {};
+}
+
 OpFoldResult arith::AndIOp::fold(ArrayRef<Attribute> operands) {
   /// and(x, 0) -> 0
   if (matchPattern(getRhs(), m_Zero()))
@@ -630,6 +647,10 @@ OpFoldResult arith::AndIOp::fold(ArrayRef<Attribute> operands) {
                                           m_ConstantInt(&intValue))) &&
       intValue.isAllOnes())
     return IntegerAttr::get(getType(), 0);
+
+  /// and(a, and(a, b)) -> and(a, b)
+  if (Value result = foldAndIofAndI(*this))
+    return result;
 
   return constFoldBinaryOp<IntegerAttr>(
       operands, [](APInt a, const APInt &b) { return std::move(a) & b; });
@@ -1488,7 +1509,7 @@ static Optional<int64_t> getIntegerWidth(Type t) {
   if (auto vectorIntType = t.dyn_cast<VectorType>()) {
     return vectorIntType.getElementType().cast<IntegerType>().getWidth();
   }
-  return llvm::None;
+  return std::nullopt;
 }
 
 OpFoldResult arith::CmpIOp::fold(ArrayRef<Attribute> operands) {

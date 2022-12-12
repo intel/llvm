@@ -8,14 +8,12 @@
 
 #pragma once
 #include "sycl/detail/defines_elementary.hpp"
-#include <sycl/ext/oneapi/experimental/bfloat16.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
-namespace matrix {
+namespace ext::oneapi {
+namespace experimental::matrix {
 
 enum class matrix_use { a, b, accumulator };
 
@@ -173,8 +171,7 @@ joint_matrix_fill(Group sg,
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
-} // namespace matrix
-} // namespace experimental
+} // namespace experimental::matrix
 
 namespace detail {
 
@@ -205,7 +202,6 @@ constexpr int get_layout_id<
   return 1;
 }
 
-#if __cplusplus >= 201703L // if constexpr usage
 template <typename S, typename T,
           sycl::ext::oneapi::experimental::matrix::matrix_use Use,
           size_t NumRows, size_t NumCols,
@@ -221,9 +217,8 @@ struct joint_matrix_load_impl<
                 S, Use, NumRows, NumCols, Layout, sycl::sub_group> &res,
             multi_ptr<T, Space, IsDecorated> src, size_t stride) {
     if constexpr (std::is_same<std::remove_const_t<T>, uint16_t>::value ||
-                  std::is_same<
-                      std::remove_const_t<T>,
-                      sycl::ext::oneapi::experimental::bfloat16>::value) {
+                  std::is_same<std::remove_const_t<T>,
+                               sycl::ext::oneapi::bfloat16>::value) {
       auto tileptr = reinterpret_cast<const int32_t *>(src.get());
       auto destptr = reinterpret_cast<int32_t *>(&res.wi_marray);
       if constexpr (NumRows == 16 && NumCols == 16) {
@@ -387,7 +382,6 @@ struct joint_matrix_load_impl<
     }
   }
 };
-#endif // __cplusplus >= 201703L
 
 template <typename T, size_t NumRows, size_t NumCols,
           sycl::ext::oneapi::experimental::matrix::matrix_layout Layout,
@@ -401,7 +395,6 @@ struct joint_matrix_store_impl {
         multi_ptr<T, Space, IsDecorated> dst, size_t stride);
 };
 
-#if __cplusplus >= 201703L // if constexpr usage
 template <typename T, size_t NumRows, size_t NumCols,
           sycl::ext::oneapi::experimental::matrix::matrix_layout Layout,
           access::address_space Space, access::decorated IsDecorated>
@@ -465,7 +458,6 @@ struct joint_matrix_store_impl<
     }
   }
 };
-#endif // __cplusplus >= 201703L
 
 template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
           sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutA,
@@ -522,7 +514,6 @@ constexpr int get_layout_pair_id<
   return 3;
 }
 
-#if __cplusplus >= 201703L // if constexpr usage
 template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
           sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutA,
           sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutB,
@@ -589,8 +580,8 @@ struct joint_matrix_mad_impl<
               get_layout_pair_id<LayoutA, LayoutB>(), 0);
         }
       } else if constexpr (std::is_same<T1, uint16_t>::value ||
-                           std::is_same<T1, sycl::ext::oneapi::experimental::
-                                                bfloat16>::value) {
+                           std::is_same<T1,
+                                        sycl::ext::oneapi::bfloat16>::value) {
         __mma_bf16_m16n16k16_mma_f32(
             reinterpret_cast<float *>(&D.wi_marray),
             reinterpret_cast<const int32_t *>(&A.wi_marray),
@@ -626,8 +617,8 @@ struct joint_matrix_mad_impl<
               get_layout_pair_id<LayoutA, LayoutB>(), 0);
         }
       } else if constexpr (std::is_same<T1, uint16_t>::value ||
-                           std::is_same<T1, sycl::ext::oneapi::experimental::
-                                                bfloat16>::value) {
+                           std::is_same<T1,
+                                        sycl::ext::oneapi::bfloat16>::value) {
         __mma_bf16_m8n32k16_mma_f32(
             reinterpret_cast<float *>(&D.wi_marray),
             reinterpret_cast<const int32_t *>(&A.wi_marray),
@@ -649,8 +640,8 @@ struct joint_matrix_mad_impl<
                                  get_layout_pair_id<LayoutA, LayoutB>(), 0);
         }
       } else if constexpr (std::is_same<T1, uint16_t>::value ||
-                           std::is_same<T1, sycl::ext::oneapi::experimental::
-                                                bfloat16>::value) {
+                           std::is_same<T1,
+                                        sycl::ext::oneapi::bfloat16>::value) {
         __mma_bf16_m32n8k16_mma_f32(
             reinterpret_cast<float *>(&D.wi_marray),
             reinterpret_cast<const int32_t *>(&A.wi_marray),
@@ -688,12 +679,9 @@ struct joint_matrix_mad_impl<
     return D;
   }
 };
-#endif // __cplusplus >= 201703L
-
 } // namespace detail
 
-namespace experimental {
-namespace matrix {
+namespace experimental::matrix {
 
 template <
     typename Group, typename S, typename T, matrix_use Use, size_t NumRows,
@@ -784,9 +772,7 @@ inline __SYCL_ALWAYS_INLINE float round_to_tf32(float a) {
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
-} // namespace matrix
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace experimental::matrix
+} // namespace ext::oneapi
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

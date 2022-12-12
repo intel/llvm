@@ -28,7 +28,7 @@ static llvm::Optional<Token>
 findConstToRemove(const FunctionDecl *Def,
                   const MatchFinder::MatchResult &Result) {
   if (!Def->getReturnType().isLocalConstQualified())
-    return None;
+    return std::nullopt;
 
   // Get the begin location for the function name, including any qualifiers
   // written in the source (for out-of-line declarations). A FunctionDecl's
@@ -45,7 +45,7 @@ findConstToRemove(const FunctionDecl *Def,
       *Result.SourceManager, Result.Context->getLangOpts());
 
   if (FileRange.isInvalid())
-    return None;
+    return std::nullopt;
 
   return utils::lexer::getQualifyingToken(
       tok::kw_const, FileRange, *Result.Context, *Result.SourceManager);
@@ -105,6 +105,10 @@ static CheckResult checkDef(const clang::FunctionDecl *Def,
   return Result;
 }
 
+void ConstReturnTypeCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
+  Options.store(Opts, "IgnoreMacros", IgnoreMacros);
+}
+
 void ConstReturnTypeCheck::registerMatchers(MatchFinder *Finder) {
   // Find all function definitions for which the return types are `const`
   // qualified, ignoring decltype types.
@@ -114,13 +118,20 @@ void ConstReturnTypeCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
       functionDecl(
           returns(allOf(isConstQualified(), unless(NonLocalConstType))),
-          anyOf(isDefinition(), cxxMethodDecl(isPure())))
+          anyOf(isDefinition(), cxxMethodDecl(isPure())),
+          // Overridden functions are not actionable.
+          unless(cxxMethodDecl(isOverride())))
           .bind("func"),
       this);
 }
 
 void ConstReturnTypeCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *Def = Result.Nodes.getNodeAs<FunctionDecl>("func");
+  // Suppress the check if macros are involved.
+  if (IgnoreMacros &&
+      (Def->getBeginLoc().isMacroID() || Def->getEndLoc().isMacroID()))
+    return;
+
   CheckResult CR = checkDef(Def, Result);
   {
     // Clang only supports one in-flight diagnostic at a time. So, delimit the

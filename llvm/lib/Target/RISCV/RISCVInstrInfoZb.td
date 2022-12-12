@@ -37,6 +37,7 @@ def riscv_brev8  : SDNode<"RISCVISD::BREV8",  SDTIntUnaryOp>;
 def riscv_orc_b  : SDNode<"RISCVISD::ORC_B",  SDTIntUnaryOp>;
 def riscv_zip    : SDNode<"RISCVISD::ZIP",    SDTIntUnaryOp>;
 def riscv_unzip  : SDNode<"RISCVISD::UNZIP",  SDTIntUnaryOp>;
+def riscv_absw   : SDNode<"RISCVISD::ABSW",   SDTIntUnaryOp>;
 
 def UImmLog2XLenHalfAsmOperand : AsmOperandClass {
   let Name = "UImmLog2XLenHalf";
@@ -255,6 +256,10 @@ def Shifted32OnesMask : PatLeaf<(imm), [{
 def sh1add_op : ComplexPattern<XLenVT, 1, "selectSHXADDOp<1>", [], [], 6>;
 def sh2add_op : ComplexPattern<XLenVT, 1, "selectSHXADDOp<2>", [], [], 6>;
 def sh3add_op : ComplexPattern<XLenVT, 1, "selectSHXADDOp<3>", [], [], 6>;
+
+def sh1add_uw_op : ComplexPattern<XLenVT, 1, "selectSHXADD_UWOp<1>", [], [], 6>;
+def sh2add_uw_op : ComplexPattern<XLenVT, 1, "selectSHXADD_UWOp<2>", [], [], 6>;
+def sh3add_uw_op : ComplexPattern<XLenVT, 1, "selectSHXADD_UWOp<3>", [], [], 6>;
 
 //===----------------------------------------------------------------------===//
 // Instruction class templates
@@ -609,6 +614,9 @@ let Predicates = [HasStdExtZbb, IsRV64] in {
 def : PatGpr<riscv_clzw, CLZW>;
 def : PatGpr<riscv_ctzw, CTZW>;
 def : Pat<(i64 (ctpop (i64 (zexti32 (i64 GPR:$rs1))))), (CPOPW GPR:$rs1)>;
+
+def : Pat<(i64 (riscv_absw GPR:$rs1)),
+          (MAX GPR:$rs1, (SUBW X0, GPR:$rs1))>;
 } // Predicates = [HasStdExtZbb, IsRV64]
 
 let Predicates = [HasStdExtZbb] in {
@@ -766,6 +774,14 @@ def : Pat<(i64 (add (and (shl GPR:$rs1, (i64 2)), 0x3FFFFFFFF), non_imm12:$rs2))
           (SH2ADD_UW GPR:$rs1, GPR:$rs2)>;
 def : Pat<(i64 (add (and (shl GPR:$rs1, (i64 3)), 0x7FFFFFFFF), non_imm12:$rs2)),
           (SH3ADD_UW GPR:$rs1, GPR:$rs2)>;
+
+// More complex cases use a ComplexPattern.
+def : Pat<(add sh1add_uw_op:$rs1, non_imm12:$rs2),
+          (SH1ADD_UW sh1add_uw_op:$rs1, GPR:$rs2)>;
+def : Pat<(add sh2add_uw_op:$rs1, non_imm12:$rs2),
+          (SH2ADD_UW sh2add_uw_op:$rs1, GPR:$rs2)>;
+def : Pat<(add sh3add_uw_op:$rs1, non_imm12:$rs2),
+          (SH3ADD_UW sh3add_uw_op:$rs1, GPR:$rs2)>;
 
 def : Pat<(i64 (add (and GPR:$rs1, 0xFFFFFFFE), non_imm12:$rs2)),
           (SH1ADD (SRLIW GPR:$rs1, 1), GPR:$rs2)>;

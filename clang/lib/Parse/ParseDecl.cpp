@@ -449,10 +449,8 @@ unsigned Parser::ParseAttributeArgsCommon(
                        ? Sema::ExpressionEvaluationContext::Unevaluated
                        : Sema::ExpressionEvaluationContext::ConstantEvaluated);
 
-      CommaLocsTy CommaLocs;
       ExprVector ParsedExprs;
-      if (ParseExpressionList(ParsedExprs, CommaLocs,
-                              llvm::function_ref<void()>(),
+      if (ParseExpressionList(ParsedExprs, llvm::function_ref<void()>(),
                               /*FailImmediatelyOnInvalidExpr=*/true,
                               /*EarlyTypoCorrection=*/true)) {
         SkipUntil(tok::r_paren, StopAtSemi);
@@ -2423,8 +2421,8 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
         // Recover as if it were an explicit specialization.
         TemplateParameterLists FakedParamLists;
         FakedParamLists.push_back(Actions.ActOnTemplateParameterList(
-            0, SourceLocation(), TemplateInfo.TemplateLoc, LAngleLoc, None,
-            LAngleLoc, nullptr));
+            0, SourceLocation(), TemplateInfo.TemplateLoc, LAngleLoc,
+            std::nullopt, LAngleLoc, nullptr));
 
         ThisDecl =
             Actions.ActOnTemplateDeclarator(getCurScope(), FakedParamLists, D);
@@ -2499,7 +2497,6 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
     T.consumeOpen();
 
     ExprVector Exprs;
-    CommaLocsTy CommaLocs;
 
     InitializerScopeRAII InitScope(*this, D, ThisDecl);
 
@@ -2524,7 +2521,7 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
       // ProduceConstructorSignatureHelp only on VarDecls.
       ExpressionStarts = SetPreferredType;
     }
-    if (ParseExpressionList(Exprs, CommaLocs, ExpressionStarts)) {
+    if (ParseExpressionList(Exprs, ExpressionStarts)) {
       if (ThisVarDecl && PP.isCodeCompletionReached() && !CalledSignatureHelp) {
         Actions.ProduceConstructorSignatureHelp(
             ThisVarDecl->getType()->getCanonicalTypeInternal(),
@@ -2537,10 +2534,6 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
     } else {
       // Match the ')'.
       T.consumeClose();
-
-      assert(!Exprs.empty() && Exprs.size()-1 == CommaLocs.size() &&
-             "Unexpected number of commas!");
-
       InitScope.pop();
 
       ExprResult Initializer = Actions.ActOnParenListExpr(T.getOpenLocation(),
@@ -5387,6 +5380,25 @@ bool Parser::isTypeSpecifierQualifier() {
   case tok::kw__Atomic:
     return true;
   }
+}
+
+Parser::DeclGroupPtrTy Parser::ParseTopLevelStmtDecl() {
+  assert(PP.isIncrementalProcessingEnabled() && "Not in incremental mode");
+
+  // Parse a top-level-stmt.
+  Parser::StmtVector Stmts;
+  ParsedStmtContext SubStmtCtx = ParsedStmtContext();
+  StmtResult R = ParseStatementOrDeclaration(Stmts, SubStmtCtx);
+  if (!R.isUsable())
+    return nullptr;
+
+  SmallVector<Decl *, 2> DeclsInGroup;
+  DeclsInGroup.push_back(Actions.ActOnTopLevelStmtDecl(R.get()));
+  // Currently happens for things like  -fms-extensions and use `__if_exists`.
+  for (Stmt *S : Stmts)
+    DeclsInGroup.push_back(Actions.ActOnTopLevelStmtDecl(S));
+
+  return Actions.BuildDeclaratorGroup(DeclsInGroup);
 }
 
 /// isDeclarationSpecifier() - Return true if the current token is part of a

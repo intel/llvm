@@ -179,8 +179,9 @@ public:
   mutable unsigned IsBufferInvalid : 1;
 
   ContentCache()
-      : OrigEntry(None), ContentsEntry(nullptr), BufferOverridden(false),
-        IsFileVolatile(false), IsTransient(false), IsBufferInvalid(false) {}
+      : OrigEntry(std::nullopt), ContentsEntry(nullptr),
+        BufferOverridden(false), IsFileVolatile(false), IsTransient(false),
+        IsBufferInvalid(false) {}
 
   ContentCache(FileEntryRef Ent) : ContentCache(Ent, Ent) {}
 
@@ -236,7 +237,7 @@ public:
   llvm::Optional<llvm::MemoryBufferRef> getBufferIfLoaded() const {
     if (Buffer)
       return Buffer->getMemBufferRef();
-    return None;
+    return std::nullopt;
   }
 
   /// Return a StringRef to the source buffer data, only if it has already
@@ -244,7 +245,7 @@ public:
   llvm::Optional<StringRef> getBufferDataIfLoaded() const {
     if (Buffer)
       return Buffer->getBuffer();
-    return None;
+    return std::nullopt;
   }
 
   /// Set the buffer.
@@ -710,7 +711,7 @@ class SourceManager : public RefCountedBase<SourceManager> {
   /// not have been loaded, so that value would be unknown.
   SourceLocation::UIntTy CurrentLoadedOffset;
 
-  /// The highest possible offset is 2^32-1 (2^63-1 for 64-bit source
+  /// The highest possible offset is 2^31-1 (2^63-1 for 64-bit source
   /// locations), so CurrentLoadedOffset starts at 2^31 (2^63 resp.).
   static const SourceLocation::UIntTy MaxLoadedOffset =
       1ULL << (8 * sizeof(SourceLocation::UIntTy) - 1);
@@ -1025,7 +1026,7 @@ public:
     if (auto *Entry = getSLocEntryForFile(FID))
       return Entry->getFile().getContentCache().getBufferOrNone(
           Diag, getFileManager(), Loc);
-    return None;
+    return std::nullopt;
   }
 
   /// Return the buffer for the specified FileID.
@@ -1050,7 +1051,7 @@ public:
   Optional<FileEntryRef> getFileEntryRefForID(FileID FID) const {
     if (auto *Entry = getSLocEntryForFile(FID))
       return Entry->getFile().getContentCache().OrigEntry;
-    return None;
+    return std::nullopt;
   }
 
   /// Returns the filename for the provided FileID, unless it's a built-in
@@ -1690,6 +1691,10 @@ public:
   void PrintStats() const;
 
   void dump() const;
+
+  // Produce notes describing the current source location address space usage.
+  void noteSLocAddressSpaceUsage(DiagnosticsEngine &Diag,
+                                 Optional<unsigned> MaxNotes = 32) const;
 
   /// Get the number of local SLocEntries we have.
   unsigned local_sloc_entry_size() const { return LocalSLocEntryTable.size(); }

@@ -399,7 +399,7 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
     elog("Failed to prepare a compiler instance: {0}",
          !Diags.empty() ? static_cast<DiagBase &>(Diags.back()).Message
                         : "unknown error");
-    return None;
+    return std::nullopt;
   }
   tidy::ClangTidyOptions ClangTidyOpts;
   if (PreserveDiags) {
@@ -443,7 +443,7 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
   if (!Action->BeginSourceFile(*Clang, MainInput)) {
     log("BeginSourceFile() failed when building AST for {0}",
         MainInput.getFile());
-    return None;
+    return std::nullopt;
   }
   // If we saw an include guard in the preamble section of the main file,
   // mark the main-file as include-guarded.
@@ -465,6 +465,8 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
   std::vector<std::unique_ptr<tidy::ClangTidyCheck>> CTChecks;
   ast_matchers::MatchFinder CTFinder;
   llvm::Optional<tidy::ClangTidyContext> CTContext;
+  // Must outlive FixIncludes.
+  auto BuildDir = VFS->getCurrentWorkingDirectory();
   llvm::Optional<IncludeFixer> FixIncludes;
   llvm::DenseMap<diag::kind, DiagnosticsEngine::Level> OverriddenSeverity;
   // No need to run clang-tidy or IncludeFixerif we are not going to surface
@@ -480,7 +482,7 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
     CTContext->setASTContext(&Clang->getASTContext());
     CTContext->setCurrentFile(Filename);
     CTContext->setSelfContainedDiags(true);
-    CTChecks = CTFactories.createChecksForLanguage(CTContext.getPointer());
+    CTChecks = CTFactories.createChecksForLanguage(&*CTContext);
     Preprocessor *PP = &Clang->getPreprocessor();
     for (const auto &Check : CTChecks) {
       Check->registerPPCallbacks(Clang->getSourceManager(), PP, PP);
@@ -551,7 +553,6 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
 
     // Add IncludeFixer which can recover diagnostics caused by missing includes
     // (e.g. incomplete type) and attach include insertion fixes to diagnostics.
-    auto BuildDir = VFS->getCurrentWorkingDirectory();
     if (Inputs.Index && !BuildDir.getError()) {
       auto Style =
           getFormatStyleForFile(Filename, Inputs.Contents, *Inputs.TFS);
@@ -662,7 +663,7 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
                     Preamble->Diags.end());
     // Finally, add diagnostics coming from the AST.
     {
-      std::vector<Diag> D = ASTDiags.take(CTContext.getPointer());
+      std::vector<Diag> D = ASTDiags.take(&*CTContext);
       Diags->insert(Diags->end(), D.begin(), D.end());
     }
   }
@@ -783,7 +784,7 @@ ParsedAST::ParsedAST(PathRef TUPath, llvm::StringRef Version,
 
 llvm::Optional<llvm::StringRef> ParsedAST::preambleVersion() const {
   if (!Preamble)
-    return llvm::None;
+    return std::nullopt;
   return llvm::StringRef(Preamble->Version);
 }
 

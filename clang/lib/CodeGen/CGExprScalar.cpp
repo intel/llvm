@@ -156,12 +156,12 @@ static llvm::Optional<QualType> getUnwidenedIntegerType(const ASTContext &Ctx,
                                                         const Expr *E) {
   const Expr *Base = E->IgnoreImpCasts();
   if (E == Base)
-    return llvm::None;
+    return std::nullopt;
 
   QualType BaseTy = Base->getType();
   if (!Ctx.isPromotableIntegerType(BaseTy) ||
       Ctx.getTypeSize(BaseTy) >= Ctx.getTypeSize(E->getType()))
-    return llvm::None;
+    return std::nullopt;
 
   return BaseTy;
 }
@@ -1631,21 +1631,14 @@ Value *ScalarExprEmitter::VisitExpr(Expr *E) {
 Value *
 ScalarExprEmitter::VisitSYCLUniqueStableNameExpr(SYCLUniqueStableNameExpr *E) {
   ASTContext &Context = CGF.getContext();
-  llvm::Optional<LangAS> GlobalAS =
-      Context.getTargetInfo().getConstantAddressSpace();
+  unsigned AddrSpace =
+      Context.getTargetAddressSpace(CGF.CGM.GetGlobalConstantAddressSpace());
   llvm::Constant *GlobalConstStr = Builder.CreateGlobalStringPtr(
-      E->ComputeName(Context), "__usn_str",
-      static_cast<unsigned>(GlobalAS.value_or(LangAS::Default)));
+      E->ComputeName(Context), "__usn_str", AddrSpace);
 
-  unsigned ExprAS = Context.getTargetAddressSpace(E->getType());
-
-  if (GlobalConstStr->getType()->getPointerAddressSpace() == ExprAS)
-    return GlobalConstStr;
-
-  llvm::PointerType *PtrTy = cast<llvm::PointerType>(GlobalConstStr->getType());
-  llvm::PointerType *NewPtrTy =
-      llvm::PointerType::getWithSamePointeeType(PtrTy, ExprAS);
-  return Builder.CreateAddrSpaceCast(GlobalConstStr, NewPtrTy, "usn_addr_cast");
+  llvm::Type *ExprTy = ConvertType(E->getType());
+  return Builder.CreatePointerBitCastOrAddrSpaceCast(GlobalConstStr, ExprTy,
+                                                     "usn_addr_cast");
 }
 
 Value *
@@ -1655,9 +1648,9 @@ ScalarExprEmitter::VisitSYCLUniqueStableIdExpr(SYCLUniqueStableIdExpr *E) {
       Context.getTargetInfo().getConstantAddressSpace();
   llvm::Constant *GlobalConstStr = Builder.CreateGlobalStringPtr(
       E->ComputeName(Context), "__usid_str",
-      static_cast<unsigned>(GlobalAS.getValueOr(LangAS::Default)));
+      static_cast<unsigned>(GlobalAS.value_or(LangAS::Default)));
 
-  unsigned ExprAS = Context.getTargetAddressSpace(E->getType());
+  unsigned ExprAS = CGF.CGM.getTypes().getTargetAddressSpace(E->getType());
 
   if (GlobalConstStr->getType()->getPointerAddressSpace() == ExprAS)
     return GlobalConstStr;

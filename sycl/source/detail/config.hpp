@@ -287,7 +287,7 @@ public:
     if (ValStr) {
 
       std::cerr
-          << "\nWARNING: The enviroment variable SYCL_DEVICE_FITLER"
+          << "\nWARNING: The enviroment variable SYCL_DEVICE_FILTER"
              " is deprecated. Please use ONEAPI_DEVICE_SELECTOR instead.\n"
              "For more details, please refer to:\n"
              "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
