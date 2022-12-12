@@ -828,7 +828,7 @@ struct _pi_queue : _pi_object {
   /// @return PI_SUCCESS if successful, PI error code otherwise.
   pi_result resetCommandList(pi_command_list_ptr_t CommandList,
                              bool MakeAvailable,
-                             std::vector<_pi_event *> &EventListToCleanup,
+                             std::vector<pi_event> &EventListToCleanup,
                              bool CheckStatus = true);
 
   // Returns true if an OpenCommandList has commands that need to be submitted.
@@ -1235,11 +1235,10 @@ struct _pi_ze_event_list_t {
   /// @param Event Event to look for in the wait list.
   /// @return true if event is found in the event list, false otherwise.
   bool contains(pi_event Event) {
-    std::vector<pi_event> WaitListVec(PiEventList, PiEventList + Length);
-    if (std::find(WaitListVec.begin(), WaitListVec.end(), Event) !=
-        WaitListVec.end())
-      return true;
-
+    for (pi_uint32 I = 0; I < Length; I++) {
+      if (PiEventList[I] == Event)
+        return true;
+    }
     return false;
   }
 };
