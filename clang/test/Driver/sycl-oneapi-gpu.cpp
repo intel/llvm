@@ -119,7 +119,7 @@
 // RUN:   FileCheck %s --check-prefixes=DEVICE_NVIDIA,MACRO_NVIDIA -DDEV_STR=sm_90 -DMAC_STR=SM_90
 // MACRO_NVIDIA: clang{{.*}} "-triple" "nvptx64-nvidia-cuda"
 // DEVICE_NVIDIA: llvm-foreach{{.*}} "--gpu-name" "[[DEV_STR]]"
-// MACRO_NVIDIA: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu"
+// MACRO_NVIDIA: clang{{.*}}  "-fsycl-is-host"
 // MACRO_NVIDIA: "-D__SYCL_TARGET_NVIDIA_GPU_[[MAC_STR]]__"
 
 /// Tests the behaviors of using -fsycl-targets=amd_gpu*
