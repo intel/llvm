@@ -8079,30 +8079,7 @@ static pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             PI_ERROR_INVALID_VALUE);
 
-  // See if the memory is going to be read-only on the device.
-  bool DeviceReadOnly = false;
-  // Check that incorrect bits are not set in the properties.
-  if (Properties && *Properties != 0) {
-    PI_ASSERT(*(Properties) == PI_MEM_ALLOC_FLAGS && *(Properties + 2) == 0,
-              PI_ERROR_INVALID_VALUE);
-    DeviceReadOnly = *(Properties + 1) & PI_MEM_ALLOC_DEVICE_READ_ONLY;
-  }
-  if (!DeviceReadOnly)
-    return PI_SUCCESS;
-
-  // For read-only memory, let L0 know about that by using advises.
-
-  // zeCommandListAppendMemAdvise must not be called from simultaneous threads
-  // with the same command list handle.
-  std::scoped_lock<pi_mutex> Lock(Context->ImmediateCommandListMutex);
-
-  // TODO: Underlying Level Zero runtime doesn't have a way to communicate
-  // read-only property yet.
-
-  ZE_CALL(zeCommandListAppendMemAdvise,
-          (Context->ZeCommandListInit, Device->ZeDevice, *ResultPtr, Size,
-           ZE_MEMORY_ADVICE_SET_PREFERRED_LOCATION));
-
+  // TODO: Handle PI_MEM_ALLOC_DEVICE_READ_ONLY.
   return PI_SUCCESS;
 }
 
