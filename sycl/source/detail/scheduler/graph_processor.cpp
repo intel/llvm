@@ -62,7 +62,7 @@ bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
     while (Cmd->MIsManuallyBlocked)
       ;
   } else {
-    std::lock_guard<std::recursive_mutex> Guard(Cmd->MBlockedUsersMutex);
+    std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
     if (Cmd->isBlocking() || Cmd->MIsManuallyBlocked) {
       const EventImplPtr &RootCmdEvent = RootCommand->getEvent();
       Cmd->addBlockedUserUnique(RootCmdEvent);

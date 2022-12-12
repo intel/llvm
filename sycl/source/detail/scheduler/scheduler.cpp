@@ -345,8 +345,7 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
     assert(BlockedCmd && "Can't find appropriate command to unblock");
 
     {
-      std::lock_guard<std::recursive_mutex> Guard(
-          BlockedCmd->MBlockedUsersMutex);
+      std::lock_guard<std::mutex> Guard(BlockedCmd->MBlockedUsersMutex);
       BlockedCmd->unblock();
     }
 
@@ -482,7 +481,7 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
     std::vector<DepDesc> Deps = Cmd->MDeps;
 
     {
-      std::lock_guard<std::recursive_mutex> Guard(Cmd->MBlockedUsersMutex);
+      std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
       // update self-event status
       Cmd->getEvent()->setComplete();
     }

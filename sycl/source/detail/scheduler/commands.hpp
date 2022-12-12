@@ -341,7 +341,7 @@ public:
   /// Using EventImplPtr since enqueueUnblockedCommands and event.wait may
   /// intersect with command enqueue.
   std::vector<EventImplPtr> MBlockedUsers;
-  std::recursive_mutex MBlockedUsersMutex;
+  std::mutex MBlockedUsersMutex;
 };
 
 /// The release command enqueues release of a memory object instance allocated
