@@ -76,9 +76,9 @@ private:
   // Property list
   property_list PropList_;
 
-  // It's fine to store these in the stream_impl itself as long as the
-  // underlying buffers are relased in a deferred manner by scheduler. Stream
-  // buffer
+  // It's fine to store the buffers in the stream_impl itself since the
+  // underlying buffer_impls are relased in a deferred manner by scheduler.
+  // Stream buffer
   buffer<char, 1> Buf_;
 
   // Global flush buffer

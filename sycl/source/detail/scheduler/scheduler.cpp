@@ -513,10 +513,9 @@ void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
     if (Blocking == BlockingT::BLOCKING) {
       Event->waitInternal();
       It = MAuxiliaryResources.erase(It);
-    } else if (Event->get_info<info::event::command_execution_status>() ==
-               info::event_command_status::complete) {
+    } else if (Event->isCompleted())
       It = MAuxiliaryResources.erase(It);
-    } else
+    else
       ++It;
   }
 }
