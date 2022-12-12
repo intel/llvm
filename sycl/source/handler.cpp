@@ -224,7 +224,7 @@ event handler::finalize() {
         setSubmissionTime(NewEvent);
         MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
       }
-      
+
       return MLastEvent;
     }
   }
