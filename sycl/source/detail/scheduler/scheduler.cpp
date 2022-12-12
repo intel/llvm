@@ -236,20 +236,6 @@ void Scheduler::waitForEvent(const EventImplPtr &Event) {
   cleanupCommands(ToCleanUp);
 }
 
-void Scheduler::cleanupFinishedCommands(const EventImplPtr &FinishedEvent) {
-  // Avoiding deadlock situation, where one thread is in the process of
-  // enqueueing (with a locked mutex) a currently blocked task that waits for
-  // another thread which is stuck at attempting cleanup.
-  WriteLockT Lock(MGraphLock, std::try_to_lock);
-  if (Lock.owns_lock()) {
-    auto FinishedCmd = static_cast<Command *>(FinishedEvent->getCommand());
-    // The command might have been cleaned up (and set to nullptr) by another
-    // thread
-    if (FinishedCmd)
-      MGraphBuilder.cleanupFinishedCommands(FinishedCmd);
-  }
-}
-
 bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
                                    bool StrictLock) {
   MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);
@@ -434,6 +420,11 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
     ReadLockT Lock = acquireReadLock();
 
     std::vector<DepDesc> Deps = Cmd->MDeps;
+    // Host tasks are cleaned up upon completion rather than enqueuing.
+    if (Cmd->MLeafCounter == 0) {
+      ToCleanUp.push_back(Cmd);
+      Cmd->MMarkedForCleanup = true;
+    }
 
     // update self-event status
     Cmd->getEvent()->setComplete();

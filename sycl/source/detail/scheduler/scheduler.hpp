@@ -406,13 +406,6 @@ public:
   /// receive false - fail to obtain write lock.
   bool removeMemoryObject(detail::SYCLMemObjI *MemObj, bool StrictLock = true);
 
-  /// Removes finished non-leaf non-alloca commands from the subgraph (assuming
-  /// that all its commands have been waited for).
-  /// \sa GraphBuilder::cleanupFinishedCommands
-  ///
-  /// \param FinishedEvent is a cleanup candidate event.
-  void cleanupFinishedCommands(const EventImplPtr &FinishedEvent);
-
   /// Adds nodes to the graph, that update the requirement with the pointer
   /// to the host memory.
   ///
@@ -535,10 +528,6 @@ protected:
     void optimize(const EventImplPtr &Event);
 
     void cleanupCommand(Command *Cmd);
-
-    /// Removes finished non-leaf non-alloca commands from the subgraph
-    /// (assuming that all its commands have been waited for).
-    void cleanupFinishedCommands(Command *FinishedCmd);
 
     /// Reschedules the command passed using Queue provided.
     ///
