@@ -99,13 +99,13 @@ mlir::LogicalResult mlir::sycl::SYCLAccessorSubscriptOp::verify() {
   const unsigned Dimensions = AccessorTy.getDimension();
   if (Dimensions == 0)
     return emitOpError("Dimensions cannot be zero");
-
-  const auto verifyResultType = [&]() -> mlir::LogicalResult {
-    const auto resultMemrefType =
+  
+  const auto resultMemrefType =
         getResult().getType().dyn_cast<mlir::MemRefType>();
-    const auto resultAtomicType =
+  const auto resultAtomicType =
         getResult().getType().dyn_cast<mlir::sycl::AtomicType>();
-
+  
+  const auto verifyResultType = [&]() -> mlir::LogicalResult {
     if (!resultMemrefType && !resultAtomicType) {
       return emitOpError("Expecting memref or sycl.atomic return type. Got ")
              << getResult().getType();
@@ -115,7 +115,7 @@ mlir::LogicalResult mlir::sycl::SYCLAccessorSubscriptOp::verify() {
         resultMemrefType.getElementType() != AccessorTy.getType()) {
       return emitOpError(
                  "Expecting a reference to this accessor's value type (")
-             << AccessorTy.getType() << "). Got " << getResult().getType();
+             << AccessorTy.getType() << "). Got " << resultMemrefType;
     }
 
     return success();
@@ -140,16 +140,13 @@ mlir::LogicalResult mlir::sycl::SYCLAccessorSubscriptOp::verify() {
         if (Dimensions != 1) {
           // Implementation defined result type.
           return success();
-        }
+        }            
+        
+        // Allow atomic access mode only for atomic return type.
         if (AccessorTy.getAccessMode() ==
-            mlir::sycl::MemoryAccessMode::Atomic) {
-          const auto resultType =
-              getResult().getType().dyn_cast<mlir::sycl::AtomicType>();
-          if (!resultType) {
-            // For atomic return type, allow atomic access mode.
+            mlir::sycl::MemoryAccessMode::Atomic && !resultAtomicType) {
             return emitOpError("Cannot use this signature when the atomic "
                                "access mode is used");
-          }
         }
         return verifyResultType();
       })
