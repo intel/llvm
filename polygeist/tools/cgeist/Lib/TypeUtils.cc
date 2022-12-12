@@ -451,7 +451,7 @@ unsigned getPrimitiveSizeInBits(mlir::Type Ty) {
 bool areSYCLMemberFunctionOrConstructorArgs(mlir::TypeRange Types) {
   return !Types.empty() &&
          TypeSwitch<mlir::Type, bool>(Types[0])
-             .Case<mlir::MemRefType, mlir::LLVM::LLVMPointerType>([](auto Ty) {
+             .Case<mlir::MemRefType>([](auto Ty) {
                return mlir::sycl::isSYCLType(Ty.getElementType());
              })
              .Default(false);
