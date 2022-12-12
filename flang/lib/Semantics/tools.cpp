@@ -520,6 +520,36 @@ const Symbol *FindOverriddenBinding(const Symbol &symbol) {
   return nullptr;
 }
 
+const Symbol *FindGlobal(const Symbol &original) {
+  const Symbol &ultimate{original.GetUltimate()};
+  if (ultimate.owner().IsGlobal()) {
+    return &ultimate;
+  }
+  bool isLocal{false};
+  if (IsDummy(ultimate)) {
+  } else if (IsPointer(ultimate)) {
+  } else if (ultimate.has<ProcEntityDetails>()) {
+    isLocal = IsExternal(ultimate);
+  } else if (const auto *subp{ultimate.detailsIf<SubprogramDetails>()}) {
+    isLocal = subp->isInterface();
+  }
+  if (isLocal) {
+    const std::string *bind{ultimate.GetBindName()};
+    if (!bind || ultimate.name() == *bind) {
+      const Scope &globalScope{ultimate.owner().context().globalScope()};
+      if (auto iter{globalScope.find(ultimate.name())};
+          iter != globalScope.end()) {
+        const Symbol &global{*iter->second};
+        const std::string *globalBind{global.GetBindName()};
+        if (!globalBind || global.name() == *globalBind) {
+          return &global;
+        }
+      }
+    }
+  }
+  return nullptr;
+}
+
 const DeclTypeSpec *FindParentTypeSpec(const DerivedTypeSpec &derived) {
   return FindParentTypeSpec(derived.typeSymbol());
 }
@@ -961,9 +991,8 @@ bool IsPolymorphicAllocatable(const Symbol &symbol) {
   return IsAllocatable(symbol) && IsPolymorphic(symbol);
 }
 
-std::optional<parser::MessageFormattedText> CheckAccessibleComponent(
+std::optional<parser::MessageFormattedText> CheckAccessibleSymbol(
     const Scope &scope, const Symbol &symbol) {
-  CHECK(symbol.owner().IsDerivedType()); // symbol must be a component
   if (symbol.attrs().test(Attr::PRIVATE)) {
     if (FindModuleFileContaining(scope)) {
       // Don't enforce component accessibility checks in module files;
@@ -973,7 +1002,7 @@ std::optional<parser::MessageFormattedText> CheckAccessibleComponent(
         moduleScope{FindModuleContaining(symbol.owner())}) {
       if (!moduleScope->Contains(scope)) {
         return parser::MessageFormattedText{
-            "PRIVATE component '%s' is only accessible within module '%s'"_err_en_US,
+            "PRIVATE name '%s' is only accessible within module '%s'"_err_en_US,
             symbol.name(), moduleScope->GetName().value()};
       }
     }
@@ -1482,33 +1511,6 @@ bool HasDefinedIo(GenericKind::DefinedIo which, const DerivedTypeSpec &derived,
     }
   }
   return false;
-}
-
-const Symbol *FindUnsafeIoDirectComponent(GenericKind::DefinedIo which,
-    const DerivedTypeSpec &derived, const Scope *scope) {
-  if (HasDefinedIo(which, derived, scope)) {
-    return nullptr;
-  }
-  if (const Scope * dtScope{derived.scope()}) {
-    for (const auto &pair : *dtScope) {
-      const Symbol &symbol{*pair.second};
-      if (IsAllocatableOrPointer(symbol)) {
-        return &symbol;
-      }
-      if (const auto *details{symbol.detailsIf<ObjectEntityDetails>()}) {
-        if (const DeclTypeSpec * type{details->type()}) {
-          if (type->category() == DeclTypeSpec::Category::TypeDerived) {
-            if (const Symbol *
-                bad{FindUnsafeIoDirectComponent(
-                    which, type->derivedTypeSpec(), scope)}) {
-              return bad;
-            }
-          }
-        }
-      }
-    }
-  }
-  return nullptr;
 }
 
 } // namespace Fortran::semantics

@@ -146,6 +146,9 @@ def FFR : AArch64Reg<0, "ffr">, DwarfRegNum<[47]>;
 // Purely virtual Vector Granule (VG) Dwarf register
 def VG : AArch64Reg<0, "vg">, DwarfRegNum<[46]>;
 
+// Floating-point control register
+def FPCR : AArch64Reg<0, "fpcr">;
+
 // GPR register classes with the intersections of GPR32/GPR32sp and
 // GPR64/GPR64sp for use by the coalescer.
 def GPR32common : RegisterClass<"AArch64", [i32], 32, (sequence "W%u", 0, 30)> {
@@ -717,6 +720,21 @@ def XSeqPairClassOperand :
     RegisterOperand<XSeqPairsClass, "printGPRSeqPairsClassOperand<64>"> {
   let ParserMatchClass = XSeqPairsAsmOperandClass;
 }
+// Reuse the parsing and register numbers from XSeqPairs, but encoding is different.
+def MrrsMssrPairClassOperand :
+    RegisterOperand<XSeqPairsClass, "printGPRSeqPairsClassOperand<64>"> {
+  let ParserMatchClass = XSeqPairsAsmOperandClass;
+}
+def SyspXzrPairOperandMatcherClass : AsmOperandClass {
+  let Name = "SyspXzrPair";
+  let RenderMethod = "addSyspXzrPairOperand";
+  let ParserMethod = "tryParseSyspXzrPair";
+}
+def SyspXzrPairOperand :
+    RegisterOperand<GPR64, "printSyspXzrPair"> { // needed to allow alias with XZR operand
+  let ParserMatchClass = SyspXzrPairOperandMatcherClass;
+}
+
 
 
 //===----- END: v8.1a atomic CASP register operands -----------------------===//

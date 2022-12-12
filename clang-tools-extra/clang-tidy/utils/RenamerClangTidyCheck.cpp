@@ -214,7 +214,7 @@ class NameLookup {
 
 public:
   explicit NameLookup(const NamedDecl *ND) : Data(ND, false) {}
-  explicit NameLookup(llvm::NoneType) : Data(nullptr, true) {}
+  explicit NameLookup(std::nullopt_t) : Data(nullptr, true) {}
   explicit NameLookup(std::nullptr_t) : Data(nullptr, false) {}
   NameLookup() : NameLookup(nullptr) {}
 
@@ -258,12 +258,12 @@ NameLookup findDeclInBases(const CXXRecordDecl &Parent, StringRef DeclName,
       if (*Search) {
         if (Found)
           return NameLookup(
-              llvm::None); // Multiple decls found in different base classes.
+              std::nullopt); // Multiple decls found in different base classes.
         Found = *Search;
         continue;
       }
     } else
-      return NameLookup(llvm::None); // Propagate multiple resolution back up.
+      return NameLookup(std::nullopt); // Propagate multiple resolution back up.
   }
   return NameLookup(Found); // If nullptr, decl wasn't found.
 }

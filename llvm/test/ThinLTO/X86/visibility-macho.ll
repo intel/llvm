@@ -3,7 +3,7 @@
 ; RUN: opt -module-summary %t/b.ll -o %tb.bc
 
 ;; Test visibility propagation. The prevailing definitions are all from %tb.bc.
-; RUN: llvm-lto2 run -save-temps -enable-import-metadata -o %t1.bc %ta.bc %tb.bc \
+; RUN: llvm-lto2 run -save-temps -opaque-pointers -enable-import-metadata -o %t1.bc %ta.bc %tb.bc \
 ; RUN:   -r=%ta.bc,_var1,l -r=%ta.bc,_var2,l \
 ; RUN:   -r=%ta.bc,_hidden_def_weak_def,l -r=%ta.bc,_not_imported,l -r=%ta.bc,_hidden_def_ref,l \
 ; RUN:   -r=%ta.bc,_hidden_def_weak_ref,l \
@@ -24,7 +24,7 @@ target triple = "x86_64-apple-macosx10.15.0"
 @var1 = weak global i32 1, align 4
 @var2 = extern_weak global i32
 
-declare void @ext(void ()*)
+declare void @ext(ptr)
 
 ; CHECK: declare hidden i32 @hidden_def_weak_def()
 ;; Currently the visibility is not propagated onto an unimported function,
@@ -40,7 +40,7 @@ declare void @ext(void ()*)
 
 define weak i32 @hidden_def_weak_def() {
 entry:
-  %0 = load i32, i32* @var2
+  %0 = load i32, ptr @var2
   ret i32 %0
 }
 
@@ -51,10 +51,10 @@ declare extern_weak void @hidden_def_weak_ref()
 
 define i32 @main() {
 entry:
-  call void @ext(void ()* bitcast (i32 ()* @hidden_def_weak_def to void ()*))
-  call void @ext(void ()* @hidden_def_ref)
-  call void @ext(void ()* @hidden_def_weak_ref)
-  call void @ext(void ()* @not_imported)
+  call void @ext(ptr @hidden_def_weak_def)
+  call void @ext(ptr @hidden_def_ref)
+  call void @ext(ptr @hidden_def_weak_ref)
+  call void @ext(ptr @not_imported)
 
   ;; Calls ensure the functions are imported.
   call i32 @hidden_def_weak_def()
@@ -72,7 +72,7 @@ target triple = "x86_64-apple-macosx10.15.0"
 
 define hidden i32 @hidden_def_weak_def() {
 entry:
-  %0 = load i32, i32* @var1
+  %0 = load i32, ptr @var1
   ret i32 %0
 }
 

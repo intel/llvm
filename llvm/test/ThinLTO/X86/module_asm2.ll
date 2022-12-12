@@ -4,11 +4,11 @@
 ; RUN: opt -module-summary %s -o %t1.bc
 ; RUN: opt -module-summary %p/Inputs/module_asm2.ll -o %t2.bc
 
-; RUN: llvm-lto -thinlto-action=run -exported-symbol=main -exported-symbol=func1 -exported-symbol=func2 -exported-symbol=func3 -exported-symbol=callglobalfunc -exported-symbol=callweakfunc %t1.bc %t2.bc
+; RUN: llvm-lto -thinlto-action=run -exported-symbol=main -exported-symbol=func1 -exported-symbol=func2 -exported-symbol=func3 -exported-symbol=callglobalfunc -exported-symbol=callweakfunc -opaque-pointers %t1.bc %t2.bc
 ; RUN:  llvm-nm %t1.bc.thinlto.o | FileCheck  %s --check-prefix=NM0
 ; RUN:  llvm-nm %t2.bc.thinlto.o | FileCheck  %s --check-prefix=NM1
 
-; RUN: llvm-lto2 run %t1.bc %t2.bc -o %t.o -save-temps \
+; RUN: llvm-lto2 run %t1.bc %t2.bc -o %t.o -save-temps -opaque-pointers \
 ; RUN:     -r=%t1.bc,foo,plx \
 ; RUN:     -r=%t1.bc,globalfunc,plx \
 ; RUN:     -r=%t1.bc,globalfunc,lx \
@@ -70,8 +70,8 @@ target triple = "x86_64-unknown-linux-gnu"
 @b = internal global i32 1, align 4
 @x = internal global i32 1, align 4
 
-@llvm.compiler.used = appending global [1 x i8*] [i8* bitcast (i32* @b to i8*)], section "llvm.metadata"
-@llvm.used = appending global [1 x i8*] [i8* bitcast (i32* @x to i8*)], section "llvm.metadata"
+@llvm.compiler.used = appending global [1 x ptr] [ptr @b], section "llvm.metadata"
+@llvm.used = appending global [1 x ptr] [ptr @x], section "llvm.metadata"
 
 module asm "\09.text"
 module asm "\09.type\09foo,@function"
@@ -108,12 +108,12 @@ define i32 @func1() #1 {
 }
 
 define i32 @func2() #1 {
-  %1 = load i32, i32* @b, align 4
+  %1 = load i32, ptr @b, align 4
   ret i32 %1
 }
 
 define i32 @func3() #1 {
-  %1 = load i32, i32* @x, align 4
+  %1 = load i32, ptr @x, align 4
   ret i32 %1
 }
 

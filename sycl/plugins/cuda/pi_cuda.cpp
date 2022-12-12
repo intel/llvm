@@ -1327,7 +1327,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
-  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16: {
+  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS: {
     int major = 0;
     sycl::detail::pi::assertion(
         cuDeviceGetAttribute(&major,
@@ -1925,6 +1925,25 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                                 "failed cuMemGetInfo() API.");
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    FreeMemory);
+  }
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE: {
+    int value = 0;
+    sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&value, CU_DEVICE_ATTRIBUTE_MEMORY_CLOCK_RATE,
+                             device->get()) == CUDA_SUCCESS);
+    sycl::detail::pi::assertion(value >= 0);
+    // Convert kilohertz to megahertz when returning.
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   value / 1000);
+  }
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH: {
+    int value = 0;
+    sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&value,
+                             CU_DEVICE_ATTRIBUTE_GLOBAL_MEMORY_BUS_WIDTH,
+                             device->get()) == CUDA_SUCCESS);
+    sycl::detail::pi::assertion(value >= 0);
+    return getInfo(param_value_size, param_value, param_value_size_ret, value);
   }
 
     // TODO: Investigate if this information is available on CUDA.
@@ -2524,6 +2543,27 @@ pi_result cuda_piQueueGetInfo(pi_queue command_queue, pi_queue_info param_name,
   case PI_QUEUE_INFO_PROPERTIES:
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    command_queue->properties_);
+  case PI_EXT_ONEAPI_QUEUE_INFO_EMPTY: {
+    try {
+      bool IsReady = command_queue->all_of([](CUstream s) -> bool {
+        const CUresult ret = cuStreamQuery(s);
+        if (ret == CUDA_SUCCESS)
+          return true;
+
+        if (ret == CUDA_ERROR_NOT_READY)
+          return false;
+
+        PI_CHECK_ERROR(ret);
+        return false;
+      });
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     IsReady);
+    } catch (pi_result err) {
+      return err;
+    } catch (...) {
+      return PI_ERROR_OUT_OF_RESOURCES;
+    }
+  }
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }

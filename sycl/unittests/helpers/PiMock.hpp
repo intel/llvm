@@ -192,17 +192,19 @@ public:
   /// within the given context. A separate platform instance will be
   /// held by the PiMock instance.
   ///
-  PiMock() {
+  /// \param Backend is the backend type to mock, intended for testing backend
+  /// specific runtime logic.
+  PiMock(backend Backend = backend::opencl) {
     // Create new mock plugin platform and plugin handles
     // Note: Mock plugin will be generated if it has not been yet.
-    MPlatformImpl = GetMockPlatformImpl();
+    MPlatformImpl = GetMockPlatformImpl(Backend);
     std::shared_ptr<detail::plugin> NewPluginPtr;
     {
       const detail::plugin &OriginalPiPlugin = MPlatformImpl->getPlugin();
       // Copy the PiPlugin, thus untying our to-be mock platform from other
       // platforms within the context. Reset our platform to use the new plugin.
       NewPluginPtr = std::make_shared<detail::plugin>(
-          OriginalPiPlugin.getPiPluginPtr(), OriginalPiPlugin.getBackend(),
+          OriginalPiPlugin.getPiPluginPtr(), Backend,
           OriginalPiPlugin.getLibraryHandle());
       // Save a copy of the platform resource
       OrigFuncTable = OriginalPiPlugin.getPiPlugin().PiFunctionTable;
@@ -230,6 +232,7 @@ public:
       return;
 
     MPiPluginMockPtr->PiFunctionTable = *OrigFuncTable;
+    detail::GlobalHandler::instance().releaseDefaultContexts();
   }
 
   /// Returns a handle to the SYCL platform instance.
@@ -328,7 +331,9 @@ public:
   /// in the global handler. Additionally, all existing plugins will be removed
   /// and unloaded to avoid them being accidentally picked up by tests using
   /// selectors.
-  static void EnsureMockPluginInitialized() {
+  /// \param Backend is the backend type to mock, intended for testing backend
+  /// specific runtime logic.
+  static void EnsureMockPluginInitialized(backend Backend = backend::opencl) {
     // Only initialize the plugin once.
     if (MMockPluginPtr)
       return;
@@ -346,8 +351,7 @@ public:
         RT::PiPlugin{"pi.ver.mock", "plugin.ver.mock", /*Targets=*/nullptr,
                      getProxyMockedFunctionPointers()});
 
-    // FIXME: which backend to pass here? does it affect anything?
-    MMockPluginPtr = std::make_unique<detail::plugin>(RTPlugin, backend::opencl,
+    MMockPluginPtr = std::make_unique<detail::plugin>(RTPlugin, Backend,
                                                       /*Library=*/nullptr);
     Plugins.push_back(*MMockPluginPtr);
   }
@@ -357,8 +361,9 @@ private:
   /// platform_impl from it.
   ///
   /// \return a shared_ptr to a platform_impl created from the mock PI plugin.
-  static std::shared_ptr<sycl::detail::platform_impl> GetMockPlatformImpl() {
-    EnsureMockPluginInitialized();
+  static std::shared_ptr<sycl::detail::platform_impl>
+  GetMockPlatformImpl(backend Backend) {
+    EnsureMockPluginInitialized(Backend);
 
     pi_uint32 NumPlatforms = 0;
     MMockPluginPtr->call_nocheck<detail::PiApiKind::piPlatformsGet>(
