@@ -3,7 +3,7 @@
 
 add_test(NAME python-basic
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-        COMMAND ${Python3_EXECUTABLE} -m pytest ${CMAKE_CURRENT_SOURCE_DIR}/basic.py
+        COMMAND ${Python3_EXECUTABLE} -B -m pytest ${CMAKE_CURRENT_SOURCE_DIR}/basic.py
 )
 
 # python uses LD_LIBRARY_PATH to search for dynamic libraries, so set it to
