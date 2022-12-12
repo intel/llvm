@@ -166,8 +166,6 @@ python %DPCPP_HOME%\llvm\buildbot\compile.py
 ```
 ### Build DPC++ toolchain with support for NVIDIA CUDA
 
-There is experimental support for DPC++ for CUDA devices.
-
 To enable support for CUDA devices, follow the instructions for the Linux or
 Windows DPC++ toolchain, but add the `--cuda` flag to `configure.py`. Note, 
 the CUDA backend has Windows support; windows subsystem for
@@ -810,7 +808,6 @@ int CUDASelector(const sycl::device &Device) {
 
 ### Using the DPC++ toolchain on CUDA platforms
 
-The DPC++ toolchain support on CUDA platforms is still in an experimental phase.
 Currently, the DPC++ toolchain relies on having a recent OpenCL implementation
 on the system in order to link applications to the DPC++ runtime.
 The OpenCL implementation is not used at runtime if only the CUDA backend is
