@@ -312,6 +312,11 @@ def SYCL_RangeType
   let assemblyFormat = "`<`  `[` $dimension `]` `,` `(` $body `)` `>`";
 }
 
+def SYCL_StreamType : SYCL_Type<"Stream", "stream"> {
+  let parameters = (ins ArrayRefParameter<"mlir::Type">:$body);
+  let assemblyFormat = "`<` `(` $body `)` `>`";
+}
+
 def SYCL_SubGroupType : SYCL_Type<"SubGroup", "sub_group"> {
   let assemblyFormat = "";
 }
@@ -367,6 +372,7 @@ def NDItemMemRef : MemRefOf<[SYCL_NdItemType]>;
 def NDRangeMemRef : MemRefOf<[SYCL_NdRangeType]>;
 def OwnerLessBaseMemRef : MemRefOf<[SYCL_OwnerLessBaseType]>;
 def RangeMemRef : MemRefOf<[SYCL_RangeType]>;
+def StreamMemRef : MemRefOf<[SYCL_StreamType]>;
 def SwizzledVecMemRef : MemRefOf<[SYCL_SwizzledVecType]>;
 def VecMemRef : MemRefOf<[SYCL_VecType]>;
 
@@ -393,6 +399,7 @@ def SYCLMemref : AnyTypeOf<[
   OwnerLessBaseMemRef,
   RangeMemRef,
   SwizzledVecMemRef,
+  StreamMemRef,
   VecMemRef
 ]>;
 

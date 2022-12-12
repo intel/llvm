@@ -243,3 +243,20 @@ func.func @_Z6atomicN4sycl3_V16atomicIiLNS0_6access13address_spaceE1EEE(%arg0: !
 func.func @_Z9multi_ptrN4sycl3_V19multi_ptrIiLNS0_6access13address_spaceE1ELNS2_9decoratedE1EEE(%arg0: !sycl_multi_ptr_i32_1_) attributes {llvm.linkage = #llvm.linkage<external>} {
   return
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// stream
+////////////////////////////////////////////////////////////////////////////////
+
+!sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
+!sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
+!sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
+!sycl_accessor_1_i32_ato_gb = !sycl.accessor<[1, i32, atomic, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 1>)>)>
+!sycl_accessor_1_i8_rw_gb = !sycl.accessor<[1, i8, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i8, 1>)>)>
+!sycl_stream_ = !sycl.stream<(!llvm.array<16 x i8>, !sycl_accessor_1_i8_rw_gb, !sycl_accessor_1_i32_ato_gb, !sycl_accessor_1_i8_rw_gb, i32, i64, i32, i32, i32, i32)>
+
+// CHECK: func @_Z6streamN4sycl3_V16streamE(%arg0: !sycl_stream_)
+func.func @_Z6streamN4sycl3_V16streamE(%arg0: !sycl_stream_) attributes {llvm.linkage = #llvm.linkage<external>} {
+  return
+}

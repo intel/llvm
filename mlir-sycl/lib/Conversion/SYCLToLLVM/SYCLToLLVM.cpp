@@ -308,6 +308,12 @@ static Optional<Type> convertRangeType(sycl::RangeType type,
                          type.getBody(), converter);
 }
 
+/// Converts SYCL stream type to LLVM type.
+static Optional<Type> convertStreamType(sycl::StreamType type,
+                                        LLVMTypeConverter &converter) {
+  return convertBodyType("class.sycl::_V1::stream", type.getBody(), converter);
+}
+
 /// Converts SYCL sub_group type to LLVM type.
 static Optional<Type> convertSubGroupType(sycl::SubGroupType type,
                                           LLVMTypeConverter &converter) {
@@ -578,6 +584,9 @@ void mlir::sycl::populateSYCLToLLVMTypeConversion(
   });
   typeConverter.addConversion([&](sycl::RangeType type) {
     return convertRangeType(type, typeConverter);
+  });
+  typeConverter.addConversion([&](sycl::StreamType type) {
+    return convertStreamType(type, typeConverter);
   });
   typeConverter.addConversion([&](sycl::SubGroupType type) {
     return convertSubGroupType(type, typeConverter);

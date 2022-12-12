@@ -241,6 +241,20 @@ func.func @test_sub_group(%arg0: !sycl.sub_group) {
 
 // -----
 
+!sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
+!sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
+!sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
+!sycl_accessor_1_i32_ato_gb = !sycl.accessor<[1, i32, atomic, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 1>)>)>
+!sycl_accessor_1_i8_rw_gb = !sycl.accessor<[1, i8, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i8, 1>)>)>
+!sycl_stream_ = !sycl.stream<(!llvm.array<16 x i8>, !sycl_accessor_1_i8_rw_gb, !sycl_accessor_1_i32_ato_gb, !sycl_accessor_1_i8_rw_gb, i32, i64, i32, i32, i32, i32)>
+// CHECK: llvm.func @test_stream(%arg0: !llvm.struct<"class.sycl::_V1::stream", (array<16 x i8>, struct<"class.sycl::_V1::accessor.1", (struct<"class.sycl::_V1::detail::AccessorImplDevice.1", (struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>, struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>, struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>)>, struct<(ptr<i8, 1>)>)>, struct<"class.sycl::_V1::accessor.1.1", (struct<"class.sycl::_V1::detail::AccessorImplDevice.1", (struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>, struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>, struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>)>, struct<(ptr<i32, 1>)>)>, struct<"class.sycl::_V1::accessor.1", (struct<"class.sycl::_V1::detail::AccessorImplDevice.1", (struct<"class.sycl::_V1::id.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>, struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>, struct<"class.sycl::_V1::range.1", (struct<"class.sycl::_V1::detail::array.1", (array<1 x i64>)>)>)>, struct<(ptr<i8, 1>)>)>, i32, i64, i32, i32, i32, i32)>) {
+func.func @test_stream(%arg0: !sycl_stream_) {
+    return
+}
+
+// -----
+
 !sycl_tuple_value_holder_i32_ = !sycl.tuple_value_holder<[i32], (i32)>
 !sycl_tuple_copy_assignable_value_holder_i32_ = !sycl.tuple_copy_assignable_value_holder<[i32, true], (!sycl.tuple_value_holder<[i32], (i32)>)>
 // CHECK: llvm.func @test_tuple_value_holder(%arg0: !llvm.[[TUPLE_VALUE_HOLDER:struct<"struct.sycl::_V1::detail::TupleValueHolder", \(i32\)>]]) {
