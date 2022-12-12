@@ -18,18 +18,15 @@ set_target_properties(loader PROPERTIES
 
 add_library(${PROJECT_NAME}::loader ALIAS loader)
 
-target_include_directories(loader PRIVATE
-    ${CMAKE_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/source/common
-    ${CMAKE_SOURCE_DIR}/source/loader
-)
+target_include_directories(loader PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 set_target_properties(loader PROPERTIES
     VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}"
     SOVERSION "${PROJECT_VERSION_MAJOR}"
 )
 
-target_link_libraries(loader
+target_link_libraries(loader PRIVATE
+    ${PROJECT_NAME}::common
     ${PROJECT_NAME}::headers
     ${CMAKE_DL_LIBS}
 )
@@ -38,11 +35,11 @@ if (UNIX)
     set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
     set(THREADS_PREFER_PTHREAD_FLAG TRUE)
     find_package(Threads REQUIRED)
-    target_link_libraries(loader Threads::Threads)
+    target_link_libraries(loader PRIVATE Threads::Threads)
 endif()
 
 if(WIN32)
-    target_link_libraries(loader cfgmgr32.lib)
+    target_link_libraries(loader PRIVATE cfgmgr32.lib)
 endif()
 
 if(UNIX)
