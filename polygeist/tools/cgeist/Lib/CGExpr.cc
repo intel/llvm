@@ -2334,17 +2334,14 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
                                                 SourceLocation Loc) {
   // TODO: By a flaw in how operators are handled, SrcQT or DstQT might be
   // non-scalar types. Remove when we actually call operatorOP member functions.
-  if (!(SrcQT.isNull() || SrcQT.isCanonical()) ||
-      !(DstQT.isNull() || DstQT.isCanonical())) {
+  if (SrcQT.isNull() || DstQT.isNull())
     return Src;
-  }
 
   // TODO: Handle fixed points here when supported.
   // TODO: Take into account scalar conversion options.
 
   assert(!SrcQT->isFixedPointType() &&
          "Not handling conversion from fixed point types");
-
   assert(!DstQT->isFixedPointType() &&
          "Not handling conversion to fixed point types");
 
@@ -2357,16 +2354,16 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
   if (DstQT->isVoidType())
     return nullptr;
 
-  auto SrcTy = Src.val.getType();
+  mlir::Type SrcTy = Src.val.getType();
 
-  const auto MLIRLoc = getMLIRLocation(Loc);
+  const Location MLIRLoc = getMLIRLocation(Loc);
   if (DstQT->isBooleanType())
     return EmitConversionToBool(MLIRLoc, Src, SrcQT);
 
   mlir::Type DstTy = CGTypes.getMLIRType(DstQT);
 
   // Cast from half through float if half isn't a native type.
-  const auto &CGM = Glob.getCGM();
+  const CodeGen::CodeGenModule &CGM = Glob.getCGM();
   if (SrcQT->isHalfType() && !CGM.getLangOpts().NativeHalfType) {
     // Cast to FP using the intrinsic if the half type itself isn't supported.
     if (DstTy.isa<FloatType>()) {
@@ -2397,7 +2394,6 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
   if (SrcTy == DstTy) {
     CGEIST_WARNING(llvm::WithColor::warning()
                    << "Not emitting implicit integer sign change checks\n");
-
     return Src;
   }
 
@@ -2880,32 +2876,32 @@ ValueCategory MLIRScanner::EmitPointerArithmetic(const BinOpInfo &Info) {
 }
 
 ValueCategory MLIRScanner::EmitBinAdd(const BinOpInfo &Info) {
-  const auto Loc = getMLIRLocation(Info.getExpr()->getExprLoc());
-  const auto LHS = Info.getLHS();
-  const auto RHS = Info.getRHS().val;
+  const Location Loc = getMLIRLocation(Info.getExpr()->getExprLoc());
+  const ValueCategory LHS = Info.getLHS();
+  const ValueCategory RHS = Info.getRHS();
 
   if (mlirclang::isPointerOrMemRefTy(LHS.val.getType()) ||
-      mlirclang::isPointerOrMemRefTy(RHS.getType()))
+      mlirclang::isPointerOrMemRefTy(RHS.val.getType()))
     return EmitPointerArithmetic(Info);
 
   if (Info.getType()->isSignedIntegerOrEnumerationType()) {
     CGEIST_WARNING(informNoOverflowCheck(
         Glob.getCGM().getLangOpts().getSignedOverflowBehavior(), "add"));
-    return LHS.Add(Builder, Loc, RHS);
+    return LHS.Add(Builder, Loc, RHS.val);
   }
 
   assert(!Info.getType()->isConstantMatrixType() && "Not yet implemented");
 
   if (mlirclang::isFPOrFPVectorTy(LHS.val.getType()))
-    return LHS.FAdd(Builder, Loc, RHS);
+    return LHS.FAdd(Builder, Loc, RHS.val);
 
-  return LHS.Add(Builder, Loc, RHS);
+  return LHS.Add(Builder, Loc, RHS.val);
 }
 
 ValueCategory MLIRScanner::EmitBinSub(const BinOpInfo &Info) {
-  const auto Loc = getMLIRLocation(Info.getExpr()->getExprLoc());
-  auto LHS = Info.getLHS();
-  auto RHS = Info.getRHS();
+  const Location Loc = getMLIRLocation(Info.getExpr()->getExprLoc());
+  ValueCategory LHS = Info.getLHS();
+  ValueCategory RHS = Info.getRHS();
 
   // The LHS is always a pointer if either side is.
   if (!mlirclang::isPointerOrMemRefTy(LHS.val.getType())) {
