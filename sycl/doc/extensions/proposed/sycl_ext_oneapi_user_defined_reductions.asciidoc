@@ -100,10 +100,8 @@ namespace sycl::ext::oneapi::experimental {
 }
 ----
 
-**TODO**: consider adding `is_group_with_scratchpad_v` helper to describe
-preconditions better.
-
-1._Constraints_: `GroupHelper` is **TODO**: add link to GroupHelper spec when it's ready.
+1._Constraints_: `GroupHelper` is described in
+link:../experimental/sycl_ext_oneapi_group_sort.asciidoc[sycl_ext_oneapi_group_sort].
 
 _Mandates_: `binary_op(*first, *first)` must return a value of type
 `std::iterator_traits<Ptr>::value_type`.
@@ -124,7 +122,8 @@ object type, then memory attached to `GroupHelper` object `g` is not used and
 the call to this overload is equivalent to calling
 `sycl::joint_reduce(g.get_group(), first, last, binary_op)`.
 
-2._Constraints_: `GroupHelper` is a `group_with_scratchpad`.
+2._Constraints_: `GroupHelper` is described in
+link:../experimental/sycl_ext_oneapi_group_sort.asciidoc[sycl_ext_oneapi_group_sort].
 
 _Mandates_: `binary_op(init, *first)` must return a value of type `T`. `T` must
 satisfy MoveConstructible requirement.
@@ -141,7 +140,8 @@ iterators in the range `[first, last)` and the initial value `init` using the
 operator `binary_op`, where the values are combined according to the generalized
 sum defined in standard C++.
 
-3._Constraints_: `GroupHelper` is a `group_with_scratchpad`.
+3._Constraints_: `GroupHelper` is described in
+link:../experimental/sycl_ext_oneapi_group_sort.asciidoc[sycl_ext_oneapi_group_sort].
 
 _Mandates_: `binary_op(x, x)` must return a value of type `T`.
 
@@ -158,7 +158,8 @@ object type, then memory attached to `GroupHelper` object `g` is not used and
 the call to this overload is equivalent to calling
 `sycl::reduce_over_group(g.get_group(), x, binary_op)`.
 
-4._Constraints_: `GroupHelper` is a `group_with_scratchpad`.
+4._Constraints_: `GroupHelper` is described in
+link:../experimental/sycl_ext_oneapi_group_sort.asciidoc[sycl_ext_oneapi_group_sort].
 
 _Mandates_: `binary_op(init, x)` and `binary_op(x, x)` must return a value of
 type `T`.
