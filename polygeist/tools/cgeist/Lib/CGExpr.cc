@@ -1437,6 +1437,11 @@ ValueCategory MLIRScanner::VisitMemberExpr(MemberExpr *ME) {
 }
 
 ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
+  LLVM_DEBUG({
+    llvm::dbgs() << "VisitCastExpr: ";
+    E->dump();
+    llvm::dbgs() << "\n";
+  });
   Location Loc = getMLIRLocation(E->getExprLoc());
   switch (E->getCastKind()) {
 
@@ -1768,144 +1773,14 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     });
     return ValueCategory(Lres, /*isReference*/ false);
   }
-  case clang::CastKind::CK_IntegralToFloating: {
-    auto Scalar = Visit(E->getSubExpr()).getValue(Builder);
-    auto Ty = Glob.getTypes().getMLIRType(E->getType()).cast<mlir::FloatType>();
-    bool SignedType = true;
-    if (const auto *Bit =
-            dyn_cast<clang::BuiltinType>(&*E->getSubExpr()->getType())) {
-      if (Bit->isUnsignedInteger())
-        SignedType = false;
-      if (Bit->isSignedInteger())
-        SignedType = true;
-    }
-    if (SignedType)
-      return ValueCategory(
-          Builder.create<mlir::arith::SIToFPOp>(Loc, Ty, Scalar),
-          /*isReference*/ false);
-
-    return ValueCategory(Builder.create<mlir::arith::UIToFPOp>(Loc, Ty, Scalar),
-                         /*isReference*/ false);
-  }
-  case clang::CastKind::CK_FloatingToIntegral: {
-    auto Scalar = Visit(E->getSubExpr()).getValue(Builder);
-    auto Ty =
-        Glob.getTypes().getMLIRType(E->getType()).cast<mlir::IntegerType>();
-    bool SignedType = true;
-    if (const auto *Bit = dyn_cast<clang::BuiltinType>(&*E->getType())) {
-      if (Bit->isUnsignedInteger())
-        SignedType = false;
-      if (Bit->isSignedInteger())
-        SignedType = true;
-    }
-    if (SignedType)
-      return ValueCategory(
-          Builder.create<mlir::arith::FPToSIOp>(Loc, Ty, Scalar),
-          /*isReference*/ false);
-    return ValueCategory(Builder.create<mlir::arith::FPToUIOp>(Loc, Ty, Scalar),
-                         /*isReference*/ false);
-  }
-  case clang::CastKind::CK_IntegralCast: {
-    auto Scalar = Visit(E->getSubExpr()).getValue(Builder);
-    assert(Scalar);
-    auto PostTy =
-        Glob.getTypes().getMLIRType(E->getType()).cast<mlir::IntegerType>();
-    if (Scalar.getType().isa<mlir::LLVM::LLVMPointerType>())
-      return ValueCategory(
-          Builder.create<mlir::LLVM::PtrToIntOp>(Loc, PostTy, Scalar),
-          /*isReference*/ false);
-    if (Scalar.getType().isa<mlir::IndexType>() ||
-        PostTy.isa<mlir::IndexType>())
-      return ValueCategory(
-          Builder.create<arith::IndexCastOp>(Loc, PostTy, Scalar), false);
-    LLVM_DEBUG({
-      if (!Scalar.getType().isa<mlir::IntegerType>()) {
-        E->dump();
-        llvm::errs() << " Scalar: " << Scalar << "\n";
-      }
-    });
-    auto PrevTy = Scalar.getType().cast<mlir::IntegerType>();
-    bool SignedType = true;
-    if (const auto *Bit =
-            dyn_cast<clang::BuiltinType>(&*E->getSubExpr()->getType())) {
-      if (Bit->isUnsignedInteger())
-        SignedType = false;
-      if (Bit->isSignedInteger())
-        SignedType = true;
-    }
-
-    if (PrevTy == PostTy)
-      return ValueCategory(Scalar, /*isReference*/ false);
-    if (PrevTy.getWidth() < PostTy.getWidth()) {
-      if (SignedType) {
-        if (auto CI = Scalar.getDefiningOp<arith::ConstantIntOp>()) {
-          return ValueCategory(
-              Builder.create<arith::ConstantOp>(
-                  Loc, PostTy,
-                  mlir::IntegerAttr::get(
-                      PostTy, CI.getValue().cast<IntegerAttr>().getValue().sext(
-                                  PostTy.getWidth()))),
-              /*isReference*/ false);
-        }
-        return ValueCategory(
-            Builder.create<arith::ExtSIOp>(Loc, PostTy, Scalar),
-            /*isReference*/ false);
-      }
-      if (auto CI = Scalar.getDefiningOp<arith::ConstantIntOp>()) {
-        return ValueCategory(
-            Builder.create<arith::ConstantOp>(
-                Loc, PostTy,
-                mlir::IntegerAttr::get(
-                    PostTy, CI.getValue().cast<IntegerAttr>().getValue().zext(
-                                PostTy.getWidth()))),
-            /*isReference*/ false);
-      }
-      return ValueCategory(Builder.create<arith::ExtUIOp>(Loc, PostTy, Scalar),
-                           /*isReference*/ false);
-    }
-
-    if (auto CI = Scalar.getDefiningOp<arith::ConstantIntOp>()) {
-      return ValueCategory(
-          Builder.create<arith::ConstantOp>(
-              Loc, PostTy,
-              mlir::IntegerAttr::get(
-                  PostTy, CI.getValue().cast<IntegerAttr>().getValue().trunc(
-                              PostTy.getWidth()))),
-          /*isReference*/ false);
-    }
-    return ValueCategory(Builder.create<arith::TruncIOp>(Loc, PostTy, Scalar),
-                         /*isReference*/ false);
-  }
-  case clang::CastKind::CK_FloatingCast: {
-    auto Scalar = Visit(E->getSubExpr()).getValue(Builder);
-    LLVM_DEBUG({
-      if (!Scalar.getType().isa<mlir::FloatType>()) {
-        E->dump();
-        llvm::errs() << "Scalar: " << Scalar << "\n";
-      }
-    });
-    auto PrevTy = Scalar.getType().cast<mlir::FloatType>();
-    auto PostTy =
-        Glob.getTypes().getMLIRType(E->getType()).cast<mlir::FloatType>();
-
-    if (PrevTy == PostTy)
-      return ValueCategory(Scalar, /*isReference*/ false);
-    if (auto C = Scalar.getDefiningOp<arith::ConstantFloatOp>()) {
-      APFloat Val = C.getValue().cast<FloatAttr>().getValue();
-      bool Ignored;
-      Val.convert(PostTy.getFloatSemantics(), APFloat::rmNearestTiesToEven,
-                  &Ignored);
-      return ValueCategory(Builder.create<arith::ConstantOp>(
-                               Loc, PostTy, mlir::FloatAttr::get(PostTy, Val)),
-                           false);
-    }
-    if (PrevTy.getWidth() < PostTy.getWidth())
-      return ValueCategory(Builder.create<arith::ExtFOp>(Loc, PostTy, Scalar),
-                           /*isReference*/ false);
-
-    return ValueCategory(Builder.create<arith::TruncFOp>(Loc, PostTy, Scalar),
-                         /*isReference*/ false);
-  }
+  case clang::CastKind::CK_IntegralToFloating:
+  case clang::CastKind::CK_FloatingToIntegral:
+  case clang::CastKind::CK_FloatingCast:
+  case clang::CastKind::CK_IntegralCast:
+  case clang::CastKind::CK_BooleanToSignedIntegral:
+    return EmitScalarConversion(Visit(E->getSubExpr()),
+                                E->getSubExpr()->getType(), E->getType(),
+                                E->getExprLoc());
   case clang::CastKind::CK_ArrayToPointerDecay: {
     return CommonArrayToPointer(Visit(E->getSubExpr()));
 
@@ -1942,117 +1817,51 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     Visit(E->getSubExpr());
     return nullptr;
   }
-  case clang::CastKind::CK_PointerToBoolean: {
-    auto Scalar = Visit(E->getSubExpr()).getValue(Builder);
-    if (auto MT = Scalar.getType().dyn_cast<mlir::MemRefType>()) {
-      Scalar = Builder.create<polygeist::Memref2PointerOp>(
-          Loc,
-          LLVM::LLVMPointerType::get(MT.getElementType(),
-                                     MT.getMemorySpaceAsInt()),
-          Scalar);
-    }
-    if (auto LT = Scalar.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-      auto NullptrLlvm = Builder.create<mlir::LLVM::NullOp>(Loc, LT);
-      auto NE = Builder.create<mlir::LLVM::ICmpOp>(
-          Loc, mlir::LLVM::ICmpPredicate::ne, Scalar, NullptrLlvm);
-      return ValueCategory(NE, /*isReference*/ false);
-    }
-    Function.dump();
-    llvm::errs() << "Scalar: " << Scalar << "\n";
-    E->dump();
-    assert(0 && "unhandled ptrtobool cast");
-  }
+  case clang::CastKind::CK_PointerToBoolean:
+    return EmitPointerToBoolConversion(Loc, Visit(E->getSubExpr()));
   case clang::CastKind::CK_PointerToIntegral: {
-    auto Scalar = Visit(E->getSubExpr()).getValue(Builder);
-    if (auto MT = Scalar.getType().dyn_cast<mlir::MemRefType>()) {
-      Scalar = Builder.create<polygeist::Memref2PointerOp>(
-          Loc,
-          LLVM::LLVMPointerType::get(MT.getElementType(),
-                                     MT.getMemorySpaceAsInt()),
-          Scalar);
-    }
-    if (auto LT = Scalar.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-      mlir::Type MLIRTy = Glob.getTypes().getMLIRType(E->getType());
-      auto Val = Builder.create<mlir::LLVM::PtrToIntOp>(Loc, MLIRTy, Scalar);
-      return ValueCategory(Val, /*isReference*/ false);
-    }
-    LLVM_DEBUG({
-      Function.dump();
-      llvm::errs() << "Scalar: " << Scalar << "\n";
-      E->dump();
-    });
-    llvm_unreachable("unhandled ptrtoint cast");
-  } break;
-  case clang::CastKind::CK_IntegralToBoolean: {
-    auto Res = Visit(E->getSubExpr()).getValue(Builder);
-    auto PrevTy = Res.getType().cast<mlir::IntegerType>();
-    Res = Builder.create<arith::CmpIOp>(
-        Loc, arith::CmpIPredicate::ne, Res,
-        Builder.create<arith::ConstantIntOp>(Loc, 0, PrevTy));
-    auto PostTy =
-        Glob.getTypes().getMLIRType(E->getType()).cast<mlir::IntegerType>();
-    bool SignedType = true;
-    if (const auto *Bit = dyn_cast<clang::BuiltinType>(&*E->getType())) {
-      if (Bit->isUnsignedInteger())
-        SignedType = false;
-      if (Bit->isSignedInteger())
-        SignedType = true;
-    }
-    if (PostTy.getWidth() > 1) {
-      if (SignedType)
-        Res = Builder.create<arith::ExtSIOp>(Loc, PostTy, Res);
-      else
-        Res = Builder.create<arith::ExtUIOp>(Loc, PostTy, Res);
-    }
-    return ValueCategory(Res, /*isReference*/ false);
+    const auto DestTy = E->getType();
+    assert(!DestTy->isBooleanType() && "bool should use PointerToBool");
+    auto PtrExpr = Visit(E->getSubExpr());
+
+    if (const auto MT = PtrExpr.val.getType().dyn_cast<MemRefType>())
+      PtrExpr = PtrExpr.MemRef2Ptr(Builder, Loc);
+
+    assert(PtrExpr.val.getType().isa<LLVM::LLVMPointerType>() &&
+           "Expecting LLVM pointer type");
+    const auto MLIRDestTy = Glob.getTypes().getMLIRType(DestTy);
+    return PtrExpr.PtrToInt(Builder, Loc, MLIRDestTy);
   }
-  case clang::CastKind::CK_FloatingToBoolean: {
-    auto Res = Visit(E->getSubExpr()).getValue(Builder);
-    auto PrevTy = Res.getType().cast<mlir::FloatType>();
-    auto PostTy =
-        Glob.getTypes().getMLIRType(E->getType()).cast<mlir::IntegerType>();
-    bool SignedType = true;
-    if (const auto *Bit = dyn_cast<clang::BuiltinType>(&*E->getType())) {
-      if (Bit->isUnsignedInteger())
-        SignedType = false;
-      if (Bit->isSignedInteger())
-        SignedType = true;
-    }
-    auto Zero = Builder.create<arith::ConstantFloatOp>(
-        Loc, APFloat::getZero(PrevTy.getFloatSemantics()), PrevTy);
-    Res = Builder.create<arith::CmpFOp>(Loc, arith::CmpFPredicate::UNE, Res,
-                                        Zero);
-    if (1 < PostTy.getWidth()) {
-      if (SignedType)
-        Res = Builder.create<arith::ExtSIOp>(Loc, PostTy, Res);
-      else
-        Res = Builder.create<arith::ExtUIOp>(Loc, PostTy, Res);
-    }
-    return ValueCategory(Res, /*isReference*/ false);
-  }
+  case clang::CastKind::CK_IntegralToBoolean:
+    return EmitIntToBoolConversion(Loc, Visit(E->getSubExpr()));
+  case clang::CastKind::CK_FloatingToBoolean:
+    return EmitFloatToBoolConversion(Loc, Visit(E->getSubExpr()));
   case clang::CastKind::CK_VectorSplat: {
     const auto DstTy = Glob.getTypes().getMLIRType(E->getType());
     const auto Elt = Visit(E->getSubExpr());
     return Elt.Splat(Builder, Loc, DstTy);
   }
   case clang::CastKind::CK_IntegralToPointer: {
-    auto Vc = Visit(E->getSubExpr());
-    LLVM_DEBUG({
-      if (!Vc.val)
-        E->dump();
-    });
-    assert(Vc.val);
-    auto Res = Vc.getValue(Builder);
+    auto VC = Visit(E->getSubExpr());
+
+    // First convert to the correct width.
+    const auto MiddleTy = Builder.getIntegerType(
+        Glob.getCGM().getDataLayout().getPointerSizeInBits());
+    const auto InputSigned =
+        E->getSubExpr()->getType()->isSignedIntegerOrEnumerationType();
+    const auto IntResult = VC.IntCast(Builder, Loc, MiddleTy, InputSigned);
+
+    // Now perform the integral to pointer conversion.
     mlir::Type PostTy = Glob.getTypes().getMLIRType(E->getType());
-    if (PostTy.isa<LLVM::LLVMPointerType>())
-      Res = Builder.create<LLVM::IntToPtrOp>(Loc, PostTy, Res);
-    else {
-      assert(PostTy.isa<MemRefType>());
-      Res = Builder.create<LLVM::IntToPtrOp>(
-          Loc, LLVM::LLVMPointerType::get(Builder.getI8Type()), Res);
-      Res = Builder.create<polygeist::Pointer2MemrefOp>(Loc, PostTy, Res);
-    }
-    return ValueCategory(Res, /*isReference*/ false);
+    return TypeSwitch<mlir::Type, ValueCategory>(PostTy)
+        .Case<LLVM::LLVMPointerType>(
+            [&](auto Ty) { return IntResult.IntToPtr(Builder, Loc, Ty); })
+        .Case<MemRefType>([&](auto Ty) {
+          const auto MiddlePtrTy = LLVM::LLVMPointerType::get(
+              Ty.getElementType(), Ty.getMemorySpaceAsInt());
+          return IntResult.IntToPtr(Builder, Loc, MiddlePtrTy)
+              .Ptr2MemRef(Builder, Loc);
+        });
   }
 
   default:

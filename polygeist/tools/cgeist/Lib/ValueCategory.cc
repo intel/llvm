@@ -533,6 +533,23 @@ ValueCategory ValueCategory::MemRef2Ptr(OpBuilder &Builder,
           isReference};
 }
 
+ValueCategory
+ValueCategory::Ptr2MemRef(OpBuilder &Builder, Location Loc,
+                          llvm::ArrayRef<int64_t> Shape,
+                          MemRefLayoutAttrInterface Layout) const {
+  const auto Ty = val.getType().dyn_cast<LLVM::LLVMPointerType>();
+  if (!Ty) {
+    assert(val.getType().isa<MemRefType>() && "Expecting MemRef type");
+    return *this;
+  }
+
+  auto DestTy =
+      MemRefType::get(Shape, Ty.getElementType(), Layout,
+                      Builder.getI32IntegerAttr(Ty.getAddressSpace()));
+  return {Builder.createOrFold<polygeist::Pointer2MemrefOp>(Loc, DestTy, val),
+          isReference};
+}
+
 ValueCategory ValueCategory::Splat(OpBuilder &Builder, Location Loc,
                                    mlir::Type VecTy) const {
   assert(VecTy.isa<mlir::VectorType>() && "Expecting vector type for cast");
