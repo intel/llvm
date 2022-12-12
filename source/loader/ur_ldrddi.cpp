@@ -2871,6 +2871,34 @@ namespace loader
     }
 
     ///////////////////////////////////////////////////////////////////////////////
+    /// @brief Intercept function for urDeviceGetGlobalTimestamps
+    __urdlllocal ur_result_t UR_APICALL
+    urDeviceGetGlobalTimestamps(
+        ur_device_handle_t hDevice,                     ///< [in] handle of the device instance
+        uint64_t* pDeviceTimestamp,                     ///< [out] pointer to the Device's global timestamp that 
+                                                        ///< correlates with the Host's global timestamp value
+        uint64_t* pHostTimestamp                        ///< [out] pointer to the Host's global timestamp that 
+                                                        ///< correlates with the Device's global timestamp value
+        )
+    {
+        ur_result_t result = UR_RESULT_SUCCESS;
+
+        // extract platform's function pointer table
+        auto dditable = reinterpret_cast<ur_device_object_t*>( hDevice )->dditable;
+        auto pfnGetGlobalTimestamps = dditable->ur.Device.pfnGetGlobalTimestamps;
+        if( nullptr == pfnGetGlobalTimestamps )
+            return UR_RESULT_ERROR_UNINITIALIZED;
+
+        // convert loader handle to platform handle
+        hDevice = reinterpret_cast<ur_device_object_t*>( hDevice )->handle;
+
+        // forward to device-platform
+        result = pfnGetGlobalTimestamps( hDevice, pDeviceTimestamp, pHostTimestamp );
+
+        return result;
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////
     /// @brief Intercept function for urKernelCreate
     __urdlllocal ur_result_t UR_APICALL
     urKernelCreate(
@@ -4991,6 +5019,7 @@ urGetDeviceProcAddrTable(
             pDdiTable->pfnSelectBinary                             = loader::urDeviceSelectBinary;
             pDdiTable->pfnGetNativeHandle                          = loader::urDeviceGetNativeHandle;
             pDdiTable->pfnCreateWithNativeHandle                   = loader::urDeviceCreateWithNativeHandle;
+            pDdiTable->pfnGetGlobalTimestamps                      = loader::urDeviceGetGlobalTimestamps;
         }
         else
         {

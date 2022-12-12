@@ -568,3 +568,29 @@ params:
       name: phDevice
       desc: |
             [out] pointer to the handle of the device object created.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Returns synchronized Host and Device global timestamps."
+class: $xDevice
+name: GetGlobalTimestamps
+desc: static
+ordinal: "0"
+analogue:
+    - "**clGetDeviceAndHostTimer**"
+details:
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: $x_device_handle_t
+      name: hDevice
+      desc:  "[in] handle of the device instance"
+    - type: "uint64_t*"
+      name: pDeviceTimestamp
+      desc: | 
+            [out] pointer to the Device's global timestamp that 
+            correlates with the Host's global timestamp value
+    - type: "uint64_t*"
+      name: pHostTimestamp
+      desc: |
+            [out] pointer to the Host's global timestamp that 
+            correlates with the Device's global timestamp value

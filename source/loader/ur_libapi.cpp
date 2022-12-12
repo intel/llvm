@@ -2786,6 +2786,43 @@ urDeviceCreateWithNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief static
+/// 
+/// @details
+///     - The application may call this function from simultaneous threads for
+///       the same context.
+///     - The implementation of this function should be thread-safe.
+/// 
+/// @remarks
+///   _Analogues_
+///     - **clGetDeviceAndHostTimer**
+/// 
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pDeviceTimestamp`
+///         + `NULL == pHostTimestamp`
+ur_result_t UR_APICALL
+urDeviceGetGlobalTimestamps(
+    ur_device_handle_t hDevice,                     ///< [in] handle of the device instance
+    uint64_t* pDeviceTimestamp,                     ///< [out] pointer to the Device's global timestamp that 
+                                                    ///< correlates with the Host's global timestamp value
+    uint64_t* pHostTimestamp                        ///< [out] pointer to the Host's global timestamp that 
+                                                    ///< correlates with the Device's global timestamp value
+    )
+{
+    auto pfnGetGlobalTimestamps = ur_lib::context->urDdiTable.Device.pfnGetGlobalTimestamps;
+    if( nullptr == pfnGetGlobalTimestamps )
+        return UR_RESULT_ERROR_UNINITIALIZED;
+
+    return pfnGetGlobalTimestamps( hDevice, pDeviceTimestamp, pHostTimestamp );
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Create kernel object from a program.
 /// 
 /// @details
