@@ -52,8 +52,6 @@ static mlir::Value castToBaseType(PatternRewriter &Rewriter, mlir::Location Loc,
 
   auto Alloca = Rewriter.createOrFold<memref::AllocaOp>(
       Loc, MemRefType::get({1}, ThisType));
-  const auto Shape = Rewriter.createOrFold<memref::AllocaOp>(
-      Loc, MemRefType::get({1}, Rewriter.getIndexType()));
 
   Rewriter.setInsertionPoint(InsertionOp);
 
@@ -63,11 +61,8 @@ static mlir::Value castToBaseType(PatternRewriter &Rewriter, mlir::Location Loc,
       ValueRange{Rewriter.createOrFold<arith::ConstantIndexOp>(Loc, 0)});
 
   // Reshape the memref value
-  Rewriter.createOrFold<memref::StoreOp>(
-      Loc, Rewriter.createOrFold<arith::ConstantIndexOp>(Loc, 0), Shape,
-      ValueRange{Rewriter.createOrFold<arith::ConstantIndexOp>(Loc, 0)});
-  Alloca = Rewriter.createOrFold<memref::ReshapeOp>(
-      Loc, MemRefType::get({0}, ThisType), Alloca, Shape);
+  Alloca = Rewriter.createOrFold<memref::CastOp>(
+      Loc, MemRefType::get(ShapedType::kDynamic, ThisType), Alloca);
 
   if (Alloca.getType().cast<MemRefType>().getMemorySpaceAsInt() !=
       BaseType.getMemorySpaceAsInt()) {

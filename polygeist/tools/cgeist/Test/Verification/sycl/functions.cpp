@@ -678,35 +678,32 @@ SYCL_EXTERNAL void op_1(sycl::id<2> a, sycl::id<2> b) {
 
 // CHECK-MLIR-LABEL: func.func @_Z8static_1N4sycl3_V12idILi2EEES2_(
 // CHECK-MLIR:         %arg0: memref<?x!sycl_id_2_> {llvm.align = 8 : i64, llvm.byval = !sycl_id_2_, llvm.noundef}, %arg1: memref<?x!sycl_id_2_> {llvm.align = 8 : i64, llvm.byval = !sycl_id_2_, llvm.noundef})
-// CHECK-MLIR-NEXT:    %c1_i32 = arith.constant 1 : i32
-// CHECK-MLIR-NEXT:    %c0_i32 = arith.constant 0 : i32
-// CHECK-MLIR-NEXT:    %0 = affine.load %arg0[0] : memref<?x!sycl_id_2_>
-// CHECK-MLIR-NEXT:    %1 = "sycl.id.get"(%0, %c0_i32) {BaseType = memref<?x!sycl_array_2_, 4>, FunctionName = @get, MangledFunctionName = @_ZNK4sycl3_V16detail5arrayILi2EE3getEi, TypeName = @array} : (!sycl_id_2_, i32) -> i64
-// CHECK-MLIR-NEXT:    %2 = "sycl.id.get"(%0, %c1_i32) {BaseType = memref<?x!sycl_array_2_, 4>, FunctionName = @get, MangledFunctionName = @_ZNK4sycl3_V16detail5arrayILi2EE3getEi, TypeName = @array} : (!sycl_id_2_, i32) -> i64
-// CHECK-MLIR-NEXT:    %3 = arith.addi %1, %2 : i64
-// CHECK-MLIR-NEXT:    %4 = sycl.call(%3) {FunctionName = @abs, MangledFunctionName = @_ZN4sycl3_V13absImEENSt9enable_ifIXsr6detail14is_ugenintegerIT_EE5valueES3_E4typeES3_} : (i64) -> i64
-// CHECK-MLIR-NEXT:    return
+// CHECK-MLIR-NEXT: %c1_i32 = arith.constant 1 : i32
+// CHECK-MLIR-NEXT: %c0_i32 = arith.constant 0 : i32
+// CHECK-MLIR-NEXT: %0 = affine.load %arg0[0] : memref<?x!sycl_id_2_>
+// CHECK-MLIR-NEXT: %1 = "sycl.id.get"(%0, %c0_i32) {BaseType = memref<?x!sycl_array_2_, 4>, FunctionName = @get, MangledFunctionName = @_ZNK4sycl3_V16detail5arrayILi2EE3getEi, TypeName = @array} : (!sycl_id_2_, i32) -> i64
+// CHECK-MLIR-NEXT: %2 = "sycl.id.get"(%0, %c1_i32) {BaseType = memref<?x!sycl_array_2_, 4>, FunctionName = @get, MangledFunctionName = @_ZNK4sycl3_V16detail5arrayILi2EE3getEi, TypeName = @array} : (!sycl_id_2_, i32) -> i64
+// CHECK-MLIR-NEXT: %3 = arith.addi %1, %2 : i64
+// CHECK-MLIR-NEXT: %4 = sycl.call(%3) {FunctionName = @abs, MangledFunctionName = @_ZN4sycl3_V13absImEENSt9enable_ifIXsr6detail14is_ugenintegerIT_EE5valueES3_E4typeES3_} : (i64) -> i64
+// CHECK-MLIR-NEXT: return
+// CHECK-MLIR-NEXT: }
 
 // CHECK-LLVM-LABEL: define spir_func void @_Z8static_1N4sycl3_V12idILi2EEES2_(
-// CHECK-LLVM-SAME:    %"class.sycl::_V1::id.2"* noundef byval(%"class.sycl::_V1::id.2") align 8 %0, %"class.sycl::_V1::id.2"* noundef byval(%"class.sycl::_V1::id.2") align 8 %1) #[[FUNCATTRS]]  
-// CHECK-LLVM-NEXT:   %3 = alloca %"class.sycl::_V1::id.2", align 8
-// CHECK-LLVM-NEXT:   %4 = alloca i64, align 8
-// CHECK-LLVM-NEXT:   %5 = alloca %"class.sycl::_V1::id.2", align 8
-// CHECK-LLVM-NEXT:   %6 = alloca i64, align 8
-// CHECK-LLVM-NEXT:   %7 = load %"class.sycl::_V1::id.2", %"class.sycl::_V1::id.2"* %0, align 8
-// CHECK-LLVM-NEXT:   store %"class.sycl::_V1::id.2" %7, %"class.sycl::_V1::id.2"* %3, align 8
-// CHECK-LLVM-NEXT:   store i64 0, i64* %4, align 8
-// CHECK-LLVM-NEXT:   %8 = addrspacecast %"class.sycl::_V1::id.2"* %3 to %"class.sycl::_V1::id.2" addrspace(4)*
-// CHECK-LLVM-NEXT:   %9 = bitcast %"class.sycl::_V1::id.2" addrspace(4)* %8 to %"class.sycl::_V1::detail::array.2" addrspace(4)*
-// CHECK-LLVM-NEXT:   %10 = call spir_func i64 @_ZNK4sycl3_V16detail5arrayILi2EE3getEi(%"class.sycl::_V1::detail::array.2" addrspace(4)* %9, i32 0)
-// CHECK-LLVM-NEXT:   store %"class.sycl::_V1::id.2" %7, %"class.sycl::_V1::id.2"* %5, align 8
-// CHECK-LLVM-NEXT:   store i64 0, i64* %6, align 8
-// CHECK-LLVM-NEXT:   %11 = addrspacecast %"class.sycl::_V1::id.2"* %5 to %"class.sycl::_V1::id.2" addrspace(4)*
-// CHECK-LLVM-NEXT:   %12 = bitcast %"class.sycl::_V1::id.2" addrspace(4)* %11 to %"class.sycl::_V1::detail::array.2" addrspace(4)*
-// CHECK-LLVM-NEXT:   %13 = call spir_func i64 @_ZNK4sycl3_V16detail5arrayILi2EE3getEi(%"class.sycl::_V1::detail::array.2" addrspace(4)* %12, i32 1)
-// CHECK-LLVM-NEXT:   %14 = add i64 %10, %13
-// CHECK-LLVM-NEXT:   %15 = call spir_func i64 @_ZN4sycl3_V13absImEENSt9enable_ifIXsr6detail14is_ugenintegerIT_EE5valueES3_E4typeES3_(i64 %14)
-// CHECK-LLVM-NEXT:   ret void
+// CHECK-LLVM-SAME:      %"class.sycl::_V1::id.2"* noundef byval(%"class.sycl::_V1::id.2") align 8 %0, %"class.sycl::_V1::id.2"* noundef byval(%"class.sycl::_V1::id.2") align 8 %1) #[[FUNCATTRS]]  
+// CHECK-LLVM-NEXT: %3 = alloca %"class.sycl::_V1::id.2", align 8
+// CHECK-LLVM-NEXT: %4 = alloca %"class.sycl::_V1::id.2", align 8
+// CHECK-LLVM-NEXT: %5 = load %"class.sycl::_V1::id.2", %"class.sycl::_V1::id.2"* %0, align 8
+// CHECK-LLVM-NEXT: store %"class.sycl::_V1::id.2" %5, %"class.sycl::_V1::id.2"* %3, align 8
+// CHECK-LLVM-NEXT: %6 = addrspacecast %"class.sycl::_V1::id.2"* %3 to %"class.sycl::_V1::id.2" addrspace(4)*
+// CHECK-LLVM-NEXT: %7 = bitcast %"class.sycl::_V1::id.2" addrspace(4)* %6 to %"class.sycl::_V1::detail::array.2" addrspace(4)*
+// CHECK-LLVM-NEXT: %8 = call spir_func i64 @_ZNK4sycl3_V16detail5arrayILi2EE3getEi(%"class.sycl::_V1::detail::array.2" addrspace(4)* %7, i32 0)
+// CHECK-LLVM-NEXT: store %"class.sycl::_V1::id.2" %5, %"class.sycl::_V1::id.2"* %4, align 8
+// CHECK-LLVM-NEXT: %9 = addrspacecast %"class.sycl::_V1::id.2"* %4 to %"class.sycl::_V1::id.2" addrspace(4)*
+// CHECK-LLVM-NEXT: %10 = bitcast %"class.sycl::_V1::id.2" addrspace(4)* %9 to %"class.sycl::_V1::detail::array.2" addrspace(4)*
+// CHECK-LLVM-NEXT: %11 = call spir_func i64 @_ZNK4sycl3_V16detail5arrayILi2EE3getEi(%"class.sycl::_V1::detail::array.2" addrspace(4)* %10, i32 1)
+// CHECK-LLVM-NEXT: %12 = add i64 %8, %11
+// CHECK-LLVM-NEXT: %13 = call spir_func i64 @_ZN4sycl3_V13absImEENSt9enable_ifIXsr6detail14is_ugenintegerIT_EE5valueES3_E4typeES3_(i64 %12)
+// CHECK-LLVM-NEXT: ret void
 // CHECK-LLVM-NEXT: }
 
 SYCL_EXTERNAL void static_1(sycl::id<2> a, sycl::id<2> b) {
