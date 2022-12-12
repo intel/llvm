@@ -3206,16 +3206,6 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16:
     return PI_ERROR_INVALID_VALUE;
 
-  case PI_DEVICE_CURRENT_TIME:{
-    uint64_t ZeTimerResolution = Device->ZeDeviceProperties->timerResolution;
-    uint64_t TimestampMaxCount = ((1ULL << Device->ZeDeviceProperties->kernelTimestampValidBits) - 1ULL);
-    uint64_t deviceClockCount, dummy;
-
-    ZE_CALL(zeDeviceGetGlobalTimestamps,
-            (Device->ZeDevice, &dummy, &deviceClockCount));
-    return ReturnValue((deviceClockCount & TimestampMaxCount) * ZeTimerResolution);
-  }
-
   // TODO: Implement.
   case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
   default:
@@ -9063,4 +9053,15 @@ pi_result _pi_buffer::free() {
   return PI_SUCCESS;
 }
 
+
+pi_result piGetDeviceAndHostTimer(pi_device device, uint64_t* deviceTime, uint64_t* hostTime){
+  const uint64_t& ZeTimerResolution = device->ZeDeviceProperties->timerResolution;
+  const uint64_t TimestampMaxCount = ((1ULL << device->ZeDeviceProperties->kernelTimestampValidBits) - 1ULL);
+  uint64_t deviceClockCount, dummy;
+
+  ZE_CALL(zeDeviceGetGlobalTimestamps,
+          (device->ZeDevice, hostTime == nullptr ? &dummy : hostTime, &deviceClockCount));
+  *deviceTime= (deviceClockCount & TimestampMaxCount) * ZeTimerResolution ;
+  return PI_SUCCESS;
+}
 } // extern "C"

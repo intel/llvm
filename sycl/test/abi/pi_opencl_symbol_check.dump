@@ -12,6 +12,7 @@ piDeviceGetInfo
 piDevicesGet
 piEnqueueMemBufferMap
 piEventCreate
+piGetDeviceAndHostTimer
 piKernelCreate
 piKernelGetGroupInfo
 piKernelGetSubGroupInfo
@@ -20,13 +21,13 @@ piMemBufferCreate
 piMemBufferPartition
 piMemImageCreate
 piPlatformsGet
+piPluginGetLastError
 piPluginInit
 piProgramCreate
 piProgramCreateWithBinary
 piProgramLink
 piQueueCreate
 piSamplerCreate
-piPluginGetLastError
 piTearDown
 piclProgramCreateWithSource
 piextContextCreateWithNativeHandle

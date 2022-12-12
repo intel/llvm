@@ -1984,6 +1984,9 @@ pi_result piTearDown(void *) {
   return PI_SUCCESS;
 }
 
+pi_result piGetDeviceAndHostTimer(pi_device device, uint64_t* deviceTime, uint64_t* hostTime){
+  assert(0 && "Method not implemented");
+}
 const char SupportedVersion[] = _PI_ESIMD_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {

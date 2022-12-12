@@ -94,13 +94,14 @@ event handler::finalize() {
   MIsFinalized = true;
 
     auto setSubmissionTime = [&](detail::EventImplPtr event) {
-    auto plugin= MQueue->getPlugin();
-    if(!MQueue->is_host() && plugin.getBackend() == backend::ext_oneapi_level_zero) {
+    if(!MQueue->is_host()){
+      auto plugin=MQueue->getPlugin();
+      if( plugin.getBackend() == backend::ext_oneapi_level_zero) {
       uint64_t submitTime=0;
-        plugin.call<detail::PiApiKind::piDeviceGetInfo>(MQueue->getDeviceImplPtr()->getHandleRef(),sizeof(uint64_t),&submitTime,nullptr);
+        plugin.call<detail::PiApiKind::piGetDeviceAndHostTimer>(MQueue->getDeviceImplPtr()->getHandleRef(),&submitTime,nullptr);
         event->setSubmissionTime(submitTime);
       }
-    };
+    }};
 
   const auto &type = getType();
   if (type == detail::CG::Kernel) {
