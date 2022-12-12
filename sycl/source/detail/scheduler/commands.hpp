@@ -147,7 +147,7 @@ public:
   bool isEnqueueBlocked() const {
     return MIsBlockable && MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked;
   }
-  // Shows thst command could be enqueud, but is blocking enqueue of all
+  // Shows that command could be enqueued, but is blocking enqueue of all
   // commands depending on it. Regular usage - host task.
   bool isBlocking() const { return isHostTask() && !MEvent->isCompleted(); }
 
@@ -339,8 +339,8 @@ public:
   bool MPostEnqueueCleanup = false;
 
   /// Contains list of commands that depends on the host command explicitly (by
-  /// depends_on). Not involved into cleanup process since it is one-way link
-  /// and not holds resources.
+  /// depends_on). Not involved in the cleanup process since it is one-way link
+  /// and does not hold resources.
   /// Using EventImplPtr since enqueueUnblockedCommands and event.wait may
   /// intersect with command enqueue.
   std::vector<EventImplPtr> MBlockedUsers;
