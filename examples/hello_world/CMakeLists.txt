@@ -1,3 +1,6 @@
+# Copyright (C) 2022 Intel Corporation
+# SPDX-License-Identifier: MIT
+
 set(TARGET_NAME hello_world)
 
 add_executable(${TARGET_NAME}
