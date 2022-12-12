@@ -34,12 +34,10 @@ auto get_native(const SyclObjectT &Obj)
 namespace detail {
 class platform_impl;
 }
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 // Forward declaration
 class filter_selector;
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///

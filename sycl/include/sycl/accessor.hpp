@@ -212,16 +212,10 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 class stream;
-namespace ext {
-namespace intel {
-namespace esimd {
-namespace detail {
+namespace ext::intel::esimd::detail {
 // Forward declare a "back-door" access class to support ESIMD.
 class AccessorPrivateProxy;
-} // namespace detail
-} // namespace esimd
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel::esimd::detail
 
 template <typename DataT, int Dimensions = 1,
           access::mode AccessMode = access::mode::read_write,

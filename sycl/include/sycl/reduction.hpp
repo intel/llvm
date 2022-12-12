@@ -626,7 +626,12 @@ public:
       Func(Mem);
 
       reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
-        accessor Mem{*Buf, CopyHandler};
+        // MSVC (19.32.31329) has problems compiling the line below when used 
+        // as a host compiler in c++17 mode (but not in c++latest)
+        //   accessor Mem{*Buf, CopyHandler};
+        // so use the old-style API.
+        auto Mem =
+            Buf->template get_access<access::mode::read_write>(CopyHandler);
         if constexpr (is_usm) {
           // Can't capture whole reduction, copy into distinct variables.
           bool IsUpdateOfUserVar = !base::initializeToIdentity();
@@ -1853,11 +1858,9 @@ void reduCGFuncImplArray(
    ...);
 }
 
-namespace reduction {
-namespace main_krn {
+namespace reduction::main_krn {
 template <class KernelName, class Accessor> struct NDRangeMulti;
-} // namespace main_krn
-} // namespace reduction
+} // namespace reduction::main_krn
 template <typename KernelName, typename KernelType, int Dims,
           typename PropertiesT, typename... Reductions, size_t... Is>
 void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
@@ -2103,11 +2106,9 @@ void reduAuxCGFuncImplArray(
    ...);
 }
 
-namespace reduction {
-namespace aux_krn {
+namespace reduction::aux_krn {
 template <class KernelName, class Predicate> struct Multi;
-} // namespace aux_krn
-} // namespace reduction
+} // namespace reduction::aux_krn
 template <typename KernelName, typename KernelType, typename... Reductions,
           size_t... Is>
 size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
