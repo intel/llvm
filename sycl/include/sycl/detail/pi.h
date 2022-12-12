@@ -1901,15 +1901,19 @@ __SYCL_EXPORT pi_result piTearDown(void *PluginParameter);
 ///
 /// \return PI_SUCCESS if plugin is indicating non-fatal warning. Any other
 /// error code indicates that plugin considers this to be a fatal error and the
-/// runtime must handle it or end the application.
+/// Returns the global timestamp from \param device , and syncronized host
+/// timestamp
 __SYCL_EXPORT pi_result piPluginGetLastError(char **message);
 
-/// Returns the global timestamp from \param device , and syncronized host timestamp
+/// Returns the global timestamp from \param device , and syncronized host
+/// timestamp
 ///
 /// \param device device to query for timestamp
 /// \param deviceTime pointer to store device time
-/// \param hostTime pointer to store syncronized host time 
-__SYCL_EXPORT pi_result piGetDeviceAndHostTimer(pi_device device, uint64_t* deviceTime, uint64_t* hostTime);
+/// \param hostTime pointer to store syncronized host time
+__SYCL_EXPORT pi_result piGetDeviceAndHostTimer(pi_device device,
+                                                uint64_t *deviceTime,
+                                                uint64_t *hostTime);
 
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin

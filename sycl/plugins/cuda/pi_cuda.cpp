@@ -5486,7 +5486,8 @@ pi_result cuda_piTearDown(void *) {
   return PI_SUCCESS;
 }
 
-pi_result cuda_piGetDeviceAndHostTimer(pi_device device, uint64_t* deviceTime, uint64_t* hostTime){
+pi_result cuda_piGetDeviceAndHostTimer(pi_device device, uint64_t *deviceTime,
+                                       uint64_t *hostTime) {
   assert(0 && "Method not implemented");
 }
 
