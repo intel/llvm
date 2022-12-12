@@ -126,10 +126,7 @@ Variants (B) and (C) use the same approach. The only difference is how the parti
 
 ---
 
-TODO #4 (Performance): The `reductionLoop()` has some order in which it choses indexes from the global index space. Currently it has huge stride to help vectorizer and get more vector insturction for the device code, which though may cause competition among devices for the memory due to pretty bad memory locality. On two-socket server CPUs using smaller stride to prioritize better memory locality gives additional perf improvement. 
-
----
-TODO #5 (Performance): Some devices may provide unique-thread-id where the number of worker threads running simultaneously is limited. Such feature opens way for more efficient implementations (up to 2x faster, especially on many stacks/tiles devices). See this extension for reference: https://github.com/intel/llvm/pull/4747
+TODO #4 (Performance): Some devices may provide unique-thread-id where the number of worker threads running simultaneously is limited. Such feature opens way for more efficient implementations (up to 2x faster, especially on many stacks/tiles devices). See this extension for reference: https://github.com/intel/llvm/pull/4747
 
 ---
 ---
@@ -148,14 +145,7 @@ The rest of this work is temporarily blocked by XPTI instrumentation that need t
 The problem is known, the fix in SYCL headers is implemented: https://github.com/intel/llvm/pull/4352 and is waiting for some re-work in XPTI component that must be done before the fix merge.
 
 ---
-### 2) Support `parallel_for` accepting `reduction` constructed with `span`:
-```c++
-template <typename T, typename Extent, typename BinaryOperation>
-__unspecified__ reduction(span<T, Extent> vars, const T& identity, BinaryOperation combiner);
-```
-
----
-### 3) Support identity-less reductions even when the reduction cannot be determinted automatically.
+### 2) Support identity-less reductions even when the reduction cannot be determinted automatically.
 
 Currently identity-less reductions are supported, but only in cases when sycl::has_known_identity<BinaryOperation, ElementType> returns true.
 When sycl::has_known_identity returns false, the implementation of the reduction may be less efficient, but still be functional.
