@@ -38,7 +38,7 @@ void constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
                                  const InputInfo &Output, const Tool *T,
                                  StringRef Increment, StringRef Ext = "out",
                                  StringRef ParallelJobs = "");
-
+bool shouldDoPerObjectFileLinking(const Compilation &C);
 // Runs llvm-spirv to convert spirv to bc, llvm-link, which links multiple LLVM
 // bitcode. Converts generated bc back to spirv using llvm-spirv, wraps with
 // offloading information. Finally compiles to object using llc
