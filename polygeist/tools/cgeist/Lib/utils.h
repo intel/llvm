@@ -48,6 +48,17 @@ enum class FunctionContext;
 
 namespace mlirclang {
 
+/// Whether the parent namespace is the sycl namespace, a namespace within it or
+/// not.
+enum class IsNamespaceSYCLResult {
+  /// The parent namespace is not the sycl namespace.
+  False = 0,
+  /// The parent namespace is the sycl namespace.
+  True,
+  /// The parent namespace is within the sycl namespace.
+  WithinSYCL,
+};
+
 /// Replace the given function by the operation with the given name, and use the
 /// same argument list. For example, if the function is @foo(%a, %b) and opName
 /// is "bar.baz", we will create an operator baz of the bar dialect, with
@@ -59,7 +70,7 @@ replaceFuncByOperation(mlir::func::FuncOp F, llvm::StringRef OpName,
                        llvm::SmallVectorImpl<mlir::Value> &Input,
                        llvm::SmallVectorImpl<mlir::Value> &Output);
 
-bool isNamespaceSYCL(const clang::DeclContext *DC);
+IsNamespaceSYCLResult isNamespaceSYCL(const clang::DeclContext *DC);
 
 /// Return the insertion context of the input builder.
 FunctionContext getInputContext(const mlir::OpBuilder &Builder);

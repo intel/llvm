@@ -49,6 +49,11 @@ static cl::opt<bool>
     CombinedStructABI("struct-abi", cl::init(true),
                       cl::desc("Use literal LLVM ABI for structs"));
 
+static cl::opt<bool>
+    AllowUndefinedSYCLTypes("allow-undefined-sycl-types", cl::init(false),
+                            cl::desc("Whether to allow types in the sycl "
+                                     "namespace and not in the SYCL dialect"));
+
 /******************************************************************************/
 /*            Flags affecting code generation of function types.              */
 /******************************************************************************/
@@ -1339,35 +1344,34 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     }
 
     const auto *RD = RT->getAsRecordDecl();
-    if (mlirclang::isNamespaceSYCL(RD->getEnclosingNamespaceContext())) {
-      const auto TypeName = RD->getName();
-      if (TypeName == "accessor" || TypeName == "accessor_common" ||
-          TypeName == "AccessorImplDevice" || TypeName == "AccessorSubscript" ||
-          TypeName == "array" || TypeName == "AssertHappened" ||
-          TypeName == "atomic" || TypeName == "bfloat16" ||
-          TypeName == "GetOp" || TypeName == "GetScalarOp" ||
-          TypeName == "group" || TypeName == "h_item" || TypeName == "id" ||
-          TypeName == "item" || TypeName == "ItemBase" ||
-          TypeName == "kernel_handler" ||
-          TypeName == "LocalAccessorBaseDevice" ||
-          TypeName == "local_accessor_base" || TypeName == "local_accessor" ||
-          TypeName == "maximum" || TypeName == "minimum" ||
-          TypeName == "multi_ptr" || TypeName == "nd_item" ||
-          TypeName == "nd_range" || TypeName == "OwnerLessBase" ||
-          TypeName == "range" || TypeName == "stream" ||
-          TypeName == "sub_group" || TypeName == "SwizzleOp" ||
-          TypeName == "TupleCopyAssignableValueHolder" ||
-          TypeName == "TupleValueHolder" || TypeName == "vec")
-        return getSYCLType(RT, *this);
+    {
+      const mlirclang::IsNamespaceSYCLResult IsNamespaceSYCL =
+          mlirclang::isNamespaceSYCL(RD->getEnclosingNamespaceContext());
+      if (static_cast<bool>(IsNamespaceSYCL)) {
+        const auto TypeName = RD->getName();
+        if (TypeName == "accessor" || TypeName == "accessor_common" ||
+            TypeName == "AccessorImplDevice" ||
+            TypeName == "AccessorSubscript" || TypeName == "array" ||
+            TypeName == "AssertHappened" || TypeName == "atomic" ||
+            TypeName == "bfloat16" || TypeName == "GetOp" ||
+            TypeName == "GetScalarOp" || TypeName == "group" ||
+            TypeName == "h_item" || TypeName == "id" || TypeName == "item" ||
+            TypeName == "ItemBase" || TypeName == "kernel_handler" ||
+            TypeName == "LocalAccessorBaseDevice" ||
+            TypeName == "local_accessor_base" || TypeName == "local_accessor" ||
+            TypeName == "maximum" || TypeName == "minimum" ||
+            TypeName == "multi_ptr" || TypeName == "nd_item" ||
+            TypeName == "nd_range" || TypeName == "OwnerLessBase" ||
+            TypeName == "range" || TypeName == "stream" ||
+            TypeName == "sub_group" || TypeName == "SwizzleOp" ||
+            TypeName == "TupleCopyAssignableValueHolder" ||
+            TypeName == "TupleValueHolder" || TypeName == "vec")
+          return getSYCLType(RT, *this);
 
-      // No need special handling for types that don't have record declaration
-      // name.
-      CGEIST_WARNING({
-        if (TypeName != "")
-          llvm::WithColor::warning()
-              << "SYCL type '" << ST->getName()
-              << "' has not been converted to SYCL MLIR\n";
-      });
+        assert((AllowUndefinedSYCLTypes ||
+                IsNamespaceSYCL != IsNamespaceSYCLResult::True) &&
+               "Found type in the sycl namespace, but not in the SYCL dialect");
+      }
     }
 
     auto *CXRD = dyn_cast<CXXRecordDecl>(RT->getDecl());
