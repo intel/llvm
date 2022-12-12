@@ -19,10 +19,10 @@ static unsigned getDimensions(mlir::Type Type) {
     Type = MemRefTy.getElementType();
   }
   return llvm::TypeSwitch<mlir::Type, unsigned>(Type)
-      .Case<mlir::sycl::AccessorType, mlir::sycl::RangeType, mlir::sycl::IDType,
-            mlir::sycl::ItemType, mlir::sycl::NdItemType,
-            mlir::sycl::NdRangeType, mlir::sycl::GroupType>(
-          [](auto Ty) -> unsigned { return Ty.getDimension(); });
+      .Case<mlir::sycl::AccessorType, mlir::sycl::ItemType,
+            mlir::sycl::NdRangeType, mlir::sycl::GroupType, mlir::sycl::IDType,
+            mlir::sycl::NdItemType, mlir::sycl::RangeType>(
+          [](auto Ty) { return Ty.getDimension(); });
 }
 
 static mlir::LogicalResult
