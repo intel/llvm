@@ -142,9 +142,6 @@ mlir::LogicalResult mlir::sycl::SYCLAccessorSubscriptOp::verify() {
               "Cannot use this signature when the atomic access mode is used");
         }
         return verifyResultType();
-      })
-      .Default([&](auto) -> mlir::LogicalResult {
-        llvm_unreachable("Unhandled input type");
       });
 }
 

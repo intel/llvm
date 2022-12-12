@@ -725,10 +725,6 @@ Value MLIRScanner::castToMemSpace(Value val, unsigned memSpace) {
         return Builder.create<LLVM::AddrSpaceCastOp>(
             Loc, LLVM::LLVMPointerType::get(valType.getElementType(), memSpace),
             val);
-      })
-      .Default([&](Type valType) {
-        llvm_unreachable("unimplemented");
-        return val;
       });
 }
 
@@ -1379,17 +1375,12 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
       llvm::errs() << " val: " << Val << " - pt: " << PT << " fn: " << FNum
                    << " ST: " << *ST << "\n";
     }
-    Type ET =
-        TypeSwitch<Type, Type>(PT.getElementType())
-            .Case<LLVM::LLVMStructType>(
-                [FNum](LLVM::LLVMStructType ST) { return ST.getBody()[FNum]; })
-            .Case<LLVM::LLVMArrayType>(
-                [](LLVM::LLVMArrayType AT) { return AT.getElementType(); })
-            .Case<MemRefType>([](MemRefType MT) { return MT.getElementType(); })
-            .Default([](Type T) {
-              llvm_unreachable("not implemented");
-              return T;
-            });
+    Type ET = TypeSwitch<Type, Type>(PT.getElementType())
+                  .Case<LLVM::LLVMStructType>([FNum](LLVM::LLVMStructType ST) {
+                    return ST.getBody()[FNum];
+                  })
+                  .Case<LLVM::LLVMArrayType, MemRefType>(
+                      [](auto Ty) { return Ty.getElementType(); });
 
     Value commonGEP = Builder.create<LLVM::GEPOp>(
         Loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()), Val, vec);
@@ -1451,11 +1442,7 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
                 [&](auto ElemTy) {
                   return SYCLCommonFieldLookup<decltype(ElemTy)>(Val, FNum,
                                                                  Shape);
-                })
-            .Default([&Val](Type T) {
-              llvm_unreachable("not implemented");
-              return Val;
-            });
+                });
   } else {
     auto MT0 =
         MemRefType::get(Shape, MT.getElementType(), MemRefLayoutAttrInterface(),
@@ -1497,7 +1484,7 @@ static bool isSYCLInheritType(Type &Ty, Value &Val) {
           [&](auto) { return ElemTy.isa<sycl::LocalAccessorBaseType>(); })
       .Case<sycl::IDType, sycl::RangeType>(
           [&](auto) { return ElemTy.isa<sycl::ArrayType>(); })
-      .Default([](auto) { return false; });
+      .Default(false);
 }
 
 Value MLIRScanner::GetAddressOfDerivedClass(
@@ -1646,20 +1633,12 @@ Value MLIRScanner::GetAddressOfBaseClass(
         Value idx[] = {Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
                        Builder.create<arith::ConstantIntOp>(Loc, fnum, 32)};
         auto PT = value.getType().cast<LLVM::LLVMPointerType>();
-        Type ET =
-            TypeSwitch<Type, Type>(PT.getElementType())
-                .Case<LLVM::LLVMStructType>([fnum](LLVM::LLVMStructType ST) {
-                  return ST.getBody()[fnum];
-                })
-                .Case<LLVM::LLVMArrayType>(
-                    [](LLVM::LLVMArrayType AT) { return AT.getElementType(); })
-                .Case<sycl::AccessorType>([fnum](sycl::AccessorType AT) {
-                  return AT.getBody()[fnum];
-                })
-                .Default([](Type T) {
-                  llvm_unreachable("not implemented");
-                  return T;
-                });
+        Type ET = TypeSwitch<Type, Type>(PT.getElementType())
+                      .Case<sycl::AccessorType, LLVM::LLVMStructType>(
+                          [fnum](auto Ty) { return Ty.getBody()[fnum]; })
+                      .Case<LLVM::LLVMArrayType>([](LLVM::LLVMArrayType AT) {
+                        return AT.getElementType();
+                      });
 
         value = Builder.create<LLVM::GEPOp>(
             Loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()), value,
@@ -1972,12 +1951,8 @@ MLIRASTConsumer::getOrCreateGlobal(const clang::ValueDecl &VD,
       Attribute Zero =
           TypeSwitch<Type, Attribute>(VarTy.getElementType())
               .Case<IntegerType>(
-                  [](Type Ty) { return IntegerAttr::get(Ty, 0); })
-              .Case<FloatType>([](Type Ty) { return FloatAttr::get(Ty, 0); })
-              .Default([&](Type Ty) {
-                llvm_unreachable("unimplemented");
-                return Attribute();
-              });
+                  [](auto Ty) { return IntegerAttr::get(Ty, 0); })
+              .Case<FloatType>([](auto Ty) { return FloatAttr::get(Ty, 0); });
       auto ZeroVal = DenseElementsAttr::get(
           RankedTensorType::get(VarTy.getShape(), VarTy.getElementType()),
           Zero);
