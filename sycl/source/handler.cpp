@@ -93,15 +93,17 @@ event handler::finalize() {
     return MLastEvent;
   MIsFinalized = true;
 
-    auto setSubmissionTime = [&](detail::EventImplPtr event) {
-    if(!MQueue->is_host()){
-      auto plugin=MQueue->getPlugin();
-      if( plugin.getBackend() == backend::ext_oneapi_level_zero) {
-      uint64_t submitTime=0;
-        plugin.call<detail::PiApiKind::piGetDeviceAndHostTimer>(MQueue->getDeviceImplPtr()->getHandleRef(),&submitTime,nullptr);
+  auto setSubmissionTime = [&](detail::EventImplPtr event) {
+    if (!MQueue->is_host()) {
+      auto plugin = MQueue->getPlugin();
+      if (plugin.getBackend() == backend::ext_oneapi_level_zero) {
+        uint64_t submitTime = 0;
+        plugin.call<detail::PiApiKind::piGetDeviceAndHostTimer>(
+            MQueue->getDeviceImplPtr()->getHandleRef(), &submitTime, nullptr);
         event->setSubmissionTime(submitTime);
       }
-    }};
+    }
+  };
 
   const auto &type = getType();
   if (type == detail::CG::Kernel) {
@@ -218,7 +220,7 @@ event handler::finalize() {
                               PI_ERROR_INVALID_OPERATION);
         else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
           NewEvent->setComplete();
-        
+
         setSubmissionTime(NewEvent);
         MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
       }
