@@ -1381,8 +1381,40 @@ pi_result piKernelRelease(pi_kernel) { DIE_NO_IMPLEMENTATION; }
 
 pi_result piEventCreate(pi_context, pi_event *) { DIE_NO_IMPLEMENTATION; }
 
-pi_result piEventGetInfo(pi_event, pi_event_info, size_t, void *, size_t *) {
-  DIE_NO_IMPLEMENTATION;
+pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
+                         size_t ParamValueSize, void *ParamValue,
+                         size_t *ParamValueSizeRet) {
+  if (ParamName != PI_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
+    DIE_NO_IMPLEMENTATION;
+  }
+
+  auto CheckAndFillStatus = [&](const cm_support::CM_STATUS &State) {
+    pi_int32 Result = PI_EVENT_RUNNING;
+    if (State == cm_support::CM_STATUS_FINISHED)
+      Result = PI_EVENT_COMPLETE;
+    if (ParamValue) {
+      if (ParamValueSize < sizeof(Result))
+        return PI_ERROR_INVALID_VALUE;
+      *static_cast<pi_int32 *>(ParamValue) = Result;
+    }
+    if (ParamValueSizeRet) {
+      *ParamValueSizeRet = sizeof(Result);
+    }
+    return PI_SUCCESS;
+  };
+  // Dummy event is already completed ones done by CM.
+  if (Event->IsDummyEvent)
+    return CheckAndFillStatus(cm_support::CM_STATUS_FINISHED);
+
+  if (Event->CmEventPtr == nullptr)
+    return PI_ERROR_INVALID_EVENT;
+
+  cm_support::CM_STATUS Status;
+  int32_t Result = Event->CmEventPtr->GetStatus(Status);
+  if (Result != cm_support::CM_SUCCESS)
+    return PI_ERROR_COMMAND_EXECUTION_FAILURE;
+
+  return CheckAndFillStatus(Status);
 }
 
 pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
