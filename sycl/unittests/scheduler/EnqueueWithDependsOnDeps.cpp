@@ -13,6 +13,8 @@
 #include <helpers/ScopedEnvVar.hpp>
 #include <helpers/TestKernel.hpp>
 
+#include <detail/buffer_impl.hpp>
+
 #include <vector>
 
 using namespace sycl;
@@ -285,8 +287,8 @@ TEST_F(DependsOnTests, EnqueueNoMemObjDoubleKernelDepHost) {
   std::vector<detail::Command *> BlockedCommands{Cmd2, Cmd3};
   detail::EnqueueResultT Result;
   for (detail::Command *BlockedCmd : BlockedCommands) {
-    EXPECT_FALSE(MS.enqueueCommand(BlockedCmd, Result,
-                                    detail::BlockingT::NON_BLOCKING));
+    EXPECT_FALSE(
+        MS.enqueueCommand(BlockedCmd, Result, detail::BlockingT::NON_BLOCKING));
     EXPECT_EQ(Result.MResult, detail::EnqueueResultT::SyclEnqueueBlocked);
     EXPECT_EQ(Result.MCmd, static_cast<detail::Command *>(Cmd1));
     EXPECT_FALSE(BlockedCmd->isSuccessfullyEnqueued());
@@ -308,4 +310,51 @@ TEST_F(DependsOnTests, EnqueueNoMemObjDoubleKernelDepHost) {
     auto BlockedEvent = BlockedCmd->getEvent();
     BlockedEvent->wait(BlockedEvent);
   }
+}
+
+TEST_F(DependsOnTests, TwoHostAccessorsReadRead) {
+  buffer<int, 1> Buf{range<1>(1)};
+  std::shared_ptr<detail::buffer_impl> BufImpl = detail::getSyclObjImpl(Buf);
+  detail::Requirement MockReq = getMockRequirement(Buf);
+  MockReq.MDims = 1;
+  MockReq.MSYCLMemObj = BufImpl.get();
+  MockReq.MAccessMode = access::mode::read;
+  auto EventImplRead = MS.addHostAccessor(&MockReq);
+  auto EventImplReadSecond = MS.addHostAccessor(&MockReq);
+  detail::Command *CmdRead =
+      static_cast<detail::Command *>(EventImplRead->getCommand());
+  detail::Command *CmdReadSecond =
+      static_cast<detail::Command *>(EventImplReadSecond->getCommand());
+  EXPECT_EQ(CmdRead->MUsers.size(), 0u);
+  bool DepExists = any_of(
+      CmdReadSecond->MDeps.begin(), CmdReadSecond->MDeps.end(),
+      [&CmdRead](detail::DepDesc &Dep) { return CmdRead == Dep.MDepCommand; });
+  EXPECT_FALSE(DepExists);
+  MS.releaseHostAccessor(&MockReq);
+}
+
+TEST_F(DependsOnTests, TwoHostAccessorsReadWrite) {
+  buffer<int, 1> Buf{range<1>(1)};
+  std::shared_ptr<detail::buffer_impl> BufImpl = detail::getSyclObjImpl(Buf);
+  detail::Requirement MockReq = getMockRequirement(Buf);
+  MockReq.MDims = 1;
+  MockReq.MSYCLMemObj = BufImpl.get();
+  MockReq.MAccessMode = access::mode::read;
+  auto EventImplRead = MS.addHostAccessor(&MockReq);
+  detail::Requirement MockReq2 = getMockRequirement(Buf);
+  MockReq2.MDims = 1;
+  MockReq2.MSYCLMemObj = BufImpl.get();
+  MockReq2.MAccessMode = access::mode::discard_write;
+  auto EventImplWrite = MS.addHostAccessor(&MockReq2);
+  detail::Command *CmdRead =
+      static_cast<detail::Command *>(EventImplRead->getCommand());
+  detail::Command *CmdWrite =
+      static_cast<detail::Command *>(EventImplWrite->getCommand());
+  EXPECT_EQ(CmdRead->MUsers.size(), 1u);
+  bool DepExists = any_of(
+      CmdWrite->MDeps.begin(), CmdWrite->MDeps.end(),
+      [&CmdRead](detail::DepDesc &Dep) { return CmdRead == Dep.MDepCommand; });
+  EXPECT_TRUE(DepExists);
+  MS.releaseHostAccessor(&MockReq);
+  MS.releaseHostAccessor(&MockReq2);
 }
