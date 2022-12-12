@@ -1062,7 +1062,7 @@ static Operation *trackCasts(Value Val) {
           })
       .Case<mlir::polygeist::Pointer2MemrefOp, mlir::LLVM::AddrSpaceCastOp>(
           [](auto Op) { return trackCasts(Op->getOperand(0)); })
-      .Default([](auto) -> Operation * { return nullptr; });
+      .Default(static_cast<Operation *>(nullptr));
 }
 
 llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
