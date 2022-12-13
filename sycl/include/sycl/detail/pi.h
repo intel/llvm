@@ -65,9 +65,12 @@
 // partitioning by affinity domain is disabled by default and can be temporarily
 // restored via SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING
 // environment variable.
+// 12.20 Added piextQueueCreate API to be used instead of piQueueCreate, also
+// added PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES for piDeviceGetInfo.
+// Both are needed to support sycl_ext_intel_queue_index extension.
 
 #define _PI_H_VERSION_MAJOR 12
-#define _PI_H_VERSION_MINOR 19
+#define _PI_H_VERSION_MINOR 20
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -295,6 +298,9 @@ typedef enum {
   // Return 0 if device doesn't have any memory modules. Return the minimum of
   // the bus width values if there are several memory modules on the device.
   PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH = 0x10031,
+  // Return 1 if the device doesn't have a notion of a "queue index". Otherwise,
+  // return the number of queue indices that are available for this device.
+  PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES = 0x10032,
   PI_DEVICE_INFO_ATOMIC_64 = 0x10110,
   PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111,
   PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 0x11000,
@@ -587,13 +593,17 @@ constexpr pi_usm_mem_properties PI_MEM_USM_ALLOC_BUFFER_LOCATION = 0x419E;
 // NOTE: queue properties are implemented this way to better support bit
 // manipulations
 using pi_queue_properties = pi_bitfield;
-constexpr pi_queue_properties PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE = (1 << 0);
-constexpr pi_queue_properties PI_QUEUE_PROFILING_ENABLE = (1 << 1);
-constexpr pi_queue_properties PI_QUEUE_ON_DEVICE = (1 << 2);
-constexpr pi_queue_properties PI_QUEUE_ON_DEVICE_DEFAULT = (1 << 3);
-constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS = (1 << 4);
-constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW = (1 << 5);
-constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH = (1 << 6);
+constexpr pi_queue_properties PI_QUEUE_FLAGS = -1;
+constexpr pi_queue_properties PI_QUEUE_COMPUTE_INDEX = -2;
+// clang-format off
+constexpr pi_queue_properties PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE = (1 << 0);
+constexpr pi_queue_properties PI_QUEUE_FLAG_PROFILING_ENABLE = (1 << 1);
+constexpr pi_queue_properties PI_QUEUE_FLAG_ON_DEVICE = (1 << 2);
+constexpr pi_queue_properties PI_QUEUE_FLAG_ON_DEVICE_DEFAULT = (1 << 3);
+constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS = (1 << 4);
+constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW = (1 << 5);
+constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH = (1 << 6);
+// clang-format on
 
 using pi_result = _pi_result;
 using pi_platform_info = _pi_platform_info;
@@ -1125,9 +1135,18 @@ __SYCL_EXPORT pi_result piextContextCreateWithNativeHandle(
 //
 // Queue
 //
+
+// TODO: Remove during next ABI break and rename piextQueueCreate to
+// piQueueCreate.
 __SYCL_EXPORT pi_result piQueueCreate(pi_context context, pi_device device,
                                       pi_queue_properties properties,
                                       pi_queue *queue);
+/// \param properties points to a zero-terminated array of extra data describing
+/// desired queue properties. Format is
+///  {[PROPERTY[, property-specific elements of data]*,]* 0}
+__SYCL_EXPORT pi_result piextQueueCreate(pi_context context, pi_device device,
+                                         pi_queue_properties *properties,
+                                         pi_queue *queue);
 
 __SYCL_EXPORT pi_result piQueueGetInfo(pi_queue command_queue,
                                        pi_queue_info param_name,
