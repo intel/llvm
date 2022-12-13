@@ -1347,6 +1347,9 @@ static pi_result CleanupEventsInImmCmdLists(pi_queue Queue,
       if (CompletedEventIt != CmdListEvents.end()) {
         // We can cleanup all events prior to the completed event in this
         // command list and completed event itself.
+        // TODO: we can potentially cleanup more events here by finding
+        // completed events on another command lists, but it is currently not
+        // implemented.
         std::move(std::begin(CmdListEvents), CompletedEventIt + 1,
                   std::back_inserter(EventListToCleanup));
         CmdListEvents.erase(CmdListEvents.begin(), CompletedEventIt + 1);
