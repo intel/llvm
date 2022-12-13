@@ -413,7 +413,7 @@ uint32_t getBucketValue(ValT value, uint32_t radix_iter) {
 }
 template <typename ValT> ValT getDefaultValue(bool is_comp_asc) {
   if (is_comp_asc)
-    return std::numeric_limits<ValT>::max();
+    return (std::numeric_limits<ValT>::max)();
   else
     return std::numeric_limits<ValT>::lowest();
 }
