@@ -2534,9 +2534,13 @@ pi_result cuda_piextQueueCreate(pi_context Context, pi_device Device,
   assert(Properties);
   // Expect flags mask to be passed first.
   assert(Properties[0] == PI_QUEUE_FLAGS);
+  if (Properties[0] != PI_QUEUE_FLAGS)
+    return PI_ERROR_INVALID_VALUE;
   pi_queue_properties Flags = Properties[1];
   // Extra data isn't supported yet.
   assert(Properties[2] == 0);
+  if (Properties[2] != 0)
+    return PI_ERROR_INVALID_VALUE;
   return cuda_piQueueCreate(Context, Device, Flags, Queue);
 }
 
