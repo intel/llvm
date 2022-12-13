@@ -2332,11 +2332,6 @@ ValueCategory MLIRScanner::EmitScalarCast(mlir::Location Loc, ValueCategory Src,
 ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
                                                 QualType SrcQT, QualType DstQT,
                                                 SourceLocation Loc) {
-  // TODO: By a flaw in how operators are handled, SrcQT or DstQT might be
-  // non-scalar types. Remove when we actually call operatorOP member functions.
-  if (SrcQT.isNull() || DstQT.isNull())
-    return Src;
-
   // TODO: Handle fixed points here when supported.
   // TODO: Take into account scalar conversion options.
 
