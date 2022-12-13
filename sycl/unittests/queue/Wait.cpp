@@ -123,14 +123,14 @@ TEST(QueueWait, QueueWaitTest) {
     buffer<int, 1> buf{range<1>(1)};
 
     std::mutex m;
-    std::unique_lock TestLock(m, std::defer_lock);
+    std::unique_lock<std::mutex> TestLock(m, std::defer_lock);
     TestLock.lock();
 
     event HostTaskEvent = Q.submit([&](handler &Cgh) {
       auto acc = buf.template get_access<access::mode::read>(Cgh);
       Cgh.host_task([=, &m]() {
         (void)acc;
-        std::unique_lock InsideHostTaskLock(m);
+        std::unique_lock<std::mutex> InsideHostTaskLock(m);
       });
     });
     std::shared_ptr<detail::event_impl> HostTaskEventImpl =
