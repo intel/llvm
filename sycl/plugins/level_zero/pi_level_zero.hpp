@@ -1230,17 +1230,6 @@ struct _pi_ze_event_list_t {
     this->Length = other.Length;
     return *this;
   }
-
-  /// @brief Method to check if this event list contains the event.
-  /// @param Event Event to look for in the wait list.
-  /// @return true if event is found in the event list, false otherwise.
-  bool contains(pi_event Event) {
-    for (pi_uint32 I = 0; I < Length; I++) {
-      if (PiEventList[I] == Event)
-        return true;
-    }
-    return false;
-  }
 };
 
 struct _pi_event : _pi_object {
