@@ -334,6 +334,11 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
         out[2] = Max;
       return PI_SUCCESS;
     }
+  case PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
+    pi_int32 result = 1;
+    std::memcpy(paramValue, &result, sizeof(pi_int32));
+    return PI_SUCCESS;
+  }
 
   default:
     cl_int result = clGetDeviceInfo(
@@ -461,6 +466,16 @@ pi_result piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
   return PI_SUCCESS;
 }
 
+pi_result piextQueueCreate(pi_context Context, pi_device Device,
+                           pi_queue_properties *Properties, pi_queue *Queue) {
+  assert(Properties);
+  // Expect flags mask to be passed first.
+  assert(Properties[0] == PI_QUEUE_FLAGS);
+  pi_queue_properties Flags = Properties[1];
+  // Extra data isn't supported yet.
+  assert(Properties[2] == 0);
+  return piQueueCreate(Context, Device, Flags, Queue);
+}
 pi_result piQueueCreate(pi_context context, pi_device device,
                         pi_queue_properties properties, pi_queue *queue) {
   assert(queue && "piQueueCreate failed, queue argument is null");
@@ -474,9 +489,10 @@ pi_result piQueueCreate(pi_context context, pi_device device,
 
   // Check that unexpected bits are not set.
   assert(!(properties &
-           ~(PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
-             PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_ON_DEVICE |
-             PI_QUEUE_ON_DEVICE_DEFAULT | PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS)));
+           ~(PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
+             PI_QUEUE_FLAG_PROFILING_ENABLE | PI_QUEUE_FLAG_ON_DEVICE |
+             PI_QUEUE_FLAG_ON_DEVICE_DEFAULT |
+             PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS)));
 
   // Properties supported by OpenCL backend.
   cl_command_queue_properties SupportByOpenCL =
@@ -1571,6 +1587,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextContextCreateWithNativeHandle, piextContextCreateWithNativeHandle)
   // Queue
   _PI_CL(piQueueCreate, piQueueCreate)
+  _PI_CL(piextQueueCreate, piextQueueCreate)
   _PI_CL(piQueueGetInfo, piQueueGetInfo)
   _PI_CL(piQueueFinish, clFinish)
   _PI_CL(piQueueFlush, clFlush)

@@ -26,6 +26,7 @@ piProgramCreate
 piProgramCreateWithBinary
 piProgramLink
 piQueueCreate
+piextQueueCreate
 piQueueGetInfo
 piSamplerCreate
 piTearDown
