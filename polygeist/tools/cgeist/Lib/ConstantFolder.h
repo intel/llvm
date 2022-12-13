@@ -9,6 +9,8 @@
 #ifndef CLANG_MLIR_CONSTANT_FOLDER
 #define CLANG_MLIR_CONSTANT_FOLDER
 
+#include <type_traits>
+
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/IR/Builders.h"
 
@@ -21,7 +23,9 @@ public:
 
   /// Folds a given operation if possible or returns an empty value.
   template <typename OpTy, typename... ArgTys>
-  inline mlir::Value fold(mlir::Location Loc, ArgTys... Args) {
+  inline std::enable_if_t<OpTy::template hasTrait<mlir::OpTrait::OneResult>(),
+                          mlir::Value>
+  fold(mlir::Location Loc, ArgTys... Args) {
     // Return an empty value if folding is not implemented for a given
     // operation.
     return {};
