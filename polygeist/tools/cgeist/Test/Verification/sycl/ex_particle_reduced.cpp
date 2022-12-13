@@ -1,5 +1,4 @@
 // RUN: clang++ -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -O0 -w -c %s -o %t.O0.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
-
 // RUN: clang++ -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=LLVM
 
 // Test that the kernel named `kernel_likelihood` is generated with the correct signature.
@@ -12,7 +11,7 @@ using namespace sycl;
 constexpr access::mode sycl_read_write = access::mode::read_write;
 
 void likelyhood(int Nparticles) {
-  queue q();
+  queue q;
   const property_list props = property::buffer::use_host_ptr();
   float *arrayX = (float *)calloc(Nparticles, sizeof(float));
   buffer<float, 1> arrayX_GPU(arrayX, Nparticles, props);
