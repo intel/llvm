@@ -275,6 +275,11 @@ etors:
       desc: "uint32_t: atomics memory order capabilities"
     - name: BFLOAT16
       desc: "bool: support for bfloat16"
+    - name: MAX_COMPUTE_QUEUE_INDICES
+      desc: |
+            uint32_t: Returns 1 if the device doesn't have a notion of a 
+            queue index. Otherwise, returns the number of queue indices that are
+            available for this device.
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"

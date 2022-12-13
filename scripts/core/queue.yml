@@ -29,7 +29,7 @@ etors:
       desc: "Queue size info"
 --- #--------------------------------------------------------------------------
 type: enum
-desc: "Queue properties"
+desc: "Queue property flags"
 class: $xQueue
 name: $x_queue_flags_t
 etors:
@@ -45,6 +45,30 @@ etors:
     - name: ON_DEVICE_DEFAULT
       value: "$X_BIT(3)"
       desc: "Is the default queue for a device"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Queue Properties"
+class: $xQueue
+name: $x_queue_properties_t
+etors:
+    - name: FLAGS
+      value: "-1"
+      desc: "[$x_queue_flags_t]: the bitfield of queue flags"
+    - name: COMPUTE_INDEX
+      value: "-2"
+      desc: "[uint32_t]: the queue index"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Queue property value"
+class: $xQueue
+name: $x_queue_property_value_t
+members:
+    - type: $x_queue_properties_t
+      name: propertyType
+      desc: "[in] queue property"
+    - type: uint32_t
+      name: propertyValue
+      desc: "[in] queue property value"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Query information about a command queue"
@@ -90,11 +114,13 @@ params:
     - type: $x_device_handle_t
       name: hDevice
       desc: "[in] handle of the device object"
-    - type: $x_queue_flags_t
-      name: props
+    - type: $x_queue_property_value_t*
+      name: pProps
       desc: |
-            [in] initialization properties.
-            must be 0 (default) or a combination of $x_queue_flags_t.
+            [in] specifies a list of queue properties and their corresponding values.
+            Each property name is immediately followed by the corresponding desired value.
+            The list is terminated with a 0. 
+            If a property value is not specified, then its default value will be used.
     - type: $x_queue_handle_t*
       name: phQueue
       desc: "[out] pointer to handle of queue object created"
