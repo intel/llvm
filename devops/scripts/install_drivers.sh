@@ -40,6 +40,7 @@ InstallIGFX () {
   echo "Compute Runtime version $CR_TAG"
   echo "IGC version $IGC_TAG"
   echo "CM compiler version $CM_TAG"
+  echo "Level Zero version $L0_TAG"
   python3 $LOCATION/get_release.py intel/intel-graphics-compiler $IGC_TAG \
     | grep ".*deb" \
     | wget -qi -
@@ -49,6 +50,7 @@ InstallIGFX () {
   sha256sum -c *.sum && \
   python3 $LOCATION/get_release.py intel/cm-compiler $CM_TAG \
     | grep ".*deb" \
+    | grep -v "u18" \
     | wget -qi -
   python3 $LOCATION/get_release.py oneapi-src/level-zero $L0_TAG \
     | grep ".*deb" \
