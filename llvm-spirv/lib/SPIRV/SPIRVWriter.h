@@ -182,7 +182,7 @@ private:
   SPIRVWord SrcLangVer;
   std::unique_ptr<LLVMToSPIRVDbgTran> DbgTran;
   std::unique_ptr<CallGraph> CG;
-  OCLTypeToSPIRVBase *OCLTypeToSPIRVPtr;
+  OCLTypeToSPIRVBase *OCLTypeToSPIRVPtr = nullptr;
   std::vector<llvm::Instruction *> UnboundInst;
   std::unique_ptr<SPIRVTypeScavenger> Scavenger;
 
