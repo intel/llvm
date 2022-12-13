@@ -348,8 +348,8 @@ public:
   wi_element(joint_matrix<uint16_t, NumRows, NumCols, Use, Layout, Group> &Mat,
              std::size_t i)
       : M(Mat), idx(i) {}
-  
-    std::tuple<uint32_t, uint32_t> get_coord() {
+
+  std::tuple<uint32_t, uint32_t> get_coord() {
 #ifdef __SYCL_DEVICE_ONLY__
     __ocl_vec_t<uint32_t, 2> coord =
         __spirv_JointMatrixGetElementCoordINTEL(M.spvm, idx);
@@ -512,8 +512,8 @@ public:
                           Layout, Group> &Mat,
              std::size_t i)
       : M(Mat), idx(i) {}
-  
-    std::tuple<uint32_t, uint32_t> get_coord() {
+
+  std::tuple<uint32_t, uint32_t> get_coord() {
 #ifdef __SYCL_DEVICE_ONLY__
     __ocl_vec_t<uint32_t, 2> coord =
         __spirv_JointMatrixGetElementCoordINTEL(M.spvm, idx);

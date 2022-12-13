@@ -197,7 +197,7 @@ extern SYCL_EXTERNAL size_t __spirv_JointMatrixWorkItemLengthINTEL(
     __spv::__spirv_JointMatrixINTEL<T, R, C, L, S> *);
 
 template <typename T, std::size_t R, std::size_t C,
-        __spv::MatrixUse U = __spv::MatrixUse::Unnecessary,
+          __spv::MatrixUse U = __spv::MatrixUse::Unnecessary,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern SYCL_EXTERNAL __ocl_vec_t<uint32_t, 2>
