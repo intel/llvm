@@ -121,21 +121,25 @@ TEST(QueueWait, QueueWaitTest) {
   {
     TestContext = {};
     buffer<int, 1> buf{range<1>(1)};
+
+    std::mutex m;
+    std::unique_lock TestLock(m, std::defer_lock);
+    TestLock.lock();
+
     event HostTaskEvent = Q.submit([&](handler &Cgh) {
       auto acc = buf.template get_access<access::mode::read>(Cgh);
-      Cgh.host_task([=]() { (void)acc; });
+      Cgh.host_task([=, &m]() {
+        (void)acc;
+        std::unique_lock InsideHostTaskLock(m);
+      });
     });
     std::shared_ptr<detail::event_impl> HostTaskEventImpl =
         detail::getSyclObjImpl(HostTaskEvent);
     auto *Cmd = static_cast<detail::Command *>(HostTaskEventImpl->getCommand());
-    detail::Command *EmptyTask = *Cmd->MUsers.begin();
-    ASSERT_EQ(EmptyTask->getType(), detail::Command::EMPTY_TASK);
-    HostTaskEvent.wait();
-    // Use the empty task produced by the host task to block the next commands
-    while (EmptyTask->MEnqueueStatus !=
-           detail::EnqueueResultT::SyclEnqueueSuccess)
-      continue;
-    EmptyTask->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
+    EXPECT_EQ(Cmd->MUsers.size(), 0u);
+    EXPECT_TRUE(Cmd->isHostTask());
+
+    // Use the host task to block the next commands
     Q.submit([&](handler &Cgh) {
       auto acc = buf.template get_access<access::mode::discard_write>(Cgh);
       Cgh.fill(acc, 42);
@@ -144,9 +148,9 @@ TEST(QueueWait, QueueWaitTest) {
       auto acc = buf.template get_access<access::mode::discard_write>(Cgh);
       Cgh.fill(acc, 42);
     });
-    // Unblock the empty task to allow the submitted events to complete once
+    // Unblock the host task to allow the submitted events to complete once
     // enqueued.
-    EmptyTask->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueSuccess;
+    TestLock.unlock();
     Q.wait();
     // Only a single event (the last one) should be waited for here.
     ASSERT_EQ(TestContext.NEventsWaitedFor, 1);

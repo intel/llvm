@@ -8210,8 +8210,7 @@ static pi_result USMDeviceAllocImpl(void **ResultPtr, pi_context Context,
 }
 
 static pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
-                                    pi_device Device,
-                                    pi_usm_mem_properties *Properties,
+                                    pi_device Device, pi_usm_mem_properties *,
                                     size_t Size, pi_uint32 Alignment) {
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);

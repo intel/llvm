@@ -488,10 +488,14 @@ protected:
 
   void cleanupCommands(const std::vector<Command *> &Cmds);
 
-  void NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd);
+  void NotifyHostTaskCompletion(Command *Cmd);
 
   static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
                                          std::vector<Command *> &ToCleanUp);
+
+  static void
+  enqueueUnblockedCommands(const std::vector<EventImplPtr> &CmdsToEnqueue,
+                           std::vector<Command *> &ToCleanUp);
 
   // May lock graph with read and write modes during execution.
   void cleanupDeferredMemObjects(BlockingT Blocking);
@@ -780,13 +784,30 @@ protected:
     ///
     /// \param EnqueueResult is set to specific status if enqueue failed.
     /// \param ToCleanUp container for commands that can be cleaned up.
+    /// \param RootCommand top level command enqueueCommand is called for.
     /// \return true if the command is successfully enqueued.
     ///
     /// The function may unlock and lock GraphReadLock as needed. Upon return
     /// the lock is left in locked state.
     static bool enqueueCommand(Command *Cmd, EnqueueResultT &EnqueueResult,
                                std::vector<Command *> &ToCleanUp,
+                               Command *RootCommand,
                                BlockingT Blocking = NON_BLOCKING);
+
+    /// Check if successfully enqueued command is expected to be blocking for
+    /// the dependent commands before its completion.
+    ///
+    /// \param Cmd command that is currently enqueued.
+    /// \param EnqueueResult enqueue status to be updated if command is
+    /// blocking.
+    /// \param RootCommand top level command enqueueCommand is called
+    /// for. If Cmd == RootCommand we should not report command as blocking as
+    /// no dependencies to be blocked yet.
+    /// \param Blocking mode for enqueue, we do not report command as blocking
+    /// if it is true and allow to wait for command completion in enqueueImp.
+    /// \return true if we should continue enqueue process.
+    static bool handleBlockingCmd(Command *Cmd, EnqueueResultT &EnqueueResult,
+                                  Command *RootCommand, BlockingT Blocking);
   };
 
   /// This function waits on all of the graph leaves which somehow use the
@@ -815,6 +836,7 @@ protected:
   friend class DispatchHostTask;
   friend class queue_impl;
   friend class event_impl;
+  friend class ::MockScheduler;
 
   /// Stream buffers structure.
   ///

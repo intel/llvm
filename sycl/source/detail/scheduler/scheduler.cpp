@@ -47,7 +47,7 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
   std::vector<Command *> ToCleanUp;
   for (Command *Cmd : Record->MReadLeaves) {
     EnqueueResultT Res;
-    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp, Cmd);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.",
                           PI_ERROR_INVALID_OPERATION);
@@ -59,7 +59,7 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
   }
   for (Command *Cmd : Record->MWriteLeaves) {
     EnqueueResultT Res;
-    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp, Cmd);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.",
                           PI_ERROR_INVALID_OPERATION);
@@ -71,7 +71,8 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
   for (AllocaCommandBase *AllocaCmd : Record->MAllocaCommands) {
     Command *ReleaseCmd = AllocaCmd->getReleaseCmd();
     EnqueueResultT Res;
-    bool Enqueued = GraphProcessor::enqueueCommand(ReleaseCmd, Res, ToCleanUp);
+    bool Enqueued =
+        GraphProcessor::enqueueCommand(ReleaseCmd, Res, ToCleanUp, ReleaseCmd);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.",
                           PI_ERROR_INVALID_OPERATION);
@@ -141,7 +142,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
     };
 
     for (Command *Cmd : AuxiliaryCmds) {
-      Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+      Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp, Cmd);
       try {
         if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
           throw runtime_error("Auxiliary enqueue process failed.",
@@ -158,7 +159,8 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       // TODO: Check if lazy mode.
       EnqueueResultT Res;
       try {
-        bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp);
+        bool Enqueued =
+            GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp, NewCmd);
         if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
           throw runtime_error("Enqueue process failed.",
                               PI_ERROR_INVALID_OPERATION);
@@ -198,13 +200,13 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
     bool Enqueued;
 
     for (Command *Cmd : AuxiliaryCmds) {
-      Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+      Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp, Cmd);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Enqueue process failed.",
                             PI_ERROR_INVALID_OPERATION);
     }
 
-    Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp);
+    Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp, NewCmd);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.",
                           PI_ERROR_INVALID_OPERATION);
@@ -331,14 +333,14 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
     bool Enqueued;
 
     for (Command *Cmd : AuxiliaryCmds) {
-      Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+      Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp, Cmd);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Enqueue process failed.",
                             PI_ERROR_INVALID_OPERATION);
     }
 
     if (Command *NewCmd = static_cast<Command *>(NewCmdEvent->getCommand())) {
-      Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp);
+      Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp, NewCmd);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Enqueue process failed.",
                             PI_ERROR_INVALID_OPERATION);
@@ -371,7 +373,7 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
   auto EnqueueLeaves = [&ToCleanUp](LeavesCollection &Leaves) {
     for (Command *Cmd : Leaves) {
       EnqueueResultT Res;
-      bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+      bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp, Cmd);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Enqueue process failed.",
                             PI_ERROR_INVALID_OPERATION);
@@ -380,6 +382,21 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
 
   EnqueueLeaves(Record->MReadLeaves);
   EnqueueLeaves(Record->MWriteLeaves);
+}
+
+void Scheduler::enqueueUnblockedCommands(
+    const std::vector<EventImplPtr> &ToEnqueue,
+    std::vector<Command *> &ToCleanUp) {
+  for (auto &Event : ToEnqueue) {
+    Command *Cmd = static_cast<Command *>(Event->getCommand());
+    if (!Cmd)
+      continue;
+    EnqueueResultT Res;
+    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp, Cmd);
+    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+      throw runtime_error("Enqueue process failed.",
+                          PI_ERROR_INVALID_OPERATION);
+  }
 }
 
 void Scheduler::allocateStreamBuffers(stream_impl *Impl,
@@ -483,7 +500,7 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
   }
 }
 
-void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
+void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
   // Completing command's event along with unblocking enqueue readiness of
   // empty command may lead to quick deallocation of MThisCmd by some cleanup
   // process. Thus we'll copy deps prior to completing of event and unblocking
@@ -497,13 +514,12 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
 
     std::vector<DepDesc> Deps = Cmd->MDeps;
 
-    // update self-event status
-    Cmd->getEvent()->setComplete();
-
-    BlockingCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
-
-    for (const DepDesc &Dep : Deps)
-      Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, ToCleanUp);
+    {
+      std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
+      // update self-event status
+      Cmd->getEvent()->setComplete();
+    }
+    Scheduler::enqueueUnblockedCommands(Cmd->MBlockedUsers, ToCleanUp);
   }
   cleanupCommands(ToCleanUp);
 }
