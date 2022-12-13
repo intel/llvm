@@ -1100,6 +1100,7 @@ inline pi_result mock_piPluginGetLastError(char **message) {
 inline pi_result mock_piGetDeviceAndHostTimer(pi_device device,
                                               uint64_t *deviceTime,
                                               uint64_t *hostTime) {
+
   using namespace std::chrono;
   auto timeNanoseconds =
       duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
