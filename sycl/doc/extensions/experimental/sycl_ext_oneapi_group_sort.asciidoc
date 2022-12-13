@@ -486,9 +486,13 @@ struct is_group_helper<group_with_scratchpad<Group, Extent>> : std::true_type {
 } // namespace sycl::ext::oneapi::experimental::detail
 ----
 
-The `is_group_helper`` type trait is used to determine which types of groups helpers are supported by group functions, and to control when group functions participate in overload resolution.
+The `is_group_helper` type trait is used to determine which types of groups helpers are supported
+by group functions, and to control when group functions participate in overload resolution.
 
-`is_group_helper<T>` is `std::true_type` if `T` is the type of group helper defined above and `std::false_type` otherwise. A SYCL implementation may introduce additional specializations of `is_group_helper<T>` for implementation-defined group helper types, users do not allow to define their own types.
+`is_group_helper<T>` is `std::true_type` if `T` is the type of group helper defined above and
+`std::false_type` otherwise. A SYCL implementation may introduce additional specializations of
+`is_group_helper<T>` for implementation-defined group helper types, but users are not allowed to
+define additional specializations for their own types.
 
 == Examples
 
