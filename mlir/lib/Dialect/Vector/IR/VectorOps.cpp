@@ -87,10 +87,9 @@ static MaskFormat getMaskFormat(Value mask) {
     auto shape = m.getType().getShape();
     bool allTrue = true;
     bool allFalse = true;
-    for (auto pair : llvm::zip(masks, shape)) {
-      int64_t i = std::get<0>(pair).cast<IntegerAttr>().getInt();
-      int64_t u = std::get<1>(pair);
-      if (i < u)
+    for (auto [maskIdx, dimSize] : llvm::zip_equal(masks, shape)) {
+      int64_t i = maskIdx.cast<IntegerAttr>().getInt();
+      if (i < dimSize)
         allTrue = false;
       if (i > 0)
         allFalse = false;
@@ -221,10 +220,8 @@ bool mlir::vector::isDisjointTransferSet(VectorTransferOpInterface transferA,
 static LogicalResult incSlicePosition(MutableArrayRef<int64_t> position,
                                       ArrayRef<int64_t> shape,
                                       ArrayRef<int64_t> offsets) {
-  assert(position.size() == shape.size());
-  assert(position.size() == offsets.size());
   for (auto [posInDim, dimSize, offsetInDim] :
-       llvm::reverse(llvm::zip(position, shape, offsets))) {
+       llvm::reverse(llvm::zip_equal(position, shape, offsets))) {
     ++posInDim;
     if (posInDim < dimSize + offsetInDim)
       return success();
@@ -1180,10 +1177,10 @@ private:
   /// Comparison is on the common prefix (i.e. zip).
   template <typename ContainerA, typename ContainerB>
   bool intersectsWhereNonNegative(const ContainerA &a, const ContainerB &b) {
-    for (auto it : llvm::zip(a, b)) {
-      if (std::get<0>(it) < 0 || std::get<0>(it) < 0)
+    for (auto [elemA, elemB] : llvm::zip(a, b)) {
+      if (elemA < 0 || elemB < 0)
         continue;
-      if (std::get<0>(it) != std::get<1>(it))
+      if (elemA != elemB)
         return false;
     }
     return true;
@@ -1725,23 +1722,136 @@ Optional<SmallVector<int64_t, 4>> FMAOp::getShapeForUnroll() {
 
 /// Return the dimensions of the result vector that were formerly ones in the
 /// source tensor and thus correspond to "dim-1" broadcasting.
-llvm::SetVector<int64_t> BroadcastOp::computeBroadcastedUnitDims() {
-  VectorType srcVectorType = getSourceType().dyn_cast<VectorType>();
-  // Scalar broadcast is without any unit dim broadcast.
-  if (!srcVectorType)
-    return {};
-  ArrayRef<int64_t> srcShape = srcVectorType.getShape();
-  ArrayRef<int64_t> dstShape = getVectorType().getShape();
+static llvm::SetVector<int64_t>
+computeBroadcastedUnitDims(ArrayRef<int64_t> srcShape,
+                           ArrayRef<int64_t> dstShape) {
   int64_t rankDiff = dstShape.size() - srcShape.size();
   int64_t dstDim = rankDiff;
   llvm::SetVector<int64_t> res;
-  for (auto [s1, s2] : llvm::zip(srcShape, dstShape.drop_front(rankDiff))) {
+  for (auto [s1, s2] :
+       llvm::zip_equal(srcShape, dstShape.drop_front(rankDiff))) {
     if (s1 != s2) {
       assert(s1 == 1 && "expected dim-1 broadcasting");
       res.insert(dstDim);
     }
     ++dstDim;
   }
+  return res;
+}
+
+llvm::SetVector<int64_t> BroadcastOp::computeBroadcastedUnitDims() {
+  // Scalar broadcast is without any unit dim broadcast.
+  auto srcVectorType = getSourceType().dyn_cast<VectorType>();
+  if (!srcVectorType)
+    return {};
+  return ::computeBroadcastedUnitDims(srcVectorType.getShape(),
+                                      getVectorType().getShape());
+}
+
+/// Broadcast `value` to a vector of `dstShape`, knowing that exactly the
+/// `broadcastedDims` dimensions in the dstShape are broadcasted.
+/// This requires (and asserts) that the broadcast is free of dim-1
+/// broadcasting.
+/// Since vector.broadcast only allows expanding leading dimensions, an extra
+/// vector.transpose may be inserted to make the broadcast possible.
+/// `value`, `dstShape` and `broadcastedDims` must be properly specified or
+/// the helper will assert. This means:
+///   1. `dstShape` must not be empty.
+///   2. `broadcastedDims` must be confined to [0 .. rank(value.getVectorType)]
+///   2. `dstShape` trimmed of the dimensions specified in `broadcastedDims`
+//       must match the `value` shape.
+Value BroadcastOp::createOrFoldBroadcastOp(
+    OpBuilder &b, Value value, ArrayRef<int64_t> dstShape,
+    const llvm::SetVector<int64_t> &broadcastedDims) {
+  assert(!dstShape.empty() && "unexpected empty dst shape");
+
+  // Well-formedness check.
+  SmallVector<int64_t> checkShape;
+  for (int i = 0, e = dstShape.size(); i < e; ++i) {
+    if (broadcastedDims.contains(i))
+      continue;
+    checkShape.push_back(dstShape[i]);
+  }
+  assert(broadcastedDims.size() == dstShape.size() - checkShape.size() &&
+         "ill-formed broadcastedDims contains values not confined to "
+         "destVectorShape");
+
+  Location loc = value.getLoc();
+  Type elementType = getElementTypeOrSelf(value.getType());
+  VectorType srcVectorType = value.getType().dyn_cast<VectorType>();
+  VectorType dstVectorType = VectorType::get(dstShape, elementType);
+
+  // Step 2. If scalar -> dstShape broadcast, just do it.
+  if (!srcVectorType) {
+    assert(checkShape.empty() &&
+           "ill-formed createOrFoldBroadcastOp arguments");
+    return b.createOrFold<vector::BroadcastOp>(loc, dstVectorType, value);
+  }
+
+  assert(srcVectorType.getShape().equals(checkShape) &&
+         "ill-formed createOrFoldBroadcastOp arguments");
+
+  // Step 3. Since vector.broadcast only allows creating leading dims,
+  //   vector -> dstShape broadcast may require a transpose.
+  // Traverse the dims in order and construct:
+  //   1. The leading entries of the broadcastShape that is guaranteed to be
+  //      achievable by a simple broadcast.
+  //   2. The induced permutation for the subsequent vector.transpose that will
+  //      bring us from `broadcastShape` back to he desired `dstShape`.
+  // If the induced permutation is not the identity, create a vector.transpose.
+  SmallVector<int64_t> broadcastShape, permutation(dstShape.size(), -1);
+  broadcastShape.reserve(dstShape.size());
+  // Consider the example:
+  //   srcShape     = 2x4
+  //   dstShape     = 1x2x3x4x5
+  //   broadcastedDims = [0, 2, 4]
+  //
+  // We want to build:
+  //   broadcastShape  = 1x3x5x2x4
+  //   permutation     = [0, 2, 4,                 1, 3]
+  //                      ---V---           -----V-----
+  //            leading broadcast part      src shape part
+  //
+  // Note that the trailing dims of broadcastShape are exactly the srcShape
+  // by construction.
+  // nextSrcShapeDim is used to keep track of where in the permutation the
+  // "src shape part" occurs.
+  int64_t nextSrcShapeDim = broadcastedDims.size();
+  for (int64_t i = 0, e = dstShape.size(); i < e; ++i) {
+    if (broadcastedDims.contains(i)) {
+      // 3.a. For each dim in the dst shape, if it is a broadcasted dim,
+      // bring it to the head of the broadcastShape.
+      // It will need to be permuted back from `broadcastShape.size() - 1` into
+      // position `i`.
+      broadcastShape.push_back(dstShape[i]);
+      permutation[i] = broadcastShape.size() - 1;
+    } else {
+      // 3.b. Otherwise, the dim is not broadcasted, it comes from the src
+      // shape and needs to be permuted into position `i`.
+      // Don't touch `broadcastShape` here, the whole srcShape will be
+      // appended after.
+      permutation[i] = nextSrcShapeDim++;
+    }
+  }
+  // 3.c. Append the srcShape.
+  llvm::append_range(broadcastShape, srcVectorType.getShape());
+
+  // Ensure there are no dim-1 broadcasts.
+  assert(::computeBroadcastedUnitDims(srcVectorType.getShape(), broadcastShape)
+             .empty() &&
+         "unexpected dim-1 broadcast");
+
+  VectorType broadcastType = VectorType::get(broadcastShape, elementType);
+  assert(vector::isBroadcastableTo(value.getType(), broadcastType) ==
+             vector::BroadcastableToResult::Success &&
+         "must be broadcastable");
+  Value res = b.createOrFold<vector::BroadcastOp>(loc, broadcastType, value);
+  // Step 4. If we find any dimension that indeed needs to be permuted,
+  // immediately return a new vector.transpose.
+  for (int64_t i = 0, e = permutation.size(); i < e; ++i)
+    if (permutation[i] != i)
+      return b.createOrFold<vector::TransposeOp>(loc, res, permutation);
+  // Otherwise return res.
   return res;
 }
 
@@ -2274,18 +2384,17 @@ static LogicalResult
 isIntegerArrayAttrConfinedToShape(OpType op, ArrayAttr arrayAttr,
                                   ArrayRef<int64_t> shape, StringRef attrName,
                                   bool halfOpen = true, int64_t min = 0) {
-  assert(arrayAttr.size() <= shape.size());
-  unsigned index = 0;
-  for (auto it : llvm::zip(arrayAttr, shape)) {
-    auto val = std::get<0>(it).cast<IntegerAttr>().getInt();
-    auto max = std::get<1>(it);
+  for (auto [index, attrDimPair] :
+       llvm::enumerate(llvm::zip_first(arrayAttr, shape))) {
+    int64_t val =
+        std::get<0>(attrDimPair).template cast<IntegerAttr>().getInt();
+    int64_t max = std::get<1>(attrDimPair);
     if (!halfOpen)
       max += 1;
     if (val < min || val >= max)
       return op.emitOpError("expected ")
              << attrName << " dimension " << index << " to be confined to ["
              << min << ", " << max << ")";
-    ++index;
   }
   return success();
 }
@@ -2300,18 +2409,17 @@ static LogicalResult isSumOfIntegerArrayAttrConfinedToShape(
     bool halfOpen = true, int64_t min = 1) {
   assert(arrayAttr1.size() <= shape.size());
   assert(arrayAttr2.size() <= shape.size());
-  unsigned index = 0;
-  for (auto it : llvm::zip(arrayAttr1, arrayAttr2, shape)) {
-    auto val1 = std::get<0>(it).cast<IntegerAttr>().getInt();
-    auto val2 = std::get<1>(it).cast<IntegerAttr>().getInt();
-    auto max = std::get<2>(it);
+  for (auto [index, it] :
+       llvm::enumerate(llvm::zip(arrayAttr1, arrayAttr2, shape))) {
+    auto val1 = std::get<0>(it).template cast<IntegerAttr>().getInt();
+    auto val2 = std::get<1>(it).template cast<IntegerAttr>().getInt();
+    int64_t max = std::get<2>(it);
     if (!halfOpen)
       max += 1;
     if (val1 + val2 < 0 || val1 + val2 >= max)
       return op.emitOpError("expected sum(")
              << attrName1 << ", " << attrName2 << ") dimension " << index
              << " to be confined to [" << min << ", " << max << ")";
-    ++index;
   }
   return success();
 }
@@ -2852,11 +2960,9 @@ public:
 
     // Compute slice of vector mask region.
     SmallVector<int64_t, 4> sliceMaskDimSizes;
-    assert(sliceOffsets.size() == maskDimSizes.size());
-    for (auto it : llvm::zip(maskDimSizes, sliceOffsets, sliceSizes)) {
-      int64_t maskDimSize = std::get<0>(it);
-      int64_t sliceOffset = std::get<1>(it);
-      int64_t sliceSize = std::get<2>(it);
+    sliceMaskDimSizes.reserve(maskDimSizes.size());
+    for (auto [maskDimSize, sliceOffset, sliceSize] :
+         llvm::zip_equal(maskDimSizes, sliceOffsets, sliceSizes)) {
       int64_t sliceMaskDimSize = std::max(
           static_cast<int64_t>(0),
           std::min(sliceOffset + sliceSize, maskDimSize) - sliceOffset);
@@ -3128,7 +3234,8 @@ static LogicalResult verifyPermutationMap(AffineMap permutationMap,
 static LogicalResult
 verifyTransferOp(VectorTransferOpInterface op, ShapedType shapedType,
                  VectorType vectorType, VectorType maskType,
-                 AffineMap permutationMap, ArrayAttr inBounds) {
+                 VectorType inferredMaskType, AffineMap permutationMap,
+                 ArrayAttr inBounds) {
   if (op->hasAttr("masked")) {
     return op->emitOpError("masked attribute has been removed. "
                            "Use in_bounds instead.");
@@ -3181,13 +3288,6 @@ verifyTransferOp(VectorTransferOpInterface op, ShapedType shapedType,
     if (permutationMap.getNumResults() != vectorType.getRank())
       return op->emitOpError("requires a permutation_map with result dims of "
                              "the same rank as the vector type");
-
-    VectorType expectedMaskType =
-        vector::detail::transferMaskType(vectorType, permutationMap);
-    if (maskType && expectedMaskType != maskType)
-      return op->emitOpError("expects mask type consistent with permutation "
-                             "map: ")
-             << maskType;
   }
 
   if (permutationMap.getNumSymbols() != 0)
@@ -3196,6 +3296,11 @@ verifyTransferOp(VectorTransferOpInterface op, ShapedType shapedType,
   if (permutationMap.getNumInputs() != shapedType.getRank())
     return op->emitOpError("requires a permutation_map with input dims of the "
                            "same rank as the source type");
+
+  if (maskType && maskType != inferredMaskType)
+    return op->emitOpError("inferred mask type (")
+           << inferredMaskType << ") and mask operand type (" << maskType
+           << ") don't match";
 
   if (inBounds) {
     if (permutationMap.getNumResults() != static_cast<int64_t>(inBounds.size()))
@@ -3239,6 +3344,19 @@ void TransferReadOp::print(OpAsmPrinter &p) {
   p << " : " << getShapedType() << ", " << getVectorType();
 }
 
+/// Infers the mask type for a transfer read given its vector type and
+/// permutation map. The mask in a transfer read operation applies to the
+/// tensor/buffer reading part of it and its type should match the shape read
+/// *before* any permutation or broadcasting.
+static VectorType inferTransferReadMaskType(VectorType vecType,
+                                            AffineMap permMap) {
+  auto i1Type = IntegerType::get(permMap.getContext(), 1);
+  AffineMap invPermMap = inversePermutation(compressUnusedDims(permMap));
+  assert(invPermMap && "Inversed permutation map couldn't be computed");
+  SmallVector<int64_t, 8> maskShape = invPermMap.compose(vecType.getShape());
+  return VectorType::get(maskShape, i1Type);
+}
+
 ParseResult TransferReadOp::parse(OpAsmParser &parser, OperationState &result) {
   auto &builder = parser.getBuilder();
   SMLoc typesLoc;
@@ -3269,13 +3387,14 @@ ParseResult TransferReadOp::parse(OpAsmParser &parser, OperationState &result) {
   VectorType vectorType = types[1].dyn_cast<VectorType>();
   if (!vectorType)
     return parser.emitError(typesLoc, "requires vector type");
-  auto permutationAttrName = TransferReadOp::getPermutationMapAttrStrName();
-  Attribute mapAttr = result.attributes.get(permutationAttrName);
-  if (!mapAttr) {
-    auto permMap = getTransferMinorIdentityMap(shapedType, vectorType);
-    // Update `mapAttr` that is used later to determine mask type.
-    mapAttr = AffineMapAttr::get(permMap);
-    result.attributes.set(permutationAttrName, mapAttr);
+  auto permMapAttrName = TransferReadOp::getPermutationMapAttrStrName();
+  Attribute permMapAttr = result.attributes.get(permMapAttrName);
+  AffineMap permMap;
+  if (!permMapAttr) {
+    permMap = getTransferMinorIdentityMap(shapedType, vectorType);
+    result.attributes.set(permMapAttrName, AffineMapAttr::get(permMap));
+  } else {
+    permMap = permMapAttr.cast<AffineMapAttr>().getValue();
   }
   if (parser.resolveOperand(sourceInfo, shapedType, result.operands) ||
       parser.resolveOperands(indexInfo, indexType, result.operands) ||
@@ -3286,10 +3405,9 @@ ParseResult TransferReadOp::parse(OpAsmParser &parser, OperationState &result) {
     if (shapedType.getElementType().dyn_cast<VectorType>())
       return parser.emitError(
           maskInfo.location, "does not support masks with vector element type");
-    auto map = mapAttr.dyn_cast<AffineMapAttr>().getValue();
     // Instead of adding the mask type as an op type, compute it based on the
     // vector type and the permutation map (to keep the type signature small).
-    auto maskType = mlir::vector::detail::transferMaskType(vectorType, map);
+    auto maskType = inferTransferReadMaskType(vectorType, permMap);
     if (parser.resolveOperand(maskInfo, maskType, result.operands))
       return failure();
   }
@@ -3307,13 +3425,17 @@ LogicalResult TransferReadOp::verify() {
   VectorType maskType = getMaskType();
   auto paddingType = getPadding().getType();
   auto permutationMap = getPermutationMap();
+  VectorType inferredMaskType =
+      maskType ? inferTransferReadMaskType(vectorType, permutationMap)
+               : VectorType();
   auto sourceElementType = shapedType.getElementType();
 
   if (static_cast<int64_t>(getIndices().size()) != shapedType.getRank())
     return emitOpError("requires ") << shapedType.getRank() << " indices";
 
   if (failed(verifyTransferOp(cast<VectorTransferOpInterface>(getOperation()),
-                              shapedType, vectorType, maskType, permutationMap,
+                              shapedType, vectorType, maskType,
+                              inferredMaskType, permutationMap,
                               getInBounds() ? *getInBounds() : ArrayAttr())))
     return failure();
 
@@ -3677,6 +3799,18 @@ void TransferWriteOp::build(OpBuilder &builder, OperationState &result,
   build(builder, result, vector, dest, indices, permutationMap, inBounds);
 }
 
+/// Infers the mask type for a transfer write given its vector type and
+/// permutation map. The mask in a transfer read operation applies to the
+/// tensor/buffer writing part of it and its type should match the shape written
+/// *after* any permutation.
+static VectorType inferTransferWriteMaskType(VectorType vecType,
+                                             AffineMap permMap) {
+  auto i1Type = IntegerType::get(permMap.getContext(), 1);
+  SmallVector<int64_t, 8> maskShape =
+      compressUnusedDims(permMap).compose(vecType.getShape());
+  return VectorType::get(maskShape, i1Type);
+}
+
 ParseResult TransferWriteOp::parse(OpAsmParser &parser,
                                    OperationState &result) {
   auto &builder = parser.getBuilder();
@@ -3704,11 +3838,14 @@ ParseResult TransferWriteOp::parse(OpAsmParser &parser,
   ShapedType shapedType = types[1].dyn_cast<ShapedType>();
   if (!shapedType || !shapedType.isa<MemRefType, RankedTensorType>())
     return parser.emitError(typesLoc, "requires memref or ranked tensor type");
-  auto permutationAttrName = TransferWriteOp::getPermutationMapAttrStrName();
-  auto attr = result.attributes.get(permutationAttrName);
-  if (!attr) {
-    auto permMap = getTransferMinorIdentityMap(shapedType, vectorType);
-    result.attributes.set(permutationAttrName, AffineMapAttr::get(permMap));
+  auto permMapAttrName = TransferWriteOp::getPermutationMapAttrStrName();
+  auto permMapAttr = result.attributes.get(permMapAttrName);
+  AffineMap permMap;
+  if (!permMapAttr) {
+    permMap = getTransferMinorIdentityMap(shapedType, vectorType);
+    result.attributes.set(permMapAttrName, AffineMapAttr::get(permMap));
+  } else {
+    permMap = permMapAttr.cast<AffineMapAttr>().getValue();
   }
   if (parser.resolveOperand(vectorInfo, vectorType, result.operands) ||
       parser.resolveOperand(sourceInfo, shapedType, result.operands) ||
@@ -3718,7 +3855,7 @@ ParseResult TransferWriteOp::parse(OpAsmParser &parser,
     if (shapedType.getElementType().dyn_cast<VectorType>())
       return parser.emitError(
           maskInfo.location, "does not support masks with vector element type");
-    auto maskType = VectorType::get(vectorType.getShape(), builder.getI1Type());
+    auto maskType = inferTransferWriteMaskType(vectorType, permMap);
     if (parser.resolveOperand(maskInfo, maskType, result.operands))
       return failure();
   }
@@ -3744,6 +3881,9 @@ LogicalResult TransferWriteOp::verify() {
   VectorType vectorType = getVectorType();
   VectorType maskType = getMaskType();
   auto permutationMap = getPermutationMap();
+  VectorType inferredMaskType =
+      maskType ? inferTransferWriteMaskType(vectorType, permutationMap)
+               : VectorType();
 
   if (llvm::size(getIndices()) != shapedType.getRank())
     return emitOpError("requires ") << shapedType.getRank() << " indices";
@@ -3754,7 +3894,8 @@ LogicalResult TransferWriteOp::verify() {
     return emitOpError("should not have broadcast dimensions");
 
   if (failed(verifyTransferOp(cast<VectorTransferOpInterface>(getOperation()),
-                              shapedType, vectorType, maskType, permutationMap,
+                              shapedType, vectorType, maskType,
+                              inferredMaskType, permutationMap,
                               getInBounds() ? *getInBounds() : ArrayAttr())))
     return failure();
 
@@ -4091,9 +4232,9 @@ public:
     }
 
     // Fail if tensor::ExtractSliceOp and tensor::InsertSliceOp sizes differ.
-    for (const auto &it :
-         llvm::zip(insertOp.getMixedSizes(), extractOp.getMixedSizes())) {
-      if (!isEqualConstantIntOrValue(std::get<0>(it), std::get<1>(it))) {
+    for (auto [insertSize, extractSize] :
+         llvm::zip_equal(insertOp.getMixedSizes(), extractOp.getMixedSizes())) {
+      if (!isEqualConstantIntOrValue(insertSize, extractSize)) {
         return rewriter.notifyMatchFailure(
             insertOp, "InsertSliceOp and ExtractSliceOp sizes differ");
       }
@@ -5046,7 +5187,7 @@ public:
     auto isNotDefByConstant = [](Value operand) {
       return !isa_and_nonnull<arith::ConstantIndexOp>(operand.getDefiningOp());
     };
-    if (llvm::any_of(createMaskOp.operands(), isNotDefByConstant))
+    if (llvm::any_of(createMaskOp.getOperands(), isNotDefByConstant))
       return failure();
 
     // CreateMaskOp for scalable vectors can be folded only if all dimensions
@@ -5063,10 +5204,10 @@ public:
 
     // Gather constant mask dimension sizes.
     SmallVector<int64_t, 4> maskDimSizes;
-    for (auto it : llvm::zip(createMaskOp.operands(),
-                             createMaskOp.getType().getShape())) {
-      auto *defOp = std::get<0>(it).getDefiningOp();
-      int64_t maxDimSize = std::get<1>(it);
+    maskDimSizes.reserve(createMaskOp->getNumOperands());
+    for (auto [operand, maxDimSize] : llvm::zip_equal(
+             createMaskOp.getOperands(), createMaskOp.getType().getShape())) {
+      Operation *defOp = operand.getDefiningOp();
       int64_t dimSize = cast<arith::ConstantIndexOp>(defOp).value();
       dimSize = std::min(dimSize, maxDimSize);
       // If one of dim sizes is zero, set all dims to zero.
@@ -5293,10 +5434,7 @@ LogicalResult ScanOp::verify() {
     if (i != reductionDim)
       expectedShape.push_back(srcShape[i]);
   }
-  if (llvm::any_of(llvm::zip(initialValueShapes, expectedShape),
-                   [](std::tuple<int64_t, int64_t> s) {
-                     return std::get<0>(s) != std::get<1>(s);
-                   })) {
+  if (!llvm::equal(initialValueShapes, expectedShape)) {
     return emitOpError("incompatible input/initial value shapes");
   }
 
@@ -5427,7 +5565,7 @@ void WarpExecuteOnLane0Op::build(OpBuilder &builder, OperationState &result,
                                  TypeRange resultTypes, Value laneId,
                                  int64_t warpSize) {
   build(builder, result, resultTypes, laneId, warpSize,
-        /*operands=*/llvm::None, /*argTypes=*/llvm::None);
+        /*operands=*/std::nullopt, /*argTypes=*/std::nullopt);
 }
 
 void WarpExecuteOnLane0Op::build(OpBuilder &builder, OperationState &result,
@@ -5443,8 +5581,8 @@ void WarpExecuteOnLane0Op::build(OpBuilder &builder, OperationState &result,
   OpBuilder::InsertionGuard guard(builder);
   Region *warpRegion = result.addRegion();
   Block *block = builder.createBlock(warpRegion);
-  for (auto it : llvm::zip(blockArgTypes, args))
-    block->addArgument(std::get<0>(it), std::get<1>(it).getLoc());
+  for (auto [type, arg] : llvm::zip_equal(blockArgTypes, args))
+    block->addArgument(type, arg.getLoc());
 }
 
 /// Helper check if the distributed vector type is consistent with the expanded
@@ -5491,16 +5629,16 @@ LogicalResult WarpExecuteOnLane0Op::verify() {
     return emitOpError(
         "expected same number of yield operands and return values.");
   int64_t warpSize = getWarpSize();
-  for (auto it : llvm::zip(getWarpRegion().getArguments(), getArgs())) {
-    if (failed(verifyDistributedType(std::get<0>(it).getType(),
-                                     std::get<1>(it).getType(), warpSize,
-                                     getOperation())))
+  for (auto [regionArg, arg] :
+       llvm::zip_equal(getWarpRegion().getArguments(), getArgs())) {
+    if (failed(verifyDistributedType(regionArg.getType(), arg.getType(),
+                                     warpSize, getOperation())))
       return failure();
   }
-  for (auto it : llvm::zip(yield.getOperands(), getResults())) {
-    if (failed(verifyDistributedType(std::get<0>(it).getType(),
-                                     std::get<1>(it).getType(), warpSize,
-                                     getOperation())))
+  for (auto [yieldOperand, result] :
+       llvm::zip_equal(yield.getOperands(), getResults())) {
+    if (failed(verifyDistributedType(yieldOperand.getType(), result.getType(),
+                                     warpSize, getOperation())))
       return failure();
   }
   return success();

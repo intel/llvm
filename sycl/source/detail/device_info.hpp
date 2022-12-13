@@ -358,6 +358,7 @@ static bool is_sycl_partition_property(info::partition_property PP) {
   case info::partition_property::partition_equally:
   case info::partition_property::partition_by_counts:
   case info::partition_property::partition_by_affinity_domain:
+  case info::partition_property::ext_intel_partition_by_cslice:
     return true;
   }
   return false;

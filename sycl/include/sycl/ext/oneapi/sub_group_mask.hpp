@@ -20,8 +20,7 @@ namespace detail {
 class Builder;
 } // namespace detail
 
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__AMDGCN__) &&                    \
     (__AMDGCN_WAVEFRONT_SIZE == 64)
@@ -287,7 +286,6 @@ group_ballot(Group g, bool predicate) {
 
 #undef BITS_TYPE
 
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

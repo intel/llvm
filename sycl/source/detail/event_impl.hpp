@@ -243,6 +243,8 @@ public:
   /// state.
   bool isInitialized() const noexcept { return MIsInitialized; }
 
+  bool isCompleted();
+
   void attachEventToComplete(const EventImplPtr &Event) {
     std::lock_guard<std::mutex> Lock(MMutex);
     MPostCompleteEvents.push_back(Event);

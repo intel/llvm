@@ -15,9 +15,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 
 // Forward declaration
 template <typename PropertyT, typename... Ts> struct property_value;
@@ -77,9 +75,9 @@ template <typename... Ts>
 struct AllPropertyValues<std::tuple<Ts...>> : std::true_type {};
 template <typename T, typename... Ts>
 struct AllPropertyValues<std::tuple<T, Ts...>>
-    : sycl::detail::conditional_t<IsPropertyValue<T>::value,
-                                  AllPropertyValues<std::tuple<Ts...>>,
-                                  std::false_type> {};
+    : std::conditional_t<IsPropertyValue<T>::value,
+                         AllPropertyValues<std::tuple<Ts...>>,
+                         std::false_type> {};
 
 //******************************************************************************
 // Property type sorting
@@ -204,9 +202,8 @@ struct IsSorted<std::tuple<Ts...>> : std::true_type {};
 template <typename T> struct IsSorted<std::tuple<T>> : std::true_type {};
 template <typename L, typename R, typename... Rest>
 struct IsSorted<std::tuple<L, R, Rest...>>
-    : sycl::detail::conditional_t<PropertyID<L>::value <= PropertyID<R>::value,
-                                  IsSorted<std::tuple<R, Rest...>>,
-                                  std::false_type> {};
+    : std::conditional_t<PropertyID<L>::value <= PropertyID<R>::value,
+                         IsSorted<std::tuple<R, Rest...>>, std::false_type> {};
 
 // Checks that all types in a sorted tuple have unique PropertyID.
 template <typename T> struct SortedAllUnique {};
@@ -215,9 +212,9 @@ struct SortedAllUnique<std::tuple<Ts...>> : std::true_type {};
 template <typename T> struct SortedAllUnique<std::tuple<T>> : std::true_type {};
 template <typename L, typename R, typename... Rest>
 struct SortedAllUnique<std::tuple<L, R, Rest...>>
-    : sycl::detail::conditional_t<PropertyID<L>::value != PropertyID<R>::value,
-                                  SortedAllUnique<std::tuple<R, Rest...>>,
-                                  std::false_type> {};
+    : std::conditional_t<PropertyID<L>::value != PropertyID<R>::value,
+                         SortedAllUnique<std::tuple<R, Rest...>>,
+                         std::false_type> {};
 
 //******************************************************************************
 // Property merging
@@ -381,8 +378,6 @@ template <size_t... Sizes>
 struct SizeListToStr : SizeListToStrHelper<SizeList<Sizes...>, CharList<>> {};
 
 } // namespace detail
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
