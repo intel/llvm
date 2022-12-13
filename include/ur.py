@@ -509,7 +509,7 @@ class ur_queue_info_t(c_int):
 
 
 ###############################################################################
-## @brief Queue properties
+## @brief Queue property flags
 class ur_queue_flags_v(IntEnum):
     OUT_OF_ORDER_EXEC_MODE_ENABLE = UR_BIT(0)       ## Enable/disable out of order execution
     PROFILING_ENABLE = UR_BIT(1)                    ## Enable/disable profiling
@@ -520,6 +520,25 @@ class ur_queue_flags_t(c_int):
     def __str__(self):
         return hex(self.value)
 
+
+###############################################################################
+## @brief Queue Properties
+class ur_queue_properties_v(IntEnum):
+    FLAGS = -1                                      ## [::ur_queue_flags_t]: the bitfield of queue flags
+    COMPUTE_INDEX = -2                              ## [uint32_t]: the queue index
+
+class ur_queue_properties_t(c_int):
+    def __str__(self):
+        return str(ur_queue_properties_v(self.value))
+
+
+###############################################################################
+## @brief Queue property value
+class ur_queue_property_value_t(Structure):
+    _fields_ = [
+        ("propertyType", ur_queue_properties_t),                        ## [in] queue property
+        ("propertyValue", c_ulong)                                      ## [in] queue property value
+    ]
 
 ###############################################################################
 ## @brief Get sample object information
@@ -711,6 +730,9 @@ class ur_device_info_v(IntEnum):
     ATOMIC_64 = 96                                  ## bool: support 64 bit atomics
     ATOMIC_MEMORY_ORDER_CAPABILITIES = 97           ## uint32_t: atomics memory order capabilities
     BFLOAT16 = 98                                   ## bool: support for bfloat16
+    MAX_COMPUTE_QUEUE_INDICES = 99                  ## uint32_t: Returns 1 if the device doesn't have a notion of a 
+                                                    ## queue index. Otherwise, returns the number of queue indices that are
+                                                    ## available for this device.
 
 class ur_device_info_t(c_int):
     def __str__(self):
@@ -1789,9 +1811,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urQueueCreate
 if __use_win_types:
-    _urQueueCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_queue_flags_t, POINTER(ur_queue_handle_t) )
+    _urQueueCreate_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_queue_property_value_t), POINTER(ur_queue_handle_t) )
 else:
-    _urQueueCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_queue_flags_t, POINTER(ur_queue_handle_t) )
+    _urQueueCreate_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_queue_property_value_t), POINTER(ur_queue_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urQueueRetain
