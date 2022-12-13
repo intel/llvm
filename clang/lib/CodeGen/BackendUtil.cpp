@@ -915,16 +915,15 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
   ModulePassManager MPM;
 
-  if (LangOpts.SYCLIsDevice && !CodeGenOpts.DisableSYCLEarlyOpts)
-    MPM.addPass(SYCLPropagateAspectsUsagePass());
-
   if (!CodeGenOpts.DisableLLVMPasses) {
+    if (LangOpts.SYCLIsDevice && !CodeGenOpts.DisableSYCLEarlyOpts)
+      MPM.addPass(SYCLPropagateAspectsUsagePass());
 
     // Map our optimization levels into one of the distinct levels used to
     // configure the pipeline.
     OptimizationLevel Level = mapToLevel(CodeGenOpts);
 
-    if (LangOpts.SYCLIsDevice && !CodeGenOpts.DisableSYCLEarlyOpts)
+    if (LangOpts.SYCLIsDevice)
       PB.registerPipelineStartEPCallback(
           [&](ModulePassManager &MPM, OptimizationLevel Level) {
             MPM.addPass(ESIMDVerifierPass(LangOpts.SYCLESIMDForceStatelessMem));
@@ -932,8 +931,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           });
 
     // Add the InferAddressSpaces pass for all the SPIR[V] targets
-    if ((TargetTriple.isSPIR() || TargetTriple.isSPIRV()) &&
-        !CodeGenOpts.DisableSYCLEarlyOpts) {
+    if (TargetTriple.isSPIR() || TargetTriple.isSPIRV()) {
       PB.registerOptimizerLastEPCallback(
           [](ModulePassManager &MPM, OptimizationLevel Level) {
             MPM.addPass(createModuleToFunctionPassAdaptor(
@@ -1046,23 +1044,23 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     // Add SPIRITTAnnotations pass to the pass manager if
     // -fsycl-instrument-device-code option was passed. This option can be used
     // only with spir triple.
-    if (LangOpts.SYCLIsDevice && CodeGenOpts.SPIRITTAnnotations &&
-        !CodeGenOpts.DisableSYCLEarlyOpts) {
+    if (LangOpts.SYCLIsDevice && CodeGenOpts.SPIRITTAnnotations) {
       assert(TargetTriple.isSPIR() &&
              "ITT annotations can only be added to a module with spir target");
       MPM.addPass(SPIRITTAnnotationsPass());
     }
-  }
 
-  // Allocate static local memory in SYCL kernel scope for each allocation
-  // call. It should be called after inlining pass.
-  if (LangOpts.SYCLIsDevice) {
-    // Group local memory pass depends on inlining. Turn it on even in case if
-    // all llvm passes or SYCL early optimizations are disabled.
-    // FIXME: Remove this workaround when dependency on inlining is eliminated.
-    if (CodeGenOpts.DisableLLVMPasses || CodeGenOpts.DisableSYCLEarlyOpts)
-      MPM.addPass(AlwaysInlinerPass(false));
-    MPM.addPass(SYCLLowerWGLocalMemoryPass());
+    // Allocate static local memory in SYCL kernel scope for each allocation
+    // call. It should be called after inlining pass.
+    if (LangOpts.SYCLIsDevice) {
+      // Group local memory pass depends on inlining. Turn it on even in case if
+      // all llvm passes or SYCL early optimizations are disabled.
+      // FIXME: Remove this workaround when dependency on inlining is
+      // eliminated.
+      if (CodeGenOpts.DisableSYCLEarlyOpts)
+        MPM.addPass(AlwaysInlinerPass(false));
+      MPM.addPass(SYCLLowerWGLocalMemoryPass());
+    }
   }
 
   // Add a verifier pass if requested. We don't have to do this if the action
