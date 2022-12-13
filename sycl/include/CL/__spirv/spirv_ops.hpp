@@ -200,8 +200,8 @@ template <typename T, std::size_t R, std::size_t C,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern SYCL_EXTERNAL __ocl_vec_t<uint32_t, 2>
-__spirv_JointMatrixGetElementCoordINTEL(__spv::__spirv_JointMatrixINTEL<T, R, C, L, S> *,
-                                        size_t i);
+__spirv_JointMatrixGetElementCoordINTEL(
+    __spv::__spirv_JointMatrixINTEL<T, R, C, L, S> *, size_t i);
 
 template <typename T, std::size_t R, std::size_t C,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
