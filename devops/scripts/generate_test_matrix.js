@@ -19,7 +19,7 @@ module.exports = ({core, process}) => {
               driverOld["linux"]["cm"]["version"] ||
           driverNew["linux"]["level_zero"]["version"] !==
               driverOld["linux"]["level_zero"]["version"] ||
-           driverNew["linux"]["tbb"]["version"] !==
+          driverNew["linux"]["tbb"]["version"] !==
               driverOld["linux"]["tbb"]["version"] ||
           driverNew["linux"]["oclcpu"]["version"] !==
               driverOld["linux"]["oclcpu"]["version"] ||
