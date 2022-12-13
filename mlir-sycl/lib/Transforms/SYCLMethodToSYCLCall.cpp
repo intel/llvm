@@ -35,7 +35,7 @@ using namespace sycl;
 static mlir::Value castToBaseType(PatternRewriter &Rewriter, mlir::Location Loc,
                                   mlir::Value Original,
                                   mlir::MemRefType BaseType) {
-  const auto ThisType = Original.getType();
+  const Type ThisType = Original.getType();
   const llvm::ArrayRef<int64_t> TargetShape = BaseType.getShape();
   const mlir::Type TargetElementType = BaseType.getElementType();
   const unsigned TargetMemSpace = BaseType.getMemorySpaceAsInt();
