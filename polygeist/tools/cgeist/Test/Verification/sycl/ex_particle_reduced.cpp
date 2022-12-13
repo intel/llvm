@@ -12,8 +12,7 @@ using namespace sycl;
 constexpr access::mode sycl_read_write = access::mode::read_write;
 
 void likelyhood(int Nparticles) {
-  cpu_selector dev_sel;
-  queue q(dev_sel);
+  queue q();
   const property_list props = property::buffer::use_host_ptr();
   float *arrayX = (float *)calloc(Nparticles, sizeof(float));
   buffer<float, 1> arrayX_GPU(arrayX, Nparticles, props);
