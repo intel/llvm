@@ -50,8 +50,8 @@ static mlir::Value castToBaseType(PatternRewriter &Rewriter, mlir::Location Loc,
   Rewriter.setInsertionPointToStart(
       &*ParentFunction.getFunctionBody().getBlocks().begin());
 
-  auto Alloca = Rewriter.createOrFold<memref::AllocaOp>(
-      Loc, MemRefType::get({1}, ThisType));
+  auto Alloca =
+      Rewriter.create<memref::AllocaOp>(Loc, MemRefType::get({1}, ThisType));
 
   Rewriter.setInsertionPoint(InsertionOp);
 
@@ -62,7 +62,7 @@ static mlir::Value castToBaseType(PatternRewriter &Rewriter, mlir::Location Loc,
 
   // Cast the memref value to the expected shape
   Alloca = Rewriter.createOrFold<memref::CastOp>(
-      Loc, MemRefType::get(ShapedType::kDynamic, ThisType), Alloca);
+      Loc, MemRefType::get(TargetShape, ThisType), Alloca);
 
   if (Alloca.getType().cast<MemRefType>().getMemorySpaceAsInt() !=
       BaseType.getMemorySpaceAsInt()) {
