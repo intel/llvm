@@ -1327,14 +1327,13 @@ static pi_result CleanupEventsInImmCmdLists(pi_queue Queue,
       Queue->LastCommandEvent = nullptr;
       for (auto &&It = Queue->CommandListMap.begin();
            It != Queue->CommandListMap.end(); ++It) {
-        std::move(std::begin(It->second.EventList),
-                  std::end(It->second.EventList),
-                  std::back_inserter(EventListToCleanup));
-        It->second.EventList.clear();
+        PI_CALL(Queue->resetCommandList(It, true, EventListToCleanup,
+                                        /* CheckStatus */ false));
       }
     } else if (Queue->isInOrderQueue() && CompletedEvent) {
       // If the queue is in-order and we have information about completed event
-      // then cleanup all events preceding to CompletedEvent including itself.
+      // then cleanup all events in the command list preceding to CompletedEvent
+      // including itself.
 
       // Check that the comleted event has associated command list.
       if (!(CompletedEvent->CommandList &&
@@ -1346,27 +1345,11 @@ static pi_result CleanupEventsInImmCmdLists(pi_queue Queue,
       auto CompletedEventIt =
           std::find(CmdListEvents.begin(), CmdListEvents.end(), CompletedEvent);
       if (CompletedEventIt != CmdListEvents.end()) {
-        // Remember the first event in this command list, we know that it
-        // is completed.
-        auto FirstEvent = CmdListEvents.front();
-        // We can cleanup all events prior to the completed event.
+        // We can cleanup all events prior to the completed event in this
+        // command list and completed event itself.
         std::move(std::begin(CmdListEvents), CompletedEventIt + 1,
                   std::back_inserter(EventListToCleanup));
         CmdListEvents.erase(CmdListEvents.begin(), CompletedEventIt + 1);
-        // We can cleanup events from all command lists preceding the command
-        // list containing completed event.
-        for (auto &&It = Queue->CommandListMap.begin();
-             It != Queue->CommandListMap.end(); ++It) {
-          if (!It->second.EventList.empty()) {
-            auto LastEventInCmdList = It->second.EventList.back();
-            // If the command lists' last event is in the waitlist of the first
-            // event in the command list with completed event.
-            if (FirstEvent->WaitList.contains(LastEventInCmdList)) {
-              PI_CALL(Queue->resetCommandList(It, true, EventListToCleanup,
-                                              /* CheckStatus */ false));
-            }
-          }
-        }
       }
     } else {
       // Fallback to resetCommandList over all command lists.
