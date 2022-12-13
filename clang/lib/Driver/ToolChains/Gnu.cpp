@@ -376,7 +376,7 @@ void tools::gnutools::Linker::constructLLVMARCommand(
   llvm::sys::path::append(LLVMARPath, "llvm-ar");
   const char *Exec = C.getArgs().MakeArgString(LLVMARPath);
   C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::None(), Exec, CmdArgs, None));
+      JA, *this, ResponseFileSupport::None(), Exec, CmdArgs, std::nullopt));
 }
 
 void tools::gnutools::StaticLibTool::ConstructJob(
