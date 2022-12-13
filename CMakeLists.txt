@@ -112,21 +112,15 @@ install(
 set(API_JSON_FILE ${PROJECT_BINARY_DIR}/unified_runtime.json)
 
 # generate source from the specification
-add_custom_command (
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/scripts
-    DEPENDS ${CMAKE_SOURCE_DIR}/scripts/*
-    OUTPUT ${API_JSON_FILE}
+add_custom_target(generate
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/scripts
     COMMAND ${Python3_EXECUTABLE} run.py --api-json ${API_JSON_FILE}
-    COMMAND ${Python3_EXECUTABLE} json2src.py --api-json ${API_JSON_FILE} ${CMAKE_SOURCE_DIR}
-)
-
-add_custom_target(generate ALL
-    DEPENDS ${API_JSON_FILE}
+    COMMAND ${Python3_EXECUTABLE} json2src.py --api-json ${API_JSON_FILE} ${PROJECT_SOURCE_DIR}
 )
 
 # generate source and check for uncommitted diffs
 add_custom_target(check-generated
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
     COMMAND git diff --exit-code
     DEPENDS generate
 )
