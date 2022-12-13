@@ -61,7 +61,7 @@ static mlir::Value castToBaseType(PatternRewriter &Rewriter, mlir::Location Loc,
       ValueRange{Rewriter.createOrFold<arith::ConstantIndexOp>(Loc, 0)});
 
   // Cast the memref value to the expected shape
-  Alloca = Rewriter.create<memref::CastOp>(
+  Alloca = Rewriter.createOrFold<memref::CastOp>(
       Loc, MemRefType::get(TargetShape, ThisType), Alloca);
 
   if (Alloca.getType().cast<MemRefType>().getMemorySpaceAsInt() !=
