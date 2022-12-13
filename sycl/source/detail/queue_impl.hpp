@@ -501,8 +501,16 @@ protected:
       bool NeedSeparateDependencyMgmt =
           IsExpDepManaged(Type) || IsExpDepManaged(MLastCGType);
 
-      if (NeedSeparateDependencyMgmt)
-        Handler.depends_on(MLastEvent);
+      if (NeedSeparateDependencyMgmt) {
+        auto EventImpl = detail::getSyclObjImpl(MLastEvent);
+        if (EventImpl->isDiscarded()) {
+          // If last event is discarded and we need explicit dependency
+          // management then we can only wait for the whole queue.
+          wait();
+        } else {
+          Handler.depends_on(MLastEvent);
+        }
+      }
 
       EventRet = Handler.finalize();
 

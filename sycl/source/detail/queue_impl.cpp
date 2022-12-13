@@ -62,11 +62,17 @@ static event createDiscardedEvent() {
 event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Ptr, int Value, size_t Count,
                          const std::vector<event> &DepEvents) {
-  if (MHasDiscardEventsSupport) {
-    MemoryManager::fill_usm(Ptr, Self, Count, Value,
-                            getOrWaitEvents(DepEvents, MContext), nullptr);
-    return createDiscardedEvent();
-  }
+  auto updateLastEvent = [this](event NewLastEvent) -> event {
+    if (isInOrder()) {
+      MLastEvent = NewLastEvent;
+      // We don't create a command group for usm commands, so set it to None.
+      // This variable is used to perform explicit dependency management when
+      // required.
+      MLastCGType = CG::CGTYPE::None;
+    }
+    return NewLastEvent;
+  };
+
   event ResEvent;
   {
     // We need to submit command and update the last event under same lock if we
@@ -76,39 +82,46 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
     // If the last submitted command in the in-order queue is host_task then
     // wait for it before submitting usm command.
     if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
-                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
+                        MLastCGType == CG::CGTYPE::CodeplayInteropTask)) {
+      assert(!detail::getSyclObjImpl(MLastEvent)->isDiscarded());
       MLastEvent.wait();
+    }
+
+    if (MHasDiscardEventsSupport) {
+      MemoryManager::fill_usm(Ptr, Self, Count, Value,
+                              getOrWaitEvents(DepEvents, MContext), nullptr);
+      return updateLastEvent(createDiscardedEvent());
+    }
 
     RT::PiEvent NativeEvent{};
     MemoryManager::fill_usm(Ptr, Self, Count, Value,
                             getOrWaitEvents(DepEvents, MContext), &NativeEvent);
 
     if (MContext->is_host())
-      return MDiscardEvents ? createDiscardedEvent() : event();
+      return updateLastEvent(MDiscardEvents ? createDiscardedEvent() : event());
 
     ResEvent = prepareUSMEvent(Self, NativeEvent);
-    if (isInOrder()) {
-      MLastEvent = ResEvent;
-      // We don't create a command group for usm commands, so set it to None.
-      // This variable is used to perform explicit dependency management when
-      // required.
-      MLastCGType = CG::CGTYPE::None;
-    }
   }
   // Track only if we won't be able to handle it with piQueueFinish.
   if (!MSupportOOO)
     addSharedEvent(ResEvent);
-  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+  return updateLastEvent(MDiscardEvents ? createDiscardedEvent() : ResEvent);
 }
 
 event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Dest, const void *Src, size_t Count,
                          const std::vector<event> &DepEvents) {
-  if (MHasDiscardEventsSupport) {
-    MemoryManager::copy_usm(Src, Self, Count, Dest,
-                            getOrWaitEvents(DepEvents, MContext), nullptr);
-    return createDiscardedEvent();
-  }
+  auto updateLastEvent = [this](event NewLastEvent) -> event {
+    if (isInOrder()) {
+      MLastEvent = NewLastEvent;
+      // We don't create a command group for usm commands, so set it to None.
+      // This variable is used to perform explicit dependency management when
+      // required.
+      MLastCGType = CG::CGTYPE::None;
+    }
+    return NewLastEvent;
+  };
+
   event ResEvent;
   {
     // We need to submit command and update the last event under same lock if we
@@ -118,40 +131,46 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     // If the last submitted command in the in-order queue is host_task then
     // wait for it before submitting usm command.
     if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
-                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
+                        MLastCGType == CG::CGTYPE::CodeplayInteropTask)) {
+      assert(!detail::getSyclObjImpl(MLastEvent)->isDiscarded());
       MLastEvent.wait();
+    }
+
+    if (MHasDiscardEventsSupport) {
+      MemoryManager::copy_usm(Src, Self, Count, Dest,
+                              getOrWaitEvents(DepEvents, MContext), nullptr);
+      return updateLastEvent(createDiscardedEvent());
+    }
 
     RT::PiEvent NativeEvent{};
     MemoryManager::copy_usm(Src, Self, Count, Dest,
                             getOrWaitEvents(DepEvents, MContext), &NativeEvent);
 
     if (MContext->is_host())
-      return MDiscardEvents ? createDiscardedEvent() : event();
+      return updateLastEvent(MDiscardEvents ? createDiscardedEvent() : event());
 
     ResEvent = prepareUSMEvent(Self, NativeEvent);
-    if (isInOrder()) {
-      MLastEvent = ResEvent;
-      // We don't create a command group for usm commands, so set it to None.
-      // This variable is used to perform explicit dependency management when
-      // required.
-      MLastCGType = CG::CGTYPE::None;
-    }
   }
   // Track only if we won't be able to handle it with piQueueFinish.
   if (!MSupportOOO)
     addSharedEvent(ResEvent);
-  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+  return updateLastEvent(MDiscardEvents ? createDiscardedEvent() : ResEvent);
 }
 
 event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
                              pi_mem_advice Advice,
                              const std::vector<event> &DepEvents) {
-  if (MHasDiscardEventsSupport) {
-    MemoryManager::advise_usm(Ptr, Self, Length, Advice,
-                              getOrWaitEvents(DepEvents, MContext), nullptr);
-    return createDiscardedEvent();
-  }
+  auto updateLastEvent = [this](event NewLastEvent) -> event {
+    if (isInOrder()) {
+      MLastEvent = NewLastEvent;
+      // We don't create a command group for usm commands, so set it to None.
+      // This variable is used to perform explicit dependency management when
+      // required.
+      MLastCGType = CG::CGTYPE::None;
+    }
+    return NewLastEvent;
+  };
   event ResEvent;
   {
     // We need to submit command and update the last event under same lock if we
@@ -161,8 +180,16 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
     // If the last submitted command in the in-order queue is host_task then
     // wait for it before submitting usm command.
     if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
-                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
+                        MLastCGType == CG::CGTYPE::CodeplayInteropTask)) {
+      assert(!detail::getSyclObjImpl(MLastEvent)->isDiscarded());
       MLastEvent.wait();
+    }
+
+    if (MHasDiscardEventsSupport) {
+      MemoryManager::advise_usm(Ptr, Self, Length, Advice,
+                                getOrWaitEvents(DepEvents, MContext), nullptr);
+      return updateLastEvent(createDiscardedEvent());
+    }
 
     RT::PiEvent NativeEvent{};
     MemoryManager::advise_usm(Ptr, Self, Length, Advice,
@@ -170,21 +197,14 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                               &NativeEvent);
 
     if (MContext->is_host())
-      return MDiscardEvents ? createDiscardedEvent() : event();
+      return updateLastEvent(MDiscardEvents ? createDiscardedEvent() : event());
 
     ResEvent = prepareUSMEvent(Self, NativeEvent);
-    if (isInOrder()) {
-      MLastEvent = ResEvent;
-      // We don't create a command group for usm commands, so set it to None.
-      // This variable is used to perform explicit dependency management when
-      // required.
-      MLastCGType = CG::CGTYPE::None;
-    }
   }
   // Track only if we won't be able to handle it with piQueueFinish.
   if (!MSupportOOO)
     addSharedEvent(ResEvent);
-  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+  return updateLastEvent(MDiscardEvents ? createDiscardedEvent() : ResEvent);
 }
 
 void queue_impl::addEvent(const event &Event) {
