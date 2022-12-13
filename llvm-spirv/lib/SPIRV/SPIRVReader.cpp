@@ -221,9 +221,9 @@ Value *SPIRVToLLVM::getTranslatedValue(SPIRVValue *BV) {
   return nullptr;
 }
 
-static llvm::Optional<llvm::Attribute>
+static std::optional<llvm::Attribute>
 translateSEVMetadata(SPIRVValue *BV, llvm::LLVMContext &Context) {
-  llvm::Optional<llvm::Attribute> RetAttr;
+  std::optional<llvm::Attribute> RetAttr;
 
   if (!BV->hasDecorate(DecorationSingleElementVectorINTEL))
     return RetAttr;
@@ -306,7 +306,7 @@ std::string SPIRVToLLVM::transVCTypeName(SPIRVTypeBufferSurfaceINTEL *PST) {
 }
 
 template <typename ImageType>
-Optional<SPIRVAccessQualifierKind> getAccessQualifier(ImageType *T) {
+std::optional<SPIRVAccessQualifierKind> getAccessQualifier(ImageType *T) {
   if (!T->hasAccessQualifier())
     return {};
   return T->getAccessQualifier();

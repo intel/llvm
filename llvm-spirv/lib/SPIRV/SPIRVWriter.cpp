@@ -2863,9 +2863,9 @@ struct IntelLSUControlsInfo {
   }
 
   bool BurstCoalesce = false;
-  llvm::Optional<unsigned> CacheSizeInfo;
+  std::optional<unsigned> CacheSizeInfo;
   bool DontStaticallyCoalesce = false;
-  llvm::Optional<unsigned> PrefetchInfo;
+  std::optional<unsigned> PrefetchInfo;
 };
 
 // Handle optional var/ptr/global annotation parameter. It can be for example

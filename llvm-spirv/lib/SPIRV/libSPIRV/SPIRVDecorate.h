@@ -125,7 +125,7 @@ public:
   // Incomplete constructor
   SPIRVDecorate() : SPIRVDecorateGeneric(OC) {}
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     switch (static_cast<size_t>(Dec)) {
     case DecorationNoSignedWrap:
     case DecorationNoUnsignedWrap:
@@ -202,7 +202,7 @@ public:
   // Incomplete constructor
   SPIRVDecorateId() : SPIRVDecorateGeneric(OC) {}
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     switch (static_cast<int>(Dec)) {
     case DecorationAliasScopeINTEL:
     case DecorationNoAliasINTEL:
@@ -268,7 +268,7 @@ public:
       Decoder >> Literals;
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     if (getLinkageType() == SPIRVLinkageTypeKind::LinkageTypeLinkOnceODR)
       return ExtensionID::SPV_KHR_linkonce_odr;
     return {};
@@ -294,7 +294,7 @@ public:
   SPIRVMemberDecorate()
       : SPIRVDecorateGeneric(OC), MemberNumber(SPIRVWORD_MAX) {}
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     switch (static_cast<size_t>(Dec)) {
     case DecorationRegisterINTEL:
     case DecorationMemoryINTEL:
