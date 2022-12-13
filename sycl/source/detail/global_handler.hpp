@@ -72,8 +72,6 @@ public:
   XPTIRegistry &getXPTIRegistry();
   ThreadPool &getHostTaskThreadPool();
 
-  static void registerDefaultContextReleaseHandler();
-
   void unloadPlugins();
   void releaseDefaultContexts();
   void drainThreadPool();

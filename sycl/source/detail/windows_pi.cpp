@@ -13,6 +13,8 @@
 #include <windows.h>
 #include <winreg.h>
 
+#include "win_proxy_loader.hpp"
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
@@ -31,7 +33,9 @@ void *loadOsLibrary(const std::string &PluginPath) {
   if (!SetDllDirectoryA("")) {
     assert(false && "Failed to update DLL search path");
   }
-  auto Result = (void *)LoadLibraryA(PluginPath.c_str());
+  // win_proxy_loader.dll will have loaded our plugins already
+  // we get them from it.
+  auto Result = getPreloadedPlugin(PluginPath);
   (void)SetErrorMode(SavedMode);
   if (!SetDllDirectoryA(nullptr)) {
     assert(false && "Failed to restore DLL search path");

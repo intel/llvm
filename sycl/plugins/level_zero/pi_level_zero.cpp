@@ -9258,5 +9258,4 @@ pi_result _pi_buffer::free() {
   }
   return PI_SUCCESS;
 }
-
 } // extern "C"

@@ -158,18 +158,12 @@ void GlobalHandler::releaseDefaultContexts() {
   // finished. To avoid calls to nowhere, intentionally leak platform to device
   // cache. This will prevent destructors from being called, thus no PI cleanup
   // routines will be called in the end.
+  // Update: the win_proxy_loader addresses this for SYCL's own dependencies,
+  // but the GPU device dlls seem to manually load yet another DLL which may
+  // have been released when this function is called. So we still release() and
+  // leak until that is addressed. context destructs fine on CPU device.
   GlobalHandler::instance().MPlatformToDefaultContextCache.Inst.release();
 #endif
-}
-
-struct DefaultContextReleaseHandler {
-  ~DefaultContextReleaseHandler() {
-    GlobalHandler::instance().releaseDefaultContexts();
-  }
-};
-
-void GlobalHandler::registerDefaultContextReleaseHandler() {
-  static DefaultContextReleaseHandler handler{};
 }
 
 // Note: Split from shutdown so it is available to the unittests for ensuring
@@ -235,8 +229,7 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
   // Perform actions based on the reason for calling.
   switch (fdwReason) {
   case DLL_PROCESS_DETACH:
-    if (!lpReserved)
-      shutdown();
+    shutdown();
     break;
   case DLL_PROCESS_ATTACH:
   case DLL_THREAD_ATTACH:

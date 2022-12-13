@@ -31,6 +31,8 @@
 #include <string>
 #include <vector>
 
+// #include <windows.h>
+
 #define CHECK_ERR_SET_NULL_RET(err, ptr, reterr)                               \
   if (err != CL_SUCCESS) {                                                     \
     if (ptr != nullptr)                                                        \
@@ -1669,5 +1671,4 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   return PI_SUCCESS;
 }
-
 } // end extern 'C'

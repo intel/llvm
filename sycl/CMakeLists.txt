@@ -334,6 +334,8 @@ add_subdirectory( plugins )
 
 add_subdirectory(tools)
 
+add_subdirectory(win_proxy_loader)
+
 if(SYCL_INCLUDE_TESTS)
   if(NOT LLVM_INCLUDE_TESTS)
       message(FATAL_ERROR
@@ -443,6 +445,7 @@ if("esimd_emulator" IN_LIST SYCL_ENABLE_PLUGINS)
     list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-sos)
   endif()
 endif()
+
 
 # Use it as fake dependency in order to force another command(s) to execute.
 add_custom_command(OUTPUT __force_it
