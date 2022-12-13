@@ -3,12 +3,30 @@
 typedef float float4 __attribute__((ext_vector_type(4)));
 typedef float float8 __attribute__((ext_vector_type(8)));
 
-// CHECK-LABEL:   func.func @_Z13test_constantv() -> vector<8xf32>
+// CHECK-LABEL:   func.func @_Z15test_constant_1v() -> vector<8xf32>
 // CHECK-NEXT:      %[[VAL_0:.*]] = arith.constant dense<[0.000000e+00, 1.000000e+00, 2.000000e+00, 3.000000e+00, 4.000000e+00, 5.000000e+00, 6.000000e+00, 7.000000e+00]> : vector<8xf32>
 // CHECK-NEXT:      return %[[VAL_0]] : vector<8xf32>
 // CHECK-NEXT:    }
-float8 test_constant() {
+float8 test_constant_1() {
   return {0, 1, 2, 3, 4, 5, 6, 7};
+}
+
+// CHECK-LABEL:   func.func @_Z15test_constant_2v() -> vector<8xf32>
+// CHECK-NEXT:      %[[VAL_0:.*]] = arith.constant dense<[0.000000e+00, 1.000000e+00, 2.000000e+00, 3.000000e+00, 4.000000e+00, 5.000000e+00, 6.000000e+00, 7.000000e+00]> : vector<8xf32>
+// CHECK-NEXT:      return %[[VAL_0]] : vector<8xf32>
+// CHECK-NEXT:    }
+float8 test_constant_2() {
+  auto t = float8{0, 1, 2, 3, 4, 5, 6, 7};
+  return t;
+}
+
+// CHECK-LABEL:   func.func @_Z15test_constant_3v() -> vector<8xf32>
+// CHECK-NEXT:      %[[VAL_0:.*]] = arith.constant dense<[0.000000e+00, 1.000000e+00, 2.000000e+00, 3.000000e+00, 4.000000e+00, 5.000000e+00, 6.000000e+00, 7.000000e+00]> : vector<8xf32>
+// CHECK-NEXT:      return %[[VAL_0]] : vector<8xf32>
+// CHECK-NEXT:    }
+float8 test_constant_3() {
+  float8 t{0, 1, 2, 3, 4, 5, 6, 7};
+  return t;
 }
 
 // CHECK-LABEL:   func.func @_Z9test_eachffffffff(
