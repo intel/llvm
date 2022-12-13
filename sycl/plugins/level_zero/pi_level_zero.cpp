@@ -626,6 +626,7 @@ inline static pi_result createEventAndAssociateQueue(
   (*Event)->Queue = Queue;
   (*Event)->CommandType = CommandType;
   (*Event)->IsDiscarded = IsInternal;
+  (*Event)->CommandList = CommandList;
   // Discarded event doesn't own ze_event, it is used by multiple pi_event
   // objects. We destroy corresponding ze_event by releasing events from the
   // events cache at queue destruction. Event in the cache owns the Level Zero
@@ -1001,25 +1002,26 @@ bool pi_command_list_info_t::isCopy(pi_queue Queue) const {
 
 bool _pi_queue::isInOrderQueue() const {
   // If out-of-order queue property is not set, then this is a in-order queue.
-  return ((this->Properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) == 0);
+  return ((this->Properties & PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) ==
+          0);
 }
 
 bool _pi_queue::isDiscardEvents() const {
-  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS) != 0);
+  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS) != 0);
 }
 
 bool _pi_queue::isPriorityLow() const {
-  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW) != 0);
+  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW) != 0);
 }
 
 bool _pi_queue::isPriorityHigh() const {
-  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH) != 0);
+  return ((this->Properties & PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH) != 0);
 }
 
-pi_result
-_pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
-                            bool MakeAvailable,
-                            std::vector<pi_event> &EventListToCleanup) {
+pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
+                                      bool MakeAvailable,
+                                      std::vector<pi_event> &EventListToCleanup,
+                                      bool CheckStatus) {
   bool UseCopyEngine = CommandList->second.isCopy(this);
 
   // Immediate commandlists do not have an associated fence.
@@ -1033,25 +1035,37 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   }
 
   auto &EventList = CommandList->second.EventList;
-  // Check if standard commandlist
-  if (CommandList->second.ZeFence != nullptr) {
+  // Check if standard commandlist or fully synced in-order queue.
+  // If one of those conditions is met then we are sure that all events are
+  // completed so we don't need to check event status.
+  if (!CheckStatus || CommandList->second.ZeFence != nullptr ||
+      (isInOrderQueue() && !LastCommandEvent)) {
     // Remember all the events in this command list which needs to be
     // released/cleaned up and clear event list associated with command list.
     std::move(std::begin(EventList), std::end(EventList),
               std::back_inserter(EventListToCleanup));
     EventList.clear();
-  } else {
+  } else if (!isDiscardEvents()) {
     // For immediate commandlist reset only those events that have signalled.
+    // If events in the queue are discarded then we can't check their status.
     for (auto it = EventList.begin(); it != EventList.end();) {
       std::scoped_lock<pi_shared_mutex> EventLock((*it)->Mutex);
       ze_result_t ZeResult =
-          ZE_CALL_NOCHECK(zeEventQueryStatus, ((*it)->ZeEvent));
-      if (ZeResult == ZE_RESULT_SUCCESS) {
-        EventListToCleanup.push_back(std::move((*it)));
-        it = EventList.erase(it);
-      } else {
-        it++;
-      }
+          (*it)->Completed ? ZE_RESULT_SUCCESS : ZE_CALL_NOCHECK(zeEventQueryStatus, ((*it)->ZeEvent));
+      // Break early as soon as we found first incomplete event because next
+      // events are submitted even later. We are not trying to find all
+      // completed events here because it may be costly. I.e. we are checking
+      // only elements which are most likely completed because they were
+      // submitted earlier. It is guaranteed that all events will be eventually
+      // cleaned up at queue sync/release.
+      if (ZeResult == ZE_RESULT_NOT_READY)
+        break;
+
+      if (ZeResult != ZE_RESULT_SUCCESS)
+        return mapError(ZeResult);
+
+      EventListToCleanup.push_back(std::move((*it)));
+      it = EventList.erase(it);
     }
   }
 
@@ -1198,7 +1212,8 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
                      std::vector<ze_command_queue_handle_t> &CopyQueues,
                      pi_context Context, pi_device Device,
                      bool OwnZeCommandQueue,
-                     pi_queue_properties PiQueueProperties)
+                     pi_queue_properties PiQueueProperties,
+                     int ForceComputeIndex)
     : Context{Context}, Device{Device}, OwnZeCommandQueue{OwnZeCommandQueue},
       Properties(PiQueueProperties) {
 
@@ -1214,9 +1229,19 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
         ComputeQueueGroup.ZeQueues.size(), CommandListMap.end());
   }
   if (ComputeQueueGroupInfo.ZeIndex >= 0) {
+    // Sub-sub-device
+
+    // sycl::ext::intel::property::queue::compute_index works with any
+    // backend/device by allowing single zero index if multiple compute CCSes
+    // are not supported. Sub-sub-device falls into the same bucket.
+    assert(ForceComputeIndex <= 0);
     ComputeQueueGroup.LowerIndex = ComputeQueueGroupInfo.ZeIndex;
     ComputeQueueGroup.UpperIndex = ComputeQueueGroupInfo.ZeIndex;
     ComputeQueueGroup.NextIndex = ComputeQueueGroupInfo.ZeIndex;
+  } else if (ForceComputeIndex >= 0) {
+    ComputeQueueGroup.LowerIndex = ForceComputeIndex;
+    ComputeQueueGroup.UpperIndex = ForceComputeIndex;
+    ComputeQueueGroup.NextIndex = ForceComputeIndex;
   } else {
     // Set-up to round-robin across allowed range of engines.
     uint32_t FilterLowerIndex = getRangeOfAllowedComputeEngines().first;
@@ -1287,9 +1312,93 @@ CleanupEventListFromResetCmdList(std::vector<pi_event> &EventListToCleanup,
   return PI_SUCCESS;
 }
 
-// Reset signalled command lists in the queue and put them to the cache of
-// command lists. A caller must not lock the queue mutex.
-pi_result resetCommandLists(pi_queue Queue) {
+/// @brief Cleanup events in the immediate lists of the queue.
+/// @param Queue Queue where events need to be cleaned up.
+/// @param QueueLocked Indicates if the queue mutex is locked by caller.
+/// @param QueueSynced 'true' if queue was synchronized before the
+/// call and no other commands were submitted after synchronization, 'false'
+/// otherwise.
+/// @param CompletedEvent Hint providing an event which was synchronized before
+/// the call, in case of in-order queue it allows to cleanup all preceding
+/// events.
+/// @return PI_SUCCESS if successful, PI error code otherwise.
+static pi_result CleanupEventsInImmCmdLists(pi_queue Queue,
+                                            bool QueueLocked = false,
+                                            bool QueueSynced = false,
+                                            pi_event CompletedEvent = nullptr) {
+  // Handle only immediate command lists here.
+  if (!Queue || !Queue->Device->useImmediateCommandLists())
+    return PI_SUCCESS;
+
+  std::vector<pi_event> EventListToCleanup;
+  {
+    std::unique_lock<pi_shared_mutex> QueueLock(Queue->Mutex, std::defer_lock);
+    if (!QueueLocked)
+      QueueLock.lock();
+    // If queue is locked and fully synchronized then cleanup all events.
+    // If queue is not locked then by this time there may be new submitted
+    // commands so we can't do full cleanup.
+    if (QueueLocked &&
+        (QueueSynced || (Queue->isInOrderQueue() &&
+                         (CompletedEvent == Queue->LastCommandEvent ||
+                          !Queue->LastCommandEvent)))) {
+      Queue->LastCommandEvent = nullptr;
+      for (auto &&It = Queue->CommandListMap.begin();
+           It != Queue->CommandListMap.end(); ++It) {
+        PI_CALL(Queue->resetCommandList(It, true, EventListToCleanup,
+                                        /* CheckStatus */ false));
+      }
+    } else if (Queue->isInOrderQueue() && CompletedEvent) {
+      // If the queue is in-order and we have information about completed event
+      // then cleanup all events in the command list preceding to CompletedEvent
+      // including itself.
+
+      // Check that the comleted event has associated command list.
+      if (!(CompletedEvent->CommandList &&
+            CompletedEvent->CommandList.value() != Queue->CommandListMap.end()))
+        return PI_SUCCESS;
+
+      auto &CmdListEvents =
+          CompletedEvent->CommandList.value()->second.EventList;
+      auto CompletedEventIt =
+          std::find(CmdListEvents.begin(), CmdListEvents.end(), CompletedEvent);
+      if (CompletedEventIt != CmdListEvents.end()) {
+        // We can cleanup all events prior to the completed event in this
+        // command list and completed event itself.
+        // TODO: we can potentially cleanup more events here by finding
+        // completed events on another command lists, but it is currently not
+        // implemented.
+        std::move(std::begin(CmdListEvents), CompletedEventIt + 1,
+                  std::back_inserter(EventListToCleanup));
+        CmdListEvents.erase(CmdListEvents.begin(), CompletedEventIt + 1);
+      }
+    } else {
+      // Fallback to resetCommandList over all command lists.
+      for (auto &&It = Queue->CommandListMap.begin();
+           It != Queue->CommandListMap.end(); ++It) {
+        PI_CALL(Queue->resetCommandList(It, true, EventListToCleanup,
+                                        /* CheckStatus */ true));
+      }
+    }
+  }
+  PI_CALL(CleanupEventListFromResetCmdList(EventListToCleanup, QueueLocked));
+  return PI_SUCCESS;
+}
+
+/// @brief Reset signalled command lists in the queue and put them to the cache
+/// of command lists. Also cleanup events associated with signalled command
+/// lists. Queue must not be locked by the caller.
+/// @param Queue Queue where we look for signalled command lists and cleanup
+/// events.
+/// @return PI_SUCCESS if successful, PI error code otherwise.
+static pi_result resetCommandLists(pi_queue Queue) {
+  // Handle immediate command lists here, they don't need to be reset and we
+  // only need to cleanup events.
+  if (Queue->Device->useImmediateCommandLists()) {
+    PI_CALL(CleanupEventsInImmCmdLists(Queue));
+    return PI_SUCCESS;
+  }
+
   // We need events to be cleaned up out of scope where queue is locked to avoid
   // nested locks, because event cleanup requires event to be locked. Nested
   // locks are hard to control and can cause deadlocks if mutexes are locked in
@@ -1303,21 +1412,19 @@ pi_result resetCommandLists(pi_queue Queue) {
     // signalled, then the command list & fence are reset and command list is
     // returned to the command list cache. All events associated with command
     // list are cleaned up if command list was reset.
-    std::scoped_lock<pi_shared_mutex> Lock(Queue->Mutex);
+    std::unique_lock<pi_shared_mutex> QueueLock(Queue->Mutex);
     for (auto &&it = Queue->CommandListMap.begin();
          it != Queue->CommandListMap.end(); ++it) {
-      // Immediate commandlists don't use a fence but still need reset.
-      if (it->second.ZeFence == nullptr) {
-        PI_CALL(Queue->resetCommandList(it, true, EventListToCleanup));
-      } else {
-        // It is possible that the fence was already noted as signalled and
-        // reset. In that case the ZeFenceInUse flag will be false.
-        if (it->second.ZeFenceInUse) {
-          ze_result_t ZeResult =
-              ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
-          if (ZeResult == ZE_RESULT_SUCCESS)
-            PI_CALL(Queue->resetCommandList(it, true, EventListToCleanup));
-        }
+      // Immediate commandlists don't use a fence and are handled separately
+      // above.
+      assert(it->second.ZeFence != nullptr);
+      // It is possible that the fence was already noted as signalled and
+      // reset. In that case the ZeFenceInUse flag will be false.
+      if (it->second.ZeFenceInUse) {
+        ze_result_t ZeResult =
+            ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
+        if (ZeResult == ZE_RESULT_SUCCESS)
+          PI_CALL(Queue->resetCommandList(it, true, EventListToCleanup));
       }
     }
   }
@@ -2939,8 +3046,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // TODO: To find out correct value
     return ReturnValue("");
   case PI_DEVICE_INFO_QUEUE_PROPERTIES:
-    return ReturnValue(pi_queue_properties{
-        PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE | PI_QUEUE_PROFILING_ENABLE});
+    return ReturnValue(
+        pi_queue_properties{PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
+                            PI_QUEUE_FLAG_PROFILING_ENABLE});
   case PI_DEVICE_INFO_EXECUTION_CAPABILITIES:
     return ReturnValue(
         pi_device_exec_capabilities{PI_DEVICE_EXEC_CAPABILITIES_NATIVE_KERNEL});
@@ -3250,6 +3358,15 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
         std::min_element(Device->ZeDeviceMemoryProperties->begin(),
                          Device->ZeDeviceMemoryProperties->end(), Comp);
     return ReturnValue(pi_uint32{MinIt->maxBusWidth});
+  }
+  case PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
+    if (Device->QueueGroup[_pi_queue::queue_type::Compute].ZeIndex >= 0)
+      // Sub-sub-device represents a particular compute index already.
+      return ReturnValue(pi_int32{1});
+
+    auto ZeDeviceNumIndices = Device->QueueGroup[_pi_queue::queue_type::Compute]
+                                  .ZeProperties.numQueues;
+    return ReturnValue(pi_cast<pi_int32>(ZeDeviceNumIndices));
   }
   case PI_DEVICE_INFO_GPU_EU_COUNT: {
     pi_uint32 count = Device->ZeDeviceProperties->numEUsPerSubslice *
@@ -3621,16 +3738,33 @@ pi_result piContextRelease(pi_context Context) {
 }
 
 pi_result piQueueCreate(pi_context Context, pi_device Device,
-                        pi_queue_properties Properties, pi_queue *Queue) {
+                        pi_queue_properties Flags, pi_queue *Queue) {
+  pi_queue_properties Properties[] = {PI_QUEUE_FLAGS, Flags, 0};
+  return piextQueueCreate(Context, Device, Properties, Queue);
+}
+pi_result piextQueueCreate(pi_context Context, pi_device Device,
+                           pi_queue_properties *Properties, pi_queue *Queue) {
+  PI_ASSERT(Properties, PI_ERROR_INVALID_VALUE);
+  // Expect flags mask to be passed first.
+  PI_ASSERT(Properties[0] == PI_QUEUE_FLAGS, PI_ERROR_INVALID_VALUE);
+  pi_queue_properties Flags = Properties[1];
+
+  PI_ASSERT(Properties[2] == 0 ||
+                (Properties[2] == PI_QUEUE_COMPUTE_INDEX && Properties[4] == 0),
+            PI_ERROR_INVALID_VALUE);
+  auto ForceComputeIndex = Properties[2] == PI_QUEUE_COMPUTE_INDEX
+                               ? static_cast<int>(Properties[3])
+                               : -1; // Use default/round-robin.
 
   // Check that unexpected bits are not set.
-  PI_ASSERT(!(Properties & ~(PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
-                             PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_ON_DEVICE |
-                             PI_QUEUE_ON_DEVICE_DEFAULT |
-                             PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS |
-                             PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW |
-                             PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH)),
-            PI_ERROR_INVALID_VALUE);
+  PI_ASSERT(
+      !(Flags & ~(PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
+                  PI_QUEUE_FLAG_PROFILING_ENABLE | PI_QUEUE_FLAG_ON_DEVICE |
+                  PI_QUEUE_FLAG_ON_DEVICE_DEFAULT |
+                  PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS |
+                  PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW |
+                  PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH)),
+      PI_ERROR_INVALID_VALUE);
 
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
@@ -3660,7 +3794,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
 
   try {
     *Queue = new _pi_queue(ZeComputeCommandQueues, ZeCopyCommandQueues, Context,
-                           Device, true, Properties);
+                           Device, true, Flags, ForceComputeIndex);
   } catch (const std::bad_alloc &) {
     return PI_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -3976,8 +4110,10 @@ pi_result piQueueFinish(pi_queue Queue) {
     }
   }
   // Reset signalled command lists and return them back to the cache of
-  // available command lists.
-  resetCommandLists(Queue);
+  // available command lists. Events in the immediate command lists are cleaned
+  // up in synchronize().
+  if (!Queue->Device->useImmediateCommandLists())
+    resetCommandLists(Queue);
   return PI_SUCCESS;
 }
 
@@ -5778,6 +5914,7 @@ pi_result _pi_event::reset() {
   WaitList = {};
   RefCountExternal = 0;
   RefCount.reset();
+  CommandList = std::nullopt;
 
   if (!isHostVisible())
     HostVisibleEvent = nullptr;
@@ -5816,7 +5953,7 @@ void _pi_context::addEventToContextCache(pi_event Event) {
 static pi_result EventCreate(pi_context Context, pi_queue Queue,
                              bool HostVisible, pi_event *RetEvent) {
   bool ProfilingEnabled =
-      !Queue || (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
+      !Queue || (Queue->Properties & PI_QUEUE_FLAG_PROFILING_ENABLE) != 0;
 
   if (auto CachedEvent =
           Context->getEventFromContextCache(HostVisible, ProfilingEnabled)) {
@@ -5959,7 +6096,7 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
 
   std::shared_lock<pi_shared_mutex> EventLock(Event->Mutex);
   if (Event->Queue &&
-      (Event->Queue->Properties & PI_QUEUE_PROFILING_ENABLE) == 0) {
+      (Event->Queue->Properties & PI_QUEUE_FLAG_PROFILING_ENABLE) == 0) {
     return PI_ERROR_PROFILING_INFO_NOT_AVAILABLE;
   }
 
@@ -6110,6 +6247,7 @@ static pi_result CleanupCompletedEvent(pi_event Event, bool QueueLocked) {
   // code that preceded this implementation.
   while (!EventsToBeReleased.empty()) {
     pi_event DepEvent = EventsToBeReleased.front();
+    DepEvent->Completed = true;
     EventsToBeReleased.pop_front();
 
     pi_kernel DepEventKernel = nullptr;
@@ -6176,25 +6314,40 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
   std::unordered_set<pi_queue> Queues;
   for (uint32_t I = 0; I < NumEvents; I++) {
     {
-      std::shared_lock<pi_shared_mutex> EventLock(EventList[I]->Mutex);
-      if (!EventList[I]->hasExternalRefs())
-        die("piEventsWait must not be called for an internal event");
+      {
+        std::shared_lock<pi_shared_mutex> EventLock(EventList[I]->Mutex);
+        if (!EventList[I]->hasExternalRefs())
+          die("piEventsWait must not be called for an internal event");
 
-      if (!EventList[I]->Completed) {
-        auto HostVisibleEvent = EventList[I]->HostVisibleEvent;
-        if (!HostVisibleEvent)
-          die("The host-visible proxy event missing");
+        if (!EventList[I]->Completed) {
+          auto HostVisibleEvent = EventList[I]->HostVisibleEvent;
+          if (!HostVisibleEvent)
+            die("The host-visible proxy event missing");
 
-        ze_event_handle_t ZeEvent = HostVisibleEvent->ZeEvent;
-        zePrint("ZeEvent = %#lx\n", pi_cast<std::uintptr_t>(ZeEvent));
-        ZE_CALL(zeHostSynchronize, (ZeEvent));
+          ze_event_handle_t ZeEvent = HostVisibleEvent->ZeEvent;
+          zePrint("ZeEvent = %#lx\n", pi_cast<std::uintptr_t>(ZeEvent));
+          ZE_CALL(zeHostSynchronize, (ZeEvent));
+          EventList[I]->Completed = true;
+        }
       }
-      if (auto Q = EventList[I]->Queue)
-        Queues.insert(Q);
+      if (auto Q = EventList[I]->Queue) {
+        if (Q->Device->useImmediateCommandLists() && Q->isInOrderQueue())
+          // Use information about waited event to cleanup completed events in
+          // the in-order queue.
+          CleanupEventsInImmCmdLists(EventList[I]->Queue,
+                                     /* QueueLocked */ false,
+                                     /* QueueSynced */ false, EventList[I]);
+        else {
+          // NOTE: we are cleaning up after the event here to free resources
+          // sooner in case run-time is not calling piEventRelease soon enough.
+          CleanupCompletedEvent(EventList[I]);
+          // For the case when we have out-of-order queue or regular command
+          // lists its more efficient to check fences so put the queue in the
+          // set to cleanup later.
+          Queues.insert(Q);
+        }
+      }
     }
-    // NOTE: we are cleaning up after the event here to free resources
-    // sooner in case run-time is not calling piEventRelease soon enough.
-    CleanupCompletedEvent(EventList[I]);
   }
 
   // We waited some events above, check queue for signaled command lists and
@@ -6586,7 +6739,8 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
     }
   }
 
-  resetCommandLists(Queue);
+  if (!Queue->Device->useImmediateCommandLists())
+    resetCommandLists(Queue);
 
   return PI_SUCCESS;
 }
@@ -6856,6 +7010,11 @@ pi_result _pi_queue::synchronize() {
     ZE_CALL(zeHostSynchronize, (zeEvent));
     Event->Completed = true;
     PI_CALL(piEventRelease(Event));
+
+    // Cleanup all events from the synced command list.
+    auto EventListToCleanup = std::move(ImmCmdList->second.EventList);
+    ImmCmdList->second.EventList.clear();
+    CleanupEventListFromResetCmdList(EventListToCleanup, true);
     return PI_SUCCESS;
   };
 
@@ -6872,7 +7031,6 @@ pi_result _pi_queue::synchronize() {
       if (ZeQueue)
         ZE_CALL(zeHostSynchronize, (ZeQueue));
   }
-
   LastCommandEvent = nullptr;
 
   // With the entire queue synchronized, the active barriers must be done so we
@@ -8086,30 +8244,7 @@ static pi_result USMSharedAllocImpl(void **ResultPtr, pi_context Context,
                 reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0,
             PI_ERROR_INVALID_VALUE);
 
-  // See if the memory is going to be read-only on the device.
-  bool DeviceReadOnly = false;
-  // Check that incorrect bits are not set in the properties.
-  if (Properties && *Properties != 0) {
-    PI_ASSERT(*(Properties) == PI_MEM_ALLOC_FLAGS && *(Properties + 2) == 0,
-              PI_ERROR_INVALID_VALUE);
-    DeviceReadOnly = *(Properties + 1) & PI_MEM_ALLOC_DEVICE_READ_ONLY;
-  }
-  if (!DeviceReadOnly)
-    return PI_SUCCESS;
-
-  // For read-only memory, let L0 know about that by using advises.
-
-  // zeCommandListAppendMemAdvise must not be called from simultaneous threads
-  // with the same command list handle.
-  std::scoped_lock<pi_mutex> Lock(Context->ImmediateCommandListMutex);
-
-  // TODO: Underlying Level Zero runtime doesn't have a way to communicate
-  // read-only property yet.
-
-  ZE_CALL(zeCommandListAppendMemAdvise,
-          (Context->ZeCommandListInit, Device->ZeDevice, *ResultPtr, Size,
-           ZE_MEMORY_ADVICE_SET_PREFERRED_LOCATION));
-
+  // TODO: Handle PI_MEM_ALLOC_DEVICE_READ_ONLY.
   return PI_SUCCESS;
 }
 

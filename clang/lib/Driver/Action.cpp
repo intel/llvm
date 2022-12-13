@@ -567,6 +567,10 @@ void FileTableTformJobAction::addCopySingleFileTform(StringRef ColumnName,
       Tform(Tform::COPY_SINGLE_FILE, {ColumnName, std::to_string(Row)}));
 }
 
+void FileTableTformJobAction::addMergeTform(StringRef ColumnName) {
+  Tforms.emplace_back(Tform(Tform::MERGE, {ColumnName}));
+}
+
 void AppendFooterJobAction::anchor() {}
 
 AppendFooterJobAction::AppendFooterJobAction(Action *Input, types::ID Type)
