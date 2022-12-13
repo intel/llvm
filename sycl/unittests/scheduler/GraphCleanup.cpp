@@ -1,4 +1,4 @@
-//==--------- PostEnqueueCleanup.cpp --- Scheduler unit tests --------------==//
+//==--------- GraphCleanup.cpp --- Scheduler unit tests --------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <memory>
+#include <mutex>
 #include <vector>
 
 using namespace sycl;
@@ -273,4 +274,27 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
                           ToCleanUp);
         EXPECT_TRUE(ToCleanUp.empty());
       });
+}
+
+TEST_F(SchedulerTest, HostTaskCleanup) {
+  unittest::PiMock Mock;
+  platform Plt = Mock.getPlatform();
+
+  context Ctx{Plt};
+  queue Queue{Ctx, default_selector_v};
+
+  std::mutex Mutex;
+  std::unique_lock Lock{Mutex};
+  event Event = Queue.submit([&](sycl::handler &cgh) { cgh.host_task([&]() { std::unique_lock Lock{Mutex};}); });
+  detail::EventImplPtr EventImpl = detail::getSyclObjImpl(Event);
+
+  // Unlike other commands, host task should be kept alive until its
+  // completion.
+  auto *Cmd = static_cast<detail::Command*>(EventImpl->getCommand());
+  ASSERT_NE(Cmd, nullptr);
+  EXPECT_TRUE(Cmd->isSuccessfullyEnqueued());
+
+  Lock.unlock();
+  Event.wait();
+  ASSERT_EQ(EventImpl->getCommand(), nullptr);
 }
