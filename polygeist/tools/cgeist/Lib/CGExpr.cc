@@ -903,8 +903,9 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *Cons,
   /// that we still generate some constructors that we need for lowering some
   /// sycl op.  Therefore, in those case, we set ShouldEmit back to "true" by
   /// looking them up in our "registry" of supported constructors.
-  const auto IsSyclCtor = static_cast<bool>(
-      mlirclang::isNamespaceSYCL(CtorDecl->getEnclosingNamespaceContext()));
+  const auto IsSyclCtor =
+      mlirclang::getNamespaceKind(CtorDecl->getEnclosingNamespaceContext()) !=
+      mlirclang::NamespaceKind::Other;
   bool ShouldEmit = !IsSyclCtor;
 
   std::string MangledName = MLIRScanner::getMangledFuncName(
@@ -1123,8 +1124,8 @@ MLIRScanner::emitSYCLOps(const clang::Expr *Expr,
   if (const auto *ConsExpr = dyn_cast<clang::CXXConstructExpr>(Expr)) {
     Func = ConsExpr->getConstructor()->getAsFunction();
 
-    if (static_cast<bool>(
-            mlirclang::isNamespaceSYCL(Func->getEnclosingNamespaceContext()))) {
+    if (mlirclang::getNamespaceKind(Func->getEnclosingNamespaceContext()) !=
+        mlirclang::NamespaceKind::Other) {
       const auto *RD = dyn_cast<clang::CXXRecordDecl>(Func->getParent());
       if (RD && mlirclang::areSYCLMemberFunctionOrConstructorArgs(
                     ValueRange{Args}.getTypes())) {
@@ -1142,8 +1143,8 @@ MLIRScanner::emitSYCLOps(const clang::Expr *Expr,
     Func = CallExpr->getCalleeDecl()->getAsFunction();
 
   if (Func)
-    if (static_cast<bool>(
-            mlirclang::isNamespaceSYCL(Func->getEnclosingNamespaceContext()))) {
+    if (mlirclang::getNamespaceKind(Func->getEnclosingNamespaceContext()) !=
+        mlirclang::NamespaceKind::Other) {
       auto OptFuncType = llvm::Optional<llvm::StringRef>{llvm::None};
       if (const auto *RD = dyn_cast<clang::CXXRecordDecl>(Func->getParent()))
         if (!RD->getName().empty())

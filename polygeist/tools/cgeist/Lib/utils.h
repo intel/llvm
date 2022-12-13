@@ -50,13 +50,10 @@ namespace mlirclang {
 
 /// Whether the parent namespace is the sycl namespace, a namespace within it or
 /// not.
-enum class IsNamespaceSYCLResult {
-  /// The parent namespace is not the sycl namespace.
-  False = 0,
-  /// The parent namespace is the sycl namespace.
-  True,
-  /// The parent namespace is within the sycl namespace.
-  WithinSYCL,
+enum class NamespaceKind {
+  Other = 0,  /// namespace is not 'sycl'
+  SYCL,       /// the 'sycl' namespace
+  WithinSYCL, /// nested in the sycl namespace
 };
 
 /// Replace the given function by the operation with the given name, and use the
@@ -70,7 +67,7 @@ replaceFuncByOperation(mlir::func::FuncOp F, llvm::StringRef OpName,
                        llvm::SmallVectorImpl<mlir::Value> &Input,
                        llvm::SmallVectorImpl<mlir::Value> &Output);
 
-IsNamespaceSYCLResult isNamespaceSYCL(const clang::DeclContext *DC);
+NamespaceKind getNamespaceKind(const clang::DeclContext *DC);
 
 /// Return the insertion context of the input builder.
 FunctionContext getInputContext(const mlir::OpBuilder &Builder);

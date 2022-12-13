@@ -1116,8 +1116,9 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
   /// that we still generate some functions that we need for lowering some
   /// sycl op.  Therefore, in those case, we set ShouldEmit back to "true" by
   /// looking them up in our "registry" of supported functions.
-  const auto IsSyclFunc = static_cast<bool>(
-      mlirclang::isNamespaceSYCL(Callee->getEnclosingNamespaceContext()));
+  const auto IsSyclFunc =
+      mlirclang::getNamespaceKind(Callee->getEnclosingNamespaceContext()) !=
+      mlirclang::NamespaceKind::Other;
   bool ShouldEmit = !IsSyclFunc;
 
   std::string MangledName =

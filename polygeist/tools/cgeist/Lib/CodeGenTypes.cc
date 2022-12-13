@@ -1344,9 +1344,9 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     }
 
     const auto *RD = RT->getAsRecordDecl();
-    if (const mlirclang::IsNamespaceSYCLResult IsNamespaceSYCL =
-            mlirclang::isNamespaceSYCL(RD->getEnclosingNamespaceContext());
-        static_cast<bool>(IsNamespaceSYCL)) {
+    if (const mlirclang::NamespaceKind IsNamespaceSYCL =
+            mlirclang::getNamespaceKind(RD->getEnclosingNamespaceContext());
+        IsNamespaceSYCL != mlirclang::NamespaceKind::Other) {
       const auto TypeName = RD->getName();
       if (TypeName == "accessor" || TypeName == "accessor_common" ||
           TypeName == "AccessorImplDevice" || TypeName == "AccessorSubscript" ||
@@ -1368,7 +1368,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
         return getSYCLType(RT, *this);
 
       assert((AllowUndefinedSYCLTypes ||
-              IsNamespaceSYCL != IsNamespaceSYCLResult::True) &&
+              IsNamespaceSYCL != mlirclang::NamespaceKind::SYCL) &&
              "Found type in the sycl namespace, but not in the SYCL dialect");
     }
 
