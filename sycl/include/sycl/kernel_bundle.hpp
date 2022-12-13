@@ -261,10 +261,6 @@ public:
     return detail::kernel_bundle_plain::get_kernel(KernelID);
   }
 
-  // This guard is needed because the libsycl.so can compiled with C++ <=14
-  // while the code requires C++17. This code is not supposed to be used by the
-  // libsycl.so so it should not be a problem.
-#if __cplusplus >= 201703L
   /// \returns true if any device image in the kernel_bundle uses specialization
   /// constant whose address is SpecName
   template <auto &SpecName> bool has_specialization_constant() const noexcept {
@@ -302,7 +298,6 @@ public:
 
     return *reinterpret_cast<SCType *>(RetValue.data());
   }
-#endif
 
   /// \returns an iterator to the first device image kernel_bundle contains
   device_image_iterator begin() const {
@@ -345,9 +340,8 @@ private:
     return ReturnValue;
   }
 };
-#if __cplusplus >= 201703L
-template <bundle_state State> kernel_bundle(kernel_bundle<State> &&) -> kernel_bundle<State>;
-#endif
+template <bundle_state State>
+kernel_bundle(kernel_bundle<State> &&) -> kernel_bundle<State>;
 
 /////////////////////////
 // get_kernel_id API

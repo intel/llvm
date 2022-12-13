@@ -13,19 +13,15 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace property {
-namespace queue {
+namespace property::queue {
 class in_order : public detail::DataLessProperty<detail::InOrder> {};
 class enable_profiling
     : public detail::DataLessProperty<detail::QueueEnableProfiling> {};
-} // namespace queue
-} // namespace property
+} // namespace property::queue
 
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 
-namespace property {
-namespace queue {
+namespace property::queue {
 class discard_events
     : public ::sycl::detail::DataLessProperty<::sycl::detail::DiscardEvents> {};
 
@@ -37,22 +33,15 @@ class priority_low
 class priority_high
     : public sycl::detail::DataLessProperty<sycl::detail::QueuePriorityHigh> {};
 
-} // namespace queue
-} // namespace property
+} // namespace property::queue
 
-namespace cuda {
-namespace property {
-namespace queue {
+namespace cuda::property::queue {
 class use_default_stream : public ::sycl::detail::DataLessProperty<
                                ::sycl::detail::UseDefaultStream> {};
-} // namespace queue
-} // namespace property
-} // namespace cuda
-} // namespace oneapi
-} // namespace ext
+} // namespace cuda::property::queue
+} // namespace ext::oneapi
 
-namespace property {
-namespace queue {
+namespace property ::queue {
 namespace __SYCL2020_DEPRECATED(
     "use 'sycl::ext::oneapi::cuda::property::queue' instead") cuda {
 class use_default_stream
@@ -60,8 +49,7 @@ class use_default_stream
 // clang-format off
 } // namespace cuda
 // clang-format on
-} // namespace queue
-} // namespace property
+} // namespace property::queue
 
 // Forward declaration
 class queue;

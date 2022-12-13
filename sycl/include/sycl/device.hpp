@@ -35,12 +35,10 @@ class device_impl;
 auto getDeviceComparisonLambda();
 } // namespace detail
 
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 // Forward declaration
 class filter_selector;
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 /// The SYCL device class encapsulates a single SYCL device on which kernels
 /// may be executed.
@@ -67,7 +65,6 @@ public:
                         "use SYCL 2020 device selectors instead.")
   explicit device(const device_selector &DeviceSelector);
 
-#if __cplusplus >= 201703L
   /// Constructs a SYCL device instance using the device
   /// identified by the device selector provided.
   /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
@@ -77,7 +74,6 @@ public:
                 detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
   explicit device(const DeviceSelector &deviceSelector)
       : device(detail::select_device(deviceSelector)) {}
-#endif
 
   bool operator==(const device &rhs) const { return impl == rhs.impl; }
 
@@ -178,6 +174,19 @@ public:
   std::vector<device>
   create_sub_devices(info::partition_affinity_domain AffinityDomain) const;
 
+  /// Partition device into sub devices
+  ///
+  /// Available only when prop is
+  /// info::partition_property::ext_intel_partition_by_cslice. If this SYCL
+  /// device does not support
+  /// info::partition_property::ext_intel_partition_by_cslice a
+  /// feature_not_supported exception must be thrown.
+  ///
+  /// \return a vector class of sub devices partitioned from this SYCL
+  /// device at a granularity of "cslice" (compute slice).
+  template <info::partition_property prop>
+  std::vector<device> create_sub_devices() const;
+
   /// Queries this SYCL device for information requested by the template
   /// parameter param
   ///
@@ -230,9 +239,8 @@ private:
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend
-      typename detail::add_pointer_t<typename decltype(T::impl)::element_type>
-      detail::getRawSyclObjImpl(const T &SyclObject);
+  friend typename std::add_pointer_t<typename decltype(T::impl)::element_type>
+  detail::getRawSyclObjImpl(const T &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);

@@ -60,9 +60,14 @@
 // PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH queue properties.
 // 11.18 Add new parameter name PI_EXT_ONEAPI_QUEUE_INFO_EMPTY to
 // _pi_queue_info.
+// 12.19 Add new PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE piDevicePartition
+// scheme. Sub-sub-devices (representing compute slice) creation via
+// partitioning by affinity domain is disabled by default and can be temporarily
+// restored via SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING
+// environment variable.
 
-#define _PI_H_VERSION_MAJOR 11
-#define _PI_H_VERSION_MINOR 18
+#define _PI_H_VERSION_MAJOR 12
+#define _PI_H_VERSION_MINOR 19
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -630,6 +635,8 @@ static constexpr pi_device_partition_property
     PI_DEVICE_PARTITION_BY_COUNTS_LIST_END = 0x0;
 static constexpr pi_device_partition_property
     PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN = 0x1088;
+static constexpr pi_device_partition_property
+    PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE = 0x1089;
 
 // For compatibility with OpenCL define this not as enum.
 using pi_device_affinity_domain = pi_bitfield;

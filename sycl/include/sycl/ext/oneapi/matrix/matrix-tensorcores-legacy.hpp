@@ -1,4 +1,4 @@
-//===---- matrix-tensorcore.hpp - SYCL tensor cores matrix ----*- C++ -*---===//
+//===-------------- matrix-tensorcores-legacy.hpp - -----------*- C++ -*---===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,10 +12,8 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
-namespace matrix {
+namespace ext::oneapi {
+namespace experimental::matrix {
 
 enum class matrix_use { a, b, accumulator };
 
@@ -173,8 +171,7 @@ joint_matrix_fill(Group sg,
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
-} // namespace matrix
-} // namespace experimental
+} // namespace experimental::matrix
 
 namespace detail {
 
@@ -205,7 +202,6 @@ constexpr int get_layout_id<
   return 1;
 }
 
-#if __cplusplus >= 201703L // if constexpr usage
 template <typename S, typename T,
           sycl::ext::oneapi::experimental::matrix::matrix_use Use,
           size_t NumRows, size_t NumCols,
@@ -386,7 +382,6 @@ struct joint_matrix_load_impl<
     }
   }
 };
-#endif // __cplusplus >= 201703L
 
 template <typename T, size_t NumRows, size_t NumCols,
           sycl::ext::oneapi::experimental::matrix::matrix_layout Layout,
@@ -400,7 +395,6 @@ struct joint_matrix_store_impl {
         multi_ptr<T, Space, IsDecorated> dst, size_t stride);
 };
 
-#if __cplusplus >= 201703L // if constexpr usage
 template <typename T, size_t NumRows, size_t NumCols,
           sycl::ext::oneapi::experimental::matrix::matrix_layout Layout,
           access::address_space Space, access::decorated IsDecorated>
@@ -464,7 +458,6 @@ struct joint_matrix_store_impl<
     }
   }
 };
-#endif // __cplusplus >= 201703L
 
 template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
           sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutA,
@@ -521,7 +514,6 @@ constexpr int get_layout_pair_id<
   return 3;
 }
 
-#if __cplusplus >= 201703L // if constexpr usage
 template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
           sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutA,
           sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutB,
@@ -687,12 +679,9 @@ struct joint_matrix_mad_impl<
     return D;
   }
 };
-#endif // __cplusplus >= 201703L
-
 } // namespace detail
 
-namespace experimental {
-namespace matrix {
+namespace experimental::matrix {
 
 template <
     typename Group, typename S, typename T, matrix_use Use, size_t NumRows,
@@ -783,9 +772,7 @@ inline __SYCL_ALWAYS_INLINE float round_to_tf32(float a) {
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
-} // namespace matrix
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace experimental::matrix
+} // namespace ext::oneapi
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
