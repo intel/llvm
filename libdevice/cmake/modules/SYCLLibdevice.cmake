@@ -37,8 +37,9 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   # freshly built clang. The system one might be very old.
   get_filename_component(gcc_bin_dir ${CMAKE_CXX_COMPILER} DIRECTORY)
   get_filename_component(gcc_install_dir ${gcc_bin_dir} DIRECTORY)
-  # /bin/g++ doesn't need any fixup.
-  if (NOT gcc_install_dir STREQUAL "/")
+  # /bin/g++ doesn't need any fixup. We also need to check that ccache is
+  # not being used.
+  if (NOT gcc_install_dir STREQUAL "/" AND NOT gcc_bin_dir MATCHES "ccache")
     list(APPEND compile_opts "--gcc-toolchain=${gcc_install_dir}")
   endif()
 endif()

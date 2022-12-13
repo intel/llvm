@@ -20,5 +20,6 @@ clang_target_link_libraries(libclc-remangler
   clangBasic
   clangFrontend
   clangTooling
+  clangSerialization
   LLVMOption
   )

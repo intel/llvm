@@ -17,10 +17,8 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace intel {
-namespace experimental {
-namespace esimd {
+namespace ext::intel {
+namespace experimental::esimd {
 
 /// @addtogroup sycl_esimd_memory
 /// @{
@@ -1813,8 +1811,7 @@ __ESIMD_API void lsc_fence(__ESIMD_NS::simd_mask<N> pred = 1) {
 
 /// @} sycl_esimd_memory_lsc
 
-} // namespace esimd
-} // namespace experimental
+} // namespace experimental::esimd
 
 namespace esimd {
 
@@ -1874,7 +1871,6 @@ __ESIMD_API simd<T, N> atomic_update(T *p, simd_view<Toffset, RegionTy> offsets,
 }
 
 } // namespace esimd
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

@@ -249,6 +249,7 @@ variables in production code.</span>
 | `SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_FILL` | Integer | When set to a positive value enables use of a copy engine for memory fill operations. Default is 0. |
 | `SYCL_PI_LEVEL_ZERO_SINGLE_ROOT_DEVICE_BUFFER_MIGRATION` | Integer | When set to "0" tells to use single root-device allocation for all devices in a context where all devices have same root. Otherwise performs regular buffer migration. Default is 1. |
 | `SYCL_PI_LEVEL_ZERO_REUSE_DISCARDED_EVENTS` | Integer |  When set to a positive value enables the mode when discarded Level Zero events are reset and reused in scope of the same in-order queue based on the dependency chain between commands. Default is 1. |
+| `SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING` (Deprecated) | Integer | When set to non-zero value exposes compute slices as sub-sub-devices in `sycl::info::partition_property::partition_by_affinity_domain` partitioning scheme. Default is zero meaning that they are only exposed when partitioning by `sycl::info::partition_property::ext_intel_partition_by_cslice`. This option is introduced for compatibility reasons and is immediately deprecated. New code must not rely on this behavior. Also note that even if sub-sub-device was created using `partition_by_affinity_domain` it would still be reported as created via partitioning by compute slices. |
 
 ## Debugging variables for CUDA Plugin
 

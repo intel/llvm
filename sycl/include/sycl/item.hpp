@@ -45,7 +45,7 @@ template <int dimensions = 1, bool with_offset = true> class item {
   class __private_class;
 
   template <bool B, typename T>
-  using EnableIfT = detail::conditional_t<B, T, __private_class>;
+  using EnableIfT = std::conditional_t<B, T, __private_class>;
 #endif // __SYCL_DISABLE_ITEM_TO_INT_CONV__
 public:
   item() = delete;
@@ -152,9 +152,7 @@ item<Dims> this_item() {
 #endif
 }
 
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 template <int Dims> item<Dims> this_item() {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::Builder::getElement(sycl::detail::declptr<item<Dims>>());
@@ -164,8 +162,6 @@ template <int Dims> item<Dims> this_item() {
       "Free function calls are not supported on host device");
 #endif
 }
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

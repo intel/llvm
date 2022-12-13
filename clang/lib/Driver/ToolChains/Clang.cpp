@@ -4782,7 +4782,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                     options::OPT_no_offload_new_driver, false));
 
   bool IsRDCMode =
-      Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, false);
+      Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, IsSYCL);
   bool IsUsingLTO = D.isUsingLTO(IsDeviceOffloadAction);
   auto LTOMode = D.getLTOMode(IsDeviceOffloadAction);
   bool IsFPGASYCLOffloadDevice =
@@ -5090,10 +5090,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // between device and host where we should be able to use the offloading
     // arch to add the macro to the host compile.
     auto addTargetMacros = [&](const llvm::Triple &Triple) {
-      if (!Triple.isSPIR())
+      if (!Triple.isSPIR() && !Triple.isNVPTX() && !Triple.isAMDGCN())
         return;
       SmallString<64> Macro;
-      if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
+      if ((Triple.isSPIR() &&
+           Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) ||
+          Triple.isNVPTX() || Triple.isAMDGCN()) {
         StringRef Device = JA.getOffloadingArch();
         if (!Device.empty()) {
           Macro = "-D";
@@ -6918,9 +6920,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                       options::OPT_fno_hip_kernel_arg_name);
   }
 
-  if (IsCuda || IsHIP) {
+  if (IsCuda || IsHIP || IsSYCL) {
     if (IsRDCMode)
       CmdArgs.push_back("-fgpu-rdc");
+    else
+      CmdArgs.push_back("-fno-gpu-rdc");
+  }
+  if (IsCuda || IsHIP) {
     if (Args.hasFlag(options::OPT_fgpu_defer_diag,
                      options::OPT_fno_gpu_defer_diag, false))
       CmdArgs.push_back("-fgpu-defer-diag");
@@ -9765,6 +9771,13 @@ void FileTableTform::ConstructJob(Compilation &C, const JobAction &JA,
       Arg += Tf.TheArgs[0];
       Arg += ",";
       Arg += Tf.TheArgs[1];
+      addArgs(CmdArgs, TCArgs, {Arg});
+      break;
+    }
+    case FileTableTformJobAction::Tform::MERGE: {
+      assert(Tf.TheArgs.size() == 1 && "column name expected");
+      SmallString<128> Arg("-merge=");
+      Arg += Tf.TheArgs[0];
       addArgs(CmdArgs, TCArgs, {Arg});
       break;
     }

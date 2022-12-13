@@ -14,11 +14,9 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 template <typename... PropsT> class accessor_property_list;
-}
-} // namespace ext
+} // namespace ext::oneapi
 
 /// Objects of the property_list class are containers for the SYCL properties
 ///
@@ -29,8 +27,8 @@ class property_list : protected detail::PropertyListBase {
   template <typename... Tail> struct AllProperties : std::true_type {};
   template <typename T, typename... Tail>
   struct AllProperties<T, Tail...>
-      : detail::conditional_t<is_property<T>::value, AllProperties<Tail...>,
-                              std::false_type> {};
+      : std::conditional_t<is_property<T>::value, AllProperties<Tail...>,
+                           std::false_type> {};
 
 public:
   template <typename... PropsT, typename = typename std::enable_if_t<
