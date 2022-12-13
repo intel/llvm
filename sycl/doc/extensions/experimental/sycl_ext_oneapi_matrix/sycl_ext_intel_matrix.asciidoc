@@ -128,11 +128,28 @@ The VNNI blocking factor is 2 in the case of 16-bit types, and it is 4 in the ca
       // ---------------------------------
       // a1, a2, a3, a4, b1, b2, b3, b4, c1, c2, c3, c4, d1, d2, d3, d4
 
+## Supported Combinations Per Hardware
 
+The table below provides a list of the combinations that `joint_matrix` implementations support on each of Intel AMX and Intel XMX hardware. Note that these can be returned in a parametrized way using the `tpu_params` query class.
 
+### Intel AMX Supported Combinations
 
+[frame="none",options="header"]
+|======================
+| A type | B type | Accumulator type | M | N | K
+| (u)int8_t  | (u)int8_t |  int32_t  |  <=16 |  <=16 |  <=64
+|  bf16       |  bf16   |   fp32   |  <=16 |  <=16   |  <=32
+|======================
 
+### Intel XMX Supported Combinations
 
+[frame="none",options="header"]
+|======================
+| A type | B type | Accumulator type | M | N | K
+| (u)int8_t  | (u)int8_t |  int32_t  |  <=8 |  16 |  32
+|  fp16       |  fp16   |   fp32   |  <=8 |  16   |  16
+|  bf16       |  bf16   |   fp32   |  <=8 |  16   |  16
+|======================
 
 ## Open Questions
 - Should the same class, `joint_matrix`, handle both cases where sizes are constant (GPU case) and when sizes are variable (CPU case)? Note that a Intel AMX 2d tile register permits sizes up to 1024 (16rowsx64cols) bytes that can be variable. The ability to define only one interface for both would make it possible to give the user a way to make use of the flexibility introduced by the CPU but at the same time save resources on the GPU. In a previous version of the design, we used `sycl::dynamic_extent`  to differentiate between static and dynamic sizes. But since this was not implemented at all, we decided to remove it. We can revisit this design choice if this comes up as part of a customer request or if SPIRV matrix extension extends its support to dynamic sizes.
