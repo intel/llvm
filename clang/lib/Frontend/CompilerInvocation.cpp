@@ -1689,8 +1689,6 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
         {std::string(Split.first), std::string(Split.second)});
   }
 
-  Opts.DisableLLVMPasses = Args.hasArg(OPT_disable_llvm_passes);
-
   Opts.DisableSYCLEarlyOpts = Args.hasArg(OPT_fsycl_is_device) && T.isSPIR() &&
                               Args.hasArg(OPT_fno_sycl_early_optimizations);
 
