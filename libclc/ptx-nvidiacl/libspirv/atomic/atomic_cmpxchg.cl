@@ -76,7 +76,7 @@ _CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
 #define __CLC_NVVM_ATOMIC_CAS_IMPL(TYPE, TYPE_MANGLED, TYPE_NV,                \
                                    TYPE_MANGLED_NV, OP, OP_MANGLED,            \
                                    ADDR_SPACE, POINTER_AND_ADDR_SPACE_MANGLED, \
-                                   ADDR_SPACE_NV, SUBSTITUTION, SUBSTITUTION2) \
+                                   ADDR_SPACE_NV, SUBSTITUTION1, SUBSTITUTION2) \
   __attribute__((always_inline)) _CLC_DECL TYPE _Z29__spirv_\
 Atomic##OP_MANGLED##POINTER_AND_ADDR_SPACE_MANGLED##TYPE_MANGLED##N5\
 __spv5Scope4FlagENS##SUBSTITUTION##_19Memory\
