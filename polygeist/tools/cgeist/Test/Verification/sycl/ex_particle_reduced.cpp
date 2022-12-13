@@ -28,7 +28,6 @@ void likelyhood(int Nparticles) {
   float *arrayX = (float *)calloc(Nparticles, sizeof(float));
   buffer<float, 1> arrayX_GPU(arrayX, Nparticles, props);
 
-  /****************** L I K E L I H O O D ************************************/
   q.submit([&](handler &cgh) {
     auto arrayX_acc = arrayX_GPU.get_access<sycl_read_write>(cgh);
     cgh.parallel_for<class kernel_likelihood>(nd_range<1>(range<1>(10), range<1>(20)), [=](nd_item<1> item) {
