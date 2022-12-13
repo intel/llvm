@@ -28,6 +28,7 @@ struct MyIP {
 
   void operator()() const {
     int *p = a;
+    const int *p2 = a;
 
     for (int i = 0; i < b; i++) {
       p[i] = i;
@@ -45,9 +46,6 @@ void TestVectorAddWithAnnotatedMMHosts() {
   // Create the SYCL device queue
   queue q(sycl::ext::intel::fpga_selector_v);
   auto raw = malloc_shared<int>(5, q);
-  for (int i = 0; i < 5; i++) {
-    raw[i] = 0;
-  }
 
   // default ctor
   annotated_arg_t3 a1;
@@ -66,7 +64,7 @@ void TestVectorAddWithAnnotatedMMHosts() {
   static_assert(std::is_same<decltype(tmp14), annotated_arg_t3>::value,
                 "deduction guide failed 1");
   // Construct from raw pointers and variadic properties
-  auto tmp13 = annotated_arg(raw, awidth<32>, dwidth<32>); // deduction guide
+  auto tmp13 = annotated_arg(raw, dwidth<32>, awidth<32>); // deduction guide
   static_assert(std::is_same<decltype(tmp13), annotated_arg_t1>::value,
                 "deduction guide failed 2");
   auto tmp15 = annotated_arg(raw, awidth<32>);
@@ -86,7 +84,7 @@ void TestVectorAddWithAnnotatedMMHosts() {
   annotated_arg<int *, decltype(properties{awidth<32>, dwidth<32>})> arg11(
       tmp11);
   auto arg12 =
-      annotated_arg<int *, decltype(properties{awidth<32>, dwidth<32>})>(tmp11);
+      annotated_arg<int *, decltype(properties{dwidth<32>, awidth<32>})>(tmp11);
 
   // default copy constructor
   auto arg13 = annotated_arg(tmp12);
@@ -113,23 +111,27 @@ void TestVectorAddWithAnnotatedMMHosts() {
   // Property merge
   auto arg31 = annotated_arg_t3(raw, awidth<32>);                         // OK
   auto arg32 = annotated_arg(arg31, properties{dwidth<32>});              // OK
-  auto arg33 = annotated_arg(arg32, properties{awidth<32>, dwidth<32>});  // OK
+  auto arg33 = annotated_arg(arg32, properties{dwidth<32>, awidth<32>});  // OK
   auto arg34 = annotated_arg(arg32, properties{awidth<32>, latency<22>}); // OK
   static_assert(std::is_same<decltype(arg32), annotated_arg_t1>::value,
                 "deduction guide failed 6");
   static_assert(std::is_same<decltype(arg33), annotated_arg_t1>::value,
                 "deduction guide failed 7");
   // auto arg34 = annotated_arg(arg32, properties{awidth<32>, dwidth<22>});  //
-  // ERR: two input property lists are conflict annotated_arg<int*,
-  // decltype(properties{awidth<32>, dwidth<32>})> arg35(arg31,
-  // properties{latency<32>, dwidth<32>}); // ERR: input property list is
-  // conflict with the declared type
+  // ERR: two input property lists are conflict
+  // annotated_arg<int*, decltype(properties{awidth<32>, dwidth<32>})>
+  //    arg35(arg31, properties{latency<32>, dwidth<32>}); // ERR: input
+  // property list is conflict with the declared type
 
   // Implicit Conversion
   int *x11 = arg13;
   const int *x13 = arg32;
 
-  // operator()
+  // operator[]
+  arg31[0] = 1;
+  for (int i = 1; i < 5; i++) {
+    arg31[i] = arg31[i - 1];
+  }
 
   // has/get property
   static_assert(annotated_arg_t1::has_property<awidth_key>(), "has property 1");

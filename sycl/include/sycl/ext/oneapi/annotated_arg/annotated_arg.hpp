@@ -30,24 +30,24 @@ struct HasSubscriptOperator
     : std::bool_constant<
           !std::is_void<decltype(std::declval<T>().operator[](0))>::value>{};
 
-} // namespace detail
-
-namespace {
-// Performs merge-sort on types with PropertyID.
-template <typename... Ts> struct SortedProperties {
-  using split = typename detail::CreateTuplePairs<Ts...>::type;
-  using type = typename detail::MergeAll<split>::type;
+// Deduce a `properties<>` type from given variadic properties
+template <typename... Args> struct DeducedProperties {
+  using type = decltype(properties{std::declval<Args>()...});
 };
-} // namespace
+
+// Partial specialization for deducing a `properties<>` type by forwarding the
+// given `properties<>` type
+template <typename... Args>
+struct DeducedProperties<detail::properties_t<Args...>> {
+  using type = detail::properties_t<Args...>;
+};
+
+} // namespace detail
 
 // Deduction guide
 template <typename T, typename... Args>
-annotated_arg(T, detail::properties_t<Args...>)
-    -> annotated_arg<T, detail::properties_t<Args...>>;
-
-template <typename T, typename... Args>
-annotated_arg(T, Args... args)
-    -> annotated_arg<T, properties<typename SortedProperties<Args...>::type>>;
+annotated_arg(T, Args...)
+    -> annotated_arg<T, typename detail::DeducedProperties<Args...>::type>;
 
 template <typename T, typename old, typename... ArgT>
 annotated_arg(annotated_arg<T, old>, properties<std::tuple<ArgT...>>)
@@ -87,8 +87,6 @@ __SYCL_TYPE(annotated_arg) annotated_arg<T *, detail::properties_t<Props...>> {
 #endif
 
 public:
-  static_assert(std::is_trivially_destructible<T>::value,
-                "Type T must be trivially destructible.");
   static_assert(is_property_list<property_list_t>::value,
                 "Property list is invalid.");
 
@@ -157,9 +155,8 @@ public:
         "of the input property lists");
   }
 
+  operator T *() noexcept { return obj; }
   operator T *() const noexcept { return obj; }
-
-  operator const T *() const noexcept { return obj; }
 
   T &operator[](std::ptrdiff_t idx) const noexcept { return obj[idx]; }
 
@@ -192,10 +189,8 @@ __SYCL_TYPE(annotated_arg) annotated_arg<T, detail::properties_t<Props...>> {
 
 public:
   // T should be trivially copyable to be device-copyable
-  static_assert(std::is_trivially_copyable<T>::value,
-                "Type T must be trivially copyable.");
-  static_assert(std::is_trivially_destructible<T>::value,
-                "Type T must be trivially destructible.");
+  // static_assert(std::is_trivially_copyable<T>::value,
+  //               "Type T must be trivially copyable.");
   static_assert(is_property_list<property_list_t>::value,
                 "Property list is invalid.");
   static_assert(check_property_list<T, Props...>::value,
@@ -267,19 +262,12 @@ public:
   }
 
   operator T() noexcept { return obj; }
-  operator const T() const noexcept { return obj; }
-
-  template <class RelayT = T>
-  std::enable_if_t<detail::HasSubscriptOperator<RelayT>::value,
-                   const decltype(std::declval<RelayT>().operator[](0))> &
-  operator[](std::ptrdiff_t idx) const noexcept {
-    return obj.operator[](idx);
-  }
+  operator T() const noexcept { return obj; }
 
   template <class RelayT = T>
   std::enable_if_t<detail::HasSubscriptOperator<RelayT>::value,
                    decltype(std::declval<RelayT>().operator[](0))> &
-  operator[](std::ptrdiff_t idx) noexcept {
+  operator[](std::ptrdiff_t idx) const noexcept {
     return obj.operator[](idx);
   }
 

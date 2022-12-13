@@ -18,7 +18,8 @@ struct A : public B {
   A() {}
   A(int x_) : x(x_) {}
 
-  const int &operator[](std::ptrdiff_t idx) const { return x; }
+  int &operator[](std::ptrdiff_t idx) { return x; }
+  int &operator[](std::ptrdiff_t idx) const { return const_cast<int &>(x); }
 };
 
 using annotated_arg_t1 =
@@ -34,7 +35,10 @@ struct MyIP {
   MyIP(int *a_, const A &b_) : a(a_), b(b_) {}
 
   void operator()() const {
+    b[0] = 10;
+
     const A &tmp = b;
+    A tmp2 = b;
 
     for (int i = 0; i < tmp.x; i++) {
       *a += 1;
@@ -56,6 +60,7 @@ void TestVectorAddWithAnnotatedMMHosts() {
   A obj(0);
   // default ctor
   annotated_arg_t3 a1(obj);
+
   // copy ctor
   auto a2(a1);
   auto a3(foo<annotated_arg_t3>());
@@ -72,7 +77,7 @@ void TestVectorAddWithAnnotatedMMHosts() {
                 "deduction guide failed 1");
 
   // Construct from A instance and variadic properties
-  auto tmp13 = annotated_arg(obj, conduit, stable); // deduction guide
+  auto tmp13 = annotated_arg(obj, stable, conduit); // deduction guide
   static_assert(std::is_same<decltype(tmp13), annotated_arg_t1>::value,
                 "deduction guide failed 2");
 
@@ -82,9 +87,9 @@ void TestVectorAddWithAnnotatedMMHosts() {
   // Construct from another annotated_arg
   // templated copy constructor
   annotated_arg<A, decltype(properties{conduit, stable})> arg11(tmp11);
-  annotated_arg<B, decltype(properties{conduit, stable})> arg14(
+  annotated_arg<B, decltype(properties{stable, conduit})> arg14(
       tmp11); // convertible type
-  auto arg12 = annotated_arg<A, decltype(properties{conduit, stable})>(tmp11);
+  auto arg12 = annotated_arg<A, decltype(properties{stable, conduit})>(tmp11);
 
   // default copy constructor
   auto arg13 = annotated_arg(tmp12);
@@ -102,13 +107,13 @@ void TestVectorAddWithAnnotatedMMHosts() {
                 "deduction guide failed 4");
   static_assert(std::is_same<decltype(arg23), decltype(arg22)>::value,
                 "deduction guide failed 5");
-  annotated_arg<B, decltype(properties{conduit, stable})> arg24(
+  annotated_arg<B, decltype(properties{stable, conduit})> arg24(
       tmp12, properties{stable}); // convertible type
 
   // Property merge
   auto arg31 = annotated_arg_t3(obj, conduit);                    // OK
   auto arg32 = annotated_arg(arg31, properties{stable});          // OK
-  auto arg33 = annotated_arg(arg32, properties{conduit, stable}); // OK
+  auto arg33 = annotated_arg(arg32, properties{stable, conduit}); // OK
   // auto arg34 = annotated_arg(arg32, properties{conduit, latency<22>});  //
   // ERR: invalid property
   static_assert(std::is_same<decltype(arg32), annotated_arg_t1>::value,
@@ -116,14 +121,19 @@ void TestVectorAddWithAnnotatedMMHosts() {
   static_assert(std::is_same<decltype(arg33), annotated_arg_t1>::value,
                 "deduction guide failed 7");
   // auto arg35 = annotated_arg(arg32, properties{conduit, dwidth<22>});  //
-  // ERR: two input property lists are conflict annotated_arg<A,
-  // decltype(properties{conduit, stable})> arg36(arg31, properties{latency<32>,
-  // stable}); // ERR: input property list is conflict with the declared type
+  // ERR: two input property lists are conflict
+  // annotated_arg<A, decltype(properties{conduit, stable})>
+  //    arg36(arg31, properties{latency<32>, stable}); // ERR: input
+  // property list is conflict with the declared type
 
   // Implicit Conversion
   const A &x13 = arg32; // OK
+  A x14 = arg32;        // OK
   // A& x11 = arg32;   // ERR: non-const lvalue reference to type 'A' cannot
   // bind to a value of unrelated type
+
+  // operator[]
+  a1[0] = 5;
 
   // has/get property
   static_assert(annotated_arg_t1::has_property<conduit_key>(),
@@ -139,7 +149,7 @@ void TestVectorAddWithAnnotatedMMHosts() {
   // can't get non-existing property
 
   *raw = 0;
-  q.submit([&](handler &h) { h.single_task(MyIP{raw, A(5)}); }).wait();
+  q.submit([&](handler &h) { h.single_task(MyIP{raw, a1}); }).wait();
 
   std::cout << raw[0] << std::endl;
   free(raw, q);
