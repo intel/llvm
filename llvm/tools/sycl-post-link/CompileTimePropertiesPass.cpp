@@ -156,11 +156,11 @@ attributeToExecModeMetadata(Module &M, const Attribute &Attr) {
 
   // Currently, only string attributes are supported
   if (!Attr.isStringAttribute())
-    return None;
+    return std::nullopt;
   StringRef AttrKindStr = Attr.getKindAsString();
   // Early exit if it is not a sycl-* attribute.
   if (!AttrKindStr.startswith("sycl-"))
-    return None;
+    return std::nullopt;
 
   if (AttrKindStr == "sycl-work-group-size" ||
       AttrKindStr == "sycl-work-group-size-hint") {
@@ -202,7 +202,7 @@ attributeToExecModeMetadata(Module &M, const Attribute &Attr) {
                                             MDNode::get(Ctx, MD));
   }
 
-  return None;
+  return std::nullopt;
 }
 
 } // anonymous namespace

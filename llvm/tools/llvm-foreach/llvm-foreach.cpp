@@ -278,8 +278,9 @@ int main(int argc, char **argv) {
               checkIfJobsAreFinished(JobsSubmitted, /*BlockingWait*/ false))
         Res = Result;
 
-    JobsSubmitted.emplace_back(sys::ExecuteNoWait(
-        Prog, Args, /*Env=*/None, /*Redirects=*/None, /*MemoryLimit=*/0));
+    JobsSubmitted.emplace_back(
+        sys::ExecuteNoWait(Prog, Args, /*Env=*/std::nullopt,
+                           /*Redirects=*/std::nullopt, /*MemoryLimit=*/0));
   }
 
   // Wait for all commands to be executed.

@@ -54,7 +54,6 @@
 #include "clang/Basic/Visibility.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -2892,7 +2891,8 @@ Expr *ParmVarDecl::getDefaultArg() {
 
   Expr *Arg = getInit();
   if (auto *E = dyn_cast_or_null<FullExpr>(Arg))
-    return E->getSubExpr();
+    if (!isa<ConstantExpr>(E))
+      return E->getSubExpr();
 
   return Arg;
 }

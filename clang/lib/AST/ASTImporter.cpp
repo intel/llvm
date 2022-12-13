@@ -56,7 +56,6 @@
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
@@ -68,6 +67,7 @@
 #include <cassert>
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -3987,7 +3987,7 @@ static FriendCountAndPosition getFriendCountAndPosition(
     const FriendDecl *FD,
     llvm::function_ref<T(const FriendDecl *)> GetCanTypeOrDecl) {
   unsigned int FriendCount = 0;
-  llvm::Optional<unsigned int> FriendPosition;
+  std::optional<unsigned int> FriendPosition;
   const auto *RD = cast<CXXRecordDecl>(FD->getLexicalDeclContext());
 
   T TypeOrDecl = GetCanTypeOrDecl(FD);
@@ -7693,16 +7693,9 @@ ExpectedStmt ASTNodeImporter::VisitCXXDefaultArgExpr(CXXDefaultArgExpr *E) {
     if (Error Err = ImportDefaultArgOfParmVarDecl(*FromParam, ToParam))
       return std::move(Err);
   }
-  Expr *RewrittenInit = nullptr;
-  if (E->hasRewrittenInit()) {
-    ExpectedExpr ExprOrErr = import(E->getExpr());
-    if (!ExprOrErr)
-      return ExprOrErr.takeError();
-    RewrittenInit = ExprOrErr.get();
-  }
+
   return CXXDefaultArgExpr::Create(Importer.getToContext(), *ToUsedLocOrErr,
-                                   *ToParamOrErr, RewrittenInit,
-                                   *UsedContextOrErr);
+                                   *ToParamOrErr, *UsedContextOrErr);
 }
 
 ExpectedStmt
@@ -8394,16 +8387,8 @@ ExpectedStmt ASTNodeImporter::VisitCXXDefaultInitExpr(CXXDefaultInitExpr *E) {
     ToField->setInClassInitializer(*ToInClassInitializerOrErr);
   }
 
-  Expr *RewrittenInit = nullptr;
-  if (E->hasRewrittenInit()) {
-    ExpectedExpr ExprOrErr = import(E->getExpr());
-    if (!ExprOrErr)
-      return ExprOrErr.takeError();
-    RewrittenInit = ExprOrErr.get();
-  }
-
   return CXXDefaultInitExpr::Create(Importer.getToContext(), *ToBeginLocOrErr,
-                                    ToField, *UsedContextOrErr, RewrittenInit);
+                                    ToField, *UsedContextOrErr);
 }
 
 ExpectedStmt ASTNodeImporter::VisitCXXNamedCastExpr(CXXNamedCastExpr *E) {

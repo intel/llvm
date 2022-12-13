@@ -619,7 +619,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
   if (!LM)
     return;
 
-  auto Temp = MDNode::getTemporary(*Context, None);
+  auto Temp = MDNode::getTemporary(*Context, std::nullopt);
   auto Self = MDNode::get(*Context, Temp.get());
   Self->replaceOperandWith(0, Self);
   SPIRVWord LC = LM->getLoopControl();
@@ -766,7 +766,8 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
           // Emit a distinct index group that will be referenced from
           // llvm.loop.parallel_access_indices metadata; hash the new
           // MDNode for future accesses to the same memory.
-          CurrentDepthIdxGroup = llvm::MDNode::getDistinct(*Context, None);
+          CurrentDepthIdxGroup =
+              llvm::MDNode::getDistinct(*Context, std::nullopt);
           OffsetIdxGroupMap.emplace(Info, CurrentDepthIdxGroup);
         } else {
           // Previous accesses to that field have already been indexed,
@@ -776,7 +777,8 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
       } else /* Regular kernel-scope array/pointer variable */ {
         // Emit a distinct index group that will be referenced from
         // llvm.loop.parallel_access_indices metadata
-        CurrentDepthIdxGroup = llvm::MDNode::getDistinct(*Context, None);
+        CurrentDepthIdxGroup =
+            llvm::MDNode::getDistinct(*Context, std::nullopt);
       }
 
       unsigned Safelen = PointerSflnMap.find(ArrayGEPIt.first)->second;

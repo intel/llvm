@@ -2910,7 +2910,7 @@ private:
     if (PackFmtIdx == Ops.size() - 1)
       return static_cast<PackedVectorFormat>(Ops[PackFmtIdx]);
 
-    return None;
+    return std::nullopt;
   }
 
   SPIRVCapabilityKind getRequiredCapabilityForOperand(SPIRVId ArgId) const {
@@ -2964,7 +2964,7 @@ public:
       if (Cap == CapabilityBitInstructions)
         return ExtensionID::SPV_KHR_bit_instructions;
     }
-    return None;
+    return std::nullopt;
   }
 };
 

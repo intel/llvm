@@ -224,7 +224,6 @@ namespace {
       (void) llvm::createInjectTLIMappingsLegacyPass();
       (void) llvm::createUnifyLoopExitsPass();
       (void) llvm::createFixIrreduciblePass();
-      (void)llvm::createFunctionSpecializationPass();
       (void)llvm::createSelectOptimizePass();
 
       (void)new llvm::IntervalPartition();

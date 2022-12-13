@@ -13,10 +13,10 @@ endif()
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
-    # Author: Victor Mustya <victor.mustya@intel.com>
-    # Date:   Wed Dec 7 23:06:41 2022 +0000
-    # Add support for new PM in SPIRV reader adaptor and CM simd CF lowering pass
-    set(LLVMGenXIntrinsics_GIT_TAG 12953f1fadee62ee453018d6eb15fede68a42334)
+    # Author: Gorban, Igor <igor.gorban@intel.com>
+    # Date:   Sun Dec 11 20:40:12 2022 +0000
+    # Fix llvm_tot: legacy pass manager
+    set(LLVMGenXIntrinsics_GIT_TAG 7596a83751934c538d809f336ee18bea6e8d1b44)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
