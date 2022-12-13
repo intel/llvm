@@ -55,7 +55,8 @@ enum class partition_property : pi_device_partition_property {
   no_partition = 0,
   partition_equally = PI_DEVICE_PARTITION_EQUALLY,
   partition_by_counts = PI_DEVICE_PARTITION_BY_COUNTS,
-  partition_by_affinity_domain = PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN
+  partition_by_affinity_domain = PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
+  ext_intel_partition_by_cslice = PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE
 };
 
 enum class partition_affinity_domain : pi_device_affinity_domain {
