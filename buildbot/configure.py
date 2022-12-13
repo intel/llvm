@@ -81,6 +81,9 @@ def do_configure(args):
         sycl_build_pi_hip_platform = args.hip_platform
         sycl_enabled_plugins.append("hip")
 
+    if args.unified_runtime:
+        sycl_enabled_plugins.append("unified_runtime")
+
     # all llvm compiler targets don't require 3rd party dependencies, so can be
     # built/tested even if specific runtimes are not available
     if args.enable_all_llvm_targets:
@@ -220,6 +223,7 @@ def main():
                         metavar="BUILD_TYPE", default="Release", help="build type: Debug, Release")
     parser.add_argument("--cuda", action='store_true', help="switch from OpenCL to CUDA")
     parser.add_argument("--hip", action='store_true', help="switch from OpenCL to HIP")
+    parser.add_argument("--unified_runtime", action='store_true', help="switch from OpenCL to Unified Runtime")
     parser.add_argument("--hip-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose hardware platform for HIP backend")
     parser.add_argument("--host-target", default='X86',
                         help="host LLVM target architecture, defaults to X86, multiple targets may be provided as a semi-colon separated string")

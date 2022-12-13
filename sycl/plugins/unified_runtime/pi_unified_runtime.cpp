@@ -14,4 +14,18 @@ __SYCL_EXPORT pi_result piPlatformsGet(pi_uint32 num_entries,
                                        pi_uint32 *num_platforms) {
   return pi2ur::piPlatformsGet(num_entries, platforms, num_platforms);
 }
+
+pi_result piPluginInit(pi_plugin *PluginInit) {
+  PI_ASSERT(PluginInit, PI_ERROR_INVALID_VALUE);
+
+  // Check that the major version matches in PiVersion and SupportedVersion
+  // TODO
+
+  (PluginInit->PiFunctionTable).piPlatformsGet = &piPlatformsGet;
+
+  return PI_SUCCESS;
+}
+
+pi_result piTearDown(void *PluginParameter) { return PI_SUCCESS; }
+
 } // extern "C

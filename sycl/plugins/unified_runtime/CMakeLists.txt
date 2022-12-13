@@ -3,8 +3,9 @@
 if (NOT DEFINED UNIFIED_RUNTIME_INCLUDE_DIR)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 7ef04f96c1dbf161b7731d0d444183d27e603c57)
+  # TODO use oneapi-src once fixes are merged
+  set(UNIFIED_RUNTIME_REPO "https://github.com/igchor/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG c1724990f3e37df08d9607f636385f65dbecb16f)
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime

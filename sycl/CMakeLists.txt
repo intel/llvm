@@ -157,6 +157,9 @@ endif()
 if ("esimd_emulator" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_PI_ESIMD_EMULATOR ON)
 endif()
+if ("unified_runtime" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(SYCL_BUILD_UNIFIED_RUNTIME ON)
+endif()
 
 # Configure SYCL version macro
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -360,6 +363,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      file-table-tform
      level-zero-loader
      level-zero-headers
+     unified-runtime # TODO: is this needed?
      llc
      llvm-ar
      llvm-foreach

@@ -293,6 +293,8 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
                              backend::ext_oneapi_level_zero);
     PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::ext_oneapi_cuda);
     PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
+    PluginNames.emplace_back(__SYCL_UNFIED_RUNTIME_PLUGIN_NAME,
+                             backend::unified_runtime);
   } else if (FilterList) {
     std::vector<device_filter> Filters = FilterList->get();
     bool OpenCLFound = false;
@@ -300,6 +302,7 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
     bool CudaFound = false;
     bool EsimdCpuFound = false;
     bool HIPFound = false;
+    bool UnifiedRuntimeFound = false;
     for (const device_filter &Filter : Filters) {
       backend Backend = Filter.Backend ? Filter.Backend.value() : backend::all;
       if (!OpenCLFound &&
@@ -330,6 +333,12 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
                                  backend::ext_oneapi_hip);
         HIPFound = true;
       }
+      if (!UnifiedRuntimeFound &&
+          (Backend == backend::unified_runtime || Backend == backend::all)) {
+        PluginNames.emplace_back(__SYCL_UNFIED_RUNTIME_PLUGIN_NAME,
+                                 backend::unified_runtime);
+        UnifiedRuntimeFound = true;
+      }
     }
   } else {
     ods_target_list &list = *OdsTargetList;
@@ -350,6 +359,10 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
     }
     if (list.backendCompatible(backend::ext_oneapi_hip)) {
       PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
+    }
+    if (list.backendCompatible(backend::unified_runtime)) {
+      PluginNames.emplace_back(__SYCL_UNFIED_RUNTIME_PLUGIN_NAME,
+                               backend::unified_runtime);
     }
   }
   return PluginNames;
@@ -528,6 +541,7 @@ getPlugin<backend::ext_oneapi_level_zero>();
 template __SYCL_EXPORT const plugin &
 getPlugin<backend::ext_intel_esimd_emulator>();
 template __SYCL_EXPORT const plugin &getPlugin<backend::ext_oneapi_cuda>();
+template __SYCL_EXPORT const plugin &getPlugin<backend::unified_runtime>();
 
 // Report error and no return (keeps compiler from printing warnings).
 // TODO: Probably change that to throw a catchable exception,
