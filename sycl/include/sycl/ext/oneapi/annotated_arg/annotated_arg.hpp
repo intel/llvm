@@ -68,8 +68,7 @@ __SYCL_TYPE(annotated_arg) annotated_arg<T *, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
 
 #ifdef __SYCL_DEVICE_ONLY__
-  using global_pointer_t = typename sycl::detail::DecoratedType<
-      T, access::address_space::global_space>::type *;
+  using global_pointer_t = decorated_global_ptr<T>::pointer;
 #else
   using global_pointer_t = T *;
 #endif
@@ -96,7 +95,7 @@ public:
 
   annotated_arg(T *_ptr,
                 const property_list_t &PropList = properties{}) noexcept
-      : obj(sycl::detail::cast_AS<global_pointer_t>(_ptr)) {}
+      : obj(global_pointer_t(_ptr)) {}
 
   // Constructs an annotated_arg object from a raw pointer and variadic
   // properties. The new property set contains all properties of the input
@@ -104,7 +103,7 @@ public:
   // `PropertyValueTs...` must have the same property value.
   template <typename... PropertyValueTs>
   annotated_arg(T *_ptr, const PropertyValueTs &...props) noexcept
-      : obj(sycl::detail::cast_AS<global_pointer_t>(_ptr)) {
+      : obj(global_pointer_t(_ptr)) {
     static_assert(detail::SortedAllUnique<
                       typename detail::Sorted<PropertyValueTs...>::type>::value,
                   "Duplicate properties in the variadic properties.");
