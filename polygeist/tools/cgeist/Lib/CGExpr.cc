@@ -1055,13 +1055,13 @@ static Operation *trackCasts(Value Val) {
 
   return TypeSwitch<Operation *, Operation *>(DefiningOp)
       .Case<mlir::sycl::SYCLCastOp, mlir::polygeist::Memref2PointerOp>(
-          [](auto Op) -> Operation * {
+          [](Operation *Op) {
             if (auto *Res = trackCasts(Op->getOperand(0)))
               return Res;
             return Op;
           })
       .Case<mlir::polygeist::Pointer2MemrefOp, mlir::LLVM::AddrSpaceCastOp>(
-          [](auto Op) { return trackCasts(Op->getOperand(0)); })
+          [](Operation *Op) { return trackCasts(Op->getOperand(0)); })
       .Default(static_cast<Operation *>(nullptr));
 }
 

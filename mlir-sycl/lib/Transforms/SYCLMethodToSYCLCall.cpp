@@ -40,20 +40,22 @@ static mlir::Value castToBaseType(PatternRewriter &Rewriter, mlir::Location Loc,
   const mlir::Type TargetElementType = BaseType.getElementType();
   const unsigned TargetMemSpace = BaseType.getMemorySpaceAsInt();
 
-  auto *InsertionOp = &*Rewriter.getInsertionPoint();
+  const auto CreateAlloca = [=](OpBuilder &Builder) -> memref::AllocaOp {
+    OpBuilder::InsertionGuard Guard{Builder};
 
-  auto ParentFunction = cast<mlir::FunctionOpInterface>(
-      Rewriter.getInsertionPoint()
-          ->getParentWithTrait<mlir::FunctionOpInterface::Trait>());
+    auto ParentFunction = cast<mlir::FunctionOpInterface>(
+        Builder.getInsertionPoint()
+            ->getParentWithTrait<mlir::FunctionOpInterface::Trait>());
 
-  // We first create needed allocas
-  Rewriter.setInsertionPointToStart(
-      &*ParentFunction.getFunctionBody().getBlocks().begin());
+    // We first create needed allocas
+    Builder.setInsertionPointToStart(
+        &*ParentFunction.getFunctionBody().getBlocks().begin());
 
-  Value Alloca =
-      Rewriter.create<memref::AllocaOp>(Loc, MemRefType::get({1}, ThisType));
+    return Builder.create<memref::AllocaOp>(Loc,
+                                            MemRefType::get({1}, ThisType));
+  };
 
-  Rewriter.setInsertionPoint(InsertionOp);
+  auto Alloca = static_cast<Value>(CreateAlloca(Rewriter));
 
   // Store the element
   Rewriter.create<memref::StoreOp>(
