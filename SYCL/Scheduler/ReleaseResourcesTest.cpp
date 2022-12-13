@@ -48,7 +48,7 @@ int main() {
 }
 
 // CHECK:---> piContextCreate
-// CHECK:---> piQueueCreate
+// CHECK:---> piextQueueCreate
 // CHECK:---> piProgramCreate
 // CHECK:---> piKernelCreate
 // CHECK:---> piQueueRelease
