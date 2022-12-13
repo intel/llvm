@@ -50,7 +50,7 @@ static mlir::Value castToBaseType(PatternRewriter &Rewriter, mlir::Location Loc,
   Rewriter.setInsertionPointToStart(
       &*ParentFunction.getFunctionBody().getBlocks().begin());
 
-  auto Alloca =
+  Value Alloca =
       Rewriter.create<memref::AllocaOp>(Loc, MemRefType::get({1}, ThisType));
 
   Rewriter.setInsertionPoint(InsertionOp);
