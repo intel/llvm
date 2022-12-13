@@ -79,7 +79,7 @@ _CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
                                    ADDR_SPACE_NV, SUBSTITUTION1, SUBSTITUTION2) \
   __attribute__((always_inline)) _CLC_DECL TYPE _Z29__spirv_\
 Atomic##OP_MANGLED##POINTER_AND_ADDR_SPACE_MANGLED##TYPE_MANGLED##N5\
-__spv5Scope4FlagENS##SUBSTITUTION##_19Memory\
+__spv5Scope4FlagENS##SUBSTITUTION1##_19Memory\
 SemanticsMask4FlagES##SUBSTITUTION2##_##TYPE_MANGLED##TYPE_MANGLED(            \
       volatile ADDR_SPACE TYPE *pointer, enum Scope scope,                     \
       enum MemorySemanticsMask semantics1,                                     \
