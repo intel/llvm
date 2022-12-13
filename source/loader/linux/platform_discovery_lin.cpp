@@ -6,7 +6,7 @@
  *
  */
 
-#include "source/loader/platform_discovery.h"
+#include "platform_discovery.h"
 
 #include "ur_util.h"
 #include <iostream>

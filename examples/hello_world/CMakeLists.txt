@@ -1,3 +1,6 @@
+# Copyright (C) 2022 Intel Corporation
+# SPDX-License-Identifier: MIT
+
 set(TARGET_NAME hello_world)
 
 add_executable(${TARGET_NAME}
@@ -16,7 +19,7 @@ if(MSVC)
     )
 endif()
 
-target_link_libraries(${TARGET_NAME}
+target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::loader
     ${CMAKE_DL_LIBS}
 )
