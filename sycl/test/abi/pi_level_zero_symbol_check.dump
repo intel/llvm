@@ -71,6 +71,7 @@ piProgramLink
 piProgramRelease
 piProgramRetain
 piQueueCreate
+piextQueueCreate
 piQueueFinish
 piQueueFlush
 piQueueGetInfo
