@@ -31,8 +31,6 @@
 #include <string>
 #include <vector>
 
-// #include <windows.h>
-
 #define CHECK_ERR_SET_NULL_RET(err, ptr, reterr)                               \
   if (err != CL_SUCCESS) {                                                     \
     if (ptr != nullptr)                                                        \
