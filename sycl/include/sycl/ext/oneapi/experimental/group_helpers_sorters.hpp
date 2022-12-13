@@ -17,7 +17,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::oneapi::experimental {
 
 // ---- group helpers
-template <typename Group, std::size_t Extent> class group_with_scratchpad {
+template <typename Group, size_t Extent> class group_with_scratchpad {
   Group g;
   sycl::span<std::byte, Extent> scratch;
 
@@ -32,10 +32,10 @@ public:
 template <typename Compare = std::less<>> class default_sorter {
   Compare comp;
   std::byte *scratch;
-  std::size_t scratch_size;
+  size_t scratch_size;
 
 public:
-  template <std::size_t Extent>
+  template <size_t Extent>
   default_sorter(sycl::span<std::byte, Extent> scratch_,
                  Compare comp_ = Compare())
       : comp(comp_), scratch(scratch_.data()), scratch_size(scratch_.size()) {}
@@ -61,7 +61,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     auto range_size = g.get_local_range().size();
     if (scratch_size >= memory_required<T>(Group::fence_scope, range_size)) {
-      std::size_t local_id = g.get_local_linear_id();
+      size_t local_id = g.get_local_linear_id();
       T *temp = reinterpret_cast<T *>(scratch);
       ::new (temp + local_id) T(val);
       sycl::detail::merge_sort(g, temp, range_size, comp,
@@ -79,14 +79,14 @@ public:
   }
 
   template <typename T>
-  static constexpr std::size_t memory_required(sycl::memory_scope,
-                                               std::size_t range_size) {
+  static constexpr size_t memory_required(sycl::memory_scope,
+                                          size_t range_size) {
     return range_size * sizeof(T) + alignof(T);
   }
 
   template <typename T, int dim = 1>
-  static constexpr std::size_t memory_required(sycl::memory_scope scope,
-                                               sycl::range<dim> r) {
+  static constexpr size_t memory_required(sycl::memory_scope scope,
+                                          sycl::range<dim> r) {
     return 2 * memory_required<T>(scope, r.size());
   }
 };
@@ -112,20 +112,20 @@ class radix_sorter {
   std::byte *scratch = nullptr;
   uint32_t first_bit = 0;
   uint32_t last_bit = 0;
-  std::size_t scratch_size = 0;
+  size_t scratch_size = 0;
 
   static constexpr uint32_t bits = BitsPerPass;
 
 public:
-  template <std::size_t Extent>
+  template <size_t Extent>
   radix_sorter(sycl::span<std::byte, Extent> scratch_,
                const std::bitset<sizeof(ValT) *CHAR_BIT> mask =
                    std::bitset<sizeof(ValT) * CHAR_BIT>(
                        std::numeric_limits<unsigned long long>::max()))
       : scratch(scratch_.data()), scratch_size(scratch_.size()) {
-    static_assert((std::is_arithmetic_v<ValT> ||
-                   std::is_same_v<ValT, sycl::half> ||
-                   std::is_same_v<ValT, sycl::ext::oneapi::bfloat16>),
+    static_assert((std::is_arithmetic<ValT>::value ||
+                   std::is_same<ValT, sycl::half>::value ||
+                   std::is_same<ValT, sycl::ext::oneapi::bfloat16>::value),
                   "radix sort is not usable");
 
     first_bit = 0;
@@ -143,10 +143,11 @@ public:
     (void)first;
     (void)last;
 #ifdef __SYCL_DEVICE_ONLY__
-    sycl::detail::privateSort</*is_key_value=*/false, /*empty*/ 1, BitsPerPass>(
+    sycl::detail::privateDynamicSort</*is_key_value=*/false,
+                                     OrderT == sorting_order::ascending,
+                                     /*empty*/ 1, BitsPerPass>(
         g, first, /*empty*/ first, (last - first) > 0 ? (last - first) : 0,
-        typename detail::ConvertToComp<ValT, OrderT>::Type{}, scratch,
-        first_bit, last_bit);
+        scratch, first_bit, last_bit);
 #else
     throw sycl::exception(
         std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
@@ -159,12 +160,11 @@ public:
     (void)val;
 #ifdef __SYCL_DEVICE_ONLY__
     ValT result[]{val};
-    sycl::detail::privateMemorySort</*is_key_value=*/false,
+    sycl::detail::privateStaticSort</*is_key_value=*/false,
                                     /*is_blocked=*/true,
+                                    OrderT == sorting_order::ascending,
                                     /*items_per_work_item=*/1, bits>(
-        g, result, /*empty*/ result,
-        typename detail::ConvertToComp<ValT, OrderT>::Type{}, scratch,
-        first_bit, last_bit);
+        g, result, /*empty*/ result, scratch, first_bit, last_bit);
     return result[0];
 #else
     throw sycl::exception(
@@ -173,8 +173,8 @@ public:
 #endif
   }
 
-  static constexpr std::size_t memory_required(sycl::memory_scope scope,
-                                               std::size_t range_size) {
+  static constexpr size_t memory_required(sycl::memory_scope scope,
+                                          size_t range_size) {
     // Scope is not important so far
     (void)scope;
     return range_size * sizeof(ValT) +

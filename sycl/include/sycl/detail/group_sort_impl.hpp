@@ -27,11 +27,11 @@ namespace detail {
 // following two functions could be useless if std::[lower|upper]_bound worked
 // well
 template <typename Acc, typename Value, typename Compare>
-std::size_t lower_bound(Acc acc, std::size_t first, std::size_t last,
-                        const Value &value, Compare comp) {
-  std::size_t n = last - first;
-  std::size_t cur = n;
-  std::size_t it;
+size_t lower_bound(Acc acc, size_t first, size_t last, const Value &value,
+                   Compare comp) {
+  size_t n = last - first;
+  size_t cur = n;
+  size_t it;
   while (n > 0) {
     it = first;
     cur = n / 2;
@@ -45,9 +45,8 @@ std::size_t lower_bound(Acc acc, std::size_t first, std::size_t last,
 }
 
 template <typename Acc, typename Value, typename Compare>
-std::size_t upper_bound(Acc acc, const std::size_t first,
-                        const std::size_t last, const Value &value,
-                        Compare comp) {
+size_t upper_bound(Acc acc, const size_t first, const size_t last,
+                   const Value &value, Compare comp) {
   return detail::lower_bound(acc, first, last, value,
                              [comp](auto x, auto y) { return !comp(y, x); });
 }
@@ -74,7 +73,7 @@ struct GetValueType<sycl::multi_ptr<ElementType, Space, IsDecorated>> {
 // since we couldn't assign data to raw memory, it's better to use placement
 // for first assignment
 template <typename Acc, typename T>
-void set_value(Acc ptr, const std::size_t idx, const T &val, bool is_first) {
+void set_value(Acc ptr, const size_t idx, const T &val, bool is_first) {
   if (is_first) {
     ::new (ptr + idx) T(val);
   } else {
@@ -83,23 +82,23 @@ void set_value(Acc ptr, const std::size_t idx, const T &val, bool is_first) {
 }
 
 template <typename InAcc, typename OutAcc, typename Compare>
-void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
-           const std::size_t start_1, const std::size_t end_1,
-           const std::size_t end_2, const std::size_t start_out, Compare comp,
-           const std::size_t chunk, bool is_first) {
-  const std::size_t start_2 = end_1;
+void merge(const size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
+           const size_t start_1, const size_t end_1, const size_t end_2,
+           const size_t start_out, Compare comp, const size_t chunk,
+           bool is_first) {
+  const size_t start_2 = end_1;
   // Borders of the sequences to merge within this call
-  const std::size_t local_start_1 =
-      sycl::min(static_cast<std::size_t>(offset + start_1), end_1);
-  const std::size_t local_end_1 =
-      sycl::min(static_cast<std::size_t>(local_start_1 + chunk), end_1);
-  const std::size_t local_start_2 =
-      sycl::min(static_cast<std::size_t>(offset + start_2), end_2);
-  const std::size_t local_end_2 =
-      sycl::min(static_cast<std::size_t>(local_start_2 + chunk), end_2);
+  const size_t local_start_1 =
+      sycl::min(static_cast<size_t>(offset + start_1), end_1);
+  const size_t local_end_1 =
+      sycl::min(static_cast<size_t>(local_start_1 + chunk), end_1);
+  const size_t local_start_2 =
+      sycl::min(static_cast<size_t>(offset + start_2), end_2);
+  const size_t local_end_2 =
+      sycl::min(static_cast<size_t>(local_start_2 + chunk), end_2);
 
-  const std::size_t local_size_1 = local_end_1 - local_start_1;
-  const std::size_t local_size_2 = local_end_2 - local_start_2;
+  const size_t local_size_1 = local_end_1 - local_start_1;
+  const size_t local_size_2 = local_end_2 - local_start_2;
 
   // TODO: process cases where all elements of 1st sequence > 2nd, 2nd > 1st
   // to improve performance
@@ -109,15 +108,15 @@ void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
     // Reduce the range for searching within the 2nd sequence and handle bound
     // items find left border in 2nd sequence
     const auto local_l_item_1 = in_acc1[local_start_1];
-    std::size_t l_search_bound_2 =
+    size_t l_search_bound_2 =
         detail::lower_bound(in_acc1, start_2, end_2, local_l_item_1, comp);
-    const std::size_t l_shift_1 = local_start_1 - start_1;
-    const std::size_t l_shift_2 = l_search_bound_2 - start_2;
+    const size_t l_shift_1 = local_start_1 - start_1;
+    const size_t l_shift_2 = l_search_bound_2 - start_2;
 
     set_value(out_acc1, start_out + l_shift_1 + l_shift_2, local_l_item_1,
               is_first);
 
-    std::size_t r_search_bound_2{};
+    size_t r_search_bound_2{};
     // find right border in 2nd sequence
     if (local_size_1 > 1) {
       const auto local_r_item_1 = in_acc1[local_end_1 - 1];
@@ -131,15 +130,15 @@ void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
     }
 
     // Handle intermediate items
-    for (std::size_t idx = local_start_1 + 1; idx < local_end_1 - 1; ++idx) {
+    for (size_t idx = local_start_1 + 1; idx < local_end_1 - 1; ++idx) {
       const auto intermediate_item_1 = in_acc1[idx];
       // we shouldn't seek in whole 2nd sequence. Just for the part where the
       // 1st sequence should be
       l_search_bound_2 =
           detail::lower_bound(in_acc1, l_search_bound_2, r_search_bound_2,
                               intermediate_item_1, comp);
-      const std::size_t shift_1 = idx - start_1;
-      const std::size_t shift_2 = l_search_bound_2 - start_2;
+      const size_t shift_1 = idx - start_1;
+      const size_t shift_2 = l_search_bound_2 - start_2;
 
       set_value(out_acc1, start_out + shift_1 + shift_2, intermediate_item_1,
                 is_first);
@@ -150,22 +149,22 @@ void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
     // Reduce the range for searching within the 1st sequence and handle bound
     // items find left border in 1st sequence
     const auto local_l_item_2 = in_acc1[local_start_2];
-    std::size_t l_search_bound_1 =
+    size_t l_search_bound_1 =
         detail::upper_bound(in_acc1, start_1, end_1, local_l_item_2, comp);
-    const std::size_t l_shift_1 = l_search_bound_1 - start_1;
-    const std::size_t l_shift_2 = local_start_2 - start_2;
+    const size_t l_shift_1 = l_search_bound_1 - start_1;
+    const size_t l_shift_2 = local_start_2 - start_2;
 
     set_value(out_acc1, start_out + l_shift_1 + l_shift_2, local_l_item_2,
               is_first);
 
-    std::size_t r_search_bound_1{};
+    size_t r_search_bound_1{};
     // find right border in 1st sequence
     if (local_size_2 > 1) {
       const auto local_r_item_2 = in_acc1[local_end_2 - 1];
       r_search_bound_1 = detail::upper_bound(in_acc1, l_search_bound_1, end_1,
                                              local_r_item_2, comp);
-      const std::size_t r_shift_1 = r_search_bound_1 - start_1;
-      const std::size_t r_shift_2 = local_end_2 - 1 - start_2;
+      const size_t r_shift_1 = r_search_bound_1 - start_1;
+      const size_t r_shift_2 = local_end_2 - 1 - start_2;
 
       set_value(out_acc1, start_out + r_shift_1 + r_shift_2, local_r_item_2,
                 is_first);
@@ -179,8 +178,8 @@ void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
       l_search_bound_1 =
           detail::upper_bound(in_acc1, l_search_bound_1, r_search_bound_1,
                               intermediate_item_2, comp);
-      const std::size_t shift_1 = l_search_bound_1 - start_1;
-      const std::size_t shift_2 = idx - start_2;
+      const size_t shift_1 = l_search_bound_1 - start_1;
+      const size_t shift_2 = idx - start_2;
 
       set_value(out_acc1, start_out + shift_1 + shift_2, intermediate_item_2,
                 is_first);
@@ -189,12 +188,12 @@ void merge(const std::size_t offset, InAcc &in_acc1, OutAcc &out_acc1,
 }
 
 template <typename Iter, typename Compare>
-void bubble_sort(Iter first, const std::size_t begin, const std::size_t end,
+void bubble_sort(Iter first, const size_t begin, const size_t end,
                  Compare comp) {
   if (begin < end) {
-    for (std::size_t i = begin; i < end; ++i) {
+    for (size_t i = begin; i < end; ++i) {
       // Handle intermediate items
-      for (std::size_t idx = i + 1; idx < end; ++idx) {
+      for (size_t idx = i + 1; idx < end; ++idx) {
         if (comp(first[idx], first[i])) {
           detail::swap_tuples(first[i], first[idx]);
         }
@@ -204,12 +203,12 @@ void bubble_sort(Iter first, const std::size_t begin, const std::size_t end,
 }
 
 template <typename Group, typename Iter, typename Compare>
-void merge_sort(Group group, Iter first, const std::size_t n, Compare comp,
+void merge_sort(Group group, Iter first, const size_t n, Compare comp,
                 std::byte *scratch) {
   using T = typename GetValueType<Iter>::type;
-  const std::size_t idx = group.get_local_linear_id();
-  const std::size_t local = group.get_local_range().size();
-  const std::size_t chunk = (n - 1) / local + 1;
+  const size_t idx = group.get_local_linear_id();
+  const size_t local = group.get_local_range().size();
+  const size_t chunk = (n - 1) / local + 1;
 
   // we need to sort within work item first
   bubble_sort(first, idx * chunk, sycl::min((idx + 1) * chunk, n), comp);
@@ -218,13 +217,13 @@ void merge_sort(Group group, Iter first, const std::size_t n, Compare comp,
   T *temp = reinterpret_cast<T *>(scratch);
   bool data_in_temp = false;
   bool is_first = true;
-  std::size_t sorted_size = 1;
+  size_t sorted_size = 1;
   while (sorted_size * chunk < n) {
-    const std::size_t start_1 =
+    const size_t start_1 =
         sycl::min(2 * sorted_size * chunk * (idx / sorted_size), n);
-    const std::size_t end_1 = sycl::min(start_1 + sorted_size * chunk, n);
-    const std::size_t end_2 = sycl::min(end_1 + sorted_size * chunk, n);
-    const std::size_t offset = chunk * (idx % sorted_size);
+    const size_t end_1 = sycl::min(start_1 + sorted_size * chunk, n);
+    const size_t end_2 = sycl::min(end_1 + sorted_size * chunk, n);
+    const size_t offset = chunk * (idx % sorted_size);
 
     if (!data_in_temp) {
       merge(offset, first, temp, start_1, end_1, end_2, start_1, comp, chunk,
@@ -243,7 +242,7 @@ void merge_sort(Group group, Iter first, const std::size_t n, Compare comp,
 
   // copy back if data is in a temporary storage
   if (data_in_temp) {
-    for (std::size_t i = 0; i < chunk; ++i) {
+    for (size_t i = 0; i < chunk; ++i) {
       if (idx * chunk + i < n) {
         first[idx * chunk + i] = temp[idx * chunk + i];
       }
@@ -261,7 +260,7 @@ template <typename Type> struct IsCompAscending<std::less<Type>> {
 };
 
 // get number of states radix bits can represent
-constexpr std::uint32_t getStatesInBits(std::uint32_t radix_bits) {
+constexpr uint32_t getStatesInBits(uint32_t radix_bits) {
   return (1 << radix_bits);
 }
 
@@ -269,46 +268,44 @@ constexpr std::uint32_t getStatesInBits(std::uint32_t radix_bits) {
 // Ordered traits for a given size and integral/float flag
 //------------------------------------------------------------------------
 
-template <std::size_t type_size, bool is_integral_type> struct GetOrdered {};
+template <size_t type_size, bool is_integral_type> struct GetOrdered {};
 
 template <> struct GetOrdered<1, true> {
   using Type = uint8_t;
-  constexpr static std::int8_t mask = 0x80;
+  constexpr static int8_t mask = 0x80;
 };
 
 template <> struct GetOrdered<2, true> {
   using Type = uint16_t;
-  constexpr static std::int16_t mask = 0x8000;
+  constexpr static int16_t mask = 0x8000;
 };
 
 template <> struct GetOrdered<4, true> {
   using Type = uint32_t;
-  constexpr static std::int32_t mask = 0x80000000;
+  constexpr static int32_t mask = 0x80000000;
 };
 
 template <> struct GetOrdered<8, true> {
   using Type = uint64_t;
-  constexpr static std::int64_t mask = 0x8000000000000000;
+  constexpr static int64_t mask = 0x8000000000000000;
 };
 
 template <> struct GetOrdered<2, false> {
   using Type = uint16_t;
-  constexpr static std::uint32_t nmask = 0xFFFF; // for negative numbers
-  constexpr static std::uint32_t pmask = 0x8000; // for positive numbers
+  constexpr static uint32_t nmask = 0xFFFF; // for negative numbers
+  constexpr static uint32_t pmask = 0x8000; // for positive numbers
 };
 
 template <> struct GetOrdered<4, false> {
   using Type = uint32_t;
-  constexpr static std::uint32_t nmask = 0xFFFFFFFF; // for negative numbers
-  constexpr static std::uint32_t pmask = 0x80000000; // for positive numbers
+  constexpr static uint32_t nmask = 0xFFFFFFFF; // for negative numbers
+  constexpr static uint32_t pmask = 0x80000000; // for positive numbers
 };
 
 template <> struct GetOrdered<8, false> {
   using Type = uint64_t;
-  constexpr static std::uint64_t nmask =
-      0xFFFFFFFFFFFFFFFF; // for negative numbers
-  constexpr static std::uint64_t pmask =
-      0x8000000000000000; // for positive numbers
+  constexpr static uint64_t nmask = 0xFFFFFFFFFFFFFFFF; // for negative numbers
+  constexpr static uint64_t pmask = 0x8000000000000000; // for positive numbers
 };
 
 //------------------------------------------------------------------------
@@ -320,21 +317,22 @@ template <typename ValT, typename Enabled = void> struct Ordered {};
 
 // for unsigned integrals we use the same type
 template <typename ValT>
-struct Ordered<ValT, std::enable_if_t<std::is_integral_v<ValT> &&
-                                      std::is_unsigned_v<ValT>>> {
+struct Ordered<ValT, std::enable_if_t<std::is_integral<ValT>::value &&
+                                      std::is_unsigned<ValT>::value>> {
   using Type = ValT;
 };
 
 // for signed integrals or floatings we map: size -> corresponding unsigned
 // integral
 template <typename ValT>
-struct Ordered<ValT, std::enable_if_t<
-                         (std::is_integral_v<ValT> && std::is_signed_v<ValT>) ||
-                         std::is_floating_point_v<ValT> ||
-                         std::is_same_v<ValT, sycl::half> ||
-                         std::is_same_v<ValT, sycl::ext::oneapi::bfloat16>>> {
+struct Ordered<
+    ValT, std::enable_if_t<
+              (std::is_integral<ValT>::value && std::is_signed<ValT>::value) ||
+              std::is_floating_point<ValT>::value ||
+              std::is_same<ValT, sycl::half>::value ||
+              std::is_same<ValT, sycl::ext::oneapi::bfloat16>::value>> {
   using Type =
-      typename GetOrdered<sizeof(ValT), std::is_integral_v<ValT>>::Type;
+      typename GetOrdered<sizeof(ValT), std::is_integral<ValT>::value>::Type;
 };
 
 // shorthand
@@ -353,8 +351,8 @@ convertToOrdered(ValT value) {
 
 // converts integral type to Ordered (in terms of bitness) type
 template <typename ValT>
-std::enable_if_t<!std::is_same_v<ValT, OrderedT<ValT>> &&
-                     std::is_integral_v<ValT>,
+std::enable_if_t<!std::is_same<ValT, OrderedT<ValT>>::value &&
+                     std::is_integral<ValT>::value,
                  OrderedT<ValT>>
 convertToOrdered(ValT value) {
   ValT result = value ^ GetOrdered<sizeof(ValT), true>::mask;
@@ -363,10 +361,10 @@ convertToOrdered(ValT value) {
 
 // converts floating type to Ordered (in terms of bitness) type
 template <typename ValT>
-std::enable_if_t<!std::is_same_v<ValT, OrderedT<ValT>> &&
-                     (std::is_floating_point_v<ValT> ||
-                      std::is_same_v<ValT, sycl::half> ||
-                      std::is_same_v<ValT, sycl::ext::oneapi::bfloat16>),
+std::enable_if_t<!std::is_same<ValT, OrderedT<ValT>>::value &&
+                     (std::is_floating_point<ValT>::value ||
+                      std::is_same<ValT, sycl::half>::value ||
+                      std::is_same<ValT, sycl::ext::oneapi::bfloat16>::value),
                  OrderedT<ValT>>
 convertToOrdered(ValT value) {
   OrderedT<ValT> uvalue = *reinterpret_cast<OrderedT<ValT> *>(&value);
@@ -398,13 +396,13 @@ template <> struct InvertIf<true> {
 };
 
 // get bit values in a certain bucket of a value
-template <std::uint32_t radix_bits, bool is_comp_asc, typename ValT>
-std::uint32_t getBucketValue(ValT value, std::uint32_t radix_iter) {
+template <uint32_t radix_bits, bool is_comp_asc, typename ValT>
+uint32_t getBucketValue(ValT value, uint32_t radix_iter) {
   // invert value if we need to sort in descending order
   value = InvertIf<!is_comp_asc>{}(value);
 
   // get bucket offset idx from the end of bit type (least significant bits)
-  std::uint32_t bucket_offset = radix_iter * radix_bits;
+  uint32_t bucket_offset = radix_iter * radix_bits;
 
   // get offset mask for one bucket, e.g.
   // radix_bits=2: 0000 0001 -> 0000 0100 -> 0000 0011
@@ -413,12 +411,11 @@ std::uint32_t getBucketValue(ValT value, std::uint32_t radix_iter) {
   // get bits under bucket mask
   return (value >> bucket_offset) & bucket_mask;
 }
-template <typename ValT> ValT getDefaultValue(std::less<ValT>) {
-  return std::numeric_limits<ValT>::max();
-}
-
-template <typename ValT> ValT getDefaultValue(std::greater<ValT>) {
-  return std::numeric_limits<ValT>::lowest();
+template <typename ValT> ValT getDefaultValue(bool is_comp_asc) {
+  if (is_comp_asc)
+    return std::numeric_limits<ValT>::max();
+  else
+    return std::numeric_limits<ValT>::lowest();
 }
 
 template <bool is_key_value_sort> struct ValuesAssigner {
@@ -443,23 +440,19 @@ template <> struct ValuesAssigner<false> {
 };
 
 // The iteration of radix sort for unknown number of elements per work item
-template <uint32_t radix_bits, bool is_key_value_sort, typename KeysT,
-          typename ValueT, typename CompareT, typename GroupT>
+template <uint32_t radix_bits, bool is_key_value_sort, bool is_comp_asc,
+          typename KeysT, typename ValueT, typename GroupT>
 void performRadixIterDynamicSize(GroupT group,
                                  const uint32_t items_per_work_item,
                                  const uint32_t radix_iter, const size_t n,
                                  KeysT *keys_input, ValueT *vals_input,
                                  KeysT *keys_output, ValueT *vals_output,
-                                 uint32_t *memory, CompareT comp) {
+                                 uint32_t *memory) {
   const uint32_t radix_states = getStatesInBits(radix_bits);
   const size_t wgsize = group.get_local_linear_range();
   const size_t idx = group.get_local_linear_id();
 
-  constexpr bool is_comp_asc =
-      IsCompAscending<typename std::decay<CompareT>::type>::value;
-
   // 1.1. Zeroinitialize local memory
-
   uint32_t *scan_memory = reinterpret_cast<uint32_t *>(memory);
   for (uint32_t state = 0; state < radix_states; ++state)
     scan_memory[state * wgsize + idx] = 0;
@@ -467,12 +460,12 @@ void performRadixIterDynamicSize(GroupT group,
   sycl::group_barrier(group);
 
   // 1.2. count values and write result to private count array and count memory
-
   for (uint32_t i = 0; i < items_per_work_item; ++i) {
     const uint32_t val_idx = items_per_work_item * idx + i;
     // get value, convert it to Ordered (in terms of bitness)
-    const auto val = convertToOrdered((val_idx < n) ? keys_input[val_idx]
-                                                    : getDefaultValue(comp));
+    const auto val =
+        convertToOrdered((val_idx < n) ? keys_input[val_idx]
+                                       : getDefaultValue<ValueT>(is_comp_asc));
     // get bit values in a certain bucket of a value
     const uint32_t bucket_val =
         getBucketValue<radix_bits, is_comp_asc>(val, radix_iter);
@@ -508,8 +501,9 @@ void performRadixIterDynamicSize(GroupT group,
   for (uint32_t i = 0; i < items_per_work_item; ++i) {
     const uint32_t val_idx = items_per_work_item * idx + i;
     // get value, convert it to Ordered (in terms of bitness)
-    auto val = convertToOrdered((val_idx < n) ? keys_input[val_idx]
-                                              : getDefaultValue(comp));
+    auto val =
+        convertToOrdered((val_idx < n) ? keys_input[val_idx]
+                                       : getDefaultValue<ValueT>(is_comp_asc));
     // get bit values in a certain bucket of a value
     uint32_t bucket_val =
         getBucketValue<radix_bits, is_comp_asc>(val, radix_iter);
@@ -525,9 +519,9 @@ void performRadixIterDynamicSize(GroupT group,
 }
 
 // The iteration of radix sort for known number of elements per work item
-template <std::size_t items_per_work_item, uint32_t radix_bits,
-          bool is_comp_asc, bool is_key_value_sort, bool is_blocked,
-          typename KeysT, typename ValsT, typename GroupT>
+template <size_t items_per_work_item, uint32_t radix_bits, bool is_comp_asc,
+          bool is_key_value_sort, bool is_blocked, typename KeysT,
+          typename ValsT, typename GroupT>
 void performRadixIterStaticSize(GroupT group, const uint32_t radix_iter,
                                 const uint32_t last_iter, KeysT *keys,
                                 ValsT vals, std::byte *memory) {
@@ -585,7 +579,7 @@ void performRadixIterStaticSize(GroupT group, const uint32_t radix_iter,
 
   // 3. Reorder
   KeysT *keys_temp = reinterpret_cast<KeysT *>(memory);
-  ValsT vals_temp = reinterpret_cast<ValsT>(
+  ValsT *vals_temp = reinterpret_cast<ValsT *>(
       memory + wgsize * items_per_work_item * sizeof(KeysT));
   for (uint32_t i = 0; i < items_per_work_item; ++i) {
     keys_temp[ranks[i]] = keys[i];
@@ -596,7 +590,7 @@ void performRadixIterStaticSize(GroupT group, const uint32_t radix_iter,
 
   // 4. Copy back to input
   for (uint32_t i = 0; i < items_per_work_item; ++i) {
-    std::size_t shift = idx * items_per_work_item + i;
+    size_t shift = idx * items_per_work_item + i;
     if constexpr (!is_blocked) {
       if (radix_iter == last_iter - 1)
         shift = i * wgsize + idx;
@@ -606,12 +600,12 @@ void performRadixIterStaticSize(GroupT group, const uint32_t radix_iter,
   }
 }
 
-template <bool is_key_value_sort, uint32_t items_per_work_item = 1,
-          uint32_t radix_bits = 4, typename GroupT, typename KeysT,
-          typename ValsT, typename CompareT>
-void privateSort(GroupT group, KeysT *keys, ValsT *values, const size_t n,
-                 CompareT comp, std::byte *scratch, const uint32_t first_bit,
-                 const uint32_t last_bit) {
+template <bool is_key_value_sort, bool is_comp_asc,
+          uint32_t items_per_work_item = 1, uint32_t radix_bits = 4,
+          typename GroupT, typename KeysT, typename ValsT>
+void privateDynamicSort(GroupT group, KeysT *keys, ValsT *values,
+                        const size_t n, std::byte *scratch,
+                        const uint32_t first_bit, const uint32_t last_bit) {
   const size_t wgsize = group.get_local_linear_range();
   constexpr uint32_t radix_states = getStatesInBits(radix_bits);
   const uint32_t first_iter = first_bit / radix_bits;
@@ -631,9 +625,9 @@ void privateSort(GroupT group, KeysT *keys, ValsT *values, const size_t n,
       keys_output + is_key_value_sort * n * sizeof(KeysT) + alignof(uint32_t));
 
   for (uint32_t radix_iter = first_iter; radix_iter < last_iter; ++radix_iter) {
-    performRadixIterDynamicSize<radix_bits, is_key_value_sort>(
+    performRadixIterDynamicSize<radix_bits, is_key_value_sort, is_comp_asc>(
         group, runtime_items_per_work_item, radix_iter, n, keys_input,
-        vals_input, keys_output, vals_output, scan_memory, comp);
+        vals_input, keys_output, vals_output, scan_memory);
 
     sycl::group_barrier(group);
 
@@ -642,15 +636,12 @@ void privateSort(GroupT group, KeysT *keys, ValsT *values, const size_t n,
   }
 }
 
-template <bool is_key_value_sort, bool is_blocked,
-          std::size_t items_per_work_item = 1, uint32_t radix_bits = 4,
-          typename Group, typename T, typename U, typename Compare>
-void privateMemorySort(Group group, T *keys, U *values, Compare comp,
-                       std::byte *scratch, const uint32_t first_bit,
-                       const uint32_t last_bit) {
-  (void)comp;
-  constexpr bool is_comp_asc =
-      IsCompAscending<typename std::decay<Compare>::type>::value;
+template <bool is_key_value_sort, bool is_blocked, bool is_comp_asc,
+          size_t items_per_work_item = 1, uint32_t radix_bits = 4,
+          typename GroupT, typename T, typename U>
+void privateStaticSort(GroupT group, T *keys, U *values, std::byte *scratch,
+                       const uint32_t first_bit, const uint32_t last_bit) {
+
   const uint32_t first_iter = first_bit / radix_bits;
   const uint32_t last_iter = last_bit / radix_bits;
 
