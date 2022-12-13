@@ -30,6 +30,15 @@ namespace driver
         };
 
         //////////////////////////////////////////////////////////////////////////
+        urDdiTable.Platform.pfnGetApiVersion = [](
+            ur_platform_handle_t,
+            ur_api_version_t* version )
+        {
+            *version = d_context.version;
+            return UR_RESULT_SUCCESS;
+        };
+
+        //////////////////////////////////////////////////////////////////////////
         urDdiTable.Device.pfnGet = [](
             ur_platform_handle_t hPlatform,
             ur_device_type_t DevicesType,
