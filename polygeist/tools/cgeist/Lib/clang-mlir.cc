@@ -532,7 +532,9 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   LLVM::TypeFromLLVMIRTranslator typeTranslator(*Module->getContext());
 
   if (auto init = decl->getInit()) {
-    if (!isa<clang::InitListExpr>(init) &&
+    bool IsVectorType =
+        Glob.getTypes().getMLIRType(init->getType()).isa<mlir::VectorType>();
+    if ((!isa<clang::InitListExpr>(init) || IsVectorType) &&
         !isa<clang::CXXConstructExpr>(init)) {
       auto visit = Visit(init);
       if (!visit.val) {
