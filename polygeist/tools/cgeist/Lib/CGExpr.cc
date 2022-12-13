@@ -455,8 +455,11 @@ ValueCategory MLIRScanner::VisitCXXStdInitializerListExpr(
 
   ArrayPtr = CommonArrayToPointer(ArrayPtr);
 
-  Res = Builder.create<LLVM::InsertValueOp>(Loc, Res,
-                                            ArrayPtr.getValue(Builder), 0);
+  Value ArrayPtrVal = ArrayPtr.getValue(Builder);
+  if (auto ST = dyn_cast<LLVM::LLVMStructType>(Res.getType()))
+    ArrayPtrVal = castToMemSpaceOfType(ArrayPtrVal, ST.getBody()[0]);
+
+  Res = Builder.create<LLVM::InsertValueOp>(Loc, Res, ArrayPtrVal, 0);
   Field++;
   auto ITy =
       Glob.getTypes().getMLIRType(Field->getType()).cast<mlir::IntegerType>();
