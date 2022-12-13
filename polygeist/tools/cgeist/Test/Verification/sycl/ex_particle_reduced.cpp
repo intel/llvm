@@ -1,18 +1,8 @@
-
 // RUN: clang++ -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -O0 -w -c %s -o %t.O0.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
-// RUN: clang++ -fsycl -fsycl-device-only -O0 -w -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o %t.bc
 
-// Test that the LLVMIR generated is verifiable.
-// RUN: opt -verify -disable-output < %t.bc
+// RUN: clang++ -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=LLVM
 
-// Verify that LLVMIR generated is translatable to SPIRV.
-// RUN: llvm-spirv %t.bc
-
-// Test that all referenced sycl header functions are generated.
-// RUN: llvm-dis %t.bc
-// RUN: cat %t.ll | FileCheck %s --check-prefix=LLVM --implicit-check-not="declare{{.*}}spir_func"
-
-// Test that the kernel named `kernel_parallel_for_id` is generated with the correct signature.
+// Test that the kernel named `kernel_likelihood` is generated with the correct signature.
 // LLVM: define weak_odr spir_kernel void {{.*}}kernel_likelihood(
 // LLVM-SAME: float addrspace(1)* noundef %0, %"class.sycl::_V1::range.1"* noundef byval(%"class.sycl::_V1::range.1") align 8 %1, 
 // LLVM-SAME: %"class.sycl::_V1::range.1"* noundef byval(%"class.sycl::_V1::range.1") align 8 %2, %"class.sycl::_V1::id.1"* noundef byval(%"class.sycl::_V1::id.1") align 8 %3)
