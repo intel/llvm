@@ -21,7 +21,7 @@ namespace driver
     class __urdlllocal context_t
     {
     public:
-        ur_api_version_t version = UR_API_VERSION_0_9;
+        ur_api_version_t version = UR_API_VERSION_CURRENT;
 
         ur_dditable_t   urDdiTable = {};
         context_t();

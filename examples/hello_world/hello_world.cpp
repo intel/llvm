@@ -49,6 +49,15 @@ int main(int argc, char *argv[])
 
     for (auto p : platforms)
     {
+        ur_api_version_t api_version = {};
+        status = urPlatformGetApiVersion(platform, &api_version);
+        if (status != UR_RESULT_SUCCESS)
+        {
+            std::cout << "urPlatformGetApiVersion failed with return code: " << status << std::endl;
+            goto out;
+        }
+        std::cout << "API version: " << UR_MAJOR_VERSION(api_version) << "." << UR_MINOR_VERSION(api_version) << std::endl;
+
         uint32_t deviceCount = 0;
         status = urDeviceGet(p, UR_DEVICE_TYPE_GPU, 0, nullptr, &deviceCount);
         if (status != UR_RESULT_SUCCESS)
