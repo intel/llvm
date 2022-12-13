@@ -63,7 +63,7 @@ static Optional<int64_t> unpackedDim(OpTy xferOp) {
   }
   assert(xferOp.isBroadcastDim(0) &&
          "Expected AffineDimExpr or AffineConstantExpr");
-  return None;
+  return std::nullopt;
 }
 
 /// Compute the permutation map for the new (N-1)-D vector transfer op. This
@@ -1114,7 +1114,7 @@ get1dMemrefIndices(OpBuilder &b, OpTy xferOp, Value iv,
 
   assert(xferOp.isBroadcastDim(0) &&
          "Expected AffineDimExpr or AffineConstantExpr");
-  return None;
+  return std::nullopt;
 }
 
 /// Codegen strategy for TransferOp1dConversion, depending on the
@@ -1290,7 +1290,6 @@ struct ConvertVectorToSCFPass
   ConvertVectorToSCFPass(const VectorTransferToSCFOptions &options) {
     this->fullUnroll = options.unroll;
     this->targetRank = options.targetRank;
-    this->lowerPermutationMaps = options.lowerPermutationMaps;
     this->lowerTensors = options.lowerTensors;
   }
 
@@ -1298,17 +1297,14 @@ struct ConvertVectorToSCFPass
     VectorTransferToSCFOptions options;
     options.unroll = fullUnroll;
     options.targetRank = targetRank;
-    options.lowerPermutationMaps = lowerPermutationMaps;
     options.lowerTensors = lowerTensors;
 
     // Lower permutation maps first.
-    if (lowerPermutationMaps) {
-      RewritePatternSet lowerTransferPatterns(&getContext());
-      mlir::vector::populateVectorTransferPermutationMapLoweringPatterns(
-          lowerTransferPatterns);
-      (void)applyPatternsAndFoldGreedily(getOperation(),
-                                         std::move(lowerTransferPatterns));
-    }
+    RewritePatternSet lowerTransferPatterns(&getContext());
+    mlir::vector::populateVectorTransferPermutationMapLoweringPatterns(
+        lowerTransferPatterns);
+    (void)applyPatternsAndFoldGreedily(getOperation(),
+                                       std::move(lowerTransferPatterns));
 
     RewritePatternSet patterns(&getContext());
     populateVectorToSCFConversionPatterns(patterns, options);

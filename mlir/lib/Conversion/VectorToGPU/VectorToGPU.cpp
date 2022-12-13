@@ -92,6 +92,19 @@ static bool contractSupportsMMAMatrixType(vector::ContractionOp contract,
   return true;
 }
 
+// Return true if the given map represents a transposed matrix load,
+// i.e. (d0, d1, ...) -> (dn-1, dn-2).
+static bool isTransposeMatrixLoadMap(OpBuilder &b, AffineMap permutationMap) {
+  auto nDim = permutationMap.getNumDims();
+  if (nDim < 2)
+    return false;
+
+  AffineExpr innerDim = b.getAffineDimExpr(nDim - 1);
+  AffineExpr outerDim = b.getAffineDimExpr(nDim - 2);
+  return permutationMap ==
+         AffineMap::get(nDim, 0, {innerDim, outerDim}, b.getContext());
+}
+
 // Return the stide for the dimension 0 of |type| if it is a memref and has a
 // constant stride.
 static std::optional<int64_t>
@@ -106,10 +119,10 @@ getMemrefConstantHorizontalStride(ShapedType type) {
   SmallVector<int64_t, 2> strides;
   if (failed(getStridesAndOffset(memrefType, strides, offset)) ||
       strides.back() != 1)
-    return llvm::None;
+    return std::nullopt;
   int64_t stride = strides[strides.size() - 2];
   if (stride == ShapedType::kDynamic)
-    return llvm::None;
+    return std::nullopt;
   return stride;
 }
 
@@ -129,9 +142,9 @@ static bool transferReadSupportsMMAMatrixType(vector::TransferReadOp readOp,
                                           readOp.getContext());
 
   if (!useNvGpu) {
-    // TODO: Support transpose once it is added to GPU dialect ops.
-    // For now we only support (d0, d1) -> (d0, d1) and (d0, d1) -> (0, d1).
-    return map.isMinorIdentity() || map == broadcastInnerDim;
+    bool result = map.isMinorIdentity() || map == broadcastInnerDim ||
+                  isTransposeMatrixLoadMap(b, map);
+    return result;
   }
 
   return true;
@@ -184,7 +197,7 @@ convertElementwiseOpToMMA(Operation *op) {
     return gpu::MMAElementwiseOp::MINF;
   if (isa<arith::DivFOp>(op))
     return gpu::MMAElementwiseOp::DIVF;
-  return llvm::None;
+  return std::nullopt;
 }
 
 /// Return true if the op is supported as elementwise op on MMAMatrix type.
@@ -445,9 +458,10 @@ static void convertTransferReadOp(vector::TransferReadOp op,
       gpu::MMAMatrixType::get(op.getVectorType().getShape(),
                               op.getVectorType().getElementType(), fragType);
   OpBuilder b(op);
+  bool isTranspose = isTransposeMatrixLoadMap(b, map);
   Value load = b.create<gpu::SubgroupMmaLoadMatrixOp>(
       op.getLoc(), type, op.getSource(), op.getIndices(),
-      b.getIndexAttr(*stride));
+      b.getIndexAttr(*stride), isTranspose ? b.getUnitAttr() : UnitAttr());
   valueMapping[op.getResult()] = load;
 }
 

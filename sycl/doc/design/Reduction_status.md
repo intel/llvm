@@ -2,20 +2,6 @@
 
 **NOTE**: This document is a quick draft. It is written to help developers of SYCL headers/library to understand the current status, currently used algorithms and known problems.
 
-
-
-# Reduction specifications
-
-There are 2 specifications of the reduction feature and both are still actual:
-
-* `sycl::ext::oneapi::reduction` is described in [this document](../extensions/deprecated/sycl_ext_oneapi_nd_range_reductions.md). This extension is deprecated, and was created as part of a pathfinding/prototyping work before it was added to SYCL 2020 standard.
-
-* `sycl::reduction` is described in [SYCL 2020 standard](https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:reduction).
-
-These two specifications for reduction are pretty similar. The implementation of `sycl::reduction` is based on (basically re-uses) the implementation of `sycl::ext::oneapi::reduction`. 
-
-There are non-critical differences in API to create the reduction object. `sycl::reduction` accepts either `sycl::buffer` or `usm memory` and optional property `property::reduction::initialize_to_identity` as parameter to create a reduction, while `sycl::ext::oneapi::reduction` accepts `sycl::accessor` that has `access::mode` equal to either `read_write` (which corresponds to SYCL 2020 reduction initialized without `property::reduction::initialize_to_identity`) or `discard_write`(corresponds to case when `property::reduction::initialize_to_identity` is used).
-
 ---
 ---
 # Implementation details: `reduction` in `parallel_for()` accepting `nd_range`
@@ -140,10 +126,7 @@ Variants (B) and (C) use the same approach. The only difference is how the parti
 
 ---
 
-TODO #4 (Performance): The `reductionLoop()` has some order in which it choses indexes from the global index space. Currently it has huge stride to help vectorizer and get more vector insturction for the device code, which though may cause competition among devices for the memory due to pretty bad memory locality. On two-socket server CPUs using smaller stride to prioritize better memory locality gives additional perf improvement. 
-
----
-TODO #5 (Performance): Some devices may provide unique-thread-id where the number of worker threads running simultaneously is limited. Such feature opens way for more efficient implementations (up to 2x faster, especially on many stacks/tiles devices). See this extension for reference: https://github.com/intel/llvm/pull/4747
+TODO #4 (Performance): Some devices may provide unique-thread-id where the number of worker threads running simultaneously is limited. Such feature opens way for more efficient implementations (up to 2x faster, especially on many stacks/tiles devices). See this extension for reference: https://github.com/intel/llvm/pull/4747
 
 ---
 ---
@@ -162,25 +145,7 @@ The rest of this work is temporarily blocked by XPTI instrumentation that need t
 The problem is known, the fix in SYCL headers is implemented: https://github.com/intel/llvm/pull/4352 and is waiting for some re-work in XPTI component that must be done before the fix merge.
 
 ---
-### 2) Support `parallel_for` accepting `range` and having `item` as the parameter of the kernel function. 
-Currently only kernels accepting `id` are supported.
-
----
-### 3) Support `parallel_for` accepting `range` and 2 or more reduction variables.
-Currently `parallel_for()` accepting `range` may handle only 1 reduction variable. It does not support 2 or more. 
-
-The temporary work-around for that is to use some container multiple reduction variables, i.e. std::pair, std::tuple or a custom struct/class containing 2 or more reduction variables, and also define a custom operator that would be passed to `reduction` constructor.
-Another work-around is to provide `nd_range`.
-
----
-### 4) Support `parallel_for` accepting `reduction` constructed with `span`:
-```c++
-template <typename T, typename Extent, typename BinaryOperation>
-__unspecified__ reduction(span<T, Extent> vars, const T& identity, BinaryOperation combiner);
-```
-
----
-### 5) Support identity-less reductions even when the reduction cannot be determinted automatically.
+### 2) Support identity-less reductions even when the reduction cannot be determinted automatically.
 
 Currently identity-less reductions are supported, but only in cases when sycl::has_known_identity<BinaryOperation, ElementType> returns true.
 When sycl::has_known_identity returns false, the implementation of the reduction may be less efficient, but still be functional.

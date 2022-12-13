@@ -10,15 +10,13 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace detail {
-namespace device_global_map {
+namespace detail::device_global_map {
 
 __SYCL_EXPORT void add(const void *DeviceGlobalPtr, const char *UniqueId) {
   detail::ProgramManager::getInstance().addOrInitDeviceGlobalEntry(
       DeviceGlobalPtr, UniqueId);
 }
 
-} // namespace device_global_map
-} // namespace detail
+} // namespace detail::device_global_map
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

@@ -36,11 +36,9 @@ class host_accessor;
 template <typename T, int Dimensions, typename AllocatorT, typename Enable>
 class buffer;
 
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 template <typename SYCLObjT> class weak_object;
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 namespace detail {
 
@@ -125,6 +123,8 @@ protected:
 
   size_t getSize() const;
 
+  void handleRelease() const;
+
   std::shared_ptr<detail::buffer_impl> impl;
 };
 
@@ -159,11 +159,11 @@ public:
   // using same requirement for contiguous container as std::span
   template <class Container>
   using EnableIfContiguous =
-      detail::void_t<std::enable_if_t<std::is_convertible<
-                         detail::remove_pointer_t<
-                             decltype(std::declval<Container>().data())> (*)[],
-                         const T (*)[]>::value>,
-                     decltype(std::declval<Container>().size())>;
+      std::void_t<std::enable_if_t<std::is_convertible<
+                      detail::remove_pointer_t<
+                          decltype(std::declval<Container>().data())> (*)[],
+                      const T (*)[]>::value>,
+                  decltype(std::declval<Container>().size())>;
   template <class It>
   using EnableIfItInputIterator = std::enable_if_t<
       std::is_convertible<typename std::iterator_traits<It>::iterator_category,
@@ -344,9 +344,9 @@ public:
               using IteratorValueType =
                   detail::iterator_value_type_t<InputIterator>;
               using IteratorNonConstValueType =
-                  detail::remove_const_t<IteratorValueType>;
+                  std::remove_const_t<IteratorValueType>;
               using IteratorPointerToNonConstValueType =
-                  detail::add_pointer_t<IteratorNonConstValueType>;
+                  std::add_pointer_t<IteratorNonConstValueType>;
               std::copy(first, last,
                         static_cast<IteratorPointerToNonConstValueType>(ToPtr));
             },
@@ -377,9 +377,9 @@ public:
               using IteratorValueType =
                   detail::iterator_value_type_t<InputIterator>;
               using IteratorNonConstValueType =
-                  detail::remove_const_t<IteratorValueType>;
+                  std::remove_const_t<IteratorValueType>;
               using IteratorPointerToNonConstValueType =
-                  detail::add_pointer_t<IteratorNonConstValueType>;
+                  std::add_pointer_t<IteratorNonConstValueType>;
               std::copy(first, last,
                         static_cast<IteratorPointerToNonConstValueType>(ToPtr));
             },
@@ -466,7 +466,7 @@ public:
 
   buffer &operator=(buffer &&rhs) = default;
 
-  ~buffer() = default;
+  ~buffer() { buffer_plain::handleRelease(); }
 
   bool operator==(const buffer &rhs) const { return impl == rhs.impl; }
 
@@ -547,8 +547,6 @@ public:
         *this, accessRange, accessOffset, {}, CodeLoc);
   }
 
-#if __cplusplus >= 201703L
-
   template <typename... Ts> auto get_access(Ts... args) {
     return accessor{*this, args...};
   }
@@ -566,8 +564,6 @@ public:
   auto get_host_access(handler &commandGroupHandler, Ts... args) {
     return host_accessor{*this, commandGroupHandler, args...};
   }
-
-#endif
 
   template <typename Destination = std::nullptr_t>
   void set_final_data(Destination finalData = nullptr) {

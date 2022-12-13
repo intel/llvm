@@ -1180,7 +1180,7 @@ translateArmToMsvcIntrin(unsigned BuiltinID) {
   using MSVCIntrin = CodeGenFunction::MSVCIntrin;
   switch (BuiltinID) {
   default:
-    return None;
+    return std::nullopt;
   case clang::ARM::BI_BitScanForward:
   case clang::ARM::BI_BitScanForward64:
     return MSVCIntrin::_BitScanForward;
@@ -1326,7 +1326,7 @@ translateAarch64ToMsvcIntrin(unsigned BuiltinID) {
   using MSVCIntrin = CodeGenFunction::MSVCIntrin;
   switch (BuiltinID) {
   default:
-    return None;
+    return std::nullopt;
   case clang::AArch64::BI_BitScanForward:
   case clang::AArch64::BI_BitScanForward64:
     return MSVCIntrin::_BitScanForward;
@@ -1480,7 +1480,7 @@ translateX86ToMsvcIntrin(unsigned BuiltinID) {
   using MSVCIntrin = CodeGenFunction::MSVCIntrin;
   switch (BuiltinID) {
   default:
-    return None;
+    return std::nullopt;
   case clang::X86::BI_BitScanForward:
   case clang::X86::BI_BitScanForward64:
     return MSVCIntrin::_BitScanForward;
@@ -1715,7 +1715,7 @@ Value *CodeGenFunction::EmitCheckedArgForBuiltin(const Expr *E,
             SanitizerHandler::InvalidBuiltin,
             {EmitCheckSourceLocation(E->getExprLoc()),
              llvm::ConstantInt::get(Builder.getInt8Ty(), Kind)},
-            None);
+            std::nullopt);
   return ArgValue;
 }
 
@@ -16786,7 +16786,7 @@ Value *EmitAMDGPUWorkGroupSize(CodeGenFunction &CGF, unsigned Index) {
       APInt(16, CGF.getTarget().getMaxOpenCLWorkGroupSize() + 1));
   LD->setMetadata(llvm::LLVMContext::MD_range, RNode);
   LD->setMetadata(llvm::LLVMContext::MD_invariant_load,
-      llvm::MDNode::get(CGF.getLLVMContext(), None));
+                  llvm::MDNode::get(CGF.getLLVMContext(), std::nullopt));
   return LD;
 }
 
@@ -16803,7 +16803,7 @@ Value *EmitAMDGPUGridSize(CodeGenFunction &CGF, unsigned Index) {
   auto *LD = CGF.Builder.CreateLoad(
       Address(Cast, CGF.Int32Ty, CharUnits::fromQuantity(4)));
   LD->setMetadata(llvm::LLVMContext::MD_invariant_load,
-                  llvm::MDNode::get(CGF.getLLVMContext(), None));
+                  llvm::MDNode::get(CGF.getLLVMContext(), std::nullopt));
   return LD;
 }
 } // namespace
@@ -21746,9 +21746,6 @@ Value *CodeGenFunction::EmitLoongArchBuiltinExpr(unsigned BuiltinID,
   case LoongArch::BI__builtin_loongarch_dbar:
     ID = Intrinsic::loongarch_dbar;
     break;
-  case LoongArch::BI__builtin_loongarch_crc_w_d_w:
-    ID = Intrinsic::loongarch_crc_w_d_w;
-    break;
   case LoongArch::BI__builtin_loongarch_break:
     ID = Intrinsic::loongarch_break;
     break;
@@ -21757,6 +21754,30 @@ Value *CodeGenFunction::EmitLoongArchBuiltinExpr(unsigned BuiltinID,
     break;
   case LoongArch::BI__builtin_loongarch_syscall:
     ID = Intrinsic::loongarch_syscall;
+    break;
+  case LoongArch::BI__builtin_loongarch_crc_w_b_w:
+    ID = Intrinsic::loongarch_crc_w_b_w;
+    break;
+  case LoongArch::BI__builtin_loongarch_crc_w_h_w:
+    ID = Intrinsic::loongarch_crc_w_h_w;
+    break;
+  case LoongArch::BI__builtin_loongarch_crc_w_w_w:
+    ID = Intrinsic::loongarch_crc_w_w_w;
+    break;
+  case LoongArch::BI__builtin_loongarch_crc_w_d_w:
+    ID = Intrinsic::loongarch_crc_w_d_w;
+    break;
+  case LoongArch::BI__builtin_loongarch_crcc_w_b_w:
+    ID = Intrinsic::loongarch_crcc_w_b_w;
+    break;
+  case LoongArch::BI__builtin_loongarch_crcc_w_h_w:
+    ID = Intrinsic::loongarch_crcc_w_h_w;
+    break;
+  case LoongArch::BI__builtin_loongarch_crcc_w_w_w:
+    ID = Intrinsic::loongarch_crcc_w_w_w;
+    break;
+  case LoongArch::BI__builtin_loongarch_crcc_w_d_w:
+    ID = Intrinsic::loongarch_crcc_w_d_w;
     break;
     // TODO: Support more Intrinsics.
   }

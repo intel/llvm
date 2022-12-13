@@ -40,13 +40,13 @@ using SelectBlockT = select_cl_scalar_integral_unsigned_t<T>;
 
 template <typename T, access::address_space Space>
 using AcceptableForGlobalLoadStore =
-    bool_constant<!std::is_same<void, SelectBlockT<T>>::value &&
-                  Space == access::address_space::global_space>;
+    std::bool_constant<!std::is_same<void, SelectBlockT<T>>::value &&
+                       Space == access::address_space::global_space>;
 
 template <typename T, access::address_space Space>
 using AcceptableForLocalLoadStore =
-    bool_constant<!std::is_same<void, SelectBlockT<T>>::value &&
-                  Space == access::address_space::local_space>;
+    std::bool_constant<!std::is_same<void, SelectBlockT<T>>::value &&
+                       Space == access::address_space::local_space>;
 
 #ifdef __SYCL_DEVICE_ONLY__
 template <typename T, access::address_space Space,
@@ -121,8 +121,7 @@ GetUnqualMultiPtr(const multi_ptr<CVT, Space, IsDecorated> &Mptr) {
 
 } // namespace detail
 
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 
 struct sub_group;
 namespace experimental {
@@ -791,8 +790,7 @@ inline sub_group this_sub_group() {
 #endif
 }
 
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

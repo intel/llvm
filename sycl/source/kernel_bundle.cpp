@@ -184,9 +184,6 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
       detail::ProgramManager::getInstance()
           .getSYCLDeviceImagesWithCompatibleState(Ctx, Devs, State);
 
-  // TODO: Add a check that all kernel ids are compatible with at least one
-  // device in Devs
-
   return (bool)DeviceImages.size();
 }
 
@@ -235,9 +232,6 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                   [&CombinedKernelIDs](const kernel_id &KernelID) {
                     return CombinedKernelIDs.count(KernelID);
                   });
-
-  // TODO: Add a check that all kernel ids are compatible with at least one
-  // device in Devs
 
   return AllKernelIDsRepresented;
 }
@@ -296,31 +290,12 @@ std::vector<kernel_id> get_kernel_ids() {
 }
 
 bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
-  for (const auto &KernelId : KernelIDs) {
-    const detail::RTDeviceBinaryImage &Img =
-        detail::ProgramManager::getInstance().getDeviceImage(
-            detail::OSUtil::ExeModuleHandle, KernelId.get_name(), context(Dev),
-            Dev);
-    const detail::RTDeviceBinaryImage::PropertyRange &ARange =
-        Img.getDeviceRequirements();
-    for (detail::RTDeviceBinaryImage::PropertyRange::ConstIterator It :
-         ARange) {
-      using namespace std::literals;
-      if ((*It)->Name != "aspects"sv)
-        continue;
-      detail::ByteArray Aspects =
-          detail::DeviceBinaryProperty(*It).asByteArray();
-      // Drop 8 bytes describing the size of the byte array
-      Aspects.dropBytes(8);
-      while (!Aspects.empty()) {
-        aspect Aspect = Aspects.consume<aspect>();
-        if (!Dev.has(Aspect))
-          return false;
-      }
-    }
-  }
-
-  return true;
+  std::set<detail::RTDeviceBinaryImage *> BinImages =
+      detail::ProgramManager::getInstance().getRawDeviceImages(KernelIDs);
+  return std::all_of(BinImages.begin(), BinImages.end(),
+                     [&Dev](const detail::RTDeviceBinaryImage *Img) {
+                       return doesDevSupportImgAspects(Dev, *Img);
+                     });
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

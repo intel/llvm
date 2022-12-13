@@ -293,8 +293,7 @@ int accelerator_selector::operator()(const device &dev) const {
   return accelerator_selector_v(dev);
 }
 
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 
 filter_selector::filter_selector(const std::string &Input)
     : impl(std::make_shared<detail::filter_selector_impl>(Input)) {}
@@ -325,8 +324,7 @@ device filter_selector::select_device() const {
   return Result;
 }
 
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
 using namespace ext::oneapi;
