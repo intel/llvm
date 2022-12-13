@@ -9354,18 +9354,23 @@ pi_result _pi_buffer::free() {
   return PI_SUCCESS;
 }
 
-pi_result piGetDeviceAndHostTimer(pi_device device, uint64_t *deviceTime,
-                                  uint64_t *hostTime) {
+pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
+                                  uint64_t *HostTime) {
   const uint64_t &ZeTimerResolution =
-      device->ZeDeviceProperties->timerResolution;
+      Device->ZeDeviceProperties->timerResolution;
   const uint64_t TimestampMaxCount =
-      ((1ULL << device->ZeDeviceProperties->kernelTimestampValidBits) - 1ULL);
-  uint64_t deviceClockCount, dummy;
+      ((1ULL << Device->ZeDeviceProperties->kernelTimestampValidBits) - 1ULL);
+  uint64_t DeviceClockCount, Dummy;
+
+  uint64_t *&HostTimeHandle = HostTime == nullptr ? &Dummy : HostTime;
 
   ZE_CALL(zeDeviceGetGlobalTimestamps,
-          (device->ZeDevice, hostTime == nullptr ? &dummy : hostTime,
-           &deviceClockCount));
-  *deviceTime = (deviceClockCount & TimestampMaxCount) * ZeTimerResolution;
+          (device->ZeDevice, HostTimeHandle, &DeviceClockCount));
+
+  if (DeviceTime != nullptr) {
+
+    *DeviceTime = (DeviceClockCount & TimestampMaxCount) * ZeTimerResolution;
+  }
   return PI_SUCCESS;
 }
 } // extern "C"

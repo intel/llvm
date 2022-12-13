@@ -1905,15 +1905,15 @@ __SYCL_EXPORT pi_result piTearDown(void *PluginParameter);
 /// timestamp
 __SYCL_EXPORT pi_result piPluginGetLastError(char **message);
 
-/// Returns the global timestamp from \param device , and syncronized host
-/// timestamp
+/// Returns the global timestamp from \param device , and synchronized host
+/// timestamp.
 ///
 /// \param device device to query for timestamp
 /// \param deviceTime pointer to store device time
-/// \param hostTime pointer to store syncronized host time
-__SYCL_EXPORT pi_result piGetDeviceAndHostTimer(pi_device device,
-                                                uint64_t *deviceTime,
-                                                uint64_t *hostTime);
+/// \param hostTime pointer to store synchronized host time
+__SYCL_EXPORT pi_result piGetDeviceAndHostTimer(pi_device Device,
+                                                uint64_t *DeviceTime,
+                                                uint64_t *HostTime);
 
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin
