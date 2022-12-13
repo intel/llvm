@@ -25,7 +25,8 @@ private:
       return *this;
     if (const auto C = val.getDefiningOp<mlir::arith::ConstantOp>()) {
       mlirclang::ConstantFolder Folder{Builder};
-      if (const auto FoldedRes = Folder.fold<OpTy>(Loc, PromotionType, C))
+      if (const mlir::Value FoldedRes =
+              Folder.fold<OpTy>(Loc, PromotionType, C))
         return {FoldedRes, false};
     }
     return {Builder.createOrFold<OpTy>(Loc, PromotionType, val), false};

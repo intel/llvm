@@ -11,8 +11,8 @@
 using namespace mlir;
 using namespace mlirclang;
 
-Value mlirclang::ConstantFolder::foldFPCast(Location Loc, Type PromotionType,
-                                            arith::ConstantOp C) {
+Value ConstantFolder::foldFPCast(Location Loc, Type PromotionType,
+                                 arith::ConstantOp C) {
   assert(PromotionType.isa<FloatType>() && "Expecting FP type");
   const auto Attr = C.getValueAttr().cast<FloatAttr>();
   const auto NewAttr =

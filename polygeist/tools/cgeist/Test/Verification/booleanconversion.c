@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=* -S -O0 | FileCheck %s
+// RUN: cgeist %s --function=* -S -O0 -w | FileCheck %s
 
 #include <stdbool.h>
 
