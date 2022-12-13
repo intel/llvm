@@ -50,6 +50,20 @@ static pi_result ur2piResult(zer_result_t urResult) {
   if (auto Result = urCall)                                                    \
     return ur2piResult(Result);
 
+// A version of return helper that returns pi_result and not zer_result_t
+class ReturnHelper : public UrReturnHelper {
+public:
+  using UrReturnHelper::UrReturnHelper;
+
+  template <class T> pi_result operator()(const T &t) {
+    return ur2piResult(UrReturnHelper::operator()(t));
+  }
+
+  template <class T> pi_result operator()(const T *t, size_t s) {
+    return ur2piResult(UrReturnHelper::operator()(t, s));
+  }
+};
+
 namespace pi2ur {
 inline pi_result piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
                                 pi_uint32 *num_platforms) {
@@ -66,14 +80,31 @@ inline pi_result piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
 }
 
 inline pi_result piPlatformGetInfo(pi_platform platform,
-                                   pi_platform_info param_name,
-                                   size_t param_value_size, void *param_value,
-                                   size_t *param_value_size_ret) {
-  (void)platform;
-  (void)param_name;
-  (void)param_value_size;
-  (void)param_value;
-  (void)param_value_size_ret;
-  die("Unified Runtime: piPlatformGetInfo is not implemented");
+                                   pi_platform_info ParamName,
+                                   size_t ParamValueSize, void *ParamValue,
+                                   size_t *ParamValueSizeRet) {
+
+  static std::unordered_map<pi_platform_info, zer_platform_info_t> InfoMapping =
+      {
+          {PI_PLATFORM_INFO_EXTENSIONS, ZER_PLATFORM_INFO_NAME},
+          {PI_PLATFORM_INFO_NAME, ZER_PLATFORM_INFO_NAME},
+          {PI_PLATFORM_INFO_PROFILE, ZER_PLATFORM_INFO_PROFILE},
+          {PI_PLATFORM_INFO_VENDOR, ZER_PLATFORM_INFO_VENDOR_NAME},
+          {PI_PLATFORM_INFO_VERSION, ZER_PLATFORM_INFO_VERSION},
+      };
+
+  auto InfoType = InfoMapping.find(ParamName);
+  if (InfoType == InfoMapping.end()) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  size_t SizeInOut = ParamValueSize;
+  auto hPlatform = reinterpret_cast<zer_platform_handle_t>(platform);
+  HANDLE_ERRORS(
+      zerPlatformGetInfo(hPlatform, InfoType->second, &SizeInOut, ParamValue));
+  if (ParamValueSizeRet) {
+    *ParamValueSizeRet = SizeInOut;
+  }
+  return PI_SUCCESS;
 }
 } // namespace pi2ur
