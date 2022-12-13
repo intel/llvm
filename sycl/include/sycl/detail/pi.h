@@ -65,14 +65,14 @@
 // partitioning by affinity domain is disabled by default and can be temporarily
 // restored via SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING
 // environment variable.
-// 13.20 Added new piextUSMEnqueueFill2D, piextUSMEnqueueMemset2D, and
+// 12.20 Added new piextUSMEnqueueFill2D, piextUSMEnqueueMemset2D, and
 // piextUSMEnqueueMemcpy2D functions. Added new
 // PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT,
 // PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT, and
 // PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT context info query
 // descriptors.
 
-#define _PI_H_VERSION_MAJOR 13
+#define _PI_H_VERSION_MAJOR 12
 #define _PI_H_VERSION_MINOR 20
 
 #define _PI_STRING_HELPER(a) #a
