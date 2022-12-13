@@ -66,8 +66,9 @@ namespace driver
 
                 case UR_DEVICE_INFO_NAME:
                     if (pDeviceInfo != nullptr) {
+                        char deviceName[] = "Null Device";
 #if defined(_WIN32)
-                        strncpy_s( reinterpret_cast<char *>(pDeviceInfo), "Null Device", propSize );
+                        strncpy_s( reinterpret_cast<char *>(pDeviceInfo), propSize, deviceName, sizeof(deviceName) );
 #else
                         strncpy( reinterpret_cast<char *>(pDeviceInfo), "Null Device", propSize );
 #endif
