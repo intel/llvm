@@ -7,6 +7,7 @@
  */
 
 #include "platform_discovery.h"
+#include "ur_util.h"
 
 #include <Windows.h>
 
@@ -20,9 +21,17 @@
 
 namespace loader {
 
+static const char *knownAdaptersNames[] = {
+  MAKE_LIBRARY_NAME("ur_null", UR_VERSION),
+};
+
 std::vector<PlatformLibraryPath> discoverEnabledPlatforms() {
-    //TODO:Enable windows driver discovery
     std::vector<PlatformLibraryPath> enabledPlatforms;
+
+    for (auto libName : knownAdaptersNames) {
+      enabledPlatforms.emplace_back(libName);
+    }
+
     return enabledPlatforms;
 }
 } // namespace loader
