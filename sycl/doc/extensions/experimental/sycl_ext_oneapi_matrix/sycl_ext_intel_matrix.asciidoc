@@ -137,8 +137,8 @@ The table below provides a list of the combinations that `joint_matrix` implemen
 [frame="none",options="header"]
 |======================
 | A type | B type | Accumulator type | M | N | K
-| (u)int8_t  | (u)int8_t |  int32_t  |  <=16 |  <=16 |  <=64
-|  bf16       |  bf16   |   fp32   |  <=16 |  <=16   |  <=32
+| (u)int8_t  | (u)int8_t |  int32_t  |  `<=` 16 |  `<=` 16 |  `<=` 64
+|  bf16       |  bf16   |   fp32   |  `<=` 16 |  `<=` 16   |  `<=` 32
 |======================
 
 ### Intel XMX Supported Combinations
@@ -146,9 +146,9 @@ The table below provides a list of the combinations that `joint_matrix` implemen
 [frame="none",options="header"]
 |======================
 | A type | B type | Accumulator type | M | N | K
-| (u)int8_t  | (u)int8_t |  int32_t  |  <=8 |  16 |  32
-|  fp16       |  fp16   |   fp32   |  <=8 |  16   |  16
-|  bf16       |  bf16   |   fp32   |  <=8 |  16   |  16
+| (u)int8_t  | (u)int8_t |  int32_t  |  `<=` 8 |  16 |  32
+|  fp16       |  fp16   |   fp32   |  `<=` 8 |  16   |  16
+|  bf16       |  bf16   |   fp32   |  `<=` 8 |  16   |  16
 |======================
 
 ## Open Questions
