@@ -56,22 +56,22 @@ static mlir::Value castToBaseType(PatternRewriter &Rewriter, mlir::Location Loc,
   Rewriter.setInsertionPoint(InsertionOp);
 
   // Store the element
-  Rewriter.createOrFold<memref::StoreOp>(
+  Rewriter.create<memref::StoreOp>(
       Loc, Original, Alloca,
       ValueRange{Rewriter.createOrFold<arith::ConstantIndexOp>(Loc, 0)});
 
   // Cast the memref value to the expected shape
-  Alloca = Rewriter.createOrFold<memref::CastOp>(
+  Alloca = Rewriter.create<memref::CastOp>(
       Loc, MemRefType::get(TargetShape, ThisType), Alloca);
 
   if (Alloca.getType().cast<MemRefType>().getMemorySpaceAsInt() !=
       BaseType.getMemorySpaceAsInt()) {
     // Cast to the required memspace
-    Alloca = Rewriter.createOrFold<polygeist::Memref2PointerOp>(
+    Alloca = Rewriter.create<polygeist::Memref2PointerOp>(
         Loc, LLVM::LLVMPointerType::get(ThisType), Alloca);
-    Alloca = Rewriter.createOrFold<LLVM::AddrSpaceCastOp>(
+    Alloca = Rewriter.create<LLVM::AddrSpaceCastOp>(
         Loc, LLVM::LLVMPointerType::get(ThisType, TargetMemSpace), Alloca);
-    Alloca = Rewriter.createOrFold<polygeist::Pointer2MemrefOp>(
+    Alloca = Rewriter.create<polygeist::Pointer2MemrefOp>(
         Loc, MemRefType::get(TargetShape, ThisType, {}, TargetMemSpace),
         Alloca);
   }
