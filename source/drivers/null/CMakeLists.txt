@@ -1,3 +1,6 @@
+# Copyright (C) 2022 Intel Corporation
+# SPDX-License-Identifier: MIT
+
 set(TARGET_NAME ur_null)
 
 add_library(${TARGET_NAME}
@@ -12,11 +15,9 @@ set_target_properties(${TARGET_NAME} PROPERTIES
     SOVERSION "${PROJECT_VERSION_MAJOR}"
 )
 
-target_include_directories(${TARGET_NAME}
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/source/common
+target_link_libraries(${TARGET_NAME} PRIVATE
+    ${PROJECT_NAME}::headers
+    ${PROJECT_NAME}::common
 )
 
 if(UNIX)
