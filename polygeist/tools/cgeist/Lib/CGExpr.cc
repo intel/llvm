@@ -1124,16 +1124,17 @@ MLIRScanner::emitSYCLOps(const clang::Expr *Expr,
     Func = ConsExpr->getConstructor()->getAsFunction();
 
     if (static_cast<bool>(
-            mlirclang::isNamespaceSYCL(Func->getEnclosingNamespaceContext())))
-      if (const auto *RD = dyn_cast<clang::CXXRecordDecl>(Func->getParent());
-          mlirclang::areSYCLMemberFunctionOrConstructorArgs(
-              ValueRange{Args}.getTypes())) {
+            mlirclang::isNamespaceSYCL(Func->getEnclosingNamespaceContext()))) {
+      const auto *RD = dyn_cast<clang::CXXRecordDecl>(Func->getParent());
+      if (RD && mlirclang::areSYCLMemberFunctionOrConstructorArgs(
+                    ValueRange{Args}.getTypes())) {
         std::string Name =
             MLIRScanner::getMangledFuncName(*Func, Glob.getCGM());
         if (!RD->getName().empty())
           return Builder.create<mlir::sycl::SYCLConstructorOp>(
               Loc, RD->getName(), Name, Args);
       }
+    }
   }
 
   mlir::Operation *Op = nullptr;

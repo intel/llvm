@@ -1344,34 +1344,32 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     }
 
     const auto *RD = RT->getAsRecordDecl();
-    {
-      const mlirclang::IsNamespaceSYCLResult IsNamespaceSYCL =
-          mlirclang::isNamespaceSYCL(RD->getEnclosingNamespaceContext());
-      if (static_cast<bool>(IsNamespaceSYCL)) {
-        const auto TypeName = RD->getName();
-        if (TypeName == "accessor" || TypeName == "accessor_common" ||
-            TypeName == "AccessorImplDevice" ||
-            TypeName == "AccessorSubscript" || TypeName == "array" ||
-            TypeName == "AssertHappened" || TypeName == "atomic" ||
-            TypeName == "bfloat16" || TypeName == "GetOp" ||
-            TypeName == "GetScalarOp" || TypeName == "group" ||
-            TypeName == "h_item" || TypeName == "id" || TypeName == "item" ||
-            TypeName == "ItemBase" || TypeName == "kernel_handler" ||
-            TypeName == "LocalAccessorBaseDevice" ||
-            TypeName == "local_accessor_base" || TypeName == "local_accessor" ||
-            TypeName == "maximum" || TypeName == "minimum" ||
-            TypeName == "multi_ptr" || TypeName == "nd_item" ||
-            TypeName == "nd_range" || TypeName == "OwnerLessBase" ||
-            TypeName == "range" || TypeName == "stream" ||
-            TypeName == "sub_group" || TypeName == "SwizzleOp" ||
-            TypeName == "TupleCopyAssignableValueHolder" ||
-            TypeName == "TupleValueHolder" || TypeName == "vec")
-          return getSYCLType(RT, *this);
+    if (const mlirclang::IsNamespaceSYCLResult IsNamespaceSYCL =
+            mlirclang::isNamespaceSYCL(RD->getEnclosingNamespaceContext());
+        static_cast<bool>(IsNamespaceSYCL)) {
+      const auto TypeName = RD->getName();
+      if (TypeName == "accessor" || TypeName == "accessor_common" ||
+          TypeName == "AccessorImplDevice" || TypeName == "AccessorSubscript" ||
+          TypeName == "array" || TypeName == "AssertHappened" ||
+          TypeName == "atomic" || TypeName == "bfloat16" ||
+          TypeName == "GetOp" || TypeName == "GetScalarOp" ||
+          TypeName == "group" || TypeName == "h_item" || TypeName == "id" ||
+          TypeName == "item" || TypeName == "ItemBase" ||
+          TypeName == "kernel_handler" ||
+          TypeName == "LocalAccessorBaseDevice" ||
+          TypeName == "local_accessor_base" || TypeName == "local_accessor" ||
+          TypeName == "maximum" || TypeName == "minimum" ||
+          TypeName == "multi_ptr" || TypeName == "nd_item" ||
+          TypeName == "nd_range" || TypeName == "OwnerLessBase" ||
+          TypeName == "range" || TypeName == "stream" ||
+          TypeName == "sub_group" || TypeName == "SwizzleOp" ||
+          TypeName == "TupleCopyAssignableValueHolder" ||
+          TypeName == "TupleValueHolder" || TypeName == "vec")
+        return getSYCLType(RT, *this);
 
-        assert((AllowUndefinedSYCLTypes ||
-                IsNamespaceSYCL != IsNamespaceSYCLResult::True) &&
-               "Found type in the sycl namespace, but not in the SYCL dialect");
-      }
+      assert((AllowUndefinedSYCLTypes ||
+              IsNamespaceSYCL != IsNamespaceSYCLResult::True) &&
+             "Found type in the sycl namespace, but not in the SYCL dialect");
     }
 
     auto *CXRD = dyn_cast<CXXRecordDecl>(RT->getDecl());
