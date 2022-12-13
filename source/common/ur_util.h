@@ -49,41 +49,6 @@ inline std::string create_library_path(const char *name, const char *path){
     return library_path;
 }
 
-#ifdef _WIN32
-inline std::string readUnifiedRuntimeLoaderLibraryPath() {
-    std::string LoaderRegKeyPath = "";
-    HKEY regKey = {};
-    DWORD regValueType = {};
-    DWORD pathSize = {};
-    std::string loaderMajorVersionString = std::to_string(LOADER_VERSION_MAJOR);
-    std::string loaderRegistryKeyPath = "Software\\Intel\\oneAPI\\UnifiedRuntime\\";
-    loaderRegistryKeyPath.append(loaderMajorVersionString);
-    static constexpr char unifiedRuntimeLoaderPathKey[] = "UnifiedRuntimeLoaderPath";
-
-    LSTATUS regOpenStatus = RegOpenKeyA(HKEY_LOCAL_MACHINE, loaderRegistryKeyPath.c_str(), &regKey);
-
-    if (ERROR_SUCCESS != regOpenStatus) {
-        return LoaderRegKeyPath;
-    }
-
-    LSTATUS regOpStatus = RegQueryValueExA(regKey, unifiedRuntimeLoaderPathKey, NULL,
-                                           &regValueType, NULL, &pathSize);
-
-    if ((ERROR_SUCCESS == regOpStatus) && (REG_SZ == regValueType)) {
-        LoaderRegKeyPath.resize(pathSize);
-        regOpStatus = RegQueryValueExA(regKey, unifiedRuntimeLoaderPathKey, NULL,
-                                       &regValueType, (LPBYTE) & *LoaderRegKeyPath.begin(),
-                                       &pathSize);
-        if (ERROR_SUCCESS != regOpStatus) {
-            LoaderRegKeyPath.clear();
-            LoaderRegKeyPath.assign("");
-        }
-    }
-
-    return LoaderRegKeyPath;
-}
-#endif
-
 //////////////////////////////////////////////////////////////////////////
 #if !defined(_WIN32) && (__GNUC__ >= 4)
 #define __urdlllocal  __attribute__ ((visibility ("hidden")))
