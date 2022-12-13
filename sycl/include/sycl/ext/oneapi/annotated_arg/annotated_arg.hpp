@@ -68,7 +68,7 @@ __SYCL_TYPE(annotated_arg) annotated_arg<T *, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
 
 #ifdef __SYCL_DEVICE_ONLY__
-  using global_pointer_t = decorated_global_ptr<T>::pointer;
+  using global_pointer_t = typename decorated_global_ptr<T>::pointer;
 #else
   using global_pointer_t = T *;
 #endif
