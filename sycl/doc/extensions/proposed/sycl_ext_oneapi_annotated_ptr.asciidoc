@@ -24,7 +24,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+Copyright (C) 2022 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -233,7 +233,7 @@ using namespace sycl::ext::oneapi::experimental;
 
   // alignment in bytes and address bus width of the pointer specified using the
   // properties 'alignment' and 'awidth'.
-  // a properties object is deducted from the list the of property values
+  // a properties object is deduced from the list the of property values
   auto arg_b = annotated_ptr(ptr, alignment<4>, awidth<32>);
 
   q.submit([=]{
@@ -284,7 +284,7 @@ class annotated_ptr {
 
     // Implicit conversion is not supported
     operator T*() noexcept = delete;
-    operator const T*() const noexcept = delete;
+    operator T*() const noexcept = delete;
 
     T* get() const noexcept;
 

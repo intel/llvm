@@ -23,7 +23,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (c) 2022-2022 Intel Corporation.  All rights reserved.
+Copyright (c) 2022 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -183,7 +183,7 @@ The section below describes the constructors and member functions for
 
 The template parameter `T` in the definition of `annotated_arg` template below
 must be a legal parameter type as defined by the SYCL specification. Given `annotated_arg<T, ...>`,
-`T` must be a trivially copy-able type.
+`T` must be a device copy-able type.
 
 [source,c++]
 ----
@@ -207,7 +207,7 @@ class annotated_arg {
 
     // Conversion operator to convert to the underlying type
     operator T() noexcept;
-    operator const T() const noexcept;
+    operator T() const noexcept;
 
     // Available if the operator[] is valid for objects of type T, return
     // type will match the return type of T::operator[](std::ptrdiff_t)

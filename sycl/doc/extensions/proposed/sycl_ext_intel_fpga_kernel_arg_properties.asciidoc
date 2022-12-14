@@ -73,19 +73,19 @@ Some examples of the syntax are shown below.
 [source,c++]
 ----
 auto ptr = ...
-auto arg_a = annotated_ptr(
-  ptr, properties{buffer_location<1>, awidth<32>, dwidth<64>});
+annotated_ptr arg_a{
+  ptr, properties{buffer_location<1>, awidth<32>, dwidth<64>}};
 
 ...
 
 auto ptr2 = ...
-auto arg_b = annotated_arg(
-  ptr2, properties{buffer_location<2>, awidth<32>, dwidth<64>});
+annotated_arg arg_b{
+  ptr2, properties{buffer_location<2>, awidth<32>, dwidth<64>}};
 
 ...
 
 int val = 5;
-auto arg_c = annotated_arg(val, properties{register_map, stable});
+annotated_arg arg_c{val, properties{register_map, stable}};
 
 ...
 
