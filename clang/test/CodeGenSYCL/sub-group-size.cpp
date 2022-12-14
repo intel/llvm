@@ -15,7 +15,7 @@ using namespace sycl;
 // ALL-DAG: define {{.*}}spir_func void @{{.*}}external_10{{.*}}() #{{[0-9]+}}{{.*}} !intel_reqd_sub_group_size ![[TEN:[0-9]+]]
 
 SYCL_EXTERNAL void external_default_behavior() {}
-// NONE-DAG: define {{.*}}spir_func void @{{.*}}external_default_behavior{{.*}}() #{{[0-9]+}} !srcloc !{{[0-9]+}} {
+// NONE-DAG: define {{.*}}spir_func void @{{.*}}external_default_behavior{{.*}}() #{{[0-9]+}} !srcloc !{{[0-9]+}} !sycl_fixed_targets !{{[0-9]+}} {
 // PRIM_DEF-DAG: define {{.*}}spir_func void @{{.*}}external_default_behavior{{.*}}() #{{[0-9]+}}{{.*}} !intel_reqd_sub_group_size ![[PRIMARY]]
 // TEN_DEF-DAG: define {{.*}}spir_func void @{{.*}}external_default_behavior{{.*}}() #{{[0-9]+}}{{.*}} !intel_reqd_sub_group_size ![[TEN]]
 
@@ -23,7 +23,7 @@ void default_behavior() {
   kernel_single_task<class Kernel1>([]() {
   });
 }
-// NONE-DAG: define {{.*}}spir_kernel void @{{.*}}Kernel1() #{{[0-9]+}} !srcloc !{{[0-9]+}} !kernel_arg_buffer_location !{{[0-9]+}} {
+// NONE-DAG: define {{.*}}spir_kernel void @{{.*}}Kernel1() #{{[0-9]+}} !srcloc !{{[0-9]+}} !kernel_arg_buffer_location !{{[0-9]+}} !sycl_fixed_targets !{{[0-9]+}} {
 // PRIM_DEF-DAG: define {{.*}}spir_kernel void @{{.*}}Kernel1() #{{[0-9]+}}{{.*}} !intel_reqd_sub_group_size ![[PRIMARY]]
 // TEN_DEF-DAG: define {{.*}}spir_kernel void @{{.*}}Kernel1() #{{[0-9]+}}{{.*}} !intel_reqd_sub_group_size ![[TEN]]
 

@@ -916,7 +916,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   ModulePassManager MPM;
 
   if (!CodeGenOpts.DisableLLVMPasses) {
-    if (LangOpts.SYCLIsDevice && !CodeGenOpts.DisableSYCLEarlyOpts)
+    if (LangOpts.SYCLIsDevice)
       MPM.addPass(SYCLPropagateAspectsUsagePass());
 
     // Map our optimization levels into one of the distinct levels used to
