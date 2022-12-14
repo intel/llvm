@@ -21,6 +21,7 @@
 #include "mlir/Dialect/Transform/IR/TransformInterfaces.h"
 #include "mlir/Dialect/Transform/IR/TransformUtils.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Interfaces/TilingInterface.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -1199,20 +1200,31 @@ transform::SplitReductionOp::applyToOne(linalg::LinalgOp target,
 // TileReductionUsingScfOp
 //===----------------------------------------------------------------------===//
 
+void transform::TileReductionUsingScfOp::build(
+    OpBuilder &builder, OperationState &result, Value target,
+    ArrayRef<int64_t> staticTileSizes) {
+  // Call the default builder.
+  // This is future-proof re mixed static-dynamic and setting up the proper
+  // operands segment sizes attributes for multiple variadic operands.
+  // In the absence of this, horrible bugs ensue.
+  // TODO: support mixed static-dynamic (see TileToForeachThreadOp).
+  MLIRContext *ctx = builder.getContext();
+  auto opTy = pdl::OperationType::get(ctx);
+  auto staticTileSizesAttr = builder.getDenseI64ArrayAttr(staticTileSizes);
+  build(builder, result,
+        /*resultTypes=*/TypeRange{opTy, opTy, opTy, opTy},
+        /*target=*/target,
+        /*tile_sizes=*/staticTileSizesAttr);
+}
+
 DiagnosedSilenceableFailure transform::TileReductionUsingScfOp::applyToOne(
     linalg::LinalgOp target, SmallVectorImpl<Operation *> &results,
     transform::TransformState &state) {
   TrivialPatternRewriter rewriter(getContext());
   rewriter.setInsertionPoint(target);
-  SmallVector<int64_t> tileSizes = extractFromI64ArrayAttr(getTileSizes());
-  SmallVector<OpFoldResult> sizes;
-  for (int64_t size : tileSizes) {
-    sizes.push_back(rewriter.getIndexAttr(size));
-  }
-
   FailureOr<scf::SCFReductionTilingResult> result = scf::tileReductionUsingScf(
       rewriter, cast<PartialReductionOpInterface>(target.getOperation()),
-      sizes);
+      getAsOpFoldResult(rewriter.getI64ArrayAttr(getTileSizes())));
 
   if (failed(result))
     return emitDefaultSilenceableFailure(target);
@@ -1227,14 +1239,37 @@ DiagnosedSilenceableFailure transform::TileReductionUsingScfOp::applyToOne(
 // TileReductionUsingForeachThreadOp
 //===----------------------------------------------------------------------===//
 
+void transform::TileReductionUsingForeachThreadOp::build(
+    OpBuilder &builder, OperationState &result, Value target,
+    ArrayRef<int64_t> staticNumThreads, ArrayRef<int64_t> staticTileSizes,
+    ArrayAttr mapping) {
+  // Call the default builder.
+  // This is future-proof re mixed static-dynamic and setting up the proper
+  // operands segment sizes attributes for multiple variadic operands.
+  // In the absence of this, horrible bugs ensue.
+  // TODO: support mixed static-dynamic (see TileToForeachThreadOp).
+  MLIRContext *ctx = builder.getContext();
+  auto opTy = pdl::OperationType::get(ctx);
+  auto staticNumThreadsAttr = builder.getDenseI64ArrayAttr(staticNumThreads);
+  auto staticTileSizesAttr = builder.getDenseI64ArrayAttr(staticTileSizes);
+  build(builder, result,
+        /*resultTypes=*/TypeRange{opTy, opTy, opTy, opTy},
+        /*target=*/target,
+        /*num_threads=*/staticNumThreadsAttr,
+        /*tile_sizes=*/staticTileSizesAttr,
+        /*mapping=*/mapping);
+}
+
 DiagnosedSilenceableFailure
 transform::TileReductionUsingForeachThreadOp::applyToOne(
     linalg::LinalgOp target, SmallVectorImpl<Operation *> &results,
     transform::TransformState &state) {
   TrivialPatternRewriter rewriter(getContext());
   rewriter.setInsertionPoint(target);
-  SmallVector<OpFoldResult> numThreads = getAsOpFoldResult(getNumThreads());
-  SmallVector<OpFoldResult> tileSizes = getAsOpFoldResult(getTileSizes());
+  SmallVector<OpFoldResult> numThreads =
+      getAsOpFoldResult(rewriter.getI64ArrayAttr(getNumThreads()));
+  SmallVector<OpFoldResult> tileSizes =
+      getAsOpFoldResult(rewriter.getI64ArrayAttr(getTileSizes()));
   FailureOr<linalg::ForeachThreadReductionTilingResult> result =
       linalg::tileReductionUsingForeachThread(
           rewriter, cast<PartialReductionOpInterface>(target.getOperation()),
@@ -1456,8 +1491,7 @@ void transform::TileToForeachThreadOp::build(
     ArrayAttr mapping) {
   SmallVector<int64_t> staticTileSizes;
   SmallVector<Value> dynamicTileSizes;
-  dispatchIndexOpFoldResults(mixedTileSizes, dynamicTileSizes, staticTileSizes,
-                             ShapedType::kDynamic);
+  dispatchIndexOpFoldResults(mixedTileSizes, dynamicTileSizes, staticTileSizes);
   // Call the default builder which sets up the proper operands segment sizes
   // attributes for multiple variadic operands. In the absence of this, horrible
   // bugs ensue.
@@ -1492,7 +1526,7 @@ void transform::TileToForeachThreadOp::build(
   SmallVector<int64_t> staticNumThreads;
   SmallVector<Value> dynamicNumThreads;
   dispatchIndexOpFoldResults(mixedNumThreads, dynamicNumThreads,
-                             staticNumThreads, ShapedType::kDynamic);
+                             staticNumThreads);
   // Call the default builder which sets up the proper operands segment sizes
   // attributes for multiple variadic operands. In the absence of this, horrible
   // bugs ensue.
@@ -1825,7 +1859,8 @@ struct VectorizationPattern : public RewritePattern {
     LinalgOp linalgOp = dyn_cast<LinalgOp>(op);
     if (!linalgOp)
       return rewriter.notifyMatchFailure(op, "expected Linalg Op");
-    return vectorize(rewriter, linalgOp, vectorizeNDExtract);
+    return vectorize(rewriter, linalgOp, /*inputVectorSizes=*/{},
+                     vectorizeNDExtract);
   }
 
 private:
@@ -1871,6 +1906,85 @@ transform::VectorizeOp::applyToOne(Operation *target,
 
   results.push_back(target);
   return DiagnosedSilenceableFailure::success();
+}
+
+//===----------------------------------------------------------------------===//
+// MaskedVectorizeOp
+//===----------------------------------------------------------------------===//
+
+DiagnosedSilenceableFailure transform::MaskedVectorizeOp::apply(
+    mlir::transform::TransformResults &transformResults,
+    mlir::transform::TransformState &state) {
+  IRRewriter rewriter(getContext());
+  ArrayRef<Operation *> targets = state.getPayloadOps(getTarget());
+  if (targets.empty())
+    return DiagnosedSilenceableFailure::success();
+
+  SmallVector<int64_t> vectorSizes;
+  for (OpFoldResult sz : getMixedVectorSizes()) {
+    if (sz.is<Attribute>()) {
+      auto attr = sz.get<Attribute>();
+      vectorSizes.push_back(attr.cast<IntegerAttr>().getInt());
+      continue;
+    }
+
+    ArrayRef<Operation *> szPayloads = state.getPayloadOps(sz.get<Value>());
+    if (szPayloads.size() != 1) {
+      auto diag = this->emitOpError(
+          "requires vector size handle that is mapped to 1 payload op");
+      diag.attachNote(sz.get<Value>().getLoc())
+          << "mapped to " << szPayloads.size() << " payload ops";
+      return DiagnosedSilenceableFailure::definiteFailure();
+    }
+
+    Operation *szPayloadOp = szPayloads[0];
+    if (szPayloadOp->getNumResults() != 1 ||
+        !szPayloadOp->getResult(0).getType().isIndex()) {
+      auto diag = this->emitOpError(
+          "requires vector size payload op with 1 index result");
+      diag.attachNote(szPayloadOp->getLoc()) << "vector size payload op";
+      return DiagnosedSilenceableFailure::definiteFailure();
+    }
+
+    IntegerAttr attr;
+    if (!matchPattern(szPayloadOp->getResult(0), m_Constant(&attr))) {
+      auto diag = this->emitOpError("requires constant vector size");
+      diag.attachNote(szPayloadOp->getLoc()) << "vector size payload op";
+      return DiagnosedSilenceableFailure::definiteFailure();
+    }
+
+    vectorSizes.push_back(attr.getInt());
+  }
+
+  // TODO: Check that the correct number of vectorSizes was provided.
+
+  for (Operation *target : targets) {
+    auto linalgOp = dyn_cast<LinalgOp>(target);
+    if (!linalgOp) {
+      Diagnostic diag(target->getLoc(), DiagnosticSeverity::Error);
+      diag << "cannot vectorize non-Linalg op";
+      return DiagnosedSilenceableFailure::silenceableFailure(std::move(diag));
+    }
+
+    if (failed(linalg::vectorize(rewriter, linalgOp, vectorSizes))) {
+      Diagnostic diag(target->getLoc(), DiagnosticSeverity::Error);
+      diag << "failed to vectorize op";
+      return DiagnosedSilenceableFailure::silenceableFailure(std::move(diag));
+    }
+  }
+
+  return DiagnosedSilenceableFailure::success();
+}
+
+void transform::MaskedVectorizeOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  consumesHandle(getTarget(), effects);
+  onlyReadsHandle(getVectorSizes(), effects);
+}
+
+SmallVector<OpFoldResult> MaskedVectorizeOp::getMixedVectorSizes() {
+  OpBuilder b(getContext());
+  return getMixedValues(getStaticVectorSizes(), getVectorSizes(), b);
 }
 
 //===----------------------------------------------------------------------===//

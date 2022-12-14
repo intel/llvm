@@ -270,6 +270,15 @@ bool llvm::haveNoCommonBitsSet(const Value *LHS, const Value *RHS,
       match(LHS, m_c_Xor(m_c_And(m_Specific(RHS), m_Value(Y)), m_Deferred(Y))))
     return true;
 
+  // Peek through extends to find a 'not' of the other side:
+  // (ext Y) op ext(~Y)
+  // (ext ~Y) op ext(Y)
+  if ((match(LHS, m_ZExtOrSExt(m_Value(Y))) &&
+       match(RHS, m_ZExtOrSExt(m_Not(m_Specific(Y))))) ||
+      (match(RHS, m_ZExtOrSExt(m_Value(Y))) &&
+       match(LHS, m_ZExtOrSExt(m_Not(m_Specific(Y))))))
+    return true;
+
   // Look for: (A & B) op ~(A | B)
   {
     Value *A, *B;
@@ -5208,6 +5217,42 @@ static bool canCreateUndefOrPoison(const Operator *Op, bool PoisonOnly,
       case Intrinsic::uadd_with_overflow:
       case Intrinsic::usub_with_overflow:
       case Intrinsic::umul_with_overflow:
+      case Intrinsic::fma:
+      case Intrinsic::fmuladd:
+      case Intrinsic::sqrt:
+      case Intrinsic::powi:
+      case Intrinsic::sin:
+      case Intrinsic::cos:
+      case Intrinsic::pow:
+      case Intrinsic::log:
+      case Intrinsic::log10:
+      case Intrinsic::log2:
+      case Intrinsic::exp:
+      case Intrinsic::exp2:
+      case Intrinsic::fabs:
+      case Intrinsic::copysign:
+      case Intrinsic::floor:
+      case Intrinsic::ceil:
+      case Intrinsic::trunc:
+      case Intrinsic::rint:
+      case Intrinsic::nearbyint:
+      case Intrinsic::round:
+      case Intrinsic::roundeven:
+      case Intrinsic::fptrunc_round:
+      case Intrinsic::canonicalize:
+      case Intrinsic::arithmetic_fence:
+      case Intrinsic::minnum:
+      case Intrinsic::maxnum:
+      case Intrinsic::minimum:
+      case Intrinsic::maximum:
+      case Intrinsic::is_fpclass:
+        return false;
+      case Intrinsic::lround:
+      case Intrinsic::llround:
+      case Intrinsic::lrint:
+      case Intrinsic::llrint:
+        // If the value doesn't fit an unspecified value is returned (but this
+        // is not poison).
         return false;
       }
     }
@@ -5246,6 +5291,11 @@ static bool canCreateUndefOrPoison(const Operator *Op, bool PoisonOnly,
   case Instruction::Freeze:
   case Instruction::ICmp:
   case Instruction::FCmp:
+  case Instruction::FAdd:
+  case Instruction::FSub:
+  case Instruction::FMul:
+  case Instruction::FDiv:
+  case Instruction::FRem:
     return false;
   case Instruction::GetElementPtr:
     // inbounds is handled above
@@ -6682,7 +6732,7 @@ static bool isTruePredicate(CmpInst::Predicate Pred, const Value *LHS,
 
 /// Return true if "icmp Pred BLHS BRHS" is true whenever "icmp Pred
 /// ALHS ARHS" is true.  Otherwise, return std::nullopt.
-static Optional<bool>
+static std::optional<bool>
 isImpliedCondOperands(CmpInst::Predicate Pred, const Value *ALHS,
                       const Value *ARHS, const Value *BLHS, const Value *BRHS,
                       const DataLayout &DL, unsigned Depth) {
@@ -6719,9 +6769,9 @@ static bool areMatchingOperands(const Value *L0, const Value *L1, const Value *R
 /// Return true if "icmp1 LPred X, Y" implies "icmp2 RPred X, Y" is true.
 /// Return false if "icmp1 LPred X, Y" implies "icmp2 RPred X, Y" is false.
 /// Otherwise, return std::nullopt if we can't infer anything.
-static Optional<bool> isImpliedCondMatchingOperands(CmpInst::Predicate LPred,
-                                                    CmpInst::Predicate RPred,
-                                                    bool AreSwappedOps) {
+static std::optional<bool>
+isImpliedCondMatchingOperands(CmpInst::Predicate LPred,
+                              CmpInst::Predicate RPred, bool AreSwappedOps) {
   // Canonicalize the predicate as if the operands were not commuted.
   if (AreSwappedOps)
     RPred = ICmpInst::getSwappedPredicate(RPred);
@@ -6737,7 +6787,7 @@ static Optional<bool> isImpliedCondMatchingOperands(CmpInst::Predicate LPred,
 /// Return true if "icmp LPred X, LC" implies "icmp RPred X, RC" is true.
 /// Return false if "icmp LPred X, LC" implies "icmp RPred X, RC" is false.
 /// Otherwise, return std::nullopt if we can't infer anything.
-static Optional<bool> isImpliedCondCommonOperandWithConstants(
+static std::optional<bool> isImpliedCondCommonOperandWithConstants(
     CmpInst::Predicate LPred, const APInt &LC, CmpInst::Predicate RPred,
     const APInt &RC) {
   ConstantRange DomCR = ConstantRange::makeExactICmpRegion(LPred, LC);
@@ -6754,11 +6804,11 @@ static Optional<bool> isImpliedCondCommonOperandWithConstants(
 /// Return true if LHS implies RHS (expanded to its components as "R0 RPred R1")
 /// is true.  Return false if LHS implies RHS is false. Otherwise, return
 /// std::nullopt if we can't infer anything.
-static Optional<bool> isImpliedCondICmps(const ICmpInst *LHS,
-                                         CmpInst::Predicate RPred,
-                                         const Value *R0, const Value *R1,
-                                         const DataLayout &DL, bool LHSIsTrue,
-                                         unsigned Depth) {
+static std::optional<bool> isImpliedCondICmps(const ICmpInst *LHS,
+                                              CmpInst::Predicate RPred,
+                                              const Value *R0, const Value *R1,
+                                              const DataLayout &DL,
+                                              bool LHSIsTrue, unsigned Depth) {
   Value *L0 = LHS->getOperand(0);
   Value *L1 = LHS->getOperand(1);
 
@@ -6788,7 +6838,7 @@ static Optional<bool> isImpliedCondICmps(const ICmpInst *LHS,
 /// false.  Otherwise, return std::nullopt if we can't infer anything.  We
 /// expect the RHS to be an icmp and the LHS to be an 'and', 'or', or a 'select'
 /// instruction.
-static Optional<bool>
+static std::optional<bool>
 isImpliedCondAndOr(const Instruction *LHS, CmpInst::Predicate RHSPred,
                    const Value *RHSOp0, const Value *RHSOp1,
                    const DataLayout &DL, bool LHSIsTrue, unsigned Depth) {
@@ -6807,10 +6857,10 @@ isImpliedCondAndOr(const Instruction *LHS, CmpInst::Predicate RHSPred,
   if ((!LHSIsTrue && match(LHS, m_LogicalOr(m_Value(ALHS), m_Value(ARHS)))) ||
       (LHSIsTrue && match(LHS, m_LogicalAnd(m_Value(ALHS), m_Value(ARHS))))) {
     // FIXME: Make this non-recursion.
-    if (Optional<bool> Implication = isImpliedCondition(
+    if (std::optional<bool> Implication = isImpliedCondition(
             ALHS, RHSPred, RHSOp0, RHSOp1, DL, LHSIsTrue, Depth + 1))
       return Implication;
-    if (Optional<bool> Implication = isImpliedCondition(
+    if (std::optional<bool> Implication = isImpliedCondition(
             ARHS, RHSPred, RHSOp0, RHSOp1, DL, LHSIsTrue, Depth + 1))
       return Implication;
     return std::nullopt;
@@ -6818,7 +6868,7 @@ isImpliedCondAndOr(const Instruction *LHS, CmpInst::Predicate RHSPred,
   return std::nullopt;
 }
 
-Optional<bool>
+std::optional<bool>
 llvm::isImpliedCondition(const Value *LHS, CmpInst::Predicate RHSPred,
                          const Value *RHSOp0, const Value *RHSOp1,
                          const DataLayout &DL, bool LHSIsTrue, unsigned Depth) {
@@ -6853,9 +6903,9 @@ llvm::isImpliedCondition(const Value *LHS, CmpInst::Predicate RHSPred,
   return std::nullopt;
 }
 
-Optional<bool> llvm::isImpliedCondition(const Value *LHS, const Value *RHS,
-                                        const DataLayout &DL, bool LHSIsTrue,
-                                        unsigned Depth) {
+std::optional<bool> llvm::isImpliedCondition(const Value *LHS, const Value *RHS,
+                                             const DataLayout &DL,
+                                             bool LHSIsTrue, unsigned Depth) {
   // LHS ==> RHS by definition
   if (LHS == RHS)
     return LHSIsTrue;
@@ -6872,21 +6922,21 @@ Optional<bool> llvm::isImpliedCondition(const Value *LHS, const Value *RHS,
   // LHS ==> !(RHS1 && RHS2) if LHS ==> !RHS1 or LHS ==> !RHS2
   const Value *RHS1, *RHS2;
   if (match(RHS, m_LogicalOr(m_Value(RHS1), m_Value(RHS2)))) {
-    if (Optional<bool> Imp =
+    if (std::optional<bool> Imp =
             isImpliedCondition(LHS, RHS1, DL, LHSIsTrue, Depth + 1))
       if (*Imp == true)
         return true;
-    if (Optional<bool> Imp =
+    if (std::optional<bool> Imp =
             isImpliedCondition(LHS, RHS2, DL, LHSIsTrue, Depth + 1))
       if (*Imp == true)
         return true;
   }
   if (match(RHS, m_LogicalAnd(m_Value(RHS1), m_Value(RHS2)))) {
-    if (Optional<bool> Imp =
+    if (std::optional<bool> Imp =
             isImpliedCondition(LHS, RHS1, DL, LHSIsTrue, Depth + 1))
       if (*Imp == false)
         return false;
-    if (Optional<bool> Imp =
+    if (std::optional<bool> Imp =
             isImpliedCondition(LHS, RHS2, DL, LHSIsTrue, Depth + 1))
       if (*Imp == false)
         return false;
@@ -6926,9 +6976,9 @@ getDomPredecessorCondition(const Instruction *ContextI) {
   return {PredCond, TrueBB == ContextBB};
 }
 
-Optional<bool> llvm::isImpliedByDomCondition(const Value *Cond,
-                                             const Instruction *ContextI,
-                                             const DataLayout &DL) {
+std::optional<bool> llvm::isImpliedByDomCondition(const Value *Cond,
+                                                  const Instruction *ContextI,
+                                                  const DataLayout &DL) {
   assert(Cond->getType()->isIntOrIntVectorTy(1) && "Condition must be bool");
   auto PredCond = getDomPredecessorCondition(ContextI);
   if (PredCond.first)
@@ -6936,10 +6986,11 @@ Optional<bool> llvm::isImpliedByDomCondition(const Value *Cond,
   return std::nullopt;
 }
 
-Optional<bool> llvm::isImpliedByDomCondition(CmpInst::Predicate Pred,
-                                             const Value *LHS, const Value *RHS,
-                                             const Instruction *ContextI,
-                                             const DataLayout &DL) {
+std::optional<bool> llvm::isImpliedByDomCondition(CmpInst::Predicate Pred,
+                                                  const Value *LHS,
+                                                  const Value *RHS,
+                                                  const Instruction *ContextI,
+                                                  const DataLayout &DL) {
   auto PredCond = getDomPredecessorCondition(ContextI);
   if (PredCond.first)
     return isImpliedCondition(PredCond.first, Pred, LHS, RHS, DL,
@@ -7381,8 +7432,9 @@ getOffsetFromIndex(const GEPOperator *GEP, unsigned Idx, const DataLayout &DL) {
   return Offset;
 }
 
-Optional<int64_t> llvm::isPointerOffset(const Value *Ptr1, const Value *Ptr2,
-                                        const DataLayout &DL) {
+std::optional<int64_t> llvm::isPointerOffset(const Value *Ptr1,
+                                             const Value *Ptr2,
+                                             const DataLayout &DL) {
   APInt Offset1(DL.getIndexTypeSizeInBits(Ptr1->getType()), 0);
   APInt Offset2(DL.getIndexTypeSizeInBits(Ptr2->getType()), 0);
   Ptr1 = Ptr1->stripAndAccumulateConstantOffsets(DL, Offset1, true);

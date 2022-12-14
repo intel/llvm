@@ -892,7 +892,7 @@ public:
   /// If the optional has a value, it indicates whether distribution was forced
   /// to be enabled (true) or disabled (false).  If the optional has no value
   /// distribution was not forced either way.
-  const Optional<bool> &isForced() const { return IsForced; }
+  const std::optional<bool> &isForced() const { return IsForced; }
 
 private:
   /// Filter out checks between pointers from the same partition.
@@ -936,7 +936,7 @@ private:
   /// Check whether the loop metadata is forcing distribution to be
   /// enabled/disabled.
   void setForced() {
-    Optional<const MDOperand *> Value =
+    std::optional<const MDOperand *> Value =
         findStringMetadataForLoop(L, "llvm.loop.distribute.enable");
     if (!Value)
       return;
@@ -963,7 +963,7 @@ private:
   /// If the optional has a value, it indicates whether distribution was forced
   /// to be enabled (true) or disabled (false).  If the optional has no value
   /// distribution was not forced either way.
-  Optional<bool> IsForced;
+  std::optional<bool> IsForced;
 };
 
 } // end anonymous namespace

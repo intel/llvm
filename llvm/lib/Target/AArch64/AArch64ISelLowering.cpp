@@ -139,17 +139,6 @@ static cl::opt<unsigned> MaxXors("aarch64-max-xors", cl::init(16), cl::Hidden,
 /// Value type used for condition codes.
 static const MVT MVT_CC = MVT::i32;
 
-static const MCPhysReg GPRArgRegs[] = {AArch64::X0, AArch64::X1, AArch64::X2,
-                                       AArch64::X3, AArch64::X4, AArch64::X5,
-                                       AArch64::X6, AArch64::X7};
-static const MCPhysReg FPRArgRegs[] = {AArch64::Q0, AArch64::Q1, AArch64::Q2,
-                                       AArch64::Q3, AArch64::Q4, AArch64::Q5,
-                                       AArch64::Q6, AArch64::Q7};
-
-const ArrayRef<MCPhysReg> llvm::AArch64::getGPRArgRegs() { return GPRArgRegs; }
-
-const ArrayRef<MCPhysReg> llvm::AArch64::getFPRArgRegs() { return FPRArgRegs; }
-
 static inline EVT getPackedSVEVectorVT(EVT VT) {
   switch (VT.getSimpleVT().SimpleTy) {
   default:
@@ -1260,6 +1249,13 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
       setOperationAction(ISD::SREM, VT, Expand);
       setOperationAction(ISD::SDIVREM, VT, Expand);
       setOperationAction(ISD::UDIVREM, VT, Expand);
+
+      if (Subtarget->hasSVE2()) {
+        setOperationAction(ISD::AVGFLOORS, VT, Custom);
+        setOperationAction(ISD::AVGFLOORU, VT, Custom);
+        setOperationAction(ISD::AVGCEILS, VT, Custom);
+        setOperationAction(ISD::AVGCEILU, VT, Custom);
+      }
     }
 
     // Illegal unpacked integer vector types.
@@ -2230,9 +2226,13 @@ const char *AArch64TargetLowering::getTargetNodeName(unsigned Opcode) const {
     MAKE_CASE(AArch64ISD::TLSDESC_CALLSEQ)
     MAKE_CASE(AArch64ISD::ABDS_PRED)
     MAKE_CASE(AArch64ISD::ABDU_PRED)
+    MAKE_CASE(AArch64ISD::HADDS_PRED)
+    MAKE_CASE(AArch64ISD::HADDU_PRED)
     MAKE_CASE(AArch64ISD::MUL_PRED)
     MAKE_CASE(AArch64ISD::MULHS_PRED)
     MAKE_CASE(AArch64ISD::MULHU_PRED)
+    MAKE_CASE(AArch64ISD::RHADDS_PRED)
+    MAKE_CASE(AArch64ISD::RHADDU_PRED)
     MAKE_CASE(AArch64ISD::SDIV_PRED)
     MAKE_CASE(AArch64ISD::SHL_PRED)
     MAKE_CASE(AArch64ISD::SMAX_PRED)
@@ -5956,6 +5956,14 @@ SDValue AArch64TargetLowering::LowerOperation(SDValue Op,
     return LowerToPredicatedOp(Op, DAG, AArch64ISD::ABDS_PRED);
   case ISD::ABDU:
     return LowerToPredicatedOp(Op, DAG, AArch64ISD::ABDU_PRED);
+  case ISD::AVGFLOORS:
+    return LowerToPredicatedOp(Op, DAG, AArch64ISD::HADDS_PRED);
+  case ISD::AVGFLOORU:
+    return LowerToPredicatedOp(Op, DAG, AArch64ISD::HADDU_PRED);
+  case ISD::AVGCEILS:
+    return LowerToPredicatedOp(Op, DAG, AArch64ISD::RHADDS_PRED);
+  case ISD::AVGCEILU:
+    return LowerToPredicatedOp(Op, DAG, AArch64ISD::RHADDU_PRED);
   case ISD::BITREVERSE:
     return LowerBitreverse(Op, DAG);
   case ISD::BSWAP:
@@ -6573,8 +6581,10 @@ void AArch64TargetLowering::saveVarArgRegisters(CCState &CCInfo,
 
   SmallVector<SDValue, 8> MemOps;
 
-  auto GPRArgRegs = AArch64::getGPRArgRegs();
-  unsigned NumGPRArgRegs = GPRArgRegs.size();
+  static const MCPhysReg GPRArgRegs[] = { AArch64::X0, AArch64::X1, AArch64::X2,
+                                          AArch64::X3, AArch64::X4, AArch64::X5,
+                                          AArch64::X6, AArch64::X7 };
+  unsigned NumGPRArgRegs = std::size(GPRArgRegs);
   if (Subtarget->isWindowsArm64EC()) {
     // In the ARM64EC ABI, only x0-x3 are used to pass arguments to varargs
     // functions.
@@ -6624,8 +6634,10 @@ void AArch64TargetLowering::saveVarArgRegisters(CCState &CCInfo,
   FuncInfo->setVarArgsGPRSize(GPRSaveSize);
 
   if (Subtarget->hasFPARMv8() && !IsWin64) {
-    auto FPRArgRegs = AArch64::getFPRArgRegs();
-    const unsigned NumFPRArgRegs = FPRArgRegs.size();
+    static const MCPhysReg FPRArgRegs[] = {
+        AArch64::Q0, AArch64::Q1, AArch64::Q2, AArch64::Q3,
+        AArch64::Q4, AArch64::Q5, AArch64::Q6, AArch64::Q7};
+    static const unsigned NumFPRArgRegs = std::size(FPRArgRegs);
     unsigned FirstVariadicFPR = CCInfo.getFirstUnallocated(FPRArgRegs);
 
     unsigned FPRSaveSize = 16 * (NumFPRArgRegs - FirstVariadicFPR);
@@ -21891,7 +21903,10 @@ AArch64TargetLowering::shouldExpandAtomicLoadInIR(LoadInst *LI) const {
   if (getTargetMachine().getOptLevel() == CodeGenOpt::None)
     return AtomicExpansionKind::CmpXChg;
 
-  return AtomicExpansionKind::LLSC;
+  // Using CAS for an atomic load has a better chance of succeeding under high
+  // contention situations. So use it if available.
+  return Subtarget->hasLSE() ? AtomicExpansionKind::CmpXChg
+                             : AtomicExpansionKind::LLSC;
 }
 
 // For the real atomic operations, we have ldxr/stxr up to 128 bits,
@@ -21928,8 +21943,10 @@ AArch64TargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const {
   // implement atomicrmw without spilling. If the target address is also on the
   // stack and close enough to the spill slot, this can lead to a situation
   // where the monitor always gets cleared and the atomic operation can never
-  // succeed. So at -O0 lower this operation to a CAS loop.
-  if (getTargetMachine().getOptLevel() == CodeGenOpt::None)
+  // succeed. So at -O0 lower this operation to a CAS loop. Also worthwhile if
+  // we have a single CAS instruction that can replace the loop.
+  if (getTargetMachine().getOptLevel() == CodeGenOpt::None ||
+      Subtarget->hasLSE())
     return AtomicExpansionKind::CmpXChg;
 
   return AtomicExpansionKind::LLSC;
