@@ -62,6 +62,47 @@ sycl::ext::oneapi::bfloat16 float2bfloat16_rz(float f) {
                             __imf_float2bfloat16_rz(f));
 }
 
+sycl::float2 bfloat1622float2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b) {
+  return sycl::float2{bfloat162float(b[0]), bfloat162float(b[1])};
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+bfloat162bfloat162(sycl::ext::oneapi::bfloat16 b) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = res[1] = b;
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+halves2bfloat162(sycl::ext::oneapi::bfloat16 a, sycl::ext::oneapi::bfloat16 b) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = a;
+  res[1] = b;
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+float22bfloat162_rn(sycl::float2 f) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = float2bfloat16_rn(f.s0());
+  res[1] = float2bfloat16_rn(f.s1());
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2> float2bfloat162_rn(float f) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = res[1] = float2bfloat16_rn(f);
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2> floats2bfloat162_rn(float a,
+                                                                 float b) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = float2bfloat16_rn(a);
+  res[1] = float2bfloat16_rn(b);
+  return res;
+}
+
 // Bfloat16 comparison utils
 bool hisnan(sycl::ext::oneapi::bfloat16 b) {
   uint16_t bf16_bits = __builtin_bit_cast(uint16_t, b);
@@ -343,9 +384,9 @@ hne2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
 unsigned hne2_mask(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
                    sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
   unsigned res = 0;
-  if (hne2(b1[0], b2[0]))
+  if (hne(b1[0], b2[0]))
     res |= 0xFFFF;
-  if (hne2(b1[1], b2[1]))
+  if (hne(b1[1], b2[1]))
     res |= 0xFFFF0000;
   return res;
 }
@@ -446,11 +487,10 @@ unsigned hgtu2_mask(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
 }
 
 sycl::marray<sycl::ext::oneapi::bfloat16, 2>
-hisnan2(sycl::marray<scl::ext::oneapi::bfloat16, 2> b1,
-        sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+hisnan2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b) {
   sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
-  res[0] = hisnan(b1[0], b2[0]) ? 1.0f : 0.f;
-  res[1] = hisnan(b1[1], b2[0]) ? 1.0f : 0.f;
+  res[0] = hisnan(b[0]) ? 1.0f : 0.f;
+  res[1] = hisnan(b[1]) ? 1.0f : 0.f;
   return res;
 }
 
