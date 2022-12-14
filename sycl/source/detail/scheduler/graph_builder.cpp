@@ -1443,13 +1443,36 @@ Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
     return LastEvent;
   }
 
+  // Inherit all event dependencies from the input commands in the fusion list.
+  std::vector<EventImplPtr> FusedEventDeps;
+  for (auto *Cmd : CmdList) {
+    FusedEventDeps.insert(FusedEventDeps.end(),
+                          Cmd->getPreparedDepsEvents().begin(),
+                          Cmd->getPreparedDepsEvents().end());
+    FusedEventDeps.insert(FusedEventDeps.end(),
+                          Cmd->getPreparedHostDepsEvents().begin(),
+                          Cmd->getPreparedHostDepsEvents().end());
+  }
+
   // Remove internal explicit dependencies, i.e., explicit dependencies from one
   // kernel in the fusion list to another kernel also in the fusion list.
-  auto &FusedEventDeps = FusedCG->MEvents;
   FusedEventDeps.erase(
-      std::remove_if(
-          FusedEventDeps.begin(), FusedEventDeps.end(),
-          [&](EventImplPtr &E) { return E->getCommand() == PlaceholderCmd; }),
+      std::remove_if(FusedEventDeps.begin(), FusedEventDeps.end(),
+                     [&](EventImplPtr &E) {
+                       if (E->getCommand() == PlaceholderCmd) {
+                         return true;
+                       }
+                       if (E->getCommand() &&
+                           static_cast<Command *>(E->getCommand())->getType() ==
+                               Command::RUN_CG) {
+                         auto *RunCGCmd =
+                             static_cast<ExecCGCommand *>(E->getCommand());
+                         if (RunCGCmd->MFusionCmd == PlaceholderCmd) {
+                           return true;
+                         }
+                       }
+                       return false;
+                     }),
       FusedEventDeps.end());
 
   auto FusedKernelCmd =
@@ -1466,8 +1489,8 @@ Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
   }
 
   createGraphForCommand(FusedKernelCmd.get(), FusedKernelCmd->getCG(), false,
-                        FusedKernelCmd->getCG().MRequirements,
-                        FusedKernelCmd->getCG().MEvents, Queue, ToEnqueue);
+                        FusedKernelCmd->getCG().MRequirements, FusedEventDeps,
+                        Queue, ToEnqueue);
 
   ToEnqueue.push_back(FusedKernelCmd.get());
 
