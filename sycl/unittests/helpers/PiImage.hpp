@@ -455,6 +455,29 @@ makeKernelParamOptInfo(const std::string &Name, const size_t NumArgs,
   return Prop;
 }
 
+/// Utility function to create a device global info property.
+///
+/// \param Name is the name of the device global name.
+/// \param TypeSize is the size of the underlying type in the device global.
+/// \param DeviceImageScoped is whether the device global was device image scope
+/// decorated.
+inline PiProperty makeDeviceGlobalInfo(const std::string &Name,
+                                       const uint32_t TypeSize,
+                                       const std::uint32_t DeviceImageScoped) {
+  constexpr size_t BYTES_FOR_SIZE = 8;
+  const std::uint64_t BytesForArgs = 2 * sizeof(std::uint32_t);
+  std::vector<char> DescData;
+  DescData.resize(BYTES_FOR_SIZE + BytesForArgs);
+  std::memcpy(DescData.data(), &BytesForArgs, sizeof(BytesForArgs));
+  std::memcpy(DescData.data() + BYTES_FOR_SIZE, &TypeSize, sizeof(TypeSize));
+  std::memcpy(DescData.data() + BYTES_FOR_SIZE + sizeof(TypeSize),
+              &DeviceImageScoped, sizeof(DeviceImageScoped));
+
+  PiProperty Prop{Name, DescData, PI_PROPERTY_TYPE_BYTE_ARRAY};
+
+  return Prop;
+}
+
 /// Utility function to add aspects to property set.
 inline void addAspects(PiPropertySet &Props,
                        const std::vector<sycl::aspect> &Aspects) {

@@ -7,6 +7,7 @@
 // ===--------------------------------------------------------------------=== //
 
 #include <detail/queue_impl.hpp>
+#include <detail/usm/usm_impl.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/aligned_allocator.hpp>
 #include <sycl/detail/os_util.hpp>
@@ -113,15 +114,13 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
   return RetVal;
 }
 
-void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
-                   const device &Dev, alloc Kind, const property_list &PropList,
-                   const detail::code_location &CodeLoc) {
-  XPTI_CREATE_TRACEPOINT(CodeLoc);
+void *alignedAlloc(size_t Alignment, size_t Size, const context_impl *CtxImpl,
+                   const device_impl *DevImpl, alloc Kind,
+                   const property_list &PropList) {
   void *RetVal = nullptr;
   if (Size == 0)
     return nullptr;
 
-  std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
   if (CtxImpl->is_host()) {
     if (Kind == alloc::unknown) {
       RetVal = nullptr;
@@ -147,7 +146,7 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
 
     switch (Kind) {
     case alloc::device: {
-      Id = detail::getSyclObjImpl(Dev)->getHandleRef();
+      Id = DevImpl->getHandleRef();
 
       std::array<pi_usm_mem_properties, 3> Props;
       auto PropsIter = Props.begin();
@@ -155,7 +154,7 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
       // Buffer location is only supported on FPGA devices
       if (PropList.has_property<sycl::ext::intel::experimental::property::usm::
                                     buffer_location>() &&
-          Dev.has_extension("cl_intel_mem_alloc_buffer_location")) {
+          DevImpl->has_extension("cl_intel_mem_alloc_buffer_location")) {
         *PropsIter++ = PI_MEM_USM_ALLOC_BUFFER_LOCATION;
         *PropsIter++ = PropList
                            .get_property<sycl::ext::intel::experimental::
@@ -172,7 +171,7 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
       break;
     }
     case alloc::shared: {
-      Id = detail::getSyclObjImpl(Dev)->getHandleRef();
+      Id = DevImpl->getHandleRef();
 
       std::array<pi_usm_mem_properties, 5> Props;
       auto PropsIter = Props.begin();
@@ -185,7 +184,7 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
 
       if (PropList.has_property<sycl::ext::intel::experimental::property::usm::
                                     buffer_location>() &&
-          Dev.has_extension("cl_intel_mem_alloc_buffer_location")) {
+          DevImpl->has_extension("cl_intel_mem_alloc_buffer_location")) {
         *PropsIter++ = PI_MEM_USM_ALLOC_BUFFER_LOCATION;
         *PropsIter++ = PropList
                            .get_property<sycl::ext::intel::experimental::
@@ -217,13 +216,17 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
   return RetVal;
 }
 
-void free(void *Ptr, const context &Ctxt,
-          const detail::code_location &CodeLoc) {
-  XPTI_CREATE_TRACEPOINT(CodeLoc);
+void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
+                   const device &Dev, alloc Kind, const property_list &PropList,
+                   const detail::code_location &CL) {
+  XPTI_CREATE_TRACEPOINT(CL);
+  return alignedAlloc(Alignment, Size, getSyclObjImpl(Ctxt).get(),
+                      getSyclObjImpl(Dev).get(), Kind, PropList);
+}
+
+void free(void *Ptr, const context_impl *CtxImpl) {
   if (Ptr == nullptr)
     return;
-
-  std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
   if (CtxImpl->is_host()) {
     // need to use alignedFree here for Windows
     detail::OSUtil::alignedFree(Ptr);
@@ -232,6 +235,30 @@ void free(void *Ptr, const context &Ctxt,
     const detail::plugin &Plugin = CtxImpl->getPlugin();
     Plugin.call<PiApiKind::piextUSMFree>(C, Ptr);
   }
+}
+
+void free(void *Ptr, const context &Ctxt, const detail::code_location &CL) {
+  XPTI_CREATE_TRACEPOINT(CL);
+  free(Ptr, detail::getSyclObjImpl(Ctxt).get());
+}
+
+// For ABI compatibility
+// TODO remove once ABI breakages are allowed.
+__SYCL_EXPORT void *alignedAllocHost(size_t Alignment, size_t Size,
+                                     const context &Ctxt, alloc Kind) {
+  return alignedAllocHost(Alignment, Size, Ctxt, Kind, property_list{},
+                          detail::code_location{});
+}
+
+__SYCL_EXPORT void free(void *Ptr, const context &Ctxt) {
+  detail::usm::free(Ptr, Ctxt, detail::code_location{});
+}
+
+__SYCL_EXPORT void *alignedAlloc(size_t Alignment, size_t Size,
+                                 const context &Ctxt, const device &Dev,
+                                 alloc Kind, const property_list &PropList) {
+  return alignedAlloc(Alignment, Size, Ctxt, Dev, Kind, PropList,
+                      detail::code_location{});
 }
 
 } // namespace detail::usm

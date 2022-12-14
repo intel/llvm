@@ -12,16 +12,35 @@
 #include <cstdint>
 #include <map>
 #include <mutex>
+#include <optional>
 
 #include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/pi.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // Forward declaration
-class device_impl;
 class context_impl;
+class device_impl;
+class platform_impl;
+class queue_impl;
+
+struct DeviceGlobalUSMMem {
+  DeviceGlobalUSMMem(void *Ptr) : MPtr(Ptr) {}
+  ~DeviceGlobalUSMMem();
+
+  void *getPtr() const noexcept { return MPtr; }
+  std::optional<RT::PiEvent> getZeroInitEvent(const plugin &Plugin);
+
+private:
+  void *MPtr;
+  std::mutex MZeroInitEventMutex;
+  std::optional<RT::PiEvent> MZeroInitEvent;
+
+  friend struct DeviceGlobalMapEntry;
+};
 
 struct DeviceGlobalMapEntry {
   // The unique identifier of the device_global.
@@ -30,7 +49,7 @@ struct DeviceGlobalMapEntry {
   const void *MDeviceGlobalPtr;
   // Size of the underlying type in the device_global.
   std::uint32_t MDeviceGlobalTSize;
-  // True if the device_global has been decorated with device_image_scope
+  // True if the device_global has been decorated with device_image_scope.
   bool MIsDeviceImageScopeDecorated;
 
   // Constructor for only initializing ID and pointer. The other members will
@@ -59,7 +78,6 @@ struct DeviceGlobalMapEntry {
   // if the device_global has the device_image_scope property.
   void initialize(std::uint32_t DeviceGlobalTSize,
                   bool IsDeviceImageScopeDecorated) {
-    assert(DeviceGlobalTSize != 0 && "Device global initialized with 0 size.");
     if (MDeviceGlobalTSize != 0) {
       // The device global entry has already been initialized. This can happen
       // if multiple images contain the device-global. They must agree on the
@@ -75,11 +93,20 @@ struct DeviceGlobalMapEntry {
     MIsDeviceImageScopeDecorated = IsDeviceImageScopeDecorated;
   }
 
+  // Gets or allocates USM memory for a device_global.
+  DeviceGlobalUSMMem &
+  getOrAllocateDeviceGlobalUSM(const std::shared_ptr<queue_impl> &QueueImpl,
+                               bool ZeroInit = false);
+
+  // Removes resources for device_globals associated with the context.
+  void removeAssociatedResources(const context_impl *CtxImpl);
+
 private:
   // Map from a device and a context to the associated USM allocation for the
   // device_global. This should always be empty if MIsDeviceImageScopeDecorated
   // is true.
-  std::map<std::pair<const device_impl *, const context_impl *>, void *>
+  std::map<std::pair<const device_impl *, const context_impl *>,
+           DeviceGlobalUSMMem>
       MDeviceToUSMPtrMap;
   std::mutex MDeviceToUSMPtrMapMutex;
 };

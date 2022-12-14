@@ -737,6 +737,8 @@
 ?addStream@handler@_V1@sycl@@AEAAXAEBV?$shared_ptr@Vstream_impl@detail@_V1@sycl@@@std@@@Z
 ?advise_usm@MemoryManager@detail@_V1@sycl@@SAXPEBXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_KW4_pi_mem_advice@@V?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
 ?alignedAlloc@OSUtil@detail@_V1@sycl@@SAPEAX_K0@Z
+?alignedAlloc@usm@detail@_V1@sycl@@YAPEAX_K0AEBVcontext@34@AEBVdevice@34@W4alloc@134@AEBVproperty_list@34@@Z
+?alignedAllocHost@usm@detail@_V1@sycl@@YAPEAX_K0AEBVcontext@34@W4alloc@134@@Z
 ?alignedFree@OSUtil@detail@_V1@sycl@@SAXPEAX@Z
 ?aligned_alloc@_V1@sycl@@YAPEAX_K0AEBVdevice@12@AEBVcontext@12@W4alloc@usm@12@AEBUcode_location@detail@12@@Z
 ?aligned_alloc@_V1@sycl@@YAPEAX_K0AEBVdevice@12@AEBVcontext@12@W4alloc@usm@12@AEBVproperty_list@12@AEBUcode_location@detail@12@@Z
@@ -849,6 +851,7 @@
 ?flush@stream_impl@detail@_V1@sycl@@QEAAXXZ
 ?free@_V1@sycl@@YAXPEAXAEBVcontext@12@AEBUcode_location@detail@12@@Z
 ?free@_V1@sycl@@YAXPEAXAEBVqueue@12@AEBUcode_location@detail@12@@Z
+?free@usm@detail@_V1@sycl@@YAXPEAXAEBVcontext@34@@Z
 ?get@context@_V1@sycl@@QEBAPEAU_cl_context@@XZ
 ?get@device@_V1@sycl@@QEBAPEAU_cl_device_id@@XZ
 ?get@kernel@_V1@sycl@@QEBAPEAU_cl_kernel@@XZ

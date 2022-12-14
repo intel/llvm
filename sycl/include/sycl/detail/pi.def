@@ -145,4 +145,8 @@ _PI_API(piextUSMEnqueueFill2D)
 _PI_API(piextUSMEnqueueMemset2D)
 _PI_API(piextUSMEnqueueMemcpy2D)
 
+// Device variable
+_PI_API(piextEnqueueDeviceVariableWrite)
+_PI_API(piextEnqueueDeviceVariableRead)
+
 #undef _PI_API
