@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include "matrix-unified-utils.hpp"
 #include <CL/__spirv/spirv_ops.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/feature_test.hpp>
@@ -16,25 +17,6 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
-namespace oneapi {
-namespace experimental {
-namespace matrix {
-
-// class tf32 should not hold actual data. It is a tag type only, an empty class
-// with no member variables. Morally, it is equivalent to an enumeration--it
-// just uses the type system to communicate the desired accuracy of arithmetic
-// computations. Users can't construct a tf32
-namespace precision {
-class tf32 {
-  tf32() = delete;
-};
-} // namespace precision
-
-enum class layout { row_major = 0, col_major = 1, dynamic = 3 };
-
-} // namespace matrix
-} // namespace experimental
-} // namespace oneapi
 namespace intel::experimental::matrix::layout {
 constexpr sycl::ext::oneapi::experimental::matrix::layout packed =
     static_cast<sycl::ext::oneapi::experimental::matrix::layout>(2);
@@ -57,8 +39,6 @@ SPV_MATRIX_LAYOUT_TRAITS(layout::col_major, __spv::MatrixLayout::ColumnMajor)
 SPV_MATRIX_LAYOUT_TRAITS(sycl::ext::intel::experimental::matrix::layout::packed,
                          __spv::MatrixLayout::Packed)
 SPV_MATRIX_LAYOUT_TRAITS(layout::dynamic, __spv::MatrixLayout::Dynamic)
-
-enum class use { a, b, accumulator };
 
 template <use Use> struct spv_matrix_use_traits {
   static constexpr __spv::MatrixUse value = __spv::MatrixUse::MatrixA;
@@ -313,11 +293,11 @@ public:
 
 template <typename Group, typename T, use Use, size_t NumRows, size_t NumCols,
           layout Layout>
-class wi_data {
+class wi_data_intel {
   joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &M;
 
 public:
-  wi_data(joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &Mat)
+  wi_data_intel(joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &Mat)
       : M(Mat) {}
   size_t length() {
 #ifdef __SYCL_DEVICE_ONLY__

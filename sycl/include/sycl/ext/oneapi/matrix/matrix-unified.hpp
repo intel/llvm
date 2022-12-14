@@ -7,9 +7,8 @@
 // ===--------------------------------------------------------------------=== //
 
 #pragma once
-
 #include "matrix-intel.hpp"
-
+#include <sycl/ext/oneapi/matrix/matrix-tensorcores.hpp>
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
@@ -18,37 +17,47 @@ namespace experimental {
 namespace matrix {
 
 template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
-          layout Layout = layout::dynamic>
+          layout Layout>
 struct joint_matrix {
+
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-// nv's impl
+  sycl::ext::oneapi::detail::joint_matrix_cuda<T, Use, Rows, Cols, Layout>
+      cuda_impl;
 #else
   __spv::__spirv_JointMatrixINTEL<
       T, Rows, Cols, spv_matrix_layout_traits<Layout>::value,
       spv_scope_traits<Group>::value, spv_matrix_use_traits<Use>::value> *spvm;
-#endif
+#endif // defined(__SYCL_DEVICE_ONLY__)
 #endif
 
   joint_matrix() {
 #ifndef __SYCL_DEVICE_ONLY__
     throw runtime_error("joint matrix is not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
+#endif
   }
 };
 
 template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
           layout Layout>
-inline __SYCL_ALWAYS_INLINE wi_data<Group, T, Use, Rows, Cols, Layout>
+inline __SYCL_ALWAYS_INLINE decltype(auto)
 get_wi_data(Group sg, joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-  // std::ignore = sg;
-  // return wi_data(jm);
+  std::ignore = sg;
+  return wi_data(jm);
 #else
-  return wi_data<Group, T, Use, Rows, Cols, Layout>(jm);
+  return wi_data_intel<Group, T, Use, Rows, Cols, Layout>(jm);
 #endif // defined(__NVPTX__)
+#else
+  if constexpr (std::is_same_v<T, precision::tf32>) {
+    marray<float, 1> unused{};
+    return wi_data<float, 1>(unused);
+  } else {
+    marray<T, 1> unused{};
+    return wi_data<T, 1>(unused);
+  }
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -58,10 +67,10 @@ inline __SYCL_ALWAYS_INLINE void
 joint_matrix_fill(Group sg,
                   joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &res,
                   const T2 &v) {
-  std::ignore = sg;
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-  // res.cuda_impl.wi_marray = v;
+  std::ignore = sg;
+  res.cuda_impl.wi_marray = v;
 #else
   res.spvm =
       __spirv_CompositeConstruct<T, NumRows, NumCols,
@@ -70,6 +79,7 @@ joint_matrix_fill(Group sg,
           static_cast<T>(v));
 #endif // defined(__NVPTX__)
 #else
+  std::ignore = sg;
   std::ignore = res;
   std::ignore = v;
   throw runtime_error(
@@ -78,6 +88,7 @@ joint_matrix_fill(Group sg,
       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
+
 template <
     typename Group, typename S, typename T, size_t NumRows, size_t NumCols,
     access::address_space Space, access::decorated IsDecorated,
@@ -91,10 +102,9 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
     sycl::ext::oneapi::experimental::matrix::layout Layout) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-  // nv's impl
-  // sycl::ext::oneapi::detail::load_accumulator_cuda(res.cuda_impl, src,
-  // stride,
-  //                                                  Layout);
+  std::ignore = sg;
+  sycl::ext::oneapi::detail::load_accumulator_cuda(res.cuda_impl, src, stride,
+                                                   Layout);
 #else
   // intel's impl
   // matL is determined by matrix.use?
@@ -151,11 +161,10 @@ joint_matrix_load(Group sg,
                   multi_ptr<T, Space, IsDecorated> src, size_t stride) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-  // nv's impl
-  // sycl::ext::oneapi::detail::load_multiplicand_cuda<S, T, NumRows, NumCols,
-  // Use,
-  //                                                   Layout, Space>(
-  //     res.cuda_impl, src, stride);
+  std::ignore = sg;
+  sycl::ext::oneapi::detail::load_multiplicand_cuda<S, T, NumRows, NumCols, Use,
+                                                    Layout, Space>(
+      res.cuda_impl, src, stride);
 #else
   T *Ptr = src.get();
   res.spvm =
@@ -187,11 +196,10 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
     sycl::ext::oneapi::experimental::matrix::layout Layout) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-  // nv's impl
-  // sycl::ext::oneapi::detail::joint_matrix_store_cuda<T, NumRows, NumCols,
-  //                                                    Space>(src.cuda_impl,
-  //                                                    dst,
-  //                                                           stride, Layout);
+  std::ignore = sg;
+  sycl::ext::oneapi::detail::joint_matrix_store_cuda<T, NumRows, NumCols,
+                                                     Space>(src.cuda_impl, dst,
+                                                            stride, Layout);
 #else
   // intel's impl
   T *Ptr = dst.get();
@@ -246,10 +254,11 @@ inline __SYCL_ALWAYS_INLINE
             &C) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
+  std::ignore = sg;
   if constexpr (std::is_same<Ta, Tb>::value) {
     joint_matrix<Group, Tc, use::accumulator, M, N,
                  sycl::ext::oneapi::experimental::matrix::layout::dynamic>
-        D(sg);
+        D;
     sycl::ext::oneapi::detail::joint_matrix_mad_cuda<Ta, Tc, M, K, N, LayoutA,
                                                      LayoutB>(
         D.cuda_impl, A.cuda_impl, B.cuda_impl, C.cuda_impl);
@@ -284,6 +293,21 @@ inline __SYCL_ALWAYS_INLINE
       "Nvidia devices",
       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
+}
+
+// This function rounds the bottom 13 bits up or down, and then zeros out the
+// bottom bits
+inline __SYCL_ALWAYS_INLINE float round_to_tf32(float &a) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  int32_t tmp_int = __nvvm_f2tf32_rna(a);
+  return __nvvm_bitcast_i2f(tmp_int);
+#else
+  uint32_t tmp_uint = reinterpret_cast<uint32_t &>(a);
+  tmp_uint += 0x1000u;
+  tmp_uint &= 0xFFFFE000u;
+  float ret = reinterpret_cast<float &>(tmp_uint);
+  return ret;
+#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
 } // namespace matrix

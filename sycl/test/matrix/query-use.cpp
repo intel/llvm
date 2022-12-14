@@ -1,4 +1,4 @@
-// RUN: %clangxx -DSYCL_EXT_ONEAPI_MATRIX_VERSION=2 -fsycl -o query-use %s
+// RUN: %clangxx -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -fsycl -o query-use %s
 #include <iostream>
 #include <sycl/sycl.hpp>
 

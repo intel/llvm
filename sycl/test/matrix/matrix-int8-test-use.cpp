@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-device-only -DSYCL_EXT_ONEAPI_MATRIX_VERSION=2 -O2 -S -emit-llvm -o - %s | FileCheck %s
+// RUN: %clangxx -fsycl -fsycl-device-only -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -O2 -S -emit-llvm -o - %s | FileCheck %s
 
 // CHECK-DAG: %spirv.JointMatrixINTEL._char_12_48_0_3_0 = type opaque
 // CHECK-DAG: %spirv.JointMatrixINTEL._int_12_12_3_3_2 = type opaque
