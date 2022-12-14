@@ -174,9 +174,10 @@ public:
            Space == access::address_space::ext_intel_global_device_space) &&
           std::is_const<RelayElementType>::value &&
           std::is_same<RelayElementType, ElementType>::value>>
-  multi_ptr(accessor<typename detail::remove_const_t<RelayElementType>, Dimensions,
-                     Mode, access::target::device, isPlaceholder, PropertyListT>
-                Accessor)
+  multi_ptr(
+      accessor<typename detail::remove_const_t<RelayElementType>, Dimensions,
+               Mode, access::target::device, isPlaceholder, PropertyListT>
+          Accessor)
       : multi_ptr(
             detail::cast_AS<decorated_type *>(Accessor.get_pointer().get())) {}
 

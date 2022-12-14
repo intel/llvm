@@ -2961,7 +2961,6 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : host_accessor(BufferRef, PropertyList, CodeLoc) {}
 
-
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
