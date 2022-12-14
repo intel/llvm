@@ -170,8 +170,9 @@ using ur_level_zero_platform = _ur_level_zero_platform *;
 class ZeUSMImportExtension {
   // Pointers to functions that import/release host memory into USM
   ze_result_t (*zexDriverImportExternalPointer)(ze_driver_handle_t hDriver,
-                                                void *, size_t);
-  ze_result_t (*zexDriverReleaseImportedPointer)(ze_driver_handle_t, void *);
+                                                void *, size_t) = nullptr;
+  ze_result_t (*zexDriverReleaseImportedPointer)(ze_driver_handle_t,
+                                                 void *) = nullptr;
 
 public:
   // Whether user has requested Import/Release, and platform supports it.
