@@ -84,7 +84,8 @@ joint_reduce(GroupHelper group_helper, Ptr first, Ptr last,
   sycl::detail::for_each(g, second, last,
                          [&](const T &x) { partial = binary_op(partial, x); });
   group_barrier(g);
-  return reduce_over_group(group_helper, partial, binary_op);
+  return reduce_over_group(group_helper, group_broadcast(g, partial),
+                           binary_op);
 #else
   std::ignore = group_helper;
   std::ignore = first;
@@ -100,7 +101,7 @@ template <typename GroupHelper, typename Ptr, typename T,
 std::enable_if_t<
     (is_group_helper_v<GroupHelper> && sycl::detail::is_pointer<Ptr>::value), T>
 joint_reduce(GroupHelper group_helper, Ptr first, Ptr last, T init,
-             BinaryOperation binary_op) {
+              BinaryOperation binary_op) {
   if constexpr (sycl::detail::is_native_op<T, BinaryOperation>::value) {
     return sycl::joint_reduce(group_helper.get_group(), first, last, init,
                               binary_op);
