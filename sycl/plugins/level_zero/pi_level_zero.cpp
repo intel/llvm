@@ -2052,6 +2052,9 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
     }
   }
 
+  // For in-order queues, every command should be executed only after the
+  // previous command has finished. The event associated with the last
+  // enqueued command is added into the waitlist to ensure in-order semantics.
   bool IncludeLastCommandEvent =
       CurQueue->isInOrderQueue() && CurQueue->LastCommandEvent != nullptr;
 
@@ -2063,15 +2066,19 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
     IncludeLastCommandEvent = false;
 
   try {
+    pi_uint32 TmpListLength = 0;
+
     if (IncludeLastCommandEvent) {
       this->ZeEventList = new ze_event_handle_t[EventListLength + 1];
       this->PiEventList = new pi_event[EventListLength + 1];
+      std::shared_lock<pi_shared_mutex> Lock(CurQueue->LastCommandEvent->Mutex);
+      this->ZeEventList[0] = CurQueue->LastCommandEvent->ZeEvent;
+      this->PiEventList[0] = CurQueue->LastCommandEvent;
+      TmpListLength = 1;
     } else if (EventListLength > 0) {
       this->ZeEventList = new ze_event_handle_t[EventListLength];
       this->PiEventList = new pi_event[EventListLength];
     }
-
-    pi_uint32 TmpListLength = 0;
 
     if (EventListLength > 0) {
       for (pi_uint32 I = 0; I < EventListLength; I++) {
@@ -2150,16 +2157,6 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
         this->PiEventList[TmpListLength] = EventList[I];
         TmpListLength += 1;
       }
-    }
-
-    // For in-order queues, every command should be executed only after the
-    // previous command has finished. The event associated with the last
-    // enqueued command is added into the waitlist to ensure in-order semantics.
-    if (IncludeLastCommandEvent) {
-      std::shared_lock<pi_shared_mutex> Lock(CurQueue->LastCommandEvent->Mutex);
-      this->ZeEventList[TmpListLength] = CurQueue->LastCommandEvent->ZeEvent;
-      this->PiEventList[TmpListLength] = CurQueue->LastCommandEvent;
-      TmpListLength += 1;
     }
 
     this->Length = TmpListLength;
@@ -8003,8 +8000,7 @@ pi_result USMSharedReadOnlyMemoryAlloc::allocateImpl(void **ResultPtr,
                                                      pi_uint32 Alignment) {
   pi_usm_mem_properties Props[] = {PI_MEM_ALLOC_FLAGS,
                                    PI_MEM_ALLOC_DEVICE_READ_ONLY, 0};
-  return USMSharedAllocImpl(ResultPtr, Context, Device, Props, Size,
-                            Alignment);
+  return USMSharedAllocImpl(ResultPtr, Context, Device, Props, Size, Alignment);
 }
 
 pi_result USMDeviceMemoryAlloc::allocateImpl(void **ResultPtr, size_t Size,
