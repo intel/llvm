@@ -216,6 +216,7 @@ public:
   MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue, bool IsHost)
       : sycl::handler(Queue, IsHost) {}
   // Methods
+  using sycl::handler::addReduction;
   using sycl::handler::getType;
   using sycl::handler::MImpl;
 
