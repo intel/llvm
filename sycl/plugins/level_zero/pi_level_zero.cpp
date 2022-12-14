@@ -851,7 +851,7 @@ static const int ImmediateCommandlistsSetting = [] {
 static const size_t ImmCmdListsEventCleanupThreshold = [] {
   const char *ImmCmdListsEventCleanupThresholdStr = std::getenv(
       "SYCL_PI_LEVEL_ZERO_IMMEDIATE_COMMANDLISTS_EVENT_CLEANUP_THRESHOLD");
-  static constexpr int Default = 100;
+  static constexpr int Default = 20;
   if (!ImmCmdListsEventCleanupThresholdStr)
     return Default;
 
