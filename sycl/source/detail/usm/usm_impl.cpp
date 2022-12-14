@@ -43,8 +43,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 using alloc = sycl::usm::alloc;
 
-namespace detail {
-namespace usm {
+namespace detail::usm {
 
 void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
                        alloc Kind, const property_list &PropList,
@@ -235,8 +234,7 @@ void free(void *Ptr, const context &Ctxt,
   }
 }
 
-} // namespace usm
-} // namespace detail
+} // namespace detail::usm
 
 void *malloc_device(size_t Size, const device &Dev,
                     const context &Ctxt _CODELOCPARAMDEF(&CodeLoc)) {

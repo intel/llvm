@@ -13,9 +13,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 
 template <typename T, typename PropertyListT> class device_global;
 
@@ -44,7 +42,7 @@ struct init_mode_key {
 struct implement_in_csr_key {
   template <bool Enable>
   using value_t =
-      property_value<implement_in_csr_key, std::bool_constant<Enable>>;
+      property_value<implement_in_csr_key, sycl::detail::bool_constant<Enable>>;
 };
 
 inline constexpr device_image_scope_key::value_t device_image_scope;
@@ -131,8 +129,6 @@ struct PropertyMetaInfo<implement_in_csr_key::value_t<Enable>> {
 };
 
 } // namespace detail
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

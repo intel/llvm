@@ -37,7 +37,7 @@ static void copyAttributesFrom(const BitVector &Mask, Function *NF,
   NF->copyAttributesFrom(F);
   // Drop masked-out attributes.
   SmallVector<AttributeSet> Attributes;
-  const llvm::AttributeList PAL = NF->getAttributes();
+  const AttributeList PAL = NF->getAttributes();
   std::transform(Mask.set_bits_begin(), Mask.set_bits_end(),
                  std::back_inserter(Attributes),
                  [&](unsigned I) { return PAL.getParamAttrs(I); });
@@ -47,11 +47,9 @@ static void copyAttributesFrom(const BitVector &Mask, Function *NF,
 
 static Function *createMaskedFunction(const BitVector &Mask, Function *F) {
   // Declare
-  llvm::FunctionType *NFTy =
-      createMaskedFunctionType(Mask, F->getFunctionType());
-  llvm::Function *NF =
-      Function::Create(NFTy, F->getLinkage(), F->getAddressSpace(),
-                       F->getName(), F->getParent());
+  FunctionType *NFTy = createMaskedFunctionType(Mask, F->getFunctionType());
+  Function *NF = Function::Create(NFTy, F->getLinkage(), F->getAddressSpace(),
+                                  F->getName(), F->getParent());
   copyAttributesFrom(Mask, NF, F);
   NF->setComdat(F->getComdat());
   NF->takeName(F);
@@ -74,7 +72,7 @@ static Function *createMaskedFunction(const BitVector &Mask, Function *F) {
     // Copy metadata.
     SmallVector<std::pair<unsigned, MDNode *>> MDs;
     F->getAllMetadata(MDs);
-    for (auto MD : MDs) {
+    for (auto &MD : MDs) {
       NF->addMetadata(MD.first, *MD.second);
     }
   }
@@ -108,7 +106,7 @@ static void applyArgMask(const jit_compiler::ArgUsageMask &NewArgInfo,
                          const BitVector &Mask, Function *F,
                          ModuleAnalysisManager &AM) {
   // Create the function without the masked-out args.
-  llvm::Function *NF = createMaskedFunction(Mask, F);
+  Function *NF = createMaskedFunction(Mask, F);
   // Update the unused args mask.
   jit_compiler::SYCLModuleInfo *ModuleInfo =
       AM.getResult<SYCLModuleInfoAnalysis>(*NF->getParent()).ModuleInfo;

@@ -1,5 +1,5 @@
 # Module library for usage as library/pass-plugin with LLVM opt.
-add_llvm_library(SYCLKernelFusion SHARED
+add_llvm_library(SYCLKernelFusion MODULE
   SYCLFusionPasses.cpp
   kernel-fusion/SYCLKernelFusion.cpp
   kernel-info/SYCLKernelInfo.cpp

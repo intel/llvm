@@ -1,4 +1,4 @@
-//===---- matrix-tensorcore.hpp - SYCL tensor cores matrix ----*- C++ -*---===//
+//===-------------- matrix-tensorcores-legacy.hpp - -----------*- C++ -*---===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,10 +12,8 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
-namespace matrix {
+namespace ext::oneapi {
+namespace experimental::matrix {
 
 enum class matrix_use { a, b, accumulator };
 
@@ -173,8 +171,7 @@ joint_matrix_fill(Group sg,
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
-} // namespace matrix
-} // namespace experimental
+} // namespace experimental::matrix
 
 namespace detail {
 
@@ -684,8 +681,7 @@ struct joint_matrix_mad_impl<
 };
 } // namespace detail
 
-namespace experimental {
-namespace matrix {
+namespace experimental::matrix {
 
 template <
     typename Group, typename S, typename T, matrix_use Use, size_t NumRows,
@@ -776,9 +772,7 @@ inline __SYCL_ALWAYS_INLINE float round_to_tf32(float a) {
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
-} // namespace matrix
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace experimental::matrix
+} // namespace ext::oneapi
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

@@ -34,10 +34,10 @@ constexpr static StringLiteral KernelArgType{"kernel_arg_type"};
 constexpr static StringLiteral KernelArgBaseType{"kernel_arg_base_type"};
 constexpr static StringLiteral KernelArgTypeQual{"kernel_arg_type_qual"};
 
-static unsigned getUnsignedFromMD(llvm::Metadata *MD);
+static unsigned getUnsignedFromMD(Metadata *MD);
 
 static std::pair<unsigned, unsigned> getKeyFromMD(const MDNode *MD) {
-  llvm::Metadata *Op0 = MD->getOperand(0).get();
+  Metadata *Op0 = MD->getOperand(0).get();
   Metadata *LhsMD;
   Metadata *RhsMD;
   if (isa<ConstantAsMetadata>(Op0)) {
@@ -57,7 +57,7 @@ static void copyArgsMD(
     Function &Fused,
     const DenseMap<std::pair<unsigned, unsigned>, unsigned> &ParamMapping,
     StringRef DefaultVal = "") {
-  const llvm::MDNode *MD = Stub.getMetadata(KeyID);
+  const MDNode *MD = Stub.getMetadata(KeyID);
   if (!MD) {
     return;
   }
@@ -81,8 +81,7 @@ static void copyArgsMD(
   Fused.setMetadata(KeyID, MDNode::get(LLVMCtx, NewMD));
 }
 
-llvm::PreservedAnalyses SYCLKernelFusion::run(llvm::Module &M,
-                                              llvm::ModuleAnalysisManager &AM) {
+PreservedAnalyses SYCLKernelFusion::run(Module &M, ModuleAnalysisManager &AM) {
   // Retrieve the SYCLModuleInfo from the corresponding analysis pass
   jit_compiler::SYCLModuleInfo *ModuleInfo =
       AM.getResult<SYCLModuleInfoAnalysis>(M).ModuleInfo;
@@ -91,7 +90,7 @@ llvm::PreservedAnalyses SYCLKernelFusion::run(llvm::Module &M,
   // Iterate over the functions in the module and locate all
   // stub functions identified by metadata.
   SmallPtrSet<Function *, 8> ToCleanUp;
-  for (llvm::Function &F : M) {
+  for (Function &F : M) {
     if (F.isDeclaration() // The stub should be a declaration and not defined.
         && F.hasMetadata(
                MetadataKind)) { // Use metadata to identify the stub function.
@@ -106,7 +105,7 @@ llvm::PreservedAnalyses SYCLKernelFusion::run(llvm::Module &M,
     }
   }
   // Delete all the stub functions
-  for (llvm::Function *SF : ToCleanUp) {
+  for (Function *SF : ToCleanUp) {
     SF->eraseFromParent();
   }
   // Inserting a new function and deleting the stub function is a major
@@ -135,7 +134,7 @@ static FunctionCall createBarrierCall(IRBuilderBase &Builder, Module &M,
 
   constexpr StringLiteral N{"_Z22__spirv_ControlBarrierjjj"};
 
-  llvm::Function *F = M.getFunction(N);
+  Function *F = M.getFunction(N);
   if (!F) {
     constexpr auto Linkage = GlobalValue::LinkageTypes::ExternalLinkage;
 
@@ -159,9 +158,8 @@ static FunctionCall createBarrierCall(IRBuilderBase &Builder, Module &M,
 }
 
 void SYCLKernelFusion::fuseKernel(
-    llvm::Module &M, llvm::Function &StubFunction,
-    jit_compiler::SYCLModuleInfo *ModInfo,
-    SmallPtrSetImpl<llvm::Function *> &ToCleanUp) const {
+    Module &M, Function &StubFunction, jit_compiler::SYCLModuleInfo *ModInfo,
+    SmallPtrSetImpl<Function *> &ToCleanUp) const {
   // Retrieve the metadata from the stub function.
   // The first operand of the tuple is the name that the newly created,
   // fused function should carry.
@@ -170,27 +168,23 @@ void SYCLKernelFusion::fuseKernel(
   // Fuction names may appear multiple times, resulting in
   // the corresponding function to be included multiple times. The functions
   // are included in the same order as given by the list.
-  llvm::MDNode *MD = StubFunction.getMetadata(MetadataKind);
+  MDNode *MD = StubFunction.getMetadata(MetadataKind);
   assert(MD && MD->getNumOperands() == 2 &&
          "Metadata tuple should have two operands");
 
-  // Name of the fused kernel.
-  auto *KernelName = dyn_cast<MDString>(MD->getOperand(0).get());
-  assert(KernelName &&
-         "First metadata operand should be the fused kernel name");
+  // First metadata operand should be the fused kernel name.
+  auto *KernelName = cast<MDString>(MD->getOperand(0).get());
 
-  // List of kernels to fuse into this function.
-  auto *KernelList = dyn_cast<MDNode>(MD->getOperand(1).get());
-  assert(KernelList &&
-         "Second metadata operand should be the list of kernels to fuse");
+  // Second metadata operand should be the list of kernels to fuse.
+  auto *KernelList = cast<MDNode>(MD->getOperand(1).get());
   SmallVector<StringRef> FusedKernels;
-  for (const llvm::MDOperand &MDOp : KernelList->operands()) {
-    auto *FK = dyn_cast<MDString>(MDOp.get());
-    assert(FK && "Kernel should be given by its name as MDString");
+  for (const MDOperand &MDOp : KernelList->operands()) {
+    // Kernel should be given by its name as MDString
+    auto *FK = cast<MDString>(MDOp.get());
     FusedKernels.push_back(FK->getString());
   }
   // Function name for the fused kernel.
-  llvm::StringRef FusedKernelName = KernelName->getString();
+  StringRef FusedKernelName = KernelName->getString();
 
   // The producer of the input to this pass may be able to determine that
   // the same value is used for multiple input functions in the fused kernel,
@@ -202,10 +196,10 @@ void SYCLKernelFusion::fuseKernel(
   // Parse this information from metadata if present.
   SmallVector<ParameterIdentity> ParamIdentities;
   if (StubFunction.hasMetadata(ParameterMDKind)) {
-    llvm::MDNode *ParamMD = StubFunction.getMetadata(ParameterMDKind);
+    MDNode *ParamMD = StubFunction.getMetadata(ParameterMDKind);
     for (const auto &Op : ParamMD->operands()) {
-      auto *Tuple = dyn_cast<MDNode>(Op.get());
-      assert(Tuple && Tuple->getNumOperands() == 2 &&
+      auto *Tuple = cast<MDNode>(Op.get());
+      assert(Tuple->getNumOperands() == 2 &&
              "Parameter identities should be given as tuples");
       SYCLKernelFusion::Parameter LHS = getParamFromMD(Tuple->getOperand(0));
       SYCLKernelFusion::Parameter RHS = getParamFromMD(Tuple->getOperand(1));
@@ -217,7 +211,7 @@ void SYCLKernelFusion::fuseKernel(
   // and sorts the list.
   canonicalizeParameters(ParamIdentities);
 
-  llvm::LLVMContext &LLVMCtx = M.getContext();
+  LLVMContext &LLVMCtx = M.getContext();
   // Locate all the functions that should be fused into this kernel in the
   // module. The module MUST contain definitions for all functions that should
   // be fused, otherwise this is an error.
@@ -251,8 +245,8 @@ void SYCLKernelFusion::fuseKernel(
   SYCLKernelFusion::ParameterIdentity *ParamFront = ParamIdentities.begin();
   unsigned FuncIndex = 0;
   unsigned ArgIndex = 0;
-  for (llvm::StringRef &FN : FusedKernels) {
-    llvm::Function *FF = M.getFunction(FN);
+  for (StringRef &FN : FusedKernels) {
+    Function *FF = M.getFunction(FN);
     assert(
         FF && !FF->isDeclaration() &&
         "Input function definition for fusion must be present in the module");
@@ -261,7 +255,7 @@ void SYCLKernelFusion::fuseKernel(
     // function's signature.
     // This also populates the parameter mapping from parameter of one of the
     // input functions to parameter of the fused function.
-    llvm::AttributeList InputAttrList = FF->getAttributes();
+    AttributeList InputAttrList = FF->getAttributes();
     unsigned ParamIndex = 0;
     SmallVector<bool, 8> UsedArgsMask;
     for (const auto &Arg : FF->args()) {
@@ -325,14 +319,13 @@ void SYCLKernelFusion::fuseKernel(
   // Create a new function with the name specified in metadata and
   // all arguments that are required for the functions fused into this kernel.
   // Returning void is always correct, as SYCL kernels mustn't return anything.
-  llvm::FunctionType *FT =
-      FunctionType::get(Type::getVoidTy(LLVMCtx), FusedArguments,
-                        /* isVarArg*/ false);
+  FunctionType *FT = FunctionType::get(Type::getVoidTy(LLVMCtx), FusedArguments,
+                                       /* isVarArg*/ false);
   // We create the function with default attributes, i.e. the attributes
   // recorded in the module flags. Parameter attributes will be copied over from
   // their original definition (see below). For the remaining attributes, we
   // rely on deduction by a pass such as 'attributor' or 'function-attr'.
-  llvm::Function *FusedFunction = Function::createWithDefaultAttr(
+  Function *FusedFunction = Function::createWithDefaultAttr(
       FT, GlobalValue::LinkageTypes::ExternalLinkage,
       M.getDataLayout().getProgramAddressSpace(), KernelName->getString(), &M);
   {
@@ -420,7 +413,7 @@ void SYCLKernelFusion::fuseKernel(
                                  : Optional<FunctionCall>{};
     const auto BarriersEnd = InputFunctions.size() - 1;
 
-    for (llvm::Function *IF : InputFunctions) {
+    for (Function *IF : InputFunctions) {
       SmallVector<Value *> CallArgs;
       for (size_t I = 0; I < IF->arg_size(); ++I) {
         // Lookup actual parameter index in the mapping.
@@ -444,12 +437,12 @@ void SYCLKernelFusion::fuseKernel(
   Builder.CreateRetVoid();
 
   // Iterate over the previously created calls and inline each of them.
-  for (llvm::CallInst *InlineCall : Calls) {
+  for (CallInst *InlineCall : Calls) {
     InlineFunctionInfo IFI;
     // This inlines with depth 1, i.e., it will only inline the
     // function called here, but none of the functions called
     // from the inlined function.
-    llvm::InlineResult InlineRes = InlineFunction(*InlineCall, IFI);
+    InlineResult InlineRes = InlineFunction(*InlineCall, IFI);
     if (!InlineRes.isSuccess()) {
       // In case inlining fails, we only report it, but still carry on.
       // InlineFunction(...) will leave the program in a well-defined state
@@ -471,8 +464,8 @@ void SYCLKernelFusion::fuseKernel(
   // instrumentations for barriers). As the JITed module is not linked with
   // libdevice anymore, the functions would remain unresolved and cause the
   // driver to fail.
-  llvm::Function *StartWrapperFunc = M.getFunction(ITTStartWrapper);
-  llvm::Function *FinishWrapperFunc = M.getFunction(ITTFinishWrapper);
+  Function *StartWrapperFunc = M.getFunction(ITTStartWrapper);
+  Function *FinishWrapperFunc = M.getFunction(ITTFinishWrapper);
   bool InsertWrappers =
       ((StartWrapperFunc && !StartWrapperFunc->isDeclaration()) &&
        (FinishWrapperFunc && !FinishWrapperFunc->isDeclaration()));
@@ -506,7 +499,7 @@ void SYCLKernelFusion::fuseKernel(
 }
 
 void SYCLKernelFusion::canonicalizeParameters(
-    llvm::SmallVectorImpl<ParameterIdentity> &Params) const {
+    SmallVectorImpl<ParameterIdentity> &Params) const {
   // Canonicalize the list of parameter identities/equalities.
   // The input is a list of parameter pairs which werde detected to be
   // identical. Each pair is constructed such that the RHS belongs to a kernel
@@ -560,8 +553,7 @@ SYCLKernelFusion::Parameter
 SYCLKernelFusion::getParamFromMD(Metadata *MD) const {
   // Parse a parameter (kernel index + parameter index) from metadata.
   assert(MD && "Empty Metadata");
-  auto *Node = dyn_cast<MDNode>(MD);
-  assert(Node && "Not an MDNode");
+  auto *Node = cast<MDNode>(MD);
   unsigned KernelIdx = getUnsignedFromMD(Node->getOperand(0));
   unsigned ParamIdx = getUnsignedFromMD(Node->getOperand(1));
   return Parameter{KernelIdx, ParamIdx};
@@ -572,18 +564,16 @@ static unsigned getUnsignedFromMD(Metadata *MD) {
   // as ConstantInt inside a ConstantAsMetadata, a
   // subtype of metadata.
   assert(MD);
-  auto *ConstantMD = dyn_cast<ConstantAsMetadata>(MD);
-  assert(ConstantMD && "Metadata not constant");
-  llvm::Constant *ConstantVal = ConstantMD->getValue();
-  auto *ConstInt = dyn_cast<ConstantInt>(ConstantVal);
-  assert(ConstInt && "Not a constant integer");
+  auto *ConstantMD = cast<ConstantAsMetadata>(MD);
+  Constant *ConstantVal = ConstantMD->getValue();
+  auto *ConstInt = cast<ConstantInt>(ConstantVal);
   return ConstInt->getZExtValue();
 }
 
 void SYCLKernelFusion::addToFusedMetadata(
-    llvm::Function *InputFunction, const llvm::StringRef &Kind,
-    const llvm::ArrayRef<bool> IsArgPresentMask,
-    llvm::SmallVectorImpl<llvm::Metadata *> &FusedMDList) const {
+    Function *InputFunction, const StringRef &Kind,
+    const ArrayRef<bool> IsArgPresentMask,
+    SmallVectorImpl<Metadata *> &FusedMDList) const {
   // Retrieve metadata from one of the input kernels and add it to the list
   // of fused metadata.
   assert(InputFunction->hasMetadata(Kind) &&
@@ -598,15 +588,15 @@ void SYCLKernelFusion::addToFusedMetadata(
 }
 
 void SYCLKernelFusion::attachFusedMetadata(
-    llvm::Function *FusedFunction, const llvm::StringRef &Kind,
-    const llvm::ArrayRef<llvm::Metadata *> FusedMetadata) const {
+    Function *FusedFunction, const StringRef &Kind,
+    const ArrayRef<Metadata *> FusedMetadata) const {
   // Attach a list of fused metadata for a kind to the fused function.
   auto *MDEntries = MDNode::get(FusedFunction->getContext(), FusedMetadata);
   FusedFunction->setMetadata(Kind, MDEntries);
 }
 
 void SYCLKernelFusion::attachKernelAttributeMD(
-    llvm::LLVMContext &LLVMCtx, llvm::Function *FusedFunction,
+    LLVMContext &LLVMCtx, Function *FusedFunction,
     jit_compiler::SYCLKernelInfo &FusedKernelInfo) const {
   // Attach kernel attribute information as metadata to a kernel function.
   for (jit_compiler::SYCLKernelAttribute &KernelAttr :
@@ -630,7 +620,7 @@ void SYCLKernelFusion::attachKernelAttributeMD(
 void SYCLKernelFusion::updateArgUsageMask(
     jit_compiler::ArgUsageMask &NewMask,
     jit_compiler::SYCLArgumentDescriptor &InputDef,
-    const llvm::ArrayRef<bool> ParamUseMask) const {
+    const ArrayRef<bool> ParamUseMask) const {
   // Create a new argument usage mask from the input information and the mask
   // resulting from identical parameters. The input kernel may have had unused
   // parameters before and during fusion, more parameters can become unused due
@@ -654,7 +644,7 @@ void SYCLKernelFusion::updateArgUsageMask(
 void SYCLKernelFusion::appendKernelInfo(
     jit_compiler::SYCLKernelInfo &FusedInfo,
     jit_compiler::SYCLKernelInfo &InputInfo,
-    const llvm::ArrayRef<bool> ParamUseMask) const {
+    const ArrayRef<bool> ParamUseMask) const {
   // Add information from the input kernel to the SYCLKernelInfo of the fused
   // kernel.
 
@@ -757,7 +747,7 @@ SYCLKernelFusion::mergeWorkgroupSizeHint(KernelAttr *Attr,
 
 SYCLKernelFusion::KernelAttr *
 SYCLKernelFusion::getAttribute(KernelAttributeList &Attributes,
-                               llvm::StringRef AttrName) const {
+                               StringRef AttrName) const {
   SYCLKernelFusion::KernelAttrIterator It = findAttribute(Attributes, AttrName);
   if (It != Attributes.end()) {
     return &*It;
@@ -771,7 +761,7 @@ void SYCLKernelFusion::addAttribute(KernelAttributeList &Attributes,
 }
 
 void SYCLKernelFusion::removeAttribute(KernelAttributeList &Attributes,
-                                       llvm::StringRef AttrName) const {
+                                       StringRef AttrName) const {
   SYCLKernelFusion::KernelAttrIterator It = findAttribute(Attributes, AttrName);
   if (It != Attributes.end()) {
     Attributes.erase(It);
@@ -780,7 +770,7 @@ void SYCLKernelFusion::removeAttribute(KernelAttributeList &Attributes,
 
 SYCLKernelFusion::KernelAttrIterator
 SYCLKernelFusion::findAttribute(KernelAttributeList &Attributes,
-                                llvm::StringRef AttrName) const {
+                                StringRef AttrName) const {
   return llvm::find_if(Attributes, [=](SYCLKernelFusion::KernelAttr &Attr) {
     return Attr.AttributeName == AttrName.str();
   });

@@ -18,36 +18,10 @@
 using namespace sycl;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
 
-detail::Command *AddTaskCG(bool IsHost, MockScheduler &MS,
-                           detail::QueueImplPtr DevQueue,
-                           const std::vector<EventImplPtr> &Events) {
-  std::vector<detail::Command *> ToEnqueue;
+constexpr auto DisablePostEnqueueCleanupName =
+    "SYCL_DISABLE_POST_ENQUEUE_CLEANUP";
 
-  // Emulating processing of command group function
-  MockHandlerCustomFinalize MockCGH(DevQueue, false);
-
-  for (auto EventImpl : Events)
-    MockCGH.depends_on(detail::createSyclObjFromImpl<event>(EventImpl));
-
-  if (IsHost)
-    MockCGH.host_task([] {});
-  else {
-    kernel_bundle KernelBundle =
-        sycl::get_kernel_bundle<sycl::bundle_state::input>(
-            DevQueue->get_context());
-    auto ExecBundle = sycl::build(KernelBundle);
-    MockCGH.use_kernel_bundle(ExecBundle);
-    MockCGH.single_task<TestKernel<>>([] {});
-  }
-
-  std::unique_ptr<sycl::detail::CG> CmdGroup = MockCGH.finalize();
-
-  detail::Command *NewCmd =
-      MS.addCG(std::move(CmdGroup),
-               IsHost ? MS.getDefaultHostQueue() : DevQueue, ToEnqueue);
-  EXPECT_EQ(ToEnqueue.size(), 0u);
-  return NewCmd;
-}
+std::vector<std::pair<pi_uint32, const pi_event *>> PassedNumEvents;
 
 bool CheckTestExecutionRequirements(const platform &plt) {
   if (plt.is_host()) {
@@ -63,155 +37,211 @@ bool CheckTestExecutionRequirements(const platform &plt) {
   return true;
 }
 
-inline constexpr auto DisablePostEnqueueCleanupName =
-    "SYCL_DISABLE_POST_ENQUEUE_CLEANUP";
+enum TestCGType { KERNEL_TASK = 0x00, HOST_TASK = 0x01 };
 
-TEST_F(SchedulerTest, EnqueueNoMemObjTwoHostTasks) {
-  // Checks enqueue of two dependent host tasks
+class DependsOnTests : public ::testing::Test {
+protected:
+  void SetUp() {
+    platform Plt = Mock.getPlatform();
+    if (!CheckTestExecutionRequirements(Plt))
+      GTEST_SKIP();
 
+    queue QueueDev(context(Plt), default_selector_v);
+    QueueDevImpl = detail::getSyclObjImpl(QueueDev);
+  }
+
+  void TearDown() {}
+
+  detail::Command *
+  AddTaskCG(TestCGType Type, const std::vector<EventImplPtr> &Events,
+            std::function<void()> *CustomHostLambda = nullptr) {
+    std::vector<detail::Command *> ToEnqueue;
+
+    // Emulating processing of command group function
+    MockHandlerCustomFinalize MockCGH(QueueDevImpl, false);
+
+    for (auto EventImpl : Events)
+      MockCGH.depends_on(detail::createSyclObjFromImpl<event>(EventImpl));
+
+    if (Type == TestCGType::HOST_TASK) {
+      if (!CustomHostLambda)
+        MockCGH.host_task([] {});
+      else
+        MockCGH.host_task(*CustomHostLambda);
+    } else {
+      kernel_bundle KernelBundle =
+          sycl::get_kernel_bundle<sycl::bundle_state::input>(
+              QueueDevImpl->get_context());
+      auto ExecBundle = sycl::build(KernelBundle);
+      MockCGH.use_kernel_bundle(ExecBundle);
+      MockCGH.single_task<TestKernel<>>([] {});
+    }
+
+    std::unique_ptr<sycl::detail::CG> CmdGroup = MockCGH.finalize();
+
+    detail::Command *NewCmd = MS.addCG(
+        std::move(CmdGroup),
+        Type == TestCGType::HOST_TASK ? MS.getDefaultHostQueue() : QueueDevImpl,
+        ToEnqueue);
+    EXPECT_EQ(ToEnqueue.size(), 0u);
+    return NewCmd;
+  }
+
+  void EventsWaitVerification() {
+    std::vector<EventImplPtr> Events;
+
+    detail::Command *Cmd1 = AddTaskCG(TestCGType::HOST_TASK, Events);
+    EventImplPtr Cmd1Event = Cmd1->getEvent();
+
+    // Depends on host task
+    Events.push_back(Cmd1Event);
+    detail::Command *Cmd2 = AddTaskCG(TestCGType::KERNEL_TASK, Events);
+    EventImplPtr Cmd2Event = Cmd2->getEvent();
+
+    // Depends on kernel depending on host task
+    Events.clear();
+    Events.push_back(Cmd2Event);
+    detail::Command *Cmd3 = AddTaskCG(TestCGType::KERNEL_TASK, Events);
+    EventImplPtr Cmd3Event = Cmd3->getEvent();
+
+    std::vector<detail::Command *> BlockedCommands{Cmd2, Cmd3};
+    VerifyBlockedCommandsEnqueue(Cmd1, BlockedCommands);
+
+    // One piEventsWait call:
+    // kernel2 waits for kernel 1 by sending event list to enqueue launch call
+    // (depending on queue property). Cmd3Event.wait() waits for kernel2 via
+    // piEventsWait.
+    ASSERT_EQ(PassedNumEvents.size(), 1u);
+    auto [EventCount, EventArr] = PassedNumEvents[0];
+    ASSERT_EQ(EventCount, 1u);
+    EXPECT_EQ(*EventArr, Cmd3Event->getHandleRef());
+  }
+
+  void VerifyBlockedCommandsEnqueue(
+      detail::Command *BlockingCommand,
+      std::vector<detail::Command *> &BlockedCommands) {
+    std::unique_lock<std::mutex> TestLock(m, std::defer_lock);
+    TestLock.lock();
+    detail::EnqueueResultT Result;
+    for (detail::Command *BlockedCmd : BlockedCommands) {
+      EXPECT_FALSE(MS.enqueueCommand(BlockedCmd, Result,
+                                     detail::BlockingT::NON_BLOCKING));
+      EXPECT_EQ(Result.MResult, detail::EnqueueResultT::SyclEnqueueBlocked);
+      EXPECT_EQ(Result.MCmd, static_cast<detail::Command *>(BlockingCommand));
+      EXPECT_FALSE(BlockedCmd->isSuccessfullyEnqueued());
+    }
+    EXPECT_TRUE(BlockingCommand->isSuccessfullyEnqueued());
+
+    TestLock.unlock();
+
+    auto BlockingEvent = BlockingCommand->getEvent();
+    BlockingEvent->wait(BlockingEvent);
+    {
+      auto Lock = MS.acquireOriginSchedGraphWriteLock();
+      Lock.lock();
+      for (detail::Command *BlockedCmd : BlockedCommands) {
+        EXPECT_TRUE(BlockedCmd->isSuccessfullyEnqueued());
+      }
+    }
+    for (detail::Command *BlockedCmd : BlockedCommands) {
+      auto BlockedEvent = BlockedCmd->getEvent();
+      BlockedEvent->wait(BlockedEvent);
+    }
+  }
+
+  unittest::PiMock Mock;
   unittest::ScopedEnvVar DisabledCleanup{
       DisablePostEnqueueCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
-
-  unittest::PiMock Mock;
-  platform Plt = Mock.getPlatform();
-  if (!CheckTestExecutionRequirements(Plt))
-    return;
-
-  queue QueueDev(context(Plt), default_selector_v);
   MockScheduler MS;
 
-  detail::QueueImplPtr QueueDevImpl = detail::getSyclObjImpl(QueueDev);
-  detail::QueueImplPtr QueueHostImpl = MS.getDefaultHostQueue();
+  detail::QueueImplPtr QueueDevImpl;
 
+  std::mutex m;
+  std::function<void()> CustomHostLambda = [&]() {
+    std::unique_lock<std::mutex> InsideHostTaskLock(this->m);
+  };
+};
+
+TEST_F(DependsOnTests, EnqueueNoMemObjTwoHostTasks) {
+  // Checks enqueue of two dependent host tasks
+  detail::QueueImplPtr QueueHostImpl = MS.getDefaultHostQueue();
   std::vector<EventImplPtr> Events;
 
-  detail::Command *Cmd1 = AddTaskCG(true, MS, QueueDevImpl, Events);
+  detail::Command *Cmd1 =
+      AddTaskCG(TestCGType::HOST_TASK, Events, &CustomHostLambda);
   EventImplPtr Cmd1Event = Cmd1->getEvent();
 
   // Simulate depends_on() call
   Events.push_back(Cmd1Event);
-  detail::Command *Cmd2 = AddTaskCG(true, MS, QueueDevImpl, Events);
+  detail::Command *Cmd2 = AddTaskCG(TestCGType::HOST_TASK, Events);
   EventImplPtr Cmd2Event = Cmd2->getEvent();
 
-  detail::EnqueueResultT Result;
-  EXPECT_TRUE(MS.enqueueCommand(Cmd2, Result, detail::BlockingT::NON_BLOCKING));
-
-  // Preconditions for post enqueue checks
-  EXPECT_TRUE(Cmd1->isSuccessfullyEnqueued());
-  EXPECT_TRUE(Cmd2->isSuccessfullyEnqueued());
-
-  Cmd2Event->wait(Cmd2Event);
+  std::vector<detail::Command *> BlockedCommands{Cmd2};
+  VerifyBlockedCommandsEnqueue(Cmd1, BlockedCommands);
   EXPECT_EQ(Cmd1Event->get_info<info::event::command_execution_status>(),
             info::event_command_status::complete);
   EXPECT_EQ(Cmd2Event->get_info<info::event::command_execution_status>(),
             info::event_command_status::complete);
 }
 
-TEST_F(SchedulerTest, EnqueueNoMemObjKernelDepHost) {
+TEST_F(DependsOnTests, EnqueueNoMemObjKernelDepHost) {
   // Checks enqueue of kernel depending on host task
-  unittest::ScopedEnvVar DisabledCleanup{
-      DisablePostEnqueueCleanupName, "1",
-      detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
-
-  unittest::PiMock Mock;
-  platform Plt = Mock.getPlatform();
-  if (!CheckTestExecutionRequirements(Plt))
-    return;
-
-  queue QueueDev(context(Plt), default_selector_v);
-  MockScheduler MS;
-
-  detail::QueueImplPtr QueueDevImpl = detail::getSyclObjImpl(QueueDev);
-
   std::vector<EventImplPtr> Events;
 
-  detail::Command *Cmd1 = AddTaskCG(true, MS, QueueDevImpl, Events);
+  detail::Command *Cmd1 =
+      AddTaskCG(TestCGType::HOST_TASK, Events, &CustomHostLambda);
   EventImplPtr Cmd1Event = Cmd1->getEvent();
+  EXPECT_TRUE(Cmd1->isBlocking());
 
   // Simulate depends_on() call
   Events.push_back(Cmd1Event);
-  detail::Command *Cmd2 = AddTaskCG(false, MS, QueueDevImpl, Events);
-  EventImplPtr Cmd2Event = Cmd2->getEvent();
+  detail::Command *Cmd2 = AddTaskCG(TestCGType::KERNEL_TASK, Events);
 
-  detail::EnqueueResultT Result;
-  EXPECT_TRUE(MS.enqueueCommand(Cmd2, Result, detail::BlockingT::NON_BLOCKING));
-
-  // Preconditions for post enqueue checks
-  EXPECT_TRUE(Cmd1->isSuccessfullyEnqueued());
-  EXPECT_TRUE(Cmd2->isSuccessfullyEnqueued());
-
-  Cmd2Event->wait(Cmd2Event);
+  std::vector<detail::Command *> BlockedCommands{Cmd2};
+  VerifyBlockedCommandsEnqueue(Cmd1, BlockedCommands);
 }
 
-TEST_F(SchedulerTest, EnqueueNoMemObjHostDepKernel) {
+TEST_F(DependsOnTests, EnqueueNoMemObjHostDepKernel) {
   // Checks enqueue of host task depending on kernel
-  unittest::ScopedEnvVar DisabledCleanup{
-      DisablePostEnqueueCleanupName, "1",
-      detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
-
-  unittest::PiMock Mock;
-  platform Plt = Mock.getPlatform();
-  if (!CheckTestExecutionRequirements(Plt))
-    return;
-
-  queue QueueDev(context(Plt), default_selector_v);
-  MockScheduler MS;
-
-  detail::QueueImplPtr QueueDevImpl = detail::getSyclObjImpl(QueueDev);
-
   std::vector<EventImplPtr> Events;
 
-  detail::Command *Cmd1 = AddTaskCG(false, MS, QueueDevImpl, Events);
+  detail::Command *Cmd1 = AddTaskCG(TestCGType::KERNEL_TASK, Events);
   EventImplPtr Cmd1Event = Cmd1->getEvent();
 
   // Simulate depends_on() call
   Events.push_back(Cmd1Event);
-  detail::Command *Cmd2 = AddTaskCG(true, MS, QueueDevImpl, Events);
+  detail::Command *Cmd2 = AddTaskCG(TestCGType::HOST_TASK, Events);
   EventImplPtr Cmd2Event = Cmd2->getEvent();
 
   detail::EnqueueResultT Result;
   EXPECT_TRUE(MS.enqueueCommand(Cmd2, Result, detail::BlockingT::NON_BLOCKING));
 
-  // Preconditions for post enqueue checks
   EXPECT_TRUE(Cmd1->isSuccessfullyEnqueued());
   EXPECT_TRUE(Cmd2->isSuccessfullyEnqueued());
   Cmd2Event->wait(Cmd2Event);
 }
 
-TEST_F(SchedulerTest, EnqueueNoMemObjDoubleKernelDepHostBlocked) {
-  // Checks blocking command tranfer for dependent kernels and enqueue of root
-  // kernel on host task completion
-  unittest::ScopedEnvVar DisabledCleanup{
-      DisablePostEnqueueCleanupName, "1",
-      detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
-
-  unittest::PiMock Mock;
-  platform Plt = Mock.getPlatform();
-  if (!CheckTestExecutionRequirements(Plt))
-    return;
-
-  queue QueueDev(context(Plt), default_selector_v);
-  MockScheduler MS;
-
-  detail::QueueImplPtr QueueDevImpl = detail::getSyclObjImpl(QueueDev);
-
+TEST_F(DependsOnTests, EnqueueNoMemObjDoubleKernelDepHostBlocked) {
+  // Checks blocking command tranfer for dependent kernels and enqueue of
+  // kernels on host task completion
   std::vector<EventImplPtr> Events;
 
-  detail::Command *Cmd1 = AddTaskCG(true, MS, QueueDevImpl, Events);
+  detail::Command *Cmd1 = AddTaskCG(TestCGType::HOST_TASK, Events);
   EventImplPtr Cmd1Event = Cmd1->getEvent();
+  Cmd1->MIsBlockable = true;
   Cmd1->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
 
   // Depends on host task
   Events.push_back(Cmd1Event);
-  detail::Command *Cmd2 = AddTaskCG(false, MS, QueueDevImpl, Events);
+  detail::Command *Cmd2 = AddTaskCG(TestCGType::KERNEL_TASK, Events);
   EventImplPtr Cmd2Event = Cmd2->getEvent();
 
   // Depends on kernel depending on host task
   Events.clear();
   Events.push_back(Cmd2Event);
-  detail::Command *Cmd3 = AddTaskCG(false, MS, QueueDevImpl, Events);
-  EventImplPtr Cmd3Event = Cmd2->getEvent();
+  detail::Command *Cmd3 = AddTaskCG(TestCGType::KERNEL_TASK, Events);
+  EventImplPtr Cmd3Event = Cmd3->getEvent();
 
   detail::EnqueueResultT Result;
   EXPECT_FALSE(
@@ -230,121 +260,30 @@ TEST_F(SchedulerTest, EnqueueNoMemObjDoubleKernelDepHostBlocked) {
 
   Cmd1->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
 
-  EXPECT_TRUE(MS.enqueueCommand(Cmd3, Result, detail::BlockingT::NON_BLOCKING));
-
-  EXPECT_TRUE(Cmd1->isSuccessfullyEnqueued());
-  EXPECT_TRUE(Cmd2->isSuccessfullyEnqueued());
-  EXPECT_TRUE(Cmd3->isSuccessfullyEnqueued());
-
-  Cmd3Event->wait(Cmd2Event);
+  std::vector<detail::Command *> BlockedCommands{Cmd2, Cmd3};
+  VerifyBlockedCommandsEnqueue(Cmd1, BlockedCommands);
 }
 
-std::vector<std::pair<pi_uint32, const pi_event *>> PassedNumEvents;
-inline pi_result redefinedEventsWaitCustom(pi_uint32 num_events,
-                                           const pi_event *event_list) {
-  PassedNumEvents.push_back(std::make_pair(num_events, event_list));
-  return PI_SUCCESS;
-}
-
-std::vector<std::pair<pi_uint32, const pi_event *>> PassedNumEventsToLaunch;
-inline pi_result redefinedEnqueueKernelLaunchCustom(
-    pi_queue, pi_kernel, pi_uint32, const size_t *, const size_t *,
-    const size_t *, pi_uint32 num_events, const pi_event *event_list,
-    pi_event *event) {
-  PassedNumEventsToLaunch.push_back(std::make_pair(num_events, event_list));
-  *event = reinterpret_cast<pi_event>(new int{});
-  return PI_SUCCESS;
-}
-
-void EventsWaitVerification(queue &QueueDev) {
-  MockScheduler MS;
-
-  detail::QueueImplPtr QueueDevImpl = detail::getSyclObjImpl(QueueDev);
-
+TEST_F(DependsOnTests, EnqueueNoMemObjDoubleKernelDepHost) {
+  // Checks blocking command tranfer for dependent kernels and enqueue of
+  // kernels on host task completion
   std::vector<EventImplPtr> Events;
 
-  detail::Command *Cmd1 = AddTaskCG(true, MS, QueueDevImpl, Events);
+  detail::Command *Cmd1 = AddTaskCG(TestCGType::HOST_TASK, Events);
   EventImplPtr Cmd1Event = Cmd1->getEvent();
+  Cmd1->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
 
   // Depends on host task
   Events.push_back(Cmd1Event);
-  detail::Command *Cmd2 = AddTaskCG(false, MS, QueueDevImpl, Events);
+  detail::Command *Cmd2 = AddTaskCG(TestCGType::KERNEL_TASK, Events);
   EventImplPtr Cmd2Event = Cmd2->getEvent();
 
   // Depends on kernel depending on host task
   Events.clear();
   Events.push_back(Cmd2Event);
-  detail::Command *Cmd3 = AddTaskCG(false, MS, QueueDevImpl, Events);
-  EventImplPtr Cmd3Event = Cmd2->getEvent();
+  detail::Command *Cmd3 = AddTaskCG(TestCGType::KERNEL_TASK, Events);
+  EventImplPtr Cmd3Event = Cmd3->getEvent();
 
-  detail::EnqueueResultT Result;
-  EXPECT_TRUE(MS.enqueueCommand(Cmd3, Result, detail::BlockingT::NON_BLOCKING));
-  Cmd3Event->wait(Cmd3Event);
-
-  // One piEventsWait call:
-  // kernel2 waits for kernel 1 by sending event list to enqueue launch call
-  // (depending on queue property). Cmd3Event.wait() waits for kernel2 via
-  // piEventsWait.
-  ASSERT_EQ(PassedNumEvents.size(), 1u);
-  auto [EventCount, EventArr] = PassedNumEvents[0];
-  ASSERT_EQ(EventCount, 1u);
-  EXPECT_EQ(*EventArr, Cmd3Event->getHandleRef());
-}
-
-TEST_F(SchedulerTest, InOrderEnqueueNoMemObjDoubleKernelDepHost) {
-  // Checks blocking command tranfer for dependent kernels and enqueue of root
-  // kernel on host task completion
-  unittest::ScopedEnvVar DisabledCleanup{
-      DisablePostEnqueueCleanupName, "1",
-      detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
-
-  unittest::PiMock Mock;
-  platform Plt = Mock.getPlatform();
-  if (!CheckTestExecutionRequirements(Plt))
-    return;
-
-  Mock.redefineBefore<detail::PiApiKind::piEventsWait>(
-      redefinedEventsWaitCustom);
-  Mock.redefineBefore<detail::PiApiKind::piEnqueueKernelLaunch>(
-      redefinedEnqueueKernelLaunchCustom);
-
-  {
-    queue QueueDev(context(Plt), default_selector_v);
-    PassedNumEvents.clear();
-    PassedNumEventsToLaunch.clear();
-    EventsWaitVerification(QueueDev);
-    // 1st -> kernel after host, no pi events
-    // 2nd -> kernel after kernel, 1 pi event
-    ASSERT_EQ(PassedNumEventsToLaunch.size(), 2u);
-    {
-      auto [EventCount, EventArr] = PassedNumEventsToLaunch[0];
-      EXPECT_EQ(EventCount, 0u);
-      EXPECT_EQ(EventArr, nullptr);
-    }
-    {
-      auto [EventCount, EventArr] = PassedNumEventsToLaunch[1];
-      EXPECT_EQ(EventCount, 1u);
-    }
-  }
-
-  {
-    queue QueueDev(context(Plt), default_selector_v,
-                   property::queue::in_order());
-    PassedNumEvents.clear();
-    PassedNumEventsToLaunch.clear();
-    EventsWaitVerification(QueueDev);
-    // 1st -> kernel after host, no pi events
-    // 2nd -> kernel after kernel and in order queue, 0 pi event
-    ASSERT_EQ(PassedNumEventsToLaunch.size(), 2u);
-    {
-      auto [EventCount, EventArr] = PassedNumEventsToLaunch[0];
-      EXPECT_EQ(EventCount, 0u);
-      EXPECT_EQ(EventArr, nullptr);
-    }
-    {
-      auto [EventCount, EventArr] = PassedNumEventsToLaunch[1];
-      EXPECT_EQ(EventCount, 0u);
-      EXPECT_EQ(EventArr, nullptr);
-    }
-  }
+  std::vector<detail::Command *> BlockedCommands{Cmd2, Cmd3};
+  VerifyBlockedCommandsEnqueue(Cmd1, BlockedCommands);
 }
