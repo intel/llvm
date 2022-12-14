@@ -1822,15 +1822,9 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   case clang::CastKind::CK_PointerToIntegral: {
     const auto DestTy = E->getType();
     assert(!DestTy->isBooleanType() && "bool should use PointerToBool");
-    auto PtrExpr = Visit(E->getSubExpr());
-
-    if (const auto MT = PtrExpr.val.getType().dyn_cast<MemRefType>())
-      PtrExpr = PtrExpr.MemRef2Ptr(Builder, Loc);
-
-    assert(PtrExpr.val.getType().isa<LLVM::LLVMPointerType>() &&
-           "Expecting LLVM pointer type");
-    const auto MLIRDestTy = Glob.getTypes().getMLIRType(DestTy);
-    return PtrExpr.PtrToInt(Builder, Loc, MLIRDestTy);
+    const auto PtrExpr = Visit(E->getSubExpr());
+    return EmitPointerToIntegralConversion(
+        Loc, Glob.getTypes().getMLIRType(DestTy), PtrExpr);
   }
   case clang::CastKind::CK_IntegralToBoolean:
     return EmitIntToBoolConversion(Loc, Visit(E->getSubExpr()));
@@ -2316,6 +2310,16 @@ ValueCategory MLIRScanner::EmitConversionToBool(Location Loc, ValueCategory Src,
   llvm_unreachable("Unknown scalar type to convert");
 }
 
+ValueCategory MLIRScanner::EmitPointerToIntegralConversion(Location Loc,
+                                                           mlir::Type DestTy,
+                                                           ValueCategory Src) {
+  assert(DestTy.isa<IntegerType>() && "Expecting integer type");
+  assert((Src.val.getType().isa<MemRefType, LLVM::LLVMPointerType>()) &&
+         "Expecting pointer input");
+
+  return Src.MemRef2Ptr(Builder, Loc).PtrToInt(Builder, Loc, DestTy);
+}
+
 ValueCategory
 MLIRScanner::EmitCompoundAssignmentLValue(clang::CompoundAssignOperator *E) {
   switch (E->getOpcode()) {
@@ -2733,8 +2737,8 @@ ValueCategory MLIRScanner::EmitBinSub(const BinOpInfo &Info) {
   // Do the raw subtraction part.
   const auto PtrDiffTy = Builder.getIntegerType(
       Glob.getCGM().getDataLayout().getPointerSizeInBits());
-  LHS = LHS.MemRef2Ptr(Builder, Loc).PtrToInt(Builder, Loc, PtrDiffTy);
-  RHS = RHS.MemRef2Ptr(Builder, Loc).PtrToInt(Builder, Loc, PtrDiffTy);
+  LHS = EmitPointerToIntegralConversion(Loc, PtrDiffTy, LHS);
+  RHS = EmitPointerToIntegralConversion(Loc, PtrDiffTy, RHS);
   const auto DiffInChars = LHS.Sub(Builder, Loc, RHS.val);
 
   // Okay, figure out the element size.
