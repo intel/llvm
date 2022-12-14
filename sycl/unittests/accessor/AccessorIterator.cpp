@@ -277,6 +277,20 @@ TEST_F(AccessorIteratorTest, LegacyRandomAccessIteratorRequirementsExtra) {
     ASSERT_FALSE(It3 < It);
     ASSERT_FALSE(It == It3);
   }
+
+  { // It - n equivalent to:
+    // iterator temp = It;
+    // return temp -= n;
+    auto It1 = accessor.end();
+    auto It2 = accessor.end();
+    const auto It3 = accessor.end();
+
+    It2 -= 3;
+    ASSERT_EQ(It1 - 3, It2);
+    ASSERT_EQ(It1, accessor.end());
+    // Check that operator-() can take a constant iterator
+    ASSERT_EQ(It3 - 3, It2);
+  }
 }
 
 // Based on requirements listed at
