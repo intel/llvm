@@ -9425,10 +9425,8 @@ pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
       ((1ULL << Device->ZeDeviceProperties->kernelTimestampValidBits) - 1ULL);
   uint64_t DeviceClockCount, Dummy;
 
-  uint64_t *&HostTimeHandle = HostTime == nullptr ? &Dummy : HostTime;
-
   ZE_CALL(zeDeviceGetGlobalTimestamps,
-          (device->ZeDevice, HostTimeHandle, &DeviceClockCount));
+          (Device->ZeDevice, HostTime == nullptr ? &Dummy : HostTime, &DeviceClockCount));
 
   if (DeviceTime != nullptr) {
 
