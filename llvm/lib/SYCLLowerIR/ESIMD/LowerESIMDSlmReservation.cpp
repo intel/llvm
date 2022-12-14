@@ -1,4 +1,4 @@
-//===---- LowerESIMDSlmAlloc - lower __esimd_slm_alloc, __esimd_slm_init --===//
+//===----- LowerESIMDSlmReservation - lower __esimd_slm_* -----------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -368,7 +368,7 @@ public:
                      });
       }
 
-      // CurScopePath must've been exhausted.
+      // CurScopePath must've been (mostly) exhausted.
       assert((CurScopePath.size() > 0) &&
              (cast<FuncNode>(CurScopePath[0].get())->getFunction() == &F));
       assert((CurScopePath.size() < 2) ||
@@ -488,9 +488,9 @@ size_t lowerSLMReservationCalls(Module &M) {
   Node2IntMap Scope2MaxSLM;
 
   // Now, for each <ScopeNode, kernel FuncNode> pair:
-  // find all possible (reverse) paths in the graph in the graph from the
-  // scope node to the function node and select the one with maximal value
-  // of SLM allocated along the path - MAX_SLM.
+  // find all possible (reverse) paths in the graph from the scope node to the
+  // function node and select the one with maximal value of SLM allocated along
+  // the path - MAX_SLM.
   for (const Function *Kernel : SCG.getKernels()) {
     Kernel2MaxSLM[Kernel] = 0;
     const ScopedCallGraph::FuncNode *KernelNode = SCG.getNode(Kernel).get();
