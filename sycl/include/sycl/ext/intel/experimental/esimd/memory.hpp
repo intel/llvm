@@ -1286,6 +1286,290 @@ __ESIMD_API void lsc_store2d(T *Ptr, unsigned SurfaceWidth,
       Vals.data());
 }
 
+/// <summary>
+///  Container class to hold parameters for \c load2d/store2d \c functions
+/// </summary>
+/// <typeparam name="T">Type of data to load/store</typeparam>
+template <typename T> class config_2d_mem_access {
+public:
+  /// <summary>
+  /// Default constructor
+  /// </summary>
+  config_2d_mem_access() : payload(0) {}
+
+  /// <summary>
+  /// Copy constructor
+  /// </summary>
+  config_2d_mem_access(const config_2d_mem_access &other)
+      : payload(other.payload) {}
+
+  /// <summary>
+  /// Constructor
+  /// </summary>
+  /// <param name="Ptr">surface base address</param>
+  /// <param name="SurfaceWidth">surface width minus 1 in bytes</param>
+  /// <param name="SurfaceHeight">surface height minus 1 in rows</param>
+  /// <param name="SurfacePitch">surface pitch minus 1 in bytes</param>
+  /// <param name="X">zero based X-coordinate of the left upper rectangle corner
+  /// in number of elements</param>
+  /// <param name="Y">zero based Y-coordinate of the left upper rectangle corner
+  /// in rows</param>
+  /// <param name="Width">the block width in number of elements</param>
+  /// <param name="Height">block height in number of elements</param>
+  /// <param name="NBlks">number of blocks</param>
+  config_2d_mem_access(const T *Ptr, uint32_t SurfaceWidth,
+                       uint32_t SurfaceHeight, uint32_t SurfacePitch, int32_t X,
+                       int32_t Y, int32_t Width, int32_t Height, int32_t NBlks)
+      : payload(0) {
+    payload.template bit_cast_view<uint64_t>().template select<1, 1>(0) =
+        (uint64_t)Ptr;
+    payload.template select<1, 1>(2) = SurfaceWidth;
+    payload.template select<1, 1>(3) = SurfaceHeight;
+    payload.template select<1, 1>(4) = SurfacePitch;
+    payload.template select<1, 1>(5) = X;
+    payload.template select<1, 1>(6) = Y;
+    payload.template bit_cast_view<uchar>().template select<1, 1>(28) =
+        Width - 1;
+    payload.template bit_cast_view<uchar>().template select<1, 1>(29) =
+        Height - 1;
+  }
+
+  /// <summary>
+  /// Get a surface base address
+  /// </summary>
+  /// <returns>surface base address</returns>
+  T *get_data_pointer() const {
+    return (T *)(const_cast<config_2d_mem_access>(this)
+                     ->payload.template bit_cast_view<uint64_t>()
+                     .template select<1, 1>(0));
+  }
+
+  /// <summary>
+  /// Get surface width
+  /// </summary>
+  /// <returns>Surface Width</returns>
+  uint32_t get_surface_width() const {
+    return const_cast<config_2d_mem_access>(this)
+        ->payload.template select<1, 1>(2);
+  }
+
+  /// <summary>
+  /// Get surface height
+  /// </summary>
+  /// <returns>Surface Height</returns>
+  uint32_t get_surface_height() const {
+    return const_cast<config_2d_mem_access>(this)
+        ->payload.template select<1, 1>(3);
+  }
+
+  /// <summary>
+  /// Get surface pitch
+  /// </summary>
+  /// <returns>Surface Pitch</returns>
+  uint32_t get_surface_pitch() const {
+    return const_cast<config_2d_mem_access>(this)
+        ->payload.template select<1, 1>(4);
+  }
+
+  /// <summary>
+  /// Get top left corner X coordinate of the block
+  /// </summary>
+  /// <returns>Top left corner X coordinate of the block</returns>
+  int32_t get_x() const {
+    return const_cast<config_2d_mem_access>(this)
+        ->payload.template select<1, 1>(5);
+  }
+
+  /// <summary>
+  /// Get top left corner Y coordinate of the block
+  /// </summary>
+  /// <returns>Top left corner Y coordinate of the block</returns>
+  int32_t get_y() const {
+    return const_cast<config_2d_mem_access>(this)
+        ->payload.template select<1, 1>(6);
+  }
+
+  /// <summary>
+  /// Get width of the block
+  /// </summary>
+  /// <returns>Width of the block</returns>
+  int32_t get_width() const {
+    return const_cast<config_2d_mem_access>(this)
+               ->payload.template bit_cast_view<uint8_t>()
+               .template select<1, 1>(28) +
+           1;
+  }
+
+  /// <summary>
+  /// Get height of the block
+  /// </summary>
+  /// <returns>Height of the block</returns>
+  int32_t get_height() const {
+    return const_cast<config_2d_mem_access>(this)
+               ->payload.template bit_cast_view<uint8_t>()
+               .template select<1, 1>(29) +
+           1;
+  }
+
+  /// <summary>
+  /// Sets surface base address
+  /// </summary>
+  /// <param name="Ptr">surface base address</param>
+  /// <returns>Reference to the modified object</returns>
+  config_2d_mem_access &set_data_pointer(T *Ptr) {
+    payload.template bit_cast_view<uint64_t>().template select<1, 1>(0) =
+        (uint64_t)Ptr;
+    return *this;
+  }
+
+  /// <summary>
+  /// Sets surface width
+  /// </summary>
+  /// <param name="SurfaceWidth">Surface Width</param>
+  /// <returns>Reference to the modified object</returns>
+  config_2d_mem_access &set_surface_width(uint32_t SurfaceWidth) {
+    payload.template select<1, 1>(2) = SurfaceWidth;
+    return *this;
+  }
+
+  /// <summary>
+  /// Sets surface height
+  /// </summary>
+  /// <param name="SurfaceHeight">Surface Height</param>
+  /// <returns>Reference to the modified object</returns>
+  config_2d_mem_access &set_surface_height(uint32_t SurfaceHeight) {
+    payload.template select<1, 1>(3) = SurfaceHeight;
+    return *this;
+  }
+
+  /// <summary>
+  /// Sets surface pitch
+  /// </summary>
+  /// <param name="SurfacePitch">Surface Pitch</param>
+  /// <returns>Reference to the modified object</returns>
+  config_2d_mem_access &set_surface_pitch(uint32_t SurfacePitch) {
+    payload.template select<1, 1>(4) = SurfacePitch;
+    return *this;
+  }
+
+  /// <summary>
+  /// Sets top left corner X coordinate of the block
+  /// </summary>
+  /// <param name="X">Top left corner X coordinate of the block</param>
+  /// <returns>Reference to the modified object</returns>
+  config_2d_mem_access &set_x(int32_t X) {
+    payload.template select<1, 1>(5) = X;
+    return *this;
+  }
+
+  /// <summary>
+  /// Sets top left corner Y coordinate of the block
+  /// </summary>
+  /// <param name="Y">Top left corner Y coordinate of the block</param>
+  /// <returns>Reference to the modified object</returns>
+  config_2d_mem_access &set_y(int32_t Y) {
+    payload.template select<1, 1>(6) = Y;
+    return *this;
+  }
+
+  /// <summary>
+  /// Sets width of the block
+  /// </summary>
+  /// <param name="Width">Width of the block</param>
+  /// <returns>Reference to the modified object</returns>
+  config_2d_mem_access &set_width(int32_t Width) {
+    payload.template bit_cast_view<uchar>().template select<1, 1>(28) =
+        Width - 1;
+    return *this;
+  }
+
+  /// <summary>
+  /// Sets height of the block
+  /// </summary>
+  /// <param name="Height">Height of the block</param>
+  /// <returns>Reference to the modified object</returns>
+  config_2d_mem_access &set_height(int32_t Height) {
+    payload.template bit_cast_view<uchar>().template select<1, 1>(29) =
+        Height - 1;
+  }
+
+  private:
+  __ESIMD_NS::simd<uint32_t, 16> get_raw_data() { return payload; }
+  __ESIMD_NS::simd<uint32_t, 16> payload;
+  template <typename T, int N>
+  friend ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N>
+  lsc_load2d(config_2d_mem_access<T> &payload);
+  template <typename T, int N>
+  friend ESIMD_INLINE SYCL_ESIMD_FUNCTION void
+  lsc_store2d(config_2d_mem_access<T> &payload, __ESIMD_NS::simd<T, N> Data);
+
+};
+
+/// A variation of \c 2D stateless block load \c with parameters passed as
+/// \c config_2d_mem_access \c object
+/// Note: Compatibility with future hardware versions is not guaranteed.
+/// Note: No software mitigation for hardware bugs is possible for this function.
+/// \param T is the element data type
+/// \param N is the data size
+/// \param payload is \c config_2d_mem_access \c object holding all the data
+/// \return is a vector of type T and size N, where N is
+///  getNextPowerOf2(Height) * Width * NBlocks, if transposed
+///  getNextPowerOf2(Width) * Height * NBlocks, otherwise
+///
+template <typename T, int N>
+ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N>
+lsc_load2d(config_2d_mem_access<T> &payload) {
+  __ESIMD_NS::simd<T, N> oldDst;
+  constexpr uint32_t exDesc = 0x0;
+  constexpr uint32_t desc = 0x28A0403;
+  constexpr uint8_t execSize = 0x0;
+  constexpr uint8_t sfid = 0xF;
+  constexpr uint8_t numSrc0 = 0x1;
+  constexpr uint8_t numSrc1 = 0x0;
+  constexpr uint8_t numDst = (N * sizeof(T)) / 64;
+  return raw_send_load(oldDst, payload.get_raw_data(), exDesc, desc, execSize,
+                       sfid, numSrc0, numDst);
+}
+
+/// A variation of \c 2D stateless block store \c with parameters passed as
+/// \c config_2d_mem_access \c object
+/// Note: Compatibility with future hardware versions is not guaranteed.
+/// Note: No software mitigation for hardware bugs is possible for this function.
+/// \param T is the element data type
+/// \param N is the data size
+/// \param payload is \c config_2d_mem_access \c object holding all the data
+/// \param Data is the data to be stored.
+///
+template <typename T, int N>
+ESIMD_INLINE SYCL_ESIMD_FUNCTION void
+lsc_store2d(config_2d_mem_access<T> &payload, __ESIMD_NS::simd<T, N> Data) {
+
+  constexpr uint32_t exDesc = 0x0;
+  constexpr uint32_t desc = 0x2040407;
+  constexpr uint8_t execSize = 0x0;
+  constexpr uint8_t sfid = 0xF;
+  constexpr uint8_t numSrc0 = 0x1;
+  constexpr uint8_t numSrc1 = (N * sizeof(T)) / 64;
+  constexpr uint8_t numDst = 0x0;
+  raw_sends_store(payload.get_raw_data(), Data, exDesc, desc, execSize, sfid,
+                  numSrc0, numSrc1);
+}
+
+/// Computes the data size for 2d block load or store.
+/// \param NBlocks is the number of blocks
+/// \param Width is the block width in number of elements
+/// \param Height is the block height in number of elements
+/// \param Transposed is Transposed or not
+/// \return data size in blocks
+
+template <int NBlocks, int Height, int Width, bool Transposed>
+constexpr int get_block_2d_data_size() {
+  if constexpr (Transposed)
+    return __ESIMD_DNS::getNextPowerOf2<Height>() * Width * NBlocks;
+  return __ESIMD_DNS::getNextPowerOf2<Width>() * Height * NBlocks;
+}
+
+
 /// SLM atomic.
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.slm
