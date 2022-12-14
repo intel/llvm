@@ -936,30 +936,16 @@ struct DispatchOpConversion : public FIROpConversion<fir::DispatchOp> {
       return emitError(loc) << "no binding tables found";
 
     // Get derived type information.
-    auto declaredType =
-        llvm::TypeSwitch<mlir::Type, mlir::Type>(
-            dispatch.getObject().getType().getEleTy())
-            .Case<fir::PointerType, fir::HeapType, fir::SequenceType>(
-                [](auto p) {
-                  if (auto seq =
-                          p.getEleTy().template dyn_cast<fir::SequenceType>())
-                    return seq.getEleTy();
-                  return p.getEleTy();
-                })
-            .Default([](mlir::Type t) { return t; });
+    mlir::Type declaredType =
+        fir::getDerivedType(dispatch.getObject().getType().getEleTy());
     assert(declaredType.isa<fir::RecordType>() && "expecting fir.type");
     auto recordType = declaredType.dyn_cast<fir::RecordType>();
-    std::string typeDescName =
-        fir::NameUniquer::getTypeDescriptorName(recordType.getName());
-    std::string typeDescBindingTableName =
-        fir::NameUniquer::getTypeDescriptorBindingTableName(
-            recordType.getName());
 
     // Lookup for the binding table.
-    auto bindingsIter = bindingTables.find(typeDescBindingTableName);
+    auto bindingsIter = bindingTables.find(recordType.getName());
     if (bindingsIter == bindingTables.end())
       return emitError(loc)
-             << "cannot find binding table for " << typeDescBindingTableName;
+             << "cannot find binding table for " << recordType.getName();
 
     // Lookup for the binding.
     const BindingTable &bindingTable = bindingsIter->second;
@@ -973,6 +959,8 @@ struct DispatchOpConversion : public FIROpConversion<fir::DispatchOp> {
 
     auto module = dispatch.getOperation()->getParentOfType<mlir::ModuleOp>();
     mlir::Type typeDescTy;
+    std::string typeDescName =
+        fir::NameUniquer::getTypeDescriptorName(recordType.getName());
     if (auto global = module.lookupSymbol<fir::GlobalOp>(typeDescName)) {
       typeDescTy = convertType(global.getType());
     } else if (auto global =
@@ -2059,14 +2047,14 @@ private:
       if (!rebox.getSubstr().empty())
         substringOffset = operands[rebox.substrOffset()];
       base = genBoxOffsetGep(rewriter, loc, base, zero,
-                             /*cstInteriorIndices=*/llvm::None, fieldIndices,
+                             /*cstInteriorIndices=*/std::nullopt, fieldIndices,
                              substringOffset);
     }
 
     if (rebox.getSlice().empty())
       // The array section is of the form array[%component][substring], keep
       // the input array extents and strides.
-      return finalizeRebox(rebox, dest, base, /*lbounds*/ llvm::None,
+      return finalizeRebox(rebox, dest, base, /*lbounds*/ std::nullopt,
                            inputExtents, inputStrides, rewriter);
 
     // Strides from the fir.box are in bytes.
@@ -2116,7 +2104,7 @@ private:
         slicedStrides.emplace_back(stride);
       }
     }
-    return finalizeRebox(rebox, dest, base, /*lbounds*/ llvm::None,
+    return finalizeRebox(rebox, dest, base, /*lbounds*/ std::nullopt,
                          slicedExtents, slicedStrides, rewriter);
   }
 
@@ -3024,7 +3012,7 @@ static void genBrOp(A caseOp, mlir::Block *dest, llvm::Optional<B> destOps,
   if (destOps)
     rewriter.replaceOpWithNewOp<mlir::LLVM::BrOp>(caseOp, *destOps, dest);
   else
-    rewriter.replaceOpWithNewOp<mlir::LLVM::BrOp>(caseOp, llvm::None, dest);
+    rewriter.replaceOpWithNewOp<mlir::LLVM::BrOp>(caseOp, std::nullopt, dest);
 }
 
 static void genCaseLadderStep(mlir::Location loc, mlir::Value cmp,
@@ -3640,29 +3628,22 @@ public:
       return signalPassFailure();
 
     // Reconstruct binding tables for dynamic dispatch. The binding tables
-    // are defined in FIR from semantics as fir.global operation with region
-    // initializer. Go through each bining tables and store the procedure name
+    // are defined in FIR from lowering as fir.dispatch_table operation.
+    // Go through each binding tables and store the procedure name
     // and binding index for later use by the fir.dispatch conversion pattern.
     BindingTables bindingTables;
-    for (auto globalOp : mod.getOps<fir::GlobalOp>()) {
-      if (globalOp.getSymName().contains(bindingTableSeparator)) {
-        unsigned bindingIdx = 0;
-        BindingTable bindings;
-        for (auto addrOp : globalOp.getRegion().getOps<fir::AddrOfOp>()) {
-          if (fir::isa_char(fir::unwrapRefType(addrOp.getType()))) {
-            if (auto nameGlobal =
-                    mod.lookupSymbol<fir::GlobalOp>(addrOp.getSymbol())) {
-              auto stringLit = llvm::to_vector(
-                  nameGlobal.getRegion().getOps<fir::StringLitOp>())[0];
-              auto procName =
-                  stringLit.getValue().dyn_cast<mlir::StringAttr>().getValue();
-              bindings[procName] = bindingIdx;
-              ++bindingIdx;
-            }
-          }
-        }
-        bindingTables[globalOp.getSymName()] = bindings;
+    for (auto dispatchTableOp : mod.getOps<fir::DispatchTableOp>()) {
+      unsigned bindingIdx = 0;
+      BindingTable bindings;
+      if (dispatchTableOp.getRegion().empty()) {
+        bindingTables[dispatchTableOp.getSymName()] = bindings;
+        continue;
       }
+      for (auto dtEntry : dispatchTableOp.getBlock().getOps<fir::DTEntryOp>()) {
+        bindings[dtEntry.getMethod()] = bindingIdx;
+        ++bindingIdx;
+      }
+      bindingTables[dispatchTableOp.getSymName()] = bindings;
     }
 
     auto *context = getModule().getContext();

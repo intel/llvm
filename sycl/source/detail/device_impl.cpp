@@ -250,6 +250,28 @@ std::vector<device> device_impl::create_sub_devices(
   return create_sub_devices(Properties, SubDevicesCount);
 }
 
+std::vector<device> device_impl::create_sub_devices() const {
+  assert(!MIsHostDevice && "Partitioning is not supported on host.");
+
+  if (!is_partition_supported(
+          info::partition_property::ext_intel_partition_by_cslice)) {
+    throw sycl::feature_not_supported(
+        "Device does not support "
+        "sycl::info::partition_property::ext_intel_partition_by_cslice.",
+        PI_ERROR_INVALID_OPERATION);
+  }
+
+  const pi_device_partition_property Properties[2] = {
+      PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE, 0};
+
+  pi_uint32 SubDevicesCount = 0;
+  const detail::plugin &Plugin = getPlugin();
+  Plugin.call<sycl::errc::invalid, PiApiKind::piDevicePartition>(
+      MDevice, Properties, 0, nullptr, &SubDevicesCount);
+
+  return create_sub_devices(Properties, SubDevicesCount);
+}
+
 pi_native_handle device_impl::getNative() const {
   auto Plugin = getPlugin();
   if (Plugin.getBackend() == backend::opencl)

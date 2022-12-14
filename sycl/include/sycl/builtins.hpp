@@ -889,16 +889,14 @@ std::enable_if_t<detail::is_geninteger<T>::value, T> ctz(T x) __NOEXC {
 }
 
 // geninteger ctz (geninteger x) for calls with deprecated namespace
-namespace ext {
-namespace intel {
+namespace ext::intel {
 template <typename T>
 __SYCL_DEPRECATED(
     "'sycl::ext::intel::ctz' is deprecated, use 'sycl::ctz' instead")
 std::enable_if_t<sycl::detail::is_geninteger<T>::value, T> ctz(T x) __NOEXC {
   return sycl::ctz(x);
 }
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel
 
 namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") intel {
 using namespace ext::intel;

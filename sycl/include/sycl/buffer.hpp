@@ -36,11 +36,9 @@ class host_accessor;
 template <typename T, int Dimensions, typename AllocatorT, typename Enable>
 class buffer;
 
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 template <typename SYCLObjT> class weak_object;
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 namespace detail {
 
@@ -124,6 +122,8 @@ protected:
   void addOrReplaceAccessorProperties(const property_list &PropertyList);
 
   size_t getSize() const;
+
+  void handleRelease() const;
 
   std::shared_ptr<detail::buffer_impl> impl;
 };
@@ -466,7 +466,7 @@ public:
 
   buffer &operator=(buffer &&rhs) = default;
 
-  ~buffer() = default;
+  ~buffer() { buffer_plain::handleRelease(); }
 
   bool operator==(const buffer &rhs) const { return impl == rhs.impl; }
 
@@ -547,8 +547,6 @@ public:
         *this, accessRange, accessOffset, {}, CodeLoc);
   }
 
-#if __cplusplus >= 201703L
-
   template <typename... Ts> auto get_access(Ts... args) {
     return accessor{*this, args...};
   }
@@ -566,8 +564,6 @@ public:
   auto get_host_access(handler &commandGroupHandler, Ts... args) {
     return host_accessor{*this, commandGroupHandler, args...};
   }
-
-#endif
 
   template <typename Destination = std::nullptr_t>
   void set_final_data(Destination finalData = nullptr) {

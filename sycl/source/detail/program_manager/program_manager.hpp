@@ -45,6 +45,9 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 class context;
 namespace detail {
 
+bool doesDevSupportImgAspects(const device &Dev,
+                              const RTDeviceBinaryImage &BinImages);
+
 // This value must be the same as in libdevice/device_itt.h.
 // See sycl/doc/design/ITTAnnotations.md for more info.
 static constexpr uint32_t inline ITTSpecConstId = 0xFF747469;
@@ -254,6 +257,9 @@ public:
   ~ProgramManager() = default;
 
   bool kernelUsesAssert(OSModuleHandle M, const std::string &KernelName) const;
+
+  std::set<RTDeviceBinaryImage *>
+  getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
 
 private:
   ProgramManager(ProgramManager const &) = delete;
