@@ -21,12 +21,12 @@
 // CHECK-NEXT:    llvm.store %[[VAL_2]], %[[VAL_12]] : !llvm.ptr<i8>
 // CHECK-NEXT:    %[[VAL_13:.*]] = llvm.getelementptr %[[VAL_8]][0, 3] : (!llvm.ptr<array<4 x i8>>) -> !llvm.ptr<i8>
 // CHECK-NEXT:    llvm.store %[[VAL_2]], %[[VAL_13]] : !llvm.ptr<i8>
-// CHECK-NEXT:    %[[VAL_14:.*]] = llvm.load %[[VAL_8]] : !llvm.ptr<array<4 x i8>>
-// CHECK-NEXT:    llvm.store %[[VAL_14]], %[[VAL_7]] : !llvm.ptr<array<4 x i8>>
-// CHECK-NEXT:    %[[VAL_15:.*]] = llvm.mlir.undef : !llvm.struct<(ptr<i8, 4>, i64)>
-// CHECK-NEXT:    %[[VAL_16:.*]] = llvm.getelementptr %[[VAL_7]][0, 0] : (!llvm.ptr<array<4 x i8>>) -> !llvm.ptr<i8>
-// CHECK-NEXT:    %[[VAL_17:.*]] = llvm.addrspacecast %[[VAL_16]] : !llvm.ptr<i8> to !llvm.ptr<i8, 4>
-// CHECK-NEXT:    %[[VAL_18:.*]] = llvm.insertvalue %[[VAL_17]], %[[VAL_15]][0] : !llvm.struct<(ptr<i8, 4>, i64)>
+// CHECK-NEXT:    %[[VAL_14:.*]] = llvm.addrspacecast %[[VAL_7]] : !llvm.ptr<array<4 x i8>> to !llvm.ptr<array<4 x i8>, 4>
+// CHECK-NEXT:    %[[VAL_15:.*]] = llvm.load %[[VAL_8]] : !llvm.ptr<array<4 x i8>>
+// CHECK-NEXT:    llvm.store %[[VAL_15]], %[[VAL_14]] : !llvm.ptr<array<4 x i8>, 4>
+// CHECK-NEXT:    %[[VAL_16:.*]] = llvm.mlir.undef : !llvm.struct<(ptr<i8, 4>, i64)>
+// CHECK-NEXT:    %[[VAL_17:.*]] = llvm.getelementptr %[[VAL_14]][0, 0] : (!llvm.ptr<array<4 x i8>, 4>) -> !llvm.ptr<i8, 4>
+// CHECK-NEXT:    %[[VAL_18:.*]] = llvm.insertvalue %[[VAL_17]], %[[VAL_16]][0] : !llvm.struct<(ptr<i8, 4>, i64)>
 // CHECK-NEXT:    %[[VAL_19:.*]] = llvm.insertvalue %[[VAL_0]], %[[VAL_18]][1] : !llvm.struct<(ptr<i8, 4>, i64)>
 // CHECK-NEXT:    %[[VAL_20:.*]] = llvm.addrspacecast %[[VAL_9]] : !llvm.ptr<struct<(vector<4xi8>)>> to !llvm.ptr<struct<(vector<4xi8>)>, 4>
 // CHECK-NEXT:    llvm.store %[[VAL_19]], %[[VAL_6]] : !llvm.ptr<struct<(ptr<i8, 4>, i64)>>

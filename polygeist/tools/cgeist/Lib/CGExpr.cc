@@ -455,11 +455,8 @@ ValueCategory MLIRScanner::VisitCXXStdInitializerListExpr(
 
   ArrayPtr = CommonArrayToPointer(ArrayPtr);
 
-  Value ArrayPtrVal = ArrayPtr.getValue(Builder);
-  if (auto ST = dyn_cast<LLVM::LLVMStructType>(Res.getType()))
-    ArrayPtrVal = castToMemSpaceOfType(ArrayPtrVal, ST.getBody()[0]);
-
-  Res = Builder.create<LLVM::InsertValueOp>(Loc, Res, ArrayPtrVal, 0);
+  Res = Builder.create<LLVM::InsertValueOp>(Loc, Res,
+                                            ArrayPtr.getValue(Builder), 0);
   Field++;
   auto ITy =
       Glob.getTypes().getMLIRType(Field->getType()).cast<mlir::IntegerType>();
@@ -684,6 +681,9 @@ ValueCategory MLIRScanner::VisitMaterializeTemporaryExpr(
   auto Op =
       createAllocOp(Glob.getTypes().getMLIRType(Expr->getSubExpr()->getType()),
                     nullptr, 0, /*isArray*/ IsArray, /*LLVMABI*/ LLVMABI);
+  unsigned int AS = Glob.getCGM().getContext().getTargetAddressSpace(
+      QualType(Expr->getSubExpr()->getType()).getAddressSpace());
+  Op = castToMemSpace(Op, AS);
   ValueCategory(Op, /*isRefererence*/ true).store(Builder, V, IsArray);
   return ValueCategory(Op, /*isRefererence*/ true);
 }
