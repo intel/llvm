@@ -382,9 +382,10 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   } else {
     Constant *NewAnnotStringData =
         ConstantDataArray::getString(M.getContext(), NewAnnotString);
-    NewAnnotStringGV = new GlobalVariable(M, NewAnnotStringData->getType(),
-                                          true, GlobalValue::PrivateLinkage,
-                                          NewAnnotStringData, ".str");
+    NewAnnotStringGV = new GlobalVariable(
+        M, NewAnnotStringData->getType(), true, GlobalValue::PrivateLinkage,
+        NewAnnotStringData, ".str", nullptr, llvm::GlobalValue::NotThreadLocal,
+        IntrAnnotStringArg->getType()->getPointerAddressSpace());
     NewAnnotStringGV->setSection(AnnotStrArgGV->getSection());
     NewAnnotStringGV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
     ReusableAnnotStrings.insert({NewAnnotString, NewAnnotStringGV});
@@ -397,9 +398,8 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
 
   // The values are not in the annotation string, so we can remove the original
   // annotation value.
-  unsigned DefaultAS = M.getDataLayout().getDefaultGlobalsAddressSpace();
-  Type *Int8Ty = IntegerType::getInt8Ty(M.getContext());
-  PointerType *Int8DefaultASPtrTy = Int8Ty->getPointerTo(DefaultAS);
-  IntrInst->setArgOperand(4, ConstantPointerNull::get(Int8DefaultASPtrTy));
+  PointerType *Arg4PtrTy =
+      dyn_cast<PointerType>(IntrInst->getArgOperand(4)->getType());
+  IntrInst->setArgOperand(4, ConstantPointerNull::get(Arg4PtrTy));
   return true;
 }
