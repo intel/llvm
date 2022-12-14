@@ -241,6 +241,11 @@ static bool determineNoUndef(QualType QT, clang::CodeGen::CodeGenTypes &Types,
   return false;
 }
 
+static bool isSingleFieldUnion(const clang::RecordDecl *RD) {
+  assert(RD->isUnion() && "Expecting union input");
+  return std::next(RD->field_begin()) == RD->field_end();
+}
+
 namespace mlirclang {
 namespace CodeGen {
 
@@ -1376,6 +1381,13 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     if (CodeGenTypes::isLLVMStructABI(RT->getDecl(), ST))
       return TypeTranslator.translateType(anonymize(ST));
 
+    if (CXRD && CXRD->isUnion()) {
+      assert(isSingleFieldUnion(CXRD) &&
+             "Only handling single-field enumerations");
+      return LLVM::LLVMStructType::getLiteral(
+          TheModule->getContext(), getMLIRType(CXRD->field_begin()->getType()));
+    }
+
     if (Recursive)
       TypeCache[RT] = LLVM::LLVMStructType::getIdentified(
           TheModule->getContext(), ("polygeist@mlir@" + ST->getName()).str());
@@ -1647,8 +1659,13 @@ CodeGenTypes::arrangeGlobalDeclaration(clang::GlobalDecl GD) {
 
 bool CodeGenTypes::isLLVMStructABI(const clang::RecordDecl *RD,
                                    llvm::StructType *ST) {
-  if (!CombinedStructABI || RD->isUnion())
+  if (!CombinedStructABI)
     return true;
+
+  if (RD->isUnion()) {
+    // We will handle single-field unions as non-LLVMStructABI types.
+    return !isSingleFieldUnion(RD);
+  }
 
   if (const auto *CXRD = dyn_cast<CXXRecordDecl>(RD)) {
     if (!CXRD->hasDefinition() || CXRD->getNumVBases())
