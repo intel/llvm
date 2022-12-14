@@ -14,13 +14,20 @@ void likelyhood(int Nparticles) {
   queue q;
   const property_list props = property::buffer::use_host_ptr();
   float *arrayX = (float *)calloc(Nparticles, sizeof(float));
+
   buffer<float, 1> arrayX_GPU(arrayX, Nparticles, props);
+  buffer<float, 1> A(Nparticles + 1);
+  buffer<TY, 1> B(Nparticles + 1);
 
   q.submit([&](handler &cgh) {
     auto arrayX_acc = arrayX_GPU.get_access<sycl_read_write>(cgh);
+    auto A_acc = A.get_access<sycl_write>(cgh);
+    auto B_acc = B.get_access<sycl_read>(cgh);
+
     cgh.parallel_for<class kernel_likelihood>(nd_range<1>(range<1>(10), range<1>(20)), [=](nd_item<1> item) {
       int i = item.get_global_linear_id();
       arrayX_acc[i] += 1.0;
+      A_acc[i] = B_acc[i];
     });
   });
 }

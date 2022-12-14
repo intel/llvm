@@ -1237,6 +1237,11 @@ void CodeGenTypes::constructAttributeList(
 
 mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
                                      bool AllowMerge) {
+  llvm::dbgs() << "\nEntering getMLIRType \n";
+  llvm::dbgs() << "QT: ";
+  QT.dump();
+  llvm::dbgs() << "\n";
+
   if (const auto *ET = dyn_cast<clang::ElaboratedType>(QT))
     return getMLIRType(ET->getNamedType(), ImplicitRef, AllowMerge);
 
@@ -1417,6 +1422,10 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
   }
 
   const auto *T = QT->getUnqualifiedDesugaredType();
+  llvm::dbgs() << "T: ";
+  T->dump();
+  llvm::dbgs() << __LINE__ << "\n";
+
   if (T->isVoidType()) {
     mlir::OpBuilder Builder(TheModule->getContext());
     return Builder.getNoneType();
@@ -1507,23 +1516,34 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
   }
 
   if (isa<clang::PointerType, clang::ReferenceType>(T)) {
+    llvm::dbgs() << "line " << __LINE__ << "\n";
+
     int64_t Outer = ShapedType::kDynamic;
     auto PointeeType = isa<clang::PointerType>(T)
                            ? cast<clang::PointerType>(T)->getPointeeType()
                            : cast<clang::ReferenceType>(T)->getPointeeType();
-    const auto *PTT = PointeeType->getUnqualifiedDesugaredType();
+    const clang::Type *PTT = PointeeType->getUnqualifiedDesugaredType();
+    llvm::dbgs() << "PTT: ";
+    PTT->dump();
+    llvm::dbgs() << "\n";
 
-    if (PTT->isCharType() || PTT->isVoidType()) {
+    //    if (PTT->isCharType() || PTT->isVoidType()) {
+    if (PTT->isVoidType()) {
+      llvm::dbgs() << "line " << __LINE__ << "\n";
       llvm::Type *Ty = CGM.getTypes().ConvertType(QualType(T, 0));
       return TypeTranslator.translateType(Ty);
     }
 
+    llvm::dbgs() << "line " << __LINE__ << "\n";
     bool SubRef = false;
     auto SubType = getMLIRType(PointeeType, &SubRef, /*AllowMerge*/ true);
+    llvm::dbgs() << "line " << __LINE__ << "\n";
+    llvm::dbgs() << "SubType:  " << SubType << "\n";
 
     if (!MemRefABI ||
         SubType.isa<LLVM::LLVMArrayType, LLVM::LLVMStructType,
                     LLVM::LLVMPointerType, LLVM::LLVMFunctionType>()) {
+      llvm::dbgs() << "line " << __LINE__ << "\n";
       // JLE_QUEL::THOUGHTS
       // When generating the sycl_halide_kernel, If a struct type contains
       // SYCL types, that means that this is the functor, and we can't create
@@ -1576,13 +1596,17 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     }
     assert(!SubRef);
 
+    llvm::dbgs() << "line " << __LINE__ << "\n";
     return mlir::MemRefType::get(
         {Outer}, SubType, {},
         CGM.getContext().getTargetAddressSpace(PointeeType.getAddressSpace()));
   }
 
+  llvm::dbgs() << "line " << __LINE__ << "\n";
   if (T->isBuiltinType() || isa<clang::EnumType>(T)) {
+    llvm::dbgs() << "line " << __LINE__ << "\n";
     if (T->isBooleanType()) {
+      llvm::dbgs() << "line " << __LINE__ << "\n";
       OpBuilder Builder(TheModule->getContext());
       return Builder.getIntegerType(8);
     }
@@ -1610,8 +1634,12 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       return Builder.getF16Type();
     }
 
-    if (auto *IT = dyn_cast<llvm::IntegerType>(Ty))
+    if (auto *IT = dyn_cast<llvm::IntegerType>(Ty)) {
+      llvm::dbgs() << "line " << __LINE__ << "\n";
+      llvm::dbgs() << "IT: " << *IT << "\n";
+
       return Builder.getIntegerType(IT->getBitWidth());
+    }
   }
 
   LLVM_DEBUG(llvm::dbgs() << "QT: "; QT->dump(); llvm::dbgs() << "\n");

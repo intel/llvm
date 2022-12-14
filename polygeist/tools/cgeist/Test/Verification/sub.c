@@ -1,4 +1,4 @@
-// RUN: cgeist -O0 %s --function=* -S | FileCheck %s
+// RUN: cgeist -O0 -w %s --function=* -S | FileCheck %s
 
 #include <stddef.h>
 
@@ -152,11 +152,13 @@ double_vec sub_vf64(double_vec a, double_vec b) {
 }
 
 // CHECK-LABEL:   func.func @ptr_diff_i8(
-// CHECK-SAME:                  %[[VAL_0:.*]]: !llvm.ptr<i8>,
-// CHECK-SAME:                  %[[VAL_1:.*]]: !llvm.ptr<i8>) -> i64
-// CHECK:           %[[VAL_2:.*]] = llvm.ptrtoint %[[VAL_0]] : !llvm.ptr<i8> to i64
-// CHECK:           %[[VAL_3:.*]] = llvm.ptrtoint %[[VAL_1]] : !llvm.ptr<i8> to i64
-// CHECK:           %[[VAL_4:.*]] = arith.subi %[[VAL_2]], %[[VAL_3]] : i64
+// CHECK-SAME:                  %[[VAL_0:.*]]: memref<?xi8>,
+// CHECK-SAME:                  %[[VAL_1:.*]]: memref<?xi8>) -> i64
+// CHECK:           %[[VAL_0:.*]] = "polygeist.memref2pointer"(%arg0) : (memref<?xi8>) -> !llvm.ptr<i8>
+// CHECK:           %[[VAL_1:.*]] = llvm.ptrtoint %[[VAL_0]] : !llvm.ptr<i8> to i64
+// CHECK:           %[[VAL_2:.*]] = "polygeist.memref2pointer"(%arg1) : (memref<?xi8>) -> !llvm.ptr<i8>
+// CHECK:           %[[VAL_3:.*]] = llvm.ptrtoint %[[VAL_2]] : !llvm.ptr<i8> to i64
+// CHECK:           %[[VAL_4:.*]] = arith.subi %[[VAL_1]], %[[VAL_3]] : i64
 // CHECK:           return %[[VAL_4]] : i64
 // CHECK:         }
 
