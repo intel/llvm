@@ -855,7 +855,7 @@ static const size_t ImmCmdListsEventCleanupThreshold = [] {
   if (!ImmCmdListsEventCleanupThresholdStr)
     return Default;
 
-  int Threshold = std::stoi(ImmCmdListsEventCleanupThresholdStr);
+  int Threshold = std::atoi(ImmCmdListsEventCleanupThresholdStr);
 
   // Basically disable threshold if negative value is provided.
   if (Threshold < 0)
