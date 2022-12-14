@@ -101,7 +101,7 @@ template <typename GroupHelper, typename Ptr, typename T,
 std::enable_if_t<
     (is_group_helper_v<GroupHelper> && sycl::detail::is_pointer<Ptr>::value), T>
 joint_reduce(GroupHelper group_helper, Ptr first, Ptr last, T init,
-              BinaryOperation binary_op) {
+             BinaryOperation binary_op) {
   if constexpr (sycl::detail::is_native_op<T, BinaryOperation>::value) {
     return sycl::joint_reduce(group_helper.get_group(), first, last, init,
                               binary_op);
