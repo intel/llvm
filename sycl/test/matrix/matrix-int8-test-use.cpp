@@ -53,7 +53,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
 
      cgh.parallel_for<class imatrix>(
          nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [accA, accB, accC, M, N, K](nd_item<2> spmd_item)
+         [ accA, accB, accC, M, N, K ](nd_item<2> spmd_item)
              [[intel::reqd_sub_group_size(SG_SZ)]]
 
          {
@@ -76,8 +76,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            joint_matrix<sycl::sub_group, int8_t, use::b, TK, TN,
                         sycl::ext::intel::experimental::matrix::layout::packed>
                sub_b;
-           joint_matrix<sycl::sub_group, int32_t, use::accumulator, TM,
-                        TN>
+           joint_matrix<sycl::sub_group, int32_t, use::accumulator, TM, TN>
                sub_c;
 
            // AMX: 8 register tiles : 1k byte size, SMmaxxSKmax =16x64

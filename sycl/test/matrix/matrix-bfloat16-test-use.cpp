@@ -70,9 +70,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            joint_matrix<sycl::sub_group, bfloat16, use::b, TK, TN,
                         sycl::ext::intel::experimental::matrix::layout::packed>
                sub_b;
-           joint_matrix<sycl::sub_group, float, use::accumulator,
-                        TM, TN>
-               sub_c;
+           joint_matrix<sycl::sub_group, float, use::accumulator, TM, TN> sub_c;
 
            joint_matrix_load(sg, sub_c,
                              accC.get_pointer() + (sg_startx * TM) * N +

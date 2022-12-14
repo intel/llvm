@@ -71,8 +71,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            joint_matrix<sycl::sub_group, int8_t, use::b, TK, TN,
                         sycl::ext::intel::experimental::matrix::layout::packed>
                sub_b;
-           joint_matrix<sycl::sub_group, int32_t, use::accumulator, TM,
-                        TN>
+           joint_matrix<sycl::sub_group, int32_t, use::accumulator, TM, TN>
                sub_c;
 
            // AMX: 8 register tiles : 1k byte size, SMmaxxSKmax =16x64
