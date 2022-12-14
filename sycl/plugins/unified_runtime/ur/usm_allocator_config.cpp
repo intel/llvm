@@ -135,23 +135,24 @@ USMAllocatorConfig::USMAllocatorConfig() {
 
     bool More = ParamParser(Params, Configs[LM].MaxPoolableSize, ParamWasSet);
     if (ParamWasSet && M == MemType::All) {
-      Configs[MemType::Shared].MaxPoolableSize =
-          Configs[MemType::Device].MaxPoolableSize =
-              Configs[MemType::Host].MaxPoolableSize;
+      for (auto &Config : Configs) {
+        Config.MaxPoolableSize = Configs[LM].MaxPoolableSize;
+      }
     }
     if (More) {
       More = ParamParser(Params, Configs[LM].Capacity, ParamWasSet);
       if (ParamWasSet && M == MemType::All) {
-        Configs[MemType::Shared].Capacity = Configs[MemType::Device].Capacity =
-            Configs[MemType::Host].Capacity;
+        for (auto &Config : Configs) {
+          Config.Capacity = Configs[LM].Capacity;
+        }
       }
     }
     if (More) {
       ParamParser(Params, Configs[LM].SlabMinSize, ParamWasSet);
       if (ParamWasSet && M == MemType::All) {
-        Configs[MemType::Shared].SlabMinSize =
-            Configs[MemType::Device].SlabMinSize =
-                Configs[MemType::Host].SlabMinSize;
+        for (auto &Config : Configs) {
+          Config.SlabMinSize = Configs[LM].SlabMinSize;
+        }
       }
     }
   };
@@ -225,14 +226,10 @@ USMAllocatorConfig::USMAllocatorConfig() {
     PoolTrace = std::atoi(PoolTraceVal);
   }
 
-  Configs[MemType::SharedReadOnly].limits = limits;
-  Configs[MemType::Shared].limits = limits;
-  Configs[MemType::Device].limits = limits;
-  Configs[MemType::Host].limits = limits;
-
-  Configs[MemType::Shared].PoolTrace = Configs[MemType::Device].PoolTrace =
-      Configs[MemType::Host].PoolTrace =
-          Configs[MemType::SharedReadOnly].PoolTrace = PoolTrace;
+  for (auto &Config : Configs) {
+    Config.limits = limits;
+    Config.PoolTrace = PoolTrace;
+  }
 
   if (PoolTrace < 1)
     return;
