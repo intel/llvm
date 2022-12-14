@@ -28,10 +28,22 @@ static const char *knownAdaptersNames[] = {
 std::vector<PlatformLibraryPath> discoverEnabledPlatforms() {
     std::vector<PlatformLibraryPath> enabledPlatforms;
 
-    for (auto libName : knownAdaptersNames) {
-      enabledPlatforms.emplace_back(libName);
+    // UR_ENABLE_ALT_DRIVERS is for development/debug only
+    const char *altPlatforms = getenv("UR_ENABLE_ALT_DRIVERS");
+    
+    if (altPlatforms == nullptr) {
+        for (auto libName : knownAdaptersNames) {
+          enabledPlatforms.emplace_back(libName);
+        }
+    } else {
+        std::stringstream ss(altPlatforms);
+        while (ss.good()) {
+          std::string substr;
+          getline(ss, substr, ',');
+          enabledPlatforms.emplace_back(substr);
+        }
     }
-
     return enabledPlatforms;
 }
+
 } // namespace loader
