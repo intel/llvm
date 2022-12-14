@@ -22,11 +22,9 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 template <typename T, int N> class vec;
 template <typename Type, std::size_t NumElements> class marray;
-namespace detail {
-namespace half_impl {
+namespace detail::half_impl {
 class half;
-}
-} // namespace detail
+} // namespace detail::half_impl
 using half = detail::half_impl::half;
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
@@ -411,7 +409,7 @@ using long_integer_list =
     type_list<scalar_long_integer_list, vector_long_integer_list,
               marray_long_integer_list>;
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 // std::byte
 using scalar_byte_list = type_list<std::byte>;
 
@@ -457,7 +455,7 @@ using scalar_unsigned_integer_list =
                             scalar_unsigned_char_list>,
               scalar_unsigned_short_list, scalar_unsigned_int_list,
               scalar_unsigned_long_list, scalar_unsigned_longlong_list
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
               ,
               scalar_byte_list
 #endif
@@ -470,7 +468,7 @@ using vector_unsigned_integer_list =
                             vector_unsigned_char_list>,
               vector_unsigned_short_list, vector_unsigned_int_list,
               vector_unsigned_long_list, vector_unsigned_longlong_list
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
               ,
               vector_byte_list
 #endif
@@ -483,7 +481,7 @@ using marray_unsigned_integer_list =
                             marray_unsigned_char_list>,
               marray_unsigned_short_list, marray_unsigned_int_list,
               marray_unsigned_long_list, marray_unsigned_longlong_list
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
               ,
               marray_byte_list
 #endif

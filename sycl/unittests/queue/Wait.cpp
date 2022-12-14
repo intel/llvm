@@ -26,11 +26,12 @@ struct TestCtx {
 };
 static TestCtx TestContext;
 
-pi_result redefinedQueueCreate(pi_context context, pi_device device,
-                               pi_queue_properties properties,
-                               pi_queue *queue) {
+pi_result redefinedQueueCreateEx(pi_context context, pi_device device,
+                                 pi_queue_properties *properties,
+                                 pi_queue *queue) {
+  assert(properties && properties[0] == PI_QUEUE_FLAGS);
   if (!TestContext.SupportOOO &&
-      properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
+      properties[1] & PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
     return PI_ERROR_INVALID_QUEUE_PROPERTIES;
   }
   return PI_SUCCESS;
@@ -77,7 +78,8 @@ pi_result redefinedEventRelease(pi_event event) {
 TEST(QueueWait, QueueWaitTest) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
+  Mock.redefineBefore<detail::PiApiKind::piextQueueCreate>(
+      redefinedQueueCreateEx);
   Mock.redefineBefore<detail::PiApiKind::piQueueFinish>(redefinedQueueFinish);
   Mock.redefineBefore<detail::PiApiKind::piextUSMEnqueueMemset>(
       redefinedUSMEnqueueMemset);
@@ -119,21 +121,25 @@ TEST(QueueWait, QueueWaitTest) {
   {
     TestContext = {};
     buffer<int, 1> buf{range<1>(1)};
+
+    std::mutex m;
+    std::unique_lock<std::mutex> TestLock(m, std::defer_lock);
+    TestLock.lock();
+
     event HostTaskEvent = Q.submit([&](handler &Cgh) {
       auto acc = buf.template get_access<access::mode::read>(Cgh);
-      Cgh.host_task([=]() { (void)acc; });
+      Cgh.host_task([=, &m]() {
+        (void)acc;
+        std::unique_lock<std::mutex> InsideHostTaskLock(m);
+      });
     });
     std::shared_ptr<detail::event_impl> HostTaskEventImpl =
         detail::getSyclObjImpl(HostTaskEvent);
     auto *Cmd = static_cast<detail::Command *>(HostTaskEventImpl->getCommand());
-    detail::Command *EmptyTask = *Cmd->MUsers.begin();
-    ASSERT_EQ(EmptyTask->getType(), detail::Command::EMPTY_TASK);
-    HostTaskEvent.wait();
-    // Use the empty task produced by the host task to block the next commands
-    while (EmptyTask->MEnqueueStatus !=
-           detail::EnqueueResultT::SyclEnqueueSuccess)
-      continue;
-    EmptyTask->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
+    EXPECT_EQ(Cmd->MUsers.size(), 0u);
+    EXPECT_TRUE(Cmd->isHostTask());
+
+    // Use the host task to block the next commands
     Q.submit([&](handler &Cgh) {
       auto acc = buf.template get_access<access::mode::discard_write>(Cgh);
       Cgh.fill(acc, 42);
@@ -142,9 +148,9 @@ TEST(QueueWait, QueueWaitTest) {
       auto acc = buf.template get_access<access::mode::discard_write>(Cgh);
       Cgh.fill(acc, 42);
     });
-    // Unblock the empty task to allow the submitted events to complete once
+    // Unblock the host task to allow the submitted events to complete once
     // enqueued.
-    EmptyTask->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueSuccess;
+    TestLock.unlock();
     Q.wait();
     // Only a single event (the last one) should be waited for here.
     ASSERT_EQ(TestContext.NEventsWaitedFor, 1);
