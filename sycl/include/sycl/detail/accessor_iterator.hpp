@@ -107,8 +107,8 @@ public:
 
   friend accessor_iterator operator-(const accessor_iterator &Lhs,
                                      difference_type N) {
-    accessor_iterator temp = Lhs;
-    return temp -= N;
+    auto Temp = Lhs;
+    return Temp -= N;
   }
 
   reference &operator[](difference_type N) {

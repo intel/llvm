@@ -283,17 +283,13 @@ TEST_F(AccessorIteratorTest, LegacyRandomAccessIteratorRequirementsExtra) {
     // return temp -= n;
     auto It1 = accessor.end();
     auto It2 = accessor.end();
+    const auto It3 = accessor.end();
 
     It2 -= 3;
     ASSERT_EQ(It1 - 3, It2);
     ASSERT_EQ(It1, accessor.end());
-  }
-  {
-    const auto It1 = accessor.end();
-    auto It2 = accessor.end();
-
-    It2 -= 3;
-    ASSERT_EQ(It1 - 3, It2);
+    // Check that operator-() can take a constant iterator
+    ASSERT_EQ(It3 - 3, It2);
   }
 }
 
