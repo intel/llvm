@@ -835,6 +835,13 @@ ExprDependence clang::computeDependence(CXXFoldExpr *E) {
   return D;
 }
 
+ExprDependence clang::computeDependence(CXXParenListInitExpr *E) {
+  auto D = ExprDependence::None;
+  for (const auto *A : E->getInitExprs())
+    D |= A->getDependence();
+  return D;
+}
+
 ExprDependence clang::computeDependence(TypeTraitExpr *E) {
   auto D = ExprDependence::None;
   for (const auto *A : E->getArgs())
