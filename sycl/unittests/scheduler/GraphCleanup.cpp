@@ -288,12 +288,14 @@ TEST_F(SchedulerTest, HostTaskCleanup) {
 
   std::mutex Mutex;
   std::unique_lock Lock{Mutex};
-  event Event = Queue.submit([&](sycl::handler &cgh) { cgh.host_task([&]() { std::unique_lock Lock{Mutex};}); });
+  event Event = Queue.submit([&](sycl::handler &cgh) {
+    cgh.host_task([&]() { std::unique_lock Lock{Mutex}; });
+  });
   detail::EventImplPtr EventImpl = detail::getSyclObjImpl(Event);
 
   // Unlike other commands, host task should be kept alive until its
   // completion.
-  auto *Cmd = static_cast<detail::Command*>(EventImpl->getCommand());
+  auto *Cmd = static_cast<detail::Command *>(EventImpl->getCommand());
   ASSERT_NE(Cmd, nullptr);
   EXPECT_TRUE(Cmd->isSuccessfullyEnqueued());
 
