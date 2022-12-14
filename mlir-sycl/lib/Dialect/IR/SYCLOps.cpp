@@ -100,17 +100,22 @@ mlir::LogicalResult mlir::sycl::SYCLAccessorSubscriptOp::verify() {
   if (Dimensions == 0)
     return emitOpError("Dimensions cannot be zero");
 
-  const auto verifyResultType = [&]() -> mlir::LogicalResult {
-    const auto resultType = getResult().getType().dyn_cast<mlir::MemRefType>();
+  const auto resultMemrefType =
+      getResult().getType().dyn_cast<mlir::MemRefType>();
+  const auto resultAtomicType =
+      getResult().getType().dyn_cast<mlir::sycl::AtomicType>();
 
-    if (!resultType) {
-      return emitOpError("Expecting memref return type. Got ") << resultType;
+  const auto verifyResultType = [&]() -> mlir::LogicalResult {
+    if (!resultMemrefType && !resultAtomicType) {
+      return emitOpError("Expecting memref or sycl.atomic return type. Got ")
+             << getResult().getType();
     }
 
-    if (resultType.getElementType() != AccessorTy.getType()) {
+    if (resultMemrefType &&
+        resultMemrefType.getElementType() != AccessorTy.getType()) {
       return emitOpError(
                  "Expecting a reference to this accessor's value type (")
-             << AccessorTy.getType() << "). Got " << resultType;
+             << AccessorTy.getType() << "). Got " << resultMemrefType;
     }
 
     return success();
@@ -136,10 +141,13 @@ mlir::LogicalResult mlir::sycl::SYCLAccessorSubscriptOp::verify() {
           // Implementation defined result type.
           return success();
         }
+
+        // Allow atomic access mode only for atomic return type.
         if (AccessorTy.getAccessMode() ==
-            mlir::sycl::MemoryAccessMode::Atomic) {
-          return emitOpError(
-              "Cannot use this signature when the atomic access mode is used");
+                mlir::sycl::MemoryAccessMode::Atomic &&
+            !resultAtomicType) {
+          return emitOpError("Cannot use this signature when the atomic "
+                             "access mode is used");
         }
         return verifyResultType();
       });
