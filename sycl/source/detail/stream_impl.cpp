@@ -33,7 +33,7 @@ stream_impl::stream_impl(size_t BufferSize, size_t MaxStatementSize,
   // and the end of line symbol. Buffers are created without host pointers so
   // that they are released in a deferred manner. Disable copy back on buffer
   // destruction. Copy is scheduled as a host task which fires up as soon as
-  // kernel has completed exectuion.
+  // kernel has completed execution.
   Buf_.set_write_back(false);
   FlushBuf_.set_write_back(false);
   // Initialize stream buffer with zeros, this is needed for two reasons:

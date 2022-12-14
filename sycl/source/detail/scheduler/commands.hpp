@@ -337,8 +337,8 @@ public:
   // synchronous. The only asynchronous operation currently is host-task.
   bool MShouldCompleteEventIfPossible = true;
 
-  /// Indicates that the node will be freed by regular graph cleanup. Such nodes
-  /// should be ignored by other cleanup mechanisms (e.g. during memory object
+  /// Indicates that the node will be freed by graph cleanup. Such nodes should
+  /// be ignored by other cleanup mechanisms (e.g. during memory object
   /// removal).
   bool MMarkedForCleanup = false;
 
