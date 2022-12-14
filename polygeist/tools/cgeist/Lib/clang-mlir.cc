@@ -92,7 +92,10 @@ static void checkFunctionParent(const FunctionOpInterface F,
 /// \p Func as the function implementing the corrsponding operation.
 static void tryToRegisterSYCLMethod(const clang::FunctionDecl &FD,
                                     FunctionOpInterface Func) {
-  if (!mlirclang::isNamespaceSYCL(FD.getEnclosingNamespaceContext()) ||
+  if (mlirclang::getNamespaceKind(FD.getEnclosingNamespaceContext()) ==
+          mlirclang::NamespaceKind::Other ||
+      !mlirclang::areSYCLMemberFunctionOrConstructorArgs(
+          Func.getArgumentTypes()) ||
       !isa<clang::CXXMethodDecl>(FD) ||
       isa<clang::CXXConstructorDecl, clang::CXXDestructorDecl>(FD) ||
       !cast<clang::CXXMethodDecl>(FD).isInstance()) {
