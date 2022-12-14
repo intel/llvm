@@ -293,6 +293,279 @@ bool hbneu2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
   return hneu(b1[0], b2[0]) && hneu(b1[1], b2[1]);
 }
 
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+heq2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+     sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = heq(b1[0], b2[0]) ? 1.0f : 0.f;
+  res[1] = heq(b1[1], b2[0]) ? 1.0f : 0.f;
+  return res;
+}
+
+unsigned heq2_mask(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+                   sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  unsigned res = 0;
+  if (heq(b1[0], b2[0]))
+    res |= 0xFFFF;
+  if (heq(b1[1], b2[1]))
+    res |= 0xFFFF0000;
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hequ2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+      sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = hequ(b1[0], b2[0]) ? 1.0f : 0.f;
+  res[1] = hequ(b1[1], b2[0]) ? 1.0f : 0.f;
+  return res;
+}
+
+unsigned hequ2_mask(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+                    sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  unsigned res = 0;
+  if (hequ(b1[0], b2[0]))
+    res |= 0xFFFF;
+  if (hequ(b1[1], b2[1]))
+    res |= 0xFFFF0000;
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hne2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+     sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = hne(b1[0], b2[0]) ? 1.0f : 0.f;
+  res[1] = hne(b1[1], b2[0]) ? 1.0f : 0.f;
+  return res;
+}
+
+unsigned hne2_mask(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+                   sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  unsigned res = 0;
+  if (hne2(b1[0], b2[0]))
+    res |= 0xFFFF;
+  if (hne2(b1[1], b2[1]))
+    res |= 0xFFFF0000;
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hneu2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+      sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = hneu(b1[0], b2[0]) ? 1.0f : 0.f;
+  res[1] = hneu(b1[1], b2[0]) ? 1.0f : 0.f;
+  return res;
+}
+
+unsigned hneu2_mask(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+                    sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  unsigned res = 0;
+  if (hneu(b1[0], b2[0]))
+    res |= 0xFFFF;
+  if (hneu(b1[1], b2[1]))
+    res |= 0xFFFF0000;
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hge2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+     sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = hge(b1[0], b2[0]) ? 1.0f : 0.f;
+  res[1] = hge(b1[1], b2[0]) ? 1.0f : 0.f;
+  return res;
+}
+
+unsigned hge2_mask(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+                   sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  unsigned res = 0;
+  if (hge(b1[0], b2[0]))
+    res |= 0xFFFF;
+  if (hge(b1[1], b2[1]))
+    res |= 0xFFFF0000;
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hgeu2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+      sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = hgeu(b1[0], b2[0]) ? 1.0f : 0.f;
+  res[1] = hgeu(b1[1], b2[0]) ? 1.0f : 0.f;
+  return res;
+}
+
+unsigned hgeu2_mask(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+                    sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  unsigned res = 0;
+  if (hgeu(b1[0], b2[0]))
+    res |= 0xFFFF;
+  if (hgeu(b1[1], b2[1]))
+    res |= 0xFFFF0000;
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hgt2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+     sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = hgt(b1[0], b2[0]) ? 1.0f : 0.f;
+  res[1] = hgt(b1[1], b2[0]) ? 1.0f : 0.f;
+  return res;
+}
+
+unsigned hgt2_mask(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+                   sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  unsigned res = 0;
+  if (hgt(b1[0], b2[0]))
+    res |= 0xFFFF;
+  if (hgt(b1[1], b2[1]))
+    res |= 0xFFFF0000;
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hgtu2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+      sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = hgtu(b1[0], b2[0]) ? 1.0f : 0.f;
+  res[1] = hgtu(b1[1], b2[0]) ? 1.0f : 0.f;
+  return res;
+}
+
+unsigned hgtu2_mask(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+                    sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  unsigned res = 0;
+  if (hgtu(b1[0], b2[0]))
+    res |= 0xFFFF;
+  if (hgtu(b1[1], b2[1]))
+    res |= 0xFFFF0000;
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hisnan2(sycl::marray<scl::ext::oneapi::bfloat16, 2> b1,
+        sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = hisnan(b1[0], b2[0]) ? 1.0f : 0.f;
+  res[1] = hisnan(b1[1], b2[0]) ? 1.0f : 0.f;
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hle2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+     sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = hle(b1[0], b2[0]) ? 1.0f : 0.f;
+  res[1] = hle(b1[1], b2[0]) ? 1.0f : 0.f;
+  return res;
+}
+
+unsigned hle2_mask(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+                   sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  unsigned res = 0;
+  if (hle(b1[0], b2[0]))
+    res |= 0xFFFF;
+  if (hle(b1[1], b2[1]))
+    res |= 0xFFFF0000;
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hleu2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+      sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = hleu(b1[0], b2[0]) ? 1.0f : 0.f;
+  res[1] = hleu(b1[1], b2[0]) ? 1.0f : 0.f;
+  return res;
+}
+
+unsigned hleu2_mask(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+                    sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  unsigned res = 0;
+  if (hleu(b1[0], b2[0]))
+    res |= 0xFFFF;
+  if (hleu(b1[1], b2[1]))
+    res |= 0xFFFF0000;
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hlt2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+     sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = hlt(b1[0], b2[0]) ? 1.0f : 0.f;
+  res[1] = hlt(b1[1], b2[0]) ? 1.0f : 0.f;
+  return res;
+}
+
+unsigned hlt2_mask(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+                   sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  unsigned res = 0;
+  if (hlt(b1[0], b2[0]))
+    res |= 0xFFFF;
+  if (hlt(b1[1], b2[1]))
+    res |= 0xFFFF0000;
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hltu2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+      sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = hltu(b1[0], b2[0]) ? 1.0f : 0.f;
+  res[1] = hltu(b1[1], b2[0]) ? 1.0f : 0.f;
+  return res;
+}
+
+unsigned hltu2_mask(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+                    sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  unsigned res = 0;
+  if (hltu(b1[0], b2[0]))
+    res |= 0xFFFF;
+  if (hltu(b1[1], b2[1]))
+    res |= 0xFFFF0000;
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hmax2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+      sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = hmax(b1[0], b2[0]);
+  res[1] = hmax(b1[1], b2[0]);
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hmax2_nan(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+          sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = hmax_nan(b1[0], b2[0]);
+  res[1] = hmax_nan(b1[1], b2[0]);
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hmin2(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+      sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = hmin(b1[0], b2[0]);
+  res[1] = hmin(b1[1], b2[0]);
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+hmin2_nan(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
+          sycl::marray<sycl::ext::oneapi::bfloat16, 2> b2) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = hmin_nan(b1[0], b2[0]);
+  res[1] = hmin_nan(b1[1], b2[0]);
+  return res;
+}
+
 // Bfloat16 Arithmetic utils
 sycl::ext::oneapi::bfloat16 hneg(sycl::ext::oneapi::bfloat16 b) {
   uint16_t bf16_bits = __builtin_bit_cast(uint16_t, b);
