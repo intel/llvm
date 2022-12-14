@@ -1235,9 +1235,11 @@ struct _pi_ze_event_list_t {
   // not assignment copyable. Just field by field copy of the other
   // fields.
   _pi_ze_event_list_t &operator=(const _pi_ze_event_list_t &other) {
-    this->ZeEventList = other.ZeEventList;
-    this->PiEventList = other.PiEventList;
-    this->Length = other.Length;
+    if (this != &other) {
+      this->ZeEventList = other.ZeEventList;
+      this->PiEventList = other.PiEventList;
+      this->Length = other.Length;
+    }
     return *this;
   }
 };
