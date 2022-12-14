@@ -1536,9 +1536,9 @@ SPIRV::transSPIRVMemoryScopeIntoOCLMemoryScope(Value *MemScope,
     }
   }
 
-  return getOrCreateSwitchFunc(kSPIRVName::TranslateSPIRVMemScope, MemScope,
-                               OCLMemScopeMap::getRMap(),
-                               /* IsReverse */ true, None, InsertBefore);
+  return getOrCreateSwitchFunc(
+      kSPIRVName::TranslateSPIRVMemScope, MemScope, OCLMemScopeMap::getRMap(),
+      /* IsReverse */ true, std::nullopt, InsertBefore);
 }
 
 Value *
@@ -1567,7 +1567,8 @@ SPIRV::transSPIRVMemorySemanticsIntoOCLMemoryOrder(Value *MemorySemantics,
              MemorySemanticsSequentiallyConsistentMask;
   return getOrCreateSwitchFunc(kSPIRVName::TranslateSPIRVMemOrder,
                                MemorySemantics, OCLMemOrderMap::getRMap(),
-                               /* IsReverse */ true, None, InsertBefore, Mask);
+                               /* IsReverse */ true, std::nullopt, InsertBefore,
+                               Mask);
 }
 
 Value *SPIRV::transSPIRVMemorySemanticsIntoOCLMemFenceFlags(
@@ -1583,10 +1584,10 @@ Value *SPIRV::transSPIRVMemorySemanticsIntoOCLMemFenceFlags(
   int Mask = MemorySemanticsWorkgroupMemoryMask |
              MemorySemanticsCrossWorkgroupMemoryMask |
              MemorySemanticsImageMemoryMask;
-  return getOrCreateSwitchFunc(kSPIRVName::TranslateSPIRVMemFence,
-                               MemorySemantics,
-                               OCLMemFenceExtendedMap::getRMap(),
-                               /* IsReverse */ true, None, InsertBefore, Mask);
+  return getOrCreateSwitchFunc(
+      kSPIRVName::TranslateSPIRVMemFence, MemorySemantics,
+      OCLMemFenceExtendedMap::getRMap(),
+      /* IsReverse */ true, std::nullopt, InsertBefore, Mask);
 }
 
 void llvm::mangleOpenClBuiltin(const std::string &UniqName,

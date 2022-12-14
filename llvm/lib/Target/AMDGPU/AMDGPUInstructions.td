@@ -83,19 +83,12 @@ def FalsePredicate : Predicate<"false">;
 
 // Add a predicate to the list if does not already exist to deduplicate it.
 class PredConcat<list<Predicate> lst, Predicate pred> {
-  list<Predicate> ret =
-      !listconcat([pred], !filter(item, lst, !ne(item, pred)));
+  list<Predicate> ret = !listconcat(lst, !listremove([pred], lst));
 }
 
-// Add a Register to the list if does not already exist
-class RegAppend<list<Register> lst, Register reg> {
-  list<Register> ret =
-      !listconcat([reg], !filter(item, lst, !ne(item, reg)));
-}
 // Get the union of two Register lists
 class RegListUnion<list<Register> lstA, list<Register> lstB> {
-  list<Register> ret =
-      !foldl(lstA, lstB, temp, item, RegAppend<temp, item>.ret);
+  list<Register> ret = !listconcat(lstA, !listremove(lstB, lstA));
 }
 
 class PredicateControl {
@@ -805,6 +798,25 @@ def fminnum_like : PatFrags<(ops node:$src0, node:$src1),
 
 // Instructions which select to the same v_max_f*
 def fmaxnum_like : PatFrags<(ops node:$src0, node:$src1),
+  [(fmaxnum_ieee node:$src0, node:$src1),
+   (fmaxnum node:$src0, node:$src1)]
+>;
+
+class NeverNaNPats<dag ops, list<dag> frags> : PatFrags<ops, frags> {
+  let PredicateCode = [{
+    return CurDAG->isKnownNeverNaN(SDValue(N,0));
+  }];
+  let GISelPredicateCode = [{
+    return isKnownNeverNaN(MI.getOperand(0).getReg(), MRI);
+  }];
+}
+
+def fminnum_like_nnan : NeverNaNPats<(ops node:$src0, node:$src1),
+  [(fminnum_ieee node:$src0, node:$src1),
+   (fminnum node:$src0, node:$src1)]
+>;
+
+def fmaxnum_like_nnan : NeverNaNPats<(ops node:$src0, node:$src1),
   [(fmaxnum_ieee node:$src0, node:$src1),
    (fmaxnum node:$src0, node:$src1)]
 >;

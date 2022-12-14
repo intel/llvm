@@ -144,6 +144,8 @@ CodeGenModule::CodeGenModule(ASTContext &C,
   GlobalsInt8PtrTy = Int8Ty->getPointerTo(DL.getDefaultGlobalsAddressSpace());
   DefaultInt8PtrTy =
       Int8Ty->getPointerTo(getContext().getTargetAddressSpace(LangAS::Default));
+  ConstGlobalsPtrTy = Int8Ty->getPointerTo(
+      C.getTargetAddressSpace(GetGlobalConstantAddressSpace()));
   ASTAllocaAddressSpace = getTargetCodeGenInfo().getASTAllocaAddressSpace();
 
   // Build C++20 Module initializers.
@@ -3038,9 +3040,10 @@ llvm::Constant *CodeGenModule::EmitAnnotationString(StringRef Str) {
 
   // Not found yet, create a new global.
   llvm::Constant *s = llvm::ConstantDataArray::getString(getLLVMContext(), Str);
-  auto *gv =
-      new llvm::GlobalVariable(getModule(), s->getType(), true,
-                               llvm::GlobalValue::PrivateLinkage, s, ".str");
+  auto *gv = new llvm::GlobalVariable(
+      getModule(), s->getType(), true, llvm::GlobalValue::PrivateLinkage, s,
+      ".str", nullptr, llvm::GlobalValue::NotThreadLocal,
+      ConstGlobalsPtrTy->getAddressSpace());
   gv->setSection(AnnotationSection);
   gv->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
   AStr = gv;
@@ -3066,7 +3069,7 @@ llvm::Constant *CodeGenModule::EmitAnnotationLineNo(SourceLocation L) {
 llvm::Constant *CodeGenModule::EmitAnnotationArgs(const AnnotateAttr *Attr) {
   ArrayRef<Expr *> Exprs = {Attr->args_begin(), Attr->args_size()};
   if (Exprs.empty())
-    return llvm::ConstantPointerNull::get(GlobalsInt8PtrTy);
+    return llvm::ConstantPointerNull::get(ConstGlobalsPtrTy);
 
   llvm::FoldingSetNodeID ID;
   for (Expr *E : Exprs) {
@@ -3116,8 +3119,8 @@ llvm::Constant *CodeGenModule::EmitAnnotateAttr(llvm::GlobalValue *GV,
   // Create the ConstantStruct for the global annotation.
   llvm::Constant *Fields[] = {
       llvm::ConstantExpr::getBitCast(GVInGlobalsAS, GlobalsInt8PtrTy),
-      llvm::ConstantExpr::getBitCast(AnnoGV, GlobalsInt8PtrTy),
-      llvm::ConstantExpr::getBitCast(UnitGV, GlobalsInt8PtrTy),
+      llvm::ConstantExpr::getBitCast(AnnoGV, ConstGlobalsPtrTy),
+      llvm::ConstantExpr::getBitCast(UnitGV, ConstGlobalsPtrTy),
       LineNoCst,
       Args,
   };
@@ -3138,7 +3141,7 @@ llvm::Constant *CodeGenModule::EmitSYCLAnnotationArgs(
       AnnotationNameValPairs =
           Attr->getFilteredAttributeNameValuePairs(getContext());
   if (AnnotationNameValPairs.empty())
-    return llvm::ConstantPointerNull::get(GlobalsInt8PtrTy);
+    return llvm::ConstantPointerNull::get(ConstGlobalsPtrTy);
 
   // For each name-value pair of the SYCL annotation attribute, create an
   // annotation string for it. This will be the annotation arguments. If the
@@ -3150,7 +3153,7 @@ llvm::Constant *CodeGenModule::EmitSYCLAnnotationArgs(
        AnnotationNameValPairs) {
     llvm::Constant *NameStrC = EmitAnnotationString(NVP.first);
     llvm::Constant *ValueStrC =
-        NVP.second == "" ? llvm::ConstantPointerNull::get(GlobalsInt8PtrTy)
+        NVP.second == "" ? llvm::ConstantPointerNull::get(ConstGlobalsPtrTy)
                          : EmitAnnotationString(NVP.second);
     LLVMArgs.push_back(NameStrC);
     LLVMArgs.push_back(ValueStrC);
@@ -3168,12 +3171,13 @@ llvm::Constant *CodeGenModule::EmitSYCLAnnotationArgs(
   // arguments in the order they were added above. This is the final constant
   // used as the annotation value.
   auto *Struct = llvm::ConstantStruct::getAnon(LLVMArgs);
-  auto *GV = new llvm::GlobalVariable(getModule(), Struct->getType(), true,
-                                      llvm::GlobalValue::PrivateLinkage, Struct,
-                                      ".args");
+  auto *GV = new llvm::GlobalVariable(
+      getModule(), Struct->getType(), true, llvm::GlobalValue::PrivateLinkage,
+      Struct, ".args", nullptr, llvm::GlobalValue::NotThreadLocal,
+      ConstGlobalsPtrTy->getAddressSpace());
   GV->setSection(AnnotationSection);
   GV->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
-  auto *Bitcasted = llvm::ConstantExpr::getBitCast(GV, GlobalsInt8PtrTy);
+  auto *Bitcasted = llvm::ConstantExpr::getBitCast(GV, ConstGlobalsPtrTy);
 
   // Set the look-up reference to the final annotation value for future
   // annotations to reuse.

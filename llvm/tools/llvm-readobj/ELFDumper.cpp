@@ -306,8 +306,8 @@ protected:
 
   // Returns the function symbol index for the given address. Matches the
   // symbol's section with FunctionSec when specified.
-  // Returns None if no function symbol can be found for the address or in case
-  // it is not defined in the specified section.
+  // Returns std::nullopt if no function symbol can be found for the address or
+  // in case it is not defined in the specified section.
   SmallVector<uint32_t>
   getSymbolIndexesForFunctionAddress(uint64_t SymValue,
                                      Optional<const Elf_Shdr *> FunctionSec);
@@ -7135,6 +7135,7 @@ template <class ELFT> void LLVMELFDumper<ELFT>::printBBAddrMaps() {
       ListScope L(W, "BB entries");
       for (const BBAddrMap::BBEntry &BBE : AM.BBEntries) {
         DictScope L(W);
+        W.printNumber("ID", BBE.ID);
         W.printHex("Offset", BBE.Offset);
         W.printHex("Size", BBE.Size);
         W.printBoolean("HasReturn", BBE.HasReturn);
