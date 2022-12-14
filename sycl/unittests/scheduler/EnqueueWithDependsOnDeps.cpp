@@ -120,7 +120,7 @@ protected:
   void VerifyBlockedCommandsEnqueue(
       detail::Command *BlockingCommand,
       std::vector<detail::Command *> &BlockedCommands) {
-    std::unique_lock TestLock(m, std::defer_lock);
+    std::unique_lock<std::mutex> TestLock(m, std::defer_lock);
     TestLock.lock();
     detail::EnqueueResultT Result;
     for (detail::Command *BlockedCmd : BlockedCommands) {
@@ -159,7 +159,7 @@ protected:
 
   std::mutex m;
   std::function<void()> CustomHostLambda = [&]() {
-    std::unique_lock InsideHostTaskLock(this->m);
+    std::unique_lock<std::mutex> InsideHostTaskLock(this->m);
   };
 };
 
