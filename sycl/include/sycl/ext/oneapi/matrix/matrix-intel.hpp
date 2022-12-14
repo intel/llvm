@@ -291,26 +291,6 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
 };
 
-template <typename Group, typename T, use Use, size_t NumRows, size_t NumCols,
-          layout Layout>
-class wi_data_intel {
-  joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &M;
-
-public:
-  wi_data_intel(joint_matrix<Group, T, Use, NumRows, NumCols, Layout> &Mat)
-      : M(Mat) {}
-  size_t length() {
-#ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_JointMatrixWorkItemLengthINTEL(M.spvm);
-#else
-    throw runtime_error("joint matrix is not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-  wi_element<T, NumRows, NumCols, Use, Layout, Group> operator[](size_t i) {
-    return wi_element<T, NumRows, NumCols, Use, Layout, Group>(M, i);
-  }
-};
 } // namespace matrix
 } // namespace experimental
 } // namespace oneapi

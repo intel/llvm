@@ -28,43 +28,6 @@ template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
           layout Layout = layout::dynamic>
 struct joint_matrix;
 
-#ifdef __SYCL_DEVICE_ONLY__
-template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
-          layout Layout>
-class wi_data {
-
-  joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm;
-
-  wi_data(joint_matrix<Group, T, Use, Rows, Cols, Layout> &_jm) : jm(_jm){};
-
-  template <typename Grp, typename Type, use UseJm, size_t NumRows,
-            size_t NumCols, layout LayoutJm>
-  friend decltype(auto)
-  get_wi_data(Grp,
-              joint_matrix<Grp, Type, UseJm, NumRows, NumCols, LayoutJm> &);
-
-public:
-  size_t length() { return jm.cuda_impl.wi_marray.size(); };
-
-  decltype(auto) operator[](size_t i) { return (jm.cuda_impl.wi_marray[i]); };
-};
-#else
-template <typename type, size_t size> class wi_data {
-  marray<type, size> &data;
-  wi_data(marray<type, size> &wi_marray) : data(wi_marray){};
-  template <typename Grp, typename Type, use UseJm, size_t NumRows,
-            size_t NumCols, layout LayoutJm>
-  friend decltype(auto)
-  get_wi_data(Grp,
-              joint_matrix<Grp, Type, UseJm, NumRows, NumCols, LayoutJm> &);
-
-public:
-  size_t length() { return data.size(); };
-
-  type &operator[](size_t i) { return data[i]; };
-};
-#endif
-
 } // namespace matrix
 } // namespace experimental
 
