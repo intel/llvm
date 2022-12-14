@@ -104,9 +104,6 @@ public:
   template <typename... PropertyValueTs>
   annotated_arg(T *_ptr, const PropertyValueTs &...props) noexcept
       : obj(global_pointer_t(_ptr)) {
-    static_assert(detail::SortedAllUnique<
-                      typename detail::Sorted<PropertyValueTs...>::type>::value,
-                  "Duplicate properties in the variadic properties.");
     static_assert(
         std::is_same<
             property_list_t,
@@ -187,9 +184,7 @@ __SYCL_TYPE(annotated_arg) annotated_arg<T, detail::properties_t<Props...>> {
 #endif
 
 public:
-  // T should be trivially copyable to be device-copyable
-  // static_assert(std::is_trivially_copyable<T>::value,
-  //               "Type T must be trivially copyable.");
+  static_assert(is_device_copyable_v<T>, "Type T must be device copyable.");
   static_assert(is_property_list<property_list_t>::value,
                 "Property list is invalid.");
   static_assert(check_property_list<T, Props...>::value,
@@ -209,10 +204,6 @@ public:
   // `PropertyValueTs...` must have the same property value.
   template <typename... PropertyValueTs>
   annotated_arg(const T &_obj, PropertyValueTs... props) noexcept : obj(_obj) {
-    static_assert(detail::SortedAllUnique<
-                      typename detail::Sorted<PropertyValueTs...>::type>::value,
-                  "Duplicate properties in the variadic properties.");
-
     static_assert(
         std::is_same<
             property_list_t,

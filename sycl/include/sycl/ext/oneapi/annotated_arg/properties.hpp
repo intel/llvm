@@ -1,4 +1,4 @@
-// properties.hpp - SYCL properties associated with annotated_arg/ptr //
+//==-- properties.hpp - SYCL properties associated with annotated_arg/ptr --==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
