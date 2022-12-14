@@ -114,7 +114,7 @@ public:
 
   template <typename T>
   using EnableIfNotConstIterator =
-      std::enable_if_t<!iterator_to_const_type_t<T>::value, T>;
+      enable_if_t<!iterator_to_const_type_t<T>::value, T>;
 
   buffer_impl(cl_mem MemObject, const context &SyclContext,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,

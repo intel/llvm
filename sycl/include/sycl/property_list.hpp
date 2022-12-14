@@ -31,7 +31,7 @@ class property_list : protected detail::PropertyListBase {
                               std::false_type> {};
 
 public:
-  template <typename... PropsT, typename = typename std::enable_if_t<
+  template <typename... PropsT, typename = typename detail::enable_if_t<
                                     AllProperties<PropsT...>::value>>
   property_list(PropsT... Props) : detail::PropertyListBase(false) {
     ctorHelper(Props...);
