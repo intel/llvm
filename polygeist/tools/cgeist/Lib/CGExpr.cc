@@ -1552,20 +1552,6 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
             : E->getType()->getPointeeCXXRecordDecl();
     mlir::Value Val = GetAddressOfDerivedClass(SE.val, Derived, E->path_begin(),
                                                E->path_end());
-    /*
-    if (ShouldNullCheckClassCastValue(E)) {
-        mlir::Value ptr = val;
-        if (auto MT = ptr.getType().dyn_cast<MemRefType>())
-            ptr = Builder.create<polygeist::Memref2PointerOp>(Loc,
-    LLVM::LLVMPointerType::get(MT.getElementType()), ptr); auto nullptr_llvm =
-    Builder.create<mlir::LLVM::NullOp>(Loc, ptr.getType()); auto ne =
-    Builder.create<mlir::LLVM::ICmpOp>( Loc, mlir::LLVM::ICmpPredicate::ne,
-    ptr, nullptr_llvm); if (auto MT = ptr.getType().dyn_cast<MemRefType>())
-           nullptr_llvm = Builder.create<polygeist::Pointer2MemrefOp>(Loc, MT,
-    nullptr_llvm); val = Builder.create<arith::SelectOp>(Loc, ne, val,
-    nullptr_llvm);
-    }
-    */
     return ValueCategory(Val, SE.isReference);
   }
   case clang::CastKind::CK_BitCast: {
@@ -2316,8 +2302,8 @@ ValueCategory MLIRScanner::EmitScalarCast(mlir::Location Loc, ValueCategory Src,
     bool IsSigned = DstQT->isSignedIntegerOrEnumerationType();
 
     // If we can't recognize overflow as undefined behavior, assume that
-    // overflow saturates. This protects against normal optimizations if we
-    // are compiling with non-standard FP semantics.
+    // overflow saturates. This protects against normal optimizations if we are
+    // compiling with non-standard FP semantics.
     CGEIST_WARNING(llvm::WithColor::warning()
                    << "Performing strict float cast overflow\n");
 
@@ -2371,9 +2357,9 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
                  "to perfom this conversion\n";
       });
     } else {
-      // Cast to other types through float, using either the intrinsic or
-      // FPExt, depending on whether the half type itself is supported (as
-      // opposed to operations on half, available with NativeHalfType).
+      // Cast to other types through float, using either the intrinsic or FPExt,
+      // depending on whether the half type itself is supported (as opposed to
+      // operations on half, available with NativeHalfType).
       CGEIST_WARNING({
         if (CGM.getContext().getTargetInfo().useFP16ConversionIntrinsics())
           llvm::WithColor::warning()
@@ -2985,8 +2971,8 @@ ValueCategory MLIRScanner::EmitBinShl(const BinOpInfo &Info) {
   auto LHS = Info.getLHS();
   auto RHS = Info.getRHS();
 
-  // LLVM requires the LHS and RHS to be the same type: promote or truncate
-  // the RHS to the same size as the LHS.
+  // LLVM requires the LHS and RHS to be the same type: promote or truncate the
+  // RHS to the same size as the LHS.
   if (LHS.val.getType() != RHS.val.getType())
     RHS = RHS.IntCast(Builder, Loc, LHS.val.getType(), /*IsSigned*/ false);
 
@@ -3005,8 +2991,8 @@ ValueCategory MLIRScanner::EmitBinShr(const BinOpInfo &Info) {
   auto LHS = Info.getLHS();
   auto RHS = Info.getRHS();
 
-  // LLVM requires the LHS and RHS to be the same type: promote or truncate
-  // the RHS to the same size as the LHS.
+  // LLVM requires the LHS and RHS to be the same type: promote or truncate the
+  // RHS to the same size as the LHS.
   if (LHS.val.getType() != RHS.val.getType())
     RHS = RHS.IntCast(Builder, Loc, LHS.val.getType(), /*IsSigned*/ false);
 
