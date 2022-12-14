@@ -111,7 +111,7 @@ bool collectPossibleStoredVals(
     std::function<bool(const CallInst *)> EscapesIfAddrIsArgOf =
         [](const CallInst *) { return true; });
 
-inline bool isSYCLExternalFunction(const Function* F) {
+inline bool isSYCLExternalFunction(const Function *F) {
   return F->hasFnAttribute(ATTR_SYCL_MODULE_ID);
 }
 

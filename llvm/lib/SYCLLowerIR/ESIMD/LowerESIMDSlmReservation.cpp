@@ -124,9 +124,10 @@ int getSLMUsage(const CallInst *SLMReserveCall) {
   auto *ArgV = SLMReserveCall->getArgOperand(0);
 
   if (!isa<ConstantInt>(ArgV)) {
-    esimd::assert_and_diag(isSlmInitCall(SLMReserveCall),
-      "__esimd_slm_alloc with non-constant argument, function ",
-      SLMReserveCall->getFunction()->getName());
+    esimd::assert_and_diag(
+        isSlmInitCall(SLMReserveCall),
+        "__esimd_slm_alloc with non-constant argument, function ",
+        SLMReserveCall->getFunction()->getName());
     return -1;
   }
   size_t Res = cast<llvm::ConstantInt>(ArgV)->getZExtValue();
@@ -134,7 +135,7 @@ int getSLMUsage(const CallInst *SLMReserveCall) {
   return static_cast<int>(Res);
 }
 
-bool isNonConstSLMInit(const CallInst* SLMReserveCall) {
+bool isNonConstSLMInit(const CallInst *SLMReserveCall) {
   return getSLMUsage(SLMReserveCall) < 0;
 }
 
@@ -341,8 +342,10 @@ public:
                                      "multiple slm_init calls in function ",
                                      F.getName());
               esimd::assert_and_diag(
-                  esimd::isESIMDKernel(F) || sycl::utils::isSYCLExternalFunction(&F),
-                  "slm_init call met in non-kernel non-external function ", F.getName());
+                  esimd::isESIMDKernel(F) ||
+                      sycl::utils::isSYCLExternalFunction(&F),
+                  "slm_init call met in non-kernel non-external function ",
+                  F.getName());
               esimd::assert_and_diag(
                   !ScopeMet,
                   "slm_init must precede any SLMAllocator object in function ",
@@ -386,7 +389,11 @@ public:
              (cast<FuncNode>(CurScopePath[0].get())->getFunction() == &F));
       assert((CurScopePath.size() < 2) ||
              isSlmInitCall(cast<ScopeNode>(CurScopePath[1].get())->getStart()));
-      llvm::esimd::assert_and_diag(!NonConstSlmInitMet || !ScopeMet, "non-constant version of slm_init can't be used together with slm_allocator, function ", F.getName());
+      llvm::esimd::assert_and_diag(
+          !NonConstSlmInitMet || !ScopeMet,
+          "non-constant version of slm_init can't be used together with "
+          "slm_allocator, function ",
+          F.getName());
     }
   }
 

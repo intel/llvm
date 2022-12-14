@@ -1772,12 +1772,10 @@ __ESIMD_API simd<T, N> atomic_update(T *p, simd<unsigned, N> offset,
 /// supported.
 ///
 /// @tparam SLMAmount The amount allocated in bytes
-template <int SLMAmount>
-class slm_allocator {
+template <int SLMAmount> class slm_allocator {
   int offset;
 
 public:
-
   /// Allocates the amount of SLM which is class' template parameter.
   slm_allocator() { offset = __esimd_slm_alloc(SLMAmount); }
 
