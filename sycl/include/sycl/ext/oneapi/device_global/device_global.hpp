@@ -34,8 +34,8 @@ namespace detail {
 template <typename T, typename = void>
 struct HasArrowOperator : std::false_type {};
 template <typename T>
-struct HasArrowOperator<T,
-                        std::void_t<decltype(std::declval<T>().operator->())>>
+struct HasArrowOperator<
+    T, sycl::detail::void_t<decltype(std::declval<T>().operator->())>>
     : std::true_type {};
 
 // Base class for device_global.

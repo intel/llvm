@@ -92,18 +92,17 @@ template <typename T> struct vector_size_impl : int_constant<1> {};
 template <typename T, int N>
 struct vector_size_impl<vec<T, N>> : int_constant<N> {};
 template <typename T>
-struct vector_size
-    : vector_size_impl<std::remove_cv_t<std::remove_reference_t<T>>> {};
+struct vector_size : vector_size_impl<remove_cv_t<remove_reference_t<T>>> {};
 
 // 4.10.2.6 Memory layout and alignment
 template <typename T, int N>
 struct vector_alignment_impl
-    : std::conditional_t<N == 3, int_constant<sizeof(T) * 4>,
-                         int_constant<sizeof(T) * N>> {};
+    : conditional_t<N == 3, int_constant<sizeof(T) * 4>,
+                    int_constant<sizeof(T) * N>> {};
 
 template <typename T, int N>
 struct vector_alignment
-    : vector_alignment_impl<std::remove_cv_t<std::remove_reference_t<T>>, N> {};
+    : vector_alignment_impl<remove_cv_t<remove_reference_t<T>>, N> {};
 
 // vector_element
 template <typename T> struct vector_element_impl;
@@ -116,8 +115,7 @@ template <typename T, int N> struct vector_element_impl<vec<T, N>> {
   using type = T;
 };
 template <typename T> struct vector_element {
-  using type =
-      copy_cv_qualifiers_t<T, vector_element_impl_t<std::remove_cv_t<T>>>;
+  using type = copy_cv_qualifiers_t<T, vector_element_impl_t<remove_cv_t<T>>>;
 };
 template <class T> using vector_element_t = typename vector_element<T>::type;
 
@@ -153,7 +151,7 @@ struct copy_cv_qualifiers_impl<const volatile T, R> {
 };
 
 template <typename T, typename R> struct copy_cv_qualifiers {
-  using type = typename copy_cv_qualifiers_impl<T, std::remove_cv_t<R>>::type;
+  using type = typename copy_cv_qualifiers_impl<T, remove_cv_t<R>>::type;
 };
 
 // make_signed with support SYCL vec class
@@ -184,7 +182,7 @@ struct make_signed_impl<
 };
 
 template <typename T> struct make_signed {
-  using new_type_wo_cv_qualifiers = make_signed_impl_t<std::remove_cv_t<T>>;
+  using new_type_wo_cv_qualifiers = make_signed_impl_t<remove_cv_t<T>>;
   using type = copy_cv_qualifiers_t<T, new_type_wo_cv_qualifiers>;
 };
 
@@ -218,7 +216,7 @@ struct make_unsigned_impl<
 };
 
 template <typename T> struct make_unsigned {
-  using new_type_wo_cv_qualifiers = make_unsigned_impl_t<std::remove_cv_t<T>>;
+  using new_type_wo_cv_qualifiers = make_unsigned_impl_t<remove_cv_t<T>>;
   using type = copy_cv_qualifiers_t<T, new_type_wo_cv_qualifiers>;
 };
 
@@ -227,7 +225,7 @@ template <typename T> using make_unsigned_t = typename make_unsigned<T>::type;
 // Checks that sizeof base type of T equal N and T satisfies S<T>::value
 template <typename T, int N, template <typename> class S>
 using is_gen_based_on_type_sizeof =
-    std::bool_constant<S<T>::value && (sizeof(vector_element_t<T>) == N)>;
+    bool_constant<S<T>::value && (sizeof(vector_element_t<T>) == N)>;
 
 template <typename> struct is_vec : std::false_type {};
 template <typename T, std::size_t N>
@@ -245,35 +243,33 @@ template <> struct is_floating_point_impl<half> : std::true_type {};
 
 template <typename T>
 struct is_floating_point
-    : is_floating_point_impl<std::remove_cv_t<vector_element_t<T>>> {};
+    : is_floating_point_impl<remove_cv_t<vector_element_t<T>>> {};
 
 // is_arithmetic
 template <typename T>
 struct is_arithmetic
-    : std::bool_constant<is_integral<T>::value || is_floating_point<T>::value> {
-};
+    : bool_constant<is_integral<T>::value || is_floating_point<T>::value> {};
 
 template <typename T>
 struct is_scalar_arithmetic
-    : std::bool_constant<!is_vec<T>::value && is_arithmetic<T>::value> {};
+    : bool_constant<!is_vec<T>::value && is_arithmetic<T>::value> {};
 
 template <typename T>
 struct is_vector_arithmetic
-    : std::bool_constant<is_vec<T>::value && is_arithmetic<T>::value> {};
+    : bool_constant<is_vec<T>::value && is_arithmetic<T>::value> {};
 
 // is_bool
 template <typename T>
 struct is_scalar_bool
-    : std::bool_constant<std::is_same<std::remove_cv_t<T>, bool>::value> {};
+    : bool_constant<std::is_same<remove_cv_t<T>, bool>::value> {};
 
 template <typename T>
 struct is_vector_bool
-    : std::bool_constant<is_vec<T>::value &&
-                         is_scalar_bool<vector_element_t<T>>::value> {};
+    : bool_constant<is_vec<T>::value &&
+                    is_scalar_bool<vector_element_t<T>>::value> {};
 
 template <typename T>
-struct is_bool
-    : std::bool_constant<is_scalar_bool<vector_element_t<T>>::value> {};
+struct is_bool : bool_constant<is_scalar_bool<vector_element_t<T>>::value> {};
 
 // is_pointer
 template <typename T> struct is_pointer_impl : std::false_type {};
@@ -285,8 +281,7 @@ template <typename T, access::address_space Space,
 struct is_pointer_impl<multi_ptr<T, Space, DecorateAddress>> : std::true_type {
 };
 
-template <typename T>
-struct is_pointer : is_pointer_impl<std::remove_cv_t<T>> {};
+template <typename T> struct is_pointer : is_pointer_impl<remove_cv_t<T>> {};
 
 // remove_pointer_t
 template <typename T> struct remove_pointer_impl {
@@ -304,7 +299,7 @@ struct remove_pointer_impl<multi_ptr<T, Space, DecorateAddress>> {
 };
 
 template <typename T>
-struct remove_pointer : remove_pointer_impl<std::remove_cv_t<T>> {};
+struct remove_pointer : remove_pointer_impl<remove_cv_t<T>> {};
 
 template <typename T> using remove_pointer_t = typename remove_pointer<T>::type;
 
@@ -319,11 +314,11 @@ template <typename T, typename SpaceList, access::address_space Space,
           access::decorated DecorateAddress>
 struct is_address_space_compliant_impl<multi_ptr<T, Space, DecorateAddress>,
                                        SpaceList>
-    : std::bool_constant<is_one_of_spaces<Space, SpaceList>::value> {};
+    : bool_constant<is_one_of_spaces<Space, SpaceList>::value> {};
 
 template <typename T, typename SpaceList>
 struct is_address_space_compliant
-    : is_address_space_compliant_impl<std::remove_cv_t<T>, SpaceList> {};
+    : is_address_space_compliant_impl<remove_cv_t<T>, SpaceList> {};
 
 // make_type_t
 template <typename T, typename TL> struct make_type_impl {
@@ -365,7 +360,7 @@ template <typename T, int N> struct make_larger_impl<vec<T, N>, vec<T, N>> {
   using upper_type = typename make_larger_impl<base_type, base_type>::type;
   using new_type = vec<upper_type, N>;
   static constexpr bool found = !std::is_same<upper_type, void>::value;
-  using type = std::conditional_t<found, new_type, void>;
+  using type = conditional_t<found, new_type, void>;
 };
 
 template <typename T> struct make_larger {

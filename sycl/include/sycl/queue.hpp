@@ -1059,9 +1059,9 @@ public:
   single_task(PropertiesT Properties,
               _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     static_assert(
-        (detail::check_fn_signature<std::remove_reference_t<KernelType>,
+        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
                                     void()>::value ||
-         detail::check_fn_signature<std::remove_reference_t<KernelType>,
+         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
                                     void(kernel_handler)>::value),
         "sycl::queue.single_task() requires a kernel instead of command group. "
         "Use queue.submit() instead");
@@ -1098,9 +1098,9 @@ public:
   single_task(event DepEvent, PropertiesT Properties,
               _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     static_assert(
-        (detail::check_fn_signature<std::remove_reference_t<KernelType>,
+        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
                                     void()>::value ||
-         detail::check_fn_signature<std::remove_reference_t<KernelType>,
+         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
                                     void(kernel_handler)>::value),
         "sycl::queue.single_task() requires a kernel instead of command group. "
         "Use queue.submit() instead");
@@ -1141,9 +1141,9 @@ public:
   single_task(const std::vector<event> &DepEvents, PropertiesT Properties,
               _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     static_assert(
-        (detail::check_fn_signature<std::remove_reference_t<KernelType>,
+        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
                                     void()>::value ||
-         detail::check_fn_signature<std::remove_reference_t<KernelType>,
+         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
                                     void(kernel_handler)>::value),
         "sycl::queue.single_task() requires a kernel instead of command group. "
         "Use queue.submit() instead");
