@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s --check-prefixes=NONE,ALL
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsycl-default-sub-group-size=primary -sycl-std=2020 -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s --check-prefixes=PRIM_DEF,ALL
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsycl-default-sub-group-size=10 -sycl-std=2020 -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s --check-prefixes=TEN_DEF,ALL
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -triple spir64-unknown-unknown -fno-sycl-early-optimizations -emit-llvm -o - %s | FileCheck %s --check-prefixes=NONE,ALL
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsycl-default-sub-group-size=primary -sycl-std=2020 -triple spir64-unknown-unknown -fno-sycl-early-optimizations -emit-llvm -o - %s | FileCheck %s --check-prefixes=PRIM_DEF,ALL
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsycl-default-sub-group-size=10 -sycl-std=2020 -triple spir64-unknown-unknown -fno-sycl-early-optimizations -emit-llvm -o - %s | FileCheck %s --check-prefixes=TEN_DEF,ALL
 
 // Ensure that both forms of the new sub_group_size properly emit their metadata
 // on sycl-kernel and sycl-external functions.
@@ -15,7 +15,7 @@ using namespace sycl;
 // ALL-DAG: define {{.*}}spir_func void @{{.*}}external_10{{.*}}() #{{[0-9]+}}{{.*}} !intel_reqd_sub_group_size ![[TEN:[0-9]+]]
 
 SYCL_EXTERNAL void external_default_behavior() {}
-// NONE-DAG: define {{.*}}spir_func void @{{.*}}external_default_behavior{{.*}}() #{{[0-9]+}} !srcloc !{{[0-9]+}} !sycl_fixed_targets !{{[0-9]+}} {
+// NONE-DAG: define {{.*}}spir_func void @{{.*}}external_default_behavior{{.*}}() #{{[0-9]+}} !srcloc !{{[0-9]+}} {
 // PRIM_DEF-DAG: define {{.*}}spir_func void @{{.*}}external_default_behavior{{.*}}() #{{[0-9]+}}{{.*}} !intel_reqd_sub_group_size ![[PRIMARY]]
 // TEN_DEF-DAG: define {{.*}}spir_func void @{{.*}}external_default_behavior{{.*}}() #{{[0-9]+}}{{.*}} !intel_reqd_sub_group_size ![[TEN]]
 
@@ -23,7 +23,7 @@ void default_behavior() {
   kernel_single_task<class Kernel1>([]() {
   });
 }
-// NONE-DAG: define {{.*}}spir_kernel void @{{.*}}Kernel1() #{{[0-9]+}} !srcloc !{{[0-9]+}} !kernel_arg_buffer_location !{{[0-9]+}} !sycl_fixed_targets !{{[0-9]+}} {
+// NONE-DAG: define {{.*}}spir_kernel void @{{.*}}Kernel1() #{{[0-9]+}} !srcloc !{{[0-9]+}} !kernel_arg_buffer_location !{{[0-9]+}} {
 // PRIM_DEF-DAG: define {{.*}}spir_kernel void @{{.*}}Kernel1() #{{[0-9]+}}{{.*}} !intel_reqd_sub_group_size ![[PRIMARY]]
 // TEN_DEF-DAG: define {{.*}}spir_kernel void @{{.*}}Kernel1() #{{[0-9]+}}{{.*}} !intel_reqd_sub_group_size ![[TEN]]
 
