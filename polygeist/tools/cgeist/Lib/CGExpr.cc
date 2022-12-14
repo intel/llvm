@@ -1048,21 +1048,21 @@ static NamedAttrList getSYCLMethodOpAttrs(OpBuilder &Builder,
 ///
 /// This function relies on how arguments are casted to perform a function call.
 /// Should be updated if this changes.
-static llvm::Optional<mlir::sycl::SYCLCastOp> trackSYCLCast(Value Val) {
+static Operation *trackCasts(Value Val) {
   auto *const DefiningOp = Val.getDefiningOp();
   if (!DefiningOp)
-    return llvm::None;
+    return nullptr;
 
-  return TypeSwitch<mlir::Operation *, llvm::Optional<mlir::sycl::SYCLCastOp>>(
-             DefiningOp)
-      .Case<mlir::sycl::SYCLCastOp>(
-          [](auto Cast) -> llvm::Optional<mlir::sycl::SYCLCastOp> {
-            return Cast;
+  return TypeSwitch<Operation *, Operation *>(DefiningOp)
+      .Case<mlir::sycl::SYCLCastOp, mlir::polygeist::Memref2PointerOp>(
+          [](Operation *Op) {
+            if (auto *Res = trackCasts(Op->getOperand(0)))
+              return Res;
+            return Op;
           })
-      .Case<mlir::LLVM::AddrSpaceCastOp, mlir::polygeist::Memref2PointerOp,
-            mlir::polygeist::Pointer2MemrefOp>(
-          [](auto Op) { return trackSYCLCast(Op->getOperand(0)); })
-      .Default(static_cast<llvm::Optional<mlir::sycl::SYCLCastOp>>(llvm::None));
+      .Case<mlir::polygeist::Pointer2MemrefOp, mlir::LLVM::AddrSpaceCastOp>(
+          [](Operation *Op) { return trackCasts(Op->getOperand(0)); })
+      .Default(static_cast<Operation *>(nullptr));
 }
 
 llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
@@ -1083,15 +1083,8 @@ llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
 
   // SYCLCastOps are abstracted to avoid missing method calls due to
   // implementation details.
-  if (const llvm::Optional<sycl::SYCLCastOp> Cast =
-          trackSYCLCast(OperandsCpy[0])) {
-    auto NewArg = (*Cast)->getOperand(0);
-    // Make sure the memory space is not changed:
-    const auto MemSpace =
-        OperandsCpy[0].getType().cast<MemRefType>().getMemorySpaceAsInt();
-    if (NewArg.getType().cast<MemRefType>().getMemorySpaceAsInt() != MemSpace) {
-      NewArg = castToMemSpace(NewArg, MemSpace);
-    }
+  if (Operation *Cast = trackCasts(OperandsCpy[0])) {
+    auto NewArg = Cast->getOperand(0);
     OperandsCpy[0] = NewArg;
     LLVM_DEBUG(llvm::dbgs() << "Abstracting cast to " << NewArg.getType()
                             << " to insert a SYCL method\n");
@@ -1109,6 +1102,10 @@ llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
 
   LLVM_DEBUG(llvm::dbgs() << "Inserting operation " << OptOpName
                           << " to replace SYCL method call.\n");
+
+  OperandsCpy[0] = Builder.createOrFold<memref::LoadOp>(
+      Loc, OperandsCpy[0],
+      Builder.createOrFold<arith::ConstantIndexOp>(Loc, 0));
 
   return static_cast<sycl::SYCLMethodOpInterface>(Builder.create(
       Loc, Builder.getStringAttr(*OptOpName), OperandsCpy,
