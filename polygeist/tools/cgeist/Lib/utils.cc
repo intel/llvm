@@ -55,21 +55,22 @@ Operation *replaceFuncByOperation(func::FuncOp F, llvm::StringRef OpName,
   return B.create(OpState);
 }
 
-bool isNamespaceSYCL(const clang::DeclContext *DC) {
+NamespaceKind getNamespaceKind(const clang::DeclContext *DC) {
   if (!DC)
-    return false;
+    return NamespaceKind::Other;
 
   if (const auto *ND = dyn_cast<clang::NamespaceDecl>(DC)) {
     if (const auto *II = ND->getIdentifier()) {
       if (II->isStr("sycl"))
-        return true;
+        return NamespaceKind::SYCL;
     }
   }
 
-  if (DC->getParent())
-    return isNamespaceSYCL(DC->getParent());
+  if (DC->getParent() &&
+      getNamespaceKind(DC->getParent()) != NamespaceKind::Other)
+    return NamespaceKind::WithinSYCL;
 
-  return false;
+  return NamespaceKind::Other;
 }
 
 FunctionContext getInputContext(const OpBuilder &B) {

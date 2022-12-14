@@ -447,4 +447,14 @@ unsigned getPrimitiveSizeInBits(mlir::Type Ty) {
       });
 }
 
+/// There must be at least an argument and it must be a memref to a SYCL type.
+bool areSYCLMemberFunctionOrConstructorArgs(mlir::TypeRange Types) {
+  return !Types.empty() &&
+         TypeSwitch<mlir::Type, bool>(Types[0])
+             .Case<mlir::MemRefType>([](auto Ty) {
+               return mlir::sycl::isSYCLType(Ty.getElementType());
+             })
+             .Default(false);
+}
+
 } // namespace mlirclang

@@ -11,14 +11,21 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
 #include "mlir/Dialect/SYCL/Transforms/Passes.h"
 
 #include "PassDetail.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
+#include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Rewrite/FrozenRewritePatternSet.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+
+#include "polygeist/Ops.h"
 
 #define DEBUG_TYPE "sycl-method-to-sycl-call"
 
@@ -28,24 +35,58 @@ using namespace sycl;
 static mlir::Value castToBaseType(PatternRewriter &Rewriter, mlir::Location Loc,
                                   mlir::Value Original,
                                   mlir::MemRefType BaseType) {
-  const auto ThisType = Original.getType().cast<MemRefType>();
+  const Type ThisType = Original.getType();
   const llvm::ArrayRef<int64_t> TargetShape = BaseType.getShape();
   const mlir::Type TargetElementType = BaseType.getElementType();
   const unsigned TargetMemSpace = BaseType.getMemorySpaceAsInt();
 
-  assert(TargetShape == ThisType.getShape() &&
-         "Shape should not change when casting to base class for a member "
-         "function call.");
-  assert(TargetMemSpace == ThisType.getMemorySpaceAsInt() &&
-         "Memory space of the `this` argument should be preserved when "
-         "creating a SYCLMethodOp instance.");
+  const auto CreateAlloca = [=](OpBuilder &Builder) -> memref::AllocaOp {
+    OpBuilder::InsertionGuard Guard{Builder};
 
-  // The element type will always change here.
+    auto ParentFunction = cast<mlir::FunctionOpInterface>(
+        Builder.getInsertionPoint()
+            ->getParentWithTrait<mlir::FunctionOpInterface::Trait>());
+
+    // We first create needed allocas
+    Builder.setInsertionPointToStart(
+        &*ParentFunction.getFunctionBody().getBlocks().begin());
+
+    return Builder.create<memref::AllocaOp>(Loc,
+                                            MemRefType::get({1}, ThisType));
+  };
+
+  auto Alloca = static_cast<Value>(CreateAlloca(Rewriter));
+
+  // Store the element
+  Rewriter.create<memref::StoreOp>(
+      Loc, Original, Alloca,
+      ValueRange{Rewriter.createOrFold<arith::ConstantIndexOp>(Loc, 0)});
+
+  // Cast the memref value to the expected shape
+  Alloca = Rewriter.createOrFold<memref::CastOp>(
+      Loc, MemRefType::get(TargetShape, ThisType), Alloca);
+
+  if (Alloca.getType().cast<MemRefType>().getMemorySpaceAsInt() !=
+      BaseType.getMemorySpaceAsInt()) {
+    // Cast to the required memspace
+    Alloca = Rewriter.create<polygeist::Memref2PointerOp>(
+        Loc, LLVM::LLVMPointerType::get(ThisType), Alloca);
+    Alloca = Rewriter.create<LLVM::AddrSpaceCastOp>(
+        Loc, LLVM::LLVMPointerType::get(ThisType, TargetMemSpace), Alloca);
+    Alloca = Rewriter.create<polygeist::Pointer2MemrefOp>(
+        Loc, MemRefType::get(TargetShape, ThisType, {}, TargetMemSpace),
+        Alloca);
+  }
+
+  if (Alloca.getType() == BaseType) {
+    LLVM_DEBUG(llvm::dbgs()
+               << "  No cast needed; alloca inserted: " << Alloca << "\n");
+    return Alloca;
+  }
+
   mlir::Value Cast = Rewriter.create<sycl::SYCLCastOp>(
-      Loc,
-      MemRefType::get(TargetShape, TargetElementType, {},
-                      ThisType.getMemorySpaceAsInt()),
-      Original);
+      Loc, MemRefType::get(TargetShape, TargetElementType, {}, TargetMemSpace),
+      Alloca);
 
   LLVM_DEBUG(llvm::dbgs() << "  Cast inserted: " << Cast << "\n");
 
@@ -60,7 +101,7 @@ static LogicalResult convertMethod(SYCLMethodOpInterface method,
   SmallVector<mlir::Value> Args(method->getOperands());
 
   const auto BaseType = method.getBaseType().cast<MemRefType>();
-  if (BaseType != Args[0].getType().cast<MemRefType>())
+  if (BaseType != Args[0].getType())
     Args[0] = castToBaseType(rewriter, method->getLoc(), Args[0], BaseType);
 
   const auto ResTyOrNone = [=]() -> llvm::Optional<mlir::Type> {

@@ -49,6 +49,11 @@ static cl::opt<bool>
     CombinedStructABI("struct-abi", cl::init(true),
                       cl::desc("Use literal LLVM ABI for structs"));
 
+static cl::opt<bool>
+    AllowUndefinedSYCLTypes("allow-undefined-sycl-types", cl::init(false),
+                            cl::desc("Whether to allow types in the sycl "
+                                     "namespace and not in the SYCL dialect"));
+
 /******************************************************************************/
 /*            Flags affecting code generation of function types.              */
 /******************************************************************************/
@@ -1339,7 +1344,9 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     }
 
     const auto *RD = RT->getAsRecordDecl();
-    if (mlirclang::isNamespaceSYCL(RD->getEnclosingNamespaceContext())) {
+    if (const mlirclang::NamespaceKind NamespaceKind =
+            mlirclang::getNamespaceKind(RD->getEnclosingNamespaceContext());
+        NamespaceKind != mlirclang::NamespaceKind::Other) {
       const auto TypeName = RD->getName();
       if (TypeName == "accessor" || TypeName == "accessor_common" ||
           TypeName == "AccessorImplDevice" || TypeName == "AccessorSubscript" ||
@@ -1360,14 +1367,9 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
           TypeName == "TupleValueHolder" || TypeName == "vec")
         return getSYCLType(RT, *this);
 
-      // No need special handling for types that don't have record declaration
-      // name.
-      CGEIST_WARNING({
-        if (TypeName != "")
-          llvm::WithColor::warning()
-              << "SYCL type '" << ST->getName()
-              << "' has not been converted to SYCL MLIR\n";
-      });
+      assert((AllowUndefinedSYCLTypes ||
+              NamespaceKind != mlirclang::NamespaceKind::SYCL) &&
+             "Found type in the sycl namespace, but not in the SYCL dialect");
     }
 
     auto *CXRD = dyn_cast<CXXRecordDecl>(RT->getDecl());

@@ -903,8 +903,9 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *Cons,
   /// that we still generate some constructors that we need for lowering some
   /// sycl op.  Therefore, in those case, we set ShouldEmit back to "true" by
   /// looking them up in our "registry" of supported constructors.
-  bool IsSyclCtor =
-      mlirclang::isNamespaceSYCL(CtorDecl->getEnclosingNamespaceContext());
+  const auto IsSyclCtor =
+      mlirclang::getNamespaceKind(CtorDecl->getEnclosingNamespaceContext()) !=
+      mlirclang::NamespaceKind::Other;
   bool ShouldEmit = !IsSyclCtor;
 
   std::string MangledName = MLIRScanner::getMangledFuncName(
@@ -1047,21 +1048,21 @@ static NamedAttrList getSYCLMethodOpAttrs(OpBuilder &Builder,
 ///
 /// This function relies on how arguments are casted to perform a function call.
 /// Should be updated if this changes.
-static llvm::Optional<mlir::sycl::SYCLCastOp> trackSYCLCast(Value Val) {
+static Operation *trackCasts(Value Val) {
   auto *const DefiningOp = Val.getDefiningOp();
   if (!DefiningOp)
-    return llvm::None;
+    return nullptr;
 
-  return TypeSwitch<mlir::Operation *, llvm::Optional<mlir::sycl::SYCLCastOp>>(
-             DefiningOp)
-      .Case<mlir::sycl::SYCLCastOp>(
-          [](auto Cast) -> llvm::Optional<mlir::sycl::SYCLCastOp> {
-            return Cast;
+  return TypeSwitch<Operation *, Operation *>(DefiningOp)
+      .Case<mlir::sycl::SYCLCastOp, mlir::polygeist::Memref2PointerOp>(
+          [](Operation *Op) {
+            if (auto *Res = trackCasts(Op->getOperand(0)))
+              return Res;
+            return Op;
           })
-      .Case<mlir::LLVM::AddrSpaceCastOp, mlir::polygeist::Memref2PointerOp,
-            mlir::polygeist::Pointer2MemrefOp>(
-          [](auto Op) { return trackSYCLCast(Op->getOperand(0)); })
-      .Default(static_cast<llvm::Optional<mlir::sycl::SYCLCastOp>>(llvm::None));
+      .Case<mlir::polygeist::Pointer2MemrefOp, mlir::LLVM::AddrSpaceCastOp>(
+          [](Operation *Op) { return trackCasts(Op->getOperand(0)); })
+      .Default(static_cast<Operation *>(nullptr));
 }
 
 llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
@@ -1082,15 +1083,8 @@ llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
 
   // SYCLCastOps are abstracted to avoid missing method calls due to
   // implementation details.
-  if (const llvm::Optional<sycl::SYCLCastOp> Cast =
-          trackSYCLCast(OperandsCpy[0])) {
-    auto NewArg = (*Cast)->getOperand(0);
-    // Make sure the memory space is not changed:
-    const auto MemSpace =
-        OperandsCpy[0].getType().cast<MemRefType>().getMemorySpaceAsInt();
-    if (NewArg.getType().cast<MemRefType>().getMemorySpaceAsInt() != MemSpace) {
-      NewArg = castToMemSpace(NewArg, MemSpace);
-    }
+  if (Operation *Cast = trackCasts(OperandsCpy[0])) {
+    auto NewArg = Cast->getOperand(0);
     OperandsCpy[0] = NewArg;
     LLVM_DEBUG(llvm::dbgs() << "Abstracting cast to " << NewArg.getType()
                             << " to insert a SYCL method\n");
@@ -1109,6 +1103,10 @@ llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
   LLVM_DEBUG(llvm::dbgs() << "Inserting operation " << OptOpName
                           << " to replace SYCL method call.\n");
 
+  OperandsCpy[0] = Builder.createOrFold<memref::LoadOp>(
+      Loc, OperandsCpy[0],
+      Builder.createOrFold<arith::ConstantIndexOp>(Loc, 0));
+
   return static_cast<sycl::SYCLMethodOpInterface>(Builder.create(
       Loc, Builder.getStringAttr(*OptOpName), OperandsCpy,
       ReturnType ? mlir::TypeRange{*ReturnType} : mlir::TypeRange{},
@@ -1121,7 +1119,8 @@ MLIRScanner::emitSYCLOps(const clang::Expr *Expr,
                          const llvm::SmallVectorImpl<mlir::Value> &Args) {
   if (const auto *ConsExpr = dyn_cast<clang::CXXConstructExpr>(Expr)) {
     const FunctionDecl *Func = ConsExpr->getConstructor()->getAsFunction();
-    if (!mlirclang::isNamespaceSYCL(Func->getEnclosingNamespaceContext()))
+    if (mlirclang::getNamespaceKind(Func->getEnclosingNamespaceContext()) ==
+        mlirclang::NamespaceKind::Other)
       return nullptr;
 
     if (const auto *RD = dyn_cast<clang::CXXRecordDecl>(Func->getParent());
@@ -1135,7 +1134,8 @@ MLIRScanner::emitSYCLOps(const clang::Expr *Expr,
 
   if (const auto *CallExpr = dyn_cast<clang::CallExpr>(Expr)) {
     const FunctionDecl *Func = CallExpr->getCalleeDecl()->getAsFunction();
-    if (!mlirclang::isNamespaceSYCL(Func->getEnclosingNamespaceContext()))
+    if (mlirclang::getNamespaceKind(Func->getEnclosingNamespaceContext()) ==
+        mlirclang::NamespaceKind::Other)
       return nullptr;
 
     llvm::Optional<llvm::StringRef> OptFuncType(llvm::None);
@@ -1561,8 +1561,8 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
             ptr = Builder.create<polygeist::Memref2PointerOp>(Loc,
     LLVM::LLVMPointerType::get(MT.getElementType()), ptr); auto nullptr_llvm =
     Builder.create<mlir::LLVM::NullOp>(Loc, ptr.getType()); auto ne =
-    Builder.create<mlir::LLVM::ICmpOp>( Loc, mlir::LLVM::ICmpPredicate::ne, ptr,
-    nullptr_llvm); if (auto MT = ptr.getType().dyn_cast<MemRefType>())
+    Builder.create<mlir::LLVM::ICmpOp>( Loc, mlir::LLVM::ICmpPredicate::ne,
+    ptr, nullptr_llvm); if (auto MT = ptr.getType().dyn_cast<MemRefType>())
            nullptr_llvm = Builder.create<polygeist::Pointer2MemrefOp>(Loc, MT,
     nullptr_llvm); val = Builder.create<arith::SelectOp>(Loc, ne, val,
     nullptr_llvm);
@@ -2318,8 +2318,8 @@ ValueCategory MLIRScanner::EmitScalarCast(mlir::Location Loc, ValueCategory Src,
     bool IsSigned = DstQT->isSignedIntegerOrEnumerationType();
 
     // If we can't recognize overflow as undefined behavior, assume that
-    // overflow saturates. This protects against normal optimizations if we are
-    // compiling with non-standard FP semantics.
+    // overflow saturates. This protects against normal optimizations if we
+    // are compiling with non-standard FP semantics.
     CGEIST_WARNING(llvm::WithColor::warning()
                    << "Performing strict float cast overflow\n");
 
@@ -2373,9 +2373,9 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
                  "to perfom this conversion\n";
       });
     } else {
-      // Cast to other types through float, using either the intrinsic or FPExt,
-      // depending on whether the half type itself is supported
-      // (as opposed to operations on half, available with NativeHalfType).
+      // Cast to other types through float, using either the intrinsic or
+      // FPExt, depending on whether the half type itself is supported (as
+      // opposed to operations on half, available with NativeHalfType).
       CGEIST_WARNING({
         if (CGM.getContext().getTargetInfo().useFP16ConversionIntrinsics())
           llvm::WithColor::warning()
@@ -2987,8 +2987,8 @@ ValueCategory MLIRScanner::EmitBinShl(const BinOpInfo &Info) {
   auto LHS = Info.getLHS();
   auto RHS = Info.getRHS();
 
-  // LLVM requires the LHS and RHS to be the same type: promote or truncate the
-  // RHS to the same size as the LHS.
+  // LLVM requires the LHS and RHS to be the same type: promote or truncate
+  // the RHS to the same size as the LHS.
   if (LHS.val.getType() != RHS.val.getType())
     RHS = RHS.IntCast(Builder, Loc, LHS.val.getType(), /*IsSigned*/ false);
 
@@ -3007,8 +3007,8 @@ ValueCategory MLIRScanner::EmitBinShr(const BinOpInfo &Info) {
   auto LHS = Info.getLHS();
   auto RHS = Info.getRHS();
 
-  // LLVM requires the LHS and RHS to be the same type: promote or truncate the
-  // RHS to the same size as the LHS.
+  // LLVM requires the LHS and RHS to be the same type: promote or truncate
+  // the RHS to the same size as the LHS.
   if (LHS.val.getType() != RHS.val.getType())
     RHS = RHS.IntCast(Builder, Loc, LHS.val.getType(), /*IsSigned*/ false);
 

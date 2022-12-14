@@ -90,11 +90,8 @@ mlir::LogicalResult mlir::sycl::SYCLAccessorSubscriptOp::verify() {
 
   // Available only when: (AccessMode != access_mode::atomic && Dimensions == 1)
   // reference operator[](size_t index) const;
-  const auto AccessorTy = getOperand(0)
-                              .getType()
-                              .cast<mlir::MemRefType>()
-                              .getElementType()
-                              .cast<mlir::sycl::AccessorType>();
+  const auto AccessorTy =
+      getOperand(0).getType().cast<mlir::sycl::AccessorType>();
 
   const unsigned Dimensions = AccessorTy.getDimension();
   if (Dimensions == 0)
