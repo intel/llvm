@@ -1143,24 +1143,13 @@ MLIRScanner::emitSYCLOps(const clang::Expr *Expr,
       if (!RD->getName().empty())
         OptFuncType = RD->getName();
 
-    llvm::dbgs() << "ETTORE\n";
     const mlir::Type RetType =
         Glob.getTypes().getMLIRType(Func->getReturnType());
-    if (Func->getNameAsString() == "getQualifiedPtr")
-      llvm::dbgs() << "RetType: " << RetType << "\n";
-
     auto OptRetType = RetType.isa<mlir::NoneType>()
                           ? llvm::Optional<mlir::Type>{llvm::None}
                           : RetType;
     const std::string Name =
         MLIRScanner::getMangledFuncName(*Func, Glob.getCGM());
-
-    if (Func->getNameAsString() == "getQualifiedPtr") {
-      llvm::dbgs() << "clang type: " << Func->getReturnType() << "\n";
-      llvm::dbgs() << "FuncName: " << Func->getNameAsString() << "\n";
-      llvm::dbgs() << "Name: " << Name << "\n";
-      llvm::dbgs() << "OptFuncType: " << OptFuncType << "\n";
-    }
 
     auto TryToCreateSYCLMethod = [&]() {
       return OptFuncType
@@ -1452,7 +1441,6 @@ ValueCategory MLIRScanner::VisitMemberExpr(MemberExpr *ME) {
 ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   Location Loc = getMLIRLocation(E->getExprLoc());
   switch (E->getCastKind()) {
-
   case clang::CastKind::CK_NullToPointer: {
     mlir::Type LlvmType = Glob.getTypes().getMLIRType(E->getType());
     if (LlvmType.isa<LLVM::LLVMPointerType>())
@@ -2810,11 +2798,10 @@ ValueCategory MLIRScanner::EmitPointerArithmetic(const BinOpInfo &Info) {
 
   assert(Index.val.getType().isa<IntegerType>() && "Expecting integer type");
 
-  auto PtrTy = Pointer.val.getType();
-
+  mlir::Type PtrTy = Pointer.val.getType();
   assert(mlirclang::isPointerOrMemRefTy(PtrTy) && "Expecting pointer type");
 
-  auto &CGM = Glob.getCGM();
+  clang::CodeGen::CodeGenModule &CGM = Glob.getCGM();
 
   // Some versions of glibc and gcc use idioms (particularly in their malloc
   // routines) that add a pointer-sized integer (known to be a pointer
@@ -2834,14 +2821,10 @@ ValueCategory MLIRScanner::EmitPointerArithmetic(const BinOpInfo &Info) {
   //   The index is not pointer-sized.
   //   The pointer type is not byte-sized.
   //
-  if (BinaryOperator::isNullPointerArithmeticExtension(
-          CGM.getContext(), Opcode, PointerOperand, IndexOperand))
-    return Index.IntToPtr(Builder, Loc, PtrTy);
-
-  auto &DL = CGM.getDataLayout();
+  const llvm::DataLayout &DL = CGM.getDataLayout();
   const unsigned IndexTypeSize = DL.getIndexTypeSizeInBits(
       CGM.getTypes().ConvertType(PointerOperand->getType()));
-  const auto IsSigned =
+  const bool IsSigned =
       IndexOperand->getType()->isSignedIntegerOrEnumerationType();
   const unsigned Width = Index.val.getType().getIntOrFloatBitWidth();
   if (Width != IndexTypeSize) {

@@ -4,10 +4,16 @@
 // Test that the kernel named `kernel_likelihood` is generated with the correct signature.
 // LLVM: define weak_odr spir_kernel void {{.*}}kernel_likelihood(
 // LLVM-SAME: float addrspace(1)* noundef %0, %"class.sycl::_V1::range.1"* noundef byval(%"class.sycl::_V1::range.1") align 8 %1, 
-// LLVM-SAME: %"class.sycl::_V1::range.1"* noundef byval(%"class.sycl::_V1::range.1") align 8 %2, %"class.sycl::_V1::id.1"* noundef byval(%"class.sycl::_V1::id.1") align 8 %3)
+// LLVM-SAME: %"class.sycl::_V1::range.1"* noundef byval(%"class.sycl::_V1::range.1") align 8 %2, %"class.sycl::_V1::id.1"* noundef byval(%"class.sycl::_V1::id.1") align 8 %3,
+// LLVM-SAME: float addrspace(1)* noundef %4, %"class.sycl::_V1::range.1"* noundef byval(%"class.sycl::_V1::range.1") align 8 %5, 
+// LLVM-SAME: %"class.sycl::_V1::range.1"* noundef byval(%"class.sycl::_V1::range.1") align 8 %6, %"class.sycl::_V1::id.1"* noundef byval(%"class.sycl::_V1::id.1") align 8 %7, 
+// LLVM-SAME: i8 addrspace(1)* noundef %8, %"class.sycl::_V1::range.1"* noundef byval(%"class.sycl::_V1::range.1") align 8 %9, 
+// LLVM-SAME: %"class.sycl::_V1::range.1"* noundef byval(%"class.sycl::_V1::range.1") align 8 %10, %"class.sycl::_V1::id.1"* noundef byval(%"class.sycl::_V1::id.1") align 8 %11)
 
 #include <sycl/sycl.hpp>
 using namespace sycl;
+constexpr access::mode sycl_read = access::mode::read;
+constexpr access::mode sycl_write = access::mode::write;
 constexpr access::mode sycl_read_write = access::mode::read_write;
 
 void likelyhood(int Nparticles) {
@@ -17,7 +23,7 @@ void likelyhood(int Nparticles) {
 
   buffer<float, 1> arrayX_GPU(arrayX, Nparticles, props);
   buffer<float, 1> A(Nparticles + 1);
-  buffer<TY, 1> B(Nparticles + 1);
+  buffer<unsigned char, 1> B(Nparticles + 1);
 
   q.submit([&](handler &cgh) {
     auto arrayX_acc = arrayX_GPU.get_access<sycl_read_write>(cgh);

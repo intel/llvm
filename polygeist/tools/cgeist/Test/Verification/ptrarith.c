@@ -28,8 +28,11 @@ int *f1(size_t index, int *ptr) {
 
 // CHECK-LABEL:   func.func @f2(
 // CHECK-SAME:                  %[[VAL_0:.*]]: i64) -> !llvm.ptr<i8>
-// CHECK:           %[[PTR_0:.*]] = llvm.inttoptr %[[VAL_0]] : i64 to !llvm.ptr<i8>
-// CHECK:           return %[[PTR_0]] : !llvm.ptr<i8>
+// CHECK:           %[[NULL:.*]] = llvm.mlir.null : !llvm.ptr<i8>
+// CHECK:           %[[VAL1:.*]] = arith.index_castui %arg0 : i64 to index
+// CHECK:           %[[VAL2:.*]] = arith.index_cast %[[VAL1]] : index to i64
+// CHECK:           %[[VAL3:.*]] = llvm.getelementptr %[[NULL]][%[[VAL2]]]
+// CHECK:           return %[[VAL3]] : !llvm.ptr<i8>
 // CHECK:         }
 
 void *f2(size_t index) {
