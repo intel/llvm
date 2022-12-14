@@ -28,6 +28,12 @@ using namespace sycl::ext::intel::esimd;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 using tfloat32 = sycl::ext::intel::experimental::esimd::tfloat32;
 
+#ifdef USE_64_BIT_OFFSET
+typedef uint64_t Toffset;
+#else
+typedef uint32_t Toffset;
+#endif
+
 template <typename T, int N> bool test(queue &Q) {
   std::cout << "  Running " << esimd_test::type_name<T>() << " test, N=" << N
             << "...\n";
@@ -55,7 +61,7 @@ template <typename T, int N> bool test(queue &Q) {
   try {
     Q.submit([&](handler &CGH) {
        CGH.parallel_for(sycl::range<1>{1}, [=](id<1>) SYCL_ESIMD_KERNEL {
-         simd<uint32_t, N> Offsets(0u, sizeof(T));
+         simd<Toffset, N> Offsets(0u, sizeof(T));
          scatter<T, N>(Dst, Offsets, gather<T, N>(Src, Offsets));
        });
      }).wait();

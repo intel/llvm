@@ -23,6 +23,12 @@ using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental::esimd;
 
+#ifdef USE_64_BIT_OFFSET
+typedef uint64_t Toffset;
+#else
+typedef uint32_t Toffset;
+#endif
+
 struct Config {
   int threads_per_group;
   int n_groups;
@@ -210,8 +216,8 @@ bool test(queue q, const Config &cfg) {
       cgh.parallel_for<TestID<T, N, ImplF>>(
           rng, [=](id<1> ii) SYCL_ESIMD_KERNEL {
             int i = ii;
-            simd<unsigned, N> offsets(cfg.start_ind * sizeof(T),
-                                      cfg.stride * sizeof(T));
+            simd<Toffset, N> offsets(cfg.start_ind * sizeof(T),
+                                     cfg.stride * sizeof(T));
             simd_mask<N> m = 1;
             m[cfg.masked_lane] = 0;
         // barrier to achieve better contention:

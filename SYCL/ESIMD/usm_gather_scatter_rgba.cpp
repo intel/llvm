@@ -21,6 +21,12 @@
 
 using namespace sycl;
 
+#ifdef USE_64_BIT_OFFSET
+typedef uint64_t Toffset;
+#else
+typedef uint32_t Toffset;
+#endif
+
 constexpr int MASKED_LANE_NUM_REV = 1;
 constexpr int NUM_RGBA_CHANNELS =
     get_num_channels_enabled(sycl::ext::intel::esimd::rgba_channel_mask::ABGR);
@@ -39,7 +45,7 @@ struct Kernel {
     // where each element consists of RGBA channels.
     uint32_t global_offset = i * VL * STRIDE * NUM_RGBA_CHANNELS;
 
-    simd<uint32_t, VL> byteOffsets(0, STRIDE * sizeof(T) * NUM_RGBA_CHANNELS);
+    simd<Toffset, VL> byteOffsets(0, STRIDE * sizeof(T) * NUM_RGBA_CHANNELS);
     simd<T, VL * numChannels> v;
     if constexpr (CH_MASK == rgba_channel_mask::ABGR)
       // Check that the default mask value is ABGR.
@@ -80,7 +86,7 @@ bool test(queue q) {
   using namespace sycl::ext::intel::esimd;
   constexpr int numChannels = get_num_channels_enabled(CH_MASK);
 
-  std::cout << "Testing T=" << typeid(T).name() << " VL=" << VL
+  std::cout << "Testing T=" << esimd_test::type_name<T>() << " VL=" << VL
             << " STRIDE=" << STRIDE << " MASK=" << convertMaskToStr(CH_MASK)
             << "...\t";
 

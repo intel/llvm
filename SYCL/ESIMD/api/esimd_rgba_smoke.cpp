@@ -19,6 +19,12 @@
 
 #include <iostream>
 
+#ifdef USE_64_BIT_OFFSET
+typedef uint64_t Toffset;
+#else
+typedef uint32_t Toffset;
+#endif
+
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 
@@ -71,7 +77,8 @@ bool test_impl(queue q) {
 
   std::cout << "Testing mask=";
   print_mask(ChMask);
-  std::cout << ", T=" << typeid(T).name() << ", NPixels=" << NPixels << "\n";
+  std::cout << ", T=" << esimd_test::type_name<T>() << ", NPixels=" << NPixels
+            << "\n";
 
   T *A = malloc_shared<T>(Size, q);
   T *B = malloc_shared<T>(Size, q);
@@ -92,7 +99,7 @@ bool test_impl(queue q) {
       cgh.single_task<TestID<T, NPixels, static_cast<int>(ChMask)>>(
           [=]() SYCL_ESIMD_KERNEL {
             constexpr unsigned NElems = NPixels * NOnChs;
-            simd<unsigned int, NPixels> offsets(0, sizeof(T) * NAllChs);
+            simd<Toffset, NPixels> offsets(0, sizeof(T) * NAllChs);
             simd<T, NElems> p = gather_rgba<ChMask>(A, offsets);
             // simply scatter back to B - should give same results as A in
             // enabled channels, the rest should remain zero:

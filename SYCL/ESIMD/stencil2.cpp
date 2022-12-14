@@ -180,7 +180,7 @@ int main(int argc, char *argv[]) {
 
                 simd<unsigned, WIDTH> elm16_off =
                     elm16 * sizeof(float) + out_off;
-                scatter<float, WIDTH>(outputMatrix, sum, elm16_off, p);
+                scatter<float, WIDTH>(outputMatrix, elm16_off, sum, p);
                 out_off += DIM_SIZE * sizeof(float);
 
                 if (v_pos * HEIGHT + 10 + i >= DIM_SIZE - 1)

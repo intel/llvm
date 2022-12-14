@@ -19,6 +19,12 @@
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
+#ifdef USE_64_BIT_OFFSET
+typedef uint64_t Toffset;
+#else
+typedef uint32_t Toffset;
+#endif
+
 int main() {
   using namespace sycl;
   using namespace sycl::ext::intel::esimd;
@@ -48,8 +54,8 @@ int main() {
       h.parallel_for<class SimplestKernel>(
           range<1>{size / SIMDSize}, [=](id<1> id) SYCL_ESIMD_KERNEL {
             auto offset = id[0] * SIMDSize;
-            auto offsets = simd<uint32_t, SIMDSize>(id * SIMDSize * sizeof(int),
-                                                    sizeof(int));
+            auto offsets = simd<Toffset, SIMDSize>(id * SIMDSize * sizeof(int),
+                                                   sizeof(int));
             auto pred = simd_mask<SIMDSize>(1);
             auto add = simd<int, SIMDSize>(5);
             auto compare = simd<int, SIMDSize>(id * SIMDSize, 1);

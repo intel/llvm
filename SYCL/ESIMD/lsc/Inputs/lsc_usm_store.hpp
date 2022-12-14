@@ -17,6 +17,12 @@ using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental::esimd;
 
+#ifdef USE_64_BIT_OFFSET
+typedef uint64_t Toffset;
+#else
+typedef uint32_t Toffset;
+#endif
+
 template <int case_num, typename T, uint32_t Groups, uint32_t Threads,
           uint16_t VL, uint16_t VS, bool transpose,
           lsc_data_size DS = lsc_data_size::default_size,
@@ -78,7 +84,7 @@ bool test(uint32_t pmask = 0xffffffff) {
               simd<T, VS> vals(new_val + elem_off, 1);
               lsc_block_store<T, VS, DS, L1H, L3H>(out + elem_off, vals);
             } else {
-              simd<uint32_t, VL> offset(byte_off, VS * sizeof(T));
+              simd<Toffset, VL> offset(byte_off, VS * sizeof(T));
               simd_mask<VL> pred;
               for (int i = 0; i < VL; i++)
                 pred.template select<1, 1>(i) = (pmask >> i) & 1;
