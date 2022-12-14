@@ -1,12 +1,4 @@
-<<<<<<< HEAD
-// RUN: %clang_cc1 -no-opaque-pointers -triple spir64 -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
-
-// Validates address space conversions for SYCL mode.
-// See clang/docs/SYCLSupport.rst#address-space-handling for allowed
-// conversions.
-=======
 // RUN: %clang_cc1 -triple spir64 -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
->>>>>>> 9466b49171dc4b21f56a48594fc82b1e52f5358a
 void bar(int &Data) {}
 // CHECK-DAG: define{{.*}} spir_func void @[[RAW_REF:[a-zA-Z0-9_]+]](ptr addrspace(4) noundef align 4 dereferenceable(4) %
 void bar2(int &Data) {}
@@ -24,15 +16,9 @@ template <typename T>
 void tmpl(T t) {}
 // See Check Lines below.
 
-<<<<<<< HEAD
 __attribute__((sycl_device)) void usages() {
-  // CHECK-DAG: [[GLOB:%[a-zA-Z0-9]+]] = alloca i32 addrspace(1)*
-  // CHECK-DAG: [[GLOB]].ascast = addrspacecast i32 addrspace(1)** [[GLOB]] to i32 addrspace(1)* addrspace(4)*
-=======
-void usages() {
   // CHECK-DAG: [[GLOB:%[a-zA-Z0-9]+]] = alloca ptr addrspace(1)
   // CHECK-DAG: [[GLOB]].ascast = addrspacecast ptr [[GLOB]] to ptr addrspace(4)
->>>>>>> 9466b49171dc4b21f56a48594fc82b1e52f5358a
   __attribute__((opencl_global)) int *GLOB;
   // CHECK-DAG: [[LOC:%[a-zA-Z0-9]+]] = alloca ptr addrspace(3)
   // CHECK-DAG: [[LOC]].ascast = addrspacecast ptr [[LOC]] to ptr addrspace(4)
