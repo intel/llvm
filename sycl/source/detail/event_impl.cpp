@@ -267,7 +267,7 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
     if (getPlugin().getBackend() == backend::ext_oneapi_level_zero) {
-      return submitTime;
+      return MSubmitTime;
     }
     if (MEvent) {
       return get_event_profiling_info<info::event_profiling::command_submit>(
@@ -428,8 +428,8 @@ void event_impl::cleanDepEventsThroughOneLevel() {
   }
 }
 
-void event_impl::setSubmissionTime(uint64_t time) { submitTime = time; }
-uint64_t event_impl::getSubmissionTime() { return submitTime; }
+void event_impl::setSubmissionTime(uint64_t time) { MSubmitTime = time; }
+uint64_t event_impl::getSubmissionTime() { return MSubmitTime; }
 bool event_impl::isCompleted() {
   return get_info<info::event::command_execution_status>() ==
          info::event_command_status::complete;
