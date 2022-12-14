@@ -116,15 +116,26 @@ CallInst *isSlmFreeCall(const CallInst *CI) {
 
 // Determines the amount of SLM allocated by given SLM reservation call, which
 // can be either __esimd_slm_init or __esimd_slm_alloc.
+// If the amount can't be determined (when it is not a compile-time constant),
+// -1 is returned.
 int getSLMUsage(const CallInst *SLMReserveCall) {
   assert(isSlmInitCall(SLMReserveCall) || isSlmAllocCall(SLMReserveCall));
   StringRef Name = SLMReserveCall->getCalledFunction()->getName();
   auto *ArgV = SLMReserveCall->getArgOperand(0);
-  llvm::esimd::assert_and_diag(isa<ConstantInt>(ArgV), __FILE__,
-                               " integral constant is expected for slm size");
+
+  if (!isa<ConstantInt>(ArgV)) {
+    esimd::assert_and_diag(isSlmInitCall(SLMReserveCall),
+      "__esimd_slm_alloc with non-constant argument, function ",
+      SLMReserveCall->getFunction()->getName());
+    return -1;
+  }
   size_t Res = cast<llvm::ConstantInt>(ArgV)->getZExtValue();
   assert(Res < std::numeric_limits<int>::max());
   return static_cast<int>(Res);
+}
+
+bool isNonConstSLMInit(const CallInst* SLMReserveCall) {
+  return getSLMUsage(SLMReserveCall) < 0;
 }
 
 } // namespace
@@ -299,6 +310,7 @@ public:
       Wl.push_back(&F.getEntryBlock());
       ScopeNodeSPtr SlmInitCall = nullptr;
       bool ScopeMet = false; // to diagnose slm_init use after SLM allocator.
+      bool NonConstSlmInitMet = false;
 
       // Do preorder traversal so that successors are visited after the parent.
       while (Wl.size() > 0) {
@@ -329,12 +341,13 @@ public:
                                      "multiple slm_init calls in function ",
                                      F.getName());
               esimd::assert_and_diag(
-                  esimd::isESIMDKernel(F),
-                  "slm_init call met in non-kernel function ", F.getName());
+                  esimd::isESIMDKernel(F) || sycl::utils::isSYCLExternalFunction(&F),
+                  "slm_init call met in non-kernel non-external function ", F.getName());
               esimd::assert_and_diag(
                   !ScopeMet,
                   "slm_init must precede any SLMAllocator object in function ",
                   F.getName());
+              NonConstSlmInitMet |= isNonConstSLMInit(CI);
               SlmInitCall = std::make_shared<ScopeNode>(CI);
               // slm_init is special scope - does not have explicit end, it is
               // rather implicit at function's end
@@ -373,6 +386,7 @@ public:
              (cast<FuncNode>(CurScopePath[0].get())->getFunction() == &F));
       assert((CurScopePath.size() < 2) ||
              isSlmInitCall(cast<ScopeNode>(CurScopePath[1].get())->getStart()));
+      llvm::esimd::assert_and_diag(!NonConstSlmInitMet || !ScopeMet, "non-constant version of slm_init can't be used together with slm_allocator, function ", F.getName());
     }
   }
 
@@ -537,8 +551,12 @@ size_t lowerSLMReservationCalls(Module &M) {
       }
 #endif
     }
-    ScopeStartCI->eraseFromParent();
-
+    if (!isNonConstSLMInit(ScopeStartCI)) {
+      // slm_init(non_constant) calls are lowered by the BE to support
+      // specialization constants.
+      ScopeStartCI->eraseFromParent();
+    }
+    // slm_init does not have scope end (it is implicit)
     if (ScopeEndCI) {
       ScopeEndCI->eraseFromParent();
     }

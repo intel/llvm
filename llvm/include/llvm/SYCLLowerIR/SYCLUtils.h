@@ -20,6 +20,8 @@
 namespace llvm {
 namespace sycl {
 namespace utils {
+constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
+
 using CallGraphNodeAction = ::std::function<void(Function *)>;
 using CallGraphFunctionFilter =
     std::function<bool(const Instruction *, const Function *)>;
@@ -108,6 +110,10 @@ bool collectPossibleStoredVals(
     Value *Addr, SmallPtrSetImpl<Value *> &Vals,
     std::function<bool(const CallInst *)> EscapesIfAddrIsArgOf =
         [](const CallInst *) { return true; });
+
+inline bool isSYCLExternalFunction(const Function* F) {
+  return F->hasFnAttribute(ATTR_SYCL_MODULE_ID);
+}
 
 } // namespace utils
 } // namespace sycl
