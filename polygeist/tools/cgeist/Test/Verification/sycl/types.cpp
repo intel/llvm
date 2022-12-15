@@ -27,7 +27,7 @@
 // CHECK-DAG: ![[ITEM_BASE_1_T]] = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)>
 // CHECK-DAG: ![[ITEM_BASE_2_F]] = !sycl.item_base<[2, false], (!sycl_range_2_, !sycl_id_2_)>
 // CHECK-DAG: ![[ITEM_BASE_2_T]] = !sycl.item_base<[2, true], (!sycl_range_2_, !sycl_id_2_, !sycl_id_2_)>
-// CHECK-DAG: !sycl_kernel_handler_ = !sycl.kernel_handler<(!llvm.ptr<i8, 4>)>
+// CHECK-DAG: !sycl_kernel_handler_ = !sycl.kernel_handler<(memref<?xi8, 4>)>
 // CHECK-DAG: !sycl_LocalAccessorBaseDevice_1_ = !sycl.LocalAccessorBaseDevice<[1], (!sycl_range_1_, !sycl_range_1_, !sycl_id_1_)>
 // CHECK-DAG: !sycl_local_accessor_base_1_i32_rw = !sycl.local_accessor_base<[1, i32, read_write], (!sycl_LocalAccessorBaseDevice_1_, memref<?xi32, 3>)>
 // CHECK-DAG: !sycl_local_accessor_1_i32_ = !sycl.local_accessor<[1, i32], (!sycl_local_accessor_base_1_i32_rw)>

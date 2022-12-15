@@ -1513,9 +1513,9 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     auto PointeeType = isa<clang::PointerType>(T)
                            ? cast<clang::PointerType>(T)->getPointeeType()
                            : cast<clang::ReferenceType>(T)->getPointeeType();
-    const auto *PTT = PointeeType->getUnqualifiedDesugaredType();
+    const clang::Type *PTT = PointeeType->getUnqualifiedDesugaredType();
 
-    if (PTT->isCharType() || PTT->isVoidType()) {
+    if (PTT->isVoidType()) {
       llvm::Type *Ty = CGM.getTypes().ConvertType(QualType(T, 0));
       return TypeTranslator.translateType(Ty);
     }

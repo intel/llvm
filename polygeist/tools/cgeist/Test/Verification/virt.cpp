@@ -46,16 +46,16 @@ void make() {
 // CHECK-NEXT:     %2 = llvm.getelementptr %arg0[0, 2] : (!llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>>) -> !llvm.ptr<f64>
 // CHECK-NEXT:     llvm.store %arg2, %2 : !llvm.ptr<f64>
 // CHECK-NEXT:     %3 = llvm.mlir.addressof @str0 : !llvm.ptr<array<12 x i8>>
-// CHECK-NEXT:     %4 = llvm.getelementptr %3[0, 0] : (!llvm.ptr<array<12 x i8>>) -> !llvm.ptr<i8>
-// CHECK-NEXT:     call @_Z5printPc(%4) : (!llvm.ptr<i8>) -> ()
+// CHECK-NEXT:     %4 = "polygeist.pointer2memref"(%3) : (!llvm.ptr<array<12 x i8>>) -> memref<?xi8>
+// CHECK-NEXT:     call @_Z5printPc(%4) : (memref<?xi8>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func @_ZN4RootC1Ei(%arg0: !llvm.ptr<struct<(i32)>>, %arg1: i32) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
 // CHECK-NEXT:     %0 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<struct<(i32)>>) -> !llvm.ptr<i32>
 // CHECK-NEXT:     llvm.store %arg1, %0 : !llvm.ptr<i32>
 // CHECK-NEXT:     %1 = llvm.mlir.addressof @str1 : !llvm.ptr<array<13 x i8>>
-// CHECK-NEXT:     %2 = llvm.getelementptr %1[0, 0] : (!llvm.ptr<array<13 x i8>>) -> !llvm.ptr<i8>
-// CHECK-NEXT:     call @_Z5printPc(%2) : (!llvm.ptr<i8>) -> ()
+// CHECK-NEXT:     %2 = "polygeist.pointer2memref"(%1) : (!llvm.ptr<array<13 x i8>>) -> memref<?xi8>
+// CHECK-NEXT:     call @_Z5printPc(%2) : (memref<?xi8>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func.func @_ZN5FRootC1Ev(%arg0: !llvm.ptr<struct<(f32)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
@@ -63,7 +63,7 @@ void make() {
 // CHECK-NEXT:     %0 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<struct<(f32)>>) -> !llvm.ptr<f32>
 // CHECK-NEXT:     llvm.store %cst, %0 : !llvm.ptr<f32>
 // CHECK-NEXT:     %[[i1:.+]] = llvm.mlir.addressof @str2 : !llvm.ptr<array<14 x i8>>
-// CHECK-NEXT:     %[[i2:.+]] = llvm.getelementptr %[[i1]][0, 0] : (!llvm.ptr<array<14 x i8>>) -> !llvm.ptr<i8>
-// CHECK-NEXT:     call @_Z5printPc(%[[i2]]) : (!llvm.ptr<i8>) -> ()
+// CHECK-NEXT:     %[[i2:.+]] = "polygeist.pointer2memref"(%1) : (!llvm.ptr<array<14 x i8>>) -> memref<?xi8>
+// CHECK-NEXT:     call @_Z5printPc(%[[i2]]) : (memref<?xi8>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

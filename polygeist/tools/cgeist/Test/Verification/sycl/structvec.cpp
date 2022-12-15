@@ -1,7 +1,8 @@
 // RUN: clang++ -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - | FileCheck %s
+// XFAIL: *
 
-#include <sycl/sycl.hpp>
 #include <initializer_list>
+#include <sycl/sycl.hpp>
 
 struct structvec {
   using char2 = char __attribute__((ext_vector_type(2)));

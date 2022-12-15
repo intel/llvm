@@ -40,19 +40,19 @@ void make() {
 // CHECK-NEXT:     call @_ZN4RootC1Ei(%arg0, %arg1) : (!llvm.ptr<struct<(i8)>>, i32) -> ()
 // CHECK-NEXT:     call @_ZN5FRootC1Ev(%arg0) : (!llvm.ptr<struct<(i8)>>) -> ()
 // CHECK-NEXT:     %0 = llvm.mlir.addressof @str0 : !llvm.ptr<array<12 x i8>>
-// CHECK-NEXT:     %1 = llvm.getelementptr %0[0, 0] : (!llvm.ptr<array<12 x i8>>) -> !llvm.ptr<i8>
-// CHECK-NEXT:     call @_Z5printPc(%1) : (!llvm.ptr<i8>) -> ()
+// CHECK-NEXT:     %1 = "polygeist.pointer2memref"(%0) : (!llvm.ptr<array<12 x i8>>) -> memref<?xi8>
+// CHECK-NEXT:     call @_Z5printPc(%1) : (memref<?xi8>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func @_ZN4RootC1Ei(%arg0: !llvm.ptr<struct<(i8)>>, %arg1: i32) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
 // CHECK-NEXT:     %0 = llvm.mlir.addressof @str1 : !llvm.ptr<array<13 x i8>>
-// CHECK-NEXT:     %1 = llvm.getelementptr %0[0, 0] : (!llvm.ptr<array<13 x i8>>) -> !llvm.ptr<i8>
-// CHECK-NEXT:     call @_Z5printPc(%1) : (!llvm.ptr<i8>) -> ()
+// CHECK-NEXT:     %1 = "polygeist.pointer2memref"(%0) : (!llvm.ptr<array<13 x i8>>) -> memref<?xi8> 
+// CHECK-NEXT:     call @_Z5printPc(%1) : (memref<?xi8>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func @_ZN5FRootC1Ev(%arg0: !llvm.ptr<struct<(i8)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
 // CHECK-NEXT:     %0 = llvm.mlir.addressof @str2 : !llvm.ptr<array<14 x i8>>
-// CHECK-NEXT:     %1 = llvm.getelementptr %0[0, 0] : (!llvm.ptr<array<14 x i8>>) -> !llvm.ptr<i8>
-// CHECK-NEXT:     call @_Z5printPc(%1) : (!llvm.ptr<i8>) -> ()
+// CHECK-NEXT:     %1 = "polygeist.pointer2memref"(%0) : (!llvm.ptr<array<14 x i8>>) -> memref<?xi8> 
+// CHECK-NEXT:     call @_Z5printPc(%1) : (memref<?xi8>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

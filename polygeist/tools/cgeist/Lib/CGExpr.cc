@@ -1447,7 +1447,6 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   });
   Location Loc = getMLIRLocation(E->getExprLoc());
   switch (E->getCastKind()) {
-
   case clang::CastKind::CK_NullToPointer: {
     mlir::Type LlvmType = Glob.getTypes().getMLIRType(E->getType());
     if (LlvmType.isa<LLVM::LLVMPointerType>())
@@ -1561,20 +1560,6 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
             : E->getType()->getPointeeCXXRecordDecl();
     mlir::Value Val = GetAddressOfDerivedClass(SE.val, Derived, E->path_begin(),
                                                E->path_end());
-    /*
-    if (ShouldNullCheckClassCastValue(E)) {
-        mlir::Value ptr = val;
-        if (auto MT = ptr.getType().dyn_cast<MemRefType>())
-            ptr = Builder.create<polygeist::Memref2PointerOp>(Loc,
-    LLVM::LLVMPointerType::get(MT.getElementType()), ptr); auto nullptr_llvm =
-    Builder.create<mlir::LLVM::NullOp>(Loc, ptr.getType()); auto ne =
-    Builder.create<mlir::LLVM::ICmpOp>( Loc, mlir::LLVM::ICmpPredicate::ne, ptr,
-    nullptr_llvm); if (auto MT = ptr.getType().dyn_cast<MemRefType>())
-           nullptr_llvm = Builder.create<polygeist::Pointer2MemrefOp>(Loc, MT,
-    nullptr_llvm); val = Builder.create<arith::SelectOp>(Loc, ne, val,
-    nullptr_llvm);
-    }
-    */
     return ValueCategory(Val, SE.isReference);
   }
   case clang::CastKind::CK_BitCast: {
@@ -2171,8 +2156,8 @@ ValueCategory MLIRScanner::EmitScalarConversion(ValueCategory Src,
       });
     } else {
       // Cast to other types through float, using either the intrinsic or FPExt,
-      // depending on whether the half type itself is supported
-      // (as opposed to operations on half, available with NativeHalfType).
+      // depending on whether the half type itself is supported (as opposed to
+      // operations on half, available with NativeHalfType).
       CGEIST_WARNING({
         if (CGM.getContext().getTargetInfo().useFP16ConversionIntrinsics())
           llvm::WithColor::warning()
@@ -2605,12 +2590,12 @@ ValueCategory MLIRScanner::EmitPointerArithmetic(const BinOpInfo &Info) {
   const auto *Expr = cast<BinaryOperator>(Info.getExpr());
 
   ValueCategory Pointer = Info.getLHS();
-  auto *PointerOperand = Expr->getLHS();
+  clang::Expr *PointerOperand = Expr->getLHS();
   ValueCategory Index = Info.getRHS();
-  auto *IndexOperand = Expr->getRHS();
+  clang::Expr *IndexOperand = Expr->getRHS();
 
-  const auto Opcode = Info.getOpcode();
-  const auto IsSubtraction =
+  const BinaryOperator::Opcode Opcode = Info.getOpcode();
+  const bool IsSubtraction =
       Opcode == clang::BO_Sub || Opcode == clang::BO_SubAssign;
 
   assert((!IsSubtraction ||
@@ -2623,12 +2608,11 @@ ValueCategory MLIRScanner::EmitPointerArithmetic(const BinOpInfo &Info) {
   }
 
   assert(Index.val.getType().isa<IntegerType>() && "Expecting integer type");
+  assert(mlirclang::isPointerOrMemRefTy(Pointer.val.getType()) &&
+         "Expecting pointer type");
 
-  auto PtrTy = Pointer.val.getType();
-
-  assert(mlirclang::isPointerOrMemRefTy(PtrTy) && "Expecting pointer type");
-
-  auto &CGM = Glob.getCGM();
+  mlir::Type PtrTy = Pointer.val.getType();
+  clang::CodeGen::CodeGenModule &CGM = Glob.getCGM();
 
   // Some versions of glibc and gcc use idioms (particularly in their malloc
   // routines) that add a pointer-sized integer (known to be a pointer
@@ -2653,10 +2637,10 @@ ValueCategory MLIRScanner::EmitPointerArithmetic(const BinOpInfo &Info) {
     return EmitIntegralToPointerConversion(Loc, PtrTy, Index);
   }
 
-  auto &DL = CGM.getDataLayout();
+  const llvm::DataLayout &DL = CGM.getDataLayout();
   const unsigned IndexTypeSize = DL.getIndexTypeSizeInBits(
       CGM.getTypes().ConvertType(PointerOperand->getType()));
-  const auto IsSigned =
+  const bool IsSigned =
       IndexOperand->getType()->isSignedIntegerOrEnumerationType();
   const unsigned Width = Index.val.getType().getIntOrFloatBitWidth();
   if (Width != IndexTypeSize) {
