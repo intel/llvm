@@ -3172,6 +3172,36 @@ urDeviceCreateWithNativeHandle(
     ur_device_handle_t* phDevice                    ///< [out] pointer to the handle of the device object created.
     );
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief static
+/// 
+/// @details
+///     - The application may call this function from simultaneous threads for
+///       the same context.
+///     - The implementation of this function should be thread-safe.
+/// 
+/// @remarks
+///   _Analogues_
+///     - **clGetDeviceAndHostTimer**
+/// 
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pDeviceTimestamp`
+///         + `NULL == pHostTimestamp`
+UR_APIEXPORT ur_result_t UR_APICALL
+urDeviceGetGlobalTimestamps(
+    ur_device_handle_t hDevice,                     ///< [in] handle of the device instance
+    uint64_t* pDeviceTimestamp,                     ///< [out] pointer to the Device's global timestamp that 
+                                                    ///< correlates with the Host's global timestamp value
+    uint64_t* pHostTimestamp                        ///< [out] pointer to the Host's global timestamp that 
+                                                    ///< correlates with the Device's global timestamp value
+    );
+
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
@@ -7140,6 +7170,30 @@ typedef void (UR_APICALL *ur_pfnDeviceCreateWithNativeHandleCb_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function parameters for urDeviceGetGlobalTimestamps 
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_device_get_global_timestamps_params_t
+{
+    ur_device_handle_t* phDevice;
+    uint64_t** ppDeviceTimestamp;
+    uint64_t** ppHostTimestamp;
+} ur_device_get_global_timestamps_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function-pointer for urDeviceGetGlobalTimestamps 
+/// @param[in] params Parameters passed to this instance
+/// @param[in] result Return value
+/// @param[in] pTracerUserData Per-Tracer user data
+/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
+typedef void (UR_APICALL *ur_pfnDeviceGetGlobalTimestampsCb_t)(
+    ur_device_get_global_timestamps_params_t* params,
+    ur_result_t result,
+    void* pTracerUserData,
+    void** ppTracerInstanceUserData
+    );
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Device callback functions pointers
 typedef struct ur_device_callbacks_t
 {
@@ -7151,6 +7205,7 @@ typedef struct ur_device_callbacks_t
     ur_pfnDeviceSelectBinaryCb_t                                    pfnSelectBinaryCb;
     ur_pfnDeviceGetNativeHandleCb_t                                 pfnGetNativeHandleCb;
     ur_pfnDeviceCreateWithNativeHandleCb_t                          pfnCreateWithNativeHandleCb;
+    ur_pfnDeviceGetGlobalTimestampsCb_t                             pfnGetGlobalTimestampsCb;
 } ur_device_callbacks_t;
 
 ///////////////////////////////////////////////////////////////////////////////

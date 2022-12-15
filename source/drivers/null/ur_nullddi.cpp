@@ -2142,6 +2142,33 @@ namespace driver
     }
 
     ///////////////////////////////////////////////////////////////////////////////
+    /// @brief Intercept function for urDeviceGetGlobalTimestamps
+    __urdlllocal ur_result_t UR_APICALL
+    urDeviceGetGlobalTimestamps(
+        ur_device_handle_t hDevice,                     ///< [in] handle of the device instance
+        uint64_t* pDeviceTimestamp,                     ///< [out] pointer to the Device's global timestamp that 
+                                                        ///< correlates with the Host's global timestamp value
+        uint64_t* pHostTimestamp                        ///< [out] pointer to the Host's global timestamp that 
+                                                        ///< correlates with the Device's global timestamp value
+        )
+    {
+        ur_result_t result = UR_RESULT_SUCCESS;
+
+        // if the driver has created a custom function, then call it instead of using the generic path
+        auto pfnGetGlobalTimestamps = d_context.urDdiTable.Device.pfnGetGlobalTimestamps;
+        if( nullptr != pfnGetGlobalTimestamps )
+        {
+            result = pfnGetGlobalTimestamps( hDevice, pDeviceTimestamp, pHostTimestamp );
+        }
+        else
+        {
+            // generic implementation
+        }
+
+        return result;
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////
     /// @brief Intercept function for urKernelCreate
     __urdlllocal ur_result_t UR_APICALL
     urKernelCreate(
@@ -3624,6 +3651,8 @@ urGetDeviceProcAddrTable(
     pDdiTable->pfnGetNativeHandle                        = driver::urDeviceGetNativeHandle;
 
     pDdiTable->pfnCreateWithNativeHandle                 = driver::urDeviceCreateWithNativeHandle;
+
+    pDdiTable->pfnGetGlobalTimestamps                    = driver::urDeviceGetGlobalTimestamps;
 
     return result;
 }
