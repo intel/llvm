@@ -349,6 +349,9 @@ TEST_F(SchedulerTest, StreamBufferDeallocation) {
   // The buffers should have been released with graph cleanup once the work is
   // finished.
   EventImplPtr->wait(EventImplPtr);
+  // Drain the thread pool to ensure that the cleanup is able to acquire
+  // the graph lock.
+  detail::GlobalHandler::instance().drainThreadPool();
   MSPtr->cleanupCommands({});
   ASSERT_EQ(MSPtr->MDeferredMemObjRelease.size(), 0u);
 }
