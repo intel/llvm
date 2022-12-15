@@ -18,13 +18,13 @@
 
 #include <algorithm>
 #include <cassert>
+#include <chrono>
 #include <cuda.h>
 #include <cuda_device_runtime_api.h>
 #include <limits>
 #include <memory>
 #include <mutex>
 #include <regex>
-#include <chrono>
 
 // Forward declarations
 void enableCUDATracing();
@@ -2122,8 +2122,7 @@ pi_result cuda_piContextCreate(const pi_context_properties *properties,
       piContextPtr = std::unique_ptr<_pi_context>(new _pi_context{
           _pi_context::kind::user_defined, newContext, *devices});
     }
-_pi_platform::evBase_
-    static std::once_flag initFlag;
+    _pi_platform::evBase_ static std::once_flag initFlag;
     std::call_once(
         initFlag,
         [](pi_result &err) {
@@ -5445,24 +5444,26 @@ pi_result cuda_piTearDown(void *) {
 pi_result cuda_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
                                        uint64_t *HostTime) {
   cudaEvent_t event;
-  if(DeviceTime){
-  PI_CHECK_ERROR(cudaEventCreateWithFlags(&event, cudaEventDefault));
-  PI_CHECK_ERROR(cudaEventRecord(event));
+  if (DeviceTime) {
+    PI_CHECK_ERROR(cudaEventCreateWithFlags(&event, cudaEventDefault));
+    PI_CHECK_ERROR(cudaEventRecord(event));
   }
   using namespace std::chrono;
-  if(HostTime){
-    *HostTime = duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
-                .count();
+  if (HostTime) {
+    *HostTime =
+        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
+            .count();
   }
 
-  if(DeviceTime){
-  PI_CHECK_ERROR(cudaEventSynchronize(event));
+  if (DeviceTime) {
+    PI_CHECK_ERROR(cudaEventSynchronize(event));
 
-  float elapsedTime = 0.0f;
-  PI_CHECK_ERROR(cudaEventElapsedTime(&elapsedTime,_pi_platform::evBase_,event));
-  *DeviceTime=(uint64_t) (elapsedTime * (double)1e6);
+    float elapsedTime = 0.0f;
+    PI_CHECK_ERROR(
+        cudaEventElapsedTime(&elapsedTime, _pi_platform::evBase_, event));
+    *DeviceTime = (uint64_t)(elapsedTime * (double)1e6);
   }
-  
+
   return PI_SUCCESS;
 }
 
