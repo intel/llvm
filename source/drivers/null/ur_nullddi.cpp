@@ -947,6 +947,120 @@ namespace driver
     }
 
     ///////////////////////////////////////////////////////////////////////////////
+    /// @brief Intercept function for urEnqueueUSMFill2D
+    __urdlllocal ur_result_t UR_APICALL
+    urEnqueueUSMFill2D(
+        ur_queue_handle_t hQueue,                       ///< [in] handle of the queue to submit to.
+        void* pMem,                                     ///< [in] pointer to memory to be filled.
+        size_t pitch,                                   ///< [in] the total width of the destination memory including padding.
+        size_t patternSize,                             ///< [in] the size in bytes of the pattern.
+        const void* pPattern,                           ///< [in] pointer with the bytes of the pattern to set.
+        size_t width,                                   ///< [in] the width in bytes of each row to fill.
+        size_t height,                                  ///< [in] the height of the columns to fill.
+        uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
+        const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                        ///< events that must be complete before the kernel execution.
+                                                        ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+                                                        ///< event. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular kernel execution instance.
+        )
+    {
+        ur_result_t result = UR_RESULT_SUCCESS;
+
+        // if the driver has created a custom function, then call it instead of using the generic path
+        auto pfnUSMFill2D = d_context.urDdiTable.Enqueue.pfnUSMFill2D;
+        if( nullptr != pfnUSMFill2D )
+        {
+            result = pfnUSMFill2D( hQueue, pMem, pitch, patternSize, pPattern, width, height, numEventsInWaitList, phEventWaitList, phEvent );
+        }
+        else
+        {
+            // generic implementation
+            if( nullptr != phEvent ) *phEvent = reinterpret_cast<ur_event_handle_t>( d_context.get() );
+
+        }
+
+        return result;
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////
+    /// @brief Intercept function for urEnqueueUSMMemset2D
+    __urdlllocal ur_result_t UR_APICALL
+    urEnqueueUSMMemset2D(
+        ur_queue_handle_t hQueue,                       ///< [in] handle of the queue to submit to.
+        void* pMem,                                     ///< [in] pointer to memory to be filled.
+        size_t pitch,                                   ///< [in] the total width of the destination memory including padding.
+        int value,                                      ///< [in] the value to fill into the region in pMem.
+        size_t width,                                   ///< [in] the width in bytes of each row to set.
+        size_t height,                                  ///< [in] the height of the columns to set.
+        uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
+        const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                        ///< events that must be complete before the kernel execution.
+                                                        ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+                                                        ///< event. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular kernel execution instance.
+        )
+    {
+        ur_result_t result = UR_RESULT_SUCCESS;
+
+        // if the driver has created a custom function, then call it instead of using the generic path
+        auto pfnUSMMemset2D = d_context.urDdiTable.Enqueue.pfnUSMMemset2D;
+        if( nullptr != pfnUSMMemset2D )
+        {
+            result = pfnUSMMemset2D( hQueue, pMem, pitch, value, width, height, numEventsInWaitList, phEventWaitList, phEvent );
+        }
+        else
+        {
+            // generic implementation
+            if( nullptr != phEvent ) *phEvent = reinterpret_cast<ur_event_handle_t>( d_context.get() );
+
+        }
+
+        return result;
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////
+    /// @brief Intercept function for urEnqueueUSMMemcpy2D
+    __urdlllocal ur_result_t UR_APICALL
+    urEnqueueUSMMemcpy2D(
+        ur_queue_handle_t hQueue,                       ///< [in] handle of the queue to submit to.
+        bool blocking,                                  ///< [in] indicates if this operation should block the host.
+        void* pDst,                                     ///< [in] pointer to memory where data will be copied.
+        size_t dstPitch,                                ///< [in] the total width of the source memory including padding.
+        const void* pSrc,                               ///< [in] pointer to memory to be copied.
+        size_t srcPitch,                                ///< [in] the total width of the source memory including padding.
+        size_t width,                                   ///< [in] the width in bytes of each row to be copied.
+        size_t height,                                  ///< [in] the height of columns to be copied.
+        uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
+        const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                        ///< events that must be complete before the kernel execution.
+                                                        ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+                                                        ///< event. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular kernel execution instance.
+        )
+    {
+        ur_result_t result = UR_RESULT_SUCCESS;
+
+        // if the driver has created a custom function, then call it instead of using the generic path
+        auto pfnUSMMemcpy2D = d_context.urDdiTable.Enqueue.pfnUSMMemcpy2D;
+        if( nullptr != pfnUSMMemcpy2D )
+        {
+            result = pfnUSMMemcpy2D( hQueue, blocking, pDst, dstPitch, pSrc, srcPitch, width, height, numEventsInWaitList, phEventWaitList, phEvent );
+        }
+        else
+        {
+            // generic implementation
+            if( nullptr != phEvent ) *phEvent = reinterpret_cast<ur_event_handle_t>( d_context.get() );
+
+        }
+
+        return result;
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////
     /// @brief Intercept function for urEventGetInfo
     __urdlllocal ur_result_t UR_APICALL
     urEventGetInfo(
@@ -3247,6 +3361,12 @@ urGetEnqueueProcAddrTable(
     pDdiTable->pfnUSMPrefetch                            = driver::urEnqueueUSMPrefetch;
 
     pDdiTable->pfnUSMMemAdvice                           = driver::urEnqueueUSMMemAdvice;
+
+    pDdiTable->pfnUSMFill2D                              = driver::urEnqueueUSMFill2D;
+
+    pDdiTable->pfnUSMMemset2D                            = driver::urEnqueueUSMMemset2D;
+
+    pDdiTable->pfnUSMMemcpy2D                            = driver::urEnqueueUSMMemcpy2D;
 
     return result;
 }
