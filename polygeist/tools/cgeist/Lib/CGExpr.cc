@@ -2306,7 +2306,7 @@ ValueCategory MLIRScanner::EmitPointerToIntegralConversion(Location Loc,
                                                            mlir::Type DestTy,
                                                            ValueCategory Src) {
   assert(DestTy.isa<IntegerType>() && "Expecting integer type");
-  assert((Src.val.getType().isa<MemRefType, LLVM::LLVMPointerType>()) &&
+  assert(mlirclang::isPointerOrMemRefTy(Src.val.getType()) &&
          "Expecting pointer input");
 
   return Src.MemRef2Ptr(Builder, Loc).PtrToInt(Builder, Loc, DestTy);
@@ -2315,8 +2315,7 @@ ValueCategory MLIRScanner::EmitPointerToIntegralConversion(Location Loc,
 ValueCategory MLIRScanner::EmitIntegralToPointerConversion(Location Loc,
                                                            mlir::Type DestTy,
                                                            ValueCategory Src) {
-  assert((DestTy.isa<MemRefType, LLVM::LLVMPointerType>()) &&
-         "Expecting pointer type");
+  assert(mlirclang::isPointerOrMemRefTy(DestTy) && "Expecting pointer type");
   assert(Src.val.getType().isa<IntegerType>() &&
          Src.val.getType().cast<IntegerType>().getWidth() ==
              Glob.getCGM().getDataLayout().getPointerSizeInBits() &&
