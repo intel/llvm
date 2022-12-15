@@ -2085,7 +2085,7 @@ typedef enum ur_queue_info_t
 } ur_queue_info_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Queue properties
+/// @brief Queue property flags
 typedef uint32_t ur_queue_flags_t;
 typedef enum ur_queue_flag_t
 {
@@ -2096,6 +2096,25 @@ typedef enum ur_queue_flag_t
     UR_QUEUE_FLAG_FORCE_UINT32 = 0x7fffffff
 
 } ur_queue_flag_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Queue Properties
+typedef enum ur_queue_properties_t
+{
+    UR_QUEUE_PROPERTIES_FLAGS = -1,                 ///< [::ur_queue_flags_t]: the bitfield of queue flags
+    UR_QUEUE_PROPERTIES_COMPUTE_INDEX = -2,         ///< [uint32_t]: the queue index
+    UR_QUEUE_PROPERTIES_FORCE_UINT32 = 0x7fffffff
+
+} ur_queue_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Queue property value
+typedef struct ur_queue_property_value_t
+{
+    ur_queue_properties_t propertyType;             ///< [in] queue property
+    uint32_t propertyValue;                         ///< [in] queue property value
+
+} ur_queue_property_value_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Query information about a command queue
@@ -2142,9 +2161,8 @@ urQueueGetInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
-///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `0xf < props`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pProps`
 ///         + `NULL == phQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
@@ -2156,8 +2174,11 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urQueueCreate(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
     ur_device_handle_t hDevice,                     ///< [in] handle of the device object
-    ur_queue_flags_t props,                         ///< [in] initialization properties.
-                                                    ///< must be 0 (default) or a combination of ::ur_queue_flags_t.
+    ur_queue_property_value_t* pProps,              ///< [in] specifies a list of queue properties and their corresponding values.
+                                                    ///< Each property name is immediately followed by the corresponding
+                                                    ///< desired value.
+                                                    ///< The list is terminated with a 0. 
+                                                    ///< If a property value is not specified, then its default value will be used.
     ur_queue_handle_t* phQueue                      ///< [out] pointer to handle of queue object created
     );
 
@@ -2863,6 +2884,9 @@ typedef enum ur_device_info_t
     UR_DEVICE_INFO_ATOMIC_64 = 96,                  ///< bool: support 64 bit atomics
     UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 97,   ///< uint32_t: atomics memory order capabilities
     UR_DEVICE_INFO_BFLOAT16 = 98,                   ///< bool: support for bfloat16
+    UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES = 99,  ///< uint32_t: Returns 1 if the device doesn't have a notion of a 
+                                                    ///< queue index. Otherwise, returns the number of queue indices that are
+                                                    ///< available for this device.
     UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
 
 } ur_device_info_t;
@@ -2885,7 +2909,7 @@ typedef enum ur_device_info_t
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_BFLOAT16 < infoType`
+///         + `::UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES < infoType`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceGetInfo(
     ur_device_handle_t hDevice,                     ///< [in] handle of the device instance
@@ -6755,7 +6779,7 @@ typedef struct ur_queue_create_params_t
 {
     ur_context_handle_t* phContext;
     ur_device_handle_t* phDevice;
-    ur_queue_flags_t* pprops;
+    ur_queue_property_value_t** ppProps;
     ur_queue_handle_t** pphQueue;
 } ur_queue_create_params_t;
 

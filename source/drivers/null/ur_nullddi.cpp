@@ -1454,8 +1454,11 @@ namespace driver
     urQueueCreate(
         ur_context_handle_t hContext,                   ///< [in] handle of the context object
         ur_device_handle_t hDevice,                     ///< [in] handle of the device object
-        ur_queue_flags_t props,                         ///< [in] initialization properties.
-                                                        ///< must be 0 (default) or a combination of ::ur_queue_flags_t.
+        ur_queue_property_value_t* pProps,              ///< [in] specifies a list of queue properties and their corresponding values.
+                                                        ///< Each property name is immediately followed by the corresponding
+                                                        ///< desired value.
+                                                        ///< The list is terminated with a 0. 
+                                                        ///< If a property value is not specified, then its default value will be used.
         ur_queue_handle_t* phQueue                      ///< [out] pointer to handle of queue object created
         )
     {
@@ -1465,7 +1468,7 @@ namespace driver
         auto pfnCreate = d_context.urDdiTable.Queue.pfnCreate;
         if( nullptr != pfnCreate )
         {
-            result = pfnCreate( hContext, hDevice, props, phQueue );
+            result = pfnCreate( hContext, hDevice, pProps, phQueue );
         }
         else
         {
