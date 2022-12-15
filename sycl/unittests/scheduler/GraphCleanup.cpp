@@ -287,9 +287,9 @@ TEST_F(SchedulerTest, HostTaskCleanup) {
   queue Queue{Ctx, default_selector_v};
 
   std::mutex Mutex;
-  std::unique_lock Lock{Mutex};
+  std::unique_lock<std::mutex> Lock{Mutex};
   event Event = Queue.submit([&](sycl::handler &cgh) {
-    cgh.host_task([&]() { std::unique_lock Lock{Mutex}; });
+    cgh.host_task([&]() { std::unique_lock<std::mutex> Lock{Mutex}; });
   });
   detail::EventImplPtr EventImpl = detail::getSyclObjImpl(Event);
 
