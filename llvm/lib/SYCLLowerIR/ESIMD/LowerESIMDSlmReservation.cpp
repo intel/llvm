@@ -433,7 +433,8 @@ public:
 unsigned ScopedCallGraph::Node::InstanceN = 0;
 #endif
 
-using Func2ScopeMap = DenseMap<const Function *, const ScopedCallGraph::ScopeNode*>;
+using Func2ScopeMap =
+    DenseMap<const Function *, const ScopedCallGraph::ScopeNode *>;
 using SLMKernelUsageMap = DenseMap<
     std::pair<const ScopedCallGraph::Node *, const ScopedCallGraph::FuncNode *>,
     int>;
@@ -479,9 +480,10 @@ int findMaxSLMUsageAlongAllPaths(const ScopedCallGraph::Node *Cur,
   int Res = MaxSLMUse < 0 ? MaxSLMUse : SLMUseF + MaxSLMUse;
   Results[{Cur, Kernel}] = Res;
 
-  if (auto* CurScope = dyn_cast<ScopedCallGraph::ScopeNode>(Cur)) {
+  if (auto *CurScope = dyn_cast<ScopedCallGraph::ScopeNode>(Cur)) {
     // Update per-kernel maximum SLM usage.
-    auto E = Kernel2MaxSLM.insert(std::make_pair(Kernel->getFunction(), CurScope));
+    auto E =
+        Kernel2MaxSLM.insert(std::make_pair(Kernel->getFunction(), CurScope));
 
     if (!E.second) {
       // insertion did not happen - there already was an entry, see if it needs
@@ -590,7 +592,7 @@ size_t lowerSLMReservationCalls(Module &M) {
   }
   // - now set each kernel's SLMSize metadata to the pre-calculated value
   for (auto &E : Kernel2MaxSLM) {
-    const ScopedCallGraph::ScopeNode* Scope = E.second;
+    const ScopedCallGraph::ScopeNode *Scope = E.second;
     auto I = Scope2MaxSLM.find(Scope);
     assert(I != Scope2MaxSLM.end());
     int MaxSlm = I->second;
