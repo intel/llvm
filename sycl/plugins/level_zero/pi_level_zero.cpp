@@ -3170,15 +3170,28 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // Only report device memory which zeMemAllocDevice can allocate from.
     // Currently this is only the one enumerated with ordinal 0.
     uint64_t FreeMemory = 0;
-    uint32_t MemCount = 1;
-    zes_mem_handle_t ZesMemHandle;
-    ZE_CALL(zesDeviceEnumMemoryModules, (ZeDevice, &MemCount, &ZesMemHandle));
+    uint32_t MemCount = 0;
+    ZE_CALL(zesDeviceEnumMemoryModules, (ZeDevice, &MemCount, nullptr));
     if (MemCount != 0) {
-      ZesStruct<zes_mem_properties_t> ZeMemProperties;
-      ZE_CALL(zesMemoryGetProperties, (ZesMemHandle, &ZeMemProperties));
-      ZesStruct<zes_mem_state_t> ZeMemState;
-      ZE_CALL(zesMemoryGetState, (ZesMemHandle, &ZeMemState));
-      FreeMemory += ZeMemState.free;
+      std::vector<zes_mem_handle_t> ZesMemHandles(MemCount);
+      ZE_CALL(zesDeviceEnumMemoryModules,
+              (ZeDevice, &MemCount, ZesMemHandles.data()));
+      while (MemCount > 0) {
+        --MemCount;
+        ZesStruct<zes_mem_properties_t> ZesMemProperties;
+        ZE_CALL(zesMemoryGetProperties,
+                (ZesMemHandles[MemCount], &ZesMemProperties));
+        // For root-device report memory from all memory modules since that
+        // is what totally available in the default implicit scaling mode.
+        // For sub-devices only report memory local to them.
+        if (!Device->isSubDevice() || Device->ZeDeviceProperties->subdeviceId ==
+                                          ZesMemProperties.subdeviceId) {
+
+          ZesStruct<zes_mem_state_t> ZesMemState;
+          ZE_CALL(zesMemoryGetState, (ZesMemHandles[MemCount], &ZesMemState));
+          FreeMemory += ZesMemState.free;
+        }
+      }
     }
     return ReturnValue(FreeMemory);
   }
@@ -8003,8 +8016,7 @@ pi_result USMSharedReadOnlyMemoryAlloc::allocateImpl(void **ResultPtr,
                                                      pi_uint32 Alignment) {
   pi_usm_mem_properties Props[] = {PI_MEM_ALLOC_FLAGS,
                                    PI_MEM_ALLOC_DEVICE_READ_ONLY, 0};
-  return USMSharedAllocImpl(ResultPtr, Context, Device, Props, Size,
-                            Alignment);
+  return USMSharedAllocImpl(ResultPtr, Context, Device, Props, Size, Alignment);
 }
 
 pi_result USMDeviceMemoryAlloc::allocateImpl(void **ResultPtr, size_t Size,
