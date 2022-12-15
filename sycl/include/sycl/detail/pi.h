@@ -60,13 +60,6 @@
 // PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH queue properties.
 // 11.18 Add new parameter name PI_EXT_ONEAPI_QUEUE_INFO_EMPTY to
 // _pi_queue_info.
-<<<<<<< HEAD
-// 11.19 Added new bool argument to piextQueueCreateWithNativeHandle to select
-// between standard and immediate commandlists.
-
-#define _PI_H_VERSION_MAJOR 11
-#define _PI_H_VERSION_MINOR 19
-=======
 // 12.19 Add new PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE piDevicePartition
 // scheme. Sub-sub-devices (representing compute slice) creation via
 // partitioning by affinity domain is disabled by default and can be temporarily
@@ -81,10 +74,11 @@
 // PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT, and
 // PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT context info query
 // descriptors.
+// 12.22 Added new bool argument to piextQueueCreateWithNativeHandle to select
+// between standard and immediate commandlists.
 
 #define _PI_H_VERSION_MAJOR 12
-#define _PI_H_VERSION_MINOR 21
->>>>>>> b423e1db4077065cf06a160310776f1fcd7c3653
+#define _PI_H_VERSION_MINOR 22
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
