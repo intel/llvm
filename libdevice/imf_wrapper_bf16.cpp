@@ -332,7 +332,7 @@ unsigned short __imf_bfloat16_as_ushort(_iml_bf16_internal b) {
 }
 
 DEVICE_EXTERN_C_INLINE
-_iml_bf16_internal  __devicelib_imf_short_as_bfloat16(short);
+_iml_bf16_internal __devicelib_imf_short_as_bfloat16(short);
 
 DEVICE_EXTERN_C_INLINE
 _iml_bf16_internal __imf_short_as_bfloat16(short x) {
@@ -340,7 +340,7 @@ _iml_bf16_internal __imf_short_as_bfloat16(short x) {
 }
 
 DEVICE_EXTERN_C_INLINE
-_iml_bf16_internal  __devicelib_imf_ushort_as_bfloat16(unsigned short);
+_iml_bf16_internal __devicelib_imf_ushort_as_bfloat16(unsigned short);
 
 DEVICE_EXTERN_C_INLINE
 _iml_bf16_internal __imf_ushort_as_bfloat16(unsigned short x) {
