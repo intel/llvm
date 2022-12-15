@@ -6,10 +6,13 @@
 using namespace sycl;
 
 static bool InOrderFlagSeen = false;
-pi_result piQueueCreateRedefineBefore(pi_context context, pi_device device,
-                                      pi_queue_properties properties,
-                                      pi_queue *queue) {
-  InOrderFlagSeen = !(properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE);
+pi_result piextQueueCreateRedefineBefore(pi_context context, pi_device device,
+                                         pi_queue_properties *properties,
+                                         pi_queue *queue) {
+  EXPECT_TRUE(properties != nullptr);
+  EXPECT_TRUE(properties[0] == PI_QUEUE_FLAGS);
+  InOrderFlagSeen =
+      !(properties[1] & PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE);
   return PI_SUCCESS;
 }
 
@@ -17,8 +20,8 @@ TEST(InOrderQueue, CheckFlagIsPassed) {
   unittest::PiMock Mock;
   platform Plt = Mock.getPlatform();
 
-  Mock.redefineBefore<detail::PiApiKind::piQueueCreate>(
-      piQueueCreateRedefineBefore);
+  Mock.redefineBefore<detail::PiApiKind::piextQueueCreate>(
+      piextQueueCreateRedefineBefore);
 
   EXPECT_FALSE(InOrderFlagSeen);
   queue q1{};

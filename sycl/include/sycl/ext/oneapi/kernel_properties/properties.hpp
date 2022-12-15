@@ -173,10 +173,9 @@ template <typename T, typename = void>
 struct HasKernelPropertiesGetMethod : std::false_type {};
 
 template <typename T>
-struct HasKernelPropertiesGetMethod<T,
-                                    std::void_t<decltype(std::declval<T>().get(
-                                        std::declval<properties_tag>()))>>
-    : std::true_type {
+struct HasKernelPropertiesGetMethod<
+    T, sycl::detail::void_t<decltype(std::declval<T>().get(
+           std::declval<properties_tag>()))>> : std::true_type {
   using properties_t =
       decltype(std::declval<T>().get(std::declval<properties_tag>()));
 };

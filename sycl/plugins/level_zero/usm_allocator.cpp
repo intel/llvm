@@ -592,8 +592,8 @@ std::ostream &operator<<(std::ostream &Os, const Slab &Slab) {
 Slab::Slab(Bucket &Bkt)
     : // In case bucket size is not a multiple of SlabMinSize, we would have
       // some padding at the end of the slab.
-      Chunks(Bkt.SlabMinSize() / Bkt.getSize()), NumAllocated{0},
-      bucket(Bkt), SlabListIter{}, FirstFreeChunkIdx{0} {
+      Chunks(Bkt.SlabMinSize() / Bkt.getSize()), NumAllocated{0}, bucket(Bkt),
+      SlabListIter{}, FirstFreeChunkIdx{0} {
   auto SlabSize = Bkt.SlabAllocSize();
   MemPtr = Bkt.getMemHandle().allocate(SlabSize);
   regSlab(*this);
@@ -1106,12 +1106,16 @@ USMAllocContext::~USMAllocContext() {
     MemType MT = pImpl->getMemHandle().getMemType();
     pImpl->printStats(TitlePrinted, HighBucketSize, HighPeakSlabsInUse, MT);
     if (TitlePrinted) {
-      std::cout << "Current Pool Size " << USMSettings.CurPoolSize << std::endl;
-      const char *Label = USMSettings.MemTypeNames[MT];
-      std::cout << "Suggested Setting: SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=;"
-                << std::string(1, tolower(*Label)) << std::string(Label + 1)
-                << ":" << HighBucketSize << "," << HighPeakSlabsInUse << ",64K"
-                << std::endl;
+      try { // cannot throw in destructor
+        std::cout << "Current Pool Size " << USMSettings.CurPoolSize
+                  << std::endl;
+        const char *Label = USMSettings.MemTypeNames[MT];
+        std::cout << "Suggested Setting: SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=;"
+                  << std::string(1, tolower(*Label)) << std::string(Label + 1)
+                  << ":" << HighBucketSize << "," << HighPeakSlabsInUse
+                  << ",64K" << std::endl;
+      } catch (...) { // ignore exceptions
+      }
     }
   }
 }

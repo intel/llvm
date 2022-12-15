@@ -32,7 +32,7 @@ void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event,
     return;
 
   EnqueueResultT Res;
-  bool Enqueued = enqueueCommand(Cmd, Res, ToCleanUp, BLOCKING);
+  bool Enqueued = enqueueCommand(Cmd, Res, ToCleanUp, Cmd, BLOCKING);
   if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
     // TODO: Reschedule commands.
     throw runtime_error("Enqueue process failed.", PI_ERROR_INVALID_OPERATION);
@@ -46,11 +46,32 @@ void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event,
     GraphReadLock.lock();
 }
 
+bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
+                                                  EnqueueResultT &EnqueueResult,
+                                                  Command *RootCommand,
+                                                  BlockingT Blocking) {
+  if (Cmd == RootCommand || Blocking)
+    return true;
+  {
+    std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
+    if (Cmd->isBlocking()) {
+      const EventImplPtr &RootCmdEvent = RootCommand->getEvent();
+      Cmd->addBlockedUserUnique(RootCmdEvent);
+      EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
+      return false;
+    }
+  }
+  return true;
+}
+
 bool Scheduler::GraphProcessor::enqueueCommand(
     Command *Cmd, EnqueueResultT &EnqueueResult,
-    std::vector<Command *> &ToCleanUp, BlockingT Blocking) {
-  if (!Cmd || Cmd->isSuccessfullyEnqueued())
+    std::vector<Command *> &ToCleanUp, Command *RootCommand,
+    BlockingT Blocking) {
+  if (!Cmd)
     return true;
+  if (Cmd->isSuccessfullyEnqueued())
+    return handleBlockingCmd(Cmd, EnqueueResult, RootCommand, Blocking);
 
   // Exit early if the command is blocked and the enqueue type is non-blocking
   if (Cmd->isEnqueueBlocked() && !Blocking) {
@@ -62,7 +83,8 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // first and exit immediately if any of the commands cannot be enqueued.
   for (const EventImplPtr &Event : Cmd->getPreparedDepsEvents()) {
     if (Command *DepCmd = static_cast<Command *>(Event->getCommand()))
-      if (!enqueueCommand(DepCmd, EnqueueResult, ToCleanUp, Blocking))
+      if (!enqueueCommand(DepCmd, EnqueueResult, ToCleanUp, RootCommand,
+                          Blocking))
         return false;
   }
 
@@ -74,7 +96,8 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // completion stage and eliminate this event waiting in enqueue.
   for (const EventImplPtr &Event : Cmd->getPreparedHostDepsEvents()) {
     if (Command *DepCmd = static_cast<Command *>(Event->getCommand()))
-      if (!enqueueCommand(DepCmd, EnqueueResult, ToCleanUp, Blocking))
+      if (!enqueueCommand(DepCmd, EnqueueResult, ToCleanUp, RootCommand,
+                          Blocking))
         return false;
   }
 
@@ -91,7 +114,10 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // on completion of C and starts cleanup process. This thread is still in the
   // middle of enqueue of B. The other thread modifies dependency list of A by
   // removing C out of it. Iterators become invalid.
-  return Cmd->enqueue(EnqueueResult, Blocking, ToCleanUp);
+  bool Result = Cmd->enqueue(EnqueueResult, Blocking, ToCleanUp);
+  if (Result)
+    Result = handleBlockingCmd(Cmd, EnqueueResult, RootCommand, Blocking);
+  return Result;
 }
 
 } // namespace detail

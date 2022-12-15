@@ -243,6 +243,9 @@ public:
   /// state.
   bool isInitialized() const noexcept { return MIsInitialized; }
 
+  /// Checks if this event is complete.
+  ///
+  /// \return true if this event is complete.
   bool isCompleted();
 
   void attachEventToComplete(const EventImplPtr &Event) {
