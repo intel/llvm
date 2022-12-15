@@ -433,7 +433,7 @@ public:
 unsigned ScopedCallGraph::Node::InstanceN = 0;
 #endif
 
-using Func2IntMap = DenseMap<const Function *, int>;
+using Func2ScopeMap = DenseMap<const Function *, const ScopedCallGraph::ScopeNode*>;
 using SLMKernelUsageMap = DenseMap<
     std::pair<const ScopedCallGraph::Node *, const ScopedCallGraph::FuncNode *>,
     int>;
@@ -447,7 +447,7 @@ using Node2IntMap = DenseMap<const ScopedCallGraph::ScopeNode *, int>;
 // constant SLM offset.
 int findMaxSLMUsageAlongAllPaths(const ScopedCallGraph::Node *Cur,
                                  const ScopedCallGraph::FuncNode *Kernel,
-                                 Func2IntMap &Kernel2MaxSLM,
+                                 Func2ScopeMap &Kernel2MaxSLM,
                                  SLMKernelUsageMap &Results) {
 
   // No protection from endless recursion in the algorithm, as recursion
@@ -478,12 +478,18 @@ int findMaxSLMUsageAlongAllPaths(const ScopedCallGraph::Node *Cur,
   // return -1.
   int Res = MaxSLMUse < 0 ? MaxSLMUse : SLMUseF + MaxSLMUse;
   Results[{Cur, Kernel}] = Res;
-  auto I = Kernel2MaxSLM.find(Kernel->getFunction());
-  assert(I != Kernel2MaxSLM.end());
 
-  // Update per-kernel maximum SLM usage.
-  if (I->second < Res) {
-    I->second = Res;
+  if (auto* CurScope = dyn_cast<ScopedCallGraph::ScopeNode>(Cur)) {
+    // Update per-kernel maximum SLM usage.
+    auto E = Kernel2MaxSLM.insert(std::make_pair(Kernel->getFunction(), CurScope));
+
+    if (!E.second) {
+      // insertion did not happen - there already was an entry, see if it needs
+      // to be updated
+      if (getSLMUsage(E.first->second->getStart()) < Res) {
+        E.first->second = CurScope;
+      }
+    }
   }
   return Res;
 }
@@ -502,8 +508,9 @@ size_t lowerSLMReservationCalls(Module &M) {
   // mapped to maximum prior SLM usage on any CG (reverse) path leading to the
   // kernel.
   SLMKernelUsageMap Results;
-  // Maps a kernel to the maximum SLM size it can potentially use.
-  Func2IntMap Kernel2MaxSLM;
+  // Maps a kernel to a scope node reachable from the kernel and which has
+  // maximum SLM offset.
+  Func2ScopeMap Kernel2MaxSLM;
   // Maps a scope node to maximum prior SLM usage on any (reverse) path leading
   // to any kernel.
   Node2IntMap Scope2MaxSLM;
@@ -513,7 +520,6 @@ size_t lowerSLMReservationCalls(Module &M) {
   // function node and select the one with maximal value of SLM allocated along
   // the path - MAX_SLM.
   for (const Function *Kernel : SCG.getKernels()) {
-    Kernel2MaxSLM[Kernel] = 0;
     const ScopedCallGraph::FuncNode *KernelNode = SCG.getNode(Kernel).get();
 
     for (const auto &ScopeNodeSPtr : SCG.getScopes()) {
@@ -584,7 +590,10 @@ size_t lowerSLMReservationCalls(Module &M) {
   }
   // - now set each kernel's SLMSize metadata to the pre-calculated value
   for (auto &E : Kernel2MaxSLM) {
-    int MaxSlm = E.second;
+    const ScopedCallGraph::ScopeNode* Scope = E.second;
+    auto I = Scope2MaxSLM.find(Scope);
+    assert(I != Scope2MaxSLM.end());
+    int MaxSlm = I->second;
     llvm::Value *MaxSlmV =
         llvm::ConstantInt::get(Type::getInt32Ty(M.getContext()), MaxSlm);
     const Function *Kernel = E.first;
