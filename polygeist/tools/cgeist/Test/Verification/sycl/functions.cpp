@@ -76,6 +76,21 @@ SYCL_EXTERNAL void accessor_subscript_operator_2(sycl::accessor<sycl::cl_int, 1>
   keep(acc[index]);
 }
 
+// CHECK-MLIR-LABEL: func.func @_Z29accessor_subscript_operator_3N4sycl3_V18accessorI6StructLi1ELNS0_6access4modeE1026ELNS3_6targetE2014ELNS3_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEEm(
+// CHECK-MLIR:          %{{.*}}: memref<?x!sycl_accessor_1_21llvm2Estruct3C28i32293E_rw_gb> {llvm.align = 8 : i64, llvm.byval = !sycl_accessor_1_21llvm2Estruct3C28i32293E_rw_gb, llvm.noundef}, 
+// CHECK-MLIR-SAME:     %{{.*}}: i64 {llvm.noundef})
+// CHECK-MLIR: %{{.*}} = sycl.accessor.subscript %{{.*}}[%{{.*}}] {BaseType = memref<?x!sycl_accessor_1_21llvm2Estruct3C28i32293E_rw_gb, 4>, FunctionName = @"operator[]", MangledFunctionName = @_ZNK4sycl3_V18accessorI6StructLi1ELNS0_6access4modeE1026ELNS3_6targetE2014ELNS3_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi1EvEERS2_NS0_2idILi1EEE, TypeName = @accessor} : (!sycl_accessor_1_21llvm2Estruct3C28i32293E_rw_gb, memref<?x!sycl_id_1_>) -> !llvm.ptr<struct<(i32)>, 4> 
+
+// CHECK-LLVM-LABEL: define spir_func void @_Z29accessor_subscript_operator_3N4sycl3_V18accessorI6StructLi1ELNS0_6access4modeE1026ELNS3_6targetE2014ELNS3_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEEm(
+// CHECK-LLVM:           %"class.sycl::_V1::accessor.1.1"* noundef byval(%"class.sycl::_V1::accessor.1.1") align 8 %0, i64 noundef %1) #[[FUNCATTRS]] 
+// CHECK-LLVM:  %{{.*}} = call spir_func { i32 } addrspace(4)* @_ZNK4sycl3_V18accessorI6StructLi1ELNS0_6access4modeE1026ELNS3_6targetE2014ELNS3_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi1EvEERS2_NS0_2idILi1EEE(%"class.sycl::_V1::accessor.1.1" addrspace(4)* %{{.*}}, %"class.sycl::_V1::id.1"* %{{.*}})
+typedef struct {
+  unsigned field;
+} Struct;
+SYCL_EXTERNAL void accessor_subscript_operator_3(sycl::accessor<Struct, 1> acc, size_t index) {
+  keep(acc[index].field);
+}
+
 // CHECK-MLIR-LABEL: func.func @_Z11range_get_0N4sycl3_V15rangeILi2EEEi(
 // CHECK-MLIR:           %{{.*}}: memref<?x!sycl_range_2_> {llvm.align = 8 : i64, llvm.byval = !sycl_range_2_, llvm.noundef}, 
 // CHECK-MLIR-SAME:      %{{.*}}: i32 {llvm.noundef})
