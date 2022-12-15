@@ -205,7 +205,6 @@ _iml_bf16_internal __devicelib_imf_ull2bfloat16_rd(unsigned long long x) {
   return __iml_integral2bfloat16_u<unsigned long long>(x, __IML_RTN);
 }
 
-
 DEVICE_EXTERN_C_INLINE
 _iml_bf16_internal __devicelib_imf_ull2bfloat16_rn(unsigned long long x) {
   return __iml_integral2bfloat16_u<unsigned long long>(x, __IML_RTE);
