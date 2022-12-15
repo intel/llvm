@@ -268,8 +268,7 @@ protected:
   bool MIsInitialized = true;
   bool MIsContextInitialized = false;
   RT::PiEvent MEvent = nullptr;
-  uint64_t MSubmitTime = 0; // Only used for level-zero plugin, submission time
-                            // of associated MCommand
+  uint64_t MSubmitTime = 0; // Stores submission time of command associated with event
   ContextImplPtr MContext;
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;

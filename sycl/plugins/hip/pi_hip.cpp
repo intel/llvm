@@ -5174,12 +5174,12 @@ pi_result hip_piTearDown(void *PluginParameter) {
 
 pi_result hip_piGetDeviceAndHostTimer(pi_device device, uint64_t *deviceTime,
                                       uint64_t *hostTime) {
-  hipEvent_t event;
+  _pi_event::native_type event;
+  using namespace std::chrono;
   if (DeviceTime) {
     PI_CHECK_ERROR(hipEventCreateWithFlags(&event, hipEventDefault));
     PI_CHECK_ERROR(hipEventRecord(event));
   }
-  using namespace std::chrono;
   if (HostTime) {
     *HostTime =
         duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())

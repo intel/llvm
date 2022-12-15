@@ -93,16 +93,6 @@ event handler::finalize() {
     return MLastEvent;
   MIsFinalized = true;
 
-  auto setSubmissionTime = [&](detail::EventImplPtr event) {
-    if (!MQueue->is_host() && MQueue->MIsProfilingEnabled) {
-      auto plugin = MQueue->getPlugin();
-      uint64_t submitTime = 0;
-      plugin.call<detail::PiApiKind::piGetDeviceAndHostTimer>(
-          MQueue->getDeviceImplPtr()->getHandleRef(), &submitTime, nullptr);
-      event->setSubmissionTime(submitTime);
-    }
-  };
-
   const auto &type = getType();
   if (type == detail::CG::Kernel) {
     // If there were uses of set_specialization_constant build the kernel_bundle
@@ -219,7 +209,7 @@ event handler::finalize() {
         else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
           NewEvent->setComplete();
 
-        setSubmissionTime(NewEvent);
+        NewEvent->setSubmissionTime(std::move(MQueue->getDeviceImplPtr()->getTime()));
         MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
       }
       return MLastEvent;
@@ -323,7 +313,7 @@ event handler::finalize() {
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
       std::move(CommandGroup), std::move(MQueue));
 
-  setSubmissionTime(Event);
+  Event->setSubmissionTime(MQueue->getDeviceImplPtr()->getTime());
   MLastEvent = detail::createSyclObjFromImpl<event>(Event);
   return MLastEvent;
 }

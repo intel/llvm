@@ -36,7 +36,7 @@ device_impl::device_impl(RT::PiDevice Device, const plugin &Plugin)
 device_impl::device_impl(pi_native_handle InteropDeviceHandle,
                          RT::PiDevice Device, PlatformImplPtr Platform,
                          const plugin &Plugin)
-    : MDevice(Device), MIsHostDevice(false) {
+    : MDevice(Device), MIsHostDevice(false), deviceTimePair(std::make_pair(0,0)) {
 
   bool InteroperabilityConstructor = false;
   if (Device == nullptr) {
@@ -433,6 +433,31 @@ std::string device_impl::getDeviceName() const {
                  [this]() { MDeviceName = get_info<info::device::name>(); });
 
   return MDeviceName;
+}
+
+uint64_t device_impl::getTime(){
+  static uint64_t timeTillRefresh= 100e9;
+  uint64_t hostTime;
+  if(MIsHostDevice){
+    using namespace std::chrono;
+    return duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
+            .count();
+  }
+  auto plugin = getPlugin();
+  RT::PiResult result = plugin.call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(MDevice, nullptr, &hostTime);
+  plugin.checkPiResult(result == PI_ERROR_INVALID_OPERATION ? PI_SUCCESS : result);
+
+  if(result == PI_ERROR_INVALID_OPERATION){
+    return 0;
+  }
+  uint64_t diff= hostTime - deviceTimePair.second;
+  
+  if( diff > timeTillRefresh){
+    plugin.call<detail::PiApiKind::piGetDeviceAndHostTimer>(MDevice, &deviceTimePair.first, &deviceTimePair.second);
+    diff=0;
+  }
+
+  return deviceTimePair.first + diff;
 }
 
 } // namespace detail

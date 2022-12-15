@@ -1553,6 +1553,7 @@ pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
   cl_platform_id platform;
   cl_device_id deviceID = cast<cl_device_id>(Device);
 
+  //TODO: Cache OpenCL version for each device and platform
   auto ret_err = clGetDeviceInfo(deviceID, CL_DEVICE_PLATFORM,
                                  sizeof(cl_platform_id), &platform, nullptr);
   if (ret_err != CL_SUCCESS) {
@@ -1571,12 +1572,13 @@ pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
     return PI_ERROR_INVALID_OPERATION;
   }
 
-  if (HostTime) {
-    if (DeviceTime) {
-      clGetDeviceAndHostTimer(deviceID, DeviceTime, HostTime);
-    } else {
+  uint64_t dummy;
+
+  if (DeviceTime) {
+      clGetDeviceAndHostTimer(deviceID, DeviceTime, HostTime == nullptr ? &dummy: HostTime);
+      
+  }else if (HostTime){
       clGetHostTimer(deviceID, HostTime);
-    }
   }
 
   return PI_SUCCESS;
