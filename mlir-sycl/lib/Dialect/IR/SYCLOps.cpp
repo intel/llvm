@@ -99,25 +99,30 @@ mlir::LogicalResult mlir::sycl::SYCLAccessorSubscriptOp::verify() {
 
   const auto verifyResultType = [&]() -> mlir::LogicalResult {
     const auto ResultType = getResult().getType();
-    const auto MT = ResultType.dyn_cast<mlir::MemRefType>();
-    const auto PT = ResultType.dyn_cast<LLVM::LLVMPointerType>();
 
-    if (!MT && !PT)
-      return emitOpError("Expecting memref/pointer return type. Got ")
-             << ResultType;
+    return TypeSwitch<mlir::Type, mlir::LogicalResult>(ResultType)
+        .Case<mlir::MemRefType,
+              LLVM::LLVMPointerType>([&](auto Ty) -> mlir::LogicalResult {
+          const mlir::Type ElemType = Ty.getElementType();
+          if (ElemType != AccessorTy.getType())
+            return emitOpError(
+                       "Expecting a reference to this accessor's value type (")
+                   << AccessorTy.getType() << "). Got " << Ty;
 
-    const auto ElemType = MT ? MT.getElementType() : PT.getElementType();
-    if (ElemType != AccessorTy.getType()) {
-      return emitOpError(
-                 "Expecting a reference to this accessor's value type (")
-             << AccessorTy.getType() << "). Got " << ResultType;
-    }
+          if constexpr (std::is_same<decltype(Ty),
+                                     LLVM::LLVMPointerType>::value) {
+            if (!ElemType.isa<LLVM::LLVMStructType>())
+              return emitOpError(
+                         "Expecting pointer to struct return type. Got ")
+                     << ResultType;
+          }
 
-    if (PT && !ElemType.isa<LLVM::LLVMStructType>())
-      return emitOpError("Expecting pointer to struct return type. Got ")
-             << ResultType;
-
-    return success();
+          return success();
+        })
+        .Default([&](auto Ty) {
+          return emitOpError("Expecting memref/pointer return type. Got ")
+                 << Ty;
+        });
   };
 
   return mlir::TypeSwitch<mlir::Type, mlir::LogicalResult>(
