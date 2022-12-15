@@ -2763,12 +2763,12 @@ ValueCategory MLIRScanner::EmitPointerArithmetic(const BinOpInfo &Info) {
   const auto *Expr = cast<BinaryOperator>(Info.getExpr());
 
   ValueCategory Pointer = Info.getLHS();
-  auto *PointerOperand = Expr->getLHS();
+  clang::Expr *PointerOperand = Expr->getLHS();
   ValueCategory Index = Info.getRHS();
-  auto *IndexOperand = Expr->getRHS();
+  clang::Expr *IndexOperand = Expr->getRHS();
 
-  const auto Opcode = Info.getOpcode();
-  const auto IsSubtraction =
+  const BinaryOperator::Opcode Opcode = Info.getOpcode();
+  const bool IsSubtraction =
       Opcode == clang::BO_Sub || Opcode == clang::BO_SubAssign;
 
   assert((!IsSubtraction ||
@@ -2781,10 +2781,10 @@ ValueCategory MLIRScanner::EmitPointerArithmetic(const BinOpInfo &Info) {
   }
 
   assert(Index.val.getType().isa<IntegerType>() && "Expecting integer type");
+  assert(mlirclang::isPointerOrMemRefTy(Pointer.val.getType()) &&
+         "Expecting pointer type");
 
   mlir::Type PtrTy = Pointer.val.getType();
-  assert(mlirclang::isPointerOrMemRefTy(PtrTy) && "Expecting pointer type");
-
   clang::CodeGen::CodeGenModule &CGM = Glob.getCGM();
 
   // Some versions of glibc and gcc use idioms (particularly in their malloc
@@ -2805,6 +2805,20 @@ ValueCategory MLIRScanner::EmitPointerArithmetic(const BinOpInfo &Info) {
   //   The index is not pointer-sized.
   //   The pointer type is not byte-sized.
   //
+  if (BinaryOperator::isNullPointerArithmeticExtension(
+          CGM.getContext(), Opcode, PointerOperand, IndexOperand)) {
+    if (auto MT = PtrTy.dyn_cast<mlir::MemRefType>()) {
+      auto Val = Builder.create<polygeist::Memref2PointerOp>(
+          Loc,
+          LLVM::LLVMPointerType::get(MT.getElementType(),
+                                     MT.getMemorySpaceAsInt()),
+          Pointer.val);
+      PtrTy = Val.getType();
+    }
+
+    return Index.IntToPtr(Builder, Loc, PtrTy);
+  }
+
   const llvm::DataLayout &DL = CGM.getDataLayout();
   const unsigned IndexTypeSize = DL.getIndexTypeSizeInBits(
       CGM.getTypes().ConvertType(PointerOperand->getType()));
