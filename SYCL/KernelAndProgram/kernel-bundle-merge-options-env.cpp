@@ -8,24 +8,22 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED: ze_debug-1,ze_debug4
 
-// Temporary while the failure is being investigated.
-// UNSUPPORTED: windows
 #include "kernel-bundle-merge-options.hpp"
 
 // CHECK: piProgramBuild
 // CHECK-NEXT: <unknown>
 // CHECK-NEXT: <unknown>
 // CHECK-NEXT: <unknown>
-// CHECK-NEXT: <const char *>:{{.*}}-DENV_COMPILE_OPTS{{.*}}-vc-codegen
+// CHECK: <const char *>:{{[^bar]*}}-DENV_COMPILE_OPTS{{[^bar]*}}-DENV_LINK_OPTS{{[^bar]*}}
 
 // CHECK: piProgramCompile(
 // CHECK-NEXT: <unknown>
 // CHECK-NEXT: <unknown>
 // CHECK-NEXT: <unknown>
-// CHECK-NEXT: <const char *>: -DENV_COMPILE_OPTS -vc-codegen
+// CHECK: <const char *>:{{[^bar]*}}-DENV_COMPILE_OPTS{{[^bar]*}}
 
 // CHECK: piProgramLink(
 // CHECK-NEXT: <unknown>
 // CHECK-NEXT: <unknown>
 // CHECK-NEXT: <unknown>
-// CHECK-NEXT: <const char *>: -DENV_LINK_OPTS
+// CHECK: <const char *>:{{[^bar]*}}-DENV_LINK_OPTS{{[^bar]*}}
