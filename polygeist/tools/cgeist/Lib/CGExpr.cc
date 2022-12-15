@@ -681,6 +681,9 @@ ValueCategory MLIRScanner::VisitMaterializeTemporaryExpr(
   auto Op =
       createAllocOp(Glob.getTypes().getMLIRType(Expr->getSubExpr()->getType()),
                     nullptr, 0, /*isArray*/ IsArray, /*LLVMABI*/ LLVMABI);
+  unsigned int AS = Glob.getCGM().getContext().getTargetAddressSpace(
+      QualType(Expr->getSubExpr()->getType()).getAddressSpace());
+  Op = castToMemSpace(Op, AS);
   ValueCategory(Op, /*isRefererence*/ true).store(Builder, V, IsArray);
   return ValueCategory(Op, /*isRefererence*/ true);
 }

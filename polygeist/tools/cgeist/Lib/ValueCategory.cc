@@ -44,9 +44,15 @@ ValueCategory::ValueCategory(mlir::Value val, bool isReference)
 
 ValueCategory::ValueCategory(mlir::Value Val, mlir::Value Index)
     : val{Val}, isReference{true}, Index{Index} {
-  assert(val.getType().isa<MemRefType>() &&
-         val.getType().cast<MemRefType>().getElementType().isa<VectorType>() &&
-         "Expecting memref of vector");
+  assert(
+      ((val.getType().isa<MemRefType>() &&
+        val.getType().cast<MemRefType>().getElementType().isa<VectorType>()) ||
+       (val.getType().isa<LLVM::LLVMPointerType>() &&
+        val.getType()
+            .cast<LLVM::LLVMPointerType>()
+            .getElementType()
+            .isa<VectorType>())) &&
+      "Expecting memref/pointer of vector");
   assert(Index.getType().isa<IntegerType>() && "Expecting integer index");
 }
 
