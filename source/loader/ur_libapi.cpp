@@ -1890,9 +1890,8 @@ urQueueGetInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
-///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `0xf < props`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pProps`
 ///         + `NULL == phQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
@@ -1904,8 +1903,11 @@ ur_result_t UR_APICALL
 urQueueCreate(
     ur_context_handle_t hContext,                   ///< [in] handle of the context object
     ur_device_handle_t hDevice,                     ///< [in] handle of the device object
-    ur_queue_flags_t props,                         ///< [in] initialization properties.
-                                                    ///< must be 0 (default) or a combination of ::ur_queue_flags_t.
+    ur_queue_property_value_t* pProps,              ///< [in] specifies a list of queue properties and their corresponding values.
+                                                    ///< Each property name is immediately followed by the corresponding
+                                                    ///< desired value.
+                                                    ///< The list is terminated with a 0. 
+                                                    ///< If a property value is not specified, then its default value will be used.
     ur_queue_handle_t* phQueue                      ///< [out] pointer to handle of queue object created
     )
 {
@@ -1913,7 +1915,7 @@ urQueueCreate(
     if( nullptr == pfnCreate )
         return UR_RESULT_ERROR_UNINITIALIZED;
 
-    return pfnCreate( hContext, hDevice, props, phQueue );
+    return pfnCreate( hContext, hDevice, pProps, phQueue );
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2553,7 +2555,7 @@ urDeviceGet(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_BFLOAT16 < infoType`
+///         + `::UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES < infoType`
 ur_result_t UR_APICALL
 urDeviceGetInfo(
     ur_device_handle_t hDevice,                     ///< [in] handle of the device instance
