@@ -245,6 +245,12 @@ class ur_context_info_v(IntEnum):
     NUM_DEVICES = 1                                 ## [uint32_t] The number of the devices in the context
     DEVICES = 2                                     ## [::ur_context_handle_t...] The array of the device handles in the
                                                     ## context
+    USM_MEMCPY2D_SUPPORT = 3                        ## [bool] to indicate if the ::urEnqueueUSMMemcpy2D entrypoint is
+                                                    ## supported.
+    USM_FILL2D_SUPPORT = 4                          ## [bool] to indicate if the ::urEnqueueUSMFill2D entrypoint is
+                                                    ## supported.
+    USM_MEMSET2D_SUPPORT = 5                        ## [bool] to indicate if the ::urEnqueueUSMMemset2D entrypoint is
+                                                    ## supported.
 
 class ur_context_info_t(c_int):
     def __str__(self):
@@ -1713,6 +1719,27 @@ if __use_win_types:
 else:
     _urEnqueueUSMMemAdvice_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, ur_mem_advice_t, POINTER(ur_event_handle_t) )
 
+###############################################################################
+## @brief Function-pointer for urEnqueueUSMFill2D
+if __use_win_types:
+    _urEnqueueUSMFill2D_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, c_size_t, c_void_p, c_size_t, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+else:
+    _urEnqueueUSMFill2D_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, c_size_t, c_void_p, c_size_t, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+
+###############################################################################
+## @brief Function-pointer for urEnqueueUSMMemset2D
+if __use_win_types:
+    _urEnqueueUSMMemset2D_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, c_int, c_size_t, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+else:
+    _urEnqueueUSMMemset2D_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_size_t, c_int, c_size_t, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+
+###############################################################################
+## @brief Function-pointer for urEnqueueUSMMemcpy2D
+if __use_win_types:
+    _urEnqueueUSMMemcpy2D_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, c_bool, c_void_p, c_size_t, c_void_p, c_size_t, c_size_t, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+else:
+    _urEnqueueUSMMemcpy2D_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_bool, c_void_p, c_size_t, c_void_p, c_size_t, c_size_t, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+
 
 ###############################################################################
 ## @brief Table of Enqueue functions pointers
@@ -1736,7 +1763,10 @@ class ur_enqueue_dditable_t(Structure):
         ("pfnUSMMemset", c_void_p),                                     ## _urEnqueueUSMMemset_t
         ("pfnUSMMemcpy", c_void_p),                                     ## _urEnqueueUSMMemcpy_t
         ("pfnUSMPrefetch", c_void_p),                                   ## _urEnqueueUSMPrefetch_t
-        ("pfnUSMMemAdvice", c_void_p)                                   ## _urEnqueueUSMMemAdvice_t
+        ("pfnUSMMemAdvice", c_void_p),                                  ## _urEnqueueUSMMemAdvice_t
+        ("pfnUSMFill2D", c_void_p),                                     ## _urEnqueueUSMFill2D_t
+        ("pfnUSMMemset2D", c_void_p),                                   ## _urEnqueueUSMMemset2D_t
+        ("pfnUSMMemcpy2D", c_void_p)                                    ## _urEnqueueUSMMemcpy2D_t
     ]
 
 ###############################################################################
@@ -2149,6 +2179,9 @@ class UR_DDI:
         self.urEnqueueUSMMemcpy = _urEnqueueUSMMemcpy_t(self.__dditable.Enqueue.pfnUSMMemcpy)
         self.urEnqueueUSMPrefetch = _urEnqueueUSMPrefetch_t(self.__dditable.Enqueue.pfnUSMPrefetch)
         self.urEnqueueUSMMemAdvice = _urEnqueueUSMMemAdvice_t(self.__dditable.Enqueue.pfnUSMMemAdvice)
+        self.urEnqueueUSMFill2D = _urEnqueueUSMFill2D_t(self.__dditable.Enqueue.pfnUSMFill2D)
+        self.urEnqueueUSMMemset2D = _urEnqueueUSMMemset2D_t(self.__dditable.Enqueue.pfnUSMMemset2D)
+        self.urEnqueueUSMMemcpy2D = _urEnqueueUSMMemcpy2D_t(self.__dditable.Enqueue.pfnUSMMemcpy2D)
 
         # call driver to get function pointers
         USM = ur_usm_dditable_t()

@@ -341,6 +341,12 @@ typedef enum ur_context_info_t
     UR_CONTEXT_INFO_NUM_DEVICES = 1,                ///< [uint32_t] The number of the devices in the context
     UR_CONTEXT_INFO_DEVICES = 2,                    ///< [::ur_context_handle_t...] The array of the device handles in the
                                                     ///< context
+    UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT = 3,       ///< [bool] to indicate if the ::urEnqueueUSMMemcpy2D entrypoint is
+                                                    ///< supported.
+    UR_CONTEXT_INFO_USM_FILL2D_SUPPORT = 4,         ///< [bool] to indicate if the ::urEnqueueUSMFill2D entrypoint is
+                                                    ///< supported.
+    UR_CONTEXT_INFO_USM_MEMSET2D_SUPPORT = 5,       ///< [bool] to indicate if the ::urEnqueueUSMMemset2D entrypoint is
+                                                    ///< supported.
     UR_CONTEXT_INFO_FORCE_UINT32 = 0x7fffffff
 
 } ur_context_info_t;
@@ -386,7 +392,7 @@ urContextRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_CONTEXT_INFO_DEVICES < ContextInfoType`
+///         + `::UR_CONTEXT_INFO_USM_MEMSET2D_SUPPORT < ContextInfoType`
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextGetInfo(
     ur_context_handle_t hContext,                   ///< [in] handle of the context
@@ -1354,6 +1360,98 @@ urEnqueueUSMMemAdvice(
                                                     ///< command instance.
                                                     ///< Input can not be a nullptr.
                                                     ///< TODO: change to allow nullptr. 
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue a command to fill 2D USM memory.
+/// 
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pMem`
+///         + `NULL == pPattern`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+UR_APIEXPORT ur_result_t UR_APICALL
+urEnqueueUSMFill2D(
+    ur_queue_handle_t hQueue,                       ///< [in] handle of the queue to submit to.
+    void* pMem,                                     ///< [in] pointer to memory to be filled.
+    size_t pitch,                                   ///< [in] the total width of the destination memory including padding.
+    size_t patternSize,                             ///< [in] the size in bytes of the pattern.
+    const void* pPattern,                           ///< [in] pointer with the bytes of the pattern to set.
+    size_t width,                                   ///< [in] the width in bytes of each row to fill.
+    size_t height,                                  ///< [in] the height of the columns to fill.
+    uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                    ///< events that must be complete before the kernel execution.
+                                                    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+                                                    ///< event. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular kernel execution instance.
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue a command to set 2D USM memory.
+/// 
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pMem`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+UR_APIEXPORT ur_result_t UR_APICALL
+urEnqueueUSMMemset2D(
+    ur_queue_handle_t hQueue,                       ///< [in] handle of the queue to submit to.
+    void* pMem,                                     ///< [in] pointer to memory to be filled.
+    size_t pitch,                                   ///< [in] the total width of the destination memory including padding.
+    int value,                                      ///< [in] the value to fill into the region in pMem.
+    size_t width,                                   ///< [in] the width in bytes of each row to set.
+    size_t height,                                  ///< [in] the height of the columns to set.
+    uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                    ///< events that must be complete before the kernel execution.
+                                                    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+                                                    ///< event. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular kernel execution instance.
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue a command to copy 2D USM memory.
+/// 
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pDst`
+///         + `NULL == pSrc`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+UR_APIEXPORT ur_result_t UR_APICALL
+urEnqueueUSMMemcpy2D(
+    ur_queue_handle_t hQueue,                       ///< [in] handle of the queue to submit to.
+    bool blocking,                                  ///< [in] indicates if this operation should block the host.
+    void* pDst,                                     ///< [in] pointer to memory where data will be copied.
+    size_t dstPitch,                                ///< [in] the total width of the source memory including padding.
+    const void* pSrc,                               ///< [in] pointer to memory to be copied.
+    size_t srcPitch,                                ///< [in] the total width of the source memory including padding.
+    size_t width,                                   ///< [in] the width in bytes of each row to be copied.
+    size_t height,                                  ///< [in] the height of columns to be copied.
+    uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                    ///< events that must be complete before the kernel execution.
+                                                    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+                                                    ///< event. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular kernel execution instance.
     );
 
 #if !defined(__GNUC__)
@@ -6585,6 +6683,99 @@ typedef void (UR_APICALL *ur_pfnEnqueueUSMMemAdviceCb_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function parameters for urEnqueueUSMFill2D 
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_usm_fill2_d_params_t
+{
+    ur_queue_handle_t* phQueue;
+    void** ppMem;
+    size_t* ppitch;
+    size_t* ppatternSize;
+    const void** ppPattern;
+    size_t* pwidth;
+    size_t* pheight;
+    uint32_t* pnumEventsInWaitList;
+    const ur_event_handle_t** pphEventWaitList;
+    ur_event_handle_t** pphEvent;
+} ur_enqueue_usm_fill2_d_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function-pointer for urEnqueueUSMFill2D 
+/// @param[in] params Parameters passed to this instance
+/// @param[in] result Return value
+/// @param[in] pTracerUserData Per-Tracer user data
+/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
+typedef void (UR_APICALL *ur_pfnEnqueueUSMFill2DCb_t)(
+    ur_enqueue_usm_fill2_d_params_t* params,
+    ur_result_t result,
+    void* pTracerUserData,
+    void** ppTracerInstanceUserData
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function parameters for urEnqueueUSMMemset2D 
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_usm_memset2_d_params_t
+{
+    ur_queue_handle_t* phQueue;
+    void** ppMem;
+    size_t* ppitch;
+    int* pvalue;
+    size_t* pwidth;
+    size_t* pheight;
+    uint32_t* pnumEventsInWaitList;
+    const ur_event_handle_t** pphEventWaitList;
+    ur_event_handle_t** pphEvent;
+} ur_enqueue_usm_memset2_d_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function-pointer for urEnqueueUSMMemset2D 
+/// @param[in] params Parameters passed to this instance
+/// @param[in] result Return value
+/// @param[in] pTracerUserData Per-Tracer user data
+/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
+typedef void (UR_APICALL *ur_pfnEnqueueUSMMemset2DCb_t)(
+    ur_enqueue_usm_memset2_d_params_t* params,
+    ur_result_t result,
+    void* pTracerUserData,
+    void** ppTracerInstanceUserData
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function parameters for urEnqueueUSMMemcpy2D 
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_usm_memcpy2_d_params_t
+{
+    ur_queue_handle_t* phQueue;
+    bool* pblocking;
+    void** ppDst;
+    size_t* pdstPitch;
+    const void** ppSrc;
+    size_t* psrcPitch;
+    size_t* pwidth;
+    size_t* pheight;
+    uint32_t* pnumEventsInWaitList;
+    const ur_event_handle_t** pphEventWaitList;
+    ur_event_handle_t** pphEvent;
+} ur_enqueue_usm_memcpy2_d_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function-pointer for urEnqueueUSMMemcpy2D 
+/// @param[in] params Parameters passed to this instance
+/// @param[in] result Return value
+/// @param[in] pTracerUserData Per-Tracer user data
+/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
+typedef void (UR_APICALL *ur_pfnEnqueueUSMMemcpy2DCb_t)(
+    ur_enqueue_usm_memcpy2_d_params_t* params,
+    ur_result_t result,
+    void* pTracerUserData,
+    void** ppTracerInstanceUserData
+    );
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Enqueue callback functions pointers
 typedef struct ur_enqueue_callbacks_t
 {
@@ -6607,6 +6798,9 @@ typedef struct ur_enqueue_callbacks_t
     ur_pfnEnqueueUSMMemcpyCb_t                                      pfnUSMMemcpyCb;
     ur_pfnEnqueueUSMPrefetchCb_t                                    pfnUSMPrefetchCb;
     ur_pfnEnqueueUSMMemAdviceCb_t                                   pfnUSMMemAdviceCb;
+    ur_pfnEnqueueUSMFill2DCb_t                                      pfnUSMFill2DCb;
+    ur_pfnEnqueueUSMMemset2DCb_t                                    pfnUSMMemset2DCb;
+    ur_pfnEnqueueUSMMemcpy2DCb_t                                    pfnUSMMemcpy2DCb;
 } ur_enqueue_callbacks_t;
 
 ///////////////////////////////////////////////////////////////////////////////
