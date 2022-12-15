@@ -521,6 +521,9 @@ class ur_queue_flags_v(IntEnum):
     PROFILING_ENABLE = UR_BIT(1)                    ## Enable/disable profiling
     ON_DEVICE = UR_BIT(2)                           ## Is a device queue
     ON_DEVICE_DEFAULT = UR_BIT(3)                   ## Is the default queue for a device
+    DISCARD_EVENTS = UR_BIT(4)                      ## Events will be discarded
+    PRIORITY_LOW = UR_BIT(5)                        ## Low priority queue
+    PRIORITY_HIGH = UR_BIT(6)                       ## High priority queue
 
 class ur_queue_flags_t(c_int):
     def __str__(self):

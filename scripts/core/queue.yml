@@ -45,6 +45,15 @@ etors:
     - name: ON_DEVICE_DEFAULT
       value: "$X_BIT(3)"
       desc: "Is the default queue for a device"
+    - name: DISCARD_EVENTS
+      value: "$X_BIT(4)"
+      desc: "Events will be discarded"
+    - name: PRIORITY_LOW
+      value: "$X_BIT(5)"
+      desc: "Low priority queue"
+    - name: PRIORITY_HIGH
+      value: "$X_BIT(6)"
+      desc: "High priority queue"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Queue Properties"
