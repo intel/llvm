@@ -1065,7 +1065,9 @@ inline pi_result mock_piGetDeviceAndHostTimer(pi_device device,
   auto timeNanoseconds =
       duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
           .count();
-  *deviceTime = timeNanoseconds;
-  *hostTime = timeNanoseconds;
+  if(deviceTime){
+  *deviceTime = timeNanoseconds;}
+  if(hostTime){
+  *hostTime = timeNanoseconds;}
   return PI_SUCCESS;
 }

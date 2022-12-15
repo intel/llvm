@@ -1547,9 +1547,39 @@ pi_result piTearDown(void *PluginParameter) {
   return PI_SUCCESS;
 }
 
-pi_result piGetDeviceAndHostTimer(pi_device device, uint64_t *deviceTime,
-                                  uint64_t *hostTime) {
-  assert(0 && "Method not implemented");
+pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
+                                  uint64_t *HostTime) {
+  OCLV::OpenCLVersion devVer,platVer;
+  cl_platform_id platform;
+  cl_device_id deviceID= cast<cl_device_id>(Device);
+
+  auto ret_err = clGetDeviceInfo(deviceID, CL_DEVICE_PLATFORM,
+                            sizeof(cl_platform_id), &platform, nullptr);
+  if (ret_err != CL_SUCCESS){
+    return cast<pi_result>(ret_err);
+  }
+
+  ret_err= getDeviceVersion(deviceID, devVer);
+
+  if (ret_err != CL_SUCCESS){
+    return cast<pi_result>(ret_err);
+    }
+
+  ret_err = getPlatformVersion(platform,platVer);
+
+  if(platVer < OCLV::V2_1 && devVer < OCLV::V2_1){
+    return PI_ERROR_INVALID_OPERATION;
+  }
+
+  if(HostTime){
+    if(DeviceTime){
+      clGetDeviceAndHostTimer(deviceID,DeviceTime,HostTime);
+    }else {
+      clGetHostTimer(deviceID,HostTime);
+    }
+  }
+
+  return PI_SUCCESS;
 }
 
 const char SupportedVersion[] = _PI_OPENCL_PLUGIN_VERSION_STRING;

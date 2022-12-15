@@ -94,14 +94,12 @@ event handler::finalize() {
   MIsFinalized = true;
 
   auto setSubmissionTime = [&](detail::EventImplPtr event) {
-    if (!MQueue->is_host()) {
+    if (!MQueue->is_host() && MQueue->MIsProfilingEnabled) {
       auto plugin = MQueue->getPlugin();
-      if (plugin.getBackend() == backend::ext_oneapi_level_zero) {
-        uint64_t submitTime = 0;
-        plugin.call<detail::PiApiKind::piGetDeviceAndHostTimer>(
-            MQueue->getDeviceImplPtr()->getHandleRef(), &submitTime, nullptr);
-        event->setSubmissionTime(submitTime);
-      }
+      uint64_t submitTime = 0;
+      plugin.call<detail::PiApiKind::piGetDeviceAndHostTimer>(
+          MQueue->getDeviceImplPtr()->getHandleRef(), &submitTime, nullptr);
+      event->setSubmissionTime(submitTime);
     }
   };
 
