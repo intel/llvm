@@ -227,7 +227,8 @@ TEST_F(DependsOnTests, EnqueueNoMemObjDoubleKernelDepHostBlocked) {
   // kernels on host task completion
   std::vector<EventImplPtr> Events;
 
-  detail::Command *Cmd1 = AddTaskCG(TestCGType::HOST_TASK, Events);
+  detail::Command *Cmd1 =
+      AddTaskCG(TestCGType::HOST_TASK, Events, &CustomHostLambda);
   EventImplPtr Cmd1Event = Cmd1->getEvent();
   Cmd1->MIsBlockable = true;
   Cmd1->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
@@ -269,9 +270,9 @@ TEST_F(DependsOnTests, EnqueueNoMemObjDoubleKernelDepHost) {
   // kernels on host task completion
   std::vector<EventImplPtr> Events;
 
-  detail::Command *Cmd1 = AddTaskCG(TestCGType::HOST_TASK, Events);
+  detail::Command *Cmd1 =
+      AddTaskCG(TestCGType::HOST_TASK, Events, &CustomHostLambda);
   EventImplPtr Cmd1Event = Cmd1->getEvent();
-  Cmd1->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
 
   // Depends on host task
   Events.push_back(Cmd1Event);
