@@ -44,9 +44,15 @@ ValueCategory::ValueCategory(mlir::Value val, bool isReference)
 
 ValueCategory::ValueCategory(mlir::Value Val, mlir::Value Index)
     : val{Val}, isReference{true}, Index{Index} {
-  assert(val.getType().isa<MemRefType>() &&
-         val.getType().cast<MemRefType>().getElementType().isa<VectorType>() &&
-         "Expecting memref of vector");
+  assert(
+      ((val.getType().isa<MemRefType>() &&
+        val.getType().cast<MemRefType>().getElementType().isa<VectorType>()) ||
+       (val.getType().isa<LLVM::LLVMPointerType>() &&
+        val.getType()
+            .cast<LLVM::LLVMPointerType>()
+            .getElementType()
+            .isa<VectorType>())) &&
+      "Expecting memref/pointer of vector");
   assert(Index.getType().isa<IntegerType>() && "Expecting integer index");
 }
 
@@ -530,6 +536,23 @@ ValueCategory ValueCategory::MemRef2Ptr(OpBuilder &Builder,
   auto DestTy =
       LLVM::LLVMPointerType::get(Ty.getElementType(), Ty.getMemorySpaceAsInt());
   return {Builder.createOrFold<polygeist::Memref2PointerOp>(Loc, DestTy, val),
+          isReference};
+}
+
+ValueCategory
+ValueCategory::Ptr2MemRef(OpBuilder &Builder, Location Loc,
+                          llvm::ArrayRef<int64_t> Shape,
+                          MemRefLayoutAttrInterface Layout) const {
+  const auto Ty = val.getType().dyn_cast<LLVM::LLVMPointerType>();
+  if (!Ty) {
+    assert(val.getType().isa<MemRefType>() && "Expecting MemRef type");
+    return *this;
+  }
+
+  auto DestTy =
+      MemRefType::get(Shape, Ty.getElementType(), Layout,
+                      Builder.getI32IntegerAttr(Ty.getAddressSpace()));
+  return {Builder.createOrFold<polygeist::Pointer2MemrefOp>(Loc, DestTy, val),
           isReference};
 }
 

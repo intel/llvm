@@ -9,6 +9,7 @@
 #ifndef CLANG_MLIR_VALUE_CATEGORY
 #define CLANG_MLIR_VALUE_CATEGORY
 
+#include "Lib/ConstantFolder.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Value.h"
@@ -22,6 +23,12 @@ private:
                      mlir::Type PromotionType) const {
     if (val.getType() == PromotionType)
       return *this;
+    if (const auto C = val.getDefiningOp<mlir::arith::ConstantOp>()) {
+      mlirclang::ConstantFolder Folder{Builder};
+      if (const mlir::Value FoldedRes =
+              Folder.fold<OpTy>(Loc, PromotionType, C))
+        return {FoldedRes, false};
+    }
     return {Builder.createOrFold<OpTy>(Loc, PromotionType, val), false};
   }
 
@@ -98,6 +105,10 @@ public:
   ValueCategory BitCast(mlir::OpBuilder &Builder, mlir::Location Loc,
                         mlir::Type DestTy) const;
   ValueCategory MemRef2Ptr(mlir::OpBuilder &Builder, mlir::Location Loc) const;
+  ValueCategory
+  Ptr2MemRef(mlir::OpBuilder &Builder, mlir::Location Loc,
+             llvm::ArrayRef<int64_t> Shape = mlir::ShapedType::kDynamic,
+             mlir::MemRefLayoutAttrInterface Layout = {}) const;
 
   ValueCategory Splat(mlir::OpBuilder &Builder, mlir::Location Loc,
                       mlir::Type VecTy) const;
