@@ -3176,11 +3176,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
       std::vector<zes_mem_handle_t> ZesMemHandles(MemCount);
       ZE_CALL(zesDeviceEnumMemoryModules,
               (ZeDevice, &MemCount, ZesMemHandles.data()));
-      while (MemCount > 0) {
-        --MemCount;
+      for (auto &ZesMemHandle : ZesMemHandles) {
         ZesStruct<zes_mem_properties_t> ZesMemProperties;
-        ZE_CALL(zesMemoryGetProperties,
-                (ZesMemHandles[MemCount], &ZesMemProperties));
+        ZE_CALL(zesMemoryGetProperties, (ZesMemHandle, &ZesMemProperties));
         // For root-device report memory from all memory modules since that
         // is what totally available in the default implicit scaling mode.
         // For sub-devices only report memory local to them.
@@ -3188,7 +3186,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                                           ZesMemProperties.subdeviceId) {
 
           ZesStruct<zes_mem_state_t> ZesMemState;
-          ZE_CALL(zesMemoryGetState, (ZesMemHandles[MemCount], &ZesMemState));
+          ZE_CALL(zesMemoryGetState, (ZesMemHandle, &ZesMemState));
           FreeMemory += ZesMemState.free;
         }
       }
