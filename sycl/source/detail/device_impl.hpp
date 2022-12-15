@@ -253,7 +253,7 @@ private:
   bool MIsAssertFailSupported = false;
   mutable std::string MDeviceName;
   mutable std::once_flag MDeviceNameFlag;
-  std::pair<uint64_t,uint64_t> deviceTimePair ;
+  std::pair<uint64_t, uint64_t> deviceTimePair;
 }; // class device_impl
 
 } // namespace detail
