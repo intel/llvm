@@ -16,7 +16,7 @@
 // RUN:   env ZEX_NUMBER_OF_CCS=0:4 env ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t.out> %t.compat.log 2>&1
 // RUN: %GPU_RUN_PLACEHOLDER FileCheck %s --check-prefixes=CHECK-PVC,CHECK-PVC-AFFINITY < %t.compat.log
 
-// Requires: level_zero
+// REQUIRES: level_zero
 
 #include <sycl/sycl.hpp>
 
