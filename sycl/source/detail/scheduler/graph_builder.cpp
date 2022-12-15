@@ -196,9 +196,7 @@ MemObjRecord *Scheduler::GraphBuilder::getOrInsertMemObjRecord(
           ToEnqueue.push_back(ConnectionCmd);
 
         --(Dependency->MLeafCounter);
-        if (Dependency->MLeafCounter == 0 &&
-            Dependency->isSuccessfullyEnqueued() &&
-            Dependency->supportsPostEnqueueCleanup())
+        if (Dependency->readyForCleanup())
           ToCleanUp.push_back(Dependency);
         for (Command *Cmd : ToCleanUp)
           cleanupCommand(Cmd);
@@ -246,8 +244,7 @@ void Scheduler::GraphBuilder::updateLeaves(const std::set<Command *> &Cmds,
     bool WasLeaf = Cmd->MLeafCounter > 0;
     Cmd->MLeafCounter -= Record->MReadLeaves.remove(Cmd);
     Cmd->MLeafCounter -= Record->MWriteLeaves.remove(Cmd);
-    if (WasLeaf && Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued() &&
-        Cmd->supportsPostEnqueueCleanup()) {
+    if (WasLeaf && Cmd->readyForCleanup()) {
       ToCleanUp.push_back(Cmd);
     }
   }
@@ -1030,22 +1027,17 @@ void Scheduler::GraphBuilder::decrementLeafCountersForRecord(
     MemObjRecord *Record) {
   for (Command *Cmd : Record->MReadLeaves) {
     --(Cmd->MLeafCounter);
-    if (Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued() &&
-        Cmd->supportsPostEnqueueCleanup())
+    if (Cmd->readyForCleanup())
       cleanupCommand(Cmd);
   }
   for (Command *Cmd : Record->MWriteLeaves) {
     --(Cmd->MLeafCounter);
-    if (Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued() &&
-        Cmd->supportsPostEnqueueCleanup())
+    if (Cmd->readyForCleanup())
       cleanupCommand(Cmd);
   }
 }
 
-void Scheduler::GraphBuilder::cleanupCommandsForRecord(
-    MemObjRecord *Record,
-    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate,
-    std::vector<std::shared_ptr<const void>> &AuxResourcesToDeallocate) {
+void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
   std::vector<AllocaCommandBase *> &AllocaCommands = Record->MAllocaCommands;
   if (AllocaCommands.empty())
     return;
@@ -1094,24 +1086,6 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(
     if (!markNodeAsVisited(Cmd, MVisitedCmds))
       continue;
 
-    // Collect stream objects for a visited command.
-    if (Cmd->getType() == Command::CommandType::RUN_CG) {
-      auto ExecCmd = static_cast<ExecCGCommand *>(Cmd);
-
-      // Transfer ownership of stream implementations.
-      std::vector<std::shared_ptr<stream_impl>> Streams = ExecCmd->getStreams();
-      ExecCmd->clearStreams();
-      StreamsToDeallocate.insert(StreamsToDeallocate.end(), Streams.begin(),
-                                 Streams.end());
-
-      // Transfer ownership of auxiliary resources.
-      std::vector<std::shared_ptr<const void>> AuxResources =
-          ExecCmd->getAuxiliaryResources();
-      ExecCmd->clearAuxiliaryResources();
-      AuxResourcesToDeallocate.insert(AuxResourcesToDeallocate.end(),
-                                      AuxResources.begin(), AuxResources.end());
-    }
-
     for (Command *UserCmd : Cmd->MUsers)
       if (UserCmd->getType() != Command::CommandType::ALLOCA)
         MCmdsToVisit.push(UserCmd);
@@ -1144,7 +1118,7 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(
       Cmd->MUsers.clear();
       // Do not delete the node if it's scheduled for post-enqueue cleanup to
       // avoid double free.
-      if (!Cmd->MPostEnqueueCleanup)
+      if (!Cmd->MMarkedForCleanup)
         Cmd->MMarks.MToBeDeleted = true;
     }
   }
@@ -1160,19 +1134,6 @@ void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd) {
 
   assert(CmdT != Command::ALLOCA && CmdT != Command::ALLOCA_SUB_BUF);
   assert(CmdT != Command::RELEASE);
-  assert(CmdT != Command::RUN_CG ||
-         (static_cast<ExecCGCommand *>(Cmd))->getCG().getType() !=
-             CG::CGTYPE::CodeplayHostTask);
-#ifndef NDEBUG
-  if (CmdT == Command::RUN_CG) {
-    auto *ExecCGCmd = static_cast<ExecCGCommand *>(Cmd);
-    if (ExecCGCmd->getCG().getType() == CG::CGTYPE::Kernel) {
-      auto *ExecKernelCG = static_cast<CGExecKernel *>(&ExecCGCmd->getCG());
-      assert(!ExecKernelCG->hasStreams());
-      assert(!ExecKernelCG->hasAuxiliaryResources());
-    }
-  }
-#endif
   (void)CmdT;
 
   for (Command *UserCmd : Cmd->MUsers) {
@@ -1197,80 +1158,6 @@ void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd) {
 
   Cmd->getEvent()->setCommand(nullptr);
   delete Cmd;
-}
-
-void Scheduler::GraphBuilder::cleanupFinishedCommands(
-    Command *FinishedCmd,
-    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate,
-    std::vector<std::shared_ptr<const void>> &AuxResourcesToDeallocate) {
-  assert(MCmdsToVisit.empty());
-  MCmdsToVisit.push(FinishedCmd);
-  MVisitedCmds.clear();
-
-  // Traverse the graph using BFS
-  while (!MCmdsToVisit.empty()) {
-    Command *Cmd = MCmdsToVisit.front();
-    MCmdsToVisit.pop();
-
-    if (!markNodeAsVisited(Cmd, MVisitedCmds))
-      continue;
-
-    // Collect stream objects for a visited command.
-    if (Cmd->getType() == Command::CommandType::RUN_CG) {
-      auto ExecCmd = static_cast<ExecCGCommand *>(Cmd);
-
-      // Transfer ownership of stream implementations.
-      std::vector<std::shared_ptr<stream_impl>> Streams = ExecCmd->getStreams();
-      ExecCmd->clearStreams();
-      StreamsToDeallocate.insert(StreamsToDeallocate.end(), Streams.begin(),
-                                 Streams.end());
-
-      // Transfer ownership of auxiliary resources.
-      std::vector<std::shared_ptr<const void>> AuxResources =
-          ExecCmd->getAuxiliaryResources();
-      ExecCmd->clearAuxiliaryResources();
-      AuxResourcesToDeallocate.insert(AuxResourcesToDeallocate.end(),
-                                      AuxResources.begin(), AuxResources.end());
-    }
-
-    for (const DepDesc &Dep : Cmd->MDeps) {
-      if (Dep.MDepCommand)
-        MCmdsToVisit.push(Dep.MDepCommand);
-    }
-
-    // Do not clean up the node if it is a leaf for any memory object
-    if (Cmd->MLeafCounter > 0)
-      continue;
-    // Do not clean up allocation commands
-    Command::CommandType CmdT = Cmd->getType();
-    if (CmdT == Command::ALLOCA || CmdT == Command::ALLOCA_SUB_BUF)
-      continue;
-
-    for (Command *UserCmd : Cmd->MUsers) {
-      for (DepDesc &Dep : UserCmd->MDeps) {
-        // Link the users of the command to the alloca command(s) instead
-        if (Dep.MDepCommand == Cmd) {
-          Dep.MDepCommand = Dep.MAllocaCmd;
-          Dep.MDepCommand->MUsers.insert(UserCmd);
-        }
-      }
-    }
-    // Update dependency users
-    for (DepDesc &Dep : Cmd->MDeps) {
-      Command *DepCmd = Dep.MDepCommand;
-      DepCmd->MUsers.erase(Cmd);
-    }
-
-    // Isolate the node instead of deleting it if it's scheduled for
-    // post-enqueue cleanup to avoid double free.
-    if (Cmd->MPostEnqueueCleanup) {
-      Cmd->MDeps.clear();
-      Cmd->MUsers.clear();
-    } else {
-      Cmd->MMarks.MToBeDeleted = true;
-    }
-  }
-  handleVisitedNodes(MVisitedCmds);
 }
 
 void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {

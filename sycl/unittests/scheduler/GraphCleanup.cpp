@@ -1,4 +1,4 @@
-//==--------- PostEnqueueCleanup.cpp --- Scheduler unit tests --------------==//
+//==--------- GraphCleanup.cpp --- Scheduler unit tests --------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,13 +11,17 @@
 
 #include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
+#include <helpers/TestKernel.hpp>
 
 #include <detail/buffer_impl.hpp>
 
 #include <algorithm>
 #include <cstddef>
 #include <memory>
+#include <mutex>
 #include <vector>
+
+namespace {
 
 using namespace sycl;
 
@@ -274,3 +278,152 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
         EXPECT_TRUE(ToCleanUp.empty());
       });
 }
+
+// Check that host tasks are cleaned up after completion.
+TEST_F(SchedulerTest, HostTaskCleanup) {
+  unittest::PiMock Mock;
+  platform Plt = Mock.getPlatform();
+  context Ctx{Plt};
+  queue Queue{Ctx, default_selector_v};
+
+  std::mutex Mutex;
+  std::unique_lock<std::mutex> Lock{Mutex};
+  event Event = Queue.submit([&](sycl::handler &cgh) {
+    cgh.host_task([&]() { std::unique_lock<std::mutex> Lock{Mutex}; });
+  });
+  detail::EventImplPtr EventImpl = detail::getSyclObjImpl(Event);
+
+  // Unlike other commands, host task should be kept alive until its
+  // completion.
+  auto *Cmd = static_cast<detail::Command *>(EventImpl->getCommand());
+  ASSERT_NE(Cmd, nullptr);
+  EXPECT_TRUE(Cmd->isSuccessfullyEnqueued());
+
+  Lock.unlock();
+  Event.wait();
+  ASSERT_EQ(EventImpl->getCommand(), nullptr);
+}
+
+struct AttachSchedulerWrapper {
+  AttachSchedulerWrapper(MockScheduler *MSPtr) {
+    sycl::detail::GlobalHandler::instance().attachScheduler(
+        static_cast<sycl::detail::Scheduler *>(MSPtr));
+  }
+  ~AttachSchedulerWrapper() {
+    sycl::detail::GlobalHandler::instance().attachScheduler(nullptr);
+  }
+};
+
+// Check that stream buffers are released alongside graph cleanup.
+TEST_F(SchedulerTest, StreamBufferDeallocation) {
+  unittest::PiMock Mock;
+  platform Plt = Mock.getPlatform();
+  context Ctx{Plt};
+  queue Queue{Ctx, default_selector_v};
+  detail::QueueImplPtr QueueImplPtr = detail::getSyclObjImpl(Queue);
+
+  MockScheduler *MSPtr = new MockScheduler();
+  AttachSchedulerWrapper AttachScheduler{MSPtr};
+  detail::EventImplPtr EventImplPtr;
+  {
+    MockHandlerCustomFinalize MockCGH(QueueImplPtr, false);
+    kernel_bundle KernelBundle =
+        sycl::get_kernel_bundle<sycl::bundle_state::input>(
+            QueueImplPtr->get_context());
+    auto ExecBundle = sycl::build(KernelBundle);
+    MockCGH.use_kernel_bundle(ExecBundle);
+    stream Stream{1, 1, MockCGH};
+    MockCGH.addStream(detail::getSyclObjImpl(Stream));
+    MockCGH.single_task<TestKernel<>>([] {});
+    std::unique_ptr<detail::CG> CG = MockCGH.finalize();
+
+    EventImplPtr = MSPtr->addCG(std::move(CG), QueueImplPtr);
+  }
+
+  // Both buffers should have been sent to the deferred release.
+  ASSERT_EQ(MSPtr->MDeferredMemObjRelease.size(), 2u);
+  // The buffers should have been released with graph cleanup once the work is
+  // finished.
+  EventImplPtr->wait(EventImplPtr);
+  MSPtr->cleanupCommands({});
+  ASSERT_EQ(MSPtr->MDeferredMemObjRelease.size(), 0u);
+}
+
+class MockAuxResource {
+public:
+  MockAuxResource(bool &Flag) : MFlag{Flag} {}
+  ~MockAuxResource() { MFlag = true; }
+  char *getDataPtr() { return &Data; };
+
+private:
+  bool &MFlag;
+  char Data;
+};
+
+bool EventCompleted = false;
+
+pi_result redefinedEventGetInfo(pi_event Event, pi_event_info PName,
+                                size_t PVSize, void *PV, size_t *PVSizeRet) {
+  EXPECT_EQ(PName, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS)
+      << "Unknown param name";
+  EXPECT_EQ(PVSize, 4u);
+  *(static_cast<pi_int32 *>(PV)) =
+      EventCompleted ? PI_EVENT_COMPLETE : PI_EVENT_SUBMITTED;
+  return PI_SUCCESS;
+}
+
+// Check that auxiliary resources are released alongside graph cleanup.
+TEST_F(SchedulerTest, AuxiliaryResourcesDeallocation) {
+  unittest::PiMock Mock;
+  Mock.redefine<sycl::detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
+  platform Plt = Mock.getPlatform();
+  context Ctx{Plt};
+  queue Queue{Ctx, default_selector_v};
+  detail::QueueImplPtr QueueImplPtr = detail::getSyclObjImpl(Queue);
+
+  MockScheduler *MSPtr = new MockScheduler();
+  AttachSchedulerWrapper AttachScheduler{MSPtr};
+  detail::EventImplPtr EventImplPtr;
+  bool MockAuxResourceDeleted = false;
+  {
+    MockHandlerCustomFinalize MockCGH(QueueImplPtr, false);
+    kernel_bundle KernelBundle =
+        sycl::get_kernel_bundle<sycl::bundle_state::input>(
+            QueueImplPtr->get_context());
+    auto ExecBundle = sycl::build(KernelBundle);
+    auto MockAuxResourcePtr =
+        std::make_shared<MockAuxResource>(MockAuxResourceDeleted);
+    // Create a buffer that would normally be released in a blocking manner to
+    // check that we perform a deferred release instead.
+    auto BufPtr = std::make_shared<buffer<char, 1>>(
+        MockAuxResourcePtr->getDataPtr(), range<1>{1});
+    detail::Requirement MockReq = getMockRequirement(*BufPtr);
+    std::vector<detail::Command *> AuxCmds;
+    MSPtr->getOrInsertMemObjRecord(QueueImplPtr, &MockReq, AuxCmds);
+    MockCGH.use_kernel_bundle(ExecBundle);
+    MockCGH.addReduction(std::move(MockAuxResourcePtr));
+    MockCGH.addReduction(std::move(BufPtr));
+    MockCGH.single_task<TestKernel<>>([] {});
+    std::unique_ptr<detail::CG> CG = MockCGH.finalize();
+
+    EventImplPtr = MSPtr->addCG(std::move(CG), QueueImplPtr);
+  }
+
+  EventCompleted = false;
+  MSPtr->cleanupCommands({});
+  ASSERT_FALSE(MockAuxResourceDeleted);
+
+  EventCompleted = true;
+  // Acquire lock to keep deferred mem obj from releasing so that they can be
+  // checked.
+  {
+    auto Lock = MSPtr->acquireGraphReadLock();
+    MSPtr->cleanupCommands({});
+    ASSERT_TRUE(MockAuxResourceDeleted);
+    ASSERT_EQ(MSPtr->MDeferredMemObjRelease.size(), 1u);
+  }
+
+  MSPtr->cleanupCommands({});
+  ASSERT_EQ(MSPtr->MDeferredMemObjRelease.size(), 0u);
+}
+} // anonymous namespace
