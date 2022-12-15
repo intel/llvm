@@ -93,11 +93,11 @@ std::enable_if_t<std::is_same<T, bfloat16>::value, T> fmin(T x, T y) {
   if (isnan(y))
     return x;
   if (((XBits | YBits) ==
-            static_cast<oneapi::detail::Bfloat16StorageT>(0x8000)) &&
-           !(XBits & YBits))
+       static_cast<oneapi::detail::Bfloat16StorageT>(0x8000)) &&
+      !(XBits & YBits))
     return oneapi::detail::bitsToBfloat16(
         static_cast<oneapi::detail::Bfloat16StorageT>(0x8000));
-  
+
   return (x < y) ? x : y;
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
@@ -146,8 +146,8 @@ std::enable_if_t<std::is_same<T, bfloat16>::value, T> fmax(T x, T y) {
   if (isnan(y))
     return x;
   if (((XBits | YBits) ==
-            static_cast<oneapi::detail::Bfloat16StorageT>(0x8000)) &&
-           !(XBits & YBits))
+       static_cast<oneapi::detail::Bfloat16StorageT>(0x8000)) &&
+      !(XBits & YBits))
     return oneapi::detail::bitsToBfloat16(0);
 
   return (x > y) ? x : y;
