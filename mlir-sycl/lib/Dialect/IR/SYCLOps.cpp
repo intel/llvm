@@ -98,19 +98,32 @@ mlir::LogicalResult mlir::sycl::SYCLAccessorSubscriptOp::verify() {
     return emitOpError("Dimensions cannot be zero");
 
   const auto verifyResultType = [&]() -> mlir::LogicalResult {
-    const auto resultType = getResult().getType().dyn_cast<mlir::MemRefType>();
+    const auto ResultType = getResult().getType();
 
-    if (!resultType) {
-      return emitOpError("Expecting memref return type. Got ") << resultType;
-    }
+    auto VerifyElemType =
+        [&](const mlir::Type ElemType) -> mlir::LogicalResult {
+      if (ElemType != AccessorTy.getType())
+        return emitOpError(
+                   "Expecting a reference to this accessor's value type (")
+               << AccessorTy.getType() << "). Got " << ResultType;
+      return success();
+    };
 
-    if (resultType.getElementType() != AccessorTy.getType()) {
-      return emitOpError(
-                 "Expecting a reference to this accessor's value type (")
-             << AccessorTy.getType() << "). Got " << resultType;
-    }
+    return TypeSwitch<mlir::Type, mlir::LogicalResult>(ResultType)
+        .Case<mlir::MemRefType>(
+            [&](auto Ty) { return VerifyElemType(Ty.getElementType()); })
+        .Case<LLVM::LLVMPointerType>([&](auto Ty) -> mlir::LogicalResult {
+          const mlir::Type ElemType = Ty.getElementType();
+          if (!ElemType.isa<LLVM::LLVMStructType>())
+            return emitOpError("Expecting pointer to struct return type. Got ")
+                   << ResultType;
 
-    return success();
+          return VerifyElemType(ElemType);
+        })
+        .Default([this](auto Ty) {
+          return emitOpError("Expecting memref/pointer return type. Got ")
+                 << Ty;
+        });
   };
 
   return mlir::TypeSwitch<mlir::Type, mlir::LogicalResult>(

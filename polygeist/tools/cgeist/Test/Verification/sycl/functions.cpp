@@ -18,6 +18,7 @@
 // CHECK-MLIR-DAG: !sycl_accessor_impl_device_2_ = !sycl.accessor_impl_device<[2], (!sycl_id_2_, !sycl_range_2_, !sycl_range_2_)>
 // CHECK-MLIR-DAG: !sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 1>)>)>
 // CHECK-MLIR-DAG: !sycl_accessor_2_i32_rw_gb = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(ptr<i32, 1>)>)>
+// CHECK-MLIR-DAG: ![[ACC_STRUCT:.*]] = !sycl.accessor<[1, !llvm.struct<(i32)>, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<struct<(i32)>, 1>)>)>
 // CHECK-MLIR-DAG: ![[ACC_SUBSCRIPT:.*]] = !sycl.accessor_subscript<[1], (!sycl_id_2_, !sycl_accessor_2_i32_rw_gb)>
 // CHECK-MLIR-DAG: ![[ITEM_BASE1:.*]] = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)
 // CHECK-MLIR-DAG: ![[ITEM_BASE2:.*]] = !sycl.item_base<[2, true], (!sycl_range_2_, !sycl_id_2_, !sycl_id_2_)>
@@ -34,6 +35,7 @@
 // CHECK-LLVM-DAG: %"class.sycl::_V1::detail::AccessorImplDevice.2" = type { %"class.sycl::_V1::id.2", %"class.sycl::_V1::range.2", %"class.sycl::_V1::range.2" }
 // CHECK-LLVM-DAG: %"class.sycl::_V1::accessor.1" = type { %"class.sycl::_V1::detail::AccessorImplDevice.1", { i32 addrspace(1)* } }
 // CHECK-LLVM-DAG: %"class.sycl::_V1::accessor.2" = type { %"class.sycl::_V1::detail::AccessorImplDevice.2", { i32 addrspace(1)* } }
+// CHECK-LLVM-DAG: %"class.sycl::_V1::accessor.1.1" = type { %"class.sycl::_V1::detail::AccessorImplDevice.1", { { i32 } addrspace(1)* } }
 // CHECK-LLVM-DAG: %"class.sycl::_V1::detail::accessor_common.AccessorSubscript.1" = type { %"class.sycl::_V1::id.2", %"class.sycl::_V1::accessor.2" }
 
 template <typename T> SYCL_EXTERNAL void keep(T);
@@ -74,6 +76,21 @@ SYCL_EXTERNAL void accessor_subscript_operator_1(sycl::accessor<sycl::cl_int, 2>
 
 SYCL_EXTERNAL void accessor_subscript_operator_2(sycl::accessor<sycl::cl_int, 1> acc, size_t index) {
   keep(acc[index]);
+}
+
+// CHECK-MLIR-LABEL: func.func @_Z29accessor_subscript_operator_3N4sycl3_V18accessorI6StructLi1ELNS0_6access4modeE1026ELNS3_6targetE2014ELNS3_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEEm(
+// CHECK-MLIR:          %{{.*}}: memref<?x![[ACC_STRUCT]]> {llvm.align = 8 : i64, llvm.byval = ![[ACC_STRUCT]], llvm.noundef}, 
+// CHECK-MLIR-SAME:     %{{.*}}: i64 {llvm.noundef})
+// CHECK-MLIR: %{{.*}} = sycl.accessor.subscript %{{.*}}[%{{.*}}] {BaseType = memref<?x![[ACC_STRUCT]], 4>, FunctionName = @"operator[]", MangledFunctionName = @_ZNK4sycl3_V18accessorI6StructLi1ELNS0_6access4modeE1026ELNS3_6targetE2014ELNS3_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi1EvEERS2_NS0_2idILi1EEE, TypeName = @accessor} : (![[ACC_STRUCT]], memref<?x!sycl_id_1_>) -> !llvm.ptr<struct<(i32)>, 4> 
+
+// CHECK-LLVM-LABEL: define spir_func void @_Z29accessor_subscript_operator_3N4sycl3_V18accessorI6StructLi1ELNS0_6access4modeE1026ELNS3_6targetE2014ELNS3_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEEm(
+// CHECK-LLVM:           %"class.sycl::_V1::accessor.1.1"* noundef byval(%"class.sycl::_V1::accessor.1.1") align 8 %0, i64 noundef %1) #[[FUNCATTRS]] 
+// CHECK-LLVM:  %{{.*}} = call spir_func { i32 } addrspace(4)* @_ZNK4sycl3_V18accessorI6StructLi1ELNS0_6access4modeE1026ELNS3_6targetE2014ELNS3_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi1EvEERS2_NS0_2idILi1EEE(%"class.sycl::_V1::accessor.1.1" addrspace(4)* %{{.*}}, %"class.sycl::_V1::id.1"* %{{.*}})
+typedef struct {
+  unsigned field;
+} Struct;
+SYCL_EXTERNAL void accessor_subscript_operator_3(sycl::accessor<Struct, 1> acc, size_t index) {
+  keep(acc[index].field);
 }
 
 // CHECK-MLIR-LABEL: func.func @_Z11range_get_0N4sycl3_V15rangeILi2EEEi(
