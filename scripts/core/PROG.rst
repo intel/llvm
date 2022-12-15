@@ -201,9 +201,9 @@ arguments along with data needed for launch.
     // Create kernel object from program
     ${x}_kernel_handle_t hKernel;
     ${x}KernelCreate(hProgram, "addVectors", &hKernel);
-    ${x}KernelSetArg(hKernel, 0, size, A);
-    ${x}KernelSetArg(hKernel, 1, size, B);
-    ${x}KernelSetArg(hKernel, 2, size, C);
+    ${x}KernelSetArgMemObj(hKernel, 0, A);
+    ${x}KernelSetArgMemObj(hKernel, 1, B);
+    ${x}KernelSetArgMemObj(hKernel, 2, C);
 
 Queue and Enqueue
 =================

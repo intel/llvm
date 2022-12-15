@@ -3116,29 +3116,54 @@ namespace loader
     }
 
     ///////////////////////////////////////////////////////////////////////////////
-    /// @brief Intercept function for urKernelSetArg
+    /// @brief Intercept function for urKernelSetArgValue
     __urdlllocal ur_result_t UR_APICALL
-    urKernelSetArg(
+    urKernelSetArgValue(
         ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
         uint32_t argIndex,                              ///< [in] argument index in range [0, num args - 1]
         size_t argSize,                                 ///< [in] size of argument type
-        const void* pArgValue                           ///< [in][optional] argument value represented as matching arg type. If
-                                                        ///< null then argument value is considered null.
+        const void* pArgValue                           ///< [in] argument value represented as matching arg type.
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
 
         // extract platform's function pointer table
         auto dditable = reinterpret_cast<ur_kernel_object_t*>( hKernel )->dditable;
-        auto pfnSetArg = dditable->ur.Kernel.pfnSetArg;
-        if( nullptr == pfnSetArg )
+        auto pfnSetArgValue = dditable->ur.Kernel.pfnSetArgValue;
+        if( nullptr == pfnSetArgValue )
             return UR_RESULT_ERROR_UNINITIALIZED;
 
         // convert loader handle to platform handle
         hKernel = reinterpret_cast<ur_kernel_object_t*>( hKernel )->handle;
 
         // forward to device-platform
-        result = pfnSetArg( hKernel, argIndex, argSize, pArgValue );
+        result = pfnSetArgValue( hKernel, argIndex, argSize, pArgValue );
+
+        return result;
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////
+    /// @brief Intercept function for urKernelSetArgLocal
+    __urdlllocal ur_result_t UR_APICALL
+    urKernelSetArgLocal(
+        ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
+        uint32_t argIndex,                              ///< [in] argument index in range [0, num args - 1]
+        size_t argSize                                  ///< [in] size of the local buffer to be allocated by the runtime
+        )
+    {
+        ur_result_t result = UR_RESULT_SUCCESS;
+
+        // extract platform's function pointer table
+        auto dditable = reinterpret_cast<ur_kernel_object_t*>( hKernel )->dditable;
+        auto pfnSetArgLocal = dditable->ur.Kernel.pfnSetArgLocal;
+        if( nullptr == pfnSetArgLocal )
+            return UR_RESULT_ERROR_UNINITIALIZED;
+
+        // convert loader handle to platform handle
+        hKernel = reinterpret_cast<ur_kernel_object_t*>( hKernel )->handle;
+
+        // forward to device-platform
+        result = pfnSetArgLocal( hKernel, argIndex, argSize );
 
         return result;
     }
@@ -3383,7 +3408,7 @@ namespace loader
     urKernelSetArgMemObj(
         ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
         uint32_t argIndex,                              ///< [in] argument index in range [0, num args - 1]
-        ur_mem_handle_t hArgValue                       ///< [in] handle of Memory object.
+        ur_mem_handle_t hArgValue                       ///< [in][optional] handle of Memory object.
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
@@ -3398,7 +3423,7 @@ namespace loader
         hKernel = reinterpret_cast<ur_kernel_object_t*>( hKernel )->handle;
 
         // convert loader handle to platform handle
-        hArgValue = reinterpret_cast<ur_mem_object_t*>( hArgValue )->handle;
+        hArgValue = ( hArgValue ) ? reinterpret_cast<ur_mem_object_t*>( hArgValue )->handle : nullptr;
 
         // forward to device-platform
         result = pfnSetArgMemObj( hKernel, argIndex, hArgValue );
@@ -4626,7 +4651,8 @@ urGetKernelProcAddrTable(
             pDdiTable->pfnRelease                                  = loader::urKernelRelease;
             pDdiTable->pfnGetNativeHandle                          = loader::urKernelGetNativeHandle;
             pDdiTable->pfnCreateWithNativeHandle                   = loader::urKernelCreateWithNativeHandle;
-            pDdiTable->pfnSetArg                                   = loader::urKernelSetArg;
+            pDdiTable->pfnSetArgValue                              = loader::urKernelSetArgValue;
+            pDdiTable->pfnSetArgLocal                              = loader::urKernelSetArgLocal;
             pDdiTable->pfnSetArgPointer                            = loader::urKernelSetArgPointer;
             pDdiTable->pfnSetExecInfo                              = loader::urKernelSetExecInfo;
             pDdiTable->pfnSetArgSampler                            = loader::urKernelSetArgSampler;

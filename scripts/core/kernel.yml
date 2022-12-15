@@ -32,13 +32,10 @@ params:
       desc: "[out] pointer to handle of kernel object created."
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Set kernel argument for a kernel."
+desc: "Set kernel argument to a value."
 class: $xKernel
-name: SetArg
-analogue:
-    - "**clSetKernelArg**"
+name: SetArgValue
 details:
-    - "The application must **not** call this function from simultaneous threads with the same kernel handle."
     - "The implementation of this function should be lock-free."
 params:
     - type: "$x_kernel_handle_t"
@@ -52,7 +49,30 @@ params:
       desc: "[in] size of argument type"
     - type: "const void*"
       name: pArgValue
-      desc: "[in][optional] argument value represented as matching arg type. If null then argument value is considered null."
+      desc: "[in] argument value represented as matching arg type."
+returns:
+    - $X_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+    - $X_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Set kernel argument to a local buffer."
+class: $xKernel
+name: SetArgLocal
+details:
+    - "The implementation of this function should be lock-free."
+params:
+    - type: "$x_kernel_handle_t"
+      name: hKernel
+      desc: "[in] handle of the kernel object"
+    - type: "uint32_t"
+      name: argIndex
+      desc: "[in] argument index in range [0, num args - 1]"
+    - type: "size_t"
+      name: argSize
+      desc: "[in] size of the local buffer to be allocated by the runtime"
+returns:
+    - $X_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+    - $X_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Get Kernel object information"
@@ -237,7 +257,6 @@ name: SetArgPointer
 analogue:
     - "**clSetKernelArgSVMPointer**"
 details:
-    - "The application must **not** call this function from simultaneous threads with the same kernel handle."
     - "The implementation of this function should be lock-free."
 params:
     - type: "$x_kernel_handle_t"
@@ -252,6 +271,9 @@ params:
     - type: "const void*"
       name: pArgValue
       desc: "[in][optional] SVM pointer to memory location holding the argument value. If null then argument value is considered null."
+returns:
+    - $X_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+    - $X_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Set additional Kernel execution attributes."
@@ -281,7 +303,6 @@ desc: "Set a Sampler object as the argument value of a Kernel."
 class: $xKernel
 name: SetArgSampler
 details:
-    - "The application must **not** call this function from simultaneous threads with the same kernel handle."
     - "The implementation of this function should be lock-free."
 params:
     - type: "$x_kernel_handle_t"
@@ -293,13 +314,14 @@ params:
     - type: "$x_sampler_handle_t"
       name: hArgValue
       desc: "[in] handle of Sampler object."
+returns:
+    - $X_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Set a Memory object as the argument value of a Kernel."
 class: $xKernel
 name: SetArgMemObj
 details:
-    - "The application must **not** call this function from simultaneous threads with the same kernel handle."
     - "The implementation of this function should be lock-free."
 params:
     - type: "$x_kernel_handle_t"
@@ -310,7 +332,9 @@ params:
       desc: "[in] argument index in range [0, num args - 1]"
     - type: "$x_mem_handle_t"
       name: hArgValue
-      desc: "[in] handle of Memory object."
+      desc: "[in][optional] handle of Memory object."
+returns:
+    - $X_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Return platform native kernel handle."
