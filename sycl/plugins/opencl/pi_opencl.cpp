@@ -1667,33 +1667,33 @@ pi_result piTearDown(void *PluginParameter) {
 
 pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
                                   uint64_t *HostTime) {
-  OCLV::OpenCLVersion devVer,platVer;
+  OCLV::OpenCLVersion devVer, platVer;
   cl_platform_id platform;
-  cl_device_id deviceID= cast<cl_device_id>(Device);
+  cl_device_id deviceID = cast<cl_device_id>(Device);
 
   auto ret_err = clGetDeviceInfo(deviceID, CL_DEVICE_PLATFORM,
-                            sizeof(cl_platform_id), &platform, nullptr);
-  if (ret_err != CL_SUCCESS){
+                                 sizeof(cl_platform_id), &platform, nullptr);
+  if (ret_err != CL_SUCCESS) {
     return cast<pi_result>(ret_err);
   }
 
-  ret_err= getDeviceVersion(deviceID, devVer);
+  ret_err = getDeviceVersion(deviceID, devVer);
 
-  if (ret_err != CL_SUCCESS){
+  if (ret_err != CL_SUCCESS) {
     return cast<pi_result>(ret_err);
-    }
+  }
 
-  ret_err = getPlatformVersion(platform,platVer);
+  ret_err = getPlatformVersion(platform, platVer);
 
-  if(platVer < OCLV::V2_1 && devVer < OCLV::V2_1){
+  if (platVer < OCLV::V2_1 && devVer < OCLV::V2_1) {
     return PI_ERROR_INVALID_OPERATION;
   }
 
-  if(HostTime){
-    if(DeviceTime){
-      clGetDeviceAndHostTimer(deviceID,DeviceTime,HostTime);
-    }else {
-      clGetHostTimer(deviceID,HostTime);
+  if (HostTime) {
+    if (DeviceTime) {
+      clGetDeviceAndHostTimer(deviceID, DeviceTime, HostTime);
+    } else {
+      clGetHostTimer(deviceID, HostTime);
     }
   }
 
