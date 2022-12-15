@@ -2135,7 +2135,7 @@ pi_result cuda_piContextCreate(const pi_context_properties *properties,
       piContextPtr = std::unique_ptr<_pi_context>(new _pi_context{
           _pi_context::kind::user_defined, newContext, *devices});
     }
-    _pi_platform::evBase_ static std::once_flag initFlag;
+    static std::once_flag initFlag;
     std::call_once(
         initFlag,
         [](pi_result &err) {
@@ -5488,12 +5488,13 @@ pi_result cuda_piTearDown(void *) {
 
 pi_result cuda_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
                                        uint64_t *HostTime) {
-  cudaEvent_t event;
-  if (DeviceTime) {
-    PI_CHECK_ERROR(cudaEventCreateWithFlags(&event, cudaEventDefault));
-    PI_CHECK_ERROR(cudaEventRecord(event));
-  }
+  _pi_event::native_type event;
   using namespace std::chrono;
+
+  if (DeviceTime) {
+    PI_CHECK_ERROR(cuEventCreate(&event, CU_EVENT_DEFAULT));
+    PI_CHECK_ERROR(cuEventRecord(event, 0));
+  }
   if (HostTime) {
     *HostTime =
         duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
@@ -5501,11 +5502,11 @@ pi_result cuda_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
   }
 
   if (DeviceTime) {
-    PI_CHECK_ERROR(cudaEventSynchronize(event));
+    PI_CHECK_ERROR(cuEventSynchronize(event));
 
     float elapsedTime = 0.0f;
     PI_CHECK_ERROR(
-        cudaEventElapsedTime(&elapsedTime, _pi_platform::evBase_, event));
+        cuEventElapsedTime(&elapsedTime, _pi_platform::evBase_, event));
     *DeviceTime = (uint64_t)(elapsedTime * (double)1e6);
   }
 
