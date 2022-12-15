@@ -1847,15 +1847,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
 
     // Now perform the integral to pointer conversion.
     mlir::Type PostTy = Glob.getTypes().getMLIRType(E->getType());
-    return TypeSwitch<mlir::Type, ValueCategory>(PostTy)
-        .Case<LLVM::LLVMPointerType>(
-            [&](auto Ty) { return IntResult.IntToPtr(Builder, Loc, Ty); })
-        .Case<MemRefType>([&](auto Ty) {
-          const auto MiddlePtrTy = LLVM::LLVMPointerType::get(
-              Ty.getElementType(), Ty.getMemorySpaceAsInt());
-          return IntResult.IntToPtr(Builder, Loc, MiddlePtrTy)
-              .Ptr2MemRef(Builder, Loc);
-        });
+    return EmitIntegralToPointerConversion(Loc, PostTy, IntResult);
   }
 
   default:
@@ -2320,6 +2312,26 @@ ValueCategory MLIRScanner::EmitPointerToIntegralConversion(Location Loc,
   return Src.MemRef2Ptr(Builder, Loc).PtrToInt(Builder, Loc, DestTy);
 }
 
+ValueCategory MLIRScanner::EmitIntegralToPointerConversion(Location Loc,
+                                                           mlir::Type DestTy,
+                                                           ValueCategory Src) {
+  assert((DestTy.isa<MemRefType, LLVM::LLVMPointerType>()) &&
+         "Expecting pointer type");
+  assert(Src.val.getType().isa<IntegerType>() &&
+         Src.val.getType().cast<IntegerType>().getWidth() ==
+             Glob.getCGM().getDataLayout().getPointerSizeInBits() &&
+         "Expecting pointer-width integer input");
+
+  return TypeSwitch<mlir::Type, ValueCategory>(DestTy)
+      .Case<LLVM::LLVMPointerType>(
+          [=](auto Ty) { return Src.IntToPtr(Builder, Loc, Ty); })
+      .Case<MemRefType>([=](auto Ty) {
+        const auto MiddlePtrTy = LLVM::LLVMPointerType::get(
+            Ty.getElementType(), Ty.getMemorySpaceAsInt());
+        return Src.IntToPtr(Builder, Loc, MiddlePtrTy).Ptr2MemRef(Builder, Loc);
+      });
+}
+
 ValueCategory
 MLIRScanner::EmitCompoundAssignmentLValue(clang::CompoundAssignOperator *E) {
   switch (E->getOpcode()) {
@@ -2635,8 +2647,9 @@ ValueCategory MLIRScanner::EmitPointerArithmetic(const BinOpInfo &Info) {
   //   The pointer type is not byte-sized.
   //
   if (BinaryOperator::isNullPointerArithmeticExtension(
-          CGM.getContext(), Opcode, PointerOperand, IndexOperand))
-    return Index.IntToPtr(Builder, Loc, PtrTy);
+          CGM.getContext(), Opcode, PointerOperand, IndexOperand)) {
+    return EmitIntegralToPointerConversion(Loc, PtrTy, Index);
+  }
 
   auto &DL = CGM.getDataLayout();
   const unsigned IndexTypeSize = DL.getIndexTypeSizeInBits(

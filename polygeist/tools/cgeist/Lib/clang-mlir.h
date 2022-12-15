@@ -381,6 +381,9 @@ private:
   ValueCategory EmitPointerToIntegralConversion(mlir::Location Loc,
                                                 mlir::Type DestTy,
                                                 ValueCategory Src);
+  ValueCategory EmitIntegralToPointerConversion(mlir::Location Loc,
+                                                mlir::Type DestTy,
+                                                ValueCategory Src);
   ValueCategory EmitVectorInitList(clang::InitListExpr *Expr,
                                    mlir::VectorType VType);
   ValueCategory EmitVectorSubscript(clang::ArraySubscriptExpr *Expr);
