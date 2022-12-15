@@ -541,12 +541,20 @@ typedef ur_result_t (UR_APICALL *ur_pfnKernelCreateWithNativeHandle_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urKernelSetArg 
-typedef ur_result_t (UR_APICALL *ur_pfnKernelSetArg_t)(
+/// @brief Function-pointer for urKernelSetArgValue 
+typedef ur_result_t (UR_APICALL *ur_pfnKernelSetArgValue_t)(
     ur_kernel_handle_t,
     uint32_t,
     size_t,
     const void*
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urKernelSetArgLocal 
+typedef ur_result_t (UR_APICALL *ur_pfnKernelSetArgLocal_t)(
+    ur_kernel_handle_t,
+    uint32_t,
+    size_t
     );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -595,7 +603,8 @@ typedef struct ur_kernel_dditable_t
     ur_pfnKernelRelease_t                                       pfnRelease;
     ur_pfnKernelGetNativeHandle_t                               pfnGetNativeHandle;
     ur_pfnKernelCreateWithNativeHandle_t                        pfnCreateWithNativeHandle;
-    ur_pfnKernelSetArg_t                                        pfnSetArg;
+    ur_pfnKernelSetArgValue_t                                   pfnSetArgValue;
+    ur_pfnKernelSetArgLocal_t                                   pfnSetArgLocal;
     ur_pfnKernelSetArgPointer_t                                 pfnSetArgPointer;
     ur_pfnKernelSetExecInfo_t                                   pfnSetExecInfo;
     ur_pfnKernelSetArgSampler_t                                 pfnSetArgSampler;

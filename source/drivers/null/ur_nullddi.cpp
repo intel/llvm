@@ -2310,23 +2310,47 @@ namespace driver
     }
 
     ///////////////////////////////////////////////////////////////////////////////
-    /// @brief Intercept function for urKernelSetArg
+    /// @brief Intercept function for urKernelSetArgValue
     __urdlllocal ur_result_t UR_APICALL
-    urKernelSetArg(
+    urKernelSetArgValue(
         ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
         uint32_t argIndex,                              ///< [in] argument index in range [0, num args - 1]
         size_t argSize,                                 ///< [in] size of argument type
-        const void* pArgValue                           ///< [in][optional] argument value represented as matching arg type. If
-                                                        ///< null then argument value is considered null.
+        const void* pArgValue                           ///< [in] argument value represented as matching arg type.
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
 
         // if the driver has created a custom function, then call it instead of using the generic path
-        auto pfnSetArg = d_context.urDdiTable.Kernel.pfnSetArg;
-        if( nullptr != pfnSetArg )
+        auto pfnSetArgValue = d_context.urDdiTable.Kernel.pfnSetArgValue;
+        if( nullptr != pfnSetArgValue )
         {
-            result = pfnSetArg( hKernel, argIndex, argSize, pArgValue );
+            result = pfnSetArgValue( hKernel, argIndex, argSize, pArgValue );
+        }
+        else
+        {
+            // generic implementation
+        }
+
+        return result;
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////
+    /// @brief Intercept function for urKernelSetArgLocal
+    __urdlllocal ur_result_t UR_APICALL
+    urKernelSetArgLocal(
+        ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
+        uint32_t argIndex,                              ///< [in] argument index in range [0, num args - 1]
+        size_t argSize                                  ///< [in] size of the local buffer to be allocated by the runtime
+        )
+    {
+        ur_result_t result = UR_RESULT_SUCCESS;
+
+        // if the driver has created a custom function, then call it instead of using the generic path
+        auto pfnSetArgLocal = d_context.urDdiTable.Kernel.pfnSetArgLocal;
+        if( nullptr != pfnSetArgLocal )
+        {
+            result = pfnSetArgLocal( hKernel, argIndex, argSize );
         }
         else
         {
@@ -2559,7 +2583,7 @@ namespace driver
     urKernelSetArgMemObj(
         ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
         uint32_t argIndex,                              ///< [in] argument index in range [0, num args - 1]
-        ur_mem_handle_t hArgValue                       ///< [in] handle of Memory object.
+        ur_mem_handle_t hArgValue                       ///< [in][optional] handle of Memory object.
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
@@ -3450,7 +3474,9 @@ urGetKernelProcAddrTable(
 
     pDdiTable->pfnCreateWithNativeHandle                 = driver::urKernelCreateWithNativeHandle;
 
-    pDdiTable->pfnSetArg                                 = driver::urKernelSetArg;
+    pDdiTable->pfnSetArgValue                            = driver::urKernelSetArgValue;
+
+    pDdiTable->pfnSetArgLocal                            = driver::urKernelSetArgLocal;
 
     pDdiTable->pfnSetArgPointer                          = driver::urKernelSetArgPointer;
 

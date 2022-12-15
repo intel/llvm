@@ -1385,11 +1385,18 @@ else:
     _urKernelCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, ur_context_handle_t, POINTER(ur_kernel_handle_t) )
 
 ###############################################################################
-## @brief Function-pointer for urKernelSetArg
+## @brief Function-pointer for urKernelSetArgValue
 if __use_win_types:
-    _urKernelSetArg_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t, c_void_p )
+    _urKernelSetArgValue_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t, c_void_p )
 else:
-    _urKernelSetArg_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t, c_void_p )
+    _urKernelSetArgValue_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t, c_void_p )
+
+###############################################################################
+## @brief Function-pointer for urKernelSetArgLocal
+if __use_win_types:
+    _urKernelSetArgLocal_t = WINFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t )
+else:
+    _urKernelSetArgLocal_t = CFUNCTYPE( ur_result_t, ur_kernel_handle_t, c_ulong, c_size_t )
 
 ###############################################################################
 ## @brief Function-pointer for urKernelSetArgPointer
@@ -1432,7 +1439,8 @@ class ur_kernel_dditable_t(Structure):
         ("pfnRelease", c_void_p),                                       ## _urKernelRelease_t
         ("pfnGetNativeHandle", c_void_p),                               ## _urKernelGetNativeHandle_t
         ("pfnCreateWithNativeHandle", c_void_p),                        ## _urKernelCreateWithNativeHandle_t
-        ("pfnSetArg", c_void_p),                                        ## _urKernelSetArg_t
+        ("pfnSetArgValue", c_void_p),                                   ## _urKernelSetArgValue_t
+        ("pfnSetArgLocal", c_void_p),                                   ## _urKernelSetArgLocal_t
         ("pfnSetArgPointer", c_void_p),                                 ## _urKernelSetArgPointer_t
         ("pfnSetExecInfo", c_void_p),                                   ## _urKernelSetExecInfo_t
         ("pfnSetArgSampler", c_void_p),                                 ## _urKernelSetArgSampler_t
@@ -2114,7 +2122,8 @@ class UR_DDI:
         self.urKernelRelease = _urKernelRelease_t(self.__dditable.Kernel.pfnRelease)
         self.urKernelGetNativeHandle = _urKernelGetNativeHandle_t(self.__dditable.Kernel.pfnGetNativeHandle)
         self.urKernelCreateWithNativeHandle = _urKernelCreateWithNativeHandle_t(self.__dditable.Kernel.pfnCreateWithNativeHandle)
-        self.urKernelSetArg = _urKernelSetArg_t(self.__dditable.Kernel.pfnSetArg)
+        self.urKernelSetArgValue = _urKernelSetArgValue_t(self.__dditable.Kernel.pfnSetArgValue)
+        self.urKernelSetArgLocal = _urKernelSetArgLocal_t(self.__dditable.Kernel.pfnSetArgLocal)
         self.urKernelSetArgPointer = _urKernelSetArgPointer_t(self.__dditable.Kernel.pfnSetArgPointer)
         self.urKernelSetExecInfo = _urKernelSetExecInfo_t(self.__dditable.Kernel.pfnSetExecInfo)
         self.urKernelSetArgSampler = _urKernelSetArgSampler_t(self.__dditable.Kernel.pfnSetArgSampler)
