@@ -15,6 +15,7 @@
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/pointers.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_HOST_NOT_SUPPORTED(Op)
@@ -42,8 +43,7 @@ struct HasArrowOperator<
 template <typename T, typename PropertyListT, typename = void>
 class device_global_base {
 protected:
-  using pointer_t = typename multi_ptr<T, access::address_space::global_space,
-                                       access::decorated::yes>::pointer;
+  using pointer_t = typename decorated_global_ptr<T>::pointer;
   pointer_t usmptr;
   pointer_t get_ptr() noexcept { return usmptr; }
   const pointer_t get_ptr() const noexcept { return usmptr; }
