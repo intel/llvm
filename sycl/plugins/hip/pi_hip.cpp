@@ -24,6 +24,7 @@
 #include <mutex>
 #include <regex>
 #include <string.h>
+#include <chrono>
 
 namespace {
 // Hipify doesn't support cuArrayGetDescriptor, on AMD the hipArray can just be
@@ -5210,7 +5211,25 @@ pi_result hip_piTearDown(void *PluginParameter) {
 
 pi_result hip_piGetDeviceAndHostTimer(pi_device device, uint64_t *deviceTime,
                                       uint64_t *hostTime) {
-  assert(0 && "Method not implemented");
+  hipEvent_t event;
+  if(DeviceTime){
+  PI_CHECK_ERROR(hipEventCreateWithFlags(&event, hipEventDefault));
+  PI_CHECK_ERROR(hipEventRecord(event));
+  }
+  using namespace std::chrono;
+  if(HostTime){
+    *HostTime = duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
+                .count();
+  }
+
+  if(DeviceTime){
+  PI_CHECK_ERROR(hipEventSynchronize(event));
+
+  float elapsedTime = 0.0f;
+  PI_CHECK_ERROR(hipEventElapsedTime(&elapsedTime,_pi_platform::evBase_,event));
+  *DeviceTime=(uint64_t) (elapsedTime * (double)1e6);
+  }
+  return PI_SUCCESS;
 }
 
 const char SupportedVersion[] = _PI_HIP_PLUGIN_VERSION_STRING;

@@ -266,14 +266,7 @@ uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
-    if (getPlugin().getBackend() == backend::ext_oneapi_level_zero) {
-      return MSubmitTime;
-    }
-    if (MEvent) {
-      return get_event_profiling_info<info::event_profiling::command_submit>(
-          this->getHandleRef(), this->getPlugin());
-    }
-    return 0;
+    return MSubmitTime;
   }
   if (!MHostProfilingInfo)
     throw invalid_object_error("Profiling info is not available.",
