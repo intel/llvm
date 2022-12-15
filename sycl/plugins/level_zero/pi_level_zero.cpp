@@ -989,7 +989,7 @@ pi_result _pi_context::finalize() {
   if (!DisableEventsCaching) {
     std::scoped_lock<pi_mutex> Lock(EventCacheMutex);
     for (auto &EventCache : EventCaches) {
-      for (auto Event : EventCache) {
+      for (auto &Event : EventCache) {
         ZE_CALL(zeEventDestroy, (Event->ZeEvent));
         delete Event;
       }
@@ -1347,7 +1347,7 @@ static pi_result CleanupCompletedEvent(pi_event Event,
 static pi_result
 CleanupEventListFromResetCmdList(std::vector<pi_event> &EventListToCleanup,
                                  bool QueueLocked = false) {
-  for (auto Event : EventListToCleanup) {
+  for (auto &Event : EventListToCleanup) {
     // We don't need to synchronize the events since the fence associated with
     // the command list was synchronized.
     {
@@ -2268,6 +2268,9 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
     }
   }
 
+  // For in-order queues, every command should be executed only after the
+  // previous command has finished. The event associated with the last
+  // enqueued command is added into the waitlist to ensure in-order semantics.
   bool IncludeLastCommandEvent =
       CurQueue->isInOrderQueue() && CurQueue->LastCommandEvent != nullptr;
 
@@ -2279,15 +2282,19 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
     IncludeLastCommandEvent = false;
 
   try {
+    pi_uint32 TmpListLength = 0;
+
     if (IncludeLastCommandEvent) {
       this->ZeEventList = new ze_event_handle_t[EventListLength + 1];
       this->PiEventList = new pi_event[EventListLength + 1];
+      std::shared_lock<pi_shared_mutex> Lock(CurQueue->LastCommandEvent->Mutex);
+      this->ZeEventList[0] = CurQueue->LastCommandEvent->ZeEvent;
+      this->PiEventList[0] = CurQueue->LastCommandEvent;
+      TmpListLength = 1;
     } else if (EventListLength > 0) {
       this->ZeEventList = new ze_event_handle_t[EventListLength];
       this->PiEventList = new pi_event[EventListLength];
     }
-
-    pi_uint32 TmpListLength = 0;
 
     if (EventListLength > 0) {
       for (pi_uint32 I = 0; I < EventListLength; I++) {
@@ -2366,16 +2373,6 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
         this->PiEventList[TmpListLength] = EventList[I];
         TmpListLength += 1;
       }
-    }
-
-    // For in-order queues, every command should be executed only after the
-    // previous command has finished. The event associated with the last
-    // enqueued command is added into the waitlist to ensure in-order semantics.
-    if (IncludeLastCommandEvent) {
-      std::shared_lock<pi_shared_mutex> Lock(CurQueue->LastCommandEvent->Mutex);
-      this->ZeEventList[TmpListLength] = CurQueue->LastCommandEvent->ZeEvent;
-      this->PiEventList[TmpListLength] = CurQueue->LastCommandEvent;
-      TmpListLength += 1;
     }
 
     this->Length = TmpListLength;
@@ -4109,7 +4106,7 @@ pi_result piQueueRelease(pi_queue Queue) {
     Queue->CommandListMap.clear();
   }
 
-  for (auto Event : EventListToCleanup) {
+  for (auto &Event : EventListToCleanup) {
     // We don't need to synchronize the events since the queue
     // synchronized above already does that.
     {
@@ -4131,8 +4128,8 @@ static pi_result piQueueReleaseInternal(pi_queue Queue) {
   if (!Queue->RefCount.decrementAndTest())
     return PI_SUCCESS;
 
-  for (auto Cache : Queue->EventCaches)
-    for (auto Event : Cache)
+  for (auto &Cache : Queue->EventCaches)
+    for (auto &Event : Cache)
       PI_CALL(piEventReleaseInternal(Event));
 
   if (Queue->OwnZeCommandQueue) {
@@ -4197,7 +4194,7 @@ pi_result piQueueFinish(pi_queue Queue) {
       Lock.unlock();
     }
 
-    for (auto ZeQueue : ZeQueues) {
+    for (auto &ZeQueue : ZeQueues) {
       if (ZeQueue)
         ZE_CALL(zeHostSynchronize, (ZeQueue));
     }
@@ -6465,7 +6462,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
 
   // We waited some events above, check queue for signaled command lists and
   // reset them.
-  for (auto Q : Queues)
+  for (auto &Q : Queues)
     resetCommandLists(Q);
 
   return PI_SUCCESS;
@@ -7699,10 +7696,8 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Mem, pi_bool BlockingMap,
       return Res;
 
     // Add the event to the command list.
-    if (Event) {
-      CommandList->second.append(*Event);
-      (*Event)->RefCount.increment();
-    }
+    CommandList->second.append(*Event);
+    (*Event)->RefCount.increment();
 
     const auto &ZeCommandList = CommandList->first;
     const auto &WaitList = (*Event)->WaitList;
@@ -7779,10 +7774,8 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem Mem, void *MappedPtr,
     // do so in piEventRelease called for the pi_event tracking the unmap.
     // In the case of an integrated device, the map operation does not allocate
     // any memory, so there is nothing to free. This is indicated by a nullptr.
-    if (Event)
-      (*Event)->CommandData =
-          (Buffer->OnHost ? nullptr
-                          : (Buffer->MapHostPtr ? nullptr : MappedPtr));
+    (*Event)->CommandData =
+        (Buffer->OnHost ? nullptr : (Buffer->MapHostPtr ? nullptr : MappedPtr));
   }
 
   // For integrated devices the buffer is allocated in host memory.
