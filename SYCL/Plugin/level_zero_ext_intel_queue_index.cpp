@@ -6,7 +6,7 @@
 // RUN: env SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING=1 env ZEX_NUMBER_OF_CCS=0:4 env ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t.out > %t.log 2>&1
 // RUN: %GPU_RUN_PLACEHOLDER FileCheck %s --check-prefixes=CHECK-PVC < %t.log
 
-// Requires: level_zero
+// REQUIRES: level_zero
 
 #include <sycl/sycl.hpp>
 
