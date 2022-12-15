@@ -1,0 +1,704 @@
+= sycl_ext_oneapi_annotated_ptr
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+// This is necessary for asciidoc, but not for asciidoctor
+:cpp: C++
+:dpcpp: DPC++
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+== Contributors
+
+Abhishek Tiwari, Intel +
+Gregory Lueck, Intel +
+Jason Sewall, Intel +
+Jessica Davies, Intel +
+Joe Garvey, Intel +
+John Pennycook, Intel +
+Michael Kinsner, Intel +
+Roland Schulz, Intel
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 5 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
+extension.
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+== Overview
+
+This extension introduces a pointer wrapper class that provides a mechanism to
+attach compile-time constant information to a pointer in a manner that allows
+the compiler to reliably maintain and analyze the information.
+
+[NOTE]
+====
+In this document, we use the shortened form `annotated_ptr` to refer to the
+proposed `sycl::ext::oneapi::experimental::annotated_ptr` class.
+====
+
+The purpose of this document is to clearly describe and specify `annotated_ptr`
+and related concepts, types, and mechanisms, and to give examples and context
+for their usage.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification, Section 6.3.3 "Feature test macros". Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_ANNOTATED_PTR` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features
+that the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version
+|===
+
+=== Motivation
+
+When compiling a program with pointer operations, it is often desirable to
+attach certain information such as optimization hints or functional directives
+onto the pointer itself.
+
+Any acceptable mechanism to attach such information should meet the following
+requirements:
+
+  1. It should not be burdensome for users to use the mechanism.
+  2. It should be reasonably scalable and not add significant burden on compiler
+  developers to maintain the mechanism.
+  3. It should preserve the attached information through most uses of the
+  pointer.
+
+For example, consider the following case: We want to specify some compile-time
+constant information `I` for a pointer. One possible method to do so is for the
+compiler to provide a special function for reading to and writing from the
+pointer and have this function convey `I` to the compiler at the call site where
+the read or write occurs.
+
+That is, users would convert code that looks like:
+```c++
+{
+  SomeType* a;
+  ...
+  *a = some_val;
+  ...
+  read_val = *a
+}
+```
+
+To code that looks like:
+```c++
+{
+  SomeType* a;
+  ...
+  __special_store_with_annotation(a, some_val,
+    I /*some compile time constant information*/);
+  ...
+  __special_load_with_annotation(a, &read_val,
+    I /*some compile time constant information*/);
+}
+```
+
+This mechanism does not meet requirement (1) listed above because users have to
+replace all their pointer read/write code with special function calls.
+
+Another mechanism could be that the compiler provides attributes which can be
+applied to the pointer declaration to convey some compile-time constant
+information. In this case users would change their code to:
+```cpp
+{
+  // 'I' is the compiler time constant information being annotated on 'a'
+  [[special_annotations::use_case_x_attribute(I)]] SomeType* a;
+  ...
+  *a = some_val;
+  ...
+  read_val = *a
+}
+```
+However, this mechanism fails to meet requirements (2) and (3) listed above
+since:
+
+  * Adding new attributes can add non-trivial attribute creation overheads for
+  compiler developers. With growing set of attributes, there is an associated
+  burden of maintaining them and of preparing diagnostic checks.
+  * Compilers are not required to preserve information propagated as attributes.
+  Hence this method is only suitable for hints, and not functional directives.
+  Further, from a given load/store call a compiler may not be able to
+  successfully trace back to the declaration to deduce which annotation was
+  applied to it.
+
+The `annotated_ptr` class described in this document is a class template that
+encapsulates a pointer. The template accepts a list of compile-time constant
+properties. The implementation of the class defined here should preserve the
+information provided as compile-time constant properties through all uses of the
+pointer unless noted otherwise.
+
+.Unsupported Usage Example
+[source,c++]
+----
+using sycl::ext::oneapi::experimental;
+struct MyType {
+  annotated_ptr<int, properties<PropC>> a;
+  annotated_ptr<int, properties<PropD>> b;
+};
+
+struct MyKernel {
+  MyType arg_a;
+  MyType arg_b;
+  ...
+  void operator()() const {
+    ...
+  }
+};
+----
+It is illegal to apply `annotated_ptr` to members of kernel arguments. In the
+above example, encapsulating `annotated_ptr` within `MyType` is illegal.
+
+=== Representation of `annotated_ptr`
+
+`annotated_ptr` is a class template, parameterized by the type of the underlying
+allocation `T`, and a list of properties `PropertyListT`.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+template <typename T, typename PropertyListT = properties<>>
+class annotated_ptr {
+  ...
+----
+
+`PropertyListT` enables properties to be associated with an `annotated_ptr`.
+Properties may be specified for an `annotated_ptr` to provide semantic
+modification or optimization hint information. Please note that there cannot
+be duplicated property in a properties list. Otherwise, a compiler time error is triggered.
+
+Here's an example of how a property could be used:
+
+[source,c++]
+----
+using namespace sycl::ext::oneapi::experimental;
+{
+  sycl::queue q;
+  int* ptr = ...
+  // alignment of the pointer in bytes specified using the property 'alignment'
+  auto arg_a = annotated_ptr(ptr, properties{alignment<4>});
+
+  // alignment in bytes and address bus width of the pointer specified using the
+  // properties 'alignment' and 'awidth'.
+  // a properties object is deduced from the list the of property values
+  auto arg_b = annotated_ptr(ptr, alignment<4>, awidth<32>);
+
+  q.submit([=]{
+    ...
+    *arg_a = (*arg_a) * 2;
+  });
+  ...
+}
+----
+
+The section below and the table that follows, describe the constructors and
+member functions for `annotated_ptr`.
+
+NOTE: `annotated_ptr` is a trivially copyable type.
+
+The section below refers to an `annotated_ref` class which is described in the
+section following this one.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+template <typename T, typename PropertyListT = properties<>>
+class annotated_ptr {
+  public:
+    using reference = annotated_ref<T, PropertyListT>;
+
+    annotated_ptr() noexcept;
+    annotated_ptr(T *Ptr, const PropertyListT &P = properties{}) noexcept;
+    template<typename... PropertyValueTs>
+    annotated_ptr(T *Ptr, PropertyValueTs... props) noexcept;
+
+    template <typename T2, typename P> explicit annotated_ptr(
+      const annotated_ptr<T2, P>&) noexcept;
+    template <typename T2, typename PropertyListU, typename PropertyListV>
+    explicit annotated_ptr(const annotated_ptr<T2, PropertyListU>&,
+      properties<PropertyListV>) noexcept;
+
+    annotated_ptr(const annotated_ptr&) noexcept = default;
+
+    reference operator*() const noexcept;
+
+    reference operator[](std::ptrdiff_t) const noexcept;
+
+    annotated_ptr operator+(size_t) const noexcept;
+    std::ptrdiff_t operator-(annotated_ptr) const noexcept;
+
+    explicit operator bool() const noexcept;
+
+    // Implicit conversion is not supported
+    operator T*() noexcept = delete;
+    operator T*() const noexcept = delete;
+
+    T* get() const noexcept;
+
+    annotated_ptr& operator=(T*) noexcept;
+    annotated_ptr& operator=(const annotated_ptr&) noexcept = default;
+
+    annotated_ptr& operator++() noexcept;
+    annotated_ptr operator++(int) noexcept;
+
+    annotated_ptr& operator--() noexcept;
+    annotated_ptr operator--(int) noexcept;
+
+    template<typename propertyT>
+    static constexpr bool has_property();
+
+    // The return type is an unspecified internal class used to represent
+    // instances of propertyT
+    template<typename propertyT>
+    static constexpr /*unspecified*/ get_property();
+  };
+
+//Deduction guides
+template <typename T, typename... PropertyValueTs>
+annotated_ptr(T, PropertyValueTs... values) ->
+    annotated_ptr<T, decltype(properties{PropertyValueTs...})>;
+
+template <typename T, typename PropertiesA, typename PropertiesB>
+annotated_ptr(annotated_ptr<T, PropertiesA>, PropertiesB>) ->
+    annotated_ptr<T, /* a type that combines the properties of PropertiesA and PropertiesB */>;
+} // namespace sycl::ext::oneapi::experimental
+----
+
+[frame="topbot",options="header"]
+|===
+|Functions |Description
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+annotated_ptr() noexcept;
+----
+|
+Constructs an `annotated_ptr` object. Does not allocate new storage. The
+underlying pointer is initialized to `nullptr`.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+annotated_ptr(T *Ptr, const PropertyListT &P = properties{}) noexcept;
+----
+|
+Constructs an `annotated_ptr` object. Does not allocate new storage. The
+underlying pointer is initialized with `Ptr`.
+
+The new property set `PropertyListT` contains all properties in `P`.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template<typename... PropertyValueTs>
+annotated_ptr(T *Ptr, const PropertyValueTs... props) noexcept;
+----
+|
+Constructs an `annotated_ptr` object. Does not allocate new storage. The
+underlying pointer is initialized with `Ptr`.
+
+The new property set `PropertyListT` contains all properties in `P`.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template <typename T2, typename P> explicit annotated_ptr(
+  const annotated_ptr<T2, P> &ConvertFrom);
+----
+|
+Constructs the `annotated_ptr` object from the `ConvertFrom` object if
+the list of properties in `PropertyListT` is a superset of the list of
+properties in `P`.
+
+`T2*` must be implicitly convertible to `T*`.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template <typename T2, typename PropertyListU, typename PropertyListV>
+explicit annotated_ptr(const annotated_ptr<T2, PropertyListU> &Ptr,
+  properties<PropertyListV> P) noexcept;
+----
+|
+Constructs an `annotated_ptr` object. Does not allocate new storage. The
+underlying pointer is initialized with `Ptr`.
+
+The new `PropertyListT` is the union of all properties contained within
+`PropertyListU` and `PropertyListV`. If there are any common properties
+in the two lists with different values, a compile-time error is triggered.
+Common properties with the same value (or no value) are allowed.
+
+`T2*` must be implicitly convertible to `T*`.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+annotated_ptr(const annotated_ptr &) noexcept = default;
+----
+|
+Constructs an `annotated_ptr` object from another `annotated_ptr` with the same
+type and properties.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+reference operator*() const;
+----
+|
+Returns an `annotated_ref` reference wrapper which can be used to read or write
+to the underlying pointer. Reads/Writes using the reference will retain the
+annotations.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+reference operator[](std::ptrdiff_t Index) const;
+----
+|
+Returns an `annotated_ref` reference wrapper to the object at offset `Index`.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+annotated_ptr operator+(size_t Offset) const;
+----
+|
+Returns an `annotated_ptr` that points to `this[Offset]`.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+std::ptrdiff_t operator-(annotated_ptr FromPtr) const;
+----
+|
+Returns the distance between the underlying pointer and the pointer encapsulated
+by `FromPtr`.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+explicit operator bool() const noexcept;
+----
+|
+Returns `false` if the underlying pointer is null, returns `true` otherwise.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+/*unspecified*/ operator T*() noexcept = delete;
+/*unspecified*/ operator const T*() const noexcept = delete;
+----
+|
+Implicit conversion to a pointer to the underlying type is not supported.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+T* get() const noexcept;
+----
+|
+Returns the underlying raw pointer. The raw pointer will not retain the
+annotations.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+annotated_ptr& operator=(T*) noexcept;
+----
+|
+Allows assignment from a pointer to type `T`.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+annotated_ptr& operator=(const annotated_ptr &) noexcept = default;
+----
+|
+Allows assignment from an `annotated_ptr` with the same parameterization.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+annotated_ptr& operator++() noexcept;
+----
+|
+Prefix increment operator.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+annotated_ptr operator++(int) noexcept;
+----
+|
+Postfix increment operator.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+annotated_ptr& operator--() noexcept;
+----
+|
+Prefix decrement operator.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+annotated_ptr operator--(int) noexcept;
+----
+|
+Postfix decrement operator.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template<typename propertyT>
+static constexpr bool has_property();
+----
+| 
+Returns true if `PropertyListT` contains the property with property key class
+`propertyT`. Returns false if it does not.
+
+Available only when `propertyT` is a property key class.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template<typename propertyT>
+static constexpr auto get_property();
+----
+| 
+Returns a copy of the property value contained in `PropertyListT`. Must produce
+a compile error if `PropertyListT` does not contain a property with the
+`propertyT` key.
+
+Available only if `propertyT` is the property key class of a compile-time
+constant property.
+|===
+
+=== Add new reference wrapper class `annotated_ref` to enable `annotated_ptr`
+
+The purpose of the `annotated_ref` class template is to provide reference
+wrapper semantics. It enables properties to be preserved on loads from and
+stores to annotated_ptrs.
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+template <typename T, typename PropertyListT = properties<>>
+class annotated_ref {
+  public:
+    annotated_ref(const annotated_ref&) = default;
+    operator T() const;
+    annotated_ref& operator=(const T&) const;
+    annotated_ref& operator=(const annotated_ref&) const = default;
+  };
+} // namespace sycl::ext::oneapi::experimental
+```
+
+
+Member Functions are described in the table below
+[frame="topbot",options="header"]
+|===
+|Functions |Description
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+annotated_ref(const annotated_ref&) = default;
+----
+|
+Compiler generated copy constructor.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+operator T() const;
+----
+|
+Reads the object of type `T` that is referenced by this wrapper, applying the
+annotations when the object is loaded from memory.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+annotated_ref& operator=(const T &) const;
+----
+|
+Writes an object of type `T` to the location referenced by this wrapper,
+applying the annotations when the object is stored to memory.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+annotated_ref& operator=(const annotated_ref&) const = default;
+----
+|
+Assign from another `annotated_ref` object.
+
+|===
+
+=== Properties
+
+Below is a list of compile-time constant properties supported with
+`annotated_ptr`. Other extensions can define additional compile-time constant
+properties that can be supported with `annotated_ptr`. Runtime properties
+are not supported.
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+struct alignment_key {
+  template<int K>
+  using value_t = property_value<alignment_key, std::integral_constant<int, K>>;
+};
+
+template<int K>
+inline constexpr alignment_key::value_t<K> alignment;
+
+template<>
+struct is_property_key<alignment_key> : std::true_type {};
+
+template<typename T, typename PropertyListT>
+struct is_property_key_of<
+  alignment_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
+template<typename T, typename PropertyListT>
+} // namespace sycl::ext::oneapi::experimental
+```
+--
+[options="header"]
+|====
+| Property | Description
+|`alignment`
+|
+This property is an assertion by the application that the `annotated_ptr` has
+the given alignment, specified in bytes. The behavior is undefined if the
+pointer value does not have the indicated alignment.
+|====
+--
+
+== Issues related to `annotated_ptr`
+
+1) [RESOLVED] Should we allow implicit conversion to base class by default?
+
+No, implicit conversion will not be allowed.
+
+2) [RESOLVED] How do we support `operator->`?
+
+We will not support `operator->` with the initial release, since we do
+not have meaningful usecases that require this support. Building the support
+is complicated
+
+3) [RESOLVED] Can `sycl::atomic_ref` be used with `annotated_ref`?
+
+`atomic_ref` will not work with `annotated_ref` as is since `atomic_ref`
+restricts the types it can take. If we want, we can create a sycl extension for
+`atomic_ref` to support `annotated_ref`. The implementation complexity will
+depend on how we chose to implement `annotated_ref`: via builtins or via pointer
+annotations.
+
+4) [RESOLVED] Should we provide conversion functions to convert to/from
+multi_ptr?
+
+No we do not want to support multi_ptr conversion. 'multi_ptr's provide
+a way to annotate address spaces. That can be built with annotated_ptr.
+
+5) We need a property to capture local, global or private address-spaces. Within
+global space we may want to distinguish between general, host, and device memory
+spaces.
+
+6) [RESOLVED] Ctor should clarify whether when constructing the object from two
+different property lists, duplicates will exist or not.
+
+Updated ctor description with the resolution.
+
+7) Add `runtime_aligned` property back to this core spec once a way to query
+the alignment is set up.
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|3|2022-04-05|Abhishek Tiwari|*Addressed review comments*
+|2|2022-03-07|Abhishek Tiwari|*Corrected API and updated description*
+|1|2021-11-01|Abhishek Tiwari|*Initial internal review version*
+|========================================

@@ -85,6 +85,9 @@ public:
   PropertyValue(const std::vector<T> &Data)
       : PropertyValue(reinterpret_cast<const byte *>(Data.data()),
                       Data.size() * sizeof(T) * /* bits in one byte */ 8) {}
+  PropertyValue(const llvm::StringRef &Str)
+      : PropertyValue(reinterpret_cast<const byte *>(Str.data()),
+                      Str.size() * sizeof(char) * /* bits in one byte */ 8) {}
   PropertyValue(const PropertyValue &P);
   PropertyValue(PropertyValue &&P);
 
