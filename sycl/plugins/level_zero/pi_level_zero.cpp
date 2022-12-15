@@ -1254,6 +1254,7 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
   // First, see if the queue's device allows for round-robin or it is
   // fixed to one particular compute CCS (it is so for sub-sub-devices).
   auto &ComputeQueueGroupInfo = Device->QueueGroup[queue_type::Compute];
+  pi_queue_group_t ComputeQueueGroup{this, queue_type::Compute};
   ComputeQueueGroup.ZeQueues = ComputeQueues;
   // Create space to hold immediate commandlists corresponding to the
   // ZeQueues
@@ -1290,20 +1291,19 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
     }
   }
 
-  if (Device->useImmediateCommandLists()) {
-    // Thread id will be used to create separate imm cmdlists per thread.
-    auto TID = std::this_thread::get_id();
-    std::pair<std::unordered_map<std::thread::id, pi_queue_group_t>::iterator,
-              bool>
-        Result = ComputeQueueGroupsByTID.insert({TID, ComputeQueueGroup});
-    auto &ComputeQueueGroupRef = Result.first->second;
-    // Create space to hold immediate commandlists corresponding to the
-    // ZeQueues
-    ComputeQueueGroupRef.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
-        ComputeQueueGroup.ZeQueues.size(), CommandListMap.end());
-  }
+  // Thread id will be used to create separate queue groups per thread.
+  auto TID = std::this_thread::get_id();
+  std::pair<std::unordered_map<std::thread::id, pi_queue_group_t>::iterator,
+            bool>
+      Result = ComputeQueueGroupsByTID.insert({TID, ComputeQueueGroup});
+  auto &ComputeQueueGroupRef = Result.first->second;
+  // Create space to hold immediate commandlists corresponding to the
+  // ZeQueues
+  ComputeQueueGroupRef.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
+      ComputeQueueGroup.ZeQueues.size(), CommandListMap.end());
 
   // Copy group initialization.
+  pi_queue_group_t CopyQueueGroup{this, queue_type::MainCopy};
   if (getRangeOfAllowedCopyEngines(Device).first < 0 ||
       getRangeOfAllowedCopyEngines(Device).second < 0) {
     // We are asked not to use copy engines, just do nothing.
@@ -1318,14 +1318,12 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
       CopyQueueGroup.LowerIndex = FilterLowerIndex;
       CopyQueueGroup.UpperIndex = FilterUpperIndex;
       CopyQueueGroup.NextIndex = CopyQueueGroup.LowerIndex;
+      std::pair<std::unordered_map<std::thread::id, pi_queue_group_t>::iterator,
+                bool>
+          Result = CopyQueueGroupsByTID.insert({TID, CopyQueueGroup});
       // Create space to hold immediate commandlists corresponding to the
       // ZeQueues
       if (Device->useImmediateCommandLists()) {
-        auto TID = std::this_thread::get_id();
-        std::pair<
-            std::unordered_map<std::thread::id, pi_queue_group_t>::iterator,
-            bool>
-            Result = CopyQueueGroupsByTID.insert({TID, CopyQueueGroup});
         auto &CopyQueueGroupRef = Result.first->second;
         CopyQueueGroupRef.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
             CopyQueueGroup.ZeQueues.size(), CommandListMap.end());
@@ -1622,13 +1620,15 @@ pi_result _pi_context::getAvailableCommandList(
 }
 
 _pi_queue::pi_queue_group_t &_pi_queue::getQueueGroup(bool UseCopyEngine) {
-  if (Device->useImmediateCommandLists()) {
+  // Check if thread-specifc immediate commandlists are requested.
+  if (Device->useImmediateCommandLists() == PerThreadPerQueue) {
     // Thread id is used to create separate imm cmdlists per thread.
     auto TID = std::this_thread::get_id();
     if (UseCopyEngine) {
+      auto InitialGroup = CopyQueueGroupsByTID.begin()->second;
       std::pair<std::unordered_map<std::thread::id, pi_queue_group_t>::iterator,
                 bool>
-          Result = CopyQueueGroupsByTID.insert({TID, CopyQueueGroup});
+          Result = CopyQueueGroupsByTID.insert({TID, InitialGroup});
       // If an entry for this thread exists, use it.
       if (!Result.second) {
         return Result.first->second;
@@ -1637,12 +1637,13 @@ _pi_queue::pi_queue_group_t &_pi_queue::getQueueGroup(bool UseCopyEngine) {
       // Create space to hold immediate commandlists. They will be created on
       // demand.
       CopyQueueGroupRef.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
-          CopyQueueGroup.ZeQueues.size(), CommandListMap.end());
+          InitialGroup.ZeQueues.size(), CommandListMap.end());
       return CopyQueueGroupRef;
     } else {
+      auto InitialGroup = ComputeQueueGroupsByTID.begin()->second;
       std::pair<std::unordered_map<std::thread::id, pi_queue_group_t>::iterator,
                 bool>
-          Result = ComputeQueueGroupsByTID.insert({TID, ComputeQueueGroup});
+          Result = ComputeQueueGroupsByTID.insert({TID, InitialGroup});
       // If an entry for this thread exists, use it.
       if (!Result.second)
         return Result.first->second;
@@ -1651,9 +1652,17 @@ _pi_queue::pi_queue_group_t &_pi_queue::getQueueGroup(bool UseCopyEngine) {
       // Create space to hold immediate commandlists. They will be created on
       // demand.
       ComputeQueueGroupRef.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
-          ComputeQueueGroup.ZeQueues.size(), CommandListMap.end());
+          InitialGroup.ZeQueues.size(), CommandListMap.end());
       return ComputeQueueGroupRef;
     }
+  }
+
+  // If not PerThreadPerQueue then use the groups created at Queue creation
+  // time.
+  if (UseCopyEngine) {
+    return CopyQueueGroupsByTID.begin()->second;
+  } else {
+    return ComputeQueueGroupsByTID.begin()->second;
   }
 }
 
@@ -3919,11 +3928,13 @@ pi_result piextQueueCreate(pi_context Context, pi_device Device,
     // Create as many command-lists as there are queues in the group.
     // With this the underlying round-robin logic would initialize all
     // native queues, and create command-lists and their fences.
-    PI_CALL(warmupQueueGroup(false, Q->ComputeQueueGroup.UpperIndex -
-                                        Q->ComputeQueueGroup.LowerIndex + 1));
+    auto InitialGroup = Q->ComputeQueueGroupsByTID.begin()->second;
+    PI_CALL(warmupQueueGroup(false, InitialGroup.UpperIndex -
+                                        InitialGroup.LowerIndex + 1));
     if (Q->useCopyEngine()) {
-      PI_CALL(warmupQueueGroup(true, Q->CopyQueueGroup.UpperIndex -
-                                         Q->CopyQueueGroup.LowerIndex + 1));
+      auto InitialGroup = Q->CopyQueueGroupsByTID.begin()->second;
+      PI_CALL(warmupQueueGroup(true, InitialGroup.UpperIndex -
+                                         InitialGroup.LowerIndex + 1));
     }
     // TODO: warmup event pools. Both host-visible and device-only.
   }
@@ -3992,40 +4003,42 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
         Queue->hasOpenCommandList(IsCopy{false}))
       return ReturnValue(pi_bool{false});
 
-    for (const auto &QueueGroup :
-         {Queue->ComputeQueueGroup, Queue->CopyQueueGroup}) {
-      if (Queue->Device->useImmediateCommandLists()) {
-        // Immediate command lists are not associated with any Level Zero queue,
-        // that's why we have to check status of events in each immediate
-        // command list. Start checking from the end and exit early if some
-        // event is not completed.
-        for (const auto &ImmCmdList : QueueGroup.ImmCmdLists) {
-          if (ImmCmdList == Queue->CommandListMap.end())
-            continue;
+    for (const auto &QueueMap :
+         {Queue->ComputeQueueGroupsByTID, Queue->CopyQueueGroupsByTID}) {
+      for (const auto &QueueGroup : QueueMap) {
+        if (Queue->Device->useImmediateCommandLists()) {
+          // Immediate command lists are not associated with any Level Zero
+          // queue, that's why we have to check status of events in each
+          // immediate command list. Start checking from the end and exit early
+          // if some event is not completed.
+          for (const auto &ImmCmdList : QueueGroup.second.ImmCmdLists) {
+            if (ImmCmdList == Queue->CommandListMap.end())
+              continue;
 
-          auto EventList = ImmCmdList->second.EventList;
-          for (auto It = EventList.crbegin(); It != EventList.crend(); It++) {
-            ze_result_t ZeResult =
-                ZE_CALL_NOCHECK(zeEventQueryStatus, ((*It)->ZeEvent));
+            auto EventList = ImmCmdList->second.EventList;
+            for (auto It = EventList.crbegin(); It != EventList.crend(); It++) {
+              ze_result_t ZeResult =
+                  ZE_CALL_NOCHECK(zeEventQueryStatus, ((*It)->ZeEvent));
+              if (ZeResult == ZE_RESULT_NOT_READY) {
+                return ReturnValue(pi_bool{false});
+              } else if (ZeResult != ZE_RESULT_SUCCESS) {
+                return mapError(ZeResult);
+              }
+            }
+          }
+        } else {
+          for (const auto &ZeQueue : QueueGroup.second.ZeQueues) {
+            if (!ZeQueue)
+              continue;
+            // Provide 0 as the timeout parameter to immediately get the status
+            // of the Level Zero queue.
+            ze_result_t ZeResult = ZE_CALL_NOCHECK(zeCommandQueueSynchronize,
+                                                   (ZeQueue, /* timeout */ 0));
             if (ZeResult == ZE_RESULT_NOT_READY) {
               return ReturnValue(pi_bool{false});
             } else if (ZeResult != ZE_RESULT_SUCCESS) {
               return mapError(ZeResult);
             }
-          }
-        }
-      } else {
-        for (const auto &ZeQueue : QueueGroup.ZeQueues) {
-          if (!ZeQueue)
-            continue;
-          // Provide 0 as the timeout parameter to immediately get the status of
-          // the Level Zero queue.
-          ze_result_t ZeResult = ZE_CALL_NOCHECK(zeCommandQueueSynchronize,
-                                                 (ZeQueue, /* timeout */ 0));
-          if (ZeResult == ZE_RESULT_NOT_READY) {
-            return ReturnValue(pi_bool{false});
-          } else if (ZeResult != ZE_RESULT_SUCCESS) {
-            return mapError(ZeResult);
           }
         }
       }
@@ -4123,14 +4136,12 @@ static pi_result piQueueReleaseInternal(pi_queue Queue) {
       PI_CALL(piEventReleaseInternal(Event));
 
   if (Queue->OwnZeCommandQueue) {
-    for (auto &ZeQueue : Queue->ComputeQueueGroup.ZeQueues) {
-      if (ZeQueue)
-        ZE_CALL(zeCommandQueueDestroy, (ZeQueue));
-    }
-    for (auto &ZeQueue : Queue->CopyQueueGroup.ZeQueues) {
-      if (ZeQueue)
-        ZE_CALL(zeCommandQueueDestroy, (ZeQueue));
-    }
+    for (auto &QueueMap :
+         {Queue->ComputeQueueGroupsByTID, Queue->CopyQueueGroupsByTID})
+      for (auto &QueueGroup : QueueMap)
+        for (auto &ZeQueue : QueueGroup.second.ZeQueues)
+          if (ZeQueue)
+            ZE_CALL(zeCommandQueueDestroy, (ZeQueue));
   }
 
   zePrint("piQueueRelease(compute) NumTimesClosedFull %d, "
@@ -4165,10 +4176,12 @@ pi_result piQueueFinish(pi_queue Queue) {
       return Res;
 
     // Make a copy of queues to sync and release the lock.
-    ZeQueues = Queue->CopyQueueGroup.ZeQueues;
-    std::copy(Queue->ComputeQueueGroup.ZeQueues.begin(),
-              Queue->ComputeQueueGroup.ZeQueues.end(),
-              std::back_inserter(ZeQueues));
+    for (auto &QueueMap :
+         {Queue->ComputeQueueGroupsByTID, Queue->CopyQueueGroupsByTID})
+      for (auto &QueueGroup : QueueMap)
+        std::copy(QueueGroup.second.ZeQueues.begin(),
+                  QueueGroup.second.ZeQueues.end(),
+                  std::back_inserter(ZeQueues));
 
     // Remember the last command's event.
     auto LastCommandEvent = Queue->LastCommandEvent;
@@ -4228,7 +4241,15 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
 
   // Extract a Level Zero compute queue handle from the given PI queue
   uint32_t QueueGroupOrdinalUnused;
-  *ZeQueue = Queue->ComputeQueueGroup.getZeQueue(&QueueGroupOrdinalUnused);
+  auto TID = std::this_thread::get_id();
+  auto InitialGroup = Queue->ComputeQueueGroupsByTID.begin()->second;
+  std::pair<std::unordered_map<std::thread::id,
+                               _pi_queue::pi_queue_group_t>::iterator,
+            bool>
+      Result = Queue->ComputeQueueGroupsByTID.insert({TID, InitialGroup});
+  auto &ComputeQueueGroupRef = Result.first->second;
+
+  *ZeQueue = ComputeQueueGroupRef.getZeQueue(&QueueGroupOrdinalUnused);
   return PI_SUCCESS;
 }
 
@@ -6924,8 +6945,10 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   std::vector<pi_command_list_ptr_t> CmdLists;
 
   // There must be at least one L0 queue.
-  PI_ASSERT(!Queue->ComputeQueueGroup.ZeQueues.empty() ||
-                !Queue->CopyQueueGroup.ZeQueues.empty(),
+  auto InitialComputeGroup = Queue->ComputeQueueGroupsByTID.begin()->second;
+  auto InitialCopyGroup = Queue->CopyQueueGroupsByTID.begin()->second;
+  PI_ASSERT(!InitialComputeGroup.ZeQueues.empty() ||
+                !InitialCopyGroup.ZeQueues.empty(),
             PI_ERROR_INVALID_QUEUE);
 
   if (Queue->Device->useImmediateCommandLists()) {
@@ -6936,25 +6959,32 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
          It != Queue->CommandListMap.end(); ++It)
       CmdLists.push_back(It);
   } else {
-    size_t NumQueues = Queue->ComputeQueueGroup.ZeQueues.size() +
-                       Queue->CopyQueueGroup.ZeQueues.size();
+    size_t NumQueues = 0;
+    for (auto &QueueMap :
+         {Queue->ComputeQueueGroupsByTID, Queue->CopyQueueGroupsByTID})
+      for (auto &QueueGroup : QueueMap)
+        NumQueues += QueueGroup.second.ZeQueues.size();
+
     OkToBatch = true;
     // Get an available command list tied to each command queue. We need
     // these so a queue-wide barrier can be inserted into each command
     // queue.
     CmdLists.reserve(NumQueues);
-    for (auto QueueGroup : {Queue->ComputeQueueGroup, Queue->CopyQueueGroup}) {
-      bool UseCopyEngine = QueueGroup.Type != _pi_queue::queue_type::Compute;
-      for (ze_command_queue_handle_t ZeQueue : QueueGroup.ZeQueues) {
-        if (ZeQueue) {
-          pi_command_list_ptr_t CmdList;
-          if (auto Res = Queue->Context->getAvailableCommandList(
-                  Queue, CmdList, UseCopyEngine, OkToBatch, &ZeQueue))
-            return Res;
-          CmdLists.push_back(CmdList);
+    for (auto &QueueMap :
+         {Queue->ComputeQueueGroupsByTID, Queue->CopyQueueGroupsByTID})
+      for (auto &QueueGroup : QueueMap) {
+        bool UseCopyEngine =
+            QueueGroup.second.Type != _pi_queue::queue_type::Compute;
+        for (ze_command_queue_handle_t ZeQueue : QueueGroup.second.ZeQueues) {
+          if (ZeQueue) {
+            pi_command_list_ptr_t CmdList;
+            if (auto Res = Queue->Context->getAvailableCommandList(
+                    Queue, CmdList, UseCopyEngine, OkToBatch, &ZeQueue))
+              return Res;
+            CmdLists.push_back(CmdList);
+          }
         }
       }
-    }
   }
 
   // If no activity has occurred on the queue then there will be no cmdlists.
@@ -7067,7 +7097,8 @@ pi_result piEnqueueMemBufferReadRect(
 } // extern "C"
 
 bool _pi_queue::useCopyEngine(bool PreferCopyEngine) const {
-  return PreferCopyEngine && CopyQueueGroup.ZeQueues.size() > 0 &&
+  auto InitialCopyGroup = CopyQueueGroupsByTID.begin()->second;
+  return PreferCopyEngine && InitialCopyGroup.ZeQueues.size() > 0 &&
          (!isInOrderQueue() || UseCopyEngineForInOrderQueue);
 }
 
@@ -7107,28 +7138,17 @@ pi_result _pi_queue::synchronize() {
     return PI_SUCCESS;
   };
 
-  if (Device->useImmediateCommandLists()) {
-    if (Device->useImmediateCommandLists() == PerThreadPerQueue) {
-      for (auto ImmCmdListGroup : ComputeQueueGroupsByTID)
-        for (auto ImmCmdList : ComputeQueueGroup.ImmCmdLists)
+  for (auto &QueueMap : {ComputeQueueGroupsByTID, CopyQueueGroupsByTID})
+    for (auto &QueueGroup : QueueMap) {
+      if (Device->useImmediateCommandLists()) {
+        for (auto ImmCmdList : QueueGroup.second.ImmCmdLists)
           syncImmCmdList(this, ImmCmdList);
-      for (auto ImmCmdListGroup : CopyQueueGroupsByTID)
-        for (auto ImmCmdList : CopyQueueGroup.ImmCmdLists)
-          syncImmCmdList(this, ImmCmdList);
-    } else {
-      for (auto ImmCmdList : ComputeQueueGroup.ImmCmdLists)
-        syncImmCmdList(this, ImmCmdList);
-      for (auto ImmCmdList : CopyQueueGroup.ImmCmdLists)
-        syncImmCmdList(this, ImmCmdList);
+      } else {
+        for (auto &ZeQueue : QueueGroup.second.ZeQueues)
+          if (ZeQueue)
+            ZE_CALL(zeHostSynchronize, (ZeQueue));
+      }
     }
-  } else {
-    for (auto &ZeQueue : ComputeQueueGroup.ZeQueues)
-      if (ZeQueue)
-        ZE_CALL(zeHostSynchronize, (ZeQueue));
-    for (auto &ZeQueue : CopyQueueGroup.ZeQueues)
-      if (ZeQueue)
-        ZE_CALL(zeHostSynchronize, (ZeQueue));
-  }
   LastCommandEvent = nullptr;
 
   // With the entire queue synchronized, the active barriers must be done so we

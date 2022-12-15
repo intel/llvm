@@ -707,26 +707,12 @@ struct _pi_queue : _pi_object {
     uint32_t NextIndex{0};
   };
 
-  // When using standard commandlists, a group containing compute queue handles.
-  // Also used for immediate commandlists when they are not thread-specific.
-  pi_queue_group_t ComputeQueueGroup{this, queue_type::Compute};
-
-  // When using immediate command lists in per-thread mode, the QueueGroups are
-  // per thread, with the thread-id used as a key in this map. The single
-  // QueueGroup above, serves as an initial value to be used to initialize each
-  // new thread's QueueGroup.
+  // A map of compute groups containing compute queue handles, one per thread.
   std::unordered_map<std::thread::id, pi_queue_group_t> ComputeQueueGroupsByTID;
 
-  // When using standard commandlists, a vector of Level Zero copy command
-  // command queue handles. In this vector, main copy engine, if available,
-  // comes first followed by link copy engines, if available.
-  pi_queue_group_t CopyQueueGroup{this, queue_type::MainCopy};
-
-  // Similar to the compute queuegroups, the copy queue groups are per-thread
-  // when in per-thread mode. The single copy QueueGroup above, serves as an
-  // initial value to be used to initialize each new thread's QueueGroup.
-  // In each group, the main copy engine, if available, comes first followed by
-  // link copy engines, if available.
+  // A group containing copy queue handles. The main copy engine, if available,
+  // comes first followed by link copy engines, if available. One group per
+  // thread.
   std::unordered_map<std::thread::id, pi_queue_group_t> CopyQueueGroupsByTID;
 
   // Wait for all commandlists associated with this Queue to finish operations.
