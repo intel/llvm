@@ -301,7 +301,7 @@ TEST_F(SchedulerTest, HostTaskCleanup) {
 
   Lock.unlock();
   Event.wait();
-  // Command should be sent to graph cleanup as part of the task
+  // The command should be sent to graph cleanup as part of the task
   // submitted to the thread pool, shortly after the event is marked
   // as complete.
   sycl::detail::GlobalHandler::instance().drainThreadPool();
