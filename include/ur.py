@@ -1928,6 +1928,13 @@ if __use_win_types:
 else:
     _urDeviceCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, ur_platform_handle_t, POINTER(ur_device_handle_t) )
 
+###############################################################################
+## @brief Function-pointer for urDeviceGetGlobalTimestamps
+if __use_win_types:
+    _urDeviceGetGlobalTimestamps_t = WINFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(c_ulonglong), POINTER(c_ulonglong) )
+else:
+    _urDeviceGetGlobalTimestamps_t = CFUNCTYPE( ur_result_t, ur_device_handle_t, POINTER(c_ulonglong), POINTER(c_ulonglong) )
+
 
 ###############################################################################
 ## @brief Table of Device functions pointers
@@ -1940,7 +1947,8 @@ class ur_device_dditable_t(Structure):
         ("pfnPartition", c_void_p),                                     ## _urDevicePartition_t
         ("pfnSelectBinary", c_void_p),                                  ## _urDeviceSelectBinary_t
         ("pfnGetNativeHandle", c_void_p),                               ## _urDeviceGetNativeHandle_t
-        ("pfnCreateWithNativeHandle", c_void_p)                         ## _urDeviceCreateWithNativeHandle_t
+        ("pfnCreateWithNativeHandle", c_void_p),                        ## _urDeviceCreateWithNativeHandle_t
+        ("pfnGetGlobalTimestamps", c_void_p)                            ## _urDeviceGetGlobalTimestamps_t
     ]
 
 ###############################################################################
@@ -2199,5 +2207,6 @@ class UR_DDI:
         self.urDeviceSelectBinary = _urDeviceSelectBinary_t(self.__dditable.Device.pfnSelectBinary)
         self.urDeviceGetNativeHandle = _urDeviceGetNativeHandle_t(self.__dditable.Device.pfnGetNativeHandle)
         self.urDeviceCreateWithNativeHandle = _urDeviceCreateWithNativeHandle_t(self.__dditable.Device.pfnCreateWithNativeHandle)
+        self.urDeviceGetGlobalTimestamps = _urDeviceGetGlobalTimestamps_t(self.__dditable.Device.pfnGetGlobalTimestamps)
 
         # success!

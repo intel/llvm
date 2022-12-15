@@ -1421,6 +1421,14 @@ typedef ur_result_t (UR_APICALL *ur_pfnDeviceCreateWithNativeHandle_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urDeviceGetGlobalTimestamps 
+typedef ur_result_t (UR_APICALL *ur_pfnDeviceGetGlobalTimestamps_t)(
+    ur_device_handle_t,
+    uint64_t*,
+    uint64_t*
+    );
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Device functions pointers
 typedef struct ur_device_dditable_t
 {
@@ -1432,6 +1440,7 @@ typedef struct ur_device_dditable_t
     ur_pfnDeviceSelectBinary_t                                  pfnSelectBinary;
     ur_pfnDeviceGetNativeHandle_t                               pfnGetNativeHandle;
     ur_pfnDeviceCreateWithNativeHandle_t                        pfnCreateWithNativeHandle;
+    ur_pfnDeviceGetGlobalTimestamps_t                           pfnGetGlobalTimestamps;
 } ur_device_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////
