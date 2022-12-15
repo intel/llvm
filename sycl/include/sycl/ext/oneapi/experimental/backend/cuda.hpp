@@ -16,9 +16,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace cuda {
+namespace ext::oneapi::cuda {
 
 // Implementation of ext_oneapi_cuda::make<device>
 inline __SYCL_EXPORT device make_device(pi_native_handle NativeHandle) {
@@ -33,9 +31,7 @@ inline __SYCL_EXPORT bool has_native_event(event sycl_event) {
   return false;
 }
 
-} // namespace cuda
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::cuda
 
 // CUDA context specialization
 template <>

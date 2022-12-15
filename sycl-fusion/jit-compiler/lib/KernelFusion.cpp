@@ -11,6 +11,7 @@
 #include "KernelIO.h"
 #include "Options.h"
 #include "fusion/FusionHelper.h"
+#include "fusion/FusionPipeline.h"
 #include "helper/ConfigHelper.h"
 #include "helper/ErrorHandling.h"
 #include "translation/SPIRVLLVMTranslation.h"
@@ -80,9 +81,10 @@ FusionResult KernelFusion::fuseKernels(
   }
   std::unique_ptr<llvm::Module> NewMod = std::move(*NewModOrError);
 
-  // TODO: Invoke the actual fusion via LLVM pass manager.
-  // This will be added in a later PR.
-  auto NewModInfo = std::make_unique<SYCLModuleInfo>();
+  // Invoke the actual fusion via LLVM pass manager.
+  std::unique_ptr<SYCLModuleInfo> NewModInfo =
+      fusion::FusionPipeline::runFusionPasses(*NewMod, ModuleInfo,
+                                              BarriersFlags);
 
   // Get the updated kernel info for the fused kernel and add the information to
   // the existing KernelInfo.

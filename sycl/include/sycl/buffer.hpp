@@ -36,11 +36,9 @@ class host_accessor;
 template <typename T, int Dimensions, typename AllocatorT, typename Enable>
 class buffer;
 
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 template <typename SYCLObjT> class weak_object;
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 namespace detail {
 
@@ -125,6 +123,8 @@ protected:
 
   size_t getSize() const;
 
+  void handleRelease() const;
+
   std::shared_ptr<detail::buffer_impl> impl;
 };
 
@@ -140,8 +140,8 @@ protected:
 /// \ingroup sycl_api
 template <typename T, int dimensions = 1,
           typename AllocatorT = buffer_allocator<std::remove_const_t<T>>,
-          typename __Enabled =
-              typename std::enable_if_t<(dimensions > 0) && (dimensions <= 3)>>
+          typename __Enabled = typename detail::enable_if_t<(dimensions > 0) &&
+                                                            (dimensions <= 3)>>
 class buffer : public detail::buffer_plain,
                public detail::OwnerLessBase<buffer<T, dimensions, AllocatorT>> {
   // TODO check is_device_copyable<T>::value after converting sycl::vec into a
@@ -155,21 +155,21 @@ public:
   using const_reference = const value_type &;
   using allocator_type = AllocatorT;
   template <int dims>
-  using EnableIfOneDimension = typename std::enable_if_t<1 == dims>;
+  using EnableIfOneDimension = typename detail::enable_if_t<1 == dims>;
   // using same requirement for contiguous container as std::span
   template <class Container>
   using EnableIfContiguous =
-      detail::void_t<std::enable_if_t<std::is_convertible<
+      detail::void_t<detail::enable_if_t<std::is_convertible<
                          detail::remove_pointer_t<
                              decltype(std::declval<Container>().data())> (*)[],
                          const T (*)[]>::value>,
                      decltype(std::declval<Container>().size())>;
   template <class It>
-  using EnableIfItInputIterator = std::enable_if_t<
+  using EnableIfItInputIterator = detail::enable_if_t<
       std::is_convertible<typename std::iterator_traits<It>::iterator_category,
                           std::input_iterator_tag>::value>;
   template <typename ItA, typename ItB>
-  using EnableIfSameNonConstIterators = typename std::enable_if_t<
+  using EnableIfSameNonConstIterators = typename detail::enable_if_t<
       std::is_same<ItA, ItB>::value && !std::is_const<ItA>::value, ItA>;
 
   std::array<size_t, 3> rangeToArray(range<3> &r) { return {r[0], r[1], r[2]}; }
@@ -466,7 +466,7 @@ public:
 
   buffer &operator=(buffer &&rhs) = default;
 
-  ~buffer() = default;
+  ~buffer() { buffer_plain::handleRelease(); }
 
   bool operator==(const buffer &rhs) const { return impl == rhs.impl; }
 
@@ -547,8 +547,6 @@ public:
         *this, accessRange, accessOffset, {}, CodeLoc);
   }
 
-#if __cplusplus >= 201703L
-
   template <typename... Ts> auto get_access(Ts... args) {
     return accessor{*this, args...};
   }
@@ -567,8 +565,6 @@ public:
     return host_accessor{*this, commandGroupHandler, args...};
   }
 
-#endif
-
   template <typename Destination = std::nullptr_t>
   void set_final_data(Destination finalData = nullptr) {
     this->set_final_data_internal(finalData);
@@ -579,7 +575,7 @@ public:
   }
 
   template <template <typename WeakT> class WeakPtrT, typename WeakT>
-  std::enable_if_t<
+  detail::enable_if_t<
       std::is_convertible<WeakPtrT<WeakT>, std::weak_ptr<WeakT>>::value>
   set_final_data_internal(WeakPtrT<WeakT> FinalData) {
     std::weak_ptr<WeakT> TempFinalData(FinalData);
