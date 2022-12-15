@@ -587,7 +587,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
     // TODO Module identifier is not reliable for this purpose since two modules
     // can have the same ID, needs improvement
     Fn->addFnAttr("sycl-module-id", Fn->getParent()->getModuleIdentifier());
-    int SYCLDeviceCompileOptLevel;
+    int SYCLDeviceCompileOptLevel = 2;
     switch (CGM.getCodeGenOpts().OptimizationLevel) {
     default:
       llvm_unreachable("Invalid optimization level!");

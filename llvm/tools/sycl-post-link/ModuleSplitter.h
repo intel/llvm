@@ -60,12 +60,16 @@ struct EntryPointGroup {
     // Scope represented by EPs in a group
     EntryPointsGroupScope Scope = Scope_Global;
 
+    // opt level
+    unsigned OptLevel = 2;
+
     Properties merge(const Properties &Other) const {
       Properties Res;
       Res.HasESIMD = HasESIMD == Other.HasESIMD
                          ? HasESIMD
                          : SyclEsimdSplitStatus::SYCL_AND_ESIMD;
       Res.UsesLargeGRF = UsesLargeGRF || Other.UsesLargeGRF;
+      // Opt Level remains at '2'
       // Scope remains global
       return Res;
     }
@@ -92,6 +96,9 @@ struct EntryPointGroup {
   }
   // Tells if some entry points use large GRF mode.
   bool isLargeGRF() const { return Props.UsesLargeGRF; }
+
+  // Get opt level.
+  uint32_t getOptLevel() const { return Props.OptLevel; }
 
   void saveNames(std::vector<std::string> &Dest) const;
   void rebuildFromNames(const std::vector<std::string> &Names, const Module &M);
@@ -147,6 +154,7 @@ public:
   bool isESIMD() const { return EntryPoints.isEsimd(); }
   bool isSYCL() const { return EntryPoints.isSycl(); }
   bool isLargeGRF() const { return EntryPoints.isLargeGRF(); }
+  uint32_t getOptLevel() const { return EntryPoints.getOptLevel(); }
 
   const EntryPointSet &entries() const { return EntryPoints.Functions; }
   const EntryPointGroup &getEntryPointGroup() const { return EntryPoints; }
@@ -252,6 +260,9 @@ getSplitterByMode(ModuleDesc &&MD, IRSplitMode Mode,
 
 std::unique_ptr<ModuleSplitterBase>
 getLargeGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints);
+
+std::unique_ptr<ModuleSplitterBase>
+getOptLevelSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints);
 
 #ifndef NDEBUG
 void dumpEntryPoints(const EntryPointSet &C, const char *msg = "", int Tab = 0);

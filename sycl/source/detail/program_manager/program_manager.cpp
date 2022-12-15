@@ -407,6 +407,24 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
   // TODO: Remove isDoubleGRF check in next ABI break
   bool isLargeGRF = getUint32PropAsBool(Img, "isLargeGRF") ||
                     getUint32PropAsBool(Img, "isDoubleGRF");
+  pi_device_binary_property Prop = Img.getProperty("OptLevel");
+  uint32_t OptLevel = Prop ? DeviceBinaryProperty(Prop).asUint32() : 2;
+  std::string OptLevelStr = "";
+  switch (OptLevel) {
+    case 0:
+      OptLevelStr = "-cl-opt-disable";
+      break;
+    case 1:
+      OptLevelStr = "-O1";
+      break;
+    case 2:
+      OptLevelStr = "-O2";
+      break;
+    case 3:
+      OptLevelStr = "-O3";
+      break;
+  }
+
   // The -vc-codegen option is always preserved for ESIMD kernels, regardless
   // of the contents SYCL_PROGRAM_COMPILE_OPTIONS environment variable.
   if (isEsimdImage) {
@@ -424,6 +442,11 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     // TODO: Always use -ze-opt-large-register-file once IGC VC bug ignoring it
     // is fixed
     CompileOpts += isEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
+  }
+  if (!OptLevelStr.empty()) {
+    if (!CompileOpts.empty())
+      CompileOpts += " ";
+    CompileOpts += OptLevelStr;
   }
 }
 

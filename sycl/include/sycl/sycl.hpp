@@ -19,7 +19,6 @@
 #endif
 #include <sycl/buffer.hpp>
 #include <sycl/builtins.hpp>
-#include <sycl/compile_options.hpp>
 #include <sycl/context.hpp>
 #include <sycl/define_vendors.hpp>
 #include <sycl/device.hpp>

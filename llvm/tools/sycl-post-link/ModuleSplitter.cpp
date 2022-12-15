@@ -43,6 +43,9 @@ constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
 
 constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
 
+// Similar copy in sycl-post-link.cpp
+constexpr char ATTR_OPT_LEVEL[] = "sycl-device-compile-optlevel";
+
 bool hasIndirectFunctionsOrCalls(const Module &M) {
   for (const auto &F : M.functions()) {
     // There are functions marked with [[intel::device_indirectly_callable]]
@@ -282,6 +285,44 @@ groupEntryPointsByAttribute(ModuleDesc &MD, StringRef AttrName,
       EntryPointMap[AttrName].insert(&F);
     } else {
       EntryPointMap[""].insert(&F);
+    }
+  }
+  if (!EntryPointMap.empty()) {
+    EntryPointGroups.reserve(EntryPointMap.size());
+    for (auto &EPG : EntryPointMap) {
+      EntryPointGroups.emplace_back(EntryPointGroup{
+          EPG.first, std::move(EPG.second), MD.getEntryPointGroup().Props});
+      F(EntryPointGroups.back());
+    }
+  } else {
+    // No entry points met, record this.
+    EntryPointGroups.push_back({GLOBAL_SCOPE_NAME, {}});
+    F(EntryPointGroups.back());
+  }
+  return EntryPointGroups;
+}
+
+template <class EntryPoinGroupFunc>
+EntryPointGroupVec
+groupEntryPointsByOptLevel(ModuleDesc &MD, StringRef AttrName,
+                            bool EmitOnlyKernelsAsEntryPoints,
+                            EntryPoinGroupFunc F) {
+  EntryPointGroupVec EntryPointGroups{};
+  std::map<StringRef, EntryPointSet> EntryPointMap;
+  Module &M = MD.getModule();
+
+  // Only process module entry points:
+  for (auto &F : M.functions()) {
+    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
+        !MD.isEntryPointCandidate(F)) {
+      continue;
+    }
+    if (F.hasFnAttribute(AttrName)) {
+      SmallString<16> stringConstName;
+      StringRef OptLevelStr = F.getFnAttribute(AttrName).getValueAsString();
+      EntryPointMap[OptLevelStr].insert(&F);
+    } else {
+      EntryPointMap["2"].insert(&F);
     }
   }
   if (!EntryPointMap.empty()) {
@@ -751,6 +792,29 @@ getLargeGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
         if (G.GroupId == sycl::kernel_props::ATTR_LARGE_GRF) {
           G.Props.UsesLargeGRF = true;
         }
+      });
+  assert(!Groups.empty() && "At least one group is expected");
+  assert(Groups.size() <= 2 && "At most 2 groups are expected");
+
+  if (Groups.size() > 1)
+    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
+  else
+    return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
+}
+
+std::unique_ptr<ModuleSplitterBase>
+getOptLevelSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
+  EntryPointGroupVec Groups = groupEntryPointsByOptLevel(
+      MD, ATTR_OPT_LEVEL, EmitOnlyKernelsAsEntryPoints,
+      [](EntryPointGroup &G) {
+        if (G.GroupId == "3")
+          G.Props.OptLevel = 3;
+        else if (G.GroupId == "2")
+          G.Props.OptLevel = 2;
+        else if (G.GroupId == "1")
+          G.Props.OptLevel = 1;
+        else if (G.GroupId == "0")
+          G.Props.OptLevel = 0;
       });
   assert(!Groups.empty() && "At least one group is expected");
   assert(Groups.size() <= 2 && "At most 2 groups are expected");

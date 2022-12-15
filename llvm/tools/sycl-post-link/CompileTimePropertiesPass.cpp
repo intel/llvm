@@ -208,10 +208,6 @@ attributeToExecModeMetadata(Module &M, const Attribute &Attr) {
                                             MDNode::get(Ctx, MD));
   }
 
-  if (AttrKindStr == "sycl-device-compile-options") {
-    auto Opt = Attr.getValueAsString();
-    llvm::errs() << "ARV: Opt is -O" << Opt << "\n";
-  }
   return None;
 }
 
