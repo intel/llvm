@@ -1496,12 +1496,12 @@ public:
   private:
   __ESIMD_NS::simd<uint32_t, 16> get_raw_data() { return payload; }
   __ESIMD_NS::simd<uint32_t, 16> payload;
-  template <typename T, int N>
-  friend ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N>
-  lsc_load2d(config_2d_mem_access<T> &payload);
-  template <typename T, int N>
+  template <typename T1, int N>
+  friend ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T1, N>
+  lsc_load2d(config_2d_mem_access<T1> &payload);
+  template <typename T1, int N>
   friend ESIMD_INLINE SYCL_ESIMD_FUNCTION void
-  lsc_store2d(config_2d_mem_access<T> &payload, __ESIMD_NS::simd<T, N> Data);
+  lsc_store2d(config_2d_mem_access<T1> &payload, __ESIMD_NS::simd<T1, N> Data);
 
 };
 
