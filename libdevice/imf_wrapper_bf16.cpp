@@ -252,6 +252,70 @@ long long __imf_bfloat162ll_rz(_iml_bf16_internal b) {
 }
 
 DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_ushort2bfloat16_rd(unsigned short);
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __imf_ushort2bfloat16_rd(unsigned short x) {
+  return __devicelib_imf_ushort2bfloat16_rd(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_ushort2bfloat16_rn(unsigned short);
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __imf_ushort2bfloat16_rn(unsigned short x) {
+  return __devicelib_imf_ushort2bfloat16_rn(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_ushort2bfloat16_ru(unsigned short);
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __imf_ushort2bfloat16_ru(unsigned short x) {
+  return __devicelib_imf_ushort2bfloat16_ru(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_ushort2bfloat16_rz(unsigned short);
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __imf_ushort2bfloat16_rz(unsigned short x) {
+  return __devicelib_imf_ushort2bfloat16_rz(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_uint2bfloat16_rd(unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __imf_uint2bfloat16_rd(unsigned int x) {
+  return __devicelib_imf_uint2bfloat16_rd(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_uint2bfloat16_rn(unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __imf_uint2bfloat16_rn(unsigned int x) {
+  return __devicelib_imf_uint2bfloat16_rn(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_uint2bfloat16_ru(unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __imf_uint2bfloat16_ru(unsigned int x) {
+  return __devicelib_imf_uint2bfloat16_ru(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_uint2bfloat16_rz(unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __imf_uint2bfloat16_rz(unsigned int x) {
+  return __devicelib_imf_uint2bfloat16_rz(x);
+}
+
+DEVICE_EXTERN_C_INLINE
 short __devicelib_imf_bfloat16_as_short(_iml_bf16_internal);
 
 DEVICE_EXTERN_C_INLINE
