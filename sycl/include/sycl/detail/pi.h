@@ -1905,12 +1905,11 @@ __SYCL_EXPORT pi_result piTearDown(void *PluginParameter);
 /// timestamp
 __SYCL_EXPORT pi_result piPluginGetLastError(char **message);
 
-/// Returns the global timestamp from \param device , and synchronized host
-/// timestamp.
+/// Queries  device for it's global timestamp in nanoseconds, and updates HostTime  with the value of the host timer at the closest possible point in time to that at which DeviceTime was returned.
 ///
 /// \param device device to query for timestamp
-/// \param deviceTime pointer to store device time
-/// \param hostTime pointer to store synchronized host time
+/// \param deviceTime pointer to store device timestamp in nanoseconds. Optional argument, can be nullptr
+/// \param hostTime  pointer to store host timestamp in nanoseconds. Optional argurment, can be nullptr
 __SYCL_EXPORT pi_result piGetDeviceAndHostTimer(pi_device Device,
                                                 uint64_t *DeviceTime,
                                                 uint64_t *HostTime);

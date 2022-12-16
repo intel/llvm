@@ -5986,9 +5986,9 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
     ContextEndTime *= ZeTimerResolution;
     return ReturnValue(ContextEndTime);
   }
+  //TODO: Remove this and other related code for setting or getting queued/submit time
   case PI_PROFILING_INFO_COMMAND_QUEUED:
   case PI_PROFILING_INFO_COMMAND_SUBMIT:
-    // TODO: Support these when Level Zero supported is added.
     return ReturnValue(uint64_t{0});
   default:
     zePrint("piEventGetProfilingInfo: not supported ParamName\n");
@@ -9363,7 +9363,8 @@ pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
   uint64_t DeviceClockCount, Dummy;
 
   ZE_CALL(zeDeviceGetGlobalTimestamps,
-          (Device->ZeDevice, HostTime == nullptr ? &Dummy : HostTime, &DeviceClockCount));
+          (Device->ZeDevice, HostTime == nullptr ? &Dummy : HostTime,
+           &DeviceClockCount));
 
   if (DeviceTime != nullptr) {
 

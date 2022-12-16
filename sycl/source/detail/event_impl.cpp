@@ -421,8 +421,17 @@ void event_impl::cleanDepEventsThroughOneLevel() {
   }
 }
 
-void event_impl::setSubmissionTime(uint64_t time) { MSubmitTime = time; }
+void event_impl::setSubmissionTime() {
+  if(!MSubmittedQueue.expired()){
+    auto queue=MSubmittedQueue.lock();
+    if(queue->MIsProfilingEnabled){
+      MSubmitTime= queue->getDeviceImplPtr()->getTime();
+    }
+  }
+}
+
 uint64_t event_impl::getSubmissionTime() { return MSubmitTime; }
+
 bool event_impl::isCompleted() {
   return get_info<info::event::command_execution_status>() ==
          info::event_command_status::complete;
