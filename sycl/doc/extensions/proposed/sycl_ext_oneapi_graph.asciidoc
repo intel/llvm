@@ -146,8 +146,8 @@ and edges they want to add to the graph.
 
 2. **Queue recording API (aka "Record & Replay")** - Introduces state to a
 `sycl::queue` such that rather than scheduling commands immediately for
-execution, they are added to the graph object instead, with edges based on the
-data dependencies of the command group.
+execution, they are added to the graph object instead, with edges captured from
+the dependencies of the command group.
 
 Each of these mechanisms for constructing a graph have their own advantages, so
 having both APIs available allows the user to pick the one which is most
@@ -218,9 +218,16 @@ methods on a modifiable graph. Each node represent either a command-group
 function, empty operation, or device memory allocation/free.
 
 | Edge
-| In the explicit graph building API edges are defined by the user. This is
-either through buffer accessors, the `make_edge()` function, or by passing
-dependent nodes on creation of a new node.
+| In the explicit graph building API edges are primarily defined by the user
+through newly added interfaces. This is either using the `make_edge()` function
+to define an edge between existing nodes, or using a
+`property::node::depends_on` property list when adding a new node to the graph.
+
+Edges can also be created when explicitly adding nodes to the graph through
+existing SYCL mechanisms for expressing dependencies. Data dependencies from
+buffer accessors to existing nodes in the graph are captured as an edge. Using
+`handler::depends_on()` will also create a graph edge when passed an event
+returned from a queue submission captured by a queue recording to the same graph.
 |===
 
 ==== Queue Recording API
@@ -247,10 +254,16 @@ nodes under this definition, as the
 specialized kernels executing on the device.
 
 | Edge
-| An edge in a queue recorded graph represents a data dependency between two
-nodes. Data dependencies can naturally be expressed in user code through buffer
-accessors. USM pointers also convey data dependencies, however offsets into
-system allocations (`malloc`/`new`) are not supported.
+| An edge in a queue recorded graph is expressed through command group
+dependencies in one of two ways. Firstly, through buffer accessors that
+represent data dependencies between two command groups captured as nodes.
+Secondly, by using the `handler::depends_on()` mechanism inside a command group
+captured as a node. However, for an event passed to `handler::depends_on()` to
+create an edge, it must be a default constructed event returned from a queue
+submission captured by the same graph. Otherwise, the event will be ignored and
+no dependency edge will be created in the graph. `handler::depends_on()` can be
+used to express edges when a user is working with USM memory rather than SYCL
+buffers.
 |===
 
 ==== Sub-Graph
