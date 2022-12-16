@@ -74,13 +74,13 @@ add_sycl_plugin(level_zero
     "../unified_runtime/pi2ur.cpp"
     "../unified_runtime/ur/ur.hpp"
     "../unified_runtime/ur/ur.cpp"
+    "../unified_runtime/ur/usm_allocator.cpp"
+    "../unified_runtime/ur/usm_allocator.hpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero.hpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero.cpp"
     # Following are the PI Level-Zero Plugin only codes.
     "pi_level_zero.cpp"
     "pi_level_zero.hpp"
-    "usm_allocator.cpp"
-    "usm_allocator.hpp"
     "tracing.cpp"
     ${XPTI_PROXY_SRC}
   INCLUDE_DIRS
