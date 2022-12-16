@@ -122,7 +122,7 @@ add_devicelib_obj(libsycl-imf SRC imf_wrapper.cpp DEP ${imf_obj_deps})
 add_devicelib_obj(libsycl-imf-fp64 SRC imf_wrapper_fp64.cpp DEP ${imf_obj_deps})
 add_devicelib_obj(libsycl-imf-bf16 SRC imf_wrapper_bf16.cpp DEP ${imf_obj_deps})
 add_devicelib_obj(libsycl-bfloat16 SRC bfloat16_wrapper.cpp DEP ${cmath_obj_deps} )
-if(WIN32)
+if(MSVC)
 add_devicelib_obj(libsycl-msvc-math SRC msvc_math.cpp DEP ${cmath_obj_deps})
 endif()
 
