@@ -127,6 +127,10 @@ ze_structure_type_t getZeStructureType<ze_device_memory_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_PROPERTIES;
 }
 template <>
+ze_structure_type_t getZeStructureType<ze_device_memory_ext_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_EXT_PROPERTIES;
+}
+template <>
 ze_structure_type_t getZeStructureType<ze_device_memory_access_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_ACCESS_PROPERTIES;
 }
@@ -179,7 +183,7 @@ zer_result_t _ur_level_zero_platform::initialize() {
   ZE_CALL(zeDriverGetExtensionProperties,
           (ZeDriver, &Count, ZeExtensions.data()));
 
-  for (auto extension : ZeExtensions) {
+  for (auto &extension : ZeExtensions) {
     // Check if global offset extension is available
     if (strncmp(extension.name, ZE_GLOBAL_OFFSET_EXP_NAME,
                 strlen(ZE_GLOBAL_OFFSET_EXP_NAME) + 1) == 0) {

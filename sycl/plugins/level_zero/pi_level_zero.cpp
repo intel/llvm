@@ -797,14 +797,24 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
 
   ZeDeviceMemoryProperties.Compute =
       [ZeDevice](
-          std::vector<ZeStruct<ze_device_memory_properties_t>> &Properties) {
+          std::pair<std::vector<ZeStruct<ze_device_memory_properties_t>>,
+                    std::vector<ZeStruct<ze_device_memory_ext_properties_t>>>
+              &Properties) {
         uint32_t Count = 0;
         ZE_CALL_NOCHECK(zeDeviceGetMemoryProperties,
                         (ZeDevice, &Count, nullptr));
 
-        Properties.resize(Count);
+        auto &PropertiesVector = Properties.first;
+        auto &PropertiesExtVector = Properties.second;
+
+        PropertiesVector.resize(Count);
+        PropertiesExtVector.resize(Count);
+        // Request for extended memory properties be read in
+        for (uint32_t I = 0; I < Count; ++I)
+          PropertiesVector[I].pNext = (void *)&PropertiesExtVector[I];
+
         ZE_CALL_NOCHECK(zeDeviceGetMemoryProperties,
-                        (ZeDevice, &Count, Properties.data()));
+                        (ZeDevice, &Count, PropertiesVector.data()));
       };
 
   ZeDeviceMemoryAccessProperties.Compute =
@@ -977,7 +987,7 @@ pi_result _pi_context::finalize() {
   if (!DisableEventsCaching) {
     std::scoped_lock<pi_mutex> Lock(EventCacheMutex);
     for (auto &EventCache : EventCaches) {
-      for (auto Event : EventCache) {
+      for (auto &Event : EventCache) {
         ZE_CALL(zeEventDestroy, (Event->ZeEvent));
         delete Event;
       }
@@ -1070,7 +1080,9 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
     for (auto it = EventList.begin(); it != EventList.end();) {
       std::scoped_lock<pi_shared_mutex> EventLock((*it)->Mutex);
       ze_result_t ZeResult =
-          (*it)->Completed ? ZE_RESULT_SUCCESS : ZE_CALL_NOCHECK(zeEventQueryStatus, ((*it)->ZeEvent));
+          (*it)->Completed
+              ? ZE_RESULT_SUCCESS
+              : ZE_CALL_NOCHECK(zeEventQueryStatus, ((*it)->ZeEvent));
       // Break early as soon as we found first incomplete event because next
       // events are submitted even later. We are not trying to find all
       // completed events here because it may be costly. I.e. we are checking
@@ -1316,7 +1328,7 @@ static pi_result CleanupCompletedEvent(pi_event Event,
 static pi_result
 CleanupEventListFromResetCmdList(std::vector<pi_event> &EventListToCleanup,
                                  bool QueueLocked = false) {
-  for (auto Event : EventListToCleanup) {
+  for (auto &Event : EventListToCleanup) {
     // We don't need to synchronize the events since the fence associated with
     // the command list was synchronized.
     {
@@ -1476,9 +1488,7 @@ pi_result _pi_context::getAvailableCommandList(
   // First see if there is an command-list open for batching commands
   // for this queue.
   if (Queue->hasOpenCommandList(UseCopyEngine)) {
-    if (AllowBatching &&
-        (!ForcedCmdQueue ||
-         *ForcedCmdQueue == CommandBatch.OpenCommandList->second.ZeQueue)) {
+    if (AllowBatching) {
       CommandList = CommandBatch.OpenCommandList;
       PI_CALL(Queue->insertStartBarrierIfDiscardEventsMode(CommandList));
       return PI_SUCCESS;
@@ -2192,6 +2202,9 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
     }
   }
 
+  // For in-order queues, every command should be executed only after the
+  // previous command has finished. The event associated with the last
+  // enqueued command is added into the waitlist to ensure in-order semantics.
   bool IncludeLastCommandEvent =
       CurQueue->isInOrderQueue() && CurQueue->LastCommandEvent != nullptr;
 
@@ -2203,15 +2216,19 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
     IncludeLastCommandEvent = false;
 
   try {
+    pi_uint32 TmpListLength = 0;
+
     if (IncludeLastCommandEvent) {
       this->ZeEventList = new ze_event_handle_t[EventListLength + 1];
       this->PiEventList = new pi_event[EventListLength + 1];
+      std::shared_lock<pi_shared_mutex> Lock(CurQueue->LastCommandEvent->Mutex);
+      this->ZeEventList[0] = CurQueue->LastCommandEvent->ZeEvent;
+      this->PiEventList[0] = CurQueue->LastCommandEvent;
+      TmpListLength = 1;
     } else if (EventListLength > 0) {
       this->ZeEventList = new ze_event_handle_t[EventListLength];
       this->PiEventList = new pi_event[EventListLength];
     }
-
-    pi_uint32 TmpListLength = 0;
 
     if (EventListLength > 0) {
       for (pi_uint32 I = 0; I < EventListLength; I++) {
@@ -2290,16 +2307,6 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
         this->PiEventList[TmpListLength] = EventList[I];
         TmpListLength += 1;
       }
-    }
-
-    // For in-order queues, every command should be executed only after the
-    // previous command has finished. The event associated with the last
-    // enqueued command is added into the waitlist to ensure in-order semantics.
-    if (IncludeLastCommandEvent) {
-      std::shared_lock<pi_shared_mutex> Lock(CurQueue->LastCommandEvent->Mutex);
-      this->ZeEventList[TmpListLength] = CurQueue->LastCommandEvent->ZeEvent;
-      this->PiEventList[TmpListLength] = CurQueue->LastCommandEvent;
-      TmpListLength += 1;
     }
 
     this->Length = TmpListLength;
@@ -2965,9 +2972,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(pi_uint64{Device->ZeDeviceProperties->maxMemAllocSize});
   case PI_DEVICE_INFO_GLOBAL_MEM_SIZE: {
     uint64_t GlobalMemSize = 0;
-    for (uint32_t I = 0; I < Device->ZeDeviceMemoryProperties->size(); I++) {
-      GlobalMemSize +=
-          (*Device->ZeDeviceMemoryProperties.operator->())[I].totalSize;
+    for (const auto &ZeDeviceMemoryExtProperty :
+         Device->ZeDeviceMemoryProperties->second) {
+      GlobalMemSize += ZeDeviceMemoryExtProperty.physicalSize;
     }
     return ReturnValue(pi_uint64{GlobalMemSize});
   }
@@ -3340,21 +3347,32 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // Only report device memory which zeMemAllocDevice can allocate from.
     // Currently this is only the one enumerated with ordinal 0.
     uint64_t FreeMemory = 0;
-    uint32_t MemCount = 1;
-    zes_mem_handle_t ZesMemHandle;
-    ZE_CALL(zesDeviceEnumMemoryModules, (ZeDevice, &MemCount, &ZesMemHandle));
+    uint32_t MemCount = 0;
+    ZE_CALL(zesDeviceEnumMemoryModules, (ZeDevice, &MemCount, nullptr));
     if (MemCount != 0) {
-      ZesStruct<zes_mem_properties_t> ZeMemProperties;
-      ZE_CALL(zesMemoryGetProperties, (ZesMemHandle, &ZeMemProperties));
-      ZesStruct<zes_mem_state_t> ZeMemState;
-      ZE_CALL(zesMemoryGetState, (ZesMemHandle, &ZeMemState));
-      FreeMemory += ZeMemState.free;
+      std::vector<zes_mem_handle_t> ZesMemHandles(MemCount);
+      ZE_CALL(zesDeviceEnumMemoryModules,
+              (ZeDevice, &MemCount, ZesMemHandles.data()));
+      for (auto &ZesMemHandle : ZesMemHandles) {
+        ZesStruct<zes_mem_properties_t> ZesMemProperties;
+        ZE_CALL(zesMemoryGetProperties, (ZesMemHandle, &ZesMemProperties));
+        // For root-device report memory from all memory modules since that
+        // is what totally available in the default implicit scaling mode.
+        // For sub-devices only report memory local to them.
+        if (!Device->isSubDevice() || Device->ZeDeviceProperties->subdeviceId ==
+                                          ZesMemProperties.subdeviceId) {
+
+          ZesStruct<zes_mem_state_t> ZesMemState;
+          ZE_CALL(zesMemoryGetState, (ZesMemHandle, &ZesMemState));
+          FreeMemory += ZesMemState.free;
+        }
+      }
     }
     return ReturnValue(FreeMemory);
   }
   case PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE: {
     // If there are not any memory modules then return 0.
-    if (Device->ZeDeviceMemoryProperties->empty())
+    if (Device->ZeDeviceMemoryProperties->first.empty())
       return ReturnValue(pi_uint32{0});
 
     // If there are multiple memory modules on the device then we have to report
@@ -3364,13 +3382,13 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
       return A.maxClockRate < B.maxClockRate;
     };
     auto MinIt =
-        std::min_element(Device->ZeDeviceMemoryProperties->begin(),
-                         Device->ZeDeviceMemoryProperties->end(), Comp);
+        std::min_element(Device->ZeDeviceMemoryProperties->first.begin(),
+                         Device->ZeDeviceMemoryProperties->first.end(), Comp);
     return ReturnValue(pi_uint32{MinIt->maxClockRate});
   }
   case PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH: {
     // If there are not any memory modules then return 0.
-    if (Device->ZeDeviceMemoryProperties->empty())
+    if (Device->ZeDeviceMemoryProperties->first.empty())
       return ReturnValue(pi_uint32{0});
 
     // If there are multiple memory modules on the device then we have to report
@@ -3380,8 +3398,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
       return A.maxBusWidth < B.maxBusWidth;
     };
     auto MinIt =
-        std::min_element(Device->ZeDeviceMemoryProperties->begin(),
-                         Device->ZeDeviceMemoryProperties->end(), Comp);
+        std::min_element(Device->ZeDeviceMemoryProperties->first.begin(),
+                         Device->ZeDeviceMemoryProperties->first.end(), Comp);
     return ReturnValue(pi_uint32{MinIt->maxBusWidth});
   }
   case PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
@@ -4029,7 +4047,7 @@ pi_result piQueueRelease(pi_queue Queue) {
     Queue->CommandListMap.clear();
   }
 
-  for (auto Event : EventListToCleanup) {
+  for (auto &Event : EventListToCleanup) {
     // We don't need to synchronize the events since the queue
     // synchronized above already does that.
     {
@@ -4051,8 +4069,8 @@ static pi_result piQueueReleaseInternal(pi_queue Queue) {
   if (!Queue->RefCount.decrementAndTest())
     return PI_SUCCESS;
 
-  for (auto Cache : Queue->EventCaches)
-    for (auto Event : Cache)
+  for (auto &Cache : Queue->EventCaches)
+    for (auto &Event : Cache)
       PI_CALL(piEventReleaseInternal(Event));
 
   if (Queue->OwnZeCommandQueue) {
@@ -4117,7 +4135,7 @@ pi_result piQueueFinish(pi_queue Queue) {
       Lock.unlock();
     }
 
-    for (auto ZeQueue : ZeQueues) {
+    for (auto &ZeQueue : ZeQueues) {
       if (ZeQueue)
         ZE_CALL(zeHostSynchronize, (ZeQueue));
     }
@@ -6377,7 +6395,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
 
   // We waited some events above, check queue for signaled command lists and
   // reset them.
-  for (auto Q : Queues)
+  for (auto &Q : Queues)
     resetCommandLists(Q);
 
   return PI_SUCCESS;
@@ -6871,15 +6889,12 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   } else {
     size_t NumQueues = Queue->ComputeQueueGroup.ZeQueues.size() +
                        Queue->CopyQueueGroup.ZeQueues.size();
-    // Only allow batching if there is only a single queue as otherwise the
-    // following availability command list lookups will prematurely push
-    // open batch command lists out.
-    OkToBatch = NumQueues == 1;
+    OkToBatch = true;
     // Get an available command list tied to each command queue. We need
     // these so a queue-wide barrier can be inserted into each command
     // queue.
     CmdLists.reserve(NumQueues);
-    for (auto QueueGroup : {Queue->ComputeQueueGroup, Queue->CopyQueueGroup}) {
+    for (auto &QueueGroup : {Queue->ComputeQueueGroup, Queue->CopyQueueGroup}) {
       bool UseCopyEngine = QueueGroup.Type != _pi_queue::queue_type::Compute;
       for (ze_command_queue_handle_t ZeQueue : QueueGroup.ZeQueues) {
         if (ZeQueue) {
@@ -7044,9 +7059,9 @@ pi_result _pi_queue::synchronize() {
   };
 
   if (Device->useImmediateCommandLists()) {
-    for (auto ImmCmdList : ComputeQueueGroup.ImmCmdLists)
+    for (auto &ImmCmdList : ComputeQueueGroup.ImmCmdLists)
       syncImmCmdList(this, ImmCmdList);
-    for (auto ImmCmdList : CopyQueueGroup.ImmCmdLists)
+    for (auto &ImmCmdList : CopyQueueGroup.ImmCmdLists)
       syncImmCmdList(this, ImmCmdList);
   } else {
     for (auto &ZeQueue : ComputeQueueGroup.ZeQueues)
@@ -7606,10 +7621,8 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Mem, pi_bool BlockingMap,
       return Res;
 
     // Add the event to the command list.
-    if (Event) {
-      CommandList->second.append(*Event);
-      (*Event)->RefCount.increment();
-    }
+    CommandList->second.append(*Event);
+    (*Event)->RefCount.increment();
 
     const auto &ZeCommandList = CommandList->first;
     const auto &WaitList = (*Event)->WaitList;
@@ -7686,10 +7699,8 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem Mem, void *MappedPtr,
     // do so in piEventRelease called for the pi_event tracking the unmap.
     // In the case of an integrated device, the map operation does not allocate
     // any memory, so there is nothing to free. This is indicated by a nullptr.
-    if (Event)
-      (*Event)->CommandData =
-          (Buffer->OnHost ? nullptr
-                          : (Buffer->MapHostPtr ? nullptr : MappedPtr));
+    (*Event)->CommandData =
+        (Buffer->OnHost ? nullptr : (Buffer->MapHostPtr ? nullptr : MappedPtr));
   }
 
   // For integrated devices the buffer is allocated in host memory.
@@ -8322,8 +8333,7 @@ pi_result USMSharedReadOnlyMemoryAlloc::allocateImpl(void **ResultPtr,
                                                      pi_uint32 Alignment) {
   pi_usm_mem_properties Props[] = {PI_MEM_ALLOC_FLAGS,
                                    PI_MEM_ALLOC_DEVICE_READ_ONLY, 0};
-  return USMSharedAllocImpl(ResultPtr, Context, Device, Props, Size,
-                            Alignment);
+  return USMSharedAllocImpl(ResultPtr, Context, Device, Props, Size, Alignment);
 }
 
 pi_result USMDeviceMemoryAlloc::allocateImpl(void **ResultPtr, size_t Size,

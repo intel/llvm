@@ -179,9 +179,10 @@ class event_impl;
 class context_impl;
 class DispatchHostTask;
 
-using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
-using EventImplPtr = std::shared_ptr<detail::event_impl>;
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
+using EventImplPtr = std::shared_ptr<detail::event_impl>;
+using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
+using StreamImplPtr = std::shared_ptr<detail::stream_impl>;
 
 /// Memory Object Record
 ///
@@ -405,13 +406,6 @@ public:
   /// receive false - fail to obtain write lock.
   bool removeMemoryObject(detail::SYCLMemObjI *MemObj, bool StrictLock = true);
 
-  /// Removes finished non-leaf non-alloca commands from the subgraph (assuming
-  /// that all its commands have been waited for).
-  /// \sa GraphBuilder::cleanupFinishedCommands
-  ///
-  /// \param FinishedEvent is a cleanup candidate event.
-  void cleanupFinishedCommands(const EventImplPtr &FinishedEvent);
-
   /// Adds nodes to the graph, that update the requirement with the pointer
   /// to the host memory.
   ///
@@ -432,18 +426,6 @@ public:
 
   /// \return an instance of the scheduler object.
   static Scheduler &getInstance();
-
-  /// Allocate buffers in the pool for a provided stream
-  ///
-  /// \param Impl to the stream object
-  /// \param StreamBufferSize of the stream buffer
-  /// \param FlushBufferSize of the flush buffer for a single work item
-  void allocateStreamBuffers(stream_impl *, size_t, size_t);
-
-  /// Deallocate all stream buffers in the pool
-  ///
-  /// \param Impl to the stream object
-  void deallocateStreamBuffers(stream_impl *);
 
   QueueImplPtr getDefaultHostQueue() { return DefaultHostQueue; }
 
@@ -500,6 +482,10 @@ protected:
   // May lock graph with read and write modes during execution.
   void cleanupDeferredMemObjects(BlockingT Blocking);
 
+  void registerAuxiliaryResources(
+      EventImplPtr &Event, std::vector<std::shared_ptr<const void>> Resources);
+  void cleanupAuxiliaryResources(BlockingT Blocking);
+
   /// Graph builder class.
   ///
   /// The graph builder provides means to change an existing graph (e.g. add
@@ -547,13 +533,6 @@ protected:
 
     void cleanupCommand(Command *Cmd);
 
-    /// Removes finished non-leaf non-alloca commands from the subgraph
-    /// (assuming that all its commands have been waited for).
-    void cleanupFinishedCommands(
-        Command *FinishedCmd,
-        std::vector<std::shared_ptr<sycl::detail::stream_impl>> &,
-        std::vector<std::shared_ptr<const void>> &);
-
     /// Reschedules the command passed using Queue provided.
     ///
     /// This can lead to rescheduling of all dependent commands. This can be
@@ -576,10 +555,7 @@ protected:
     void decrementLeafCountersForRecord(MemObjRecord *Record);
 
     /// Removes commands that use the given MemObjRecord from the graph.
-    void cleanupCommandsForRecord(
-        MemObjRecord *Record,
-        std::vector<std::shared_ptr<sycl::detail::stream_impl>> &,
-        std::vector<std::shared_ptr<const void>> &);
+    void cleanupCommandsForRecord(MemObjRecord *Record);
 
     /// Removes the MemObjRecord for the memory object passed.
     void removeRecordForMemObj(SYCLMemObjI *MemObject);
@@ -640,7 +616,7 @@ protected:
                                        const ContextImplPtr &Context);
 
     template <typename T>
-    typename std::enable_if_t<
+    typename detail::enable_if_t<
         std::is_same<typename std::remove_cv_t<T>, Requirement>::value,
         EmptyCommand *>
     addEmptyCmd(Command *Cmd, const std::vector<T *> &Req,
@@ -830,59 +806,32 @@ protected:
   std::vector<std::shared_ptr<SYCLMemObjI>> MDeferredMemObjRelease;
   std::mutex MDeferredMemReleaseMutex;
 
+  std::unordered_map<EventImplPtr, std::vector<std::shared_ptr<const void>>>
+      MAuxiliaryResources;
+  std::mutex MAuxiliaryResourcesMutex;
+
   QueueImplPtr DefaultHostQueue;
+
+  // This thread local flag is a workaround for a problem with managing
+  // auxiliary resources. We would like to release internal buffers used for
+  // reductions in a deferred manner, but marking them individually isn't an
+  // option since all auxiliary resources (buffers, host memory, USM) are passed
+  // to the library as type erased shared pointers. This flag makes it so that
+  // release of every memory object is deferred while it's set, and it should
+  // only be set during release of auxiliary resources.
+  // TODO Remove once ABI breaking changes are allowed.
+  friend class SYCLMemObjT;
+  static thread_local bool ForceDeferredMemObjRelease;
+  struct ForceDeferredReleaseWrapper {
+    ForceDeferredReleaseWrapper() { ForceDeferredMemObjRelease = true; };
+    ~ForceDeferredReleaseWrapper() { ForceDeferredMemObjRelease = false; };
+  };
 
   friend class Command;
   friend class DispatchHostTask;
   friend class queue_impl;
   friend class event_impl;
   friend class ::MockScheduler;
-
-  /// Stream buffers structure.
-  ///
-  /// The structure contains all buffers for a stream object.
-  struct StreamBuffers {
-    StreamBuffers(size_t StreamBufferSize, size_t FlushBufferSize)
-        // Initialize stream buffer with zeros, this is needed for two reasons:
-        // 1. We don't need to care about end of line when printing out
-        // streamed data.
-        // 2. Offset is properly initialized.
-        : Data(StreamBufferSize, 0),
-          Buf(Data.data(), range<1>(StreamBufferSize),
-              {property::buffer::use_host_ptr()}),
-          FlushBuf(range<1>(FlushBufferSize)) {
-      // Disable copy back on buffer destruction. Copy is scheduled as a host
-      // task which fires up as soon as kernel has completed exectuion.
-      Buf.set_write_back(false);
-      FlushBuf.set_write_back(false);
-    }
-
-    // Vector on the host side which is used to initialize the stream
-    // buffer
-    std::vector<char> Data;
-
-    // Stream buffer
-    buffer<char, 1> Buf;
-
-    // Global flush buffer
-    buffer<char, 1> FlushBuf;
-  };
-
-  friend class stream_impl;
-  friend void initStream(StreamImplPtr, QueueImplPtr);
-
-  // Protects stream buffers pool
-  std::recursive_mutex StreamBuffersPoolMutex;
-
-  // We need to store a pointer to the structure with stream buffers because we
-  // want to avoid a situation when buffers are destructed during destruction of
-  // the scheduler. Scheduler is a global object and it can be destructed after
-  // all device runtimes are unloaded. Destruction of the buffers at this stage
-  // will lead to a faliure. In the correct program there will be sync points
-  // for all kernels and all allocated resources will be released by the
-  // scheduler. If program is not correct and doesn't have necessary sync point
-  // then warning will be issued.
-  std::unordered_map<stream_impl *, StreamBuffers *> StreamBuffersPool;
 };
 
 } // namespace detail
