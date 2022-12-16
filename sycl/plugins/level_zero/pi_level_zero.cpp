@@ -1249,7 +1249,7 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
   ComputeQueueGroup.ZeQueues = ComputeQueues;
   // Create space to hold immediate commandlists corresponding to the
   // ZeQueues
-  if (Device->useImmediateCommandLists()) {
+  if (UsingImmCmdLists) {
     ComputeQueueGroup.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
         ComputeQueueGroup.ZeQueues.size(), CommandListMap.end());
   }
@@ -1352,7 +1352,7 @@ static pi_result CleanupEventsInImmCmdLists(pi_queue Queue,
                                             bool QueueSynced = false,
                                             pi_event CompletedEvent = nullptr) {
   // Handle only immediate command lists here.
-  if (!Queue || !Queue->Device->useImmediateCommandLists())
+  if (!Queue || !Queue->UsingImmCmdLists)
     return PI_SUCCESS;
 
   std::vector<pi_event> EventListToCleanup;
@@ -1419,7 +1419,7 @@ static pi_result CleanupEventsInImmCmdLists(pi_queue Queue,
 static pi_result resetCommandLists(pi_queue Queue) {
   // Handle immediate command lists here, they don't need to be reset and we
   // only need to cleanup events.
-  if (Queue->Device->useImmediateCommandLists()) {
+  if (Queue->UsingImmCmdLists) {
     PI_CALL(CleanupEventsInImmCmdLists(Queue));
     return PI_SUCCESS;
   }
@@ -1462,7 +1462,7 @@ pi_result _pi_context::getAvailableCommandList(
     pi_queue Queue, pi_command_list_ptr_t &CommandList, bool UseCopyEngine,
     bool AllowBatching, ze_command_queue_handle_t *ForcedCmdQueue) {
   // Immediate commandlists have been pre-allocated and are always available.
-  if (Queue->Device->useImmediateCommandLists()) {
+  if (Queue->UsingImmCmdLists) {
     CommandList = Queue->getQueueGroup(UseCopyEngine).getImmCmdList();
     if (CommandList->second.EventList.size() >
         ImmCmdListsEventCleanupThreshold) {
@@ -1741,7 +1741,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
 
   this->LastUsedCommandList = CommandList;
 
-  if (!Device->useImmediateCommandLists()) {
+  if (!UsingImmCmdLists) {
     // Batch if allowed to, but don't batch if we know there are no kernels
     // from this queue that are currently executing.  This is intended to get
     // kernels started as soon as possible when there are no kernels from this
@@ -2161,7 +2161,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
   this->PiEventList = nullptr;
 
   if (CurQueue->isInOrderQueue() && CurQueue->LastCommandEvent != nullptr) {
-    if (CurQueue->Device->useImmediateCommandLists()) {
+    if (CurQueue->UsingImmCmdLists) {
       if (ReuseDiscardedEvents && CurQueue->isDiscardEvents()) {
         // If queue is in-order with discarded events and if
         // new command list is different from the last used command list then
@@ -3914,7 +3914,7 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
       // because immediate command lists are not associated with level zero
       // queue. Conservatively return false in this case because last event is
       // discarded and we can't check its status.
-      if (Queue->Device->useImmediateCommandLists())
+      if (Queue->UsingImmCmdLists)
         return ReturnValue(pi_bool{false});
     }
 
@@ -3928,7 +3928,7 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
 
     for (const auto &QueueGroup :
          {Queue->ComputeQueueGroup, Queue->CopyQueueGroup}) {
-      if (Queue->Device->useImmediateCommandLists()) {
+      if (Queue->UsingImmCmdLists) {
         // Immediate command lists are not associated with any Level Zero queue,
         // that's why we have to check status of events in each immediate
         // command list. Start checking from the end and exit early if some
@@ -4138,7 +4138,7 @@ pi_result piQueueFinish(pi_queue Queue) {
   // Reset signalled command lists and return them back to the cache of
   // available command lists. Events in the immediate command lists are cleaned
   // up in synchronize().
-  if (!Queue->Device->useImmediateCommandLists())
+  if (!Queue->UsingImmCmdLists)
     resetCommandLists(Queue);
   return PI_SUCCESS;
 }
@@ -4202,7 +4202,7 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
           NativeHandle, Context, Device, UseImmCmdList, OwnNativeHandle, Queue);
   if (UseImmCmdList) {
     zePrint("piextQueueCreateWithNativeHandle using immediate commandlists\n");
-    std::vector<ze_command_queue_handle_t> ComputeQueues;
+    std::vector<ze_command_queue_handle_t> ComputeQueues{nullptr};
     std::vector<ze_command_queue_handle_t> CopyQueues;
 
     *Queue = new _pi_queue(ComputeQueues, CopyQueues, Context, Device,
@@ -6395,7 +6395,7 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
         }
       }
       if (auto Q = EventList[I]->Queue) {
-        if (Q->Device->useImmediateCommandLists() && Q->isInOrderQueue())
+        if (Q->UsingImmCmdLists && Q->isInOrderQueue())
           // Use information about waited event to cleanup completed events in
           // the in-order queue.
           CleanupEventsInImmCmdLists(EventList[I]->Queue,
@@ -6803,7 +6803,7 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
     }
   }
 
-  if (!Queue->Device->useImmediateCommandLists())
+  if (!Queue->UsingImmCmdLists)
     resetCommandLists(Queue);
 
   return PI_SUCCESS;
@@ -6900,7 +6900,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
                 !Queue->CopyQueueGroup.ZeQueues.empty(),
             PI_ERROR_INVALID_QUEUE);
 
-  if (Queue->Device->useImmediateCommandLists()) {
+  if (Queue->UsingImmCmdLists) {
     // If immediate command lists are being used, each will act as their own
     // queue, so we must insert a barrier into each.
     CmdLists.reserve(Queue->CommandListMap.size());
@@ -7079,7 +7079,7 @@ pi_result _pi_queue::synchronize() {
     return PI_SUCCESS;
   };
 
-  if (Device->useImmediateCommandLists()) {
+  if (UsingImmCmdLists) {
     for (auto &ImmCmdList : ComputeQueueGroup.ImmCmdLists)
       syncImmCmdList(this, ImmCmdList);
     for (auto &ImmCmdList : CopyQueueGroup.ImmCmdLists)
