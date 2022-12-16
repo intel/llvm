@@ -449,23 +449,34 @@ ValueCategory MLIRScanner::VisitCXXStdInitializerListExpr(
   RecordDecl *Record = Expr->getType()->castAs<RecordType>()->getDecl();
   auto Field = Record->field_begin();
 
-  mlir::Type SubType = Glob.getTypes().getMLIRType(Expr->getType());
+  LLVM::LLVMStructType SubType =
+      Glob.getTypes().getMLIRType(Expr->getType()).cast<LLVM::LLVMStructType>();
 
-  mlir::Value Res = ValueCategory::getUndefValue(Builder, Loc, SubType).val;
+  mlir::Value Alloca = createAllocOp(SubType, nullptr, /*memtype*/ 0,
+                                     /*isArray*/ false, /*LLVMABI*/ true);
 
   ArrayPtr = CommonArrayToPointer(ArrayPtr);
+  if (SubType.getBody()[0].isa<mlir::MemRefType>())
+    ArrayPtr = ArrayPtr.Ptr2MemRef(Builder, Loc);
 
-  Res = Builder.create<LLVM::InsertValueOp>(Loc, Res,
-                                            ArrayPtr.getValue(Builder), 0);
-  Field++;
+  auto Zero = Builder.create<arith::ConstantIntOp>(Loc, 0, 32);
+  Value Idx0[] = {Zero, Zero};
+  auto GEP0 = Builder.create<LLVM::GEPOp>(
+      Loc, LLVM::LLVMPointerType::get(SubType.getBody()[0], 0), Alloca, Idx0);
+  Builder.create<LLVM::StoreOp>(Loc, ArrayPtr.getValue(Builder), GEP0);
+  Value Idx1[] = {Zero, Builder.create<arith::ConstantIntOp>(Loc, 1, 32)};
+  auto GEP1 = Builder.create<LLVM::GEPOp>(
+      Loc, LLVM::LLVMPointerType::get(SubType.getBody()[1], 0), Alloca, Idx1);
+  ++Field;
   auto ITy =
       Glob.getTypes().getMLIRType(Field->getType()).cast<mlir::IntegerType>();
-  Res = Builder.create<LLVM::InsertValueOp>(
-      Loc, Res,
+  Builder.create<LLVM::StoreOp>(
+      Loc,
       Builder.create<arith::ConstantIntOp>(
           Loc, ArrayType->getSize().getZExtValue(), ITy.getWidth()),
-      1);
-  return ValueCategory(Res, /*isRef*/ false);
+      GEP1);
+  mlir::Value Load = Builder.create<mlir::LLVM::LoadOp>(Loc, Alloca);
+  return ValueCategory(Load, /*isRef*/ false);
 }
 
 ValueCategory

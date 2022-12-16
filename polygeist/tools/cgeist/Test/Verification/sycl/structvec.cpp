@@ -1,5 +1,4 @@
 // RUN: clang++ -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - | FileCheck %s
-// XFAIL: *
 
 #include <initializer_list>
 #include <sycl/sycl.hpp>
@@ -45,31 +44,34 @@ SYCL_EXTERNAL structvec test_store(structvec sv, int idx, char el) {
 // CHECK-DAG:     %c1_i64 = arith.constant 1 : i64
 // CHECK-DAG:     %0 = llvm.alloca %c1_i64 x !llvm.struct<(vector<2xi8>)> : (i64) -> !llvm.ptr<struct<(vector<2xi8>)>>
 // CHECK-DAG:     %1 = llvm.alloca %c1_i64 x !llvm.struct<(vector<2xi8>)> : (i64) -> !llvm.ptr<struct<(vector<2xi8>)>>
-// CHECK-DAG:     %2 = llvm.alloca %c1_i64 x !llvm.struct<(ptr<i8, 4>, i64)> : (i64) -> !llvm.ptr<struct<(ptr<i8, 4>, i64)>>
-// CHECK-DAG:     %3 = llvm.alloca %c1_i64 x !llvm.array<2 x i8> : (i64) -> !llvm.ptr<array<2 x i8>>
+// CHECK-DAG:     %2 = llvm.alloca %c1_i64 x !llvm.struct<(memref<?xi8, 4>, i64)> : (i64) -> !llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>>
+// CHECK-DAG:     %3 = llvm.alloca %c1_i64 x !llvm.struct<(memref<?xi8, 4>, i64)> : (i64) -> !llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>>
 // CHECK-DAG:     %4 = llvm.alloca %c1_i64 x !llvm.array<2 x i8> : (i64) -> !llvm.ptr<array<2 x i8>>
-// CHECK-DAG:     %5 = llvm.alloca %c1_i64 x !llvm.struct<(vector<2xi8>)> : (i64) -> !llvm.ptr<struct<(vector<2xi8>)>>
-// CHECK-NEXT:    %6 = llvm.getelementptr %4[0, 0] : (!llvm.ptr<array<2 x i8>>) -> !llvm.ptr<i8>
-// CHECK-NEXT:    llvm.store %c0_i8, %6 : !llvm.ptr<i8>
-// CHECK-NEXT:    %7 = llvm.getelementptr %4[0, 1] : (!llvm.ptr<array<2 x i8>>) -> !llvm.ptr<i8>
-// CHECK-NEXT:    llvm.store %c1_i8, %7 : !llvm.ptr<i8>
-// CHECK-NEXT:    %8 = llvm.addrspacecast %3 : !llvm.ptr<array<2 x i8>> to !llvm.ptr<array<2 x i8>, 4>
-// CHECK-NEXT:    %9 = llvm.load %4 : !llvm.ptr<array<2 x i8>>
-// CHECK-NEXT:    llvm.store %9, %8 : !llvm.ptr<array<2 x i8>, 4>
-// CHECK-NEXT:    %10 = llvm.mlir.undef : !llvm.struct<(ptr<i8, 4>, i64)>
-// CHECK-NEXT:    %11 = llvm.getelementptr %8[0, 0] : (!llvm.ptr<array<2 x i8>, 4>) -> !llvm.ptr<i8, 4>
-// CHECK-NEXT:    %12 = llvm.insertvalue %11, %10[0] : !llvm.struct<(ptr<i8, 4>, i64)>
-// CHECK-NEXT:    %13 = llvm.insertvalue %c2_i64, %12[1] : !llvm.struct<(ptr<i8, 4>, i64)>
-// CHECK-NEXT:    %14 = llvm.addrspacecast %5 : !llvm.ptr<struct<(vector<2xi8>)>> to !llvm.ptr<struct<(vector<2xi8>)>, 4>
-// CHECK-NEXT:    llvm.store %13, %2 : !llvm.ptr<struct<(ptr<i8, 4>, i64)>>
-// CHECK-NEXT:    call @_ZN9structvecC1ESt16initializer_listIcE(%14, %2) : (!llvm.ptr<struct<(vector<2xi8>)>, 4>, !llvm.ptr<struct<(ptr<i8, 4>, i64)>>) -> ()
-// CHECK-NEXT:    %15 = llvm.load %5 : !llvm.ptr<struct<(vector<2xi8>)>>
-// CHECK-NEXT:    llvm.store %15, %1 : !llvm.ptr<struct<(vector<2xi8>)>>
-// CHECK-NEXT:    %16 = llvm.addrspacecast %0 : !llvm.ptr<struct<(vector<2xi8>)>> to !llvm.ptr<struct<(vector<2xi8>)>, 4>
-// CHECK-NEXT:    %17 = llvm.addrspacecast %1 : !llvm.ptr<struct<(vector<2xi8>)>> to !llvm.ptr<struct<(vector<2xi8>)>, 4>
-// CHECK-NEXT:    call @_ZN9structvecC1EOS_(%16, %17) : (!llvm.ptr<struct<(vector<2xi8>)>, 4>, !llvm.ptr<struct<(vector<2xi8>)>, 4>) -> ()
-// CHECK-NEXT:    %18 = llvm.load %0 : !llvm.ptr<struct<(vector<2xi8>)>>
-// CHECK-NEXT:    return %18 : !llvm.struct<(vector<2xi8>)>
+// CHECK-DAG:     %5 = llvm.alloca %c1_i64 x !llvm.array<2 x i8> : (i64) -> !llvm.ptr<array<2 x i8>>
+// CHECK-DAG:     %6 = llvm.alloca %c1_i64 x !llvm.struct<(vector<2xi8>)> : (i64) -> !llvm.ptr<struct<(vector<2xi8>)>>
+// CHECK-NEXT:    %7 = llvm.getelementptr %5[0, 0] : (!llvm.ptr<array<2 x i8>>) -> !llvm.ptr<i8>
+// CHECK-NEXT:    llvm.store %c0_i8, %7 : !llvm.ptr<i8>
+// CHECK-NEXT:    %8 = llvm.getelementptr %5[0, 1] : (!llvm.ptr<array<2 x i8>>) -> !llvm.ptr<i8>
+// CHECK-NEXT:    llvm.store %c1_i8, %8 : !llvm.ptr<i8>
+// CHECK-NEXT:    %9 = llvm.addrspacecast %4 : !llvm.ptr<array<2 x i8>> to !llvm.ptr<array<2 x i8>, 4>
+// CHECK-NEXT:    %10 = llvm.load %5 : !llvm.ptr<array<2 x i8>>
+// CHECK-NEXT:    llvm.store %10, %9 : !llvm.ptr<array<2 x i8>, 4>
+// CHECK-NEXT:    %11 = "polygeist.pointer2memref"(%9) : (!llvm.ptr<array<2 x i8>, 4>) -> memref<?xi8, 4 : i32>
+// CHECK-NEXT:    %12 = llvm.getelementptr %3[0, 0] : (!llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>>) -> !llvm.ptr<memref<?xi8, 4>>
+// CHECK-NEXT:    llvm.store %11, %12 : !llvm.ptr<memref<?xi8, 4>>
+// CHECK-NEXT:    %13 = llvm.getelementptr %3[0, 1] : (!llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>>) -> !llvm.ptr<i64>
+// CHECK-NEXT:    llvm.store %c2_i64, %13 : !llvm.ptr<i64>
+// CHECK-NEXT:    %14 = llvm.load %3 : !llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>>
+// CHECK-NEXT:    %15 = llvm.addrspacecast %6 : !llvm.ptr<struct<(vector<2xi8>)>> to !llvm.ptr<struct<(vector<2xi8>)>, 4>
+// CHECK-NEXT:    llvm.store %14, %2 : !llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>>
+// CHECK-NEXT:    call @_ZN9structvecC1ESt16initializer_listIcE(%15, %2) : (!llvm.ptr<struct<(vector<2xi8>)>, 4>, !llvm.ptr<!llvm.struct<(memref<?xi8, 4>, i64)>>) -> ()
+// CHECK-NEXT:    %16 = llvm.load %6 : !llvm.ptr<struct<(vector<2xi8>)>>
+// CHECK-NEXT:    llvm.store %16, %1 : !llvm.ptr<struct<(vector<2xi8>)>>
+// CHECK-NEXT:    %17 = llvm.addrspacecast %0 : !llvm.ptr<struct<(vector<2xi8>)>> to !llvm.ptr<struct<(vector<2xi8>)>, 4>
+// CHECK-NEXT:    %18 = llvm.addrspacecast %1 : !llvm.ptr<struct<(vector<2xi8>)>> to !llvm.ptr<struct<(vector<2xi8>)>, 4>
+// CHECK-NEXT:    call @_ZN9structvecC1EOS_(%17, %18) : (!llvm.ptr<struct<(vector<2xi8>)>, 4>, !llvm.ptr<struct<(vector<2xi8>)>, 4>) -> ()
+// CHECK-NEXT:    %19 = llvm.load %0 : !llvm.ptr<struct<(vector<2xi8>)>>
+// CHECK-NEXT:    return %19 : !llvm.struct<(vector<2xi8>)>
 // CHECK-NEXT:   }
 
 SYCL_EXTERNAL structvec test_init() {
