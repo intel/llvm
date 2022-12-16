@@ -434,7 +434,8 @@ It returns 0 if no kernels are present and 1 otherwise.
 
 #### Device code post-link step
 
-At link time all the device code is linked into a single LLVM IR module unless `-fno-sycl-rdc` is specified.
+At link time all the device code is linked into
+a single LLVM IR module unless `-fno-sycl-rdc` is specified.
 `sycl-post-link` tool performs a number of final transformations on this LLVM IR
 module before handing it off to the offload wrapper. Those include:
 
