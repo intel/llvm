@@ -209,7 +209,7 @@ event handler::finalize() {
         else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
           NewEvent->setComplete();
 
-        NewEvent->setSubmissionTime(std::move(MQueue->getDeviceImplPtr()->getTime()));
+        NewEvent->setSubmissionTime();
         MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
       }
       return MLastEvent;
@@ -313,7 +313,7 @@ event handler::finalize() {
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
       std::move(CommandGroup), std::move(MQueue));
 
-  Event->setSubmissionTime(MQueue->getDeviceImplPtr()->getTime());
+  Event->setSubmissionTime();
   MLastEvent = detail::createSyclObjFromImpl<event>(Event);
   return MLastEvent;
 }

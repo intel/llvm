@@ -238,6 +238,8 @@ public:
 
   std::string getDeviceName() const;
 
+  /// Gets the current device timestamp 
+  /// @throw sycl::feature_not_supported if feature is not supported on device
   uint64_t getTime();
 
 private:
