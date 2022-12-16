@@ -316,6 +316,37 @@ _iml_bf16_internal __imf_uint2bfloat16_rz(unsigned int x) {
 }
 
 DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_ull2bfloat16_rd(unsigned long long);
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __imf_ull2bfloat16_rd(unsigned long long x) {
+  return __devicelib_imf_ull2bfloat16_rd(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_ull2bfloat16_rn(unsigned long long);
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __imf_ull2bfloat16_rn(unsigned long long x) {
+  return __devicelib_imf_ull2bfloat16_rn(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_ull2bfloat16_ru(unsigned long long);
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __imf_ull2bfloat16_ru(unsigned long long x) {
+  return __devicelib_imf_ull2bfloat16_ru(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_ull2bfloat16_rz(unsigned long long);
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __imf_ull2bfloat16_rz(unsigned long long x) {
+  return __devicelib_imf_ull2bfloat16_rz(x);
+}
+DEVICE_EXTERN_C_INLINE
 short __devicelib_imf_bfloat16_as_short(_iml_bf16_internal);
 
 DEVICE_EXTERN_C_INLINE
