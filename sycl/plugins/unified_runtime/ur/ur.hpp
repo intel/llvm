@@ -8,7 +8,9 @@
 #pragma once
 
 #include <atomic>
+#include <cstdint>
 #include <iostream>
+#include <functional>
 #include <mutex>
 #include <shared_mutex>
 #include <thread>
@@ -99,7 +101,7 @@ private:
   std::atomic_flag MLock = ATOMIC_FLAG_INIT;
 };
 
-// The wrapper for immutable Level-Zero data.
+// The wrapper for immutable data.
 // The data is initialized only once at first access (via ->) with the
 // initialization function provided in Init. All subsequent access to
 // the data just returns the already stored data.
@@ -147,7 +149,7 @@ struct ReferenceCounter {
 
   // Supposed to be used in pi*GetInfo* methods where ref count value is
   // requested.
-  pi_uint32 load() { return RefCount.load(); }
+  uint32_t load() { return RefCount.load(); }
 
   // This method allows to guard a code which needs to be executed when object's
   // ref count becomes zero after release. It is important to notice that only a
@@ -167,14 +169,13 @@ struct ReferenceCounter {
   bool decrementAndTest() { return --RefCount == 0; }
 
 private:
-  std::atomic<pi_uint32> RefCount;
+  std::atomic<uint32_t> RefCount;
 };
 
 // Base class to store common data
 struct _pi_object {
   _pi_object() : RefCount{} {}
 
-  // Level Zero doesn't do the reference counting, so we have to do.
   // Must be atomic to prevent data race when incrementing/decrementing.
   ReferenceCounter RefCount;
 
