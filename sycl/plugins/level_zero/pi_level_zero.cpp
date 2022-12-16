@@ -5986,7 +5986,8 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
     ContextEndTime *= ZeTimerResolution;
     return ReturnValue(ContextEndTime);
   }
-  //TODO: Remove this and other related code for setting or getting queued/submit time
+  // TODO: Remove this and other related code for setting or getting
+  // queued/submit time
   case PI_PROFILING_INFO_COMMAND_QUEUED:
   case PI_PROFILING_INFO_COMMAND_SUBMIT:
     return ReturnValue(uint64_t{0});

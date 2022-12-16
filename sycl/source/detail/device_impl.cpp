@@ -436,18 +436,19 @@ std::string device_impl::getDeviceName() const {
   return MDeviceName;
 }
 
-/* On first call this function queries for device timestamp 
+/* On first call this function queries for device timestamp
    along with host synchronized timestamp
-   and stores it in memeber varaible deviceTimePair. 
+   and stores it in memeber varaible deviceTimePair.
    Succive calls to this function would just retrieve the host timestamp ,
-   compute difference against the host timestamp in deviceTimePair 
+   compute difference against the host timestamp in deviceTimePair
    and calculate the device timestamp based on the difference.
-   deviceTimePair is refreshed with new device and host timestamp after a certain interval 
-   (determined by timeTillRefresh) to account for clock skew between host and device.
-*/ 
+   deviceTimePair is refreshed with new device and host timestamp after a
+   certain interval (determined by timeTillRefresh) to account for clock skew
+   between host and device.
+*/
 
 uint64_t device_impl::getTime(){
-  constexpr uint64_t timeTillRefresh= 100e9;
+  constexpr uint64_t timeTillRefresh = 100e9;
   uint64_t hostTime;
   if (MIsHostDevice) {
     using namespace std::chrono;
@@ -463,12 +464,11 @@ uint64_t device_impl::getTime(){
 
   if(result == PI_ERROR_INVALID_OPERATION){
     throw sycl::feature_not_supported(
-        "Device and/or backend does not support querying timestamp",
-        result);
+        "Device and/or backend does not support querying timestamp", result);
   }
   uint64_t diff= hostTime - deviceTimePair.second;
-  
-  if( diff > timeTillRefresh || diff <= 0){
+
+  if (diff > timeTillRefresh || diff <= 0) {
     plugin.call<detail::PiApiKind::piGetDeviceAndHostTimer>(MDevice, &deviceTimePair.first, &deviceTimePair.second);
     diff=0;
   }
