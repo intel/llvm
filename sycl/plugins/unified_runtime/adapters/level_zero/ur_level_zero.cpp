@@ -127,6 +127,10 @@ ze_structure_type_t getZeStructureType<ze_device_memory_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_PROPERTIES;
 }
 template <>
+ze_structure_type_t getZeStructureType<ze_device_memory_ext_properties_t>() {
+  return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_EXT_PROPERTIES;
+}
+template <>
 ze_structure_type_t getZeStructureType<ze_device_memory_access_properties_t>() {
   return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_ACCESS_PROPERTIES;
 }

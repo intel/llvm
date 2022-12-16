@@ -797,14 +797,24 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
 
   ZeDeviceMemoryProperties.Compute =
       [ZeDevice](
-          std::vector<ZeStruct<ze_device_memory_properties_t>> &Properties) {
+          std::pair<std::vector<ZeStruct<ze_device_memory_properties_t>>,
+                    std::vector<ZeStruct<ze_device_memory_ext_properties_t>>>
+              &Properties) {
         uint32_t Count = 0;
         ZE_CALL_NOCHECK(zeDeviceGetMemoryProperties,
                         (ZeDevice, &Count, nullptr));
 
-        Properties.resize(Count);
+        auto &PropertiesVector = Properties.first;
+        auto &PropertiesExtVector = Properties.second;
+
+        PropertiesVector.resize(Count);
+        PropertiesExtVector.resize(Count);
+        // Request for extended memory properties be read in
+        for (uint32_t I = 0; I < Count; ++I)
+          PropertiesVector[I].pNext = (void *)&PropertiesExtVector[I];
+
         ZE_CALL_NOCHECK(zeDeviceGetMemoryProperties,
-                        (ZeDevice, &Count, Properties.data()));
+                        (ZeDevice, &Count, PropertiesVector.data()));
       };
 
   ZeDeviceMemoryAccessProperties.Compute =
@@ -2962,9 +2972,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(pi_uint64{Device->ZeDeviceProperties->maxMemAllocSize});
   case PI_DEVICE_INFO_GLOBAL_MEM_SIZE: {
     uint64_t GlobalMemSize = 0;
-    for (uint32_t I = 0; I < Device->ZeDeviceMemoryProperties->size(); I++) {
-      GlobalMemSize +=
-          (*Device->ZeDeviceMemoryProperties.operator->())[I].totalSize;
+    for (const auto &ZeDeviceMemoryExtProperty :
+         Device->ZeDeviceMemoryProperties->second) {
+      GlobalMemSize += ZeDeviceMemoryExtProperty.physicalSize;
     }
     return ReturnValue(pi_uint64{GlobalMemSize});
   }
@@ -3337,21 +3347,32 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // Only report device memory which zeMemAllocDevice can allocate from.
     // Currently this is only the one enumerated with ordinal 0.
     uint64_t FreeMemory = 0;
-    uint32_t MemCount = 1;
-    zes_mem_handle_t ZesMemHandle;
-    ZE_CALL(zesDeviceEnumMemoryModules, (ZeDevice, &MemCount, &ZesMemHandle));
+    uint32_t MemCount = 0;
+    ZE_CALL(zesDeviceEnumMemoryModules, (ZeDevice, &MemCount, nullptr));
     if (MemCount != 0) {
-      ZesStruct<zes_mem_properties_t> ZeMemProperties;
-      ZE_CALL(zesMemoryGetProperties, (ZesMemHandle, &ZeMemProperties));
-      ZesStruct<zes_mem_state_t> ZeMemState;
-      ZE_CALL(zesMemoryGetState, (ZesMemHandle, &ZeMemState));
-      FreeMemory += ZeMemState.free;
+      std::vector<zes_mem_handle_t> ZesMemHandles(MemCount);
+      ZE_CALL(zesDeviceEnumMemoryModules,
+              (ZeDevice, &MemCount, ZesMemHandles.data()));
+      for (auto &ZesMemHandle : ZesMemHandles) {
+        ZesStruct<zes_mem_properties_t> ZesMemProperties;
+        ZE_CALL(zesMemoryGetProperties, (ZesMemHandle, &ZesMemProperties));
+        // For root-device report memory from all memory modules since that
+        // is what totally available in the default implicit scaling mode.
+        // For sub-devices only report memory local to them.
+        if (!Device->isSubDevice() || Device->ZeDeviceProperties->subdeviceId ==
+                                          ZesMemProperties.subdeviceId) {
+
+          ZesStruct<zes_mem_state_t> ZesMemState;
+          ZE_CALL(zesMemoryGetState, (ZesMemHandle, &ZesMemState));
+          FreeMemory += ZesMemState.free;
+        }
+      }
     }
     return ReturnValue(FreeMemory);
   }
   case PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE: {
     // If there are not any memory modules then return 0.
-    if (Device->ZeDeviceMemoryProperties->empty())
+    if (Device->ZeDeviceMemoryProperties->first.empty())
       return ReturnValue(pi_uint32{0});
 
     // If there are multiple memory modules on the device then we have to report
@@ -3361,13 +3382,13 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
       return A.maxClockRate < B.maxClockRate;
     };
     auto MinIt =
-        std::min_element(Device->ZeDeviceMemoryProperties->begin(),
-                         Device->ZeDeviceMemoryProperties->end(), Comp);
+        std::min_element(Device->ZeDeviceMemoryProperties->first.begin(),
+                         Device->ZeDeviceMemoryProperties->first.end(), Comp);
     return ReturnValue(pi_uint32{MinIt->maxClockRate});
   }
   case PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH: {
     // If there are not any memory modules then return 0.
-    if (Device->ZeDeviceMemoryProperties->empty())
+    if (Device->ZeDeviceMemoryProperties->first.empty())
       return ReturnValue(pi_uint32{0});
 
     // If there are multiple memory modules on the device then we have to report
@@ -3377,8 +3398,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
       return A.maxBusWidth < B.maxBusWidth;
     };
     auto MinIt =
-        std::min_element(Device->ZeDeviceMemoryProperties->begin(),
-                         Device->ZeDeviceMemoryProperties->end(), Comp);
+        std::min_element(Device->ZeDeviceMemoryProperties->first.begin(),
+                         Device->ZeDeviceMemoryProperties->first.end(), Comp);
     return ReturnValue(pi_uint32{MinIt->maxBusWidth});
   }
   case PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {

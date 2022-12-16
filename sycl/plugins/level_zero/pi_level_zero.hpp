@@ -37,6 +37,7 @@
 #include <shared_mutex>
 #include <string>
 #include <sycl/detail/pi.h>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -393,7 +394,8 @@ struct _pi_device : _pi_object {
   ZeCache<ZeStruct<ze_device_compute_properties_t>> ZeDeviceComputeProperties;
   ZeCache<ZeStruct<ze_device_image_properties_t>> ZeDeviceImageProperties;
   ZeCache<ZeStruct<ze_device_module_properties_t>> ZeDeviceModuleProperties;
-  ZeCache<std::vector<ZeStruct<ze_device_memory_properties_t>>>
+  ZeCache<std::pair<std::vector<ZeStruct<ze_device_memory_properties_t>>,
+                    std::vector<ZeStruct<ze_device_memory_ext_properties_t>>>>
       ZeDeviceMemoryProperties;
   ZeCache<ZeStruct<ze_device_memory_access_properties_t>>
       ZeDeviceMemoryAccessProperties;
