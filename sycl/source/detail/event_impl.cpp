@@ -429,10 +429,10 @@ void event_impl::cleanDepEventsThroughOneLevel() {
 }
 
 void event_impl::setSubmissionTime() {
-  if(!MSubmittedQueue.expired()){
-    auto queue=MSubmittedQueue.lock();
-    if(queue->MIsProfilingEnabled){
-      MSubmitTime= queue->getDeviceImplPtr()->getTime();
+  if (!MSubmittedQueue.expired()) {
+    auto queue = MSubmittedQueue.lock();
+    if (queue->MIsProfilingEnabled) {
+      MSubmitTime = queue->getDeviceImplPtr()->getTime();
     }
   }
 }
