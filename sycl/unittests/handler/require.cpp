@@ -1,8 +1,10 @@
 #include <gtest/gtest.h>
+#include <helpers/PiMock.hpp>
 
 #include <sycl/sycl.hpp>
 
 TEST(Require, RequireWithNonPlaceholderAccessor) {
+  sycl::unittest::PiMock Mock;
   sycl::queue Q;
   int data = 5;
   {
