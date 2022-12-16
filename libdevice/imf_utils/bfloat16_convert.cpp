@@ -221,6 +221,66 @@ _iml_bf16_internal __devicelib_imf_ull2bfloat16_rz(unsigned long long x) {
 }
 
 DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_short2bfloat16_rd(short x) {
+  return __iml_integral2bfloat16_s<short>(x, __IML_RTN);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_short2bfloat16_rn(short x) {
+  return __iml_integral2bfloat16_s<short>(x, __IML_RTE);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_short2bfloat16_ru(short x) {
+  return __iml_integral2bfloat16_s<short>(x, __IML_RTP);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_short2bfloat16_rz(short x) {
+  return __iml_integral2bfloat16_s<short>(x, __IML_RTZ);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_int2bfloat16_rd(int x) {
+  return __iml_integral2bfloat16_s<int>(x, __IML_RTN);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_int2bfloat16_rn(int x) {
+  return __iml_integral2bfloat16_s<int>(x, __IML_RTE);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_int2bfloat16_ru(int x) {
+  return __iml_integral2bfloat16_s<int>(x, __IML_RTP);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_int2bfloat16_rz(int x) {
+  return __iml_integral2bfloat16_s<int>(x, __IML_RTZ);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_ll2bfloat16_rd(long long x) {
+  return __iml_integral2bfloat16_s<long long>(x, __IML_RTN);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_ll2bfloat16_rn(long long x) {
+  return __iml_integral2bfloat16_s<long long>(x, __IML_RTE);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_ll2bfloat16_ru(long long x) {
+  return __iml_integral2bfloat16_s<long long>(x, __IML_RTP);
+}
+
+DEVICE_EXTERN_C_INLINE
+_iml_bf16_internal __devicelib_imf_ll2bfloat16_rz(long long x) {
+  return __iml_integral2bfloat16_s<long long>(x, __IML_RTZ);
+}
+
+DEVICE_EXTERN_C_INLINE
 short __devicelib_imf_bfloat16_as_short(_iml_bf16_internal b) {
   return __builtin_bit_cast(short, b);
 }
