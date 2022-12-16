@@ -7,6 +7,7 @@
 //===-----------------------------------------------------------------===//
 #pragma once
 
+#include <cassert>
 #include <list>
 #include <map>
 #include <stdarg.h>
@@ -14,10 +15,10 @@
 #include <unordered_map>
 #include <vector>
 
-#include <level_zero/ze_api.h>
-#include <level_zero/zes_api.h>
-#include <ur.hpp>
+#include <ur/ur.hpp>
+#include <ze_api.h>
 #include <zer_api.h>
+#include <zes_api.h>
 
 // Returns the ze_structure_type_t to use in .stype of a structured descriptor.
 // Intentionally not defined; will give an error if no proper specialization
@@ -143,8 +144,8 @@ bool setEnvVar(const char *name, const char *value);
 #define ZE_CALL_NOCHECK(ZeName, ZeArgs)                                        \
   ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs, false)
 
-struct _ur_level_zero_platform : public _ur_platform {
-  _ur_level_zero_platform(ze_driver_handle_t Driver) : ZeDriver{Driver} {}
+struct _ur_platform_handle_t : public _ur_platform {
+  _ur_platform_handle_t(ze_driver_handle_t Driver) : ZeDriver{Driver} {}
   // Performs initialization of a newly constructed PI platform.
   zer_result_t initialize();
 
@@ -165,7 +166,7 @@ struct _ur_level_zero_platform : public _ur_platform {
   bool ZeDriverModuleProgramExtensionFound{false};
 };
 
-using ur_level_zero_platform = _ur_level_zero_platform *;
+using ur_platform_handle_t = _ur_platform_handle_t *;
 
 class ZeUSMImportExtension {
   // Pointers to functions that import/release host memory into USM
@@ -180,7 +181,7 @@ public:
 
   ZeUSMImportExtension() : Enabled{false} {}
 
-  void setZeUSMImport(ur_level_zero_platform Platform) {
+  void setZeUSMImport(ur_platform_handle_t Platform) {
     // Whether env var SYCL_USM_HOSTPTR_IMPORT has been set requesting
     // host ptr import during buffer creation.
     const char *USMHostPtrImportStr = std::getenv("SYCL_USM_HOSTPTR_IMPORT");
@@ -216,4 +217,8 @@ public:
   }
 };
 
+// Helper wrapper for working with USM import extension in Level Zero.
 extern ZeUSMImportExtension ZeUSMImport;
+
+// This will count the calls to Level-Zero
+extern std::map<const char *, int> *ZeCallCount;
