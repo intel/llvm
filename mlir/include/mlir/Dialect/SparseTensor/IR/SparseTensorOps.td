@@ -214,6 +214,7 @@ def SparseTensor_GetStorageSpecifierOp : SparseTensor_Op<"storage_specifier.get"
   let assemblyFormat = "$specifier $specifierKind (`at` $dim^)? attr-dict `:` "
                        "qualified(type($specifier)) `to` type($result)";
   let hasVerifier = 1;
+  let hasFolder = 1;
 }
 
 def SparseTensor_SetStorageSpecifierOp : SparseTensor_Op<"storage_specifier.set",
@@ -451,7 +452,7 @@ def SparseTensor_CompressOp : SparseTensor_Op<"compress",
                    StridedMemRefRankOf<[Index],[1]>:$added,
                    Index:$count,
                    AnySparseTensor:$tensor,
-		   Variadic<Index>:$indices)>,
+                   Variadic<Index>:$indices)>,
     Results<(outs AnySparseTensor:$result)> {
   string summary = "Compressed an access pattern for insertion";
   string description = [{
@@ -477,8 +478,8 @@ def SparseTensor_CompressOp : SparseTensor_Op<"compress",
   }];
   let assemblyFormat = "$values `,` $filled `,` $added `,` $count"
                        " `into` $tensor `[` $indices `]` attr-dict"
-		       " `:` type($values) `,` type($filled) `,` type($added)"
-		       " `,` type($tensor)";
+                       " `:` type($values) `,` type($filled) `,` type($added)"
+                       " `,` type($tensor)";
   let hasVerifier = 1;
 }
 
