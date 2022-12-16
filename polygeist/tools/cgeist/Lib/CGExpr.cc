@@ -451,6 +451,7 @@ ValueCategory MLIRScanner::VisitCXXStdInitializerListExpr(
 
   LLVM::LLVMStructType SubType =
       Glob.getTypes().getMLIRType(Expr->getType()).cast<LLVM::LLVMStructType>();
+  assert(SubType.getBody().size() == 2 && "Expecting two fields");
 
   mlir::Value Alloca = createAllocOp(SubType, nullptr, /*memtype*/ 0,
                                      /*isArray*/ false, /*LLVMABI*/ true);
