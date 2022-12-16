@@ -6,9 +6,11 @@
 //
 //===-----------------------------------------------------------------===//
 
+#include <algorithm>
 #include <string.h>
 
 #include "ur_level_zero.hpp"
+#include <ur_bindings.hpp>
 
 // Define the static class field
 std::mutex ZeCall::GlobalLock;
@@ -48,6 +50,74 @@ bool setEnvVar(const char *name, const char *value) {
     if (auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, true))       \
       return ze2urResult(Result);                                              \
   }
+
+// This will count the calls to Level-Zero
+std::map<const char *, int> *ZeCallCount = nullptr;
+
+inline void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
+  switch (ZeError) {
+#define ZE_ERRCASE(ERR)                                                        \
+  case ERR:                                                                    \
+    ErrorString = "" #ERR;                                                     \
+    break;
+
+    ZE_ERRCASE(ZE_RESULT_SUCCESS)
+    ZE_ERRCASE(ZE_RESULT_NOT_READY)
+    ZE_ERRCASE(ZE_RESULT_ERROR_DEVICE_LOST)
+    ZE_ERRCASE(ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY)
+    ZE_ERRCASE(ZE_RESULT_ERROR_OUT_OF_DEVICE_MEMORY)
+    ZE_ERRCASE(ZE_RESULT_ERROR_MODULE_BUILD_FAILURE)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INSUFFICIENT_PERMISSIONS)
+    ZE_ERRCASE(ZE_RESULT_ERROR_NOT_AVAILABLE)
+    ZE_ERRCASE(ZE_RESULT_ERROR_UNINITIALIZED)
+    ZE_ERRCASE(ZE_RESULT_ERROR_UNSUPPORTED_VERSION)
+    ZE_ERRCASE(ZE_RESULT_ERROR_UNSUPPORTED_FEATURE)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_ARGUMENT)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_NULL_HANDLE)
+    ZE_ERRCASE(ZE_RESULT_ERROR_HANDLE_OBJECT_IN_USE)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_NULL_POINTER)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_SIZE)
+    ZE_ERRCASE(ZE_RESULT_ERROR_UNSUPPORTED_SIZE)
+    ZE_ERRCASE(ZE_RESULT_ERROR_UNSUPPORTED_ALIGNMENT)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_ENUMERATION)
+    ZE_ERRCASE(ZE_RESULT_ERROR_UNSUPPORTED_ENUMERATION)
+    ZE_ERRCASE(ZE_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_NATIVE_BINARY)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_GLOBAL_NAME)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_KERNEL_NAME)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_FUNCTION_NAME)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_COMMAND_LIST_TYPE)
+    ZE_ERRCASE(ZE_RESULT_ERROR_OVERLAPPING_REGIONS)
+    ZE_ERRCASE(ZE_RESULT_ERROR_INVALID_MODULE_UNLINKED)
+    ZE_ERRCASE(ZE_RESULT_ERROR_UNKNOWN)
+
+#undef ZE_ERRCASE
+  default:
+    assert(false && "Unexpected Error code");
+  } // switch
+}
+
+ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
+                           const char *ZeArgs, bool TraceError) {
+  zePrint("ZE ---> %s%s\n", ZeName, ZeArgs);
+
+  if (ZeDebug & ZE_DEBUG_CALL_COUNT) {
+    ++(*ZeCallCount)[ZeName];
+  }
+
+  if (ZeResult && TraceError) {
+    const char *ErrorString = "Unknown";
+    zeParseError(ZeResult, ErrorString);
+    zePrint("Error (%s) in %s\n", ErrorString, ZeName);
+  }
+  return ZeResult;
+}
 
 // Specializations for various L0 structures
 template <> ze_structure_type_t getZeStructureType<ze_event_pool_desc_t>() {
@@ -157,7 +227,7 @@ template <> zes_structure_type_t getZesStructureType<zes_mem_properties_t>() {
   return ZES_STRUCTURE_TYPE_MEM_PROPERTIES;
 }
 
-zer_result_t _ur_level_zero_platform::initialize() {
+zer_result_t _ur_platform_handle_t::initialize() {
   // Cache driver properties
   ZeStruct<ze_driver_properties_t> ZeDriverProperties;
   ZE_CALL(zeDriverGetProperties, (ZeDriver, &ZeDriverProperties));
@@ -205,6 +275,122 @@ zer_result_t _ur_level_zero_platform::initialize() {
   // Check if import user ptr into USM feature has been requested.
   // If yes, then set up L0 API pointers if the platform supports it.
   ZeUSMImport.setZeUSMImport(this);
+
+  return ZER_RESULT_SUCCESS;
+}
+
+ZER_APIEXPORT zer_result_t ZER_APICALL zerPlatformGet(
+    uint32_t
+        *NumPlatforms, ///< [in,out] pointer to the number of platforms.
+                       ///< if count is zero, then the call shall update the
+                       ///< value with the total number of platforms available.
+                       ///< if count is greater than the number of platforms
+                       ///< available, then the call shall update the value with
+                       ///< the correct number of platforms available.
+    zer_platform_handle_t
+        *Platforms ///< [out][optional][range(0, *pCount)] array of handle of
+                   ///< platforms. if count is less than the number of platforms
+                   ///< available, then platform shall only retrieve that number
+                   ///< of platforms.
+) {
+  PI_ASSERT(NumPlatforms, ZER_RESULT_INVALID_VALUE);
+
+  static std::once_flag ZeCallCountInitialized;
+  try {
+    std::call_once(ZeCallCountInitialized, []() {
+      if (ZeDebug & ZE_DEBUG_CALL_COUNT) {
+        ZeCallCount = new std::map<const char *, int>;
+      }
+    });
+  } catch (const std::bad_alloc &) {
+    return ZER_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return ZER_RESULT_ERROR_UNKNOWN;
+  }
+
+  // Setting these environment variables before running zeInit will enable the
+  // validation layer in the Level Zero loader.
+  if (ZeDebug & ZE_DEBUG_VALIDATION) {
+    setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
+    setEnvVar("ZE_ENABLE_PARAMETER_VALIDATION", "1");
+  }
+
+  // Enable SYSMAN support for obtaining the PCI address
+  // and maximum memory bandwidth.
+  if (getenv("SYCL_ENABLE_PCI") != nullptr) {
+    setEnvVar("ZES_ENABLE_SYSMAN", "1");
+  }
+
+  // TODO: We can still safely recover if something goes wrong during the init.
+  // Implement handling segfault using sigaction.
+
+  // We must only initialize the driver once, even if piPlatformsGet() is called
+  // multiple times.  Declaring the return value as "static" ensures it's only
+  // called once.
+  static ze_result_t ZeResult = ZE_CALL_NOCHECK(zeInit, (0));
+
+  // Absorb the ZE_RESULT_ERROR_UNINITIALIZED and just return 0 Platforms.
+  if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
+    PI_ASSERT(NumPlatforms != 0, ZER_RESULT_INVALID_VALUE);
+    *NumPlatforms = 0;
+    return ZER_RESULT_SUCCESS;
+  }
+
+  if (ZeResult != ZE_RESULT_SUCCESS) {
+    zePrint("zeInit: Level Zero initialization failure\n");
+    return ze2urResult(ZeResult);
+  }
+
+  // Cache pi_platforms for reuse in the future
+  // It solves two problems;
+  // 1. sycl::platform equality issue; we always return the same pi_platform.
+  // 2. performance; we can save time by immediately return from cache.
+  //
+
+  const std::lock_guard<SpinLock> Lock{*PiPlatformsCacheMutex};
+  if (!PiPlatformCachePopulated) {
+    try {
+      // Level Zero does not have concept of Platforms, but Level Zero driver is
+      // the closest match.
+      uint32_t ZeDriverCount = 0;
+      ZE_CALL(zeDriverGet, (&ZeDriverCount, nullptr));
+      if (ZeDriverCount == 0) {
+        PiPlatformCachePopulated = true;
+      } else {
+        std::vector<ze_driver_handle_t> ZeDrivers;
+        ZeDrivers.resize(ZeDriverCount);
+
+        ZE_CALL(zeDriverGet, (&ZeDriverCount, ZeDrivers.data()));
+        for (uint32_t I = 0; I < ZeDriverCount; ++I) {
+          auto Platform = new _zer_platform_handle_t(ZeDrivers[I]);
+          // Save a copy in the cache for future uses.
+          PiPlatformsCache->push_back(Platform);
+
+          zer_result_t Result = Platform->initialize();
+          if (Result != ZER_RESULT_SUCCESS) {
+            return Result;
+          }
+        }
+        PiPlatformCachePopulated = true;
+      }
+    } catch (const std::bad_alloc &) {
+      return ZER_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    } catch (...) {
+      return ZER_RESULT_ERROR_UNKNOWN;
+    }
+  }
+
+  // Populate returned platforms from the cache.
+  if (Platforms) {
+    PI_ASSERT(*NumPlatforms <= PiPlatformsCache->size(),
+              ZER_RESULT_INVALID_PLATFORM);
+    std::copy_n(PiPlatformsCache->begin(), *NumPlatforms, Platforms);
+  }
+
+  if (*NumPlatforms == 0)
+    *NumPlatforms = PiPlatformsCache->size();
+  else
+    *NumPlatforms = std::min(PiPlatformsCache->size(), (size_t)*NumPlatforms);
 
   return ZER_RESULT_SUCCESS;
 }
