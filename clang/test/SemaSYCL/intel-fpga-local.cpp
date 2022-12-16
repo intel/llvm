@@ -99,6 +99,26 @@ void diagnostics()
   [[intel::numbanks(8)]] //expected-note{{previous attribute is here}}
   [[intel::numbanks(16)]] unsigned int max_numb[64];
 
+  // Checking of different argument values.
+  //expected-warning@+2{{attribute 'bankwidth' is already applied}}
+  [[intel::bankwidth(8)]] // expected-note {{previous attribute is here}}
+  [[intel::bankwidth(16)]] unsigned int bw_bw[64];
+
+  // Checking of different argument values.
+  //expected-note@+2{{previous attribute is here}}
+  //expected-warning@+1{{attribute 'force_pow2_depth' is already applied with different arguments}}
+  [[intel::force_pow2_depth(1), intel::force_pow2_depth(0)]] unsigned int force_p2d_dup[64];
+
+  // Checking of different argument values.
+  //expected-warning@+2{{attribute 'merge' is already applied}}
+  [[intel::merge("mrg4", "depth")]]
+  [[intel::merge("mrg5", "width")]] unsigned int mrg_mrg[4];
+
+  // Checking of different argument values.
+  //expected-warning@+2{{attribute 'bank_bits' is already applied}}
+  [[intel::bank_bits(42, 43)]]
+  [[intel::bank_bits(1, 2)]] unsigned int bb_bb[4];
+
   // Checking of incompatible attributes.
   //expected-error@+2{{attributes are not compatible}}
   [[intel::fpga_register]]
@@ -448,6 +468,10 @@ void check_template_parameters() {
   [[intel::fpga_register]]
   //expected-note@-1{{conflicting attribute is here}}
   [[intel::force_pow2_depth(E)]] unsigned int reg_force_p2d[64];
+
+  //expected-note@+2{{previous attribute is here}}
+  //expected-warning@+1{{attribute 'force_pow2_depth' is already applied with different arguments}}
+  [[intel::force_pow2_depth(E), intel::force_pow2_depth(0)]] unsigned int force_p2d_dup[64];
 }
 
 int main() {
@@ -486,3 +510,27 @@ int main() {
 //expected-note@+1{{conflicting attribute is here}}
 [[intel::bankwidth(8)]] extern const int var_bankwidth_2;
 [[intel::fpga_register]] const int var_bankwidth_2 =0;
+
+// Merging of different arg values.
+//expected-warning@+2{{attribute 'max_replicates' is already applied with different arguments}}
+[[intel::max_replicates(12)]] extern const int var_max_replicates_1;
+[[intel::max_replicates(14)]] const int var_max_replicates_1 = 0;
+//expected-note@-2{{previous attribute is here}}
+
+// Merging of different arg values.
+//expected-warning@+2{{attribute 'force_pow2_depth' is already applied with different arguments}}
+[[intel::force_pow2_depth(1)]] extern const int var_force_pow2_depth_1;
+[[intel::force_pow2_depth(0)]] const int var_force_pow2_depth_1 = 0;
+//expected-note@-2{{previous attribute is here}}
+
+// Merging of different arg values.
+//expected-warning@+2{{attribute 'numbanks' is already applied with different arguments}}
+[[intel::numbanks(8)]] extern const int var_numbanks_1;
+[[intel::numbanks(16)]] const int var_numbanks_1 = 0;
+//expected-note@-2{{previous attribute is here}}
+
+// Merging of different arg values.
+//expected-warning@+2{{attribute 'bankwidth' is already applied with different arguments}}
+[[intel::bankwidth(8)]] extern const int var_bankwidth_1;
+[[intel::bankwidth(16)]] const int var_bankwidth_1 = 0;
+//expected-note@-2{{previous attribute is here}}

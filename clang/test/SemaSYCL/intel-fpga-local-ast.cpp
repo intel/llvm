@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -Wno-return-type -fsyntax-only -fcxx-exceptions -ast-dump -verify -pedantic %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -ast-dump %s | FileCheck %s
 
 // Tests for AST of Intel FPGA memory attributes.
 #include "sycl.hpp"
@@ -156,8 +156,9 @@ void check_ast()
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}12
   //CHECK-NEXT: IntegerLiteral{{.*}}12{{$}}
+  //CHECK-NOT:  SYCLIntelMaxReplicatesAttr
   [[intel::max_replicates(12)]]
-  [[intel::max_replicates(12)]] int var_max_replicates; // OK
+  [[intel::max_replicates(12)]] int var_max_replicates;
 
   // Check duplicate argument values.
   //CHECK: VarDecl{{.*}}var_private_copies
@@ -166,8 +167,9 @@ void check_ast()
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}12
   //CHECK-NEXT: IntegerLiteral{{.*}}12{{$}}
+  //CHECK-NOT:  SYCLIntelPrivateCopiesAttr
   [[intel::private_copies(12)]]
-  [[intel::private_copies(12)]] int var_private_copies; // OK
+  [[intel::private_copies(12)]] int var_private_copies;
 
   // Checking of duplicate argument values.
   //CHECK: VarDecl{{.*}}var_forcep2d
@@ -176,8 +178,9 @@ void check_ast()
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}1
   //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
+  //CHECK-NOT:  SYCLIntelForcePow2DepthAttr
   [[intel::force_pow2_depth(1)]]
-  [[intel::force_pow2_depth(1)]] int var_forcep2d; // OK
+  [[intel::force_pow2_depth(1)]] int var_forcep2d;
 
   // Test for Intel FPGA bankwidth memory attribute duplication.
   // No diagnostic is emitted because the arguments match.
@@ -188,8 +191,9 @@ void check_ast()
   //CHECK-NEXT: ConstantExpr{{.*}}'int'
   //CHECK-NEXT: value: Int 16
   //CHECK-NEXT: IntegerLiteral{{.*}}'int' 16
+  //CHECK-NOT:  SYCLIntelBankWidthAttr
   [[intel::bankwidth(16)]]
-  [[intel::bankwidth(16)]] int var_bankwidth; // OK
+  [[intel::bankwidth(16)]] int var_bankwidth;
 
   // Test for Intel FPGA numbanks memory attribute duplication.
   // No diagnostic is emitted because the arguments match.
@@ -200,8 +204,9 @@ void check_ast()
   //CHECK-NEXT: ConstantExpr{{.*}}'int'
   //CHECK-NEXT: value: Int 8
   //CHECK-NEXT: IntegerLiteral{{.*}}'int' 8
+  //CHECK-NOT:  SYCLIntelNumBanksAttr
   [[intel::numbanks(8)]]
-  [[intel::numbanks(8)]] int var_numbanks; // OK
+  [[intel::numbanks(8)]] int var_numbanks;
 
   // Checking of different argument values.
   //CHECK: VarDecl{{.*}}bw_bw 'unsigned int[64]'
@@ -210,8 +215,8 @@ void check_ast()
   //CHECK-NEXT: ConstantExpr{{.*}}'int'
   //CHECK-NEXT: value: Int 8
   //CHECK-NEXT: IntegerLiteral{{.*}}'int' 8
-  //expected-warning@+2{{attribute 'bankwidth' is already applied}}
-  [[intel::bankwidth(8)]] // expected-note {{previous attribute is here}}
+  //CHECK-NOT:  SYCLIntelBankWidthAttr
+  [[intel::bankwidth(8)]]
   [[intel::bankwidth(16)]] unsigned int bw_bw[64];
 
   //CHECK: VarDecl{{.*}}nb_nb 'unsigned int[64]'
@@ -220,18 +225,18 @@ void check_ast()
   //CHECK-NEXT: ConstantExpr{{.*}}'int'
   //CHECK-NEXT: value: Int 8
   //CHECK-NEXT: IntegerLiteral{{.*}}'int' 8
-  //expected-warning@+2{{attribute 'numbanks' is already applied}}
-  [[intel::numbanks(8)]] // expected-note {{previous attribute is here}}
+  //CHECK-NOT:  SYCLIntelNumBanksAttr
+  [[intel::numbanks(8)]]
   [[intel::numbanks(16)]] unsigned int nb_nb[64];
 
-  //Last one is applied and others ignored.
+  //FIXME: Last one is applied and others ignored.
   //CHECK: VarDecl{{.*}}mrg_mrg
   //CHECK: SYCLIntelMergeAttr{{.*}}"mrg4" "depth"{{$}}
   //CHECK: SYCLIntelMergeAttr{{.*}}"mrg5" "width"{{$}}
-  //expected-warning@+2{{attribute 'merge' is already applied}}
   [[intel::merge("mrg4", "depth")]]
   [[intel::merge("mrg5", "width")]] unsigned int mrg_mrg[4];
 
+  // FIXME: Duplicate attribute is ignored.
   //CHECK: VarDecl{{.*}}bb_bb
   //CHECK: SYCLIntelBankBitsAttr
   //CHECK-NEXT: ConstantExpr
@@ -247,7 +252,6 @@ void check_ast()
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}2
   //CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
-  //expected-warning@+2{{attribute 'bank_bits' is already applied}}
   [[intel::bank_bits(42, 43)]]
   [[intel::bank_bits(1, 2)]] unsigned int bb_bb[4];
 
@@ -258,8 +262,7 @@ void check_ast()
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}1
   //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
-  //expected-note@+2{{previous attribute is here}}
-  //expected-warning@+1{{attribute 'force_pow2_depth' is already applied with different arguments}}
+  //CHECK-NOT:  SYCLIntelForcePow2DepthAttr
   [[intel::force_pow2_depth(1), intel::force_pow2_depth(0)]] unsigned int force_p2d_dup[64];
 }
 
@@ -413,9 +416,7 @@ void check_template_parameters() {
   //CHECK-NEXT: SubstNonTypeTemplateParmExpr
   //CHECK-NEXT: NonTypeTemplateParmDecl
   //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
-  //expected-note@+2{{previous attribute is here}}
-  //expected-warning@+1{{attribute 'force_pow2_depth' is already applied with different arguments}}
-  [[intel::force_pow2_depth(D), intel::force_pow2_depth(0)]] unsigned int force_p2d_dup[64];
+  [[intel::force_pow2_depth(D)]] unsigned int force_p2d_dup[64];
 }
 
 template <int A>
@@ -459,13 +460,7 @@ int main() {
 //CHECK-NEXT: value:{{.*}}12
 //CHECK-NEXT: IntegerLiteral{{.*}}12{{$}}
 [[intel::max_replicates(12)]] extern const int var_max_replicates;
-[[intel::max_replicates(12)]] const int var_max_replicates = 0; // OK
-
-// Merging of different arg values.
-//expected-warning@+2{{attribute 'max_replicates' is already applied with different arguments}}
-[[intel::max_replicates(12)]] extern const int var_max_replicates_1;
-[[intel::max_replicates(14)]] const int var_max_replicates_1 = 0;
-//expected-note@-2{{previous attribute is here}}
+[[intel::max_replicates(12)]] const int var_max_replicates = 0;
 
 // Test that checks global constant variable (which allows the redeclaration) since
 // IntelFPGAConstVar is one of the subjects listed for [[intel::force_pow2_depth()]] attribute.
@@ -482,13 +477,7 @@ int main() {
 //CHECK-NEXT: value:{{.*}}1
 //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
 [[intel::force_pow2_depth(1)]] extern const int var_force_pow2_depth;
-[[intel::force_pow2_depth(1)]] const int var_force_pow2_depth = 0; // OK
-
-// Merging of different arg values.
-//expected-warning@+2{{attribute 'force_pow2_depth' is already applied with different arguments}}
-[[intel::force_pow2_depth(1)]] extern const int var_force_pow2_depth_1;
-[[intel::force_pow2_depth(0)]] const int var_force_pow2_depth_1 = 0;
-//expected-note@-2{{previous attribute is here}}
+[[intel::force_pow2_depth(1)]] const int var_force_pow2_depth = 0;
 
 // Test that checks global constant variable (which allows the redeclaration) since
 // IntelFPGAConstVar is one of the subjects listed for [[intel::numbanks()]] attribute.
@@ -505,13 +494,7 @@ int main() {
 //CHECK-NEXT: value: Int 16
 //CHECK-NEXT: IntegerLiteral{{.*}}'int' 16
 [[intel::numbanks(16)]] extern const int var_numbanks;
-[[intel::numbanks(16)]] const int var_numbanks = 0; // OK
-
-// Merging of different arg values.
-//expected-warning@+2{{attribute 'numbanks' is already applied with different arguments}}
-[[intel::numbanks(8)]] extern const int var_numbanks_1;
-[[intel::numbanks(16)]] const int var_numbanks_1 = 0;
-//expected-note@-2{{previous attribute is here}}
+[[intel::numbanks(16)]] const int var_numbanks = 0;
 
 // Test that checks global constant variable (which allows the redeclaration) since
 // IntelFPGAConstVar is one of the subjects listed for [[intel::bankwidth()]] attribute.
@@ -528,10 +511,4 @@ int main() {
 //CHECK-NEXT: value: Int 8
 //CHECK-NEXT: IntegerLiteral{{.*}}'int' 8
 [[intel::bankwidth(8)]] extern const int var_bankwidth;
-[[intel::bankwidth(8)]] const int var_bankwidth = 0; // OK
-
-// Merging of different arg values.
-//expected-warning@+2{{attribute 'bankwidth' is already applied with different arguments}}
-[[intel::bankwidth(8)]] extern const int var_bankwidth_1;
-[[intel::bankwidth(16)]] const int var_bankwidth_1 = 0;
-//expected-note@-2{{previous attribute is here}}
+[[intel::bankwidth(8)]] const int var_bankwidth = 0;
