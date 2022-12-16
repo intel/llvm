@@ -1,0 +1,223 @@
+= sycl_ext_oneapi_user_defined_reductions
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 5 specification. All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_group_sort.asciidoc[
+  sycl_ext_oneapi_group_sort]
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+== Overview
+
+The purpose of this extension is to expand functionality of `reduce_over_group`
+and `joint_reduce` free functions defined in section 4.17.4.5. `reduce` of the
+core SYCL specification by allowing user-defined binary operators and
+non-fundamental types.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 Feature test macros. Therefore, an implementation
+supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_USER_DEFINED_REDUCTIONS` to one of the values defined in the
+table below.
+Application can test for existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's value
+to determine which of the extensions's APIs the implementation supports.
+
+Table 1. Values of the `SYCL_EXT_ONEAPI_USER_DEFINED_REDUCTIONS` macro.
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version. Base features are supported.
+|===
+
+=== Reduction functions
+
+This extension provides two overloads of `reduce_over_group` defined by the core
+SYCL specification.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+  template <typename GroupHelper, typename Ptr, typename BinaryOperation>
+  std::iterator_traits<Ptr>::value_type joint_reduce(GroupHelper g, Ptr first, Ptr last, BinaryOperation binary_op); // (1)
+
+  template <typename GroupHelper, typename Ptr, typename T, typename BinaryOperation>
+  T joint_reduce(GroupHelper g, Ptr first, Ptr last, T init, BinaryOperation binary_op); // (2)
+
+  template <typename GroupHelper, typename T, typename BinaryOperation>
+  T reduce_over_group(GroupHelper g, T x, BinaryOperation binary_op); // (3)
+
+  template <typename GroupHelper, typename V, typename T, typename BinaryOperation>
+  T reduce_over_group(GroupHelper g, V x, T init, BinaryOperation binary_op); // (4)
+}
+----
+
+1._Constraints_: Available only when `is_group_helper<GroupHelper>` evaluates to `true`.
+The behavior of this trait is defined in link:../experimental/sycl_ext_oneapi_group_sort.asciidoc[sycl_ext_oneapi_group_sort].
+
+_Mandates_: `binary_op(*first, *first)` must return a value of type
+`std::iterator_traits<Ptr>::value_type`.
+
+_Preconditions_: `first`, `last` and the type of `binary_op` must be the same
+for all work-items in the group. `binary_op` must be an instance of a function
+object.  
+The size of memory contained by `GroupHelper` object `g` must
+be at least `sizeof(T) * g.get_group().get_local_range().size()` bytes.
+`binary_op` must be an instance of a function object.
+
+_Returns_: The result of combining the values resulting from dereferencing all
+iterators in the range `[first, last)` using the operator `binary_op`, where the
+values are combined according to the generalized sum defined in standard C++.
+
+NOTE: If `T` is a fundamental type and `BinaryOperation` is a SYCL function
+object type, then memory attached to `GroupHelper` object `g` is not used and
+the call to this overload is equivalent to calling
+`sycl::joint_reduce(g.get_group(), first, last, binary_op)`.
+
+2._Constraints_: Available only when `is_group_helper<GroupHelper>` evaluates to `true`.
+The behavior of this trait is defined in link:../experimental/sycl_ext_oneapi_group_sort.asciidoc[sycl_ext_oneapi_group_sort].
+
+_Mandates_: `binary_op(init, *first)` must return a value of type `T`. `T` must
+satisfy MoveConstructible requirement.
+
+_Preconditions_: `first`, `last`, `init` and the type of `binary_op` must be the
+same for all work-items in the group. `binary_op` must be an instance of a
+function object.  
+The size of memory contained by `GroupHelper` object `g` must
+be at least `sizeof(T) * g.get_group().get_local_range().size()` bytes.
+`binary_op` must be an instance of a function object.
+
+_Returns_: The result of combining the values resulting from dereferencing all
+iterators in the range `[first, last)` and the initial value `init` using the
+operator `binary_op`, where the values are combined according to the generalized
+sum defined in standard C++.
+
+3._Constraints_: Available only when `is_group_helper<GroupHelper>` evaluates to `true`.
+The behavior of this trait is defined in link:../experimental/sycl_ext_oneapi_group_sort.asciidoc[sycl_ext_oneapi_group_sort].
+
+_Mandates_: `binary_op(x, x)` must return a value of type `T`.
+
+_Preconditions_: The size of memory contained by `GroupHelper` object `g` must
+be at least `sizeof(T) * g.get_group().get_local_range().size()` bytes.
+`binary_op` must be an instance of a function object.
+
+_Returns_: The result of combining all the values of `x` specified by each
+work-item in the group using the operator `binary_op`, where the values are
+combined according to the generalized sum defined in standard C++.
+
+NOTE: If `T` is a fundamental type and `BinaryOperation` is a SYCL function
+object type, then memory attached to `GroupHelper` object `g` is not used and
+the call to this overload is equivalent to calling
+`sycl::reduce_over_group(g.get_group(), x, binary_op)`.
+
+4._Constraints_: Available only when `is_group_helper<GroupHelper>` evaluates to `true`.
+The behavior of this trait is defined in link:../experimental/sycl_ext_oneapi_group_sort.asciidoc[sycl_ext_oneapi_group_sort].
+
+_Mandates_: `binary_op(init, x)` and `binary_op(x, x)` must return a value of
+type `T`.
+
+_Preconditions_: The size of memory contained by `GroupHelper` object `g` must
+be at least `sizeof(T) * g.get_group().get_local_range().size()` bytes.
+`binary_op` must be an instance of a function object.
+
+_Returns_: The result of combining all the values of `x` specified by each
+work-item in the group and the initial value `init` using the operator
+`binary_op`, where the values are combined according to the generalized sum
+defined in standard C++.
+
+NOTE: If `T` and `V` are fundamental types and `BinaryOperation` is a SYCL
+function object type, then memory attached to `GroupHelper` object `g` is not
+used and the call to this overload is equivalent to calling
+`sycl::reduce_over_group(g.get_group(), x, init, binary_op)`.
+
+NOTE: Implementation of all overaloads may use less memory than passed
+to the function depending on the exact algorithm which is used for doing the
+reduction.
+
+== Example usage
+
+[source,c++]
+----
+template <typename T>
+struct UserDefinedSum {
+  T operator()(T a, T b) {
+    return a + b;
+  }
+};
+
+q.submit([&](sycl::handler& h) {
+  auto acc = sycl::accessor(buf, h);
+
+  constexpr size_t group_size = 256;
+
+  // Create enough local memory for the algorithm
+  size_t temp_memory_size = group_size * sizeof(T);
+  auto scratch = sycl::local_accessor<std::byte, 1>(temp_memory_size, h);
+
+  h.parallel_for(sycl::nd_range<1>{N, group_size}, [=](sycl::nd_item<1> it) {
+    // Create a handle that associates the group with an allocation it can use
+    auto handle = sycl::ext::oneapi::experimental::group_with_scratchpad(
+        it.get_group(), sycl::span(&scratch[0], temp_memory_size));
+
+    // Pass the handle as the first argument to the group algorithm
+    T sum = sycl::ext::oneapi::experimental::reduce_over_group(
+          handle, acc[it.get_global_id(0)], 0, UserDefinedSum<T>{});
+
+  });
+});
+----
+
+== Issues
+
+Open:  
+
+. In future versions of this extension we may add a query function which would
+help to calculate the exact amount of memory needed for doing the reduction.

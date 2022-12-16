@@ -21,8 +21,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 
 using memory_order __SYCL2020_DEPRECATED("use 'sycl::memory_order' instead") =
     sycl::memory_order;
@@ -76,7 +75,6 @@ getStdMemoryOrder(::sycl::ext::oneapi::memory_order order) {
 } // namespace detail
 #endif // __SYCL_DEVICE_ONLY__
 
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

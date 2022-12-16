@@ -212,16 +212,10 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 class stream;
-namespace ext {
-namespace intel {
-namespace esimd {
-namespace detail {
+namespace ext::intel::esimd::detail {
 // Forward declare a "back-door" access class to support ESIMD.
 class AccessorPrivateProxy;
-} // namespace detail
-} // namespace esimd
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel::esimd::detail
 
 template <typename DataT, int Dimensions = 1,
           access::mode AccessMode = access::mode::read_write,
@@ -250,11 +244,7 @@ struct AccHostDataT {
 // To ensure loop unrolling is done when processing dimensions.
 template <size_t... Inds, class F>
 void dim_loop_impl(std::integer_sequence<size_t, Inds...>, F &&f) {
-#if __cplusplus >= 201703L
   (f(Inds), ...);
-#else
-  (void)std::initializer_list<int>{((void)(f(Inds)), 0)...};
-#endif
 }
 
 template <size_t count, class F> void dim_loop(F &&f) {
@@ -346,36 +336,36 @@ protected:
       MIDs[0] = Index;
     }
 
-    template <int CurDims = SubDims, typename = std::enable_if_t<(CurDims > 1)>>
+    template <int CurDims = SubDims,
+              typename = detail::enable_if_t<(CurDims > 1)>>
     auto operator[](size_t Index) {
       MIDs[Dims - CurDims] = Index;
       return AccessorSubscript<CurDims - 1, AccType>(MAccessor, MIDs);
     }
 
     template <int CurDims = SubDims,
-              typename = std::enable_if_t<CurDims == 1 && IsAccessAnyWrite>>
+              typename = detail::enable_if_t<CurDims == 1 && IsAccessAnyWrite>>
     RefType operator[](size_t Index) const {
       MIDs[Dims - CurDims] = Index;
       return MAccessor[MIDs];
     }
 
     template <int CurDims = SubDims>
-    typename std::enable_if_t<CurDims == 1 && IsAccessAtomic, atomic<DataT, AS>>
+    typename detail::enable_if_t<CurDims == 1 && IsAccessAtomic,
+                                 atomic<DataT, AS>>
     operator[](size_t Index) const {
       MIDs[Dims - CurDims] = Index;
       return MAccessor[MIDs];
     }
 
     template <int CurDims = SubDims,
-              typename = std::enable_if_t<CurDims == 1 && IsAccessReadOnly>>
+              typename = detail::enable_if_t<CurDims == 1 && IsAccessReadOnly>>
     ConstRefType operator[](size_t Index) const {
       MIDs[Dims - SubDims] = Index;
       return MAccessor[MIDs];
     }
   };
 };
-
-#if __cplusplus >= 201703L
 
 template <typename MayBeTag1, typename MayBeTag2>
 constexpr access::mode deduceAccessMode() {
@@ -423,8 +413,6 @@ constexpr access::target deduceAccessTarget(access::target defaultTarget) {
 
   return defaultTarget;
 }
-
-#endif
 
 template <int Dims> class LocalAccessorBaseDevice {
 public:
@@ -698,7 +686,7 @@ public:
   // accessor(image<dimensions, AllocatorT> &imageRef);
   template <
       typename AllocatorT, int Dims = Dimensions,
-      typename = std::enable_if_t<(Dims > 0 && Dims <= 3) && IsHostImageAcc>>
+      typename = detail::enable_if_t<(Dims > 0 && Dims <= 3) && IsHostImageAcc>>
   image_accessor(image<Dims, AllocatorT> &ImageRef, int ImageElementSize)
 #ifdef __SYCL_DEVICE_ONLY__
   {
@@ -724,8 +712,9 @@ public:
   // template <typename AllocatorT>
   // accessor(image<dimensions, AllocatorT> &imageRef,
   //          handler &commandGroupHandlerRef);
-  template <typename AllocatorT, int Dims = Dimensions,
-            typename = std::enable_if_t<(Dims > 0 && Dims <= 3) && IsImageAcc>>
+  template <
+      typename AllocatorT, int Dims = Dimensions,
+      typename = detail::enable_if_t<(Dims > 0 && Dims <= 3) && IsImageAcc>>
   image_accessor(image<Dims, AllocatorT> &ImageRef,
                  handler &CommandGroupHandlerRef, int ImageElementSize)
 #ifdef __SYCL_DEVICE_ONLY__
@@ -779,17 +768,17 @@ public:
   size_t get_count() const { return size(); }
   size_t size() const noexcept { return get_range<Dimensions>().size(); }
 
-  template <int Dims = Dimensions, typename = std::enable_if_t<Dims == 1>>
+  template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 1>>
   range<1> get_range() const {
     cl_int Range = getRangeInternal();
     return range<1>(Range);
   }
-  template <int Dims = Dimensions, typename = std::enable_if_t<Dims == 2>>
+  template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 2>>
   range<2> get_range() const {
     cl_int2 Range = getRangeInternal();
     return range<2>(Range[0], Range[1]);
   }
-  template <int Dims = Dimensions, typename = std::enable_if_t<Dims == 3>>
+  template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 3>>
   range<3> get_range() const {
     cl_int3 Range = getRangeInternal();
     return range<3>(Range[0], Range[1], Range[2]);
@@ -800,7 +789,7 @@ public:
   size_t get_count() const { return size(); };
   size_t size() const noexcept { return MImageCount; };
 
-  template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 0)>>
+  template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
   range<Dims> get_range() const {
     return detail::convertToArrayOfN<Dims, 1>(getAccessRange());
   }
@@ -812,7 +801,7 @@ public:
   // || (accessTarget == access::target::host_image && ( accessMode ==
   // access::mode::read || accessMode == access::mode::read_write))
   template <typename CoordT, int Dims = Dimensions,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 (Dims > 0) && (IsValidCoordDataT<Dims, CoordT>::value) &&
                 (detail::is_genint<CoordT>::value) &&
                 ((IsImageAcc && IsImageAccessReadOnly) ||
@@ -832,7 +821,7 @@ public:
   // || (accessTarget == access::target::host_image && ( accessMode ==
   // access::mode::read || accessMode == access::mode::read_write))
   template <typename CoordT, int Dims = Dimensions,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 (Dims > 0) && (IsValidCoordDataT<Dims, CoordT>::value) &&
                 ((IsImageAcc && IsImageAccessReadOnly) ||
                  (IsHostImageAcc && IsImageAccessAnyRead))>>
@@ -856,7 +845,7 @@ public:
   // access::mode::write || accessMode == access::mode::discard_write ||
   // accessMode == access::mode::read_write))
   template <typename CoordT, int Dims = Dimensions,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 (Dims > 0) && (detail::is_genint<CoordT>::value) &&
                 (IsValidCoordDataT<Dims, CoordT>::value) &&
                 ((IsImageAcc && IsImageAccessWriteOnly) ||
@@ -912,22 +901,22 @@ public:
       : MBaseAcc(BaseAcc), MIdx(Idx) {}
 
   template <typename CoordT, int Dims = Dimensions,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 (Dims > 0) && (IsValidCoordDataT<Dims, CoordT>::value)>>
   DataT read(const CoordT &Coords) const {
     return MBaseAcc.read(getAdjustedCoords(Coords));
   }
 
   template <typename CoordT, int Dims = Dimensions,
-            typename = std::enable_if_t<(Dims > 0) &&
-                                        IsValidCoordDataT<Dims, CoordT>::value>>
+            typename = detail::enable_if_t<
+                (Dims > 0) && IsValidCoordDataT<Dims, CoordT>::value>>
   DataT read(const CoordT &Coords, const sampler &Smpl) const {
     return MBaseAcc.read(getAdjustedCoords(Coords), Smpl);
   }
 
   template <typename CoordT, int Dims = Dimensions,
-            typename = std::enable_if_t<(Dims > 0) &&
-                                        IsValidCoordDataT<Dims, CoordT>::value>>
+            typename = detail::enable_if_t<
+                (Dims > 0) && IsValidCoordDataT<Dims, CoordT>::value>>
   void write(const CoordT &Coords, const DataT &Color) const {
     return MBaseAcc.write(getAdjustedCoords(Coords), Color);
   }
@@ -937,12 +926,12 @@ public:
   size_t get_count() const { return size(); }
   size_t size() const noexcept { return get_range<Dimensions>().size(); }
 
-  template <int Dims = Dimensions, typename = std::enable_if_t<Dims == 1>>
+  template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 1>>
   range<1> get_range() const {
     cl_int2 Count = MBaseAcc.getRangeInternal();
     return range<1>(Count.x());
   }
-  template <int Dims = Dimensions, typename = std::enable_if_t<Dims == 2>>
+  template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 2>>
   range<2> get_range() const {
     cl_int3 Count = MBaseAcc.getRangeInternal();
     return range<2>(Count.x(), Count.y());
@@ -957,7 +946,7 @@ public:
   }
 
   template <int Dims = Dimensions,
-            typename = std::enable_if_t<(Dims == 1 || Dims == 2)>>
+            typename = detail::enable_if_t<(Dims == 1 || Dims == 2)>>
   range<Dims> get_range() const {
     return detail::convertToArrayOfN<Dims, 1>(MBaseAcc.getAccessRange());
   }
@@ -1038,14 +1027,10 @@ protected:
       // We've already adjusted for the accessor's offset in the __init, so
       // don't include it here in case of device.
 #ifndef __SYCL_DEVICE_ONLY__
-#if __cplusplus >= 201703L
       if constexpr (!(PropertyListT::template has_property<
                         sycl::ext::oneapi::property::no_offset>())) {
         Result += getOffset()[I];
       }
-#else
-      Result += getOffset()[I];
-#endif
 #endif // __SYCL_DEVICE_ONLY__
     });
 
@@ -1101,14 +1086,10 @@ protected:
               range<AdjustedDim> MemRange, id<AdjustedDim> Offset) {
     MData = Ptr;
     detail::dim_loop<AdjustedDim>([&, this](size_t I) {
-#if __cplusplus >= 201703L
       if constexpr (!(PropertyListT::template has_property<
                         sycl::ext::oneapi::property::no_offset>())) {
         getOffset()[I] = Offset[I];
       }
-#else
-      getOffset()[I] = Offset[I];
-#endif
       getAccessRange()[I] = AccessRange[I];
       getMemoryRange()[I] = MemRange[I];
     });
@@ -1266,7 +1247,7 @@ public:
 
 public:
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename std::enable_if_t<
+            typename detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 std::is_same<T, DataT>::value && Dims == 0 &&
                 ((!IsPlaceH && IsHostBuf) ||
@@ -1298,7 +1279,7 @@ public:
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename... PropTypes,
-            typename std::enable_if_t<
+            typename detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 std::is_same<T, DataT>::value && Dims == 0 &&
                 ((!IsPlaceH && IsHostBuf) ||
@@ -1330,7 +1311,7 @@ public:
   }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = typename std::enable_if_t<
+            typename = typename detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 std::is_same<T, DataT>::value && (Dims == 0) &&
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
@@ -1362,7 +1343,7 @@ public:
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename... PropTypes,
-            typename = typename std::enable_if_t<
+            typename = typename detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 std::is_same<T, DataT>::value && (Dims == 0) &&
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
@@ -1394,7 +1375,7 @@ public:
 #endif
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
                 ((!IsPlaceH && IsHostBuf) ||
@@ -1428,7 +1409,7 @@ public:
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename... PropTypes,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
                 ((!IsPlaceH && IsHostBuf) ||
@@ -1461,11 +1442,9 @@ public:
   }
 #endif
 
-#if __cplusplus >= 201703L
-
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
                 IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
@@ -1479,7 +1458,7 @@ public:
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
                 IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
@@ -1491,10 +1470,9 @@ public:
       : accessor(BufferRef, PropertyList, CodeLoc) {
     adjustAccPropsInBuf(BufferRef);
   }
-#endif
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
@@ -1527,7 +1505,7 @@ public:
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename... PropTypes,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
@@ -1559,11 +1537,9 @@ public:
   }
 #endif
 
-#if __cplusplus >= 201703L
-
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
                 !IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
@@ -1577,7 +1553,7 @@ public:
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
                 !IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
@@ -1591,10 +1567,8 @@ public:
     adjustAccPropsInBuf(BufferRef);
   }
 
-#endif
-
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
                 ((!IsPlaceH && IsHostBuf) ||
@@ -1607,7 +1581,7 @@ public:
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename... PropTypes,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
                 ((!IsPlaceH && IsHostBuf) ||
@@ -1619,11 +1593,9 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {}
 
-#if __cplusplus >= 201703L
-
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
                 IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
@@ -1637,7 +1609,7 @@ public:
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
                 IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
@@ -1650,10 +1622,9 @@ public:
       : accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {
     adjustAccPropsInBuf(BufferRef);
   }
-#endif
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
@@ -1666,7 +1637,7 @@ public:
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename... PropTypes,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
@@ -1679,11 +1650,9 @@ public:
       : accessor(BufferRef, CommandGroupHandler, AccessRange, {}, PropertyList,
                  CodeLoc) {}
 
-#if __cplusplus >= 201703L
-
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
                 !IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
@@ -1699,7 +1668,7 @@ public:
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
                 !IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
@@ -1713,10 +1682,9 @@ public:
                  CodeLoc) {
     adjustAccPropsInBuf(BufferRef);
   }
-#endif
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
                 ((!IsPlaceH && IsHostBuf) ||
@@ -1757,7 +1725,7 @@ public:
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename... PropTypes,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
                 ((!IsPlaceH && IsHostBuf) ||
@@ -1798,11 +1766,9 @@ public:
   }
 #endif
 
-#if __cplusplus >= 201703L
-
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
                 IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
@@ -1816,7 +1782,7 @@ public:
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
                 IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
@@ -1829,10 +1795,9 @@ public:
       : accessor(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {
     adjustAccPropsInBuf(BufferRef);
   }
-#endif
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
@@ -1873,7 +1838,7 @@ public:
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename... PropTypes,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
                 (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
@@ -1913,11 +1878,9 @@ public:
   }
 #endif
 
-#if __cplusplus >= 201703L
-
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
                 !IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
@@ -1933,7 +1896,7 @@ public:
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             typename TagT, typename... PropTypes,
-            typename = std::enable_if_t<
+            typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
                 !IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
@@ -1947,7 +1910,6 @@ public:
                  PropertyList, CodeLoc) {
     adjustAccPropsInBuf(BufferRef);
   }
-#endif
 
   template <typename... NewPropsT>
   accessor(
@@ -1994,68 +1956,66 @@ public:
 
   bool empty() const noexcept { return size() == 0; }
 
-  template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 0)>>
+  template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
   range<Dimensions> get_range() const {
     return detail::convertToArrayOfN<Dimensions, 1>(getAccessRange());
   }
 
-  template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 0)>>
+  template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
   id<Dimensions> get_offset() const {
-#if __cplusplus >= 201703L
     static_assert(
         !(PropertyListT::template has_property<
             sycl::ext::oneapi::property::no_offset>()),
         "Accessor has no_offset property, get_offset() can not be used");
-#endif
     return detail::convertToArrayOfN<Dimensions, 0>(getOffset());
   }
 
   template <int Dims = Dimensions, typename RefT = RefType,
-            typename = std::enable_if_t<Dims == 0 && IsAccessAnyWrite &&
-                                        !std::is_const<RefT>::value>>
+            typename = detail::enable_if_t<Dims == 0 && IsAccessAnyWrite &&
+                                           !std::is_const<RefT>::value>>
   operator RefType() const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
     return *(getQualifiedPtr() + LinearIndex);
   }
 
   template <int Dims = Dimensions,
-            typename = std::enable_if_t<Dims == 0 && IsAccessReadOnly>>
+            typename = detail::enable_if_t<Dims == 0 && IsAccessReadOnly>>
   operator ConstRefType() const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
     return *(getQualifiedPtr() + LinearIndex);
   }
 
   template <int Dims = Dimensions,
-            typename = std::enable_if_t<(Dims > 0) && IsAccessAnyWrite>>
+            typename = detail::enable_if_t<(Dims > 0) && IsAccessAnyWrite>>
   RefType operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return getQualifiedPtr()[LinearIndex];
   }
 
   template <int Dims = Dimensions>
-  typename std::enable_if_t<(Dims > 0) && IsAccessReadOnly, ConstRefType>
+  typename detail::enable_if_t<(Dims > 0) && IsAccessReadOnly, ConstRefType>
   operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return getQualifiedPtr()[LinearIndex];
   }
 
   template <int Dims = Dimensions>
-  operator typename std::enable_if_t<Dims == 0 &&
-                                         AccessMode == access::mode::atomic,
+  operator typename detail::enable_if_t<Dims == 0 &&
+                                            AccessMode == access::mode::atomic,
 #ifdef __ENABLE_USM_ADDR_SPACE__
-                                     atomic<DataT>
+                                        atomic<DataT>
 #else
-                                     atomic<DataT, AS>
+                                        atomic<DataT, AS>
 #endif
-                                     >() const {
+                                        >() const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
     return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
         getQualifiedPtr() + LinearIndex));
   }
 
   template <int Dims = Dimensions>
-  typename std::enable_if_t<(Dims > 0) && AccessMode == access::mode::atomic,
-                            atomic<DataT, AS>>
+  typename detail::enable_if_t<(Dims > 0) && AccessMode == access::mode::atomic,
+                               atomic<DataT, AS>>
   operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
@@ -2063,35 +2023,35 @@ public:
   }
 
   template <int Dims = Dimensions>
-  typename std::enable_if_t<Dims == 1 && AccessMode == access::mode::atomic,
-                            atomic<DataT, AS>>
+  typename detail::enable_if_t<Dims == 1 && AccessMode == access::mode::atomic,
+                               atomic<DataT, AS>>
   operator[](size_t Index) const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>(Index));
     return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
         getQualifiedPtr() + LinearIndex));
   }
-  template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 1)>>
+  template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 1)>>
   auto operator[](size_t Index) const {
     return AccessorSubscript<Dims - 1>(*this, Index);
   }
 
-  template <
-      access::target AccessTarget_ = AccessTarget,
-      typename = std::enable_if_t<AccessTarget_ == access::target::host_buffer>>
+  template <access::target AccessTarget_ = AccessTarget,
+            typename = detail::enable_if_t<AccessTarget_ ==
+                                           access::target::host_buffer>>
   DataT *get_pointer() const {
     return getPointerAdjusted();
   }
 
   template <
       access::target AccessTarget_ = AccessTarget,
-      typename = std::enable_if_t<AccessTarget_ == access::target::device>>
+      typename = detail::enable_if_t<AccessTarget_ == access::target::device>>
   global_ptr<DataT> get_pointer() const {
     return global_ptr<DataT>(getPointerAdjusted());
   }
 
   template <access::target AccessTarget_ = AccessTarget,
-            typename = std::enable_if_t<AccessTarget_ ==
-                                        access::target::constant_buffer>>
+            typename = detail::enable_if_t<AccessTarget_ ==
+                                           access::target::constant_buffer>>
   constant_ptr<DataT> get_pointer() const {
     return constant_ptr<DataT>(getPointerAdjusted());
   }
@@ -2100,7 +2060,7 @@ public:
   // code. This restriction is not listed in the core spec and will be added in
   // future versions.
   template <typename Property>
-  typename std::enable_if_t<
+  typename sycl::detail::enable_if_t<
       !ext::oneapi::is_compile_time_property<Property>::value, bool>
   has_property() const noexcept {
 #ifndef __SYCL_DEVICE_ONLY__
@@ -2114,7 +2074,7 @@ public:
   // code. This restriction is not listed in the core spec and will be added in
   // future versions.
   template <typename Property,
-            typename = typename std::enable_if_t<
+            typename = typename sycl::detail::enable_if_t<
                 !ext::oneapi::is_compile_time_property<Property>::value>>
   Property get_property() const {
 #ifndef __SYCL_DEVICE_ONLY__
@@ -2124,7 +2084,6 @@ public:
 #endif
   }
 
-#if __cplusplus >= 201703L
   template <typename Property>
   static constexpr bool has_property(
       typename std::enable_if_t<
@@ -2138,7 +2097,6 @@ public:
           ext::oneapi::is_compile_time_property<Property>::value> * = 0) {
     return PropertyListT::template get_property<Property>();
   }
-#endif
 
   bool operator==(const accessor &Rhs) const { return impl == Rhs.impl; }
   bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
@@ -2177,14 +2135,10 @@ private:
     size_t TotalOffset = 0;
     detail::dim_loop<Dimensions>([&, this](size_t I) {
       TotalOffset = TotalOffset * impl.MemRange[I];
-#if __cplusplus >= 201703L
       if constexpr (!(PropertyListT::template has_property<
                         sycl::ext::oneapi::property::no_offset>())) {
         TotalOffset += impl.Offset[I];
       }
-#else
-      TotalOffset += impl.Offset[I];
-#endif
     });
 
     return TotalOffset;
@@ -2222,7 +2176,6 @@ private:
     }
   }
 
-#if __cplusplus >= 201703L
   template <typename BufT, typename... PropTypes>
   void adjustAccPropsInBuf(BufT &Buffer) {
     if constexpr (PropertyListT::template has_property<
@@ -2242,10 +2195,7 @@ private:
     Buffer.deleteAccProps(
         sycl::detail::PropWithDataKind::AccPropBufferLocation);
   }
-#endif
 };
-
-#if __cplusplus >= 201703L
 
 template <typename DataT, int Dimensions, typename AllocatorT>
 accessor(buffer<DataT, Dimensions, AllocatorT>)
@@ -2399,7 +2349,6 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler &, Type1, Type2, Type3,
                 detail::deduceAccessTarget<Type3, Type4>(target::device),
                 access::placeholder::false_t,
                 ext::oneapi::accessor_property_list<PropsT...>>;
-#endif
 
 /// Local accessor
 ///
@@ -2503,7 +2452,7 @@ public:
   using reference = DataT &;
   using const_reference = const DataT &;
 
-  template <int Dims = Dimensions, typename = std::enable_if_t<Dims == 0>>
+  template <int Dims = Dimensions, typename = detail::enable_if_t<Dims == 0>>
   local_accessor_base(handler &, const detail::code_location CodeLoc =
                                      detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
@@ -2516,7 +2465,8 @@ public:
   }
 #endif
 
-        template <int Dims = Dimensions, typename = std::enable_if_t<Dims == 0>>
+        template <int Dims = Dimensions,
+                  typename = detail::enable_if_t<Dims == 0>>
         local_accessor_base(handler &, const property_list &propList,
                             const detail::code_location CodeLoc =
                                 detail::code_location::current())
@@ -2533,7 +2483,7 @@ public:
   }
 #endif
 
-  template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 0)>>
+  template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
   local_accessor_base(
       range<Dimensions> AllocationSize, handler &,
       const detail::code_location CodeLoc = detail::code_location::current())
@@ -2549,7 +2499,7 @@ public:
 #endif
 
         template <int Dims = Dimensions,
-                  typename = std::enable_if_t<(Dims > 0)>>
+                  typename = detail::enable_if_t<(Dims > 0)>>
         local_accessor_base(range<Dimensions> AllocationSize, handler &,
                             const property_list &propList,
                             const detail::code_location CodeLoc =
@@ -2573,32 +2523,32 @@ public:
   size_t get_count() const { return size(); }
   size_t size() const noexcept { return getSize().size(); }
 
-  template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 0)>>
+  template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
   range<Dims> get_range() const {
     return detail::convertToArrayOfN<Dims, 1>(getSize());
   }
 
   template <int Dims = Dimensions,
-            typename = std::enable_if_t<Dims == 0 && IsAccessAnyWrite>>
+            typename = detail::enable_if_t<Dims == 0 && IsAccessAnyWrite>>
   operator RefType() const {
     return *getQualifiedPtr();
   }
 
   template <int Dims = Dimensions,
-            typename = std::enable_if_t<(Dims > 0) && IsAccessAnyWrite>>
+            typename = detail::enable_if_t<(Dims > 0) && IsAccessAnyWrite>>
   RefType operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return getQualifiedPtr()[LinearIndex];
   }
 
   template <int Dims = Dimensions,
-            typename = std::enable_if_t<Dims == 1 && IsAccessAnyWrite>>
+            typename = detail::enable_if_t<Dims == 1 && IsAccessAnyWrite>>
   RefType operator[](size_t Index) const {
     return getQualifiedPtr()[Index];
   }
 
   template <int Dims = Dimensions>
-  operator typename std::enable_if_t<
+  operator typename detail::enable_if_t<
       Dims == 0 && AccessMode == access::mode::atomic, atomic<DataT, AS>>()
       const {
     return atomic<DataT, AS>(
@@ -2606,8 +2556,8 @@ public:
   }
 
   template <int Dims = Dimensions>
-  typename std::enable_if_t<(Dims > 0) && AccessMode == access::mode::atomic,
-                            atomic<DataT, AS>>
+  typename detail::enable_if_t<(Dims > 0) && AccessMode == access::mode::atomic,
+                               atomic<DataT, AS>>
   operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
@@ -2615,14 +2565,14 @@ public:
   }
 
   template <int Dims = Dimensions>
-  typename std::enable_if_t<Dims == 1 && AccessMode == access::mode::atomic,
-                            atomic<DataT, AS>>
+  typename detail::enable_if_t<Dims == 1 && AccessMode == access::mode::atomic,
+                               atomic<DataT, AS>>
   operator[](size_t Index) const {
     return atomic<DataT, AS>(multi_ptr<DataT, AS, access::decorated::yes>(
         getQualifiedPtr() + Index));
   }
 
-  template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 1)>>
+  template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 1)>>
   typename AccessorCommonT::template AccessorSubscript<
       Dims - 1,
       local_accessor_base<DataT, Dimensions, AccessMode, IsPlaceholder>>
@@ -2987,7 +2937,7 @@ public:
   // -------+---------+-------+----+----------+--------------
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = typename std::enable_if_t<
+            typename = typename detail::enable_if_t<
                 std::is_same<T, DataT>::value && Dims == 0>>
   host_accessor(
       buffer<T, 1, AllocatorT> &BufferRef,
@@ -2996,37 +2946,31 @@ public:
       : AccessorT(BufferRef, PropertyList, CodeLoc) {}
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = std::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<T, Dims, AllocatorT> &BufferRef,
       const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : AccessorT(BufferRef, PropertyList, CodeLoc) {}
 
-#if __cplusplus >= 201703L
-
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = std::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<DataT, Dimensions, AllocatorT> &BufferRef, mode_tag_t<AccessMode>,
       const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : host_accessor(BufferRef, PropertyList, CodeLoc) {}
 
-#endif
-
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = std::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : AccessorT(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {}
 
-#if __cplusplus >= 201703L
-
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = std::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<DataT, Dimensions, AllocatorT> &BufferRef,
       handler &CommandGroupHandler, mode_tag_t<AccessMode>,
@@ -3034,20 +2978,16 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : host_accessor(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {}
 
-#endif
-
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = std::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<DataT, Dimensions, AllocatorT> &BufferRef,
       range<Dimensions> AccessRange, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : AccessorT(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {}
 
-#if __cplusplus >= 201703L
-
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = std::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<DataT, Dimensions, AllocatorT> &BufferRef,
       range<Dimensions> AccessRange, mode_tag_t<AccessMode>,
@@ -3055,10 +2995,8 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : host_accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {}
 
-#endif
-
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = std::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<DataT, Dimensions, AllocatorT> &BufferRef,
       handler &CommandGroupHandler, range<Dimensions> AccessRange,
@@ -3067,10 +3005,8 @@ public:
       : AccessorT(BufferRef, CommandGroupHandler, AccessRange, {}, PropertyList,
                   CodeLoc) {}
 
-#if __cplusplus >= 201703L
-
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = std::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<DataT, Dimensions, AllocatorT> &BufferRef,
       handler &CommandGroupHandler, range<Dimensions> AccessRange,
@@ -3079,10 +3015,8 @@ public:
       : host_accessor(BufferRef, CommandGroupHandler, AccessRange, {},
                       PropertyList, CodeLoc) {}
 
-#endif
-
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = std::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<DataT, Dimensions, AllocatorT> &BufferRef,
       range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
@@ -3091,10 +3025,8 @@ public:
       : AccessorT(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {
   }
 
-#if __cplusplus >= 201703L
-
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = std::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<DataT, Dimensions, AllocatorT> &BufferRef,
       range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
@@ -3103,10 +3035,8 @@ public:
       : host_accessor(BufferRef, AccessRange, AccessOffset, PropertyList,
                       CodeLoc) {}
 
-#endif
-
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = std::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<DataT, Dimensions, AllocatorT> &BufferRef,
       handler &CommandGroupHandler, range<Dimensions> AccessRange,
@@ -3115,10 +3045,8 @@ public:
       : AccessorT(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
                   PropertyList, CodeLoc) {}
 
-#if __cplusplus >= 201703L
-
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
-            typename = std::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
+            typename = detail::enable_if_t<IsSameAsBuffer<T, Dims>::value>>
   host_accessor(
       buffer<DataT, Dimensions, AllocatorT> &BufferRef,
       handler &CommandGroupHandler, range<Dimensions> AccessRange,
@@ -3127,11 +3055,7 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : host_accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
                       PropertyList, CodeLoc) {}
-
-#endif
 };
-
-#if __cplusplus >= 201703L
 
 template <typename DataT, int Dimensions, typename AllocatorT>
 host_accessor(buffer<DataT, Dimensions, AllocatorT>)
@@ -3165,9 +3089,6 @@ template <typename DataT, int Dimensions, typename AllocatorT, typename Type1,
 host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4,
               Type5) -> host_accessor<DataT, Dimensions,
                                       detail::deduceAccessMode<Type4, Type5>()>;
-
-#endif
-
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 

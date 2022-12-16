@@ -196,9 +196,7 @@ MemObjRecord *Scheduler::GraphBuilder::getOrInsertMemObjRecord(
           ToEnqueue.push_back(ConnectionCmd);
 
         --(Dependency->MLeafCounter);
-        if (Dependency->MLeafCounter == 0 &&
-            Dependency->isSuccessfullyEnqueued() &&
-            Dependency->supportsPostEnqueueCleanup())
+        if (Dependency->readyForCleanup())
           ToCleanUp.push_back(Dependency);
         for (Command *Cmd : ToCleanUp)
           cleanupCommand(Cmd);
@@ -246,8 +244,7 @@ void Scheduler::GraphBuilder::updateLeaves(const std::set<Command *> &Cmds,
     bool WasLeaf = Cmd->MLeafCounter > 0;
     Cmd->MLeafCounter -= Record->MReadLeaves.remove(Cmd);
     Cmd->MLeafCounter -= Record->MWriteLeaves.remove(Cmd);
-    if (WasLeaf && Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued() &&
-        Cmd->supportsPostEnqueueCleanup()) {
+    if (WasLeaf && Cmd->readyForCleanup()) {
       ToCleanUp.push_back(Cmd);
     }
   }
@@ -841,7 +838,7 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
 }
 
 template <typename T>
-typename std::enable_if_t<
+typename detail::enable_if_t<
     std::is_same<typename std::remove_cv_t<T>, Requirement>::value,
     EmptyCommand *>
 Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
@@ -923,7 +920,6 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
                                std::vector<Command *> &ToEnqueue) {
   std::vector<Requirement *> &Reqs = CommandGroup->MRequirements;
   const std::vector<detail::EventImplPtr> &Events = CommandGroup->MEvents;
-  const CG::CGTYPE CGType = CommandGroup->getType();
 
   auto NewCmd = std::make_unique<ExecCGCommand>(std::move(CommandGroup), Queue);
   if (!NewCmd)
@@ -1019,11 +1015,6 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
       ToEnqueue.push_back(ConnCmd);
   }
 
-  if (CGType == CG::CGTYPE::CodeplayHostTask)
-    NewCmd->MEmptyCmd =
-        addEmptyCmd(NewCmd.get(), NewCmd->getCG().MRequirements, Queue,
-                    Command::BlockReason::HostTask, ToEnqueue);
-
   if (MPrintOptionsArray[AfterAddCG])
     printGraphAsDot("after_addCG");
 
@@ -1036,22 +1027,17 @@ void Scheduler::GraphBuilder::decrementLeafCountersForRecord(
     MemObjRecord *Record) {
   for (Command *Cmd : Record->MReadLeaves) {
     --(Cmd->MLeafCounter);
-    if (Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued() &&
-        Cmd->supportsPostEnqueueCleanup())
+    if (Cmd->readyForCleanup())
       cleanupCommand(Cmd);
   }
   for (Command *Cmd : Record->MWriteLeaves) {
     --(Cmd->MLeafCounter);
-    if (Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued() &&
-        Cmd->supportsPostEnqueueCleanup())
+    if (Cmd->readyForCleanup())
       cleanupCommand(Cmd);
   }
 }
 
-void Scheduler::GraphBuilder::cleanupCommandsForRecord(
-    MemObjRecord *Record,
-    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate,
-    std::vector<std::shared_ptr<const void>> &AuxResourcesToDeallocate) {
+void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
   std::vector<AllocaCommandBase *> &AllocaCommands = Record->MAllocaCommands;
   if (AllocaCommands.empty())
     return;
@@ -1100,24 +1086,6 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(
     if (!markNodeAsVisited(Cmd, MVisitedCmds))
       continue;
 
-    // Collect stream objects for a visited command.
-    if (Cmd->getType() == Command::CommandType::RUN_CG) {
-      auto ExecCmd = static_cast<ExecCGCommand *>(Cmd);
-
-      // Transfer ownership of stream implementations.
-      std::vector<std::shared_ptr<stream_impl>> Streams = ExecCmd->getStreams();
-      ExecCmd->clearStreams();
-      StreamsToDeallocate.insert(StreamsToDeallocate.end(), Streams.begin(),
-                                 Streams.end());
-
-      // Transfer ownership of auxiliary resources.
-      std::vector<std::shared_ptr<const void>> AuxResources =
-          ExecCmd->getAuxiliaryResources();
-      ExecCmd->clearAuxiliaryResources();
-      AuxResourcesToDeallocate.insert(AuxResourcesToDeallocate.end(),
-                                      AuxResources.begin(), AuxResources.end());
-    }
-
     for (Command *UserCmd : Cmd->MUsers)
       if (UserCmd->getType() != Command::CommandType::ALLOCA)
         MCmdsToVisit.push(UserCmd);
@@ -1150,7 +1118,7 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(
       Cmd->MUsers.clear();
       // Do not delete the node if it's scheduled for post-enqueue cleanup to
       // avoid double free.
-      if (!Cmd->MPostEnqueueCleanup)
+      if (!Cmd->MMarkedForCleanup)
         Cmd->MMarks.MToBeDeleted = true;
     }
   }
@@ -1166,19 +1134,6 @@ void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd) {
 
   assert(CmdT != Command::ALLOCA && CmdT != Command::ALLOCA_SUB_BUF);
   assert(CmdT != Command::RELEASE);
-  assert(CmdT != Command::RUN_CG ||
-         (static_cast<ExecCGCommand *>(Cmd))->getCG().getType() !=
-             CG::CGTYPE::CodeplayHostTask);
-#ifndef NDEBUG
-  if (CmdT == Command::RUN_CG) {
-    auto *ExecCGCmd = static_cast<ExecCGCommand *>(Cmd);
-    if (ExecCGCmd->getCG().getType() == CG::CGTYPE::Kernel) {
-      auto *ExecKernelCG = static_cast<CGExecKernel *>(&ExecCGCmd->getCG());
-      assert(!ExecKernelCG->hasStreams());
-      assert(!ExecKernelCG->hasAuxiliaryResources());
-    }
-  }
-#endif
   (void)CmdT;
 
   for (Command *UserCmd : Cmd->MUsers) {
@@ -1203,80 +1158,6 @@ void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd) {
 
   Cmd->getEvent()->setCommand(nullptr);
   delete Cmd;
-}
-
-void Scheduler::GraphBuilder::cleanupFinishedCommands(
-    Command *FinishedCmd,
-    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate,
-    std::vector<std::shared_ptr<const void>> &AuxResourcesToDeallocate) {
-  assert(MCmdsToVisit.empty());
-  MCmdsToVisit.push(FinishedCmd);
-  MVisitedCmds.clear();
-
-  // Traverse the graph using BFS
-  while (!MCmdsToVisit.empty()) {
-    Command *Cmd = MCmdsToVisit.front();
-    MCmdsToVisit.pop();
-
-    if (!markNodeAsVisited(Cmd, MVisitedCmds))
-      continue;
-
-    // Collect stream objects for a visited command.
-    if (Cmd->getType() == Command::CommandType::RUN_CG) {
-      auto ExecCmd = static_cast<ExecCGCommand *>(Cmd);
-
-      // Transfer ownership of stream implementations.
-      std::vector<std::shared_ptr<stream_impl>> Streams = ExecCmd->getStreams();
-      ExecCmd->clearStreams();
-      StreamsToDeallocate.insert(StreamsToDeallocate.end(), Streams.begin(),
-                                 Streams.end());
-
-      // Transfer ownership of auxiliary resources.
-      std::vector<std::shared_ptr<const void>> AuxResources =
-          ExecCmd->getAuxiliaryResources();
-      ExecCmd->clearAuxiliaryResources();
-      AuxResourcesToDeallocate.insert(AuxResourcesToDeallocate.end(),
-                                      AuxResources.begin(), AuxResources.end());
-    }
-
-    for (const DepDesc &Dep : Cmd->MDeps) {
-      if (Dep.MDepCommand)
-        MCmdsToVisit.push(Dep.MDepCommand);
-    }
-
-    // Do not clean up the node if it is a leaf for any memory object
-    if (Cmd->MLeafCounter > 0)
-      continue;
-    // Do not clean up allocation commands
-    Command::CommandType CmdT = Cmd->getType();
-    if (CmdT == Command::ALLOCA || CmdT == Command::ALLOCA_SUB_BUF)
-      continue;
-
-    for (Command *UserCmd : Cmd->MUsers) {
-      for (DepDesc &Dep : UserCmd->MDeps) {
-        // Link the users of the command to the alloca command(s) instead
-        if (Dep.MDepCommand == Cmd) {
-          Dep.MDepCommand = Dep.MAllocaCmd;
-          Dep.MDepCommand->MUsers.insert(UserCmd);
-        }
-      }
-    }
-    // Update dependency users
-    for (DepDesc &Dep : Cmd->MDeps) {
-      Command *DepCmd = Dep.MDepCommand;
-      DepCmd->MUsers.erase(Cmd);
-    }
-
-    // Isolate the node instead of deleting it if it's scheduled for
-    // post-enqueue cleanup to avoid double free.
-    if (Cmd->MPostEnqueueCleanup) {
-      Cmd->MDeps.clear();
-      Cmd->MUsers.clear();
-    } else {
-      Cmd->MMarks.MToBeDeleted = true;
-    }
-  }
-  handleVisitedNodes(MVisitedCmds);
 }
 
 void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
@@ -1323,8 +1204,6 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
     throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
   }
 
-  EmptyCommand *EmptyCmd = nullptr;
-
   if (Dep.MDepRequirement) {
     // make ConnectCmd depend on requirement
     // Dismiss the result here as it's not a connection now,
@@ -1333,27 +1212,13 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
     assert(reinterpret_cast<Command *>(DepEvent->getCommand()) ==
            Dep.MDepCommand);
     // add user to Dep.MDepCommand is already performed beyond this if branch
-
-    // ConnectCmd is added as dependency to Cmd
-    // We build the following structure Cmd->EmptyCmd/ConnectCmd->DepCmd
-    // No need to add ConnectCmd to leaves buffer since it is a dependency
-    // for command Cmd that will be added there
-
-    std::vector<Command *> ToEnqueue;
-    const std::vector<const Requirement *> Reqs(1, Dep.MDepRequirement);
-    EmptyCmd = addEmptyCmd(ConnectCmd, Reqs,
-                           Scheduler::getInstance().getDefaultHostQueue(),
-                           Command::BlockReason::HostTask, ToEnqueue, false);
-    assert(ToEnqueue.size() == 0);
-
-    // Depend Cmd on empty command
     {
-      DepDesc CmdDep = Dep;
-      CmdDep.MDepCommand = EmptyCmd;
+      DepDesc DepOnConnect = Dep;
+      DepOnConnect.MDepCommand = ConnectCmd;
 
       // Dismiss the result here as it's not a connection now,
-      // 'cause EmptyCmd is host one
-      (void)Cmd->addDep(CmdDep, ToCleanUp);
+      // 'cause ConnectCmd is host one
+      std::ignore = Cmd->addDep(DepOnConnect, ToCleanUp);
     }
   } else {
     // It is required condition in another a path and addUser will be set in
@@ -1361,28 +1226,12 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
     if (Command *DepCmd = reinterpret_cast<Command *>(DepEvent->getCommand()))
       DepCmd->addUser(ConnectCmd);
 
-    std::vector<Command *> ToEnqueue;
-    EmptyCmd = addEmptyCmd<Requirement>(
-        ConnectCmd, {}, Scheduler::getInstance().getDefaultHostQueue(),
-        Command::BlockReason::HostTask, ToEnqueue);
-    assert(ToEnqueue.size() == 0);
+    std::ignore = ConnectCmd->addDep(DepEvent, ToCleanUp);
 
-    // There is no requirement thus, empty command will only depend on
-    // ConnectCmd via its event.
-    // Dismiss the result here as it's not a connection now,
-    // 'cause ConnectCmd is host one.
-    (void)EmptyCmd->addDep(ConnectCmd->getEvent(), ToCleanUp);
-    (void)ConnectCmd->addDep(DepEvent, ToCleanUp);
+    std::ignore = Cmd->addDep(ConnectCmd->getEvent(), ToCleanUp);
 
-    // Depend Cmd on empty command
-    // Dismiss the result here as it's not a connection now,
-    // 'cause EmptyCmd is host one
-    (void)Cmd->addDep(EmptyCmd->getEvent(), ToCleanUp);
-    // Added by addDep in another path
-    EmptyCmd->addUser(Cmd);
+    ConnectCmd->addUser(Cmd);
   }
-
-  ConnectCmd->MEmptyCmd = EmptyCmd;
 
   return ConnectCmd;
 }

@@ -59,7 +59,6 @@ template <tpu u, typename Ta = void, typename Tb = void, typename Tc = void,
           int sM = 0, int sN = 0, int sK = 0, typename Enabled = void>
 struct tpu_params;
 
-#if __cplusplus >= 201703L
 template <typename Ta, typename Tb, typename Tc>
 constexpr bool is_combination_valid_amx(int sM, int sN, int sK) {
   // is_same_v is a C++17 feature
@@ -96,7 +95,6 @@ constexpr bool are_types_valid_amx() {
   else
     return false;
 }
-#endif
 
 // General query:
 // types are not given, no default sizes and no implicit matrix construction
@@ -132,7 +130,6 @@ struct tpu_params<tpu::amx, void, void, void, sM, sN, sK> {
       sizeof(combinations) / sizeof(combination);
 };
 
-#if __cplusplus >= 201703L
 // Sizes-only query
 // Specialization for when only types are given, need to query only sizes
 template <typename Ta, typename Tb, typename Tc>
@@ -150,13 +147,13 @@ struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
   static constexpr std::size_t N = 16;
   static constexpr std::size_t K = ((sizeof(Ta) == 1) ? 64 : 32);
 
-  template <typename Group>
-  using joint_matrix_a = joint_matrix<Ta, M, K, use::a, layout::unused, Group>;
-  template <typename Group>
-  using joint_matrix_b = joint_matrix<Tb, K, N, use::b, layout::unused, Group>;
+  template <typename Group, layout Layout>
+  using joint_matrix_a = joint_matrix<Group, Ta, use::a, M, K, Layout>;
+  template <typename Group, layout Layout>
+  using joint_matrix_b = joint_matrix<Group, Tb, use::b, K, N, Layout>;
   template <typename Group>
   using joint_matrix_accumulator =
-      joint_matrix<Tc, M, N, use::accumulator, layout::unused, Group>;
+      joint_matrix<Group, Tc, use::accumulator, M, N>;
 
   bool dynamic_p = false; // should be true in future implementations because
                           // AMX hardware supports dynamic sizes
@@ -202,13 +199,13 @@ struct tpu_params<
   static constexpr std::size_t K =
       (sK != 0) ? sK : ((sizeof(Ta) == 1) ? 64 : 32);
 
-  template <typename Group>
-  using joint_matrix_a = joint_matrix<Ta, M, K, use::a, layout::unused, Group>;
-  template <typename Group>
-  using joint_matrix_b = joint_matrix<Tb, K, N, use::b, layout::unused, Group>;
+  template <typename Group, layout Layout>
+  using joint_matrix_a = joint_matrix<Group, Ta, use::a, M, K, Layout>;
+  template <typename Group, layout Layout>
+  using joint_matrix_b = joint_matrix<Group, Tb, use::b, K, N, Layout>;
   template <typename Group>
   using joint_matrix_accumulator =
-      joint_matrix<Tc, M, N, use::accumulator, layout::unused, Group>;
+      joint_matrix<Group, Tc, use::accumulator, M, N>;
 
   bool dynamic_p = false; // should be true in future implementations
                           // because AMX hardware supports dynamic sizes
@@ -264,7 +261,6 @@ constexpr bool are_types_valid_dpas() {
   else
     return false;
 }
-#endif
 
 // General Query
 // specialization for when types are not given --> no default values
@@ -323,7 +319,6 @@ struct tpu_params<tpu::dpas, void, void, void, sM, sN, sK> {
 // Sizes-only query:
 // Specialization for when only types are given, need to query only sizes
 
-#if __cplusplus >= 201703L
 template <typename Ta, typename Tb, typename Tc>
 struct tpu_params<tpu::dpas, Ta, Tb, Tc, 0, 0, 0,
                   typename std::enable_if<(!std::is_same_v<Ta, void> &&
@@ -340,13 +335,13 @@ struct tpu_params<tpu::dpas, Ta, Tb, Tc, 0, 0, 0,
   static constexpr std::size_t N = 8;
   static constexpr std::size_t K = ((sizeof(Ta) == 1) ? 32 : 16);
 
-  template <typename Group>
-  using joint_matrix_a = joint_matrix<Ta, M, K, use::a, layout::unused, Group>;
-  template <typename Group>
-  using joint_matrix_b = joint_matrix<Tb, K, N, use::b, layout::unused, Group>;
+  template <typename Group, layout Layout>
+  using joint_matrix_a = joint_matrix<Group, Ta, use::a, M, K, Layout>;
+  template <typename Group, layout Layout>
+  using joint_matrix_b = joint_matrix<Group, Tb, use::b, K, N, Layout>;
   template <typename Group>
   using joint_matrix_accumulator =
-      joint_matrix<Tc, M, N, use::accumulator, layout::unused, Group>;
+      joint_matrix<Group, Tc, use::accumulator, M, N>;
 
   bool dynamic_p = false; // no dynamic allocation on the GPU
   uint32_t numtiles = -1; // does not apply for DPAS
@@ -396,19 +391,18 @@ struct tpu_params<
   static constexpr std::size_t K =
       (sK != 0) ? sK : ((sizeof(Ta) == 1) ? 32 : 16);
 
-  template <typename Group>
-  using joint_matrix_a = joint_matrix<Ta, M, K, use::a, layout::unused, Group>;
-  template <typename Group>
-  using joint_matrix_b = joint_matrix<Tb, K, N, use::b, layout::unused, Group>;
+  template <typename Group, layout Layout>
+  using joint_matrix_a = joint_matrix<Group, Ta, use::a, M, K, Layout>;
+  template <typename Group, layout Layout>
+  using joint_matrix_b = joint_matrix<Group, Tb, use::b, K, N, Layout>;
   template <typename Group>
   using joint_matrix_accumulator =
-      joint_matrix<Tc, M, N, use::accumulator, layout::unused, Group>;
+      joint_matrix<Group, Tc, use::accumulator, M, N>;
 
   bool dynamic_p = false; // no dynamic allocation on the GPU
   uint32_t numtiles = -1; // does not apply for DPAS
   scope_t scope = scope_t::sub_group;
 };
-#endif
 } // namespace experimental::matrix
 } // namespace oneapi
 } // namespace ext
