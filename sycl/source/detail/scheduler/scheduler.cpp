@@ -365,6 +365,7 @@ Scheduler::Scheduler() {
 Scheduler::~Scheduler() { DefaultHostQueue.reset(); }
 
 void Scheduler::releaseResources() {
+#ifndef _WIN32
   if (DefaultHostQueue) {
     DefaultHostQueue->wait();
   }
@@ -385,6 +386,7 @@ void Scheduler::releaseResources() {
   // added to deferred mem obj storage. So we may end up with leak.
   while (!isDeferredMemObjectsEmpty())
     cleanupDeferredMemObjects(BlockingT::BLOCKING);
+#endif
 }
 
 MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
