@@ -280,6 +280,56 @@ static uint16_t __iml_integral2bfloat16_u(Ty u,
   return (b_exp << 7) | b_mant;
 }
 
+template <typename Ty>
+static uint16_t __iml_integral2bfloat16_s(Ty i,
+                                          __iml_rounding_mode rounding_mode) {
+  static_assert(std::is_signed<Ty>::value && std::is_integral<Ty>::value,
+                "__iml_integral2bfloat16_s only accepts signed integral type.");
+  typedef typename __iml_get_unsigned<Ty>::utype UTy;
+  if (!i)
+    return 0;
+  uint16_t b_sign = (i >= 0) ? 0 : 0x8000;
+  UTy ui = (i > 0) ? static_cast<UTy>(i) : static_cast<UTy>(-i);
+  size_t msb_pos = get_msb_pos<UTy>(ui);
+  if (msb_pos == 0)
+    return b_sign ? 0xBF80 : 0x3F80;
+  UTy mant = ui & ((static_cast<UTy>(1) << msb_pos) - 1);
+
+  uint16_t b_exp = msb_pos;
+  uint16_t b_mant;
+  if (msb_pos <= 7) {
+    mant <<= (7 - msb_pos);
+    b_mant = static_cast<uint16_t>(mant);
+  } else {
+    b_mant = static_cast<uint16_t>(mant >> (msb_pos - 7));
+    Ty mant_discard = mant & ((static_cast<Ty>(1) << (msb_pos - 7)) - 1);
+    Ty mid = static_cast<Ty>(1) << (msb_pos - 8);
+    switch (rounding_mode) {
+    case __IML_RTE:
+      if ((mant_discard > mid) ||
+          ((mant_discard == mid) && ((b_mant & 0x1) == 0x1)))
+        b_mant++;
+      break;
+    case __IML_RTP:
+      if (mant_discard && !b_sign)
+        b_mant++;
+      break;
+    case __IML_RTN:
+      if (mant_discard && b_sign)
+        b_mant++;
+    case __IML_RTZ:
+      break;
+    }
+  }
+
+  if (b_mant == 0x80) {
+    b_exp++;
+    b_mant = 0;
+  }
+  b_exp += 127;
+  return b_sign | (b_exp << 7) | b_mant;
+}
+
 // We convert bf16 to fp32 and do all arithmetic operations, then convert back.
 class _iml_bf16 {
 public:
