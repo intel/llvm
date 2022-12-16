@@ -119,7 +119,7 @@ IMPORTANT: In the current implementation, only the `sub_group` scope is supporte
 When the group is a `sycl::sub_group`, a matrix is declared as follows:
 
 ```c++
-joint_matrix<sub_group, int8_t, use::a, tM, tN, layout::row_major> tA();
+joint_matrix<sub_group, int8_t, use::a, tM, tN, layout::row_major> tA;
 ```
 
 
@@ -277,11 +277,11 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
    const auto sg_startx = global_idx - item.get_local_id(0);
    const auto sg_starty = global_idy - item.get_local_id(1);
    sub_group sg = item.get_sub_group();
-   joint_matrix<sub_group, int8_t, use::a, tM, tK, layout::row_major> tA();
-   joint_matrix<sub_group, int8_t, use::b, tK, tN, layout::row_major> tB();
-   joint_matrix<sub_group, int32_t, use::accumulator, tM, tN> tC();
+   joint_matrix<sub_group, int8_t, use::a, tM, tK, layout::row_major> tA;
+   joint_matrix<sub_group, int8_t, use::b, tK, tN, layout::row_major> tB;
+   joint_matrix<sub_group, int32_t, use::accumulator, tM, tN> tC;
    joint_matrix_fill(sg, tC, 0);
-   for (int k = 0; k < K; k += tk) {
+   for (int k = 0; k < K; k += tK) {
      joint_matrix_load(sg, tA, memA + sg_startx * tM * K + k, K);
      joint_matrix_load(sg, tB, memB + k * N + sg_starty/SG_SIZE*tN, N); 
      tC = joint_matrix_mad(sg, tA, tB, tC);
@@ -524,9 +524,9 @@ size_t NDRangeM = M / myparams::M;
 size_t NDRangeN = N / myparams::N;
 //if M, N, K do not multiply the default sizes, padding has to be done
 // device code: the matrices are constructed using the default dimensions
-myparams::joint_matrix_a<sub_group, layout::row_major> sub_a();
-myparams::joint_matrix_b<sub_group, layout::row_major> sub_b();
-myparams::joint_matrix_accumulator<sub_group> sub_c();
+myparams::joint_matrix_a<sub_group, layout::row_major> sub_a;
+myparams::joint_matrix_b<sub_group, layout::row_major> sub_b;
+myparams::joint_matrix_accumulator<sub_group> sub_c;
 
 ```
 
@@ -540,9 +540,9 @@ constexpr int msize_remainder = break_dimension_remainder(params, M);
 constexpr int nsize = params.combinations[0].nsize;
 constexpr int ksize = params.combinations[0].ksize;
 // device code:
-joint_matrix<sub_group, int8_t, use::a, msize, ksize, layout::row_major> sub_a();
-joint_matrix<sub_group, int8_t, use::b, ksize, nsize, layout::row_major> sub_b();
-joint_matrix<sub_group, int, use::accumulator, msize, nsize> sub_c();
+joint_matrix<sub_group, int8_t, use::a, msize, ksize, layout::row_major> sub_a;
+joint_matrix<sub_group, int8_t, use::b, ksize, nsize, layout::row_major> sub_b;
+joint_matrix<sub_group, int, use::accumulator, msize, nsize> sub_c;
 //Remainder handling
 ```
 
