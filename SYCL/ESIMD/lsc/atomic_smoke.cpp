@@ -340,43 +340,49 @@ template <class T, int N> struct ImplDec {
   }
 };
 
+// The purpose of this is validate that floating point data is correctly
+// processed.
+constexpr float FPDELTA = 0.5f;
+
 template <class T, int N, class C, C Op> struct ImplAdd {
   static constexpr C atomic_op = Op;
   static constexpr int n_args = 1;
 
-  static T init(int i, const Config &cfg) { return (T)0; }
+  static T init(int i, const Config &cfg) { return 0; }
 
   static T gold(int i, const Config &cfg) {
-    T gold = is_updated(i, N, cfg)
-                 ? (T)(cfg.repeat * cfg.threads_per_group * cfg.n_groups)
-                 : init(i, cfg);
+    T gold = is_updated(i, N, cfg) ? (T)(cfg.repeat * cfg.threads_per_group *
+                                         cfg.n_groups * (T)(1 + FPDELTA))
+                                   : init(i, cfg);
     return gold;
   }
 
-  static T arg0(int i) { return 1; }
+  static T arg0(int i) { return (T)(1 + FPDELTA); }
 };
 
 template <class T, int N, class C, C Op> struct ImplSub {
   static constexpr C atomic_op = Op;
   static constexpr int n_args = 1;
-  static constexpr int base = 5;
+  static constexpr T base = (T)(5 + FPDELTA);
 
   static T init(int i, const Config &cfg) {
-    return (T)(cfg.repeat * cfg.threads_per_group * cfg.n_groups + base);
+    return (T)(cfg.repeat * cfg.threads_per_group * cfg.n_groups *
+                   (T)(1 + FPDELTA) +
+               base);
   }
 
   static T gold(int i, const Config &cfg) {
-    T gold = is_updated(i, N, cfg) ? (T)base : init(i, cfg);
+    T gold = is_updated(i, N, cfg) ? base : init(i, cfg);
     return gold;
   }
 
-  static T arg0(int i) { return 1; }
+  static T arg0(int i) { return (T)(1 + FPDELTA); }
 };
 
 template <class T, int N, class C, C Op> struct ImplMin {
   static constexpr C atomic_op = Op;
   static constexpr int n_args = 1;
-  static constexpr int MIN = 1;
+  static constexpr T MIN = (T)(1 + FPDELTA);
 
   static T init(int i, const Config &cfg) {
     return (T)(cfg.threads_per_group * cfg.n_groups + MIN + 1);
@@ -393,18 +399,18 @@ template <class T, int N, class C, C Op> struct ImplMin {
 template <class T, int N, class C, C Op> struct ImplMax {
   static constexpr C atomic_op = Op;
   static constexpr int n_args = 1;
-  static constexpr int base = 5;
+  static constexpr T base = (T)(5 + FPDELTA);
 
-  static T init(int i, const Config &cfg) { return 0; }
+  static T init(int i, const Config &cfg) { return (T)FPDELTA; }
 
   static T gold(int i, const Config &cfg) {
     T gold = is_updated(i, N, cfg)
-                 ? (T)(cfg.threads_per_group * cfg.n_groups - 1)
+                 ? (T)(cfg.threads_per_group * cfg.n_groups - 1 + FPDELTA)
                  : init(i, cfg);
     return gold;
   }
 
-  static T arg0(int i) { return i; }
+  static T arg0(int i) { return (T)(i + FPDELTA); }
 };
 
 template <class T, int N>
@@ -444,7 +450,7 @@ struct ImplLSCFmax : ImplMax<T, N, LSCAtomicOp, LSCAtomicOp::fmax> {};
 template <class T, int N, class C, C Op> struct ImplCmpxchgBase {
   static constexpr C atomic_op = Op;
   static constexpr int n_args = 2;
-  static constexpr int base = 2;
+  static constexpr T base = (T)(2 + FPDELTA);
 
   static T init(int i, const Config &cfg) { return base - 1; }
 
