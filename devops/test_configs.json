@@ -77,7 +77,7 @@
       "name": "CUDA LLVM Test Suite",
       "runs-on": "aws-cuda_${{ inputs.uniq }}",
       "aws-ami": "ami-02ec0f344128253f9",
-      "aws-type": [ "g4dn.2xlarge", "g4dn.4xlarge" ],
+      "aws-type": [ "g5.2xlarge", "g5.4xlarge" ],
       "aws-disk": "/dev/xvda:64",
       "aws-spot": "false",
       "image": "${{ inputs.cuda_image }}",
