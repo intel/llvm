@@ -8,7 +8,8 @@ the SYCL dialect.
 
 **Note**: Through this document, we assume `memref` and `llvm.ptr` are used for
 pointer types, `llvm.struct` for structured types and `sycl.cast` is the
-operation used to perform a casting from a SYCL type to a base class.
+operation used to perform a casting from a SYCL type to its base class (or one
+of its base classes in case of multiple inheritance).
 
 ## The `sycl.call` operation
 
