@@ -166,6 +166,15 @@ used to perform the necessary transformations beforehand:
 5. If needed, cast to the base type using `sycl.cast` (or other operation we
    might have in the future).
 
+In case the operation to be lowered does not have a definition in the register,
+it will be "decanonicalized", following the inverse process to the 
+canonicalization process explained above and each operation being generated will
+be lowered following the same process.
+
+If an operation does not count with a definition in the register and cannot be
+split into further operations, the lowering process will fail, as the user would
+have failed to provide a definition for an operation.
+
 #### Lowering example
 
 The following `sycl.nd_item.get_global_id` operation:
