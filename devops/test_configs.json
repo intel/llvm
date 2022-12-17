@@ -79,6 +79,7 @@
       "aws-ami": "ami-02ec0f344128253f9",
       "aws-type": [ "g4dn.2xlarge", "g4dn.4xlarge" ],
       "aws-disk": "/dev/xvda:64",
+      "aws-spot": "false",
       "image": "${{ inputs.cuda_image }}",
       "container_options": "--gpus all",
       "check_sycl_all": "cuda:gpu",
