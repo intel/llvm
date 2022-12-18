@@ -13,6 +13,7 @@
 #include <shared_mutex>
 #include <thread>
 #include <vector>
+#include <string>
 
 #include <zer_api.h>
 
