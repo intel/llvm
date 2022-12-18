@@ -69,6 +69,11 @@ inline pi_result piPlatformGetInfo(pi_platform platform,
                                    pi_platform_info param_name,
                                    size_t param_value_size, void *param_value,
                                    size_t *param_value_size_ret) {
+  (void)platform;
+  (void)param_name;
+  (void)param_value_size;
+  (void)param_value;
+  (void)param_value_size_ret;
   die("Unified Runtime: piPlatformGetInfo is not implemented");
 }
 } // namespace pi2ur
