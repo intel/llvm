@@ -644,7 +644,7 @@ RT::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
               {PI_DEVICE_BINARY_TYPE_NATIVE, 0x43544E49}};
 
   if (ImgSize >= sizeof(Fmts[0].Magic)) {
-    std::remove_const_t<decltype(Fmts[0].Magic)> Hdr = 0;
+    detail::remove_const_t<decltype(Fmts[0].Magic)> Hdr = 0;
     std::copy(ImgData, ImgData + sizeof(Hdr), reinterpret_cast<char *>(&Hdr));
 
     // Check headers for direct formats.
