@@ -226,7 +226,8 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     auto ExpCommand = std::make_unique<Command>(
         JA, *this, ResponseFileSupport::None(), CreateExportListExec,
         CreateExportCmdArgs, Inputs, Output);
-    ExpCommand->setRedirectFiles({None, std::string(ExportList), None});
+    ExpCommand->setRedirectFiles(
+        {std::nullopt, std::string(ExportList), std::nullopt});
     C.addCommand(std::move(ExpCommand));
     CmdArgs.push_back(Args.MakeArgString(llvm::Twine("-bE:") + ExportList));
   }
@@ -250,6 +251,13 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-lm");
 
     CmdArgs.push_back("-lc");
+
+    if (Args.hasArg(options::OPT_pg)) {
+      CmdArgs.push_back(Args.MakeArgString((llvm::Twine("-L") + D.SysRoot) +
+                                           "/lib/profiled"));
+      CmdArgs.push_back(Args.MakeArgString((llvm::Twine("-L") + D.SysRoot) +
+                                           "/usr/lib/profiled"));
+    }
   }
 
   const char *Exec = Args.MakeArgString(ToolChain.GetLinkerPath());

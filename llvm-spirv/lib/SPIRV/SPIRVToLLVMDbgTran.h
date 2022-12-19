@@ -86,7 +86,7 @@ public:
 private:
   DIFile *getFile(const SPIRVId SourceId);
   DIFile *getDIFile(const std::string &FileName,
-                    Optional<DIFile::ChecksumInfo<StringRef>> CS = None);
+                    std::optional<DIFile::ChecksumInfo<StringRef>> CS = None);
   DIFile *getDIFile(const SPIRVEntry *E);
   unsigned getLineNo(const SPIRVEntry *E);
 
@@ -176,7 +176,7 @@ private:
   }
   const std::string &getString(const SPIRVId Id);
   std::string findModuleProducer();
-  Optional<DIFile::ChecksumInfo<StringRef>> ParseChecksum(StringRef Text);
+  std::optional<DIFile::ChecksumInfo<StringRef>> ParseChecksum(StringRef Text);
 };
 } // namespace SPIRV
 

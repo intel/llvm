@@ -32,9 +32,9 @@ void f_kernel_image2d_t( kernel image2d_t image ) { // expected-error {{'kernel'
   int __kernel x; // expected-error {{'__kernel' attribute only applies to functions}}
 }
 
-kernel __attribute__((reqd_work_group_size(1,2,0))) void kernel11(){} // expected-error {{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
-kernel __attribute__((reqd_work_group_size(1,0,2))) void kernel12(){} // expected-error {{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
-kernel __attribute__((reqd_work_group_size(0,1,2))) void kernel13(){} // expected-error {{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
+kernel __attribute__((reqd_work_group_size(1,2,0))) void kernel11(){} // expected-error {{'reqd_work_group_size' attribute must be greater than 0}}
+kernel __attribute__((reqd_work_group_size(1,0,2))) void kernel12(){} // expected-error {{'reqd_work_group_size' attribute must be greater than 0}}
+kernel __attribute__((reqd_work_group_size(0,1,2))) void kernel13(){} // expected-error {{'reqd_work_group_size' attribute must be greater than 0}}
 
 __attribute__((intel_reqd_sub_group_size(8))) void kernel14(){} // expected-error {{attribute 'intel_reqd_sub_group_size' can only be applied to an OpenCL kernel}}
 kernel __attribute__((intel_reqd_sub_group_size(0))) void kernel15() {} // expected-error {{'intel_reqd_sub_group_size' attribute requires a positive integral compile time constant expression}}

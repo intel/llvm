@@ -8,6 +8,7 @@
 # UNSUPPORTED: libcxx
 
 piContextCreate
+piContextGetInfo
 piDeviceGetInfo
 piDevicesGet
 piEnqueueMemBufferMap
@@ -20,13 +21,15 @@ piMemBufferCreate
 piMemBufferPartition
 piMemImageCreate
 piPlatformsGet
+piPluginGetLastError
 piPluginInit
 piProgramCreate
 piProgramCreateWithBinary
 piProgramLink
 piQueueCreate
+piextQueueCreate
+piQueueGetInfo
 piSamplerCreate
-piPluginGetLastError
 piTearDown
 piclProgramCreateWithSource
 piextContextCreateWithNativeHandle
@@ -55,6 +58,9 @@ piextUSMEnqueueMemAdvise
 piextUSMEnqueueMemcpy
 piextUSMEnqueueMemset
 piextUSMEnqueuePrefetch
+piextUSMEnqueueFill2D
+piextUSMEnqueueMemset2D
+piextUSMEnqueueMemcpy2D
 piextUSMFree
 piextUSMGetMemAllocInfo
 piextUSMHostAlloc

@@ -352,6 +352,8 @@ def warn_drv_sycl_offload_target_duplicate : Warning<
 def warn_drv_sycl_target_missing : Warning<
   "linked binaries do not contain expected '%0' target; found targets: '%1'">,
   InGroup<SyclTarget>;
+def err_drv_no_rdc_sycl_target_missing : Error<
+  "linked binaries do not contain expected '%0' target; found targets: '%1', this is not supported with '-fno-sycl-rdc'">;
 def err_drv_fsycl_wrong_optimization_options : Error<
   "-fsycl-optimize-framework option can be used only in conjunction with -O0 option">;
 def err_drv_multiple_target_with_forced_target : Error<
@@ -503,6 +505,10 @@ def err_analyzer_not_built_with_z3 : Error<
 def warn_analyzer_deprecated_option : Warning<
   "analyzer option '%0' is deprecated. This flag will be removed in %1, and "
   "passing this option will be an error.">,
+  InGroup<DeprecatedStaticAnalyzerFlag>;
+def warn_analyzer_deprecated_option_with_alternative : Warning<
+  "analyzer option '%0' is deprecated. This flag will be removed in %1, and "
+  "passing this option will be an error. Use '%2' instead.">,
   InGroup<DeprecatedStaticAnalyzerFlag>;
 
 def warn_drv_needs_hvx : Warning<
