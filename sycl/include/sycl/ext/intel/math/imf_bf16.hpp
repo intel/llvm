@@ -19,6 +19,12 @@ uint16_t __imf_float2bfloat16_rd(float);
 uint16_t __imf_float2bfloat16_rn(float);
 uint16_t __imf_float2bfloat16_ru(float);
 uint16_t __imf_float2bfloat16_rz(float);
+uint16_t __imf_ceilbf16(uint16_t);
+uint16_t __imf_floorbf16(uint16_t);
+uint16_t __imf_truncbf16(uint16_t);
+uint16_t __imf_rintbf16(uint16_t);
+uint16_t __imf_sqrtbf16(uint16_t);
+uint16_t __imf_rsqrtbf16(uint16_t);
 };
 
 namespace sycl {
@@ -781,6 +787,85 @@ hfma2_relu(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b1,
            sycl::marray<sycl::ext::oneapi::bfloat16, 2> b3) {
   sycl::marray<sycl::ext::oneapi::bfloat16, 2> res{
       hfma_relu(b1[0], b2[0], b3[0]), hfma_relu(b1[1], b2[1], b3[1])};
+  return res;
+}
+
+// Bfloat16 math utils
+sycl::ext::oneapi::bfloat16 hceil(sycl::ext::oneapi::bfloat16 b) {
+  return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
+                            __imf_ceilbf16(__builtin_bit_cast(uint16_t, b)));
+}
+
+sycl::ext::oneapi::bfloat16 hfloor(sycl::ext::oneapi::bfloat16 b) {
+  return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
+                            __imf_floorbf16(__builtin_bit_cast(uint16_t, b)));
+}
+
+sycl::ext::oneapi::bfloat16 htrunc(sycl::ext::oneapi::bfloat16 b) {
+  return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
+                            __imf_truncbf16(__builtin_bit_cast(uint16_t, b)));
+}
+
+sycl::ext::oneapi::bfloat16 hrint(sycl::ext::oneapi::bfloat16 b) {
+  return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
+                            __imf_rintbf16(__builtin_bit_cast(uint16_t, b)));
+}
+
+sycl::ext::oneapi::bfloat16 hsqrt(sycl::ext::oneapi::bfloat16 b) {
+  return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
+                            __imf_sqrtbf16(__builtin_bit_cast(uint16_t, b)));
+}
+
+sycl::ext::oneapi::bfloat16 hrsqrt(sycl::ext::oneapi::bfloat16 b) {
+  return __builtin_bit_cast(sycl::ext::oneapi::bfloat16,
+                            __imf_rsqrtbf16(__builtin_bit_cast(uint16_t, b)));
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+h2ceil(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = hceil(b[0]);
+  res[1] = hceil(b[1]);
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+h2floor(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = hfloor(b[0]);
+  res[1] = hfloor(b[1]);
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+h2trunc(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = htrunc(b[0]);
+  res[1] = htrunc(b[1]);
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+h2rint(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = hrint(b[0]);
+  res[1] = hrint(b[1]);
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+h2sqrt(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = hsqrt(b[0]);
+  res[1] = hsqrt(b[1]);
+  return res;
+}
+
+sycl::marray<sycl::ext::oneapi::bfloat16, 2>
+h2rsqrt(sycl::marray<sycl::ext::oneapi::bfloat16, 2> b) {
+  sycl::marray<sycl::ext::oneapi::bfloat16, 2> res;
+  res[0] = hrsqrt(b[0]);
+  res[1] = hrsqrt(b[1]);
   return res;
 }
 
