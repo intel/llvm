@@ -231,8 +231,8 @@ bool Command::isHostTask() const {
 bool Command::blockManually(const BlockReason &Reason) {
   if (MIsManuallyBlocked)
     return false;
-  MIsManuallyBlocked = true;
   MBlockReason = Reason;
+  MIsManuallyBlocked = true;
   return true;
 }
 
