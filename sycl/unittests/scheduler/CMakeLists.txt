@@ -22,4 +22,5 @@ add_sycl_unittest(SchedulerTests OBJECT
     RunOnHostIntelCG.cpp
     EnqueueWithDependsOnDeps.cpp
     AccessorDefaultCtor.cpp
+    KernelFusion.cpp
 )
