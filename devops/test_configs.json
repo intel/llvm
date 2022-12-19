@@ -76,7 +76,6 @@
       "config": "cuda_aws",
       "name": "CUDA LLVM Test Suite",
       "runs-on": "aws-cuda_${{ inputs.uniq }}",
-      "aws-region": "us-east-1",
       "aws-ami": "ami-058347ad2ce9aef73",
       "aws-type": [ "g5.2xlarge", "g5.4xlarge" ],
       "aws-disk": "/dev/xvda:64",
