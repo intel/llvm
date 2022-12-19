@@ -3611,6 +3611,9 @@ void CompilerInvocation::GenerateLangArgs(const LangOptions &Opts,
 
   if (!Opts.RandstructSeed.empty())
     GenerateArg(Args, OPT_frandomize_layout_seed_EQ, Opts.RandstructSeed, SA);
+
+  if (!Opts.GPURelocatableDeviceCode)
+    GenerateArg(Args, OPT_fno_gpu_rdc, SA);
 }
 
 bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
@@ -4205,6 +4208,11 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
     if (!SupportedTarget)
       Diags.Report(diag::err_drv_hlsl_unsupported_target) << T.str();
   }
+
+  // GPURelocatableDeviceCode should be true for SYCL if not specified.
+  if (Args.hasArg(OPT_fsycl_is_device) || Args.hasArg(OPT_fsycl_is_host))
+    Opts.GPURelocatableDeviceCode = Args.hasFlag(
+        options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, /*default=*/true);
 
   return Diags.getNumErrors() == NumErrorsBefore;
 }

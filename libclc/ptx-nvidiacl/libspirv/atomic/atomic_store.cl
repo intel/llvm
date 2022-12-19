@@ -34,50 +34,52 @@ _CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
   }                                                                            \
   }
 
-#define __CLC_NVVM_ATOMIC_STORE_IMPL(TYPE, TYPE_MANGLED, TYPE_NV,                                                                     \
-                                     TYPE_MANGLED_NV, ADDR_SPACE,                                                                     \
-                                     ADDR_SPACE_MANGLED, ADDR_SPACE_NV)                                                               \
-  _CLC_DECL void                                                                                                                      \
-      _Z19__spirv_AtomicStorePU3##ADDR_SPACE_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE##TYPE_MANGLED( \
-          volatile ADDR_SPACE TYPE *pointer, enum Scope scope,                                                                        \
-          enum MemorySemanticsMask semantics, TYPE value) {                                                                           \
-    /* Semantics mask may include memory order, storage class and other info                                                          \
-Memory order is stored in the lowest 5 bits */                                                                                        \
-    unsigned int order = semantics & 0x1F;                                                                                            \
-    if (__clc_nvvm_reflect_arch() >= 700) {                                                                                           \
-      switch (order) {                                                                                                                \
-      case None:                                                                                                                      \
-        __CLC_NVVM_ATOMIC_STORE_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV,                                                            \
-                                           ADDR_SPACE, ADDR_SPACE_NV, )                                                               \
-      case Release:                                                                                                                   \
-        __CLC_NVVM_ATOMIC_STORE_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV,                                                            \
-                                           ADDR_SPACE, ADDR_SPACE_NV,                                                                 \
-                                           _release)                                                                                  \
-      }                                                                                                                               \
-    } else {                                                                                                                          \
-      switch (order) {                                                                                                                \
-      case Release:                                                                                                                   \
-        __spirv_MemoryBarrier(scope, Release);                                                                                        \
-        __nvvm_volatile_st##ADDR_SPACE_NV##TYPE_MANGLED_NV(                                                                           \
-            (ADDR_SPACE TYPE_NV *)pointer, *(TYPE_NV *)&value);                                                                       \
-        return;                                                                                                                       \
-      case None: {                                                                                                                    \
-        __nvvm_volatile_st##ADDR_SPACE_NV##TYPE_MANGLED_NV(                                                                           \
-            (ADDR_SPACE TYPE_NV *)pointer, *(TYPE_NV *)&value);                                                                       \
-        return;                                                                                                                       \
-      }                                                                                                                               \
-      }                                                                                                                               \
-    }                                                                                                                                 \
-    __builtin_trap();                                                                                                                 \
-    __builtin_unreachable();                                                                                                          \
+#define __CLC_NVVM_ATOMIC_STORE_IMPL(                                          \
+    TYPE, TYPE_MANGLED, SUBSTITUTION, TYPE_NV, TYPE_MANGLED_NV, ADDR_SPACE,    \
+    POINTER_AND_ADDR_SPACE_MANGLED, ADDR_SPACE_NV)                             \
+  __attribute__((always_inline)) _CLC_DECL void _Z19__spirv_\
+AtomicStore##POINTER_AND_ADDR_SPACE_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagEN\
+S##SUBSTITUTION##_19MemorySemanticsMask4FlagE##TYPE_MANGLED(                   \
+      volatile ADDR_SPACE TYPE *pointer, enum Scope scope,                     \
+      enum MemorySemanticsMask semantics, TYPE value) {                        \
+    /* Semantics mask may include memory order, storage class and other info   \
+Memory order is stored in the lowest 5 bits */                                 \
+    unsigned int order = semantics & 0x1F;                                     \
+    if (__clc_nvvm_reflect_arch() >= 700) {                                    \
+      switch (order) {                                                         \
+      case None:                                                               \
+        __CLC_NVVM_ATOMIC_STORE_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV,     \
+                                           ADDR_SPACE, ADDR_SPACE_NV, )        \
+      case Release:                                                            \
+        __CLC_NVVM_ATOMIC_STORE_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV,     \
+                                           ADDR_SPACE, ADDR_SPACE_NV,          \
+                                           _release)                           \
+      }                                                                        \
+    } else {                                                                   \
+      switch (order) {                                                         \
+      case Release:                                                            \
+        __spirv_MemoryBarrier(scope, Release);                                 \
+        __nvvm_volatile_st##ADDR_SPACE_NV##TYPE_MANGLED_NV(                    \
+            (ADDR_SPACE TYPE_NV *)pointer, *(TYPE_NV *)&value);                \
+        return;                                                                \
+      case None: {                                                             \
+        __nvvm_volatile_st##ADDR_SPACE_NV##TYPE_MANGLED_NV(                    \
+            (ADDR_SPACE TYPE_NV *)pointer, *(TYPE_NV *)&value);                \
+        return;                                                                \
+      }                                                                        \
+      }                                                                        \
+    }                                                                          \
+    __builtin_trap();                                                          \
+    __builtin_unreachable();                                                   \
   }
 
 #define __CLC_NVVM_ATOMIC_STORE(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV)  \
-  __attribute__((always_inline)) __CLC_NVVM_ATOMIC_STORE_IMPL(                 \
-      TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, __global, AS1, _global_)   \
-      __attribute__((always_inline))                                           \
-      __CLC_NVVM_ATOMIC_STORE_IMPL(TYPE, TYPE_MANGLED, TYPE_NV,                \
-                                   TYPE_MANGLED_NV, __local, AS3, _shared_)
+  __CLC_NVVM_ATOMIC_STORE_IMPL(TYPE, TYPE_MANGLED, 1, TYPE_NV, TYPE_MANGLED_NV,\
+                               __global, PU3AS1, _global_)                     \
+  __CLC_NVVM_ATOMIC_STORE_IMPL(TYPE, TYPE_MANGLED, 1, TYPE_NV, TYPE_MANGLED_NV,\
+                               __local, PU3AS3, _shared_)                      \
+  __CLC_NVVM_ATOMIC_STORE_IMPL(TYPE, TYPE_MANGLED, 0, TYPE_NV, TYPE_MANGLED_NV,\
+                               , P, _gen_)
 
 __CLC_NVVM_ATOMIC_STORE(int, i, int, i)
 __CLC_NVVM_ATOMIC_STORE(uint, j, int, i)
