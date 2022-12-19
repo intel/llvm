@@ -3,6 +3,8 @@ name: Test windows on the comment
 on:
   issue_comment:
     types: [created]
+  pull_request_review:
+    types: [edited, dismissed, submitted]
 
 jobs:
   windows_test_preparation:
