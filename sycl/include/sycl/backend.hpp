@@ -25,7 +25,11 @@
 #endif
 #endif
 #if SYCL_EXT_ONEAPI_BACKEND_HIP
+#ifdef SYCL_EXT_ONEAPI_BACKEND_HIP_EXPERIMENTAL
+#include <sycl/ext/oneapi/experimental/backend/backend_traits_hip.hpp>
+#else
 #include <sycl/detail/backend_traits_hip.hpp>
+#endif
 #endif
 #if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
 #include <sycl/detail/backend_traits_level_zero.hpp>

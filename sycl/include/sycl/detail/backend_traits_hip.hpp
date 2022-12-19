@@ -54,6 +54,10 @@ template <> struct interop<backend::ext_oneapi_hip, queue> {
   using type = HIPstream;
 };
 
+template <> struct interop<backend::ext_oneapi_hip, platform> {
+  using type = std::vector<HIPdevice>;
+};
+
 // TODO the interops for accessor is used in the already deprecated class
 // interop_handler and can be removed after API cleanup.
 template <typename DataT, int Dimensions, access::mode AccessMode>
@@ -113,6 +117,17 @@ template <> struct BackendInput<backend::ext_oneapi_hip, queue> {
 
 template <> struct BackendReturn<backend::ext_oneapi_hip, queue> {
   using type = HIPstream;
+};
+
+template <> struct InteropFeatureSupportMap<backend::ext_oneapi_hip> {
+  static constexpr bool MakePlatform = false;
+  static constexpr bool MakeDevice = false;
+  static constexpr bool MakeContext = false;
+  static constexpr bool MakeQueue = false;
+  static constexpr bool MakeEvent = true;
+  static constexpr bool MakeBuffer = false;
+  static constexpr bool MakeKernel = false;
+  static constexpr bool MakeKernelBundle = false;
 };
 
 } // namespace detail
