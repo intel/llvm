@@ -5214,8 +5214,8 @@ pi_result hip_piTearDown(void *PluginParameter) {
   return PI_SUCCESS;
 }
 
-pi_result hip_piGetDeviceAndHostTimer(pi_device device, uint64_t *deviceTime,
-                                      uint64_t *hostTime) {
+pi_result hip_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
+                                      uint64_t *HostTime) {
   _pi_event::native_type event;
   using namespace std::chrono;
   if (DeviceTime) {
