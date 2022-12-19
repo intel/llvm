@@ -240,7 +240,7 @@ public:
 
   /// Gets the current device timestamp
   /// @throw sycl::feature_not_supported if feature is not supported on device
-  uint64_t getTime();
+  uint64_t getCurrentDeviceTime();
 
 private:
   explicit device_impl(pi_native_handle InteropDevice, RT::PiDevice Device,
@@ -253,7 +253,7 @@ private:
   bool MIsAssertFailSupported = false;
   mutable std::string MDeviceName;
   mutable std::once_flag MDeviceNameFlag;
-  std::pair<uint64_t, uint64_t> deviceTimePair;
+  std::pair<uint64_t, uint64_t> MDeviceHostBaseTime;
 }; // class device_impl
 
 } // namespace detail

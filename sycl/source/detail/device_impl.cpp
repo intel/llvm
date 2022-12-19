@@ -439,7 +439,7 @@ std::string device_impl::getDeviceName() const {
 /* On first call this function queries for device timestamp
    along with host synchronized timestamp
    and stores it in memeber varaible deviceTimePair.
-   Succive calls to this function would just retrieve the host timestamp ,
+   Successive calls to this function would just retrieve the host timestamp ,
    compute difference against the host timestamp in deviceTimePair
    and calculate the device timestamp based on the difference.
    deviceTimePair is refreshed with new device and host timestamp after a
