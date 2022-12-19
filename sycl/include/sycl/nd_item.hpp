@@ -121,10 +121,10 @@ public:
   template <access::mode accessMode = access::mode::read_write>
   __SYCL2020_DEPRECATED("use sycl::atomic_fence() free function instead")
   void mem_fence(
-      typename detail::enable_if_t<accessMode == access::mode::read ||
-                                       accessMode == access::mode::write ||
-                                       accessMode == access::mode::read_write,
-                                   access::fence_space>
+      typename std::enable_if_t<accessMode == access::mode::read ||
+                                    accessMode == access::mode::write ||
+                                    accessMode == access::mode::read_write,
+                                access::fence_space>
           accessSpace = access::fence_space::global_and_local) const {
     (void)accessSpace;
     Group.mem_fence();
@@ -202,9 +202,7 @@ nd_item<Dims> this_nd_item() {
 #endif
 }
 
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 template <int Dims> nd_item<Dims> this_nd_item() {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::Builder::getElement(
@@ -215,8 +213,6 @@ template <int Dims> nd_item<Dims> this_nd_item() {
       "Free function calls are not supported on host device");
 #endif
 }
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

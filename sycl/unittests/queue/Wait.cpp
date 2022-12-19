@@ -26,11 +26,12 @@ struct TestCtx {
 };
 static TestCtx TestContext;
 
-pi_result redefinedQueueCreate(pi_context context, pi_device device,
-                               pi_queue_properties properties,
-                               pi_queue *queue) {
+pi_result redefinedQueueCreateEx(pi_context context, pi_device device,
+                                 pi_queue_properties *properties,
+                                 pi_queue *queue) {
+  assert(properties && properties[0] == PI_QUEUE_FLAGS);
   if (!TestContext.SupportOOO &&
-      properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
+      properties[1] & PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
     return PI_ERROR_INVALID_QUEUE_PROPERTIES;
   }
   return PI_SUCCESS;
@@ -77,7 +78,8 @@ pi_result redefinedEventRelease(pi_event event) {
 TEST(QueueWait, QueueWaitTest) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
+  Mock.redefineBefore<detail::PiApiKind::piextQueueCreate>(
+      redefinedQueueCreateEx);
   Mock.redefineBefore<detail::PiApiKind::piQueueFinish>(redefinedQueueFinish);
   Mock.redefineBefore<detail::PiApiKind::piextUSMEnqueueMemset>(
       redefinedUSMEnqueueMemset);
@@ -121,14 +123,15 @@ TEST(QueueWait, QueueWaitTest) {
     buffer<int, 1> buf{range<1>(1)};
 
     std::mutex m;
-    std::unique_lock TestLock(m, std::defer_lock);
+    std::unique_lock<std::mutex> TestLock(m, std::defer_lock);
     TestLock.lock();
 
     event HostTaskEvent = Q.submit([&](handler &Cgh) {
       auto acc = buf.template get_access<access::mode::read>(Cgh);
       Cgh.host_task([=, &m]() {
         (void)acc;
-        std::unique_lock InsideHostTaskLock(m);
+
+        std::unique_lock<std::mutex> InsideHostTaskLock(m);
       });
     });
     std::shared_ptr<detail::event_impl> HostTaskEventImpl =

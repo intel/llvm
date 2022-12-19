@@ -51,6 +51,7 @@
 #include "llvm/Support/SHA1.h"
 #include "llvm/Support/SHA256.h"
 #include "llvm/Support/TimeProfiler.h"
+#include <optional>
 using namespace clang;
 using namespace clang::CodeGen;
 
@@ -345,18 +346,18 @@ StringRef CGDebugInfo::getClassName(const RecordDecl *RD) {
   return StringRef();
 }
 
-Optional<llvm::DIFile::ChecksumKind>
+std::optional<llvm::DIFile::ChecksumKind>
 CGDebugInfo::computeChecksum(FileID FID, SmallString<64> &Checksum) const {
   Checksum.clear();
 
   if (!CGM.getCodeGenOpts().EmitCodeView &&
       CGM.getCodeGenOpts().DwarfVersion < 5)
-    return None;
+    return std::nullopt;
 
   SourceManager &SM = CGM.getContext().getSourceManager();
   Optional<llvm::MemoryBufferRef> MemBuffer = SM.getBufferOrNone(FID);
   if (!MemBuffer)
-    return None;
+    return std::nullopt;
 
   auto Data = llvm::arrayRefFromStringRef(MemBuffer->getBuffer());
   switch (CGM.getCodeGenOpts().getDebugSrcHash()) {
@@ -373,16 +374,16 @@ CGDebugInfo::computeChecksum(FileID FID, SmallString<64> &Checksum) const {
   llvm_unreachable("Unhandled DebugSrcHashKind enum");
 }
 
-Optional<StringRef> CGDebugInfo::getSource(const SourceManager &SM,
-                                           FileID FID) {
+std::optional<StringRef> CGDebugInfo::getSource(const SourceManager &SM,
+                                                FileID FID) {
   if (!CGM.getCodeGenOpts().EmbedSource)
-    return None;
+    return std::nullopt;
 
   bool SourceInvalid = false;
   StringRef Source = SM.getBufferData(FID, &SourceInvalid);
 
   if (SourceInvalid)
-    return None;
+    return std::nullopt;
 
   return Source;
 }
@@ -439,17 +440,18 @@ llvm::DIFile *CGDebugInfo::getOrCreateFile(SourceLocation Loc) {
     // source file. We use it here to properly calculate its checksum.
     FID = ComputeValidFileID(SM, FileName);
 
-  Optional<llvm::DIFile::ChecksumKind> CSKind = computeChecksum(FID, Checksum);
-  Optional<llvm::DIFile::ChecksumInfo<StringRef>> CSInfo;
+  std::optional<llvm::DIFile::ChecksumKind> CSKind =
+      computeChecksum(FID, Checksum);
+  std::optional<llvm::DIFile::ChecksumInfo<StringRef>> CSInfo;
   if (CSKind)
     CSInfo.emplace(*CSKind, Checksum);
   return createFile(FileName, CSInfo, getSource(SM, SM.getFileID(Loc)));
 }
 
-llvm::DIFile *
-CGDebugInfo::createFile(StringRef FileName,
-                        Optional<llvm::DIFile::ChecksumInfo<StringRef>> CSInfo,
-                        Optional<StringRef> Source) {
+llvm::DIFile *CGDebugInfo::createFile(
+    StringRef FileName,
+    std::optional<llvm::DIFile::ChecksumInfo<StringRef>> CSInfo,
+    std::optional<StringRef> Source) {
   StringRef Dir;
   StringRef File;
   std::string RemappedFile = remapDIPath(FileName);
@@ -532,8 +534,8 @@ StringRef CGDebugInfo::getCurrentDirname() {
 
 void CGDebugInfo::CreateCompileUnit() {
   SmallString<64> Checksum;
-  Optional<llvm::DIFile::ChecksumKind> CSKind;
-  Optional<llvm::DIFile::ChecksumInfo<StringRef>> CSInfo;
+  std::optional<llvm::DIFile::ChecksumKind> CSKind;
+  std::optional<llvm::DIFile::ChecksumInfo<StringRef>> CSInfo;
 
   // Should we be asking the SourceManager for the main file name, instead of
   // accepting it as an argument? This just causes the main file name to
@@ -1187,13 +1189,12 @@ llvm::DIType *CGDebugInfo::CreatePointerLikeType(llvm::dwarf::Tag Tag,
                                                  QualType PointeeTy,
                                                  llvm::DIFile *Unit) {
   // Bit size, align and offset of the type.
-  // Size is always the size of a pointer. We can't use getTypeSize here
-  // because that does not return the correct value for references.
-  unsigned AddressSpace = CGM.getContext().getTargetAddressSpace(PointeeTy);
-  uint64_t Size = CGM.getTarget().getPointerWidth(AddressSpace);
+  // Size is always the size of a pointer.
+  uint64_t Size = CGM.getContext().getTypeSize(Ty);
   auto Align = getTypeAlignIfRequired(Ty, CGM.getContext());
-  Optional<unsigned> DWARFAddressSpace =
-      CGM.getTarget().getDWARFAddressSpace(AddressSpace);
+  std::optional<unsigned> DWARFAddressSpace =
+      CGM.getTarget().getDWARFAddressSpace(
+          CGM.getTypes().getTargetAddressSpace(PointeeTy));
 
   SmallVector<llvm::Metadata *, 4> Annots;
   auto *BTFAttrTy = dyn_cast<BTFTagAttributedType>(PointeeTy);
@@ -1745,11 +1746,10 @@ llvm::DISubroutineType *CGDebugInfo::getOrCreateInstanceMethodType(
   if (isa<ClassTemplateSpecializationDecl>(RD)) {
     // Create pointer type directly in this case.
     const PointerType *ThisPtrTy = cast<PointerType>(ThisPtr);
-    QualType PointeeTy = ThisPtrTy->getPointeeType();
-    unsigned AS = CGM.getContext().getTargetAddressSpace(PointeeTy);
-    uint64_t Size = CGM.getTarget().getPointerWidth(AS);
+    uint64_t Size = CGM.getContext().getTypeSize(ThisPtrTy);
     auto Align = getTypeAlignIfRequired(ThisPtrTy, CGM.getContext());
-    llvm::DIType *PointeeType = getOrCreateType(PointeeTy, Unit);
+    llvm::DIType *PointeeType =
+        getOrCreateType(ThisPtrTy->getPointeeType(), Unit);
     llvm::DIType *ThisPtrType =
         DBuilder.createPointerType(PointeeType, Size, Align);
     TypeCache[ThisPtr.getAsOpaquePtr()].reset(ThisPtrType);
@@ -2175,7 +2175,7 @@ CGDebugInfo::GetTemplateArgs(const FunctionDecl *FD) const {
                                              ->getTemplateParameters();
     return {{TList, FD->getTemplateSpecializationArgs()->asArray()}};
   }
-  return None;
+  return std::nullopt;
 }
 Optional<CGDebugInfo::TemplateArgs>
 CGDebugInfo::GetTemplateArgs(const VarDecl *VD) const {
@@ -2184,7 +2184,7 @@ CGDebugInfo::GetTemplateArgs(const VarDecl *VD) const {
   // there are arguments.
   auto *TS = dyn_cast<VarTemplateSpecializationDecl>(VD);
   if (!TS)
-    return None;
+    return std::nullopt;
   VarTemplateDecl *T = TS->getSpecializedTemplate();
   const TemplateParameterList *TList = T->getTemplateParameters();
   auto TA = TS->getTemplateArgs().asArray();
@@ -2201,7 +2201,7 @@ CGDebugInfo::GetTemplateArgs(const RecordDecl *RD) const {
     const TemplateArgumentList &TAList = TSpecial->getTemplateArgs();
     return {{TPList, TAList.asArray()}};
   }
-  return None;
+  return std::nullopt;
 }
 
 llvm::DINodeArray
@@ -2246,7 +2246,7 @@ llvm::DIType *CGDebugInfo::getOrCreateVTablePtrType(llvm::DIFile *Unit) {
   llvm::DIType *SubTy = DBuilder.createSubroutineType(SElements);
   unsigned Size = Context.getTypeSize(Context.VoidPtrTy);
   unsigned VtblPtrAddressSpace = CGM.getTarget().getVtblPtrAddressSpace();
-  Optional<unsigned> DWARFAddressSpace =
+  std::optional<unsigned> DWARFAddressSpace =
       CGM.getTarget().getDWARFAddressSpace(VtblPtrAddressSpace);
 
   llvm::DIType *vtbl_ptr_type = DBuilder.createPointerType(
@@ -2343,7 +2343,7 @@ void CGDebugInfo::CollectVTableInfo(const CXXRecordDecl *RD, llvm::DIFile *Unit,
         VFTLayout.vtable_components().size() - CGM.getLangOpts().RTTIData;
     unsigned VTableWidth = PtrWidth * VSlotCount;
     unsigned VtblPtrAddressSpace = CGM.getTarget().getVtblPtrAddressSpace();
-    Optional<unsigned> DWARFAddressSpace =
+    std::optional<unsigned> DWARFAddressSpace =
         CGM.getTarget().getDWARFAddressSpace(VtblPtrAddressSpace);
 
     // Create a very wide void* type and insert it directly in the element list.
@@ -2400,7 +2400,7 @@ void CGDebugInfo::addHeapAllocSiteMetadata(llvm::CallBase *CI,
     return;
   llvm::MDNode *node;
   if (AllocatedTy->isVoidType())
-    node = llvm::MDNode::get(CGM.getLLVMContext(), None);
+    node = llvm::MDNode::get(CGM.getLLVMContext(), std::nullopt);
   else
     node = getOrCreateType(AllocatedTy, getOrCreateFile(Loc));
 
@@ -4016,7 +4016,8 @@ llvm::DISubroutineType *CGDebugInfo::getOrCreateFunctionType(const Decl *D,
              !CGM.getCodeGenOpts().EmitCodeView))
     // Create fake but valid subroutine type. Otherwise -verify would fail, and
     // subprogram DIE will miss DW_AT_decl_file and DW_AT_decl_line fields.
-    return DBuilder.createSubroutineType(DBuilder.getOrCreateTypeArray(None));
+    return DBuilder.createSubroutineType(
+        DBuilder.getOrCreateTypeArray(std::nullopt));
 
   if (const auto *Method = dyn_cast<CXXMethodDecl>(D))
     return getOrCreateMethodType(Method, F);
@@ -4328,7 +4329,7 @@ void CGDebugInfo::CreateLexicalBlock(SourceLocation Loc) {
 
 void CGDebugInfo::AppendAddressSpaceXDeref(
     unsigned AddressSpace, SmallVectorImpl<uint64_t> &Expr) const {
-  Optional<unsigned> DWARFAddressSpace =
+  std::optional<unsigned> DWARFAddressSpace =
       CGM.getTarget().getDWARFAddressSpace(AddressSpace);
   if (!DWARFAddressSpace)
     return;
@@ -4425,7 +4426,7 @@ CGDebugInfo::EmitTypeForVarWithBlocksAttr(const VarDecl *VD,
 
   CharUnits Align = CGM.getContext().getDeclAlign(VD);
   if (Align > CGM.getContext().toCharUnitsFromBits(
-                  CGM.getTarget().getPointerAlign(0))) {
+                  CGM.getTarget().getPointerAlign(LangAS::Default))) {
     CharUnits FieldOffsetInBytes =
         CGM.getContext().toCharUnitsFromBits(FieldOffset);
     CharUnits AlignedOffsetInBytes = FieldOffsetInBytes.alignTo(Align);
@@ -4499,7 +4500,7 @@ llvm::DILocalVariable *CGDebugInfo::EmitDeclare(const VarDecl *VD,
 
   auto Align = getDeclAlignIfRequired(VD, CGM.getContext());
 
-  unsigned AddressSpace = CGM.getContext().getTargetAddressSpace(VD->getType());
+  unsigned AddressSpace = CGM.getTypes().getTargetAddressSpace(VD->getType());
   AppendAddressSpaceXDeref(AddressSpace, Expr);
 
   // If this is implicit parameter of CXXThis or ObjCSelf kind, then give it an
@@ -4525,7 +4526,7 @@ llvm::DILocalVariable *CGDebugInfo::EmitDeclare(const VarDecl *VD,
       Expr.push_back(llvm::dwarf::DW_OP_plus_uconst);
       // offset of __forwarding field
       offset = CGM.getContext().toCharUnitsFromBits(
-          CGM.getTarget().getPointerWidth(0));
+          CGM.getTarget().getPointerWidth(LangAS::Default));
       Expr.push_back(offset.getQuantity());
       Expr.push_back(llvm::dwarf::DW_OP_deref);
       Expr.push_back(llvm::dwarf::DW_OP_plus_uconst);
@@ -4660,7 +4661,7 @@ llvm::DILocalVariable *CGDebugInfo::EmitDeclare(const BindingDecl *BD,
     return nullptr;
 
   auto Align = getDeclAlignIfRequired(BD, CGM.getContext());
-  unsigned AddressSpace = CGM.getContext().getTargetAddressSpace(BD->getType());
+  unsigned AddressSpace = CGM.getTypes().getTargetAddressSpace(BD->getType());
 
   SmallVector<uint64_t, 3> Expr;
   AppendAddressSpaceXDeref(AddressSpace, Expr);
@@ -4730,11 +4731,11 @@ CGDebugInfo::EmitDeclareOfAutoVariable(const VarDecl *VD, llvm::Value *Storage,
 
   if (auto *DD = dyn_cast<DecompositionDecl>(VD))
     for (auto *B : DD->bindings()) {
-      EmitDeclare(B, Storage, llvm::None, Builder,
+      EmitDeclare(B, Storage, std::nullopt, Builder,
                   VD->getType()->isReferenceType());
     }
 
-  return EmitDeclare(VD, Storage, llvm::None, Builder, UsePointerValue);
+  return EmitDeclare(VD, Storage, std::nullopt, Builder, UsePointerValue);
 }
 
 void CGDebugInfo::EmitLabel(const LabelDecl *D, CGBuilderTy &Builder) {
@@ -5339,8 +5340,7 @@ void CGDebugInfo::EmitGlobalVariable(llvm::GlobalVariable *Var,
     auto Align = getDeclAlignIfRequired(D, CGM.getContext());
 
     SmallVector<uint64_t, 4> Expr;
-    unsigned AddressSpace =
-        CGM.getContext().getTargetAddressSpace(D->getType());
+    unsigned AddressSpace = CGM.getTypes().getTargetAddressSpace(D->getType());
     if (CGM.getLangOpts().CUDA && CGM.getLangOpts().CUDAIsDevice) {
       if (D->hasAttr<CUDASharedAttr>())
         AddressSpace =

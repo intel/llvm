@@ -260,22 +260,6 @@ SPIRVMap<SPIRVExtInstSetKind, std::string, SPIRVExtSetShortName>::init() {
 typedef SPIRVMap<SPIRVExtInstSetKind, std::string, SPIRVExtSetShortName>
     SPIRVExtSetShortNameMap;
 
-template <>
-inline void SPIRVMap<internal::InternalJointMatrixLayout, std::string>::init() {
-  add(internal::RowMajor, "matrix.rowmajor");
-  add(internal::ColumnMajor, "matrix.columnmajor");
-  add(internal::PackedA, "matrix.packed.a");
-  add(internal::PackedB, "matrix.packed.b");
-}
-typedef SPIRVMap<internal::InternalJointMatrixLayout, std::string>
-    SPIRVMatrixLayoutMap;
-
-template <> inline void SPIRVMap<spv::Scope, std::string>::init() {
-  add(ScopeWorkgroup, "scope.workgroup");
-  add(ScopeSubgroup, "scope.subgroup");
-}
-typedef SPIRVMap<spv::Scope, std::string> SPIRVMatrixScopeMap;
-
 #define SPIR_MD_COMPILER_OPTIONS "opencl.compiler.options"
 #define SPIR_MD_KERNEL_ARG_ADDR_SPACE "kernel_arg_addr_space"
 #define SPIR_MD_KERNEL_ARG_ACCESS_QUAL "kernel_arg_access_qual"
@@ -523,7 +507,7 @@ private:
 };
 
 /// \returns a vector of types for a collection of values.
-template <class T> std::vector<Type *> getTypes(T V) {
+template <class T> std::vector<Type *> getTypes(llvm::ArrayRef<T> V) {
   std::vector<Type *> Tys;
   for (auto &I : V)
     Tys.push_back(I->getType());

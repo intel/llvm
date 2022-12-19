@@ -3268,7 +3268,7 @@ Parser::ParseParenExpression(ParenParseOption &ExprType, bool stopIfCastExpr,
     InMessageExpressionRAIIObject InMessage(*this, false);
 
     Result = ParseExpression(MaybeTypeCast);
-    if (!getLangOpts().CPlusPlus && MaybeTypeCast && Result.isUsable()) {
+    if (!getLangOpts().CPlusPlus && Result.isUsable()) {
       // Correct typos in non-C++ code earlier so that implicit-cast-like
       // expressions are parsed correctly.
       Result = Actions.CorrectDelayedTyposInExpr(Result);
@@ -3389,7 +3389,7 @@ ExprResult Parser::ParseGenericSelectionExpression() {
   }
 
   SourceLocation DefaultLoc;
-  TypeVector Types;
+  SmallVector<ParsedType, 12> Types;
   ExprVector Exprs;
   do {
     ParsedType Ty;
@@ -3712,8 +3712,8 @@ ExprResult Parser::ParseBlockLiteralExpression() {
                                      /*NumExceptions=*/0,
                                      /*NoexceptExpr=*/nullptr,
                                      /*ExceptionSpecTokens=*/nullptr,
-                                     /*DeclsInPrototype=*/None, CaretLoc,
-                                     CaretLoc, ParamInfo),
+                                     /*DeclsInPrototype=*/std::nullopt,
+                                     CaretLoc, CaretLoc, ParamInfo),
         CaretLoc);
 
     MaybeParseGNUAttributes(ParamInfo);
@@ -3802,11 +3802,11 @@ Optional<AvailabilitySpec> Parser::ParseAvailabilitySpec() {
     if (Tok.is(tok::code_completion)) {
       cutOffParsing();
       Actions.CodeCompleteAvailabilityPlatformName();
-      return None;
+      return std::nullopt;
     }
     if (Tok.isNot(tok::identifier)) {
       Diag(Tok, diag::err_avail_query_expected_platform_name);
-      return None;
+      return std::nullopt;
     }
 
     IdentifierLoc *PlatformIdentifier = ParseIdentifierLoc();
@@ -3814,7 +3814,7 @@ Optional<AvailabilitySpec> Parser::ParseAvailabilitySpec() {
     VersionTuple Version = ParseVersionTuple(VersionRange);
 
     if (Version.empty())
-      return None;
+      return std::nullopt;
 
     StringRef GivenPlatform = PlatformIdentifier->Ident->getName();
     StringRef Platform =
@@ -3824,7 +3824,7 @@ Optional<AvailabilitySpec> Parser::ParseAvailabilitySpec() {
       Diag(PlatformIdentifier->Loc,
            diag::err_avail_query_unrecognized_platform_name)
           << GivenPlatform;
-      return None;
+      return std::nullopt;
     }
 
     return AvailabilitySpec(Version, Platform, PlatformIdentifier->Loc,

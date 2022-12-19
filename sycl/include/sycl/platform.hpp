@@ -14,7 +14,9 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/detail/owner_less_base.hpp>
 #include <sycl/device_selector.hpp>
+#include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/stl.hpp>
 
 // 4.6.2 Platform class
@@ -32,17 +34,15 @@ auto get_native(const SyclObjectT &Obj)
 namespace detail {
 class platform_impl;
 }
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 // Forward declaration
 class filter_selector;
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT platform {
+class __SYCL_EXPORT platform : public detail::OwnerLessBase<platform> {
 public:
   /// Constructs a SYCL platform using the default device.
   platform();
@@ -68,7 +68,6 @@ public:
                         "use SYCL 2020 device selectors instead.")
   explicit platform(const device_selector &DeviceSelector);
 
-#if __cplusplus >= 201703L
   /// Constructs a SYCL platform instance using the platform of the device
   /// identified by the device selector provided.
   /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
@@ -78,7 +77,6 @@ public:
                 detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
   explicit platform(const DeviceSelector &deviceSelector)
       : platform(detail::select_device(deviceSelector)) {}
-#endif
 
   platform(const platform &rhs) = default;
 

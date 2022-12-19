@@ -26,6 +26,7 @@
   _PI_PLUGIN_VERSION_STRING(_PI_CUDA_PLUGIN_VERSION)
 
 #include "sycl/detail/pi.h"
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cassert>
@@ -497,6 +498,28 @@ struct _pi_queue {
     // barrier before any work we are about to enqueue to the stream will start,
     // so the event does not need to be synchronized with.
     return is_last_command && !has_been_synchronized(stream_token);
+  }
+
+  template <typename T> bool all_of(T &&f) {
+    {
+      std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
+      unsigned int end =
+          std::min(static_cast<unsigned int>(compute_streams_.size()),
+                   num_compute_streams_);
+      if (!std::all_of(compute_streams_.begin(), compute_streams_.begin() + end,
+                       f))
+        return false;
+    }
+    {
+      std::lock_guard<std::mutex> transfer_guard(transfer_stream_mutex_);
+      unsigned int end =
+          std::min(static_cast<unsigned int>(transfer_streams_.size()),
+                   num_transfer_streams_);
+      if (!std::all_of(transfer_streams_.begin(),
+                       transfer_streams_.begin() + end, f))
+        return false;
+    }
+    return true;
   }
 
   template <typename T> void for_each_stream(T &&f) {

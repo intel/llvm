@@ -105,11 +105,11 @@ ContentCache::getBufferOrNone(DiagnosticsEngine &Diag, FileManager &FM,
   // Lazily create the Buffer for ContentCaches that wrap files.  If we already
   // computed it, just return what we have.
   if (IsBufferInvalid)
-    return None;
+    return std::nullopt;
   if (Buffer)
     return Buffer->getMemBufferRef();
   if (!ContentsEntry)
-    return None;
+    return std::nullopt;
 
   // Start with the assumption that the buffer is invalid to simplify early
   // return paths.
@@ -131,7 +131,7 @@ ContentCache::getBufferOrNone(DiagnosticsEngine &Diag, FileManager &FM,
       Diag.Report(Loc, diag::err_cannot_open_file)
           << ContentsEntry->getName() << BufferOrError.getError().message();
 
-    return None;
+    return std::nullopt;
   }
 
   Buffer = std::move(*BufferOrError);
@@ -153,7 +153,7 @@ ContentCache::getBufferOrNone(DiagnosticsEngine &Diag, FileManager &FM,
       Diag.Report(Loc, diag::err_file_too_large)
         << ContentsEntry->getName();
 
-    return None;
+    return std::nullopt;
   }
 
   // Unless this is a named pipe (in which case we can handle a mismatch),
@@ -168,7 +168,7 @@ ContentCache::getBufferOrNone(DiagnosticsEngine &Diag, FileManager &FM,
       Diag.Report(Loc, diag::err_file_modified)
         << ContentsEntry->getName();
 
-    return None;
+    return std::nullopt;
   }
 
   // If the buffer is valid, check to see if it has a UTF Byte Order Mark
@@ -180,7 +180,7 @@ ContentCache::getBufferOrNone(DiagnosticsEngine &Diag, FileManager &FM,
   if (InvalidBOM) {
     Diag.Report(Loc, diag::err_unsupported_bom)
       << InvalidBOM << ContentsEntry->getName();
-    return None;
+    return std::nullopt;
   }
 
   // Buffer has been validated.
@@ -720,7 +720,7 @@ SourceManager::bypassFileContentsOverride(FileEntryRef File) {
 
   // If the file can't be found in the FS, give up.
   if (!BypassFile)
-    return None;
+    return std::nullopt;
 
   (void)getOrCreateContentCache(*BypassFile);
   return BypassFile;
@@ -735,7 +735,7 @@ SourceManager::getNonBuiltinFilenameForID(FileID FID) const {
   if (const SrcMgr::SLocEntry *Entry = getSLocEntryForFile(FID))
     if (Entry->getFile().getContentCache().OrigEntry)
       return Entry->getFile().getName();
-  return None;
+  return std::nullopt;
 }
 
 StringRef SourceManager::getBufferData(FileID FID, bool *Invalid) const {
@@ -749,7 +749,7 @@ llvm::Optional<StringRef>
 SourceManager::getBufferDataIfLoaded(FileID FID) const {
   if (const SrcMgr::SLocEntry *Entry = getSLocEntryForFile(FID))
     return Entry->getFile().getContentCache().getBufferDataIfLoaded();
-  return None;
+  return std::nullopt;
 }
 
 llvm::Optional<StringRef> SourceManager::getBufferDataOrNone(FileID FID) const {
@@ -757,7 +757,7 @@ llvm::Optional<StringRef> SourceManager::getBufferDataOrNone(FileID FID) const {
     if (auto B = Entry->getFile().getContentCache().getBufferOrNone(
             Diag, getFileManager(), SourceLocation()))
       return B->getBuffer();
-  return None;
+  return std::nullopt;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1281,22 +1281,21 @@ LineOffsetMapping LineOffsetMapping::get(llvm::MemoryBufferRef Buffer,
   // Line #1 starts at char 0.
   LineOffsets.push_back(0);
 
-  const unsigned char *Buf = (const unsigned char *)Buffer.getBufferStart();
+  const unsigned char *Start = (const unsigned char *)Buffer.getBufferStart();
   const unsigned char *End = (const unsigned char *)Buffer.getBufferEnd();
-  const std::size_t BufLen = End - Buf;
+  const unsigned char *Buf = Start;
 
-  unsigned I = 0;
   uint64_t Word;
 
   // scan sizeof(Word) bytes at a time for new lines.
   // This is much faster than scanning each byte independently.
-  if (BufLen > sizeof(Word)) {
+  if ((unsigned long)(End - Start) > sizeof(Word)) {
     do {
-      Word = llvm::support::endian::read64(Buf + I, llvm::support::little);
+      Word = llvm::support::endian::read64(Buf, llvm::support::little);
       // no new line => jump over sizeof(Word) bytes.
       auto Mask = likelyhasbetween(Word, '\n', '\r');
       if (!Mask) {
-        I += sizeof(Word);
+        Buf += sizeof(Word);
         continue;
       }
 
@@ -1307,30 +1306,33 @@ LineOffsetMapping LineOffsetMapping::get(llvm::MemoryBufferRef Buffer,
       unsigned N =
           llvm::countTrailingZeros(Mask) - 7; // -7 because 0x80 is the marker
       Word >>= N;
-      I += N / 8 + 1;
+      Buf += N / 8 + 1;
       unsigned char Byte = Word;
-      if (Byte == '\n') {
-        LineOffsets.push_back(I);
-      } else if (Byte == '\r') {
+      switch (Byte) {
+      case '\r':
         // If this is \r\n, skip both characters.
-        if (Buf[I] == '\n')
-          ++I;
-        LineOffsets.push_back(I);
-      }
-    } while (I < BufLen - sizeof(Word) - 1);
+        if (*Buf == '\n') {
+          ++Buf;
+        }
+        LLVM_FALLTHROUGH;
+      case '\n':
+        LineOffsets.push_back(Buf - Start);
+      };
+    } while (Buf < End - sizeof(Word) - 1);
   }
 
   // Handle tail using a regular check.
-  while (I < BufLen) {
-    if (Buf[I] == '\n') {
-      LineOffsets.push_back(I + 1);
-    } else if (Buf[I] == '\r') {
+  while (Buf < End) {
+    if (*Buf == '\n') {
+      LineOffsets.push_back(Buf - Start + 1);
+    } else if (*Buf == '\r') {
       // If this is \r\n, skip both characters.
-      if (I + 1 < BufLen && Buf[I + 1] == '\n')
-        ++I;
-      LineOffsets.push_back(I + 1);
+      if (Buf + 1 < End && Buf[1] == '\n') {
+        ++Buf;
+      }
+      LineOffsets.push_back(Buf - Start + 1);
     }
-    ++I;
+    ++Buf;
   }
 
   return LineOffsetMapping(LineOffsets, Alloc);
@@ -2228,7 +2230,7 @@ LLVM_DUMP_METHOD void SourceManager::dump() const {
       DumpSLocEntry(ID, LoadedSLocEntryTable[Index], NextStart);
       NextStart = LoadedSLocEntryTable[Index].getOffset();
     } else {
-      NextStart = None;
+      NextStart = std::nullopt;
     }
   }
 }

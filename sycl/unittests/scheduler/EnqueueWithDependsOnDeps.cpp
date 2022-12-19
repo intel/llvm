@@ -122,7 +122,7 @@ protected:
   void VerifyBlockedCommandsEnqueue(
       detail::Command *BlockingCommand,
       std::vector<detail::Command *> &BlockedCommands) {
-    std::unique_lock TestLock(m, std::defer_lock);
+    std::unique_lock<std::mutex> TestLock(m, std::defer_lock);
     TestLock.lock();
     detail::EnqueueResultT Result;
     for (detail::Command *BlockedCmd : BlockedCommands) {
@@ -161,7 +161,7 @@ protected:
 
   std::mutex m;
   std::function<void()> CustomHostLambda = [&]() {
-    std::unique_lock InsideHostTaskLock(this->m);
+    std::unique_lock<std::mutex> InsideHostTaskLock(this->m);
   };
 };
 
@@ -262,54 +262,6 @@ TEST_F(DependsOnTests, EnqueueNoMemObjDoubleKernelDepHostBlocked) {
   Cmd1->unblock();
   EXPECT_TRUE(MS.enqueueCommand(Cmd2, Result, detail::BlockingT::BLOCKING));
   EXPECT_TRUE(MS.enqueueCommand(Cmd3, Result, detail::BlockingT::NON_BLOCKING));
-}
-
-TEST_F(DependsOnTests, EnqueueNoMemObjDoubleKernelDepHost) {
-  // Checks blocking command tranfer for dependent kernels and enqueue of
-  // kernels on host task completion
-  std::vector<EventImplPtr> Events;
-
-  detail::Command *Cmd1 = AddTaskCG(TestCGType::HOST_TASK, Events);
-  EventImplPtr Cmd1Event = Cmd1->getEvent();
-  Cmd1->blockManually(detail::Command::BlockReason::HostAccessor);
-
-  // Depends on host task
-  Events.push_back(Cmd1Event);
-  detail::Command *Cmd2 = AddTaskCG(TestCGType::KERNEL_TASK, Events);
-  EventImplPtr Cmd2Event = Cmd2->getEvent();
-
-  // Depends on kernel depending on host task
-  Events.clear();
-  Events.push_back(Cmd2Event);
-  detail::Command *Cmd3 = AddTaskCG(TestCGType::KERNEL_TASK, Events);
-  EventImplPtr Cmd3Event = Cmd3->getEvent();
-
-  std::vector<detail::Command *> BlockedCommands{Cmd2, Cmd3};
-  detail::EnqueueResultT Result;
-  for (detail::Command *BlockedCmd : BlockedCommands) {
-    EXPECT_FALSE(
-        MS.enqueueCommand(BlockedCmd, Result, detail::BlockingT::NON_BLOCKING));
-    EXPECT_EQ(Result.MResult, detail::EnqueueResultT::SyclEnqueueBlocked);
-    EXPECT_EQ(Result.MCmd, static_cast<detail::Command *>(Cmd1));
-    EXPECT_FALSE(BlockedCmd->isSuccessfullyEnqueued());
-  }
-  EXPECT_TRUE(Cmd1->isSuccessfullyEnqueued());
-
-  Cmd1->unblock();
-
-  auto BlockingEvent = Cmd1->getEvent();
-  BlockingEvent->wait(BlockingEvent);
-  {
-    auto Lock = MS.acquireOriginSchedGraphWriteLock();
-    Lock.lock();
-    for (detail::Command *BlockedCmd : BlockedCommands) {
-      EXPECT_TRUE(BlockedCmd->isSuccessfullyEnqueued());
-    }
-  }
-  for (detail::Command *BlockedCmd : BlockedCommands) {
-    auto BlockedEvent = BlockedCmd->getEvent();
-    BlockedEvent->wait(BlockedEvent);
-  }
 }
 
 TEST_F(DependsOnTests, TwoHostAccessorsReadRead) {

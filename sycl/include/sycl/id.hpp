@@ -35,7 +35,7 @@ private:
   static_assert(dimensions >= 1 && dimensions <= 3,
                 "id can only be 1, 2, or 3 dimensional.");
   template <int N, int val, typename T>
-  using ParamTy = detail::enable_if_t<(N == val), T>;
+  using ParamTy = std::enable_if_t<(N == val), T>;
 
 #ifndef __SYCL_DISABLE_ID_TO_INT_CONV__
   /* Helper class for conversion operator. Void type is not suitable. User
@@ -45,7 +45,7 @@ private:
   class __private_class;
 
   template <typename N, typename T>
-  using EnableIfIntegral = detail::enable_if_t<std::is_integral<N>::value, T>;
+  using EnableIfIntegral = std::enable_if_t<std::is_integral<N>::value, T>;
   template <bool B, typename T>
   using EnableIfT = detail::conditional_t<B, T, __private_class>;
 #endif // __SYCL_DISABLE_ID_TO_INT_CONV__
@@ -360,9 +360,7 @@ id<Dims> this_id() {
 #endif
 }
 
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 template <int Dims> id<Dims> this_id() {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::Builder::getElement(sycl::detail::declptr<id<Dims>>());
@@ -372,8 +370,6 @@ template <int Dims> id<Dims> this_id() {
       "Free function calls are not supported on host device");
 #endif
 }
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

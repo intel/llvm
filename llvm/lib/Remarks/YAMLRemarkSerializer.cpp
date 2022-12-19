@@ -14,6 +14,7 @@
 #include "llvm/Remarks/YAMLRemarkSerializer.h"
 #include "llvm/Remarks/Remark.h"
 #include "llvm/Support/FileSystem.h"
+#include <optional>
 
 using namespace llvm;
 using namespace llvm::remarks;
@@ -186,7 +187,7 @@ void YAMLStrTabRemarkSerializer::emit(const Remark &Remark) {
   // metadata first and set DidEmitMeta to avoid emitting it again.
   if (Mode == SerializerMode::Standalone && !DidEmitMeta) {
     std::unique_ptr<MetaSerializer> MetaSerializer =
-        metaSerializer(OS, /*ExternalFilename=*/None);
+        metaSerializer(OS, /*ExternalFilename=*/std::nullopt);
     MetaSerializer->emit();
     DidEmitMeta = true;
   }
@@ -216,7 +217,8 @@ static void emitVersion(raw_ostream &OS) {
   OS.write(Version.data(), Version.size());
 }
 
-static void emitStrTab(raw_ostream &OS, Optional<const StringTable *> StrTab) {
+static void emitStrTab(raw_ostream &OS,
+                       std::optional<const StringTable *> StrTab) {
   // Emit the string table in the section.
   uint64_t StrTabSize = StrTab ? (*StrTab)->SerializedSize : 0;
   // Emit the total size of the string table (the size itself excluded):
@@ -241,7 +243,7 @@ static void emitExternalFile(raw_ostream &OS, StringRef Filename) {
 void YAMLMetaSerializer::emit() {
   emitMagic(OS);
   emitVersion(OS);
-  emitStrTab(OS, None);
+  emitStrTab(OS, std::nullopt);
   if (ExternalFilename)
     emitExternalFile(OS, *ExternalFilename);
 }

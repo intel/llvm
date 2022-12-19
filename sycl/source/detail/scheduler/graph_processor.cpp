@@ -50,7 +50,6 @@ bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
                                                   EnqueueResultT &EnqueueResult,
                                                   Command *RootCommand,
                                                   BlockingT Blocking) {
-
   // No error to be returned for root command.
   if (Cmd == RootCommand)
     return true;

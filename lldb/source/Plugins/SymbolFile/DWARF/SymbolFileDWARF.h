@@ -330,6 +330,20 @@ public:
     return m_parse_time;
   }
 
+  virtual lldb::offset_t
+  GetVendorDWARFOpcodeSize(const lldb_private::DataExtractor &data,
+                           const lldb::offset_t data_offset,
+                           const uint8_t op) const {
+    return LLDB_INVALID_OFFSET;
+  }
+
+  virtual bool
+  ParseVendorDWARFOpcode(uint8_t op, const lldb_private::DataExtractor &opcodes,
+                         lldb::offset_t &offset,
+                         std::vector<lldb_private::Value> &stack) const {
+    return false;
+  }
+
   lldb_private::ConstString ConstructFunctionDemangledName(const DWARFDIE &die);
 
 protected:
@@ -429,7 +443,7 @@ protected:
                                lldb_private::SymbolContext &sc);
 
   virtual lldb::TypeSP
-  FindDefinitionTypeForDWARFDeclContext(const DWARFDeclContext &die_decl_ctx);
+  FindDefinitionTypeForDWARFDeclContext(const DWARFDIE &die);
 
   virtual lldb::TypeSP
   FindCompleteObjCDefinitionTypeForDIE(const DWARFDIE &die,

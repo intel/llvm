@@ -43,6 +43,7 @@ _PI_API(piextContextGetNativeHandle)
 _PI_API(piextContextCreateWithNativeHandle)
 // Queue
 _PI_API(piQueueCreate)
+_PI_API(piextQueueCreate)
 _PI_API(piQueueGetInfo)
 _PI_API(piQueueFinish)
 _PI_API(piQueueFlush)
@@ -140,5 +141,8 @@ _PI_API(piPluginGetLastError)
 
 _PI_API(piTearDown)
 
+_PI_API(piextUSMEnqueueFill2D)
+_PI_API(piextUSMEnqueueMemset2D)
+_PI_API(piextUSMEnqueueMemcpy2D)
 
 #undef _PI_API

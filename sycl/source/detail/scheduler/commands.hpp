@@ -335,8 +335,8 @@ public:
   bool MPostEnqueueCleanup = false;
 
   /// Contains list of commands that depends on the host command explicitly (by
-  /// depends_on). Not involved into cleanup process since it is one-way link
-  /// and not holds resources.
+  /// depends_on). Not involved in the cleanup process since it is one-way link
+  /// and does not hold resources.
   /// Using EventImplPtr since enqueueUnblockedCommands and event.wait may
   /// intersect with command enqueue.
   std::vector<EventImplPtr> MBlockedUsers;
