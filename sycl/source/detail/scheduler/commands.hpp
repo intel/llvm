@@ -148,7 +148,6 @@ public:
   enum class BlockReason : int { HostAccessor = 0, HostTask };
   bool blockManually(const BlockReason &Reason);
   bool unblock();
-  void extraWaitIfBlocked();
 
   void addBlockedUserUnique(const EventImplPtr &NewUser) {
     if (std::find(MBlockedUsers.begin(), MBlockedUsers.end(), NewUser) !=
