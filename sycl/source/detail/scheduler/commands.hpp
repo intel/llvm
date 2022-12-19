@@ -289,8 +289,8 @@ public:
   /// Used for marking the node during graph traversal.
   Marks MMarks;
 
-  // Only have reasonable value while MIsManuallyBlocked is true
-  BlockReason MBlockReason;
+  // Only have reasonable value while isBlocking returns true
+  BlockReason MBlockReason = BlockReason::HostTask;
 
   /// Describes the status of the command.
   std::atomic<EnqueueResultT::ResultT> MEnqueueStatus;

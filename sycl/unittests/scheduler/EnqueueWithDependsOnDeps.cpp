@@ -130,6 +130,9 @@ protected:
                                      detail::BlockingT::NON_BLOCKING));
       EXPECT_EQ(Result.MResult, detail::EnqueueResultT::SyclEnqueueBlocked);
       EXPECT_EQ(Result.MCmd, static_cast<detail::Command *>(BlockingCommand));
+      EXPECT_EQ(Result.MCmd->MBlockReason,
+                detail::Command::BlockReason::HostTask);
+
       EXPECT_FALSE(BlockedCmd->isSuccessfullyEnqueued());
     }
     EXPECT_TRUE(BlockingCommand->isSuccessfullyEnqueued());
@@ -253,6 +256,8 @@ TEST_F(DependsOnTests, EnqueueNoMemObjDoubleKernelDepHostBlocked) {
       MS.enqueueCommand(Cmd3, Result, detail::BlockingT::NON_BLOCKING));
   EXPECT_EQ(Result.MResult, detail::EnqueueResultT::SyclEnqueueBlocked);
   EXPECT_EQ(Result.MCmd, static_cast<detail::Command *>(Cmd1));
+  EXPECT_EQ(Result.MCmd->MBlockReason,
+            detail::Command::BlockReason::HostAccessor);
 
   // Preconditions for post enqueue checks
   EXPECT_TRUE(Cmd1->isSuccessfullyEnqueued());
@@ -309,4 +314,40 @@ TEST_F(DependsOnTests, TwoHostAccessorsReadWrite) {
   EXPECT_TRUE(DepExists);
   MS.releaseHostAccessor(&MockReq);
   MS.releaseHostAccessor(&MockReq2);
+}
+
+TEST_F(DependsOnTests, EnqueueKernelDepHostAcc) {
+  buffer<int, 1> Buf{range<1>(1)};
+  std::shared_ptr<detail::buffer_impl> BufImpl = detail::getSyclObjImpl(Buf);
+  detail::Requirement MockReq = getMockRequirement(Buf);
+  MockReq.MDims = 1;
+  MockReq.MSYCLMemObj = BufImpl.get();
+  MockReq.MAccessMode = access::mode::write;
+  auto EventImplRead = MS.addHostAccessor(&MockReq);
+
+  event KEvent = QueueDevImpl->submit(
+      [&](handler &Cgh) {
+        auto acc = Buf.template get_access<access::mode::read>(Cgh);
+        constexpr size_t KS = sizeof(decltype(acc));
+        Cgh.single_task<TestKernel<KS>>([=]() { (void)acc; });
+      },
+      QueueDevImpl, nullptr, {});
+  std::shared_ptr<detail::event_impl> KernelEventImpl =
+      detail::getSyclObjImpl(KEvent);
+  detail::Command *KernelCmd =
+      static_cast<detail::Command *>(KernelEventImpl->getCommand());
+  ASSERT_NE(KernelCmd, nullptr);
+  EXPECT_FALSE(KernelCmd->isSuccessfullyEnqueued());
+
+  detail::EnqueueResultT Result;
+  EXPECT_FALSE(
+      MS.enqueueCommand(KernelCmd, Result, detail::BlockingT::NON_BLOCKING));
+  EXPECT_EQ(Result.MResult, detail::EnqueueResultT::SyclEnqueueBlocked);
+  EXPECT_EQ(Result.MCmd,
+            static_cast<detail::Command *>(EventImplRead->getCommand()));
+  EXPECT_EQ(Result.MCmd->MBlockReason,
+            detail::Command::BlockReason::HostAccessor);
+
+  MS.releaseHostAccessor(&MockReq);
+  EXPECT_TRUE(KernelCmd->isSuccessfullyEnqueued());
 }

@@ -364,7 +364,7 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
       std::lock_guard<std::mutex> Guard(BlockedCmd->MBlockedUsersMutex);
       BlockedCmd->unblock();
     }
-
+    // TODO: consider replacement with enqueueUnblockedCommands
     enqueueLeavesOfReqUnlocked(Req, ToCleanUp);
   }
   cleanupCommands(ToCleanUp);
