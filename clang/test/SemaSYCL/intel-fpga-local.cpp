@@ -1,12 +1,11 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -Wno-return-type -fcxx-exceptions -fsyntax-only -verify -pedantic %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -fsyntax-only -verify %s
 
-// Tests for diagnostic parts of Intel FPGA memory attributes.
+// Tests diagnostics for Intel FPGA memory attributes.
 
 #include "sycl.hpp"
 
 sycl::queue deviceQueue;
 
-//CHECK: FunctionDecl{{.*}}diagnostics
 void diagnostics()
 {
   // **doublepump
@@ -350,7 +349,6 @@ void diagnostics()
   [[intel::force_pow2_depth(0, 1)]] unsigned int force_p2d_2_args[64];
 }
 
-//CHECK: FunctionDecl{{.*}}check_gnu_style
 void check_gnu_style() {
   // GNU style
   //expected-warning@+1{{unknown attribute 'numbanks' ignored}}
@@ -410,7 +408,6 @@ __attribute__((opencl_global)) unsigned int ocl_glob_force_p2d[64] = {1, 2, 3};
 //expected-no-error@+1
 void force_p2d_attr_on_func_arg([[intel::force_pow2_depth(0)]] int pc) {}
 
-//CHECK: FunctionDecl{{.*}}used check_template_parameters
 template <int A, int B, int C, int D, int E>
 void check_template_parameters() {
   [[intel::force_pow2_depth(E)]] const int const_force_p2d_templ[64] = {0, 1};

@@ -1,6 +1,7 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -ast-dump %s | FileCheck %s
 
-// Tests for AST of Intel FPGA memory attributes.
+// Tests AST for Intel FPGA memory attributes.
+
 #include "sycl.hpp"
 
 sycl::queue deviceQueue;
@@ -229,9 +230,8 @@ void check_ast()
   [[intel::numbanks(8)]]
   [[intel::numbanks(16)]] unsigned int nb_nb[64];
 
-  //FIXME: Last one is applied and others ignored.
+  //FIXME: Last one is applied and other is ignored.
   //CHECK: VarDecl{{.*}}mrg_mrg
-  //CHECK: SYCLIntelMergeAttr{{.*}}"mrg4" "depth"{{$}}
   //CHECK: SYCLIntelMergeAttr{{.*}}"mrg5" "width"{{$}}
   [[intel::merge("mrg4", "depth")]]
   [[intel::merge("mrg5", "width")]] unsigned int mrg_mrg[4];
@@ -245,13 +245,6 @@ void check_ast()
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}43
   //CHECK-NEXT: IntegerLiteral{{.*}}43{{$}}
-  //CHECK: SYCLIntelBankBitsAttr
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}1
-  //CHECK-NEXT: IntegerLiteral{{.*}}1{{$}}
-  //CHECK-NEXT: ConstantExpr
-  //CHECK-NEXT: value:{{.*}}2
-  //CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
   [[intel::bank_bits(42, 43)]]
   [[intel::bank_bits(1, 2)]] unsigned int bb_bb[4];
 
@@ -436,7 +429,6 @@ int main() {
   deviceQueue.submit([&](sycl::handler &h) {
     h.single_task<class kernel_function>([]() {
       check_ast();
-      //expected-note@+1{{in instantiation of function template specialization}}
       check_template_parameters<2, 4, 8, 1>();
       struct templ_st<0> ts {};
     });
