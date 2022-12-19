@@ -272,9 +272,6 @@ class USMAllocContext::USMAllocImpl {
   // Configuration for this instance
   USMAllocatorParameters params;
 
-  // Protects the capacity checking of the pool.
-  SpinLock PoolLock;
-
 public:
   USMAllocImpl(std::unique_ptr<SystemMemory> SystemMemHandle,
                USMAllocatorParameters params)
@@ -308,8 +305,6 @@ public:
 
   void printStats(bool &TitlePrinted, size_t &HighBucketSize,
                   size_t &HighPeakSlabsInUse, const std::string &Label);
-
-  SpinLock &getLock() { return PoolLock; }
 
 private:
   Bucket &findBucket(size_t Size);
@@ -582,7 +577,6 @@ void Bucket::onFreeChunk(Slab &Slab, bool &ToPool) {
 }
 
 bool Bucket::CanPool(bool &ToPool) {
-  std::lock_guard<SpinLock> Lock{OwnAllocCtx.getLock()};
   size_t NewFreeSlabsInBucket;
   // Check if this bucket is used in chunked form or as full slabs.
   bool chunkedBucket = getSize() <= ChunkCutOff();
