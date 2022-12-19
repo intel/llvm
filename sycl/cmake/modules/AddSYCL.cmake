@@ -10,7 +10,7 @@ function(add_sycl_library LIB_NAME TYPE)
   target_link_libraries(${LIB_NAME} PRIVATE ${ARG_LIBRARIES})
 
   if (ARG_TOOLCHAIN)
-    add_dependencies(sycl-toolchain ${LIB_NAME})
+    add_dependencies(sycl-runtime-libraries ${LIB_NAME})
   endif()
 
   if (ARG_LINKER_SCRIPT AND UNIX AND NOT APPLE)
