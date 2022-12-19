@@ -22,8 +22,7 @@ queue q;
 
 // CHECK: define linkonce_odr dso_local spir_func void @{{.*}}func4{{.*}} !sycl_declared_aspects ![[ASPECTS3:[0-9]+]] !srcloc ![[SRCLOC5:[0-9]+]]
 // CHECK-SAME: !sycl_used_aspects ![[ASPECTS3]]
-template <sycl::aspect Aspect>
-[[sycl::device_has(Aspect)]] void func4() {}
+template <sycl::aspect Aspect> [[sycl::device_has(Aspect)]] void func4() {}
 
 // CHECK: define dso_local spir_func void @{{.*}}func5{{.*}} !sycl_declared_aspects ![[ASPECTS1]] !srcloc ![[SRCLOC6:[0-9]+]]
 // CHECK-SAME: !sycl_used_aspects ![[ASPECTS1]]
@@ -52,7 +51,8 @@ void foo() {
     KernelFunctor f1;
     h.single_task<class kernel_name_1>(f1);
     // CHECK: define weak_odr dso_local spir_kernel void @{{.*}}kernel_name_2{{.*}} !sycl_declared_aspects ![[ASPECTS4:[0-9]+]] !srcloc ![[SRCLOC8:[0-9]+]] {{.*}}
-    h.single_task<class kernel_name_2>([]() [[sycl::device_has(sycl::aspect::gpu)]] {});
+    h.single_task<class kernel_name_2>(
+        []() [[sycl::device_has(sycl::aspect::gpu)]] {});
   });
 }
 
