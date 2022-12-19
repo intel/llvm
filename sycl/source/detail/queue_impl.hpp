@@ -498,6 +498,15 @@ public:
 
   bool ext_oneapi_empty() const;
 
+  /// Check whether the queue is in fusion mode.
+  ///
+  /// \return true if the queue is in fusion mode, false otherwise.
+  bool is_in_fusion_mode() {
+    return detail::Scheduler::getInstance().isInFusionMode(
+        std::hash<typename std::shared_ptr<queue_impl>::element_type *>()(
+            this));
+  }
+
 protected:
   // template is needed for proper unit testing
   template <typename HandlerType = handler>

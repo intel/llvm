@@ -1,0 +1,189 @@
+= sycl_ext_oneapi_kernel_arg_properties
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+// This is necessary for asciidoc, but not for asciidoctor
+:cpp: C++
+:dpcpp: DPC++
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+== Contributors
+
+Abhishek Tiwari, Intel +
+Joseph Garvey, Intel
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, revision 5.
+
+It depends on the following extensions:
+
+ - link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
+ - link:sycl_ext_oneapi_annotated_ptr.asciidoc[sycl_ext_oneapi_annotated_ptr]
+ - link:sycl_ext_oneapi_annotated_arg.asciidoc[sycl_ext_oneapi_annotated_arg]
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+== Overview
+
+This extension introduces properties that are applied to kernel arguments by
+using the `sycl::ext::oneapi::experimental::annotated_ptr` and
+`sycl::ext::oneapi::experimental::annotated_arg` classes.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_KERNEL_ARG_PROPERTIES` to one of the values defined in
+the table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== `restrict` property
+
+The `restrict` property defined here is only meaningful on the kernel arguments
+when the kernel argument is a pointer type. It is ignored for other types.
+
+This property is not meaningful within the kernel body.
+
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+struct restrict_key {
+  using value_t = property_value<restrict_key>;
+};
+
+inline constexpr restrict_key::value_t restrict;
+
+template<>
+struct is_property_key<restrict_key> : std::true_type {};
+
+template<typename T, typename PropertyListT>
+struct is_property_key_of<
+  restrict_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
+
+template<typename T, typename PropertyListT>
+struct is_property_key_of<
+  restrict_key, annotated_arg<T, PropertyListT>> : std::true_type {};
+} // namespace sycl::ext::oneapi::experimental
+```
+--
+
+[frame="topbot",options="header"]
+|===
+|Property |Description
+
+a|
+[source,c++]
+----
+restrict
+----
+a|
+This is an assertion by the application that the pointer kernel arguments marked
+with this property do not alias with one another with the same semantics as the
+C99 `restrict` keyword. The behavior is undefined if these pointer values do
+alias.
+
+|===
+--
+
+=== Usage Examples
+
+The example below shows a simple kernel with one
+`sycl::ext::oneapi::experimental::annotated_ptr` kernel argument and one
+`sycl::ext::oneapi::experimental::annotated_arg` kernel argument.
+
+.Usage Example
+```c++
+using sycl::ext::oneapi::experimental;
+{
+  sycl::queue q{...};
+
+  // Allocate memory
+  auto ptr_a = ...
+  int* ptr_b = ...;
+
+  // Add properties
+  auto arg_a = annotated_ptr(ptr_a, properties{restrict});
+  auto arg_n = annotated_arg(ptr_b, properties{restrict});
+  ...
+
+  q.single_task([=] {
+    for (int i=0; i< kSize; i++)
+      arg_a[i] = arg_a[i] + arg_n[i];
+  }).wait();
+
+  ...
+}
+```
+
+== Issues
+
+None
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date       |Author           |Changes
+|1  |2022-07-1  |Abhishek Tiwari  |*Initial draft*
+|========================================
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use +mono+ text for device APIs, or [source] syntax highlighting.
+//* Use +mono+ text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************

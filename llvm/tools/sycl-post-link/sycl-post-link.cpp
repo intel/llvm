@@ -437,6 +437,17 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
       MetadataNames.push_back(Func.getName().str() + "@reqd_work_group_size");
       ProgramMetadata.insert({MetadataNames.back(), KernelReqdWorkGroupSize});
     }
+
+    // Add global_id_mapping information with mapping between device-global
+    // unique identifiers and the variable's name in the IR.
+    for (auto &GV : M.globals()) {
+      if (!isDeviceGlobalVariable(GV))
+        continue;
+
+      StringRef GlobalID = getGlobalVariableUniqueId(GV);
+      MetadataNames.push_back(GlobalID.str() + "@global_id_mapping");
+      ProgramMetadata.insert({MetadataNames.back(), GV.getName()});
+    }
   }
   if (MD.isESIMD()) {
     PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isEsimdImage", true});

@@ -199,13 +199,8 @@ void queue_impl::addEvent(const event &Event) {
       addSharedEvent(Event);
   }
   // As long as the queue supports piQueueFinish we only need to store events
-  // with command nodes in the following cases:
-  // 1. Unenqueued commands, since they aren't covered by piQueueFinish.
-  // 2. Kernels with streams, since they are not supported by post enqueue
-  // cleanup.
-  // 3. Host tasks, for both reasons.
-  else if (is_host() || !MSupportOOO || EImpl->getHandleRef() == nullptr ||
-           EImpl->needsCleanupAfterWait()) {
+  // for unenqueued commands and host tasks.
+  else if (is_host() || !MSupportOOO || EImpl->getHandleRef() == nullptr) {
     std::weak_ptr<event_impl> EventWeakPtr{EImpl};
     std::lock_guard<std::mutex> Lock{MMutex};
     MEventsWeak.push_back(std::move(EventWeakPtr));
@@ -366,11 +361,6 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   if (SupportsPiFinish) {
     const detail::plugin &Plugin = getPlugin();
     Plugin.call<detail::PiApiKind::piQueueFinish>(getHandleRef());
-    for (std::weak_ptr<event_impl> &EventImplWeakPtr : WeakEvents)
-      if (std::shared_ptr<event_impl> EventImplSharedPtr =
-              EventImplWeakPtr.lock())
-        if (EventImplSharedPtr->needsCleanupAfterWait())
-          EventImplSharedPtr->cleanupCommand(EventImplSharedPtr);
     assert(SharedEvents.empty() && "Queues that support calling piQueueFinish "
                                    "shouldn't have shared events");
   } else {

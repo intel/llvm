@@ -21,7 +21,7 @@ void test() {
 // CHECK: ClassTemplateDecl {{.*}} {{.*}} KernelFunctor
 // CHECK: ClassTemplateSpecializationDecl {{.*}} {{.*}} class KernelFunctor definition
 // CHECK: CXXRecordDecl {{.*}} {{.*}} implicit class KernelFunctor
-// CHECK: ReqdWorkGroupSizeAttr
+// CHECK: SYCLReqdWorkGroupSizeAttr
 // CHECK-NEXT: ConstantExpr{{.*}}'int'
 // CHECK-NEXT: value: Int 16
 // CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
@@ -48,7 +48,7 @@ int check() {
 }
 // CHECK: FunctionTemplateDecl {{.*}} {{.*}} func3
 // CHECK: FunctionDecl {{.*}} {{.*}} used func3 'void ()'
-// CHECK: ReqdWorkGroupSizeAttr
+// CHECK: SYCLReqdWorkGroupSizeAttr
 // CHECK-NEXT: ConstantExpr{{.*}}'int'
 // CHECK-NEXT: value: Int 8
 // CHECK: SubstNonTypeTemplateParmExpr {{.*}}
@@ -65,7 +65,7 @@ int check() {
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
 
-[[sycl::reqd_work_group_size(4)]] void f4x1x1() {}
+[[sycl::reqd_work_group_size(4)]] void f4() {}
 
 class Functor16 {
 public:
@@ -80,7 +80,7 @@ public:
 class Functor {
 public:
   void operator()() const {
-    f4x1x1();
+    f4();
   }
 };
 
@@ -99,35 +99,23 @@ public:
 int main() {
   q.submit([&](handler &h) {
     // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name1
-    // CHECK: ReqdWorkGroupSizeAttr
+    // CHECK: SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 16
     // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     Functor16 f16;
     h.single_task<class kernel_name1>(f16);
 
     // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name2
-    // CHECK: ReqdWorkGroupSizeAttr
+    // CHECK: SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
     Functor f;
     h.single_task<class kernel_name2>(f);
 
     // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name3
-    // CHECK: ReqdWorkGroupSizeAttr
+    // CHECK: SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 16
     // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
@@ -141,7 +129,7 @@ int main() {
     h.single_task<class kernel_name3>(f16x16x16);
 
     // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name4
-    // CHECK: ReqdWorkGroupSizeAttr
+    // CHECK: SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 128
     // CHECK-NEXT:  IntegerLiteral{{.*}}128{{$}}
@@ -155,7 +143,7 @@ int main() {
     h.single_task<class kernel_name4>(fattr);
 
     // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
-    // CHECK: ReqdWorkGroupSizeAttr
+    // CHECK: SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 32
     // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
@@ -184,7 +172,7 @@ int main() {
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    // CHECK: ReqdWorkGroupSizeAttr
+    // CHECK: SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 2
     // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}

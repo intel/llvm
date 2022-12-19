@@ -105,7 +105,7 @@ macro(add_libclc_builtin_set arch_suffix)
   install(
     FILES ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
     DESTINATION ${CMAKE_INSTALL_DATADIR}/clc )
-  
+
   # Generate remangled variants if requested
   if( LIBCLC_GENERATE_REMANGLED_VARIANTS )
     set(dummy_in "${CMAKE_BINARY_DIR}/lib/clc/libclc_dummy_in.cc")
@@ -148,6 +148,29 @@ macro(add_libclc_builtin_set arch_suffix)
           FILES ${builtins_remangle_path}
           DESTINATION ${CMAKE_INSTALL_DATADIR}/clc )
       endforeach()
+    endforeach()
+
+    # For remangler tests we do not care about long_width, or signedness, as it
+    # performs no substitutions.
+    # Collect all remangler tests in libclc-remangler-tests to later add
+    # dependency against check-libclc.
+    set(libclc-remangler-tests)
+    set(libclc-remangler-test-no 0)
+    set(libclc-remangler-target-ir
+         "$<TARGET_PROPERTY:opt.${obj_suffix},TARGET_FILE>"
+         "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/builtins.link.${obj_suffix}"
+         "$<TARGET_PROPERTY:prepare-${obj_suffix},TARGET_FILE>")
+    foreach(target-ir ${libclc-remangler-target-ir})
+      math(EXPR libclc-remangler-test-no "${libclc-remangler-test-no}+1")
+      set(current-test "libclc-remangler-test-${obj_suffix}-${libclc-remangler-test-no}")
+      add_custom_target(${current-test}
+        COMMAND libclc-remangler
+        --long-width=l32
+        --char-signedness=signed
+        --input-ir=${target-ir}
+        ${dummy_in} -t -o -
+        DEPENDS "${builtins_obj_path}" "prepare-${obj_suffix}" "${dummy_in}" libclc-remangler)
+      list(APPEND libclc-remangler-tests ${current-test})
     endforeach()
   endif()
 

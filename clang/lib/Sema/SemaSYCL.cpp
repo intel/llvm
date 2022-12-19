@@ -531,7 +531,7 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
     llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
       // FIXME: Make this list self-adapt as new SYCL attributes are added.
       return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
-                 ReqdWorkGroupSizeAttr, WorkGroupSizeHintAttr,
+                 SYCLReqdWorkGroupSizeAttr, WorkGroupSizeHintAttr,
                  SYCLIntelKernelArgsRestrictAttr, SYCLIntelNumSimdWorkItemsAttr,
                  SYCLIntelSchedulerTargetFmaxMhzAttr,
                  SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
@@ -4353,12 +4353,12 @@ static void PropagateAndDiagnoseDeviceAttr(
     }
     break;
   }
-  case attr::Kind::ReqdWorkGroupSize: {
-    auto *RWGSA = cast<ReqdWorkGroupSizeAttr>(A);
-    if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
-      if (*Existing->getXDimVal() != *RWGSA->getXDimVal() ||
-          *Existing->getYDimVal() != *RWGSA->getYDimVal() ||
-          *Existing->getZDimVal() != *RWGSA->getZDimVal()) {
+  case attr::Kind::SYCLReqdWorkGroupSize: {
+    auto *RWGSA = cast<SYCLReqdWorkGroupSizeAttr>(A);
+    if (auto *Existing = SYCLKernel->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
+      if (S.AnyWorkGroupSizesDiffer(Existing->getXDim(), Existing->getYDim(),
+                                    Existing->getZDim(), RWGSA->getXDim(),
+                                    RWGSA->getYDim(), RWGSA->getZDim())) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -4367,9 +4367,9 @@ static void PropagateAndDiagnoseDeviceAttr(
       }
     } else if (auto *Existing =
                    SYCLKernel->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-      if (*Existing->getXDimVal() < *RWGSA->getXDimVal() ||
-          *Existing->getYDimVal() < *RWGSA->getYDimVal() ||
-          *Existing->getZDimVal() < *RWGSA->getZDimVal()) {
+      if (S.CheckMaxAllowedWorkGroupSize(
+              RWGSA->getXDim(), RWGSA->getYDim(), RWGSA->getZDim(),
+              Existing->getXDim(), Existing->getYDim(), Existing->getZDim())) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -4386,9 +4386,9 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::WorkGroupSizeHint: {
     auto *WGSH = cast<WorkGroupSizeHintAttr>(A);
     if (auto *Existing = SYCLKernel->getAttr<WorkGroupSizeHintAttr>()) {
-      if (Existing->getXDimVal() != WGSH->getXDimVal() ||
-          Existing->getYDimVal() != WGSH->getYDimVal() ||
-          Existing->getZDimVal() != WGSH->getZDimVal()) {
+      if (S.AnyWorkGroupSizesDiffer(Existing->getXDim(), Existing->getYDim(),
+                                    Existing->getZDim(), WGSH->getXDim(),
+                                    WGSH->getYDim(), WGSH->getZDim())) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -4401,10 +4401,10 @@ static void PropagateAndDiagnoseDeviceAttr(
   }
   case attr::Kind::SYCLIntelMaxWorkGroupSize: {
     auto *SIMWGSA = cast<SYCLIntelMaxWorkGroupSizeAttr>(A);
-    if (auto *Existing = SYCLKernel->getAttr<ReqdWorkGroupSizeAttr>()) {
-      if (*Existing->getXDimVal() > *SIMWGSA->getXDimVal() ||
-          *Existing->getYDimVal() > *SIMWGSA->getYDimVal() ||
-          *Existing->getZDimVal() > *SIMWGSA->getZDimVal()) {
+    if (auto *Existing = SYCLKernel->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
+      if (S.CheckMaxAllowedWorkGroupSize(
+              Existing->getXDim(), Existing->getYDim(), Existing->getZDim(),
+              SIMWGSA->getXDim(), SIMWGSA->getYDim(), SIMWGSA->getZDim())) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
