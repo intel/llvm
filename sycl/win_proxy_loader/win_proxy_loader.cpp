@@ -131,12 +131,24 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, // handle to DLL module
                     DWORD fdwReason,    // reason for calling function
                     LPVOID lpReserved)  // reserved
 {
+  bool PrintPiTrace = false;
+  static const char *PiTrace = std::getenv("SYCL_PI_TRACE");
+  static const int PiTraceValue = PiTrace ? std::stoi(PiTrace) : 0;
+  if (PiTraceValue == -1 || PiTraceValue == 2) { // Means print all PI traces
+    PrintPiTrace = true;
+  }
+  
   switch (fdwReason) {
   case DLL_PROCESS_ATTACH:
+    if(PrintPiTrace)
+      std::cout << "---> DLL_PROCESS_ATTACH win_proxy_loader.dll\n" << std::endl;
+    
     preloadLibraries();
-
     break;
   case DLL_PROCESS_DETACH:
+     if(PrintPiTrace)
+      std::cout << "---> DLL_PROCESS_DETACH win_proxy_loader.dll\n" << std::endl;
+     
   case DLL_THREAD_ATTACH:
   case DLL_THREAD_DETACH:
     break;

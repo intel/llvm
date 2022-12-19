@@ -226,12 +226,24 @@ void shutdown() {
 extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                                              DWORD fdwReason,
                                              LPVOID lpReserved) {
+  bool PrintPiTrace = false;
+  static const char *PiTrace = std::getenv("SYCL_PI_TRACE");
+  static const int PiTraceValue = PiTrace ? std::stoi(PiTrace) : 0;
+  if (PiTraceValue == -1 || PiTraceValue == 2) { // Means print all PI traces
+    PrintPiTrace = true;
+  }
+  
   // Perform actions based on the reason for calling.
   switch (fdwReason) {
   case DLL_PROCESS_DETACH:
+    if(PrintPiTrace)
+      std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
+    
     shutdown();
     break;
   case DLL_PROCESS_ATTACH:
+    if(PrintPiTrace)
+      std::cout << "---> DLL_PROCESS_ATTACH syclx.dll\n" << std::endl;
   case DLL_THREAD_ATTACH:
   case DLL_THREAD_DETACH:
     break;

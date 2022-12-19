@@ -9258,4 +9258,11 @@ pi_result _pi_buffer::free() {
   }
   return PI_SUCCESS;
 }
+
+#ifdef _WIN32
+  #define __SYCL_PLUGIN_DLL_NAME "pi_level_zero.dll"
+  #include "../common_win_pi_trace/common_win_pi_trace.hpp"
+  #undef __SYCL_PLUGIN_DLL_NAME
+#endif
+  
 } // extern "C"
