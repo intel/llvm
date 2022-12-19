@@ -33,13 +33,13 @@ int foo() {
 
 // Check that kernel is not marked with !sycl-framework metadata
 // CHECK-NOT: @_ZTSZ4mainE6kernel() {{.*}} !sycl-framework
-template <typename name, typename Func>
+/*template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(const Func &func) {
   func();
-}
+}*/
 
 int main() {
-  kernel_single_task<class kernel>([]() {
+  sycl::kernel_single_task<class kernel>([]() {
     foo();
     sycl::bar1();
     sycl::V1::bar2();
