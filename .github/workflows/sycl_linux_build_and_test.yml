@@ -181,9 +181,10 @@ jobs:
       - name: Setup script
         run: |
           mkdir -p ./aws-ec2
-          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/action.yml   -P ./aws-ec2
-          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/aws-ec2.js   -P ./aws-ec2
-          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/package.json -P ./aws-ec2
+          # TEMPORARY CHANGE, DO NOT MERGE!
+          wget raw.githubusercontent.com/intel/llvm/aws/devops/actions/aws-ec2/action.yml   -P ./aws-ec2
+          wget raw.githubusercontent.com/intel/llvm/aws/devops/actions/aws-ec2/aws-ec2.js   -P ./aws-ec2
+          wget raw.githubusercontent.com/intel/llvm/aws/devops/actions/aws-ec2/package.json -P ./aws-ec2
           npm install ./aws-ec2
       - name: Start AWS EC2 runners
         uses: ./aws-ec2
