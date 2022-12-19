@@ -312,16 +312,16 @@ class command_graph {};
 template<>
 class command_graph<graph_state::modifiable> {
 public:
-  command_graph(const property_list &propList = {});
-  command_graph<graph_state::executable> finalize(const context &syclContext) const;
+  command_graph(const property_list& propList = {});
+  command_graph<graph_state::executable> finalize(const context& syclContext) const;
 
   node add(const property_list& propList = {});
 
   template<typename T>
   node add(T cgf, const property_list& propList = {});
 
-  node add_malloc_device(void *&data, size_t numBytes, const property_list& propList = {});
-  node add_free(void *data, const property_list& propList = {});
+  node add_malloc_device(void*& data, size_t numBytes, const property_list& propList = {});
+  node add_free(void* data, const property_list& propList = {});
 
   void make_edge(node src, node dest);
 };
@@ -330,7 +330,7 @@ template<>
 class command_graph<graph_state::executable> {
 public:
     command_graph() = delete;
-    void update(const command_graph<graph_state::modifiable> &graph);
+    void update(const command_graph<graph_state::modifiable>& graph);
 };
 }  // namespace ext::oneapi::experimental
 
@@ -338,7 +338,7 @@ public:
 using namespace ext::oneapi::experimental;
 class queue {
 public:
-  bool begin_recording(command_graph<graph_state::modifiable> &graph);
+  bool begin_recording(command_graph<graph_state::modifiable>& graph);
   bool end_recording();
 
   /* -- graph convenience shortcuts -- */
@@ -347,7 +347,7 @@ public:
   event exec_graph(command_graph<graph_state::executable> graph,
                    event depEvent);
   event exec_graph(command_graph<graph_state::executable> graph,
-                   const std::vector<event> &depEvents);
+                   const std::vector<event>& depEvents);
 };
 
 // New methods added to the sycl::handler class
@@ -459,7 +459,7 @@ Table 5. Constructor of the `command_graph` class.
 [source,c++]
 ----
 using namespace ext::oneapi::experimental;
-command_graph(const property_list &propList = {});
+command_graph(const property_list& propList = {});
 ----
 |Creates a SYCL `command_graph` object in the modifiable state.
 Zero or more properties can be provided to the constructed SYCL `command_graph`
@@ -578,7 +578,7 @@ Exceptions:
 [source,c++]
 ----
 using namespace ext::oneapi::experimental;
-command_graph<graph_state::executable> finalize(const context &syclContext) const;
+command_graph<graph_state::executable> finalize(const context& syclContext) const;
 ----
 
 |Synchronous operation that creates a graph in the executable state with a
@@ -621,7 +621,7 @@ Table 7. Member functions of the `command_graph` class (memory operations).
 [source,c++]
 ----
 using namespace ext::oneapi::experimental;
-node add_malloc_device(void *&data, size_t numBytes, const property_list& propList = {});
+node add_malloc_device(void*& data, size_t numBytes, const property_list& propList = {});
 ----
 |Adding a node that encapsulates a memory allocation operation.
 
@@ -650,7 +650,7 @@ Exceptions:
 [source,c++]
 ----
 using namespace ext::oneapi::experimental;
-node add_free(void *data, const property_list& propList = {});
+node add_free(void* data, const property_list& propList = {});
 ----
 |Adding a node that encapsulates a memory free operation.
 
@@ -684,7 +684,7 @@ Table 8. Member functions of the `command_graph` class (executable graph update)
 [source, c++]
 ----
 using namespace ext::oneapi::experimental;
-void command_graph<graph_state::executable> update(const command_graph<graph_state::modifiable> &graph);
+void command_graph<graph_state::executable> update(const command_graph<graph_state::modifiable>& graph);
 ----
 
 |Updates the executable graph node inputs & outputs from a topologically
@@ -802,7 +802,7 @@ Table 8. Additional member functions of the `sycl::queue` class.
 [source, c++]
 ----
 using namespace ext::oneapi::experimental;
-bool queue::begin_recording(command_graph<graph_state::modifiable> &graph)
+bool queue::begin_recording(command_graph<graph_state::modifiable>& graph)
 ----
 
 |Synchronously changes the state of the queue to the `queue_state::recording`
@@ -859,7 +859,7 @@ containing `handler::depends_on(depEvent)` and `handler::exec_graph(graph)`.
 ----
 using namespace ext::oneapi::experimental;
 event queue::exec_graph(command_graph<graph_state::executable> graph,
-                        const std::vector<event> &depEvents);
+                        const std::vector<event>& depEvents);
 ----
 
 |Queue shortcut function that is equivalent to submitting a command-group
@@ -1009,7 +1009,7 @@ int main() {
   auto node_z = g.add_malloc_device(z, n * sizeof(float));
 
   /* init data on the device */
-  auto node_i = g.add([&](sycl::handler &h) {
+  auto node_i = g.add([&](sycl::handler& h) {
     h.parallel_for(n, [=](sycl::id<1> it){
       const size_t i = it[0];
       x[i] = 1.0f;
@@ -1018,14 +1018,14 @@ int main() {
     });
   }, { sycl_ext::property::node::depends_on(node_x, node_y, node_z)});
 
-  auto node_a = g.add([&](sycl::handler &h) {
+  auto node_a = g.add([&](sycl::handler& h) {
     h.parallel_for(sycl::range<1>{n}, [=](sycl::id<1> it) {
       const size_t i = it[0];
       x[i] = alpha * x[i] + beta * y[i];
     });
   }, { sycl_ext::property::node::depends_on(node_i)});
 
-  auto node_b = g.add([&](sycl::handler &h) {
+  auto node_b = g.add([&](sycl::handler& h) {
     h.parallel_for(sycl::range<1>{n}, [=](sycl::id<1> it) {
       const size_t i = it[0];
       z[i] = gamma * z[i] + beta * y[i];
@@ -1033,7 +1033,7 @@ int main() {
   }, { sycl_ext::property::node::depends_on(node_i)});
 
   auto node_c = g.add(
-      [&](sycl::handler &h) {
+      [&](sycl::handler& h) {
         h.parallel_for(sycl::range<1>{n},
                        sycl::reduction(dotp, 0.0f, std::plus()),
                        [=](sycl::id<1> it, auto &sum) {
@@ -1074,6 +1074,7 @@ submitted in its entirety for execution via
 
 [source, c++]
 ----
+  using namespace sycl;
   queue q{default_selector{}};
 
   // New object representing graph of command-groups
@@ -1099,27 +1100,27 @@ submitted in its entirety for execution via
     //       \         /
     //     decrement_kernel
 
-    q.submit([&](handler &cgh) {
+    q.submit([&](handler& cgh) {
       auto pData = bufferA.get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<increment_kernel>(range<1>(elements),
                                          [=](item<1> id) { pData[id]++; });
     });
 
-    q.submit([&](handler &cgh) {
+    q.submit([&](handler& cgh) {
       auto pData1 = bufferA.get_access<access::mode::read>(cgh);
       auto pData2 = bufferB.get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<add_kernel>(range<1>(elements),
                                    [=](item<1> id) { pData2[id] += pData1[id]; });
     });
 
-    q.submit([&](handler &cgh) {
+    q.submit([&](handler& cgh) {
       auto pData1 = bufferA.get_access<access::mode::read>(cgh);
       auto pData2 = bufferC.get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<subtract_kernel>(
           range<1>(elements), [=](item<1> id) { pData2[id] -= pData1[id]; });
     });
 
-    q.submit([&](handler &cgh) {
+    q.submit([&](handler& cgh) {
       auto pData1 = bufferB.get_access<access::mode::read_write>(cgh);
       auto pData2 = bufferC.get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<decrement_kernel>(range<1>(elements), [=](item<1> id) {
@@ -1138,7 +1139,7 @@ submitted in its entirety for execution via
   auto exec_graph = graph.finalize(q.get_context());
 
   // Execute graph
-  q.submit([&](handler &cgh) {
+  q.submit([&](handler& cgh) {
     cgh.exec_graph(exec_graph);
   });
 
