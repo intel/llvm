@@ -130,7 +130,7 @@ int main() {
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK:       SYCLReqdWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 3
     // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
@@ -143,7 +143,7 @@ int main() {
 
     h.single_task<class test_kernel5>(TRIFuncObjGood2());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel5
-    // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK:       SYCLReqdWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 3
     // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
@@ -164,7 +164,7 @@ int main() {
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK:       SYCLReqdWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 3
     // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
@@ -177,7 +177,7 @@ int main() {
 
     h.single_task<class test_kernel7>(TRIFuncObjGood4());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel7
-    // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK:       SYCLReqdWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 3
     // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
@@ -198,7 +198,7 @@ int main() {
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 5
     // CHECK-NEXT:  IntegerLiteral{{.*}}5{{$}}
-    // CHECK:       ReqdWorkGroupSizeAttr
+    // CHECK:       SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 3
     // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
@@ -211,7 +211,7 @@ int main() {
 
     h.single_task<class test_kernel9>(TRIFuncObjGood6());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel9
-    // CHECK:       ReqdWorkGroupSizeAttr
+    // CHECK:       SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 3
     // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}

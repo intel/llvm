@@ -51,6 +51,24 @@ class use_default_stream
 // clang-format on
 } // namespace property::queue
 
+namespace ext {
+namespace intel {
+namespace property {
+namespace queue {
+class compute_index : public sycl::detail::PropertyWithData<
+                          sycl::detail::PropWithDataKind::QueueComputeIndex> {
+public:
+  compute_index(int idx) : idx(idx) {}
+  int get_index() { return idx; }
+
+private:
+  int idx;
+};
+} // namespace queue
+} // namespace property
+} // namespace intel
+} // namespace ext
+
 // Forward declaration
 class queue;
 
@@ -78,6 +96,9 @@ struct is_property_of<property::queue::cuda::use_default_stream, queue>
 template <>
 struct is_property_of<ext::oneapi::cuda::property::queue::use_default_stream,
                       queue> : std::true_type {};
+template <>
+struct is_property_of<ext::intel::property::queue::compute_index, queue>
+    : std::true_type {};
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
