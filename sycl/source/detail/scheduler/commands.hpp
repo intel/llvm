@@ -104,7 +104,8 @@ public:
     UNMAP_MEM_OBJ,
     UPDATE_REQUIREMENT,
     EMPTY_TASK,
-    HOST_TASK
+    HOST_TASK,
+    FUSION
   };
 
   Command(CommandType Type, QueueImplPtr Queue);
@@ -571,6 +572,8 @@ pi_int32 enqueueImpKernel(
     std::vector<RT::PiEvent> &RawEvents, RT::PiEvent *OutEvent,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc);
 
+class KernelFusionCommand;
+
 /// The exec CG command enqueues execution of kernel or explicit memory
 /// operation.
 class ExecCGCommand : public Command {
@@ -585,6 +588,17 @@ public:
   void emitInstrumentationData() final;
 
   detail::CG &getCG() const { return *MCommandGroup; }
+
+  // MEmptyCmd is only employed if this command refers to host-task.
+  // The mechanism of lookup for single EmptyCommand amongst users of
+  // host-task-representing command is unreliable. This unreliability roots in
+  // the cleanup process.
+  EmptyCommand *MEmptyCmd = nullptr;
+
+  // MFusionCommand is employed to mark a CG command as part of a kernel fusion
+  // and allows to refer back to the corresponding KernelFusionCommand if
+  // necessary.
+  KernelFusionCommand *MFusionCmd = nullptr;
 
   bool producesPiEvent() const final;
 
@@ -617,6 +631,43 @@ private:
   AllocaCommandBase *MSrcAllocaCmd = nullptr;
   Requirement MDstReq;
   void **MDstPtr = nullptr;
+};
+
+/// The KernelFusionCommand is placed in the execution graph together with the
+/// individual kernels of the fusion list to control kernel fusion.
+class KernelFusionCommand : public Command {
+public:
+  enum class FusionStatus { ACTIVE, CANCELLED, COMPLETE, DELETED };
+
+  explicit KernelFusionCommand(QueueImplPtr Queue);
+
+  void printDot(std::ostream &Stream) const final;
+  void emitInstrumentationData() final;
+  bool producesPiEvent() const final;
+
+  std::vector<Command *> &auxiliaryCommands();
+
+  void addToFusionList(ExecCGCommand *Kernel);
+
+  std::vector<ExecCGCommand *> &getFusionList();
+
+  ///
+  /// Set the status of this fusion command to \p Status. This function should
+  /// only be called under the protection of the scheduler write-lock.
+  void setFusionStatus(FusionStatus Status);
+
+  bool isActive() const { return MStatus == FusionStatus::ACTIVE; }
+
+  bool readyForDeletion() const { return MStatus == FusionStatus::DELETED; }
+
+private:
+  pi_int32 enqueueImp() final;
+
+  std::vector<ExecCGCommand *> MFusionList;
+
+  std::vector<Command *> MAuxiliaryCommands;
+
+  FusionStatus MStatus;
 };
 
 } // namespace detail
