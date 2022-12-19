@@ -59,7 +59,7 @@ inputs:
   aws-region:
     description: "AWS EC2 region"
     required: false
-    default: "us-east-2" # Ohio
+    default: "us-east-1" # North Virginia
 
 runs:
   using: node16
