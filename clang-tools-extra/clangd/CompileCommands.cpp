@@ -28,6 +28,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
 #include <iterator>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -41,34 +42,34 @@ llvm::Optional<std::string> queryXcrun(llvm::ArrayRef<llvm::StringRef> Argv) {
   auto Xcrun = llvm::sys::findProgramByName("xcrun");
   if (!Xcrun) {
     log("Couldn't find xcrun. Hopefully you have a non-apple toolchain...");
-    return llvm::None;
+    return std::nullopt;
   }
   llvm::SmallString<64> OutFile;
   llvm::sys::fs::createTemporaryFile("clangd-xcrun", "", OutFile);
   llvm::FileRemover OutRemover(OutFile);
-  llvm::Optional<llvm::StringRef> Redirects[3] = {
+  std::optional<llvm::StringRef> Redirects[3] = {
       /*stdin=*/{""}, /*stdout=*/{OutFile.str()}, /*stderr=*/{""}};
   vlog("Invoking {0} to find clang installation", *Xcrun);
   int Ret = llvm::sys::ExecuteAndWait(*Xcrun, Argv,
-                                      /*Env=*/llvm::None, Redirects,
+                                      /*Env=*/std::nullopt, Redirects,
                                       /*SecondsToWait=*/10);
   if (Ret != 0) {
     log("xcrun exists but failed with code {0}. "
         "If you have a non-apple toolchain, this is OK. "
         "Otherwise, try xcode-select --install.",
         Ret);
-    return llvm::None;
+    return std::nullopt;
   }
 
   auto Buf = llvm::MemoryBuffer::getFile(OutFile);
   if (!Buf) {
     log("Can't read xcrun output: {0}", Buf.getError().message());
-    return llvm::None;
+    return std::nullopt;
   }
   StringRef Path = Buf->get()->getBuffer().trim();
   if (Path.empty()) {
     log("xcrun produced no output");
-    return llvm::None;
+    return std::nullopt;
   }
   return Path.str();
 }
@@ -119,12 +120,12 @@ std::string detectClangPath() {
 // The effect of this is to set -isysroot correctly. We do the same.
 llvm::Optional<std::string> detectSysroot() {
 #ifndef __APPLE__
-  return llvm::None;
+  return std::nullopt;
 #endif
 
   // SDKROOT overridden in environment, respect it. Driver will set isysroot.
   if (::getenv("SDKROOT"))
-    return llvm::None;
+    return std::nullopt;
   return queryXcrun({"xcrun", "--show-sdk-path"});
 }
 

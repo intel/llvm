@@ -679,8 +679,8 @@ static void simplifyExprAndOperands(AffineExpr &expr,
     return;
 
   // Simplify the child expressions first.
-  auto lhs = binExpr.getLHS();
-  auto rhs = binExpr.getRHS();
+  AffineExpr lhs = binExpr.getLHS();
+  AffineExpr rhs = binExpr.getRHS();
   simplifyExprAndOperands(lhs, operands);
   simplifyExprAndOperands(rhs, operands);
   expr = getAffineBinaryOpExpr(binExpr.getKind(), lhs, rhs);
@@ -691,11 +691,18 @@ static void simplifyExprAndOperands(AffineExpr &expr,
     return;
   }
 
+  // The `lhs` and `rhs` may be different post construction of simplified expr.
+  lhs = binExpr.getLHS();
+  rhs = binExpr.getRHS();
   auto rhsConst = rhs.dyn_cast<AffineConstantExpr>();
   if (!rhsConst)
     return;
 
   int64_t rhsConstVal = rhsConst.getValue();
+  // Undefined exprsessions aren't touched; IR can still be valid with them.
+  if (rhsConstVal == 0)
+    return;
+
   AffineExpr quotientTimesDiv, rem;
   int64_t divisor;
 
@@ -911,7 +918,7 @@ template <typename OpTy, typename... Args>
 static std::enable_if_t<OpTy::template hasTrait<OpTrait::OneResult>(),
                         OpFoldResult>
 createOrFold(OpBuilder &b, Location loc, ValueRange operands,
-             Args &&...leadingArguments) {
+             Args &&... leadingArguments) {
   // Identify the constant operands and extract their values as attributes.
   // Note that we cannot use the original values directly because the list of
   // operands may have changed due to canonicalization and composition.
@@ -2000,7 +2007,7 @@ namespace {
 static Optional<uint64_t> getTrivialConstantTripCount(AffineForOp forOp) {
   int64_t step = forOp.getStep();
   if (!forOp.hasConstantBounds() || step <= 0)
-    return None;
+    return std::nullopt;
   int64_t lb = forOp.getConstantLowerBound();
   int64_t ub = forOp.getConstantUpperBound();
   return ub - lb <= 0 ? 0 : (ub - lb + step - 1) / step;
@@ -2256,7 +2263,7 @@ Optional<Value> AffineForOp::getSingleInductionVar() {
 
 Optional<OpFoldResult> AffineForOp::getSingleLowerBound() {
   if (!hasConstantLowerBound())
-    return llvm::None;
+    return std::nullopt;
   OpBuilder b(getContext());
   return OpFoldResult(b.getI64IntegerAttr(getConstantLowerBound()));
 }
@@ -2268,7 +2275,7 @@ Optional<OpFoldResult> AffineForOp::getSingleStep() {
 
 Optional<OpFoldResult> AffineForOp::getSingleUpperBound() {
   if (!hasConstantUpperBound())
-    return llvm::None;
+    return std::nullopt;
   OpBuilder b(getContext());
   return OpFoldResult(b.getI64IntegerAttr(getConstantUpperBound()));
 }
@@ -2309,6 +2316,19 @@ void mlir::extractForInductionVars(ArrayRef<AffineForOp> forInsts,
   ivs->reserve(forInsts.size());
   for (auto forInst : forInsts)
     ivs->push_back(forInst.getInductionVar());
+}
+
+void mlir::extractInductionVars(ArrayRef<mlir::Operation *> affineOps,
+                                SmallVectorImpl<mlir::Value> &ivs) {
+  ivs.reserve(affineOps.size());
+  for (Operation *op : affineOps) {
+    // Add constraints from forOp's bounds.
+    if (auto forOp = dyn_cast<AffineForOp>(op))
+      ivs.push_back(forOp.getInductionVar());
+    else if (auto parallelOp = dyn_cast<AffineParallelOp>(op))
+      for (size_t i = 0; i < parallelOp.getBody()->getNumArguments(); i++)
+        ivs.push_back(parallelOp.getBody()->getArgument(i));
+  }
 }
 
 /// Builds an affine loop nest, using "loopCreatorFn" to create individual loop
@@ -2358,8 +2378,8 @@ static AffineForOp
 buildAffineLoopFromConstants(OpBuilder &builder, Location loc, int64_t lb,
                              int64_t ub, int64_t step,
                              AffineForOp::BodyBuilderFn bodyBuilderFn) {
-  return builder.create<AffineForOp>(loc, lb, ub, step, /*iterArgs=*/llvm::None,
-                                     bodyBuilderFn);
+  return builder.create<AffineForOp>(loc, lb, ub, step,
+                                     /*iterArgs=*/std::nullopt, bodyBuilderFn);
 }
 
 /// Creates an affine loop from the bounds that may or may not be constants.
@@ -2374,7 +2394,7 @@ buildAffineLoopFromValues(OpBuilder &builder, Location loc, Value lb, Value ub,
                                         ubConst.value(), step, bodyBuilderFn);
   return builder.create<AffineForOp>(loc, lb, builder.getDimIdentityMap(), ub,
                                      builder.getDimIdentityMap(), step,
-                                     /*iterArgs=*/llvm::None, bodyBuilderFn);
+                                     /*iterArgs=*/std::nullopt, bodyBuilderFn);
 }
 
 void mlir::buildAffineLoopNest(
@@ -2512,6 +2532,29 @@ struct AlwaysTrueOrFalseIf : public OpRewritePattern<AffineIfOp> {
   }
 };
 } // namespace
+
+/// AffineIfOp has two regions -- `then` and `else`. The flow of data should be
+/// as follows: AffineIfOp -> `then`/`else` -> AffineIfOp
+void AffineIfOp::getSuccessorRegions(
+    Optional<unsigned> index, ArrayRef<Attribute> operands,
+    SmallVectorImpl<RegionSuccessor> &regions) {
+  // If the predecessor is an AffineIfOp, then branching into both `then` and
+  // `else` region is valid.
+  if (!index.has_value()) {
+    regions.reserve(2);
+    regions.push_back(
+        RegionSuccessor(&getThenRegion(), getThenRegion().getArguments()));
+    // Don't consider the else region if it is empty.
+    if (!getElseRegion().empty())
+      regions.push_back(
+          RegionSuccessor(&getElseRegion(), getElseRegion().getArguments()));
+    return;
+  }
+
+  // If the predecessor is the `else`/`then` region, then branching into parent
+  // op is valid.
+  regions.push_back(RegionSuccessor(getResults()));
+}
 
 LogicalResult AffineIfOp::verify() {
   // Verify that we have a condition attribute.
@@ -3521,7 +3564,7 @@ AffineValueMap AffineParallelOp::getUpperBoundsValueMap() {
 
 Optional<SmallVector<int64_t, 8>> AffineParallelOp::getConstantRanges() {
   if (hasMinMaxBounds())
-    return llvm::None;
+    return std::nullopt;
 
   // Try to convert all the ranges to constant expressions.
   SmallVector<int64_t, 8> out;
@@ -3533,7 +3576,7 @@ Optional<SmallVector<int64_t, 8>> AffineParallelOp::getConstantRanges() {
     auto expr = rangesValueMap.getResult(i);
     auto cst = expr.dyn_cast<AffineConstantExpr>();
     if (!cst)
-      return llvm::None;
+      return std::nullopt;
     out.push_back(cst.getValue());
   }
   return out;

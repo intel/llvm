@@ -94,6 +94,8 @@ jobs:
           build-args: |
             compute_runtime_tag=${{fromJson(steps.deps.outputs.deps).linux.compute_runtime.github_tag}}
             igc_tag=${{fromJson(steps.deps.outputs.deps).linux.igc.github_tag}}
+            cm_tag=${{fromJson(steps.deps.outputs.deps).linux.cm.github_tag}}
+            level_zero_tag=${{fromJson(steps.deps.outputs.deps).linux.level_zero.github_tag}}
             tbb_tag=${{fromJson(steps.deps.outputs.deps).linux.tbb.github_tag}}
             fpgaemu_tag=${{fromJson(steps.deps.outputs.deps).linux.fpgaemu.github_tag}}
             cpu_tag=${{fromJson(steps.deps.outputs.deps).linux.oclcpu.github_tag}}
@@ -128,12 +130,8 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}/ubuntu2004_intel_drivers:unstable-${{ github.sha }}
             ghcr.io/${{ github.repository }}/ubuntu2004_intel_drivers:unstable
-          build-args: |
-            compute_runtime_tag=${{fromJson(steps.deps.outputs.deps).linux_staging.compute_runtime.github_tag}}
-            igc_tag=${{fromJson(steps.deps.outputs.deps).linux_staging.igc.github_tag}}
-            tbb_tag=${{fromJson(steps.deps.outputs.deps).linux_staging.tbb.github_tag}}
-            fpgaemu_tag=${{fromJson(steps.deps.outputs.deps).linux_staging.fpgaemu.github_tag}}
-            cpu_tag=${{fromJson(steps.deps.outputs.deps).linux_staging.oclcpu.github_tag}}
+          # build-args:empty , so we automatically take the "latest" tags as
+          # unstable
 
   base_image_ubuntu2204:
     if: github.repository == 'intel/llvm'
@@ -207,10 +205,11 @@ jobs:
           build-args: |
             compute_runtime_tag=${{fromJson(steps.deps.outputs.deps).linux.compute_runtime.github_tag}}
             igc_tag=${{fromJson(steps.deps.outputs.deps).linux.igc.github_tag}}
+            cm_tag=${{fromJson(steps.deps.outputs.deps).linux.cm.github_tag}}
+            level_zero_tag=${{fromJson(steps.deps.outputs.deps).linux.level_zero.github_tag}}
             tbb_tag=${{fromJson(steps.deps.outputs.deps).linux.tbb.github_tag}}
             fpgaemu_tag=${{fromJson(steps.deps.outputs.deps).linux.fpgaemu.github_tag}}
             cpu_tag=${{fromJson(steps.deps.outputs.deps).linux.oclcpu.github_tag}}
-
   # This job produces a Docker container with the latest versions of Intel
   # drivers, that can be found on GitHub.
   drivers_image_ubuntu2204_unstable:
@@ -241,10 +240,5 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}/ubuntu2204_intel_drivers:unstable-${{ github.sha }}
             ghcr.io/${{ github.repository }}/ubuntu2204_intel_drivers:unstable
-          build-args: |
-            compute_runtime_tag=${{fromJson(steps.deps.outputs.deps).linux_staging.compute_runtime.github_tag}}
-            igc_tag=${{fromJson(steps.deps.outputs.deps).linux_staging.igc.github_tag}}
-            tbb_tag=${{fromJson(steps.deps.outputs.deps).linux_staging.tbb.github_tag}}
-            fpgaemu_tag=${{fromJson(steps.deps.outputs.deps).linux_staging.fpgaemu.github_tag}}
-            cpu_tag=${{fromJson(steps.deps.outputs.deps).linux_staging.oclcpu.github_tag}}
-
+          # build-args:empty, so we automatically take the "latest" tags as
+          # unstable

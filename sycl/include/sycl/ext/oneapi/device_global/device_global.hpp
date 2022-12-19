@@ -15,6 +15,7 @@
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/pointers.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_HOST_NOT_SUPPORTED(Op)
@@ -27,9 +28,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 
 namespace detail {
 // Type-trait for checking if a type defines `operator->`.
@@ -44,9 +43,27 @@ struct HasArrowOperator<
 template <typename T, typename PropertyListT, typename = void>
 class device_global_base {
 protected:
-  T *usmptr;
-  T *get_ptr() noexcept { return usmptr; }
-  const T *get_ptr() const noexcept { return usmptr; }
+  using pointer_t = typename decorated_global_ptr<T>::pointer;
+  pointer_t usmptr;
+  pointer_t get_ptr() noexcept { return usmptr; }
+  const pointer_t get_ptr() const noexcept { return usmptr; }
+
+public:
+  template <access::decorated IsDecorated>
+  multi_ptr<T, access::address_space::global_space, IsDecorated>
+  get_multi_ptr() noexcept {
+    __SYCL_HOST_NOT_SUPPORTED("get_multi_ptr()")
+    return multi_ptr<T, access::address_space::global_space, IsDecorated>{
+        get_ptr()};
+  }
+
+  template <access::decorated IsDecorated>
+  multi_ptr<const T, access::address_space::global_space, IsDecorated>
+  get_multi_ptr() const noexcept {
+    __SYCL_HOST_NOT_SUPPORTED("get_multi_ptr()")
+    return multi_ptr<const T, access::address_space::global_space, IsDecorated>{
+        get_ptr()};
+  }
 };
 
 // Specialization of device_global base class for when device_image_scope is in
@@ -60,6 +77,23 @@ protected:
   T val{};
   T *get_ptr() noexcept { return &val; }
   const T *get_ptr() const noexcept { return &val; }
+
+public:
+  template <access::decorated IsDecorated>
+  multi_ptr<T, access::address_space::global_space, IsDecorated>
+  get_multi_ptr() noexcept {
+    __SYCL_HOST_NOT_SUPPORTED("get_multi_ptr()")
+    return address_space_cast<access::address_space::global_space, IsDecorated,
+                              T>(this->get_ptr());
+  }
+
+  template <access::decorated IsDecorated>
+  multi_ptr<const T, access::address_space::global_space, IsDecorated>
+  get_multi_ptr() const noexcept {
+    __SYCL_HOST_NOT_SUPPORTED("get_multi_ptr()")
+    return address_space_cast<access::address_space::global_space, IsDecorated,
+                              const T>(this->get_ptr());
+  }
 };
 } // namespace detail
 
@@ -114,22 +148,6 @@ public:
   device_global(const device_global &&) = delete;
   device_global &operator=(const device_global &) = delete;
   device_global &operator=(const device_global &&) = delete;
-
-  template <access::decorated IsDecorated>
-  multi_ptr<T, access::address_space::global_space, IsDecorated>
-  get_multi_ptr() noexcept {
-    __SYCL_HOST_NOT_SUPPORTED("get_multi_ptr()")
-    return address_space_cast<access::address_space::global_space, IsDecorated>(
-        this->get_ptr());
-  }
-
-  template <access::decorated IsDecorated>
-  multi_ptr<const T, access::address_space::global_space, IsDecorated>
-  get_multi_ptr() const noexcept {
-    __SYCL_HOST_NOT_SUPPORTED("get_multi_ptr()")
-    return address_space_cast<access::address_space::global_space, IsDecorated,
-                              const T>(this->get_ptr());
-  }
 
   T &get() noexcept {
     __SYCL_HOST_NOT_SUPPORTED("get()")
@@ -200,9 +218,7 @@ public:
   }
 };
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 

@@ -460,7 +460,8 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
 
   constexpr auto max_el_bits = std::max(src1_el_bits, src2_el_bits);
   constexpr __ESIMD_NS::uint ops_per_chan =
-      std::min(32 / max_el_bits, static_cast<__ESIMD_NS::uint>(8));
+      std::max(std::min(32 / max_el_bits, static_cast<uint32_t>(8)),
+               static_cast<uint32_t>(1));
 
   uint32_t src1_signed =
       src1_precision == __ESIMD_XMX_NS::dpas_argument_type::s2 ||
@@ -580,7 +581,8 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
           p = d + (s % src1_ops_per_dword) * ops_per_chan;
           uint32_t extension_temp = false;
 
-          if (src2_precision == __ESIMD_XMX_NS::dpas_argument_type::bf16) {
+          if constexpr (src2_precision ==
+                        __ESIMD_XMX_NS::dpas_argument_type::bf16) {
             const auto s1 =
                 extract<uint32_t>(src1_el_bits, p * src1_el_bits,
                                   src1[U * SIMDSize + n], extension_temp)
@@ -591,8 +593,8 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
                 << 16;
             simdAcc[n] += reinterpret_cast<const float &>(s2) *
                           reinterpret_cast<const float &>(s1);
-          } else if (src2_precision ==
-                     __ESIMD_XMX_NS::dpas_argument_type::fp16) {
+          } else if constexpr (src2_precision ==
+                               __ESIMD_XMX_NS::dpas_argument_type::fp16) {
             const auto s1 =
                 extract<short>(src1_el_bits, p * src1_el_bits,
                                src1[U * SIMDSize + n], extension_temp);

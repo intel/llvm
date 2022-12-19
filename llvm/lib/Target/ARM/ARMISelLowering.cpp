@@ -110,6 +110,7 @@
 #include <cstdlib>
 #include <iterator>
 #include <limits>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -4420,7 +4421,7 @@ void ARMTargetLowering::VarArgStyleRegisters(CCState &CCInfo, SelectionDAG &DAG,
 
 bool ARMTargetLowering::splitValueIntoRegisterParts(
     SelectionDAG &DAG, const SDLoc &DL, SDValue Val, SDValue *Parts,
-    unsigned NumParts, MVT PartVT, Optional<CallingConv::ID> CC) const {
+    unsigned NumParts, MVT PartVT, std::optional<CallingConv::ID> CC) const {
   bool IsABIRegCopy = CC.has_value();
   EVT ValueVT = Val.getValueType();
   if (IsABIRegCopy && (ValueVT == MVT::f16 || ValueVT == MVT::bf16) &&
@@ -4438,7 +4439,7 @@ bool ARMTargetLowering::splitValueIntoRegisterParts(
 
 SDValue ARMTargetLowering::joinRegisterPartsIntoValue(
     SelectionDAG &DAG, const SDLoc &DL, const SDValue *Parts, unsigned NumParts,
-    MVT PartVT, EVT ValueVT, Optional<CallingConv::ID> CC) const {
+    MVT PartVT, EVT ValueVT, std::optional<CallingConv::ID> CC) const {
   bool IsABIRegCopy = CC.has_value();
   if (IsABIRegCopy && (ValueVT == MVT::f16 || ValueVT == MVT::bf16) &&
       PartVT == MVT::f32) {
@@ -18817,7 +18818,7 @@ bool ARMTargetLowering::isDesirableToTransformToIntegerOp(unsigned Opc,
 bool ARMTargetLowering::allowsMisalignedMemoryAccesses(EVT VT, unsigned,
                                                        Align Alignment,
                                                        MachineMemOperand::Flags,
-                                                       bool *Fast) const {
+                                                       unsigned *Fast) const {
   // Depends what it gets converted into if the type is weird.
   if (!VT.isSimple())
     return false;
@@ -18841,7 +18842,7 @@ bool ARMTargetLowering::allowsMisalignedMemoryAccesses(EVT VT, unsigned,
     // A big-endian target may also explicitly support unaligned accesses
     if (Subtarget->hasNEON() && (AllowsUnaligned || Subtarget->isLittle())) {
       if (Fast)
-        *Fast = true;
+        *Fast = 1;
       return true;
     }
   }
@@ -18853,7 +18854,7 @@ bool ARMTargetLowering::allowsMisalignedMemoryAccesses(EVT VT, unsigned,
   if ((Ty == MVT::v16i1 || Ty == MVT::v8i1 || Ty == MVT::v4i1 ||
        Ty == MVT::v2i1)) {
     if (Fast)
-      *Fast = true;
+      *Fast = 1;
     return true;
   }
 
@@ -18879,7 +18880,7 @@ bool ARMTargetLowering::allowsMisalignedMemoryAccesses(EVT VT, unsigned,
       Ty == MVT::v4i32 || Ty == MVT::v4f32 || Ty == MVT::v2i64 ||
       Ty == MVT::v2f64) {
     if (Fast)
-      *Fast = true;
+      *Fast = 1;
     return true;
   }
 
@@ -18892,7 +18893,7 @@ EVT ARMTargetLowering::getOptimalMemOpType(
   // See if we can use NEON instructions for this...
   if ((Op.isMemcpy() || Op.isZeroMemset()) && Subtarget->hasNEON() &&
       !FuncAttributes.hasFnAttr(Attribute::NoImplicitFloat)) {
-    bool Fast;
+    unsigned Fast;
     if (Op.size() >= 16 &&
         (Op.isAligned(Align(16)) ||
          (allowsMisalignedMemoryAccesses(MVT::v2f64, 0, Align(1),

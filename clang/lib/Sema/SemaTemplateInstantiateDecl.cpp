@@ -597,39 +597,39 @@ static void instantiateDependentAMDGPUWavesPerEUAttr(
   S.addAMDGPUWavesPerEUAttr(New, Attr, MinExpr, MaxExpr);
 }
 
-static void instantiateIntelFPGAForcePow2DepthAttr(
+static void instantiateSYCLIntelForcePow2DepthAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const IntelFPGAForcePow2DepthAttr *Attr, Decl *New) {
+    const SYCLIntelForcePow2DepthAttr *Attr, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    return S.AddIntelFPGAForcePow2DepthAttr(New, *Attr, Result.getAs<Expr>());
+    return S.AddSYCLIntelForcePow2DepthAttr(New, *Attr, Result.getAs<Expr>());
 }
 
-static void instantiateIntelFPGABankWidthAttr(
+static void instantiateSYCLIntelBankWidthAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const IntelFPGABankWidthAttr *Attr, Decl *New) {
+    const SYCLIntelBankWidthAttr *Attr, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddIntelFPGABankWidthAttr(New, *Attr, Result.getAs<Expr>());
+    S.AddSYCLIntelBankWidthAttr(New, *Attr, Result.getAs<Expr>());
 }
 
-static void instantiateIntelFPGANumBanksAttr(
+static void instantiateSYCLIntelNumBanksAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const IntelFPGANumBanksAttr *Attr, Decl *New) {
+    const SYCLIntelNumBanksAttr *Attr, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddIntelFPGANumBanksAttr(New, *Attr, Result.getAs<Expr>());
+    S.AddSYCLIntelNumBanksAttr(New, *Attr, Result.getAs<Expr>());
 }
 
-static void instantiateIntelFPGABankBitsAttr(
+static void instantiateSYCLIntelBankBitsAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const IntelFPGABankBitsAttr *Attr, Decl *New) {
+    const SYCLIntelBankBitsAttr *Attr, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   SmallVector<Expr *, 8> Args;
@@ -639,7 +639,7 @@ static void instantiateIntelFPGABankBitsAttr(
       return;
     Args.push_back(Result.getAs<Expr>());
   }
-  S.AddIntelFPGABankBitsAttr(New, *Attr, Args.data(), Args.size());
+  S.AddSYCLIntelBankBitsAttr(New, *Attr, Args.data(), Args.size());
 }
 
 static void
@@ -744,44 +744,44 @@ static void instantiateSYCLIntelMaxGlobalWorkDimAttr(
     S.AddSYCLIntelMaxGlobalWorkDimAttr(New, *A, Result.getAs<Expr>());
 }
 
-static void instantiateSYCLIntelFPGAMaxConcurrencyAttr(
+static void instantiateSYCLIntelMaxConcurrencyAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelFPGAMaxConcurrencyAttr *A, Decl *New) {
+    const SYCLIntelMaxConcurrencyAttr *A, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(A->getNThreadsExpr(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddSYCLIntelFPGAMaxConcurrencyAttr(New, *A, Result.getAs<Expr>());
+    S.AddSYCLIntelMaxConcurrencyAttr(New, *A, Result.getAs<Expr>());
 }
 
-static void instantiateIntelFPGAPrivateCopiesAttr(
+static void instantiateSYCLIntelPrivateCopiesAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const IntelFPGAPrivateCopiesAttr *A, Decl *New) {
+    const SYCLIntelPrivateCopiesAttr *A, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddIntelFPGAPrivateCopiesAttr(New, *A, Result.getAs<Expr>());
+    S.AddSYCLIntelPrivateCopiesAttr(New, *A, Result.getAs<Expr>());
 }
 
-static void instantiateIntelFPGAMaxReplicatesAttr(
+static void instantiateSYCLIntelMaxReplicatesAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const IntelFPGAMaxReplicatesAttr *A, Decl *New) {
+    const SYCLIntelMaxReplicatesAttr *A, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddIntelFPGAMaxReplicatesAttr(New, *A, Result.getAs<Expr>());
+    S.AddSYCLIntelMaxReplicatesAttr(New, *A, Result.getAs<Expr>());
 }
 
-static void instantiateSYCLIntelFPGAInitiationIntervalAttr(
+static void instantiateSYCLIntelInitiationIntervalAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const SYCLIntelFPGAInitiationIntervalAttr *A, Decl *New) {
+    const SYCLIntelInitiationIntervalAttr *A, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(A->getIntervalExpr(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddSYCLIntelFPGAInitiationIntervalAttr(New, *A, Result.getAs<Expr>());
+    S.AddSYCLIntelInitiationIntervalAttr(New, *A, Result.getAs<Expr>());
 }
 
 static void instantiateSYCLIntelESimdVectorizeAttr(
@@ -880,9 +880,9 @@ static void instantiateSYCLIntelMaxWorkGroupSizeAttr(
                                      ZResult.get());
 }
 
-static void instantiateReqdWorkGroupSizeAttr(
+static void instantiateSYCLReqdWorkGroupSizeAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const ReqdWorkGroupSizeAttr *A, Decl *New) {
+    const SYCLReqdWorkGroupSizeAttr *A, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult XResult = S.SubstExpr(A->getXDim(), TemplateArgs);
@@ -895,8 +895,8 @@ static void instantiateReqdWorkGroupSizeAttr(
   if (ZResult.isInvalid())
     return;
 
-  S.AddReqdWorkGroupSizeAttr(New, *A, XResult.get(), YResult.get(),
-                             ZResult.get());
+  S.AddSYCLReqdWorkGroupSizeAttr(New, *A, XResult.get(), YResult.get(),
+                                 ZResult.get());
 }
 
 // This doesn't take any template parameters, but we have a custom action that
@@ -1076,36 +1076,36 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
                                                *AMDGPUFlatWorkGroupSize, New);
     }
 
-    if (const auto *IntelFPGABankWidth =
-            dyn_cast<IntelFPGABankWidthAttr>(TmplAttr)) {
-      instantiateIntelFPGABankWidthAttr(*this, TemplateArgs, IntelFPGABankWidth,
+    if (const auto *SYCLIntelBankWidth =
+            dyn_cast<SYCLIntelBankWidthAttr>(TmplAttr)) {
+      instantiateSYCLIntelBankWidthAttr(*this, TemplateArgs, SYCLIntelBankWidth,
                                         New);
     }
 
-    if (const auto *IntelFPGANumBanks =
-            dyn_cast<IntelFPGANumBanksAttr>(TmplAttr)) {
-      instantiateIntelFPGANumBanksAttr(*this, TemplateArgs, IntelFPGANumBanks,
+    if (const auto *SYCLIntelNumBanks =
+            dyn_cast<SYCLIntelNumBanksAttr>(TmplAttr)) {
+      instantiateSYCLIntelNumBanksAttr(*this, TemplateArgs, SYCLIntelNumBanks,
                                        New);
     }
-    if (const auto *IntelFPGAPrivateCopies =
-            dyn_cast<IntelFPGAPrivateCopiesAttr>(TmplAttr)) {
-      instantiateIntelFPGAPrivateCopiesAttr(*this, TemplateArgs,
-                                            IntelFPGAPrivateCopies, New);
+    if (const auto *SYCLIntelPrivateCopies =
+            dyn_cast<SYCLIntelPrivateCopiesAttr>(TmplAttr)) {
+      instantiateSYCLIntelPrivateCopiesAttr(*this, TemplateArgs,
+                                            SYCLIntelPrivateCopies, New);
     }
-    if (const auto *IntelFPGAMaxReplicates =
-            dyn_cast<IntelFPGAMaxReplicatesAttr>(TmplAttr)) {
-      instantiateIntelFPGAMaxReplicatesAttr(*this, TemplateArgs,
-                                            IntelFPGAMaxReplicates, New);
+    if (const auto *SYCLIntelMaxReplicates =
+            dyn_cast<SYCLIntelMaxReplicatesAttr>(TmplAttr)) {
+      instantiateSYCLIntelMaxReplicatesAttr(*this, TemplateArgs,
+                                            SYCLIntelMaxReplicates, New);
     }
-    if (const auto *IntelFPGABankBits =
-            dyn_cast<IntelFPGABankBitsAttr>(TmplAttr)) {
-      instantiateIntelFPGABankBitsAttr(*this, TemplateArgs, IntelFPGABankBits,
+    if (const auto *SYCLIntelBankBits =
+            dyn_cast<SYCLIntelBankBitsAttr>(TmplAttr)) {
+      instantiateSYCLIntelBankBitsAttr(*this, TemplateArgs, SYCLIntelBankBits,
                                        New);
     }
-    if (const auto *IntelFPGAForcePow2Depth =
-            dyn_cast<IntelFPGAForcePow2DepthAttr>(TmplAttr)) {
-      instantiateIntelFPGAForcePow2DepthAttr(*this, TemplateArgs,
-                                             IntelFPGAForcePow2Depth, New);
+    if (const auto *SYCLIntelForcePow2Depth =
+            dyn_cast<SYCLIntelForcePow2DepthAttr>(TmplAttr)) {
+      instantiateSYCLIntelForcePow2DepthAttr(*this, TemplateArgs,
+                                             SYCLIntelForcePow2Depth, New);
     }
     if (const auto *SYCLIntelPipeIO = dyn_cast<SYCLIntelPipeIOAttr>(TmplAttr)) {
       instantiateSYCLIntelPipeIOAttr(*this, TemplateArgs, SYCLIntelPipeIO, New);
@@ -1147,10 +1147,10 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
           *this, TemplateArgs, SYCLIntelNoGlobalWorkOffset, New);
       continue;
     }
-    if (const auto *ReqdWorkGroupSize =
-            dyn_cast<ReqdWorkGroupSizeAttr>(TmplAttr)) {
-      instantiateReqdWorkGroupSizeAttr(*this, TemplateArgs, ReqdWorkGroupSize,
-                                       New);
+    if (const auto *SYCLReqdWorkGroupSize =
+            dyn_cast<SYCLReqdWorkGroupSizeAttr>(TmplAttr)) {
+      instantiateSYCLReqdWorkGroupSizeAttr(*this, TemplateArgs,
+                                           SYCLReqdWorkGroupSize, New);
       continue;
     }
     if (const auto *SYCLIntelMaxWorkGroupSize =
@@ -1160,14 +1160,14 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
       continue;
     }
     if (const auto *SYCLIntelMaxConcurrency =
-            dyn_cast<SYCLIntelFPGAMaxConcurrencyAttr>(TmplAttr)) {
-      instantiateSYCLIntelFPGAMaxConcurrencyAttr(*this, TemplateArgs,
+            dyn_cast<SYCLIntelMaxConcurrencyAttr>(TmplAttr)) {
+      instantiateSYCLIntelMaxConcurrencyAttr(*this, TemplateArgs,
                                                  SYCLIntelMaxConcurrency, New);
     }
-    if (const auto *SYCLIntelFPGAInitiationInterval =
-            dyn_cast<SYCLIntelFPGAInitiationIntervalAttr>(TmplAttr)) {
-      instantiateSYCLIntelFPGAInitiationIntervalAttr(
-          *this, TemplateArgs, SYCLIntelFPGAInitiationInterval, New);
+    if (const auto *SYCLIntelInitiationInterval =
+            dyn_cast<SYCLIntelInitiationIntervalAttr>(TmplAttr)) {
+      instantiateSYCLIntelInitiationIntervalAttr(
+          *this, TemplateArgs, SYCLIntelInitiationInterval, New);
       continue;
     }
     if (const auto *SYCLIntelESimdVectorize =
@@ -3275,8 +3275,9 @@ Decl *TemplateDeclInstantiator::VisitCXXConversionDecl(CXXConversionDecl *D) {
 }
 
 Decl *TemplateDeclInstantiator::VisitParmVarDecl(ParmVarDecl *D) {
-  return SemaRef.SubstParmVarDecl(D, TemplateArgs, /*indexAdjustment*/ 0, None,
-                                  /*ExpectParameterPack=*/ false);
+  return SemaRef.SubstParmVarDecl(D, TemplateArgs, /*indexAdjustment*/ 0,
+                                  std::nullopt,
+                                  /*ExpectParameterPack=*/false);
 }
 
 Decl *TemplateDeclInstantiator::VisitTemplateTypeParmDecl(
@@ -4531,7 +4532,7 @@ FunctionDecl *Sema::SubstSpaceshipAsEqualEqual(CXXRecordDecl *RD,
   Decl *R;
   if (auto *MD = dyn_cast<CXXMethodDecl>(Spaceship)) {
     R = Instantiator.VisitCXXMethodDecl(
-        MD, nullptr, None,
+        MD, nullptr, std::nullopt,
         TemplateDeclInstantiator::RewriteKind::RewriteSpaceshipAsEqualEqual);
   } else {
     assert(Spaceship->getFriendObjectKind() &&

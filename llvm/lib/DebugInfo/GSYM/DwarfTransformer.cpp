@@ -21,6 +21,7 @@
 #include "llvm/DebugInfo/GSYM/GsymCreator.h"
 #include "llvm/DebugInfo/GSYM/GsymReader.h"
 #include "llvm/DebugInfo/GSYM/InlineInfo.h"
+#include <optional>
 
 using namespace llvm;
 using namespace gsym;
@@ -128,9 +129,8 @@ static DWARFDie GetParentDeclContextDIE(DWARFDie &Die) {
 /// .debug_info. If we create a qualified name string in this function by
 /// combining multiple strings in the DWARF string table or info, we will make
 /// a copy of the string when we add it to the string table.
-static Optional<uint32_t> getQualifiedNameIndex(DWARFDie &Die,
-                                                uint64_t Language,
-                                                GsymCreator &Gsym) {
+static std::optional<uint32_t>
+getQualifiedNameIndex(DWARFDie &Die, uint64_t Language, GsymCreator &Gsym) {
   // If the dwarf has mangled name, use mangled name
   if (auto LinkageName =
           dwarf::toString(Die.findRecursively({dwarf::DW_AT_MIPS_linkage_name,
@@ -140,7 +140,7 @@ static Optional<uint32_t> getQualifiedNameIndex(DWARFDie &Die,
 
   StringRef ShortName(Die.getName(DINameKind::ShortName));
   if (ShortName.empty())
-    return llvm::None;
+    return std::nullopt;
 
   // For C++ and ObjC, prepend names of all parent declaration contexts
   if (!(Language == dwarf::DW_LANG_C_plus_plus ||
@@ -346,7 +346,7 @@ static void convertFunctionLineTable(raw_ostream &Log, CUInfo &CUI,
   // If not line table rows were added, clear the line table so we don't encode
   // on in the GSYM file.
   if (FI.OptLineTable->empty())
-    FI.OptLineTable = llvm::None;
+    FI.OptLineTable = std::nullopt;
 }
 
 void DwarfTransformer::handleDie(raw_ostream &OS, CUInfo &CUI, DWARFDie Die) {

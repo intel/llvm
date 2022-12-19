@@ -411,13 +411,6 @@ def PdWriteCMPXCHG16B : SchedWriteRes<[PdEX1]> {
 }
 def : InstRW<[PdWriteCMPXCHG16B], (instrs CMPXCHG16B)>;
 
-def PdWriteXADD : SchedWriteRes<[PdEX1]> {
-  let Latency = 1;
-  let ResourceCycles = [1];
-  let NumMicroOps = 2;
-}
-def : InstRW<[PdWriteXADD], (instrs XADD8rr, XADD16rr, XADD32rr, XADD64rr)>;
-
 def PdWriteXADDm : SchedWriteRes<[PdEX1]> {
   let Latency = 6;
   let ResourceCycles = [20];
@@ -709,13 +702,6 @@ def : InstRW<[PdWriteRCL8ri], (instrs RCL8ri)>;
 // SHLD/SHRD.
 defm : PdWriteRes<WriteSHDrri,       [PdEX01],         3, [6], 6>;
 defm : PdWriteRes<WriteSHDrrcl,      [PdEX01],         3, [8], 7>;
-
-def PdWriteSHLD32rri8SHRD16rri8 : SchedWriteRes<[PdEX01]> {
-  let Latency = 3;
-  let ResourceCycles = [6];
-  let NumMicroOps = 6;
-}
-def : InstRW<[PdWriteSHLD32rri8SHRD16rri8 ], (instrs SHLD32rri8, SHRD16rri8)>;
 
 def PdWriteSHLD16rrCLSHLD32rrCLSHRD32rrCL : SchedWriteRes<[PdEX01]> {
   let Latency = 3;

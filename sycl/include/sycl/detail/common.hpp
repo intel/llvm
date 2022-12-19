@@ -221,6 +221,14 @@ static inline std::string codeToString(pi_int32 code) {
   __SYCL_REPORT_ERR_TO_EXC_THROW_VIA_ERRC(X, ERRC)
 #endif
 
+// Helper for enabling empty-base optimizations on MSVC.
+// TODO: Remove this when MSVC has this optimization enabled by default.
+#ifdef _MSC_VER
+#define __SYCL_EBO __declspec(empty_bases)
+#else
+#define __SYCL_EBO
+#endif
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {

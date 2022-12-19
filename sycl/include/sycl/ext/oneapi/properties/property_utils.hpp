@@ -15,9 +15,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 
 // Forward declaration
 template <typename PropertyT, typename... Ts> struct property_value;
@@ -381,8 +379,6 @@ template <size_t... Sizes>
 struct SizeListToStr : SizeListToStrHelper<SizeList<Sizes...>, CharList<>> {};
 
 } // namespace detail
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

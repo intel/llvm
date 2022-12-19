@@ -94,7 +94,7 @@ struct TestOpAsmInterface : public OpAsmDialectInterface {
             .Case("alias_test:sanitize_conflict_b",
                   StringRef("test_alias_conflict0_"))
             .Case("alias_test:tensor_encoding", StringRef("test_encoding"))
-            .Default(llvm::None);
+            .Default(std::nullopt);
     if (!aliasName)
       return AliasResult::NoAlias;
 
@@ -441,7 +441,7 @@ TestDialect::getParseOperationHook(StringRef opName) const {
       return ParseResult::success();
     }};
   }
-  return None;
+  return std::nullopt;
 }
 
 llvm::unique_function<void(Operation *, OpAsmPrinter &)>
@@ -862,6 +862,21 @@ ParseResult ParseWrappedKeywordOp::parse(OpAsmParser &parser,
 
 void ParseWrappedKeywordOp::print(OpAsmPrinter &p) { p << " " << getKeyword(); }
 
+ParseResult ParseB64BytesOp::parse(OpAsmParser &parser,
+                                   OperationState &result) {
+  std::vector<char> bytes;
+  if (parser.parseBase64Bytes(&bytes))
+    return failure();
+  result.addAttribute("b64", parser.getBuilder().getStringAttr(
+                                 StringRef(&bytes.front(), bytes.size())));
+  return success();
+}
+
+void ParseB64BytesOp::print(OpAsmPrinter &p) {
+  // Don't print the base64 version to check that we decoded it correctly.
+  p << " \"" << getB64() << "\"";
+}
+
 //===----------------------------------------------------------------------===//
 // Test WrapRegionOp - wrapping op exercising `parseGenericOperation()`.
 
@@ -1157,7 +1172,7 @@ LogicalResult OpWithShapedTypeInferTypeInterfaceOp::inferReturnTypeComponents(
     return emitOptionalError(location, "only shaped type operands allowed");
   }
   int64_t dim =
-      sval.hasRank() ? sval.getShape().front() : ShapedType::kDynamicSize;
+      sval.hasRank() ? sval.getShape().front() : ShapedType::kDynamic;
   auto type = IntegerType::get(context, 17);
   inferredReturnShapes.push_back(ShapedTypeComponents({dim}, type));
   return success();

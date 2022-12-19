@@ -95,7 +95,7 @@ static bool dictionaryAttrSort(ArrayRef<NamedAttribute> value,
 /// attributes. Returns llvm::None if all elements have unique names.
 static Optional<NamedAttribute>
 findDuplicateElement(ArrayRef<NamedAttribute> value) {
-  const Optional<NamedAttribute> none{llvm::None};
+  const Optional<NamedAttribute> none{std::nullopt};
   if (value.size() < 2)
     return none;
 
@@ -207,7 +207,7 @@ DictionaryAttr DictionaryAttr::getEmptyUnchecked(MLIRContext *context) {
 /// Prints a strided layout attribute.
 void StridedLayoutAttr::print(llvm::raw_ostream &os) const {
   auto printIntOrQuestion = [&](int64_t value) {
-    if (value == ShapedType::kDynamicStrideOrOffset)
+    if (ShapedType::isDynamic(value))
       os << "?";
     else
       os << value;
@@ -1604,7 +1604,7 @@ Optional<ArrayRef<T>>
 DenseResourceElementsAttrBase<T>::tryGetAsArrayRef() const {
   if (AsmResourceBlob *blob = this->getRawHandle().getBlob())
     return blob->template getDataAs<T>();
-  return llvm::None;
+  return std::nullopt;
 }
 
 template <typename T>
@@ -1770,7 +1770,7 @@ AffineMap mlir::makeStridedLinearLayoutMap(ArrayRef<int64_t> strides,
 
   // AffineExpr for offset.
   // Static case.
-  if (offset != MemRefType::getDynamicStrideOrOffset()) {
+  if (!ShapedType::isDynamic(offset)) {
     auto cst = getAffineConstantExpr(offset, context);
     expr = cst;
   } else {
@@ -1787,7 +1787,7 @@ AffineMap mlir::makeStridedLinearLayoutMap(ArrayRef<int64_t> strides,
     auto d = getAffineDimExpr(dim, context);
     AffineExpr mult;
     // Static case.
-    if (stride != MemRefType::getDynamicStrideOrOffset())
+    if (!ShapedType::isDynamic(stride))
       mult = getAffineConstantExpr(stride, context);
     else
       // Dynamic case, new symbol for each new stride.
