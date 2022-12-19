@@ -320,83 +320,92 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
 
 bool DeviceTimerCalled;
 
-pi_result redefinedPiGetDeviceAndHostTimer(pi_device Device, uint64_t* DeviceTime,uint64_t* HostTime){
-   DeviceTimerCalled=true;
-   return PI_SUCCESS;
-}
-
-TEST(GetProfilingInfo, check_no_command_submission_time_when_event_profiling_disabled){
-  using namespace sycl;
-  unittest::PiMock Mock;
-  platform Plt= Mock.getPlatform();
-  Mock.redefine<detail::PiApiKind::piGetDeviceAndHostTimer>(redefinedPiGetDeviceAndHostTimer);
-  device Dev=Plt.get_devices()[0];
-  context Ctx{Dev};
-  queue Queue{Ctx,Dev};
-  DeviceTimerCalled=false;
-
-  event E=Queue.submit([&](handler& cgh){
-    cgh.single_task<TestKernel<>>([](){});
-  });
-  EXPECT_FALSE(DeviceTimerCalled);
-
-}
-
-//Checks to see if command submit time is calculated before queue.submit returns.
-//A host accessor is contructed before submitting the command, 
-//to ensure command submission time is calculated even if command may not be enqueued 
-//due to overlap in data dependencies between the kernel and host accessor
-TEST(GetProfilingInfo, check_command_submission_time_with_host_accessor){
-  using namespace sycl;
-  unittest::PiMock Mock;
-  platform Plt= Mock.getPlatform();
-  Mock.redefine<detail::PiApiKind::piGetDeviceAndHostTimer>(redefinedPiGetDeviceAndHostTimer);
-  device Dev=Plt.get_devices()[0];
-  context Ctx{Dev};
-  queue Queue{Ctx,Dev,property::queue::enable_profiling()};
-  int data[1024];
-  buffer Buf{data,range<1>{1024}};
-  DeviceTimerCalled=false;
-
-  accessor host_acc= Buf.get_access<access::mode::read_write>();
-  event E=Queue.submit([&](handler& cgh){
-    accessor writeRes{Buf,cgh,read_write};
-
-    cgh.single_task<TestKernel<>>([](){});
-  });
-
-  EXPECT_TRUE(DeviceTimerCalled);
-
-}
-
-pi_result redefinedFailedPiGetDeviceAndHostTimer(pi_device Device, uint64_t* DeviceTime,uint64_t* HostTime){
-   return PI_ERROR_INVALID_OPERATION;
-}
-
-pi_result redefinedPiPluginGetLastError(char **message) {
-  static char messageString[50]= "Plugin version not supported";
-  *message=messageString;
+pi_result redefinedPiGetDeviceAndHostTimer(pi_device Device,
+                                           uint64_t *DeviceTime,
+                                           uint64_t *HostTime) {
+  DeviceTimerCalled = true;
   return PI_SUCCESS;
 }
 
-TEST(GetProfilingInfo, submission_time_exception_check){
+TEST(GetProfilingInfo,
+     check_no_command_submission_time_when_event_profiling_disabled) {
   using namespace sycl;
   unittest::PiMock Mock;
-  platform Plt= Mock.getPlatform();
-  Mock.redefine<detail::PiApiKind::piGetDeviceAndHostTimer>(redefinedFailedPiGetDeviceAndHostTimer);
-  Mock.redefine<detail::PiApiKind::piPluginGetLastError>(redefinedPiPluginGetLastError);
-  device Dev=Plt.get_devices()[0];
+  platform Plt = Mock.getPlatform();
+  Mock.redefine<detail::PiApiKind::piGetDeviceAndHostTimer>(
+      redefinedPiGetDeviceAndHostTimer);
+  device Dev = Plt.get_devices()[0];
   context Ctx{Dev};
-  queue Queue{Ctx,Dev,property::queue::enable_profiling()};
+  queue Queue{Ctx, Dev};
+  DeviceTimerCalled = false;
 
-  try{
-  event E=Queue.submit([&](handler& cgh){
-    cgh.single_task<TestKernel<>>([](){});
+  event E = Queue.submit(
+      [&](handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  EXPECT_FALSE(DeviceTimerCalled);
+}
+
+// Checks to see if command submit time is calculated before queue.submit
+// returns. A host accessor is contructed before submitting the command, to
+// ensure command submission time is calculated even if command may not be
+// enqueued due to overlap in data dependencies between the kernel and host
+// accessor
+TEST(GetProfilingInfo, check_command_submission_time_with_host_accessor) {
+  using namespace sycl;
+  unittest::PiMock Mock;
+  platform Plt = Mock.getPlatform();
+  Mock.redefine<detail::PiApiKind::piGetDeviceAndHostTimer>(
+      redefinedPiGetDeviceAndHostTimer);
+  device Dev = Plt.get_devices()[0];
+  context Ctx{Dev};
+  queue Queue{Ctx, Dev, property::queue::enable_profiling()};
+  int data[1024];
+  buffer Buf{data, range<1>{1024}};
+  DeviceTimerCalled = false;
+
+  accessor host_acc = Buf.get_access<access::mode::read_write>();
+  event E = Queue.submit([&](handler &cgh) {
+    accessor writeRes{Buf, cgh, read_write};
+
+    cgh.single_task<TestKernel<>>([]() {});
   });
-  FAIL();
-  }catch(feature_not_supported &e){
-    EXPECT_STREQ(e.what(),"Unable to get command group submission time: "
-                          "Device and/or backend does not support querying timestamp: "
-                          "Plugin version not supported -59 (PI_ERROR_INVALID_OPERATION) -59 (PI_ERROR_INVALID_OPERATION)");
+
+  EXPECT_TRUE(DeviceTimerCalled);
+}
+
+pi_result redefinedFailedPiGetDeviceAndHostTimer(pi_device Device,
+                                                 uint64_t *DeviceTime,
+                                                 uint64_t *HostTime) {
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+pi_result redefinedPiPluginGetLastError(char **message) {
+  static char messageString[50] = "Plugin version not supported";
+  *message = messageString;
+  return PI_SUCCESS;
+}
+
+TEST(GetProfilingInfo, submission_time_exception_check) {
+  using namespace sycl;
+  unittest::PiMock Mock;
+  platform Plt = Mock.getPlatform();
+  Mock.redefine<detail::PiApiKind::piGetDeviceAndHostTimer>(
+      redefinedFailedPiGetDeviceAndHostTimer);
+  Mock.redefine<detail::PiApiKind::piPluginGetLastError>(
+      redefinedPiPluginGetLastError);
+  device Dev = Plt.get_devices()[0];
+  context Ctx{Dev};
+  queue Queue{Ctx, Dev, property::queue::enable_profiling()};
+
+  try {
+    event E = Queue.submit(
+        [&](handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+    FAIL();
+  } catch (feature_not_supported &e) {
+    EXPECT_STREQ(
+        e.what(),
+        "Unable to get command group submission time: "
+        "Device and/or backend does not support querying timestamp: "
+        "Plugin version not supported -59 (PI_ERROR_INVALID_OPERATION) -59 "
+        "(PI_ERROR_INVALID_OPERATION)");
   }
 }

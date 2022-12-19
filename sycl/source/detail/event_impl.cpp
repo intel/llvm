@@ -424,13 +424,16 @@ void event_impl::cleanDepEventsThroughOneLevel() {
 void event_impl::setSubmissionTime() {
   if (!MIsProfilingEnabled)
     return;
-  if (QueueImplPtr Queue = getSubmittedQueue()){
-    try{
-    MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
-    }catch(feature_not_supported & e){
-      throw feature_not_supported(std::string("Unable to get command group submission time: ") + e.what(),PI_ERROR_INVALID_OPERATION);
+  if (QueueImplPtr Queue = getSubmittedQueue()) {
+    try {
+      MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
+    } catch (feature_not_supported &e) {
+      throw feature_not_supported(
+          std::string("Unable to get command group submission time: ") +
+              e.what(),
+          PI_ERROR_INVALID_OPERATION);
     }
-    }
+  }
 }
 
 uint64_t event_impl::getSubmissionTime() { return MSubmitTime; }

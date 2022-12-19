@@ -1687,7 +1687,9 @@ pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
   ret_err = getPlatformVersion(platform, platVer);
 
   if (platVer < OCLV::V2_1 || devVer < OCLV::V2_1) {
-    setErrorMessage("OpenCL version for device and/or platform is less than 2.1",PI_ERROR_INVALID_OPERATION);
+    setErrorMessage(
+        "OpenCL version for device and/or platform is less than 2.1",
+        PI_ERROR_INVALID_OPERATION);
     return PI_ERROR_INVALID_OPERATION;
   }
 

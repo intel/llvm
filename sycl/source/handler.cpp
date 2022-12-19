@@ -210,7 +210,7 @@ event handler::finalize() {
                               PI_ERROR_INVALID_OPERATION);
         else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
           NewEvent->setComplete();
-        
+
         NewEvent->setSubmittedQueue(MQueue);
         NewEvent->setSubmissionTime();
         MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);

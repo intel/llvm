@@ -438,18 +438,19 @@ std::string device_impl::getDeviceName() const {
 
 /* On first call this function queries for device timestamp
    along with host synchronized timestamp
-   and stores it in memeber varaible deviceTimePair. 
+   and stores it in memeber varaible deviceTimePair.
    Subsequent calls to this function would just retrieve the host timestamp ,
-   compute difference against the host timestamp in deviceTimePair 
+   compute difference against the host timestamp in deviceTimePair
    and calculate the device timestamp based on the difference.
-   deviceTimePair is refreshed with new device and host timestamp after a certain interval 
-   (determined by timeTillRefresh) to account for clock drift between host and device.
-*/ 
+   deviceTimePair is refreshed with new device and host timestamp after a
+   certain interval (determined by timeTillRefresh) to account for clock drift
+   between host and device.
+*/
 
-uint64_t device_impl::getCurrentDeviceTime(){
-  // To account for potential clock drift between host clock and device clock. 
+uint64_t device_impl::getCurrentDeviceTime() {
+  // To account for potential clock drift between host clock and device clock.
   // The value set is arbitrary: 200 seconds
-  constexpr uint64_t timeTillRefresh= 200e9;  
+  constexpr uint64_t timeTillRefresh = 200e9;
 
   uint64_t hostTime;
   if (MIsHostDevice) {
@@ -466,20 +467,22 @@ uint64_t device_impl::getCurrentDeviceTime(){
 
   if(result == PI_ERROR_INVALID_OPERATION){
     std::string errorMsg{};
-    char* p;
+    char *p;
     plugin.call_nocheck<detail::PiApiKind::piPluginGetLastError>(&p);
-    while (*p != '\0'){
-      errorMsg +=*p;
+    while (*p != '\0') {
+      errorMsg += *p;
       p++;
     }
     throw sycl::feature_not_supported(
-        "Device and/or backend does not support querying timestamp: " + errorMsg,
+        "Device and/or backend does not support querying timestamp: " +
+            errorMsg,
         result);
   }
-  uint64_t diff= hostTime - MDeviceHostBaseTime.second;
+  uint64_t diff = hostTime - MDeviceHostBaseTime.second;
 
   if (diff > timeTillRefresh || diff <= 0) {
-    plugin.call<detail::PiApiKind::piGetDeviceAndHostTimer>(MDevice, &MDeviceHostBaseTime.first, &MDeviceHostBaseTime.second);
+    plugin.call<detail::PiApiKind::piGetDeviceAndHostTimer>(
+        MDevice, &MDeviceHostBaseTime.first, &MDeviceHostBaseTime.second);
     diff=0;
   }
 
