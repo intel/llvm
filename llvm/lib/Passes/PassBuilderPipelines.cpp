@@ -128,6 +128,7 @@
 #include "llvm/Transforms/Vectorize/LoopVectorize.h"
 #include "llvm/Transforms/Vectorize/SLPVectorizer.h"
 #include "llvm/Transforms/Vectorize/VectorCombine.h"
+#include "llvm/SYCLLowerIR/SYCLFrameworkOptimization.h"
 
 using namespace llvm;
 
@@ -2079,6 +2080,7 @@ void PassBuilder::addSYCLFrameworkOptimizationPipeline(ModulePassManager &MPM) {
 
 void PassBuilder::addDefaultSYCLFrameworkOptimizationPipeline(
     ModulePassManager &MPM) {
+  MPM.addPass(sycl::RemoveFuncAttrsFromSYCLFrameworkFuncs());
   addSYCLFrameworkSimplificationPipeline(MPM);
   addSYCLFrameworkOptimizationPipeline(MPM);
 

@@ -60,6 +60,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LowerWGScope.cpp
   LowerWGLocalMemory.cpp
   MutatePrintfAddrspace.cpp
+  SYCLFrameworkOptimization.cpp
   SYCLPropagateAspectsUsage.cpp
   SYCLUtils.cpp
 
