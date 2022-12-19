@@ -232,17 +232,17 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
   if (PiTraceValue == -1 || PiTraceValue == 2) { // Means print all PI traces
     PrintPiTrace = true;
   }
-  
+
   // Perform actions based on the reason for calling.
   switch (fdwReason) {
   case DLL_PROCESS_DETACH:
-    if(PrintPiTrace)
+    if (PrintPiTrace)
       std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
-    
+
     shutdown();
     break;
   case DLL_PROCESS_ATTACH:
-    if(PrintPiTrace)
+    if (PrintPiTrace)
       std::cout << "---> DLL_PROCESS_ATTACH syclx.dll\n" << std::endl;
   case DLL_THREAD_ATTACH:
   case DLL_THREAD_DETACH:

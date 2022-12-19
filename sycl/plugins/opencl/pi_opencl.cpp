@@ -1671,9 +1671,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 }
 
 #ifdef _WIN32
-  #define __SYCL_PLUGIN_DLL_NAME "pi_opencl.dll"
-  #include "../common_win_pi_trace/common_win_pi_trace.hpp"
-  #undef __SYCL_PLUGIN_DLL_NAME
+#define __SYCL_PLUGIN_DLL_NAME "pi_opencl.dll"
+#include "../common_win_pi_trace/common_win_pi_trace.hpp"
+#undef __SYCL_PLUGIN_DLL_NAME
 #endif
 
   

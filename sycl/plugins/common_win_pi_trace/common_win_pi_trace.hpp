@@ -1,9 +1,10 @@
-// this .hpp is injected. Be sure to define __SYCL_PLUGIN_DLL_NAME before including
+// this .hpp is injected. Be sure to define __SYCL_PLUGIN_DLL_NAME before
+// including
 #ifdef _WIN32
 #include <windows.h>
-BOOL WINAPI DllMain(HINSTANCE hinstDLL, // handle to DLL module
-                    DWORD fdwReason,    // reason for calling function
-                    LPVOID lpReserved){  // reserved
+BOOL WINAPI DllMain(HINSTANCE hinstDLL,  // handle to DLL module
+                    DWORD fdwReason,     // reason for calling function
+                    LPVOID lpReserved) { // reserved
 
   bool PrintPiTrace = false;
   static const char *PiTrace = std::getenv("SYCL_PI_TRACE");
@@ -11,17 +12,19 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, // handle to DLL module
   if (PiTraceValue == -1 || PiTraceValue == 2) { // Means print all PI traces
     PrintPiTrace = true;
   }
-  
+
   // Perform actions based on the reason for calling.
   switch (fdwReason) {
   case DLL_PROCESS_DETACH:
-    if(PrintPiTrace)
-      std::cout << "---> DLL_PROCESS_DETACH " << __SYCL_PLUGIN_DLL_NAME << "\n"  << std::endl;
- 
+    if (PrintPiTrace)
+      std::cout << "---> DLL_PROCESS_DETACH " << __SYCL_PLUGIN_DLL_NAME << "\n"
+                << std::endl;
+
     break;
   case DLL_PROCESS_ATTACH:
-    if(PrintPiTrace)
-      std::cout << "---> DLL_PROCESS_ATTACH " << __SYCL_PLUGIN_DLL_NAME << "\n"  << std::endl;
+    if (PrintPiTrace)
+      std::cout << "---> DLL_PROCESS_ATTACH " << __SYCL_PLUGIN_DLL_NAME << "\n"
+                << std::endl;
   case DLL_THREAD_ATTACH:
   case DLL_THREAD_DETACH:
     break;
