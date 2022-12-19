@@ -121,7 +121,7 @@ public:
   radix_sorter(sycl::span<std::byte, Extent> scratch_,
                const std::bitset<sizeof(ValT) *CHAR_BIT> mask =
                    std::bitset<sizeof(ValT) * CHAR_BIT>(
-                       std::numeric_limits<unsigned long long>::max()))
+                       (std::numeric_limits<unsigned long long>::max)()))
       : scratch(scratch_.data()), scratch_size(scratch_.size()) {
     static_assert((std::is_arithmetic<ValT>::value ||
                    std::is_same<ValT, sycl::half>::value ||
@@ -187,8 +187,8 @@ public:
                                           sycl::range<dimensions> local_range) {
     // Scope is not important so far
     (void)scope;
-    return std::max(local_range.size() * sizeof(ValT),
-                    local_range.size() * (1 << bits) * sizeof(uint32_t));
+    return (std::max)(local_range.size() * sizeof(ValT),
+                      local_range.size() * (1 << bits) * sizeof(uint32_t));
   }
 };
 
