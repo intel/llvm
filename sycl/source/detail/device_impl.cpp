@@ -465,7 +465,7 @@ uint64_t device_impl::getCurrentDeviceTime() {
   plugin.checkPiResult(result == PI_ERROR_INVALID_OPERATION ? PI_SUCCESS
                                                             : result);
 
-  if(result == PI_ERROR_INVALID_OPERATION){
+  if (result == PI_ERROR_INVALID_OPERATION) {
     std::string errorMsg{};
     char *p;
     plugin.call_nocheck<detail::PiApiKind::piPluginGetLastError>(&p);
@@ -483,7 +483,7 @@ uint64_t device_impl::getCurrentDeviceTime() {
   if (diff > timeTillRefresh || diff <= 0) {
     plugin.call<detail::PiApiKind::piGetDeviceAndHostTimer>(
         MDevice, &MDeviceHostBaseTime.first, &MDeviceHostBaseTime.second);
-    diff=0;
+    diff = 0;
   }
 
   return MDeviceHostBaseTime.first + diff;
