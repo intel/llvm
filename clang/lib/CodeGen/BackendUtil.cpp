@@ -1016,19 +1016,17 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             MPM.addPass(InstrProfiling(*Options, false));
           });
 
-    if (!CodeGenOpts.DisableSYCLEarlyOpts) {
-      if (CodeGenOpts.OptimizationLevel == 0) {
-        MPM = PB.buildO0DefaultPipeline(Level, IsLTO || IsThinLTO);
-      } else if (IsThinLTO) {
-        MPM = PB.buildThinLTOPreLinkDefaultPipeline(Level);
-      } else if (IsLTO) {
-        MPM = PB.buildLTOPreLinkDefaultPipeline(Level);
-      } else {
-        MPM = PB.buildPerModuleDefaultPipeline(Level);
-      }
-    } else {
+    if (CodeGenOpts.DisableSYCLEarlyOpts) {
       MPM =
           PB.buildO0DefaultPipeline(OptimizationLevel::O0, IsLTO || IsThinLTO);
+    } else if (CodeGenOpts.OptimizationLevel == 0) {
+      MPM = PB.buildO0DefaultPipeline(Level, IsLTO || IsThinLTO);
+    } else if (IsThinLTO) {
+      MPM = PB.buildThinLTOPreLinkDefaultPipeline(Level);
+    } else if (IsLTO) {
+      MPM = PB.buildLTOPreLinkDefaultPipeline(Level);
+    } else {
+      MPM = PB.buildPerModuleDefaultPipeline(Level);
     }
 
     if (!CodeGenOpts.MemoryProfileOutput.empty()) {
