@@ -1290,17 +1290,16 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
       die("No compute queue available/allowed.");
     }
   }
+  if (Device->useImmediateCommandLists()) {
+    // Create space to hold immediate commandlists corresponding to the
+    // ZeQueues
+    ComputeQueueGroup.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
+        ComputeQueueGroup.ZeQueues.size(), CommandListMap.end());
+  }
 
   // Thread id will be used to create separate queue groups per thread.
   auto TID = std::this_thread::get_id();
-  std::pair<std::unordered_map<std::thread::id, pi_queue_group_t>::iterator,
-            bool>
-      Result = ComputeQueueGroupsByTID.insert({TID, ComputeQueueGroup});
-  auto &ComputeQueueGroupRef = Result.first->second;
-  // Create space to hold immediate commandlists corresponding to the
-  // ZeQueues
-  ComputeQueueGroupRef.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
-      ComputeQueueGroup.ZeQueues.size(), CommandListMap.end());
+  ComputeQueueGroupsByTID.insert({TID, ComputeQueueGroup});
 
   // Copy group initialization.
   pi_queue_group_t CopyQueueGroup{this, queue_type::MainCopy};
@@ -1318,16 +1317,13 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
       CopyQueueGroup.LowerIndex = FilterLowerIndex;
       CopyQueueGroup.UpperIndex = FilterUpperIndex;
       CopyQueueGroup.NextIndex = CopyQueueGroup.LowerIndex;
-      std::pair<std::unordered_map<std::thread::id, pi_queue_group_t>::iterator,
-                bool>
-          Result = CopyQueueGroupsByTID.insert({TID, CopyQueueGroup});
       // Create space to hold immediate commandlists corresponding to the
       // ZeQueues
       if (Device->useImmediateCommandLists()) {
-        auto &CopyQueueGroupRef = Result.first->second;
-        CopyQueueGroupRef.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
+        CopyQueueGroup.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
             CopyQueueGroup.ZeQueues.size(), CommandListMap.end());
       }
+      CopyQueueGroupsByTID.insert({TID, CopyQueueGroup});
     }
   }
 
