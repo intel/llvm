@@ -398,7 +398,6 @@ struct tpu_params<
   static constexpr scope_t scopes[] = {scope_t::sub_group};
   static constexpr int num_scopes = sizeof(scopes) / sizeof(scope_t);
 };
-#endif
 
 // Intel XMX with SIMD16 capability
 // The Intel XMX implementation supports the logical capability support of the
@@ -448,7 +447,6 @@ constexpr bool are_types_valid_xmx16() {
   else
     return false;
 }
-#endif
 
 // General Query
 // specialization for when types are not given --> no default values
@@ -507,7 +505,6 @@ struct tpu_params<tpu::xmx16, void, void, void, sM, sN, sK> {
 // Sizes-only query:
 // Specialization for when only types are given, need to query only sizes
 
-#if __cplusplus >= 201703L
 template <typename Ta, typename Tb, typename Tc>
 struct tpu_params<tpu::xmx16, Ta, Tb, Tc, 0, 0, 0,
                   typename std::enable_if<(!std::is_same_v<Ta, void> &&
