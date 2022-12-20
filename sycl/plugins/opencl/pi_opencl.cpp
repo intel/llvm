@@ -1693,9 +1693,8 @@ pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
     return PI_ERROR_INVALID_OPERATION;
   }
 
-  uint64_t dummy;
-
   if (DeviceTime) {
+    uint64_t dummy;
     clGetDeviceAndHostTimer(deviceID, DeviceTime,
                             HostTime == nullptr ? &dummy : HostTime);
 

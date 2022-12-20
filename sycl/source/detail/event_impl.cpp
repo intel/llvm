@@ -265,13 +265,7 @@ template <>
 uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
-  if (!MHostEvent) {
-    return MSubmitTime;
-  }
-  if (!MHostProfilingInfo)
-    throw invalid_object_error("Profiling info is not available.",
-                               PI_ERROR_PROFILING_INFO_NOT_AVAILABLE);
-  return MHostProfilingInfo->getStartTime();
+  return MSubmitTime;
 }
 
 template <>
