@@ -162,6 +162,9 @@ event handler::finalize() {
         // 'Result' for single point of return
         pi_int32 Result = PI_ERROR_INVALID_VALUE;
 
+        NewEvent->setSubmittedQueue(MQueue);
+        NewEvent->setSubmissionTime();
+        
         if (MQueue->is_host()) {
           MHostKernel->call(MNDRDesc, (NewEvent)
                                           ? NewEvent->getHostProfilingInfo()
@@ -211,8 +214,6 @@ event handler::finalize() {
         else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
           NewEvent->setComplete();
 
-        NewEvent->setSubmittedQueue(MQueue);
-        NewEvent->setSubmissionTime();
         MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
       }
       return MLastEvent;
@@ -337,7 +338,6 @@ event handler::finalize() {
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
       std::move(CommandGroup), std::move(MQueue));
 
-  Event->setSubmissionTime();
   MLastEvent = detail::createSyclObjFromImpl<event>(Event);
   return MLastEvent;
 }
