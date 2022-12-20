@@ -916,9 +916,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   ModulePassManager MPM;
 
   if (!CodeGenOpts.DisableLLVMPasses) {
-    if (LangOpts.SYCLIsDevice)
-      MPM.addPass(SYCLPropagateAspectsUsagePass());
-
     // Map our optimization levels into one of the distinct levels used to
     // configure the pipeline.
     OptimizationLevel Level = mapToLevel(CodeGenOpts);
@@ -1028,6 +1025,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       } else {
         MPM = PB.buildPerModuleDefaultPipeline(Level);
       }
+    } else {
+      MPM =
+          PB.buildO0DefaultPipeline(OptimizationLevel::O0, IsLTO || IsThinLTO);
     }
 
     if (!CodeGenOpts.MemoryProfileOutput.empty()) {
