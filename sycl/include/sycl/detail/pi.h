@@ -79,7 +79,6 @@
 #define _PI_H_VERSION_MAJOR 12
 #define _PI_H_VERSION_MINOR 22
 
-
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
 #define _PI_TRIPLE_CONCAT(a, b, c) _PI_STRING_HELPER(a.b.c)
