@@ -74,7 +74,7 @@
     },
     {
       "config": "cuda_aws",
-      "name": "CUDA LLVM Test Suite",
+      "name": "[AWS] CUDA LLVM Test Suite",
       "runs-on": "aws-cuda_${{ inputs.uniq }}",
       "aws-ami": "ami-01cb0573cb039ab24",
       "aws-type": [ "g5.2xlarge", "g5.4xlarge" ],
