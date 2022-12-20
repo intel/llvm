@@ -16,15 +16,13 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
     GIT_TAG           ${LEVEL_ZERO_LOADER_TAG}
   )
 
-  # sccache is not compatible with /Zi flag, disable sccache
-  set(CMAKE_CXX_COMPILER_LAUNCHER_BAK "${CMAKE_CXX_COMPILER_LAUNCHER}")
-  set(CMAKE_CXX_COMPILER_LAUNCHER "")
-
   # Workaround warnings/errors for Level Zero build
   set(CMAKE_CXX_FLAGS_BAK "${CMAKE_CXX_FLAGS}")
   if (WIN32)
-    #FIXME: Level Zero build fails with /DUNICODE
+    # FIXME: Level Zero build fails with /DUNICODE
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /UUNICODE")
+    # USE_Z7 forces use of /Z7 instead of /Zi which is broken with sccache
+    set(USE_Z7 ON)
   else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-but-set-variable")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-pedantic")
@@ -39,7 +37,6 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
 
   # Restore original flags
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
-  set(CMAKE_CXX_COMPILER_LAUNCHER "${CMAKE_CXX_COMPILER_LAUNCHER_BAK}")
 
   set(LEVEL_ZERO_LIBRARY ze_loader)
   set(LEVEL_ZERO_INCLUDE_DIR
