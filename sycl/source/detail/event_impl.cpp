@@ -422,10 +422,9 @@ void event_impl::setSubmissionTime() {
     try {
       MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
     } catch (feature_not_supported &e) {
-      throw feature_not_supported(
+      throw sycl::exception(make_error_code(errc::profiling),
           std::string("Unable to get command group submission time: ") +
-              e.what(),
-          PI_ERROR_INVALID_OPERATION);
+              e.what());
     }
   }
 }
