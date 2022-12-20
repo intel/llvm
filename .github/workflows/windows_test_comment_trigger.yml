@@ -65,7 +65,7 @@ jobs:
         REPO: ${{ github.event.repository.name }}
         SHA: ${{ needs.windows_test_preparation.outputs.PR_SHA }}
       run: |
-          gh api --method POST -H "Accept: application/vnd.github+json" /repos/$OWNER/$REPO/statuses/$SHA -f state='success' -f target_url='${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}' -f description='Successful' -f context='Windows pre-commit'
+          gh api --method POST -H "Accept: application/vnd.github+json" /repos/$OWNER/$REPO/statuses/$SHA -f state='success' -f target_url='${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}' -f description='The operation completed successfully' -f context='Windows pre-commit'
     - name: update_pr_status_failure
       if: failure()
       env:
