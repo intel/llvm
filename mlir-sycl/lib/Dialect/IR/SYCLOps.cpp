@@ -12,8 +12,10 @@
 #include "mlir/IR/OpImplementation.h"
 #include "llvm/ADT/TypeSwitch.h"
 
-bool mlir::sycl::SYCLCastOp::areCastCompatible(::mlir::TypeRange Inputs,
-                                               ::mlir::TypeRange Outputs) {
+using namespace mlir;
+using namespace mlir::sycl;
+
+bool SYCLCastOp::areCastCompatible(TypeRange Inputs, TypeRange Outputs) {
   if (Inputs.size() != 1 || Outputs.size() != 1)
     return false;
 
@@ -22,58 +24,50 @@ bool mlir::sycl::SYCLCastOp::areCastCompatible(::mlir::TypeRange Inputs,
   if (!Input || !Output)
     return false;
 
-  /// This is a hack - Since the sycl's CastOp takes as input/output MemRef, we
-  /// want to ensure that the cast is valid within MemRef's world.
-  /// In order to do that, we create a temporary Output that have the same
-  /// MemRef characteristic to check the MemRef cast without having the
-  /// ElementType triggering a condition like
-  /// (Input.getElementType() != Output.getElementType()).
-  /// This ElementType condition is checked later in this function.
+  // This is a hack - Since the sycl's CastOp takes as input/output MemRef, we
+  // want to ensure that the cast is valid within MemRef's world.
+  // In order to do that, we create a temporary Output that have the same
+  // MemRef characteristic to check the MemRef cast without having the
+  // ElementType triggering a condition like
+  // (Input.getElementType() != Output.getElementType()).
+  // This ElementType condition is checked later in this function.
   const auto TempOutput =
-      mlir::MemRefType::get(Output.getShape(), Input.getElementType(),
-                            Output.getLayout(), Output.getMemorySpace());
-  if (!mlir::memref::CastOp::areCastCompatible(Input, TempOutput))
+      MemRefType::get(Output.getShape(), Input.getElementType(),
+                      Output.getLayout(), Output.getMemorySpace());
+  if (!memref::CastOp::areCastCompatible(Input, TempOutput))
     return false;
 
-  const bool HasArrayTrait = Input.getElementType()
-                                 .hasTrait<mlir::sycl::SYCLInheritanceTypeTrait<
-                                     mlir::sycl::ArrayType>::Trait>();
-  const bool IsArray = Output.getElementType().isa<mlir::sycl::ArrayType>();
-  if (HasArrayTrait && IsArray)
-    return true;
+  // Check whether the input element type is derived from the output element
+  // type. If it is, the cast is legal.
+  Type InputElemType = Input.getElementType();
+  Type OutputElemType = Output.getElementType();
 
-  const bool HasAccessorCommonTrait =
-      Input.getElementType()
-          .hasTrait<mlir::sycl::SYCLInheritanceTypeTrait<
-              mlir::sycl::AccessorCommonType>::Trait>();
-  const bool IsAccessorCommon =
-      Output.getElementType().isa<mlir::sycl::AccessorCommonType>();
-  if (HasAccessorCommonTrait && IsAccessorCommon)
-    return true;
-
-  const bool HasOwnerLessBaseTrait =
-      Input.getElementType()
-          .hasTrait<mlir::sycl::SYCLInheritanceTypeTrait<
-              mlir::sycl::OwnerLessBaseType>::Trait>();
-  const bool IsOwnerLessBase =
-      Output.getElementType().isa<mlir::sycl::OwnerLessBaseType>();
-  if (HasOwnerLessBaseTrait && IsOwnerLessBase)
-    return true;
-
-  const bool HasLocalAccessorBaseTrait =
-      Input.getElementType()
-          .hasTrait<mlir::sycl::SYCLInheritanceTypeTrait<
-              mlir::sycl::LocalAccessorBaseType>::Trait>();
-  const bool IsLocalAccessorBase =
-      Output.getElementType().isa<mlir::sycl::LocalAccessorBaseType>();
-  if (HasLocalAccessorBaseTrait && IsLocalAccessorBase)
-    return true;
-
-  return false;
+  return TypeSwitch<Type, bool>(OutputElemType)
+      .template Case<ArrayType>([&](auto) {
+        return InputElemType
+            .hasTrait<SYCLInheritanceTypeTrait<ArrayType>::Trait>();
+      })
+      .template Case<AccessorCommonType>([&](auto) {
+        return InputElemType
+            .hasTrait<SYCLInheritanceTypeTrait<AccessorCommonType>::Trait>();
+      })
+      .template Case<LocalAccessorBaseType>([&](auto) {
+        return InputElemType
+            .hasTrait<SYCLInheritanceTypeTrait<LocalAccessorBaseType>::Trait>();
+      })
+      .template Case<OwnerLessBaseType>([&](auto) {
+        return InputElemType
+            .hasTrait<SYCLInheritanceTypeTrait<OwnerLessBaseType>::Trait>();
+      })
+      .template Case<TupleValueHolderType>([&](auto) {
+        return InputElemType
+            .hasTrait<SYCLInheritanceTypeTrait<TupleValueHolderType>::Trait>();
+      })
+      .Default(false);
 }
 
-mlir::LogicalResult mlir::sycl::SYCLConstructorOp::verify() {
-  auto MT = getOperand(0).getType().dyn_cast<mlir::MemRefType>();
+LogicalResult SYCLConstructorOp::verify() {
+  auto MT = getOperand(0).getType().dyn_cast<MemRefType>();
   if (MT && isSYCLType(MT.getElementType()))
     return success();
 
@@ -81,7 +75,7 @@ mlir::LogicalResult mlir::sycl::SYCLConstructorOp::verify() {
                      "MemRef to a SYCL type");
 }
 
-mlir::LogicalResult mlir::sycl::SYCLAccessorSubscriptOp::verify() {
+LogicalResult SYCLAccessorSubscriptOp::verify() {
   // Available only when: (Dimensions > 0)
   // reference operator[](id<Dimensions> index) const;
 
@@ -90,35 +84,33 @@ mlir::LogicalResult mlir::sycl::SYCLAccessorSubscriptOp::verify() {
 
   // Available only when: (AccessMode != access_mode::atomic && Dimensions == 1)
   // reference operator[](size_t index) const;
-  const auto AccessorTy =
-      getOperand(0).getType().cast<mlir::sycl::AccessorType>();
+  const auto AccessorTy = getOperand(0).getType().cast<AccessorType>();
 
   const unsigned Dimensions = AccessorTy.getDimension();
   if (Dimensions == 0)
     return emitOpError("Dimensions cannot be zero");
 
-  const auto verifyResultType = [&]() -> mlir::LogicalResult {
-    const auto ResultType = getResult().getType();
+  const auto VerifyResultType = [&]() {
+    const Type ResultType = getResult().getType();
 
-    auto VerifyElemType =
-        [&](const mlir::Type ElemType) -> mlir::LogicalResult {
-      if (ElemType != AccessorTy.getType())
-        return emitOpError(
-                   "Expecting a reference to this accessor's value type (")
-               << AccessorTy.getType() << "). Got " << ResultType;
-      return success();
+    auto VerifyElemType = [&](const Type ElemType) {
+      return (ElemType != AccessorTy.getType())
+                 ? emitOpError(
+                       "Expecting a reference to this accessor's value type (")
+                       << AccessorTy.getType() << "). Got " << ResultType
+                 : success();
     };
 
-    return TypeSwitch<mlir::Type, mlir::LogicalResult>(ResultType)
-        .Case<mlir::MemRefType>(
+    return TypeSwitch<Type, LogicalResult>(ResultType)
+        .Case<MemRefType>(
             [&](auto Ty) { return VerifyElemType(Ty.getElementType()); })
-        .Case<LLVM::LLVMPointerType>([&](auto Ty) -> mlir::LogicalResult {
-          const mlir::Type ElemType = Ty.getElementType();
-          if (!ElemType.isa<LLVM::LLVMStructType>())
-            return emitOpError("Expecting pointer to struct return type. Got ")
-                   << ResultType;
-
-          return VerifyElemType(ElemType);
+        .Case<LLVM::LLVMPointerType>([&](auto Ty) {
+          const Type ElemType = Ty.getElementType();
+          return (!ElemType.isa<LLVM::LLVMStructType>())
+                     ? emitOpError(
+                           "Expecting pointer to struct return type. Got ")
+                           << ResultType
+                     : VerifyElemType(ElemType);
         })
         .Default([this](auto Ty) {
           return emitOpError("Expecting memref/pointer return type. Got ")
@@ -126,32 +118,28 @@ mlir::LogicalResult mlir::sycl::SYCLAccessorSubscriptOp::verify() {
         });
   };
 
-  return mlir::TypeSwitch<mlir::Type, mlir::LogicalResult>(
-             getOperand(1).getType())
-      .Case<mlir::MemRefType>([&](auto MemRefTy) -> mlir::LogicalResult {
+  return TypeSwitch<Type, LogicalResult>(getOperand(1).getType())
+      .Case<MemRefType>([&](auto MemRefTy) {
         Type ElemTy = MemRefTy.getElementType();
-        auto IDTy = ElemTy.dyn_cast<mlir::sycl::IDType>();
+        auto IDTy = ElemTy.dyn_cast<IDType>();
         assert(IDTy && "Unhandled input memref type");
-        if (IDTy.getDimension() != Dimensions) {
-          return emitOpError(
-                     "Both the index and the accessor must have the same "
-                     "number of dimensions, but the accessor has ")
-                 << Dimensions << "dimensions and the index, "
-                 << IDTy.getDimension();
-        }
-        return verifyResultType();
+        return (IDTy.getDimension() != Dimensions)
+                   ? emitOpError(
+                         "Both the index and the accessor must have the same "
+                         "number of dimensions, but the accessor has ")
+                         << Dimensions << "dimensions and the index, "
+                         << IDTy.getDimension()
+                   : VerifyResultType();
       })
-      .Case<mlir::IntegerType>([&](auto) -> mlir::LogicalResult {
-        if (Dimensions != 1) {
-          // Implementation defined result type.
-          return success();
-        }
-        if (AccessorTy.getAccessMode() ==
-            mlir::sycl::MemoryAccessMode::Atomic) {
-          return emitOpError(
-              "Cannot use this signature when the atomic access mode is used");
-        }
-        return verifyResultType();
+      .Case<IntegerType>([&](auto) {
+        if (Dimensions != 1)
+          return success(); // Implementation defined result type.
+
+        return (AccessorTy.getAccessMode() == MemoryAccessMode::Atomic)
+                   ? emitOpError(
+                         "Cannot use this signature when the atomic access "
+                         "mode is used")
+                   : VerifyResultType();
       });
 }
 

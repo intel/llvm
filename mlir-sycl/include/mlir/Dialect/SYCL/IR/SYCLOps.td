@@ -464,12 +464,12 @@ def SYCLConstructorOp : SYCL_Op<"constructor", [CallOpInterface]> {
 // CAST OPERATION
 ////////////////////////////////////////////////////////////////////////////////
 
-def CastArg : AnyTypeOf<[IDMemRef, RangeMemRef, AccessorMemRef]>;
+def CastArg : AnyTypeOf<[IDMemRef, RangeMemRef, AccessorMemRef, LocalAccessorMemRef, LocalAccessorBaseMemRef]>;
 def CastRes : AnyTypeOf<[ArrayMemRef, AccessorCommonMemRef, LocalAccessorBaseMemRef, OwnerLessBaseMemRef]>;
 def SYCLCastOp : SYCL_Op<"cast", [DeclareOpInterfaceMethods<CastOpInterface>, 
   Pure, MemRefsNormalizable]
 > {
-  let summary = "Derive to base cast operation";
+  let summary = "Derived type to base type cast operation";
   let description = [{
     This operation is used when a method of the base type is called with its
     derived type like sycl::id, In this case the sycl::cast operation will
