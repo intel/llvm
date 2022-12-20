@@ -1676,5 +1676,4 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 #undef __SYCL_PLUGIN_DLL_NAME
 #endif
 
-  
 } // end extern 'C'

@@ -9264,5 +9264,5 @@ pi_result _pi_buffer::free() {
 #include "../common_win_pi_trace/common_win_pi_trace.hpp"
 #undef __SYCL_PLUGIN_DLL_NAME
 #endif
-  
+
 } // extern "C"

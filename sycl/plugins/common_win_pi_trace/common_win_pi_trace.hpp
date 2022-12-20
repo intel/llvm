@@ -31,4 +31,4 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL,  // handle to DLL module
   }
   return TRUE;
 }
-#endif //WIN32
+#endif // WIN32
