@@ -28,8 +28,8 @@ static const char *knownAdaptersNames[] = {
 std::vector<PlatformLibraryPath> discoverEnabledPlatforms() {
     std::vector<PlatformLibraryPath> enabledPlatforms;
 
-    // UR_ENABLE_ALT_DRIVERS is for development/debug only
-    const char *altPlatforms = getenv("UR_ENABLE_ALT_DRIVERS");
+    // UR_ADAPTERS_FORCE_LOAD  is for development/debug only
+    const char *altPlatforms = getenv("UR_ADAPTERS_FORCE_LOAD ");
     
     if (altPlatforms == nullptr) {
         for (auto libName : knownAdaptersNames) {
