@@ -762,6 +762,31 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
   return PI_SUCCESS;
 }
 
+// Get value of the threshold for number of events in immediate command lists.
+// If number of events in the immediate command list exceeds this threshold then
+// cleanup process for those events is executed.
+static const size_t ImmCmdListsEventCleanupThreshold = [] {
+  const char *ImmCmdListsEventCleanupThresholdStr = std::getenv(
+      "SYCL_PI_LEVEL_ZERO_IMMEDIATE_COMMANDLISTS_EVENT_CLEANUP_THRESHOLD");
+  static constexpr int Default = 20;
+  if (!ImmCmdListsEventCleanupThresholdStr)
+    return Default;
+
+  int Threshold = std::atoi(ImmCmdListsEventCleanupThresholdStr);
+
+  // Basically disable threshold if negative value is provided.
+  if (Threshold < 0)
+    return INT_MAX;
+
+  return Threshold;
+}();
+
+// Whether immediate commandlists will be used for kernel launches and copies.
+// The default is standard commandlists. Setting 1 or 2 specifies use of
+// immediate commandlists. Note: when immediate commandlists are used then
+// device-only events must be either AllHostVisible or OnDemandHostVisibleProxy.
+// (See env var SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS).
+
 enum ImmCmdlistMode {
   // Immediate commandlists are not used.
   NotUsed,
@@ -783,34 +808,21 @@ static const int ImmediateCommandlistsSetting = [] {
   return std::stoi(ImmediateCommandlistsSettingStr);
 }();
 
-// Get value of the threshold for number of events in immediate command lists.
-// If number of events in the immediate command list exceeds this threshold then
-// cleanup process for those events is executed.
-static const size_t ImmCmdListsEventCleanupThreshold = [] {
-  const char *ImmCmdListsEventCleanupThresholdStr = std::getenv(
-      "SYCL_PI_LEVEL_ZERO_IMMEDIATE_COMMANDLISTS_EVENT_CLEANUP_THRESHOLD");
-  static constexpr int Default = 20;
-  if (!ImmCmdListsEventCleanupThresholdStr)
-    return Default;
-
-  int Threshold = std::atoi(ImmCmdListsEventCleanupThresholdStr);
-
-  // Basically disable threshold if negative value is provided.
-  if (Threshold < 0)
-    return INT_MAX;
-
-  return Threshold;
-}();
-
-// Whether immediate commandlists will be used for kernel launches and copies.
-// The default is standard commandlists. Setting a value >=1 specifies use of
-// immediate commandlists. Note: when immediate commandlists are used then
-// device-only events must be either AllHostVisible or OnDemandHostVisibleProxy.
-// (See env var SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS).
 int _pi_device::useImmediateCommandLists() {
+  // If immediate commandlist setting is not explicitly set, then use the device
+  // default.
   if (ImmediateCommandlistsSetting == -1)
     return ImmCommandListsPreferred;
-  return ImmediateCommandlistsSetting;
+  switch (ImmediateCommandlistsSetting) {
+  case 0:
+    return NotUsed;
+  case 1:
+    return PerQueue;
+  case 2:
+    return PerThreadPerQueue;
+  default:
+    return NotUsed;
+  }
 }
 
 pi_device _pi_context::getRootDevice() const {
