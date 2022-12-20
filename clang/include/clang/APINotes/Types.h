@@ -15,6 +15,10 @@
 #include <climits>
 #include <vector>
 
+namespace llvm {
+class raw_ostream;
+} // namespace llvm
+
 namespace clang {
 namespace api_notes {
 enum class RetainCountConventionKind {
@@ -215,7 +219,8 @@ public:
   /// Determine the default nullability for properties and methods of this
   /// class.
   ///
-  /// eturns the default nullability, if implied, or None if there is no
+  /// Returns the default nullability, if implied, or std::nullopt if there is
+  /// none.
   llvm::Optional<NullabilityKind> getDefaultNullability() const {
     return HasDefaultNullability
                ? llvm::Optional<NullabilityKind>(
