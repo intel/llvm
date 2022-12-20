@@ -33,6 +33,9 @@ T reduce_over_group_impl(GroupHelper group_helper, T x, size_t num_elements,
   return group_broadcast(g, result);
 #else
   std::ignore = group_helper;
+  std::ignore = x;
+  std::ignore = num_elements;
+  std::ignore = binary_op;
   throw runtime_error("Group algorithms are not supported on host.",
                       PI_ERROR_INVALID_DEVICE);
 #endif
@@ -51,7 +54,6 @@ reduce_over_group(GroupHelper group_helper, T x, BinaryOperation binary_op) {
       group_helper, x, group_helper.get_group().get_local_linear_range(),
       binary_op);
 #else
-  std::ignore = group_helper;
   throw runtime_error("Group algorithms are not supported on host.",
                       PI_ERROR_INVALID_DEVICE);
 #endif
