@@ -1,4 +1,4 @@
-//===---------------- pi2ur.cpp - PI API to UR API  --------------------==//
+//===---------------- pi2ur.hpp - PI API to UR API  --------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,6 +11,7 @@
 
 #include "zer_api.h"
 #include <sycl/detail/pi.h>
+#include <ur/ur.hpp>
 
 // Map of UR error codes to PI error codes
 static pi_result ur2piResult(zer_result_t urResult) {
@@ -22,6 +23,7 @@ static pi_result ur2piResult(zer_result_t urResult) {
   //
   static std::unordered_map<zer_result_t, pi_result> ErrorMapping = {
       {ZER_RESULT_SUCCESS, PI_SUCCESS},
+      {ZER_RESULT_ERROR_UNKNOWN, PI_ERROR_UNKNOWN},
       {ZER_RESULT_ERROR_DEVICE_LOST, PI_ERROR_DEVICE_NOT_FOUND},
       {ZER_RESULT_INVALID_OPERATION, PI_ERROR_INVALID_OPERATION},
       {ZER_RESULT_INVALID_PLATFORM, PI_ERROR_INVALID_PLATFORM},
@@ -42,3 +44,31 @@ static pi_result ur2piResult(zer_result_t urResult) {
   }
   return It->second;
 }
+
+// Early exits on any error
+#define HANDLE_ERRORS(urCall)                                                  \
+  if (auto Result = urCall)                                                    \
+    return ur2piResult(Result);
+
+namespace pi2ur {
+inline pi_result piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
+                                pi_uint32 *num_platforms) {
+
+  // https://spec.oneapi.io/unified-runtime/latest/core/api.html#zerplatformget
+
+  uint32_t Count = num_entries;
+  auto phPlatforms = reinterpret_cast<zer_platform_handle_t *>(platforms);
+  HANDLE_ERRORS(zerPlatformGet(&Count, phPlatforms));
+  if (num_platforms) {
+    *num_platforms = Count;
+  }
+  return PI_SUCCESS;
+}
+
+inline pi_result piPlatformGetInfo(pi_platform platform,
+                                   pi_platform_info param_name,
+                                   size_t param_value_size, void *param_value,
+                                   size_t *param_value_size_ret) {
+  die("Unified Runtime: piPlatformGetInfo is not implemented");
+}
+} // namespace pi2ur
