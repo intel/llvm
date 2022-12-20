@@ -230,7 +230,7 @@ struct BufferizationOptions {
   bool bufferizeFunctionBoundaries = false;
 
   /// The default memory space that should be used when it cannot be inferred
-  /// from the context. If case of llvm::None, bufferization fails when the
+  /// from the context. If case of std::nullopt, bufferization fails when the
   /// memory space cannot be inferred at any point.
   Optional<Attribute> defaultMemorySpace = Attribute();
 
@@ -292,7 +292,7 @@ struct BufferizationOptions {
   bool printConflicts = false;
 
   /// Buffer alignment for new memory allocations.
-  unsigned int bufferAlignment = 128;
+  unsigned int bufferAlignment = 64;
 
   /// Initializer functions for analysis state. These can be used to
   /// initialize dialect-specific analysis state.

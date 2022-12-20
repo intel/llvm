@@ -1,6 +1,6 @@
-; RUN: opt -S -licm < %s | FileCheck %s -check-prefixes=CHECK,CHECK-DISABLED
-; RUN: opt -S -licm -licm-control-flow-hoisting=1 < %s | FileCheck %s -check-prefixes=CHECK,CHECK-ENABLED
-; RUN: opt -S -licm -licm-control-flow-hoisting=0 < %s | FileCheck %s -check-prefixes=CHECK,CHECK-DISABLED
+; RUN: opt -S -passes=licm < %s | FileCheck %s -check-prefixes=CHECK,CHECK-DISABLED
+; RUN: opt -S -passes=licm -licm-control-flow-hoisting=1 < %s | FileCheck %s -check-prefixes=CHECK,CHECK-ENABLED
+; RUN: opt -S -passes=licm -licm-control-flow-hoisting=0 < %s | FileCheck %s -check-prefixes=CHECK,CHECK-DISABLED
 ; RUN: opt -passes='require<opt-remark-emit>,loop-mssa(licm)' -S < %s | FileCheck %s -check-prefixes=CHECK,CHECK-DISABLED
 
 ; RUN: opt -passes='require<opt-remark-emit>,loop-mssa(licm)' -licm-control-flow-hoisting=1 -verify-memoryssa -S < %s | FileCheck %s -check-prefixes=CHECK,CHECK-ENABLED
@@ -624,22 +624,26 @@ end:
 
 ; We can hoist blocks that contain an edge that exits the loop by ignoring that
 ; edge in the hoisted block.
-; CHECK-LABEL: @triangle_phi_loopexit
 define void @triangle_phi_loopexit(i32 %x, ptr %p) {
-; CHECK-LABEL: entry:
-; CHECK-DAG: %add = add i32 %x, 1
-; CHECK-DAG: %cmp1 = icmp sgt i32 %x, 0
-; CHECK-DAG: %cmp2 = icmp sgt i32 10, %add
-; CHECK-ENABLED: br i1 %cmp1, label %[[IF_LICM:.*]], label %[[THEN_LICM:.*]]
+; CHECK-LABEL: @triangle_phi_loopexit(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[ADD:%.*]] = add i32 [[X:%.*]], 1
+; CHECK-NEXT:    [[CMP1_NOT:%.*]] = icmp sle i32 [[X]], 0
+; CHECK-NEXT:    [[CMP2:%.*]] = icmp sgt i32 10, [[ADD]]
+; CHECK-NEXT:    [[PHI_SEL:%.*]] = select i1 [[CMP1_NOT]], i32 [[X]], i32 [[ADD]]
+; CHECK-NEXT:    [[OR_COND:%.*]] = or i1 [[CMP1_NOT]], [[CMP2]]
+; CHECK-NEXT:    [[CMP3:%.*]] = icmp ne i32 [[PHI_SEL]], 0
+; CHECK-NEXT:    br label [[LOOP:%.*]]
+; CHECK:       loop:
+; CHECK-NEXT:    br i1 [[OR_COND]], label [[THEN:%.*]], label [[END:%.*]]
+; CHECK:       then:
+; CHECK-NEXT:    store i32 [[PHI_SEL]], ptr [[P:%.*]], align 4
+; CHECK-NEXT:    br i1 [[CMP3]], label [[LOOP]], label [[END]]
+; CHECK:       end:
+; CHECK-NEXT:    ret void
+;
 entry:
   br label %loop
-
-; CHECK-ENABLED: [[IF_LICM]]:
-; CHECK-ENABLED: br label %[[THEN_LICM]]
-
-; CHECK-ENABLED: [[THEN_LICM]]:
-; CHECK-ENABLED: %phi = phi i32 [ %add, %[[IF_LICM]] ], [ %x, %entry ]
-; CHECK: br label %loop
 
 loop:
   %cmp1 = icmp sgt i32 %x, 0
@@ -650,8 +654,6 @@ if:
   %cmp2 = icmp sgt i32 10, %add
   br i1 %cmp2, label %then, label %end
 
-; CHECK-LABEL: then:
-; CHECK-DISABLED: %phi = phi i32 [ %add, %if ], [ %x, %loop ]
 then:
   %phi = phi i32 [ %add, %if ], [ %x, %loop ]
   store i32 %phi, ptr %p

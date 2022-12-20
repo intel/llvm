@@ -1643,10 +1643,10 @@ static UsedNZCV getUsedNZCV(AArch64CC::CondCode CC) {
 
 /// \returns Conditions flags used after \p CmpInstr in its MachineBB if NZCV
 /// flags are not alive in successors of the same \p CmpInstr and \p MI parent.
-/// \returns None otherwise.
+/// \returns std::nullopt otherwise.
 ///
 /// Collect instructions using that flags in \p CCUseInstrs if provided.
-Optional<UsedNZCV>
+std::optional<UsedNZCV>
 llvm::examineCFlagsUse(MachineInstr &MI, MachineInstr &CmpInstr,
                        const TargetRegisterInfo &TRI,
                        SmallVectorImpl<MachineInstr *> *CCUseInstrs) {
@@ -1701,7 +1701,7 @@ static bool canInstrSubstituteCmpInstr(MachineInstr &MI, MachineInstr &CmpInstr,
   if (!isADDSRegImm(CmpOpcode) && !isSUBSRegImm(CmpOpcode))
     return false;
 
-  Optional<UsedNZCV> NZVCUsed = examineCFlagsUse(MI, CmpInstr, TRI);
+  std::optional<UsedNZCV> NZVCUsed = examineCFlagsUse(MI, CmpInstr, TRI);
   if (!NZVCUsed || NZVCUsed->C || NZVCUsed->V)
     return false;
 
@@ -1787,7 +1787,7 @@ static bool canCmpInstrBeRemoved(MachineInstr &MI, MachineInstr &CmpInstr,
   if (MIUsedNZCV.C || MIUsedNZCV.V)
     return false;
 
-  Optional<UsedNZCV> NZCVUsedAfterCmp =
+  std::optional<UsedNZCV> NZCVUsedAfterCmp =
       examineCFlagsUse(MI, CmpInstr, TRI, &CCUseInstrs);
   // Condition flags are not used in CmpInstr basic block successors and only
   // Z or N flags allowed to be used after CmpInstr within its basic block
@@ -2214,7 +2214,7 @@ bool AArch64InstrInfo::hasUnscaledLdStOffset(unsigned Opc) {
   }
 }
 
-Optional<unsigned> AArch64InstrInfo::getUnscaledLdSt(unsigned Opc) {
+std::optional<unsigned> AArch64InstrInfo::getUnscaledLdSt(unsigned Opc) {
   switch (Opc) {
   default: return {};
   case AArch64::PRFMui: return AArch64::PRFUMi;
@@ -2594,7 +2594,7 @@ bool AArch64InstrInfo::getMemOperandsWithOffsetWidth(
   return true;
 }
 
-Optional<ExtAddrMode>
+std::optional<ExtAddrMode>
 AArch64InstrInfo::getAddrModeFromMemoryOp(const MachineInstr &MemI,
                                           const TargetRegisterInfo *TRI) const {
   const MachineOperand *Base; // Filled with the base operand of MI.
@@ -4699,7 +4699,7 @@ int llvm::isAArch64FrameOffsetLegal(const MachineInstr &MI,
   // If the offset doesn't match the scale, we rewrite the instruction to
   // use the unscaled instruction instead. Likewise, if we have a negative
   // offset and there is an unscaled op to use.
-  Optional<unsigned> UnscaledOp =
+  std::optional<unsigned> UnscaledOp =
       AArch64InstrInfo::getUnscaledLdSt(MI.getOpcode());
   bool useUnscaledOp = UnscaledOp && (Offset % Scale || Offset < 0);
   if (useUnscaledOp &&
@@ -4939,38 +4939,52 @@ static bool canCombineWithFMUL(MachineBasicBlock &MBB, MachineOperand &MO,
 //       1. Other data types (integer, vectors)
 //       2. Other math / logic operations (xor, or)
 //       3. Other forms of the same operation (intrinsics and other variants)
-bool AArch64InstrInfo::isAssociativeAndCommutative(
-    const MachineInstr &Inst) const {
+bool AArch64InstrInfo::isAssociativeAndCommutative(const MachineInstr &Inst,
+                                                   bool Invert) const {
+  if (Invert)
+    return false;
   switch (Inst.getOpcode()) {
-  case AArch64::FADDDrr:
+  // == Floating-point types ==
+  // -- Floating-point instructions --
   case AArch64::FADDSrr:
-  case AArch64::FADDv2f32:
-  case AArch64::FADDv2f64:
-  case AArch64::FADDv4f32:
-  case AArch64::FMULDrr:
+  case AArch64::FADDDrr:
   case AArch64::FMULSrr:
+  case AArch64::FMULDrr:
   case AArch64::FMULX32:
   case AArch64::FMULX64:
-  case AArch64::FMULXv2f32:
-  case AArch64::FMULXv2f64:
-  case AArch64::FMULXv4f32:
+  // -- Advanced SIMD instructions --
+  case AArch64::FADDv2f32:
+  case AArch64::FADDv4f32:
+  case AArch64::FADDv2f64:
   case AArch64::FMULv2f32:
-  case AArch64::FMULv2f64:
   case AArch64::FMULv4f32:
+  case AArch64::FMULv2f64:
+  case AArch64::FMULXv2f32:
+  case AArch64::FMULXv4f32:
+  case AArch64::FMULXv2f64:
     return Inst.getParent()->getParent()->getTarget().Options.UnsafeFPMath ||
            (Inst.getFlag(MachineInstr::MIFlag::FmReassoc) &&
             Inst.getFlag(MachineInstr::MIFlag::FmNsz));
-  case AArch64::ADDXrr:
-  case AArch64::ANDXrr:
-  case AArch64::ORRXrr:
-  case AArch64::EORXrr:
-  case AArch64::EONXrr:
+
+  // == Integer types ==
+  // -- Base instructions --
+  // Opcodes MULWrr and MULXrr don't exist because
+  // `MUL <Wd>, <Wn>, <Wm>` and `MUL <Xd>, <Xn>, <Xm>` are aliases of
+  // `MADD <Wd>, <Wn>, <Wm>, WZR` and `MADD <Xd>, <Xn>, <Xm>, XZR` respectively.
+  // The machine-combiner does not support three-source-operands machine
+  // instruction. So we cannot reassociate MULs.
   case AArch64::ADDWrr:
+  case AArch64::ADDXrr:
   case AArch64::ANDWrr:
+  case AArch64::ANDXrr:
   case AArch64::ORRWrr:
+  case AArch64::ORRXrr:
   case AArch64::EORWrr:
+  case AArch64::EORXrr:
   case AArch64::EONWrr:
+  case AArch64::EONXrr:
     return true;
+
   default:
     return false;
   }
@@ -8080,7 +8094,7 @@ bool AArch64InstrInfo::shouldOutlineFromFunctionByDefault(
   return MF.getFunction().hasMinSize();
 }
 
-Optional<DestSourcePair>
+std::optional<DestSourcePair>
 AArch64InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
 
   // AArch64::ORRWrs and AArch64::ORRXrs with WZR/XZR reg
@@ -8100,8 +8114,8 @@ AArch64InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
   return std::nullopt;
 }
 
-Optional<RegImmPair> AArch64InstrInfo::isAddImmediate(const MachineInstr &MI,
-                                                      Register Reg) const {
+std::optional<RegImmPair>
+AArch64InstrInfo::isAddImmediate(const MachineInstr &MI, Register Reg) const {
   int Sign = 1;
   int64_t Offset = 0;
 
@@ -8139,7 +8153,7 @@ Optional<RegImmPair> AArch64InstrInfo::isAddImmediate(const MachineInstr &MI,
 /// If the given ORR instruction is a copy, and \p DescribedReg overlaps with
 /// the destination register then, if possible, describe the value in terms of
 /// the source register.
-static Optional<ParamLoadedValue>
+static std::optional<ParamLoadedValue>
 describeORRLoadedValue(const MachineInstr &MI, Register DescribedReg,
                        const TargetInstrInfo *TII,
                        const TargetRegisterInfo *TRI) {
@@ -8174,7 +8188,7 @@ describeORRLoadedValue(const MachineInstr &MI, Register DescribedReg,
   return std::nullopt;
 }
 
-Optional<ParamLoadedValue>
+std::optional<ParamLoadedValue>
 AArch64InstrInfo::describeLoadedValue(const MachineInstr &MI,
                                       Register Reg) const {
   const MachineFunction *MF = MI.getMF();

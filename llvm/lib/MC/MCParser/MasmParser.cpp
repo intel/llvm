@@ -14,8 +14,6 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitVector.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
@@ -848,8 +846,8 @@ private:
 
   const MCExpr *evaluateBuiltinValue(BuiltinSymbol Symbol, SMLoc StartLoc);
 
-  llvm::Optional<std::string> evaluateBuiltinTextMacro(BuiltinSymbol Symbol,
-                                                       SMLoc StartLoc);
+  std::optional<std::string> evaluateBuiltinTextMacro(BuiltinSymbol Symbol,
+                                                      SMLoc StartLoc);
 
   // ".ascii", ".asciz", ".string"
   bool parseDirectiveAscii(StringRef IDVal, bool ZeroTerminated);
@@ -1201,7 +1199,7 @@ bool MasmParser::expandMacros() {
     return false;
   }
 
-  llvm::Optional<std::string> ExpandedValue;
+  std::optional<std::string> ExpandedValue;
   auto BuiltinIt = BuiltinSymbolMap.find(IDLower);
   if (BuiltinIt != BuiltinSymbolMap.end()) {
     ExpandedValue =
@@ -3617,7 +3615,7 @@ bool MasmParser::parseTextItem(std::string &Data) {
       // Try to resolve as a built-in text macro
       auto BuiltinIt = BuiltinSymbolMap.find(ID.lower());
       if (BuiltinIt != BuiltinSymbolMap.end()) {
-        llvm::Optional<std::string> BuiltinText =
+        std::optional<std::string> BuiltinText =
             evaluateBuiltinTextMacro(BuiltinIt->getValue(), StartLoc);
         if (!BuiltinText) {
           // Not a text macro; break without substituting
@@ -4888,7 +4886,7 @@ bool MasmParser::parseDirectiveFile(SMLoc DirectiveLoc) {
       Ctx.setGenDwarfForAssembly(false);
     }
 
-    Optional<MD5::MD5Result> CKMem;
+    std::optional<MD5::MD5Result> CKMem;
     if (HasMD5) {
       MD5::MD5Result Sum;
       for (unsigned i = 0; i != 8; ++i) {
@@ -6121,11 +6119,12 @@ bool MasmParser::parseDirectiveComm(bool IsLocal) {
 
   // Create the Symbol as a common or local common with Size and Pow2Alignment.
   if (IsLocal) {
-    getStreamer().emitLocalCommonSymbol(Sym, Size, 1 << Pow2Alignment);
+    getStreamer().emitLocalCommonSymbol(Sym, Size,
+                                        Align(1ULL << Pow2Alignment));
     return false;
   }
 
-  getStreamer().emitCommonSymbol(Sym, Size, 1 << Pow2Alignment);
+  getStreamer().emitCommonSymbol(Sym, Size, Align(1ULL << Pow2Alignment));
   return false;
 }
 
@@ -6892,7 +6891,7 @@ bool MasmParser::expandStatement(SMLoc Loc) {
   StringMap<std::string> BuiltinValues;
   for (const auto &S : BuiltinSymbolMap) {
     const BuiltinSymbol &Sym = S.getValue();
-    if (llvm::Optional<std::string> Text = evaluateBuiltinTextMacro(Sym, Loc)) {
+    if (std::optional<std::string> Text = evaluateBuiltinTextMacro(Sym, Loc)) {
       BuiltinValues[S.getKey().lower()] = std::move(*Text);
     }
   }
@@ -7692,7 +7691,7 @@ const MCExpr *MasmParser::evaluateBuiltinValue(BuiltinSymbol Symbol,
   llvm_unreachable("unhandled built-in symbol");
 }
 
-llvm::Optional<std::string>
+std::optional<std::string>
 MasmParser::evaluateBuiltinTextMacro(BuiltinSymbol Symbol, SMLoc StartLoc) {
   switch (Symbol) {
   default:
