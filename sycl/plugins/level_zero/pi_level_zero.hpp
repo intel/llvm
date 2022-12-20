@@ -124,7 +124,7 @@ public:
       : Context{Ctx}, Device{Dev} {}
   void *allocate(size_t Size) override final;
   void *allocate(size_t Size, size_t Alignment) override final;
-  void deallocate(void *Ptr, bool OwnZeMemHandle) override final;
+  void deallocate(void *Ptr) override final;
 };
 
 // Allocation routines for shared memory type
