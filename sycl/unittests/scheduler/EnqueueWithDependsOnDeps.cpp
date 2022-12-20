@@ -232,7 +232,8 @@ TEST_F(DependsOnTests, EnqueueNoMemObjDoubleKernelDepHostBlocked) {
   // kernels on host task completion
   std::vector<EventImplPtr> Events;
 
-  detail::Command *Cmd1 = AddTaskCG(TestCGType::HOST_TASK, Events);
+  detail::Command *Cmd1 =
+      AddTaskCG(TestCGType::HOST_TASK, Events, &CustomHostLambda);
   EventImplPtr Cmd1Event = Cmd1->getEvent();
   Cmd1->blockManually(detail::Command::BlockReason::HostAccessor);
 

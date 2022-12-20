@@ -102,7 +102,8 @@ public:
     MAP_MEM_OBJ,
     UNMAP_MEM_OBJ,
     UPDATE_REQUIREMENT,
-    HOST_TASK
+    HOST_TASK,
+    FUSION
   };
 
   Command(CommandType Type, QueueImplPtr Queue);
@@ -214,6 +215,9 @@ public:
 
   /// Returns true iff this command can be freed by post enqueue cleanup.
   virtual bool supportsPostEnqueueCleanup() const;
+
+  /// Returns true iff this command is ready to be submitted for cleanup.
+  virtual bool readyForCleanup() const;
 
   /// Collect PI events from EventImpls and filter out some of them in case of
   /// in order queue
@@ -330,9 +334,10 @@ public:
   // synchronous. The only asynchronous operation currently is host-task.
   bool MShouldCompleteEventIfPossible = true;
 
-  /// Indicates that the node will be freed by cleanup after enqueue. Such nodes
-  /// should be ignored by other cleanup mechanisms.
-  bool MPostEnqueueCleanup = false;
+  /// Indicates that the node will be freed by graph cleanup. Such nodes should
+  /// be ignored by other cleanup mechanisms (e.g. during memory object
+  /// removal).
+  bool MMarkedForCleanup = false;
 
   /// Contains list of commands that depends on the host command explicitly (by
   /// depends_on). Not involved in the cleanup process since it is one-way link
@@ -353,6 +358,7 @@ public:
   void emitInstrumentationData() override;
   bool producesPiEvent() const final;
   bool supportsPostEnqueueCleanup() const final;
+  bool readyForCleanup() const final;
 
 private:
   pi_int32 enqueueImp() final;
@@ -380,6 +386,8 @@ public:
   bool producesPiEvent() const final;
 
   bool supportsPostEnqueueCleanup() const final;
+
+  bool readyForCleanup() const final;
 
   void *MMemAllocation = nullptr;
 
@@ -536,16 +544,16 @@ pi_int32 enqueueImpKernel(
     std::vector<RT::PiEvent> &RawEvents, RT::PiEvent *OutEvent,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc);
 
+class KernelFusionCommand;
+
 /// The exec CG command enqueues execution of kernel or explicit memory
 /// operation.
 class ExecCGCommand : public Command {
 public:
   ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue);
 
-  std::vector<StreamImplPtr> getStreams() const;
   std::vector<std::shared_ptr<const void>> getAuxiliaryResources() const;
 
-  void clearStreams();
   void clearAuxiliaryResources();
 
   void printDot(std::ostream &Stream) const final;
@@ -553,9 +561,16 @@ public:
 
   detail::CG &getCG() const { return *MCommandGroup; }
 
+  // MFusionCommand is employed to mark a CG command as part of a kernel fusion
+  // and allows to refer back to the corresponding KernelFusionCommand if
+  // necessary.
+  KernelFusionCommand *MFusionCmd = nullptr;
+
   bool producesPiEvent() const final;
 
   bool supportsPostEnqueueCleanup() const final;
+
+  bool readyForCleanup() const final;
 
 private:
   pi_int32 enqueueImp() final;
@@ -583,6 +598,43 @@ private:
   AllocaCommandBase *MSrcAllocaCmd = nullptr;
   Requirement MDstReq;
   void **MDstPtr = nullptr;
+};
+
+/// The KernelFusionCommand is placed in the execution graph together with the
+/// individual kernels of the fusion list to control kernel fusion.
+class KernelFusionCommand : public Command {
+public:
+  enum class FusionStatus { ACTIVE, CANCELLED, COMPLETE, DELETED };
+
+  explicit KernelFusionCommand(QueueImplPtr Queue);
+
+  void printDot(std::ostream &Stream) const final;
+  void emitInstrumentationData() final;
+  bool producesPiEvent() const final;
+
+  std::vector<Command *> &auxiliaryCommands();
+
+  void addToFusionList(ExecCGCommand *Kernel);
+
+  std::vector<ExecCGCommand *> &getFusionList();
+
+  ///
+  /// Set the status of this fusion command to \p Status. This function should
+  /// only be called under the protection of the scheduler write-lock.
+  void setFusionStatus(FusionStatus Status);
+
+  bool isActive() const { return MStatus == FusionStatus::ACTIVE; }
+
+  bool readyForDeletion() const { return MStatus == FusionStatus::DELETED; }
+
+private:
+  pi_int32 enqueueImp() final;
+
+  std::vector<ExecCGCommand *> MFusionList;
+
+  std::vector<Command *> MAuxiliaryCommands;
+
+  FusionStatus MStatus;
 };
 
 } // namespace detail

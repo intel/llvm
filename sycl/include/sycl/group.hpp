@@ -281,10 +281,10 @@ public:
   /// space, global address space or both based on the value of \p accessSpace.
   template <access::mode accessMode = access::mode::read_write>
   void mem_fence(
-      typename std::enable_if_t<accessMode == access::mode::read ||
-                                    accessMode == access::mode::write ||
-                                    accessMode == access::mode::read_write,
-                                access::fence_space>
+      typename detail::enable_if_t<accessMode == access::mode::read ||
+                                       accessMode == access::mode::write ||
+                                       accessMode == access::mode::read_write,
+                                   access::fence_space>
           accessSpace = access::fence_space::global_and_local) const {
     uint32_t flags = detail::getSPIRVMemorySemanticsMask(accessSpace);
     // TODO: currently, there is no good way in SPIR-V to set the memory
@@ -304,7 +304,7 @@ public:
   /// device_event which can be used to wait on the completion of the copy.
   /// Permitted types for dataT are all scalar and vector types, except boolean.
   template <typename dataT>
-  std::enable_if_t<!detail::is_bool<dataT>::value, device_event>
+  detail::enable_if_t<!detail::is_bool<dataT>::value, device_event>
   async_work_group_copy(local_ptr<dataT> dest, global_ptr<dataT> src,
                         size_t numElements, size_t srcStride) const {
     using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
@@ -322,7 +322,7 @@ public:
   /// device_event which can be used to wait on the completion of the copy.
   /// Permitted types for dataT are all scalar and vector types, except boolean.
   template <typename dataT>
-  std::enable_if_t<!detail::is_bool<dataT>::value, device_event>
+  detail::enable_if_t<!detail::is_bool<dataT>::value, device_event>
   async_work_group_copy(global_ptr<dataT> dest, local_ptr<dataT> src,
                         size_t numElements, size_t destStride) const {
     using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
@@ -341,7 +341,7 @@ public:
   /// which can be used to wait on the completion of the copy.
   template <typename T, access::address_space DestS, access::address_space SrcS,
             access::decorated DestIsDecorated, access::decorated SrcIsDecorated>
-  std::enable_if_t<detail::is_scalar_bool<T>::value, device_event>
+  detail::enable_if_t<detail::is_scalar_bool<T>::value, device_event>
   async_work_group_copy(multi_ptr<T, DestS, DestIsDecorated> Dest,
                         multi_ptr<T, SrcS, SrcIsDecorated> Src,
                         size_t NumElements, size_t Stride) const {
@@ -361,7 +361,7 @@ public:
   /// which can be used to wait on the completion of the copy.
   template <typename T, access::address_space DestS, access::address_space SrcS,
             access::decorated DestIsDecorated, access::decorated SrcIsDecorated>
-  std::enable_if_t<detail::is_vector_bool<T>::value, device_event>
+  detail::enable_if_t<detail::is_vector_bool<T>::value, device_event>
   async_work_group_copy(multi_ptr<T, DestS, DestIsDecorated> Dest,
                         multi_ptr<T, SrcS, SrcIsDecorated> Src,
                         size_t NumElements, size_t Stride) const {
@@ -422,21 +422,21 @@ private:
   id<Dimensions> index;
 
   template <int dims = Dimensions>
-  typename std::enable_if_t<(dims == 1), size_t>
+  typename detail::enable_if_t<(dims == 1), size_t>
   get_local_linear_id_impl() const {
     id<Dimensions> localId = get_local_id();
     return localId[0];
   }
 
   template <int dims = Dimensions>
-  typename std::enable_if_t<(dims == 2), size_t>
+  typename detail::enable_if_t<(dims == 2), size_t>
   get_local_linear_id_impl() const {
     id<Dimensions> localId = get_local_id();
     return localId[0] * groupRange[1] + localId[1];
   }
 
   template <int dims = Dimensions>
-  typename std::enable_if_t<(dims == 3), size_t>
+  typename detail::enable_if_t<(dims == 3), size_t>
   get_local_linear_id_impl() const {
     id<Dimensions> localId = get_local_id();
     return (localId[0] * groupRange[1] * groupRange[2]) +
@@ -444,55 +444,55 @@ private:
   }
 
   template <int dims = Dimensions>
-  typename std::enable_if_t<(dims == 1), size_t>
+  typename detail::enable_if_t<(dims == 1), size_t>
   get_local_linear_range_impl() const {
     auto localRange = get_local_range();
     return localRange[0];
   }
 
   template <int dims = Dimensions>
-  typename std::enable_if_t<(dims == 2), size_t>
+  typename detail::enable_if_t<(dims == 2), size_t>
   get_local_linear_range_impl() const {
     auto localRange = get_local_range();
     return localRange[0] * localRange[1];
   }
 
   template <int dims = Dimensions>
-  typename std::enable_if_t<(dims == 3), size_t>
+  typename detail::enable_if_t<(dims == 3), size_t>
   get_local_linear_range_impl() const {
     auto localRange = get_local_range();
     return localRange[0] * localRange[1] * localRange[2];
   }
 
   template <int dims = Dimensions>
-  typename std::enable_if_t<(dims == 1), size_t>
+  typename detail::enable_if_t<(dims == 1), size_t>
   get_group_linear_range_impl() const {
     auto groupRange = get_group_range();
     return groupRange[0];
   }
 
   template <int dims = Dimensions>
-  typename std::enable_if_t<(dims == 2), size_t>
+  typename detail::enable_if_t<(dims == 2), size_t>
   get_group_linear_range_impl() const {
     auto groupRange = get_group_range();
     return groupRange[0] * groupRange[1];
   }
 
   template <int dims = Dimensions>
-  typename std::enable_if_t<(dims == 3), size_t>
+  typename detail::enable_if_t<(dims == 3), size_t>
   get_group_linear_range_impl() const {
     auto groupRange = get_group_range();
     return groupRange[0] * groupRange[1] * groupRange[2];
   }
 
   template <int dims = Dimensions>
-  typename std::enable_if_t<(dims == 1), size_t>
+  typename detail::enable_if_t<(dims == 1), size_t>
   get_group_linear_id_impl() const {
     return index[0];
   }
 
   template <int dims = Dimensions>
-  typename std::enable_if_t<(dims == 2), size_t>
+  typename detail::enable_if_t<(dims == 2), size_t>
   get_group_linear_id_impl() const {
     return index[0] * groupRange[1] + index[1];
   }
@@ -508,7 +508,7 @@ private:
   //    Get a linearized version of the work-group id. Calculating a linear
   //    work-group id from a multi-dimensional index follows the equation 4.3.
   template <int dims = Dimensions>
-  typename std::enable_if_t<(dims == 3), size_t>
+  typename detail::enable_if_t<(dims == 3), size_t>
   get_group_linear_id_impl() const {
     return (index[0] * groupRange[1] * groupRange[2]) +
            (index[1] * groupRange[2]) + index[2];

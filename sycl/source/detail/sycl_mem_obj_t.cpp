@@ -160,7 +160,10 @@ void SYCLMemObjT::detachMemoryObject(
   // buffer creation and set to meaningfull
   // value only if any operation on buffer submitted inside addCG call. addCG is
   // called from queue::submit and buffer destruction could not overlap with it.
-  if (MRecord && !MHostPtrProvided)
+  // ForceDeferredMemObjRelease is a workaround for managing auxiliary resources
+  // while preserving backward compatibility, see the comment for
+  // ForceDeferredMemObjRelease in scheduler.
+  if (MRecord && (!MHostPtrProvided || Scheduler::ForceDeferredMemObjRelease))
     Scheduler::getInstance().deferMemObjRelease(Self);
 }
 
