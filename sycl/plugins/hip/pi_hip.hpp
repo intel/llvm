@@ -65,6 +65,7 @@ using _pi_stream_guard = std::unique_lock<std::mutex>;
 ///  when devices are used.
 ///
 struct _pi_platform {
+  static hipEvent_t evBase_; // HIP event used as base counter
   std::vector<std::unique_ptr<_pi_device>> devices_;
 };
 
@@ -146,11 +147,8 @@ struct _pi_context {
   _pi_device *deviceId_;
   std::atomic_uint32_t refCount_;
 
-  hipEvent_t evBase_; // HIP event used as base counter
-
   _pi_context(kind k, hipCtx_t ctxt, _pi_device *devId)
-      : kind_{k}, hipContext_{ctxt}, deviceId_{devId}, refCount_{1},
-        evBase_(nullptr) {
+      : kind_{k}, hipContext_{ctxt}, deviceId_{devId}, refCount_{1} {
     hip_piDeviceRetain(deviceId_);
   };
 

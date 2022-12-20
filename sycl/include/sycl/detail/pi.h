@@ -1912,8 +1912,9 @@ __SYCL_EXPORT pi_result piPluginGetLastError(char **message);
 /// \param Device device to query for timestamp
 /// \param DeviceTime pointer to store device timestamp in nanoseconds. Optional
 /// argument, can be nullptr
-\param HostTime  pointer to store host timestamp in
-/// nanoseconds. Optional argurment, can be nullptr in which case timestamp will not be written
+/// \param HostTime  pointer to store host timestamp in
+/// nanoseconds. Optional argurment, can be nullptr in which case timestamp will
+/// not be written
 __SYCL_EXPORT pi_result piGetDeviceAndHostTimer(pi_device Device,
                                                 uint64_t *DeviceTime,
                                                 uint64_t *HostTime);
