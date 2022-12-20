@@ -704,10 +704,9 @@ runOptimizationPipeline(llvm::Module &Module,
   SI.registerCallbacks(PIC, &FAM);
 
   llvm::TargetMachine *TM = nullptr;
-  llvm::Optional<llvm::PGOOptions> P = llvm::None;
   llvm::PipelineTuningOptions PTO;
 
-  llvm::PassBuilder PB(TM, PTO, P, &PIC);
+  llvm::PassBuilder PB(TM, PTO, std::nullopt, &PIC);
 
   // Register all the basic analyses with the managers.
   PB.registerModuleAnalyses(MAM);

@@ -1410,7 +1410,7 @@ MLIRScanner::emitBuiltinOps(clang::CallExpr *Expr) {
     for (auto *A : Expr->arguments())
       Args.push_back(Visit(A).getValue(Builder));
   };
-  Optional<Value> V = None;
+  Optional<Value> V = std::nullopt;
   switch (Expr->getBuiltinCallee()) {
   case clang::Builtin::BIceil: {
     VisitArgs();
