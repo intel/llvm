@@ -298,8 +298,12 @@ add_custom_target(sycl-compiler
           opencl-aot
 )
 
-add_custom_target( sycl-toolchain
+add_custom_target( sycl-runtime-libraries
   DEPENDS ${SYCL_RT_LIBS}
+)
+
+add_custom_target( sycl-toolchain
+  DEPENDS sycl-runtime-libraries
           sycl-compiler
           sycl-ls
           ${XPTIFW_LIBS}

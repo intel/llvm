@@ -119,7 +119,7 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
   const char *Foreach = C.getArgs().MakeArgString(ForeachPath);
 
   auto Cmd = std::make_unique<Command>(JA, *T, ResponseFileSupport::None(),
-                                       Foreach, ForeachArgs, None);
+                                       Foreach, ForeachArgs, std::nullopt);
   // FIXME: Add the FPGA specific timing diagnostic to the foreach call.
   // The foreach call obscures the return codes from the tool it is calling
   // to the compiler itself.
@@ -271,7 +271,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     // llvm-link when driver links LLVM modules with empty modules
     CmdArgs.push_back("--suppress-warnings");
     C.addCommand(std::make_unique<Command>(
-        JA, *this, ResponseFileSupport::AtFileUTF8(), Exec, CmdArgs, None));
+        JA, *this, ResponseFileSupport::AtFileUTF8(), Exec, CmdArgs, std::nullopt));
   };
 
   // Add an intermediate output file.
@@ -313,7 +313,7 @@ void SYCL::Linker::constructLlcCommand(Compilation &C, const JobAction &JA,
   llvm::sys::path::append(LlcPath, "llc");
   const char *Llc = C.getArgs().MakeArgString(LlcPath);
   C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::AtFileUTF8(), Llc, LlcArgs, None));
+      JA, *this, ResponseFileSupport::AtFileUTF8(), Llc, LlcArgs, std::nullopt));
 }
 
 // For SYCL the inputs of the linker job are SPIR-V binaries and output is
@@ -412,7 +412,7 @@ void SYCL::fpga::BackendCompiler::constructOpenCLAOTCommand(
       getToolChain().GetProgramPath(makeExeName(C, "opencl-aot")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
-                                       Exec, CmdArgs, None);
+                                       Exec, CmdArgs, std::nullopt);
   if (!ForeachInputs.empty()) {
     StringRef ParallelJobs =
         Args.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
@@ -578,7 +578,7 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
       getToolChain().GetProgramPath(makeExeName(C, "aoc")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
-                                       Exec, CmdArgs, None);
+                                       Exec, CmdArgs, std::nullopt);
   addFPGATimingDiagnostic(Cmd, C);
   if (!ForeachInputs.empty()) {
     StringRef ParallelJobs =
@@ -623,7 +623,7 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
       getToolChain().GetProgramPath(makeExeName(C, "ocloc")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
-                                       Exec, CmdArgs, None);
+                                       Exec, CmdArgs, std::nullopt);
   if (!ForeachInputs.empty()) {
     StringRef ParallelJobs =
         Args.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
@@ -791,7 +791,7 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
       getToolChain().GetProgramPath(makeExeName(C, "opencl-aot")));
   const char *Exec = C.getArgs().MakeArgString(ExecPath);
   auto Cmd = std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
-                                       Exec, CmdArgs, None);
+                                       Exec, CmdArgs, std::nullopt);
   if (!ForeachInputs.empty()) {
     StringRef ParallelJobs =
         Args.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);

@@ -13,6 +13,7 @@
 #include "llvm/ADT/Twine.h"
 #include "gtest/gtest.h"
 #include <array>
+#include <optional>
 
 using namespace llvm;
 
@@ -2895,9 +2896,8 @@ TEST(APIntTest, SolveQuadraticEquationWrap) {
         continue;
       for (int B = Low; B != High; ++B) {
         for (int C = Low; C != High; ++C) {
-          Optional<APInt> S = APIntOps::SolveQuadraticEquationWrap(
-                                APInt(Width, A), APInt(Width, B),
-                                APInt(Width, C), Width);
+          std::optional<APInt> S = APIntOps::SolveQuadraticEquationWrap(
+              APInt(Width, A), APInt(Width, B), APInt(Width, C), Width);
           if (S)
             Validate(A, B, C, Width, S->getSExtValue());
         }
@@ -2957,7 +2957,7 @@ TEST(APIntTest, GetMostSignificantDifferentBit) {
 
 TEST(APIntTest, GetMostSignificantDifferentBitExaustive) {
   auto GetHighestDifferentBitBruteforce =
-      [](const APInt &V0, const APInt &V1) -> llvm::Optional<unsigned> {
+      [](const APInt &V0, const APInt &V1) -> std::optional<unsigned> {
     assert(V0.getBitWidth() == V1.getBitWidth() && "Must have same bitwidth");
     if (V0 == V1)
       return std::nullopt; // Bitwise identical.

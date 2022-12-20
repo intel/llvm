@@ -13,7 +13,6 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
@@ -551,7 +550,7 @@ public:
     return makeArrayRef(getTrailingObjects<unsigned>(), NumOperands);
   }
 
-  Optional<unsigned> getInRangeIndex() const {
+  std::optional<unsigned> getInRangeIndex() const {
     assert(Opcode == Instruction::GetElementPtr);
     if (Extra == (unsigned)-1)
       return std::nullopt;
@@ -3717,11 +3716,11 @@ Error BitcodeReader::rememberAndSkipFunctionBodies() {
 }
 
 Error BitcodeReaderBase::readBlockInfo() {
-  Expected<Optional<BitstreamBlockInfo>> MaybeNewBlockInfo =
+  Expected<std::optional<BitstreamBlockInfo>> MaybeNewBlockInfo =
       Stream.ReadBlockInfoBlock();
   if (!MaybeNewBlockInfo)
     return MaybeNewBlockInfo.takeError();
-  Optional<BitstreamBlockInfo> NewBlockInfo =
+  std::optional<BitstreamBlockInfo> NewBlockInfo =
       std::move(MaybeNewBlockInfo.get());
   if (!NewBlockInfo)
     return error("Malformed block");
@@ -4841,7 +4840,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
         if (Temp) {
           InstructionList.push_back(Temp);
           assert(CurBB && "No current BB?");
-          CurBB->getInstList().push_back(Temp);
+          Temp->insertAt(CurBB, CurBB->end());
         }
       } else {
         auto CastOp = (Instruction::CastOps)Opc;
@@ -6089,7 +6088,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
         // Before weak cmpxchgs existed, the instruction simply returned the
         // value loaded from memory, so bitcode files from that era will be
         // expecting the first component of a modern cmpxchg.
-        CurBB->getInstList().push_back(I);
+        I->insertAt(CurBB, CurBB->end());
         I = ExtractValueInst::Create(I, 0);
         ResTypeID = CmpTypeID;
       } else {
@@ -6413,7 +6412,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       I->deleteValue();
       return error("Operand bundles found with no consumer");
     }
-    CurBB->getInstList().push_back(I);
+    I->insertAt(CurBB, CurBB->end());
 
     // If this was a terminator instruction, move to the next block.
     if (I->isTerminator()) {

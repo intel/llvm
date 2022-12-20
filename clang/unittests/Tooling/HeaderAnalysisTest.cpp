@@ -9,13 +9,12 @@
 #include "clang/Tooling/Inclusions/HeaderAnalysis.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Testing/TestAST.h"
-#include "llvm/Testing/Support/SupportHelpers.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace clang {
 namespace tooling {
 namespace {
-using llvm::ValueIs;
 using testing::Eq;
 
 TEST(HeaderAnalysisTest, IsSelfContained) {
@@ -56,16 +55,47 @@ TEST(HeaderAnalysisTest, IsSelfContained) {
   EXPECT_TRUE(isSelfContainedHeader(FM.getFile("headerguard.h").get(), SM, HI));
   EXPECT_TRUE(isSelfContainedHeader(FM.getFile("pragmaonce.h").get(), SM, HI));
   EXPECT_TRUE(isSelfContainedHeader(FM.getFile("imported.h").get(), SM, HI));
+  EXPECT_TRUE(
+      isSelfContainedHeader(SM.getFileEntryForID(SM.getMainFileID()), SM, HI));
 
   EXPECT_FALSE(isSelfContainedHeader(FM.getFile("unguarded.h").get(), SM, HI));
   EXPECT_FALSE(isSelfContainedHeader(FM.getFile("bad.h").get(), SM, HI));
 }
 
+TEST(HeaderAnalysisTest, CodeContainsImports) {
+  EXPECT_TRUE(codeContainsImports(R"cpp(
+  #include "foo.h"
+  #import "NSFoo.h"
+
+  int main() {
+    foo();
+  }
+  )cpp"));
+
+  EXPECT_TRUE(codeContainsImports(R"cpp(
+  #include "foo.h"
+
+  int main() {
+    foo();
+  }
+
+  #import "NSFoo.h"
+  )cpp"));
+
+  EXPECT_FALSE(codeContainsImports(R"cpp(
+  #include "foo.h"
+
+  int main() {
+    foo();
+  }
+  )cpp"));
+}
+
 TEST(HeaderAnalysisTest, ParseIWYUPragma) {
-  EXPECT_THAT(parseIWYUPragma("// IWYU pragma: keep"), ValueIs(Eq("keep")));
+  EXPECT_THAT(parseIWYUPragma("// IWYU pragma: keep"), Eq("keep"));
   EXPECT_THAT(parseIWYUPragma("// IWYU pragma:   keep  me\netc"),
-              ValueIs(Eq("keep  me")));
-  EXPECT_THAT(parseIWYUPragma("/* IWYU pragma: keep */"), ValueIs(Eq("keep")));
+              Eq("keep  me"));
+  EXPECT_THAT(parseIWYUPragma("/* IWYU pragma: keep */"), Eq("keep"));
   EXPECT_EQ(parseIWYUPragma("//  IWYU pragma: keep"), std::nullopt)
       << "Prefix is sensitive to whitespace";
   EXPECT_EQ(parseIWYUPragma("// IWYU pragma:keep"), std::nullopt)

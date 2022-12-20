@@ -127,7 +127,7 @@ LogicalResult mlir::bufferization::eliminateEmptyTensors(
       // tensor::EmptyOp.
       if (maybeEmptyTensor.size() != 1 ||
           !maybeEmptyTensor.front().getDefiningOp<tensor::EmptyOp>())
-        return WalkResult::skip();
+        continue;
       Value emptyTensor = maybeEmptyTensor.front();
 
       // Replace only if the types match.
@@ -137,7 +137,7 @@ LogicalResult mlir::bufferization::eliminateEmptyTensors(
       // %2 = tensor.expand_shape %1 ...
       // %3 = tensor.insert_slice %2 into ...
       if (emptyTensor.getType() != operand.get().getType())
-        return WalkResult::skip();
+        continue;
 
       // Find a suitable insertion point.
       Operation *insertionPoint =
@@ -187,15 +187,14 @@ LogicalResult mlir::bufferization::eliminateEmptyTensors(
 ///   relation is "equivalent" (TODO: can be relaxed if needed).
 /// * The reverse use-def chain has exactly one end, which is the
 ///   tensor::EmptyOp.
-LogicalResult
-mlir::bufferization::insertSliceAnchoredEmptyTensorEliminationStep(
+template <typename OpTy>
+static LogicalResult insertSliceLikeAnchoredEmptyTensorEliminationStep(
     RewriterBase &rewriter, Operation *op, AnalysisState &state) {
   return eliminateEmptyTensors(
       rewriter, op, state,
       /*anchorMatchFunc=*/
       [&](OpOperand &operand, SmallVector<Value> &neededValues) {
-        auto insertSliceOp =
-            dyn_cast<tensor::InsertSliceOp>(operand.getOwner());
+        auto insertSliceOp = dyn_cast<OpTy>(operand.getOwner());
         if (!insertSliceOp)
           return false;
         if (&operand != &insertSliceOp->getOpOperand(0) /*source*/)
@@ -214,13 +213,25 @@ mlir::bufferization::insertSliceAnchoredEmptyTensorEliminationStep(
       },
       /*rewriteFunc=*/
       [](OpBuilder &b, Location loc, OpOperand &operand) {
-        auto insertOp = cast<tensor::InsertSliceOp>(operand.getOwner());
+        auto insertOp = cast<OpTy>(operand.getOwner());
         auto extractOp = b.create<tensor::ExtractSliceOp>(
             loc, insertOp.getSourceType(), insertOp.getDest(),
             insertOp.getMixedOffsets(), insertOp.getMixedSizes(),
             insertOp.getMixedStrides());
         return extractOp.getResult();
       });
+}
+
+LogicalResult
+mlir::bufferization::insertSliceAnchoredEmptyTensorEliminationStep(
+    RewriterBase &rewriter, Operation *op, AnalysisState &state) {
+  if (failed(insertSliceLikeAnchoredEmptyTensorEliminationStep<
+             tensor::InsertSliceOp>(rewriter, op, state)))
+    return failure();
+  if (failed(insertSliceLikeAnchoredEmptyTensorEliminationStep<
+             tensor::ParallelInsertSliceOp>(rewriter, op, state)))
+    return failure();
+  return success();
 }
 
 namespace {
