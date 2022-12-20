@@ -198,7 +198,7 @@ jobs:
     needs: [build, aws-start]
     # Continue if build was successful. If aws-start is not successful all
     # AWS tasks will fail, but all non-AWS tasks should continue.
-    if: ${{ always() && (needs.build.outputs.job_status=='success') && inputs.lts_matrix != '[]' }}
+    if: ${{ always() && needs.build.result == 'success' && inputs.lts_matrix != '[]' }}
     strategy:
       fail-fast: false
       max-parallel: ${{ inputs.max_parallel }}
