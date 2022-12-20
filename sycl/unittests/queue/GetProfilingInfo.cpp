@@ -400,12 +400,11 @@ TEST(GetProfilingInfo, submission_time_exception_check) {
     event E = Queue.submit(
         [&](handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
     FAIL();
-  } catch (feature_not_supported &e) {
+  } catch (sycl::exception &e) {
     EXPECT_STREQ(
         e.what(),
         "Unable to get command group submission time: "
         "Device and/or backend does not support querying timestamp: "
-        "Plugin version not supported -59 (PI_ERROR_INVALID_OPERATION) -59 "
-        "(PI_ERROR_INVALID_OPERATION)");
+        "Plugin version not supported -59 (PI_ERROR_INVALID_OPERATION)");
   }
 }
