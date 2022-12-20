@@ -570,8 +570,6 @@ public:
 
   bool supportsPostEnqueueCleanup() const final;
 
-  bool readyForCleanup() const final;
-
 private:
   pi_int32 enqueueImp() final;
 

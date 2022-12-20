@@ -636,7 +636,7 @@ bool Command::supportsPostEnqueueCleanup() const { return true; }
 
 bool Command::readyForCleanup() const {
   return MLeafCounter == 0 &&
-         MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess;
+         MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess && !isBlocking();
 }
 
 Command *Command::addDep(DepDesc NewDep, std::vector<Command *> &ToCleanUp) {
@@ -2499,12 +2499,6 @@ bool ExecCGCommand::supportsPostEnqueueCleanup() const {
   // Host tasks are cleaned up upon completion instead.
   return Command::supportsPostEnqueueCleanup() &&
          (MCommandGroup->getType() != CG::CGTYPE::CodeplayHostTask);
-}
-
-bool ExecCGCommand::readyForCleanup() const {
-  if (MCommandGroup->getType() == CG::CGTYPE::CodeplayHostTask)
-    return MLeafCounter == 0 && MEvent->isCompleted();
-  return Command::readyForCleanup();
 }
 
 KernelFusionCommand::KernelFusionCommand(QueueImplPtr Queue)
