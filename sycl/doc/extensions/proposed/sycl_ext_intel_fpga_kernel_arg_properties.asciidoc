@@ -1,0 +1,547 @@
+= sycl_ext_intel_fpga_kernel_arg_properties
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+// This is necessary for asciidoc, but not for asciidoctor
+:cpp: C++
+:dpcpp: DPC++
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+== Contributors
+
+Abhishek Tiwari, Intel +
+Joseph Garvey, Intel
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, revision 5.
+
+It depends on the following extensions:
+
+ - link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
+ - link:sycl_ext_oneapi_annotated_ptr.asciidoc[sycl_ext_oneapi_annotated_ptr]
+ - link:sycl_ext_oneapi_annotated_arg.asciidoc[sycl_ext_oneapi_annotated_arg]
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+== Overview
+
+This extension introduces properties for the classes
+`sycl::ext::oneapi::experimental::annotated_ptr` and
+`sycl::ext::oneapi::experimental::annotated_arg`. The properties will influence
+the kernel argument interfaces for FPGA kernels and can be ignored for other
+devices.
+
+Some examples of the syntax are shown below.
+
+[source,c++]
+----
+auto ptr = ...
+annotated_ptr arg_a{
+  ptr, properties{buffer_location<1>, awidth<32>, dwidth<64>}};
+
+...
+
+auto ptr2 = ...
+annotated_arg arg_b{
+  ptr2, properties{buffer_location<2>, awidth<32>, dwidth<64>}};
+
+...
+
+int val = 5;
+annotated_arg arg_c{val, properties{register_map, stable}};
+
+...
+
+annotated_ptr<MyType, properties<register_map, buffer_location<1>, awidth<32>,
+  dwidth<64>> arg_d;
+
+annotated_arg<int, properties<register_map, stable>> arg_e;
+
+annotated_arg<int*, properties<conduit, buffer_location<1>, awidth<32>,
+  dwidth<64>> arg_f;
+
+
+----
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_INTEL_FPGA_KERNEL_ARG_PROPERTIES` to one of the values
+defined in the table below.  Applications can test for the existence of this
+macro to determine if the implementation supports this feature, or applications
+can test the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== `annotated_ptr` and `annotated_arg` Properties
+
+Below is a list of compile-time constant properties supported by
+the `annotated_ptr` and `annotated_arg` classes. These properties control the
+kernel argument interface on FPGA devices. The properties are allowed even on
+kernels that are submitted to other devices, but they are silently ignored when
+the kernel is submitted to a non-FPGA device.
+
+All of the properties defined in this extension are meaningful only on the
+kernel argument and are not meaningful within the kernel body.
+
+The properties that are defined for pointers will be meaningful for
+`annotated_arg<T, ...>` only when T is a pointer type.
+
+```c++
+namespace sycl::ext::intel::experimental {
+struct conduit_key {
+  using value_t = sycl::ext::oneapi::experimental::properties::property_value<
+    conduit_key>;
+};
+
+struct register_map_key {
+  using value_t = sycl::ext::oneapi::experimental::properties::property_value<
+    register_map_key>;
+};
+
+struct stable_key {
+  using value_t = sycl::ext::oneapi::experimental::properties::property_value<
+    stable_key>;
+};
+
+struct buffer_location_key {
+  template<int K>
+  using value_t = sycl::ext::oneapi::experimental::properties::property_value<
+    buffer_location_key, std::integral_constant<int, K>>;
+};
+
+struct awidth_key {
+  template<int K>
+  using value_t = sycl::ext::oneapi::experimental::properties::property_value<
+    awidth_key, std::integral_constant<int, K>>;
+};
+
+struct dwidth_key {
+  template<int K>
+  using value_t = sycl::ext::oneapi::experimental::properties::property_value<
+    dwidth_key, std::integral_constant<int, K>>;
+};
+
+enum class read_write_mode_enum {
+  read_write,
+  read,
+  write
+};
+
+struct read_write_mode_key {
+  template<read_write_mode_enum mode>
+  using value_t = sycl::ext::oneapi::experimental::properties::property_value<
+    read_write_mode_key, std::integral_constant<read_write_mode_enum, mode>>;
+};
+
+struct latency_key {
+  template<int K>
+  using value_t = sycl::ext::oneapi::experimental::properties::property_value<
+    latency_key, std::integral_constant<int, K>>;
+};
+
+struct maxburst_key {
+  template<int K>
+  using value_t = sycl::ext::oneapi::experimental::properties::property_value<
+    maxburst_key, std::integral_constant<int, K>>;
+};
+
+struct wait_request_key {
+  template<bool K>
+  using value_t = sycl::ext::oneapi::experimental::properties::property_value<
+    wait_request_key, std::integral_constant<bool, K>>;
+};
+
+inline constexpr conduit_key::value_t
+ conduit;
+inline constexpr register_map_key::value_t
+ register_map;
+inline constexpr stable_key::value_t stable;
+template<int K> inline constexpr buffer_location_key::value_t<K>
+ buffer_location;
+template<int K> inline constexpr awidth_key::value_t<K>
+ awidth;
+template<int K> inline constexpr dwidth_key::value_t<K>
+ dwidth;
+template<read_write_mode_enum mode>
+inline constexpr read_write_mode_key::value_t<mode>
+ read_write_mode;
+inline constexpr read_write_mode_key::value_t<
+  read_write_mode_enum::read>  read_write_mode_read;
+inline constexpr read_write_mode_key::value_t<
+  read_write_mode_enum::write>  read_write_mode_write;
+inline constexpr read_write_mode_key::value_t<
+  read_write_mode_enum::read_write>
+    read_write_mode_readwrite;
+template<int K> inline constexpr latency_key::value_t<K>
+  latency;
+template<int K> inline constexpr maxburst_key::value_t<K>
+ maxburst;
+template<int K> inline constexpr wait_request_key::value_t<K>
+ wait_request;
+inline constexpr wait_request_key::value_t<true>
+ wait_request_requested;
+inline constexpr wait_request_key::value_t<false>
+ wait_request_not_requested;
+} // namespace sycl::ext::intel::experimental
+
+// Type trait specializations
+namespace sycl::ext::oneapi::experimental {
+template<> struct is_property_key<
+  sycl::ext::intel::experimental::conduit_key> : std::true_type {};
+template<> struct is_property_key<
+  sycl::ext::intel::experimental::register_map_key> : std::true_type {};
+template<> struct is_property_key<
+  sycl::ext::intel::experimental::stable_key> : std::true_type {};
+template<> struct is_property_key<
+  sycl::ext::intel::experimental::buffer_location_key> : std::true_type {};
+template<> struct is_property_key<
+  sycl::ext::intel::experimental::awidth_key> : std::true_type {};
+template<> struct is_property_key<
+  sycl::ext::intel::experimental::dwidth_key> : std::true_type {};
+template<> struct is_property_key<
+  sycl::ext::intel::experimental::read_write_mode_key> : std::true_type {};
+template<> struct is_property_key<
+  sycl::ext::intel::experimental::latency_key> : std::true_type {};
+template<> struct is_property_key<
+  sycl::ext::intel::experimental::maxburst_key> : std::true_type {};
+template<> struct is_property_key<
+  sycl::ext::intel::experimental::wait_request_key> : std::true_type {};
+
+template <typename T, typename PropertyListT>
+struct is_property_key_of<
+  sycl::ext::intel::experimental::conduit_key,
+  annotated_ptr<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<
+  sycl::ext::intel::experimental::register_map_key,
+  annotated_ptr<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<
+  sycl::ext::intel::experimental::stable_key,
+  annotated_ptr<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<
+  sycl::ext::intel::experimental::buffer_location_key,
+  annotated_ptr<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<
+  sycl::ext::intel::experimental::awidth_key,
+  annotated_ptr<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<
+  sycl::ext::intel::experimental::dwidth_key,
+  annotated_ptr<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<
+  sycl::ext::intel::experimental::read_write_mode_key,
+  annotated_ptr<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<
+  sycl::ext::intel::experimental::latency_key,
+  annotated_ptr<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<
+  sycl::ext::intel::experimental::maxburst_key,
+  annotated_ptr<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<
+  sycl::ext::intel::experimental::wait_request_key,
+  annotated_ptr<T, PropertyListT>> : std::true_type {};
+
+template <typename T, typename PropertyListT>
+struct is_property_key_of<
+  sycl::ext::intel::experimental::conduit_key,
+  annotated_arg<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<
+  sycl::ext::intel::experimental::register_map_key,
+  annotated_arg<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<
+  sycl::ext::intel::experimental::stable_key,
+  annotated_arg<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<
+  sycl::ext::intel::experimental::buffer_location_key,
+  annotated_arg<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<
+  sycl::ext::intel::experimental::awidth_key,
+  annotated_arg<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<
+  sycl::ext::intel::experimental::dwidth_key,
+  annotated_arg<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<
+  sycl::ext::intel::experimental::read_write_mode_key,
+  annotated_arg<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<
+  sycl::ext::intel::experimental::latency_key,
+  annotated_arg<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<
+  sycl::ext::intel::experimental::maxburst_key,
+  annotated_arg<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<
+  sycl::ext::intel::experimental::wait_request_key,
+  annotated_arg<T, PropertyListT>> : std::true_type {};
+} // namespace sycl::ext::oneapi::experimental
+```
+--
+
+[frame="topbot",options="header"]
+|===
+|Property |Description
+
+a|
+[source,c++]
+----
+conduit
+----
+a|
+Directs the compiler to create a dedicated input port on the kernel for the
+input.
+
+a|
+[source,c++]
+----
+register_map
+----
+a|
+Directs the compiler to create a register to store the input as opposed to
+creating a dedicated input port on the kernel.
+
+a|
+[source,c++]
+----
+stable
+----
+a|
+While the SYCL software model makes kernel arguments read-only, the IP which is
+output by the FPGA device compiler can be plugged into external systems where
+kernel arguments can change while the kernel executes.
+
+This property specifies that the input to the kernel will not change between
+pipelined invocations of the kernel. The input can still change after all active
+kernel invocations have finished.
+
+If the input is changed while the pipelined kernel invocations are executing,
+the behavior is undefined.
+
+a|
+[source,c++]
+----
+buffer_location<id>
+----
+a|
+Specifies a global memory identifier for the pointer interface.
+
+This property is only meaningful on pointer kernel arguments.
+
+a|
+[source,c++]
+----
+awidth<width>
+----
+a|
+Specifies the width of the memory-mapped address bus in bits. The default is
+determined by the implementation.
+
+This property is only meaningful for pointer kernel arguments and only
+when the `buffer_location` property is specified.
+
+a|
+[source,c++]
+----
+dwidth<width>
+----
+a|
+Specifies the width of the memory-mapped data bus in bits. The default is set
+to 64.
+
+This property is only meaningful for pointer kernel arguments and only
+when the `buffer_location` property is specified.
+
+a|
+[source,c++]
+----
+read_write_mode<mode>
+----
+a|
+Specifies the port direction of the memory interface associated with the input
+pointer. `mode` can be one of:
+
+`read_write` - Interface can be used for read and write operations.
+
+`read` - Interface can only be used for read operations.
+
+`write` - Interface can only be used for write operations.
+
+The default is set to `read_write`.
+
+For convenience, the following are provided:
+
+ - read_write_mode_read
+ - read_write_mode_write
+ - read_write_mode_readwrite
+
+This property is only meaningful for pointer kernel arguments and only
+when the `buffer_location` property is specified.
+
+a|
+[source,c++]
+----
+latency<value>
+----
+a|
+Specifies the guaranteed latency in cycles, from when a read command exits
+the kernel to when the external memory returns valid read data. The default
+is set to 1.
+
+A value of 0 specifies a variable latency and a positive value specifies a
+fixed latency.
+
+This property is only meaningful for pointer kernel arguments and only
+when the `buffer_location` property is specified.
+
+a|
+[source,c++]
+----
+maxburst<value>
+----
+a|
+Specifies the maximum number of data transfers that can be associated with a
+read or write transaction. The default is set to 1.
+
+This property is only meaningful for pointer kernel arguments and only
+when the `buffer_location` property is specified.
+
+a|
+[source,c++]
+----
+wait_request<flag>
+----
+a|
+Specifies whether the 'wait request' signal is generated or not. This signal is
+asserted by the memory system when it is unable to respond to a read or write
+request. The default is set to `false`.
+
+For convenience, the following are provided:
+
+ - wait_request_requested
+ - wait_request_not_requested
+
+This property is only meaningful for pointer kernel arguments and only
+when the `buffer_location` property is specified.
+|===
+--
+
+=== Usage Examples
+
+The example below shows a simple kernel with one `annotated_ptr` kernel
+argument and one `annotated_arg` kernel argument.
+
+.Usage Example
+```c++
+using sycl::ext::intel::experimental;
+{
+  sycl::queue q{...};
+
+  // Allocate memory
+  auto ptr_a = ...
+  constexpr int kN = 10;
+
+  // Add properties
+  auto arg_a = annotated_ptr(ptr_a, properties{
+    register_map, buffer_location<1>, awidth<18>, dwidth<64>});
+  auto arg_n = annotated_arg(kN, properties{register_map, stable});
+
+  q.single_task([=] {
+    for (int i=0; i<arg_n; i++)
+      arg_a[i] *= 2;
+  }).wait();
+
+  ...
+}
+```
+
+== Issues
+
+1. Should we add a new property argument to `latency` to separate specifying
+fixed latency and variable latency.
+Yes, in a future extension we can introduce a separate property.
+
+2. How do I link the fpga_kernel_properties spec to this one, to specify that
+certain fpga kernel properties should result in changes to kernel arguments.
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date       |Author           |Changes
+|1  |2022-04-13 |Abhishek Tiwari  |*Initial draft*
+|========================================
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use +mono+ text for device APIs, or [source] syntax highlighting.
+//* Use +mono+ text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************

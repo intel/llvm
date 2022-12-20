@@ -38,19 +38,19 @@
 #include <string>
 #include <sycl/detail/pi.h>
 #include <thread>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
-#include <level_zero/ze_api.h>
-#include <level_zero/zes_api.h>
 #include <sycl/detail/iostream_proxy.hpp>
+#include <ze_api.h>
+#include <zes_api.h>
 
 // Share code between this PI L0 Plugin and UR L0 Adapter
-#include <adapters/level_zero/ur_level_zero.hpp>
 #include <pi2ur.hpp>
-
-#include "usm_allocator.hpp"
+#include <ur/adapters/level_zero/ur_level_zero.hpp>
+#include <ur/usm_allocator.hpp>
 
 template <class To, class From> To pi_cast(From Value) {
   // TODO: see if more sanity checks are possible.
@@ -58,7 +58,7 @@ template <class To, class From> To pi_cast(From Value) {
   return (To)(Value);
 }
 
-template <> uint32_t pi_cast(uint64_t Value) {
+template <> uint32_t inline pi_cast(uint64_t Value) {
   // Cast value and check that we don't lose any information.
   uint32_t CastedValue = (uint32_t)(Value);
   assert((uint64_t)CastedValue == Value);
@@ -180,13 +180,8 @@ struct MemAllocRecord : _pi_object {
 // Define the types that are opaque in pi.h in a manner suitabale for Level Zero
 // plugin
 
-struct _pi_platform : public _ur_level_zero_platform {
-  _pi_platform(ze_driver_handle_t Driver) : _ur_level_zero_platform{Driver} {}
-
-  // Performs initialization of a newly constructed PI platform.
-  pi_result initialize() {
-    return ur2piResult(_ur_level_zero_platform::initialize());
-  }
+struct _pi_platform : public _ur_platform_handle_t {
+  using _ur_platform_handle_t::_ur_platform_handle_t;
 
   // Cache pi_devices for reuse
   std::vector<std::unique_ptr<_pi_device>> PiDevicesCache;
@@ -394,7 +389,8 @@ struct _pi_device : _pi_object {
   ZeCache<ZeStruct<ze_device_compute_properties_t>> ZeDeviceComputeProperties;
   ZeCache<ZeStruct<ze_device_image_properties_t>> ZeDeviceImageProperties;
   ZeCache<ZeStruct<ze_device_module_properties_t>> ZeDeviceModuleProperties;
-  ZeCache<std::vector<ZeStruct<ze_device_memory_properties_t>>>
+  ZeCache<std::pair<std::vector<ZeStruct<ze_device_memory_properties_t>>,
+                    std::vector<ZeStruct<ze_device_memory_ext_properties_t>>>>
       ZeDeviceMemoryProperties;
   ZeCache<ZeStruct<ze_device_memory_access_properties_t>>
       ZeDeviceMemoryAccessProperties;

@@ -1,5 +1,4 @@
 #include "llvm/ADT/APFloat.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
@@ -1243,7 +1242,7 @@ int main() {
   auto Features = "";
 
   TargetOptions opt;
-  auto RM = Optional<Reloc::Model>();
+  auto RM = std::optional<Reloc::Model>();
   auto TheTargetMachine =
       Target->createTargetMachine(TargetTriple, CPU, Features, opt, RM);
 

@@ -1374,7 +1374,7 @@ NamedMDClone:
   }
 }
 
-int llvm_echo(bool OpaquePointers) {
+int llvm_echo(void) {
   LLVMEnablePrettyStackTrace();
 
   LLVMModuleRef Src = llvm_load_module(false, true);
@@ -1383,12 +1383,9 @@ int llvm_echo(bool OpaquePointers) {
   size_t ModuleIdentLen;
   const char *ModuleName = LLVMGetModuleIdentifier(Src, &ModuleIdentLen);
   LLVMContextRef Ctx = LLVMContextCreate();
-  // FIXME: Delete else branch once after the project is ready for opaque
+  // FIXME: Delete once after the project is ready for opaque
   // pointers. Original code assued that "default" value is "true".
-  if (!OpaquePointers)
-    LLVMContextSetOpaquePointers(Ctx, false);
-  else
-    LLVMContextSetOpaquePointers(Ctx, true);
+  LLVMContextSetOpaquePointers(Ctx, true);
   LLVMModuleRef M = LLVMModuleCreateWithNameInContext(ModuleName, Ctx);
 
   LLVMSetSourceFileName(M, SourceFileName, SourceFileLen);
