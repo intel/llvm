@@ -2407,8 +2407,8 @@ protected:
 #else
 public:
   local_accessor_base()
-      : detail::LocalAccessorBaseHost{/*Size*/ sycl::range<3>{0, 0, 0}, /*Dims*/ 0, /*ElemSize*/ sizeof(DataT)}
-  {}
+      : detail::LocalAccessorBaseHost{/*Size*/ sycl::range<3>{0, 0, 0},
+                                      /*Dims*/ 0, /*ElemSize*/ sizeof(DataT)} {}
 
 protected:
   local_accessor_base(const detail::LocalAccessorImplPtr &Impl)
