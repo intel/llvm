@@ -162,9 +162,6 @@ event handler::finalize() {
         // 'Result' for single point of return
         pi_int32 Result = PI_ERROR_INVALID_VALUE;
 
-        NewEvent->setSubmittedQueue(MQueue);
-        NewEvent->setSubmissionTime();
-        
         if (MQueue->is_host()) {
           MHostKernel->call(MNDRDesc, (NewEvent)
                                           ? NewEvent->getHostProfilingInfo()
@@ -207,6 +204,8 @@ event handler::finalize() {
         NewEvent->setContextImpl(MQueue->getContextImplPtr());
         NewEvent->setStateIncomplete();
         OutEvent = &NewEvent->getHandleRef();
+
+        NewEvent->setSubmissionTime();
 
         if (PI_SUCCESS != EnqueueKernel())
           throw runtime_error("Enqueue process failed.",

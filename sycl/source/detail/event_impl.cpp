@@ -418,7 +418,7 @@ void event_impl::cleanDepEventsThroughOneLevel() {
 void event_impl::setSubmissionTime() {
   if (!MIsProfilingEnabled)
     return;
-  if (QueueImplPtr Queue = getSubmittedQueue()) {
+  if (QueueImplPtr Queue = MQueue.lock()) {
     try {
       MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
     } catch (feature_not_supported &e) {
