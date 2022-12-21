@@ -305,7 +305,8 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
                                       PipelineOrInitiationInterval);
         }
         MDOps.push_back(SPIRVMetadata);
-      } else if (MDNode *SPIRVMetadata = attributeToDecorateMetadata(Ctx, Attribute))
+      } else if (MDNode *SPIRVMetadata =
+                     attributeToDecorateMetadata(Ctx, Attribute))
         MDOps.push_back(SPIRVMetadata);
       else if (auto NamedMetadata = attributeToExecModeMetadata(M, Attribute))
         NamedMDOps.push_back(*NamedMetadata);
