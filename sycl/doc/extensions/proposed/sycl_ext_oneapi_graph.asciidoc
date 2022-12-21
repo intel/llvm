@@ -157,10 +157,16 @@ example via library function calls. While the explicit API can better express
 what data is internal to the graph for optimization, and dependencies don't need
 to be inferred.
 
-It is valid to combine these two mechanisms sequentially when constructing a
-graph, however it is not valid to use them concurrently. An error will be thrown
-if a user attempts to use the explicit API to add a node to a graph which is
-being recorded to by a queue.
+It is valid to combine these two mechanisms, however it is invalid to modify
+a graph using the explicit API while that graph is currently being recorded to,
+for example:
+
+[source, c++]
+----
+queue.begin_recording(graph);
+graph.add(/*command group*/);    // Invalid as graph is being recorded to
+queue.end_recording();
+----
 
 == Specification
 
@@ -269,7 +275,7 @@ buffers.
 ==== Sub-Graph
 
 A node in a graph can take the form of a nested sub-graph. This occurs when
-a command-group submission that invokes `handler::exec_graph()` with an
+a command-group submission that invokes `handler::graph()` with an
 executable graph object is added to the graph as a node.
 
 === API Modifications
@@ -343,17 +349,17 @@ public:
 
   /* -- graph convenience shortcuts -- */
 
-  event exec_graph(command_graph<graph_state::executable> graph);
-  event exec_graph(command_graph<graph_state::executable> graph,
+  event graph(command_graph<graph_state::executable> graph);
+  event graph(command_graph<graph_state::executable> graph,
                    event depEvent);
-  event exec_graph(command_graph<graph_state::executable> graph,
+  event graph(command_graph<graph_state::executable> graph,
                    const std::vector<event>& depEvents);
 };
 
 // New methods added to the sycl::handler class
 class handler {
 public:
-  void exec_graph(command_graph<graph_state::executable> graph);
+  void graph(command_graph<graph_state::executable> graph);
 }
 
 }  // namespace sycl
@@ -581,7 +587,7 @@ using namespace ext::oneapi::experimental;
 command_graph<graph_state::executable> finalize(const context& syclContext) const;
 ----
 
-|Synchronous operation that creates a graph in the executable state with a
+|Synchronous operation that creates a new graph in the executable state with a
 fixed topology that can be submitted for execution on any queue sharing the
 supplied context. It is valid to call this method multiple times to create
 subsequent executable graphs. It is also valid to continue to add new nodes to
@@ -598,7 +604,7 @@ Parameters:
 * `syclContext` - The context associated with the queues to which the
   executable graph will be able to be submitted.
 
-Returns: An executable graph object which can be submitted to a queue.
+Returns: A new executable graph object which can be submitted to a queue.
 
 Exceptions:
 
@@ -837,33 +843,33 @@ state, `false` otherwise.
 [source,c++]
 ----
 using namespace ext::oneapi::experimental;
-event queue::exec_graph(command_graph<graph_state::executable> graph)
+event queue::graph(command_graph<graph_state::executable> graph)
 ----
 
 |Queue shortcut function that is equivalent to submitting a command-group
-containing `handler::exec_graph(graph)`.
+containing `handler::graph(graph)`.
 
 |
 [source,c++]
 ----
 using namespace ext::oneapi::experimental;
-event queue::exec_graph(command_graph<graph_state::executable> graph,
+event queue::graph(command_graph<graph_state::executable> graph,
                         event depEvent);
 ----
 
 |Queue shortcut function that is equivalent to submitting a command-group
-containing `handler::depends_on(depEvent)` and `handler::exec_graph(graph)`.
+containing `handler::depends_on(depEvent)` and `handler::graph(graph)`.
 
 |
 [source,c++]
 ----
 using namespace ext::oneapi::experimental;
-event queue::exec_graph(command_graph<graph_state::executable> graph,
+event queue::graph(command_graph<graph_state::executable> graph,
                         const std::vector<event>& depEvents);
 ----
 
 |Queue shortcut function that is equivalent to submitting a command-group
-containing `handler::depends_on(depEvents)` and `handler::exec_graph(graph)`.
+containing `handler::depends_on(depEvents)` and `handler::graph(graph)`.
 |===
 
 ==== New Handler Member Functions
@@ -875,7 +881,7 @@ Table 10. Additional member functions of the `sycl::handler` class.
 [source,c++]
 ----
 using namespace ext::oneapi::experimental;
-void handler::exec_graph(command_graph<graph_state::executable> graph)
+void handler::graph(command_graph<graph_state::executable> graph)
 ----
 
 |Invokes the execution of a graph. Support for invoking an executable graph,
@@ -1049,7 +1055,7 @@ int main() {
   auto exec = g.finalize(q.get_context());
 
   // use queue shortcut for graph submission
-  q.exec_graph(exec).wait();
+  q.graph(exec).wait();
 
   // memory can be freed inside or outside the graph
   sycl::free(z, q.get_context());
@@ -1070,7 +1076,7 @@ command-groups submitted to the queue. Once the graph is complete, recording
 finishes on the queue to put it back into the default executing state. The
 graph is then finalized so that no more nodes can be added. Lastly, the graph is
 submitted in its entirety for execution via
-`handler::exec_graph(command_graph<graph_state::executable>)`.
+`handler::graph(command_graph<graph_state::executable>)`.
 
 [source, c++]
 ----
@@ -1140,7 +1146,7 @@ submitted in its entirety for execution via
 
   // Execute graph
   q.submit([&](handler& cgh) {
-    cgh.exec_graph(exec_graph);
+    cgh.graph(exec_graph);
   });
 
 ----
