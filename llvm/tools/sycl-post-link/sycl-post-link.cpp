@@ -806,12 +806,12 @@ processInputModule(std::unique_ptr<Module> M) {
     while (OptionalFeaturesSplitter->hasMoreSplits()) {
       // Here, we perform third-level splitting based on optimization level.
       // This step is mandatory, as optimization level is at module level.
+      module_split::ModuleDesc MDesc = OptionalFeaturesSplitter->nextSplit();
       std::unique_ptr<module_split::ModuleSplitterBase> OptLevelSplitter =
         module_split::getOptLevelSplitter(std::move(MDesc),
                                           EmitOnlyKernelsAsEntryPoints);
-      SplitByOptLevel |= OptLevelSplitter->totalSplits() > 1;
+      SplitByOptLevel |= OptLevelSplitter->remainingSplits() > 1;
       while (OptLevelSplitter->hasMoreSplits()) {
-        module_split::ModuleDesc MDesc1 = OptLevelSplitter->nextSplit();
         TopLevelModules.emplace_back(OptLevelSplitter->nextSplit());
       }
     }
