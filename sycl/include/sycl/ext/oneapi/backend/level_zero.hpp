@@ -14,9 +14,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace level_zero {
+namespace ext::oneapi::level_zero {
 // Implementation of various "make" functions resides in libsycl.so and thus
 // their interface needs to be backend agnostic.
 // TODO: remove/merge with similar functions in sycl::detail
@@ -100,9 +98,7 @@ T make(const context &Context,
   return make_event(Context, reinterpret_cast<pi_native_handle>(Interop),
                     Ownership == ownership::keep);
 }
-} // namespace level_zero
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::level_zero
 
 // Specialization of sycl::make_context for Level-Zero backend.
 template <>

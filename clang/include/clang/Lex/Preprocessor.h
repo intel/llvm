@@ -35,7 +35,6 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/FunctionExtras.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/STLExtras.h"
@@ -282,10 +281,6 @@ class Preprocessor {
 
   /// Empty line handler.
   EmptylineHandler *Emptyline = nullptr;
-
-  /// True if we want to ignore EOF token and continue later on (thus
-  /// avoid tearing the Lexer and etc. down).
-  bool IncrementalProcessing = false;
 
 public:
   /// The kind of translation unit we are processing.
@@ -761,7 +756,7 @@ private:
     getActiveModuleMacros(Preprocessor &PP, const IdentifierInfo *II) const {
       if (auto *Info = getModuleInfo(PP, II))
         return Info->ActiveModuleMacros;
-      return None;
+      return std::nullopt;
     }
 
     MacroDirective::DefInfo findDirectiveAtLoc(SourceLocation Loc,
@@ -785,7 +780,7 @@ private:
     ArrayRef<ModuleMacro*> getOverriddenMacros() const {
       if (auto *Info = State.dyn_cast<ModuleMacroInfo*>())
         return Info->OverriddenMacros;
-      return None;
+      return std::nullopt;
     }
 
     void setOverriddenMacros(Preprocessor &PP,
@@ -908,17 +903,17 @@ private:
     static MacroAnnotations makeDeprecation(SourceLocation Loc,
                                             std::string Msg) {
       return MacroAnnotations{MacroAnnotationInfo{Loc, std::move(Msg)},
-                              llvm::None, llvm::None};
+                              std::nullopt, std::nullopt};
     }
 
     static MacroAnnotations makeRestrictExpansion(SourceLocation Loc,
                                                   std::string Msg) {
       return MacroAnnotations{
-          llvm::None, MacroAnnotationInfo{Loc, std::move(Msg)}, llvm::None};
+          std::nullopt, MacroAnnotationInfo{Loc, std::move(Msg)}, std::nullopt};
     }
 
     static MacroAnnotations makeFinal(SourceLocation Loc) {
-      return MacroAnnotations{llvm::None, llvm::None, Loc};
+      return MacroAnnotations{std::nullopt, std::nullopt, Loc};
     }
   };
 
@@ -1303,7 +1298,7 @@ public:
     auto I = LeafModuleMacros.find(II);
     if (I != LeafModuleMacros.end())
       return I->second;
-    return None;
+    return std::nullopt;
   }
 
   /// Get the list of submodules that we're currently building.
@@ -1778,11 +1773,14 @@ public:
   void recomputeCurLexerKind();
 
   /// Returns true if incremental processing is enabled
-  bool isIncrementalProcessingEnabled() const { return IncrementalProcessing; }
+  bool isIncrementalProcessingEnabled() const {
+    return getLangOpts().IncrementalExtensions;
+  }
 
   /// Enables the incremental processing
   void enableIncrementalProcessing(bool value = true) {
-    IncrementalProcessing = value;
+    // FIXME: Drop this interface.
+    const_cast<LangOptions &>(getLangOpts()).IncrementalExtensions = value;
   }
 
   /// Specify the point at which code-completion will be performed.
@@ -2243,7 +2241,7 @@ public:
 
   /// Given a "foo" or \<foo> reference, look up the indicated file.
   ///
-  /// Returns None on failure.  \p isAngled indicates whether the file
+  /// Returns std::nullopt on failure.  \p isAngled indicates whether the file
   /// reference is for system \#include's or not (i.e. using <> instead of "").
   Optional<FileEntryRef>
   LookupFile(SourceLocation FilenameLoc, StringRef Filename, bool isAngled,

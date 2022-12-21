@@ -65,7 +65,6 @@
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/ADT/FunctionExtras.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
@@ -140,7 +139,7 @@ static clang::clangd::Key<std::string> FileBeingProcessed;
 llvm::Optional<llvm::StringRef> TUScheduler::getFileBeingProcessedInContext() {
   if (auto *File = Context::current().get(FileBeingProcessed))
     return llvm::StringRef(*File);
-  return None;
+  return std::nullopt;
 }
 
 /// An LRU cache of idle ASTs.
@@ -180,7 +179,7 @@ public:
     ForCleanup.reset();
   }
 
-  /// Returns the cached value for \p K, or llvm::None if the value is not in
+  /// Returns the cached value for \p K, or std::nullopt if the value is not in
   /// the cache anymore. If nullptr was cached for \p K, this function will
   /// return a null unique_ptr wrapped into an optional.
   /// If \p AccessMetric is set records whether there was a hit or miss.
@@ -192,7 +191,7 @@ public:
     if (Existing == LRU.end()) {
       if (AccessMetric)
         AccessMetric->record(1, "miss");
-      return None;
+      return std::nullopt;
     }
     if (AccessMetric)
       AccessMetric->record(1, "hit");
@@ -245,7 +244,7 @@ private:
 /// threads, remove()s mostly from the main thread, and get() from ASTWorker.
 /// Writes are rare and reads are cheap, so we don't expect much contention.
 class TUScheduler::HeaderIncluderCache {
-  // We should be be a little careful how we store the include graph of open
+  // We should be a little careful how we store the include graph of open
   // files, as each can have a large number of transitive headers.
   // This representation is O(unique transitive source files).
   llvm::BumpPtrAllocator Arena;
@@ -996,7 +995,7 @@ void ASTWorker::runWithAST(
          FileInputs.Version);
     Action(InputsAndAST{FileInputs, **AST});
   };
-  startTask(Name, std::move(Task), /*Update=*/None, Invalidation);
+  startTask(Name, std::move(Task), /*Update=*/std::nullopt, Invalidation);
 }
 
 /// To be called from ThreadCrashReporter's signal handler.
@@ -1132,7 +1131,7 @@ void ASTWorker::updatePreamble(std::unique_ptr<CompilerInvocation> CI,
     std::lock_guard<std::mutex> Lock(Mutex);
     PreambleRequests.push_back({std::move(Task), std::string(TaskName),
                                 steady_clock::now(), Context::current().clone(),
-                                llvm::None, llvm::None,
+                                std::nullopt, std::nullopt,
                                 TUScheduler::NoInvalidation, nullptr});
   }
   PreambleCV.notify_all();
@@ -1464,12 +1463,12 @@ Deadline ASTWorker::scheduleLocked() {
   for (auto I = Requests.begin(), E = Requests.end(); I != E; ++I) {
     if (!isCancelled(I->Ctx)) {
       // Cancellations after the first read don't affect current scheduling.
-      if (I->Update == None)
+      if (I->Update == std::nullopt)
         break;
       continue;
     }
     // Cancelled reads are moved to the front of the queue and run immediately.
-    if (I->Update == None) {
+    if (I->Update == std::nullopt) {
       Request R = std::move(*I);
       Requests.erase(I);
       Requests.push_front(std::move(R));
@@ -1490,7 +1489,8 @@ Deadline ASTWorker::scheduleLocked() {
   // We debounce "maybe-unused" writes, sleeping in case they become dead.
   // But don't delay reads (including updates where diagnostics are needed).
   for (const auto &R : Requests)
-    if (R.Update == None || R.Update->Diagnostics == WantDiagnostics::Yes)
+    if (R.Update == std::nullopt ||
+        R.Update->Diagnostics == WantDiagnostics::Yes)
       return Deadline::zero();
   // Front request needs to be debounced, so determine when we're ready.
   Deadline D(Requests.front().AddTime + UpdateDebounce.compute(RebuildTimes));
@@ -1653,10 +1653,9 @@ bool TUScheduler::update(PathRef File, ParseInputs Inputs,
   bool ContentChanged = false;
   if (!FD) {
     // Create a new worker to process the AST-related tasks.
-    ASTWorkerHandle Worker =
-        ASTWorker::create(File, CDB, *IdleASTs, *HeaderIncluders,
-                          WorkerThreads ? WorkerThreads.getPointer() : nullptr,
-                          Barrier, Opts, *Callbacks);
+    ASTWorkerHandle Worker = ASTWorker::create(
+        File, CDB, *IdleASTs, *HeaderIncluders,
+        WorkerThreads ? &*WorkerThreads : nullptr, Barrier, Opts, *Callbacks);
     FD = std::unique_ptr<FileData>(
         new FileData{Inputs.Contents, std::move(Worker)});
     ContentChanged = true;

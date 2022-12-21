@@ -129,8 +129,8 @@ static OwningOpRef<Operation *> parseMLIRInput(StringRef inputFilename,
     return nullptr;
   }
 
-  llvm::SourceMgr sourceMgr;
-  sourceMgr.AddNewSourceBuffer(std::move(file), SMLoc());
+  auto sourceMgr = std::make_shared<llvm::SourceMgr>();
+  sourceMgr->AddNewSourceBuffer(std::move(file), SMLoc());
   OwningOpRef<Operation *> module =
       parseSourceFileForTool(sourceMgr, context, insertImplicitModule);
   if (!module)
@@ -364,8 +364,9 @@ int mlir::JitRunnerMain(int argc, char **argv, const DialectRegistry &registry,
     return 1;
   }
 
+  JitRunnerOptions runnerOptions{options.mainFuncName, options.mainFuncType};
   if (config.mlirTransformer)
-    if (failed(config.mlirTransformer(m.get())))
+    if (failed(config.mlirTransformer(m.get(), runnerOptions)))
       return EXIT_FAILURE;
 
   auto tmBuilderOrError = llvm::orc::JITTargetMachineBuilder::detectHost();

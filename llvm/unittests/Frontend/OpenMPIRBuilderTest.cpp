@@ -20,6 +20,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "gtest/gtest.h"
+#include <optional>
 
 using namespace llvm;
 using namespace omp;
@@ -169,11 +170,12 @@ protected:
     BB = BasicBlock::Create(Ctx, "", F);
 
     DIBuilder DIB(*M);
-    auto File = DIB.createFile("test.dbg", "/src", llvm::None,
-                               Optional<StringRef>("/src/test.dbg"));
+    auto File = DIB.createFile("test.dbg", "/src", std::nullopt,
+                               std::optional<StringRef>("/src/test.dbg"));
     auto CU =
         DIB.createCompileUnit(dwarf::DW_LANG_C, File, "llvm-C", true, "", 0);
-    auto Type = DIB.createSubroutineType(DIB.getOrCreateTypeArray(None));
+    auto Type =
+        DIB.createSubroutineType(DIB.getOrCreateTypeArray(std::nullopt));
     auto SP = DIB.createFunction(
         CU, "foo", "", File, 1, Type, 1, DINode::FlagZero,
         DISubprogram::SPFlagDefinition | DISubprogram::SPFlagOptimized);
@@ -984,38 +986,22 @@ TEST_F(OpenMPIRBuilderTest, ParallelIfCond) {
   EXPECT_EQ(OutlinedFn->arg_size(), 3U);
 
   EXPECT_EQ(&OutlinedFn->getEntryBlock(), PrivAI->getParent());
-  ASSERT_EQ(OutlinedFn->getNumUses(), 2U);
+  ASSERT_EQ(OutlinedFn->getNumUses(), 1U);
 
-  CallInst *DirectCI = nullptr;
   CallInst *ForkCI = nullptr;
   for (User *Usr : OutlinedFn->users()) {
-    if (isa<CallInst>(Usr)) {
-      ASSERT_EQ(DirectCI, nullptr);
-      DirectCI = cast<CallInst>(Usr);
-    } else {
-      ASSERT_TRUE(isa<ConstantExpr>(Usr));
-      ASSERT_EQ(Usr->getNumUses(), 1U);
-      ASSERT_TRUE(isa<CallInst>(Usr->user_back()));
-      ForkCI = cast<CallInst>(Usr->user_back());
-    }
+    ASSERT_TRUE(isa<ConstantExpr>(Usr));
+    ASSERT_EQ(Usr->getNumUses(), 1U);
+    ASSERT_TRUE(isa<CallInst>(Usr->user_back()));
+    ForkCI = cast<CallInst>(Usr->user_back());
   }
 
-  EXPECT_EQ(ForkCI->getCalledFunction()->getName(), "__kmpc_fork_call");
-  EXPECT_EQ(ForkCI->arg_size(), 4U);
+  EXPECT_EQ(ForkCI->getCalledFunction()->getName(), "__kmpc_fork_call_if");
+  EXPECT_EQ(ForkCI->arg_size(), 5U);
   EXPECT_TRUE(isa<GlobalVariable>(ForkCI->getArgOperand(0)));
   EXPECT_EQ(ForkCI->getArgOperand(1),
             ConstantInt::get(Type::getInt32Ty(Ctx), 1));
-  Value *StoredForkArg =
-      findStoredValueInAggregateAt(Ctx, ForkCI->getArgOperand(3), 0);
-  EXPECT_EQ(StoredForkArg, F->arg_begin());
-
-  EXPECT_EQ(DirectCI->getCalledFunction(), OutlinedFn);
-  EXPECT_EQ(DirectCI->arg_size(), 3U);
-  EXPECT_TRUE(isa<AllocaInst>(DirectCI->getArgOperand(0)));
-  EXPECT_TRUE(isa<AllocaInst>(DirectCI->getArgOperand(1)));
-  Value *StoredDirectArg =
-      findStoredValueInAggregateAt(Ctx, DirectCI->getArgOperand(2), 0);
-  EXPECT_EQ(StoredDirectArg, F->arg_begin());
+  EXPECT_EQ(ForkCI->getArgOperand(3)->getType(), Type::getInt32Ty(Ctx));
 }
 
 TEST_F(OpenMPIRBuilderTest, ParallelCancelBarrier) {
@@ -1244,7 +1230,7 @@ TEST_F(OpenMPIRBuilderTest, CanonicalLoopSimple) {
   EXPECT_EQ(Loop->getTripCount(), TripCount);
 
   BasicBlock *Body = Loop->getBody();
-  Instruction *CmpInst = &Body->getInstList().front();
+  Instruction *CmpInst = &Body->front();
   EXPECT_TRUE(isa<ICmpInst>(CmpInst));
   EXPECT_EQ(CmpInst->getOperand(0), IndVar);
 
@@ -4127,7 +4113,7 @@ sumAtomicReduction(OpenMPIRBuilder::InsertPointTy IP, Type *Ty, Value *LHS,
                    Value *RHS) {
   IRBuilder<> Builder(IP.getBlock(), IP.getPoint());
   Value *Partial = Builder.CreateLoad(Ty, RHS, "red.partial");
-  Builder.CreateAtomicRMW(AtomicRMWInst::FAdd, LHS, Partial, None,
+  Builder.CreateAtomicRMW(AtomicRMWInst::FAdd, LHS, Partial, std::nullopt,
                           AtomicOrdering::Monotonic);
   return Builder.saveIP();
 }
@@ -4145,7 +4131,7 @@ xorAtomicReduction(OpenMPIRBuilder::InsertPointTy IP, Type *Ty, Value *LHS,
                    Value *RHS) {
   IRBuilder<> Builder(IP.getBlock(), IP.getPoint());
   Value *Partial = Builder.CreateLoad(Ty, RHS, "red.partial");
-  Builder.CreateAtomicRMW(AtomicRMWInst::Xor, LHS, Partial, None,
+  Builder.CreateAtomicRMW(AtomicRMWInst::Xor, LHS, Partial, std::nullopt,
                           AtomicOrdering::Monotonic);
   return Builder.saveIP();
 }
@@ -5504,17 +5490,18 @@ TEST_F(OpenMPIRBuilderTest, EmitOffloadingArraysArguments) {
 
 TEST_F(OpenMPIRBuilderTest, OffloadEntriesInfoManager) {
   OffloadEntriesInfoManager InfoManager;
-  TargetRegionEntryInfo EntryInfo("parent", 1, 2, 4);
+  InfoManager.setConfig(OpenMPIRBuilderConfig(true, false, false, false));
+  TargetRegionEntryInfo EntryInfo("parent", 1, 2, 4, 0);
   InfoManager.initializeTargetRegionEntryInfo(EntryInfo, 0);
+  EXPECT_TRUE(InfoManager.hasTargetRegionEntryInfo(EntryInfo));
   InfoManager.initializeDeviceGlobalVarEntryInfo(
       "gvar", OffloadEntriesInfoManager::OMPTargetGlobalVarEntryTo, 0);
   InfoManager.registerTargetRegionEntryInfo(
       EntryInfo, nullptr, nullptr,
-      OffloadEntriesInfoManager::OMPTargetRegionEntryTargetRegion, true);
+      OffloadEntriesInfoManager::OMPTargetRegionEntryTargetRegion);
   InfoManager.registerDeviceGlobalVarEntryInfo(
       "gvar", 0x0, 8, OffloadEntriesInfoManager::OMPTargetGlobalVarEntryTo,
-      GlobalValue::WeakAnyLinkage, true);
-  EXPECT_TRUE(InfoManager.hasTargetRegionEntryInfo(EntryInfo, true));
+      GlobalValue::WeakAnyLinkage);
   EXPECT_TRUE(InfoManager.hasDeviceGlobalVarEntryInfo("gvar"));
 }
 } // namespace

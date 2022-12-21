@@ -119,7 +119,7 @@ Expr<Type<TypeCategory::Integer, KIND>> LBOUND(FoldingContext &context,
       std::optional<int> dim;
       if (funcRef.Rank() == 0) {
         // Optional DIM= argument is present: result is scalar.
-        if (auto dim64{GetInt64Arg(args[1])}) {
+        if (auto dim64{ToInt64(args[1])}) {
           if (*dim64 < 1 || *dim64 > rank) {
             context.messages().Say("DIM=%jd dimension is out of range for "
                                    "rank-%d array"_err_en_US,
@@ -173,7 +173,7 @@ Expr<Type<TypeCategory::Integer, KIND>> UBOUND(FoldingContext &context,
       std::optional<int> dim;
       if (funcRef.Rank() == 0) {
         // Optional DIM= argument is present: result is scalar.
-        if (auto dim64{GetInt64Arg(args[1])}) {
+        if (auto dim64{ToInt64(args[1])}) {
           if (*dim64 < 1 || *dim64 > rank) {
             context.messages().Say("DIM=%jd dimension is out of range for "
                                    "rank-%d array"_err_en_US,
@@ -763,20 +763,20 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
         context, std::move(funcRef), &Scalar<T>::IEOR, Scalar<T>{});
   } else if (name == "ishft") {
     return FoldElementalIntrinsic<T, T, Int4>(context, std::move(funcRef),
-        ScalarFunc<T, T, Int4>([&](const Scalar<T> &i,
-                                   const Scalar<Int4> &pos) -> Scalar<T> {
-          auto posVal{static_cast<int>(pos.ToInt64())};
-          if (posVal < -i.bits) {
-            context.messages().Say(
-                "SHIFT=%d count for ishft is less than %d"_err_en_US, posVal,
-                -i.bits);
-          } else if (posVal > i.bits) {
-            context.messages().Say(
-                "SHIFT=%d count for ishft is greater than %d"_err_en_US, posVal,
-                i.bits);
-          }
-          return i.ISHFT(posVal);
-        }));
+        ScalarFunc<T, T, Int4>(
+            [&](const Scalar<T> &i, const Scalar<Int4> &pos) -> Scalar<T> {
+              auto posVal{static_cast<int>(pos.ToInt64())};
+              if (posVal < -i.bits) {
+                context.messages().Say(
+                    "SHIFT=%d count for ishft is less than %d"_err_en_US,
+                    posVal, -i.bits);
+              } else if (posVal > i.bits) {
+                context.messages().Say(
+                    "SHIFT=%d count for ishft is greater than %d"_err_en_US,
+                    posVal, i.bits);
+              }
+              return i.ISHFT(posVal);
+            }));
   } else if (name == "ishftc") {
     if (args.at(2)) { // SIZE= is present
       return FoldElementalIntrinsic<T, T, Int4, Int4>(context,
@@ -940,16 +940,15 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
             }));
   } else if (name == "modulo") {
     return FoldElementalIntrinsic<T, T, T>(context, std::move(funcRef),
-        ScalarFuncWithContext<T, T, T>(
-            [](FoldingContext &context, const Scalar<T> &x,
-                const Scalar<T> &y) -> Scalar<T> {
-              auto result{x.MODULO(y)};
-              if (result.overflow) {
-                context.messages().Say(
-                    "modulo() folding overflowed"_warn_en_US);
-              }
-              return result.value;
-            }));
+        ScalarFuncWithContext<T, T, T>([](FoldingContext &context,
+                                           const Scalar<T> &x,
+                                           const Scalar<T> &y) -> Scalar<T> {
+          auto result{x.MODULO(y)};
+          if (result.overflow) {
+            context.messages().Say("modulo() folding overflowed"_warn_en_US);
+          }
+          return result.value;
+        }));
   } else if (name == "not") {
     return FoldElementalIntrinsic<T, T>(
         context, std::move(funcRef), &Scalar<T>::NOT);
@@ -1015,7 +1014,7 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
       }
     }
   } else if (name == "selected_int_kind") {
-    if (auto p{GetInt64Arg(args[0])}) {
+    if (auto p{ToInt64(args[0])}) {
       return Expr<T>{context.targetCharacteristics().SelectedIntKind(*p)};
     }
   } else if (name == "selected_real_kind" ||
@@ -1062,20 +1061,19 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
         }));
   } else if (name == "sign") {
     return FoldElementalIntrinsic<T, T, T>(context, std::move(funcRef),
-        ScalarFunc<T, T, T>(
-            [&context](const Scalar<T> &j, const Scalar<T> &k) -> Scalar<T> {
-              typename Scalar<T>::ValueWithOverflow result{j.SIGN(k)};
-              if (result.overflow) {
-                context.messages().Say(
-                    "sign(integer(kind=%d)) folding overflowed"_warn_en_US,
-                    KIND);
-              }
-              return result.value;
-            }));
+        ScalarFunc<T, T, T>([&context](const Scalar<T> &j,
+                                const Scalar<T> &k) -> Scalar<T> {
+          typename Scalar<T>::ValueWithOverflow result{j.SIGN(k)};
+          if (result.overflow) {
+            context.messages().Say(
+                "sign(integer(kind=%d)) folding overflowed"_warn_en_US, KIND);
+          }
+          return result.value;
+        }));
   } else if (name == "size") {
     if (auto shape{GetContextFreeShape(context, args[0])}) {
       if (auto &dimArg{args[1]}) { // DIM= is present, get one extent
-        if (auto dim{GetInt64Arg(args[1])}) {
+        if (auto dim{ToInt64(args[1])}) {
           int rank{GetRank(*shape)};
           if (*dim >= 1 && *dim <= rank) {
             const Symbol *symbol{UnwrapWholeSymbolDataRef(args[0])};
@@ -1192,11 +1190,11 @@ std::optional<std::int64_t> ToInt64(const Expr<SomeInteger> &expr) {
 }
 
 std::optional<std::int64_t> ToInt64(const Expr<SomeType> &expr) {
-  if (const auto *intExpr{UnwrapExpr<Expr<SomeInteger>>(expr)}) {
-    return ToInt64(*intExpr);
-  } else {
-    return std::nullopt;
-  }
+  return ToInt64(UnwrapExpr<Expr<SomeInteger>>(expr));
+}
+
+std::optional<std::int64_t> ToInt64(const ActualArgument &arg) {
+  return ToInt64(arg.UnwrapExpr());
 }
 
 #ifdef _MSC_VER // disable bogus warning about missing definitions

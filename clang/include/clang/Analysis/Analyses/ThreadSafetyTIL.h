@@ -50,7 +50,6 @@
 #include "clang/Analysis/Analyses/ThreadSafetyUtil.h"
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
@@ -1464,7 +1463,7 @@ public:
   static bool classof(const SExpr *E) { return E->opcode() == COP_Return; }
 
   /// Return an empty list.
-  ArrayRef<BasicBlock *> successors() { return None; }
+  ArrayRef<BasicBlock *> successors() { return std::nullopt; }
 
   SExpr *returnValue() { return Retval; }
   const SExpr *returnValue() const { return Retval; }
@@ -1490,7 +1489,7 @@ inline ArrayRef<BasicBlock*> Terminator::successors() {
     case COP_Branch: return cast<Branch>(this)->successors();
     case COP_Return: return cast<Return>(this)->successors();
     default:
-      return None;
+      return std::nullopt;
   }
 }
 

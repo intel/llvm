@@ -1,4 +1,5 @@
-// RUN: mlir-opt -allow-unregistered-dialect %s -split-input-file -pass-pipeline='func.func(canonicalize)' | FileCheck %s
+// RUN: mlir-opt -allow-unregistered-dialect %s -split-input-file -canonicalize | FileCheck %s
+// RUN: mlir-opt -allow-unregistered-dialect %s -split-input-file -canonicalize="top-down=0" | FileCheck %s --check-prefix=CHECK-BOTTOM-UP
 
 // -----
 
@@ -1155,6 +1156,8 @@ module {
 
 // Simplification of maps exploiting operand info.
 
+// CHECK: #[[$MAP_SIMPLER:.*]] = affine_map<(d0, d1) -> (((d0 + d1) mod 458313) floordiv 227)>
+
 // CHECK-LABEL: func @simplify_with_operands
 func.func @simplify_with_operands(%N: index, %A: memref<?x32xf32>) {
   // CHECK-NEXT: affine.for %[[I:.*]] = 0 to %{{.*}}
@@ -1186,5 +1189,33 @@ func.func @simplify_with_operands(%N: index, %A: memref<?x32xf32>) {
     "test.foo"(%x) : (f32) -> ()
   }
 
+  affine.for %arg0 = 0 to %N step 128 {
+    affine.for %arg4 = 0 to 32 step 32 {
+      affine.for %arg5 = 0 to 128 {
+        // CHECK: affine.apply #[[$MAP_SIMPLER]]
+        %x = affine.apply affine_map<(d0, d1, d2) -> (((d0 + d2) mod 458313) floordiv 227 + d1 floordiv 256)>(%arg0, %arg4, %arg5)
+        "test.foo"(%x) : (index) -> ()
+      }
+    }
+  }
+
+  return
+}
+
+// -----
+
+//           CHECK: #[[$map:.*]] = affine_map<()[s0] -> (s0 * ((-s0 + 40961) ceildiv 512))>
+// CHECK-BOTTOM-UP: #[[$map:.*]] = affine_map<()[s0] -> (s0 * ((-s0 + 40961) ceildiv 512))>
+//           CHECK-LABEL: func @regression_do_not_perform_invalid_replacements
+// CHECK-BOTTOM-UP-LABEL: func @regression_do_not_perform_invalid_replacements
+func.func @regression_do_not_perform_invalid_replacements(%arg0: index) {
+  // Dim must be promoted to sym before combining both maps.
+  //           CHECK: %[[apply:.*]] = affine.apply #[[$map]]()[%{{.*}}]
+  // CHECK-BOTTOM-UP: %[[apply:.*]] = affine.apply #[[$map]]()[%{{.*}}]
+  %0 = affine.apply affine_map<(d0) -> (-d0 + 40961)>(%arg0)
+  %1 = affine.apply affine_map<(d0)[s0] -> (d0 * (s0 ceildiv 512))>(%arg0)[%0]
+  //           CHECK: "test.foo"(%[[apply]])
+  // CHECK-BOTTOM-UP: "test.foo"(%[[apply]])
+  "test.foo"(%1) : (index) -> ()
   return
 }

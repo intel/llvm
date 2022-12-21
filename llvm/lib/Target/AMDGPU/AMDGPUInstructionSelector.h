@@ -97,6 +97,7 @@ private:
   bool selectG_UADDO_USUBO_UADDE_USUBE(MachineInstr &I) const;
   bool selectG_AMDGPU_MAD_64_32(MachineInstr &I) const;
   bool selectG_EXTRACT(MachineInstr &I) const;
+  bool selectG_FMA_FMAD(MachineInstr &I) const;
   bool selectG_MERGE_VALUES(MachineInstr &I) const;
   bool selectG_UNMERGE_VALUES(MachineInstr &I) const;
   bool selectG_BUILD_VECTOR(MachineInstr &I) const;
@@ -108,7 +109,7 @@ private:
   bool selectInterpP1F16(MachineInstr &MI) const;
   bool selectWritelane(MachineInstr &MI) const;
   bool selectDivScale(MachineInstr &MI) const;
-  bool selectIntrinsicIcmp(MachineInstr &MI) const;
+  bool selectIntrinsicCmp(MachineInstr &MI) const;
   bool selectBallot(MachineInstr &I) const;
   bool selectRelocConstant(MachineInstr &I) const;
   bool selectGroupStaticSize(MachineInstr &I) const;
@@ -147,7 +148,11 @@ private:
 
   std::pair<Register, unsigned>
   selectVOP3ModsImpl(MachineOperand &Root, bool AllowAbs = true,
-                     bool OpSel = false, bool ForceVGPR = false) const;
+                     bool OpSel = false) const;
+
+  Register copyToVGPRIfSrcFolded(Register Src, unsigned Mods,
+                                 MachineOperand Root, MachineInstr *InsertPt,
+                                 bool ForceVGPR = false) const;
 
   InstructionSelector::ComplexRendererFns
   selectVCSRC(MachineOperand &Root) const;
@@ -167,9 +172,6 @@ private:
   selectVOP3BMods(MachineOperand &Root) const;
 
   ComplexRendererFns selectVOP3NoMods(MachineOperand &Root) const;
-
-  InstructionSelector::ComplexRendererFns
-  selectVOP3Mods_nnan(MachineOperand &Root) const;
 
   std::pair<Register, unsigned>
   selectVOP3PModsImpl(Register Src, const MachineRegisterInfo &MRI,
@@ -292,6 +294,10 @@ private:
   ComplexRendererFns selectSMRDBufferImm(MachineOperand &Root) const;
   ComplexRendererFns selectSMRDBufferImm32(MachineOperand &Root) const;
   ComplexRendererFns selectSMRDBufferSgprImm(MachineOperand &Root) const;
+
+  std::pair<Register, unsigned> selectVOP3PMadMixModsImpl(MachineOperand &Root,
+                                                          bool &Matched) const;
+  ComplexRendererFns selectVOP3PMadMixMods(MachineOperand &Root) const;
 
   void renderTruncImm32(MachineInstrBuilder &MIB, const MachineInstr &MI,
                         int OpIdx = -1) const;

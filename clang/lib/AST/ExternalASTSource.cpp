@@ -20,7 +20,6 @@
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/Module.h"
 #include "clang/Basic/SourceManager.h"
-#include "llvm/ADT/None.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <cstdint>
 
@@ -32,7 +31,7 @@ ExternalASTSource::~ExternalASTSource() = default;
 
 llvm::Optional<ASTSourceDescriptor>
 ExternalASTSource::getSourceDescriptor(unsigned ID) {
-  return None;
+  return std::nullopt;
 }
 
 ExternalASTSource::ExtKind

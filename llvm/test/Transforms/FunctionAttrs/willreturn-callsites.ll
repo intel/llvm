@@ -1,4 +1,4 @@
-; RUN: opt -inferattrs -function-attrs -S %s | FileCheck %s
+; RUN: opt -passes=inferattrs,function-attrs -S %s | FileCheck %s
 
 declare void @decl_readonly() readonly
 declare void @decl_readnone() readnone
@@ -38,7 +38,7 @@ define void @test_fn_willreturn(ptr %ptr) willreturn {
 }
 
 define void @test_fn_mustprogress_readonly_calls(ptr %ptr) mustprogress {
-; CHECK: Function Attrs: mustprogress nofree readonly willreturn
+; CHECK: Function Attrs: mustprogress nofree willreturn memory(read)
 ; CHECK-LABEL: @test_fn_mustprogress_readonly_calls(
 ; CHECK-NOT:     call void @decl_readonly() #
 ; CHECK-NOT:     call void @decl_readnone() #

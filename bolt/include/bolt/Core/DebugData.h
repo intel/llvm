@@ -46,7 +46,7 @@ struct AttrInfo {
 /// \param DIE die to look up in.
 /// \param AbbrevDecl abbrev declaration for the die.
 /// \param Index an index in Abbrev declaration entry.
-Optional<AttrInfo>
+std::optional<AttrInfo>
 findAttributeInfo(const DWARFDie DIE,
                   const DWARFAbbreviationDeclaration *AbbrevDecl,
                   uint32_t Index);
@@ -56,7 +56,8 @@ findAttributeInfo(const DWARFDie DIE,
 /// \param DIE die to look up in.
 /// \param Attr the attribute to extract.
 /// \return an optional AttrInfo with DWARFFormValue and Offset.
-Optional<AttrInfo> findAttributeInfo(const DWARFDie DIE, dwarf::Attribute Attr);
+std::optional<AttrInfo> findAttributeInfo(const DWARFDie DIE,
+                                          dwarf::Attribute Attr);
 
 // DWARF5 Header in order of encoding.
 // Types represent encodnig sizes.
@@ -424,13 +425,13 @@ public:
 
   /// Initializes Buffer and Stream.
   void initialize(const DWARFSection &StrOffsetsSection,
-                  const Optional<StrOffsetsContributionDescriptor> Contr);
+                  const std::optional<StrOffsetsContributionDescriptor> Contr);
 
   /// Update Str offset in .debug_str in .debug_str_offsets.
   void updateAddressMap(uint32_t Index, uint32_t Address);
 
   /// Writes out current sections entry into .debug_str_offsets.
-  void finalizeSection();
+  void finalizeSection(DWARFUnit &Unit);
 
   /// Returns False if no strings were added to .debug_str.
   bool isFinalized() const { return !StrOffsetsBuffer->empty(); }
@@ -444,8 +445,10 @@ private:
   std::unique_ptr<DebugStrOffsetsBufferVector> StrOffsetsBuffer;
   std::unique_ptr<raw_svector_ostream> StrOffsetsStream;
   std::map<uint32_t, uint32_t> IndexToAddressMap;
+  DenseSet<uint64_t> ProcessedBaseOffsets;
   // Section size not including header.
   uint32_t CurrentSectionSize{0};
+  bool StrOffsetSectionWasModified = false;
 };
 
 using DebugStrBufferVector = SmallVector<char, 16>;
@@ -1016,7 +1019,8 @@ public:
   ///       Most of the time, using type units with DWO is not a good idea.
   ///       If type units are used, the caller is responsible for verifying
   ///       that abbreviations are shared by CU and TUs.
-  DebugAbbrevWriter(DWARFContext &Context, Optional<uint64_t> DWOId = None)
+  DebugAbbrevWriter(DWARFContext &Context,
+                    Optional<uint64_t> DWOId = std::nullopt)
       : Context(Context), DWOId(DWOId) {}
 
   DebugAbbrevWriter(const DebugAbbrevWriter &) = delete;
@@ -1129,11 +1133,11 @@ public:
 
   /// Emit the Dwarf file and the line tables for a given CU.
   void emitCU(MCStreamer *MCOS, MCDwarfLineTableParams Params,
-              Optional<MCDwarfLineStr> &LineStr, BinaryContext &BC) const;
+              std::optional<MCDwarfLineStr> &LineStr, BinaryContext &BC) const;
 
   Expected<unsigned> tryGetFile(StringRef &Directory, StringRef &FileName,
-                                Optional<MD5::MD5Result> Checksum,
-                                Optional<StringRef> Source,
+                                std::optional<MD5::MD5Result> Checksum,
+                                std::optional<StringRef> Source,
                                 uint16_t DwarfVersion,
                                 unsigned FileNumber = 0) {
     assert(RawData.empty() && "cannot use with raw data");
@@ -1149,8 +1153,8 @@ public:
   /// Sets the root file \p Directory, \p FileName, optional \p CheckSum, and
   /// optional \p Source.
   void setRootFile(StringRef Directory, StringRef FileName,
-                   Optional<MD5::MD5Result> Checksum,
-                   Optional<StringRef> Source) {
+                   std::optional<MD5::MD5Result> Checksum,
+                   std::optional<StringRef> Source) {
     Header.setRootFile(Directory, FileName, Checksum, Source);
   }
 

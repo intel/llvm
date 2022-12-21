@@ -47,8 +47,8 @@ protected:
 
     TargetOptions Options;
     TM = std::unique_ptr<LLVMTargetMachine>(static_cast<LLVMTargetMachine *>(
-        T->createTargetMachine("AArch64", "", "+sve", Options, None, None,
-                               CodeGenOpt::Aggressive)));
+        T->createTargetMachine("AArch64", "", "+sve", Options, std::nullopt,
+                               std::nullopt, CodeGenOpt::Aggressive)));
     if (!TM)
       GTEST_SKIP();
 
@@ -77,7 +77,7 @@ protected:
     if (!DAG)
       report_fatal_error("DAG?");
     OptimizationRemarkEmitter ORE(F);
-    DAG->init(*MF, ORE, nullptr, nullptr, nullptr, nullptr, nullptr);
+    DAG->init(*MF, ORE, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
   }
 
   TargetLoweringBase::LegalizeTypeAction getTypeAction(EVT VT) {

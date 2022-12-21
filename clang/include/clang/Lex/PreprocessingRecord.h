@@ -19,7 +19,6 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/StringRef.h"
@@ -293,7 +292,7 @@ class Token;
     /// entity with index \p Index came from file \p FID.
     virtual Optional<bool> isPreprocessedEntityInFileID(unsigned Index,
                                                         FileID FID) {
-      return None;
+      return std::nullopt;
     }
 
     /// Read a preallocated skipped range from the external source.

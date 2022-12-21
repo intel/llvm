@@ -444,7 +444,7 @@ std::tuple<unsigned short, unsigned char, unsigned char>
 decodeOCLVer(unsigned Ver);
 
 /// Decode a MDNode assuming it contains three integer constants.
-void decodeMDNode(MDNode *N, unsigned &X, unsigned &Y, unsigned &Z);
+SmallVector<unsigned, 3> decodeMDNode(MDNode *N);
 
 /// Get full path from debug info metadata
 /// Return empty string if the path is not available.
@@ -499,7 +499,7 @@ bool isEnqueueKernelBI(const StringRef MangledName);
 bool isKernelQueryBI(const StringRef MangledName);
 
 /// Check that the type is the sampler_t
-bool isSamplerStructTy(Type *Ty);
+bool isSamplerTy(Type *Ty);
 
 // Checks if the binary operator is an unfused fmul + fadd instruction.
 bool isUnfusedMulAdd(BinaryOperator *B);
@@ -523,7 +523,7 @@ template <class KeyTy, class ValTy, class Identifier = void>
 Instruction *
 getOrCreateSwitchFunc(StringRef MapName, Value *V,
                       const SPIRVMap<KeyTy, ValTy, Identifier> &Map,
-                      bool IsReverse, Optional<int> DefaultCase,
+                      bool IsReverse, std::optional<int> DefaultCase,
                       Instruction *InsertPoint, int KeyMask = 0) {
   static_assert(std::is_convertible<KeyTy, int>::value &&
                     std::is_convertible<ValTy, int>::value,
@@ -586,7 +586,7 @@ getOrCreateSwitchFunc(StringRef MapName, Value *V,
 /// \returns \c Value corresponding to SPIR-V Scope equivalent to OpenCL
 ///          memory_scope passed in \arg MemScope
 Value *transOCLMemScopeIntoSPIRVScope(Value *MemScope,
-                                      Optional<int> DefaultCase,
+                                      std::optional<int> DefaultCase,
                                       Instruction *InsertBefore);
 
 /// Performs conversion from OpenCL memory_order into SPIR-V Memory Semantics.
@@ -603,7 +603,7 @@ Value *transOCLMemScopeIntoSPIRVScope(Value *MemScope,
 /// \returns \c Value corresponding to SPIR-V Memory Semantics equivalent to
 ///          OpenCL memory_order passed in \arg MemOrder
 Value *transOCLMemOrderIntoSPIRVMemorySemantics(Value *MemOrder,
-                                                Optional<int> DefaultCase,
+                                                std::optional<int> DefaultCase,
                                                 Instruction *InsertBefore);
 
 /// Performs conversion from SPIR-V Scope into OpenCL memory_scope.

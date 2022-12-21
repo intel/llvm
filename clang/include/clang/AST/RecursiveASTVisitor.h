@@ -1543,6 +1543,8 @@ DEF_TRAVERSE_DECL(LifetimeExtendedTemporaryDecl, {
 DEF_TRAVERSE_DECL(FileScopeAsmDecl,
                   { TRY_TO(TraverseStmt(D->getAsmString())); })
 
+DEF_TRAVERSE_DECL(TopLevelStmtDecl, { TRY_TO(TraverseStmt(D->getStmt())); })
+
 DEF_TRAVERSE_DECL(ImportDecl, {})
 
 DEF_TRAVERSE_DECL(FriendDecl, {
@@ -3168,6 +3170,10 @@ DEF_TRAVERSE_STMT(OMPParallelGenericLoopDirective,
 
 DEF_TRAVERSE_STMT(OMPTargetParallelGenericLoopDirective,
                   { TRY_TO(TraverseOMPExecutableDirective(S)); })
+
+DEF_TRAVERSE_STMT(OMPErrorDirective,
+                  { TRY_TO(TraverseOMPExecutableDirective(S)); })
+
 // OpenMP clauses.
 template <typename Derived>
 bool RecursiveASTVisitor<Derived>::TraverseOMPClause(OMPClause *C) {
@@ -3318,6 +3324,22 @@ bool RecursiveASTVisitor<Derived>::VisitOMPDynamicAllocatorsClause(
 template <typename Derived>
 bool RecursiveASTVisitor<Derived>::VisitOMPAtomicDefaultMemOrderClause(
     OMPAtomicDefaultMemOrderClause *) {
+  return true;
+}
+
+template <typename Derived>
+bool RecursiveASTVisitor<Derived>::VisitOMPAtClause(OMPAtClause *) {
+  return true;
+}
+
+template <typename Derived>
+bool RecursiveASTVisitor<Derived>::VisitOMPSeverityClause(OMPSeverityClause *) {
+  return true;
+}
+
+template <typename Derived>
+bool RecursiveASTVisitor<Derived>::VisitOMPMessageClause(OMPMessageClause *C) {
+  TRY_TO(TraverseStmt(C->getMessageString()));
   return true;
 }
 

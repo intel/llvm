@@ -8,7 +8,6 @@
 
 #include "clang/Tooling/Inclusions/StandardLibrary.h"
 #include "clang/AST/Decl.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
 
@@ -77,17 +76,17 @@ static void ensureInitialized() {
   (void)Dummy;
 }
 
-llvm::Optional<Header> Header::named(llvm::StringRef Name) {
+std::optional<Header> Header::named(llvm::StringRef Name) {
   ensureInitialized();
   auto It = HeaderIDs->find(Name);
   if (It == HeaderIDs->end())
-    return llvm::None;
+    return std::nullopt;
   return Header(It->second);
 }
 llvm::StringRef Header::name() const { return HeaderNames[ID]; }
 llvm::StringRef Symbol::scope() const { return SymbolNames[ID].first; }
 llvm::StringRef Symbol::name() const { return SymbolNames[ID].second; }
-llvm::Optional<Symbol> Symbol::named(llvm::StringRef Scope,
+std::optional<Symbol> Symbol::named(llvm::StringRef Scope,
                                      llvm::StringRef Name) {
   ensureInitialized();
   if (NSSymbolMap *NSSymbols = NamespaceSymbols->lookup(Scope)) {
@@ -95,7 +94,7 @@ llvm::Optional<Symbol> Symbol::named(llvm::StringRef Scope,
     if (It != NSSymbols->end())
       return Symbol(It->second);
   }
-  return llvm::None;
+  return std::nullopt;
 }
 Header Symbol::header() const { return Header(SymbolHeaderIDs[ID]); }
 llvm::SmallVector<Header> Symbol::headers() const {
@@ -124,7 +123,7 @@ NSSymbolMap *Recognizer::namespaceSymbols(const NamespaceDecl *D) {
   return Result;
 }
 
-llvm::Optional<Symbol> Recognizer::operator()(const Decl *D) {
+std::optional<Symbol> Recognizer::operator()(const Decl *D) {
   // If D is std::vector::iterator, `vector` is the outer symbol to look up.
   // We keep all the candidate DCs as some may turn out to be anon enums.
   // Do this resolution lazily as we may turn out not to have a std namespace.
@@ -137,7 +136,7 @@ llvm::Optional<Symbol> Recognizer::operator()(const Decl *D) {
   }
   NSSymbolMap *Symbols = namespaceSymbols(cast_or_null<NamespaceDecl>(DC));
   if (!Symbols)
-    return llvm::None;
+    return std::nullopt;
 
   llvm::StringRef Name = [&]() -> llvm::StringRef {
     for (const auto *SymDC : llvm::reverse(IntermediateDecl)) {
@@ -153,11 +152,11 @@ llvm::Optional<Symbol> Recognizer::operator()(const Decl *D) {
     return "";
   }();
   if (Name.empty())
-    return llvm::None;
+    return std::nullopt;
 
   auto It = Symbols->find(Name);
   if (It == Symbols->end())
-    return llvm::None;
+    return std::nullopt;
   return Symbol(It->second);
 }
 

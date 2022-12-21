@@ -50,7 +50,11 @@ endif()
 function(compiler_rt_test_runtime runtime)
   string(TOUPPER ${runtime} runtime_uppercase)
   if(COMPILER_RT_HAS_${runtime_uppercase})
-    add_subdirectory(${runtime})
+    if (${runtime} STREQUAL scudo_standalone)
+      add_subdirectory(scudo/standalone)
+    else()
+      add_subdirectory(${runtime})
+    endif()
     foreach(directory ${ARGN})
       add_subdirectory(${directory})
     endforeach()
@@ -101,6 +105,8 @@ if(COMPILER_RT_CAN_EXECUTE_TESTS)
   # ShadowCallStack does not yet provide a runtime with compiler-rt, the tests
   # include their own minimal runtime
   add_subdirectory(shadowcallstack)
+  # These tests are self-contained and don't need an additional runtime.
+  add_subdirectory(metadata)
 endif()
 
 if(COMPILER_RT_STANDALONE_BUILD)

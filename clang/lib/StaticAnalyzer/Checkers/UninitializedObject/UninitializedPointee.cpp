@@ -121,7 +121,7 @@ struct DereferenceInfo {
 
 /// Dereferences \p FR and returns with the pointee's region, and whether it
 /// needs to be casted back to it's location type. If for whatever reason
-/// dereferencing fails, returns with None.
+/// dereferencing fails, returns std::nullopt.
 static llvm::Optional<DereferenceInfo> dereference(ProgramStateRef State,
                                                    const FieldRegion *FR);
 
@@ -234,7 +234,7 @@ static llvm::Optional<DereferenceInfo> dereference(ProgramStateRef State,
   // The region we'd like to acquire.
   const auto *R = V.getAsRegion()->getAs<TypedValueRegion>();
   if (!R)
-    return None;
+    return std::nullopt;
 
   VisitedRegions.insert(R);
 
@@ -245,7 +245,7 @@ static llvm::Optional<DereferenceInfo> dereference(ProgramStateRef State,
 
     R = Tmp->getAs<TypedValueRegion>();
     if (!R)
-      return None;
+      return std::nullopt;
 
     // We found a cyclic pointer, like int *ptr = (int *)&ptr.
     if (!VisitedRegions.insert(R).second)

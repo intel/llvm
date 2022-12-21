@@ -16,9 +16,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace intel {
-namespace experimental {
+namespace ext::intel::experimental {
 namespace detail {
 
 static std::vector<const char *>
@@ -29,6 +27,10 @@ prepareOclocArgs(sycl::info::device_type DeviceType, device_arch DeviceArch,
 
   if (DeviceType == sycl::info::device_type::gpu) {
     switch (DeviceArch) {
+    case device_arch::gpu_gen9:
+      Args.push_back("skl");
+      break;
+
     case device_arch::gpu_gen9_5:
       Args.push_back("cfl");
       break;
@@ -37,13 +39,17 @@ prepareOclocArgs(sycl::info::device_type DeviceType, device_arch DeviceArch,
       Args.push_back("icllp");
       break;
 
+    case device_arch::gpu_gen12:
+      Args.push_back("tgllp");
+      break;
+
     default:
-      Args.push_back("skl");
+      Args.push_back("tgllp");
     }
   } else {
     // TODO: change that to generic device when ocloc adds support for it.
-    // For now "skl" is used as the lowest arch with GEN9 arch.
-    Args.push_back("skl");
+    // For now "tgllp" is used as the option supported on all known GPU RT.
+    Args.push_back("tgllp");
   }
 
   if (DeviceStepping != "") {
@@ -228,9 +234,7 @@ __SYCL_EXPORT std::vector<byte> online_compiler<source_language::cm>::compile(
                                 DeviceStepping, CompileToSPIRVHandle,
                                 FreeSPIRVOutputsHandle, CMUserArgs);
 }
-} // namespace experimental
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel::experimental
 
 namespace ext {
 namespace __SYCL2020_DEPRECATED(

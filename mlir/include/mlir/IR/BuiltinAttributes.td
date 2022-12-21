@@ -72,7 +72,7 @@ def Builtin_AffineMapAttr : Builtin_Attr<"AffineMap", [
 //===----------------------------------------------------------------------===//
 
 def Builtin_ArrayAttr : Builtin_Attr<"Array", [
-    DeclareAttrInterfaceMethods<SubElementAttrInterface>
+    SubElementAttrInterface
   ]> {
   let summary = "A collection of other Attribute values";
   let description = [{
@@ -155,8 +155,7 @@ def Builtin_DenseArrayRawDataParameter : ArrayRefParameter<
   }];
 }
 
-def Builtin_DenseArray : Builtin_Attr<
-    "DenseArray", [ElementsAttrInterface, TypedAttrInterface]> {
+def Builtin_DenseArray : Builtin_Attr<"DenseArray"> {
   let summary = "A dense array of integer or floating point elements.";
   let description = [{
     A dense array attribute is an attribute that represents a dense array of
@@ -195,43 +194,26 @@ def Builtin_DenseArray : Builtin_Attr<
   }];
 
   let parameters = (ins
-    AttributeSelfTypeParameter<"", "RankedTensorType">:$type,
+    "Type":$elementType,
+    "int64_t":$size,
     Builtin_DenseArrayRawDataParameter:$rawData
   );
 
   let builders = [
-    AttrBuilderWithInferredContext<(ins "RankedTensorType":$type,
+    AttrBuilderWithInferredContext<(ins "Type":$elementType, "unsigned":$size,
                                         "ArrayRef<char>":$rawData), [{
-      return $_get(type.getContext(), type, rawData);
+      return $_get(elementType.getContext(), elementType, size, rawData);
     }]>,
   ];
 
-  let extraClassDeclaration = [{
-    /// Allow implicit conversion to ElementsAttr.
-    operator ElementsAttr() const {
-      return *this ? cast<ElementsAttr>() : nullptr;
-    }
-
-    /// ElementsAttr implementation.
-    using ContiguousIterableTypesT =
-        std::tuple<bool, int8_t, int16_t, int32_t, int64_t, float, double>;
-    FailureOr<const bool *>
-    try_value_begin_impl(OverloadToken<bool>) const;
-    FailureOr<const int8_t *>
-    try_value_begin_impl(OverloadToken<int8_t>) const;
-    FailureOr<const int16_t *>
-    try_value_begin_impl(OverloadToken<int16_t>) const;
-    FailureOr<const int32_t *>
-    try_value_begin_impl(OverloadToken<int32_t>) const;
-    FailureOr<const int64_t *>
-    try_value_begin_impl(OverloadToken<int64_t>) const;
-    FailureOr<const float *>
-    try_value_begin_impl(OverloadToken<float>) const;
-    FailureOr<const double *>
-    try_value_begin_impl(OverloadToken<double>) const;
-  }];
-
   let genVerifyDecl = 1;
+
+  let extraClassDeclaration = [{
+    /// Get the number of elements in the array.
+    int64_t size() const { return getSize(); }
+    /// Return true if there are no elements in the dense array.
+    bool empty() const { return !size(); }
+  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -510,7 +492,7 @@ def Builtin_DenseResourceElementsAttr : Builtin_Attr<"DenseResourceElements", [
 //===----------------------------------------------------------------------===//
 
 def Builtin_DictionaryAttr : Builtin_Attr<"Dictionary", [
-    DeclareAttrInterfaceMethods<SubElementAttrInterface>
+    SubElementAttrInterface
   ]> {
   let summary = "An dictionary of named Attribute values";
   let description = [{
@@ -534,7 +516,7 @@ def Builtin_DictionaryAttr : Builtin_Attr<"Dictionary", [
   }];
   let parameters = (ins ArrayRefParameter<"NamedAttribute", "">:$value);
   let builders = [
-    AttrBuilder<(ins CArg<"ArrayRef<NamedAttribute>", "llvm::None">:$value)>
+    AttrBuilder<(ins CArg<"ArrayRef<NamedAttribute>", "std::nullopt">:$value)>
   ];
   let extraClassDeclaration = [{
     using ValueType = ArrayRef<NamedAttribute>;
@@ -548,7 +530,7 @@ def Builtin_DictionaryAttr : Builtin_Attr<"Dictionary", [
     Attribute get(StringRef name) const;
     Attribute get(StringAttr name) const;
 
-    /// Return the specified named attribute if present, None otherwise.
+    /// Return the specified named attribute if present, std::nullopt otherwise.
     Optional<NamedAttribute> getNamed(StringRef name) const;
     Optional<NamedAttribute> getNamed(StringAttr name) const;
 
@@ -576,7 +558,7 @@ def Builtin_DictionaryAttr : Builtin_Attr<"Dictionary", [
     static bool sortInPlace(SmallVectorImpl<NamedAttribute> &array);
 
     /// Returns an entry with a duplicate name in `array`, if it exists, else
-    /// returns llvm::None. If `isSorted` is true, the array is assumed to be
+    /// returns std::nullopt. If `isSorted` is true, the array is assumed to be
     /// sorted else it will be sorted in place before finding the duplicate entry.
     static Optional<NamedAttribute>
     findDuplicate(SmallVectorImpl<NamedAttribute> &array, bool isSorted);
@@ -1009,7 +991,7 @@ def StridedLayoutAttr : Builtin_Attr<"StridedLayout",
     Strides must be positive and the offset must be non-negative. Both the
     strides and the offset may be _dynamic_, i.e. their value may not be known
     at compile time. This is expressed as a `?` in the assembly syntax and as
-    `ShapedType::kDynamicStrideOrOffset` in the code. Stride and offset values
+    `ShapedType::kDynamic` in the code. Stride and offset values
     must satisfy the constraints above at runtime, the behavior is undefined
     otherwise.
 
@@ -1115,7 +1097,7 @@ def Builtin_StringAttr : Builtin_Attr<"String", [TypedAttrInterface]> {
 //===----------------------------------------------------------------------===//
 
 def Builtin_SymbolRefAttr : Builtin_Attr<"SymbolRef", [
-    DeclareAttrInterfaceMethods<SubElementAttrInterface>
+    SubElementAttrInterface
   ]> {
   let summary = "An Attribute containing a symbolic reference to an Operation";
   let description = [{
@@ -1190,7 +1172,7 @@ def Builtin_SymbolRefAttr : Builtin_Attr<"SymbolRef", [
 //===----------------------------------------------------------------------===//
 
 def Builtin_TypeAttr : Builtin_Attr<"Type", [
-    DeclareAttrInterfaceMethods<SubElementAttrInterface>
+    SubElementAttrInterface
   ]> {
   let summary = "An Attribute containing a Type";
   let description = [{

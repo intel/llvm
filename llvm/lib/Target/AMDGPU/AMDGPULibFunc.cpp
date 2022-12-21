@@ -20,6 +20,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/ValueSymbolTable.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/ModRef.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
@@ -992,7 +993,8 @@ FunctionCallee AMDGPULibFunc::getOrInsertFunction(Module *M,
   } else {
     AttributeList Attr;
     LLVMContext &Ctx = M->getContext();
-    Attr = Attr.addFnAttribute(Ctx, Attribute::ReadOnly);
+    Attr = Attr.addFnAttribute(
+        Ctx, Attribute::getWithMemoryEffects(Ctx, MemoryEffects::readOnly()));
     Attr = Attr.addFnAttribute(Ctx, Attribute::NoUnwind);
     C = M->getOrInsertFunction(FuncName, FuncTy, Attr);
   }

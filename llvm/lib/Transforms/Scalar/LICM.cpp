@@ -88,7 +88,6 @@
 using namespace llvm;
 
 namespace llvm {
-class BlockFrequencyInfo;
 class LPMUpdater;
 } // namespace llvm
 
@@ -1431,7 +1430,7 @@ static Instruction *cloneInstructionInExitBlock(
     New = I.clone();
   }
 
-  ExitBlock.getInstList().insert(ExitBlock.getFirstInsertionPt(), New);
+  New->insertAt(&ExitBlock, ExitBlock.getFirstInsertionPt());
   if (!I.getName().empty())
     New->setName(I.getName() + ".le");
 
@@ -1776,7 +1775,6 @@ static bool isSafeToExecuteUnconditionally(
 namespace {
 class LoopPromoter : public LoadAndStorePromoter {
   Value *SomePtr; // Designated pointer to store to.
-  const SmallSetVector<Value *, 8> &PointerMustAliases;
   SmallVectorImpl<BasicBlock *> &LoopExitBlocks;
   SmallVectorImpl<Instruction *> &LoopInsertPts;
   SmallVectorImpl<MemoryAccess *> &MSSAInsertPts;
@@ -1789,6 +1787,7 @@ class LoopPromoter : public LoadAndStorePromoter {
   AAMDNodes AATags;
   ICFLoopSafetyInfo &SafetyInfo;
   bool CanInsertStoresInExitBlocks;
+  ArrayRef<const Instruction *> Uses;
 
   // We're about to add a use of V in a loop exit block.  Insert an LCSSA phi
   // (if legal) if doing so would add an out-of-loop use to an instruction
@@ -1809,35 +1808,25 @@ class LoopPromoter : public LoadAndStorePromoter {
 
 public:
   LoopPromoter(Value *SP, ArrayRef<const Instruction *> Insts, SSAUpdater &S,
-               const SmallSetVector<Value *, 8> &PMA,
                SmallVectorImpl<BasicBlock *> &LEB,
                SmallVectorImpl<Instruction *> &LIP,
                SmallVectorImpl<MemoryAccess *> &MSSAIP, PredIteratorCache &PIC,
                MemorySSAUpdater &MSSAU, LoopInfo &li, DebugLoc dl,
                Align Alignment, bool UnorderedAtomic, const AAMDNodes &AATags,
                ICFLoopSafetyInfo &SafetyInfo, bool CanInsertStoresInExitBlocks)
-      : LoadAndStorePromoter(Insts, S), SomePtr(SP), PointerMustAliases(PMA),
-        LoopExitBlocks(LEB), LoopInsertPts(LIP), MSSAInsertPts(MSSAIP),
-        PredCache(PIC), MSSAU(MSSAU), LI(li), DL(std::move(dl)),
-        Alignment(Alignment), UnorderedAtomic(UnorderedAtomic), AATags(AATags),
+      : LoadAndStorePromoter(Insts, S), SomePtr(SP), LoopExitBlocks(LEB),
+        LoopInsertPts(LIP), MSSAInsertPts(MSSAIP), PredCache(PIC), MSSAU(MSSAU),
+        LI(li), DL(std::move(dl)), Alignment(Alignment),
+        UnorderedAtomic(UnorderedAtomic), AATags(AATags),
         SafetyInfo(SafetyInfo),
-        CanInsertStoresInExitBlocks(CanInsertStoresInExitBlocks) {}
-
-  bool isInstInList(Instruction *I,
-                    const SmallVectorImpl<Instruction *> &) const override {
-    Value *Ptr;
-    if (LoadInst *LI = dyn_cast<LoadInst>(I))
-      Ptr = LI->getOperand(0);
-    else
-      Ptr = cast<StoreInst>(I)->getPointerOperand();
-    return PointerMustAliases.count(Ptr);
-  }
+        CanInsertStoresInExitBlocks(CanInsertStoresInExitBlocks), Uses(Insts) {}
 
   void insertStoresInLoopExitBlocks() {
     // Insert stores after in the loop exit blocks.  Each exit block gets a
     // store of the live-out values that feed them.  Since we've already told
     // the SSA updater about the defs in the loop and the preheader
     // definition, it is all set and we can start using it.
+    DIAssignID *NewID = nullptr;
     for (unsigned i = 0, e = LoopExitBlocks.size(); i != e; ++i) {
       BasicBlock *ExitBlock = LoopExitBlocks[i];
       Value *LiveInValue = SSA.GetValueInMiddleOfBlock(ExitBlock);
@@ -1849,6 +1838,21 @@ public:
         NewSI->setOrdering(AtomicOrdering::Unordered);
       NewSI->setAlignment(Alignment);
       NewSI->setDebugLoc(DL);
+      // Attach DIAssignID metadata to the new store, generating it on the
+      // first loop iteration.
+      if (i == 0) {
+        // NewSI will have its DIAssignID set here if there are any stores in
+        // Uses with a DIAssignID attachment. This merged ID will then be
+        // attached to the other inserted stores (in the branch below).
+        NewSI->mergeDIAssignID(Uses);
+        NewID = cast_or_null<DIAssignID>(
+            NewSI->getMetadata(LLVMContext::MD_DIAssignID));
+      } else {
+        // Attach the DIAssignID (or nullptr) merged from Uses in the branch
+        // above.
+        NewSI->setMetadata(LLVMContext::MD_DIAssignID, NewID);
+      }
+
       if (AATags)
         NewSI->setAAMetadata(AATags);
 
@@ -2197,9 +2201,9 @@ bool llvm::promoteLoopAccessesToScalars(
   // We use the SSAUpdater interface to insert phi nodes as required.
   SmallVector<PHINode *, 16> NewPHIs;
   SSAUpdater SSA(&NewPHIs);
-  LoopPromoter Promoter(SomePtr, LoopUses, SSA, PointerMustAliases, ExitBlocks,
-                        InsertPts, MSSAInsertPts, PIC, MSSAU, *LI, DL,
-                        Alignment, SawUnorderedAtomic, AATags, *SafetyInfo,
+  LoopPromoter Promoter(SomePtr, LoopUses, SSA, ExitBlocks, InsertPts,
+                        MSSAInsertPts, PIC, MSSAU, *LI, DL, Alignment,
+                        SawUnorderedAtomic, AATags, *SafetyInfo,
                         StoreSafety == StoreSafe);
 
   // Set up the preheader to have a definition of the value.  It is the live-out
@@ -2251,7 +2255,8 @@ static void foreachMemoryAccess(MemorySSA *MSSA, Loop *L,
 
 static SmallVector<SmallSetVector<Value *, 8>, 0>
 collectPromotionCandidates(MemorySSA *MSSA, AliasAnalysis *AA, Loop *L) {
-  AliasSetTracker AST(*AA);
+  BatchAAResults BatchAA(*AA);
+  AliasSetTracker AST(BatchAA);
 
   auto IsPotentiallyPromotable = [L](const Instruction *I) {
     if (const auto *SI = dyn_cast<StoreInst>(I))
@@ -2280,7 +2285,6 @@ collectPromotionCandidates(MemorySSA *MSSA, AliasAnalysis *AA, Loop *L) {
     return {}; // Nothing to promote...
 
   // Discard any sets for which there is an aliasing non-promotable access.
-  BatchAAResults BatchAA(*AA);
   foreachMemoryAccess(MSSA, L, [&](Instruction *I) {
     if (AttemptingPromotion.contains(I))
       return;

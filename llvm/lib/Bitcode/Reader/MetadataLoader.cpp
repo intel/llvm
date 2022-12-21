@@ -14,8 +14,6 @@
 #include "llvm/ADT/BitmaskEnum.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
@@ -55,6 +53,7 @@
 #include <deque>
 #include <iterator>
 #include <limits>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -222,7 +221,7 @@ Metadata *BitcodeReaderMetadataList::getMetadataFwdRef(unsigned Idx) {
 
   // Create and return a placeholder, which will later be RAUW'd.
   ++NumMDNodeTemporary;
-  Metadata *MD = MDNode::getTemporary(Context, None).release();
+  Metadata *MD = MDNode::getTemporary(Context, std::nullopt).release();
   MetadataPtrs[Idx].reset(MD);
   return MD;
 }
@@ -304,7 +303,7 @@ Metadata *BitcodeReaderMetadataList::upgradeTypeRef(Metadata *MaybeUUID) {
 
   auto &Ref = OldTypeRefs.Unknown[UUID];
   if (!Ref)
-    Ref = MDNode::getTemporary(Context, None);
+    Ref = MDNode::getTemporary(Context, std::nullopt);
   return Ref.get();
 }
 
@@ -321,7 +320,7 @@ Metadata *BitcodeReaderMetadataList::upgradeTypeRefArray(Metadata *MaybeTuple) {
   // resolveTypeRefArrays() will be resolve this forward reference.
   OldTypeRefs.Arrays.emplace_back(
       std::piecewise_construct, std::forward_as_tuple(Tuple),
-      std::forward_as_tuple(MDTuple::getTemporary(Context, None)));
+      std::forward_as_tuple(MDTuple::getTemporary(Context, std::nullopt)));
   return OldTypeRefs.Arrays.back().second.get();
 }
 
@@ -856,6 +855,7 @@ MetadataLoader::MetadataLoaderImpl::lazyLoadModuleMetadataBlock() {
       case bitc::METADATA_TEMPLATE_VALUE:
       case bitc::METADATA_GLOBAL_VAR:
       case bitc::METADATA_LOCAL_VAR:
+      case bitc::METADATA_ASSIGN_ID:
       case bitc::METADATA_LABEL:
       case bitc::METADATA_EXPRESSION:
       case bitc::METADATA_OBJC_PROPERTY:
@@ -1211,7 +1211,8 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
     // If this isn't a LocalAsMetadata record, we're dropping it.  This used
     // to be legal, but there's no upgrade path.
     auto dropRecord = [&] {
-      MetadataList.assignValue(MDNode::get(Context, None), NextMetadataNo);
+      MetadataList.assignValue(MDNode::get(Context, std::nullopt),
+                               NextMetadataNo);
       NextMetadataNo++;
     };
     if (Record.size() != 2) {
@@ -1446,7 +1447,7 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
 
     // DWARF address space is encoded as N->getDWARFAddressSpace() + 1. 0 means
     // that there is no DWARF address space associated with DIDerivedType.
-    Optional<unsigned> DWARFAddressSpace;
+    std::optional<unsigned> DWARFAddressSpace;
     if (Record.size() > 12 && Record[12])
       DWARFAddressSpace = Record[12] - 1;
 
@@ -1609,7 +1610,7 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
       return error("Invalid record");
 
     IsDistinct = Record[0];
-    Optional<DIFile::ChecksumInfo<MDString *>> Checksum;
+    std::optional<DIFile::ChecksumInfo<MDString *>> Checksum;
     // The BitcodeWriter writes null bytes into Record[3:4] when the Checksum
     // is not present. This matches up with the old internal representation,
     // and the old encoding for CSK_None in the ChecksumKind. The new
@@ -1619,11 +1620,10 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
       Checksum.emplace(static_cast<DIFile::ChecksumKind>(Record[3]),
                        getMDString(Record[4]));
     MetadataList.assignValue(
-        GET_OR_DISTINCT(
-            DIFile,
-            (Context, getMDString(Record[1]), getMDString(Record[2]), Checksum,
-             Record.size() > 5 ? Optional<MDString *>(getMDString(Record[5]))
-                               : None)),
+        GET_OR_DISTINCT(DIFile,
+                        (Context, getMDString(Record[1]),
+                         getMDString(Record[2]), Checksum,
+                         Record.size() > 5 ? getMDString(Record[5]) : nullptr)),
         NextMetadataNo);
     NextMetadataNo++;
     break;
@@ -1962,6 +1962,18 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
     } else
       return error("Invalid record");
 
+    break;
+  }
+  case bitc::METADATA_ASSIGN_ID: {
+    if (Record.size() != 1)
+      return error("Invalid DIAssignID record.");
+
+    IsDistinct = Record[0] & 1;
+    if (!IsDistinct)
+      return error("Invalid DIAssignID record. Must be distinct");
+
+    MetadataList.assignValue(DIAssignID::getDistinct(Context), NextMetadataNo);
+    NextMetadataNo++;
     break;
   }
   case bitc::METADATA_LOCAL_VAR: {

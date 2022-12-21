@@ -21,7 +21,8 @@
 
 namespace clang::include_cleaner {
 namespace {
-using DeclCallback = llvm::function_ref<void(SourceLocation, NamedDecl &)>;
+using DeclCallback =
+    llvm::function_ref<void(SourceLocation, NamedDecl &, RefType)>;
 
 class ASTWalker : public RecursiveASTVisitor<ASTWalker> {
   DeclCallback Callback;
@@ -36,10 +37,17 @@ class ASTWalker : public RecursiveASTVisitor<ASTWalker> {
     return true;
   }
 
-  void report(SourceLocation Loc, NamedDecl *ND) {
+  void report(SourceLocation Loc, NamedDecl *ND,
+              RefType RT = RefType::Explicit) {
     if (!ND || Loc.isInvalid())
       return;
-    Callback(Loc, *cast<NamedDecl>(ND->getCanonicalDecl()));
+    Callback(Loc, *cast<NamedDecl>(ND->getCanonicalDecl()), RT);
+  }
+
+  NamedDecl *resolveType(QualType Type) {
+    if (Type->isPointerType())
+      Type = Type->getPointeeType();
+    return Type->getAsRecordDecl();
   }
 
 public:
@@ -51,28 +59,37 @@ public:
   }
 
   bool VisitMemberExpr(MemberExpr *E) {
-    report(E->getMemberLoc(), E->getFoundDecl().getDecl());
+    // A member expr implies a usage of the class type
+    // (e.g., to prevent inserting a header of base class when using base
+    // members from a derived object).
+    // FIXME: support dependent types, e.g., "std::vector<T>().size()".
+    QualType Type = E->getBase()->IgnoreImpCasts()->getType();
+    report(E->getMemberLoc(), resolveType(Type));
     return true;
   }
 
   bool VisitCXXConstructExpr(CXXConstructExpr *E) {
-    report(E->getLocation(), E->getConstructor());
+    report(E->getLocation(), E->getConstructor(),
+           E->getParenOrBraceRange().isValid() ? RefType::Explicit
+                                               : RefType::Implicit);
     return true;
   }
 
   bool VisitOverloadExpr(OverloadExpr *E) {
     // Since we can't prove which overloads are used, report all of them.
-    // FIXME: Provide caller with the ability to make a decision for such uses.
-    llvm::for_each(E->decls(),
-                   [this, E](NamedDecl *D) { report(E->getNameLoc(), D); });
+    llvm::for_each(E->decls(), [this, E](NamedDecl *D) {
+      report(E->getNameLoc(), D, RefType::Ambiguous);
+    });
     return true;
   }
 
   bool VisitUsingDecl(UsingDecl *UD) {
-    // FIXME: Provide caller with the ability to tell apart used/non-used
-    // targets.
-    for (const auto *Shadow : UD->shadows())
-      report(UD->getLocation(), Shadow->getTargetDecl());
+    for (const auto *Shadow : UD->shadows()) {
+      auto *TD = Shadow->getTargetDecl();
+      auto IsUsed = TD->isUsed() || TD->isReferenced();
+      report(UD->getLocation(), TD,
+             IsUsed ? RefType::Explicit : RefType::Ambiguous);
+    }
     return true;
   }
 

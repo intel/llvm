@@ -15,7 +15,6 @@
 #define LLVM_BITSTREAM_BITSTREAMWRITER_H
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Bitstream/BitCodes.h"
@@ -23,6 +22,7 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
+#include <optional>
 #include <vector>
 
 namespace llvm {
@@ -370,7 +370,7 @@ private:
   /// the code.
   template <typename uintty>
   void EmitRecordWithAbbrevImpl(unsigned Abbrev, ArrayRef<uintty> Vals,
-                                StringRef Blob, Optional<unsigned> Code) {
+                                StringRef Blob, std::optional<unsigned> Code) {
     const char *BlobData = Blob.data();
     unsigned BlobLen = (unsigned) Blob.size();
     unsigned AbbrevNo = Abbrev-bitc::FIRST_APPLICATION_ABBREV;
@@ -502,7 +502,8 @@ public:
   /// the first entry.
   template <typename Container>
   void EmitRecordWithAbbrev(unsigned Abbrev, const Container &Vals) {
-    EmitRecordWithAbbrevImpl(Abbrev, makeArrayRef(Vals), StringRef(), None);
+    EmitRecordWithAbbrevImpl(Abbrev, makeArrayRef(Vals), StringRef(),
+                             std::nullopt);
   }
 
   /// EmitRecordWithBlob - Emit the specified record to the stream, using an
@@ -513,13 +514,13 @@ public:
   template <typename Container>
   void EmitRecordWithBlob(unsigned Abbrev, const Container &Vals,
                           StringRef Blob) {
-    EmitRecordWithAbbrevImpl(Abbrev, makeArrayRef(Vals), Blob, None);
+    EmitRecordWithAbbrevImpl(Abbrev, makeArrayRef(Vals), Blob, std::nullopt);
   }
   template <typename Container>
   void EmitRecordWithBlob(unsigned Abbrev, const Container &Vals,
                           const char *BlobData, unsigned BlobLen) {
     return EmitRecordWithAbbrevImpl(Abbrev, makeArrayRef(Vals),
-                                    StringRef(BlobData, BlobLen), None);
+                                    StringRef(BlobData, BlobLen), std::nullopt);
   }
 
   /// EmitRecordWithArray - Just like EmitRecordWithBlob, works with records
@@ -527,13 +528,14 @@ public:
   template <typename Container>
   void EmitRecordWithArray(unsigned Abbrev, const Container &Vals,
                            StringRef Array) {
-    EmitRecordWithAbbrevImpl(Abbrev, makeArrayRef(Vals), Array, None);
+    EmitRecordWithAbbrevImpl(Abbrev, makeArrayRef(Vals), Array, std::nullopt);
   }
   template <typename Container>
   void EmitRecordWithArray(unsigned Abbrev, const Container &Vals,
                            const char *ArrayData, unsigned ArrayLen) {
     return EmitRecordWithAbbrevImpl(Abbrev, makeArrayRef(Vals),
-                                    StringRef(ArrayData, ArrayLen), None);
+                                    StringRef(ArrayData, ArrayLen),
+                                    std::nullopt);
   }
 
   //===--------------------------------------------------------------------===//

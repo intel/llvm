@@ -37,7 +37,6 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/FoldingSet.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
@@ -285,7 +284,8 @@ void Preprocessor::dumpMacroInfo(const IdentifierInfo *II) {
 
   // Dump module macros.
   llvm::DenseSet<ModuleMacro*> Active;
-  for (auto *MM : State ? State->getActiveModuleMacros(*this, II) : None)
+  for (auto *MM :
+       State ? State->getActiveModuleMacros(*this, II) : std::nullopt)
     Active.insert(MM);
   llvm::DenseSet<ModuleMacro*> Visited;
   llvm::SmallVector<ModuleMacro *, 16> Worklist(Leaf.begin(), Leaf.end());
@@ -1447,6 +1447,11 @@ static bool isTargetEnvironment(const TargetInfo &TI,
                                 const IdentifierInfo *II) {
   std::string EnvName = (llvm::Twine("---") + II->getName().lower()).str();
   llvm::Triple Env(EnvName);
+  // The unknown environment is matched only if
+  // '__is_target_environment(unknown)' is used.
+  if (Env.getEnvironment() == llvm::Triple::UnknownEnvironment &&
+      EnvName != "---unknown")
+    return false;
   return TI.getTriple().getEnvironment() == Env.getEnvironment();
 }
 

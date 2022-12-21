@@ -107,6 +107,8 @@ charconv iosfwd
 charconv limits
 charconv type_traits
 chrono compare
+chrono concepts
+chrono cstdint
 chrono ctime
 chrono limits
 chrono ratio
@@ -334,7 +336,6 @@ filesystem version
 format array
 format bit
 format charconv
-format concepts
 format cstddef
 format cstdint
 format cstdlib
@@ -346,6 +347,7 @@ format optional
 format stdexcept
 format string
 format string_view
+format tuple
 format type_traits
 format version
 forward_list algorithm
@@ -554,6 +556,7 @@ memory_resource mutex
 memory_resource new
 memory_resource stdexcept
 memory_resource tuple
+memory_resource type_traits
 memory_resource version
 mutex atomic
 mutex concepts
@@ -610,17 +613,24 @@ optional typeinfo
 optional utility
 optional variant
 optional version
+ostream atomic
 ostream bitset
+ostream concepts
 ostream cstddef
 ostream cstdint
+ostream cstdlib
 ostream cstring
+ostream initializer_list
 ostream ios
+ostream iosfwd
 ostream iterator
 ostream limits
 ostream locale
 ostream new
+ostream stdexcept
 ostream streambuf
 ostream type_traits
+ostream typeinfo
 ostream version
 queue compare
 queue concepts
@@ -649,7 +659,6 @@ random type_traits
 random vector
 random version
 ranges compare
-ranges concepts
 ranges cstddef
 ranges cstdlib
 ranges initializer_list

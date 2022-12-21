@@ -110,6 +110,7 @@
 #include <cstdlib>
 #include <iterator>
 #include <limits>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -4420,7 +4421,7 @@ void ARMTargetLowering::VarArgStyleRegisters(CCState &CCInfo, SelectionDAG &DAG,
 
 bool ARMTargetLowering::splitValueIntoRegisterParts(
     SelectionDAG &DAG, const SDLoc &DL, SDValue Val, SDValue *Parts,
-    unsigned NumParts, MVT PartVT, Optional<CallingConv::ID> CC) const {
+    unsigned NumParts, MVT PartVT, std::optional<CallingConv::ID> CC) const {
   bool IsABIRegCopy = CC.has_value();
   EVT ValueVT = Val.getValueType();
   if (IsABIRegCopy && (ValueVT == MVT::f16 || ValueVT == MVT::bf16) &&
@@ -4438,7 +4439,7 @@ bool ARMTargetLowering::splitValueIntoRegisterParts(
 
 SDValue ARMTargetLowering::joinRegisterPartsIntoValue(
     SelectionDAG &DAG, const SDLoc &DL, const SDValue *Parts, unsigned NumParts,
-    MVT PartVT, EVT ValueVT, Optional<CallingConv::ID> CC) const {
+    MVT PartVT, EVT ValueVT, std::optional<CallingConv::ID> CC) const {
   bool IsABIRegCopy = CC.has_value();
   if (IsABIRegCopy && (ValueVT == MVT::f16 || ValueVT == MVT::bf16) &&
       PartVT == MVT::f32) {
@@ -6855,25 +6856,25 @@ static SDValue LowerVSETCC(SDValue Op, SelectionDAG &DAG,
 
   // If one of the operands is a constant vector zero, attempt to fold the
   // comparison to a specialized compare-against-zero form.
-  SDValue SingleOp;
-  if (ISD::isBuildVectorAllZeros(Op1.getNode()))
-    SingleOp = Op0;
-  else if (ISD::isBuildVectorAllZeros(Op0.getNode())) {
+  if (ISD::isBuildVectorAllZeros(Op0.getNode()) &&
+      (Opc == ARMCC::GE || Opc == ARMCC::GT || Opc == ARMCC::EQ ||
+       Opc == ARMCC::NE)) {
     if (Opc == ARMCC::GE)
       Opc = ARMCC::LE;
     else if (Opc == ARMCC::GT)
       Opc = ARMCC::LT;
-    SingleOp = Op1;
+    std::swap(Op0, Op1);
   }
 
   SDValue Result;
-  if (SingleOp.getNode()) {
-    Result = DAG.getNode(ARMISD::VCMPZ, dl, CmpVT, SingleOp,
+  if (ISD::isBuildVectorAllZeros(Op1.getNode()) &&
+      (Opc == ARMCC::GE || Opc == ARMCC::GT || Opc == ARMCC::LE ||
+       Opc == ARMCC::LT || Opc == ARMCC::NE || Opc == ARMCC::EQ))
+    Result = DAG.getNode(ARMISD::VCMPZ, dl, CmpVT, Op0,
                          DAG.getConstant(Opc, dl, MVT::i32));
-  } else {
+  else
     Result = DAG.getNode(ARMISD::VCMP, dl, CmpVT, Op0, Op1,
                          DAG.getConstant(Opc, dl, MVT::i32));
-  }
 
   Result = DAG.getSExtOrTrunc(Result, dl, VT);
 
@@ -13772,10 +13773,13 @@ static SDValue PerformSHLSimplify(SDNode *N,
 
   APInt C2Int = C2->getAPIntValue();
   APInt C1Int = C1ShlC2->getAPIntValue();
+  unsigned C2Width = C2Int.getBitWidth();
+  if (C2Int.uge(C2Width))
+    return SDValue();
+  uint64_t C2Value = C2Int.getZExtValue();
 
   // Check that performing a lshr will not lose any information.
-  APInt Mask = APInt::getHighBitsSet(C2Int.getBitWidth(),
-                                     C2Int.getBitWidth() - C2->getZExtValue());
+  APInt Mask = APInt::getHighBitsSet(C2Width, C2Width - C2Value);
   if ((C1Int & Mask) != C1Int)
     return SDValue();
 
@@ -18817,7 +18821,7 @@ bool ARMTargetLowering::isDesirableToTransformToIntegerOp(unsigned Opc,
 bool ARMTargetLowering::allowsMisalignedMemoryAccesses(EVT VT, unsigned,
                                                        Align Alignment,
                                                        MachineMemOperand::Flags,
-                                                       bool *Fast) const {
+                                                       unsigned *Fast) const {
   // Depends what it gets converted into if the type is weird.
   if (!VT.isSimple())
     return false;
@@ -18841,7 +18845,7 @@ bool ARMTargetLowering::allowsMisalignedMemoryAccesses(EVT VT, unsigned,
     // A big-endian target may also explicitly support unaligned accesses
     if (Subtarget->hasNEON() && (AllowsUnaligned || Subtarget->isLittle())) {
       if (Fast)
-        *Fast = true;
+        *Fast = 1;
       return true;
     }
   }
@@ -18853,7 +18857,7 @@ bool ARMTargetLowering::allowsMisalignedMemoryAccesses(EVT VT, unsigned,
   if ((Ty == MVT::v16i1 || Ty == MVT::v8i1 || Ty == MVT::v4i1 ||
        Ty == MVT::v2i1)) {
     if (Fast)
-      *Fast = true;
+      *Fast = 1;
     return true;
   }
 
@@ -18879,7 +18883,7 @@ bool ARMTargetLowering::allowsMisalignedMemoryAccesses(EVT VT, unsigned,
       Ty == MVT::v4i32 || Ty == MVT::v4f32 || Ty == MVT::v2i64 ||
       Ty == MVT::v2f64) {
     if (Fast)
-      *Fast = true;
+      *Fast = 1;
     return true;
   }
 
@@ -18892,7 +18896,7 @@ EVT ARMTargetLowering::getOptimalMemOpType(
   // See if we can use NEON instructions for this...
   if ((Op.isMemcpy() || Op.isZeroMemset()) && Subtarget->hasNEON() &&
       !FuncAttributes.hasFnAttr(Attribute::NoImplicitFloat)) {
-    bool Fast;
+    unsigned Fast;
     if (Op.size() >= 16 &&
         (Op.isAligned(Align(16)) ||
          (allowsMisalignedMemoryAccesses(MVT::v2f64, 0, Align(1),
@@ -21832,4 +21836,106 @@ void ARMTargetLowering::insertCopiesSplitCSR(
 void ARMTargetLowering::finalizeLowering(MachineFunction &MF) const {
   MF.getFrameInfo().computeMaxCallFrameSize(MF);
   TargetLoweringBase::finalizeLowering(MF);
+}
+
+bool ARMTargetLowering::isComplexDeinterleavingSupported() const {
+  return Subtarget->hasMVEIntegerOps();
+}
+
+bool ARMTargetLowering::isComplexDeinterleavingOperationSupported(
+    ComplexDeinterleavingOperation Operation, Type *Ty) const {
+  auto *VTy = dyn_cast<FixedVectorType>(Ty);
+  if (!VTy)
+    return false;
+
+  auto *ScalarTy = VTy->getScalarType();
+  unsigned NumElements = VTy->getNumElements();
+
+  unsigned VTyWidth = VTy->getScalarSizeInBits() * NumElements;
+  if (VTyWidth < 128 || !llvm::isPowerOf2_32(VTyWidth))
+    return false;
+
+  // Both VCADD and VCMUL/VCMLA support the same types, F16 and F32
+  if (ScalarTy->isHalfTy() || ScalarTy->isFloatTy())
+    return Subtarget->hasMVEFloatOps();
+
+  if (Operation != ComplexDeinterleavingOperation::CAdd)
+    return false;
+
+  return Subtarget->hasMVEIntegerOps() &&
+         (ScalarTy->isIntegerTy(8) || ScalarTy->isIntegerTy(16) ||
+          ScalarTy->isIntegerTy(32));
+}
+
+Value *ARMTargetLowering::createComplexDeinterleavingIR(
+    Instruction *I, ComplexDeinterleavingOperation OperationType,
+    ComplexDeinterleavingRotation Rotation, Value *InputA, Value *InputB,
+    Value *Accumulator) const {
+
+  FixedVectorType *Ty = cast<FixedVectorType>(InputA->getType());
+
+  IRBuilder<> B(I);
+
+  unsigned TyWidth = Ty->getScalarSizeInBits() * Ty->getNumElements();
+
+  assert(TyWidth >= 128 && "Width of vector type must be at least 128 bits");
+
+  if (TyWidth > 128) {
+    int Stride = Ty->getNumElements() / 2;
+    auto SplitSeq = llvm::seq<int>(0, Ty->getNumElements());
+    auto SplitSeqVec = llvm::to_vector(SplitSeq);
+    ArrayRef<int> LowerSplitMask(&SplitSeqVec[0], Stride);
+    ArrayRef<int> UpperSplitMask(&SplitSeqVec[Stride], Stride);
+
+    auto *LowerSplitA = B.CreateShuffleVector(InputA, LowerSplitMask);
+    auto *LowerSplitB = B.CreateShuffleVector(InputB, LowerSplitMask);
+    auto *UpperSplitA = B.CreateShuffleVector(InputA, UpperSplitMask);
+    auto *UpperSplitB = B.CreateShuffleVector(InputB, UpperSplitMask);
+    Value *LowerSplitAcc = nullptr;
+    Value *UpperSplitAcc = nullptr;
+
+    if (Accumulator) {
+      LowerSplitAcc = B.CreateShuffleVector(Accumulator, LowerSplitMask);
+      UpperSplitAcc = B.CreateShuffleVector(Accumulator, UpperSplitMask);
+    }
+
+    auto *LowerSplitInt = createComplexDeinterleavingIR(
+        I, OperationType, Rotation, LowerSplitA, LowerSplitB, LowerSplitAcc);
+    auto *UpperSplitInt = createComplexDeinterleavingIR(
+        I, OperationType, Rotation, UpperSplitA, UpperSplitB, UpperSplitAcc);
+
+    ArrayRef<int> JoinMask(&SplitSeqVec[0], Ty->getNumElements());
+    return B.CreateShuffleVector(LowerSplitInt, UpperSplitInt, JoinMask);
+  }
+
+  auto *IntTy = Type::getInt32Ty(B.getContext());
+
+  ConstantInt *ConstRotation = nullptr;
+  if (OperationType == ComplexDeinterleavingOperation::CMulPartial) {
+    ConstRotation = ConstantInt::get(IntTy, (int)Rotation);
+
+    if (Accumulator)
+      return B.CreateIntrinsic(Intrinsic::arm_mve_vcmlaq, Ty,
+                               {ConstRotation, Accumulator, InputB, InputA});
+    return B.CreateIntrinsic(Intrinsic::arm_mve_vcmulq, Ty,
+                             {ConstRotation, InputB, InputA});
+  }
+
+  if (OperationType == ComplexDeinterleavingOperation::CAdd) {
+    // 1 means the value is not halved.
+    auto *ConstHalving = ConstantInt::get(IntTy, 1);
+
+    if (Rotation == ComplexDeinterleavingRotation::Rotation_90)
+      ConstRotation = ConstantInt::get(IntTy, 0);
+    else if (Rotation == ComplexDeinterleavingRotation::Rotation_270)
+      ConstRotation = ConstantInt::get(IntTy, 1);
+
+    if (!ConstRotation)
+      return nullptr; // Invalid rotation for arm_mve_vcaddq
+
+    return B.CreateIntrinsic(Intrinsic::arm_mve_vcaddq, Ty,
+                             {ConstHalving, ConstRotation, InputA, InputB});
+  }
+
+  return nullptr;
 }

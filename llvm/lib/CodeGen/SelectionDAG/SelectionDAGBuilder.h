@@ -18,6 +18,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/CodeGen/AssignmentTrackingAnalysis.h"
 #include "llvm/CodeGen/CodeGenCommonISel.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
@@ -33,6 +34,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -104,19 +106,67 @@ class SelectionDAGBuilder {
 
   /// Helper type for DanglingDebugInfoMap.
   class DanglingDebugInfo {
-    const DbgValueInst* DI = nullptr;
-    DebugLoc dl;
+    using DbgValTy = const DbgValueInst *;
+    using VarLocTy = const VarLocInfo *;
+    PointerUnion<DbgValTy, VarLocTy> Info;
     unsigned SDNodeOrder = 0;
 
   public:
     DanglingDebugInfo() = default;
-    DanglingDebugInfo(const DbgValueInst *di, DebugLoc DL, unsigned SDNO)
-        : DI(di), dl(std::move(DL)), SDNodeOrder(SDNO) {}
+    DanglingDebugInfo(const DbgValueInst *DI, unsigned SDNO)
+        : Info(DI), SDNodeOrder(SDNO) {}
+    DanglingDebugInfo(const VarLocInfo *VarLoc, unsigned SDNO)
+        : Info(VarLoc), SDNodeOrder(SDNO) {}
 
-    const DbgValueInst* getDI() { return DI; }
-    DebugLoc getdl() { return dl; }
-    unsigned getSDNodeOrder() { return SDNodeOrder; }
+    DILocalVariable *getVariable(const FunctionVarLocs *Locs) const {
+      if (Info.is<VarLocTy>())
+        return Locs->getDILocalVariable(Info.get<VarLocTy>()->VariableID);
+      return Info.get<DbgValTy>()->getVariable();
+    }
+    DIExpression *getExpression() const {
+      if (Info.is<VarLocTy>())
+        return Info.get<VarLocTy>()->Expr;
+      return Info.get<DbgValTy>()->getExpression();
+    }
+    Value *getVariableLocationOp(unsigned Idx) const {
+      assert(Idx == 0 && "Dangling variadic debug values not supported yet");
+      if (Info.is<VarLocTy>())
+        return Info.get<VarLocTy>()->V;
+      return Info.get<DbgValTy>()->getVariableLocationOp(Idx);
+    }
+    DebugLoc getDebugLoc() const {
+      if (Info.is<VarLocTy>())
+        return Info.get<VarLocTy>()->DL;
+      return Info.get<DbgValTy>()->getDebugLoc();
+    }
+    unsigned getSDNodeOrder() const { return SDNodeOrder; }
+
+    /// Helper for printing DanglingDebugInfo. This hoop-jumping is to
+    /// accommodate the fact that an argument is required for getVariable.
+    /// Call SelectionDAGBuilder::printDDI instead of using directly.
+    struct Print {
+      Print(const DanglingDebugInfo &DDI, const FunctionVarLocs *VarLocs)
+          : DDI(DDI), VarLocs(VarLocs) {}
+      const DanglingDebugInfo &DDI;
+      const FunctionVarLocs *VarLocs;
+      friend raw_ostream &operator<<(raw_ostream &OS,
+                                     const DanglingDebugInfo::Print &P) {
+        OS << "DDI(var=" << *P.DDI.getVariable(P.VarLocs)
+           << ", val= " << *P.DDI.getVariableLocationOp(0)
+           << ", expr=" << *P.DDI.getExpression()
+           << ", order=" << P.DDI.getSDNodeOrder()
+           << ", loc=" << P.DDI.getDebugLoc() << ")";
+        return OS;
+      }
+    };
   };
+
+  /// Returns an object that defines `raw_ostream &operator<<` for printing.
+  /// Usage example:
+  ////    errs() << printDDI(MyDanglingInfo) << " is dangling\n";
+  DanglingDebugInfo::Print printDDI(const DanglingDebugInfo &DDI) {
+    return DanglingDebugInfo::Print(DDI, DAG.getFunctionVarLocs());
+  }
 
   /// Helper type for DanglingDebugInfoMap.
   typedef std::vector<DanglingDebugInfo> DanglingDebugInfoVector;
@@ -298,8 +348,8 @@ public:
   SDValue getCopyFromRegs(const Value *V, Type *Ty);
 
   /// Register a dbg_value which relies on a Value which we have not yet seen.
-  void addDanglingDebugInfo(const DbgValueInst *DI, DebugLoc DL,
-                            unsigned Order);
+  void addDanglingDebugInfo(const DbgValueInst *DI, unsigned Order);
+  void addDanglingDebugInfo(const VarLocInfo *VarLoc, unsigned Order);
 
   /// If we have dangling debug info that describes \p Variable, or an
   /// overlapping part of variable considering the \p Expr, then this method
@@ -319,8 +369,8 @@ public:
   /// For a given list of Values, attempt to create and record a SDDbgValue in
   /// the SelectionDAG.
   bool handleDebugValue(ArrayRef<const Value *> Values, DILocalVariable *Var,
-                        DIExpression *Expr, DebugLoc CurDL, DebugLoc InstDL,
-                        unsigned Order, bool IsVariadic);
+                        DIExpression *Expr, DebugLoc DbgLoc, unsigned Order,
+                        bool IsVariadic);
 
   /// Evict any dangling debug information, attempting to salvage it first.
   void resolveOrClearDbgInfo();
@@ -686,14 +736,14 @@ struct RegsForValue {
 
   /// Records if this value needs to be treated in an ABI dependant manner,
   /// different to normal type legalization.
-  Optional<CallingConv::ID> CallConv;
+  std::optional<CallingConv::ID> CallConv;
 
   RegsForValue() = default;
   RegsForValue(const SmallVector<unsigned, 4> &regs, MVT regvt, EVT valuevt,
-               Optional<CallingConv::ID> CC = None);
+               std::optional<CallingConv::ID> CC = std::nullopt);
   RegsForValue(LLVMContext &Context, const TargetLowering &TLI,
                const DataLayout &DL, unsigned Reg, Type *Ty,
-               Optional<CallingConv::ID> CC);
+               std::optional<CallingConv::ID> CC);
 
   bool isABIMangled() const { return CallConv.has_value(); }
 

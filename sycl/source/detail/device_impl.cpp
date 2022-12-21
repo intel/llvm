@@ -250,6 +250,28 @@ std::vector<device> device_impl::create_sub_devices(
   return create_sub_devices(Properties, SubDevicesCount);
 }
 
+std::vector<device> device_impl::create_sub_devices() const {
+  assert(!MIsHostDevice && "Partitioning is not supported on host.");
+
+  if (!is_partition_supported(
+          info::partition_property::ext_intel_partition_by_cslice)) {
+    throw sycl::feature_not_supported(
+        "Device does not support "
+        "sycl::info::partition_property::ext_intel_partition_by_cslice.",
+        PI_ERROR_INVALID_OPERATION);
+  }
+
+  const pi_device_partition_property Properties[2] = {
+      PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE, 0};
+
+  pi_uint32 SubDevicesCount = 0;
+  const detail::plugin &Plugin = getPlugin();
+  Plugin.call<sycl::errc::invalid, PiApiKind::piDevicePartition>(
+      MDevice, Properties, 0, nullptr, &SubDevicesCount);
+
+  return create_sub_devices(Properties, SubDevicesCount);
+}
+
 pi_native_handle device_impl::getNative() const {
   auto Plugin = getPlugin();
   if (Plugin.getBackend() == backend::opencl)
@@ -261,7 +283,6 @@ pi_native_handle device_impl::getNative() const {
 
 bool device_impl::has(aspect Aspect) const {
   size_t return_size = 0;
-  pi_device_type device_type;
 
   switch (Aspect) {
   case aspect::host:
@@ -278,8 +299,8 @@ bool device_impl::has(aspect Aspect) const {
     return has_extension("cl_khr_fp16");
   case aspect::fp64:
     return has_extension("cl_khr_fp64");
-  case aspect::ext_oneapi_bfloat16:
-    return get_info<info::device::ext_oneapi_bfloat16>();
+  case aspect::ext_oneapi_bfloat16_math_functions:
+    return get_info<info::device::ext_oneapi_bfloat16_math_functions>();
   case aspect::int64_base_atomics:
     return has_extension("cl_khr_int64_base_atomics");
   case aspect::int64_extended_atomics:
@@ -319,44 +340,47 @@ bool device_impl::has(aspect Aspect) const {
     return get_info<info::device::usm_system_allocations>();
   case aspect::ext_intel_device_id:
     return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_DEVICE_ID, 0,
-               nullptr, &return_size) == PI_SUCCESS;
+               MDevice, PI_DEVICE_INFO_DEVICE_ID, 0, nullptr, &return_size) ==
+           PI_SUCCESS;
   case aspect::ext_intel_pci_address:
     return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
                MDevice, PI_DEVICE_INFO_PCI_ADDRESS, 0, nullptr, &return_size) ==
            PI_SUCCESS;
   case aspect::ext_intel_gpu_eu_count:
     return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_EU_COUNT, sizeof(pi_device_type),
-               &device_type, &return_size) == PI_SUCCESS;
+               MDevice, PI_DEVICE_INFO_GPU_EU_COUNT, 0, nullptr,
+               &return_size) == PI_SUCCESS;
   case aspect::ext_intel_gpu_eu_simd_width:
     return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH,
-               sizeof(pi_device_type), &device_type,
+               MDevice, PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH, 0, nullptr,
                &return_size) == PI_SUCCESS;
   case aspect::ext_intel_gpu_slices:
     return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_SLICES, sizeof(pi_device_type),
-               &device_type, &return_size) == PI_SUCCESS;
+               MDevice, PI_DEVICE_INFO_GPU_SLICES, 0, nullptr, &return_size) ==
+           PI_SUCCESS;
   case aspect::ext_intel_gpu_subslices_per_slice:
     return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE,
-               sizeof(pi_device_type), &device_type,
+               MDevice, PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE, 0, nullptr,
                &return_size) == PI_SUCCESS;
   case aspect::ext_intel_gpu_eu_count_per_subslice:
     return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
-               sizeof(pi_device_type), &device_type,
+               MDevice, PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE, 0, nullptr,
                &return_size) == PI_SUCCESS;
   case aspect::ext_intel_gpu_hw_threads_per_eu:
     return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU,
-               sizeof(pi_device_type), &device_type,
+               MDevice, PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU, 0, nullptr,
                &return_size) == PI_SUCCESS;
   case aspect::ext_intel_free_memory:
     return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY,
-               sizeof(pi_device_type), &device_type,
+               MDevice, PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY, 0, nullptr,
+               &return_size) == PI_SUCCESS;
+  case aspect::ext_intel_memory_clock_rate:
+    return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+               MDevice, PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE, 0, nullptr,
+               &return_size) == PI_SUCCESS;
+  case aspect::ext_intel_memory_bus_width:
+    return getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+               MDevice, PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH, 0, nullptr,
                &return_size) == PI_SUCCESS;
   case aspect::ext_intel_device_info_uuid: {
     auto Result = getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(

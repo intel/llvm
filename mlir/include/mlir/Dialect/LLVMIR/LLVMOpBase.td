@@ -37,6 +37,7 @@ def LLVM_Dialect : Dialect {
     static StringRef getDataLayoutAttrName() { return "llvm.data_layout"; }
     static StringRef getAlignAttrName() { return "llvm.align"; }
     static StringRef getNoAliasAttrName() { return "llvm.noalias"; }
+    static StringRef getReadonlyAttrName() { return "llvm.readonly"; }
     static StringRef getNoAliasScopesAttrName() { return "noalias_scopes"; }
     static StringRef getAliasScopesAttrName() { return "alias_scopes"; }
     static StringRef getLoopAttrName() { return "llvm.loop"; }
@@ -49,6 +50,8 @@ def LLVM_Dialect : Dialect {
     static StringRef getStructRetAttrName() { return "llvm.sret"; }
     static StringRef getInAllocaAttrName() { return "llvm.inalloca"; }
     static StringRef getNoUndefAttrName() { return "llvm.noundef"; }
+    static StringRef getSExtAttrName() { return "llvm.signext"; }
+    static StringRef getZExtAttrName() { return "llvm.zeroext"; }
 
     /// Verifies if the attribute is a well-formed value for "llvm.struct_attrs"
     static LogicalResult verifyStructAttr(
@@ -232,6 +235,7 @@ class LLVM_OpBase<Dialect dialect, string mnemonic, list<Trait> traits = []> :
   //             name matches the result name, by a reference to store the
   //             result of the newly created MLIR operation to;
   //   - $_int_attr - substituted by a call to an integer attribute matcher;
+  //   - $_var_attr - substituted by a call to a variable attribute matcher;
   //   - $_resultType - substituted with the MLIR result type;
   //   - $_location - substituted with the MLIR location;
   //   - $_builder - substituted with the MLIR builder;
@@ -369,12 +373,13 @@ class LLVM_IntrOpBase<Dialect dialect, string opName, string enumName,
     # !if(!gt(numResults, 0), "$res = inst;", "");
 
   string mlirBuilder = [{
+    FailureOr<SmallVector<Value>> mlirOperands = convertValues(llvmOperands);
+    if (failed(mlirOperands))
+      return failure();
     SmallVector<Type> resultTypes =
     }] # !if(!gt(numResults, 0), "{$_resultType};", "{};") # [{
     Operation *op = $_builder.create<$_qualCppClassName>(
-      $_location,
-      resultTypes,
-      processValues(llvmOperands));
+      $_location, resultTypes, *mlirOperands);
     }] # !if(!gt(numResults, 0), "$res = op->getResult(0);", "(void)op;");
 }
 

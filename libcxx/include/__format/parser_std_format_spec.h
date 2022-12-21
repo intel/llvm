@@ -19,6 +19,7 @@
 #include <__algorithm/find_if.h>
 #include <__algorithm/min.h>
 #include <__assert>
+#include <__concepts/same_as.h>
 #include <__config>
 #include <__debug>
 #include <__format/format_arg.h>
@@ -28,7 +29,6 @@
 #include <__format/unicode.h>
 #include <__variant/monostate.h>
 #include <bit>
-#include <concepts>
 #include <cstdint>
 #include <string_view>
 #include <type_traits>
@@ -66,7 +66,15 @@ __parse_arg_id(const _CharT* __begin, const _CharT* __end, auto& __parse_ctx) {
 template <class _Context>
 _LIBCPP_HIDE_FROM_ABI constexpr uint32_t
 __substitute_arg_id(basic_format_arg<_Context> __format_arg) {
-  return visit_format_arg(
+  // [format.string.std]/8
+  //   If the corresponding formatting argument is not of integral type...
+  // This wording allows char and bool too. LWG-3720 changes the wording to
+  //    If the corresponding formatting argument is not of standard signed or
+  //    unsigned integer type,
+  // This means the 128-bit will not be valid anymore.
+  // TODO FMT Verify this resolution is accepted and add a test to verify
+  //          128-bit integrals fail and switch to visit_format_arg.
+  return _VSTD::__visit_format_arg(
       [](auto __arg) -> uint32_t {
         using _Type = decltype(__arg);
         if constexpr (integral<_Type>) {

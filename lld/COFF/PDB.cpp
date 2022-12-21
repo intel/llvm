@@ -57,6 +57,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include <memory>
+#include <optional>
 
 using namespace llvm;
 using namespace llvm::codeview;
@@ -119,7 +120,7 @@ public:
                                std::vector<StringTableFixup> &stringTableFixups,
                                BinaryStreamRef symData);
 
-  // Write all module symbols from all all live debug symbol subsections of the
+  // Write all module symbols from all live debug symbol subsections of the
   // given object file into the given stream writer.
   Error writeAllModuleSymbolRecords(ObjFile *file, BinaryStreamWriter &writer);
 
@@ -441,7 +442,6 @@ static bool symbolGoesInModuleStream(const CVSymbol &sym,
                                      unsigned symbolScopeDepth) {
   switch (sym.kind()) {
   case SymbolKind::S_GDATA32:
-  case SymbolKind::S_CONSTANT:
   case SymbolKind::S_GTHREAD32:
   // We really should not be seeing S_PROCREF and S_LPROCREF in the first place
   // since they are synthesized by the linker in response to S_GPROC32 and
@@ -450,8 +450,9 @@ static bool symbolGoesInModuleStream(const CVSymbol &sym,
   case SymbolKind::S_PROCREF:
   case SymbolKind::S_LPROCREF:
     return false;
-  // S_UDT records go in the module stream if it is not a global S_UDT.
+  // S_UDT and S_CONSTANT records go in the module stream if it is not a global record.
   case SymbolKind::S_UDT:
+  case SymbolKind::S_CONSTANT:
     return symbolScopeDepth > 0;
   // S_GDATA32 does not go in the module stream, but S_LDATA32 does.
   case SymbolKind::S_LDATA32:
@@ -464,7 +465,6 @@ static bool symbolGoesInModuleStream(const CVSymbol &sym,
 static bool symbolGoesInGlobalsStream(const CVSymbol &sym,
                                       unsigned symbolScopeDepth) {
   switch (sym.kind()) {
-  case SymbolKind::S_CONSTANT:
   case SymbolKind::S_GDATA32:
   case SymbolKind::S_GTHREAD32:
   case SymbolKind::S_GPROC32:
@@ -481,6 +481,7 @@ static bool symbolGoesInGlobalsStream(const CVSymbol &sym,
   case SymbolKind::S_UDT:
   case SymbolKind::S_LDATA32:
   case SymbolKind::S_LTHREAD32:
+  case SymbolKind::S_CONSTANT:
     return symbolScopeDepth == 0;
   default:
     return false;
@@ -1774,9 +1775,9 @@ static bool findLineTable(const SectionChunk *c, uint32_t addr,
 }
 
 // Use CodeView line tables to resolve a file and line number for the given
-// offset into the given chunk and return them, or None if a line table was
-// not found.
-Optional<std::pair<StringRef, uint32_t>>
+// offset into the given chunk and return them, or std::nullopt if a line table
+// was not found.
+std::optional<std::pair<StringRef, uint32_t>>
 lld::coff::getFileLineCodeView(const SectionChunk *c, uint32_t addr) {
   ExitOnError exitOnErr;
 
@@ -1786,10 +1787,10 @@ lld::coff::getFileLineCodeView(const SectionChunk *c, uint32_t addr) {
   uint32_t offsetInLinetable;
 
   if (!findLineTable(c, addr, cvStrTab, checksums, lines, offsetInLinetable))
-    return None;
+    return std::nullopt;
 
-  Optional<uint32_t> nameIndex;
-  Optional<uint32_t> lineNumber;
+  std::optional<uint32_t> nameIndex;
+  std::optional<uint32_t> lineNumber;
   for (const LineColumnEntry &entry : lines) {
     for (const LineNumberEntry &ln : entry.LineNumbers) {
       LineInfo li(ln.Flags);
@@ -1807,7 +1808,7 @@ lld::coff::getFileLineCodeView(const SectionChunk *c, uint32_t addr) {
     }
   }
   if (!nameIndex)
-    return None;
+    return std::nullopt;
   StringRef filename = exitOnErr(getFileName(cvStrTab, checksums, *nameIndex));
   return std::make_pair(filename, *lineNumber);
 }

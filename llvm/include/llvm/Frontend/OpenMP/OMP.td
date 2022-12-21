@@ -230,16 +230,34 @@ def OMPC_Priority : Clause<"priority"> {
   let clangClass = "OMPPriorityClause";
   let flangClass = "ScalarIntExpr";
 }
+
+def OMP_GRAINSIZE_Strict : ClauseVal<"strict", 1, 1> {}
+def OMP_GRAINSIZE_Unknown : ClauseVal<"unkonwn", 2, 0> { let isDefault = 1; }
+
 def OMPC_GrainSize : Clause<"grainsize"> {
   let clangClass = "OMPGrainsizeClause";
   let flangClass = "ScalarIntExpr";
+  let enumClauseValue = "GrainsizeType";
+  let allowedClauseValues = [
+    OMP_GRAINSIZE_Strict,
+    OMP_GRAINSIZE_Unknown
+  ];
 }
 def OMPC_NoGroup : Clause<"nogroup"> {
   let clangClass = "OMPNogroupClause";
 }
+
+def OMP_NUMTASKS_Strict : ClauseVal<"strict", 1, 1> {}
+def OMP_NUMTASKS_Unknown : ClauseVal<"unkonwn", 2, 0> { let isDefault = 1; }
+
 def OMPC_NumTasks : Clause<"num_tasks"> {
   let clangClass = "OMPNumTasksClause";
   let flangClass = "ScalarIntExpr";
+  let enumClauseValue = "NumTasksType";
+  let allowedClauseValues = [
+    OMP_NUMTASKS_Strict,
+    OMP_NUMTASKS_Unknown
+  ];
 }
 def OMPC_Hint : Clause<"hint"> {
   let clangClass = "OMPHintClause";
@@ -299,6 +317,16 @@ def OMPC_DynamicAllocators : Clause<"dynamic_allocators"> {
 }
 def OMPC_AtomicDefaultMemOrder : Clause<"atomic_default_mem_order"> {
   let clangClass = "OMPAtomicDefaultMemOrderClause";
+  let flangClass = "OmpAtomicDefaultMemOrderClause";
+}
+def OMPC_At : Clause<"at"> {
+  let clangClass = "OMPAtClause";
+}
+def OMPC_Severity : Clause<"severity"> {
+  let clangClass = "OMPSeverityClause";
+}
+def OMPC_Message : Clause<"message"> {
+  let clangClass = "OMPMessageClause";
 }
 def OMPC_Allocate : Clause<"allocate"> {
   let clangClass = "OMPAllocateClause";
@@ -526,6 +554,13 @@ def OMP_Critical : Directive<"critical"> {
 }
 def OMP_TaskYield : Directive<"taskyield"> {}
 def OMP_Barrier : Directive<"barrier"> {}
+def OMP_Error : Directive<"error"> {
+  let allowedClauses = [
+    VersionedClause<OMPC_At, 51>,
+    VersionedClause<OMPC_Severity, 51>,
+    VersionedClause<OMPC_Message, 51>
+  ];
+}
 def OMP_TaskWait : Directive<"taskwait"> {
   let allowedClauses = [
     VersionedClause<OMPC_Depend, 50>
@@ -613,7 +648,7 @@ def OMP_Cancel : Directive<"cancel"> {
   ];
 }
 def OMP_Requires : Directive<"requires"> {
-  let allowedClauses = [
+  let allowedOnceClauses = [
     VersionedClause<OMPC_UnifiedAddress>,
     VersionedClause<OMPC_UnifiedSharedMemory>,
     // OpenMP 5.2 Spec: If an implementation is not supporting a requirement

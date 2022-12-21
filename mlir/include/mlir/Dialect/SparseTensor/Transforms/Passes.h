@@ -130,31 +130,61 @@ public:
 
 /// Sets up sparse tensor conversion rules.
 void populateSparseTensorCodegenPatterns(TypeConverter &typeConverter,
-                                         RewritePatternSet &patterns);
+                                         RewritePatternSet &patterns,
+                                         bool enableBufferInitialization);
 
 std::unique_ptr<Pass> createSparseTensorCodegenPass();
+std::unique_ptr<Pass>
+createSparseTensorCodegenPass(bool enableBufferInitialization);
 
 //===----------------------------------------------------------------------===//
-// The SparseTensorRewriting pass.
+// The PreSparsificationRewriting pass.
 //===----------------------------------------------------------------------===//
 
-void populateSparseTensorRewriting(RewritePatternSet &patterns, bool enableRT,
-                                   bool enableForeach, bool enableConvert);
+void populatePreSparsificationRewriting(RewritePatternSet &patterns);
 
-std::unique_ptr<Pass> createSparseTensorRewritePass();
-std::unique_ptr<Pass> createSparseTensorRewritePass(bool enableRT,
-                                                    bool enableForeach = true,
-                                                    bool enableConvert = true);
+std::unique_ptr<Pass> createPreSparsificationRewritePass();
+
+//===----------------------------------------------------------------------===//
+// The PostSparsificationRewriting pass.
+//===----------------------------------------------------------------------===//
+
+void populatePostSparsificationRewriting(RewritePatternSet &patterns,
+                                         bool enableRT, bool enableForeach,
+                                         bool enableConvert);
+
+std::unique_ptr<Pass> createPostSparsificationRewritePass();
+std::unique_ptr<Pass>
+createPostSparsificationRewritePass(bool enableRT, bool enableForeach = true,
+                                    bool enableConvert = true);
 
 //===----------------------------------------------------------------------===//
 // Other rewriting rules and passes.
 //===----------------------------------------------------------------------===//
 
-std::unique_ptr<Pass> createDenseBufferizationPass(
-    const bufferization::OneShotBufferizationOptions &options);
+std::unique_ptr<Pass> createSparsificationAndBufferizationPass(
+    const bufferization::OneShotBufferizationOptions &bufferizationOptions,
+    const SparsificationOptions &sparsificationOptions,
+    const SparseTensorConversionOptions &sparseTensorConversionOptions,
+    bool enableRuntimeLibrary, bool enableBufferInitialization,
+    unsigned vectorLength, bool enableVLAVectorization, bool enableSIMDIndex32);
 
-void populateSparseBufferRewriting(RewritePatternSet &patterns);
+void populateSparseBufferRewriting(RewritePatternSet &patterns,
+                                   bool enableBufferInitialization);
+
 std::unique_ptr<Pass> createSparseBufferRewritePass();
+std::unique_ptr<Pass>
+createSparseBufferRewritePass(bool enableBufferInitialization);
+
+void populateSparseVectorizationPatterns(RewritePatternSet &patterns,
+                                         unsigned vectorLength,
+                                         bool enableVLAVectorization,
+                                         bool enableSIMDIndex32);
+
+std::unique_ptr<Pass> createSparseVectorizationPass();
+std::unique_ptr<Pass> createSparseVectorizationPass(unsigned vectorLength,
+                                                    bool enableVLAVectorization,
+                                                    bool enableSIMDIndex32);
 
 //===----------------------------------------------------------------------===//
 // Registration.

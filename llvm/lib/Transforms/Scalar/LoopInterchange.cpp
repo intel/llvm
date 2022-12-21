@@ -182,63 +182,36 @@ static void interChangeDependencies(CharMatrix &DepMatrix, unsigned FromIndx,
     std::swap(DepMatrix[I][ToIndx], DepMatrix[I][FromIndx]);
 }
 
-// Checks if no dependence exist in the dependency matrix in Row before Column.
-static bool containsNoDependence(CharMatrix &DepMatrix, unsigned Row,
-                                 unsigned Column) {
-  for (unsigned i = 0; i < Column; ++i) {
-    if (DepMatrix[Row][i] != '=' && DepMatrix[Row][i] != 'S' &&
-        DepMatrix[Row][i] != 'I')
+// After interchanging, check if the direction vector is valid.
+// [Theorem] A permutation of the loops in a perfect nest is legal if and only
+// if the direction matrix, after the same permutation is applied to its
+// columns, has no ">" direction as the leftmost non-"=" direction in any row.
+static bool isLexicographicallyPositive(std::vector<char> &DV) {
+  for (unsigned Level = 0; Level < DV.size(); ++Level) {
+    unsigned char Direction = DV[Level];
+    if (Direction == '<')
+      return true;
+    if (Direction == '>' || Direction == '*')
       return false;
   }
   return true;
 }
 
-static bool validDepInterchange(CharMatrix &DepMatrix, unsigned Row,
-                                unsigned OuterLoopId, char InnerDep,
-                                char OuterDep) {
-  if (InnerDep == OuterDep)
-    return true;
-
-  // It is legal to interchange if and only if after interchange no row has a
-  // '>' direction as the leftmost non-'='.
-
-  if (InnerDep == '=' || InnerDep == 'S' || InnerDep == 'I')
-    return true;
-
-  if (InnerDep == '<')
-    return true;
-
-  if (InnerDep == '>') {
-    // If OuterLoopId represents outermost loop then interchanging will make the
-    // 1st dependency as '>'
-    if (OuterLoopId == 0)
-      return false;
-
-    // If all dependencies before OuterloopId are '=','S'or 'I'. Then
-    // interchanging will result in this row having an outermost non '='
-    // dependency of '>'
-    if (!containsNoDependence(DepMatrix, Row, OuterLoopId))
-      return true;
-  }
-
-  return false;
-}
-
 // Checks if it is legal to interchange 2 loops.
-// [Theorem] A permutation of the loops in a perfect nest is legal if and only
-// if the direction matrix, after the same permutation is applied to its
-// columns, has no ">" direction as the leftmost non-"=" direction in any row.
 static bool isLegalToInterChangeLoops(CharMatrix &DepMatrix,
                                       unsigned InnerLoopId,
                                       unsigned OuterLoopId) {
   unsigned NumRows = DepMatrix.size();
+  std::vector<char> Cur;
   // For each row check if it is valid to interchange.
   for (unsigned Row = 0; Row < NumRows; ++Row) {
-    char InnerDep = DepMatrix[Row][InnerLoopId];
-    char OuterDep = DepMatrix[Row][OuterLoopId];
-    if (InnerDep == '*' || OuterDep == '*')
+    // Create temporary DepVector check its lexicographical order
+    // before and after swapping OuterLoop vs InnerLoop
+    Cur = DepMatrix[Row];
+    if (!isLexicographicallyPositive(Cur))
       return false;
-    if (!validDepInterchange(DepMatrix, Row, OuterLoopId, InnerDep, OuterDep))
+    std::swap(Cur[InnerLoopId], Cur[OuterLoopId]);
+    if (!isLexicographicallyPositive(Cur))
       return false;
   }
   return true;
@@ -831,18 +804,26 @@ bool LoopInterchangeLegality::currentLimitations() {
   }
 
   Inductions.clear();
-  if (!findInductionAndReductions(InnerLoop, Inductions, nullptr)) {
-    LLVM_DEBUG(
-        dbgs() << "Only inner loops with induction or reduction PHI nodes "
-               << "are supported currently.\n");
-    ORE->emit([&]() {
-      return OptimizationRemarkMissed(DEBUG_TYPE, "UnsupportedPHIInner",
-                                      InnerLoop->getStartLoc(),
-                                      InnerLoop->getHeader())
-             << "Only inner loops with induction or reduction PHI nodes can be"
-                " interchange currently.";
-    });
-    return true;
+  // For multi-level loop nests, make sure that all phi nodes for inner loops
+  // at all levels can be recognized as a induction or reduction phi. Bail out
+  // if a phi node at a certain nesting level cannot be properly recognized.
+  Loop *CurLevelLoop = OuterLoop;
+  while (!CurLevelLoop->getSubLoops().empty()) {
+    // We already made sure that the loop nest is tightly nested.
+    CurLevelLoop = CurLevelLoop->getSubLoops().front();
+    if (!findInductionAndReductions(CurLevelLoop, Inductions, nullptr)) {
+      LLVM_DEBUG(
+          dbgs() << "Only inner loops with induction or reduction PHI nodes "
+                << "are supported currently.\n");
+      ORE->emit([&]() {
+        return OptimizationRemarkMissed(DEBUG_TYPE, "UnsupportedPHIInner",
+                                        CurLevelLoop->getStartLoc(),
+                                        CurLevelLoop->getHeader())
+              << "Only inner loops with induction or reduction PHI nodes can be"
+                  " interchange currently.";
+      });
+      return true;
+    }
   }
 
   // TODO: Triangular loops are not handled for now.
@@ -1369,11 +1350,10 @@ bool LoopInterchangeTransform::transform() {
 /// \brief Move all instructions except the terminator from FromBB right before
 /// InsertBefore
 static void moveBBContents(BasicBlock *FromBB, Instruction *InsertBefore) {
-  auto &ToList = InsertBefore->getParent()->getInstList();
-  auto &FromList = FromBB->getInstList();
+  BasicBlock *ToBB = InsertBefore->getParent();
 
-  ToList.splice(InsertBefore->getIterator(), FromList, FromList.begin(),
-                FromBB->getTerminator()->getIterator());
+  ToBB->splice(InsertBefore->getIterator(), FromBB, FromBB->begin(),
+               FromBB->getTerminator()->getIterator());
 }
 
 /// Swap instructions between \p BB1 and \p BB2 but keep terminators intact.

@@ -22,7 +22,6 @@
 #include "clang/Lex/Lexer.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -340,7 +339,8 @@ bool DynTypedMatcher::matchesNoKindCheck(const DynTypedNode &DynNode,
 }
 
 llvm::Optional<DynTypedMatcher> DynTypedMatcher::tryBind(StringRef ID) const {
-  if (!AllowBind) return llvm::None;
+  if (!AllowBind)
+    return std::nullopt;
   auto Result = *this;
   Result.Implementation =
       new IdDynMatcher(ID, std::move(Result.Implementation));
@@ -703,7 +703,7 @@ getExpansionLocOfMacro(StringRef MacroName, SourceLocation Loc,
     if (isTokenAtLoc(SM, LangOpts, MacroName, Loc))
       return Loc;
   }
-  return llvm::None;
+  return std::nullopt;
 }
 
 std::shared_ptr<llvm::Regex> createAndVerifyRegex(StringRef Regex,

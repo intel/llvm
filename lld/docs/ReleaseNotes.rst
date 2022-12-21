@@ -33,6 +33,15 @@ ELF Improvements
   (`D133548 <https://reviews.llvm.org/D133548>`_)
 * ``--no-warnings``/``-w`` is now available to suppress warnings.
   (`D136569 <https://reviews.llvm.org/D136569>`_)
+* ``DT_RISCV_VARIANT_CC`` is now produced if at least one ``R_RISCV_JUMP_SLOT``
+  relocation references a symbol with the ``STO_RISCV_VARIANT_CC`` bit.
+  (`D107951 <https://reviews.llvm.org/D107951>`_)
+* ``--no-undefined-version`` is now the default; symbols named in version
+  scripts that have no matching symbol in the output will be reported. Use
+  ``--undefined-version`` to revert to the old behavior.
+* The output ``SHT_RISCV_ATTRIBUTES`` section now merges all input components
+  instead of picking the first input component.
+  (`D138550 <https://reviews.llvm.org/D138550>`_)
 
 Breaking changes
 ----------------
@@ -40,7 +49,14 @@ Breaking changes
 COFF Improvements
 -----------------
 
-* ...
+* The linker command line entry in ``S_ENVBLOCK`` of the PDB is now stripped
+  from input files, to align with MSVC behavior.
+  (`D137723 <https://reviews.llvm.org/D137723>`_)
+* Switched from SHA1 to BLAKE3 for PDB type hashing / ``-gcodeview-ghash``
+  (`D137101 <https://reviews.llvm.org/D137101>`_)
+* Improvements to the PCH.OBJ files handling. Now LLD behaves the same as MSVC
+  link.exe when merging PCH.OBJ files that don't have the same signature.
+  (`D136762 <https://reviews.llvm.org/D136762>`_)
 
 MinGW Improvements
 ------------------

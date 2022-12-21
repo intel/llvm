@@ -56,6 +56,7 @@ public:
     target.addLegalOp<tosa::ConstOp>();
     target.addLegalOp<tosa::WhileOp>();
     target.addLegalOp<tosa::SliceOp>();
+    target.addLegalOp<tosa::PadOp>();
 
     target.markUnknownOpDynamicallyLegal([](Operation *) { return true; });
 
@@ -84,5 +85,6 @@ void mlir::tosa::addTosaToLinalgPasses(OpPassManager &pm,
   // TODO: Remove pass that operates on const tensor and enable optionality
   pm.addNestedPass<func::FuncOp>(tosa::createTosaLayerwiseConstantFoldPass());
   pm.addNestedPass<func::FuncOp>(tosa::createTosaMakeBroadcastablePass());
+  pm.addNestedPass<func::FuncOp>(tosa::createTosaValidationPass());
   pm.addNestedPass<func::FuncOp>(tosa::createTosaToLinalg());
 }

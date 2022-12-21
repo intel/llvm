@@ -46,6 +46,7 @@
 #include "OCLTypeToSPIRV.h"
 #include "OCLUtil.h"
 #include "SPIRVBasicBlock.h"
+#include "SPIRVBuiltinHelper.h"
 #include "SPIRVEntry.h"
 #include "SPIRVEnum.h"
 #include "SPIRVFunction.h"
@@ -68,7 +69,7 @@ using namespace OCLUtil;
 
 namespace SPIRV {
 
-class LLVMToSPIRVBase {
+class LLVMToSPIRVBase : protected BuiltinCallHelper {
 public:
   LLVMToSPIRVBase(SPIRVModule *SMod);
   bool runLLVMToSPIRV(Module &Mod);

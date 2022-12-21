@@ -333,7 +333,7 @@ void DefFormat::genParser(MethodBody &os) {
     os << ",\n    ";
     std::string paramSelfStr;
     llvm::raw_string_ostream selfOs(paramSelfStr);
-    if (Optional<StringRef> defaultValue = param.getDefaultValue()) {
+    if (std::optional<StringRef> defaultValue = param.getDefaultValue()) {
       selfOs << formatv("(_result_{0}.value_or(", param.getName())
              << tgfmt(*defaultValue, &ctx) << "))";
     } else {
@@ -826,6 +826,12 @@ void DefFormat::genStructPrinter(StructDirective *el, FmtContext &ctx,
 
 void DefFormat::genCustomPrinter(CustomDirective *el, FmtContext &ctx,
                                  MethodBody &os) {
+  // Insert a space before the custom directive, if necessary.
+  if (shouldEmitSpace || !lastWasPunctuation)
+    os << tgfmt("$_printer << ' ';\n", &ctx);
+  shouldEmitSpace = true;
+  lastWasPunctuation = false;
+
   os << tgfmt("print$0($_printer", &ctx, el->getName());
   os.indent();
   for (FormatElement *arg : el->getArguments()) {
@@ -864,8 +870,8 @@ void DefFormat::genOptionalGroupPrinter(OptionalElement *el, FmtContext &ctx,
   }
   // Generate the printer for the contained elements.
   {
-    llvm::SaveAndRestore<bool> shouldEmitSpaceFlag(shouldEmitSpace);
-    llvm::SaveAndRestore<bool> lastWasPunctuationFlag(lastWasPunctuation);
+    llvm::SaveAndRestore shouldEmitSpaceFlag(shouldEmitSpace);
+    llvm::SaveAndRestore lastWasPunctuationFlag(lastWasPunctuation);
     for (FormatElement *element : el->getThenElements())
       genElementPrinter(element, ctx, os);
   }
@@ -1006,7 +1012,7 @@ DefFormatParser::verifyOptionalGroupElements(llvm::SMLoc loc,
     } else if (auto *custom = dyn_cast<CustomDirective>(el)) {
       for (FormatElement *el : custom->getArguments()) {
         // If the custom argument is a variable, then it must be optional.
-        if (auto param = dyn_cast<ParameterElement>(el))
+        if (auto *param = dyn_cast<ParameterElement>(el))
           if (!param->isOptional())
             return emitError(loc,
                              "`custom` is only allowed in an optional group if "
@@ -1023,10 +1029,11 @@ DefFormatParser::verifyOptionalGroupElements(llvm::SMLoc loc,
     }
     // If the anchor is a custom directive, make sure at least one of its
     // arguments is a bound parameter.
-    if (auto custom = dyn_cast<CustomDirective>(anchor)) {
-      auto bound = llvm::find_if(custom->getArguments(), [](FormatElement *el) {
-        return isa<ParameterElement>(el);
-      });
+    if (auto *custom = dyn_cast<CustomDirective>(anchor)) {
+      const auto *bound =
+          llvm::find_if(custom->getArguments(), [](FormatElement *el) {
+            return isa<ParameterElement>(el);
+          });
       if (bound == custom->getArguments().end())
         return emitError(loc, "`custom` directive with no bound parameters "
                               "cannot be used as optional group anchor");
@@ -1126,6 +1133,10 @@ FailureOr<FormatElement *> DefFormatParser::parseParamsDirective(SMLoc loc,
       return emitError(loc, "`params` captures duplicate parameter: " +
                                 it.value().getName());
     }
+    // Self-type parameters are handled separately from the rest of the
+    // parameters.
+    if (isa<AttributeSelfTypeParameter>(it.value()))
+      continue;
     seenParams.set(it.index());
     vars.push_back(create<ParameterElement>(it.value()));
   }

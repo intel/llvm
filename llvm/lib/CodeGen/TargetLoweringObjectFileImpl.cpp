@@ -58,6 +58,7 @@
 #include "llvm/MC/MCValue.h"
 #include "llvm/MC/SectionKind.h"
 #include "llvm/ProfileData/InstrProf.h"
+#include "llvm/Support/Base64.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -366,6 +367,31 @@ void TargetLoweringObjectFileELF::emitModuleMetadata(MCStreamer &Streamer,
     }
   }
 
+  if (NamedMDNode *LLVMStats = M.getNamedMetadata("llvm.stats")) {
+    // Emit the metadata for llvm statistics into .llvm_stats section, which is
+    // formatted as a list of key/value pair, the value is base64 encoded.
+    auto *S = C.getObjectFileInfo()->getLLVMStatsSection();
+    Streamer.switchSection(S);
+    for (const auto *Operand : LLVMStats->operands()) {
+      const auto *MD = cast<MDNode>(Operand);
+      assert(MD->getNumOperands() % 2 == 0 &&
+             ("Operand num should be even for a list of key/value pair"));
+      for (size_t I = 0; I < MD->getNumOperands(); I += 2) {
+        // Encode the key string size.
+        auto *Key = cast<MDString>(MD->getOperand(I));
+        Streamer.emitULEB128IntValue(Key->getString().size());
+        Streamer.emitBytes(Key->getString());
+        // Encode the value into a Base64 string.
+        std::string Value = encodeBase64(
+            Twine(mdconst::dyn_extract<ConstantInt>(MD->getOperand(I + 1))
+                      ->getZExtValue())
+                .str());
+        Streamer.emitULEB128IntValue(Value.size());
+        Streamer.emitBytes(Value);
+      }
+    }
+  }
+
   unsigned Version = 0;
   unsigned Flags = 0;
   StringRef Section;
@@ -408,7 +434,7 @@ void TargetLoweringObjectFileELF::emitPersonalityValue(
                                                    ELF::SHT_PROGBITS, Flags, 0);
   unsigned Size = DL.getPointerSize();
   Streamer.switchSection(Sec);
-  Streamer.emitValueToAlignment(DL.getPointerABIAlignment(0).value());
+  Streamer.emitValueToAlignment(DL.getPointerABIAlignment(0));
   Streamer.emitSymbolAttribute(Label, MCSA_ELF_TypeObject);
   const MCExpr *E = MCConstantExpr::create(Size, getContext());
   Streamer.emitELFSize(Label, E);
@@ -644,7 +670,7 @@ getELFSectionNameForGlobal(const GlobalObject *GO, SectionKind Kind,
 
   bool HasPrefix = false;
   if (const auto *F = dyn_cast<Function>(GO)) {
-    if (Optional<StringRef> Prefix = F->getSectionPrefix()) {
+    if (std::optional<StringRef> Prefix = F->getSectionPrefix()) {
       raw_svector_ostream(Name) << '.' << *Prefix;
       HasPrefix = true;
     }
@@ -1694,7 +1720,7 @@ MCSection *TargetLoweringObjectFileCOFF::SelectSectionForGlobal(
       StringRef COMDATSymName = Sym->getName();
 
       if (const auto *F = dyn_cast<Function>(GO))
-        if (Optional<StringRef> Prefix = F->getSectionPrefix())
+        if (std::optional<StringRef> Prefix = F->getSectionPrefix())
           raw_svector_ostream(Name) << '$' << *Prefix;
 
       // Append "$symbol" to the section name *before* IR-level mangling is

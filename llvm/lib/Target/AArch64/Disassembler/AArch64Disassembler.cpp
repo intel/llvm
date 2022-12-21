@@ -123,6 +123,12 @@ static DecodeStatus DecodeZPR2Mul2RegisterClass(MCInst &Inst, unsigned RegNo,
 static DecodeStatus DecodeZPR4Mul4RegisterClass(MCInst &Inst, unsigned RegNo,
                                                 uint64_t Address,
                                                 const void *Decoder);
+static DecodeStatus DecodeZPR2StridedRegisterClass(MCInst &Inst, unsigned RegNo,
+                                                   uint64_t Address,
+                                                   const void *Decoder);
+static DecodeStatus DecodeZPR4StridedRegisterClass(MCInst &Inst, unsigned RegNo,
+                                                   uint64_t Address,
+                                                   const void *Decoder);
 template <unsigned NumBitsForTile>
 static DecodeStatus DecodeMatrixTile(MCInst &Inst, unsigned RegNo,
                                      uint64_t Address,
@@ -256,6 +262,9 @@ DecodeWSeqPairsClassRegisterClass(MCInst &Inst, unsigned RegNo, uint64_t Addr,
 static DecodeStatus
 DecodeXSeqPairsClassRegisterClass(MCInst &Inst, unsigned RegNo, uint64_t Addr,
                                   const MCDisassembler *Decoder);
+static DecodeStatus DecodeSyspXzrInstruction(MCInst &Inst, uint32_t insn,
+                                             uint64_t Addr,
+                                             const MCDisassembler *Decoder);
 static DecodeStatus
 DecodeSVELogicalImmInstruction(MCInst &Inst, uint32_t insn, uint64_t Address,
                                const MCDisassembler *Decoder);
@@ -276,6 +285,9 @@ static DecodeStatus DecodeCPYMemOpInstruction(MCInst &Inst, uint32_t insn,
 static DecodeStatus DecodeSETMemOpInstruction(MCInst &Inst, uint32_t insn,
                                               uint64_t Addr,
                                               const MCDisassembler *Decoder);
+static DecodeStatus DecodePRFMRegInstruction(MCInst &Inst, uint32_t insn,
+                                             uint64_t Address,
+                                             const MCDisassembler *Decoder);
 
 #include "AArch64GenDisassemblerTables.inc"
 #include "AArch64GenInstrInfo.inc"
@@ -328,6 +340,9 @@ DecodeStatus AArch64Disassembler::getInstruction(MCInst &MI, uint64_t &Size,
           break;
         case AArch64::MPR8RegClassID:
           MI.insert(MI.begin() + i, MCOperand::createReg(AArch64::ZAB0));
+          break;
+        case AArch64::ZTRRegClassID:
+          MI.insert(MI.begin() + i, MCOperand::createReg(AArch64::ZT0));
           break;
         }
       } else if (Desc.OpInfo[i].OperandType ==
@@ -643,6 +658,30 @@ static DecodeStatus DecodeZPR4Mul4RegisterClass(MCInst &Inst, unsigned RegNo,
     return Fail;
   unsigned Register =
       AArch64MCRegisterClasses[AArch64::ZPR4RegClassID].getRegister(RegNo * 4);
+  Inst.addOperand(MCOperand::createReg(Register));
+  return Success;
+}
+
+static DecodeStatus DecodeZPR2StridedRegisterClass(MCInst &Inst, unsigned RegNo,
+                                                   uint64_t Address,
+                                                   const void *Decoder) {
+  if (RegNo > 15)
+    return Fail;
+  unsigned Register =
+      AArch64MCRegisterClasses[AArch64::ZPR2StridedRegClassID].getRegister(
+          RegNo);
+  Inst.addOperand(MCOperand::createReg(Register));
+  return Success;
+}
+
+static DecodeStatus DecodeZPR4StridedRegisterClass(MCInst &Inst, unsigned RegNo,
+                                                   uint64_t Address,
+                                                   const void *Decoder) {
+  if (RegNo > 7)
+    return Fail;
+  unsigned Register =
+      AArch64MCRegisterClasses[AArch64::ZPR4StridedRegClassID].getRegister(
+          RegNo);
   Inst.addOperand(MCOperand::createReg(Register));
   return Success;
 }
@@ -1856,6 +1895,26 @@ DecodeXSeqPairsClassRegisterClass(MCInst &Inst, unsigned RegNo, uint64_t Addr,
                                              RegNo, Addr, Decoder);
 }
 
+static DecodeStatus DecodeSyspXzrInstruction(MCInst &Inst, uint32_t insn,
+                                             uint64_t Addr,
+                                             const MCDisassembler *Decoder) {
+  unsigned op1 = fieldFromInstruction(insn, 16, 3);
+  unsigned CRn = fieldFromInstruction(insn, 12, 4);
+  unsigned CRm = fieldFromInstruction(insn, 8, 4);
+  unsigned op2 = fieldFromInstruction(insn, 5, 3);
+  unsigned Rt = fieldFromInstruction(insn, 0, 5);
+  if (Rt != 0b11111)
+    return Fail;
+
+  Inst.addOperand(MCOperand::createImm(op1));
+  Inst.addOperand(MCOperand::createImm(CRn));
+  Inst.addOperand(MCOperand::createImm(CRm));
+  Inst.addOperand(MCOperand::createImm(op2));
+  DecodeGPR64RegisterClass(Inst, Rt, Addr, Decoder);
+
+  return Success;
+}
+
 static DecodeStatus
 DecodeSVELogicalImmInstruction(MCInst &Inst, uint32_t insn, uint64_t Addr,
                                const MCDisassembler *Decoder) {
@@ -1963,4 +2022,38 @@ static DecodeStatus DecodeSETMemOpInstruction(MCInst &Inst, uint32_t insn,
     return MCDisassembler::Fail;
 
   return MCDisassembler::Success;
+}
+
+static DecodeStatus DecodePRFMRegInstruction(MCInst &Inst, uint32_t insn,
+                                             uint64_t Addr,
+                                             const MCDisassembler *Decoder) {
+  // PRFM with Rt = '11xxx' should be decoded as RPRFM.
+  // Fail to decode and defer to fallback decoder table to decode RPRFM.
+  unsigned Mask = 0x18;
+  uint64_t Rt = fieldFromInstruction(insn, 0, 5);
+  if ((Rt & Mask) == Mask)
+    return Fail;
+
+  uint64_t Rn = fieldFromInstruction(insn, 5, 5);
+  uint64_t Shift = fieldFromInstruction(insn, 12, 1);
+  uint64_t Extend = fieldFromInstruction(insn, 15, 1);
+  uint64_t Rm = fieldFromInstruction(insn, 16, 5);
+
+  Inst.addOperand(MCOperand::createImm(Rt));
+  DecodeGPR64spRegisterClass(Inst, Rn, Addr, Decoder);
+
+  switch (Inst.getOpcode()) {
+  default:
+    return Fail;
+  case AArch64::PRFMroW:
+    DecodeGPR32RegisterClass(Inst, Rm, Addr, Decoder);
+    break;
+  case AArch64::PRFMroX:
+    DecodeGPR64RegisterClass(Inst, Rm, Addr, Decoder);
+    break;
+  }
+
+  DecodeMemExtend(Inst, (Extend << 1) | Shift, Addr, Decoder);
+
+  return Success;
 }

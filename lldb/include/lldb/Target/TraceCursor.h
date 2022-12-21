@@ -259,8 +259,8 @@ public:
   /// whenever an eTraceEventHWClockTick event is fired.
   ///
   /// \return
-  ///     The requested HW clock value, or \a llvm::None if this information is
-  ///     not available for the current item.
+  ///     The requested HW clock value, or \a std::nullopt if this information
+  ///     is not available for the current item.
   virtual llvm::Optional<uint64_t> GetHWClock() const = 0;
 
   /// Get the approximate wall clock time in nanoseconds at which the current
@@ -268,7 +268,7 @@ public:
   /// what time 0 means.
   ///
   /// \return
-  ///     The approximate wall clock time for the trace item, or \a llvm::None
+  ///     The approximate wall clock time for the trace item, or \a std::nullopt
   ///     if not available.
   virtual llvm::Optional<double> GetWallClockTime() const = 0;
 
@@ -278,7 +278,8 @@ public:
   ///
   /// \return
   ///     A string representing some metadata associated with a
-  ///     \a eTraceEventSyncPoint event. \b None if no metadata is available.
+  ///     \a eTraceEventSyncPoint event. \b std::nullopt if no metadata is
+  ///     available.
   virtual llvm::Optional<std::string> GetSyncPointMetadata() const = 0;
   /// \}
 

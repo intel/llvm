@@ -352,7 +352,7 @@ func.func @test_dynamic_mixed_matmul(%arg0 : tensor<?x3x?xi32>, %arg1 : tensor<?
 
 // -----
 
-// CHECK-LABLE: @test_table_static
+// CHECK-LABEL: @test_table_static
 func.func @test_table_static(%arg0 : tensor<4x5xi16>, %arg1 : tensor<513xi16>) -> () {
   // CHECK:"tosa.table"(%arg0, %arg1) : (tensor<4x5xi16>, tensor<513xi16>) -> tensor<4x5xi16>
   %0 = "tosa.table"(%arg0, %arg1) : (tensor<4x5xi16>, tensor<513xi16>) -> tensor<?x?xi16>
@@ -361,7 +361,7 @@ func.func @test_table_static(%arg0 : tensor<4x5xi16>, %arg1 : tensor<513xi16>) -
 
 // -----
 
-// CHECK-LABLE: @test_table_dynamic
+// CHECK-LABEL: @test_table_dynamic
 func.func @test_table_dynamic(%arg0 : tensor<4x?xi16>, %arg1 : tensor<513xi16>) -> () {
   // CHECK:"tosa.table"(%arg0, %arg1) : (tensor<4x?xi16>, tensor<513xi16>) -> tensor<4x?xi16>
   %0 = "tosa.table"(%arg0, %arg1) : (tensor<4x?xi16>, tensor<513xi16>) -> tensor<?x?xi16>
@@ -534,6 +534,15 @@ func.func @test_padding_simple(%arg0 : tensor<1x2xf32>) -> () {
 func.func @test_slice(%arg0 : tensor<?xi32>) -> () {
   // CHECK: "tosa.slice"(%arg0) {size = [2], start = [1]} : (tensor<?xi32>) -> tensor<2xi32>
   %0 = "tosa.slice"(%arg0) { size = [2], start = [1] } : (tensor<?xi32>) -> tensor<?xi32>
+  return
+}
+
+// -----
+
+// CHECK-LABEL: @test_slice_dynamic
+func.func @test_slice_dynamic(%arg0 : tensor<10x?x2xf32>) -> () {
+  // CHECK: "tosa.slice"(%arg0) {size = [7, -1, 1], start = [1, 0, 0]} : (tensor<10x?x2xf32>) -> tensor<7x?x1xf32>
+  %0 = "tosa.slice"(%arg0) {size = [7, -1, 1], start = [1, 0, 0]} : (tensor<10x?x2xf32>) -> tensor<?x?x?xf32>
   return
 }
 

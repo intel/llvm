@@ -50,7 +50,7 @@ public:
   ArrayRef<StringRef> getDependentDialects() const;
 
   // Returns the dialects extra class declaration code.
-  llvm::Optional<StringRef> getExtraClassDeclaration() const;
+  std::optional<StringRef> getExtraClassDeclaration() const;
 
   /// Returns true if this dialect has a canonicalizer.
   bool hasCanonicalizer() const;
@@ -97,10 +97,6 @@ public:
 
   // Returns whether the dialect is defined.
   explicit operator bool() const { return def != nullptr; }
-
-  // Returns how the accessors should be prefixed in dialect.
-  enum class EmitPrefix { Raw = 0, Prefixed = 1, Both = 2 };
-  EmitPrefix getEmitAccessorPrefix() const;
 
 private:
   const llvm::Record *def;

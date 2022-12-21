@@ -49,6 +49,8 @@ enum class HighlightingKind {
   Concept,
   Primitive,
   Macro,
+  Modifier,
+  Operator,
 
   // This one is different from the other kinds as it's a line style
   // rather than a token style.
@@ -71,7 +73,9 @@ enum class HighlightingModifier {
   DependentName,
   DefaultLibrary,
   UsedAsMutableReference,
+  UsedAsMutablePointer,
   ConstructorOrDestructor,
+  UserDefined,
 
   FunctionScope,
   ClassScope,

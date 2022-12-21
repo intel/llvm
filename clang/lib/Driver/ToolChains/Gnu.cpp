@@ -84,7 +84,7 @@ void tools::gcc::Common::ConstructJob(Compilation &C, const JobAction &JA,
 
   RenderExtraToolArgs(JA, CmdArgs);
 
-  // If using a driver driver, force the arch.
+  // If using a driver, force the arch.
   if (getToolChain().getTriple().isOSDarwin()) {
     CmdArgs.push_back("-arch");
     CmdArgs.push_back(
@@ -331,8 +331,8 @@ static bool getStaticPIE(const ArgList &Args, const ToolChain &TC) {
   if (HasStaticPIE && Args.hasArg(options::OPT_nopie)) {
     const Driver &D = TC.getDriver();
     const llvm::opt::OptTable &Opts = D.getOpts();
-    const char *StaticPIEName = Opts.getOptionName(options::OPT_static_pie);
-    const char *NoPIEName = Opts.getOptionName(options::OPT_nopie);
+    StringRef StaticPIEName = Opts.getOptionName(options::OPT_static_pie);
+    StringRef NoPIEName = Opts.getOptionName(options::OPT_nopie);
     D.Diag(diag::err_drv_cannot_mix_options) << StaticPIEName << NoPIEName;
   }
   return HasStaticPIE;
@@ -376,7 +376,7 @@ void tools::gnutools::Linker::constructLLVMARCommand(
   llvm::sys::path::append(LLVMARPath, "llvm-ar");
   const char *Exec = C.getArgs().MakeArgString(LLVMARPath);
   C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::None(), Exec, CmdArgs, None));
+      JA, *this, ResponseFileSupport::None(), Exec, CmdArgs, std::nullopt));
 }
 
 void tools::gnutools::StaticLibTool::ConstructJob(
@@ -851,7 +851,7 @@ void tools::gnutools::Assembler::ConstructJob(Compilation &C,
             Args.MakeArgString("--compress-debug-sections=" + Twine(Value)));
       } else {
         D.Diag(diag::err_drv_unsupported_option_argument)
-            << A->getOption().getName() << Value;
+            << A->getSpelling() << Value;
       }
     }
   }
@@ -1745,7 +1745,8 @@ static void findCSKYMultilibs(const Driver &D, const llvm::Triple &TargetTriple,
   FilterNonExistent NonExistent(Path, "/crtbegin.o", D.getVFS());
 
   tools::csky::FloatABI TheFloatABI = tools::csky::getCSKYFloatABI(D, Args);
-  llvm::Optional<llvm::StringRef> Res = tools::csky::getCSKYArchName(D, Args, TargetTriple);
+  std::optional<llvm::StringRef> Res =
+      tools::csky::getCSKYArchName(D, Args, TargetTriple);
 
   if (!Res)
     return;

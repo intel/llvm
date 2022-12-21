@@ -125,7 +125,7 @@ func.func @fold_subview_with_transfer_read(%arg0 : memref<12x32xf32>, %arg1 : in
 // -----
 
 func.func @fold_static_stride_subview_with_transfer_write_0d(
-    %arg0 : memref<12x32xf32>, %arg1 : index, %arg2 : index, %arg3 : index, 
+    %arg0 : memref<12x32xf32>, %arg1 : index, %arg2 : index, %arg3 : index,
     %v : vector<f32>) {
   %f1 = arith.constant 1.0 : f32
   %0 = memref.subview %arg0[%arg1, %arg2][1, 1][2, %arg3] : memref<12x32xf32> to memref<f32, strided<[], offset: ?>>
@@ -416,7 +416,7 @@ func.func @fold_static_stride_subview_with_affine_load_store_expand_shape_when_a
 // CHECK-NEXT:    affine.for %[[ARG6:.*]] = 0 to 1 {
 // CHECK-NEXT:      %[[TMP1:.*]] = affine.apply #[[$MAP0]](%[[ARG3]], %[[ARG4]], %[[ARG5]], %[[ARG6]])
 // CHECK-NEXT:      %[[TMP2:.*]] = affine.apply #[[$MAP1]](%[[ARG3]], %[[TMP1]])
-// CHECK-NEXT:      %[[TMP3:.*]] = affine.apply #map2(%[[ARG5]], %[[ARG6]])
+// CHECK-NEXT:      %[[TMP3:.*]] = affine.apply #{{.*}}(%[[ARG5]], %[[ARG6]])
 // CHECK-NEXT:      affine.load %[[ARG0]][%[[TMP2]], %[[TMP3]]] : memref<1024x1024xf32>
 
 // -----

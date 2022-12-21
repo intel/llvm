@@ -63,11 +63,10 @@ static bool isaIntegerType(mlir::Type ty) {
 }
 
 bool verifyRecordMemberType(mlir::Type ty) {
-  return !(ty.isa<BoxCharType>() || ty.isa<BoxProcType>() ||
-           ty.isa<ShapeType>() || ty.isa<ShapeShiftType>() ||
-           ty.isa<ShiftType>() || ty.isa<SliceType>() || ty.isa<FieldType>() ||
-           ty.isa<LenType>() || ty.isa<ReferenceType>() ||
-           ty.isa<TypeDescType>());
+  return !(ty.isa<BoxCharType>() || ty.isa<ShapeType>() ||
+           ty.isa<ShapeShiftType>() || ty.isa<ShiftType>() ||
+           ty.isa<SliceType>() || ty.isa<FieldType>() || ty.isa<LenType>() ||
+           ty.isa<ReferenceType>() || ty.isa<TypeDescType>());
 }
 
 bool verifySameLists(llvm::ArrayRef<RecordType::TypePair> a1,
@@ -155,6 +154,7 @@ struct RecordTypeStorage : public mlir::TypeStorage {
   void setTypeList(llvm::ArrayRef<RecordType::TypePair> list) { types = list; }
   llvm::ArrayRef<RecordType::TypePair> getTypeList() const { return types; }
 
+  bool isFinalized() const { return finalized; }
   void finalize(llvm::ArrayRef<RecordType::TypePair> lenParamList,
                 llvm::ArrayRef<RecordType::TypePair> typeList) {
     if (finalized)
@@ -196,6 +196,16 @@ bool isa_fir_or_std_type(mlir::Type t) {
     return llvm::all_of(funcType.getInputs(), isa_fir_or_std_type) &&
            llvm::all_of(funcType.getResults(), isa_fir_or_std_type);
   return isa_fir_type(t) || isa_std_type(t);
+}
+
+mlir::Type getDerivedType(mlir::Type ty) {
+  return llvm::TypeSwitch<mlir::Type, mlir::Type>(ty)
+      .Case<fir::PointerType, fir::HeapType, fir::SequenceType>([](auto p) {
+        if (auto seq = p.getEleTy().template dyn_cast<fir::SequenceType>())
+          return seq.getEleTy();
+        return p.getEleTy();
+      })
+      .Default([](mlir::Type t) { return t; });
 }
 
 mlir::Type dyn_cast_ptrEleTy(mlir::Type t) {
@@ -306,6 +316,17 @@ bool isUnlimitedPolymorphicType(mlir::Type ty) {
   }
   // TYPE(*)
   return isAssumedType(ty);
+}
+
+mlir::Type unwrapInnerType(mlir::Type ty) {
+  return llvm::TypeSwitch<mlir::Type, mlir::Type>(ty)
+      .Case<fir::PointerType, fir::HeapType, fir::SequenceType>([](auto t) {
+        mlir::Type eleTy = t.getEleTy();
+        if (auto seqTy = eleTy.dyn_cast<fir::SequenceType>())
+          return seqTy.getEleTy();
+        return eleTy;
+      })
+      .Default([](mlir::Type) { return mlir::Type{}; });
 }
 
 bool isRecordWithAllocatableMember(mlir::Type ty) {
@@ -486,7 +507,9 @@ mlir::LogicalResult
 fir::ClassType::verify(llvm::function_ref<mlir::InFlightDiagnostic()> emitError,
                        mlir::Type eleTy) {
   if (eleTy.isa<fir::RecordType, fir::SequenceType, fir::HeapType,
-                fir::PointerType, mlir::NoneType>())
+                fir::PointerType, mlir::NoneType, mlir::IntegerType,
+                mlir::FloatType, fir::CharacterType, fir::LogicalType,
+                fir::ComplexType, mlir::ComplexType>())
     return mlir::success();
   return emitError() << "invalid element type\n";
 }
@@ -706,6 +729,8 @@ RecordType::TypeList fir::RecordType::getTypeList() const {
 RecordType::TypeList fir::RecordType::getLenParamList() const {
   return getImpl()->getLenParamList();
 }
+
+bool fir::RecordType::isFinalized() const { return getImpl()->isFinalized(); }
 
 detail::RecordTypeStorage const *fir::RecordType::uniqueKey() const {
   return getImpl();
@@ -948,7 +973,7 @@ bool fir::hasAbstractResult(mlir::FunctionType ty) {
   if (ty.getNumResults() == 0)
     return false;
   auto resultType = ty.getResult(0);
-  return resultType.isa<fir::SequenceType, fir::BoxType, fir::RecordType>();
+  return resultType.isa<fir::SequenceType, fir::BaseBoxType, fir::RecordType>();
 }
 
 /// Convert llvm::Type::TypeID to mlir::Type. \p kind is provided for error
@@ -986,14 +1011,7 @@ mlir::Type BaseBoxType::getEleTy() const {
 }
 
 mlir::Type BaseBoxType::unwrapInnerType() const {
-  return llvm::TypeSwitch<mlir::Type, mlir::Type>(getEleTy())
-      .Case<fir::PointerType, fir::HeapType, fir::SequenceType>([](auto ty) {
-        mlir::Type eleTy = ty.getEleTy();
-        if (auto seqTy = eleTy.dyn_cast<fir::SequenceType>())
-          return seqTy.getEleTy();
-        return eleTy;
-      })
-      .Default([](mlir::Type) { return mlir::Type{}; });
+  return fir::unwrapInnerType(getEleTy());
 }
 
 //===----------------------------------------------------------------------===//

@@ -231,8 +231,8 @@ struct OperandGroupPosition
     return llvm::hash_value(key);
   }
 
-  /// Returns the group number of this position. If None, this group refers to
-  /// all operands.
+  /// Returns the group number of this position. If std::nullopt, this group
+  /// refers to all operands.
   Optional<unsigned> getOperandGroupNumber() const { return std::get<1>(key); }
 
   /// Returns if the operand group has unknown size. If false, the operand group
@@ -309,8 +309,8 @@ struct ResultGroupPosition
     return llvm::hash_value(key);
   }
 
-  /// Returns the group number of this position. If None, this group refers to
-  /// all results.
+  /// Returns the group number of this position. If std::nullopt, this group
+  /// refers to all results.
   Optional<unsigned> getResultGroupNumber() const { return std::get<1>(key); }
 
   /// Returns if the result group has unknown size. If false, the result group
@@ -600,7 +600,7 @@ public:
     return OperandGroupPosition::get(uniquer, p, group, isVariadic);
   }
   Position *getAllOperands(OperationPosition *p) {
-    return getOperandGroup(p, /*group=*/llvm::None, /*isVariadic=*/true);
+    return getOperandGroup(p, /*group=*/std::nullopt, /*isVariadic=*/true);
   }
 
   /// Returns a result position for a result of the given operation.
@@ -614,7 +614,7 @@ public:
     return ResultGroupPosition::get(uniquer, p, group, isVariadic);
   }
   Position *getAllResults(OperationPosition *p) {
-    return getResultGroup(p, /*group=*/llvm::None, /*isVariadic=*/true);
+    return getResultGroup(p, /*group=*/std::nullopt, /*isVariadic=*/true);
   }
 
   /// Returns a type position for the given entity.

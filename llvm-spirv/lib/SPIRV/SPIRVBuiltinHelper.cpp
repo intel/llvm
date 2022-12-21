@@ -64,9 +64,15 @@ BuiltinCallMutator::BuiltinCallMutator(
     : CI(CI), FuncName(FuncName),
       Attrs(CI->getCalledFunction()->getAttributes()), ReturnTy(CI->getType()),
       Args(CI->args()), Rules(Rules), Builder(CI) {
-  getParameterTypes(CI->getCalledFunction(), PointerTypes,
-                    std::move(NameMapFn));
-  PointerTypes.resize(Args.size(), nullptr);
+  bool DidDemangle = getParameterTypes(CI->getCalledFunction(), PointerTypes,
+                                       std::move(NameMapFn));
+  if (!DidDemangle) {
+    // TODO: PipeBlocking.ll causes demangling failures.
+    // assert(isNonMangledOCLBuiltin(CI->getCalledFunction()->getName()) &&
+    //    "SPIR-V builtin functions should be mangled");
+    for (Value *Arg : Args)
+      PointerTypes.push_back(Arg->getType());
+  }
 }
 
 BuiltinCallMutator::BuiltinCallMutator(BuiltinCallMutator &&Other)
@@ -84,9 +90,15 @@ Value *BuiltinCallMutator::doConversion() {
   assert(CI && "Need to have a call instruction to do the conversion");
   auto Mangler = makeMangler(CI, Rules);
   for (unsigned I = 0; I < Args.size(); I++) {
-    Mangler->getTypeMangleInfo(I).PointerTy = PointerTypes[I];
+    Mangler->getTypeMangleInfo(I).PointerTy =
+        dyn_cast<TypedPointerType>(PointerTypes[I]);
   }
   assert(Attrs.getNumAttrSets() <= Args.size() + 2 && "Too many attributes?");
+
+  // Sanitize the return type, in case it's a TypedPointerType.
+  if (auto *TPT = dyn_cast<TypedPointerType>(ReturnTy))
+    ReturnTy = PointerType::get(TPT->getElementType(), TPT->getAddressSpace());
+
   CallInst *NewCall =
       Builder.Insert(addCallInst(CI->getModule(), FuncName, ReturnTy, Args,
                                  &Attrs, nullptr, Mangler.get()));
@@ -110,7 +122,7 @@ BuiltinCallMutator &BuiltinCallMutator::setArgs(ArrayRef<Value *> NewArgs) {
     assert(!Arg->getType()->isPointerTy() &&
            "Cannot use this signature with pointer types");
     Args.push_back(Arg);
-    PointerTypes.emplace_back();
+    PointerTypes.push_back(Arg->getType());
   }
   return *this;
 }
@@ -151,23 +163,10 @@ static void moveAttributes(LLVMContext &Ctx, AttributeList &Attrs,
   Attrs = AttributeList::get(Ctx, NewAttrs);
 }
 
-// Convert a ValueTypePair to a TypedPointerType for storing in the PointerTypes
-// array.
-static TypedPointerType *toTPT(BuiltinCallMutator::ValueTypePair Pair) {
-  if (!Pair.second)
-    return nullptr;
-  unsigned AS = 0;
-  if (auto *TPT = dyn_cast<TypedPointerType>(Pair.first->getType()))
-    AS = TPT->getAddressSpace();
-  else if (isa<PointerType>(Pair.first->getType()))
-    AS = Pair.first->getType()->getPointerAddressSpace();
-  return TypedPointerType::get(Pair.second, AS);
-}
-
 BuiltinCallMutator &BuiltinCallMutator::insertArg(unsigned Index,
                                                   ValueTypePair Arg) {
   Args.insert(Args.begin() + Index, Arg.first);
-  PointerTypes.insert(PointerTypes.begin() + Index, toTPT(Arg));
+  PointerTypes.insert(PointerTypes.begin() + Index, Arg.second);
   moveAttributes(CI->getContext(), Attrs, Index, Args.size() - Index,
                  Index + 1);
   return *this;
@@ -176,7 +175,7 @@ BuiltinCallMutator &BuiltinCallMutator::insertArg(unsigned Index,
 BuiltinCallMutator &BuiltinCallMutator::replaceArg(unsigned Index,
                                                    ValueTypePair Arg) {
   Args[Index] = Arg.first;
-  PointerTypes[Index] = toTPT(Arg);
+  PointerTypes[Index] = Arg.second;
   Attrs = Attrs.removeParamAttributes(CI->getContext(), Index);
   return *this;
 }
@@ -209,5 +208,125 @@ BuiltinCallMutator BuiltinCallHelper::mutateCallInst(CallInst *CI,
 
 BuiltinCallMutator BuiltinCallHelper::mutateCallInst(CallInst *CI,
                                                      std::string FuncName) {
+  assert(CI->getCalledFunction() && "Can only mutate direct function calls.");
   return BuiltinCallMutator(CI, std::move(FuncName), Rules, NameMapFn);
+}
+
+Value *BuiltinCallHelper::addSPIRVCall(IRBuilder<> &Builder, spv::Op Opcode,
+                                       Type *ReturnTy, ArrayRef<Value *> Args,
+                                       ArrayRef<Type *> ArgTys,
+                                       const Twine &Name) {
+  // Sanitize the return type, in case it's a TypedPointerType.
+  if (auto *TPT = dyn_cast<TypedPointerType>(ReturnTy))
+    ReturnTy = PointerType::get(TPT->getElementType(), TPT->getAddressSpace());
+
+  // Copy the types into the mangling info.
+  BuiltinFuncMangleInfo BtnInfo;
+  for (unsigned I = 0; I < ArgTys.size(); I++) {
+    if (Args[I]->getType()->isPointerTy()) {
+      assert(cast<PointerType>(Args[I]->getType())
+                 ->isOpaqueOrPointeeTypeMatches(
+                     cast<TypedPointerType>(ArgTys[I])->getElementType()));
+      BtnInfo.getTypeMangleInfo(I).PointerTy = ArgTys[I];
+    }
+  }
+
+  // Create the function and the call.
+  auto *F = getOrCreateFunction(M, ReturnTy, getTypes(Args),
+                                getSPIRVFuncName(Opcode), &BtnInfo);
+  return Builder.CreateCall(F, Args, ReturnTy->isVoidTy() ? "" : Name);
+}
+
+Type *BuiltinCallHelper::adjustImageType(Type *T, StringRef OldImageKind,
+                                         StringRef NewImageKind) {
+  if (auto *TypedPtrTy = dyn_cast<TypedPointerType>(T)) {
+    Type *StructTy = TypedPtrTy->getElementType();
+    // Adapt opencl.* struct type names to spirv.* struct type names.
+    if (isOCLImageType(T)) {
+      if (OldImageKind != kSPIRVTypeName::Image)
+        report_fatal_error("Type was not an image type");
+      auto ImageTypeName = StructTy->getStructName();
+      auto Desc =
+          map<SPIRVTypeImageDescriptor>(getImageBaseTypeName(ImageTypeName));
+      spv::AccessQualifier Acc = AccessQualifierReadOnly;
+      if (hasAccessQualifiedName(ImageTypeName))
+        Acc = getAccessQualifier(ImageTypeName);
+      auto NewImageType = SPIRVOpaqueTypeOpCodeMap::map(NewImageKind.str());
+      return getSPIRVType(NewImageType, Type::getVoidTy(M->getContext()), Desc,
+                          Acc);
+    }
+
+    // Change type name (e.g., spirv.Image -> spirv.SampledImg) if necessary.
+    StringRef Postfixes;
+    if (isSPIRVStructType(StructTy, OldImageKind, &Postfixes))
+      StructTy = getOrCreateOpaqueStructType(
+          M, getSPIRVTypeName(NewImageKind, Postfixes));
+    else {
+      report_fatal_error("Type did not have expected image kind");
+    }
+    return TypedPointerType::get(StructTy, TypedPtrTy->getAddressSpace());
+  }
+  report_fatal_error("Expected type to be a SPIRV image type");
+}
+
+Type *BuiltinCallHelper::getSPIRVType(spv::Op TypeOpcode, bool UseRealType) {
+  return getSPIRVType(TypeOpcode, "", {}, UseRealType);
+}
+
+Type *BuiltinCallHelper::getSPIRVType(spv::Op TypeOpcode,
+                                      spv::AccessQualifier Access,
+                                      bool UseRealType) {
+  return getSPIRVType(TypeOpcode, "", {(unsigned)Access}, UseRealType);
+}
+
+Type *BuiltinCallHelper::getSPIRVType(
+    spv::Op TypeOpcode, Type *InnerType, SPIRVTypeImageDescriptor Desc,
+    std::optional<spv::AccessQualifier> Access, bool UseRealType) {
+  return getSPIRVType(TypeOpcode, convertTypeToPostfix(InnerType),
+                      {(unsigned)Desc.Dim, (unsigned)Desc.Depth,
+                       (unsigned)Desc.Arrayed, (unsigned)Desc.MS,
+                       (unsigned)Desc.Sampled, (unsigned)Desc.Format,
+                       (unsigned)Access.value_or(AccessQualifierReadOnly)},
+                      UseRealType);
+}
+
+Type *BuiltinCallHelper::getSPIRVType(spv::Op TypeOpcode,
+                                      StringRef InnerTypeName,
+                                      ArrayRef<unsigned> Parameters,
+                                      bool UseRealType) {
+  std::string FullName;
+  {
+    raw_string_ostream OS(FullName);
+    OS << kSPIRVTypeName::PrefixAndDelim
+       << SPIRVOpaqueTypeOpCodeMap::rmap(TypeOpcode);
+    if (!InnerTypeName.empty() || !Parameters.empty())
+      OS << kSPIRVTypeName::Delimiter;
+    if (!InnerTypeName.empty())
+      OS << kSPIRVTypeName::PostfixDelim << InnerTypeName;
+    for (unsigned IntParam : Parameters)
+      OS << kSPIRVTypeName::PostfixDelim << IntParam;
+  }
+  auto *STy = StructType::getTypeByName(M->getContext(), FullName);
+  if (!STy)
+    STy = StructType::create(M->getContext(), FullName);
+
+  unsigned AddrSpace = getOCLOpaqueTypeAddrSpace(TypeOpcode);
+  return UseRealType ? (Type *)PointerType::get(STy, AddrSpace)
+                     : TypedPointerType::get(STy, AddrSpace);
+}
+
+BuiltinCallMutator::ValueTypePair
+BuiltinCallHelper::getCallValue(CallInst *CI, unsigned ArgNo) {
+  Function *CalledFunc = CI->getCalledFunction();
+  assert(CalledFunc && "Unexpected indirect call");
+  if (CalledFunc != CachedFunc) {
+    CachedFunc = CalledFunc;
+    [[maybe_unused]] bool DidDemangle =
+        getParameterTypes(CalledFunc, CachedParameterTypes, NameMapFn);
+    assert(DidDemangle && "Expected SPIR-V builtins to be properly mangled");
+  }
+
+  Value *ParamValue = CI->getArgOperand(ArgNo);
+  Type *ParamType = CachedParameterTypes[ArgNo];
+  return {ParamValue, ParamType};
 }

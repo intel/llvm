@@ -95,7 +95,7 @@ Value genIsNonzero(OpBuilder &builder, Location loc, Value v);
 /// used when operands have dynamic shape. The shape of the destination is
 /// stored into dstShape.
 void genReshapeDstShape(Location loc, PatternRewriter &rewriter,
-                        SmallVector<Value, 4> &dstShape,
+                        SmallVectorImpl<Value> &dstShape,
                         ArrayRef<Value> srcShape,
                         ArrayRef<int64_t> staticDstShape,
                         ArrayRef<ReassociationIndices> reassociation);
@@ -145,6 +145,9 @@ Value genAllocaScalar(OpBuilder &builder, Location loc, Type tp);
 Value allocDenseTensor(OpBuilder &builder, Location loc,
                        RankedTensorType tensorTp, ValueRange sizes);
 
+/// Generates code to deallocate a dense buffer.
+void deallocDenseTensor(OpBuilder &builder, Location loc, Value buffer);
+
 /// Generates the code to read the value from tensor[ivs]. The generated code
 /// looks like the following and the insertion point after this routine is
 /// inside the if-then branch behind the assignment to ind.
@@ -174,11 +177,31 @@ void genDenseTensorOrSparseConstantIterLoop(
     function_ref<void(OpBuilder &, Location, Value, ValueRange)> bodyBuilder);
 
 /// Populates given sizes array from dense tensor or sparse tensor constant.
-void sizesFromSrc(OpBuilder &builder, SmallVector<Value, 4> &sizes,
+void sizesFromSrc(OpBuilder &builder, SmallVectorImpl<Value> &sizes,
                   Location loc, Value src);
 
 /// Scans to top of generated loop.
 Operation *getTop(Operation *op);
+
+/// Iterate over a sparse constant, generates constantOp for value and indices.
+/// E.g.,
+/// sparse<[ [0], [28], [31] ],
+///          [ (-5.13, 2.0), (3.0, 4.0), (5.0, 6.0) ] >
+/// =>
+/// %c1 = arith.constant 0
+/// %v1 = complex.constant (5.13, 2.0)
+/// callback({%c1}, %v1)
+///
+/// %c2 = arith.constant 28
+/// %v2 = complex.constant (3.0, 4.0)
+/// callback({%c2}, %v2)
+///
+/// %c3 = arith.constant 31
+/// %v3 = complex.constant (5.0, 6.0)
+/// callback({%c3}, %v3)
+void foreachInSparseConstant(
+    Location loc, RewriterBase &rewriter, SparseElementsAttr attr,
+    function_ref<void(ArrayRef<Value>, Value)> callback);
 
 //===----------------------------------------------------------------------===//
 // Inlined constant generators.
@@ -194,9 +217,9 @@ Operation *getTop(Operation *op);
 //===----------------------------------------------------------------------===//
 
 /// Generates a 0-valued constant of the given type.  In addition to
-/// the scalar types (`ComplexType`, ``FloatType`, `IndexType`, `IntegerType`),
-/// this also works for `RankedTensorType` and `VectorType` (for which it
-/// generates a constant `DenseElementsAttr` of zeros).
+/// the scalar types (`ComplexType`, ``FloatType`, `IndexType`,
+/// `IntegerType`), this also works for `RankedTensorType` and `VectorType`
+/// (for which it generates a constant `DenseElementsAttr` of zeros).
 inline Value constantZero(OpBuilder &builder, Location loc, Type tp) {
   if (auto ctp = tp.dyn_cast<ComplexType>()) {
     auto zeroe = builder.getZeroAttr(ctp.getElementType());
@@ -288,8 +311,222 @@ inline bool isZeroRankedTensorOrScalar(Type type) {
 }
 
 //===----------------------------------------------------------------------===//
-// SparseTensorLoopEmiter class, manages sparse tensors and helps to generate
-// loop structure to (co)-iterate sparse tensors.
+// SparseTensorDescriptor and helpers, manage the sparse tensor memory layout
+// scheme.
+//
+// Sparse tensor storage scheme for rank-dimensional tensor is organized
+// as a single compound type with the following fields. Note that every
+// memref with ? size actually behaves as a "vector", i.e. the stored
+// size is the capacity and the used size resides in the memSizes array.
+//
+// struct {
+//   memref<rank x index> dimSizes     ; size in each dimension
+//   memref<n x index> memSizes        ; sizes of ptrs/inds/values
+//   ; per-dimension d:
+//   ;  if dense:
+//        <nothing>
+//   ;  if compresed:
+//        memref<? x ptr>  pointers-d  ; pointers for sparse dim d
+//        memref<? x idx>  indices-d   ; indices for sparse dim d
+//   ;  if singleton:
+//        memref<? x idx>  indices-d   ; indices for singleton dim d
+//   memref<? x eltType> values        ; values
+// };
+//
+//===----------------------------------------------------------------------===//
+enum class SparseTensorFieldKind {
+  DimSizes,
+  MemSizes,
+  PtrMemRef,
+  IdxMemRef,
+  ValMemRef
+};
+
+constexpr uint64_t dimSizesIdx = 0;
+constexpr uint64_t memSizesIdx = dimSizesIdx + 1;
+constexpr uint64_t dataFieldIdx = memSizesIdx + 1;
+
+/// For each field that will be allocated for the given sparse tensor encoding,
+/// calls the callback with the corresponding field index, field kind, dimension
+/// (for sparse tensor level memrefs) and dimlevelType.
+/// The field index always starts with zero and increments by one between two
+/// callback invocations.
+/// Ideally, all other methods should rely on this function to query a sparse
+/// tensor fields instead of relying on ad-hoc index computation.
+void foreachFieldInSparseTensor(
+    SparseTensorEncodingAttr,
+    llvm::function_ref<bool(unsigned /*fieldIdx*/,
+                            SparseTensorFieldKind /*fieldKind*/,
+                            unsigned /*dim (if applicable)*/,
+                            DimLevelType /*DLT (if applicable)*/)>);
+
+/// Same as above, except that it also builds the Type for the corresponding
+/// field.
+void foreachFieldAndTypeInSparseTensor(
+    RankedTensorType,
+    llvm::function_ref<bool(Type /*fieldType*/, unsigned /*fieldIdx*/,
+                            SparseTensorFieldKind /*fieldKind*/,
+                            unsigned /*dim (if applicable)*/,
+                            DimLevelType /*DLT (if applicable)*/)>);
+
+/// Gets the total number of fields for the given sparse tensor encoding.
+unsigned getNumFieldsFromEncoding(SparseTensorEncodingAttr enc);
+
+/// Gets the total number of data fields (index arrays, pointer arrays, and a
+/// value array) for the given sparse tensor encoding.
+unsigned getNumDataFieldsFromEncoding(SparseTensorEncodingAttr enc);
+
+/// Get the index of the field in memSizes (only valid for data fields).
+inline unsigned getFieldMemSizesIndex(unsigned fid) {
+  assert(fid >= dataFieldIdx);
+  return fid - dataFieldIdx;
+}
+
+template <bool>
+struct SparseTensorValueArrayRef;
+
+// Uses ValueRange for immuatable descriptors; uses SmallVectorImpl<Value> &
+// for mutable descriptors.
+template <>
+struct SparseTensorValueArrayRef<false> {
+  using ValueArray = ValueRange;
+};
+
+// Using SmallVector for mutable descriptor allows users to reuse it as a tmp
+// buffers to append value for some special cases, though users should be
+// responsible to restore the buffer to legal states after their use. It is
+// probably not a clean way, but it is the most efficient way to avoid copying
+// the fields into another SmallVector. If a more clear way is wanted, we
+// should change it to MutableArrayRef instead.
+template <>
+struct SparseTensorValueArrayRef<true> {
+  using ValueArray = SmallVectorImpl<Value> &;
+};
+
+/// A helper class around an array of values that corresponding to a sparse
+/// tensor, provides a set of meaningful APIs to query and update a particular
+/// field in a consistent way.
+/// Users should not make assumption on how a sparse tensor is laid out but
+/// instead relies on this class to access the right value for the right field.
+template <bool mut>
+class SparseTensorDescriptorImpl {
+private:
+  using Storage = typename SparseTensorValueArrayRef<mut>::ValueArray;
+
+public:
+  SparseTensorDescriptorImpl(Type tp, Storage fields)
+      : rType(tp.cast<RankedTensorType>()), fields(fields) {
+    assert(getSparseTensorEncoding(tp) &&
+           getNumFieldsFromEncoding(getSparseTensorEncoding(tp)) ==
+               fields.size());
+    // We should make sure the class is trivially copyable (and should be small
+    // enough) such that we can pass it by value.
+    static_assert(
+        std::is_trivially_copyable_v<SparseTensorDescriptorImpl<mut>>);
+  }
+
+  // Implicit (and cheap) type conversion from MutSparseTensorDescriptor to
+  // SparseTensorDescriptor.
+  template <typename T = SparseTensorDescriptorImpl<true>>
+  /*implicit*/ SparseTensorDescriptorImpl(std::enable_if_t<!mut, T> &mDesc)
+      : rType(mDesc.getTensorType()), fields(mDesc.getFields()) {}
+
+  ///
+  /// Getters: get the field index for required field.
+  ///
+
+  unsigned getPtrMemRefIndex(unsigned ptrDim) const {
+    return getFieldIndex(ptrDim, SparseTensorFieldKind::PtrMemRef);
+  }
+
+  unsigned getIdxMemRefIndex(unsigned idxDim) const {
+    return getFieldIndex(idxDim, SparseTensorFieldKind::IdxMemRef);
+  }
+
+  unsigned getValMemRefIndex() const { return fields.size() - 1; }
+
+  unsigned getPtrMemSizesIndex(unsigned dim) const {
+    return getPtrMemRefIndex(dim) - dataFieldIdx;
+  }
+
+  unsigned getIdxMemSizesIndex(unsigned dim) const {
+    return getIdxMemRefIndex(dim) - dataFieldIdx;
+  }
+
+  unsigned getValMemSizesIndex() const {
+    return getValMemRefIndex() - dataFieldIdx;
+  }
+
+  unsigned getNumFields() const { return fields.size(); }
+
+  ///
+  /// Getters: get the value for required field.
+  ///
+
+  Value getDimSizesMemRef() const { return fields[dimSizesIdx]; }
+  Value getMemSizesMemRef() const { return fields[memSizesIdx]; }
+
+  Value getPtrMemRef(unsigned ptrDim) const {
+    return fields[getPtrMemRefIndex(ptrDim)];
+  }
+
+  Value getIdxMemRef(unsigned idxDim) const {
+    return fields[getIdxMemRefIndex(idxDim)];
+  }
+
+  Value getValMemRef() const { return fields[getValMemRefIndex()]; }
+
+  Value getField(unsigned fid) const {
+    assert(fid < fields.size());
+    return fields[fid];
+  }
+
+  ///
+  /// Setters: update the value for required field (only enabled for
+  /// MutSparseTensorDescriptor).
+  ///
+
+  template <typename T = Value>
+  void setField(unsigned fid, std::enable_if_t<mut, T> v) {
+    assert(fid < fields.size());
+    fields[fid] = v;
+  }
+
+  RankedTensorType getTensorType() const { return rType; }
+  Storage getFields() const { return fields; }
+
+  Type getElementType(unsigned fidx) const {
+    return fields[fidx].getType().template cast<MemRefType>().getElementType();
+  }
+
+private:
+  unsigned getFieldIndex(unsigned dim, SparseTensorFieldKind kind) const {
+    unsigned fieldIdx = -1u;
+    foreachFieldInSparseTensor(
+        getSparseTensorEncoding(rType),
+        [dim, kind, &fieldIdx](unsigned fIdx, SparseTensorFieldKind fKind,
+                               unsigned fDim, DimLevelType dlt) -> bool {
+          if (fDim == dim && kind == fKind) {
+            fieldIdx = fIdx;
+            // Returns false to break the iteration.
+            return false;
+          }
+          return true;
+        });
+    assert(fieldIdx != -1u);
+    return fieldIdx;
+  }
+
+  RankedTensorType rType;
+  Storage fields;
+};
+
+using SparseTensorDescriptor = SparseTensorDescriptorImpl<false>;
+using MutSparseTensorDescriptor = SparseTensorDescriptorImpl<true>;
+
+//===----------------------------------------------------------------------===//
+// SparseTensorLoopEmiter class, manages sparse tensors and helps to
+// generate loop structure to (co)-iterate sparse tensors.
 //
 // An example usage:
 // To generate the following loops over T1<?x?> and T2<?x?>
@@ -315,7 +552,6 @@ inline bool isZeroRankedTensorOrScalar(Type type) {
 // loopEmiter.exitCurrentLoop(); // exit i
 //===----------------------------------------------------------------------===//
 
-// TODO: Sparsification should also rely on this class to generate loops.
 class SparseTensorLoopEmitter {
 public:
   /// Optional callback function to setup dense output tensors when
@@ -323,21 +559,31 @@ public:
   using OutputUpdater = function_ref<Value(OpBuilder &builder, Location loc,
                                            Value memref, Value tensor)>;
 
-  /// Constructor: take an array of tensors inputs, on which the generated loops
-  /// will iterate on. The index of the tensor in the array is also the
+  /// Constructor: take an array of tensors inputs, on which the generated
+  /// loops will iterate on. The index of the tensor in the array is also the
   /// tensor id (tid) used in related functions.
   /// If isSparseOut is set, loop emitter assume that the sparse output tensor
   /// is empty, and will always generate loops on it based on the dim sizes.
-  explicit SparseTensorLoopEmitter(ValueRange tensors, bool hasOutput = false,
-                                   bool isSparseOut = false);
+  /// An optional array could be provided (by sparsification) to indicate the
+  /// loop id sequence that will be generated. It is used to establish the
+  /// mapping between affineDimExpr to the corresponding loop index in the
+  /// loop stack that are maintained by the loop emitter.
+  explicit SparseTensorLoopEmitter(ValueRange tensors,
+                                   StringAttr loopTag = nullptr,
+                                   bool hasOutput = false,
+                                   bool isSparseOut = false,
+                                   ArrayRef<unsigned> topSort = {});
 
   /// Starts a loop emitting session by generating all the buffers needed to
   /// iterate tensors.
   void initializeLoopEmit(OpBuilder &builder, Location loc,
                           OutputUpdater updater = nullptr);
 
-  /// Enters a new loop sequence, the loops within the same sequence starts from
-  /// the break points of previous loop instead of starting over from 0.
+  /// Generates a list of operations to compute the affine expression.
+  Value genAffine(OpBuilder &builder, AffineExpr a, Location loc);
+
+  /// Enters a new loop sequence, the loops within the same sequence starts
+  /// from the break points of previous loop instead of starting over from 0.
   /// e.g.,
   /// {
   ///   // loop sequence start.
@@ -374,20 +620,32 @@ public:
                                       ArrayRef<size_t> extraTids = {},
                                       ArrayRef<size_t> extraDims = {});
 
+  Operation *enterFilterLoopOverTensorAtDim(OpBuilder &builder, Location loc,
+                                            size_t tid, size_t dim,
+                                            AffineExpr affine,
+                                            MutableArrayRef<Value> reduc = {});
+
+  void genDenseAffineAddressAtCurLevel(OpBuilder &builder, Location loc,
+                                       size_t tid, size_t dim,
+                                       AffineExpr affine);
+
   /// Emits a co-iteration loop over a set of tensors.
   Operation *enterCoIterationOverTensorsAtDims(
       OpBuilder &builder, Location loc, ArrayRef<size_t> tids,
       ArrayRef<size_t> dims, bool needsUniv, MutableArrayRef<Value> reduc = {},
       ArrayRef<size_t> extraTids = {}, ArrayRef<size_t> extraDims = {});
 
-  SmallVector<Value, 2> exitCurrentLoop(OpBuilder &builder, Location loc,
-                                        ArrayRef<Value> reduc = {});
+  void exitCurrentLoop(RewriterBase &rewriter, Location loc,
+                       MutableArrayRef<Value> reduc = {});
 
   /// Returns the array of coordinate for all the loop generated till now.
   void getCoordinateArray(SmallVectorImpl<Value> &coords) const {
     for (auto &l : loopStack)
       coords.push_back(l.iv);
   }
+
+  /// Gets loop induction variable at the given level.
+  unsigned getCurrentDepth() const { return loopStack.size(); }
 
   /// Gets loop induction variable at the given level.
   Value getLoopIV(size_t level) const {
@@ -410,16 +668,25 @@ public:
   };
   const std::vector<Value> &getValBuffer() const { return valBuffer; };
 
+  constexpr static llvm::StringLiteral getLoopEmitterLoopAttrName() {
+    return llvm::StringLiteral("Emitted from");
+  }
+
 private:
   struct LoopLevelInfo {
     LoopLevelInfo(ArrayRef<size_t> tids, ArrayRef<size_t> dims, Operation *loop,
-                  Value iv)
-        : tids(tids), dims(dims), loop(loop), iv(iv) {}
+                  Value iv, StringAttr loopTag)
+        : tids(tids), dims(dims), loop(loop), iv(iv) {
+      // Attached a special tag to loop emitter generated loop.
+      if (loopTag)
+        loop->setAttr(SparseTensorLoopEmitter::getLoopEmitterLoopAttrName(),
+                      loopTag);
+    }
     // TODO: maybe use a vector<pair> for tid and dim?
     // The set of tensors that the loop is operating on
-    const llvm::SmallVector<size_t, 4> tids;
+    const llvm::SmallVector<size_t> tids;
     // The corresponding dims for the tensors
-    const llvm::SmallVector<size_t, 4> dims;
+    const llvm::SmallVector<size_t> dims;
     const Operation *loop; // the loop operation
     const Value iv;        // the induction variable for the loop
   };
@@ -452,20 +719,42 @@ private:
                                             ArrayRef<size_t> dims);
 
   /// Exits a for loop, returns the reduction results, e.g.,
+  /// For sequential for loops:
   /// %ret = for () {
   ///   ...
+  ///   %val = addi %args, %c
   ///   yield %val
   /// }
-  /// Return %ret to user, while %val is provided by users (`reduc`)
-  SmallVector<Value, 2> exitForLoop(OpBuilder &builder, Location loc,
-                                    ArrayRef<Value> reduc);
+  /// For parallel loops, the following generated code by users:
+  /// %ret = parallel () init(%args) {
+  ///   ...
+  ///   %val = op %args, %c
+  /// }
+  /// will be transformed into
+  /// %ret = parallel () init(%args) {
+  ///   ...
+  ///   scf.reduce(%c) bb0(%0, %1){
+  ///     %val = op %0, %1
+  ///     scf.reduce.return %val
+  ///   }
+  /// }
+  /// NOTE: only one instruction will be moved into reduce block,
+  /// transformation will fail if multiple instructions are used to compute
+  /// the reduction value. Return %ret to user, while %val is provided by
+  /// users (`reduc`).
+  void exitForLoop(RewriterBase &rewriter, Location loc,
+                   MutableArrayRef<Value> reduc);
 
   /// Exits a while loop, returns the reduction results.
-  SmallVector<Value, 2> exitCoiterationLoop(OpBuilder &builder, Location loc,
-                                            ArrayRef<Value> reduc);
+  void exitCoIterationLoop(OpBuilder &builder, Location loc,
+                           MutableArrayRef<Value> reduc);
 
-  // Whether the loop emitter needs to treat the last tensor as the output
-  // tensor.
+  /// A optional string attribute that should be attached to the loop
+  /// generated by loop emitter, it might help following passes to identify
+  /// loops that operates on sparse tensors more easily.
+  StringAttr loopTag;
+  /// Whether the loop emitter needs to treat the last tensor as the output
+  /// tensor.
   bool hasOutput;
   bool isSparseOut;
   /// Input and (optional) output tensors.
@@ -481,12 +770,18 @@ private:
   std::vector<std::vector<Value>> idxBuffer; // to_indices
   std::vector<Value> valBuffer;              // to_value
 
-  // Loop Stack, stores the information of all the nested loops that are alive.
+  // Loop Stack, stores the information of all the nested loops that are
+  // alive.
   std::vector<LoopLevelInfo> loopStack;
 
   // Loop Sequence Stack, stores the unversial index for the current loop
   // sequence.
   std::vector<Value> loopSeqStack;
+
+  // Maps AffineDimExpr to the index of the loop in loopStack.
+  // TODO: We should probably use a callback function here to make it more
+  // general.
+  std::vector<unsigned> sparsiferLoopLvlMap;
 
   // TODO: not yet used, it should track the current level for each tensor
   // to help eliminate `dim` paramters from above APIs.

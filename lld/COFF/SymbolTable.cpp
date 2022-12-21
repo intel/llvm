@@ -125,22 +125,22 @@ static std::vector<std::string> getSymbolLocations(BitcodeFile *file) {
   return {res};
 }
 
-static Optional<std::pair<StringRef, uint32_t>>
+static std::optional<std::pair<StringRef, uint32_t>>
 getFileLineDwarf(const SectionChunk *c, uint32_t addr) {
-  Optional<DILineInfo> optionalLineInfo =
+  std::optional<DILineInfo> optionalLineInfo =
       c->file->getDILineInfo(addr, c->getSectionNumber() - 1);
   if (!optionalLineInfo)
-    return None;
+    return std::nullopt;
   const DILineInfo &lineInfo = *optionalLineInfo;
   if (lineInfo.FileName == DILineInfo::BadString)
-    return None;
+    return std::nullopt;
   return std::make_pair(saver().save(lineInfo.FileName), lineInfo.Line);
 }
 
-static Optional<std::pair<StringRef, uint32_t>>
+static std::optional<std::pair<StringRef, uint32_t>>
 getFileLine(const SectionChunk *c, uint32_t addr) {
   // MinGW can optionally use codeview, even if the default is dwarf.
-  Optional<std::pair<StringRef, uint32_t>> fileLine =
+  std::optional<std::pair<StringRef, uint32_t>> fileLine =
       getFileLineCodeView(c, addr);
   // If codeview didn't yield any result, check dwarf in MinGW mode.
   if (!fileLine && config->mingw)
@@ -174,7 +174,7 @@ getSymbolLocations(ObjFile *file, uint32_t symIndex, size_t maxStrings) {
       if (locations.size() >= maxStrings)
         continue;
 
-      Optional<std::pair<StringRef, uint32_t>> fileLine =
+      std::optional<std::pair<StringRef, uint32_t>> fileLine =
           getFileLine(sc, r.VirtualAddress);
       Symbol *sym = getSymbol(sc, r.VirtualAddress);
       if (fileLine)
@@ -604,7 +604,7 @@ static std::string getSourceLocationBitcode(BitcodeFile *file) {
 
 static std::string getSourceLocationObj(ObjFile *file, SectionChunk *sc,
                                         uint32_t offset, StringRef name) {
-  Optional<std::pair<StringRef, uint32_t>> fileLine;
+  std::optional<std::pair<StringRef, uint32_t>> fileLine;
   if (sc)
     fileLine = getFileLine(sc, offset);
   if (!fileLine)
@@ -809,9 +809,17 @@ std::vector<Symbol *> SymbolTable::getSymsWithPrefix(StringRef prefix) {
 }
 
 Symbol *SymbolTable::findMangle(StringRef name) {
-  if (Symbol *sym = find(name))
-    if (!isa<Undefined>(sym))
+  if (Symbol *sym = find(name)) {
+    if (auto *u = dyn_cast<Undefined>(sym)) {
+      // We're specifically looking for weak aliases that ultimately resolve to
+      // defined symbols, hence the call to getWeakAlias() instead of just using
+      // the weakAlias member variable. This matches link.exe's behavior.
+      if (Symbol *weakAlias = u->getWeakAlias())
+        return weakAlias;
+    } else {
       return sym;
+    }
+  }
 
   // Efficient fuzzy string lookup is impossible with a hash table, so iterate
   // the symbol table once and collect all possibly matching symbols into this

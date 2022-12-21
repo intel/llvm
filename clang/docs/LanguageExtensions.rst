@@ -632,6 +632,8 @@ Unless specified otherwise operation(±0) = ±0 and operation(±infinity) = ±in
  T __builtin_elementwise_abs(T x)            return the absolute value of a number x; the absolute value of   signed integer and floating point types
                                              the most negative integer remains the most negative integer
  T __builtin_elementwise_ceil(T x)           return the smallest integral value greater than or equal to x    floating point types
+ T __builtin_elementwise_sin(T x)            return the sine of x interpreted as an angle in radians          floating point types
+ T __builtin_elementwise_cos(T x)            return the cosine of x interpreted as an angle in radians        floating point types
  T __builtin_elementwise_floor(T x)          return the largest integral value less than or equal to x        floating point types
  T __builtin_elementwise_roundeven(T x)      round x to the nearest integer value in floating point format,   floating point types
                                              rounding halfway cases to even (that is, to the nearest value
@@ -3247,6 +3249,52 @@ despite these functions accepting an argument of type ``const void*``.
 
 Support for constant expression evaluation for the above builtins can be detected
 with ``__has_feature(cxx_constexpr_string_builtins)``.
+
+Variadic function builtins
+--------------------------
+
+Clang provides several builtins for working with variadic functions from the C
+standard library ``<stdarg.h>`` header:
+
+* ``__builtin_va_list``
+
+A predefined typedef for the target-specific ``va_list`` type.
+
+* ``void __builtin_va_start(__builtin_va_list list, <parameter-name>)``
+
+A builtin function for the target-specific ``va_start`` function-like macro.
+The ``parameter-name`` argument is the name of the parameter preceding the
+ellipsis (``...``) in the function signature. Alternatively, in C2x mode or
+later, it may be the integer literal ``0`` if there is no parameter preceding
+the ellipsis. This function initializes the given ``__builtin_va_list`` object.
+It is undefined behavior to call this function on an already initialized
+``__builin_va_list`` object.
+
+* ``void __builtin_va_end(__builtin_va_list list)``
+
+A builtin function for the target-specific ``va_end`` function-like macro. This
+function finalizes the given ``__builtin_va_list`` object such that it is no
+longer usable unless re-initialized with a call to ``__builtin_va_start`` or
+``__builtin_va_copy``. It is undefined behavior to call this function with a
+``list`` that has not been initialized by either ``__builtin_va_start`` or
+``__builtin_va_copy``.
+
+* ``<type-name> __builtin_va_arg(__builtin_va_list list, <type-name>)``
+
+A builtin function for the target-specific ``va_arg`` function-like macro. This
+function returns the value of the next variadic argument to the call. It is
+undefined behavior to call this builtin when there is no next varadic argument
+to retrieve or if the next variadic argument does not have a type compatible
+with the given ``type-name``. The return type of the function is the
+``type-name`` given as the second argument. It is undefined behavior to call
+this function with a ``list`` that has not been initialized by either
+``__builtin_va_start`` or ``__builtin_va_copy``.
+
+* ``void __builtin_va_copy(__builtin_va_list dest, __builtin_va_list src)``
+
+A builtin function for the target-specific ``va_copy`` function-like macro.
+This function initializes ``dest`` as a copy of ``src``. It is undefined
+behavior to call this function with an already initialized ``dest`` argument.
 
 Memory builtins
 ---------------

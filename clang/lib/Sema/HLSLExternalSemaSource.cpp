@@ -175,9 +175,11 @@ struct BuiltinTypeDeclBuilder {
     Expr *Call = CallExpr::Create(AST, Fn, {RCExpr}, AST.VoidPtrTy, VK_PRValue,
                                   SourceLocation(), FPOptionsOverride());
 
-    CXXThisExpr *This = new (AST)
-        CXXThisExpr(SourceLocation(), Constructor->getThisType(), true);
-    Expr *Handle = MemberExpr::CreateImplicit(AST, This, true, Fields["h"],
+    CXXThisExpr *This = new (AST) CXXThisExpr(
+        SourceLocation(),
+        Constructor->getThisType().getTypePtr()->getPointeeType(), true);
+    This->setValueKind(ExprValueKind::VK_LValue);
+    Expr *Handle = MemberExpr::CreateImplicit(AST, This, false, Fields["h"],
                                               Fields["h"]->getType(), VK_LValue,
                                               OK_Ordinary);
 
@@ -260,10 +262,12 @@ struct BuiltinTypeDeclBuilder {
     auto FnProtoLoc = TSInfo->getTypeLoc().getAs<FunctionProtoTypeLoc>();
     FnProtoLoc.setParam(0, IdxParam);
 
-    auto *This = new (AST)
-        CXXThisExpr(SourceLocation(), MethodDecl->getThisType(), true);
+    auto *This = new (AST) CXXThisExpr(
+        SourceLocation(),
+        MethodDecl->getThisType().getTypePtr()->getPointeeType(), true);
+    This->setValueKind(ExprValueKind::VK_LValue);
     auto *HandleAccess = MemberExpr::CreateImplicit(
-        AST, This, true, Handle, Handle->getType(), VK_LValue, OK_Ordinary);
+        AST, This, false, Handle, Handle->getType(), VK_LValue, OK_Ordinary);
 
     auto *IndexExpr = DeclRefExpr::Create(
         AST, NestedNameSpecifierLoc(), SourceLocation(), IdxParam, false,
@@ -381,9 +385,9 @@ void HLSLExternalSemaSource::InitializeSema(Sema &S) {
   NamespaceDecl *PrevDecl = nullptr;
   if (S.LookupQualifiedName(Result, AST.getTranslationUnitDecl()))
     PrevDecl = Result.getAsSingle<NamespaceDecl>();
-  HLSLNamespace = NamespaceDecl::Create(AST, AST.getTranslationUnitDecl(),
-                                        false, SourceLocation(),
-                                        SourceLocation(), &HLSL, PrevDecl);
+  HLSLNamespace = NamespaceDecl::Create(
+      AST, AST.getTranslationUnitDecl(), /*Inline=*/false, SourceLocation(),
+      SourceLocation(), &HLSL, PrevDecl, /*Nested=*/false);
   HLSLNamespace->setImplicit(true);
   HLSLNamespace->setHasExternalLexicalStorage();
   AST.getTranslationUnitDecl()->addDecl(HLSLNamespace);

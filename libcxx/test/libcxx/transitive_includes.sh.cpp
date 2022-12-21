@@ -27,9 +27,6 @@
 // This test uses --trace-includes, which is not supported by GCC.
 // UNSUPPORTED: gcc
 
-// This test uses -fshow-skipped-includes, which isn't supported on older Clangs
-// UNSUPPORTED: apple-clang-13
-
 // This test doesn't work on AIX, but it should. Needs investigation.
 // XFAIL: buildhost=aix
 
@@ -52,7 +49,7 @@ import re
 # the file and run this test.
 # Note that this needs to be done for all supported language versions of libc++:
 # for std in c++03 c++11 c++14 c++17 c++20 c++2b; do <build>/bin/llvm-lit --param std=$std ${path_to_this_file}; done
-regenerate_expected_results = True
+regenerate_expected_results = False
 # Used because the sequence of tokens RUN : can't appear anywhere or it'll confuse Lit.
 RUN = "RUN"
 
@@ -560,5 +557,6 @@ END-SCRIPT
 #if defined(TEST_140)
 #include <ext/hash_set>
 #endif
-// RUN: %{python} %S/transitive_includes_to_csv.py %t > %S/transitive_includes/%{cxx_std}.csv
+// RUN: %{python} %S/transitive_includes_to_csv.py %t > %t/transitive_includes.csv
+// RUN: diff -w %S/transitive_includes/%{cxx_std}.csv %t/transitive_includes.csv
 // GENERATED-MARKER

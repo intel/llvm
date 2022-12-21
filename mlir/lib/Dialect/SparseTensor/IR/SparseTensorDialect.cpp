@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <utility>
+
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -39,6 +41,18 @@ static bool acceptBitWidth(unsigned bitWidth) {
   }
 }
 
+Type SparseTensorEncodingAttr::getPointerType() const {
+  unsigned ptrWidth = getPointerBitWidth();
+  Type indexType = IndexType::get(getContext());
+  return ptrWidth ? IntegerType::get(getContext(), ptrWidth) : indexType;
+}
+
+Type SparseTensorEncodingAttr::getIndexType() const {
+  unsigned idxWidth = getIndexBitWidth();
+  Type indexType = IndexType::get(getContext());
+  return idxWidth ? IntegerType::get(getContext(), idxWidth) : indexType;
+}
+
 Attribute SparseTensorEncodingAttr::parse(AsmParser &parser, Type type) {
   if (failed(parser.parseLess()))
     return {};
@@ -49,7 +63,7 @@ Attribute SparseTensorEncodingAttr::parse(AsmParser &parser, Type type) {
   if (failed(parser.parseGreater()))
     return {};
   // Process the data from the parsed dictionary value into struct-like data.
-  SmallVector<DimLevelType, 4> dlt;
+  SmallVector<DimLevelType> dlt;
   AffineMap dimOrd = {};
   AffineMap higherOrd = {};
   unsigned ptr = 0;
@@ -298,7 +312,10 @@ uint64_t mlir::sparse_tensor::toStoredDim(const SparseTensorEncodingAttr &enc,
     auto order = enc.getDimOrdering();
     if (order) {
       assert(order.isPermutation());
-      return order.getPermutedPosition(d);
+      auto maybePos =
+          order.getResultPosition(getAffineDimExpr(d, enc.getContext()));
+      assert(maybePos.has_value());
+      return *maybePos;
     }
   }
   return d;
@@ -332,6 +349,13 @@ static LogicalResult isMatchingWidth(Value result, unsigned width) {
   return failure();
 }
 
+LogicalResult NewOp::verify() {
+  if (getExpandSymmetry() &&
+      getResult().getType().cast<RankedTensorType>().getRank() != 2)
+    return emitOpError("expand_symmetry can only be used for 2D tensors");
+  return success();
+}
+
 LogicalResult ConvertOp::verify() {
   if (auto tp1 = getSource().getType().dyn_cast<RankedTensorType>()) {
     if (auto tp2 = getDest().getType().dyn_cast<RankedTensorType>()) {
@@ -343,7 +367,7 @@ LogicalResult ConvertOp::verify() {
       // (e.g. 10 vs. 10, 10 vs. ?, or ? vs. ?), but reject direct mismatches or
       // matches that would need a runtime assert (e.g. 10 vs. 20 or ? vs. 10).
       for (unsigned d = 0, rank = tp1.getRank(); d < rank; d++)
-        if (shape1[d] != shape2[d] && shape2[d] != ShapedType::kDynamicSize)
+        if (shape1[d] != shape2[d] && shape2[d] != ShapedType::kDynamic)
           return emitError("unexpected conversion mismatch in dimension ") << d;
       return success();
     }
@@ -497,7 +521,7 @@ LogicalResult ConcatenateOp::verify() {
   for (auto type : getInputs().getTypes()) {
     auto shape = type.cast<RankedTensorType>().getShape();
     for (auto dim : shape) {
-      if (dim == ShapedType::kDynamicSize)
+      if (ShapedType::isDynamic(dim))
         return emitError("Only statically-sized input tensors are supported.");
     }
   }
@@ -520,7 +544,7 @@ LogicalResult ConcatenateOp::verify() {
   for (unsigned i = 0; i < rank; i++) {
     auto dstDim = dstTp.getShape()[i];
     if (i == concatDim) {
-      if (dstDim != ShapedType::kDynamicSize) {
+      if (!ShapedType::isDynamic(dstDim)) {
         unsigned sumDim = 0;
         for (auto src : getInputs()) {
           // If we reach here, all inputs should have static shapes.
@@ -538,7 +562,7 @@ LogicalResult ConcatenateOp::verify() {
       int64_t prev = dstDim;
       for (auto src : getInputs()) {
         auto d = src.getType().cast<RankedTensorType>().getShape()[i];
-        if (prev != ShapedType::kDynamicSize && d != prev)
+        if (!ShapedType::isDynamic(prev) && d != prev)
           return emitError("All dimensions (expect for the concatenating one) "
                            "should be equal.");
         prev = d;
@@ -559,7 +583,8 @@ LogicalResult InsertOp::verify() {
 void PushBackOp::build(OpBuilder &builder, OperationState &result,
                        Type outBuffer, Value bufferSizes, Value inBuffer,
                        Value value, APInt idx) {
-  build(builder, result, outBuffer, bufferSizes, inBuffer, value, idx, Value());
+  build(builder, result, outBuffer, bufferSizes, inBuffer, value,
+        std::move(idx), Value());
 }
 
 LogicalResult PushBackOp::verify() {
@@ -581,36 +606,63 @@ LogicalResult CompressOp::verify() {
 
 void ForeachOp::build(
     OpBuilder &builder, OperationState &result, Value tensor,
-    function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuilder) {
-  build(builder, result, tensor);
+    function_ref<void(OpBuilder &, Location, ValueRange, Value, ValueRange)>
+        bodyBuilder) {
+  build(builder, result, tensor, std::nullopt, bodyBuilder);
+}
+
+void ForeachOp::build(
+    OpBuilder &builder, OperationState &result, Value tensor,
+    ValueRange initArgs,
+    function_ref<void(OpBuilder &, Location, ValueRange, Value, ValueRange)>
+        bodyBuilder) {
+  build(builder, result, initArgs.getTypes(), tensor, initArgs);
+  // Builds foreach body.
   if (!bodyBuilder)
     return;
-
   auto rtp = tensor.getType().cast<RankedTensorType>();
   int64_t rank = rtp.getRank();
 
-  SmallVector<Type, 4> blockArgTypes;
+  SmallVector<Type> blockArgTypes;
   // Starts with n index.
   std::fill_n(std::back_inserter(blockArgTypes), rank, builder.getIndexType());
   // Followed by one value.
   blockArgTypes.push_back(rtp.getElementType());
+  // Followed by reduction variable.
+  blockArgTypes.append(initArgs.getTypes().begin(), initArgs.getTypes().end());
 
-  SmallVector<Location, 4> blockArgLocs;
-  std::fill_n(std::back_inserter(blockArgLocs), rank + 1, tensor.getLoc());
+  SmallVector<Location> blockArgLocs;
+  std::fill_n(std::back_inserter(blockArgLocs), blockArgTypes.size(),
+              tensor.getLoc());
 
   OpBuilder::InsertionGuard guard(builder);
   auto &region = *result.regions.front();
   Block *bodyBlock =
       builder.createBlock(&region, region.end(), blockArgTypes, blockArgLocs);
-  bodyBuilder(builder, result.location, bodyBlock->getArguments());
+  bodyBuilder(builder, result.location,
+              bodyBlock->getArguments().slice(0, rank),
+              bodyBlock->getArguments()[rank],
+              bodyBlock->getArguments().drop_front(rank + 1));
 }
 
 LogicalResult ForeachOp::verify() {
   auto t = getTensor().getType().cast<RankedTensorType>();
   auto args = getBody()->getArguments();
 
-  if (static_cast<size_t>(t.getRank()) + 1 != args.size())
+  if (static_cast<size_t>(t.getRank()) + 1 + getInitArgs().size() !=
+      args.size())
     return emitError("Unmatched number of arguments in the block");
+
+  if (getNumResults() != getInitArgs().size())
+    return emitError("Mismatch in number of init arguments and results");
+
+  if (getResultTypes() != getInitArgs().getTypes())
+    return emitError("Mismatch in types of init arguments and results");
+
+  auto yield = cast<YieldOp>(getBody()->getTerminator());
+  if (yield.getNumOperands() != getNumResults() ||
+      yield.getOperands().getTypes() != getResultTypes())
+    return emitError("Mismatch in types of yield values and results");
 
   for (int64_t i = 0, e = t.getRank(); i < e; i++)
     if (args[i].getType() != IndexType::get(getContext()))
@@ -618,7 +670,7 @@ LogicalResult ForeachOp::verify() {
           llvm::formatv("Expecting Index type for argument at index {0}", i));
 
   auto elemTp = t.getElementType();
-  auto valueTp = args.back().getType();
+  auto valueTp = args[t.getRank()].getType();
   if (elemTp != valueTp)
     emitError(llvm::formatv("Unmatched element type between input tensor and "
                             "block argument, expected:{0}, got: {1}",
@@ -671,7 +723,7 @@ LogicalResult SortOp::verify() {
       int64_t dim = mtp.getShape()[0];
       // We can't check the size of dynamic dimension at compile-time, but all
       // xs and ys should have a dimension not less than n at runtime.
-      if (n && dim != ShapedType::kDynamicSize && dim < n.value())
+      if (n && !ShapedType::isDynamic(dim) && dim < n.value())
         return emitError(llvm::formatv("xs and ys need to have a dimension >= n"
                                        ": {0} < {1}",
                                        dim, n.value()));
@@ -688,6 +740,42 @@ LogicalResult SortOp::verify() {
 
   if (n)
     return checkTypes(getYs(), false);
+
+  return success();
+}
+
+LogicalResult SortCooOp::verify() {
+  auto cn = getN().getDefiningOp<arith::ConstantIndexOp>();
+  // We can't check the size of the buffers when n or buffer dimensions aren't
+  // compile-time constants.
+  if (!cn)
+    return success();
+
+  uint64_t n = cn.value();
+  uint64_t nx = 1;
+  if (auto nxAttr = getNxAttr()) {
+    nx = nxAttr.getInt();
+    if (nx < 1)
+      emitError(llvm::formatv("Expected nx > 1, got {0}", nx));
+  }
+  uint64_t ny = 0;
+  if (auto nyAttr = getNyAttr()) {
+    ny = nyAttr.getInt();
+  }
+
+  auto checkDim = [&](Value v, uint64_t min, const char *message) {
+    MemRefType tp = v.getType().cast<MemRefType>();
+    int64_t dim = tp.getShape()[0];
+    if (!ShapedType::isDynamic(dim) && dim < (int64_t)min) {
+      emitError(llvm::formatv("{0} got {1} < {2}", message, dim, min));
+    }
+  };
+
+  checkDim(getXy(), n * (nx + ny), "Expected dimension(xy) >= n * (nx + ny)");
+
+  for (Value opnd : getYs()) {
+    checkDim(opnd, n, "Expected dimension(y) >= n");
+  }
 
   return success();
 }

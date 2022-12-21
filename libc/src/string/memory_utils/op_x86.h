@@ -20,15 +20,22 @@
 #include "src/string/memory_utils/op_builtin.h"
 #include "src/string/memory_utils/op_generic.h"
 
-#ifdef __SSE2__
+#if defined(__AVX512BW__) || defined(__AVX512F__) || defined(__AVX2__) ||      \
+    defined(__SSE2__)
 #include <immintrin.h>
-#else
+#endif
+
 // Define fake functions to prevent the compiler from failing on undefined
-// functions in case SSE2 is not present.
+// functions in case the CPU extension is not present.
+#if !defined(__AVX512BW__) && (defined(_MSC_VER) || defined(__SCE__))
 #define _mm512_cmpneq_epi8_mask(A, B) 0
-#define _mm_movemask_epi8(A) 0
+#endif
+#if !defined(__AVX2__) && (defined(_MSC_VER) || defined(__SCE__))
 #define _mm256_movemask_epi8(A) 0
-#endif //  __SSE2__
+#endif
+#if !defined(__SSE2__) && (defined(_MSC_VER) || defined(__SCE__))
+#define _mm_movemask_epi8(A) 0
+#endif
 
 namespace __llvm_libc::x86 {
 
@@ -94,7 +101,8 @@ namespace sse2 {
 static inline BcmpReturnType bcmp16(CPtr p1, CPtr p2) {
   using T = char __attribute__((__vector_size__(16)));
   // A mask indicating which bytes differ after loading 16 bytes from p1 and p2.
-  const int mask = _mm_movemask_epi8(load<T>(p1) != load<T>(p2));
+  const int mask =
+      _mm_movemask_epi8(cpp::bit_cast<__m128i>(load<T>(p1) != load<T>(p2)));
   return static_cast<uint32_t>(mask);
 }
 template <size_t Size> using Bcmp = BcmpImpl<Size, 16, bcmp16>;
@@ -104,7 +112,8 @@ namespace avx2 {
 static inline BcmpReturnType bcmp32(CPtr p1, CPtr p2) {
   using T = char __attribute__((__vector_size__(32)));
   // A mask indicating which bytes differ after loading 32 bytes from p1 and p2.
-  const int mask = _mm256_movemask_epi8(load<T>(p1) != load<T>(p2));
+  const int mask =
+      _mm256_movemask_epi8(cpp::bit_cast<__m256i>(load<T>(p1) != load<T>(p2)));
   // _mm256_movemask_epi8 returns an int but it is to be interpreted as a 32-bit
   // mask.
   return static_cast<uint32_t>(mask);
@@ -185,7 +194,8 @@ namespace sse2 {
 static inline MemcmpReturnType memcmp16(CPtr p1, CPtr p2) {
   using T = char __attribute__((__vector_size__(16)));
   // A mask indicating which bytes differ after loading 16 bytes from p1 and p2.
-  if (int mask = _mm_movemask_epi8(load<T>(p1) != load<T>(p2)))
+  if (int mask =
+          _mm_movemask_epi8(cpp::bit_cast<__m128i>(load<T>(p1) != load<T>(p2))))
     return char_diff_no_zero(p1, p2, mask);
   return MemcmpReturnType::ZERO();
 }
@@ -196,7 +206,8 @@ namespace avx2 {
 static inline MemcmpReturnType memcmp32(CPtr p1, CPtr p2) {
   using T = char __attribute__((__vector_size__(32)));
   // A mask indicating which bytes differ after loading 32 bytes from p1 and p2.
-  if (int mask = _mm256_movemask_epi8(load<T>(p1) != load<T>(p2)))
+  if (int mask = _mm256_movemask_epi8(
+          cpp::bit_cast<__m256i>(load<T>(p1) != load<T>(p2))))
     return char_diff_no_zero(p1, p2, mask);
   return MemcmpReturnType::ZERO();
 }

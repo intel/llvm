@@ -45,6 +45,11 @@ config.targets = frozenset(config.targets_to_build.split())
 for arch in config.targets_to_build.split():
     config.available_features.add(arch.lower() + '-registered-target')
 
+# To modify the default target triple for flang tests.
+if config.flang_test_triple:
+    config.target_triple = config.flang_test_triple
+    config.environment[config.llvm_target_triple_env] = config.flang_test_triple
+
 # excludes: A list of directories to exclude from the testsuite. The 'Inputs'
 # subdirectories contain auxiliary inputs for various tests in their parent
 # directories.
@@ -57,6 +62,13 @@ if config.flang_examples:
 # Plugins (loadable modules)
 if config.has_plugins:
     config.available_features.add('plugins')
+
+if config.linked_bye_extension:
+    config.substitutions.append(('%loadbye', ''))
+else:
+    config.substitutions.append(('%loadbye',
+                                 '-fpass-plugin={}/Bye{}'.format(config.llvm_shlib_dir,
+                                                                 config.llvm_plugin_ext)))
 
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)

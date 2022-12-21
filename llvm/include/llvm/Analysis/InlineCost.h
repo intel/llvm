@@ -20,6 +20,7 @@
 #include "llvm/IR/PassManager.h"
 #include <cassert>
 #include <climits>
+#include <optional>
 
 namespace llvm {
 class AssumptionCache;
@@ -102,12 +103,12 @@ class InlineCost {
   const char *Reason = nullptr;
 
   /// The cost-benefit pair computed by cost-benefit analysis.
-  Optional<CostBenefitPair> CostBenefit = None;
+  Optional<CostBenefitPair> CostBenefit = std::nullopt;
 
   // Trivial constructor, interesting logic in the factory functions below.
   InlineCost(int Cost, int Threshold, int StaticBonusApplied,
              const char *Reason = nullptr,
-             Optional<CostBenefitPair> CostBenefit = None)
+             Optional<CostBenefitPair> CostBenefit = std::nullopt)
       : Cost(Cost), Threshold(Threshold),
         StaticBonusApplied(StaticBonusApplied), Reason(Reason),
         CostBenefit(CostBenefit) {
@@ -121,12 +122,14 @@ public:
     assert(Cost < NeverInlineCost && "Cost crosses sentinel value");
     return InlineCost(Cost, Threshold, StaticBonus);
   }
-  static InlineCost getAlways(const char *Reason,
-                              Optional<CostBenefitPair> CostBenefit = None) {
+  static InlineCost
+  getAlways(const char *Reason,
+            Optional<CostBenefitPair> CostBenefit = std::nullopt) {
     return InlineCost(AlwaysInlineCost, 0, 0, Reason, CostBenefit);
   }
-  static InlineCost getNever(const char *Reason,
-                             Optional<CostBenefitPair> CostBenefit = None) {
+  static InlineCost
+  getNever(const char *Reason,
+           Optional<CostBenefitPair> CostBenefit = std::nullopt) {
     return InlineCost(NeverInlineCost, 0, 0, Reason, CostBenefit);
   }
 
@@ -227,13 +230,13 @@ struct InlineParams {
   Optional<int> ColdCallSiteThreshold;
 
   /// Compute inline cost even when the cost has exceeded the threshold.
-  Optional<bool> ComputeFullInlineCost;
+  std::optional<bool> ComputeFullInlineCost;
 
   /// Indicate whether we should allow inline deferral.
-  Optional<bool> EnableDeferral;
+  std::optional<bool> EnableDeferral;
 
   /// Indicate whether we allow inlining for recursive call.
-  Optional<bool> AllowRecursiveCall = false;
+  std::optional<bool> AllowRecursiveCall = false;
 };
 
 Optional<int> getStringFnAttrAsInt(CallBase &CB, StringRef AttrKind);
@@ -297,8 +300,8 @@ getInlineCost(CallBase &Call, Function *Callee, const InlineParams &Params,
 /// because of user directives, and the inlining is viable. Returns
 /// InlineResult::failure() if the inlining may never happen because of user
 /// directives or incompatibilities detectable without needing callee traversal.
-/// Otherwise returns None, meaning that inlining should be decided based on
-/// other criteria (e.g. cost modeling).
+/// Otherwise returns std::nullopt, meaning that inlining should be decided
+/// based on other criteria (e.g. cost modeling).
 Optional<InlineResult> getAttributeBasedInliningDecision(
     CallBase &Call, Function *Callee, TargetTransformInfo &CalleeTTI,
     function_ref<const TargetLibraryInfo &(Function &)> GetTLI);
@@ -309,7 +312,7 @@ Optional<InlineResult> getAttributeBasedInliningDecision(
 /// Contrary to getInlineCost, which makes a threshold-based final evaluation of
 /// should/shouldn't inline, captured in InlineResult, getInliningCostEstimate
 /// returns:
-/// - None, if the inlining cannot happen (is illegal)
+/// - std::nullopt, if the inlining cannot happen (is illegal)
 /// - an integer, representing the cost.
 Optional<int> getInliningCostEstimate(
     CallBase &Call, TargetTransformInfo &CalleeTTI,

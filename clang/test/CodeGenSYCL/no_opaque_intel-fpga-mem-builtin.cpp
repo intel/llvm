@@ -67,7 +67,7 @@ void foo(float *A, int *B, State *C, State &D) {
   f = __builtin_intel_fpga_mem(&F, PARAM_1 | PARAM_2, 127);
 }
 
-// CHECK-DAG: attributes [[ATT]] = { readnone }
+// CHECK-DAG: attributes [[ATT]] = { memory(none) }
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {

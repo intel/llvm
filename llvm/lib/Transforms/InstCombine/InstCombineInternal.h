@@ -167,6 +167,7 @@ public:
   Instruction *visitInsertValueInst(InsertValueInst &IV);
   Instruction *visitInsertElementInst(InsertElementInst &IE);
   Instruction *visitExtractElementInst(ExtractElementInst &EI);
+  Instruction *simplifyBinOpSplats(ShuffleVectorInst &SVI);
   Instruction *visitShuffleVectorInst(ShuffleVectorInst &SVI);
   Instruction *visitExtractValueInst(ExtractValueInst &EV);
   Instruction *visitLandingPadInst(LandingPadInst &LI);
@@ -369,6 +370,7 @@ private:
   Instruction *foldExtractOfOverflowIntrinsic(ExtractValueInst &EV);
   Instruction *foldIntrinsicWithOverflowCommon(IntrinsicInst *II);
   Instruction *foldFPSignBitOps(BinaryOperator &I);
+  Instruction *foldFDivConstantDivisor(BinaryOperator &I);
 
   // Optimize one of these forms:
   //   and i1 Op, SI / select i1 Op, i1 SI, i1 false (if IsAnd = true)
@@ -386,7 +388,7 @@ public:
     assert(New && !New->getParent() &&
            "New instruction already inserted into a basic block!");
     BasicBlock *BB = Old.getParent();
-    BB->getInstList().insert(Old.getIterator(), New); // Insert inst
+    New->insertAt(BB, Old.getIterator()); // Insert inst
     Worklist.add(New);
     return New;
   }

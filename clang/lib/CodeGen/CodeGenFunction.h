@@ -539,7 +539,7 @@ public:
   /// potentially set the return value.
   bool SawAsmBlock = false;
 
-  const NamedDecl *CurSEHParent = nullptr;
+  GlobalDecl CurSEHParent;
 
   /// True if the current function is an outlined SEH helper. This can be a
   /// finally block or filter expression.
@@ -2021,7 +2021,7 @@ public:
     return getInvokeDestImpl();
   }
 
-  bool currentFunctionUsesSEHTry() const { return CurSEHParent != nullptr; }
+  bool currentFunctionUsesSEHTry() const { return !!CurSEHParent; }
 
   const TargetInfo &getTarget() const { return Target; }
   llvm::LLVMContext &getLLVMContext() { return CGM.getLLVMContext(); }
@@ -2231,7 +2231,7 @@ public:
   /// Emit the unified return block, trying to avoid its emission when
   /// possible.
   /// \return The debug location of the user written return statement if the
-  /// return block is is avoided.
+  /// return block is avoided.
   llvm::DebugLoc EmitReturnBlock();
 
   /// FinishFunction - Complete IR generation of the current function. It is
@@ -2884,7 +2884,7 @@ public:
                               AggValueSlot::Overlap_t Overlap,
                               SourceLocation Loc, bool NewPointerIsChecked);
 
-  /// Emit assumption load for all bases. Requires to be be called only on
+  /// Emit assumption load for all bases. Requires to be called only on
   /// most-derived class and not under construction of the object.
   void EmitVTableAssumptionLoads(const CXXRecordDecl *ClassDecl, Address This);
 
@@ -3213,7 +3213,7 @@ public:
   /// This function may clear the current insertion point; callers should use
   /// EnsureInsertPoint if they wish to subsequently generate code without first
   /// calling EmitBlock, EmitBranch, or EmitStmt.
-  void EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs = None);
+  void EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs = std::nullopt);
 
   /// EmitSimpleStmt - Try to emit a "simple" statement which does not
   /// necessarily require an insertion point or debug information; typically
@@ -3241,10 +3241,10 @@ public:
   void EmitIfStmt(const IfStmt &S);
 
   void EmitWhileStmt(const WhileStmt &S,
-                     ArrayRef<const Attr *> Attrs = None);
-  void EmitDoStmt(const DoStmt &S, ArrayRef<const Attr *> Attrs = None);
+                     ArrayRef<const Attr *> Attrs = std::nullopt);
+  void EmitDoStmt(const DoStmt &S, ArrayRef<const Attr *> Attrs = std::nullopt);
   void EmitForStmt(const ForStmt &S,
-                   ArrayRef<const Attr *> Attrs = None);
+                   ArrayRef<const Attr *> Attrs = std::nullopt);
   void EmitReturnStmt(const ReturnStmt &S);
   void EmitDeclStmt(const DeclStmt &S);
   void EmitBreakStmt(const BreakStmt &S);
@@ -3321,7 +3321,7 @@ public:
                                     llvm::Value *ParentFP);
 
   void EmitCXXForRangeStmt(const CXXForRangeStmt &S,
-                           ArrayRef<const Attr *> Attrs = None);
+                           ArrayRef<const Attr *> Attrs = std::nullopt);
 
   /// Controls insertion of cancellation exit blocks in worksharing constructs.
   class OMPCancelStackRAII {
@@ -3520,6 +3520,7 @@ public:
   void EmitOMPParallelMasterDirective(const OMPParallelMasterDirective &S);
   void EmitOMPTaskDirective(const OMPTaskDirective &S);
   void EmitOMPTaskyieldDirective(const OMPTaskyieldDirective &S);
+  void EmitOMPErrorDirective(const OMPErrorDirective &S);
   void EmitOMPBarrierDirective(const OMPBarrierDirective &S);
   void EmitOMPTaskwaitDirective(const OMPTaskwaitDirective &S);
   void EmitOMPTaskgroupDirective(const OMPTaskgroupDirective &S);
@@ -3973,6 +3974,8 @@ public:
 
   llvm::Value *EmitIvarOffset(const ObjCInterfaceDecl *Interface,
                               const ObjCIvarDecl *Ivar);
+  llvm::Value *EmitIvarOffsetAsPointerDiff(const ObjCInterfaceDecl *Interface,
+                                           const ObjCIvarDecl *Ivar);
   LValue EmitLValueForField(LValue Base, const FieldDecl* Field);
   LValue EmitLValueForLambdaField(const FieldDecl *Field);
 
@@ -4259,6 +4262,7 @@ public:
   llvm::Value *EmitHexagonBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
   llvm::Value *EmitRISCVBuiltinExpr(unsigned BuiltinID, const CallExpr *E,
                                     ReturnValueSlot ReturnValue);
+  llvm::Value *EmitLoongArchBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
   void ProcessOrderScopeAMDGCN(llvm::Value *Order, llvm::Value *Scope,
                                llvm::AtomicOrdering &AO,
                                llvm::SyncScope::ID &SSID);

@@ -29,7 +29,7 @@ static void registerAllUpstreamDialects(MlirContext ctx) {
   mlirDialectRegistryDestroy(registry);
 }
 
-void testRunPassOnModule() {
+void testRunPassOnModule(void) {
   MlirContext ctx = mlirContextCreate();
   registerAllUpstreamDialects(ctx);
 
@@ -67,7 +67,7 @@ void testRunPassOnModule() {
   mlirContextDestroy(ctx);
 }
 
-void testRunPassOnNestedModule() {
+void testRunPassOnNestedModule(void) {
   MlirContext ctx = mlirContextCreate();
   registerAllUpstreamDialects(ctx);
 
@@ -138,7 +138,7 @@ static void dontPrint(MlirStringRef str, void *userData) {
   (void)userData;
 }
 
-void testPrintPassPipeline() {
+void testPrintPassPipeline(void) {
   MlirContext ctx = mlirContextCreate();
   MlirPassManager pm = mlirPassManagerCreateOnOperation(
       ctx, mlirStringRefCreateFromCString("any"));
@@ -175,14 +175,15 @@ void testPrintPassPipeline() {
   mlirContextDestroy(ctx);
 }
 
-void testParsePassPipeline() {
+void testParsePassPipeline(void) {
   MlirContext ctx = mlirContextCreate();
   MlirPassManager pm = mlirPassManagerCreate(ctx);
   // Try parse a pipeline.
   MlirLogicalResult status = mlirParsePassPipeline(
       mlirPassManagerGetAsOpPassManager(pm),
       mlirStringRefCreateFromCString(
-          "builtin.module(func.func(print-op-stats{json=false}))"));
+          "builtin.module(func.func(print-op-stats{json=false}))"),
+      printToStderr, NULL);
   // Expect a failure, we haven't registered the print-op-stats pass yet.
   if (mlirLogicalResultIsSuccess(status)) {
     fprintf(
@@ -195,7 +196,8 @@ void testParsePassPipeline() {
   status = mlirParsePassPipeline(
       mlirPassManagerGetAsOpPassManager(pm),
       mlirStringRefCreateFromCString(
-          "builtin.module(func.func(print-op-stats{json=false}))"));
+          "builtin.module(func.func(print-op-stats{json=false}))"),
+      printToStderr, NULL);
   // Expect a failure, we haven't registered the print-op-stats pass yet.
   if (mlirLogicalResultIsFailure(status)) {
     fprintf(stderr,
@@ -203,9 +205,7 @@ void testParsePassPipeline() {
     exit(EXIT_FAILURE);
   }
 
-  //      CHECK: Round-trip: builtin.module(
-  // CHECK-SAME:   builtin.module(func.func(print-op-stats{json=false}))
-  // CHECK-SAME: )
+  // CHECK: Round-trip: builtin.module(func.func(print-op-stats{json=false}))
   fprintf(stderr, "Round-trip: ");
   mlirPrintPassPipeline(mlirPassManagerGetAsOpPassManager(pm), printToStderr,
                         NULL);
@@ -221,7 +221,7 @@ void testParsePassPipeline() {
     exit(EXIT_FAILURE);
   }
   //      CHECK: Appended: builtin.module(
-  // CHECK-SAME:   builtin.module(func.func(print-op-stats{json=false})),
+  // CHECK-SAME:   func.func(print-op-stats{json=false}),
   // CHECK-SAME:   func.func(print-op-stats{json=false})
   // CHECK-SAME: )
   fprintf(stderr, "Appended: ");
@@ -233,7 +233,7 @@ void testParsePassPipeline() {
   mlirContextDestroy(ctx);
 }
 
-void testParseErrorCapture() {
+void testParseErrorCapture(void) {
   // CHECK-LABEL: testParseErrorCapture:
   fprintf(stderr, "\nTEST: testParseErrorCapture:\n");
 
@@ -241,6 +241,14 @@ void testParseErrorCapture() {
   MlirPassManager pm = mlirPassManagerCreate(ctx);
   MlirOpPassManager opm = mlirPassManagerGetAsOpPassManager(pm);
   MlirStringRef invalidPipeline = mlirStringRefCreateFromCString("invalid");
+
+  // CHECK: mlirParsePassPipeline:
+  // CHECK: expected pass pipeline to be wrapped with the anchor operation type
+  fprintf(stderr, "mlirParsePassPipeline:\n");
+  if (mlirLogicalResultIsSuccess(
+          mlirParsePassPipeline(opm, invalidPipeline, printToStderr, NULL)))
+    exit(EXIT_FAILURE);
+  fprintf(stderr, "\n");
 
   // CHECK: mlirOpPassManagerAddPipeline:
   // CHECK: 'invalid' does not refer to a registered pass or pass pipeline
@@ -253,6 +261,9 @@ void testParseErrorCapture() {
   // Make sure all output is going through the callback.
   // CHECK: dontPrint: <>
   fprintf(stderr, "dontPrint: <");
+  if (mlirLogicalResultIsSuccess(
+          mlirParsePassPipeline(opm, invalidPipeline, dontPrint, NULL)))
+    exit(EXIT_FAILURE);
   if (mlirLogicalResultIsSuccess(
           mlirOpPassManagerAddPipeline(opm, invalidPipeline, dontPrint, NULL)))
     exit(EXIT_FAILURE);
@@ -324,7 +335,7 @@ MlirExternalPassCallbacks makeTestExternalPassCallbacks(
                                      testCloneExternalPass, runPass};
 }
 
-void testExternalPass() {
+void testExternalPass(void) {
   MlirContext ctx = mlirContextCreate();
   registerAllUpstreamDialects(ctx);
 
@@ -580,7 +591,7 @@ void testExternalPass() {
   mlirContextDestroy(ctx);
 }
 
-int main() {
+int main(void) {
   testRunPassOnModule();
   testRunPassOnNestedModule();
   testPrintPassPipeline();

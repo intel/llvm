@@ -91,15 +91,15 @@ public:
   /// to any of the following forms(where `T` is a class derived from `Type`:
   ///   * Optional<Type>(T)
   ///     - This form represents a 1-1 type conversion. It should return nullptr
-  ///       or `llvm::None` to signify failure. If `llvm::None` is returned, the
-  ///       converter is allowed to try another conversion function to perform
-  ///       the conversion.
+  ///       or `std::nullopt` to signify failure. If `std::nullopt` is returned,
+  ///       the converter is allowed to try another conversion function to
+  ///       perform the conversion.
   ///   * Optional<LogicalResult>(T, SmallVectorImpl<Type> &)
   ///     - This form represents a 1-N type conversion. It should return
-  ///       `failure` or `llvm::None` to signify a failed conversion. If the new
-  ///       set of types is empty, the type is removed and any usages of the
+  ///       `failure` or `std::nullopt` to signify a failed conversion. If the
+  ///       new set of types is empty, the type is removed and any usages of the
   ///       existing value are expected to be removed during conversion. If
-  ///       `llvm::None` is returned, the converter is allowed to try another
+  ///       `std::nullopt` is returned, the converter is allowed to try another
   ///       conversion function to perform the conversion.
   ///   * Optional<LogicalResult>(T, SmallVectorImpl<Type> &, ArrayRef<Type>)
   ///     - This form represents a 1-N type conversion supporting recursive
@@ -123,7 +123,7 @@ public:
   /// where `T` is any subclass of `Type`. This function is responsible for
   /// creating an operation, using the OpBuilder and Location provided, that
   /// "casts" a range of values into a single value of the given type `T`. It
-  /// must return a Value of the converted type on success, an `llvm::None` if
+  /// must return a Value of the converted type on success, an `std::nullopt` if
   /// it failed but other materialization can be attempted, and `nullptr` on
   /// unrecoverable failure. It will only be called for (sub)types of `T`.
   /// Materialization functions must be provided when a type conversion may
@@ -202,7 +202,7 @@ public:
 
   /// This function converts the type signature of the given block, by invoking
   /// 'convertSignatureArg' for each argument. This function should return a
-  /// valid conversion for the signature on success, None otherwise.
+  /// valid conversion for the signature on success, std::nullopt otherwise.
   Optional<SignatureConversion> convertBlockSignature(Block *block);
 
   /// Materialize a conversion from a set of types into one result type by
@@ -284,7 +284,7 @@ private:
                ArrayRef<Type> callStack) -> Optional<LogicalResult> {
       T derivedType = type.dyn_cast<T>();
       if (!derivedType)
-        return llvm::None;
+        return std::nullopt;
       return callback(derivedType, results, callStack);
     };
   }
@@ -306,7 +306,7 @@ private:
                Location loc) -> Optional<Value> {
       if (T derivedType = resultType.dyn_cast<T>())
         return callback(builder, derivedType, inputs, loc);
-      return llvm::None;
+      return std::nullopt;
     };
   }
 
@@ -507,6 +507,9 @@ void populateFunctionOpInterfaceTypeConversionPattern(
                                                    patterns, converter);
 }
 
+void populateAnyFunctionOpInterfaceTypeConversionPattern(
+    RewritePatternSet &patterns, TypeConverter &converter);
+
 //===----------------------------------------------------------------------===//
 // Conversion PatternRewriter
 //===----------------------------------------------------------------------===//
@@ -570,6 +573,11 @@ public:
   //===--------------------------------------------------------------------===//
   // PatternRewriter Hooks
   //===--------------------------------------------------------------------===//
+
+  /// Indicate that the conversion rewriter can recover from rewrite failure.
+  /// Recovery is supported via rollback, allowing for continued processing of
+  /// patterns even if a failure is encountered during the rewrite step.
+  bool canRecoverFromRewriteFailure() const override { return true; }
 
   /// PatternRewriter hook for replacing the results of an operation when the
   /// given functor returns true.
@@ -826,8 +834,9 @@ public:
 
   /// If the given operation instance is legal on this target, a structure
   /// containing legality information is returned. If the operation is not
-  /// legal, None is returned. Also returns None is operation legality wasn't
-  /// registered by user or dynamic legality callbacks returned None.
+  /// legal, std::nullopt is returned. Also returns std::nullopt if operation
+  /// legality wasn't registered by user or dynamic legality callbacks returned
+  /// None.
   ///
   /// Note: Legality is actually a 4-state: Legal(recursive=true),
   /// Legal(recursive=false), Illegal or Unknown, where Unknown is treated
@@ -887,6 +896,35 @@ private:
   /// The current context this target applies to.
   MLIRContext &ctx;
 };
+
+//===----------------------------------------------------------------------===//
+// PDL Configuration
+//===----------------------------------------------------------------------===//
+
+/// A PDL configuration that is used to supported dialect conversion
+/// functionality.
+class PDLConversionConfig final
+    : public PDLPatternConfigBase<PDLConversionConfig> {
+public:
+  PDLConversionConfig(TypeConverter *converter) : converter(converter) {}
+  ~PDLConversionConfig() final = default;
+
+  /// Return the type converter used by this configuration, which may be nullptr
+  /// if no type conversions are expected.
+  TypeConverter *getTypeConverter() const { return converter; }
+
+  /// Hooks that are invoked at the beginning and end of a rewrite of a matched
+  /// pattern.
+  void notifyRewriteBegin(PatternRewriter &rewriter) final;
+  void notifyRewriteEnd(PatternRewriter &rewriter) final;
+
+private:
+  /// An optional type converter to use for the pattern.
+  TypeConverter *converter;
+};
+
+/// Register the dialect conversion PDL functions with the given pattern set.
+void registerConversionPDLFunctions(RewritePatternSet &patterns);
 
 //===----------------------------------------------------------------------===//
 // Op Conversion Entry Points

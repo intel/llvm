@@ -490,6 +490,10 @@ def F128 : F<128>;
 
 def BF16 : Type<CPred<"$_self.isBF16()">, "bfloat16 type">,
            BuildableType<"$_builder.getBF16Type()">;
+def F8E4M3FN : Type<CPred<"$_self.isFloat8E4M3FN()">, "f8E4M3FN type">,
+               BuildableType<"$_builder.getFloat8E4M3FNType()">;
+def F8E5M2 : Type<CPred<"$_self.isFloat8E5M2()">, "f8E5M2 type">,
+             BuildableType<"$_builder.getFloat8E5M2Type()">;
 
 def AnyComplex : Type<CPred<"$_self.isa<::mlir::ComplexType>()">,
                       "complex-type", "::mlir::ComplexType">;
@@ -579,9 +583,37 @@ class IsVectorOfRankPred<list<int> allowedRanks> :
                            == }]
                          # allowedlength>)>]>;
 
+// Whether the number of elements of a fixed-length vector is from the given
+// `allowedRanks` list
+class IsFixedVectorOfRankPred<list<int> allowedRanks> :
+  And<[IsFixedVectorTypePred,
+       Or<!foreach(allowedlength, allowedRanks,
+                   CPred<[{$_self.cast<::mlir::VectorType>().getRank()
+                           == }]
+                         # allowedlength>)>]>;
+
+// Whether the number of elements of a scalable vector is from the given
+// `allowedRanks` list
+class IsScalableVectorOfRankPred<list<int> allowedRanks> :
+  And<[IsScalableVectorTypePred,
+       Or<!foreach(allowedlength, allowedRanks,
+                   CPred<[{$_self.cast<::mlir::VectorType>().getRank()
+                           == }]
+                         # allowedlength>)>]>;
+
 // Any vector where the rank is from the given `allowedRanks` list
 class VectorOfRank<list<int> allowedRanks> : Type<
   IsVectorOfRankPred<allowedRanks>,
+  " of ranks " # !interleave(allowedRanks, "/"), "::mlir::VectorType">;
+
+// Any fixed-length vector where the rank is from the given `allowedRanks` list
+class FixedVectorOfRank<list<int> allowedRanks> : Type<
+  IsFixedVectorOfRankPred<allowedRanks>,
+  " of ranks " # !interleave(allowedRanks, "/"), "::mlir::VectorType">;
+
+// Any scalable vector where the rank is from the given `allowedRanks` list
+class ScalableVectorOfRank<list<int> allowedRanks> : Type<
+  IsScalableVectorOfRankPred<allowedRanks>,
   " of ranks " # !interleave(allowedRanks, "/"), "::mlir::VectorType">;
 
 // Any vector where the rank is from the given `allowedRanks` list and the type
@@ -1003,7 +1035,7 @@ class OptionalAttr<Attr attr> : Attr<attr.predicate, attr.summary> {
   let storageType = attr.storageType;
   let returnType = "::llvm::Optional<" # attr.returnType #">";
   let convertFromStorage = "$_self ? " # returnType # "(" #
-                           attr.convertFromStorage # ") : (::llvm::None)";
+                           attr.convertFromStorage # ") : (::std::nullopt)";
   let valueType = attr.valueType;
   let isOptional = 1;
 
@@ -1492,6 +1524,8 @@ def TypeArrayAttr : TypedArrayAttrBase<TypeAttr, "type array attribute"> {
 }
 def IndexListArrayAttr :
   TypedArrayAttrBase<I64ArrayAttr, "Array of 64-bit integer array attributes">;
+def DictArrayAttr :
+  TypedArrayAttrBase<DictionaryAttr, "Array of dictionary attributes">;
 
 // Attributes containing symbol references.
 def SymbolRefAttr : Attr<CPred<"$_self.isa<::mlir::SymbolRefAttr>()">,
@@ -1636,6 +1670,16 @@ class ArrayMinCount<int n> : AttrConstraint<
 class ArrayCount<int n> : AttrConstraint<
     CPred<"$_self.cast<::mlir::ArrayAttr>().size() == " #n>,
     "with exactly " # n # " elements">;
+
+class DenseArrayStrictlyPositive<DenseArrayAttrBase arrayType> : AttrConstraint<
+  CPred<"::llvm::all_of($_self.cast<" # arrayType #">().asArrayRef(), "
+                        "[&](auto v) { return v > 0; })">,
+  "whose value is positive">;
+
+class DenseArrayNonNegative<DenseArrayAttrBase arrayType> : AttrConstraint<
+  CPred<"::llvm::all_of($_self.cast<" # arrayType #">().asArrayRef(), "
+                        "[&](auto v) { return v >= 0; })">,
+  "whose value is non-negative">;
 
 class DenseArraySorted<DenseArrayAttrBase arrayType> : AttrConstraint<
     CPred<"llvm::is_sorted($_self.cast<" # arrayType # ">().asArrayRef())">,

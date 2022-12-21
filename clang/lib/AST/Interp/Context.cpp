@@ -29,7 +29,7 @@ Context::~Context() {}
 bool Context::isPotentialConstantExpr(State &Parent, const FunctionDecl *FD) {
   assert(Stk.empty());
   Function *Func = P->getFunction(FD);
-  if (!Func) {
+  if (!Func || !Func->hasBody()) {
     if (auto R = ByteCodeStmtGen<ByteCodeEmitter>(*this, *P).compileFunc(FD)) {
       Func = *R;
     } else {
@@ -72,7 +72,7 @@ bool Context::evaluateAsInitializer(State &Parent, const VarDecl *VD,
 
 const LangOptions &Context::getLangOpts() const { return Ctx.getLangOpts(); }
 
-llvm::Optional<PrimType> Context::classify(QualType T) const {
+std::optional<PrimType> Context::classify(QualType T) const {
   if (T->isReferenceType() || T->isPointerType()) {
     return PT_Ptr;
   }

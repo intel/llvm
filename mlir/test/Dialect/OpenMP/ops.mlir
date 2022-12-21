@@ -145,7 +145,7 @@ func.func @omp_wsloop(%lb : index, %ub : index, %step : index, %data_var : memre
     (index, index, index) -> ()
 
   // CHECK: omp.wsloop linear(%{{.*}} = %{{.*}} : memref<i32>) schedule(static)
-  // CHECK-SAMe: for (%{{.*}}) : index = (%{{.*}}) to (%{{.*}}) step (%{{.*}})
+  // CHECK-SAME: for (%{{.*}}) : index = (%{{.*}}) to (%{{.*}}) step (%{{.*}})
   "omp.wsloop" (%lb, %ub, %step, %data_var, %linear_var) ({
     ^bb0(%iv: index):
       omp.yield
@@ -393,6 +393,16 @@ func.func @omp_simdloop_pretty_aligned(%lb : index, %ub : index, %step : index,
 func.func @omp_simdloop_pretty_if(%lb : index, %ub : index, %step : index, %if_cond : i1) -> () {
   // CHECK: omp.simdloop if(%{{.*}}) for (%{{.*}}) : index = (%{{.*}}) to (%{{.*}}) step (%{{.*}})
   omp.simdloop if(%if_cond) for (%iv): index = (%lb) to (%ub) step (%step) {
+    omp.yield
+  }
+  return
+}
+
+// CHECK-LABEL: omp_simdloop_pretty_order
+func.func @omp_simdloop_pretty_order(%lb : index, %ub : index, %step : index) -> () {
+  // CHECK: omp.simdloop order(concurrent)
+  // CHECK-SAME: for (%{{.*}}) : index = (%{{.*}}) to (%{{.*}}) step (%{{.*}})
+  omp.simdloop order(concurrent) for (%iv): index = (%lb) to (%ub) step (%step) {
     omp.yield
   }
   return
@@ -796,12 +806,12 @@ func.func @omp_atomic_update(%x : memref<i32>, %expr : i32, %xBool : memref<i1>,
   }
   // CHECK: omp.atomic.update %[[X]] : memref<i32>
   // CHECK-NEXT: (%[[XVAL:.*]]: i32):
-  // CHECK-NEXT:   %[[NEWVAL:.*]] = "llvm.intr.smax"(%[[XVAL]], %[[EXPR]]) : (i32, i32) -> i32
+  // CHECK-NEXT:   %[[NEWVAL:.*]] = llvm.intr.smax(%[[XVAL]], %[[EXPR]]) : (i32, i32) -> i32
   // CHECK-NEXT:   omp.yield(%[[NEWVAL]] : i32)
   // CHECK-NEXT: }
   omp.atomic.update %x : memref<i32> {
   ^bb0(%xval: i32):
-    %newval = "llvm.intr.smax"(%xval, %expr) : (i32, i32) -> i32
+    %newval = llvm.intr.smax(%xval, %expr) : (i32, i32) -> i32
     omp.yield(%newval : i32)
   }
 

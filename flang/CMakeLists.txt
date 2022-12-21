@@ -31,12 +31,29 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   message("Building Flang as a standalone project.")
   project(Flang)
   set(FLANG_STANDALONE_BUILD ON)
+  if ("${CMAKE_VERSION}" VERSION_LESS "3.20.0")
+    message(WARNING
+      "Your CMake version is ${CMAKE_VERSION}. Starting with LLVM 17.0.0, the "
+      "minimum version of CMake required to build LLVM will become 3.20.0, and "
+      "using an older CMake will become an error. Please upgrade your CMake to "
+      "at least 3.20.0 now to avoid issues in the future!")
+  endif()
 else()
   set(FLANG_STANDALONE_BUILD OFF)
 endif()
 
 # Must go below project(..)
 include(GNUInstallDirs)
+
+# MSVC + clang-cl build requires clang_rt.builtin.${target} library
+if (MSVC AND CMAKE_CXX_COMPILER_ID MATCHES Clang)
+  include(HandleCompilerRT)
+  find_compiler_rt_library(builtins CLANG_RT_BUILTINS_LIBRARY)
+  get_filename_component(LIBDIR "${CLANG_RT_BUILTINS_LIBRARY}" DIRECTORY)
+  if (IS_DIRECTORY "${LIBDIR}")
+    link_libraries(${CLANG_RT_BUILTINS_LIBRARY})
+  endif()
+endif()
 
 if (FLANG_STANDALONE_BUILD)
   set(FLANG_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
@@ -148,29 +165,12 @@ if (FLANG_STANDALONE_BUILD)
   get_errc_messages(LLVM_LIT_ERRC_MESSAGES)
 
 #Handle unittests when out-of-tree
-#LLVM_BUILD_MAIN_SRC_DIR - Path to llvm source when out-of-tree.
   set(FLANG_GTEST_AVAIL 0)
   if (FLANG_INCLUDE_TESTS)
-    set(UNITTEST_DIR ${LLVM_BUILD_MAIN_SRC_DIR}/utils/unittest)
+    set(UNITTEST_DIR ${LLVM_THIRD_PARTY_DIR}/unittest)
     if(EXISTS ${UNITTEST_DIR}/googletest/include/gtest/gtest.h)
       if (NOT TARGET llvm_gtest)
-        add_library(llvm_gtest
-          ${UNITTEST_DIR}/googletest/src/gtest-all.cc
-          ${UNITTEST_DIR}/googlemock/src/gmock-all.cc
-          )
-        target_include_directories(llvm_gtest
-          PUBLIC
-          "${UNITTEST_DIR}/googletest/include"
-          "${UNITTEST_DIR}/googlemock/include"
-
-          PRIVATE
-          "${UNITTEST_DIR}/googletest"
-          "${UNITTEST_DIR}/googlemock"
-          )
-         find_package(Threads)
-         target_link_libraries(llvm_gtest PUBLIC Threads::Threads)
-        add_library(llvm_gtest_main ${UNITTEST_DIR}/UnitTestMain/TestMain.cpp)
-        target_link_libraries(gtest_main PUBLIC llvm_gtest)
+        add_subdirectory(${UNITTEST_DIR} third-party/unittest)
       endif()
       set(FLANG_GTEST_AVAIL 1)
     else()
@@ -200,8 +200,8 @@ else()
     set(FLANG_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
   endif()
 
-  set(MLIR_MAIN_SRC_DIR ${LLVM_MAIN_SRC_DIR}/../mlir/include ) # --src-root
-  set(MLIR_INCLUDE_DIR ${LLVM_MAIN_SRC_DIR}/../mlir/include ) # --includedir
+  set(MLIR_MAIN_SRC_DIR ${LLVM_MAIN_SRC_DIR}/../mlir ) # --src-root
+  set(MLIR_INCLUDE_DIR ${MLIR_MAIN_SRC_DIR}/include ) # --includedir
   set(MLIR_TABLEGEN_OUTPUT_DIR ${CMAKE_BINARY_DIR}/tools/mlir/include)
   include_directories(SYSTEM ${MLIR_INCLUDE_DIR})
   include_directories(SYSTEM ${MLIR_TABLEGEN_OUTPUT_DIR})
@@ -411,6 +411,9 @@ endif()
 include(CMakeParseArguments)
 include(AddFlang)
 
+if (FLANG_INCLUDE_TESTS)
+  add_compile_definitions(FLANG_INCLUDE_TESTS=1)
+endif()
 
 add_subdirectory(include)
 add_subdirectory(lib)

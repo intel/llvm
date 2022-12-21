@@ -2032,12 +2032,34 @@ Instruction *InstCombinerImpl::visitSub(BinaryOperator &I) {
   }
 
   const APInt *Op0C;
-  if (match(Op0, m_APInt(Op0C)) && Op0C->isMask()) {
-    // Turn this into a xor if LHS is 2^n-1 and the remaining bits are known
-    // zero.
-    KnownBits RHSKnown = computeKnownBits(Op1, 0, &I);
-    if ((*Op0C | RHSKnown.Zero).isAllOnes())
-      return BinaryOperator::CreateXor(Op1, Op0);
+  if (match(Op0, m_APInt(Op0C))) {
+    if (Op0C->isMask()) {
+      // Turn this into a xor if LHS is 2^n-1 and the remaining bits are known
+      // zero.
+      KnownBits RHSKnown = computeKnownBits(Op1, 0, &I);
+      if ((*Op0C | RHSKnown.Zero).isAllOnes())
+        return BinaryOperator::CreateXor(Op1, Op0);
+    }
+
+    // C - ((C3 -nuw X) & C2) --> (C - (C2 & C3)) + (X & C2) when:
+    // (C3 - ((C2 & C3) - 1)) is pow2
+    // ((C2 + C3) & ((C2 & C3) - 1)) == ((C2 & C3) - 1)
+    // C2 is negative pow2 || sub nuw
+    const APInt *C2, *C3;
+    BinaryOperator *InnerSub;
+    if (match(Op1, m_OneUse(m_And(m_BinOp(InnerSub), m_APInt(C2)))) &&
+        match(InnerSub, m_Sub(m_APInt(C3), m_Value(X))) &&
+        (InnerSub->hasNoUnsignedWrap() || C2->isNegatedPowerOf2())) {
+      APInt C2AndC3 = *C2 & *C3;
+      APInt C2AndC3Minus1 = C2AndC3 - 1;
+      APInt C2AddC3 = *C2 + *C3;
+      if ((*C3 - C2AndC3Minus1).isPowerOf2() &&
+          C2AndC3Minus1.isSubsetOf(C2AddC3)) {
+        Value *And = Builder.CreateAnd(X, ConstantInt::get(I.getType(), *C2));
+        return BinaryOperator::CreateAdd(
+            And, ConstantInt::get(I.getType(), *Op0C - C2AndC3));
+      }
+    }
   }
 
   {
@@ -2386,14 +2408,18 @@ Instruction *InstCombinerImpl::visitFNeg(UnaryOperator &I) {
   Value *Cond;
   if (match(Op, m_OneUse(m_Select(m_Value(Cond), m_Value(X), m_Value(Y))))) {
     // Unlike most transforms, this one is not safe to propagate nsz unless
-    // it is present on the original select. (We are conservatively intersecting
-    // the nsz flags from the select and root fneg instruction.)
+    // it is present on the original select. We union the flags from the select
+    // and fneg and then remove nsz if needed.
     auto propagateSelectFMF = [&](SelectInst *S, bool CommonOperand) {
       S->copyFastMathFlags(&I);
-      if (auto *OldSel = dyn_cast<SelectInst>(Op))
+      if (auto *OldSel = dyn_cast<SelectInst>(Op)) {
+        FastMathFlags FMF = I.getFastMathFlags();
+        FMF |= OldSel->getFastMathFlags();
+        S->setFastMathFlags(FMF);
         if (!OldSel->hasNoSignedZeros() && !CommonOperand &&
             !isGuaranteedNotToBeUndefOrPoison(OldSel->getCondition()))
           S->setHasNoSignedZeros(false);
+      }
     };
     // -(Cond ? -P : Y) --> Cond ? P : -Y
     Value *P;

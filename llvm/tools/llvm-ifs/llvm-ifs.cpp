@@ -32,6 +32,7 @@
 #include "llvm/TextAPI/InterfaceFile.h"
 #include "llvm/TextAPI/TextAPIReader.h"
 #include "llvm/TextAPI/TextAPIWriter.h"
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -63,7 +64,7 @@ enum ID {
 #include "Opts.inc"
 #undef PREFIX
 
-const opt::OptTable::Info InfoTable[] = {
+static constexpr opt::OptTable::Info InfoTable[] = {
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
   {                                                                            \
@@ -83,14 +84,14 @@ public:
 struct DriverConfig {
   std::vector<std::string> InputFilePaths;
 
-  Optional<FileFormat> InputFormat;
-  Optional<FileFormat> OutputFormat;
+  std::optional<FileFormat> InputFormat;
+  std::optional<FileFormat> OutputFormat;
 
-  Optional<std::string> HintIfsTarget;
-  Optional<std::string> OptTargetTriple;
-  Optional<IFSArch> OverrideArch;
-  Optional<IFSBitWidthType> OverrideBitWidth;
-  Optional<IFSEndiannessType> OverrideEndianness;
+  std::optional<std::string> HintIfsTarget;
+  std::optional<std::string> OptTargetTriple;
+  std::optional<IFSArch> OverrideArch;
+  std::optional<IFSBitWidthType> OverrideBitWidth;
+  std::optional<IFSEndiannessType> OverrideEndianness;
 
   bool StripIfsArch = false;
   bool StripIfsBitwidth = false;
@@ -102,12 +103,12 @@ struct DriverConfig {
 
   std::vector<std::string> Exclude;
 
-  Optional<std::string> SoName;
+  std::optional<std::string> SoName;
 
-  Optional<std::string> Output;
-  Optional<std::string> OutputElf;
-  Optional<std::string> OutputIfs;
-  Optional<std::string> OutputTbd;
+  std::optional<std::string> Output;
+  std::optional<std::string> OutputElf;
+  std::optional<std::string> OutputIfs;
+  std::optional<std::string> OutputTbd;
 
   bool WriteIfChanged = false;
 };
@@ -129,7 +130,7 @@ static std::string getTypeName(IFSSymbolType Type) {
 }
 
 static Expected<std::unique_ptr<IFSStub>>
-readInputFile(Optional<FileFormat> &InputFormat, StringRef FilePath) {
+readInputFile(std::optional<FileFormat> &InputFormat, StringRef FilePath) {
   // Read in file.
   ErrorOr<std::unique_ptr<MemoryBuffer>> BufOrError =
       MemoryBuffer::getFileOrSTDIN(FilePath, /*IsText=*/true);
@@ -305,10 +306,10 @@ static DriverConfig parseArgs(int argc, char *const *argv) {
   for (const opt::Arg *A : Args.filtered(OPT_INPUT))
     Config.InputFilePaths.push_back(A->getValue());
   if (const opt::Arg *A = Args.getLastArg(OPT_input_format_EQ)) {
-    Config.InputFormat = StringSwitch<Optional<FileFormat>>(A->getValue())
+    Config.InputFormat = StringSwitch<std::optional<FileFormat>>(A->getValue())
                              .Case("IFS", FileFormat::IFS)
                              .Case("ELF", FileFormat::ELF)
-                             .Default(None);
+                             .Default(std::nullopt);
     if (!Config.InputFormat)
       fatalError(Twine("invalid argument '") + A->getValue());
   }
@@ -318,11 +319,11 @@ static DriverConfig parseArgs(int argc, char *const *argv) {
                " option: Cannot find option named '" + OptionName + "'!");
   };
   if (const opt::Arg *A = Args.getLastArg(OPT_output_format_EQ)) {
-    Config.OutputFormat = StringSwitch<Optional<FileFormat>>(A->getValue())
+    Config.OutputFormat = StringSwitch<std::optional<FileFormat>>(A->getValue())
                               .Case("IFS", FileFormat::IFS)
                               .Case("ELF", FileFormat::ELF)
                               .Case("TBD", FileFormat::TBD)
-                              .Default(None);
+                              .Default(std::nullopt);
     if (!Config.OutputFormat)
       OptionNotFound("--output-format", A->getValue());
   }
@@ -340,10 +341,10 @@ static DriverConfig parseArgs(int argc, char *const *argv) {
   }
   if (const opt::Arg *A = Args.getLastArg(OPT_endianness_EQ)) {
     Config.OverrideEndianness =
-        StringSwitch<Optional<IFSEndiannessType>>(A->getValue())
+        StringSwitch<std::optional<IFSEndiannessType>>(A->getValue())
             .Case("little", IFSEndiannessType::Little)
             .Case("big", IFSEndiannessType::Big)
-            .Default(None);
+            .Default(std::nullopt);
     if (!Config.OverrideEndianness)
       OptionNotFound("--endianness", A->getValue());
   }

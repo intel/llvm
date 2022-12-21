@@ -857,21 +857,20 @@ PlatformDarwin::ParseVersionBuildDir(llvm::StringRef dir) {
 
 llvm::Expected<StructuredData::DictionarySP>
 PlatformDarwin::FetchExtendedCrashInformation(Process &process) {
-  Log *log = GetLog(LLDBLog::Process);
-
-  StructuredData::ArraySP annotations = ExtractCrashInfoAnnotations(process);
-
-  if (!annotations || !annotations->GetSize()) {
-    LLDB_LOG(log, "Couldn't extract crash information annotations");
-    return nullptr;
-  }
-
   StructuredData::DictionarySP extended_crash_info =
       std::make_shared<StructuredData::Dictionary>();
 
-  extended_crash_info->AddItem("crash-info annotations", annotations);
+  StructuredData::ArraySP annotations = ExtractCrashInfoAnnotations(process);
+  if (annotations && annotations->GetSize())
+    extended_crash_info->AddItem("Crash-Info Annotations", annotations);
 
-  return extended_crash_info;
+  StructuredData::DictionarySP app_specific_info =
+      ExtractAppSpecificInfo(process);
+  if (app_specific_info && app_specific_info->GetSize())
+    extended_crash_info->AddItem("Application Specific Information",
+                                 app_specific_info);
+
+  return extended_crash_info->GetSize() ? extended_crash_info : nullptr;
 }
 
 StructuredData::ArraySP
@@ -978,6 +977,38 @@ PlatformDarwin::ExtractCrashInfoAnnotations(Process &process) {
   return array_sp;
 }
 
+StructuredData::DictionarySP
+PlatformDarwin::ExtractAppSpecificInfo(Process &process) {
+  StructuredData::DictionarySP metadata_sp = process.GetMetadata();
+
+  if (!metadata_sp || !metadata_sp->GetSize() || !metadata_sp->HasKey("asi"))
+    return {};
+
+  StructuredData::Dictionary *asi;
+  if (!metadata_sp->GetValueForKeyAsDictionary("asi", asi))
+    return {};
+
+  StructuredData::DictionarySP dict_sp =
+      std::make_shared<StructuredData::Dictionary>();
+
+  auto flatten_asi_dict = [&dict_sp](ConstString key,
+                                     StructuredData::Object *val) -> bool {
+    if (!val)
+      return false;
+
+    StructuredData::Array *arr = val->GetAsArray();
+    if (!arr || !arr->GetSize())
+      return false;
+
+    dict_sp->AddItem(key.AsCString(), arr->GetItemAtIndex(0));
+    return true;
+  };
+
+  asi->ForEach(flatten_asi_dict);
+
+  return dict_sp;
+}
+
 void PlatformDarwin::AddClangModuleCompilationOptionsForSDKType(
     Target *target, std::vector<std::string> &options, XcodeSDK::Type sdk_type) {
   const std::vector<std::string> apple_arguments = {
@@ -1024,7 +1055,7 @@ void PlatformDarwin::AddClangModuleCompilationOptionsForSDKType(
   // Only add the version-min options if we got a version from somewhere
   if (!version.empty() && sdk_type != XcodeSDK::Type::Linux) {
 #define OPTION(PREFIX, NAME, VAR, ...)                                         \
-  const char *opt_##VAR = NAME;                                                \
+  llvm::StringRef opt_##VAR = NAME;                                            \
   (void)opt_##VAR;
 #include "clang/Driver/Options.inc"
 #undef OPTION

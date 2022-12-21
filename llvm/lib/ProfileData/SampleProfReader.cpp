@@ -1820,11 +1820,11 @@ void SampleProfileReaderItaniumRemapper::applyRemapping(LLVMContext &Ctx) {
   RemappingApplied = true;
 }
 
-Optional<StringRef>
+std::optional<StringRef>
 SampleProfileReaderItaniumRemapper::lookUpNameInProfile(StringRef Fname) {
   if (auto Key = Remappings->lookup(Fname))
     return NameMap.lookup(Key);
-  return None;
+  return std::nullopt;
 }
 
 /// Prepare a memory buffer for the contents of \p Filename.

@@ -55,6 +55,7 @@
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
+#include <optional>
 #include <time.h>
 #include <utility>
 
@@ -255,7 +256,8 @@ static void collectIncludePCH(CompilerInstance &CI,
     // used here since we're not interested in validating the PCH at this time,
     // but only to check whether this is a file containing an AST.
     if (!ASTReader::readASTFileControlBlock(
-            Dir->path(), FileMgr, CI.getPCHContainerReader(),
+            Dir->path(), FileMgr, CI.getModuleCache(),
+            CI.getPCHContainerReader(),
             /*FindModuleFileExtensions=*/false, Validator,
             /*ValidateDiagnosticOptions=*/false))
       MDC->addFile(Dir->path());
@@ -806,7 +808,7 @@ std::unique_ptr<raw_pwrite_stream> CompilerInstance::createDefaultOutputFile(
     bool Binary, StringRef InFile, StringRef Extension, bool RemoveFileOnSignal,
     bool CreateMissingDirectories, bool ForceUseTemporary) {
   StringRef OutputPath = getFrontendOpts().OutputFile;
-  Optional<SmallString<128>> PathStorage;
+  std::optional<SmallString<128>> PathStorage;
   if (OutputPath.empty()) {
     if (InFile == "-" || Extension.empty()) {
       OutputPath = "-";
@@ -850,7 +852,7 @@ CompilerInstance::createOutputFileImpl(StringRef OutputPath, bool Binary,
 
   // If '-working-directory' was passed, the output filename should be
   // relative to that.
-  Optional<SmallString<128>> AbsPath;
+  std::optional<SmallString<128>> AbsPath;
   if (OutputPath != "-" && !llvm::sys::path::is_absolute(OutputPath)) {
     AbsPath.emplace(OutputPath);
     FileMgr->FixupRelativePath(*AbsPath);
@@ -858,7 +860,7 @@ CompilerInstance::createOutputFileImpl(StringRef OutputPath, bool Binary,
   }
 
   std::unique_ptr<llvm::raw_fd_ostream> OS;
-  Optional<StringRef> OSFile;
+  std::optional<StringRef> OSFile;
 
   if (UseTemporary) {
     if (OutputPath == "-")
@@ -1291,7 +1293,7 @@ static Optional<FileEntryRef> getPublicModuleMap(FileEntryRef File,
   else if (Filename == "module.private.modulemap")
     llvm::sys::path::append(PublicFilename, "module.modulemap");
   else
-    return None;
+    return std::nullopt;
   return FileMgr.getOptionalFileRef(PublicFilename);
 }
 

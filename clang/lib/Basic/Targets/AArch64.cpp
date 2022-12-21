@@ -18,6 +18,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/AArch64TargetParser.h"
+#include "llvm/Support/ARMTargetParserCommon.h"
 
 using namespace clang;
 using namespace clang::targets;
@@ -50,6 +51,7 @@ static StringRef getArchVersionString(llvm::AArch64::ArchKind Kind) {
   case llvm::AArch64::ArchKind::ARMV9_1A:
   case llvm::AArch64::ArchKind::ARMV9_2A:
   case llvm::AArch64::ArchKind::ARMV9_3A:
+  case llvm::AArch64::ArchKind::ARMV9_4A:
     return "9";
   default:
     return "8";
@@ -83,6 +85,7 @@ AArch64TargetInfo::AArch64TargetInfo(const llvm::Triple &Triple,
   HasLegalHalfType = true;
   HalfArgsAndReturns = true;
   HasFloat16 = true;
+  HasStrictFP = true;
 
   if (Triple.isArch64Bit())
     LongWidth = LongAlign = PointerWidth = PointerAlign = 64;
@@ -196,6 +199,7 @@ void AArch64TargetInfo::getTargetDefinesARMV83A(const LangOptions &Opts,
                                                 MacroBuilder &Builder) const {
   Builder.defineMacro("__ARM_FEATURE_COMPLEX", "1");
   Builder.defineMacro("__ARM_FEATURE_JCVT", "1");
+  Builder.defineMacro("__ARM_FEATURE_PAUTH", "1");
   // Also include the Armv8.2 defines
   getTargetDefinesARMV82A(Opts, Builder);
 }
@@ -209,6 +213,7 @@ void AArch64TargetInfo::getTargetDefinesARMV84A(const LangOptions &Opts,
 void AArch64TargetInfo::getTargetDefinesARMV85A(const LangOptions &Opts,
                                                 MacroBuilder &Builder) const {
   Builder.defineMacro("__ARM_FEATURE_FRINT", "1");
+  Builder.defineMacro("__ARM_FEATURE_BTI", "1");
   // Also include the Armv8.4 defines
   getTargetDefinesARMV84A(Opts, Builder);
 }
@@ -235,6 +240,12 @@ void AArch64TargetInfo::getTargetDefinesARMV88A(const LangOptions &Opts,
   getTargetDefinesARMV87A(Opts, Builder);
 }
 
+void AArch64TargetInfo::getTargetDefinesARMV89A(const LangOptions &Opts,
+                                                MacroBuilder &Builder) const {
+  // Also include the Armv8.8 defines
+  getTargetDefinesARMV88A(Opts, Builder);
+}
+
 void AArch64TargetInfo::getTargetDefinesARMV9A(const LangOptions &Opts,
                                                MacroBuilder &Builder) const {
   // Armv9-A maps to Armv8.5-A
@@ -257,6 +268,12 @@ void AArch64TargetInfo::getTargetDefinesARMV93A(const LangOptions &Opts,
                                                 MacroBuilder &Builder) const {
   // Armv9.3-A maps to Armv8.8-A
   getTargetDefinesARMV88A(Opts, Builder);
+}
+
+void AArch64TargetInfo::getTargetDefinesARMV94A(const LangOptions &Opts,
+                                                MacroBuilder &Builder) const {
+  // Armv9.4-A maps to Armv8.9-A
+  getTargetDefinesARMV89A(Opts, Builder);
 }
 
 void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
@@ -370,6 +387,9 @@ void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__ARM_FEATURE_SM4", "1");
   }
 
+  if (HasPAuth)
+    Builder.defineMacro("__ARM_FEATURE_PAUTH", "1");
+
   if (HasUnaligned)
     Builder.defineMacro("__ARM_FEATURE_UNALIGNED", "1");
 
@@ -446,6 +466,9 @@ void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
   if (HasMOPS)
     Builder.defineMacro("__ARM_FEATURE_MOPS", "1");
 
+  if (HasD128)
+    Builder.defineMacro("__ARM_FEATURE_SYSREG128", "1");
+
   switch (ArchKind) {
   default:
     break;
@@ -473,6 +496,9 @@ void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
   case llvm::AArch64::ArchKind::ARMV8_8A:
     getTargetDefinesARMV88A(Opts, Builder);
     break;
+  case llvm::AArch64::ArchKind::ARMV8_9A:
+    getTargetDefinesARMV89A(Opts, Builder);
+    break;
   case llvm::AArch64::ArchKind::ARMV9A:
     getTargetDefinesARMV9A(Opts, Builder);
     break;
@@ -484,6 +510,9 @@ void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
     break;
   case llvm::AArch64::ArchKind::ARMV9_3A:
     getTargetDefinesARMV93A(Opts, Builder);
+    break;
+  case llvm::AArch64::ArchKind::ARMV9_4A:
+    getTargetDefinesARMV94A(Opts, Builder);
     break;
   }
 
@@ -520,7 +549,7 @@ AArch64TargetInfo::getVScaleRange(const LangOptions &LangOpts) const {
   if (hasFeature("sve"))
     return std::pair<unsigned, unsigned>(1, 16);
 
-  return None;
+  return std::nullopt;
 }
 
 bool AArch64TargetInfo::hasFeature(StringRef Feature) const {
@@ -550,35 +579,6 @@ void AArch64TargetInfo::setFeatureEnabled(llvm::StringMap<bool> &Features,
 
 bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
                                              DiagnosticsEngine &Diags) {
-  FPU = FPUMode;
-  HasCRC = false;
-  HasAES = false;
-  HasSHA2 = false;
-  HasSHA3 = false;
-  HasSM4 = false;
-  HasUnaligned = true;
-  HasFullFP16 = false;
-  HasDotProd = false;
-  HasFP16FML = false;
-  HasMTE = false;
-  HasTME = false;
-  HasLS64 = false;
-  HasRandGen = false;
-  HasMatMul = false;
-  HasBFloat16 = false;
-  HasSVE2 = false;
-  HasSVE2AES = false;
-  HasSVE2SHA3 = false;
-  HasSVE2SM4 = false;
-  HasSVE2BitPerm = false;
-  HasMatmulFP64 = false;
-  HasMatmulFP32 = false;
-  HasLSE = false;
-  HasMOPS = false;
-  HasRCPC = false;
-
-  ArchKind = llvm::AArch64::ArchKind::INVALID;
-
   for (const auto &Feature : Features) {
     if (Feature == "+neon")
       FPU |= NeonMode;
@@ -658,6 +658,8 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       ArchKind = llvm::AArch64::ArchKind::ARMV8_7A;
     if (Feature == "+v8.8a" && ArchKind < llvm::AArch64::ArchKind::ARMV8_8A)
       ArchKind = llvm::AArch64::ArchKind::ARMV8_8A;
+    if (Feature == "+v8.9a" && ArchKind < llvm::AArch64::ArchKind::ARMV8_9A)
+      ArchKind = llvm::AArch64::ArchKind::ARMV8_9A;
     if (Feature == "+v9a" && ArchKind < llvm::AArch64::ArchKind::ARMV9A)
       ArchKind = llvm::AArch64::ArchKind::ARMV9A;
     if (Feature == "+v9.1a" && ArchKind < llvm::AArch64::ArchKind::ARMV9_1A)
@@ -666,6 +668,8 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       ArchKind = llvm::AArch64::ArchKind::ARMV9_2A;
     if (Feature == "+v9.3a" && ArchKind < llvm::AArch64::ArchKind::ARMV9_3A)
       ArchKind = llvm::AArch64::ArchKind::ARMV9_3A;
+    if (Feature == "+v9.4a" && ArchKind < llvm::AArch64::ArchKind::ARMV9_4A)
+      ArchKind = llvm::AArch64::ArchKind::ARMV9_4A;
     if (Feature == "+v8r")
       ArchKind = llvm::AArch64::ArchKind::ARMV8R;
     if (Feature == "+fullfp16")
@@ -694,6 +698,16 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasFlagM = true;
     if (Feature == "+mops")
       HasMOPS = true;
+    if (Feature == "+d128")
+      HasD128 = true;
+  }
+
+  // Check features that are manually disabled by command line options.
+  // This needs to be checked after architecture-related features are handled,
+  // making sure they are properly disabled when required.
+  for (const auto &Feature : Features) {
+    if (Feature == "-d128")
+      HasD128 = false;
   }
 
   setDataLayout();
@@ -744,7 +758,10 @@ ParsedTargetAttr AArch64TargetInfo::parseTargetAttr(StringRef Features) const {
       else
         // Pushing the original feature string to give a sema error later on
         // when they get checked.
-        Features.push_back(Feature.str());
+        if (Feature.startswith("no"))
+          Features.push_back("-" + Feature.drop_front(2).str());
+        else
+          Features.push_back("+" + Feature.str());
     }
   };
 
@@ -768,12 +785,9 @@ ParsedTargetAttr AArch64TargetInfo::parseTargetAttr(StringRef Features) const {
 
       // Parse the architecture version, adding the required features to
       // Ret.Features.
-      std::vector<StringRef> FeatureStrs;
-      if (ArchKind == llvm::AArch64::ArchKind::INVALID ||
-          !llvm::AArch64::getArchFeatures(ArchKind, FeatureStrs))
+      if (ArchKind == llvm::AArch64::ArchKind::INVALID)
         continue;
-      for (auto R : FeatureStrs)
-        Ret.Features.push_back(R.str());
+      Ret.Features.push_back(llvm::AArch64::getArchFeature(ArchKind).str());
       // Add any extra features, after the +
       SplitAndAddFeatures(Split.second, Ret.Features);
     } else if (Feature.startswith("cpu=")) {
@@ -792,13 +806,25 @@ ParsedTargetAttr AArch64TargetInfo::parseTargetAttr(StringRef Features) const {
         Ret.Duplicate = "tune=";
       else
         Ret.Tune = Feature.split("=").second.trim();
-    } else if (Feature.startswith("no-"))
-      Ret.Features.push_back("-" + Feature.split("-").second.str());
-    else if (Feature.startswith("+")) {
+    } else if (Feature.startswith("+")) {
       SplitAndAddFeatures(Feature, Ret.Features);
+    } else if (Feature.startswith("no-")) {
+      StringRef FeatureName =
+          llvm::AArch64::getArchExtFeature(Feature.split("-").second);
+      if (!FeatureName.empty())
+        Ret.Features.push_back("-" + FeatureName.drop_front(1).str());
+      else
+        Ret.Features.push_back("-" + Feature.split("-").second.str());
+    } else {
+      // Try parsing the string to the internal target feature name. If it is
+      // invalid, add the original string (which could already be an internal
+      // name). These should be checked later by isValidFeatureName.
+      StringRef FeatureName = llvm::AArch64::getArchExtFeature(Feature);
+      if (!FeatureName.empty())
+        Ret.Features.push_back(FeatureName.str());
+      else
+        Ret.Features.push_back("+" + Feature.str());
     }
-    else
-      Ret.Features.push_back("+" + Feature.str());
   }
   return Ret;
 }

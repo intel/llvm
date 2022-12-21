@@ -4,11 +4,11 @@
 
 // Ensure that a distributed backend invocation of ThinLTO lowers the type test
 // as expected.
-// RUN: %clang_cc1 -flto=thin -flto-unit -triple x86_64-unknown-linux -fwhole-program-vtables -emit-llvm-bc -o %t.o %s
-// RUN: llvm-dis %t.o -o - | FileCheck --check-prefix=TT %s
-// RUN: llvm-lto -thinlto -o %t2 %t.o
-// RUN: %clang -target x86_64-unknown-linux -O2 -o %t3.o -x ir %t.o -c -fthinlto-index=%t2.thinlto.bc -save-temps=obj
-// RUN: llvm-dis %t.s.4.opt.bc -o - | FileCheck --check-prefix=OPT %s
+// RUN: %clang_cc1 -opaque-pointers -flto=thin -flto-unit -triple x86_64-unknown-linux -fwhole-program-vtables -emit-llvm-bc -o %t.o %s
+// RUN: llvm-dis -opaque-pointers %t.o -o - | FileCheck --check-prefix=TT %s
+// RUN: llvm-lto -opaque-pointers -thinlto -o %t2 %t.o
+// RUN: %clang -Xclang -opaque-pointers -target x86_64-unknown-linux -O2 -o %t3.o -x ir %t.o -c -fthinlto-index=%t2.thinlto.bc -save-temps=obj
+// RUN: llvm-dis -opaque-pointers %t.s.4.opt.bc -o - | FileCheck --check-prefix=OPT %s
 // llvm-nm %t3.o | FileCheck --check-prefix=NM %s
 
 // The pre-link bitcode produced by clang should contain a type test assume
@@ -34,12 +34,12 @@
 // compilation pipeline is invoked. If not lowered then LLVM CodeGen may assert.
 // RUN: touch %t4.thinlto.bc
 // O2 new PM
-// RUN: %clang -target x86_64-unknown-linux -O2 -o %t4.o -x ir %t.o -c -fthinlto-index=%t4.thinlto.bc -save-temps=obj
-// RUN: llvm-dis %t.s.4.opt.bc -o - | FileCheck --check-prefix=OPT %s
+// RUN: %clang -Xclang -opaque-pointers -target x86_64-unknown-linux -O2 -o %t4.o -x ir %t.o -c -fthinlto-index=%t4.thinlto.bc -save-temps=obj
+// RUN: llvm-dis -opaque-pointers %t.s.4.opt.bc -o - | FileCheck --check-prefix=OPT %s
 // llvm-nm %t4.o | FileCheck --check-prefix=NM %s
 // O0 new PM
-// RUN: %clang -target x86_64-unknown-linux -O0 -o %t4.o -x ir %t.o -c -fthinlto-index=%t4.thinlto.bc -save-temps=obj
-// RUN: llvm-dis %t.s.4.opt.bc -o - | FileCheck --check-prefix=OPT %s
+// RUN: %clang -Xclang -opaque-pointers -target x86_64-unknown-linux -O0 -o %t4.o -x ir %t.o -c -fthinlto-index=%t4.thinlto.bc -save-temps=obj
+// RUN: llvm-dis -opaque-pointers %t.s.4.opt.bc -o - | FileCheck --check-prefix=OPT %s
 // llvm-nm %t4.o | FileCheck --check-prefix=NM %s
 
 struct A {

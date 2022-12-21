@@ -15,7 +15,6 @@
 #include "index/MemIndex.h"
 #include "clang/AST/Attr.h"
 #include "clang/Index/IndexSymbol.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/StringRef.h"
 
 #include "gmock/gmock.h"
@@ -240,11 +239,11 @@ class Foo final {})cpp";
          HI.TemplateParameters = {
              {{"template <typename, bool...> class"},
               std::string("C"),
-              llvm::None},
-             {{"typename"}, llvm::None, std::string("char")},
-             {{"int"}, llvm::None, std::string("0")},
+              std::nullopt},
+             {{"typename"}, std::nullopt, std::string("char")},
+             {{"int"}, std::nullopt, std::string("0")},
              {{"bool"}, std::string("Q"), std::string("false")},
-             {{"class..."}, std::string("Ts"), llvm::None},
+             {{"class..."}, std::string("Ts"), std::nullopt},
          };
        }},
       // Function template
@@ -286,7 +285,7 @@ class Foo final {})cpp";
          HI.ReturnType = "Foo<bool, true, false>";
          HI.Type = "Foo<bool, true, false> (int, bool)";
          HI.Parameters = {
-             {{"int"}, llvm::None, llvm::None},
+             {{"int"}, std::nullopt, std::nullopt},
              {{"bool"}, std::string("T"), std::string("false")},
          };
        }},
@@ -307,8 +306,8 @@ class Foo final {})cpp";
          HI.Type = "(lambda) **";
          HI.ReturnType = "bool";
          HI.Parameters = {
-             {{"int"}, std::string("T"), llvm::None},
-             {{"bool"}, std::string("B"), llvm::None},
+             {{"int"}, std::string("T"), std::nullopt},
+             {{"bool"}, std::string("B"), std::nullopt},
          };
          return HI;
        }},
@@ -328,8 +327,8 @@ class Foo final {})cpp";
          HI.Type = {"decltype(lamb) &", "(lambda) &"};
          HI.ReturnType = "bool";
          HI.Parameters = {
-             {{"int"}, std::string("T"), llvm::None},
-             {{"bool"}, std::string("B"), llvm::None},
+             {{"int"}, std::string("T"), std::nullopt},
+             {{"bool"}, std::string("B"), std::nullopt},
          };
          return HI;
        }},
@@ -349,8 +348,8 @@ class Foo final {})cpp";
          HI.Type = "class (lambda)";
          HI.ReturnType = "bool";
          HI.Parameters = {
-             {{"int"}, std::string("T"), llvm::None},
-             {{"bool"}, std::string("B"), llvm::None},
+             {{"int"}, std::string("T"), std::nullopt},
+             {{"bool"}, std::string("B"), std::nullopt},
          };
          HI.Value = "false";
          return HI;
@@ -372,8 +371,8 @@ class Foo final {})cpp";
          HI.Type = "class (lambda)";
          HI.ReturnType = "bool";
          HI.Parameters = {
-             {{"int"}, std::string("T"), llvm::None},
-             {{"bool"}, std::string("B"), llvm::None},
+             {{"int"}, std::string("T"), std::nullopt},
+             {{"bool"}, std::string("B"), std::nullopt},
          };
          return HI;
        }},
@@ -988,7 +987,7 @@ class Foo final {})cpp";
          HI.Type = {"m_int[Size]", "int[Size]"};
          HI.NamespaceScope = "";
          HI.Definition = "template <int Size> m_int arr[Size]";
-         HI.TemplateParameters = {{{"int"}, {"Size"}, llvm::None}};
+         HI.TemplateParameters = {{{"int"}, {"Size"}, std::nullopt}};
        }},
       {// Var template decl specialization
        R"cpp(
@@ -1036,8 +1035,9 @@ class Foo final {})cpp";
          HI.Definition = "template <typename T> void foo(T arg)";
          HI.Type = "void (T)";
          HI.ReturnType = "void";
-         HI.Parameters = {{{"T"}, std::string("arg"), llvm::None}};
-         HI.TemplateParameters = {{{"typename"}, std::string("T"), llvm::None}};
+         HI.Parameters = {{{"T"}, std::string("arg"), std::nullopt}};
+         HI.TemplateParameters = {
+             {{"typename"}, std::string("T"), std::nullopt}};
        }},
       {// TypeAlias Template
        R"cpp(
@@ -1051,7 +1051,8 @@ class Foo final {})cpp";
          HI.Kind = index::SymbolKind::TypeAlias;
          HI.Definition = "template <typename T> using alias = T";
          HI.Type = "T";
-         HI.TemplateParameters = {{{"typename"}, std::string("T"), llvm::None}};
+         HI.TemplateParameters = {
+             {{"typename"}, std::string("T"), std::nullopt}};
        }},
       {// TypeAlias Template
        R"cpp(
@@ -1067,8 +1068,9 @@ class Foo final {})cpp";
          HI.LocalScope = "";
          HI.Kind = index::SymbolKind::TypeAlias;
          HI.Definition = "template <typename T> using AA = A<T>";
-         HI.Type = {"A<T>", "T"};
-         HI.TemplateParameters = {{{"typename"}, std::string("T"), llvm::None}};
+         HI.Type = {"A<T>", "type-parameter-0-0"}; // FIXME: should be 'T'
+         HI.TemplateParameters = {
+             {{"typename"}, std::string("T"), std::nullopt}};
        }},
       {// Constant array
        R"cpp(
@@ -1300,7 +1302,6 @@ TEST(Hover, NoHover) {
       "auto x = ^42.0i;",
       "auto x = ^42;",
       "auto x = ^nullptr;",
-      "auto x = ^\"asdf\";",
   };
 
   for (const auto &Test : Tests) {
@@ -1325,6 +1326,12 @@ TEST(Hover, All) {
          HI.Name = "expression";
          HI.Type = "char";
          HI.Value = "65 (0x41)";
+       }},
+      {"auto s = ^[[\"Hello, world!\"]]; // string literal",
+       [](HoverInfo &HI) {
+         HI.Name = "string-literal";
+         HI.Size = 14;
+         HI.Type = "const char[14]";
        }},
       {
           R"cpp(// Local variable
@@ -1420,7 +1427,7 @@ TEST(Hover, All) {
             HI.Documentation = "Function definition via pointer";
             HI.ReturnType = "void";
             HI.Parameters = {
-                {{"int"}, llvm::None, llvm::None},
+                {{"int"}, std::nullopt, std::nullopt},
             };
           }},
       {
@@ -1439,7 +1446,7 @@ TEST(Hover, All) {
             HI.Documentation = "Function declaration via call";
             HI.ReturnType = "int";
             HI.Parameters = {
-                {{"int"}, llvm::None, llvm::None},
+                {{"int"}, std::nullopt, std::nullopt},
             };
           }},
       {
@@ -2470,7 +2477,7 @@ TEST(Hover, All) {
             HI.Type = {"auto (decltype(a)) -> decltype(a)",
                        "auto (int) -> int"};
             HI.ReturnType = "int";
-            HI.Parameters = {{{"int"}, std::string("x"), llvm::None}};
+            HI.Parameters = {{{"int"}, std::string("x"), std::nullopt}};
           }},
       {
           R"cpp(// sizeof expr
@@ -2503,7 +2510,8 @@ TEST(Hover, All) {
             HI.Kind = index::SymbolKind::Function;
             HI.Type = "void (const int &)";
             HI.ReturnType = "void";
-            HI.Parameters = {{{"const int &"}, llvm::None, std::string("T()")}};
+            HI.Parameters = {
+                {{"const int &"}, std::nullopt, std::string("T()")}};
             HI.Definition = "template <> void foo<int>(const int &)";
             HI.NamespaceScope = "";
           }},
@@ -2878,7 +2886,7 @@ TEST(Hover, Present) {
             HI.Kind = index::SymbolKind::Class;
             HI.Size = 10;
             HI.TemplateParameters = {
-                {{"typename"}, std::string("T"), llvm::None},
+                {{"typename"}, std::string("T"), std::nullopt},
                 {{"typename"}, std::string("C"), std::string("bool")},
             };
             HI.Documentation = "documentation";

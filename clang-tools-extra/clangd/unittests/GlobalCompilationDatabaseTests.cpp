@@ -67,7 +67,7 @@ class OverlayCDBTest : public ::testing::Test {
     getCompileCommand(llvm::StringRef File) const override {
       if (File == testPath("foo.cc"))
         return cmd(File, "-DA=1");
-      return None;
+      return std::nullopt;
     }
 
     tooling::CompileCommand
@@ -89,13 +89,13 @@ TEST_F(OverlayCDBTest, GetCompileCommand) {
   OverlayCDB CDB(Base.get());
   EXPECT_THAT(CDB.getCompileCommand(testPath("foo.cc"))->CommandLine,
               AllOf(Contains(testPath("foo.cc")), Contains("-DA=1")));
-  EXPECT_EQ(CDB.getCompileCommand(testPath("missing.cc")), llvm::None);
+  EXPECT_EQ(CDB.getCompileCommand(testPath("missing.cc")), std::nullopt);
 
   auto Override = cmd(testPath("foo.cc"), "-DA=3");
   CDB.setCompileCommand(testPath("foo.cc"), Override);
   EXPECT_THAT(CDB.getCompileCommand(testPath("foo.cc"))->CommandLine,
               Contains("-DA=3"));
-  EXPECT_EQ(CDB.getCompileCommand(testPath("missing.cc")), llvm::None);
+  EXPECT_EQ(CDB.getCompileCommand(testPath("missing.cc")), std::nullopt);
   CDB.setCompileCommand(testPath("missing.cc"), Override);
   EXPECT_THAT(CDB.getCompileCommand(testPath("missing.cc"))->CommandLine,
               Contains("-DA=3"));
@@ -109,7 +109,7 @@ TEST_F(OverlayCDBTest, GetFallbackCommand) {
 
 TEST_F(OverlayCDBTest, NoBase) {
   OverlayCDB CDB(nullptr, {"-DA=6"});
-  EXPECT_EQ(CDB.getCompileCommand(testPath("bar.cc")), None);
+  EXPECT_EQ(CDB.getCompileCommand(testPath("bar.cc")), std::nullopt);
   auto Override = cmd(testPath("bar.cc"), "-DA=5");
   CDB.setCompileCommand(testPath("bar.cc"), Override);
   EXPECT_THAT(CDB.getCompileCommand(testPath("bar.cc"))->CommandLine,
@@ -130,19 +130,17 @@ TEST_F(OverlayCDBTest, Watch) {
 
   Inner.setCompileCommand("A.cpp", tooling::CompileCommand());
   Outer.setCompileCommand("B.cpp", tooling::CompileCommand());
-  Inner.setCompileCommand("A.cpp", llvm::None);
-  Outer.setCompileCommand("C.cpp", llvm::None);
+  Inner.setCompileCommand("A.cpp", std::nullopt);
+  Outer.setCompileCommand("C.cpp", std::nullopt);
   EXPECT_THAT(Changes, ElementsAre(ElementsAre("A.cpp"), ElementsAre("B.cpp"),
                                    ElementsAre("A.cpp"), ElementsAre("C.cpp")));
 }
 
 TEST_F(OverlayCDBTest, Adjustments) {
   OverlayCDB CDB(Base.get(), {"-DFallback"},
-                 [](const std::vector<std::string> &Cmd, llvm::StringRef File) {
-                   auto Ret = Cmd;
-                   Ret.push_back(
+                 [](tooling::CompileCommand &Cmd, llvm::StringRef File) {
+                   Cmd.CommandLine.push_back(
                        ("-DAdjust_" + llvm::sys::path::filename(File)).str());
-                   return Ret;
                  });
   // Command from underlying gets adjusted.
   auto Cmd = *CDB.getCompileCommand(testPath("foo.cc"));

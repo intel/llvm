@@ -289,6 +289,8 @@ CODEGENOPT(SanitizeCoverageTraceLoads, 1, 0) ///< Enable tracing of loads.
 CODEGENOPT(SanitizeCoverageTraceStores, 1, 0) ///< Enable tracing of stores.
 CODEGENOPT(SanitizeBinaryMetadataCovered, 1, 0) ///< Emit PCs for covered functions.
 CODEGENOPT(SanitizeBinaryMetadataAtomics, 1, 0) ///< Emit PCs for atomic operations.
+CODEGENOPT(SanitizeBinaryMetadataUAR, 1, 0) ///< Emit PCs for start of functions
+                                            ///< that are subject for use-after-return checking.
 CODEGENOPT(SanitizeStats     , 1, 0) ///< Collect statistics for sanitizers.
 CODEGENOPT(SimplifyLibCalls  , 1, 1) ///< Set when -fbuiltin is enabled.
 CODEGENOPT(SoftFloat         , 1, 0) ///< -soft-float.
@@ -332,6 +334,10 @@ VALUE_CODEGENOPT(StackProbeSize    , 32, 4096) ///< Overrides default stack
 VALUE_CODEGENOPT(WarnStackSize     , 32, UINT_MAX) ///< Set via -fwarn-stack-size.
 CODEGENOPT(NoStackArgProbe, 1, 0) ///< Set when -mno-stack-arg-probe is used
 CODEGENOPT(DebugStrictDwarf, 1, 1) ///< Whether or not to use strict DWARF info.
+
+CODEGENOPT(EnableAssignmentTracking, 1,0) ///< Enable the Assignment Tracking
+                                          ///< debug info feature.
+
 CODEGENOPT(DebugColumnInfo, 1, 0) ///< Whether or not to use column information
                                   ///< in debug info.
 

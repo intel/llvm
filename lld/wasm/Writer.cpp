@@ -288,11 +288,12 @@ void Writer::layoutMemory() {
 
   out.dylinkSec->memAlign = 0;
   for (OutputSegment *seg : segments) {
-    out.dylinkSec->memAlign = std::max(out.dylinkSec->memAlign, seg->alignment);
-    memoryPtr = alignTo(memoryPtr, 1ULL << seg->alignment);
+    out.dylinkSec->memAlign =
+        std::max(out.dylinkSec->memAlign, Log2(seg->alignment));
+    memoryPtr = alignTo(memoryPtr, seg->alignment);
     seg->startVA = memoryPtr;
     log(formatv("mem: {0,-15} offset={1,-8} size={2,-8} align={3}", seg->name,
-                memoryPtr, seg->size, seg->alignment));
+                memoryPtr, seg->size, Log2(seg->alignment)));
 
     if (!config->relocatable && seg->isTLS()) {
       if (WasmSym::tlsSize) {
@@ -301,7 +302,7 @@ void Writer::layoutMemory() {
       }
       if (WasmSym::tlsAlign) {
         auto *tlsAlign = cast<DefinedGlobal>(WasmSym::tlsAlign);
-        setGlobalPtr(tlsAlign, int64_t{1} << seg->alignment);
+        setGlobalPtr(tlsAlign, seg->alignment.value());
       }
       if (!config->sharedMemory && WasmSym::tlsBase) {
         auto *tlsBase = cast<DefinedGlobal>(WasmSym::tlsBase);
@@ -1084,13 +1085,13 @@ void Writer::createInitMemoryFunction() {
   {
     raw_string_ostream os(bodyContent);
     // Initialize memory in a thread-safe manner. The thread that successfully
-    // increments the flag from 0 to 1 is is responsible for performing the
-    // memory initialization. Other threads go sleep on the flag until the
-    // first thread finishing initializing memory, increments the flag to 2,
-    // and wakes all the other threads. Once the flag has been set to 2,
-    // subsequently started threads will skip the sleep. All threads
-    // unconditionally drop their passive data segments once memory has been
-    // initialized. The generated code is as follows:
+    // increments the flag from 0 to 1 is responsible for performing the memory
+    // initialization. Other threads go sleep on the flag until the first thread
+    // finishing initializing memory, increments the flag to 2, and wakes all
+    // the other threads. Once the flag has been set to 2, subsequently started
+    // threads will skip the sleep. All threads unconditionally drop their
+    // passive data segments once memory has been initialized. The generated
+    // code is as follows:
     //
     // (func $__wasm_init_memory
     //  (block $drop

@@ -95,7 +95,7 @@ ParseRet tryParseVLEN(StringRef &ParseString, unsigned &VF, bool &IsScalable) {
 /// On success, it removes the parsed parameter from `ParseString`,
 /// sets `PKind` to the correspondent enum value, sets `Pos` to
 /// <number>, and return success.  On a syntax error, it return a
-/// parsing error. If nothing is parsed, it returns None.
+/// parsing error. If nothing is parsed, it returns std::nullopt.
 ///
 /// The function expects <token> to be one of "ls", "Rs", "Us" or
 /// "Ls".
@@ -122,7 +122,7 @@ ParseRet tryParseLinearTokenWithRuntimeStep(StringRef &ParseString,
 /// On success, it removes the parsed parameter from `ParseString`,
 /// sets `PKind` to the correspondent enum value, sets `StepOrPos` to
 /// <number>, and return success.  On a syntax error, it return a
-/// parsing error. If nothing is parsed, it returns None.
+/// parsing error. If nothing is parsed, it returns std::nullopt.
 ParseRet tryParseLinearWithRuntimeStep(StringRef &ParseString,
                                        VFParamKind &PKind, int &StepOrPos) {
   ParseRet Ret;
@@ -158,7 +158,7 @@ ParseRet tryParseLinearWithRuntimeStep(StringRef &ParseString,
 /// On success, it removes the parsed parameter from `ParseString`,
 /// sets `PKind` to the correspondent enum value, sets `LinearStep` to
 /// <number>, and return success.  On a syntax error, it return a
-/// parsing error. If nothing is parsed, it returns None.
+/// parsing error. If nothing is parsed, it returns std::nullopt.
 ///
 /// The function expects <token> to be one of "l", "R", "U" or
 /// "L".
@@ -186,7 +186,7 @@ ParseRet tryParseCompileTimeLinearToken(StringRef &ParseString,
 /// On success, it removes the parsed parameter from `ParseString`,
 /// sets `PKind` to the correspondent enum value, sets `LinearStep` to
 /// <number>, and return success.  On a syntax error, it return a
-/// parsing error. If nothing is parsed, it returns None.
+/// parsing error. If nothing is parsed, it returns std::nullopt.
 ParseRet tryParseLinearWithCompileTimeStep(StringRef &ParseString,
                                            VFParamKind &PKind, int &StepOrPos) {
   // "l" {"n"} <CompileTimeStep>
@@ -219,7 +219,7 @@ ParseRet tryParseLinearWithCompileTimeStep(StringRef &ParseString,
 /// On success, it removes the parsed parameter from `ParseString`,
 /// sets `PKind` to the correspondent enum value, sets `StepOrPos`
 /// accordingly, and return success.  On a syntax error, it return a
-/// parsing error. If nothing is parsed, it returns None.
+/// parsing error. If nothing is parsed, it returns std::nullopt.
 ParseRet tryParseParameter(StringRef &ParseString, VFParamKind &PKind,
                            int &StepOrPos) {
   if (ParseString.consume_front("v")) {
@@ -254,7 +254,7 @@ ParseRet tryParseParameter(StringRef &ParseString, VFParamKind &PKind,
 /// On success, it removes the parsed parameter from `ParseString`,
 /// sets `PKind` to the correspondent enum value, sets `StepOrPos`
 /// accordingly, and return success.  On a syntax error, it return a
-/// parsing error. If nothing is parsed, it returns None.
+/// parsing error. If nothing is parsed, it returns std::nullopt.
 ParseRet tryParseAlign(StringRef &ParseString, Align &Alignment) {
   uint64_t Val;
   //    "a" <number>
@@ -324,24 +324,24 @@ Optional<VFInfo> VFABI::tryDemangleForVFABI(StringRef MangledName,
 
   // Parse the fixed size part of the manled name
   if (!MangledName.consume_front("_ZGV"))
-    return None;
+    return std::nullopt;
 
   // Extract ISA. An unknow ISA is also supported, so we accept all
   // values.
   VFISAKind ISA;
   if (tryParseISA(MangledName, ISA) != ParseRet::OK)
-    return None;
+    return std::nullopt;
 
   // Extract <mask>.
   bool IsMasked;
   if (tryParseMask(MangledName, IsMasked) != ParseRet::OK)
-    return None;
+    return std::nullopt;
 
   // Parse the variable size, starting from <vlen>.
   unsigned VF;
   bool IsScalable;
   if (tryParseVLEN(MangledName, VF, IsScalable) != ParseRet::OK)
-    return None;
+    return std::nullopt;
 
   // Parse the <parameters>.
   ParseRet ParamFound;
@@ -354,7 +354,7 @@ Optional<VFInfo> VFABI::tryDemangleForVFABI(StringRef MangledName,
 
     // Bail off if there is a parsing error in the parsing of the parameter.
     if (ParamFound == ParseRet::Error)
-      return None;
+      return std::nullopt;
 
     if (ParamFound == ParseRet::OK) {
       Align Alignment;
@@ -362,7 +362,7 @@ Optional<VFInfo> VFABI::tryDemangleForVFABI(StringRef MangledName,
       const ParseRet AlignFound = tryParseAlign(MangledName, Alignment);
       // Bail off if there is a syntax error in the align token.
       if (AlignFound == ParseRet::Error)
-        return None;
+        return std::nullopt;
 
       // Add the parameter.
       Parameters.push_back({ParameterPos, PKind, StepOrPos, Alignment});
@@ -372,12 +372,12 @@ Optional<VFInfo> VFABI::tryDemangleForVFABI(StringRef MangledName,
   // A valid MangledName must have at least one valid entry in the
   // <parameters>.
   if (Parameters.empty())
-    return None;
+    return std::nullopt;
 
   // Check for the <scalarname> and the optional <redirection>, which
   // are separated from the prefix with "_"
   if (!MangledName.consume_front("_"))
-    return None;
+    return std::nullopt;
 
   // The rest of the string must be in the format:
   // <scalarname>[(<redirection>)]
@@ -385,25 +385,25 @@ Optional<VFInfo> VFABI::tryDemangleForVFABI(StringRef MangledName,
       MangledName.take_while([](char In) { return In != '('; });
 
   if (ScalarName.empty())
-    return None;
+    return std::nullopt;
 
   // Reduce MangledName to [(<redirection>)].
   MangledName = MangledName.ltrim(ScalarName);
   // Find the optional custom name redirection.
   if (MangledName.consume_front("(")) {
     if (!MangledName.consume_back(")"))
-      return None;
+      return std::nullopt;
     // Update the vector variant with the one specified by the user.
     VectorName = MangledName;
     // If the vector name is missing, bail out.
     if (VectorName.empty())
-      return None;
+      return std::nullopt;
   }
 
   // LLVM internal mapping via the TargetLibraryInfo (TLI) must be
   // redirected to an existing name.
   if (ISA == VFISAKind::LLVM && VectorName == OriginalName)
-    return None;
+    return std::nullopt;
 
   // When <mask> is "M", we need to add a parameter that is used as
   // global predicate for the function.
@@ -438,7 +438,7 @@ Optional<VFInfo> VFABI::tryDemangleForVFABI(StringRef MangledName,
     // The declaration of the function must be present in the module
     // to be able to retrieve its signature.
     if (!F)
-      return None;
+      return std::nullopt;
     const ElementCount EC = getECFromSignature(F->getFunctionType());
     VF = EC.getKnownMinValue();
   }
@@ -447,9 +447,9 @@ Optional<VFInfo> VFABI::tryDemangleForVFABI(StringRef MangledName,
   // 2. We don't accept the demangling if the vector function is not
   // present in the module.
   if (VF == 0)
-    return None;
+    return std::nullopt;
   if (!M.getFunction(VectorName))
-    return None;
+    return std::nullopt;
 
   const VFShape Shape({ElementCount::get(VF, IsScalable), Parameters});
   return VFInfo({Shape, std::string(ScalarName), std::string(VectorName), ISA});

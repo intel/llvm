@@ -16,7 +16,7 @@
 !CHECK-NEXT: %[[ADDR:.*]] = fir.address_of(@_QQcl.
 !CHECK-NEXT: %[[CVT0:.*]] = fir.convert %[[ADDR]] 
 !CHECK-NEXT: %[[CNST:.*]] = arith.constant
-!CHECK-NEXT: %[[CALL_BEGIN_IO:.*]] = fir.call @_FortranAioBeginExternalListOutput(%[[NEG_ONE]], %[[CVT0]], %[[CNST]]) : (i32, !fir.ref<i8>, i32) -> !fir.ref<i8>
+!CHECK-NEXT: %[[CALL_BEGIN_IO:.*]] = fir.call @_FortranAioBeginExternalListOutput(%[[NEG_ONE]], %[[CVT0]], %[[CNST]]) {{.*}}: (i32, !fir.ref<i8>, i32) -> !fir.ref<i8>
 !CHECK-NEXT: %[[CVT_0_1:.*]] = fir.convert %[[ARG1_PVT]] 
 !CHECK-NEXT: %[[CVT_0_2:.*]] = fir.convert %[[FIVE]]
 !CHECK-NEXT: %[[CALL_OP_ASCII:.*]] = fir.call @_FortranAioOutputAscii(%[[CALL_BEGIN_IO]], %[[CVT_0_1]], %[[CVT_0_2]])
@@ -30,15 +30,6 @@
 !CHECK-DAG: %[[CVT:.*]] = fir.convert %[[ARG1_UNBOX]]#0 : (!fir.ref<!fir.char<1,?>>) -> !fir.ref<i8>
 !CHECK-DAG: %[[CVT1:.*]] = fir.convert %[[ARG1_PVT]] : (!fir.ref<!fir.char<1,5>>) -> !fir.ref<i8>
 !CHECK-DAG: fir.call @llvm.memmove.p0.p0.i64(%[[CVT]], %[[CVT1]]{{.*}})
-!CHECK: %[[THIRTY_TWO:.*]] = arith.constant 32 : i8
-!CHECK-DAG: %[[UNDEF:.*]] = fir.undefined !fir.char<1>
-!CHECK-DAG: %[[INSERT:.*]] = fir.insert_value %[[UNDEF]], %[[THIRTY_TWO]], [0 : index] : (!fir.char<1>, i8) -> !fir.char<1>
-!CHECK-DAG: %[[ONE_3:.*]] = arith.constant 1 : index
-!CHECK: fir.do_loop %[[ARG2:.*]] = {{.*}} {
-!CHECK-DAG: %[[CVT_2:.*]] = fir.convert %[[ARG1_UNBOX]]#0 : (!fir.ref<!fir.char<1,?>>) -> !fir.ref<!fir.array<?x!fir.char<1>>>
-!CHECK-DAG: %[[COORD:.*]] = fir.coordinate_of %[[CVT_2]], %[[ARG2]] : (!fir.ref<!fir.array<?x!fir.char<1>>>, index) -> !fir.ref<!fir.char<1>>
-!CHECK-DAG: fir.store %[[INSERT]] to %[[COORD]] : !fir.ref<!fir.char<1>>
-!CHECK-DAG: }
 !CHECK-DAG: } 
 !CHECK-DAG: omp.yield
 
