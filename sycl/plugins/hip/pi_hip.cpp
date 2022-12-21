@@ -5224,7 +5224,7 @@ pi_result hip_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
   _pi_event::native_type event;
 
   ScopedContext active(Device->get_context());
-  
+
   if (DeviceTime) {
     PI_CHECK_ERROR(hipEventCreateWithFlags(&event, hipEventDefault));
     PI_CHECK_ERROR(hipEventRecord(event));

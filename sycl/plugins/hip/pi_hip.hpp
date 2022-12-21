@@ -95,7 +95,7 @@ public:
 
   void set_context(pi_context ctx) { context_ = ctx; };
 
-  pi_context get_context() { return context_;};
+  pi_context get_context() { return context_; };
 };
 
 /// PI context mapping to a HIP context object.

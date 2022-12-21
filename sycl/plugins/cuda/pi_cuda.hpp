@@ -106,7 +106,7 @@ public:
 
   void set_context(pi_context ctx) { context_ = ctx; };
 
-  pi_context get_context() { return context_;};
+  pi_context get_context() { return context_; };
 
   void save_max_work_item_sizes(size_t size,
                                 size_t *save_max_work_item_sizes) noexcept {

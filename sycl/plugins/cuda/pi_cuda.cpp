@@ -5501,8 +5501,8 @@ pi_result cuda_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
     PI_CHECK_ERROR(cuEventRecord(event, 0));
   }
   if (HostTime) {
-    
-  using namespace std::chrono;
+
+    using namespace std::chrono;
     *HostTime =
         duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
             .count();
