@@ -4078,14 +4078,7 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
   uint32_t QueueGroupOrdinalUnused;
   auto TID = std::this_thread::get_id();
   auto InitialGroup = Queue->ComputeQueueGroupsByTID.begin()->second;
-#if 0
-  std::pair<std::unordered_map<std::thread::id,
-                               _pi_queue::pi_queue_group_t>::iterator,
-            bool>
-      Result = Queue->ComputeQueueGroupsByTID.insert({TID, InitialGroup});
-#else
   auto Result = Queue->ComputeQueueGroupsByTID.insert({TID, InitialGroup});
-#endif
   auto &ComputeQueueGroupRef = Result.first->second;
 
   *ZeQueue = ComputeQueueGroupRef.getZeQueue(&QueueGroupOrdinalUnused);
