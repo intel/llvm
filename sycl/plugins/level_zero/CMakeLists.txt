@@ -19,8 +19,10 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
   # Workaround warnings/errors for Level Zero build
   set(CMAKE_CXX_FLAGS_BAK "${CMAKE_CXX_FLAGS}")
   if (WIN32)
-    #FIXME: Level Zero build fails with /DUNICODE
+    # FIXME: Level Zero build fails with /DUNICODE
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /UUNICODE")
+    # USE_Z7 forces use of /Z7 instead of /Zi which is broken with sccache
+    set(USE_Z7 ON)
   else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-but-set-variable")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-pedantic")
