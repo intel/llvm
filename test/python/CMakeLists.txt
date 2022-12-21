@@ -11,4 +11,11 @@ add_test(NAME python-basic
 if(UNIX)
         set_property(TEST python-basic PROPERTY
                 ENVIRONMENT "LD_LIBRARY_PATH=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+else()
+        set_property(TEST python-basic PROPERTY
+                     ENVIRONMENT "UR_ADAPTERS_SEARCH_DIR=${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 endif()
+
+# this is for importing the include/ur.py module in other python files
+set_property(TEST python-basic APPEND PROPERTY
+             ENVIRONMENT "PYTHONPATH=${PROJECT_SOURCE_DIR}")

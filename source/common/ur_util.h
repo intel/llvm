@@ -18,7 +18,7 @@
 #  include <Windows.h>
 #  define MAKE_LIBRARY_NAME(NAME, VERSION)    NAME".dll"
 #  define MAKE_LAYER_NAME(NAME)    NAME".dll"
-#  define LOAD_DRIVER_LIBRARY(NAME) LoadLibraryExA(NAME, nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32)
+#  define LOAD_DRIVER_LIBRARY(NAME) LoadLibraryExA(NAME, nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS)
 #  define FREE_DRIVER_LIBRARY(LIB)  if(LIB) FreeLibrary(LIB)
 #  define GET_FUNCTION_PTR(LIB, FUNC_NAME) GetProcAddress(LIB, FUNC_NAME)
 #  define string_copy_s strncpy_s

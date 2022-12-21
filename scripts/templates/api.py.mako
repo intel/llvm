@@ -19,6 +19,7 @@ from templates import helper as th
 import platform
 from ctypes import *
 from enum import *
+import os
 
 ${"###############################################################################"}
 __version__ = "1.0"
@@ -162,7 +163,9 @@ class ${N}_DDI:
     def __init__(self, version : ${x}_api_version_t):
         # load the ${x}_loader library
         if "Windows" == platform.uname()[0]:
-            self.__dll = WinDLL("${x}_loader.dll")
+            os.add_dll_directory(os.getenv("UR_ADAPTERS_SEARCH_DIR"))
+            LOAD_LIBRARY_SEARCH_DEFAULT_DIRS = 0x00001000
+            self.__dll = WinDLL("${x}_loader.dll", winmode=LOAD_LIBRARY_SEARCH_DEFAULT_DIRS)
         else:
             self.__dll = CDLL("lib${x}_loader.so")
 
