@@ -1554,50 +1554,25 @@ pi_result _pi_context::getAvailableCommandList(
 }
 
 _pi_queue::pi_queue_group_t &_pi_queue::getQueueGroup(bool UseCopyEngine) {
+  auto &Map = (UseCopyEngine ? CopyQueueGroupsByTID : ComputeQueueGroupsByTID);
+  auto &InitialGroup = Map.begin()->second;
+
   // Check if thread-specifc immediate commandlists are requested.
   if (Device->useImmediateCommandLists() == PerThreadPerQueue) {
     // Thread id is used to create separate imm cmdlists per thread.
-    auto TID = std::this_thread::get_id();
-    if (UseCopyEngine) {
-      auto InitialGroup = CopyQueueGroupsByTID.begin()->second;
-      std::pair<std::unordered_map<std::thread::id, pi_queue_group_t>::iterator,
-                bool>
-          Result = CopyQueueGroupsByTID.insert({TID, InitialGroup});
-      // If an entry for this thread exists, use it.
-      if (!Result.second) {
-        return Result.first->second;
-      }
-      auto &CopyQueueGroupRef = Result.first->second;
-      // Create space to hold immediate commandlists. They will be created on
-      // demand.
-      CopyQueueGroupRef.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
+    auto Result = Map.insert({std::this_thread::get_id(), InitialGroup});
+    auto &QueueGroupRef = Result.first->second;
+    // If an entry for this thread does not exists, create an entry.
+    if (Result.second) {
+      // Create space for immediate commandlists, which are created on demand.
+      QueueGroupRef.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
           InitialGroup.ZeQueues.size(), CommandListMap.end());
-      return CopyQueueGroupRef;
-    } else {
-      auto InitialGroup = ComputeQueueGroupsByTID.begin()->second;
-      std::pair<std::unordered_map<std::thread::id, pi_queue_group_t>::iterator,
-                bool>
-          Result = ComputeQueueGroupsByTID.insert({TID, InitialGroup});
-      // If an entry for this thread exists, use it.
-      if (!Result.second)
-        return Result.first->second;
-
-      auto &ComputeQueueGroupRef = Result.first->second;
-      // Create space to hold immediate commandlists. They will be created on
-      // demand.
-      ComputeQueueGroupRef.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
-          InitialGroup.ZeQueues.size(), CommandListMap.end());
-      return ComputeQueueGroupRef;
     }
+    return QueueGroupRef;
   }
 
-  // If not PerThreadPerQueue then use the groups created at Queue creation
-  // time.
-  if (UseCopyEngine) {
-    return CopyQueueGroupsByTID.begin()->second;
-  } else {
-    return ComputeQueueGroupsByTID.begin()->second;
-  }
+  // If not PerThreadPerQueue then use the groups from Queue creation time.
+  return InitialGroup;
 }
 
 // Helper function to create a new command-list to this queue and associated
