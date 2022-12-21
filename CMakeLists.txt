@@ -1,7 +1,7 @@
 # Copyright (C) 2022 Intel Corporation
 # SPDX-License-Identifier: MIT
 
-cmake_minimum_required(VERSION 3.8.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.22.0 FATAL_ERROR)
 project(unified-runtime VERSION 0.5.0)
 
 include(GNUInstallDirs)
