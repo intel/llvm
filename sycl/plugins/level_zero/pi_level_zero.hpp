@@ -704,11 +704,14 @@ struct _pi_queue : _pi_object {
   };
 
   // A map of compute groups containing compute queue handles, one per thread.
+  // When a queue is accessed from multiple host threads, a separate queue group
+  // is created for each thread. The key used for mapping is the thread ID.
   std::unordered_map<std::thread::id, pi_queue_group_t> ComputeQueueGroupsByTID;
 
   // A group containing copy queue handles. The main copy engine, if available,
-  // comes first followed by link copy engines, if available. One group per
-  // thread.
+  // comes first followed by link copy engines, if available.
+  // When a queue is accessed from multiple host threads, a separate queue group
+  // is created for each thread. The key used for mapping is the thread ID.
   std::unordered_map<std::thread::id, pi_queue_group_t> CopyQueueGroupsByTID;
 
   // Wait for all commandlists associated with this Queue to finish operations.

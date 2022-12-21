@@ -800,17 +800,17 @@ enum ImmCmdlistMode {
 // Get value of immediate commandlists env var setting or -1 if unset
 // A value of 1 specifies a single set of imm cmdlists per queue.
 // A value of 2 specifies a separate set of imm cmdlists per thread per queue.
-static const int ImmediateCommandlistsSetting = [] {
-  const char *ImmediateCommandlistsSettingStr =
-      std::getenv("SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS");
-  if (!ImmediateCommandlistsSettingStr)
-    return -1;
-  return std::stoi(ImmediateCommandlistsSettingStr);
-}();
-
 int _pi_device::useImmediateCommandLists() {
   // If immediate commandlist setting is not explicitly set, then use the device
   // default.
+  static const int ImmediateCommandlistsSetting = [] {
+    const char *ImmediateCommandlistsSettingStr =
+        std::getenv("SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS");
+    if (!ImmediateCommandlistsSettingStr)
+      return -1;
+    return std::stoi(ImmediateCommandlistsSettingStr);
+  }();
+
   if (ImmediateCommandlistsSetting == -1)
     return ImmCommandListsPreferred;
   switch (ImmediateCommandlistsSetting) {
@@ -3760,6 +3760,9 @@ pi_result piextQueueCreate(pi_context Context, pi_device Device,
     // Create as many command-lists as there are queues in the group.
     // With this the underlying round-robin logic would initialize all
     // native queues, and create command-lists and their fences.
+    // At this point only the thread creating the queue will have associated
+    // command-lists. Other threads have not accessed the queue yet. So we can
+    // only warmup the initial thread's command-lists.
     auto InitialGroup = Q->ComputeQueueGroupsByTID.begin()->second;
     PI_CALL(warmupQueueGroup(false, InitialGroup.UpperIndex -
                                         InitialGroup.LowerIndex + 1));
@@ -4075,10 +4078,14 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
   uint32_t QueueGroupOrdinalUnused;
   auto TID = std::this_thread::get_id();
   auto InitialGroup = Queue->ComputeQueueGroupsByTID.begin()->second;
+#if 0
   std::pair<std::unordered_map<std::thread::id,
                                _pi_queue::pi_queue_group_t>::iterator,
             bool>
       Result = Queue->ComputeQueueGroupsByTID.insert({TID, InitialGroup});
+#else
+  auto Result = Queue->ComputeQueueGroupsByTID.insert({TID, InitialGroup});
+#endif
   auto &ComputeQueueGroupRef = Result.first->second;
 
   *ZeQueue = ComputeQueueGroupRef.getZeQueue(&QueueGroupOrdinalUnused);
@@ -6777,8 +6784,8 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   std::vector<pi_command_list_ptr_t> CmdLists;
 
   // There must be at least one L0 queue.
-  auto InitialComputeGroup = Queue->ComputeQueueGroupsByTID.begin()->second;
-  auto InitialCopyGroup = Queue->CopyQueueGroupsByTID.begin()->second;
+  auto &InitialComputeGroup = Queue->ComputeQueueGroupsByTID.begin()->second;
+  auto &InitialCopyGroup = Queue->CopyQueueGroupsByTID.begin()->second;
   PI_ASSERT(!InitialComputeGroup.ZeQueues.empty() ||
                 !InitialCopyGroup.ZeQueues.empty(),
             PI_ERROR_INVALID_QUEUE);
