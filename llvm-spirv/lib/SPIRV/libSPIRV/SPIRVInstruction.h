@@ -890,7 +890,7 @@ public:
     return getVec(CapabilityFPGARegINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_fpga_reg;
   }
 
@@ -1619,7 +1619,7 @@ public:
     return getVec(CapabilityUnstructuredLoopControlsINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_unstructured_loop_controls;
   }
 
@@ -1711,7 +1711,7 @@ public:
   _SPIRV_DEF_ENCDEC4(Type, Id, CalledValueId, Args)
   void validate() const override;
   bool isOperandLiteral(unsigned Index) const override { return false; }
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_function_pointers;
   }
   SPIRVCapVec getRequiredCapability() const override {
@@ -2539,7 +2539,7 @@ public:
     return getVec(CapabilityGroupNonUniformRotateKHR);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_KHR_subgroup_rotate;
   }
 };
@@ -2557,7 +2557,7 @@ protected:
     return getVec(CapabilityBlockingPipesINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_blocking_pipes;
   }
 };
@@ -2575,7 +2575,7 @@ protected:
     return getVec(CapabilityArbitraryPrecisionFixedPointINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_arbitrary_precision_fixed_point;
   }
 };
@@ -2602,7 +2602,7 @@ protected:
     return getVec(CapabilityArbitraryPrecisionFloatingPointINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_arbitrary_precision_floating_point;
   }
 };
@@ -2694,7 +2694,7 @@ public:
 
 class SPIRVAtomicFAddEXTInst : public SPIRVAtomicInstBase {
 public:
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_EXT_shader_atomic_float_add;
   }
 
@@ -2710,7 +2710,7 @@ public:
 
 class SPIRVAtomicFMinMaxEXTBase : public SPIRVAtomicInstBase {
 public:
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_EXT_shader_atomic_float_min_max;
   }
 
@@ -2836,7 +2836,7 @@ public:
     return getVec(CapabilityExpectAssumeKHR);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_KHR_expect_assume;
   }
 
@@ -2857,7 +2857,7 @@ protected:
     return getVec(CapabilityExpectAssumeKHR);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_KHR_expect_assume;
   }
 };
@@ -2877,7 +2877,7 @@ protected:
     return getVec(ArgCap, CapabilityDotProductKHR);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_KHR_integer_dot_product;
   }
 
@@ -2900,7 +2900,7 @@ private:
             OpCode == OpSUDotAccSatKHR);
   }
 
-  Optional<PackedVectorFormat> getPackedVectorFormat() const {
+  std::optional<PackedVectorFormat> getPackedVectorFormat() const {
     size_t PackFmtIdx = 2;
     if (isAccSat()) {
       // AccSat instructions have an additional Accumulator operand.
@@ -2910,7 +2910,7 @@ private:
     if (PackFmtIdx == Ops.size() - 1)
       return static_cast<PackedVectorFormat>(Ops[PackFmtIdx]);
 
-    return None;
+    return std::nullopt;
   }
 
   SPIRVCapabilityKind getRequiredCapabilityForOperand(SPIRVId ArgId) const {
@@ -2959,12 +2959,12 @@ public:
     return getVec(CapabilityShader);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     for (auto Cap : getRequiredCapability()) {
       if (Cap == CapabilityBitInstructions)
         return ExtensionID::SPV_KHR_bit_instructions;
     }
-    return None;
+    return std::nullopt;
   }
 };
 
@@ -2982,7 +2982,7 @@ protected:
     return getVec(CapabilitySubgroupShuffleINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_subgroups;
   }
 };
@@ -3004,7 +3004,7 @@ protected:
     return getVec(CapabilitySubgroupBufferBlockIOINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_subgroups;
   }
 };
@@ -3024,7 +3024,7 @@ protected:
     return getVec(CapabilitySubgroupImageBlockIOINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_subgroups;
   }
 };
@@ -3044,7 +3044,7 @@ protected:
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(CapabilitySubgroupImageMediaBlockIOINTEL);
   }
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_media_block_io;
   }
 };
@@ -3064,7 +3064,7 @@ protected:
     return getVec(CapabilitySubgroupAvcMotionEstimationINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_device_side_avc_motion_estimation;
   }
 };
@@ -3220,7 +3220,7 @@ protected:
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(CapabilityVariableLengthArrayINTEL);
   }
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_variable_length_array;
   }
 };
@@ -3240,7 +3240,7 @@ protected:
     return getVec(internal::CapabilityBfloat16ConversionINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_bfloat16_conversion;
   }
 
@@ -3306,7 +3306,7 @@ _SPIRV_OP(ConvertBF16ToFINTEL)
 
 class SPIRVJointMatrixINTELInstBase : public SPIRVInstTemplateBase {
 protected:
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_joint_matrix;
   }
 };
@@ -3333,7 +3333,7 @@ protected:
     return getVec(CapabilitySplitBarrierINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_split_barrier;
   }
 };
@@ -3351,7 +3351,7 @@ public:
     return getVec(CapabilityGroupUniformArithmeticKHR);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_KHR_uniform_group_instructions;
   }
 };
@@ -3400,7 +3400,7 @@ public:
     return getVec(internal::CapabilityComplexFloatMulDivINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_complex_float_mul_div;
   }
 };
@@ -3419,7 +3419,7 @@ protected:
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(internal::CapabilityMaskedGatherScatterINTEL);
   }
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_masked_gather_scatter;
   }
 };
@@ -3569,7 +3569,7 @@ protected:
     return getVec(internal::CapabilityTensorFloat32ConversionINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_tensor_float32_conversion;
   }
 

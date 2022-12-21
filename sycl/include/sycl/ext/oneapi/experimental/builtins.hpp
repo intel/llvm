@@ -87,9 +87,9 @@ namespace native {
 // backends we revert to the sycl::tanh impl.
 template <typename T>
 inline __SYCL_ALWAYS_INLINE
-    std::enable_if_t<sycl::detail::is_svgenfloatf<T>::value ||
-                         sycl::detail::is_svgenfloath<T>::value,
-                     T>
+    sycl::detail::enable_if_t<sycl::detail::is_svgenfloatf<T>::value ||
+                                  sycl::detail::is_svgenfloath<T>::value,
+                              T>
     tanh(T x) __NOEXC {
 #if defined(__NVPTX__)
   using _ocl_T = sycl::detail::ConvertToOpenCLType_t<T>;
@@ -138,7 +138,7 @@ inline __SYCL_ALWAYS_INLINE
 // For other backends we revert to the sycl::exp2 impl.
 template <typename T>
 inline __SYCL_ALWAYS_INLINE
-    std::enable_if_t<sycl::detail::is_svgenfloath<T>::value, T>
+    sycl::detail::enable_if_t<sycl::detail::is_svgenfloath<T>::value, T>
     exp2(T x) __NOEXC {
 #if defined(__NVPTX__)
   using _ocl_T = sycl::detail::ConvertToOpenCLType_t<T>;

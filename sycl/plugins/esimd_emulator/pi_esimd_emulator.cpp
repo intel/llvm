@@ -663,7 +663,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_OPENCL_C_VERSION:
     return ReturnValue("");
   case PI_DEVICE_INFO_QUEUE_PROPERTIES:
-    return ReturnValue(pi_queue_properties{PI_QUEUE_ON_DEVICE});
+    return ReturnValue(pi_queue_properties{PI_QUEUE_FLAG_ON_DEVICE});
   case PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
     struct {
       size_t Arr[3];
@@ -785,6 +785,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(pi_uint32{0});
   case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL:
     return ReturnValue(size_t{1});
+  case PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES:
+    return ReturnValue(pi_int32{1});
 
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS)
     CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
@@ -923,11 +925,25 @@ bool _pi_context::checkSurfaceArgument(pi_mem_flags Flags, void *HostPtr) {
   return true;
 }
 
+pi_result piextQueueCreate(pi_context Context, pi_device Device,
+                           pi_queue_properties *Properties, pi_queue *Queue) {
+  assert(Properties);
+  // Expect flags mask to be passed first.
+  assert(Properties[0] == PI_QUEUE_FLAGS);
+  if (Properties[0] != PI_QUEUE_FLAGS)
+    return PI_ERROR_INVALID_VALUE;
+  pi_queue_properties Flags = Properties[1];
+  // Extra data isn't supported yet.
+  assert(Properties[2] == 0);
+  if (Properties[2] != 0)
+    return PI_ERROR_INVALID_VALUE;
+  return piQueueCreate(Context, Device, Flags, Queue);
+}
 pi_result piQueueCreate(pi_context Context, pi_device Device,
                         pi_queue_properties Properties, pi_queue *Queue) {
   ARG_UNUSED(Device);
 
-  if (Properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
+  if (Properties & PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
     // TODO : Support Out-of-order Queue
     *Queue = nullptr;
     return PI_ERROR_INVALID_QUEUE_PROPERTIES;
@@ -1960,6 +1976,23 @@ pi_result piextUSMEnqueueMemcpy(pi_queue, pi_bool, void *, const void *, size_t,
 
 pi_result piextUSMEnqueueMemAdvise(pi_queue, const void *, size_t,
                                    pi_mem_advice, pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextUSMEnqueueFill2D(pi_queue, void *, size_t, size_t, const void *,
+                                size_t, size_t, pi_uint32, const pi_event *,
+                                pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextUSMEnqueueMemset2D(pi_queue, void *, size_t, int, size_t, size_t,
+                                  pi_uint32, const pi_event *, pi_event *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextUSMEnqueueMemcpy2D(pi_queue, pi_bool, void *, size_t,
+                                  const void *, size_t, size_t, size_t,
+                                  pi_uint32, const pi_event *, pi_event *) {
   DIE_NO_IMPLEMENTATION;
 }
 

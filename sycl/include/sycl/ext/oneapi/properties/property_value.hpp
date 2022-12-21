@@ -65,10 +65,10 @@ template <typename V, typename O, typename = void> struct is_property_value_of {
 };
 // Specialization for compile-time-constant properties
 template <typename V>
-struct is_property_value<V, std::void_t<typename V::key_t>>
+struct is_property_value<V, sycl::detail::void_t<typename V::key_t>>
     : is_property_key<typename V::key_t> {};
 template <typename V, typename O>
-struct is_property_value_of<V, O, std::void_t<typename V::key_t>>
+struct is_property_value_of<V, O, sycl::detail::void_t<typename V::key_t>>
     : is_property_key_of<typename V::key_t, O> {};
 
 namespace detail {

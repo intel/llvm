@@ -24,7 +24,7 @@ SMLoc Token::getEndLoc() const {
 SMRange Token::getLocRange() const { return SMRange(getLoc(), getEndLoc()); }
 
 /// For an integer token, return its value as an unsigned.  If it doesn't fit,
-/// return None.
+/// return std::nullopt.
 Optional<unsigned> Token::getUnsignedIntegerValue() const {
   bool isHex = spelling.size() > 1 && spelling[1] == 'x';
 
@@ -35,7 +35,7 @@ Optional<unsigned> Token::getUnsignedIntegerValue() const {
 }
 
 /// For an integer token, return its value as a uint64_t.  If it doesn't fit,
-/// return None.
+/// return std::nullopt.
 Optional<uint64_t> Token::getUInt64IntegerValue(StringRef spelling) {
   bool isHex = spelling.size() > 1 && spelling[1] == 'x';
 
@@ -45,8 +45,8 @@ Optional<uint64_t> Token::getUInt64IntegerValue(StringRef spelling) {
   return result;
 }
 
-/// For a floatliteral, return its value as a double. Return None if the value
-/// underflows or overflows.
+/// For a floatliteral, return its value as a double. Return std::nullopt if the
+/// value underflows or overflows.
 Optional<double> Token::getFloatingPointValue() const {
   double result = 0;
   if (spelling.getAsDouble(result))
@@ -124,8 +124,8 @@ std::string Token::getStringValue() const {
   return result;
 }
 
-/// Given a token containing a hex string literal, return its value or None if
-/// the token does not contain a valid hex string.
+/// Given a token containing a hex string literal, return its value or
+/// std::nullopt if the token does not contain a valid hex string.
 Optional<std::string> Token::getHexStringValue() const {
   assert(getKind() == string);
 
@@ -155,8 +155,8 @@ std::string Token::getSymbolReference() const {
 }
 
 /// Given a hash_identifier token like #123, try to parse the number out of
-/// the identifier, returning None if it is a named identifier like #x or
-/// if the integer doesn't fit.
+/// the identifier, returning std::nullopt if it is a named identifier like #x
+/// or if the integer doesn't fit.
 Optional<unsigned> Token::getHashIdentifierNumber() const {
   assert(getKind() == hash_identifier);
   unsigned result = 0;

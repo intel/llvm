@@ -31,7 +31,7 @@ include(SYCLUtils)
 # See doc/developer/ABIPolicyGuide.md for the meaning when in the middle of
 # development cycle.
 set(SYCL_MAJOR_VERSION 6)
-set(SYCL_MINOR_VERSION 1)
+set(SYCL_MINOR_VERSION 2)
 set(SYCL_PATCH_VERSION 0)
 
 set(SYCL_DEV_ABI_VERSION 0)
@@ -298,8 +298,12 @@ add_custom_target(sycl-compiler
           opencl-aot
 )
 
-add_custom_target( sycl-toolchain
+add_custom_target( sycl-runtime-libraries
   DEPENDS ${SYCL_RT_LIBS}
+)
+
+add_custom_target( sycl-toolchain
+  DEPENDS sycl-runtime-libraries
           sycl-compiler
           sycl-ls
           ${XPTIFW_LIBS}
