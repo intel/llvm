@@ -5321,6 +5321,7 @@ pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,
     return ReturnValue(WorkSize);
   }
   case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
+    // As of right now, L0 is missing API to query kernel and device specific max work group size. 
     return ReturnValue(
         pi_uint64{Device->ZeDeviceComputeProperties->maxTotalGroupSize});
   }
