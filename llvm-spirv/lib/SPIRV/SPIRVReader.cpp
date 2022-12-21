@@ -4565,7 +4565,42 @@ bool llvm::getSpecConstInfo(std::istream &IS,
       if (C->hasDecorate(DecorationSpecId, 0, &SpecConstIdLiteral)) {
         SPIRVType *Ty = C->getType();
         uint32_t SpecConstSize = Ty->isTypeBool() ? 1 : Ty->getBitWidth() / 8;
-        SpecConstInfo.emplace_back(SpecConstIdLiteral, SpecConstSize);
+        std::string TypeString = "";
+        if (Ty->isTypeBool()) {
+          TypeString = "i1";
+        } else if (Ty->isTypeInt()) {
+          switch (SpecConstSize) {
+          case 1:
+            TypeString = "i8";
+            break;
+          case 2:
+            TypeString = "i16";
+            break;
+          case 4:
+            TypeString = "i32";
+            break;
+          case 8:
+            TypeString = "i64";
+            break;
+          }
+        } else if (Ty->isTypeFloat()) {
+          switch (SpecConstSize) {
+          case 2:
+            TypeString = "f16";
+            break;
+          case 4:
+            TypeString = "f32";
+            break;
+          case 8:
+            TypeString = "f64";
+            break;
+          }
+        }
+        if (TypeString == "")
+          return false;
+
+        SpecConstInfo.emplace_back(
+            SpecConstInfoTy({SpecConstIdLiteral, SpecConstSize, TypeString}));
       }
       break;
     }
