@@ -10532,22 +10532,156 @@ ABIArgInfo CommonSPIRABIInfo::classifyKernelArgumentType(QualType Ty) const {
   return DefaultABIInfo::classifyArgumentType(Ty);
 }
 
+namespace {
+
+/// Various utilities.
+class Util {
+public:
+  using DeclContextDesc = std::pair<Decl::Kind, StringRef>;
+
+  template <size_t N>
+  static constexpr DeclContextDesc MakeDeclContextDesc(Decl::Kind K,
+                                                       const char (&Str)[N]) {
+    // FIXME: This SHOULD be able to use the StringLiteral constructor here
+    // instead, however this seems to fail with an 'invalid string literal' note
+    // on the correct constructor in some build configurations.  We need to
+    // figure that out before reverting this to use the StringLiteral
+    // constructor.
+    return DeclContextDesc{K, StringRef{Str, N - 1}};
+  }
+
+  static constexpr DeclContextDesc MakeDeclContextDesc(Decl::Kind K,
+                                                       StringRef SR) {
+    return DeclContextDesc{K, SR};
+  }
+
+  // Checks declaration context hierarchy.
+  /// \param DC     the context of the item to be checked.
+  /// \param Scopes the declaration scopes leading from the item context to the
+  ///               translation unit (excluding the latter)
+  static bool matchContext(const DeclContext *DC,
+                           ArrayRef<Util::DeclContextDesc> Scopes);
+
+  /// Checks whether given clang type is declared in the given hierarchy of
+  /// declaration contexts.
+  /// \param Ty         the clang type being checked
+  /// \param Scopes     the declaration scopes leading from the type to the
+  ///     translation unit (excluding the latter)
+  static bool matchQualifiedTypeName(QualType Ty,
+                                     ArrayRef<Util::DeclContextDesc> Scopes);
+};
+
+bool Util::matchContext(const DeclContext *Ctx,
+                        ArrayRef<Util::DeclContextDesc> Scopes) {
+  // The idea: check the declaration context chain starting from the item
+  // itself. At each step check the context is of expected kind
+  // (namespace) and name.
+  StringRef Name = "";
+
+  for (const auto &Scope : llvm::reverse(Scopes)) {
+    Decl::Kind DK = Ctx->getDeclKind();
+    if (DK != Scope.first)
+      return false;
+
+    switch (DK) {
+    case Decl::Kind::ClassTemplateSpecialization:
+      // ClassTemplateSpecializationDecl inherits from CXXRecordDecl
+    case Decl::Kind::CXXRecord:
+      Name = cast<CXXRecordDecl>(Ctx)->getName();
+      break;
+    case Decl::Kind::Namespace:
+      Name = cast<NamespaceDecl>(Ctx)->getName();
+      break;
+    default:
+      llvm_unreachable("matchContext: decl kind not supported");
+    }
+    if (Name != Scope.second)
+      return false;
+    Ctx = Ctx->getParent();
+  }
+  return Ctx->isTranslationUnit();
+}
+
+bool Util::matchQualifiedTypeName(QualType Ty,
+                                  ArrayRef<Util::DeclContextDesc> Scopes) {
+  const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
+
+  if (!RecTy)
+    return false; // only classes/structs supported
+  const auto *Ctx = cast<DeclContext>(RecTy);
+  return Util::matchContext(Ctx, Scopes);
+}
+
+bool isStdTupleOfTriviallyCopyableTypes(ASTContext &Ctx, QualType T) {
+  // check if this is a tuple
+  std::array<Util::DeclContextDesc, 2> Scopes = {
+      Util::DeclContextDesc{Decl::Kind::Namespace, "std"},
+      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization, "tuple"}};
+
+  if (!Util::matchQualifiedTypeName(T, Scopes))
+    return false;
+  // check if template parameters are trivially copyable types
+  const auto *PropDecl =
+      cast<ClassTemplateSpecializationDecl>(T->getAsRecordDecl());
+  assert(PropDecl->getTemplateArgs().size() == 1 && "Unexpected template args");
+  const auto TemplateArg = PropDecl->getTemplateArgs()[0].getPackAsArray();
+  for (unsigned i = 0; i < TemplateArg.size(); i++) {
+    assert(TemplateArg[i].getKind() == clang::TemplateArgument::Type &&
+           "Unexpected non-type parameter");
+    QualType CurTemplateParam = TemplateArg[i].getAsType();
+    if (!CurTemplateParam.isTriviallyCopyableType(Ctx))
+      return false;
+  }
+  return true;
+}
+
+ABIArgInfo getStdTupleSPIRVRegcallABI(ASTContext &Ctx,
+                                      llvm::LLVMContext &LLVMCtx, QualType Ty) {
+  auto Size = Ctx.getTypeSize(Ty);
+  llvm::Type *I32Ty = llvm::Type::getInt32Ty(LLVMCtx);
+  decltype(Size) UnitSize = I32Ty->getPrimitiveSizeInBits();
+  assert(((UnitSize & (UnitSize - 1)) == 0) && "must be power of 2");
+  auto NElems = (Size + UnitSize - 1) / UnitSize;
+  return ABIArgInfo::getDirect(llvm::FixedVectorType::get(I32Ty, NElems));
+}
+
+} // anonymous namespace
+
 void CommonSPIRABIInfo::computeInfo(CGFunctionInfo &FI) const {
   llvm::CallingConv::ID CC = FI.getCallingConvention();
   bool IsRegCall = CC == llvm::CallingConv::X86_RegCall;
 
+  if (IsRegCall) {
+    assert((CC != llvm::CallingConv::SPIR_KERNEL) &&
+           "kernels can't have __regcall calling convention");
+    auto RetTy = FI.getReturnType();
+
+    if (isStdTupleOfTriviallyCopyableTypes(getContext(), RetTy)) {
+      FI.getReturnInfo() =
+          getStdTupleSPIRVRegcallABI(getContext(), getVMContext(), RetTy);
+    } else {
+      if (!getCXXABI().classifyReturnType(FI))
+        FI.getReturnInfo() = classifyRegcallReturnType(RetTy);
+    }
+    for (auto &Arg : FI.arguments()) {
+      bool IsTuple = isStdTupleOfTriviallyCopyableTypes(getContext(), Arg.type);
+      Arg.info = IsTuple ? getStdTupleSPIRVRegcallABI(getContext(),
+                                                      getVMContext(), Arg.type)
+                         : classifyRegcallArgumentType(Arg.type);
+    }
+    return;
+  }
+
   if (!getCXXABI().classifyReturnType(FI)) {
     CanQualType RetT = FI.getReturnType();
-    FI.getReturnInfo() =
-        IsRegCall ? classifyRegcallReturnType(RetT) : classifyReturnType(RetT);
+    FI.getReturnInfo() = classifyReturnType(RetT);
   }
 
   for (auto &Arg : FI.arguments()) {
     if (CC == llvm::CallingConv::SPIR_KERNEL) {
       Arg.info = classifyKernelArgumentType(Arg.type);
     } else {
-      Arg.info = IsRegCall ? classifyRegcallArgumentType(Arg.type)
-                           : classifyArgumentType(Arg.type);
+      Arg.info = classifyArgumentType(Arg.type);
     }
   }
 }
@@ -10601,6 +10735,9 @@ ABIArgInfo CommonSPIRABIInfo::classifyRegcallArgumentType(QualType Ty) const {
   Ty = useFirstFieldIfTransparentUnion(Ty);
 
   if (isAggregateTypeForABI(Ty)) {
+    if (isStdTupleOfTriviallyCopyableTypes(getContext(), Ty))
+      return getStdTupleSPIRVRegcallABI(getContext(), getVMContext(), Ty);
+
     // Records with non-trivial destructors/copy-constructors should not be
     // passed by value.
     if (auto RAA = getRecordArgABI(Ty, getCXXABI()))
