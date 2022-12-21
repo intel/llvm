@@ -70,8 +70,20 @@ jobs:
           --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=sccache"
     - name: Build
       id: build
+      # TODO replace utility installation with a single CMake target
       run: |
-        cmake --build build --target sycl-toolchain
+        cmake --build build --target deploy-sycl-toolchain
+        cmake --build build --target utils/FileCheck/install
+        cmake --build build --target utils/count/install
+        cmake --build build --target utils/not/install
+        cmake --build build --target utils/lit/install
+        cmake --build build --target utils/llvm-lit/install
+        cmake --build build --target install-clang-format
+        cmake --build build --target install-clang-tidy
+        cmake --build build --target install-llvm-size
+        cmake --build build --target install-llvm-cov
+        cmake --build build --target install-llvm-profdata
+        cmake --build build --target install-compiler-rt
         sccache --show-stats
 #    - name: check-llvm
 #      shell: bash

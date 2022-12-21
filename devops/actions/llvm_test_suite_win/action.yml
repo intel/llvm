@@ -36,10 +36,12 @@ runs:
     uses: actions/download-artifact@v3
     with:
       name: ${{ inputs.sycl_artifact }}
+      path: install
   - name: Download LIT
     uses: actions/download-artifact@v3
     with:
       name: ${{ inputs.lit_artifact }}
+      path: lit
   - name: Configure
     shell: cmd
     run: |
@@ -53,13 +55,14 @@ runs:
     shell: cmd
     run: |
       set PATH=%GITHUB_WORKSPACE%\install\bin;%PATH%
-      # TODO make this part of container build
-      set LIT_OPTS="-v --no-progress-bar --show-unsupported --max-time 3600 --time-tests -o %GITHUB_WORKSPACE%\build\results_${{ inputs.results_name_suffix }}.json"
+      set LIT_OPTS=-v --no-progress-bar --show-unsupported --max-time 3600 --time-tests -o results_${{ inputs.results_name_suffix }}.json
       echo ::group::sycl-ls --verbose
       sycl-ls --verbose
       echo ::endgroup::
       echo ::group::SYCL_PI_TRACE=-1 sycl-ls
-      SYCL_PI_TRACE=-1 sycl-ls
+      set SYCL_PI_TRACE=-1
+      sycl-ls
+      set SYCL_PI_TRACE=
       echo ::endgroup::
       cd build
       ninja check-sycl-all
@@ -73,11 +76,7 @@ runs:
     shell: cmd
     if: always()
     run: |
-      del /q install
-      rmdir install
-      del /q lit
-      rmdir lit
-      del /q build
-      rmdir build
-      del /q llvm_test_suite
-      rmdir llvm_test_suite
+      rmdir /q /s install
+      rmdir /q /s lit
+      rmdir /q /s build
+      rmdir /q /s llvm_test_suite
