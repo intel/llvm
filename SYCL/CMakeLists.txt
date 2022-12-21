@@ -26,8 +26,14 @@ if(CHECK_SYCL_ALL)
 
     string(REPLACE "," "_" TARGET check-sycl-${TARGET_BE}-${TARGET_DEVICES})
 
+    if (WIN32)
+      set(SYCL_PYTHON python.exe)
+    else()
+      set(SYCL_PYTHON python3)
+    endif()
+
     add_custom_target(${TARGET}
-      COMMAND python3 ${TEST_SUITE_LIT} ${TEST_SUITE_LIT_FLAGS} --param sycl_be=${TARGET_BE} --param target_devices=${TARGET_DEVICES} .
+      COMMAND ${SYCL_PYTHON} ${TEST_SUITE_LIT} ${TEST_SUITE_LIT_FLAGS} --param sycl_be=${TARGET_BE} --param target_devices=${TARGET_DEVICES} .
       COMMENT "Running the SYCL tests for ${TARGET} backend"
       WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
       DEPENDS ${TEST_SUITE_TARGETS}
