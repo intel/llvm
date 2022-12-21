@@ -33,11 +33,18 @@ void graph_impl::exec(sycl::detail::queue_ptr q) {
 }
 
 void graph_impl::exec_and_wait(sycl::detail::queue_ptr q) {
+  bool isSubGraph = q->getIsGraphSubmitting();
+  if (!isSubGraph) {
+    q->setIsGraphSubmitting(true);
+  }
   if (MFirst) {
     exec(q);
     MFirst = false;
   }
-  q->wait();
+  if (!isSubGraph) {
+    q->setIsGraphSubmitting(false);
+    q->wait();
+  }
 }
 
 void graph_impl::add_root(node_ptr n) {

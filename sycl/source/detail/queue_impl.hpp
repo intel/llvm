@@ -453,6 +453,14 @@ public:
     return MAssertHappenedBuffer;
   }
 
+  // Sets the flag for if a command graph is currently
+  // submitting to this queue.
+  void setIsGraphSubmitting(bool value) { MIsGraphSubmitting = value; }
+
+  // Get the flag which tells us whether the queue is currently
+  // receiving submissions from a command graph
+  bool getIsGraphSubmitting() const { return MIsGraphSubmitting; }
+
 protected:
   // template is needed for proper unit testing
   template <typename HandlerType = handler>
@@ -629,6 +637,11 @@ private:
   // able to discard events, because the final decision is made right before the
   // operation itself.
   const bool MHasDiscardEventsSupport;
+
+  // This flag is set to true if a command_graph is currently submitting
+  // commands to this queue. Used by subgraphs to determine if they are part of
+  // a larger command graph submission.
+  bool MIsGraphSubmitting = false;
 };
 
 } // namespace detail
