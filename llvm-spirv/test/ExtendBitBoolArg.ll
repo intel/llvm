@@ -1,6 +1,6 @@
-; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv -s %t.bc -o %t.regulzarized.bc
-; RUN: llvm-dis %t.regulzarized.bc -o %t.regulzarized.ll
+; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-spirv -s %t.bc -opaque-pointers=0 -o %t.regulzarized.bc
+; RUN: llvm-dis -opaque-pointers=0 %t.regulzarized.bc -o %t.regulzarized.ll
 ; RUN: FileCheck < %t.regulzarized.ll %s
 
 ; Translation cycle should be successfull:
