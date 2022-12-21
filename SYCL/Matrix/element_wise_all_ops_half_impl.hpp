@@ -38,19 +38,20 @@ void matrix_verify_add(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            const auto sg_startx = global_idx - spmd_item.get_local_id(0);
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
-           ext::oneapi::sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<T, TM, TK> sub_a(sg);
+           sub_group sg = spmd_item.get_sub_group();
+           joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
 
            joint_matrix_fill(sg, sub_a, 5.0);
 
-           auto wi_slice_a = sub_a.get_wi_data();
+           auto wi_slice_a = get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
              wi_slice_a[i] = wi_slice_a[i] + static_cast<half>(2);
            }
-           joint_matrix_store(sg, sub_a,
-                              accA.get_pointer() + (sg_startx * TM) * N +
-                                  sg_starty / SG_SZ * TN,
-                              N, matrix_layout::row_major);
+           ext::intel::experimental::matrix::joint_matrix_store(
+               sg, sub_a,
+               accA.get_pointer() + (sg_startx * TM) * N +
+                   sg_starty / SG_SZ * TN,
+               N);
          }); // parallel for
    }).wait();
   assert_ops_ref<T, M, N>(bufA.get_access<access::mode::read>(), ref);
@@ -71,19 +72,20 @@ void matrix_verify_sub(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            const auto sg_startx = global_idx - spmd_item.get_local_id(0);
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
-           ext::oneapi::sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<T, TM, TK> sub_a(sg);
+           sub_group sg = spmd_item.get_sub_group();
+           joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
 
            joint_matrix_fill(sg, sub_a, 5.0);
 
-           auto wi_slice_a = sub_a.get_wi_data();
+           auto wi_slice_a = get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
              wi_slice_a[i] = wi_slice_a[i] - static_cast<half>(2);
            }
-           joint_matrix_store(sg, sub_a,
-                              accA.get_pointer() + (sg_startx * TM) * N +
-                                  sg_starty / SG_SZ * TN,
-                              N, matrix_layout::row_major);
+           ext::intel::experimental::matrix::joint_matrix_store(
+               sg, sub_a,
+               accA.get_pointer() + (sg_startx * TM) * N +
+                   sg_starty / SG_SZ * TN,
+               N);
          }); // parallel for
    }).wait();
   assert_ops_ref<T, M, N>(bufA.get_access<access::mode::read>(), ref);
@@ -104,19 +106,20 @@ void matrix_verify_mul(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            const auto sg_startx = global_idx - spmd_item.get_local_id(0);
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
-           ext::oneapi::sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<T, TM, TK> sub_a(sg);
+           sub_group sg = spmd_item.get_sub_group();
+           joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
 
            joint_matrix_fill(sg, sub_a, 5.0);
 
-           auto wi_slice_a = sub_a.get_wi_data();
+           auto wi_slice_a = get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
              wi_slice_a[i] = wi_slice_a[i] * static_cast<half>(3.0);
            }
-           joint_matrix_store(sg, sub_a,
-                              accA.get_pointer() + (sg_startx * TM) * N +
-                                  sg_starty / SG_SZ * TN,
-                              N, matrix_layout::row_major);
+           ext::intel::experimental::matrix::joint_matrix_store(
+               sg, sub_a,
+               accA.get_pointer() + (sg_startx * TM) * N +
+                   sg_starty / SG_SZ * TN,
+               N);
          }); // parallel for
    }).wait();
   assert_ops_ref<T, M, N>(bufA.get_access<access::mode::read>(), ref);
@@ -137,19 +140,20 @@ void matrix_verify_div(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            const auto sg_startx = global_idx - spmd_item.get_local_id(0);
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
-           ext::oneapi::sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<T, TM, TK> sub_a(sg);
+           sub_group sg = spmd_item.get_sub_group();
+           joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
 
            joint_matrix_fill(sg, sub_a, 4.0);
 
-           auto wi_slice_a = sub_a.get_wi_data();
+           auto wi_slice_a = get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
              wi_slice_a[i] = wi_slice_a[i] / static_cast<half>(2.0);
            }
-           joint_matrix_store(sg, sub_a,
-                              accA.get_pointer() + (sg_startx * TM) * N +
-                                  sg_starty / SG_SZ * TN,
-                              N, matrix_layout::row_major);
+           ext::intel::experimental::matrix::joint_matrix_store(
+               sg, sub_a,
+               accA.get_pointer() + (sg_startx * TM) * N +
+                   sg_starty / SG_SZ * TN,
+               N);
          }); // parallel for
    }).wait();
   assert_ops_ref<T, M, N>(bufA.get_access<access::mode::read>(), ref);
@@ -170,12 +174,12 @@ void matrix_verify_logic(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            const auto sg_startx = global_idx - spmd_item.get_local_id(0);
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
-           ext::oneapi::sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<T, TM, TK> sub_a(sg);
+           sub_group sg = spmd_item.get_sub_group();
+           joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
 
            joint_matrix_fill(sg, sub_a, 5.0);
 
-           auto wi_slice_a = sub_a.get_wi_data();
+           auto wi_slice_a = get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
              if (wi_slice_a[i]) {
                if (wi_slice_a[i] > static_cast<half>(2.0) ||
@@ -198,10 +202,11 @@ void matrix_verify_logic(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
                }
              }
            }
-           joint_matrix_store(sg, sub_a,
-                              accA.get_pointer() + (sg_startx * TM) * N +
-                                  sg_starty / SG_SZ * TN,
-                              N, matrix_layout::row_major);
+           ext::intel::experimental::matrix::joint_matrix_store(
+               sg, sub_a,
+               accA.get_pointer() + (sg_startx * TM) * N +
+                   sg_starty / SG_SZ * TN,
+               N);
          }); // parallel for
    }).wait();
   assert_ops_ref<T, M, N>(bufA.get_access<access::mode::read>(), ref);

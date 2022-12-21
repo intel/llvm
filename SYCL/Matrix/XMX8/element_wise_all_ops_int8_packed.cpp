@@ -7,11 +7,11 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix-xmx8
 
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl %s -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// This test store the matrix B that is VNNIed (packed) in a row major fashion.
+// This test stores the matrix B that is VNNIed (packed) in a row major fashion.
 // This is expected to fail on the GPU because the implementation does not
 // support automatic transformation YET, in this case: VNNI to row major in the
 // store.

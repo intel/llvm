@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix
 
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl %s -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 
 #include <iostream>
@@ -60,7 +60,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
 
      cgh.parallel_for<class imatrix>(
          nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [ accA, accB, accC, M, N, K ](nd_item<2> spmd_item)
+         [accA, accB, accC, M, N, K](nd_item<2> spmd_item)
              [[intel::reqd_sub_group_size(SG_SZ)]]
 
          {
@@ -74,29 +74,29 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
 
            ext::oneapi::sub_group sg = spmd_item.get_sub_group();
 
-           myparams2::joint_matrix_a<sub_group> sub_a(sg);
-           myparams2::joint_matrix_b<sub_group> sub_b(sg);
-           myparams2::joint_matrix_c<sub_group> sub_c(sg);
+           myparams2::joint_matrix_a<sub_group> sub_a;
+           myparams2::joint_matrix_b<sub_group> sub_b;
+           myparams2::joint_matrix_c<sub_group> sub_c;
 
            joint_matrix_load(sg, sub_c,
                              accC.get_pointer() + (sg_startx * TM) * N +
                                  sg_starty / SG_SZ * TN,
-                             N, matrix_layout::row_major);
+                             N, layout::row_major);
            for (int k = 0; k < K / TK; k += 1) {
              joint_matrix_load(
                  sg, sub_a, accA.get_pointer() + (sg_startx * TM) * K + k * TK,
-                 K, matrix_layout::row_major);
+                 K);
              // Assuming B data is already in VNNI format.
              joint_matrix_load(sg, sub_b,
                                accB.get_pointer() + (k * TK / 4) * (N * 4) +
                                    sg_starty / SG_SZ * TN * 4,
-                               N * 4, matrix_layout::packed_b);
+                               N * 4);
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(sg, sub_c,
                               accC.get_pointer() + (sg_startx * TM) * N +
                                   sg_starty / SG_SZ * TN,
-                              N, matrix_layout::row_major);
+                              N, layout::row_major);
          }); // parallel for
    }).wait();
 }
