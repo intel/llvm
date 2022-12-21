@@ -284,7 +284,7 @@ groupEntryPointsByOptLevel(ModuleDesc &MD, StringRef AttrName,
       StringRef OptLevelStr = F.getFnAttribute(AttrName).getValueAsString();
       EntryPointMap[OptLevelStr].insert(&F);
     } else {
-      EntryPointMap["2"].insert(&F);
+      EntryPointMap["-1"].insert(&F);
     }
   }
   if (!EntryPointMap.empty()) {

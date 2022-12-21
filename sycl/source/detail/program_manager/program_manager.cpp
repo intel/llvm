@@ -408,7 +408,7 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
   bool isLargeGRF = getUint32PropAsBool(Img, "isLargeGRF") ||
                     getUint32PropAsBool(Img, "isDoubleGRF");
   pi_device_binary_property Prop = Img.getProperty("OptLevel");
-  uint32_t OptLevel = Prop ? DeviceBinaryProperty(Prop).asUint32() : 2;
+  int OptLevel = Prop ? DeviceBinaryProperty(Prop).asUint32() : -1;
   std::string OptLevelStr = "";
   switch (OptLevel) {
     case 0:

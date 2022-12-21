@@ -453,7 +453,9 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     }
   }
 
-  PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"OptLevel", MD.getOptLevel()});
+  auto OptLevel = MD.getOptLevel();
+  if (OptLevel >= 0)
+    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"OptLevel", OptLevel});
 
   if (MD.isESIMD()) {
     PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isEsimdImage", true});
