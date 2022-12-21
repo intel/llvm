@@ -14,6 +14,7 @@ add_library(loader
 
 set_target_properties(loader PROPERTIES
     LIBRARY_OUTPUT_NAME ur_loader
+    RUNTIME_OUTPUT_NAME ur_loader
 )
 
 add_library(${PROJECT_NAME}::loader ALIAS loader)
