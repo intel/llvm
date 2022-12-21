@@ -262,16 +262,6 @@ __ESIMD_API void named_barrier_signal(uint8_t barrier_id,
 /// @{
 
 namespace detail {
-// Compute the data size for 2d block load or store.
-template <typename T, int NBlocks, int Height, int Width, bool Transposed,
-          bool Transformed>
-constexpr int get_lsc_block_2d_data_size() {
-  if (Transformed)
-    return detail::roundUpNextMultiple<Height, 4 / sizeof(T)>() *
-           __ESIMD_DNS::getNextPowerOf2<Width>() * NBlocks;
-  return Width * Height * NBlocks;
-}
-
 // Format u8u32 and u16u32 back to u8 and u16.
 template <typename T, typename T1, int N>
 ESIMD_INLINE __ESIMD_NS::simd<T, N>
@@ -301,6 +291,33 @@ constexpr void check_lsc_atomic() {
   } else {
     __ESIMD_DNS::check_atomic<__ESIMD_DNS::to_atomic_op<Op>(), T, N, NumSrc>();
   }
+}
+
+template <cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
+constexpr uint32_t get_lsc_cache_mask() {
+  if constexpr (L1H == cache_hint::read_invalidate &&
+                L3H == cache_hint::cached) {
+    return 7;
+  }
+  if constexpr (L1H == cache_hint::streaming && L3H == cache_hint::cached) {
+    return 6;
+  }
+  if constexpr (L1H == cache_hint::streaming && L3H == cache_hint::uncached) {
+    return 5;
+  }
+  if constexpr (L1H == cache_hint::cached && L3H == cache_hint::cached) {
+    return 4;
+  }
+  if constexpr (L1H == cache_hint::cached && L3H == cache_hint::uncached) {
+    return 3;
+  }
+  if constexpr (L1H == cache_hint::uncached && L3H == cache_hint::cached) {
+    return 2;
+  }
+  if constexpr (L1H == cache_hint::uncached && L3H == cache_hint::uncached) {
+    return 1;
+  }
+  return 0;
 }
 
 } // namespace detail
@@ -1133,6 +1150,25 @@ constexpr void check_lsc_block_2d_restrictions() {
 }
 } // namespace detail
 
+/// Computes the data size for 2d block load or store.
+/// \tparam T type of the data
+/// \tparam NBlocks is the number of blocks
+/// \tparam Width is the block width in number of elements
+/// \tparam Height is the block height in number of elements
+/// \tparam Transposed is Transposed or not
+/// \return data size in blocks
+
+template <typename T, int NBlocks, int Height, int Width, bool Transposed>
+constexpr int get_lsc_block_2d_data_size() {
+  constexpr int ElemsPerDword = 4 / sizeof(T);
+  constexpr int GRFRowSize = Transposed ? Height : Width;
+  constexpr int GRFRowPitch = __ESIMD_DNS::getNextPowerOf2<GRFRowSize>();
+  constexpr int GRFBlockSize = GRFRowPitch * (Transposed ? Width : Height);
+  constexpr int GRFBlockPitch =
+      detail::roundUpNextMultiple<64 / sizeof(T), GRFBlockSize>();
+  return NBlocks * GRFBlockPitch;
+}
+
 /// 2D USM pointer block load.
 /// Supported platforms: PVC
 /// VISA instruction: lsc_load_block2d.ugm
@@ -1166,25 +1202,14 @@ constexpr void check_lsc_block_2d_restrictions() {
 template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
           bool Transposed = false, bool Transformed = false,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          int N = detail::get_lsc_block_2d_data_size<
-              T, NBlocks, BlockHeight, BlockWidth, Transposed, Transformed>()>
+          int N = get_lsc_block_2d_data_size<T, NBlocks, BlockHeight,
+                                             BlockWidth, Transposed>()>
 __ESIMD_API __ESIMD_NS::simd<T, N>
 lsc_load2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
            unsigned SurfacePitch, int X, int Y) {
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
                                           Transposed, Transformed>();
-  constexpr int ElemsPerDword = 4 / sizeof(T);
-  constexpr int GRFRowSize = Transposed ? BlockHeight : BlockWidth;
-  constexpr int GRFRowPitch = __ESIMD_DNS::getNextPowerOf2<GRFRowSize>();
-  constexpr int GRFBlockSize =
-      GRFRowPitch * (Transposed ? BlockWidth : BlockHeight);
-  constexpr int GRFBlockPitch =
-      detail::roundUpNextMultiple<64 / sizeof(T), GRFBlockSize>();
-  constexpr int ActualN = NBlocks * GRFBlockPitch;
-  static_assert(
-      ActualN == N,
-      "These parameters require unpadding. It is not implemented yet");
   constexpr lsc_data_size DS =
       detail::finalize_data_size<T, lsc_data_size::default_size>();
   __ESIMD_NS::simd_mask<N> pred = 1;
@@ -1221,8 +1246,8 @@ lsc_load2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
 ///
 template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          int N = detail::get_lsc_block_2d_data_size<
-              T, NBlocks, BlockHeight, BlockWidth, false, false>()>
+          int N = get_lsc_block_2d_data_size<T, NBlocks, BlockHeight,
+                                             BlockWidth, false>()>
 __ESIMD_API void lsc_prefetch2d(const T *Ptr, unsigned SurfaceWidth,
                                 unsigned SurfaceHeight, unsigned SurfacePitch,
                                 int X, int Y) {
@@ -1264,10 +1289,10 @@ __ESIMD_API void lsc_prefetch2d(const T *Ptr, unsigned SurfaceWidth,
 ///  N = roundUpNextMultiple(BlockHeight, 4 / sizeof(T)) *
 ///   getNextPowerOf2(BlockWidth) * NBlocks
 ///
-template <typename T, int BlockWidth, int BlockHeight = 1,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
-          int N = detail::get_lsc_block_2d_data_size<
-              T, 1u, BlockHeight, BlockWidth, false, false>()>
+template <
+    typename T, int BlockWidth, int BlockHeight = 1,
+    cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+    int N = get_lsc_block_2d_data_size<T, 1u, BlockHeight, BlockWidth, false>()>
 __ESIMD_API void lsc_store2d(T *Ptr, unsigned SurfaceWidth,
                              unsigned SurfaceHeight, unsigned SurfacePitch,
                              int X, int Y, __ESIMD_NS::simd<T, N> Vals) {
@@ -1316,10 +1341,9 @@ public:
   /// in rows</param>
   /// <param name="Width">the block width in number of elements</param>
   /// <param name="Height">block height in number of elements</param>
-  /// <param name="NBlks">number of blocks</param>
   config_2d_mem_access(const T *Ptr, uint32_t SurfaceWidth,
                        uint32_t SurfaceHeight, uint32_t SurfacePitch, int32_t X,
-                       int32_t Y, int32_t Width, int32_t Height, int32_t NBlks)
+                       int32_t Y, int32_t Width, int32_t Height)
       : payload(0) {
     payload.template bit_cast_view<uint64_t>().template select<1, 1>(0) =
         (uint64_t)Ptr;
@@ -1493,35 +1517,53 @@ public:
         Height - 1;
   }
 
-  private:
+private:
   __ESIMD_NS::simd<uint32_t, 16> get_raw_data() { return payload; }
   __ESIMD_NS::simd<uint32_t, 16> payload;
-  template <typename T1, int N>
+  template <typename T1, int N, bool Transposed, bool Transformed,
+            cache_hint L1H, cache_hint L3H>
   friend ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T1, N>
   lsc_load2d(config_2d_mem_access<T1> &payload);
-  template <typename T1, int N>
+  template <typename T1, int N, cache_hint L1H, cache_hint L3H>
   friend ESIMD_INLINE SYCL_ESIMD_FUNCTION void
   lsc_store2d(config_2d_mem_access<T1> &payload, __ESIMD_NS::simd<T1, N> Data);
-
+  template <typename T1, int N, bool Transposed, bool Transformed,
+            cache_hint L1H, cache_hint L3H>
+  friend ESIMD_INLINE SYCL_ESIMD_FUNCTION void
+  lsc_prefetch2d(config_2d_mem_access<T> &payload);
 };
 
 /// A variation of \c 2D stateless block load \c with parameters passed as
 /// \c config_2d_mem_access \c object
 /// Note: Compatibility with future hardware versions is not guaranteed.
-/// Note: No software mitigation for hardware bugs is possible for this function.
-/// \param T is the element data type
-/// \param N is the data size
-/// \param payload is \c config_2d_mem_access \c object holding all the data
-/// \return is a vector of type T and size N, where N is
+/// Note: No software mitigation for hardware bugs is possible for this
+/// function.
+/// @tparam T is the element data type
+/// @tparam N is the data size
+/// @tparam Transposed is the transposed version or not.
+/// @tparam Transformed is apply VNNI transform or not.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L3H is L3 cache hint.
+/// @param payload is \c config_2d_mem_access \c object holding all the data
+/// @return is a vector of type T and size N, where N is
 ///  getNextPowerOf2(Height) * Width * NBlocks, if transposed
 ///  getNextPowerOf2(Width) * Height * NBlocks, otherwise
 ///
-template <typename T, int N>
+template <typename T, int N, bool Transposed = false, bool Transformed = false,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
 ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N>
 lsc_load2d(config_2d_mem_access<T> &payload) {
+  detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
+  static_assert(!Transposed || !Transformed,
+                "Transposed and transformed is not supported");
+  constexpr uint32_t cache_mask = detail::get_lsc_cache_mask<L1H, L3H>() << 17;
+  constexpr uint32_t base_desc = 0x2800403;
+  constexpr uint32_t transformMask = Transformed ? 1 << 7 : 0;
+  constexpr uint32_t transposeMask = Transposed ? 1 << 15 : 0;
   __ESIMD_NS::simd<T, N> oldDst;
   constexpr uint32_t exDesc = 0x0;
-  constexpr uint32_t desc = 0x28A0403;
+  constexpr uint32_t desc =
+      base_desc | cache_mask | transformMask | transposeMask;
   constexpr uint8_t execSize = 0x0;
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numSrc0 = 0x1;
@@ -1531,21 +1573,66 @@ lsc_load2d(config_2d_mem_access<T> &payload) {
                        sfid, numSrc0, numDst);
 }
 
+/// A variation of \c 2D stateless block prefetch \c with parameters passed as
+/// \c config_2d_mem_access \c object
+/// Note: Compatibility with future hardware versions is not guaranteed.
+/// Note: No software mitigation for hardware bugs is possible for this
+/// function.
+/// @tparam T is the element data type
+/// @tparam N is the data size
+/// @tparam Transposed is the transposed version or not.
+/// @tparam Transformed is apply VNNI transform or not.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L3H is L3 cache hint.
+/// @param payload is \c config_2d_mem_access \c object holding all the data
+///
+template <typename T, int N, bool Transposed = false, bool Transformed = false,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
+ESIMD_INLINE SYCL_ESIMD_FUNCTION void
+lsc_prefetch2d(config_2d_mem_access<T> &payload) {
+  detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L3H>();
+  static_assert(!Transposed || !Transformed,
+                "Transposed and transformed is not supported");
+  constexpr uint32_t cache_mask = detail::get_lsc_cache_mask<L1H, L3H>() << 17;
+  constexpr uint32_t base_desc = 0x2000403;
+  constexpr uint32_t transformMask = Transformed ? 1 << 7 : 0;
+  constexpr uint32_t transposeMask = Transposed ? 1 << 15 : 0;
+  __ESIMD_NS::simd<T, N> oldDst;
+  constexpr uint32_t exDesc = 0x0;
+  constexpr uint32_t desc =
+      base_desc | cache_mask | transformMask | transposeMask;
+  constexpr uint8_t execSize = 0x0;
+  constexpr uint8_t sfid = 0xF;
+  constexpr uint8_t numSrc0 = 0x1;
+  constexpr uint8_t numSrc1 = 0x0;
+  constexpr uint8_t numDst = (N * sizeof(T)) / 64;
+  raw_send_load(oldDst, payload.get_raw_data(), exDesc, desc, execSize, sfid,
+                numSrc0, numDst);
+}
+
 /// A variation of \c 2D stateless block store \c with parameters passed as
 /// \c config_2d_mem_access \c object
 /// Note: Compatibility with future hardware versions is not guaranteed.
-/// Note: No software mitigation for hardware bugs is possible for this function.
-/// \param T is the element data type
-/// \param N is the data size
-/// \param payload is \c config_2d_mem_access \c object holding all the data
-/// \param Data is the data to be stored.
+/// Note: No software mitigation for hardware bugs is possible for this
+/// function.
+/// @param T is the element data type
+/// @param N is the data size
+/// @tparam L1H is L1 cache hint.
+/// @tparam L3H is L3 cache hint.
+/// @param payload is \c config_2d_mem_access \c object holding all the data
+/// @param Data is the data to be stored.
 ///
-template <typename T, int N>
+template <typename T, int N, cache_hint L1H = cache_hint::none,
+          cache_hint L3H = cache_hint::none>
 ESIMD_INLINE SYCL_ESIMD_FUNCTION void
 lsc_store2d(config_2d_mem_access<T> &payload, __ESIMD_NS::simd<T, N> Data) {
+  detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
+
+  constexpr uint32_t cache_mask = detail::get_lsc_cache_mask<L1H, L3H>() << 17;
+  constexpr uint32_t base_desc = 0x2000407;
 
   constexpr uint32_t exDesc = 0x0;
-  constexpr uint32_t desc = 0x2040407;
+  constexpr uint32_t desc = base_desc | cache_mask;
   constexpr uint8_t execSize = 0x0;
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numSrc0 = 0x1;
@@ -1554,21 +1641,6 @@ lsc_store2d(config_2d_mem_access<T> &payload, __ESIMD_NS::simd<T, N> Data) {
   raw_sends_store(payload.get_raw_data(), Data, exDesc, desc, execSize, sfid,
                   numSrc0, numSrc1);
 }
-
-/// Computes the data size for 2d block load or store.
-/// \param NBlocks is the number of blocks
-/// \param Width is the block width in number of elements
-/// \param Height is the block height in number of elements
-/// \param Transposed is Transposed or not
-/// \return data size in blocks
-
-template <int NBlocks, int Height, int Width, bool Transposed>
-constexpr int get_block_2d_data_size() {
-  if constexpr (Transposed)
-    return __ESIMD_DNS::getNextPowerOf2<Height>() * Width * NBlocks;
-  return __ESIMD_DNS::getNextPowerOf2<Width>() * Height * NBlocks;
-}
-
 
 /// SLM atomic.
 /// Supported platforms: DG2, PVC
