@@ -1,4 +1,4 @@
-# Copyright (C) 2022 Intel Corporation
+# Copyright (C) 2022-2023 Intel Corporation
 # SPDX-License-Identifier: MIT
 
 cmake_minimum_required(VERSION 3.14.0 FATAL_ERROR)
@@ -7,6 +7,9 @@ project(unified-runtime VERSION 0.5.0)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 include(CTest)
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(helpers)
 
 find_package(Python3 COMPONENTS Interpreter)
 
@@ -17,17 +20,17 @@ if(MSVC)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
 endif()
 
-# define rpath for libraries so that adapters can be found automatically
+# Define rpath for libraries so that adapters can be found automatically
 set(CMAKE_BUILD_RPATH "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 
-#Define a path for custom commands to work around MSVC
+# Define a path for custom commands to work around MSVC
 set(CUSTOM_COMMAND_BINARY_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 if(MSVC)
-    #MSVC implicitly adds $<CONFIG> to the output path
+    # MSVC implicitly adds $<CONFIG> to the output path
     set(CUSTOM_COMMAND_BINARY_DIR ${CUSTOM_COMMAND_BINARY_DIR}/$<CONFIG>)
 endif()
 
-#CXX compiler support
+# CXX compiler support
 if(NOT MSVC)
     include(CheckCXXCompilerFlag)
     CHECK_CXX_COMPILER_FLAG("-std=c++14" COMPILER_SUPPORTS_CXX14)
@@ -42,15 +45,15 @@ if(NOT MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpermissive -fPIC")
 endif()
 
-#MSVC compile flags
+# MSVC compile flags
 if(MSVC)
     string(REPLACE "/MDd" "/MTd" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
     string(REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
 
-    # treat warnings as errors
+    # Treat warnings as errors
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX /W3 /wd4996")
 
-    # enable multi-process compilation
+    # Enable multi-process compilation
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 endif()
 
@@ -61,6 +64,44 @@ endif()
 
 # Option to disable tests
 option(${PROJECT_NAME}_BUILD_TESTS "Build unit tests." ON)
+
+# Option to run a code formatter
+option(${PROJECT_NAME}_FORMAT_CPP_STYLE "format code style of C++ sources" OFF)
+
+find_program(CLANG_FORMAT NAMES clang-format-10 clang-format-10.0 clang-format)
+
+set(CLANG_FORMAT_REQUIRED "10.0")
+
+if(CLANG_FORMAT)
+    get_program_version_major_minor(${CLANG_FORMAT} CLANG_FORMAT_VERSION)
+    message(STATUS "Found clang-format: ${CLANG_FORMAT} (version: ${CLANG_FORMAT_VERSION})")
+endif()
+
+# Check if the correct version of clang-format is available
+if(FORMAT_CPP_STYLE)
+    if(CLANG_FORMAT)
+        if(NOT (CLANG_FORMAT_VERSION VERSION_EQUAL CLANG_FORMAT_REQUIRED))
+            message(FATAL_ERROR "required clang-format version is ${CLANG_FORMAT_REQUIRED}")
+        endif()
+    else()
+        message(FATAL_ERROR "FORMAT_CPP_STYLE=ON, but clang-format not found (required version: ${CLANG_FORMAT_REQUIRED})")
+    endif()
+endif()
+
+# Obtain files for clang-format
+file(GLOB_RECURSE format_src
+    "*.h"
+    "*.cpp"
+)
+
+# Exclude files from build directory to ensure they're not passed to the formatter
+list(FILTER format_src EXCLUDE REGEX "${CMAKE_CURRENT_BINARY_DIR}.")
+
+# Add code formatter target
+add_custom_target(cppformat)
+
+# Add files to the formatter
+add_cppformat(src-formatter ${format_src})
 
 add_subdirectory(${THIRD_PARTY_DIR})
 
@@ -116,16 +157,18 @@ install(
 
 set(API_JSON_FILE ${PROJECT_BINARY_DIR}/unified_runtime.json)
 
-# generate source from the specification
+# Generate source from the specification
 add_custom_target(generate
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/scripts
     COMMAND ${Python3_EXECUTABLE} run.py --api-json ${API_JSON_FILE}
     COMMAND ${Python3_EXECUTABLE} json2src.py --api-json ${API_JSON_FILE} ${PROJECT_SOURCE_DIR}
 )
 
-# generate source and check for uncommitted diffs
+# Generate source and check for uncommitted diffs
 add_custom_target(check-generated
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
     COMMAND git diff --exit-code
     DEPENDS generate
+    # Uncomment line below after docker image is integrated
+    #DEPENDS cppformat
 )

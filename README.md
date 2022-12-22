@@ -49,6 +49,11 @@ Tools can be acquired via instructions in [third_party](/third_party/README.md).
 
 ## Building
 
+Requirements:
+- C++ compiler with C++14 support
+- cmake >= 3.14.0
+- clang-format-10.0 (for automatic code formatting)
+
 Project is defined using [CMake](https://cmake.org/).
 
 **Windows**:
@@ -72,6 +77,15 @@ $ cmake {path_to_source_dir}
 $ make
 ~~~~
 
+### CMake standard options
+
+List of options provided by CMake:
+
+| Name | Description | Values | Default |
+| - | - | - | - |
+| BUILD_TESTS | Build the tests | ON/OFF | ON |
+| FORMAT_CPP_STYLE | Format code style | ON/OFF | OFF |
+
 **General**:
 
 If you've made modifications to the specification, you can also run a custom `generate` target prior to building.
@@ -80,3 +94,8 @@ $ make generate
 ~~~~
 
 This call will automatically generate the source code.
+
+To run automated code formatting build with option `FORMAT_CPP_STYLE` and then run a custom `cppformat` target:
+~~~~
+$ make cppformat
+~~~~
