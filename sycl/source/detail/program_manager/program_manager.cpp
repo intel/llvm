@@ -410,20 +410,10 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
   pi_device_binary_property Prop = Img.getProperty("OptLevel");
   int OptLevel = Prop ? DeviceBinaryProperty(Prop).asUint32() : -1;
   std::string OptLevelStr = "";
-  switch (OptLevel) {
-    case 0:
-      OptLevelStr = "-cl-opt-disable";
-      break;
-    case 1:
-      OptLevelStr = "-O1";
-      break;
-    case 2:
-      OptLevelStr = "-O2";
-      break;
-    case 3:
-      OptLevelStr = "-O3";
-      break;
-  }
+  // Currently, we do not do anything for other opt levels
+  // TODO: Figure out a way to send some info across for other opt levels.
+  if (OptLevel == 0)
+    OptLevelStr = "-cl-opt-disable";
 
   // The -vc-codegen option is always preserved for ESIMD kernels, regardless
   // of the contents SYCL_PROGRAM_COMPILE_OPTIONS environment variable.

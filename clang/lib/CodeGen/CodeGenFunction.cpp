@@ -9,7 +9,6 @@
 // This coordinates the per-function state used while generating code.
 //
 //===----------------------------------------------------------------------===//
-
 #include "CodeGenFunction.h"
 #include "CGBlocks.h"
 #include "CGCUDARuntime.h"
@@ -598,7 +597,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
     case 3:
       SYCLDeviceCompileOptLevel = CGM.getCodeGenOpts().OptimizationLevel;
     }
-    if (SYCLDeviceCompileOptLevel > 0)
+    if (SYCLDeviceCompileOptLevel >= 0)
       Fn->addFnAttr("sycl-device-compile-optlevel", std::to_string(SYCLDeviceCompileOptLevel));
   }
   llvm::LLVMContext &Context = getLLVMContext();
