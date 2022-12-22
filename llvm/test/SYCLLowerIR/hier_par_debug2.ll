@@ -1,4 +1,4 @@
-; RUN: opt < %s -debugify -LowerWGScope -S | FileCheck %s
+; RUN: opt < %s -passes=debugify,LowerWGScope -S | FileCheck %s
 ;
 ; Check that debug info is not lost after LowerWGScope pass.
 ; Case with private_mem usage.

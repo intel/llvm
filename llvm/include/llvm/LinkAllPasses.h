@@ -18,8 +18,6 @@
 #include "llvm/Analysis/AliasAnalysisEvaluator.h"
 #include "llvm/Analysis/AliasSetTracker.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
-#include "llvm/Analysis/CFLAndersAliasAnalysis.h"
-#include "llvm/Analysis/CFLSteensAliasAnalysis.h"
 #include "llvm/Analysis/CallPrinter.h"
 #include "llvm/Analysis/DomPrinter.h"
 #include "llvm/Analysis/GlobalsModRef.h"
@@ -86,8 +84,6 @@ namespace {
       (void) llvm::createCallGraphDOTPrinterPass();
       (void) llvm::createCallGraphViewerPass();
       (void) llvm::createCFGSimplificationPass();
-      (void) llvm::createCFLAndersAAWrapperPass();
-      (void) llvm::createCFLSteensAAWrapperPass();
       (void) llvm::createStructurizeCFGPass();
       (void) llvm::createLibCallsShrinkWrapPass();
       (void) llvm::createCalledValuePropagationPass();
@@ -224,7 +220,6 @@ namespace {
       (void) llvm::createInjectTLIMappingsLegacyPass();
       (void) llvm::createUnifyLoopExitsPass();
       (void) llvm::createFixIrreduciblePass();
-      (void)llvm::createFunctionSpecializationPass();
       (void)llvm::createSelectOptimizePass();
 
       (void)new llvm::IntervalPartition();
@@ -234,7 +229,8 @@ namespace {
       llvm::TargetLibraryInfoImpl TLII;
       llvm::TargetLibraryInfo TLI(TLII);
       llvm::AliasAnalysis AA(TLI);
-      llvm::AliasSetTracker X(AA);
+      llvm::BatchAAResults BAA(AA);
+      llvm::AliasSetTracker X(BAA);
       X.add(nullptr, llvm::LocationSize::beforeOrAfterPointer(),
             llvm::AAMDNodes()); // for -print-alias-sets
       (void) llvm::AreStatisticsEnabled();

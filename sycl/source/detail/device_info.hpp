@@ -1592,6 +1592,14 @@ get_device_info_host<ext::intel::info::device::memory_bus_width>() {
       PI_ERROR_INVALID_DEVICE);
 }
 
+template <>
+inline int32_t
+get_device_info_host<ext::intel::info::device::max_compute_queue_indices>() {
+  throw runtime_error(
+      "Obtaining max compute queue indices is not supported on HOST device",
+      PI_ERROR_INVALID_DEVICE);
+}
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
