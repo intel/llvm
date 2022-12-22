@@ -779,7 +779,7 @@ public:
   /// tableau A and one in B.
   static Simplex makeProduct(const Simplex &a, const Simplex &b);
 
-  /// Returns an integer sample point if one exists, or None
+  /// Returns an integer sample point if one exists, or std::nullopt
   /// otherwise. This should only be called for bounded sets.
   Optional<SmallVector<MPInt, 8>> findIntegerSample();
 
@@ -804,7 +804,7 @@ public:
   bool isRationalSubsetOf(const IntegerRelation &rel);
 
   /// Returns the current sample point if it is integral. Otherwise, returns
-  /// None.
+  /// std::nullopt.
   Optional<SmallVector<MPInt, 8>> getSamplePointIfIntegral() const;
 
   /// Returns the current sample point, which may contain non-integer (rational)

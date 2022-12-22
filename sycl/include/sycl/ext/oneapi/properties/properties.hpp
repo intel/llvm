@@ -19,9 +19,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 
 namespace detail {
 
@@ -79,10 +77,11 @@ template <typename... Ts> struct RuntimePropertyStorage<std::tuple<Ts...>> {
 };
 template <typename T, typename... Ts>
 struct RuntimePropertyStorage<std::tuple<T, Ts...>>
-    : std::conditional_t<IsRuntimeProperty<T>::value,
-                         PrependTuple<T, typename RuntimePropertyStorage<
-                                             std::tuple<Ts...>>::type>,
-                         RuntimePropertyStorage<std::tuple<Ts...>>> {};
+    : sycl::detail::conditional_t<
+          IsRuntimeProperty<T>::value,
+          PrependTuple<
+              T, typename RuntimePropertyStorage<std::tuple<Ts...>>::type>,
+          RuntimePropertyStorage<std::tuple<Ts...>>> {};
 
 // Helper class to extract a subset of elements from a tuple.
 // NOTES: This assumes no duplicate properties and that all properties in the
@@ -223,9 +222,7 @@ using merged_properties_t =
     typename merged_properties<LHSPropertiesT, RHSPropertiesT>::type;
 
 } // namespace detail
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 
 // If property_list is not trivially copyable, allow properties to propagate
 // is_device_copyable

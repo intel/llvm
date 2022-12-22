@@ -435,6 +435,15 @@ def Tensor_ExtractSliceOp : Tensor_OpWithOffsetSizesAndStrides<"extract_slice", 
     /// Return the dimensions of the source that are dropped in the
     /// result when the result is rank-reduced.
     llvm::SmallBitVector getDroppedDims();
+
+    /// Given a `value`, asserted to be of RankedTensorType, build an
+    /// ExtractSliceOp that results in a rank-reducing extract to the desired
+    /// tensor shape and return the new value created.
+    /// If the shape of `value` is already the `desiredShape`, just return
+    /// `value`.
+    /// If the shape of `value` cannot be rank-reduced to `desiredShape`, fail.
+    static FailureOr<Value> rankReduceIfNeeded(
+      OpBuilder &b, Location loc, Value value, ArrayRef<int64_t> desiredShape);
   }];
 
   let hasCanonicalizer = 1;
@@ -1765,7 +1774,7 @@ def Tensor_PackOp : Tensor_RelayoutOp<"pack", [
     OpBuilder<(ins "Value":$source, "Value":$dest,
       "ArrayRef<int64_t>":$innerDimsPos,
       "ArrayRef<OpFoldResult>":$innerTiles,
-      CArg<"Optional<Value>", "llvm::None">:$paddingValue,
+      CArg<"Optional<Value>", "std::nullopt">:$paddingValue,
       CArg<"ArrayRef<int64_t>", "{}">:$outerDimsPerm)>
   ];
 
@@ -1776,6 +1785,10 @@ def Tensor_PackOp : Tensor_RelayoutOp<"pack", [
     static ShapedType inferPackedType(ShapedType sourceType,
         ArrayRef<int64_t> innerTileSizes, ArrayRef<int64_t> innerDimsPos,
         ArrayRef<int64_t> outerDimsPerm = {});
+
+    static Value createDestinationTensor(OpBuilder &b, Location loc,
+        Value source, ArrayRef<OpFoldResult> innerTileSizes,
+        ArrayRef<int64_t> innerDimsPos, ArrayRef<int64_t> outerDimsPerm);
   }];
 }
 
@@ -1822,6 +1835,13 @@ def Tensor_UnPackOp : Tensor_RelayoutOp<"unpack"> {
     custom<DynamicIndexList>($inner_tiles, $static_inner_tiles)
     `into` $dest attr-dict `:` type($source) `->` type($dest)
   }];
+
+  let builders = [
+    OpBuilder<(ins "Value":$source, "Value":$dest,
+    "ArrayRef<int64_t>":$innerDimsPos,
+    "ArrayRef<OpFoldResult>":$innerTiles,
+    CArg<"ArrayRef<int64_t>", "{}">:$outerDimsPerm)>
+  ];
 
   let extraClassDeclaration = commonExtraClassDeclaration;
   let hasCanonicalizeMethod = 1;

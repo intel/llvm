@@ -1,5 +1,12 @@
 # This file handles building LLVM runtime sub-projects.
 cmake_minimum_required(VERSION 3.13.4)
+if ("${CMAKE_VERSION}" VERSION_LESS "3.20.0")
+  message(WARNING
+    "Your CMake version is ${CMAKE_VERSION}. Starting with LLVM 17.0.0, the "
+    "minimum version of CMake required to build LLVM will become 3.20.0, and "
+    "using an older CMake will become an error. Please upgrade your CMake to "
+    "at least 3.20.0 now to avoid issues in the future!")
+endif()
 project(Runtimes C CXX ASM)
 
 # Add path for custom and the LLVM build's modules to the CMake module path.
@@ -154,8 +161,8 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 # Host triple is used by tests to check if they are running natively.
 include(GetHostTriple)
 get_host_triple(LLVM_HOST_TRIPLE)
-set(LLVM_TARGET_TRIPLE "${LLVM_HOST_TRIPLE}" CACHE STRING
-  "Target for which the runtimes will be built.")
+set(LLVM_DEFAULT_TARGET_TRIPLE "${LLVM_HOST_TRIPLE}" CACHE STRING
+  "Default target for which the runtimes will be built.")
 
 option(LLVM_INCLUDE_TESTS "Generate build targets for the runtimes unit tests." ON)
 option(LLVM_INCLUDE_DOCS "Generate build targets for the runtimes documentation." ON)

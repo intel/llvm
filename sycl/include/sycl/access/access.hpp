@@ -337,6 +337,17 @@ template <typename ToT, typename FromT> inline ToT cast_AS(FromT from) {
       return reinterpret_cast<ToT>(from);
 #endif // defined(__NVPTX__) || defined(__AMDGCN__)
   } else
+#ifdef __ENABLE_USM_ADDR_SPACE__
+      if constexpr (FromAS == access::address_space::global_space &&
+                    (ToAS ==
+                         access::address_space::ext_intel_global_device_space ||
+                     ToAS ==
+                         access::address_space::ext_intel_global_host_space)) {
+    // Casting from global address space to the global device and host address
+    // spaces is allowed.
+    return (ToT)from;
+  } else
+#endif // __ENABLE_USM_ADDR_SPACE__
 #endif // __SYCL_DEVICE_ONLY__
   {
     return reinterpret_cast<ToT>(from);

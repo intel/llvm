@@ -1605,15 +1605,16 @@ void ProgramManager::addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
   m_Ptr2DeviceGlobal.insert({DeviceGlobalPtr, NewEntry.first->second.get()});
 }
 
-void ProgramManager::getRawDeviceImages(
-    const std::vector<kernel_id> &KernelIDs,
-    std::set<RTDeviceBinaryImage *> &BinImages) {
+std::set<RTDeviceBinaryImage *>
+ProgramManager::getRawDeviceImages(const std::vector<kernel_id> &KernelIDs) {
+  std::set<RTDeviceBinaryImage *> BinImages;
   std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
   for (const kernel_id &KID : KernelIDs) {
     auto Range = m_KernelIDs2BinImage.equal_range(KID);
     for (auto It = Range.first, End = Range.second; It != End; ++It)
       BinImages.insert(It->second);
   }
+  return BinImages;
 }
 
 std::vector<device_image_plain>
@@ -1625,7 +1626,17 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
   // TODO: Can we avoid repacking?
   std::set<RTDeviceBinaryImage *> BinImages;
   if (!KernelIDs.empty()) {
-    getRawDeviceImages(KernelIDs, BinImages);
+    for (const auto &KID : KernelIDs) {
+      bool isCompatibleWithAtLeastOneDev =
+          std::any_of(Devs.begin(), Devs.end(), [&KID](const auto &Dev) {
+            return sycl::is_compatible({KID}, Dev);
+          });
+      if (!isCompatibleWithAtLeastOneDev)
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Kernel is incompatible with all devices in devs");
+    }
+    BinImages = getRawDeviceImages(KernelIDs);
   } else {
     std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
     for (auto &ImagesSets : m_DeviceImages) {
@@ -1653,7 +1664,8 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
       continue;
 
     for (const sycl::device &Dev : Devs) {
-      if (!compatibleWithDevice(BinImage, Dev))
+      if (!compatibleWithDevice(BinImage, Dev) ||
+          !doesDevSupportImgAspects(Dev, *BinImage))
         continue;
 
       std::shared_ptr<std::vector<sycl::kernel_id>> KernelIDs;
@@ -1732,7 +1744,7 @@ ProgramManager::getSYCLDeviceImages(const context &Ctx,
   // Collect device images with compatible state
   std::vector<device_image_plain> DeviceImages =
       getSYCLDeviceImagesWithCompatibleState(Ctx, Devs, TargetState);
-  // Brind device images with compatible state to desired state
+  // Bring device images with compatible state to desired state.
   bringSYCLDeviceImagesToState(DeviceImages, TargetState);
   return DeviceImages;
 }
@@ -1779,7 +1791,7 @@ std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
   std::vector<device_image_plain> DeviceImages =
       getSYCLDeviceImagesWithCompatibleState(Ctx, Devs, TargetState, KernelIDs);
 
-  // Brind device images with compatible state to desired state
+  // Bring device images with compatible state to desired state.
   bringSYCLDeviceImagesToState(DeviceImages, TargetState);
   return DeviceImages;
 }
@@ -2116,6 +2128,29 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
   assert(BuildResult != nullptr && "Invalid build result");
   return std::make_pair(BuildResult->Ptr.load(),
                         &(BuildResult->MBuildResultMutex));
+}
+
+bool doesDevSupportImgAspects(const device &Dev,
+                              const RTDeviceBinaryImage &Img) {
+  const RTDeviceBinaryImage::PropertyRange &PropRange =
+      Img.getDeviceRequirements();
+  RTDeviceBinaryImage::PropertyRange::ConstIterator PropIt = std::find_if(
+      PropRange.begin(), PropRange.end(),
+      [](RTDeviceBinaryImage::PropertyRange::ConstIterator &&Prop) {
+        using namespace std::literals;
+        return (*Prop)->Name == "aspects"sv;
+      });
+  if (PropIt == PropRange.end())
+    return true;
+  ByteArray Aspects = DeviceBinaryProperty(*PropIt).asByteArray();
+  // Drop 8 bytes describing the size of the byte array.
+  Aspects.dropBytes(8);
+  while (!Aspects.empty()) {
+    aspect Aspect = Aspects.consume<aspect>();
+    if (!Dev.has(Aspect))
+      return false;
+  }
+  return true;
 }
 
 } // namespace detail

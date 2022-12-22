@@ -15,8 +15,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 
 template <memory_order> struct order_tag_t {
   explicit order_tag_t() = default;
@@ -81,20 +80,20 @@ public:
 
   // Override subscript operators and conversions to wrap in an atomic_ref
   template <int Dims = Dimensions>
-  operator typename std::enable_if_t<Dims == 0, reference>() const {
+  operator typename detail::enable_if_t<Dims == 0, reference>() const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
     return reference(getQualifiedPtr()[LinearIndex]);
   }
 
   template <int Dims = Dimensions>
-  typename std::enable_if_t<(Dims > 0), reference>
+  typename detail::enable_if_t<(Dims > 0), reference>
   operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return reference(getQualifiedPtr()[LinearIndex]);
   }
 
   template <int Dims = Dimensions>
-  typename std::enable_if_t<Dims == 1, reference>
+  typename detail::enable_if_t<Dims == 1, reference>
   operator[](size_t Index) const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>(Index));
     return reference(getQualifiedPtr()[LinearIndex]);
@@ -114,8 +113,6 @@ atomic_accessor(buffer<DataT, Dimensions, AllocatorT>, handler,
                 order_tag_t<Order>, scope_tag_t<Scope>, property_list = {})
     -> atomic_accessor<DataT, Dimensions, Order, Scope, target::device,
                        access::placeholder::false_t>;
-} // namespace oneapi
-} // namespace ext
-
+} // namespace ext::oneapi
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

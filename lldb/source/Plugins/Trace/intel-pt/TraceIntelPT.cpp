@@ -19,7 +19,6 @@
 #include "lldb/Interpreter/OptionValueProperties.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
-#include "llvm/ADT/None.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -197,7 +196,7 @@ Expected<Optional<uint64_t>> TraceIntelPT::FindBeginningOfTimeNanos() {
   storage.beginning_of_time_nanos_calculated = true;
 
   if (!storage.tsc_conversion)
-    return None;
+    return std::nullopt;
 
   Optional<uint64_t> lowest_tsc;
 
@@ -465,7 +464,7 @@ void TraceIntelPT::DumpTraceInfoAsJson(Thread &thread, Stream &s,
 llvm::Expected<Optional<uint64_t>>
 TraceIntelPT::GetRawTraceSize(Thread &thread) {
   if (GetUpdatedStorage().multicpu_decoder)
-    return None; // TODO: calculate the amount of intel pt raw trace associated
+    return std::nullopt; // TODO: calculate the amount of intel pt raw trace associated
                  // with the given thread.
   if (GetLiveProcess())
     return GetLiveThreadBinaryDataSize(thread.GetID(),
