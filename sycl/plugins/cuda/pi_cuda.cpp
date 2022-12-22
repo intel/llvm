@@ -529,8 +529,6 @@ pi_result _pi_event::start() {
   try {
     if (queue_->properties_ & PI_QUEUE_FLAG_PROFILING_ENABLE) {
       // NOTE: This relies on the default stream to be unused.
-      // TODO: Remove this and other related code for setting or getting
-      // queued/submit time
       result = PI_CHECK_ERROR(cuEventRecord(evQueued_, 0));
       result = PI_CHECK_ERROR(cuEventRecord(evStart_, stream_));
     }

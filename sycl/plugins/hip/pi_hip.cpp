@@ -593,7 +593,6 @@ bool _pi_event::is_completed() const noexcept {
   return true;
 }
 
-// TODO: Remove this and other code for setting or getting queued/submit time
 pi_uint64 _pi_event::get_queued_time() const {
   float miliSeconds = 0.0f;
   assert(is_started());
