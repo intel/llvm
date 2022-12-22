@@ -7,7 +7,7 @@ on:
 jobs:
   windows_test_preparation:
     runs-on: ubuntu-latest
-    if: ${{ github.event.issue.pull_request && (github.event.comment.body == '/start Windows testing' ||  github.event.comment.body == '/windu please')}}
+    if: ${{ github.event.issue.pull_request && github.event.comment.body == '/testwin' }}
     steps:
     - name: react_to_comment
       uses: actions/github-script@v4
