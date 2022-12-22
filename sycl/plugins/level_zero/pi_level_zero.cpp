@@ -6759,31 +6759,30 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
                 !InitialCopyGroup.ZeQueues.empty(),
             PI_ERROR_INVALID_QUEUE);
 
-  if (Queue->Device->useImmediateCommandLists()) {
-    // If immediate command lists are being used, each will act as their own
-    // queue, so we must insert a barrier into each.
-    CmdLists.reserve(Queue->CommandListMap.size());
-    for (auto It = Queue->CommandListMap.begin();
-         It != Queue->CommandListMap.end(); ++It)
-      CmdLists.push_back(It);
-  } else {
-    size_t NumQueues = 0;
-    for (auto &QueueMap :
-         {Queue->ComputeQueueGroupsByTID, Queue->CopyQueueGroupsByTID})
-      for (auto &QueueGroup : QueueMap)
-        NumQueues += QueueGroup.second.ZeQueues.size();
+  size_t NumQueues = 0;
+  for (auto &QueueMap :
+       {Queue->ComputeQueueGroupsByTID, Queue->CopyQueueGroupsByTID})
+    for (auto &QueueGroup : QueueMap)
+      NumQueues += QueueGroup.second.ZeQueues.size();
 
-    OkToBatch = true;
-    // Get an available command list tied to each command queue. We need
-    // these so a queue-wide barrier can be inserted into each command
-    // queue.
-    CmdLists.reserve(NumQueues);
-    for (auto &QueueMap :
-         {Queue->ComputeQueueGroupsByTID, Queue->CopyQueueGroupsByTID})
-      for (auto &QueueGroup : QueueMap) {
-        bool UseCopyEngine =
-            QueueGroup.second.Type != _pi_queue::queue_type::Compute;
-        for (ze_command_queue_handle_t ZeQueue : QueueGroup.second.ZeQueues) {
+  OkToBatch = true;
+  // Get an available command list tied to each command queue. We need
+  // these so a queue-wide barrier can be inserted into each command
+  // queue.
+  CmdLists.reserve(NumQueues);
+  for (auto &QueueMap :
+       {Queue->ComputeQueueGroupsByTID, Queue->CopyQueueGroupsByTID})
+    for (auto &QueueGroup : QueueMap) {
+      bool UseCopyEngine =
+          QueueGroup.second.Type != _pi_queue::queue_type::Compute;
+      if (Queue->Device->useImmediateCommandLists()) {
+        // If immediate command lists are being used, each will act as their own
+        // queue, so we must insert a barrier into each.
+        for (auto ImmCmdList : QueueGroup.second.ImmCmdLists)
+          if (ImmCmdList != Queue->CommandListMap.end())
+            CmdLists.push_back(ImmCmdList);
+      } else {
+        for (auto ZeQueue : QueueGroup.second.ZeQueues) {
           if (ZeQueue) {
             pi_command_list_ptr_t CmdList;
             if (auto Res = Queue->Context->getAvailableCommandList(
@@ -6793,7 +6792,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
           }
         }
       }
-  }
+    }
 
   // If no activity has occurred on the queue then there will be no cmdlists.
   // We need one for generating an Event, so create one.
