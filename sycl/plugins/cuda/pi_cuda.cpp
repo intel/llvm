@@ -3891,6 +3891,7 @@ pi_result cuda_piEventGetProfilingInfo(pi_event event,
   switch (param_name) {
   case PI_PROFILING_INFO_COMMAND_QUEUED:
   case PI_PROFILING_INFO_COMMAND_SUBMIT:
+    // Note: No user for this case
     return getInfo<pi_uint64>(param_value_size, param_value,
                               param_value_size_ret, event->get_queued_time());
   case PI_PROFILING_INFO_COMMAND_START:

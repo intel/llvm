@@ -5988,6 +5988,10 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   }
   case PI_PROFILING_INFO_COMMAND_QUEUED:
   case PI_PROFILING_INFO_COMMAND_SUBMIT:
+    // Note: No users for this case
+    // TODO: Implement commmand submission time when needed,
+    //        by recording device timestamp (using zeDeviceGetGlobalTimestamps)
+    //        before submitting command to device
     return ReturnValue(uint64_t{0});
   default:
     zePrint("piEventGetProfilingInfo: not supported ParamName\n");
