@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2022 Intel Corporation
+ * Copyright (C) 2022-2023 Intel Corporation
  *
  * SPDX-License-Identifier: MIT
  *
@@ -13,7 +13,6 @@
 
 #include "ur_ddi.h"
 
-#include "ur_util.h"
 #include "ur_object.h"
 
 #include "ur_ldrddi.h"
