@@ -4,7 +4,16 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
   message(STATUS "Download Level Zero loader and headers from github.com")
 
   set(LEVEL_ZERO_LOADER_REPO "https://github.com/oneapi-src/level-zero.git")
-  set(LEVEL_ZERO_LOADER_TAG v1.8.8)
+  if (WIN32)
+    # This version is matching loader verson in the latest windows drivers
+    # that are installed on the CI systems
+    # See https://www.intel.com/content/www/us/en/download/19344/intel-graphics-windows-dch-drivers.html
+    set(LEVEL_ZERO_LOADER_TAG v1.8.5)
+  else()
+    # This version is matching loader version installed in the CI containers
+    # See devops/dependencies.json
+    set(LEVEL_ZERO_LOADER_TAG v1.8.8)
+  endif()
 
   # Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104
   set(CMAKE_INCLUDE_CURRENT_DIR OFF)
