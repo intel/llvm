@@ -368,7 +368,8 @@ bool llvm::runPassPipeline(StringRef Arg0, Module &M, TargetMachine *TM,
     } else /* CSPGOKindFlag == CSInstrUse */ {
       if (!P)
         errs() << "CSInstrUse needs to be together with InstrUse";
-      P->CSAction = PGOOptions::CSIRUse;
+      else
+        P->CSAction = PGOOptions::CSIRUse;
     }
   }
   if (TM)
