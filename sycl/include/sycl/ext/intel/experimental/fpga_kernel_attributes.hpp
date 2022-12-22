@@ -15,28 +15,28 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::intel::experimental {
- 
+
 template <typename T, typename PropertyListT> class fpga_kernel_attribute;
 
 enum class streaming_interface_options_enum : std::uint16_t {
   accept_downstream_stall,
   remove_downstream_stall
 };
- 
+
 enum class register_map_interface_options_enum : std::uint16_t {
   wait_for_done_write,
   do_not_wait_for_done_write
 };
- 
+
 struct streaming_interface_key {
   template <streaming_interface_options_enum option>
   using value_t = ext::oneapi::experimental::property_value<
       streaming_interface_key,
       std::integral_constant<streaming_interface_options_enum, option>>;
 };
- 
+
 struct register_map_interface_key {
-   template <register_map_interface_options_enum option>
+  template <register_map_interface_options_enum option>
   using value_t = ext::oneapi::experimental::property_value<
       register_map_interface_key,
       std::integral_constant<register_map_interface_options_enum, option>>;
