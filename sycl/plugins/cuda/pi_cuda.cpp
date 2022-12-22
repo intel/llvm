@@ -558,8 +558,7 @@ bool _pi_event::is_completed() const noexcept {
   }
   return true;
 }
-// TODO: Remove this function and other code for setting or getting
-// queued/submit time
+
 pi_uint64 _pi_event::get_queued_time() const {
   float miliSeconds = 0.0f;
   assert(is_started());
@@ -3890,8 +3889,6 @@ pi_result cuda_piEventGetProfilingInfo(pi_event event,
   }
 
   switch (param_name) {
-    // TODO: Remove this and other related code for setting or getting
-    // queued/submit time
   case PI_PROFILING_INFO_COMMAND_QUEUED:
   case PI_PROFILING_INFO_COMMAND_SUBMIT:
     return getInfo<pi_uint64>(param_value_size, param_value,

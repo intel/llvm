@@ -565,8 +565,6 @@ pi_result _pi_event::start() {
   try {
     if (queue_->properties_ & PI_QUEUE_FLAG_PROFILING_ENABLE) {
       // NOTE: This relies on the default stream to be unused.
-      // TODO: Remove this and other related code for setting or getting
-      // queued/submit time
       PI_CHECK_ERROR(hipEventRecord(evQueued_, 0));
       PI_CHECK_ERROR(hipEventRecord(evStart_, queue_->get()));
     }
@@ -3714,8 +3712,6 @@ pi_result hip_piEventGetProfilingInfo(pi_event event,
   }
 
   switch (param_name) {
-    // TODO: Remove this and other related code for setting or getting
-    // queued/submit time
   case PI_PROFILING_INFO_COMMAND_QUEUED:
   case PI_PROFILING_INFO_COMMAND_SUBMIT:
     return getInfo<pi_uint64>(param_value_size, param_value,
