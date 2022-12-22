@@ -2236,8 +2236,8 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     AtomicRMWInst::BinOp Op = ARMW->getOperation();
     bool SupportedAtomicInst =
         AtomicRMWInst::isFPOperation(Op)
-            ? (Op == AtomicRMWInst::FAdd || Op == AtomicRMWInst::FMin ||
-               Op == AtomicRMWInst::FMax)
+            ? (Op == AtomicRMWInst::FAdd || Op == AtomicRMWInst::FSub ||
+               Op == AtomicRMWInst::FMin || Op == AtomicRMWInst::FMax)
             : Op != AtomicRMWInst::Nand;
     if (!BM->getErrorLog().checkError(
             SupportedAtomicInst, SPIRVEC_InvalidInstruction, V,
@@ -2245,7 +2245,6 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                 " is not supported in SPIR-V!\n"))
       return nullptr;
 
-    spv::Op OC = LLVMSPIRVAtomicRmwOpCodeMap::map(Op);
     AtomicOrderingCABI Ordering = llvm::toCABI(ARMW->getOrdering());
     auto MemSem = OCLMemOrderMap::map(static_cast<OCLMemOrderKind>(Ordering));
     std::vector<Value *> Operands(4);
@@ -2259,8 +2258,17 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     Operands[1] = getUInt32(M, spv::ScopeDevice);
     Operands[2] = getUInt32(M, MemSem);
     Operands[3] = ARMW->getValOperand();
-    std::vector<SPIRVId> Ops = BM->getIds(transValue(Operands, BB));
+    std::vector<SPIRVValue *> OpVals = transValue(Operands, BB);
+    std::vector<SPIRVId> Ops = BM->getIds(OpVals);
     SPIRVType *Ty = transType(ARMW->getType());
+
+    spv::Op OC;
+    if (Op == AtomicRMWInst::FSub) {
+      // Implement FSub through FNegate and AtomicFAddExt
+      Ops[3] = BM->addUnaryInst(OpFNegate, Ty, OpVals[3], BB)->getId();
+      OC = OpAtomicFAddEXT;
+    } else
+      OC = LLVMSPIRVAtomicRmwOpCodeMap::map(Op);
 
     return mapValue(V, BM->addInstTemplate(OC, Ops, BB, Ty));
   }
