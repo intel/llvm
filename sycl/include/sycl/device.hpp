@@ -35,6 +35,8 @@ class device_impl;
 auto getDeviceComparisonLambda();
 } // namespace detail
 
+enum class aspect;
+
 namespace ext::oneapi {
 // Forward declaration
 class filter_selector;

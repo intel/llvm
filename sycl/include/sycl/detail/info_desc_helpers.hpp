@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/info/info_desc.hpp>
 

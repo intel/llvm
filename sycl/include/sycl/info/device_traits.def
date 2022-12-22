@@ -167,6 +167,7 @@ __SYCL_PARAM_TRAITS_SPEC(device, partition_type_affinity_domain,
 // Has custom specialization. 
 __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(device, parent_device, sycl::device,
                          PI_DEVICE_INFO_PARENT_DEVICE)
+__SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(device, aspects, std::vector<sycl::aspect>, 0)
 
 // Extensions/deprecated
 __SYCL_PARAM_TRAITS_SPEC(device, atomic64, bool, PI_DEVICE_INFO_ATOMIC_64)
