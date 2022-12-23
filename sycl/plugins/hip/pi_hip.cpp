@@ -3902,7 +3902,8 @@ pi_result hip_piKernelSetExecInfo(pi_kernel kernel,
 }
 
 pi_result hip_piextProgramSetSpecializationConstant(pi_program, pi_uint32,
-                                                    size_t, const void *) {
+                                                    size_t, const void *,
+                                                    pi_kernel) {
   // This entry point is only used for native specialization constants (SPIR-V),
   // and the HIP plugin is AOT only so this entry point is not supported.
   sycl::detail::pi::die("Native specialization constants are not supported");

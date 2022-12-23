@@ -606,10 +606,9 @@ inline pi_result mock_piProgramRelease(pi_program program) {
   return PI_SUCCESS;
 }
 
-inline pi_result
-mock_piextProgramSetSpecializationConstant(pi_program prog, pi_uint32 spec_id,
-                                           size_t spec_size,
-                                           const void *spec_value) {
+inline pi_result mock_piextProgramSetSpecializationConstant(
+    pi_program prog, pi_uint32 spec_id, size_t spec_size,
+    const void *spec_value, pi_kernel kernel) {
   return PI_SUCCESS;
 }
 

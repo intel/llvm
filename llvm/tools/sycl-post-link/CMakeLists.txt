@@ -25,6 +25,7 @@ add_llvm_tool(sycl-post-link
   sycl-post-link.cpp
   ModuleSplitter.cpp
   SpecConstants.cpp
+  CUDASpecConstantToSymbol.cpp
   SYCLDeviceLibReqMask.cpp
   SYCLKernelParamOptInfo.cpp
   SYCLDeviceRequirements.cpp

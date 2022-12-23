@@ -2270,6 +2270,15 @@ static pi_result SetKernelParamsAndLaunch(
       sycl::detail::pi::PiMem *SpecConstsBufferArg =
           SpecConstsBuffer ? &SpecConstsBuffer : nullptr;
 
+      // Call into set spec constant for pi cuda kernels.
+      if (Queue->getPlugin().getBackend() == backend::ext_oneapi_cuda) {
+        static unsigned SpecID = 0;
+        auto &Blob = DeviceImageImpl->get_spec_const_blob_ref();
+        Plugin.call<PiApiKind::piextProgramSetSpecializationConstant>(
+            DeviceImageImpl->get_program_ref(), SpecID++, Blob.size(),
+            Blob.data(), Kernel);
+      }
+
       pi_mem_obj_property MemObjData{};
       MemObjData.mem_access = PI_ACCESS_READ_ONLY;
       MemObjData.type = PI_KERNEL_ARG_MEM_OBJ_ACCESS;

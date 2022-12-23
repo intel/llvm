@@ -2096,7 +2096,7 @@ setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
       if (SpecIDDesc.IsSet) {
         Plugin->call<PiApiKind::piextProgramSetSpecializationConstant>(
             Prog, SpecIDDesc.ID, SpecIDDesc.Size,
-            SpecConsts.data() + SpecIDDesc.BlobOffset);
+            SpecConsts.data() + SpecIDDesc.BlobOffset, nullptr);
       }
     }
   }

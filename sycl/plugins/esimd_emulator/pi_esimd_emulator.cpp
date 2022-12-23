@@ -2063,7 +2063,7 @@ pi_result piKernelSetExecInfo(pi_kernel, pi_kernel_exec_info, size_t,
 }
 
 pi_result piextProgramSetSpecializationConstant(pi_program, pi_uint32, size_t,
-                                                const void *) {
+                                                const void *, pi_kernel) {
   DIE_NO_IMPLEMENTATION;
 }
 

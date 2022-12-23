@@ -41,10 +41,9 @@ static void unset_env(const char *name) {
 
 bool HasITTEnabled = false;
 
-static pi_result
-redefinedProgramSetSpecializationConstant(pi_program prog, pi_uint32 spec_id,
-                                          size_t spec_size,
-                                          const void *spec_value) {
+static pi_result redefinedProgramSetSpecializationConstant(
+    pi_program prog, pi_uint32 spec_id, size_t spec_size,
+    const void *spec_value, pi_kernel kernel) {
   if (spec_id == sycl::detail::ITTSpecConstId)
     HasITTEnabled = true;
 
