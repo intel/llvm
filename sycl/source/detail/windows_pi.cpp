@@ -21,26 +21,10 @@ namespace detail {
 namespace pi {
 
 void *loadOsLibrary(const std::string &PluginPath) {
-  // Tells the system to not display the critical-error-handler message box.
-  // Instead, the system sends the error to the calling process.
-  // This is crucial for graceful handling of plugins that couldn't be
-  // loaded, e.g. due to missing native run-times.
-  // TODO: add reporting in case of an error.
-  // NOTE: we restore the old mode to not affect user app behavior.
-  //
-  UINT SavedMode = SetErrorMode(SEM_FAILCRITICALERRORS);
-  // Exclude current directory from DLL search path
-  if (!SetDllDirectoryA("")) {
-    assert(false && "Failed to update DLL search path");
-  }
-  // win_proxy_loader.dll will have loaded our plugins already
-  // we get them from it.
+  // We fetch the preloaded plugin from the win_proxy_loader.
+  // The proxy_loader handles any required error suppression.
   auto Result = getPreloadedPlugin(PluginPath);
-  (void)SetErrorMode(SavedMode);
-  if (!SetDllDirectoryA(nullptr)) {
-    assert(false && "Failed to restore DLL search path");
-  }
-
+  
   return Result;
 }
 

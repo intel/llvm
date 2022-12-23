@@ -83,6 +83,7 @@ std::string getCurrentDSODir() {
 #define __SYCL_CUDA_PLUGIN_NAME "pi_cuda.dll"
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "pi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
+#define __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME "pi_unified_runtime.dll"
 
 // ------------------------------------
 
@@ -90,6 +91,21 @@ static std::map<std::string, void *> dllMap;
 
 /// load the five libraries and store them in a map.
 void preloadLibraries() {
+  // Suppress system errors.
+  // Tells the system to not display the critical-error-handler message box.
+  // Instead, the system sends the error to the calling process.
+  // This is crucial for graceful handling of plugins that couldn't be
+  // loaded, e.g. due to missing native run-times.
+  // Sometimes affects L0 or the unified runtime.
+  // TODO: add reporting in case of an error.
+  // NOTE: we restore the old mode to not affect user app behavior.
+  //
+  UINT SavedMode = SetErrorMode(SEM_FAILCRITICALERRORS);
+  // Exclude current directory from DLL search path
+  if (!SetDllDirectoryA("")) {
+    assert(false && "Failed to update DLL search path");
+  }
+  
   // this path duplicates sycl/detail/pi.cpp:initializePlugins
   const std::string LibSYCLDir = getCurrentDSODir() + DirSep;
 
@@ -107,6 +123,16 @@ void preloadLibraries() {
 
   std::string hip_path = LibSYCLDir + __SYCL_HIP_PLUGIN_NAME;
   dllMap.emplace(hip_path, LoadLibraryA(hip_path.c_str()));
+
+  std::string ur_path = LibSYCLDir + __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME;
+  dllMap.emplace(ur_path, LoadLibraryA(ur_path.c_str()));
+
+  // Restore system error handling.
+  (void)SetErrorMode(SavedMode);
+  if (!SetDllDirectoryA(nullptr)) {
+    assert(false && "Failed to restore DLL search path");
+  }
+  
 }
 
 /// windows_pi.cpp:loadOsLibrary() calls this to get the DLL we loaded earlier.
