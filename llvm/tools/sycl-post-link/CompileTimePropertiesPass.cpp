@@ -206,13 +206,13 @@ attributeToExecModeMetadata(Module &M, const Attribute &Attr) {
                                             MDNode::get(Ctx, MD));
   }
 
-  auto getIpInterface = [](const char *name, LLVMContext &Ctx,
+  auto getIpInterface = [](const char *Name, LLVMContext &Ctx,
                            const Attribute &Attr) {
     // generate either:
     //   !N = !{!"<name>"} or
     //   !N = !{!"<name>", !"stall_free_return"}
     SmallVector<Metadata *, 2> MD;
-    MD.push_back(MDString::get(Ctx, name));
+    MD.push_back(MDString::get(Ctx, Name));
     if (getAttributeAsInteger<uint32_t>(Attr))
       MD.push_back(MDString::get(Ctx, "stall_free_return"));
     return MDNode::get(Ctx, MD);
