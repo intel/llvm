@@ -24,7 +24,7 @@ void *loadOsLibrary(const std::string &PluginPath) {
   // We fetch the preloaded plugin from the win_proxy_loader.
   // The proxy_loader handles any required error suppression.
   auto Result = getPreloadedPlugin(PluginPath);
-  
+
   return Result;
 }
 

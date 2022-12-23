@@ -105,7 +105,7 @@ void preloadLibraries() {
   if (!SetDllDirectoryA("")) {
     assert(false && "Failed to update DLL search path");
   }
-  
+
   // this path duplicates sycl/detail/pi.cpp:initializePlugins
   const std::string LibSYCLDir = getCurrentDSODir() + DirSep;
 
@@ -132,7 +132,7 @@ void preloadLibraries() {
   if (!SetDllDirectoryA(nullptr)) {
     assert(false && "Failed to restore DLL search path");
   }
-  
+
 }
 
 /// windows_pi.cpp:loadOsLibrary() calls this to get the DLL we loaded earlier.
