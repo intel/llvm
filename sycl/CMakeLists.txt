@@ -364,8 +364,6 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      clang-offload-deps
      clang-offload-extract
      file-table-tform
-     level-zero-loader
-     level-zero-headers
      llc
      llvm-ar
      llvm-foreach
@@ -383,6 +381,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      sycl-headers-extras
      sycl
      libsycldevice
+     level-zero-sycl-dev
      ${XPTIFW_LIBS}
      ${SYCL_TOOLCHAIN_DEPS}
 )

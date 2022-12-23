@@ -105,6 +105,25 @@ add_sycl_plugin(level_zero
     ${XPTI_LIBS}
 )
 
+#FIXME: We should stop shipping level zero loader and headers as part of the
+#       toolchain installation. Instead these should be avaialble in the system.
+#       We keep shipping it until all environments are updated.
+install(TARGETS ze_loader
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    LIBRARY
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        COMPONENT level-zero-sycl-dev
+        NAMELINK_SKIP
+)
+
+file(GLOB LEVEL_ZERO_API_HEADERS "${LEVEL_ZERO_INCLUDE_DIR}/*.h")
+install(FILES ${LEVEL_ZERO_API_HEADERS}
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/include/sycl/level_zero/
+    COMPONENT level-zero-sycl-dev
+)
+# end of FIXME
+
 add_dependencies(pi_level_zero ze-api)
 
 if (SYCL_ENABLE_XPTI_TRACING)

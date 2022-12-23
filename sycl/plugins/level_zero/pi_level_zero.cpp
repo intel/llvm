@@ -198,87 +198,6 @@ template <> ze_result_t zeHostSynchronize(ze_command_queue_handle_t Handle) {
   return zeHostSynchronizeImpl(zeCommandQueueSynchronize, Handle);
 }
 
-template <typename T, typename Assign>
-pi_result getInfoImpl(size_t param_value_size, void *param_value,
-                      size_t *param_value_size_ret, T value, size_t value_size,
-                      Assign &&assign_func) {
-
-  if (param_value != nullptr) {
-
-    if (param_value_size < value_size) {
-      return PI_ERROR_INVALID_VALUE;
-    }
-
-    assign_func(param_value, value, value_size);
-  }
-
-  if (param_value_size_ret != nullptr) {
-    *param_value_size_ret = value_size;
-  }
-
-  return PI_SUCCESS;
-}
-
-template <typename T>
-pi_result getInfo(size_t param_value_size, void *param_value,
-                  size_t *param_value_size_ret, T value) {
-
-  auto assignment = [](void *param_value, T value, size_t value_size) {
-    (void)value_size;
-    *static_cast<T *>(param_value) = value;
-  };
-
-  return getInfoImpl(param_value_size, param_value, param_value_size_ret, value,
-                     sizeof(T), assignment);
-}
-
-template <typename T>
-pi_result getInfoArray(size_t array_length, size_t param_value_size,
-                       void *param_value, size_t *param_value_size_ret,
-                       T *value) {
-  return getInfoImpl(param_value_size, param_value, param_value_size_ret, value,
-                     array_length * sizeof(T), memcpy);
-}
-
-template <typename T, typename RetType>
-pi_result getInfoArray(size_t array_length, size_t param_value_size,
-                       void *param_value, size_t *param_value_size_ret,
-                       T *value) {
-  if (param_value) {
-    memset(param_value, 0, param_value_size);
-    for (uint32_t I = 0; I < array_length; I++)
-      ((RetType *)param_value)[I] = (RetType)value[I];
-  }
-  if (param_value_size_ret)
-    *param_value_size_ret = array_length * sizeof(RetType);
-  return PI_SUCCESS;
-}
-
-template <>
-pi_result getInfo<const char *>(size_t param_value_size, void *param_value,
-                                size_t *param_value_size_ret,
-                                const char *value) {
-  return getInfoArray(strlen(value) + 1, param_value_size, param_value,
-                      param_value_size_ret, value);
-}
-
-class ReturnHelper {
-public:
-  ReturnHelper(size_t param_value_size, void *param_value,
-               size_t *param_value_size_ret)
-      : param_value_size(param_value_size), param_value(param_value),
-        param_value_size_ret(param_value_size_ret) {}
-
-  template <class T> pi_result operator()(const T &t) {
-    return getInfo(param_value_size, param_value, param_value_size_ret, t);
-  }
-
-private:
-  size_t param_value_size;
-  void *param_value;
-  size_t *param_value_size_ret;
-};
-
 } // anonymous namespace
 
 // SYCL_PI_LEVEL_ZERO_USE_COMPUTE_ENGINE can be set to an integer (>=0) in
@@ -438,11 +357,6 @@ pi_result _pi_context::decrementUnreleasedEventsInPool(pi_event Event) {
 
   return PI_SUCCESS;
 }
-
-// Some opencl extensions we know are supported by all Level Zero devices.
-constexpr char ZE_SUPPORTED_EXTENSIONS[] =
-    "cl_khr_il_program cl_khr_subgroups cl_intel_subgroups "
-    "cl_intel_subgroups_short cl_intel_required_subgroup_size ";
 
 // Forward declarations
 static pi_result
@@ -2307,51 +2221,17 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
 pi_result piPlatformGetInfo(pi_platform Platform, pi_platform_info ParamName,
                             size_t ParamValueSize, void *ParamValue,
                             size_t *ParamValueSizeRet) {
-
-  PI_ASSERT(Platform, PI_ERROR_INVALID_PLATFORM);
-
   zePrint("==========================\n");
   zePrint("SYCL over Level-Zero %s\n", Platform->ZeDriverVersion.c_str());
   zePrint("==========================\n");
 
-  ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
-
-  switch (ParamName) {
-  case PI_PLATFORM_INFO_NAME:
-    // TODO: Query Level Zero driver when relevant info is added there.
+  // To distinguish this L0 platform from Unified Runtime one.
+  if (ParamName == PI_PLATFORM_INFO_NAME) {
+    ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
     return ReturnValue("Intel(R) Level-Zero");
-  case PI_PLATFORM_INFO_VENDOR:
-    // TODO: Query Level Zero driver when relevant info is added there.
-    return ReturnValue("Intel(R) Corporation");
-  case PI_PLATFORM_INFO_EXTENSIONS:
-    // Convention adopted from OpenCL:
-    //     "Returns a space-separated list of extension names (the extension
-    // names themselves do not contain any spaces) supported by the platform.
-    // Extensions defined here must be supported by all devices associated
-    // with this platform."
-    //
-    // TODO: Check the common extensions supported by all connected devices and
-    // return them. For now, hardcoding some extensions we know are supported by
-    // all Level Zero devices.
-    return ReturnValue(ZE_SUPPORTED_EXTENSIONS);
-  case PI_PLATFORM_INFO_PROFILE:
-    // TODO: figure out what this means and how is this used
-    return ReturnValue("FULL_PROFILE");
-  case PI_PLATFORM_INFO_VERSION:
-    // TODO: this should query to zeDriverGetDriverVersion
-    // but we don't yet have the driver handle here.
-    //
-    // From OpenCL 2.1: "This version string has the following format:
-    // OpenCL<space><major_version.minor_version><space><platform-specific
-    // information>. Follow the same notation here.
-    //
-    return ReturnValue(Platform->ZeDriverApiVersion.c_str());
-  default:
-    zePrint("piPlatformGetInfo: unrecognized ParamName\n");
-    return PI_ERROR_INVALID_VALUE;
   }
-
-  return PI_SUCCESS;
+  return pi2ur::piPlatformGetInfo(Platform, ParamName, ParamValueSize,
+                                  ParamValue, ParamValueSizeRet);
 }
 
 pi_result piextPlatformGetNativeHandle(pi_platform Platform,
@@ -3068,10 +2948,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     // ze_device_compute_properties.subGroupSizes is in uint32_t whereas the
     // expected return is size_t datatype. size_t can be 8 bytes of data.
-    return getInfoArray<uint32_t, size_t>(
-        Device->ZeDeviceComputeProperties->numSubGroupSizes, ParamValueSize,
-        ParamValue, ParamValueSizeRet,
-        Device->ZeDeviceComputeProperties->subGroupSizes);
+    return ReturnValue.template operator()<size_t>(
+        Device->ZeDeviceComputeProperties->subGroupSizes,
+        Device->ZeDeviceComputeProperties->numSubGroupSizes);
   }
   case PI_DEVICE_INFO_IL_VERSION: {
     // Set to a space separated list of IL version strings of the form
@@ -3463,8 +3342,7 @@ pi_result piContextGetInfo(pi_context Context, pi_context_info ParamName,
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   switch (ParamName) {
   case PI_CONTEXT_INFO_DEVICES:
-    return getInfoArray(Context->Devices.size(), ParamValueSize, ParamValue,
-                        ParamValueSizeRet, &Context->Devices[0]);
+    return ReturnValue(&Context->Devices[0], Context->Devices.size());
   case PI_CONTEXT_INFO_NUM_DEVICES:
     return ReturnValue(pi_uint32(Context->Devices.size()));
   case PI_CONTEXT_INFO_REFERENCE_COUNT:
@@ -5375,10 +5253,10 @@ pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,
     return ReturnValue(WorkSize);
   }
   case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
-    uint32_t X, Y, Z;
-    ZE_CALL(zeKernelSuggestGroupSize,
-            (Kernel->ZeKernel, 10000, 10000, 10000, &X, &Y, &Z));
-    return ReturnValue(size_t{X * Y * Z});
+    // As of right now, L0 is missing API to query kernel and device specific
+    // max work group size.
+    return ReturnValue(
+        pi_uint64{Device->ZeDeviceComputeProperties->maxTotalGroupSize});
   }
   case PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
     struct {
