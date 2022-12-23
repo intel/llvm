@@ -1875,10 +1875,6 @@ std::optional<Function *> Intrinsic::remangleIntrinsicFunction(Function *F) {
   return NewDecl;
 }
 
-static bool isPointerCastOperator(const User *U) {
-  return isa<AddrSpaceCastOperator>(U) || isa<BitCastOperator>(U);
-}
-
 /// hasAddressTaken - returns true if there are any uses of this function
 /// other than direct calls or invokes to it. Optionally ignores callback
 /// uses, assume like pointer annotation calls, and references in llvm.used
@@ -1900,15 +1896,17 @@ bool Function::hasAddressTaken(const User **PutOffender,
 
     const auto *Call = dyn_cast<CallBase>(FU);
     if (!Call) {
-      if (IgnoreAssumeLikeCalls && isPointerCastOperator(FU) &&
-          all_of(FU->users(), [](const User *U) {
-            if (const auto *I = dyn_cast<IntrinsicInst>(U))
-              return I->isAssumeLikeIntrinsic();
-            return false;
-          })) {
-        continue;
+      if (IgnoreAssumeLikeCalls) {
+        if (const auto *FI = dyn_cast<Instruction>(FU)) {
+          if (FI->isCast() && !FI->user_empty() &&
+              llvm::all_of(FU->users(), [](const User *U) {
+                if (const auto *I = dyn_cast<IntrinsicInst>(U))
+                  return I->isAssumeLikeIntrinsic();
+                return false;
+              }))
+            continue;
+        }
       }
-
       if (IgnoreLLVMUsed && !FU->user_empty()) {
         const User *FUU = FU;
         if (isa<BitCastOperator>(FU) && FU->hasOneUse() &&
@@ -1927,13 +1925,6 @@ bool Function::hasAddressTaken(const User **PutOffender,
         *PutOffender = FU;
       return true;
     }
-
-    if (IgnoreAssumeLikeCalls) {
-      if (const auto *I = dyn_cast<IntrinsicInst>(Call))
-        if (I->isAssumeLikeIntrinsic())
-          continue;
-    }
-
     if (!Call->isCallee(&U) || Call->getFunctionType() != getFunctionType()) {
       if (IgnoreARCAttachedCall &&
           Call->isOperandBundleOfType(LLVMContext::OB_clang_arc_attachedcall,
