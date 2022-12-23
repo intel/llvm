@@ -132,7 +132,6 @@ void preloadLibraries() {
   if (!SetDllDirectoryA(nullptr)) {
     assert(false && "Failed to restore DLL search path");
   }
-
 }
 
 /// windows_pi.cpp:loadOsLibrary() calls this to get the DLL we loaded earlier.
