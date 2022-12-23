@@ -257,7 +257,7 @@ zer_result_t getInfo(size_t param_value_size, void *param_value,
 template <typename T>
 zer_result_t getInfoArray(size_t array_length, size_t param_value_size,
                           void *param_value, size_t *param_value_size_ret,
-                          T *value) {
+                          const T *value) {
   return getInfoImpl(param_value_size, param_value, param_value_size_ret, value,
                      array_length * sizeof(T), memcpy);
 }
@@ -265,7 +265,7 @@ zer_result_t getInfoArray(size_t array_length, size_t param_value_size,
 template <typename T, typename RetType>
 zer_result_t getInfoArray(size_t array_length, size_t param_value_size,
                           void *param_value, size_t *param_value_size_ret,
-                          T *value) {
+                          const T *value) {
   if (param_value) {
     memset(param_value, 0, param_value_size);
     for (uint32_t I = 0; I < array_length; I++)
@@ -306,6 +306,13 @@ public:
   template <class T> zer_result_t operator()(const T *t, size_t s) {
     return getInfoArray(s, param_value_size, param_value, param_value_size_ret,
                         t);
+  }
+
+  // Array return value where element type is differrent from T
+  template <class RetType, class T>
+  zer_result_t operator()(const T *t, size_t s) {
+    return getInfoArray<T, RetType>(s, param_value_size, param_value,
+                                    param_value_size_ret, t);
   }
 
 protected:

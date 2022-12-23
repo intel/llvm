@@ -2948,8 +2948,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     // ze_device_compute_properties.subGroupSizes is in uint32_t whereas the
     // expected return is size_t datatype. size_t can be 8 bytes of data.
-    return ReturnValue(Device->ZeDeviceComputeProperties->subGroupSizes,
-                       Device->ZeDeviceComputeProperties->numSubGroupSizes);
+    return ReturnValue.template operator()<size_t>(
+        Device->ZeDeviceComputeProperties->subGroupSizes,
+        Device->ZeDeviceComputeProperties->numSubGroupSizes);
   }
   case PI_DEVICE_INFO_IL_VERSION: {
     // Set to a space separated list of IL version strings of the form
@@ -5252,7 +5253,8 @@ pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,
     return ReturnValue(WorkSize);
   }
   case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
-    // As of right now, L0 is missing API to query kernel and device specific max work group size. 
+    // As of right now, L0 is missing API to query kernel and device specific
+    // max work group size.
     return ReturnValue(
         pi_uint64{Device->ZeDeviceComputeProperties->maxTotalGroupSize});
   }

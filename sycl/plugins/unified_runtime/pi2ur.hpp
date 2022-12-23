@@ -58,9 +58,13 @@ public:
   template <class T> pi_result operator()(const T &t) {
     return ur2piResult(UrReturnHelper::operator()(t));
   }
-
+  // Array return value
   template <class T> pi_result operator()(const T *t, size_t s) {
     return ur2piResult(UrReturnHelper::operator()(t, s));
+  }
+  // Array return value where element type is differrent from T
+  template <class RetType, class T> pi_result operator()(const T *t, size_t s) {
+    return ur2piResult(UrReturnHelper::operator()<RetType>(t, s));
   }
 };
 
