@@ -1087,7 +1087,7 @@ llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
   // Expecting a MemRef as the first argument, as the first operand to a method
   // call should be a pointer to `this`.
   if (Operands.empty() || !Operands[0].getType().isa<MemRefType>())
-    return llvm::None;
+    return std::nullopt;
 
   auto *SYCLDialect =
       Operands[0].getContext()->getLoadedDialect<mlir::sycl::SYCLDialect>();
@@ -1112,7 +1112,7 @@ llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
   if (!OptOpName) {
     LLVM_DEBUG(llvm::dbgs() << "SYCL method not inserted. Type: " << BaseType
                             << " Name: " << FunctionName << "\n");
-    return llvm::None;
+    return std::nullopt;
   }
 
   LLVM_DEBUG(llvm::dbgs() << "Inserting operation " << OptOpName
@@ -1157,12 +1157,12 @@ MLIRScanner::emitSYCLOps(const clang::Expr *Expr,
   if (Func)
     if (mlirclang::getNamespaceKind(Func->getEnclosingNamespaceContext()) !=
         mlirclang::NamespaceKind::Other) {
-      auto OptFuncType = llvm::Optional<llvm::StringRef>{llvm::None};
+      auto OptFuncType = llvm::Optional<llvm::StringRef>{std::nullopt};
       if (const auto *RD = dyn_cast<clang::CXXRecordDecl>(Func->getParent()))
         if (!RD->getName().empty())
           OptFuncType = RD->getName();
 
-      auto OptRetType = llvm::Optional<mlir::Type>{llvm::None};
+      auto OptRetType = llvm::Optional<mlir::Type>{std::nullopt};
       const mlir::Type RetType =
           Glob.getTypes().getMLIRType(Func->getReturnType());
       if (!RetType.isa<mlir::NoneType>())
@@ -2575,7 +2575,7 @@ static Optional<Value> castSubIndexOpIndex(OpBuilder &Builder, Location Loc,
         .IntCast(Builder, Loc, Builder.getIndexType(), IsSigned)
         .val;
   }
-  return llvm::None;
+  return std::nullopt;
 }
 
 ValueCategory MLIRScanner::EmitCheckedInBoundsPtrOffsetOp(mlir::Type ElemTy,

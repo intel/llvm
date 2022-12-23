@@ -2767,7 +2767,7 @@ MLIRASTConsumer::getMLIRFunction(const std::string &mangledName,
   const auto find = [&](const auto &map) {
     const auto Iter = map.find(mangledName);
     return Iter == map.end()
-               ? llvm::None
+               ? std::nullopt
                : llvm::Optional<FunctionOpInterface>{Iter->second};
   };
   switch (context) {

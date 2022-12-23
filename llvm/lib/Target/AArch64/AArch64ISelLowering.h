@@ -430,6 +430,12 @@ enum NodeType : unsigned {
   // the caller
   ASSERT_ZEXT_BOOL,
 
+  // 128-bit system register accesses
+  // lo64, hi64, chain = MRRS(chain, sysregname)
+  MRRS,
+  // chain = MSRR(chain, sysregname, lo64, hi64)
+  MSRR,
+
   // Strict (exception-raising) floating point comparison
   STRICT_FCMP = ISD::FIRST_TARGET_STRICTFP_OPCODE,
   STRICT_FCMPE,
@@ -491,6 +497,11 @@ enum Rounding {
 
 // Bit position of rounding mode bits in FPCR.
 const unsigned RoundingBitsPos = 22;
+
+// Registers used to pass function arguments.
+const ArrayRef<MCPhysReg> getGPRArgRegs();
+const ArrayRef<MCPhysReg> getFPRArgRegs();
+
 } // namespace AArch64
 
 class AArch64Subtarget;
