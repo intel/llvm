@@ -638,6 +638,9 @@ template <> void LLVMSPIRVAtomicRmwOpCodeMap::init() {
   add(llvm::AtomicRMWInst::Min, OpAtomicSMin);
   add(llvm::AtomicRMWInst::UMax, OpAtomicUMax);
   add(llvm::AtomicRMWInst::UMin, OpAtomicUMin);
+  add(llvm::AtomicRMWInst::FAdd, OpAtomicFAddEXT);
+  add(llvm::AtomicRMWInst::FMin, OpAtomicFMinEXT);
+  add(llvm::AtomicRMWInst::FMax, OpAtomicFMaxEXT);
 }
 
 } // namespace SPIRV
@@ -1491,7 +1494,7 @@ void insertImageNameAccessQualifier(SPIRVAccessQualifierKind Acc,
 } // namespace OCLUtil
 
 Value *SPIRV::transOCLMemScopeIntoSPIRVScope(Value *MemScope,
-                                             Optional<int> DefaultCase,
+                                             std::optional<int> DefaultCase,
                                              Instruction *InsertBefore) {
   if (auto *C = dyn_cast<ConstantInt>(MemScope)) {
     return ConstantInt::get(
@@ -1504,8 +1507,10 @@ Value *SPIRV::transOCLMemScopeIntoSPIRVScope(Value *MemScope,
                                DefaultCase, InsertBefore);
 }
 
-Value *SPIRV::transOCLMemOrderIntoSPIRVMemorySemantics(
-    Value *MemOrder, Optional<int> DefaultCase, Instruction *InsertBefore) {
+Value *
+SPIRV::transOCLMemOrderIntoSPIRVMemorySemantics(Value *MemOrder,
+                                                std::optional<int> DefaultCase,
+                                                Instruction *InsertBefore) {
   if (auto *C = dyn_cast<ConstantInt>(MemOrder)) {
     return ConstantInt::get(
         C->getType(), mapOCLMemSemanticToSPIRV(

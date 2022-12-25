@@ -21452,7 +21452,7 @@ RValue CodeGenFunction::EmitIntelFPGARegBuiltin(const CallExpr *E,
     V = Builder.CreateBitOrPointerCast(V, IntTy);
   }
   llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::annotation,
-                                       V->getType());
+                                       {V->getType(), CGM.ConstGlobalsPtrTy});
   llvm::Value *AnnotatedV =
       EmitAnnotationCall(F, V, AnnotStr, E->getExprLoc());
 

@@ -65,11 +65,11 @@ jobs:
     - name: Configure
       run: |
         wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-        sudo add-apt-repository "deb http://apt.llvm.org/focal/   llvm-toolchain-focal-13 main"
+        sudo add-apt-repository "deb http://apt.llvm.org/focal/   llvm-toolchain-focal-15 main"
         sudo apt-get update
-        sudo apt-get install -y clang-13
-        export CC="clang-13"
-        export CXX="clang++-13"
+        sudo apt-get install -y clang-15
+        export CC="clang-15"
+        export CXX="clang++-15"
         mkdir -p $GITHUB_WORKSPACE/build
         cd $GITHUB_WORKSPACE/build
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \

@@ -7,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <detail/handler_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
-#include <detail/handler_impl.hpp>
 #include <detail/stream_impl.hpp>
 #include <sycl/detail/cl.h>
 
@@ -143,9 +143,11 @@ public:
   static bool enqueueCommand(sycl::detail::Command *Cmd,
                              sycl::detail::EnqueueResultT &EnqueueResult,
                              sycl::detail::BlockingT Blocking) {
+    RWLockT MockLock;
+    ReadLockT MockReadLock(MockLock);
     std::vector<sycl::detail::Command *> ToCleanUp;
-    return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, ToCleanUp, Cmd,
-                                          Blocking);
+    return GraphProcessor::enqueueCommand(Cmd, MockReadLock, EnqueueResult,
+                                          ToCleanUp, Cmd, Blocking);
   }
 
   sycl::detail::AllocaCommandBase *
@@ -197,7 +199,13 @@ public:
   addCG(std::unique_ptr<sycl::detail::CG> CommandGroup,
         sycl::detail::QueueImplPtr Queue,
         std::vector<sycl::detail::Command *> &ToEnqueue) {
-    return MGraphBuilder.addCG(std::move(CommandGroup), Queue, ToEnqueue);
+    return MGraphBuilder.addCG(std::move(CommandGroup), Queue, ToEnqueue)
+        .NewCmd;
+  }
+
+  void cancelFusion(sycl::detail::QueueImplPtr Queue,
+                    std::vector<sycl::detail::Command *> &ToEnqueue) {
+    MGraphBuilder.cancelFusion(Queue, ToEnqueue);
   }
 };
 

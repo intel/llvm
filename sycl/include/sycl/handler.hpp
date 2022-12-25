@@ -1469,18 +1469,18 @@ public:
   use_kernel_bundle(const kernel_bundle<bundle_state::executable> &ExecBundle);
 
   /// Requires access to the memory object associated with the placeholder
-  /// accessor.
+  /// accessor. Calling this function with a non-placeholder accessor has no
+  /// effect.
   ///
   /// The command group has a requirement to gain access to the given memory
   /// object before executing.
   ///
   /// \param Acc is a SYCL accessor describing required memory region.
   template <typename DataT, int Dims, access::mode AccMode,
-            access::target AccTarget>
-  void
-  require(accessor<DataT, Dims, AccMode, AccTarget, access::placeholder::true_t>
-              Acc) {
-    associateWithHandler(&Acc, AccTarget);
+            access::target AccTarget, access::placeholder isPlaceholder>
+  void require(accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder> Acc) {
+    if (Acc.is_placeholder())
+      associateWithHandler(&Acc, AccTarget);
   }
 
   /// Registers event dependencies on this command group.

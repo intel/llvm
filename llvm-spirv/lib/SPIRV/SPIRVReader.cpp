@@ -221,9 +221,9 @@ Value *SPIRVToLLVM::getTranslatedValue(SPIRVValue *BV) {
   return nullptr;
 }
 
-static llvm::Optional<llvm::Attribute>
+static std::optional<llvm::Attribute>
 translateSEVMetadata(SPIRVValue *BV, llvm::LLVMContext &Context) {
-  llvm::Optional<llvm::Attribute> RetAttr;
+  std::optional<llvm::Attribute> RetAttr;
 
   if (!BV->hasDecorate(DecorationSingleElementVectorINTEL))
     return RetAttr;
@@ -306,7 +306,7 @@ std::string SPIRVToLLVM::transVCTypeName(SPIRVTypeBufferSurfaceINTEL *PST) {
 }
 
 template <typename ImageType>
-Optional<SPIRVAccessQualifierKind> getAccessQualifier(ImageType *T) {
+std::optional<SPIRVAccessQualifierKind> getAccessQualifier(ImageType *T) {
   if (!T->hasAccessQualifier())
     return {};
   return T->getAccessQualifier();
@@ -865,7 +865,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
   }
   if (LC & LoopControlNoFusionINTELMask)
     Metadata.push_back(getMetadataFromName("llvm.loop.fusion.disable"));
-  if (LC & spv::internal::LoopControlLoopCountINTELMask) {
+  if (LC & spv::LoopControlLoopCountINTELMask) {
     // LoopCountINTELMask parameters are int64 and each parameter is stored
     // as 2 SPIRVWords (int32)
     assert(NumParam + 6 <= LoopControlParameters.size() &&
@@ -898,7 +898,7 @@ void SPIRVToLLVM::setLLVMLoopMetadata(const LoopInstType *LM,
           "llvm.loop.intel.loopcount_avg", static_cast<int64_t>(LoopCountAvg)));
     }
   }
-  if (LC & spv::internal::LoopControlMaxReinvocationDelayINTELMask) {
+  if (LC & spv::LoopControlMaxReinvocationDelayINTELMask) {
     Metadata.push_back(llvm::MDNode::get(
         *Context, getMetadataFromNameAndParameter(
                       "llvm.loop.intel.max_reinvocation_delay.count",
@@ -2418,16 +2418,18 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
         // bitcast to i8*
         else {
           RetTy = Int8PtrTyPrivate;
-          ValAsArg = Builder.CreateBitCast(Val, Int8PtrTyPrivate);
+          ValAsArg = Builder.CreateBitCast(Val, RetTy);
         }
         Value *Args[] = {ValAsArg, GS, UndefInt8Ptr, UndefInt32, UndefInt8Ptr};
-        auto *IntrinsicCall = Builder.CreateIntrinsic(IID, RetTy, Args);
+        auto *IntrinsicCall =
+            Builder.CreateIntrinsic(IID, {RetTy, GS->getType()}, Args);
         return mapValue(BV, IntrinsicCall);
       }
     }
 
     Value *Args[] = {ValAsArg, GS, UndefInt8Ptr, UndefInt32};
-    auto *IntrinsicCall = Builder.CreateIntrinsic(IID, RetTy, Args);
+    auto *IntrinsicCall =
+        Builder.CreateIntrinsic(IID, {RetTy, GS->getType()}, Args);
     return mapValue(BV, IntrinsicCall);
   }
 
@@ -3460,8 +3462,8 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
                             ? GEP->getType()
                             : Int8PtrTyPrivate;
 
-          auto AnnotationFn = llvm::Intrinsic::getDeclaration(
-              M, Intrinsic::ptr_annotation, IntTy);
+          auto *AnnotationFn = llvm::Intrinsic::getDeclaration(
+              M, Intrinsic::ptr_annotation, {IntTy, Int8PtrTyPrivate});
 
           llvm::Value *Args[] = {
               Builder.CreateBitCast(GEP, IntTy, GEP->getName()),
@@ -3496,11 +3498,11 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
         Inst = dyn_cast<Instruction>(Inst->getOperand(0));
         isStaticMemoryAttribute = (Inst && isa<AllocaInst>(Inst));
       }
-      auto AnnotationFn =
-          isStaticMemoryAttribute
-              ? llvm::Intrinsic::getDeclaration(M, Intrinsic::var_annotation)
-              : llvm::Intrinsic::getDeclaration(M, Intrinsic::ptr_annotation,
-                                                BaseInst->getType());
+      auto *AnnotationFn = llvm::Intrinsic::getDeclaration(
+          M,
+          isStaticMemoryAttribute ? Intrinsic::var_annotation
+                                  : Intrinsic::ptr_annotation,
+          {BaseInst->getType(), Int8PtrTyPrivate});
 
       llvm::Value *Args[] = {BaseInst,
                              Builder.CreateBitCast(GS, Int8PtrTyPrivate),
@@ -4250,9 +4252,9 @@ bool SPIRVToLLVM::transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F) {
     MetadataVec.push_back(ConstantAsMetadata::get(getUInt32(M, Literals[1])));
     F->setMetadata(kSPIR2MD::LoopFuse, MDNode::get(*Context, MetadataVec));
   }
-  if (BF->hasDecorate(internal::DecorationMathOpDSPModeINTEL)) {
+  if (BF->hasDecorate(DecorationMathOpDSPModeINTEL)) {
     std::vector<SPIRVWord> Literals =
-        BF->getDecorationLiterals(internal::DecorationMathOpDSPModeINTEL);
+        BF->getDecorationLiterals(DecorationMathOpDSPModeINTEL);
     assert(Literals.size() == 2 &&
            "MathOpDSPModeINTEL decoration shall have 2 literals");
     F->setMetadata(kSPIR2MD::PreferDSP,
@@ -4264,25 +4266,23 @@ bool SPIRVToLLVM::transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F) {
                                                getUInt32(M, Literals[1]))));
     }
   }
-  if (BF->hasDecorate(internal::DecorationInitiationIntervalINTEL)) {
+  if (BF->hasDecorate(DecorationInitiationIntervalINTEL)) {
     std::vector<Metadata *> MetadataVec;
     auto Literals =
-        BF->getDecorationLiterals(internal::DecorationInitiationIntervalINTEL);
+        BF->getDecorationLiterals(DecorationInitiationIntervalINTEL);
     MetadataVec.push_back(ConstantAsMetadata::get(getUInt32(M, Literals[0])));
     F->setMetadata(kSPIR2MD::InitiationInterval,
                    MDNode::get(*Context, MetadataVec));
   }
-  if (BF->hasDecorate(internal::DecorationMaxConcurrencyINTEL)) {
+  if (BF->hasDecorate(DecorationMaxConcurrencyINTEL)) {
     std::vector<Metadata *> MetadataVec;
-    auto Literals =
-        BF->getDecorationLiterals(internal::DecorationMaxConcurrencyINTEL);
+    auto Literals = BF->getDecorationLiterals(DecorationMaxConcurrencyINTEL);
     MetadataVec.push_back(ConstantAsMetadata::get(getUInt32(M, Literals[0])));
     F->setMetadata(kSPIR2MD::MaxConcurrency,
                    MDNode::get(*Context, MetadataVec));
   }
-  if (BF->hasDecorate(internal::DecorationPipelineEnableINTEL)) {
-    auto Literals =
-        BF->getDecorationLiterals(internal::DecorationPipelineEnableINTEL);
+  if (BF->hasDecorate(DecorationPipelineEnableINTEL)) {
+    auto Literals = BF->getDecorationLiterals(DecorationPipelineEnableINTEL);
     std::vector<Metadata *> MetadataVec;
     MetadataVec.push_back(ConstantAsMetadata::get(getInt32(M, !Literals[0])));
     F->setMetadata(kSPIR2MD::DisableLoopPipelining,

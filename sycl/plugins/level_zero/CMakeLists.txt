@@ -16,12 +16,19 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
     GIT_TAG           ${LEVEL_ZERO_LOADER_TAG}
   )
 
-  # Suppress some pedantic warnings for Level Zero build
+  # Workaround warnings/errors for Level Zero build
   set(CMAKE_CXX_FLAGS_BAK "${CMAKE_CXX_FLAGS}")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-but-set-variable")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-pedantic")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-stringop-truncation")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-warning-option")
+  if (WIN32)
+    #FIXME: Level Zero build fails with /DUNICODE
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /UUNICODE")
+  else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-but-set-variable")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-pedantic")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-stringop-truncation")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-parameter")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++98-compat-extra-semi")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-warning-option")
+  endif()
 
   FetchContent_MakeAvailable(level-zero-loader)
   FetchContent_GetProperties(level-zero-loader)
@@ -74,13 +81,13 @@ add_sycl_plugin(level_zero
     "../unified_runtime/pi2ur.cpp"
     "../unified_runtime/ur/ur.hpp"
     "../unified_runtime/ur/ur.cpp"
+    "../unified_runtime/ur/usm_allocator.cpp"
+    "../unified_runtime/ur/usm_allocator.hpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero.hpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero.cpp"
     # Following are the PI Level-Zero Plugin only codes.
     "pi_level_zero.cpp"
     "pi_level_zero.hpp"
-    "usm_allocator.cpp"
-    "usm_allocator.hpp"
     "tracing.cpp"
     ${XPTI_PROXY_SRC}
   INCLUDE_DIRS

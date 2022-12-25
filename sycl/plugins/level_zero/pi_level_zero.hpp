@@ -49,8 +49,7 @@
 // Share code between this PI L0 Plugin and UR L0 Adapter
 #include <pi2ur.hpp>
 #include <ur/adapters/level_zero/ur_level_zero.hpp>
-
-#include "usm_allocator.hpp"
+#include <ur/usm_allocator.hpp>
 
 template <class To, class From> To pi_cast(From Value) {
   // TODO: see if more sanity checks are possible.
