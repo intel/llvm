@@ -147,7 +147,7 @@ defm : X86WriteRes<WriteBitTestImmLd,    [SLM_IEC_RSV0, SLM_IEC_RSV1, SLM_MEC_RS
 defm : X86WriteRes<WriteBitTestRegLd,    [SLM_IEC_RSV0, SLM_IEC_RSV1, SLM_MEC_RSV], 4, [1,1,1], 7>;
 defm : X86WriteRes<WriteBitTestSet,      [SLM_IEC_RSV0, SLM_IEC_RSV1], 1, [1,1], 1>;
 defm : X86WriteRes<WriteBitTestSetImmLd, [SLM_IEC_RSV0, SLM_IEC_RSV1, SLM_MEC_RSV], 3, [1,1,1], 1>;
-defm : X86WriteRes<WriteBitTestSetRegLd, [SLM_IEC_RSV0, SLM_IEC_RSV1, SLM_MEC_RSV], 3, [1,1,1], 7>;
+defm : X86WriteRes<WriteBitTestSetRegLd, [SLM_IEC_RSV0, SLM_IEC_RSV1, SLM_MEC_RSV], 3, [1,1,1], 8>;
 
 // This is for simple LEAs with one or two input operands.
 // The complex ones can only execute on port 1, and they require two cycles on
@@ -448,9 +448,9 @@ def : WriteRes<WriteMMXMOVMSK,  [SLM_FPC_RSV1]> { let Latency = 4; }
 defm : X86WriteResUnsupported<WriteVecMOVMSKY>;
 
 // AES Instructions.
-defm : SLMWriteResPair<WriteAESDecEnc, [SLM_FPC_RSV0], 8, [5]>;
-defm : SLMWriteResPair<WriteAESIMC,    [SLM_FPC_RSV0], 8, [5]>;
-defm : SLMWriteResPair<WriteAESKeyGen, [SLM_FPC_RSV0], 8, [5]>;
+defm : SLMWriteResPair<WriteAESDecEnc, [SLM_FPC_RSV0], 8, [5], 4, 1>;
+defm : SLMWriteResPair<WriteAESIMC,    [SLM_FPC_RSV0], 8, [4], 3, 1>;
+defm : SLMWriteResPair<WriteAESKeyGen, [SLM_FPC_RSV0], 8, [4], 3, 1>;
 
 // Carry-less multiplication instructions.
 defm : SLMWriteResPair<WriteCLMul, [SLM_FPC_RSV0], 10, [10], 8, 1>;

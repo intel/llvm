@@ -4233,8 +4233,7 @@ bool MasmParser::parseStructInitializer(const StructInfo &Structure,
   size_t FieldIndex = 0;
   if (EndToken) {
     // Initialize all fields with given initializers.
-    while (getTok().isNot(EndToken.value()) &&
-           FieldIndex < Structure.Fields.size()) {
+    while (getTok().isNot(*EndToken) && FieldIndex < Structure.Fields.size()) {
       const FieldInfo &Field = Structure.Fields[FieldIndex++];
       if (parseOptionalToken(AsmToken::Comma)) {
         // Empty initializer; use the default and continue. (Also, allow line
@@ -4262,10 +4261,10 @@ bool MasmParser::parseStructInitializer(const StructInfo &Structure,
     FieldInitializers.push_back(Field.Contents);
 
   if (EndToken) {
-    if (EndToken.value() == AsmToken::Greater)
+    if (*EndToken == AsmToken::Greater)
       return parseAngleBracketClose();
 
-    return parseToken(EndToken.value());
+    return parseToken(*EndToken);
   }
 
   return false;
@@ -5537,10 +5536,10 @@ bool MasmParser::parseDirectiveCFIEndProc() {
 /// parse register name or number.
 bool MasmParser::parseRegisterOrRegisterNumber(int64_t &Register,
                                                SMLoc DirectiveLoc) {
-  unsigned RegNo;
+  MCRegister RegNo;
 
   if (getLexer().isNot(AsmToken::Integer)) {
-    if (getTargetParser().ParseRegister(RegNo, DirectiveLoc, DirectiveLoc))
+    if (getTargetParser().parseRegister(RegNo, DirectiveLoc, DirectiveLoc))
       return true;
     Register = getContext().getRegisterInfo()->getDwarfRegNum(RegNo, true);
   } else
@@ -6270,10 +6269,10 @@ bool MasmParser::parseDirectiveIfdef(SMLoc DirectiveLoc, bool expect_defined) {
     eatToEndOfStatement();
   } else {
     bool is_defined = false;
-    unsigned RegNo;
+    MCRegister Reg;
     SMLoc StartLoc, EndLoc;
-    is_defined = (getTargetParser().tryParseRegister(
-                      RegNo, StartLoc, EndLoc) == MatchOperand_Success);
+    is_defined = (getTargetParser().tryParseRegister(Reg, StartLoc, EndLoc) ==
+                  MatchOperand_Success);
     if (!is_defined) {
       StringRef Name;
       if (check(parseIdentifier(Name), "expected identifier after 'ifdef'") ||
@@ -6390,9 +6389,9 @@ bool MasmParser::parseDirectiveElseIfdef(SMLoc DirectiveLoc,
     eatToEndOfStatement();
   } else {
     bool is_defined = false;
-    unsigned RegNo;
+    MCRegister Reg;
     SMLoc StartLoc, EndLoc;
-    is_defined = (getTargetParser().tryParseRegister(RegNo, StartLoc, EndLoc) ==
+    is_defined = (getTargetParser().tryParseRegister(Reg, StartLoc, EndLoc) ==
                   MatchOperand_Success);
     if (!is_defined) {
       StringRef Name;
@@ -6562,9 +6561,9 @@ bool MasmParser::parseDirectiveErrorIfdef(SMLoc DirectiveLoc,
   }
 
   bool IsDefined = false;
-  unsigned RegNo;
+  MCRegister Reg;
   SMLoc StartLoc, EndLoc;
-  IsDefined = (getTargetParser().tryParseRegister(RegNo, StartLoc, EndLoc) ==
+  IsDefined = (getTargetParser().tryParseRegister(Reg, StartLoc, EndLoc) ==
                MatchOperand_Success);
   if (!IsDefined) {
     StringRef Name;

@@ -498,11 +498,11 @@ struct OMPInformationCache : public InformationCache {
   }
 #include "llvm/Frontend/OpenMP/OMPKinds.def"
 
-    // Remove the `noinline` attribute from `__kmpc`, `_OMP::` and `omp_`
+    // Remove the `noinline` attribute from `__kmpc`, `ompx::` and `omp_`
     // functions, except if `optnone` is present.
     if (isOpenMPDevice(M)) {
       for (Function &F : M) {
-        for (StringRef Prefix : {"__kmpc", "_ZN4_OMP", "omp_"})
+        for (StringRef Prefix : {"__kmpc", "_ZN4ompx", "omp_"})
           if (F.hasFnAttribute(Attribute::NoInline) &&
               F.getName().startswith(Prefix) &&
               !F.hasFnAttribute(Attribute::OptimizeNone))
@@ -4476,10 +4476,10 @@ struct AAFoldRuntimeCallCallSiteReturned : AAFoldRuntimeCall {
     if (!SimplifiedValue)
       return Str + std::string("none");
 
-    if (!SimplifiedValue.value())
+    if (!*SimplifiedValue)
       return Str + std::string("nullptr");
 
-    if (ConstantInt *CI = dyn_cast<ConstantInt>(SimplifiedValue.value()))
+    if (ConstantInt *CI = dyn_cast<ConstantInt>(*SimplifiedValue))
       return Str + std::to_string(CI->getSExtValue());
 
     return Str + std::string("unknown");
@@ -4504,7 +4504,7 @@ struct AAFoldRuntimeCallCallSiteReturned : AAFoldRuntimeCall {
         [&](const IRPosition &IRP, const AbstractAttribute *AA,
             bool &UsedAssumedInformation) -> std::optional<Value *> {
           assert((isValidState() ||
-                  (SimplifiedValue && SimplifiedValue.value() == nullptr)) &&
+                  (SimplifiedValue && *SimplifiedValue == nullptr)) &&
                  "Unexpected invalid state!");
 
           if (!isAtFixpoint()) {

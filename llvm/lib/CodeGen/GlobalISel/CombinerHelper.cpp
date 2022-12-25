@@ -3262,8 +3262,6 @@ bool CombinerHelper::applyFoldBinOpIntoSelect(MachineInstr &MI,
   }
 
   Builder.buildSelect(Dst, SelectCond, FoldTrue, FoldFalse, MI.getFlags());
-  Observer.erasingInstr(*Select);
-  Select->eraseFromParent();
   MI.eraseFromParent();
 
   return true;
@@ -4216,7 +4214,7 @@ bool CombinerHelper::matchICmpToTrueFalseKnownBits(MachineInstr &MI,
   auto Pred = static_cast<CmpInst::Predicate>(MI.getOperand(1).getPredicate());
   auto KnownLHS = KB->getKnownBits(MI.getOperand(2).getReg());
   auto KnownRHS = KB->getKnownBits(MI.getOperand(3).getReg());
-  Optional<bool> KnownVal;
+  std::optional<bool> KnownVal;
   switch (Pred) {
   default:
     llvm_unreachable("Unexpected G_ICMP predicate?");

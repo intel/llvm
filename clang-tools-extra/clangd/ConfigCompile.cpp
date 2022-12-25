@@ -112,12 +112,12 @@ struct FragmentCompiler {
       diag(Error, "Invalid regex " + Anchored + ": " + RegexError, Text.Range);
       return std::nullopt;
     }
-    return Result;
+    return std::move(Result);
   }
 
-  llvm::Optional<std::string> makeAbsolute(Located<std::string> Path,
-                                           llvm::StringLiteral Description,
-                                           llvm::sys::path::Style Style) {
+  std::optional<std::string> makeAbsolute(Located<std::string> Path,
+                                          llvm::StringLiteral Description,
+                                          llvm::sys::path::Style Style) {
     if (llvm::sys::path::is_absolute(*Path))
       return *Path;
     if (FragmentDirectory.empty()) {

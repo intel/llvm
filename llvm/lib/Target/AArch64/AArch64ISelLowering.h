@@ -960,6 +960,7 @@ private:
 
   SDValue LowerINTRINSIC_W_CHAIN(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerINTRINSIC_VOID(SDValue Op, SelectionDAG &DAG) const;
 
   bool
   isEligibleForTailCallOptimization(const CallLoweringInfo &CLI) const;
@@ -1032,7 +1033,7 @@ private:
   SDValue LowerFRAMEADDR(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSPONENTRY(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerRETURNADDR(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerFLT_ROUNDS_(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerGET_ROUNDING(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSET_ROUNDING(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINSERT_VECTOR_ELT(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerEXTRACT_VECTOR_ELT(SDValue Op, SelectionDAG &DAG) const;

@@ -3450,8 +3450,8 @@ static bool EquivalentArrayTypes(QualType Old, QualType New,
 static void mergeParamDeclTypes(ParmVarDecl *NewParam,
                                 const ParmVarDecl *OldParam,
                                 Sema &S) {
-  if (auto Oldnullability = OldParam->getType()->getNullability(S.Context)) {
-    if (auto Newnullability = NewParam->getType()->getNullability(S.Context)) {
+  if (auto Oldnullability = OldParam->getType()->getNullability()) {
+    if (auto Newnullability = NewParam->getType()->getNullability()) {
       if (*Oldnullability != *Newnullability) {
         S.Diag(NewParam->getLocation(), diag::warn_mismatched_nullability_attr)
           << DiagNullabilityKind(
@@ -15976,7 +15976,7 @@ void Sema::AddKnownFunctionAttributesForReplaceableGlobalAllocationFunction(
   //         specified by the value of this argument.
   if (AlignmentParam && !FD->hasAttr<AllocAlignAttr>()) {
     FD->addAttr(AllocAlignAttr::CreateImplicit(
-        Context, ParamIdx(AlignmentParam.value(), FD), FD->getLocation()));
+        Context, ParamIdx(*AlignmentParam, FD), FD->getLocation()));
   }
 
   // FIXME:

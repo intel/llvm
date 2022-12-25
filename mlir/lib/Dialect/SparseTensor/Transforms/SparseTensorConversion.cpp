@@ -39,7 +39,7 @@ namespace {
 //===----------------------------------------------------------------------===//
 
 /// Maps each sparse tensor type to an opaque pointer.
-static Optional<Type> convertSparseTensorTypes(Type type) {
+static std::optional<Type> convertSparseTensorTypes(Type type) {
   if (getSparseTensorEncoding(type) != nullptr)
     return LLVM::LLVMPointerType::get(IntegerType::get(type.getContext(), 8));
   return std::nullopt;
@@ -706,7 +706,7 @@ public:
     if (!enc)
       return failure();
     // Only rewrite DimOp with constant index.
-    Optional<int64_t> dim = op.getConstantIndex();
+    std::optional<int64_t> dim = op.getConstantIndex();
     if (!dim)
       return failure();
     // Generate the call.
@@ -1349,8 +1349,7 @@ public:
     bool allDense = false;
     Value dstTensor;
     if (encDst) {
-      allDense = llvm::all_of(encDst.getDimLevelType(),
-                              [](DimLevelType dlt) { return isDenseDLT(dlt); });
+      allDense = encDst.isAllDense();
       // Start a new COO or an initialized annotated all dense sparse tensor.
       dst = params.genBuffers(encDst, sizes, dstTp)
                 .genNewCall(allDense ? Action::kEmpty : Action::kEmptyCOO);

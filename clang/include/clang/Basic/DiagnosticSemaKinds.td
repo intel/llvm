@@ -2929,7 +2929,7 @@ def note_type_requirement_substitution_error : Note<
 def note_type_requirement_unknown_substitution_error : Note<
   "%select{and|because}0 '%1' would be invalid">;
 def note_nested_requirement_substitution_error : Note<
-  "%select{and|because}0 '%1' would be invalid: %2">;
+  "%select{and|because}0 '%1' would be invalid%2">;
 def note_nested_requirement_unknown_substitution_error : Note<
   "%select{and|because}0 '%1' would be invalid">;
 def note_ambiguous_atomic_constraints : Note<
@@ -12001,7 +12001,10 @@ def err_loongarch_builtin_requires_la64 : Error<
   "this builtin requires target: loongarch64">;
 
 // Unsafe buffer usage diagnostics.
-def warn_unsafe_buffer_usage : Warning<
+def warn_unsafe_buffer_expression : Warning<
   "unchecked operation on raw buffer in expression">,
-  InGroup<DiagGroup<"unsafe-buffer-usage">>, DefaultIgnore;
+  InGroup<UnsafeBufferUsage>, DefaultIgnore;
+def warn_unsafe_buffer_variable : Warning<
+  "variable %0 participates in unchecked buffer operations">,
+  InGroup<UnsafeBufferUsage>, DefaultIgnore;
 } // end of sema component.

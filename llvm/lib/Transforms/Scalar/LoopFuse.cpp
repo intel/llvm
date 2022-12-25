@@ -767,7 +767,8 @@ private:
     LLVM_DEBUG(dbgs() << "Attempting to peel first " << PeelCount
                       << " iterations of the first loop. \n");
 
-    FC0.Peeled = peelLoop(FC0.L, PeelCount, &LI, &SE, DT, &AC, true);
+    ValueToValueMapTy VMap;
+    FC0.Peeled = peelLoop(FC0.L, PeelCount, &LI, &SE, DT, &AC, true, VMap);
     if (FC0.Peeled) {
       LLVM_DEBUG(dbgs() << "Done Peeling\n");
 
@@ -1216,7 +1217,7 @@ private:
       const Loop *ExprL = Expr->getLoop();
       SmallVector<const SCEV *, 2> Operands;
       if (ExprL == &OldL) {
-        Operands.append(Expr->op_begin(), Expr->op_end());
+        append_range(Operands, Expr->operands());
         return SE.getAddRecExpr(Operands, &NewL, Expr->getNoWrapFlags());
       }
 

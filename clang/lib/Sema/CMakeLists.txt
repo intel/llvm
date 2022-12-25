@@ -4,6 +4,7 @@ set(LLVM_LINK_COMPONENTS
   FrontendOpenMP
   MC
   Support
+  TargetParser
   )
 
 if (MSVC)

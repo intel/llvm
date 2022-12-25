@@ -1627,8 +1627,8 @@ void StmtProfiler::VisitRequiresExpr(const RequiresExpr *S) {
     } else {
       ID.AddInteger(concepts::Requirement::RK_Nested);
       auto *NestedReq = cast<concepts::NestedRequirement>(Req);
-      ID.AddBoolean(NestedReq->isSubstitutionFailure());
-      if (!NestedReq->isSubstitutionFailure())
+      ID.AddBoolean(NestedReq->hasInvalidConstraint());
+      if (!NestedReq->hasInvalidConstraint())
         Visit(NestedReq->getConstraintExpr());
     }
   }

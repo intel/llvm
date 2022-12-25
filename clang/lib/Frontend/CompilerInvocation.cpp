@@ -2012,7 +2012,7 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
     } else {
       Opts.DiagnosticsHotnessThreshold = *ResultOrErr;
       if ((!Opts.DiagnosticsHotnessThreshold ||
-           Opts.DiagnosticsHotnessThreshold.value() > 0) &&
+           *Opts.DiagnosticsHotnessThreshold > 0) &&
           !UsingProfile)
         Diags.Report(diag::warn_drv_diagnostics_hotness_requires_pgo)
             << "-fdiagnostics-hotness-threshold=";
@@ -2029,7 +2029,7 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
     } else {
       Opts.DiagnosticsMisExpectTolerance = *ResultOrErr;
       if ((!Opts.DiagnosticsMisExpectTolerance ||
-           Opts.DiagnosticsMisExpectTolerance.value() > 0) &&
+           *Opts.DiagnosticsMisExpectTolerance > 0) &&
           !UsingProfile)
         Diags.Report(diag::warn_drv_diagnostics_misexpect_requires_pgo)
             << "-fdiagnostics-misexpect-tolerance=";

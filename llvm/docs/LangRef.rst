@@ -2512,12 +2512,19 @@ Assume Operand Bundles
 ^^^^^^^^^^^^^^^^^^^^^^
 
 Operand bundles on an :ref:`llvm.assume <int_assume>` allows representing
-assumptions that a :ref:`parameter attribute <paramattrs>` or a
+assumptions, such as that a :ref:`parameter attribute <paramattrs>` or a
 :ref:`function attribute <fnattrs>` holds for a certain value at a certain
 location. Operand bundles enable assumptions that are either hard or impossible
 to represent as a boolean argument of an :ref:`llvm.assume <int_assume>`.
 
 An assume operand bundle has the form:
+
+::
+
+      "<tag>"([ <arguments>] ])
+
+In the case of function or parameter attributes, the operand bundle has the
+restricted form:
 
 ::
 
@@ -2563,6 +2570,17 @@ the behavior is undefined, unless one of the following exceptions applies:
 * ``"align"`` operand bundles may specify a non-power-of-two alignment
   (including a zero alignment). If this is the case, then the pointer value
   must be a null pointer, otherwise the behavior is undefined.
+
+In addition to allowing operand bundles encoding function and parameter
+attributes, an assume operand bundle my also encode a ``separate_storage``
+operand bundle. This has the form:
+
+.. code-block:: llvm
+
+    separate_storage(<val1>, <val2>)``
+
+This indicates that no pointer :ref:`based <pointeraliasing>` on one of its
+arguments can alias any pointer based on the other.
 
 Even if the assumed property can be encoded as a boolean value, like
 ``nonnull``, using operand bundles to express the property can still have
@@ -24580,25 +24598,25 @@ These functions read or write floating point environment, such as rounding
 mode or state of floating point exceptions. Altering the floating point
 environment requires special care. See :ref:`Floating Point Environment <floatenv>`.
 
-'``llvm.flt.rounds``' Intrinsic
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'``llvm.get.rounding``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Syntax:
 """""""
 
 ::
 
-      declare i32 @llvm.flt.rounds()
+      declare i32 @llvm.get.rounding()
 
 Overview:
 """""""""
 
-The '``llvm.flt.rounds``' intrinsic reads the current rounding mode.
+The '``llvm.get.rounding``' intrinsic reads the current rounding mode.
 
 Semantics:
 """"""""""
 
-The '``llvm.flt.rounds``' intrinsic returns the current rounding mode.
+The '``llvm.get.rounding``' intrinsic returns the current rounding mode.
 Encoding of the returned values is same as the result of ``FLT_ROUNDS``,
 specified by C standard:
 
@@ -24612,7 +24630,6 @@ specified by C standard:
 
 Other values may be used to represent additional rounding modes, supported by a
 target. These values are target-specific.
-
 
 '``llvm.set.rounding``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -24633,7 +24650,7 @@ Arguments:
 """"""""""
 
 The argument is the required rounding mode. Encoding of rounding mode is
-the same as used by '``llvm.flt.rounds``'.
+the same as used by '``llvm.get.rounding``'.
 
 Semantics:
 """"""""""

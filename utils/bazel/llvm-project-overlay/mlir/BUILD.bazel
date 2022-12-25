@@ -5406,6 +5406,7 @@ cc_library(
         ":DialectUtils",
         ":IR",
         ":LinalgDialect",
+        ":LinalgUtils",
         ":SCFDialect",
         ":TensorDialect",
         ":TensorUtils",
@@ -6619,10 +6620,12 @@ cc_library(
     srcs = [
         "lib/Target/LLVMIR/ConvertFromLLVMIR.cpp",
         "lib/Target/LLVMIR/DebugImporter.cpp",
+        "lib/Target/LLVMIR/ModuleImport.cpp",
         "lib/Target/LLVMIR/TypeFromLLVM.cpp",
     ],
     hdrs = [
         "include/mlir/Target/LLVMIR/Import.h",
+        "include/mlir/Target/LLVMIR/ModuleImport.h",
         "include/mlir/Target/LLVMIR/TypeFromLLVM.h",
         "lib/Target/LLVMIR/DebugImporter.h",
     ],
@@ -8218,6 +8221,7 @@ cc_library(
         ":SideEffectInterfaces",
         ":TilingInterface",
         ":TransformDialect",
+        ":TransformDialectUtils",
         ":TransformUtils",
         "//llvm:Support",
     ],
@@ -9091,6 +9095,21 @@ cc_library(
         ":SideEffectInterfaces",
         ":TransformDialect",
         ":TransformDialectTransformsIncGen",
+        "//llvm:Support",
+    ],
+)
+
+cc_library(
+    name = "TransformDialectUtils",
+    srcs = ["lib/Dialect/Transform/Utils/Utils.cpp"],
+    hdrs = ["include/mlir/Dialect/Transform/Utils/Utils.h"],
+    includes = ["include"],
+    deps = [
+        ":DialectUtils",
+        ":IR",
+        ":Support",
+        ":TransformDialect",
+        ":ViewLikeInterface",
         "//llvm:Support",
     ],
 )
@@ -10090,6 +10109,7 @@ cc_library(
         ":PDLDialect",
         ":Parser",
         ":SideEffectInterfaces",
+        ":TensorDialect",
         ":TransformDialect",
         "//llvm:Support",
     ],
