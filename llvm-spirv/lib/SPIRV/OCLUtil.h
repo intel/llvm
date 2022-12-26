@@ -523,7 +523,7 @@ template <class KeyTy, class ValTy, class Identifier = void>
 Instruction *
 getOrCreateSwitchFunc(StringRef MapName, Value *V,
                       const SPIRVMap<KeyTy, ValTy, Identifier> &Map,
-                      bool IsReverse, Optional<int> DefaultCase,
+                      bool IsReverse, std::optional<int> DefaultCase,
                       Instruction *InsertPoint, int KeyMask = 0) {
   static_assert(std::is_convertible<KeyTy, int>::value &&
                     std::is_convertible<ValTy, int>::value,
@@ -586,7 +586,7 @@ getOrCreateSwitchFunc(StringRef MapName, Value *V,
 /// \returns \c Value corresponding to SPIR-V Scope equivalent to OpenCL
 ///          memory_scope passed in \arg MemScope
 Value *transOCLMemScopeIntoSPIRVScope(Value *MemScope,
-                                      Optional<int> DefaultCase,
+                                      std::optional<int> DefaultCase,
                                       Instruction *InsertBefore);
 
 /// Performs conversion from OpenCL memory_order into SPIR-V Memory Semantics.
@@ -603,7 +603,7 @@ Value *transOCLMemScopeIntoSPIRVScope(Value *MemScope,
 /// \returns \c Value corresponding to SPIR-V Memory Semantics equivalent to
 ///          OpenCL memory_order passed in \arg MemOrder
 Value *transOCLMemOrderIntoSPIRVMemorySemantics(Value *MemOrder,
-                                                Optional<int> DefaultCase,
+                                                std::optional<int> DefaultCase,
                                                 Instruction *InsertBefore);
 
 /// Performs conversion from SPIR-V Scope into OpenCL memory_scope.

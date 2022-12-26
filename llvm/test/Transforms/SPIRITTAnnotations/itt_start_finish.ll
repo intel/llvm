@@ -1,8 +1,8 @@
 ;; The test serves a purpose to check if work item start/finish annotations
 ;; are being added by SPIRITTAnnotations pass
 
-; RUN: opt < %s --SPIRITTAnnotations -S | FileCheck %s
-; RUN: opt < %s --SPIRITTAnnotations -enable-new-pm=1 -S | FileCheck %s
+; RUN: opt < %s -passes=SPIRITTAnnotations -S | FileCheck %s
+; RUN: opt < %s -passes=SPIRITTAnnotations -enable-new-pm=1 -S | FileCheck %s
 
 ; ModuleID = 'synthetic.bc'
 source_filename = "synthetic.cpp"

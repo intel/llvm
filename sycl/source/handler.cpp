@@ -147,11 +147,12 @@ event handler::finalize() {
       }
     }
 
-    if (MRequirements.size() + MEvents.size() + MStreamStorage.size() == 0) {
+    if (!MQueue->is_in_fusion_mode() &&
+        MRequirements.size() + MEvents.size() + MStreamStorage.size() == 0) {
       // if user does not add a new dependency to the dependency graph, i.e.
-      // the graph is not changed, then this faster path is used to submit
-      // kernel bypassing scheduler and avoiding CommandGroup, Command objects
-      // creation.
+      // the graph is not changed, and the queue is not in fusion mode, then
+      // this faster path is used to submit kernel bypassing scheduler and
+      // avoiding CommandGroup, Command objects creation.
 
       std::vector<RT::PiEvent> RawEvents;
       detail::EventImplPtr NewEvent;

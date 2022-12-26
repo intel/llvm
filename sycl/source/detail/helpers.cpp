@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/scheduler/commands.hpp>
 #include <sycl/detail/helpers.hpp>
 
 #include <detail/context_impl.hpp>
@@ -30,9 +31,16 @@ std::vector<RT::PiEvent> getOrWaitEvents(std::vector<sycl::event> DepEvents,
         !SyclEventImplPtr->is_host()) {
       continue;
     }
+    // The fusion command and its event are associated with a non-host context,
+    // but still does not produce a PI event.
+    bool NoPiEvent =
+        SyclEventImplPtr->MCommand &&
+        !static_cast<Command *>(SyclEventImplPtr->MCommand)->producesPiEvent();
     if (SyclEventImplPtr->is_host() ||
-        SyclEventImplPtr->getContextImpl() != Context) {
-      SyclEventImplPtr->waitInternal();
+        SyclEventImplPtr->getContextImpl() != Context || NoPiEvent) {
+      // Call wait, because the command for the event might not have been
+      // enqueued when kernel fusion is happening.
+      SyclEventImplPtr->wait(SyclEventImplPtr);
     } else {
       Events.push_back(SyclEventImplPtr->getHandleRef());
     }
