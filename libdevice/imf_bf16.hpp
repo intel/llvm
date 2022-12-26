@@ -151,7 +151,7 @@ static Ty __iml_bfloat162integral_s(uint16_t b,
                 "__iml_bfloat162integral_s only accepts signed integral type.");
   typedef typename __iml_get_unsigned<Ty>::utype UTy;
   uint16_t b_sign = b >> 15;
-  uint16_t b_exp = b >> 7;
+  uint16_t b_exp = (b & static_cast<uint16_t>(0x7F80)) >> 7;
   uint16_t b_mant = b & 0x7F;
   int16_t b_exp1 = static_cast<int16_t>(b_exp) - 127;
 
