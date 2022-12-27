@@ -153,7 +153,7 @@ template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K,
           __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
           __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T2, M, N, LC, S> *
+extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *
 __spirv_JointMatrixUUMadINTEL(
     __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S> *A,
     __spv::__spirv_JointMatrixINTEL<T2, K, N, LB, S> *B,
