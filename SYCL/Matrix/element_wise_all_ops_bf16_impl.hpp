@@ -10,12 +10,6 @@ static float make_fp32(uint16_t x) {
   return *res;
 }
 
-static uint16_t make_bf16(float x) {
-  int *res = reinterpret_cast<int *>(&x);
-  *res = *res >> 16;
-  return (uint16_t)*res;
-}
-
 template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
 public:
   T *mat;
@@ -40,7 +34,7 @@ void assert_ops_ref(
 template <typename T, size_t M, size_t N>
 void matrix_verify_add(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
                        const float ref) {
-  buffer<unsigned short, 2> bufA(A.get_data(), range<2>(M, N));
+  buffer<bfloat16, 2> bufA(A.get_data(), range<2>(M, N));
 
   q.submit([&](handler &cgh) {
      auto accA = bufA.get_access<access::mode::read_write>(cgh);
@@ -55,12 +49,13 @@ void matrix_verify_add(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
 
-           joint_matrix_fill(sg, sub_a, make_bf16(5.0));
+           joint_matrix_fill(sg, sub_a, bfloat16(5.0));
 
            auto wi_slice_a = get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
-             wi_slice_a[i] = wi_slice_a[i] + make_bf16(2);
+             wi_slice_a[i] = wi_slice_a[i] + bfloat16(2);
            }
+
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
                accA.get_pointer() + (sg_startx * TM) * N +
@@ -74,7 +69,7 @@ void matrix_verify_add(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 template <typename T, size_t M, size_t N>
 void matrix_verify_sub(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
                        const float ref) {
-  buffer<unsigned short, 2> bufA(A.get_data(), range<2>(M, N));
+  buffer<bfloat16, 2> bufA(A.get_data(), range<2>(M, N));
 
   q.submit([&](handler &cgh) {
      auto accA = bufA.get_access<access::mode::read_write>(cgh);
@@ -89,11 +84,11 @@ void matrix_verify_sub(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
 
-           joint_matrix_fill(sg, sub_a, make_bf16(5.0));
+           joint_matrix_fill(sg, sub_a, bfloat16(5.0));
 
            auto wi_slice_a = get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
-             wi_slice_a[i] = wi_slice_a[i] - make_bf16(2);
+             wi_slice_a[i] = wi_slice_a[i] - bfloat16(2);
            }
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
@@ -108,7 +103,7 @@ void matrix_verify_sub(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 template <typename T, size_t M, size_t N>
 void matrix_verify_mul(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
                        const float ref) {
-  buffer<unsigned short, 2> bufA(A.get_data(), range<2>(M, N));
+  buffer<bfloat16, 2> bufA(A.get_data(), range<2>(M, N));
 
   q.submit([&](handler &cgh) {
      auto accA = bufA.get_access<access::mode::read_write>(cgh);
@@ -122,11 +117,11 @@ void matrix_verify_mul(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
-           joint_matrix_fill(sg, sub_a, make_bf16(5.0));
+           joint_matrix_fill(sg, sub_a, bfloat16(5.0));
 
            auto wi_slice_a = get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
-             wi_slice_a[i] = wi_slice_a[i] * make_bf16(3.0);
+             wi_slice_a[i] = wi_slice_a[i] * bfloat16(3.0);
            }
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
@@ -141,7 +136,7 @@ void matrix_verify_mul(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 template <typename T, size_t M, size_t N>
 void matrix_verify_div(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
                        const float ref) {
-  buffer<unsigned short, 2> bufA(A.get_data(), range<2>(M, N));
+  buffer<bfloat16, 2> bufA(A.get_data(), range<2>(M, N));
 
   q.submit([&](handler &cgh) {
      auto accA = bufA.get_access<access::mode::read_write>(cgh);
@@ -156,11 +151,11 @@ void matrix_verify_div(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
 
-           joint_matrix_fill(sg, sub_a, make_bf16(4.0));
+           joint_matrix_fill(sg, sub_a, bfloat16(4.0));
 
            auto wi_slice_a = get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
-             wi_slice_a[i] = wi_slice_a[i] / make_bf16(2.0);
+             wi_slice_a[i] = wi_slice_a[i] / bfloat16(2.0);
            }
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
@@ -175,7 +170,7 @@ void matrix_verify_div(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 template <typename T, size_t M, size_t N>
 void matrix_verify_logic(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
                          const float ref) {
-  buffer<unsigned short, 2> bufA(A.get_data(), range<2>(M, N));
+  buffer<bfloat16, 2> bufA(A.get_data(), range<2>(M, N));
 
   q.submit([&](handler &cgh) {
      auto accA = bufA.get_access<access::mode::read_write>(cgh);
@@ -189,26 +184,26 @@ void matrix_verify_logic(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
 
-           joint_matrix_fill(sg, sub_a, make_bf16(5.0));
+           joint_matrix_fill(sg, sub_a, bfloat16(5.0));
 
            auto wi_slice_a = get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
              if (wi_slice_a[i]) {
-               if (wi_slice_a[i] > make_bf16(2.0) ||
-                   wi_slice_a[i] >= make_bf16(2.0) ||
-                   wi_slice_a[i] < make_bf16(2.0) ||
-                   wi_slice_a[i] <= make_bf16(2.0)) {
-                 T val = (wi_slice_a[i] != make_bf16(2.0)) ? wi_slice_a[i]
-                                                           : make_bf16(2.0);
-                 val = make_bf16(make_fp32(val) - static_cast<float>(1));
-                 val = make_bf16(make_fp32(val) + static_cast<float>(1));
-                 if (wi_slice_a[i] == make_bf16(2.0)) {
-                   val = make_bf16(make_fp32(val) - static_cast<float>(2));
-                   val = make_bf16(make_fp32(val) * static_cast<float>(3));
-                   val = make_bf16(make_fp32(val) / static_cast<float>(2));
+               if (wi_slice_a[i] > bfloat16(2.0) ||
+                   wi_slice_a[i] >= bfloat16(2.0) ||
+                   wi_slice_a[i] < bfloat16(2.0) ||
+                   wi_slice_a[i] <= bfloat16(2.0)) {
+                 T val = (wi_slice_a[i] != bfloat16(2.0)) ? wi_slice_a[i]
+                                                          : bfloat16(2.0);
+                 val = bfloat16(make_fp32(val) - static_cast<float>(1));
+                 val = bfloat16(make_fp32(val) + static_cast<float>(1));
+                 if (wi_slice_a[i] == bfloat16(2.0)) {
+                   val = bfloat16(make_fp32(val) - static_cast<float>(2));
+                   val = bfloat16(make_fp32(val) * static_cast<float>(3));
+                   val = bfloat16(make_fp32(val) / static_cast<float>(2));
 
                  } else {
-                   val = make_bf16(make_fp32(val) + static_cast<float>(2));
+                   val = bfloat16(make_fp32(val) + static_cast<float>(2));
                  }
                  wi_slice_a[i] = val;
                }
@@ -226,7 +221,7 @@ void matrix_verify_logic(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
 
 static constexpr size_t MATRIX_M = TM * 2;
 static constexpr size_t MATRIX_N = TN * 2;
-unsigned short A[MATRIX_M][MATRIX_N];
+bfloat16 A[MATRIX_M][MATRIX_N];
 float D[MATRIX_M][MATRIX_N];
 
 void matrix_ops_ref(float *D, int M, int N) {
@@ -240,18 +235,18 @@ void matrix_ops_ref(float *D, int M, int N) {
 int main() {
 
   big_matrix<float, MATRIX_M, MATRIX_N> MD((float *)&D);
-  big_matrix<unsigned short, MATRIX_M, MATRIX_N> MA((unsigned short *)&A);
+  big_matrix<bfloat16, MATRIX_M, MATRIX_N> MA((bfloat16 *)&A);
 
   size_t NDRangeM = MATRIX_M / TM;
   size_t NDRangeN = MATRIX_N / TN;
   queue q;
   nd_range<2> r({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ});
 
-  matrix_verify_add<unsigned short, MATRIX_M, MATRIX_N>(q, MA, r, 7.0);
-  matrix_verify_sub<unsigned short, MATRIX_M, MATRIX_N>(q, MA, r, 3.0);
-  matrix_verify_mul<unsigned short, MATRIX_M, MATRIX_N>(q, MA, r, 15.0);
-  matrix_verify_div<unsigned short, MATRIX_M, MATRIX_N>(q, MA, r, 2.0);
-  matrix_verify_logic<unsigned short, MATRIX_M, MATRIX_N>(q, MA, r, 7.0);
+  matrix_verify_add<bfloat16, MATRIX_M, MATRIX_N>(q, MA, r, 7.0);
+  matrix_verify_sub<bfloat16, MATRIX_M, MATRIX_N>(q, MA, r, 3.0);
+  matrix_verify_mul<bfloat16, MATRIX_M, MATRIX_N>(q, MA, r, 15.0);
+  matrix_verify_div<bfloat16, MATRIX_M, MATRIX_N>(q, MA, r, 2.0);
+  matrix_verify_logic<bfloat16, MATRIX_M, MATRIX_N>(q, MA, r, 7.0);
 
   return 0;
 }

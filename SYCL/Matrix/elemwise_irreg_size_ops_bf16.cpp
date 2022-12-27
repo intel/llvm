@@ -18,6 +18,7 @@
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
+using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 #define SG_SZ 16
 
@@ -50,8 +51,8 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
   assert(NUM_ROWS_C == NUM_ROWS_A && NUM_COLS_A == NUM_ROWS_B * 2);
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
-  buffer<unsigned short, 2> bufA(A.get_data(), range<2>(M, K));
-  buffer<unsigned short, 2> bufB(B.get_data(), range<2>(K / 2, N * 2));
+  buffer<bfloat16, 2> bufA(A.get_data(), range<2>(M, K));
+  buffer<bfloat16, 2> bufB(B.get_data(), range<2>(K / 2, N * 2));
   buffer<float, 2> bufC((float *)C.get_data(), range<2>(M, N));
 
   queue q;
@@ -75,11 +76,10 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
            sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<sub_group, unsigned short, use::a, TM, TK,
-                        layout::row_major>
+           joint_matrix<sub_group, bfloat16, use::a, TM, TK, layout::row_major>
                sub_a;
            // For B, we assume B has been already VNNIed.
-           joint_matrix<sub_group, unsigned short, use::b, TK, TN,
+           joint_matrix<sub_group, bfloat16, use::b, TK, TN,
                         ext::intel::experimental::matrix::layout::packed>
                sub_b;
            joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
@@ -112,8 +112,8 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
 static constexpr size_t MATRIX_M = TM * 2;
 static constexpr size_t MATRIX_N = TN * 2;
 static constexpr size_t MATRIX_K = TK * 2;
-unsigned short A[MATRIX_M][MATRIX_K];
-unsigned short B[MATRIX_K / 2][MATRIX_N * 2];
+bfloat16 A[MATRIX_M][MATRIX_K];
+bfloat16 B[MATRIX_K / 2][MATRIX_N * 2];
 float C[MATRIX_M][MATRIX_N];
 float D[MATRIX_M][MATRIX_N];
 
@@ -122,12 +122,6 @@ float make_fp32(short x) {
   y = y << 16;
   float *res = reinterpret_cast<float *>(&y);
   return *res;
-}
-
-unsigned short make_bf16(float x) {
-  int *res = reinterpret_cast<int *>(&x);
-  *res = *res >> 16;
-  return (unsigned short)*res;
 }
 
 void matrix_multiply_ref(int *A_mem, int *B_mem, int *C_mem, int M, int N,
@@ -152,12 +146,12 @@ void matrix_multiply_ref(int *A_mem, int *B_mem, int *C_mem, int M, int N,
 int main() {
   for (int i = 0; i < MATRIX_M; i++) {
     for (int j = 0; j < MATRIX_K; j++) {
-      A[i][j] = make_bf16(1.0f * (i + j));
+      A[i][j] = bfloat16(1.0f * (i + j));
     }
   }
   for (int i = 0; i < MATRIX_K / 2; i++) {
     for (int j = 0; j < MATRIX_N * 2; j++) {
-      B[i][j] = make_bf16(2.0f * i + 3.0f * j);
+      B[i][j] = bfloat16(2.0f * i + 3.0f * j);
     }
   }
   for (int i = 0; i < MATRIX_M; i++) {
@@ -169,9 +163,8 @@ int main() {
 
   big_matrix<float, MATRIX_M, MATRIX_N> MC((float *)&C);
   big_matrix<float, MATRIX_M, MATRIX_N> MD((float *)&D);
-  big_matrix<unsigned short, MATRIX_M, MATRIX_K> MA((unsigned short *)&A);
-  big_matrix<unsigned short, MATRIX_K / 2, MATRIX_N * 2> MB(
-      (unsigned short *)&B);
+  big_matrix<bfloat16, MATRIX_M, MATRIX_K> MA((bfloat16 *)&A);
+  big_matrix<bfloat16, MATRIX_K / 2, MATRIX_N * 2> MB((bfloat16 *)&B);
   matrix_multiply(MC, MA, MB);
   matrix_multiply_ref((int32_t *)A, (int32_t *)B, (int32_t *)D, MATRIX_M,
                       MATRIX_N, MATRIX_K / 2);
