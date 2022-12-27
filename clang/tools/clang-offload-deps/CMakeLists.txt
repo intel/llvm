@@ -1,4 +1,4 @@
-set(LLVM_LINK_COMPONENTS BitWriter Core Object Support)
+set(LLVM_LINK_COMPONENTS BitWriter Core Object Support TargetParser)
 
 add_clang_tool(clang-offload-deps
   ClangOffloadDeps.cpp

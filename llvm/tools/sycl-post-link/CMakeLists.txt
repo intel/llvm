@@ -4,6 +4,7 @@ set(LLVM_LINK_COMPONENTS
   IPO
   IRReader
   Support
+  TargetParser
   TransformUtils
   SYCLLowerIR
   InstCombine
