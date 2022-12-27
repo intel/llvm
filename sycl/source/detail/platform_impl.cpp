@@ -126,8 +126,12 @@ std::vector<platform> platform_impl::get_platforms() {
           // insert PiPlatform into the Plugin
           Plugin.getPlatformId(PiPlatform);
         }
-        if (!Platform.get_devices(info::device_type::all).empty())
+        // The users of (deprecated) SYCL_DEVICE_ALLOWLIST expect that
+        // platforms with no devices will not be reported.
+        if (!SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get() ||
+            !Platform.get_devices(info::device_type::all).empty()) {
           Platforms.push_back(Platform);
+        }
       }
     }
   }
@@ -153,11 +157,12 @@ std::vector<platform> platform_impl::get_platforms() {
 // to distinguish the case where we are working with ONEAPI_DEVICE_SELECTOR
 // in the places where the functionality diverges between these two
 // environment variables.
-// The return value is a vector that represents the indices of the chosen 
+// The return value is a vector that represents the indices of the chosen
 // devices.
 template <typename ListT, typename FilterT>
 static std::vector<int> filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
-                              RT::PiPlatform Platform, ListT *FilterList) {
+                                           RT::PiPlatform Platform,
+                                           ListT *FilterList) {
 
   constexpr bool is_ods_target = std::is_same_v<FilterT, ods_target>;
   // There are some differences in implementation between SYCL_DEVICE_FILTER
@@ -316,7 +321,7 @@ static bool supportsPartitionProperty(const device &dev,
 
 static std::vector<device> amendDeviceAndSubDevices(
     backend PlatformBackend, std::vector<device> &DeviceList,
-    ods_target_list *OdsTargetList, const std::vector<int>& original_indices,
+    ods_target_list *OdsTargetList, const std::vector<int> &original_indices,
     PlatformImplPtr PlatformImpl) {
   constexpr info::partition_property partitionProperty =
       info::partition_property::partition_by_affinity_domain;
@@ -343,8 +348,7 @@ static std::vector<device> amendDeviceAndSubDevices(
                           target.DeviceType));
 
         } else if (target.DeviceNum) { // opencl:0
-          deviceMatch =
-              (target.DeviceNum.value() == original_indices[i]);
+          deviceMatch = (target.DeviceNum.value() == original_indices[i]);
         }
 
         if (deviceMatch) {
@@ -518,8 +522,9 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     PlatformDeviceIndices = filterDeviceFilter<ods_target_list, ods_target>(
         PiDevices, MPlatform, OdsTargetList);
   } else if (FilterList) {
-    PlatformDeviceIndices = filterDeviceFilter<device_filter_list, device_filter>(
-        PiDevices, MPlatform, FilterList);
+    PlatformDeviceIndices =
+        filterDeviceFilter<device_filter_list, device_filter>(
+            PiDevices, MPlatform, FilterList);
   }
 
   // The next step is to inflate the filtered PIDevices into SYCL Device

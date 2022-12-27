@@ -1,4 +1,4 @@
-// RUN: %clangxx -DSYCL_EXT_ONEAPI_MATRIX_VERSION=2 -fsycl -o query-use %s
+// RUN: %clangxx -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -fsycl -o query-use %s
 #include <iostream>
 #include <sycl/sycl.hpp>
 
@@ -55,13 +55,15 @@ void query_amx() {
         nd_range<2>({NDRangeM, NDRangeN}, {1, 1}),
         [msize, ksize, nsize](nd_item<2> spmd_item) {
           sub_group sg = spmd_item.get_sub_group();
-          myparams2::joint_matrix_a<sub_group> sub_a1(sg);
-          myparams2::joint_matrix_b<sub_group> sub_b1(sg);
-          myparams2::joint_matrix_accumulator<sub_group> sub_c1(sg);
+          myparams2::joint_matrix_a<sub_group, layout::row_major> sub_a1;
+          myparams2::joint_matrix_b<
+              sub_group, sycl::ext::intel::experimental::matrix::layout::packed>
+              sub_b1;
+          myparams2::joint_matrix_accumulator<sub_group> sub_c1;
 
-          joint_matrix<unsigned short, msize, ksize, use::a> sub_a(sg);
-          joint_matrix<unsigned short, ksize, nsize, use::b> sub_b(sg);
-          joint_matrix<float, msize, nsize, use::accumulator> sub_c(sg);
+          joint_matrix<sub_group, unsigned short, use::a, msize, ksize> sub_a;
+          joint_matrix<sub_group, unsigned short, use::b, ksize, nsize> sub_b;
+          joint_matrix<sub_group, float, use::accumulator, msize, nsize> sub_c;
         });
   });
 }
@@ -125,13 +127,15 @@ void query_dpas() {
         nd_range<2>({NDRangeM, NDRangeN}, {1, 1}),
         [msize, ksize, nsize](nd_item<2> spmd_item) {
           sub_group sg = spmd_item.get_sub_group();
-          myparams2::joint_matrix_a<sub_group> sub_a1(sg);
-          myparams2::joint_matrix_b<sub_group> sub_b1(sg);
-          myparams2::joint_matrix_accumulator<sub_group> sub_c1(sg);
+          myparams2::joint_matrix_a<sub_group, layout::row_major> sub_a1;
+          myparams2::joint_matrix_b<
+              sub_group, sycl::ext::intel::experimental::matrix::layout::packed>
+              sub_b1;
+          myparams2::joint_matrix_accumulator<sub_group> sub_c1;
 
-          joint_matrix<unsigned short, msize, ksize, use::a> sub_a(sg);
-          joint_matrix<unsigned short, ksize, nsize, use::b> sub_b(sg);
-          joint_matrix<float, msize, nsize, use::accumulator> sub_c(sg);
+          joint_matrix<sub_group, unsigned short, use::a, msize, ksize> sub_a;
+          joint_matrix<sub_group, unsigned short, use::b, ksize, nsize> sub_b;
+          joint_matrix<sub_group, float, use::accumulator, msize, nsize> sub_c;
         });
   });
 }

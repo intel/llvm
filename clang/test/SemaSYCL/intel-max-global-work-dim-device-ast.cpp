@@ -157,7 +157,7 @@ int main() {
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK:       ReqdWorkGroupSizeAttr {{.*}}
+    // CHECK:       SYCLReqdWorkGroupSizeAttr {{.*}}
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
@@ -184,7 +184,7 @@ int main() {
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK:       ReqdWorkGroupSizeAttr
+    // CHECK:       SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
@@ -197,13 +197,7 @@ int main() {
 
     h.single_task<class test_kernel5>(TRIFuncObjGood3());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel5
-    // CHECK:       ReqdWorkGroupSizeAttr
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK:       SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
@@ -214,7 +208,7 @@ int main() {
 
     h.single_task<class test_kernel6>(TRIFuncObjGood4());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel6
-    // CHECK:       ReqdWorkGroupSizeAttr
+    // CHECK:       SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
@@ -248,7 +242,7 @@ int main() {
 
     h.single_task<class test_kernel8>(TRIFuncObjGood6());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel8
-    // CHECK:       ReqdWorkGroupSizeAttr
+    // CHECK:       SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
@@ -265,7 +259,7 @@ int main() {
 
     h.single_task<class test_kernel9>(TRIFuncObjGood7());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel9
-    // CHECK:       ReqdWorkGroupSizeAttr
+    // CHECK:       SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}

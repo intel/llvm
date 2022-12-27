@@ -119,7 +119,7 @@ template <auto GPUArh> llvm::Optional<StringRef> isGPUTarget(StringRef Target) {
   if (Target.startswith(GPUArh)) {
     return resolveGenDevice(Target);
   }
-  return llvm::None;
+  return  std::nullopt;
 }
 
 } // end namespace gen

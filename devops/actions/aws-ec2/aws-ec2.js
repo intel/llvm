@@ -41,10 +41,10 @@ async function start(param_type, param_label, param_ami, param_spot, param_disk,
   const ec2types     = typeof param_type     === 'string' ? [ param_type ] : param_type;
   const label        = typeof param_label    === 'string' ? param_label : param_label[0];
   const ec2ami       = typeof param_ami      !== 'undefined' ? param_ami : "ami-0966bccbb521ccb24";
-  const ec2spot      = typeof param_spot     !== 'undefined' ? param_spot : true;
+  const ec2spot      = typeof param_spot     !== 'undefined' ? (param_spot === "false" ? false : true) : true;
   const ec2disk      = typeof param_disk     !== 'undefined' ? param_disk : "/dev/sda1:16";
   const timebomb     = typeof param_timebomb !== 'undefined' ? param_timebomb : "1h";
-  const onejob       = typeof param_onejob   !== 'undefined' ? param_onejob : true;
+  const onejob       = typeof param_onejob   !== 'undefined' ? (param_onejob === "false" ? false : true) : true;
   // ephemeral runner will exit after one job so we will terminate instance sooner
   const ephemeral_str = onejob ? "--ephemeral" : "";
 

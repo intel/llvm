@@ -10,6 +10,7 @@
 #include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <sycl/context.hpp>
+#include <sycl/detail/common.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
 
@@ -62,6 +63,26 @@ static event createDiscardedEvent() {
 event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Ptr, int Value, size_t Count,
                          const std::vector<event> &DepEvents) {
+#if XPTI_ENABLE_INSTRUMENTATION
+  // We need a code pointer value and we use the object ptr; if code location
+  // information is available, we will have function name and source file
+  // information
+  XPTIScope PrepareNotify((void *)this,
+                          (uint16_t)xpti::trace_point_type_t::node_create,
+                          SYCL_MEM_ALLOC_STREAM_NAME, "queue.memset()");
+  PrepareNotify.addMetadata([&](auto TEvent) {
+    xpti::addMetadata(TEvent, "sycl_device",
+                      reinterpret_cast<size_t>(
+                          MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+    xpti::addMetadata(TEvent, "memory_ptr", reinterpret_cast<size_t>(Ptr));
+    xpti::addMetadata(TEvent, "value_set", Value);
+    xpti::addMetadata(TEvent, "memory_size", Count);
+  });
+  // Notify XPTI about the memset submission
+  PrepareNotify.notify();
+  // Emit a begin/end scope for this call
+  PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
+#endif
   if (MHasDiscardEventsSupport) {
     MemoryManager::fill_usm(Ptr, Self, Count, Value,
                             getOrWaitEvents(DepEvents, MContext), nullptr);
@@ -104,6 +125,27 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
 event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Dest, const void *Src, size_t Count,
                          const std::vector<event> &DepEvents) {
+#if XPTI_ENABLE_INSTRUMENTATION
+  // We need a code pointer value and we duse the object ptr; If code location
+  // is available, we use the source file information along with the object
+  // pointer.
+  XPTIScope PrepareNotify((void *)this,
+                          (uint16_t)xpti::trace_point_type_t::node_create,
+                          SYCL_MEM_ALLOC_STREAM_NAME, "queue.memcpy()");
+  PrepareNotify.addMetadata([&](auto TEvent) {
+    xpti::addMetadata(TEvent, "sycl_device",
+                      reinterpret_cast<size_t>(
+                          MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+    xpti::addMetadata(TEvent, "src_memory_ptr", reinterpret_cast<size_t>(Src));
+    xpti::addMetadata(TEvent, "dest_memory_ptr",
+                      reinterpret_cast<size_t>(Dest));
+    xpti::addMetadata(TEvent, "memory_size", Count);
+  });
+  // Notify XPTI about the memset submission
+  PrepareNotify.notify();
+  // Emit a begin/end scope for this call
+  PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
+#endif
   if (MHasDiscardEventsSupport) {
     MemoryManager::copy_usm(Src, Self, Count, Dest,
                             getOrWaitEvents(DepEvents, MContext), nullptr);
@@ -199,13 +241,8 @@ void queue_impl::addEvent(const event &Event) {
       addSharedEvent(Event);
   }
   // As long as the queue supports piQueueFinish we only need to store events
-  // with command nodes in the following cases:
-  // 1. Unenqueued commands, since they aren't covered by piQueueFinish.
-  // 2. Kernels with streams, since they are not supported by post enqueue
-  // cleanup.
-  // 3. Host tasks, for both reasons.
-  else if (is_host() || !MSupportOOO || EImpl->getHandleRef() == nullptr ||
-           EImpl->needsCleanupAfterWait()) {
+  // for unenqueued commands and host tasks.
+  else if (is_host() || !MSupportOOO || EImpl->getHandleRef() == nullptr) {
     std::weak_ptr<event_impl> EventWeakPtr{EImpl};
     std::lock_guard<std::mutex> Lock{MMutex};
     MEventsWeak.push_back(std::move(EventWeakPtr));
@@ -366,11 +403,6 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   if (SupportsPiFinish) {
     const detail::plugin &Plugin = getPlugin();
     Plugin.call<detail::PiApiKind::piQueueFinish>(getHandleRef());
-    for (std::weak_ptr<event_impl> &EventImplWeakPtr : WeakEvents)
-      if (std::shared_ptr<event_impl> EventImplSharedPtr =
-              EventImplWeakPtr.lock())
-        if (EventImplSharedPtr->needsCleanupAfterWait())
-          EventImplSharedPtr->cleanupCommand(EventImplSharedPtr);
     assert(SharedEvents.empty() && "Queues that support calling piQueueFinish "
                                    "shouldn't have shared events");
   } else {

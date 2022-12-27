@@ -42,7 +42,6 @@ define <vscale x 1 x i32> @spill_zvlsseg_nxv1i32(i32* %base, i32 %vl) nounwind {
 ; SPILL-O2-NEXT:    #APP
 ; SPILL-O2-NEXT:    #NO_APP
 ; SPILL-O2-NEXT:    addi a0, sp, 16
-; SPILL-O2-NEXT:    csrr a1, vlenb
 ; SPILL-O2-NEXT:    vl1r.v v7, (a0) # Unknown-size Folded Reload
 ; SPILL-O2-NEXT:    add a0, a0, a1
 ; SPILL-O2-NEXT:    vl1r.v v8, (a0) # Unknown-size Folded Reload
@@ -98,7 +97,6 @@ define <vscale x 2 x i32> @spill_zvlsseg_nxv2i32(i32* %base, i32 %vl) nounwind {
 ; SPILL-O2-NEXT:    #APP
 ; SPILL-O2-NEXT:    #NO_APP
 ; SPILL-O2-NEXT:    addi a0, sp, 16
-; SPILL-O2-NEXT:    csrr a1, vlenb
 ; SPILL-O2-NEXT:    vl1r.v v7, (a0) # Unknown-size Folded Reload
 ; SPILL-O2-NEXT:    add a0, a0, a1
 ; SPILL-O2-NEXT:    vl1r.v v8, (a0) # Unknown-size Folded Reload
@@ -131,7 +129,7 @@ define <vscale x 4 x i32> @spill_zvlsseg_nxv4i32(i32* %base, i32 %vl) nounwind {
 ; SPILL-O0-NEXT:    #APP
 ; SPILL-O0-NEXT:    #NO_APP
 ; SPILL-O0-NEXT:    addi a0, sp, 16
-; SPILL-O0-NEXT:    vl2re8.v v8, (a0) # Unknown-size Folded Reload
+; SPILL-O0-NEXT:    vl2r.v v8, (a0) # Unknown-size Folded Reload
 ; SPILL-O0-NEXT:    csrr a0, vlenb
 ; SPILL-O0-NEXT:    slli a0, a0, 1
 ; SPILL-O0-NEXT:    add sp, sp, a0
@@ -189,7 +187,7 @@ define <vscale x 8 x i32> @spill_zvlsseg_nxv8i32(i32* %base, i32 %vl) nounwind {
 ; SPILL-O0-NEXT:    #APP
 ; SPILL-O0-NEXT:    #NO_APP
 ; SPILL-O0-NEXT:    addi a0, sp, 16
-; SPILL-O0-NEXT:    vl4re8.v v8, (a0) # Unknown-size Folded Reload
+; SPILL-O0-NEXT:    vl4r.v v8, (a0) # Unknown-size Folded Reload
 ; SPILL-O0-NEXT:    csrr a0, vlenb
 ; SPILL-O0-NEXT:    slli a0, a0, 2
 ; SPILL-O0-NEXT:    add sp, sp, a0
@@ -247,7 +245,7 @@ define <vscale x 4 x i32> @spill_zvlsseg3_nxv4i32(i32* %base, i32 %vl) nounwind 
 ; SPILL-O0-NEXT:    #APP
 ; SPILL-O0-NEXT:    #NO_APP
 ; SPILL-O0-NEXT:    addi a0, sp, 16
-; SPILL-O0-NEXT:    vl2re8.v v8, (a0) # Unknown-size Folded Reload
+; SPILL-O0-NEXT:    vl2r.v v8, (a0) # Unknown-size Folded Reload
 ; SPILL-O0-NEXT:    csrr a0, vlenb
 ; SPILL-O0-NEXT:    slli a0, a0, 1
 ; SPILL-O0-NEXT:    add sp, sp, a0

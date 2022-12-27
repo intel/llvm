@@ -52,7 +52,6 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -536,7 +535,7 @@ public:
   /// Returns the \c TraversalKind respected by calls to `match()`, if any.
   ///
   /// Most matchers will not have a traversal kind set, instead relying on the
-  /// surrounding context. For those, \c llvm::None is returned.
+  /// surrounding context. For those, \c std::nullopt is returned.
   llvm::Optional<clang::TraversalKind> getTraversalKind() const {
     return Implementation->TraversalKind();
   }
