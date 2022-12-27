@@ -9,6 +9,7 @@
 #include <sycl/sycl.hpp>
 
 using namespace sycl::ext::intel::esimd;
+using namespace sycl::ext::intel::experimental::esimd;
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
@@ -16,8 +17,8 @@ __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
 }
 
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL ESIMD_NOINLINE void callee(int x) {
-  slm_init<1234>();
-  sycl::ext::intel::experimental::esimd::named_barrier_init<13>();
+  slm_allocator<1234> alloc;
+  named_barrier_init<13>();
 }
 
 // inherits SLMSize and NBarrierCount from callee

@@ -411,6 +411,8 @@ public:
     return I->second;
   }
 
+  size_t getNumSLMScopes() const { return Scopes.size(); }
+
 #ifndef NDEBUG
   void dump() {
     llvm::errs() << "=== Kernels:\n";
@@ -433,66 +435,65 @@ public:
 unsigned ScopedCallGraph::Node::InstanceN = 0;
 #endif
 
-using Func2ScopeMap =
-    DenseMap<const Function *, const ScopedCallGraph::ScopeNode *>;
-using SLMKernelUsageMap = DenseMap<
-    std::pair<const ScopedCallGraph::Node *, const ScopedCallGraph::FuncNode *>,
-    int>;
-using Node2IntMap = DenseMap<const ScopedCallGraph::ScopeNode *, int>;
+// Represents a set of kernel functions.
+// TODO With large number of kernels this can be replaced with a bitset, 1 bit
+// per kernel, for faster copying.
+using KernelSet = SmallPtrSet<const Function *, 4>;
+// Represents a result of the analysis for a single scope:
+// - maximum dynamically possible SLM frame size at the point of scope start
+// - a set of kernels reachable from this scope via predecessors
+using TraversalResult = std::pair<int, KernelSet>;
+// Records results of the analysis for each call graph node.
+using Node2TraversalResultMap =
+    std::unordered_map<const ScopedCallGraph::Node *, TraversalResult>;
 
 // Employs dynamic programming technique to find maximum SLM usage along all
-// paths in a scoped callgraph from given scope 'Cur' to given kernel 'Kernel'.
-// 'Kernel2MaxSLM' accumulates the maximum SLM usage per kernel (along any path
-// from the kernel to any scope), 'Results' is the dynamic programming result
-// cache, which later is also used to replace __esimd_slm_alloc calls with
-// constant SLM offset.
-int findMaxSLMUsageAlongAllPaths(const ScopedCallGraph::Node *Cur,
-                                 const ScopedCallGraph::FuncNode *Kernel,
-                                 Func2ScopeMap &Kernel2MaxSLM,
-                                 SLMKernelUsageMap &Results) {
+// paths in a scoped callgraph from given scope 'Cur' to all reachable kernels.
+// 'Results' is the dynamic programming result cache, which later is also used
+// to replace __esimd_slm_alloc calls with constant SLM offset.
+TraversalResult findMaxSLMUsageAlongAllPaths(const ScopedCallGraph::Node *Cur,
+                                             Node2TraversalResultMap &Results) {
 
-  // No protection from endless recursion in the algorithm, as recursion
-  // (cycles) in the call graph is prohibited.
-  auto ResI = Results.find({Cur, Kernel});
+  auto ResI = Results.find(Cur);
 
   if (ResI != Results.end()) {
+    // This node has already been analyzed - return cached result.
     return ResI->second;
   }
-  constexpr int KernelUnreachable = -1;
-  int MaxSLMUse = KernelUnreachable;
-  int SLMUseF = 0;
+  constexpr int KernelNotReached = -1;
+  int MaxSLMUsage = KernelNotReached;
+  KernelSet ReachedKernels{};
+
+  // Solve sub-problems - find maximum SLM usage for each predecessor.
+  for (const auto &Pred : Cur->preds()) {
+    auto TResult = findMaxSLMUsageAlongAllPaths(Pred.get(), Results);
+    KernelSet &PredReachedKernels = TResult.second;
+    MaxSLMUsage = std::max(MaxSLMUsage, TResult.first);
+    std::copy(PredReachedKernels.begin(), PredReachedKernels.end(),
+              std::inserter(ReachedKernels, ReachedKernels.begin()));
+  }
+  int SLMUsageByCur = 0;
 
   if (const auto *Scope = dyn_cast<ScopedCallGraph::ScopeNode>(Cur)) {
-    SLMUseF = getSLMUsage(Scope->getStart());
+    SLMUsageByCur = getSLMUsage(Scope->getStart());
   }
-  if (Cur == Kernel) {
-    MaxSLMUse = 0;
-  } else {
-    for (const auto &Pred : Cur->preds()) {
-      int SLMUse = findMaxSLMUsageAlongAllPaths(Pred.get(), Kernel,
-                                                Kernel2MaxSLM, Results);
-      MaxSLMUse = std::max(MaxSLMUse, SLMUse);
+  bool CurIsKernel = false;
+
+  if (const auto *FNode = dyn_cast<ScopedCallGraph::FuncNode>(Cur)) {
+    const Function *F = FNode->getFunction();
+    CurIsKernel = esimd::isESIMDKernel(*F);
+
+    if (CurIsKernel) {
+      ReachedKernels.insert(F);
     }
   }
-  // If Kernel can not be reached via any of the predecessors, then discard
-  // SLMUseF as it does not affect total SLM size needed by the Kernel, and
-  // return -1.
-  int Res = MaxSLMUse < 0 ? MaxSLMUse : SLMUseF + MaxSLMUse;
-  Results[{Cur, Kernel}] = Res;
-
-  if (auto *CurScope = dyn_cast<ScopedCallGraph::ScopeNode>(Cur)) {
-    // Update per-kernel maximum SLM usage.
-    auto E =
-        Kernel2MaxSLM.insert(std::make_pair(Kernel->getFunction(), CurScope));
-
-    if (!E.second) {
-      // insertion did not happen - there already was an entry, see if it needs
-      // to be updated
-      if (getSLMUsage(E.first->second->getStart()) < Res) {
-        E.first->second = CurScope;
-      }
-    }
-  }
+  int ResSLM = CurIsKernel ? 0
+                           : (MaxSLMUsage < 0 ? MaxSLMUsage
+                                              : SLMUsageByCur + MaxSLMUsage);
+  // Construct result for current node from sub-problem solution results and
+  // cache it.
+  TraversalResult Res = std::make_pair(ResSLM, std::move(ReachedKernels));
+  Results[Cur] = Res;
   return Res;
 }
 
@@ -505,55 +506,41 @@ size_t lowerSLMReservationCalls(Module &M) {
     SCG.dump();
   }
 #endif
+  if (SCG.getNumSLMScopes() == 0) {
+    // Early bail out if nothing to analyze.
+    return 0;
+  }
+  // Use the detailed call graph nodes to calculate maximum possible SLM usage
+  // at any "scope start" node, and record this info in the result map.
+  Node2TraversalResultMap Node2TraversalResult;
 
-  // This maps a kernel to all reachable __esimd_slm_alloc calls. Each call is
-  // mapped to maximum prior SLM usage on any CG (reverse) path leading to the
-  // kernel.
-  SLMKernelUsageMap Results;
-  // Maps a kernel to a scope node reachable from the kernel and which has
-  // maximum SLM offset.
-  Func2ScopeMap Kernel2MaxSLM;
-  // Maps a scope node to maximum prior SLM usage on any (reverse) path leading
-  // to any kernel.
-  Node2IntMap Scope2MaxSLM;
-
-  // Now, for each <ScopeNode, kernel FuncNode> pair:
-  // find all possible (reverse) paths in the graph from the scope node to the
-  // function node and select the one with maximal value of SLM allocated along
-  // the path - MAX_SLM.
-  for (const Function *Kernel : SCG.getKernels()) {
-    const ScopedCallGraph::FuncNode *KernelNode = SCG.getNode(Kernel).get();
-
-    for (const auto &ScopeNodeSPtr : SCG.getScopes()) {
-      int MaxSLM = findMaxSLMUsageAlongAllPaths(ScopeNodeSPtr.get(), KernelNode,
-                                                Kernel2MaxSLM, Results);
-      // Now update the global (among all kernels) maximum SLM usage at this
-      // scope.
-      auto E = Scope2MaxSLM.insert(std::make_pair(ScopeNodeSPtr.get(), 0));
-      if (E.second) {
-        // insertion happened, initialize
-        E.first->second = MaxSLM;
-      }
-      E.first->second = std::max(E.first->second, MaxSLM);
-    }
+  for (const auto &ScopeNodeSPtr : SCG.getScopes()) {
+    (void)findMaxSLMUsageAlongAllPaths(ScopeNodeSPtr.get(),
+                                       Node2TraversalResult);
   }
   int SLMAllocCallCnt = 0;
+  // Maps a kernel to maximum possible SLM usage along any call graph's path.
+  DenseMap<const Function *, int> Kernel2MaxSLM;
 
-  // Replace allocation calls with SLM offsets taken from the Scope2MaxSLM map:
-  // 'off = __esimd_slm_alloc(N)' with 'MAX_SLM - N' constant.
-  // Also, remove the scope end marker '__esimd_slm_free(off)'.
-  for (const auto &E : Scope2MaxSLM) {
+  // Perform actual lowering of the SLM management calls and calculate maximum
+  // SLM usage per kernel.
+  for (auto &E : Node2TraversalResult) {
     const auto *Scope = dyn_cast<ScopedCallGraph::ScopeNode>(E.first);
 
     if (!Scope) {
+      // Non-scope nodes do not allocate SLM - skip.
       continue;
     }
+    int MaxSLM = E.second.first;
     CallInst *ScopeStartCI = Scope->getStart();
     CallInst *ScopeEndCI = Scope->getEnd();
 
     if (isSlmAllocCall(ScopeStartCI)) {
-      int SLMUse = E.second;
-      int SLMOff = SLMUse - getSLMUsage(ScopeStartCI);
+      // '__esimd_slm_init' calls always allocate SLM starting from 0 offset, so
+      // no IR replacement is necessary for them. '__esimd_slm_alloc' allocates
+      // at the end of the maximum dynamically possible SLM frame at the call
+      // site. Replace the call with the calculated frame size.
+      int SLMOff = MaxSLM - getSLMUsage(ScopeStartCI);
       Type *Int32T = Type::getInt32Ty(ScopeStartCI->getContext());
       auto *SLMOffC = cast<ConstantInt>(ConstantInt::get(Int32T, SLMOff));
       ScopeStartCI->replaceAllUsesWith(SLMOffC);
@@ -576,6 +563,17 @@ size_t lowerSLMReservationCalls(Module &M) {
       ScopeEndCI->eraseFromParent();
     }
     SLMAllocCallCnt++;
+
+    // Now update max SLM usage for all kernels reachable via predecessors from
+    // the 'Scope'.
+    for (const Function *Kernel : E.second.second) {
+      auto I = Kernel2MaxSLM.insert(std::make_pair(Kernel, MaxSLM));
+
+      // if insertion did not happen, update max if needed:
+      if (!I.second && (MaxSLM > I.first->second)) {
+        I.first->second = MaxSLM;
+      }
+    }
   }
   // Update (assign SLM size metadata) all kernels' maximum SLM usage with
   // MAX_SLM (if it is greater).
@@ -592,18 +590,15 @@ size_t lowerSLMReservationCalls(Module &M) {
   }
   // - now set each kernel's SLMSize metadata to the pre-calculated value
   for (auto &E : Kernel2MaxSLM) {
-    const ScopedCallGraph::ScopeNode *Scope = E.second;
-    auto I = Scope2MaxSLM.find(Scope);
-    assert(I != Scope2MaxSLM.end());
-    int MaxSlm = I->second;
-    llvm::Value *MaxSlmV =
-        llvm::ConstantInt::get(Type::getInt32Ty(M.getContext()), MaxSlm);
+    int MaxSLM = E.second;
+    llvm::Value *MaxSLMv =
+        llvm::ConstantInt::get(Type::getInt32Ty(M.getContext()), MaxSLM);
     const Function *Kernel = E.first;
     Kernel2SlmMD[Kernel]->replaceOperandWith(genx::KernelMDOp::SLMSize,
-                                             esimd::getMetadata(MaxSlmV));
+                                             esimd::getMetadata(MaxSLMv));
 #ifndef NDEBUG
     if (DebugLevel > 0) {
-      llvm::errs() << ">> SLM usage for " << Kernel->getName() << ": " << MaxSlm
+      llvm::errs() << ">> SLM usage for " << Kernel->getName() << ": " << MaxSLM
                    << "\n";
     }
 #endif
