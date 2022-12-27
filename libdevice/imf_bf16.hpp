@@ -100,9 +100,14 @@ static Ty __iml_bfloat162integral_u(uint16_t b,
   if (!b_exp)
     return (b_mant && (__IML_RTP == rounding_mode)) ? 1 : 0;
 
-  // return 0 for NAN value and convert infinity to max.
-  if (b_exp == 0xFF)
-    return b_mant ? 0 : std::numeric_limits<Ty>::max();
+  // convert infinity to max.
+  if (b_exp == 0xFF && !b_mant)
+    return std::numeric_limits<Ty>::max();
+
+  // According to CUDA math docs, for u/short, u/int type, return 0 for NAN
+  // and return 0x80000000 for NAN when converting bfloat16 to u/ll.
+  if (b_exp == 0xFF && b_mant)
+    return (sizeof(Ty) < 8) ? 0 : static_cast<Ty>(0x8000000000000000ULL);
 
   // Normalized value can be represented as 1.signifcand * 2^b_exp1
   // and is equivalent to 1.signifcand * 2^7 * 2^(b_exp1 - 7).
@@ -166,12 +171,10 @@ static Ty __iml_bfloat162integral_s(uint16_t b,
       return 0;
   }
 
-  // return 0 for NAN value and convert infinity to max or min.
   if (b_exp == 0xFF) {
-    // return b_mant ? 0 : std::numeric_limits<Ty>::max();
-    if (b_mant)
-      return 0;
-    else
+    if (b_mant) {
+      return (sizeof(Ty) < 8) ? 0 : static_cast<Ty>(0x8000000000000000ULL);
+    } else
       return b_sign ? std::numeric_limits<Ty>::min()
                     : std::numeric_limits<Ty>::max();
   }
