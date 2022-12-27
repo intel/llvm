@@ -33,8 +33,7 @@ void caller_xyz(int x) {
     slm_init(1235); // also works in non-O0
     callee(x);
   });
-  // CHECK: define dso_local spir_kernel void @_ZTSZ10caller_xyziE10kernel_xyz(i32 noundef "VCArgumentIOKind"="0" %{{.*}}) local_unnamed_addr #3
+  // CHECK: define dso_local spir_kernel void @_ZTSZ10caller_xyziE10kernel_xyz(i32 noundef "VCArgumentIOKind"="0" %{{.*}}) local_unnamed_addr #2
 }
 
-// CHECK: attributes #2 = { {{.*}} "VCNamedBarrierCount"="13" "VCSLMSize"="1234"
-// CHECK: attributes #3 = { {{.*}} "VCNamedBarrierCount"="13" "VCSLMSize"="1235"
+// CHECK: attributes #2 = { {{.*}} "VCNamedBarrierCount"="13" "VCSLMSize"="2469"
