@@ -341,11 +341,15 @@ public:
               esimd::assert_and_diag(!SlmInitCall,
                                      "multiple slm_init calls in function ",
                                      F.getName());
-              esimd::assert_and_diag(
-                  esimd::isESIMDKernel(F) ||
-                      sycl::utils::isSYCLExternalFunction(&F),
-                  "slm_init call met in non-kernel non-external function ",
-                  F.getName());
+              // TODO: this diagnostics incorrectly fires on functor's
+              // operator() marked as SYCL_ESIMD_KERNEL, because becomes neither
+              // spir_kernel nor SYCL_EXERNAL function in IR. It rather becomes
+              // a function called from spir_kernel.
+              // esimd::assert_and_diag(
+              //    esimd::isESIMDKernel(F) ||
+              //        sycl::utils::isSYCLExternalFunction(&F),
+              //    "slm_init call met in non-kernel non-external function ",
+              //    F.getName());
               esimd::assert_and_diag(
                   !ScopeMet,
                   "slm_init must precede any SLMAllocator object in function ",
