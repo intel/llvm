@@ -228,7 +228,10 @@ This section lists possible directions for ESIMD improvements.
 1. Support `std::simd`. This is the standard C++ way for explicit SIMD programming. Can help run (subsest of ESIMD) on CPU efficiently in the future.
 1. Clear (via namespace?) separation of ESIMD APIs into portable and
 architecture-specific parts.
-1. Standardizing `simd_view` or equivalent. This is effectively a reference to a *subset* of `esimd::simd` vector object’s elements. The subset is defined in a regular way via starting offset, stride and number of elements in the subset. This proved to be very useful and loved by users. Missing in `std::simd`.
+1. Standardizing `simd_view` or equivalent. This is effectively a reference
+    to a *subset* of `esimd::simd` vector object's elements. The subset is defined
+    in a regular way via starting offset, stride and number of elements in the subset.
+    This proved to be very useful and loved by users. Missing in `std::simd`.
 1. Design something like `invoke_spmd` (similar to `invoke_simd` extension) 
 to be able to invoke SPMD functions from ESIMD code while vectorizing the
 calls in the Back End. This would replace `sycl_esimd_vectorize` and make
