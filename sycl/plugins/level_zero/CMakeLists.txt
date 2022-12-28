@@ -109,11 +109,9 @@ add_sycl_plugin(level_zero
 #       toolchain installation. Instead these should be avaialble in the system.
 #       We keep shipping it until all environments are updated.
 install(TARGETS ze_loader
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    LIBRARY
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        COMPONENT level-zero-sycl-dev
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT level-zero-sycl-dev
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
         NAMELINK_SKIP
 )
 
