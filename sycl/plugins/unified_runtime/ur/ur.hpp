@@ -115,18 +115,13 @@ template <class T> struct ZeCache : private T {
   //
   using InitFunctionType = std::function<void(T &)>;
   InitFunctionType Compute{nullptr};
-  bool Computed{false};
-  pi_mutex ZeCacheMutex;
+  std::once_flag Computed;
 
   ZeCache() : T{} {}
 
   // Access to the fields of the original T data structure.
   T *operator->() {
-    std::unique_lock<pi_mutex> Lock(ZeCacheMutex);
-    if (!Computed) {
-      Compute(*this);
-      Computed = true;
-    }
+    std::call_once(Computed, Compute, static_cast<T&>(*this));
     return this;
   }
 };
