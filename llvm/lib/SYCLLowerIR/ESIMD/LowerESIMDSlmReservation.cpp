@@ -83,17 +83,30 @@ constexpr char SLM_FREE_PREFIX[] = "_Z16__esimd_slm_free";
 constexpr char SLM_INIT_PREFIX[] = "_Z16__esimd_slm_init";
 
 bool isSlmInitCall(const CallInst *CI) {
-  return CI->getCalledFunction()->getName().startswith(SLM_INIT_PREFIX);
+  if (!CI) {
+    return false;
+  }
+  Function *F = CI->getCalledFunction();
+  return F && F->getName().startswith(SLM_INIT_PREFIX);
 }
 
 bool isSlmAllocCall(const CallInst *CI) {
-  return CI->getCalledFunction()->getName().startswith(SLM_ALLOC_PREFIX);
+  if (!CI) {
+    return false;
+  }
+  Function *F = CI->getCalledFunction();
+  return F && F->getName().startswith(SLM_ALLOC_PREFIX);
 }
 
 // Checks if given call is a call to '__esimd_slm_free' function, and if yes,
 // finds the corresponding '__esimd_slm_alloc' call and returns it.
 CallInst *isSlmFreeCall(const CallInst *CI) {
-  if (!CI->getCalledFunction()->getName().startswith(SLM_FREE_PREFIX))
+  if (!CI) {
+    return nullptr;
+  }
+  Function *F = CI->getCalledFunction();
+
+  if (!F || !F->getName().startswith(SLM_FREE_PREFIX))
     return nullptr;
   Value *Arg = CI->getArgOperand(0);
 
@@ -287,6 +300,11 @@ public:
       CallInst *ScopeStart = CI ? isSlmFreeCall(CI) : nullptr;
       return ScopeStart;
     };
+    // Function containing a call via a pointer (used for diagnostics).
+    const Function *IndirectCallMet = nullptr;
+    // A number of calls to __esimd_slm_alloc (used for diagnostics).
+    int SLMAllocCnt = 0;
+
     for (auto &F : M) {
       if (F.isDeclaration()) {
         continue;
@@ -321,6 +339,7 @@ public:
         for (Instruction &I : *BB) {
           if (CallInst *ScopeStartCI = IsScopeStart(&I)) {
             ScopeMet = true;
+            SLMAllocCnt++;
             auto N = std::make_shared<ScopeNode>(ScopeStartCI);
             N->addPred(CurScopePath.back());
             Scopes.insert(N);
@@ -336,8 +355,9 @@ public:
             CurScope->setEnd(cast<CallInst>(&I));
             continue;
           }
-          if (auto *CI = dyn_cast<CallInst>(&I)) {
-            if (isSlmInitCall(CI)) {
+          if (auto *CB = dyn_cast<CallBase>(&I)) {
+            if (isSlmInitCall(dyn_cast<CallInst>(CB))) {
+              auto *CI = dyn_cast<CallInst>(CB);
               esimd::assert_and_diag(!SlmInitCall,
                                      "multiple slm_init calls in function ",
                                      F.getName());
@@ -363,13 +383,25 @@ public:
               Scopes.insert(SlmInitCall);
               continue;
             }
-            if (CI->getCalledFunction()->isDeclaration()) {
+            Function *F1 = CB->getCalledFunction();
+
+            if (!F1) {
+              IndirectCallMet = CB->getFunction();
+              // If __esimd_slm_alloc will also be met - this will be diagnosed
+              // as a user error. Use of __esimd_slm_init does not require
+              // accurate call graph and is OK to use with indirect calls. This
+              // is because kernels can't be called indirectly, and
+              // __esimd_slm_init can only be used in kernels (or in a '()'
+              // operator called immediately from a kernel). Hence it is OK to
+              // just 'continue' here.
+              continue;
+            }
+            if (F1->isDeclaration()) {
               continue;
             }
             // A call encountered - add a node for the callee and a reverse edge
-            // from it to the current scope.
-            Function *F1 = CI->getCalledFunction();
-            // Emplace a mapping to dummy null pointer to avoid double search.
+            // from it to the current scope. Emplace a mapping to dummy null
+            // pointer to avoid double search.
             auto E1 =
                 Func2Node.emplace(std::make_pair(F1, FuncNodeSPtr{nullptr}));
 
@@ -387,7 +419,6 @@ public:
                        return Visited.find(BB1) == Visited.end();
                      });
       }
-
       // CurScopePath must've been (mostly) exhausted.
       assert((CurScopePath.size() > 0) &&
              (cast<FuncNode>(CurScopePath[0].get())->getFunction() == &F));
@@ -398,6 +429,13 @@ public:
           "non-constant version of slm_init can't be used together with "
           "slm_allocator, function ",
           F.getName());
+    }
+    if (IndirectCallMet) {
+      esimd::assert_and_diag(
+          SLMAllocCnt == 0,
+          "slm_allocator used together with indirect call in "
+          "the same program in ",
+          IndirectCallMet->getName());
     }
   }
 
