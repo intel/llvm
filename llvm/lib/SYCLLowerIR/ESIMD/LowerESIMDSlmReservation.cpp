@@ -68,6 +68,8 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Module.h"
 
+#include <unordered_map>
+
 #define DEBUG_TYPE "LowerESIMDSlmAllocPass"
 
 namespace llvm {
