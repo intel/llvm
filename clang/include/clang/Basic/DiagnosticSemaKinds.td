@@ -3098,8 +3098,8 @@ def warn_unsupported_branch_protection_spec : Warning<
 
 def warn_unsupported_target_attribute
     : Warning<"%select{unsupported|duplicate|unknown}0%select{| CPU|"
-              " tune CPU}1 '%2' in the '%select{target|target_clones|target_version}3' "
-              "attribute string; '%select{target|target_clones|target_version}3' "
+              " tune CPU}1 '%2' in the '%select{target|target_clones}3' "
+              "attribute string; '%select{target|target_clones}3' "
               "attribute ignored">,
       InGroup<IgnoredAttributes>;
 def err_attribute_unsupported
@@ -10808,6 +10808,8 @@ def note_omp_nested_statement_here : Note<
   "%select{statement|directive}0 outside teams construct here">;
 def err_omp_single_copyprivate_with_nowait : Error<
   "the 'copyprivate' clause must not be used with the 'nowait' clause">;
+def err_omp_nowait_clause_without_depend: Error<
+  "directive '#pragma omp taskwait' cannot use 'nowait' clause without 'depend' clause">;
 def note_omp_nowait_clause_here : Note<
   "'nowait' clause is here">;
 def err_omp_single_decl_in_declare_simd_variant : Error<
@@ -11586,7 +11588,7 @@ def note_shadow_field : Note<"declared here">;
 
 def err_multiversion_required_in_redecl : Error<
   "function declaration is missing %select{'target'|'cpu_specific' or "
-  "'cpu_dispatch'|'target_version'}0 attribute in a multiversioned function">;
+  "'cpu_dispatch'}0 attribute in a multiversioned function">;
 def note_multiversioning_caused_here : Note<
   "function multiversioning caused by this declaration">;
 def err_multiversion_after_used : Error<
@@ -11601,7 +11603,7 @@ def err_multiversion_noproto : Error<
   "multiversioned function must have a prototype">;
 def err_multiversion_disallowed_other_attr
     : Error<"attribute "
-            "'%select{|target|cpu_specific|cpu_dispatch|target_clones|target_version}0' "
+            "'%select{|target|cpu_specific|cpu_dispatch|target_clones}0' "
             "multiversioning cannot be combined"
             " with attribute %1">;
 def err_multiversion_diff : Error<
@@ -11610,7 +11612,7 @@ def err_multiversion_diff : Error<
   "language linkage}0">;
 def err_multiversion_doesnt_support
     : Error<"attribute "
-            "'%select{|target|cpu_specific|cpu_dispatch|target_clones|target_version}0' "
+            "'%select{|target|cpu_specific|cpu_dispatch|target_clones}0' "
             "multiversioned functions do not "
             "yet support %select{function templates|virtual functions|"
             "deduced return types|constructors|destructors|deleted functions|"
@@ -11644,9 +11646,6 @@ def warn_target_clone_mixed_values
       InGroup<TargetClonesMixedSpecifiers>;
 def warn_target_clone_duplicate_options
     : Warning<"version list contains duplicate entries">,
-      InGroup<FunctionMultiVersioning>;
-def warn_target_clone_no_impact_options
-    : Warning<"version list contains entries that don't impact code generation">,
       InGroup<FunctionMultiVersioning>;
 
 // three-way comparison operator diagnostics

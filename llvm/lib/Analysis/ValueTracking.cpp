@@ -3803,11 +3803,54 @@ bool llvm::isKnownNeverInfinity(const Value *V, const TargetLibraryInfo *TLI,
 
     if (const auto *II = dyn_cast<IntrinsicInst>(V)) {
       switch (II->getIntrinsicID()) {
+      case Intrinsic::sin:
+      case Intrinsic::cos:
+        // Return NaN on infinite inputs.
+        return true;
       case Intrinsic::fabs:
+      case Intrinsic::sqrt:
       case Intrinsic::canonicalize:
       case Intrinsic::copysign:
       case Intrinsic::arithmetic_fence:
+      case Intrinsic::trunc:
         return isKnownNeverInfinity(Inst->getOperand(0), TLI, Depth + 1);
+      case Intrinsic::floor:
+      case Intrinsic::ceil:
+      case Intrinsic::rint:
+      case Intrinsic::nearbyint:
+      case Intrinsic::round:
+      case Intrinsic::roundeven:
+        // PPC_FP128 is a special case.
+        if (V->getType()->isMultiUnitFPType())
+          return false;
+        return isKnownNeverInfinity(Inst->getOperand(0), TLI, Depth + 1);
+      case Intrinsic::fptrunc_round:
+        // Requires knowing the value range.
+        return false;
+      case Intrinsic::minnum:
+      case Intrinsic::maxnum:
+      case Intrinsic::minimum:
+      case Intrinsic::maximum:
+        return isKnownNeverInfinity(Inst->getOperand(0), TLI, Depth + 1) &&
+               isKnownNeverInfinity(Inst->getOperand(1), TLI, Depth + 1);
+      case Intrinsic::log:
+      case Intrinsic::log10:
+      case Intrinsic::log2:
+        // log(+inf) -> +inf
+        // log([+-]0.0) -> -inf
+        // log(-inf) -> nan
+        // log(-x) -> nan
+        // TODO: We lack API to check the == 0 case.
+        return false;
+      case Intrinsic::exp:
+      case Intrinsic::exp2:
+      case Intrinsic::pow:
+      case Intrinsic::powi:
+      case Intrinsic::fma:
+      case Intrinsic::fmuladd:
+        // These can return infinities on overflow cases, so it's hard to prove
+        // anything about it.
+        return false;
       default:
         break;
       }
