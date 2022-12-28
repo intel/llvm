@@ -54,14 +54,17 @@ class InductionDescriptor;
 class InnerLoopVectorizer;
 class IRBuilderBase;
 class LoopInfo;
+class PredicateScalarEvolution;
 class raw_ostream;
 class RecurrenceDescriptor;
-class Value;
+class SCEV;
+class Type;
 class VPBasicBlock;
 class VPRegionBlock;
 class VPlan;
 class VPReplicateRecipe;
 class VPlanSlp;
+class Value;
 
 namespace Intrinsic {
 typedef unsigned ID;
@@ -75,6 +78,8 @@ Value *getRuntimeVF(IRBuilderBase &B, Type *Ty, ElementCount VF);
 /// Return a value for Step multiplied by VF.
 Value *createStepForVF(IRBuilderBase &B, Type *Ty, ElementCount VF,
                        int64_t Step);
+
+const SCEV *createTripCountSCEV(Type *IdxTy, PredicatedScalarEvolution &PSE);
 
 /// A range of powers-of-2 vectorization factors with fixed start and
 /// adjustable end. The range includes start and excludes end, e.g.,:
@@ -2493,6 +2498,10 @@ class VPlan {
   /// Holds the VFs applicable to this VPlan.
   SmallSetVector<ElementCount, 2> VFs;
 
+  /// Holds the UFs applicable to this VPlan. If empty, the VPlan is valid for
+  /// any UF.
+  SmallSetVector<unsigned, 2> UFs;
+
   /// Holds the name of the VPlan, for printing.
   std::string Name;
 
@@ -2592,11 +2601,26 @@ public:
 
   void addVF(ElementCount VF) { VFs.insert(VF); }
 
+  void setVF(ElementCount VF) {
+    assert(hasVF(VF) && "Cannot set VF not already in plan");
+    VFs.clear();
+    VFs.insert(VF);
+  }
+
   bool hasVF(ElementCount VF) { return VFs.count(VF); }
 
   bool hasScalarVFOnly() const { return VFs.size() == 1 && VFs[0].isScalar(); }
 
-  const std::string &getName() const { return Name; }
+  bool hasUF(unsigned UF) const { return UFs.empty() || UFs.contains(UF); }
+
+  void setUF(unsigned UF) {
+    assert(hasUF(UF) && "Cannot set the UF not already in plan");
+    UFs.clear();
+    UFs.insert(UF);
+  }
+
+  /// Return a string with the name of the plan and the applicable VFs and UFs.
+  std::string getName() const;
 
   void setName(const Twine &newName) { Name = newName.str(); }
 
@@ -2855,31 +2879,6 @@ public:
     assert(To && "Successor to disconnect is null.");
     From->removeSuccessor(To);
     To->removePredecessor(From);
-  }
-
-  /// Try to merge \p Block into its single predecessor, if \p Block is a
-  /// VPBasicBlock and its predecessor has a single successor. Returns a pointer
-  /// to the predecessor \p Block was merged into or nullptr otherwise.
-  static VPBasicBlock *tryToMergeBlockIntoPredecessor(VPBlockBase *Block) {
-    auto *VPBB = dyn_cast<VPBasicBlock>(Block);
-    auto *PredVPBB =
-        dyn_cast_or_null<VPBasicBlock>(Block->getSinglePredecessor());
-    if (!VPBB || !PredVPBB || PredVPBB->getNumSuccessors() != 1)
-      return nullptr;
-
-    for (VPRecipeBase &R : make_early_inc_range(*VPBB))
-      R.moveBefore(*PredVPBB, PredVPBB->end());
-    VPBlockUtils::disconnectBlocks(PredVPBB, VPBB);
-    auto *ParentRegion = cast<VPRegionBlock>(Block->getParent());
-    if (ParentRegion->getExiting() == Block)
-      ParentRegion->setExiting(PredVPBB);
-    SmallVector<VPBlockBase *> Successors(Block->successors());
-    for (auto *Succ : Successors) {
-      VPBlockUtils::disconnectBlocks(Block, Succ);
-      VPBlockUtils::connectBlocks(PredVPBB, Succ);
-    }
-    delete Block;
-    return PredVPBB;
   }
 
   /// Return an iterator range over \p Range which only includes \p BlockTy

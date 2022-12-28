@@ -8,14 +8,14 @@
 ; RUN: opt -passes='sroa<preserve-cfg>' -data-layout="E-n8:16:32" -S %s | FileCheck %s --check-prefixes=CHECK-ALL,CHECK-SCALAR,CHECK-SCALAR-32,CHECK-BE-32
 ; RUN: opt -passes='sroa<modify-cfg>' -data-layout="E-n8:16:32" -S %s | FileCheck %s --check-prefixes=CHECK-ALL,CHECK-SCALAR,CHECK-SCALAR-32,CHECK-BE-32
 
-define void @load-1byte-chunk-of-1byte-alloca(ptr %src, i64 %byteOff) {
-; CHECK-ALL-LABEL: @load-1byte-chunk-of-1byte-alloca(
+define void @load_1byte_chunk_of_1byte_alloca(ptr %src, i64 %byteOff, ptr %dst) nounwind {
+; CHECK-ALL-LABEL: @load_1byte_chunk_of_1byte_alloca(
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [1 x i8], align 64
 ; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <1 x i8>, ptr [[SRC:%.*]], align 1
 ; CHECK-ALL-NEXT:    store <1 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i8, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
 ; CHECK-ALL-NEXT:    [[CHUNK:%.*]] = load <1 x i8>, ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    call void @use.v1i8(<1 x i8> [[CHUNK]])
+; CHECK-ALL-NEXT:    store <1 x i8> [[CHUNK]], ptr [[DST:%.*]], align 1
 ; CHECK-ALL-NEXT:    ret void
 ;
   %intermediate = alloca [1 x i8], align 64
@@ -23,18 +23,18 @@ define void @load-1byte-chunk-of-1byte-alloca(ptr %src, i64 %byteOff) {
   store <1 x i8> %init, ptr %intermediate, align 64
   %intermediate.off.addr = getelementptr inbounds i8, ptr %intermediate, i64 %byteOff
   %chunk = load <1 x i8>, ptr %intermediate.off.addr, align 1
-  call void @use.v1i8(<1 x i8> %chunk)
+  store <1 x i8> %chunk, ptr %dst
   ret void
 }
 
-define void @load-1byte-chunk-of-2byte-alloca(ptr %src, i64 %byteOff) {
-; CHECK-ALL-LABEL: @load-1byte-chunk-of-2byte-alloca(
+define void @load_1byte_chunk_of_2byte_alloca(ptr %src, i64 %byteOff, ptr %dst) nounwind {
+; CHECK-ALL-LABEL: @load_1byte_chunk_of_2byte_alloca(
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [2 x i8], align 64
 ; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <2 x i8>, ptr [[SRC:%.*]], align 1
 ; CHECK-ALL-NEXT:    store <2 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i8, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
 ; CHECK-ALL-NEXT:    [[CHUNK:%.*]] = load <1 x i8>, ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    call void @use.v1i8(<1 x i8> [[CHUNK]])
+; CHECK-ALL-NEXT:    store <1 x i8> [[CHUNK]], ptr [[DST:%.*]], align 1
 ; CHECK-ALL-NEXT:    ret void
 ;
   %intermediate = alloca [2 x i8], align 64
@@ -42,18 +42,18 @@ define void @load-1byte-chunk-of-2byte-alloca(ptr %src, i64 %byteOff) {
   store <2 x i8> %init, ptr %intermediate, align 64
   %intermediate.off.addr = getelementptr inbounds i8, ptr %intermediate, i64 %byteOff
   %chunk = load <1 x i8>, ptr %intermediate.off.addr, align 1
-  call void @use.v1i8(<1 x i8> %chunk)
+  store <1 x i8> %chunk, ptr %dst
   ret void
 }
 
-define void @load-2byte-chunk-of-2byte-alloca(ptr %src, i64 %byteOff) {
-; CHECK-ALL-LABEL: @load-2byte-chunk-of-2byte-alloca(
+define void @load_2byte_chunk_of_2byte_alloca(ptr %src, i64 %byteOff, ptr %dst) nounwind {
+; CHECK-ALL-LABEL: @load_2byte_chunk_of_2byte_alloca(
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [2 x i8], align 64
 ; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <2 x i8>, ptr [[SRC:%.*]], align 1
 ; CHECK-ALL-NEXT:    store <2 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i8, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
 ; CHECK-ALL-NEXT:    [[CHUNK:%.*]] = load <2 x i8>, ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    call void @use.v2i8(<2 x i8> [[CHUNK]])
+; CHECK-ALL-NEXT:    store <2 x i8> [[CHUNK]], ptr [[DST:%.*]], align 2
 ; CHECK-ALL-NEXT:    ret void
 ;
   %intermediate = alloca [2 x i8], align 64
@@ -61,18 +61,18 @@ define void @load-2byte-chunk-of-2byte-alloca(ptr %src, i64 %byteOff) {
   store <2 x i8> %init, ptr %intermediate, align 64
   %intermediate.off.addr = getelementptr inbounds i8, ptr %intermediate, i64 %byteOff
   %chunk = load <2 x i8>, ptr %intermediate.off.addr, align 1
-  call void @use.v2i8(<2 x i8> %chunk)
+  store <2 x i8> %chunk, ptr %dst
   ret void
 }
 
-define void @load-1byte-chunk-of-4byte-alloca(ptr %src, i64 %byteOff) {
-; CHECK-ALL-LABEL: @load-1byte-chunk-of-4byte-alloca(
+define void @load_1byte_chunk_of_4byte_alloca(ptr %src, i64 %byteOff, ptr %dst) nounwind {
+; CHECK-ALL-LABEL: @load_1byte_chunk_of_4byte_alloca(
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [4 x i8], align 64
 ; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <4 x i8>, ptr [[SRC:%.*]], align 1
 ; CHECK-ALL-NEXT:    store <4 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i8, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
 ; CHECK-ALL-NEXT:    [[CHUNK:%.*]] = load <1 x i8>, ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    call void @use.v1i8(<1 x i8> [[CHUNK]])
+; CHECK-ALL-NEXT:    store <1 x i8> [[CHUNK]], ptr [[DST:%.*]], align 1
 ; CHECK-ALL-NEXT:    ret void
 ;
   %intermediate = alloca [4 x i8], align 64
@@ -80,18 +80,18 @@ define void @load-1byte-chunk-of-4byte-alloca(ptr %src, i64 %byteOff) {
   store <4 x i8> %init, ptr %intermediate, align 64
   %intermediate.off.addr = getelementptr inbounds i8, ptr %intermediate, i64 %byteOff
   %chunk = load <1 x i8>, ptr %intermediate.off.addr, align 1
-  call void @use.v1i8(<1 x i8> %chunk)
+  store <1 x i8> %chunk, ptr %dst
   ret void
 }
 
-define void @load-2byte-chunk-of-4byte-alloca(ptr %src, i64 %byteOff) {
-; CHECK-ALL-LABEL: @load-2byte-chunk-of-4byte-alloca(
+define void @load_2byte_chunk_of_4byte_alloca(ptr %src, i64 %byteOff, ptr %dst) nounwind {
+; CHECK-ALL-LABEL: @load_2byte_chunk_of_4byte_alloca(
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [4 x i8], align 64
 ; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <4 x i8>, ptr [[SRC:%.*]], align 1
 ; CHECK-ALL-NEXT:    store <4 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i8, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
 ; CHECK-ALL-NEXT:    [[CHUNK:%.*]] = load <2 x i8>, ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    call void @use.v2i8(<2 x i8> [[CHUNK]])
+; CHECK-ALL-NEXT:    store <2 x i8> [[CHUNK]], ptr [[DST:%.*]], align 2
 ; CHECK-ALL-NEXT:    ret void
 ;
   %intermediate = alloca [4 x i8], align 64
@@ -99,18 +99,18 @@ define void @load-2byte-chunk-of-4byte-alloca(ptr %src, i64 %byteOff) {
   store <4 x i8> %init, ptr %intermediate, align 64
   %intermediate.off.addr = getelementptr inbounds i8, ptr %intermediate, i64 %byteOff
   %chunk = load <2 x i8>, ptr %intermediate.off.addr, align 1
-  call void @use.v2i8(<2 x i8> %chunk)
+  store <2 x i8> %chunk, ptr %dst
   ret void
 }
 
-define void @load-4byte-chunk-of-4byte-alloca(ptr %src, i64 %byteOff) {
-; CHECK-ALL-LABEL: @load-4byte-chunk-of-4byte-alloca(
+define void @load_4byte_chunk_of_4byte_alloca(ptr %src, i64 %byteOff, ptr %dst) nounwind {
+; CHECK-ALL-LABEL: @load_4byte_chunk_of_4byte_alloca(
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [4 x i8], align 64
 ; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <4 x i8>, ptr [[SRC:%.*]], align 1
 ; CHECK-ALL-NEXT:    store <4 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i8, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
 ; CHECK-ALL-NEXT:    [[CHUNK:%.*]] = load <4 x i8>, ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    call void @use.v4i8(<4 x i8> [[CHUNK]])
+; CHECK-ALL-NEXT:    store <4 x i8> [[CHUNK]], ptr [[DST:%.*]], align 4
 ; CHECK-ALL-NEXT:    ret void
 ;
   %intermediate = alloca [4 x i8], align 64
@@ -118,18 +118,18 @@ define void @load-4byte-chunk-of-4byte-alloca(ptr %src, i64 %byteOff) {
   store <4 x i8> %init, ptr %intermediate, align 64
   %intermediate.off.addr = getelementptr inbounds i8, ptr %intermediate, i64 %byteOff
   %chunk = load <4 x i8>, ptr %intermediate.off.addr, align 1
-  call void @use.v4i8(<4 x i8> %chunk)
+  store <4 x i8> %chunk, ptr %dst
   ret void
 }
 
-define void @load-1byte-chunk-of-8byte-alloca(ptr %src, i64 %byteOff) {
-; CHECK-ALL-LABEL: @load-1byte-chunk-of-8byte-alloca(
+define void @load_1byte_chunk_of_8byte_alloca(ptr %src, i64 %byteOff, ptr %dst) nounwind {
+; CHECK-ALL-LABEL: @load_1byte_chunk_of_8byte_alloca(
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [8 x i8], align 64
 ; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <8 x i8>, ptr [[SRC:%.*]], align 1
 ; CHECK-ALL-NEXT:    store <8 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i8, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
 ; CHECK-ALL-NEXT:    [[CHUNK:%.*]] = load <1 x i8>, ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    call void @use.v1i8(<1 x i8> [[CHUNK]])
+; CHECK-ALL-NEXT:    store <1 x i8> [[CHUNK]], ptr [[DST:%.*]], align 1
 ; CHECK-ALL-NEXT:    ret void
 ;
   %intermediate = alloca [8 x i8], align 64
@@ -137,18 +137,18 @@ define void @load-1byte-chunk-of-8byte-alloca(ptr %src, i64 %byteOff) {
   store <8 x i8> %init, ptr %intermediate, align 64
   %intermediate.off.addr = getelementptr inbounds i8, ptr %intermediate, i64 %byteOff
   %chunk = load <1 x i8>, ptr %intermediate.off.addr, align 1
-  call void @use.v1i8(<1 x i8> %chunk)
+  store <1 x i8> %chunk, ptr %dst
   ret void
 }
 
-define void @load-2byte-chunk-of-8byte-alloca(ptr %src, i64 %byteOff) {
-; CHECK-ALL-LABEL: @load-2byte-chunk-of-8byte-alloca(
+define void @load_2byte_chunk_of_8byte_alloca(ptr %src, i64 %byteOff, ptr %dst) nounwind {
+; CHECK-ALL-LABEL: @load_2byte_chunk_of_8byte_alloca(
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [8 x i8], align 64
 ; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <8 x i8>, ptr [[SRC:%.*]], align 1
 ; CHECK-ALL-NEXT:    store <8 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i8, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
 ; CHECK-ALL-NEXT:    [[CHUNK:%.*]] = load <2 x i8>, ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    call void @use.v2i8(<2 x i8> [[CHUNK]])
+; CHECK-ALL-NEXT:    store <2 x i8> [[CHUNK]], ptr [[DST:%.*]], align 2
 ; CHECK-ALL-NEXT:    ret void
 ;
   %intermediate = alloca [8 x i8], align 64
@@ -156,18 +156,18 @@ define void @load-2byte-chunk-of-8byte-alloca(ptr %src, i64 %byteOff) {
   store <8 x i8> %init, ptr %intermediate, align 64
   %intermediate.off.addr = getelementptr inbounds i8, ptr %intermediate, i64 %byteOff
   %chunk = load <2 x i8>, ptr %intermediate.off.addr, align 1
-  call void @use.v2i8(<2 x i8> %chunk)
+  store <2 x i8> %chunk, ptr %dst
   ret void
 }
 
-define void @load-4byte-chunk-of-8byte-alloca(ptr %src, i64 %byteOff) {
-; CHECK-ALL-LABEL: @load-4byte-chunk-of-8byte-alloca(
+define void @load_4byte_chunk_of_8byte_alloca(ptr %src, i64 %byteOff, ptr %dst) nounwind {
+; CHECK-ALL-LABEL: @load_4byte_chunk_of_8byte_alloca(
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [8 x i8], align 64
 ; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <8 x i8>, ptr [[SRC:%.*]], align 1
 ; CHECK-ALL-NEXT:    store <8 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i8, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
 ; CHECK-ALL-NEXT:    [[CHUNK:%.*]] = load <4 x i8>, ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    call void @use.v4i8(<4 x i8> [[CHUNK]])
+; CHECK-ALL-NEXT:    store <4 x i8> [[CHUNK]], ptr [[DST:%.*]], align 4
 ; CHECK-ALL-NEXT:    ret void
 ;
   %intermediate = alloca [8 x i8], align 64
@@ -175,18 +175,18 @@ define void @load-4byte-chunk-of-8byte-alloca(ptr %src, i64 %byteOff) {
   store <8 x i8> %init, ptr %intermediate, align 64
   %intermediate.off.addr = getelementptr inbounds i8, ptr %intermediate, i64 %byteOff
   %chunk = load <4 x i8>, ptr %intermediate.off.addr, align 1
-  call void @use.v4i8(<4 x i8> %chunk)
+  store <4 x i8> %chunk, ptr %dst
   ret void
 }
 
-define void @load-8byte-chunk-of-8byte-alloca(ptr %src, i64 %byteOff) {
-; CHECK-ALL-LABEL: @load-8byte-chunk-of-8byte-alloca(
+define void @load_8byte_chunk_of_8byte_alloca(ptr %src, i64 %byteOff, ptr %dst) nounwind {
+; CHECK-ALL-LABEL: @load_8byte_chunk_of_8byte_alloca(
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [8 x i8], align 64
 ; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <8 x i8>, ptr [[SRC:%.*]], align 1
 ; CHECK-ALL-NEXT:    store <8 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i8, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
 ; CHECK-ALL-NEXT:    [[CHUNK:%.*]] = load <8 x i8>, ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    call void @use.v8i8(<8 x i8> [[CHUNK]])
+; CHECK-ALL-NEXT:    store <8 x i8> [[CHUNK]], ptr [[DST:%.*]], align 8
 ; CHECK-ALL-NEXT:    ret void
 ;
   %intermediate = alloca [8 x i8], align 64
@@ -194,18 +194,18 @@ define void @load-8byte-chunk-of-8byte-alloca(ptr %src, i64 %byteOff) {
   store <8 x i8> %init, ptr %intermediate, align 64
   %intermediate.off.addr = getelementptr inbounds i8, ptr %intermediate, i64 %byteOff
   %chunk = load <8 x i8>, ptr %intermediate.off.addr, align 1
-  call void @use.v8i8(<8 x i8> %chunk)
+  store <8 x i8> %chunk, ptr %dst
   ret void
 }
 
-define void @load-1byte-chunk-of-16byte-alloca(ptr %src, i64 %byteOff) {
-; CHECK-ALL-LABEL: @load-1byte-chunk-of-16byte-alloca(
+define void @load_1byte_chunk_of_16byte_alloca(ptr %src, i64 %byteOff, ptr %dst) nounwind {
+; CHECK-ALL-LABEL: @load_1byte_chunk_of_16byte_alloca(
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [16 x i8], align 64
 ; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <16 x i8>, ptr [[SRC:%.*]], align 1
 ; CHECK-ALL-NEXT:    store <16 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i8, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
 ; CHECK-ALL-NEXT:    [[CHUNK:%.*]] = load <1 x i8>, ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    call void @use.v1i8(<1 x i8> [[CHUNK]])
+; CHECK-ALL-NEXT:    store <1 x i8> [[CHUNK]], ptr [[DST:%.*]], align 1
 ; CHECK-ALL-NEXT:    ret void
 ;
   %intermediate = alloca [16 x i8], align 64
@@ -213,18 +213,18 @@ define void @load-1byte-chunk-of-16byte-alloca(ptr %src, i64 %byteOff) {
   store <16 x i8> %init, ptr %intermediate, align 64
   %intermediate.off.addr = getelementptr inbounds i8, ptr %intermediate, i64 %byteOff
   %chunk = load <1 x i8>, ptr %intermediate.off.addr, align 1
-  call void @use.v1i8(<1 x i8> %chunk)
+  store <1 x i8> %chunk, ptr %dst
   ret void
 }
 
-define void @load-2byte-chunk-of-16byte-alloca(ptr %src, i64 %byteOff) {
-; CHECK-ALL-LABEL: @load-2byte-chunk-of-16byte-alloca(
+define void @load_2byte_chunk_of_16byte_alloca(ptr %src, i64 %byteOff, ptr %dst) nounwind {
+; CHECK-ALL-LABEL: @load_2byte_chunk_of_16byte_alloca(
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [16 x i8], align 64
 ; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <16 x i8>, ptr [[SRC:%.*]], align 1
 ; CHECK-ALL-NEXT:    store <16 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i8, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
 ; CHECK-ALL-NEXT:    [[CHUNK:%.*]] = load <2 x i8>, ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    call void @use.v2i8(<2 x i8> [[CHUNK]])
+; CHECK-ALL-NEXT:    store <2 x i8> [[CHUNK]], ptr [[DST:%.*]], align 2
 ; CHECK-ALL-NEXT:    ret void
 ;
   %intermediate = alloca [16 x i8], align 64
@@ -232,18 +232,18 @@ define void @load-2byte-chunk-of-16byte-alloca(ptr %src, i64 %byteOff) {
   store <16 x i8> %init, ptr %intermediate, align 64
   %intermediate.off.addr = getelementptr inbounds i8, ptr %intermediate, i64 %byteOff
   %chunk = load <2 x i8>, ptr %intermediate.off.addr, align 1
-  call void @use.v2i8(<2 x i8> %chunk)
+  store <2 x i8> %chunk, ptr %dst
   ret void
 }
 
-define void @load-4byte-chunk-of-16byte-alloca(ptr %src, i64 %byteOff) {
-; CHECK-ALL-LABEL: @load-4byte-chunk-of-16byte-alloca(
+define void @load_4byte_chunk_of_16byte_alloca(ptr %src, i64 %byteOff, ptr %dst) nounwind {
+; CHECK-ALL-LABEL: @load_4byte_chunk_of_16byte_alloca(
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [16 x i8], align 64
 ; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <16 x i8>, ptr [[SRC:%.*]], align 1
 ; CHECK-ALL-NEXT:    store <16 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i8, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
 ; CHECK-ALL-NEXT:    [[CHUNK:%.*]] = load <4 x i8>, ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    call void @use.v4i8(<4 x i8> [[CHUNK]])
+; CHECK-ALL-NEXT:    store <4 x i8> [[CHUNK]], ptr [[DST:%.*]], align 4
 ; CHECK-ALL-NEXT:    ret void
 ;
   %intermediate = alloca [16 x i8], align 64
@@ -251,18 +251,18 @@ define void @load-4byte-chunk-of-16byte-alloca(ptr %src, i64 %byteOff) {
   store <16 x i8> %init, ptr %intermediate, align 64
   %intermediate.off.addr = getelementptr inbounds i8, ptr %intermediate, i64 %byteOff
   %chunk = load <4 x i8>, ptr %intermediate.off.addr, align 1
-  call void @use.v4i8(<4 x i8> %chunk)
+  store <4 x i8> %chunk, ptr %dst
   ret void
 }
 
-define void @load-8byte-chunk-of-16byte-alloca(ptr %src, i64 %byteOff) {
-; CHECK-ALL-LABEL: @load-8byte-chunk-of-16byte-alloca(
+define void @load_8byte_chunk_of_16byte_alloca(ptr %src, i64 %byteOff, ptr %dst) nounwind {
+; CHECK-ALL-LABEL: @load_8byte_chunk_of_16byte_alloca(
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [16 x i8], align 64
 ; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <16 x i8>, ptr [[SRC:%.*]], align 1
 ; CHECK-ALL-NEXT:    store <16 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i8, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
 ; CHECK-ALL-NEXT:    [[CHUNK:%.*]] = load <8 x i8>, ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    call void @use.v8i8(<8 x i8> [[CHUNK]])
+; CHECK-ALL-NEXT:    store <8 x i8> [[CHUNK]], ptr [[DST:%.*]], align 8
 ; CHECK-ALL-NEXT:    ret void
 ;
   %intermediate = alloca [16 x i8], align 64
@@ -270,18 +270,18 @@ define void @load-8byte-chunk-of-16byte-alloca(ptr %src, i64 %byteOff) {
   store <16 x i8> %init, ptr %intermediate, align 64
   %intermediate.off.addr = getelementptr inbounds i8, ptr %intermediate, i64 %byteOff
   %chunk = load <8 x i8>, ptr %intermediate.off.addr, align 1
-  call void @use.v8i8(<8 x i8> %chunk)
+  store <8 x i8> %chunk, ptr %dst
   ret void
 }
 
-define void @load-16byte-chunk-of-16byte-alloca(ptr %src, i64 %byteOff) {
-; CHECK-ALL-LABEL: @load-16byte-chunk-of-16byte-alloca(
+define void @load_16byte_chunk_of_16byte_alloca(ptr %src, i64 %byteOff, ptr %dst) nounwind {
+; CHECK-ALL-LABEL: @load_16byte_chunk_of_16byte_alloca(
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [16 x i8], align 64
 ; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <16 x i8>, ptr [[SRC:%.*]], align 1
 ; CHECK-ALL-NEXT:    store <16 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i8, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
 ; CHECK-ALL-NEXT:    [[CHUNK:%.*]] = load <16 x i8>, ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    call void @use.v16i8(<16 x i8> [[CHUNK]])
+; CHECK-ALL-NEXT:    store <16 x i8> [[CHUNK]], ptr [[DST:%.*]], align 16
 ; CHECK-ALL-NEXT:    ret void
 ;
   %intermediate = alloca [16 x i8], align 64
@@ -289,18 +289,18 @@ define void @load-16byte-chunk-of-16byte-alloca(ptr %src, i64 %byteOff) {
   store <16 x i8> %init, ptr %intermediate, align 64
   %intermediate.off.addr = getelementptr inbounds i8, ptr %intermediate, i64 %byteOff
   %chunk = load <16 x i8>, ptr %intermediate.off.addr, align 1
-  call void @use.v16i8(<16 x i8> %chunk)
+  store <16 x i8> %chunk, ptr %dst
   ret void
 }
 
-define void @load-1byte-chunk-of-32byte-alloca(ptr %src, i64 %byteOff) {
-; CHECK-ALL-LABEL: @load-1byte-chunk-of-32byte-alloca(
+define void @load_1byte_chunk_of_32byte_alloca(ptr %src, i64 %byteOff, ptr %dst) nounwind {
+; CHECK-ALL-LABEL: @load_1byte_chunk_of_32byte_alloca(
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [32 x i8], align 64
 ; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <32 x i8>, ptr [[SRC:%.*]], align 1
 ; CHECK-ALL-NEXT:    store <32 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i8, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
 ; CHECK-ALL-NEXT:    [[CHUNK:%.*]] = load <1 x i8>, ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    call void @use.v1i8(<1 x i8> [[CHUNK]])
+; CHECK-ALL-NEXT:    store <1 x i8> [[CHUNK]], ptr [[DST:%.*]], align 1
 ; CHECK-ALL-NEXT:    ret void
 ;
   %intermediate = alloca [32 x i8], align 64
@@ -308,18 +308,18 @@ define void @load-1byte-chunk-of-32byte-alloca(ptr %src, i64 %byteOff) {
   store <32 x i8> %init, ptr %intermediate, align 64
   %intermediate.off.addr = getelementptr inbounds i8, ptr %intermediate, i64 %byteOff
   %chunk = load <1 x i8>, ptr %intermediate.off.addr, align 1
-  call void @use.v1i8(<1 x i8> %chunk)
+  store <1 x i8> %chunk, ptr %dst
   ret void
 }
 
-define void @load-2byte-chunk-of-32byte-alloca(ptr %src, i64 %byteOff) {
-; CHECK-ALL-LABEL: @load-2byte-chunk-of-32byte-alloca(
+define void @load_2byte_chunk_of_32byte_alloca(ptr %src, i64 %byteOff, ptr %dst) nounwind {
+; CHECK-ALL-LABEL: @load_2byte_chunk_of_32byte_alloca(
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [32 x i8], align 64
 ; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <32 x i8>, ptr [[SRC:%.*]], align 1
 ; CHECK-ALL-NEXT:    store <32 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i8, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
 ; CHECK-ALL-NEXT:    [[CHUNK:%.*]] = load <2 x i8>, ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    call void @use.v2i8(<2 x i8> [[CHUNK]])
+; CHECK-ALL-NEXT:    store <2 x i8> [[CHUNK]], ptr [[DST:%.*]], align 2
 ; CHECK-ALL-NEXT:    ret void
 ;
   %intermediate = alloca [32 x i8], align 64
@@ -327,18 +327,18 @@ define void @load-2byte-chunk-of-32byte-alloca(ptr %src, i64 %byteOff) {
   store <32 x i8> %init, ptr %intermediate, align 64
   %intermediate.off.addr = getelementptr inbounds i8, ptr %intermediate, i64 %byteOff
   %chunk = load <2 x i8>, ptr %intermediate.off.addr, align 1
-  call void @use.v2i8(<2 x i8> %chunk)
+  store <2 x i8> %chunk, ptr %dst
   ret void
 }
 
-define void @load-4byte-chunk-of-32byte-alloca(ptr %src, i64 %byteOff) {
-; CHECK-ALL-LABEL: @load-4byte-chunk-of-32byte-alloca(
+define void @load_4byte_chunk_of_32byte_alloca(ptr %src, i64 %byteOff, ptr %dst) nounwind {
+; CHECK-ALL-LABEL: @load_4byte_chunk_of_32byte_alloca(
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [32 x i8], align 64
 ; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <32 x i8>, ptr [[SRC:%.*]], align 1
 ; CHECK-ALL-NEXT:    store <32 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i8, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
 ; CHECK-ALL-NEXT:    [[CHUNK:%.*]] = load <4 x i8>, ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    call void @use.v4i8(<4 x i8> [[CHUNK]])
+; CHECK-ALL-NEXT:    store <4 x i8> [[CHUNK]], ptr [[DST:%.*]], align 4
 ; CHECK-ALL-NEXT:    ret void
 ;
   %intermediate = alloca [32 x i8], align 64
@@ -346,18 +346,18 @@ define void @load-4byte-chunk-of-32byte-alloca(ptr %src, i64 %byteOff) {
   store <32 x i8> %init, ptr %intermediate, align 64
   %intermediate.off.addr = getelementptr inbounds i8, ptr %intermediate, i64 %byteOff
   %chunk = load <4 x i8>, ptr %intermediate.off.addr, align 1
-  call void @use.v4i8(<4 x i8> %chunk)
+  store <4 x i8> %chunk, ptr %dst
   ret void
 }
 
-define void @load-8byte-chunk-of-32byte-alloca(ptr %src, i64 %byteOff) {
-; CHECK-ALL-LABEL: @load-8byte-chunk-of-32byte-alloca(
+define void @load_8byte_chunk_of_32byte_alloca(ptr %src, i64 %byteOff, ptr %dst) nounwind {
+; CHECK-ALL-LABEL: @load_8byte_chunk_of_32byte_alloca(
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [32 x i8], align 64
 ; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <32 x i8>, ptr [[SRC:%.*]], align 1
 ; CHECK-ALL-NEXT:    store <32 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i8, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
 ; CHECK-ALL-NEXT:    [[CHUNK:%.*]] = load <8 x i8>, ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    call void @use.v8i8(<8 x i8> [[CHUNK]])
+; CHECK-ALL-NEXT:    store <8 x i8> [[CHUNK]], ptr [[DST:%.*]], align 8
 ; CHECK-ALL-NEXT:    ret void
 ;
   %intermediate = alloca [32 x i8], align 64
@@ -365,18 +365,18 @@ define void @load-8byte-chunk-of-32byte-alloca(ptr %src, i64 %byteOff) {
   store <32 x i8> %init, ptr %intermediate, align 64
   %intermediate.off.addr = getelementptr inbounds i8, ptr %intermediate, i64 %byteOff
   %chunk = load <8 x i8>, ptr %intermediate.off.addr, align 1
-  call void @use.v8i8(<8 x i8> %chunk)
+  store <8 x i8> %chunk, ptr %dst
   ret void
 }
 
-define void @load-16byte-chunk-of-32byte-alloca(ptr %src, i64 %byteOff) {
-; CHECK-ALL-LABEL: @load-16byte-chunk-of-32byte-alloca(
+define void @load_16byte_chunk_of_32byte_alloca(ptr %src, i64 %byteOff, ptr %dst) nounwind {
+; CHECK-ALL-LABEL: @load_16byte_chunk_of_32byte_alloca(
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [32 x i8], align 64
 ; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <32 x i8>, ptr [[SRC:%.*]], align 1
 ; CHECK-ALL-NEXT:    store <32 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i8, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
 ; CHECK-ALL-NEXT:    [[CHUNK:%.*]] = load <16 x i8>, ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    call void @use.v16i8(<16 x i8> [[CHUNK]])
+; CHECK-ALL-NEXT:    store <16 x i8> [[CHUNK]], ptr [[DST:%.*]], align 16
 ; CHECK-ALL-NEXT:    ret void
 ;
   %intermediate = alloca [32 x i8], align 64
@@ -384,18 +384,18 @@ define void @load-16byte-chunk-of-32byte-alloca(ptr %src, i64 %byteOff) {
   store <32 x i8> %init, ptr %intermediate, align 64
   %intermediate.off.addr = getelementptr inbounds i8, ptr %intermediate, i64 %byteOff
   %chunk = load <16 x i8>, ptr %intermediate.off.addr, align 1
-  call void @use.v16i8(<16 x i8> %chunk)
+  store <16 x i8> %chunk, ptr %dst
   ret void
 }
 
-define void @load-32byte-chunk-of-32byte-alloca(ptr %src, i64 %byteOff) {
-; CHECK-ALL-LABEL: @load-32byte-chunk-of-32byte-alloca(
+define void @load_32byte_chunk_of_32byte_alloca(ptr %src, i64 %byteOff, ptr %dst) nounwind {
+; CHECK-ALL-LABEL: @load_32byte_chunk_of_32byte_alloca(
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [32 x i8], align 64
 ; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <32 x i8>, ptr [[SRC:%.*]], align 1
 ; CHECK-ALL-NEXT:    store <32 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
 ; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i8, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
 ; CHECK-ALL-NEXT:    [[CHUNK:%.*]] = load <32 x i8>, ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    call void @use.v32i8(<32 x i8> [[CHUNK]])
+; CHECK-ALL-NEXT:    store <32 x i8> [[CHUNK]], ptr [[DST:%.*]], align 32
 ; CHECK-ALL-NEXT:    ret void
 ;
   %intermediate = alloca [32 x i8], align 64
@@ -403,98 +403,10 @@ define void @load-32byte-chunk-of-32byte-alloca(ptr %src, i64 %byteOff) {
   store <32 x i8> %init, ptr %intermediate, align 64
   %intermediate.off.addr = getelementptr inbounds i8, ptr %intermediate, i64 %byteOff
   %chunk = load <32 x i8>, ptr %intermediate.off.addr, align 1
-  call void @use.v32i8(<32 x i8> %chunk)
+  store <32 x i8> %chunk, ptr %dst
   ret void
 }
 
-;; Special test
-
-define void @load-2byte-chunk-of-8byte-alloca-with-2byte-step(ptr %src, i64 %byteOff) {
-; CHECK-ALL-LABEL: @load-2byte-chunk-of-8byte-alloca-with-2byte-step(
-; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [8 x i8], align 64
-; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <8 x i8>, ptr [[SRC:%.*]], align 1
-; CHECK-ALL-NEXT:    store <8 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
-; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i16, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
-; CHECK-ALL-NEXT:    [[CHUNK:%.*]] = load <2 x i8>, ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    call void @use.v2i8(<2 x i8> [[CHUNK]])
-; CHECK-ALL-NEXT:    ret void
-;
-  %intermediate = alloca [8 x i8], align 64
-  %init = load <8 x i8>, ptr %src, align 1
-  store <8 x i8> %init, ptr %intermediate, align 64
-  %intermediate.off.addr = getelementptr inbounds i16, ptr %intermediate, i64 %byteOff
-  %chunk = load <2 x i8>, ptr %intermediate.off.addr, align 1
-  call void @use.v2i8(<2 x i8> %chunk)
-  ret void
-}
-
-define void @load-volatile-2byte-chunk-of-8byte-alloca-with-2byte-step(ptr %src, i64 %byteOff) {
-; CHECK-ALL-LABEL: @load-volatile-2byte-chunk-of-8byte-alloca-with-2byte-step(
-; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [8 x i8], align 64
-; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <8 x i8>, ptr [[SRC:%.*]], align 1
-; CHECK-ALL-NEXT:    store <8 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
-; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i16, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
-; CHECK-ALL-NEXT:    [[CHUNK:%.*]] = load volatile <2 x i8>, ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    call void @use.v2i8(<2 x i8> [[CHUNK]])
-; CHECK-ALL-NEXT:    ret void
-;
-  %intermediate = alloca [8 x i8], align 64
-  %init = load <8 x i8>, ptr %src, align 1
-  store <8 x i8> %init, ptr %intermediate, align 64
-  %intermediate.off.addr = getelementptr inbounds i16, ptr %intermediate, i64 %byteOff
-  %chunk = load volatile <2 x i8>, ptr %intermediate.off.addr, align 1
-  call void @use.v2i8(<2 x i8> %chunk)
-  ret void
-}
-
-define void @store-2byte-chunk-of-8byte-alloca-with-2byte-step(ptr %src, i64 %byteOff, <2 x i8> %reinit) {
-; CHECK-ALL-LABEL: @store-2byte-chunk-of-8byte-alloca-with-2byte-step(
-; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [8 x i8], align 64
-; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <8 x i8>, ptr [[SRC:%.*]], align 1
-; CHECK-ALL-NEXT:    store <8 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
-; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i16, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
-; CHECK-ALL-NEXT:    store <2 x i8> [[REINIT:%.*]], ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    [[FINAL:%.*]] = load <8 x i8>, ptr [[INTERMEDIATE]], align 1
-; CHECK-ALL-NEXT:    call void @use.v8i8(<8 x i8> [[FINAL]])
-; CHECK-ALL-NEXT:    ret void
-;
-  %intermediate = alloca [8 x i8], align 64
-  %init = load <8 x i8>, ptr %src, align 1
-  store <8 x i8> %init, ptr %intermediate, align 64
-  %intermediate.off.addr = getelementptr inbounds i16, ptr %intermediate, i64 %byteOff
-  store <2 x i8> %reinit, ptr %intermediate.off.addr, align 1
-  %final = load <8 x i8>, ptr %intermediate, align 1
-  call void @use.v8i8(<8 x i8> %final)
-  ret void
-}
-
-define void @store-volatile-2byte-chunk-of-8byte-alloca-with-2byte-step(ptr %src, i64 %byteOff, <2 x i8> %reinit) {
-; CHECK-ALL-LABEL: @store-volatile-2byte-chunk-of-8byte-alloca-with-2byte-step(
-; CHECK-ALL-NEXT:    [[INTERMEDIATE:%.*]] = alloca [8 x i8], align 64
-; CHECK-ALL-NEXT:    [[INIT:%.*]] = load <8 x i8>, ptr [[SRC:%.*]], align 1
-; CHECK-ALL-NEXT:    store <8 x i8> [[INIT]], ptr [[INTERMEDIATE]], align 64
-; CHECK-ALL-NEXT:    [[INTERMEDIATE_OFF_ADDR:%.*]] = getelementptr inbounds i16, ptr [[INTERMEDIATE]], i64 [[BYTEOFF:%.*]]
-; CHECK-ALL-NEXT:    store volatile <2 x i8> [[REINIT:%.*]], ptr [[INTERMEDIATE_OFF_ADDR]], align 1
-; CHECK-ALL-NEXT:    [[FINAL:%.*]] = load <8 x i8>, ptr [[INTERMEDIATE]], align 1
-; CHECK-ALL-NEXT:    call void @use.v8i8(<8 x i8> [[FINAL]])
-; CHECK-ALL-NEXT:    ret void
-;
-  %intermediate = alloca [8 x i8], align 64
-  %init = load <8 x i8>, ptr %src, align 1
-  store <8 x i8> %init, ptr %intermediate, align 64
-  %intermediate.off.addr = getelementptr inbounds i16, ptr %intermediate, i64 %byteOff
-  store volatile <2 x i8> %reinit, ptr %intermediate.off.addr, align 1
-  %final = load <8 x i8>, ptr %intermediate, align 1
-  call void @use.v8i8(<8 x i8> %final)
-  ret void
-}
-
-declare void @use.v1i8(<1 x i8>)
-declare void @use.v2i8(<2 x i8>)
-declare void @use.v4i8(<4 x i8>)
-declare void @use.v8i8(<8 x i8>)
-declare void @use.v16i8(<16 x i8>)
-declare void @use.v32i8(<32 x i8>)
 ;; NOTE: These prefixes are unused and the list is autogenerated. Do not add tests below this line:
 ; CHECK-BE-32: {{.*}}
 ; CHECK-BE-64: {{.*}}

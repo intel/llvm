@@ -12,6 +12,7 @@
 
 #include "LoongArchTargetMachine.h"
 #include "LoongArch.h"
+#include "LoongArchMachineFunctionInfo.h"
 #include "MCTargetDesc/LoongArchBaseInfo.h"
 #include "TargetInfo/LoongArchTargetInfo.h"
 #include "llvm/CodeGen/Passes.h"
@@ -92,6 +93,13 @@ LoongArchTargetMachine::getSubtargetImpl(const Function &F) const {
                                              ABIName, *this);
   }
   return I.get();
+}
+
+MachineFunctionInfo *LoongArchTargetMachine::createMachineFunctionInfo(
+    BumpPtrAllocator &Allocator, const Function &F,
+    const TargetSubtargetInfo *STI) const {
+  return LoongArchMachineFunctionInfo::create<LoongArchMachineFunctionInfo>(
+      Allocator, F, STI);
 }
 
 namespace {

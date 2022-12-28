@@ -15,31 +15,31 @@ def register_attribute_builder(kind):
 
 
 @register_attribute_builder("BoolAttr")
-def _boolAttr(x: bool, context: Context):
+def _boolAttr(x, context):
   return BoolAttr.get(x, context=context)
 
 @register_attribute_builder("IndexAttr")
-def _indexAttr(x: int, context: Context):
+def _indexAttr(x, context):
   return IntegerAttr.get(IndexType.get(context=context), x)
 
 @register_attribute_builder("I32Attr")
-def _i32Attr(x: int, context: Context):
+def _i32Attr(x, context):
   return IntegerAttr.get(
       IntegerType.get_signless(32, context=context), x)
 
 @register_attribute_builder("I64Attr")
-def _i64Attr(x: int, context: Context):
+def _i64Attr(x, context):
   return IntegerAttr.get(
       IntegerType.get_signless(64, context=context), x)
 
 @register_attribute_builder("SymbolNameAttr")
-def _symbolNameAttr(x: str, context: Context):
+def _symbolNameAttr(x, context):
   return StringAttr.get(x, context=context)
 
 try:
   import numpy as np
   @register_attribute_builder("IndexElementsAttr")
-  def _indexElementsAttr(x: list[int], context: Context):
+  def _indexElementsAttr(x, context):
     return DenseElementsAttr.get(
         np.array(x, dtype=np.int64), type=IndexType.get(context=context),
         context=context)

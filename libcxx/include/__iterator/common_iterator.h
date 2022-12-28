@@ -25,6 +25,8 @@
 #include <__iterator/iter_swap.h>
 #include <__iterator/iterator_traits.h>
 #include <__iterator/readable_traits.h>
+#include <__type_traits/is_pointer.h>
+#include <__utility/declval.h>
 #include <variant>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -101,14 +103,14 @@ public:
 
   constexpr decltype(auto) operator*()
   {
-    _LIBCPP_ASSERT(holds_alternative<_Iter>(__hold_), "Attempted to dereference a non-dereferenceable common_iterator");
+    _LIBCPP_ASSERT(std::holds_alternative<_Iter>(__hold_), "Attempted to dereference a non-dereferenceable common_iterator");
     return *_VSTD::__unchecked_get<_Iter>(__hold_);
   }
 
   constexpr decltype(auto) operator*() const
     requires __dereferenceable<const _Iter>
   {
-    _LIBCPP_ASSERT(holds_alternative<_Iter>(__hold_), "Attempted to dereference a non-dereferenceable common_iterator");
+    _LIBCPP_ASSERT(std::holds_alternative<_Iter>(__hold_), "Attempted to dereference a non-dereferenceable common_iterator");
     return *_VSTD::__unchecked_get<_Iter>(__hold_);
   }
 
@@ -119,7 +121,7 @@ public:
      is_reference_v<iter_reference_t<_I2>> ||
      constructible_from<iter_value_t<_I2>, iter_reference_t<_I2>>)
   {
-    _LIBCPP_ASSERT(holds_alternative<_Iter>(__hold_), "Attempted to dereference a non-dereferenceable common_iterator");
+    _LIBCPP_ASSERT(std::holds_alternative<_Iter>(__hold_), "Attempted to dereference a non-dereferenceable common_iterator");
     if constexpr (is_pointer_v<_Iter> || requires(const _Iter& __i) { __i.operator->(); })    {
       return _VSTD::__unchecked_get<_Iter>(__hold_);
     } else if constexpr (is_reference_v<iter_reference_t<_Iter>>) {
@@ -131,12 +133,12 @@ public:
   }
 
   common_iterator& operator++() {
-    _LIBCPP_ASSERT(holds_alternative<_Iter>(__hold_), "Attempted to increment a non-dereferenceable common_iterator");
+    _LIBCPP_ASSERT(std::holds_alternative<_Iter>(__hold_), "Attempted to increment a non-dereferenceable common_iterator");
     ++_VSTD::__unchecked_get<_Iter>(__hold_); return *this;
   }
 
   decltype(auto) operator++(int) {
-    _LIBCPP_ASSERT(holds_alternative<_Iter>(__hold_), "Attempted to increment a non-dereferenceable common_iterator");
+    _LIBCPP_ASSERT(std::holds_alternative<_Iter>(__hold_), "Attempted to increment a non-dereferenceable common_iterator");
     if constexpr (forward_iterator<_Iter>) {
       auto __tmp = *this;
       ++*this;
@@ -218,7 +220,7 @@ public:
     noexcept(noexcept(ranges::iter_move(declval<const _Iter&>())))
       requires input_iterator<_Iter>
   {
-    _LIBCPP_ASSERT(holds_alternative<_Iter>(__i.__hold_), "Attempted to iter_move a non-dereferenceable common_iterator");
+    _LIBCPP_ASSERT(std::holds_alternative<_Iter>(__i.__hold_), "Attempted to iter_move a non-dereferenceable common_iterator");
     return ranges::iter_move( _VSTD::__unchecked_get<_Iter>(__i.__hold_));
   }
 
@@ -226,8 +228,8 @@ public:
   _LIBCPP_HIDE_FROM_ABI friend constexpr void iter_swap(const common_iterator& __x, const common_iterator<_I2, _S2>& __y)
       noexcept(noexcept(ranges::iter_swap(declval<const _Iter&>(), declval<const _I2&>())))
   {
-    _LIBCPP_ASSERT(holds_alternative<_Iter>(__x.__hold_), "Attempted to iter_swap a non-dereferenceable common_iterator");
-    _LIBCPP_ASSERT(holds_alternative<_I2>(__y.__hold_), "Attempted to iter_swap a non-dereferenceable common_iterator");
+    _LIBCPP_ASSERT(std::holds_alternative<_Iter>(__x.__hold_), "Attempted to iter_swap a non-dereferenceable common_iterator");
+    _LIBCPP_ASSERT(std::holds_alternative<_I2>(__y.__hold_), "Attempted to iter_swap a non-dereferenceable common_iterator");
     return ranges::iter_swap(_VSTD::__unchecked_get<_Iter>(__x.__hold_), _VSTD::__unchecked_get<_I2>(__y.__hold_));
   }
 };
