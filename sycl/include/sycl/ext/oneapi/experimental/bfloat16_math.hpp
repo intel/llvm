@@ -188,12 +188,7 @@ std::enable_if_t<std::is_same<T, bfloat16>::value, T> fma(T x, T y, T z) {
   oneapi::detail::Bfloat16StorageT ZBits = oneapi::detail::bfloat16ToBits(z);
   return oneapi::detail::bitsToBfloat16(__clc_fma(XBits, YBits, ZBits));
 #else
-  std::ignore = x;
-  std::ignore = y;
-  std::ignore = z;
-  throw runtime_error(
-      "bfloat16 math functions are not currently supported on the host device.",
-      PI_ERROR_INVALID_DEVICE);
+  return sycl::ext::oneapi::bfloat16{sycl::fma(float{x}, float{y}, float{z})};
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
@@ -201,9 +196,8 @@ template <size_t N>
 sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
                               sycl::marray<bfloat16, N> y,
                               sycl::marray<bfloat16, N> z) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   sycl::marray<bfloat16, N> res;
-
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   for (size_t i = 0; i < N / 2; i++) {
     auto partial_res =
         __clc_fma(detail::to_uint32_t(x, i * 2), detail::to_uint32_t(y, i * 2),
@@ -220,15 +214,12 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
         oneapi::detail::bfloat16ToBits(z[N - 1]);
     res[N - 1] = oneapi::detail::bitsToBfloat16(__clc_fma(XBits, YBits, ZBits));
   }
-  return res;
 #else
-  std::ignore = x;
-  std::ignore = y;
-  std::ignore = z;
-  throw runtime_error(
-      "bfloat16 math functions are not currently supported on the host device.",
-      PI_ERROR_INVALID_DEVICE);
+  for (size_t i = 0; i < N; i++) {
+    res[i] = fma(x[i], y[i], z[i]);
+  }
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  return res;
 }
 
 } // namespace ext::oneapi::experimental
