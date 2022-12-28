@@ -1019,7 +1019,7 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   setJumpIsExpensive();
 
   setTargetDAGCombine({ISD::INTRINSIC_WO_CHAIN, ISD::ADD, ISD::SUB, ISD::AND,
-                       ISD::OR, ISD::XOR, ISD::SETCC});
+                       ISD::OR, ISD::XOR, ISD::SETCC, ISD::SELECT});
   if (Subtarget.is64Bit())
     setTargetDAGCombine(ISD::SRA);
 
@@ -3075,6 +3075,28 @@ static SDValue lowerVECTOR_SHUFFLEAsVNSRL(const SDLoc &DL, MVT VT,
   return convertFromScalableVector(VT, Res, DAG, Subtarget);
 }
 
+static SDValue getVSlidedown(SelectionDAG &DAG, const RISCVSubtarget &Subtarget,
+                             SDLoc DL, EVT VT, SDValue Merge, SDValue Op,
+                             SDValue Offset, SDValue Mask, SDValue VL,
+                             unsigned Policy = /* TUMU */ 0) {
+  if (Merge.isUndef())
+    Policy = RISCVII::TAIL_AGNOSTIC | RISCVII::MASK_AGNOSTIC;
+  SDValue PolicyOp = DAG.getTargetConstant(Policy, DL, Subtarget.getXLenVT());
+  SDValue Ops[] = {Merge, Op, Offset, Mask, VL, PolicyOp};
+  return DAG.getNode(RISCVISD::VSLIDEDOWN_VL, DL, VT, Ops);
+}
+
+static SDValue getVSlideup(SelectionDAG &DAG, const RISCVSubtarget &Subtarget,
+                           SDLoc DL, EVT VT, SDValue Merge, SDValue Op,
+                           SDValue Offset, SDValue Mask, SDValue VL,
+                           unsigned Policy = /* TUMU */ 0) {
+  if (Merge.isUndef())
+    Policy = RISCVII::TAIL_AGNOSTIC | RISCVII::MASK_AGNOSTIC;
+  SDValue PolicyOp = DAG.getTargetConstant(Policy, DL, Subtarget.getXLenVT());
+  SDValue Ops[] = {Merge, Op, Offset, Mask, VL, PolicyOp};
+  return DAG.getNode(RISCVISD::VSLIDEUP_VL, DL, VT, Ops);
+}
+
 // Lower the following shuffle to vslidedown.
 // a)
 // t49: v8i8 = extract_subvector t13, Constant:i64<0>
@@ -3142,10 +3164,10 @@ static SDValue lowerVECTOR_SHUFFLEAsVSlidedown(const SDLoc &DL, MVT VT,
   MVT SrcVT = Src.getSimpleValueType();
   MVT ContainerVT = getContainerForFixedLengthVector(DAG, SrcVT, Subtarget);
   auto [TrueMask, VL] = getDefaultVLOps(SrcVT, ContainerVT, DL, DAG, Subtarget);
-  SDValue Slidedown = DAG.getNode(
-      RISCVISD::VSLIDEDOWN_VL, DL, ContainerVT, DAG.getUNDEF(ContainerVT),
-      convertToScalableVector(ContainerVT, Src, DAG, Subtarget),
-      DAG.getConstant(NewMask[0], DL, XLenVT), TrueMask, VL);
+  SDValue Slidedown =
+      getVSlidedown(DAG, Subtarget, DL, ContainerVT, DAG.getUNDEF(ContainerVT),
+                    convertToScalableVector(ContainerVT, Src, DAG, Subtarget),
+                    DAG.getConstant(NewMask[0], DL, XLenVT), TrueMask, VL);
   return DAG.getNode(
       ISD::EXTRACT_SUBVECTOR, DL, VT,
       convertFromScalableVector(SrcVT, Slidedown, DAG, Subtarget),
@@ -3275,12 +3297,12 @@ static SDValue lowerVECTOR_SHUFFLE(SDValue Op, SelectionDAG &DAG,
       SDValue DownVL = VL;
       if (LoV)
         DownVL = DAG.getConstant(InvRotate, DL, XLenVT);
-      Res =
-          DAG.getNode(RISCVISD::VSLIDEDOWN_VL, DL, ContainerVT, Res, HiV,
-                      DAG.getConstant(Rotation, DL, XLenVT), TrueMask, DownVL);
+      Res = getVSlidedown(DAG, Subtarget, DL, ContainerVT, Res, HiV,
+                          DAG.getConstant(Rotation, DL, XLenVT), TrueMask,
+                          DownVL);
     }
     if (LoV)
-      Res = DAG.getNode(RISCVISD::VSLIDEUP_VL, DL, ContainerVT, Res, LoV,
+      Res = getVSlideup(DAG, Subtarget, DL, ContainerVT, Res, LoV,
                         DAG.getConstant(InvRotate, DL, XLenVT), TrueMask, VL);
 
     return convertFromScalableVector(VT, Res, DAG, Subtarget);
@@ -5225,8 +5247,8 @@ SDValue RISCVTargetLowering::lowerINSERT_VECTOR_ELT(SDValue Op,
   // Now that the value is in a vector, slide it into position.
   SDValue InsertVL =
       DAG.getNode(ISD::ADD, DL, XLenVT, Idx, DAG.getConstant(1, DL, XLenVT));
-  SDValue Slideup = DAG.getNode(RISCVISD::VSLIDEUP_VL, DL, ContainerVT, Vec,
-                                ValInVec, Idx, Mask, InsertVL);
+  SDValue Slideup = getVSlideup(DAG, Subtarget, DL, ContainerVT, Vec, ValInVec,
+                                Idx, Mask, InsertVL);
   if (!VecVT.isFixedLengthVector())
     return Slideup;
   return convertFromScalableVector(VecVT, Slideup, DAG, Subtarget);
@@ -5303,8 +5325,8 @@ SDValue RISCVTargetLowering::lowerEXTRACT_VECTOR_ELT(SDValue Op,
   if (!isNullConstant(Idx)) {
     // Use a VL of 1 to avoid processing more elements than we need.
     auto [Mask, VL] = getDefaultVLOps(1, ContainerVT, DL, DAG, Subtarget);
-    Vec = DAG.getNode(RISCVISD::VSLIDEDOWN_VL, DL, ContainerVT,
-                      DAG.getUNDEF(ContainerVT), Vec, Idx, Mask, VL);
+    Vec = getVSlidedown(DAG, Subtarget, DL, ContainerVT,
+                        DAG.getUNDEF(ContainerVT), Vec, Idx, Mask, VL);
   }
 
   if (!EltVT.isInteger()) {
@@ -6133,8 +6155,8 @@ SDValue RISCVTargetLowering::lowerINSERT_SUBVECTOR(SDValue Op,
     SDValue VL =
         getVLOp(OrigIdx + SubVecVT.getVectorNumElements(), DL, DAG, Subtarget);
     SDValue SlideupAmt = DAG.getConstant(OrigIdx, DL, XLenVT);
-    SDValue Slideup = DAG.getNode(RISCVISD::VSLIDEUP_VL, DL, ContainerVT, Vec,
-                                  SubVec, SlideupAmt, Mask, VL);
+    SDValue Slideup = getVSlideup(DAG, Subtarget, DL, ContainerVT, Vec, SubVec,
+                                  SlideupAmt, Mask, VL);
     if (VecVT.isFixedLengthVector())
       Slideup = convertFromScalableVector(VecVT, Slideup, DAG, Subtarget);
     return DAG.getBitcast(Op.getValueType(), Slideup);
@@ -6196,8 +6218,8 @@ SDValue RISCVTargetLowering::lowerINSERT_SUBVECTOR(SDValue Op,
                        DAG.getUNDEF(InterSubVT), SubVec,
                        DAG.getConstant(0, DL, XLenVT));
 
-  SDValue Slideup = DAG.getNode(RISCVISD::VSLIDEUP_VL, DL, InterSubVT,
-                                AlignedExtract, SubVec, SlideupAmt, Mask, VL);
+  SDValue Slideup = getVSlideup(DAG, Subtarget, DL, InterSubVT, AlignedExtract,
+                                SubVec, SlideupAmt, Mask, VL);
 
   // If required, insert this subvector back into the correct vector register.
   // This should resolve to an INSERT_SUBREG instruction.
@@ -6280,8 +6302,8 @@ SDValue RISCVTargetLowering::lowerEXTRACT_SUBVECTOR(SDValue Op,
     SDValue VL = getVLOp(SubVecVT.getVectorNumElements(), DL, DAG, Subtarget);
     SDValue SlidedownAmt = DAG.getConstant(OrigIdx, DL, XLenVT);
     SDValue Slidedown =
-        DAG.getNode(RISCVISD::VSLIDEDOWN_VL, DL, ContainerVT,
-                    DAG.getUNDEF(ContainerVT), Vec, SlidedownAmt, Mask, VL);
+        getVSlidedown(DAG, Subtarget, DL, ContainerVT,
+                      DAG.getUNDEF(ContainerVT), Vec, SlidedownAmt, Mask, VL);
     // Now we can use a cast-like subvector extract to get the result.
     Slidedown = DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, SubVecVT, Slidedown,
                             DAG.getConstant(0, DL, XLenVT));
@@ -6320,8 +6342,8 @@ SDValue RISCVTargetLowering::lowerEXTRACT_SUBVECTOR(SDValue Op,
 
   auto [Mask, VL] = getDefaultScalableVLOps(InterSubVT, DL, DAG, Subtarget);
   SDValue Slidedown =
-      DAG.getNode(RISCVISD::VSLIDEDOWN_VL, DL, InterSubVT,
-                  DAG.getUNDEF(InterSubVT), Vec, SlidedownAmt, Mask, VL);
+      getVSlidedown(DAG, Subtarget, DL, InterSubVT, DAG.getUNDEF(InterSubVT),
+                    Vec, SlidedownAmt, Mask, VL);
 
   // Now the vector is in the right position, extract our final subvector. This
   // should resolve to a COPY.
@@ -6470,9 +6492,9 @@ SDValue RISCVTargetLowering::lowerVECTOR_SPLICE(SDValue Op,
   SDValue TrueMask = getAllOnesMask(VecVT, VLMax, DL, DAG);
 
   SDValue SlideDown =
-      DAG.getNode(RISCVISD::VSLIDEDOWN_VL, DL, VecVT, DAG.getUNDEF(VecVT), V1,
-                  DownOffset, TrueMask, UpOffset);
-  return DAG.getNode(RISCVISD::VSLIDEUP_VL, DL, VecVT, SlideDown, V2, UpOffset,
+      getVSlidedown(DAG, Subtarget, DL, VecVT, DAG.getUNDEF(VecVT), V1,
+                    DownOffset, TrueMask, UpOffset);
+  return getVSlideup(DAG, Subtarget, DL, VecVT, SlideDown, V2, UpOffset,
                      TrueMask, DAG.getRegister(RISCV::X0, XLenVT));
 }
 
@@ -7934,8 +7956,8 @@ void RISCVTargetLowering::ReplaceNodeResults(SDNode *N,
     // Unless the index is known to be 0, we must slide the vector down to get
     // the desired element into index 0.
     if (!isNullConstant(Idx)) {
-      Vec = DAG.getNode(RISCVISD::VSLIDEDOWN_VL, DL, ContainerVT,
-                        DAG.getUNDEF(ContainerVT), Vec, Idx, Mask, VL);
+      Vec = getVSlidedown(DAG, Subtarget, DL, ContainerVT,
+                          DAG.getUNDEF(ContainerVT), Vec, Idx, Mask, VL);
     }
 
     // Extract the lower XLEN bits of the correct vector element.
@@ -9528,6 +9550,19 @@ static SDValue tryDemorganOfBooleanCondition(SDValue Cond, SelectionDAG &DAG) {
 static bool combine_CC(SDValue &LHS, SDValue &RHS, SDValue &CC, const SDLoc &DL,
                        SelectionDAG &DAG, const RISCVSubtarget &Subtarget) {
   ISD::CondCode CCVal = cast<CondCodeSDNode>(CC)->get();
+
+  // As far as arithmetic right shift always saves the sign,
+  // shift can be omitted.
+  // Fold setlt (sra X, N), 0 -> setlt X, 0 and
+  // setge (sra X, N), 0 -> setge X, 0
+  if (auto *RHSConst = dyn_cast<ConstantSDNode>(RHS.getNode())) {
+    if ((CCVal == ISD::SETGE || CCVal == ISD::SETLT) &&
+        LHS.getOpcode() == ISD::SRA && RHSConst->isZero()) {
+      LHS = LHS.getOperand(0);
+      return true;
+    }
+  }
+
   if (!ISD::isIntEqualitySetCC(CCVal))
     return false;
 
@@ -9600,6 +9635,65 @@ static bool combine_CC(SDValue &LHS, SDValue &RHS, SDValue &CC, const SDLoc &DL,
   }
 
   return false;
+}
+
+// Fold
+// (select C, (add Y, X), Y) -> (add Y, (select C, X, 0)).
+// (select C, (sub Y, X), Y) -> (sub Y, (select C, X, 0)).
+// (select C, (or Y, X), Y)  -> (or Y, (select C, X, 0)).
+// (select C, (xor Y, X), Y) -> (xor Y, (select C, X, 0)).
+static SDValue tryFoldSelectIntoOp(SDNode *N, SelectionDAG &DAG,
+                                   SDValue TrueVal, SDValue FalseVal,
+                                   bool Swapped) {
+  bool Commutative = true;
+  switch (TrueVal.getOpcode()) {
+  default:
+    return SDValue();
+  case ISD::SUB:
+    Commutative = false;
+    break;
+  case ISD::ADD:
+  case ISD::OR:
+  case ISD::XOR:
+    break;
+  }
+
+  if (!TrueVal.hasOneUse() || isa<ConstantSDNode>(FalseVal))
+    return SDValue();
+
+  unsigned OpToFold;
+  if (FalseVal == TrueVal.getOperand(0))
+    OpToFold = 0;
+  else if (Commutative && FalseVal == TrueVal.getOperand(1))
+    OpToFold = 1;
+  else
+    return SDValue();
+
+  EVT VT = N->getValueType(0);
+  SDLoc DL(N);
+  SDValue Zero = DAG.getConstant(0, DL, VT);
+  SDValue OtherOp = TrueVal.getOperand(1 - OpToFold);
+
+  if (Swapped)
+    std::swap(OtherOp, Zero);
+  SDValue NewSel = DAG.getSelect(DL, VT, N->getOperand(0), OtherOp, Zero);
+  return DAG.getNode(TrueVal.getOpcode(), DL, VT, FalseVal, NewSel);
+}
+
+static SDValue performSELECTCombine(SDNode *N, SelectionDAG &DAG,
+                                    const RISCVSubtarget &Subtarget) {
+  if (Subtarget.hasShortForwardBranchOpt())
+    return SDValue();
+
+  // Only support XLenVT.
+  if (N->getValueType(0) != Subtarget.getXLenVT())
+    return SDValue();
+
+  SDValue TrueVal = N->getOperand(1);
+  SDValue FalseVal = N->getOperand(2);
+  if (SDValue V = tryFoldSelectIntoOp(N, DAG, TrueVal, FalseVal, /*Swapped*/false))
+    return V;
+  return tryFoldSelectIntoOp(N, DAG, FalseVal, TrueVal, /*Swapped*/true);
 }
 
 SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
@@ -9771,6 +9865,8 @@ SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
     return SDValue();
   case ISD::TRUNCATE:
     return performTRUNCATECombine(N, DAG, Subtarget);
+  case ISD::SELECT:
+    return performSELECTCombine(N, DAG, Subtarget);
   case RISCVISD::SELECT_CC: {
     // Transform
     SDValue LHS = N->getOperand(0);
@@ -9785,62 +9881,6 @@ SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
     // If the True and False values are the same, we don't need a select_cc.
     if (TrueV == FalseV)
       return TrueV;
-
-    // (select (x in [0,1] == 0), y, (z ^ y) ) -> (-x & z ) ^ y
-    // (select (x in [0,1] != 0), (z ^ y), y ) -> (-x & z ) ^ y
-    // (select (x in [0,1] == 0), y, (z | y) ) -> (-x & z ) | y
-    // (select (x in [0,1] != 0), (z | y), y ) -> (-x & z ) | y
-    // NOTE: We only do this if the target does not have the short forward
-    // branch optimization.
-    APInt Mask = APInt::getBitsSetFrom(LHS.getValueSizeInBits(), 1);
-    if (!Subtarget.hasShortForwardBranchOpt() && isNullConstant(RHS) &&
-        ISD::isIntEqualitySetCC(CCVal) && DAG.MaskedValueIsZero(LHS, Mask)) {
-      unsigned Opcode;
-      SDValue Src1, Src2;
-      // true if FalseV is XOR or OR operator and one of its operands
-      // is equal to Op1
-      // ( a , a op b) || ( b , a op b)
-      auto isOrXorPattern = [&]() {
-        if (CCVal == ISD::SETEQ &&
-            (FalseV.getOpcode() == ISD::XOR || FalseV.getOpcode() == ISD::OR) &&
-            (FalseV.getOperand(0) == TrueV || FalseV.getOperand(1) == TrueV)) {
-          Src1 = FalseV.getOperand(0) == TrueV ?
-            FalseV.getOperand(1) : FalseV.getOperand(0);
-          Src2 = TrueV;
-          Opcode = FalseV.getOpcode();
-          return true;
-        }
-        if (CCVal == ISD::SETNE &&
-            (TrueV.getOpcode() == ISD::XOR || TrueV.getOpcode() == ISD::OR) &&
-            (TrueV.getOperand(0) == FalseV || TrueV.getOperand(1) == FalseV)) {
-          Src1 = TrueV.getOperand(0) == FalseV ?
-            TrueV.getOperand(1) : TrueV.getOperand(0);
-          Src2 = FalseV;
-          Opcode = TrueV.getOpcode();
-          return true;
-        }
-
-        return false;
-      };
-
-      if (isOrXorPattern()) {
-        SDValue Neg;
-        unsigned CmpSz = LHS.getSimpleValueType().getSizeInBits();
-        // We need mask of all zeros or ones with same size of the other
-        // operands.
-        if (CmpSz > VT.getSizeInBits())
-          Neg = DAG.getNode(ISD::TRUNCATE, DL, VT, LHS);
-        else if (CmpSz < VT.getSizeInBits())
-          Neg = DAG.getNode(ISD::AND, DL, VT,
-                            DAG.getNode(ISD::ANY_EXTEND, DL, VT, LHS),
-                            DAG.getConstant(1, DL, VT));
-        else
-          Neg = LHS;
-        SDValue Mask = DAG.getNegative(Neg, DL, VT);               // -x
-        SDValue And = DAG.getNode(ISD::AND, DL, VT, Mask, Src1); // Mask & z
-        return DAG.getNode(Opcode, DL, VT, And, Src2);           // And Op y
-      }
-    }
 
     // (select (x < 0), y, z)  -> x >> (XLEN - 1) & (y - z) + z
     // (select (x >= 0), y, z) -> x >> (XLEN - 1) & (z - y) + y
@@ -10471,6 +10511,14 @@ unsigned RISCVTargetLowering::ComputeNumSignBitsForTargetNode(
         DAG.ComputeNumSignBits(Op.getOperand(4), DemandedElts, Depth + 1);
     return std::min(Tmp, Tmp2);
   }
+  case RISCVISD::ABSW: {
+    // We expand this at isel to negw+max. The result will have 33 sign bits
+    // if the input has at least 33 sign bits.
+    unsigned Tmp =
+        DAG.ComputeNumSignBits(Op.getOperand(0), DemandedElts, Depth + 1);
+    if (Tmp < 33) return 1;
+    return 33;
+  }
   case RISCVISD::SLLW:
   case RISCVISD::SRAW:
   case RISCVISD::SRLW:
@@ -10479,7 +10527,6 @@ unsigned RISCVTargetLowering::ComputeNumSignBitsForTargetNode(
   case RISCVISD::REMUW:
   case RISCVISD::ROLW:
   case RISCVISD::RORW:
-  case RISCVISD::ABSW:
   case RISCVISD::FCVT_W_RV64:
   case RISCVISD::FCVT_WU_RV64:
   case RISCVISD::STRICT_FCVT_W_RV64:

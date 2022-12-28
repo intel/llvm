@@ -25,6 +25,7 @@
 #include "GCNSchedStrategy.h"
 #include "GCNVOPDUtils.h"
 #include "R600.h"
+#include "R600MachineFunctionInfo.h"
 #include "R600TargetMachine.h"
 #include "SIMachineFunctionInfo.h"
 #include "SIMachineScheduler.h"
@@ -1110,6 +1111,13 @@ AMDGPUPassConfig::createMachineScheduler(MachineSchedContext *C) const {
   return DAG;
 }
 
+MachineFunctionInfo *R600TargetMachine::createMachineFunctionInfo(
+    BumpPtrAllocator &Allocator, const Function &F,
+    const TargetSubtargetInfo *STI) const {
+  return R600MachineFunctionInfo::create<R600MachineFunctionInfo>(
+      Allocator, F, static_cast<const R600Subtarget *>(STI));
+}
+
 //===----------------------------------------------------------------------===//
 // GCN Pass Setup
 //===----------------------------------------------------------------------===//
@@ -1426,6 +1434,13 @@ TargetPassConfig *GCNTargetMachine::createPassConfig(PassManagerBase &PM) {
   return new GCNPassConfig(*this, PM);
 }
 
+MachineFunctionInfo *GCNTargetMachine::createMachineFunctionInfo(
+    BumpPtrAllocator &Allocator, const Function &F,
+    const TargetSubtargetInfo *STI) const {
+  return SIMachineFunctionInfo::create<SIMachineFunctionInfo>(
+      Allocator, F, static_cast<const GCNSubtarget *>(STI));
+}
+
 yaml::MachineFunctionInfo *GCNTargetMachine::createDefaultFuncInfoYAML() const {
   return new yaml::SIMachineFunctionInfo();
 }
@@ -1434,7 +1449,7 @@ yaml::MachineFunctionInfo *
 GCNTargetMachine::convertFuncInfoToYAML(const MachineFunction &MF) const {
   const SIMachineFunctionInfo *MFI = MF.getInfo<SIMachineFunctionInfo>();
   return new yaml::SIMachineFunctionInfo(
-      *MFI, *MF.getSubtarget().getRegisterInfo(), MF);
+      *MFI, *MF.getSubtarget<GCNSubtarget>().getRegisterInfo(), MF);
 }
 
 bool GCNTargetMachine::parseMachineFunctionInfo(
@@ -1471,9 +1486,6 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
   };
 
   if (parseOptionalRegister(YamlMFI.VGPRForAGPRCopy, MFI->VGPRForAGPRCopy))
-    return true;
-
-  if (parseOptionalRegister(YamlMFI.SGPRForEXECCopy, MFI->SGPRForEXECCopy))
     return true;
 
   auto diagnoseRegisterClass = [&](const yaml::StringValue &RegName) {
