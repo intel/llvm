@@ -10,6 +10,9 @@
 
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 
+#include "llvm/GenXIntrinsics/GenXIntrinsics.h"
+#include "llvm/GenXIntrinsics/GenXMetadata.h"
+
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Instructions.h"
@@ -29,89 +32,6 @@ bool isKernel(const Function &F) {
 
 bool isESIMDKernel(const Function &F) { return isKernel(F) && isESIMD(F); }
 
-bool isCast(const Value *V) {
-  int Opc = Operator::getOpcode(V);
-  return (Opc == Instruction::BitCast) || (Opc == Instruction::AddrSpaceCast);
-}
-
-bool isZeroGEP(const Value *V) {
-  const auto *GEPI = dyn_cast<GetElementPtrInst>(V);
-  return GEPI && GEPI->hasAllZeroIndices();
-}
-
-const Value *stripCasts(const Value *V) {
-  if (!V->getType()->isPtrOrPtrVectorTy())
-    return V;
-  // Even though we don't look through PHI nodes, we could be called on an
-  // instruction in an unreachable block, which may be on a cycle.
-  SmallPtrSet<const Value *, 4> Visited;
-  Visited.insert(V);
-
-  do {
-    if (isCast(V)) {
-      V = cast<Operator>(V)->getOperand(0);
-    }
-    assert(V->getType()->isPtrOrPtrVectorTy() && "Unexpected operand type!");
-  } while (Visited.insert(V).second);
-  return V;
-}
-
-Value *stripCasts(Value *V) {
-  return const_cast<Value *>(stripCasts(const_cast<const Value *>(V)));
-}
-
-const Value *stripCastsAndZeroGEPs(const Value *V) {
-  if (!V->getType()->isPtrOrPtrVectorTy())
-    return V;
-  // Even though we don't look through PHI nodes, we could be called on an
-  // instruction in an unreachable block, which may be on a cycle.
-  SmallPtrSet<const Value *, 4> Visited;
-  Visited.insert(V);
-
-  do {
-    if (isCast(V)) {
-      V = cast<Operator>(V)->getOperand(0);
-    } else if (isZeroGEP(V)) {
-      V = cast<GetElementPtrInst>(V)->getOperand(0);
-    }
-    assert(V->getType()->isPtrOrPtrVectorTy() && "Unexpected operand type!");
-  } while (Visited.insert(V).second);
-  return V;
-}
-
-Value *stripCastsAndZeroGEPs(Value *V) {
-  return const_cast<Value *>(
-      stripCastsAndZeroGEPs(const_cast<const Value *>(V)));
-}
-
-void collectUsesLookThroughCasts(const Value *V,
-                                 SmallPtrSetImpl<const Use *> &Uses) {
-  for (const Use &U : V->uses()) {
-    Value *VV = U.getUser();
-
-    if (isCast(VV)) {
-      collectUsesLookThroughCasts(VV, Uses);
-    } else {
-      Uses.insert(&U);
-    }
-  }
-}
-
-void collectUsesLookThroughCastsAndZeroGEPs(
-    const Value *V, SmallPtrSetImpl<const Use *> &Uses) {
-  assert(V->getType()->isPtrOrPtrVectorTy() && "pointer type expected");
-
-  for (const Use &U : V->uses()) {
-    Value *VV = U.getUser();
-
-    if (isCast(VV) || isZeroGEP(VV)) {
-      collectUsesLookThroughCastsAndZeroGEPs(VV, Uses);
-    } else {
-      Uses.insert(&U);
-    }
-  }
-}
-
 Type *getVectorTyOrNull(StructType *STy) {
   Type *Res = nullptr;
   while (STy && (STy->getStructNumElements() == 1)) {
@@ -121,6 +41,43 @@ Type *getVectorTyOrNull(StructType *STy) {
   if (!Res || !Res->isVectorTy())
     return nullptr;
   return Res;
+}
+
+UpdateUint64MetaDataToMaxValue::UpdateUint64MetaDataToMaxValue(
+    Module &M, genx::KernelMDOp Key, uint64_t NewVal)
+    : M(M), Key(Key), NewVal(NewVal) {
+  // Pre-select nodes for update to do less work in the '()' operator.
+  llvm::NamedMDNode *GenXKernelMD = M.getNamedMetadata(GENX_KERNEL_METADATA);
+  llvm::esimd::assert_and_diag(GenXKernelMD, "invalid genx.kernels metadata");
+  for (auto Node : GenXKernelMD->operands()) {
+    if (Node->getNumOperands() <= (unsigned)Key) {
+      continue;
+    }
+    llvm::Value *Old = getValue(Node->getOperand(Key));
+    uint64_t OldVal = cast<llvm::ConstantInt>(Old)->getZExtValue();
+
+    if (OldVal < NewVal) {
+      CandidatesToUpdate.push_back(Node);
+    }
+  }
+}
+
+void UpdateUint64MetaDataToMaxValue::operator()(Function *F) const {
+  // Update the meta data attribute for the current function.
+  for (auto Node : CandidatesToUpdate) {
+    assert(Node->getNumOperands() > (unsigned)Key);
+
+    if (getValue(Node->getOperand(genx::KernelMDOp::FunctionRef)) != F) {
+      continue;
+    }
+    llvm::Value *Old = getValue(Node->getOperand(Key));
+#ifndef NDEBUG
+    uint64_t OldVal = cast<llvm::ConstantInt>(Old)->getZExtValue();
+    assert(OldVal < NewVal);
+#endif // NDEBUG
+    llvm::Value *New = llvm::ConstantInt::get(Old->getType(), NewVal);
+    Node->replaceOperandWith(Key, getMetadata(New));
+  }
 }
 
 } // namespace esimd
