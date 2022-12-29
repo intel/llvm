@@ -7,7 +7,7 @@
 // RUN: clang++ -fsycl -fsycl-device-only -O0 -w -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o %t.bc
 
 // Test that the LLVMIR generated is verifiable.
-// RUN: opt -verify -disable-output < %t.bc
+// RUN: opt -passes=verify -disable-output < %t.bc
 
 // Verify that LLVMIR generated is translatable to SPIRV.
 // RUN: llvm-spirv %t.bc

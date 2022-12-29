@@ -37,7 +37,6 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TargetInfo.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator_range.h"
@@ -1378,7 +1377,11 @@ void CXXRecordDecl::addedSelectedDestructor(CXXDestructorDecl *DD) {
 }
 
 void CXXRecordDecl::addedEligibleSpecialMemberFunction(const CXXMethodDecl *MD,
-                                               unsigned SMKind) {
+                                                       unsigned SMKind) {
+  // FIXME: We shouldn't change DeclaredNonTrivialSpecialMembers if `MD` is
+  // a function template, but this needs CWG attention before we break ABI.
+  // See https://github.com/llvm/llvm-project/issues/59206
+
   if (const auto *DD = dyn_cast<CXXDestructorDecl>(MD)) {
     if (DD->isUserProvided())
       data().HasIrrelevantDestructor = false;
@@ -1458,6 +1461,15 @@ void CXXRecordDecl::finishedDefaultedOrDeletedMember(CXXMethodDecl *D) {
   }
 }
 
+void CXXRecordDecl::LambdaDefinitionData::AddCaptureList(ASTContext &Ctx,
+                                                         Capture *CaptureList) {
+  Captures.push_back(CaptureList);
+  if (Captures.size() == 2) {
+    // The TinyPtrVector member now needs destruction.
+    Ctx.addDestruction(&Captures);
+  }
+}
+
 void CXXRecordDecl::setCaptures(ASTContext &Context,
                                 ArrayRef<LambdaCapture> Captures) {
   CXXRecordDecl::LambdaDefinitionData &Data = getLambdaData();
@@ -1465,9 +1477,9 @@ void CXXRecordDecl::setCaptures(ASTContext &Context,
   // Copy captures.
   Data.NumCaptures = Captures.size();
   Data.NumExplicitCaptures = 0;
-  Data.Captures = (LambdaCapture *)Context.Allocate(sizeof(LambdaCapture) *
-                                                    Captures.size());
-  LambdaCapture *ToCapture = Data.Captures;
+  auto *ToCapture = (LambdaCapture *)Context.Allocate(sizeof(LambdaCapture) *
+                                                      Captures.size());
+  Data.AddCaptureList(Context, ToCapture);
   for (unsigned I = 0, N = Captures.size(); I != N; ++I) {
     if (Captures[I].isExplicit())
       ++Data.NumExplicitCaptures;
@@ -1591,15 +1603,17 @@ void CXXRecordDecl::getCaptureFields(
   ThisCapture = nullptr;
 
   LambdaDefinitionData &Lambda = getLambdaData();
-  RecordDecl::field_iterator Field = field_begin();
-  for (const LambdaCapture *C = Lambda.Captures, *CEnd = C + Lambda.NumCaptures;
-       C != CEnd; ++C, ++Field) {
-    if (C->capturesThis())
-      ThisCapture = *Field;
-    else if (C->capturesVariable())
-      Captures[C->getCapturedVar()] = *Field;
+  for (const LambdaCapture *List : Lambda.Captures) {
+    RecordDecl::field_iterator Field = field_begin();
+    for (const LambdaCapture *C = List, *CEnd = C + Lambda.NumCaptures;
+         C != CEnd; ++C, ++Field) {
+      if (C->capturesThis())
+        ThisCapture = *Field;
+      else if (C->capturesVariable())
+        Captures[C->getCapturedVar()] = *Field;
+    }
+    assert(Field == field_end());
   }
-  assert(Field == field_end());
 }
 
 TemplateParameterList *

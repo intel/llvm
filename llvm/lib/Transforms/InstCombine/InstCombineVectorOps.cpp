@@ -39,7 +39,6 @@
 #include <cassert>
 #include <cstdint>
 #include <iterator>
-#include <numeric>
 #include <utility>
 
 #define DEBUG_TYPE "instcombine"
@@ -1516,72 +1515,55 @@ static Instruction *narrowInsElt(InsertElementInst &InsElt,
   return CastInst::Create(CastOpcode, NewInsElt, InsElt.getType());
 }
 
-/// Try to convert scalar extraction ops (shift+trunc) with insertelt to
-/// bitcast and shuffle:
-/// inselt V, (lshr (trunc X)), IndexC --> shuffle (bitcast X), V, Mask
-static Instruction *foldTruncInsElt(InsertElementInst &InsElt, bool IsBigEndian,
-                                    InstCombiner::BuilderTy &Builder) {
-  // inselt undef, (trunc T), IndexC
-  // TODO: Allow any base vector value.
-  // TODO: The one-use limitation could be removed for some cases (eg, no
-  //       extra shuffle is needed and a shift is eliminated).
+/// If we are inserting 2 halves of a value into adjacent elements of a vector,
+/// try to convert to a single insert with appropriate bitcasts.
+static Instruction *foldTruncInsEltPair(InsertElementInst &InsElt,
+                                        bool IsBigEndian,
+                                        InstCombiner::BuilderTy &Builder) {
+  Value *VecOp    = InsElt.getOperand(0);
+  Value *ScalarOp = InsElt.getOperand(1);
+  Value *IndexOp  = InsElt.getOperand(2);
+
+  // inselt (inselt BaseVec, (trunc X), Index0), (trunc (lshr X, BW/2)), Index1
+  // TODO: The insertion order could be reversed.
+  // TODO: Detect smaller fractions of the scalar.
+  // TODO: One-use checks are conservative.
   auto *VTy = dyn_cast<FixedVectorType>(InsElt.getType());
-  Value *T, *V = InsElt.getOperand(0);
-  uint64_t IndexC;
-  if (!VTy || !match(InsElt.getOperand(1), m_OneUse(m_Trunc(m_Value(T)))) ||
-      !match(InsElt.getOperand(2), m_ConstantInt(IndexC)) ||
-      !match(V, m_Undef()))
+  Value *X, *BaseVec;
+  uint64_t ShAmt, Index0, Index1;
+  if (!VTy || (VTy->getNumElements() & 1) ||
+      !match(VecOp, m_OneUse(m_InsertElt(m_Value(BaseVec), m_Trunc(m_Value(X)),
+                                         m_ConstantInt(Index0)))) ||
+      !match(ScalarOp, m_OneUse(m_Trunc(m_LShr(m_Specific(X),
+                                               m_ConstantInt(ShAmt))))) ||
+      !match(IndexOp, m_ConstantInt(Index1)))
     return nullptr;
 
-  Type *SrcTy = T->getType();
+  Type *SrcTy = X->getType();
   unsigned ScalarWidth = SrcTy->getScalarSizeInBits();
   unsigned VecEltWidth = VTy->getScalarSizeInBits();
-  if (ScalarWidth % VecEltWidth != 0)
+  if (ScalarWidth != VecEltWidth * 2 || ShAmt != VecEltWidth)
     return nullptr;
 
-  unsigned NumEltsInScalar = ScalarWidth / VecEltWidth;
-  Value *X = T;
-  if (IndexC == (IsBigEndian ? NumEltsInScalar - 1 : 0)) {
-    // The insert is to the LSB end of the vector (depends on endian).
-    // That's all we need.
-  } else {
-    // If not, we must match a right-shift to translate the insert index.
-    uint64_t ShiftC;
-    if (!match(T, m_OneUse(m_LShr(m_Value(X), m_ConstantInt(ShiftC)))))
-      return nullptr;
+  // The low half must be inserted at element +1 for big-endian.
+  // The high half must be inserted at element +1 for little-endian
+  if (IsBigEndian ? Index0 != Index1 + 1 : Index0 + 1 != Index1)
+    return nullptr;
 
-    // Check the shift amount to see if this can be folded to an identity
-    // shuffle (assuming we are shuffling with an undef base vector).
-    // Big endian has MSB at vector index 0, so the insert index is flipped.
-    if (ShiftC != (IsBigEndian ? (NumEltsInScalar - 1 - IndexC) * VecEltWidth
-                               : IndexC * VecEltWidth))
-      return nullptr;
-  }
+  // The high half must be inserted at an even element for big-endian.
+  // The low half must be inserted at an even element for little-endian.
+  if (IsBigEndian ? Index1 & 1 : Index0 & 1)
+    return nullptr;
 
-  // Bitcast the scalar to a vector type with the destination element type.
-  Type *CastTy = FixedVectorType::get(VTy->getElementType(), NumEltsInScalar);
-  Value *VecX = Builder.CreateBitCast(X, CastTy, "vec." + X->getName());
+  // Bitcast the base vector to a vector type with the source element type.
+  Type *CastTy = FixedVectorType::get(SrcTy, VTy->getNumElements() / 2);
+  Value *CastBaseVec = Builder.CreateBitCast(BaseVec, CastTy);
 
-  unsigned NumElts = VTy->getNumElements();
-  if (NumElts > NumEltsInScalar) {
-    // Pad the source vector with undef elements, so it matches the dest type.
-    SmallVector<int> IdentityPaddedMask(NumElts, UndefMaskElem);
-    for (unsigned i = 0; i != NumEltsInScalar; ++i)
-      IdentityPaddedMask[i] = i;
-    VecX = Builder.CreateShuffleVector(VecX, IdentityPaddedMask);
-  } else if (NumElts < NumEltsInScalar) {
-    // Narrow the source vector, so it matches the dest type.
-    SmallVector<int> IdentityExtractMask(NumElts);
-    std::iota(IdentityExtractMask.begin(), IdentityExtractMask.end(), 0);
-    VecX = Builder.CreateShuffleVector(VecX, IdentityExtractMask);
-  }
-
-  // Insert the truncated element using a select-shuffle. All lanes but one are
-  // from the base vector V.
-  SmallVector<int> SelectMask(NumElts);
-  std::iota(SelectMask.begin(), SelectMask.end(), 0);
-  SelectMask[IndexC] = (int)IndexC + NumElts;
-  return new ShuffleVectorInst(V, VecX, SelectMask);
+  // Scale the insert index for a vector with half as many elements.
+  // bitcast (inselt (bitcast BaseVec), X, NewIndex)
+  uint64_t NewIndex = IsBigEndian ? Index1 / 2 : Index0 / 2;
+  Value *NewInsert = Builder.CreateInsertElement(CastBaseVec, X, NewIndex);
+  return new BitCastInst(NewInsert, VTy);
 }
 
 Instruction *InstCombinerImpl::visitInsertElementInst(InsertElementInst &IE) {
@@ -1711,8 +1693,8 @@ Instruction *InstCombinerImpl::visitInsertElementInst(InsertElementInst &IE) {
   if (Instruction *Ext = narrowInsElt(IE, Builder))
     return Ext;
 
-  if (Instruction *Shuf = foldTruncInsElt(IE, DL.isBigEndian(), Builder))
-    return Shuf;
+  if (Instruction *Ext = foldTruncInsEltPair(IE, DL.isBigEndian(), Builder))
+    return Ext;
 
   return nullptr;
 }

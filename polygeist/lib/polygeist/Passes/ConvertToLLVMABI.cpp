@@ -90,8 +90,7 @@ public:
 
     auto newFuncTy = FunctionType::get(
         op.getContext(), conversion.getConvertedTypes(), convertedResultTys);
-    op->setAttr(FunctionOpInterface::getTypeAttrName(),
-                TypeAttr::get(newFuncTy));
+    op->setAttr(op.getFunctionTypeAttrName(), TypeAttr::get(newFuncTy));
     LLVM_DEBUG(llvm::dbgs() << "  New FunctionType: " << newFuncTy << "\n");
 
     // Notify MLIR in place updates are done
