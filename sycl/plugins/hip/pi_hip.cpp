@@ -2935,9 +2935,10 @@ pi_result hip_piEnqueueKernelLaunch(
 
     if (local_mem_sz_ptr) {
       int device_max_local_mem = 0;
-      hipDeviceGetAttribute(&device_max_local_mem,
-                            hipDeviceAttributeMaxSharedMemoryPerBlock,
-                            command_queue->get_device()->get());
+      retError = PI_CHECK_ERROR(hipDeviceGetAttribute(
+          &device_max_local_mem,
+          hipDeviceAttributeMaxSharedMemoryPerBlock,
+          command_queue->get_device()->get());
 
       static const int env_val = std::atoi(local_mem_sz_ptr);
       if (env_val <= 0 || env_val > device_max_local_mem) {
@@ -2946,7 +2947,7 @@ pi_result hip_piEnqueueKernelLaunch(
                         PI_ERROR_PLUGIN_SPECIFIC_ERROR);
         return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
       }
-      PI_CHECK_ERROR(hipFuncSetAttribute(
+      retError = PI_CHECK_ERROR(hipFuncSetAttribute(
           hipFunc, hipFuncAttributeMaxDynamicSharedMemorySize, env_val));
     }
 
