@@ -2936,8 +2936,7 @@ pi_result hip_piEnqueueKernelLaunch(
     if (local_mem_sz_ptr) {
       int device_max_local_mem = 0;
       retError = PI_CHECK_ERROR(hipDeviceGetAttribute(
-          &device_max_local_mem,
-          hipDeviceAttributeMaxSharedMemoryPerBlock,
+          &device_max_local_mem, hipDeviceAttributeMaxSharedMemoryPerBlock,
           command_queue->get_device()->get()));
 
       static const int env_val = std::atoi(local_mem_sz_ptr);
