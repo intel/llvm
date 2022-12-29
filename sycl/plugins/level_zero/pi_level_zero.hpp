@@ -37,6 +37,7 @@
 #include <shared_mutex>
 #include <string>
 #include <sycl/detail/pi.h>
+#include <thread>
 #include <tuple>
 #include <unordered_map>
 #include <unordered_set>
@@ -276,7 +277,7 @@ struct _pi_device : _pi_object {
   bool ImmCommandListsPreferred;
 
   // Return whether to use immediate commandlists for this device.
-  bool useImmediateCommandLists();
+  int useImmediateCommandLists();
 
   bool isSubDevice() { return RootDevice != nullptr; }
 
@@ -607,19 +608,23 @@ struct _pi_queue : _pi_object {
     uint32_t NextIndex{0};
   };
 
-  pi_queue_group_t ComputeQueueGroup{this, queue_type::Compute};
+  // A map of compute groups containing compute queue handles, one per thread.
+  // When a queue is accessed from multiple host threads, a separate queue group
+  // is created for each thread. The key used for mapping is the thread ID.
+  std::unordered_map<std::thread::id, pi_queue_group_t> ComputeQueueGroupsByTID;
 
-  // Vector of Level Zero copy command command queue handles.
-  // In this vector, main copy engine, if available, come first followed by
-  // link copy engines, if available.
-  pi_queue_group_t CopyQueueGroup{this, queue_type::MainCopy};
+  // A group containing copy queue handles. The main copy engine, if available,
+  // comes first followed by link copy engines, if available.
+  // When a queue is accessed from multiple host threads, a separate queue group
+  // is created for each thread. The key used for mapping is the thread ID.
+  std::unordered_map<std::thread::id, pi_queue_group_t> CopyQueueGroupsByTID;
 
   // Wait for all commandlists associated with this Queue to finish operations.
   pi_result synchronize();
 
-  pi_queue_group_t &getQueueGroup(bool UseCopyEngine) {
-    return UseCopyEngine ? CopyQueueGroup : ComputeQueueGroup;
-  }
+  // Return the queue group to use based on standard/immediate commandlist mode,
+  // and if immediate mode, the thread-specific group.
+  pi_queue_group_t &getQueueGroup(bool UseCopyEngine);
 
   // This function considers multiple factors including copy engine
   // availability and user preference and returns a boolean that is used to
