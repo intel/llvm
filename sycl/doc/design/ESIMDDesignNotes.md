@@ -22,7 +22,7 @@ There are two distinct parts of ESIMD support in the SYCL device headers. The
 first one is ESIMD-related "tweaks" within the usual SYCL headers, and the
 second is the ESIMD APIs themselves.
 
-##### ESIMD tweaks in SYCL device headers
+#### ESIMD tweaks in SYCL device headers
 The most
 important one is device-side definition of the sycl::accessor class definition.
 It has different layout for SYCL and ESIMD (but the same size due to padding),
@@ -41,7 +41,7 @@ objects
 used to access internals of SYCL types such as
 `sycl::detail::half_impl::half`
 
-##### ESIMD API headers
+#### ESIMD API headers
 These headers define ESIMD APIs to be used by ESIMD user kernels. For example,
 the basic vector data type `sycl::ext::intel::esimd::simd`,
 `sycl::ext::intel::esimd::gather` memory APIs
@@ -96,7 +96,7 @@ Source locations:<br>
 ESIMD-specific code generator tweaks are mostly translations of internal FE 
 representation of variaous ESIMD attributes into LLVM IR attributes or metadata.
 
-###### Kernel signature generation
+##### Kernel signature generation
 For ESIMD kernes, a number of additional attributes are generated for the kernel
 function itself as well as certain argument.
 - Kernels are annotated with `sycl_explicit_simd` and
@@ -104,7 +104,7 @@ function itself as well as certain argument.
 a ESIMD kernel or function.
 - An argument which conveys accessor's pointer is assigned a `kernel_arg_accessor_ptr` attribute
 
-###### Global variable code generation.
+##### Global variable code generation.
 ESIMD supports "private globals" - global variables which have one copy per
 thread of execution (similar to C++ thread_local), normally allocated of Gen
 register file. To make a global variable a "private global", ` __attribute__((opencl_private)) __attribute__((sycl_explicit_simd))` attributes are
@@ -113,7 +113,7 @@ used. Globals of this can be forced to a specific register using the
 translates these to `genx_volatile` and `genx_byte_offset` LLVM IR
 attributes.
 
-###### Function attributes translations:
+##### Function attributes translations:
 - `sycl_esimd_vectorize` -> `CMGenxSIMT`
 
 
