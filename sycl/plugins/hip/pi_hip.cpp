@@ -2947,7 +2947,7 @@ pi_result hip_piEnqueueKernelLaunch(
         return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
       }
       PI_CHECK_ERROR(hipFuncSetAttribute(
-        hipFunc, hipFuncAttributeMaxDynamicSharedMemorySize, env_val));
+          hipFunc, hipFuncAttributeMaxDynamicSharedMemorySize, env_val));
     }
 
     retError = PI_CHECK_ERROR(hipModuleLaunchKernel(
