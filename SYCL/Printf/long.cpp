@@ -7,6 +7,7 @@
 // FIXME: Once the Windows OpenCL CPU/ACC support is fixed, merge this test's
 // contents into the common integer test.
 // UNSUPPORTED: (windows && (cpu || accelerator)) || hip_amd
+// XFAIL: cuda && windows
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER

@@ -2,6 +2,7 @@
 // for constant and generic address space can be used in the same module.
 //
 // UNSUPPORTED: hip_amd
+// XFAIL: cuda && windows
 //
 // FIXME: Drop the test once generic AS support is considered stable and the
 //        dedicated constant AS overload of printf is removed from the library.

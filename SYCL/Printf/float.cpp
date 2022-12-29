@@ -5,6 +5,7 @@
 // [1]: https://en.cppreference.com/w/cpp/io/c/fprintf
 //
 // UNSUPPORTED: hip_amd
+// XFAIL: cuda && windows
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
