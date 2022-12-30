@@ -70,14 +70,15 @@ int main() {
 
   // max (longlong2)
   {
-    s::longlong2 r{0};
+    using longlong2 = s::vec<long long, 2>;
+    longlong2 r{0};
     {
-      s::buffer<s::longlong2, 1> BufR(&r, s::range<1>(1));
+      s::buffer<longlong2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class maxSLL2SLL1>([=]() {
-          AccR[0] = s::max(s::longlong2{5, 3}, s::longlong{2});
+          AccR[0] = s::max(longlong2{5, 3}, s::longlong{2});
         });
       });
     }
@@ -108,14 +109,15 @@ int main() {
 
   // max (ulonglong2)
   {
-    s::ulonglong2 r{0};
+    using ulonglong2 = s::vec<unsigned long long, 2>;
+    ulonglong2 r{0};
     {
-      s::buffer<s::ulonglong2, 1> BufR(&r, s::range<1>(1));
+      s::buffer<ulonglong2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class maxULL2ULL1>([=]() {
-          AccR[0] = s::max(s::ulonglong2{5, 3}, s::ulonglong{2});
+          AccR[0] = s::max(ulonglong2{5, 3}, s::ulonglong{2});
         });
       });
     }
@@ -222,14 +224,16 @@ int main() {
 
   // abs (longlong)
   {
-    s::ulonglong2 r{0};
+    using ulonglong2 = s::vec<unsigned long long, 2>;
+    using longlong2 = s::vec<long long, 2>;
+    ulonglong2 r{0};
     {
-      s::buffer<s::ulonglong2, 1> BufR(&r, s::range<1>(1));
+      s::buffer<ulonglong2, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class absSL2>([=]() {
-          AccR[0] = s::abs(s::longlong2{-5, -2});
+          AccR[0] = s::abs(longlong2{-5, -2});
         });
       });
     }
