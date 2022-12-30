@@ -22,6 +22,7 @@
 #include "llvm/CodeGen/MIRYamlMapping.h"
 #include "llvm/CodeGen/PseudoSourceValue.h"
 #include "llvm/Support/raw_ostream.h"
+#include <optional>
 
 namespace llvm {
 
@@ -34,8 +35,7 @@ class TargetRegisterClass;
 class AMDGPUPseudoSourceValue : public PseudoSourceValue {
 public:
   enum AMDGPUPSVKind : unsigned {
-    PSVBuffer = PseudoSourceValue::TargetCustom,
-    PSVImage,
+    PSVImage = PseudoSourceValue::TargetCustom,
     GWSResource
   };
 
@@ -57,31 +57,6 @@ public:
   bool mayAlias(const MachineFrameInfo *) const override {
     return true;
   }
-};
-
-class AMDGPUBufferPseudoSourceValue final : public AMDGPUPseudoSourceValue {
-public:
-  explicit AMDGPUBufferPseudoSourceValue(const AMDGPUTargetMachine &TM)
-      : AMDGPUPseudoSourceValue(PSVBuffer, TM) {}
-
-  static bool classof(const PseudoSourceValue *V) {
-    return V->kind() == PSVBuffer;
-  }
-
-  void printCustom(raw_ostream &OS) const override { OS << "BufferResource"; }
-};
-
-class AMDGPUImagePseudoSourceValue final : public AMDGPUPseudoSourceValue {
-public:
-  // TODO: Is the img rsrc useful?
-  explicit AMDGPUImagePseudoSourceValue(const AMDGPUTargetMachine &TM)
-      : AMDGPUPseudoSourceValue(PSVImage, TM) {}
-
-  static bool classof(const PseudoSourceValue *V) {
-    return V->kind() == PSVImage;
-  }
-
-  void printCustom(raw_ostream &OS) const override { OS << "ImageResource"; }
 };
 
 class AMDGPUGWSResourcePseudoSourceValue final : public AMDGPUPseudoSourceValue {
@@ -116,7 +91,7 @@ struct SIArgument {
     StringValue RegisterName;
     unsigned StackOffset;
   };
-  Optional<unsigned> Mask;
+  std::optional<unsigned> Mask;
 
   // Default constructor, which creates a stack argument.
   SIArgument() : IsRegister(false), StackOffset(0) {}
@@ -179,27 +154,27 @@ template <> struct MappingTraits<SIArgument> {
 };
 
 struct SIArgumentInfo {
-  Optional<SIArgument> PrivateSegmentBuffer;
-  Optional<SIArgument> DispatchPtr;
-  Optional<SIArgument> QueuePtr;
-  Optional<SIArgument> KernargSegmentPtr;
-  Optional<SIArgument> DispatchID;
-  Optional<SIArgument> FlatScratchInit;
-  Optional<SIArgument> PrivateSegmentSize;
+  std::optional<SIArgument> PrivateSegmentBuffer;
+  std::optional<SIArgument> DispatchPtr;
+  std::optional<SIArgument> QueuePtr;
+  std::optional<SIArgument> KernargSegmentPtr;
+  std::optional<SIArgument> DispatchID;
+  std::optional<SIArgument> FlatScratchInit;
+  std::optional<SIArgument> PrivateSegmentSize;
 
-  Optional<SIArgument> WorkGroupIDX;
-  Optional<SIArgument> WorkGroupIDY;
-  Optional<SIArgument> WorkGroupIDZ;
-  Optional<SIArgument> WorkGroupInfo;
-  Optional<SIArgument> LDSKernelId;
-  Optional<SIArgument> PrivateSegmentWaveByteOffset;
+  std::optional<SIArgument> WorkGroupIDX;
+  std::optional<SIArgument> WorkGroupIDY;
+  std::optional<SIArgument> WorkGroupIDZ;
+  std::optional<SIArgument> WorkGroupInfo;
+  std::optional<SIArgument> LDSKernelId;
+  std::optional<SIArgument> PrivateSegmentWaveByteOffset;
 
-  Optional<SIArgument> ImplicitArgPtr;
-  Optional<SIArgument> ImplicitBufferPtr;
+  std::optional<SIArgument> ImplicitArgPtr;
+  std::optional<SIArgument> ImplicitBufferPtr;
 
-  Optional<SIArgument> WorkItemIDX;
-  Optional<SIArgument> WorkItemIDY;
-  Optional<SIArgument> WorkItemIDZ;
+  std::optional<SIArgument> WorkItemIDX;
+  std::optional<SIArgument> WorkItemIDY;
+  std::optional<SIArgument> WorkItemIDZ;
 };
 
 template <> struct MappingTraits<SIArgumentInfo> {
@@ -296,9 +271,9 @@ struct SIMachineFunctionInfo final : public yaml::MachineFunctionInfo {
   unsigned BytesInStackArgArea = 0;
   bool ReturnsVoid = true;
 
-  Optional<SIArgumentInfo> ArgInfo;
+  std::optional<SIArgumentInfo> ArgInfo;
   SIMode Mode;
-  Optional<FrameIndex> ScavengeFI;
+  std::optional<FrameIndex> ScavengeFI;
   StringValue VGPRForAGPRCopy;
 
   SIMachineFunctionInfo() = default;
@@ -351,11 +326,14 @@ template <> struct MappingTraits<SIMachineFunctionInfo> {
 class SIMachineFunctionInfo final : public AMDGPUMachineFunction {
   friend class GCNTargetMachine;
 
+  // State of MODE register, assumed FP mode.
+  AMDGPU::SIModeRegisterDefaults Mode;
+
   // Registers that may be reserved for spilling purposes. These may be the same
   // as the input registers.
   Register ScratchRSrcReg = AMDGPU::PRIVATE_RSRC_REG;
 
-  // This is the the unswizzled offset from the current dispatch's scratch wave
+  // This is the unswizzled offset from the current dispatch's scratch wave
   // base to the beginning of the current function's frame.
   Register FrameOffsetReg = AMDGPU::FP_REG;
 
@@ -391,8 +369,6 @@ class SIMachineFunctionInfo final : public AMDGPUMachineFunction {
   // unit. Minimum - first, maximum - second.
   std::pair<unsigned, unsigned> WavesPerEU = {0, 0};
 
-  const AMDGPUBufferPseudoSourceValue BufferPSV;
-  const AMDGPUImagePseudoSourceValue ImagePSV;
   const AMDGPUGWSResourcePseudoSourceValue GWSResourcePSV;
 
 private:
@@ -459,7 +435,7 @@ public:
     // VGPR used for SGPR spills
     Register VGPR;
 
-    // If the VGPR is is used for SGPR spills in a non-entrypoint function, the
+    // If the VGPR is used for SGPR spills in a non-entrypoint function, the
     // stack slot used to save/restore it in the prolog/epilog.
     Optional<int> FI;
 
@@ -550,6 +526,10 @@ public:
 
   void reserveWWMRegister(Register Reg) {
     WWMReservedRegs.insert(Reg);
+  }
+
+  AMDGPU::SIModeRegisterDefaults getMode() const {
+    return Mode;
   }
 
   ArrayRef<SIRegisterInfo::SpilledReg>
@@ -940,16 +920,6 @@ public:
     llvm_unreachable("unexpected dimension");
   }
 
-  const AMDGPUBufferPseudoSourceValue *
-  getBufferPSV(const AMDGPUTargetMachine &TM) {
-    return &BufferPSV;
-  }
-
-  const AMDGPUImagePseudoSourceValue *
-  getImagePSV(const AMDGPUTargetMachine &TM) {
-    return &ImagePSV;
-  }
-
   const AMDGPUGWSResourcePseudoSourceValue *
   getGWSPSV(const AMDGPUTargetMachine &TM) {
     return &GWSResourcePSV;
@@ -984,7 +954,7 @@ public:
 
   // \returns true if a function has a use of AGPRs via inline asm or
   // has a call which may use it.
-  bool mayUseAGPRs(const MachineFunction &MF) const;
+  bool mayUseAGPRs(const Function &F) const;
 
   // \returns true if a function needs or may need AGPRs.
   bool usesAGPRs(const MachineFunction &MF) const;

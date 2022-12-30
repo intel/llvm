@@ -12,6 +12,7 @@
 #include "InputSection.h"
 #include "LinkerScript.h"
 #include "lld/Common/LLVM.h"
+#include "llvm/Support/Compiler.h"
 #include "llvm/Support/Parallel.h"
 
 #include <array>
@@ -84,7 +85,7 @@ public:
   Expr subalignExpr;
   SmallVector<SectionCommand *, 0> commands;
   SmallVector<StringRef, 0> phdrs;
-  llvm::Optional<std::array<uint8_t, 4>> filler;
+  std::optional<std::array<uint8_t, 4>> filler;
   ConstraintKind constraint = ConstraintKind::NoConstraint;
   std::string location;
   std::string memoryRegionName;
@@ -156,7 +157,8 @@ struct Out {
 
 uint64_t getHeaderSize();
 
-extern llvm::SmallVector<OutputSection *, 0> outputSections;
+LLVM_LIBRARY_VISIBILITY extern llvm::SmallVector<OutputSection *, 0>
+    outputSections;
 } // namespace lld::elf
 
 #endif

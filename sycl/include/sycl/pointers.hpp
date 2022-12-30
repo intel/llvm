@@ -12,35 +12,88 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-template <typename ElementType, access::address_space Space> class multi_ptr;
+template <typename ElementType, access::address_space Space,
+          access::decorated DecorateAddress>
+class multi_ptr;
 // Template specialization aliases for different pointer address spaces
 
-template <typename ElementType>
+template <typename ElementType,
+          access::decorated IsDecorated = access::decorated::legacy>
 using generic_ptr =
-    multi_ptr<ElementType, access::address_space::generic_space>;
+    multi_ptr<ElementType, access::address_space::generic_space, IsDecorated>;
 
-template <typename ElementType>
-using global_ptr = multi_ptr<ElementType, access::address_space::global_space>;
+template <typename ElementType,
+          access::decorated IsDecorated = access::decorated::legacy>
+using global_ptr =
+    multi_ptr<ElementType, access::address_space::global_space, IsDecorated>;
 
-template <typename ElementType>
-using device_ptr =
-    multi_ptr<ElementType,
-              access::address_space::ext_intel_global_device_space>;
+// Note: Templated alias deprecation is not currently working in clang. See
+// https://github.com/llvm/llvm-project/issues/18236.
+template <typename ElementType,
+          access::decorated IsDecorated = access::decorated::legacy>
+using device_ptr __SYCL_DEPRECATED(
+    "Use 'sycl::ext::intel::device_ptr' instead.") =
+    multi_ptr<ElementType, access::address_space::ext_intel_global_device_space,
+              IsDecorated>;
 
-template <typename ElementType>
-using host_ptr =
-    multi_ptr<ElementType, access::address_space::ext_intel_global_host_space>;
+// Note: Templated alias deprecation is not currently working in clang. See
+// https://github.com/llvm/llvm-project/issues/18236.
+template <typename ElementType,
+          access::decorated IsDecorated = access::decorated::legacy>
+using host_ptr __SYCL_DEPRECATED("Use 'sycl::ext::intel::host_ptr' instead.") =
+    multi_ptr<ElementType, access::address_space::ext_intel_global_host_space,
+              IsDecorated>;
 
-template <typename ElementType>
-using local_ptr = multi_ptr<ElementType, access::address_space::local_space>;
+template <typename ElementType,
+          access::decorated IsDecorated = access::decorated::legacy>
+using local_ptr =
+    multi_ptr<ElementType, access::address_space::local_space, IsDecorated>;
 
 template <typename ElementType>
 using constant_ptr =
-    multi_ptr<ElementType, access::address_space::constant_space>;
+    multi_ptr<ElementType, access::address_space::constant_space,
+              access::decorated::legacy>;
+
+template <typename ElementType,
+          access::decorated IsDecorated = access::decorated::legacy>
+using private_ptr =
+    multi_ptr<ElementType, access::address_space::private_space, IsDecorated>;
+
+// Template specialization aliases for different pointer address spaces.
+// The interface exposes non-decorated pointer while keeping the
+// address space information internally.
 
 template <typename ElementType>
-using private_ptr =
-    multi_ptr<ElementType, access::address_space::private_space>;
+using raw_global_ptr =
+    multi_ptr<ElementType, access::address_space::global_space,
+              access::decorated::no>;
+
+template <typename ElementType>
+using raw_local_ptr = multi_ptr<ElementType, access::address_space::local_space,
+                                access::decorated::no>;
+
+template <typename ElementType>
+using raw_private_ptr =
+    multi_ptr<ElementType, access::address_space::private_space,
+              access::decorated::no>;
+
+// Template specialization aliases for different pointer address spaces.
+// The interface exposes decorated pointer.
+
+template <typename ElementType>
+using decorated_global_ptr =
+    multi_ptr<ElementType, access::address_space::global_space,
+              access::decorated::yes>;
+
+template <typename ElementType>
+using decorated_local_ptr =
+    multi_ptr<ElementType, access::address_space::local_space,
+              access::decorated::yes>;
+
+template <typename ElementType>
+using decorated_private_ptr =
+    multi_ptr<ElementType, access::address_space::private_space,
+              access::decorated::yes>;
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

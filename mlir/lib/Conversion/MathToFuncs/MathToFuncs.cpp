@@ -8,7 +8,7 @@
 
 #include "mlir/Conversion/MathToFuncs/MathToFuncs.h"
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -80,8 +80,7 @@ VecOpToScalarOp<Op>::matchAndRewrite(Op op, PatternRewriter &rewriter) const {
   Value result = rewriter.create<arith::ConstantOp>(
       loc, DenseElementsAttr::get(
                vecType, IntegerAttr::get(vecType.getElementType(), 0)));
-  SmallVector<int64_t> ones(shape.size(), 1);
-  SmallVector<int64_t> strides = computeStrides(shape, ones);
+  SmallVector<int64_t> strides = computeStrides(shape);
   for (int64_t linearIndex = 0; linearIndex < numElements; ++linearIndex) {
     SmallVector<int64_t> positions = delinearize(strides, linearIndex);
     SmallVector<Value> operands;
@@ -377,7 +376,7 @@ void ConvertMathToFuncsPass::runOnOperation() {
   patterns.add<IPowIOpLowering>(patterns.getContext(), getPowerFuncOpByType);
 
   ConversionTarget target(getContext());
-  target.addLegalDialect<arith::ArithmeticDialect, cf::ControlFlowDialect,
+  target.addLegalDialect<arith::ArithDialect, cf::ControlFlowDialect,
                          func::FuncDialect, vector::VectorDialect>();
   target.addIllegalOp<math::IPowIOp>();
   if (failed(applyPartialConversion(module, target, std::move(patterns))))

@@ -173,10 +173,16 @@ struct IsActuallyConstantHelper {
     return common::visit([=](const auto &y) { return (*this)(y); }, x.u);
   }
   bool operator()(const Expr<SomeType> &x) {
-    if (IsNullPointer(x)) {
-      return true;
-    }
     return common::visit([this](const auto &y) { return (*this)(y); }, x.u);
+  }
+  bool operator()(const StructureConstructor &x) {
+    for (const auto &pair : x) {
+      const Expr<SomeType> &y{pair.second.value()};
+      if (!(*this)(y) && !IsNullPointer(y)) {
+        return false;
+      }
+    }
+    return true;
   }
   template <typename A> bool operator()(const A *x) { return x && (*this)(*x); }
   template <typename A> bool operator()(const std::optional<A> &x) {
@@ -699,7 +705,10 @@ public:
       return true; // scalars considered contiguous
     }
     int subscriptRank{0};
-    auto subscripts{CheckSubscripts(x.subscript(), subscriptRank)};
+    auto baseLbounds{GetLBOUNDs(context_, x.base())};
+    auto baseUbounds{GetUBOUNDs(context_, x.base())};
+    auto subscripts{CheckSubscripts(
+        x.subscript(), subscriptRank, &baseLbounds, &baseUbounds)};
     if (!subscripts.value_or(false)) {
       return subscripts; // subscripts not known to be contiguous
     } else if (subscriptRank > 0) {
@@ -745,17 +754,75 @@ public:
   Result operator()(const NullPointer &) const { return true; }
 
 private:
-  static std::optional<bool> CheckSubscripts(
-      const std::vector<Subscript> &subscript, int &rank) {
+  // Returns "true" for a provably empty or simply contiguous array section;
+  // return "false" for a provably nonempty discontiguous section or for use
+  // of a vector subscript.
+  std::optional<bool> CheckSubscripts(const std::vector<Subscript> &subscript,
+      int &rank, const Shape *baseLbounds = nullptr,
+      const Shape *baseUbounds = nullptr) const {
     bool anyTriplet{false};
     rank = 0;
+    // Detect any provably empty dimension in this array section, which would
+    // render the whole section empty and therefore vacuously contiguous.
+    std::optional<bool> result;
     for (auto j{subscript.size()}; j-- > 0;) {
       if (const auto *triplet{std::get_if<Triplet>(&subscript[j].u)}) {
-        auto isStride1{triplet->IsStrideOne()};
-        if (!isStride1.value_or(false)) {
-          return isStride1;
+        ++rank;
+        if (auto stride{ToInt64(triplet->stride())}) {
+          const Expr<SubscriptInteger> *lowerBound{triplet->GetLower()};
+          if (!lowerBound && baseLbounds && j < baseLbounds->size()) {
+            lowerBound = common::GetPtrFromOptional(baseLbounds->at(j));
+          }
+          const Expr<SubscriptInteger> *upperBound{triplet->GetUpper()};
+          if (!upperBound && baseUbounds && j < baseUbounds->size()) {
+            upperBound = common::GetPtrFromOptional(baseUbounds->at(j));
+          }
+          std::optional<ConstantSubscript> lowerVal{lowerBound
+                  ? ToInt64(Fold(context_, Expr<SubscriptInteger>{*lowerBound}))
+                  : std::nullopt};
+          std::optional<ConstantSubscript> upperVal{upperBound
+                  ? ToInt64(Fold(context_, Expr<SubscriptInteger>{*upperBound}))
+                  : std::nullopt};
+          if (lowerVal && upperVal) {
+            if (*lowerVal < *upperVal) {
+              if (*stride < 0) {
+                result = true; // empty dimension
+              } else if (!result && *stride > 1 &&
+                  *lowerVal + *stride <= *upperVal) {
+                result = false; // discontiguous if not empty
+              }
+            } else if (*lowerVal > *upperVal) {
+              if (*stride > 0) {
+                result = true; // empty dimension
+              } else if (!result && *stride < 0 &&
+                  *lowerVal + *stride >= *upperVal) {
+                result = false; // discontiguous if not empty
+              }
+            }
+          }
+        }
+      } else if (subscript[j].Rank() > 0) {
+        ++rank;
+        if (!result) {
+          result = false; // vector subscript
+        }
+      }
+    }
+    if (rank == 0) {
+      result = true; // scalar
+    }
+    if (result) {
+      return result;
+    }
+    // Not provably discontiguous at this point.
+    // Return "true" if simply contiguous, otherwise nullopt.
+    for (auto j{subscript.size()}; j-- > 0;) {
+      if (const auto *triplet{std::get_if<Triplet>(&subscript[j].u)}) {
+        auto stride{ToInt64(triplet->stride())};
+        if (!stride || stride != 1) {
+          return std::nullopt;
         } else if (anyTriplet) {
-          if (triplet->lower() || triplet->upper()) {
+          if (triplet->GetLower() || triplet->GetUpper()) {
             // all triplets before the last one must be just ":" for
             // simple contiguity
             return std::nullopt;
@@ -764,11 +831,11 @@ private:
           anyTriplet = true;
         }
         ++rank;
-      } else if (anyTriplet || subscript[j].Rank() > 0) {
-        return false;
+      } else if (anyTriplet) {
+        return std::nullopt;
       }
     }
-    return true;
+    return true; // simply contiguous
   }
 
   FoldingContext &context_;
@@ -803,5 +870,84 @@ template <typename A> bool IsErrorExpr(const A &x) {
 }
 
 template bool IsErrorExpr(const Expr<SomeType> &);
+
+// C1577
+// TODO: Also check C1579 & C1582 here
+class StmtFunctionChecker
+    : public AnyTraverse<StmtFunctionChecker, std::optional<parser::Message>> {
+public:
+  using Result = std::optional<parser::Message>;
+  using Base = AnyTraverse<StmtFunctionChecker, Result>;
+  StmtFunctionChecker(const Symbol &sf, FoldingContext &context)
+      : Base{*this}, sf_{sf}, context_{context} {}
+  using Base::operator();
+
+  template <typename T> Result operator()(const ArrayConstructor<T> &) const {
+    return parser::Message{sf_.name(),
+        "Statement function '%s' should not contain an array constructor"_port_en_US,
+        sf_.name()};
+  }
+  Result operator()(const StructureConstructor &) const {
+    return parser::Message{sf_.name(),
+        "Statement function '%s' should not contain a structure constructor"_port_en_US,
+        sf_.name()};
+  }
+  Result operator()(const TypeParamInquiry &) const {
+    return parser::Message{sf_.name(),
+        "Statement function '%s' should not contain a type parameter inquiry"_port_en_US,
+        sf_.name()};
+  }
+  Result operator()(const ProcedureDesignator &proc) const {
+    if (const Symbol * symbol{proc.GetSymbol()}) {
+      const Symbol &ultimate{symbol->GetUltimate()};
+      if (const auto *subp{
+              ultimate.detailsIf<semantics::SubprogramDetails>()}) {
+        if (subp->stmtFunction() && &ultimate.owner() == &sf_.owner()) {
+          if (ultimate.name().begin() > sf_.name().begin()) {
+            return parser::Message{sf_.name(),
+                "Statement function '%s' may not reference another statement function '%s' that is defined later"_err_en_US,
+                sf_.name(), ultimate.name()};
+          }
+        }
+      }
+      if (auto chars{
+              characteristics::Procedure::Characterize(proc, context_)}) {
+        if (!chars->CanBeCalledViaImplicitInterface()) {
+          return parser::Message(sf_.name(),
+              "Statement function '%s' should not reference function '%s' that requires an explicit interface"_port_en_US,
+              sf_.name(), symbol->name());
+        }
+      }
+    }
+    if (proc.Rank() > 0) {
+      return parser::Message(sf_.name(),
+          "Statement function '%s' should not reference a function that returns an array"_port_en_US,
+          sf_.name());
+    }
+    return std::nullopt;
+  }
+  Result operator()(const ActualArgument &arg) const {
+    if (const auto *expr{arg.UnwrapExpr()}) {
+      if (auto result{(*this)(*expr)}) {
+        return result;
+      }
+      if (expr->Rank() > 0 && !UnwrapWholeSymbolOrComponentDataRef(*expr)) {
+        return parser::Message(sf_.name(),
+            "Statement function '%s' should not pass an array argument that is not a whole array"_port_en_US,
+            sf_.name());
+      }
+    }
+    return std::nullopt;
+  }
+
+private:
+  const Symbol &sf_;
+  FoldingContext &context_;
+};
+
+std::optional<parser::Message> CheckStatementFunction(
+    const Symbol &sf, const Expr<SomeType> &expr, FoldingContext &context) {
+  return StmtFunctionChecker{sf, context}(expr);
+}
 
 } // namespace Fortran::evaluate

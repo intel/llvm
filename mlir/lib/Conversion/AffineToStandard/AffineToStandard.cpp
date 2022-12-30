@@ -103,7 +103,7 @@ public:
   LogicalResult matchAndRewrite(AffineMinOp op,
                                 PatternRewriter &rewriter) const override {
     Value reduced =
-        lowerAffineMapMin(rewriter, op.getLoc(), op.getMap(), op.operands());
+        lowerAffineMapMin(rewriter, op.getLoc(), op.getMap(), op.getOperands());
     if (!reduced)
       return failure();
 
@@ -119,7 +119,7 @@ public:
   LogicalResult matchAndRewrite(AffineMaxOp op,
                                 PatternRewriter &rewriter) const override {
     Value reduced =
-        lowerAffineMapMax(rewriter, op.getLoc(), op.getMap(), op.operands());
+        lowerAffineMapMax(rewriter, op.getLoc(), op.getMap(), op.getOperands());
     if (!reduced)
       return failure();
 
@@ -141,7 +141,7 @@ public:
       rewriter.replaceOpWithNewOp<scf::YieldOp>(op);
       return success();
     }
-    rewriter.replaceOpWithNewOp<scf::YieldOp>(op, op.operands());
+    rewriter.replaceOpWithNewOp<scf::YieldOp>(op, op.getOperands());
     return success();
   }
 };
@@ -554,7 +554,7 @@ class LowerAffinePass
     populateAffineToStdConversionPatterns(patterns);
     populateAffineToVectorConversionPatterns(patterns);
     ConversionTarget target(getContext());
-    target.addLegalDialect<arith::ArithmeticDialect, memref::MemRefDialect,
+    target.addLegalDialect<arith::ArithDialect, memref::MemRefDialect,
                            scf::SCFDialect, VectorDialect>();
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))

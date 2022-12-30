@@ -219,11 +219,11 @@ public:
   /// Return true for expressions that can't be evaluated at runtime
   /// within given \b Budget.
   ///
-  /// At is a parameter which specifies point in code where user is going to
-  /// expand this expression. Sometimes this knowledge can lead to
+  /// \p At is a parameter which specifies point in code where user is going to
+  /// expand these expressions. Sometimes this knowledge can lead to
   /// a less pessimistic cost estimation.
-  bool isHighCostExpansion(const SCEV *Expr, Loop *L, unsigned Budget,
-                           const TargetTransformInfo *TTI,
+  bool isHighCostExpansion(ArrayRef<const SCEV *> Exprs, Loop *L,
+                           unsigned Budget, const TargetTransformInfo *TTI,
                            const Instruction *At) {
     assert(TTI && "This function requires TTI to be provided.");
     assert(At && "This function requires At instruction to be provided.");
@@ -233,7 +233,8 @@ public:
     SmallPtrSet<const SCEV *, 8> Processed;
     InstructionCost Cost = 0;
     unsigned ScaledBudget = Budget * TargetTransformInfo::TCC_Basic;
-    Worklist.emplace_back(-1, -1, Expr);
+    for (auto *Expr : Exprs)
+      Worklist.emplace_back(-1, -1, Expr);
     while (!Worklist.empty()) {
       const SCEVOperand WorkItem = Worklist.pop_back_val();
       if (isHighCostExpansionHelper(WorkItem, L, *At, Cost, ScaledBudget, *TTI,
@@ -276,7 +277,7 @@ public:
   /// Insert code to directly compute the specified SCEV expression into the
   /// program.  The code is inserted into the specified block.
   Value *expandCodeFor(const SCEV *SH, Type *Ty, Instruction *I) {
-    return expandCodeForImpl(SH, Ty, I, true);
+    return expandCodeForImpl(SH, Ty, I);
   }
 
   /// Insert code to directly compute the specified SCEV expression into the
@@ -284,7 +285,7 @@ public:
   /// insertion point. If a type is specified, the result will be expanded to
   /// have that type, with a cast if necessary.
   Value *expandCodeFor(const SCEV *SH, Type *Ty = nullptr) {
-    return expandCodeForImpl(SH, Ty, true);
+    return expandCodeForImpl(SH, Ty);
   }
 
   /// Generates a code sequence that evaluates this predicate.  The inserted
@@ -402,13 +403,13 @@ private:
   /// have that type, with a cast if necessary. If \p Root is true, this
   /// indicates that \p SH is the top-level expression to expand passed from
   /// an external client call.
-  Value *expandCodeForImpl(const SCEV *SH, Type *Ty, bool Root);
+  Value *expandCodeForImpl(const SCEV *SH, Type *Ty);
 
   /// Insert code to directly compute the specified SCEV expression into the
   /// program. The code is inserted into the specified block. If \p
   /// Root is true, this indicates that \p SH is the top-level expression to
   /// expand passed from an external client call.
-  Value *expandCodeForImpl(const SCEV *SH, Type *Ty, Instruction *I, bool Root);
+  Value *expandCodeForImpl(const SCEV *SH, Type *Ty, Instruction *I);
 
   /// Recursive helper function for isHighCostExpansion.
   bool isHighCostExpansionHelper(const SCEVOperand &WorkItem, Loop *L,
@@ -499,10 +500,9 @@ private:
 
   void fixupInsertPoints(Instruction *I);
 
-  /// If required, create LCSSA PHIs for \p Users' operand \p OpIdx. If new
-  /// LCSSA PHIs have been created, return the LCSSA PHI available at \p User.
-  /// If no PHIs have been created, return the unchanged operand \p OpIdx.
-  Value *fixupLCSSAFormFor(Instruction *User, unsigned OpIdx);
+  /// Create LCSSA PHIs for \p V, if it is required for uses at the Builder's
+  /// current insertion point.
+  Value *fixupLCSSAFormFor(Value *V);
 };
 
 /// Helper to remove instructions inserted during SCEV expansion, unless they

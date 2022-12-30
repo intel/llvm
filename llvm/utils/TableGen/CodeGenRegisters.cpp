@@ -1024,7 +1024,7 @@ void CodeGenRegisterClass::computeSubClasses(CodeGenRegBank &RegBank) {
       RC.inheritProperties(RegBank);
 }
 
-Optional<std::pair<CodeGenRegisterClass *, CodeGenRegisterClass *>>
+std::optional<std::pair<CodeGenRegisterClass *, CodeGenRegisterClass *>>
 CodeGenRegisterClass::getMatchingSubClassWithSubRegs(
     CodeGenRegBank &RegBank, const CodeGenSubRegIndex *SubIdx) const {
   auto SizeOrder = [this](const CodeGenRegisterClass *A,
@@ -1044,7 +1044,7 @@ CodeGenRegisterClass::getMatchingSubClassWithSubRegs(
   // index and order them by size. BiggestSuperRC should always be first.
   CodeGenRegisterClass *BiggestSuperRegRC = getSubClassWithSubReg(SubIdx);
   if (!BiggestSuperRegRC)
-    return None;
+    return std::nullopt;
   BitVector SuperRegRCsBV = BiggestSuperRegRC->getSubClasses();
   std::vector<CodeGenRegisterClass *> SuperRegRCs;
   for (auto &RC : RegClasses)
@@ -1107,7 +1107,7 @@ CodeGenRegisterClass::getMatchingSubClassWithSubRegs(
       return std::make_pair(ChosenSuperRegClass, SubRegRC);
   }
 
-  return None;
+  return std::nullopt;
 }
 
 void CodeGenRegisterClass::getSuperRegClasses(const CodeGenSubRegIndex *SubIdx,
@@ -1369,11 +1369,15 @@ getConcatSubRegIndex(const SmallVector<CodeGenSubRegIndex *, 8> &Parts) {
   unsigned Size = Parts.front()->Size;
   unsigned LastOffset = Parts.front()->Offset;
   unsigned LastSize = Parts.front()->Size;
+  unsigned UnknownSize = (uint16_t)-1;
   for (unsigned i = 1, e = Parts.size(); i != e; ++i) {
     Name += '_';
     Name += Parts[i]->getName();
-    Size += Parts[i]->Size;
-    if (Parts[i]->Offset != (LastOffset + LastSize))
+    if (Size == UnknownSize || Parts[i]->Size == UnknownSize)
+      Size = UnknownSize;
+    else
+      Size += Parts[i]->Size;
+    if (LastSize == UnknownSize || Parts[i]->Offset != (LastOffset + LastSize))
       isContinuous = false;
     LastOffset = Parts[i]->Offset;
     LastSize = Parts[i]->Size;

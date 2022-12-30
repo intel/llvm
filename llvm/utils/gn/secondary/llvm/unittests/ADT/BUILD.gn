@@ -1,4 +1,4 @@
-import("//llvm/utils/unittest/unittest.gni")
+import("//third-party/unittest/unittest.gni")
 
 unittest("ADTTests") {
   # ADT is a headers-only library so there's no //llvm/lib/ADT to depend on.
@@ -55,6 +55,7 @@ unittest("ADTTests") {
     "IteratorTest.cpp",
     "MapVectorTest.cpp",
     "MappedIteratorTest.cpp",
+    "MoveOnly.cpp",
     "OptionalTest.cpp",
     "PackedVectorTest.cpp",
     "PointerEmbeddedIntTest.cpp",

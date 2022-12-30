@@ -99,10 +99,32 @@ Improvements to clang-tidy
 New checks
 ^^^^^^^^^^
 
+- New :doc:`bugprone-suspicious-realloc-usage
+  <clang-tidy/checks/bugprone/suspicious-realloc-usage>` check.
+
+  Finds usages of ``realloc`` where the return value is assigned to the
+  same expression as passed to the first argument.
+
 - New :doc:`cppcoreguidelines-avoid-const-or-ref-data-members
   <clang-tidy/checks/cppcoreguidelines/avoid-const-or-ref-data-members>` check.
 
   Warns when a struct or class uses const or reference (lvalue or rvalue) data members.
+
+- New :doc:`cppcoreguidelines-avoid-do-while
+  <clang-tidy/checks/cppcoreguidelines/avoid-do-while>` check.
+
+  Warns when using ``do-while`` loops.
+
+- New :doc:`misc-use-anonymous-namespace
+  <clang-tidy/checks/misc/use-anonymous-namespace>` check.
+
+  Warns when using ``static`` function or variables at global scope, and suggests
+  moving them into an anonymous namespace.
+
+- New :doc:`bugprone-standalone-empty <clang-tidy/checks/bugprone/standalone-empty>` check.
+
+  Warns when `empty()` is used on a range and the result is ignored. Suggests `clear()`
+  if it is an existing member function.
 
 New check aliases
 ^^^^^^^^^^^^^^^^^
@@ -130,6 +152,10 @@ Changes in existing checks
   would be emitted for uninitialized members of an anonymous union despite
   there being an initializer for one of the other members.
 
+- Fixed false positives in :doc:`google-objc-avoid-throwing-exception
+  <clang-tidy/checks/google/objc-avoid-throwing-exception>` check for exceptions
+  thrown by code emitted from macros in system headers.
+
 - Improved :doc:`modernize-use-emplace <clang-tidy/checks/modernize/use-emplace>`
   check.
 
@@ -145,9 +171,35 @@ Changes in existing checks
   check.
 
   The check now skips unions/union-like classes since in this case a default constructor
-  with empty body is not equivalent to the explicitly defaulted one. The check also skips
-  copy assignment operators with nonstandard return types. The check is restricted to
-  c++11-or-later.
+  with empty body is not equivalent to the explicitly defaulted one, variadic constructors
+  since they cannot be explicitly defaulted. The check also skips copy assignment operators
+  with nonstandard return types, template constructors, private/protected default constructors
+  for C++17 or earlier. The automatic fixit has been adjusted to avoid adding superfluous
+  semicolon. The check is restricted to C++11 or later.
+
+- Change the default behavior of :doc:`readability-avoid-const-params-in-decls
+  <clang-tidy/checks/readability/avoid-const-params-in-decls>` to not
+  warn about `const` value parameters of declarations inside macros.
+
+- Fixed crashes in :doc:`readability-braces-around-statements
+  <clang-tidy/checks/readability/braces-around-statements>` and
+  :doc:`readability-simplify-boolean-expr <clang-tidy/checks/readability/simplify-boolean-expr>`
+  when using a C++23 ``if consteval`` statement.
+
+- Change the behavior of :doc:`readability-const-return-type
+  <clang-tidy/checks/readability/const-return-type>` to not
+  warn about `const` return types in overridden functions since the derived
+  class cannot always choose to change the function signature.
+
+- Change the default behavior of :doc:`readability-const-return-type
+  <clang-tidy/checks/readability/const-return-type>` to not
+  warn about `const` value parameters of declarations inside macros.
+
+- Improved :doc:`misc-redundant-expression <clang-tidy/checks/misc/redundant-expression>`
+  check.
+
+  The check now skips concept definitions since redundant expressions still make sense
+  inside them.
 
 Removed checks
 ^^^^^^^^^^^^^^

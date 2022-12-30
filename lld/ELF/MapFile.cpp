@@ -55,7 +55,7 @@ static void writeHeader(raw_ostream &os, uint64_t vma, uint64_t lma,
 // Returns a list of all symbols that we want to print out.
 static std::vector<Defined *> getSymbols() {
   std::vector<Defined *> v;
-  for (ELFFileBase *file : ctx->objectFiles)
+  for (ELFFileBase *file : ctx.objectFiles)
     for (Symbol *b : file->getSymbols())
       if (auto *dr = dyn_cast<Defined>(b))
         if (!dr->isSection() && dr->section && dr->section->isLive() &&
@@ -169,7 +169,7 @@ static void writeMapFile(raw_fd_ostream &os) {
     }
 
     osec = &cast<OutputDesc>(cmd)->osec;
-    writeHeader(os, osec->addr, osec->getLMA(), osec->size, osec->alignment);
+    writeHeader(os, osec->addr, osec->getLMA(), osec->size, osec->addralign);
     os << osec->name << '\n';
 
     // Dump symbols for each input section.
@@ -182,7 +182,7 @@ static void writeMapFile(raw_fd_ostream &os) {
           }
 
           writeHeader(os, isec->getVA(), osec->getLMA() + isec->outSecOff,
-                      isec->getSize(), isec->alignment);
+                      isec->getSize(), isec->addralign);
           os << indent8 << toString(isec) << '\n';
           for (Symbol *sym : llvm::make_first_range(sectionSyms[isec]))
             os << symStr[sym] << '\n';
@@ -224,7 +224,7 @@ static void writeMapFile(raw_fd_ostream &os) {
 static void writeCref(raw_fd_ostream &os) {
   // Collect symbols and files.
   MapVector<Symbol *, SetVector<InputFile *>> map;
-  for (ELFFileBase *file : ctx->objectFiles) {
+  for (ELFFileBase *file : ctx.objectFiles) {
     for (Symbol *sym : file->getSymbols()) {
       if (isa<SharedSymbol>(sym))
         map[sym].insert(file);

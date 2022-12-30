@@ -216,11 +216,6 @@ private:
   Instruction *transOCLBuiltinPostproc(SPIRVInstruction *BI, CallInst *CI,
                                        BasicBlock *BB,
                                        const std::string &DemangledName);
-  std::string transOCLImageTypeName(SPIRV::SPIRVTypeImage *ST);
-  std::string transOCLSampledImageTypeName(SPIRV::SPIRVTypeSampledImage *ST);
-  std::string transVMEImageTypeName(SPIRV::SPIRVTypeVmeImageINTEL *VT);
-  std::string transPipeTypeName(SPIRV::SPIRVTypePipe *ST);
-  std::string transOCLPipeStorageTypeName(SPIRV::SPIRVTypePipeStorage *PST);
   std::string transOCLImageTypeAccessQualifier(SPIRV::SPIRVTypeImage *ST);
   std::string transOCLPipeTypeAccessQualifier(SPIRV::SPIRVTypePipe *ST);
   std::string transVCTypeName(SPIRVTypeBufferSurfaceINTEL *PST);

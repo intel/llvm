@@ -229,13 +229,13 @@ void SPIRVTypeScavenger::deduceFunctionType(Function &F) {
   // If the function is a mangled name, try to recover types from the Itanium
   // name mangling.
   if (F.getName().startswith("_Z")) {
-    SmallVector<Type *, 8> ParameterTypes;
-    getParameterTypes(&F, ParameterTypes);
+    SmallVector<Type *, 8> ParamTypes;
+    getParameterTypes(&F, ParamTypes);
     for (Argument *Arg : PointerArgs) {
-      if (auto *Ty = ParameterTypes[Arg->getArgNo()]) {
-        DeducedTypes[Arg] = Ty;
+      if (auto *Ty = dyn_cast<TypedPointerType>(ParamTypes[Arg->getArgNo()])) {
+        DeducedTypes[Arg] = Ty->getElementType();
         LLVM_DEBUG(dbgs() << "Arg " << Arg->getArgNo() << " of " << F.getName()
-                          << " has type " << *Ty << "\n");
+                          << " has type " << *Ty->getElementType() << "\n");
       }
     }
   }
@@ -252,7 +252,7 @@ static bool doesNotImplyType(Value *V) {
 
 SPIRVTypeScavenger::DeducedType
 SPIRVTypeScavenger::computePointerElementType(Value *V) {
-  assert(V->getType()->isPointerTy() &&
+  assert(V->getType()->isPtrOrPtrVectorTy() &&
          "Trying to get the pointer type of a non-pointer value?");
 
   // Don't try to store null, undef, or poison in our type map. We'll call these
@@ -504,19 +504,19 @@ void SPIRVTypeScavenger::correctUseTypes(Instruction &I) {
       } else if (auto *DeferredUseTy = dyn_cast<DeferredType *>(UsedTy)) {
         // Source type is fixed, use type is deferred: set the deferred type to
         // the fixed type.
-        fixType(*DeferredUseTy, FixedTy);
         ReplaceTypeInOperands(DeferredUseTy, FixedTy);
+        fixType(*DeferredUseTy, FixedTy);
       }
     } else if (auto *DeferredTy = dyn_cast<DeferredType *>(SourceTy)) {
       if (auto *FixedUseTy = dyn_cast<Type *>(UsedTy)) {
         // Source type is fixed, use type is deferred: set the deferred type to
         // the fixed type.
-        fixType(*DeferredTy, FixedUseTy);
         ReplaceTypeInOperands(DeferredTy, FixedUseTy);
+        fixType(*DeferredTy, FixedUseTy);
       } else if (auto *DeferredUseTy = dyn_cast<DeferredType *>(UsedTy)) {
         // If they're both deferred, merge the two types together.
-        mergeType(DeferredTy, DeferredUseTy);
         ReplaceTypeInOperands(DeferredUseTy, DeferredTy);
+        mergeType(DeferredTy, DeferredUseTy);
       }
     }
   }

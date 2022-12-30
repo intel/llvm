@@ -86,9 +86,8 @@ define <2 x i16> @trunc_srl_v2i64_16_to_v2i16(<2 x i64> %x) {
 ; GCN-LABEL: trunc_srl_v2i64_16_to_v2i16:
 ; GCN:       ; %bb.0:
 ; GCN-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GCN-NEXT:    v_lshrrev_b32_e32 v0, 16, v0
-; GCN-NEXT:    v_mov_b32_e32 v1, 0xffff0000
-; GCN-NEXT:    v_and_or_b32 v0, v2, v1, v0
+; GCN-NEXT:    s_mov_b32 s4, 0x7060302
+; GCN-NEXT:    v_perm_b32 v0, v2, v0, s4
 ; GCN-NEXT:    s_setpc_b64 s[30:31]
   %shift = lshr <2 x i64> %x, <i64 16, i64 16>
   %trunc = trunc <2 x i64> %shift to <2 x i16>
@@ -129,8 +128,8 @@ define i16 @trunc_srl_i64_var_mask16_to_i16(i64 %x, i64 %amt) {
 ; GCN-LABEL: trunc_srl_i64_var_mask16_to_i16:
 ; GCN:       ; %bb.0:
 ; GCN-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; GCN-NEXT:    v_and_b32_e32 v2, 16, v2
-; GCN-NEXT:    v_lshrrev_b64 v[0:1], v2, v[0:1]
+; GCN-NEXT:    v_and_b32_e32 v1, 16, v2
+; GCN-NEXT:    v_lshrrev_b32_e32 v0, v1, v0
 ; GCN-NEXT:    s_setpc_b64 s[30:31]
   %amt.masked = and i64 %amt, 16
   %shift = lshr i64 %x, %amt.masked
@@ -149,4 +148,20 @@ define i16 @trunc_srl_i64_var_mask31_to_i16(i64 %x, i64 %amt) {
   %shift = lshr i64 %x, %amt.masked
   %trunc = trunc i64 %shift to i16
   ret i16 %trunc
+}
+
+define i32 @trunc_srl_i64_25_to_i26(i64 %x) {
+; GCN-LABEL: trunc_srl_i64_25_to_i26:
+; GCN:       ; %bb.0:
+; GCN-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
+; GCN-NEXT:    v_and_b32_e32 v0, 0xa000000, v0
+; GCN-NEXT:    v_alignbit_b32 v0, 0, v0, 25
+; GCN-NEXT:    v_add_u32_e32 v0, 55, v0
+; GCN-NEXT:    s_setpc_b64 s[30:31]
+  %value.knownbits2 = and i64 %x, 167772160 ; 0xA000000
+  %shift = lshr i64 %value.knownbits2, 25
+  %trunc = trunc i64 %shift to i26
+  %add = add i26 %trunc, 55
+  %ext = zext i26 %add to i32
+  ret i32 %ext
 }

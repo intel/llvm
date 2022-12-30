@@ -46,14 +46,14 @@ getTargetIncludePaths(const llvm::Triple &triple) {
 }
 
 /// Returns the include path matching the given pattern for the given file
-/// path (or None if the path doesn't match the pattern).
+/// path (or std::nullopt if the path doesn't match the pattern).
 static llvm::Optional<llvm::StringRef>
 guessIncludePath(llvm::StringRef path_to_file, llvm::StringRef pattern) {
   if (pattern.empty())
-    return llvm::NoneType();
+    return std::nullopt;
   size_t pos = path_to_file.find(pattern);
   if (pos == llvm::StringRef::npos)
-    return llvm::NoneType();
+    return std::nullopt;
 
   return path_to_file.substr(0, pos + pattern.size());
 }

@@ -19,9 +19,11 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/ExecutionEngine/JITLink/JITLinkMemoryManager.h"
-#include "llvm/ExecutionEngine/JITLink/MemoryFlags.h"
 #include "llvm/ExecutionEngine/JITSymbol.h"
+#include "llvm/ExecutionEngine/Orc/Shared/MemoryFlags.h"
 #include "llvm/Support/Allocator.h"
+#include "llvm/Support/BinaryStreamReader.h"
+#include "llvm/Support/BinaryStreamWriter.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -413,19 +415,6 @@ private:
     setCallable(IsCallable);
   }
 
-  static Symbol &constructCommon(BumpPtrAllocator &Allocator, Block &Base,
-                                 StringRef Name, orc::ExecutorAddrDiff Size,
-                                 Scope S, bool IsLive) {
-    assert(!Name.empty() && "Common symbol name cannot be empty");
-    assert(Base.isDefined() &&
-           "Cannot create common symbol from undefined block");
-    assert(static_cast<Block &>(Base).getSize() == Size &&
-           "Common symbol size should match underlying block size");
-    auto *Sym = Allocator.Allocate<Symbol>();
-    new (Sym) Symbol(Base, 0, Name, Size, Linkage::Weak, S, IsLive, false);
-    return *Sym;
-  }
-
   static Symbol &constructExternal(BumpPtrAllocator &Allocator,
                                    Addressable &Base, StringRef Name,
                                    orc::ExecutorAddrDiff Size, Linkage L,
@@ -541,7 +530,7 @@ public:
     return *Base;
   }
 
-  /// Return the addressable that thsi symbol points to.
+  /// Return the addressable that this symbol points to.
   const Addressable &getAddressable() const {
     assert(Base && "Cannot get underlying addressable for null symbol");
     return *Base;
@@ -612,7 +601,7 @@ public:
   void setScope(Scope S) {
     assert((!Name.empty() || S == Scope::Local) &&
            "Can not set anonymous symbol to non-local scope");
-    assert((S == Scope::Default || Base->isDefined() || Base->isAbsolute()) &&
+    assert((S != Scope::Local || Base->isDefined() || Base->isAbsolute()) &&
            "Invalid visibility for symbol type");
     this->S = static_cast<uint8_t>(S);
   }
@@ -680,7 +669,7 @@ class Section {
   friend class LinkGraph;
 
 private:
-  Section(StringRef Name, MemProt Prot, SectionOrdinal SecOrdinal)
+  Section(StringRef Name, orc::MemProt Prot, SectionOrdinal SecOrdinal)
       : Name(Name), Prot(Prot), SecOrdinal(SecOrdinal) {}
 
   using SymbolSet = DenseSet<Symbol *>;
@@ -705,16 +694,16 @@ public:
   StringRef getName() const { return Name; }
 
   /// Returns the protection flags for this section.
-  MemProt getMemProt() const { return Prot; }
+  orc::MemProt getMemProt() const { return Prot; }
 
   /// Set the protection flags for this section.
-  void setMemProt(MemProt Prot) { this->Prot = Prot; }
+  void setMemProt(orc::MemProt Prot) { this->Prot = Prot; }
 
   /// Get the deallocation policy for this section.
-  MemDeallocPolicy getMemDeallocPolicy() const { return MDP; }
+  orc::MemDeallocPolicy getMemDeallocPolicy() const { return MDP; }
 
   /// Set the deallocation policy for this section.
-  void setMemDeallocPolicy(MemDeallocPolicy MDP) { this->MDP = MDP; }
+  void setMemDeallocPolicy(orc::MemDeallocPolicy MDP) { this->MDP = MDP; }
 
   /// Returns the ordinal for this section.
   SectionOrdinal getOrdinal() const { return SecOrdinal; }
@@ -778,8 +767,8 @@ private:
   }
 
   StringRef Name;
-  MemProt Prot;
-  MemDeallocPolicy MDP = MemDeallocPolicy::Standard;
+  orc::MemProt Prot;
+  orc::MemDeallocPolicy MDP = orc::MemDeallocPolicy::Standard;
   SectionOrdinal SecOrdinal = 0;
   BlockSet Blocks;
   SymbolSet Symbols;
@@ -1016,7 +1005,7 @@ public:
   }
 
   /// Create a section with the given name, protection flags, and alignment.
-  Section &createSection(StringRef Name, MemProt Prot) {
+  Section &createSection(StringRef Name, orc::MemProt Prot) {
     assert(llvm::none_of(Sections,
                          [&](std::unique_ptr<Section> &Sec) {
                            return Sec->getName() == Name;
@@ -1044,11 +1033,41 @@ public:
                        AlignmentOffset);
   }
 
+  /// Create a content block with initially mutable data of the given size.
+  /// Content will be allocated via the LinkGraph's allocateBuffer method.
+  /// By default the memory will be zero-initialized. Passing false for
+  /// ZeroInitialize will prevent this.
+  Block &createMutableContentBlock(Section &Parent, size_t ContentSize,
+                                   orc::ExecutorAddr Address,
+                                   uint64_t Alignment, uint64_t AlignmentOffset,
+                                   bool ZeroInitialize = true) {
+    auto Content = allocateContent(ContentSize);
+    if (ZeroInitialize)
+      memset(Content.data(), 0, Content.size());
+    return createBlock(Parent, Content, Address, Alignment, AlignmentOffset);
+  }
+
   /// Create a zero-fill block.
   Block &createZeroFillBlock(Section &Parent, orc::ExecutorAddrDiff Size,
                              orc::ExecutorAddr Address, uint64_t Alignment,
                              uint64_t AlignmentOffset) {
     return createBlock(Parent, Size, Address, Alignment, AlignmentOffset);
+  }
+
+  /// Returns a BinaryStreamReader for the given block.
+  BinaryStreamReader getBlockContentReader(Block &B) {
+    ArrayRef<uint8_t> C(
+        reinterpret_cast<const uint8_t *>(B.getContent().data()), B.getSize());
+    return BinaryStreamReader(C, getEndianness());
+  }
+
+  /// Returns a BinaryStreamWriter for the given block.
+  /// This will call getMutableContent to obtain mutable content for the block.
+  BinaryStreamWriter getBlockContentWriter(Block &B) {
+    MutableArrayRef<uint8_t> C(
+        reinterpret_cast<uint8_t *>(B.getMutableContent(*this).data()),
+        B.getSize());
+    return BinaryStreamWriter(C, getEndianness());
   }
 
   /// Cache type for the splitBlock function.
@@ -1124,22 +1143,6 @@ public:
     auto &Sym = Symbol::constructAbsolute(Allocator, createAddressable(Address),
                                           Name, Size, L, S, IsLive);
     AbsoluteSymbols.insert(&Sym);
-    return Sym;
-  }
-
-  /// Convenience method for adding a weak zero-fill symbol.
-  Symbol &addCommonSymbol(StringRef Name, Scope S, Section &Section,
-                          orc::ExecutorAddr Address, orc::ExecutorAddrDiff Size,
-                          uint64_t Alignment, bool IsLive) {
-    assert(llvm::count_if(defined_symbols(),
-                          [&](const Symbol *Sym) {
-                            return Sym->getName() == Name;
-                          }) == 0 &&
-           "Duplicate defined symbol");
-    auto &Sym = Symbol::constructCommon(
-        Allocator, createBlock(Section, Size, Address, Alignment, 0), Name,
-        Size, S, IsLive);
-    Section.addSymbol(Sym);
     return Sym;
   }
 

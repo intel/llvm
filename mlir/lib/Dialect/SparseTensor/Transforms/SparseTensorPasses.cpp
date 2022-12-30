@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -21,9 +21,13 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 namespace mlir {
+#define GEN_PASS_DEF_PRESPARSIFICATIONREWRITE
 #define GEN_PASS_DEF_SPARSIFICATIONPASS
+#define GEN_PASS_DEF_POSTSPARSIFICATIONREWRITE
 #define GEN_PASS_DEF_SPARSETENSORCONVERSIONPASS
 #define GEN_PASS_DEF_SPARSETENSORCODEGEN
+#define GEN_PASS_DEF_SPARSEBUFFERREWRITE
+#define GEN_PASS_DEF_SPARSEVECTORIZATION
 #include "mlir/Dialect/SparseTensor/Transforms/Passes.h.inc"
 } // namespace mlir
 
@@ -36,6 +40,21 @@ namespace {
 // Passes implementation.
 //===----------------------------------------------------------------------===//
 
+struct PreSparsificationRewritePass
+    : public impl::PreSparsificationRewriteBase<PreSparsificationRewritePass> {
+
+  PreSparsificationRewritePass() = default;
+  PreSparsificationRewritePass(const PreSparsificationRewritePass &pass) =
+      default;
+
+  void runOnOperation() override {
+    auto *ctx = &getContext();
+    RewritePatternSet patterns(ctx);
+    populatePreSparsificationRewriting(patterns);
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
+  }
+};
+
 struct SparsificationPass
     : public impl::SparsificationPassBase<SparsificationPass> {
 
@@ -43,28 +62,38 @@ struct SparsificationPass
   SparsificationPass(const SparsificationPass &pass) = default;
   SparsificationPass(const SparsificationOptions &options) {
     parallelization = options.parallelizationStrategy;
-    vectorization = options.vectorizationStrategy;
-    vectorLength = options.vectorLength;
-    enableSIMDIndex32 = options.enableSIMDIndex32;
-    enableVLAVectorization = options.enableVLAVectorization;
-    enableRuntimeLibrary = options.enableRuntimeLibrary;
   }
 
   void runOnOperation() override {
     auto *ctx = &getContext();
-    RewritePatternSet prePatterns(ctx);
     // Translate strategy flags to strategy options.
-    SparsificationOptions options(parallelization, vectorization, vectorLength,
-                                  enableSIMDIndex32, enableVLAVectorization,
-                                  enableRuntimeLibrary);
-    // Apply pre-rewriting.
-    populateSparseTensorRewriting(prePatterns, options.enableRuntimeLibrary);
-    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(prePatterns));
-    // Apply sparsification and vector cleanup rewriting.
+    SparsificationOptions options(parallelization);
+    // Apply sparsification and cleanup rewriting.
     RewritePatternSet patterns(ctx);
     populateSparsificationPatterns(patterns, options);
-    vector::populateVectorToVectorCanonicalizationPatterns(patterns);
     scf::ForOp::getCanonicalizationPatterns(patterns, ctx);
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
+  }
+};
+
+struct PostSparsificationRewritePass
+    : public impl::PostSparsificationRewriteBase<
+          PostSparsificationRewritePass> {
+
+  PostSparsificationRewritePass() = default;
+  PostSparsificationRewritePass(const PostSparsificationRewritePass &pass) =
+      default;
+  PostSparsificationRewritePass(bool enableRT, bool foreach, bool convert) {
+    enableRuntimeLibrary = enableRT;
+    enableForeach = foreach;
+    enableConvert = convert;
+  }
+
+  void runOnOperation() override {
+    auto *ctx = &getContext();
+    RewritePatternSet patterns(ctx);
+    populatePostSparsificationRewriting(patterns, enableRuntimeLibrary,
+                                        enableForeach, enableConvert);
     (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
   }
 };
@@ -127,7 +156,7 @@ struct SparseTensorConversionPass
     target.addLegalOp<complex::ConstantOp, complex::NotEqualOp, linalg::FillOp,
                       linalg::YieldOp, tensor::ExtractOp>();
     target.addLegalDialect<
-        arith::ArithmeticDialect, bufferization::BufferizationDialect,
+        arith::ArithDialect, bufferization::BufferizationDialect,
         LLVM::LLVMDialect, memref::MemRefDialect, scf::SCFDialect>();
     // Translate strategy flags to strategy options.
     SparseTensorConversionOptions options(
@@ -150,14 +179,20 @@ struct SparseTensorCodegenPass
 
   SparseTensorCodegenPass() = default;
   SparseTensorCodegenPass(const SparseTensorCodegenPass &pass) = default;
+  SparseTensorCodegenPass(bool enableInit) {
+    enableBufferInitialization = enableInit;
+  }
 
   void runOnOperation() override {
     auto *ctx = &getContext();
     RewritePatternSet patterns(ctx);
     SparseTensorTypeToBufferConverter converter;
     ConversionTarget target(*ctx);
-    // Everything in the sparse dialect must go!
+    // Most ops in the sparse dialect must go!
     target.addIllegalDialect<SparseTensorDialect>();
+    target.addLegalOp<SortOp>();
+    target.addLegalOp<SortCooOp>();
+    target.addLegalOp<PushBackOp>();
     // All dynamic rules below accept new function, call, return, and various
     // tensor and bufferization operations as legal output of the rewriting
     // provided that all sparse tensor types have been fully rewritten.
@@ -181,19 +216,58 @@ struct SparseTensorCodegenPass
     // The following operations and dialects may be introduced by the
     // codegen rules, and are therefore marked as legal.
     target.addLegalOp<linalg::FillOp>();
-    target.addLegalDialect<arith::ArithmeticDialect,
-                           bufferization::BufferizationDialect,
-                           memref::MemRefDialect, scf::SCFDialect>();
+    target.addLegalDialect<
+        arith::ArithDialect, bufferization::BufferizationDialect,
+        complex::ComplexDialect, memref::MemRefDialect, scf::SCFDialect>();
     target.addLegalOp<UnrealizedConversionCastOp>();
     // Populate with rules and apply rewriting rules.
     populateFunctionOpInterfaceTypeConversionPattern<func::FuncOp>(patterns,
                                                                    converter);
     scf::populateSCFStructuralTypeConversionsAndLegality(converter, patterns,
                                                          target);
-    populateSparseTensorCodegenPatterns(converter, patterns);
+    populateSparseTensorCodegenPatterns(converter, patterns,
+                                        enableBufferInitialization);
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
       signalPassFailure();
+  }
+};
+
+struct SparseBufferRewritePass
+    : public impl::SparseBufferRewriteBase<SparseBufferRewritePass> {
+
+  SparseBufferRewritePass() = default;
+  SparseBufferRewritePass(const SparseBufferRewritePass &pass) = default;
+  SparseBufferRewritePass(bool enableInit) {
+    enableBufferInitialization = enableInit;
+  }
+
+  void runOnOperation() override {
+    auto *ctx = &getContext();
+    RewritePatternSet patterns(ctx);
+    populateSparseBufferRewriting(patterns, enableBufferInitialization);
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
+  }
+};
+
+struct SparseVectorizationPass
+    : public impl::SparseVectorizationBase<SparseVectorizationPass> {
+
+  SparseVectorizationPass() = default;
+  SparseVectorizationPass(const SparseVectorizationPass &pass) = default;
+  SparseVectorizationPass(unsigned vl, bool vla, bool sidx32) {
+    vectorLength = vl;
+    enableVLAVectorization = vla;
+    enableSIMDIndex32 = sidx32;
+  }
+
+  void runOnOperation() override {
+    auto *ctx = &getContext();
+    RewritePatternSet patterns(ctx);
+    populateSparseVectorizationPatterns(
+        patterns, vectorLength, enableVLAVectorization, enableSIMDIndex32);
+    vector::populateVectorToVectorCanonicalizationPatterns(patterns);
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
   }
 };
 
@@ -219,6 +293,10 @@ mlir::sparseToSparseConversionStrategy(int32_t flag) {
 // Pass creation methods.
 //===----------------------------------------------------------------------===//
 
+std::unique_ptr<Pass> mlir::createPreSparsificationRewritePass() {
+  return std::make_unique<PreSparsificationRewritePass>();
+}
+
 std::unique_ptr<Pass> mlir::createSparsificationPass() {
   return std::make_unique<SparsificationPass>();
 }
@@ -226,6 +304,17 @@ std::unique_ptr<Pass> mlir::createSparsificationPass() {
 std::unique_ptr<Pass>
 mlir::createSparsificationPass(const SparsificationOptions &options) {
   return std::make_unique<SparsificationPass>(options);
+}
+
+std::unique_ptr<Pass> mlir::createPostSparsificationRewritePass() {
+  return std::make_unique<PostSparsificationRewritePass>();
+}
+
+std::unique_ptr<Pass>
+mlir::createPostSparsificationRewritePass(bool enableRT, bool enableForeach,
+                                          bool enableConvert) {
+  return std::make_unique<PostSparsificationRewritePass>(
+      enableRT, enableForeach, enableConvert);
 }
 
 std::unique_ptr<Pass> mlir::createSparseTensorConversionPass() {
@@ -239,4 +328,30 @@ std::unique_ptr<Pass> mlir::createSparseTensorConversionPass(
 
 std::unique_ptr<Pass> mlir::createSparseTensorCodegenPass() {
   return std::make_unique<SparseTensorCodegenPass>();
+}
+
+std::unique_ptr<Pass>
+mlir::createSparseTensorCodegenPass(bool enableBufferInitialization) {
+  return std::make_unique<SparseTensorCodegenPass>(enableBufferInitialization);
+}
+
+std::unique_ptr<Pass> mlir::createSparseBufferRewritePass() {
+  return std::make_unique<SparseBufferRewritePass>();
+}
+
+std::unique_ptr<Pass>
+mlir::createSparseBufferRewritePass(bool enableBufferInitialization) {
+  return std::make_unique<SparseBufferRewritePass>(enableBufferInitialization);
+}
+
+std::unique_ptr<Pass> mlir::createSparseVectorizationPass() {
+  return std::make_unique<SparseVectorizationPass>();
+}
+
+std::unique_ptr<Pass>
+mlir::createSparseVectorizationPass(unsigned vectorLength,
+                                    bool enableVLAVectorization,
+                                    bool enableSIMDIndex32) {
+  return std::make_unique<SparseVectorizationPass>(
+      vectorLength, enableVLAVectorization, enableSIMDIndex32);
 }

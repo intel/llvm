@@ -159,7 +159,8 @@ public:
   /// eventually be exposed, for use in "private" modules.
   std::string ExportAsModule;
 
-  /// Does this Module scope describe part of the purview of a named C++ module?
+  /// Does this Module scope describe part of the purview of a standard named
+  /// C++ module?
   bool isModulePurview() const {
     return Kind == ModuleInterfaceUnit || Kind == ModulePartitionInterface ||
            Kind == ModulePartitionImplementation ||
@@ -349,7 +350,7 @@ public:
 
   /// The set of top-level modules that affected the compilation of this module,
   /// but were not imported.
-  llvm::SmallSetVector<Module *, 2> AffectingModules;
+  llvm::SmallSetVector<Module *, 2> AffectingClangModules;
 
   /// Describes an exported module.
   ///

@@ -30,15 +30,15 @@ entry:
   ret void
 }
 
-; Function Attrs: nounwind readnone
+; Function Attrs: nounwind
 declare spir_func i64 @_Z13get_global_idj(i32) #1
 
-; Function Attrs: nounwind readnone
+; Function Attrs: nounwind
 declare spir_func <8 x i32> @_Z7isequalDv8_fDv8_f(<8 x float>, <8 x float>) #1
 
 attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #1 = { nounwind readnone "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-attributes #2 = { nounwind readnone }
+attributes #1 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #2 = { nounwind }
 
 !opencl.enable.FP_CONTRACT = !{}
 !opencl.spir.version = !{!6}

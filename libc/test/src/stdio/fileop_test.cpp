@@ -78,6 +78,11 @@ TEST(LlvmLibcFILETest, SimpleFileOperations) {
   __llvm_libc::clearerr(file);
   ASSERT_EQ(__llvm_libc::ferror(file), 0);
 
+  errno = 0;
+  ASSERT_EQ(__llvm_libc::fwrite("nothing", 1, 1, file), size_t(0));
+  ASSERT_NE(errno, 0);
+  errno = 0;
+
   ASSERT_EQ(__llvm_libc::fclose(file), 0);
 
   // Now try puts.
@@ -90,6 +95,12 @@ TEST(LlvmLibcFILETest, SimpleFileOperations) {
   __llvm_libc::clearerr(file);
   ASSERT_EQ(__llvm_libc::ferror(file), 0);
 
+  // This is not a readable file.
+  errno = 0;
+  ASSERT_EQ(__llvm_libc::fread(data, 1, 1, file), size_t(0));
+  ASSERT_NE(errno, 0);
+  errno = 0;
+
   ASSERT_EQ(0, __llvm_libc::fclose(file));
 
   file = __llvm_libc::fopen(FILENAME, "r");
@@ -100,6 +111,21 @@ TEST(LlvmLibcFILETest, SimpleFileOperations) {
   read_data[sizeof(CONTENT) - 1] = '\0';
   ASSERT_STREQ(read_data, CONTENT);
   ASSERT_EQ(__llvm_libc::fclose(file), 0);
+
+  // Check that the other functions correctly set errno.
+
+  // errno = 0;
+  // ASSERT_NE(__llvm_libc::fseek(file, 0, SEEK_SET), 0);
+  // EXPECT_NE(errno, 0);
+
+  // errno = 0;
+  // ASSERT_NE(__llvm_libc::fclose(file), 0);
+  // EXPECT_NE(errno, 0);
+
+  // errno = 0;
+  // ASSERT_EQ(__llvm_libc::fopen("INVALID FILE NAME", "r"),
+  //           static_cast<FILE *>(nullptr));
+  // EXPECT_NE(errno, 0);
 }
 
 TEST(LlvmLibcFILETest, FFlush) {
@@ -121,4 +147,43 @@ TEST(LlvmLibcFILETest, FFlush) {
   ASSERT_STREQ(data, CONTENT);
 
   ASSERT_EQ(__llvm_libc::fclose(file), 0);
+}
+
+TEST(LlvmLibcFILETest, FOpenFWriteSizeGreaterThanOne) {
+  using MyStruct = struct {
+    char c;
+    unsigned long long i;
+  };
+  constexpr MyStruct WRITE_DATA[] = {{'a', 1}, {'b', 2}, {'c', 3}};
+  constexpr size_t WRITE_NMEMB = sizeof(WRITE_DATA) / sizeof(MyStruct);
+  constexpr char FILENAME[] = "testdata/fread_fwrite.test";
+
+  errno = 0;
+  FILE *file = __llvm_libc::fopen(FILENAME, "w");
+  ASSERT_FALSE(file == nullptr);
+  ASSERT_EQ(size_t(0), __llvm_libc::fwrite(WRITE_DATA, 0, 1, file));
+  ASSERT_EQ(WRITE_NMEMB, __llvm_libc::fwrite(WRITE_DATA, sizeof(MyStruct),
+                                             WRITE_NMEMB, file));
+  EXPECT_EQ(errno, 0);
+  ASSERT_EQ(__llvm_libc::fclose(file), 0);
+
+  file = __llvm_libc::fopen(FILENAME, "r");
+  ASSERT_FALSE(file == nullptr);
+  MyStruct read_data[WRITE_NMEMB];
+  ASSERT_EQ(size_t(0), __llvm_libc::fread(read_data, 0, 1, file));
+  ASSERT_EQ(WRITE_NMEMB,
+            __llvm_libc::fread(read_data, sizeof(MyStruct), WRITE_NMEMB, file));
+  EXPECT_EQ(errno, 0);
+  // Trying to read more should fetch nothing.
+  ASSERT_EQ(size_t(0),
+            __llvm_libc::fread(read_data, sizeof(MyStruct), WRITE_NMEMB, file));
+  EXPECT_EQ(errno, 0);
+  EXPECT_NE(__llvm_libc::feof(file), 0);
+  EXPECT_EQ(__llvm_libc::ferror(file), 0);
+  ASSERT_EQ(__llvm_libc::fclose(file), 0);
+  // Verify that the data which was read is correct.
+  for (size_t i = 0; i < WRITE_NMEMB; ++i) {
+    ASSERT_EQ(read_data[i].c, WRITE_DATA[i].c);
+    ASSERT_EQ(read_data[i].i, WRITE_DATA[i].i);
+  }
 }

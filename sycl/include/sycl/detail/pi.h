@@ -52,9 +52,31 @@
 // 10.13 Added new PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS queue property.
 // 10.14 Add PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY as an extension for
 // piDeviceGetInfo.
+// 11.15 piEventCreate creates even in the signalled state now.
+// 11.16 Add PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE and
+// PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH as an extension for
+// piDeviceGetInfo.
+// 11.17 Added new PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW and
+// PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH queue properties.
+// 11.18 Add new parameter name PI_EXT_ONEAPI_QUEUE_INFO_EMPTY to
+// _pi_queue_info.
+// 12.19 Add new PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE piDevicePartition
+// scheme. Sub-sub-devices (representing compute slice) creation via
+// partitioning by affinity domain is disabled by default and can be temporarily
+// restored via SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING
+// environment variable.
+// 12.20 Added piextQueueCreate API to be used instead of piQueueCreate, also
+// added PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES for piDeviceGetInfo.
+// Both are needed to support sycl_ext_intel_queue_index extension.
+// 12.21 Added new piextUSMEnqueueFill2D, piextUSMEnqueueMemset2D, and
+// piextUSMEnqueueMemcpy2D functions. Added new
+// PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT,
+// PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT, and
+// PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT context info query
+// descriptors.
 
-#define _PI_H_VERSION_MAJOR 10
-#define _PI_H_VERSION_MINOR 14
+#define _PI_H_VERSION_MAJOR 12
+#define _PI_H_VERSION_MINOR 21
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -264,6 +286,7 @@ typedef enum {
   // Intel UUID extension.
   PI_DEVICE_INFO_UUID = 0x106A,
   // These are Intel-specific extensions.
+  PI_DEVICE_INFO_DEVICE_ID = 0x4251,
   PI_DEVICE_INFO_PCI_ADDRESS = 0x10020,
   PI_DEVICE_INFO_GPU_EU_COUNT = 0x10021,
   PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH = 0x10022,
@@ -275,13 +298,22 @@ typedef enum {
   // Return true if sub-device should do its own program build
   PI_DEVICE_INFO_BUILD_ON_SUBDEVICE = 0x10028,
   PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY = 0x10029,
+  // Return 0 if device doesn't have any memory modules. Return the minimum of
+  // the clock rate values if there are several memory modules on the device.
+  PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE = 0x10030,
+  // Return 0 if device doesn't have any memory modules. Return the minimum of
+  // the bus width values if there are several memory modules on the device.
+  PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH = 0x10031,
+  // Return 1 if the device doesn't have a notion of a "queue index". Otherwise,
+  // return the number of queue indices that are available for this device.
+  PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES = 0x10032,
   PI_DEVICE_INFO_ATOMIC_64 = 0x10110,
   PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111,
   PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 0x11000,
   PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU = 0x10112,
   PI_DEVICE_INFO_BACKEND_VERSION = 0x10113,
-  // Return true if bfloat16 data type is supported by device
-  PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16 = 0x1FFFF,
+  // Return whether bfloat16 math functions are supported by device
+  PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS = 0x1FFFF,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS = 0x20000,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D = 0x20001,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D = 0x20002,
@@ -309,7 +341,11 @@ typedef enum {
   PI_CONTEXT_INFO_REFERENCE_COUNT = 0x1080,
   // Atomics capabilities extensions
   PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10010,
-  PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 0x10011
+  PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 0x10011,
+  // Native 2D USM memory operation support
+  PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT = 0x30000,
+  PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT = 0x30001,
+  PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT = 0x30002
 } _pi_context_info;
 
 typedef enum {
@@ -318,7 +354,10 @@ typedef enum {
   PI_QUEUE_INFO_DEVICE_DEFAULT = 0x1095,
   PI_QUEUE_INFO_PROPERTIES = 0x1093,
   PI_QUEUE_INFO_REFERENCE_COUNT = 0x1092,
-  PI_QUEUE_INFO_SIZE = 0x1094
+  PI_QUEUE_INFO_SIZE = 0x1094,
+  // Return 'true' if all commands previously submitted to the queue have
+  // completed, otherwise return 'false'.
+  PI_EXT_ONEAPI_QUEUE_INFO_EMPTY = 0x2096
 } _pi_queue_info;
 
 typedef enum {
@@ -564,11 +603,17 @@ constexpr pi_usm_mem_properties PI_MEM_USM_ALLOC_BUFFER_LOCATION = 0x419E;
 // NOTE: queue properties are implemented this way to better support bit
 // manipulations
 using pi_queue_properties = pi_bitfield;
-constexpr pi_queue_properties PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE = (1 << 0);
-constexpr pi_queue_properties PI_QUEUE_PROFILING_ENABLE = (1 << 1);
-constexpr pi_queue_properties PI_QUEUE_ON_DEVICE = (1 << 2);
-constexpr pi_queue_properties PI_QUEUE_ON_DEVICE_DEFAULT = (1 << 3);
-constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS = (1 << 4);
+constexpr pi_queue_properties PI_QUEUE_FLAGS = -1;
+constexpr pi_queue_properties PI_QUEUE_COMPUTE_INDEX = -2;
+// clang-format off
+constexpr pi_queue_properties PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE = (1 << 0);
+constexpr pi_queue_properties PI_QUEUE_FLAG_PROFILING_ENABLE = (1 << 1);
+constexpr pi_queue_properties PI_QUEUE_FLAG_ON_DEVICE = (1 << 2);
+constexpr pi_queue_properties PI_QUEUE_FLAG_ON_DEVICE_DEFAULT = (1 << 3);
+constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS = (1 << 4);
+constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW = (1 << 5);
+constexpr pi_queue_properties PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH = (1 << 6);
+// clang-format on
 
 using pi_result = _pi_result;
 using pi_platform_info = _pi_platform_info;
@@ -610,6 +655,8 @@ static constexpr pi_device_partition_property
     PI_DEVICE_PARTITION_BY_COUNTS_LIST_END = 0x0;
 static constexpr pi_device_partition_property
     PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN = 0x1088;
+static constexpr pi_device_partition_property
+    PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE = 0x1089;
 
 // For compatibility with OpenCL define this not as enum.
 using pi_device_affinity_domain = pi_bitfield;
@@ -752,6 +799,9 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 #define __SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS "SYCL/exported symbols"
 /// PropertySetRegistry::SYCL_DEVICE_GLOBALS defined in PropertySetIO.h
 #define __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS "SYCL/device globals"
+/// PropertySetRegistry::SYCL_DEVICE_REQUIREMENTS defined in PropertySetIO.h
+#define __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS                        \
+  "SYCL/device requirements"
 
 /// Program metadata tags recognized by the PI backends. For kernels the tag
 /// must appear after the kernel name.
@@ -1095,9 +1145,18 @@ __SYCL_EXPORT pi_result piextContextCreateWithNativeHandle(
 //
 // Queue
 //
+
+// TODO: Remove during next ABI break and rename piextQueueCreate to
+// piQueueCreate.
 __SYCL_EXPORT pi_result piQueueCreate(pi_context context, pi_device device,
                                       pi_queue_properties properties,
                                       pi_queue *queue);
+/// \param properties points to a zero-terminated array of extra data describing
+/// desired queue properties. Format is
+///  {[PROPERTY[, property-specific elements of data]*,]* 0}
+__SYCL_EXPORT pi_result piextQueueCreate(pi_context context, pi_device device,
+                                         pi_queue_properties *properties,
+                                         pi_queue *queue);
 
 __SYCL_EXPORT pi_result piQueueGetInfo(pi_queue command_queue,
                                        pi_queue_info param_name,
@@ -1393,6 +1452,11 @@ piextKernelGetNativeHandle(pi_kernel kernel, pi_native_handle *nativeHandle);
 //
 // Events
 //
+
+/// Create PI event object in a signalled/completed state.
+///
+/// \param context is the PI context of the event.
+/// \param ret_event is the PI even created.
 __SYCL_EXPORT pi_result piEventCreate(pi_context context, pi_event *ret_event);
 
 __SYCL_EXPORT pi_result piEventGetInfo(pi_event event, pi_event_info param_name,
@@ -1754,6 +1818,62 @@ __SYCL_EXPORT pi_result piextUSMEnqueueMemAdvise(pi_queue queue,
 __SYCL_EXPORT pi_result piextUSMGetMemAllocInfo(
     pi_context context, const void *ptr, pi_mem_alloc_info param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret);
+
+/// USM 2D fill API
+///
+/// \param queue is the queue to submit to
+/// \param ptr is the ptr to fill
+/// \param pitch is the total width of the destination memory including padding
+/// \param pattern is a pointer with the bytes of the pattern to set
+/// \param pattern_size is the size in bytes of the pattern
+/// \param width is width in bytes of each row to fill
+/// \param height is height the columns to fill
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+__SYCL_EXPORT pi_result piextUSMEnqueueFill2D(pi_queue queue, void *ptr,
+                                              size_t pitch, size_t pattern_size,
+                                              const void *pattern, size_t width,
+                                              size_t height,
+                                              pi_uint32 num_events_in_waitlist,
+                                              const pi_event *events_waitlist,
+                                              pi_event *event);
+
+/// USM 2D Memset API
+///
+/// \param queue is the queue to submit to
+/// \param ptr is the ptr to fill
+/// \param pitch is the total width of the destination memory including padding
+/// \param value the value to fill into the region in \param ptr
+/// \param width is width in bytes of each row to fill
+/// \param height is height the columns to fill
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+__SYCL_EXPORT pi_result piextUSMEnqueueMemset2D(
+    pi_queue queue, void *ptr, size_t pitch, int value, size_t width,
+    size_t height, pi_uint32 num_events_in_waitlist,
+    const pi_event *events_waitlist, pi_event *event);
+
+/// USM 2D Memcpy API
+///
+/// \param queue is the queue to submit to
+/// \param blocking is whether this operation should block the host
+/// \param dst_ptr is the location the data will be copied
+/// \param dst_pitch is the total width of the destination memory including
+/// padding
+/// \param src_ptr is the data to be copied
+/// \param src_pitch is the total width of the source memory including padding
+/// \param width is width in bytes of each row to be copied
+/// \param height is height the columns to be copied
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+__SYCL_EXPORT pi_result piextUSMEnqueueMemcpy2D(
+    pi_queue queue, pi_bool blocking, void *dst_ptr, size_t dst_pitch,
+    const void *src_ptr, size_t src_pitch, size_t width, size_t height,
+    pi_uint32 num_events_in_waitlist, const pi_event *events_waitlist,
+    pi_event *event);
 
 /// API to get Plugin internal data, opaque to SYCL RT. Some devices whose
 /// device code is compiled by the host compiler (e.g. CPU emulators) may use it

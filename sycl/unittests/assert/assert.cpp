@@ -175,11 +175,9 @@ static int MemoryMapCounter = MemoryMapCounterBase;
 static constexpr int PauseWaitOnIdx = KernelLaunchCounterBase + 1;
 
 // Mock redifinitions
-static pi_result redefinedKernelGetGroupInfo(pi_kernel kernel, pi_device device,
-                                             pi_kernel_group_info param_name,
-                                             size_t param_value_size,
-                                             void *param_value,
-                                             size_t *param_value_size_ret) {
+static pi_result redefinedKernelGetGroupInfoAfter(
+    pi_kernel kernel, pi_device device, pi_kernel_group_info param_name,
+    size_t param_value_size, void *param_value, size_t *param_value_size_ret) {
   if (param_name == PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE) {
     if (param_value_size_ret) {
       *param_value_size_ret = 3 * sizeof(size_t);
@@ -194,25 +192,23 @@ static pi_result redefinedKernelGetGroupInfo(pi_kernel kernel, pi_device device,
   return PI_SUCCESS;
 }
 
-static pi_result redefinedEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
-                                              const size_t *, const size_t *,
-                                              const size_t *LocalSize,
-                                              pi_uint32 N, const pi_event *Deps,
-                                              pi_event *RetEvent) {
-  int *Ret = new int[1];
-  *Ret = KernelLaunchCounter++;
+static pi_result
+redefinedEnqueueKernelLaunchAfter(pi_queue, pi_kernel, pi_uint32,
+                                  const size_t *, const size_t *,
+                                  const size_t *LocalSize, pi_uint32 NDeps,
+                                  const pi_event *Deps, pi_event *RetEvent) {
+  static pi_event UserKernelEvent = *RetEvent;
+  int Val = KernelLaunchCounter++;
   // This output here is to reduce amount of time requried to debug/reproduce a
   // failing test upon feature break
-  printf("Enqueued %i\n", *Ret);
+  printf("Enqueued %i\n", Val);
 
-  if (PauseWaitOnIdx == *Ret) {
+  if (PauseWaitOnIdx == Val) {
     // It should be copier kernel. Check if it depends on user's one.
-    EXPECT_EQ(N, 1U);
-    int EventIdx = reinterpret_cast<int *>(Deps[0])[0];
-    EXPECT_EQ(EventIdx, 0);
+    EXPECT_EQ(NDeps, 1U);
+    EXPECT_EQ(Deps[0], UserKernelEvent);
   }
 
-  *RetEvent = reinterpret_cast<pi_event>(Ret);
   return PI_SUCCESS;
 }
 
@@ -243,56 +239,30 @@ static pi_result redefinedEventsWaitNegative(pi_uint32 num_events,
   return PI_SUCCESS;
 }
 
-static pi_result
-redefinedMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
-                         void *host_ptr, pi_mem *ret_mem,
-                         const pi_mem_properties *properties = nullptr) {
-  static size_t MemAddrCounter = 1;
-  *ret_mem = (pi_mem)MemAddrCounter++;
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedMemRelease(pi_mem mem) { return PI_SUCCESS; }
-
-static pi_result redefinedKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
-                                       size_t arg_size, const void *arg_value) {
-  return PI_SUCCESS;
-}
-
-static pi_result redefinedEnqueueMemBufferMap(
+static pi_result redefinedEnqueueMemBufferMapAfter(
     pi_queue command_queue, pi_mem buffer, pi_bool blocking_map,
     pi_map_flags map_flags, size_t offset, size_t size,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *RetEvent, void **RetMap) {
-  int *Ret = new int[1];
-  *Ret = MemoryMapCounter++;
+  MemoryMapCounter++;
   // This output here is to reduce amount of time requried to debug/reproduce a
   // failing test upon feature break
-  printf("Memory map %i\n", *Ret);
-  *RetEvent = reinterpret_cast<pi_event>(Ret);
+  printf("Memory map %i\n", MemoryMapCounter);
 
   *RetMap = (void *)&ExpectedToOutput;
 
   return PI_SUCCESS;
 }
 
-static pi_result redefinedExtKernelSetArgMemObj(pi_kernel kernel,
-                                                pi_uint32 arg_index,
-                                                const pi_mem *arg_value) {
-  return PI_SUCCESS;
-}
-
 static void setupMock(sycl::unittest::PiMock &Mock) {
   using namespace sycl::detail;
-  Mock.redefine<PiApiKind::piKernelGetGroupInfo>(redefinedKernelGetGroupInfo);
-  Mock.redefine<PiApiKind::piEnqueueKernelLaunch>(redefinedEnqueueKernelLaunch);
-  Mock.redefine<PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
-  Mock.redefine<PiApiKind::piMemRelease>(redefinedMemRelease);
-  Mock.redefine<PiApiKind::piKernelSetArg>(redefinedKernelSetArg);
-  Mock.redefine<PiApiKind::piEnqueueMemBufferMap>(redefinedEnqueueMemBufferMap);
-  Mock.redefine<PiApiKind::piEventsWait>(redefinedEventsWaitPositive);
-  Mock.redefine<PiApiKind::piextKernelSetArgMemObj>(
-      redefinedExtKernelSetArgMemObj);
+  Mock.redefineAfter<PiApiKind::piKernelGetGroupInfo>(
+      redefinedKernelGetGroupInfoAfter);
+  Mock.redefineAfter<PiApiKind::piEnqueueKernelLaunch>(
+      redefinedEnqueueKernelLaunchAfter);
+  Mock.redefineAfter<PiApiKind::piEnqueueMemBufferMap>(
+      redefinedEnqueueMemBufferMapAfter);
+  Mock.redefineBefore<PiApiKind::piEventsWait>(redefinedEventsWaitPositive);
 }
 
 namespace TestInteropKernel {
@@ -317,12 +287,15 @@ static pi_result redefinedKernelGetInfo(pi_kernel Kernel,
   }
 
   if (PI_KERNEL_INFO_PROGRAM == ParamName) {
-    cl_program X = (cl_program)1;
+    pi_program PIProgram = nullptr;
+    pi_result Res = mock_piProgramCreate(/*pi_context=*/0x0, /**il*/ nullptr,
+                                         /*length=*/0, &PIProgram);
+    EXPECT_TRUE(PI_SUCCESS == Res);
 
     if (ParamValue)
-      memcpy(ParamValue, &X, sizeof(X));
+      memcpy(ParamValue, &PIProgram, sizeof(PIProgram));
     if (ParamValueSizeRet)
-      *ParamValueSizeRet = sizeof(X);
+      *ParamValueSizeRet = sizeof(PIProgram);
 
     return PI_SUCCESS;
   }
@@ -350,13 +323,11 @@ static pi_result redefinedEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
                                               const size_t *LocalSize,
                                               pi_uint32 N, const pi_event *Deps,
                                               pi_event *RetEvent) {
-  int *Ret = new int[1];
-  *Ret = KernelLaunchCounter++;
+  int Val = KernelLaunchCounter++;
   // This output here is to reduce amount of time requried to debug/reproduce a
   // failing test upon feature break
-  printf("Enqueued %i\n", *Ret);
+  printf("Enqueued %i\n", Val);
 
-  *RetEvent = reinterpret_cast<pi_event>(Ret);
   return PI_SUCCESS;
 }
 
@@ -426,21 +397,18 @@ static void setupMockForInterop(sycl::unittest::PiMock &Mock,
   TestInteropKernel::Device = &Dev;
   TestInteropKernel::Context = &Ctx;
 
-  Mock.redefine<PiApiKind::piKernelGetGroupInfo>(redefinedKernelGetGroupInfo);
-  Mock.redefine<PiApiKind::piEnqueueKernelLaunch>(
+  Mock.redefineAfter<PiApiKind::piKernelGetGroupInfo>(
+      redefinedKernelGetGroupInfoAfter);
+  Mock.redefineBefore<PiApiKind::piEnqueueKernelLaunch>(
       TestInteropKernel::redefinedEnqueueKernelLaunch);
-  Mock.redefine<PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
-  Mock.redefine<PiApiKind::piMemRelease>(redefinedMemRelease);
-  Mock.redefine<PiApiKind::piKernelSetArg>(redefinedKernelSetArg);
-  Mock.redefine<PiApiKind::piEnqueueMemBufferMap>(redefinedEnqueueMemBufferMap);
-  Mock.redefine<PiApiKind::piEventsWait>(redefinedEventsWaitNegative);
-  Mock.redefine<PiApiKind::piextKernelSetArgMemObj>(
-      redefinedExtKernelSetArgMemObj);
-  Mock.redefine<PiApiKind::piKernelGetInfo>(
+  Mock.redefineAfter<PiApiKind::piEnqueueMemBufferMap>(
+      redefinedEnqueueMemBufferMapAfter);
+  Mock.redefineBefore<PiApiKind::piEventsWait>(redefinedEventsWaitNegative);
+  Mock.redefineBefore<PiApiKind::piKernelGetInfo>(
       TestInteropKernel::redefinedKernelGetInfo);
-  Mock.redefine<PiApiKind::piProgramGetInfo>(
+  Mock.redefineBefore<PiApiKind::piProgramGetInfo>(
       TestInteropKernel::redefinedProgramGetInfo);
-  Mock.redefine<PiApiKind::piProgramGetBuildInfo>(
+  Mock.redefineBefore<PiApiKind::piProgramGetBuildInfo>(
       TestInteropKernel::redefinedProgramGetBuildInfo);
 }
 
@@ -581,10 +549,15 @@ TEST(Assert, TestInteropKernelNegative) {
 
   sycl::queue Queue{Ctx, Dev};
 
-  cl_kernel CLKernel = (cl_kernel)(0x01);
+  pi_kernel PIKernel = nullptr;
+
+  pi_result Res = mock_piKernelCreate(
+      /*pi_program=*/0x0, /*kernel_name=*/"dummy_kernel", &PIKernel);
+  EXPECT_TRUE(PI_SUCCESS == Res);
+
   // TODO use make_kernel. This requires a fix in backend.cpp to get plugin
   // from context instead of free getPlugin to alllow for mocking of its methods
-  sycl::kernel KInterop(CLKernel, Ctx);
+  sycl::kernel KInterop((cl_kernel)PIKernel, Ctx);
 
   Queue.submit([&](sycl::handler &H) { H.single_task(KInterop); });
 

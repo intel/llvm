@@ -14,8 +14,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace property {
-namespace image {
+namespace property::image {
 class use_host_ptr : public detail::DataLessProperty<detail::ImageUseHostPtr> {
 };
 
@@ -39,19 +38,12 @@ public:
 private:
   sycl::context MCtx;
 };
-} // namespace image
-} // namespace property
+} // namespace property::image
 
 // Forward declaration
 template <int Dimensions, typename AllocatorT> class image;
 
 // Image property trait specializations
-template <>
-struct is_property<property::image::use_host_ptr> : std::true_type {};
-template <> struct is_property<property::image::use_mutex> : std::true_type {};
-template <>
-struct is_property<property::image::context_bound> : std::true_type {};
-
 template <int Dimensions, typename AllocatorT>
 struct is_property_of<property::image::use_host_ptr,
                       image<Dimensions, AllocatorT>> : std::true_type {};

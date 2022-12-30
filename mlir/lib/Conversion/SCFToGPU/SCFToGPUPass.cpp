@@ -10,7 +10,7 @@
 
 #include "mlir/Conversion/SCFToGPU/SCFToGPU.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -40,8 +40,8 @@ struct ForLoopMapper : public impl::ConvertAffineForToGPUBase<ForLoopMapper> {
   }
 
   void runOnOperation() override {
-    for (Operation &op :
-         llvm::make_early_inc_range(getOperation().getBody().getOps())) {
+    for (Operation &op : llvm::make_early_inc_range(
+             getOperation().getFunctionBody().getOps())) {
       if (auto forOp = dyn_cast<AffineForOp>(&op)) {
         if (failed(convertAffineLoopNestToGPULaunch(forOp, numBlockDims,
                                                     numThreadDims)))

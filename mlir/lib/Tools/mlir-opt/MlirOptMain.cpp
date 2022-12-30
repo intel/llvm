@@ -27,6 +27,7 @@
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Support/Timing.h"
 #include "mlir/Support/ToolUtilities.h"
+#include "mlir/Tools/ParseUtilities.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/InitLLVM.h"
@@ -45,11 +46,11 @@ using namespace llvm;
 /// This typically parses the main source file, runs zero or more optimization
 /// passes, then prints the output.
 ///
-static LogicalResult performActions(raw_ostream &os, bool verifyDiagnostics,
-                                    bool verifyPasses, SourceMgr &sourceMgr,
-                                    MLIRContext *context,
-                                    PassPipelineFn passManagerSetupFn,
-                                    bool emitBytecode) {
+static LogicalResult
+performActions(raw_ostream &os, bool verifyDiagnostics, bool verifyPasses,
+               const std::shared_ptr<llvm::SourceMgr> &sourceMgr,
+               MLIRContext *context, PassPipelineFn passManagerSetupFn,
+               bool emitBytecode, bool implicitModule) {
   DefaultTimingManager tm;
   applyDefaultTimingManagerCLOptions(tm);
   TimingScope timing = tm.getRootScope();
@@ -59,45 +60,46 @@ static LogicalResult performActions(raw_ostream &os, bool verifyDiagnostics,
   bool wasThreadingEnabled = context->isMultithreadingEnabled();
   context->disableMultithreading();
 
-  // Prepare the pass manager and apply any command line options.
-  PassManager pm(context, OpPassManager::Nesting::Implicit);
-  pm.enableVerifier(verifyPasses);
-  applyPassManagerCLOptions(pm);
-  pm.enableTiming(timing);
-
   // Prepare the parser config, and attach any useful/necessary resource
   // handlers. Unhandled external resources are treated as passthrough, i.e.
   // they are not processed and will be emitted directly to the output
   // untouched.
+  PassReproducerOptions reproOptions;
   FallbackAsmResourceMap fallbackResourceMap;
-  ParserConfig config(context, &fallbackResourceMap);
-  attachPassReproducerAsmResource(config, pm, wasThreadingEnabled);
+  ParserConfig config(context, /*verifyAfterParse=*/true, &fallbackResourceMap);
+  reproOptions.attachResourceParser(config);
 
   // Parse the input file and reset the context threading state.
   TimingScope parserTiming = timing.nest("Parser");
-  OwningOpRef<ModuleOp> module(parseSourceFile<ModuleOp>(sourceMgr, config));
+  OwningOpRef<Operation *> op =
+      parseSourceFileForTool(sourceMgr, config, implicitModule);
   context->enableMultithreading(wasThreadingEnabled);
-  if (!module)
+  if (!op)
     return failure();
   parserTiming.stop();
 
-  // Callback to build the pipeline.
-  if (failed(passManagerSetupFn(pm)))
+  // Prepare the pass manager, applying command-line and reproducer options.
+  PassManager pm(context, OpPassManager::Nesting::Implicit,
+                 op.get()->getName().getStringRef());
+  pm.enableVerifier(verifyPasses);
+  applyPassManagerCLOptions(pm);
+  pm.enableTiming(timing);
+  if (failed(reproOptions.apply(pm)) || failed(passManagerSetupFn(pm)))
     return failure();
 
   // Run the pipeline.
-  if (failed(pm.run(*module)))
+  if (failed(pm.run(*op)))
     return failure();
 
   // Print the output.
   TimingScope outputTiming = timing.nest("Output");
   if (emitBytecode) {
     BytecodeWriterConfig writerConfig(fallbackResourceMap);
-    writeBytecodeToFile(module->getOperation(), os, writerConfig);
+    writeBytecodeToFile(op.get(), os, writerConfig);
   } else {
-    AsmState asmState(*module, OpPrintingFlags(), /*locationMap=*/nullptr,
+    AsmState asmState(op.get(), OpPrintingFlags(), /*locationMap=*/nullptr,
                       &fallbackResourceMap);
-    module->print(os, asmState);
+    op.get()->print(os, asmState);
     os << '\n';
   }
   return success();
@@ -109,11 +111,12 @@ static LogicalResult
 processBuffer(raw_ostream &os, std::unique_ptr<MemoryBuffer> ownedBuffer,
               bool verifyDiagnostics, bool verifyPasses,
               bool allowUnregisteredDialects, bool preloadDialectsInContext,
-              bool emitBytecode, PassPipelineFn passManagerSetupFn,
-              DialectRegistry &registry, llvm::ThreadPool *threadPool) {
+              bool emitBytecode, bool implicitModule,
+              PassPipelineFn passManagerSetupFn, DialectRegistry &registry,
+              llvm::ThreadPool *threadPool) {
   // Tell sourceMgr about this buffer, which is what the parser will pick up.
-  SourceMgr sourceMgr;
-  sourceMgr.AddNewSourceBuffer(std::move(ownedBuffer), SMLoc());
+  auto sourceMgr = std::make_shared<SourceMgr>();
+  sourceMgr->AddNewSourceBuffer(std::move(ownedBuffer), SMLoc());
 
   // Create a context just for the current buffer. Disable threading on creation
   // since we'll inject the thread-pool separately.
@@ -132,18 +135,19 @@ processBuffer(raw_ostream &os, std::unique_ptr<MemoryBuffer> ownedBuffer,
   // If we are in verify diagnostics mode then we have a lot of work to do,
   // otherwise just perform the actions without worrying about it.
   if (!verifyDiagnostics) {
-    SourceMgrDiagnosticHandler sourceMgrHandler(sourceMgr, &context);
+    SourceMgrDiagnosticHandler sourceMgrHandler(*sourceMgr, &context);
     return performActions(os, verifyDiagnostics, verifyPasses, sourceMgr,
-                          &context, passManagerSetupFn, emitBytecode);
+                          &context, passManagerSetupFn, emitBytecode,
+                          implicitModule);
   }
 
-  SourceMgrDiagnosticVerifierHandler sourceMgrHandler(sourceMgr, &context);
+  SourceMgrDiagnosticVerifierHandler sourceMgrHandler(*sourceMgr, &context);
 
   // Do any processing requested by command line flags.  We don't care whether
   // these actions succeed or fail, we only care what diagnostics they produce
   // and whether they match our expectations.
   (void)performActions(os, verifyDiagnostics, verifyPasses, sourceMgr, &context,
-                       passManagerSetupFn, emitBytecode);
+                       passManagerSetupFn, emitBytecode, implicitModule);
 
   // Verify the diagnostic handler to make sure that each of the diagnostics
   // matched.
@@ -157,7 +161,7 @@ LogicalResult mlir::MlirOptMain(raw_ostream &outputStream,
                                 bool verifyDiagnostics, bool verifyPasses,
                                 bool allowUnregisteredDialects,
                                 bool preloadDialectsInContext,
-                                bool emitBytecode) {
+                                bool emitBytecode, bool implicitModule) {
   // The split-input-file mode is a very specific mode that slices the file
   // up into small pieces and checks each independently.
   // We use an explicit threadpool to avoid creating and joining/destroying
@@ -176,32 +180,36 @@ LogicalResult mlir::MlirOptMain(raw_ostream &outputStream,
                      raw_ostream &os) {
     return processBuffer(os, std::move(chunkBuffer), verifyDiagnostics,
                          verifyPasses, allowUnregisteredDialects,
-                         preloadDialectsInContext, emitBytecode,
+                         preloadDialectsInContext, emitBytecode, implicitModule,
                          passManagerSetupFn, registry, threadPool);
   };
   return splitAndProcessBuffer(std::move(buffer), chunkFn, outputStream,
                                splitInputFile, /*insertMarkerInOutput=*/true);
 }
 
-LogicalResult mlir::MlirOptMain(raw_ostream &outputStream,
-                                std::unique_ptr<MemoryBuffer> buffer,
-                                const PassPipelineCLParser &passPipeline,
-                                DialectRegistry &registry, bool splitInputFile,
-                                bool verifyDiagnostics, bool verifyPasses,
-                                bool allowUnregisteredDialects,
-                                bool preloadDialectsInContext,
-                                bool emitBytecode) {
+LogicalResult mlir::MlirOptMain(
+    raw_ostream &outputStream, std::unique_ptr<MemoryBuffer> buffer,
+    const PassPipelineCLParser &passPipeline, DialectRegistry &registry,
+    bool splitInputFile, bool verifyDiagnostics, bool verifyPasses,
+    bool allowUnregisteredDialects, bool preloadDialectsInContext,
+    bool emitBytecode, bool implicitModule, bool dumpPassPipeline) {
   auto passManagerSetupFn = [&](PassManager &pm) {
     auto errorHandler = [&](const Twine &msg) {
       emitError(UnknownLoc::get(pm.getContext())) << msg;
       return failure();
     };
-    return passPipeline.addToPipeline(pm, errorHandler);
+    if (failed(passPipeline.addToPipeline(pm, errorHandler)))
+      return failure();
+    if (dumpPassPipeline) {
+      pm.dump();
+      llvm::errs() << "\n";
+    }
+    return success();
   };
   return MlirOptMain(outputStream, std::move(buffer), passManagerSetupFn,
                      registry, splitInputFile, verifyDiagnostics, verifyPasses,
                      allowUnregisteredDialects, preloadDialectsInContext,
-                     emitBytecode);
+                     emitBytecode, implicitModule);
 }
 
 LogicalResult mlir::MlirOptMain(int argc, char **argv, llvm::StringRef toolName,
@@ -243,6 +251,16 @@ LogicalResult mlir::MlirOptMain(int argc, char **argv, llvm::StringRef toolName,
       "emit-bytecode", cl::desc("Emit bytecode when generating output"),
       cl::init(false));
 
+  static cl::opt<bool> noImplicitModule{
+      "no-implicit-module",
+      cl::desc(
+          "Disable implicit addition of a top-level module op during parsing"),
+      cl::init(false)};
+
+  static cl::opt<bool> dumpPassPipeline{
+      "dump-pass-pipeline", cl::desc("Print the pipeline that will be run"),
+      cl::init(false)};
+
   InitLLVM y(argc, argv);
 
   // Register any command line options.
@@ -251,7 +269,7 @@ LogicalResult mlir::MlirOptMain(int argc, char **argv, llvm::StringRef toolName,
   registerPassManagerCLOptions();
   registerDefaultTimingManagerCLOptions();
   DebugCounter::registerCLOptions();
-  PassPipelineCLParser passPipeline("", "Compiler passes to run");
+  PassPipelineCLParser passPipeline("", "Compiler passes to run", "p");
 
   // Build the list of dialects as a header for the --help message.
   std::string helpHeader = (toolName + "\nAvailable Dialects: ").str();
@@ -288,7 +306,8 @@ LogicalResult mlir::MlirOptMain(int argc, char **argv, llvm::StringRef toolName,
   if (failed(MlirOptMain(output->os(), std::move(file), passPipeline, registry,
                          splitInputFile, verifyDiagnostics, verifyPasses,
                          allowUnregisteredDialects, preloadDialectsInContext,
-                         emitBytecode)))
+                         emitBytecode, /*implicitModule=*/!noImplicitModule,
+                         dumpPassPipeline)))
     return failure();
 
   // Keep the output file if the invocation of MlirOptMain was successful.

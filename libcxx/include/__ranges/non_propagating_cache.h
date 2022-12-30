@@ -6,6 +6,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #ifndef _LIBCPP___RANGES_NON_PROPAGATING_CACHE_H
 #define _LIBCPP___RANGES_NON_PROPAGATING_CACHE_H
 
@@ -14,7 +15,6 @@
 #include <__iterator/iterator_traits.h> // iter_reference_t
 #include <__memory/addressof.h>
 #include <__utility/forward.h>
-#include <concepts>                     // constructible_from
 #include <optional>
 #include <type_traits>
 

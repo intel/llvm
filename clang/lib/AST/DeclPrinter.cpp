@@ -72,6 +72,7 @@ namespace {
     void VisitLabelDecl(LabelDecl *D);
     void VisitParmVarDecl(ParmVarDecl *D);
     void VisitFileScopeAsmDecl(FileScopeAsmDecl *D);
+    void VisitTopLevelStmtDecl(TopLevelStmtDecl *D);
     void VisitImportDecl(ImportDecl *D);
     void VisitStaticAssertDecl(StaticAssertDecl *D);
     void VisitNamespaceDecl(NamespaceDecl *D);
@@ -938,6 +939,11 @@ void DeclPrinter::VisitFileScopeAsmDecl(FileScopeAsmDecl *D) {
   Out << ")";
 }
 
+void DeclPrinter::VisitTopLevelStmtDecl(TopLevelStmtDecl *D) {
+  assert(D->getStmt());
+  D->getStmt()->printPretty(Out, nullptr, Policy, Indentation, "\n", &Context);
+}
+
 void DeclPrinter::VisitImportDecl(ImportDecl *D) {
   Out << "@import " << D->getImportedModule()->getFullModuleName()
       << ";\n";
@@ -1717,7 +1723,7 @@ void DeclPrinter::VisitOMPDeclareReductionDecl(OMPDeclareReductionDecl *D) {
       Out << OpName;
     } else {
       assert(D->getDeclName().isIdentifier());
-      D->printName(Out);
+      D->printName(Out, Policy);
     }
     Out << " : ";
     D->getType().print(Out, Policy);
@@ -1747,7 +1753,7 @@ void DeclPrinter::VisitOMPDeclareReductionDecl(OMPDeclareReductionDecl *D) {
 void DeclPrinter::VisitOMPDeclareMapperDecl(OMPDeclareMapperDecl *D) {
   if (!D->isInvalidDecl()) {
     Out << "#pragma omp declare mapper (";
-    D->printName(Out);
+    D->printName(Out, Policy);
     Out << " : ";
     D->getType().print(Out, Policy);
     Out << " ";

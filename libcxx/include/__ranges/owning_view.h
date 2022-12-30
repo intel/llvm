@@ -6,6 +6,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #ifndef _LIBCPP___RANGES_OWNING_VIEW_H
 #define _LIBCPP___RANGES_OWNING_VIEW_H
 
@@ -68,6 +69,7 @@ public:
     _LIBCPP_HIDE_FROM_ABI constexpr auto data() const requires contiguous_range<const _Rp>
       { return ranges::data(__r_); }
   };
+  _LIBCPP_CTAD_SUPPORTED_FOR_TYPE(owning_view);
 
   template<class _Tp>
   inline constexpr bool enable_borrowed_range<owning_view<_Tp>> = enable_borrowed_range<_Tp>;

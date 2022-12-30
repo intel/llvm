@@ -51,26 +51,27 @@ using PassPipelineFn = llvm::function_ref<LogicalResult(PassManager &pm)>;
 ///   dialects from the global registry in the MLIRContext. This option is
 ///   deprecated and will be removed soon.
 /// - emitBytecode will generate bytecode output instead of text.
-LogicalResult MlirOptMain(llvm::raw_ostream &outputStream,
-                          std::unique_ptr<llvm::MemoryBuffer> buffer,
-                          const PassPipelineCLParser &passPipeline,
-                          DialectRegistry &registry, bool splitInputFile,
-                          bool verifyDiagnostics, bool verifyPasses,
-                          bool allowUnregisteredDialects,
-                          bool preloadDialectsInContext = false,
-                          bool emitBytecode = false);
+/// - implicitModule will enable implicit addition of a top-level
+/// 'builtin.module' if one doesn't already exist.
+/// - dumpPassPipeline will dump the pipeline being run to stderr
+LogicalResult
+MlirOptMain(llvm::raw_ostream &outputStream,
+            std::unique_ptr<llvm::MemoryBuffer> buffer,
+            const PassPipelineCLParser &passPipeline, DialectRegistry &registry,
+            bool splitInputFile, bool verifyDiagnostics, bool verifyPasses,
+            bool allowUnregisteredDialects,
+            bool preloadDialectsInContext = false, bool emitBytecode = false,
+            bool implicitModule = false, bool dumpPassPipeline = false);
 
 /// Support a callback to setup the pass manager.
 /// - passManagerSetupFn is the callback invoked to setup the pass manager to
 ///   apply on the loaded IR.
-LogicalResult MlirOptMain(llvm::raw_ostream &outputStream,
-                          std::unique_ptr<llvm::MemoryBuffer> buffer,
-                          PassPipelineFn passManagerSetupFn,
-                          DialectRegistry &registry, bool splitInputFile,
-                          bool verifyDiagnostics, bool verifyPasses,
-                          bool allowUnregisteredDialects,
-                          bool preloadDialectsInContext = false,
-                          bool emitBytecode = false);
+LogicalResult MlirOptMain(
+    llvm::raw_ostream &outputStream, std::unique_ptr<llvm::MemoryBuffer> buffer,
+    PassPipelineFn passManagerSetupFn, DialectRegistry &registry,
+    bool splitInputFile, bool verifyDiagnostics, bool verifyPasses,
+    bool allowUnregisteredDialects, bool preloadDialectsInContext = false,
+    bool emitBytecode = false, bool implicitModule = false);
 
 /// Implementation for tools like `mlir-opt`.
 /// - toolName is used for the header displayed by `--help`.

@@ -542,6 +542,11 @@ def FeatureNoBTIAtReturnTwice : SubtargetFeature<"no-bti-at-return-twice",
                                                  "Don't place a BTI instruction "
                                                  "after a return-twice">;
 
+// Armv8.9-A/Armv9.4-A 2022 Architecture Extensions
+def FeatureCLRBHB : SubtargetFeature<"clrbhb", "HasCLRBHB", "true",
+                                     "Enable Clear BHB instruction">;
+
+
 def FeatureFixCortexA57AES1742098 : SubtargetFeature<"fix-cortex-a57-aes-1742098",
   "FixCortexA57AES1742098", "true",
   "Work around Cortex-A57 Erratum 1742098 / Cortex-A72 Erratum 1655431 (AES)">;
@@ -672,6 +677,10 @@ def HasV8_8aOps   : SubtargetFeature<"v8.8a", "HasV8_8aOps", "true",
                                    "Support ARM v8.8a instructions",
                                    [HasV8_7aOps]>;
 
+def HasV8_9aOps   : SubtargetFeature<"v8.9a", "HasV8_9aOps", "true",
+                                   "Support ARM v8.9a instructions",
+                                   [HasV8_8aOps, FeatureCLRBHB]>;
+
 def HasV9_0aOps   : SubtargetFeature<"v9a", "HasV9_0aOps", "true",
                                    "Support ARM v9a instructions",
                                    [HasV8_5aOps]>;
@@ -687,6 +696,10 @@ def HasV9_2aOps   : SubtargetFeature<"v9.2a", "HasV9_2aOps", "true",
 def HasV9_3aOps   : SubtargetFeature<"v9.3a", "HasV9_3aOps", "true",
                                    "Support ARM v9.3a instructions",
                                    [HasV8_8aOps, HasV9_2aOps]>;
+
+def HasV9_4aOps   : SubtargetFeature<"v9.4a", "HasV9_4aOps", "true",
+                                   "Support ARM v9.4a instructions",
+                                   [HasV8_9aOps, HasV9_3aOps]>;
 
 def HasV8_1MMainlineOps : SubtargetFeature<
                "v8.1m.main", "HasV8_1MMainlineOps", "true",
@@ -1048,6 +1061,19 @@ def ARMv88a   : Architecture<"armv8.8-a", "ARMv88a",  [HasV8_8aOps,
                                                        FeatureCRC,
                                                        FeatureRAS,
                                                        FeatureDotProd]>;
+def ARMv89a   : Architecture<"armv8.9-a", "ARMv89a",  [HasV8_9aOps,
+                                                       FeatureAClass,
+                                                       FeatureDB,
+                                                       FeatureFPARMv8,
+                                                       FeatureNEON,
+                                                       FeatureDSP,
+                                                       FeatureTrustZone,
+                                                       FeatureMP,
+                                                       FeatureVirtualization,
+                                                       FeatureCrypto,
+                                                       FeatureCRC,
+                                                       FeatureRAS,
+                                                       FeatureDotProd]>;
 
 def ARMv9a   : Architecture<"armv9-a", "ARMv9a",       [HasV9_0aOps,
                                                        FeatureAClass,
@@ -1095,6 +1121,18 @@ def ARMv93a   : Architecture<"armv9.3-a", "ARMv93a",  [HasV9_3aOps,
                                                        FeatureMP,
                                                        FeatureVirtualization,
                                                        FeatureCrypto,
+                                                       FeatureCRC,
+                                                       FeatureRAS,
+                                                       FeatureDotProd]>;
+def ARMv94a   : Architecture<"armv9.4-a", "ARMv94a",  [HasV9_4aOps,
+                                                       FeatureAClass,
+                                                       FeatureDB,
+                                                       FeatureFPARMv8,
+                                                       FeatureNEON,
+                                                       FeatureDSP,
+                                                       FeatureTrustZone,
+                                                       FeatureMP,
+                                                       FeatureVirtualization,
                                                        FeatureCRC,
                                                        FeatureRAS,
                                                        FeatureDotProd]>;

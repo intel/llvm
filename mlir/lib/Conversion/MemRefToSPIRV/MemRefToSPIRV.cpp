@@ -114,7 +114,7 @@ static bool isAllocationSupported(Operation *allocOp, MemRefType type) {
 
 /// Returns the scope to use for atomic operations use for emulating store
 /// operations of unsupported integer bitwidths, based on the memref
-/// type. Returns None on failure.
+/// type. Returns std::nullopt on failure.
 static Optional<spirv::Scope> getAtomicOpScope(MemRefType type) {
   auto sc = type.getMemorySpace().dyn_cast_or_null<spirv::StorageClassAttr>();
   switch (sc.getValue()) {
@@ -335,8 +335,10 @@ IntLoadOpPattern::matchAndRewrite(memref::LoadOp loadOp, OpAdaptor adaptor,
                          .getPointeeType();
   Type dstType;
   if (typeConverter.allows(spirv::Capability::Kernel)) {
-    // For OpenCL Kernel, pointer will be directly pointing to the element.
-    dstType = pointeeType;
+    if (auto arrayType = pointeeType.dyn_cast<spirv::ArrayType>())
+      dstType = arrayType.getElementType();
+    else
+      dstType = pointeeType;
   } else {
     // For Vulkan we need to extract element from wrapping struct and array.
     Type structElemType =
@@ -464,8 +466,10 @@ IntStoreOpPattern::matchAndRewrite(memref::StoreOp storeOp, OpAdaptor adaptor,
                          .getPointeeType();
   Type dstType;
   if (typeConverter.allows(spirv::Capability::Kernel)) {
-    // For OpenCL Kernel, pointer will be directly pointing to the element.
-    dstType = pointeeType;
+    if (auto arrayType = pointeeType.dyn_cast<spirv::ArrayType>())
+      dstType = arrayType.getElementType();
+    else
+      dstType = pointeeType;
   } else {
     // For Vulkan we need to extract element from wrapping struct and array.
     Type structElemType =

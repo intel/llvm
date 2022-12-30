@@ -51,8 +51,6 @@ void DWARFUnit::ExtractUnitDIENoDwoIfNeeded() {
     return; // Already parsed
 
   ElapsedTime elapsed(m_dwarf.GetDebugInfoParseTimeRef());
-  LLDB_SCOPED_TIMERF("%8.8x: DWARFUnit::ExtractUnitDIENoDwoIfNeeded()",
-                     GetOffset());
 
   // Set the offset to that of the first DIE and calculate the start of the
   // next compilation unit header.
@@ -580,7 +578,7 @@ llvm::Expected<uint64_t> DWARFUnit::GetRnglistOffset(uint32_t Index) {
                                    "DW_FORM_rnglistx cannot be used without "
                                    "DW_AT_rnglists_base for CU at 0x%8.8x",
                                    GetOffset());
-  if (llvm::Optional<uint64_t> off = GetRnglistTable()->getOffsetEntry(
+  if (std::optional<uint64_t> off = GetRnglistTable()->getOffsetEntry(
           GetRnglistData().GetAsLLVM(), Index))
     return *off + m_ranges_base;
   return llvm::createStringError(

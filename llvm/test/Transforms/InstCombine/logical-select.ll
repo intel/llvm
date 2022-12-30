@@ -2,6 +2,7 @@
 ; RUN: opt < %s -passes=instcombine -S | FileCheck %s
 
 declare void @use(i8)
+declare void @use1(i1)
 
 define i32 @foo(i32 %a, i32 %b, i32 %c, i32 %d) {
 ; CHECK-LABEL: @foo(
@@ -741,13 +742,11 @@ define <2 x i64> @bitcast_vec_cond(<16 x i1> %cond, <2 x i64> %c, <2 x i64> %d) 
 
 define <vscale x 2 x i64> @bitcast_vec_cond_scalable(<vscale x 16 x i1> %cond, <vscale x 2 x i64> %c, <vscale x 2 x i64> %d) {
 ; CHECK-LABEL: @bitcast_vec_cond_scalable(
-; CHECK-NEXT:    [[S:%.*]] = sext <vscale x 16 x i1> [[COND:%.*]] to <vscale x 16 x i8>
-; CHECK-NEXT:    [[T9:%.*]] = bitcast <vscale x 16 x i8> [[S]] to <vscale x 2 x i64>
-; CHECK-NEXT:    [[NOTT9:%.*]] = xor <vscale x 2 x i64> [[T9]], shufflevector (<vscale x 2 x i64> insertelement (<vscale x 2 x i64> poison, i64 -1, i32 0), <vscale x 2 x i64> poison, <vscale x 2 x i32> zeroinitializer)
-; CHECK-NEXT:    [[T11:%.*]] = and <vscale x 2 x i64> [[NOTT9]], [[C:%.*]]
-; CHECK-NEXT:    [[T12:%.*]] = and <vscale x 2 x i64> [[T9]], [[D:%.*]]
-; CHECK-NEXT:    [[R:%.*]] = or <vscale x 2 x i64> [[T11]], [[T12]]
-; CHECK-NEXT:    ret <vscale x 2 x i64> [[R]]
+; CHECK-NEXT:    [[TMP1:%.*]] = bitcast <vscale x 2 x i64> [[D:%.*]] to <vscale x 16 x i8>
+; CHECK-NEXT:    [[TMP2:%.*]] = bitcast <vscale x 2 x i64> [[C:%.*]] to <vscale x 16 x i8>
+; CHECK-NEXT:    [[TMP3:%.*]] = select <vscale x 16 x i1> [[COND:%.*]], <vscale x 16 x i8> [[TMP1]], <vscale x 16 x i8> [[TMP2]]
+; CHECK-NEXT:    [[TMP4:%.*]] = bitcast <vscale x 16 x i8> [[TMP3]] to <vscale x 2 x i64>
+; CHECK-NEXT:    ret <vscale x 2 x i64> [[TMP4]]
 ;
   %s = sext <vscale x 16 x i1> %cond to <vscale x 16 x i8>
   %t9 = bitcast <vscale x 16 x i8> %s to <vscale x 2 x i64>
@@ -927,4 +926,210 @@ define i8 @sext_cond_extra_uses(i1 %cmp, i8 %a, i8 %b) {
   %and2 = and i8 %sext2, %b
   %or = or i8 %and1, %and2
   ret i8 %or
+}
+
+define i1 @xor_commute0(i1 %x, i1 %y) {
+; CHECK-LABEL: @xor_commute0(
+; CHECK-NEXT:    [[AND2:%.*]] = xor i1 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    ret i1 [[AND2]]
+;
+  %and = select i1 %x, i1 %y, i1 false
+  %or = select i1 %x, i1 true, i1 %y
+  %nand = xor i1 %and, true
+  %and2 = select i1 %nand, i1 %or, i1 false
+  ret i1 %and2
+}
+
+define i1 @xor_commute1(i1 %x, i1 %y) {
+; CHECK-LABEL: @xor_commute1(
+; CHECK-NEXT:    [[AND:%.*]] = select i1 [[X:%.*]], i1 [[Y:%.*]], i1 false
+; CHECK-NEXT:    [[NAND:%.*]] = xor i1 [[AND]], true
+; CHECK-NEXT:    call void @use1(i1 [[NAND]])
+; CHECK-NEXT:    [[AND2:%.*]] = xor i1 [[X]], [[Y]]
+; CHECK-NEXT:    ret i1 [[AND2]]
+;
+  %and = select i1 %x, i1 %y, i1 false
+  %or = select i1 %y, i1 true, i1 %x
+  %nand = xor i1 %and, true
+  call void @use1(i1 %nand)
+  %and2 = select i1 %nand, i1 %or, i1 false
+  ret i1 %and2
+}
+
+define i1 @xor_commute2(i1 %x, i1 %y) {
+; CHECK-LABEL: @xor_commute2(
+; CHECK-NEXT:    [[AND:%.*]] = select i1 [[X:%.*]], i1 [[Y:%.*]], i1 false
+; CHECK-NEXT:    call void @use1(i1 [[AND]])
+; CHECK-NEXT:    [[OR:%.*]] = select i1 [[X]], i1 true, i1 [[Y]]
+; CHECK-NEXT:    call void @use1(i1 [[OR]])
+; CHECK-NEXT:    [[NAND:%.*]] = xor i1 [[AND]], true
+; CHECK-NEXT:    call void @use1(i1 [[NAND]])
+; CHECK-NEXT:    [[AND2:%.*]] = xor i1 [[X]], [[Y]]
+; CHECK-NEXT:    ret i1 [[AND2]]
+;
+  %and = select i1 %x, i1 %y, i1 false
+  call void @use1(i1 %and)
+  %or = select i1 %x, i1 true, i1 %y
+  call void @use1(i1 %or)
+  %nand = xor i1 %and, true
+  call void @use1(i1 %nand)
+  %and2 = select i1 %or, i1 %nand, i1 false
+  ret i1 %and2
+}
+
+define <2 x i1> @xor_commute3(<2 x i1> %x, <2 x i1> %y) {
+; CHECK-LABEL: @xor_commute3(
+; CHECK-NEXT:    [[AND2:%.*]] = xor <2 x i1> [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    ret <2 x i1> [[AND2]]
+;
+  %and = select <2 x i1> %x, <2 x i1> %y, <2 x i1> <i1 false, i1 false>
+  %or = select <2 x i1> %y, <2 x i1> <i1 true, i1 true>, <2 x i1> %x
+  %nand = xor <2 x i1> %and, <i1 true, i1 true>
+  %and2 = select <2 x i1> %or, <2 x i1> %nand, <2 x i1> <i1 false, i1 false>
+  ret <2 x i1> %and2
+}
+
+define i1 @not_d_bools_commute00(i1 %c, i1 %x, i1 %y) {
+; CHECK-LABEL: @not_d_bools_commute00(
+; CHECK-NEXT:    [[Y_C:%.*]] = or i1 [[C:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[AND2:%.*]] = xor i1 [[Y_C]], true
+; CHECK-NEXT:    [[AND1:%.*]] = and i1 [[C]], [[X:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = or i1 [[AND1]], [[AND2]]
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %y_c = or i1 %c, %y
+  %and2 = xor i1 %y_c, true
+  %and1 = and i1 %c, %x
+  %r = or i1 %and1, %and2
+  ret i1 %r
+}
+
+define i1 @not_d_bools_commute01(i1 %c, i1 %x, i1 %y) {
+; CHECK-LABEL: @not_d_bools_commute01(
+; CHECK-NEXT:    [[Y_C:%.*]] = or i1 [[Y:%.*]], [[C:%.*]]
+; CHECK-NEXT:    [[AND2:%.*]] = xor i1 [[Y_C]], true
+; CHECK-NEXT:    [[AND1:%.*]] = and i1 [[C]], [[X:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = or i1 [[AND1]], [[AND2]]
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %y_c = or i1 %y, %c
+  %and2 = xor i1 %y_c, true
+  %and1 = and i1 %c, %x
+  %r = or i1 %and1, %and2
+  ret i1 %r
+}
+
+define i1 @not_d_bools_commute10(i1 %c, i1 %x, i1 %y) {
+; CHECK-LABEL: @not_d_bools_commute10(
+; CHECK-NEXT:    [[Y_C:%.*]] = or i1 [[C:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[AND2:%.*]] = xor i1 [[Y_C]], true
+; CHECK-NEXT:    [[AND1:%.*]] = and i1 [[X:%.*]], [[C]]
+; CHECK-NEXT:    [[R:%.*]] = or i1 [[AND1]], [[AND2]]
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %y_c = or i1 %c, %y
+  %and2 = xor i1 %y_c, true
+  %and1 = and i1 %x, %c
+  %r = or i1 %and1, %and2
+  ret i1 %r
+}
+
+define i1 @not_d_bools_commute11(i1 %c, i1 %x, i1 %y) {
+; CHECK-LABEL: @not_d_bools_commute11(
+; CHECK-NEXT:    [[Y_C:%.*]] = or i1 [[Y:%.*]], [[C:%.*]]
+; CHECK-NEXT:    [[AND2:%.*]] = xor i1 [[Y_C]], true
+; CHECK-NEXT:    [[AND1:%.*]] = and i1 [[X:%.*]], [[C]]
+; CHECK-NEXT:    [[R:%.*]] = or i1 [[AND1]], [[AND2]]
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %y_c = or i1 %y, %c
+  %and2 = xor i1 %y_c, true
+  %and1 = and i1 %x, %c
+  %r = or i1 %and1, %and2
+  ret i1 %r
+}
+
+define <2 x i1> @not_d_bools_vector(<2 x i1> %c, <2 x i1> %x, <2 x i1> %y) {
+; CHECK-LABEL: @not_d_bools_vector(
+; CHECK-NEXT:    [[Y_C:%.*]] = or <2 x i1> [[Y:%.*]], [[C:%.*]]
+; CHECK-NEXT:    [[AND2:%.*]] = xor <2 x i1> [[Y_C]], <i1 true, i1 true>
+; CHECK-NEXT:    [[AND1:%.*]] = and <2 x i1> [[X:%.*]], [[C]]
+; CHECK-NEXT:    [[R:%.*]] = or <2 x i1> [[AND1]], [[AND2]]
+; CHECK-NEXT:    ret <2 x i1> [[R]]
+;
+  %y_c = or <2 x i1> %y, %c
+  %and2 = xor <2 x i1> %y_c, <i1 true, i1 true>
+  %and1 = and <2 x i1> %x, %c
+  %r = or <2 x i1> %and1, %and2
+  ret <2 x i1> %r
+}
+
+define <2 x i1> @not_d_bools_vector_poison(<2 x i1> %c, <2 x i1> %x, <2 x i1> %y) {
+; CHECK-LABEL: @not_d_bools_vector_poison(
+; CHECK-NEXT:    [[Y_C:%.*]] = or <2 x i1> [[Y:%.*]], [[C:%.*]]
+; CHECK-NEXT:    [[AND2:%.*]] = xor <2 x i1> [[Y_C]], <i1 poison, i1 true>
+; CHECK-NEXT:    [[AND1:%.*]] = and <2 x i1> [[X:%.*]], [[C]]
+; CHECK-NEXT:    [[R:%.*]] = or <2 x i1> [[AND1]], [[AND2]]
+; CHECK-NEXT:    ret <2 x i1> [[R]]
+;
+  %y_c = or <2 x i1> %y, %c
+  %and2 = xor <2 x i1> %y_c, <i1 poison, i1 true>
+  %and1 = and <2 x i1> %x, %c
+  %r = or <2 x i1> %and1, %and2
+  ret <2 x i1> %r
+}
+
+define i32 @not_d_allSignBits(i32 %cond, i32 %tval, i32 %fval) {
+; CHECK-LABEL: @not_d_allSignBits(
+; CHECK-NEXT:    [[BITMASK:%.*]] = ashr i32 [[COND:%.*]], 31
+; CHECK-NEXT:    [[A1:%.*]] = and i32 [[BITMASK]], [[TVAL:%.*]]
+; CHECK-NEXT:    [[OR:%.*]] = or i32 [[BITMASK]], [[FVAL:%.*]]
+; CHECK-NEXT:    [[A2:%.*]] = xor i32 [[OR]], -1
+; CHECK-NEXT:    [[SEL:%.*]] = or i32 [[A1]], [[A2]]
+; CHECK-NEXT:    ret i32 [[SEL]]
+;
+  %bitmask = ashr i32 %cond, 31
+  %a1 = and i32 %tval, %bitmask
+  %or = or i32 %bitmask, %fval
+  %a2 = xor i32 %or, -1
+  %sel = or i32 %a1, %a2
+  ret i32 %sel
+}
+
+define i1 @not_d_bools_use2(i1 %c, i1 %x, i1 %y) {
+; CHECK-LABEL: @not_d_bools_use2(
+; CHECK-NEXT:    [[Y_C:%.*]] = or i1 [[C:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[AND2:%.*]] = xor i1 [[Y_C]], true
+; CHECK-NEXT:    [[AND1:%.*]] = and i1 [[C]], [[X:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = or i1 [[AND1]], [[AND2]]
+; CHECK-NEXT:    call void @use1(i1 [[AND1]])
+; CHECK-NEXT:    call void @use1(i1 [[Y_C]])
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %y_c = or i1 %c, %y
+  %and2 = xor i1 %y_c, true
+  %and1 = and i1 %c, %x
+  %r = or i1 %and1, %and2
+  call void @use1(i1 %and1)
+  call void @use1(i1 %y_c)
+  ret i1 %r
+}
+
+define i1 @not_d_bools_negative_use2(i1 %c, i1 %x, i1 %y) {
+; CHECK-LABEL: @not_d_bools_negative_use2(
+; CHECK-NEXT:    [[Y_C:%.*]] = or i1 [[C:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[AND2:%.*]] = xor i1 [[Y_C]], true
+; CHECK-NEXT:    [[AND1:%.*]] = and i1 [[C]], [[X:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = or i1 [[AND1]], [[AND2]]
+; CHECK-NEXT:    call void @use1(i1 [[AND2]])
+; CHECK-NEXT:    call void @use1(i1 [[AND1]])
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %y_c = or i1 %c, %y
+  %and2 = xor i1 %y_c, true
+  %and1 = and i1 %c, %x
+  %r = or i1 %and1, %and2
+  call void @use1(i1 %and2)
+  call void @use1(i1 %and1)
+  ret i1 %r
 }

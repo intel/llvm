@@ -156,7 +156,7 @@ void ComputeOffsetsHelper::DoCommonBlock(Symbol &commonBlock) {
     Symbol &symbol{*object};
     auto errorSite{
         commonBlock.name().empty() ? symbol.name() : commonBlock.name()};
-    if (std::size_t padding{DoSymbol(symbol)}) {
+    if (std::size_t padding{DoSymbol(symbol.GetUltimate())}) {
       context_.Say(errorSite,
           "COMMON block /%s/ requires %zd bytes of padding before '%s' for alignment"_port_en_US,
           commonBlock.name(), padding, symbol.name());
@@ -174,8 +174,7 @@ void ComputeOffsetsHelper::DoCommonBlock(Symbol &commonBlock) {
       if (const auto *baseBlock{FindCommonBlockContaining(base)}) {
         if (baseBlock == &commonBlock) {
           if (base.offset() != symbol.offset() - dep.offset ||
-              std::find(details.objects().begin(), details.objects().end(),
-                  base) != details.objects().end()) {
+              llvm::is_contained(details.objects(), base)) {
             context_.Say(errorSite,
                 "'%s' is storage associated with '%s' by EQUIVALENCE elsewhere in COMMON block /%s/"_err_en_US,
                 symbol.name(), base.name(), commonBlock.name());

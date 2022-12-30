@@ -209,6 +209,7 @@ public:
   void Visit(const APValue &Value, QualType Ty);
 
   void VisitTypedefType(const TypedefType *TT);
+  void VisitUsingType(const UsingType *TT);
   void VisitFunctionType(const FunctionType *T);
   void VisitFunctionProtoType(const FunctionProtoType *T);
   void VisitRValueReferenceType(const ReferenceType *RT);
@@ -221,6 +222,8 @@ public:
   void VisitTagType(const TagType *TT);
   void VisitTemplateTypeParmType(const TemplateTypeParmType *TTPT);
   void VisitSubstTemplateTypeParmType(const SubstTemplateTypeParmType *STTPT);
+  void
+  VisitSubstTemplateTypeParmPackType(const SubstTemplateTypeParmPackType *T);
   void VisitAutoType(const AutoType *AT);
   void VisitTemplateSpecializationType(const TemplateSpecializationType *TST);
   void VisitInjectedClassNameType(const InjectedClassNameType *ICNT);

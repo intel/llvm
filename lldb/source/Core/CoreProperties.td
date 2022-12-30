@@ -178,7 +178,7 @@ let Definition = "debugger" in {
   def FrameFormatUnique: Property<"frame-format-unique", "FormatEntity">,
     Global,
     DefaultStringValue<"frame #${frame.index}: ${ansi.fg.yellow}${frame.pc}${ansi.normal}{ ${module.file.basename}{`${function.name-without-args}{${frame.no-debug}${function.pc-offset}}}}{ at ${ansi.fg.cyan}${line.file.basename}${ansi.normal}:${ansi.fg.yellow}${line.number}${ansi.normal}{:${ansi.fg.yellow}${line.column}${ansi.normal}}}{${function.is-optimized} [opt]}{${frame.is-artificial} [artificial]}\\\\n">,
-    Desc<"The default frame format string to use when displaying stack frameinformation for threads from thread backtrace unique.">;
+    Desc<"The default frame format string to use when displaying stack frame information for threads from thread backtrace unique.">;
   def ShowAutosuggestion: Property<"show-autosuggestion", "Boolean">,
     Global,
     DefaultFalse,
@@ -191,4 +191,9 @@ let Definition = "debugger" in {
     Global,
     DefaultStringValue<"${ansi.normal}">,
     Desc<"When displaying suggestion in a color-enabled terminal, use the ANSI terminal code specified in this format immediately after the suggestion.">;
+  def DWIMPrintVerbosity: Property<"dwim-print-verbosity", "Enum">,
+    Global,
+    DefaultEnumValue<"eDWIMPrintVerbosityExpression">,
+    EnumValues<"OptionEnumValues(g_dwim_print_verbosities)">,
+    Desc<"The verbosity level used by dwim-print.">;
 }

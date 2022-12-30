@@ -1,4 +1,4 @@
-import("//llvm/utils/unittest/unittest.gni")
+import("//third-party/unittest/unittest.gni")
 
 unittest("AMDGPUTests") {
   deps = [
@@ -11,6 +11,7 @@ unittest("AMDGPUTests") {
   ]
   include_dirs = [ "//llvm/lib/Target/AMDGPU" ]
   sources = [
+    "AMDGPUUnitTests.cpp",
     "DwarfRegMappings.cpp",
     "ExecMayBeModifiedBeforeAnyUse.cpp",
   ]

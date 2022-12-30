@@ -10,11 +10,17 @@
 #ifndef _LIBCPP___ITERATOR_ITERATOR_TRAITS_H
 #define _LIBCPP___ITERATOR_ITERATOR_TRAITS_H
 
+#include <__concepts/arithmetic.h>
+#include <__concepts/constructible.h>
+#include <__concepts/convertible_to.h>
+#include <__concepts/copyable.h>
+#include <__concepts/equality_comparable.h>
+#include <__concepts/same_as.h>
+#include <__concepts/totally_ordered.h>
 #include <__config>
 #include <__fwd/pair.h>
 #include <__iterator/incrementable_traits.h>
 #include <__iterator/readable_traits.h>
-#include <concepts>
 #include <cstddef>
 #include <type_traits>
 
@@ -108,11 +114,11 @@ struct __has_iterator_typedefs
 {
 private:
     template <class _Up> static false_type __test(...);
-    template <class _Up> static true_type __test(typename __void_t<typename _Up::iterator_category>::type* = 0,
-                                                 typename __void_t<typename _Up::difference_type>::type* = 0,
-                                                 typename __void_t<typename _Up::value_type>::type* = 0,
-                                                 typename __void_t<typename _Up::reference>::type* = 0,
-                                                 typename __void_t<typename _Up::pointer>::type* = 0);
+    template <class _Up> static true_type __test(__void_t<typename _Up::iterator_category>* = nullptr,
+                                                 __void_t<typename _Up::difference_type>* = nullptr,
+                                                 __void_t<typename _Up::value_type>* = nullptr,
+                                                 __void_t<typename _Up::reference>* = nullptr,
+                                                 __void_t<typename _Up::pointer>* = nullptr);
 public:
     static const bool value = decltype(__test<_Tp>(0,0,0,0,0))::value;
 };

@@ -18,6 +18,7 @@
 // CHECK-NEXT:   "_ZTSN16second_namespace13second_kernelIcEE",
 // CHECK-NEXT:   "_ZTS13fourth_kernelIJN15template_arg_ns14namespaced_argILi1EEEEE"
 // CHECK-NEXT:   "_ZTSZ4mainE16accessor_in_base"
+// CHECK-NEXT:   "_ZTSZ4mainE15annotated_types"
 // CHECK-NEXT: };
 //
 // CHECK: static constexpr
@@ -47,6 +48,11 @@
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 36 },
 // CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 40 },
 // CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 52 },
+// CHECK-EMPTY:
+// CHECK-NEXT:  //--- _ZTSZ4mainE15annotated_types
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 8 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 16 },
 // CHECK-EMPTY:
 // CHECK-NEXT:  { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },
 // CHECK-NEXT: };
@@ -102,6 +108,8 @@ struct captured : base, base2 {
 
 }; // namespace accessor_in_base
 
+struct MockProperty {};
+
 int main() {
 
   sycl::accessor<char, 1, sycl::access::mode::read> acc1;
@@ -141,6 +149,15 @@ int main() {
   accessor_in_base::captured c;
   kernel_single_task<class accessor_in_base>([=]() {
     c.use();
+  });
+
+  sycl::ext::oneapi::experimental::annotated_arg<int, MockProperty> AA1;
+  sycl::ext::oneapi::experimental::annotated_ptr<int, MockProperty> AP2;
+  sycl::ext::oneapi::experimental::annotated_arg<float*, MockProperty> AP3;
+  kernel_single_task<class annotated_types>([=]() {
+    (void)AA1;
+    (void)AP2;
+    (void)AP3;
   });
 
   return 0;

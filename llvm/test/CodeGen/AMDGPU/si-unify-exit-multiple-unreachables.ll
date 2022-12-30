@@ -29,6 +29,9 @@ define amdgpu_kernel void @kernel(i32 %a, i32 addrspace(1)* %x, i32 noundef %n) 
 ; UNIFY-NEXT:    call void @llvm.trap()
 ; UNIFY-NEXT:    br label %UnifiedUnreachableBlock
 ; UNIFY-LABEL: if.end6.sink.split:
+; UNIFY-NEXT:    %x.kernarg.offset = getelementptr inbounds i8, i8 addrspace(4)* %kernel.kernarg.segment, i64 8
+; UNIFY-NEXT:    %x.kernarg.offset.cast = bitcast i8 addrspace(4)* %x.kernarg.offset to i32 addrspace(1)* addrspace(4)*
+; UNIFY-NEXT:    %x.load = load i32 addrspace(1)*, i32 addrspace(1)* addrspace(4)* %x.kernarg.offset.cast, align 8, !invariant.load !0
 ; UNIFY-NEXT:    %idxprom = sext i32 %tid to i64
 ; UNIFY-NEXT:    %x1 = getelementptr inbounds i32, i32 addrspace(1)* %x.load, i64 %idxprom
 ; UNIFY-NEXT:    store i32 %a.load, i32 addrspace(1)* %x1, align 4
@@ -57,7 +60,6 @@ define amdgpu_kernel void @kernel(i32 %a, i32 addrspace(1)* %x, i32 noundef %n) 
 ; CHECK-NEXT:    s_cmp_lg_u32 s10, 0
 ; CHECK-NEXT:    s_cbranch_scc1 .LBB0_14
 ; CHECK-NEXT:  ; %bb.3:
-; CHECK-NEXT:    s_mov_b64 s[2:3], 0
 ; CHECK-NEXT:    s_mov_b64 s[0:1], -1
 ; CHECK-NEXT:  .LBB0_4: ; %Flow3
 ; CHECK-NEXT:    s_and_b64 s[0:1], s[0:1], exec
@@ -100,7 +102,6 @@ define amdgpu_kernel void @kernel(i32 %a, i32 addrspace(1)* %x, i32 noundef %n) 
 ; CHECK-NEXT:    s_branch .LBB0_10
 ; CHECK-NEXT:  .LBB0_14: ; %cond.false.i8
 ; CHECK-NEXT:    s_mov_b64 s[2:3], -1
-; CHECK-NEXT:    s_mov_b64 s[0:1], 0
 ; CHECK-NEXT:    s_trap 2
 ; CHECK-NEXT:    s_branch .LBB0_4
 entry:

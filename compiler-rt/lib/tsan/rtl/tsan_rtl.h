@@ -56,7 +56,8 @@ namespace __tsan {
 
 #if !SANITIZER_GO
 struct MapUnmapCallback;
-#if defined(__mips64) || defined(__aarch64__) || defined(__powerpc__)
+#if defined(__mips64) || defined(__aarch64__) || defined(__loongarch__) || \
+    defined(__powerpc__)
 
 struct AP32 {
   static const uptr kSpaceBeg = 0;
@@ -191,6 +192,7 @@ struct ThreadState {
 #if !SANITIZER_GO
   Vector<JmpBuf> jmp_bufs;
   int in_symbolizer;
+  atomic_uintptr_t in_blocking_func;
   bool in_ignored_lib;
   bool is_inited;
 #endif
@@ -627,6 +629,13 @@ class SlotLocker {
   ALWAYS_INLINE
   SlotLocker(ThreadState *thr, bool recursive = false)
       : thr_(thr), locked_(recursive ? thr->slot_locked : false) {
+#if !SANITIZER_GO
+    // We are in trouble if we are here with in_blocking_func set.
+    // If in_blocking_func is set, all signals will be delivered synchronously,
+    // which means we can't lock slots since the signal handler will try
+    // to lock it recursively and deadlock.
+    DCHECK(!atomic_load(&thr->in_blocking_func, memory_order_relaxed));
+#endif
     if (!locked_)
       SlotLock(thr_);
   }
@@ -670,8 +679,8 @@ ALWAYS_INLINE
 void LazyInitialize(ThreadState *thr) {
   // If we can use .preinit_array, assume that __tsan_init
   // called from .preinit_array initializes runtime before
-  // any instrumented code.
-#if !SANITIZER_CAN_USE_PREINIT_ARRAY
+  // any instrumented code except ANDROID.
+#if (!SANITIZER_CAN_USE_PREINIT_ARRAY || defined(__ANDROID__))
   if (UNLIKELY(!is_initialized))
     Initialize(thr);
 #endif

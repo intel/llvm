@@ -328,7 +328,7 @@ bool getConstantDataArrayInfo(const Value *V, ConstantDataArraySlice &Slice,
 /// character by default. If TrimAtNul is set to false, then this returns any
 /// trailing null characters as well as any other characters that come after
 /// it.
-bool getConstantStringInfo(const Value *V, StringRef &Str, uint64_t Offset = 0,
+bool getConstantStringInfo(const Value *V, StringRef &Str,
                            bool TrimAtNul = true);
 
 /// If we can compute the length of the string pointed to by the specified
@@ -769,10 +769,6 @@ SelectPatternFlavor getInverseMinMaxFlavor(SelectPatternFlavor SPF);
 
 Intrinsic::ID getInverseMinMaxIntrinsic(Intrinsic::ID MinMaxID);
 
-/// Return the canonical inverse comparison predicate for the specified
-/// minimum/maximum flavor.
-CmpInst::Predicate getInverseMinMaxPred(SelectPatternFlavor SPF);
-
 /// Return the minimum or maximum constant value for the specified integer
 /// min/max flavor and type.
 APInt getMinMaxLimit(SelectPatternFlavor SPF, unsigned BitWidth);
@@ -817,10 +813,10 @@ bool matchSimpleRecurrence(const BinaryOperator *I, PHINode *&P, Value *&Start,
                            Value *&Step);
 
 /// Return true if RHS is known to be implied true by LHS.  Return false if
-/// RHS is known to be implied false by LHS.  Otherwise, return None if no
-/// implication can be made.
-/// A & B must be i1 (boolean) values or a vector of such values. Note that
-/// the truth table for implication is the same as <=u on i1 values (but not
+/// RHS is known to be implied false by LHS.  Otherwise, return std::nullopt if
+/// no implication can be made. A & B must be i1 (boolean) values or a vector of
+/// such values. Note that the truth table for implication is the same as <=u on
+/// i1 values (but not
 /// <=s!).  The truth table for both is:
 ///    | T | F (B)
 ///  T | T | F

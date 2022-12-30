@@ -647,10 +647,8 @@ struct __tree_node_base_types {
 #if defined(_LIBCPP_ABI_TREE_REMOVE_NODE_POINTER_UB)
   typedef __end_node_pointer __parent_pointer;
 #else
-  typedef typename conditional<
-      is_pointer<__end_node_pointer>::value,
-        __end_node_pointer,
-        __node_base_pointer>::type __parent_pointer;
+  typedef __conditional_t< is_pointer<__end_node_pointer>::value, __end_node_pointer, __node_base_pointer>
+      __parent_pointer;
 #endif
 
 private:
@@ -696,10 +694,8 @@ public:
 #if defined(_LIBCPP_ABI_TREE_REMOVE_NODE_POINTER_UB)
   typedef typename __base::__end_node_pointer __iter_pointer;
 #else
-  typedef typename conditional<
-      is_pointer<__node_pointer>::value,
-        typename __base::__end_node_pointer,
-        __node_pointer>::type __iter_pointer;
+  typedef __conditional_t< is_pointer<__node_pointer>::value, typename __base::__end_node_pointer, __node_pointer>
+      __iter_pointer;
 #endif
 private:
     static_assert(!is_const<__node_type>::value,
@@ -1025,7 +1021,7 @@ public:
     typedef typename _NodeTypes::__parent_pointer      __parent_pointer;
     typedef typename _NodeTypes::__iter_pointer        __iter_pointer;
 
-    typedef typename __rebind_alloc_helper<__alloc_traits, __node>::type __node_allocator;
+    typedef __rebind_alloc<__alloc_traits, __node> __node_allocator;
     typedef allocator_traits<__node_allocator>         __node_traits;
 
 private:
@@ -1034,8 +1030,7 @@ private:
     // the pointer using 'pointer_traits'.
     static_assert((is_same<__node_pointer, typename __node_traits::pointer>::value),
                   "Allocator does not rebind pointers in a sane manner.");
-    typedef typename __rebind_alloc_helper<__node_traits, __node_base>::type
-        __node_base_allocator;
+    typedef __rebind_alloc<__node_traits, __node_base> __node_base_allocator;
     typedef allocator_traits<__node_base_allocator> __node_base_traits;
     static_assert((is_same<__node_base_pointer, typename __node_base_traits::pointer>::value),
                  "Allocator does not rebind pointers in a sane manner.");

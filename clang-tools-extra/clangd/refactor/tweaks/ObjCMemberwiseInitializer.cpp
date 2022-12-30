@@ -18,7 +18,6 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Tooling/Core/Replacement.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
@@ -96,7 +95,7 @@ struct MethodParameter {
     if (const auto *PD = dyn_cast<ObjCPropertyDecl>(&D))
       if (PD->isInstanceProperty())
         return MethodParameter(*PD);
-    return llvm::None;
+    return std::nullopt;
   }
 };
 

@@ -36,7 +36,7 @@ def ShapeDialect : Dialect {
   }];
 
   let cppNamespace = "::mlir::shape";
-  let dependentDialects = ["arith::ArithmeticDialect", "tensor::TensorDialect"];
+  let dependentDialects = ["arith::ArithDialect", "tensor::TensorDialect"];
 
   let useDefaultTypePrinterParser = 1;
   let hasConstantMaterializer = 1;
@@ -91,7 +91,7 @@ def Shape_ValueShapeType : Shape_Type<"ValueShape", "value_shape"> {
 
 def Shape_ExtentTensorType :
     1DTensorOf<[Index]>,
-    BuildableType<"::mlir::RankedTensorType::get({ShapedType::kDynamicSize}, "
+    BuildableType<"::mlir::RankedTensorType::get({ShapedType::kDynamic}, "
                   "$_builder.getType<::mlir::IndexType>())"> {
   let description = [{
     The extent tensor is a tensor of rank one with arbitrarily many index

@@ -10,6 +10,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/raw_ostream.h"
+#include "MoveOnly.h"
 #include "gtest/gtest-spi.h"
 #include "gtest/gtest.h"
 
@@ -18,10 +19,10 @@
 
 using namespace llvm;
 
-static_assert(std::is_trivially_copyable<Optional<int>>::value,
+static_assert(std::is_trivially_copyable_v<Optional<int>>,
               "trivially copyable");
 
-static_assert(std::is_trivially_copyable<Optional<std::array<int, 3>>>::value,
+static_assert(std::is_trivially_copyable_v<Optional<std::array<int, 3>>>,
               "trivially copyable");
 
 void OptionalWorksInConstexpr() {
@@ -70,9 +71,8 @@ unsigned NonDefaultConstructible::CopyConstructions = 0;
 unsigned NonDefaultConstructible::Destructions = 0;
 unsigned NonDefaultConstructible::CopyAssignments = 0;
 
-static_assert(
-    !std::is_trivially_copyable<Optional<NonDefaultConstructible>>::value,
-    "not trivially copyable");
+static_assert(!std::is_trivially_copyable_v<Optional<NonDefaultConstructible>>,
+              "not trivially copyable");
 
 TEST(OptionalTest, NonDefaultConstructibleTest) {
   Optional<NonDefaultConstructible> O;
@@ -241,7 +241,7 @@ struct MultiArgConstructor {
 };
 unsigned MultiArgConstructor::Destructions = 0;
 
-static_assert(!std::is_trivially_copyable<Optional<MultiArgConstructor>>::value,
+static_assert(!std::is_trivially_copyable_v<Optional<MultiArgConstructor>>,
               "not trivially copyable");
 
 TEST(OptionalTest, Emplace) {
@@ -293,37 +293,7 @@ TEST(OptionalTest, InPlaceConstructionAndEmplaceEquivalentTest) {
   EXPECT_EQ(2u, MultiArgConstructor::Destructions);
 }
 
-struct MoveOnly {
-  static unsigned MoveConstructions;
-  static unsigned Destructions;
-  static unsigned MoveAssignments;
-  int val;
-  explicit MoveOnly(int val) : val(val) {
-  }
-  MoveOnly(MoveOnly&& other) {
-    val = other.val;
-    ++MoveConstructions;
-  }
-  MoveOnly &operator=(MoveOnly&& other) {
-    val = other.val;
-    ++MoveAssignments;
-    return *this;
-  }
-  ~MoveOnly() {
-    ++Destructions;
-  }
-  static void ResetCounts() {
-    MoveConstructions = 0;
-    Destructions = 0;
-    MoveAssignments = 0;
-  }
-};
-
-unsigned MoveOnly::MoveConstructions = 0;
-unsigned MoveOnly::Destructions = 0;
-unsigned MoveOnly::MoveAssignments = 0;
-
-static_assert(!std::is_trivially_copyable<Optional<MoveOnly>>::value,
+static_assert(!std::is_trivially_copyable_v<Optional<MoveOnly>>,
               "not trivially copyable");
 
 TEST(OptionalTest, MoveOnlyNull) {
@@ -427,7 +397,7 @@ private:
 unsigned Immovable::Constructions = 0;
 unsigned Immovable::Destructions = 0;
 
-static_assert(!std::is_trivially_copyable<Optional<Immovable>>::value,
+static_assert(!std::is_trivially_copyable_v<Optional<Immovable>>,
               "not trivially copyable");
 
 TEST(OptionalTest, ImmovableEmplace) {
@@ -565,7 +535,7 @@ TEST(OptionalTest, DeletedMoveConstructor) {
   NonTMove1 = std::move(NonTMove2);
 
   static_assert(
-      std::is_trivially_copyable<NoTMoveOptT>::value,
+      std::is_trivially_copyable_v<NoTMoveOptT>,
       "Expect Optional<NoTMove> to still use the trivial specialization "
       "of OptionalStorage despite the deleted move constructor / assignment.");
 }
@@ -681,12 +651,12 @@ void CheckRelation(const Optional<T> &Lhs, const Optional<T> &Rhs,
   if (Lhs)
     EXPECT_EQ(Expected, OperatorT::apply(*Lhs, Rhs));
   else
-    EXPECT_EQ(Expected, OperatorT::apply(None, Rhs));
+    EXPECT_EQ(Expected, OperatorT::apply(std::nullopt, Rhs));
 
   if (Rhs)
     EXPECT_EQ(Expected, OperatorT::apply(Lhs, *Rhs));
   else
-    EXPECT_EQ(Expected, OperatorT::apply(Lhs, None));
+    EXPECT_EQ(Expected, OperatorT::apply(Lhs, std::nullopt));
 }
 
 struct EqualityMock {};
@@ -801,7 +771,7 @@ TEST(OptionalTest, StreamOperator) {
   };
   EXPECT_EQ("ComparableAndStreamable",
             to_string(ComparableAndStreamable::get()));
-  EXPECT_EQ("None", to_string(None));
+  EXPECT_EQ("None", to_string(std::nullopt));
 }
 
 struct Comparable {
@@ -814,16 +784,17 @@ struct Comparable {
 TEST(OptionalTest, UseInUnitTests) {
   // Test that we invoke the streaming operators when pretty-printing values in
   // EXPECT macros.
-  EXPECT_NONFATAL_FAILURE(EXPECT_EQ(llvm::None, ComparableAndStreamable::get()),
-                          "Expected equality of these values:\n"
-                          "  llvm::None\n"
-                          "    Which is: None\n"
-                          "  ComparableAndStreamable::get()\n"
-                          "    Which is: ComparableAndStreamable");
+  EXPECT_NONFATAL_FAILURE(
+      EXPECT_EQ(std::nullopt, ComparableAndStreamable::get()),
+      "Expected equality of these values:\n"
+      "  std::nullopt\n"
+      "    Which is: None\n"
+      "  ComparableAndStreamable::get()\n"
+      "    Which is: ComparableAndStreamable");
 
   // Test that it is still possible to compare objects which do not have a
   // custom streaming operator.
-  EXPECT_NONFATAL_FAILURE(EXPECT_EQ(llvm::None, Comparable::get()), "object");
+  EXPECT_NONFATAL_FAILURE(EXPECT_EQ(std::nullopt, Comparable::get()), "object");
 }
 
 TEST(OptionalTest, HashValue) {
@@ -853,5 +824,14 @@ TEST(OptionalTest, GCCIsTriviallyMoveConstructibleCompat) {
   Optional<NotTriviallyCopyable> V;
   EXPECT_FALSE(V);
 }
+
+TEST(OptionalTest, DeductionGuide) {
+  Optional V = MoveOnly(1);
+  EXPECT_TRUE(V);
+  EXPECT_EQ(V->val, 1);
+}
+
+static_assert(
+    std::is_same_v<Optional<MoveOnly>, decltype(Optional(MoveOnly(1)))>);
 
 } // end anonymous namespace

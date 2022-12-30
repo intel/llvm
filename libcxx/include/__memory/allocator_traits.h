@@ -28,7 +28,7 @@ _LIBCPP_BEGIN_NAMESPACE_STD
 
 #define _LIBCPP_ALLOCATOR_TRAITS_HAS_XXX(NAME, PROPERTY)                \
     template <class _Tp, class = void> struct NAME : false_type { };    \
-    template <class _Tp>               struct NAME<_Tp, typename __void_t<typename _Tp:: PROPERTY >::type> : true_type { }
+    template <class _Tp>               struct NAME<_Tp, __void_t<typename _Tp:: PROPERTY > > : true_type { }
 
 // __pointer
 _LIBCPP_ALLOCATOR_TRAITS_HAS_XXX(__has_pointer, pointer);
@@ -152,13 +152,12 @@ _LIBCPP_SUPPRESS_DEPRECATED_PUSH
 template <class _Tp, class _Up, class = void>
 struct __has_rebind_other : false_type { };
 template <class _Tp, class _Up>
-struct __has_rebind_other<_Tp, _Up, typename __void_t<
-    typename _Tp::template rebind<_Up>::other
->::type> : true_type { };
+struct __has_rebind_other<_Tp, _Up, __void_t<typename _Tp::template rebind<_Up>::other> > : true_type { };
 
 template <class _Tp, class _Up, bool = __has_rebind_other<_Tp, _Up>::value>
 struct __allocator_traits_rebind {
-    using type _LIBCPP_NODEBUG = typename _Tp::template rebind<_Up>::other;
+  static_assert(__has_rebind_other<_Tp, _Up>::value, "This allocator has to implement rebind");
+  using type _LIBCPP_NODEBUG = typename _Tp::template rebind<_Up>::other;
 };
 template <template <class, class...> class _Alloc, class _Tp, class ..._Args, class _Up>
 struct __allocator_traits_rebind<_Alloc<_Tp, _Args...>, _Up, true> {
@@ -349,14 +348,13 @@ struct _LIBCPP_TEMPLATE_VIS allocator_traits
     }
 };
 
-template <class _Traits, class _Tp>
-struct __rebind_alloc_helper {
 #ifndef _LIBCPP_CXX03_LANG
-    using type _LIBCPP_NODEBUG = typename _Traits::template rebind_alloc<_Tp>;
+template <class _Traits, class _Tp>
+using __rebind_alloc _LIBCPP_NODEBUG = typename _Traits::template rebind_alloc<_Tp>;
 #else
-    using type = typename _Traits::template rebind_alloc<_Tp>::other;
+template <class _Traits, class _Tp>
+using __rebind_alloc = typename _Traits::template rebind_alloc<_Tp>::other;
 #endif
-};
 
 // __is_default_allocator
 template <class _Tp>

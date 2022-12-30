@@ -167,9 +167,9 @@ structured_op: !LinalgStructuredOpConfig
 #  ODS-NEXT:  LogicalResult verifyIndexingMapRequiredAttributes();
 
 #       IMPL:  getSymbolBindings(Test2Op self)
-#       IMPL:  cst2 = self.strides().getValues<int64_t>()[0];
+#       IMPL:  cst2 = self.getStrides().getValues<int64_t>()[0];
 #  IMPL-NEXT:  getAffineConstantExpr(cst2, context)
-#       IMPL:  cst3 = self.strides().getValues<int64_t>()[1];
+#       IMPL:  cst3 = self.getStrides().getValues<int64_t>()[1];
 #  IMPL-NEXT:  getAffineConstantExpr(cst3, context)
 
 #       IMPL:  Test2Op::getIndexingMaps()
@@ -235,8 +235,8 @@ structured_op: !LinalgStructuredOpConfig
         - !ScalarExpression
           scalar_arg: value
 
-#       IMPL:  Test3Op::iterator_types() {
-#  IMPL-NEXT:    int64_t rank = getRank(getOutputOperand(0));
+#       IMPL:  Test3Op::getIteratorTypesArray() {
+#  IMPL-NEXT:    int64_t rank = getRank(getDpsInitOperand(0));
 
 #       IMPL:  Test3Op::getIndexingMaps() {
 #  IMPL-NEXT:    MLIRContext *context = getContext();

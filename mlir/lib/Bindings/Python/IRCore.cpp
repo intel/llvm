@@ -1017,7 +1017,8 @@ void PyOperationBase::print(py::object fileObject, bool binary,
   if (largeElementsLimit)
     mlirOpPrintingFlagsElideLargeElementsAttrs(flags, *largeElementsLimit);
   if (enableDebugInfo)
-    mlirOpPrintingFlagsEnableDebugInfo(flags, /*prettyForm=*/prettyDebugInfo);
+    mlirOpPrintingFlagsEnableDebugInfo(flags, /*enable=*/true,
+                                       /*prettyForm=*/prettyDebugInfo);
   if (printGenericOpForm)
     mlirOpPrintingFlagsPrintGenericOpForm(flags);
   if (useLocalScope)
@@ -1029,7 +1030,7 @@ void PyOperationBase::print(py::object fileObject, bool binary,
   mlirOpPrintingFlagsDestroy(flags);
 }
 
-void PyOperationBase::writeBytecode(py::object fileObject) {
+void PyOperationBase::writeBytecode(const py::object &fileObject) {
   PyOperation &operation = getOperation();
   operation.checkValid();
   PyFileAccumulator accum(fileObject, /*binary=*/true);
@@ -2625,7 +2626,7 @@ void mlir::python::populateIRCore(py::module &m) {
           "__str__",
           [](PyOperationBase &self) {
             return self.getAsm(/*binary=*/false,
-                               /*largeElementsLimit=*/llvm::None,
+                               /*largeElementsLimit=*/std::nullopt,
                                /*enableDebugInfo=*/false,
                                /*prettyDebugInfo=*/false,
                                /*printGenericOpForm=*/false,

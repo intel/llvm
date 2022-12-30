@@ -33,7 +33,7 @@ for.cond.cleanup:                                 ; preds = %for.cond.cleanup.lo
 
 for.body:                                         ; preds = %for.body, %for.body.preheader
 ; CHECK: ![[X:[0-9]+]] = !DILocalVariable(name: "x",
-; CHECK-LABEL: bb.3.for.body:
+; CHECK-LABEL: bb.2.for.body:
 ; CHECK: DBG_VALUE {{.*}} ![[X]], !DIExpression()
 ; CHECK: DBG_VALUE {{.*}} ![[X]], !DIExpression()
   %indvars.iv = phi i64 [ %indvars.iv.next, %for.body ], [ 0, %for.body.preheader ]

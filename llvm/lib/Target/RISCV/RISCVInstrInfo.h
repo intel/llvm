@@ -112,7 +112,7 @@ public:
 
   bool isAsCheapAsAMove(const MachineInstr &MI) const override;
 
-  Optional<DestSourcePair>
+  std::optional<DestSourcePair>
   isCopyInstrImpl(const MachineInstr &MI) const override;
 
   bool verifyInstruction(const MachineInstr &MI,
@@ -177,10 +177,36 @@ public:
                           unsigned OpIdx,
                           const TargetRegisterInfo *TRI) const override;
 
-  Register getVLENFactoredAmount(
+  void getVLENFactoredAmount(
       MachineFunction &MF, MachineBasicBlock &MBB,
-      MachineBasicBlock::iterator II, const DebugLoc &DL, int64_t Amount,
-      MachineInstr::MIFlag Flag = MachineInstr::NoFlags) const;
+      MachineBasicBlock::iterator II, const DebugLoc &DL, Register DestReg,
+      int64_t Amount, MachineInstr::MIFlag Flag = MachineInstr::NoFlags) const;
+
+  bool useMachineCombiner() const override { return true; }
+
+  void setSpecialOperandAttr(MachineInstr &OldMI1, MachineInstr &OldMI2,
+                             MachineInstr &NewMI1,
+                             MachineInstr &NewMI2) const override;
+  bool
+  getMachineCombinerPatterns(MachineInstr &Root,
+                             SmallVectorImpl<MachineCombinerPattern> &Patterns,
+                             bool DoRegPressureReduce) const override;
+
+  void
+  finalizeInsInstrs(MachineInstr &Root, MachineCombinerPattern &P,
+                    SmallVectorImpl<MachineInstr *> &InsInstrs) const override;
+
+  void genAlternativeCodeSequence(
+      MachineInstr &Root, MachineCombinerPattern Pattern,
+      SmallVectorImpl<MachineInstr *> &InsInstrs,
+      SmallVectorImpl<MachineInstr *> &DelInstrs,
+      DenseMap<unsigned, unsigned> &InstrIdxForVirtReg) const override;
+
+  bool hasReassociableSibling(const MachineInstr &Inst,
+                              bool &Commuted) const override;
+
+  bool isAssociativeAndCommutative(const MachineInstr &Inst,
+                                   bool Invert) const override;
 
 protected:
   const RISCVSubtarget &STI;
@@ -197,12 +223,17 @@ bool isZEXT_B(const MachineInstr &MI);
 // expect to see a FrameIndex operand.
 bool isRVVSpill(const MachineInstr &MI);
 
-Optional<std::pair<unsigned, unsigned>> isRVVSpillForZvlsseg(unsigned Opcode);
+std::optional<std::pair<unsigned, unsigned>>
+isRVVSpillForZvlsseg(unsigned Opcode);
 
 bool isFaultFirstLoad(const MachineInstr &MI);
 
 // Implemented in RISCVGenInstrInfo.inc
 int16_t getNamedOperandIdx(uint16_t Opcode, uint16_t NamedIndex);
+
+// Return true if both input instructions have equal rounding mode. If at least
+// one of the instructions does not have rounding mode, false will be returned.
+bool hasEqualFRM(const MachineInstr &MI1, const MachineInstr &MI2);
 
 // Special immediate for AVL operand of V pseudo instructions to indicate VLMax.
 static constexpr int64_t VLMaxSentinel = -1LL;

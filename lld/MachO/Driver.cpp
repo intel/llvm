@@ -82,7 +82,7 @@ static HeaderFileType getOutputType(const InputArgList &args) {
 }
 
 static DenseMap<CachedHashStringRef, StringRef> resolvedLibraries;
-static Optional<StringRef> findLibrary(StringRef name) {
+static std::optional<StringRef> findLibrary(StringRef name) {
   CachedHashStringRef key(name);
   auto entry = resolvedLibraries.find(key);
   if (entry != resolvedLibraries.end())
@@ -90,7 +90,7 @@ static Optional<StringRef> findLibrary(StringRef name) {
 
   auto doFind = [&] {
     if (config->searchDylibsFirst) {
-      if (Optional<StringRef> path = findPathCombination(
+      if (std::optional<StringRef> path = findPathCombination(
               "lib" + name, config->librarySearchPaths, {".tbd", ".dylib"}))
         return path;
       return findPathCombination("lib" + name, config->librarySearchPaths,
@@ -100,7 +100,7 @@ static Optional<StringRef> findLibrary(StringRef name) {
                                {".tbd", ".dylib", ".a"});
   };
 
-  Optional<StringRef> path = doFind();
+  std::optional<StringRef> path = doFind();
   if (path)
     resolvedLibraries[key] = *path;
 
@@ -108,7 +108,7 @@ static Optional<StringRef> findLibrary(StringRef name) {
 }
 
 static DenseMap<CachedHashStringRef, StringRef> resolvedFrameworks;
-static Optional<StringRef> findFramework(StringRef name) {
+static std::optional<StringRef> findFramework(StringRef name) {
   CachedHashStringRef key(name);
   auto entry = resolvedFrameworks.find(key);
   if (entry != resolvedFrameworks.end())
@@ -134,7 +134,7 @@ static Optional<StringRef> findFramework(StringRef name) {
       // Suffix lookup failed, fall through to the no-suffix case.
     }
 
-    if (Optional<StringRef> path = resolveDylibPath(symlink.str()))
+    if (std::optional<StringRef> path = resolveDylibPath(symlink.str()))
       return resolvedFrameworks[key] = *path;
   }
   return {};
@@ -268,7 +268,7 @@ static InputFile *addFile(StringRef path, LoadType loadType,
                           bool isLazy = false, bool isExplicit = true,
                           bool isBundleLoader = false,
                           bool isForceHidden = false) {
-  Optional<MemoryBufferRef> buffer = readFile(path);
+  std::optional<MemoryBufferRef> buffer = readFile(path);
   if (!buffer)
     return nullptr;
   MemoryBufferRef mbref = *buffer;
@@ -309,7 +309,7 @@ static InputFile *addFile(StringRef path, LoadType loadType,
                                path::filename(path).startswith("libswift");
     if ((isCommandLineLoad && config->allLoad) ||
         loadType == LoadType::CommandLineForce || isLCLinkerForceLoad) {
-      if (Optional<MemoryBufferRef> buffer = readFile(path)) {
+      if (std::optional<MemoryBufferRef> buffer = readFile(path)) {
         Error e = Error::success();
         for (const object::Archive::Child &c : file->getArchive().children(e)) {
           StringRef reason;
@@ -339,7 +339,7 @@ static InputFile *addFile(StringRef path, LoadType loadType,
 
       // TODO: no need to look for ObjC sections for a given archive member if
       // we already found that it contains an ObjC symbol.
-      if (Optional<MemoryBufferRef> buffer = readFile(path)) {
+      if (std::optional<MemoryBufferRef> buffer = readFile(path)) {
         Error e = Error::success();
         for (const object::Archive::Child &c : file->getArchive().children(e)) {
           Expected<MemoryBufferRef> mb = c.getMemoryBufferRef();
@@ -409,7 +409,7 @@ static InputFile *addFile(StringRef path, LoadType loadType,
 static void addLibrary(StringRef name, bool isNeeded, bool isWeak,
                        bool isReexport, bool isHidden, bool isExplicit,
                        LoadType loadType) {
-  if (Optional<StringRef> path = findLibrary(name)) {
+  if (std::optional<StringRef> path = findLibrary(name)) {
     if (auto *dylibFile = dyn_cast_or_null<DylibFile>(
             addFile(*path, loadType, /*isLazy=*/false, isExplicit,
                     /*isBundleLoader=*/false, isHidden))) {
@@ -430,7 +430,7 @@ static void addLibrary(StringRef name, bool isNeeded, bool isWeak,
 static DenseSet<StringRef> loadedObjectFrameworks;
 static void addFramework(StringRef name, bool isNeeded, bool isWeak,
                          bool isReexport, bool isExplicit, LoadType loadType) {
-  if (Optional<StringRef> path = findFramework(name)) {
+  if (std::optional<StringRef> path = findFramework(name)) {
     if (loadedObjectFrameworks.contains(*path))
       return;
 
@@ -463,6 +463,9 @@ static void addFramework(StringRef name, bool isNeeded, bool isWeak,
 // flags. This directly parses the flags instead of using the standard argument
 // parser to improve performance.
 void macho::parseLCLinkerOption(InputFile *f, unsigned argc, StringRef data) {
+  if (config->ignoreAutoLink)
+    return;
+
   SmallVector<StringRef, 4> argv;
   size_t offset = 0;
   for (unsigned i = 0; i < argc && offset < data.size(); ++i) {
@@ -475,11 +478,15 @@ void macho::parseLCLinkerOption(InputFile *f, unsigned argc, StringRef data) {
   unsigned i = 0;
   StringRef arg = argv[i];
   if (arg.consume_front("-l")) {
+    if (config->ignoreAutoLinkOptions.contains(arg))
+      return;
     addLibrary(arg, /*isNeeded=*/false, /*isWeak=*/false,
                /*isReexport=*/false, /*isHidden=*/false, /*isExplicit=*/false,
                LoadType::LCLinkerOption);
   } else if (arg == "-framework") {
     StringRef name = argv[++i];
+    if (config->ignoreAutoLinkOptions.contains(name))
+      return;
     addFramework(name, /*isNeeded=*/false, /*isWeak=*/false,
                  /*isReexport=*/false, /*isExplicit=*/false,
                  LoadType::LCLinkerOption);
@@ -489,7 +496,7 @@ void macho::parseLCLinkerOption(InputFile *f, unsigned argc, StringRef data) {
 }
 
 static void addFileList(StringRef path, bool isLazy) {
-  Optional<MemoryBufferRef> buffer = readFile(path);
+  std::optional<MemoryBufferRef> buffer = readFile(path);
   if (!buffer)
     return;
   MemoryBufferRef mbref = *buffer;
@@ -570,7 +577,7 @@ static void replaceCommonSymbols() {
     // FIXME: CommonSymbol should store isReferencedDynamically, noDeadStrip
     // and pass them on here.
     replaceSymbol<Defined>(
-        sym, sym->getName(), common->getFile(), isec, /*value=*/0, /*size=*/0,
+        sym, sym->getName(), common->getFile(), isec, /*value=*/0, common->size,
         /*isWeakDef=*/false, /*isExternal=*/true, common->privateExtern,
         /*includeInSymtab=*/true, /*isThumb=*/false,
         /*isReferencedDynamically=*/false, /*noDeadStrip=*/false);
@@ -758,9 +765,9 @@ getUndefinedSymbolTreatment(const ArgList &args) {
              (treatment == UndefinedSymbolTreatment::warning ||
               treatment == UndefinedSymbolTreatment::suppress)) {
     if (treatment == UndefinedSymbolTreatment::warning)
-      error("'-undefined warning' only valid with '-flat_namespace'");
+      fatal("'-undefined warning' only valid with '-flat_namespace'");
     else
-      error("'-undefined suppress' only valid with '-flat_namespace'");
+      fatal("'-undefined suppress' only valid with '-flat_namespace'");
     treatment = UndefinedSymbolTreatment::error;
   }
   return treatment;
@@ -924,6 +931,20 @@ PlatformType macho::removeSimulator(PlatformType platform) {
   }
 }
 
+static bool supportsNoPie() {
+  return !(config->arch() == AK_arm64 || config->arch() == AK_arm64e ||
+           config->arch() == AK_arm64_32);
+}
+
+static bool shouldAdhocSignByDefault(Architecture arch, PlatformType platform) {
+  if (arch != AK_arm64 && arch != AK_arm64e)
+    return false;
+
+  return platform == PLATFORM_MACOS || platform == PLATFORM_IOSSIMULATOR ||
+         platform == PLATFORM_TVOSSIMULATOR ||
+         platform == PLATFORM_WATCHOSSIMULATOR;
+}
+
 static bool dataConstDefault(const InputArgList &args) {
   static const std::array<std::pair<PlatformType, VersionTuple>, 5> minVersion =
       {{{PLATFORM_MACOS, VersionTuple(10, 15)},
@@ -940,7 +961,7 @@ static bool dataConstDefault(const InputArgList &args) {
 
   switch (config->outputType) {
   case MH_EXECUTE:
-    return !args.hasArg(OPT_no_pie);
+    return !(args.hasArg(OPT_no_pie) && supportsNoPie());
   case MH_BUNDLE:
     // FIXME: return false when -final_name ...
     // has prefix "/System/Library/UserEventPlugins/"
@@ -955,6 +976,47 @@ static bool dataConstDefault(const InputArgList &args) {
         "unsupported output type for determining data-const default");
   }
   return false;
+}
+
+static bool shouldEmitChainedFixups(const InputArgList &args) {
+  const Arg *arg = args.getLastArg(OPT_fixup_chains, OPT_no_fixup_chains);
+  if (arg && arg->getOption().matches(OPT_no_fixup_chains))
+    return false;
+
+  bool isRequested = arg != nullptr;
+
+  // Version numbers taken from the Xcode 13.3 release notes.
+  static const std::array<std::pair<PlatformType, VersionTuple>, 4> minVersion =
+      {{{PLATFORM_MACOS, VersionTuple(11, 0)},
+        {PLATFORM_IOS, VersionTuple(13, 4)},
+        {PLATFORM_TVOS, VersionTuple(14, 0)},
+        {PLATFORM_WATCHOS, VersionTuple(7, 0)}}};
+  PlatformType platform = removeSimulator(config->platformInfo.target.Platform);
+  auto it = llvm::find_if(minVersion,
+                          [&](const auto &p) { return p.first == platform; });
+  if (it != minVersion.end() && it->second > config->platformInfo.minimum) {
+    if (!isRequested)
+      return false;
+
+    warn("-fixup_chains requires " + getPlatformName(config->platform()) + " " +
+         it->second.getAsString() + ", which is newer than target minimum of " +
+         config->platformInfo.minimum.getAsString());
+  }
+
+  if (!is_contained({AK_x86_64, AK_x86_64h, AK_arm64}, config->arch())) {
+    if (isRequested)
+      error("-fixup_chains is only supported on x86_64 and arm64 targets");
+    return false;
+  }
+
+  if (!config->isPic) {
+    if (isRequested)
+      error("-fixup_chains is incompatible with -no_pie");
+    return false;
+  }
+
+  // TODO: Enable by default once stable.
+  return isRequested;
 }
 
 void SymbolPatterns::clear() {
@@ -989,7 +1051,7 @@ bool SymbolPatterns::match(StringRef symbolName) const {
 static void parseSymbolPatternsFile(const Arg *arg,
                                     SymbolPatterns &symbolPatterns) {
   StringRef path = arg->getValue();
-  Optional<MemoryBufferRef> buffer = readFile(path);
+  std::optional<MemoryBufferRef> buffer = readFile(path);
   if (!buffer) {
     error("Could not read symbol file: " + path);
     return;
@@ -1200,7 +1262,8 @@ static void createAliases() {
   for (const auto &pair : config->aliasedSymbols) {
     if (const auto &sym = symtab->find(pair.first)) {
       if (const auto &defined = dyn_cast<Defined>(sym)) {
-        symtab->aliasDefined(defined, pair.second, defined->getFile());
+        symtab->aliasDefined(defined, pair.second, defined->getFile())
+            ->noDeadStrip = true;
       } else {
         error("TODO: support aliasing to symbols of kind " +
               Twine(sym->kind()));
@@ -1334,11 +1397,11 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
     uint64_t pagezeroSize = args::getHex(args, OPT_pagezero_size, 0);
 
     // ld64 does something really weird. It attempts to realign the value to the
-    // page size, but assumes the the page size is 4K. This doesn't work with
-    // most of Apple's ARM64 devices, which use a page size of 16K. This means
-    // that it will first 4K align it by rounding down, then round up to 16K.
-    // This probably only happened because no one using this arg with anything
-    // other then 0, so no one checked if it did what is what it says it does.
+    // page size, but assumes the page size is 4K. This doesn't work with most
+    // of Apple's ARM64 devices, which use a page size of 16K. This means that
+    // it will first 4K align it by rounding down, then round up to 16K.  This
+    // probably only happened because no one using this arg with anything other
+    // then 0, so no one checked if it did what is what it says it does.
 
     // So we are not copying this weird behavior and doing the it in a logical
     // way, by always rounding down to page size.
@@ -1375,6 +1438,16 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
       config->osoPrefix = saver().save(expanded.str());
     }
   }
+
+  bool pie = args.hasFlag(OPT_pie, OPT_no_pie, true);
+  if (!supportsNoPie() && !pie) {
+    warn("-no_pie ignored for arm64");
+    pie = true;
+  }
+
+  config->isPic = config->outputType == MH_DYLIB ||
+                  config->outputType == MH_BUNDLE ||
+                  (config->outputType == MH_EXECUTE && pie);
 
   // Must be set before any InputSections and Symbols are created.
   config->deadStrip = args.hasArg(OPT_dead_strip);
@@ -1475,11 +1548,14 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
   config->emitBitcodeBundle = args.hasArg(OPT_bitcode_bundle);
   config->emitDataInCodeInfo =
       args.hasFlag(OPT_data_in_code_info, OPT_no_data_in_code_info, true);
-  config->emitInitOffsets = args.hasArg(OPT_init_offsets);
+  config->emitChainedFixups = shouldEmitChainedFixups(args);
+  config->emitInitOffsets =
+      config->emitChainedFixups || args.hasArg(OPT_init_offsets);
   config->icfLevel = getICFLevel(args);
   config->dedupLiterals =
       args.hasFlag(OPT_deduplicate_literals, OPT_icf_eq, false) ||
       config->icfLevel != ICFLevel::none;
+  config->deadStripDuplicates = args.hasArg(OPT_dead_strip_duplicates);
   config->warnDylibInstallName = args.hasFlag(
       OPT_warn_dylib_install_name, OPT_no_warn_dylib_install_name, false);
   config->ignoreOptimizationHints = args.hasArg(OPT_ignore_optimization_hints);
@@ -1489,6 +1565,9 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
   config->forceExactCpuSubtypeMatch =
       getenv("LD_DYLIB_CPU_SUBTYPES_MUST_MATCH");
   config->objcStubsMode = getObjCStubsMode(args);
+  config->ignoreAutoLink = args.hasArg(OPT_ignore_auto_link);
+  for (const Arg *arg : args.filtered(OPT_ignore_auto_link_option))
+    config->ignoreAutoLinkOptions.insert(arg->getValue());
 
   for (const Arg *arg : args.filtered(OPT_alias)) {
     config->aliasedSymbols.push_back(
@@ -1496,7 +1575,8 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
   }
 
   // FIXME: Add a commandline flag for this too.
-  config->zeroModTime = getenv("ZERO_AR_DATE");
+  if (const char *zero = getenv("ZERO_AR_DATE"))
+    config->zeroModTime = strcmp(zero, "0") != 0;
 
   std::array<PlatformType, 3> encryptablePlatforms{
       PLATFORM_IOS, PLATFORM_WATCHOS, PLATFORM_TVOS};
@@ -1664,8 +1744,7 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
 
   config->adhocCodesign = args.hasFlag(
       OPT_adhoc_codesign, OPT_no_adhoc_codesign,
-      (config->arch() == AK_arm64 || config->arch() == AK_arm64e) &&
-          config->platform() == PLATFORM_MACOS);
+      shouldAdhocSignByDefault(config->arch(), config->platform()));
 
   if (args.hasArg(OPT_v)) {
     message(getLLDVersion(), lld::errs());
@@ -1697,11 +1776,6 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
     initLLVM(); // must be run before any call to addFile()
     createFiles(args);
 
-    config->isPic = config->outputType == MH_DYLIB ||
-                    config->outputType == MH_BUNDLE ||
-                    (config->outputType == MH_EXECUTE &&
-                     args.hasFlag(OPT_pie, OPT_no_pie, true));
-
     // Now that all dylibs have been loaded, search for those that should be
     // re-exported.
     {
@@ -1729,8 +1803,10 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
       parseClangOption(saver().save("-mcpu=" + StringRef(arg->getValue())),
                        arg->getSpelling());
 
-    for (const Arg *arg : args.filtered(OPT_mllvm))
+    for (const Arg *arg : args.filtered(OPT_mllvm)) {
       parseClangOption(arg->getValue(), arg->getSpelling());
+      config->mllvmOpts.emplace_back(arg->getValue());
+    }
 
     createSyntheticSections();
     createSyntheticSymbols();
@@ -1762,7 +1838,7 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
       StringRef segName = arg->getValue(0);
       StringRef sectName = arg->getValue(1);
       StringRef fileName = arg->getValue(2);
-      Optional<MemoryBufferRef> buffer = readFile(fileName);
+      std::optional<MemoryBufferRef> buffer = readFile(fileName);
       if (buffer)
         inputFiles.insert(make<OpaqueFile>(*buffer, segName, sectName));
     }

@@ -11,6 +11,7 @@
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/Preprocessor.h"
 #include "llvm/Support/ConvertUTF.h"
+#include <optional>
 
 using namespace clang;
 using namespace clang::tidy::misc;
@@ -75,7 +76,7 @@ static bool containsMisleadingBidi(StringRef Buffer,
       BidiContexts.push_back(PDI);
     // Close a PDI Context.
     else if (CodePoint == PDI) {
-      auto R = std::find(BidiContexts.rbegin(), BidiContexts.rend(), PDI);
+      auto R = llvm::find(llvm::reverse(BidiContexts), PDI);
       if (R != BidiContexts.rend())
         BidiContexts.resize(BidiContexts.rend() - R - 1);
     }
@@ -90,7 +91,7 @@ class MisleadingBidirectionalCheck::MisleadingBidirectionalHandler
     : public CommentHandler {
 public:
   MisleadingBidirectionalHandler(MisleadingBidirectionalCheck &Check,
-                                 llvm::Optional<std::string> User)
+                                 std::optional<std::string> User)
       : Check(Check) {}
 
   bool HandleComment(Preprocessor &PP, SourceRange Range) override {

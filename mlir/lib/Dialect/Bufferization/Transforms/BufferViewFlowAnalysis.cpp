@@ -8,7 +8,7 @@
 
 #include "mlir/Dialect/Bufferization/Transforms/BufferViewFlowAnalysis.h"
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
 #include "llvm/ADT/SetOperations.h"
@@ -82,7 +82,8 @@ void BufferViewFlowAnalysis::build(Operation *op) {
   op->walk([&](RegionBranchOpInterface regionInterface) {
     // Extract all entry regions and wire all initial entry successor inputs.
     SmallVector<RegionSuccessor, 2> entrySuccessors;
-    regionInterface.getSuccessorRegions(/*index=*/llvm::None, entrySuccessors);
+    regionInterface.getSuccessorRegions(/*index=*/std::nullopt,
+                                        entrySuccessors);
     for (RegionSuccessor &entrySuccessor : entrySuccessors) {
       // Wire the entry region's successor arguments with the initial
       // successor inputs.

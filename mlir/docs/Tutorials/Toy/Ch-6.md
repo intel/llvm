@@ -95,7 +95,7 @@ multiple stages by relying on
   mlir::RewritePatternSet patterns(&getContext());
   mlir::populateAffineToStdConversionPatterns(patterns, &getContext());
   mlir::cf::populateSCFToControlFlowConversionPatterns(patterns, &getContext());
-  mlir::arith::populateArithmeticToLLVMConversionPatterns(typeConverter,
+  mlir::arith::populateArithToLLVMConversionPatterns(typeConverter,
                                                           patterns);
   mlir::populateFuncToLLVMConversionPatterns(typeConverter, patterns);
   mlir::cf::populateControlFlowToLLVMConversionPatterns(patterns, &getContext());
@@ -171,7 +171,7 @@ llvm.func @main() {
 }
 ```
 
-See [Conversion to the LLVM IR Dialect](../../ConversionToLLVMDialect.md) for
+See [LLVM IR Target](../../TargetLLVMIR.md) for
 more in-depth details on lowering to the LLVM dialect.
 
 ## CodeGen: Getting Out of MLIR

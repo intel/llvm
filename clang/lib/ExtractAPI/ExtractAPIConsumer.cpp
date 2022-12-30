@@ -20,10 +20,12 @@
 #include "clang/AST/ParentMapContext.h"
 #include "clang/AST/RawCommentList.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Basic/DiagnosticFrontend.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/ExtractAPI/API.h"
+#include "clang/ExtractAPI/APIIgnoresList.h"
 #include "clang/ExtractAPI/AvailabilityInfo.h"
 #include "clang/ExtractAPI/DeclarationFragments.h"
 #include "clang/ExtractAPI/FrontendActions.h"
@@ -38,12 +40,14 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/raw_ostream.h"
 #include <memory>
+#include <optional>
 #include <utility>
 
 using namespace clang;
@@ -58,9 +62,9 @@ StringRef getTypedefName(const TagDecl *Decl) {
   return {};
 }
 
-Optional<std::string> getRelativeIncludeName(const CompilerInstance &CI,
-                                             StringRef File,
-                                             bool *IsQuoted = nullptr) {
+std::optional<std::string> getRelativeIncludeName(const CompilerInstance &CI,
+                                                  StringRef File,
+                                                  bool *IsQuoted = nullptr) {
   assert(CI.hasFileManager() &&
          "CompilerInstance does not have a FileNamager!");
 
@@ -154,7 +158,7 @@ Optional<std::string> getRelativeIncludeName(const CompilerInstance &CI,
         Rule.match(File, &Matches);
         // Returned matches are always in stable order.
         if (Matches.size() != 4)
-          return None;
+          return std::nullopt;
 
         return path::convert_to_slash(
             (Matches[1].drop_front(Matches[1].rfind('/') + 1) + "/" +
@@ -169,7 +173,7 @@ Optional<std::string> getRelativeIncludeName(const CompilerInstance &CI,
   }
 
   // Couldn't determine a include name, use full path instead.
-  return None;
+  return std::nullopt;
 }
 
 struct LocationFileChecker {
@@ -401,6 +405,9 @@ public:
     StringRef Name = Decl->getName();
     if (Name.empty())
       Name = getTypedefName(Decl);
+    if (Name.empty())
+      return true;
+
     StringRef USR = API.recordUSR(Decl);
     PresumedLoc Loc =
         Context.getSourceManager().getPresumedLoc(Decl->getLocation());
@@ -850,6 +857,23 @@ ExtractAPIAction::CreateASTConsumer(CompilerInstance &CI, StringRef InFile) {
   CI.getPreprocessor().addPPCallbacks(std::make_unique<MacroCallback>(
       CI.getSourceManager(), *LCF, *API, CI.getPreprocessor()));
 
+  // Do not include location in anonymous decls.
+  PrintingPolicy Policy = CI.getASTContext().getPrintingPolicy();
+  Policy.AnonymousTagLocations = false;
+  CI.getASTContext().setPrintingPolicy(Policy);
+
+  if (!CI.getFrontendOpts().ExtractAPIIgnoresFile.empty()) {
+    llvm::handleAllErrors(
+        APIIgnoresList::create(CI.getFrontendOpts().ExtractAPIIgnoresFile,
+                               CI.getFileManager())
+            .moveInto(IgnoresList),
+        [&CI](const IgnoresFileNotFound &Err) {
+          CI.getDiagnostics().Report(
+              diag::err_extract_api_ignores_file_not_found)
+              << Err.Path;
+        });
+  }
+
   return std::make_unique<ExtractAPIConsumer>(CI.getASTContext(),
                                               std::move(LCF), *API);
 }
@@ -918,7 +942,7 @@ void ExtractAPIAction::EndSourceFileAction() {
   // Setup a SymbolGraphSerializer to write out collected API information in
   // the Symbol Graph format.
   // FIXME: Make the kind of APISerializer configurable.
-  SymbolGraphSerializer SGSerializer(*API, ProductName);
+  SymbolGraphSerializer SGSerializer(*API, ProductName, IgnoresList);
   SGSerializer.serialize(*OS);
   OS.reset();
 }

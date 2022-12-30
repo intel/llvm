@@ -7,6 +7,9 @@ on:
         type: string
         required: false
         default: "default"
+      build_ref:
+        type: string
+        required: false
 
 jobs:
   build:
@@ -14,7 +17,7 @@ jobs:
     runs-on: [Windows, build]
     # TODO use cached checkout
     steps:
-    - uses: ilammy/msvc-dev-cmd@9f8ae839b01883414208f29e3e24524387f48e1f
+    - uses: ilammy/msvc-dev-cmd@7315a94840631165970262a99c72cfb48a65d25d
       with:
         arch: amd64
     - name: Set env
@@ -23,9 +26,10 @@ jobs:
         git config --global core.autocrlf false
         echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
         echo "SCCACHE_DIR=D:\github\_work\cache\${{ inputs.build_cache_suffix }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         path: src
+        ref: ${{ inputs.build_ref || github.ref }}
         fetch-depth: 1
     - name: Register cleanup after job is finished
       uses: ./src/devops/actions/cleanup
@@ -78,7 +82,7 @@ jobs:
       shell: bash
       run: cmake --build build --target deploy-sycl-toolchain
     - name: Upload toolchain
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: sycl_windows_default
         path: install/**/*

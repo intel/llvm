@@ -14,14 +14,14 @@
 %Optional.A = type { i32 }
 %Optional.B = type { i32 }
 
-; CHECK: spir_kernel void @kernel1() !sycl_used_aspects ![[#ID1:]] {
+; CHECK: spir_kernel void @kernel1() !sycl_used_aspects ![[#ID1:]]
 define spir_kernel void @kernel1() {
   call spir_func void @func1()
   call spir_func void @func2()
   ret void
 }
 
-; CHECK: spir_kernel void @kernel2() !sycl_used_aspects ![[#ID2:]] {
+; CHECK: spir_kernel void @kernel2() !sycl_used_aspects ![[#ID2:]]
 define spir_kernel void @kernel2() {
   call spir_func void @func2()
   call spir_func void @func3()

@@ -16,6 +16,16 @@ if(TARGET libc.src.__support.threads.${LIBC_TARGET_OS}.mutex)
     DEPENDS
       .${LIBC_TARGET_OS}.mutex
   )
+
+  add_object_library(
+    fork_callbacks
+    SRCS
+      fork_callbacks.cpp
+    HDRS
+      fork_callbacks.h
+    DEPENDS
+      .mutex
+  )
 endif()
 
 add_header_library(
@@ -41,5 +51,19 @@ if(TARGET libc.src.__support.threads.${LIBC_TARGET_OS}.thread)
       libc.src.__support.fixedvector
       libc.src.__support.CPP.array
       libc.src.__support.CPP.optional
+  )
+endif()
+
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${LIBC_TARGET_OS}/callonce.cpp)
+  add_object_library(
+    callonce
+    SRCS
+      ${LIBC_TARGET_OS}/callonce.cpp
+    HDRS
+      callonce.h
+    DEPENDS
+      libc.include.sys_syscall
+      libc.src.__support.CPP.atomic
+      libc.src.__support.OSUtil.osutil
   )
 endif()

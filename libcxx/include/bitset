@@ -125,6 +125,8 @@ template <size_t N> struct hash<std::bitset<N>>;
 #include <version>
 
 // standard-mandated includes
+
+// [bitset.syn]
 #include <iosfwd>
 #include <string>
 
@@ -1149,5 +1151,9 @@ operator<<(basic_ostream<_CharT, _Traits>& __os, const bitset<_Size>& __x);
 _LIBCPP_END_NAMESPACE_STD
 
 _LIBCPP_POP_MACROS
+
+#if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 20
+#  include <concepts>
+#endif
 
 #endif // _LIBCPP_BITSET

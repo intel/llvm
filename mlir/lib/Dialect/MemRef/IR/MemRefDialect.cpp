@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Transforms/InliningUtils.h"
@@ -48,9 +48,9 @@ llvm::Optional<Operation *> mlir::memref::findDealloc(Value allocValue) {
   for (Operation *user : allocValue.getUsers()) {
     if (!hasEffect<MemoryEffects::Free>(user, allocValue))
       continue;
-    // If we found > 1 dealloc, return None.
+    // If we found > 1 dealloc, return std::nullopt.
     if (dealloc)
-      return llvm::None;
+      return std::nullopt;
     dealloc = user;
   }
   return dealloc;

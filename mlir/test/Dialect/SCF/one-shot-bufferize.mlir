@@ -38,6 +38,32 @@ func.func @scf_for_yield_only(
 
 // -----
 
+// CHECK-LABEL: func @scf_for_is_reading(
+//  CHECK-SAME:     %[[A:.*]]: memref<?xf32, strided<[?], offset: ?>>, %[[B:.*]]: memref<?xf32, strided<[?], offset: ?>>
+func.func @scf_for_is_reading(%A : tensor<?xf32>, %B : tensor<?xf32>,
+                              %lb : index, %ub : index)
+  -> (f32, f32)
+{
+  %c1 = arith.constant 1 : index
+  %cst = arith.constant 0.0 : f32
+
+  // This is a regression test to make sure that an alloc + copy is emitted.
+
+  // CHECK: %[[alloc:.*]] = memref.alloc
+  // CHECK: memref.copy %[[A]], %[[alloc]]
+  // CHECK: %[[clone:.*]] = bufferization.clone %[[alloc]]
+  // CHECK: scf.for {{.*}} iter_args(%{{.*}} = %[[clone]])
+  %0 = scf.for %iv = %lb to %ub step %c1 iter_args(%1 = %A) -> tensor<?xf32> {
+    %r = linalg.fill ins(%cst : f32) outs(%1 : tensor<?xf32>) -> tensor<?xf32>
+    scf.yield %B : tensor<?xf32>
+  }
+  %1 = tensor.extract %0[%c1] : tensor<?xf32>
+  %2 = tensor.extract %A[%c1] : tensor<?xf32>
+  return %1, %2 : f32, f32
+}
+
+// -----
+
 // Ensure that the function bufferizes without error. This tests pre-order
 // traversal of scf.for loops during bufferization. No need to check the IR,
 // just want to make sure that it does not crash.
@@ -103,7 +129,7 @@ func.func @scf_for_with_tensor.insert_slice(
 // CHECK-LABEL: func @execute_region_with_conflict(
 //  CHECK-SAME:     %[[m1:.*]]: memref<?xf32
 func.func @execute_region_with_conflict(
-    %t1 : tensor<?xf32> {bufferization.writable = "true"})
+    %t1 : tensor<?xf32> {bufferization.writable = true})
   -> (f32, tensor<?xf32>, f32)
 {
   %f1 = arith.constant 0.0 : f32
@@ -548,8 +574,8 @@ func.func @parallel_insert_slice_no_conflict(
 //  CHECK-SAME:     %[[arg1:.*]]: memref<?xf32, strided{{.*}}>,
 //  CHECK-SAME:     %[[arg2:.*]]: memref<?xf32, strided{{.*}}>
 func.func @parallel_insert_slice_with_conflict(
-    %idx: index, 
-    %idx2: index, 
+    %idx: index,
+    %idx2: index,
     %arg1: tensor<?xf32> {bufferization.writable = true},
     %arg2: tensor<?xf32> {bufferization.writable = true}) -> (f32, f32)
 {
@@ -691,7 +717,7 @@ func.func @scf_if_memory_space(%c: i1, %f: f32) -> (f32, f32)
 {
   %c0 = arith.constant 0 : index
   // CHECK: %[[alloc:.*]] = memref.alloc() {{.*}} : memref<5xf32, 1>
-  %0 = bufferization.alloc_tensor() {memory_space = 1 : ui64} : tensor<5xf32>
+  %0 = bufferization.alloc_tensor() {memory_space = 1 : i64} : tensor<5xf32>
   // CHECK: scf.if %{{.*}} -> (memref<5xf32, 1>) {
   %1 = scf.if %c -> tensor<5xf32> {
     // CHECK: %[[cloned:.*]] = bufferization.clone %[[alloc]]
@@ -721,7 +747,7 @@ func.func @scf_if_memory_space(%c: i1, %f: f32) -> (f32, f32)
 func.func @scf_execute_region_memory_space(%f: f32) -> f32 {
   %c0 = arith.constant 0 : index
   %0 = scf.execute_region -> tensor<5xf32> {
-    %1 = bufferization.alloc_tensor() {memory_space = 1 : ui64} : tensor<5xf32>
+    %1 = bufferization.alloc_tensor() {memory_space = 1 : i64} : tensor<5xf32>
     %2 = tensor.insert %f into %1[%c0] : tensor<5xf32>
     scf.yield %2 : tensor<5xf32>
   }
@@ -741,8 +767,8 @@ func.func @scf_for_swapping_yields_memory_space(
 {
   // CHECK: memref.alloc(%{{.*}}) {{.*}} : memref<?xf32, 1>
   // CHECK: memref.alloc(%{{.*}}) {{.*}} : memref<?xf32, 1>
-  %A = bufferization.alloc_tensor(%sz) {memory_space = 1 : ui64} : tensor<?xf32>
-  %B = bufferization.alloc_tensor(%sz) {memory_space = 1 : ui64} : tensor<?xf32>
+  %A = bufferization.alloc_tensor(%sz) {memory_space = 1 : i64} : tensor<?xf32>
+  %B = bufferization.alloc_tensor(%sz) {memory_space = 1 : i64} : tensor<?xf32>
 
   // CHECK: scf.for {{.*}} {
   %r0:2 = scf.for %i = %lb to %ub step %step iter_args(%tA = %A, %tB = %B)
@@ -846,7 +872,7 @@ func.func @scf_while_buffer_type_mismatch(%sz: index, %sz2: index) -> f32 {
 // -----
 
 // CHECK-LABEL: func @non_tensor_for_arg
-func.func @non_tensor_for_arg(%A : tensor<?xf32> {bufferization.writable = true}) 
+func.func @non_tensor_for_arg(%A : tensor<?xf32> {bufferization.writable = true})
     -> tensor<?xf32> {
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
@@ -862,7 +888,7 @@ func.func @non_tensor_for_arg(%A : tensor<?xf32> {bufferization.writable = true}
 // -----
 
 // This is a regression test. Just check that the IR bufferizes.
-  
+
 // CHECK-LABEL: func @buffer_type_of_collapse_shape
 func.func @buffer_type_of_collapse_shape(%arg0: tensor<f64>) {
   %true = arith.constant true
@@ -880,10 +906,10 @@ func.func @buffer_type_of_collapse_shape(%arg0: tensor<f64>) {
 // -----
 
 // This is a regression test. Just check that the IR bufferizes.
-  
+
 // CHECK-LABEL: func @non_block_argument_yield
 func.func @non_block_argument_yield() {
-  %true = arith.constant true 
+  %true = arith.constant true
   %0 = bufferization.alloc_tensor() : tensor<i32>
   %1 = scf.while (%arg0 = %0) : (tensor<i32>) -> (tensor<i32>) {
     scf.condition(%true) %arg0 : tensor<i32>

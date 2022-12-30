@@ -348,6 +348,8 @@ public:
 
   bool SetTabSize(uint32_t tab_size);
 
+  lldb::DWIMPrintVerbosity GetDWIMPrintVerbosity() const;
+
   bool GetEscapeNonPrintables() const;
 
   bool GetNotifyVoid() const;
@@ -383,29 +385,29 @@ public:
 
   /// Report warning events.
   ///
-  /// Progress events will be delivered to any debuggers that have listeners
-  /// for the eBroadcastBitError.
+  /// Warning events will be delivered to any debuggers that have listeners
+  /// for the eBroadcastBitWarning.
   ///
   /// \param[in] message
   ///   The warning message to be reported.
   ///
   /// \param [in] debugger_id
   ///   If this optional parameter has a value, it indicates the unique
-  ///   debugger identifier that this progress should be delivered to. If this
-  ///   optional parameter does not have a value, the progress will be
-  ///   delivered to all debuggers.
+  ///   debugger identifier that this diagnostic should be delivered to. If
+  ///   this optional parameter does not have a value, the diagnostic event
+  ///   will be delivered to all debuggers.
   ///
   /// \param [in] once
   ///   If a pointer is passed to a std::once_flag, then it will be used to
   ///   ensure the given warning is only broadcast once.
   static void
   ReportWarning(std::string message,
-                llvm::Optional<lldb::user_id_t> debugger_id = llvm::None,
+                llvm::Optional<lldb::user_id_t> debugger_id = std::nullopt,
                 std::once_flag *once = nullptr);
 
   /// Report error events.
   ///
-  /// Progress events will be delivered to any debuggers that have listeners
+  /// Error events will be delivered to any debuggers that have listeners
   /// for the eBroadcastBitError.
   ///
   /// \param[in] message
@@ -413,17 +415,37 @@ public:
   ///
   /// \param [in] debugger_id
   ///   If this optional parameter has a value, it indicates the unique
-  ///   debugger identifier that this progress should be delivered to. If this
-  ///   optional parameter does not have a value, the progress will be
-  ///   delivered to all debuggers.
+  ///   debugger identifier that this diagnostic should be delivered to. If
+  ///   this optional parameter does not have a value, the diagnostic event
+  ///   will be delivered to all debuggers.
   ///
   /// \param [in] once
   ///   If a pointer is passed to a std::once_flag, then it will be used to
   ///   ensure the given error is only broadcast once.
   static void
   ReportError(std::string message,
-              llvm::Optional<lldb::user_id_t> debugger_id = llvm::None,
+              llvm::Optional<lldb::user_id_t> debugger_id = std::nullopt,
               std::once_flag *once = nullptr);
+
+  /// Report info events.
+  ///
+  /// Unlike warning and error events, info events are not broadcast but are
+  /// logged for diagnostic purposes.
+  ///
+  /// \param[in] message
+  ///   The info message to be reported.
+  ///
+  /// \param [in] debugger_id
+  ///   If this optional parameter has a value, it indicates this diagnostic is
+  ///   associated with a unique debugger instance.
+  ///
+  /// \param [in] once
+  ///   If a pointer is passed to a std::once_flag, then it will be used to
+  ///   ensure the given info is only logged once.
+  static void
+  ReportInfo(std::string message,
+             llvm::Optional<lldb::user_id_t> debugger_id = std::nullopt,
+             std::once_flag *once = nullptr);
 
   static void ReportSymbolChange(const ModuleSpec &module_spec);
 

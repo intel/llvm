@@ -530,6 +530,14 @@ JSONNodeDumper::createCXXBaseSpecifier(const CXXBaseSpecifier &BS) {
 
 void JSONNodeDumper::VisitTypedefType(const TypedefType *TT) {
   JOS.attribute("decl", createBareDeclRef(TT->getDecl()));
+  if (!TT->typeMatchesDecl())
+    JOS.attribute("type", createQualType(TT->desugar()));
+}
+
+void JSONNodeDumper::VisitUsingType(const UsingType *TT) {
+  JOS.attribute("decl", createBareDeclRef(TT->getFoundDecl()));
+  if (!TT->typeMatchesDecl())
+    JOS.attribute("type", createQualType(TT->desugar()));
 }
 
 void JSONNodeDumper::VisitFunctionType(const FunctionType *T) {
@@ -684,8 +692,14 @@ void JSONNodeDumper::VisitTemplateTypeParmType(
 
 void JSONNodeDumper::VisitSubstTemplateTypeParmType(
     const SubstTemplateTypeParmType *STTPT) {
+  JOS.attribute("index", STTPT->getIndex());
   if (auto PackIndex = STTPT->getPackIndex())
     JOS.attribute("pack_index", *PackIndex);
+}
+
+void JSONNodeDumper::VisitSubstTemplateTypeParmPackType(
+    const SubstTemplateTypeParmPackType *T) {
+  JOS.attribute("index", T->getIndex());
 }
 
 void JSONNodeDumper::VisitAutoType(const AutoType *AT) {
@@ -780,6 +794,7 @@ void JSONNodeDumper::VisitTypeAliasDecl(const TypeAliasDecl *TAD) {
 void JSONNodeDumper::VisitNamespaceDecl(const NamespaceDecl *ND) {
   VisitNamedDecl(ND);
   attributeOnlyIfTrue("isInline", ND->isInline());
+  attributeOnlyIfTrue("isNested", ND->isNested());
   if (!ND->isOriginalNamespace())
     JOS.attribute("originalNamespace",
                   createBareDeclRef(ND->getOriginalNamespace()));

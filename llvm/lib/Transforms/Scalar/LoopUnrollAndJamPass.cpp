@@ -12,7 +12,6 @@
 
 #include "llvm/Transforms/Scalar/LoopUnrollAndJamPass.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PriorityWorklist.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -284,11 +283,11 @@ tryToUnrollAndJamLoop(Loop *L, DominatorTree &DT, LoopInfo *LI,
                       ScalarEvolution &SE, const TargetTransformInfo &TTI,
                       AssumptionCache &AC, DependenceInfo &DI,
                       OptimizationRemarkEmitter &ORE, int OptLevel) {
-  TargetTransformInfo::UnrollingPreferences UP =
-      gatherUnrollingPreferences(L, SE, TTI, nullptr, nullptr, ORE, OptLevel,
-                                 None, None, None, None, None, None);
+  TargetTransformInfo::UnrollingPreferences UP = gatherUnrollingPreferences(
+      L, SE, TTI, nullptr, nullptr, ORE, OptLevel, std::nullopt, std::nullopt,
+      std::nullopt, std::nullopt, std::nullopt, std::nullopt);
   TargetTransformInfo::PeelingPreferences PP =
-      gatherPeelingPreferences(L, SE, TTI, None, None);
+      gatherPeelingPreferences(L, SE, TTI, std::nullopt, std::nullopt);
 
   TransformationMode EnableMode = hasUnrollAndJamTransformation(L);
   if (EnableMode & TM_Disable)
@@ -369,7 +368,7 @@ tryToUnrollAndJamLoop(Loop *L, DominatorTree &DT, LoopInfo *LI,
   // To assign the loop id of the epilogue, assign it before unrolling it so it
   // is applied to every inner loop of the epilogue. We later apply the loop ID
   // for the jammed inner loop.
-  Optional<MDNode *> NewInnerEpilogueLoopID = makeFollowupLoopID(
+  std::optional<MDNode *> NewInnerEpilogueLoopID = makeFollowupLoopID(
       OrigOuterLoopID, {LLVMLoopUnrollAndJamFollowupAll,
                         LLVMLoopUnrollAndJamFollowupRemainderInner});
   if (NewInnerEpilogueLoopID)
@@ -399,14 +398,14 @@ tryToUnrollAndJamLoop(Loop *L, DominatorTree &DT, LoopInfo *LI,
 
   // Assign new loop attributes.
   if (EpilogueOuterLoop) {
-    Optional<MDNode *> NewOuterEpilogueLoopID = makeFollowupLoopID(
+    std::optional<MDNode *> NewOuterEpilogueLoopID = makeFollowupLoopID(
         OrigOuterLoopID, {LLVMLoopUnrollAndJamFollowupAll,
                           LLVMLoopUnrollAndJamFollowupRemainderOuter});
     if (NewOuterEpilogueLoopID)
       EpilogueOuterLoop->setLoopID(NewOuterEpilogueLoopID.value());
   }
 
-  Optional<MDNode *> NewInnerLoopID =
+  std::optional<MDNode *> NewInnerLoopID =
       makeFollowupLoopID(OrigOuterLoopID, {LLVMLoopUnrollAndJamFollowupAll,
                                            LLVMLoopUnrollAndJamFollowupInner});
   if (NewInnerLoopID)
@@ -415,7 +414,7 @@ tryToUnrollAndJamLoop(Loop *L, DominatorTree &DT, LoopInfo *LI,
     SubLoop->setLoopID(OrigSubLoopID);
 
   if (UnrollResult == LoopUnrollResult::PartiallyUnrolled) {
-    Optional<MDNode *> NewOuterLoopID = makeFollowupLoopID(
+    std::optional<MDNode *> NewOuterLoopID = makeFollowupLoopID(
         OrigOuterLoopID,
         {LLVMLoopUnrollAndJamFollowupAll, LLVMLoopUnrollAndJamFollowupOuter});
     if (NewOuterLoopID) {

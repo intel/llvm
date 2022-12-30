@@ -1,4 +1,4 @@
-; RUN: opt < %s -aa-pipeline=basic-aa -passes='require<phi-values>,aa-eval' -print-all-alias-modref-info -disable-output 2>&1 | FileCheck %s
+; RUN: opt < %s -aa-pipeline=basic-aa -passes=aa-eval -print-all-alias-modref-info -disable-output 2>&1 | FileCheck %s
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
@@ -80,10 +80,11 @@ declare void @inc(i32*)
 
 ; When we have a chain of phis in nested loops we should recognise if there's
 ; actually only one underlying value.
+; FIXME: All of these could be NoAlias.
 ; CHECK-LABEL: loop_phi_chain
-; CHECK: NoAlias: i32* %val1, i32* @Y
-; CHECK: NoAlias: i32* %val2, i32* @Y
-; CHECK: NoAlias: i32* %val3, i32* @Y
+; CHECK: MayAlias: i32* %val1, i32* @Y
+; CHECK: MayAlias: i32* %val2, i32* @Y
+; CHECK: MayAlias: i32* %val3, i32* @Y
 define void @loop_phi_chain(i32 %a, i32 %b, i32 %c) {
 entry:
   br label %loop1
@@ -222,4 +223,45 @@ split:
   load i32, i32* %ptr.phi
   load i32, i32* %ptr.next.phi
   br label %loop
+}
+
+; CHECK-LABEL: phi_of_geps_based_on_alloca
+; CHECK: NoAlias:	i32* %gep3, i32* %phi
+define void @phi_of_geps_based_on_alloca(i1 %c) {
+  %a = alloca [3 x i32]
+  %p = bitcast [3 x i32]* %a to i32*
+  br i1 %c, label %if, label %else
+
+if:
+  %gep1 = getelementptr i32, i32* %p, i64 1
+  br label %join
+
+else:
+  %gep2 = getelementptr i32, i32* %p, i64 2
+  br label %join
+
+join:
+  %phi = phi i32* [ %gep1, %if ], [ %gep2, %else ]
+  %gep3 = getelementptr i32, i32* %p, i64 3
+  load i32, i32* %phi
+  load i32, i32* %gep3
+  ret void
+}
+
+; Don't crash with an unreachable predecessor.
+; CHECK-LABEL: pr59360
+; CHECK: MayAlias: i32* %loaded.ptr, i32* %phi
+define void @pr59360() {
+entry:
+  br label %outer
+
+loopexit:                                         ; No predecessors!
+  br label %outer
+
+outer:                                            ; preds = %loopexit, %entry
+  %phi = phi i32* [ %loaded.ptr, %loopexit ], [ null, %entry ]
+  store i32 0, i32* %phi, align 4
+  %loaded.ptr = load i32*, i32** null, align 8
+  %0 = load i32, i32* %loaded.ptr, align 4
+  ret void
 }

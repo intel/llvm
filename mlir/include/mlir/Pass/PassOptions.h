@@ -122,7 +122,7 @@ private:
       for (auto &it : this->Values)
         if (it.V.compare(value))
           return it.Name;
-      return llvm::None;
+      return std::nullopt;
     }
   };
 
@@ -229,6 +229,10 @@ public:
 
     bool handleOccurrence(unsigned pos, StringRef argName,
                           StringRef arg) override {
+      if (this->isDefaultAssigned()) {
+        this->clear();
+        this->overwriteDefault();
+      }
       this->optHasValue = true;
       return failed(detail::pass_options::parseCommaSeparatedList(
           *this, argName, arg, elementParser,
@@ -418,6 +422,7 @@ struct OptionValue<mlir::OpPassManager> final : GenericOptionValue {
   using WrapperType = mlir::OpPassManager;
 
   OptionValue();
+  OptionValue(const OptionValue<mlir::OpPassManager> &rhs);
   OptionValue(const mlir::OpPassManager &value);
   OptionValue<mlir::OpPassManager> &operator=(const mlir::OpPassManager &rhs);
   ~OptionValue();

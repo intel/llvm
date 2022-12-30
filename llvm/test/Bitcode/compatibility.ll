@@ -1540,7 +1540,7 @@ exit:
   ; CHECK: select <2 x i1> <i1 true, i1 false>, <2 x i8> <i8 2, i8 3>, <2 x i8> <i8 3, i8 2>
 
   call void @f.nobuiltin() builtin
-  ; CHECK: call void @f.nobuiltin() #50
+  ; CHECK: call void @f.nobuiltin() #51
 
   call fastcc noalias i32* @f.noalias() noinline
   ; CHECK: call fastcc noalias i32* @f.noalias() #12
@@ -1915,10 +1915,10 @@ normal:
 
 
 declare void @f.writeonly() writeonly
-; CHECK: declare void @f.writeonly() #41
+; CHECK: declare void @f.writeonly() #42
 
 declare void @f.speculatable() speculatable
-; CHECK: declare void @f.speculatable() #42
+; CHECK: declare void @f.speculatable() #43
 
 ;; Constant Expressions
 
@@ -1929,16 +1929,16 @@ define i8** @constexpr() {
 
 define void @instructions.strictfp() strictfp {
   call void @f.strictfp() strictfp
-  ; CHECK: call void @f.strictfp() #43
+  ; CHECK: call void @f.strictfp() #44
 
   ret void
 }
 
 declare void @f.nosanitize_coverage() nosanitize_coverage
-; CHECK: declare void @f.nosanitize_coverage() #44
+; CHECK: declare void @f.nosanitize_coverage() #45
 
 declare void @f.disable_sanitizer_instrumentation() disable_sanitizer_instrumentation
-; CHECK: declare void @f.disable_sanitizer_instrumentation() #45
+; CHECK: declare void @f.disable_sanitizer_instrumentation() #46
 
 ; immarg attribute
 declare void @llvm.test.immarg.intrinsic(i32 immarg)
@@ -1961,10 +1961,10 @@ declare void @f.allocsize_two(i32, i32) allocsize(1, 0)
 ; CHECK: declare void @f.allocsize_two(i32, i32)
 
 declare void @f.nosanitize_bounds() nosanitize_bounds
-; CHECK: declare void @f.nosanitize_bounds() #48
+; CHECK: declare void @f.nosanitize_bounds() #49
 
 declare void @f.allockind() allockind("alloc,uninitialized")
-; CHECK: declare void @f.allockind() #49
+; CHECK: declare void @f.allockind() #50
 
 ; CHECK: attributes #0 = { alignstack=4 }
 ; CHECK: attributes #1 = { alignstack=8 }
@@ -1985,8 +1985,8 @@ declare void @f.allockind() allockind("alloc,uninitialized")
 ; CHECK: attributes #16 = { nounwind }
 ; CHECK: attributes #17 = { noinline optnone }
 ; CHECK: attributes #18 = { optsize }
-; CHECK: attributes #19 = { readnone }
-; CHECK: attributes #20 = { readonly }
+; CHECK: attributes #19 = { memory(none) }
+; CHECK: attributes #20 = { memory(read) }
 ; CHECK: attributes #21 = { returns_twice }
 ; CHECK: attributes #22 = { safestack }
 ; CHECK: attributes #23 = { sanitize_address }
@@ -1999,24 +1999,25 @@ declare void @f.allockind() allockind("alloc,uninitialized")
 ; CHECK: attributes #30 = { uwtable }
 ; CHECK: attributes #31 = { "cpu"="cortex-a8" }
 ; CHECK: attributes #32 = { norecurse }
-; CHECK: attributes #33 = { inaccessiblememonly }
-; CHECK: attributes #34 = { inaccessiblemem_or_argmemonly }
-; CHECK: attributes #35 = { nocallback nofree nosync nounwind readnone willreturn }
+; CHECK: attributes #33 = { memory(inaccessiblemem: readwrite) }
+; CHECK: attributes #34 = { memory(argmem: readwrite, inaccessiblemem: readwrite) }
+; CHECK: attributes #35 = { nocallback nofree nosync nounwind willreturn memory(none) }
 ; CHECK: attributes #36 = { nocallback nofree nosync nounwind willreturn }
-; CHECK: attributes #37 = { argmemonly nounwind readonly }
-; CHECK: attributes #38 = { argmemonly nounwind }
-; CHECK: attributes #39 = { nounwind readonly }
-; CHECK: attributes #40 = { inaccessiblemem_or_argmemonly nocallback nofree nosync nounwind willreturn }
-; CHECK: attributes #41 = { writeonly }
-; CHECK: attributes #42 = { speculatable }
-; CHECK: attributes #43 = { strictfp }
-; CHECK: attributes #44 = { nosanitize_coverage }
-; CHECK: attributes #45 = { disable_sanitizer_instrumentation }
-; CHECK: attributes #46 = { allocsize(0) }
-; CHECK: attributes #47 = { allocsize(1,0) }
-; CHECK: attributes #48 = { nosanitize_bounds }
-; CHECK: attributes #49 = { allockind("alloc,uninitialized") }
-; CHECK: attributes #50 = { builtin }
+; CHECK: attributes #37 = { nounwind memory(argmem: read) }
+; CHECK: attributes #38 = { nounwind memory(argmem: readwrite) }
+; CHECK: attributes #39 = { nocallback nofree nosync nounwind willreturn memory(read) }
+; CHECK: attributes #40 = { nocallback nounwind }
+; CHECK: attributes #41 = { nocallback nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite) }
+; CHECK: attributes #42 = { memory(write) }
+; CHECK: attributes #43 = { speculatable }
+; CHECK: attributes #44 = { strictfp }
+; CHECK: attributes #45 = { nosanitize_coverage }
+; CHECK: attributes #46 = { disable_sanitizer_instrumentation }
+; CHECK: attributes #47 = { allocsize(0) }
+; CHECK: attributes #48 = { allocsize(1,0) }
+; CHECK: attributes #49 = { nosanitize_bounds }
+; CHECK: attributes #50 = { allockind("alloc,uninitialized") }
+; CHECK: attributes #51 = { builtin }
 
 ;; Metadata
 

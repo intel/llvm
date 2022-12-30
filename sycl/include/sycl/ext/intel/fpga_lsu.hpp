@@ -13,8 +13,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace intel {
+namespace ext::intel {
 constexpr uint8_t BURST_COALESCE = 0x1;
 constexpr uint8_t CACHE = 0x2;
 constexpr uint8_t STATICALLY_COALESCE = 0x4;
@@ -48,8 +47,9 @@ template <class... _mem_access_params> class lsu final {
 public:
   lsu() = delete;
 
-  template <typename _T, access::address_space _space>
-  static _T load(sycl::multi_ptr<_T, _space> Ptr) {
+  template <typename _T, access::address_space _space,
+            access::decorated _is_decorated>
+  static _T load(sycl::multi_ptr<_T, _space, _is_decorated> Ptr) {
     check_space<_space>();
     check_load();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
@@ -62,8 +62,9 @@ public:
 #endif
   }
 
-  template <typename _T, access::address_space _space>
-  static void store(sycl::multi_ptr<_T, _space> Ptr, _T Val) {
+  template <typename _T, access::address_space _space,
+            access::decorated _is_decorated>
+  static void store(sycl::multi_ptr<_T, _space, _is_decorated> Ptr, _T Val) {
     check_space<_space>();
     check_store();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
@@ -122,8 +123,7 @@ private:
                   "unable to implement a store LSU with a prefetcher.");
   }
 };
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

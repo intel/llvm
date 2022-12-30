@@ -164,8 +164,8 @@ def do_configure(args):
 
     if args.l0_headers and args.l0_loader:
       cmake_cmd.extend([
-            "-DL0_INCLUDE_DIR={}".format(args.l0_headers),
-            "-DL0_LIBRARY={}".format(args.l0_loader)])
+            "-DLEVEL_ZERO_INCLUDE_DIR={}".format(args.l0_headers),
+            "-DLEVEL_ZERO_LIBRARY={}".format(args.l0_loader)])
     elif args.l0_headers or args.l0_loader:
       sys.exit("Please specify both Level Zero headers and loader or don't specify "
                "none of them to let download from github.com")

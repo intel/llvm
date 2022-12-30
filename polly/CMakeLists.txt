@@ -2,6 +2,13 @@
 if (NOT DEFINED LLVM_MAIN_SRC_DIR)
   project(Polly)
   cmake_minimum_required(VERSION 3.13.4)
+  if ("${CMAKE_VERSION}" VERSION_LESS "3.20.0")
+    message(WARNING
+      "Your CMake version is ${CMAKE_VERSION}. Starting with LLVM 17.0.0, the "
+      "minimum version of CMake required to build LLVM will become 3.20.0, and "
+      "using an older CMake will become an error. Please upgrade your CMake to "
+      "at least 3.20.0 now to avoid issues in the future!")
+  endif()
   set(POLLY_STANDALONE_BUILD TRUE)
 endif()
 
@@ -28,10 +35,10 @@ if(POLLY_STANDALONE_BUILD)
 
   # Enable unit tests if available.
   set(POLLY_GTEST_AVAIL 0)
-  set(UNITTEST_DIR ${LLVM_SOURCE_ROOT}/utils/unittest)
+  set(UNITTEST_DIR ${LLVM_THIRD_PARTY_DIR}/unittest)
   if(EXISTS ${UNITTEST_DIR}/googletest/include/gtest/gtest.h)
     if (NOT TARGET gtest)
-      add_subdirectory(${UNITTEST_DIR} utils/unittest)
+      add_subdirectory(${UNITTEST_DIR} third-party/unittest)
     endif()
     set(POLLY_GTEST_AVAIL 1)
   endif()

@@ -30,7 +30,6 @@
 #include "clang/Basic/Specifiers.h"
 #include "clang/Index/USRGeneration.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
@@ -63,9 +62,9 @@ getTemplateSpecializationArgLocs(const NamedDecl &ND) {
     if (auto *Args = Var->getTemplateArgsInfo())
       return Args->arguments();
   }
-  // We return None for ClassTemplateSpecializationDecls because it does not
-  // contain TemplateArgumentLoc information.
-  return llvm::None;
+  // We return std::nullopt for ClassTemplateSpecializationDecls because it does
+  // not contain TemplateArgumentLoc information.
+  return std::nullopt;
 }
 
 template <class T>
@@ -189,6 +188,9 @@ std::string printQualifiedName(const NamedDecl &ND) {
   // include them, but at query time it's hard to find all the inline
   // namespaces to query: the preamble doesn't have a dedicated list.
   Policy.SuppressUnwrittenScope = true;
+  // (unnamed struct), not (unnamed struct at /path/to/foo.cc:42:1).
+  // In clangd, context is usually available and paths are mostly noise.
+  Policy.AnonymousTagLocations = false;
   ND.printQualifiedName(OS, Policy);
   OS.flush();
   assert(!StringRef(QName).startswith("::"));
@@ -568,7 +570,7 @@ llvm::Optional<QualType> getDeducedType(ASTContext &ASTCtx,
   DeducedTypeVisitor V(Loc);
   V.TraverseAST(ASTCtx);
   if (V.DeducedType.isNull())
-    return llvm::None;
+    return std::nullopt;
   return V.DeducedType;
 }
 
@@ -727,8 +729,8 @@ const TemplateTypeParmType *getUnderylingPackType(const ParmVarDecl *Param) {
   if (const auto *SubstType = dyn_cast<SubstTemplateTypeParmType>(PlainType)) {
     const auto *ReplacedParameter = SubstType->getReplacedParameter();
     if (ReplacedParameter->isParameterPack()) {
-      return dyn_cast<TemplateTypeParmType>(
-          ReplacedParameter->getCanonicalTypeUnqualified()->getTypePtr());
+      return ReplacedParameter->getTypeForDecl()
+          ->castAs<TemplateTypeParmType>();
     }
   }
   return nullptr;
@@ -859,7 +861,7 @@ private:
         return std::distance(Args.begin(), Begin);
       }
     }
-    return llvm::None;
+    return std::nullopt;
   }
 
   static FunctionDecl *getCalleeDeclOrUniqueOverload(CallExpr *E) {

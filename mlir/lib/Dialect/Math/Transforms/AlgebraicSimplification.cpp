@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Math/Transforms/Passes.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
@@ -106,6 +106,15 @@ PowFStrengthReduction::matchAndRewrite(math::PowFOp op,
   // Replace `pow(x, -0.5)` with `rsqrt(x)`.
   if (isExponentValue(-0.5)) {
     rewriter.replaceOpWithNewOp<math::RsqrtOp>(op, x);
+    return success();
+  }
+
+  // Replace `pow(x, 0.75)` with `sqrt(sqrt(x)) * sqrt(x)`.
+  if (isExponentValue(0.75)) {
+    Value powHalf = rewriter.create<math::SqrtOp>(op.getLoc(), x);
+    Value powQuarter = rewriter.create<math::SqrtOp>(op.getLoc(), powHalf);
+    rewriter.replaceOpWithNewOp<arith::MulFOp>(op,
+                                               ValueRange{powHalf, powQuarter});
     return success();
   }
 

@@ -76,6 +76,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Target/TargetOptions.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/AssumeBundleBuilder.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -87,7 +88,6 @@
 using namespace llvm;
 
 namespace llvm {
-class BlockFrequencyInfo;
 class LPMUpdater;
 } // namespace llvm
 
@@ -99,7 +99,9 @@ STATISTIC(NumSunk, "Number of instructions sunk out of loop");
 STATISTIC(NumHoisted, "Number of instructions hoisted out of loop");
 STATISTIC(NumMovedLoads, "Number of load insts hoisted or sunk");
 STATISTIC(NumMovedCalls, "Number of call insts hoisted or sunk");
-STATISTIC(NumPromoted, "Number of memory locations promoted to registers");
+STATISTIC(NumPromotionCandidates, "Number of promotion candidates");
+STATISTIC(NumLoadPromoted, "Number of load-only promotions");
+STATISTIC(NumLoadStorePromoted, "Number of load and store promotions");
 
 /// Memory promotion is enabled by default.
 static cl::opt<bool>
@@ -109,6 +111,10 @@ static cl::opt<bool>
 static cl::opt<bool> ControlFlowHoisting(
     "licm-control-flow-hoisting", cl::Hidden, cl::init(false),
     cl::desc("Enable control flow (and PHI) hoisting in LICM"));
+
+static cl::opt<bool>
+    SingleThread("licm-force-thread-model-single", cl::Hidden, cl::init(false),
+                 cl::desc("Force thread model single in LICM pass"));
 
 static cl::opt<uint32_t> MaxNumUsesTraversed(
     "licm-max-num-uses-traversed", cl::Hidden, cl::init(8),
@@ -487,7 +493,8 @@ bool LoopInvariantCodeMotion::runOnLoop(Loop *L, AAResults *AA, LoopInfo *LI,
              collectPromotionCandidates(MSSA, AA, L)) {
           LocalPromoted |= promoteLoopAccessesToScalars(
               PointerMustAliases, ExitBlocks, InsertPts, MSSAInsertPts, PIC, LI,
-              DT, AC, TLI, L, MSSAU, &SafetyInfo, ORE, LicmAllowSpeculation);
+              DT, AC, TLI, TTI, L, MSSAU, &SafetyInfo, ORE,
+              LicmAllowSpeculation);
         }
         Promoted |= LocalPromoted;
       } while (LocalPromoted);
@@ -1153,7 +1160,7 @@ bool llvm::canSinkOrHoistInst(Instruction &I, AAResults *AA, DominatorTree *DT,
 
     // Loads from constant memory are always safe to move, even if they end up
     // in the same alias set as something that ends up being modified.
-    if (AA->pointsToConstantMemory(LI->getOperand(0)))
+    if (!isModSet(AA->getModRefInfoMask(LI->getOperand(0))))
       return true;
     if (LI->hasMetadata(LLVMContext::MD_invariant_load))
       return true;
@@ -1204,7 +1211,7 @@ bool llvm::canSinkOrHoistInst(Instruction &I, AAResults *AA, DominatorTree *DT,
       return true;
 
     // Handle simple cases by querying alias analysis.
-    FunctionModRefBehavior Behavior = AA->getModRefBehavior(CI);
+    MemoryEffects Behavior = AA->getMemoryEffects(CI);
     if (Behavior.doesNotAccessMemory())
       return true;
     if (Behavior.onlyReadsMemory()) {
@@ -1423,7 +1430,7 @@ static Instruction *cloneInstructionInExitBlock(
     New = I.clone();
   }
 
-  ExitBlock.getInstList().insert(ExitBlock.getFirstInsertionPt(), New);
+  New->insertAt(&ExitBlock, ExitBlock.getFirstInsertionPt());
   if (!I.getName().empty())
     New->setName(I.getName() + ".le");
 
@@ -1768,7 +1775,6 @@ static bool isSafeToExecuteUnconditionally(
 namespace {
 class LoopPromoter : public LoadAndStorePromoter {
   Value *SomePtr; // Designated pointer to store to.
-  const SmallSetVector<Value *, 8> &PointerMustAliases;
   SmallVectorImpl<BasicBlock *> &LoopExitBlocks;
   SmallVectorImpl<Instruction *> &LoopInsertPts;
   SmallVectorImpl<MemoryAccess *> &MSSAInsertPts;
@@ -1781,6 +1787,7 @@ class LoopPromoter : public LoadAndStorePromoter {
   AAMDNodes AATags;
   ICFLoopSafetyInfo &SafetyInfo;
   bool CanInsertStoresInExitBlocks;
+  ArrayRef<const Instruction *> Uses;
 
   // We're about to add a use of V in a loop exit block.  Insert an LCSSA phi
   // (if legal) if doing so would add an out-of-loop use to an instruction
@@ -1801,35 +1808,25 @@ class LoopPromoter : public LoadAndStorePromoter {
 
 public:
   LoopPromoter(Value *SP, ArrayRef<const Instruction *> Insts, SSAUpdater &S,
-               const SmallSetVector<Value *, 8> &PMA,
                SmallVectorImpl<BasicBlock *> &LEB,
                SmallVectorImpl<Instruction *> &LIP,
                SmallVectorImpl<MemoryAccess *> &MSSAIP, PredIteratorCache &PIC,
                MemorySSAUpdater &MSSAU, LoopInfo &li, DebugLoc dl,
                Align Alignment, bool UnorderedAtomic, const AAMDNodes &AATags,
                ICFLoopSafetyInfo &SafetyInfo, bool CanInsertStoresInExitBlocks)
-      : LoadAndStorePromoter(Insts, S), SomePtr(SP), PointerMustAliases(PMA),
-        LoopExitBlocks(LEB), LoopInsertPts(LIP), MSSAInsertPts(MSSAIP),
-        PredCache(PIC), MSSAU(MSSAU), LI(li), DL(std::move(dl)),
-        Alignment(Alignment), UnorderedAtomic(UnorderedAtomic), AATags(AATags),
+      : LoadAndStorePromoter(Insts, S), SomePtr(SP), LoopExitBlocks(LEB),
+        LoopInsertPts(LIP), MSSAInsertPts(MSSAIP), PredCache(PIC), MSSAU(MSSAU),
+        LI(li), DL(std::move(dl)), Alignment(Alignment),
+        UnorderedAtomic(UnorderedAtomic), AATags(AATags),
         SafetyInfo(SafetyInfo),
-        CanInsertStoresInExitBlocks(CanInsertStoresInExitBlocks) {}
-
-  bool isInstInList(Instruction *I,
-                    const SmallVectorImpl<Instruction *> &) const override {
-    Value *Ptr;
-    if (LoadInst *LI = dyn_cast<LoadInst>(I))
-      Ptr = LI->getOperand(0);
-    else
-      Ptr = cast<StoreInst>(I)->getPointerOperand();
-    return PointerMustAliases.count(Ptr);
-  }
+        CanInsertStoresInExitBlocks(CanInsertStoresInExitBlocks), Uses(Insts) {}
 
   void insertStoresInLoopExitBlocks() {
     // Insert stores after in the loop exit blocks.  Each exit block gets a
     // store of the live-out values that feed them.  Since we've already told
     // the SSA updater about the defs in the loop and the preheader
     // definition, it is all set and we can start using it.
+    DIAssignID *NewID = nullptr;
     for (unsigned i = 0, e = LoopExitBlocks.size(); i != e; ++i) {
       BasicBlock *ExitBlock = LoopExitBlocks[i];
       Value *LiveInValue = SSA.GetValueInMiddleOfBlock(ExitBlock);
@@ -1841,6 +1838,21 @@ public:
         NewSI->setOrdering(AtomicOrdering::Unordered);
       NewSI->setAlignment(Alignment);
       NewSI->setDebugLoc(DL);
+      // Attach DIAssignID metadata to the new store, generating it on the
+      // first loop iteration.
+      if (i == 0) {
+        // NewSI will have its DIAssignID set here if there are any stores in
+        // Uses with a DIAssignID attachment. This merged ID will then be
+        // attached to the other inserted stores (in the branch below).
+        NewSI->mergeDIAssignID(Uses);
+        NewID = cast_or_null<DIAssignID>(
+            NewSI->getMetadata(LLVMContext::MD_DIAssignID));
+      } else {
+        // Attach the DIAssignID (or nullptr) merged from Uses in the branch
+        // above.
+        NewSI->setMetadata(LLVMContext::MD_DIAssignID, NewID);
+      }
+
       if (AATags)
         NewSI->setAAMetadata(AATags);
 
@@ -1909,17 +1921,21 @@ bool isWritableObject(const Value *Object) {
   if (auto *A = dyn_cast<Argument>(Object))
     return A->hasByValAttr();
 
+  if (auto *G = dyn_cast<GlobalVariable>(Object))
+    return !G->isConstant();
+
   // TODO: Noalias has nothing to do with writability, this should check for
   // an allocator function.
   return isNoAliasCall(Object);
 }
 
-bool isThreadLocalObject(const Value *Object, const Loop *L,
-                         DominatorTree *DT) {
+bool isThreadLocalObject(const Value *Object, const Loop *L, DominatorTree *DT,
+                         TargetTransformInfo *TTI) {
   // The object must be function-local to start with, and then not captured
   // before/in the loop.
-  return isIdentifiedFunctionLocal(Object) &&
-         isNotCapturedBeforeOrInLoop(Object, L, DT);
+  return (isIdentifiedFunctionLocal(Object) &&
+          isNotCapturedBeforeOrInLoop(Object, L, DT)) ||
+         (TTI->isSingleThreaded() || SingleThread);
 }
 
 } // namespace
@@ -1935,9 +1951,9 @@ bool llvm::promoteLoopAccessesToScalars(
     SmallVectorImpl<Instruction *> &InsertPts,
     SmallVectorImpl<MemoryAccess *> &MSSAInsertPts, PredIteratorCache &PIC,
     LoopInfo *LI, DominatorTree *DT, AssumptionCache *AC,
-    const TargetLibraryInfo *TLI, Loop *CurLoop, MemorySSAUpdater &MSSAU,
-    ICFLoopSafetyInfo *SafetyInfo, OptimizationRemarkEmitter *ORE,
-    bool AllowSpeculation) {
+    const TargetLibraryInfo *TLI, TargetTransformInfo *TTI, Loop *CurLoop,
+    MemorySSAUpdater &MSSAU, ICFLoopSafetyInfo *SafetyInfo,
+    OptimizationRemarkEmitter *ORE, bool AllowSpeculation) {
   // Verify inputs.
   assert(LI != nullptr && DT != nullptr && CurLoop != nullptr &&
          SafetyInfo != nullptr &&
@@ -1948,6 +1964,7 @@ bool llvm::promoteLoopAccessesToScalars(
     for (Value *Ptr : PointerMustAliases)
       dbgs() << "  " << *Ptr << "\n";
   });
+  ++NumPromotionCandidates;
 
   Value *SomePtr = *PointerMustAliases.begin();
   BasicBlock *Preheader = CurLoop->getLoopPreheader();
@@ -2147,7 +2164,8 @@ bool llvm::promoteLoopAccessesToScalars(
   // violating the memory model.
   if (StoreSafety == StoreSafetyUnknown) {
     Value *Object = getUnderlyingObject(SomePtr);
-    if (isWritableObject(Object) && isThreadLocalObject(Object, CurLoop, DT))
+    if (isWritableObject(Object) &&
+        isThreadLocalObject(Object, CurLoop, DT, TTI))
       StoreSafety = StoreSafe;
   }
 
@@ -2158,19 +2176,21 @@ bool llvm::promoteLoopAccessesToScalars(
     return false;
 
   // Lets do the promotion!
-  if (StoreSafety == StoreSafe)
+  if (StoreSafety == StoreSafe) {
     LLVM_DEBUG(dbgs() << "LICM: Promoting load/store of the value: " << *SomePtr
                       << '\n');
-  else
+    ++NumLoadStorePromoted;
+  } else {
     LLVM_DEBUG(dbgs() << "LICM: Promoting load of the value: " << *SomePtr
                       << '\n');
+    ++NumLoadPromoted;
+  }
 
   ORE->emit([&]() {
     return OptimizationRemark(DEBUG_TYPE, "PromoteLoopAccessesToScalar",
                               LoopUses[0])
            << "Moving accesses to memory location out of the loop";
   });
-  ++NumPromoted;
 
   // Look at all the loop uses, and try to merge their locations.
   std::vector<const DILocation *> LoopUsesLocs;
@@ -2181,9 +2201,9 @@ bool llvm::promoteLoopAccessesToScalars(
   // We use the SSAUpdater interface to insert phi nodes as required.
   SmallVector<PHINode *, 16> NewPHIs;
   SSAUpdater SSA(&NewPHIs);
-  LoopPromoter Promoter(SomePtr, LoopUses, SSA, PointerMustAliases, ExitBlocks,
-                        InsertPts, MSSAInsertPts, PIC, MSSAU, *LI, DL,
-                        Alignment, SawUnorderedAtomic, AATags, *SafetyInfo,
+  LoopPromoter Promoter(SomePtr, LoopUses, SSA, ExitBlocks, InsertPts,
+                        MSSAInsertPts, PIC, MSSAU, *LI, DL, Alignment,
+                        SawUnorderedAtomic, AATags, *SafetyInfo,
                         StoreSafety == StoreSafe);
 
   // Set up the preheader to have a definition of the value.  It is the live-out
@@ -2235,7 +2255,8 @@ static void foreachMemoryAccess(MemorySSA *MSSA, Loop *L,
 
 static SmallVector<SmallSetVector<Value *, 8>, 0>
 collectPromotionCandidates(MemorySSA *MSSA, AliasAnalysis *AA, Loop *L) {
-  AliasSetTracker AST(*AA);
+  BatchAAResults BatchAA(*AA);
+  AliasSetTracker AST(BatchAA);
 
   auto IsPotentiallyPromotable = [L](const Instruction *I) {
     if (const auto *SI = dyn_cast<StoreInst>(I))
@@ -2264,7 +2285,6 @@ collectPromotionCandidates(MemorySSA *MSSA, AliasAnalysis *AA, Loop *L) {
     return {}; // Nothing to promote...
 
   // Discard any sets for which there is an aliasing non-promotable access.
-  BatchAAResults BatchAA(*AA);
   foreachMemoryAccess(MSSA, L, [&](Instruction *I) {
     if (AttemptingPromotion.contains(I))
       return;

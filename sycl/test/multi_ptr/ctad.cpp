@@ -23,10 +23,14 @@ int main() {
   using constCTAD = decltype(sycl::multi_ptr(std::declval<constAcc>()));
   using localCTAD = decltype(sycl::multi_ptr(std::declval<localAcc>()));
   using localCTADDep = decltype(sycl::multi_ptr(std::declval<localAccDep>()));
-  using deviceMPtr = sycl::multi_ptr<int, address_space::global_space>;
-  using globlMPtr = sycl::multi_ptr<int, address_space::global_space>;
-  using constMPtr = sycl::multi_ptr<int, address_space::constant_space>;
-  using localMPtr = sycl::multi_ptr<int, address_space::local_space>;
+  using deviceMPtr = sycl::multi_ptr<int, address_space::global_space,
+                                     sycl::access::decorated::no>;
+  using globlMPtr = sycl::multi_ptr<int, address_space::global_space,
+                                    sycl::access::decorated::no>;
+  using constMPtr = sycl::multi_ptr<int, address_space::constant_space,
+                                    sycl::access::decorated::legacy>;
+  using localMPtr = sycl::multi_ptr<int, address_space::local_space,
+                                    sycl::access::decorated::no>;
   static_assert(std::is_same<deviceCTAD, deviceMPtr>::value);
   static_assert(std::is_same<deviceCTAD, globlMPtr>::value);
   static_assert(std::is_same<globlCTAD, globlMPtr>::value);

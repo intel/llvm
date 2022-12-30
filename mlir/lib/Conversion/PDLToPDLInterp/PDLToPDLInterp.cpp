@@ -37,7 +37,8 @@ namespace {
 /// given module containing PDL pattern operations.
 struct PatternLowering {
 public:
-  PatternLowering(pdl_interp::FuncOp matcherFunc, ModuleOp rewriterModule);
+  PatternLowering(pdl_interp::FuncOp matcherFunc, ModuleOp rewriterModule,
+                  DenseMap<Operation *, PDLPatternConfigSet *> *configMap);
 
   /// Generate code for matching and rewriting based on the pattern operations
   /// within the module.
@@ -86,6 +87,9 @@ private:
                         DenseMap<Value, Value> &rewriteValues,
                         function_ref<Value(Value)> mapRewriteValue);
   void generateRewriter(pdl::OperationOp operationOp,
+                        DenseMap<Value, Value> &rewriteValues,
+                        function_ref<Value(Value)> mapRewriteValue);
+  void generateRewriter(pdl::RangeOp rangeOp,
                         DenseMap<Value, Value> &rewriteValues,
                         function_ref<Value(Value)> mapRewriteValue);
   void generateRewriter(pdl::ReplaceOp replaceOp,
@@ -140,13 +144,19 @@ private:
   /// The set of operation values whose whose location will be used for newly
   /// generated operations.
   SetVector<Value> locOps;
+
+  /// A mapping between pattern operations and the corresponding configuration
+  /// set.
+  DenseMap<Operation *, PDLPatternConfigSet *> *configMap;
 };
 } // namespace
 
-PatternLowering::PatternLowering(pdl_interp::FuncOp matcherFunc,
-                                 ModuleOp rewriterModule)
+PatternLowering::PatternLowering(
+    pdl_interp::FuncOp matcherFunc, ModuleOp rewriterModule,
+    DenseMap<Operation *, PDLPatternConfigSet *> *configMap)
     : builder(matcherFunc.getContext()), matcherFunc(matcherFunc),
-      rewriterModule(rewriterModule), rewriterSymbolTable(rewriterModule) {}
+      rewriterModule(rewriterModule), rewriterSymbolTable(rewriterModule),
+      configMap(configMap) {}
 
 void PatternLowering::lower(ModuleOp module) {
   PredicateUniquer predicateUniquer;
@@ -589,10 +599,14 @@ void PatternLowering::generate(SuccessNode *successNode, Block *&currentBlock) {
       rootKindAttr = builder.getStringAttr(*rootKind);
 
   builder.setInsertionPointToEnd(currentBlock);
-  builder.create<pdl_interp::RecordMatchOp>(
+  auto matchOp = builder.create<pdl_interp::RecordMatchOp>(
       pattern.getLoc(), mappedMatchValues, locOps.getArrayRef(),
-      rewriterFuncRef, rootKindAttr, generatedOpsAttr, pattern.benefitAttr(),
+      rewriterFuncRef, rootKindAttr, generatedOpsAttr, pattern.getBenefitAttr(),
       failureBlockStack.back());
+
+  // Set the config of the lowered match to the parent pattern.
+  if (configMap)
+    configMap->try_emplace(matchOp, configMap->lookup(pattern));
 }
 
 SymbolRefAttr PatternLowering::generateRewriter(
@@ -600,7 +614,7 @@ SymbolRefAttr PatternLowering::generateRewriter(
   builder.setInsertionPointToEnd(rewriterModule.getBody());
   auto rewriterFunc = builder.create<pdl_interp::FuncOp>(
       pattern.getLoc(), "pdl_generated_rewriter",
-      builder.getFunctionType(llvm::None, llvm::None));
+      builder.getFunctionType(std::nullopt, std::nullopt));
   rewriterSymbolTable.insert(rewriterFunc);
 
   // Generate the rewriter function body.
@@ -616,7 +630,7 @@ SymbolRefAttr PatternLowering::generateRewriter(
     // Prefer materializing constants directly when possible.
     Operation *oldOp = oldValue.getDefiningOp();
     if (pdl::AttributeOp attrOp = dyn_cast<pdl::AttributeOp>(oldOp)) {
-      if (Attribute value = attrOp.valueAttr()) {
+      if (Attribute value = attrOp.getValueAttr()) {
         return newValue = builder.create<pdl_interp::CreateAttributeOp>(
                    attrOp.getLoc(), value);
       }
@@ -643,11 +657,12 @@ SymbolRefAttr PatternLowering::generateRewriter(
   // If this is a custom rewriter, simply dispatch to the registered rewrite
   // method.
   pdl::RewriteOp rewriter = pattern.getRewriter();
-  if (StringAttr rewriteName = rewriter.nameAttr()) {
+  if (StringAttr rewriteName = rewriter.getNameAttr()) {
     SmallVector<Value> args;
-    if (rewriter.root())
-      args.push_back(mapRewriteValue(rewriter.root()));
-    auto mappedArgs = llvm::map_range(rewriter.externalArgs(), mapRewriteValue);
+    if (rewriter.getRoot())
+      args.push_back(mapRewriteValue(rewriter.getRoot()));
+    auto mappedArgs =
+        llvm::map_range(rewriter.getExternalArgs(), mapRewriteValue);
     args.append(mappedArgs.begin(), mappedArgs.end());
     builder.create<pdl_interp::ApplyRewriteOp>(
         rewriter.getLoc(), /*resultTypes=*/TypeRange(), rewriteName, args);
@@ -656,8 +671,8 @@ SymbolRefAttr PatternLowering::generateRewriter(
     for (Operation &rewriteOp : *rewriter.getBody()) {
       llvm::TypeSwitch<Operation *>(&rewriteOp)
           .Case<pdl::ApplyNativeRewriteOp, pdl::AttributeOp, pdl::EraseOp,
-                pdl::OperationOp, pdl::ReplaceOp, pdl::ResultOp, pdl::ResultsOp,
-                pdl::TypeOp, pdl::TypesOp>([&](auto op) {
+                pdl::OperationOp, pdl::RangeOp, pdl::ReplaceOp, pdl::ResultOp,
+                pdl::ResultsOp, pdl::TypeOp, pdl::TypesOp>([&](auto op) {
             this->generateRewriter(op, rewriteValues, mapRewriteValue);
           });
     }
@@ -666,7 +681,7 @@ SymbolRefAttr PatternLowering::generateRewriter(
   // Update the signature of the rewrite function.
   rewriterFunc.setType(builder.getFunctionType(
       llvm::to_vector<8>(rewriterFunc.front().getArgumentTypes()),
-      /*results=*/llvm::None));
+      /*results=*/std::nullopt));
 
   builder.create<pdl_interp::FinalizeOp>(rewriter.getLoc());
   return SymbolRefAttr::get(
@@ -679,10 +694,10 @@ void PatternLowering::generateRewriter(
     pdl::ApplyNativeRewriteOp rewriteOp, DenseMap<Value, Value> &rewriteValues,
     function_ref<Value(Value)> mapRewriteValue) {
   SmallVector<Value, 2> arguments;
-  for (Value argument : rewriteOp.args())
+  for (Value argument : rewriteOp.getArgs())
     arguments.push_back(mapRewriteValue(argument));
   auto interpOp = builder.create<pdl_interp::ApplyRewriteOp>(
-      rewriteOp.getLoc(), rewriteOp.getResultTypes(), rewriteOp.nameAttr(),
+      rewriteOp.getLoc(), rewriteOp.getResultTypes(), rewriteOp.getNameAttr(),
       arguments);
   for (auto it : llvm::zip(rewriteOp.getResults(), interpOp.getResults()))
     rewriteValues[std::get<0>(it)] = std::get<1>(it);
@@ -692,7 +707,7 @@ void PatternLowering::generateRewriter(
     pdl::AttributeOp attrOp, DenseMap<Value, Value> &rewriteValues,
     function_ref<Value(Value)> mapRewriteValue) {
   Value newAttr = builder.create<pdl_interp::CreateAttributeOp>(
-      attrOp.getLoc(), attrOp.valueAttr());
+      attrOp.getLoc(), attrOp.getValueAttr());
   rewriteValues[attrOp] = newAttr;
 }
 
@@ -724,7 +739,7 @@ void PatternLowering::generateRewriter(
   Value createdOp = builder.create<pdl_interp::CreateOperationOp>(
       loc, *operationOp.getOpName(), types, hasInferredResultTypes, operands,
       attributes, operationOp.getAttributeValueNames());
-  rewriteValues[operationOp.op()] = createdOp;
+  rewriteValues[operationOp.getOp()] = createdOp;
 
   // Generate accesses for any results that have their types constrained.
   // Handle the case where there is a single range representing all of the
@@ -764,6 +779,16 @@ void PatternLowering::generateRewriter(
 }
 
 void PatternLowering::generateRewriter(
+    pdl::RangeOp rangeOp, DenseMap<Value, Value> &rewriteValues,
+    function_ref<Value(Value)> mapRewriteValue) {
+  SmallVector<Value, 4> replOperands;
+  for (Value operand : rangeOp.getArguments())
+    replOperands.push_back(mapRewriteValue(operand));
+  rewriteValues[rangeOp] = builder.create<pdl_interp::CreateRangeOp>(
+      rangeOp.getLoc(), rangeOp.getType(), replOperands);
+}
+
+void PatternLowering::generateRewriter(
     pdl::ReplaceOp replaceOp, DenseMap<Value, Value> &rewriteValues,
     function_ref<Value(Value)> mapRewriteValue) {
   SmallVector<Value, 4> replOperands;
@@ -771,7 +796,7 @@ void PatternLowering::generateRewriter(
   // If the replacement was another operation, get its results. `pdl` allows
   // for using an operation for simplicitly, but the interpreter isn't as
   // user facing.
-  if (Value replOp = replaceOp.replOperation()) {
+  if (Value replOp = replaceOp.getReplOperation()) {
     // Don't use replace if we know the replaced operation has no results.
     auto opOp = replaceOp.getOpValue().getDefiningOp<pdl::OperationOp>();
     if (!opOp || !opOp.getTypeValues().empty()) {
@@ -779,7 +804,7 @@ void PatternLowering::generateRewriter(
           replOp.getLoc(), mapRewriteValue(replOp)));
     }
   } else {
-    for (Value operand : replaceOp.replValues())
+    for (Value operand : replaceOp.getReplValues())
       replOperands.push_back(mapRewriteValue(operand));
   }
 
@@ -800,15 +825,15 @@ void PatternLowering::generateRewriter(
     function_ref<Value(Value)> mapRewriteValue) {
   rewriteValues[resultOp] = builder.create<pdl_interp::GetResultOp>(
       resultOp.getLoc(), builder.getType<pdl::ValueType>(),
-      mapRewriteValue(resultOp.parent()), resultOp.index());
+      mapRewriteValue(resultOp.getParent()), resultOp.getIndex());
 }
 
 void PatternLowering::generateRewriter(
     pdl::ResultsOp resultOp, DenseMap<Value, Value> &rewriteValues,
     function_ref<Value(Value)> mapRewriteValue) {
   rewriteValues[resultOp] = builder.create<pdl_interp::GetResultsOp>(
-      resultOp.getLoc(), resultOp.getType(), mapRewriteValue(resultOp.parent()),
-      resultOp.index());
+      resultOp.getLoc(), resultOp.getType(),
+      mapRewriteValue(resultOp.getParent()), resultOp.getIndex());
 }
 
 void PatternLowering::generateRewriter(
@@ -878,7 +903,7 @@ void PatternLowering::generateOperationResultTypeRewriter(
 
   // Look for an operation that was replaced by `op`. The result types will be
   // inferred from the results that were replaced.
-  for (OpOperand &use : op.op().getUses()) {
+  for (OpOperand &use : op.getOp().getUses()) {
     // Check that the use corresponds to a ReplaceOp and that it is the
     // replacement value, not the operation being replaced.
     pdl::ReplaceOp replOpUser = dyn_cast<pdl::ReplaceOp>(use.getOwner());
@@ -907,9 +932,9 @@ void PatternLowering::generateOperationResultTypeRewriter(
   if (resultTypeValues.empty())
     return;
 
-  // The verifier asserts that the result types of each pdl.operation can be
+  // The verifier asserts that the result types of each pdl.getOperation can be
   // inferred. If we reach here, there is a bug either in the logic above or
-  // in the verifier for pdl.operation.
+  // in the verifier for pdl.getOperation.
   op->emitOpError() << "unable to infer result type for operation";
   llvm_unreachable("unable to infer result type for operation");
 }
@@ -921,7 +946,14 @@ void PatternLowering::generateOperationResultTypeRewriter(
 namespace {
 struct PDLToPDLInterpPass
     : public impl::ConvertPDLToPDLInterpBase<PDLToPDLInterpPass> {
+  PDLToPDLInterpPass() = default;
+  PDLToPDLInterpPass(const PDLToPDLInterpPass &rhs) = default;
+  PDLToPDLInterpPass(DenseMap<Operation *, PDLPatternConfigSet *> &configMap)
+      : configMap(&configMap) {}
   void runOnOperation() final;
+
+  /// A map containing the configuration for each pattern.
+  DenseMap<Operation *, PDLPatternConfigSet *> *configMap = nullptr;
 };
 } // namespace
 
@@ -936,8 +968,8 @@ void PDLToPDLInterpPass::runOnOperation() {
   auto matcherFunc = builder.create<pdl_interp::FuncOp>(
       module.getLoc(), pdl_interp::PDLInterpDialect::getMatcherFunctionName(),
       builder.getFunctionType(builder.getType<pdl::OperationType>(),
-                              /*results=*/llvm::None),
-      /*attrs=*/llvm::None);
+                              /*results=*/std::nullopt),
+      /*attrs=*/std::nullopt);
 
   // Create a nested module to hold the functions invoked for rewriting the IR
   // after a successful match.
@@ -945,15 +977,24 @@ void PDLToPDLInterpPass::runOnOperation() {
       module.getLoc(), pdl_interp::PDLInterpDialect::getRewriterModuleName());
 
   // Generate the code for the patterns within the module.
-  PatternLowering generator(matcherFunc, rewriterModule);
+  PatternLowering generator(matcherFunc, rewriterModule, configMap);
   generator.lower(module);
 
   // After generation, delete all of the pattern operations.
   for (pdl::PatternOp pattern :
-       llvm::make_early_inc_range(module.getOps<pdl::PatternOp>()))
+       llvm::make_early_inc_range(module.getOps<pdl::PatternOp>())) {
+    // Drop the now dead config mappings.
+    if (configMap)
+      configMap->erase(pattern);
+
     pattern.erase();
+  }
 }
 
 std::unique_ptr<OperationPass<ModuleOp>> mlir::createPDLToPDLInterpPass() {
   return std::make_unique<PDLToPDLInterpPass>();
+}
+std::unique_ptr<OperationPass<ModuleOp>> mlir::createPDLToPDLInterpPass(
+    DenseMap<Operation *, PDLPatternConfigSet *> &configMap) {
+  return std::make_unique<PDLToPDLInterpPass>(configMap);
 }

@@ -74,6 +74,20 @@ public:
   virtual LatticeJoinEffect joinTypeErased(TypeErasedLattice &,
                                            const TypeErasedLattice &) = 0;
 
+  /// Chooses a lattice element that approximates the current element at a
+  /// program point, given the previous element at that point. Places the
+  /// widened result in the current element (`Current`). Widening is optional --
+  /// it is only needed to either accelerate convergence (for lattices with
+  /// non-trivial height) or guarantee convergence (for lattices with infinite
+  /// height).
+  ///
+  /// Returns an indication of whether any changes were made to `Current` in
+  /// order to widen. This saves a separate call to `isEqualTypeErased` after
+  /// the widening.
+  virtual LatticeJoinEffect
+  widenTypeErased(TypeErasedLattice &Current,
+                  const TypeErasedLattice &Previous) = 0;
+
   /// Returns true if and only if the two given type-erased lattice elements are
   /// equal.
   virtual bool isEqualTypeErased(const TypeErasedLattice &,
@@ -83,6 +97,14 @@ public:
   /// element and type-erased lattice element.
   virtual void transferTypeErased(const CFGElement *, TypeErasedLattice &,
                                   Environment &) = 0;
+
+  /// Applies the analysis transfer function for a given edge from a CFG block
+  /// of a conditional statement.
+  /// @param Stmt The condition which is responsible for the split in the CFG.
+  /// @param Branch True if the edge goes to the basic block where the
+  /// condition is true.
+  virtual void transferBranchTypeErased(bool Branch, const Stmt *,
+                                        TypeErasedLattice &, Environment &) = 0;
 
   /// If the built-in transfer functions (which model the heap and stack in the
   /// `Environment`) are to be applied, returns the options to be passed to
@@ -113,7 +135,7 @@ struct TypeErasedDataflowAnalysisState {
 ///
 ///   All predecessors of `Block` except those with loop back edges must have
 ///   already been transferred. States in `BlockStates` that are set to
-///   `llvm::None` represent basic blocks that are not evaluated yet.
+///   `std::nullopt` represent basic blocks that are not evaluated yet.
 TypeErasedDataflowAnalysisState transferBlock(
     const ControlFlowContext &CFCtx,
     llvm::ArrayRef<llvm::Optional<TypeErasedDataflowAnalysisState>> BlockStates,

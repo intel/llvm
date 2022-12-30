@@ -14,7 +14,7 @@
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
@@ -75,6 +75,8 @@ struct DimOfShapedTypeOpInterface : public OpRewritePattern<OpTy> {
 template <typename OpTy>
 struct DimOfReifyRankedShapedTypeOpInterface : public OpRewritePattern<OpTy> {
   using OpRewritePattern<OpTy>::OpRewritePattern;
+
+  void initialize() { OpRewritePattern<OpTy>::setHasBoundedRewriteRecursion(); }
 
   LogicalResult matchAndRewrite(OpTy dimOp,
                                 PatternRewriter &rewriter) const override {

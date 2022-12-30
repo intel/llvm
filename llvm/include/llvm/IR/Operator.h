@@ -15,8 +15,6 @@
 #define LLVM_IR_OPERATOR_H
 
 #include "llvm/ADT/MapVector.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/FMF.h"
 #include "llvm/IR/Instruction.h"
@@ -24,6 +22,7 @@
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
 #include <cstddef>
+#include <optional>
 
 namespace llvm {
 
@@ -393,10 +392,11 @@ public:
     return SubclassOptionalData & IsInBounds;
   }
 
-  /// Returns the offset of the index with an inrange attachment, or None if
-  /// none.
-  Optional<unsigned> getInRangeIndex() const {
-    if (SubclassOptionalData >> 1 == 0) return None;
+  /// Returns the offset of the index with an inrange attachment, or
+  /// std::nullopt if none.
+  std::optional<unsigned> getInRangeIndex() const {
+    if (SubclassOptionalData >> 1 == 0)
+      return std::nullopt;
     return (SubclassOptionalData >> 1) - 1;
   }
 

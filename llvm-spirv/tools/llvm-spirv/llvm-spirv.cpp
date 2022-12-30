@@ -588,7 +588,7 @@ bool parseSpecConstOpt(llvm::StringRef SpecConstStr,
       }
       APInt Value;
       bool Err = Params[2].getAsInteger(10, Value);
-      if (Err || Value.getNumWords() > 1 ||
+      if (Err || Value.getActiveWords() > 1 ||
           (Width < 64 && Value.getZExtValue() >> Width)) {
         errs() << "Error: Invalid value for '-" << SpecConst.ArgStr
                << "' option! In \"" << Option << "\": can't convert \""

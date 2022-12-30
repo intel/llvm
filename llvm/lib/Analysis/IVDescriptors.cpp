@@ -1025,6 +1025,16 @@ bool RecurrenceDescriptor::isFixedOrderRecurrence(
       // Previous. Nothing left to do.
       if (DT->dominates(Previous, OtherPrev) || Previous == OtherPrev)
         return true;
+
+      // If there are other instructions to be sunk after SinkCandidate, remove
+      // and re-insert SinkCandidate can break those instructions. Bail out for
+      // simplicity.
+      if (any_of(SinkAfter,
+          [SinkCandidate](const std::pair<Instruction *, Instruction *> &P) {
+            return P.second == SinkCandidate;
+          }))
+        return false;
+
       // Otherwise, Previous comes after OtherPrev and SinkCandidate needs to be
       // re-sunk to Previous, instead of sinking to OtherPrev. Remove
       // SinkCandidate from SinkAfter to ensure it's insert position is updated.
@@ -1101,9 +1111,13 @@ Value *RecurrenceDescriptor::getRecurrenceIdentity(RecurKind K, Type *Tp,
     return ConstantInt::get(Tp,
                             APInt::getSignedMinValue(Tp->getIntegerBitWidth()));
   case RecurKind::FMin:
-    return ConstantFP::getInfinity(Tp, true);
+    assert((FMF.noNaNs() && FMF.noSignedZeros()) &&
+           "nnan, nsz is expected to be set for FP min reduction.");
+    return ConstantFP::getInfinity(Tp, false /*Negative*/);
   case RecurKind::FMax:
-    return ConstantFP::getInfinity(Tp, false);
+    assert((FMF.noNaNs() && FMF.noSignedZeros()) &&
+           "nnan, nsz is expected to be set for FP max reduction.");
+    return ConstantFP::getInfinity(Tp, true /*Negative*/);
   case RecurKind::SelectICmp:
   case RecurKind::SelectFCmp:
     return getRecurrenceStartValue();

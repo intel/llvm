@@ -15,6 +15,7 @@
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVEnums.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVTypes.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/StringExtras.h"
@@ -139,14 +140,14 @@ static Optional<int64_t> getTypeNumBytes(const SPIRVConversionOptions &options,
     // non-externally visible shader Storage Classes: Workgroup, CrossWorkgroup,
     // Private, Function, Input, and Output."
     if (bitWidth == 1)
-      return llvm::None;
+      return std::nullopt;
     return bitWidth / 8;
   }
 
   if (auto vecType = type.dyn_cast<VectorType>()) {
     auto elementSize = getTypeNumBytes(options, vecType.getElementType());
     if (!elementSize)
-      return llvm::None;
+      return std::nullopt;
     return vecType.getNumElements() * *elementSize;
   }
 
@@ -157,23 +158,23 @@ static Optional<int64_t> getTypeNumBytes(const SPIRVConversionOptions &options,
     SmallVector<int64_t, 4> strides;
     if (!memRefType.hasStaticShape() ||
         failed(getStridesAndOffset(memRefType, strides, offset)))
-      return llvm::None;
+      return std::nullopt;
 
     // To get the size of the memref object in memory, the total size is the
     // max(stride * dimension-size) computed for all dimensions times the size
     // of the element.
     auto elementSize = getTypeNumBytes(options, memRefType.getElementType());
     if (!elementSize)
-      return llvm::None;
+      return std::nullopt;
 
     if (memRefType.getRank() == 0)
       return elementSize;
 
     auto dims = memRefType.getShape();
-    if (llvm::is_contained(dims, ShapedType::kDynamicSize) ||
-        offset == MemRefType::getDynamicStrideOrOffset() ||
-        llvm::is_contained(strides, MemRefType::getDynamicStrideOrOffset()))
-      return llvm::None;
+    if (llvm::is_contained(dims, ShapedType::kDynamic) ||
+        ShapedType::isDynamic(offset) ||
+        llvm::is_contained(strides, ShapedType::kDynamic))
+      return std::nullopt;
 
     int64_t memrefSize = -1;
     for (const auto &shape : enumerate(dims))
@@ -184,11 +185,11 @@ static Optional<int64_t> getTypeNumBytes(const SPIRVConversionOptions &options,
 
   if (auto tensorType = type.dyn_cast<TensorType>()) {
     if (!tensorType.hasStaticShape())
-      return llvm::None;
+      return std::nullopt;
 
     auto elementSize = getTypeNumBytes(options, tensorType.getElementType());
     if (!elementSize)
-      return llvm::None;
+      return std::nullopt;
 
     int64_t size = *elementSize;
     for (auto shape : tensorType.getShape())
@@ -198,7 +199,7 @@ static Optional<int64_t> getTypeNumBytes(const SPIRVConversionOptions &options,
   }
 
   // TODO: Add size computation for other types.
-  return llvm::None;
+  return std::nullopt;
 }
 
 /// Converts a scalar `type` to a suitable type under the given `targetEnv`.
@@ -219,9 +220,16 @@ static Type convertScalarType(const spirv::TargetEnv &targetEnv,
 
   // Otherwise we need to adjust the type, which really means adjusting the
   // bitwidth given this is a scalar type.
-
-  if (!options.emulateNon32BitScalarTypes)
+  if (!options.emulateLT32BitScalarTypes)
     return nullptr;
+
+  // We only emulate narrower scalar types here and do not truncate results.
+  if (type.getIntOrFloatBitWidth() > 32) {
+    LLVM_DEBUG(llvm::dbgs()
+               << type
+               << " not converted to 32-bit for SPIR-V to avoid truncation\n");
+    return nullptr;
+  }
 
   if (auto floatType = type.dyn_cast<FloatType>()) {
     LLVM_DEBUG(llvm::dbgs() << type << " converted to 32-bit for SPIR-V\n");
@@ -239,8 +247,9 @@ static Type convertVectorType(const spirv::TargetEnv &targetEnv,
                               const SPIRVConversionOptions &options,
                               VectorType type,
                               Optional<spirv::StorageClass> storageClass = {}) {
+  auto scalarType = type.getElementType().cast<spirv::ScalarType>();
   if (type.getRank() <= 1 && type.getNumElements() == 1)
-    return type.getElementType();
+    return convertScalarType(targetEnv, options, scalarType, storageClass);
 
   if (!spirv::CompositeType::isValid(type)) {
     // TODO: Vector types with more than four elements can be translated into
@@ -260,9 +269,8 @@ static Type convertVectorType(const spirv::TargetEnv &targetEnv,
       succeeded(checkExtensionRequirements(type, targetEnv, extensions)))
     return type;
 
-  auto elementType = convertScalarType(
-      targetEnv, options, type.getElementType().cast<spirv::ScalarType>(),
-      storageClass);
+  auto elementType =
+      convertScalarType(targetEnv, options, scalarType, storageClass);
   if (elementType)
     return VectorType::get(type.getShape(), elementType);
   return nullptr;
@@ -338,15 +346,16 @@ static Type convertBoolMemrefType(const spirv::TargetEnv &targetEnv,
     return nullptr;
   }
 
-  // For OpenCL Kernel we can just emit a pointer pointing to the element.
-  if (targetEnv.allows(spirv::Capability::Kernel))
-    return spirv::PointerType::get(arrayElemType, storageClass);
 
-  // For Vulkan we need extra wrapping struct and array to satisfy interface
-  // needs.
   if (!type.hasStaticShape()) {
+    // For OpenCL Kernel, dynamic shaped memrefs convert into a pointer pointing
+    // to the element.
+    if (targetEnv.allows(spirv::Capability::Kernel))
+      return spirv::PointerType::get(arrayElemType, storageClass);
     int64_t stride = needsExplicitLayout(storageClass) ? *arrayElemSize : 0;
     auto arrayType = spirv::RuntimeArrayType::get(arrayElemType, stride);
+    // For Vulkan we need extra wrapping struct and array to satisfy interface
+    // needs.
     return wrapInStructAndGetPointer(arrayType, storageClass);
   }
 
@@ -354,7 +363,8 @@ static Type convertBoolMemrefType(const spirv::TargetEnv &targetEnv,
   auto arrayElemCount = llvm::divideCeil(memrefSize, *arrayElemSize);
   int64_t stride = needsExplicitLayout(storageClass) ? *arrayElemSize : 0;
   auto arrayType = spirv::ArrayType::get(arrayElemType, arrayElemCount, stride);
-
+  if (targetEnv.allows(spirv::Capability::Kernel))
+    return spirv::PointerType::get(arrayType, storageClass);
   return wrapInStructAndGetPointer(arrayType, storageClass);
 }
 
@@ -403,15 +413,16 @@ static Type convertMemrefType(const spirv::TargetEnv &targetEnv,
     return nullptr;
   }
 
-  // For OpenCL Kernel we can just emit a pointer pointing to the element.
-  if (targetEnv.allows(spirv::Capability::Kernel))
-    return spirv::PointerType::get(arrayElemType, storageClass);
 
-  // For Vulkan we need extra wrapping struct and array to satisfy interface
-  // needs.
   if (!type.hasStaticShape()) {
+    // For OpenCL Kernel, dynamic shaped memrefs convert into a pointer pointing
+    // to the element.
+    if (targetEnv.allows(spirv::Capability::Kernel))
+      return spirv::PointerType::get(arrayElemType, storageClass);
     int64_t stride = needsExplicitLayout(storageClass) ? *arrayElemSize : 0;
     auto arrayType = spirv::RuntimeArrayType::get(arrayElemType, stride);
+    // For Vulkan we need extra wrapping struct and array to satisfy interface
+    // needs.
     return wrapInStructAndGetPointer(arrayType, storageClass);
   }
 
@@ -425,7 +436,8 @@ static Type convertMemrefType(const spirv::TargetEnv &targetEnv,
   auto arrayElemCount = llvm::divideCeil(*memrefSize, *arrayElemSize);
   int64_t stride = needsExplicitLayout(storageClass) ? *arrayElemSize : 0;
   auto arrayType = spirv::ArrayType::get(arrayElemType, arrayElemCount, stride);
-
+  if (targetEnv.allows(spirv::Capability::Kernel))
+    return spirv::PointerType::get(arrayType, storageClass);
   return wrapInStructAndGetPointer(arrayType, storageClass);
 }
 
@@ -519,7 +531,7 @@ FuncOpConversion::matchAndRewrite(func::FuncOp funcOp, OpAdaptor adaptor,
 
   // Copy over all attributes other than the function name and type.
   for (const auto &namedAttr : funcOp->getAttrs()) {
-    if (namedAttr.getName() != FunctionOpInterface::getTypeAttrName() &&
+    if (namedAttr.getName() != funcOp.getFunctionTypeAttrName() &&
         namedAttr.getName() != SymbolTable::getSymbolAttrName())
       newFuncOp->setAttr(namedAttr.getName(), namedAttr.getValue());
   }
@@ -737,8 +749,8 @@ Value mlir::spirv::getVulkanElementPtr(SPIRVTypeConverter &typeConverter,
   int64_t offset;
   SmallVector<int64_t, 4> strides;
   if (failed(getStridesAndOffset(baseType, strides, offset)) ||
-      llvm::is_contained(strides, MemRefType::getDynamicStrideOrOffset()) ||
-      offset == MemRefType::getDynamicStrideOrOffset()) {
+      llvm::is_contained(strides, ShapedType::kDynamic) ||
+      ShapedType::isDynamic(offset)) {
     return nullptr;
   }
 
@@ -768,22 +780,27 @@ Value mlir::spirv::getOpenCLElementPtr(SPIRVTypeConverter &typeConverter,
   int64_t offset;
   SmallVector<int64_t, 4> strides;
   if (failed(getStridesAndOffset(baseType, strides, offset)) ||
-      llvm::is_contained(strides, MemRefType::getDynamicStrideOrOffset()) ||
-      offset == MemRefType::getDynamicStrideOrOffset()) {
+      llvm::is_contained(strides, ShapedType::kDynamic) ||
+      ShapedType::isDynamic(offset)) {
     return nullptr;
   }
 
   auto indexType = typeConverter.getIndexType();
 
   SmallVector<Value, 2> linearizedIndices;
-  auto zero = spirv::ConstantOp::getZero(indexType, loc, builder);
-
   Value linearIndex;
   if (baseType.getRank() == 0) {
-    linearIndex = zero;
+    linearIndex = spirv::ConstantOp::getZero(indexType, loc, builder);
   } else {
     linearIndex =
         linearizeIndex(indices, strides, offset, indexType, loc, builder);
+  }
+  Type pointeeType =
+      basePtr.getType().cast<spirv::PointerType>().getPointeeType();
+  if (pointeeType.isa<spirv::ArrayType>()) {
+    linearizedIndices.push_back(linearIndex);
+    return builder.create<spirv::AccessChainOp>(loc, basePtr,
+                                                linearizedIndices);
   }
   return builder.create<spirv::PtrAccessChainOp>(loc, basePtr, linearIndex,
                                                  linearizedIndices);

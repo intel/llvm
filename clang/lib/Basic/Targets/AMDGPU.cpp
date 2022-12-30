@@ -55,7 +55,8 @@ const LangASMap AMDGPUTargetInfo::AMDGPUDefIsGenMap = {
     Private,  // sycl_private
     Generic,  // ptr32_sptr
     Generic,  // ptr32_uptr
-    Generic   // ptr64
+    Generic,  // ptr64
+    Generic,  // hlsl_groupshared
 };
 
 const LangASMap AMDGPUTargetInfo::AMDGPUDefIsPrivMap = {
@@ -71,14 +72,15 @@ const LangASMap AMDGPUTargetInfo::AMDGPUDefIsPrivMap = {
     Constant, // cuda_constant
     Local,    // cuda_shared
     // SYCL address space values for this map are dummy
-    Generic,  // sycl_global
-    Generic,  // sycl_global_device
-    Generic,  // sycl_global_host
-    Generic,  // sycl_local
-    Generic,  // sycl_private
-    Generic,  // ptr32_sptr
-    Generic,  // ptr32_uptr
-    Generic   // ptr64
+    Generic, // sycl_global
+    Generic, // sycl_global_device
+    Generic, // sycl_global_host
+    Generic, // sycl_local
+    Generic, // sycl_private
+    Generic, // ptr32_sptr
+    Generic, // ptr32_uptr
+    Generic, // ptr64
+    Generic, // hlsl_groupshared
 
 };
 } // namespace targets
@@ -368,8 +370,8 @@ AMDGPUTargetInfo::AMDGPUTargetInfo(const llvm::Triple &Triple,
   WavefrontSize = GPUFeatures & llvm::AMDGPU::FEATURE_WAVE32 ? 32 : 64;
   AllowAMDGPUUnsafeFPAtomics = Opts.AllowAMDGPUUnsafeFPAtomics;
 
-  // Set pointer width and alignment for target address space 0.
-  PointerWidth = PointerAlign = getPointerWidthV(Generic);
+  // Set pointer width and alignment for the generic address space.
+  PointerWidth = PointerAlign = getPointerWidthV(LangAS::Default);
   if (getMaxPointerWidth() == 64) {
     LongWidth = LongAlign = 64;
     SizeType = UnsignedLong;

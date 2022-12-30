@@ -75,6 +75,19 @@ mlir::Value genDotProduct(fir::FirOpBuilder &builder, mlir::Location loc,
                           mlir::Value vectorABox, mlir::Value vectorBBox,
                           mlir::Value resultBox);
 
+/// Generate call to `Findloc` intrinsic runtime routine. This is the version
+/// that does not take a dim argument.
+void genFindloc(fir::FirOpBuilder &builder, mlir::Location loc,
+                mlir::Value resultBox, mlir::Value arrayBox, mlir::Value val,
+                mlir::Value maskBox, mlir::Value kind, mlir::Value back);
+
+/// Generate call to `FindlocDim` intrinsic runtime routine. This is the version
+/// that takes a dim argument.
+void genFindlocDim(fir::FirOpBuilder &builder, mlir::Location loc,
+                   mlir::Value resultBox, mlir::Value arrayBox, mlir::Value val,
+                   mlir::Value dim, mlir::Value maskBox, mlir::Value kind,
+                   mlir::Value back);
+
 /// Generate call to `Maxloc` intrinsic runtime routine. This is the version
 /// that does not take a dim argument.
 void genMaxloc(fir::FirOpBuilder &builder, mlir::Location loc,
@@ -134,6 +147,16 @@ void genMinvalChar(fir::FirOpBuilder &builder, mlir::Location loc,
 void genMinvalDim(fir::FirOpBuilder &builder, mlir::Location loc,
                   mlir::Value resultBox, mlir::Value arrayBox, mlir::Value dim,
                   mlir::Value maskBox);
+
+/// Generate call to `Norm2` intrinsic runtime routine. This is the version
+/// that does not take a dim argument.
+mlir::Value genNorm2(fir::FirOpBuilder &builder, mlir::Location loc,
+                     mlir::Value arrayBox);
+
+/// Generate call to `Norm2Dim` intrinsic runtime routine. This is the version
+/// that takes a dim argument.
+void genNorm2Dim(fir::FirOpBuilder &builder, mlir::Location loc,
+                 mlir::Value resultBox, mlir::Value arrayBox, mlir::Value dim);
 
 /// Generate call to `Parity` runtime routine. This version of `parity` is
 /// specialized for rank 1 mask arguments.

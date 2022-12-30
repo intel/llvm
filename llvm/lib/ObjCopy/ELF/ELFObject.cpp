@@ -453,6 +453,11 @@ Error ELFSectionWriter<ELFT>::visit(const DecompressedSection &Sec) {
                                  Twine(Sec.ChType) + ") of section '" +
                                  Sec.Name + "' is unsupported");
   }
+  if (auto *Reason =
+          compression::getReasonIfUnsupported(compression::formatFor(Type)))
+    return createStringError(errc::invalid_argument,
+                             "failed to decompress section '" + Sec.Name +
+                                 "': " + Reason);
   if (Error E = compression::decompress(Type, Compressed, Decompressed,
                                         static_cast<size_t>(Sec.Size)))
     return createStringError(errc::invalid_argument,
@@ -1357,7 +1362,7 @@ Expected<std::unique_ptr<Object>> IHexELFBuilder::build() {
 
 template <class ELFT>
 ELFBuilder<ELFT>::ELFBuilder(const ELFObjectFile<ELFT> &ElfObj, Object &Obj,
-                             Optional<StringRef> ExtractPartition)
+                             std::optional<StringRef> ExtractPartition)
     : ElfFile(ElfObj.getELFFile()), Obj(Obj),
       ExtractPartition(ExtractPartition) {
   Obj.IsMips64EL = ElfFile.isMips64EL();

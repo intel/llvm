@@ -50,10 +50,9 @@ FormatSection Parser::get_next_section() {
 
       section.min_width = GET_ARG_VAL_SIMPLEST(int, parse_index(&cur_pos));
     } else if (internal::isdigit(str[cur_pos])) {
-      char *int_end;
-      section.min_width =
-          internal::strtointeger<int>(str + cur_pos, &int_end, 10);
-      cur_pos = int_end - str;
+      auto result = internal::strtointeger<int>(str + cur_pos, 10);
+      section.min_width = result.value;
+      cur_pos = cur_pos + result.parsed_len;
     }
     if (section.min_width < 0) {
       section.min_width = -section.min_width;
@@ -73,10 +72,9 @@ FormatSection Parser::get_next_section() {
         section.precision = GET_ARG_VAL_SIMPLEST(int, parse_index(&cur_pos));
 
       } else if (internal::isdigit(str[cur_pos])) {
-        char *int_end;
-        section.precision =
-            internal::strtointeger<int>(str + cur_pos, &int_end, 10);
-        cur_pos = int_end - str;
+        auto result = internal::strtointeger<int>(str + cur_pos, 10);
+        section.precision = result.value;
+        cur_pos = cur_pos + result.parsed_len;
       }
     }
 
@@ -151,7 +149,11 @@ FormatSection Parser::get_next_section() {
       section.has_conv = false;
       break;
     }
-    ++cur_pos;
+    // If the end of the format section is on the '\0'. This means we need to
+    // not advance the cur_pos.
+    if (str[cur_pos] != '\0')
+      ++cur_pos;
+
   } else {
     // raw section
     section.has_conv = false;
@@ -234,12 +236,11 @@ LengthModifier Parser::parse_length_modifier(size_t *local_pos) {
 
 size_t Parser::parse_index(size_t *local_pos) {
   if (internal::isdigit(str[*local_pos])) {
-    char *int_end;
-    size_t index =
-        internal::strtointeger<size_t>(str + *local_pos, &int_end, 10);
-    if (int_end[0] != '$')
+    auto result = internal::strtointeger<int>(str + *local_pos, 10);
+    size_t index = result.value;
+    if (str[*local_pos + result.parsed_len] != '$')
       return 0;
-    *local_pos = 1 + int_end - str;
+    *local_pos = 1 + result.parsed_len + *local_pos;
     return index;
   }
   return 0;
@@ -372,7 +373,10 @@ Parser::TypeDesc Parser::get_type_desc(size_t index) {
       if (conv_index == index)
         return conv_size;
     }
-    ++local_pos;
+    // If the end of the format section is on the '\0'. This means we need to
+    // not advance the local_pos.
+    if (str[local_pos] != '\0')
+      ++local_pos;
   }
 
   // If there is no size for the requested index, then just guess that it's an

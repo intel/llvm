@@ -28,11 +28,12 @@ class TestRunner {
 public:
   TestRunner(StringRef TestName, const std::vector<std::string> &TestArgs,
              std::unique_ptr<ReducerWorkItem> Program,
-             std::unique_ptr<TargetMachine> TM, const char *ToolName);
+             std::unique_ptr<TargetMachine> TM, const char *ToolName,
+             StringRef OutputFilename, bool InputIsBitcode, bool OutputBitcode);
 
   /// Runs the interesting-ness test for the specified file
   /// @returns 0 if test was successful, 1 if otherwise
-  int run(StringRef Filename);
+  int run(StringRef Filename) const;
 
   /// Returns the most reduced version of the original testcase
   ReducerWorkItem &getProgram() const { return *Program; }
@@ -43,12 +44,21 @@ public:
 
   const char *getToolName() const { return ToolName; }
 
+  void writeOutput(StringRef Message);
+
+  bool inputIsBitcode() const {
+    return InputIsBitcode;
+  }
+
 private:
   StringRef TestName;
   const char *ToolName;
   const std::vector<std::string> &TestArgs;
   std::unique_ptr<ReducerWorkItem> Program;
   std::unique_ptr<TargetMachine> TM;
+  StringRef OutputFilename;
+  const bool InputIsBitcode;
+  bool EmitBitcode;
 };
 
 } // namespace llvm

@@ -138,8 +138,8 @@ declare i64 @llvm.fshl.i64(i64, i64, i64)
 define i64 @rol_i64(i64 %a, i64 %b) nounwind {
 ; CHECK-LABEL: rol_i64:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    slli a3, a2, 26
-; CHECK-NEXT:    srli a5, a3, 31
+; CHECK-NEXT:    slli a5, a2, 26
+; CHECK-NEXT:    srli a5, a5, 31
 ; CHECK-NEXT:    mv a4, a1
 ; CHECK-NEXT:    bnez a5, .LBB7_2
 ; CHECK-NEXT:  # %bb.1:
@@ -155,8 +155,8 @@ define i64 @rol_i64(i64 %a, i64 %b) nounwind {
 ; CHECK-NEXT:    srl a1, a1, a5
 ; CHECK-NEXT:    or a3, a3, a1
 ; CHECK-NEXT:    sll a0, a0, a2
-; CHECK-NEXT:    srli a1, a4, 1
-; CHECK-NEXT:    srl a1, a1, a5
+; CHECK-NEXT:    srli a4, a4, 1
+; CHECK-NEXT:    srl a1, a4, a5
 ; CHECK-NEXT:    or a1, a0, a1
 ; CHECK-NEXT:    mv a0, a3
 ; CHECK-NEXT:    ret
@@ -207,8 +207,8 @@ define i64 @ror_i64(i64 %a, i64 %b) nounwind {
 ; CHECK-NEXT:    sll a0, a0, a5
 ; CHECK-NEXT:    or a0, a0, a4
 ; CHECK-NEXT:    srl a1, a1, a2
-; CHECK-NEXT:    slli a2, a3, 1
-; CHECK-NEXT:    sll a2, a2, a5
+; CHECK-NEXT:    slli a3, a3, 1
+; CHECK-NEXT:    sll a2, a3, a5
 ; CHECK-NEXT:    or a1, a2, a1
 ; CHECK-NEXT:    ret
   %or = tail call i64 @llvm.fshr.i64(i64 %a, i64 %a, i64 %b)
@@ -296,35 +296,20 @@ define i32 @not_shl_one_i32(i32 %x) {
 }
 
 define i64 @not_shl_one_i64(i64 %x) {
-; RV32I-LABEL: not_shl_one_i64:
-; RV32I:       # %bb.0:
-; RV32I-NEXT:    addi a3, a0, -32
-; RV32I-NEXT:    li a2, 1
-; RV32I-NEXT:    li a1, -1
-; RV32I-NEXT:    bltz a3, .LBB15_2
-; RV32I-NEXT:  # %bb.1:
-; RV32I-NEXT:    sll a0, a2, a3
-; RV32I-NEXT:    not a1, a0
-; RV32I-NEXT:    li a0, -1
-; RV32I-NEXT:    ret
-; RV32I-NEXT:  .LBB15_2:
-; RV32I-NEXT:    sll a0, a2, a0
-; RV32I-NEXT:    not a0, a0
-; RV32I-NEXT:    ret
-;
-; RV32ZBB-ZBKB-LABEL: not_shl_one_i64:
-; RV32ZBB-ZBKB:       # %bb.0:
-; RV32ZBB-ZBKB-NEXT:    addi a3, a0, -32
-; RV32ZBB-ZBKB-NEXT:    li a2, -2
-; RV32ZBB-ZBKB-NEXT:    li a1, -1
-; RV32ZBB-ZBKB-NEXT:    bltz a3, .LBB15_2
-; RV32ZBB-ZBKB-NEXT:  # %bb.1:
-; RV32ZBB-ZBKB-NEXT:    rol a1, a2, a3
-; RV32ZBB-ZBKB-NEXT:    li a0, -1
-; RV32ZBB-ZBKB-NEXT:    ret
-; RV32ZBB-ZBKB-NEXT:  .LBB15_2:
-; RV32ZBB-ZBKB-NEXT:    rol a0, a2, a0
-; RV32ZBB-ZBKB-NEXT:    ret
+; CHECK-LABEL: not_shl_one_i64:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    li a1, 1
+; CHECK-NEXT:    sll a2, a1, a0
+; CHECK-NEXT:    addi a0, a0, -32
+; CHECK-NEXT:    slti a3, a0, 0
+; CHECK-NEXT:    neg a4, a3
+; CHECK-NEXT:    and a2, a4, a2
+; CHECK-NEXT:    sll a0, a1, a0
+; CHECK-NEXT:    addi a3, a3, -1
+; CHECK-NEXT:    and a3, a3, a0
+; CHECK-NEXT:    not a0, a2
+; CHECK-NEXT:    not a1, a3
+; CHECK-NEXT:    ret
   %1 = shl i64 1, %x
   %2 = xor i64 %1, -1
   ret i64 %2

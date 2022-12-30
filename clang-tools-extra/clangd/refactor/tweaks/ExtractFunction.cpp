@@ -64,7 +64,6 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Tooling/Core/Replacement.h"
 #include "clang/Tooling/Refactoring/Extract/SourceExtraction.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
@@ -248,6 +247,15 @@ const FunctionDecl *findEnclosingFunction(const Node *CommonAnc) {
       // FIXME: Support extraction from templated functions.
       if (Func->isTemplated())
         return nullptr;
+      if (!Func->getBody())
+        return nullptr;
+      for (const auto *S : Func->getBody()->children()) {
+        // During apply phase, we perform semantic analysis (e.g. figure out
+        // what variables requires hoisting). We cannot perform those when the
+        // body has invalid statements, so fail up front.
+        if (!S)
+          return nullptr;
+      }
       return Func;
     }
   }
@@ -264,12 +272,12 @@ llvm::Optional<SourceRange> findZoneRange(const Node *Parent,
           SM, LangOpts, Parent->Children.front()->ASTNode.getSourceRange()))
     SR.setBegin(BeginFileRange->getBegin());
   else
-    return llvm::None;
+    return std::nullopt;
   if (auto EndFileRange = toHalfOpenFileRange(
           SM, LangOpts, Parent->Children.back()->ASTNode.getSourceRange()))
     SR.setEnd(EndFileRange->getEnd());
   else
-    return llvm::None;
+    return std::nullopt;
   return SR;
 }
 
@@ -308,22 +316,22 @@ llvm::Optional<ExtractionZone> findExtractionZone(const Node *CommonAnc,
   ExtractionZone ExtZone;
   ExtZone.Parent = getParentOfRootStmts(CommonAnc);
   if (!ExtZone.Parent || ExtZone.Parent->Children.empty())
-    return llvm::None;
+    return std::nullopt;
   ExtZone.EnclosingFunction = findEnclosingFunction(ExtZone.Parent);
   if (!ExtZone.EnclosingFunction)
-    return llvm::None;
+    return std::nullopt;
   // When there is a single RootStmt, we must check if it's valid for
   // extraction.
   if (ExtZone.Parent->Children.size() == 1 &&
       !validSingleChild(ExtZone.getLastRootStmt(), ExtZone.EnclosingFunction))
-    return llvm::None;
+    return std::nullopt;
   if (auto FuncRange =
           computeEnclosingFuncRange(ExtZone.EnclosingFunction, SM, LangOpts))
     ExtZone.EnclosingFuncRange = *FuncRange;
   if (auto ZoneRange = findZoneRange(ExtZone.Parent, SM, LangOpts))
     ExtZone.ZoneRange = *ZoneRange;
   if (ExtZone.EnclosingFuncRange.isInvalid() || ExtZone.ZoneRange.isInvalid())
-    return llvm::None;
+    return std::nullopt;
 
   for (const Node *Child : ExtZone.Parent->Children)
     ExtZone.RootStmts.insert(Child->ASTNode.get<Stmt>());

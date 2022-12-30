@@ -69,6 +69,9 @@ public:
     CodeplayInteropTask = 13,
     CodeplayHostTask = 14,
     AdviseUSM = 15,
+    Copy2DUSM = 16,
+    Fill2DUSM = 17,
+    Memset2DUSM = 18,
   };
 
   CG(CGTYPE Type, std::vector<std::vector<char>> ArgsStorage,
@@ -392,6 +395,95 @@ public:
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
         MEventsWaitWithBarrier(std::move(EventsWaitWithBarrier)) {}
+};
+
+/// "Copy 2D USM" command group class.
+class CGCopy2DUSM : public CG {
+  void *MSrc;
+  void *MDst;
+  size_t MSrcPitch;
+  size_t MDstPitch;
+  size_t MWidth;
+  size_t MHeight;
+
+public:
+  CGCopy2DUSM(void *Src, void *Dst, size_t SrcPitch, size_t DstPitch,
+              size_t Width, size_t Height,
+              std::vector<std::vector<char>> ArgsStorage,
+              std::vector<detail::AccessorImplPtr> AccStorage,
+              std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+              std::vector<AccessorImplHost *> Requirements,
+              std::vector<detail::EventImplPtr> Events,
+              detail::code_location loc = {})
+      : CG(Copy2DUSM, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events), std::move(loc)),
+        MSrc(Src), MDst(Dst), MSrcPitch(SrcPitch), MDstPitch(DstPitch),
+        MWidth(Width), MHeight(Height) {}
+
+  void *getSrc() const { return MSrc; }
+  void *getDst() const { return MDst; }
+  size_t getSrcPitch() const { return MSrcPitch; }
+  size_t getDstPitch() const { return MDstPitch; }
+  size_t getWidth() const { return MWidth; }
+  size_t getHeight() const { return MHeight; }
+};
+
+/// "Fill 2D USM" command group class.
+class CGFill2DUSM : public CG {
+  std::vector<char> MPattern;
+  void *MDst;
+  size_t MPitch;
+  size_t MWidth;
+  size_t MHeight;
+
+public:
+  CGFill2DUSM(std::vector<char> Pattern, void *DstPtr, size_t Pitch,
+              size_t Width, size_t Height,
+              std::vector<std::vector<char>> ArgsStorage,
+              std::vector<detail::AccessorImplPtr> AccStorage,
+              std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+              std::vector<AccessorImplHost *> Requirements,
+              std::vector<detail::EventImplPtr> Events,
+              detail::code_location loc = {})
+      : CG(Fill2DUSM, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events), std::move(loc)),
+        MPattern(std::move(Pattern)), MDst(DstPtr), MPitch(Pitch),
+        MWidth(Width), MHeight(Height) {}
+  void *getDst() const { return MDst; }
+  size_t getPitch() const { return MPitch; }
+  size_t getWidth() const { return MWidth; }
+  size_t getHeight() const { return MHeight; }
+  const std::vector<char> &getPattern() const { return MPattern; }
+};
+
+/// "Memset 2D USM" command group class.
+class CGMemset2DUSM : public CG {
+  char MValue;
+  void *MDst;
+  size_t MPitch;
+  size_t MWidth;
+  size_t MHeight;
+
+public:
+  CGMemset2DUSM(char Value, void *DstPtr, size_t Pitch, size_t Width,
+                size_t Height, std::vector<std::vector<char>> ArgsStorage,
+                std::vector<detail::AccessorImplPtr> AccStorage,
+                std::vector<std::shared_ptr<const void>> SharedPtrStorage,
+                std::vector<AccessorImplHost *> Requirements,
+                std::vector<detail::EventImplPtr> Events,
+                detail::code_location loc = {})
+      : CG(Memset2DUSM, std::move(ArgsStorage), std::move(AccStorage),
+           std::move(SharedPtrStorage), std::move(Requirements),
+           std::move(Events), std::move(loc)),
+        MValue(Value), MDst(DstPtr), MPitch(Pitch), MWidth(Width),
+        MHeight(Height) {}
+  void *getDst() const { return MDst; }
+  size_t getPitch() const { return MPitch; }
+  size_t getWidth() const { return MWidth; }
+  size_t getHeight() const { return MHeight; }
+  char getValue() const { return MValue; }
 };
 
 } // namespace detail

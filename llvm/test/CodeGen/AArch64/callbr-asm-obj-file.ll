@@ -1,5 +1,5 @@
 ; RUN: llc < %s -mtriple=aarch64-unknown-linux-gnu -filetype=obj -o - \
-; RUN:  | llvm-objdump --triple=aarch64-unknown-linux-gnu -d - \
+; RUN:  | llvm-objdump --no-print-imm-hex --triple=aarch64-unknown-linux-gnu -d - \
 ; RUN:  | FileCheck %s
 
 %struct.c = type { i1 (...)* }
@@ -9,7 +9,7 @@
 ; CHECK-LABEL: <test1>:
 ; CHECK-LABEL: <$d.1>:
 ; CHECK-LABEL: <$x.2>:
-; CHECK-NEXT:    b 0x2c <$x.4>
+; CHECK-NEXT:    b 0x2c <test1+0x2c>
 ; CHECK-LABEL: <$x.4>:
 ; CHECK-NEXT:    mov w0, wzr
 ; CHECK-NEXT:    ldr x30, [sp], #16
@@ -72,7 +72,7 @@ define hidden i32 @test2() local_unnamed_addr {
 ; CHECK-LABEL: <test3>:
 ; CHECK-LABEL: <$d.9>:
 ; CHECK-LABEL: <$x.10>:
-; CHECK-NEXT:    b {{.*}} <$x.12>
+; CHECK-NEXT:    b {{.*}} <test3+0x34>
 ; CHECK-LABEL: <$x.12>:
 ; CHECK-NEXT:    ldr x30, [sp], #16
 ; CHECK-NEXT:    ret

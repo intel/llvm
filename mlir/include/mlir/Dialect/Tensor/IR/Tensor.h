@@ -16,8 +16,10 @@
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Interfaces/CastInterfaces.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
+#include "mlir/Interfaces/DestinationStyleOpInterface.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/ParallelCombiningOpInterface.h"
+#include "mlir/Interfaces/ShapedOpInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Interfaces/TilingInterface.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
@@ -127,6 +129,18 @@ Value createCanonicalRankReducingExtractSliceOp(OpBuilder &b, Location loc,
 /// at the canonical [0 .. 0] position.
 Value createCanonicalRankReducingInsertSliceOp(OpBuilder &b, Location loc,
                                                Value tensor, Value dest);
+
+/// This is a helper function for DestinationStyleOpInterface. If there is a
+/// destination operand for the given OpResult, return that operand. Otherwise,
+/// return an empty tensor (`tensor.empty`) with the shape of the OpResult.
+/// Dynamic dimensions are queried via ReifyRankedShapedTypeOpInterface.
+FailureOr<Value> getOrCreateDestination(OpBuilder &b, Location loc,
+                                        OpResult opResult);
+
+/// This is a helper function for DestinationStyleOpInterface. Get or create
+/// destinations for every tensor OpResult of the given op.
+LogicalResult getOrCreateDestinations(OpBuilder &b, Location loc, Operation *op,
+                                      SmallVector<Value> &result);
 
 /// Function to control the folding of constant and extract slice
 using ControlConstantExtractSliceFusionFn = std::function<bool(ExtractSliceOp)>;

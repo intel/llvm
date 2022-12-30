@@ -15,7 +15,7 @@
 
 #include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Transforms.h"
 #include "mlir/Dialect/SCF/Utils/AffineCanonicalizationUtils.h"
@@ -167,14 +167,14 @@ static void rewriteAffineOpAfterPeeling(RewriterBase &rewriter, ForOp forOp,
   forOp.walk([&](OpTy affineOp) {
     AffineMap map = affineOp.getAffineMap();
     (void)scf::rewritePeeledMinMaxOp(rewriter, affineOp, map,
-                                     affineOp.operands(), IsMin, mainIv,
+                                     affineOp.getOperands(), IsMin, mainIv,
                                      previousUb, step,
                                      /*insideLoop=*/true);
   });
   partialIteration.walk([&](OpTy affineOp) {
     AffineMap map = affineOp.getAffineMap();
     (void)scf::rewritePeeledMinMaxOp(rewriter, affineOp, map,
-                                     affineOp.operands(), IsMin, partialIv,
+                                     affineOp.getOperands(), IsMin, partialIv,
                                      previousUb, step, /*insideLoop=*/false);
   });
 }

@@ -16,6 +16,8 @@
 #include "Target.h"
 #include "UnwindInfoSection.h"
 #include "Writer.h"
+
+#include "lld/Common/ErrorHandler.h"
 #include "lld/Common/Memory.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/xxhash.h"
@@ -109,7 +111,7 @@ std::string InputSection::getSourceLocation(uint64_t off) const {
   };
 
   // First, look up a function for a given offset.
-  if (Optional<DILineInfo> li = dwarf->getDILineInfo(
+  if (std::optional<DILineInfo> li = dwarf->getDILineInfo(
           section.addr + off, object::SectionedAddress::UndefSection))
     return createMsg(li->FileName, li->Line);
 
@@ -121,7 +123,7 @@ std::string InputSection::getSourceLocation(uint64_t off) const {
     if (!symName.empty() && symName[0] == '_')
       symName = symName.substr(1);
 
-    if (Optional<std::pair<std::string, unsigned>> fileLine =
+    if (std::optional<std::pair<std::string, unsigned>> fileLine =
             dwarf->getVariableLoc(symName))
       return createMsg(fileLine->first, fileLine->second);
   }
@@ -138,34 +140,20 @@ void ConcatInputSection::foldIdentical(ConcatInputSection *copy) {
   copy->live = false;
   copy->wasCoalesced = true;
   copy->replacement = this;
-  for (auto &copySym : copy->symbols)
+  for (auto &copySym : copy->symbols) {
     copySym->wasIdenticalCodeFolded = true;
-
-  // Merge the sorted vectors of symbols together.
-  auto it = symbols.begin();
-  for (auto copyIt = copy->symbols.begin(); copyIt != copy->symbols.end();) {
-    if (it == symbols.end()) {
-      symbols.push_back(*copyIt++);
-      it = symbols.end();
-    } else if ((*it)->value > (*copyIt)->value) {
-      std::swap(*it++, *copyIt);
-    } else {
-      ++it;
-    }
+    copySym->size = 0;
   }
+
+  symbols.insert(symbols.end(), copy->symbols.begin(), copy->symbols.end());
   copy->symbols.clear();
 
   // Remove duplicate compact unwind info for symbols at the same address.
   if (symbols.empty())
     return;
-  it = symbols.begin();
-  uint64_t v = (*it)->value;
-  for (++it; it != symbols.end(); ++it) {
-    Defined *d = *it;
-    if (d->value == v)
-      d->unwindEntry = nullptr;
-    else
-      v = d->value;
+  for (auto it = symbols.begin() + 1; it != symbols.end(); ++it) {
+    assert((*it)->value == 0);
+    (*it)->unwindEntry = nullptr;
   }
 }
 
@@ -181,6 +169,9 @@ void ConcatInputSection::writeTo(uint8_t *buf) {
     const Reloc &r = relocs[i];
     uint8_t *loc = buf + r.offset;
     uint64_t referentVA = 0;
+
+    const bool needsFixup = config->emitChainedFixups &&
+                            target->hasAttr(r.type, RelocAttrBits::UNSIGNED);
     if (target->hasAttr(r.type, RelocAttrBits::SUBTRAHEND)) {
       const Symbol *fromSym = r.referent.get<Symbol *>();
       const Reloc &minuend = relocs[++i];
@@ -205,17 +196,24 @@ void ConcatInputSection::writeTo(uint8_t *buf) {
       }
       referentVA = resolveSymbolVA(referentSym, r.type) + r.addend;
 
-      if (isThreadLocalVariables(getFlags())) {
+      if (isThreadLocalVariables(getFlags()) && isa<Defined>(referentSym)) {
         // References from thread-local variable sections are treated as offsets
         // relative to the start of the thread-local data memory area, which
         // is initialized via copying all the TLV data sections (which are all
         // contiguous).
-        if (isa<Defined>(referentSym))
-          referentVA -= firstTLVDataSection->addr;
+        referentVA -= firstTLVDataSection->addr;
+      } else if (needsFixup) {
+        writeChainedFixup(loc, referentSym, r.addend);
+        continue;
       }
     } else if (auto *referentIsec = r.referent.dyn_cast<InputSection *>()) {
       assert(!::shouldOmitFromOutput(referentIsec));
       referentVA = referentIsec->getVA(r.addend);
+
+      if (needsFixup) {
+        writeChainedRebase(loc, referentVA);
+        continue;
+      }
     }
     target->relocateOne(loc, r, referentVA, getVA() + r.offset);
   }

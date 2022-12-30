@@ -20,11 +20,21 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 template <int Dimensions> class group;
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 struct sub_group;
-} // namespace oneapi
-} // namespace ext
+
+namespace experimental {
+template <typename Group, std::size_t Extent> class group_with_scratchpad;
+
+namespace detail {
+template <typename T> struct is_group_helper : std::false_type {};
+
+template <typename Group, std::size_t Extent>
+struct is_group_helper<group_with_scratchpad<Group, Extent>> : std::true_type {
+};
+} // namespace detail
+} // namespace experimental
+} // namespace ext::oneapi
 
 namespace detail {
 
@@ -49,11 +59,19 @@ class half;
 using half = detail::half_impl::half;
 
 // Forward declaration
-template <typename ElementType, access::address_space Space> class multi_ptr;
+template <typename ElementType, access::address_space Space,
+          access::decorated DecorateAddress>
+class multi_ptr;
 
 template <class T>
-__SYCL_INLINE_CONSTEXPR bool is_group_v =
+inline constexpr bool is_group_v =
     detail::is_group<T>::value || detail::is_sub_group<T>::value;
+
+namespace ext::oneapi::experimental {
+template <class T>
+inline constexpr bool is_group_helper_v =
+    detail::is_group_helper<std::decay_t<T>>::value;
+} // namespace ext::oneapi::experimental
 
 namespace detail {
 // Type for Intel device UUID extension.
@@ -258,8 +276,10 @@ template <typename T> struct is_pointer_impl : std::false_type {};
 
 template <typename T> struct is_pointer_impl<T *> : std::true_type {};
 
-template <typename T, access::address_space Space>
-struct is_pointer_impl<multi_ptr<T, Space>> : std::true_type {};
+template <typename T, access::address_space Space,
+          access::decorated DecorateAddress>
+struct is_pointer_impl<multi_ptr<T, Space, DecorateAddress>> : std::true_type {
+};
 
 template <typename T> struct is_pointer : is_pointer_impl<remove_cv_t<T>> {};
 
@@ -272,8 +292,9 @@ template <typename T> struct remove_pointer_impl<T *> {
   using type = T;
 };
 
-template <typename T, access::address_space Space>
-struct remove_pointer_impl<multi_ptr<T, Space>> {
+template <typename T, access::address_space Space,
+          access::decorated DecorateAddress>
+struct remove_pointer_impl<multi_ptr<T, Space, DecorateAddress>> {
   using type = T;
 };
 
@@ -289,8 +310,10 @@ struct is_address_space_compliant_impl : std::false_type {};
 template <typename T, typename SpaceList>
 struct is_address_space_compliant_impl<T *, SpaceList> : std::true_type {};
 
-template <typename T, typename SpaceList, access::address_space Space>
-struct is_address_space_compliant_impl<multi_ptr<T, Space>, SpaceList>
+template <typename T, typename SpaceList, access::address_space Space,
+          access::decorated DecorateAddress>
+struct is_address_space_compliant_impl<multi_ptr<T, Space, DecorateAddress>,
+                                       SpaceList>
     : bool_constant<is_one_of_spaces<Space, SpaceList>::value> {};
 
 template <typename T, typename SpaceList>

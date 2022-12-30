@@ -320,15 +320,10 @@ llvm::Optional<DefinedMacro> locateMacroAt(const syntax::Token &SpelledTok,
 /// Infers whether this is a header from the FileName and LangOpts (if
 /// presents).
 bool isHeaderFile(llvm::StringRef FileName,
-                  llvm::Optional<LangOptions> LangOpts = llvm::None);
+                  llvm::Optional<LangOptions> LangOpts = std::nullopt);
 
 /// Returns true if the given location is in a generated protobuf file.
 bool isProtoFile(SourceLocation Loc, const SourceManager &SourceMgr);
-
-/// This scans source code, and should not be called when using a preamble.
-/// Prefer to access the cache in IncludeStructure::isSelfContained if you can.
-bool isSelfContainedHeader(const FileEntry *FE, FileID ID,
-                           const SourceManager &SM, HeaderSearch &HeaderInfo);
 
 /// Returns true if Name is reserved, like _Foo or __Vector_base.
 inline bool isReservedName(llvm::StringRef Name) {

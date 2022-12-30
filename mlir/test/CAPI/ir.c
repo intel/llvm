@@ -309,7 +309,7 @@ int collectStats(MlirOperation operation) {
   // clang-format off
   // CHECK-LABEL: @stats
   // CHECK: Number of operations: 12
-  // CHECK: Number of attributes: 4
+  // CHECK: Number of attributes: 5
   // CHECK: Number of blocks: 3
   // CHECK: Number of regions: 3
   // CHECK: Number of values: 9
@@ -467,7 +467,7 @@ static void printFirstOfEach(MlirContext ctx, MlirOperation operation) {
   MlirOpPrintingFlags flags = mlirOpPrintingFlagsCreate();
   mlirOpPrintingFlagsElideLargeElementsAttrs(flags, 2);
   mlirOpPrintingFlagsPrintGenericOpForm(flags);
-  mlirOpPrintingFlagsEnableDebugInfo(flags, /*prettyForm=*/0);
+  mlirOpPrintingFlagsEnableDebugInfo(flags, /*enable=*/1, /*prettyForm=*/0);
   mlirOpPrintingFlagsUseLocalScope(flags);
   fprintf(stderr, "Op print with all flags: ");
   mlirOperationPrintWithFlags(operation, flags, printToStderr, NULL);
@@ -1220,6 +1220,20 @@ int printBuiltinAttributes(MlirContext ctx) {
       fabs(mlirDenseF64ArrayGetElement(doubleArray, 1) - 1.0) > 1E-6)
     return 21;
 
+  int64_t layoutStrides[3] = {5, 7, 13};
+  MlirAttribute stridedLayoutAttr =
+      mlirStridedLayoutAttrGet(ctx, 42, 3, &layoutStrides[0]);
+
+  // CHECK: strided<[5, 7, 13], offset: 42>
+  mlirAttributeDump(stridedLayoutAttr);
+
+  if (mlirStridedLayoutAttrGetOffset(stridedLayoutAttr) != 42 ||
+      mlirStridedLayoutAttrGetNumStrides(stridedLayoutAttr) != 3 ||
+      mlirStridedLayoutAttrGetStride(stridedLayoutAttr, 0) != 5 ||
+      mlirStridedLayoutAttrGetStride(stridedLayoutAttr, 1) != 7 ||
+      mlirStridedLayoutAttrGetStride(stridedLayoutAttr, 2) != 13)
+    return 22;
+
   return 0;
 }
 
@@ -1602,7 +1616,7 @@ int printIntegerSet(MlirContext ctx) {
   return 0;
 }
 
-int registerOnlyStd() {
+int registerOnlyStd(void) {
   MlirContext ctx = mlirContextCreate();
   // The built-in dialect is always loaded.
   if (mlirContextGetNumLoadedDialects(ctx) != 1)
@@ -1656,7 +1670,7 @@ int registerOnlyStd() {
 }
 
 /// Tests backreference APIs
-static int testBackreferences() {
+static int testBackreferences(void) {
   fprintf(stderr, "@test_backreferences\n");
 
   MlirContext ctx = mlirContextCreate();
@@ -1694,7 +1708,7 @@ static int testBackreferences() {
 }
 
 /// Tests operand APIs.
-int testOperands() {
+int testOperands(void) {
   fprintf(stderr, "@testOperands\n");
   // CHECK-LABEL: @testOperands
 
@@ -1744,16 +1758,44 @@ int testOperands() {
   fprintf(stderr, "Num Operands: %" PRIdPTR "\n", numOperands);
   // CHECK: Num Operands: 1
 
-  MlirValue opOperand = mlirOperationGetOperand(op, 0);
+  MlirValue opOperand1 = mlirOperationGetOperand(op, 0);
   fprintf(stderr, "Original operand: ");
-  mlirValuePrint(opOperand, printToStderr, NULL);
+  mlirValuePrint(opOperand1, printToStderr, NULL);
   // CHECK: Original operand: {{.+}} arith.constant 0 : index
 
   mlirOperationSetOperand(op, 0, constOneValue);
-  opOperand = mlirOperationGetOperand(op, 0);
+  MlirValue opOperand2 = mlirOperationGetOperand(op, 0);
   fprintf(stderr, "Updated operand: ");
-  mlirValuePrint(opOperand, printToStderr, NULL);
+  mlirValuePrint(opOperand2, printToStderr, NULL);
   // CHECK: Updated operand: {{.+}} arith.constant 1 : index
+
+  // Test op operand APIs.
+  MlirOpOperand use1 = mlirValueGetFirstUse(opOperand1);
+  if (!mlirOpOperandIsNull(use1)) {
+    fprintf(stderr, "ERROR: Use should be null\n");
+    return 1;
+  }
+
+  MlirOpOperand use2 = mlirValueGetFirstUse(opOperand2);
+  if (mlirOpOperandIsNull(use2)) {
+    fprintf(stderr, "ERROR: Use should not be null\n");
+    return 2;
+  }
+
+  fprintf(stderr, "Use owner: ");
+  mlirOperationPrint(mlirOpOperandGetOwner(use2), printToStderr, NULL);
+  fprintf(stderr, "\n");
+  // CHECK: Use owner: "dummy.op"
+
+  fprintf(stderr, "Use operandNumber: %d\n",
+          mlirOpOperandGetOperandNumber(use2));
+  // CHECK: Use operandNumber: 0
+
+  use2 = mlirOpOperandGetNextUse(use2);
+  if (!mlirOpOperandIsNull(use2)) {
+    fprintf(stderr, "ERROR: Next use should be null\n");
+    return 3;
+  }
 
   mlirOperationDestroy(op);
   mlirOperationDestroy(constZero);
@@ -1764,7 +1806,7 @@ int testOperands() {
 }
 
 /// Tests clone APIs.
-int testClone() {
+int testClone(void) {
   fprintf(stderr, "@testClone\n");
   // CHECK-LABEL: @testClone
 
@@ -2009,7 +2051,7 @@ int testSymbolTable(MlirContext ctx) {
   return 0;
 }
 
-int testDialectRegistry() {
+int testDialectRegistry(void) {
   fprintf(stderr, "@testDialectRegistry\n");
 
   MlirDialectRegistry registry = mlirDialectRegistryCreate();
@@ -2039,7 +2081,7 @@ int testDialectRegistry() {
   return 0;
 }
 
-void testDiagnostics() {
+void testDiagnostics(void) {
   MlirContext ctx = mlirContextCreate();
   MlirDiagnosticHandlerID id = mlirContextAttachDiagnosticHandler(
       ctx, errorHandler, (void *)42, deleteUserData);
@@ -2090,7 +2132,7 @@ void testDiagnostics() {
   mlirContextDestroy(ctx);
 }
 
-int main() {
+int main(void) {
   MlirContext ctx = mlirContextCreate();
   registerAllUpstreamDialects(ctx);
   mlirContextGetOrLoadDialect(ctx, mlirStringRefCreateFromCString("func"));

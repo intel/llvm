@@ -4,7 +4,7 @@
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
-; RUN: llvm-spirv -r -emit-opaque-pointers -spec-const "0:i1:1 1:i8:11 2:i16:22 3:i32:33 4:i64:44 5:f16:5.5 6:f32:6.6 7:f64:7.7" %t.spv -o %t.rev.spec.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers -spec-const "0:i1:1 1:i8:11 2:i16:22 3:i32:33 4:i64:4609589727908835759 5:f16:5.5 6:f32:6.6 7:f64:7.7" %t.spv -o %t.rev.spec.bc
 ; RUN: llvm-dis < %t.rev.spec.bc | FileCheck %s --check-prefix=CHECK-LLVM-SPEC
 
 ; CHECK-SPIRV-NOT: Capability Matrix
@@ -56,7 +56,7 @@ entry:
   store i32 %3, i32 addrspace(1)* %i, align 4
 
   ; CHECK-LLVM: store i64 3, ptr addrspace(1) %l, align 8
-  ; CHECK-LLVM-SPEC: store i64 44, ptr addrspace(1) %l, align 8
+  ; CHECK-LLVM-SPEC: store i64 4609589727908835759, ptr addrspace(1) %l, align 8
   %4 = call i64 @_Z20__spirv_SpecConstantix(i32 4, i64 3)
   store i64 %4, i64 addrspace(1)* %l, align 8
 

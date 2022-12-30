@@ -9,11 +9,13 @@
 #pragma once
 
 #include <sycl/detail/common.hpp>
+#include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/detail/sycl_mem_obj_allocator.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
+#include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 #include <sycl/stl.hpp>
@@ -33,6 +35,10 @@ class host_accessor;
 
 template <typename T, int Dimensions, typename AllocatorT, typename Enable>
 class buffer;
+
+namespace ext::oneapi {
+template <typename SYCLObjT> class weak_object;
+} // namespace ext::oneapi
 
 namespace detail {
 
@@ -117,6 +123,8 @@ protected:
 
   size_t getSize() const;
 
+  void handleRelease() const;
+
   std::shared_ptr<detail::buffer_impl> impl;
 };
 
@@ -134,7 +142,8 @@ template <typename T, int dimensions = 1,
           typename AllocatorT = buffer_allocator<std::remove_const_t<T>>,
           typename __Enabled = typename detail::enable_if_t<(dimensions > 0) &&
                                                             (dimensions <= 3)>>
-class buffer : public detail::buffer_plain {
+class buffer : public detail::buffer_plain,
+               public detail::OwnerLessBase<buffer<T, dimensions, AllocatorT>> {
   // TODO check is_device_copyable<T>::value after converting sycl::vec into a
   // trivially copyable class.
   static_assert(!std::is_same<T, std::string>::value,
@@ -457,7 +466,7 @@ public:
 
   buffer &operator=(buffer &&rhs) = default;
 
-  ~buffer() = default;
+  ~buffer() { buffer_plain::handleRelease(); }
 
   bool operator==(const buffer &rhs) const { return impl == rhs.impl; }
 
@@ -538,8 +547,6 @@ public:
         *this, accessRange, accessOffset, {}, CodeLoc);
   }
 
-#if __cplusplus >= 201703L
-
   template <typename... Ts> auto get_access(Ts... args) {
     return accessor{*this, args...};
   }
@@ -557,8 +564,6 @@ public:
   auto get_host_access(handler &commandGroupHandler, Ts... args) {
     return host_accessor{*this, commandGroupHandler, args...};
   }
-
-#endif
 
   template <typename Destination = std::nullptr_t>
   void set_final_data(Destination finalData = nullptr) {
@@ -627,7 +632,7 @@ public:
   template <typename ReinterpretT, int ReinterpretDim>
   buffer<ReinterpretT, ReinterpretDim,
          typename std::allocator_traits<AllocatorT>::template rebind_alloc<
-             ReinterpretT>>
+             std::remove_const_t<ReinterpretT>>>
   reinterpret(range<ReinterpretDim> reinterpretRange) const {
     if (sizeof(ReinterpretT) * reinterpretRange.size() != byte_size())
       throw sycl::invalid_object_error(
@@ -637,8 +642,8 @@ public:
           PI_ERROR_INVALID_VALUE);
 
     return buffer<ReinterpretT, ReinterpretDim,
-                  typename std::allocator_traits<
-                      AllocatorT>::template rebind_alloc<ReinterpretT>>(
+                  typename std::allocator_traits<AllocatorT>::
+                      template rebind_alloc<std::remove_const_t<ReinterpretT>>>(
         impl, reinterpretRange, OffsetInBytes, IsSubBuffer);
   }
 
@@ -647,11 +652,11 @@ public:
       (sizeof(ReinterpretT) == sizeof(T)) && (dimensions == ReinterpretDim),
       buffer<ReinterpretT, ReinterpretDim,
              typename std::allocator_traits<AllocatorT>::template rebind_alloc<
-                 ReinterpretT>>>::type
+                 std::remove_const_t<ReinterpretT>>>>::type
   reinterpret() const {
     return buffer<ReinterpretT, ReinterpretDim,
-                  typename std::allocator_traits<
-                      AllocatorT>::template rebind_alloc<ReinterpretT>>(
+                  typename std::allocator_traits<AllocatorT>::
+                      template rebind_alloc<std::remove_const_t<ReinterpretT>>>(
         impl, get_range(), OffsetInBytes, IsSubBuffer);
   }
 
@@ -702,6 +707,8 @@ private:
   template <typename HT, int HDims, typename HAllocT>
   friend buffer<HT, HDims, HAllocT, void>
   detail::make_buffer_helper(pi_native_handle, const context &, event, bool);
+  template <typename SYCLObjT> friend class ext::oneapi::weak_object;
+
   range<dimensions> Range;
   // Offset field specifies the origin of the sub buffer inside the parent
   // buffer

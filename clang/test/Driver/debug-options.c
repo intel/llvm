@@ -116,11 +116,19 @@
 // RUN: %clang -### %s -g -target x86_64-scei-ps5 2>&1 \
 // RUN:             | FileCheck -check-prefix=LDGARANGE %s
 
-// On the AIX, -g defaults to -gdbx and limited debug info.
+// On the AIX, -g defaults to limited debug info.
 // RUN: %clang -### -c -g %s -target powerpc-ibm-aix-xcoff 2>&1 \
-// RUN:             | FileCheck -check-prefix=G_LIMITED -check-prefix=G_DBX %s
+// RUN:             | FileCheck -check-prefix=G_LIMITED %s
 // RUN: %clang -### -c -g %s -target powerpc64-ibm-aix-xcoff 2>&1 \
-// RUN:             | FileCheck -check-prefix=G_LIMITED -check-prefix=G_DBX %s
+// RUN:             | FileCheck -check-prefix=G_LIMITED %s
+// RUN: %clang -### -c -g %s -target powerpc-ibm-aix-xcoff 2>&1 \
+// RUN:             | FileCheck -check-prefix=G_NOTUNING %s
+// RUN: %clang -### -c -g %s -target powerpc64-ibm-aix-xcoff 2>&1 \
+// RUN:             | FileCheck -check-prefix=G_NOTUNING %s
+// RUN: %clang -### -c -g -gdbx %s -target powerpc-ibm-aix-xcoff 2>&1 \
+// RUN:             | FileCheck -check-prefixes=G_LIMITED,G_DBX %s
+// RUN: %clang -### -c -g -gdbx %s -target powerpc64-ibm-aix-xcoff 2>&1 \
+// RUN:             | FileCheck -check-prefixes=G_LIMITED,G_DBX %s
 
 // For DBX, -g defaults to -gstrict-dwarf.
 // RUN: %clang -### -c -g %s -target powerpc-ibm-aix-xcoff 2>&1 \
@@ -375,8 +383,8 @@
 //
 
 // LDGARANGE: {{".*ld.*"}} {{.*}}
-// LDGARANGE-NOT: "-generate-arange-section"
-// LLDGARANGE: {{".*lld.*"}} {{.*}} "-generate-arange-section"
+// LDGARANGE-NOT: "-plugin-opt=-generate-arange-section"
+// LLDGARANGE: {{".*lld.*"}} {{.*}} "-plugin-opt=-generate-arange-section"
 // SNLDTLTOGARANGE: {{".*orbis-ld.*"}} {{.*}} "-lto-thin-debug-options=-generate-arange-section"
 // SNLDFLTOGARANGE: {{".*orbis-ld.*"}} {{.*}} "-lto-debug-options=-generate-arange-section"
 

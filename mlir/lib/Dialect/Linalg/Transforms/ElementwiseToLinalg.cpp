@@ -8,7 +8,7 @@
 
 #include "mlir/Dialect/Linalg/Passes.h"
 
-#include "mlir/Dialect/Arithmetic/Utils/Utils.h"
+#include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
@@ -37,7 +37,7 @@ static bool isElementwiseMappableOpOnRankedTensors(Operation *op) {
 ///   1. `v.getType() == t`
 ///   2. If an operand of `op` has type `t`, let `operand_first` be the first
 ///      such operand. Then`v == operand_first`.
-///   3. Otherwise, v is a newly created `linalg::InitTensorOp` with:
+///   3. Otherwise, v is a newly created `tensor::EmptyOp` with:
 ///        a. Static and dynamic dims extracted from the first operand of `op`.
 ///        b. Elemental type equal to the elemental type of `t`.
 ///
@@ -71,8 +71,8 @@ getOrCreateOperandsMatchingResultTypes(OpBuilder &b, Operation *op) {
     auto staticShape = llvm::to_vector<4>(rankedTensorType.getShape());
     auto dynamicShape = linalg::getDynOperands(loc, firstOperand, b);
 
-    res.push_back(b.create<linalg::InitTensorOp>(
-        loc, dynamicShape, staticShape, rankedTensorType.getElementType()));
+    res.push_back(b.create<tensor::EmptyOp>(
+        loc, staticShape, rankedTensorType.getElementType(), dynamicShape));
   }
   return res;
 }
@@ -91,8 +91,8 @@ struct ConvertAnyElementwiseMappableOpOnRankedTensors : public RewritePattern {
     SmallVector<AffineMap, 3> indexingMaps(
         op->getNumResults() + op->getNumOperands(),
         rewriter.getMultiDimIdentityMap(rank));
-    SmallVector<StringRef, 6> iteratorTypes(rank,
-                                            getParallelIteratorTypeName());
+    SmallVector<utils::IteratorType, 6> iteratorTypes(
+        rank, utils::IteratorType::parallel);
     auto outputs = getOrCreateOperandsMatchingResultTypes(rewriter, op);
     rewriter.replaceOpWithNewOp<linalg::GenericOp>(
         op, /*resultTensorTypes=*/op->getResultTypes(),

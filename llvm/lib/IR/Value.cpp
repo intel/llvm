@@ -44,7 +44,7 @@ static cl::opt<unsigned> UseDerefAtPointSemantics(
 //===----------------------------------------------------------------------===//
 static inline Type *checkType(Type *Ty) {
   assert(Ty && "Value defined with a null type: Error!");
-  assert(!isa<TypedPointerType>(Ty) &&
+  assert(!isa<TypedPointerType>(Ty->getScalarType()) &&
          "Cannot have values with typed pointer types");
   return Ty;
 }
@@ -1020,22 +1020,6 @@ bool Value::isSwiftError() const {
   if (!Alloca)
     return false;
   return Alloca->isSwiftError();
-}
-
-bool Value::isTransitiveUsedByMetadataOnly() const {
-  SmallVector<const User *, 32> WorkList(user_begin(), user_end());
-  SmallPtrSet<const User *, 32> Visited(user_begin(), user_end());
-  while (!WorkList.empty()) {
-    const User *U = WorkList.pop_back_val();
-    // If it is transitively used by a global value or a non-constant value,
-    // it's obviously not only used by metadata.
-    if (!isa<Constant>(U) || isa<GlobalValue>(U))
-      return false;
-    for (const User *UU : U->users())
-      if (Visited.insert(UU).second)
-        WorkList.push_back(UU);
-  }
-  return true;
 }
 
 //===----------------------------------------------------------------------===//

@@ -43,7 +43,7 @@ class DefaultTimingManagerImpl;
 /// This is a POD type with pointer size, so it should be passed around by
 /// value. The underlying data is owned by the `TimingManager`.
 class TimingIdentifier {
-  using EntryType = llvm::StringMapEntry<llvm::NoneType>;
+  using EntryType = llvm::StringMapEntry<std::nullopt_t>;
 
 public:
   TimingIdentifier(const TimingIdentifier &) = default;
@@ -136,7 +136,7 @@ protected:
   //
   // See the corresponding functions in `Timer` for additional details.
 
-  /// Return the root timer. Implementations should return `llvm::None` if the
+  /// Return the root timer. Implementations should return `std::nullopt` if the
   /// collection of timing samples is disabled. This will cause the timers
   /// constructed from the manager to be tombstones which can be skipped
   /// quickly.

@@ -85,6 +85,9 @@ public:
   PropertyValue(const std::vector<T> &Data)
       : PropertyValue(reinterpret_cast<const byte *>(Data.data()),
                       Data.size() * sizeof(T) * /* bits in one byte */ 8) {}
+  PropertyValue(const llvm::StringRef &Str)
+      : PropertyValue(reinterpret_cast<const byte *>(Str.data()),
+                      Str.size() * sizeof(char) * /* bits in one byte */ 8) {}
   PropertyValue(const PropertyValue &P);
   PropertyValue(PropertyValue &&P);
 
@@ -193,6 +196,7 @@ public:
   static constexpr char SYCL_ASSERT_USED[] = "SYCL/assert used";
   static constexpr char SYCL_EXPORTED_SYMBOLS[] = "SYCL/exported symbols";
   static constexpr char SYCL_DEVICE_GLOBALS[] = "SYCL/device globals";
+  static constexpr char SYCL_DEVICE_REQUIREMENTS[] = "SYCL/device requirements";
 
   // Function for bulk addition of an entire property set under given category
   // (property set name).

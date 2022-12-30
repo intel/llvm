@@ -11,7 +11,6 @@
 
 #include "Utils/AMDGPUBaseInfo.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Function.h"
@@ -45,9 +44,6 @@ protected:
   /// stages.
   Align DynLDSAlign;
 
-  // State of MODE register, assumed FP mode.
-  AMDGPU::SIModeRegisterDefaults Mode;
-
   // Kernels + shaders. i.e. functions called by the hardware and not called
   // by other functions.
   bool IsEntryFunction = false;
@@ -80,10 +76,6 @@ public:
     return GDSSize;
   }
 
-  AMDGPU::SIModeRegisterDefaults getMode() const {
-    return Mode;
-  }
-
   bool isEntryFunction() const {
     return IsEntryFunction;
   }
@@ -102,8 +94,27 @@ public:
     return WaveLimiter;
   }
 
-  unsigned allocateLDSGlobal(const DataLayout &DL, const GlobalVariable &GV);
-  void allocateModuleLDSGlobal(const Function &F);
+  unsigned allocateLDSGlobal(const DataLayout &DL, const GlobalVariable &GV) {
+    return allocateLDSGlobal(DL, GV, DynLDSAlign);
+  }
+
+  unsigned allocateLDSGlobal(const DataLayout &DL, const GlobalVariable &GV,
+                             Align Trailing);
+
+  void allocateKnownAddressLDSGlobal(const Function &F);
+
+  // A kernel function may have an associated LDS allocation, and a kernel-scope
+  // LDS allocation must have an associated kernel function
+
+  // LDS allocation should have an associated kernel function
+  static const Function *
+  getKernelLDSFunctionFromGlobal(const GlobalVariable &GV);
+  static const GlobalVariable *
+  getKernelLDSGlobalFromFunction(const Function &F);
+
+  // Module or kernel scope LDS variable
+  static bool isKnownAddressLDSGlobal(const GlobalVariable &GV);
+  static unsigned calculateKnownAddressOfLDSGlobal(const GlobalVariable &GV);
 
   static Optional<uint32_t> getLDSKernelIdMetadata(const Function &F);
 

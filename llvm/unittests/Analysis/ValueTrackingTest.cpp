@@ -1323,7 +1323,7 @@ TEST_F(ValueTrackingTest, IsImpliedConditionAnd) {
   const DataLayout &DL = M->getDataLayout();
   EXPECT_EQ(isImpliedCondition(A, A2, DL), true);
   EXPECT_EQ(isImpliedCondition(A, A3, DL), false);
-  EXPECT_EQ(isImpliedCondition(A, A4, DL), None);
+  EXPECT_EQ(isImpliedCondition(A, A4, DL), std::nullopt);
 }
 
 TEST_F(ValueTrackingTest, IsImpliedConditionAnd2) {
@@ -1342,7 +1342,7 @@ TEST_F(ValueTrackingTest, IsImpliedConditionAnd2) {
   const DataLayout &DL = M->getDataLayout();
   EXPECT_EQ(isImpliedCondition(A, A2, DL), true);
   EXPECT_EQ(isImpliedCondition(A, A3, DL), false);
-  EXPECT_EQ(isImpliedCondition(A, A4, DL), None);
+  EXPECT_EQ(isImpliedCondition(A, A4, DL), std::nullopt);
 }
 
 TEST_F(ValueTrackingTest, IsImpliedConditionAndVec) {
@@ -1373,7 +1373,7 @@ TEST_F(ValueTrackingTest, IsImpliedConditionOr) {
   const DataLayout &DL = M->getDataLayout();
   EXPECT_EQ(isImpliedCondition(A, A2, DL, false), false);
   EXPECT_EQ(isImpliedCondition(A, A3, DL, false), true);
-  EXPECT_EQ(isImpliedCondition(A, A4, DL, false), None);
+  EXPECT_EQ(isImpliedCondition(A, A4, DL, false), std::nullopt);
 }
 
 TEST_F(ValueTrackingTest, IsImpliedConditionOr2) {
@@ -1392,7 +1392,7 @@ TEST_F(ValueTrackingTest, IsImpliedConditionOr2) {
   const DataLayout &DL = M->getDataLayout();
   EXPECT_EQ(isImpliedCondition(A, A2, DL, false), false);
   EXPECT_EQ(isImpliedCondition(A, A3, DL, false), true);
-  EXPECT_EQ(isImpliedCondition(A, A4, DL, false), None);
+  EXPECT_EQ(isImpliedCondition(A, A4, DL, false), std::nullopt);
 }
 
 TEST_F(ComputeKnownBitsTest, KnownNonZeroShift) {
@@ -1624,7 +1624,7 @@ TEST_F(ComputeKnownBitsTest, ComputeKnownBitsUnknownVScale) {
   EXPECT_EQ(Known.Zero.getZExtValue(), 0u);
 
   BasicBlock *BB = BasicBlock::Create(Context);
-  BB->getInstList().push_back(CI);
+  CI->insertAt(BB, BB->end());
   Known = computeKnownBits(CI, M.getDataLayout(), /* Depth */ 0);
   // There is no parent function so we cannot look up the vscale_range
   // attribute to determine the number of bits.

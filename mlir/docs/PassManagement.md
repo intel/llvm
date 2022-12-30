@@ -602,7 +602,7 @@ A pipeline view that models the structure of the pass manager, this is the
 default view:
 
 ```shell
-$ mlir-opt -pass-pipeline='func.func(my-pass,my-pass)' foo.mlir -mlir-pass-statistics
+$ mlir-opt -pass-pipeline='any(func.func(my-pass,my-pass))' foo.mlir -mlir-pass-statistics
 
 ===-------------------------------------------------------------------------===
                          ... Pass statistics report ...
@@ -621,7 +621,7 @@ A list view that aggregates the statistics of all instances of a specific pass
 together:
 
 ```shell
-$ mlir-opt -pass-pipeline='func.func(my-pass, my-pass)' foo.mlir -mlir-pass-statistics -mlir-pass-statistics-display=list
+$ mlir-opt -pass-pipeline='any(func.func(my-pass,my-pass))' foo.mlir -mlir-pass-statistics -mlir-pass-statistics-display=list
 
 ===-------------------------------------------------------------------------===
                          ... Pass statistics report ...
@@ -750,10 +750,10 @@ Can also be specified as (via the `-pass-pipeline` flag):
 
 ```shell
 # Anchor the cse and canonicalize passes on the `func.func` operation.
-$ mlir-opt foo.mlir -pass-pipeline='func.func(cse,canonicalize),convert-func-to-llvm{use-bare-ptr-memref-call-conv=1}'
+$ mlir-opt foo.mlir -pass-pipeline='builtin.module(func.func(cse,canonicalize),convert-func-to-llvm{use-bare-ptr-memref-call-conv=1})'
 
 # Anchor the cse and canonicalize passes on "any" viable root operation.
-$ mlir-opt foo.mlir -pass-pipeline='any(cse,canonicalize),convert-func-to-llvm{use-bare-ptr-memref-call-conv=1}'
+$ mlir-opt foo.mlir -pass-pipeline='builtin.module(any(cse,canonicalize),convert-func-to-llvm{use-bare-ptr-memref-call-conv=1})'
 ```
 
 In order to support round-tripping a pass to the textual representation using
@@ -763,7 +763,7 @@ Pass::getArgument()` to specify the argument used when registering a pass.
 ## Declarative Pass Specification
 
 Some aspects of a Pass may be specified declaratively, in a form similar to
-[operations](OpDefinitions.md). This specification simplifies several mechanisms
+[operations](DefiningDialects/Operations.md). This specification simplifies several mechanisms
 used when defining passes. It can be used for generating pass registration
 calls, defining boilerplate pass utilities, and generating pass documentation.
 
@@ -863,11 +863,11 @@ void registerMyPasses() {
 
 The second is to provide a way to configure the pass options. These classes are
 named in the form of `MyPassOptions`, where `MyPass` is the name of the pass
-definition in tablegen. The configurable parameters reflect the options
-declared in the tablegen file. Differently from the registration hooks, these
-classes can be enabled on a per-pass basis by defining the
-`GEN_PASS_DECL_PASSNAME` macro, where `PASSNAME` is the uppercase version of
-the name specified in tablegen.
+definition in tablegen. The configurable parameters reflect the options declared
+in the tablegen file. These declarations can be enabled for the whole group of
+passes by defining the `GEN_PASS_DECL` macro, or on a per-pass basis by defining
+`GEN_PASS_DECL_PASSNAME` where `PASSNAME` is the uppercase version of the name
+specified in tablegen.
 
 ```c++
 // .h.inc
@@ -924,10 +924,9 @@ struct MyPass : foo::impl::MyPassBase<MyPass> {
 };
 ```
 
-Similarly to the previous cases, the definitions can be enabled on a per-pass
-basis by defining the appropriate preprocessor `GEN_PASS_DEF_PASSNAME` macro,
-with `PASSNAME` equal to the uppercase version of the name of the pass
-definition in tablegen.
+These definitions can be enabled on a per-pass basis by defining the appropriate
+preprocessor `GEN_PASS_DEF_PASSNAME` macro, with `PASSNAME` equal to the
+uppercase version of the name of the pass definition in tablegen.
 If the `constructor` field has not been specified in tablegen, then the default
 constructors are also defined and expect the name of the actual pass class to
 be equal to the name defined in tablegen.
@@ -1122,7 +1121,7 @@ pipeline. This display mode is available in mlir-opt via
 `-mlir-timing-display=list`.
 
 ```shell
-$ mlir-opt foo.mlir -mlir-disable-threading -pass-pipeline='func.func(cse,canonicalize)' -convert-func-to-llvm -mlir-timing -mlir-timing-display=list
+$ mlir-opt foo.mlir -mlir-disable-threading -pass-pipeline='builtin.module(func.func(cse,canonicalize),convert-func-to-llvm)' -mlir-timing -mlir-timing-display=list
 
 ===-------------------------------------------------------------------------===
                       ... Pass execution timing report ...
@@ -1147,7 +1146,7 @@ the most time, and can also be used to identify when analyses are being
 invalidated and recomputed. This is the default display mode.
 
 ```shell
-$ mlir-opt foo.mlir -mlir-disable-threading -pass-pipeline='func.func(cse,canonicalize)' -convert-func-to-llvm -mlir-timing
+$ mlir-opt foo.mlir -mlir-disable-threading -pass-pipeline='builtin.module(func.func(cse,canonicalize),convert-func-to-llvm)' -mlir-timing
 
 ===-------------------------------------------------------------------------===
                       ... Pass execution timing report ...
@@ -1178,7 +1177,7 @@ perceived time, or clock time, whereas the `User Time` will display the total
 cpu time.
 
 ```shell
-$ mlir-opt foo.mlir -pass-pipeline='func.func(cse,canonicalize)' -convert-func-to-llvm -mlir-timing
+$ mlir-opt foo.mlir -pass-pipeline='builtin.module(func.func(cse,canonicalize),convert-func-to-llvm)'  -mlir-timing
 
 ===-------------------------------------------------------------------------===
                       ... Pass execution timing report ...
@@ -1329,7 +1328,7 @@ module {
 {-#
   external_resources: {
     mlir_reproducer: {
-      pipeline: "func.func(cse,canonicalize),inline",
+      pipeline: "builtin.module(func.func(cse,canonicalize),inline)",
       disable_threading: true,
       verify_each: true
     }
@@ -1372,7 +1371,7 @@ module {
 {-#
   external_resources: {
     mlir_reproducer: {
-      pipeline: "func.func(canonicalize)",
+      pipeline: "builtin.module(func.func(canonicalize))",
       disable_threading: true,
       verify_each: true
     }

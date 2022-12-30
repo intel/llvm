@@ -88,6 +88,8 @@ using BBPredicates = DenseMap<BasicBlock *, Value *>;
 using PredMap = DenseMap<BasicBlock *, BBPredicates>;
 using BB2BBMap = DenseMap<BasicBlock *, BasicBlock *>;
 
+using BranchDebugLocMap = DenseMap<BasicBlock *, DebugLoc>;
+
 // A traits type that is intended to be used in graph algorithms. The graph
 // traits starts at an entry node, and traverses the RegionNodes that are in
 // the Nodes set.
@@ -259,6 +261,8 @@ class StructurizeCFG {
   BB2BBMap Loops;
   PredMap LoopPreds;
   BranchVector LoopConds;
+
+  BranchDebugLocMap TermDL;
 
   RegionNode *PrevNode;
 
@@ -540,6 +544,14 @@ void StructurizeCFG::collectInfos() {
 
     // Find the last back edges
     analyzeLoops(RN);
+  }
+
+  // Reset the collected term debug locations
+  TermDL.clear();
+
+  for (BasicBlock &BB : *Func) {
+    if (const DebugLoc &DL = BB.getTerminator()->getDebugLoc())
+      TermDL[&BB] = DL;
   }
 }
 
@@ -828,7 +840,8 @@ void StructurizeCFG::changeExit(RegionNode *Node, BasicBlock *NewExit,
   } else {
     BasicBlock *BB = Node->getNodeAs<BasicBlock>();
     killTerminator(BB);
-    BranchInst::Create(NewExit, BB);
+    BranchInst *Br = BranchInst::Create(NewExit, BB);
+    Br->setDebugLoc(TermDL[BB]);
     addPhiValues(BB, NewExit);
     if (IncludeDominator)
       DT->changeImmediateDominator(NewExit, BB);
@@ -843,6 +856,12 @@ BasicBlock *StructurizeCFG::getNextFlow(BasicBlock *Dominator) {
   BasicBlock *Flow = BasicBlock::Create(Context, FlowBlockName,
                                         Func, Insert);
   FlowSet.insert(Flow);
+
+  // use a temporary variable to avoid a use-after-free if the map's storage is
+  // reallocated
+  DebugLoc DL = TermDL[Dominator];
+  TermDL[Flow] = std::move(DL);
+
   DT->addNewBlock(Flow, Dominator);
   ParentRegion->getRegionInfo()->setRegionFor(Flow, ParentRegion);
   return Flow;
@@ -938,7 +957,9 @@ void StructurizeCFG::wireFlow(bool ExitUseAllowed,
     BasicBlock *Next = needPostfix(Flow, ExitUseAllowed);
 
     // let it point to entry and next block
-    Conditions.push_back(BranchInst::Create(Entry, Next, BoolUndef, Flow));
+    BranchInst *Br = BranchInst::Create(Entry, Next, BoolUndef, Flow);
+    Br->setDebugLoc(TermDL[Flow]);
+    Conditions.push_back(Br);
     addPhiValues(Flow, Entry);
     DT->changeImmediateDominator(Entry, Flow);
 
@@ -972,26 +993,14 @@ void StructurizeCFG::handleLoops(bool ExitUseAllowed,
     handleLoops(false, LoopEnd);
   }
 
-  // If the start of the loop is the entry block, we can't branch to it so
-  // insert a new dummy entry block.
-  Function *LoopFunc = LoopStart->getParent();
-  if (LoopStart == &LoopFunc->getEntryBlock()) {
-    LoopStart->setName("entry.orig");
-
-    BasicBlock *NewEntry =
-      BasicBlock::Create(LoopStart->getContext(),
-                         "entry",
-                         LoopFunc,
-                         LoopStart);
-    BranchInst::Create(LoopStart, NewEntry);
-    DT->setNewRoot(NewEntry);
-  }
+  assert(LoopStart != &LoopStart->getParent()->getEntryBlock());
 
   // Create an extra loop end node
   LoopEnd = needPrefix(false);
   BasicBlock *Next = needPostfix(LoopEnd, ExitUseAllowed);
-  LoopConds.push_back(BranchInst::Create(Next, LoopStart,
-                                         BoolUndef, LoopEnd));
+  BranchInst *Br = BranchInst::Create(Next, LoopStart, BoolUndef, LoopEnd);
+  Br->setDebugLoc(TermDL[LoopEnd]);
+  LoopConds.push_back(Br);
   addPhiValues(LoopEnd, LoopStart);
   setPrevNode(Next);
 }
@@ -1188,6 +1197,7 @@ bool StructurizeCFG::run(Region *R, DominatorTree *DT) {
   LoopPreds.clear();
   LoopConds.clear();
   FlowSet.clear();
+  TermDL.clear();
 
   return true;
 }

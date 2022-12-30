@@ -13,6 +13,7 @@
 #ifndef MLIR_DIALECT_SPIRV_TRANSFORMS_PASSES_H_
 #define MLIR_DIALECT_SPIRV_TRANSFORMS_PASSES_H_
 
+#include "mlir/Dialect/SPIRV/IR/SPIRVAttributes.h"
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
@@ -27,12 +28,7 @@ class ModuleOp;
 // Passes
 //===----------------------------------------------------------------------===//
 
-#define GEN_PASS_DECL_SPIRVCOMPOSITETYPELAYOUT
-#define GEN_PASS_DECL_SPIRVCANONICALIZEGL
-#define GEN_PASS_DECL_SPIRVLOWERABIATTRIBUTES
-#define GEN_PASS_DECL_SPIRVREWRITEINSERTSPASS
-#define GEN_PASS_DECL_SPIRVUNIFYALIASEDRESOURCEPASS
-#define GEN_PASS_DECL_SPIRVUPDATEVCE
+#define GEN_PASS_DECL
 #include "mlir/Dialect/SPIRV/Transforms/Passes.h.inc"
 
 /// Creates a pass to run canoncalization patterns that involve GL ops.
@@ -74,8 +70,9 @@ std::unique_ptr<OperationPass<spirv::ModuleOp>> createRewriteInsertsPass();
 
 /// Creates an operation pass that unifies access of multiple aliased resources
 /// into access of one single resource.
+using GetTargetEnvFn = std::function<spirv::TargetEnvAttr(spirv::ModuleOp)>;
 std::unique_ptr<OperationPass<spirv::ModuleOp>>
-createUnifyAliasedResourcePass();
+createUnifyAliasedResourcePass(GetTargetEnvFn getTargetEnv = nullptr);
 
 //===----------------------------------------------------------------------===//
 // Registration

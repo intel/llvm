@@ -34,6 +34,7 @@ TargetInfo::TargetInfo(const llvm::Triple &T) : Triple(T) {
   VLASupported = true;
   NoAsmVariants = false;
   HasLegalHalfType = false;
+  HalfArgsAndReturns = false;
   HasFloat128 = false;
   HasIbm128 = false;
   HasFloat16 = false;
@@ -154,8 +155,6 @@ TargetInfo::TargetInfo(const llvm::Triple &T) : Triple(T) {
   MaxOpenCLWorkGroupSize = 1024;
 
   MaxBitIntWidth.reset();
-
-  ProgramAddrSpace = 0;
 }
 
 // Out of line virtual dtor for TargetInfo.
@@ -506,12 +505,60 @@ bool TargetInfo::initFeatureMap(
   return true;
 }
 
+ParsedTargetAttr TargetInfo::parseTargetAttr(StringRef Features) const {
+  ParsedTargetAttr Ret;
+  if (Features == "default")
+    return Ret;
+  SmallVector<StringRef, 1> AttrFeatures;
+  Features.split(AttrFeatures, ",");
+
+  // Grab the various features and prepend a "+" to turn on the feature to
+  // the backend and add them to our existing set of features.
+  for (auto &Feature : AttrFeatures) {
+    // Go ahead and trim whitespace rather than either erroring or
+    // accepting it weirdly.
+    Feature = Feature.trim();
+
+    // TODO: Support the fpmath option. It will require checking
+    // overall feature validity for the function with the rest of the
+    // attributes on the function.
+    if (Feature.startswith("fpmath="))
+      continue;
+
+    if (Feature.startswith("branch-protection=")) {
+      Ret.BranchProtection = Feature.split('=').second.trim();
+      continue;
+    }
+
+    // While we're here iterating check for a different target cpu.
+    if (Feature.startswith("arch=")) {
+      if (!Ret.CPU.empty())
+        Ret.Duplicate = "arch=";
+      else
+        Ret.CPU = Feature.split("=").second.trim();
+    } else if (Feature.startswith("tune=")) {
+      if (!Ret.Tune.empty())
+        Ret.Duplicate = "tune=";
+      else
+        Ret.Tune = Feature.split("=").second.trim();
+    } else if (Feature.startswith("no-"))
+      Ret.Features.push_back("-" + Feature.split("-").second.str());
+    else
+      Ret.Features.push_back("+" + Feature.str());
+  }
+  return Ret;
+}
+
 TargetInfo::CallingConvKind
 TargetInfo::getCallingConvKind(bool ClangABICompat4) const {
   if (getCXXABI() != TargetCXXABI::Microsoft &&
       (ClangABICompat4 || getTriple().isPS4()))
     return CCK_ClangABI4OrPS4;
   return CCK_Default;
+}
+
+bool TargetInfo::areDefaultedSMFStillPOD(const LangOptions &LangOpts) const {
+  return LangOpts.getClangABICompat() > LangOptions::ClangABI::Ver15;
 }
 
 LangAS TargetInfo::getOpenCLTypeAddrSpace(OpenCLTypeKind TK) const {

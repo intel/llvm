@@ -75,7 +75,7 @@ def do_dependency(args):
 
     # Checkout fixed version to avoid unexpected issues coming from upstream
     # Specific version can be uplifted as soon as such need arise
-    checkout_cmd = ["git", "checkout", "5f8249691ec8c25775789498951f8e9eb62c201d"]
+    checkout_cmd = ["git", "checkout", "9a3e962f16f5097d2054233ad8b6dad51b6f41b7"]
     subprocess.check_call(checkout_cmd, cwd=icd_loader_dir)
 
     icd_build_dir = os.path.join(icd_loader_dir, "build")

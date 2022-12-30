@@ -45,12 +45,11 @@
 #include "SPIRVError.h"
 #include "SPIRVIsValidEnum.h"
 
-#include <llvm/ADT/Optional.h>
-
 #include <cassert>
 #include <iostream>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -293,9 +292,7 @@ public:
   Op getOpCode() const { return OpCode; }
   SPIRVModule *getModule() const { return Module; }
   virtual SPIRVCapVec getRequiredCapability() const { return SPIRVCapVec(); }
-  virtual llvm::Optional<ExtensionID> getRequiredExtension() const {
-    return {};
-  }
+  virtual std::optional<ExtensionID> getRequiredExtension() const { return {}; }
   const std::string &getName() const { return Name; }
   size_t getNumDecorations() const { return Decorates.size(); }
   bool hasDecorate(Decoration Kind, size_t Index = 0,
@@ -310,6 +307,11 @@ public:
   std::vector<SPIRVWord>
   getMemberDecorationLiterals(Decoration Kind, SPIRVWord MemberNumber) const;
   std::vector<std::string> getDecorationStringLiteral(Decoration Kind) const;
+  std::vector<std::vector<std::string>>
+  getAllDecorationStringLiterals(Decoration Kind) const;
+  std::vector<std::vector<std::string>>
+  getAllMemberDecorationStringLiterals(Decoration Kind,
+                                       SPIRVWord MemberNumber) const;
   std::vector<std::string>
   getMemberDecorationStringLiteral(Decoration Kind,
                                    SPIRVWord MemberNumber) const;
@@ -423,8 +425,8 @@ protected:
   /// An entry may have multiple FuncParamAttr decorations.
   typedef std::multimap<Decoration, const SPIRVDecorate *> DecorateMapType;
   typedef std::multimap<Decoration, const SPIRVDecorateId *> DecorateIdMapType;
-  typedef std::map<std::pair<SPIRVWord, Decoration>,
-                   const SPIRVMemberDecorate *>
+  typedef std::multimap<std::pair<SPIRVWord, Decoration>,
+                        const SPIRVMemberDecorate *>
       MemberDecorateMapType;
 
   bool canHaveMemberDecorates() const {
@@ -841,7 +843,7 @@ public:
     }
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     switch (static_cast<unsigned>(Kind)) {
     case CapabilityDenormPreserve:
     case CapabilityDenormFlushToZero:
@@ -909,7 +911,7 @@ public:
     return getVec(CapabilityLongConstantCompositeINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_long_constant_composite;
   }
 

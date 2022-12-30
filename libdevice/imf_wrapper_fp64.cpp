@@ -361,4 +361,12 @@ DEVICE_EXTERN_C_INLINE
 double __imf_copysign(double x, double y) {
   return __devicelib_imf_copysign(x, y);
 }
+
+DEVICE_EXTERN_C_INLINE
+_iml_half_internal __devicelib_imf_double2half(double);
+
+DEVICE_EXTERN_C_INLINE
+_iml_half_internal __imf_double2half(double x) {
+  return __devicelib_imf_double2half(x);
+}
 #endif // __LIBDEVICE_IMF_ENABLED__

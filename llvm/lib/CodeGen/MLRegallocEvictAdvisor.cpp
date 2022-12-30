@@ -15,7 +15,7 @@
 #include "RegAllocGreedy.h"
 #include "llvm/Analysis/MLModelRunner.h"
 #include "llvm/Analysis/TensorSpec.h"
-#if defined(LLVM_HAVE_TF_AOT_REGALLOCEVICTMODEL) || defined(LLVM_HAVE_TF_API)
+#if defined(LLVM_HAVE_TF_AOT_REGALLOCEVICTMODEL) || defined(LLVM_HAVE_TFLITE)
 #include "llvm/Analysis/ModelUnderTrainingRunner.h"
 #include "llvm/Analysis/NoInferenceModelRunner.h"
 #include "llvm/Analysis/Utils/TrainingLogger.h"
@@ -53,7 +53,7 @@ using CompiledModelType = NoopSavedModelImpl;
 #endif
 
 // Options that only make sense in development mode
-#ifdef LLVM_HAVE_TF_API
+#ifdef LLVM_HAVE_TFLITE
 #include "RegAllocScore.h"
 #include "llvm/Analysis/Utils/TFUtils.h"
 
@@ -72,7 +72,7 @@ static cl::opt<bool> EnableDevelopmentFeatures(
 
 #else
 static const bool EnableDevelopmentFeatures = false;
-#endif // #ifdef LLVM_HAVE_TF_API
+#endif // #ifdef LLVM_HAVE_TFLITE
 
 extern cl::opt<unsigned> EvictInterferenceCutoff;
 
@@ -191,14 +191,18 @@ static const std::vector<int64_t> PerLiveRangeShape{1, NumberOfInterferences};
     "lowest stage of an interval in this LR")                                  \
   M(float, progress, {1}, "ratio of current queue size to initial size")
 
-#ifdef LLVM_HAVE_TF_API
+#ifdef LLVM_HAVE_TFLITE
 #define RA_EVICT_FIRST_DEVELOPMENT_FEATURE(M)                                  \
   M(int64_t, instructions, InstructionsShape,                                  \
     "Opcodes of the instructions covered by the eviction problem")
 
 #define RA_EVICT_REST_DEVELOPMENT_FEATURES(M)                                  \
   M(int64_t, instructions_mapping, InstructionsMappingShape,                   \
-    "A binary matrix mapping LRs to instruction opcodes")
+    "A binary matrix mapping LRs to instruction opcodes")                      \
+  M(float, mbb_frequencies, MBBFrequencyShape,                                 \
+    "A vector of machine basic block frequencies")                             \
+  M(int64_t, mbb_mapping, InstructionsShape,                                   \
+    "A vector of indicies mapping instructions to MBBs")
 #else
 #define RA_EVICT_FIRST_DEVELOPMENT_FEATURE(M)
 #define RA_EVICT_REST_DEVELOPMENT_FEATURES(M)
@@ -215,11 +219,11 @@ enum FeatureIDs {
 #define _FEATURE_IDX_SIMPLE(_, name, __, ___) name
 #define _FEATURE_IDX(A, B, C, D) _FEATURE_IDX_SIMPLE(A, B, C, D),
   RA_EVICT_FEATURES_LIST(_FEATURE_IDX) FeatureCount,
-#ifdef LLVM_HAVE_TF_API
+#ifdef LLVM_HAVE_TFLITE
   RA_EVICT_FIRST_DEVELOPMENT_FEATURE(_FEATURE_IDX_SIMPLE) = FeatureCount,
 #else
   RA_EVICT_FIRST_DEVELOPMENT_FEATURE(_FEATURE_IDX)
-#endif // #ifdef LLVM_HAVE_TF_API
+#endif // #ifdef LLVM_HAVE_TFLITE
   RA_EVICT_REST_DEVELOPMENT_FEATURES(_FEATURE_IDX) FeaturesWithDevelopmentCount
 #undef _FEATURE_IDX
 #undef _FEATURE_IDX_SIMPLE
@@ -393,7 +397,7 @@ private:
 // ===================================
 //
 // Features we log
-#ifdef LLVM_HAVE_TF_API
+#ifdef LLVM_HAVE_TFLITE
 static const TensorSpec Output =
     TensorSpec::createSpec<int64_t>(DecisionName, {1});
 static const TensorSpec Reward = TensorSpec::createSpec<float>("reward", {1});
@@ -513,16 +517,13 @@ private:
 
     Logger *Log = nullptr;
     if (!TrainingLog.empty()) {
-      std::vector<LoggedFeatureSpec> LFS;
-      for (const auto &FS : InputFeatures)
-        LFS.push_back({FS, None});
+      std::vector<TensorSpec> LFS = InputFeatures;
       if (auto *MUTR = dyn_cast<ModelUnderTrainingRunner>(Runner.get()))
-        if (MUTR->outputLoggedFeatureSpecs().size() > 1)
-          append_range(LFS, drop_begin(MUTR->outputLoggedFeatureSpecs()));
+        append_range(LFS, MUTR->extraOutputsForLoggingSpecs());
       // We always log the output; in particular, if we're not evaluating, we
       // don't have an output spec json file. That's why we handle the
       // 'normal' output separately.
-      LFS.push_back({Output, None});
+      LFS.push_back(Output);
       auto I = LogMap.insert(std::make_pair(
           MF.getFunction().getName(),
           std::make_unique<Logger>(LFS, Reward, /*IncludeReward*/ true)));
@@ -538,7 +539,7 @@ private:
   StringMap<std::unique_ptr<Logger>> LogMap;
 };
 
-#endif //#ifdef LLVM_HAVE_TF_API
+#endif //#ifdef LLVM_HAVE_TFLITE
 } // namespace
 
 float MLEvictAdvisor::getInitialQueueSize(const MachineFunction &MF) {
@@ -717,7 +718,7 @@ MCRegister MLEvictAdvisor::tryFindEvictionCandidate(
                     /*NrUrgent*/ 0.0, LRPosInfo);
   assert(InitialQSize > 0.0 && "We couldn't have gotten here if we had "
                                "nothing to allocate initially.");
-#ifdef LLVM_HAVE_TF_API
+#ifdef LLVM_HAVE_TFLITE
   if (EnableDevelopmentFeatures) {
     extractInstructionFeatures(
         LRPosInfo, Runner,
@@ -729,10 +730,22 @@ MCRegister MLEvictAdvisor::tryFindEvictionCandidate(
           }
           return CurrentMachineInstruction->getOpcode();
         },
+        [this](SlotIndex InputIndex) -> float {
+          auto *CurrentMachineInstruction =
+              LIS->getInstructionFromIndex(InputIndex);
+          return MBFI.getBlockFreqRelativeToEntryBlock(
+              CurrentMachineInstruction->getParent());
+        },
+        [this](SlotIndex InputIndex) -> MachineBasicBlock * {
+          auto *CurrentMachineInstruction =
+              LIS->getInstructionFromIndex(InputIndex);
+          return CurrentMachineInstruction->getParent();
+        },
         FeatureIDs::instructions, FeatureIDs::instructions_mapping,
+        FeatureIDs::mbb_frequencies, FeatureIDs::mbb_mapping,
         LIS->getSlotIndexes()->getLastIndex());
   }
-#endif // #ifdef LLVM_HAVE_TF_API
+#endif // #ifdef LLVM_HAVE_TFLITE
   // Normalize the features.
   for (auto &V : Largest)
     V = V ? V : 1.0;
@@ -914,12 +927,14 @@ void MLEvictAdvisor::extractFeatures(
 #undef SET
 }
 
-void extractInstructionFeatures(SmallVectorImpl<LRStartEndInfo> &LRPosInfo,
-                                MLModelRunner *RegallocRunner,
-                                function_ref<int(SlotIndex)> GetOpcode,
-                                const int InstructionsIndex,
-                                const int InstructionsMappingIndex,
-                                const SlotIndex LastIndex) {
+void extractInstructionFeatures(
+    SmallVectorImpl<LRStartEndInfo> &LRPosInfo, MLModelRunner *RegallocRunner,
+    function_ref<int(SlotIndex)> GetOpcode,
+    function_ref<float(SlotIndex)> GetMBBFreq,
+    function_ref<MachineBasicBlock *(SlotIndex)> GetMBBReference,
+    const int InstructionsIndex, const int InstructionsMappingIndex,
+    const int MBBFreqIndex, const int MBBMappingIndex,
+    const SlotIndex LastIndex) {
   // This function extracts instruction based features relevant to the eviction
   // problem currently being solved. This function ends up extracting two
   // tensors.
@@ -929,6 +944,10 @@ void extractInstructionFeatures(SmallVectorImpl<LRStartEndInfo> &LRPosInfo,
   // 2 - A binary mapping matrix of size (LR count * max
   // instruction count) which maps where the LRs are live to the actual opcodes
   // for which they are live.
+  // 3 - A vector of size max supported MBB count storing MBB frequencies,
+  // encompassing all of the MBBs covered by the eviction problem.
+  // 4 - A vector of size max instruction count of indices to members of the MBB
+  // frequency vector, mapping each instruction to its associated MBB.
 
   // Start off by sorting the segments based on the beginning slot index.
   std::sort(
@@ -937,6 +956,8 @@ void extractInstructionFeatures(SmallVectorImpl<LRStartEndInfo> &LRPosInfo,
   size_t InstructionIndex = 0;
   size_t CurrentSegmentIndex = 0;
   SlotIndex CurrentIndex = LRPosInfo[0].Begin;
+  std::map<MachineBasicBlock *, size_t> VisitedMBBs;
+  size_t CurrentMBBIndex = 0;
   // This loop processes all the segments sequentially by starting at the
   // beginning slot index of the first segment, iterating through all the slot
   // indices before the end slot index of that segment (while checking for
@@ -961,6 +982,14 @@ void extractInstructionFeatures(SmallVectorImpl<LRStartEndInfo> &LRPosInfo,
         CurrentIndex = CurrentIndex.getNextIndex();
         continue;
       }
+      MachineBasicBlock *CurrentMBBReference = GetMBBReference(CurrentIndex);
+      if (VisitedMBBs.count(CurrentMBBReference) == 0) {
+        VisitedMBBs[CurrentMBBReference] = CurrentMBBIndex;
+        ++CurrentMBBIndex;
+      }
+      extractMBBFrequency(CurrentIndex, InstructionIndex, VisitedMBBs,
+                          GetMBBFreq, CurrentMBBReference, RegallocRunner,
+                          MBBFreqIndex, MBBMappingIndex);
       // Current code assumes we're not going to get any disjointed segments
       assert(LRPosInfo[CurrentSegmentIndex].Begin <= CurrentIndex);
       RegallocRunner->getTensor<int64_t>(InstructionsIndex)[InstructionIndex] =
@@ -1015,8 +1044,25 @@ void extractInstructionFeatures(SmallVectorImpl<LRStartEndInfo> &LRPosInfo,
   }
 }
 
+void extractMBBFrequency(const SlotIndex CurrentIndex,
+                         const size_t CurrentInstructionIndex,
+                         std::map<MachineBasicBlock *, size_t> &VisitedMBBs,
+                         function_ref<float(SlotIndex)> GetMBBFreq,
+                         MachineBasicBlock *CurrentMBBReference,
+                         MLModelRunner *RegallocRunner, const int MBBFreqIndex,
+                         const int MBBMappingIndex) {
+  size_t CurrentMBBIndex = VisitedMBBs[CurrentMBBReference];
+  float CurrentMBBFreq = GetMBBFreq(CurrentIndex);
+  if (CurrentMBBIndex < ModelMaxSupportedMBBCount) {
+    RegallocRunner->getTensor<float>(MBBFreqIndex)[CurrentMBBIndex] =
+        CurrentMBBFreq;
+    RegallocRunner->getTensor<int64_t>(
+        MBBMappingIndex)[CurrentInstructionIndex] = CurrentMBBIndex;
+  }
+}
+
 // Development mode-specific implementations
-#ifdef LLVM_HAVE_TF_API
+#ifdef LLVM_HAVE_TFLITE
 
 RegAllocEvictionAdvisorAnalysis *llvm::createDevelopmentModeAdvisor() {
   return new DevelopmentModeEvictionAdvisorAnalysis();
@@ -1056,12 +1102,11 @@ int64_t DevelopmentModeEvictAdvisor::tryFindEvictionCandidatePosition(
                             getRunner().getTensorUntyped(CurrentFeature)));
   }
   if (auto *MUTR = dyn_cast<ModelUnderTrainingRunner>(&getRunner()))
-    for (size_t I = 1; I < MUTR->outputLoggedFeatureSpecs().size();
+    for (size_t I = 0; I < MUTR->extraOutputsForLoggingSpecs().size();
          ++I, ++CurrentFeature)
       Log->logSpecifiedTensorValue(
           CurrentFeature,
-          reinterpret_cast<const char *>(
-              MUTR->lastEvaluationResult()->getUntypedTensorValue(I)));
+          reinterpret_cast<const char *>(MUTR->getUntypedExtraOutputValue(I)));
   // The output is right after the features and the extra outputs
   Log->logInt64Value(CurrentFeature, &Ret);
   return Ret;
@@ -1083,13 +1128,13 @@ bool RegAllocScoring::runOnMachineFunction(MachineFunction &MF) {
                                                                    GetReward);
   return false;
 }
-#endif // #ifdef LLVM_HAVE_TF_API
+#endif // #ifdef LLVM_HAVE_TFLITE
 
 RegAllocEvictionAdvisorAnalysis *llvm::createReleaseModeAdvisor() {
   return new ReleaseModeEvictionAdvisorAnalysis();
 }
 
 // In all cases except development mode, we don't need scoring.
-#if !defined(LLVM_HAVE_TF_API)
+#if !defined(LLVM_HAVE_TFLITE)
 bool RegAllocScoring::runOnMachineFunction(MachineFunction &) { return false; }
 #endif

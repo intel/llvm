@@ -288,6 +288,7 @@ set(files
   __format/buffer.h
   __format/concepts.h
   __format/enable_insertable.h
+  __format/escaped_output_table.h
   __format/extended_grapheme_cluster_table.h
   __format/format_arg.h
   __format/format_arg_store.h
@@ -309,6 +310,7 @@ set(files
   __format/formatter_pointer.h
   __format/formatter_string.h
   __format/parser_std_format_spec.h
+  __format/range_default_formatter.h
   __format/unicode.h
   __functional/binary_function.h
   __functional/binary_negate.h
@@ -341,8 +343,10 @@ set(files
   __fwd/array.h
   __fwd/get.h
   __fwd/hash.h
+  __fwd/memory_resource.h
   __fwd/pair.h
   __fwd/span.h
+  __fwd/string.h
   __fwd/string_view.h
   __fwd/tuple.h
   __hash_table
@@ -393,6 +397,7 @@ set(files
   __memory/allocation_guard.h
   __memory/allocator.h
   __memory/allocator_arg_t.h
+  __memory/allocator_destructor.h
   __memory/allocator_traits.h
   __memory/assume_aligned.h
   __memory/auto_ptr.h
@@ -412,7 +417,14 @@ set(files
   __memory/uninitialized_algorithms.h
   __memory/unique_ptr.h
   __memory/uses_allocator.h
+  __memory/uses_allocator_construction.h
   __memory/voidify.h
+  __memory_resource/memory_resource.h
+  __memory_resource/monotonic_buffer_resource.h
+  __memory_resource/polymorphic_allocator.h
+  __memory_resource/pool_options.h
+  __memory_resource/synchronized_pool_resource.h
+  __memory_resource/unsynchronized_pool_resource.h
   __mutex_base
   __node_handle
   __numeric/accumulate.h
@@ -474,12 +486,14 @@ set(files
   __ranges/dangling.h
   __ranges/data.h
   __ranges/drop_view.h
+  __ranges/drop_while_view.h
   __ranges/empty.h
   __ranges/empty_view.h
   __ranges/enable_borrowed_range.h
   __ranges/enable_view.h
   __ranges/filter_view.h
   __ranges/iota_view.h
+  __ranges/istream_view.h
   __ranges/join_view.h
   __ranges/lazy_split_view.h
   __ranges/non_propagating_cache.h
@@ -493,6 +507,7 @@ set(files
   __ranges/size.h
   __ranges/subrange.h
   __ranges/take_view.h
+  __ranges/take_while_view.h
   __ranges/transform_view.h
   __ranges/view_interface.h
   __ranges/views.h
@@ -612,6 +627,7 @@ set(files
   __type_traits/is_scoped_enum.h
   __type_traits/is_signed.h
   __type_traits/is_signed_integer.h
+  __type_traits/is_specialization.h
   __type_traits/is_standard_layout.h
   __type_traits/is_swappable.h
   __type_traits/is_trivial.h
@@ -765,6 +781,7 @@ set(files
   istream
   iterator
   latch
+  libcxx.imp
   limits
   limits.h
   list
@@ -773,6 +790,7 @@ set(files
   map
   math.h
   memory
+  memory_resource
   mutex
   new
   numbers
@@ -823,7 +841,7 @@ set(files
   wctype.h
   )
 
-foreach(feature LIBCXX_ENABLE_FILESYSTEM LIBCXX_ENABLE_LOCALIZATION LIBCXX_ENABLE_THREADS LIBCXX_ENABLE_WIDE_CHARACTERS)
+foreach(feature LIBCXX_ENABLE_FILESYSTEM LIBCXX_ENABLE_LOCALIZATION LIBCXX_ENABLE_FSTREAM LIBCXX_ENABLE_THREADS LIBCXX_ENABLE_WIDE_CHARACTERS)
   if (NOT ${${feature}})
     set(requires_${feature} "requires LIBCXX_CONFIGURED_WITHOUT_SUPPORT_FOR_THIS_HEADER")
   endif()

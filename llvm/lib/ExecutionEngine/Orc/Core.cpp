@@ -17,6 +17,7 @@
 
 #include <condition_variable>
 #include <future>
+#include <optional>
 
 #define DEBUG_TYPE "orc"
 
@@ -970,10 +971,9 @@ Error JITDylib::resolve(MaterializationResponsibility &MR,
             SymbolsInErrorState.insert(KV.first);
           else {
             auto Flags = KV.second.getFlags();
-            Flags &= ~(JITSymbolFlags::Weak | JITSymbolFlags::Common);
+            Flags &= ~JITSymbolFlags::Common;
             assert(Flags ==
-                       (SymI->second.getFlags() &
-                        ~(JITSymbolFlags::Weak | JITSymbolFlags::Common)) &&
+                       (SymI->second.getFlags() & ~JITSymbolFlags::Common) &&
                    "Resolved flags should match the declared flags");
 
             Worklist.push_back(
@@ -2244,8 +2244,8 @@ void ExecutionSession::dump(raw_ostream &OS) {
 void ExecutionSession::dispatchOutstandingMUs() {
   LLVM_DEBUG(dbgs() << "Dispatching MaterializationUnits...\n");
   while (true) {
-    Optional<std::pair<std::unique_ptr<MaterializationUnit>,
-                       std::unique_ptr<MaterializationResponsibility>>>
+    std::optional<std::pair<std::unique_ptr<MaterializationUnit>,
+                            std::unique_ptr<MaterializationResponsibility>>>
         JMU;
 
     {
@@ -2909,13 +2909,13 @@ Error ExecutionSession::OL_notifyResolved(MaterializationResponsibility &MR,
   });
 #ifndef NDEBUG
   for (auto &KV : Symbols) {
-    auto WeakFlags = JITSymbolFlags::Weak | JITSymbolFlags::Common;
     auto I = MR.SymbolFlags.find(KV.first);
     assert(I != MR.SymbolFlags.end() &&
            "Resolving symbol outside this responsibility set");
     assert(!I->second.hasMaterializationSideEffectsOnly() &&
            "Can't resolve materialization-side-effects-only symbol");
-    assert((KV.second.getFlags() & ~WeakFlags) == (I->second & ~WeakFlags) &&
+    assert((KV.second.getFlags() & ~JITSymbolFlags::Common) ==
+               (I->second & ~JITSymbolFlags::Common) &&
            "Resolving symbol with incorrect flags");
   }
 #endif

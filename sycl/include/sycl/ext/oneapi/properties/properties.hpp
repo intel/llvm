@@ -19,9 +19,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 
 namespace detail {
 
@@ -209,10 +207,22 @@ using empty_properties_t = properties<std::tuple<>>;
 // PropertyValueTs is sorted and contains only valid properties.
 template <typename... PropertyValueTs>
 using properties_t = properties<std::tuple<PropertyValueTs...>>;
+
+// Helper for merging two property lists;
+template <typename LHSPropertiesT, typename RHSPropertiesT>
+struct merged_properties;
+template <typename... LHSPropertiesTs, typename... RHSPropertiesTs>
+struct merged_properties<properties_t<LHSPropertiesTs...>,
+                         properties_t<RHSPropertiesTs...>> {
+  using type = properties<typename MergeProperties<
+      std::tuple<LHSPropertiesTs...>, std::tuple<RHSPropertiesTs...>>::type>;
+};
+template <typename LHSPropertiesT, typename RHSPropertiesT>
+using merged_properties_t =
+    typename merged_properties<LHSPropertiesT, RHSPropertiesT>::type;
+
 } // namespace detail
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 
 // If property_list is not trivially copyable, allow properties to propagate
 // is_device_copyable

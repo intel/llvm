@@ -62,7 +62,7 @@ namespace tensor {
 /// We can construct %2 by generating the following, which only uses `%0`:
 ///
 /// ```
-/// %dest = linalg.init_tensor [%size0, %size1] : tensor<?x?xf32>
+/// %dest = tensor.empty(%size0, %size1) : tensor<?x?xf32>
 /// %1 = tensor.dim %0, %c1 : tensor<3x?x?x11x?xf32>
 /// %2 = tensor.dim %0, %c2 : tensor<3x?x?x11x?xf32>
 /// %3 = tensor.dim %0, %c4 : tensor<3x?x?x11x?xf32>
@@ -204,6 +204,66 @@ private:
   SmallVector<Value> tiledSizes;
 };
 
+/// Tries to simplify a `tensor.collapse_shape` operation by inserting a single
+/// rank-reducing `tensor.extract_slice` operation. The `extract_slice` op will
+/// either take the place of the source, allowing for a new, simpler
+/// `collapse_shape` op to replace `op`, or the `collapse_shape` op will be
+/// completely replaced by the `extract_slice` result. Either way, `op` is
+/// replaced and new new op is returned.
+///
+/// ### Example:
+/// ```
+/// %result = tensor.collapse_shape %0 [[0, 1], [2, 3]]
+///    : tensor<?x1x30x10xf32> to tensor<?x300xf32>
+/// ```
+/// can be transformed to
+///
+/// ```
+/// %tmp = tensor.extract_slice %0 [0, 0, 0, 0]
+///                         [0, %dim1, 30, 30]
+///                         [1, 1, 1 1]
+///   : tensor<?x1x30x10xf32> to tensor<?x30x10xf32>
+/// %result = tensor.collapse_shape %tmp [[0], [1, 2]]
+///   : tensor<?x30x10xf32> to tensor<?x300xf32>
+/// ```
+///
+/// ### Example:
+///
+/// ```
+/// %result = tensor.collapse_shape %1 [[0, 1], [2]]
+///    : tensor<?x1x30xf32> to tensor<?x30xf32>
+/// ```
+/// can be transformed to
+/// ```
+/// %result = tensor.extract_slice %1 [0, 0, 0]
+///                                   [%dim2, 1, 30]
+///                                   [1, 1, 1]
+///    : tensor<?x1x30xf32> to tensor<?x30xf32>
+/// ```
+///
+/// ### Unsupported cases:
+///
+/// This transform doesn't yet support reducing the rank of the reassociation
+/// indices, which would require inserting a `tensor.expand_shape` op similar to
+/// the following example:
+/// ```
+/// %result = tensor.collapse_shape %0 [[0, 1], [2, 3]]
+///    : tensor<1x1x30x10xf32> to tensor<1x300xf32>
+/// ```
+/// can be transformed to
+/// ```
+/// %tmp = tensor.extract_slice %0 [0, 0, 0, 0]
+///                         [0, 1, 30, 30]
+///                         [1, 1, 1 1]
+///   : tensor<1x1x30x10xf32> to tensor<30x10xf32>
+/// %result0 = tensor.collapse_shape %tmp [[0, 1]]
+///   : tensor<30x10xf32> to tensor<300xf32>
+/// %result1 = tensor.expand_shape %tmp [[0, 1], [2]] :... tensor<1x300xf32>
+/// ```
+///
+FailureOr<Operation *>
+simplifyCollapseShapeWithRankReducingExtractSlice(tensor::CollapseShapeOp op,
+                                                  RewriterBase &rewriter);
 } // namespace tensor
 } // namespace mlir
 

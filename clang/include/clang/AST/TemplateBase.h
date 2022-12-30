@@ -23,7 +23,6 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Compiler.h"
@@ -233,7 +232,9 @@ public:
 
   TemplateArgument(TemplateName, bool) = delete;
 
-  static TemplateArgument getEmptyPack() { return TemplateArgument(None); }
+  static TemplateArgument getEmptyPack() {
+    return TemplateArgument(std::nullopt);
+  }
 
   /// Create a new template argument pack by copying the given set of
   /// template arguments.
@@ -697,33 +698,6 @@ struct alignas(void *) ASTTemplateKWAndArgsInfo {
 
 const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
                                       const TemplateArgument &Arg);
-
-inline TemplateSpecializationType::iterator
-    TemplateSpecializationType::end() const {
-  return getArgs() + getNumArgs();
-}
-
-inline DependentTemplateSpecializationType::iterator
-    DependentTemplateSpecializationType::end() const {
-  return getArgs() + getNumArgs();
-}
-
-inline const TemplateArgument &
-    TemplateSpecializationType::getArg(unsigned Idx) const {
-  assert(Idx < getNumArgs() && "Template argument out of range");
-  return getArgs()[Idx];
-}
-
-inline const TemplateArgument &
-    DependentTemplateSpecializationType::getArg(unsigned Idx) const {
-  assert(Idx < getNumArgs() && "Template argument out of range");
-  return getArgs()[Idx];
-}
-
-inline const TemplateArgument &AutoType::getArg(unsigned Idx) const {
-  assert(Idx < getNumArgs() && "Template argument out of range");
-  return getArgs()[Idx];
-}
 
 } // namespace clang
 

@@ -111,9 +111,10 @@ struct UnrollVectorOptions {
   }
 
   using NativeShapeFnType =
-      std::function<Optional<SmallVector<int64_t, 4>>(Operation *op)>;
+      std::function<Optional<SmallVector<int64_t>>(Operation *op)>;
   /// Function that returns the shape of the vector to unroll to for a given
-  /// operation. The unrolling is aborted if the function returns `llvm::None`.
+  /// operation. The unrolling is aborted if the function returns
+  /// `std::nullopt`.
   NativeShapeFnType nativeShape = nullptr;
   UnrollVectorOptions &setNativeShapeFn(NativeShapeFnType fn) {
     nativeShape = std::move(fn);
@@ -122,8 +123,8 @@ struct UnrollVectorOptions {
 
   /// Set the native shape to use for unrolling.
   UnrollVectorOptions &setNativeShape(ArrayRef<int64_t> shape) {
-    SmallVector<int64_t, 4> tsShape(shape.begin(), shape.end());
-    nativeShape = [=](Operation *) -> Optional<SmallVector<int64_t, 4>> {
+    SmallVector<int64_t> tsShape(shape.begin(), shape.end());
+    nativeShape = [=](Operation *) -> Optional<SmallVector<int64_t>> {
       return tsShape;
     };
     return *this;
@@ -284,6 +285,17 @@ void populateVectorTransferCollapseInnerMostContiguousDimsPatterns(
 /// rank ExtractStridedSliceOp + InsertOp/InsertElementOp for the n-D case.
 void populateVectorInsertExtractStridedSliceDecompositionPatterns(
     RewritePatternSet &patterns, PatternBenefit benefit = 1);
+
+/// Populate `patterns` with a pattern to breaks down 1-D extract_strided_slice
+/// ops into a chain of Extract ops to extract each element from the source, and
+/// then a chain of Insert ops to insert to the target vector.
+///
+/// If `controlFn` is not nullptr, the pattern will only be invoked on ops that
+/// `controlFn` returns true. Otherwise runs on ops.
+void populateVectorExtractStridedSliceToExtractInsertChainPatterns(
+    RewritePatternSet &patterns,
+    std::function<bool(ExtractStridedSliceOp)> controlFn = nullptr,
+    PatternBenefit benefit = 1);
 
 /// Populate `patterns` with the following patterns.
 ///

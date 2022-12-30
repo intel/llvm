@@ -14,8 +14,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace intel {
+namespace ext::intel {
 
 template <template <int32_t> class _Type, class _T>
 struct _MatchType : std::is_same<_Type<_T::value>, _T> {};
@@ -27,11 +26,10 @@ template <template <int32_t> class _Type, class... _T> struct _GetValue {
 template <template <int32_t> class _Type, class _T1, class... _T>
 struct _GetValue<_Type, _T1, _T...> {
   static constexpr auto value =
-      detail::conditional_t<_MatchType<_Type, _T1>::value, _T1,
-                            _GetValue<_Type, _T...>>::value;
+      std::conditional_t<_MatchType<_Type, _T1>::value, _T1,
+                         _GetValue<_Type, _T...>>::value;
 };
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

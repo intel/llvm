@@ -193,6 +193,7 @@ protected:
   bool HasImageStoreD16Bug = false;
   bool HasImageGather4D16Bug = false;
   bool HasGFX11FullVGPRs = false;
+  bool HasMADIntraFwdBug = false;
   bool HasVOPDInsts = false;
 
   // Dummy feature to use for assembler in tablegen.
@@ -782,6 +783,8 @@ public:
     return getGeneration() < SEA_ISLANDS;
   }
 
+  bool hasInstPrefetch() const { return getGeneration() >= GFX10; }
+
   // Scratch is allocated in 256 dword per wave blocks for the entire
   // wavefront. When viewed from the perspective of an arbitrary workitem, this
   // is 4-byte aligned.
@@ -909,6 +912,8 @@ public:
   bool hasImageStoreD16Bug() const { return HasImageStoreD16Bug; }
 
   bool hasImageGather4D16Bug() const { return HasImageGather4D16Bug; }
+
+  bool hasMADIntraFwdBug() const { return HasMADIntraFwdBug; }
 
   bool hasNSAEncoding() const { return HasNSAEncoding; }
 
@@ -1057,6 +1062,8 @@ public:
   }
 
   bool hasVALUTransUseHazard() const { return getGeneration() >= GFX11; }
+
+  bool hasVALUMaskWriteHazard() const { return getGeneration() >= GFX11; }
 
   /// Return if operations acting on VGPR tuples require even alignment.
   bool needsAlignedVGPRs() const { return GFX90AInsts; }
@@ -1211,14 +1218,14 @@ public:
     return AMDGPU::IsaInfo::getAddressableNumVGPRs(this);
   }
 
-  /// \returns Minimum number of VGPRs that meets given number of waves per
-  /// execution unit requirement supported by the subtarget.
+  /// \returns the minimum number of VGPRs that will prevent achieving more than
+  /// the specified number of waves \p WavesPerEU.
   unsigned getMinNumVGPRs(unsigned WavesPerEU) const {
     return AMDGPU::IsaInfo::getMinNumVGPRs(this, WavesPerEU);
   }
 
-  /// \returns Maximum number of VGPRs that meets given number of waves per
-  /// execution unit requirement supported by the subtarget.
+  /// \returns the maximum number of VGPRs that can be used and still achieved
+  /// at least the specified number of waves \p WavesPerEU.
   unsigned getMaxNumVGPRs(unsigned WavesPerEU) const {
     return AMDGPU::IsaInfo::getMaxNumVGPRs(this, WavesPerEU);
   }
@@ -1305,6 +1312,10 @@ public:
   // \returns true if it's beneficial on this subtarget for the scheduler to
   // cluster stores as well as loads.
   bool shouldClusterStores() const { return getGeneration() >= GFX11; }
+
+  // \returns the number of address arguments from which to enable MIMG NSA
+  // on supported architectures.
+  unsigned getNSAThreshold(const MachineFunction &MF) const;
 };
 
 } // end namespace llvm

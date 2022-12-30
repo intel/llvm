@@ -21,12 +21,12 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 template <typename T, typename Group>
-std::enable_if_t<std::is_trivially_destructible<T>::value &&
-                     sycl::detail::is_group<Group>::value,
-                 multi_ptr<T, access::address_space::local_space>>
+std::enable_if_t<
+    std::is_trivially_destructible<T>::value &&
+        sycl::detail::is_group<Group>::value,
+    multi_ptr<T, access::address_space::local_space, access::decorated::legacy>>
     __SYCL_ALWAYS_INLINE group_local_memory_for_overwrite(Group g) {
   (void)g;
 #ifdef __SYCL_DEVICE_ONLY__
@@ -41,9 +41,10 @@ std::enable_if_t<std::is_trivially_destructible<T>::value &&
 }
 
 template <typename T, typename Group, typename... Args>
-std::enable_if_t<std::is_trivially_destructible<T>::value &&
-                     sycl::detail::is_group<Group>::value,
-                 multi_ptr<T, access::address_space::local_space>>
+std::enable_if_t<
+    std::is_trivially_destructible<T>::value &&
+        sycl::detail::is_group<Group>::value,
+    multi_ptr<T, access::address_space::local_space, access::decorated::legacy>>
     __SYCL_ALWAYS_INLINE group_local_memory(Group g, Args &&...args) {
   (void)g;
 #ifdef __SYCL_DEVICE_ONLY__
@@ -64,7 +65,6 @@ std::enable_if_t<std::is_trivially_destructible<T>::value &&
       PI_ERROR_INVALID_OPERATION);
 #endif
 }
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

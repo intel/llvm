@@ -16,8 +16,8 @@
 
 #include "MCTargetDesc/SPIRVBaseInfo.h"
 #include "SPIRVGlobalRegistry.h"
+#include "SPIRVUtils.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
@@ -43,13 +43,13 @@ enum ModuleSectionType {
 
 struct Requirements {
   const bool IsSatisfiable;
-  const Optional<Capability::Capability> Cap;
+  const std::optional<Capability::Capability> Cap;
   const ExtensionList Exts;
   const unsigned MinVer; // 0 if no min version is required.
   const unsigned MaxVer; // 0 if no max version is required.
 
   Requirements(bool IsSatisfiable = false,
-               Optional<Capability::Capability> Cap = {},
+               std::optional<Capability::Capability> Cap = {},
                ExtensionList Exts = {}, unsigned MinVer = 0,
                unsigned MaxVer = 0)
       : IsSatisfiable(IsSatisfiable), Cap(Cap), Exts(Exts), MinVer(MinVer),
@@ -150,8 +150,9 @@ struct ModuleAnalysisInfo {
   // The table maps MBB number to SPIR-V unique ID register.
   DenseMap<int, Register> BBNumToRegMap;
 
-  Register getFuncReg(std::string FuncName) {
-    auto FuncReg = FuncNameMap.find(FuncName);
+  Register getFuncReg(const Function *F) {
+    assert(F && "Function is null");
+    auto FuncReg = FuncNameMap.find(getFunctionGlobalIdentifier(F));
     assert(FuncReg != FuncNameMap.end() && "Cannot find function Id");
     return FuncReg->second;
   }

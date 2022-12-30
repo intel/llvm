@@ -192,18 +192,19 @@ public:
         llvm::deallocate_buffer, dataIsMutable);
   }
   /// Create a new heap allocated blob and copy the provided data into it.
-  static AsmResourceBlob allocateAndCopy(ArrayRef<char> data, size_t align,
-                                         bool dataIsMutable = true) {
+  static AsmResourceBlob allocateAndCopyWithAlign(ArrayRef<char> data,
+                                                  size_t align,
+                                                  bool dataIsMutable = true) {
     AsmResourceBlob blob = allocate(data.size(), align, dataIsMutable);
     std::memcpy(blob.getMutableData().data(), data.data(), data.size());
     return blob;
   }
   template <typename T>
-  static std::enable_if_t<!std::is_same<T, char>::value, AsmResourceBlob>
-  allocateAndCopy(ArrayRef<T> data, bool dataIsMutable = true) {
-    return allocateAndCopy(
+  static AsmResourceBlob allocateAndCopyInferAlign(ArrayRef<T> data,
+                                                   bool dataIsMutable = true) {
+    return allocateAndCopyWithAlign(
         ArrayRef<char>((const char *)data.data(), data.size() * sizeof(T)),
-        alignof(T));
+        alignof(T), dataIsMutable);
   }
 };
 /// This class provides a simple utility wrapper for creating "unmanaged"
@@ -214,17 +215,19 @@ public:
   /// Create a new unmanaged resource directly referencing the provided data.
   /// `dataIsMutable` indicates if the allocated data can be mutated. By
   /// default, we treat unmanaged blobs as immutable.
-  static AsmResourceBlob allocateWithAlign(ArrayRef<char> data, size_t align,
-                                           bool dataIsMutable = false) {
-    return AsmResourceBlob(data, align, /*deleter=*/{},
-                           /*dataIsMutable=*/false);
+  static AsmResourceBlob
+  allocateWithAlign(ArrayRef<char> data, size_t align,
+                    AsmResourceBlob::DeleterFn deleter = {},
+                    bool dataIsMutable = false) {
+    return AsmResourceBlob(data, align, std::move(deleter), dataIsMutable);
   }
   template <typename T>
-  static AsmResourceBlob allocateInferAlign(ArrayRef<T> data,
-                                            bool dataIsMutable = false) {
+  static AsmResourceBlob
+  allocateInferAlign(ArrayRef<T> data, AsmResourceBlob::DeleterFn deleter = {},
+                     bool dataIsMutable = false) {
     return allocateWithAlign(
         ArrayRef<char>((const char *)data.data(), data.size() * sizeof(T)),
-        alignof(T));
+        alignof(T), std::move(deleter), dataIsMutable);
   }
 };
 
@@ -456,16 +459,21 @@ private:
 class ParserConfig {
 public:
   /// Construct a parser configuration with the given context.
+  /// `verifyAfterParse` indicates if the IR should be verified after parsing.
   /// `fallbackResourceMap` is an optional fallback handler that can be used to
   /// parse external resources not explicitly handled by another parser.
-  ParserConfig(MLIRContext *context,
+  ParserConfig(MLIRContext *context, bool verifyAfterParse = true,
                FallbackAsmResourceMap *fallbackResourceMap = nullptr)
-      : context(context), fallbackResourceMap(fallbackResourceMap) {
+      : context(context), verifyAfterParse(verifyAfterParse),
+        fallbackResourceMap(fallbackResourceMap) {
     assert(context && "expected valid MLIR context");
   }
 
   /// Return the MLIRContext to be used when parsing.
   MLIRContext *getContext() const { return context; }
+
+  /// Returns if the parser should verify the IR after parsing.
+  bool shouldVerifyAfterParse() const { return verifyAfterParse; }
 
   /// Return the resource parser registered to the given name, or nullptr if no
   /// parser with `name` is registered.
@@ -498,6 +506,7 @@ public:
 
 private:
   MLIRContext *context;
+  bool verifyAfterParse;
   DenseMap<StringRef, std::unique_ptr<AsmResourceParser>> resourceParsers;
   FallbackAsmResourceMap *fallbackResourceMap;
 };

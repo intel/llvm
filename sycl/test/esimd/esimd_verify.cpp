@@ -1,5 +1,5 @@
-// RUN: not %clangxx -fsycl -fsycl-device-only -fno-legacy-pass-manager -S %s -o /dev/null 2>&1 | FileCheck %s
-// RUN: not %clangxx -fsycl -fsycl-device-only -fno-legacy-pass-manager -O0 -S %s -o /dev/null 2>&1 | FileCheck %s
+// RUN: not %clangxx -fsycl -fsycl-device-only -S %s -o /dev/null 2>&1 | FileCheck %s
+// RUN: not %clangxx -fsycl -fsycl-device-only -O0 -S %s -o /dev/null 2>&1 | FileCheck %s
 
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>

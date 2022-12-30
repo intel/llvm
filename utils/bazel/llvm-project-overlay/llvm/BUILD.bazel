@@ -418,6 +418,25 @@ cc_library(
 )
 
 cc_library(
+    name = "DebugInfoLogicalView",
+    srcs = glob([
+        "lib/DebugInfo/LogicalView/**/*.cpp",
+    ]),
+    hdrs = glob([
+        "include/llvm/DebugInfo/LogicalView/**/*.h",
+    ]),
+    copts = llvm_copts,
+    deps = [
+        ":DebugInfoDWARF",
+        ":DebugInfoPDB",
+        ":MC",
+        ":MCDisassembler",
+        ":Object",
+        ":Support",
+    ],
+)
+
+cc_library(
     name = "DebugInfoPDB",
     srcs = glob([
         "lib/DebugInfo/PDB/*.cpp",
@@ -491,6 +510,22 @@ cc_library(
     deps = [
         ":BinaryFormat",
         ":DebugInfo",
+        ":MC",
+        ":Object",
+        ":Support",
+    ],
+)
+
+cc_library(
+    name = "DebugInfoGSYM",
+    srcs = glob([
+        "lib/DebugInfo/GSYM/*.cpp",
+        "lib/DebugInfo/GSYM/*.h",
+    ]),
+    hdrs = glob(["include/llvm/DebugInfo/GSYM/*.h"]),
+    copts = llvm_copts,
+    deps = [
+        ":DebugInfoDWARF",
         ":MC",
         ":Object",
         ":Support",
@@ -649,6 +684,10 @@ llvm_target_intrinsics_list = [
     {
         "name": "XCore",
         "intrinsic_prefix": "xcore",
+    },
+    {
+        "name": "LoongArch",
+        "intrinsic_prefix": "loongarch",
     },
 ]
 
@@ -1101,7 +1140,6 @@ cc_library(
         "lib/Transforms/AggressiveInstCombine/*.h",
     ]),
     hdrs = [
-        "include/llvm-c/Transforms/AggressiveInstCombine.h",
         "include/llvm/Transforms/AggressiveInstCombine/AggressiveInstCombine.h",
     ],
     copts = llvm_copts,
@@ -1198,6 +1236,21 @@ cc_library(
         ":Target",
         ":TransformUtils",
         ":config",
+    ],
+)
+
+cc_library(
+    name = "FrontendHLSL",
+    srcs = glob([
+        "lib/Frontend/HLSL/*.cpp",
+    ]),
+    hdrs = glob([
+        "include/llvm/Frontend/HLSL/*.h",
+    ]),
+    copts = llvm_copts,
+    deps = [
+        ":Core",
+        ":Support",
     ],
 )
 
@@ -1322,6 +1375,23 @@ cc_library(
 )
 
 cc_library(
+    name = "IRPrinter",
+    srcs = glob([
+        "lib/IRPrinter/*.cpp",
+        "lib/IRPrinter/*.h",
+    ]),
+    hdrs = glob([
+        "include/llvm/IRPrinter/*.h",
+    ]),
+    copts = llvm_copts,
+    deps = [
+        ":Analysis",
+        ":Core",
+        ":Support",
+    ],
+)
+
+cc_library(
     name = "IRReader",
     srcs = glob([
         "lib/IRReader/*.cpp",
@@ -1384,6 +1454,7 @@ cc_library(
         ":BitWriter",
         ":Core",
         ":FrontendOpenMP",
+        ":IRPrinter",
         ":IRReader",
         ":InstCombine",
         ":Instrumentation",
@@ -2206,6 +2277,7 @@ cc_library(
         ":BitWriter",
         ":CodeGen",
         ":Core",
+        ":IRPrinter",
         ":IRReader",
         ":Linker",
         ":MC",
@@ -2615,6 +2687,7 @@ cc_library(
         ":Core",
         ":ExecutionEngine",
         ":MC",
+        ":MCA",
         ":MCDisassembler",
         ":MCJIT",
         ":Object",
@@ -2654,7 +2727,7 @@ cc_binary(
     srcs = glob([
         "tools/dsymutil/*.cpp",
         "tools/dsymutil/*.h",
-    ]) + ["dsymutil-driver.cpp"],
+    ]),
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -2691,6 +2764,7 @@ cc_binary(
         ":BitReader",
         ":CodeGen",
         ":Core",
+        ":IRPrinter",
         ":IRReader",
         ":MC",
         ":Support",
@@ -2733,6 +2807,7 @@ cc_binary(
         ":CodeGen",
         ":Core",
         ":ExecutionEngine",
+        ":IRPrinter",
         ":IRReader",
         ":Instrumentation",
         ":Interpreter",
@@ -2831,6 +2906,7 @@ cc_binary(
         ":BitReader",
         ":BitWriter",
         ":Core",
+        ":IRPrinter",
         ":IRReader",
         ":Support",
     ],
@@ -2972,6 +3048,22 @@ cc_binary(
 )
 
 cc_binary(
+    name = "llvm-debuginfo-analyzer",
+    srcs = glob([
+        "tools/llvm-debuginfo-analyzer/*.cpp",
+        "tools/llvm-debuginfo-analyzer/*.h",
+    ]),
+    copts = llvm_copts,
+    stamp = 0,
+    deps = [
+        ":AllTargetsCodeGens",
+        ":AllTargetsDisassemblers",
+        ":DebugInfoLogicalView",
+        ":Support",
+    ],
+)
+
+cc_binary(
     name = "llvm-debuginfod-find",
     srcs = glob([
         "tools/llvm-debuginfod-find/*.cpp",
@@ -3107,8 +3199,28 @@ cc_binary(
         ":BitWriter",
         ":Core",
         ":IPO",
+        ":IRPrinter",
         ":IRReader",
         ":Support",
+    ],
+)
+
+cc_binary(
+    name = "llvm-gsymutil",
+    srcs = glob([
+        "tools/llvm-gsymutil/*.cpp",
+        "tools/llvm-gsymutil/*.h",
+    ]),
+    copts = llvm_copts,
+    stamp = 0,
+    deps = [
+        ":AllTargetsCodeGens",
+        ":DebugInfoDWARF",
+        ":DebugInfoGSYM",
+        ":MC",
+        ":Object",
+        ":Support",
+        ":Target",
     ],
 )
 
@@ -3124,12 +3236,21 @@ gentbl(
     td_srcs = ["include/llvm/Option/OptParser.td"],
 )
 
+expand_template(
+    name = "ifs_main",
+    out = "llvm-ifs-driver.cpp",
+    substitutions = {
+        "@TOOL_NAME@": "llvm_ifs",
+    },
+    template = "cmake/modules/llvm-driver-template.cpp.in",
+)
+
 cc_binary(
     name = "llvm-ifs",
     srcs = glob([
         "tools/llvm-ifs/*.cpp",
         "tools/llvm-ifs/*.h",
-    ]),
+    ]) + ["llvm-ifs-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -3212,6 +3333,7 @@ cc_binary(
         ":BitWriter",
         ":Core",
         ":IPO",
+        ":IRPrinter",
         ":IRReader",
         ":Linker",
         ":Object",
@@ -3232,11 +3354,20 @@ gentbl(
     td_srcs = ["include/llvm/Option/OptParser.td"],
 )
 
+expand_template(
+    name = "lipo_main",
+    out = "llvm-lipo-driver.cpp",
+    substitutions = {
+        "@TOOL_NAME@": "llvm_lipo",
+    },
+    template = "cmake/modules/llvm-driver-template.cpp.in",
+)
+
 cc_binary(
     name = "llvm-lipo",
     srcs = [
         "tools/llvm-lipo/llvm-lipo.cpp",
-    ],
+    ] + ["llvm-lipo-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -3263,6 +3394,7 @@ cc_binary(
         ":BitWriter",
         ":CodeGen",
         ":Core",
+        ":IRPrinter",
         ":IRReader",
         ":LTO",
         ":Support",
@@ -3374,6 +3506,7 @@ cc_binary(
     deps = [
         ":BitReader",
         ":BitWriter",
+        ":IRPrinter",
         ":IRReader",
         ":Support",
     ],
@@ -3391,12 +3524,21 @@ gentbl(
     td_srcs = ["include/llvm/Option/OptParser.td"],
 )
 
+expand_template(
+    name = "mt_main",
+    out = "llvm-mt-driver.cpp",
+    substitutions = {
+        "@TOOL_NAME@": "llvm_mt",
+    },
+    template = "cmake/modules/llvm-driver-template.cpp.in",
+)
+
 cc_binary(
     name = "llvm-mt",
     srcs = glob([
         "tools/llvm-mt/*.cpp",
         "tools/llvm-mt/*.h",
-    ]),
+    ]) + ["llvm-mt-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -3419,12 +3561,21 @@ gentbl(
     td_srcs = ["include/llvm/Option/OptParser.td"],
 )
 
+expand_template(
+    name = "nm_main",
+    out = "llvm-nm-driver.cpp",
+    substitutions = {
+        "@TOOL_NAME@": "llvm_nm",
+    },
+    template = "cmake/modules/llvm-driver-template.cpp.in",
+)
+
 cc_binary(
     name = "llvm-nm",
     srcs = glob([
         "tools/llvm-nm/*.cpp",
         "tools/llvm-nm/*.h",
-    ]),
+    ]) + ["llvm-nm-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -3579,6 +3730,7 @@ cc_binary(
         ":CodeGen",
         ":DebugInfo",
         ":DebugInfoDWARF",
+        ":Debuginfod",
         ":Demangle",
         ":MC",
         ":MCDisassembler",
@@ -3656,12 +3808,21 @@ cc_binary(
     ],
 )
 
+expand_template(
+    name = "profdata_main",
+    out = "llvm-profdata-driver.cpp",
+    substitutions = {
+        "@TOOL_NAME@": "llvm_profdata",
+    },
+    template = "cmake/modules/llvm-driver-template.cpp.in",
+)
+
 cc_binary(
     name = "llvm-profdata",
     srcs = glob([
         "tools/llvm-profdata/*.cpp",
         "tools/llvm-profdata/*.h",
-    ]),
+    ]) + ["llvm-profdata-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -3716,12 +3877,21 @@ cc_library(
     textual_hdrs = glob(["tools/llvm-rc/*.def"]),
 )
 
+expand_template(
+    name = "rc_main",
+    out = "llvm-rc-driver.cpp",
+    substitutions = {
+        "@TOOL_NAME@": "llvm_rc",
+    },
+    template = "cmake/modules/llvm-driver-template.cpp.in",
+)
+
 cc_binary(
     name = "llvm-rc",
     srcs = glob([
         "tools/llvm-rc/*.cpp",
         "tools/llvm-rc/*.h",
-    ]),
+    ]) + ["llvm-rc-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -3751,12 +3921,21 @@ gentbl(
     td_srcs = ["include/llvm/Option/OptParser.td"],
 )
 
+expand_template(
+    name = "readobj_main",
+    out = "llvm-readobj-driver.cpp",
+    substitutions = {
+        "@TOOL_NAME@": "llvm_readobj",
+    },
+    template = "cmake/modules/llvm-driver-template.cpp.in",
+)
+
 cc_binary(
     name = "llvm-readobj",
     srcs = glob([
         "tools/llvm-readobj/*.cpp",
         "tools/llvm-readobj/*.h",
-    ]),
+    ]) + ["llvm-readobj-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -3847,12 +4026,21 @@ gentbl(
     td_srcs = ["include/llvm/Option/OptParser.td"],
 )
 
+expand_template(
+    name = "size_main",
+    out = "llvm-size-driver.cpp",
+    substitutions = {
+        "@TOOL_NAME@": "llvm_size",
+    },
+    template = "cmake/modules/llvm-driver-template.cpp.in",
+)
+
 cc_binary(
     name = "llvm-size",
     srcs = glob([
         "tools/llvm-size/*.cpp",
         "tools/llvm-size/*.h",
-    ]),
+    ]) + ["llvm-size-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -3874,6 +4062,7 @@ cc_binary(
     deps = [
         ":BitWriter",
         ":Core",
+        ":IRPrinter",
         ":IRReader",
         ":Support",
         ":TransformUtils",
@@ -3999,6 +4188,7 @@ cc_binary(
         ":BitWriter",
         ":CodeGen",
         ":Core",
+        ":IRPrinter",
         ":IRReader",
         ":MC",
         ":Passes",
@@ -4090,97 +4280,6 @@ cc_library(
     ],
 )
 
-# A hacky library to expose some internal headers of gtest to its own
-# implementation source files using a stripped include prefix rather than
-# file-relative-inclusion.
-#
-# FIXME: This file should be in `textual_hdrs` instead of `hdrs`, but
-# unfortunately that doesn't work with `strip_include_prefix`:
-# https://github.com/bazelbuild/bazel/issues/12424
-#
-# For now, simply disable parsing and header modules.
-cc_library(
-    name = "gtest_internal_headers",
-    testonly = True,
-    hdrs = ["utils/unittest/googletest/src/gtest-internal-inl.h"],
-    features = [
-        "-parse_headers",
-        "-header_modules",
-    ],
-    strip_include_prefix = "utils/unittest/googletest",
-)
-
-cc_library(
-    name = "gtest",
-    testonly = True,
-    srcs = glob(
-        [
-            "utils/unittest/googletest/include/**/*.h",
-            "utils/unittest/googletest/src/*.cc",
-        ],
-        exclude = [
-            "utils/unittest/googletest/src/gtest-all.cc",
-            "utils/unittest/googletest/include/gtest/gtest_pred_impl.h",
-        ],
-    ) + [
-    ],
-    hdrs = ["utils/unittest/googletest/include/gtest/gtest.h"],
-    copts = llvm_copts,
-    defines = [
-        "GTEST_HAS_RTTI=0",
-        "__STDC_LIMIT_MACROS",
-        "__STDC_CONSTANT_MACROS",
-    ] + select({
-        "@bazel_tools//src/conditions:windows": ["GTEST_USE_OWN_TR1_TUPLE=0"],
-        "//conditions:default": ["GTEST_USE_OWN_TR1_TUPLE=1"],
-    }),
-    includes = [
-        "include",
-        "utils/unittest/googletest/include",
-    ],
-    textual_hdrs = [
-        "utils/unittest/googletest/include/gtest/gtest_pred_impl.h",
-    ],
-    deps = [
-        ":Support",
-        ":gtest_internal_headers",
-    ],
-)
-
-cc_library(
-    name = "gtest_main",
-    testonly = True,
-    srcs = ["utils/unittest/UnitTestMain/TestMain.cpp"],
-    copts = llvm_copts,
-    deps = [
-        ":Support",
-        ":gmock",
-        ":gtest",
-    ],
-)
-
-cc_library(
-    name = "gmock",
-    testonly = True,
-    srcs = glob(
-        [
-            "utils/unittest/googlemock/include/**/*.h",
-            "utils/unittest/googlemock/src/*.cc",
-        ],
-        exclude = ["utils/unittest/googlemock/src/gmock-all.cc"],
-    ),
-    hdrs = [
-        "utils/unittest/googlemock/include/gmock/gmock.h",
-        "utils/unittest/googlemock/include/gmock/gmock-matchers.h",
-    ],
-    copts = llvm_copts,
-    includes = [
-        "include",
-        "utils/unittest/googlemock/include",
-    ],
-    deps = [":gtest"],
-)
-
 py_binary(
     name = "lit",
     testonly = True,
@@ -4196,7 +4295,7 @@ cc_library(
     copts = llvm_copts,
     deps = [
         ":Support",
-        ":gmock",
+        "//third-party/unittest:gmock",
     ],
 )
 
@@ -4214,8 +4313,8 @@ cc_library(
     deps = [
         ":Support",
         ":config",
-        ":gmock",
-        ":gtest",
+        "//third-party/unittest:gmock",
+        "//third-party/unittest:gtest",
     ],
 )
 
@@ -4251,6 +4350,7 @@ cc_binary(
         ":BitWriter",
         ":CodeGen",
         ":Core",
+        ":IRPrinter",
         ":IRReader",
         ":Linker",
         ":Passes",
@@ -4344,6 +4444,7 @@ cc_binary(
     deps = [
         ":Core",
         ":Diff",
+        ":IRPrinter",
         ":IRReader",
         ":Support",
     ],
@@ -4367,6 +4468,7 @@ cc_binary(
         ":CodeGen",
         ":Core",
         ":FuzzMutate",
+        ":IRPrinter",
         ":IRReader",
         ":Support",
         ":Target",
@@ -4514,6 +4616,7 @@ cc_binary(
         ":BitReader",
         ":BitWriter",
         ":Core",
+        ":IRPrinter",
         ":IRReader",
         ":Support",
     ],

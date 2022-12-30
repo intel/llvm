@@ -24,13 +24,6 @@ public:
 
   ~LoongArchELFObjectWriter() override;
 
-  // Return true if the given relocation must be with a symbol rather than
-  // section plus offset.
-  bool needsRelocateWithSymbol(const MCSymbol &Sym,
-                               unsigned Type) const override {
-    return true;
-  }
-
 protected:
   unsigned getRelocType(MCContext &Ctx, const MCValue &Target,
                         const MCFixup &Fixup, bool IsPCRel) const override;
@@ -64,7 +57,7 @@ unsigned LoongArchELFObjectWriter::getRelocType(MCContext &Ctx,
     Ctx.reportError(Fixup.getLoc(), "2-byte data relocations not supported");
     return ELF::R_LARCH_NONE;
   case FK_Data_4:
-    return ELF::R_LARCH_32;
+    return IsPCRel ? ELF::R_LARCH_32_PCREL : ELF::R_LARCH_32;
   case FK_Data_8:
     return ELF::R_LARCH_64;
   case LoongArch::fixup_loongarch_b16:

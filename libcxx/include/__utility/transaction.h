@@ -10,9 +10,9 @@
 #define _LIBCPP___UTILITY_TRANSACTION_H
 
 #include <__config>
+#include <__type_traits/is_nothrow_move_constructible.h>
 #include <__utility/exchange.h>
 #include <__utility/move.h>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -85,6 +85,7 @@ private:
     _Rollback __rollback_;
     bool __completed_;
 };
+_LIBCPP_CTAD_SUPPORTED_FOR_TYPE(__transaction);
 
 template <class _Rollback>
 _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR __transaction<_Rollback> __make_transaction(_Rollback __rollback) {

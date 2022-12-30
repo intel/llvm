@@ -78,8 +78,8 @@ location at `src` + `get_local_id()`.
 
 [source,c++]
 ----
-template <typename T, access::address_space Space>
-T load(const multi_ptr<T, Space>* src)
+template <typename T, access::address_space Space, access::decorated IsDecorated>
+T load(const multi_ptr<T, Space, IsDecorated>* src)
 ----
 _Constraints_: `T` must be a _NumericType_. `Space` must be
 `access::address_space::global_space` or `access::address_space::local_space`.
@@ -92,8 +92,8 @@ location at `src` + `get_local_id()`.
 
 [source,c++]
 ----
-template <int N, typename T, access::address_space Space>
-vec<T, N> load(const multi_ptr<T, Space> src)
+template <int N, typename T, access::address_space Space, access::decorated IsDecorated>
+vec<T, N> load(const multi_ptr<T, Space, IsDecorated> src)
 ----
 _Constraints_: `T` must be a _NumericType_. `Space` must be
 `access::address_space::global_space` or `access::address_space::local_space`.
@@ -122,8 +122,8 @@ _Effects_: Writes the value of `x` from each work-item to the memory location at
 
 [source,c++]
 ----
-template <typename T, access::address_space Space>
-void store(multi_ptr<T, Space> dst, const T& x)
+template <typename T, access::address_space Space, access::decorated IsDecorated>
+void store(multi_ptr<T, Space, IsDecorated> dst, const T& x)
 ----
 _Constraints_: `T` must be a _NumericType_. `Space` must be
 `access::address_space::global_space` or `access::address_space::local_space`.
@@ -136,8 +136,8 @@ _Effects_: Writes the value of `x` from each work-item to the memory location at
 
 [source,c++]
 ----
-template <typename T, access::address_space Space>
-void store(multi_ptr<T, Space> dst, const vec<T, N>& x)
+template <typename T, access::address_space Space, access::decorated IsDecorated>
+void store(multi_ptr<T, Space, IsDecorated> dst, const vec<T, N>& x)
 ----
 _Constraints_: `T` must be a _NumericType_. `Space` must be
 `access::address_space::global_space` or `access::address_space::local_space`.

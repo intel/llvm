@@ -89,9 +89,9 @@ private:
   /// parameter. These are used by an implementation to opt-into stricter
   /// checking.
   bool isFortifiedCallFoldable(CallInst *CI, unsigned ObjSizeOp,
-                               Optional<unsigned> SizeOp = None,
-                               Optional<unsigned> StrOp = None,
-                               Optional<unsigned> FlagsOp = None);
+                               std::optional<unsigned> SizeOp = std::nullopt,
+                               std::optional<unsigned> StrOp = std::nullopt,
+                               std::optional<unsigned> FlagsOp = std::nullopt);
 };
 
 /// LibCallSimplifier - This class implements a collection of optimizations
@@ -183,6 +183,9 @@ private:
   Value *optimizeRealloc(CallInst *CI, IRBuilderBase &B);
   Value *optimizeWcslen(CallInst *CI, IRBuilderBase &B);
   Value *optimizeBCopy(CallInst *CI, IRBuilderBase &B);
+
+  // Helper to optimize stpncpy and strncpy.
+  Value *optimizeStringNCpy(CallInst *CI, bool RetEnd, IRBuilderBase &B);
   // Wrapper for all String/Memory Library Call Optimizations
   Value *optimizeStringMemoryLibCall(CallInst *CI, IRBuilderBase &B);
 

@@ -1029,7 +1029,7 @@ _SYCL_EXT_CPLX_INLINE_VISIBILITY complex<_Tp> __sqr(const complex<_Tp> &__x) {
 
 template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
 SYCL_EXTERNAL complex<_Tp> asinh(const complex<_Tp> &__x) {
-  const _Tp __pi(sycl::atan2(+0., -0.));
+  const _Tp __pi(sycl::atan2(_Tp(+0.), _Tp(-0.)));
   if (sycl::isinf(__x.real())) {
     if (sycl::isnan(__x.imag()))
       return __x;
@@ -1057,7 +1057,7 @@ SYCL_EXTERNAL complex<_Tp> asinh(const complex<_Tp> &__x) {
 
 template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
 SYCL_EXTERNAL complex<_Tp> acosh(const complex<_Tp> &__x) {
-  const _Tp __pi(sycl::atan2(+0., -0.));
+  const _Tp __pi(sycl::atan2(_Tp(+0.), _Tp(-0.)));
   if (sycl::isinf(__x.real())) {
     if (sycl::isnan(__x.imag()))
       return complex<_Tp>(sycl::fabs(__x.real()), __x.imag());
@@ -1090,7 +1090,7 @@ SYCL_EXTERNAL complex<_Tp> acosh(const complex<_Tp> &__x) {
 
 template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
 SYCL_EXTERNAL complex<_Tp> atanh(const complex<_Tp> &__x) {
-  const _Tp __pi(sycl::atan2(+0., -0.));
+  const _Tp __pi(sycl::atan2(_Tp(+0.), _Tp(-0.)));
   if (sycl::isinf(__x.imag())) {
     return complex<_Tp>(sycl::copysign(_Tp(0), __x.real()),
                         sycl::copysign(__pi / _Tp(2), __x.imag()));
@@ -1180,7 +1180,7 @@ SYCL_EXTERNAL complex<_Tp> asin(const complex<_Tp> &__x) {
 
 template <class _Tp, class = std::enable_if<is_gencomplex<_Tp>::value>>
 SYCL_EXTERNAL complex<_Tp> acos(const complex<_Tp> &__x) {
-  const _Tp __pi(sycl::atan2(+0., -0.));
+  const _Tp __pi(sycl::atan2(_Tp(+0.), _Tp(-0.)));
   if (sycl::isinf(__x.real())) {
     if (sycl::isnan(__x.imag()))
       return complex<_Tp>(__x.imag(), __x.real());
@@ -1202,7 +1202,7 @@ SYCL_EXTERNAL complex<_Tp> acos(const complex<_Tp> &__x) {
   }
   if (sycl::isinf(__x.imag()))
     return complex<_Tp>(__pi / _Tp(2), -__x.imag());
-  if (__x.real() == 0 && (__x.imag() == 0 || isnan(__x.imag())))
+  if (__x.real() == 0 && (__x.imag() == 0 || sycl::isnan(__x.imag())))
     return complex<_Tp>(__pi / _Tp(2), -__x.imag());
   complex<_Tp> __z = log(__x + sqrt(__sqr(__x) - _Tp(1)));
   if (sycl::signbit(__x.imag()))

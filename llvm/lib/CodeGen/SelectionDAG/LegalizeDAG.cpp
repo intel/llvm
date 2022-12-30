@@ -310,7 +310,7 @@ SelectionDAGLegalize::ExpandConstantFP(ConstantFPSDNode *CFP, bool UseCP) {
   // We don't want to shrink SNaNs. Converting the SNaN back to its real type
   // can cause it to be changed into a QNaN on some platforms (e.g. on SystemZ).
   if (!APF.isSignaling()) {
-    while (SVT != MVT::f32 && SVT != MVT::f16) {
+    while (SVT != MVT::f32 && SVT != MVT::f16 && SVT != MVT::bf16) {
       SVT = (MVT::SimpleValueType)(SVT.getSimpleVT().SimpleTy - 1);
       if (ConstantFPSDNode::isValueValidForType(SVT, APF) &&
           // Only do this if the target has a native EXTLOAD instruction from
@@ -1037,12 +1037,14 @@ void SelectionDAGLegalize::LegalizeOp(SDNode *Node) {
   case ISD::STRICT_FSETCC:
   case ISD::STRICT_FSETCCS:
   case ISD::SETCC:
+  case ISD::SETCCCARRY:
   case ISD::VP_SETCC:
   case ISD::BR_CC: {
     unsigned Opc = Node->getOpcode();
     unsigned CCOperand = Opc == ISD::SELECT_CC                         ? 4
                          : Opc == ISD::STRICT_FSETCC                   ? 3
                          : Opc == ISD::STRICT_FSETCCS                  ? 3
+                         : Opc == ISD::SETCCCARRY                      ? 3
                          : (Opc == ISD::SETCC || Opc == ISD::VP_SETCC) ? 2
                                                                        : 1;
     unsigned CompareOperand = Opc == ISD::BR_CC            ? 2

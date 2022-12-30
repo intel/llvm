@@ -237,7 +237,8 @@ uint32_t CompileUnit::FindLineEntry(uint32_t start_idx, uint32_t line,
     return UINT32_MAX;
 
   // TODO: Handle SourceLocationSpec column information
-  SourceLocationSpec location_spec(*file_spec_ptr, line, /*column=*/llvm::None,
+  SourceLocationSpec location_spec(*file_spec_ptr, line,
+                                   /*column=*/std::nullopt,
                                    /*check_inlines=*/false, exact);
 
   LineTable *line_table = GetLineTable();
@@ -321,7 +322,7 @@ void CompileUnit::ResolveSymbolContext(
   const llvm::Optional<uint16_t> column =
       src_location_spec.GetColumn()
           ? llvm::Optional<uint16_t>(line_entry.column)
-          : llvm::None;
+          : std::nullopt;
 
   SourceLocationSpec found_entry(line_entry.file, line_entry.line, column,
                                  inlines, exact);
@@ -330,14 +331,44 @@ void CompileUnit::ResolveSymbolContext(
     // If they only asked for the line entry, then we're done, we can
     // just copy that over. But if they wanted more than just the line
     // number, fill it in.
+    SymbolContext resolved_sc;
+    sc.line_entry = line_entry;
     if (resolve_scope == eSymbolContextLineEntry) {
-      sc.line_entry = line_entry;
+      sc_list.Append(sc);
     } else {
-      line_entry.range.GetBaseAddress().CalculateSymbolContext(&sc,
+      line_entry.range.GetBaseAddress().CalculateSymbolContext(&resolved_sc,
                                                                resolve_scope);
+      // Sometimes debug info is bad and isn't able to resolve the line entry's
+      // address back to the same compile unit and/or line entry. If the compile
+      // unit changed, then revert back to just the compile unit and line entry.
+      // Prior to this fix, the above code might end up not being able to lookup
+      // the address, and then it would clear compile unit and the line entry in
+      // the symbol context and the breakpoint would fail to get set even though
+      // we have a valid line table entry in this compile unit. The address
+      // lookup can also end up finding another function in another compiler
+      // unit if the DWARF has overlappging address ranges. So if we end up with
+      // no compile unit or a different one after the above function call,
+      // revert back to the same results as if resolve_scope was set exactly to
+      // eSymbolContextLineEntry.
+      if (resolved_sc.comp_unit == this) {
+        sc_list.Append(resolved_sc);
+      } else {
+        if (resolved_sc.comp_unit == nullptr && resolved_sc.module_sp) {
+          // Only report an error if we don't map back to any compile unit. With
+          // link time optimizations, the debug info might have many compile
+          // units that have the same address range due to function outlining
+          // or other link time optimizations. If the compile unit is NULL, then
+          // address resolving is completely failing and more deserving of an
+          // error message the user can see.
+          resolved_sc.module_sp->ReportError(
+              "unable to resolve a line table file address 0x%" PRIx64 " back "
+              "to a compile unit, please file a bug and attach the address "
+              "and file.", line_entry.range.GetBaseAddress().GetFileAddress());
+        }
+        sc_list.Append(sc);
+      }
     }
 
-    sc_list.Append(sc);
     if (num_file_indexes == 1)
       line_idx = line_table->FindLineEntryIndexByFileIndex(
           line_idx + 1, file_indexes.front(), found_entry, &line_entry);

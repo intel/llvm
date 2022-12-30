@@ -49,6 +49,98 @@ std::string ODRDiagsEmitter::getOwningModuleNameForDiagnostic(const Decl *D) {
   return {};
 }
 
+template <typename MethodT>
+static bool diagnoseSubMismatchMethodParameters(DiagnosticsEngine &Diags,
+                                                const NamedDecl *FirstContainer,
+                                                StringRef FirstModule,
+                                                StringRef SecondModule,
+                                                const MethodT *FirstMethod,
+                                                const MethodT *SecondMethod) {
+  enum DiagMethodType {
+    DiagMethod,
+    DiagConstructor,
+    DiagDestructor,
+  };
+  auto GetDiagMethodType = [](const NamedDecl *D) {
+    if (isa<CXXConstructorDecl>(D))
+      return DiagConstructor;
+    if (isa<CXXDestructorDecl>(D))
+      return DiagDestructor;
+    return DiagMethod;
+  };
+
+  enum ODRMethodParametersDifference {
+    NumberParameters,
+    ParameterType,
+    ParameterName,
+  };
+  auto DiagError = [&Diags, &GetDiagMethodType, FirstContainer, FirstModule,
+                    FirstMethod](ODRMethodParametersDifference DiffType) {
+    DeclarationName FirstName = FirstMethod->getDeclName();
+    DiagMethodType FirstMethodType = GetDiagMethodType(FirstMethod);
+    return Diags.Report(FirstMethod->getLocation(),
+                        diag::err_module_odr_violation_method_params)
+           << FirstContainer << FirstModule.empty() << FirstModule
+           << FirstMethod->getSourceRange() << DiffType << FirstMethodType
+           << FirstName;
+  };
+  auto DiagNote = [&Diags, &GetDiagMethodType, SecondModule,
+                   SecondMethod](ODRMethodParametersDifference DiffType) {
+    DeclarationName SecondName = SecondMethod->getDeclName();
+    DiagMethodType SecondMethodType = GetDiagMethodType(SecondMethod);
+    return Diags.Report(SecondMethod->getLocation(),
+                        diag::note_module_odr_violation_method_params)
+           << SecondModule.empty() << SecondModule
+           << SecondMethod->getSourceRange() << DiffType << SecondMethodType
+           << SecondName;
+  };
+
+  const unsigned FirstNumParameters = FirstMethod->param_size();
+  const unsigned SecondNumParameters = SecondMethod->param_size();
+  if (FirstNumParameters != SecondNumParameters) {
+    DiagError(NumberParameters) << FirstNumParameters;
+    DiagNote(NumberParameters) << SecondNumParameters;
+    return true;
+  }
+
+  for (unsigned I = 0; I < FirstNumParameters; ++I) {
+    const ParmVarDecl *FirstParam = FirstMethod->getParamDecl(I);
+    const ParmVarDecl *SecondParam = SecondMethod->getParamDecl(I);
+
+    QualType FirstParamType = FirstParam->getType();
+    QualType SecondParamType = SecondParam->getType();
+    if (FirstParamType != SecondParamType &&
+        computeODRHash(FirstParamType) != computeODRHash(SecondParamType)) {
+      if (const DecayedType *ParamDecayedType =
+              FirstParamType->getAs<DecayedType>()) {
+        DiagError(ParameterType) << (I + 1) << FirstParamType << true
+                                 << ParamDecayedType->getOriginalType();
+      } else {
+        DiagError(ParameterType) << (I + 1) << FirstParamType << false;
+      }
+
+      if (const DecayedType *ParamDecayedType =
+              SecondParamType->getAs<DecayedType>()) {
+        DiagNote(ParameterType) << (I + 1) << SecondParamType << true
+                                << ParamDecayedType->getOriginalType();
+      } else {
+        DiagNote(ParameterType) << (I + 1) << SecondParamType << false;
+      }
+      return true;
+    }
+
+    DeclarationName FirstParamName = FirstParam->getDeclName();
+    DeclarationName SecondParamName = SecondParam->getDeclName();
+    if (FirstParamName != SecondParamName) {
+      DiagError(ParameterName) << (I + 1) << FirstParamName;
+      DiagNote(ParameterName) << (I + 1) << SecondParamName;
+      return true;
+    }
+  }
+
+  return false;
+}
+
 bool ODRDiagsEmitter::diagnoseSubMismatchField(
     const NamedDecl *FirstRecord, StringRef FirstModule, StringRef SecondModule,
     const FieldDecl *FirstField, const FieldDecl *SecondField) const {
@@ -266,6 +358,223 @@ bool ODRDiagsEmitter::diagnoseSubMismatchVar(const NamedDecl *FirstRecord,
   return false;
 }
 
+bool ODRDiagsEmitter::diagnoseSubMismatchProtocols(
+    const ObjCProtocolList &FirstProtocols,
+    const ObjCContainerDecl *FirstContainer, StringRef FirstModule,
+    const ObjCProtocolList &SecondProtocols,
+    const ObjCContainerDecl *SecondContainer, StringRef SecondModule) const {
+  // Keep in sync with err_module_odr_violation_referenced_protocols.
+  enum ODRReferencedProtocolDifference {
+    NumProtocols,
+    ProtocolType,
+  };
+  auto DiagRefProtocolError = [FirstContainer, FirstModule,
+                               this](SourceLocation Loc, SourceRange Range,
+                                     ODRReferencedProtocolDifference DiffType) {
+    return Diag(Loc, diag::err_module_odr_violation_referenced_protocols)
+           << FirstContainer << FirstModule.empty() << FirstModule << Range
+           << DiffType;
+  };
+  auto DiagRefProtocolNote = [SecondModule,
+                              this](SourceLocation Loc, SourceRange Range,
+                                    ODRReferencedProtocolDifference DiffType) {
+    return Diag(Loc, diag::note_module_odr_violation_referenced_protocols)
+           << SecondModule.empty() << SecondModule << Range << DiffType;
+  };
+  auto GetProtoListSourceRange = [](const ObjCProtocolList &PL) {
+    if (PL.empty())
+      return SourceRange();
+    return SourceRange(*PL.loc_begin(), *std::prev(PL.loc_end()));
+  };
+
+  if (FirstProtocols.size() != SecondProtocols.size()) {
+    DiagRefProtocolError(FirstContainer->getLocation(),
+                         GetProtoListSourceRange(FirstProtocols), NumProtocols)
+        << FirstProtocols.size();
+    DiagRefProtocolNote(SecondContainer->getLocation(),
+                        GetProtoListSourceRange(SecondProtocols), NumProtocols)
+        << SecondProtocols.size();
+    return true;
+  }
+
+  for (unsigned I = 0, E = FirstProtocols.size(); I != E; ++I) {
+    const ObjCProtocolDecl *FirstProtocol = FirstProtocols[I];
+    const ObjCProtocolDecl *SecondProtocol = SecondProtocols[I];
+    DeclarationName FirstProtocolName = FirstProtocol->getDeclName();
+    DeclarationName SecondProtocolName = SecondProtocol->getDeclName();
+    if (FirstProtocolName != SecondProtocolName) {
+      SourceLocation FirstLoc = *(FirstProtocols.loc_begin() + I);
+      SourceLocation SecondLoc = *(SecondProtocols.loc_begin() + I);
+      SourceRange EmptyRange;
+      DiagRefProtocolError(FirstLoc, EmptyRange, ProtocolType)
+          << (I + 1) << FirstProtocolName;
+      DiagRefProtocolNote(SecondLoc, EmptyRange, ProtocolType)
+          << (I + 1) << SecondProtocolName;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool ODRDiagsEmitter::diagnoseSubMismatchObjCMethod(
+    const NamedDecl *FirstObjCContainer, StringRef FirstModule,
+    StringRef SecondModule, const ObjCMethodDecl *FirstMethod,
+    const ObjCMethodDecl *SecondMethod) const {
+  enum ODRMethodDifference {
+    ReturnType,
+    InstanceOrClass,
+    ControlLevel, // optional/required
+    DesignatedInitializer,
+    Directness,
+    Name,
+  };
+
+  auto DiagError = [FirstObjCContainer, FirstModule, FirstMethod,
+                    this](ODRMethodDifference DiffType) {
+    return Diag(FirstMethod->getLocation(),
+                diag::err_module_odr_violation_objc_method)
+           << FirstObjCContainer << FirstModule.empty() << FirstModule
+           << FirstMethod->getSourceRange() << DiffType;
+  };
+  auto DiagNote = [SecondModule, SecondMethod,
+                   this](ODRMethodDifference DiffType) {
+    return Diag(SecondMethod->getLocation(),
+                diag::note_module_odr_violation_objc_method)
+           << SecondModule.empty() << SecondModule
+           << SecondMethod->getSourceRange() << DiffType;
+  };
+
+  if (computeODRHash(FirstMethod->getReturnType()) !=
+      computeODRHash(SecondMethod->getReturnType())) {
+    DiagError(ReturnType) << FirstMethod << FirstMethod->getReturnType();
+    DiagNote(ReturnType) << SecondMethod << SecondMethod->getReturnType();
+    return true;
+  }
+
+  if (FirstMethod->isInstanceMethod() != SecondMethod->isInstanceMethod()) {
+    DiagError(InstanceOrClass)
+        << FirstMethod << FirstMethod->isInstanceMethod();
+    DiagNote(InstanceOrClass)
+        << SecondMethod << SecondMethod->isInstanceMethod();
+    return true;
+  }
+  if (FirstMethod->getImplementationControl() !=
+      SecondMethod->getImplementationControl()) {
+    DiagError(ControlLevel) << FirstMethod->getImplementationControl();
+    DiagNote(ControlLevel) << SecondMethod->getImplementationControl();
+    return true;
+  }
+  if (FirstMethod->isThisDeclarationADesignatedInitializer() !=
+      SecondMethod->isThisDeclarationADesignatedInitializer()) {
+    DiagError(DesignatedInitializer)
+        << FirstMethod
+        << FirstMethod->isThisDeclarationADesignatedInitializer();
+    DiagNote(DesignatedInitializer)
+        << SecondMethod
+        << SecondMethod->isThisDeclarationADesignatedInitializer();
+    return true;
+  }
+  if (FirstMethod->isDirectMethod() != SecondMethod->isDirectMethod()) {
+    DiagError(Directness) << FirstMethod << FirstMethod->isDirectMethod();
+    DiagNote(Directness) << SecondMethod << SecondMethod->isDirectMethod();
+    return true;
+  }
+  if (diagnoseSubMismatchMethodParameters(Diags, FirstObjCContainer,
+                                          FirstModule, SecondModule,
+                                          FirstMethod, SecondMethod))
+    return true;
+
+  // Check method name *after* looking at the parameters otherwise we get a
+  // less ideal diagnostics: a ObjCMethodName mismatch given that selectors
+  // for different parameters are likely to be different.
+  DeclarationName FirstName = FirstMethod->getDeclName();
+  DeclarationName SecondName = SecondMethod->getDeclName();
+  if (FirstName != SecondName) {
+    DiagError(Name) << FirstName;
+    DiagNote(Name) << SecondName;
+    return true;
+  }
+
+  return false;
+}
+
+bool ODRDiagsEmitter::diagnoseSubMismatchObjCProperty(
+    const NamedDecl *FirstObjCContainer, StringRef FirstModule,
+    StringRef SecondModule, const ObjCPropertyDecl *FirstProp,
+    const ObjCPropertyDecl *SecondProp) const {
+  enum ODRPropertyDifference {
+    Name,
+    Type,
+    ControlLevel, // optional/required
+    Attribute,
+  };
+
+  auto DiagError = [FirstObjCContainer, FirstModule, FirstProp,
+                    this](SourceLocation Loc, ODRPropertyDifference DiffType) {
+    return Diag(Loc, diag::err_module_odr_violation_objc_property)
+           << FirstObjCContainer << FirstModule.empty() << FirstModule
+           << FirstProp->getSourceRange() << DiffType;
+  };
+  auto DiagNote = [SecondModule, SecondProp,
+                   this](SourceLocation Loc, ODRPropertyDifference DiffType) {
+    return Diag(Loc, diag::note_module_odr_violation_objc_property)
+           << SecondModule.empty() << SecondModule
+           << SecondProp->getSourceRange() << DiffType;
+  };
+
+  IdentifierInfo *FirstII = FirstProp->getIdentifier();
+  IdentifierInfo *SecondII = SecondProp->getIdentifier();
+  if (FirstII->getName() != SecondII->getName()) {
+    DiagError(FirstProp->getLocation(), Name) << FirstII;
+    DiagNote(SecondProp->getLocation(), Name) << SecondII;
+    return true;
+  }
+  if (computeODRHash(FirstProp->getType()) !=
+      computeODRHash(SecondProp->getType())) {
+    DiagError(FirstProp->getLocation(), Type)
+        << FirstII << FirstProp->getType();
+    DiagNote(SecondProp->getLocation(), Type)
+        << SecondII << SecondProp->getType();
+    return true;
+  }
+  if (FirstProp->getPropertyImplementation() !=
+      SecondProp->getPropertyImplementation()) {
+    DiagError(FirstProp->getLocation(), ControlLevel)
+        << FirstProp->getPropertyImplementation();
+    DiagNote(SecondProp->getLocation(), ControlLevel)
+        << SecondProp->getPropertyImplementation();
+    return true;
+  }
+
+  // Go over the property attributes and stop at the first mismatch.
+  unsigned FirstAttrs = (unsigned)FirstProp->getPropertyAttributes();
+  unsigned SecondAttrs = (unsigned)SecondProp->getPropertyAttributes();
+  if (FirstAttrs != SecondAttrs) {
+    for (unsigned I = 0; I < NumObjCPropertyAttrsBits; ++I) {
+      unsigned CheckedAttr = (1 << I);
+      if ((FirstAttrs & CheckedAttr) == (SecondAttrs & CheckedAttr))
+        continue;
+
+      bool IsFirstWritten =
+          (unsigned)FirstProp->getPropertyAttributesAsWritten() & CheckedAttr;
+      bool IsSecondWritten =
+          (unsigned)SecondProp->getPropertyAttributesAsWritten() & CheckedAttr;
+      DiagError(IsFirstWritten ? FirstProp->getLParenLoc()
+                               : FirstProp->getLocation(),
+                Attribute)
+          << FirstII << (I + 1) << IsFirstWritten;
+      DiagNote(IsSecondWritten ? SecondProp->getLParenLoc()
+                               : SecondProp->getLocation(),
+               Attribute)
+          << SecondII << (I + 1);
+      return true;
+    }
+  }
+
+  return false;
+}
+
 ODRDiagsEmitter::DiffResult
 ODRDiagsEmitter::FindTypeDiffs(DeclHashes &FirstHashes,
                                DeclHashes &SecondHashes) {
@@ -304,6 +613,10 @@ ODRDiagsEmitter::FindTypeDiffs(DeclHashes &FirstHashes,
       return Friend;
     case Decl::FunctionTemplate:
       return FunctionTemplate;
+    case Decl::ObjCMethod:
+      return ObjCMethod;
+    case Decl::ObjCProperty:
+      return ObjCProperty;
     }
   };
 
@@ -359,9 +672,11 @@ void ODRDiagsEmitter::diagnoseSubMismatchDifferentDeclKinds(
                                  ODRMismatchDecl DiffType, const Decl *D) {
     SourceLocation Loc;
     SourceRange Range;
-    auto *Tag = dyn_cast<TagDecl>(Container);
-    if (DiffType == EndOfClass && Tag) {
-      Loc = Tag->getBraceRange().getEnd();
+    if (DiffType == EndOfClass) {
+      if (auto *Tag = dyn_cast<TagDecl>(Container))
+        Loc = Tag->getBraceRange().getEnd();
+      else
+        Loc = Container->getEndLoc();
     } else {
       Loc = D->getLocation();
       Range = D->getSourceRange();
@@ -378,7 +693,8 @@ void ODRDiagsEmitter::diagnoseSubMismatchDifferentDeclKinds(
   auto SecondDiagInfo =
       GetMismatchedDeclLoc(SecondRecord, DR.SecondDiffType, DR.SecondDecl);
   Diag(SecondDiagInfo.first, diag::note_module_odr_violation_mismatch_decl)
-      << SecondModule << SecondDiagInfo.second << DR.SecondDiffType;
+      << SecondModule.empty() << SecondModule << SecondDiagInfo.second
+      << DR.SecondDiffType;
 }
 
 bool ODRDiagsEmitter::diagnoseMismatch(
@@ -571,7 +887,7 @@ bool ODRDiagsEmitter::diagnoseMismatch(
   auto PopulateHashes = [](DeclHashes &Hashes, const RecordDecl *Record,
                            const DeclContext *DC) {
     for (const Decl *D : Record->decls()) {
-      if (!ODRHash::isDeclToBeProcessed(D, DC))
+      if (!ODRHash::isSubDeclToBeProcessed(D, DC))
         continue;
       Hashes.emplace_back(D, computeODRHash(D));
     }
@@ -615,9 +931,6 @@ bool ODRDiagsEmitter::diagnoseMismatch(
     MethodVolatile,
     MethodConst,
     MethodInline,
-    MethodNumberParameters,
-    MethodParameterType,
-    MethodParameterName,
     MethodParameterSingleDefaultArgument,
     MethodParameterDifferentDefaultArgument,
     MethodNoTemplateArguments,
@@ -656,6 +969,8 @@ bool ODRDiagsEmitter::diagnoseMismatch(
   case PublicSpecifer:
   case PrivateSpecifer:
   case ProtectedSpecifer:
+  case ObjCMethod:
+  case ObjCProperty:
     llvm_unreachable("Invalid diff type");
 
   case StaticAssert: {
@@ -823,51 +1138,14 @@ bool ODRDiagsEmitter::diagnoseMismatch(
       return true;
     }
 
-    const unsigned FirstNumParameters = FirstMethod->param_size();
-    const unsigned SecondNumParameters = SecondMethod->param_size();
-    if (FirstNumParameters != SecondNumParameters) {
-      DiagMethodError(MethodNumberParameters) << FirstNumParameters;
-      DiagMethodNote(MethodNumberParameters) << SecondNumParameters;
+    if (diagnoseSubMismatchMethodParameters(Diags, FirstRecord,
+                                            FirstModule, SecondModule,
+                                            FirstMethod, SecondMethod))
       return true;
-    }
 
-    for (unsigned I = 0; I < FirstNumParameters; ++I) {
+    for (unsigned I = 0, N = FirstMethod->param_size(); I < N; ++I) {
       const ParmVarDecl *FirstParam = FirstMethod->getParamDecl(I);
       const ParmVarDecl *SecondParam = SecondMethod->getParamDecl(I);
-
-      QualType FirstParamType = FirstParam->getType();
-      QualType SecondParamType = SecondParam->getType();
-      if (FirstParamType != SecondParamType &&
-          computeODRHash(FirstParamType) != computeODRHash(SecondParamType)) {
-        if (const DecayedType *ParamDecayedType =
-                FirstParamType->getAs<DecayedType>()) {
-          DiagMethodError(MethodParameterType)
-              << (I + 1) << FirstParamType << true
-              << ParamDecayedType->getOriginalType();
-        } else {
-          DiagMethodError(MethodParameterType)
-              << (I + 1) << FirstParamType << false;
-        }
-
-        if (const DecayedType *ParamDecayedType =
-                SecondParamType->getAs<DecayedType>()) {
-          DiagMethodNote(MethodParameterType)
-              << (I + 1) << SecondParamType << true
-              << ParamDecayedType->getOriginalType();
-        } else {
-          DiagMethodNote(MethodParameterType)
-              << (I + 1) << SecondParamType << false;
-        }
-        return true;
-      }
-
-      DeclarationName FirstParamName = FirstParam->getDeclName();
-      DeclarationName SecondParamName = SecondParam->getDeclName();
-      if (FirstParamName != SecondParamName) {
-        DiagMethodError(MethodParameterName) << (I + 1) << FirstParamName;
-        DiagMethodNote(MethodParameterName) << (I + 1) << SecondParamName;
-        return true;
-      }
 
       const Expr *FirstInit = FirstParam->getInit();
       const Expr *SecondInit = SecondParam->getInit();
@@ -1264,7 +1542,8 @@ bool ODRDiagsEmitter::diagnoseMismatch(
       << FirstDecl->getSourceRange();
   Diag(SecondDecl->getLocation(),
        diag::note_module_odr_violation_mismatch_decl_unknown)
-      << SecondModule << FirstDiffType << SecondDecl->getSourceRange();
+      << SecondModule.empty() << SecondModule << FirstDiffType
+      << SecondDecl->getSourceRange();
   return true;
 }
 
@@ -1479,7 +1758,7 @@ bool ODRDiagsEmitter::diagnoseMismatch(const EnumDecl *FirstEnum,
     for (const Decl *D : Enum->decls()) {
       // Due to decl merging, the first EnumDecl is the parent of
       // Decls in both records.
-      if (!ODRHash::isDeclToBeProcessed(D, FirstEnum))
+      if (!ODRHash::isSubDeclToBeProcessed(D, FirstEnum))
         continue;
       assert(isa<EnumConstantDecl>(D) && "Unexpected Decl kind");
       Hashes.emplace_back(cast<EnumConstantDecl>(D), computeODRHash(D));
@@ -1532,4 +1811,109 @@ bool ODRDiagsEmitter::diagnoseMismatch(const EnumDecl *FirstEnum,
     }
   }
   return false;
+}
+
+bool ODRDiagsEmitter::diagnoseMismatch(
+    const ObjCProtocolDecl *FirstProtocol,
+    const ObjCProtocolDecl *SecondProtocol,
+    const struct ObjCProtocolDecl::DefinitionData *SecondDD) const {
+  if (FirstProtocol == SecondProtocol)
+    return false;
+
+  std::string FirstModule = getOwningModuleNameForDiagnostic(FirstProtocol);
+  std::string SecondModule = getOwningModuleNameForDiagnostic(SecondProtocol);
+
+  const ObjCProtocolDecl::DefinitionData *FirstDD = &FirstProtocol->data();
+  assert(FirstDD && SecondDD && "Definitions without DefinitionData");
+  // Diagnostics from ObjCProtocol DefinitionData are emitted here.
+  if (FirstDD != SecondDD) {
+    // Check both protocols reference the same protocols.
+    const ObjCProtocolList &FirstProtocols =
+        FirstProtocol->getReferencedProtocols();
+    const ObjCProtocolList &SecondProtocols = SecondDD->ReferencedProtocols;
+    if (diagnoseSubMismatchProtocols(FirstProtocols, FirstProtocol, FirstModule,
+                                     SecondProtocols, SecondProtocol,
+                                     SecondModule))
+      return true;
+  }
+
+  auto PopulateHashes = [](DeclHashes &Hashes, const ObjCProtocolDecl *ID,
+                           const DeclContext *DC) {
+    for (const Decl *D : ID->decls()) {
+      if (!ODRHash::isSubDeclToBeProcessed(D, DC))
+        continue;
+      Hashes.emplace_back(D, computeODRHash(D));
+    }
+  };
+
+  DeclHashes FirstHashes;
+  DeclHashes SecondHashes;
+  // Use definition as DeclContext because definitions are merged when
+  // DeclContexts are merged and separate when DeclContexts are separate.
+  PopulateHashes(FirstHashes, FirstProtocol, FirstProtocol->getDefinition());
+  PopulateHashes(SecondHashes, SecondProtocol, SecondProtocol->getDefinition());
+
+  DiffResult DR = FindTypeDiffs(FirstHashes, SecondHashes);
+  ODRMismatchDecl FirstDiffType = DR.FirstDiffType;
+  ODRMismatchDecl SecondDiffType = DR.SecondDiffType;
+  const Decl *FirstDecl = DR.FirstDecl;
+  const Decl *SecondDecl = DR.SecondDecl;
+
+  if (FirstDiffType == Other || SecondDiffType == Other) {
+    diagnoseSubMismatchUnexpected(DR, FirstProtocol, FirstModule,
+                                  SecondProtocol, SecondModule);
+    return true;
+  }
+
+  if (FirstDiffType != SecondDiffType) {
+    diagnoseSubMismatchDifferentDeclKinds(DR, FirstProtocol, FirstModule,
+                                          SecondProtocol, SecondModule);
+    return true;
+  }
+
+  assert(FirstDiffType == SecondDiffType);
+  switch (FirstDiffType) {
+  // Already handled.
+  case EndOfClass:
+  case Other:
+  // Cannot be contained by ObjCProtocolDecl, invalid in this context.
+  case Field:
+  case TypeDef:
+  case Var:
+  // C++ only, invalid in this context.
+  case PublicSpecifer:
+  case PrivateSpecifer:
+  case ProtectedSpecifer:
+  case StaticAssert:
+  case CXXMethod:
+  case TypeAlias:
+  case Friend:
+  case FunctionTemplate:
+    llvm_unreachable("Invalid diff type");
+  case ObjCMethod: {
+    if (diagnoseSubMismatchObjCMethod(FirstProtocol, FirstModule, SecondModule,
+                                      cast<ObjCMethodDecl>(FirstDecl),
+                                      cast<ObjCMethodDecl>(SecondDecl)))
+      return true;
+    break;
+  }
+  case ObjCProperty: {
+    if (diagnoseSubMismatchObjCProperty(FirstProtocol, FirstModule,
+                                        SecondModule,
+                                        cast<ObjCPropertyDecl>(FirstDecl),
+                                        cast<ObjCPropertyDecl>(SecondDecl)))
+      return true;
+    break;
+  }
+  }
+
+  Diag(FirstDecl->getLocation(),
+       diag::err_module_odr_violation_mismatch_decl_unknown)
+      << FirstProtocol << FirstModule.empty() << FirstModule << FirstDiffType
+      << FirstDecl->getSourceRange();
+  Diag(SecondDecl->getLocation(),
+       diag::note_module_odr_violation_mismatch_decl_unknown)
+      << SecondModule.empty() << SecondModule << FirstDiffType
+      << SecondDecl->getSourceRange();
+  return true;
 }

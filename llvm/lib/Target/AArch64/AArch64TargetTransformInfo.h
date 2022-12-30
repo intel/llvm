@@ -25,6 +25,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Intrinsics.h"
 #include <cstdint>
+#include <optional>
 
 namespace llvm {
 
@@ -111,35 +112,22 @@ public:
   InstructionCost getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
                                         TTI::TargetCostKind CostKind);
 
-  Optional<Instruction *> instCombineIntrinsic(InstCombiner &IC,
-                                               IntrinsicInst &II) const;
+  std::optional<Instruction *> instCombineIntrinsic(InstCombiner &IC,
+                                                    IntrinsicInst &II) const;
 
-  Optional<Value *> simplifyDemandedVectorEltsIntrinsic(
+  std::optional<Value *> simplifyDemandedVectorEltsIntrinsic(
       InstCombiner &IC, IntrinsicInst &II, APInt DemandedElts, APInt &UndefElts,
       APInt &UndefElts2, APInt &UndefElts3,
       std::function<void(Instruction *, unsigned, APInt, APInt &)>
           SimplifyAndSetOp) const;
 
-  TypeSize getRegisterBitWidth(TargetTransformInfo::RegisterKind K) const {
-    switch (K) {
-    case TargetTransformInfo::RGK_Scalar:
-      return TypeSize::getFixed(64);
-    case TargetTransformInfo::RGK_FixedWidthVector:
-      if (ST->hasSVE())
-        return TypeSize::getFixed(
-            std::max(ST->getMinSVEVectorSizeInBits(), 128u));
-      return TypeSize::getFixed(ST->hasNEON() ? 128 : 0);
-    case TargetTransformInfo::RGK_ScalableVector:
-      return TypeSize::getScalable(ST->hasSVE() ? 128 : 0);
-    }
-    llvm_unreachable("Unsupported register kind");
-  }
+  TypeSize getRegisterBitWidth(TargetTransformInfo::RegisterKind K) const;
 
   unsigned getMinVectorRegisterBitWidth() const {
     return ST->getMinVectorRegisterBitWidth();
   }
 
-  Optional<unsigned> getVScaleForTuning() const {
+  std::optional<unsigned> getVScaleForTuning() const {
     return ST->getVScaleForTuning();
   }
 
@@ -272,7 +260,7 @@ public:
   }
 
   bool isLegalMaskedGatherScatter(Type *DataType) const {
-    if (!ST->hasSVE())
+    if (!ST->hasSVE() || ST->forceStreamingCompatibleSVE())
       return false;
 
     // For fixed vectors, scalarize if not using SVE for them.
@@ -308,22 +296,32 @@ public:
     return false;
   }
 
-  bool isLegalNTStore(Type *DataType, Align Alignment) {
+  bool isLegalNTStoreLoad(Type *DataType, Align Alignment) {
     // NOTE: The logic below is mostly geared towards LV, which calls it with
     //       vectors with 2 elements. We might want to improve that, if other
     //       users show up.
-    // Nontemporal vector stores can be directly lowered to STNP, if the vector
-    // can be halved so that each half fits into a register. That's the case if
-    // the element type fits into a register and the number of elements is a
-    // power of 2 > 1.
-    if (auto *DataTypeVTy = dyn_cast<VectorType>(DataType)) {
-      unsigned NumElements =
-          cast<FixedVectorType>(DataTypeVTy)->getNumElements();
-      unsigned EltSize = DataTypeVTy->getElementType()->getScalarSizeInBits();
+    // Nontemporal vector loads/stores can be directly lowered to LDNP/STNP, if
+    // the vector can be halved so that each half fits into a register. That's
+    // the case if the element type fits into a register and the number of
+    // elements is a power of 2 > 1.
+    if (auto *DataTypeTy = dyn_cast<FixedVectorType>(DataType)) {
+      unsigned NumElements = DataTypeTy->getNumElements();
+      unsigned EltSize = DataTypeTy->getElementType()->getScalarSizeInBits();
       return NumElements > 1 && isPowerOf2_64(NumElements) && EltSize >= 8 &&
              EltSize <= 128 && isPowerOf2_64(EltSize);
     }
     return BaseT::isLegalNTStore(DataType, Alignment);
+  }
+
+  bool isLegalNTStore(Type *DataType, Align Alignment) {
+    return isLegalNTStoreLoad(DataType, Alignment);
+  }
+
+  bool isLegalNTLoad(Type *DataType, Align Alignment) {
+    // Only supports little-endian targets.
+    if (ST->isLittleEndian())
+      return isLegalNTStoreLoad(DataType, Alignment);
+    return BaseT::isLegalNTLoad(DataType, Alignment);
   }
 
   bool enableOrderedReductions() const { return true; }
@@ -372,14 +370,14 @@ public:
   }
 
   InstructionCost getArithmeticReductionCost(unsigned Opcode, VectorType *Ty,
-                                             Optional<FastMathFlags> FMF,
+                                             std::optional<FastMathFlags> FMF,
                                              TTI::TargetCostKind CostKind);
 
   InstructionCost getShuffleCost(TTI::ShuffleKind Kind, VectorType *Tp,
                                  ArrayRef<int> Mask,
                                  TTI::TargetCostKind CostKind, int Index,
                                  VectorType *SubTp,
-                                 ArrayRef<const Value *> Args = None);
+                                 ArrayRef<const Value *> Args = std::nullopt);
 
   /// Return the cost of the scaling factor used in the addressing
   /// mode represented by AM for this target, for a load/store
@@ -390,6 +388,8 @@ public:
                                        int64_t BaseOffset, bool HasBaseReg,
                                        int64_t Scale, unsigned AddrSpace) const;
   /// @}
+
+  bool enableSelectOptimize() { return ST->enableSelectOptimize(); }
 };
 
 } // end namespace llvm

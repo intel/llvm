@@ -426,18 +426,16 @@ __CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, long, 0l)
 __CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, long, 0l)
 
 // half requires additional mangled entry points
-_CLC_DEF _CLC_CONVERGENT half _Z17__spirv_GroupFAddjjDF16_(uint scope, uint op,
-                                                           half x) {
-  return __spirv_GroupFAdd(scope, op, x);
-}
-_CLC_DEF _CLC_CONVERGENT half _Z17__spirv_GroupFMinjjDF16_(uint scope, uint op,
-                                                           half x) {
-  return __spirv_GroupFMin(scope, op, x);
-}
-_CLC_DEF _CLC_CONVERGENT half _Z17__spirv_GroupFMaxjjDF16_(uint scope, uint op,
-                                                           half x) {
-  return __spirv_GroupFMax(scope, op, x);
-}
+#define __CLC_GROUP_COLLECTIVE__DF16(MANGLED_NAME, SPIRV_DISPATCH)             \
+  _CLC_DEF _CLC_CONVERGENT half MANGLED_NAME(uint scope, uint op, half x) {    \
+    return SPIRV_DISPATCH(scope, op, x);                                       \
+  }
+__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFAddjjDF16_, __spirv_GroupFAdd)
+__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFMinjjDF16_, __spirv_GroupFMin)
+__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFMaxjjDF16_, __spirv_GroupFMax)
+__CLC_GROUP_COLLECTIVE__DF16(_Z20__spirv_GroupFMulKHRjjDF16_,
+                             __spirv_GroupFMulKHR)
+#undef __CLC_GROUP_COLLECTIVE__DF16
 
 #undef __CLC_GROUP_COLLECTIVE_4
 #undef __CLC_GROUP_COLLECTIVE_5

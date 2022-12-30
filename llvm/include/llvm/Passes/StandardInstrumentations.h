@@ -74,11 +74,12 @@ private:
   bool shouldRun(StringRef PassID, Any IR);
 };
 
-class OptBisectInstrumentation {
+class OptPassGateInstrumentation {
+  LLVMContext &Context;
   bool HasWrittenIR = false;
-
 public:
-  OptBisectInstrumentation() = default;
+  OptPassGateInstrumentation(LLVMContext &Context) : Context(Context) {}
+  bool shouldRun(StringRef PassName, Any IR);
   void registerCallbacks(PassInstrumentationCallbacks &PIC);
 };
 
@@ -126,7 +127,7 @@ public:
   // in the Graph (BBGuard). That is if any of the block is deleted or RAUWed
   // then the CFG is treated poisoned and no block pointer of the Graph is used.
   struct CFG {
-    Optional<DenseMap<intptr_t, BBGuard>> BBGuards;
+    std::optional<DenseMap<intptr_t, BBGuard>> BBGuards;
     DenseMap<const BasicBlock *, DenseMap<const BasicBlock *, unsigned>> Graph;
 
     CFG(const Function *F, bool TrackBBLifetime);
@@ -256,6 +257,32 @@ protected:
   void generateIRRepresentation(Any IR, StringRef PassID,
                                 std::string &Output) override;
   // Called when an interesting IR has changed.
+  void handleAfter(StringRef PassID, std::string &Name,
+                   const std::string &Before, const std::string &After,
+                   Any) override;
+};
+
+class IRChangedTester : public IRChangedPrinter {
+public:
+  IRChangedTester() : IRChangedPrinter(true) {}
+  ~IRChangedTester() override;
+  void registerCallbacks(PassInstrumentationCallbacks &PIC);
+
+protected:
+  void handleIR(const std::string &IR, StringRef PassID);
+
+  // Check initial IR
+  void handleInitialIR(Any IR) override;
+  // Do nothing.
+  void omitAfter(StringRef PassID, std::string &Name) override;
+  // Do nothing.
+  void handleInvalidated(StringRef PassID) override;
+  // Do nothing.
+  void handleFiltered(StringRef PassID, std::string &Name) override;
+  // Do nothing.
+  void handleIgnored(StringRef PassID, std::string &Name) override;
+
+  // Call test as interesting IR has changed.
   void handleAfter(StringRef PassID, std::string &Name,
                    const std::string &Before, const std::string &After,
                    Any) override;
@@ -528,19 +555,21 @@ class StandardInstrumentations {
   TimePassesHandler TimePasses;
   TimeProfilingPassesHandler TimeProfilingPasses;
   OptNoneInstrumentation OptNone;
-  OptBisectInstrumentation OptBisect;
+  OptPassGateInstrumentation OptPassGate;
   PreservedCFGCheckerInstrumentation PreservedCFGChecker;
   IRChangedPrinter PrintChangedIR;
   PseudoProbeVerifier PseudoProbeVerification;
   InLineChangePrinter PrintChangedDiff;
   DotCfgChangeReporter WebsiteChangeReporter;
   PrintCrashIRInstrumentation PrintCrashIR;
+  IRChangedTester ChangeTester;
   VerifyInstrumentation Verify;
 
   bool VerifyEach;
 
 public:
-  StandardInstrumentations(bool DebugLogging, bool VerifyEach = false,
+  StandardInstrumentations(LLVMContext &Context, bool DebugLogging,
+                           bool VerifyEach = false,
                            PrintPassOptions PrintPassOpts = PrintPassOptions());
 
   // Register all the standard instrumentation callbacks. If \p FAM is nullptr

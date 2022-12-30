@@ -31,7 +31,7 @@ namespace clang {
   /// Define the kind of constexpr specifier.
   enum class ConstexprSpecKind { Unspecified, Constexpr, Consteval, Constinit };
 
-  /// In an if statement, this denotes whether the the statement is
+  /// In an if statement, this denotes whether the statement is
   /// a constexpr or consteval if statement.
   enum class IfStatementKind : unsigned {
     Ordinary,
@@ -79,8 +79,10 @@ namespace clang {
     TST_class,     // C++ class type
     TST_interface, // C++ (Microsoft-specific) __interface type
     TST_typename,  // Typedef, C++ class-name or enum name, etc.
-    TST_typeofType,
-    TST_typeofExpr,
+    TST_typeofType,        // C2x (and GNU extension) typeof(type-name)
+    TST_typeofExpr,        // C2x (and GNU extension) typeof(expression)
+    TST_typeof_unqualType, // C2x typeof_unqual(type-name)
+    TST_typeof_unqualExpr, // C2x typeof_unqual(expression)
     TST_decltype, // C++11 decltype
 #define TRANSFORM_TYPE_TRAIT_DEF(_, Trait) TST_##Trait,
 #include "clang/Basic/TransformTypeTraits.def"

@@ -67,6 +67,12 @@ bool lldb_private::LLDBSwigPythonWatchpointCallbackFunction(
   return false;
 }
 
+bool lldb_private::LLDBSwigPythonFormatterCallbackFunction(
+    const char *python_function_name, const char *session_dictionary_name,
+    lldb::TypeImplSP type_impl_sp) {
+  return false;
+}
+
 bool lldb_private::LLDBSwigPythonCallTypeScript(
     const char *python_function_name, const void *session_dictionary,
     const lldb::ValueObjectSP &valobj_sp, void **pyfunct_wrapper,
@@ -226,7 +232,7 @@ bool lldb_private::LLDBSWIGPythonRunScriptKeywordProcess(
 llvm::Optional<std::string> lldb_private::LLDBSWIGPythonRunScriptKeywordThread(
     const char *python_function_name, const char *session_dictionary_name,
     lldb::ThreadSP thread) {
-  return llvm::None;
+  return std::nullopt;
 }
 
 bool lldb_private::LLDBSWIGPythonRunScriptKeywordTarget(
@@ -238,7 +244,7 @@ bool lldb_private::LLDBSWIGPythonRunScriptKeywordTarget(
 llvm::Optional<std::string> lldb_private::LLDBSWIGPythonRunScriptKeywordFrame(
     const char *python_function_name, const char *session_dictionary_name,
     lldb::StackFrameSP frame) {
-  return llvm::None;
+  return std::nullopt;
 }
 
 bool lldb_private::LLDBSWIGPythonRunScriptKeywordValue(
@@ -263,4 +269,8 @@ bool lldb_private::LLDBSwigPythonStopHookCallHandleStop(
     void *implementor, lldb::ExecutionContextRefSP exc_ctx_sp,
     lldb::StreamSP stream) {
   return false;
+}
+
+python::PythonObject lldb_private::python::ToSWIGWrapper(const Status &status) {
+  return python::PythonObject();
 }

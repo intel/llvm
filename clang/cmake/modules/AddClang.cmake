@@ -37,7 +37,7 @@ macro(set_clang_windows_version_resource_properties name)
       VERSION_MAJOR ${CLANG_VERSION_MAJOR}
       VERSION_MINOR ${CLANG_VERSION_MINOR}
       VERSION_PATCHLEVEL ${CLANG_VERSION_PATCHLEVEL}
-      VERSION_STRING "${CLANG_VERSION} (${BACKEND_PACKAGE_STRING})"
+      VERSION_STRING "${CLANG_VERSION}"
       PRODUCT_NAME "clang")
   endif()
 endmacro()
@@ -153,7 +153,10 @@ macro(add_clang_tool name)
   if (NOT CLANG_BUILD_TOOLS)
     set(EXCLUDE_FROM_ALL ON)
   endif()
-  if(ARG_GENERATE_DRIVER AND LLVM_TOOL_LLVM_DRIVER_BUILD)
+  if(ARG_GENERATE_DRIVER
+     AND LLVM_TOOL_LLVM_DRIVER_BUILD
+     AND (NOT LLVM_DISTRIBUTION_COMPONENTS OR ${name} IN_LIST LLVM_DISTRIBUTION_COMPONENTS)
+    )
     set(get_obj_args ${ARGN})
     list(FILTER get_obj_args EXCLUDE REGEX "^SUPPORT_PLUGINS$")
     generate_llvm_objects(${name} ${get_obj_args})
@@ -181,8 +184,11 @@ endmacro()
 
 macro(add_clang_symlink name dest)
   get_property(LLVM_DRIVER_TOOLS GLOBAL PROPERTY LLVM_DRIVER_TOOLS)
-  if(LLVM_TOOL_LLVM_DRIVER_BUILD AND ${dest} IN_LIST LLVM_DRIVER_TOOLS)
-    set_property(GLOBAL APPEND PROPERTY LLVM_DRIVER_TOOL_SYMLINKS ${name})
+  if(LLVM_TOOL_LLVM_DRIVER_BUILD
+     AND ${dest} IN_LIST LLVM_DRIVER_TOOLS
+     AND (NOT LLVM_DISTRIBUTION_COMPONENTS OR ${dest} IN_LIST LLVM_DISTRIBUTION_COMPONENTS)
+    )
+    set_property(GLOBAL APPEND PROPERTY LLVM_DRIVER_TOOL_ALIASES_${dest} ${name})
   else()
     llvm_add_tool_symlink(CLANG ${name} ${dest} ALWAYS_GENERATE)
     # Always generate install targets

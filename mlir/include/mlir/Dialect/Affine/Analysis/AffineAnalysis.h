@@ -15,7 +15,7 @@
 #ifndef MLIR_DIALECT_AFFINE_ANALYSIS_AFFINEANALYSIS_H
 #define MLIR_DIALECT_AFFINE_ANALYSIS_AFFINEANALYSIS_H
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/IR/Value.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
@@ -143,7 +143,7 @@ struct DependenceComponent {
   Optional<int64_t> lb;
   // The upper bound of the dependence distance (inclusive).
   Optional<int64_t> ub;
-  DependenceComponent() : lb(llvm::None), ub(llvm::None) {}
+  DependenceComponent() : lb(std::nullopt), ub(std::nullopt) {}
 };
 
 /// Checks whether two accesses to the same memref access the same element.

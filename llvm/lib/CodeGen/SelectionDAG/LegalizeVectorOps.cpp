@@ -730,6 +730,9 @@ void VectorLegalizer::Expand(SDNode *Node, SmallVectorImpl<SDValue> &Results) {
   case ISD::BSWAP:
     Results.push_back(ExpandBSWAP(Node));
     return;
+  case ISD::VP_BSWAP:
+    Results.push_back(TLI.expandVPBSWAP(Node, DAG));
+    return;
   case ISD::VSELECT:
     Results.push_back(ExpandVSELECT(Node));
     return;
@@ -785,6 +788,12 @@ void VectorLegalizer::Expand(SDNode *Node, SmallVectorImpl<SDValue> &Results) {
   case ISD::BITREVERSE:
     ExpandBITREVERSE(Node, Results);
     return;
+  case ISD::VP_BITREVERSE:
+    if (SDValue Expanded = TLI.expandVPBITREVERSE(Node, DAG)) {
+      Results.push_back(Expanded);
+      return;
+    }
+    break;
   case ISD::CTPOP:
     if (SDValue Expanded = TLI.expandCTPOP(Node, DAG)) {
       Results.push_back(Expanded);
@@ -806,7 +815,9 @@ void VectorLegalizer::Expand(SDNode *Node, SmallVectorImpl<SDValue> &Results) {
     }
     break;
   case ISD::FSHL:
+  case ISD::VP_FSHL:
   case ISD::FSHR:
+  case ISD::VP_FSHR:
     if (SDValue Expanded = TLI.expandFunnelShift(Node, DAG)) {
       Results.push_back(Expanded);
       return;
@@ -852,6 +863,13 @@ void VectorLegalizer::Expand(SDNode *Node, SmallVectorImpl<SDValue> &Results) {
   case ISD::UADDSAT:
   case ISD::SADDSAT:
     if (SDValue Expanded = TLI.expandAddSubSat(Node, DAG)) {
+      Results.push_back(Expanded);
+      return;
+    }
+    break;
+  case ISD::USHLSAT:
+  case ISD::SSHLSAT:
+    if (SDValue Expanded = TLI.expandShlSat(Node, DAG)) {
       Results.push_back(Expanded);
       return;
     }
@@ -963,10 +981,7 @@ SDValue VectorLegalizer::ExpandSELECT(SDNode *Node) {
                        DAG.getConstant(0, DL, BitTy));
 
   // Broadcast the mask so that the entire vector is all one or all zero.
-  if (VT.isFixedLengthVector())
-    Mask = DAG.getSplatBuildVector(MaskTy, DL, Mask);
-  else
-    Mask = DAG.getSplatVector(MaskTy, DL, Mask);
+  Mask = DAG.getSplat(MaskTy, DL, Mask);
 
   // Bitcast the operands to be the same type as the mask.
   // This is needed when we select between FP types because
@@ -1309,8 +1324,7 @@ SDValue VectorLegalizer::ExpandVP_MERGE(SDNode *Node) {
     return DAG.UnrollVectorOp(Node);
 
   SDValue StepVec = DAG.getStepVector(DL, EVLVecVT);
-  SDValue SplatEVL = IsFixedLen ? DAG.getSplatBuildVector(EVLVecVT, DL, EVL)
-                                : DAG.getSplatVector(EVLVecVT, DL, EVL);
+  SDValue SplatEVL = DAG.getSplat(EVLVecVT, DL, EVL);
   SDValue EVLMask =
       DAG.getSetCC(DL, MaskVT, StepVec, SplatEVL, ISD::CondCode::SETULT);
 
