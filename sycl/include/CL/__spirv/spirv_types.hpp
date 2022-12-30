@@ -108,6 +108,10 @@ enum class GroupOperation : uint32_t {
   ExclusiveScan = 2
 };
 
+#ifndef SYCL_EXT_ONEAPI_MATRIX_VERSION
+#define SYCL_EXT_ONEAPI_MATRIX_VERSION 4
+#endif // SYCL_EXT_ONEAPI_MATRIX_VERSION
+
 #if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)
 enum class MatrixLayout : uint32_t {
   RowMajor = 0,
