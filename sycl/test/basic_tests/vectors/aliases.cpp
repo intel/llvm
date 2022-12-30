@@ -18,7 +18,7 @@
   CHECK_ALIAS(uint, std::uint32_t, N)                                          \
   CHECK_ALIAS(long, std::int64_t, N)                                           \
   CHECK_ALIAS(ulong, std::uint64_t, N)                                         \
-  CHECK_ALIAS(half, sycl::half, N)                                       \
+  CHECK_ALIAS(half, sycl::half, N)                                             \
   CHECK_ALIAS(float, float, N)                                                 \
   CHECK_ALIAS(double, double, N)
 
