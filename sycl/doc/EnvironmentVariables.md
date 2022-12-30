@@ -163,6 +163,12 @@ Note that conflicting configuration tuples in the same list will favor the last 
 | -------------------- | ------ | ----------- |
 | `SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE` | Integer | Specifies the maximum size of a local memory allocation in bytes. If the value exceeds the device's capabilities then a `sycl::runtime_error` is thrown. In order for the full error message to be printed, `SYCL_RT_WARNING_LEVEL=2` must be set. The default value for `SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE` is determined by the hardware. |
 
+## Controlling DPC++ HIP Plugin
+
+| Environment variable | Values | Description |
+| -------------------- | ------ | ----------- |
+| `SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE` | Integer | Specifies the maximum size of a local memory allocation in bytes. If the value exceeds the device's capabilities then a `sycl::runtime_error` is thrown. In order for the full error message to be printed, `SYCL_RT_WARNING_LEVEL=2` must be set. The default value for `SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE` is determined by the hardware. |
+
 ## Tools variables
 
 | Environment variable | Values | Description |
@@ -244,7 +250,7 @@ variables in production code.</span>
 | `SYCL_PI_LEVEL_ZERO_USE_COMPUTE_ENGINE` | Integer | It can be set to an integer (>=0) in which case all compute commands will be submitted to the command-queue with the given index in the compute command group. If it is instead set to a negative value then all available compute engines may be used. The default value is "0" |
 | `SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_D2D_COPY` (experimental) | Integer | Allows the use of copy engine, if available in the device, in Level Zero plugin for device to device copy operations. The default is 0. This option is experimental and will be removed once heuristics are added to make a decision about use of copy engine for device to device copy operations. |
 | `SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS` | Any(\*) | Enable support of device-scope events whose state is not visible to the host. If enabled mode is SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=1 the Level Zero plugin would create all events having device-scope only and create proxy host-visible events for them when their status is needed (wait/query) on the host. If enabled mode is SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 the Level Zero plugin would create all events having device-scope and add proxy host-visible event at the end of each command-list submission. The default is 0, meaning all events have host visibility. |
-| `SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS` | Integer | When set to a positive value enables use of Level Zero immediate commandlists, which means there is no batching and all commands are immediately submitted for execution. Default is 0. Note: When immediate commandlist usage is enabled it is necessary to also set SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS to either 0 or 1.  |
+| `SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS` | Integer | When set to a positive value enables use of Level Zero immediate commandlists, which means there is no batching and all commands are immediately submitted for execution. When set to 1, unique immediate commandlists are created for each SYCL queue. When set to 2, unique immediate commandlists are created per host thread per SYCL queue. Default is 0. |
 | `SYCL_PI_LEVEL_ZERO_USE_MULTIPLE_COMMANDLIST_BARRIERS` | Integer | When set to a positive value enables use of multiple Level Zero commandlists when submitting barriers. Default is 1. |
 | `SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_FILL` | Integer | When set to a positive value enables use of a copy engine for memory fill operations. Default is 0. |
 | `SYCL_PI_LEVEL_ZERO_SINGLE_ROOT_DEVICE_BUFFER_MIGRATION` | Integer | When set to "0" tells to use single root-device allocation for all devices in a context where all devices have same root. Otherwise performs regular buffer migration. Default is 1. |
