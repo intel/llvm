@@ -29,6 +29,7 @@
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/Statepoint.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -130,6 +131,11 @@ void DbgVariableIntrinsic::replaceVariableLocationOp(Value *OldValue,
   assert((OldIt != Locations.end() || DbgAssignAddrReplaced) &&
          "OldValue must be a current location");
   if (!hasArgList()) {
+    // Additional check necessary to avoid unconditionally replacing this
+    // operand when a dbg.assign address is replaced (DbgAssignAddrReplaced is
+    // true).
+    if (OldValue != getVariableLocationOp(0))
+      return;
     Value *NewOperand = isa<MetadataAsValue>(NewValue)
                             ? NewValue
                             : MetadataAsValue::get(
@@ -179,7 +185,7 @@ void DbgVariableIntrinsic::addVariableLocationOps(ArrayRef<Value *> NewValues,
       0, MetadataAsValue::get(getContext(), DIArgList::get(getContext(), MDs)));
 }
 
-Optional<uint64_t> DbgVariableIntrinsic::getFragmentSizeInBits() const {
+std::optional<uint64_t> DbgVariableIntrinsic::getFragmentSizeInBits() const {
   if (auto Fragment = getExpression()->getFragmentInfo())
     return Fragment->SizeInBits;
   return getVariable()->getSizeInBits();
@@ -269,18 +275,18 @@ Value *InstrProfIncrementInst::getStep() const {
   return ConstantInt::get(Type::getInt64Ty(Context), 1);
 }
 
-Optional<RoundingMode> ConstrainedFPIntrinsic::getRoundingMode() const {
+std::optional<RoundingMode> ConstrainedFPIntrinsic::getRoundingMode() const {
   unsigned NumOperands = arg_size();
   Metadata *MD = nullptr;
   auto *MAV = dyn_cast<MetadataAsValue>(getArgOperand(NumOperands - 2));
   if (MAV)
     MD = MAV->getMetadata();
   if (!MD || !isa<MDString>(MD))
-    return None;
+    return std::nullopt;
   return convertStrToRoundingMode(cast<MDString>(MD)->getString());
 }
 
-Optional<fp::ExceptionBehavior>
+std::optional<fp::ExceptionBehavior>
 ConstrainedFPIntrinsic::getExceptionBehavior() const {
   unsigned NumOperands = arg_size();
   Metadata *MD = nullptr;
@@ -288,18 +294,18 @@ ConstrainedFPIntrinsic::getExceptionBehavior() const {
   if (MAV)
     MD = MAV->getMetadata();
   if (!MD || !isa<MDString>(MD))
-    return None;
+    return std::nullopt;
   return convertStrToExceptionBehavior(cast<MDString>(MD)->getString());
 }
 
 bool ConstrainedFPIntrinsic::isDefaultFPEnvironment() const {
-  Optional<fp::ExceptionBehavior> Except = getExceptionBehavior();
+  std::optional<fp::ExceptionBehavior> Except = getExceptionBehavior();
   if (Except) {
     if (Except.value() != fp::ebIgnore)
       return false;
   }
 
-  Optional<RoundingMode> Rounding = getRoundingMode();
+  std::optional<RoundingMode> Rounding = getRoundingMode();
   if (Rounding) {
     if (Rounding.value() != RoundingMode::NearestTiesToEven)
       return false;
@@ -406,10 +412,11 @@ void VPIntrinsic::setVectorLengthParam(Value *NewEVL) {
   setArgOperand(*EVLPos, NewEVL);
 }
 
-Optional<unsigned> VPIntrinsic::getMaskParamPos(Intrinsic::ID IntrinsicID) {
+std::optional<unsigned>
+VPIntrinsic::getMaskParamPos(Intrinsic::ID IntrinsicID) {
   switch (IntrinsicID) {
   default:
-    return None;
+    return std::nullopt;
 
 #define BEGIN_REGISTER_VP_INTRINSIC(VPID, MASKPOS, VLENPOS)                    \
   case Intrinsic::VPID:                                                        \
@@ -418,11 +425,11 @@ Optional<unsigned> VPIntrinsic::getMaskParamPos(Intrinsic::ID IntrinsicID) {
   }
 }
 
-Optional<unsigned>
+std::optional<unsigned>
 VPIntrinsic::getVectorLengthParamPos(Intrinsic::ID IntrinsicID) {
   switch (IntrinsicID) {
   default:
-    return None;
+    return std::nullopt;
 
 #define BEGIN_REGISTER_VP_INTRINSIC(VPID, MASKPOS, VLENPOS)                    \
   case Intrinsic::VPID:                                                        \
@@ -434,7 +441,8 @@ VPIntrinsic::getVectorLengthParamPos(Intrinsic::ID IntrinsicID) {
 /// \return the alignment of the pointer used by this load/store/gather or
 /// scatter.
 MaybeAlign VPIntrinsic::getPointerAlignment() const {
-  Optional<unsigned> PtrParamOpt = getMemoryPointerParamPos(getIntrinsicID());
+  std::optional<unsigned> PtrParamOpt =
+      getMemoryPointerParamPos(getIntrinsicID());
   assert(PtrParamOpt && "no pointer argument!");
   return getParamAlign(PtrParamOpt.value());
 }
@@ -446,7 +454,8 @@ Value *VPIntrinsic::getMemoryPointerParam() const {
   return nullptr;
 }
 
-Optional<unsigned> VPIntrinsic::getMemoryPointerParamPos(Intrinsic::ID VPID) {
+std::optional<unsigned>
+VPIntrinsic::getMemoryPointerParamPos(Intrinsic::ID VPID) {
   switch (VPID) {
   default:
     break;
@@ -455,7 +464,7 @@ Optional<unsigned> VPIntrinsic::getMemoryPointerParamPos(Intrinsic::ID VPID) {
 #define END_REGISTER_VP_INTRINSIC(VPID) break;
 #include "llvm/IR/VPIntrinsics.def"
   }
-  return None;
+  return std::nullopt;
 }
 
 /// \return The data (payload) operand of this store or scatter.
@@ -466,7 +475,7 @@ Value *VPIntrinsic::getMemoryDataParam() const {
   return getArgOperand(DataParamOpt.value());
 }
 
-Optional<unsigned> VPIntrinsic::getMemoryDataParamPos(Intrinsic::ID VPID) {
+std::optional<unsigned> VPIntrinsic::getMemoryDataParamPos(Intrinsic::ID VPID) {
   switch (VPID) {
   default:
     break;
@@ -475,7 +484,7 @@ Optional<unsigned> VPIntrinsic::getMemoryDataParamPos(Intrinsic::ID VPID) {
 #define END_REGISTER_VP_INTRINSIC(VPID) break;
 #include "llvm/IR/VPIntrinsics.def"
   }
-  return None;
+  return std::nullopt;
 }
 
 bool VPIntrinsic::isVPIntrinsic(Intrinsic::ID ID) {
@@ -491,7 +500,8 @@ bool VPIntrinsic::isVPIntrinsic(Intrinsic::ID ID) {
 }
 
 // Equivalent non-predicated opcode
-Optional<unsigned> VPIntrinsic::getFunctionalOpcodeForVP(Intrinsic::ID ID) {
+std::optional<unsigned>
+VPIntrinsic::getFunctionalOpcodeForVP(Intrinsic::ID ID) {
   switch (ID) {
   default:
     break;
@@ -500,7 +510,7 @@ Optional<unsigned> VPIntrinsic::getFunctionalOpcodeForVP(Intrinsic::ID ID) {
 #define END_REGISTER_VP_INTRINSIC(VPID) break;
 #include "llvm/IR/VPIntrinsics.def"
   }
-  return None;
+  return std::nullopt;
 }
 
 Intrinsic::ID VPIntrinsic::getForOpcode(unsigned IROPC) {
@@ -677,7 +687,7 @@ static ICmpInst::Predicate getIntPredicateFromMD(const Value *Op) {
 
 CmpInst::Predicate VPCmpIntrinsic::getPredicate() const {
   bool IsFP = true;
-  Optional<unsigned> CCArgIdx;
+  std::optional<unsigned> CCArgIdx;
   switch (getIntrinsicID()) {
   default:
     break;
@@ -702,7 +712,8 @@ unsigned VPReductionIntrinsic::getStartParamPos() const {
   return *VPReductionIntrinsic::getStartParamPos(getIntrinsicID());
 }
 
-Optional<unsigned> VPReductionIntrinsic::getVectorParamPos(Intrinsic::ID ID) {
+std::optional<unsigned>
+VPReductionIntrinsic::getVectorParamPos(Intrinsic::ID ID) {
   switch (ID) {
 #define BEGIN_REGISTER_VP_INTRINSIC(VPID, ...) case Intrinsic::VPID:
 #define VP_PROPERTY_REDUCTION(STARTPOS, VECTORPOS) return VECTORPOS;
@@ -711,10 +722,11 @@ Optional<unsigned> VPReductionIntrinsic::getVectorParamPos(Intrinsic::ID ID) {
   default:
     break;
   }
-  return None;
+  return std::nullopt;
 }
 
-Optional<unsigned> VPReductionIntrinsic::getStartParamPos(Intrinsic::ID ID) {
+std::optional<unsigned>
+VPReductionIntrinsic::getStartParamPos(Intrinsic::ID ID) {
   switch (ID) {
 #define BEGIN_REGISTER_VP_INTRINSIC(VPID, ...) case Intrinsic::VPID:
 #define VP_PROPERTY_REDUCTION(STARTPOS, VECTORPOS) return STARTPOS;
@@ -723,7 +735,7 @@ Optional<unsigned> VPReductionIntrinsic::getStartParamPos(Intrinsic::ID ID) {
   default:
     break;
   }
-  return None;
+  return std::nullopt;
 }
 
 Instruction::BinaryOps BinaryOpIntrinsic::getBinaryOp() const {

@@ -23,6 +23,7 @@
 # Theses numbers are available in all runners, making it easier to update the
 # version number.
 env:
+    LLVM_STABLE_VERSION: "15"
     LLVM_HEAD_VERSION: "16"
     GCC_STABLE_VERSION: "12"
 steps:
@@ -34,6 +35,8 @@ steps:
     command: "libcxx/utils/ci/run-buildbot check-format"
     artifact_paths:
       - "**/clang-format.patch"
+    env:
+        GIT_CLANG_FORMAT: "/usr/bin/git-clang-format-${LLVM_STABLE_VERSION}"
     agents:
       queue: "libcxx-builders"
       os: "linux"
@@ -505,6 +508,23 @@ steps:
 
     - label: "No random device"
       command: "libcxx/utils/ci/run-buildbot generic-no-random_device"
+      artifact_paths:
+        - "**/test-results.xml"
+        - "**/*.abilist"
+      env:
+          CC: "clang-${LLVM_HEAD_VERSION}"
+          CXX: "clang++-${LLVM_HEAD_VERSION}"
+      agents:
+        queue: "libcxx-builders"
+        os: "linux"
+      retry:
+        automatic:
+          - exit_status: -1  # Agent was lost
+            limit: 2
+      timeout_in_minutes: 120
+
+    - label: "No fstream"
+      command: "libcxx/utils/ci/run-buildbot generic-no-fstream"
       artifact_paths:
         - "**/test-results.xml"
         - "**/*.abilist"

@@ -12,9 +12,9 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
+#include <sycl/builtins.hpp>
 #include <sycl/detail/spirv.hpp>
 #include <sycl/detail/type_traits.hpp>
-#include <sycl/ext/oneapi/experimental/group_sort.hpp>
 #include <sycl/ext/oneapi/functional.hpp>
 #include <sycl/functional.hpp>
 #include <sycl/group.hpp>
@@ -228,7 +228,7 @@ reduce_over_group(Group g, T x, BinaryOperation binary_op) {
            std::is_same<decltype(binary_op(x[0], x[0])), float>::value),
       "Result type of binary_op must match reduction accumulation type.");
   T result;
-  for (int s = 0; s < x.get_size(); ++s) {
+  for (int s = 0; s < x.size(); ++s) {
     result[s] = reduce_over_group(g, x[s], binary_op);
   }
   return result;
@@ -279,7 +279,7 @@ reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
   T result = init;
-  for (int s = 0; s < x.get_size(); ++s) {
+  for (int s = 0; s < x.size(); ++s) {
     result[s] = binary_op(init[s], reduce_over_group(g, x[s], binary_op));
   }
   return result;
@@ -655,7 +655,7 @@ exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
            std::is_same<decltype(binary_op(x[0], x[0])), float>::value),
       "Result type of binary_op must match scan accumulation type.");
   T result;
-  for (int s = 0; s < x.get_size(); ++s) {
+  for (int s = 0; s < x.size(); ++s) {
     result[s] = exclusive_scan_over_group(g, x[s], binary_op);
   }
   return result;
@@ -679,7 +679,7 @@ exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
            std::is_same<decltype(binary_op(init[0], x[0])), float>::value),
       "Result type of binary_op must match scan accumulation type.");
   T result;
-  for (int s = 0; s < x.get_size(); ++s) {
+  for (int s = 0; s < x.size(); ++s) {
     result[s] = exclusive_scan_over_group(g, x[s], init[s], binary_op);
   }
   return result;
@@ -822,7 +822,7 @@ inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
            std::is_same<decltype(binary_op(x[0], x[0])), float>::value),
       "Result type of binary_op must match scan accumulation type.");
   T result;
-  for (int s = 0; s < x.get_size(); ++s) {
+  for (int s = 0; s < x.size(); ++s) {
     result[s] = inclusive_scan_over_group(g, x[s], binary_op);
   }
   return result;
@@ -916,7 +916,7 @@ inclusive_scan_over_group(Group g, V x, BinaryOperation binary_op, T init) {
            std::is_same<decltype(binary_op(init[0], x[0])), float>::value),
       "Result type of binary_op must match scan accumulation type.");
   T result;
-  for (int s = 0; s < x.get_size(); ++s) {
+  for (int s = 0; s < x.size(); ++s) {
     result[s] = inclusive_scan_over_group(g, x[s], binary_op, init[s]);
   }
   return result;

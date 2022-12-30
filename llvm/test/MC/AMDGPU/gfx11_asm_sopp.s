@@ -111,6 +111,12 @@ s_delay_alu instid0(VALU_DEP_1) | instid1(SALU_CYCLE_1)
 s_delay_alu instid0(VALU_DEP_1) | instskip(NEXT) | instid1(VALU_DEP_3)
 // GFX11: s_delay_alu instid0(VALU_DEP_1) | instskip(NEXT) | instid1(VALU_DEP_3) ; encoding: [0x91,0x01,0x87,0xbf]
 
+s_delay_alu instid1(SALU_CYCLE_2)
+// GFX11: s_delay_alu instid1(SALU_CYCLE_2) ; encoding: [0x00,0x05,0x87,0xbf]
+
+s_delay_alu instid1(SALU_CYCLE_3)
+// GFX11: s_delay_alu instid1(SALU_CYCLE_3) ; encoding: [0x80,0x05,0x87,0xbf]
+
 //===----------------------------------------------------------------------===//
 // s_waitcnt_depctr
 //===----------------------------------------------------------------------===//
@@ -208,6 +214,12 @@ s_nop 0xc1d1
 
 s_endpgm
 // GFX11: s_endpgm ; encoding: [0x00,0x00,0xb0,0xbf]
+
+s_endpgm 1
+// GFX11: s_endpgm 1 ; encoding: [0x01,0x00,0xb0,0xbf]
+
+s_endpgm 65535
+// GFX11: s_endpgm 65535 ; encoding: [0xff,0xff,0xb0,0xbf]
 
 s_branch 0x0
 // GFX11: s_branch 0 ; encoding: [0x00,0x00,0xa0,0xbf]

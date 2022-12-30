@@ -9,8 +9,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "Generators.h"
+#include "Representation.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
+#include <optional>
 
 using namespace clang::doc;
 
@@ -23,6 +25,7 @@ LLVM_YAML_IS_SEQUENCE_VECTOR(CommentInfo)
 LLVM_YAML_IS_SEQUENCE_VECTOR(FunctionInfo)
 LLVM_YAML_IS_SEQUENCE_VECTOR(EnumInfo)
 LLVM_YAML_IS_SEQUENCE_VECTOR(EnumValueInfo)
+LLVM_YAML_IS_SEQUENCE_VECTOR(TemplateParamInfo)
 LLVM_YAML_IS_SEQUENCE_VECTOR(TypedefInfo)
 LLVM_YAML_IS_SEQUENCE_VECTOR(BaseRecordInfo)
 LLVM_YAML_IS_SEQUENCE_VECTOR(std::unique_ptr<CommentInfo>)
@@ -125,7 +128,7 @@ static void InfoMapping(IO &IO, Info &I) {
 
 static void SymbolInfoMapping(IO &IO, SymbolInfo &I) {
   InfoMapping(IO, I);
-  IO.mapOptional("DefLocation", I.DefLoc, Optional<Location>());
+  IO.mapOptional("DefLocation", I.DefLoc, std::optional<Location>());
   IO.mapOptional("Location", I.Loc, llvm::SmallVector<Location, 2>());
 }
 
@@ -142,6 +145,7 @@ static void RecordInfoMapping(IO &IO, RecordInfo &I) {
   IO.mapOptional("ChildFunctions", I.Children.Functions);
   IO.mapOptional("ChildEnums", I.Children.Enums);
   IO.mapOptional("ChildTypedefs", I.Children.Typedefs);
+  IO.mapOptional("Template", I.Template);
 }
 
 static void CommentInfoMapping(IO &IO, CommentInfo &I) {
@@ -174,6 +178,7 @@ template <> struct MappingTraits<Reference> {
   static void mapping(IO &IO, Reference &Ref) {
     IO.mapOptional("Type", Ref.RefType, InfoType::IT_default);
     IO.mapOptional("Name", Ref.Name, SmallString<16>());
+    IO.mapOptional("QualName", Ref.QualName, SmallString<16>());
     IO.mapOptional("USR", Ref.USR, SymbolID());
     IO.mapOptional("Path", Ref.Path, SmallString<128>());
   }
@@ -267,6 +272,28 @@ template <> struct MappingTraits<FunctionInfo> {
     // the AS that shouldn't be part of the output. Even though AS_public is the
     // default in the struct, it should be displayed in the YAML output.
     IO.mapOptional("Access", I.Access, clang::AccessSpecifier::AS_none);
+    IO.mapOptional("Template", I.Template);
+  }
+};
+
+template <> struct MappingTraits<TemplateParamInfo> {
+  static void mapping(IO &IO, TemplateParamInfo &I) {
+    IO.mapOptional("Contents", I.Contents);
+  }
+};
+
+template <> struct MappingTraits<TemplateSpecializationInfo> {
+  static void mapping(IO &IO, TemplateSpecializationInfo &I) {
+    IO.mapOptional("SpecializationOf", I.SpecializationOf);
+    IO.mapOptional("Params", I.Params);
+  }
+};
+
+template <> struct MappingTraits<TemplateInfo> {
+  static void mapping(IO &IO, TemplateInfo &I) {
+    IO.mapOptional("Params", I.Params);
+    IO.mapOptional("Specialization", I.Specialization,
+                   std::optional<TemplateSpecializationInfo>());
   }
 };
 
@@ -292,11 +319,47 @@ class YAMLGenerator : public Generator {
 public:
   static const char *Format;
 
+  llvm::Error generateDocs(StringRef RootDir,
+                           llvm::StringMap<std::unique_ptr<doc::Info>> Infos,
+                           const ClangDocContext &CDCtx) override;
   llvm::Error generateDocForInfo(Info *I, llvm::raw_ostream &OS,
                                  const ClangDocContext &CDCtx) override;
 };
 
 const char *YAMLGenerator::Format = "yaml";
+
+llvm::Error
+YAMLGenerator::generateDocs(StringRef RootDir,
+                            llvm::StringMap<std::unique_ptr<doc::Info>> Infos,
+                            const ClangDocContext &CDCtx) {
+  for (const auto &Group : Infos) {
+    doc::Info *Info = Group.getValue().get();
+
+    // Output file names according to the USR except the global namesapce.
+    // Anonymous namespaces are taken care of in serialization, so here we can
+    // safely assume an unnamed namespace is the global one.
+    llvm::SmallString<128> Path;
+    llvm::sys::path::native(RootDir, Path);
+    if (Info->IT == InfoType::IT_namespace && Info->Name.empty()) {
+      llvm::sys::path::append(Path, "index.yaml");
+    } else {
+      llvm::sys::path::append(Path, Group.getKey() + ".yaml");
+    }
+
+    std::error_code FileErr;
+    llvm::raw_fd_ostream InfoOS(Path, FileErr, llvm::sys::fs::OF_None);
+    if (FileErr) {
+      return llvm::createStringError(FileErr, "Error opening file '%s'",
+                                     Path.c_str());
+    }
+
+    if (llvm::Error Err = generateDocForInfo(Info, InfoOS, CDCtx)) {
+      return Err;
+    }
+  }
+
+  return llvm::Error::success();
+}
 
 llvm::Error YAMLGenerator::generateDocForInfo(Info *I, llvm::raw_ostream &OS,
                                               const ClangDocContext &CDCtx) {

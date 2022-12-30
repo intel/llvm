@@ -7,10 +7,17 @@ add_header_library(
 )
 
 add_header_library(
+  named_pair
+  HDRS
+    named_pair.h
+)
+
+add_header_library(
   builtin_wrappers
   HDRS
     builtin_wrappers.h
   DEPENDS
+    .named_pair
     libc.src.__support.CPP.type_traits
 )
 
@@ -24,9 +31,23 @@ add_header_library(
 )
 
 add_header_library(
+  error_or
+  HDRS
+    error_or.h
+  DEPENDS
+    libc.src.__support.CPP.expected
+)
+
+add_header_library(
   ctype_utils
   HDRS
     ctype_utils.h
+)
+
+add_header_library(
+  str_to_num_result
+  HDRS
+    str_to_num_result.h
 )
 
 add_header_library(
@@ -35,6 +56,7 @@ add_header_library(
     str_to_integer.h
   DEPENDS
     .ctype_utils
+    .str_to_num_result
     libc.include.errno
     libc.src.errno.errno
     libc.src.__support.CPP.limits
@@ -107,11 +129,34 @@ add_header_library(
 )
 
 add_header_library(
+  number_pair
+  HDRS
+    number_pair.h
+  DEPENDS
+    .named_pair
+    libc.src.__support.CPP.type_traits
+)
+
+add_header_library(
+  integer_utils
+  HDRS
+    integer_utils.h
+  DEPENDS
+    .builtin_wrappers
+    .number_pair
+    libc.src.__support.CPP.type_traits
+)
+
+add_header_library(
   uint
   HDRS
     UInt.h
   DEPENDS
+    .builtin_wrappers
+    .number_pair
+    .integer_utils
     libc.src.__support.CPP.array
+    libc.src.__support.CPP.type_traits
 )
 
 add_header_library(

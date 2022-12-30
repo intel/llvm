@@ -12,6 +12,7 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/Support/AArch64TargetParser.h"
 #include "llvm/Support/ARMBuildAttributes.h"
+#include "llvm/Support/ARMTargetParser.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -31,10 +32,12 @@ const char *ARMArch[] = {
     "armv8a",       "armv8l",      "armv8.1-a",      "armv8.1a",    "armv8.2-a",
     "armv8.2a",     "armv8.3-a",   "armv8.3a",       "armv8.4-a",   "armv8.4a",
     "armv8.5-a",    "armv8.5a",    "armv8.6-a",      "armv8.6a",    "armv8.7-a",
-    "armv8.7a",     "armv8.8-a",   "armv8.8a",       "armv8-r",     "armv8r",
-    "armv8-m.base", "armv8m.base", "armv8-m.main",   "armv8m.main", "iwmmxt",
-    "iwmmxt2",      "xscale",      "armv8.1-m.main", "armv9-a",     "armv9",
-    "armv9a",       "armv9.1-a",   "armv9.1a",       "armv9.2-a",   "armv9.2a",
+    "armv8.7a",     "armv8.8-a",   "armv8.8a",       "armv8.9-a",   "armv8.9a",
+    "armv8-r",      "armv8r",      "armv8-m.base",   "armv8m.base", "armv8-m.main",
+    "armv8m.main",  "iwmmxt",      "iwmmxt2",        "xscale",      "armv8.1-m.main",
+    "armv9-a",      "armv9",       "armv9a",         "armv9.1-a",   "armv9.1a",
+    "armv9.2-a",    "armv9.2a",    "armv9.3-a",      "armv9.3a",    "armv9.4-a",
+    "armv9.4a",
 };
 
 template <ARM::ISAKind ISAKind>
@@ -510,6 +513,9 @@ TEST(TargetParserTest, testARMArch) {
   EXPECT_TRUE(testARMArch("armv8.8-a", "generic", "v8.8a",
                           ARMBuildAttrs::CPUArch::v8_A));
   EXPECT_TRUE(
+      testARMArch("armv8.9-a", "generic", "v8.9a",
+                          ARMBuildAttrs::CPUArch::v8_A));
+  EXPECT_TRUE(
       testARMArch("armv9-a", "generic", "v9a",
                           ARMBuildAttrs::CPUArch::v9_A));
   EXPECT_TRUE(
@@ -520,6 +526,9 @@ TEST(TargetParserTest, testARMArch) {
                           ARMBuildAttrs::CPUArch::v9_A));
   EXPECT_TRUE(
       testARMArch("armv9.3-a", "generic", "v9.3a",
+                          ARMBuildAttrs::CPUArch::v9_A));
+  EXPECT_TRUE(
+      testARMArch("armv9.4-a", "generic", "v9.4a",
                           ARMBuildAttrs::CPUArch::v9_A));
   EXPECT_TRUE(
       testARMArch("armv8-r", "cortex-r52", "v8r",
@@ -674,9 +683,8 @@ TEST(TargetParserTest, ARMExtensionFeatures) {
   std::map<uint64_t, std::vector<StringRef>> Extensions;
 
   for (auto &Ext : ARM::ARCHExtNames) {
-    if (Ext.Feature && Ext.NegFeature)
-      Extensions[Ext.ID] = { StringRef(Ext.Feature),
-                             StringRef(Ext.NegFeature) };
+    if (!Ext.Feature.empty() && !Ext.NegFeature.empty())
+      Extensions[Ext.ID] = {Ext.Feature, Ext.NegFeature};
   }
 
   Extensions[ARM::AEK_HWDIVARM]   = { "+hwdiv-arm", "-hwdiv-arm" };
@@ -851,10 +859,12 @@ TEST(TargetParserTest, ARMparseArchProfile) {
     case ARM::ArchKind::ARMV8_6A:
     case ARM::ArchKind::ARMV8_7A:
     case ARM::ArchKind::ARMV8_8A:
+    case ARM::ArchKind::ARMV8_9A:
     case ARM::ArchKind::ARMV9A:
     case ARM::ArchKind::ARMV9_1A:
     case ARM::ArchKind::ARMV9_2A:
     case ARM::ArchKind::ARMV9_3A:
+    case ARM::ArchKind::ARMV9_4A:
       EXPECT_EQ(ARM::ProfileKind::A, ARM::parseArchProfile(ARMArch[i]));
       break;
     default:
@@ -949,11 +959,6 @@ TEST_P(AArch64CPUTestFixture, testAArch64CPU) {
       AArch64::getDefaultExtensions(params.CPUName, AK);
   EXPECT_PRED_FORMAT2(AssertSameExtensionFlags<ARM::ISAKind::AARCH64>,
                       params.ExpectedFlags, default_extensions);
-
-  unsigned FPUKind = AArch64::getDefaultFPU(params.CPUName, AK);
-  EXPECT_EQ(params.ExpectedFPU, ARM::getFPUName(FPUKind));
-
-  EXPECT_EQ(params.CPUAttr, AArch64::getCPUAttr(AK));
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -1404,10 +1409,7 @@ TEST(TargetParserTest, testAArch64CPUArchList) {
 bool testAArch64Arch(StringRef Arch, StringRef DefaultCPU, StringRef SubArch,
                      unsigned ArchAttr) {
   AArch64::ArchKind AK = AArch64::parseArch(Arch);
-  return (AK != AArch64::ArchKind::INVALID) &&
-         AArch64::getDefaultCPU(Arch).equals(DefaultCPU) &&
-         AArch64::getSubArch(AK).equals(SubArch) &&
-         (AArch64::getArchAttr(AK) == ArchAttr);
+  return AK != AArch64::ArchKind::INVALID;
 }
 
 TEST(TargetParserTest, testAArch64Arch) {
@@ -1429,11 +1431,17 @@ TEST(TargetParserTest, testAArch64Arch) {
                               ARMBuildAttrs::CPUArch::v8_A));
   EXPECT_TRUE(testAArch64Arch("armv8.8-a", "generic", "v8.8a",
                               ARMBuildAttrs::CPUArch::v8_A));
+  EXPECT_TRUE(testAArch64Arch("armv8.9-a", "generic", "v8.9a",
+                              ARMBuildAttrs::CPUArch::v8_A));
   EXPECT_TRUE(testAArch64Arch("armv9-a", "generic", "v9a",
                               ARMBuildAttrs::CPUArch::v8_A));
   EXPECT_TRUE(testAArch64Arch("armv9.1-a", "generic", "v9.1a",
                               ARMBuildAttrs::CPUArch::v8_A));
   EXPECT_TRUE(testAArch64Arch("armv9.2-a", "generic", "v9.2a",
+                              ARMBuildAttrs::CPUArch::v8_A));
+  EXPECT_TRUE(testAArch64Arch("armv9.3-a", "generic", "v9.3a",
+                              ARMBuildAttrs::CPUArch::v8_A));
+  EXPECT_TRUE(testAArch64Arch("armv9.4-a", "generic", "v9.4a",
                               ARMBuildAttrs::CPUArch::v8_A));
 }
 
@@ -1583,22 +1591,25 @@ TEST(TargetParserTest, testAArch64Extension) {
 
 TEST(TargetParserTest, AArch64ExtensionFeatures) {
   std::vector<uint64_t> Extensions = {
-      AArch64::AEK_CRC,     AArch64::AEK_LSE,      AArch64::AEK_RDM,
-      AArch64::AEK_CRYPTO,  AArch64::AEK_SM4,      AArch64::AEK_SHA3,
-      AArch64::AEK_SHA2,    AArch64::AEK_AES,      AArch64::AEK_DOTPROD,
-      AArch64::AEK_FP,      AArch64::AEK_SIMD,     AArch64::AEK_FP16,
-      AArch64::AEK_FP16FML, AArch64::AEK_PROFILE,  AArch64::AEK_RAS,
-      AArch64::AEK_SVE,     AArch64::AEK_SVE2,     AArch64::AEK_SVE2AES,
-      AArch64::AEK_SVE2SM4, AArch64::AEK_SVE2SHA3, AArch64::AEK_SVE2BITPERM,
-      AArch64::AEK_RCPC,    AArch64::AEK_RAND,     AArch64::AEK_MTE,
-      AArch64::AEK_SSBS,    AArch64::AEK_SB,       AArch64::AEK_PREDRES,
-      AArch64::AEK_BF16,    AArch64::AEK_I8MM,     AArch64::AEK_F32MM,
-      AArch64::AEK_F64MM,   AArch64::AEK_TME,      AArch64::AEK_LS64,
-      AArch64::AEK_BRBE,    AArch64::AEK_PAUTH,    AArch64::AEK_FLAGM,
+      AArch64::AEK_CRC,     AArch64::AEK_LSE,       AArch64::AEK_RDM,
+      AArch64::AEK_CRYPTO,  AArch64::AEK_SM4,       AArch64::AEK_SHA3,
+      AArch64::AEK_SHA2,    AArch64::AEK_AES,       AArch64::AEK_DOTPROD,
+      AArch64::AEK_FP,      AArch64::AEK_SIMD,      AArch64::AEK_FP16,
+      AArch64::AEK_FP16FML, AArch64::AEK_PROFILE,   AArch64::AEK_RAS,
+      AArch64::AEK_SVE,     AArch64::AEK_SVE2,      AArch64::AEK_SVE2AES,
+      AArch64::AEK_SVE2SM4, AArch64::AEK_SVE2SHA3,  AArch64::AEK_SVE2BITPERM,
+      AArch64::AEK_RCPC,    AArch64::AEK_RAND,      AArch64::AEK_MTE,
+      AArch64::AEK_SSBS,    AArch64::AEK_SB,        AArch64::AEK_PREDRES,
+      AArch64::AEK_BF16,    AArch64::AEK_I8MM,      AArch64::AEK_F32MM,
+      AArch64::AEK_F64MM,   AArch64::AEK_TME,       AArch64::AEK_LS64,
+      AArch64::AEK_BRBE,    AArch64::AEK_PAUTH,     AArch64::AEK_FLAGM,
       AArch64::AEK_SME,     AArch64::AEK_SMEF64F64, AArch64::AEK_SMEI16I64,
-      AArch64::AEK_SME2,    AArch64::AEK_HBC,      AArch64::AEK_MOPS,
-      AArch64::AEK_PERFMON, AArch64::AEK_SVE2p1,   AArch64::AEK_SME2p1,
-      AArch64::AEK_B16B16,  AArch64::AEK_SMEF16F16};
+      AArch64::AEK_SME2,    AArch64::AEK_HBC,       AArch64::AEK_MOPS,
+      AArch64::AEK_PERFMON, AArch64::AEK_SVE2p1,    AArch64::AEK_SME2p1,
+      AArch64::AEK_B16B16,  AArch64::AEK_SMEF16F16, AArch64::AEK_CSSC,
+      AArch64::AEK_RCPC3,   AArch64::AEK_THE,       AArch64::AEK_D128,
+      AArch64::AEK_LSE128,  AArch64::AEK_SPECRES2,
+  };
 
   std::vector<StringRef> Features;
 
@@ -1663,6 +1674,12 @@ TEST(TargetParserTest, AArch64ExtensionFeatures) {
   EXPECT_TRUE(llvm::is_contained(Features, "+hbc"));
   EXPECT_TRUE(llvm::is_contained(Features, "+mops"));
   EXPECT_TRUE(llvm::is_contained(Features, "+perfmon"));
+  EXPECT_TRUE(llvm::is_contained(Features, "+cssc"));
+  EXPECT_TRUE(llvm::is_contained(Features, "+rcpc3"));
+  EXPECT_TRUE(llvm::is_contained(Features, "+the"));
+  EXPECT_TRUE(llvm::is_contained(Features, "+d128"));
+  EXPECT_TRUE(llvm::is_contained(Features, "+lse128"));
+  EXPECT_TRUE(llvm::is_contained(Features, "+specres2"));
 
   // Assuming we listed every extension above, this should produce the same
   // result. (note that AEK_NONE doesn't have a name so it won't be in the
@@ -1673,14 +1690,23 @@ TEST(TargetParserTest, AArch64ExtensionFeatures) {
 }
 
 TEST(TargetParserTest, AArch64ArchFeatures) {
-  std::vector<StringRef> Features;
-
-  for (auto AK : AArch64::ArchKinds) {
-    if (AK == AArch64::ArchKind::INVALID)
-      EXPECT_FALSE(AArch64::getArchFeatures(AK, Features));
-    else
-      EXPECT_TRUE(AArch64::getArchFeatures(AK, Features));
-  }
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::INVALID), "+");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV8A), "+v8a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV8_1A), "+v8.1a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV8_2A), "+v8.2a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV8_3A), "+v8.3a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV8_4A), "+v8.4a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV8_5A), "+v8.5a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV8_6A), "+v8.6a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV8_7A), "+v8.7a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV8_8A), "+v8.8a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV8_9A), "+v8.9a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV9A), "+v9a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV9_1A), "+v9.1a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV9_2A), "+v9.2a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV9_3A), "+v9.3a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV9_4A), "+v9.4a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV8R), "+v8r");
 }
 
 TEST(TargetParserTest, AArch64ArchV9toV8Conversion) {
@@ -1746,6 +1772,7 @@ TEST(TargetParserTest, AArch64ArchExtFeature) {
       {"hbc", "nohbc", "+hbc", "-hbc"},
       {"mops", "nomops", "+mops", "-mops"},
       {"pmuv3", "nopmuv3", "+perfmon", "-perfmon"},
+      {"predres2", "nopredres2", "+specres2", "-specres2"},
   };
 
   for (unsigned i = 0; i < std::size(ArchExt); i++) {

@@ -31,13 +31,20 @@ public:
   // Application
   //===--------------------------------------------------------------------===//
 
-  /// Replace the elements within the given operation. By default this includes
-  /// the attributes within the operation. If `replaceLocs` is true, this also
-  /// updates its location, the locations of any nested block arguments. If
-  /// `replaceTypes` is true, this also updates the result types of the
-  /// operation, and the types of any nested block arguments.
-  void replaceElementsIn(Operation *op, bool replaceLocs = false,
-                         bool replaceTypes = false);
+  /// Replace the elements within the given operation. If `replaceAttrs` is
+  /// true, this updates the attribute dictionary of the operation. If
+  /// `replaceLocs` is true, this also updates its location, and the locations
+  /// of any nested block arguments. If `replaceTypes` is true, this also
+  /// updates the result types of the operation, and the types of any nested
+  /// block arguments.
+  void replaceElementsIn(Operation *op, bool replaceAttrs = true,
+                         bool replaceLocs = false, bool replaceTypes = false);
+
+  /// Replace the elements within the given operation, and all nested
+  /// operations.
+  void recursivelyReplaceElementsIn(Operation *op, bool replaceAttrs = true,
+                                    bool replaceLocs = false,
+                                    bool replaceTypes = false);
 
   /// Replace the given attribute/type, and recursively replace any sub
   /// elements. Returns either the new attribute/type, or nullptr in the case of
@@ -49,9 +56,9 @@ public:
   // Registration
   //===--------------------------------------------------------------------===//
 
-  /// A replacement mapping function, which returns either None (to signal the
-  /// element wasn't handled), or a pair of the replacement element and a
-  /// WalkResult.
+  /// A replacement mapping function, which returns either std::nullopt (to
+  /// signal the element wasn't handled), or a pair of the replacement element
+  /// and a WalkResult.
   template <typename T>
   using ReplaceFnResult = Optional<std::pair<T, WalkResult>>;
   template <typename T>
@@ -64,7 +71,7 @@ public:
   ///
   ///   * Optional<BaseT>(T)
   ///     - This either returns a valid Attribute/Type in the case of success,
-  ///       nullptr in the case of failure, or `llvm::None` to signify that
+  ///       nullptr in the case of failure, or `std::nullopt` to signify that
   ///       additional replacement functions may be applied (i.e. this function
   ///       doesn't handle that instance).
   ///

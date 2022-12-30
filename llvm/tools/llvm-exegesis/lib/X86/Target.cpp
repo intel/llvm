@@ -54,6 +54,11 @@ static cl::opt<unsigned> LbrSamplingPeriod(
     cl::desc("The sample period (nbranches/sample), used for LBR sampling"),
     cl::cat(BenchmarkOptions), cl::init(0));
 
+static cl::opt<bool>
+    DisableUpperSSERegisters("x86-disable-upper-sse-registers",
+                             cl::desc("Disable XMM8-XMM15 register usage"),
+                             cl::cat(BenchmarkOptions), cl::init(false));
+
 // FIXME: Validates that repetition-mode is loop if LBR is requested.
 
 // Returns a non-null reason if we cannot handle the memory references in this
@@ -708,9 +713,13 @@ private:
                                const APInt &Value) const override;
 
   ArrayRef<unsigned> getUnavailableRegisters() const override {
+    if (DisableUpperSSERegisters)
+      return makeArrayRef(kUnavailableRegistersSSE,
+                          sizeof(kUnavailableRegistersSSE) /
+                              sizeof(kUnavailableRegistersSSE[0]));
+
     return makeArrayRef(kUnavailableRegisters,
-                        sizeof(kUnavailableRegisters) /
-                            sizeof(kUnavailableRegisters[0]));
+                        std::size(kUnavailableRegisters));
   }
 
   bool allowAsBackToBack(const Instruction &Instr) const override {
@@ -773,12 +782,19 @@ private:
   }
 
   static const unsigned kUnavailableRegisters[4];
+  static const unsigned kUnavailableRegistersSSE[12];
 };
 
 // We disable a few registers that cannot be encoded on instructions with a REX
 // prefix.
 const unsigned ExegesisX86Target::kUnavailableRegisters[4] = {X86::AH, X86::BH,
                                                               X86::CH, X86::DH};
+
+// Optionally, also disable the upper (x86_64) SSE registers to reduce frontend
+// decoder load.
+const unsigned ExegesisX86Target::kUnavailableRegistersSSE[12] = {
+    X86::AH,    X86::BH,    X86::CH,    X86::DH,    X86::XMM8,  X86::XMM9,
+    X86::XMM10, X86::XMM11, X86::XMM12, X86::XMM13, X86::XMM14, X86::XMM15};
 
 // We're using one of R8-R15 because these registers are never hardcoded in
 // instructions (e.g. MOVS writes to EDI, ESI, EDX), so they have less
@@ -864,6 +880,35 @@ std::vector<MCInst> ExegesisX86Target::setRegTo(const MCSubtargetInfo &STI,
     return {loadImmediate(Reg, 32, Value)};
   if (X86::GR64RegClass.contains(Reg))
     return {loadImmediate(Reg, 64, Value)};
+  if (X86::VK8RegClass.contains(Reg) || X86::VK16RegClass.contains(Reg) ||
+      X86::VK32RegClass.contains(Reg) || X86::VK64RegClass.contains(Reg)) {
+    switch (Value.getBitWidth()) {
+    case 8:
+      if (STI.getFeatureBits()[X86::FeatureDQI]) {
+        ConstantInliner CI(Value);
+        return CI.loadAndFinalize(Reg, Value.getBitWidth(), X86::KMOVBkm);
+      }
+      [[fallthrough]];
+    case 16:
+      if (STI.getFeatureBits()[X86::FeatureAVX512]) {
+        ConstantInliner CI(Value.zextOrTrunc(16));
+        return CI.loadAndFinalize(Reg, 16, X86::KMOVWkm);
+      }
+      break;
+    case 32:
+      if (STI.getFeatureBits()[X86::FeatureBWI]) {
+        ConstantInliner CI(Value);
+        return CI.loadAndFinalize(Reg, Value.getBitWidth(), X86::KMOVDkm);
+      }
+      break;
+    case 64:
+      if (STI.getFeatureBits()[X86::FeatureBWI]) {
+        ConstantInliner CI(Value);
+        return CI.loadAndFinalize(Reg, Value.getBitWidth(), X86::KMOVQkm);
+      }
+      break;
+    }
+  }
   ConstantInliner CI(Value);
   if (X86::VR64RegClass.contains(Reg))
     return CI.loadAndFinalize(Reg, 64, X86::MMX_MOVQ64rm);

@@ -237,7 +237,7 @@ getSyclDeviceTypeMap();
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
 // ONEAPI_DEVICE_SELECTOR
-const std::array<std::pair<std::string, backend>, 7> &getSyclBeMap();
+const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap();
 
 // ---------------------------------------
 // ONEAPI_DEVICE_SELECTOR support
@@ -287,7 +287,7 @@ public:
     if (ValStr) {
 
       std::cerr
-          << "\nWARNING: The enviroment variable SYCL_DEVICE_FITLER"
+          << "\nWARNING: The enviroment variable SYCL_DEVICE_FILTER"
              " is deprecated. Please use ONEAPI_DEVICE_SELECTOR instead.\n"
              "For more details, please refer to:\n"
              "https://github.com/intel/llvm/blob/sycl/sycl/doc/"

@@ -47,9 +47,8 @@
 #ifndef LLVM_IR_GCSTRATEGY_H
 #define LLVM_IR_GCSTRATEGY_H
 
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/Support/Registry.h"
+#include <optional>
 #include <string>
 
 namespace llvm {
@@ -92,10 +91,10 @@ public:
 
   /// If the type specified can be reliably distinguished, returns true for
   /// pointers to GC managed locations and false for pointers to non-GC
-  /// managed locations.  Note a GCStrategy can always return 'None' (i.e. an
-  /// empty optional indicating it can't reliably distinguish.
-  virtual Optional<bool> isGCManagedPointer(const Type *Ty) const {
-    return None;
+  /// managed locations.  Note a GCStrategy can always return 'std::nullopt'
+  /// (i.e. an empty optional indicating it can't reliably distinguish.
+  virtual std::optional<bool> isGCManagedPointer(const Type *Ty) const {
+    return std::nullopt;
   }
   ///@}
 

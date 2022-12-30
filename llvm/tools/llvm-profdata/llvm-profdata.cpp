@@ -40,6 +40,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <queue>
 
 using namespace llvm;
@@ -348,6 +349,9 @@ static void mergeWriterContexts(WriterContext *Dst, WriterContext *Src) {
     Dst->Errors.push_back(std::move(ErrorPair));
   Src->Errors.clear();
 
+  if (Error E = Dst->Writer.mergeProfileKind(Src->Writer.getProfileKind()))
+    exitWithError(std::move(E));
+
   Dst->Writer.mergeRecordsFromWriter(std::move(Src->Writer), [&](Error E) {
     instrprof_error IPE = InstrProfError::take(std::move(E));
     std::unique_lock<std::mutex> ErrGuard{Dst->ErrLock};
@@ -405,9 +409,6 @@ static void mergeInstrProfile(const WeightedFileVector &Inputs,
   if (NumThreads == 0)
     NumThreads = std::min(hardware_concurrency().compute_thread_count(),
                           unsigned((Inputs.size() + 1) / 2));
-  // FIXME: There's a bug here, where setting NumThreads = Inputs.size() fails
-  // the merge_empty_profile.test because the InstrProfWriter.ProfileKind isn't
-  // merged, thus the emitted file ends up with a PF_Unknown kind.
 
   // Initialize the writer contexts.
   SmallVector<std::unique_ptr<WriterContext>, 4> Contexts;
@@ -631,6 +632,100 @@ adjustInstrProfile(std::unique_ptr<WriterContext> &WC,
     }
   };
 
+  // We need to flatten the SampleFDO profile as the InstrFDO
+  // profile does not have inlined callsite profiles.
+  // One caveat is the pre-inlined function -- their samples
+  // should be collapsed into the caller function.
+  // Here we do a DFS traversal to get the flatten profile
+  // info: the sum of entrycount and the max of maxcount.
+  // Here is the algorithm:
+  //   recursive (FS, root_name) {
+  //      name = FS->getName();
+  //      get samples for FS;
+  //      if (InstrProf.find(name) {
+  //        root_name = name;
+  //      } else {
+  //        if (name is in static_func map) {
+  //          root_name = static_name;
+  //        }
+  //      }
+  //      update the Map entry for root_name;
+  //      for (subfs: FS) {
+  //        recursive(subfs, root_name);
+  //      }
+  //   }
+  //
+  // Here is an example.
+  //
+  // SampleProfile:
+  // foo:12345:1000
+  // 1: 1000
+  // 2.1: 1000
+  // 15: 5000
+  // 4: bar:1000
+  //  1: 1000
+  //  2: goo:3000
+  //   1: 3000
+  // 8: bar:40000
+  //  1: 10000
+  //  2: goo:30000
+  //   1: 30000
+  //
+  // InstrProfile has two entries:
+  //  foo
+  //  bar.cc:bar
+  //
+  // After BuildMaxSampleMap, we should have the following in FlattenSampleMap:
+  // {"foo", {1000, 5000}}
+  // {"bar.cc:bar", {11000, 30000}}
+  //
+  // foo's has an entry count of 1000, and max body count of 5000.
+  // bar.cc:bar has an entry count of 11000 (sum two callsites of 1000 and
+  // 10000), and max count of 30000 (from the callsite in line 8).
+  //
+  // Note that goo's count will remain in bar.cc:bar() as it does not have an
+  // entry in InstrProfile.
+  DenseMap<StringRef, std::pair<uint64_t, uint64_t>> FlattenSampleMap;
+  auto BuildMaxSampleMap = [&FlattenSampleMap, &StaticFuncMap,
+                            &InstrProfileMap](const FunctionSamples &FS,
+                                              const StringRef &RootName) {
+    auto BuildMaxSampleMapImpl = [&](const FunctionSamples &FS,
+                                     const StringRef &RootName,
+                                     auto &BuildImpl) -> void {
+      const StringRef &Name = FS.getName();
+      const StringRef *NewRootName = &RootName;
+      uint64_t EntrySample = FS.getHeadSamplesEstimate();
+      uint64_t MaxBodySample = FS.getMaxCountInside(/* SkipCallSite*/ true);
+
+      auto It = InstrProfileMap.find(Name);
+      if (It != InstrProfileMap.end()) {
+        NewRootName = &Name;
+      } else {
+        auto NewName = StaticFuncMap.find(Name);
+        if (NewName != StaticFuncMap.end()) {
+          It = InstrProfileMap.find(NewName->second.str());
+          if (NewName->second != DuplicateNameStr) {
+            NewRootName = &NewName->second;
+          }
+        } else {
+          // Here the EntrySample is of an inlined function, so we should not
+          // update the EntrySample in the map.
+          EntrySample = 0;
+        }
+      }
+      EntrySample += FlattenSampleMap[*NewRootName].first;
+      MaxBodySample =
+          std::max(FlattenSampleMap[*NewRootName].second, MaxBodySample);
+      FlattenSampleMap[*NewRootName] =
+          std::make_pair(EntrySample, MaxBodySample);
+
+      for (const auto &C : FS.getCallsiteSamples())
+        for (const auto &F : C.second)
+          BuildImpl(F.second, *NewRootName, BuildImpl);
+    };
+    BuildMaxSampleMapImpl(FS, RootName, BuildMaxSampleMapImpl);
+  };
+
   for (auto &PD : WC->Writer.getProfileData()) {
     // Populate IPBuilder.
     for (const auto &PDV : PD.getValue()) {
@@ -647,6 +742,11 @@ adjustInstrProfile(std::unique_ptr<WriterContext> &WC,
     StringRef FullName = PD.getKey();
     InstrProfileMap[FullName] = InstrProfileEntry(R);
     buildStaticFuncMap(FullName);
+  }
+
+  for (auto &PD : Reader->getProfiles()) {
+    sampleprof::FunctionSamples &FS = PD.second;
+    BuildMaxSampleMap(FS, FS.getName());
   }
 
   ProfileSummary InstrPS = *IPBuilder.getSummary();
@@ -678,20 +778,19 @@ adjustInstrProfile(std::unique_ptr<WriterContext> &WC,
 
   // Find hot/warm functions in sample profile which is cold in instr profile
   // and adjust the profiles of those functions in the instr profile.
-  for (const auto &PD : Reader->getProfiles()) {
-    const sampleprof::FunctionSamples &FS = PD.second;
-    uint64_t SampleMaxCount = FS.getMaxCountInside();
+  for (const auto &E : FlattenSampleMap) {
+    uint64_t SampleMaxCount = std::max(E.second.first, E.second.second);
     if (SampleMaxCount < ColdSampleThreshold)
       continue;
-    auto &FContext = PD.first;
-    auto It = InstrProfileMap.find(FContext.toString());
+    const StringRef &Name = E.first;
+    auto It = InstrProfileMap.find(Name);
     if (It == InstrProfileMap.end()) {
-      auto NewName = StaticFuncMap.find(FContext.toString());
+      auto NewName = StaticFuncMap.find(Name);
       if (NewName != StaticFuncMap.end()) {
         It = InstrProfileMap.find(NewName->second.str());
         if (NewName->second == DuplicateNameStr) {
           WithColor::warning()
-              << "Static function " << FContext.toString()
+              << "Static function " << Name
               << " has multiple promoted names, cannot adjust profile.\n";
         }
       }
@@ -860,14 +959,15 @@ mergeSampleProfile(const WeightedFileVector &Inputs, SymbolRemapper *Remapper,
                    StringRef ProfileSymbolListFile, bool CompressAllSections,
                    bool UseMD5, bool GenPartialProfile, bool GenCSNestedProfile,
                    bool SampleMergeColdContext, bool SampleTrimColdContext,
-                   bool SampleColdContextFrameDepth, FailureMode FailMode) {
+                   bool SampleColdContextFrameDepth, FailureMode FailMode,
+                   bool DropProfileSymbolList) {
   using namespace sampleprof;
   SampleProfileMap ProfileMap;
   SmallVector<std::unique_ptr<sampleprof::SampleProfileReader>, 5> Readers;
   LLVMContext Context;
   sampleprof::ProfileSymbolList WriterList;
-  Optional<bool> ProfileIsProbeBased;
-  Optional<bool> ProfileIsCS;
+  std::optional<bool> ProfileIsProbeBased;
+  std::optional<bool> ProfileIsCS;
   for (const auto &Input : Inputs) {
     auto ReaderOrErr = SampleProfileReader::create(Input.Filename, Context,
                                                    FSDiscriminatorPassOption);
@@ -913,10 +1013,12 @@ mergeSampleProfile(const WeightedFileVector &Inputs, SymbolRemapper *Remapper,
       }
     }
 
-    std::unique_ptr<sampleprof::ProfileSymbolList> ReaderList =
-        Reader->getProfileSymbolList();
-    if (ReaderList)
-      WriterList.merge(*ReaderList);
+    if (!DropProfileSymbolList) {
+      std::unique_ptr<sampleprof::ProfileSymbolList> ReaderList =
+          Reader->getProfileSymbolList();
+      if (ReaderList)
+        WriterList.merge(*ReaderList);
+    }
   }
 
   if (ProfileIsCS && (SampleMergeColdContext || SampleTrimColdContext)) {
@@ -1128,6 +1230,10 @@ static int merge_main(int argc, const char *argv[]) {
   cl::opt<std::string> ProfiledBinary(
       "profiled-binary", cl::init(""),
       cl::desc("Path to binary from which the profile was collected."));
+  cl::opt<bool> DropProfileSymbolList(
+      "drop-profile-symbol-list", cl::init(false), cl::Hidden,
+      cl::desc("Drop the profile symbol list when merging AutoFDO profiles "
+               "(only meaningful for -sample)"));
 
   cl::ParseCommandLineOptions(argc, argv, "LLVM profile data merger\n");
 
@@ -1172,11 +1278,11 @@ static int merge_main(int argc, const char *argv[]) {
                       OutputFilename, OutputFormat, OutputSparse, NumThreads,
                       FailureMode, ProfiledBinary);
   else
-    mergeSampleProfile(WeightedInputs, Remapper.get(), OutputFilename,
-                       OutputFormat, ProfileSymbolListFile, CompressAllSections,
-                       UseMD5, GenPartialProfile, GenCSNestedProfile,
-                       SampleMergeColdContext, SampleTrimColdContext,
-                       SampleColdContextFrameDepth, FailureMode);
+    mergeSampleProfile(
+        WeightedInputs, Remapper.get(), OutputFilename, OutputFormat,
+        ProfileSymbolListFile, CompressAllSections, UseMD5, GenPartialProfile,
+        GenCSNestedProfile, SampleMergeColdContext, SampleTrimColdContext,
+        SampleColdContextFrameDepth, FailureMode, DropProfileSymbolList);
   return 0;
 }
 

@@ -32,7 +32,7 @@
 #include "llvm/PassRegistry.h"
 #include "llvm/Support/CommandLine.h"
 
-#if defined(LLVM_HAVE_TF_API)
+#if defined(LLVM_HAVE_TFLITE)
 #include "llvm/Analysis/ModelUnderTrainingRunner.h"
 #include "llvm/Analysis/NoInferenceModelRunner.h"
 #include "llvm/Analysis/Utils/TrainingLogger.h"
@@ -41,7 +41,7 @@
 using namespace llvm;
 
 // Options that only make sense in development mode
-#ifdef LLVM_HAVE_TF_API
+#ifdef LLVM_HAVE_TFLITE
 #include "RegAllocScore.h"
 #include "llvm/Analysis/Utils/TFUtils.h"
 
@@ -53,7 +53,7 @@ static cl::opt<std::string> ModelUnderTraining(
     "regalloc-priority-model", cl::Hidden,
     cl::desc("The model being trained for register allocation priority"));
 
-#endif // #ifdef LLVM_HAVE_TF_API
+#endif // #ifdef LLVM_HAVE_TFLITE
 
 namespace llvm {
 
@@ -139,7 +139,7 @@ private:
 // ===================================
 //
 // Features we log
-#ifdef LLVM_HAVE_TF_API
+#ifdef LLVM_HAVE_TFLITE
 
 static const TensorSpec Output =
     TensorSpec::createSpec<float>(DecisionName, {1});
@@ -236,16 +236,13 @@ private:
 
     Logger *Log = nullptr;
     if (!TrainingLog.empty()) {
-      std::vector<LoggedFeatureSpec> LFS;
-      for (const auto &FS : InputFeatures)
-        LFS.push_back({FS, None});
+      std::vector<TensorSpec> LFS = InputFeatures;
       if (auto *MUTR = dyn_cast<ModelUnderTrainingRunner>(Runner.get()))
-        if (MUTR->outputLoggedFeatureSpecs().size() > 1)
-          append_range(LFS, drop_begin(MUTR->outputLoggedFeatureSpecs()));
+        append_range(LFS, MUTR->extraOutputsForLoggingSpecs());
       // We always log the output; in particular, if we're not evaluating, we
       // don't have an output spec json file. That's why we handle the
       // 'normal' output separately.
-      LFS.push_back({Output, None});
+      LFS.push_back(Output);
       auto I = LogMap.insert(std::make_pair(
           MF.getFunction().getName(),
           std::make_unique<Logger>(LFS, Reward, /*IncludeReward*/ true)));
@@ -260,7 +257,7 @@ private:
   std::unique_ptr<MLModelRunner> Runner;
   StringMap<std::unique_ptr<Logger>> LogMap;
 };
-#endif //#ifdef LLVM_HAVE_TF_API
+#endif //#ifdef LLVM_HAVE_TFLITE
 
 } // namespace llvm
 
@@ -292,7 +289,7 @@ unsigned MLPriorityAdvisor::getPriority(const LiveInterval &LI) const {
   return static_cast<unsigned>(getPriorityImpl(LI));
 }
 
-#ifdef LLVM_HAVE_TF_API
+#ifdef LLVM_HAVE_TFLITE
 RegAllocPriorityAdvisorAnalysis *llvm::createDevelopmentModePriorityAdvisor() {
   return new DevelopmentModePriorityAdvisorAnalysis();
 }
@@ -318,12 +315,11 @@ DevelopmentModePriorityAdvisor::getPriority(const LiveInterval &LI) const {
   }
 
   if (auto *MUTR = dyn_cast<ModelUnderTrainingRunner>(&getRunner())) {
-    for (size_t I = 1; I < MUTR->outputLoggedFeatureSpecs().size();
+    for (size_t I = 0; I < MUTR->extraOutputsForLoggingSpecs().size();
          ++I, ++CurrentFeature)
       Log->logSpecifiedTensorValue(
           CurrentFeature,
-          reinterpret_cast<const char *>(
-              MUTR->lastEvaluationResult()->getUntypedTensorValue(I)));
+          reinterpret_cast<const char *>(MUTR->getUntypedExtraOutputValue(I)));
   }
 
   float Ret = static_cast<float>(Prio);
@@ -332,4 +328,4 @@ DevelopmentModePriorityAdvisor::getPriority(const LiveInterval &LI) const {
   return static_cast<unsigned>(Prio);
 }
 
-#endif // #ifdef LLVM_HAVE_TF_API
+#endif // #ifdef LLVM_HAVE_TFLITE

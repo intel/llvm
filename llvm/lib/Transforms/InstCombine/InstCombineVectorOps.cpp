@@ -187,12 +187,12 @@ Instruction *InstCombinerImpl::foldBitcastExtElt(ExtractElementInst &Ext) {
   ElementCount NumElts =
       cast<VectorType>(Ext.getVectorOperandType())->getElementCount();
   Type *DestTy = Ext.getType();
+  unsigned DestWidth = DestTy->getPrimitiveSizeInBits();
   bool IsBigEndian = DL.isBigEndian();
 
   // If we are casting an integer to vector and extracting a portion, that is
   // a shift-right and truncate.
-  if (X->getType()->isIntegerTy() &&
-      isDesirableIntType(X->getType()->getPrimitiveSizeInBits())) {
+  if (X->getType()->isIntegerTy()) {
     assert(isa<FixedVectorType>(Ext.getVectorOperand()->getType()) &&
            "Expected fixed vector type for bitcast from scalar integer");
 
@@ -201,16 +201,18 @@ Instruction *InstCombinerImpl::foldBitcastExtElt(ExtractElementInst &Ext) {
     // BigEndian: extelt (bitcast i32 X to v4i8), 0 -> trunc i32 (X >> 24) to i8
     if (IsBigEndian)
       ExtIndexC = NumElts.getKnownMinValue() - 1 - ExtIndexC;
-    unsigned ShiftAmountC = ExtIndexC * DestTy->getPrimitiveSizeInBits();
-    if (!ShiftAmountC || Ext.getVectorOperand()->hasOneUse()) {
-      Value *Lshr = Builder.CreateLShr(X, ShiftAmountC, "extelt.offset");
+    unsigned ShiftAmountC = ExtIndexC * DestWidth;
+    if (!ShiftAmountC ||
+        (isDesirableIntType(X->getType()->getPrimitiveSizeInBits()) &&
+        Ext.getVectorOperand()->hasOneUse())) {
+      if (ShiftAmountC)
+        X = Builder.CreateLShr(X, ShiftAmountC, "extelt.offset");
       if (DestTy->isFloatingPointTy()) {
-        Type *DstIntTy = IntegerType::getIntNTy(
-            Lshr->getContext(), DestTy->getPrimitiveSizeInBits());
-        Value *Trunc = Builder.CreateTrunc(Lshr, DstIntTy);
+        Type *DstIntTy = IntegerType::getIntNTy(X->getContext(), DestWidth);
+        Value *Trunc = Builder.CreateTrunc(X, DstIntTy);
         return new BitCastInst(Trunc, DestTy);
       }
-      return new TruncInst(Lshr, DestTy);
+      return new TruncInst(X, DestTy);
     }
   }
 
@@ -283,7 +285,6 @@ Instruction *InstCombinerImpl::foldBitcastExtElt(ExtractElementInst &Ext) {
       return nullptr;
 
     unsigned SrcWidth = SrcTy->getScalarSizeInBits();
-    unsigned DestWidth = DestTy->getPrimitiveSizeInBits();
     unsigned ShAmt = Chunk * DestWidth;
 
     // TODO: This limitation is more strict than necessary. We could sum the
@@ -397,6 +398,20 @@ Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
   if (Value *V = simplifyExtractElementInst(SrcVec, Index,
                                             SQ.getWithInstruction(&EI)))
     return replaceInstUsesWith(EI, V);
+
+  // extractelt (select %x, %vec1, %vec2), %const ->
+  // select %x, %vec1[%const], %vec2[%const]
+  // TODO: Support constant folding of multiple select operands:
+  // extractelt (select %x, %vec1, %vec2), (select %x, %c1, %c2)
+  // If the extractelement will for instance try to do out of bounds accesses
+  // because of the values of %c1 and/or %c2, the sequence could be optimized
+  // early. This is currently not possible because constant folding will reach
+  // an unreachable assertion if it doesn't find a constant operand.
+  if (SelectInst *SI = dyn_cast<SelectInst>(EI.getVectorOperand()))
+    if (SI->getCondition()->getType()->isIntegerTy() &&
+        isa<Constant>(EI.getIndexOperand()))
+      if (Instruction *R = FoldOpIntoSelect(EI, SI))
+        return R;
 
   // If extracting a specified index from the vector, see if we can recursively
   // find a previously computed scalar that was inserted into the vector.
@@ -855,7 +870,7 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
   if (NumAggElts > 2)
     return nullptr;
 
-  static constexpr auto NotFound = None;
+  static constexpr auto NotFound = std::nullopt;
   static constexpr auto FoundMismatch = nullptr;
 
   // Try to find a value of each element of an aggregate.
@@ -1016,7 +1031,8 @@ Instruction *InstCombinerImpl::foldAggregateConstructionIntoAggregateReuse(
   Optional<Value *> SourceAggregate;
 
   // Can we find the source aggregate without looking at predecessors?
-  SourceAggregate = FindCommonSourceAggregate(/*UseBB=*/None, /*PredBB=*/None);
+  SourceAggregate = FindCommonSourceAggregate(/*UseBB=*/std::nullopt,
+                                              /*PredBB=*/std::nullopt);
   if (Describe(SourceAggregate) != AggregateDescription::NotFound) {
     if (Describe(SourceAggregate) == AggregateDescription::FoundMismatch)
       return nullptr; // Conflicting source aggregates!
@@ -1499,6 +1515,57 @@ static Instruction *narrowInsElt(InsertElementInst &InsElt,
   return CastInst::Create(CastOpcode, NewInsElt, InsElt.getType());
 }
 
+/// If we are inserting 2 halves of a value into adjacent elements of a vector,
+/// try to convert to a single insert with appropriate bitcasts.
+static Instruction *foldTruncInsEltPair(InsertElementInst &InsElt,
+                                        bool IsBigEndian,
+                                        InstCombiner::BuilderTy &Builder) {
+  Value *VecOp    = InsElt.getOperand(0);
+  Value *ScalarOp = InsElt.getOperand(1);
+  Value *IndexOp  = InsElt.getOperand(2);
+
+  // inselt (inselt BaseVec, (trunc X), Index0), (trunc (lshr X, BW/2)), Index1
+  // TODO: The insertion order could be reversed.
+  // TODO: Detect smaller fractions of the scalar.
+  // TODO: One-use checks are conservative.
+  auto *VTy = dyn_cast<FixedVectorType>(InsElt.getType());
+  Value *X, *BaseVec;
+  uint64_t ShAmt, Index0, Index1;
+  if (!VTy || (VTy->getNumElements() & 1) ||
+      !match(VecOp, m_OneUse(m_InsertElt(m_Value(BaseVec), m_Trunc(m_Value(X)),
+                                         m_ConstantInt(Index0)))) ||
+      !match(ScalarOp, m_OneUse(m_Trunc(m_LShr(m_Specific(X),
+                                               m_ConstantInt(ShAmt))))) ||
+      !match(IndexOp, m_ConstantInt(Index1)))
+    return nullptr;
+
+  Type *SrcTy = X->getType();
+  unsigned ScalarWidth = SrcTy->getScalarSizeInBits();
+  unsigned VecEltWidth = VTy->getScalarSizeInBits();
+  if (ScalarWidth != VecEltWidth * 2 || ShAmt != VecEltWidth)
+    return nullptr;
+
+  // The low half must be inserted at element +1 for big-endian.
+  // The high half must be inserted at element +1 for little-endian
+  if (IsBigEndian ? Index0 != Index1 + 1 : Index0 + 1 != Index1)
+    return nullptr;
+
+  // The high half must be inserted at an even element for big-endian.
+  // The low half must be inserted at an even element for little-endian.
+  if (IsBigEndian ? Index1 & 1 : Index0 & 1)
+    return nullptr;
+
+  // Bitcast the base vector to a vector type with the source element type.
+  Type *CastTy = FixedVectorType::get(SrcTy, VTy->getNumElements() / 2);
+  Value *CastBaseVec = Builder.CreateBitCast(BaseVec, CastTy);
+
+  // Scale the insert index for a vector with half as many elements.
+  // bitcast (inselt (bitcast BaseVec), X, NewIndex)
+  uint64_t NewIndex = IsBigEndian ? Index1 / 2 : Index0 / 2;
+  Value *NewInsert = Builder.CreateInsertElement(CastBaseVec, X, NewIndex);
+  return new BitCastInst(NewInsert, VTy);
+}
+
 Instruction *InstCombinerImpl::visitInsertElementInst(InsertElementInst &IE) {
   Value *VecOp    = IE.getOperand(0);
   Value *ScalarOp = IE.getOperand(1);
@@ -1624,6 +1691,9 @@ Instruction *InstCombinerImpl::visitInsertElementInst(InsertElementInst &IE) {
     return IdentityShuf;
 
   if (Instruction *Ext = narrowInsElt(IE, Builder))
+    return Ext;
+
+  if (Instruction *Ext = foldTruncInsEltPair(IE, DL.isBigEndian(), Builder))
     return Ext;
 
   return nullptr;

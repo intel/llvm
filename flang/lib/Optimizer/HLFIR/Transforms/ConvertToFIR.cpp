@@ -29,6 +29,85 @@ namespace hlfir {
 using namespace mlir;
 
 namespace {
+/// May \p lhs alias with \p rhs?
+/// TODO: implement HLFIR alias analysis.
+static bool mayAlias(hlfir::Entity lhs, hlfir::Entity rhs) { return true; }
+
+class AssignOpConversion : public mlir::OpRewritePattern<hlfir::AssignOp> {
+public:
+  explicit AssignOpConversion(mlir::MLIRContext *ctx) : OpRewritePattern{ctx} {}
+
+  mlir::LogicalResult
+  matchAndRewrite(hlfir::AssignOp assignOp,
+                  mlir::PatternRewriter &rewriter) const override {
+    mlir::Location loc = assignOp->getLoc();
+    hlfir::Entity lhs(assignOp.getLhs());
+    hlfir::Entity rhs(assignOp.getRhs());
+    auto module = assignOp->getParentOfType<mlir::ModuleOp>();
+    fir::FirOpBuilder builder(rewriter, fir::getKindMapping(module));
+
+    if (rhs.getType().isa<hlfir::ExprType>()) {
+      mlir::emitError(loc, "hlfir must be bufferized with --bufferize-hlfir "
+                           "pass before being converted to FIR");
+      return mlir::failure();
+    }
+    auto [rhsExv, rhsCleanUp] =
+        hlfir::translateToExtendedValue(loc, builder, rhs);
+    auto [lhsExv, lhsCleanUp] =
+        hlfir::translateToExtendedValue(loc, builder, lhs);
+    assert(!lhsCleanUp && !rhsCleanUp &&
+           "variable to fir::ExtendedValue must not require cleanup");
+
+    if (lhs.isArray()) {
+      // Use the runtime for simplicity. An optimization pass will be added to
+      // inline array assignment when profitable.
+      auto to = fir::getBase(builder.createBox(loc, lhsExv));
+      auto from = fir::getBase(builder.createBox(loc, rhsExv));
+      bool cleanUpTemp = false;
+      mlir::Type fromHeapType = fir::HeapType::get(
+          fir::unwrapRefType(from.getType().cast<fir::BoxType>().getEleTy()));
+      if (mayAlias(rhs, lhs)) {
+        /// Use the runtime to make a quick and dirty temp with the rhs value.
+        /// Overkill for scalar rhs that could be done in much more clever ways.
+        /// Note that temp descriptor must have the allocatable flag set so that
+        /// the runtime will allocate it with the shape and type parameters of
+        //  the RHS.
+        mlir::Type fromBoxHeapType = fir::BoxType::get(fromHeapType);
+        auto fromMutableBox = builder.createTemporary(loc, fromBoxHeapType);
+        mlir::Value unallocatedBox = fir::factory::createUnallocatedBox(
+            builder, loc, fromBoxHeapType, {});
+        builder.create<fir::StoreOp>(loc, unallocatedBox, fromMutableBox);
+        fir::runtime::genAssign(builder, loc, fromMutableBox, from);
+        cleanUpTemp = true;
+        from = builder.create<fir::LoadOp>(loc, fromMutableBox);
+      }
+      auto toMutableBox = builder.createTemporary(loc, to.getType());
+      // As per 10.2.1.2 point 1 (1) polymorphic variables must be allocatable.
+      // It is assumed here that they have been reallocated with the dynamic
+      // type and that the mutableBox will not be modified.
+      builder.create<fir::StoreOp>(loc, to, toMutableBox);
+      fir::runtime::genAssign(builder, loc, toMutableBox, from);
+      if (cleanUpTemp) {
+        mlir::Value addr =
+            builder.create<fir::BoxAddrOp>(loc, fromHeapType, from);
+        builder.create<fir::FreeMemOp>(loc, addr);
+      }
+    } else {
+      // Assume overlap does not matter for scalar (dealt with memmove for
+      // characters).
+      // This is not true if this is a derived type with "recursive" allocatable
+      // components, in which case an overlap would matter because the LHS
+      // reallocation, if any, may modify the RHS component value before it is
+      // copied into the LHS.
+      if (fir::isRecordWithAllocatableMember(lhs.getFortranElementType()))
+        TODO(loc, "assignment with allocatable components");
+      fir::factory::genScalarAssignment(builder, loc, lhsExv, rhsExv);
+    }
+    rewriter.eraseOp(assignOp);
+    return mlir::success();
+  }
+};
+
 class DeclareOpConversion : public mlir::OpRewritePattern<hlfir::DeclareOp> {
 public:
   explicit DeclareOpConversion(mlir::MLIRContext *ctx)
@@ -91,27 +170,134 @@ public:
   }
 };
 
+class DesignateOpConversion
+    : public mlir::OpRewritePattern<hlfir::DesignateOp> {
+public:
+  explicit DesignateOpConversion(mlir::MLIRContext *ctx)
+      : OpRewritePattern{ctx} {}
+
+  mlir::LogicalResult
+  matchAndRewrite(hlfir::DesignateOp designate,
+                  mlir::PatternRewriter &rewriter) const override {
+    mlir::Location loc = designate.getLoc();
+    auto module = designate->getParentOfType<mlir::ModuleOp>();
+    fir::FirOpBuilder builder(rewriter, fir::getKindMapping(module));
+
+    if (designate.getComponent() || designate.getComplexPart() ||
+        !designate.getSubstring().empty()) {
+      // build path.
+      TODO(loc, "hlfir::designate with complex part or substring or component");
+    }
+
+    hlfir::Entity baseEntity(designate.getMemref());
+    if (baseEntity.isMutableBox())
+      TODO(loc, "hlfir::designate load of pointer or allocatable");
+
+    mlir::Type designateResultType = designate.getResult().getType();
+    llvm::SmallVector<mlir::Value> firBaseTypeParameters;
+    auto [base, shape] = hlfir::genVariableFirBaseShapeAndParams(
+        loc, builder, baseEntity, firBaseTypeParameters);
+    if (designateResultType.isa<fir::BoxType>()) {
+      // Generate embox or rebox.
+      if (designate.getIndices().empty())
+        TODO(loc, "hlfir::designate whole part");
+      // Otherwise, this is an array section with triplets.
+      llvm::SmallVector<mlir::Value> triples;
+      auto undef = builder.create<fir::UndefOp>(loc, builder.getIndexType());
+      auto subscripts = designate.getIndices();
+      unsigned i = 0;
+      for (auto isTriplet : designate.getIsTriplet()) {
+        triples.push_back(subscripts[i++]);
+        if (isTriplet) {
+          triples.push_back(subscripts[i++]);
+          triples.push_back(subscripts[i++]);
+        } else {
+          triples.push_back(undef);
+          triples.push_back(undef);
+        }
+      }
+      mlir::Value slice = builder.create<fir::SliceOp>(
+          loc, triples, /*path=*/mlir::ValueRange{});
+      llvm::SmallVector<mlir::Type> resultType{designateResultType};
+      mlir::Value resultBox;
+      if (base.getType().isa<fir::BoxType>())
+        resultBox =
+            builder.create<fir::ReboxOp>(loc, resultType, base, shape, slice);
+      else
+        resultBox = builder.create<fir::EmboxOp>(loc, resultType, base, shape,
+                                                 slice, firBaseTypeParameters);
+      rewriter.replaceOp(designate, resultBox);
+      return mlir::success();
+    }
+
+    // Indexing a single element (use fir.array_coor of fir.coordinate_of).
+
+    if (designate.getIndices().empty()) {
+      // Scalar substring or complex part.
+      // generate fir.coordinate_of.
+      TODO(loc, "hlfir::designate to fir.coordinate_of");
+    }
+
+    // Generate fir.array_coor
+    mlir::Type resultType = designateResultType;
+    if (auto boxCharType = designateResultType.dyn_cast<fir::BoxCharType>())
+      resultType = fir::ReferenceType::get(boxCharType.getEleTy());
+    auto arrayCoor = builder.create<fir::ArrayCoorOp>(
+        loc, resultType, base, shape,
+        /*slice=*/mlir::Value{}, designate.getIndices(), firBaseTypeParameters);
+    if (designateResultType.isa<fir::BoxCharType>()) {
+      assert(designate.getTypeparams().size() == 1 &&
+             "must have character length");
+      auto emboxChar = builder.create<fir::EmboxCharOp>(
+          loc, designateResultType, arrayCoor, designate.getTypeparams()[0]);
+      rewriter.replaceOp(designate, emboxChar.getResult());
+    } else {
+      rewriter.replaceOp(designate, arrayCoor.getResult());
+    }
+    return mlir::success();
+  }
+};
+
+class NoReassocOpConversion
+    : public mlir::OpRewritePattern<hlfir::NoReassocOp> {
+public:
+  explicit NoReassocOpConversion(mlir::MLIRContext *ctx)
+      : OpRewritePattern{ctx} {}
+
+  mlir::LogicalResult
+  matchAndRewrite(hlfir::NoReassocOp noreassoc,
+                  mlir::PatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<fir::NoReassocOp>(noreassoc,
+                                                  noreassoc.getVal());
+    return mlir::success();
+  }
+};
+
 class ConvertHLFIRtoFIR
     : public hlfir::impl::ConvertHLFIRtoFIRBase<ConvertHLFIRtoFIR> {
 public:
   void runOnOperation() override {
-    auto func = this->getOperation();
+    // TODO: like "bufferize-hlfir" pass, runtime signature may be added
+    // by this pass. This requires the pass to run on the ModuleOp. It would
+    // probably be more optimal to have it run on FuncOp and find a way to
+    // generate the signatures in a thread safe way.
+    auto module = this->getOperation();
     auto *context = &getContext();
     mlir::RewritePatternSet patterns(context);
-    patterns.insert<DeclareOpConversion>(context);
+    patterns.insert<AssignOpConversion, DeclareOpConversion,
+                    DesignateOpConversion, NoReassocOpConversion>(context);
     mlir::ConversionTarget target(*context);
     target.addIllegalDialect<hlfir::hlfirDialect>();
     target.markUnknownOpDynamicallyLegal(
         [](mlir::Operation *) { return true; });
-    if (mlir::failed(
-            mlir::applyPartialConversion(func, target, std::move(patterns)))) {
+    if (mlir::failed(mlir::applyPartialConversion(module, target,
+                                                  std::move(patterns)))) {
       mlir::emitError(mlir::UnknownLoc::get(context),
                       "failure in HLFIR to FIR conversion pass");
       signalPassFailure();
     }
   }
 };
-
 } // namespace
 
 std::unique_ptr<mlir::Pass> hlfir::createConvertHLFIRtoFIRPass() {

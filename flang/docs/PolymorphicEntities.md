@@ -853,16 +853,11 @@ Current list of TODOs in lowering:
 - `flang/lib/Lower/Allocatable.cpp:465` not yet implemented: SOURCE allocation
 - `flang/lib/Lower/Allocatable.cpp:468` not yet implemented: MOLD allocation
 - `flang/lib/Lower/Bridge.cpp:448` not yet implemented: create polymorphic host associated copy
-- `flang/lib/Lower/Bridge.cpp:2185` not yet implemented: assignment to polymorphic allocatable
-- `flang/lib/Lower/Bridge.cpp:2288` not yet implemented: pointer assignment involving polymorphic entity
-- `flang/lib/Lower/Bridge.cpp:2316` not yet implemented: pointer assignment involving polymorphic entity
 - `flang/lib/Lower/CallInterface.cpp:795` not yet implemented: support for polymorphic types
 - `flang/lib/Lower/ConvertType.cpp:237` not yet implemented: support for polymorphic types
 
 Current list of TODOs in code generation:
 
-- `flang/lib/Optimizer/CodeGen/CodeGen.cpp:911` not yet implemented: fir.dispatch_table codegen
-- `flang/lib/Optimizer/CodeGen/CodeGen.cpp:924` not yet implemented: fir.dt_entry codegen
 - `flang/lib/Optimizer/CodeGen/CodeGen.cpp:2651` not yet implemented: fir.gentypedesc codegen
 
 ---

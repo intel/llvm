@@ -27,8 +27,8 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/Scalar.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -193,7 +193,7 @@ namespace llvm {
   FunctionPass *createHexagonVExtract();
 } // end namespace llvm;
 
-static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
+static Reloc::Model getEffectiveRelocModel(std::optional<Reloc::Model> RM) {
   return RM.value_or(Reloc::Static);
 }
 
@@ -223,8 +223,8 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeHexagonTarget() {
 HexagonTargetMachine::HexagonTargetMachine(const Target &T, const Triple &TT,
                                            StringRef CPU, StringRef FS,
                                            const TargetOptions &Options,
-                                           Optional<Reloc::Model> RM,
-                                           Optional<CodeModel::Model> CM,
+                                           std::optional<Reloc::Model> RM,
+                                           std::optional<CodeModel::Model> CM,
                                            CodeGenOpt::Level OL, bool JIT)
     // Specify the vector alignment explicitly. For v512x1, the calculated
     // alignment would be 512*alignment(i1), which is 512 bytes, instead of
@@ -271,19 +271,6 @@ HexagonTargetMachine::getSubtargetImpl(const Function &F) const {
     I = std::make_unique<HexagonSubtarget>(TargetTriple, CPU, FS, *this);
   }
   return I.get();
-}
-
-void HexagonTargetMachine::adjustPassManager(PassManagerBuilder &PMB) {
-  PMB.addExtension(
-    PassManagerBuilder::EP_LateLoopOptimizations,
-    [&](const PassManagerBuilder &, legacy::PassManagerBase &PM) {
-      PM.add(createHexagonLoopIdiomPass());
-    });
-  PMB.addExtension(
-      PassManagerBuilder::EP_LoopOptimizerEnd,
-      [&](const PassManagerBuilder &, legacy::PassManagerBase &PM) {
-        PM.add(createHexagonVectorLoopCarriedReuseLegacyPass());
-      });
 }
 
 void HexagonTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {

@@ -31,15 +31,15 @@ LLDB_PLUGIN_DEFINE_ADV(EmulateInstructionRISCV, InstructionRISCV)
 
 namespace lldb_private {
 
-/// Returns all values wrapped in Optional, or None if any of the values is
-/// None.
+/// Returns all values wrapped in Optional, or std::nullopt if any of the values
+/// is std::nullopt.
 template <typename... Ts>
 static llvm::Optional<std::tuple<Ts...>> zipOpt(llvm::Optional<Ts> &&...ts) {
   if ((ts.has_value() && ...))
     return llvm::Optional<std::tuple<Ts...>>(
         std::make_tuple(std::move(*ts)...));
   else
-    return llvm::None;
+    return std::nullopt;
 }
 
 // The funct3 is the type of compare in B<CMP> instructions.
@@ -101,6 +101,12 @@ static uint32_t GPREncodingToLLDB(uint32_t reg_encode) {
   return LLDB_INVALID_REGNUM;
 }
 
+static uint32_t FPREncodingToLLDB(uint32_t reg_encode) {
+  if (reg_encode <= 31)
+    return fpr_f0_riscv + reg_encode;
+  return LLDB_INVALID_REGNUM;
+}
+
 bool Rd::Write(EmulateInstructionRISCV &emulator, uint64_t value) {
   uint32_t lldb_reg = GPREncodingToLLDB(rd);
   EmulateInstruction::Context ctx;
@@ -112,12 +118,23 @@ bool Rd::Write(EmulateInstructionRISCV &emulator, uint64_t value) {
                                 registerValue);
 }
 
+bool Rd::WriteAPFloat(EmulateInstructionRISCV &emulator, llvm::APFloat value) {
+  uint32_t lldb_reg = FPREncodingToLLDB(rd);
+  EmulateInstruction::Context ctx;
+  ctx.type = EmulateInstruction::eContextRegisterStore;
+  ctx.SetNoArgs();
+  RegisterValue registerValue;
+  registerValue.SetUInt64(value.bitcastToAPInt().getZExtValue());
+  return emulator.WriteRegister(ctx, eRegisterKindLLDB, lldb_reg,
+                                registerValue);
+}
+
 llvm::Optional<uint64_t> Rs::Read(EmulateInstructionRISCV &emulator) {
   uint32_t lldbReg = GPREncodingToLLDB(rs);
   RegisterValue value;
   return emulator.ReadRegister(eRegisterKindLLDB, lldbReg, value)
              ? llvm::Optional<uint64_t>(value.GetAsUInt64())
-             : llvm::None;
+             : std::nullopt;
 }
 
 llvm::Optional<int32_t> Rs::ReadI32(EmulateInstructionRISCV &emulator) {
@@ -133,6 +150,18 @@ llvm::Optional<int64_t> Rs::ReadI64(EmulateInstructionRISCV &emulator) {
 llvm::Optional<uint32_t> Rs::ReadU32(EmulateInstructionRISCV &emulator) {
   return Read(emulator).transform(
       [](uint64_t value) { return uint32_t(value); });
+}
+
+llvm::Optional<llvm::APFloat> Rs::ReadAPFloat(EmulateInstructionRISCV &emulator,
+                                              bool isDouble) {
+  uint32_t lldbReg = FPREncodingToLLDB(rs);
+  RegisterValue value;
+  if (!emulator.ReadRegister(eRegisterKindLLDB, lldbReg, value))
+    return std::nullopt;
+  uint64_t bits = value.GetAsUInt64();
+  llvm::APInt api(64, bits, false);
+  return llvm::APFloat(isDouble ? llvm::APFloat(api.bitsToDouble())
+                                : llvm::APFloat(api.bitsToFloat()));
 }
 
 static bool CompareB(uint64_t rs1, uint64_t rs2, uint32_t funct3) {
@@ -222,9 +251,9 @@ static std::enable_if_t<is_amo_add<I> || is_amo_bit_op<I> || is_amo_swap<I> ||
 AtomicAddr(EmulateInstructionRISCV &emulator, I inst, unsigned int align) {
   return inst.rs1.Read(emulator)
       .transform([&](uint64_t rs1) {
-        return rs1 % align == 0 ? llvm::Optional<uint64_t>(rs1) : llvm::None;
+        return rs1 % align == 0 ? llvm::Optional<uint64_t>(rs1) : std::nullopt;
       })
-      .value_or(llvm::None);
+      .value_or(std::nullopt);
 }
 
 template <typename I, typename T>
@@ -356,7 +385,7 @@ template <typename T> static RISCVInst DecodeIType(uint32_t inst) {
 
 template <typename T> static RISCVInst DecodeBType(uint32_t inst) {
   return T{Rs{DecodeRS1(inst)}, Rs{DecodeRS2(inst)}, DecodeBImm(inst),
-           (inst & 0x7000) >> 12};
+           DecodeFunct3(inst)};
 }
 
 template <typename T> static RISCVInst DecodeSType(uint32_t inst) {
@@ -373,6 +402,11 @@ template <typename T> static RISCVInst DecodeRShamtType(uint32_t inst) {
 
 template <typename T> static RISCVInst DecodeRRS1Type(uint32_t inst) {
   return T{Rd{DecodeRD(inst)}, Rs{DecodeRS1(inst)}};
+}
+
+template <typename T> static RISCVInst DecodeR4Type(uint32_t inst) {
+  return T{Rd{DecodeRD(inst)}, Rs{DecodeRS1(inst)}, Rs{DecodeRS2(inst)},
+           Rs{DecodeRS3(inst)}, DecodeRM(inst)};
 }
 
 static const InstrPattern PATTERNS[] = {
@@ -463,13 +497,13 @@ static const InstrPattern PATTERNS[] = {
 
     // RVC (Compressed Instructions) //
     {"C_LWSP", 0xE003, 0x4002, DecodeC_LWSP},
-    {"C_LDSP", 0xE003, 0x6002, DecodeC_LDSP},
+    {"C_LDSP", 0xE003, 0x6002, DecodeC_LDSP, RV64 | RV128},
     {"C_SWSP", 0xE003, 0xC002, DecodeC_SWSP},
-    {"C_SDSP", 0xE003, 0xE002, DecodeC_SDSP},
+    {"C_SDSP", 0xE003, 0xE002, DecodeC_SDSP, RV64 | RV128},
     {"C_LW", 0xE003, 0x4000, DecodeC_LW},
-    {"C_LD", 0xE003, 0x6000, DecodeC_LD},
+    {"C_LD", 0xE003, 0x6000, DecodeC_LD, RV64 | RV128},
     {"C_SW", 0xE003, 0xC000, DecodeC_SW},
-    {"C_SD", 0xE003, 0xE000, DecodeC_SD},
+    {"C_SD", 0xE003, 0xE000, DecodeC_SD, RV64 | RV128},
     {"C_J", 0xE003, 0xA001, DecodeC_J},
     {"C_JR", 0xF07F, 0x8002, DecodeC_JR},
     {"C_JALR", 0xF07F, 0x9002, DecodeC_JALR},
@@ -478,11 +512,11 @@ static const InstrPattern PATTERNS[] = {
     {"C_LI", 0xE003, 0x4001, DecodeC_LI},
     {"C_LUI_ADDI16SP", 0xE003, 0x6001, DecodeC_LUI_ADDI16SP},
     {"C_ADDI", 0xE003, 0x1, DecodeC_ADDI},
-    {"C_ADDIW", 0xE003, 0x2001, DecodeC_ADDIW},
+    {"C_ADDIW", 0xE003, 0x2001, DecodeC_ADDIW, RV64 | RV128},
     {"C_ADDI4SPN", 0xE003, 0x0, DecodeC_ADDI4SPN},
-    {"C_SLLI", 0xE003, 0x2, DecodeC_SLLI},
-    {"C_SRLI", 0xEC03, 0x8001, DecodeC_SRLI},
-    {"C_SRAI", 0xEC03, 0x8401, DecodeC_SRAI},
+    {"C_SLLI", 0xE003, 0x2, DecodeC_SLLI, RV64 | RV128},
+    {"C_SRLI", 0xEC03, 0x8001, DecodeC_SRLI, RV64 | RV128},
+    {"C_SRAI", 0xEC03, 0x8401, DecodeC_SRAI, RV64 | RV128},
     {"C_ANDI", 0xEC03, 0x8801, DecodeC_ANDI},
     {"C_MV", 0xF003, 0x8002, DecodeC_MV},
     {"C_ADD", 0xF003, 0x9002, DecodeC_ADD},
@@ -490,8 +524,47 @@ static const InstrPattern PATTERNS[] = {
     {"C_OR", 0xFC63, 0x8C41, DecodeC_OR},
     {"C_XOR", 0xFC63, 0x8C21, DecodeC_XOR},
     {"C_SUB", 0xFC63, 0x8C01, DecodeC_SUB},
-    {"C_SUBW", 0xFC63, 0x9C01, DecodeC_SUBW},
-    {"C_ADDW", 0xFC63, 0x9C21, DecodeC_ADDW},
+    {"C_SUBW", 0xFC63, 0x9C01, DecodeC_SUBW, RV64 | RV128},
+    {"C_ADDW", 0xFC63, 0x9C21, DecodeC_ADDW, RV64 | RV128},
+    // RV32FC //
+    {"FLW", 0xE003, 0x6000, DecodeC_FLW, RV32},
+    {"FSW", 0xE003, 0xE000, DecodeC_FSW, RV32},
+    {"FLWSP", 0xE003, 0x6002, DecodeC_FLWSP, RV32},
+    {"FSWSP", 0xE003, 0xE002, DecodeC_FSWSP, RV32},
+
+    // RV32F (Extension for Single-Precision Floating-Point) //
+    {"FLW", 0x707F, 0x2007, DecodeIType<FLW>},
+    {"FSW", 0x707F, 0x2027, DecodeSType<FSW>},
+    {"FMADD_S", 0x600007F, 0x43, DecodeR4Type<FMADD_S>},
+    {"FMSUB_S", 0x600007F, 0x47, DecodeR4Type<FMSUB_S>},
+    {"FNMSUB_S", 0x600007F, 0x4B, DecodeR4Type<FNMSUB_S>},
+    {"FNMADD_S", 0x600007F, 0x4F, DecodeR4Type<FNMADD_S>},
+    {"FADD_S", 0xFE00007F, 0x53, DecodeRType<FADD_S>},
+    {"FSUB_S", 0xFE00007F, 0x8000053, DecodeRType<FSUB_S>},
+    {"FMUL_S", 0xFE00007F, 0x10000053, DecodeRType<FMUL_S>},
+    {"FDIV_S", 0xFE00007F, 0x18000053, DecodeRType<FDIV_S>},
+    {"FSQRT_S", 0xFFF0007F, 0x58000053, DecodeIType<FSQRT_S>},
+    {"FSGNJ_S", 0xFE00707F, 0x20000053, DecodeRType<FSGNJ_S>},
+    {"FSGNJN_S", 0xFE00707F, 0x20001053, DecodeRType<FSGNJN_S>},
+    {"FSGNJX_S", 0xFE00707F, 0x20002053, DecodeRType<FSGNJX_S>},
+    {"FMIN_S", 0xFE00707F, 0x28000053, DecodeRType<FMIN_S>},
+    {"FMAX_S", 0xFE00707F, 0x28001053, DecodeRType<FMAX_S>},
+    {"FCVT_W_S", 0xFFF0007F, 0xC0000053, DecodeIType<FCVT_W_S>},
+    {"FCVT_WU_S", 0xFFF0007F, 0xC0100053, DecodeIType<FCVT_WU_S>},
+    {"FMV_X_W", 0xFFF0707F, 0xE0000053, DecodeIType<FMV_X_W>},
+    {"FEQ_S", 0xFE00707F, 0xA2002053, DecodeRType<FEQ_S>},
+    {"FLT_S", 0xFE00707F, 0xA2001053, DecodeRType<FLT_S>},
+    {"FLE_S", 0xFE00707F, 0xA2000053, DecodeRType<FLE_S>},
+    {"FCLASS_S", 0xFFF0707F, 0xE0001053, DecodeIType<FCLASS_S>},
+    {"FCVT_S_W", 0xFFF0007F, 0xD0000053, DecodeIType<FCVT_S_W>},
+    {"FCVT_S_WU", 0xFFF0007F, 0xD0100053, DecodeIType<FCVT_S_WU>},
+    {"FMV_W_X", 0xFFF0707F, 0xF0000053, DecodeIType<FMV_W_X>},
+
+    // RV64F (Extension for Single-Precision Floating-Point) //
+    {"FCVT_L_S", 0xFFF0007F, 0xC0200053, DecodeIType<FCVT_L_S>},
+    {"FCVT_LU_S", 0xFFF0007F, 0xC0300053, DecodeIType<FCVT_LU_S>},
+    {"FCVT_S_L", 0xFFF0007F, 0xD0200053, DecodeIType<FCVT_S_L>},
+    {"FCVT_S_LU", 0xFFF0007F, 0xD0300053, DecodeIType<FCVT_S_LU>},
 };
 
 llvm::Optional<DecodeResult> EmulateInstructionRISCV::Decode(uint32_t inst) {
@@ -501,20 +574,26 @@ llvm::Optional<DecodeResult> EmulateInstructionRISCV::Decode(uint32_t inst) {
   // check whether the compressed encode could be valid
   uint16_t mask = try_rvc & 0b11;
   bool is_rvc = try_rvc != 0 && mask != 3;
+  uint8_t inst_type = RV64;
+
+  // if we have ArchSpec::eCore_riscv128 in the future,
+  // we also need to check it here
+  if (m_arch.GetCore() == ArchSpec::eCore_riscv32)
+    inst_type = RV32;
 
   for (const InstrPattern &pat : PATTERNS) {
-    if ((inst & pat.type_mask) == pat.eigen) {
-      LLDB_LOGF(log,
-                "EmulateInstructionRISCV::%s: inst(%x at %" PRIx64
-                ") was decoded to %s",
-                __FUNCTION__, inst, m_addr, pat.name);
+    if ((inst & pat.type_mask) == pat.eigen &&
+        (inst_type & pat.inst_type) != 0) {
+      LLDB_LOGF(
+          log, "EmulateInstructionRISCV::%s: inst(%x at %lx) was decoded to %s",
+          __FUNCTION__, inst, m_addr, pat.name);
       auto decoded = is_rvc ? pat.decode(try_rvc) : pat.decode(inst);
       return DecodeResult{decoded, inst, is_rvc, pat};
     }
   }
   LLDB_LOGF(log, "EmulateInstructionRISCV::%s: inst(0x%x) was unsupported",
             __FUNCTION__, inst);
-  return llvm::None;
+  return std::nullopt;
 }
 
 class Executor {
@@ -1050,6 +1129,355 @@ public:
         m_emu, inst, 8, ZextD,
         [](uint64_t a, uint64_t b) { return std::max(a, b); });
   }
+  bool operator()(FLW inst) {
+    return inst.rs1.Read(m_emu)
+        .transform([&](auto &&rs1) {
+          uint64_t addr = rs1 + uint64_t(inst.imm);
+          uint64_t bits = m_emu.ReadMem<uint64_t>(addr).value();
+          llvm::APFloat f(llvm::APFloat::IEEEsingle(), llvm::APInt(32, bits));
+          return inst.rd.WriteAPFloat(m_emu, f);
+        })
+        .value_or(false);
+  }
+  bool operator()(FSW inst) {
+    return zipOpt(inst.rs1.Read(m_emu), inst.rs2.ReadAPFloat(m_emu, false))
+        .transform([&](auto &&tup) {
+          auto [rs1, rs2] = tup;
+          uint64_t addr = rs1 + uint64_t(inst.imm);
+          uint64_t bits = rs2.bitcastToAPInt().getZExtValue();
+          return m_emu.WriteMem<uint64_t>(addr, bits);
+        })
+        .value_or(false);
+  }
+  bool operator()(FMADD_S inst) {
+    return zipOpt(inst.rs1.ReadAPFloat(m_emu, false),
+                  inst.rs2.ReadAPFloat(m_emu, false),
+                  inst.rs3.ReadAPFloat(m_emu, false))
+        .transform([&](auto &&tup) {
+          auto [rs1, rs2, rs3] = tup;
+          auto res = rs1.fusedMultiplyAdd(rs2, rs3, m_emu.GetRoundingMode());
+          inst.rd.WriteAPFloat(m_emu, rs1);
+          return m_emu.SetAccruedExceptions(res);
+        })
+        .value_or(false);
+  }
+  bool operator()(FMSUB_S inst) {
+    return zipOpt(inst.rs1.ReadAPFloat(m_emu, false),
+                  inst.rs2.ReadAPFloat(m_emu, false),
+                  inst.rs3.ReadAPFloat(m_emu, false))
+        .transform([&](auto &&tup) {
+          auto [rs1, rs2, rs3] = tup;
+          auto res = rs1.fusedMultiplyAdd(rs2, -rs3, m_emu.GetRoundingMode());
+          inst.rd.WriteAPFloat(m_emu, rs1);
+          return m_emu.SetAccruedExceptions(res);
+        })
+        .value_or(false);
+  }
+  bool operator()(FNMSUB_S inst) {
+    return zipOpt(inst.rs1.ReadAPFloat(m_emu, false),
+                  inst.rs2.ReadAPFloat(m_emu, false),
+                  inst.rs3.ReadAPFloat(m_emu, false))
+        .transform([&](auto &&tup) {
+          auto [rs1, rs2, rs3] = tup;
+          auto res = rs1.fusedMultiplyAdd(-rs2, rs3, m_emu.GetRoundingMode());
+          inst.rd.WriteAPFloat(m_emu, rs1);
+          return m_emu.SetAccruedExceptions(res);
+        })
+        .value_or(false);
+  }
+  bool operator()(FNMADD_S inst) {
+    return zipOpt(inst.rs1.ReadAPFloat(m_emu, false),
+                  inst.rs2.ReadAPFloat(m_emu, false),
+                  inst.rs3.ReadAPFloat(m_emu, false))
+        .transform([&](auto &&tup) {
+          auto [rs1, rs2, rs3] = tup;
+          auto res = rs1.fusedMultiplyAdd(-rs2, -rs3, m_emu.GetRoundingMode());
+          inst.rd.WriteAPFloat(m_emu, rs1);
+          return m_emu.SetAccruedExceptions(res);
+        })
+        .value_or(false);
+  }
+  bool operator()(FADD_S inst) {
+    return zipOpt(inst.rs1.ReadAPFloat(m_emu, false),
+                  inst.rs2.ReadAPFloat(m_emu, false))
+        .transform([&](auto &&tup) {
+          auto [rs1, rs2] = tup;
+          auto res = rs1.add(rs2, m_emu.GetRoundingMode());
+          inst.rd.WriteAPFloat(m_emu, rs1);
+          return m_emu.SetAccruedExceptions(res);
+        })
+        .value_or(false);
+  }
+  bool operator()(FSUB_S inst) {
+    return zipOpt(inst.rs1.ReadAPFloat(m_emu, false),
+                  inst.rs2.ReadAPFloat(m_emu, false))
+        .transform([&](auto &&tup) {
+          auto [rs1, rs2] = tup;
+          auto res = rs1.subtract(rs2, m_emu.GetRoundingMode());
+          inst.rd.WriteAPFloat(m_emu, rs1);
+          return m_emu.SetAccruedExceptions(res);
+        })
+        .value_or(false);
+  }
+  bool operator()(FMUL_S inst) {
+    return zipOpt(inst.rs1.ReadAPFloat(m_emu, false),
+                  inst.rs2.ReadAPFloat(m_emu, false))
+        .transform([&](auto &&tup) {
+          auto [rs1, rs2] = tup;
+          auto res = rs1.multiply(rs2, m_emu.GetRoundingMode());
+          inst.rd.WriteAPFloat(m_emu, rs1);
+          return m_emu.SetAccruedExceptions(res);
+        })
+        .value_or(false);
+  }
+  bool operator()(FDIV_S inst) {
+    return zipOpt(inst.rs1.ReadAPFloat(m_emu, false),
+                  inst.rs2.ReadAPFloat(m_emu, false))
+        .transform([&](auto &&tup) {
+          auto [rs1, rs2] = tup;
+          auto res = rs1.divide(rs2, m_emu.GetRoundingMode());
+          inst.rd.WriteAPFloat(m_emu, rs1);
+          return m_emu.SetAccruedExceptions(res);
+        })
+        .value_or(false);
+  }
+  bool operator()(FSQRT_S inst) {
+    // TODO: APFloat doesn't have a sqrt function.
+    return false;
+  }
+  bool operator()(FSGNJ_S inst) {
+    return zipOpt(inst.rs1.ReadAPFloat(m_emu, false),
+                  inst.rs2.ReadAPFloat(m_emu, false))
+        .transform([&](auto &&tup) {
+          auto [rs1, rs2] = tup;
+          rs1.copySign(rs2);
+          return inst.rd.WriteAPFloat(m_emu, rs1);
+        })
+        .value_or(false);
+  }
+  bool operator()(FSGNJN_S inst) {
+    return zipOpt(inst.rs1.ReadAPFloat(m_emu, false),
+                  inst.rs2.ReadAPFloat(m_emu, false))
+        .transform([&](auto &&tup) {
+          auto [rs1, rs2] = tup;
+          rs1.copySign(-rs2);
+          return inst.rd.WriteAPFloat(m_emu, rs1);
+        })
+        .value_or(false);
+  }
+  bool operator()(FSGNJX_S inst) {
+    return zipOpt(inst.rs1.ReadAPFloat(m_emu, false),
+                  inst.rs2.ReadAPFloat(m_emu, false))
+        .transform([&](auto &&tup) {
+          auto [rs1, rs2] = tup;
+          // spec: the sign bit is the XOR of the sign bits of rs1 and rs2.
+          // if rs1 and rs2 have the same signs
+          // set rs1 to positive
+          // else set rs1 to negative
+          if (rs1.isNegative() == rs2.isNegative()) {
+            rs1.clearSign();
+          } else {
+            rs1.clearSign();
+            rs1.changeSign();
+          }
+          return inst.rd.WriteAPFloat(m_emu, rs1);
+        })
+        .value_or(false);
+  }
+  bool operator()(FMIN_S inst) {
+    return zipOpt(inst.rs1.ReadAPFloat(m_emu, false),
+                  inst.rs2.ReadAPFloat(m_emu, false))
+        .transform([&](auto &&tup) {
+          auto [rs1, rs2] = tup;
+          // If both inputs are NaNs, the result is the canonical NaN.
+          // If only one operand is a NaN, the result is the non-NaN operand.
+          // Signaling NaN inputs set the invalid operation exception flag, even
+          // when the result is not NaN.
+          if (rs1.isNaN() || rs2.isNaN())
+            m_emu.SetAccruedExceptions(llvm::APFloat::opInvalidOp);
+          if (rs1.isNaN() && rs2.isNaN()) {
+            auto canonicalNaN = llvm::APFloat::getQNaN(rs1.getSemantics());
+            return inst.rd.WriteAPFloat(m_emu, canonicalNaN);
+          }
+          return inst.rd.WriteAPFloat(m_emu, minnum(rs1, rs2));
+        })
+        .value_or(false);
+  }
+  bool operator()(FMAX_S inst) {
+    return zipOpt(inst.rs1.ReadAPFloat(m_emu, false),
+                  inst.rs2.ReadAPFloat(m_emu, false))
+        .transform([&](auto &&tup) {
+          auto [rs1, rs2] = tup;
+          if (rs1.isNaN() || rs2.isNaN())
+            m_emu.SetAccruedExceptions(llvm::APFloat::opInvalidOp);
+          if (rs1.isNaN() && rs2.isNaN()) {
+            auto canonicalNaN = llvm::APFloat::getQNaN(rs1.getSemantics());
+            return inst.rd.WriteAPFloat(m_emu, canonicalNaN);
+          }
+          return inst.rd.WriteAPFloat(m_emu, maxnum(rs1, rs2));
+        })
+        .value_or(false);
+  }
+  bool operator()(FCVT_W_S inst) {
+    return inst.rs1.ReadAPFloat(m_emu, false)
+        .transform([&](auto &&rs1) {
+          int32_t res = rs1.convertToFloat();
+          return inst.rd.Write(m_emu, uint64_t(res));
+        })
+        .value_or(false);
+  }
+  bool operator()(FCVT_WU_S inst) {
+    return inst.rs1.ReadAPFloat(m_emu, false)
+        .transform([&](auto &&rs1) {
+          uint32_t res = rs1.convertToFloat();
+          return inst.rd.Write(m_emu, uint64_t(res));
+        })
+        .value_or(false);
+  }
+  bool operator()(FMV_X_W inst) {
+    return inst.rs1.ReadAPFloat(m_emu, false)
+        .transform([&](auto &&rs1) {
+          if (rs1.isNaN())
+            return inst.rd.Write(m_emu, 0x7fc00000);
+          auto bits = rs1.bitcastToAPInt();
+          return inst.rd.Write(m_emu, NanBoxing(uint64_t(bits.getSExtValue())));
+        })
+        .value_or(false);
+  }
+  bool operator()(FEQ_S inst) {
+    return zipOpt(inst.rs1.ReadAPFloat(m_emu, false),
+                  inst.rs2.ReadAPFloat(m_emu, false))
+        .transform([&](auto &&tup) {
+          auto [rs1, rs2] = tup;
+          if (rs1.isNaN() || rs2.isNaN()) {
+            if (rs1.isSignaling() || rs2.isSignaling())
+              m_emu.SetAccruedExceptions(llvm::APFloat::opInvalidOp);
+            return inst.rd.Write(m_emu, 0);
+          }
+          return inst.rd.Write(m_emu,
+                               rs1.compare(rs2) == llvm::APFloat::cmpEqual);
+        })
+        .value_or(false);
+  }
+  bool operator()(FLT_S inst) {
+    return zipOpt(inst.rs1.ReadAPFloat(m_emu, false),
+                  inst.rs2.ReadAPFloat(m_emu, false))
+        .transform([&](auto &&tup) {
+          auto [rs1, rs2] = tup;
+          if (rs1.isNaN() || rs2.isNaN()) {
+            m_emu.SetAccruedExceptions(llvm::APFloat::opInvalidOp);
+            return inst.rd.Write(m_emu, 0);
+          }
+          return inst.rd.Write(m_emu,
+                               rs1.compare(rs2) == llvm::APFloat::cmpLessThan);
+        })
+        .value_or(false);
+  }
+  bool operator()(FLE_S inst) {
+    return zipOpt(inst.rs1.ReadAPFloat(m_emu, false),
+                  inst.rs2.ReadAPFloat(m_emu, false))
+        .transform([&](auto &&tup) {
+          auto [rs1, rs2] = tup;
+          if (rs1.isNaN() || rs2.isNaN()) {
+            m_emu.SetAccruedExceptions(llvm::APFloat::opInvalidOp);
+            return inst.rd.Write(m_emu, 0);
+          }
+          return inst.rd.Write(m_emu, rs1.compare(rs2) !=
+                                          llvm::APFloat::cmpGreaterThan);
+        })
+        .value_or(false);
+  }
+  bool operator()(FCLASS_S inst) {
+    return inst.rs1.ReadAPFloat(m_emu, false)
+        .transform([&](auto &&rs1) {
+          uint64_t result = 0;
+          if (rs1.isInfinity() && rs1.isNegative())
+            result |= 1 << 0;
+          // neg normal
+          if (rs1.isNormal() && rs1.isNegative())
+            result |= 1 << 1;
+          // neg subnormal
+          if (rs1.isDenormal() && rs1.isNegative())
+            result |= 1 << 2;
+          if (rs1.isNegZero())
+            result |= 1 << 3;
+          if (rs1.isPosZero())
+            result |= 1 << 4;
+          // pos normal
+          if (rs1.isNormal() && !rs1.isNegative())
+            result |= 1 << 5;
+          // pos subnormal
+          if (rs1.isDenormal() && !rs1.isNegative())
+            result |= 1 << 6;
+          if (rs1.isInfinity() && !rs1.isNegative())
+            result |= 1 << 7;
+          if (rs1.isNaN()) {
+            if (rs1.isSignaling())
+              result |= 1 << 8;
+            else
+              result |= 1 << 9;
+          }
+          return inst.rd.Write(m_emu, result);
+        })
+        .value_or(false);
+  }
+  bool operator()(FCVT_S_W inst) {
+    return inst.rs1.ReadI32(m_emu)
+        .transform([&](auto &&rs1) {
+          llvm::APFloat apf(llvm::APFloat::IEEEsingle(), rs1);
+          return inst.rd.WriteAPFloat(m_emu, apf);
+        })
+        .value_or(false);
+  }
+  bool operator()(FCVT_S_WU inst) {
+    return inst.rs1.ReadU32(m_emu)
+        .transform([&](auto &&rs1) {
+          llvm::APFloat apf(llvm::APFloat::IEEEsingle(), rs1);
+          return inst.rd.WriteAPFloat(m_emu, apf);
+        })
+        .value_or(false);
+  }
+  bool operator()(FMV_W_X inst) {
+    return inst.rs1.Read(m_emu)
+        .transform([&](auto &&rs1) {
+          llvm::APInt apInt(32, NanUnBoxing(rs1));
+          llvm::APFloat apf(apInt.bitsToFloat());
+          return inst.rd.WriteAPFloat(m_emu, apf);
+        })
+        .value_or(false);
+  }
+  bool operator()(FCVT_L_S inst) {
+    return inst.rs1.ReadAPFloat(m_emu, false)
+        .transform([&](auto &&rs1) {
+          int64_t res = rs1.convertToFloat();
+          return inst.rd.Write(m_emu, uint64_t(res));
+        })
+        .value_or(false);
+  }
+  bool operator()(FCVT_LU_S inst) {
+    return inst.rs1.ReadAPFloat(m_emu, false)
+        .transform([&](auto &&rs1) {
+          uint64_t res = rs1.convertToFloat();
+          return inst.rd.Write(m_emu, res);
+        })
+        .value_or(false);
+  }
+  bool operator()(FCVT_S_L inst) {
+    return inst.rs1.ReadI64(m_emu)
+        .transform([&](auto &&rs1) {
+          llvm::APFloat apf(llvm::APFloat::IEEEsingle(), rs1);
+          return inst.rd.WriteAPFloat(m_emu, apf);
+        })
+        .value_or(false);
+  }
+  bool operator()(FCVT_S_LU inst) {
+    return inst.rs1.Read(m_emu)
+        .transform([&](auto &&rs1) {
+          llvm::APFloat apf(llvm::APFloat::IEEEsingle(), rs1);
+          return inst.rd.WriteAPFloat(m_emu, apf);
+        })
+        .value_or(false);
+  }
   bool operator()(INVALID inst) { return false; }
   bool operator()(RESERVED inst) { return false; }
   bool operator()(EBREAK inst) { return false; }
@@ -1089,7 +1517,7 @@ llvm::Optional<DecodeResult>
 EmulateInstructionRISCV::ReadInstructionAt(lldb::addr_t addr) {
   return ReadMem<uint32_t>(addr)
       .transform([&](uint32_t inst) { return Decode(inst); })
-      .value_or(llvm::None);
+      .value_or(std::nullopt);
 }
 
 bool EmulateInstructionRISCV::ReadInstruction() {
@@ -1112,7 +1540,7 @@ llvm::Optional<lldb::addr_t> EmulateInstructionRISCV::ReadPC() {
   bool success = false;
   auto addr = ReadRegisterUnsigned(eRegisterKindGeneric, LLDB_REGNUM_GENERIC_PC,
                                    LLDB_INVALID_ADDRESS, &success);
-  return success ? llvm::Optional<lldb::addr_t>(addr) : llvm::None;
+  return success ? llvm::Optional<lldb::addr_t>(addr) : std::nullopt;
 }
 
 bool EmulateInstructionRISCV::WritePC(lldb::addr_t pc) {
@@ -1121,6 +1549,62 @@ bool EmulateInstructionRISCV::WritePC(lldb::addr_t pc) {
   ctx.SetNoArgs();
   return WriteRegisterUnsigned(ctx, eRegisterKindGeneric,
                                LLDB_REGNUM_GENERIC_PC, pc);
+}
+
+llvm::RoundingMode EmulateInstructionRISCV::GetRoundingMode() {
+  bool success = false;
+  auto fcsr = ReadRegisterUnsigned(eRegisterKindLLDB, fpr_fcsr_riscv,
+                                   LLDB_INVALID_ADDRESS, &success);
+  if (!success)
+    return llvm::RoundingMode::Invalid;
+  auto frm = (fcsr >> 5) & 0x7;
+  switch (frm) {
+  case 0b000:
+    return llvm::RoundingMode::NearestTiesToEven;
+  case 0b001:
+    return llvm::RoundingMode::TowardZero;
+  case 0b010:
+    return llvm::RoundingMode::TowardNegative;
+  case 0b011:
+    return llvm::RoundingMode::TowardPositive;
+  case 0b111:
+    return llvm::RoundingMode::Dynamic;
+  default:
+    // Reserved for future use.
+    return llvm::RoundingMode::Invalid;
+  }
+}
+
+bool EmulateInstructionRISCV::SetAccruedExceptions(
+    llvm::APFloatBase::opStatus opStatus) {
+  bool success = false;
+  auto fcsr = ReadRegisterUnsigned(eRegisterKindLLDB, fpr_fcsr_riscv,
+                                   LLDB_INVALID_ADDRESS, &success);
+  if (!success)
+    return false;
+  switch (opStatus) {
+  case llvm::APFloatBase::opInvalidOp:
+    fcsr |= 1 << 4;
+    break;
+  case llvm::APFloatBase::opDivByZero:
+    fcsr |= 1 << 3;
+    break;
+  case llvm::APFloatBase::opOverflow:
+    fcsr |= 1 << 2;
+    break;
+  case llvm::APFloatBase::opUnderflow:
+    fcsr |= 1 << 1;
+    break;
+  case llvm::APFloatBase::opInexact:
+    fcsr |= 1 << 0;
+    break;
+  case llvm::APFloatBase::opOK:
+    break;
+  }
+  EmulateInstruction::Context ctx;
+  ctx.type = eContextRegisterStore;
+  ctx.SetNoArgs();
+  return WriteRegisterUnsigned(ctx, eRegisterKindLLDB, fpr_fcsr_riscv, fcsr);
 }
 
 llvm::Optional<RegisterInfo>

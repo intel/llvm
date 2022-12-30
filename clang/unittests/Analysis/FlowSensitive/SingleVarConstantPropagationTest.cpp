@@ -23,7 +23,6 @@
 #include "clang/Analysis/FlowSensitive/DataflowAnalysis.h"
 #include "clang/Analysis/FlowSensitive/DataflowEnvironment.h"
 #include "clang/Analysis/FlowSensitive/DataflowLattice.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
@@ -63,7 +62,9 @@ struct ConstantPropagationLattice {
   // `None` is "bottom".
   llvm::Optional<VarValue> Data;
 
-  static constexpr ConstantPropagationLattice bottom() { return {llvm::None}; }
+  static constexpr ConstantPropagationLattice bottom() {
+    return {std::nullopt};
+  }
   static constexpr ConstantPropagationLattice top() {
     return {VarValue{nullptr, 0}};
   }

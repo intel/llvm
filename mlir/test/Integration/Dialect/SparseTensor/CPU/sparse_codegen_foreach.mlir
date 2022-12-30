@@ -1,15 +1,15 @@
-// RUN: mlir-opt %s --sparse-compiler=enable-runtime-library=true | \
-// RUN: mlir-cpu-runner \
-// RUN:  -e entry -entry-point-result=void  \
-// RUN:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
+// DEFINE: %{option} = enable-runtime-library=true
+// DEFINE: %{command} = mlir-opt %s --sparse-compiler=%{option} | \
+// DEFINE: mlir-cpu-runner \
+// DEFINE:  -e entry -entry-point-result=void  \
+// DEFINE:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
+// DEFINE: FileCheck %s
+//
+// RUN: %{command}
 //
 // Do the same run, but now with direct IR generation.
-// RUN: mlir-opt %s --sparse-compiler=enable-runtime-library=false | \
-// RUN: mlir-cpu-runner \
-// RUN:  -e entry -entry-point-result=void  \
-// RUN:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
+// REDEFINE: %{option} = enable-runtime-library=false
+// RUN: %{command}
 
 #Row = #sparse_tensor.encoding<{
   dimLevelType = [ "compressed", "dense" ]
@@ -124,7 +124,7 @@ module {
    }
    return
   }
-  
+
   //
   // Main driver.
   //
@@ -136,11 +136,11 @@ module {
        [[  1.0,  2.0],
         [  5.0,  6.0]]
     > : tensor<2x2xf64>
-    
+
     %src3d = arith.constant sparse<
-       [[1, 2, 3], [4, 5, 6]], [1.0, 2.0] 
+       [[1, 2, 3], [4, 5, 6]], [1.0, 2.0]
     > : tensor<7x8x9xf64>
-    
+
     //
     // Convert dense tensor directly to various sparse tensors.
     //
@@ -168,7 +168,7 @@ module {
     // CHECK-NEXT: 5
     // CHECK-NEXT: 1
     // CHECK-NEXT: 1
-    // CHECK-NEXT: 6    
+    // CHECK-NEXT: 6
     call @foreach_print_dense(%src) : (tensor<2x2xf64>) -> ()
     // CHECK-NEXT: 0
     // CHECK-NEXT: 0
@@ -245,12 +245,13 @@ module {
     // CHECK-NEXT: 6
     // CHECK-NEXT: 2
     call @foreach_print_3d(%s6): (tensor<7x8x9xf64, #CCCPerm>) -> ()
-    
+
     bufferization.dealloc_tensor %s1 : tensor<2x2xf64, #Row>
     bufferization.dealloc_tensor %s2 : tensor<2x2xf64, #CSR>
     bufferization.dealloc_tensor %s3 : tensor<2x2xf64, #DCSC>
     bufferization.dealloc_tensor %s4 : tensor<2x2xf64, #SortedCOO>
     bufferization.dealloc_tensor %s5 : tensor<2x2xf64, #SortedCOOPerm>
+    bufferization.dealloc_tensor %s6 : tensor<7x8x9xf64, #CCCPerm>
 
     return
   }

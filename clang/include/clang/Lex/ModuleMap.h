@@ -564,11 +564,7 @@ public:
   /// Note that this also sets the current module to the newly-created module.
   ///
   /// \returns The newly-created module.
-  Module *createModuleForInterfaceUnit(SourceLocation Loc, StringRef Name,
-                                       Module *GlobalModule);
-
-  /// Create a header module from the specified list of headers.
-  Module *createHeaderModule(StringRef Name, ArrayRef<Module::Header> Headers);
+  Module *createModuleForInterfaceUnit(SourceLocation Loc, StringRef Name);
 
   /// Create a C++20 header unit.
   Module *createHeaderUnit(SourceLocation Loc, StringRef Name,
@@ -739,7 +735,7 @@ public:
   llvm::Optional<Module *> getCachedModuleLoad(const IdentifierInfo &II) {
     auto I = CachedModuleLoads.find(&II);
     if (I == CachedModuleLoads.end())
-      return None;
+      return std::nullopt;
     return I->second;
   }
 };

@@ -186,9 +186,11 @@ def PositiveIntAttrOp : TEST_Op<"positive_int_attr"> {
 def TypeArrayAttrOp : TEST_Op<"type_array_attr"> {
   let arguments = (ins TypeArrayAttr:$attr);
 }
+
 def TypeArrayAttrWithDefaultOp : TEST_Op<"type_array_attr_with_default"> {
   let arguments = (ins DefaultValuedAttr<TypeArrayAttr, "{}">:$attr);
 }
+
 def TypeStringAttrWithTypeOp : TEST_Op<"string_attr_with_type"> {
   let arguments = (ins TypedStrAttr<AnyType>:$attr);
   let assemblyFormat = "$attr attr-dict";
@@ -292,6 +294,10 @@ def DenseArrayAttrOp : TEST_Op<"dense_array_attr"> {
   }];
 }
 
+//===----------------------------------------------------------------------===//
+// Test Attributes Constraints
+//===----------------------------------------------------------------------===//
+
 def ConfinedDenseArrayAttrOp : TEST_Op<"confined_dense_array_attr"> {
   let arguments = (ins
       ConfinedAttr<DenseI16ArrayAttr,
@@ -300,6 +306,47 @@ def ConfinedDenseArrayAttrOp : TEST_Op<"confined_dense_array_attr"> {
                    [DenseArraySorted<DenseI32ArrayAttr>]>:$i32attr,
       ConfinedAttr<DenseI64ArrayAttr,
                    [DenseArrayStrictlySorted<DenseI64ArrayAttr>]>:$i64attr
+  );
+}
+
+// It does not make sense to have this constraint on a DenseBoolArrayAttr.
+def DenseArrayStrictlyPositiveAttrOp : TEST_Op<"confined_strictly_positive_attr"> {
+  let arguments = (ins
+      ConfinedAttr<DenseI8ArrayAttr,
+                   [DenseArrayStrictlyPositive<DenseI8ArrayAttr>]>:$i8attr,
+      ConfinedAttr<DenseI16ArrayAttr,
+                   [DenseArrayStrictlyPositive<DenseI16ArrayAttr>]>:$i16attr,
+      ConfinedAttr<DenseI32ArrayAttr,
+                   [DenseArrayStrictlyPositive<DenseI32ArrayAttr>]>:$i32attr,
+      ConfinedAttr<DenseI64ArrayAttr,
+                   [DenseArrayStrictlyPositive<DenseI64ArrayAttr>]>:$i64attr,
+      ConfinedAttr<DenseF32ArrayAttr,
+                   [DenseArrayStrictlyPositive<DenseF32ArrayAttr>]>:$f32attr,
+      ConfinedAttr<DenseF64ArrayAttr,
+                   [DenseArrayStrictlyPositive<DenseF64ArrayAttr>]>:$f64attr,
+      ConfinedAttr<DenseI16ArrayAttr,
+                   [DenseArrayStrictlyPositive<DenseI16ArrayAttr>]>:$emptyattr
+  );
+}
+
+// It does not make sense to have this constraint on a DenseBoolArrayAttr.
+// It is always true.
+def DenseArrayNonNegativeOp : TEST_Op<"confined_non_negative_attr"> {
+  let arguments = (ins
+      ConfinedAttr<DenseI8ArrayAttr,
+                   [DenseArrayNonNegative<DenseI8ArrayAttr>]>:$i8attr,
+      ConfinedAttr<DenseI16ArrayAttr,
+                   [DenseArrayNonNegative<DenseI16ArrayAttr>]>:$i16attr,
+      ConfinedAttr<DenseI32ArrayAttr,
+                   [DenseArrayNonNegative<DenseI32ArrayAttr>]>:$i32attr,
+      ConfinedAttr<DenseI64ArrayAttr,
+                   [DenseArrayNonNegative<DenseI64ArrayAttr>]>:$i64attr,
+      ConfinedAttr<DenseF32ArrayAttr,
+                   [DenseArrayNonNegative<DenseF32ArrayAttr>]>:$f32attr,
+      ConfinedAttr<DenseF64ArrayAttr,
+                   [DenseArrayNonNegative<DenseF64ArrayAttr>]>:$f64attr,
+      ConfinedAttr<DenseI16ArrayAttr,
+                   [DenseArrayNonNegative<DenseI16ArrayAttr>]>:$emptyattr
   );
 }
 
@@ -670,8 +717,8 @@ def TestProducingBranchOp : TEST_Op<"producing_br",
 
 // Produces an error value on the error path
 def TestInternalBranchOp : TEST_Op<"internal_br",
-	[DeclareOpInterfaceMethods<BranchOpInterface>, Terminator,
-	 AttrSizedOperandSegments]> {
+    [DeclareOpInterfaceMethods<BranchOpInterface>, Terminator,
+     AttrSizedOperandSegments]> {
 
   let arguments = (ins Variadic<AnyType>:$successOperands,
                        Variadic<AnyType>:$errorOperands);
@@ -1766,6 +1813,11 @@ def ParseWrappedKeywordOp : TEST_Op<"parse_wrapped_keyword"> {
   let hasCustomAssemblyFormat = 1;
 }
 
+def ParseB64BytesOp : TEST_Op<"parse_b64"> {
+  let arguments = (ins StrAttr:$b64);
+  let hasCustomAssemblyFormat = 1;
+}
+
 //===----------------------------------------------------------------------===//
 // Test region argument list parsing.
 
@@ -2259,6 +2311,16 @@ def FormatCustomDirectiveAttributes
     custom<CustomDirectiveAttributes>(
       $attr, $optAttr
     )
+    attr-dict
+  }];
+}
+
+def FormatCustomDirectiveSpacing
+    : TEST_Op<"format_custom_directive_spacing"> {
+  let arguments = (ins StrAttr:$attr1, StrAttr:$attr2);
+  let assemblyFormat = [{
+    custom<CustomDirectiveSpacing>($attr1)
+    custom<CustomDirectiveSpacing>($attr2)
     attr-dict
   }];
 }
@@ -3043,6 +3105,21 @@ def RecursivelySpeculatableOp : TEST_Op<"recursively_speculatable_op", [
   }];
   let results = (outs I32:$result);
   let regions = (region SizedRegion<1>:$body);
+}
+
+//===---------------------------------------------------------------------===//
+// Test CSE
+//===---------------------------------------------------------------------===//
+
+def TestCSEOfSingleBlockOp : TEST_Op<"cse_of_single_block_op",
+    [SingleBlockImplicitTerminator<"RegionYieldOp">, Pure]> {
+  let arguments = (ins Variadic<AnyType>:$inputs);
+  let results = (outs Variadic<AnyType>:$outputs);
+  let regions = (region SizedRegion<1>:$region);
+  let assemblyFormat = [{
+    attr-dict `inputs` `(` $inputs `)`
+    $region `:` type($inputs)  `->` type($outputs)
+  }];
 }
 
 #endif // TEST_OPS

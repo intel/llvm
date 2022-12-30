@@ -25,9 +25,12 @@ template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernel;
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernelWithKH;
+
+namespace reduction {
+template <int Dims>
+item<Dims, false> getDelinearizedItem(range<Dims> Range, id<Dims> Id);
+} // namespace reduction
 } // namespace detail
-template <int dimensions> class id;
-template <int dimensions> class range;
 
 /// Identifies an instance of the function object executing at each point
 /// in a range.
@@ -130,6 +133,10 @@ private:
   friend class detail::RoundedRangeKernelWithKH;
   void set_allowed_range(const range<dimensions> rnwi) { MImpl.MExtent = rnwi; }
 
+  template <int Dims>
+  friend item<Dims, false>
+  detail::reduction::getDelinearizedItem(range<Dims> Range, id<Dims> Id);
+
   detail::ItemBase<dimensions, with_offset> MImpl;
 };
 
@@ -145,9 +152,7 @@ item<Dims> this_item() {
 #endif
 }
 
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 template <int Dims> item<Dims> this_item() {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::Builder::getElement(sycl::detail::declptr<item<Dims>>());
@@ -157,8 +162,6 @@ template <int Dims> item<Dims> this_item() {
       "Free function calls are not supported on host device");
 #endif
 }
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

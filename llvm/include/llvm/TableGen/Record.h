@@ -33,6 +33,7 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -846,6 +847,7 @@ public:
     SRL,
     LISTCONCAT,
     LISTSPLAT,
+    LISTREMOVE,
     STRCONCAT,
     INTERLEAVE,
     CONCAT,
@@ -898,6 +900,8 @@ public:
   BinaryOp getOpcode() const { return (BinaryOp)Opc; }
   Init *getLHS() const { return LHS; }
   Init *getRHS() const { return RHS; }
+
+  std::optional<bool> CompareInit(unsigned Opc, Init *LHS, Init *RHS) const;
 
   // Fold - If possible, fold this to a simpler init.  Return this if not
   // possible to fold.
@@ -1825,7 +1829,7 @@ public:
   /// This method looks up the specified field and returns its value as a
   /// string, throwing an exception if the value is not a string and
   /// llvm::Optional() if the field does not exist.
-  llvm::Optional<StringRef> getValueAsOptionalString(StringRef FieldName) const;
+  std::optional<StringRef> getValueAsOptionalString(StringRef FieldName) const;
 
   /// This method looks up the specified field and returns its value as a
   /// BitsInit, throwing an exception if the field does not exist or if the

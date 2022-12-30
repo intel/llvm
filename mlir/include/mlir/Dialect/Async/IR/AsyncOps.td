@@ -111,8 +111,8 @@ def Async_FuncOp : Async_Op<"func",
   let description = [{
     An async function is like a normal function, but supports non-blocking
     await. Internally, async function is lowered to the LLVM coroutinue with
-    async runtime intrinsic. It can return an async token and/or async values. 
-    The token represents the execution state of async function and can be used 
+    async runtime intrinsic. It can return an async token and/or async values.
+    The token represents the execution state of async function and can be used
     when users want to express dependencies on some side effects, e.g.,
     the token becomes available once every thing in the func body is executed.
 
@@ -140,7 +140,9 @@ def Async_FuncOp : Async_Op<"func",
 
   let arguments = (ins SymbolNameAttr:$sym_name,
                        TypeAttrOf<FunctionType>:$function_type,
-                       OptionalAttr<StrAttr>:$sym_visibility);
+                       OptionalAttr<StrAttr>:$sym_visibility,
+                       OptionalAttr<DictArrayAttr>:$arg_attrs,
+                       OptionalAttr<DictArrayAttr>:$res_attrs);
 
   let regions = (region AnyRegion:$body);
 
@@ -281,7 +283,7 @@ def Async_ReturnOp : Async_Op<"return",
 
   let arguments = (ins Variadic<AnyType>:$operands);
 
-  let builders = [OpBuilder<(ins), [{build($_builder, $_state, llvm::None);}]>];
+  let builders = [OpBuilder<(ins), [{build($_builder, $_state, std::nullopt);}]>];
 
   let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
   let hasVerifier = 1;
@@ -332,7 +334,7 @@ def Async_AwaitOp : Async_Op<"await"> {
 
   let extraClassDeclaration = [{
     Optional<Type> getResultType() {
-      if (getResultTypes().empty()) return None;
+      if (getResultTypes().empty()) return std::nullopt;
       return getResultTypes()[0];
     }
   }];

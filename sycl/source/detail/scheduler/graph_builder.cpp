@@ -109,6 +109,12 @@ Scheduler::GraphBuilder::GraphBuilder() {
     if (GraphPrintOpts.find("after_addHostAcc") != std::string::npos ||
         EnableAlways)
       MPrintOptionsArray[AfterAddHostAcc] = true;
+    if (GraphPrintOpts.find("after_fusionComplete") != std::string::npos ||
+        EnableAlways)
+      MPrintOptionsArray[AfterFusionComplete] = true;
+    if (GraphPrintOpts.find("after_fusionCancel") != std::string::npos ||
+        EnableAlways)
+      MPrintOptionsArray[AfterFusionCancel] = true;
   }
 }
 
@@ -129,6 +135,14 @@ static void unmarkVisitedNodes(std::vector<Command *> &Visited) {
 static void handleVisitedNodes(std::vector<Command *> &Visited) {
   for (Command *Cmd : Visited) {
     if (Cmd->MMarks.MToBeDeleted) {
+      if (Cmd->getType() == Command::FUSION &&
+          !static_cast<KernelFusionCommand *>(Cmd)->readyForDeletion()) {
+        // Fusion commands might still be needed because fusion might be
+        // aborted, but a later call to complete_fusion still needs to be able
+        // to return a valid event. Clean-up of fusion commands is therefore
+        // explicitly handled by start fusion.
+        return;
+      }
       Cmd->getEvent()->setCommand(nullptr);
       delete Cmd;
     } else
@@ -196,9 +210,7 @@ MemObjRecord *Scheduler::GraphBuilder::getOrInsertMemObjRecord(
           ToEnqueue.push_back(ConnectionCmd);
 
         --(Dependency->MLeafCounter);
-        if (Dependency->MLeafCounter == 0 &&
-            Dependency->isSuccessfullyEnqueued() &&
-            Dependency->supportsPostEnqueueCleanup())
+        if (Dependency->readyForCleanup())
           ToCleanUp.push_back(Dependency);
         for (Command *Cmd : ToCleanUp)
           cleanupCommand(Cmd);
@@ -246,8 +258,7 @@ void Scheduler::GraphBuilder::updateLeaves(const std::set<Command *> &Cmds,
     bool WasLeaf = Cmd->MLeafCounter > 0;
     Cmd->MLeafCounter -= Record->MReadLeaves.remove(Cmd);
     Cmd->MLeafCounter -= Record->MWriteLeaves.remove(Cmd);
-    if (WasLeaf && Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued() &&
-        Cmd->supportsPostEnqueueCleanup()) {
+    if (WasLeaf && Cmd->readyForCleanup()) {
       ToCleanUp.push_back(Cmd);
     }
   }
@@ -527,8 +538,8 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
 
   // Need empty command to be blocked until host accessor is destructed
   EmptyCommand *EmptyCmd =
-      addEmptyCmd<Requirement>(UpdateHostAccCmd, {Req}, HostQueue,
-                               Command::BlockReason::HostAccessor, ToEnqueue);
+      addEmptyCmd(UpdateHostAccCmd, {Req}, HostQueue,
+                  Command::BlockReason::HostAccessor, ToEnqueue);
 
   Req->MBlockedCmd = EmptyCmd;
 
@@ -840,15 +851,10 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
   }
 }
 
-template <typename T>
-typename detail::enable_if_t<
-    std::is_same<typename std::remove_cv_t<T>, Requirement>::value,
-    EmptyCommand *>
-Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
-                                     const QueueImplPtr &Queue,
-                                     Command::BlockReason Reason,
-                                     std::vector<Command *> &ToEnqueue,
-                                     const bool AddDepsToLeaves) {
+EmptyCommand *Scheduler::GraphBuilder::addEmptyCmd(
+    Command *Cmd, const std::vector<Requirement *> &Reqs,
+    const QueueImplPtr &Queue, Command::BlockReason Reason,
+    std::vector<Command *> &ToEnqueue, const bool AddDepsToLeaves) {
   EmptyCommand *EmptyCmd =
       new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
 
@@ -859,7 +865,7 @@ Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
   EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
   EmptyCmd->MBlockReason = Reason;
 
-  for (T *Req : Reqs) {
+  for (Requirement *Req : Reqs) {
     MemObjRecord *Record = getOrInsertMemObjRecord(Queue, Req, ToEnqueue);
     AllocaCommandBase *AllocaCmd =
         getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
@@ -887,7 +893,7 @@ Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
   return EmptyCmd;
 }
 
-static bool isInteropHostTask(const std::unique_ptr<ExecCGCommand> &Cmd) {
+static bool isInteropHostTask(ExecCGCommand *Cmd) {
   if (Cmd->getCG().getType() != CG::CGTYPE::CodeplayHostTask)
     return false;
 
@@ -917,17 +923,84 @@ static void combineAccessModesOfReqs(std::vector<Requirement *> &Reqs) {
   }
 }
 
-Command *
+Scheduler::GraphBuildResult
 Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
                                const QueueImplPtr &Queue,
                                std::vector<Command *> &ToEnqueue) {
   std::vector<Requirement *> &Reqs = CommandGroup->MRequirements;
   const std::vector<detail::EventImplPtr> &Events = CommandGroup->MEvents;
-  const CG::CGTYPE CGType = CommandGroup->getType();
 
   auto NewCmd = std::make_unique<ExecCGCommand>(std::move(CommandGroup), Queue);
   if (!NewCmd)
     throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
+
+  // Host tasks cannot participate in fusion. They take the regular route. If
+  // they create any requirement or event dependency on any of the kernels in
+  // the fusion list, this will lead to cancellation of the fusion in the
+  // GraphProcessor.
+  auto QUniqueID = std::hash<QueueImplPtr>()(Queue);
+  if (isInFusionMode(QUniqueID) && !NewCmd->isHostTask()) {
+    auto *FusionCmd = findFusionList(QUniqueID)->second.get();
+    FusionCmd->addToFusionList(NewCmd.get());
+    // Add the kernel to the graph, but delay the enqueue of any auxiliary
+    // commands (e.g., allocations) resulting from that process by adding them
+    // to the list of auxiliary commands of the fusion command.
+    createGraphForCommand(NewCmd.get(), NewCmd->getCG(),
+                          isInteropHostTask(NewCmd.get()), Reqs, Events, Queue,
+                          FusionCmd->auxiliaryCommands());
+    // We need to check the commands that this kernel depends on for any other
+    // commands that have been submitted to another queue which is also in
+    // fusion mode. If we detect such another command, we cancel fusion for that
+    // other queue to avoid circular dependencies.
+    // Handle requirements on any commands part of another active fusion.
+    for (auto &Dep : NewCmd->MDeps) {
+      auto *DepCmd = Dep.MDepCommand;
+      if (!DepCmd) {
+        continue;
+      }
+      if (DepCmd->getQueue() != Queue && isPartOfActiveFusion(DepCmd)) {
+        printFusionWarning("Aborting fusion because of requirement from a "
+                           "different fusion process");
+        cancelFusion(DepCmd->getQueue(), ToEnqueue);
+      }
+    }
+    // Handle event dependencies on any commands part of another active fusion.
+    for (auto &Ev : Events) {
+      auto *EvDepCmd = static_cast<Command *>(Ev->getCommand());
+      if (!EvDepCmd) {
+        continue;
+      }
+      if (EvDepCmd->getQueue() != Queue && isPartOfActiveFusion(EvDepCmd)) {
+        printFusionWarning("Aborting fusion because of event dependency from a "
+                           "different fusion");
+        cancelFusion(EvDepCmd->getQueue(), ToEnqueue);
+      }
+    }
+
+    // Set the fusion command, so we recognize when another command depends on a
+    // kernel in the fusion list.
+    NewCmd->MFusionCmd = FusionCmd;
+    std::vector<Command *> ToCleanUp;
+    // Add an event dependency from the fusion placeholder command to the new
+    // kernel.
+    auto ConnectionCmd = FusionCmd->addDep(NewCmd->getEvent(), ToCleanUp);
+    if (ConnectionCmd) {
+      FusionCmd->auxiliaryCommands().push_back(ConnectionCmd);
+    }
+    return {NewCmd.release(), FusionCmd->getEvent(), false};
+  }
+  createGraphForCommand(NewCmd.get(), NewCmd->getCG(),
+                        isInteropHostTask(NewCmd.get()), Reqs, Events, Queue,
+                        ToEnqueue);
+  auto Event = NewCmd->getEvent();
+  return {NewCmd.release(), Event, true};
+}
+
+void Scheduler::GraphBuilder::createGraphForCommand(
+    Command *NewCmd, CG &CG, bool isInteropTask,
+    std::vector<Requirement *> &Reqs,
+    const std::vector<detail::EventImplPtr> &Events, QueueImplPtr Queue,
+    std::vector<Command *> &ToEnqueue) {
 
   if (MPrintOptionsArray[BeforeAddCG])
     printGraphAsDot("before_addCG");
@@ -945,9 +1018,7 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
     {
       const QueueImplPtr &QueueForAlloca =
-          isInteropHostTask(NewCmd)
-              ? static_cast<detail::CGHostTask &>(NewCmd->getCG()).MQueue
-              : Queue;
+          isInteropTask ? static_cast<detail::CGHostTask &>(CG).MQueue : Queue;
 
       Record = getOrInsertMemObjRecord(QueueForAlloca, Req, ToEnqueue);
       markModifiedIfWrite(Record, Req);
@@ -973,9 +1044,8 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
       bool NeedMemMoveToHost = false;
       auto MemMoveTargetQueue = Queue;
 
-      if (isInteropHostTask(NewCmd)) {
-        const detail::CGHostTask &HT =
-            static_cast<detail::CGHostTask &>(NewCmd->getCG());
+      if (isInteropTask) {
+        const detail::CGHostTask &HT = static_cast<detail::CGHostTask &>(CG);
 
         if (HT.MQueue->getContextImplPtr() != Record->MCurContext) {
           NeedMemMoveToHost = true;
@@ -994,10 +1064,12 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
         findDepsForReq(Record, Req, Queue->getContextImplPtr());
 
     for (Command *Dep : Deps) {
-      Command *ConnCmd =
-          NewCmd->addDep(DepDesc{Dep, Req, AllocaCmd}, ToCleanUp);
-      if (ConnCmd)
-        ToEnqueue.push_back(ConnCmd);
+      if (Dep != NewCmd) {
+        Command *ConnCmd =
+            NewCmd->addDep(DepDesc{Dep, Req, AllocaCmd}, ToCleanUp);
+        if (ConnCmd)
+          ToEnqueue.push_back(ConnCmd);
+      }
     }
   }
 
@@ -1010,48 +1082,41 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     const Requirement *Req = Dep.MDepRequirement;
     MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
     updateLeaves({Dep.MDepCommand}, Record, Req->MAccessMode, ToCleanUp);
-    addNodeToLeaves(Record, NewCmd.get(), Req->MAccessMode, ToEnqueue);
+    addNodeToLeaves(Record, NewCmd, Req->MAccessMode, ToEnqueue);
   }
 
   // Register all the events as dependencies
   for (detail::EventImplPtr e : Events) {
+    if (e->getCommand() && e->getCommand() == NewCmd) {
+      continue;
+    }
     if (Command *ConnCmd = NewCmd->addDep(e, ToCleanUp))
       ToEnqueue.push_back(ConnCmd);
   }
 
-  if (CGType == CG::CGTYPE::CodeplayHostTask)
-    NewCmd->MEmptyCmd =
-        addEmptyCmd(NewCmd.get(), NewCmd->getCG().MRequirements, Queue,
-                    Command::BlockReason::HostTask, ToEnqueue);
-
   if (MPrintOptionsArray[AfterAddCG])
     printGraphAsDot("after_addCG");
 
-  for (Command *Cmd : ToCleanUp)
+  for (Command *Cmd : ToCleanUp) {
     cleanupCommand(Cmd);
-  return NewCmd.release();
+  }
 }
 
 void Scheduler::GraphBuilder::decrementLeafCountersForRecord(
     MemObjRecord *Record) {
   for (Command *Cmd : Record->MReadLeaves) {
     --(Cmd->MLeafCounter);
-    if (Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued() &&
-        Cmd->supportsPostEnqueueCleanup())
+    if (Cmd->readyForCleanup())
       cleanupCommand(Cmd);
   }
   for (Command *Cmd : Record->MWriteLeaves) {
     --(Cmd->MLeafCounter);
-    if (Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued() &&
-        Cmd->supportsPostEnqueueCleanup())
+    if (Cmd->readyForCleanup())
       cleanupCommand(Cmd);
   }
 }
 
-void Scheduler::GraphBuilder::cleanupCommandsForRecord(
-    MemObjRecord *Record,
-    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate,
-    std::vector<std::shared_ptr<const void>> &AuxResourcesToDeallocate) {
+void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
   std::vector<AllocaCommandBase *> &AllocaCommands = Record->MAllocaCommands;
   if (AllocaCommands.empty())
     return;
@@ -1100,24 +1165,6 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(
     if (!markNodeAsVisited(Cmd, MVisitedCmds))
       continue;
 
-    // Collect stream objects for a visited command.
-    if (Cmd->getType() == Command::CommandType::RUN_CG) {
-      auto ExecCmd = static_cast<ExecCGCommand *>(Cmd);
-
-      // Transfer ownership of stream implementations.
-      std::vector<std::shared_ptr<stream_impl>> Streams = ExecCmd->getStreams();
-      ExecCmd->clearStreams();
-      StreamsToDeallocate.insert(StreamsToDeallocate.end(), Streams.begin(),
-                                 Streams.end());
-
-      // Transfer ownership of auxiliary resources.
-      std::vector<std::shared_ptr<const void>> AuxResources =
-          ExecCmd->getAuxiliaryResources();
-      ExecCmd->clearAuxiliaryResources();
-      AuxResourcesToDeallocate.insert(AuxResourcesToDeallocate.end(),
-                                      AuxResources.begin(), AuxResources.end());
-    }
-
     for (Command *UserCmd : Cmd->MUsers)
       if (UserCmd->getType() != Command::CommandType::ALLOCA)
         MCmdsToVisit.push(UserCmd);
@@ -1150,7 +1197,7 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(
       Cmd->MUsers.clear();
       // Do not delete the node if it's scheduled for post-enqueue cleanup to
       // avoid double free.
-      if (!Cmd->MPostEnqueueCleanup)
+      if (!Cmd->MMarkedForCleanup)
         Cmd->MMarks.MToBeDeleted = true;
     }
   }
@@ -1158,27 +1205,16 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(
   handleVisitedNodes(MVisitedCmds);
 }
 
-void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd) {
+void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd,
+                                             bool AllowUnsubmitted) {
   if (SYCLConfig<SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::get())
     return;
-  assert(Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued());
+  assert(Cmd->MLeafCounter == 0 &&
+         (Cmd->isSuccessfullyEnqueued() || AllowUnsubmitted));
   Command::CommandType CmdT = Cmd->getType();
 
   assert(CmdT != Command::ALLOCA && CmdT != Command::ALLOCA_SUB_BUF);
   assert(CmdT != Command::RELEASE);
-  assert(CmdT != Command::RUN_CG ||
-         (static_cast<ExecCGCommand *>(Cmd))->getCG().getType() !=
-             CG::CGTYPE::CodeplayHostTask);
-#ifndef NDEBUG
-  if (CmdT == Command::RUN_CG) {
-    auto *ExecCGCmd = static_cast<ExecCGCommand *>(Cmd);
-    if (ExecCGCmd->getCG().getType() == CG::CGTYPE::Kernel) {
-      auto *ExecKernelCG = static_cast<CGExecKernel *>(&ExecCGCmd->getCG());
-      assert(!ExecKernelCG->hasStreams());
-      assert(!ExecKernelCG->hasAuxiliaryResources());
-    }
-  }
-#endif
   (void)CmdT;
 
   for (Command *UserCmd : Cmd->MUsers) {
@@ -1201,82 +1237,16 @@ void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd) {
     DepCmd->MUsers.erase(Cmd);
   }
 
+  if (Cmd->getType() == Command::FUSION &&
+      !static_cast<KernelFusionCommand *>(Cmd)->readyForDeletion()) {
+    // Fusion commands might still be needed because fusion might be aborted,
+    // but a later call to complete_fusion still needs to be able to return a
+    // valid event. Clean-up of fusion commands is therefore explicitly handled
+    // by start fusion.
+    return;
+  }
   Cmd->getEvent()->setCommand(nullptr);
   delete Cmd;
-}
-
-void Scheduler::GraphBuilder::cleanupFinishedCommands(
-    Command *FinishedCmd,
-    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate,
-    std::vector<std::shared_ptr<const void>> &AuxResourcesToDeallocate) {
-  assert(MCmdsToVisit.empty());
-  MCmdsToVisit.push(FinishedCmd);
-  MVisitedCmds.clear();
-
-  // Traverse the graph using BFS
-  while (!MCmdsToVisit.empty()) {
-    Command *Cmd = MCmdsToVisit.front();
-    MCmdsToVisit.pop();
-
-    if (!markNodeAsVisited(Cmd, MVisitedCmds))
-      continue;
-
-    // Collect stream objects for a visited command.
-    if (Cmd->getType() == Command::CommandType::RUN_CG) {
-      auto ExecCmd = static_cast<ExecCGCommand *>(Cmd);
-
-      // Transfer ownership of stream implementations.
-      std::vector<std::shared_ptr<stream_impl>> Streams = ExecCmd->getStreams();
-      ExecCmd->clearStreams();
-      StreamsToDeallocate.insert(StreamsToDeallocate.end(), Streams.begin(),
-                                 Streams.end());
-
-      // Transfer ownership of auxiliary resources.
-      std::vector<std::shared_ptr<const void>> AuxResources =
-          ExecCmd->getAuxiliaryResources();
-      ExecCmd->clearAuxiliaryResources();
-      AuxResourcesToDeallocate.insert(AuxResourcesToDeallocate.end(),
-                                      AuxResources.begin(), AuxResources.end());
-    }
-
-    for (const DepDesc &Dep : Cmd->MDeps) {
-      if (Dep.MDepCommand)
-        MCmdsToVisit.push(Dep.MDepCommand);
-    }
-
-    // Do not clean up the node if it is a leaf for any memory object
-    if (Cmd->MLeafCounter > 0)
-      continue;
-    // Do not clean up allocation commands
-    Command::CommandType CmdT = Cmd->getType();
-    if (CmdT == Command::ALLOCA || CmdT == Command::ALLOCA_SUB_BUF)
-      continue;
-
-    for (Command *UserCmd : Cmd->MUsers) {
-      for (DepDesc &Dep : UserCmd->MDeps) {
-        // Link the users of the command to the alloca command(s) instead
-        if (Dep.MDepCommand == Cmd) {
-          Dep.MDepCommand = Dep.MAllocaCmd;
-          Dep.MDepCommand->MUsers.insert(UserCmd);
-        }
-      }
-    }
-    // Update dependency users
-    for (DepDesc &Dep : Cmd->MDeps) {
-      Command *DepCmd = Dep.MDepCommand;
-      DepCmd->MUsers.erase(Cmd);
-    }
-
-    // Isolate the node instead of deleting it if it's scheduled for
-    // post-enqueue cleanup to avoid double free.
-    if (Cmd->MPostEnqueueCleanup) {
-      Cmd->MDeps.clear();
-      Cmd->MUsers.clear();
-    } else {
-      Cmd->MMarks.MToBeDeleted = true;
-    }
-  }
-  handleVisitedNodes(MVisitedCmds);
 }
 
 void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
@@ -1323,8 +1293,6 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
     throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
   }
 
-  EmptyCommand *EmptyCmd = nullptr;
-
   if (Dep.MDepRequirement) {
     // make ConnectCmd depend on requirement
     // Dismiss the result here as it's not a connection now,
@@ -1333,27 +1301,13 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
     assert(reinterpret_cast<Command *>(DepEvent->getCommand()) ==
            Dep.MDepCommand);
     // add user to Dep.MDepCommand is already performed beyond this if branch
-
-    // ConnectCmd is added as dependency to Cmd
-    // We build the following structure Cmd->EmptyCmd/ConnectCmd->DepCmd
-    // No need to add ConnectCmd to leaves buffer since it is a dependency
-    // for command Cmd that will be added there
-
-    std::vector<Command *> ToEnqueue;
-    const std::vector<const Requirement *> Reqs(1, Dep.MDepRequirement);
-    EmptyCmd = addEmptyCmd(ConnectCmd, Reqs,
-                           Scheduler::getInstance().getDefaultHostQueue(),
-                           Command::BlockReason::HostTask, ToEnqueue, false);
-    assert(ToEnqueue.size() == 0);
-
-    // Depend Cmd on empty command
     {
-      DepDesc CmdDep = Dep;
-      CmdDep.MDepCommand = EmptyCmd;
+      DepDesc DepOnConnect = Dep;
+      DepOnConnect.MDepCommand = ConnectCmd;
 
       // Dismiss the result here as it's not a connection now,
-      // 'cause EmptyCmd is host one
-      (void)Cmd->addDep(CmdDep, ToCleanUp);
+      // 'cause ConnectCmd is host one
+      std::ignore = Cmd->addDep(DepOnConnect, ToCleanUp);
     }
   } else {
     // It is required condition in another a path and addUser will be set in
@@ -1361,30 +1315,217 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
     if (Command *DepCmd = reinterpret_cast<Command *>(DepEvent->getCommand()))
       DepCmd->addUser(ConnectCmd);
 
-    std::vector<Command *> ToEnqueue;
-    EmptyCmd = addEmptyCmd<Requirement>(
-        ConnectCmd, {}, Scheduler::getInstance().getDefaultHostQueue(),
-        Command::BlockReason::HostTask, ToEnqueue);
-    assert(ToEnqueue.size() == 0);
+    std::ignore = ConnectCmd->addDep(DepEvent, ToCleanUp);
 
-    // There is no requirement thus, empty command will only depend on
-    // ConnectCmd via its event.
-    // Dismiss the result here as it's not a connection now,
-    // 'cause ConnectCmd is host one.
-    (void)EmptyCmd->addDep(ConnectCmd->getEvent(), ToCleanUp);
-    (void)ConnectCmd->addDep(DepEvent, ToCleanUp);
+    std::ignore = Cmd->addDep(ConnectCmd->getEvent(), ToCleanUp);
 
-    // Depend Cmd on empty command
-    // Dismiss the result here as it's not a connection now,
-    // 'cause EmptyCmd is host one
-    (void)Cmd->addDep(EmptyCmd->getEvent(), ToCleanUp);
-    // Added by addDep in another path
-    EmptyCmd->addUser(Cmd);
+    ConnectCmd->addUser(Cmd);
   }
 
-  ConnectCmd->MEmptyCmd = EmptyCmd;
-
   return ConnectCmd;
+}
+
+void Scheduler::GraphBuilder::startFusion(QueueImplPtr Queue) {
+  auto QUniqueID = std::hash<QueueImplPtr>()(Queue);
+  if (isInFusionMode(QUniqueID)) {
+    throw sycl::exception{sycl::make_error_code(sycl::errc::invalid),
+                          "Queue already in fusion mode"};
+  }
+  auto OldFusionCmd = findFusionList(QUniqueID);
+  if (OldFusionCmd != MFusionMap.end()) {
+    // If fusion was used on this queue previously, the old fusion command might
+    // still be around to make sure that even after
+    // cancellation of the fusion due to synchronization, complete_fusion is
+    // still able to return a valid event.
+    OldFusionCmd->second->setFusionStatus(
+        KernelFusionCommand::FusionStatus::DELETED);
+    cleanupCommand(OldFusionCmd->second.release());
+    MFusionMap.erase(OldFusionCmd);
+  }
+  MFusionMap.emplace(QUniqueID, std::make_unique<KernelFusionCommand>(Queue));
+}
+
+void Scheduler::GraphBuilder::removeNodeFromGraph(
+    Command *Node, std::vector<Command *> &ToEnqueue) {
+  // Remove the placeholder command as leaf of all its requirements and from the
+  // user list of all its dependencies.
+  for (auto &Dep : Node->MDeps) {
+    auto AccessMode = Dep.MDepRequirement->MAccessMode;
+    auto *Record = getMemObjRecord(Dep.MDepRequirement->MSYCLMemObj);
+
+    Node->MLeafCounter -= Record->MReadLeaves.remove(Node);
+    Node->MLeafCounter -= Record->MWriteLeaves.remove(Node);
+    // If the placeholder had a write-requirement on this record, we need to
+    // restore the previous leaves.
+    if (AccessMode != access::mode::read) {
+      for (auto PrevDep : Dep.MDepCommand->MDeps) {
+        auto *DepReq = PrevDep.MDepRequirement;
+        auto *DepRecord = getMemObjRecord(DepReq->MSYCLMemObj);
+        if (DepRecord == Record) {
+          // Need to restore this as a leaf, because we pushed it from the
+          // leaves when adding the placeholder command.
+          assert(Dep.MDepCommand);
+          addNodeToLeaves(Record, Dep.MDepCommand, DepReq->MAccessMode,
+                          ToEnqueue);
+        }
+      }
+    }
+    Dep.MDepCommand->MUsers.erase(Node);
+  }
+
+  Node->MDeps.clear();
+}
+
+void Scheduler::GraphBuilder::cancelFusion(QueueImplPtr Queue,
+                                           std::vector<Command *> &ToEnqueue) {
+  auto QUniqueID = std::hash<QueueImplPtr>()(Queue);
+  if (!isInFusionMode(QUniqueID)) {
+    return;
+  }
+  auto FusionList = findFusionList(QUniqueID);
+
+  auto *PlaceholderCmd = (*FusionList).second.get();
+
+  // Enqueue all the kernels/commands from the fusion list
+  auto FusedCmdList = PlaceholderCmd->getFusionList();
+  ToEnqueue.insert(ToEnqueue.end(), FusedCmdList.begin(), FusedCmdList.end());
+
+  // The commands establishing an event dependency between the fusion
+  // placeholder command and the individual kernels need to be enqueued.
+  ToEnqueue.insert(ToEnqueue.end(), PlaceholderCmd->auxiliaryCommands().begin(),
+                   PlaceholderCmd->auxiliaryCommands().end());
+
+  ToEnqueue.push_back(PlaceholderCmd);
+
+  if (MPrintOptionsArray[AfterFusionCancel]) {
+    printGraphAsDot("after_fusionCancel");
+  }
+
+  // Set the status for the fusion command
+  PlaceholderCmd->setFusionStatus(KernelFusionCommand::FusionStatus::CANCELLED);
+}
+
+EventImplPtr
+Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
+                                        std::vector<Command *> &ToEnqueue,
+                                        const property_list &PropList) {
+  auto QUniqueID = std::hash<QueueImplPtr>()(Queue);
+#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+  if (!isInFusionMode(QUniqueID)) {
+    auto InactiveFusionList = findFusionList(QUniqueID);
+    if (InactiveFusionList == MFusionMap.end()) {
+      throw sycl::exception{
+          sycl::make_error_code(sycl::errc::invalid),
+          "Calling complete_fusion on a queue not in fusion mode"};
+    }
+    return InactiveFusionList->second->getEvent();
+  }
+
+  auto FusionList = findFusionList(QUniqueID);
+  auto *PlaceholderCmd = FusionList->second.get();
+  auto &CmdList = PlaceholderCmd->getFusionList();
+
+  // TODO: The logic to invoke the JIT compiler to create a fused kernel from
+  // the list will be added in a later PR.
+  auto FusedCG = nullptr;
+
+  if (!FusedCG) {
+    // If the JIT compiler returns a nullptr, JIT compilation of the fused
+    // kernel failed. In that case, simply cancel the fusion and run each kernel
+    // on its own.
+    auto LastEvent = PlaceholderCmd->getEvent();
+    this->cancelFusion(Queue, ToEnqueue);
+    return LastEvent;
+  }
+
+  // Inherit all event dependencies from the input commands in the fusion list.
+  std::vector<EventImplPtr> FusedEventDeps;
+  for (auto *Cmd : CmdList) {
+    FusedEventDeps.insert(FusedEventDeps.end(),
+                          Cmd->getPreparedDepsEvents().begin(),
+                          Cmd->getPreparedDepsEvents().end());
+    FusedEventDeps.insert(FusedEventDeps.end(),
+                          Cmd->getPreparedHostDepsEvents().begin(),
+                          Cmd->getPreparedHostDepsEvents().end());
+  }
+
+  // Remove internal explicit dependencies, i.e., explicit dependencies from one
+  // kernel in the fusion list to another kernel also in the fusion list.
+  FusedEventDeps.erase(
+      std::remove_if(FusedEventDeps.begin(), FusedEventDeps.end(),
+                     [&](EventImplPtr &E) {
+                       if (E->getCommand() == PlaceholderCmd) {
+                         return true;
+                       }
+                       if (E->getCommand() &&
+                           static_cast<Command *>(E->getCommand())->getType() ==
+                               Command::RUN_CG) {
+                         auto *RunCGCmd =
+                             static_cast<ExecCGCommand *>(E->getCommand());
+                         if (RunCGCmd->MFusionCmd == PlaceholderCmd) {
+                           return true;
+                         }
+                       }
+                       return false;
+                     }),
+      FusedEventDeps.end());
+
+  auto FusedKernelCmd =
+      std::make_unique<ExecCGCommand>(std::move(FusedCG), Queue);
+
+  assert(PlaceholderCmd->MDeps.empty());
+  // Next, backwards iterate over all the commands in the fusion list and remove
+  // them from the graph to restore the state before starting fusion, so we can
+  // add the fused kernel to the graph in the next step.
+  // Clean up the old commands after successfully fusing them.
+  for (auto OldCmd = CmdList.rbegin(); OldCmd != CmdList.rend(); ++OldCmd) {
+    removeNodeFromGraph(*OldCmd, ToEnqueue);
+    cleanupCommand(*OldCmd, /* AllowUnsubmitted */ true);
+  }
+
+  createGraphForCommand(FusedKernelCmd.get(), FusedKernelCmd->getCG(), false,
+                        FusedKernelCmd->getCG().MRequirements, FusedEventDeps,
+                        Queue, ToEnqueue);
+
+  ToEnqueue.push_back(FusedKernelCmd.get());
+
+  std::vector<Command *> ToCleanUp;
+  // Make the placeholder command depend on the execution of the fused kernel
+  auto *ConnectToPlaceholder =
+      PlaceholderCmd->addDep(FusedKernelCmd->getEvent(), ToCleanUp);
+  if (ConnectToPlaceholder) {
+    ToEnqueue.push_back(ConnectToPlaceholder);
+  }
+  for (Command *Cmd : ToCleanUp) {
+    cleanupCommand(Cmd);
+  }
+  ToEnqueue.push_back(PlaceholderCmd);
+
+  if (MPrintOptionsArray[AfterFusionComplete]) {
+    printGraphAsDot("after_fusionComplete");
+  }
+
+  // Set the status for the fusion command.
+  PlaceholderCmd->setFusionStatus(KernelFusionCommand::FusionStatus::COMPLETE);
+
+  return FusedKernelCmd.release()->getEvent();
+#else  // SYCL_EXT_CODEPLAY_KERNEL_FUSION
+  printFusionWarning("Kernel fusion not supported by this build");
+  (void)PropList;
+  auto FusionList = findFusionList(QUniqueID);
+  auto *PlaceholderCmd = FusionList->second.get();
+  auto LastEvent = PlaceholderCmd->getEvent();
+  this->cancelFusion(Queue, ToEnqueue);
+  return LastEvent;
+#endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION
+}
+
+bool Scheduler::GraphBuilder::isInFusionMode(QueueIdT Id) {
+  auto FusionList = findFusionList(Id);
+  if (FusionList == MFusionMap.end()) {
+    return false;
+  }
+  return FusionList->second->isActive();
 }
 
 } // namespace detail

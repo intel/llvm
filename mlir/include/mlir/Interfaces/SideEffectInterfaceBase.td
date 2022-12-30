@@ -94,13 +94,6 @@ class EffectOpInterfaceBase<string name, string baseEffect>
       return effects.empty();
     }
 
-    /// Returns true if the given operation has no effects for this interface.
-    static bool hasNoEffect(Operation *op) {
-      if (auto interface = dyn_cast<}] # name # [{>(op))
-        return interface.hasNoEffect();
-      return op->hasTrait<::mlir::OpTrait::HasRecursiveMemoryEffects>();
-    }
-
     /// Collect all of the effect instances that operate on the provided value
     /// and place them in 'effects'.
     void getEffectsOnValue(::mlir::Value value,
@@ -111,7 +104,7 @@ class EffectOpInterfaceBase<string name, string baseEffect>
     }
 
     /// Return the effect of the given type `Effect` that is applied to the
-    /// given value, or None if no effect exists.
+    /// given value, or std::nullopt if no effect exists.
     template <typename Effect>
     ::llvm::Optional<::mlir::SideEffects::EffectInstance<}] # baseEffect # [{>>
     getEffectOnValue(::mlir::Value value) {
@@ -122,7 +115,7 @@ class EffectOpInterfaceBase<string name, string baseEffect>
         return isa<Effect>(it.getEffect()) && it.getValue() == value;
       });
       if (it == effects.end())
-        return llvm::None;
+        return std::nullopt;
       return *it;
     }
 

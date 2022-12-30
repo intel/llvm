@@ -115,6 +115,7 @@ Clang-Tidy Checks
    `bugprone-sizeof-container <bugprone/sizeof-container.html>`_,
    `bugprone-sizeof-expression <bugprone/sizeof-expression.html>`_,
    `bugprone-spuriously-wake-up-functions <bugprone/spuriously-wake-up-functions.html>`_,
+   `bugprone-standalone-empty <bugprone/standalone-empty.html>`_, "Yes"
    `bugprone-string-constructor <bugprone/string-constructor.html>`_, "Yes"
    `bugprone-string-integer-assignment <bugprone/string-integer-assignment.html>`_, "Yes"
    `bugprone-string-literal-with-embedded-nul <bugprone/string-literal-with-embedded-nul.html>`_,
@@ -259,6 +260,7 @@ Clang-Tidy Checks
    `misc-unused-alias-decls <misc/unused-alias-decls.html>`_, "Yes"
    `misc-unused-parameters <misc/unused-parameters.html>`_, "Yes"
    `misc-unused-using-decls <misc/unused-using-decls.html>`_, "Yes"
+   `misc-use-anonymous-namespace <misc/use-anonymous-namespace.html>`_,
    `modernize-avoid-bind <modernize/avoid-bind.html>`_, "Yes"
    `modernize-avoid-c-arrays <modernize/avoid-c-arrays.html>`_,
    `modernize-concat-nested-namespaces <modernize/concat-nested-namespaces.html>`_, "Yes"

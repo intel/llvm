@@ -28,9 +28,9 @@ static bool hasFullyDynamicLayoutMap(MemRefType type) {
   SmallVector<int64_t, 4> strides;
   if (failed(getStridesAndOffset(type, strides, offset)))
     return false;
-  if (!llvm::all_of(strides, ShapedType::isDynamicStrideOrOffset))
+  if (!llvm::all_of(strides, ShapedType::isDynamic))
     return false;
-  if (!ShapedType::isDynamicStrideOrOffset(offset))
+  if (!ShapedType::isDynamic(offset))
     return false;
   return true;
 }
@@ -154,7 +154,7 @@ updateCalls(ModuleOp module,
       auto memrefType = memref.getType().cast<MemRefType>();
       auto allocType =
           MemRefType::get(memrefType.getShape(), memrefType.getElementType(),
-                          AffineMap(), memrefType.getMemorySpaceAsInt());
+                          AffineMap(), memrefType.getMemorySpace());
       Value outParam = builder.create<memref::AllocOp>(op.getLoc(), allocType);
       if (!hasStaticIdentityLayout(memrefType)) {
         // Layout maps are already checked in `updateFuncOp`.

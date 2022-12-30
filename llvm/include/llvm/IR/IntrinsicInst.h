@@ -35,6 +35,7 @@
 #include "llvm/Support/Casting.h"
 #include <cassert>
 #include <cstdint>
+#include <optional>
 
 namespace llvm {
 
@@ -121,6 +122,31 @@ public:
   static bool classof(const Value *V) {
     return isa<CallInst>(V) && classof(cast<CallInst>(V));
   }
+};
+
+/// Check if \p ID corresponds to a lifetime intrinsic.
+static inline bool isLifetimeIntrinsic(Intrinsic::ID ID) {
+  switch (ID) {
+  case Intrinsic::lifetime_start:
+  case Intrinsic::lifetime_end:
+    return true;
+  default:
+    return false;
+  }
+}
+
+/// This is the common base class for lifetime intrinsics.
+class LifetimeIntrinsic : public IntrinsicInst {
+public:
+  /// \name Casting methods
+  /// @{
+  static bool classof(const IntrinsicInst *I) {
+    return isLifetimeIntrinsic(I->getIntrinsicID());
+  }
+  static bool classof(const Value *V) {
+    return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
+  }
+  /// @}
 };
 
 /// Check if \p ID corresponds to a debug info intrinsic.
@@ -288,10 +314,10 @@ public:
 
   /// Get the size (in bits) of the variable, or fragment of the variable that
   /// is described.
-  Optional<uint64_t> getFragmentSizeInBits() const;
+  std::optional<uint64_t> getFragmentSizeInBits() const;
 
   /// Get the FragmentInfo for the variable.
-  Optional<DIExpression::FragmentInfo> getFragment() const {
+  std::optional<DIExpression::FragmentInfo> getFragment() const {
     return getExpression()->getFragmentInfo();
   }
 
@@ -456,8 +482,9 @@ public:
                                            Type *ReturnType,
                                            ArrayRef<Value *> Params);
 
-  static Optional<unsigned> getMaskParamPos(Intrinsic::ID IntrinsicID);
-  static Optional<unsigned> getVectorLengthParamPos(Intrinsic::ID IntrinsicID);
+  static std::optional<unsigned> getMaskParamPos(Intrinsic::ID IntrinsicID);
+  static std::optional<unsigned> getVectorLengthParamPos(
+      Intrinsic::ID IntrinsicID);
 
   /// The llvm.vp.* intrinsics for this instruction Opcode
   static Intrinsic::ID getForOpcode(unsigned OC);
@@ -487,11 +514,11 @@ public:
 
   /// \return The pointer operand of this load,store, gather or scatter.
   Value *getMemoryPointerParam() const;
-  static Optional<unsigned> getMemoryPointerParamPos(Intrinsic::ID);
+  static std::optional<unsigned> getMemoryPointerParamPos(Intrinsic::ID);
 
   /// \return The data (payload) operand of this store or scatter.
   Value *getMemoryDataParam() const;
-  static Optional<unsigned> getMemoryDataParamPos(Intrinsic::ID);
+  static std::optional<unsigned> getMemoryDataParamPos(Intrinsic::ID);
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const IntrinsicInst *I) {
@@ -502,12 +529,12 @@ public:
   }
 
   // Equivalent non-predicated opcode
-  Optional<unsigned> getFunctionalOpcode() const {
+  std::optional<unsigned> getFunctionalOpcode() const {
     return getFunctionalOpcodeForVP(getIntrinsicID());
   }
 
   // Equivalent non-predicated opcode
-  static Optional<unsigned> getFunctionalOpcodeForVP(Intrinsic::ID ID);
+  static std::optional<unsigned> getFunctionalOpcodeForVP(Intrinsic::ID ID);
 };
 
 /// This represents vector predication reduction intrinsics.
@@ -518,8 +545,8 @@ public:
   unsigned getStartParamPos() const;
   unsigned getVectorParamPos() const;
 
-  static Optional<unsigned> getStartParamPos(Intrinsic::ID ID);
-  static Optional<unsigned> getVectorParamPos(Intrinsic::ID ID);
+  static std::optional<unsigned> getStartParamPos(Intrinsic::ID ID);
+  static std::optional<unsigned> getVectorParamPos(Intrinsic::ID ID);
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast:
   /// @{
@@ -569,8 +596,8 @@ class ConstrainedFPIntrinsic : public IntrinsicInst {
 public:
   bool isUnaryOp() const;
   bool isTernaryOp() const;
-  Optional<RoundingMode> getRoundingMode() const;
-  Optional<fp::ExceptionBehavior> getExceptionBehavior() const;
+  std::optional<RoundingMode> getRoundingMode() const;
+  std::optional<fp::ExceptionBehavior> getExceptionBehavior() const;
   bool isDefaultFPEnvironment() const;
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:

@@ -14,6 +14,7 @@
 #define MLIR_DIALECT_AFFINE_UTILS_H
 
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 
 namespace mlir {
 
@@ -159,14 +160,15 @@ vectorizeAffineLoopNest(std::vector<SmallVector<AffineForOp, 2>> &loops,
 /// early if the op is already in a normalized form.
 void normalizeAffineParallel(AffineParallelOp op);
 
-/// Normalize an affine.for op. If the affine.for op has only a single iteration
-/// only then it is simply promoted, else it is normalized in the traditional
-/// way, by converting the lower bound to zero and loop step to one. The upper
-/// bound is set to the trip count of the loop. Original loops must have a
-/// lower bound with only a single result. There is no such restriction on upper
-/// bounds. Returns success if the loop has been normalized (or is already in
-/// the normal form).
-LogicalResult normalizeAffineFor(AffineForOp op);
+/// Normalize an affine.for op. An affine.for op is normalized by converting the
+/// lower bound to zero and loop step to one. The upper bound is set to the trip
+/// count of the loop. Original loops must have a lower bound with only a single
+/// result. There is no such restriction on upper bounds. Returns success if the
+/// loop has been normalized (or is already in the normal form). If
+/// `promoteSingleIter` is true, the loop is simply promoted if it has a single
+/// iteration.
+LogicalResult normalizeAffineFor(AffineForOp op,
+                                 bool promoteSingleIter = false);
 
 /// Traverse `e` and return an AffineExpr where all occurrences of `dim` have
 /// been replaced by either:
@@ -327,6 +329,56 @@ FailureOr<SmallVector<Value>> delinearizeIndex(OpBuilder &b, Location loc,
 /// that would change the read within `memOp`.
 template <typename EffectType, typename T>
 bool hasNoInterveningEffect(Operation *start, T memOp);
+
+struct AffineValueExpr {
+  explicit AffineValueExpr(AffineExpr e) : e(e) {}
+  AffineValueExpr bind(Value v) {
+    this->v = v;
+    return *this;
+  }
+  AffineValueExpr bind(OpFoldResult v) {
+    this->v = v;
+    return *this;
+  }
+  operator AffineExpr() const { return e; }
+  operator OpFoldResult() const { return v; }
+  AffineExpr e;
+  OpFoldResult v;
+};
+
+/// Helper struct to build simple AffineValueExprs with minimal type inference
+/// support.
+struct AffineBuilder {
+  AffineBuilder(OpBuilder &b, Location loc) : b(b), loc(loc) {}
+  OpFoldResult add(AffineValueExpr lhs, AffineValueExpr rhs) {
+    return makeComposedFoldedAffineApply(b, loc, {lhs.e + rhs.e}, {lhs, rhs});
+  }
+  OpFoldResult sub(AffineValueExpr lhs, AffineValueExpr rhs) {
+    return makeComposedFoldedAffineApply(b, loc, {lhs.e - rhs.e}, {lhs, rhs});
+  }
+  OpFoldResult mul(AffineValueExpr lhs, AffineValueExpr rhs) {
+    return makeComposedFoldedAffineApply(b, loc, {lhs.e * rhs.e}, {lhs, rhs});
+  }
+  OpFoldResult ceil(AffineValueExpr lhs, AffineValueExpr rhs) {
+    return makeComposedFoldedAffineApply(b, loc, {lhs.e.ceilDiv(rhs.e)},
+                                         {lhs, rhs});
+  }
+  OpFoldResult min(ArrayRef<OpFoldResult> vals) {
+    return makeComposedFoldedAffineMin(
+        b, loc, AffineMap::getMultiDimIdentityMap(vals.size(), b.getContext()),
+        vals);
+  }
+  OpFoldResult max(ArrayRef<OpFoldResult> vals) {
+    return makeComposedFoldedAffineMax(
+        b, loc, AffineMap::getMultiDimIdentityMap(vals.size(), b.getContext()),
+        vals);
+  }
+
+private:
+  OpBuilder &b;
+  Location loc;
+};
+
 } // namespace mlir
 
 #endif // MLIR_DIALECT_AFFINE_UTILS_H

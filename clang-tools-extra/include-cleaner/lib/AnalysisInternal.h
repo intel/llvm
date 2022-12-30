@@ -24,11 +24,15 @@
 #include "clang-include-cleaner/Record.h"
 #include "clang-include-cleaner/Types.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Tooling/Inclusions/StandardLibrary.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
+#include <variant>
+#include <vector>
 
 namespace clang {
 class ASTContext;
 class Decl;
+class HeaderSearch;
 class NamedDecl;
 namespace include_cleaner {
 
@@ -65,7 +69,6 @@ struct SymbolLocation {
   bool operator==(const SymbolLocation &RHS) const {
     return Storage == RHS.Storage;
   }
-
   SourceLocation physical() const { return std::get<Physical>(Storage); }
   tooling::stdlib::Symbol standard() const {
     return std::get<Standard>(Storage);
@@ -75,18 +78,23 @@ private:
   // Order must match Kind enum!
   std::variant<SourceLocation, tooling::stdlib::Symbol> Storage;
 };
-llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Header &);
+llvm::raw_ostream &operator<<(llvm::raw_ostream &, const SymbolLocation &);
 
 /// Finds the headers that provide the symbol location.
 // FIXME: expose signals
 llvm::SmallVector<Header> findHeaders(const SymbolLocation &Loc,
                                       const SourceManager &SM,
-                                      const PragmaIncludes &PI);
+                                      const PragmaIncludes *PI);
 
 /// Write an HTML summary of the analysis to the given stream.
-/// FIXME: Once analysis has a public API, this should be public too.
-void writeHTMLReport(FileID File, llvm::ArrayRef<Decl *> Roots, ASTContext &Ctx,
+void writeHTMLReport(FileID File, const Includes &,
+                     llvm::ArrayRef<Decl *> Roots,
+                     llvm::ArrayRef<SymbolReference> MacroRefs, ASTContext &Ctx,
+                     HeaderSearch &HS, PragmaIncludes *PI,
                      llvm::raw_ostream &OS);
+
+/// A set of locations that provides the declaration.
+std::vector<SymbolLocation> locateSymbol(const Symbol &S);
 
 } // namespace include_cleaner
 } // namespace clang

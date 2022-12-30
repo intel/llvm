@@ -208,6 +208,7 @@ BuiltinCallMutator BuiltinCallHelper::mutateCallInst(CallInst *CI,
 
 BuiltinCallMutator BuiltinCallHelper::mutateCallInst(CallInst *CI,
                                                      std::string FuncName) {
+  assert(CI->getCalledFunction() && "Can only mutate direct function calls.");
   return BuiltinCallMutator(CI, std::move(FuncName), Rules, NameMapFn);
 }
 
@@ -278,10 +279,9 @@ Type *BuiltinCallHelper::getSPIRVType(spv::Op TypeOpcode,
   return getSPIRVType(TypeOpcode, "", {(unsigned)Access}, UseRealType);
 }
 
-Type *BuiltinCallHelper::getSPIRVType(spv::Op TypeOpcode, Type *InnerType,
-                                      SPIRVTypeImageDescriptor Desc,
-                                      Optional<spv::AccessQualifier> Access,
-                                      bool UseRealType) {
+Type *BuiltinCallHelper::getSPIRVType(
+    spv::Op TypeOpcode, Type *InnerType, SPIRVTypeImageDescriptor Desc,
+    std::optional<spv::AccessQualifier> Access, bool UseRealType) {
   return getSPIRVType(TypeOpcode, convertTypeToPostfix(InnerType),
                       {(unsigned)Desc.Dim, (unsigned)Desc.Depth,
                        (unsigned)Desc.Arrayed, (unsigned)Desc.MS,

@@ -1124,6 +1124,17 @@ llvm.func @zeroextattr(%arg0: i1 {llvm.zeroext}) {
 // CHECK-LABEL: declare void @zeroextattr_decl(i1 zeroext)
 llvm.func @zeroextattr_decl(i1 {llvm.zeroext})
 
+// CHECK-LABEL: declare align 4 ptr @alignattr_ret_decl()
+llvm.func @alignattr_ret_decl() -> (!llvm.ptr<i32> {llvm.align = 4})
+// CHECK-LABEL: declare noalias ptr @noaliasattr_ret_decl()
+llvm.func @noaliasattr_ret_decl() -> (!llvm.ptr<i32> {llvm.noalias})
+// CHECK-LABEL: declare noundef ptr @noundefattr_ret_decl()
+llvm.func @noundefattr_ret_decl() -> (!llvm.ptr<i32> {llvm.noundef})
+// CHECK-LABEL: declare signext i1 @signextattr_ret_decl()
+llvm.func @signextattr_ret_decl() -> (i1 {llvm.signext})
+// CHECK-LABEL: declare zeroext i1 @zeroextattr_ret_decl()
+llvm.func @zeroextattr_ret_decl() -> (i1 {llvm.zeroext})
+
 // CHECK-LABEL: @llvm_varargs(...)
 llvm.func @llvm_varargs(...)
 
@@ -1488,6 +1499,16 @@ llvm.func @callFreezeOp(%x : i32) {
   // CHECK: freeze i32 undef
   %2 = llvm.freeze %1 : i32
   llvm.return
+}
+
+// CHECK-LABEL: @freezeUsed
+llvm.func @freezeUsed(%x : i32) -> i64 {
+  // CHECK: %[[frozen:.*]] = freeze i32
+  %frozen = llvm.freeze %x : i32
+  // CHECK: %[[ext:.*]] = sext i32 %[[frozen]] to i64
+  %ext = llvm.sext %frozen : i32 to i64
+  // CHECK: ret i64 %[[ext]]
+  llvm.return %ext : i64
 }
 
 // CHECK-LABEL: @boolConstArg
@@ -2011,3 +2032,7 @@ llvm.func @vararg_function(%arg0: i32, ...) {
 // CHECK: declare void @readnone_function() #[[ATTR:[0-9]+]]
 // CHECK: attributes #[[ATTR]] = { memory(none) }
 llvm.func @readnone_function() attributes {llvm.readnone}
+
+// -----
+// CHECK: declare void @readonly_function([[PTR:.+]] readonly)
+llvm.func @readonly_function(%arg0: !llvm.ptr<f32> {llvm.readonly})

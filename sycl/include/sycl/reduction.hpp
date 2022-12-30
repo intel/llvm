@@ -626,7 +626,12 @@ public:
       Func(Mem);
 
       reduction::withAuxHandler(CGH, [&](handler &CopyHandler) {
-        accessor Mem{*Buf, CopyHandler};
+        // MSVC (19.32.31329) has problems compiling the line below when used 
+        // as a host compiler in c++17 mode (but not in c++latest)
+        //   accessor Mem{*Buf, CopyHandler};
+        // so use the old-style API.
+        auto Mem =
+            Buf->template get_access<access::mode::read_write>(CopyHandler);
         if constexpr (is_usm) {
           // Can't capture whole reduction, copy into distinct variables.
           bool IsUpdateOfUserVar = !base::initializeToIdentity();
@@ -821,8 +826,9 @@ auto make_reduction(RedOutVar RedVar, RestTy &&...Rest) {
 namespace reduction {
 inline void finalizeHandler(handler &CGH) { CGH.finalize(); }
 template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func) {
-  CGH.finalize();
+  event E = CGH.finalize();
   handler AuxHandler(CGH.MQueue, CGH.MIsHost);
+  AuxHandler.depends_on(E);
   AuxHandler.saveCodeLoc(CGH.MCodeLoc);
   Func(AuxHandler);
   CGH.MLastEvent = AuxHandler.finalize();
@@ -1021,6 +1027,29 @@ struct NDRangeReduction<
   }
 };
 
+template <typename LocalRedsTy, typename BinOpTy, typename BarrierTy,
+          typename IdentityTy>
+void doTreeReduction(size_t WGSize, size_t LID, bool DisableExtraElem,
+                     IdentityTy Identity, LocalRedsTy &LocalReds, BinOpTy &BOp,
+                     BarrierTy Barrier) {
+  // For work-groups, which size is not power of two, local accessors have
+  // an additional element with index WGSize that is used by the
+  // tree-reduction algorithm. Initialize those additional elements with
+  // identity values here.
+  if (!DisableExtraElem)
+    LocalReds[WGSize] = Identity;
+  Barrier();
+  size_t PrevStep = WGSize;
+  for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
+    if (LID < CurStep)
+      LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
+    else if (!DisableExtraElem && LID == CurStep && (PrevStep & 0x1))
+      LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
+    Barrier();
+    PrevStep = CurStep;
+  }
+}
+
 template <> struct NDRangeReduction<reduction::strategy::range_basic> {
   template <typename KernelName, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
@@ -1062,22 +1091,9 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
 
         // Copy the element to local memory to prepare it for tree-reduction.
         LocalReds[LID] = Reducer.getElement(E);
-        if (LID == 0)
-          LocalReds[WGSize] = Identity;
-        workGroupBarrier();
 
-        // Tree-reduction: reduce the local array LocalReds[:] to LocalReds[0].
-        // LocalReds[WGSize] accumulates last/odd elements when the step
-        // of tree-reduction loop is not even.
-        size_t PrevStep = WGSize;
-        for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
-          if (LID < CurStep)
-            LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
-          else if (LID == CurStep && (PrevStep & 0x1))
-            LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
-          workGroupBarrier();
-          PrevStep = CurStep;
-        }
+        doTreeReduction(WGSize, LID, false, Identity, LocalReds, BOp,
+                        [&]() { workGroupBarrier(); });
 
         if (LID == 0) {
           auto V = BOp(LocalReds[0], LocalReds[WGSize]);
@@ -1108,20 +1124,9 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
             LocalSum = BOp(LocalSum, PartialSums[I * NElements + E]);
 
           LocalReds[LID] = LocalSum;
-          if (LID == 0)
-            LocalReds[WGSize] = Identity;
-          workGroupBarrier();
 
-          size_t PrevStep = WGSize;
-          for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
-            if (LID < CurStep)
-              LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
-            else if (LID == CurStep && (PrevStep & 0x1))
-              LocalReds[WGSize] =
-                  BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
-            workGroupBarrier();
-            PrevStep = CurStep;
-          }
+          doTreeReduction(WGSize, LID, false, Identity, LocalReds, BOp,
+                          [&]() { workGroupBarrier(); });
           if (LID == 0) {
             auto V = BOp(LocalReds[0], LocalReds[WGSize]);
             if (IsUpdateOfUserVar)
@@ -1212,24 +1217,10 @@ struct NDRangeReduction<
 
           // Copy the element to local memory to prepare it for tree-reduction.
           LocalReds[LID] = Reducer.getElement(E);
-          if (!IsPow2WG)
-            LocalReds[WGSize] = Reducer.getIdentity();
-          NDIt.barrier();
 
-          // Tree-reduction: reduce the local array LocalReds[:] to
-          // LocalReds[0]. LocalReds[WGSize] accumulates last/odd elements when
-          // the step of tree-reduction loop is not even.
           typename Reduction::binary_operation BOp;
-          size_t PrevStep = WGSize;
-          for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
-            if (LID < CurStep)
-              LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
-            else if (!IsPow2WG && LID == CurStep && (PrevStep & 0x1))
-              LocalReds[WGSize] =
-                  BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
-            NDIt.barrier();
-            PrevStep = CurStep;
-          }
+          doTreeReduction(WGSize, LID, IsPow2WG, Reducer.getIdentity(),
+                          LocalReds, BOp, [&]() { NDIt.barrier(); });
 
           if (LID == 0) {
             Reducer.getElement(E) =
@@ -1439,22 +1430,9 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
 
         // Copy the element to local memory to prepare it for tree-reduction.
         LocalReds[LID] = Reducer.getElement(E);
-        if (!IsPow2WG)
-          LocalReds[WGSize] = ReduIdentity;
-        NDIt.barrier();
 
-        // Tree-reduction: reduce the local array LocalReds[:] to LocalReds[0]
-        // LocalReds[WGSize] accumulates last/odd elements when the step
-        // of tree-reduction loop is not even.
-        size_t PrevStep = WGSize;
-        for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
-          if (LID < CurStep)
-            LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
-          else if (!IsPow2WG && LID == CurStep && (PrevStep & 0x1))
-            LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
-          NDIt.barrier();
-          PrevStep = CurStep;
-        }
+        doTreeReduction(WGSize, LID, IsPow2WG, ReduIdentity, LocalReds, BOp,
+                        [&]() { NDIt.barrier(); });
 
         // Compute the partial sum/reduction for the work-group.
         if (LID == 0) {
@@ -1538,23 +1516,9 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
             LocalReds[LID] = (UniformPow2WG || GID < NWorkItems)
                                  ? In[GID * NElements + E]
                                  : ReduIdentity;
-            if (!UniformPow2WG)
-              LocalReds[WGSize] = ReduIdentity;
-            NDIt.barrier();
 
-            // Tree-reduction: reduce the local array LocalReds[:] to
-            // LocalReds[0] LocalReds[WGSize] accumulates last/odd elements when
-            // the step of tree-reduction loop is not even.
-            size_t PrevStep = WGSize;
-            for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
-              if (LID < CurStep)
-                LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
-              else if (!UniformPow2WG && LID == CurStep && (PrevStep & 0x1))
-                LocalReds[WGSize] =
-                    BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
-              NDIt.barrier();
-              PrevStep = CurStep;
-            }
+            doTreeReduction(WGSize, LID, UniformPow2WG, ReduIdentity, LocalReds,
+                            BOp, [&]() { NDIt.barrier(); });
 
             // Compute the partial sum/reduction for the work-group.
             if (LID == 0) {
@@ -1790,20 +1754,9 @@ void reduCGFuncImplArrayHelper(bool Pow2WG, bool IsOneWG, nd_item<Dims> NDIt,
 
     // Copy the element to local memory to prepare it for tree-reduction.
     LocalReds[LID] = Reducer.getElement(E);
-    if (!Pow2WG)
-      LocalReds[WGSize] = Identity;
-    NDIt.barrier();
 
-    size_t PrevStep = WGSize;
-    for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
-      if (LID < CurStep) {
-        LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
-      } else if (!Pow2WG && LID == CurStep && (PrevStep & 0x1)) {
-        LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
-      }
-      NDIt.barrier();
-      PrevStep = CurStep;
-    }
+    doTreeReduction(WGSize, LID, Pow2WG, Identity, LocalReds, BOp,
+                    [&]() { NDIt.barrier(); });
 
     // Add the initial value of user's variable to the final result.
     if (LID == 0) {
@@ -1852,11 +1805,9 @@ void reduCGFuncImplArray(
    ...);
 }
 
-namespace reduction {
-namespace main_krn {
+namespace reduction::main_krn {
 template <class KernelName, class Accessor> struct NDRangeMulti;
-} // namespace main_krn
-} // namespace reduction
+} // namespace reduction::main_krn
 template <typename KernelName, typename KernelType, int Dims,
           typename PropertiesT, typename... Reductions, size_t... Is>
 void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
@@ -2032,27 +1983,8 @@ void reduAuxCGFuncImplArrayHelper(bool UniformPow2WG, bool IsOneWG,
       LocalReds[LID] = Identity;
     }
 
-    // For work-groups, which size is not power of two, local accessors have
-    // an additional element with index WGSize that is used by the
-    // tree-reduction algorithm. Initialize those additional elements with
-    // identity values here.
-    if (!UniformPow2WG) {
-      LocalReds[WGSize] = Identity;
-    }
-
-    NDIt.barrier();
-
-    // Tree reduction in local memory
-    size_t PrevStep = WGSize;
-    for (size_t CurStep = PrevStep >> 1; CurStep > 0; CurStep >>= 1) {
-      if (LID < CurStep) {
-        LocalReds[LID] = BOp(LocalReds[LID], LocalReds[LID + CurStep]);
-      } else if (!UniformPow2WG && LID == CurStep && (PrevStep & 0x1)) {
-        LocalReds[WGSize] = BOp(LocalReds[WGSize], LocalReds[PrevStep - 1]);
-      }
-      NDIt.barrier();
-      PrevStep = CurStep;
-    }
+    doTreeReduction(WGSize, LID, UniformPow2WG, Identity, LocalReds, BOp,
+                    [&]() { NDIt.barrier(); });
 
     // Add the initial value of user's variable to the final result.
     if (LID == 0) {
@@ -2102,11 +2034,9 @@ void reduAuxCGFuncImplArray(
    ...);
 }
 
-namespace reduction {
-namespace aux_krn {
+namespace reduction::aux_krn {
 template <class KernelName, class Predicate> struct Multi;
-} // namespace aux_krn
-} // namespace reduction
+} // namespace reduction::aux_krn
 template <typename KernelName, typename KernelType, typename... Reductions,
           size_t... Is>
 size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
@@ -2302,16 +2232,30 @@ __SYCL_EXPORT uint32_t
 reduGetMaxNumConcurrentWorkGroups(std::shared_ptr<queue_impl> Queue);
 
 template <typename KernelName, reduction::strategy Strategy, int Dims,
-          typename PropertiesT, typename KernelType, typename Reduction>
+          typename PropertiesT, typename... RestT>
 void reduction_parallel_for(handler &CGH, range<Dims> Range,
-                            PropertiesT Properties, Reduction Redu,
-                            KernelType KernelFunc) {
+                            PropertiesT Properties, RestT... Rest) {
+  std::tuple<RestT...> ArgsTuple(Rest...);
+  constexpr size_t NumArgs = sizeof...(RestT);
+  static_assert(NumArgs > 1, "No reduction!");
+  auto KernelFunc = std::get<NumArgs - 1>(ArgsTuple);
+  auto ReduIndices = std::make_index_sequence<NumArgs - 1>();
+  auto ReduTuple = detail::tuple_select_elements(ArgsTuple, ReduIndices);
+
   // Before running the kernels, check that device has enough local memory
   // to hold local arrays required for the tree-reduction algorithm.
-  constexpr bool IsTreeReduction =
-      !Reduction::has_fast_reduce && !Reduction::has_fast_atomics;
-  size_t OneElemSize =
-      IsTreeReduction ? sizeof(typename Reduction::result_type) : 0;
+  size_t OneElemSize = [&]() {
+    // Can't use outlined NumArgs due to a bug in gcc 8.4.
+    if constexpr (sizeof...(RestT) == 2) {
+      using Reduction = std::tuple_element_t<0, decltype(ReduTuple)>;
+      constexpr bool IsTreeReduction =
+          !Reduction::has_fast_reduce && !Reduction::has_fast_atomics;
+      return IsTreeReduction ? sizeof(typename Reduction::result_type) : 0;
+    } else {
+      return reduGetMemPerWorkItem(ReduTuple, ReduIndices);
+    }
+  }();
+
   uint32_t NumConcurrentWorkGroups =
 #ifdef __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS
       __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS;
@@ -2341,7 +2285,7 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
   // stride equal to 1. For each of the index the given the original KernelFunc
   // is called and the reduction value hold in \p Reducer is accumulated in
   // those calls.
-  auto UpdatedKernelFunc = [=](auto NDId, auto &Reducer) {
+  auto UpdatedKernelFunc = [=](auto NDId, auto &...Reducers) {
     // Divide into contiguous chunks and assign each chunk to a Group
     // Rely on precomputed division to avoid repeating expensive operations
     // TODO: Some devices may prefer alternative remainder handling
@@ -2356,24 +2300,45 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
     size_t Start = GroupStart + NDId.get_local_id(0);
     size_t End = GroupEnd;
     size_t Stride = NDId.get_local_range(0);
+    auto GetDelinearized = [&](size_t I) {
+      auto Id = getDelinearizedId(Range, I);
+      if constexpr (std::is_invocable_v<decltype(KernelFunc), id<Dims>,
+                                        decltype(Reducers)...>)
+        return Id;
+      else
+        // SYCL doesn't provide parallel_for accepting offset in presence of
+        // reductions, so use with_offset==false.
+        return reduction::getDelinearizedItem(Range, Id);
+    };
     for (size_t I = Start; I < End; I += Stride)
-      KernelFunc(getDelinearizedId(Range, I), Reducer);
+      KernelFunc(GetDelinearized(I), Reducers...);
   };
+  if constexpr (NumArgs == 2) {
+    using Reduction = std::tuple_element_t<0, decltype(ReduTuple)>;
+    auto &Redu = std::get<0>(ReduTuple);
 
-  constexpr auto StrategyToUse = [&]() {
-    if constexpr (Strategy != reduction::strategy::auto_select)
-      return Strategy;
+    constexpr auto StrategyToUse = [&]() {
+      if constexpr (Strategy != reduction::strategy::auto_select)
+        return Strategy;
 
-    if constexpr (Reduction::has_fast_reduce)
-      return reduction::strategy::group_reduce_and_last_wg_detection;
-    else if constexpr (Reduction::has_fast_atomics)
-      return reduction::strategy::local_atomic_and_atomic_cross_wg;
-    else
-      return reduction::strategy::range_basic;
-  }();
+      if constexpr (Reduction::has_fast_reduce)
+        return reduction::strategy::group_reduce_and_last_wg_detection;
+      else if constexpr (Reduction::has_fast_atomics)
+        return reduction::strategy::local_atomic_and_atomic_cross_wg;
+      else
+        return reduction::strategy::range_basic;
+    }();
 
-  reduction_parallel_for<KernelName, StrategyToUse>(CGH, NDRange, Properties,
-                                                    Redu, UpdatedKernelFunc);
+    reduction_parallel_for<KernelName, StrategyToUse>(CGH, NDRange, Properties,
+                                                      Redu, UpdatedKernelFunc);
+  } else {
+    return std::apply(
+        [&](auto &...Reds) {
+          return reduction_parallel_for<KernelName, Strategy>(
+              CGH, NDRange, Properties, Reds..., UpdatedKernelFunc);
+        },
+        ReduTuple);
+  }
 }
 } // namespace detail
 
