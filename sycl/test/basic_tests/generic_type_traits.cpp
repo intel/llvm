@@ -99,41 +99,48 @@ int main() {
   is_genint
   */
 
+  // According to SYCL 2020 specification, revision 6 section 4.14.2.2. Aliases:
+  // long{n} alias corresponds to vec<int64_t, n>
+  //
+  // Therefore, generic "type" longn/ulongn may not be the same as long{n},
+  // because 'long' is only guaranteed to be 32 bits long by C++ spec.
+
   // is_ulongn
+  constexpr bool long_is_64_bits = sizeof(long) == 8;
   static_assert(d::is_ulongn<s::uchar>::value == false, "");
   static_assert(d::is_ulongn<s::ulong>::value == false, "");
-  static_assert(d::is_ulongn<s::ulong2>::value == true, "");
-  static_assert(d::is_ulongn<s::ulong3>::value == true, "");
-  static_assert(d::is_ulongn<s::ulong4>::value == true, "");
-  static_assert(d::is_ulongn<s::ulong8>::value == true, "");
-  static_assert(d::is_ulongn<s::ulong16>::value == true, "");
+  static_assert(d::is_ulongn<s::ulong2>::value == long_is_64_bits, "");
+  static_assert(d::is_ulongn<s::ulong3>::value == long_is_64_bits, "");
+  static_assert(d::is_ulongn<s::ulong4>::value == long_is_64_bits, "");
+  static_assert(d::is_ulongn<s::ulong8>::value == long_is_64_bits, "");
+  static_assert(d::is_ulongn<s::ulong16>::value == long_is_64_bits, "");
 
   // is_ugenlong
   static_assert(d::is_ugenlong<s::uchar>::value == false, "");
   static_assert(d::is_ugenlong<s::ulong>::value == true, "");
-  static_assert(d::is_ugenlong<s::ulong2>::value == true, "");
-  static_assert(d::is_ugenlong<s::ulong3>::value == true, "");
-  static_assert(d::is_ugenlong<s::ulong4>::value == true, "");
-  static_assert(d::is_ugenlong<s::ulong8>::value == true, "");
-  static_assert(d::is_ugenlong<s::ulong16>::value == true, "");
+  static_assert(d::is_ugenlong<s::ulong2>::value == long_is_64_bits, "");
+  static_assert(d::is_ugenlong<s::ulong3>::value == long_is_64_bits, "");
+  static_assert(d::is_ugenlong<s::ulong4>::value == long_is_64_bits, "");
+  static_assert(d::is_ugenlong<s::ulong8>::value == long_is_64_bits, "");
+  static_assert(d::is_ugenlong<s::ulong16>::value == long_is_64_bits, "");
 
   // is_longn
   static_assert(d::is_longn<char>::value == false, "");
   static_assert(d::is_longn<long>::value == false, "");
-  static_assert(d::is_longn<s::long2>::value == true, "");
-  static_assert(d::is_longn<s::long3>::value == true, "");
-  static_assert(d::is_longn<s::long4>::value == true, "");
-  static_assert(d::is_longn<s::long8>::value == true, "");
-  static_assert(d::is_longn<s::long16>::value == true, "");
+  static_assert(d::is_longn<s::long2>::value == long_is_64_bits, "");
+  static_assert(d::is_longn<s::long3>::value == long_is_64_bits, "");
+  static_assert(d::is_longn<s::long4>::value == long_is_64_bits, "");
+  static_assert(d::is_longn<s::long8>::value == long_is_64_bits, "");
+  static_assert(d::is_longn<s::long16>::value == long_is_64_bits, "");
 
   // is_genlong
   static_assert(d::is_genlong<char>::value == false, "");
   static_assert(d::is_genlong<long>::value == true, "");
-  static_assert(d::is_genlong<s::long2>::value == true, "");
-  static_assert(d::is_genlong<s::long3>::value == true, "");
-  static_assert(d::is_genlong<s::long4>::value == true, "");
-  static_assert(d::is_genlong<s::long8>::value == true, "");
-  static_assert(d::is_genlong<s::long16>::value == true, "");
+  static_assert(d::is_genlong<s::long2>::value == long_is_64_bits, "");
+  static_assert(d::is_genlong<s::long3>::value == long_is_64_bits, "");
+  static_assert(d::is_genlong<s::long4>::value == long_is_64_bits, "");
+  static_assert(d::is_genlong<s::long8>::value == long_is_64_bits, "");
+  static_assert(d::is_genlong<s::long16>::value == long_is_64_bits, "");
 
   /*
   is_ulonglongn
