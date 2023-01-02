@@ -23,7 +23,7 @@ ModuleToSYCLFrameworkFunctionPassAdaptor::run(Module &M,
 
   PreservedAnalyses PA = PreservedAnalyses::all();
   for (Function &F : M) {
-    if (F.isDeclaration() || F.hasMetadata("sycl-framework"))
+    if (F.isDeclaration() || !F.hasMetadata("sycl-framework"))
       continue;
 
     // Check the PassInstrumentation's BeforePass callbacks before running the
