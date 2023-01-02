@@ -37,6 +37,10 @@ __SYCL_EXPORT pi_result piDevicesGet(pi_platform Platform,
                                      pi_device_type DeviceType,
                                      pi_uint32 NumEntries, pi_device *Devices,
                                      pi_uint32 *NumDevices) {
+  (void)Platform;
+  (void)DeviceType;
+  (void)NumEntries;
+  (void)Devices;
   // Report no devices, stab to have a minimal SYCL test running
   if (NumDevices) {
     *NumDevices = 0;

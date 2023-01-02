@@ -36,6 +36,13 @@ void query_amx() {
   // general query: types are not given
   tpu_params<tpu::amx> myparams3;
 
+  if (myparams3.num_scopes > 0)
+    if (myparams3.scopes[0] == scope_t::sub_group)
+      std::cout << "There are " << myparams3.num_scopes
+                << " Scopes that are supported by AMX implementation and "
+                   "subgroup is one of them "
+                << std::endl;
+
   std::cout << "AMX query num combinations: " << myparams3.num_combinations
             << std::endl;
 
@@ -68,43 +75,51 @@ void query_amx() {
   });
 }
 
-void query_dpas() {
+void query_xmx8() {
 
   // generates combination assert
-  // using myparams = tpu_params<tpu::dpas, int, int, int, 2, 8, 32>;
+  // using myparams = tpu_params<tpu::xmx8, int, int, int, 2, 8, 32>;
 
   // generate combination of type assert
-  // using myparams = tpu_params<tpu::dpas, int, int, int>;
+  // using myparams = tpu_params<tpu::xmx8, int, int, int>;
 
   // tells whether a combination is valid or not, if valid, those will be set as
   // default
-  using myparams = tpu_params<tpu::dpas, int8_t, int8_t, int, 2, 8, 32>;
+  using myparams = tpu_params<tpu::xmx8, int8_t, int8_t, int, 2, 8, 32>;
 
   size_t dmsize = myparams::M;
   size_t dnsize = myparams::N;
   size_t dksize = myparams::K;
-  std::cout << "sizes of DPAS tpu_params chosen by the user are: M " << dmsize
+  std::cout << "sizes of XMX8 tpu_params chosen by the user are: M " << dmsize
             << " N " << dnsize << " K " << dksize << std::endl;
 
   // sizes-only query: types are given, generate default sizes
-  using myparams2 = tpu_params<tpu::dpas, int8_t, int8_t, int>;
+  using myparams2 = tpu_params<tpu::xmx8, int8_t, int8_t, int>;
   myparams2 p;
   dmsize = myparams2::M;
   dnsize = myparams2::N;
   dksize = myparams2::K;
-  std::cout << "Default DPAS sizes  are: M " << dmsize << " N " << dnsize
-            << " K " << dksize << "\n DPAS int8 num combinations is "
+  std::cout << "Default XMX8 sizes  are: M " << dmsize << " N " << dnsize
+            << " K " << dksize << "\n XMX8 int8 num combinations is "
             << p.num_combinations << std::endl;
 
   dmsize = myparams2::combinations[0].msize;
   dnsize = myparams2::combinations[0].nsize;
   dksize = myparams2::combinations[0].ksize;
-  std::cout << "one of DPAS combination sizes  is: M " << dmsize << " N "
+  std::cout << "one of XMX8 combination sizes  is: M " << dmsize << " N "
             << dnsize << " K " << dksize << std::endl;
 
   // general query: types are not given
-  tpu_params<tpu::dpas> myparams3;
-  std::cout << "DPAS query num combinations: " << myparams3.num_combinations
+  tpu_params<tpu::xmx8> myparams3;
+
+  if (myparams3.num_scopes > 0)
+    if (myparams3.scopes[0] == scope_t::sub_group)
+      std::cout << "There are " << myparams3.num_scopes
+                << " Scopes that are supported by XMX8 implementation and "
+                   "subgroup is one of them "
+                << std::endl;
+
+  std::cout << "XMX8 query num combinations: " << myparams3.num_combinations
             << std::endl;
 
   if (myparams3.combinations[0].msize == 0) // this is not a max params hardware
@@ -112,9 +127,9 @@ void query_dpas() {
   constexpr int msize = myparams3.combinations[0].msize;
   constexpr int nsize = myparams3.combinations[0].nsize;
   constexpr int ksize = myparams3.combinations[0].ksize;
-  std::cout << "DPAS query sizes are: M " << msize << " N " << nsize << " K "
+  std::cout << "XMX8 query sizes are: M " << msize << " N " << nsize << " K "
             << ksize << std::endl;
-  std::cout << "DPAS query max sizes are: M "
+  std::cout << "XMX8 query max sizes are: M "
             << myparams3.combinations[0].max_msize << " N "
             << myparams3.combinations[0].max_nsize << " K "
             << myparams3.combinations[0].max_ksize << std::endl;
@@ -142,6 +157,6 @@ void query_dpas() {
 
 int main() {
   query_amx();
-  query_dpas();
+  query_xmx8();
   return 0;
 }
