@@ -603,8 +603,12 @@ public:
   /// \param Src is a USM pointer to the source memory.
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Count is a number of elements of type T to copy.
+  /// \param CodeLoc contains the code location of user code
   /// \return an event representing copy operation.
-  template <typename T> event copy(const T *Src, T *Dest, size_t Count) {
+  template <typename T>
+  event copy(const T *Src, T *Dest, size_t Count _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(T));
   }
 
@@ -618,9 +622,13 @@ public:
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Count is a number of elements of type T to copy.
   /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \param CodeLoc contains the code location of user code
   /// \return an event representing copy operation.
   template <typename T>
-  event copy(const T *Src, T *Dest, size_t Count, event DepEvent) {
+  event copy(const T *Src, T *Dest, size_t Count,
+             event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(T), DepEvent);
   }
 
@@ -634,10 +642,13 @@ public:
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Count is a number of elements of type T to copy.
   /// \param DepEvents is a vector of events that specifies the kernel
+  /// \param CodeLoc contains the code location of user code
   /// \return an event representing copy operation.
   template <typename T>
   event copy(const T *Src, T *Dest, size_t Count,
-             const std::vector<event> &DepEvents) {
+             const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(T), DepEvents);
   }
 
