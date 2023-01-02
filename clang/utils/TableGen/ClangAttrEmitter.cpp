@@ -2127,7 +2127,7 @@ void PragmaClangAttributeSupport::generateParsingHelpers(raw_ostream &OS) {
   // Generate routines that check the names of sub-rules.
   OS << "Optional<attr::SubjectMatchRule> "
         "defaultIsAttributeSubjectMatchSubRuleFor(StringRef, bool) {\n";
-  OS << "  return None;\n";
+  OS << "  return std::nullopt;\n";
   OS << "}\n\n";
 
   llvm::MapVector<const Record *, std::vector<AttributeSubjectMatchRule>>
@@ -2150,7 +2150,7 @@ void PragmaClangAttributeSupport::generateParsingHelpers(raw_ostream &OS) {
         OS << "    Case(\"" << Rule.getName() << "\", " << Rule.getEnumValue()
            << ").\n";
     }
-    OS << "    Default(None);\n";
+    OS << "    Default(std::nullopt);\n";
     OS << "  return "
           "llvm::StringSwitch<Optional<attr::SubjectMatchRule>>(Name).\n";
     for (const auto &Rule : SubMatchRule.second) {
@@ -2158,7 +2158,7 @@ void PragmaClangAttributeSupport::generateParsingHelpers(raw_ostream &OS) {
         OS << "  Case(\"" << Rule.getName() << "\", " << Rule.getEnumValue()
            << ").\n";
     }
-    OS << "  Default(None);\n";
+    OS << "  Default(std::nullopt);\n";
     OS << "}\n\n";
   }
 
@@ -2182,7 +2182,7 @@ void PragmaClangAttributeSupport::generateParsingHelpers(raw_ostream &OS) {
     OS << "  Case(\"" << Rule.getName() << "\", std::make_pair("
        << Rule.getEnumValue() << ", " << SubRuleFunction << ")).\n";
   }
-  OS << "  Default(std::make_pair(None, "
+  OS << "  Default(std::make_pair(std::nullopt, "
         "defaultIsAttributeSubjectMatchSubRuleFor));\n";
   OS << "}\n\n";
 

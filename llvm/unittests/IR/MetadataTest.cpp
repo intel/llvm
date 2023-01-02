@@ -1214,7 +1214,7 @@ TEST_F(DILocationTest, discriminatorSpecialCases) {
                         .value()
                         ->getDuplicationFactor());
 
-  // Check we return None for unencodable cases.
+  // Check we return std::nullopt for unencodable cases.
   EXPECT_EQ(std::nullopt, L4->cloneWithBaseDiscriminator(0x1000));
   EXPECT_EQ(std::nullopt, L4->cloneByMultiplyingDuplicationFactor(0x1000));
 }
@@ -2219,6 +2219,20 @@ TEST_F(DIFileTest, get) {
 
   TempDIFile Temp = N->clone();
   EXPECT_EQ(N, MDNode::replaceWithUniqued(std::move(Temp)));
+}
+
+TEST_F(DIFileTest, EmptySource) {
+  DIFile *N = DIFile::get(Context, "file", "dir");
+  EXPECT_EQ(std::nullopt, N->getSource());
+
+  std::optional<DIFile::ChecksumInfo<StringRef>> Checksum = std::nullopt;
+  std::optional<StringRef> Source = std::nullopt;
+  N = DIFile::get(Context, "file", "dir", Checksum, Source);
+  EXPECT_EQ(Source, N->getSource());
+
+  Source = "";
+  N = DIFile::get(Context, "file", "dir", Checksum, Source);
+  EXPECT_EQ(Source, N->getSource());
 }
 
 TEST_F(DIFileTest, ScopeGetFile) {

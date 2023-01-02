@@ -8,8 +8,10 @@
 
 #include "clang-include-cleaner/Analysis.h"
 #include "AnalysisInternal.h"
+#include "clang-include-cleaner/Record.h"
 #include "clang-include-cleaner/Types.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Decl.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Format/Format.h"
 #include "clang/Lex/HeaderSearch.h"
@@ -21,6 +23,18 @@
 
 namespace clang::include_cleaner {
 
+namespace {
+// Gets all the providers for a symbol by tarversing each location.
+llvm::SmallVector<Header> headersForSymbol(const Symbol &S,
+                                           const SourceManager &SM,
+                                           const PragmaIncludes *PI) {
+  llvm::SmallVector<Header> Headers;
+  for (auto &Loc : locateSymbol(S))
+    Headers.append(findHeaders(Loc, SM, PI));
+  return Headers;
+}
+} // namespace
+
 void walkUsed(llvm::ArrayRef<Decl *> ASTRoots,
               llvm::ArrayRef<SymbolReference> MacroRefs,
               const PragmaIncludes *PI, const SourceManager &SM,
@@ -28,20 +42,19 @@ void walkUsed(llvm::ArrayRef<Decl *> ASTRoots,
   // This is duplicated in writeHTMLReport, changes should be mirrored there.
   tooling::stdlib::Recognizer Recognizer;
   for (auto *Root : ASTRoots) {
-    auto &SM = Root->getASTContext().getSourceManager();
     walkAST(*Root, [&](SourceLocation Loc, NamedDecl &ND, RefType RT) {
+      if (!SM.isWrittenInMainFile(SM.getSpellingLoc(Loc)))
+        return;
+      // FIXME: Most of the work done here is repetative. It might be useful to
+      // have a cache/batching.
       SymbolReference SymRef{Loc, ND, RT};
-      if (auto SS = Recognizer(&ND)) {
-        // FIXME: Also report forward decls from main-file, so that the caller
-        // can decide to insert/ignore a header.
-        return CB(SymRef, findHeaders(*SS, SM, PI));
-      }
-      // FIXME: Extract locations from redecls.
-      return CB(SymRef, findHeaders(ND.getLocation(), SM, PI));
+      return CB(SymRef, headersForSymbol(ND, SM, PI));
     });
   }
   for (const SymbolReference &MacroRef : MacroRefs) {
     assert(MacroRef.Target.kind() == Symbol::Macro);
+    if (!SM.isWrittenInMainFile(SM.getSpellingLoc(MacroRef.RefLocation)))
+      continue;
     CB(MacroRef, findHeaders(MacroRef.Target.macro().Definition, SM, PI));
   }
 }

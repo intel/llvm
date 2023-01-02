@@ -22,7 +22,6 @@
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Testing/Support/Error.h"
 #include "gmock/gmock-matchers.h"
-#include "gmock/gmock-more-matchers.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -877,7 +876,7 @@ TEST_F(SymbolCollectorTest, RefContainers) {
           return Ref;
       }
     }
-    return llvm::None;
+    return std::nullopt;
   };
   auto Container = [&](llvm::StringRef RangeName) {
     auto Ref = FindRefWithRange(Code.range(RangeName));

@@ -533,7 +533,7 @@ bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
     // Force-inline all functions marked 'alwaysinline' by the LowerESIMD pass.
     MPM.addPass(AlwaysInlinerPass{});
     FunctionPassManager FPM;
-    FPM.addPass(SROAPass{});
+    FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
     MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
   }
   if (!MD.getModule().getContext().supportsTypedPointers()) {
@@ -545,12 +545,12 @@ bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
   MainFPM.addPass(ESIMDLowerLoadStorePass{});
 
   if (!OptLevelO0) {
-    MainFPM.addPass(SROAPass{});
+    MainFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
     MainFPM.addPass(EarlyCSEPass(true));
     MainFPM.addPass(InstCombinePass{});
     MainFPM.addPass(DCEPass{});
     // TODO: maybe remove some passes below that don't affect code quality
-    MainFPM.addPass(SROAPass{});
+    MainFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
     MainFPM.addPass(EarlyCSEPass(true));
     MainFPM.addPass(InstCombinePass{});
     MainFPM.addPass(DCEPass{});
