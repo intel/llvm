@@ -1,4 +1,4 @@
-// RUN: %clangxx -c -fsycl -fno-color-diagnostics -Xclang -ast-dump %s | FileCheck %s
+// RUN: %clangxx -fsyntax-only -fsycl -fno-color-diagnostics -Xclang -ast-dump %s | FileCheck %s
 // UNSUPPORTED: windows
 #include <sycl/group.hpp>
 #include <sycl/id.hpp>
