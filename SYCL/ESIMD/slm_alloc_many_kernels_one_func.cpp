@@ -1,5 +1,5 @@
 // REQUIRES: gpu
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: cuda || hip || esimd_emulator
 //
 // RUN: %clangxx -fsycl %s -o %t.1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.1.out
