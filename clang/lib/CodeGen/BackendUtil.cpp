@@ -1038,26 +1038,17 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       MPM.addPass(SYCLMutatePrintfAddrspacePass());
       if (LangOpts.EnableDAEInSpirKernels)
         MPM.addPass(DeadArgumentEliminationSYCLPass());
-    }
 
-    // Add SPIRITTAnnotations pass to the pass manager if
-    // -fsycl-instrument-device-code option was passed. This option can be used
-    // only with spir triple.
-    if (LangOpts.SYCLIsDevice && CodeGenOpts.SPIRITTAnnotations) {
-      assert(TargetTriple.isSPIR() &&
-             "ITT annotations can only be added to a module with spir target");
-      MPM.addPass(SPIRITTAnnotationsPass());
-    }
+      // Add SPIRITTAnnotations pass to the pass manager if
+      // -fsycl-instrument-device-code option was passed. This option can be used
+      // only with spir triple.
+      if (CodeGenOpts.SPIRITTAnnotations) {
+        assert(TargetTriple.isSPIR() &&
+              "ITT annotations can only be added to a module with spir target");
+        MPM.addPass(SPIRITTAnnotationsPass());
+      }
 
-    // Allocate static local memory in SYCL kernel scope for each allocation
-    // call. It should be called after inlining pass.
-    if (LangOpts.SYCLIsDevice) {
-      // Group local memory pass depends on inlining. Turn it on even in case if
-      // all llvm passes or SYCL early optimizations are disabled.
-      // FIXME: Remove this workaround when dependency on inlining is
-      // eliminated.
-      if (CodeGenOpts.DisableSYCLEarlyOpts)
-        MPM.addPass(AlwaysInlinerPass(false));
+      // Allocate static local memory in SYCL kernel scope for each allocation call.
       MPM.addPass(SYCLLowerWGLocalMemoryPass());
     }
   }
