@@ -780,8 +780,9 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *Expr) {
                                         Args)
             ->getResult(0));
 
-    if (Expr->hasInitializer() && isa<InitListExpr>(Expr->getInitializer()))
-      (void)InitializeValueByInitListExpr(Alloc, Expr->getInitializer());
+    //    if (Expr->hasInitializer() &&
+    //    isa<InitListExpr>(Expr->getInitializer()))
+    //    (void)InitializeValueByInitListExpr(Alloc, Expr->getInitializer());
 
     if (Expr->isArray()) {
       auto PT = Ty.cast<LLVM::LLVMPointerType>();
