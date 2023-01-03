@@ -395,7 +395,6 @@ void Scheduler::releaseResources() {
   if (DefaultHostQueue) {
     DefaultHostQueue->wait();
   }
-  GlobalHandler::instance().drainThreadPool();
 
   //  There might be some commands scheduled for post enqueue cleanup that
   //  haven't been freed because of the graph mutex being locked at the time,

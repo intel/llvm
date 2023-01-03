@@ -76,12 +76,13 @@ public:
 
   void unloadPlugins();
   void releaseDefaultContexts();
-  void drainThreadPool();
 
   // For testing purposes only
   void attachScheduler(Scheduler *Scheduler);
+  void releaseResources();
 
 private:
+  static GlobalHandler *MSyclGlobalObjectsHandler;
   friend void shutdown();
 
   // Constructor and destructor are declared out-of-line to allow incomplete
