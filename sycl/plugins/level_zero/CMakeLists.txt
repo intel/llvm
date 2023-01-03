@@ -8,6 +8,8 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
 
   # Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104
   set(CMAKE_INCLUDE_CURRENT_DIR OFF)
+  # Prevent L0 loader from exporting extra symbols
+  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS OFF)
 
   message(STATUS "Will fetch Level Zero Loader from ${LEVEL_ZERO_LOADER_REPO}")
   include(FetchContent)
