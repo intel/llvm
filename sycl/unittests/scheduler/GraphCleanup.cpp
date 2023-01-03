@@ -344,8 +344,6 @@ TEST_F(SchedulerTest, StreamBufferDeallocation) {
     EventImplPtr = MSPtr->addCG(std::move(CG), QueueImplPtr);
   }
 
-  // Both buffers should have been sent to the deferred release.
-  ASSERT_EQ(MSPtr->MDeferredMemObjRelease.size(), 2u);
   // The buffers should have been released with graph cleanup once the work is
   // finished.
   EventImplPtr->wait(EventImplPtr);

@@ -7452,6 +7452,7 @@ NamedDecl *Sema::ActOnVariableDeclarator(
     return nullptr;
   }
 
+
   DeclSpec::SCS SCSpec = D.getDeclSpec().getStorageClassSpec();
   StorageClass SC = StorageClassSpecToVarDeclStorageClass(D.getDeclSpec());
 
