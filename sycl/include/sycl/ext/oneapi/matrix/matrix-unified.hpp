@@ -100,6 +100,8 @@ get_wi_data(Group sg, joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm) {
   return wi_data<Group, T, Use, Rows, Cols, Layout>(jm);
 #endif // defined(__NVPTX__)
 #else
+  std::ignore = sg;
+  std::ignore = jm;
   if constexpr (std::is_same_v<T, precision::tf32>) {
     marray<float, 1> unused{};
     return wi_data<float, 1>(unused);
@@ -189,6 +191,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
   std::ignore = res;
   std::ignore = src;
   std::ignore = stride;
+  std::ignore = Layout;
   throw runtime_error(
       "This version of the matrix extension is only currently supported on "
       "Nvidia devices",
@@ -283,6 +286,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
   std::ignore = src;
   std::ignore = dst;
   std::ignore = stride;
+  std::ignore = Layout;
   throw runtime_error(
       "This version of the matrix extension is only currently supported on "
       "Nvidia devices",
