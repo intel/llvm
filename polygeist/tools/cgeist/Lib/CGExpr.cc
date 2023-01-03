@@ -766,6 +766,8 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *Expr) {
   } else if (auto MT = Ty.dyn_cast<mlir::MemRefType>()) {
     ArrayCons = Alloc =
         Builder.create<mlir::memref::AllocOp>(Loc, MT, ValueRange{Count});
+    if (Expr->hasInitializer() && isa<InitListExpr>(Expr->getInitializer()))
+      (void)InitializeValueByInitListExpr(Alloc, Expr->getInitializer());
   } else {
     auto I64 = mlir::IntegerType::get(Count.getContext(), 64);
     Value TypeSize = getTypeSize(Expr->getAllocatedType());
@@ -777,6 +779,10 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *Expr) {
             .create<mlir::LLVM::CallOp>(Loc, Glob.getOrCreateMallocFunction(),
                                         Args)
             ->getResult(0));
+
+    if (Expr->hasInitializer() && isa<InitListExpr>(Expr->getInitializer()))
+      (void)InitializeValueByInitListExpr(Alloc, Expr->getInitializer());
+
     if (Expr->isArray()) {
       auto PT = Ty.cast<LLVM::LLVMPointerType>();
       ArrayCons = Builder.create<mlir::LLVM::BitcastOp>(
@@ -788,9 +794,6 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *Expr) {
     }
   }
   assert(Alloc);
-
-  if (Expr->hasInitializer() && isa<InitListExpr>(Expr->getInitializer()))
-    (void)InitializeValueByInitListExpr(Alloc, Expr->getInitializer());
 
   if (Expr->getConstructExpr())
     VisitConstructCommon(
