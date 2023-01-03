@@ -1,5 +1,11 @@
-; RUN: opt %s -passes=verify -experimental-assignment-tracking   \
-; RUN: | opt -passes=verify -S -experimental-assignment-tracking \
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers %s -passes=verify -experimental-assignment-tracking   \
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: | opt -opaque-pointers -passes=verify -S -experimental-assignment-tracking \
 ; RUN: | FileCheck %s
 
 ;; Roundtrip test (text -> bitcode -> text) for DIAssignID metadata and

@@ -4,7 +4,10 @@
 ; RUN: llvm-nm %t/a.bc | FileCheck %s --check-prefix=NM
 
 ; RUN: llvm-lto2 run -opaque-pointers %t/a.bc %t/b.bc -o %t/out -save-temps -r=%t/a.bc,ref,plx -r=%t/b.bc,ff_h264_cabac_tables,pl
-; RUN: llvm-dis < %t/out.2.2.internalize.bc | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %t/out.2.2.internalize.bc | FileCheck %s
 
 ;--- a.s
 ;; IR symtab does not track inline asm symbols, so we don't know

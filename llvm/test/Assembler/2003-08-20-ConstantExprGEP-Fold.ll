@@ -1,5 +1,11 @@
-; RUN: opt < %s -passes=instcombine,simplifycfg -S | not grep br
-; RUN: verify-uselistorder %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers < %s -passes=instcombine,simplifycfg -S | not grep br
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: verify-uselistorder -opaque-pointers %s
 
 @.str_1 = internal constant [6 x i8] c"_Bool\00"                ; <ptr> [#uses=2]
 

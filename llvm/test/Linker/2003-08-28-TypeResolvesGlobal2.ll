@@ -1,6 +1,9 @@
 ; RUN: llvm-as < %s > %t.out1.bc
 ; RUN: echo "%M = type i32" | llvm-as > %t.out2.bc
-; RUN: llvm-link %t.out2.bc %t.out1.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-link -opaque-pointers %t.out2.bc %t.out1.bc
 
 %M = type opaque
 

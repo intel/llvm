@@ -2,8 +2,14 @@
 ; RUN: llvm-modextract -b -n 0 -o %t0 %t
 ; RUN: llvm-modextract -b -n 1 -o %t1 %t
 ; RUN: not llvm-modextract -b -n 2 -o - %t 2>&1 | FileCheck --check-prefix=ERROR %s
-; RUN: llvm-dis -o - %t0 | FileCheck --check-prefix=M0 %s
-; RUN: llvm-dis -o - %t1 | FileCheck --check-prefix=M1 %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers -o - %t0 | FileCheck --check-prefix=M0 %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers -o - %t1 | FileCheck --check-prefix=M1 %s
 ; RUN: llvm-bcanalyzer -dump %t0 | FileCheck --check-prefix=BCA0 %s
 ; RUN: llvm-bcanalyzer -dump %t1 | FileCheck --check-prefix=BCA1 %s
 

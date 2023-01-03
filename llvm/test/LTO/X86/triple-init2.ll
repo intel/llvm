@@ -3,11 +3,17 @@
 
 ; Check with regular LTO
 ; RUN: llvm-as < %s >%t1
-; RUN: llvm-lto -exported-symbol=main -o %t2 %t1
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -exported-symbol=main -o %t2 %t1
 ; RUN: llvm-nm %t2 | FileCheck %s
 ; Check with ThinLTO. Use llvm-lto2 since this adds earlier passes requiring
 ; the TargetLibraryInfo with ThinLTO (WholeProgramDevirt).
-; RUN: opt -module-summary -o %t1 %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -module-summary -o %t1 %s
 ; RUN: llvm-lto2 run -opaque-pointers -r %t1,main,plx -o %t2 %t1
 ; RUN: llvm-nm %t2.1 | FileCheck %s
 

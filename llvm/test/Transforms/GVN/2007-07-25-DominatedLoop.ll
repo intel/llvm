@@ -1,4 +1,7 @@
-; RUN: opt < %s -passes=gvn | llvm-dis
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt < %s -passes=gvn | llvm-dis -opaque-pointers
 
 	%struct.PerlInterpreter = type { i8 }
 @PL_sv_count = external global i32		; <ptr> [#uses=2]

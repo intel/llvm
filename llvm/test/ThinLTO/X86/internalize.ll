@@ -1,17 +1,44 @@
-; RUN: opt -module-summary %s -o %t1.bc
-; RUN: opt -module-summary %p/Inputs/internalize.ll -o %t2.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -module-summary %s -o %t1.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -module-summary %p/Inputs/internalize.ll -o %t2.bc
 ; Link in %t2.bc first to force its copy of @weak_func_nonprevailing as
 ; prevailing the %t1.bc copy as non-prevailing.
-; RUN: llvm-lto -thinlto-action=thinlink -o %t.index.bc %t2.bc %t1.bc
-; RUN: llvm-lto -thinlto-action=internalize -thinlto-index %t.index.bc %t1.bc -o - | llvm-dis -o - | FileCheck %s --check-prefix=REGULAR
-; RUN: llvm-lto -thinlto-action=internalize -thinlto-index %t.index.bc %t1.bc -o -  --exported-symbol=_foo | llvm-dis -o - | FileCheck %s --check-prefix=INTERNALIZE
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -thinlto-action=thinlink -o %t.index.bc %t2.bc %t1.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -thinlto-action=internalize -thinlto-index %t.index.bc %t1.bc -o - | llvm-dis -opaque-pointers -o - | FileCheck %s --check-prefix=REGULAR
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -thinlto-action=internalize -thinlto-index %t.index.bc %t1.bc -o -  --exported-symbol=_foo | llvm-dis -opaque-pointers -o - | FileCheck %s --check-prefix=INTERNALIZE
 
 ; Test the enable-lto-internalization option by setting it to false.
 ; This makes sure indices are not marked as internallinkage and therefore
 ; internalization does not happen.
-; RUN: llvm-lto -thinlto-action=internalize -thinlto-index %t.index.bc %t1.bc \
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -thinlto-action=internalize -thinlto-index %t.index.bc %t1.bc \
 ; RUN:          -enable-lto-internalization=false --exported-symbol=_foo
-; RUN: llvm-dis < %t1.bc.thinlto.internalized.bc | FileCheck %s --check-prefix=INTERNALIZE-OPTION-DISABLE
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %t1.bc.thinlto.internalized.bc | FileCheck %s --check-prefix=INTERNALIZE-OPTION-DISABLE
 
 ; RUN: llvm-lto2 run -opaque-pointers %t1.bc -o %t.o -save-temps \
 ; RUN:     -r=%t1.bc,_foo,pxl \
@@ -20,7 +47,10 @@
 ; RUN:     -r=%t1.bc,_weak_func_prevailing,pl \
 ; RUN:     -r=%t1.bc,_alias1,plx \
 ; RUN:     -r=%t1.bc,_weak_func_nonprevailing,l
-; RUN: llvm-dis < %t.o.1.2.internalize.bc | FileCheck  %s --check-prefix=INTERNALIZE2
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %t.o.1.2.internalize.bc | FileCheck  %s --check-prefix=INTERNALIZE2
 
 ; Test the enable-lto-internalization option by setting it to false.
 ; This makes sure indices are not marked as internallinkage and therefore
@@ -32,7 +62,10 @@
 ; RUN:     -r=%t1.bc,_weak_func_prevailing,pl \
 ; RUN:     -r=%t1.bc,_alias1,plx \
 ; RUN:     -r=%t1.bc,_weak_func_nonprevailing,l
-; RUN: llvm-dis < %t.o.1.2.internalize.bc | FileCheck  %s --check-prefix=INTERNALIZE2-OPTION-DISABLE
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %t.o.1.2.internalize.bc | FileCheck  %s --check-prefix=INTERNALIZE2-OPTION-DISABLE
 
 ; REGULAR: define void @foo
 ; REGULAR: define void @bar

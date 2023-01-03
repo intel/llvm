@@ -61,7 +61,10 @@
 ; RUN:   -r=%t.o,_ZN1B3barEv, \
 ; RUN:   -r=%t.o,_ZTV1A,px \
 ; RUN:   -r=%t.o,_ZTV1B,px 2>&1 | FileCheck %s --check-prefix=REMARK
-; RUN: llvm-dis %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
 
 ; We should only devirtualize the inlined call to bar().
 ; REMARK-NOT: single-impl: devirtualized a call to _ZN1B3fooEv

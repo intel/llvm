@@ -1,5 +1,8 @@
 ; REQUIRES: x86-registered-target
-; RUN: opt -thinlto-bc -thinlto-split-lto-unit -o - %s | llvm-modextract -b -n 0 -o - | llvm-dis | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -thinlto-bc -thinlto-split-lto-unit -o - %s | llvm-modextract -b -n 0 -o - | llvm-dis -opaque-pointers | FileCheck %s
 
 target triple = "x86_64-unknown-linux-gnu"
 

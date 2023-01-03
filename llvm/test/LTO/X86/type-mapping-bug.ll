@@ -1,6 +1,9 @@
 ; RUN: llvm-as -o %t.dst.bc %s
 ; RUN: llvm-as -o %t.src.bc %S/Inputs/type-mapping-src.ll
-; RUN: llvm-lto %t.dst.bc %t.src.bc -o=%t.lto.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers %t.dst.bc %t.src.bc -o=%t.lto.bc
 
 source_filename = "test/LTO/X86/type-mapping-bug.ll"
 target triple = "x86_64-pc-windows-msvc18.0.0"

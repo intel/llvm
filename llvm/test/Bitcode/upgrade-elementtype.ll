@@ -1,4 +1,7 @@
-; RUN: opt -S < %s.bc | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -S < %s.bc | FileCheck %s
 
 %struct.s = type { i32, i32 }
 

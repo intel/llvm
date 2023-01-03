@@ -1,5 +1,11 @@
-; RUN: llvm-as < %s | llvm-dis -opaque-pointers | FileCheck %s
-; RUN: verify-uselistorder < %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-as < %s | llvm-dis -opaque-pointers -opaque-pointers | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: verify-uselistorder -opaque-pointers < %s
 ; PR12696
 
 define void @f1(i8 zeroext %0)

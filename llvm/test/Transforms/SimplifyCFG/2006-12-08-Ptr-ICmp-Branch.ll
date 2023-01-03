@@ -1,4 +1,7 @@
-; RUN: opt < %s -passes=simplifycfg -simplifycfg-require-and-preserve-domtree=1 | llvm-dis
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt < %s -passes=simplifycfg -simplifycfg-require-and-preserve-domtree=1 | llvm-dis -opaque-pointers
 ; END.
 
 ; ModuleID = '2006-12-08-Ptr-ICmp-Branch.ll'

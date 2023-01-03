@@ -1,20 +1,41 @@
 ; Test to ensure that the LTO API (legacy and new) lowers @llvm.public.type.test.
 
 ; RUN: llvm-as < %s > %t1
-; RUN: llvm-lto -exported-symbol=_main %t1 -o %t2 --lto-save-before-opt --whole-program-visibility
-; RUN: llvm-dis -o - %t2.0.preopt.bc | FileCheck %s --check-prefix=HIDDEN
-; RUN: llvm-lto -exported-symbol=_main %t1 -o %t2 --lto-save-before-opt
-; RUN: llvm-dis -o - %t2.0.preopt.bc | FileCheck %s --check-prefix=PUBLIC
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -exported-symbol=_main %t1 -o %t2 --lto-save-before-opt -opaque-pointers --whole-program-visibility
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers -o - %t2.0.preopt.bc | FileCheck %s --check-prefix=HIDDEN
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -exported-symbol=_main %t1 -o %t2 --lto-save-before-opt
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers -o - %t2.0.preopt.bc | FileCheck %s --check-prefix=PUBLIC
 
 ; RUN: llvm-lto2 run -opaque-pointers %t1 -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
 ; RUN:   -o %t2 \
 ; RUN:   -r=%t1,_main,px
-; RUN: llvm-dis %t2.0.0.preopt.bc -o - | FileCheck %s --check-prefix=HIDDEN
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t2.0.0.preopt.bc -o - | FileCheck %s --check-prefix=HIDDEN
 ; RUN: llvm-lto2 run -opaque-pointers %t1 -save-temps -pass-remarks=. \
 ; RUN:   -o %t2 \
 ; RUN:   -r=%t1,_main,px
-; RUN: llvm-dis %t2.0.0.preopt.bc -o - | FileCheck %s --check-prefix=PUBLIC
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t2.0.0.preopt.bc -o - | FileCheck %s --check-prefix=PUBLIC
 
 ; PUBLIC-NOT: call {{.*}}@llvm.public.type.test
 ; PUBLIC-NOT: call {{.*}}@llvm.type.test

@@ -1,6 +1,15 @@
-; RUN: opt < %s -passes=sample-profile -sample-profile-file=%S/Inputs/profile-correlation-irreducible-loops.prof -sample-profile-use-profi=0 | opt -passes='print<block-freq>' -disable-output  -use-iterative-bfi-inference 2>&1 | FileCheck %s
-; RUN: opt < %s -passes=sample-profile -sample-profile-file=%S/Inputs/profile-correlation-irreducible-loops.prof -sample-profile-use-profi=0 -S | FileCheck %s --check-prefix=CHECK2
-; RUN: opt < %s -passes='print<block-freq>' -use-iterative-bfi-inference -disable-output 2>&1 | FileCheck %s --check-prefix=CHECK3
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers < %s -passes=sample-profile -sample-profile-file=%S/Inputs/profile-correlation-irreducible-loops.prof -sample-profile-use-profi=0 | opt -opaque-pointers -passes='print<block-freq>' -disable-output  -use-iterative-bfi-inference 2>&1 | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers < %s -passes=sample-profile -sample-profile-file=%S/Inputs/profile-correlation-irreducible-loops.prof -sample-profile-use-profi=0 -S | FileCheck %s --check-prefix=CHECK2
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers < %s -passes='print<block-freq>' -use-iterative-bfi-inference -disable-output 2>&1 | FileCheck %s --check-prefix=CHECK3
 
 ; The C++ code for this test case is from c-parse.c in 403.gcc (SPEC2006)
 ; The problem with BFI for the test is solved by applying iterative inference.

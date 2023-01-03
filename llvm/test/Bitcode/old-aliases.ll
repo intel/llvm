@@ -1,4 +1,7 @@
-; RUN: llvm-dis < %s.bc | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %s.bc | FileCheck %s
 ; RUN: verify-uselistorder < %s.bc
 
 ; old-aliases.bc consist of this file assembled with an old llvm-as (3.5 trunk)

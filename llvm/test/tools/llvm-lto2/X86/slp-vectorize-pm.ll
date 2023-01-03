@@ -3,19 +3,31 @@
 ; Test SLP and Loop Vectorization are enabled by default at O2 and O3.
 ; RUN: llvm-lto2 run -opaque-pointers %t1.bc -o %t2.o -O0 -r %t1.bc,foo,plx -debug-pass-manager \
 ; RUN:  -save-temps 2>&1 | FileCheck %s --check-prefix=CHECK-O0-SLP
-; RUN: llvm-dis %t2.o.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-O0-LPV
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t2.o.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-O0-LPV
 
 ; RUN: llvm-lto2 run -opaque-pointers %t1.bc -o %t3.o -O1 -r %t1.bc,foo,plx -debug-pass-manager \
 ; RUN:  -save-temps 2>&1 | FileCheck %s --check-prefix=CHECK-O1-SLP
-; RUN: llvm-dis %t3.o.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-O1-LPV
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t3.o.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-O1-LPV
 
 ; RUN: llvm-lto2 run -opaque-pointers %t1.bc -o %t4.o -O2 -r %t1.bc,foo,plx -debug-pass-manager \
 ; RUN:  -save-temps 2>&1 | FileCheck %s --check-prefix=CHECK-O2-SLP
-; RUN: llvm-dis %t4.o.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-O2-LPV
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t4.o.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-O2-LPV
 
 ; RUN: llvm-lto2 run -opaque-pointers %t1.bc -o %t5.o -O3 -r %t1.bc,foo,plx -debug-pass-manager \
 ; RUN:  -save-temps 2>&1 | FileCheck %s --check-prefix=CHECK-O3-SLP
-; RUN: llvm-dis %t5.o.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-O3-LPV
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t5.o.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-O3-LPV
 
 ; CHECK-O0-SLP-NOT: Running pass: SLPVectorizerPass
 ; CHECK-O1-SLP-NOT: Running pass: SLPVectorizerPass

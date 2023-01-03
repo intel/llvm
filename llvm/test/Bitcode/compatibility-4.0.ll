@@ -3,7 +3,10 @@
 ; N.b: This is 4.0-compatible IR. The CHECK lines occasionally differ from
 ;      the IR used to generate the bitcode, and may need to be updated.
 
-; RUN: llvm-dis < %s.bc | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %s.bc | FileCheck %s
 
 target datalayout = "E"
 ; CHECK: target datalayout = "E"

@@ -8,7 +8,10 @@
 ; RUN:   -r=%t.bc,d,px
 ; RUN: llvm-readelf --symbols %t.o.0 | grep \.cfi_jt | FileCheck --check-prefix=CHECK-FULL-RE %s
 ; RUN: llvm-objdump -dr %t.o.0 | FileCheck --check-prefix=CHECK-FULL-OD %s
-; RUN: llvm-dis %t.o.0.4.opt.bc -o - | FileCheck --check-prefix=CHECK-USED %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t.o.0.4.opt.bc -o - | FileCheck --check-prefix=CHECK-USED %s
 ; Thin LTO test
 ; RUN: opt -thinlto-bc -thinlto-split-lto-unit %s -o %t.bc
 ; RUN: llvm-lto2 run -o %t.o %t.bc \

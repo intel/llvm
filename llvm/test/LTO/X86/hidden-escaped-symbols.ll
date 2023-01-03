@@ -10,7 +10,10 @@
 ; RUN:               --select-save-temps=precodegen \
 ; RUN:               -o %t/out \
 ; RUN:               %t/hide-me.bc  %t/ref.bc
-; RUN: llvm-dis %t/out.0.5.precodegen.bc -o - | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t/out.0.5.precodegen.bc -o - | FileCheck %s
 
 
 ;--- hide-me.ll

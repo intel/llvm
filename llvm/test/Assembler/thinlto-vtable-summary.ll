@@ -1,9 +1,15 @@
 ; Test summary parsing of index-based WPD related summary fields
-; RUN: llvm-as %s -o - | llvm-dis -o %t.ll
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-as %s -o - | llvm-dis -opaque-pointers -o %t.ll
 ; RUN: grep "^\^" %s >%t2
 ; RUN: grep "^\^" %t.ll >%t3
 ; Expect that the summary information is the same after round-trip through
-; llvm-as and llvm-dis.
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; llvm-as and llvm-dis -opaque-pointers.
 ; RUN: diff -b %t2 %t3
 
 source_filename = "thinlto-vtable-summary.ll"

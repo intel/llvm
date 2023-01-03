@@ -1,4 +1,7 @@
-; RUN: lli -jit-kind=orc-lazy %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: lli -opaque-pointers -jit-kind=orc-lazy %s
 ;
 ; Basic correctness check: A module with a single no-op main function runs.
 

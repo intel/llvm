@@ -1,4 +1,7 @@
-; RUN: llvm-as < %s | llvm-dis | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-as < %s | llvm-dis -opaque-pointers | FileCheck %s
 
 ; Tests parsing for the dso_local keyword as well as the serialization/
 ; deserialization of the dso_local value on GlobalValues.

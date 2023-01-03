@@ -11,8 +11,14 @@
 ; RUN:      -r=%t-main,foo, \
 ; RUN:      -r=%t-bar,_Z3barv,pl \
 ; RUN:      -r=%t-bar,foo,
-; RUN: llvm-dis %t-out.1.3.import.bc -o - | FileCheck %s --check-prefix=IMPORT
-; RUN: llvm-dis %t-out.1.4.opt.bc -o - | FileCheck %s --check-prefix=OPT
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t-out.1.3.import.bc -o - | FileCheck %s --check-prefix=IMPORT
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t-out.1.4.opt.bc -o - | FileCheck %s --check-prefix=OPT
 
 ; IMPORT: @foo = internal local_unnamed_addr constant i32 21, align 4 #0
 ; IMPORT: attributes #0 = { "thinlto-internalize" }

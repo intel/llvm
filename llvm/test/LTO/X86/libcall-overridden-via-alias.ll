@@ -4,8 +4,14 @@
 ; does not eliminate the definition.  This is a test for PR38547.
 ;
 ; RUN: llvm-as -o %t1 %s
-; RUN: llvm-lto -exported-symbol=main -save-merged-module -filetype=asm -o %t2 %t1
-; RUN: llvm-dis -o - %t2.merged.bc | FileCheck --check-prefix=CHECK_IR %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -exported-symbol=main -save-merged-module -filetype=asm -o %t2 %t1
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers -o - %t2.merged.bc | FileCheck --check-prefix=CHECK_IR %s
 ;
 ; Check that the call is represented as an llvm intrinsic in the IR after LTO:
 ; CHECK_IR-LABEL: main

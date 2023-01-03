@@ -1,7 +1,10 @@
 ; RUN: llvm-as -o %t1.o %s
 ; RUN: llvm-as -o %t2.o %S/Inputs/ifunc2.ll
 ; RUN: llvm-lto2 run %t1.o %t2.o -r %t1.o,foo,p -r %t1.o,foo_resolver, -r %t2.o,foo_resolver,p -save-temps -opaque-pointers -o %t3.o
-; RUN: llvm-dis -o - %t3.o.0.0.preopt.bc | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers -o - %t3.o.0.0.preopt.bc | FileCheck %s
 
 target datalayout = "e-p:64:64"
 target triple = "x86_64-unknown-linux-gnu"

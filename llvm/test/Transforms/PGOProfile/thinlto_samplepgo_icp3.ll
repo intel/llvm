@@ -7,12 +7,18 @@
 ; Test to make sure importing and dead stripping works in the
 ; case where the target is a local function that also indirectly calls itself.
 ; RUN: llvm-lto2 run -opaque-pointers -thinlto-threads=1 -save-temps -o %t3 %t.bc %t2.bc -r %t.bc,fptr,plx -r %t.bc,main,plx -r %t2.bc,_Z6updatei,pl -r %t2.bc,fptr,l
-; RUN: llvm-dis %t3.1.3.import.bc -o - | FileCheck %s --check-prefix=IMPORTS
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t3.1.3.import.bc -o - | FileCheck %s --check-prefix=IMPORTS
 
 ; Make sure we import the promted indirectly called target
 ; IMPORTS: void @_ZL3foov.llvm.0()
 
-; RUN: llvm-dis %t3.2.4.opt.bc -o - | FileCheck %s --check-prefix=ICALL-PROM
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t3.2.4.opt.bc -o - | FileCheck %s --check-prefix=ICALL-PROM
 ; ICALL-PROM:   br i1 %{{[0-9]+}}, label %tailrecurse, label %if.false.orig_indirect,
 
 

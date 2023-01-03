@@ -1,4 +1,7 @@
-; RUN: verify-uselistorder %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: verify-uselistorder -opaque-pointers %s
 
 ; Reproducer for PR36778.
 

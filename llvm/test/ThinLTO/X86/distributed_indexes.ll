@@ -1,7 +1,19 @@
-; RUN: opt -module-summary %s -o %t1.bc
-; RUN: opt -module-summary %p/Inputs/distributed_indexes.ll -o %t2.bc
-; RUN: llvm-lto -thinlto-action=thinlink -o %t.index.bc %t1.bc %t2.bc
-; RUN: llvm-lto -thinlto-action=distributedindexes -thinlto-index %t.index.bc %t1.bc %t2.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -module-summary %s -o %t1.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -module-summary %p/Inputs/distributed_indexes.ll -o %t2.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -thinlto-action=thinlink -o %t.index.bc %t1.bc %t2.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -thinlto-action=distributedindexes -thinlto-index %t.index.bc %t1.bc %t2.bc
 ; RUN: llvm-bcanalyzer -dump %t1.bc.thinlto.bc | FileCheck %s --check-prefix=BACKEND1
 ; RUN: llvm-bcanalyzer -dump %t2.bc.thinlto.bc | FileCheck %s --check-prefix=BACKEND2
 
@@ -47,7 +59,10 @@
 ; Make sure that when the alias is imported as a copy of the aliasee, but the
 ; aliasee is not being imported by itself, that we can still print the summary.
 ; The aliasee should be "null".
-; RUN: llvm-dis %t1.bc.thinlto.bc -o - | FileCheck %s --check-prefix=DIS
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t1.bc.thinlto.bc -o - | FileCheck %s --check-prefix=DIS
 ; DIS: aliasee: null
 
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"

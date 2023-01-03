@@ -1,5 +1,11 @@
-; RUN: opt < %s -passes=sample-profile -sample-profile-use-profi -sample-profile-file=%S/Inputs/profile-inference-noprobes.prof -S | FileCheck %s
-; RUN: opt < %s -passes=sample-profile -sample-profile-use-profi -sample-profile-file=%S/Inputs/profile-inference-noprobes.prof | opt -passes='print<block-freq>' -disable-output 2>&1 | FileCheck %s --check-prefix=CHECK2
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers < %s -passes=sample-profile -sample-profile-use-profi -sample-profile-file=%S/Inputs/profile-inference-noprobes.prof -S | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers < %s -passes=sample-profile -sample-profile-use-profi -sample-profile-file=%S/Inputs/profile-inference-noprobes.prof | opt -opaque-pointers -passes='print<block-freq>' -disable-output 2>&1 | FileCheck %s --check-prefix=CHECK2
 
 
 ; The test verifies that profile inference can be applied for non-probe-based

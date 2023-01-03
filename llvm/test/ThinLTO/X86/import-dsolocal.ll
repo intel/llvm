@@ -9,7 +9,10 @@
 ; RUN:   -r=%t/b.bc,a,pl -r=%t/b.bc,b,pl -r=%t/b.bc,extern,pl -r=%t/b.bc,extern_aux,pl \
 ; RUN:   -r=%t/b.bc,linkonce,pl -r=%t/b.bc,linkonce_aux,pl -r=%t/b.bc,linkonceodr,pl -r=%t/b.bc,linkonceodr_aux,pl \
 ; RUN:   -r=%t/b.bc,weak,pl -r=%t/b.bc,weak_aux,pl -r=%t/b.bc,weakodr,pl -r=%t/b.bc,weakodr_aux,pl
-; RUN: llvm-dis %t1.1.3.import.bc -o - | FileCheck %s --check-prefixes=DEST,DEST1
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t1.1.3.import.bc -o - | FileCheck %s --check-prefixes=DEST,DEST1
 
 ;; With a large limit, *_aux are either imported definitions (external/linkonce_odr/weak_odr)
 ;; or unimported (linkonce/weak). Check we discard dso_local as well.
@@ -18,7 +21,10 @@
 ; RUN:   -r=%t/b.bc,a,pl -r=%t/b.bc,b,pl -r=%t/b.bc,extern,pl -r=%t/b.bc,extern_aux,pl \
 ; RUN:   -r=%t/b.bc,linkonce,pl -r=%t/b.bc,linkonce_aux,pl -r=%t/b.bc,linkonceodr,pl -r=%t/b.bc,linkonceodr_aux,pl \
 ; RUN:   -r=%t/b.bc,weak,pl -r=%t/b.bc,weak_aux,pl -r=%t/b.bc,weakodr,pl -r=%t/b.bc,weakodr_aux,pl
-; RUN: llvm-dis %t2.1.3.import.bc -o - | FileCheck %s --check-prefixes=DEST,DEST2
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t2.1.3.import.bc -o - | FileCheck %s --check-prefixes=DEST,DEST2
 
 ; DEST:      @a = available_externally global i32 42, align 4
 ; DEST-NEXT: @b = external global ptr, align 8

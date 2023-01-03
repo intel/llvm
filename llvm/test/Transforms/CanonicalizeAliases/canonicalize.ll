@@ -1,5 +1,8 @@
 ; RUN: opt -S -passes=canonicalize-aliases < %s | FileCheck %s
-; RUN: opt -passes='thinlto-pre-link<O0>,require<module-summary>' -o - < %s | llvm-dis -o - | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -passes='thinlto-pre-link<O0>,require<module-summary>' -o - < %s | llvm-dis -opaque-pointers -o - | FileCheck %s
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"

@@ -1,5 +1,11 @@
-; RUN: opt < %s | opt -S | FileCheck %s
-; RUN: verify-uselistorder %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers < %s | opt -opaque-pointers -S | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: verify-uselistorder -opaque-pointers %s
 ; Basic smoke test for atomic operations.
 
 define void @f(ptr %x) {

@@ -1,4 +1,7 @@
-; RUN: opt -mtriple x86_64-unknown-windows-msvc -passes=objc-arc -o - %s | llvm-dis -o - - | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -mtriple x86_64-unknown-windows-msvc -passes=objc-arc -o - %s | llvm-dis -opaque-pointers -o - - | FileCheck %s
 
 target triple = "x86_64-unknown-windows-msvc"
 

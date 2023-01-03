@@ -9,11 +9,20 @@
 ; RUN: llvm-lto -thinlto-action=thinlink %t1.bc %t2.bc %t2b.bc -o %t3.index.bc
 
 ; RUN: llvm-lto -thinlto-action=import -opaque-pointers %t1.bc -thinlto-index=%t3.index.bc
-; RUN: llvm-dis %t1.bc.thinlto.imported.bc -o - | FileCheck --check-prefix=IMPORT %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t1.bc.thinlto.imported.bc -o - | FileCheck --check-prefix=IMPORT %s
 ; RUN: llvm-lto -thinlto-action=promote -opaque-pointers %t2.bc -thinlto-index=%t3.index.bc
 ; RUN: llvm-lto -thinlto-action=promote -opaque-pointers %t2b.bc -thinlto-index=%t3.index.bc
-; RUN: llvm-dis %t2.bc.thinlto.promoted.bc -o - | FileCheck --check-prefix=PROMOTE1 %s
-; RUN: llvm-dis %t2b.bc.thinlto.promoted.bc -o - | FileCheck --check-prefix=PROMOTE2 %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t2.bc.thinlto.promoted.bc -o - | FileCheck --check-prefix=PROMOTE1 %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t2b.bc.thinlto.promoted.bc -o - | FileCheck --check-prefix=PROMOTE2 %s
 
 ; IMPORT: @baz.llvm.0 = internal constant i32 10, align 4
 

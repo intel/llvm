@@ -1,4 +1,7 @@
-; RUN: opt < %s -passes=sample-profile -sample-profile-file=%S/Inputs/offset.prof | opt -passes='print<branch-prob>' -disable-output 2>&1 | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers < %s -passes=sample-profile -sample-profile-file=%S/Inputs/offset.prof | opt -opaque-pointers -passes='print<branch-prob>' -disable-output 2>&1 | FileCheck %s
 
 ; Original C++ code for this test case:
 ;

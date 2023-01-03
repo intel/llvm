@@ -13,8 +13,14 @@
 ; RUN:   -r=%t3.o,use_B,px \
 ; RUN:   -r=%t3.o,test,px \
 ; RUN:   -r=%t4.o,test2,px
-; RUN: llvm-dis %t5.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR1
-; RUN: llvm-dis %t5.2.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR2
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t5.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR1
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t5.2.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR2
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-grtev4-linux-gnu"

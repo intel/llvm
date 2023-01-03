@@ -1,4 +1,7 @@
-; RUN: lli -jit-kind=orc-lazy %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: lli -opaque-pointers -jit-kind=orc-lazy %s
 ;
 ; Basic correctness check: We can make a call inside lazily JIT'd code.
 ; Compared to minimal.ll, this demonstrates that we can call through a stub.

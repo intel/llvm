@@ -1,7 +1,13 @@
 ; Test that "personality" attributes are correctly updated when cloning modules.
 ; RUN: llvm-split -o %t %s
-; RUN: llvm-dis -o - %t0 | FileCheck --check-prefix=CHECK0 %s
-; RUN: llvm-dis -o - %t1 | FileCheck --check-prefix=CHECK1 %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers -o - %t0 | FileCheck --check-prefix=CHECK0 %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers -o - %t1 | FileCheck --check-prefix=CHECK1 %s
 
 ; CHECK0: define void @foo()
 ; CHECK1: declare void @foo()

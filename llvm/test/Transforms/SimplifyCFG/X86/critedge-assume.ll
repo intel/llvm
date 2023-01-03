@@ -1,5 +1,8 @@
 ; RUN: opt -o %t %s -passes=instcombine,simplifycfg -simplifycfg-require-and-preserve-domtree=1 -thinlto-bc -verify-assumption-cache
-; RUN: llvm-dis -o - %t | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers -o - %t | FileCheck %s
 
 ; Test that the simplifycfg pass correctly updates the assumption cache
 ; when it clones the llvm.assume call as part of creating a critical

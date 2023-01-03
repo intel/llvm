@@ -1,5 +1,11 @@
-; RUN: opt < %s -passes=sample-profile -sample-profile-file=%S/Inputs/branch.prof | opt -passes='print<branch-prob>' -disable-output 2>&1 | FileCheck %s
-; RUN: opt < %s -passes=sample-profile -sample-profile-file=%S/Inputs/branch.prof -overwrite-existing-weights=1 | opt -passes='print<branch-prob>' -disable-output 2>&1 | FileCheck %s  --check-prefix=OVW
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers < %s -passes=sample-profile -sample-profile-file=%S/Inputs/branch.prof | opt -opaque-pointers -passes='print<branch-prob>' -disable-output 2>&1 | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers < %s -passes=sample-profile -sample-profile-file=%S/Inputs/branch.prof -overwrite-existing-weights=1 | opt -opaque-pointers -passes='print<branch-prob>' -disable-output 2>&1 | FileCheck %s  --check-prefix=OVW
 
 ; Original C++ code for this test case:
 ;

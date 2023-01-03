@@ -6,17 +6,32 @@
 ; update.
 
 ; Generate unsplit module with summary for ThinLTO index-based WPD.
-; RUN: opt -thinlto-bc -o %t3.o %s
-; RUN: opt -thinlto-bc -o %t4.o %p/Inputs/devirt_promote.ll
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -thinlto-bc -o %t3.o %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -thinlto-bc -o %t4.o %p/Inputs/devirt_promote.ll
 
-; RUN: llvm-lto -thinlto-action=run %t3.o %t4.o --thinlto-save-temps=%t5. \
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -thinlto-action=run %t3.o %t4.o --thinlto-save-temps=%t5. \
 ; RUN:   -whole-program-visibility \
 ; RUN:   --pass-remarks=. \
 ; RUN:   --exported-symbol=test \
 ; RUN:   --exported-symbol=test2 \
 ; RUN:   --exported-symbol=_ZTV1B 2>&1 | FileCheck %s --check-prefix=REMARK
-; RUN: llvm-dis %t5.0.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR1
-; RUN: llvm-dis %t5.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR2
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t5.0.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR1
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t5.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR2
 
 ; We should devirt call to _ZN1A1nEi once in importing module and once
 ; in original (exporting) module.

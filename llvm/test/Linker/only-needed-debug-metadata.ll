@@ -2,12 +2,18 @@
 ; RUN: llvm-as %p/Inputs/only-needed-debug-metadata.ll -o %t2.bc
 
 ; Without -only-needed, we need to link in both DISubprogram.
-; RUN: llvm-link -S %t2.bc %t.bc | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-link -opaque-pointers -S %t2.bc %t.bc | FileCheck %s
 ; CHECK: distinct !DISubprogram(name: "foo"
 ; CHECK: distinct !DISubprogram(name: "unused"
 
 ; With -only-needed, we only need to link in foo's DISubprogram.
-; RUN: llvm-link -S -only-needed %t2.bc %t.bc | FileCheck %s -check-prefix=ONLYNEEDED
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-link -opaque-pointers -S -only-needed %t2.bc %t.bc | FileCheck %s -check-prefix=ONLYNEEDED
 ; ONLYNEEDED: distinct !DISubprogram(name: "foo"
 ; ONLYNEEDED-NOT: distinct !DISubprogram(name: "unused"
 

@@ -1,6 +1,12 @@
-; RUN: lli -jit-kind=orc-lazy -orc-lazy-debug=funcs-to-stdout \
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: lli -opaque-pointers -jit-kind=orc-lazy -orc-lazy-debug=funcs-to-stdout \
 ; RUN:   %s | FileCheck --check-prefix=CHECK-PER-FUNCTION %s
-; RUN: lli -jit-kind=orc-lazy -per-module-lazy -orc-lazy-debug=funcs-to-stdout \
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: lli -opaque-pointers -jit-kind=orc-lazy -per-module-lazy -orc-lazy-debug=funcs-to-stdout \
 ; RUN:   %s | FileCheck --check-prefix=CHECK-WHOLE-MODULE %s
 ;
 ; CHECK-PER-FUNCTION-NOT: foo

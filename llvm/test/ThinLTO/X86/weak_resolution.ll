@@ -1,16 +1,49 @@
 ; Do setup work for all below tests: generate bitcode and combined index
-; RUN: opt -module-summary %s -o %t.bc
-; RUN: opt -module-summary %p/Inputs/weak_resolution.ll -o %t2.bc
-; RUN: llvm-lto -thinlto-action=thinlink -o %t3.bc %t.bc %t2.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -module-summary %s -o %t.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -module-summary %p/Inputs/weak_resolution.ll -o %t2.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -thinlto-action=thinlink -o %t3.bc %t.bc %t2.bc
 
 ; Verify that prevailing weak for linker symbol is selected across modules,
 ; non-prevailing ODR are not kept when possible, but non-ODR non-prevailing
 ; are not affected.
-; RUN: llvm-lto -thinlto-action=promote %t.bc -thinlto-index=%t3.bc -o - | llvm-dis -o - | FileCheck %s --check-prefix=MOD1
-; RUN: llvm-lto -thinlto-action=internalize %t.bc -thinlto-index=%t3.bc -exported-symbol=_linkoncefunc -o - | llvm-dis -o - | FileCheck %s --check-prefix=MOD1-INT
-; RUN: llvm-lto -thinlto-action=promote %t2.bc -thinlto-index=%t3.bc -o - | llvm-dis -o - | FileCheck %s --check-prefix=MOD2
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -thinlto-action=promote %t.bc -thinlto-index=%t3.bc -o - | llvm-dis -opaque-pointers -o - | FileCheck %s --check-prefix=MOD1
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -thinlto-action=internalize %t.bc -thinlto-index=%t3.bc -exported-symbol=_linkoncefunc -o - | llvm-dis -opaque-pointers -o - | FileCheck %s --check-prefix=MOD1-INT
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -thinlto-action=promote %t2.bc -thinlto-index=%t3.bc -o - | llvm-dis -opaque-pointers -o - | FileCheck %s --check-prefix=MOD2
 ; When exported, we always preserve a linkonce
-; RUN: llvm-lto -thinlto-action=promote %t.bc -thinlto-index=%t3.bc -o - --exported-symbol=_linkonceodrfuncInSingleModule | llvm-dis -o - | FileCheck %s --check-prefix=EXPORTED
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -thinlto-action=promote %t.bc -thinlto-index=%t3.bc -o - --exported-symbol=_linkonceodrfuncInSingleModule | llvm-dis -opaque-pointers -o - | FileCheck %s --check-prefix=EXPORTED
 
 target datalayout = "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-apple-macosx10.11.0"

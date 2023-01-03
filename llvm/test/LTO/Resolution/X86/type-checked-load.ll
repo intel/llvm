@@ -1,5 +1,8 @@
 ; RUN: llvm-as -o %t %s
-; RUN: llvm-lto2 run %t -O0 -r %t,foo,px -o %t2
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto2 run -opaque-pointers %t -O0 -r %t,foo,px -o %t2
 
 ; This just tests that we don't crash when compiling this test case.
 ; It means that the wholeprogramdevirt pass must have run and lowered

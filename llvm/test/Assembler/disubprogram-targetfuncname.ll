@@ -1,7 +1,10 @@
 ; This test verifies that the targetFuncName attribute in a DISubprogram
 ; is assembled/disassembled correctly.
 ;
-; RUN: llvm-as < %s | llvm-dis | llvm-as | llvm-dis | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-as < %s | llvm-dis -opaque-pointers | llvm-as | llvm-dis -opaque-pointers | FileCheck %s
 ;
 ; CHECK: !DISubprogram(name: "sub1_.t0p", linkageName: "sub1_.t0p",{{.*}}, targetFuncName: "sub1_")
 ;

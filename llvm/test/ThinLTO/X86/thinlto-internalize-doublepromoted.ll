@@ -13,11 +13,26 @@
 ; This variable will be promoted in the second round of ThinLTO if @foo is
 ; imported again.
 
-; RUN: opt -module-summary -o %t.bc %s
-; RUN: opt -module-summary -o %t-main.bc %S/Inputs/thinlto-internalize-doublepromoted.ll
-; RUN: llvm-lto -thinlto-action=thinlink %t.bc %t-main.bc -o %t-index.bc
-; RUN: llvm-lto -thinlto-action=internalize -exported-symbol=main -thinlto-index %t-index.bc %t.bc -o %t.internalize.bc
-; RUN: llvm-dis %t.internalize.bc -o - | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -module-summary -o %t.bc %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -module-summary -o %t-main.bc %S/Inputs/thinlto-internalize-doublepromoted.ll
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -thinlto-action=thinlink %t.bc %t-main.bc -o %t-index.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -thinlto-action=internalize -exported-symbol=main -thinlto-index %t-index.bc %t.bc -o %t.internalize.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t.internalize.bc -o - | FileCheck %s
 
 target datalayout = "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-apple-macosx10.15.0"

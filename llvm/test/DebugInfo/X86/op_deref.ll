@@ -23,7 +23,10 @@
 ; ASM-CHECK: DEBUG_VALUE: vla <- [DW_OP_deref] [$rax+0]
 ; ASM-CHECK: DW_OP_breg6
 
-; RUN: llvm-as %s -o - | llvm-dis - | FileCheck %s --check-prefix=PRETTY-PRINT
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-as %s -o - | llvm-dis -opaque-pointers - | FileCheck %s --check-prefix=PRETTY-PRINT
 ; PRETTY-PRINT: DIExpression(DW_OP_deref)
 
 define void @testVLAwithSize(i32 %s) nounwind uwtable ssp !dbg !5 {

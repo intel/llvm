@@ -4,7 +4,10 @@
 ; RUN:    -r=%t1.bc,main,plx \
 ; RUN:    -r=%t1.bc,foo,l \
 ; RUN:    -r=%t2.bc,foo,pl
-; RUN: llvm-dis %t-out.1.3.import.bc -o - | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t-out.1.3.import.bc -o - | FileCheck %s
 
 ;; Check the imported DICompileUnit doesn't have the enums operand.
 ;; Also check the imported md metadata that shares a node with the 

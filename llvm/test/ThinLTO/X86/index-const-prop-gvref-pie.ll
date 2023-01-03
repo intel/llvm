@@ -3,7 +3,10 @@
 ; RUN: opt -module-summary %p/Inputs/index-const-prop-gvref.ll -o %t2.bc
 ; RUN: llvm-lto2 run -opaque-pointers -save-temps %t2.bc -r=%t2.bc,b,pl -r=%t2.bc,a,pl \
 ; RUN:   %t1.bc -r=%t1.bc,main,plx -r=%t1.bc,a, -r=%t1.bc,b, -o %t3
-; RUN: llvm-dis %t3.2.3.import.bc -o - | FileCheck %s --check-prefix=DEST
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t3.2.3.import.bc -o - | FileCheck %s --check-prefix=DEST
 
 ;; For PIE, keep dso_local for declarations to enable direct access.
 ; DEST:      @b = external dso_local global ptr

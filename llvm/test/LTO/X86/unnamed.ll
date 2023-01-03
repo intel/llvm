@@ -1,6 +1,12 @@
 ; RUN: llvm-as -o %t.bc %s
-; RUN: llvm-lto -save-merged-module -o %t2 %t.bc
-; RUN: llvm-dis -o - %t2.merged.bc | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -save-merged-module -o %t2 %t.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers -o - %t2.merged.bc | FileCheck %s
 
 ; CHECK-NOT: global i32
 

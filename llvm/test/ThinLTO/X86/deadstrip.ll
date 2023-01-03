@@ -5,8 +5,14 @@
 ; RUN: opt -module-summary %p/Inputs/deadstrip.ll -o %t2.bc
 ; RUN: llvm-lto -opaque-pointers -thinlto-action=thinlink -o %t.index.bc %t1.bc %t2.bc
 
-; RUN: llvm-lto -opaque-pointers -exported-symbol=_main -thinlto-action=internalize %t1.bc -thinlto-index=%t.index.bc -o - | llvm-dis -o - | FileCheck %s
-; RUN: llvm-lto -opaque-pointers -exported-symbol=_main -thinlto-action=internalize %t2.bc -thinlto-index=%t.index.bc -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK2
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -exported-symbol=_main -thinlto-action=internalize %t1.bc -thinlto-index=%t.index.bc -o - | llvm-dis -opaque-pointers -o - | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -exported-symbol=_main -thinlto-action=internalize %t2.bc -thinlto-index=%t.index.bc -o - | llvm-dis -opaque-pointers -o - | FileCheck %s --check-prefix=CHECK2
 
 ; RUN: llvm-lto -opaque-pointers -exported-symbol=_main -thinlto-action=run -stats %t1.bc %t2.bc 2>&1 | FileCheck %s --check-prefix=STATS
 ; RUN: llvm-nm %t1.bc.thinlto.o | FileCheck %s --check-prefix=CHECK-NM
@@ -32,8 +38,14 @@
 ; RUN:   -thinlto-threads=1 \
 ; RUN:   -disable-thinlto-funcattrs=0 \
 ; RUN:	 -debug-only=function-import 2>&1 | FileCheck %s --check-prefix=DEBUG --check-prefix=STATS
-; RUN: llvm-dis < %t.out.1.3.import.bc | FileCheck %s --check-prefix=LTO2
-; RUN: llvm-dis < %t.out.2.3.import.bc | FileCheck %s --check-prefix=LTO2-CHECK2
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %t.out.1.3.import.bc | FileCheck %s --check-prefix=LTO2
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %t.out.2.3.import.bc | FileCheck %s --check-prefix=LTO2-CHECK2
 ; RUN: llvm-nm %t.out.1 | FileCheck %s --check-prefix=CHECK2-NM
 
 ; RUN: llvm-bcanalyzer -dump %t.out.index.bc | FileCheck %s --check-prefix=COMBINED
@@ -127,7 +139,10 @@
 ; RUN:   -r %t3.bc,_dead_func,l \
 ; RUN:   -r %t3.bc,_another_dead_func,pl \
 ; RUN:   -r %t3.bc,_linkonceodrfuncwithalias,pl
-; RUN: llvm-dis < %t4.out.1.3.import.bc | FileCheck %s --check-prefix=CHECK-NOTDEAD
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %t4.out.1.3.import.bc | FileCheck %s --check-prefix=CHECK-NOTDEAD
 ; RUN: llvm-nm %t4.out.0 | FileCheck %s --check-prefix=CHECK-NM-NOTDEAD
 
 ; We can't internalize @dead_func because of the use in the regular LTO

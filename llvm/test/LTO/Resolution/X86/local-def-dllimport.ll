@@ -5,7 +5,10 @@
 ; RUN:               -r %t0.bc,e,l \
 ; RUN:               -r %t0.bc,main,x \
 ; RUN:               -save-temps -opaque-pointers -o %t1 %t0.bc
-; RUN: llvm-dis %t1.1.3.import.bc -o - | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t1.1.3.import.bc -o - | FileCheck %s
 source_filename = "test.cpp"
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"

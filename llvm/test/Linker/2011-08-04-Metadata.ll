@@ -1,5 +1,8 @@
 ; RUN: llvm-link %s %p/2011-08-04-Metadata2.ll -o %t.bc
-; RUN: llvm-dis < %t.bc | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %t.bc | FileCheck %s
 ; Test if internal global variable's debug info is merged appropriately or not.
 
 ; CHECK: @x = internal global i32 0, align 4, !dbg [[DI1:![0-9]+]]

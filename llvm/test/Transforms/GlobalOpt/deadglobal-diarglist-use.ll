@@ -1,4 +1,7 @@
-; RUN: opt < %s -passes=globalopt -S | llvm-as | llvm-dis | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt < %s -passes=globalopt -S | llvm-as | llvm-dis -opaque-pointers | FileCheck %s
 
 ; The %struct.S type would not get emitted after @s was removed, resulting in
 ; llvm-as failing to parse the dbg.value intrinsic using that type. However,

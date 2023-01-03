@@ -6,18 +6,45 @@
 ; -stats requires asserts
 ; REQUIRES: asserts
 
-; RUN: opt -module-summary -opaque-pointers %s -o %t1.bc
-; RUN: opt -module-summary %p/Inputs/index-const-prop.ll -o %t2.bc
-; RUN: llvm-lto -thinlto-action=thinlink -o %t3.index.bc %t1.bc %t2.bc
-; RUN: llvm-lto -thinlto-action=import -exported-symbol=main  %t1.bc -thinlto-index=%t3.index.bc -o %t1.imported.bc -stats 2>&1 | FileCheck %s --check-prefix=STATS
-; RUN: llvm-dis %t1.imported.bc -o - | FileCheck %s --check-prefix=IMPORT
-; RUN: llvm-lto -thinlto-action=optimize %t1.imported.bc -o - | llvm-dis - -o - | FileCheck %s --check-prefix=OPTIMIZE
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -module-summary -opaque-pointers %s -o %t1.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -module-summary %p/Inputs/index-const-prop.ll -o %t2.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -thinlto-action=thinlink -o %t3.index.bc %t1.bc %t2.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -thinlto-action=import -exported-symbol=main  %t1.bc -thinlto-index=%t3.index.bc -o %t1.imported.bc -stats 2>&1 | FileCheck %s --check-prefix=STATS
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t1.imported.bc -o - | FileCheck %s --check-prefix=IMPORT
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -thinlto-action=optimize %t1.imported.bc -o - | llvm-dis -opaque-pointers - -o - | FileCheck %s --check-prefix=OPTIMIZE
 
 ; STATS: 2 module-summary-index - Number of live global variables marked read only
 
 ; Check that we don't internalize gBar when it is exported
-; RUN: llvm-lto -thinlto-action=import -exported-symbol main -exported-symbol gBar  %t1.bc -thinlto-index=%t3.index.bc -o %t1.imported2.bc
-; RUN: llvm-dis %t1.imported2.bc -o - | FileCheck %s --check-prefix=IMPORT2
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -thinlto-action=import -exported-symbol main -exported-symbol gBar  %t1.bc -thinlto-index=%t3.index.bc -o %t1.imported2.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t1.imported2.bc -o - | FileCheck %s --check-prefix=IMPORT2
 
 ; IMPORT:      @gBar = internal local_unnamed_addr global i32 2, align 4, !dbg !0
 ; IMPORT-NEXT: @gFoo.llvm.0 = internal unnamed_addr global i32 1, align 4, !dbg !5

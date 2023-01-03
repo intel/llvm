@@ -4,7 +4,10 @@
 ; RUN:     -lto-opaque-pointers \
 ; RUN:     -r %t-typed.bc,call_foo,px -r %t-typed.bc,foo,l \
 ; RUN:     -r %t-opaque.bc,foo,px
-; RUN: opt -S -o - %t-lto.bc.0.4.opt.bc | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -S -o - %t-lto.bc.0.4.opt.bc | FileCheck %s
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"

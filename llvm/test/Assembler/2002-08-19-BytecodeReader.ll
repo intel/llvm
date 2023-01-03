@@ -1,8 +1,17 @@
 ; Testcase that seems to break the bytecode reader.  This comes from the
 ; "crafty" spec benchmark.
 ;
-; RUN: opt < %s -passes=instcombine | llvm-dis
-; RUN: verify-uselistorder %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers < %s -passes=instcombine | llvm-dis -opaque-pointers
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: verify-uselistorder -opaque-pointers %s
 	
 %CHESS_POSITION = type { i32, i32 }
 @pawn_probes = external global i32		; <ptr> [#uses=0]

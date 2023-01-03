@@ -1,5 +1,8 @@
 ; RUN: llvm-as %s -o /dev/null
-; RUN: verify-uselistorder %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: verify-uselistorder -opaque-pointers %s
 
 ; Method arguments were being checked for collisions at the global scope before
 ; the method object was created by the parser.  Because of this, false

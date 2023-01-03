@@ -1,7 +1,13 @@
 ; Test upgrade of ptr.annotation intrinsics.
 ;
-; RUN: llvm-as < %s | llvm-dis | FileCheck %s
-; RUN: llvm-dis < %s.bc | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-as < %s | llvm-dis -opaque-pointers | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %s.bc | FileCheck %s
 
 ; Unused return values
 ; The arguments passed to the intrinisic wouldn't normally be arguments to

@@ -1,4 +1,7 @@
-; RUN: opt < %s -passes=instcombine | llvm-dis
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt < %s -passes=instcombine | llvm-dis -opaque-pointers
 ; PR3452
 define i128 @test(i64 %A, i64 %B, i1 %C, i128 %Z, i128 %Y, ptr %P, ptr %Q) {
 entry:

@@ -1,6 +1,9 @@
 ; Round trip test for DW_OP_LLVM_implicit_pointer metadata
 
-; RUN: llvm-as < %s | llvm-dis | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-as < %s | llvm-dis -opaque-pointers | FileCheck %s
 
 ;---------------------------
 ;static const char *b = "opq";

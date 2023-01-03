@@ -1,4 +1,7 @@
-; RUN: llvm-as < %s | llvm-dis | llvm-as > /dev/null
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-as < %s | llvm-dis -opaque-pointers | llvm-as > /dev/null
 
         %v4f = type <4 x float>
 @foo = external global %v4f             ; <ptr> [#uses=1]

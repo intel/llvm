@@ -1,4 +1,7 @@
-; RUN: llvm-dis < %s.bc | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %s.bc | FileCheck %s
 
 %struct.__neon_int8x8x2_t = type { <8 x i8>, <8 x i8> }
 

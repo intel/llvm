@@ -1,5 +1,11 @@
-; RUN: opt < %s -passes=gvn,simplifycfg,adce -simplifycfg-require-and-preserve-domtree=1 | llvm-dis
-; RUN: opt < %s -passes=gvn,simplifycfg,adce -simplifycfg-require-and-preserve-domtree=1 -verify-dom-info | llvm-dis
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt < %s -passes=gvn,simplifycfg,adce -simplifycfg-require-and-preserve-domtree=1 | llvm-dis -opaque-pointers
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt < %s -passes=gvn,simplifycfg,adce -simplifycfg-require-and-preserve-domtree=1 -verify-dom-info | llvm-dis -opaque-pointers
 
 ; This test makes sure that the DominatorTree properly handles
 ; deletion of edges that go to forward-unreachable regions.

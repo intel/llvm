@@ -18,8 +18,14 @@
 ; RUN:   -r=%t2.o,_ZTV1B,px \
 ; RUN:   -r=%t2.o,_ZTV1C,px \
 ; RUN:   -r=%t2.o,_ZTV1D,px 2>&1 | FileCheck %s --check-prefix=REMARK
-; RUN: llvm-dis %t3.1.0.preopt.bc -o - | FileCheck %s --check-prefix=CHECK-TT
-; RUN: llvm-dis %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t3.1.0.preopt.bc -o - | FileCheck %s --check-prefix=CHECK-TT
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
 
 ; Hybrid WPD
 ; Generate split module with summary for hybrid Thin/Regular LTO WPD.
@@ -43,8 +49,14 @@
 ; RUN:   -r=%t.o,_ZTV1B,px \
 ; RUN:   -r=%t.o,_ZTV1C,px \
 ; RUN:   -r=%t.o,_ZTV1D,px 2>&1 | FileCheck %s --check-prefix=REMARK --dump-input=fail
-; RUN: llvm-dis %t3.1.0.preopt.bc -o - | FileCheck %s --check-prefix=CHECK-TT
-; RUN: llvm-dis %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t3.1.0.preopt.bc -o - | FileCheck %s --check-prefix=CHECK-TT
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
 
 ; Regular LTO WPD
 ; RUN: opt -o %t4.o %s
@@ -60,8 +72,14 @@
 ; RUN:   -r=%t4.o,_ZTV1B,px \
 ; RUN:   -r=%t4.o,_ZTV1C,px \
 ; RUN:   -r=%t4.o,_ZTV1D,px 2>&1 | FileCheck %s --check-prefix=REMARK
-; RUN: llvm-dis %t5.0.0.preopt.bc -o - | FileCheck %s --check-prefix=CHECK-TT
-; RUN: llvm-dis %t5.0.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t5.0.0.preopt.bc -o - | FileCheck %s --check-prefix=CHECK-TT
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t5.0.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
 
 ; REMARK-DAG: single-impl: devirtualized a call to _ZN1A1nEi
 ; REMARK-DAG: single-impl: devirtualized a call to _ZN1D1mEi
@@ -83,8 +101,14 @@
 ; RUN:   -r=%t2.o,_ZTV1B,px \
 ; RUN:   -r=%t2.o,_ZTV1C,px \
 ; RUN:   -r=%t2.o,_ZTV1D,px 2>&1 | FileCheck %s --implicit-check-not single-impl --allow-empty
-; RUN: llvm-dis %t3.1.0.preopt.bc -o - | FileCheck %s --check-prefix=CHECK-TT
-; RUN: llvm-dis %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-NODEVIRT-IR
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t3.1.0.preopt.bc -o - | FileCheck %s --check-prefix=CHECK-TT
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-NODEVIRT-IR
 
 ; Hybrid WPD
 ; RUN: llvm-lto2 run -opaque-pointers %t.o -save-temps -pass-remarks=. \
@@ -105,8 +129,14 @@
 ; RUN:   -r=%t.o,_ZTV1B,px \
 ; RUN:   -r=%t.o,_ZTV1C,px \
 ; RUN:   -r=%t.o,_ZTV1D,px 2>&1 | FileCheck %s --implicit-check-not single-impl --allow-empty
-; RUN: llvm-dis %t3.1.0.preopt.bc -o - | FileCheck %s --check-prefix=CHECK-TT
-; RUN: llvm-dis %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-NODEVIRT-IR
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t3.1.0.preopt.bc -o - | FileCheck %s --check-prefix=CHECK-TT
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-NODEVIRT-IR
 
 ; Regular LTO WPD
 ; RUN: llvm-lto2 run -opaque-pointers %t4.o -save-temps -pass-remarks=. \
@@ -120,8 +150,14 @@
 ; RUN:   -r=%t4.o,_ZTV1B,px \
 ; RUN:   -r=%t4.o,_ZTV1C,px \
 ; RUN:   -r=%t4.o,_ZTV1D,px 2>&1 | FileCheck %s --implicit-check-not single-impl --allow-empty
-; RUN: llvm-dis %t5.0.0.preopt.bc -o - | FileCheck %s --check-prefix=CHECK-TT
-; RUN: llvm-dis %t5.0.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-NODEVIRT-IR
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t5.0.0.preopt.bc -o - | FileCheck %s --check-prefix=CHECK-TT
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t5.0.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-NODEVIRT-IR
 
 ; Try index-based WPD again with both -whole-program-visibility and
 ; -disable-whole-program-visibility to confirm the latter overrides
@@ -139,8 +175,14 @@
 ; RUN:   -r=%t2.o,_ZTV1B,px \
 ; RUN:   -r=%t2.o,_ZTV1C,px \
 ; RUN:   -r=%t2.o,_ZTV1D,px 2>&1 | FileCheck %s --implicit-check-not single-impl --allow-empty
-; RUN: llvm-dis %t3.1.0.preopt.bc -o - | FileCheck %s --check-prefix=CHECK-TT
-; RUN: llvm-dis %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-NODEVIRT-IR
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t3.1.0.preopt.bc -o - | FileCheck %s --check-prefix=CHECK-TT
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-NODEVIRT-IR
 
 ; CHECK-TT-NOT: call {{.*}}@llvm.public.type.test
 

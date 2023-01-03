@@ -1,6 +1,12 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-link -S %t.bc -o - | FileCheck %s
-; RUN: llvm-link -S %s -o - | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-link -opaque-pointers -S %t.bc -o - | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-link -opaque-pointers -S %s -o - | FileCheck %s
 
 ; Test that we don't try to map %C.0 and C and then try to map %C to a new type.
 ; This used to happen when lazy loading since we wouldn't then identify %C

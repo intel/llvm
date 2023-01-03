@@ -9,7 +9,10 @@
 
 ; Check that deleting destructor of pure virtual class is unreachable.
 ; RUN: llvm-modextract -b -n=0 %t-foo.bc -o %t-foo.bc.0
-; RUN: llvm-dis -o - %t-foo.bc.0 | FileCheck %s --check-prefix=UNREACHABLEFLAG
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers -o - %t-foo.bc.0 | FileCheck %s --check-prefix=UNREACHABLEFLAG
 
 ; Tests that devirtualization happens.
 ; RUN: llvm-lto2 run -opaque-pointers -save-temps %t-main.bc %t-foo.bc -pass-remarks=. -o %t \
@@ -35,7 +38,10 @@
 
 ; Check that deleting destructor of pure virtual class is unreachable.
 ; RUN: opt -thinlto-bc -o %t4.o %p/Inputs/devirt_after_filtering_unreachable_lib.ll
-; RUN: llvm-dis -o - %t4.o | FileCheck %s --check-prefix=UNREACHABLEFLAG
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers -o - %t4.o | FileCheck %s --check-prefix=UNREACHABLEFLAG
 
 ; UNREACHABLEFLAG: gv: (name: "_ZN4BaseD0Ev", {{.*}}, funcFlags: ({{.*}} mustBeUnreachable: 1
 

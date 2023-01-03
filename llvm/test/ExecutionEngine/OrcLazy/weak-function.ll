@@ -1,4 +1,7 @@
-; RUN: lli -jit-kind=orc-lazy -extra-module %p/Inputs/weak-function-2.ll %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: lli -opaque-pointers -jit-kind=orc-lazy -extra-module %p/Inputs/weak-function-2.ll %s
 ;
 ; Check that functions in two different modules agree on the address of weak
 ; function 'baz'

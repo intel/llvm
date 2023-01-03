@@ -1,4 +1,7 @@
-; RUN: opt < %s -passes=globalopt | llvm-dis
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt < %s -passes=globalopt | llvm-dis -opaque-pointers
 ; PR1896
 
 @indirect1 = internal global ptr null		; <ptr> [#uses=2]

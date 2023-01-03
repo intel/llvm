@@ -20,7 +20,10 @@
 ; RUN:   -r=%t.o,_ZN1C1fEi, \
 ; RUN:   -r=%t.o,_ZTV1B,px \
 ; RUN:   -r=%t.o,_ZTV1C,px 2>&1 | FileCheck %s --check-prefix=REMARK
-; RUN: llvm-dis %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
 
 ; REMARK: single-impl: devirtualized a call to _ZN1A1nEi
 

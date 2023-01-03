@@ -1,10 +1,25 @@
 ; Do setup work for all below tests: generate bitcode and combined index
-; RUN: opt -module-summary %s -o %t1.bc
-; RUN: opt -module-summary %p/Inputs/export.ll -o %t2.bc
-; RUN: llvm-lto -thinlto-action=thinlink -o %t3.bc %t1.bc %t2.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -module-summary %s -o %t1.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -module-summary %p/Inputs/export.ll -o %t2.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -thinlto-action=thinlink -o %t3.bc %t1.bc %t2.bc
 
 ; Ensure statics are promoted/renamed correctly from this file.
-; RUN: llvm-lto -thinlto-action=promote %t1.bc -thinlto-index=%t3.bc -o - | llvm-dis -o - | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -thinlto-action=promote %t1.bc -thinlto-index=%t3.bc -o - | llvm-dis -opaque-pointers -o - | FileCheck %s
 ; CHECK-DAG: @staticvar.llvm.0 = hidden global
 ; CHECK-DAG: define hidden void @staticfunc.llvm.0
 

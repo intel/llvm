@@ -1,6 +1,9 @@
 ; RUN: llc -mtriple=x86_64-unknown-linux-gnu %s -o %t -filetype=obj
 ; RUN: llvm-dwarfdump -v -debug-info %t | FileCheck %s
-; RUN: llvm-as < %s | llvm-dis | FileCheck --check-prefix=CHECK-DIS %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-as < %s | llvm-dis -opaque-pointers | FileCheck --check-prefix=CHECK-DIS %s
 
 ; CHECK: 0x0000000b: DW_TAG_compile_unit
 ; CHECK:               DW_AT_name [DW_FORM_strp] ( .debug_str[0x00000035] = "foo.cpp")

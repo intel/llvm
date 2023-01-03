@@ -1,5 +1,11 @@
-; RUN: llvm-as < %s | llvm-dis | not grep " bitcast ("
-; RUN: verify-uselistorder %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-as < %s | llvm-dis -opaque-pointers | not grep " bitcast ("
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: verify-uselistorder -opaque-pointers %s
 
 @.Base64_1 = external constant [4 x i8]         ; <ptr> [#uses=1]
 

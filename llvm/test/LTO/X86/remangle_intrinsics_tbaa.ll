@@ -1,6 +1,9 @@
 ; RUN: llvm-as %s -o %t1.bc
 ; RUN: llvm-as %p/Inputs/remangle_intrinsics_tbaa.ll -o %t2.bc
-; RUN: llvm-link -disable-lazy-loading %t2.bc %t1.bc -S | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-link -opaque-pointers -disable-lazy-loading %t2.bc %t1.bc -S | FileCheck %s
 
 ; Verify that we correctly rename the intrinsic and don't crash
 ; CHECK: @llvm.masked.store.v4p0.p0

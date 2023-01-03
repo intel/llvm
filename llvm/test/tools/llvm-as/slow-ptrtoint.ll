@@ -1,4 +1,7 @@
-; RUN: llvm-as %s -o - | llvm-dis -o - | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-as %s -o - | llvm-dis -opaque-pointers -o - | FileCheck %s
 
 %0 = type { %1, %1, %1, %1, %1, %1, %1, %1 }
 %1 = type { %2, %2, %2, %2, %2, %2, %2, %2 }

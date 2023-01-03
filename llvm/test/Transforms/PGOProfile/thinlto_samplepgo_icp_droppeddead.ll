@@ -7,10 +7,16 @@
 ; sample profile collected for one binary used to  optimize for another binary.
 ; RUN: llvm-lto2 run -opaque-pointers -save-temps -o %t2 %t.bc -r %t.bc,fptr,plx \
 ; RUN:		-r %t.bc,main,plx -r %t.bc,_ZL3foov,l
-; RUN: llvm-dis < %t2.1.4.opt.bc | FileCheck %s --check-prefix=OPT
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %t2.1.4.opt.bc | FileCheck %s --check-prefix=OPT
 ; RUN: llvm-lto2 run -opaque-pointers -save-temps -o %t2 %t.bc -r %t.bc,fptr,plx \
 ; RUN: 		-r %t.bc,main,plx -r %t.bc,_ZL3foov,l -compute-dead=false
-; RUN: llvm-dis < %t2.1.4.opt.bc | FileCheck %s --check-prefix=OPT-NODEAD
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %t2.1.4.opt.bc | FileCheck %s --check-prefix=OPT-NODEAD
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"

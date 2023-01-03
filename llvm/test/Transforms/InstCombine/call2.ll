@@ -1,4 +1,7 @@
-; RUN: opt < %s -passes=instcombine | llvm-dis
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt < %s -passes=instcombine | llvm-dis -opaque-pointers
 
 ; This used to crash trying to do a double-to-pointer conversion
 define i32 @bar() {

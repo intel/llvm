@@ -1,13 +1,22 @@
 
-; Make sure that llvm-as/llvm-dis properly assembly/disassembly the 'builtin'
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; Make sure that llvm-as/llvm-dis -opaque-pointers properly assembly/disassembly the 'builtin'
 ; attribute.
 ;
 ; rdar://13727199
 
 ; RUN: llvm-as -disable-verify < %s | \
-; RUN: llvm-dis | \
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers | \
 ; RUN: llvm-as -disable-verify | \
-; RUN: llvm-dis | \
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers | \
 ; RUN: FileCheck -check-prefix=CHECK-ASSEMBLES %s
 
 ; CHECK-ASSEMBLES: declare ptr @foo(ptr) [[NOBUILTIN:#[0-9]+]]

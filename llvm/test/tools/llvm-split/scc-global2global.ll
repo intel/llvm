@@ -2,8 +2,14 @@
 ; in the same partition.
 
 ; RUN: llvm-split -j=2 -preserve-locals -o %t %s
-; RUN: llvm-dis -o - %t0 | FileCheck --check-prefix=CHECK1 %s
-; RUN: llvm-dis -o - %t1 | FileCheck --check-prefix=CHECK0 %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers -o - %t0 | FileCheck --check-prefix=CHECK1 %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers -o - %t1 | FileCheck --check-prefix=CHECK0 %s
 
 ; CHECK0: declare dso_local ptr @local0
 ; CHECK0: declare dso_local ptr @local1

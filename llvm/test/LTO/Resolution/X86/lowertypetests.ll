@@ -1,5 +1,11 @@
-; RUN: opt -thinlto-bc -thinlto-split-lto-unit -o %t %s
-; RUN: llvm-lto2 run -r %t,f,plx -r %t,g_alias,plx -r %t,foo,lx -r %t,foo,plx -r %t,bar,lx -r %t,bar,plx -o %t1 %t
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -thinlto-bc -thinlto-split-lto-unit -o %t %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto2 run -opaque-pointers -r %t,f,plx -r %t,g_alias,plx -r %t,foo,lx -r %t,foo,plx -r %t,bar,lx -r %t,bar,plx -o %t1 %t
 ; RUN: llvm-nm %t1.0 | FileCheck --check-prefix=MERGED %s
 ; RUN: llvm-nm %t1.1 | FileCheck %s
 

@@ -1,6 +1,9 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-as %p/Inputs/pr26037.ll -o %t2.bc
-; RUN: llvm-link -S -only-needed %t2.bc %t.bc | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-link -opaque-pointers -S -only-needed %t2.bc %t.bc | FileCheck %s
 
 ; CHECK: !DIImportedEntity({{.*}}, scope: ![[B:[0-9]+]], entity: ![[A:[0-9]+]]
 ; CHECK: ![[B]] = distinct !DISubprogram(name: "b"

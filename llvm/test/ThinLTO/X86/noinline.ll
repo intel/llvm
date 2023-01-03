@@ -8,7 +8,10 @@
 ; RUN:   -r=%t1.bc,foo,    \
 ; RUN:   -r=%t2.bc,foo,p
 
-; RUN: llvm-dis %t3.o.1.3.import.bc -o - | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t3.o.1.3.import.bc -o - | FileCheck %s
 
 ; CHECK-NOT: define available_externally i32 @foo
 

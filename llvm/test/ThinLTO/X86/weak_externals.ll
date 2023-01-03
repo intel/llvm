@@ -7,8 +7,14 @@
 ; RUN:               -r=%t.bc,_ZN9SingletonI1SE11getInstanceEv,lx \
 ; RUN:               -r=%t.bc,_ZZN9SingletonI1SE11getInstanceEvE8instance,lx \
 ; RUN:               -r=%t.bc,_ZZN9SingletonI1SE11getInstanceEvE13instance_weak,lx
-; RUN: llvm-dis %t.out.1.1.promote.bc -o - | FileCheck %s
-; RUN: llvm-dis %t.out.1.2.internalize.bc -o - | FileCheck %s --check-prefix=INTERNALIZE
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t.out.1.1.promote.bc -o - | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t.out.1.2.internalize.bc -o - | FileCheck %s --check-prefix=INTERNALIZE
 
 ; CHECK: @_ZZN9SingletonI1SE11getInstanceEvE8instance = available_externally dso_local global %struct.S zeroinitializer
 ; CHECK: @_ZZN9SingletonI1SE11getInstanceEvE13instance_weak = available_externally dso_local global ptr null, align 8

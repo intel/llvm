@@ -1,7 +1,10 @@
 ; Test the order of global variables during llvm-link
 
 ; RUN: llvm-link %s %S/Inputs/globalorder-2.ll -o %t.bc
-; RUN: llvm-dis  -o - %t.bc | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers  -o - %t.bc | FileCheck %s
 
 @var1 = internal global i32 0, align 4
 @var2 = internal global i32 0, align 4

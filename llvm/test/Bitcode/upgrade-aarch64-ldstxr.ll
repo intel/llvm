@@ -1,4 +1,7 @@
-; RUN: llvm-dis < %S/upgrade-aarch64-ldstxr.bc | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %S/upgrade-aarch64-ldstxr.bc | FileCheck %s
 
 define void @f(i32* %p) {
 ; CHECK: call i64 @llvm.aarch64.ldxr.p0(ptr elementtype(i32)

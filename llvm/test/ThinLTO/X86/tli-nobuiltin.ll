@@ -2,25 +2,40 @@
 ; RUN: llvm-as < %s > %t.bc
 
 ; Regular run: expects fprintf to be turned into fwrite
-; RUN: llvm-lto %t.bc -exported-symbol=_foo -o %t.o
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers %t.bc -exported-symbol=_foo -o %t.o
 ; RUN: llvm-nm %t.o | FileCheck %s --check-prefix=LTO
 ; LTO: fwrite
 
 ; Freestanding run: expects fprintf to NOT be turned into fwrite
-; RUN: llvm-lto %t.bc -lto-freestanding -exported-symbol=_foo -o %t.o
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers %t.bc -lto-freestanding -exported-symbol=_foo -o %t.o
 ; RUN: llvm-nm %t.o | FileCheck %s --check-prefix=LTO-FREESTANDING
 ; LTO-FREESTANDING: fprintf
 
 ; Same with ThinLTO now.
-; RUN: opt -module-hash -module-summary %s -o %t.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -module-hash -module-summary %s -o %t.bc
 
 ; Regular run: expects fprintf to be turned into fwrite
-; RUN: llvm-lto -exported-symbol=_foo -thinlto-action=run %t.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -exported-symbol=_foo -thinlto-action=run %t.bc
 ; RUN: llvm-nm %t.bc.thinlto.o | FileCheck %s --check-prefix=ThinLTO
 ; ThinLTO: fwrite
 
 ; Freestanding run: expects fprintf to NOT be turned into fwrite
-; RUN: llvm-lto -lto-freestanding -exported-symbol=_foo -thinlto-action=run %t.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -lto-freestanding -exported-symbol=_foo -thinlto-action=run %t.bc
 ; RUN: llvm-nm %t.bc.thinlto.o | FileCheck %s --check-prefix=ThinLTO-FREESTANDING
 ; ThinLTO-FREESTANDING: fprintf
 

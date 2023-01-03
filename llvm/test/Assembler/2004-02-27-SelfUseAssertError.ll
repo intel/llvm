@@ -1,5 +1,8 @@
 ; RUN: llvm-as %s -o /dev/null
-; RUN: verify-uselistorder %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: verify-uselistorder -opaque-pointers %s
 
 ; %inc2 uses it's own value, but that's ok, as it's unreachable!
 

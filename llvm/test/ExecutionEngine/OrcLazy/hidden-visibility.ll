@@ -1,5 +1,11 @@
-; RUN: lli -jit-kind=orc-lazy -extra-module %p/Inputs/hidden-definitions.ll %s
-; RUN: not lli -jit-kind=orc-lazy -jd libFoo -extra-module %p/Inputs/hidden-definitions.ll %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: lli -opaque-pointers -jit-kind=orc-lazy -extra-module %p/Inputs/hidden-definitions.ll %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: not lli -opaque-pointers -jit-kind=orc-lazy -jd libFoo -extra-module %p/Inputs/hidden-definitions.ll %s
 ;
 ; Check that hidden symbols in another module are visible when the module is
 ; added to the same JITDylib, and not visible if it is added to a different

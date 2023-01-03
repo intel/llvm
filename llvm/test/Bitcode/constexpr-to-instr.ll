@@ -1,4 +1,7 @@
-; RUN: llvm-dis -expand-constant-exprs < %s.bc | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers -expand-constant-exprs < %s.bc | FileCheck %s
 
 @g = extern_weak global i32
 @g2 = extern_weak global i32

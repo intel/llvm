@@ -1,5 +1,11 @@
-; RUN: opt < %s -O3 -S | FileCheck %s
-; RUN: verify-uselistorder %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers < %s -O3 -S | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: verify-uselistorder -opaque-pointers %s
 ; Testing half to float conversion.
 
 define float @abc() nounwind {

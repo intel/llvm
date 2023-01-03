@@ -23,9 +23,18 @@
 ; RUN:   -r=%t1.o,_ZTV1B,px \
 ; RUN:   -r=%t1.o,test,px \
 ; RUN:   -r=%t1.o,testb,px
-; RUN: llvm-dis %t3.index.bc -o - | FileCheck %s --check-prefix=INDEX
-; RUN: llvm-dis %t3.0.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR0
-; RUN: llvm-dis %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR1
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t3.index.bc -o - | FileCheck %s --check-prefix=INDEX
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t3.0.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR0
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR1
 
 ; INDEX-NOT: "typeid:"
 

@@ -1,5 +1,8 @@
 ; RUN: llvm-as <%s >%t1
-; RUN: llvm-lto -exported-symbol=_uses_puts -exported-symbol=_uses_printf -o - %t1 | \
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto -opaque-pointers -exported-symbol=_uses_puts -exported-symbol=_uses_printf -o - %t1 | \
 ; RUN: llvm-nm - | \
 ; RUN: FileCheck %s
 ; rdar://problem/16165191

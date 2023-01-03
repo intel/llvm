@@ -1,11 +1,32 @@
 ; RUN: opt -module-summary -o %t.bc %s
-; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-BAR
-; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-BAZ
-; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-QUX
-; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-RESOLVER
-; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-QUUX
-; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-CORGE
-; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-GRAULT
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %t.bc | FileCheck %s --check-prefix=CHECK-BAR
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %t.bc | FileCheck %s --check-prefix=CHECK-BAZ
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %t.bc | FileCheck %s --check-prefix=CHECK-QUX
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %t.bc | FileCheck %s --check-prefix=CHECK-RESOLVER
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %t.bc | FileCheck %s --check-prefix=CHECK-QUUX
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %t.bc | FileCheck %s --check-prefix=CHECK-CORGE
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %t.bc | FileCheck %s --check-prefix=CHECK-GRAULT
 ; RUN: llvm-lto2 run -opaque-pointers %t.bc -r %t.bc,foo,px -r %t.bc,bar,px -r %t.bc,baz,px -r %t.bc,qux,px -r %t.bc,grault,px -o %t2
 ; RUN: llvm-nm %t2.1 | FileCheck %s --check-prefix=CHECK-SYMBOL
 

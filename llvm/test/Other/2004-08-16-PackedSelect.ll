@@ -1,4 +1,7 @@
-; RUN: llvm-as < %s | llvm-dis
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-as < %s | llvm-dis -opaque-pointers
 
 @foo = external global <4 x float>              ; <ptr> [#uses=1]
 @bar = external global <4 x float>              ; <ptr> [#uses=1]

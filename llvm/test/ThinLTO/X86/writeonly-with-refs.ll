@@ -1,5 +1,11 @@
-; RUN: opt -thinlto-bc -opaque-pointers %s -o %t1
-; RUN: opt -thinlto-bc %p/Inputs/writeonly-with-refs.ll -o %t2
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -thinlto-bc -opaque-pointers %s -o %t1
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -thinlto-bc %p/Inputs/writeonly-with-refs.ll -o %t2
 ; RUN: llvm-lto2 run -opaque-pointers -save-temps %t1 %t2 -o %t-out \
 ; RUN:    -r=%t1,main,plx \
 ; RUN:    -r=%t1,_Z3foov,l \
@@ -7,8 +13,14 @@
 ; RUN:    -r=%t2,outer,pl
 
 ; @outer should have been internalized and converted to zeroinitilizer.
-; RUN: llvm-dis %t-out.1.3.import.bc -o - | FileCheck %s
-; RUN: llvm-dis %t-out.2.3.import.bc -o - | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t-out.1.3.import.bc -o - | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t-out.2.3.import.bc -o - | FileCheck %s
 
 ; CHECK: @outer = internal local_unnamed_addr global %struct.Q zeroinitializer
 
@@ -19,10 +31,22 @@
 ; RUN:    -r=%t1,_Z3foov,l \
 ; RUN:    -r=%t2,_Z3foov,pl \
 ; RUN:    -r=%t2,outer,pl
-; RUN: opt -passes=function-import -import-all-index -enable-import-metadata -summary-file %t1.thinlto.bc %t1 -o %t1.out
-; RUN: opt -passes=function-import -import-all-index -summary-file %t2.thinlto.bc %t2 -o %t2.out
-; RUN: llvm-dis %t1.out -o - | FileCheck %s
-; RUN: llvm-dis %t2.out -o - | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -passes=function-import -import-all-index -enable-import-metadata -summary-file %t1.thinlto.bc %t1 -o %t1.out
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -passes=function-import -import-all-index -summary-file %t2.thinlto.bc %t2 -o %t2.out
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t1.out -o - | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t2.out -o - | FileCheck %s
 
 source_filename = "main.cpp"
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"

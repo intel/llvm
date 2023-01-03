@@ -1,6 +1,9 @@
 ; RUN: llvm-as < %s > %t.bc
 ; RUN: llvm-as < %p/2009-09-03-mdnode2.ll > %t2.bc
-; RUN: llvm-link %t.bc %t2.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-link -opaque-pointers %t.bc %t2.bc
 
 declare void @f() nounwind
 

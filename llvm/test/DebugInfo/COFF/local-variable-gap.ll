@@ -1,5 +1,11 @@
-; RUN: llc -mtriple=x86_64-windows-msvc < %s | FileCheck %s --check-prefix=ASM
-; RUN: llc -mtriple=x86_64-windows-msvc < %s -filetype=obj | llvm-readobj --codeview - | FileCheck %s --check-prefix=OBJ
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llc -opaque-pointers -mtriple=x86_64-windows-msvc < %s | FileCheck %s --check-prefix=ASM
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llc -opaque-pointers -mtriple=x86_64-windows-msvc < %s -filetype=obj | llvm-readobj --codeview - | FileCheck %s --check-prefix=OBJ
 
 ; This test attempts to exercise gaps in local variables. The local variable 'p'
 ; will end up in some CSR (esi), which will be used in both the BB scheduled

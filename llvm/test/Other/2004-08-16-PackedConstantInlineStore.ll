@@ -1,4 +1,7 @@
-; RUN: llvm-as < %s | llvm-dis
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-as < %s | llvm-dis -opaque-pointers
 @bar = external global <2 x i32>                ; <ptr> [#uses=1]
 
 define void @main() {

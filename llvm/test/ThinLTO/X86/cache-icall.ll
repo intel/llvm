@@ -4,18 +4,30 @@
 ; This affects code generated for any users of f(). Make sure that we don't pull a stale object
 ; file for %t.o from the cache.
 
-; RUN: opt -module-hash -module-summary -thinlto-bc -thinlto-split-lto-unit %s -o %t.bc
-; RUN: opt -module-hash -module-summary -thinlto-bc -thinlto-split-lto-unit %p/Inputs/cache-icall.ll -o %t2.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -module-hash -module-summary -thinlto-bc -thinlto-split-lto-unit %s -o %t.bc
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers -module-hash -module-summary -thinlto-bc -thinlto-split-lto-unit %p/Inputs/cache-icall.ll -o %t2.bc
 
 ; RUN: rm -Rf %t.cache && mkdir %t.cache
 
-; RUN: llvm-lto2 run -o %t-no.o %t.bc -cache-dir %t.cache \
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto2 run -opaque-pointers -o %t-no.o %t.bc -cache-dir %t.cache \
 ; RUN:   -r=%t.bc,_start,px \
 ; RUN:   -r=%t.bc,f,
 
 ; RUN: llvm-readelf -s %t-no.o.* | FileCheck %s --check-prefix=SYMBOLS-NO
 
-; RUN: llvm-lto2 run -o %t-yes.o %t.bc %t2.bc -cache-dir %t.cache \
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-lto2 run -opaque-pointers -o %t-yes.o %t.bc %t2.bc -cache-dir %t.cache \
 ; RUN:   -r=%t.bc,_start,px \
 ; RUN:   -r=%t.bc,f, \
 ; RUN:   -r=%t2.bc,f,p

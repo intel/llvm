@@ -1,4 +1,7 @@
-; RUN: opt %s -S -o - -passes=loop-unroll | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt -opaque-pointers %s -S -o - -passes=loop-unroll | FileCheck %s
 ; generated at -O3 from:
 ; void f() {
 ;   for (int i = 1; i <=32; i <<=2 )

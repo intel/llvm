@@ -1,4 +1,7 @@
-; RUN: opt < %s -passes=instcombine | llvm-dis
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: opt < %s -passes=instcombine | llvm-dis -opaque-pointers
 ; PR3826
 
 define void @0(ptr, ptr) {

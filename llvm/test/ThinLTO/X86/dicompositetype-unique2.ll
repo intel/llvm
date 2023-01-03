@@ -1,14 +1,20 @@
 ; RUN: opt -module-summary -o %t1.bc %s
 ; RUN: opt -module-summary -o %t2.bc %S/Inputs/dicompositetype-unique2.ll
 ; RUN: llvm-lto --thinlto-action=run -opaque-pointers %t1.bc %t2.bc -thinlto-save-temps=%t3.
-; RUN: llvm-dis %t3.0.3.imported.bc -o - | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t3.0.3.imported.bc -o - | FileCheck %s
 ; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -o %t --save-temps \
 ; RUN: -r %t1.bc,_ZN1CD2Ev,pl \
 ; RUN: -r %t1.bc,_ZN4CFVSD2Ev,l \
 ; RUN: -r %t1.bc,_Z3Getv,l \
 ; RUN: -r %t2.bc,_ZN4CFVSD2Ev,pl \
 ; RUN: -r %t2.bc,_Z3Getv,l
-; RUN: llvm-dis %t.1.3.import.bc -o - | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t.1.3.import.bc -o - | FileCheck %s
 
 ; Only llvm-lto2 adds the dso_local keyword, hence the {{.*}}
 ; CHECK: define available_externally{{.*}} void @_ZN4CFVSD2Ev

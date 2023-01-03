@@ -1,9 +1,27 @@
-; RUN: llvm-as < %s | llvm-dis | grep "addrspace(33)" | count 7
-; RUN: llvm-as < %s | llvm-dis | grep "addrspace(42)" | count 2
-; RUN: llvm-as < %s | llvm-dis | grep "addrspace(66)" | count 2
-; RUN: llvm-as < %s | llvm-dis | grep "addrspace(11)" | count 3
-; RUN: llvm-as < %s | llvm-dis | grep "addrspace(22)" | count 4
-; RUN: verify-uselistorder %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-as < %s | llvm-dis -opaque-pointers | grep "addrspace(33)" | count 7
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-as < %s | llvm-dis -opaque-pointers | grep "addrspace(42)" | count 2
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-as < %s | llvm-dis -opaque-pointers | grep "addrspace(66)" | count 2
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-as < %s | llvm-dis -opaque-pointers | grep "addrspace(11)" | count 3
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-as < %s | llvm-dis -opaque-pointers | grep "addrspace(22)" | count 4
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: verify-uselistorder -opaque-pointers %s
 
 	%struct.mystruct = type { i32, ptr addrspace(33), i32, ptr addrspace(33) }
 @input = weak addrspace(42) global %struct.mystruct zeroinitializer  		; <ptr addrspace(42)> [#uses=1]

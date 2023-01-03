@@ -1,7 +1,13 @@
 ; REQUIRES: x86-registered-target
 ; RUN: opt -thinlto-bc -thinlto-split-lto-unit -o %t %s
-; RUN: llvm-modextract -b -n 0 -o - %t | llvm-dis | FileCheck --check-prefix=M0 %s
-; RUN: llvm-modextract -b -n 1 -o - %t | llvm-dis | FileCheck --check-prefix=M1 %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-modextract -b -n 0 -o - %t | llvm-dis -opaque-pointers | FileCheck --check-prefix=M0 %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-modextract -b -n 1 -o - %t | llvm-dis -opaque-pointers | FileCheck --check-prefix=M1 %s
 
 target triple = "x86_64-unknown-linux-gnu"
 

@@ -17,7 +17,10 @@
 ; RUN:   -r=%t4.o,_ZTV1D,px \
 ; RUN:   -r=%t4.o,some_name,px \
 ; RUN:   2>&1 | FileCheck %s --check-prefix=REMARK --check-prefix=PRINT
-; RUN: llvm-dis %t5.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR1
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t5.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR1
 
 ; PRINT-DAG: Devirtualized call to {{.*}} (_ZN1D1mEi)
 

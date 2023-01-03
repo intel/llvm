@@ -1,5 +1,8 @@
 ; RUN: opt -thinlto-bc -thinlto-split-lto-unit -o %t %s
-; RUN: llvm-modextract -b -n 0 -o - %t | llvm-dis | FileCheck %s
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-modextract -b -n 0 -o - %t | llvm-dis -opaque-pointers | FileCheck %s
 
 ; Crash test for CloneModule when there's a retained DICompositeType that
 ; transitively references a global value.
