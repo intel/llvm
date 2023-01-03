@@ -14,12 +14,12 @@
 // Tests various binary operations applied to simd objects.
 
 // TODO
-// Arithmetic operations behaviour depends on Gen's control regiter's rounding
+// Arithmetic operations behaviour depends on Gen's control register's rounding
 // mode, which is RTNE by default:
 //    cr0.5:4 is 00b = Round to Nearest or Even (RTNE)
-// For half this leads to divergence between Gen and host (emulated) results
-// larger than certain threshold. Might need to tune the cr0 once this feature
-// is available in ESIMD.
+// For half and tfloat32 this leads to divergence between Gen and host
+// (emulated) results larger than certain threshold. Might need to tune the cr0
+// once this feature is available in ESIMD.
 //
 
 #include "../esimd_test_utils.hpp"
@@ -286,16 +286,15 @@ int main(void) {
     passed &= test<half, bfloat16, 7, BinOp, VEfa, IDf>(arith_ops, q, 0.03);
 #endif // USE_BF16
 #ifdef USE_TF32
-  passed &= test<tfloat32, float, 32, BinOp, VEf, IDf>(arith_ops, q, 0.000001f);
+  passed &= test<tfloat32, float, 32, BinOp, VEfa, IDf>(arith_ops, q, 0.001f);
   passed &=
-      test<tfloat32, tfloat32, 32, BinOp, VEf, IDf>(arith_ops, q, 0.000001f);
-  passed &= test<char, tfloat32, 32, BinOp, VEf, IDf>(arith_ops, q, 0.000001f);
+      test<tfloat32, tfloat32, 32, BinOp, VEfa, IDf>(arith_ops, q, 0.001f);
+  passed &= test<char, tfloat32, 32, BinOp, VEfa, IDf>(arith_ops, q, 0.001f);
   if (SupportsHalf)
-    passed &=
-        test<tfloat32, half, 32, BinOp, VEf, IDf>(arith_ops, q, 0.000001f);
-  passed &= test<tfloat32, unsigned char, 32, BinOp, VEf, IDf>(arith_ops, q,
-                                                               0.000001f);
-  passed &= test<tfloat32, short, 32, BinOp, VEf, IDf>(arith_ops, q, 0.000001f);
+    passed &= test<tfloat32, half, 32, BinOp, VEfa, IDf>(arith_ops, q, 0.001f);
+  passed &=
+      test<tfloat32, unsigned char, 32, BinOp, VEfa, IDf>(arith_ops, q, 0.001f);
+  passed &= test<tfloat32, short, 32, BinOp, VEfa, IDf>(arith_ops, q, 0.001f);
 #endif // USE_TF32
   // Test division separately, as error probability is higher.
   auto div_op = esimd_test::BinaryOpSeq<BinOp::div>{};
@@ -322,14 +321,14 @@ int main(void) {
 #endif // USE_BF16
 
 #ifdef USE_TF32
-  passed &= test<tfloat32, float, 32, BinOp, VEf, IDf>(div_op, q, 0.000001f);
-  passed &= test<tfloat32, tfloat32, 32, BinOp, VEf, IDf>(div_op, q, 0.000001f);
-  passed &= test<char, tfloat32, 32, BinOp, VEf, IDf>(div_op, q, 0.000001f);
+  passed &= test<tfloat32, float, 32, BinOp, VEf, IDf>(div_op, q, 0.001f);
+  passed &= test<tfloat32, tfloat32, 32, BinOp, VEf, IDf>(div_op, q, 0.001f);
+  passed &= test<char, tfloat32, 32, BinOp, VEf, IDf>(div_op, q, 0.001f);
   if (SupportsHalf)
-    passed &= test<tfloat32, half, 32, BinOp, VEf, IDf>(div_op, q, 0.000001f);
+    passed &= test<tfloat32, half, 32, BinOp, VEf, IDf>(div_op, q, 0.001f);
   passed &=
-      test<tfloat32, unsigned char, 32, BinOp, VEf, IDf>(div_op, q, 0.000001f);
-  passed &= test<tfloat32, short, 32, BinOp, VEf, IDf>(div_op, q, 0.000001f);
+      test<tfloat32, unsigned char, 32, BinOp, VEf, IDf>(div_op, q, 0.001f);
+  passed &= test<tfloat32, short, 32, BinOp, VEf, IDf>(div_op, q, 0.001f);
 #endif // USE_TF32
 
   auto int_ops = esimd_test::IntBinaryOpsNoShiftNoDivRem;
