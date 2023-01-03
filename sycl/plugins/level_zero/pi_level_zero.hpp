@@ -33,18 +33,24 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <shared_mutex>
 #include <string>
 #include <sycl/detail/pi.h>
+#include <thread>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
-#include <level_zero/ze_api.h>
-#include <level_zero/zes_api.h>
 #include <sycl/detail/iostream_proxy.hpp>
+#include <ze_api.h>
+#include <zes_api.h>
 
-#include "usm_allocator.hpp"
+// Share code between this PI L0 Plugin and UR L0 Adapter
+#include <pi2ur.hpp>
+#include <ur/adapters/level_zero/ur_level_zero.hpp>
+#include <ur/usm_allocator.hpp>
 
 template <class To, class From> To pi_cast(From Value) {
   // TODO: see if more sanity checks are possible.
@@ -52,292 +58,12 @@ template <class To, class From> To pi_cast(From Value) {
   return (To)(Value);
 }
 
-template <> uint32_t pi_cast(uint64_t Value) {
+template <> uint32_t inline pi_cast(uint64_t Value) {
   // Cast value and check that we don't lose any information.
   uint32_t CastedValue = (uint32_t)(Value);
   assert((uint64_t)CastedValue == Value);
   return CastedValue;
 }
-
-// TODO: Currently die is defined in each plugin. Probably some
-// common header file with utilities should be created.
-[[noreturn]] void die(const char *Message) {
-  std::cerr << "die: " << Message << std::endl;
-  std::terminate();
-}
-
-// Returns the ze_structure_type_t to use in .stype of a structured descriptor.
-// Intentionally not defined; will give an error if no proper specialization
-template <class T> ze_structure_type_t getZeStructureType();
-template <class T> zes_structure_type_t getZesStructureType();
-
-template <> ze_structure_type_t getZeStructureType<ze_event_pool_desc_t>() {
-  return ZE_STRUCTURE_TYPE_EVENT_POOL_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_fence_desc_t>() {
-  return ZE_STRUCTURE_TYPE_FENCE_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_command_list_desc_t>() {
-  return ZE_STRUCTURE_TYPE_COMMAND_LIST_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_context_desc_t>() {
-  return ZE_STRUCTURE_TYPE_CONTEXT_DESC;
-}
-template <>
-ze_structure_type_t
-getZeStructureType<ze_relaxed_allocation_limits_exp_desc_t>() {
-  return ZE_STRUCTURE_TYPE_RELAXED_ALLOCATION_LIMITS_EXP_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_host_mem_alloc_desc_t>() {
-  return ZE_STRUCTURE_TYPE_HOST_MEM_ALLOC_DESC;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_device_mem_alloc_desc_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_MEM_ALLOC_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_command_queue_desc_t>() {
-  return ZE_STRUCTURE_TYPE_COMMAND_QUEUE_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_image_desc_t>() {
-  return ZE_STRUCTURE_TYPE_IMAGE_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_module_desc_t>() {
-  return ZE_STRUCTURE_TYPE_MODULE_DESC;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_module_program_exp_desc_t>() {
-  return ZE_STRUCTURE_TYPE_MODULE_PROGRAM_EXP_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_kernel_desc_t>() {
-  return ZE_STRUCTURE_TYPE_KERNEL_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_event_desc_t>() {
-  return ZE_STRUCTURE_TYPE_EVENT_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_sampler_desc_t>() {
-  return ZE_STRUCTURE_TYPE_SAMPLER_DESC;
-}
-template <> ze_structure_type_t getZeStructureType<ze_driver_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DRIVER_PROPERTIES;
-}
-template <> ze_structure_type_t getZeStructureType<ze_device_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_device_compute_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_COMPUTE_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_command_queue_group_properties_t>() {
-  return ZE_STRUCTURE_TYPE_COMMAND_QUEUE_GROUP_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_device_image_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_IMAGE_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_device_module_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_MODULE_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_device_cache_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_CACHE_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_device_memory_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_device_memory_access_properties_t>() {
-  return ZE_STRUCTURE_TYPE_DEVICE_MEMORY_ACCESS_PROPERTIES;
-}
-template <> ze_structure_type_t getZeStructureType<ze_module_properties_t>() {
-  return ZE_STRUCTURE_TYPE_MODULE_PROPERTIES;
-}
-template <> ze_structure_type_t getZeStructureType<ze_kernel_properties_t>() {
-  return ZE_STRUCTURE_TYPE_KERNEL_PROPERTIES;
-}
-template <>
-ze_structure_type_t getZeStructureType<ze_memory_allocation_properties_t>() {
-  return ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES;
-}
-
-template <> zes_structure_type_t getZesStructureType<zes_pci_properties_t>() {
-  return ZES_STRUCTURE_TYPE_PCI_PROPERTIES;
-}
-
-template <> zes_structure_type_t getZesStructureType<zes_mem_state_t>() {
-  return ZES_STRUCTURE_TYPE_MEM_STATE;
-}
-
-template <> zes_structure_type_t getZesStructureType<zes_mem_properties_t>() {
-  return ZES_STRUCTURE_TYPE_MEM_PROPERTIES;
-}
-
-// The helpers to properly default initialize Level-Zero descriptor and
-// properties structures.
-template <class T> struct ZeStruct : public T {
-  ZeStruct() : T{} { // zero initializes base struct
-    this->stype = getZeStructureType<T>();
-    this->pNext = nullptr;
-  }
-};
-template <class T> struct ZesStruct : public T {
-  ZesStruct() : T{} { // zero initializes base struct
-    this->stype = getZesStructureType<T>();
-    this->pNext = nullptr;
-  }
-};
-
-// A single-threaded app has an opportunity to enable this mode to avoid
-// overhead from mutex locking. Default value is 0 which means that single
-// thread mode is disabled.
-static const bool SingleThreadMode = [] {
-  const char *Ret = std::getenv("SYCL_PI_LEVEL_ZERO_SINGLE_THREAD_MODE");
-  const bool RetVal = Ret ? std::stoi(Ret) : 0;
-  return RetVal;
-}();
-
-// Class which acts like shared_mutex if SingleThreadMode variable is not set.
-// If SingleThreadMode variable is set then mutex operations are turned into
-// nop.
-class pi_shared_mutex : public std::shared_mutex {
-public:
-  void lock() {
-    if (!SingleThreadMode)
-      std::shared_mutex::lock();
-  }
-  bool try_lock() {
-    return SingleThreadMode ? true : std::shared_mutex::try_lock();
-  }
-  void unlock() {
-    if (!SingleThreadMode)
-      std::shared_mutex::unlock();
-  }
-
-  void lock_shared() {
-    if (!SingleThreadMode)
-      std::shared_mutex::lock_shared();
-  }
-  bool try_lock_shared() {
-    return SingleThreadMode ? true : std::shared_mutex::try_lock_shared();
-  }
-  void unlock_shared() {
-    if (!SingleThreadMode)
-      std::shared_mutex::unlock_shared();
-  }
-};
-
-// Class which acts like std::mutex if SingleThreadMode variable is not set.
-// If SingleThreadMode variable is set then mutex operations are turned into
-// nop.
-class pi_mutex : public std::mutex {
-public:
-  void lock() {
-    if (!SingleThreadMode)
-      std::mutex::lock();
-  }
-  bool try_lock() { return SingleThreadMode ? true : std::mutex::try_lock(); }
-  void unlock() {
-    if (!SingleThreadMode)
-      std::mutex::unlock();
-  }
-};
-
-// The wrapper for immutable Level-Zero data.
-// The data is initialized only once at first access (via ->) with the
-// initialization function provided in Init. All subsequent access to
-// the data just returns the already stored data.
-//
-template <class T> struct ZeCache : private T {
-  // The initialization function takes a reference to the data
-  // it is going to initialize, since it is private here in
-  // order to disallow access other than through "->".
-  //
-  typedef std::function<void(T &)> InitFunctionType;
-  InitFunctionType Compute{nullptr};
-  bool Computed{false};
-  pi_mutex ZeCacheMutex;
-
-  ZeCache() : T{} {}
-
-  // Access to the fields of the original T data structure.
-  T *operator->() {
-    std::unique_lock<pi_mutex> Lock(ZeCacheMutex);
-    if (!Computed) {
-      Compute(*this);
-      Computed = true;
-    }
-    return this;
-  }
-};
-
-// This wrapper around std::atomic is created to limit operations with reference
-// counter and to make allowed operations more transparent in terms of
-// thread-safety in the plugin. increment() and load() operations do not need a
-// mutex guard around them since the underlying data is already atomic.
-// decrementAndTest() method is used to guard a code which needs to be
-// executed when object's ref count becomes zero after release. This method also
-// doesn't need a mutex guard because decrement operation is atomic and only one
-// thread can reach ref count equal to zero, i.e. only a single thread can pass
-// through this check.
-struct ReferenceCounter {
-  ReferenceCounter() : RefCount{1} {}
-
-  // Reset the counter to the initial value.
-  void reset() { RefCount = 1; }
-
-  // Used when retaining an object.
-  void increment() { RefCount++; }
-
-  // Supposed to be used in pi*GetInfo* methods where ref count value is
-  // requested.
-  pi_uint32 load() { return RefCount.load(); }
-
-  // This method allows to guard a code which needs to be executed when object's
-  // ref count becomes zero after release. It is important to notice that only a
-  // single thread can pass through this check. This is true because of several
-  // reasons:
-  //   1. Decrement operation is executed atomically.
-  //   2. It is not allowed to retain an object after its refcount reaches zero.
-  //   3. It is not allowed to release an object more times than the value of
-  //   the ref count.
-  // 2. and 3. basically means that we can't use an object at all as soon as its
-  // refcount reaches zero. Using this check guarantees that code for deleting
-  // an object and releasing its resources is executed once by a single thread
-  // and we don't need to use any mutexes to guard access to this object in the
-  // scope after this check. Of course if we access another objects in this code
-  // (not the one which is being deleted) then access to these objects must be
-  // guarded, for example with a mutex.
-  bool decrementAndTest() { return --RefCount == 0; }
-
-private:
-  std::atomic<pi_uint32> RefCount;
-};
-
-// Base class to store common data
-struct _pi_object {
-  _pi_object() : RefCount{} {}
-
-  // Level Zero doesn't do the reference counting, so we have to do.
-  // Must be atomic to prevent data race when incrementing/decrementing.
-  ReferenceCounter RefCount;
-
-  // This mutex protects accesses to all the non-const member variables.
-  // Exclusive access is required to modify any of these members.
-  //
-  // To get shared access to the object in a scope use std::shared_lock:
-  //    std::shared_lock Lock(Obj->Mutex);
-  // To get exclusive access to the object in a scope use std::scoped_lock:
-  //    std::scoped_lock Lock(Obj->Mutex);
-  //
-  // If several pi objects are accessed in a scope then each object's mutex must
-  // be locked. For example, to get write access to Obj1 and Obj2 and read
-  // access to Obj3 in a scope use the following approach:
-  //   std::shared_lock Obj3Lock(Obj3->Mutex, std::defer_lock);
-  //   std::scoped_lock LockAll(Obj1->Mutex, Obj2->Mutex, Obj3Lock);
-  pi_shared_mutex Mutex;
-};
 
 // Record for a memory allocation. This structure is used to keep information
 // for each memory allocation.
@@ -359,22 +85,8 @@ struct MemAllocRecord : _pi_object {
 // Define the types that are opaque in pi.h in a manner suitabale for Level Zero
 // plugin
 
-struct _pi_platform {
-  _pi_platform(ze_driver_handle_t Driver) : ZeDriver{Driver} {}
-  // Performs initialization of a newly constructed PI platform.
-  pi_result initialize();
-
-  // Level Zero lacks the notion of a platform, but there is a driver, which is
-  // a pretty good fit to keep here.
-  ze_driver_handle_t ZeDriver;
-
-  // Cache versions info from zeDriverGetProperties.
-  std::string ZeDriverVersion;
-  std::string ZeDriverApiVersion;
-  ze_api_version_t ZeApiVersion;
-
-  // Cache driver extensions
-  std::unordered_map<std::string, uint32_t> zeDriverExtensionMap;
+struct _pi_platform : public _ur_platform_handle_t {
+  using _ur_platform_handle_t::_ur_platform_handle_t;
 
   // Cache pi_devices for reuse
   std::vector<std::unique_ptr<_pi_device>> PiDevicesCache;
@@ -492,12 +204,12 @@ struct _pi_device : _pi_object {
   // The helper structure that keeps info about a command queue groups of the
   // device. It is not changed after it is initialized.
   struct queue_group_info_t {
-    typedef enum {
+    enum type {
       MainCopy,
       LinkCopy,
       Compute,
       Size // must be last
-    } type;
+    };
 
     // Keep the ordinal of the commands group as returned by
     // zeDeviceGetCommandQueueGroupProperties. A value of "-1" means that
@@ -564,20 +276,26 @@ struct _pi_device : _pi_object {
   // For some devices (e.g. PVC) immediate commandlists are preferred.
   bool ImmCommandListsPreferred;
 
-  // Return the Events scope to be used in for this device.
-  enum EventsScope eventsScope();
-
   // Return whether to use immediate commandlists for this device.
-  bool useImmediateCommandLists();
+  int useImmediateCommandLists();
 
   bool isSubDevice() { return RootDevice != nullptr; }
+
+  // Is this a Data Center GPU Max series (aka PVC).
+  bool isPVC() { return (ZeDeviceProperties->deviceId & 0xff0) == 0xbd0; }
+
+  // Does this device represent a single compute slice?
+  bool isCCS() const {
+    return QueueGroup[_pi_device::queue_group_info_t::Compute].ZeIndex >= 0;
+  }
 
   // Cache of the immutable device properties.
   ZeCache<ZeStruct<ze_device_properties_t>> ZeDeviceProperties;
   ZeCache<ZeStruct<ze_device_compute_properties_t>> ZeDeviceComputeProperties;
   ZeCache<ZeStruct<ze_device_image_properties_t>> ZeDeviceImageProperties;
   ZeCache<ZeStruct<ze_device_module_properties_t>> ZeDeviceModuleProperties;
-  ZeCache<std::vector<ZeStruct<ze_device_memory_properties_t>>>
+  ZeCache<std::pair<std::vector<ZeStruct<ze_device_memory_properties_t>>,
+                    std::vector<ZeStruct<ze_device_memory_ext_properties_t>>>>
       ZeDeviceMemoryProperties;
   ZeCache<ZeStruct<ze_device_memory_access_properties_t>>
       ZeDeviceMemoryAccessProperties;
@@ -617,17 +335,17 @@ struct pi_command_list_info_t {
 };
 
 // The map type that would track all command-lists in a queue.
-typedef std::unordered_map<ze_command_list_handle_t, pi_command_list_info_t>
-    pi_command_list_map_t;
+using pi_command_list_map_t =
+    std::unordered_map<ze_command_list_handle_t, pi_command_list_info_t>;
 // The iterator pointing to a specific command-list in use.
-typedef pi_command_list_map_t::iterator pi_command_list_ptr_t;
+using pi_command_list_ptr_t = pi_command_list_map_t::iterator;
 
 struct _pi_context : _pi_object {
   _pi_context(ze_context_handle_t ZeContext, pi_uint32 NumDevices,
               const pi_device *Devs, bool OwnZeContext)
-      : ZeContext{ZeContext},
-        OwnZeContext{OwnZeContext}, Devices{Devs, Devs + NumDevices},
-        SingleRootDevice(getRootDevice()), ZeCommandListInit{nullptr} {
+      : ZeContext{ZeContext}, OwnZeContext{OwnZeContext},
+        Devices{Devs, Devs + NumDevices}, SingleRootDevice(getRootDevice()),
+        ZeCommandListInit{nullptr} {
     // NOTE: one must additionally call initialize() to complete
     // PI context creation.
   }
@@ -764,10 +482,10 @@ struct _pi_context : _pi_object {
   std::unordered_map<void *, MemAllocRecord> MemAllocs;
 
   // Get pi_event from cache.
-  pi_event getEventFromCache(bool HostVisible, bool WithProfiling);
+  pi_event getEventFromContextCache(bool HostVisible, bool WithProfiling);
 
   // Add pi_event to cache.
-  void addEventToCache(pi_event);
+  void addEventToContextCache(pi_event);
 
 private:
   // If context contains one device then return this device.
@@ -834,10 +552,12 @@ private:
 };
 
 struct _pi_queue : _pi_object {
+  // ForceComputeIndex, if non-negative, indicates that the queue must be fixed
+  // to that particular compute CCS.
   _pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
             std::vector<ze_command_queue_handle_t> &CopyQueues,
             pi_context Context, pi_device Device, bool OwnZeCommandQueue,
-            pi_queue_properties Properties = 0);
+            pi_queue_properties Properties = 0, int ForceComputeIndex = -1);
 
   using queue_type = _pi_device::queue_group_info_t::type;
 
@@ -866,7 +586,10 @@ struct _pi_queue : _pi_object {
 
     // Return the index of the next queue to use based on a
     // round robin strategy and the queue group ordinal.
-    uint32_t getQueueIndex(uint32_t *QueueGroupOrdinal, uint32_t *QueueIndex);
+    // If QueryOnly is true then return index values but don't update internal
+    // index data members of the queue.
+    uint32_t getQueueIndex(uint32_t *QueueGroupOrdinal, uint32_t *QueueIndex,
+                           bool QueryOnly = false);
 
     // Get the ordinal for a command queue handle.
     int32_t getCmdQueueOrdinal(ze_command_queue_handle_t CmdQueue);
@@ -885,19 +608,23 @@ struct _pi_queue : _pi_object {
     uint32_t NextIndex{0};
   };
 
-  pi_queue_group_t ComputeQueueGroup{this, queue_type::Compute};
+  // A map of compute groups containing compute queue handles, one per thread.
+  // When a queue is accessed from multiple host threads, a separate queue group
+  // is created for each thread. The key used for mapping is the thread ID.
+  std::unordered_map<std::thread::id, pi_queue_group_t> ComputeQueueGroupsByTID;
 
-  // Vector of Level Zero copy command command queue handles.
-  // In this vector, main copy engine, if available, come first followed by
-  // link copy engines, if available.
-  pi_queue_group_t CopyQueueGroup{this, queue_type::MainCopy};
+  // A group containing copy queue handles. The main copy engine, if available,
+  // comes first followed by link copy engines, if available.
+  // When a queue is accessed from multiple host threads, a separate queue group
+  // is created for each thread. The key used for mapping is the thread ID.
+  std::unordered_map<std::thread::id, pi_queue_group_t> CopyQueueGroupsByTID;
 
   // Wait for all commandlists associated with this Queue to finish operations.
   pi_result synchronize();
 
-  pi_queue_group_t &getQueueGroup(bool UseCopyEngine) {
-    return UseCopyEngine ? CopyQueueGroup : ComputeQueueGroup;
-  }
+  // Return the queue group to use based on standard/immediate commandlist mode,
+  // and if immediate mode, the thread-specific group.
+  pi_queue_group_t &getQueueGroup(bool UseCopyEngine);
 
   // This function considers multiple factors including copy engine
   // availability and user preference and returns a boolean that is used to
@@ -939,7 +666,7 @@ struct _pi_queue : _pi_object {
   pi_command_list_map_t CommandListMap;
 
   // Helper data structure to hold all variables related to batching
-  typedef struct CommandBatch {
+  struct command_batch {
     // These two members are used to keep track of how often the
     // batching closes and executes a command list before reaching the
     // QueueComputeBatchSize limit, versus how often we reach the limit.
@@ -957,7 +684,7 @@ struct _pi_queue : _pi_object {
     // a queue specific basis. And by putting it in the queue itself, this
     // is thread safe because of the locking of the queue that occurs.
     pi_uint32 QueueBatchSize = {0};
-  } command_batch;
+  };
 
   // ComputeCommandBatch holds data related to batching of non-copy commands.
   // CopyCommandBatch holds data related to batching of copy commands.
@@ -977,6 +704,10 @@ struct _pi_queue : _pi_object {
 
   // Returns true if the queue has discard events property.
   bool isDiscardEvents() const;
+
+  // Returns true if the queue has explicit priority set by user.
+  bool isPriorityLow() const;
+  bool isPriorityHigh() const;
 
   // adjust the queue's batch size, knowing that the current command list
   // is being closed with a full batch.
@@ -998,14 +729,23 @@ struct _pi_queue : _pi_object {
   createCommandList(bool UseCopyEngine, pi_command_list_ptr_t &CommandList,
                     ze_command_queue_handle_t *ForcedCmdQueue = nullptr);
 
-  // Resets the Command List and Associated fence in the ZeCommandListFenceMap.
-  // If the reset command list should be made available, then MakeAvailable
-  // needs to be set to true. The caller must verify that this command list and
-  // fence have been signalled. The EventListToCleanup contains a list of events
-  // from the command list which need to be cleaned up.
+  /// @brief Resets the command list and associated fence in the map and removes
+  /// events from the command list.
+  /// @param CommandList The caller must verify that this command list and fence
+  /// have been signalled.
+  /// @param MakeAvailable If the reset command list should be made available,
+  /// then MakeAvailable needs to be set to true.
+  /// @param EventListToCleanup  The EventListToCleanup contains a list of
+  /// events from the command list which need to be cleaned up.
+  /// @param CheckStatus Hint informing whether we need to check status of the
+  /// events before removing them from the immediate command list. This is
+  /// needed because immediate command lists are not associated with fences and
+  /// in general status of the event needs to be checked.
+  /// @return PI_SUCCESS if successful, PI error code otherwise.
   pi_result resetCommandList(pi_command_list_ptr_t CommandList,
                              bool MakeAvailable,
-                             std::vector<_pi_event *> &EventListToCleanup);
+                             std::vector<pi_event> &EventListToCleanup,
+                             bool CheckStatus = true);
 
   // Returns true if an OpenCommandList has commands that need to be submitted.
   // If IsCopy is 'true', then the OpenCommandList containing copy commands is
@@ -1076,6 +816,99 @@ struct _pi_queue : _pi_object {
 
   // Indicates that the queue is healthy and all operations on it are OK.
   bool Healthy{true};
+
+  // The following data structures and methods are used only for handling
+  // in-order queue with discard_events property. Some commands in such queue
+  // may have discarded event. Which means that event is not visible outside of
+  // the plugin. It is possible to reset and reuse discarded events in the same
+  // in-order queue because of the dependency between commands. We don't have to
+  // wait event completion to do this. We use the following 2-event model to
+  // reuse events inside each command list:
+  //
+  // Operation1 = zeCommantListAppendMemoryCopy (signal ze_event1)
+  // zeCommandListAppendBarrier(wait for ze_event1)
+  // zeCommandListAppendEventReset(ze_event1)
+  // # Create new pi_event using ze_event1 and append to the cache.
+  //
+  // Operation2 = zeCommandListAppendMemoryCopy (signal ze_event2)
+  // zeCommandListAppendBarrier(wait for ze_event2)
+  // zeCommandListAppendEventReset(ze_event2)
+  // # Create new pi_event using ze_event2 and append to the cache.
+  //
+  // # Get pi_event from the beginning of the cache because there are two events
+  // # there. So it is guaranteed that we do round-robin between two events -
+  // # event from the last command is appended to the cache.
+  // Operation3 = zeCommandListAppendMemoryCopy (signal ze_event1)
+  // # The same ze_event1 is used for Operation1 and Operation3.
+  //
+  // When we switch to a different command list we need to signal new event and
+  // wait for it in the new command list using barrier.
+  // [CmdList1]
+  // Operation1 = zeCommantListAppendMemoryCopy (signal event1)
+  // zeCommandListAppendBarrier(wait for event1)
+  // zeCommandListAppendEventReset(event1)
+  // zeCommandListAppendSignalEvent(NewEvent)
+  //
+  // [CmdList2]
+  // zeCommandListAppendBarrier(wait for NewEvent)
+  //
+  // This barrier guarantees that command list execution starts only after
+  // completion of previous command list which signals aforementioned event. It
+  // allows to reset and reuse same event handles inside all command lists in
+  // scope of the queue. It means that we need 2 reusable events of each type
+  // (host-visible and device-scope) per queue at maximum.
+
+  // This data member keeps track of the last used command list and allows to
+  // handle switch of immediate command lists because immediate command lists
+  // are never closed unlike regular command lists.
+  pi_command_list_ptr_t LastUsedCommandList = CommandListMap.end();
+
+  // Vector of 2 lists of reusable events: host-visible and device-scope.
+  // They are separated to allow faster access to stored events depending on
+  // requested type of event. Each list contains events which can be reused
+  // inside all command lists in the queue as described in the 2-event model.
+  // Leftover events in the cache are relased at the queue destruction.
+  std::vector<std::list<pi_event>> EventCaches{2};
+
+  // Get event from the queue's cache.
+  // Returns nullptr if the cache doesn't contain any reusable events or if the
+  // cache contains only one event which corresponds to the previous command and
+  // can't be used for the current command because we can't use the same event
+  // two times in a row and have to do round-robin between two events. Otherwise
+  // it picks an event from the beginning of the cache and returns it. Event
+  // from the last command is always appended to the end of the list.
+  pi_event getEventFromQueueCache(bool HostVisible);
+
+  // Put pi_event to the cache. Provided pi_event object is not used by
+  // any command but its ZeEvent is used by many pi_event objects.
+  // Commands to wait and reset ZeEvent must be submitted to the queue before
+  // calling this method.
+  pi_result addEventToQueueCache(pi_event Event);
+
+  // Append command to provided command list to wait and reset the last event if
+  // it is discarded and create new pi_event wrapper using the same native event
+  // and put it to the cache. We call this method after each command submission
+  // to make native event available to use by next commands.
+  pi_result resetDiscardedEvent(pi_command_list_ptr_t);
+
+  // Append command to the command list to signal new event if the last event in
+  // the command list is discarded. While we submit commands in scope of the
+  // same command list we can reset and reuse events but when we switch to a
+  // different command list we currently need to signal new event and wait for
+  // it in the new command list using barrier.
+  pi_result signalEventFromCmdListIfLastEventDiscarded(pi_command_list_ptr_t);
+
+  // Insert a barrier waiting for the last command event into the beginning of
+  // command list. This barrier guarantees that command list execution starts
+  // only after completion of previous command list which signals aforementioned
+  // event. It allows to reset and reuse same event handles inside all command
+  // lists in the queue.
+  pi_result
+  insertStartBarrierIfDiscardEventsMode(pi_command_list_ptr_t &CmdList);
+
+  // Helper method telling whether we need to reuse discarded event in this
+  // queue.
+  bool doReuseDiscardedEvents();
 };
 
 struct _pi_mem : _pi_object {
@@ -1134,12 +967,8 @@ struct _pi_buffer final : _pi_mem {
       }
     }
 
-    // Make first device in the context be the master. Mark that
-    // allocation (yet to be made) having "valid" data. And real
-    // allocation and initialization should follow the buffer
-    // construction with a "write_only" access copy.
-    LastDeviceWithValidAllocation = Context->Devices[0];
-    Allocations[LastDeviceWithValidAllocation].Valid = true;
+    // This initialization does not end up with any valid allocation yet.
+    LastDeviceWithValidAllocation = nullptr;
   }
 
   // Sub-buffer constructor
@@ -1312,9 +1141,11 @@ struct _pi_ze_event_list_t {
   // not assignment copyable. Just field by field copy of the other
   // fields.
   _pi_ze_event_list_t &operator=(const _pi_ze_event_list_t &other) {
-    this->ZeEventList = other.ZeEventList;
-    this->PiEventList = other.PiEventList;
-    this->Length = other.Length;
+    if (this != &other) {
+      this->ZeEventList = other.ZeEventList;
+      this->PiEventList = other.PiEventList;
+      this->Length = other.Length;
+    }
     return *this;
   }
 };
@@ -1354,7 +1185,7 @@ struct _pi_event : _pi_object {
   // Tells if this event is with profiling capabilities.
   bool isProfilingEnabled() const {
     return !Queue || // tentatively assume user events are profiling enabled
-           (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
+           (Queue->Properties & PI_QUEUE_FLAG_PROFILING_ENABLE) != 0;
   }
 
   // Keeps the command-queue and command associated with the event.
@@ -1375,6 +1206,9 @@ struct _pi_event : _pi_object {
   // This list must be destroyed once the event has signalled.
   _pi_ze_event_list_t WaitList;
 
+  // Command list associated with the pi_event.
+  std::optional<pi_command_list_ptr_t> CommandList;
+
   // Tracks if the needed cleanup was already performed for
   // a completed event. This allows to control that some cleanup
   // actions are performed only once.
@@ -1386,6 +1220,10 @@ struct _pi_event : _pi_object {
   // L0 event (if any) is not guranteed to have been signalled, or
   // being visible to the host at all.
   bool Completed = {false};
+
+  // Indicates that this event is discarded, i.e. it is not visible outside of
+  // plugin.
+  bool IsDiscarded = {false};
 
   // Besides each PI object keeping a total reference count in
   // _pi_object::RefCount we keep special track of the event *external*
@@ -1463,9 +1301,9 @@ struct _pi_program : _pi_object {
 
   // Construct a program in IL or Native state.
   _pi_program(state St, pi_context Context, const void *Input, size_t Length)
-      : Context{Context},
-        OwnZeModule{true}, State{St}, Code{new uint8_t[Length]},
-        CodeLength{Length}, ZeModule{nullptr}, ZeBuildLog{nullptr} {
+      : Context{Context}, OwnZeModule{true}, State{St},
+        Code{new uint8_t[Length]}, CodeLength{Length}, ZeModule{nullptr},
+        ZeBuildLog{nullptr} {
     std::memcpy(Code.get(), Input, Length);
   }
 
@@ -1503,7 +1341,7 @@ struct _pi_program : _pi_object {
   // In IL and Object states, this contains the SPIR-V representation of the
   // module.  In Native state, it contains the native code.
   std::unique_ptr<uint8_t[]> Code; // Array containing raw IL / native code.
-  size_t CodeLength;               // Size (bytes) of the array.
+  size_t CodeLength{0};            // Size (bytes) of the array.
 
   // Used only in IL and Object states.  Contains the SPIR-V specialization
   // constants as a map from the SPIR-V "SpecID" to a buffer that contains the

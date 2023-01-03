@@ -330,6 +330,18 @@ The following options are implemented only for the XCOFF file format.
 
   Display XCOFF Auxiliary header.
 
+.. option:: --exception-section
+
+  Display XCOFF exception section entries.
+
+.. option:: --loader-section-header
+
+  Display XCOFF loader section header.
+
+.. option:: --loader-section-symbols
+
+  Display symbol table of loader section.
+
 EXIT STATUS
 -----------
 

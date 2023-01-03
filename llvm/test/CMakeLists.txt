@@ -8,8 +8,8 @@ llvm_canonicalize_cmake_booleans(
   LLVM_ENABLE_CURL
   LLVM_ENABLE_HTTPLIB
   LLVM_ENABLE_ZLIB
+  LLVM_ENABLE_ZSTD
   LLVM_ENABLE_LIBXML2
-  LLVM_INCLUDE_GO_TESTS
   LLVM_LINK_LLVM_DYLIB
   LLVM_TOOL_LTO_BUILD
   LLVM_USE_INTEL_JITEVENTS
@@ -79,6 +79,7 @@ set(LLVM_TEST_DEPENDS
           llvm-cxxdump
           llvm-cxxfilt
           llvm-cxxmap
+          llvm-debuginfo-analyzer
           llvm-debuginfod-find
           llvm-diff
           llvm-dis
@@ -122,6 +123,7 @@ set(LLVM_TEST_DEPENDS
           llvm-readelf
           llvm-reduce
           llvm-remark-size-diff
+          llvm-remarkutil
           llvm-rtdyld
           llvm-sim
           llvm-size
@@ -166,12 +168,12 @@ if(TARGET LLVMgold)
   set(LLVM_TEST_DEPENDS ${LLVM_TEST_DEPENDS} LLVMgold)
 endif()
 
-if(TARGET llvm-go)
-  set(LLVM_TEST_DEPENDS ${LLVM_TEST_DEPENDS} llvm-go)
-endif()
-
 if(TARGET LTO)
   set(LLVM_TEST_DEPENDS ${LLVM_TEST_DEPENDS} LTO)
+endif()
+
+if(TARGET llvm-spirv)
+  set(LLVM_TEST_DEPENDS ${LLVM_TEST_DEPENDS} llvm-spirv)
 endif()
 
 if(LLVM_BUILD_EXAMPLES)

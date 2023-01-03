@@ -33,7 +33,7 @@ using ::testing::IsEmpty;
 
 std::vector<InlayHint> hintsOfKind(ParsedAST &AST, InlayHintKind Kind) {
   std::vector<InlayHint> Result;
-  for (auto &Hint : inlayHints(AST, /*RestrictRange=*/llvm::None)) {
+  for (auto &Hint : inlayHints(AST, /*RestrictRange=*/std::nullopt)) {
     if (Hint.kind == Kind)
       Result.push_back(Hint);
   }
@@ -93,7 +93,7 @@ void assertHints(InlayHintKind Kind, llvm::StringRef AnnotatedSource,
   // Sneak in a cross-cutting check that hints are disabled by config.
   // We'll hit an assertion failure if addInlayHint still gets called.
   WithContextValue WithCfg(Config::Key, noHintsConfig());
-  EXPECT_THAT(inlayHints(AST, llvm::None), IsEmpty());
+  EXPECT_THAT(inlayHints(AST, std::nullopt), IsEmpty());
 }
 
 // Hack to allow expression-statements operating on parameter packs in C++14.
@@ -820,6 +820,15 @@ TEST(ParameterHints, Macros) {
     }
   )cpp",
                        ExpectedHint{"param: ", "param"});
+
+  // If the macro expands to multiple arguments, don't hint it.
+  assertParameterHints(R"cpp(
+    void foo(double x, double y);
+    #define CONSTANTS 3.14, 2.72
+    void bar() {
+      foo(CONSTANTS);
+    }
+  )cpp");
 }
 
 TEST(ParameterHints, ConstructorParens) {
@@ -1415,6 +1424,17 @@ TEST(DesignatorHints, OnlyAggregateInit) {
     struct Constructible { Constructible(int x); };
     Constructible x{42};
   )cpp" /*no designator hints expected (but param hints!)*/);
+}
+
+TEST(DesignatorHints, NoCrash) {
+  assertDesignatorHints(R"cpp(
+    /*error-ok*/
+    struct A {};
+    struct Foo {int a; int b;};
+    void test() {
+      Foo f{A(), $b[[1]]};
+    }
+  )cpp", ExpectedHint{".b=", "b"});
 }
 
 TEST(InlayHints, RestrictRange) {

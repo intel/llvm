@@ -49,6 +49,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/Allocator.h"
 #include <algorithm>
+#include <optional>
 #include <utility>
 
 namespace llvm {
@@ -583,7 +584,8 @@ public:
   ///
   bool makeLoopInvariant(Value *V, bool &Changed,
                          Instruction *InsertPt = nullptr,
-                         MemorySSAUpdater *MSSAU = nullptr) const;
+                         MemorySSAUpdater *MSSAU = nullptr,
+                         ScalarEvolution *SE = nullptr) const;
 
   /// If the given instruction is inside of the loop and it can be hoisted, do
   /// so to make it trivially loop-invariant.
@@ -597,7 +599,8 @@ public:
   ///
   bool makeLoopInvariant(Instruction *I, bool &Changed,
                          Instruction *InsertPt = nullptr,
-                         MemorySSAUpdater *MSSAU = nullptr) const;
+                         MemorySSAUpdater *MSSAU = nullptr,
+                         ScalarEvolution *SE = nullptr) const;
 
   /// Check to see if the loop has a canonical induction variable: an integer
   /// recurrence that starts at 0 and increments by one each time through the
@@ -747,7 +750,7 @@ public:
   };
 
   /// Return the struct LoopBounds collected if all struct members are found,
-  /// else None.
+  /// else std::nullopt.
   Optional<LoopBounds> getBounds(ScalarEvolution &SE) const;
 
   /// Return the loop induction variable if found, else return nullptr.
@@ -1331,8 +1334,8 @@ Optional<bool> getOptionalBoolLoopAttribute(const Loop *TheLoop,
 bool getBooleanLoopAttribute(const Loop *TheLoop, StringRef Name);
 
 /// Find named metadata for a loop with an integer value.
-llvm::Optional<int>
-getOptionalIntLoopAttribute(const Loop *TheLoop, StringRef Name);
+std::optional<int> getOptionalIntLoopAttribute(const Loop *TheLoop,
+                                               StringRef Name);
 
 /// Find named metadata for a loop with an integer value. Return \p Default if
 /// not set.

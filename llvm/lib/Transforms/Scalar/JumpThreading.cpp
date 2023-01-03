@@ -100,6 +100,11 @@ ImplicationSearchThreshold(
            "condition to use to thread over a weaker condition"),
   cl::init(3), cl::Hidden);
 
+static cl::opt<unsigned> PhiDuplicateThreshold(
+    "jump-threading-phi-threshold",
+    cl::desc("Max PHIs in BB to duplicate for jump threading"), cl::init(76),
+    cl::Hidden);
+
 static cl::opt<bool> PrintLVIAfterJumpThreading(
     "print-lvi-after-jump-threading",
     cl::desc("Print the LazyValueInfo cache after JumpThreading"), cl::init(false),
@@ -347,7 +352,7 @@ PreservedAnalyses JumpThreadingPass::run(Function &F,
   std::unique_ptr<BlockFrequencyInfo> BFI;
   std::unique_ptr<BranchProbabilityInfo> BPI;
   if (F.hasProfileData()) {
-    LoopInfo LI{DominatorTree(F)};
+    LoopInfo LI{DT};
     BPI.reset(new BranchProbabilityInfo(F, LI, &TLI));
     BFI.reset(new BlockFrequencyInfo(F, *BPI, LI));
   }
@@ -518,8 +523,23 @@ static unsigned getJumpThreadDuplicationCost(const TargetTransformInfo *TTI,
                                              Instruction *StopAt,
                                              unsigned Threshold) {
   assert(StopAt->getParent() == BB && "Not an instruction from proper BB?");
+
+  // Do not duplicate the BB if it has a lot of PHI nodes.
+  // If a threadable chain is too long then the number of PHI nodes can add up,
+  // leading to a substantial increase in compile time when rewriting the SSA.
+  unsigned PhiCount = 0;
+  Instruction *FirstNonPHI = nullptr;
+  for (Instruction &I : *BB) {
+    if (!isa<PHINode>(&I)) {
+      FirstNonPHI = &I;
+      break;
+    }
+    if (++PhiCount > PhiDuplicateThreshold)
+      return ~0U;
+  }
+
   /// Ignore PHI nodes, these will be flattened when duplication happens.
-  BasicBlock::const_iterator I(BB->getFirstNonPHI());
+  BasicBlock::const_iterator I(FirstNonPHI);
 
   // FIXME: THREADING will delete values that are just used to compute the
   // branch, so they shouldn't count against the duplication cost.
@@ -561,8 +581,8 @@ static unsigned getJumpThreadDuplicationCost(const TargetTransformInfo *TTI,
       if (CI->cannotDuplicate() || CI->isConvergent())
         return ~0U;
 
-    if (TTI->getUserCost(&*I, TargetTransformInfo::TCK_SizeAndLatency)
-            == TargetTransformInfo::TCC_Free)
+    if (TTI->getInstructionCost(&*I, TargetTransformInfo::TCK_SizeAndLatency) ==
+        TargetTransformInfo::TCC_Free)
       continue;
 
     // All other instructions count for at least one unit.
@@ -654,22 +674,25 @@ bool JumpThreadingPass::computeValueKnownInPredecessorsImpl(
   Instruction *I = dyn_cast<Instruction>(V);
   if (!I || I->getParent() != BB) {
 
-    // Okay, if this is a live-in value, see if it has a known value at the end
-    // of any of our predecessors.
-    //
-    // FIXME: This should be an edge property, not a block end property.
-    /// TODO: Per PR2563, we could infer value range information about a
-    /// predecessor based on its terminator.
-    //
-    // FIXME: change this to use the more-rich 'getPredicateOnEdge' method if
-    // "I" is a non-local compare-with-a-constant instruction.  This would be
-    // able to handle value inequalities better, for example if the compare is
-    // "X < 4" and "X < 3" is known true but "X < 4" itself is not available.
-    // Perhaps getConstantOnEdge should be smart enough to do this?
+    // Okay, if this is a live-in value, see if it has a known value at the any
+    // edge from our predecessors.
     for (BasicBlock *P : predecessors(BB)) {
+      using namespace PatternMatch;
       // If the value is known by LazyValueInfo to be a constant in a
       // predecessor, use that information to try to thread this block.
       Constant *PredCst = LVI->getConstantOnEdge(V, P, BB, CxtI);
+      // If I is a non-local compare-with-constant instruction, use more-rich
+      // 'getPredicateOnEdge' method. This would be able to handle value
+      // inequalities better, for example if the compare is "X < 4" and "X < 3"
+      // is known true but "X < 4" itself is not available.
+      CmpInst::Predicate Pred;
+      Value *Val;
+      Constant *Cst;
+      if (!PredCst && match(V, m_Cmp(Pred, m_Value(Val), m_Constant(Cst)))) {
+        auto Res = LVI->getPredicateOnEdge(Pred, Val, Cst, P, BB, CxtI);
+        if (Res != LazyValueInfo::Unknown)
+          PredCst = ConstantInt::getBool(V->getContext(), Res);
+      }
       if (Constant *KC = getKnownConstant(PredCst, Preference))
         Result.emplace_back(KC, P);
     }
@@ -2085,7 +2108,7 @@ JumpThreadingPass::cloneInstructions(BasicBlock::iterator BI,
   for (; BI != BE; ++BI) {
     Instruction *New = BI->clone();
     New->setName(BI->getName());
-    NewBB->getInstList().push_back(New);
+    New->insertAt(NewBB, NewBB->end());
     ValueMapping[&*BI] = New;
     adaptNoAliasScopes(New, ClonedScopes, Context);
 
@@ -2438,7 +2461,7 @@ BasicBlock *JumpThreadingPass::splitBlockPreds(BasicBlock *BB,
   // update the edge weight of the result of splitting predecessors.
   DenseMap<BasicBlock *, BlockFrequency> FreqMap;
   if (HasProfileData)
-    for (auto Pred : Preds)
+    for (auto *Pred : Preds)
       FreqMap.insert(std::make_pair(
           Pred, BFI->getBlockFreq(Pred) * BPI->getEdgeProbability(Pred, BB)));
 
@@ -2453,10 +2476,10 @@ BasicBlock *JumpThreadingPass::splitBlockPreds(BasicBlock *BB,
 
   std::vector<DominatorTree::UpdateType> Updates;
   Updates.reserve((2 * Preds.size()) + NewBBs.size());
-  for (auto NewBB : NewBBs) {
+  for (auto *NewBB : NewBBs) {
     BlockFrequency NewBBFreq(0);
     Updates.push_back({DominatorTree::Insert, NewBB, BB});
-    for (auto Pred : predecessors(NewBB)) {
+    for (auto *Pred : predecessors(NewBB)) {
       Updates.push_back({DominatorTree::Delete, Pred, BB});
       Updates.push_back({DominatorTree::Insert, Pred, NewBB});
       if (HasProfileData) // Update frequencies between Pred -> NewBB.
@@ -2678,7 +2701,7 @@ bool JumpThreadingPass::duplicateCondBranchOnPHIIntoPred(
     if (New) {
       // Otherwise, insert the new instruction into the block.
       New->setName(BI->getName());
-      PredBB->getInstList().insert(OldPredBranch->getIterator(), New);
+      New->insertAt(PredBB, OldPredBranch->getIterator());
       // Update Dominance from simplified New instruction operands.
       for (unsigned i = 0, e = New->getNumOperands(); i != e; ++i)
         if (BasicBlock *SuccBB = dyn_cast<BasicBlock>(New->getOperand(i)))
@@ -2732,7 +2755,7 @@ void JumpThreadingPass::unfoldSelectInstr(BasicBlock *Pred, BasicBlock *BB,
                                          BB->getParent(), BB);
   // Move the unconditional branch to NewBB.
   PredTerm->removeFromParent();
-  NewBB->getInstList().insert(NewBB->end(), PredTerm);
+  PredTerm->insertAt(NewBB, NewBB->end());
   // Create a conditional branch and update PHI nodes.
   auto *BI = BranchInst::Create(NewBB, BB, SI->getCondition(), Pred);
   BI->applyMergedLocation(PredTerm->getDebugLoc(), SI->getDebugLoc());

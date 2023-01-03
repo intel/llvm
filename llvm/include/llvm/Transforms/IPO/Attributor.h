@@ -129,6 +129,7 @@
 #include "llvm/Transforms/Utils/CallGraphUpdater.h"
 
 #include <map>
+#include <optional>
 
 namespace llvm {
 
@@ -205,13 +206,85 @@ Value *getWithType(Value &V, Type &Ty);
 ///        X + none  => X
 /// not_none + undef => not_none
 ///          V1 + V2 => nullptr
-Optional<Value *>
-combineOptionalValuesInAAValueLatice(const Optional<Value *> &A,
-                                     const Optional<Value *> &B, Type *Ty);
+std::optional<Value *>
+combineOptionalValuesInAAValueLatice(const std::optional<Value *> &A,
+                                     const std::optional<Value *> &B, Type *Ty);
+
+/// Helper to represent an access offset and size, with logic to deal with
+/// uncertainty and check for overlapping accesses.
+struct RangeTy {
+  int64_t Offset = Unassigned;
+  int64_t Size = Unassigned;
+
+  RangeTy(int64_t Offset, int64_t Size) : Offset(Offset), Size(Size) {}
+  RangeTy() = default;
+  static RangeTy getUnknown() { return RangeTy{Unknown, Unknown}; }
+
+  /// Return true if offset or size are unknown.
+  bool offsetOrSizeAreUnknown() const {
+    return Offset == RangeTy::Unknown || Size == RangeTy::Unknown;
+  }
+
+  /// Return true if offset and size are unknown, thus this is the default
+  /// unknown object.
+  bool offsetAndSizeAreUnknown() const {
+    return Offset == RangeTy::Unknown && Size == RangeTy::Unknown;
+  }
+
+  /// Return true if the offset and size are unassigned.
+  bool isUnassigned() const {
+    assert((Offset == RangeTy::Unassigned) == (Size == RangeTy::Unassigned) &&
+           "Inconsistent state!");
+    return Offset == RangeTy::Unassigned;
+  }
+
+  /// Return true if this offset and size pair might describe an address that
+  /// overlaps with \p Range.
+  bool mayOverlap(const RangeTy &Range) const {
+    // Any unknown value and we are giving up -> overlap.
+    if (offsetOrSizeAreUnknown() || Range.offsetOrSizeAreUnknown())
+      return true;
+
+    // Check if one offset point is in the other interval [offset,
+    // offset+size].
+    return Range.Offset + Range.Size > Offset && Range.Offset < Offset + Size;
+  }
+
+  RangeTy &operator&=(const RangeTy &R) {
+    if (Offset == Unassigned)
+      Offset = R.Offset;
+    else if (R.Offset != Unassigned && R.Offset != Offset)
+      Offset = Unknown;
+
+    if (Size == Unassigned)
+      Size = R.Size;
+    else if (Size == Unknown || R.Size == Unknown)
+      Size = Unknown;
+    else if (R.Size != Unassigned)
+      Size = std::max(Size, R.Size);
+
+    return *this;
+  }
+
+  /// Constants used to represent special offsets or sizes.
+  /// - This assumes that Offset and Size are non-negative.
+  /// - The constants should not clash with DenseMapInfo, such as EmptyKey
+  ///   (INT64_MAX) and TombstoneKey (INT64_MIN).
+  static constexpr int64_t Unassigned = -1;
+  static constexpr int64_t Unknown = -2;
+};
+
+inline bool operator==(const RangeTy &A, const RangeTy &B) {
+  return A.Offset == B.Offset && A.Size == B.Size;
+}
+
+inline bool operator!=(const RangeTy &A, const RangeTy &B) { return !(A == B); }
 
 /// Return the initial value of \p Obj with type \p Ty if that is a constant.
 Constant *getInitialValueForObj(Value &Obj, Type &Ty,
-                                const TargetLibraryInfo *TLI);
+                                const TargetLibraryInfo *TLI,
+                                const DataLayout &DL,
+                                RangeTy *RangePtr = nullptr);
 
 /// Collect all potential underlying objects of \p Ptr at position \p CtxI in
 /// \p Objects. Assumed information is used and dependences onto \p QueryingAA
@@ -1156,7 +1229,7 @@ struct InformationCache {
 
   /// Check whether \p F is part of module slice.
   bool isInModuleSlice(const Function &F) {
-    return ModuleSlice.count(const_cast<Function *>(&F));
+    return ModuleSlice.empty() || ModuleSlice.count(const_cast<Function *>(&F));
   }
 
   /// Return true if the stack (llvm::Alloca) can be accessed by other threads.
@@ -1272,7 +1345,7 @@ struct AttributorConfig {
   DenseSet<const char *> *Allowed = nullptr;
 
   /// Maximum number of iterations to run until fixpoint.
-  Optional<unsigned> MaxFixpointIterations = None;
+  std::optional<unsigned> MaxFixpointIterations = std::nullopt;
 
   /// A callback function that returns an ORE object from a Function pointer.
   ///{
@@ -1438,8 +1511,8 @@ struct Attributor {
 
     // We update only AAs associated with functions in the Functions set or
     // call sites of them.
-    if ((AnchorFn && !Functions.count(const_cast<Function *>(AnchorFn))) &&
-        !Functions.count(IRP.getAssociatedFunction())) {
+    if ((AnchorFn && !isRunOn(const_cast<Function *>(AnchorFn))) &&
+        !isRunOn(IRP.getAssociatedFunction())) {
       AA.getState().indicatePessimisticFixpoint();
       return AA;
     }
@@ -1554,8 +1627,9 @@ struct Attributor {
   bool isModulePass() const { return Configuration.IsModulePass; }
 
   /// Return true if we derive attributes for \p Fn
-  bool isRunOn(Function &Fn) const {
-    return Functions.empty() || Functions.count(&Fn);
+  bool isRunOn(Function &Fn) const { return isRunOn(&Fn); }
+  bool isRunOn(Function *Fn) const {
+    return Functions.empty() || Functions.count(Fn);
   }
 
   /// Determine opportunities to derive 'default' attributes in \p F and create
@@ -1623,14 +1697,13 @@ struct Attributor {
     }
     Value &V = IRP.getAssociatedValue();
     auto &Entry = ToBeChangedValues[&V];
-    Value *&CurNV = Entry.first;
+    Value *CurNV = get<0>(Entry);
     if (CurNV && (CurNV->stripPointerCasts() == NV.stripPointerCasts() ||
                   isa<UndefValue>(CurNV)))
       return false;
     assert((!CurNV || CurNV == &NV || isa<UndefValue>(NV)) &&
            "Value replacement was registered twice with different values!");
-    CurNV = &NV;
-    Entry.second = ChangeDroppable;
+    Entry = {&NV, ChangeDroppable};
     return true;
   }
 
@@ -1668,43 +1741,47 @@ struct Attributor {
   }
 
   /// If \p IRP is assumed to be a constant, return it, if it is unclear yet,
-  /// return None, otherwise return `nullptr`.
-  Optional<Constant *> getAssumedConstant(const IRPosition &IRP,
-                                          const AbstractAttribute &AA,
-                                          bool &UsedAssumedInformation);
-  Optional<Constant *> getAssumedConstant(const Value &V,
-                                          const AbstractAttribute &AA,
-                                          bool &UsedAssumedInformation) {
+  /// return std::nullopt, otherwise return `nullptr`.
+  std::optional<Constant *> getAssumedConstant(const IRPosition &IRP,
+                                               const AbstractAttribute &AA,
+                                               bool &UsedAssumedInformation);
+  std::optional<Constant *> getAssumedConstant(const Value &V,
+                                               const AbstractAttribute &AA,
+                                               bool &UsedAssumedInformation) {
     return getAssumedConstant(IRPosition::value(V), AA, UsedAssumedInformation);
   }
 
   /// If \p V is assumed simplified, return it, if it is unclear yet,
-  /// return None, otherwise return `nullptr`.
-  Optional<Value *> getAssumedSimplified(const IRPosition &IRP,
-                                         const AbstractAttribute &AA,
-                                         bool &UsedAssumedInformation,
-                                         AA::ValueScope S) {
+  /// return std::nullopt, otherwise return `nullptr`.
+  std::optional<Value *> getAssumedSimplified(const IRPosition &IRP,
+                                              const AbstractAttribute &AA,
+                                              bool &UsedAssumedInformation,
+                                              AA::ValueScope S) {
     return getAssumedSimplified(IRP, &AA, UsedAssumedInformation, S);
   }
-  Optional<Value *> getAssumedSimplified(const Value &V,
-                                         const AbstractAttribute &AA,
-                                         bool &UsedAssumedInformation,
-                                         AA::ValueScope S) {
+  std::optional<Value *> getAssumedSimplified(const Value &V,
+                                              const AbstractAttribute &AA,
+                                              bool &UsedAssumedInformation,
+                                              AA::ValueScope S) {
     return getAssumedSimplified(IRPosition::value(V), AA,
                                 UsedAssumedInformation, S);
   }
 
   /// If \p V is assumed simplified, return it, if it is unclear yet,
-  /// return None, otherwise return `nullptr`. Same as the public version
-  /// except that it can be used without recording dependences on any \p AA.
-  Optional<Value *> getAssumedSimplified(const IRPosition &V,
-                                         const AbstractAttribute *AA,
-                                         bool &UsedAssumedInformation,
-                                         AA::ValueScope S);
+  /// return std::nullopt, otherwise return `nullptr`. Same as the public
+  /// version except that it can be used without recording dependences on any \p
+  /// AA.
+  std::optional<Value *> getAssumedSimplified(const IRPosition &V,
+                                              const AbstractAttribute *AA,
+                                              bool &UsedAssumedInformation,
+                                              AA::ValueScope S);
 
   /// Try to simplify \p IRP and in the scope \p S. If successful, true is
   /// returned and all potential values \p IRP can take are put into \p Values.
-  /// If false is returned no other information is valid.
+  /// If the result in \p Values contains select or PHI instructions it means
+  /// those could not be simplified to a single value. Recursive calls with
+  /// these instructions will yield their respective potential values. If false
+  /// is returned no other information is valid.
   bool getAssumedSimplifiedValues(const IRPosition &IRP,
                                   const AbstractAttribute *AA,
                                   SmallVectorImpl<AA::ValueAndContext> &Values,
@@ -1716,7 +1793,7 @@ struct Attributor {
   /// we it will ask `AAValueSimplify`. It is important to ensure this
   /// is called before `identifyDefaultAbstractAttributes`, assuming the
   /// latter is called at all.
-  using SimplifictionCallbackTy = std::function<Optional<Value *>(
+  using SimplifictionCallbackTy = std::function<std::optional<Value *>(
       const IRPosition &, const AbstractAttribute *, bool &)>;
   void registerSimplificationCallback(const IRPosition &IRP,
                                       const SimplifictionCallbackTy &CB) {
@@ -1735,8 +1812,8 @@ private:
 
 public:
   /// Translate \p V from the callee context into the call site context.
-  Optional<Value *>
-  translateArgumentToCallSiteContent(Optional<Value *> V, CallBase &CB,
+  std::optional<Value *>
+  translateArgumentToCallSiteContent(std::optional<Value *> V, CallBase &CB,
                                      const AbstractAttribute &AA,
                                      bool &UsedAssumedInformation);
 
@@ -2188,7 +2265,8 @@ private:
 
   /// Values we replace with a new value after manifest is done. We will remove
   /// then trivially dead instructions as well.
-  SmallMapVector<Value *, std::pair<Value *, bool>, 32> ToBeChangedValues;
+  SmallMapVector<Value *, PointerIntPair<Value *, 1, bool>, 32>
+      ToBeChangedValues;
 
   /// Instructions we replace with `unreachable` insts after manifest is done.
   SmallSetVector<WeakVH, 16> ToBeChangedToUnreachableInsts;
@@ -3066,11 +3144,6 @@ struct AAReturnedValues
     : public IRAttribute<Attribute::Returned, AbstractAttribute> {
   AAReturnedValues(const IRPosition &IRP, Attributor &A) : IRAttribute(IRP) {}
 
-  /// Return an assumed unique return value if a single candidate is found. If
-  /// there cannot be one, return a nullptr. If it is not clear yet, return the
-  /// Optional::NoneType.
-  Optional<Value *> getAssumedUniqueReturnValue(Attributor &A) const;
-
   /// Check \p Pred on all returned values.
   ///
   /// This method will evaluate \p Pred on returned values and return
@@ -3926,16 +3999,16 @@ protected:
   Type *Ty;
 
   /// Merge \p Other into the currently assumed simplified value
-  bool unionAssumed(Optional<Value *> Other);
+  bool unionAssumed(std::optional<Value *> Other);
 
   /// Helper to track validity and fixpoint
   BooleanState BS;
 
-  /// An assumed simplified value. Initially, it is set to Optional::None, which
+  /// An assumed simplified value. Initially, it is set to std::nullopt, which
   /// means that the value is not clear under current assumption. If in the
   /// pessimistic state, getAssumedSimplifiedValue doesn't return this value but
   /// returns orignal associated value.
-  Optional<Value *> SimplifiedAssociatedValue;
+  std::optional<Value *> SimplifiedAssociatedValue;
 };
 
 /// An abstract interface for value simplify abstract attribute.
@@ -3967,10 +4040,11 @@ struct AAValueSimplify
 private:
   /// Return an assumed simplified value if a single candidate is found. If
   /// there cannot be one, return original value. If it is not clear yet, return
-  /// the Optional::NoneType.
+  /// std::nullopt.
   ///
   /// Use `Attributor::getAssumedSimplified` for value simplification.
-  virtual Optional<Value *> getAssumedSimplifiedValue(Attributor &A) const = 0;
+  virtual std::optional<Value *>
+  getAssumedSimplifiedValue(Attributor &A) const = 0;
 
   friend struct Attributor;
 };
@@ -4026,8 +4100,9 @@ struct AAPrivatizablePtr
   bool isKnownPrivatizablePtr() const { return getKnown(); }
 
   /// Return the type we can choose for a private copy of the underlying
-  /// value. None means it is not clear yet, nullptr means there is none.
-  virtual Optional<Type *> getPrivatizableType() const = 0;
+  /// value. std::nullopt means it is not clear yet, nullptr means there is
+  /// none.
+  virtual std::optional<Type *> getPrivatizableType() const = 0;
 
   /// Create an abstract attribute view for the position \p IRP.
   static AAPrivatizablePtr &createForPosition(const IRPosition &IRP,
@@ -4311,7 +4386,7 @@ struct AAValueConstantRange
 
   /// Return an assumed constant for the associated value a program point \p
   /// CtxI.
-  Optional<Constant *>
+  std::optional<Constant *>
   getAssumedConstant(Attributor &A, const Instruction *CtxI = nullptr) const {
     ConstantRange RangeV = getAssumedConstantRange(A, CtxI);
     if (auto *C = RangeV.getSingleElement()) {
@@ -4320,7 +4395,7 @@ struct AAValueConstantRange
           AA::getWithType(*ConstantInt::get(Ty->getContext(), *C), *Ty));
     }
     if (RangeV.isEmptySet())
-      return llvm::None;
+      return std::nullopt;
     return nullptr;
   }
 
@@ -4562,7 +4637,7 @@ struct AAPotentialConstantValues
                                                       Attributor &A);
 
   /// Return assumed constant for the associated value
-  Optional<Constant *>
+  std::optional<Constant *>
   getAssumedConstant(Attributor &A, const Instruction *CtxI = nullptr) const {
     if (!isValidState())
       return nullptr;
@@ -4575,7 +4650,7 @@ struct AAPotentialConstantValues
     if (getAssumedSet().size() == 0) {
       if (undefIsContained())
         return UndefValue::get(getAssociatedValue().getType());
-      return llvm::None;
+      return std::nullopt;
     }
 
     return nullptr;
@@ -4912,7 +4987,7 @@ struct AAPointerInfo : public AbstractAttribute {
   AAPointerInfo(const IRPosition &IRP) : AbstractAttribute(IRP) {}
 
   enum AccessKind {
-    // First two bits to distinguish may and must accesses
+    // First two bits to distinguish may and must accesses.
     AK_MUST = 1 << 0,
     AK_MAY = 1 << 1,
 
@@ -4920,6 +4995,11 @@ struct AAPointerInfo : public AbstractAttribute {
     AK_R = 1 << 2,
     AK_W = 1 << 3,
     AK_RW = AK_R | AK_W,
+
+    // One special case for assumptions about memory content. These
+    // are neither reads nor writes. They are however always modeled
+    // as read to avoid using them for write removal.
+    AK_ASSUMPTION = (1 << 4) | AK_MUST,
 
     // Helper for easy access.
     AK_MAY_READ = AK_MAY | AK_R,
@@ -4932,39 +5012,56 @@ struct AAPointerInfo : public AbstractAttribute {
 
   /// An access description.
   struct Access {
-    Access(Instruction *I, Optional<Value *> Content, AccessKind Kind, Type *Ty)
-        : LocalI(I), RemoteI(I), Content(Content), Kind(Kind), Ty(Ty) {
+    Access(Instruction *I, int64_t Offset, int64_t Size,
+           std::optional<Value *> Content, AccessKind Kind, Type *Ty)
+        : LocalI(I), RemoteI(I), Content(Content), Range(Offset, Size),
+          Kind(Kind), Ty(Ty) {
       verify();
     }
-    Access(Instruction *LocalI, Instruction *RemoteI, Optional<Value *> Content,
-           AccessKind Kind, Type *Ty)
-        : LocalI(LocalI), RemoteI(RemoteI), Content(Content), Kind(Kind),
-          Ty(Ty) {
+    Access(Instruction *LocalI, Instruction *RemoteI, int64_t Offset,
+           int64_t Size, std::optional<Value *> Content, AccessKind Kind,
+           Type *Ty)
+        : LocalI(LocalI), RemoteI(RemoteI), Content(Content),
+          Range(Offset, Size), Kind(Kind), Ty(Ty) {
       verify();
     }
     Access(const Access &Other) = default;
     Access(const Access &&Other)
         : LocalI(Other.LocalI), RemoteI(Other.RemoteI), Content(Other.Content),
-          Kind(Other.Kind), Ty(Other.Ty) {}
+          Range(Other.Range), Kind(Other.Kind), Ty(Other.Ty) {}
 
     Access &operator=(const Access &Other) = default;
     bool operator==(const Access &R) const {
-      return LocalI == R.LocalI && RemoteI == R.RemoteI &&
+      return LocalI == R.LocalI && RemoteI == R.RemoteI && Range == R.Range &&
              Content == R.Content && Kind == R.Kind;
     }
     bool operator!=(const Access &R) const { return !(*this == R); }
 
     Access &operator&=(const Access &R) {
       assert(RemoteI == R.RemoteI && "Expected same instruction!");
-      Content =
-          AA::combineOptionalValuesInAAValueLatice(Content, R.Content, Ty);
+      assert(LocalI == R.LocalI && "Expected same instruction!");
       Kind = AccessKind(Kind | R.Kind);
+      auto Before = Range;
+      Range &= R.Range;
+      if (Before.isUnassigned() || Before == Range) {
+        Content =
+            AA::combineOptionalValuesInAAValueLatice(Content, R.Content, Ty);
+      } else {
+        // Since the Range information changed, set a conservative state -- drop
+        // the contents, and assume MayAccess rather than MustAccess.
+        setWrittenValueUnknown();
+        Kind = AccessKind(Kind | AK_MAY);
+        Kind = AccessKind(Kind & ~AK_MUST);
+      }
+      verify();
       return *this;
     }
 
     void verify() {
       assert(isMustAccess() + isMayAccess() == 1 &&
              "Expect must or may access, not both.");
+      assert(isAssumption() + isWrite() <= 1 &&
+             "Expect assumption access or write access, never both.");
     }
 
     /// Return the access kind.
@@ -4975,6 +5072,12 @@ struct AAPointerInfo : public AbstractAttribute {
 
     /// Return true if this is a write access.
     bool isWrite() const { return Kind & AK_W; }
+
+    /// Return true if this is a write access.
+    bool isWriteOrAssumption() const { return isWrite() || isAssumption(); }
+
+    /// Return true if this is an assumption access.
+    bool isAssumption() const { return Kind == AK_ASSUMPTION; }
 
     bool isMustAccess() const { return Kind & AK_MUST; }
     bool isMayAccess() const { return Kind & AK_MAY; }
@@ -4994,17 +5097,28 @@ struct AAPointerInfo : public AbstractAttribute {
       return Content.has_value() && !*Content;
     }
 
+    /// Set the value written to nullptr, i.e., unknown.
+    void setWrittenValueUnknown() { Content = nullptr; }
+
     /// Return the type associated with the access, if known.
     Type *getType() const { return Ty; }
 
-    /// Return the value writen, if any. As long as
-    /// isWrittenValueYetUndetermined return true this function shall not be
-    /// called.
-    Value *getWrittenValue() const { return *Content; }
+    /// Return the value writen, if any.
+    Value *getWrittenValue() const {
+      assert(!isWrittenValueYetUndetermined() &&
+             "Value needs to be determined before accessing it.");
+      return *Content;
+    }
 
     /// Return the written value which can be `llvm::null` if it is not yet
     /// determined.
-    Optional<Value *> getContent() const { return Content; }
+    std::optional<Value *> getContent() const { return Content; }
+
+    /// Return the offset for this access.
+    int64_t getOffset() const { return Range.Offset; }
+
+    /// Return the size for this access.
+    int64_t getSize() const { return Range.Size; }
 
   private:
     /// The instruction responsible for the access with respect to the local
@@ -5016,7 +5130,10 @@ struct AAPointerInfo : public AbstractAttribute {
 
     /// The value written, if any. `llvm::none` means "not known yet", `nullptr`
     /// cannot be determined.
-    Optional<Value *> Content;
+    std::optional<Value *> Content;
+
+    /// The object accessed, in terms of an offset and size in bytes.
+    AA::RangeTy Range;
 
     /// The access kind, e.g., READ, as bitset (could be more than one).
     AccessKind Kind;
@@ -5035,47 +5152,12 @@ struct AAPointerInfo : public AbstractAttribute {
   /// See AbstractAttribute::getIdAddr()
   const char *getIdAddr() const override { return &ID; }
 
-  /// Helper to represent an access offset and size, with logic to deal with
-  /// uncertainty and check for overlapping accesses.
-  struct OffsetAndSize : public std::pair<int64_t, int64_t> {
-    using BaseTy = std::pair<int64_t, int64_t>;
-    OffsetAndSize(int64_t Offset, int64_t Size) : BaseTy(Offset, Size) {}
-    OffsetAndSize(const BaseTy &P) : BaseTy(P) {}
-    int64_t getOffset() const { return first; }
-    int64_t getSize() const { return second; }
-    static OffsetAndSize getUnknown() {
-      return OffsetAndSize(Unknown, Unknown);
-    }
-
-    /// Return true if offset or size are unknown.
-    bool offsetOrSizeAreUnknown() const {
-      return getOffset() == OffsetAndSize::Unknown ||
-             getSize() == OffsetAndSize::Unknown;
-    }
-
-    /// Return true if this offset and size pair might describe an address that
-    /// overlaps with \p OAS.
-    bool mayOverlap(const OffsetAndSize &OAS) const {
-      // Any unknown value and we are giving up -> overlap.
-      if (offsetOrSizeAreUnknown() || OAS.offsetOrSizeAreUnknown())
-        return true;
-
-      // Check if one offset point is in the other interval [offset,
-      // offset+size].
-      return OAS.getOffset() + OAS.getSize() > getOffset() &&
-             OAS.getOffset() < getOffset() + getSize();
-    }
-
-    /// Constant used to represent unknown offset or sizes.
-    static constexpr int64_t Unknown = 1 << 31;
-  };
-
-  /// Call \p CB on all accesses that might interfere with \p OAS and return
+  /// Call \p CB on all accesses that might interfere with \p Range and return
   /// true if all such accesses were known and the callback returned true for
   /// all of them, false otherwise. An access interferes with an offset-size
   /// pair if it might read or write that memory region.
   virtual bool forallInterferingAccesses(
-      OffsetAndSize OAS, function_ref<bool(const Access &, bool)> CB) const = 0;
+      AA::RangeTy Range, function_ref<bool(const Access &, bool)> CB) const = 0;
 
   /// Call \p CB on all accesses that might interfere with \p I and
   /// return true if all such accesses were known and the callback returned true
@@ -5084,11 +5166,10 @@ struct AAPointerInfo : public AbstractAttribute {
   /// affect the load even if they on the surface look as if they would. The
   /// flag \p HasBeenWrittenTo will be set to true if we know that \p I does not
   /// read the intial value of the underlying memory.
-  virtual bool
-  forallInterferingAccesses(Attributor &A, const AbstractAttribute &QueryingAA,
-                            Instruction &I,
-                            function_ref<bool(const Access &, bool)> CB,
-                            bool &HasBeenWrittenTo) const = 0;
+  virtual bool forallInterferingAccesses(
+      Attributor &A, const AbstractAttribute &QueryingAA, Instruction &I,
+      function_ref<bool(const Access &, bool)> CB, bool &HasBeenWrittenTo,
+      AA::RangeTy &Range) const = 0;
 
   /// This function should return true if the type of the \p AA is AAPointerInfo
   static bool classof(const AbstractAttribute *AA) {

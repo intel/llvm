@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -c -fno-color-diagnostics -Xclang -fdump-vtable-layouts %s | FileCheck %s
+// RUN: %clangxx -fsycl -c -fno-color-diagnostics -Xclang -fdump-vtable-layouts %s -o %t.out | FileCheck %s
 // REQUIRES: linux
 
 #include <sycl/sycl.hpp>
@@ -22,16 +22,6 @@ void foo(sycl::detail::HostKernelBase &HKB) {
 // CHECK-NEXT:   3 | char *sycl::detail::HostKernelBase::getPtr() [pure]
 // CHECK-NEXT:   4 | sycl::detail::HostKernelBase::~HostKernelBase() [complete]
 // CHECK-NEXT:   5 | sycl::detail::HostKernelBase::~HostKernelBase() [deleting]
-
-void foo(sycl::detail::pi::DeviceBinaryImage &Img) { Img.print(); }
-// CHECK:    Vtable for 'sycl::detail::pi::DeviceBinaryImage' (6 entries).
-// CHECK-NEXT:   0 | offset_to_top (0)
-// CHECK-NEXT:   1 | sycl::detail::pi::DeviceBinaryImage RTTI
-// CHECK-NEXT:       -- (sycl::detail::pi::DeviceBinaryImage, 0) vtable address --
-// CHECK-NEXT:   2 | void sycl::detail::pi::DeviceBinaryImage::print() const
-// CHECK-NEXT:   3 | void sycl::detail::pi::DeviceBinaryImage::dump(std::ostream &) const
-// CHECK-NEXT:   4 | sycl::detail::pi::DeviceBinaryImage::~DeviceBinaryImage() [complete]
-// CHECK-NEXT:   5 | sycl::detail::pi::DeviceBinaryImage::~DeviceBinaryImage() [deleting]
 
 void foo(sycl::detail::CG *CG) { delete CG; }
 // CHECK:    Vtable for 'sycl::detail::CG' (4 entries).

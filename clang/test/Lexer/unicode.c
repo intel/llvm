@@ -40,6 +40,7 @@ extern int 𐠈;
 extern int ꙮ;
 extern int  \u1B4C;     // BALINESE LETTER ARCHAIC JNYA - Added in Unicode 14
 extern int  \U00016AA2; // TANGSA LETTER GA - Added in Unicode 14
+extern int  \U0001E4D0; // 𞓐 NAG MUNDARI LETTER O - Added in Unicode 15
 extern int _\N{TANGSA LETTER GA};
 extern int _\N{TANGSALETTERGA}; // expected-error {{'TANGSALETTERGA' is not a valid Unicode character name}} \
                                 // expected-note {{characters names in Unicode escape sequences are sensitive to case and whitespace}}
@@ -52,6 +53,10 @@ extern int  \U00016AC0; // TANGSA DIGIT ZERO  // cxx-error {{expected unqualifie
 
 extern int 🌹; // expected-error {{unexpected character <U+1F339>}} \
                   expected-warning {{declaration does not declare anything}}
+
+extern int 🫎;   // MOOSE (Unicode 15) \
+                // expected-error {{unexpected character <U+1FACE>}} \
+                   expected-warning {{declaration does not declare anything}}
 
 extern int 👷; // expected-error {{unexpected character <U+1F477>}} \
                   expected-warning {{declaration does not declare anything}}
@@ -70,9 +75,9 @@ int main (void) {
   return 🌷;
 }
 
-int n; = 3; // expected-warning {{treating Unicode character <U+037E> as identifier character rather than as ';' symbol}}
-int *n꞉꞉v = &n;; // expected-warning 2{{treating Unicode character <U+A789> as identifier character rather than as ':' symbol}}
-                 // expected-warning@-1 {{treating Unicode character <U+037E> as identifier character rather than as ';' symbol}}
+int n; = 3; // expected-warning {{treating Unicode character <U+037E> as an identifier character rather than as ';' symbol}}
+int *n꞉꞉v = &n;; // expected-warning 2{{treating Unicode character <U+A789> as an identifier character rather than as ':' symbol}}
+                 // expected-warning@-1 {{treating Unicode character <U+037E> as an identifier character rather than as ';' symbol}}
 int v＝［＝］（auto）｛return～x；｝（）; // expected-warning 12{{treating Unicode character}}
 
 int ⁠x﻿x‍;

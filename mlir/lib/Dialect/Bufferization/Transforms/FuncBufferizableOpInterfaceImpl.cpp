@@ -69,7 +69,7 @@ getBufferizedFunctionArgType(FuncOp funcOp, int64_t index,
 
   BaseMemRefType memrefType;
   if (options.functionBoundaryTypeConversion ==
-      BufferizationOptions::LayoutMapOption::IdentityLayoutMap) {
+      LayoutMapOption::IdentityLayoutMap) {
     memrefType = getMemRefTypeWithStaticIdentityLayout(tensorType);
   } else {
     // Note: Layout maps on function parameters cannot be inferred. The best we
@@ -86,7 +86,7 @@ getBufferizedFunctionArgType(FuncOp funcOp, int64_t index,
   assert(rankedMemrefType && "buffer layout not supported on unranked tensors");
   return MemRefType::get(
       rankedMemrefType.getShape(), rankedMemrefType.getElementType(),
-      layoutAttr.getValue(), rankedMemrefType.getMemorySpaceAsInt());
+      layoutAttr.getValue(), rankedMemrefType.getMemorySpace());
 }
 
 /// Return the FuncOp called by `callOp`.
@@ -101,22 +101,23 @@ static FuncOp getCalledFunction(CallOpInterface callOp) {
 /// Get FuncAnalysisState.
 static const FuncAnalysisState &
 getFuncAnalysisState(const AnalysisState &state) {
-  Optional<const FuncAnalysisState *> maybeState =
-      state.getDialectState<FuncAnalysisState>(
-          func::FuncDialect::getDialectNamespace());
-  assert(maybeState && "FuncAnalysisState does not exist");
-  return **maybeState;
+  assert(isa<OneShotAnalysisState>(state) && "expected OneShotAnalysisState");
+  auto *result = static_cast<const OneShotAnalysisState &>(state)
+                     .getExtension<FuncAnalysisState>();
+  assert(result && "FuncAnalysisState does not exist");
+  return *result;
 }
 
 /// Return the state (phase) of analysis of the FuncOp.
 static FuncOpAnalysisState getFuncOpAnalysisState(const AnalysisState &state,
                                                   FuncOp funcOp) {
-  Optional<const FuncAnalysisState *> maybeState =
-      state.getDialectState<FuncAnalysisState>(
-          func::FuncDialect::getDialectNamespace());
-  if (!maybeState.has_value())
+  if (!isa<OneShotAnalysisState>(state))
     return FuncOpAnalysisState::NotAnalyzed;
-  const auto &analyzedFuncOps = maybeState.value()->analyzedFuncOps;
+  auto *funcState = static_cast<const OneShotAnalysisState &>(state)
+                        .getExtension<FuncAnalysisState>();
+  if (!funcState)
+    return FuncOpAnalysisState::NotAnalyzed;
+  const auto &analyzedFuncOps = funcState->analyzedFuncOps;
   auto it = analyzedFuncOps.find(funcOp);
   if (it == analyzedFuncOps.end())
     return FuncOpAnalysisState::NotAnalyzed;
@@ -131,12 +132,12 @@ static Optional<int64_t> getEquivalentFuncArgIdx(FuncOp funcOp,
   auto funcOpIt = state.equivalentFuncArgs.find(funcOp);
   if (funcOpIt == state.equivalentFuncArgs.end())
     // No equivalence info stores for funcOp.
-    return None;
+    return std::nullopt;
 
   auto retValIt = funcOpIt->getSecond().find(returnValIdx);
   if (retValIt == funcOpIt->getSecond().end())
     // Return value has no equivalent bbArg.
-    return None;
+    return std::nullopt;
 
   return retValIt->getSecond();
 }
@@ -272,7 +273,7 @@ struct CallOpInterface
     SmallVector<Value> replacementValues(numResults, Value());
     // For non-tensor results: A mapping from return val indices of the old
     // CallOp to return val indices of the bufferized CallOp.
-    SmallVector<Optional<unsigned>> retValMapping(numResults, None);
+    SmallVector<Optional<unsigned>> retValMapping(numResults, std::nullopt);
     // Operands of the bufferized CallOp.
     SmallVector<Value> newOperands(numOperands, Value());
 
@@ -471,7 +472,7 @@ struct FuncOpInterface
 
       BaseMemRefType resultType;
       if (options.functionBoundaryTypeConversion ==
-          BufferizationOptions::LayoutMapOption::IdentityLayoutMap) {
+          LayoutMapOption::IdentityLayoutMap) {
         resultType = getMemRefTypeWithStaticIdentityLayout(tensorType);
       } else {
         // Note: If `InferLayoutMap`, cast are later folded away.
@@ -483,7 +484,7 @@ struct FuncOpInterface
     }
 
     // 3. Rewrite the terminator without the in-place bufferizable values.
-    returnOp.operandsMutable().assign(returnValues);
+    returnOp.getOperandsMutable().assign(returnValues);
 
     // 4. Rewrite the FuncOp type to buffer form.
     funcOp.setType(FunctionType::get(op->getContext(), argTypes,

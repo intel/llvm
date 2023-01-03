@@ -1541,10 +1541,25 @@ static uint32_t LookupSymbolInModule(CommandInterpreter &interpreter,
     strm.IndentMore();
     for (uint32_t i = 0; i < num_matches; ++i) {
       Symbol *symbol = symtab->SymbolAtIndex(match_indexes[i]);
-      if (symbol && symbol->ValueIsAddress()) {
-        DumpAddress(
-            interpreter.GetExecutionContext().GetBestExecutionContextScope(),
-            symbol->GetAddressRef(), verbose, all_ranges, strm);
+      if (symbol) {
+        if (symbol->ValueIsAddress()) {
+          DumpAddress(
+              interpreter.GetExecutionContext().GetBestExecutionContextScope(),
+              symbol->GetAddressRef(), verbose, all_ranges, strm);
+          strm.EOL();
+        } else {
+          strm.IndentMore();
+          strm.Indent("    Name: ");
+          strm.PutCString(symbol->GetDisplayName().GetStringRef());
+          strm.EOL();
+          strm.Indent("    Value: ");
+          strm.Printf("0x%16.16" PRIx64 "\n", symbol->GetRawValue());
+          if (symbol->GetByteSizeIsValid()) {
+            strm.Indent("    Size: ");
+            strm.Printf("0x%16.16" PRIx64 "\n", symbol->GetByteSize());
+          }
+          strm.IndentLess();
+        }
       }
     }
     strm.IndentLess();
@@ -1648,8 +1663,8 @@ static size_t LookupTypeInModule(Target *target,
         typedef_type_sp = typedefed_type_sp;
         typedefed_type_sp = typedef_type_sp->GetTypedefType();
       }
+      strm.EOL();
     }
-    strm.EOL();
   }
   return type_list.GetSize();
 }
@@ -5078,8 +5093,9 @@ public:
 protected:
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     // Go over every scratch TypeSystem and dump to the command output.
-    for (TypeSystem *ts : GetSelectedTarget().GetScratchTypeSystems())
-      ts->Dump(result.GetOutputStream().AsRawOstream());
+    for (lldb::TypeSystemSP ts : GetSelectedTarget().GetScratchTypeSystems())
+      if (ts)
+        ts->Dump(result.GetOutputStream().AsRawOstream());
 
     result.SetStatus(eReturnStatusSuccessFinishResult);
     return result.Succeeded();

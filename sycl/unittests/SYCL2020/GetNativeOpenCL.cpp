@@ -13,7 +13,6 @@
 #include <sycl/backend/opencl.hpp>
 #include <sycl/sycl.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
 
@@ -84,39 +83,25 @@ static pi_result redefinedUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t,
 }
 
 TEST(GetNative, GetNativeHandle) {
-  platform Plt{default_selector()};
-  if (Plt.get_backend() != backend::opencl) {
-    std::cout << "Test is created for opencl only" << std::endl;
-    return;
-  }
-  if (Plt.is_host()) {
-    std::cout << "Not run on host - no PI events created in that case"
-              << std::endl;
-    return;
-  }
-  TestCounter = 0;
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
 
-  unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-
-  Mock.redefine<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
-  Mock.redefine<detail::PiApiKind::piContextRetain>(redefinedContextRetain);
-  Mock.redefine<detail::PiApiKind::piQueueRetain>(redefinedQueueRetain);
-  Mock.redefine<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
-  Mock.redefine<detail::PiApiKind::piProgramRetain>(redefinedProgramRetain);
-  Mock.redefine<detail::PiApiKind::piEventRetain>(redefinedEventRetain);
-  Mock.redefine<detail::PiApiKind::piMemRetain>(redefinedMemRetain);
-  Mock.redefine<sycl::detail::PiApiKind::piMemBufferCreate>(
+  Mock.redefineBefore<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
+  Mock.redefineBefore<detail::PiApiKind::piContextRetain>(
+      redefinedContextRetain);
+  Mock.redefineBefore<detail::PiApiKind::piQueueRetain>(redefinedQueueRetain);
+  Mock.redefineBefore<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
+  Mock.redefineBefore<detail::PiApiKind::piProgramRetain>(
+      redefinedProgramRetain);
+  Mock.redefineBefore<detail::PiApiKind::piEventRetain>(redefinedEventRetain);
+  Mock.redefineBefore<detail::PiApiKind::piMemRetain>(redefinedMemRetain);
+  Mock.redefineBefore<sycl::detail::PiApiKind::piMemBufferCreate>(
       redefinedMemBufferCreate);
-  Mock.redefine<detail::PiApiKind::piextUSMEnqueueMemset>(
+  Mock.redefineBefore<detail::PiApiKind::piextUSMEnqueueMemset>(
       redefinedUSMEnqueueMemset);
 
-  default_selector Selector;
   context Context(Plt);
-  queue Queue(Context, Selector);
-
-  program Program{Context};
-  Program.build_with_source("");
+  queue Queue(Context, default_selector_v);
 
   auto Device = Queue.get_device();
 
@@ -133,13 +118,12 @@ TEST(GetNative, GetNativeHandle) {
 
   get_native<backend::opencl>(Context);
   get_native<backend::opencl>(Queue);
-  get_native<backend::opencl>(Program);
   get_native<backend::opencl>(Device);
   get_native<backend::opencl>(Event);
   get_native<backend::opencl>(Buffer);
 
   // Depending on global caches state, piDeviceRetain is called either once or
-  // twice, so there'll be 6 or 7 calls.
-  ASSERT_EQ(TestCounter, 6 + DeviceRetainCounter - 1)
+  // twice, so there'll be 5 or 6 calls.
+  ASSERT_EQ(TestCounter, 5 + DeviceRetainCounter - 1)
       << "Not all the retain methods were called";
 }

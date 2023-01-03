@@ -168,11 +168,8 @@ unsigned char ElCompletionFn(EditLine *EL, int ch) {
         OS << "\n";
 
         // Emit the completions.
-        for (std::vector<std::string>::iterator I = Action.Completions.begin(),
-                                                E = Action.Completions.end();
-             I != E; ++I) {
-          OS << *I << "\n";
-        }
+        for (const std::string &Completion : Action.Completions)
+          OS << Completion << "\n";
 
         // Fool libedit into thinking nothing has changed. Reprint its prompt
         // and the user input. Note that the cursor will remain at the end of
@@ -258,7 +255,7 @@ Optional<std::string> LineEditor::readLine() const {
 
   // Either of these may mean end-of-file.
   if (!Line || LineLen == 0)
-    return Optional<std::string>();
+    return std::nullopt;
 
   // Strip any newlines off the end of the string.
   while (LineLen > 0 &&
@@ -304,7 +301,7 @@ Optional<std::string> LineEditor::readLine() const {
     char *Res = ::fgets(Buf, sizeof(Buf), Data->In);
     if (!Res) {
       if (Line.empty())
-        return Optional<std::string>();
+        return std::nullopt;
       else
         return Line;
     }

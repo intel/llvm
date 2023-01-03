@@ -420,7 +420,7 @@ public:
 
   /// Some calls have parameter numbering mismatched from argument numbering.
   /// This function converts an argument index to the corresponding
-  /// parameter index. Returns None is the argument doesn't correspond
+  /// parameter index. Returns std::nullopt is the argument doesn't correspond
   /// to any parameter variable.
   virtual Optional<unsigned>
   getAdjustedParameterIndex(unsigned ASTArgumentIndex) const {
@@ -775,7 +775,7 @@ public:
     // For member operator calls argument 0 on the expression corresponds
     // to implicit this-parameter on the declaration.
     return (ASTArgumentIndex > 0) ? Optional<unsigned>(ASTArgumentIndex - 1)
-                                  : None;
+                                  : std::nullopt;
   }
 
   unsigned getASTArgumentIndex(unsigned CallArgumentIndex) const override {
@@ -1031,6 +1031,18 @@ public:
 
   unsigned getNumArgs() const override {
     return getOriginExpr()->getNumPlacementArgs() + getNumImplicitArgs();
+  }
+
+  bool isArray() const { return getOriginExpr()->isArray(); }
+
+  Optional<const clang::Expr *> getArraySizeExpr() const {
+    return getOriginExpr()->getArraySize();
+  }
+
+  SVal getArraySizeVal() const {
+    assert(isArray() && "The allocator call doesn't allocate and array!");
+
+    return getState()->getSVal(*getArraySizeExpr(), getLocationContext());
   }
 
   const Expr *getArgExpr(unsigned Index) const override {

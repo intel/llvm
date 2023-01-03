@@ -202,6 +202,32 @@ Sema::CUDAVariableTarget Sema::IdentifyCUDATarget(const VarDecl *Var) {
 // | hd | g  | SS  | --  |(d/a)|
 // | hd | h  | SS  | WS  | (d) |
 // | hd | hd | HD  | HD  | (b) |
+//
+// In combined SYCL - CUDA mode
+// Sh - SYCL is host
+// Sd - SYCL is device
+//
+// Priority order: N, SS, HD, WS, --
+//
+// |    |    |  host    |  cuda-dev  |  sycl-dev |     |
+// | F  | T  | Ph - Sh  |  Pd - Sh   |  Ph - Sd  |  H  |
+// |----+----+----------+------------+-----------+-----+
+// | d  | d  |    N     |     N      |     N     | (c) |
+// | d  | g  |    --    |     --     |     --    | (a) |
+// | d  | h  |    --    |     --     |     --    | (e) |
+// | d  | hd |    HD    |     HD     |     HD    | (b) |
+// | g  | d  |    N     |     N      |     N     | (c) |
+// | g  | g  |    --    |     --     |     --    | (a) |
+// | g  | h  |    --    |     --     |     --    | (e) |
+// | g  | hd |    HD    |     HD     |     HD    | (c) |
+// | h  | d  |    HD(y) |     WS(v)  |     N(x)  | ( ) |
+// | h  | g  |    N     |     N      |     N     | (c) |
+// | h  | h  |    N     |     N      |     SS(p) | ( ) |
+// | h  | hd |    HD    |     HD     |     HD    | ( ) |
+// | hd | d  |    HD(y) |     SS     |     N(x)  | ( ) |
+// | hd | g  |    SS    |     --     |    --(z)  |(d/a)|
+// | hd | h  |    SS    |     WS     |     SS    | (d) |
+// | hd | hd |    HD    |     HD     |     HD    | (b) |
 
 Sema::CUDAFunctionPreference
 Sema::IdentifyCUDAPreference(const FunctionDecl *Caller,
@@ -209,6 +235,51 @@ Sema::IdentifyCUDAPreference(const FunctionDecl *Caller,
   assert(Callee && "Callee must be valid.");
   CUDAFunctionTarget CallerTarget = IdentifyCUDATarget(Caller);
   CUDAFunctionTarget CalleeTarget = IdentifyCUDATarget(Callee);
+
+  // Pd - Sh -> CUDA device compilation for SYCL+CUDA
+  if (getLangOpts().SYCLIsHost && getLangOpts().CUDA &&
+      getLangOpts().CUDAIsDevice) {
+    // (v) allows a __host__ function to call a __device__ one. This is allowed
+    // for sycl-device compilation, since a regular function (implicitly
+    // __host__) called by a SYCL kernel could end up calling a __device__ one.
+    // In any case, __host__ functions are not emitted by the cuda-dev
+    // compilation. So, this doesn't introduce any error.
+    if (CallerTarget == CFT_Host && CalleeTarget == CFT_Device)
+      return CFP_WrongSide;
+  }
+
+  // Ph - Sd -> SYCL device compilation for SYCL+CUDA
+  if (getLangOpts().SYCLIsDevice && getLangOpts().CUDA &&
+      !getLangOpts().CUDAIsDevice) {
+    // (x), and (p) prefer __device__ function in SYCL-device compilation.
+    // (x) allows to pick a __device__ function.
+    if ((CallerTarget == CFT_Host || CallerTarget == CFT_HostDevice) &&
+        CalleeTarget == CFT_Device)
+      return CFP_Native;
+    // (p) lowers the preference of __host__ functions for favoring __device__
+    // ones.
+    if (CallerTarget == CFT_Host && CalleeTarget == CFT_Host)
+      return CFP_SameSide;
+
+    // (z)
+    if (CallerTarget == CFT_HostDevice && CalleeTarget == CFT_Global)
+      return CFP_Never;
+  }
+
+  // Ph - Sh -> host compilation for SYCL+CUDA
+  if (getLangOpts().SYCLIsHost && getLangOpts().CUDA &&
+      !getLangOpts().CUDAIsDevice) {
+    // (y) allows __host__ and __host__ __device__ functions to call a
+    // __device__ one. This could happen, if a __device__ function is defined
+    // without having a corresponding __host__. In this case, a dummy __host__
+    // function is generated. This dummy function is required since the lambda
+    // that forms the SYCL kernel (having host device attr.) needs to be
+    // compiled also for the host. (CallerTarget == CFT_Host) is added in case a
+    // regular function (implicitly __host__) is called by a SYCL kernel lambda.
+    if ((CallerTarget == CFT_Host || CallerTarget == CFT_HostDevice) &&
+        CalleeTarget == CFT_Device)
+      return CFP_HostDevice;
+  }
 
   // If one of the targets is invalid, the check always fails, no matter what
   // the other target is.
@@ -381,8 +452,7 @@ bool Sema::inferCUDATargetForImplicitSpecialMember(CXXRecordDecl *ClassDecl,
       InferredTarget = BaseMethodTarget;
     } else {
       bool ResolutionError = resolveCalleeCUDATargetConflict(
-          InferredTarget.value(), BaseMethodTarget,
-          InferredTarget.getPointer());
+          InferredTarget.value(), BaseMethodTarget, &*InferredTarget);
       if (ResolutionError) {
         if (Diagnose) {
           Diag(ClassDecl->getLocation(),
@@ -425,8 +495,7 @@ bool Sema::inferCUDATargetForImplicitSpecialMember(CXXRecordDecl *ClassDecl,
       InferredTarget = FieldMethodTarget;
     } else {
       bool ResolutionError = resolveCalleeCUDATargetConflict(
-          InferredTarget.value(), FieldMethodTarget,
-          InferredTarget.getPointer());
+          InferredTarget.value(), FieldMethodTarget, &*InferredTarget);
       if (ResolutionError) {
         if (Diagnose) {
           Diag(ClassDecl->getLocation(),

@@ -39,7 +39,6 @@ class FileManager;
 class GlobalModuleIndex;
 class HeaderSearch;
 class InMemoryModuleCache;
-class ModuleMap;
 class PCHContainerReader;
 
 namespace serialization {
@@ -250,7 +249,7 @@ public:
                             std::string &ErrorStr);
 
   /// Remove the modules starting from First (to the end).
-  void removeModules(ModuleIterator First, ModuleMap *modMap);
+  void removeModules(ModuleIterator First);
 
   /// Add an in-memory buffer the list of known buffers
   void addInMemoryBuffer(StringRef FileName,

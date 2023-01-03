@@ -225,7 +225,8 @@ static void analyzeImportedModule(
     SysRoot = CU.getSysRoot();
   if (!SysRoot.empty() && Path.startswith(SysRoot))
     return;
-  Optional<const char*> Name = dwarf::toString(DIE.find(dwarf::DW_AT_name));
+  std::optional<const char *> Name =
+      dwarf::toString(DIE.find(dwarf::DW_AT_name));
   if (!Name)
     return;
   auto &Entry = (*ParseableSwiftInterfaces)[*Name];
@@ -498,7 +499,7 @@ unsigned DWARFLinker::shouldKeepSubprogramDIE(
 
   Flags |= TF_Keep;
 
-  Optional<uint64_t> HighPc = DIE.getHighPC(*LowPc);
+  std::optional<uint64_t> HighPc = DIE.getHighPC(*LowPc);
   if (!HighPc) {
     reportWarning("Function without high_pc. Range will be discarded.\n", File,
                   &DIE);
@@ -882,7 +883,7 @@ void DWARFLinker::assignAbbrev(DIEAbbrev &Abbrev) {
 unsigned DWARFLinker::DIECloner::cloneStringAttribute(
     DIE &Die, AttributeSpec AttrSpec, const DWARFFormValue &Val,
     const DWARFUnit &, OffsetsStringPool &StringPool, AttributesInfo &Info) {
-  Optional<const char *> String = dwarf::toString(Val);
+  std::optional<const char *> String = dwarf::toString(Val);
   if (!String)
     return 0;
 
@@ -1107,9 +1108,11 @@ unsigned DWARFLinker::DIECloner::cloneAddressAttribute(
   dwarf::Form Form = AttrSpec.Form;
   uint64_t Addr = 0;
   if (Form == dwarf::DW_FORM_addrx) {
-    if (Optional<uint64_t> AddrOffsetSectionBase =
+    if (std::optional<uint64_t> AddrOffsetSectionBase =
             Unit.getOrigUnit().getAddrOffsetSectionBase()) {
-      uint64_t StartOffset = *AddrOffsetSectionBase + Val.getRawUValue();
+      uint64_t StartOffset =
+          *AddrOffsetSectionBase +
+          Val.getRawUValue() * Unit.getOrigUnit().getAddressByteSize();
       uint64_t EndOffset =
           StartOffset + Unit.getOrigUnit().getAddressByteSize();
       if (llvm::Expected<uint64_t> RelocAddr =
@@ -1120,7 +1123,8 @@ unsigned DWARFLinker::DIECloner::cloneAddressAttribute(
     } else
       Linker.reportWarning("no base offset for address table", ObjFile);
 
-    // If this is an indexed address emit the debug_info address.
+    // Generation of DWARFv5 .debug_addr table is not supported yet.
+    // Convert attribute into the dwarf::DW_FORM_addr.
     Form = dwarf::DW_FORM_addr;
   } else
     Addr = *Val.getAsAddress();
@@ -1811,65 +1815,47 @@ void DWARFLinker::patchLineTableForUnit(CompileUnit &Unit,
 }
 
 void DWARFLinker::emitAcceleratorEntriesForUnit(CompileUnit &Unit) {
-  switch (Options.TheAccelTableKind) {
-  case DwarfLinkerAccelTableKind::None:
-    // Nothing to do.
-    break;
-  case DwarfLinkerAccelTableKind::Apple:
-    emitAppleAcceleratorEntriesForUnit(Unit);
-    break;
-  case DwarfLinkerAccelTableKind::Dwarf:
-    emitDwarfAcceleratorEntriesForUnit(Unit);
-    break;
-  case DwarfLinkerAccelTableKind::Pub:
-    emitPubAcceleratorEntriesForUnit(Unit);
-    break;
-  case DwarfLinkerAccelTableKind::Default:
-    llvm_unreachable("The default must be updated to a concrete value.");
-    break;
+  for (DwarfLinkerAccelTableKind AccelTableKind : Options.AccelTables) {
+    switch (AccelTableKind) {
+    case DwarfLinkerAccelTableKind::Apple: {
+      // Add namespaces.
+      for (const auto &Namespace : Unit.getNamespaces())
+        AppleNamespaces.addName(Namespace.Name, Namespace.Die->getOffset() +
+                                                    Unit.getStartOffset());
+      // Add names.
+      for (const auto &Pubname : Unit.getPubnames())
+        AppleNames.addName(Pubname.Name,
+                           Pubname.Die->getOffset() + Unit.getStartOffset());
+      // Add types.
+      for (const auto &Pubtype : Unit.getPubtypes())
+        AppleTypes.addName(
+            Pubtype.Name, Pubtype.Die->getOffset() + Unit.getStartOffset(),
+            Pubtype.Die->getTag(),
+            Pubtype.ObjcClassImplementation ? dwarf::DW_FLAG_type_implementation
+                                            : 0,
+            Pubtype.QualifiedNameHash);
+      // Add ObjC names.
+      for (const auto &ObjC : Unit.getObjC())
+        AppleObjc.addName(ObjC.Name,
+                          ObjC.Die->getOffset() + Unit.getStartOffset());
+    } break;
+    case DwarfLinkerAccelTableKind::Pub: {
+      TheDwarfEmitter->emitPubNamesForUnit(Unit);
+      TheDwarfEmitter->emitPubTypesForUnit(Unit);
+    } break;
+    case DwarfLinkerAccelTableKind::DebugNames: {
+      for (const auto &Namespace : Unit.getNamespaces())
+        DebugNames.addName(Namespace.Name, Namespace.Die->getOffset(),
+                           Namespace.Die->getTag(), Unit.getUniqueID());
+      for (const auto &Pubname : Unit.getPubnames())
+        DebugNames.addName(Pubname.Name, Pubname.Die->getOffset(),
+                           Pubname.Die->getTag(), Unit.getUniqueID());
+      for (const auto &Pubtype : Unit.getPubtypes())
+        DebugNames.addName(Pubtype.Name, Pubtype.Die->getOffset(),
+                           Pubtype.Die->getTag(), Unit.getUniqueID());
+    } break;
+    }
   }
-}
-
-void DWARFLinker::emitAppleAcceleratorEntriesForUnit(CompileUnit &Unit) {
-  // Add namespaces.
-  for (const auto &Namespace : Unit.getNamespaces())
-    AppleNamespaces.addName(Namespace.Name,
-                            Namespace.Die->getOffset() + Unit.getStartOffset());
-
-  /// Add names.
-  for (const auto &Pubname : Unit.getPubnames())
-    AppleNames.addName(Pubname.Name,
-                       Pubname.Die->getOffset() + Unit.getStartOffset());
-
-  /// Add types.
-  for (const auto &Pubtype : Unit.getPubtypes())
-    AppleTypes.addName(
-        Pubtype.Name, Pubtype.Die->getOffset() + Unit.getStartOffset(),
-        Pubtype.Die->getTag(),
-        Pubtype.ObjcClassImplementation ? dwarf::DW_FLAG_type_implementation
-                                        : 0,
-        Pubtype.QualifiedNameHash);
-
-  /// Add ObjC names.
-  for (const auto &ObjC : Unit.getObjC())
-    AppleObjc.addName(ObjC.Name, ObjC.Die->getOffset() + Unit.getStartOffset());
-}
-
-void DWARFLinker::emitDwarfAcceleratorEntriesForUnit(CompileUnit &Unit) {
-  for (const auto &Namespace : Unit.getNamespaces())
-    DebugNames.addName(Namespace.Name, Namespace.Die->getOffset(),
-                       Namespace.Die->getTag(), Unit.getUniqueID());
-  for (const auto &Pubname : Unit.getPubnames())
-    DebugNames.addName(Pubname.Name, Pubname.Die->getOffset(),
-                       Pubname.Die->getTag(), Unit.getUniqueID());
-  for (const auto &Pubtype : Unit.getPubtypes())
-    DebugNames.addName(Pubtype.Name, Pubtype.Die->getOffset(),
-                       Pubtype.Die->getTag(), Unit.getUniqueID());
-}
-
-void DWARFLinker::emitPubAcceleratorEntriesForUnit(CompileUnit &Unit) {
-  TheDwarfEmitter->emitPubNamesForUnit(Unit);
-  TheDwarfEmitter->emitPubTypesForUnit(Unit);
 }
 
 /// Read the frame info stored in the object, and emit the
@@ -1958,7 +1944,7 @@ uint32_t DWARFLinker::DIECloner::hashFullyQualifiedName(DWARFDie DIE,
   const char *Name = nullptr;
   DWARFUnit *OrigUnit = &U.getOrigUnit();
   CompileUnit *CU = &U;
-  Optional<DWARFFormValue> Ref;
+  std::optional<DWARFFormValue> Ref;
 
   while (true) {
     if (const char *CurrentName = DIE.getName(DINameKind::ShortName))
@@ -1997,7 +1983,7 @@ uint32_t DWARFLinker::DIECloner::hashFullyQualifiedName(DWARFDie DIE,
               hashFullyQualifiedName(Die, *CU, File, ++ChildRecurseDepth)));
 }
 
-static uint64_t getDwoId(const DWARFDie &CUDie, const DWARFUnit &Unit) {
+static uint64_t getDwoId(const DWARFDie &CUDie) {
   auto DwoId = dwarf::toUnsigned(
       CUDie.find({dwarf::DW_AT_dwo_id, dwarf::DW_AT_GNU_dwo_id}));
   if (DwoId)
@@ -2017,36 +2003,45 @@ static std::string remapPath(StringRef Path,
   return p.str().str();
 }
 
-bool DWARFLinker::registerModuleReference(DWARFDie CUDie, const DWARFUnit &Unit,
-                                          const DWARFFile &File,
-                                          OffsetsStringPool &StringPool,
-                                          DeclContextTree &ODRContexts,
-                                          uint64_t ModulesEndOffset,
-                                          unsigned &UnitID, bool IsLittleEndian,
-                                          unsigned Indent, bool Quiet) {
-  std::string PCMfile = dwarf::toString(
+static std::string getPCMFile(const DWARFDie &CUDie,
+                              objectPrefixMap *ObjectPrefixMap) {
+  std::string PCMFile = dwarf::toString(
       CUDie.find({dwarf::DW_AT_dwo_name, dwarf::DW_AT_GNU_dwo_name}), "");
-  if (PCMfile.empty())
-    return false;
-  if (Options.ObjectPrefixMap)
-    PCMfile = remapPath(PCMfile, *Options.ObjectPrefixMap);
+
+  if (PCMFile.empty())
+    return PCMFile;
+
+  if (ObjectPrefixMap)
+    PCMFile = remapPath(PCMFile, *ObjectPrefixMap);
+
+  return PCMFile;
+}
+
+std::pair<bool, bool> DWARFLinker::isClangModuleRef(const DWARFDie &CUDie,
+                                                    std::string &PCMFile,
+                                                    LinkContext &Context,
+                                                    unsigned Indent,
+                                                    bool Quiet) {
+  if (PCMFile.empty())
+    return std::make_pair(false, false);
 
   // Clang module DWARF skeleton CUs abuse this for the path to the module.
-  uint64_t DwoId = getDwoId(CUDie, Unit);
+  uint64_t DwoId = getDwoId(CUDie);
 
   std::string Name = dwarf::toString(CUDie.find(dwarf::DW_AT_name), "");
   if (Name.empty()) {
     if (!Quiet)
-      reportWarning("Anonymous module skeleton CU for " + PCMfile, File);
-    return true;
+      reportWarning("Anonymous module skeleton CU for " + PCMFile,
+                    Context.File);
+    return std::make_pair(true, true);
   }
 
   if (!Quiet && Options.Verbose) {
     outs().indent(Indent);
-    outs() << "Found clang module reference " << PCMfile;
+    outs() << "Found clang module reference " << PCMFile;
   }
 
-  auto Cached = ClangModules.find(PCMfile);
+  auto Cached = ClangModules.find(PCMFile);
   if (Cached != ClangModules.end()) {
     // FIXME: Until PR27449 (https://llvm.org/bugs/show_bug.cgi?id=27449) is
     // fixed in clang, only warn about DWO_id mismatches in verbose mode.
@@ -2054,109 +2049,113 @@ bool DWARFLinker::registerModuleReference(DWARFDie CUDie, const DWARFUnit &Unit,
     if (!Quiet && Options.Verbose && (Cached->second != DwoId))
       reportWarning(Twine("hash mismatch: this object file was built against a "
                           "different version of the module ") +
-                        PCMfile,
-                    File);
+                        PCMFile,
+                    Context.File);
     if (!Quiet && Options.Verbose)
       outs() << " [cached].\n";
-    return true;
+    return std::make_pair(true, true);
   }
-  if (!Quiet && Options.Verbose)
+
+  return std::make_pair(true, false);
+}
+
+bool DWARFLinker::registerModuleReference(const DWARFDie &CUDie,
+                                          LinkContext &Context,
+                                          objFileLoader Loader,
+                                          CompileUnitHandler OnCUDieLoaded,
+                                          unsigned Indent) {
+  std::string PCMFile = getPCMFile(CUDie, Options.ObjectPrefixMap);
+  std::pair<bool, bool> IsClangModuleRef =
+      isClangModuleRef(CUDie, PCMFile, Context, Indent, false);
+
+  if (!IsClangModuleRef.first)
+    return false;
+
+  if (IsClangModuleRef.second)
+    return true;
+
+  if (Options.Verbose)
     outs() << " ...\n";
 
   // Cyclic dependencies are disallowed by Clang, but we still
   // shouldn't run into an infinite loop, so mark it as processed now.
-  ClangModules.insert({PCMfile, DwoId});
+  ClangModules.insert({PCMFile, getDwoId(CUDie)});
 
-  if (Error E = loadClangModule(CUDie, PCMfile, Name, DwoId, File, StringPool,
-                                ODRContexts, ModulesEndOffset, UnitID,
-                                IsLittleEndian, Indent + 2, Quiet)) {
+  if (Error E = loadClangModule(Loader, CUDie, PCMFile, Context, OnCUDieLoaded,
+                                Indent + 2)) {
     consumeError(std::move(E));
     return false;
   }
   return true;
 }
 
-Error DWARFLinker::loadClangModule(
-    DWARFDie CUDie, StringRef Filename, StringRef ModuleName, uint64_t DwoId,
-    const DWARFFile &File, OffsetsStringPool &StringPool,
-    DeclContextTree &ODRContexts, uint64_t ModulesEndOffset, unsigned &UnitID,
-    bool IsLittleEndian, unsigned Indent, bool Quiet) {
+Error DWARFLinker::loadClangModule(objFileLoader Loader, const DWARFDie &CUDie,
+                                   const std::string &PCMFile,
+                                   LinkContext &Context,
+                                   CompileUnitHandler OnCUDieLoaded,
+                                   unsigned Indent) {
+
+  uint64_t DwoId = getDwoId(CUDie);
+  std::string ModuleName = dwarf::toString(CUDie.find(dwarf::DW_AT_name), "");
+
   /// Using a SmallString<0> because loadClangModule() is recursive.
   SmallString<0> Path(Options.PrependPath);
-  if (sys::path::is_relative(Filename))
+  if (sys::path::is_relative(PCMFile))
     resolveRelativeObjectPath(Path, CUDie);
-  sys::path::append(Path, Filename);
+  sys::path::append(Path, PCMFile);
   // Don't use the cached binary holder because we have no thread-safety
   // guarantee and the lifetime is limited.
 
-  if (Options.ObjFileLoader == nullptr)
+  if (Loader == nullptr) {
+    reportError("Could not load clang module: loader is not specified.\n",
+                Context.File);
     return Error::success();
+  }
 
-  auto ErrOrObj = Options.ObjFileLoader(File.FileName, Path);
+  auto ErrOrObj = Loader(Context.File.FileName, Path);
   if (!ErrOrObj)
     return Error::success();
 
   std::unique_ptr<CompileUnit> Unit;
-
   for (const auto &CU : ErrOrObj->Dwarf->compile_units()) {
-    updateDwarfVersion(CU->getVersion());
+    OnCUDieLoaded(*CU);
     // Recursively get all modules imported by this one.
-    auto CUDie = CU->getUnitDIE(false);
-    if (!CUDie)
+    auto ChildCUDie = CU->getUnitDIE();
+    if (!ChildCUDie)
       continue;
-    if (!registerModuleReference(CUDie, *CU, File, StringPool, ODRContexts,
-                                 ModulesEndOffset, UnitID, IsLittleEndian,
-                                 Indent, Quiet)) {
+    if (!registerModuleReference(ChildCUDie, Context, Loader, OnCUDieLoaded,
+                                 Indent)) {
       if (Unit) {
         std::string Err =
-            (Filename +
-             ": Clang modules are expected to have exactly 1 compile unit.\n")
-                .str();
-        reportError(Err, File);
+            (PCMFile +
+             ": Clang modules are expected to have exactly 1 compile unit.\n");
+        reportError(Err, Context.File);
         return make_error<StringError>(Err, inconvertibleErrorCode());
       }
       // FIXME: Until PR27449 (https://llvm.org/bugs/show_bug.cgi?id=27449) is
       // fixed in clang, only warn about DWO_id mismatches in verbose mode.
       // ASTFileSignatures will change randomly when a module is rebuilt.
-      uint64_t PCMDwoId = getDwoId(CUDie, *CU);
+      uint64_t PCMDwoId = getDwoId(ChildCUDie);
       if (PCMDwoId != DwoId) {
-        if (!Quiet && Options.Verbose)
+        if (Options.Verbose)
           reportWarning(
               Twine("hash mismatch: this object file was built against a "
                     "different version of the module ") +
-                  Filename,
-              File);
+                  PCMFile,
+              Context.File);
         // Update the cache entry with the DwoId of the module loaded from disk.
-        ClangModules[Filename] = PCMDwoId;
+        ClangModules[PCMFile] = PCMDwoId;
       }
 
       // Add this module.
-      Unit = std::make_unique<CompileUnit>(*CU, UnitID++, !Options.NoODR,
+      Unit = std::make_unique<CompileUnit>(*CU, UniqueUnitID++, !Options.NoODR,
                                            ModuleName);
-      analyzeContextInfo(CUDie, 0, *Unit, &ODRContexts.getRoot(), ODRContexts,
-                         ModulesEndOffset, Options.ParseableSwiftInterfaces,
-                         [&](const Twine &Warning, const DWARFDie &DIE) {
-                           reportWarning(Warning, File, &DIE);
-                         });
-      // Keep everything.
-      Unit->markEverythingAsKept();
     }
   }
-  assert(Unit && "CompileUnit is not set!");
-  if (!Unit->getOrigUnit().getUnitDIE().hasChildren())
-    return Error::success();
-  if (!Quiet && Options.Verbose) {
-    outs().indent(Indent);
-    outs() << "cloning .debug_info from " << Filename << "\n";
-  }
 
-  UnitListTy CompileUnits;
-  CompileUnits.push_back(std::move(Unit));
-  assert(TheDwarfEmitter);
-  DIECloner(*this, TheDwarfEmitter, *ErrOrObj, DIEAlloc, CompileUnits,
-            Options.Update)
-      .cloneAllCompileUnits(*(ErrOrObj->Dwarf), File, StringPool,
-                            IsLittleEndian);
+  if (Unit)
+    Context.ModuleUnits.emplace_back(RefModuleUnit{*ErrOrObj, std::move(Unit)});
+
   return Error::success();
 }
 
@@ -2240,25 +2239,6 @@ uint64_t DWARFLinker::DIECloner::cloneAllCompileUnits(
   return OutputDebugInfoSize - StartOutputDebugInfoSize;
 }
 
-void DWARFLinker::updateAccelKind(DWARFContext &Dwarf) {
-  if (Options.TheAccelTableKind != DwarfLinkerAccelTableKind::Default)
-    return;
-
-  auto &DwarfObj = Dwarf.getDWARFObj();
-
-  if (!AtLeastOneDwarfAccelTable &&
-      (!DwarfObj.getAppleNamesSection().Data.empty() ||
-       !DwarfObj.getAppleTypesSection().Data.empty() ||
-       !DwarfObj.getAppleNamespacesSection().Data.empty() ||
-       !DwarfObj.getAppleObjCSection().Data.empty())) {
-    AtLeastOneAppleAccelTable = true;
-  }
-
-  if (!AtLeastOneDwarfAccelTable && !DwarfObj.getNamesSection().Data.empty()) {
-    AtLeastOneDwarfAccelTable = true;
-  }
-}
-
 bool DWARFLinker::emitPaperTrailWarnings(const DWARFFile &File,
                                          OffsetsStringPool &StringPool) {
 
@@ -2336,18 +2316,31 @@ void DWARFLinker::copyInvariantDebugSection(DWARFContext &Dwarf) {
                                        "debug_aranges");
 }
 
-void DWARFLinker::addObjectFile(DWARFFile &File) {
+void DWARFLinker::addObjectFile(DWARFFile &File, objFileLoader Loader,
+                                CompileUnitHandler OnCUDieLoaded) {
   ObjectContexts.emplace_back(LinkContext(File));
 
-  if (ObjectContexts.back().File.Dwarf)
-    updateAccelKind(*ObjectContexts.back().File.Dwarf);
+  if (ObjectContexts.back().File.Dwarf) {
+    for (const std::unique_ptr<DWARFUnit> &CU :
+         ObjectContexts.back().File.Dwarf->compile_units()) {
+      DWARFDie CUDie = CU->getUnitDIE();
+
+      if (!CUDie)
+        continue;
+
+      OnCUDieLoaded(*CU);
+
+      if (!LLVM_UNLIKELY(Options.Update))
+        registerModuleReference(CUDie, ObjectContexts.back(), Loader,
+                                OnCUDieLoaded);
+    }
+  }
 }
 
 Error DWARFLinker::link() {
   assert(Options.NoOutput || TheDwarfEmitter);
-
-  // A unique ID that identifies each compile unit.
-  unsigned UnitID = 0;
+  assert((Options.TargetDWARFVersion != 0) &&
+         "TargetDWARFVersion should be set");
 
   // First populate the data structure we need for each iteration of the
   // parallel loop.
@@ -2360,19 +2353,6 @@ Error DWARFLinker::link() {
 
   // ODR Contexts for the optimize.
   DeclContextTree ODRContexts;
-
-  // If we haven't decided on an accelerator table kind yet, we base ourselves
-  // on the DWARF we have seen so far. At this point we haven't pulled in debug
-  // information from modules yet, so it is technically possible that they
-  // would affect the decision. However, as they're built with the same
-  // compiler and flags, it is safe to assume that they will follow the
-  // decision made here.
-  if (Options.TheAccelTableKind == DwarfLinkerAccelTableKind::Default) {
-    if (AtLeastOneDwarfAccelTable && !AtLeastOneAppleAccelTable)
-      Options.TheAccelTableKind = DwarfLinkerAccelTableKind::Dwarf;
-    else
-      Options.TheAccelTableKind = DwarfLinkerAccelTableKind::Apple;
-  }
 
   for (LinkContext &OptContext : ObjectContexts) {
     if (Options.Verbose) {
@@ -2467,7 +2447,6 @@ Error DWARFLinker::link() {
         OptContext.File.Dwarf->getNumCompileUnits());
 
     for (const auto &CU : OptContext.File.Dwarf->compile_units()) {
-      updateDwarfVersion(CU->getVersion());
       auto CUDie = CU->getUnitDIE(false);
       if (Options.Verbose) {
         outs() << "Input compilation unit:";
@@ -2476,16 +2455,14 @@ Error DWARFLinker::link() {
         DumpOpts.Verbose = Options.Verbose;
         CUDie.dump(outs(), 0, DumpOpts);
       }
-      if (CUDie && !LLVM_UNLIKELY(Options.Update))
-        registerModuleReference(CUDie, *CU, OptContext.File, OffsetsStringPool,
-                                ODRContexts, 0, UnitID,
-                                OptContext.File.Dwarf->isLittleEndian());
+    }
+
+    for (auto &CU : OptContext.ModuleUnits) {
+      if (Error Err =
+              cloneModuleUnit(OptContext, CU, ODRContexts, OffsetsStringPool))
+        reportWarning(toString(std::move(Err)), CU.File);
     }
   }
-
-  // If we haven't seen any CUs, pick an arbitrary valid Dwarf version anyway.
-  if (MaxDwarfVersion == 0)
-    MaxDwarfVersion = 3;
 
   // At this point we know how much data we have emitted. We use this value to
   // compare canonical DIE offsets in analyzeContextInfo to see if a definition
@@ -2510,20 +2487,15 @@ Error DWARFLinker::link() {
       return;
 
     for (const auto &CU : Context.File.Dwarf->compile_units()) {
-      updateDwarfVersion(CU->getVersion());
-      // The !registerModuleReference() condition effectively skips
-      // over fully resolved skeleton units. This second pass of
-      // registerModuleReferences doesn't do any new work, but it
-      // will collect top-level errors, which are suppressed. Module
-      // warnings were already displayed in the first iteration.
-      bool Quiet = true;
-      auto CUDie = CU->getUnitDIE(false);
+      // The !isClangModuleRef condition effectively skips over fully resolved
+      // skeleton units.
+      auto CUDie = CU->getUnitDIE();
+      std::string PCMFile = getPCMFile(CUDie, Options.ObjectPrefixMap);
+
       if (!CUDie || LLVM_UNLIKELY(Options.Update) ||
-          !registerModuleReference(CUDie, *CU, Context.File, OffsetsStringPool,
-                                   ODRContexts, ModulesEndOffset, UnitID,
-                                   Quiet)) {
+          !isClangModuleRef(CUDie, PCMFile, Context, 0, true).first) {
         Context.CompileUnits.push_back(std::make_unique<CompileUnit>(
-            *CU, UnitID++, !Options.NoODR && !Options.Update, ""));
+            *CU, UniqueUnitID++, !Options.NoODR && !Options.Update, ""));
       }
     }
 
@@ -2599,27 +2571,24 @@ Error DWARFLinker::link() {
   auto EmitLambda = [&]() {
     // Emit everything that's global.
     if (!Options.NoOutput) {
-      TheDwarfEmitter->emitAbbrevs(Abbreviations, MaxDwarfVersion);
+      TheDwarfEmitter->emitAbbrevs(Abbreviations, Options.TargetDWARFVersion);
       TheDwarfEmitter->emitStrings(OffsetsStringPool);
-      switch (Options.TheAccelTableKind) {
-      case DwarfLinkerAccelTableKind::None:
-        // Nothing to do.
-        break;
-      case DwarfLinkerAccelTableKind::Apple:
-        TheDwarfEmitter->emitAppleNames(AppleNames);
-        TheDwarfEmitter->emitAppleNamespaces(AppleNamespaces);
-        TheDwarfEmitter->emitAppleTypes(AppleTypes);
-        TheDwarfEmitter->emitAppleObjc(AppleObjc);
-        break;
-      case DwarfLinkerAccelTableKind::Dwarf:
-        TheDwarfEmitter->emitDebugNames(DebugNames);
-        break;
-      case DwarfLinkerAccelTableKind::Pub:
-        // Already emitted by emitPubAcceleratorEntriesForUnit.
-        break;
-      case DwarfLinkerAccelTableKind::Default:
-        llvm_unreachable("Default should have already been resolved.");
-        break;
+      for (DwarfLinkerAccelTableKind TableKind : Options.AccelTables) {
+        switch (TableKind) {
+        case DwarfLinkerAccelTableKind::Apple:
+          TheDwarfEmitter->emitAppleNamespaces(AppleNamespaces);
+          TheDwarfEmitter->emitAppleNames(AppleNames);
+          TheDwarfEmitter->emitAppleTypes(AppleTypes);
+          TheDwarfEmitter->emitAppleObjc(AppleObjc);
+          break;
+        case DwarfLinkerAccelTableKind::Pub:
+          // Already emitted by emitAcceleratorEntriesForUnit.
+          // Already emitted by emitAcceleratorEntriesForUnit.
+          break;
+        case DwarfLinkerAccelTableKind::DebugNames:
+          TheDwarfEmitter->emitDebugNames(DebugNames);
+          break;
+        }
       }
     }
   };
@@ -2712,6 +2681,41 @@ Error DWARFLinker::link() {
               "---------------\n\n";
   }
 
+  return Error::success();
+}
+
+Error DWARFLinker::cloneModuleUnit(LinkContext &Context, RefModuleUnit &Unit,
+                                   DeclContextTree &ODRContexts,
+                                   OffsetsStringPool &OffsetsStringPool,
+                                   unsigned Indent) {
+  assert(Unit.Unit.get() != nullptr);
+
+  if (!Unit.Unit->getOrigUnit().getUnitDIE().hasChildren())
+    return Error::success();
+
+  if (Options.Verbose) {
+    outs().indent(Indent);
+    outs() << "cloning .debug_info from " << Unit.File.FileName << "\n";
+  }
+
+  // Analyze context for the module.
+  analyzeContextInfo(Unit.Unit->getOrigUnit().getUnitDIE(), 0, *(Unit.Unit),
+                     &ODRContexts.getRoot(), ODRContexts, 0,
+                     Options.ParseableSwiftInterfaces,
+                     [&](const Twine &Warning, const DWARFDie &DIE) {
+                       reportWarning(Warning, Context.File, &DIE);
+                     });
+  // Keep everything.
+  Unit.Unit->markEverythingAsKept();
+
+  // Clone unit.
+  UnitListTy CompileUnits;
+  CompileUnits.emplace_back(std::move(Unit.Unit));
+  assert(TheDwarfEmitter);
+  DIECloner(*this, TheDwarfEmitter, Unit.File, DIEAlloc, CompileUnits,
+            Options.Update)
+      .cloneAllCompileUnits(*Unit.File.Dwarf, Unit.File, OffsetsStringPool,
+                            Unit.File.Dwarf->isLittleEndian());
   return Error::success();
 }
 

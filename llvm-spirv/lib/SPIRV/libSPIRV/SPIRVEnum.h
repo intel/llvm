@@ -263,6 +263,8 @@ template <> inline void SPIRVMap<SPIRVExecutionModeKind, SPIRVCapVec>::init() {
                {internal::CapabilityFastCompositeINTEL});
   ADD_VEC_INIT(internal::ExecutionModeStreamingInterfaceINTEL,
                {CapabilityFPGAKernelAttributesINTEL});
+  ADD_VEC_INIT(ExecutionModeNamedBarrierCountINTEL,
+               {CapabilityVectorComputeINTEL});
 }
 
 template <> inline void SPIRVMap<SPIRVMemoryModelKind, SPIRVCapVec>::init() {
@@ -436,16 +438,15 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
   ADD_VEC_INIT(DecorationStallEnableINTEL,
                {CapabilityFPGAClusterAttributesINTEL});
   ADD_VEC_INIT(DecorationFuseLoopsInFunctionINTEL, {CapabilityLoopFuseINTEL});
-  ADD_VEC_INIT(internal::DecorationMathOpDSPModeINTEL,
-               {internal::CapabilityFPGADSPControlINTEL});
-  ADD_VEC_INIT(internal::DecorationInitiationIntervalINTEL,
-               {internal::CapabilityFPGAInvocationPipeliningAttributesINTEL});
-  ADD_VEC_INIT(internal::DecorationMaxConcurrencyINTEL,
-               {internal::CapabilityFPGAInvocationPipeliningAttributesINTEL});
-  ADD_VEC_INIT(internal::DecorationPipelineEnableINTEL,
-               {internal::CapabilityFPGAInvocationPipeliningAttributesINTEL});
+  ADD_VEC_INIT(DecorationMathOpDSPModeINTEL, {CapabilityFPGADSPControlINTEL});
+  ADD_VEC_INIT(DecorationInitiationIntervalINTEL,
+               {CapabilityFPGAInvocationPipeliningAttributesINTEL});
+  ADD_VEC_INIT(DecorationMaxConcurrencyINTEL,
+               {CapabilityFPGAInvocationPipeliningAttributesINTEL});
+  ADD_VEC_INIT(DecorationPipelineEnableINTEL,
+               {CapabilityFPGAInvocationPipeliningAttributesINTEL});
   ADD_VEC_INIT(internal::DecorationRuntimeAlignedINTEL,
-               {internal::CapabilityRuntimeAlignedAttributeINTEL});
+               {CapabilityRuntimeAlignedAttributeINTEL});
   ADD_VEC_INIT(internal::DecorationHostAccessINTEL,
                {internal::CapabilityGlobalVariableDecorationsINTEL});
   ADD_VEC_INIT(internal::DecorationInitModeINTEL,

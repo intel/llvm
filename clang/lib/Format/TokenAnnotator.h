@@ -31,15 +31,19 @@ enum LineType {
   LT_PreprocessorDirective,
   LT_VirtualFunctionDecl,
   LT_ArrayOfStructInitializer,
+  LT_CommentAbovePPDirective,
 };
 
 class AnnotatedLine {
 public:
   AnnotatedLine(const UnwrappedLine &Line)
       : First(Line.Tokens.front().Tok), Level(Line.Level),
+        PPLevel(Line.PPLevel),
         MatchingOpeningBlockLineIndex(Line.MatchingOpeningBlockLineIndex),
         MatchingClosingBlockLineIndex(Line.MatchingClosingBlockLineIndex),
         InPPDirective(Line.InPPDirective),
+        InPragmaDirective(Line.InPragmaDirective),
+        InMacroBody(Line.InMacroBody),
         MustBeDeclaration(Line.MustBeDeclaration), MightBeFunctionDecl(false),
         IsMultiVariableDeclStmt(false), Affected(false),
         LeadingEmptyLinesAffected(false), ChildrenAffected(false),
@@ -126,9 +130,12 @@ public:
 
   LineType Type;
   unsigned Level;
+  unsigned PPLevel;
   size_t MatchingOpeningBlockLineIndex;
   size_t MatchingClosingBlockLineIndex;
   bool InPPDirective;
+  bool InPragmaDirective;
+  bool InMacroBody;
   bool MustBeDeclaration;
   bool MightBeFunctionDecl;
   bool IsMultiVariableDeclStmt;

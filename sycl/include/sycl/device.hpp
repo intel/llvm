@@ -14,6 +14,8 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/detail/owner_less_base.hpp>
+#include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/stl.hpp>
@@ -33,18 +35,16 @@ class device_impl;
 auto getDeviceComparisonLambda();
 } // namespace detail
 
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 // Forward declaration
 class filter_selector;
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 /// The SYCL device class encapsulates a single SYCL device on which kernels
 /// may be executed.
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT device {
+class __SYCL_EXPORT device : public detail::OwnerLessBase<device> {
 public:
   /// Constructs a SYCL device instance using the default device.
   device();
@@ -61,18 +61,19 @@ public:
   /// by the DeviceSelector provided.
   ///
   /// \param DeviceSelector SYCL 1.2.1 device_selector to be used (see 4.6.1.1).
+  __SYCL2020_DEPRECATED("SYCL 1.2.1 device selectors are deprecated. Please "
+                        "use SYCL 2020 device selectors instead.")
   explicit device(const device_selector &DeviceSelector);
 
-#if __cplusplus >= 201703L
   /// Constructs a SYCL device instance using the device
   /// identified by the device selector provided.
   /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
   /// takes a device and returns an int
   template <typename DeviceSelector,
-            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
+            typename =
+                detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
   explicit device(const DeviceSelector &deviceSelector)
       : device(detail::select_device(deviceSelector)) {}
-#endif
 
   bool operator==(const device &rhs) const { return impl == rhs.impl; }
 
@@ -97,6 +98,8 @@ public:
   /// Check if device is a host device
   ///
   /// \return true if SYCL device is a host device
+  __SYCL2020_DEPRECATED(
+      "is_host() is deprecated as the host device is no longer supported.")
   bool is_host() const;
 
   /// Check if device is a CPU device
@@ -171,6 +174,19 @@ public:
   std::vector<device>
   create_sub_devices(info::partition_affinity_domain AffinityDomain) const;
 
+  /// Partition device into sub devices
+  ///
+  /// Available only when prop is
+  /// info::partition_property::ext_intel_partition_by_cslice. If this SYCL
+  /// device does not support
+  /// info::partition_property::ext_intel_partition_by_cslice a
+  /// feature_not_supported exception must be thrown.
+  ///
+  /// \return a vector class of sub devices partitioned from this SYCL
+  /// device at a granularity of "cslice" (compute slice).
+  template <info::partition_property prop>
+  std::vector<device> create_sub_devices() const;
+
   /// Queries this SYCL device for information requested by the template
   /// parameter param
   ///
@@ -229,8 +245,6 @@ private:
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-
-  friend auto detail::getDeviceComparisonLambda();
 
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)

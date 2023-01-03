@@ -533,7 +533,6 @@ define void @test_lshr_v2i128(<2 x i128> %x, <2 x i128> %a, ptr nocapture %r) no
 ; i686-NEXT:  .LBB6_9: # %entry
 ; i686-NEXT:    movl %edi, %esi
 ; i686-NEXT:    movl %ebx, {{[-0-9]+}}(%e{{[sb]}}p) # 4-byte Spill
-; i686-NEXT:    movl {{[0-9]+}}(%esp), %ebp
 ; i686-NEXT:    movl {{[-0-9]+}}(%e{{[sb]}}p), %ecx # 4-byte Reload
 ; i686-NEXT:    shrl %cl, %ebp
 ; i686-NEXT:    testb $32, %cl
@@ -846,7 +845,6 @@ define void @test_ashr_v2i128(<2 x i128> %x, <2 x i128> %a, ptr nocapture %r) no
 ; i686-NEXT:    movl {{[0-9]+}}(%esp), %esi
 ; i686-NEXT:    movb $64, %cl
 ; i686-NEXT:    subb %dl, %cl
-; i686-NEXT:    movl {{[0-9]+}}(%esp), %ebp
 ; i686-NEXT:    movl {{[0-9]+}}(%esp), %ebx
 ; i686-NEXT:    shldl %cl, %ebx, %ebp
 ; i686-NEXT:    movl %ebp, {{[-0-9]+}}(%e{{[sb]}}p) # 4-byte Spill
@@ -1014,27 +1012,27 @@ define void @test_ashr_v2i128(<2 x i128> %x, <2 x i128> %a, ptr nocapture %r) no
 ;
 ; x86_64-LABEL: test_ashr_v2i128:
 ; x86_64:       # %bb.0: # %entry
-; x86_64-NEXT:    movq %rcx, %r11
+; x86_64-NEXT:    movq %rcx, %rax
 ; x86_64-NEXT:    movq {{[0-9]+}}(%rsp), %r10
 ; x86_64-NEXT:    movzbl {{[0-9]+}}(%rsp), %r9d
 ; x86_64-NEXT:    movl %r9d, %ecx
-; x86_64-NEXT:    shrdq %cl, %r11, %rdx
+; x86_64-NEXT:    shrdq %cl, %rax, %rdx
 ; x86_64-NEXT:    movl %r8d, %ecx
 ; x86_64-NEXT:    shrdq %cl, %rsi, %rdi
-; x86_64-NEXT:    movq %rsi, %rax
-; x86_64-NEXT:    sarq %cl, %rax
+; x86_64-NEXT:    movq %rsi, %r11
+; x86_64-NEXT:    sarq %cl, %r11
 ; x86_64-NEXT:    sarq $63, %rsi
 ; x86_64-NEXT:    testb $64, %r8b
-; x86_64-NEXT:    cmovneq %rax, %rdi
-; x86_64-NEXT:    cmoveq %rax, %rsi
-; x86_64-NEXT:    movq %r11, %rax
+; x86_64-NEXT:    cmovneq %r11, %rdi
+; x86_64-NEXT:    cmoveq %r11, %rsi
+; x86_64-NEXT:    movq %rax, %r8
 ; x86_64-NEXT:    movl %r9d, %ecx
-; x86_64-NEXT:    sarq %cl, %rax
-; x86_64-NEXT:    sarq $63, %r11
+; x86_64-NEXT:    sarq %cl, %r8
+; x86_64-NEXT:    sarq $63, %rax
 ; x86_64-NEXT:    testb $64, %r9b
-; x86_64-NEXT:    cmovneq %rax, %rdx
-; x86_64-NEXT:    cmoveq %rax, %r11
-; x86_64-NEXT:    movq %r11, 24(%r10)
+; x86_64-NEXT:    cmovneq %r8, %rdx
+; x86_64-NEXT:    cmoveq %r8, %rax
+; x86_64-NEXT:    movq %rax, 24(%r10)
 ; x86_64-NEXT:    movq %rdx, 16(%r10)
 ; x86_64-NEXT:    movq %rsi, 8(%r10)
 ; x86_64-NEXT:    movq %rdi, (%r10)

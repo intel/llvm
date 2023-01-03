@@ -16,6 +16,11 @@ function(get_object_files_for_test result skipped_entrypoints_list)
   set(object_files "")
   set(skipped_list "")
   foreach(dep IN LISTS ARGN)
+    if (NOT TARGET ${dep})
+      # Skip any tests whose dependencies have not been defined.
+      list(APPEND skipped_list ${dep})
+      continue()
+    endif()
     get_target_property(dep_type ${dep} "TARGET_TYPE")
     if(NOT dep_type)
       # Target for which TARGET_TYPE property is not set do not
@@ -387,6 +392,7 @@ endfunction(add_libc_fuzzer)
 #     DEPENDS <list of entrypoint or other object targets>
 #     ARGS <list of command line arguments to be passed to the test>
 #     ENV <list of environment variables to set before running the test>
+#     COMPILE_OPTIONS <list of special compile options for this target>
 #   )
 #
 # The loader target should provide a property named LOADER_OBJECT which is
@@ -404,7 +410,7 @@ function(add_integration_test test_name)
     "INTEGRATION_TEST"
     "" # No optional arguments
     "SUITE;LOADER" # Single value arguments
-    "SRCS;HDRS;DEPENDS;ARGS;ENV" # Multi-value arguments
+    "SRCS;HDRS;DEPENDS;ARGS;ENV;COMPILE_OPTIONS" # Multi-value arguments
     ${ARGN}
   )
 
@@ -422,9 +428,19 @@ function(add_integration_test test_name)
 
   get_fq_deps_list(fq_deps_list ${INTEGRATION_TEST_DEPENDS})
   # All integration tests setup TLS area and the main thread's self object.
-  # So, we need to link in the threads implementation.
-  list(APPEND fq_deps_list libc.src.__support.threads.thread)
+  # So, we need to link in the threads implementation. Likewise, the startup
+  # code also has to run init_array callbacks which potentially register
+  # their own atexit callbacks. So, link in exit and atexit also with all
+  # integration tests.
+  list(
+      APPEND fq_deps_list
+      libc.src.__support.threads.thread
+      libc.src.stdlib.atexit
+      libc.src.stdlib.exit
+      libc.src.unistd.environ
+      libc.utils.IntegrationTest.test)
   list(REMOVE_DUPLICATES fq_deps_list)
+
   # TODO: Instead of gathering internal object files from entrypoints,
   # collect the object files with public names of entrypoints.
   get_object_files_for_test(
@@ -467,6 +483,16 @@ function(add_integration_test test_name)
     ${fq_libc_target_name}
     STATIC
     ${link_object_files}
+    # We add the memory functions objects explicitly. Note that we
+    # are adding objects of the targets which contain the public
+    # C symbols. This is because compiler codegen can emit calls to
+    # the C memory functions.
+    $<TARGET_OBJECTS:libc.src.string.bcmp>
+    $<TARGET_OBJECTS:libc.src.string.bzero>
+    $<TARGET_OBJECTS:libc.src.string.memcmp>
+    $<TARGET_OBJECTS:libc.src.string.memcpy>
+    $<TARGET_OBJECTS:libc.src.string.memmove>
+    $<TARGET_OBJECTS:libc.src.string.memset>
   )
   set_target_properties(${fq_libc_target_name} PROPERTIES ARCHIVE_OUTPUT_NAME c)
   set_target_properties(${fq_libc_target_name} PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${sysroot_lib})
@@ -486,7 +512,7 @@ function(add_integration_test test_name)
       ${LIBC_BUILD_DIR}
       ${LIBC_BUILD_DIR}/include
   )
-  target_compile_options(${fq_target_name} PRIVATE -ffreestanding)
+  target_compile_options(${fq_target_name} PRIVATE -ffreestanding ${INTEGRATION_TEST_COMPILE_OPTIONS})
   # We set a number of link options to prevent picking up system libc binaries.
   # Also, we restrict the integration tests to fully static executables. The
   # rtlib is set to compiler-rt to make the compiler drivers pick up the compiler
@@ -496,7 +522,8 @@ function(add_integration_test test_name)
   add_dependencies(${fq_target_name}
                    ${fq_target_name}.__copy_loader__
                    ${fq_libc_target_name}
-                   libc.utils.IntegrationTest.test)
+                   libc.utils.IntegrationTest.test
+                   ${INTEGRATION_TEST_DEPENDS})
 
   add_custom_command(
     TARGET ${fq_target_name}

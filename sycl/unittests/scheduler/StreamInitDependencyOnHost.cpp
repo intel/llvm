@@ -11,7 +11,6 @@
 
 #include <detail/config.hpp>
 #include <detail/handler_impl.hpp>
-#include <detail/scheduler/scheduler_helpers.hpp>
 #include <helpers/ScopedEnvVar.hpp>
 
 using namespace sycl;
@@ -30,11 +29,10 @@ public:
     case detail::CG::RunOnHostIntel: {
       CommandGroup.reset(new detail::CGExecKernel(
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
-          std::move(MImpl->MKernelBundle),
-          getArgsStorage(), getAccStorage(), getSharedPtrStorage(),
-          getRequirements(), getEvents(), getArgs(), getKernelName(),
-          getOSModuleHandle(), getStreamStorage(), std::move(MImpl->MAuxiliaryResources),
-          getCGType(), getCodeLoc()));
+          std::move(MImpl->MKernelBundle), getArgsStorage(), getAccStorage(),
+          getSharedPtrStorage(), getRequirements(), getEvents(), getArgs(),
+          getKernelName(), getOSModuleHandle(), getStreamStorage(),
+          std::move(MImpl->MAuxiliaryResources), getCGType(), getCodeLoc()));
       break;
     }
     default:
@@ -80,8 +78,9 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
   unittest::ScopedEnvVar DisabledCleanup{
       DisablePostEnqueueCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
-  sycl::queue HQueue(host_selector{});
-  detail::QueueImplPtr HQueueImpl = detail::getSyclObjImpl(HQueue);
+  std::shared_ptr<detail::queue_impl> HQueueImpl(new detail::queue_impl(
+      detail::device_impl::getHostDeviceImpl(), /*AsyncHandler=*/{},
+      /*PropList=*/{}));
 
   // Emulating processing of command group function
   MockHandlerStreamInit MockCGH(HQueueImpl, true);
@@ -113,7 +112,7 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
       static_cast<detail::CGExecKernel *>(MainCG.get())->getStreams();
   ASSERT_EQ(Streams.size(), 1u) << "Invalid number of stream objects";
 
-  initStream(Streams[0], HQueueImpl);
+  Streams[0]->initStreamHost(HQueueImpl);
 
   MockScheduler MS;
   std::vector<detail::Command *> AuxCmds;
@@ -127,8 +126,7 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
   // Tree of dependencies should look like:
   // [MAIN_CG] -> [EMPTY_NODE {FlushBufMemObj}] -> [FILL_CG {FlushBufMemObj}] ->
   //     [[ALLOC_TASK {FlushBufMemObj}]
-  std::vector<CmdTypeTy> DepCmdsTypes({CmdTypeTy::EMPTY_TASK,
-                                       CmdTypeTy::RUN_CG, // FILL_CG
+  std::vector<CmdTypeTy> DepCmdsTypes({CmdTypeTy::RUN_CG, // FILL_CG
                                        CmdTypeTy::ALLOCA});
   ASSERT_TRUE(ValidateDepCommandsTree(NewCmd, DepCmdsTypes, FlushBufMemObjPtr))
       << "Dependency on stream flush buffer initialization not found";

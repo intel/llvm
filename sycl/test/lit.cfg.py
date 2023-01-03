@@ -24,7 +24,11 @@ config.name = 'SYCL'
 config.test_format = lit.formats.ShTest()
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = ['.c', '.cpp', '.dump'] #add .spv. Currently not clear what to do with those
+dump_only_tests = bool(lit_config.params.get('SYCL_LIB_DUMPS_ONLY', False))
+if dump_only_tests:
+    config.suffixes = ['.dump'] # Only run dump testing
+else:
+    config.suffixes = ['.c', '.cpp', '.dump', '.test'] #add .spv. Currently not clear what to do with those
 
 # feature tests are considered not so lightweight, so, they are excluded by default
 config.excludes = ['Inputs', 'feature-tests']
@@ -80,20 +84,18 @@ config.substitutions.append( ('%sycl_libs_dir',  config.sycl_libs_dir ) )
 config.substitutions.append( ('%sycl_include',  config.sycl_include ) )
 config.substitutions.append( ('%sycl_source_dir', config.sycl_source_dir) )
 config.substitutions.append( ('%opencl_libs_dir',  config.opencl_libs_dir) )
+config.substitutions.append( ('%level_zero_include_dir',  config.level_zero_include_dir) )
 config.substitutions.append( ('%opencl_include_dir',  config.opencl_include_dir) )
 config.substitutions.append( ('%cuda_toolkit_include',  config.cuda_toolkit_include) )
 config.substitutions.append( ('%sycl_tools_src_dir',  config.sycl_tools_src_dir ) )
 config.substitutions.append( ('%llvm_build_lib_dir',  config.llvm_build_lib_dir ) )
 config.substitutions.append( ('%llvm_build_bin_dir',  config.llvm_build_bin_dir ) )
 
-config.substitutions.append( ('%fsycl-host-only', '-std=c++17 -Xclang -fsycl-is-host -isystem %s -isystem %s -isystem %s' % (config.sycl_include, config.opencl_include_dir, config.sycl_include + '/sycl/') ) )
+config.substitutions.append( ('%fsycl-host-only', '-std=c++17 -Xclang -fsycl-is-host -isystem %s -isystem %s -isystem %s -isystem %s' % (config.sycl_include, config.level_zero_include_dir, config.opencl_include_dir, config.sycl_include + '/sycl/') ) )
+config.substitutions.append( ('%sycl_lib', ' -lsycl6' if platform.system() == "Windows" else '-lsycl') )
 
 llvm_config.add_tool_substitutions(['llvm-spirv'], [config.sycl_tools_dir])
 
-config.substitutions.append( ('%RUN_ON_HOST', "env SYCL_DEVICE_FILTER=host ") )
-
-# Every SYCL implementation provides a host implementation.
-config.available_features.add('host')
 triple=lit_config.params.get('SYCL_TRIPLE', 'spir64-unknown-unknown')
 lit_config.note("Triple: {}".format(triple))
 config.substitutions.append( ('%sycl_triple',  triple ) )
@@ -121,7 +123,9 @@ if triple == 'amdgcn-amd-amdhsa':
         additional_flags += ['-Xsycl-target-backend=amdgcn-amd-amdhsa',
                             '--offload-arch=gfx906']
 
-llvm_config.use_clang(additional_flags=additional_flags)
+# Dump-only tests do not have clang available
+if not dump_only_tests:
+    llvm_config.use_clang(additional_flags=additional_flags)
 
 # Set timeout for test = 10 mins
 try:

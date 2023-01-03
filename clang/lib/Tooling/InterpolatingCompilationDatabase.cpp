@@ -51,7 +51,6 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/StringSwitch.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/OptTable.h"
 #include "llvm/Support/Debug.h"
@@ -165,8 +164,8 @@ struct TransferableCommand {
       const unsigned OldPos = Pos;
       std::unique_ptr<llvm::opt::Arg> Arg(OptTable.ParseOneArg(
           ArgList, Pos,
-          /* Include */ ClangCLMode ? CoreOption | CLOption : 0,
-          /* Exclude */ ClangCLMode ? 0 : CLOption));
+          /* Include */ ClangCLMode ? CoreOption | CLOption | CLDXCOption : 0,
+          /* Exclude */ ClangCLMode ? 0 : CLOption | CLDXCOption));
 
       if (!Arg)
         continue;
@@ -208,7 +207,7 @@ struct TransferableCommand {
     Type = foldType(*Type);
     // The contract is to store None instead of TY_INVALID.
     if (Type == types::TY_INVALID)
-      Type = llvm::None;
+      Type = std::nullopt;
   }
 
   // Produce a CompileCommand for \p filename, based on this one.
@@ -292,7 +291,7 @@ private:
       if (Opt.matches(driver::options::OPT_x))
         return types::lookupTypeForTypeSpecifier(Arg.getValue());
     }
-    return None;
+    return std::nullopt;
   }
 
   // Try to interpret the argument as '-std='.
@@ -300,7 +299,7 @@ private:
     using namespace driver::options;
     if (Arg.getOption().matches(ClangCLMode ? OPT__SLASH_std : OPT_std_EQ))
       return LangStandard::getLangKind(Arg.getValue());
-    return None;
+    return std::nullopt;
   }
 };
 

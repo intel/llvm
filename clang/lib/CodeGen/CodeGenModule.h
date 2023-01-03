@@ -283,12 +283,15 @@ class CodeGenModule : public CodeGenTypeCache {
 
 public:
   struct Structor {
-    Structor() : Priority(0), Initializer(nullptr), AssociatedData(nullptr) {}
-    Structor(int Priority, llvm::Constant *Initializer,
+    Structor()
+        : Priority(0), LexOrder(~0u), Initializer(nullptr),
+          AssociatedData(nullptr) {}
+    Structor(int Priority, unsigned LexOrder, llvm::Constant *Initializer,
              llvm::Constant *AssociatedData)
-        : Priority(Priority), Initializer(Initializer),
+        : Priority(Priority), LexOrder(LexOrder), Initializer(Initializer),
           AssociatedData(AssociatedData) {}
     int Priority;
+    unsigned LexOrder;
     llvm::Constant *Initializer;
     llvm::Constant *AssociatedData;
   };
@@ -601,6 +604,11 @@ private:
   llvm::DenseMap<const llvm::Constant *, llvm::GlobalVariable *> RTTIProxyMap;
 
   llvm::DenseMap<StringRef, const RecordDecl *> TypesWithAspects;
+  const EnumDecl *AspectsEnumDecl = nullptr;
+  // Helps squashing blocks of TopLevelStmtDecl into a single llvm::Function
+  // when used with -fincremental-extensions.
+  std::pair<std::unique_ptr<CodeGenFunction>, const TopLevelStmtDecl *>
+      GlobalTopLevelStmtBlockInFlight;
 
 public:
   CodeGenModule(ASTContext &C, IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
@@ -732,7 +740,8 @@ public:
 
   llvm::MDNode *getNoObjCARCExceptionsMetadata() {
     if (!NoObjCARCExceptionsMetadata)
-      NoObjCARCExceptionsMetadata = llvm::MDNode::get(getLLVMContext(), None);
+      NoObjCARCExceptionsMetadata =
+          llvm::MDNode::get(getLLVMContext(), std::nullopt);
     return NoObjCARCExceptionsMetadata;
   }
 
@@ -768,6 +777,10 @@ public:
   CodeGenVTables &getVTables() { return VTables; }
 
   ItaniumVTableContext &getItaniumVTableContext() {
+    return VTables.getItaniumVTableContext();
+  }
+
+  const ItaniumVTableContext &getItaniumVTableContext() const {
     return VTables.getItaniumVTableContext();
   }
 
@@ -1095,6 +1108,8 @@ public:
     TypesWithAspects[TypeName] = RD;
   }
 
+  void setAspectsEnumDecl(const EnumDecl *ED);
+
   void generateIntelFPGAAnnotation(const Decl *D,
                                      llvm::SmallString<256> &AnnotStr);
   void addGlobalIntelFPGAAnnotation(const VarDecl *VD, llvm::GlobalValue *GV);
@@ -1104,7 +1119,8 @@ public:
   llvm::Constant *getBuiltinLibFunction(const FunctionDecl *FD,
                                         unsigned BuiltinID);
 
-  llvm::Function *getIntrinsic(unsigned IID, ArrayRef<llvm::Type*> Tys = None);
+  llvm::Function *getIntrinsic(unsigned IID,
+                               ArrayRef<llvm::Type *> Tys = std::nullopt);
 
   /// Emit code for a single top level declaration.
   void EmitTopLevelDecl(Decl *D);
@@ -1387,13 +1403,14 @@ public:
 
   /// \returns true if \p Fn at \p Loc should be excluded from profile
   /// instrumentation by the SCL passed by \p -fprofile-list.
-  bool isFunctionBlockedByProfileList(llvm::Function *Fn,
-                                      SourceLocation Loc) const;
+  ProfileList::ExclusionType
+  isFunctionBlockedByProfileList(llvm::Function *Fn, SourceLocation Loc) const;
 
   /// \returns true if \p Fn at \p Loc should be excluded from profile
   /// instrumentation.
-  bool isFunctionBlockedFromProfileInstr(llvm::Function *Fn,
-                                         SourceLocation Loc) const;
+  ProfileList::ExclusionType
+  isFunctionBlockedFromProfileInstr(llvm::Function *Fn,
+                                    SourceLocation Loc) const;
 
   SanitizerMetadata *getSanitizerMetadata() {
     return SanitizerMD.get();
@@ -1469,8 +1486,13 @@ public:
                               llvm::GlobalVariable *VTable,
                               const VTableLayout &VTLayout);
 
+  llvm::Type *getVTableComponentType() const;
+
   /// Generate a cross-DSO type identifier for MD.
   llvm::ConstantInt *CreateCrossDsoCfiTypeId(llvm::Metadata *MD);
+
+  /// Generate a KCFI type identifier for T.
+  llvm::ConstantInt *CreateKCFITypeId(QualType T);
 
   /// Create a metadata identifier for the given type. This may either be an
   /// MDString (for external identifiers) or a distinct unnamed MDNode (for
@@ -1490,9 +1512,16 @@ public:
   void CreateFunctionTypeMetadataForIcall(const FunctionDecl *FD,
                                           llvm::Function *F);
 
+  /// Set type metadata to the given function.
+  void setKCFIType(const FunctionDecl *FD, llvm::Function *F);
+
+  /// Emit KCFI type identifier constants and remove unused identifiers.
+  void finalizeKCFITypes();
+
   /// Whether this function's return type has no side effects, and thus may
   /// be trivially discarded if it is unused.
-  bool MayDropFunctionReturn(const ASTContext &Context, QualType ReturnType);
+  bool MayDropFunctionReturn(const ASTContext &Context,
+                             QualType ReturnType) const;
 
   /// Returns whether this module needs the "all-vtables" type identifier.
   bool NeedAllVtablesTypeId() const;
@@ -1613,6 +1642,7 @@ private:
 
   void EmitDeclContext(const DeclContext *DC);
   void EmitLinkageSpec(const LinkageSpecDecl *D);
+  void EmitTopLevelStmt(const TopLevelStmtDecl *D);
 
   /// Emit the function that initializes C++ thread_local variables.
   void EmitCXXThreadLocalInitFunc();
@@ -1637,6 +1667,7 @@ private:
 
   // FIXME: Hardcoding priority here is gross.
   void AddGlobalCtor(llvm::Function *Ctor, int Priority = 65535,
+                     unsigned LexOrder = ~0U,
                      llvm::Constant *AssociatedData = nullptr);
   void AddGlobalDtor(llvm::Function *Dtor, int Priority = 65535,
                      bool IsDtorAttrFunc = false);

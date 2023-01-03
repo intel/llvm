@@ -41,7 +41,7 @@ enum {
 #include "Options.inc"
 #undef PREFIX
 
-static const llvm::opt::OptTable::Info InfoTable[] = {
+static constexpr llvm::opt::OptTable::Info InfoTable[] = {
 #define OPTION(X1, X2, ID, KIND, GROUP, ALIAS, X7, X8, X9, X10, X11, X12)      \
   {X1, X2, X10,         X11,         OPT_##ID, llvm::opt::Option::KIND##Class, \
    X9, X8, OPT_##GROUP, OPT_##ALIAS, X7,       X12},
@@ -101,7 +101,7 @@ Optional<std::string> getPrefix(StringRef Argv0) {
   // aarch64-w64-mingw32-llvm-dlltool-10.exe -> aarch64-w64-mingw32
   ProgName = ProgName.rtrim("0123456789.-");
   if (!ProgName.consume_back_insensitive("dlltool"))
-    return None;
+    return std::nullopt;
   ProgName.consume_back_insensitive("llvm-");
   ProgName.consume_back_insensitive("-");
   return ProgName.str();

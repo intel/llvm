@@ -5,8 +5,8 @@ Intel LLVM-based projects:
 
 - [oneAPI DPC++ compiler](#oneapi-dpc-compiler)
 - [Late-outline OpenMP and OpenMP Offload](#late-outline-openmp-and-openmp-offload)
-sudo apt-get install llvm-16-dev llvm-16-tools clang-16 libclang-16-dev
-`-DLLVM_EXTERNAL_LIT="/usr/lib/llvm-16/build/utils/lit/lit.py"` is
+
+For general contribution process see [CONTRIBUTING.md](./CONTRIBUTING.md)
 
 ## oneAPI DPC++ compiler
 

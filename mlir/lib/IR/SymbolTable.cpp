@@ -146,19 +146,21 @@ Operation *SymbolTable::lookup(StringAttr name) const {
   return symbolTable.lookup(name);
 }
 
-/// Erase the given symbol from the table.
-void SymbolTable::erase(Operation *symbol) {
-  StringAttr name = getNameIfSymbol(symbol);
+void SymbolTable::remove(Operation *op) {
+  StringAttr name = getNameIfSymbol(op);
   assert(name && "expected valid 'name' attribute");
-  assert(symbol->getParentOp() == symbolTableOp &&
+  assert(op->getParentOp() == symbolTableOp &&
          "expected this operation to be inside of the operation with this "
          "SymbolTable");
 
   auto it = symbolTable.find(name);
-  if (it != symbolTable.end() && it->second == symbol) {
+  if (it != symbolTable.end() && it->second == op)
     symbolTable.erase(it);
-    symbol->erase();
-  }
+}
+
+void SymbolTable::erase(Operation *symbol) {
+  remove(symbol);
+  symbol->erase();
 }
 
 // TODO: Consider if this should be renamed to something like insertOrUpdate
@@ -553,7 +555,7 @@ walkSymbolUses(MutableArrayRef<Region> regions,
   return walkSymbolTable(regions, [&](Operation *op) -> Optional<WalkResult> {
     // Check that this isn't a potentially unknown symbol table.
     if (isPotentiallyUnknownSymbolTable(op))
-      return llvm::None;
+      return std::nullopt;
 
     return walkSymbolRefs(op, callback);
   });
@@ -569,7 +571,7 @@ walkSymbolUses(Operation *from,
   // symbol table, so we can't opaquely know if we should traverse to find
   // nested uses.
   if (isPotentiallyUnknownSymbolTable(from))
-    return llvm::None;
+    return std::nullopt;
 
   // Walk the uses on this operation.
   if (walkSymbolRefs(from, callback).wasInterrupted())
@@ -594,7 +596,7 @@ struct SymbolScope {
   /// This variant is used when the callback type matches that expected by
   /// 'walkSymbolUses'.
   template <typename CallbackT,
-            typename std::enable_if_t<!std::is_same<
+            std::enable_if_t<!std::is_same<
                 typename llvm::function_traits<CallbackT>::result_t,
                 void>::value> * = nullptr>
   Optional<WalkResult> walk(CallbackT cback) {
@@ -605,7 +607,7 @@ struct SymbolScope {
   /// This variant is used when the callback type matches a stripped down type:
   /// void(SymbolTable::SymbolUse use)
   template <typename CallbackT,
-            typename std::enable_if_t<std::is_same<
+            std::enable_if_t<std::is_same<
                 typename llvm::function_traits<CallbackT>::result_t,
                 void>::value> * = nullptr>
   Optional<WalkResult> walk(CallbackT cback) {
@@ -738,7 +740,8 @@ static Optional<SymbolTable::UseRange> getSymbolUsesImpl(FromT from) {
     return WalkResult::advance();
   };
   auto result = walkSymbolUses(from, walkFn);
-  return result ? Optional<SymbolTable::UseRange>(std::move(uses)) : llvm::None;
+  return result ? Optional<SymbolTable::UseRange>(std::move(uses))
+                : std::nullopt;
 }
 
 /// Get an iterator range for all of the uses, for any symbol, that are nested
@@ -746,8 +749,8 @@ static Optional<SymbolTable::UseRange> getSymbolUsesImpl(FromT from) {
 /// symbol tables, and will also only return uses on 'from' if it does not
 /// also define a symbol table. This is because we treat the region as the
 /// boundary of the symbol table, and not the op itself. This function returns
-/// None if there are any unknown operations that may potentially be symbol
-/// tables.
+/// std::nullopt if there are any unknown operations that may potentially be
+/// symbol tables.
 auto SymbolTable::getSymbolUses(Operation *from) -> Optional<UseRange> {
   return getSymbolUsesImpl(from);
 }
@@ -768,15 +771,15 @@ static Optional<SymbolTable::UseRange> getSymbolUsesImpl(SymbolT symbol,
           if (isReferencePrefixOf(scope.symbol, symbolUse.getSymbolRef()))
             uses.push_back(symbolUse);
         }))
-      return llvm::None;
+      return std::nullopt;
   }
   return SymbolTable::UseRange(std::move(uses));
 }
 
 /// Get all of the uses of the given symbol that are nested within the given
 /// operation 'from', invoking the provided callback for each. This does not
-/// traverse into any nested symbol tables. This function returns None if there
-/// are any unknown operations that may potentially be symbol tables.
+/// traverse into any nested symbol tables. This function returns std::nullopt
+/// if there are any unknown operations that may potentially be symbol tables.
 auto SymbolTable::getSymbolUses(StringAttr symbol, Operation *from)
     -> Optional<UseRange> {
   return getSymbolUsesImpl(symbol, from);
@@ -851,40 +854,31 @@ replaceAllSymbolUsesImpl(SymbolT symbol, StringAttr newSymbol, IRUnitT *limit) {
   for (SymbolScope &scope : collectSymbolScopes(symbol, limit)) {
     SymbolRefAttr oldAttr = scope.symbol;
     SymbolRefAttr newAttr = generateNewRefAttr(scope.symbol, newLeafAttr);
-
-    auto walkFn = [&](Operation *op) -> Optional<WalkResult> {
-      auto remapAttrFn =
-          [&](Attribute attr) -> std::pair<Attribute, WalkResult> {
-        // Regardless of the match, don't walk nested SymbolRefAttrs, we don't
-        // want to accidentally replace an inner reference.
-        if (attr == oldAttr)
-          return {newAttr, WalkResult::skip()};
-        // Handle prefix matches.
-        if (SymbolRefAttr symRef = attr.dyn_cast<SymbolRefAttr>()) {
-          if (isReferencePrefixOf(oldAttr, symRef)) {
+    AttrTypeReplacer replacer;
+    replacer.addReplacement(
+        [&](SymbolRefAttr attr) -> std::pair<Attribute, WalkResult> {
+          // Regardless of the match, don't walk nested SymbolRefAttrs, we don't
+          // want to accidentally replace an inner reference.
+          if (attr == oldAttr)
+            return {newAttr, WalkResult::skip()};
+          // Handle prefix matches.
+          if (isReferencePrefixOf(oldAttr, attr)) {
             auto oldNestedRefs = oldAttr.getNestedReferences();
-            auto nestedRefs = symRef.getNestedReferences();
+            auto nestedRefs = attr.getNestedReferences();
             if (oldNestedRefs.empty())
               return {SymbolRefAttr::get(newSymbol, nestedRefs),
                       WalkResult::skip()};
 
             auto newNestedRefs = llvm::to_vector<4>(nestedRefs);
             newNestedRefs[oldNestedRefs.size() - 1] = newLeafAttr;
-            return {
-                SymbolRefAttr::get(symRef.getRootReference(), newNestedRefs),
-                WalkResult::skip()};
+            return {SymbolRefAttr::get(attr.getRootReference(), newNestedRefs),
+                    WalkResult::skip()};
           }
           return {attr, WalkResult::skip()};
-        }
-        return {attr, WalkResult::advance()};
-      };
-      // Generate a new attribute dictionary by replacing references to the old
-      // symbol.
-      auto newDict = op->getAttrDictionary().replaceSubElements(remapAttrFn);
-      if (!newDict)
-        return WalkResult::interrupt();
+        });
 
-      op->setAttrs(newDict.template cast<DictionaryAttr>());
+    auto walkFn = [&](Operation *op) -> Optional<WalkResult> {
+      replacer.replaceElementsIn(op);
       return WalkResult::advance();
     };
     if (!scope.walkSymbolTable(walkFn))

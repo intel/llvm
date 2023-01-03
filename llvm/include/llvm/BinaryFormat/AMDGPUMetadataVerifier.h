@@ -16,7 +16,6 @@
 #ifndef LLVM_BINARYFORMAT_AMDGPUMETADATAVERIFIER_H
 #define LLVM_BINARYFORMAT_AMDGPUMETADATAVERIFIER_H
 
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/StringRef.h"
@@ -50,7 +49,7 @@ class MetadataVerifier {
   bool verifyInteger(msgpack::DocNode &Node);
   bool verifyArray(msgpack::DocNode &Node,
                    function_ref<bool(msgpack::DocNode &)> verifyNode,
-                   Optional<size_t> Size = None);
+                   Optional<size_t> Size = std::nullopt);
   bool verifyEntry(msgpack::MapDocNode &MapNode, StringRef Key, bool Required,
                    function_ref<bool(msgpack::DocNode &)> verifyNode);
   bool

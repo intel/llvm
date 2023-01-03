@@ -835,7 +835,8 @@ public:
       auto ElemTypeName = expectIdent();
       if (ElemTypeName.empty())
         return true;
-      Optional<wasm::ValType> ElemType = WebAssembly::parseType(ElemTypeName);
+      std::optional<wasm::ValType> ElemType =
+          WebAssembly::parseType(ElemTypeName);
       if (!ElemType)
         return error("Unknown type in .tabletype directive: ", ElemTypeTok);
 
@@ -1057,7 +1058,7 @@ public:
     llvm_unreachable("Implement any new match types added!");
   }
 
-  void doBeforeLabelEmit(MCSymbol *Symbol) override {
+  void doBeforeLabelEmit(MCSymbol *Symbol, SMLoc IDLoc) override {
     // Code below only applies to labels in text sections.
     auto CWS = cast<MCSectionWasm>(getStreamer().getCurrentSection().first);
     if (!CWS || !CWS->getKind().isText())
@@ -1067,7 +1068,7 @@ public:
     // Unlike other targets, we don't allow data in text sections (labels
     // declared with .type @object).
     if (WasmSym->getType() == wasm::WASM_SYMBOL_TYPE_DATA) {
-      Parser.Error(Parser.getTok().getLoc(),
+      Parser.Error(IDLoc,
                    "Wasm doesn\'t support data symbols in text sections");
       return;
     }
@@ -1106,17 +1107,6 @@ public:
       TC.endOfFunction(ErrorLoc);
     // Reset the type checker state.
     TC.Clear();
-
-    // Automatically output a .size directive, so it becomes optional for the
-    // user.
-    if (!LastFunctionLabel) return;
-    auto TempSym = getContext().createLinkerPrivateTempSymbol();
-    getStreamer().emitLabel(TempSym);
-    auto Start = MCSymbolRefExpr::create(LastFunctionLabel, getContext());
-    auto End = MCSymbolRefExpr::create(TempSym, getContext());
-    auto Expr =
-        MCBinaryExpr::create(MCBinaryExpr::Sub, End, Start, getContext());
-    getStreamer().emitELFSize(LastFunctionLabel, Expr);
   }
 
   void onEndOfFile() override { ensureEmptyNestingStack(); }

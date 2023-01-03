@@ -94,9 +94,9 @@ ModulePass *createAMDGPULowerIntrinsicsPass();
 void initializeAMDGPULowerIntrinsicsPass(PassRegistry &);
 extern char &AMDGPULowerIntrinsicsID;
 
-ModulePass *createAMDGPUCtorDtorLoweringPass();
-void initializeAMDGPUCtorDtorLoweringPass(PassRegistry &);
-extern char &AMDGPUCtorDtorLoweringID;
+ModulePass *createAMDGPUCtorDtorLoweringLegacyPass();
+void initializeAMDGPUCtorDtorLoweringLegacyPass(PassRegistry &);
+extern char &AMDGPUCtorDtorLoweringLegacyPassID;
 
 FunctionPass *createAMDGPULowerKernelArgumentsPass();
 void initializeAMDGPULowerKernelArgumentsPass(PassRegistry &);
@@ -292,6 +292,10 @@ extern char &AMDGPUCodeGenPrepareID;
 
 void initializeAMDGPULateCodeGenPreparePass(PassRegistry &);
 extern char &AMDGPULateCodeGenPrepareID;
+
+FunctionPass *createAMDGPURewriteUndefForPHIPass();
+void initializeAMDGPURewriteUndefForPHIPass(PassRegistry &);
+extern char &AMDGPURewriteUndefForPHIPassID;
 
 void initializeSIAnnotateControlFlowPass(PassRegistry&);
 extern char &SIAnnotateControlFlowPassID;

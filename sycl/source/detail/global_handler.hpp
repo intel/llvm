@@ -24,6 +24,7 @@ class ProgramManager;
 class Sync;
 class plugin;
 class device_filter_list;
+class ods_target_list;
 class XPTIRegistry;
 class ThreadPool;
 
@@ -53,6 +54,7 @@ public:
   GlobalHandler(const GlobalHandler &) = delete;
   GlobalHandler(GlobalHandler &&) = delete;
 
+  void registerSchedulerUsage(bool ModifyCounter = true);
   Scheduler &getScheduler();
   ProgramManager &getProgramManager();
   Sync &getSync();
@@ -66,14 +68,20 @@ public:
   std::mutex &getFilterMutex();
   std::vector<plugin> &getPlugins();
   device_filter_list &getDeviceFilterList(const std::string &InitValue);
+  ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
-  std::mutex &getHandlerExtendedMembersMutex();
   ThreadPool &getHostTaskThreadPool();
 
   static void registerDefaultContextReleaseHandler();
 
+  void unloadPlugins();
+  void releaseDefaultContexts();
+  void drainThreadPool();
+
+  // For testing purposes only
+  void attachScheduler(Scheduler *Scheduler);
+
 private:
-  friend void releaseDefaultContexts();
   friend void shutdown();
 
   // Constructor and destructor are declared out-of-line to allow incomplete
@@ -100,9 +108,8 @@ private:
   InstWithLock<std::mutex> MFilterMutex;
   InstWithLock<std::vector<plugin>> MPlugins;
   InstWithLock<device_filter_list> MDeviceFilterList;
+  InstWithLock<ods_target_list> MOneapiDeviceSelectorTargets;
   InstWithLock<XPTIRegistry> MXPTIRegistry;
-  // The mutex for synchronizing accesses to handlers extended members
-  InstWithLock<std::mutex> MHandlerExtendedMembersMutex;
   // Thread pool for host task and event callbacks execution
   InstWithLock<ThreadPool> MHostTaskThreadPool;
 };

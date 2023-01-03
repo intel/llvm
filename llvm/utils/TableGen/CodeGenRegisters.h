@@ -154,6 +154,7 @@ namespace llvm {
     bool CoveredBySubRegs;
     bool HasDisjunctSubRegs;
     bool Artificial;
+    bool Constant;
 
     // Map SubRegIndex -> Register.
     typedef std::map<CodeGenSubRegIndex *, CodeGenRegister *,
@@ -331,6 +332,7 @@ namespace llvm {
     bool Allocatable;
     StringRef AltOrderSelect;
     uint8_t AllocationPriority;
+    bool GlobalPriority;
     uint8_t TSFlags;
     /// Contains the combination of the lane masks of all subregisters.
     LaneBitmask LaneMask;
@@ -390,7 +392,7 @@ namespace llvm {
     /// \return std::pair<SubClass, SubRegClass> where SubClass is a SubClass is
     /// a class where every register has SubIdx and SubRegClass is a class where
     /// every register is covered by the SubIdx subregister of SubClass.
-    Optional<std::pair<CodeGenRegisterClass *, CodeGenRegisterClass *>>
+    std::optional<std::pair<CodeGenRegisterClass *, CodeGenRegisterClass *>>
     getMatchingSubClassWithSubRegs(CodeGenRegBank &RegBank,
                                    const CodeGenSubRegIndex *SubIdx) const;
 

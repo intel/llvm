@@ -1,4 +1,0 @@
-__SYCL_PARAM_TRAITS_SPEC(program, context, sycl::context)
-__SYCL_PARAM_TRAITS_SPEC(program, devices, std::vector<sycl::device>)
-__SYCL_PARAM_TRAITS_SPEC(program, reference_count, uint32_t)
-

@@ -10,6 +10,7 @@
 #include "SchedulerTestUtils.hpp"
 
 #include <detail/config.hpp>
+#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
 
 #include <algorithm>
@@ -27,7 +28,7 @@ inline constexpr auto DisablePostEnqueueCleanupName =
 // overflowed.
 // Checks that in case of different contexts for deleted leaf and a new one
 // ConnectCmd will be created and scheduler will build the following dependency
-// structure: NewLeaf->EmptyCmd/ConnectCmd->OldLeaf
+// structure: NewLeaf->ConnectCmd->OldLeaf
 TEST_F(SchedulerTest, LeafLimitDiffContexts) {
   // All of the mock commands are owned on the test side, prevent post enqueue
   // cleanup from deleting some of them.
@@ -35,14 +36,10 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
       DisablePostEnqueueCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
 
-  default_selector Selector;
-  device Device = Selector.select_device();
-  // ConnectCmd will not be created for host contextx
-  if (Device.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return;
-  }
+  // Ensure the mock plugin has been initialized prior to selecting a device.
+  unittest::PiMock::EnsureMockPluginInitialized();
 
+  device Device;
   struct QueueRelatedObjects {
     context Context;
     queue Queue;
@@ -123,7 +120,7 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
            Leaves.end());
   }
 
-  // Check NewLeaf->EmptyCmd/ConnectCmd->OldLeaf structure
+  // Check NewLeaf->ConnectCmd->OldLeaf structure
   MockCommand *OldestLeaf = AddedLeaves.front().get();
   MockCommand *NewestLeaf = AddedLeaves.back().get();
   // The only user for oldLeaf must be ConnectCmd
@@ -139,10 +136,9 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
   // Check NewLeaf dependencies in depth by MUsers
   auto ConnectCmdIt = OldestLeaf->MUsers.begin();
   ASSERT_EQ((*ConnectCmdIt)->MUsers.size(), 1U);
-  auto EmptyCmdIt = (*ConnectCmdIt)->MUsers.begin();
   EXPECT_TRUE(std::any_of(NewestLeaf->MDeps.begin(), NewestLeaf->MDeps.end(),
                           [&](const detail::DepDesc &DD) {
-                            return DD.MDepCommand == (*EmptyCmdIt);
+                            return DD.MDepCommand == (*ConnectCmdIt);
                           }));
   // ConnectCmd is created internally in scheduler and not a mock object
   // This fact leads to active scheduler shutdown process that deletes a

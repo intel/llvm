@@ -25,7 +25,8 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cmath>
-#include <cstring>
+#include <optional>
+
 using namespace llvm;
 
 #define DEBUG_TYPE "apint"
@@ -2770,7 +2771,7 @@ APInt llvm::APIntOps::RoundingSDiv(const APInt &A, const APInt &B,
   llvm_unreachable("Unknown APInt::Rounding enum");
 }
 
-Optional<APInt>
+std::optional<APInt>
 llvm::APIntOps::SolveQuadraticEquationWrap(APInt A, APInt B, APInt C,
                                            unsigned RangeWidth) {
   unsigned CoeffWidth = A.getBitWidth();
@@ -2952,7 +2953,7 @@ llvm::APIntOps::SolveQuadraticEquationWrap(APInt A, APInt B, APInt C,
   // between them, so they would both be contained between X and X+1.
   if (!SignChange) {
     LLVM_DEBUG(dbgs() << __func__ << ": no valid solution\n");
-    return None;
+    return std::nullopt;
   }
 
   X += 1;
@@ -2960,11 +2961,11 @@ llvm::APIntOps::SolveQuadraticEquationWrap(APInt A, APInt B, APInt C,
   return X;
 }
 
-Optional<unsigned>
+std::optional<unsigned>
 llvm::APIntOps::GetMostSignificantDifferentBit(const APInt &A, const APInt &B) {
   assert(A.getBitWidth() == B.getBitWidth() && "Must have the same bitwidth");
   if (A == B)
-    return llvm::None;
+    return std::nullopt;
   return A.getBitWidth() - ((A ^ B).countLeadingZeros() + 1);
 }
 

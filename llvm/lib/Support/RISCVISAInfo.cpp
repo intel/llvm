@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Support/RISCVISAInfo.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringExtras.h"
@@ -17,6 +16,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <array>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -101,16 +101,21 @@ static const RISCVSupportedExtension SupportedExtensions[] = {
     {"zicbom", RISCVExtensionVersion{1, 0}},
     {"zicboz", RISCVExtensionVersion{1, 0}},
     {"zicbop", RISCVExtensionVersion{1, 0}},
+
+    {"svnapot", RISCVExtensionVersion{1, 0}},
+    {"svinval", RISCVExtensionVersion{1, 0}},
+    {"xventanacondops", RISCVExtensionVersion{1, 0}},
 };
 
 static const RISCVSupportedExtension SupportedExperimentalExtensions[] = {
-    {"zbe", RISCVExtensionVersion{0, 93}},
-    {"zbf", RISCVExtensionVersion{0, 93}},
-    {"zbm", RISCVExtensionVersion{0, 93}},
-    {"zbp", RISCVExtensionVersion{0, 93}},
-    {"zbr", RISCVExtensionVersion{0, 93}},
-    {"zbt", RISCVExtensionVersion{0, 93}},
+    {"zihintntl", RISCVExtensionVersion{0, 2}},
+
+    {"zca", RISCVExtensionVersion{0, 70}},
+    {"zcd", RISCVExtensionVersion{0, 70}},
+    {"zcf", RISCVExtensionVersion{0, 70}},
     {"zvfh", RISCVExtensionVersion{0, 1}},
+    {"zawrs", RISCVExtensionVersion{1, 0}},
+    {"ztso", RISCVExtensionVersion{0, 1}},
 };
 
 static bool stripExperimentalPrefix(StringRef &Ext) {
@@ -118,7 +123,7 @@ static bool stripExperimentalPrefix(StringRef &Ext) {
 }
 
 // This function finds the first character that doesn't belong to a version
-// (e.g. zbe0p93 is extension 'zbe' of version '0p93'). So the function will
+// (e.g. zba1p0 is extension 'zba' of version '1p0'). So the function will
 // consume [0-9]*p[0-9]* starting from the backward. An extension name will not
 // end with a digit or the letter 'p', so this function will parse correctly.
 // NOTE: This function is NOT able to take empty strings or strings that only
@@ -139,6 +144,7 @@ static size_t findFirstNonVersionCharacter(StringRef Ext) {
   return Pos;
 }
 
+namespace {
 struct FindByName {
   FindByName(StringRef Ext) : Ext(Ext){};
   StringRef Ext;
@@ -146,8 +152,10 @@ struct FindByName {
     return ExtInfo.Name == Ext;
   }
 };
+} // namespace
 
-static Optional<RISCVExtensionVersion> findDefaultVersion(StringRef ExtName) {
+static std::optional<RISCVExtensionVersion>
+findDefaultVersion(StringRef ExtName) {
   // Find default version of an extension.
   // TODO: We might set default version based on profile or ISA spec.
   for (auto &ExtInfo : {makeArrayRef(SupportedExtensions),
@@ -159,7 +167,7 @@ static Optional<RISCVExtensionVersion> findDefaultVersion(StringRef ExtName) {
     }
     return ExtensionInfoIterator->Version;
   }
-  return None;
+  return std::nullopt;
 }
 
 void RISCVISAInfo::addExtension(StringRef ExtName, unsigned MajorVersion,
@@ -195,11 +203,12 @@ static StringRef getExtensionType(StringRef Ext) {
   return StringRef();
 }
 
-static Optional<RISCVExtensionVersion> isExperimentalExtension(StringRef Ext) {
+static std::optional<RISCVExtensionVersion>
+isExperimentalExtension(StringRef Ext) {
   auto ExtIterator =
       llvm::find_if(SupportedExperimentalExtensions, FindByName(Ext));
   if (ExtIterator == std::end(SupportedExperimentalExtensions))
-    return None;
+    return std::nullopt;
 
   return ExtIterator->Version;
 }
@@ -547,7 +556,7 @@ RISCVISAInfo::parseArchString(StringRef Arch, bool EnableExperimentalExtension,
     // No matter which version is given to `g`, we always set imafd to default
     // version since the we don't have clear version scheme for that on
     // ISA spec.
-    for (auto Ext : {"i", "m", "a", "f", "d"})
+    for (const auto *Ext : {"i", "m", "a", "f", "d"})
       if (auto Version = findDefaultVersion(Ext))
         ISAInfo->addExtension(Ext, Version->Major, Version->Minor);
       else
@@ -600,8 +609,8 @@ RISCVISAInfo::parseArchString(StringRef Arch, bool EnableExperimentalExtension,
 
     // The order is OK, then push it into features.
     // TODO: Use version number when setting target features
-    // Currently LLVM supports only "mafdcbv".
-    StringRef SupportedStandardExtension = "mafdcbv";
+    // Currently LLVM supports only "mafdcv".
+    StringRef SupportedStandardExtension = "mafdcv";
     if (!SupportedStandardExtension.contains(C))
       return createStringError(errc::invalid_argument,
                                "unsupported standard user-level extension '%c'",

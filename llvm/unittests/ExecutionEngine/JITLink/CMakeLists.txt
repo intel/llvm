@@ -2,6 +2,7 @@ set(LLVM_LINK_COMPONENTS
   ${LLVM_TARGETS_TO_BUILD}
   JITLink
   Object
+  OrcJIT
   OrcShared
   OrcTargetProcess
   RuntimeDyld
@@ -9,6 +10,7 @@ set(LLVM_LINK_COMPONENTS
   )
 
 add_llvm_unittest(JITLinkTests
+    EHFrameSupportTests.cpp
     LinkGraphTests.cpp
   )
 

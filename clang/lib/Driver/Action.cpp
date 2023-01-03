@@ -25,7 +25,6 @@ const char *Action::getClassName(ActionClass AC) {
     return "offload";
   case PreprocessJobClass: return "preprocessor";
   case PrecompileJobClass: return "precompiler";
-  case HeaderModulePrecompileJobClass: return "header-module-precompiler";
   case ExtractAPIJobClass:
     return "api-extractor";
   case AnalyzeJobClass: return "analyzer";
@@ -227,7 +226,7 @@ OffloadAction::OffloadAction(const DeviceDependences &DDeps, types::ID Ty)
   auto &OTCs = DDeps.getToolChains();
 
   // If all inputs agree on the same kind, use it also for this action.
-  if (llvm::all_of(OKinds, [&](OffloadKind K) { return K == OKinds.front(); }))
+  if (llvm::all_equal(OKinds))
     OffloadingDeviceKind = OKinds.front();
 
   // If we have a single dependency, inherit the architecture from it.
@@ -336,6 +335,19 @@ void OffloadAction::DeviceDependences::add(Action &A, const ToolChain &TC,
   DeviceOffloadKinds.push_back(OKind);
 }
 
+void OffloadAction::DeviceDependences::add(Action &A, const ToolChain &TC,
+                                           const char *BoundArch,
+                                           unsigned OffloadKindMask) {
+  DeviceActions.push_back(&A);
+  DeviceToolChains.push_back(&TC);
+  DeviceBoundArchs.push_back(BoundArch);
+
+  // Add each active offloading kind from a mask.
+  for (OffloadKind OKind : {OFK_OpenMP, OFK_Cuda, OFK_HIP})
+    if (OKind & OffloadKindMask)
+      DeviceOffloadKinds.push_back(OKind);
+}
+
 OffloadAction::HostDependence::HostDependence(Action &A, const ToolChain &TC,
                                               const char *BoundArch,
                                               const DeviceDependences &DDeps)
@@ -367,13 +379,6 @@ PrecompileJobAction::PrecompileJobAction(ActionClass Kind, Action *Input,
     : JobAction(Kind, Input, OutputType) {
   assert(isa<PrecompileJobAction>((Action*)this) && "invalid action kind");
 }
-
-void HeaderModulePrecompileJobAction::anchor() {}
-
-HeaderModulePrecompileJobAction::HeaderModulePrecompileJobAction(
-    Action *Input, types::ID OutputType, const char *ModuleName)
-    : PrecompileJobAction(HeaderModulePrecompileJobClass, Input, OutputType),
-      ModuleName(ModuleName) {}
 
 void ExtractAPIJobAction::anchor() {}
 
@@ -560,6 +565,10 @@ void FileTableTformJobAction::addCopySingleFileTform(StringRef ColumnName,
                                                      int Row) {
   Tforms.emplace_back(
       Tform(Tform::COPY_SINGLE_FILE, {ColumnName, std::to_string(Row)}));
+}
+
+void FileTableTformJobAction::addMergeTform(StringRef ColumnName) {
+  Tforms.emplace_back(Tform(Tform::MERGE, {ColumnName}));
 }
 
 void AppendFooterJobAction::anchor() {}

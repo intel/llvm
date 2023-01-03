@@ -331,7 +331,6 @@ void setTags(clangd::Diag &D) {
       diag::warn_deprecated,
       diag::warn_deprecated_altivec_src_compat,
       diag::warn_deprecated_comma_subscript,
-      diag::warn_deprecated_compound_assign_volatile,
       diag::warn_deprecated_copy,
       diag::warn_deprecated_copy_with_dtor,
       diag::warn_deprecated_copy_with_user_provided_copy,
@@ -625,7 +624,7 @@ void StoreDiags::BeginSourceFile(const LangOptions &Opts,
 
 void StoreDiags::EndSourceFile() {
   flushLastDiag();
-  LangOpts = None;
+  LangOpts = std::nullopt;
   OrigSrcMgr = nullptr;
 }
 
@@ -918,9 +917,19 @@ llvm::Optional<std::string> getDiagnosticDocURI(Diag::DiagSource Source,
     // information to be worth linking.
     // https://clang.llvm.org/docs/DiagnosticsReference.html
     break;
-  case Diag::ClangTidy:
-    return {("https://clang.llvm.org/extra/clang-tidy/checks/" + Name + ".html")
-                .str()};
+  case Diag::ClangTidy: {
+    StringRef Module, Check;
+    // This won't correctly get the module for clang-analyzer checks, but as we
+    // don't link in the analyzer that shouldn't be an issue.
+    // This would also need updating if anyone decides to create a module with a
+    // '-' in the name.
+    std::tie(Module, Check) = Name.split('-');
+    if (Module.empty() || Check.empty())
+      return std::nullopt;
+    return ("https://clang.llvm.org/extra/clang-tidy/checks/" + Module + "/" +
+            Check + ".html")
+        .str();
+  }
   case Diag::Clangd:
     if (Name == "unused-includes")
       return {"https://clangd.llvm.org/guides/include-cleaner"};
@@ -930,7 +939,7 @@ llvm::Optional<std::string> getDiagnosticDocURI(Diag::DiagSource Source,
     // However we have no diagnostic codes, which the link should describe!
     break;
   }
-  return llvm::None;
+  return std::nullopt;
 }
 
 } // namespace clangd

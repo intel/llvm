@@ -9,9 +9,9 @@
 #pragma once
 
 #include <detail/config.hpp>
+#include <detail/device_binary_image.hpp>
 #include <fcntl.h>
 #include <string>
-#include <sycl/detail/device_binary_image.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/detail/util.hpp>

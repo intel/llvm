@@ -217,14 +217,6 @@ public:
   ParseResult parseIntegerInDimensionList(int64_t &value);
   ParseResult parseXInDimensionList();
 
-  /// Parse strided layout specification.
-  ParseResult parseStridedLayout(int64_t &offset,
-                                 SmallVectorImpl<int64_t> &strides);
-
-  // Parse a brace-delimiter list of comma-separated integers with `?` as an
-  // unknown marker.
-  ParseResult parseStrideList(SmallVectorImpl<int64_t> &dimensions);
-
   //===--------------------------------------------------------------------===//
   // Attribute Parsing
   //===--------------------------------------------------------------------===//
@@ -244,7 +236,7 @@ public:
                                                       AttributeT &attr,
                                                       Type type = {}) {
     if (getToken().isNot(kind))
-      return llvm::None;
+      return std::nullopt;
 
     if (Attribute parsedAttr = parseAttribute(type)) {
       attr = parsedAttr.cast<AttributeT>();
@@ -274,10 +266,13 @@ public:
   Attribute parseDenseResourceElementsAttr(Type attrType);
 
   /// Parse a DenseArrayAttr.
-  Attribute parseDenseArrayAttr();
+  Attribute parseDenseArrayAttr(Type type);
 
   /// Parse a sparse elements attribute.
   Attribute parseSparseElementsAttr(Type attrType);
+
+  /// Parse a strided layout attribute.
+  Attribute parseStridedLayoutAttr();
 
   //===--------------------------------------------------------------------===//
   // Location Parsing

@@ -21,6 +21,21 @@
 
 namespace mlir {
 
+/// Represents a range (offset, size, and stride) where each element of the
+/// triple may be dynamic or static.
+struct Range {
+  OpFoldResult offset;
+  OpFoldResult size;
+  OpFoldResult stride;
+};
+
+/// Given an array of Range values, return a tuple of (offset vector, sizes
+/// vector, and strides vector) formed by separating out the individual elements
+/// of each range.
+std::tuple<SmallVector<OpFoldResult>, SmallVector<OpFoldResult>,
+           SmallVector<OpFoldResult>>
+getOffsetsSizesAndStrides(ArrayRef<Range> ranges);
+
 /// Helper function to dispatch an OpFoldResult into `staticVec` if:
 ///   a) it is an IntegerAttr
 /// In other cases, the OpFoldResult is dispached to the `dynamicVec`.
@@ -64,6 +79,25 @@ bool isConstantIntValue(OpFoldResult ofr, int64_t value);
 /// Ignore integer bitwitdh and type mismatch that come from the fact there is
 /// no IndexAttr and that IndexType have no bitwidth.
 bool isEqualConstantIntOrValue(OpFoldResult ofr1, OpFoldResult ofr2);
+
+/// Helper function to convert a vector of `OpFoldResult`s into a vector of
+/// `Value`s. For each `OpFoldResult` in `valueOrAttrVec` return the fold result
+/// if it casts to  a `Value` or create an index-type constant if it casts to
+/// `IntegerAttr`. No other attribute types are supported.
+SmallVector<Value> getAsValues(OpBuilder &b, Location loc,
+                               ArrayRef<OpFoldResult> valueOrAttrVec);
+
+/// Return a vector of OpFoldResults with the same size a staticValues, but all
+/// elements for which ShapedType::isDynamic is true, will be replaced by
+/// dynamicValues.
+SmallVector<OpFoldResult> getMixedValues(ArrayRef<int64_t> staticValues,
+                                         ValueRange dynamicValues, Builder &b);
+
+/// Decompose a vector of mixed static or dynamic values into the corresponding
+/// pair of arrays. This is the inverse function of `getMixedValues`.
+std::pair<ArrayAttr, SmallVector<Value>>
+decomposeMixedValues(Builder &b,
+                     const SmallVectorImpl<OpFoldResult> &mixedValues);
 
 } // namespace mlir
 

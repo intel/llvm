@@ -13,7 +13,6 @@
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfoMetadata.h"
@@ -32,6 +31,7 @@
 #include "llvm/Support/Casting.h"
 #include <cassert>
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 using namespace llvm;
@@ -526,6 +526,14 @@ CallInst *IRBuilderBase::CreateInvariantStart(Value *Ptr, ConstantInt *Size) {
   return CreateCall(TheFn, Ops);
 }
 
+static MaybeAlign getAlign(Value *Ptr) {
+  if (auto *O = dyn_cast<GlobalObject>(Ptr))
+    return O->getAlign();
+  if (auto *A = dyn_cast<GlobalAlias>(Ptr))
+    return A->getAliaseeObject()->getAlign();
+  return {};
+}
+
 CallInst *IRBuilderBase::CreateThreadLocalAddress(Value *Ptr) {
 #ifndef NDEBUG
   // Handle specially for constexpr cast. This is possible when
@@ -540,8 +548,13 @@ CallInst *IRBuilderBase::CreateThreadLocalAddress(Value *Ptr) {
   assert(isa<GlobalValue>(V) && cast<GlobalValue>(V)->isThreadLocal() &&
          "threadlocal_address only applies to thread local variables.");
 #endif
-  return CreateIntrinsic(llvm::Intrinsic::threadlocal_address, {Ptr->getType()},
-                         {Ptr});
+  CallInst *CI = CreateIntrinsic(llvm::Intrinsic::threadlocal_address,
+                                 {Ptr->getType()}, {Ptr});
+  if (MaybeAlign A = getAlign(Ptr)) {
+    CI->addParamAttr(0, Attribute::getWithAlignment(CI->getContext(), *A));
+    CI->addRetAttr(Attribute::getWithAlignment(CI->getContext(), *A));
+  }
+  return CI;
 }
 
 CallInst *
@@ -580,7 +593,7 @@ CallInst *IRBuilderBase::CreateMaskedLoad(Type *Ty, Value *Ptr, Align Alignment,
   assert(PtrTy->isOpaqueOrPointeeTypeMatches(Ty) && "Wrong element type");
   assert(Mask && "Mask should not be all-ones (null)");
   if (!PassThru)
-    PassThru = UndefValue::get(Ty);
+    PassThru = PoisonValue::get(Ty);
   Type *OverloadedTypes[] = { Ty, PtrTy };
   Value *Ops[] = {Ptr, getInt32(Alignment.value()), Mask, PassThru};
   return CreateMaskedIntrinsic(Intrinsic::masked_load, Ops,
@@ -644,7 +657,7 @@ CallInst *IRBuilderBase::CreateMaskedGather(Type *Ty, Value *Ptrs,
         VectorType::get(Type::getInt1Ty(Context), NumElts));
 
   if (!PassThru)
-    PassThru = UndefValue::get(Ty);
+    PassThru = PoisonValue::get(Ty);
 
   Type *OverloadedTypes[] = {Ty, PtrsTy};
   Value *Ops[] = {Ptrs, getInt32(Alignment.value()), Mask, PassThru};
@@ -687,6 +700,53 @@ CallInst *IRBuilderBase::CreateMaskedScatter(Value *Data, Value *Ptrs,
   return CreateMaskedIntrinsic(Intrinsic::masked_scatter, Ops, OverloadedTypes);
 }
 
+/// Create a call to Masked Expand Load intrinsic
+/// \p Ty        - vector type to load
+/// \p Ptr       - base pointer for the load
+/// \p Mask      - vector of booleans which indicates what vector lanes should
+///                be accessed in memory
+/// \p PassThru  - pass-through value that is used to fill the masked-off lanes
+///                of the result
+/// \p Name      - name of the result variable
+CallInst *IRBuilderBase::CreateMaskedExpandLoad(Type *Ty, Value *Ptr,
+                                                Value *Mask, Value *PassThru,
+                                                const Twine &Name) {
+  auto *PtrTy = cast<PointerType>(Ptr->getType());
+  assert(Ty->isVectorTy() && "Type should be vector");
+  assert(PtrTy->isOpaqueOrPointeeTypeMatches(
+             cast<FixedVectorType>(Ty)->getElementType()) &&
+         "Wrong element type");
+  (void)PtrTy;
+  assert(Mask && "Mask should not be all-ones (null)");
+  if (!PassThru)
+    PassThru = PoisonValue::get(Ty);
+  Type *OverloadedTypes[] = {Ty};
+  Value *Ops[] = {Ptr, Mask, PassThru};
+  return CreateMaskedIntrinsic(Intrinsic::masked_expandload, Ops,
+                               OverloadedTypes, Name);
+}
+
+/// Create a call to Masked Compress Store intrinsic
+/// \p Val       - data to be stored,
+/// \p Ptr       - base pointer for the store
+/// \p Mask      - vector of booleans which indicates what vector lanes should
+///                be accessed in memory
+CallInst *IRBuilderBase::CreateMaskedCompressStore(Value *Val, Value *Ptr,
+                                                   Value *Mask) {
+  auto *PtrTy = cast<PointerType>(Ptr->getType());
+  Type *DataTy = Val->getType();
+  assert(DataTy->isVectorTy() && "Val should be a vector");
+  assert(PtrTy->isOpaqueOrPointeeTypeMatches(
+             cast<FixedVectorType>(DataTy)->getElementType()) &&
+         "Wrong element type");
+  (void)PtrTy;
+  assert(Mask && "Mask should not be all-ones (null)");
+  Type *OverloadedTypes[] = {DataTy};
+  Value *Ops[] = {Val, Ptr, Mask};
+  return CreateMaskedIntrinsic(Intrinsic::masked_compressstore, Ops,
+                               OverloadedTypes);
+}
+
 template <typename T0>
 static std::vector<Value *>
 getStatepointArgs(IRBuilderBase &B, uint64_t ID, uint32_t NumPatchBytes,
@@ -708,8 +768,8 @@ getStatepointArgs(IRBuilderBase &B, uint64_t ID, uint32_t NumPatchBytes,
 
 template<typename T1, typename T2, typename T3>
 static std::vector<OperandBundleDef>
-getStatepointBundles(Optional<ArrayRef<T1>> TransitionArgs,
-                     Optional<ArrayRef<T2>> DeoptArgs,
+getStatepointBundles(std::optional<ArrayRef<T1>> TransitionArgs,
+                     std::optional<ArrayRef<T2>> DeoptArgs,
                      ArrayRef<T3> GCArgs) {
   std::vector<OperandBundleDef> Rval;
   if (DeoptArgs) {
@@ -734,8 +794,9 @@ template <typename T0, typename T1, typename T2, typename T3>
 static CallInst *CreateGCStatepointCallCommon(
     IRBuilderBase *Builder, uint64_t ID, uint32_t NumPatchBytes,
     FunctionCallee ActualCallee, uint32_t Flags, ArrayRef<T0> CallArgs,
-    Optional<ArrayRef<T1>> TransitionArgs, Optional<ArrayRef<T2>> DeoptArgs,
-    ArrayRef<T3> GCArgs, const Twine &Name) {
+    std::optional<ArrayRef<T1>> TransitionArgs,
+    std::optional<ArrayRef<T2>> DeoptArgs, ArrayRef<T3> GCArgs,
+    const Twine &Name) {
   Module *M = Builder->GetInsertBlock()->getParent()->getParent();
   // Fill in the one generic type'd argument (the function is also vararg)
   Function *FnStatepoint =
@@ -756,18 +817,19 @@ static CallInst *CreateGCStatepointCallCommon(
 
 CallInst *IRBuilderBase::CreateGCStatepointCall(
     uint64_t ID, uint32_t NumPatchBytes, FunctionCallee ActualCallee,
-    ArrayRef<Value *> CallArgs, Optional<ArrayRef<Value *>> DeoptArgs,
+    ArrayRef<Value *> CallArgs, std::optional<ArrayRef<Value *>> DeoptArgs,
     ArrayRef<Value *> GCArgs, const Twine &Name) {
   return CreateGCStatepointCallCommon<Value *, Value *, Value *, Value *>(
       this, ID, NumPatchBytes, ActualCallee, uint32_t(StatepointFlags::None),
-      CallArgs, None /* No Transition Args */, DeoptArgs, GCArgs, Name);
+      CallArgs, std::nullopt /* No Transition Args */, DeoptArgs, GCArgs, Name);
 }
 
 CallInst *IRBuilderBase::CreateGCStatepointCall(
     uint64_t ID, uint32_t NumPatchBytes, FunctionCallee ActualCallee,
     uint32_t Flags, ArrayRef<Value *> CallArgs,
-    Optional<ArrayRef<Use>> TransitionArgs, Optional<ArrayRef<Use>> DeoptArgs,
-    ArrayRef<Value *> GCArgs, const Twine &Name) {
+    std::optional<ArrayRef<Use>> TransitionArgs,
+    std::optional<ArrayRef<Use>> DeoptArgs, ArrayRef<Value *> GCArgs,
+    const Twine &Name) {
   return CreateGCStatepointCallCommon<Value *, Use, Use, Value *>(
       this, ID, NumPatchBytes, ActualCallee, Flags, CallArgs, TransitionArgs,
       DeoptArgs, GCArgs, Name);
@@ -775,11 +837,11 @@ CallInst *IRBuilderBase::CreateGCStatepointCall(
 
 CallInst *IRBuilderBase::CreateGCStatepointCall(
     uint64_t ID, uint32_t NumPatchBytes, FunctionCallee ActualCallee,
-    ArrayRef<Use> CallArgs, Optional<ArrayRef<Value *>> DeoptArgs,
+    ArrayRef<Use> CallArgs, std::optional<ArrayRef<Value *>> DeoptArgs,
     ArrayRef<Value *> GCArgs, const Twine &Name) {
   return CreateGCStatepointCallCommon<Use, Value *, Value *, Value *>(
       this, ID, NumPatchBytes, ActualCallee, uint32_t(StatepointFlags::None),
-      CallArgs, None, DeoptArgs, GCArgs, Name);
+      CallArgs, std::nullopt, DeoptArgs, GCArgs, Name);
 }
 
 template <typename T0, typename T1, typename T2, typename T3>
@@ -787,8 +849,9 @@ static InvokeInst *CreateGCStatepointInvokeCommon(
     IRBuilderBase *Builder, uint64_t ID, uint32_t NumPatchBytes,
     FunctionCallee ActualInvokee, BasicBlock *NormalDest,
     BasicBlock *UnwindDest, uint32_t Flags, ArrayRef<T0> InvokeArgs,
-    Optional<ArrayRef<T1>> TransitionArgs, Optional<ArrayRef<T2>> DeoptArgs,
-    ArrayRef<T3> GCArgs, const Twine &Name) {
+    std::optional<ArrayRef<T1>> TransitionArgs,
+    std::optional<ArrayRef<T2>> DeoptArgs, ArrayRef<T3> GCArgs,
+    const Twine &Name) {
   Module *M = Builder->GetInsertBlock()->getParent()->getParent();
   // Fill in the one generic type'd argument (the function is also vararg)
   Function *FnStatepoint =
@@ -811,19 +874,19 @@ static InvokeInst *CreateGCStatepointInvokeCommon(
 InvokeInst *IRBuilderBase::CreateGCStatepointInvoke(
     uint64_t ID, uint32_t NumPatchBytes, FunctionCallee ActualInvokee,
     BasicBlock *NormalDest, BasicBlock *UnwindDest,
-    ArrayRef<Value *> InvokeArgs, Optional<ArrayRef<Value *>> DeoptArgs,
+    ArrayRef<Value *> InvokeArgs, std::optional<ArrayRef<Value *>> DeoptArgs,
     ArrayRef<Value *> GCArgs, const Twine &Name) {
   return CreateGCStatepointInvokeCommon<Value *, Value *, Value *, Value *>(
       this, ID, NumPatchBytes, ActualInvokee, NormalDest, UnwindDest,
-      uint32_t(StatepointFlags::None), InvokeArgs, None /* No Transition Args*/,
-      DeoptArgs, GCArgs, Name);
+      uint32_t(StatepointFlags::None), InvokeArgs,
+      std::nullopt /* No Transition Args*/, DeoptArgs, GCArgs, Name);
 }
 
 InvokeInst *IRBuilderBase::CreateGCStatepointInvoke(
     uint64_t ID, uint32_t NumPatchBytes, FunctionCallee ActualInvokee,
     BasicBlock *NormalDest, BasicBlock *UnwindDest, uint32_t Flags,
-    ArrayRef<Value *> InvokeArgs, Optional<ArrayRef<Use>> TransitionArgs,
-    Optional<ArrayRef<Use>> DeoptArgs, ArrayRef<Value *> GCArgs,
+    ArrayRef<Value *> InvokeArgs, std::optional<ArrayRef<Use>> TransitionArgs,
+    std::optional<ArrayRef<Use>> DeoptArgs, ArrayRef<Value *> GCArgs,
     const Twine &Name) {
   return CreateGCStatepointInvokeCommon<Value *, Use, Use, Value *>(
       this, ID, NumPatchBytes, ActualInvokee, NormalDest, UnwindDest, Flags,
@@ -833,12 +896,12 @@ InvokeInst *IRBuilderBase::CreateGCStatepointInvoke(
 InvokeInst *IRBuilderBase::CreateGCStatepointInvoke(
     uint64_t ID, uint32_t NumPatchBytes, FunctionCallee ActualInvokee,
     BasicBlock *NormalDest, BasicBlock *UnwindDest, ArrayRef<Use> InvokeArgs,
-    Optional<ArrayRef<Value *>> DeoptArgs, ArrayRef<Value *> GCArgs,
+    std::optional<ArrayRef<Value *>> DeoptArgs, ArrayRef<Value *> GCArgs,
     const Twine &Name) {
   return CreateGCStatepointInvokeCommon<Use, Value *, Value *, Value *>(
       this, ID, NumPatchBytes, ActualInvokee, NormalDest, UnwindDest,
-      uint32_t(StatepointFlags::None), InvokeArgs, None, DeoptArgs, GCArgs,
-      Name);
+      uint32_t(StatepointFlags::None), InvokeArgs, std::nullopt, DeoptArgs,
+      GCArgs, Name);
 }
 
 CallInst *IRBuilderBase::CreateGCResult(Instruction *Statepoint,
@@ -939,8 +1002,8 @@ CallInst *IRBuilderBase::CreateIntrinsic(Type *RetTy, Intrinsic::ID ID,
 CallInst *IRBuilderBase::CreateConstrainedFPBinOp(
     Intrinsic::ID ID, Value *L, Value *R, Instruction *FMFSource,
     const Twine &Name, MDNode *FPMathTag,
-    Optional<RoundingMode> Rounding,
-    Optional<fp::ExceptionBehavior> Except) {
+    std::optional<RoundingMode> Rounding,
+    std::optional<fp::ExceptionBehavior> Except) {
   Value *RoundingV = getConstrainedFPRounding(Rounding);
   Value *ExceptV = getConstrainedFPExcept(Except);
 
@@ -973,8 +1036,8 @@ Value *IRBuilderBase::CreateNAryOp(unsigned Opc, ArrayRef<Value *> Ops,
 CallInst *IRBuilderBase::CreateConstrainedFPCast(
     Intrinsic::ID ID, Value *V, Type *DestTy,
     Instruction *FMFSource, const Twine &Name, MDNode *FPMathTag,
-    Optional<RoundingMode> Rounding,
-    Optional<fp::ExceptionBehavior> Except) {
+    std::optional<RoundingMode> Rounding,
+    std::optional<fp::ExceptionBehavior> Except) {
   Value *ExceptV = getConstrainedFPExcept(Except);
 
   FastMathFlags UseFMF = FMF;
@@ -1024,7 +1087,7 @@ Value *IRBuilderBase::CreateFCmpHelper(
 
 CallInst *IRBuilderBase::CreateConstrainedFPCmp(
     Intrinsic::ID ID, CmpInst::Predicate P, Value *L, Value *R,
-    const Twine &Name, Optional<fp::ExceptionBehavior> Except) {
+    const Twine &Name, std::optional<fp::ExceptionBehavior> Except) {
   Value *PredicateV = getConstrainedFPPredicate(P);
   Value *ExceptV = getConstrainedFPExcept(Except);
 
@@ -1036,8 +1099,8 @@ CallInst *IRBuilderBase::CreateConstrainedFPCmp(
 
 CallInst *IRBuilderBase::CreateConstrainedFPCall(
     Function *Callee, ArrayRef<Value *> Args, const Twine &Name,
-    Optional<RoundingMode> Rounding,
-    Optional<fp::ExceptionBehavior> Except) {
+    std::optional<RoundingMode> Rounding,
+    std::optional<fp::ExceptionBehavior> Except) {
   llvm::SmallVector<Value *, 6> UseArgs;
 
   append_range(UseArgs, Args);

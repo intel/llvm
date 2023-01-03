@@ -5,9 +5,6 @@ include "mlir/Interfaces/InferTypeOpInterface.td"
 
 def Test_Dialect : Dialect {
   let name = "test";
-
-  // TODO: Flip to _Prefixed
-  let emitAccessorPrefix = kEmitAccessorPrefix_Raw;
 }
 class NS_Op<string mnemonic, list<Trait> traits> :
     Op<Test_Dialect, mnemonic, traits>;
@@ -34,7 +31,7 @@ def OpB : NS_Op<"same_input_output_type_op", [SameOperandsAndResultType]> {
 // CHECK:   if (::mlir::succeeded(OpB::inferReturnTypes(odsBuilder.getContext(),
 // CHECK:             odsState.location, odsState.operands,
 // CHECK:             odsState.attributes.getDictionary(odsState.getContext()),
-// CHECK:             /*regions=*/{}, inferredReturnTypes)))
+// CHECK:             odsState.regions, inferredReturnTypes)))
 // CHECK:     odsState.addTypes(inferredReturnTypes);
 
 def OpC : NS_Op<"three_normal_result_op", []> {
@@ -99,10 +96,10 @@ def OpI : NS_Op<"mix_variadic_and_normal_results_op", [SameVariadicResultSize]> 
   let results = (outs Variadic<AnyTensor>:$output1, AnyTensor:$output2, Variadic<AnyTensor>:$output3);
 }
 
-// CHECK-LABEL: ::mlir::Operation::result_range OpI::output1
+// CHECK-LABEL: ::mlir::Operation::result_range OpI::getOutput1
 // CHECK-NEXT:    return getODSResults(0);
 
-// CHECK-LABEL: ::mlir::Value OpI::output2
+// CHECK-LABEL: ::mlir::TypedValue<::mlir::TensorType> OpI::getOutput2
 // CHECK-NEXT:    return *getODSResults(1).begin();
 
 // CHECK-LABEL: OpI::build
@@ -157,3 +154,10 @@ def OpL3 : NS_Op<"op_with_all_types_constraint",
 // CHECK-NOT: }
 // CHECK: ::mlir::Type odsInferredType0 = attributes.get("a").cast<::mlir::TypedAttr>().getType();
 // CHECK: inferredReturnTypes[0] = odsInferredType0;
+
+def OpM : NS_Op<"mix_diff_size_variadic_and_normal_results_op", [AttrSizedResultSegments]> {
+  let results = (outs Variadic<AnyTensor>:$output1, AnyTensor:$output2, Optional<AnyTensor>:$output3);
+}
+
+// CHECK-LABEL: OpM::build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::TypeRange output1, ::mlir::Type output2, /*optional*/::mlir::Type output3)
+// CHECK: odsState.addAttribute(getResultSegmentSizesAttrName(odsState.name), odsBuilder.getDenseI32ArrayAttr({static_cast<int32_t>(output1.size()), 1, (output3 ? 1 : 0)}));

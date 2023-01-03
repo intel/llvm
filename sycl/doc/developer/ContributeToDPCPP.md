@@ -1,5 +1,9 @@
 # Contributing to DPC++
 
+## General guidelines
+
+Read [CONTRIBUTING.md](/CONTRIBUTING.md) first.
+
 ## Maintaining stable ABI/API
 
 All changes made to the DPC++ compiler and runtime library should generally
@@ -30,6 +34,14 @@ See [Get Started Guide instructions](../GetStartedGuide.md)
 For any DPC++-related commit, the `[SYCL]` tag should be present in the
 commit message title. To a reasonable extent, additional tags can be used
 to signify the component changed, e.g.: `[PI]`, `[CUDA]`, `[Doc]`.
+
+## Using \<iostream\> 
+According to [LLVM Coding Standards](https://llvm.org/docs/CodingStandards.html#include-iostream-is-forbidden),
+the use `#include <iostream>` is forbidden in library files. Instead, the
+sycl/detail/iostream_proxy.hpp header offers the functionality of <iostream>
+without its static constructor.
+This header should be used in place of <iostream> in DPC++ headers 
+and runtime library files.
 
 ## Tests development
 

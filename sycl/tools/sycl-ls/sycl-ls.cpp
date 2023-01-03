@@ -115,6 +115,17 @@ int main(int argc, char **argv) {
         << std::endl;
   }
 
+  const char *ods_targets = std::getenv("ONEAPI_DEVICE_SELECTOR");
+  if (ods_targets) {
+    std::cerr
+        << "Warning: ONEAPI_DEVICE_SELECTOR environment variable is set to "
+        << ods_targets << "." << std::endl;
+    std::cerr
+        << "To see the correct device id, please unset ONEAPI_DEVICE_SELECTOR."
+        << std::endl
+        << std::endl;
+  }
+
   const auto &Platforms = platform::get_platforms();
 
   // Keep track of the number of devices per backend
@@ -124,6 +135,11 @@ int main(int argc, char **argv) {
     backend Backend = Platform.get_backend();
     auto PlatformName = Platform.get_info<info::platform::name>();
     const auto &Devices = Platform.get_devices();
+
+    // the device counting done here should have the same result as the counting
+    // done by SYCL itself. But technically, it is not the same method, as SYCL
+    // keeps a table of platforms:start_dev_index in each plugin.
+
     for (const auto &Device : Devices) {
       std::cout << "[" << Backend << ":" << getDeviceTypeName(Device) << ":"
                 << DeviceNums[Backend] << "] ";
@@ -166,7 +182,6 @@ int main(int argc, char **argv) {
 
   // Print built-in device selectors choice
   printSelectorChoice(default_selector(), "default_selector()      : ");
-  printSelectorChoice(host_selector(), "host_selector()         : ");
   printSelectorChoice(accelerator_selector(), "accelerator_selector()  : ");
   printSelectorChoice(cpu_selector(), "cpu_selector()          : ");
   printSelectorChoice(gpu_selector(), "gpu_selector()          : ");

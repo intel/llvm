@@ -163,6 +163,27 @@ public:
   /// Returns true if and only if context contains the given device.
   bool hasDevice(std::shared_ptr<detail::device_impl> Device) const;
 
+  /// Returns true if and only if the device can be used within this context.
+  /// For OpenCL this is currently equivalent to hasDevice, for other backends
+  /// it returns true if the device is either a member of the context or a
+  /// descendant of a member.
+  bool isDeviceValid(DeviceImplPtr Device) {
+    // OpenCL does not support using descendants of context members within that
+    // context yet.
+    // TODO remove once this limitation is lifted
+    if (!is_host() && getPlugin().getBackend() == backend::opencl)
+      return hasDevice(Device);
+
+    while (!hasDevice(Device)) {
+      if (Device->isRootDevice())
+        return false;
+      Device = detail::getSyclObjImpl(
+          Device->get_info<info::device::parent_device>());
+    }
+
+    return true;
+  }
+
   /// Given a PiDevice, returns the matching shared_ptr<device_impl>
   /// within this context. May return nullptr if no match discovered.
   DeviceImplPtr findMatchingDeviceImpl(RT::PiDevice &DevicePI) const;

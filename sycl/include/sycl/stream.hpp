@@ -11,6 +11,8 @@
 #include <sycl/builtins.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/owner_less_base.hpp>
+#include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/handler.hpp>
 
 namespace sycl {
@@ -265,14 +267,14 @@ EnableIfFP<T, unsigned> floatingPointToDecStr(T AbsVal, char *Digits,
   int Exp = 0;
 
   // For the case that the value is larger than 10.0
-  while (AbsVal >= 10.0) {
+  while (AbsVal >= T{10.0}) {
     ++Exp;
-    AbsVal /= 10.0;
+    AbsVal /= T{10.0};
   }
   // For the case that the value is less than 1.0
-  while (AbsVal > 0.0 && AbsVal < 1.0) {
+  while (AbsVal > T{0.0} && AbsVal < T{1.0}) {
     --Exp;
-    AbsVal *= 10.0;
+    AbsVal *= T{10.0};
   }
 
   auto IntegralPart = static_cast<int>(AbsVal);
@@ -292,7 +294,7 @@ EnableIfFP<T, unsigned> floatingPointToDecStr(T AbsVal, char *Digits,
     FractionLength = MAX_FLOATING_POINT_DIGITS - 5;
 
   for (unsigned I = 0; I < FractionLength; ++I) {
-    FractionPart *= 10.0;
+    FractionPart *= T{10.0};
     FractionDigits[I] = static_cast<int>(FractionPart);
     FractionPart -= static_cast<int>(FractionPart);
   }
@@ -739,7 +741,8 @@ inline __width_manipulator__ setw(int Width) {
 /// vector and SYCL types to the console.
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT __SYCL_SPECIAL_CLASS stream {
+class __SYCL_EXPORT __SYCL_SPECIAL_CLASS __SYCL_TYPE(stream) stream
+    : public detail::OwnerLessBase<stream> {
 public:
 #ifdef __SYCL_DEVICE_ONLY__
   // Default constructor for objects later initialized with __init member.
@@ -796,11 +799,6 @@ private:
 
   // Offset of the WI's flush buffer in the pool.
   mutable unsigned WIOffset = 0;
-
-  // Offset in the flush buffer
-  // TODO: This field is not used anymore.
-  // To be removed when API/ABI changes are allowed.
-  mutable unsigned Offset = 0;
 
   mutable size_t FlushBufferSize;
 
@@ -967,7 +965,7 @@ private:
                                   const h_item<Dimensions> &RHS);
 };
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 // Byte (has to be converted to a numeric value)
 template <typename T>
 inline std::enable_if_t<std::is_same<T, std::byte>::value, const stream &>
@@ -975,7 +973,7 @@ operator<<(const stream &, const T &) {
   static_assert(std::is_integral<T>(),
                 "Convert the byte to a numeric value using std::to_integer");
 }
-#endif // __cplusplus >= 201703L
+#endif
 
 // Character
 inline const stream &operator<<(const stream &Out, const char C) {
@@ -1035,9 +1033,11 @@ inline const stream &operator<<(const stream &Out, const half &RHS) {
 
 // Pointer
 
-template <typename ElementType, access::address_space Space>
-inline const stream &operator<<(const stream &Out,
-                                const multi_ptr<ElementType, Space> &RHS) {
+template <typename ElementType, access::address_space Space,
+          access::decorated IsDecorated>
+inline const stream &
+operator<<(const stream &Out,
+           const multi_ptr<ElementType, Space, IsDecorated> &RHS) {
   Out << RHS.get();
   return Out;
 }

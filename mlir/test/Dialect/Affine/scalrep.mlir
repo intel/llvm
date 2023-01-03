@@ -1,10 +1,10 @@
 // RUN: mlir-opt -allow-unregistered-dialect %s -affine-scalrep | FileCheck %s
 
-// CHECK-DAG: [[$MAP0:#map[0-9]+]] = affine_map<(d0, d1) -> (d1 + 1)>
-// CHECK-DAG: [[$MAP1:#map[0-9]+]] = affine_map<(d0, d1) -> (d0)>
-// CHECK-DAG: [[$MAP2:#map[0-9]+]] = affine_map<(d0, d1) -> (d1)>
-// CHECK-DAG: [[$MAP3:#map[0-9]+]] = affine_map<(d0, d1) -> (d0 - 1)>
-// CHECK-DAG: [[$MAP4:#map[0-9]+]] = affine_map<(d0) -> (d0 + 1)>
+// CHECK-DAG: [[$MAP0:#map[0-9]*]] = affine_map<(d0, d1) -> (d1 + 1)>
+// CHECK-DAG: [[$MAP1:#map[0-9]*]] = affine_map<(d0, d1) -> (d0)>
+// CHECK-DAG: [[$MAP2:#map[0-9]*]] = affine_map<(d0, d1) -> (d1)>
+// CHECK-DAG: [[$MAP3:#map[0-9]*]] = affine_map<(d0, d1) -> (d0 - 1)>
+// CHECK-DAG: [[$MAP4:#map[0-9]*]] = affine_map<(d0) -> (d0 + 1)>
 
 // CHECK-LABEL: func @simple_store_load() {
 func.func @simple_store_load() {
@@ -15,21 +15,21 @@ func.func @simple_store_load() {
     %v0 = affine.load %m[%i0] : memref<10xf32>
     %v1 = arith.addf %v0, %v0 : f32
   }
+  memref.dealloc %m : memref<10xf32>
   return
-// CHECK:       %{{.*}} = arith.constant 7.000000e+00 : f32
+// CHECK:       %[[C7:.*]] = arith.constant 7.000000e+00 : f32
 // CHECK-NEXT:  affine.for %{{.*}} = 0 to 10 {
-// CHECK-NEXT:    %{{.*}} = arith.addf %{{.*}}, %{{.*}} : f32
+// CHECK-NEXT:    arith.addf %[[C7]], %[[C7]] : f32
 // CHECK-NEXT:  }
 // CHECK-NEXT:  return
 }
 
 // CHECK-LABEL: func @multi_store_load() {
 func.func @multi_store_load() {
-  %c0 = arith.constant 0 : index
   %cf7 = arith.constant 7.0 : f32
   %cf8 = arith.constant 8.0 : f32
   %cf9 = arith.constant 9.0 : f32
-  %m = memref.alloc() : memref<10xf32>
+  %m = gpu.alloc() : memref<10xf32>
   affine.for %i0 = 0 to 10 {
     affine.store %cf7, %m[%i0] : memref<10xf32>
     %v0 = affine.load %m[%i0] : memref<10xf32>
@@ -40,17 +40,16 @@ func.func @multi_store_load() {
     %v3 = affine.load %m[%i0] : memref<10xf32>
     %v4 = arith.mulf %v2, %v3 : f32
   }
+  gpu.dealloc %m : memref<10xf32>
   return
-// CHECK:       %{{.*}} = arith.constant 0 : index
-// CHECK-NEXT:  %{{.*}} = arith.constant 7.000000e+00 : f32
-// CHECK-NEXT:  %{{.*}} = arith.constant 8.000000e+00 : f32
-// CHECK-NEXT:  %{{.*}} = arith.constant 9.000000e+00 : f32
+// CHECK-NEXT:  %[[C7:.*]] = arith.constant 7.000000e+00 : f32
+// CHECK-NEXT:  arith.constant 8.000000e+00 : f32
+// CHECK-NEXT:  %[[C9:.*]] = arith.constant 9.000000e+00 : f32
 // CHECK-NEXT:  affine.for %{{.*}} = 0 to 10 {
-// CHECK-NEXT:    %{{.*}} = arith.addf %{{.*}}, %{{.*}} : f32
-// CHECK-NEXT:    %{{.*}} = arith.mulf %{{.*}}, %{{.*}} : f32
+// CHECK-NEXT:    arith.addf %[[C7]], %[[C7]] : f32
+// CHECK-NEXT:    arith.mulf %[[C9]], %[[C9]] : f32
 // CHECK-NEXT:  }
 // CHECK-NEXT:  return
-
 }
 
 // The store-load forwarding can see through affine apply's since it relies on
@@ -186,7 +185,7 @@ func.func @store_load_no_fwd() {
     affine.store %cf7, %m[%i0] : memref<10xf32>
     affine.for %i1 = 0 to 10 {
       affine.for %i2 = 0 to 10 {
-        // CHECK: affine.load %{{[0-9]+}}
+        // CHECK: affine.load
         %v0 = affine.load %m[%i2] : memref<10xf32>
         %v1 = arith.addf %v0, %v0 : f32
       }
@@ -743,4 +742,107 @@ func.func @affine_store_load_in_scope(%memref: memref<1x4094x510x1xf32>, %memref
     }
   }
   return
+}
+
+// No scalrep will be performed here but we ensure dependence correctly fails.
+
+// CHECK-LABEL: func @affine_load_store_in_different_scopes
+func.func @affine_load_store_in_different_scopes() -> memref<1xf32> {
+  %A = memref.alloc() : memref<1xf32>
+  %cf0 = arith.constant 0.0 : f32
+  %cf5 = arith.constant 5.0 : f32
+
+  affine.store %cf0, %A[0] : memref<1xf32>
+  test.affine_scope {
+    affine.store %cf5, %A[0] : memref<1xf32>
+    "test.terminate"() : () -> ()
+  }
+  %v = affine.load %A[0] : memref<1xf32>
+  // CHECK:      affine.store
+  // CHECK-NEXT: test.affine_scope
+  // CHECK:        affine.store
+  // CHECK:      affine.load
+  return %A : memref<1xf32>
+}
+
+// No forwarding should again happen here.
+
+// CHECK-LABEL: func.func @no_forwarding_across_scopes
+func.func @no_forwarding_across_scopes() -> memref<1xf32> {
+  %A = memref.alloc() : memref<1xf32>
+  %cf0 = arith.constant 0.0 : f32
+  %cf5 = arith.constant 5.0 : f32
+  %c0 = arith.constant 0 : index
+  %c100 = arith.constant 100 : index
+  %c1 = arith.constant 1 : index
+
+  // Store shouldn't be forwarded to the load.
+  affine.store %cf0, %A[0] : memref<1xf32>
+  // CHECK:      test.affine_scope
+  // CHECK-NEXT:   affine.load
+  test.affine_scope {
+    %l = affine.load %A[0] : memref<1xf32>
+    %s = arith.addf %l, %cf5 : f32
+    affine.store %s, %A[0] : memref<1xf32>
+    "terminator"() : () -> ()
+  }
+  return %A : memref<1xf32>
+}
+
+// CHECK-LABEL: func @parallel_store_load() {
+func.func @parallel_store_load() {
+  %cf7 = arith.constant 7.0 : f32
+  %m = memref.alloc() : memref<10xf32>
+  affine.parallel (%i0) = (0) to (10) {
+    affine.store %cf7, %m[%i0] : memref<10xf32>
+    %v0 = affine.load %m[%i0] : memref<10xf32>
+    %v1 = arith.addf %v0, %v0 : f32
+  }
+  memref.dealloc %m : memref<10xf32>
+  return
+// CHECK:       %[[C7:.*]] = arith.constant 7.000000e+00 : f32
+// CHECK-NEXT:  affine.parallel (%{{.*}}) = (0) to (10) {
+// CHECK-NEXT:    arith.addf %[[C7]], %[[C7]] : f32
+// CHECK-NEXT:  }
+// CHECK-NEXT:  return
+}
+
+func.func @non_constant_parallel_store_load(%N : index) {
+  %cf7 = arith.constant 7.0 : f32
+  %m = memref.alloc() : memref<10xf32>
+  affine.parallel (%i0) = (0) to (%N) {
+    affine.store %cf7, %m[%i0] : memref<10xf32>
+    %v0 = affine.load %m[%i0] : memref<10xf32>
+    %v1 = arith.addf %v0, %v0 : f32
+  }
+  memref.dealloc %m : memref<10xf32>
+  return
+}
+// CHECK: func.func @non_constant_parallel_store_load(%[[ARG0:.*]]: index) {
+// CHECK-NEXT:  %[[C7:.*]] = arith.constant 7.000000e+00 : f32
+// CHECK-NEXT:  affine.parallel (%{{.*}}) = (0) to (%[[ARG0]]) {
+// CHECK-NEXT:    arith.addf %[[C7]], %[[C7]] : f32
+// CHECK-NEXT:  }
+// CHECK-NEXT:  return
+
+// CHECK-LABEL: func @parallel_surrounding_for() {
+func.func @parallel_surrounding_for() {
+  %cf7 = arith.constant 7.0 : f32
+  %m = memref.alloc() : memref<10x10xf32>
+  affine.parallel (%i0) = (0) to (10) {
+    affine.for %i1 = 0 to 10 {
+      affine.store %cf7, %m[%i0,%i1] : memref<10x10xf32>
+      %v0 = affine.load %m[%i0,%i1] : memref<10x10xf32>
+      %v1 = arith.addf %v0, %v0 : f32
+    }
+  }
+  memref.dealloc %m : memref<10x10xf32>
+  return
+// CHECK:       %[[C7:.*]] = arith.constant 7.000000e+00 : f32
+// CHECK-NEXT:  affine.parallel (%{{.*}}) = (0) to (10) {
+// CHECK-NEXT:    affine.for %{{.*}} = 0 to 10 {
+// CHECK-NEXT:      arith.addf %[[C7]], %[[C7]] : f32
+// CHECK-NEXT:    }
+// CHECK-NEXT:  }
+// CHECK-NEXT:  return
 }

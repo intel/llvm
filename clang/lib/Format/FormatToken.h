@@ -584,8 +584,12 @@ public:
   }
 
   bool isAccessSpecifier(bool ColonRequired = true) const {
-    return isOneOf(tok::kw_public, tok::kw_protected, tok::kw_private) &&
-           (!ColonRequired || (Next && Next->is(tok::colon)));
+    if (!isOneOf(tok::kw_public, tok::kw_protected, tok::kw_private))
+      return false;
+    if (!ColonRequired)
+      return true;
+    const auto NextNonComment = getNextNonComment();
+    return NextNonComment && NextNonComment->is(tok::colon);
   }
 
   bool canBePointerOrReferenceQualifier() const {
@@ -596,9 +600,9 @@ public:
   }
 
   /// Determine whether the token is a simple-type-specifier.
-  LLVM_NODISCARD bool isSimpleTypeSpecifier() const;
+  [[nodiscard]] bool isSimpleTypeSpecifier() const;
 
-  LLVM_NODISCARD bool isTypeOrIdentifier() const;
+  [[nodiscard]] bool isTypeOrIdentifier() const;
 
   bool isObjCAccessSpecifier() const {
     return is(tok::at) && Next &&
@@ -677,7 +681,8 @@ public:
     case tok::kw_static_assert:
     case tok::kw__Atomic:
     case tok::kw___attribute:
-    case tok::kw___underlying_type:
+#define TRANSFORM_TYPE_TRAIT_DEF(_, Trait) case tok::kw___##Trait:
+#include "clang/Basic/TransformTypeTraits.def"
     case tok::kw_requires:
       return true;
     default:
@@ -723,7 +728,7 @@ public:
   }
 
   /// Returns the previous token ignoring comments.
-  LLVM_NODISCARD FormatToken *getPreviousNonComment() const {
+  [[nodiscard]] FormatToken *getPreviousNonComment() const {
     FormatToken *Tok = Previous;
     while (Tok && Tok->is(tok::comment))
       Tok = Tok->Previous;
@@ -731,7 +736,7 @@ public:
   }
 
   /// Returns the next token ignoring comments.
-  LLVM_NODISCARD const FormatToken *getNextNonComment() const {
+  [[nodiscard]] const FormatToken *getNextNonComment() const {
     const FormatToken *Tok = Next;
     while (Tok && Tok->is(tok::comment))
       Tok = Tok->Next;
@@ -740,7 +745,7 @@ public:
 
   /// Returns \c true if this tokens starts a block-type list, i.e. a
   /// list that should be indented with a block indent.
-  LLVM_NODISCARD bool opensBlockOrBlockTypeList(const FormatStyle &Style) const;
+  [[nodiscard]] bool opensBlockOrBlockTypeList(const FormatStyle &Style) const;
 
   /// Returns whether the token is the left square bracket of a C++
   /// structured binding declaration.
@@ -1778,12 +1783,6 @@ struct AdditionalKeywords {
            (Tok.is(tok::kw_default) &&
             !(Next && Next->isOneOf(tok::colon, tok::semi, kw_clocking, kw_iff,
                                     kw_input, kw_output, kw_sequence)));
-  }
-
-  /// Whether the token begins a block.
-  bool isBlockBegin(const FormatToken &Tok, const FormatStyle &Style) const {
-    return Tok.is(TT_MacroBlockBegin) ||
-           (Style.isVerilog() ? isVerilogBegin(Tok) : Tok.is(tok::l_brace));
   }
 
 private:

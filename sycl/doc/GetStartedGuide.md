@@ -166,8 +166,6 @@ python %DPCPP_HOME%\llvm\buildbot\compile.py
 ```
 ### Build DPC++ toolchain with support for NVIDIA CUDA
 
-There is experimental support for DPC++ for CUDA devices.
-
 To enable support for CUDA devices, follow the instructions for the Linux or
 Windows DPC++ toolchain, but add the `--cuda` flag to `configure.py`. Note, 
 the CUDA backend has Windows support; windows subsystem for
@@ -641,6 +639,21 @@ clang++ -fsycl -fsycl-targets=amdgcn-amd-amdhsa \
   simple-sycl-app.cpp -o simple-sycl-app-amd.exe
 ```
 
+The target architecture may also be specified for the CUDA backend, with 
+`-Xsycl-target-backend --cuda-gpu-arch=<arch>`. Specifying the architecture is 
+necessary if an application aims to use newer hardware features, such as
+native atomic operations or tensor core operations.
+Moreover, it is possible to pass specific options to CUDA `ptxas` (such as
+`--maxrregcount=<n>` for limiting the register usage or `--verbose` for
+printing generation statistics) using the `-Xcuda-ptxas` flag.
+
+```bash
+clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
+  simple-sycl-app.cpp -o simple-sycl-app-cuda.exe \
+  -Xcuda-ptxas --maxrregcount=128 -Xcuda-ptxas --verbose \
+  -Xsycl-target-backend --cuda-gpu-arch=sm_80
+```
+
 To build simple-sycl-app ahead of time for GPU, CPU or Accelerator devices,
 specify the target architecture.  The examples provided use a supported
 alias for the target, representing a full triple.  Additional details can
@@ -670,21 +683,18 @@ more. To find available options, execute:
 
 The `simple-sycl-app.exe` application doesn't specify SYCL device for
 execution, so SYCL runtime will use `default_selector` logic to select one
-of accelerators available in the system or SYCL host device.
+of accelerators available in the system.
 In this case, the behavior of the `default_selector` can be altered
-using the `SYCL_BE` environment variable, setting `PI_CUDA` forces
-the usage of the CUDA backend (if available), `PI_HIP` forces
-the usage of the HIP backend (if available), `PI_OPENCL` will
+using the `ONEAPI_DEVICE_SELECTOR` environment variable, setting `cuda:*` forces
+the usage of the CUDA backend (if available), `hip:*` forces
+the usage of the HIP backend (if available), `opencl:*` will
 force the usage of the OpenCL backend.
 
 ```bash
-SYCL_BE=PI_CUDA ./simple-sycl-app-cuda.exe
+ONEAPI_DEVICE_SELECTOR=cuda:* ./simple-sycl-app-cuda.exe
 ```
 
 The default is the OpenCL backend if available.
-If there are no OpenCL or CUDA devices available, the SYCL host device is used.
-The SYCL host device executes the SYCL application directly in the host,
-without using any low-level API.
 
 **NOTE**: `nvptx64-nvidia-cuda` is usable with `-fsycl-targets`
 if clang was built with the cmake option `SYCL_ENABLE_PLUGINS=cuda`.
@@ -697,15 +707,15 @@ The results are correct!
 ```
 
 **NOTE**: Currently, when the application has been built with the CUDA target,
-the CUDA backend must be selected at runtime using the `SYCL_BE` environment
+the CUDA backend must be selected at runtime using the `ONEAPI_DEVICE_SELECTOR` environment
 variable.
 
 ```bash
-SYCL_BE=PI_CUDA ./simple-sycl-app-cuda.exe
+ONEAPI_DEVICE_SELECTOR=cuda:* ./simple-sycl-app-cuda.exe
 ```
 
 **NOTE**: DPC++/SYCL developers can specify SYCL device for execution using
-device selectors (e.g. `sycl::cpu_selector`, `sycl::gpu_selector`,
+device selectors (e.g. `sycl::cpu_selector_v`, `sycl::gpu_selector_v`,
 [Intel FPGA selector(s)](extensions/supported/sycl_ext_intel_fpga_device_selector.md)) as
 explained in following section [Code the program for a specific
 GPU](#code-the-program-for-a-specific-gpu).
@@ -723,7 +733,7 @@ cmake_minimum_required(VERSION 3.14)
 set(CMAKE_CXX_COMPILER "clang++")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsycl")
 
-project(simple-sycl-app)
+project(simple-sycl-app LANGUAGES CXX)
 
 add_executable(simple-sycl-app simple-sycl-app.cpp)
 ```
@@ -740,42 +750,38 @@ the CMake.
 
 ### Code the program for a specific GPU
 
-To specify OpenCL device SYCL provides the abstract `sycl::device_selector`
-class which the can be used to define how the runtime should select the best
-device.
+To assist in finding a specific SYCL compatible device out of all that may be
+available, a "device selector" may be used. A "device selector" is a ranking
+function (C++ Callable) that will give an integer ranking value to all the
+devices on the system. It can be passed to `sycl::queue`, `sycl::device` and
+`sycl::platform` constructors. The highest ranking device is then selected. SYCL
+has built-in device selectors for selecting a generic GPU, CPU, or accelerator
+device, as well as one for a default device. Additionally, a user can define
+their own as function, lambda, or functor class. Device selectors returning
+negative values will "reject" a device ensuring it is not selected, but values 0
+or higher will be selected by the highest score with ties resolved by an
+internal algorithm (see Section 4.6.1 of the SYCL 2020 specification)
 
-The method `sycl::device_selector::operator()` of the SYCL
-`sycl::device_selector` is an abstract member function which takes a
-reference to a SYCL device and returns an integer score. This abstract member
-function can be implemented in a derived class to provide a logic for selecting
-a SYCL device. SYCL runtime uses the device for with the highest score is
-returned. Such object can be passed to `sycl::queue` and `sycl::device`
-constructors.
-
-The example below illustrates how to use `sycl::device_selector` to create
-device and queue objects bound to Intel GPU device:
+The example below illustrates how to use a device selector to create device and
+queue objects bound to Intel GPU device:
 
 ```c++
 #include <sycl/sycl.hpp>
 
 int main() {
-  class NEOGPUDeviceSelector : public sycl::device_selector {
-  public:
-    int operator()(const sycl::device &Device) const override {
-      using namespace sycl::info;
 
-      const std::string DeviceName = Device.get_info<device::name>();
-      const std::string DeviceVendor = Device.get_info<device::vendor>();
+  auto NEOGPUDeviceSelector = [](const sycl::device &Device){
+    using namespace sycl::info;
 
-      return Device.is_gpu() && (DeviceName.find("HD Graphics NEO") != std::string::npos);
-    }
+    const std::string DeviceName = Device.get_info<device::name>();
+    bool match = Device.is_gpu() && (DeviceName.find("HD Graphics NEO") != std::string::npos);
+    return match ? 1 : -1;
   };
 
-  NEOGPUDeviceSelector Selector;
   try {
-    sycl::queue Queue(Selector);
-    sycl::device Device(Selector);
-  } catch (sycl::invalid_parameter_error &E) {
+    sycl::queue Queue(NEOGPUDeviceSelector);
+    sycl::device Device(NEOGPUDeviceSelector);
+  } catch (sycl::exception &E) {
     std::cout << E.what() << std::endl;
   }
 }
@@ -786,24 +792,22 @@ The device selector below selects an NVIDIA device only, and won't execute if
 there is none.
 
 ```c++
-class CUDASelector : public sycl::device_selector {
-  public:
-    int operator()(const sycl::device &Device) const override {
-      using namespace sycl::info;
-      const std::string DriverVersion = Device.get_info<device::driver_version>();
 
-      if (Device.is_gpu() && (DriverVersion.find("CUDA") != std::string::npos)) {
-        std::cout << " CUDA device found " << std::endl;
-        return 1;
-      };
-      return -1;
-    }
-};
+int CUDASelector(const sycl::device &Device) {
+  using namespace sycl::info;
+  const std::string DriverVersion = Device.get_info<device::driver_version>();
+
+  if (Device.is_gpu() && (DriverVersion.find("CUDA") != std::string::npos)) {
+    std::cout << " CUDA device found " << std::endl;
+    return 1;
+  };
+  return -1;
+}
+
 ```
 
 ### Using the DPC++ toolchain on CUDA platforms
 
-The DPC++ toolchain support on CUDA platforms is still in an experimental phase.
 Currently, the DPC++ toolchain relies on having a recent OpenCL implementation
 on the system in order to link applications to the DPC++ runtime.
 The OpenCL implementation is not used at runtime if only the CUDA backend is
@@ -830,7 +834,6 @@ which contains all the symbols required.
 
 * DPC++ device compiler fails if the same kernel was used in different
   translation units.
-* SYCL host device is not fully supported.
 * SYCL 2020 support work is in progress.
 * 32-bit host/target is not supported.
 * DPC++ works only with OpenCL low level runtimes which support out-of-order

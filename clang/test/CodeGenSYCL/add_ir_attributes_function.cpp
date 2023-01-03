@@ -19,8 +19,8 @@ free_func1() {
 
 #ifdef __SYCL_DEVICE_ONLY__
 [[__sycl_detail__::add_ir_attributes_function(
-    "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17",
-    "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]]
+    "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", "Prop18",
+    "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8)]]
 #endif
 void
 free_func2() {
@@ -29,8 +29,8 @@ free_func2() {
 template <typename... Properties>
 #ifdef __SYCL_DEVICE_ONLY__
 [[__sycl_detail__::add_ir_attributes_function(
-    Properties::name..., "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17",
-    Properties::value..., "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]]
+    Properties::name..., "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", "Prop18",
+    Properties::value..., "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8)]]
 #endif
 void
 free_func3() {
@@ -39,8 +39,8 @@ free_func3() {
 template <typename... Properties>
 #ifdef __SYCL_DEVICE_ONLY__
 [[__sycl_detail__::add_ir_attributes_function(
-    "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", Properties::name...,
-    "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, Properties::value...)]]
+    "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", "Prop18", Properties::name...,
+    "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8, Properties::value...)]]
 #endif
 void
 free_func4() {
@@ -49,8 +49,8 @@ free_func4() {
 template <typename... Properties>
 #ifdef __SYCL_DEVICE_ONLY__
 [[__sycl_detail__::add_ir_attributes_function(
-    "", "", "", "", "", "", "",
-    "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]]
+    "", "", "", "", "", "", "", "",
+    "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8)]]
 #endif
 void
 free_func5() {
@@ -59,8 +59,8 @@ free_func5() {
 template <typename... Properties>
 #ifdef __SYCL_DEVICE_ONLY__
 [[__sycl_detail__::add_ir_attributes_function(
-    "", "Prop12", "", "", "", "Prop16", "Prop17",
-    "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]]
+    "", "Prop12", "", "", "", "Prop16", "Prop17", "Prop18",
+    "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8)]]
 #endif
 void
 free_func6() {
@@ -83,8 +83,8 @@ class KernelFunctor2 {
 public:
 #ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_attributes_function(
-      "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17",
-      "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]]
+      "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", "Prop18",
+      "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8)]]
 #endif
   void
   operator()() const {
@@ -97,8 +97,8 @@ class KernelFunctor3 {
 public:
 #ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_attributes_function(
-      Properties::name..., "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17",
-      Properties::value..., "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]]
+      Properties::name..., "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", "Prop18",
+      Properties::value..., "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8)]]
 #endif
   void
   operator()() const {
@@ -111,8 +111,8 @@ class KernelFunctor4 {
 public:
 #ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_attributes_function(
-      "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", Properties::name...,
-      "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, Properties::value...)]]
+      "Prop11", "Prop12", "Prop13", "Prop14", "Prop15", "Prop16", "Prop17", "Prop18", Properties::name...,
+      "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8, Properties::value...)]]
 #endif
   void
   operator()() const {
@@ -124,8 +124,8 @@ class KernelFunctor5 {
 public:
 #ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_attributes_function(
-      "", "", "", "", "", "", "",
-      "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]]
+      "", "", "", "", "", "", "", "",
+      "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8)]]
 #endif
   void
   operator()() const {
@@ -137,8 +137,8 @@ class KernelFunctor6 {
 public:
 #ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_attributes_function(
-      "", "Prop12", "", "", "", "Prop16", "Prop17",
-      "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2)]]
+      "", "Prop12", "", "", "", "Prop16", "Prop17", "Prop18",
+      "Another property string", 2, false, TestEnum::Enum1, nullptr, nullptr, ScopedTestEnum::ScopedEnum2, PropertyValue8)]]
 #endif
   void
   operator()() const {
@@ -149,7 +149,7 @@ public:
 int main() {
   sycl::queue q;
   q.submit([&](sycl::handler &h) {
-    KernelFunctor1<prop1, prop2, prop3, prop4, prop5, prop6, prop7> f{};
+    KernelFunctor1<prop1, prop2, prop3, prop4, prop5, prop6, prop7, prop8> f{};
     h.single_task<class test_kernel1>(f);
   });
   q.submit([&](sycl::handler &h) {
@@ -157,11 +157,11 @@ int main() {
     h.single_task<class test_kernel2>(f);
   });
   q.submit([&](sycl::handler &h) {
-    KernelFunctor3<prop1, prop2, prop3, prop4, prop5, prop6, prop7> f{};
+    KernelFunctor3<prop1, prop2, prop3, prop4, prop5, prop6, prop7, prop8> f{};
     h.single_task<class test_kernel3>(f);
   });
   q.submit([&](sycl::handler &h) {
-    KernelFunctor4<prop1, prop2, prop3, prop4, prop5, prop6, prop7> f{};
+    KernelFunctor4<prop1, prop2, prop3, prop4, prop5, prop6, prop7, prop8> f{};
     h.single_task<class test_kernel4>(f);
   });
   q.submit([&](sycl::handler &h) {
@@ -186,14 +186,14 @@ int main() {
 // CHECK-DAG: define {{.*}}spir_func void @{{.*}}free_func4{{.*}}() #[[Func3and4Attrs]]
 // CHECK-DAG: define {{.*}}spir_func void @{{.*}}free_func5{{.*}}() {{.*}}
 // CHECK-DAG: define {{.*}}spir_func void @{{.*}}free_func6{{.*}}() #[[Func6Attrs:[0-9]+]]
-// CHECK-DAG: attributes #[[KernFunc1Attrs]] = { {{.*}}"Prop1"="Property string"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} }
-// CHECK-DAG: attributes #[[KernFunc2Attrs]] = { {{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}} }
-// CHECK-DAG: attributes #[[KernFunc3And4Attrs]] = { {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} }
-// CHECK-DAG: attributes #[[KernFunc6Attrs]] = { {{.*}}"Prop12"="2"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}} }
-// CHECK-DAG: attributes #[[Func1Attrs]] = { {{.*}}"Prop1"="Property string"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} }
-// CHECK-DAG: attributes #[[Func2Attrs]] = { {{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}} }
-// CHECK-DAG: attributes #[[Func3and4Attrs]] = { {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}} }
-// CHECK-DAG: attributes #[[Func6Attrs]] = { {{.*}}"Prop12"="2"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}} }
+// CHECK-DAG: attributes #[[KernFunc1Attrs]] = { {{.*}}"Prop1"="Property string"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}}"Prop8"="Property"{{.*}} }
+// CHECK-DAG: attributes #[[KernFunc2Attrs]] = { {{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop18"="Property"{{.*}} }
+// CHECK-DAG: attributes #[[KernFunc3And4Attrs]] = { {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop18"="Property"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}}"Prop8"="Property"{{.*}} }
+// CHECK-DAG: attributes #[[KernFunc6Attrs]] = { {{.*}}"Prop12"="2"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop18"="Property"{{.*}} }
+// CHECK-DAG: attributes #[[Func1Attrs]] = { {{.*}}"Prop1"="Property string"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}}"Prop8"="Property"{{.*}} }
+// CHECK-DAG: attributes #[[Func2Attrs]] = { {{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop18"="Property"{{.*}} }
+// CHECK-DAG: attributes #[[Func3and4Attrs]] = { {{.*}}"Prop1"="Property string"{{.*}}"Prop11"="Another property string"{{.*}}"Prop12"="2"{{.*}}"Prop13"="false"{{.*}}"Prop14"="1"{{.*}}"Prop15"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop18"="Property"{{.*}}"Prop2"="1"{{.*}}"Prop3"="true"{{.*}}"Prop4"="2"{{.*}}"Prop5"{{.*}}"Prop6"{{.*}}"Prop7"="1"{{.*}}"Prop8"="Property"{{.*}} }
+// CHECK-DAG: attributes #[[Func6Attrs]] = { {{.*}}"Prop12"="2"{{.*}}"Prop16"{{.*}}"Prop17"="2"{{.*}}"Prop18"="Property"{{.*}} }
 // CHECK-NOT: ""="Another property string"
 // CHECK-NOT: ""="1"
 // CHECK-NOT: ""="2"

@@ -713,7 +713,7 @@ satisfied:
   example, if _K1_ and _K2_ reside in the same translation unit,
   `-fsycl-device-code-split=per_source` will guarantee that they are bundled
   together in the same _device image_.  If they reside in different translation
-  units, `-fsycl-device-code-split=none` will guarantee that they reside in the
+  units, `-fsycl-device-code-split=off` will guarantee that they reside in the
   same _device image_.
 
 In addition, the following factors also affect how kernels are bundled into

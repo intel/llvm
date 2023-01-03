@@ -344,7 +344,10 @@ define internal void @__omp_outlined__1_wrapper(i16 zeroext %0, i32 %1) {
 
 declare void @__kmpc_parallel_51(%struct.ident_t*, i32, i32, i32, i32, i8*, i8*, i8**, i64)
 
-declare i32 @__kmpc_target_init(%struct.ident_t*, i8, i1, i1)
+; Make it a weak definition so we will apply custom state machine rewriting but can't use the body in the reasoning.
+define weak i32 @__kmpc_target_init(%struct.ident_t*, i8, i1, i1) {
+  ret i32 0
+}
 
 ; Function Attrs: convergent
 declare i32 @no_openmp(i32*) #1
@@ -381,7 +384,7 @@ attributes #5 = { convergent nounwind "llvm.assume"="omp_no_openmp,ompx_spmd_ame
 !2 = !{i32 1, !"wchar_size", i32 4}
 !3 = !{i32 7, !"openmp", i32 50}
 !4 = !{i32 7, !"openmp-device", i32 50}
-!5 = !{i32 7, !"PIC Level", i32 2}
+!5 = !{i32 8, !"PIC Level", i32 2}
 !6 = !{i32 7, !"frame-pointer", i32 2}
 !7 = !{!"clang version 14.0.0"}
 !8 = !{!9}
@@ -393,11 +396,11 @@ attributes #5 = { convergent nounwind "llvm.assume"="omp_no_openmp,ompx_spmd_ame
 ; CHECK: attributes #[[ATTR0]] = { convergent norecurse nounwind "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="sm_53" "target-features"="+ptx32,+sm_53" }
 ; CHECK: attributes #[[ATTR1:[0-9]+]] = { alwaysinline }
 ; CHECK: attributes #[[ATTR2:[0-9]+]] = { convergent "frame-pointer"="all" "llvm.assume"="omp_no_openmp,ompx_spmd_amenable" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="sm_53" "target-features"="+ptx32,+sm_53" }
-; CHECK: attributes #[[ATTR3:[0-9]+]] = { convergent nounwind readonly willreturn "frame-pointer"="all" "llvm.assume"="ompx_spmd_amenable" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="sm_53" "target-features"="+ptx32,+sm_53" }
+; CHECK: attributes #[[ATTR3:[0-9]+]] = { convergent nounwind willreturn memory(read) "frame-pointer"="all" "llvm.assume"="ompx_spmd_amenable" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="sm_53" "target-features"="+ptx32,+sm_53" }
 ; CHECK: attributes #[[ATTR4:[0-9]+]] = { nosync nounwind allocsize(0) }
 ; CHECK: attributes #[[ATTR5:[0-9]+]] = { nosync nounwind }
 ; CHECK: attributes #[[ATTR6]] = { nounwind }
-; CHECK: attributes #[[ATTR7:[0-9]+]] = { inaccessiblememonly nocallback nofree nosync nounwind willreturn }
+; CHECK: attributes #[[ATTR7:[0-9]+]] = { nocallback nofree nosync nounwind willreturn memory(inaccessiblemem: readwrite) }
 ; CHECK: attributes #[[ATTR8:[0-9]+]] = { convergent nounwind }
 ; CHECK: attributes #[[ATTR9]] = { nounwind willreturn }
 ; CHECK: attributes #[[ATTR10]] = { convergent nounwind "llvm.assume"="omp_no_openmp,ompx_spmd_amenable" }
@@ -405,11 +408,11 @@ attributes #5 = { convergent nounwind "llvm.assume"="omp_no_openmp,ompx_spmd_ame
 ; CHECK-DISABLED: attributes #[[ATTR0]] = { convergent norecurse nounwind "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="sm_53" "target-features"="+ptx32,+sm_53" }
 ; CHECK-DISABLED: attributes #[[ATTR1:[0-9]+]] = { alwaysinline }
 ; CHECK-DISABLED: attributes #[[ATTR2:[0-9]+]] = { convergent "frame-pointer"="all" "llvm.assume"="omp_no_openmp,ompx_spmd_amenable" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="sm_53" "target-features"="+ptx32,+sm_53" }
-; CHECK-DISABLED: attributes #[[ATTR3:[0-9]+]] = { convergent nounwind readonly willreturn "frame-pointer"="all" "llvm.assume"="ompx_spmd_amenable" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="sm_53" "target-features"="+ptx32,+sm_53" }
+; CHECK-DISABLED: attributes #[[ATTR3:[0-9]+]] = { convergent nounwind willreturn memory(read) "frame-pointer"="all" "llvm.assume"="ompx_spmd_amenable" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="sm_53" "target-features"="+ptx32,+sm_53" }
 ; CHECK-DISABLED: attributes #[[ATTR4:[0-9]+]] = { nosync nounwind allocsize(0) }
 ; CHECK-DISABLED: attributes #[[ATTR5:[0-9]+]] = { nosync nounwind }
 ; CHECK-DISABLED: attributes #[[ATTR6]] = { nounwind }
-; CHECK-DISABLED: attributes #[[ATTR7:[0-9]+]] = { inaccessiblememonly nocallback nofree nosync nounwind willreturn }
+; CHECK-DISABLED: attributes #[[ATTR7:[0-9]+]] = { nocallback nofree nosync nounwind willreturn memory(inaccessiblemem: readwrite) }
 ; CHECK-DISABLED: attributes #[[ATTR8:[0-9]+]] = { convergent nounwind }
 ; CHECK-DISABLED: attributes #[[ATTR9]] = { nounwind willreturn }
 ; CHECK-DISABLED: attributes #[[ATTR10]] = { convergent nounwind "llvm.assume"="omp_no_openmp,ompx_spmd_amenable" }
@@ -419,7 +422,7 @@ attributes #5 = { convergent nounwind "llvm.assume"="omp_no_openmp,ompx_spmd_ame
 ; CHECK: [[META2:![0-9]+]] = !{i32 1, !"wchar_size", i32 4}
 ; CHECK: [[META3:![0-9]+]] = !{i32 7, !"openmp", i32 50}
 ; CHECK: [[META4:![0-9]+]] = !{i32 7, !"openmp-device", i32 50}
-; CHECK: [[META5:![0-9]+]] = !{i32 7, !"PIC Level", i32 2}
+; CHECK: [[META5:![0-9]+]] = !{i32 8, !"PIC Level", i32 2}
 ; CHECK: [[META6:![0-9]+]] = !{i32 7, !"frame-pointer", i32 2}
 ; CHECK: [[META7:![0-9]+]] = !{!"clang version 14.0.0"}
 ; CHECK: [[META8:![0-9]+]] = !{!9}
@@ -433,7 +436,7 @@ attributes #5 = { convergent nounwind "llvm.assume"="omp_no_openmp,ompx_spmd_ame
 ; CHECK-DISABLED: [[META2:![0-9]+]] = !{i32 1, !"wchar_size", i32 4}
 ; CHECK-DISABLED: [[META3:![0-9]+]] = !{i32 7, !"openmp", i32 50}
 ; CHECK-DISABLED: [[META4:![0-9]+]] = !{i32 7, !"openmp-device", i32 50}
-; CHECK-DISABLED: [[META5:![0-9]+]] = !{i32 7, !"PIC Level", i32 2}
+; CHECK-DISABLED: [[META5:![0-9]+]] = !{i32 8, !"PIC Level", i32 2}
 ; CHECK-DISABLED: [[META6:![0-9]+]] = !{i32 7, !"frame-pointer", i32 2}
 ; CHECK-DISABLED: [[META7:![0-9]+]] = !{!"clang version 14.0.0"}
 ; CHECK-DISABLED: [[META8:![0-9]+]] = !{!9}

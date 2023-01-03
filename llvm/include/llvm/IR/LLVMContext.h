@@ -15,11 +15,11 @@
 #define LLVM_IR_LLVMCONTEXT_H
 
 #include "llvm-c/Types.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/IR/DiagnosticHandler.h"
 #include "llvm/Support/CBindingWrapping.h"
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace llvm {
@@ -94,6 +94,7 @@ public:
     OB_gc_live = 5,                // "gc-live"
     OB_clang_arc_attachedcall = 6, // "clang.arc.attachedcall"
     OB_ptrauth = 7,                // "ptrauth"
+    OB_kcfi = 8,                   // "kcfi"
   };
 
   /// getMDKindID - Return a unique non-zero ID for the specified metadata kind.
@@ -204,8 +205,8 @@ public:
 
   bool getMisExpectWarningRequested() const;
   void setMisExpectWarningRequested(bool Requested);
-  void setDiagnosticsMisExpectTolerance(Optional<uint64_t> Tolerance);
-  uint64_t getDiagnosticsMisExpectTolerance() const;
+  void setDiagnosticsMisExpectTolerance(std::optional<uint32_t> Tolerance);
+  uint32_t getDiagnosticsMisExpectTolerance() const;
 
   /// Return the minimum hotness value a diagnostic would need in order
   /// to be included in optimization diagnostics.
@@ -221,7 +222,7 @@ public:
 
   /// Set the minimum hotness value a diagnostic needs in order to be
   /// included in optimization diagnostics.
-  void setDiagnosticsHotnessThreshold(Optional<uint64_t> Threshold);
+  void setDiagnosticsHotnessThreshold(std::optional<uint64_t> Threshold);
 
   /// Return if hotness threshold is requested from PSI.
   bool isDiagnosticsHotnessThresholdSetFromPSI() const;

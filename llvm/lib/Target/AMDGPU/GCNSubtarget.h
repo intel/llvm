@@ -150,6 +150,7 @@ protected:
   bool HasAtomicFaddRtnInsts = false;
   bool HasAtomicFaddNoRtnInsts = false;
   bool HasAtomicPkFaddNoRtnInsts = false;
+  bool HasFlatAtomicFaddF32Inst = false;
   bool SupportsSRAMECC = false;
 
   // This should not be used directly. 'TargetID' tracks the dynamic settings
@@ -191,6 +192,8 @@ protected:
   bool HasFlatSegmentOffsetBug = false;
   bool HasImageStoreD16Bug = false;
   bool HasImageGather4D16Bug = false;
+  bool HasGFX11FullVGPRs = false;
+  bool HasMADIntraFwdBug = false;
   bool HasVOPDInsts = false;
 
   // Dummy feature to use for assembler in tablegen.
@@ -746,6 +749,8 @@ public:
 
   bool hasAtomicPkFaddNoRtnInsts() const { return HasAtomicPkFaddNoRtnInsts; }
 
+  bool hasFlatAtomicFaddF32Inst() const { return HasFlatAtomicFaddF32Inst; }
+
   bool hasNoSdstCMPX() const {
     return HasNoSdstCMPX;
   }
@@ -777,6 +782,8 @@ public:
   bool vmemWriteNeedsExpWaitcnt() const {
     return getGeneration() < SEA_ISLANDS;
   }
+
+  bool hasInstPrefetch() const { return getGeneration() >= GFX10; }
 
   // Scratch is allocated in 256 dword per wave blocks for the entire
   // wavefront. When viewed from the perspective of an arbitrary workitem, this
@@ -906,6 +913,8 @@ public:
 
   bool hasImageGather4D16Bug() const { return HasImageGather4D16Bug; }
 
+  bool hasMADIntraFwdBug() const { return HasMADIntraFwdBug; }
+
   bool hasNSAEncoding() const { return HasNSAEncoding; }
 
   unsigned getNSAMaxSize() const { return NSAMaxSize; }
@@ -1008,6 +1017,12 @@ public:
     return HasLdsBranchVmemWARHazard;
   }
 
+  // Shift amount of a 64 bit shift cannot be a highest allocated register
+  // if also at the end of the allocation block.
+  bool hasShift64HighRegBug() const {
+    return GFX90AInsts && !GFX940Insts;
+  }
+
   // Has one cycle hazard on transcendental instruction feeding a
   // non transcendental VALU.
   bool hasTransForwardingHazard() const { return GFX940Insts; }
@@ -1034,6 +1049,10 @@ public:
 
   bool hasGFX90AInsts() const { return GFX90AInsts; }
 
+  bool hasFPAtomicToDenormModeHazard() const {
+    return getGeneration() == GFX10;
+  }
+
   bool hasVOP3DPP() const { return getGeneration() >= GFX11; }
 
   bool hasLdsDirect() const { return getGeneration() >= GFX11; }
@@ -1043,6 +1062,8 @@ public:
   }
 
   bool hasVALUTransUseHazard() const { return getGeneration() >= GFX11; }
+
+  bool hasVALUMaskWriteHazard() const { return getGeneration() >= GFX11; }
 
   /// Return if operations acting on VGPR tuples require even alignment.
   bool needsAlignedVGPRs() const { return GFX90AInsts; }
@@ -1057,6 +1078,8 @@ public:
   /// Return true if the target's EXP instruction supports the NULL export
   /// target.
   bool hasNullExportTarget() const { return !GFX11Insts; }
+
+  bool hasGFX11FullVGPRs() const { return HasGFX11FullVGPRs; }
 
   bool hasVOPDInsts() const { return HasVOPDInsts; }
 
@@ -1195,14 +1218,14 @@ public:
     return AMDGPU::IsaInfo::getAddressableNumVGPRs(this);
   }
 
-  /// \returns Minimum number of VGPRs that meets given number of waves per
-  /// execution unit requirement supported by the subtarget.
+  /// \returns the minimum number of VGPRs that will prevent achieving more than
+  /// the specified number of waves \p WavesPerEU.
   unsigned getMinNumVGPRs(unsigned WavesPerEU) const {
     return AMDGPU::IsaInfo::getMinNumVGPRs(this, WavesPerEU);
   }
 
-  /// \returns Maximum number of VGPRs that meets given number of waves per
-  /// execution unit requirement supported by the subtarget.
+  /// \returns the maximum number of VGPRs that can be used and still achieved
+  /// at least the specified number of waves \p WavesPerEU.
   unsigned getMaxNumVGPRs(unsigned WavesPerEU) const {
     return AMDGPU::IsaInfo::getMaxNumVGPRs(this, WavesPerEU);
   }
@@ -1289,6 +1312,10 @@ public:
   // \returns true if it's beneficial on this subtarget for the scheduler to
   // cluster stores as well as loads.
   bool shouldClusterStores() const { return getGeneration() >= GFX11; }
+
+  // \returns the number of address arguments from which to enable MIMG NSA
+  // on supported architectures.
+  unsigned getNSAThreshold(const MachineFunction &MF) const;
 };
 
 } // end namespace llvm

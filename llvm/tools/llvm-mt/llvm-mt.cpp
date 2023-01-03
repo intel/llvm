@@ -45,7 +45,7 @@ enum ID {
 #include "Opts.inc"
 #undef PREFIX
 
-const opt::OptTable::Info InfoTable[] = {
+static constexpr opt::OptTable::Info InfoTable[] = {
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
 {                                                                              \
@@ -79,7 +79,7 @@ static void error(Error EC) {
     });
 }
 
-int main(int Argc, const char **Argv) {
+int llvm_mt_main(int Argc, char **Argv) {
   InitLLVM X(Argc, Argv);
 
   CvtResOptTable T;
@@ -150,9 +150,9 @@ int main(int Argc, const char **Argv) {
     bool Same = false;
     if (OutBuffOrErr) {
       const std::unique_ptr<MemoryBuffer> &FileBuffer = *OutBuffOrErr;
-      Same = std::equal(OutputBuffer->getBufferStart(),
-                        OutputBuffer->getBufferEnd(),
-                        FileBuffer->getBufferStart());
+      Same = std::equal(
+          OutputBuffer->getBufferStart(), OutputBuffer->getBufferEnd(),
+          FileBuffer->getBufferStart(), FileBuffer->getBufferEnd());
     }
     if (!Same) {
 #if LLVM_ON_UNIX

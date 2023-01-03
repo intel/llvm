@@ -9,6 +9,11 @@ on:
     - '.github/ISSUE_TEMPLATE/**'
     - '.github/CODEOWNERS'
     - '.github/workflows/sycl_update_gpu_driver.yml'
+    - '.github/workflows/sycl_containers.yaml'
+    - '.github/workflows/sycl_nightly.yml'
+    - '.github/workflows/sycl_post_commit.yml'
+    - '.github/workflows/sycl_windows_build_and_test.yml'
+    - '.github/workflows/sycl_macos_build_and_test.yml'
     - 'devops/containers/**'
     - 'devops/scripts/install_drivers.sh'
     - 'devops/scripts/install_build_tools.sh'
@@ -29,7 +34,7 @@ jobs:
     steps:
     - name: 'PR commits + 1'
       run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 1 ))" >> "${GITHUB_ENV}"
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         ref: ${{ github.event.pull_request.head.sha }}
         persist-credentials: false
@@ -38,17 +43,18 @@ jobs:
       uses: ./devops/actions/clang-format
 
   # This job generates matrix of tests for LLVM Test Suite
-  resolve_matrix:
-    name: Resolve Test Matrix
-    uses: ./.github/workflows/sycl_resolve_test_matrix.yml
+  test_matrix:
+    name: Generate Test Matrix
+    uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
-      lts_config: "hip_amdgpu;ocl_x64;ocl_gen9;l0_gen9;esimd_emu;cuda"
+      ref: ${{ github.event.pull_request.head.sha }}
+      lts_config: "hip_amdgpu;ocl_x64;ocl_gen9;l0_gen9;esimd_emu;cuda_aws"
 
   linux_default:
     name: Linux
     # Only build and test patches, that have passed all linter checks, because
     # the next commit is likely to be a follow-up on that job.
-    needs: [lint, resolve_matrix]
+    needs: [lint, test_matrix]
     if: always() && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     secrets: inherit
@@ -58,5 +64,5 @@ jobs:
       build_cache_size: "8G"
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
-      lts_matrix: ${{ needs.resolve_matrix.outputs.lts_matrix }}
-      lts_aws_matrix: ${{ needs.resolve_matrix.outputs.lts_aws_matrix }}
+      lts_matrix: ${{ needs.test_matrix.outputs.lts_matrix }}
+      lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}

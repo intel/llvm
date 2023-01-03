@@ -779,7 +779,7 @@ private:
 
 #define IMPL(Index)                                                            \
   template <typename NodeType>                                                 \
-  typename std::enable_if_t<                                                   \
+  std::enable_if_t<                                                            \
       llvm::is_one_of<const NodeType *, CMD_TYPES_##Index>::value>             \
   SetCallbackAndRawNode(const MatchCallback *CB, const NodeType &N) {          \
     assertEmpty();                                                             \
@@ -788,8 +788,8 @@ private:
   }                                                                            \
                                                                                \
   template <typename T>                                                        \
-  typename std::enable_if_t<                                                   \
-      llvm::is_one_of<const T *, CMD_TYPES_##Index>::value, const T *>         \
+  std::enable_if_t<llvm::is_one_of<const T *, CMD_TYPES_##Index>::value,       \
+                   const T *>                                                  \
   getNode() const {                                                            \
     assertHoldsState();                                                        \
     return Callback.getInt() == (Index) ? Node##Index.dyn_cast<const T *>()    \
@@ -1687,7 +1687,7 @@ StringRef MatchFinder::MatchCallback::getID() const { return "<unknown>"; }
 
 llvm::Optional<TraversalKind>
 MatchFinder::MatchCallback::getCheckTraversalKind() const {
-  return llvm::None;
+  return std::nullopt;
 }
 
 } // end namespace ast_matchers

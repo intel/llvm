@@ -429,8 +429,25 @@ pi_result hip_piEventRetain(pi_event event);
 
 /// \endcond
 
+void _pi_queue::compute_stream_wait_for_barrier_if_needed(hipStream_t stream,
+                                                          pi_uint32 stream_i) {
+  if (barrier_event_ && !compute_applied_barrier_[stream_i]) {
+    PI_CHECK_ERROR(hipStreamWaitEvent(stream, barrier_event_, 0));
+    compute_applied_barrier_[stream_i] = true;
+  }
+}
+
+void _pi_queue::transfer_stream_wait_for_barrier_if_needed(hipStream_t stream,
+                                                           pi_uint32 stream_i) {
+  if (barrier_event_ && !transfer_applied_barrier_[stream_i]) {
+    PI_CHECK_ERROR(hipStreamWaitEvent(stream, barrier_event_, 0));
+    transfer_applied_barrier_[stream_i] = true;
+  }
+}
+
 hipStream_t _pi_queue::get_next_compute_stream(pi_uint32 *stream_token) {
   pi_uint32 stream_i;
+  pi_uint32 token;
   while (true) {
     if (num_compute_streams_ < compute_streams_.size()) {
       // the check above is for performance - so as not to lock mutex every time
@@ -442,39 +459,45 @@ hipStream_t _pi_queue::get_next_compute_stream(pi_uint32 *stream_token) {
             &compute_streams_[num_compute_streams_++], flags_));
       }
     }
-    stream_i = compute_stream_idx_++;
+    token = compute_stream_idx_++;
+    stream_i = token % compute_streams_.size();
     // if a stream has been reused before it was next selected round-robin
     // fashion, we want to delay its next use and instead select another one
     // that is more likely to have completed all the enqueued work.
-    if (delay_compute_[stream_i % compute_streams_.size()]) {
-      delay_compute_[stream_i % compute_streams_.size()] = false;
+    if (delay_compute_[stream_i]) {
+      delay_compute_[stream_i] = false;
     } else {
       break;
     }
   }
   if (stream_token) {
-    *stream_token = stream_i;
+    *stream_token = token;
   }
-  return compute_streams_[stream_i % compute_streams_.size()];
+  hipStream_t res = compute_streams_[stream_i];
+  compute_stream_wait_for_barrier_if_needed(res, stream_i);
+  return res;
 }
 
 hipStream_t _pi_queue::get_next_compute_stream(
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     _pi_stream_guard &guard, pi_uint32 *stream_token) {
   for (pi_uint32 i = 0; i < num_events_in_wait_list; i++) {
-    pi_uint32 token = event_wait_list[i]->get_stream_token();
+    pi_uint32 token = event_wait_list[i]->get_compute_stream_token();
     if (event_wait_list[i]->get_queue() == this && can_reuse_stream(token)) {
       std::unique_lock<std::mutex> compute_sync_guard(
           compute_stream_sync_mutex_);
       // redo the check after lock to avoid data races on
       // last_sync_compute_streams_
       if (can_reuse_stream(token)) {
-        delay_compute_[token % delay_compute_.size()] = true;
+        pi_uint32 stream_i = token % delay_compute_.size();
+        delay_compute_[stream_i] = true;
         if (stream_token) {
           *stream_token = token;
         }
         guard = _pi_stream_guard{std::move(compute_sync_guard)};
-        return event_wait_list[i]->get_stream();
+        hipStream_t res = event_wait_list[i]->get_stream();
+        compute_stream_wait_for_barrier_if_needed(res, stream_i);
+        return res;
       }
     }
   }
@@ -496,7 +519,10 @@ hipStream_t _pi_queue::get_next_transfer_stream() {
           &transfer_streams_[num_transfer_streams_++], flags_));
     }
   }
-  return transfer_streams_[transfer_stream_idx_++ % transfer_streams_.size()];
+  pi_uint32 stream_i = transfer_stream_idx_++ % transfer_streams_.size();
+  hipStream_t res = transfer_streams_[stream_i];
+  transfer_stream_wait_for_barrier_if_needed(res, stream_i);
+  return res;
 }
 
 _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
@@ -508,7 +534,7 @@ _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
 
   assert(type != PI_COMMAND_TYPE_USER);
 
-  bool profilingEnabled = queue_->properties_ & PI_QUEUE_PROFILING_ENABLE;
+  bool profilingEnabled = queue_->properties_ & PI_QUEUE_FLAG_PROFILING_ENABLE;
 
   PI_CHECK_ERROR(hipEventCreateWithFlags(
       &evEnd_, profilingEnabled ? hipEventDefault : hipEventDisableTiming));
@@ -536,7 +562,7 @@ pi_result _pi_event::start() {
   pi_result result = PI_SUCCESS;
 
   try {
-    if (queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
+    if (queue_->properties_ & PI_QUEUE_FLAG_PROFILING_ENABLE) {
       // NOTE: This relies on the default stream to be unused.
       PI_CHECK_ERROR(hipEventRecord(evQueued_, 0));
       PI_CHECK_ERROR(hipEventRecord(evStart_, queue_->get()));
@@ -637,7 +663,7 @@ pi_result _pi_event::release() {
   assert(queue_ != nullptr);
   PI_CHECK_ERROR(hipEventDestroy(evEnd_));
 
-  if (queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
+  if (queue_->properties_ & PI_QUEUE_FLAG_PROFILING_ENABLE) {
     PI_CHECK_ERROR(hipEventDestroy(evQueued_));
     PI_CHECK_ERROR(hipEventDestroy(evStart_));
   }
@@ -971,6 +997,12 @@ pi_result hip_piContextGetInfo(pi_context context, pi_context_info param_name,
   case PI_CONTEXT_INFO_REFERENCE_COUNT:
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    context->get_reference_count());
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT:
+    // 2D USM operations currently not supported.
+    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
+                            false);
   case PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
@@ -1562,14 +1594,14 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES: {
     // The mandated minimum capability:
-    auto capability =
-        PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+    auto capability = PI_QUEUE_FLAG_PROFILING_ENABLE |
+                      PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capability);
   }
   case PI_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
     // The mandated minimum capability:
-    auto capability = PI_QUEUE_PROFILING_ENABLE;
+    auto capability = PI_QUEUE_FLAG_PROFILING_ENABLE;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capability);
   }
@@ -1632,6 +1664,13 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     std::string SupportedExtensions = "";
     SupportedExtensions += PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT;
     SupportedExtensions += " ";
+
+    hipDeviceProp_t props;
+    sycl::detail::pi::assertion(hipGetDeviceProperties(&props, device->get()) ==
+                                hipSuccess);
+    if (props.arch.hasDoubles) {
+      SupportedExtensions += "cl_khr_fp64 ";
+    }
 
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    SupportedExtensions.c_str());
@@ -1779,10 +1818,45 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                        props.arch.hasSharedInt64Atomics);
   }
 
+  case PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY: {
+    size_t FreeMemory = 0;
+    size_t TotalMemory = 0;
+    sycl::detail::pi::assertion(hipMemGetInfo(&FreeMemory, &TotalMemory) ==
+                                    hipSuccess,
+                                "failed hipMemGetInfo() API.");
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   FreeMemory);
+  }
+
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE: {
+    int value = 0;
+    sycl::detail::pi::assertion(
+        hipDeviceGetAttribute(&value, hipDeviceAttributeMemoryClockRate,
+                              device->get()) == hipSuccess);
+    sycl::detail::pi::assertion(value >= 0);
+    // Convert kilohertz to megahertz when returning.
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   value / 1000);
+  }
+
+  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH: {
+    int value = 0;
+    sycl::detail::pi::assertion(
+        hipDeviceGetAttribute(&value, hipDeviceAttributeMemoryBusWidth,
+                              device->get()) == hipSuccess);
+    sycl::detail::pi::assertion(value >= 0);
+    return getInfo(param_value_size, param_value, param_value_size_ret, value);
+  }
+  case PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   pi_int32{1});
+  }
+
   // TODO: Implement.
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
   // TODO: Investigate if this information is available on HIP.
   case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
+  case PI_DEVICE_INFO_DEVICE_ID:
   case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:
   case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
@@ -1791,7 +1865,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
   case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
-  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16:
+  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS:
     return PI_ERROR_INVALID_VALUE;
 
   default:
@@ -2314,7 +2388,7 @@ pi_result hip_piQueueCreate(pi_context context, pi_device device,
     unsigned int flags = 0;
 
     const bool is_out_of_order =
-        properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+        properties & PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
 
     std::vector<hipStream_t> computeHipStreams(
         is_out_of_order ? _pi_queue::default_num_compute_streams : 1);
@@ -2337,6 +2411,21 @@ pi_result hip_piQueueCreate(pi_context context, pi_device device,
     return PI_ERROR_OUT_OF_RESOURCES;
   }
 }
+pi_result hip_piextQueueCreate(pi_context Context, pi_device Device,
+                               pi_queue_properties *Properties,
+                               pi_queue *Queue) {
+  assert(Properties);
+  // Expect flags mask to be passed first.
+  assert(Properties[0] == PI_QUEUE_FLAGS);
+  if (Properties[0] != PI_QUEUE_FLAGS)
+    return PI_ERROR_INVALID_VALUE;
+  pi_queue_properties Flags = Properties[1];
+  // Extra data isn't supported yet.
+  assert(Properties[2] == 0);
+  if (Properties[2] != 0)
+    return PI_ERROR_INVALID_VALUE;
+  return hip_piQueueCreate(Context, Device, Flags, Queue);
+}
 
 pi_result hip_piQueueGetInfo(pi_queue command_queue, pi_queue_info param_name,
                              size_t param_value_size, void *param_value,
@@ -2356,6 +2445,21 @@ pi_result hip_piQueueGetInfo(pi_queue command_queue, pi_queue_info param_name,
   case PI_QUEUE_INFO_PROPERTIES:
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    command_queue->properties_);
+  case PI_EXT_ONEAPI_QUEUE_INFO_EMPTY: {
+    bool IsReady = command_queue->all_of([](hipStream_t s) -> bool {
+      const hipError_t ret = hipStreamQuery(s);
+      if (ret == hipSuccess)
+        return true;
+
+      if (ret == hipErrorNotReady)
+        return false;
+
+      PI_CHECK_ERROR(ret);
+      return false;
+    });
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   IsReady);
+  }
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
@@ -2407,7 +2511,7 @@ pi_result hip_piQueueFinish(pi_queue command_queue) {
            nullptr); // need PI_ERROR_INVALID_EXTERNAL_HANDLE error code
     ScopedContext active(command_queue->get_context());
 
-    command_queue->sync_streams([&result](hipStream_t s) {
+    command_queue->sync_streams<true>([&result](hipStream_t s) {
       result = PI_CHECK_ERROR(hipStreamSynchronize(s));
     });
 
@@ -2721,6 +2825,11 @@ pi_result hip_piEnqueueKernelLaunch(
   assert(work_dim > 0);
   assert(work_dim < 4);
 
+  if (*global_work_size == 0) {
+    return hip_piEnqueueEventsWaitWithBarrier(
+        command_queue, num_events_in_wait_list, event_wait_list, event);
+  }
+
   // Set the number of threads per block to the number of threads per warp
   // by default unless user has provided a better number
   size_t threadsPerBlock[3] = {32u, 1u, 1u};
@@ -2818,6 +2927,27 @@ pi_result hip_piEnqueueKernelLaunch(
           _pi_event::make_native(PI_COMMAND_TYPE_NDRANGE_KERNEL, command_queue,
                                  hipStream, stream_token));
       retImplEv->start();
+    }
+
+    // Set local mem max size if env var is present
+    static const char *local_mem_sz_ptr =
+        std::getenv("SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE");
+
+    if (local_mem_sz_ptr) {
+      int device_max_local_mem = 0;
+      retError = PI_CHECK_ERROR(hipDeviceGetAttribute(
+          &device_max_local_mem, hipDeviceAttributeMaxSharedMemoryPerBlock,
+          command_queue->get_device()->get()));
+
+      static const int env_val = std::atoi(local_mem_sz_ptr);
+      if (env_val <= 0 || env_val > device_max_local_mem) {
+        setErrorMessage("Invalid value specified for "
+                        "SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE",
+                        PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+        return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+      }
+      retError = PI_CHECK_ERROR(hipFuncSetAttribute(
+          hipFunc, hipFuncAttributeMaxDynamicSharedMemorySize, env_val));
     }
 
     retError = PI_CHECK_ERROR(hipModuleLaunchKernel(
@@ -3590,7 +3720,8 @@ pi_result hip_piEventGetProfilingInfo(pi_event event,
   assert(event != nullptr);
 
   pi_queue queue = event->get_queue();
-  if (queue == nullptr || !(queue->properties_ & PI_QUEUE_PROFILING_ENABLE)) {
+  if (queue == nullptr ||
+      !(queue->properties_ & PI_QUEUE_FLAG_PROFILING_ENABLE)) {
     return PI_ERROR_PROFILING_INFO_NOT_AVAILABLE;
   }
 
@@ -3696,26 +3827,60 @@ pi_result hip_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
     return PI_ERROR_INVALID_QUEUE;
   }
 
+  pi_result result;
+
   try {
     ScopedContext active(command_queue->get_context());
-
-    if (event_wait_list) {
-      auto result =
-          forLatestEvents(event_wait_list, num_events_in_wait_list,
-                          [command_queue](pi_event event) -> pi_result {
-                            return enqueueEventWait(command_queue, event);
-                          });
-
-      if (result != PI_SUCCESS) {
-        return result;
+    pi_uint32 stream_token;
+    _pi_stream_guard guard;
+    hipStream_t hipStream = command_queue->get_next_compute_stream(
+        num_events_in_wait_list, event_wait_list, guard, &stream_token);
+    {
+      std::lock_guard<std::mutex> guard(command_queue->barrier_mutex_);
+      if (command_queue->barrier_event_ == nullptr) {
+        PI_CHECK_ERROR(hipEventCreate(&command_queue->barrier_event_));
       }
+      if (num_events_in_wait_list == 0) { //  wait on all work
+        if (command_queue->barrier_tmp_event_ == nullptr) {
+          PI_CHECK_ERROR(hipEventCreate(&command_queue->barrier_tmp_event_));
+        }
+        command_queue->sync_streams(
+            [hipStream,
+             tmp_event = command_queue->barrier_tmp_event_](hipStream_t s) {
+              if (hipStream != s) {
+                PI_CHECK_ERROR(hipEventRecord(tmp_event, s));
+                PI_CHECK_ERROR(hipStreamWaitEvent(hipStream, tmp_event, 0));
+              }
+            });
+      } else { // wait just on given events
+        forLatestEvents(event_wait_list, num_events_in_wait_list,
+                        [hipStream](pi_event event) -> pi_result {
+                          if (event->get_queue()->has_been_synchronized(
+                                  event->get_compute_stream_token())) {
+                            return PI_SUCCESS;
+                          } else {
+                            return PI_CHECK_ERROR(
+                                hipStreamWaitEvent(hipStream, event->get(), 0));
+                          }
+                        });
+      }
+
+      result = PI_CHECK_ERROR(
+          hipEventRecord(command_queue->barrier_event_, hipStream));
+      for (unsigned int i = 0;
+           i < command_queue->compute_applied_barrier_.size(); i++) {
+        command_queue->compute_applied_barrier_[i] = false;
+      }
+      for (unsigned int i = 0;
+           i < command_queue->transfer_applied_barrier_.size(); i++) {
+        command_queue->transfer_applied_barrier_[i] = false;
+      }
+    }
+    if (result != PI_SUCCESS) {
+      return result;
     }
 
     if (event) {
-      pi_uint32 stream_token;
-      _pi_stream_guard guard;
-      hipStream_t hipStream = command_queue->get_next_compute_stream(
-          num_events_in_wait_list, event_wait_list, guard, &stream_token);
       *event = _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue,
                                       hipStream, stream_token);
       (*event)->start();
@@ -4932,6 +5097,33 @@ pi_result hip_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
   return PI_SUCCESS;
 }
 
+// TODO: Implement this. Remember to return true for
+//       PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT when it is implemented.
+pi_result hip_piextUSMEnqueueFill2D(pi_queue, void *, size_t, size_t,
+                                    const void *, size_t, size_t, pi_uint32,
+                                    const pi_event *, pi_event *) {
+  sycl::detail::pi::die("piextUSMEnqueueFill2D: not implemented");
+  return {};
+}
+
+// TODO: Implement this. Remember to return true for
+//       PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT when it is implemented.
+pi_result hip_piextUSMEnqueueMemset2D(pi_queue, void *, size_t, int, size_t,
+                                      size_t, pi_uint32, const pi_event *,
+                                      pi_event *) {
+  sycl::detail::pi::die("hip_piextUSMEnqueueMemset2D: not implemented");
+  return {};
+}
+
+// TODO: Implement this. Remember to return true for
+//       PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT when it is implemented.
+pi_result hip_piextUSMEnqueueMemcpy2D(pi_queue, pi_bool, void *, size_t,
+                                      const void *, size_t, size_t, size_t,
+                                      pi_uint32, const pi_event *, pi_event *) {
+  sycl::detail::pi::die("piextUSMEnqueueMemcpy2D not implemented");
+  return {};
+}
+
 /// API to query information about USM allocated pointers
 /// Valid Queries:
 ///   PI_MEM_ALLOC_TYPE returns host/device/shared pi_host_usm value
@@ -5083,6 +5275,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          hip_piextContextCreateWithNativeHandle)
   // Queue
   _PI_CL(piQueueCreate, hip_piQueueCreate)
+  _PI_CL(piextQueueCreate, hip_piextQueueCreate)
   _PI_CL(piQueueGetInfo, hip_piQueueGetInfo)
   _PI_CL(piQueueFinish, hip_piQueueFinish)
   _PI_CL(piQueueFlush, hip_piQueueFlush)
@@ -5169,6 +5362,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueueMemcpy, hip_piextUSMEnqueueMemcpy)
   _PI_CL(piextUSMEnqueuePrefetch, hip_piextUSMEnqueuePrefetch)
   _PI_CL(piextUSMEnqueueMemAdvise, hip_piextUSMEnqueueMemAdvise)
+  _PI_CL(piextUSMEnqueueMemcpy2D, hip_piextUSMEnqueueMemcpy2D)
+  _PI_CL(piextUSMEnqueueFill2D, hip_piextUSMEnqueueFill2D)
+  _PI_CL(piextUSMEnqueueMemset2D, hip_piextUSMEnqueueMemset2D)
   _PI_CL(piextUSMGetMemAllocInfo, hip_piextUSMGetMemAllocInfo)
 
   _PI_CL(piextKernelSetArgMemObj, hip_piextKernelSetArgMemObj)

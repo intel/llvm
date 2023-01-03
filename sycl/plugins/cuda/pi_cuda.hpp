@@ -26,6 +26,7 @@
   _PI_PLUGIN_VERSION_STRING(_PI_CUDA_PLUGIN_VERSION)
 
 #include "sycl/detail/pi.h"
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cassert>
@@ -402,9 +403,14 @@ struct _pi_queue {
   // will be skipped the next time it would be selected round-robin style. When
   // skipped, its delay flag is cleared.
   std::vector<bool> delay_compute_;
+  // keep track of which streams have applied barrier
+  std::vector<bool> compute_applied_barrier_;
+  std::vector<bool> transfer_applied_barrier_;
   _pi_context *context_;
   _pi_device *device_;
   pi_queue_properties properties_;
+  CUevent barrier_event_ = nullptr;
+  CUevent barrier_tmp_event_ = nullptr;
   std::atomic_uint32_t refCount_;
   std::atomic_uint32_t eventCount_;
   std::atomic_uint32_t compute_stream_idx_;
@@ -420,6 +426,7 @@ struct _pi_queue {
   std::mutex compute_stream_sync_mutex_;
   std::mutex compute_stream_mutex_;
   std::mutex transfer_stream_mutex_;
+  std::mutex barrier_mutex_;
   bool has_ownership_;
 
   _pi_queue(std::vector<CUstream> &&compute_streams,
@@ -428,7 +435,9 @@ struct _pi_queue {
             unsigned int flags, bool backend_owns = true)
       : compute_streams_{std::move(compute_streams)},
         transfer_streams_{std::move(transfer_streams)},
-        delay_compute_(compute_streams_.size(), false), context_{context},
+        delay_compute_(compute_streams_.size(), false),
+        compute_applied_barrier_(compute_streams_.size()),
+        transfer_applied_barrier_(transfer_streams_.size()), context_{context},
         device_{device}, properties_{properties}, refCount_{1}, eventCount_{0},
         compute_stream_idx_{0}, transfer_stream_idx_{0},
         num_compute_streams_{0}, num_transfer_streams_{0},
@@ -442,6 +451,11 @@ struct _pi_queue {
     cuda_piContextRelease(context_);
     cuda_piDeviceRelease(device_);
   }
+
+  void compute_stream_wait_for_barrier_if_needed(CUstream stream,
+                                                 pi_uint32 stream_i);
+  void transfer_stream_wait_for_barrier_if_needed(CUstream stream,
+                                                  pi_uint32 stream_i);
 
   // get_next_compute/transfer_stream() functions return streams from
   // appropriate pools in round-robin fashion
@@ -486,6 +500,28 @@ struct _pi_queue {
     return is_last_command && !has_been_synchronized(stream_token);
   }
 
+  template <typename T> bool all_of(T &&f) {
+    {
+      std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
+      unsigned int end =
+          std::min(static_cast<unsigned int>(compute_streams_.size()),
+                   num_compute_streams_);
+      if (!std::all_of(compute_streams_.begin(), compute_streams_.begin() + end,
+                       f))
+        return false;
+    }
+    {
+      std::lock_guard<std::mutex> transfer_guard(transfer_stream_mutex_);
+      unsigned int end =
+          std::min(static_cast<unsigned int>(transfer_streams_.size()),
+                   num_transfer_streams_);
+      if (!std::all_of(transfer_streams_.begin(),
+                       transfer_streams_.begin() + end, f))
+        return false;
+    }
+    return true;
+  }
+
   template <typename T> void for_each_stream(T &&f) {
     {
       std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
@@ -507,7 +543,7 @@ struct _pi_queue {
     }
   }
 
-  template <typename T> void sync_streams(T &&f) {
+  template <bool ResetUsed = false, typename T> void sync_streams(T &&f) {
     auto sync_compute = [&f, &streams = compute_streams_,
                          &delay = delay_compute_](unsigned int start,
                                                   unsigned int stop) {
@@ -530,7 +566,9 @@ struct _pi_queue {
       unsigned int end = num_compute_streams_ < size
                              ? num_compute_streams_
                              : compute_stream_idx_.load();
-      last_sync_compute_streams_ = end;
+      if (ResetUsed) {
+        last_sync_compute_streams_ = end;
+      }
       if (end - start >= size) {
         sync_compute(0, size);
       } else {
@@ -552,7 +590,9 @@ struct _pi_queue {
         unsigned int end = num_transfer_streams_ < size
                                ? num_transfer_streams_
                                : transfer_stream_idx_.load();
-        last_sync_transfer_streams_ = end;
+        if (ResetUsed) {
+          last_sync_transfer_streams_ = end;
+        }
         if (end - start >= size) {
           sync_transfer(0, size);
         } else {
@@ -604,7 +644,7 @@ public:
 
   CUstream get_stream() const noexcept { return stream_; }
 
-  pi_uint32 get_stream_token() const noexcept { return streamToken_; }
+  pi_uint32 get_compute_stream_token() const noexcept { return streamToken_; }
 
   pi_command_type get_command_type() const noexcept { return commandType_; }
 

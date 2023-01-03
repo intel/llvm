@@ -27,6 +27,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/JSON.h"
+#include <optional>
 
 #define DEBUG_TYPE "debugify"
 
@@ -114,7 +115,8 @@ bool llvm::applyDebugifyMetadata(
       continue;
 
     bool InsertedDbgVal = false;
-    auto SPType = DIB.createSubroutineType(DIB.getOrCreateTypeArray(None));
+    auto SPType =
+        DIB.createSubroutineType(DIB.getOrCreateTypeArray(std::nullopt));
     DISubprogram::DISPFlags SPFlags =
         DISubprogram::SPFlagDefinition | DISubprogram::SPFlagOptimized;
     if (F.hasPrivateLinkage() || F.hasInternalLinkage())
@@ -243,10 +245,15 @@ applyDebugify(Module &M,
 bool llvm::stripDebugifyMetadata(Module &M) {
   bool Changed = false;
 
-  // Remove the llvm.debugify module-level named metadata.
+  // Remove the llvm.debugify and llvm.mir.debugify module-level named metadata.
   NamedMDNode *DebugifyMD = M.getNamedMetadata("llvm.debugify");
   if (DebugifyMD) {
     M.eraseNamedMetadata(DebugifyMD);
+    Changed = true;
+  }
+
+  if (auto *MIRDebugifyMD = M.getNamedMetadata("llvm.mir.debugify")) {
+    M.eraseNamedMetadata(MIRDebugifyMD);
     Changed = true;
   }
 
@@ -513,15 +520,19 @@ static void writeJSON(StringRef OrigDIVerifyBugsReportFilePath,
     return;
   }
 
-  OS_FILE << "{\"file\":\"" << FileNameFromCU << "\", ";
+  if (auto L = OS_FILE.lock()) {
+    OS_FILE << "{\"file\":\"" << FileNameFromCU << "\", ";
 
-  StringRef PassName = NameOfWrappedPass != "" ? NameOfWrappedPass : "no-name";
-  OS_FILE << "\"pass\":\"" << PassName << "\", ";
+    StringRef PassName =
+        NameOfWrappedPass != "" ? NameOfWrappedPass : "no-name";
+    OS_FILE << "\"pass\":\"" << PassName << "\", ";
 
-  llvm::json::Value BugsToPrint{std::move(Bugs)};
-  OS_FILE << "\"bugs\": " << BugsToPrint;
+    llvm::json::Value BugsToPrint{std::move(Bugs)};
+    OS_FILE << "\"bugs\": " << BugsToPrint;
 
-  OS_FILE << "}\n";
+    OS_FILE << "}\n";
+  }
+  OS_FILE.close();
 }
 
 bool llvm::checkDebugInfoMetadata(Module &M,
@@ -670,7 +681,7 @@ bool diagnoseMisSizedDbgValue(Module &M, DbgValueInst *DVI) {
 
   Type *Ty = V->getType();
   uint64_t ValueOperandSize = getAllocSizeInBits(M, Ty);
-  Optional<uint64_t> DbgVarSize = DVI->getFragmentSizeInBits();
+  std::optional<uint64_t> DbgVarSize = DVI->getFragmentSizeInBits();
   if (!ValueOperandSize || !DbgVarSize)
     return false;
 

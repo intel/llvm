@@ -27,7 +27,7 @@ struct S {
 // CHECK-NEXT:    [[COND_LVALUE:%.*]] = phi [[STRUCT__ZTS1S_S]] addrspace(4)* [ [[TMP1]], [[COND_TRUE]] ], [ [[RHS_ASCAST]], [[COND_FALSE]] ]
 // CHECK-NEXT:    [[TMP2:%.*]] = bitcast [[STRUCT__ZTS1S_S]] addrspace(4)* [[AGG_RESULT:%.*]] to i8 addrspace(4)*
 // CHECK-NEXT:    [[TMP3:%.*]] = bitcast [[STRUCT__ZTS1S_S]] addrspace(4)* [[COND_LVALUE]] to i8 addrspace(4)*
-// CHECK-NEXT:    call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 2 [[TMP2]], i8 addrspace(4)* align 2 [[TMP3]], i64 2, i1 false), !tbaa.struct !9
+// CHECK-NEXT:    call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 2 [[TMP2]], i8 addrspace(4)* align 2 [[TMP3]], i64 2, i1 false), !tbaa.struct !{{[0-9]+}}
 // CHECK-NEXT:    ret void
 //
 S foo(bool cond, S &lhs, S rhs) {

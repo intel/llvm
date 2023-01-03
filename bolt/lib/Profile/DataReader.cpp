@@ -41,7 +41,7 @@ DumpData("dump-data",
 namespace llvm {
 namespace bolt {
 
-Optional<StringRef> getLTOCommonName(const StringRef Name) {
+std::optional<StringRef> getLTOCommonName(const StringRef Name) {
   size_t LTOSuffixPos = Name.find(".lto_priv.");
   if (LTOSuffixPos != StringRef::npos)
     return Name.substr(0, LTOSuffixPos + 10);
@@ -49,7 +49,7 @@ Optional<StringRef> getLTOCommonName(const StringRef Name) {
     return Name.substr(0, LTOSuffixPos + 11);
   if ((LTOSuffixPos = Name.find(".llvm.")) != StringRef::npos)
     return Name.substr(0, LTOSuffixPos + 6);
-  return NoneType();
+  return std::nullopt;
 }
 
 namespace {
@@ -674,7 +674,7 @@ bool DataReader::recordBranch(BinaryFunction &BF, uint64_t From, uint64_t To,
   BinaryContext &BC = BF.getBinaryContext();
 
   BinaryBasicBlock *FromBB = BF.getBasicBlockContainingOffset(From);
-  BinaryBasicBlock *ToBB = BF.getBasicBlockContainingOffset(To);
+  const BinaryBasicBlock *ToBB = BF.getBasicBlockContainingOffset(To);
 
   if (!FromBB || !ToBB) {
     LLVM_DEBUG(dbgs() << "failed to get block for recorded branch\n");
@@ -703,7 +703,7 @@ bool DataReader::recordBranch(BinaryFunction &BF, uint64_t From, uint64_t To,
   if (!OffsetMatches) {
     // Skip the nops to support old .fdata
     uint64_t Offset = ToBB->getOffset();
-    for (MCInst &Instr : *ToBB) {
+    for (const MCInst &Instr : *ToBB) {
       if (!BC.MIB->isNoop(Instr))
         break;
 
@@ -739,7 +739,8 @@ bool DataReader::recordBranch(BinaryFunction &BF, uint64_t From, uint64_t To,
     // The real destination is the layout successor of the detected ToBB.
     if (ToBB == BF.getLayout().block_back())
       return false;
-    BinaryBasicBlock *NextBB = BF.getLayout().getBlock(ToBB->getIndex() + 1);
+    const BinaryBasicBlock *NextBB =
+        BF.getLayout().getBlock(ToBB->getIndex() + 1);
     assert((NextBB && NextBB->getOffset() > ToBB->getOffset()) && "bad layout");
     ToBB = NextBB;
   }
@@ -1256,14 +1257,14 @@ std::error_code DataReader::parse() {
 void DataReader::buildLTONameMaps() {
   for (StringMapEntry<FuncBranchData> &FuncData : NamesToBranches) {
     const StringRef FuncName = FuncData.getKey();
-    const Optional<StringRef> CommonName = getLTOCommonName(FuncName);
+    const std::optional<StringRef> CommonName = getLTOCommonName(FuncName);
     if (CommonName)
       LTOCommonNameMap[*CommonName].push_back(&FuncData.getValue());
   }
 
   for (StringMapEntry<FuncMemData> &FuncData : NamesToMemEvents) {
     const StringRef FuncName = FuncData.getKey();
-    const Optional<StringRef> CommonName = getLTOCommonName(FuncName);
+    const std::optional<StringRef> CommonName = getLTOCommonName(FuncName);
     if (CommonName)
       LTOCommonNameMemMap[*CommonName].push_back(&FuncData.getValue());
   }
@@ -1307,7 +1308,7 @@ std::vector<decltype(MapTy::MapEntryTy::second) *> fetchMapEntriesRegex(
   // of matching a name at the end of the list.
   for (auto FI = FuncNames.rbegin(), FE = FuncNames.rend(); FI != FE; ++FI) {
     std::string Name = normalizeName(*FI);
-    const Optional<StringRef> LTOCommonName = getLTOCommonName(Name);
+    const std::optional<StringRef> LTOCommonName = getLTOCommonName(Name);
     if (LTOCommonName) {
       auto I = LTOCommonNameMap.find(*LTOCommonName);
       if (I != LTOCommonNameMap.end()) {

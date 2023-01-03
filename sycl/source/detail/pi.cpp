@@ -265,6 +265,7 @@ std::string memFlagsToString(pi_mem_flags Flags) {
 
 // GlobalPlugin is a global Plugin used with Interoperability constructors that
 // use OpenCL objects to construct SYCL class objects.
+// TODO: GlobalPlugin does not seem to be needed anymore. Consider removing it!
 std::shared_ptr<plugin> GlobalPlugin;
 
 // Find the plugin at the appropriate location and return the location.
@@ -276,16 +277,25 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
   // search is done for libpi_opencl.so/pi_opencl.dll file in LD_LIBRARY_PATH
   // env only.
   //
+
   device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
-  if (!FilterList) {
+  ods_target_list *OdsTargetList = SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
+
+  // Will we be filtering with SYCL_DEVICE_FILTER or ONEAPI_DEVICE_SELECTOR ?
+  // We do NOT attempt to support both simultaneously.
+  if (OdsTargetList && FilterList) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "ONEAPI_DEVICE_SELECTOR cannot be used in "
+                          "conjunction with SYCL_DEVICE_FILTER");
+  } else if (!FilterList && !OdsTargetList) {
     PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
     PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
                              backend::ext_oneapi_level_zero);
     PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::ext_oneapi_cuda);
     PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
-    PluginNames.emplace_back(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME,
-                             backend::ext_intel_esimd_emulator);
-  } else {
+    PluginNames.emplace_back(__SYCL_UNIFIED_RUNTIME_PLUGIN_NAME,
+                             backend::ext_oneapi_unified_runtime);
+  } else if (FilterList) {
     std::vector<device_filter> Filters = FilterList->get();
     bool OpenCLFound = false;
     bool LevelZeroFound = false;
@@ -293,7 +303,7 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
     bool EsimdCpuFound = false;
     bool HIPFound = false;
     for (const device_filter &Filter : Filters) {
-      backend Backend = Filter.Backend;
+      backend Backend = Filter.Backend ? Filter.Backend.value() : backend::all;
       if (!OpenCLFound &&
           (Backend == backend::opencl || Backend == backend::all)) {
         PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
@@ -311,8 +321,7 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
                                  backend::ext_oneapi_cuda);
         CudaFound = true;
       }
-      if (!EsimdCpuFound && (Backend == backend::ext_intel_esimd_emulator ||
-                             Backend == backend::all)) {
+      if (!EsimdCpuFound && Backend == backend::ext_intel_esimd_emulator) {
         PluginNames.emplace_back(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME,
                                  backend::ext_intel_esimd_emulator);
         EsimdCpuFound = true;
@@ -323,6 +332,30 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
                                  backend::ext_oneapi_hip);
         HIPFound = true;
       }
+    }
+  } else {
+    ods_target_list &list = *OdsTargetList;
+    if (list.backendCompatible(backend::opencl)) {
+      PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
+    }
+    if (list.backendCompatible(backend::ext_oneapi_level_zero)) {
+      PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
+                               backend::ext_oneapi_level_zero);
+    }
+    if (list.backendCompatible(backend::ext_oneapi_cuda)) {
+      PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME,
+                               backend::ext_oneapi_cuda);
+    }
+    if (list.backendCompatible(backend::ext_intel_esimd_emulator)) {
+      PluginNames.emplace_back(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME,
+                               backend::ext_intel_esimd_emulator);
+    }
+    if (list.backendCompatible(backend::ext_oneapi_hip)) {
+      PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
+    }
+    if (list.backendCompatible(backend::ext_oneapi_unified_runtime)) {
+      PluginNames.emplace_back(__SYCL_UNIFIED_RUNTIME_PLUGIN_NAME,
+                               backend::ext_oneapi_unified_runtime);
     }
   }
   return PluginNames;
@@ -414,39 +447,6 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
                   << PluginNames[I].first << std::endl;
       }
       continue;
-    }
-    backend *BE = SYCLConfig<SYCL_BE>::get();
-    // Use OpenCL as the default interoperability plugin.
-    // This will go away when we make backend interoperability selection
-    // explicit in SYCL-2020.
-    backend InteropBE = BE ? *BE : backend::opencl;
-
-    if (InteropBE == backend::opencl &&
-        PluginNames[I].first.find("opencl") != std::string::npos) {
-      // Use the OpenCL plugin as the GlobalPlugin
-      GlobalPlugin =
-          std::make_shared<plugin>(PluginInformation, backend::opencl, Library);
-    } else if (InteropBE == backend::ext_oneapi_cuda &&
-               PluginNames[I].first.find("cuda") != std::string::npos) {
-      // Use the CUDA plugin as the GlobalPlugin
-      GlobalPlugin = std::make_shared<plugin>(
-          PluginInformation, backend::ext_oneapi_cuda, Library);
-    } else if (InteropBE == backend::ext_oneapi_hip &&
-               PluginNames[I].first.find("hip") != std::string::npos) {
-      // Use the HIP plugin as the GlobalPlugin
-      GlobalPlugin = std::make_shared<plugin>(PluginInformation,
-                                              backend::ext_oneapi_hip, Library);
-    } else if (InteropBE == backend::ext_oneapi_level_zero &&
-               PluginNames[I].first.find("level_zero") != std::string::npos) {
-      // Use the LEVEL_ZERO plugin as the GlobalPlugin
-      GlobalPlugin = std::make_shared<plugin>(
-          PluginInformation, backend::ext_oneapi_level_zero, Library);
-    } else if (InteropBE == backend::ext_intel_esimd_emulator &&
-               PluginNames[I].first.find("esimd_emulator") !=
-                   std::string::npos) {
-      // Use the ESIMD_EMULATOR plugin as the GlobalPlugin
-      GlobalPlugin = std::make_shared<plugin>(
-          PluginInformation, backend::ext_intel_esimd_emulator, Library);
     }
     plugin &NewPlugin = Plugins.emplace_back(
         plugin(PluginInformation, PluginNames[I].second, Library));
@@ -547,146 +547,6 @@ template __SYCL_EXPORT const plugin &getPlugin<backend::ext_oneapi_cuda>();
 void assertion(bool Condition, const char *Message) {
   if (!Condition)
     die(Message);
-}
-
-std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
-  switch (P.Prop->Type) {
-  case PI_PROPERTY_TYPE_UINT32:
-    Out << "[UINT32] ";
-    break;
-  case PI_PROPERTY_TYPE_BYTE_ARRAY:
-    Out << "[Byte array] ";
-    break;
-  case PI_PROPERTY_TYPE_STRING:
-    Out << "[String] ";
-    break;
-  default:
-    assert(false && "unsupported property");
-    return Out;
-  }
-  Out << P.Prop->Name << "=";
-
-  switch (P.Prop->Type) {
-  case PI_PROPERTY_TYPE_UINT32:
-    Out << P.asUint32();
-    break;
-  case PI_PROPERTY_TYPE_BYTE_ARRAY: {
-    ByteArray BA = P.asByteArray();
-    std::ios_base::fmtflags FlagsBackup = Out.flags();
-    Out << std::hex;
-    for (const auto &Byte : BA) {
-      Out << "0x" << static_cast<unsigned>(Byte) << " ";
-    }
-    Out.flags(FlagsBackup);
-    break;
-  }
-  case PI_PROPERTY_TYPE_STRING:
-    Out << P.asCString();
-    break;
-  default:
-    assert(false && "Unsupported property");
-    return Out;
-  }
-  return Out;
-}
-
-void DeviceBinaryImage::print() const {
-  std::cerr << "  --- Image " << Bin << "\n";
-  if (!Bin)
-    return;
-  std::cerr << "    Version  : " << (int)Bin->Version << "\n";
-  std::cerr << "    Kind     : " << (int)Bin->Kind << "\n";
-  std::cerr << "    Format   : " << (int)Bin->Format << "\n";
-  std::cerr << "    Target   : " << Bin->DeviceTargetSpec << "\n";
-  std::cerr << "    Bin size : "
-            << ((intptr_t)Bin->BinaryEnd - (intptr_t)Bin->BinaryStart) << "\n";
-  std::cerr << "    Compile options : "
-            << (Bin->CompileOptions ? Bin->CompileOptions : "NULL") << "\n";
-  std::cerr << "    Link options    : "
-            << (Bin->LinkOptions ? Bin->LinkOptions : "NULL") << "\n";
-  std::cerr << "    Entries  : ";
-  for (_pi_offload_entry EntriesIt = Bin->EntriesBegin;
-       EntriesIt != Bin->EntriesEnd; ++EntriesIt)
-    std::cerr << EntriesIt->name << " ";
-  std::cerr << "\n";
-  std::cerr << "    Properties [" << Bin->PropertySetsBegin << "-"
-            << Bin->PropertySetsEnd << "]:\n";
-
-  for (pi_device_binary_property_set PS = Bin->PropertySetsBegin;
-       PS != Bin->PropertySetsEnd; ++PS) {
-    std::cerr << "      Category " << PS->Name << " [" << PS->PropertiesBegin
-              << "-" << PS->PropertiesEnd << "]:\n";
-
-    for (pi_device_binary_property P = PS->PropertiesBegin;
-         P != PS->PropertiesEnd; ++P) {
-      std::cerr << "        " << DeviceBinaryProperty(P) << "\n";
-    }
-  }
-}
-
-void DeviceBinaryImage::dump(std::ostream &Out) const {
-  size_t ImgSize = getSize();
-  Out.write(reinterpret_cast<const char *>(Bin->BinaryStart), ImgSize);
-}
-
-static pi_uint32 asUint32(const void *Addr) {
-  assert(Addr && "Addr is NULL");
-  const auto *P = reinterpret_cast<const unsigned char *>(Addr);
-  return (*P) | (*(P + 1) << 8) | (*(P + 2) << 16) | (*(P + 3) << 24);
-}
-
-pi_uint32 DeviceBinaryProperty::asUint32() const {
-  assert(Prop->Type == PI_PROPERTY_TYPE_UINT32 && "property type mismatch");
-  // if type fits into the ValSize - it is used to store the property value
-  assert(Prop->ValAddr == nullptr && "primitive types must be stored inline");
-  return sycl::detail::pi::asUint32(&Prop->ValSize);
-}
-
-ByteArray DeviceBinaryProperty::asByteArray() const {
-  assert(Prop->Type == PI_PROPERTY_TYPE_BYTE_ARRAY && "property type mismatch");
-  assert(Prop->ValSize > 0 && "property size mismatch");
-  const auto *Data = pi::cast<const std::uint8_t *>(Prop->ValAddr);
-  return {Data, Prop->ValSize};
-}
-
-const char *DeviceBinaryProperty::asCString() const {
-  assert(Prop->Type == PI_PROPERTY_TYPE_STRING && "property type mismatch");
-  assert(Prop->ValSize > 0 && "property size mismatch");
-  return pi::cast<const char *>(Prop->ValAddr);
-}
-
-void DeviceBinaryImage::PropertyRange::init(pi_device_binary Bin,
-                                            const char *PropSetName) {
-  assert(!this->Begin && !this->End && "already initialized");
-  pi_device_binary_property_set PS = nullptr;
-
-  for (PS = Bin->PropertySetsBegin; PS != Bin->PropertySetsEnd; ++PS) {
-    assert(PS->Name && "nameless property set - bug in the offload wrapper?");
-    if (!strcmp(PropSetName, PS->Name))
-      break;
-  }
-  if (PS == Bin->PropertySetsEnd) {
-    Begin = End = nullptr;
-    return;
-  }
-  Begin = PS->PropertiesBegin;
-  End = Begin ? PS->PropertiesEnd : nullptr;
-}
-
-pi_device_binary_property
-DeviceBinaryImage::getProperty(const char *PropName) const {
-  DeviceBinaryImage::PropertyRange BoolProp;
-  BoolProp.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_MISC_PROP);
-  if (!BoolProp.isAvailable())
-    return nullptr;
-  auto It = std::find_if(BoolProp.begin(), BoolProp.end(),
-                         [=](pi_device_binary_property Prop) {
-                           return !strcmp(PropName, Prop->Name);
-                         });
-  if (It == BoolProp.end())
-    return nullptr;
-
-  return *It;
 }
 
 // Reads an integer value from ELF data.
@@ -821,25 +681,6 @@ RT::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
     }
   }
   return PI_DEVICE_BINARY_TYPE_NONE;
-}
-
-void DeviceBinaryImage::init(pi_device_binary Bin) {
-  this->Bin = Bin;
-  // If device binary image format wasn't set by its producer, then can't change
-  // now, because 'Bin' data is part of the executable image loaded into memory
-  // which can't be modified (easily).
-  // TODO clang driver + ClangOffloadWrapper can figure out the format and set
-  // it when invoking the offload wrapper job
-  Format = static_cast<pi::PiDeviceBinaryType>(Bin->Format);
-
-  if (Format == PI_DEVICE_BINARY_TYPE_NONE)
-    // try to determine the format; may remain "NONE"
-    Format = getBinaryImageFormat(Bin->BinaryStart, getSize());
-
-  SpecConstIDMap.init(Bin, __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP);
-  DeviceLibReqMask.init(Bin, __SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK);
-  KernelParamOptInfo.init(Bin, __SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
-  ProgramMetadata.init(Bin, __SYCL_PI_PROPERTY_SET_PROGRAM_METADATA);
 }
 
 } // namespace pi

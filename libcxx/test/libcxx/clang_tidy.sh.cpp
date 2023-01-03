@@ -8,10 +8,11 @@
 
 // REQUIRES: has-clang-tidy
 
+// The GCC compiler flags are not always compatible with clang-tidy.
+// UNSUPPORTED: gcc
+
 // TODO: run clang-tidy with modules enabled once they are supported
-// RUN: clang-tidy %s --warnings-as-errors=* -header-filter=.* --config-file=%S/../../.clang-tidy -- -Wweak-vtables -Wno-unknown-warning-option %{compile_flags} -fno-modules
-// -Wno-unknown-warning-option tells clang-tidy to ignore '-W' command-line arguments that it doesn't know.
-// There are some GCC-specific ones where clang-tidy would warn otherwise.
+// RUN: clang-tidy %s --warnings-as-errors=* -header-filter=.* --config-file=%S/../../.clang-tidy -- -Wweak-vtables %{compile_flags} -fno-modules
 
 // Prevent <ext/hash_map> from generating deprecated warnings for this test.
 #if defined(__DEPRECATED)
@@ -97,7 +98,7 @@ END-SCRIPT
 #include <float.h>
 #include <format>
 #include <forward_list>
-#if !defined(_LIBCPP_HAS_NO_LOCALIZATION)
+#if !defined(_LIBCPP_HAS_NO_LOCALIZATION) && !defined(_LIBCPP_HAS_NO_FSTREAM)
 #   include <fstream>
 #endif
 #include <functional>
@@ -135,6 +136,7 @@ END-SCRIPT
 #include <map>
 #include <math.h>
 #include <memory>
+#include <memory_resource>
 #if !defined(_LIBCPP_HAS_NO_THREADS)
 #   include <mutex>
 #endif

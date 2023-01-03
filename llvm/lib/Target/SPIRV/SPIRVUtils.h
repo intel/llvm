@@ -83,5 +83,18 @@ bool isSpvIntrinsic(MachineInstr &MI, Intrinsic::ID IntrinsicID);
 
 // Get type of i-th operand of the metadata node.
 Type *getMDOperandAsType(const MDNode *N, unsigned I);
+
+// If OpenCL or SPIR-V builtin function name is recognized, return a demangled
+// name, otherwise return an empty string.
+std::string getOclOrSpirvBuiltinDemangledName(StringRef Name);
+
+// If Type is a pointer type and it is not opaque pointer, return its
+// element type, otherwise return Type.
+const Type *getTypedPtrEltType(const Type *Type);
+
+// Check if given LLVM type is a special opaque builtin type.
+bool isSpecialOpaqueType(const Type *Ty);
+
+std::string getFunctionGlobalIdentifier(const Function *F);
 } // namespace llvm
 #endif // LLVM_LIB_TARGET_SPIRV_SPIRVUTILS_H

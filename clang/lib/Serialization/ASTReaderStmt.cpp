@@ -782,6 +782,7 @@ static ConstraintSatisfaction
 readConstraintSatisfaction(ASTRecordReader &Record) {
   ConstraintSatisfaction Satisfaction;
   Satisfaction.IsSatisfied = Record.readInt();
+  Satisfaction.ContainsErrors = Record.readInt();
   if (!Satisfaction.IsSatisfied) {
     unsigned NumDetailRecords = Record.readInt();
     for (unsigned i = 0; i != NumDetailRecords; ++i) {
@@ -803,17 +804,13 @@ readConstraintSatisfaction(ASTRecordReader &Record) {
 void ASTStmtReader::VisitConceptSpecializationExpr(
         ConceptSpecializationExpr *E) {
   VisitExpr(E);
-  unsigned NumTemplateArgs = Record.readInt();
   E->NestedNameSpec = Record.readNestedNameSpecifierLoc();
   E->TemplateKWLoc = Record.readSourceLocation();
   E->ConceptName = Record.readDeclarationNameInfo();
   E->NamedConcept = readDeclAs<ConceptDecl>();
   E->FoundDecl = Record.readDeclAs<NamedDecl>();
+  E->SpecDecl = Record.readDeclAs<ImplicitConceptSpecializationDecl>();
   E->ArgsAsWritten = Record.readASTTemplateArgumentListInfo();
-  llvm::SmallVector<TemplateArgument, 4> Args;
-  for (unsigned I = 0; I < NumTemplateArgs; ++I)
-    Args.push_back(Record.readTemplateArgument());
-  E->setTemplateArguments(Args);
   E->Satisfaction = E->isValueDependent() ? nullptr :
       ASTConstraintSatisfaction::Create(Record.getContext(),
                                         readConstraintSatisfaction(Record));
@@ -2149,8 +2146,10 @@ void ASTStmtReader::VisitSizeOfPackExpr(SizeOfPackExpr *E) {
 void ASTStmtReader::VisitSubstNonTypeTemplateParmExpr(
                                               SubstNonTypeTemplateParmExpr *E) {
   VisitExpr(E);
-  E->ParamAndRef.setPointer(readDeclAs<NonTypeTemplateParmDecl>());
-  E->ParamAndRef.setInt(Record.readInt());
+  E->AssociatedDeclAndRef.setPointer(readDeclAs<Decl>());
+  E->AssociatedDeclAndRef.setInt(Record.readInt());
+  E->Index = Record.readInt();
+  E->PackIndex = Record.readInt();
   E->SubstNonTypeTemplateParmExprBits.NameLoc = readSourceLocation();
   E->Replacement = Record.readSubExpr();
 }
@@ -2158,7 +2157,8 @@ void ASTStmtReader::VisitSubstNonTypeTemplateParmExpr(
 void ASTStmtReader::VisitSubstNonTypeTemplateParmPackExpr(
                                           SubstNonTypeTemplateParmPackExpr *E) {
   VisitExpr(E);
-  E->Param = readDeclAs<NonTypeTemplateParmDecl>();
+  E->AssociatedDecl = readDeclAs<Decl>();
+  E->Index = Record.readInt();
   TemplateArgument ArgPack = Record.readTemplateArgument();
   if (ArgPack.getKind() != TemplateArgument::Pack)
     return;
@@ -2438,6 +2438,13 @@ void ASTStmtReader::VisitOMPBarrierDirective(OMPBarrierDirective *D) {
 }
 
 void ASTStmtReader::VisitOMPTaskwaitDirective(OMPTaskwaitDirective *D) {
+  VisitStmt(D);
+  // The NumClauses field was read in ReadStmtFromStream.
+  Record.skipInts(1);
+  VisitOMPExecutableDirective(D);
+}
+
+void ASTStmtReader::VisitOMPErrorDirective(OMPErrorDirective *D) {
   VisitStmt(D);
   // The NumClauses field was read in ReadStmtFromStream.
   Record.skipInts(1);
@@ -3395,6 +3402,11 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
           Context, Record[ASTStmtReader::NumStmtFields], Empty);
       break;
 
+    case STMT_OMP_ERROR_DIRECTIVE:
+      S = OMPErrorDirective::CreateEmpty(
+          Context, Record[ASTStmtReader::NumStmtFields], Empty);
+      break;
+
     case STMT_OMP_TASKGROUP_DIRECTIVE:
       S = OMPTaskgroupDirective::CreateEmpty(
           Context, Record[ASTStmtReader::NumStmtFields], Empty);
@@ -4051,8 +4063,7 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       break;
 
     case EXPR_CONCEPT_SPECIALIZATION: {
-      unsigned numTemplateArgs = Record[ASTStmtReader::NumExprFields];
-      S = ConceptSpecializationExpr::Create(Context, Empty, numTemplateArgs);
+      S = new (Context) ConceptSpecializationExpr(Empty);
       break;
     }
 

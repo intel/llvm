@@ -9,7 +9,6 @@
 #ifndef LLVM_DEBUGINFO_DWARF_DWARFEXPRESSION_H
 #define LLVM_DEBUGINFO_DWARF_DWARFEXPRESSION_H
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator.h"
 #include "llvm/BinaryFormat/Dwarf.h"
@@ -102,7 +101,7 @@ public:
 
   private:
     bool extract(DataExtractor Data, uint8_t AddressSize, uint64_t Offset,
-                 Optional<dwarf::DwarfFormat> Format);
+                 std::optional<dwarf::DwarfFormat> Format);
   };
 
   /// An iterator to go through the expression operations.
@@ -140,7 +139,7 @@ public:
   };
 
   DWARFExpression(DataExtractor Data, uint8_t AddressSize,
-                  Optional<dwarf::DwarfFormat> Format = None)
+                  std::optional<dwarf::DwarfFormat> Format = std::nullopt)
       : Data(Data), AddressSize(AddressSize), Format(Format) {
     assert(AddressSize == 8 || AddressSize == 4 || AddressSize == 2);
   }
@@ -164,10 +163,15 @@ public:
 
   StringRef getData() const { return Data.getData(); }
 
+  static bool prettyPrintRegisterOp(DWARFUnit *U, raw_ostream &OS,
+                                    DIDumpOptions DumpOpts, uint8_t Opcode,
+                                    const uint64_t Operands[2],
+                                    const MCRegisterInfo *MRI, bool isEH);
+
 private:
   DataExtractor Data;
   uint8_t AddressSize;
-  Optional<dwarf::DwarfFormat> Format;
+  std::optional<dwarf::DwarfFormat> Format;
 };
 
 inline bool operator==(const DWARFExpression::iterator &LHS,

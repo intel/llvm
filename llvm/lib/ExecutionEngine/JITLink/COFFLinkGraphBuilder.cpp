@@ -71,8 +71,8 @@ bool COFFLinkGraphBuilder::isComdatSection(
 
 Section &COFFLinkGraphBuilder::getCommonSection() {
   if (!CommonSection)
-    CommonSection =
-        &G->createSection(CommonSectionName, MemProt::Read | MemProt::Write);
+    CommonSection = &G->createSection(CommonSectionName,
+                                      orc::MemProt::Read | orc::MemProt::Write);
   return *CommonSection;
 }
 
@@ -142,13 +142,13 @@ Error COFFLinkGraphBuilder::graphifySections() {
     });
 
     // Get the section's memory protection flags.
-    MemProt Prot = MemProt::Read;
+    orc::MemProt Prot = orc::MemProt::Read;
     if ((*Sec)->Characteristics & COFF::IMAGE_SCN_MEM_EXECUTE)
-      Prot |= MemProt::Exec;
+      Prot |= orc::MemProt::Exec;
     if ((*Sec)->Characteristics & COFF::IMAGE_SCN_MEM_READ)
-      Prot |= MemProt::Read;
+      Prot |= orc::MemProt::Read;
     if ((*Sec)->Characteristics & COFF::IMAGE_SCN_MEM_WRITE)
-      Prot |= MemProt::Write;
+      Prot |= orc::MemProt::Write;
 
     // Look for existing sections first.
     auto *GraphSec = G->findSectionByName(SectionName);
@@ -227,17 +227,7 @@ Error COFFLinkGraphBuilder::graphifySymbols() {
                << " (index: " << SectionIndex << ") \n";
       });
     else if (Sym->isUndefined()) {
-      if (SymbolName.startswith(getDLLImportStubPrefix())) {
-        if (Sym->getValue() != 0)
-          return make_error<JITLinkError>(
-              "DLL import symbol has non-zero offset");
-
-        auto ExternalSym = createExternalSymbol(
-            SymIndex, SymbolName.drop_front(getDLLImportStubPrefix().size()),
-            *Sym, Sec);
-        GSym = &createDLLImportEntry(SymbolName, *ExternalSym);
-      } else
-        GSym = createExternalSymbol(SymIndex, SymbolName, *Sym, Sec);
+      GSym = createExternalSymbol(SymIndex, SymbolName, *Sym, Sec);
     } else if (Sym->isWeakExternal()) {
       auto *WeakExternal = Sym->getAux<object::coff_aux_weak_external>();
       COFFSymbolIndex TagIndex = WeakExternal->TagIndex;
@@ -299,8 +289,7 @@ Error COFFLinkGraphBuilder::handleDirectiveSection(StringRef Str) {
     case COFF_OPT_incl: {
       auto DataCopy = G->allocateString(S);
       StringRef StrCopy(DataCopy.data(), DataCopy.size());
-      ExternalSymbols[StrCopy] =
-          &G->addExternalSymbol(StrCopy, 0, Linkage::Strong);
+      ExternalSymbols[StrCopy] = &G->addExternalSymbol(StrCopy, 0, false);
       ExternalSymbols[StrCopy]->setLive(true);
       break;
     }
@@ -371,7 +360,7 @@ Symbol *COFFLinkGraphBuilder::createExternalSymbol(
     object::COFFSymbolRef Symbol, const object::coff_section *Section) {
   if (!ExternalSymbols.count(SymbolName))
     ExternalSymbols[SymbolName] =
-        &G->addExternalSymbol(SymbolName, Symbol.getValue(), Linkage::Strong);
+        &G->addExternalSymbol(SymbolName, Symbol.getValue(), false);
 
   LLVM_DEBUG({
     dbgs() << "    " << SymIndex
@@ -465,9 +454,11 @@ Expected<Symbol *> COFFLinkGraphBuilder::createDefinedSymbol(
     object::COFFSymbolRef Symbol, const object::coff_section *Section) {
   if (Symbol.isCommon()) {
     // FIXME: correct alignment
-    return &G->addCommonSymbol(SymbolName, Scope::Default, getCommonSection(),
-                               orc::ExecutorAddr(), Symbol.getValue(),
-                               Symbol.getValue(), false);
+    return &G->addDefinedSymbol(
+        G->createZeroFillBlock(getCommonSection(), Symbol.getValue(),
+                               orc::ExecutorAddr(), Symbol.getValue(), 0),
+        0, SymbolName, Symbol.getValue(), Linkage::Strong, Scope::Default,
+        false, false);
   }
   if (Symbol.isAbsolute())
     return &G->addAbsoluteSymbol(SymbolName,
@@ -622,7 +613,7 @@ COFFLinkGraphBuilder::exportCOMDATSymbol(COFFSymbolIndex SymIndex,
   setGraphSymbol(Symbol.getSectionNumber(), PendingComdatExport->SymbolIndex,
                  *GSym);
   DefinedSymbols[SymbolName] = GSym;
-  PendingComdatExport = None;
+  PendingComdatExport = std::nullopt;
   return GSym;
 }
 

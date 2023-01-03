@@ -392,10 +392,10 @@ ReferencedFiles findReferencedFiles(const ReferencedLocations &Locs,
       [&SM, &CanonIncludes](FileID ID) -> Optional<StringRef> {
         auto Entry = SM.getFileEntryRefForID(ID);
         if (!Entry)
-          return llvm::None;
+          return std::nullopt;
         auto PublicHeader = CanonIncludes.mapHeader(*Entry);
         if (PublicHeader.empty())
-          return llvm::None;
+          return std::nullopt;
         return PublicHeader;
       });
 }
@@ -475,6 +475,9 @@ std::vector<Diag> issueUnusedIncludesDiagnostics(ParsedAST &AST,
   if (Cfg.Diagnostics.UnusedIncludes != Config::UnusedIncludesPolicy::Strict ||
       Cfg.Diagnostics.SuppressAll ||
       Cfg.Diagnostics.Suppress.contains("unused-includes"))
+    return {};
+  // Interaction is only polished for C/CPP.
+  if (AST.getLangOpts().ObjC)
     return {};
   trace::Span Tracer("IncludeCleaner::issueUnusedIncludesDiagnostics");
   std::vector<Diag> Result;

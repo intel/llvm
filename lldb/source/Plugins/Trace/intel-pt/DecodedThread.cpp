@@ -7,29 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "DecodedThread.h"
-
-#include <intel-pt.h>
-
 #include "TraceCursorIntelPT.h"
-
+#include <intel-pt.h>
 #include <memory>
 
 using namespace lldb;
 using namespace lldb_private;
 using namespace lldb_private::trace_intel_pt;
 using namespace llvm;
-
-bool lldb_private::trace_intel_pt::IsLibiptError(int libipt_status) {
-  return libipt_status < 0;
-}
-
-bool lldb_private::trace_intel_pt::IsEndOfStream(int libipt_status) {
-  return libipt_status == -pte_eos;
-}
-
-bool lldb_private::trace_intel_pt::IsTscUnavailable(int libipt_status) {
-  return libipt_status == -pte_no_time;
-}
 
 char IntelPTError::ID;
 
@@ -106,6 +91,11 @@ DecodedThread::GetInstructionLoadAddress(uint64_t item_index) const {
   return m_item_data[item_index].load_address;
 }
 
+lldb::addr_t
+DecodedThread::GetSyncPointOffsetByIndex(uint64_t item_index) const {
+  return m_psb_offsets.find(item_index)->second;
+}
+
 ThreadSP DecodedThread::GetThread() { return m_thread_sp; }
 
 DecodedThread::TraceItemStorage &
@@ -119,9 +109,17 @@ DecodedThread::CreateNewTraceItem(lldb::TraceItemKind kind) {
   return m_item_data.back();
 }
 
+void DecodedThread::NotifySyncPoint(lldb::addr_t psb_offset) {
+  m_psb_offsets.try_emplace(GetItemsCount(), psb_offset);
+  AppendEvent(lldb::eTraceEventSyncPoint);
+}
+
 void DecodedThread::NotifyTsc(TSC tsc) {
   if (m_last_tsc && (*m_last_tsc)->second.tsc == tsc)
     return;
+  if (m_last_tsc)
+    assert(tsc >= (*m_last_tsc)->second.tsc &&
+           "We can't have decreasing times");
 
   m_last_tsc =
       m_tscs.emplace(GetItemsCount(), TSCRange{tsc, 0, GetItemsCount()}).first;
@@ -160,7 +158,7 @@ Optional<DecodedThread::TSCRange>
 DecodedThread::GetTSCRangeByIndex(uint64_t item_index) const {
   auto next_it = m_tscs.upper_bound(item_index);
   if (next_it == m_tscs.begin())
-    return None;
+    return std::nullopt;
   return prev(next_it)->second;
 }
 
@@ -168,8 +166,12 @@ Optional<DecodedThread::NanosecondsRange>
 DecodedThread::GetNanosecondsRangeByIndex(uint64_t item_index) {
   auto next_it = m_nanoseconds.upper_bound(item_index);
   if (next_it == m_nanoseconds.begin())
-    return None;
+    return std::nullopt;
   return prev(next_it)->second;
+}
+
+uint64_t DecodedThread::GetTotalInstructionCount() const {
+  return m_insn_count;
 }
 
 void DecodedThread::AppendEvent(lldb::TraceEvent event) {
@@ -179,37 +181,23 @@ void DecodedThread::AppendEvent(lldb::TraceEvent event) {
 
 void DecodedThread::AppendInstruction(const pt_insn &insn) {
   CreateNewTraceItem(lldb::eTraceItemKindInstruction).load_address = insn.ip;
+  m_insn_count++;
 }
 
 void DecodedThread::AppendError(const IntelPTError &error) {
-  // End of stream shouldn't be a public error
-  if (IsEndOfStream(error.GetLibiptErrorCode()))
-    return;
   CreateNewTraceItem(lldb::eTraceItemKindError).error =
       ConstString(error.message()).AsCString();
+  m_error_stats.RecordError(/*fatal=*/false);
 }
 
-void DecodedThread::AppendCustomError(StringRef err) {
+void DecodedThread::AppendCustomError(StringRef err, bool fatal) {
   CreateNewTraceItem(lldb::eTraceItemKindError).error =
       ConstString(err).AsCString();
+  m_error_stats.RecordError(fatal);
 }
 
 lldb::TraceEvent DecodedThread::GetEventByIndex(int item_index) const {
   return m_item_data[item_index].event;
-}
-
-void DecodedThread::LibiptErrorsStats::RecordError(int libipt_error_code) {
-  libipt_errors_counts[pt_errstr(pt_errcode(libipt_error_code))]++;
-  total_count++;
-}
-
-void DecodedThread::RecordTscError(int libipt_error_code) {
-  m_tsc_errors_stats.RecordError(libipt_error_code);
-}
-
-const DecodedThread::LibiptErrorsStats &
-DecodedThread::GetTscErrorsStats() const {
-  return m_tsc_errors_stats;
 }
 
 const DecodedThread::EventsStats &DecodedThread::GetEventsStats() const {
@@ -219,6 +207,29 @@ const DecodedThread::EventsStats &DecodedThread::GetEventsStats() const {
 void DecodedThread::EventsStats::RecordEvent(lldb::TraceEvent event) {
   events_counts[event]++;
   total_count++;
+}
+
+uint64_t DecodedThread::ErrorStats::GetTotalCount() const {
+  uint64_t total = 0;
+  for (const auto &[kind, count] : libipt_errors)
+    total += count;
+
+  return total + other_errors + fatal_errors;
+}
+
+void DecodedThread::ErrorStats::RecordError(bool fatal) {
+  if (fatal)
+    fatal_errors++;
+  else
+    other_errors++;
+}
+
+void DecodedThread::ErrorStats::RecordError(int libipt_error_code) {
+  libipt_errors[pt_errstr(pt_errcode(libipt_error_code))]++;
+}
+
+const DecodedThread::ErrorStats &DecodedThread::GetErrorStats() const {
+  return m_error_stats;
 }
 
 lldb::TraceItemKind

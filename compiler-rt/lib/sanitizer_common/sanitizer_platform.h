@@ -90,7 +90,7 @@
 #  else
 #    define SANITIZER_IOSSIM 0
 #  endif
-#  if TARGET_OS_DRIVERKIT
+#  if defined(TARGET_OS_DRIVERKIT) && TARGET_OS_DRIVERKIT
 #    define SANITIZER_DRIVERKIT 1
 #  else
 #    define SANITIZER_DRIVERKIT 0
@@ -286,8 +286,9 @@
 #ifndef SANITIZER_CAN_USE_ALLOCATOR64
 #  if (SANITIZER_ANDROID && defined(__aarch64__)) || SANITIZER_FUCHSIA
 #    define SANITIZER_CAN_USE_ALLOCATOR64 1
-#  elif defined(__mips64) || defined(__aarch64__) || defined(__i386__) || \
-      defined(__arm__) || SANITIZER_RISCV64 || defined(__hexagon__)
+#  elif defined(__mips64) || defined(__arm__) || defined(__i386__) || \
+      SANITIZER_RISCV64 || defined(__hexagon__) || \
+      (SANITIZER_APPLE && defined(__aarch64__))
 #    define SANITIZER_CAN_USE_ALLOCATOR64 0
 #  else
 #    define SANITIZER_CAN_USE_ALLOCATOR64 (SANITIZER_WORDSIZE == 64)

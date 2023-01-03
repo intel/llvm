@@ -252,7 +252,7 @@ MapOpcodeIntoControlFlowKind(InstructionOpcodeAndModrm opcode_and_modrm) {
 ///    Returns decoded instruction as struct InstructionOpcodeAndModrm, holding
 ///    primary_opcode, opcode_len and modrm byte. Refer to the struct definition
 ///    for more details.
-///    Otherwise if the given instruction is invalid, returns None.
+///    Otherwise if the given instruction is invalid, returns std::nullopt.
 llvm::Optional<InstructionOpcodeAndModrm>
 InstructionLengthDecode(const uint8_t *inst_bytes, int bytes_len,
                         bool is_exec_mode_64b) {
@@ -266,7 +266,7 @@ InstructionLengthDecode(const uint8_t *inst_bytes, int bytes_len,
   // in `src/pt_ild.c`
   while (!prefix_done) {
     if (op_idx >= bytes_len)
-      return llvm::None;
+      return std::nullopt;
 
     ret.primary_opcode = inst_bytes[op_idx];
     switch (ret.primary_opcode) {
@@ -384,7 +384,7 @@ InstructionLengthDecode(const uint8_t *inst_bytes, int bytes_len,
 
 lldb::InstructionControlFlowKind GetControlFlowKind(bool is_exec_mode_64b,
                                                     Opcode m_opcode) {
-  llvm::Optional<InstructionOpcodeAndModrm> ret = llvm::None;
+  llvm::Optional<InstructionOpcodeAndModrm> ret;
 
   if (m_opcode.GetOpcodeBytes() == nullptr || m_opcode.GetByteSize() <= 0) {
     // x86_64 and i386 instructions are categorized as Opcode::Type::eTypeBytes

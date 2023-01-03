@@ -68,7 +68,7 @@ public:
   using PiProgramT = std::remove_pointer<RT::PiProgram>::type;
   using PiProgramPtrT = std::atomic<PiProgramT *>;
   using ProgramWithBuildStateT = BuildResult<PiProgramT>;
-  using ProgramCacheKeyT = std::pair<std::pair<SerializedObj, KernelSetId>,
+  using ProgramCacheKeyT = std::pair<std::pair<SerializedObj, std::uintptr_t>,
                                      std::pair<RT::PiDevice, std::string>>;
   using ProgramCacheT = std::map<ProgramCacheKeyT, ProgramWithBuildStateT>;
   using ContextPtr = context_impl *;

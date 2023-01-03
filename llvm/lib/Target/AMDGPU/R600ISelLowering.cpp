@@ -589,7 +589,7 @@ void R600TargetLowering::ReplaceNodeResults(SDNode *N,
     // Since we don't care about out of bounds values we can use FP_TO_SINT for
     // uints too. The DAGLegalizer code for uint considers some extra cases
     // which are not necessary here.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case ISD::FP_TO_SINT: {
     if (N->getValueType(0) == MVT::i1) {
       Results.push_back(lowerFP_TO_SINT(N->getOperand(0), DAG));
@@ -1003,10 +1003,10 @@ SDValue R600TargetLowering::lowerPrivateTruncStore(StoreSDNode *Store,
 
   SDValue Mask;
   if (Store->getMemoryVT() == MVT::i8) {
-    assert(Store->getAlignment() >= 1);
+    assert(Store->getAlign() >= 1);
     Mask = DAG.getConstant(0xff, DL, MVT::i32);
   } else if (Store->getMemoryVT() == MVT::i16) {
-    assert(Store->getAlignment() >= 2);
+    assert(Store->getAlign() >= 2);
     Mask = DAG.getConstant(0xffff, DL, MVT::i32);
   } else {
     llvm_unreachable("Unsupported private trunc store");
@@ -1138,7 +1138,7 @@ SDValue R600TargetLowering::LowerSTORE(SDValue Op, SelectionDAG &DAG) const {
         MaskConstant = DAG.getConstant(0xFF, DL, MVT::i32);
       } else {
         assert(MemVT == MVT::i16);
-        assert(StoreNode->getAlignment() >= 2);
+        assert(StoreNode->getAlign() >= 2);
         MaskConstant = DAG.getConstant(0xFFFF, DL, MVT::i32);
       }
 
@@ -1245,7 +1245,7 @@ SDValue R600TargetLowering::lowerPrivateExtLoad(SDValue Op,
   LoadSDNode *Load = cast<LoadSDNode>(Op);
   ISD::LoadExtType ExtType = Load->getExtensionType();
   EVT MemVT = Load->getMemoryVT();
-  assert(Load->getAlignment() >= MemVT.getStoreSize());
+  assert(Load->getAlign() >= MemVT.getStoreSize());
 
   SDValue BasePtr = Load->getBasePtr();
   SDValue Chain = Load->getChain();
@@ -1521,9 +1521,9 @@ bool R600TargetLowering::canMergeStoresTo(unsigned AS, EVT MemVT,
 
 bool R600TargetLowering::allowsMisalignedMemoryAccesses(
     EVT VT, unsigned AddrSpace, Align Alignment, MachineMemOperand::Flags Flags,
-    bool *IsFast) const {
+    unsigned *IsFast) const {
   if (IsFast)
-    *IsFast = false;
+    *IsFast = 0;
 
   if (!VT.isSimple() || VT == MVT::Other)
     return false;
@@ -1533,7 +1533,7 @@ bool R600TargetLowering::allowsMisalignedMemoryAccesses(
 
   // TODO: This is a rough estimate.
   if (IsFast)
-    *IsFast = true;
+    *IsFast = 1;
 
   return VT.bitsGT(MVT::i32) && Alignment >= Align(4);
 }

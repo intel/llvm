@@ -264,7 +264,7 @@ TEST_F(TUSchedulerTests, Debounce) {
   Notification N;
   updateWithDiags(S, Path, "auto (timed out)", WantDiagnostics::Auto,
                   [&](std::vector<Diag>) { N.notify(); });
-  EXPECT_TRUE(N.wait(timeoutSeconds(1)));
+  EXPECT_TRUE(N.wait(timeoutSeconds(5)));
 
   // Once we start shutting down the TUScheduler, this one becomes a dead write.
   updateWithDiags(S, Path, "auto (discarded)", WantDiagnostics::Auto,
@@ -891,7 +891,7 @@ TEST_F(TUSchedulerTests, MissingHeader) {
                         << "Didn't expect new diagnostics when adding a/foo.h";
                   });
 
-  // Forcing the reload should should cause a rebuild.
+  // Forcing the reload should cause a rebuild.
   Inputs.ForceRebuild = true;
   updateWithDiags(
       S, Source, Inputs, WantDiagnostics::Yes,
@@ -1206,7 +1206,7 @@ TEST_F(TUSchedulerTests, IncluderCache) {
     llvm::Optional<tooling::CompileCommand>
     getCompileCommand(PathRef File) const override {
       if (File == NoCmd || File == NotIncluded || FailAll)
-        return llvm::None;
+        return std::nullopt;
       auto Basic = getFallbackCommand(File);
       Basic.Heuristic.clear();
       if (File == Unreliable) {
@@ -1227,12 +1227,15 @@ TEST_F(TUSchedulerTests, IncluderCache) {
   auto GetFlags = [&](PathRef Header) {
     S.update(Header, getInputs(Header, ";"), WantDiagnostics::Yes);
     EXPECT_TRUE(S.blockUntilIdle(timeoutSeconds(10)));
+    Notification CmdDone;
     tooling::CompileCommand Cmd;
     S.runWithPreamble("GetFlags", Header, TUScheduler::StaleOrAbsent,
                       [&](llvm::Expected<InputsAndPreamble> Inputs) {
                         ASSERT_FALSE(!Inputs) << Inputs.takeError();
                         Cmd = std::move(Inputs->Command);
+                        CmdDone.notify();
                       });
+    CmdDone.wait();
     EXPECT_TRUE(S.blockUntilIdle(timeoutSeconds(10)));
     return Cmd.CommandLine;
   };
@@ -1401,9 +1404,12 @@ TEST_F(TUSchedulerTests, PreambleThrottle) {
       }
       if (Invoke)
         Invoke();
-      if (Notify && ID == Notify->first) {
-        Notify->second->notify();
-        Notify.reset();
+      {
+        std::lock_guard<std::mutex> Lock(Mu);
+        if (Notify && ID == Notify->first) {
+          Notify->second->notify();
+          Notify.reset();
+        }
       }
       return ID;
     }

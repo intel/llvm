@@ -97,9 +97,6 @@ void sampler(sycl::sampler) {}
 // CHK-HOST: define dso_local void @_Z5queueN4sycl3_V15queueE({{.*}})
 void queue(sycl::queue) {}
 
-// CHK-HOST: define dso_local void @_Z7programN4sycl3_V17programE({{.*}})
-void program(sycl::program) {}
-
 // CHK-HOST: define dso_local void @_Z6kernelN4sycl3_V16kernelE({{.*}})
 void kernel(sycl::kernel) {}
 

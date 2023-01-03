@@ -34,11 +34,11 @@ namespace {
 // and 4 byte SourceLocation.
 template <int> class MacroInfoSizeChecker {
 public:
-  constexpr static bool AsExpected = true;
+  [[maybe_unused]] constexpr static bool AsExpected = true;
 };
 template <> class MacroInfoSizeChecker<8> {
 public:
-  constexpr static bool AsExpected =
+  [[maybe_unused]] constexpr static bool AsExpected =
       sizeof(MacroInfo) == (32 + sizeof(SourceLocation) * 2);
 };
 
@@ -118,7 +118,7 @@ bool MacroInfo::isIdenticalTo(const MacroInfo &Other, Preprocessor &PP,
     if (A.getKind() != B.getKind())
       return false;
 
-    // If this isn't the first first token, check that the whitespace and
+    // If this isn't the first token, check that the whitespace and
     // start-of-line characteristics match.
     if (i != 0 &&
         (A.isAtStartOfLine() != B.isAtStartOfLine() ||

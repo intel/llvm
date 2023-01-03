@@ -1,6 +1,7 @@
 #pragma once
 
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
+#define __SYCL_TYPE(x) [[__sycl_detail__::sycl_type(x)]]
 
 extern "C" int printf(const char* fmt, ...);
 
@@ -18,7 +19,7 @@ struct sampler_impl {
 #endif
 };
 
-class __attribute__((sycl_special_class)) sampler {
+class __attribute__((sycl_special_class)) __SYCL_TYPE(sampler) sampler {
   struct sampler_impl impl;
 #ifdef __SYCL_DEVICE_ONLY__
   void __init(__ocl_sampler_t Sampler) { impl.m_Sampler = Sampler; }
@@ -29,7 +30,7 @@ public:
 };
 
 template <int dimensions = 1>
-class group {
+class __SYCL_TYPE(group) group {
 public:
   group() = default; // fake constructor
 };
@@ -69,7 +70,7 @@ enum class address_space : int {
 } // namespace access
 
 // Dummy aspect enum with limited enumerators
-enum class aspect {
+enum class __SYCL_TYPE(aspect) aspect { // #AspectEnum
   host = 0,
   cpu = 1,
   gpu = 2,
@@ -119,7 +120,7 @@ namespace ext {
 namespace intel {
 namespace property {
 // Compile time known accessor property
-struct buffer_location {
+struct __SYCL_TYPE(buffer_location) buffer_location {
   template <int> class instance {};
 };
 } // namespace property
@@ -130,7 +131,7 @@ namespace ext {
 namespace oneapi {
 namespace property {
 // Compile time known accessor property
-struct no_alias {
+struct __SYCL_TYPE(no_alias) no_alias {
   template <bool> class instance {};
 };
 } // namespace property
@@ -172,7 +173,7 @@ private:
 namespace ext {
 namespace oneapi {
 template <typename... properties>
-class accessor_property_list {};
+class __SYCL_TYPE(accessor_property_list) accessor_property_list {};
 } // namespace oneapi
 } // namespace ext
 
@@ -201,7 +202,7 @@ template <typename dataT, int dimensions, access::mode accessmode,
           access::target accessTarget = access::target::global_buffer,
           access::placeholder isPlaceholder = access::placeholder::false_t,
           typename propertyListT = ext::oneapi::accessor_property_list<>>
-class __attribute__((sycl_special_class)) accessor {
+class __attribute__((sycl_special_class)) __SYCL_TYPE(accessor) accessor {
 
 public:
   void use(void) const {}
@@ -267,7 +268,7 @@ struct _ImageImplT {
 };
 
 template <typename dataT, int dimensions, access::mode accessmode>
-class __attribute__((sycl_special_class)) accessor<dataT, dimensions, accessmode, access::target::image, access::placeholder::false_t> {
+class __attribute__((sycl_special_class)) __SYCL_TYPE(accessor) accessor<dataT, dimensions, accessmode, access::target::image, access::placeholder::false_t> {
 public:
   void use(void) const {}
   template <typename... T>
@@ -292,7 +293,7 @@ public:
 };
 
 template <typename dataT, int dimensions>
-class __attribute__((sycl_special_class))
+class __attribute__((sycl_special_class)) __SYCL_TYPE(local_accessor)
 local_accessor: public accessor<dataT,
         dimensions, access::mode::read_write,
         access::target::local> {
@@ -344,7 +345,7 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 template <typename T, typename ID = T>
-class spec_constant {
+class __SYCL_TYPE(spec_constant) spec_constant {
 public:
   spec_constant() {}
   spec_constant(T Cst) {}
@@ -371,15 +372,31 @@ int printf(const __SYCL_CONSTANT_AS char *__format, Args... args) {
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
 }
 
+template <typename T, typename... Props>
+class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_arg) annotated_arg {
+  T obj;
+  #ifdef __SYCL_DEVICE_ONLY__
+    void __init(T _obj) {}
+  #endif
+};
+
+template <typename T, typename... Props>
+class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_ptr) annotated_ptr {
+  T* obj;
+  #ifdef __SYCL_DEVICE_ONLY__
+    void __init(T* _obj) {}
+  #endif
+};
+
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
 
-class kernel_handler {
+class __SYCL_TYPE(kernel_handler) kernel_handler {
   void __init_specialization_constants_buffer(char *specialization_constants_buffer) {}
 };
 
-template <typename T> class specialization_id {
+template <typename T> class __SYCL_TYPE(specialization_id) specialization_id {
 public:
   using value_type = T;
 
@@ -493,7 +510,7 @@ public:
   }
 };
 
-class __attribute__((sycl_special_class)) stream {
+class __attribute__((sycl_special_class)) __SYCL_TYPE(stream) stream {
 public:
   stream(unsigned long BufferSize, unsigned long MaxStatementSize,
          handler &CGH) {}

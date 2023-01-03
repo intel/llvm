@@ -15,7 +15,7 @@
 #define MLIR_DIALECT_AFFINE_IR_AFFINEOPS_H
 
 #include "mlir/Dialect/Affine/IR/AffineMemoryOpInterfaces.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
@@ -449,6 +449,11 @@ AffineForOp getForInductionVarOwner(Value val);
 /// in the output argument `ivs`.
 void extractForInductionVars(ArrayRef<AffineForOp> forInsts,
                              SmallVectorImpl<Value> *ivs);
+
+/// Extracts the induction variables from a list of either AffineForOp or
+/// AffineParallelOp and places them in the output argument `ivs`.
+void extractInductionVars(ArrayRef<Operation *> affineOps,
+                          SmallVectorImpl<Value> &ivs);
 
 /// Builds a perfect nest of affine.for loops, i.e., each loop except the
 /// innermost one contains only another loop and a terminator. The loops iterate

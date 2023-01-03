@@ -441,4 +441,13 @@ DEVICE_EXTERN_C_INLINE
 double __devicelib_imf_ull2double_rz(unsigned long long int x) {
   return __ull2double_rz(x);
 }
+
+DEVICE_EXTERN_C_INLINE
+_iml_half_internal __devicelib_imf_double2half(double x) {
+#if defined(__LIBDEVICE_HOST_IMPL__)
+  return __iml_fp2half<double>(x, __IML_RTE);
+#elif defined(__SPIR__)
+  return __spirv_FConvert_Rhalf_rte(x);
+#endif
+}
 #endif // __LIBDEVICE_IMF_ENABLED__

@@ -29,6 +29,7 @@
 #include <cinttypes>
 #include <cstdio>
 #include <cstdlib>
+#include <random>
 #include <string.h>
 
 #ifdef MLIR_CRUNNERUTILS_DEFINE_FUNCTIONS
@@ -122,9 +123,9 @@ extern "C" double rtclock() {
 #endif // _WIN32
 }
 
-extern "C" void *_mlir_alloc(uint64_t size) { return malloc(size); }
+extern "C" void *mlirAlloc(uint64_t size) { return malloc(size); }
 
-extern "C" void *_mlir_aligned_alloc(uint64_t alignment, uint64_t size) {
+extern "C" void *mlirAlignedAlloc(uint64_t alignment, uint64_t size) {
 #ifdef _WIN32
   return _aligned_malloc(size, alignment);
 #elif defined(__APPLE__)
@@ -138,14 +139,30 @@ extern "C" void *_mlir_aligned_alloc(uint64_t alignment, uint64_t size) {
 #endif
 }
 
-extern "C" void _mlir_free(void *ptr) { free(ptr); }
+extern "C" void mlirFree(void *ptr) { free(ptr); }
 
-extern "C" void _mlir_aligned_free(void *ptr) {
+extern "C" void mlirAlignedFree(void *ptr) {
 #ifdef _WIN32
   _aligned_free(ptr);
 #else
   free(ptr);
 #endif
+}
+
+extern "C" void *rtsrand(uint64_t s) {
+  // Standard mersenne_twister_engine seeded with s.
+  return new std::mt19937(s);
+}
+
+extern "C" uint64_t rtrand(void *g, uint64_t m) {
+  std::mt19937 *generator = static_cast<std::mt19937 *>(g);
+  std::uniform_int_distribution<uint64_t> distrib(0, m);
+  return distrib(*generator);
+}
+
+extern "C" void rtdrand(void *g) {
+  std::mt19937 *generator = static_cast<std::mt19937 *>(g);
+  delete generator;
 }
 
 #endif // MLIR_CRUNNERUTILS_DEFINE_FUNCTIONS

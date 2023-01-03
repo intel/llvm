@@ -10,13 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
-#include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineExprVisitor.h"
@@ -45,7 +44,7 @@ using llvm::MapVector;
 static Value allocBuffer(ImplicitLocOpBuilder &b,
                          const LinalgPromotionOptions &options,
                          Type elementType, Value allocSize, DataLayout &layout,
-                         Optional<unsigned> alignment = None) {
+                         Optional<unsigned> alignment = std::nullopt) {
   auto width = layout.getTypeSize(elementType);
 
   IntegerAttr alignmentAttr;
@@ -65,7 +64,8 @@ static Value allocBuffer(ImplicitLocOpBuilder &b,
   }
 
   // Fallback dynamic buffer.
-  auto dynamicBufferType = MemRefType::get(-1, b.getIntegerType(8));
+  auto dynamicBufferType =
+      MemRefType::get(ShapedType::kDynamic, b.getIntegerType(8));
   Value mul = b.createOrFold<arith::MulIOp>(
       b.create<arith::ConstantIndexOp>(width), allocSize);
   if (options.useAlloca)
@@ -93,7 +93,7 @@ defaultAllocBufferCallBack(const LinalgPromotionOptions &options,
   Value buffer = allocBuffer(b, options, viewType.getElementType(), allocSize,
                              layout, alignment);
   SmallVector<int64_t, 4> dynSizes(boundingSubViewSize.size(),
-                                   ShapedType::kDynamicSize);
+                                   ShapedType::kDynamic);
   Value view = b.createOrFold<memref::ViewOp>(
       MemRefType::get(dynSizes, viewType.getElementType()), buffer, zero,
       boundingSubViewSize);
@@ -146,15 +146,15 @@ LinalgOpInstancePromotionOptions::LinalgOpInstancePromotionOptions(
   assert(linalgOp.hasBufferSemantics() && "revisit usage of shaped operand");
   auto vUseFullTileBuffers =
       options.useFullTileBuffers.value_or(llvm::SmallBitVector());
-  vUseFullTileBuffers.resize(linalgOp.getNumInputsAndOutputs(),
+  vUseFullTileBuffers.resize(linalgOp->getNumOperands(),
                              options.useFullTileBuffersDefault);
 
-  for (OpOperand *opOperand : linalgOp.getInputAndOutputOperands()) {
-    int64_t operandNumber = opOperand->getOperandNumber();
+  for (OpOperand &opOperand : linalgOp->getOpOperands()) {
+    int64_t operandNumber = opOperand.getOperandNumber();
     if (options.operandsToPromote &&
         !options.operandsToPromote->count(operandNumber))
       continue;
-    Operation *op = opOperand->get().getDefiningOp();
+    Operation *op = opOperand.get().getDefiningOp();
     if (auto sv = dyn_cast_or_null<memref::SubViewOp>(op)) {
       subViews[operandNumber] = sv;
       useFullTileBuffers[sv] = vUseFullTileBuffers[operandNumber];
@@ -228,9 +228,10 @@ FailureOr<PromotionInfo> mlir::linalg::promoteSubviewAsNewBuffer(
     LLVM_DEBUG(llvm::dbgs() << "Extract tightest: " << rangeValue.size << "\n");
     Value size;
     if (auto attr = rangeValue.size.dyn_cast<Attribute>()) {
-      size = materializeOpFoldResult(b, loc, rangeValue.size);
+      size = getValueOrCreateConstantIndexOp(b, loc, rangeValue.size);
     } else {
-      Value materializedSize = materializeOpFoldResult(b, loc, rangeValue.size);
+      Value materializedSize =
+          getValueOrCreateConstantIndexOp(b, loc, rangeValue.size);
       FailureOr<int64_t> upperBound =
           getConstantUpperBoundForIndex(materializedSize);
       size = failed(upperBound)
@@ -242,7 +243,7 @@ FailureOr<PromotionInfo> mlir::linalg::promoteSubviewAsNewBuffer(
     partialSizes.push_back(
         b.createOrFold<memref::DimOp>(loc, subView, resultDimIdx++));
   }
-  SmallVector<int64_t, 4> dynSizes(fullSizes.size(), -1);
+  SmallVector<int64_t, 4> dynSizes(fullSizes.size(), ShapedType::kDynamic);
   // If a callback is not specified, then use the default implementation for
   // allocating the promoted buffer.
   Optional<Value> fullLocalView = allocationFn(b, subView, fullSizes, layout);
@@ -326,24 +327,24 @@ promoteSubViews(ImplicitLocOpBuilder &b, LinalgOp op,
   // operands are not views. This is to support cases such as FillOp taking
   // extra scalars etc.  Keep a reference to output buffers;
   SmallVector<Value, 8> opViews;
-  opViews.reserve(op.getNumInputsAndOutputs());
+  opViews.reserve(op->getNumOperands());
   SmallVector<std::pair<Value, Value>, 8> writebackViews;
   writebackViews.reserve(promotedBuffersAndViews->size());
-  for (OpOperand *opOperand : op.getInputAndOutputOperands()) {
-    int64_t operandNumber = opOperand->getOperandNumber();
+  for (OpOperand &opOperand : op->getOpOperands()) {
+    int64_t operandNumber = opOperand.getOperandNumber();
     if (options.subViews.count(operandNumber) != 0) {
-      if (options.useFullTileBuffers[opOperand->get()])
+      if (options.useFullTileBuffers[opOperand.get()])
         opViews.push_back(
             (*promotedBuffersAndViews)[operandNumber].fullLocalView);
       else
         opViews.push_back(
             (*promotedBuffersAndViews)[operandNumber].partialLocalView);
-      if (operandNumber >= op.getNumInputs())
+      if (operandNumber >= op.getNumDpsInputs())
         writebackViews.emplace_back(std::make_pair(
-            opOperand->get(),
+            opOperand.get(),
             (*promotedBuffersAndViews)[operandNumber].partialLocalView));
     } else {
-      opViews.push_back(opOperand->get());
+      opViews.push_back(opOperand.get());
     }
   }
   op->setOperands(0, opViews.size(), opViews);
@@ -371,12 +372,12 @@ mlir::linalg::promoteSubviewsPrecondition(Operation *op,
   if (!linalgOp || !linalgOp.hasBufferSemantics())
     return failure();
   // Check that at least one of the requested operands is indeed a subview.
-  for (OpOperand *opOperand : linalgOp.getInputAndOutputOperands()) {
+  for (OpOperand &opOperand : linalgOp->getOpOperands()) {
     auto sv =
-        isa_and_nonnull<memref::SubViewOp>(opOperand->get().getDefiningOp());
+        isa_and_nonnull<memref::SubViewOp>(opOperand.get().getDefiningOp());
     if (sv) {
       if (!options.operandsToPromote ||
-          options.operandsToPromote->count(opOperand->getOperandNumber()))
+          options.operandsToPromote->count(opOperand.getOperandNumber()))
         return success();
     }
   }

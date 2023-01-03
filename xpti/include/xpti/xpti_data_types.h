@@ -69,7 +69,7 @@ template <> struct hash<xpti::uid_t> {
 
 namespace xpti {
 constexpr int invalid_id = -1;
-constexpr int invalid_uid = 0;
+constexpr uint64_t invalid_uid = 0;
 constexpr uint8_t default_vendor = 0;
 
 /// @brief Flag values used by the payload_t structure to mark the information
@@ -376,7 +376,7 @@ enum class trace_point_type_t : uint16_t {
   /// Used to trace function call begin and its arguments.
   function_with_args_begin = XPTI_TRACE_POINT_BEGIN(14),
   /// Used to trace function call end.
-  function_with_args_end = XPTI_TRACE_POINT_END(15),
+  function_with_args_end = XPTI_TRACE_POINT_END(14),
   /// Used to notify that a new memory allocation is about to start.
   mem_alloc_begin = XPTI_TRACE_POINT_BEGIN(16),
   /// Used to notify that a memory allocation took place.
@@ -396,6 +396,12 @@ enum class trace_point_type_t : uint16_t {
   offload_alloc_release = XPTI_TRACE_POINT_BEGIN(23),
   /// Used to notify about creation accessor for offload buffer
   offload_alloc_accessor = XPTI_TRACE_POINT_BEGIN(24),
+  /// User to notify when a queue has been created
+  queue_create = XPTI_TRACE_POINT_BEGIN(25),
+  /// User to notify when a queue has been destroyed
+  queue_destroy = XPTI_TRACE_POINT_END(25),
+  /// Used to notify error/informational messages and no action to take
+  diagnostics = XPTI_TRACE_POINT_BEGIN(63),
   /// Indicates that the trace point is user defined and only the tool defined
   /// for a stream will be able to handle it
   user_defined = 1 << 7

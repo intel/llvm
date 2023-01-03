@@ -39,12 +39,12 @@ bool isSameDir(const char* LHS, const char* RHS) {
   struct stat StatBuf;
   if (stat(LHS, &StatBuf)) {
     perror("stat failed");
-    exit(EXIT_FAILURE);
+    return false;
   }
   ino_t InodeLHS = StatBuf.st_ino;
   if (stat(RHS, &StatBuf)) {
     perror("stat failed");
-    exit(EXIT_FAILURE);
+    return false;
   }
   ino_t InodeRHS = StatBuf.st_ino;
   return InodeRHS == InodeLHS;

@@ -37,6 +37,7 @@
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
 #include <algorithm>
+#include <optional>
 
 using namespace llvm;
 
@@ -449,8 +450,8 @@ public:
 
   /// Add a field to this structure for the storage of an `alloca`
   /// instruction.
-  LLVM_NODISCARD FieldIDType addFieldForAlloca(AllocaInst *AI,
-                                               bool IsHeader = false) {
+  [[nodiscard]] FieldIDType addFieldForAlloca(AllocaInst *AI,
+                                              bool IsHeader = false) {
     Type *Ty = AI->getAllocatedType();
 
     // Make an array type if this is a static array allocation.
@@ -495,9 +496,9 @@ public:
                           coro::Shape &Shape);
 
   /// Add a field to this structure.
-  LLVM_NODISCARD FieldIDType addField(Type *Ty, MaybeAlign MaybeFieldAlignment,
-                                      bool IsHeader = false,
-                                      bool IsSpillOfValue = false) {
+  [[nodiscard]] FieldIDType addField(Type *Ty, MaybeAlign MaybeFieldAlignment,
+                                     bool IsHeader = false,
+                                     bool IsSpillOfValue = false) {
     assert(!IsFinished && "adding fields to a finished builder");
     assert(Ty && "must provide a type for a field");
 
@@ -629,8 +630,8 @@ void FrameTypeBuilder::addFieldForAllocas(const Function &F,
   // patterns since it just prevend putting the allocas to live in the same
   // slot.
   DenseMap<SwitchInst *, BasicBlock *> DefaultSuspendDest;
-  for (auto CoroSuspendInst : Shape.CoroSuspends) {
-    for (auto U : CoroSuspendInst->users()) {
+  for (auto *CoroSuspendInst : Shape.CoroSuspends) {
+    for (auto *U : CoroSuspendInst->users()) {
       if (auto *ConstSWI = dyn_cast<SwitchInst>(U)) {
         auto *SWI = const_cast<SwitchInst *>(ConstSWI);
         DefaultSuspendDest[SWI] = SWI->getDefaultDest();
@@ -654,7 +655,7 @@ void FrameTypeBuilder::addFieldForAllocas(const Function &F,
         StackLifetimeAnalyzer.getLiveRange(AI2));
   };
   auto GetAllocaSize = [&](const AllocaInfo &A) {
-    Optional<TypeSize> RetSize = A.Alloca->getAllocationSizeInBits(DL);
+    std::optional<TypeSize> RetSize = A.Alloca->getAllocationSizeInBits(DL);
     assert(RetSize && "Variable Length Arrays (VLA) are not supported.\n");
     assert(!RetSize->isScalable() && "Scalable vectors are not yet supported");
     return RetSize->getFixedSize();
@@ -888,14 +889,15 @@ static DIType *solveDIType(DIBuilder &Builder, Type *Ty,
     //  struct Node {
     //      Node* ptr;
     //  };
-    RetType = Builder.createPointerType(nullptr, Layout.getTypeSizeInBits(Ty),
-                                        Layout.getABITypeAlignment(Ty),
-                                        /*DWARFAddressSpace=*/None, Name);
+    RetType =
+        Builder.createPointerType(nullptr, Layout.getTypeSizeInBits(Ty),
+                                  Layout.getABITypeAlignment(Ty) * CHAR_BIT,
+                                  /*DWARFAddressSpace=*/std::nullopt, Name);
   } else if (Ty->isStructTy()) {
     auto *DIStruct = Builder.createStructType(
         Scope, Name, Scope->getFile(), LineNum, Layout.getTypeSizeInBits(Ty),
-        Layout.getPrefTypeAlignment(Ty), llvm::DINode::FlagArtificial, nullptr,
-        llvm::DINodeArray());
+        Layout.getPrefTypeAlignment(Ty) * CHAR_BIT,
+        llvm::DINode::FlagArtificial, nullptr, llvm::DINodeArray());
 
     auto *StructTy = cast<StructType>(Ty);
     SmallVector<Metadata *, 16> Elements;
@@ -1137,7 +1139,7 @@ static StructType *buildFrameType(Function &F, coro::Shape &Shape,
   FrameTypeBuilder B(C, DL, MaxFrameAlignment);
 
   AllocaInst *PromiseAlloca = Shape.getPromiseAlloca();
-  Optional<FieldIDType> SwitchIndexFieldId;
+  std::optional<FieldIDType> SwitchIndexFieldId;
 
   if (Shape.ABI == coro::ABI::Switch) {
     auto *FramePtrTy = FrameTy->getPointerTo();
@@ -1147,8 +1149,8 @@ static StructType *buildFrameType(Function &F, coro::Shape &Shape,
 
     // Add header fields for the resume and destroy functions.
     // We can rely on these being perfectly packed.
-    (void)B.addField(FnPtrTy, None, /*header*/ true);
-    (void)B.addField(FnPtrTy, None, /*header*/ true);
+    (void)B.addField(FnPtrTy, std::nullopt, /*header*/ true);
+    (void)B.addField(FnPtrTy, std::nullopt, /*header*/ true);
 
     // PromiseAlloca field needs to be explicitly added here because it's
     // a header field with a fixed offset based on its alignment. Hence it
@@ -1162,7 +1164,7 @@ static StructType *buildFrameType(Function &F, coro::Shape &Shape,
     unsigned IndexBits = std::max(1U, Log2_64_Ceil(Shape.CoroSuspends.size()));
     Type *IndexType = Type::getIntNTy(C, IndexBits);
 
-    SwitchIndexFieldId = B.addField(IndexType, None);
+    SwitchIndexFieldId = B.addField(IndexType, std::nullopt);
   } else {
     assert(PromiseAlloca == nullptr && "lowering doesn't support promises");
   }
@@ -1187,8 +1189,8 @@ static StructType *buildFrameType(Function &F, coro::Shape &Shape,
     if (const Argument *A = dyn_cast<Argument>(S.first))
       if (A->hasByValAttr())
         FieldType = A->getParamByValType();
-    FieldIDType Id =
-        B.addField(FieldType, None, false /*header*/, true /*IsSpillOfValue*/);
+    FieldIDType Id = B.addField(FieldType, std::nullopt, false /*header*/,
+                                true /*IsSpillOfValue*/);
     FrameData.setFieldIndex(S.first, Id);
   }
 
@@ -1426,7 +1428,7 @@ private:
   bool MayWriteBeforeCoroBegin{false};
   bool ShouldUseLifetimeStartInfo{true};
 
-  mutable llvm::Optional<bool> ShouldLiveOnFrame{};
+  mutable std::optional<bool> ShouldLiveOnFrame{};
 
   bool computeShouldLiveOnFrame() const {
     // If lifetime information is available, we check it first since it's
@@ -1777,8 +1779,15 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
     for (auto *DVI : DIs)
       DVI->replaceUsesOfWith(Alloca, G);
 
-    for (Instruction *I : UsersToUpdate)
+    for (Instruction *I : UsersToUpdate) {
+      // It is meaningless to remain the lifetime intrinsics refer for the
+      // member of coroutine frames and the meaningless lifetime intrinsics
+      // are possible to block further optimizations.
+      if (I->isLifetimeStartOrEnd())
+        continue;
+
       I->replaceUsesOfWith(Alloca, G);
+    }
   }
   Builder.SetInsertPoint(Shape.getInsertPtAfterFramePtr());
   for (const auto &A : FrameData.Allocas) {
@@ -1808,6 +1817,47 @@ static void insertSpills(const FrameDataInfo &FrameData, coro::Shape &Shape) {
           Builder.CreateBitCast(AliasPtr, Alias.first->getType());
       Alias.first->replaceUsesWithIf(
           AliasPtrTyped, [&](Use &U) { return DT.dominates(CB, U); });
+    }
+  }
+
+  // PromiseAlloca is not collected in FrameData.Allocas. So we don't handle
+  // the case that the PromiseAlloca may have writes before CoroBegin in the
+  // above codes. And it may be problematic in edge cases. See
+  // https://github.com/llvm/llvm-project/issues/57861 for an example.
+  if (Shape.ABI == coro::ABI::Switch && Shape.SwitchLowering.PromiseAlloca) {
+    AllocaInst *PA = Shape.SwitchLowering.PromiseAlloca;
+    // If there is memory accessing to promise alloca before CoroBegin;
+    bool HasAccessingPromiseBeforeCB = llvm::any_of(PA->uses(), [&](Use &U) {
+      auto *Inst = dyn_cast<Instruction>(U.getUser());
+      if (!Inst || DT.dominates(CB, Inst))
+        return false;
+
+      if (auto *CI = dyn_cast<CallInst>(Inst)) {
+        // It is fine if the call wouldn't write to the Promise.
+        // This is possible for @llvm.coro.id intrinsics, which
+        // would take the promise as the second argument as a
+        // marker.
+        if (CI->onlyReadsMemory() ||
+            CI->onlyReadsMemory(CI->getArgOperandNo(&U)))
+          return false;
+        return true;
+      }
+
+      return isa<StoreInst>(Inst) ||
+             // It may take too much time to track the uses.
+             // Be conservative about the case the use may escape.
+             isa<GetElementPtrInst>(Inst) ||
+             // There would always be a bitcast for the promise alloca
+             // before we enabled Opaque pointers. And now given
+             // opaque pointers are enabled by default. This should be
+             // fine.
+             isa<BitCastInst>(Inst);
+    });
+    if (HasAccessingPromiseBeforeCB) {
+      Builder.SetInsertPoint(Shape.getInsertPtAfterFramePtr());
+      auto *G = GetFramePointer(PA);
+      auto *Value = Builder.CreateLoad(PA->getAllocatedType(), PA);
+      Builder.CreateStore(Value, G);
     }
   }
 }
@@ -2099,7 +2149,7 @@ static bool isSuspendReachableFrom(BasicBlock *From,
     return true;
 
   // Recurse on the successors.
-  for (auto Succ : successors(From)) {
+  for (auto *Succ : successors(From)) {
     if (isSuspendReachableFrom(Succ, VisitedOrFreeBBs))
       return true;
   }
@@ -2113,7 +2163,7 @@ static bool isLocalAlloca(CoroAllocaAllocInst *AI) {
   // Seed the visited set with all the basic blocks containing a free
   // so that we won't pass them up.
   VisitedBlocksSet VisitedOrFreeBBs;
-  for (auto User : AI->users()) {
+  for (auto *User : AI->users()) {
     if (auto FI = dyn_cast<CoroAllocaFreeInst>(User))
       VisitedOrFreeBBs.insert(FI->getParent());
   }
@@ -2133,7 +2183,7 @@ static bool willLeaveFunctionImmediatelyAfter(BasicBlock *BB,
   if (isSuspendBlock(BB)) return true;
 
   // Recurse into the successors.
-  for (auto Succ : successors(BB)) {
+  for (auto *Succ : successors(BB)) {
     if (!willLeaveFunctionImmediatelyAfter(Succ, depth - 1))
       return false;
   }
@@ -2146,7 +2196,7 @@ static bool localAllocaNeedsStackSave(CoroAllocaAllocInst *AI) {
   // Look for a free that isn't sufficiently obviously followed by
   // either a suspend or a termination, i.e. something that will leave
   // the coro resumption frame.
-  for (auto U : AI->users()) {
+  for (auto *U : AI->users()) {
     auto FI = dyn_cast<CoroAllocaFreeInst>(U);
     if (!FI) continue;
 
@@ -2162,7 +2212,7 @@ static bool localAllocaNeedsStackSave(CoroAllocaAllocInst *AI) {
 /// instruction.
 static void lowerLocalAllocas(ArrayRef<CoroAllocaAllocInst*> LocalAllocas,
                               SmallVectorImpl<Instruction*> &DeadInsts) {
-  for (auto AI : LocalAllocas) {
+  for (auto *AI : LocalAllocas) {
     auto M = AI->getModule();
     IRBuilder<> Builder(AI);
 
@@ -2177,7 +2227,7 @@ static void lowerLocalAllocas(ArrayRef<CoroAllocaAllocInst*> LocalAllocas,
     auto Alloca = Builder.CreateAlloca(Builder.getInt8Ty(), AI->getSize());
     Alloca->setAlignment(AI->getAlignment());
 
-    for (auto U : AI->users()) {
+    for (auto *U : AI->users()) {
       // Replace gets with the allocation.
       if (isa<CoroAllocaGetInst>(U)) {
         U->replaceAllUsesWith(Alloca);
@@ -2340,12 +2390,12 @@ static void eliminateSwiftErrorArgument(Function &F, Argument &Arg,
   Builder.CreateStore(InitialValue, Alloca);
 
   // Find all the suspends in the function and save and restore around them.
-  for (auto Suspend : Shape.CoroSuspends) {
+  for (auto *Suspend : Shape.CoroSuspends) {
     (void) emitSetAndGetSwiftErrorValueAround(Suspend, Alloca, Shape);
   }
 
   // Find all the coro.ends in the function and restore the error value.
-  for (auto End : Shape.CoroEnds) {
+  for (auto *End : Shape.CoroEnds) {
     Builder.SetInsertPoint(End);
     auto FinalValue = Builder.CreateLoad(ValueTy, Alloca);
     (void) emitSetSwiftErrorValue(Builder, FinalValue, Shape);
@@ -2633,16 +2683,13 @@ void coro::salvageDebugInfo(
   // dbg.value or dbg.addr since they do not have the same function wide
   // guarantees that dbg.declare does.
   if (!isa<DbgValueInst>(DVI) && !isa<DbgAddrIntrinsic>(DVI)) {
-    if (auto *II = dyn_cast<InvokeInst>(Storage))
-      DVI->moveBefore(II->getNormalDest()->getFirstNonPHI());
-    else if (auto *CBI = dyn_cast<CallBrInst>(Storage))
-      DVI->moveBefore(CBI->getDefaultDest()->getFirstNonPHI());
-    else if (auto *InsertPt = dyn_cast<Instruction>(Storage)) {
-      assert(!InsertPt->isTerminator() &&
-             "Unimaged terminator that could return a storage.");
-      DVI->moveAfter(InsertPt);
-    } else if (isa<Argument>(Storage))
-      DVI->moveAfter(F->getEntryBlock().getFirstNonPHI());
+    Instruction *InsertPt = nullptr;
+    if (auto *I = dyn_cast<Instruction>(Storage))
+      InsertPt = I->getInsertionPointAfterDef();
+    else if (isa<Argument>(Storage))
+      InsertPt = &*F->getEntryBlock().begin();
+    if (InsertPt)
+      DVI->moveBefore(InsertPt);
   }
 }
 
@@ -2687,7 +2734,7 @@ void coro::buildCoroutineFrame(Function &F, Shape &Shape) {
   }
 
   // Later code makes structural assumptions about single predecessors phis e.g
-  // that they are not live accross a suspend point.
+  // that they are not live across a suspend point.
   cleanupSinglePredPHIs(F);
 
   // Transforms multi-edge PHI Nodes, so that any value feeding into a PHI will
@@ -2728,7 +2775,7 @@ void coro::buildCoroutineFrame(Function &F, Shape &Shape) {
       Shape.ABI != coro::ABI::RetconOnce)
     sinkLifetimeStartMarkers(F, Shape, Checker);
 
-  if (Shape.ABI != coro::ABI::Async || !Shape.CoroSuspends.empty())
+  if (Shape.ABI == coro::ABI::Switch || !Shape.CoroSuspends.empty())
     collectFrameAllocas(F, Shape, Checker, FrameData.Allocas);
   LLVM_DEBUG(dumpAllocas(FrameData.Allocas));
 
@@ -2813,6 +2860,6 @@ void coro::buildCoroutineFrame(Function &F, Shape &Shape) {
   insertSpills(FrameData, Shape);
   lowerLocalAllocas(LocalAllocas, DeadInstructions);
 
-  for (auto I : DeadInstructions)
+  for (auto *I : DeadInstructions)
     I->eraseFromParent();
 }

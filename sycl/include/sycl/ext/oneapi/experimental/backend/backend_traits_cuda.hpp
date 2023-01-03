@@ -59,12 +59,6 @@ template <> struct interop<backend::ext_oneapi_cuda, platform> {
   using type = std::vector<CUdevice>;
 };
 
-#ifdef __SYCL_INTERNAL_API
-template <> struct interop<backend::ext_oneapi_cuda, program> {
-  using type = CUmodule;
-};
-#endif
-
 template <typename DataT, int Dimensions, typename AllocatorT>
 struct BackendInput<backend::ext_oneapi_cuda,
                     buffer<DataT, Dimensions, AllocatorT>> {
@@ -116,16 +110,6 @@ template <> struct BackendInput<backend::ext_oneapi_cuda, platform> {
 template <> struct BackendReturn<backend::ext_oneapi_cuda, platform> {
   using type = std::vector<CUdevice>;
 };
-
-#ifdef __SYCL_INTERNAL_API
-template <> struct BackendInput<backend::ext_oneapi_cuda, program> {
-  using type = CUmodule;
-};
-
-template <> struct BackendReturn<backend::ext_oneapi_cuda, program> {
-  using type = CUmodule;
-};
-#endif
 
 template <> struct InteropFeatureSupportMap<backend::ext_oneapi_cuda> {
   static constexpr bool MakePlatform = false;

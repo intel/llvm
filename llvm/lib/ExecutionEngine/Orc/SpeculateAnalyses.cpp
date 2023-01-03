@@ -97,7 +97,7 @@ BlockFreqQuery::ResultTy BlockFreqQuery::operator()(Function &F) {
   auto IBBs = findBBwithCalls(F);
 
   if (IBBs.empty())
-    return None;
+    return std::nullopt;
 
   auto &BFI = FAM.getResult<BlockFrequencyAnalysis>(F);
 
@@ -288,14 +288,14 @@ SpeculateQuery::ResultTy SequenceBBQuery::operator()(Function &F) {
 
   CallerBlocks = findBBwithCalls(F);
   if (CallerBlocks.empty())
-    return None;
+    return std::nullopt;
 
   if (isStraightLine(F))
     SequencedBlocks = rearrangeBB(F, CallerBlocks);
   else
     SequencedBlocks = queryCFG(F, CallerBlocks);
 
-  for (auto BB : SequencedBlocks)
+  for (const auto *BB : SequencedBlocks)
     findCalles(BB, Calles);
 
   CallerAndCalles.insert({F.getName(), std::move(Calles)});

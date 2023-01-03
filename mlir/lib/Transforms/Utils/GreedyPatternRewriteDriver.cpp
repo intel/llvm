@@ -51,6 +51,10 @@ public:
   /// If the specified operation is in the worklist, remove it.
   void removeFromWorklist(Operation *op);
 
+  /// Notifies the driver that the specified operation may have been modified
+  /// in-place.
+  void finalizeRootUpdate(Operation *op) override;
+
 protected:
   // Implement the hook for inserting operations, and make sure that newly
   // inserted ops are added to the worklist for processing.
@@ -69,7 +73,7 @@ protected:
   // When the root of a pattern is about to be replaced, it can trigger
   // simplifications to its users - make sure to add them to the worklist
   // before the root is changed.
-  void notifyRootReplaced(Operation *op) override;
+  void notifyRootReplaced(Operation *op, ValueRange replacement) override;
 
   /// PatternRewriter hook for erasing a dead operation.
   void eraseOp(Operation *op) override;
@@ -326,6 +330,14 @@ void GreedyPatternRewriteDriver::notifyOperationInserted(Operation *op) {
   addToWorklist(op);
 }
 
+void GreedyPatternRewriteDriver::finalizeRootUpdate(Operation *op) {
+  LLVM_DEBUG({
+    logger.startLine() << "** Modified: '" << op->getName() << "'(" << op
+                       << ")\n";
+  });
+  addToWorklist(op);
+}
+
 void GreedyPatternRewriteDriver::addOperandsToWorklist(ValueRange operands) {
   for (Value operand : operands) {
     // If the use count of this operand is now < 2, we re-add the defining
@@ -348,7 +360,8 @@ void GreedyPatternRewriteDriver::notifyOperationRemoved(Operation *op) {
   });
 }
 
-void GreedyPatternRewriteDriver::notifyRootReplaced(Operation *op) {
+void GreedyPatternRewriteDriver::notifyRootReplaced(Operation *op,
+                                                    ValueRange replacement) {
   LLVM_DEBUG({
     logger.startLine() << "** Replace : '" << op->getName() << "'(" << op
                        << ")\n";
@@ -437,7 +450,7 @@ protected:
 
   // When a root is going to be replaced, its removal will be notified as well.
   // So there is nothing to do here.
-  void notifyRootReplaced(Operation *op) override {}
+  void notifyRootReplaced(Operation *op, ValueRange replacement) override {}
 
 private:
   /// The low-level pattern applicator.

@@ -7,8 +7,10 @@ set(LLVM_LINK_COMPONENTS
   Coverage
   Demangle
   Extensions
+  FrontendHLSL
   FrontendOpenMP
   IPO
+  IRPrinter
   IRReader
   AggressiveInstCombine
   InstCombine

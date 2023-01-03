@@ -10,11 +10,11 @@
 #include "../thread_safety/ThreadUtils.h"
 #include "detail/persistent_device_code_cache.hpp"
 #include <cstdio>
+#include <detail/device_binary_image.hpp>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
 #include <llvm/Support/FileSystem.h>
 #include <optional>
-#include <sycl/detail/device_binary_image.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/sycl.hpp>
 #include <vector>
@@ -52,11 +52,11 @@ std::vector<std::vector<int>> Progs = {
 
 static unsigned char DeviceCodeID = 2;
 
-static pi_result redefinedProgramGetInfo(pi_program program,
-                                         pi_program_info param_name,
-                                         size_t param_value_size,
-                                         void *param_value,
-                                         size_t *param_value_size_ret) {
+static pi_result redefinedProgramGetInfoAfter(pi_program program,
+                                              pi_program_info param_name,
+                                              size_t param_value_size,
+                                              void *param_value,
+                                              size_t *param_value_size_ret) {
   if (param_name == PI_PROGRAM_INFO_NUM_DEVICES) {
     auto value = reinterpret_cast<unsigned int *>(param_value);
     *value = Progs[DeviceCodeID].size();
@@ -70,9 +70,11 @@ static pi_result redefinedProgramGetInfo(pi_program program,
 
   if (param_name == PI_PROGRAM_INFO_BINARIES) {
     auto value = reinterpret_cast<unsigned char **>(param_value);
-    for (size_t i = 0; i < Progs[DeviceCodeID].size(); ++i)
-      for (int j = 0; j < Progs[DeviceCodeID][i]; ++j)
+    for (size_t i = 0; i < Progs[DeviceCodeID].size(); ++i) {
+      for (int j = 0; j < Progs[DeviceCodeID][i]; ++j) {
         value[i][j] = i;
+      }
+    }
   }
 
   return PI_SUCCESS;
@@ -136,9 +138,6 @@ public:
   }
 
   void SetUp() override {
-    if (Plt.is_host() || Plt.get_backend() != backend::opencl)
-      GTEST_SKIP();
-
     if (RootSYCLCacheDir == "")
       FAIL() << "Please set SYCL_CACHE_DIR environment variable pointing to "
                 "cache location.";
@@ -161,13 +160,7 @@ public:
     ResetSYCLCacheDirEnv();
   }
 
-  PersistentDeviceCodeCache() : Plt{default_selector()} {
-    if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-      std::clog << "This test is only supported on OpenCL devices\n";
-      std::clog << "Current platform is "
-                << Plt.get_info<info::platform::name>();
-      return;
-    }
+  PersistentDeviceCodeCache() : Mock{}, Plt{Mock.getPlatform()} {
 
     char *SYCLCacheDir = getenv("SYCL_CACHE_DIR");
     if (!SYCLCacheDir) {
@@ -177,10 +170,9 @@ public:
     }
     RootSYCLCacheDir = SYCLCacheDir;
 
-    Mock = std::make_unique<unittest::PiMock>(Plt);
     Dev = Plt.get_devices()[0];
-    Mock->redefine<detail::PiApiKind::piProgramGetInfo>(
-        redefinedProgramGetInfo);
+    Mock.redefineAfter<detail::PiApiKind::piProgramGetInfo>(
+        redefinedProgramGetInfoAfter);
   }
 
   /* Helper function for concurent cache item read/write from diffrent number
@@ -226,6 +218,7 @@ public:
 
 protected:
   detail::OSModuleHandle ModuleHandle = detail::OSUtil::ExeModuleHandle;
+  unittest::PiMock Mock;
   platform Plt;
   device Dev;
   pi_device_binary_struct BinStruct{/*Version*/ 1,
@@ -245,7 +238,6 @@ protected:
   pi_device_binary Bin = &BinStruct;
   detail::RTDeviceBinaryImage Img{Bin, ModuleHandle};
   RT::PiProgram NativeProg;
-  std::unique_ptr<unittest::PiMock> Mock;
 };
 
 /* Checks that key values with \0 symbols are processed correctly

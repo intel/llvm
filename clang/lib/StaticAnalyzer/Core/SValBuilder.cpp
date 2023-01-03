@@ -34,7 +34,6 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/SymExpr.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SymbolManager.h"
 #include "llvm/ADT/APSInt.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
@@ -301,7 +300,7 @@ Optional<loc::MemRegionVal>
 SValBuilder::getCastedMemRegionVal(const MemRegion *R, QualType Ty) {
   if (auto OptR = StateMgr.getStoreManager().castRegion(R, Ty))
     return loc::MemRegionVal(*OptR);
-  return None;
+  return std::nullopt;
 }
 
 /// Return a memory region for the 'this' object reference.
@@ -391,19 +390,19 @@ Optional<SVal> SValBuilder::getConstantVal(const Expr *E) {
       const Expr *SE = CE->getSubExpr();
       Optional<SVal> Val = getConstantVal(SE);
       if (!Val)
-        return None;
+        return std::nullopt;
       return evalCast(*Val, CE->getType(), SE->getType());
     }
     }
     // FALLTHROUGH
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   }
 
   // If we don't have a special case, fall back to the AST's constant evaluator.
   default: {
     // Don't try to come up with a value for materialized temporaries.
     if (E->isGLValue())
-      return None;
+      return std::nullopt;
 
     ASTContext &Ctx = getContext();
     Expr::EvalResult Result;
@@ -414,7 +413,7 @@ Optional<SVal> SValBuilder::getConstantVal(const Expr *E) {
       if (E->isNullPointerConstant(Ctx, Expr::NPC_ValueDependentIsNotNull))
         return makeNullWithType(E->getType());
 
-    return None;
+    return std::nullopt;
   }
   }
 }

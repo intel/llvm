@@ -1,7 +1,7 @@
-// RUN: %clangxx %fsycl-host-only -fsyntax-only -sycl-std=2020 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
+// RUN: %clangxx %fsycl-host-only -fsyntax-only -ferror-limit=0 -sycl-std=2020 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/online_compiler.hpp>
+#include <sycl/ext/intel/experimental/online_compiler.hpp>
 
 int main() {
   cl_context ClCtx;
@@ -57,9 +57,6 @@ int main() {
   sycl::kernel Kernel{ClKernel, Ctx};
   // expected-error@+1 {{no member named 'get' in 'sycl::kernel'}}
   (void)Kernel.get();
-
-  // expected-error@+1 {{no type named 'program' in namespace 'sycl'}}
-  sycl::program Prog{Ctx};
 
   sycl::buffer<int, 1> Buffer(4);
   // expected-warning@+1{{'get_count' is deprecated: get_count() is deprecated, please use size() instead}}
@@ -170,7 +167,7 @@ int main() {
   auto LevelZeroBackend = sycl::backend::level_zero;
   (void)LevelZeroBackend;
 
-  // expected-warning@+1{{'esimd_cpu' is deprecated: use 'ext_oneapi_esimd_emulator' instead}}
+  // expected-warning@+1{{'esimd_cpu' is deprecated: use 'ext_intel_esimd_emulator' instead}}
   auto ESIMDCPUBackend = sycl::backend::esimd_cpu;
   (void)ESIMDCPUBackend;
 
@@ -185,7 +182,9 @@ int main() {
   // expected-warning@+1{{'barrier' is deprecated: use 'ext_oneapi_barrier' instead}}
   Queue.submit([&](sycl::handler &CGH) { CGH.barrier(); });
 
-  sycl::multi_ptr<int, sycl::access::address_space::global_space> a(nullptr);
+  sycl::multi_ptr<int, sycl::access::address_space::global_space,
+                  sycl::access::decorated::yes>
+      a(nullptr);
   // expected-warning@+1 {{'atomic<int, sycl::access::address_space::global_space>' is deprecated: sycl::atomic is deprecated since SYCL 2020}}
   sycl::atomic<int> b(a);
 
@@ -197,10 +196,185 @@ int main() {
   // expected-warning@+1{{'get_linear_id' is deprecated: use sycl::group::get_group_linear_id() instead}}
   group.get_linear_id();
 
+  // expected-warning@+1{{'default_selector' is deprecated: Use the callable sycl::default_selector_v instead.}}
+  sycl::default_selector ds;
+  // expected-warning@+1{{'cpu_selector' is deprecated: Use the callable sycl::cpu_selector_v instead.}}
+  sycl::cpu_selector cs;
+  // expected-warning@+1{{'gpu_selector' is deprecated: Use the callable sycl::gpu_selector_v instead.}}
+  sycl::gpu_selector gs;
+  // expected-warning@+1{{'accelerator_selector' is deprecated: Use the callable sycl::accelerator_selector_v instead.}}
+  sycl::accelerator_selector as;
+  // expected-warning@+1{{'host_selector' is deprecated: Host device is no longer supported.}}
+  sycl::host_selector hs;
+
+  // expected-warning@+1{{Use SYCL 2020 callable device selectors instead.}}
+  class user_defined_device_selector : public sycl::device_selector {
+  public:
+    int operator()(const sycl::device &) const override { return 100; }
+  } uds;
+
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::device dd{ds};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::device cd{cs};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::device gd{gs};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::device ad{as};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::device hd{hs};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::device udd{uds};
+
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::platform dp{ds};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::platform cp{cs};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::platform gp{gs};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::platform ap{as};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::platform hp{hs};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::platform udp{uds};
+
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue dq1{ds};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue cq1{cs};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue gq1{gs};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue aq1{as};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue hq1{hs};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue udq1{uds};
+
+  sycl::context ctx;
+
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue dq2{ctx, ds};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue cq2{ctx, cs};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue gq2{ctx, gs};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue aq2{ctx, as};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue hq2{ctx, hs};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue udq2{ctx, uds};
+
+  auto ah = [](sycl::exception_list) {};
+
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue dq3{ds, ah};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue cq3{cs, ah};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue gq3{gs, ah};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue aq3{as, ah};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue hq3{hs, ah};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue udq3{uds, ah};
+
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue dq4{ctx, ds, ah};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue cq4{ctx, cs, ah};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue gq4{ctx, gs, ah};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue aq4{ctx, as, ah};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue hq4{ctx, hs, ah};
+  // expected-warning@+1{{SYCL 1.2.1 device selectors are deprecated. Please use SYCL 2020 device selectors instead.}}
+  sycl::queue udq4{ctx, uds, ah};
+
   // expected-warning@+2{{'local' is deprecated: use `local_accessor` instead}}
   Queue.submit([&](sycl::handler &CGH) {
     sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::target::local>
         LocalAcc(sycl::range<1>(1), CGH);
+  });
+
+  Queue.submit([&](sycl::handler &CGH) {
+    sycl::accessor GlobalAcc{Buffer, CGH, sycl::write_only};
+    sycl::local_accessor<int, 1> LocalAcc{1, CGH};
+    CGH.single_task([=]() {
+      int PrivateVal = 0;
+
+      // expected-warning@+4{{'make_ptr<int, sycl::access::address_space::global_space, sycl::access::decorated::legacy, std::enable_if<true>>' is deprecated: make_ptr is deprecated since SYCL 2020. Please use address_space_cast instead.}}
+      sycl::multi_ptr<int, sycl::access::address_space::global_space,
+                      sycl::access::decorated::legacy>
+          LegacyGlobalMptr =
+              sycl::make_ptr<int, sycl::access::address_space::global_space,
+                             sycl::access::decorated::legacy>(
+                  GlobalAcc.get_pointer());
+      // expected-warning@+4{{'make_ptr<int, sycl::access::address_space::local_space, sycl::access::decorated::legacy, std::enable_if<true>>' is deprecated: make_ptr is deprecated since SYCL 2020. Please use address_space_cast instead.}}
+      sycl::multi_ptr<int, sycl::access::address_space::local_space,
+                      sycl::access::decorated::legacy>
+          LegacyLocalMptr =
+              sycl::make_ptr<int, sycl::access::address_space::local_space,
+                             sycl::access::decorated::legacy>(
+                  LocalAcc.get_pointer());
+      // expected-warning@+4{{'make_ptr<int, sycl::access::address_space::private_space, sycl::access::decorated::legacy, std::enable_if<true>>' is deprecated: make_ptr is deprecated since SYCL 2020. Please use address_space_cast instead.}}
+      sycl::multi_ptr<int, sycl::access::address_space::private_space,
+                      sycl::access::decorated::legacy>
+          LegacyPrivateMptr =
+              sycl::make_ptr<int, sycl::access::address_space::private_space,
+                             sycl::access::decorated::legacy>(&PrivateVal);
+
+      sycl::multi_ptr<int, sycl::access::address_space::global_space,
+                      sycl::access::decorated::yes>
+          DecoratedGlobalMptr{GlobalAcc};
+      sycl::multi_ptr<int, sycl::access::address_space::local_space,
+                      sycl::access::decorated::yes>
+          DecoratedLocalMptr{LocalAcc};
+      sycl::multi_ptr<int, sycl::access::address_space::private_space,
+                      sycl::access::decorated::yes>
+          DecoratedPrivateMptr = sycl::address_space_cast<
+              sycl::access::address_space::private_space,
+              sycl::access::decorated::yes>(&PrivateVal);
+
+      sycl::multi_ptr<int, sycl::access::address_space::global_space,
+                      sycl::access::decorated::yes>
+          UndecoratedGlobalMptr = DecoratedGlobalMptr;
+      sycl::multi_ptr<int, sycl::access::address_space::local_space,
+                      sycl::access::decorated::yes>
+          UndecoratedLocalMptr = DecoratedLocalMptr;
+      sycl::multi_ptr<int, sycl::access::address_space::private_space,
+                      sycl::access::decorated::yes>
+          UndecoratedPrivateMptr = DecoratedPrivateMptr;
+
+      // expected-warning@+2{{'operator int *' is deprecated: Conversion to pointer type is deprecated since SYCL 2020. Please use get() instead.}}
+      auto DecoratedGlobalPtr =
+          static_cast<typename decltype(DecoratedGlobalMptr)::pointer>(
+              DecoratedGlobalMptr);
+      // expected-warning@+2{{'operator int *' is deprecated: Conversion to pointer type is deprecated since SYCL 2020. Please use get() instead.}}
+      auto DecoratedLocalPtr =
+          static_cast<typename decltype(DecoratedLocalMptr)::pointer>(
+              DecoratedLocalMptr);
+      // expected-warning@+2{{'operator int *' is deprecated: Conversion to pointer type is deprecated since SYCL 2020. Please use get() instead.}}
+      auto DecoratedPrivatePtr =
+          static_cast<typename decltype(DecoratedPrivateMptr)::pointer>(
+              DecoratedPrivateMptr);
+      // expected-warning@+2{{'operator int *' is deprecated: Conversion to pointer type is deprecated since SYCL 2020. Please use get() instead.}}
+      auto UndecoratedGlobalPtr =
+          static_cast<typename decltype(UndecoratedGlobalMptr)::pointer>(
+              UndecoratedGlobalMptr);
+      // expected-warning@+2{{'operator int *' is deprecated: Conversion to pointer type is deprecated since SYCL 2020. Please use get() instead.}}
+      auto UndecoratedLocalPtr =
+          static_cast<typename decltype(UndecoratedLocalMptr)::pointer>(
+              UndecoratedLocalMptr);
+      // expected-warning@+2{{'operator int *' is deprecated: Conversion to pointer type is deprecated since SYCL 2020. Please use get() instead.}}
+      auto UndecoratedPrivatePtr =
+          static_cast<typename decltype(UndecoratedPrivateMptr)::pointer>(
+              UndecoratedPrivateMptr);
+    });
   });
 
   return 0;

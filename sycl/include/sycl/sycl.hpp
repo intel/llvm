@@ -26,6 +26,7 @@
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/atomic.hpp>
+#include <sycl/ext/oneapi/experimental/group_sort.hpp>
 #include <sycl/feature_test.hpp>
 #include <sycl/functional.hpp>
 #include <sycl/group.hpp>
@@ -45,7 +46,6 @@
 #include <sycl/pipes.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/pointers.hpp>
-#include <sycl/program.hpp>
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/queue.hpp>
 #include <sycl/range.hpp>
@@ -60,14 +60,20 @@
 #if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 #endif
+#include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/ext/intel/usm_pointers.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
+#include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
 #include <sycl/ext/oneapi/experimental/cuda/barrier.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
 #include <sycl/ext/oneapi/group_algorithm.hpp>
+#include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
+#include <sycl/ext/oneapi/owner_less.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 #include <sycl/ext/oneapi/sub_group.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
+#include <sycl/ext/oneapi/weak_object.hpp>

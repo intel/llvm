@@ -229,13 +229,13 @@ void SPIRVTypeScavenger::deduceFunctionType(Function &F) {
   // If the function is a mangled name, try to recover types from the Itanium
   // name mangling.
   if (F.getName().startswith("_Z")) {
-    SmallVector<StructType *, 8> ParameterTypes;
-    getParameterTypes(&F, ParameterTypes);
+    SmallVector<Type *, 8> ParamTypes;
+    getParameterTypes(&F, ParamTypes);
     for (Argument *Arg : PointerArgs) {
-      if (auto *Ty = ParameterTypes[Arg->getArgNo()]) {
-        DeducedTypes[Arg] = Ty;
+      if (auto *Ty = dyn_cast<TypedPointerType>(ParamTypes[Arg->getArgNo()])) {
+        DeducedTypes[Arg] = Ty->getElementType();
         LLVM_DEBUG(dbgs() << "Arg " << Arg->getArgNo() << " of " << F.getName()
-                          << " has type " << *Ty << "\n");
+                          << " has type " << *Ty->getElementType() << "\n");
       }
     }
   }
@@ -252,7 +252,7 @@ static bool doesNotImplyType(Value *V) {
 
 SPIRVTypeScavenger::DeducedType
 SPIRVTypeScavenger::computePointerElementType(Value *V) {
-  assert(V->getType()->isPointerTy() &&
+  assert(V->getType()->isPtrOrPtrVectorTy() &&
          "Trying to get the pointer type of a non-pointer value?");
 
   // Don't try to store null, undef, or poison in our type map. We'll call these
@@ -430,10 +430,14 @@ void SPIRVTypeScavenger::correctUseTypes(Instruction &I) {
     // arguments we pass in to the argument requirements of the function.
     if (Function *F = CB->getCalledFunction()) {
       for (Use &U : CB->args()) {
+        // If we're calling a var-arg method, we have more operands than the
+        // function has parameters. Bail out if we hit that point.
+        unsigned ArgNo = CB->getArgOperandNo(&U);
+        if (ArgNo >= F->arg_size())
+          break;
         if (U->getType()->isPointerTy())
           PointerOperands.emplace_back(
-              U.getOperandNo(),
-              computePointerElementType(F->getArg(CB->getArgOperandNo(&U))));
+              U.getOperandNo(), computePointerElementType(F->getArg(ArgNo)));
       }
     }
   }
@@ -475,6 +479,16 @@ void SPIRVTypeScavenger::correctUseTypes(Instruction &I) {
       U.set(CastedValue);
     };
 
+    // This handles the scenario where a deferred type gets resolved to a fixed
+    // type during handling of this instruction, and another operand is using
+    // the same deferred type later in the instruction.
+    auto ReplaceTypeInOperands = [&](DeducedType From, DeducedType To) {
+      for (auto &ReplacePair : PointerOperands) {
+        if (ReplacePair.second == From)
+          ReplacePair.second = To;
+      }
+    };
+
     if (isa<Value *>(UsedTy)) {
       // When the use is of an indirect-pointer type, insert a bitcast to the
       // use type only for this use. This prevents indirect pointers from
@@ -490,15 +504,18 @@ void SPIRVTypeScavenger::correctUseTypes(Instruction &I) {
       } else if (auto *DeferredUseTy = dyn_cast<DeferredType *>(UsedTy)) {
         // Source type is fixed, use type is deferred: set the deferred type to
         // the fixed type.
+        ReplaceTypeInOperands(DeferredUseTy, FixedTy);
         fixType(*DeferredUseTy, FixedTy);
       }
     } else if (auto *DeferredTy = dyn_cast<DeferredType *>(SourceTy)) {
       if (auto *FixedUseTy = dyn_cast<Type *>(UsedTy)) {
         // Source type is fixed, use type is deferred: set the deferred type to
         // the fixed type.
+        ReplaceTypeInOperands(DeferredTy, FixedUseTy);
         fixType(*DeferredTy, FixedUseTy);
       } else if (auto *DeferredUseTy = dyn_cast<DeferredType *>(UsedTy)) {
         // If they're both deferred, merge the two types together.
+        ReplaceTypeInOperands(DeferredUseTy, DeferredTy);
         mergeType(DeferredTy, DeferredUseTy);
       }
     }

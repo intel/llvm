@@ -10,7 +10,6 @@
 #include "ELFObject.h"
 #include "llvm/ADT/BitmaskEnum.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -510,7 +509,7 @@ static Error replaceAndRemoveSections(const CommonConfig &Config,
             Obj, isCompressable,
             [&Config, &Obj](const SectionBase *S) -> Expected<SectionBase *> {
               return &Obj.addSection<CompressedSection>(
-                  CompressedSection(*S, Config.CompressionType));
+                  CompressedSection(*S, Config.CompressionType, Obj.Is64Bits));
             }))
       return Err;
   } else if (Config.DecompressDebugSections) {

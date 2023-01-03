@@ -13,6 +13,8 @@
 /// @cond ESIMD_DETAIL
 
 #include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
+#include <sycl/ext/intel/esimd/detail/host_util.hpp>
+#include <sycl/ext/intel/esimd/detail/math_intrin.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 
 #define __ESIMD_raw_vec_t(T, SZ)                                               \
@@ -418,25 +420,25 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T, SZ)
 }
 
 inline constexpr __ESIMD_NS::uint
-__esimd_dpas_bits_precision(__ESIMD_ENS::argument_type precisionType) {
-  return precisionType == __ESIMD_ENS::argument_type::TF32 ? 32
-         : precisionType == __ESIMD_ENS::argument_type::BF16 ||
-                 precisionType == __ESIMD_ENS::argument_type::FP16
+__esimd_dpas_bits_precision(__ESIMD_XMX_NS::dpas_argument_type precisionType) {
+  return precisionType == __ESIMD_XMX_NS::dpas_argument_type::tf32 ? 32
+         : precisionType == __ESIMD_XMX_NS::dpas_argument_type::bf16 ||
+                 precisionType == __ESIMD_XMX_NS::dpas_argument_type::fp16
              ? 16
-         : precisionType == __ESIMD_ENS::argument_type::S8 ||
-                 precisionType == __ESIMD_ENS::argument_type::U8
+         : precisionType == __ESIMD_XMX_NS::dpas_argument_type::s8 ||
+                 precisionType == __ESIMD_XMX_NS::dpas_argument_type::u8
              ? 8
-         : precisionType == __ESIMD_ENS::argument_type::S4 ||
-                 precisionType == __ESIMD_ENS::argument_type::U4
+         : precisionType == __ESIMD_XMX_NS::dpas_argument_type::s4 ||
+                 precisionType == __ESIMD_XMX_NS::dpas_argument_type::u4
              ? 4
-         : precisionType == __ESIMD_ENS::argument_type::S2 ||
-                 precisionType == __ESIMD_ENS::argument_type::U2
+         : precisionType == __ESIMD_XMX_NS::dpas_argument_type::s2 ||
+                 precisionType == __ESIMD_XMX_NS::dpas_argument_type::u2
              ? 2
              : 1;
 }
 
-template <__ESIMD_ENS::argument_type src1_precision,
-          __ESIMD_ENS::argument_type src2_precision, int systolic_depth,
+template <__ESIMD_XMX_NS::dpas_argument_type src1_precision,
+          __ESIMD_XMX_NS::dpas_argument_type src2_precision, int systolic_depth,
           int repeat_count, typename RT, typename T0, typename T1, typename T2,
           __ESIMD_NS::uint SZ, __ESIMD_NS::uint N1, __ESIMD_NS::uint N2>
 inline __ESIMD_DNS::vector_type_t<RT, SZ>
@@ -458,44 +460,56 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
 
   constexpr auto max_el_bits = std::max(src1_el_bits, src2_el_bits);
   constexpr __ESIMD_NS::uint ops_per_chan =
-      std::min(32 / max_el_bits, static_cast<__ESIMD_NS::uint>(8));
+      std::max(std::min(32 / max_el_bits, static_cast<uint32_t>(8)),
+               static_cast<uint32_t>(1));
 
   uint32_t src1_signed =
-      src1_precision == __ESIMD_ENS::argument_type::S2 ||
-              src1_precision == __ESIMD_ENS::argument_type::S4 ||
-              src1_precision == __ESIMD_ENS::argument_type::S8
+      src1_precision == __ESIMD_XMX_NS::dpas_argument_type::s2 ||
+              src1_precision == __ESIMD_XMX_NS::dpas_argument_type::s4 ||
+              src1_precision == __ESIMD_XMX_NS::dpas_argument_type::s8
           ? 1
           : 0;
 
   uint32_t src2_signed =
-      src2_precision == __ESIMD_ENS::argument_type::S2 ||
-              src2_precision == __ESIMD_ENS::argument_type::S4 ||
-              src2_precision == __ESIMD_ENS::argument_type::S8
+      src2_precision == __ESIMD_XMX_NS::dpas_argument_type::s2 ||
+              src2_precision == __ESIMD_XMX_NS::dpas_argument_type::s4 ||
+              src2_precision == __ESIMD_XMX_NS::dpas_argument_type::s8
           ? 1
           : 0;
 
-#if defined(ESIMD_XE_HPC) || defined(ESIMD_XE_HPG)
-  constexpr bool isPvc = true;
-  constexpr size_t SIMDSize = 16;
-#else
-  constexpr bool isPvc = false;
-  constexpr size_t SIMDSize = 8;
-#endif
+  constexpr uint32_t src1_vec_bit_size = sizeof(T1) * N1 * 8;
+  constexpr uint32_t src1_num_elem = src1_vec_bit_size / src1_el_bits;
+  constexpr size_t SIMDSize = src1_num_elem / (systolic_depth * ops_per_chan);
+  static_assert(SIMDSize == 8 || SIMDSize == 16,
+                "Execution size must be 8 or 16");
+  constexpr bool isPvc = SIMDSize == 16;
 
   constexpr bool
-      pvcHfDest = isPvc && std::is_same<RT, __ESIMD_EMU_DNS::half>::value,
-      pvcBfDest = isPvc && std::is_same<RT, short>::value,
+      pvcHfDest = isPvc && std::is_same_v<RT, unsigned short> &&
+                  src1_precision == __ESIMD_ENS::argument_type::FP16 &&
+                  src2_precision == __ESIMD_ENS::argument_type::FP16,
+      pvcHfSrc0 = isPvc && std::is_same_v<T0, unsigned short> &&
+                  src1_precision == __ESIMD_ENS::argument_type::FP16 &&
+                  src2_precision == __ESIMD_ENS::argument_type::FP16,
+      pvcBfDest = isPvc && std::is_same_v<RT, unsigned short> &&
+                  src1_precision == __ESIMD_ENS::argument_type::BF16 &&
+                  src2_precision == __ESIMD_ENS::argument_type::BF16,
+      pvcBfSrc0 = isPvc && std::is_same_v<T0, unsigned short> &&
+                  src1_precision == __ESIMD_ENS::argument_type::BF16 &&
+                  src2_precision == __ESIMD_ENS::argument_type::BF16,
       pvcBfOrHfDest = pvcBfDest || pvcHfDest,
 
-      pvcBfDestChecks = pvcBfDest &&
-                        src1_precision == __ESIMD_ENS::argument_type::BF16 &&
-                        src2_precision == __ESIMD_ENS::argument_type::BF16,
+      pvcBfDestChecks =
+          pvcBfDest &&
+          src1_precision == __ESIMD_XMX_NS::dpas_argument_type::bf16 &&
+          src2_precision == __ESIMD_XMX_NS::dpas_argument_type::bf16,
 
       pvcHfDestChecks =
-          pvcHfDest && ((src1_precision == __ESIMD_ENS::argument_type::FP16 &&
-                         src2_precision == __ESIMD_ENS::argument_type::FP16) ||
-                        (src1_precision == __ESIMD_ENS::argument_type::BF16 &&
-                         src2_precision == __ESIMD_ENS::argument_type::BF16)),
+          pvcHfDest &&
+          ((src1_precision == __ESIMD_XMX_NS::dpas_argument_type::fp16 &&
+            src2_precision == __ESIMD_XMX_NS::dpas_argument_type::fp16) ||
+           (src1_precision == __ESIMD_XMX_NS::dpas_argument_type::bf16 &&
+            src2_precision == __ESIMD_XMX_NS::dpas_argument_type::bf16)),
 
       destTypeChk =
           (!pvcBfOrHfDest && __ESIMD_EMU_DNS::is_fp_or_dword_type<RT>::value) ||
@@ -538,34 +552,37 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
 
   __ESIMD_DNS::vector_type_t<TmpAccEl, SIMDSize> simdAcc;
 
-  for (uint r = 0; r < repeat_count; r++) {
+  for (unsigned r = 0; r < repeat_count; r++) {
     V = r;
     k = 0;
 
-    for (uint n = 0; n < SIMDSize; n++) {
+    for (unsigned n = 0; n < SIMDSize; n++) {
       if (src0 != nullptr) {
         auto src0El = src0[0][r * SIMDSize + n];
 
-        if (pvcBfDest) {
+        if (pvcBfSrc0) {
           const auto tmp = (uint32_t)(src0El) << 16;
           simdAcc[n] = reinterpret_cast<const TmpAccEl &>(tmp);
+        } else if (pvcHfSrc0) {
+          simdAcc[n] = reinterpret_cast<const __ESIMD_EMU_DNS::half &>(src0El);
         } else
           simdAcc[n] = src0El;
       } else
         simdAcc[n] = 0;
     }
 
-    for (uint s = 0; s < systolic_depth; s++) {
+    for (unsigned s = 0; s < systolic_depth; s++) {
       src1_ops_per_dword = 32 / (ops_per_chan * src1_el_bits);
       // U = s / src1_ops_per_dword;
-      U = s >> uint(log2(src1_ops_per_dword));
+      U = s >> unsigned(log2(src1_ops_per_dword));
 
-      for (uint n = 0; n < SIMDSize; n++) {
-        for (uint d = 0; d < ops_per_chan; d++) {
+      for (unsigned n = 0; n < SIMDSize; n++) {
+        for (unsigned d = 0; d < ops_per_chan; d++) {
           p = d + (s % src1_ops_per_dword) * ops_per_chan;
           uint32_t extension_temp = false;
 
-          if (src2_precision == __ESIMD_ENS::argument_type::BF16) {
+          if constexpr (src2_precision ==
+                        __ESIMD_XMX_NS::dpas_argument_type::bf16) {
             const auto s1 =
                 extract<uint32_t>(src1_el_bits, p * src1_el_bits,
                                   src1[U * SIMDSize + n], extension_temp)
@@ -576,7 +593,8 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
                 << 16;
             simdAcc[n] += reinterpret_cast<const float &>(s2) *
                           reinterpret_cast<const float &>(s1);
-          } else if (src2_precision == __ESIMD_ENS::argument_type::FP16) {
+          } else if constexpr (src2_precision ==
+                               __ESIMD_XMX_NS::dpas_argument_type::fp16) {
             const auto s1 =
                 extract<short>(src1_el_bits, p * src1_el_bits,
                                src1[U * SIMDSize + n], extension_temp);
@@ -602,7 +620,7 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
 
     } // Systolic phase.
 
-    for (uint n = 0; n < SIMDSize; n++) {
+    for (unsigned n = 0; n < SIMDSize; n++) {
       if constexpr (pvcBfDest) {
         // TODO: make abstraction, support saturation, review rounding algo for
         // corner cases.
@@ -614,6 +632,10 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
         }
         retv[r * SIMDSize + n] =
             static_cast<short>(reinterpret_cast<uint32_t &>(tmpUint) >> 16);
+      } else if constexpr (pvcHfDest) {
+        retv[r * SIMDSize + n] =
+            __ESIMD_EMU_DNS::satur<sycl::half>::saturate<TmpAccEl>(simdAcc[n],
+                                                                   sat1);
       } else
         retv[r * SIMDSize + n] =
             __ESIMD_EMU_DNS::satur<RT>::template saturate<TmpAccEl>(simdAcc[n],
@@ -626,8 +648,8 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
 }
 #endif // #ifndef __SYCL_DEVICE_ONLY__
 
-template <__ESIMD_ENS::argument_type src1_precision,
-          __ESIMD_ENS::argument_type src2_precision, int systolic_depth,
+template <__ESIMD_XMX_NS::dpas_argument_type src1_precision,
+          __ESIMD_XMX_NS::dpas_argument_type src2_precision, int systolic_depth,
           int repeat_count, typename T, typename T0, typename T1, typename T2,
           int N, int N1, int N2, int res_sign = std::is_signed_v<T>,
           int acc_sign = std::is_signed_v<T0>>
@@ -653,10 +675,10 @@ __esimd_dpas_nosrc0(__ESIMD_DNS::vector_type_t<T1, N1> src1,
     ;
 #else  // !__SYCL_DEVICE_ONLY__
 {
-  constexpr __ESIMD_ENS::argument_type src1_precision =
-      static_cast<__ESIMD_ENS::argument_type>(Info & 0xff);
-  constexpr __ESIMD_ENS::argument_type src2_precision =
-      static_cast<__ESIMD_ENS::argument_type>((Info >> 8) & 0xff);
+  constexpr __ESIMD_XMX_NS::dpas_argument_type src1_precision =
+      static_cast<__ESIMD_XMX_NS::dpas_argument_type>(Info & 0xff);
+  constexpr __ESIMD_XMX_NS::dpas_argument_type src2_precision =
+      static_cast<__ESIMD_XMX_NS::dpas_argument_type>((Info >> 8) & 0xff);
   constexpr int systolic_depth = (Info >> 16) & 0xff;
   constexpr int repeat_count = (Info >> 24) & 0xff;
   return __esimd_dpas_inner<src1_precision, src2_precision, systolic_depth,

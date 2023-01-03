@@ -1,4 +1,4 @@
-; RUN: opt -loop-vectorize -scalable-vectorization=off -force-vector-width=4 -prefer-predicate-over-epilogue=predicate-dont-vectorize -S < %s | FileCheck %s
+; RUN: opt -passes=loop-vectorize -scalable-vectorization=off -force-vector-width=4 -prefer-predicate-over-epilogue=predicate-dont-vectorize -S < %s | FileCheck %s
 
 ; NOTE: These tests aren't really target-specific, but it's convenient to target AArch64
 ; so that TTI.isLegalMaskedLoad can return true.
@@ -63,7 +63,7 @@ define void @cond_uniform_load(i32* nocapture %dst, i32* nocapture readonly %src
 ; CHECK-NEXT:    [[TMP4:%.*]] = icmp eq <4 x i32> [[COND_LOAD]], zeroinitializer
 ; CHECK-NEXT:    [[TMP5:%.*]] = xor <4 x i1> [[TMP4]], <i1 true, i1 true, i1 true, i1 true>
 ; CHECK-NEXT:    [[MASK:%.*]] = select <4 x i1> [[ACTIVE_LANE_MASK]], <4 x i1> [[TMP5]], <4 x i1> zeroinitializer
-; CHECK-NEXT:    call <4 x i32> @llvm.masked.gather.v4i32.v4p0i32(<4 x i32*> [[SRC_SPLAT]], i32 4, <4 x i1> [[MASK]], <4 x i32> undef)
+; CHECK-NEXT:    call <4 x i32> @llvm.masked.gather.v4i32.v4p0i32(<4 x i32*> [[SRC_SPLAT]], i32 4, <4 x i1> [[MASK]], <4 x i32> poison)
 entry:
   br label %for.body
 

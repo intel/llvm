@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // <algorithm>
 //
@@ -30,22 +29,22 @@
 // (in, ...)
 template <class Func, std::ranges::range Input, class ...Args>
 constexpr void test(Func&& func, Input& in, Args&& ...args) {
-  func(in.begin(), in.end(), std::forward<Args>(args)...);
-  func(in, std::forward<Args>(args)...);
+  (void)func(in.begin(), in.end(), std::forward<Args>(args)...);
+  (void)func(in, std::forward<Args>(args)...);
 }
 
 // (in1, in2, ...)
 template <class Func, std::ranges::range Range1, std::ranges::range Range2, class ...Args>
 constexpr void test(Func&& func, Range1& r1, Range2& r2, Args&& ...args) {
-  func(r1.begin(), r1.end(), r2.begin(), r2.end(), std::forward<Args>(args)...);
-  func(r1, r2, std::forward<Args>(args)...);
+  (void)func(r1.begin(), r1.end(), r2.begin(), r2.end(), std::forward<Args>(args)...);
+  (void)func(r1, r2, std::forward<Args>(args)...);
 }
 
 // (in, mid, ...)
 template <class Func, std::ranges::range Input, class ...Args>
 constexpr void test_mid(Func&& func, Input& in, std::ranges::iterator_t<Input> mid, Args&& ...args) {
-  func(in.begin(), mid, in.end(), std::forward<Args>(args)...);
-  func(in, mid, std::forward<Args>(args)...);
+  (void)func(in.begin(), mid, in.end(), std::forward<Args>(args)...);
+  (void)func(in, mid, std::forward<Args>(args)...);
 }
 
 std::mt19937 rand_gen() { return std::mt19937(); }
@@ -69,7 +68,6 @@ constexpr void run_tests() {
   int count = 1;
 
   auto unary_pred = [](const Proxy<T&>&) { return true; };
-  //auto binary_pred = [](const Proxy<T>&, const Proxy<T>&) { return return false; };
   auto binary_func = [](const Proxy<T>&, const Proxy<T>&) -> Proxy<T> { return Proxy<T>(T()); };
   auto gen = [] { return Proxy<T>(T{42}); };
 
@@ -87,7 +85,7 @@ constexpr void run_tests() {
   test(std::ranges::partition_point, in, unary_pred);
   test(std::ranges::lower_bound, in, x);
   test(std::ranges::upper_bound, in, x);
-  //test(std::ranges::equal_range, in, x);
+  test(std::ranges::equal_range, in, x);
   test(std::ranges::binary_search, in, x);
 
   test(std::ranges::min_element, in);
@@ -104,7 +102,7 @@ constexpr void run_tests() {
   test(std::ranges::includes, in, in2);
   test(std::ranges::is_heap, in);
   test(std::ranges::is_heap_until, in);
-  //test(std::ranges::is_permutation, in, in2);
+  test(std::ranges::is_permutation, in, in2);
   test(std::ranges::for_each, in, std::identity{});
   std::ranges::for_each_n(in.begin(), count, std::identity{});
   if constexpr (std::copyable<T>) {
@@ -169,8 +167,8 @@ constexpr void run_tests() {
   test(std::ranges::push_heap, in);
   test(std::ranges::pop_heap, in);
   test(std::ranges::sort_heap, in);
-  //test(std::ranges::prev_permutation, in);
-  //test(std::ranges::next_permutation, in);
+  test(std::ranges::prev_permutation, in);
+  test(std::ranges::next_permutation, in);
 
   // The algorithms that work on uninitialized memory have constraints that prevent proxy iterators from being used with
   // them.

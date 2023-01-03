@@ -90,7 +90,7 @@ struct AllHeuristicsBoundsWellConfigured {
                                   1>::Value;
 };
 
-static_assert(AllHeuristicsBoundsWellConfigured::Value, "");
+static_assert(AllHeuristicsBoundsWellConfigured::Value);
 } // namespace
 
 static constexpr llvm::StringLiteral DefaultAbbreviations = "addr=address;"
@@ -587,7 +587,7 @@ Optional<int8_t> SuspiciousCallArgumentCheck::getBound(Heuristic H,
   assert(Idx < HeuristicCount);
 
   if (!Defaults[Idx].hasBounds())
-    return None;
+    return std::nullopt;
 
   switch (BK) {
   case BoundKind::DissimilarBelow:

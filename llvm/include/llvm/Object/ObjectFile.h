@@ -328,6 +328,8 @@ public:
     return section_iterator_range(section_begin(), section_end());
   }
 
+  virtual bool hasDebugInfo() const;
+
   /// The number of bytes used to represent an address in this object
   ///        file format.
   virtual uint8_t getBytesInAddress() const = 0;
@@ -335,7 +337,9 @@ public:
   virtual StringRef getFileFormatName() const = 0;
   virtual Triple::ArchType getArch() const = 0;
   virtual SubtargetFeatures getFeatures() const = 0;
-  virtual Optional<StringRef> tryGetCPUName() const { return None; };
+  virtual std::optional<StringRef> tryGetCPUName() const {
+    return std::nullopt;
+  };
   virtual void setARMSubArch(Triple &TheTriple) const { }
   virtual Expected<uint64_t> getStartAddress() const {
     return errorCodeToError(object_error::parse_failed);

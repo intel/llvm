@@ -50,7 +50,7 @@ public:
   llvm::sys::SmartRWMutex<true> identifierMutex;
 
   /// A thread local cache of identifiers to reduce lock contention.
-  ThreadLocalCache<llvm::StringMap<llvm::StringMapEntry<llvm::NoneType> *>>
+  ThreadLocalCache<llvm::StringMap<llvm::StringMapEntry<std::nullopt_t> *>>
       localIdentifierCache;
 
   TimingManagerImpl() : identifiers(identifierAllocator) {}
@@ -511,7 +511,7 @@ void DefaultTimingManager::dumpAsTree(raw_ostream &os) {
 Optional<void *> DefaultTimingManager::rootTimer() {
   if (impl->enabled)
     return impl->rootTimer.get();
-  return llvm::None;
+  return std::nullopt;
 }
 
 void DefaultTimingManager::startTimer(void *handle) {

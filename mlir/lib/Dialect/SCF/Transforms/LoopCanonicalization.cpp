@@ -11,17 +11,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
+#include "mlir/Dialect/SCF/Transforms/Passes.h"
+
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/Dialect/SCF/Transforms/Transforms.h"
 #include "mlir/Dialect/SCF/Utils/AffineCanonicalizationUtils.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/TypeSwitch.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_SCFFORLOOPCANONICALIZATION
+#include "mlir/Dialect/SCF/Transforms/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::scf;
@@ -187,13 +192,13 @@ struct AffineOpSCFCanonicalizationPattern : public OpRewritePattern<OpTy> {
       return failure();
     };
 
-    return scf::canonicalizeMinMaxOpInLoop(rewriter, op, op.getAffineMap(),
-                                           op.operands(), IsMin, loopMatcher);
+    return scf::canonicalizeMinMaxOpInLoop(
+        rewriter, op, op.getAffineMap(), op.getOperands(), IsMin, loopMatcher);
   }
 };
 
 struct SCFForLoopCanonicalization
-    : public SCFForLoopCanonicalizationBase<SCFForLoopCanonicalization> {
+    : public impl::SCFForLoopCanonicalizationBase<SCFForLoopCanonicalization> {
   void runOnOperation() override {
     auto *parentOp = getOperation();
     MLIRContext *ctx = parentOp->getContext();

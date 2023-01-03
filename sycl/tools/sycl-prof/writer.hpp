@@ -28,7 +28,7 @@ public:
   explicit JSONWriter(const std::string &OutPath) : MOutFile(OutPath) {}
 
   void init() final {
-    std::lock_guard _{MWriteMutex};
+    std::lock_guard<std::mutex> _{MWriteMutex};
 
     MOutFile << "{\n";
     MOutFile << "  \"traceEvents\": [\n";
@@ -36,7 +36,7 @@ public:
 
   void writeBegin(std::string_view Name, std::string_view Category, size_t PID,
                   size_t TID, size_t TimeStamp) override {
-    std::lock_guard _{MWriteMutex};
+    std::lock_guard<std::mutex> _{MWriteMutex};
 
     if (!MOutFile.is_open())
       return;
@@ -52,7 +52,7 @@ public:
 
   void writeEnd(std::string_view Name, std::string_view Category, size_t PID,
                 size_t TID, size_t TimeStamp) override {
-    std::lock_guard _{MWriteMutex};
+    std::lock_guard<std::mutex> _{MWriteMutex};
 
     if (!MOutFile.is_open())
       return;
@@ -67,10 +67,14 @@ public:
   }
 
   void finalize() final {
-    std::lock_guard _{MWriteMutex};
+    std::lock_guard<std::mutex> _{MWriteMutex};
 
     if (!MOutFile.is_open())
       return;
+
+    // add an empty element for not ending with '}, ]'
+    MOutFile << "{\"name\": \"\", \"cat\": \"\", \"ph\": \"\", \"pid\": \"\", "
+                "\"tid\": \"\", \"ts\": \"\"}\n";
 
     MOutFile << "],\n";
     MOutFile << "\"displayTimeUnit\":\"ns\"\n}\n";

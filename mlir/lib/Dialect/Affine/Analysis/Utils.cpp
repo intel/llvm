@@ -17,7 +17,7 @@
 #include "mlir/Dialect/Affine/Analysis/LoopAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/IR/IntegerSet.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/Debug.h"
@@ -45,18 +45,15 @@ void mlir::getLoopIVs(Operation &op, SmallVectorImpl<AffineForOp> *loops) {
   std::reverse(loops->begin(), loops->end());
 }
 
-/// Populates 'ops' with IVs of the loops surrounding `op`, along with
-/// `affine.if` operations interleaved between these loops, ordered from the
-/// outermost `affine.for` operation to the innermost one.
-void mlir::getEnclosingAffineForAndIfOps(Operation &op,
-                                         SmallVectorImpl<Operation *> *ops) {
+void mlir::getEnclosingAffineOps(Operation &op,
+                                 SmallVectorImpl<Operation *> *ops) {
   ops->clear();
   Operation *currOp = op.getParentOp();
 
-  // Traverse up the hierarchy collecting all `affine.for` and `affine.if`
-  // operations.
+  // Traverse up the hierarchy collecting all `affine.for`, `affine.if`, and
+  // affine.parallel operations.
   while (currOp) {
-    if (isa<AffineIfOp, AffineForOp>(currOp))
+    if (isa<AffineIfOp, AffineForOp, AffineParallelOp>(currOp))
       ops->push_back(currOp);
     currOp = currOp->getParentOp();
   }
@@ -149,7 +146,7 @@ void ComputationSliceState::dump() const {
 /// each slice dimension maps to an existing dst dimension and both the src
 /// and the dst loops for those dimensions have the same bounds. Returns false
 /// if both the src and the dst loops don't have the same bounds. Returns
-/// llvm::None if none of the above can be proven.
+/// std::nullopt if none of the above can be proven.
 Optional<bool> ComputationSliceState::isSliceMaximalFastCheck() const {
   assert(lbs.size() == ubs.size() && !lbs.empty() && !ivs.empty() &&
          "Unexpected number of lbs, ubs and ivs in slice");
@@ -167,19 +164,19 @@ Optional<bool> ComputationSliceState::isSliceMaximalFastCheck() const {
         // Make sure we skip those cases by checking that the lb result is not
         // just a constant.
         lbMap.getResult(0).isa<AffineConstantExpr>())
-      return llvm::None;
+      return std::nullopt;
 
     // Limited support: we expect the lb result to be just a loop dimension for
     // now.
     AffineDimExpr result = lbMap.getResult(0).dyn_cast<AffineDimExpr>();
     if (!result)
-      return llvm::None;
+      return std::nullopt;
 
     // Retrieve dst loop bounds.
     AffineForOp dstLoop =
         getForInductionVarOwner(lbOperands[i][result.getPosition()]);
     if (!dstLoop)
-      return llvm::None;
+      return std::nullopt;
     AffineMap dstLbMap = dstLoop.getLowerBoundMap();
     AffineMap dstUbMap = dstLoop.getUpperBoundMap();
 
@@ -193,7 +190,7 @@ Optional<bool> ComputationSliceState::isSliceMaximalFastCheck() const {
     // constant component per bound for now.
     if (srcLbMap.getNumResults() != 1 || srcUbMap.getNumResults() != 1 ||
         dstLbMap.getNumResults() != 1 || dstUbMap.getNumResults() != 1)
-      return llvm::None;
+      return std::nullopt;
 
     AffineExpr srcLbResult = srcLbMap.getResult(0);
     AffineExpr dstLbResult = dstLbMap.getResult(0);
@@ -203,7 +200,7 @@ Optional<bool> ComputationSliceState::isSliceMaximalFastCheck() const {
         !srcUbResult.isa<AffineConstantExpr>() ||
         !dstLbResult.isa<AffineConstantExpr>() ||
         !dstUbResult.isa<AffineConstantExpr>())
-      return llvm::None;
+      return std::nullopt;
 
     // Check if src and dst loop bounds are the same. If not, we can guarantee
     // that the slice is not maximal.
@@ -238,20 +235,20 @@ Optional<bool> ComputationSliceState::isSliceValid() {
   // TODO: Store the source's domain to avoid computation at each depth.
   if (failed(getSourceAsConstraints(srcConstraints))) {
     LLVM_DEBUG(llvm::dbgs() << "Unable to compute source's domain\n");
-    return llvm::None;
+    return std::nullopt;
   }
   // As the set difference utility currently cannot handle symbols in its
   // operands, validity of the slice cannot be determined.
   if (srcConstraints.getNumSymbolVars() > 0) {
     LLVM_DEBUG(llvm::dbgs() << "Cannot handle symbols in source domain\n");
-    return llvm::None;
+    return std::nullopt;
   }
   // TODO: Handle local vars in the source domains while using the 'projectOut'
   // utility below. Currently, aligning is not done assuming that there will be
   // no local vars in the source domain.
   if (srcConstraints.getNumLocalVars() != 0) {
     LLVM_DEBUG(llvm::dbgs() << "Cannot handle locals in source domain\n");
-    return llvm::None;
+    return std::nullopt;
   }
 
   // Create constraints for the slice loop nest that would be created if the
@@ -259,7 +256,7 @@ Optional<bool> ComputationSliceState::isSliceValid() {
   FlatAffineValueConstraints sliceConstraints;
   if (failed(getAsConstraints(&sliceConstraints))) {
     LLVM_DEBUG(llvm::dbgs() << "Unable to compute slice's domain\n");
-    return llvm::None;
+    return std::nullopt;
   }
 
   // Projecting out every dimension other than the 'ivs' to express slice's
@@ -286,7 +283,7 @@ Optional<bool> ComputationSliceState::isSliceValid() {
 }
 
 /// Returns true if the computation slice encloses all the iterations of the
-/// sliced loop nest. Returns false if it does not. Returns llvm::None if it
+/// sliced loop nest. Returns false if it does not. Returns std::nullopt if it
 /// cannot determine if the slice is maximal or not.
 Optional<bool> ComputationSliceState::isMaximal() const {
   // Fast check to determine if the computation slice is maximal. If the result
@@ -303,7 +300,7 @@ Optional<bool> ComputationSliceState::isMaximal() const {
     AffineForOp loop = getForInductionVarOwner(iv);
     assert(loop && "Expected affine for");
     if (failed(srcConstraints.addAffineForOpDomain(loop)))
-      return llvm::None;
+      return std::nullopt;
   }
 
   // Create constraints for the slice using the dst loop nest information. We
@@ -323,12 +320,12 @@ Optional<bool> ComputationSliceState::isMaximal() const {
                          /*numLocals=*/0, consumerIVs);
 
   if (failed(sliceConstraints.addDomainFromSliceMaps(lbs, ubs, lbOperands[0])))
-    return llvm::None;
+    return std::nullopt;
 
   if (srcConstraints.getNumDimVars() != sliceConstraints.getNumDimVars())
     // Constraint dims are different. The integer set difference can't be
     // computed so we don't know if the slice is maximal.
-    return llvm::None;
+    return std::nullopt;
 
   // Compute the difference between the src loop nest and the slice integer
   // sets.
@@ -374,7 +371,7 @@ Optional<int64_t> MemRefRegion::getConstantBoundingSizeAndShape(
   for (unsigned d = 0; d < rank; d++) {
     SmallVector<int64_t, 4> lb;
     Optional<int64_t> diff =
-        cstWithShapeBounds.getConstantBoundOnDimSize(d, &lb, &lbDivisor);
+        cstWithShapeBounds.getConstantBoundOnDimSize64(d, &lb, &lbDivisor);
     if (diff.has_value()) {
       diffConstant = diff.value();
       assert(diffConstant >= 0 && "Dim size bound can't be negative");
@@ -383,8 +380,8 @@ Optional<int64_t> MemRefRegion::getConstantBoundingSizeAndShape(
       // If no constant bound is found, then it can always be bound by the
       // memref's dim size if the latter has a constant size along this dim.
       auto dimSize = memRefType.getDimSize(d);
-      if (dimSize == -1)
-        return None;
+      if (dimSize == ShapedType::kDynamic)
+        return std::nullopt;
       diffConstant = dimSize;
       // Lower bound becomes 0.
       lb.resize(cstWithShapeBounds.getNumSymbolVars() + 1, 0);
@@ -632,21 +629,21 @@ Optional<int64_t> MemRefRegion::getRegionSize() {
   Optional<int64_t> numElements = getConstantBoundingSizeAndShape();
   if (!numElements) {
     LLVM_DEBUG(llvm::dbgs() << "Dynamic shapes not yet supported\n");
-    return None;
+    return std::nullopt;
   }
   return getMemRefEltSizeInBytes(memRefType) * *numElements;
 }
 
-/// Returns the size of memref data in bytes if it's statically shaped, None
-/// otherwise.  If the element of the memref has vector type, takes into account
-/// size of the vector as well.
+/// Returns the size of memref data in bytes if it's statically shaped,
+/// std::nullopt otherwise.  If the element of the memref has vector type, takes
+/// into account size of the vector as well.
 //  TODO: improve/complete this when we have target data.
 Optional<uint64_t> mlir::getMemRefSizeInBytes(MemRefType memRefType) {
   if (!memRefType.hasStaticShape())
-    return None;
+    return std::nullopt;
   auto elementType = memRefType.getElementType();
   if (!elementType.isIntOrFloat() && !elementType.isa<VectorType>())
-    return None;
+    return std::nullopt;
 
   uint64_t sizeInBytes = getMemRefEltSizeInBytes(memRefType);
   for (unsigned i = 0, e = memRefType.getRank(); i < e; i++) {
@@ -982,7 +979,7 @@ static Optional<uint64_t> getConstDifference(AffineMap lbMap, AffineMap ubMap) {
                                          lbMap.getNumSymbols());
   auto cExpr = loopSpanExpr.dyn_cast<AffineConstantExpr>();
   if (!cExpr)
-    return None;
+    return std::nullopt;
   return cExpr.getValue();
 }
 
@@ -1315,13 +1312,13 @@ static Optional<int64_t> getMemoryFootprintBytes(Block &block,
     return WalkResult::advance();
   });
   if (result.wasInterrupted())
-    return None;
+    return std::nullopt;
 
   int64_t totalSizeInBytes = 0;
   for (const auto &region : regions) {
     Optional<int64_t> size = region.second->getRegionSize();
     if (!size.has_value())
-      return None;
+      return std::nullopt;
     totalSizeInBytes += size.value();
   }
   return totalSizeInBytes;

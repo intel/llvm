@@ -58,6 +58,7 @@ piMemRelease
 piMemRetain
 piPlatformGetInfo
 piPlatformsGet
+piPluginGetLastError
 piPluginInit
 piProgramBuild
 piProgramCompile
@@ -69,6 +70,7 @@ piProgramLink
 piProgramRelease
 piProgramRetain
 piQueueCreate
+piextQueueCreate
 piQueueFinish
 piQueueFlush
 piQueueGetInfo
@@ -78,7 +80,6 @@ piSamplerCreate
 piSamplerGetInfo
 piSamplerRelease
 piSamplerRetain
-piPluginGetLastError
 piTearDown
 piclProgramCreateWithSource
 piextContextCreateWithNativeHandle
@@ -110,6 +111,9 @@ piextUSMEnqueueMemAdvise
 piextUSMEnqueueMemcpy
 piextUSMEnqueueMemset
 piextUSMEnqueuePrefetch
+piextUSMEnqueueFill2D
+piextUSMEnqueueMemset2D
+piextUSMEnqueueMemcpy2D
 piextUSMFree
 piextUSMGetMemAllocInfo
 piextUSMHostAlloc

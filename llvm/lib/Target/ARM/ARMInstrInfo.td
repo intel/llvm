@@ -2189,6 +2189,10 @@ def : InstAlias<"sevl$p", (HINT 5, pred:$p)>, Requires<[IsARM, HasV8]>;
 def : InstAlias<"esb$p", (HINT 16, pred:$p)>, Requires<[IsARM, HasRAS]>;
 def : InstAlias<"csdb$p", (HINT 20, pred:$p)>, Requires<[IsARM, HasV6K]>;
 
+// Clear BHB instruction
+def : InstAlias<"clrbhb$p", (HINT 22, pred:$p), 0>, Requires<[IsARM, HasV8]>;
+def : InstAlias<"clrbhb$p", (HINT 22, pred:$p), 1>, Requires<[IsARM, HasV8, HasCLRBHB]>;
+
 def SEL : AI<(outs GPR:$Rd), (ins GPR:$Rn, GPR:$Rm), DPFrm, NoItinerary, "sel",
              "\t$Rd, $Rn, $Rm",
              [(set GPR:$Rd, (int_arm_sel GPR:$Rn, GPR:$Rm))]>,
@@ -4891,6 +4895,13 @@ def : ARMPat<(ARMcmpZ GPR:$src, so_reg_imm:$rhs),
              (CMPrsi   GPR:$src, so_reg_imm:$rhs)>;
 def : ARMPat<(ARMcmpZ GPR:$src, so_reg_reg:$rhs),
              (CMPrsr   GPR:$src, so_reg_reg:$rhs)>;
+// Following patterns aimed to prevent usage of CMPrsi and CMPrsr for a comparison
+// with zero. Usage of CMPri in these cases helps to replace cmp with S-versions of
+// shift instructions during peephole optimizations pass.
+def : ARMPat<(ARMcmpZ so_reg_imm:$rhs, 0),
+             (CMPri (MOVsi so_reg_imm:$rhs), 0)>;
+def : ARMPat<(ARMcmpZ so_reg_reg:$rhs, 0),
+             (CMPri (MOVsr so_reg_reg:$rhs), 0)>;
 
 // CMN register-integer
 let isCompare = 1, Defs = [CPSR] in {

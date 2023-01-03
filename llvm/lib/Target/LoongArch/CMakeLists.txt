@@ -16,6 +16,8 @@ add_public_tablegen_target(LoongArchCommonTableGen)
 
 add_llvm_target(LoongArchCodeGen
   LoongArchAsmPrinter.cpp
+  LoongArchExpandAtomicPseudoInsts.cpp
+  LoongArchExpandPseudoInsts.cpp
   LoongArchFrameLowering.cpp
   LoongArchInstrInfo.cpp
   LoongArchISelDAGToDAG.cpp
@@ -36,7 +38,6 @@ add_llvm_target(LoongArchCodeGen
   SelectionDAG
   Support
   Target
-  GlobalISel
 
   ADD_TO_COMPONENT
   LoongArch

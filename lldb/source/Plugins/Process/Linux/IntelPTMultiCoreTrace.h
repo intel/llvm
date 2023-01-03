@@ -11,13 +11,10 @@
 
 #include "IntelPTProcessTrace.h"
 #include "IntelPTSingleBufferTrace.h"
-
 #include "lldb/Host/common/NativeProcessProtocol.h"
 #include "lldb/Utility/TraceIntelPTGDBRemotePackets.h"
 #include "lldb/lldb-types.h"
-
 #include "llvm/Support/Error.h"
-
 #include <memory>
 
 namespace lldb_private {
@@ -37,7 +34,7 @@ public:
   ///
   ///  \param[in] cgroup_fd
   ///  A file descriptor in /sys/fs associated with the cgroup of the process to
-  ///  trace. If not \a llvm::None, then the trace sesion will use cgroup
+  ///  trace. If not \a std::nullopt, then the trace sesion will use cgroup
   ///  filtering.
   ///
   /// \return
@@ -46,7 +43,7 @@ public:
   static llvm::Expected<std::unique_ptr<IntelPTMultiCoreTrace>>
   StartOnAllCores(const TraceIntelPTStartRequest &request,
                   NativeProcessProtocol &process,
-                  llvm::Optional<int> cgroup_fd = llvm::None);
+                  llvm::Optional<int> cgroup_fd = std::nullopt);
 
   /// Execute the provided callback on each core that is being traced.
   ///

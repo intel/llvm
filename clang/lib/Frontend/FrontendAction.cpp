@@ -11,13 +11,16 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclGroup.h"
 #include "clang/Basic/Builtins.h"
+#include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/LangStandard.h"
+#include "clang/Basic/Sarif.h"
 #include "clang/Frontend/ASTUnit.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
 #include "clang/Frontend/LayoutOverrideSource.h"
 #include "clang/Frontend/MultiplexConsumer.h"
+#include "clang/Frontend/SARIFDiagnosticPrinter.h"
 #include "clang/Frontend/Utils.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/LiteralSupport.h"
@@ -25,6 +28,7 @@
 #include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Parse/ParseAST.h"
 #include "clang/Sema/HLSLExternalSemaSource.h"
+#include "clang/Sema/MultiplexExternalSemaSource.h"
 #include "clang/Serialization/ASTDeserializationListener.h"
 #include "clang/Serialization/ASTReader.h"
 #include "clang/Serialization/GlobalModuleIndex.h"
@@ -35,6 +39,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
+#include <memory>
 #include <system_error>
 using namespace clang;
 
@@ -192,10 +197,8 @@ FrontendAction::CreateWrappedASTConsumer(CompilerInstance &CI,
         ActionType == PluginASTAction::CmdlineBeforeMainAction) {
       // This is O(|plugins| * |add_plugins|), but since both numbers are
       // way below 50 in practice, that's ok.
-      if (llvm::any_of(CI.getFrontendOpts().AddPluginActions,
-                       [&](const std::string &PluginAction) {
-                         return PluginAction == Plugin.getName();
-                       })) {
+      if (llvm::is_contained(CI.getFrontendOpts().AddPluginActions,
+                             Plugin.getName())) {
         if (ActionType == PluginASTAction::CmdlineBeforeMainAction)
           ActionType = PluginASTAction::AddBeforeMainAction;
         else
@@ -332,7 +335,7 @@ static std::error_code collectModuleHeaderIncludes(
     return std::error_code();
 
   // Resolve all lazy header directives to header files.
-  ModMap.resolveHeaderDirectives(Module, /*File=*/llvm::None);
+  ModMap.resolveHeaderDirectives(Module, /*File=*/std::nullopt);
 
   // If any headers are missing, we can't build this module. In most cases,
   // diagnostics for this should have already been produced; we only get here
@@ -635,11 +638,10 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
         if (&MF != &PrimaryModule)
           CI.getFrontendOpts().ModuleFiles.push_back(MF.FileName);
 
-      ASTReader->visitTopLevelModuleMaps(
-          PrimaryModule, [&](const FileEntry *FE) {
-            CI.getFrontendOpts().ModuleMapFiles.push_back(
-                std::string(FE->getName()));
-          });
+      ASTReader->visitTopLevelModuleMaps(PrimaryModule, [&](FileEntryRef FE) {
+        CI.getFrontendOpts().ModuleMapFiles.push_back(
+            std::string(FE.getName()));
+      });
     }
 
     // Set up the input file for replay purposes.
@@ -717,8 +719,14 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
       return false;
     }
   }
-  if (!CI.hasSourceManager())
+  if (!CI.hasSourceManager()) {
     CI.createSourceManager(CI.getFileManager());
+    if (CI.getDiagnosticOpts().getFormat() == DiagnosticOptions::SARIF) {
+      static_cast<SARIFDiagnosticPrinter *>(&CI.getDiagnosticClient())
+          ->setSarifWriter(
+              std::make_unique<SarifDocumentWriter>(CI.getSourceManager()));
+    }
+  }
 
   // Set up embedding for any specified files. Do this before we load any
   // source files, including the primary module map for the compilation.
@@ -770,9 +778,10 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
            Dir != DirEnd && !EC; Dir.increment(EC)) {
         // Check whether this is an acceptable AST file.
         if (ASTReader::isAcceptableASTFile(
-                Dir->path(), FileMgr, CI.getPCHContainerReader(),
-                CI.getLangOpts(), CI.getTargetOpts(), CI.getPreprocessorOpts(),
-                SpecificModuleCachePath)) {
+                Dir->path(), FileMgr, CI.getModuleCache(),
+                CI.getPCHContainerReader(), CI.getLangOpts(),
+                CI.getTargetOpts(), CI.getPreprocessorOpts(),
+                SpecificModuleCachePath, /*RequireStrictOptionMatches=*/true)) {
           PPOpts.ImplicitPCHInclude = std::string(Dir->path());
           Found = true;
           break;
@@ -905,6 +914,9 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
       CI.getDiagnostics().Report(diag::err_module_map_not_found) << Filename;
   }
 
+  // If compiling implementation of a module, load its module map file now.
+  (void)CI.getPreprocessor().getCurrentModuleImplementation();
+
   // Add a module declaration scope so that modules from -fmodule-map-file
   // arguments may shadow modules found implicitly in search paths.
   CI.getPreprocessor()
@@ -1018,9 +1030,15 @@ bool FrontendAction::BeginSourceFile(CompilerInstance &CI,
 
   // Setup HLSL External Sema Source
   if (CI.getLangOpts().HLSL && CI.hasASTContext()) {
-    IntrusiveRefCntPtr<ExternalASTSource> HLSLSema(
+    IntrusiveRefCntPtr<ExternalSemaSource> HLSLSema(
         new HLSLExternalSemaSource());
-    CI.getASTContext().setExternalSource(HLSLSema);
+    if (auto *SemaSource = dyn_cast_if_present<ExternalSemaSource>(
+            CI.getASTContext().getExternalSource())) {
+      IntrusiveRefCntPtr<ExternalSemaSource> MultiSema(
+          new MultiplexExternalSemaSource(SemaSource, HLSLSema.get()));
+      CI.getASTContext().setExternalSource(MultiSema);
+    } else
+      CI.getASTContext().setExternalSource(HLSLSema);
   }
 
   FailureCleanup.release();

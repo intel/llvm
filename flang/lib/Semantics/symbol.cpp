@@ -136,6 +136,9 @@ void EntityDetails::set_type(const DeclTypeSpec &type) {
 void AssocEntityDetails::set_rank(int rank) { rank_ = rank; }
 void EntityDetails::ReplaceType(const DeclTypeSpec &type) { type_ = &type; }
 
+ObjectEntityDetails::ObjectEntityDetails(EntityDetails &&d)
+    : EntityDetails(d) {}
+
 void ObjectEntityDetails::set_shape(const ArraySpec &shape) {
   CHECK(shape_.empty());
   for (const auto &shapeSpec : shape) {
@@ -174,11 +177,13 @@ void GenericDetails::set_specific(Symbol &specific) {
   CHECK(!derivedType_);
   specific_ = &specific;
 }
+void GenericDetails::clear_specific() { specific_ = nullptr; }
 void GenericDetails::set_derivedType(Symbol &derivedType) {
   CHECK(!specific_);
   CHECK(!derivedType_);
   derivedType_ = &derivedType;
 }
+void GenericDetails::clear_derivedType() { derivedType_ = nullptr; }
 void GenericDetails::AddUse(const Symbol &use) {
   CHECK(use.has<UseDetails>());
   uses_.push_back(use);
@@ -248,9 +253,7 @@ std::string DetailsToString(const Details &details) {
       details);
 }
 
-const std::string Symbol::GetDetailsName() const {
-  return DetailsToString(details_);
-}
+std::string Symbol::GetDetailsName() const { return DetailsToString(details_); }
 
 void Symbol::set_details(Details &&details) {
   CHECK(CanReplaceDetails(details));
@@ -276,6 +279,9 @@ bool Symbol::CanReplaceDetails(const Details &details) const {
             [&](const UseDetails &x) {
               const auto *use{this->detailsIf<UseDetails>()};
               return use && use->symbol() == x.symbol();
+            },
+            [&](const HostAssocDetails &) {
+              return this->has<HostAssocDetails>();
             },
             [](const auto &) { return false; },
         },
@@ -360,9 +366,6 @@ bool Symbol::IsFromModFile() const {
   return test(Flag::ModFile) ||
       (!owner_->IsTopLevel() && owner_->symbol()->IsFromModFile());
 }
-
-ObjectEntityDetails::ObjectEntityDetails(EntityDetails &&d)
-    : EntityDetails(d) {}
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const EntityDetails &x) {
   DumpBool(os, "dummy", x.isDummy());
@@ -669,20 +672,20 @@ bool GenericKind::IsOperator() const {
 std::string GenericKind::ToString() const {
   return common::visit(
       common::visitors {
-        [](const OtherKind &x) { return EnumToString(x); },
+        [](const OtherKind &x) { return std::string{EnumToString(x)}; },
             [](const DefinedIo &x) { return AsFortran(x).ToString(); },
 #if !__clang__ && __GNUC__ == 7 && __GNUC_MINOR__ == 2
             [](const common::NumericOperator &x) {
-              return common::EnumToString(x);
+              return std::string{common::EnumToString(x)};
             },
             [](const common::LogicalOperator &x) {
-              return common::EnumToString(x);
+              return std::string{common::EnumToString(x)};
             },
             [](const common::RelationalOperator &x) {
-              return common::EnumToString(x);
+              return std::string{common::EnumToString(x)};
             },
 #else
-            [](const auto &x) { return common::EnumToString(x); },
+            [](const auto &x) { return std::string{common::EnumToString(x)}; },
 #endif
       },
       u);
@@ -713,7 +716,8 @@ bool GenericKind::Is(GenericKind::OtherKind x) const {
   return y && *y == x;
 }
 
-bool SymbolOffsetCompare::operator()(const SymbolRef &x, const SymbolRef &y) const {
+bool SymbolOffsetCompare::operator()(
+    const SymbolRef &x, const SymbolRef &y) const {
   const Symbol *xCommon{FindCommonBlockContaining(*x)};
   const Symbol *yCommon{FindCommonBlockContaining(*y)};
   if (xCommon) {

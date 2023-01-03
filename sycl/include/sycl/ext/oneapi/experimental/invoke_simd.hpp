@@ -34,13 +34,16 @@
 /// to the SIMD target, as well as process SPMD arguments in the way described
 /// in the specification for `invoke_simd`.
 /// @tparam SpmdRet the return type. Can be `uniform<T>`.
-/// @tparam SimdCallee the type of the SIMD callee function (the "target"). Must
-///  be a function type (not lambda or functor).
-/// @tparam SpmdArgs The original SPMD arguments passed to the invoke_simd.
-template <bool IsFunc, class SpmdRet, class SimdCallee, class... SpmdArgs,
-          class = std::enable_if_t<!IsFunc>>
+/// @tparam HelperFunc the type of SIMD callee helper function. It is needed
+/// to convert the arguments of user's callee function and pass them to call
+/// of user's function.
+/// @tparam UserSimdFuncAndSpmdArgs is the pack that contains the user's SIMD
+/// target function and the original SPMD arguments passed to invoke_simd.
+template <bool IsFunc, class SpmdRet, class HelperFunc,
+          class... UserSimdFuncAndSpmdArgs, class = std::enable_if_t<!IsFunc>>
 SYCL_EXTERNAL __regcall SpmdRet
-__builtin_invoke_simd(SimdCallee target, const void *obj, SpmdArgs... args)
+__builtin_invoke_simd(HelperFunc helper, const void *obj,
+                      UserSimdFuncAndSpmdArgs... args)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
@@ -51,10 +54,10 @@ __builtin_invoke_simd(SimdCallee target, const void *obj, SpmdArgs... args)
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-template <bool IsFunc, class SpmdRet, class SimdCallee, class... SpmdArgs,
-          class = std::enable_if_t<IsFunc>>
-SYCL_EXTERNAL __regcall SpmdRet __builtin_invoke_simd(SimdCallee target,
-                                                      SpmdArgs... args)
+template <bool IsFunc, class SpmdRet, class HelperFunc,
+          class... UserSimdFuncAndSpmdArgs, class = std::enable_if_t<IsFunc>>
+SYCL_EXTERNAL __regcall SpmdRet
+__builtin_invoke_simd(HelperFunc helper, UserSimdFuncAndSpmdArgs... args)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
@@ -68,9 +71,7 @@ SYCL_EXTERNAL __regcall SpmdRet __builtin_invoke_simd(SimdCallee target,
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 
 // --- Basic definitions prescribed by the spec.
 namespace simd_abi {
@@ -135,6 +136,8 @@ template <class T>
 struct simd2spmd<T, std::enable_if_t<std::is_arithmetic_v<T>>> {
   using type = uniform<T>;
 };
+
+template <> struct simd2spmd<void> { using type = void; };
 
 // Determine number of elements in a simd type.
 template <class T> struct simd_size {
@@ -231,9 +234,10 @@ static constexpr int get_sg_size() {
 // with captures. Note __regcall - this is needed for efficient argument
 // forwarding.
 template <int N, class Callable, class... T>
-SYCL_EXTERNAL __regcall detail::SimdRetType<N, Callable, T...>
-simd_obj_call_helper(const void *obj_ptr,
-                     typename detail::spmd2simd<T, N>::type... simd_args) {
+[[intel::device_indirectly_callable]] SYCL_EXTERNAL __regcall detail::
+    SimdRetType<N, Callable, T...>
+    simd_obj_call_helper(const void *obj_ptr,
+                         typename detail::spmd2simd<T, N>::type... simd_args) {
   auto f =
       *reinterpret_cast<const std::remove_reference_t<Callable> *>(obj_ptr);
   return f(simd_args...);
@@ -241,9 +245,10 @@ simd_obj_call_helper(const void *obj_ptr,
 
 // This function is a wrapper around a call to a function.
 template <int N, class Callable, class... T>
-SYCL_EXTERNAL __regcall detail::SimdRetType<N, Callable, T...>
-simd_func_call_helper(Callable f,
-                      typename detail::spmd2simd<T, N>::type... simd_args) {
+[[intel::device_indirectly_callable]] SYCL_EXTERNAL __regcall detail::
+    SimdRetType<N, Callable, T...>
+    simd_func_call_helper(Callable f,
+                          typename detail::spmd2simd<T, N>::type... simd_args) {
   return f(simd_args...);
 }
 
@@ -288,6 +293,19 @@ static constexpr bool is_function_ptr_or_ref_v =
 #endif // __INVOKE_SIMD_USE_STD_IS_FUNCTION_WA
     ;
 
+template <typename Callable> struct remove_ref_from_func_ptr_ref_type {
+  using type = Callable;
+};
+
+template <typename Ret, typename... Args>
+struct remove_ref_from_func_ptr_ref_type<Ret(__regcall *&)(Args...)> {
+  using type = Ret(__regcall *)(Args...);
+};
+
+template <typename T>
+using remove_ref_from_func_ptr_ref_type_t =
+    typename remove_ref_from_func_ptr_ref_type<T>::type;
+
 } // namespace detail
 
 // --- The main API
@@ -308,7 +326,8 @@ static constexpr bool is_function_ptr_or_ref_v =
 /// @param args SPMD parameters to the invoked function, which undergo
 ///   transformation before actual passing to the simd function, as described in
 ///   the specification.
-// TODO works only for functions now, enable for other callables.
+// TODO works only for functions and pointers to functions now,
+// enable for lambda functions and functors.
 template <class Callable, class... T>
 __attribute__((always_inline)) auto invoke_simd(sycl::sub_group sg,
                                                 Callable &&f, T... args) {
@@ -321,9 +340,17 @@ __attribute__((always_inline)) auto invoke_simd(sycl::sub_group sg,
   constexpr bool is_function = detail::is_function_ptr_or_ref_v<Callable>;
 
   if constexpr (is_function) {
+    // The variables typed as pointer to a function become lvalue-reference
+    // when passed to invoke_simd() as universal pointers. That creates an
+    // additional indirection, which is resolved automatically by the compiler
+    // for the caller side of __builtin_invoke_simd, but which must be resolved
+    // manually during the creation of simd_func_call_helper.
+    // The class remove_ref_from_func_ptr_ref_type is used removes that
+    // unwanted indirection.
     return __builtin_invoke_simd<true /*function*/, RetSpmd>(
-        detail::simd_func_call_helper<N, Callable, T...>, f,
-        detail::unwrap_uniform<T>::impl(args)...);
+        detail::simd_func_call_helper<
+            N, detail::remove_ref_from_func_ptr_ref_type_t<Callable>, T...>,
+        f, detail::unwrap_uniform<T>::impl(args)...);
   } else {
     // TODO support functors and lambdas which are handled in this branch.
     // The limiting factor for now is that the LLVMIR data flow analysis
@@ -341,8 +368,6 @@ __attribute__((always_inline)) auto invoke_simd(sycl::sub_group sg,
 #endif // __INVOKE_SIMD_ENABLE_ALL_CALLABLES
 }
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

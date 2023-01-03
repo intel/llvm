@@ -353,7 +353,7 @@ static void uninstallExceptionOrSignalHandlers() {
 
 static const int Signals[] =
     { SIGABRT, SIGBUS, SIGFPE, SIGILL, SIGSEGV, SIGTRAP };
-static const unsigned NumSignals = array_lengthof(Signals);
+static const unsigned NumSignals = std::size(Signals);
 static struct sigaction PrevActions[NumSignals];
 
 static void CrashRecoverySignalHandler(int Signal) {
@@ -518,7 +518,7 @@ bool CrashRecoveryContext::RunSafelyOnThread(function_ref<void()> Fn,
   bool UseBackgroundPriority = hasThreadBackgroundPriority();
   RunSafelyOnThreadInfo Info = { Fn, this, UseBackgroundPriority, false };
   llvm::thread Thread(RequestedStackSize == 0
-                          ? llvm::None
+                          ? std::nullopt
                           : llvm::Optional<unsigned>(RequestedStackSize),
                       RunSafelyOnThread_Dispatch, &Info);
   Thread.join();

@@ -26,6 +26,7 @@
 #include <cstring>
 #include <limits>
 #include <map>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -88,6 +89,71 @@ pi_result piPluginGetLastError(char **message) {
   return ErrorMessageCode;
 }
 
+static cl_int getPlatformVersion(cl_platform_id plat,
+                                 OCLV::OpenCLVersion &version) {
+  cl_int ret_err = CL_INVALID_VALUE;
+
+  size_t platVerSize = 0;
+  ret_err =
+      clGetPlatformInfo(plat, CL_PLATFORM_VERSION, 0, nullptr, &platVerSize);
+
+  std::string platVer(platVerSize, '\0');
+  ret_err = clGetPlatformInfo(plat, CL_PLATFORM_VERSION, platVerSize,
+                              platVer.data(), nullptr);
+
+  if (ret_err != CL_SUCCESS)
+    return ret_err;
+
+  version = OCLV::OpenCLVersion(platVer);
+  if (!version.isValid())
+    return CL_INVALID_PLATFORM;
+
+  return ret_err;
+}
+
+static cl_int getDeviceVersion(cl_device_id dev, OCLV::OpenCLVersion &version) {
+  cl_int ret_err = CL_INVALID_VALUE;
+
+  size_t devVerSize = 0;
+  ret_err = clGetDeviceInfo(dev, CL_DEVICE_VERSION, 0, nullptr, &devVerSize);
+
+  std::string devVer(devVerSize, '\0');
+  ret_err = clGetDeviceInfo(dev, CL_DEVICE_VERSION, devVerSize, devVer.data(),
+                            nullptr);
+
+  if (ret_err != CL_SUCCESS)
+    return ret_err;
+
+  version = OCLV::OpenCLVersion(devVer);
+  if (!version.isValid())
+    return CL_INVALID_DEVICE;
+
+  return ret_err;
+}
+
+static cl_int checkDeviceExtensions(cl_device_id dev,
+                                    const std::vector<std::string> &exts,
+                                    bool &supported) {
+  cl_int ret_err = CL_INVALID_VALUE;
+
+  size_t extSize = 0;
+  ret_err = clGetDeviceInfo(dev, CL_DEVICE_EXTENSIONS, 0, nullptr, &extSize);
+
+  std::string extStr(extSize, '\0');
+  ret_err = clGetDeviceInfo(dev, CL_DEVICE_EXTENSIONS, extSize, extStr.data(),
+                            nullptr);
+
+  if (ret_err != CL_SUCCESS)
+    return ret_err;
+
+  supported = true;
+  for (const std::string &ext : exts)
+    if (!(supported = (extStr.find(ext) != std::string::npos)))
+      break;
+
+  return ret_err;
+}
+
 // USM helper function to get an extension function pointer
 template <const char *FuncName, typename T>
 static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
@@ -96,7 +162,9 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
   thread_local static std::map<pi_context, T> FuncPtrs;
 
   // if cached, return cached FuncPtr
-  if (auto F = FuncPtrs[context]) {
+  auto It = FuncPtrs.find(context);
+  if (It != FuncPtrs.end()) {
+    auto F = It->second;
     // if cached that extension is not available return nullptr and
     // PI_ERROR_INVALID_VALUE
     *fptr = F;
@@ -214,22 +282,27 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
     return PI_ERROR_INVALID_VALUE;
   case PI_DEVICE_INFO_ATOMIC_64: {
-    size_t extSize;
-    cl_bool result = clGetDeviceInfo(
-        cast<cl_device_id>(device), CL_DEVICE_EXTENSIONS, 0, nullptr, &extSize);
-    std::string extStr(extSize, '\0');
-    result = clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_EXTENSIONS,
-                             extSize, &extStr.front(), nullptr);
-    if (extStr.find("cl_khr_int64_base_atomics") == std::string::npos ||
-        extStr.find("cl_khr_int64_extended_atomics") == std::string::npos)
-      result = false;
-    else
-      result = true;
+    cl_int ret_err = CL_SUCCESS;
+    cl_bool result = CL_FALSE;
+    bool supported = false;
+
+    ret_err = checkDeviceExtensions(
+        cast<cl_device_id>(device),
+        {"cl_khr_int64_base_atomics", "cl_khr_int64_extended_atomics"},
+        supported);
+    if (ret_err != CL_SUCCESS)
+      return static_cast<pi_result>(ret_err);
+
+    result = supported;
     std::memcpy(paramValue, &result, sizeof(cl_bool));
     return PI_SUCCESS;
   }
-  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16:
-    return PI_ERROR_INVALID_VALUE;
+  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS: {
+    // bfloat16 math functions are not yet supported on Intel GPUs.
+    cl_bool result = false;
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    return PI_SUCCESS;
+  }
   case PI_DEVICE_INFO_IMAGE_SRGB: {
     cl_bool result = true;
     std::memcpy(paramValue, &result, sizeof(cl_bool));
@@ -263,6 +336,11 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
         out[2] = Max;
       return PI_SUCCESS;
     }
+  case PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
+    pi_int32 result = 1;
+    std::memcpy(paramValue, &result, sizeof(pi_int32));
+    return PI_SUCCESS;
+  }
 
   default:
     cl_int result = clGetDeviceInfo(
@@ -390,6 +468,20 @@ pi_result piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
   return PI_SUCCESS;
 }
 
+pi_result piextQueueCreate(pi_context Context, pi_device Device,
+                           pi_queue_properties *Properties, pi_queue *Queue) {
+  assert(Properties);
+  // Expect flags mask to be passed first.
+  assert(Properties[0] == PI_QUEUE_FLAGS);
+  if (Properties[0] != PI_QUEUE_FLAGS)
+    return PI_ERROR_INVALID_VALUE;
+  pi_queue_properties Flags = Properties[1];
+  // Extra data isn't supported yet.
+  assert(Properties[2] == 0);
+  if (Properties[2] != 0)
+    return PI_ERROR_INVALID_VALUE;
+  return piQueueCreate(Context, Device, Flags, Queue);
+}
 pi_result piQueueCreate(pi_context context, pi_device device,
                         pi_queue_properties properties, pi_queue *queue) {
   assert(queue && "piQueueCreate failed, queue argument is null");
@@ -401,32 +493,24 @@ pi_result piQueueCreate(pi_context context, pi_device device,
 
   CHECK_ERR_SET_NULL_RET(ret_err, queue, ret_err);
 
-  size_t platVerSize;
-  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, 0, nullptr,
-                              &platVerSize);
-
-  CHECK_ERR_SET_NULL_RET(ret_err, queue, ret_err);
-
-  std::string platVer(platVerSize, '\0');
-  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, platVerSize,
-                              &platVer.front(), nullptr);
-
-  CHECK_ERR_SET_NULL_RET(ret_err, queue, ret_err);
-
   // Check that unexpected bits are not set.
   assert(!(properties &
-           ~(PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
-             PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_ON_DEVICE |
-             PI_QUEUE_ON_DEVICE_DEFAULT | PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS)));
+           ~(PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
+             PI_QUEUE_FLAG_PROFILING_ENABLE | PI_QUEUE_FLAG_ON_DEVICE |
+             PI_QUEUE_FLAG_ON_DEVICE_DEFAULT |
+             PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS)));
 
   // Properties supported by OpenCL backend.
   cl_command_queue_properties SupportByOpenCL =
       CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE | CL_QUEUE_PROFILING_ENABLE |
       CL_QUEUE_ON_DEVICE | CL_QUEUE_ON_DEVICE_DEFAULT;
 
-  if (platVer.find("OpenCL 1.0") != std::string::npos ||
-      platVer.find("OpenCL 1.1") != std::string::npos ||
-      platVer.find("OpenCL 1.2") != std::string::npos) {
+  OCLV::OpenCLVersion version;
+  ret_err = getPlatformVersion(curPlatform, version);
+
+  CHECK_ERR_SET_NULL_RET(ret_err, queue, ret_err);
+
+  if (version >= OCLV::V2_0) {
     *queue = cast<pi_queue>(clCreateCommandQueue(
         cast<cl_context>(context), cast<cl_device_id>(device),
         cast<cl_command_queue_properties>(properties) & SupportByOpenCL,
@@ -441,6 +525,28 @@ pi_result piQueueCreate(pi_context context, pi_device device,
       cast<cl_context>(context), cast<cl_device_id>(device),
       CreationFlagProperties, &ret_err));
   return cast<pi_result>(ret_err);
+}
+
+pi_result piQueueGetInfo(pi_queue queue, pi_queue_info param_name,
+                         size_t param_value_size, void *param_value,
+                         size_t *param_value_size_ret) {
+  if (queue == nullptr) {
+    return PI_ERROR_INVALID_QUEUE;
+  }
+
+  switch (param_name) {
+  case PI_EXT_ONEAPI_QUEUE_INFO_EMPTY:
+    // OpenCL doesn't provide API to check the status of the queue.
+    return PI_ERROR_INVALID_VALUE;
+  default:
+    cl_int CLErr = clGetCommandQueueInfo(
+        cast<cl_command_queue>(queue), cast<cl_command_queue_info>(param_name),
+        param_value_size, param_value, param_value_size_ret);
+    if (CLErr != CL_SUCCESS) {
+      return cast<pi_result>(CLErr);
+    }
+  }
+  return PI_SUCCESS;
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
@@ -481,38 +587,51 @@ pi_result piProgramCreate(pi_context context, const void *il, size_t length,
 
   CHECK_ERR_SET_NULL_RET(ret_err, res_program, CL_INVALID_CONTEXT);
 
-  size_t devVerSize;
-  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, 0, nullptr,
-                              &devVerSize);
-  std::string devVer(devVerSize, '\0');
-  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_VERSION, devVerSize,
-                              &devVer.front(), nullptr);
+  OCLV::OpenCLVersion platVer;
+  ret_err = getPlatformVersion(curPlatform, platVer);
 
   CHECK_ERR_SET_NULL_RET(ret_err, res_program, CL_INVALID_CONTEXT);
 
   pi_result err = PI_SUCCESS;
-  if (devVer.find("OpenCL 1.0") == std::string::npos &&
-      devVer.find("OpenCL 1.1") == std::string::npos &&
-      devVer.find("OpenCL 1.2") == std::string::npos &&
-      devVer.find("OpenCL 2.0") == std::string::npos) {
+  if (platVer >= OCLV::V2_1) {
+
+    /* Make sure all devices support CL 2.1 or newer as well. */
+    for (cl_device_id dev : devicesInCtx) {
+      OCLV::OpenCLVersion devVer;
+
+      ret_err = getDeviceVersion(dev, devVer);
+      CHECK_ERR_SET_NULL_RET(ret_err, res_program, CL_INVALID_CONTEXT);
+
+      /* If the device does not support CL 2.1 or greater, we need to make sure
+       * it supports the cl_khr_il_program extension.
+       */
+      if (devVer < OCLV::V2_1) {
+        bool supported = false;
+
+        ret_err = checkDeviceExtensions(dev, {"cl_khr_il_program"}, supported);
+        CHECK_ERR_SET_NULL_RET(ret_err, res_program, CL_INVALID_CONTEXT);
+
+        if (!supported)
+          return cast<pi_result>(CL_INVALID_OPERATION);
+      }
+    }
     if (res_program != nullptr)
       *res_program = cast<pi_program>(clCreateProgramWithIL(
           cast<cl_context>(context), il, length, cast<cl_int *>(&err)));
     return err;
   }
 
-  size_t extSize;
-  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_EXTENSIONS, 0, nullptr,
-                              &extSize);
-  std::string extStr(extSize, '\0');
-  ret_err = clGetPlatformInfo(curPlatform, CL_PLATFORM_EXTENSIONS, extSize,
-                              &extStr.front(), nullptr);
+  /* If none of the devices conform with CL 2.1 or newer make sure they all
+   * support the cl_khr_il_program extension.
+   */
+  for (cl_device_id dev : devicesInCtx) {
+    bool supported = false;
 
-  if (ret_err != CL_SUCCESS ||
-      extStr.find("cl_khr_il_program") == std::string::npos) {
-    if (res_program != nullptr)
-      *res_program = nullptr;
-    return cast<pi_result>(CL_INVALID_CONTEXT);
+    ret_err = checkDeviceExtensions(dev, {"cl_khr_il_program"}, supported);
+    CHECK_ERR_SET_NULL_RET(ret_err, res_program, CL_INVALID_CONTEXT);
+
+    if (!supported)
+      return cast<pi_result>(CL_INVALID_OPERATION);
   }
 
   using apiFuncT =
@@ -654,7 +773,7 @@ pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
     return cast<pi_result>(Res);
 
   std::string ClResult(Size, ' ');
-  ret_err =
+  Res =
       clGetProgramInfo(cast<cl_program>(program), PI_PROGRAM_INFO_KERNEL_NAMES,
                        ClResult.size(), &ClResult[0], nullptr);
   if (Res != CL_SUCCESS)
@@ -712,6 +831,26 @@ pi_result piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
   assert(ownNativeHandle == false);
   *piContext = reinterpret_cast<pi_context>(nativeHandle);
   return PI_SUCCESS;
+}
+
+pi_result piContextGetInfo(pi_context context, pi_context_info paramName,
+                           size_t paramValueSize, void *paramValue,
+                           size_t *paramValueSizeRet) {
+  switch (paramName) {
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT: {
+    // 2D USM memops are not supported.
+    cl_bool result = false;
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    return PI_SUCCESS;
+  }
+  default:
+    cl_int result = clGetContextInfo(
+        cast<cl_context>(context), cast<cl_context_info>(paramName),
+        paramValueSize, paramValue, paramValueSizeRet);
+    return static_cast<pi_result>(result);
+  }
 }
 
 pi_result piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
@@ -860,6 +999,31 @@ pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,
   (void)param_value_size;
   size_t ret_val;
   cl_int ret_err;
+
+  std::shared_ptr<void> implicit_input_value;
+  if (param_name == PI_KERNEL_MAX_SUB_GROUP_SIZE && !input_value) {
+    // OpenCL needs an input value for PI_KERNEL_MAX_SUB_GROUP_SIZE so if no
+    // value is given we use the max work item size of the device in the first
+    // dimention to avoid truncation of max sub-group size.
+    pi_uint32 max_dims = 0;
+    pi_result pi_ret_err =
+        piDeviceGetInfo(device, PI_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS,
+                        sizeof(pi_uint32), &max_dims, nullptr);
+    if (pi_ret_err != PI_SUCCESS)
+      return pi_ret_err;
+    std::shared_ptr<size_t[]> WGSizes{new size_t[max_dims]};
+    pi_ret_err =
+        piDeviceGetInfo(device, PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
+                        max_dims * sizeof(size_t), WGSizes.get(), nullptr);
+    if (pi_ret_err != PI_SUCCESS)
+      return pi_ret_err;
+    for (size_t i = 1; i < max_dims; ++i)
+      WGSizes.get()[i] = 1;
+    implicit_input_value = std::move(WGSizes);
+    input_value_size = max_dims * sizeof(size_t);
+    input_value = implicit_input_value.get();
+  }
+
   ret_err = cast<pi_result>(clGetKernelSubGroupInfo(
       cast<cl_kernel>(kernel), cast<cl_device_id>(device),
       cast<cl_kernel_sub_group_info>(param_name), input_value_size, input_value,
@@ -877,8 +1041,13 @@ pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,
 pi_result piEventCreate(pi_context context, pi_event *ret_event) {
 
   pi_result ret_err = PI_ERROR_INVALID_OPERATION;
-  *ret_event = cast<pi_event>(
-      clCreateUserEvent(cast<cl_context>(context), cast<cl_int *>(&ret_err)));
+  auto *cl_err = cast<cl_int *>(&ret_err);
+
+  cl_event e = clCreateUserEvent(cast<cl_context>(context), cl_err);
+  *ret_event = cast<pi_event>(e);
+  if (*cl_err != CL_SUCCESS)
+    return ret_err;
+  *cl_err = clSetUserEventStatus(e, CL_COMPLETE);
   return ret_err;
 }
 
@@ -1264,6 +1433,98 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
   */
 }
 
+/// USM 2D Fill API
+///
+/// \param queue is the queue to submit to
+/// \param ptr is the ptr to fill
+/// \param pattern is a pointer with the bytes of the pattern to set
+/// \param pattern_size is the size in bytes of the pattern
+/// \param pitch is the total width of the destination memory including padding
+/// \param width is width in bytes of each row to fill
+/// \param height is height the columns to fill
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+__SYCL_EXPORT pi_result piextUSMEnqueueFill2D(pi_queue queue, void *ptr,
+                                              size_t pitch, size_t pattern_size,
+                                              const void *pattern, size_t width,
+                                              size_t height,
+                                              pi_uint32 num_events_in_waitlist,
+                                              const pi_event *events_waitlist,
+                                              pi_event *event) {
+  std::ignore = queue;
+  std::ignore = ptr;
+  std::ignore = pitch;
+  std::ignore = pattern_size;
+  std::ignore = pattern;
+  std::ignore = width;
+  std::ignore = height;
+  std::ignore = num_events_in_waitlist;
+  std::ignore = events_waitlist;
+  std::ignore = event;
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+/// USM 2D Memset API
+///
+/// \param queue is the queue to submit to
+/// \param ptr is the ptr to memset
+/// \param value contains the byte to set with
+/// \param pitch is the total width of the destination memory including padding
+/// \param width is width in bytes of each row to memset
+/// \param height is height the columns to memset
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+__SYCL_EXPORT pi_result piextUSMEnqueueMemset2D(
+    pi_queue queue, void *ptr, size_t pitch, int value, size_t width,
+    size_t height, pi_uint32 num_events_in_waitlist,
+    const pi_event *events_waitlist, pi_event *event) {
+  std::ignore = queue;
+  std::ignore = ptr;
+  std::ignore = pitch;
+  std::ignore = value;
+  std::ignore = width;
+  std::ignore = height;
+  std::ignore = num_events_in_waitlist;
+  std::ignore = events_waitlist;
+  std::ignore = event;
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+/// USM 2D Memcpy API
+///
+/// \param queue is the queue to submit to
+/// \param blocking is whether this operation should block the host
+/// \param dst_ptr is the location the data will be copied
+/// \param dst_pitch is the total width of the destination memory including
+/// padding
+/// \param src_ptr is the data to be copied
+/// \param dst_pitch is the total width of the source memory including padding
+/// \param width is width in bytes of each row to be copied
+/// \param height is height the columns to be copied
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+__SYCL_EXPORT pi_result piextUSMEnqueueMemcpy2D(
+    pi_queue queue, pi_bool blocking, void *dst_ptr, size_t dst_pitch,
+    const void *src_ptr, size_t src_pitch, size_t width, size_t height,
+    pi_uint32 num_events_in_waitlist, const pi_event *events_waitlist,
+    pi_event *event) {
+  std::ignore = queue;
+  std::ignore = blocking;
+  std::ignore = dst_ptr;
+  std::ignore = dst_pitch;
+  std::ignore = src_ptr;
+  std::ignore = src_pitch;
+  std::ignore = width;
+  std::ignore = height;
+  std::ignore = num_events_in_waitlist;
+  std::ignore = events_waitlist;
+  std::ignore = event;
+  return PI_ERROR_INVALID_OPERATION;
+}
+
 /// API to query information about USM allocated pointers
 /// Valid Queries:
 ///   PI_MEM_ALLOC_TYPE returns host/device/shared pi_host_usm value
@@ -1437,14 +1698,15 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextDeviceCreateWithNativeHandle, piextDeviceCreateWithNativeHandle)
   // Context
   _PI_CL(piContextCreate, piContextCreate)
-  _PI_CL(piContextGetInfo, clGetContextInfo)
+  _PI_CL(piContextGetInfo, piContextGetInfo)
   _PI_CL(piContextRetain, clRetainContext)
   _PI_CL(piContextRelease, clReleaseContext)
   _PI_CL(piextContextGetNativeHandle, piextContextGetNativeHandle)
   _PI_CL(piextContextCreateWithNativeHandle, piextContextCreateWithNativeHandle)
   // Queue
   _PI_CL(piQueueCreate, piQueueCreate)
-  _PI_CL(piQueueGetInfo, clGetCommandQueueInfo)
+  _PI_CL(piextQueueCreate, piextQueueCreate)
+  _PI_CL(piQueueGetInfo, piQueueGetInfo)
   _PI_CL(piQueueFinish, clFinish)
   _PI_CL(piQueueFlush, clFlush)
   _PI_CL(piQueueRetain, clRetainCommandQueue)
@@ -1531,6 +1793,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueueMemcpy, piextUSMEnqueueMemcpy)
   _PI_CL(piextUSMEnqueuePrefetch, piextUSMEnqueuePrefetch)
   _PI_CL(piextUSMEnqueueMemAdvise, piextUSMEnqueueMemAdvise)
+  _PI_CL(piextUSMEnqueueFill2D, piextUSMEnqueueFill2D)
+  _PI_CL(piextUSMEnqueueMemset2D, piextUSMEnqueueMemset2D)
+  _PI_CL(piextUSMEnqueueMemcpy2D, piextUSMEnqueueMemcpy2D)
   _PI_CL(piextUSMGetMemAllocInfo, piextUSMGetMemAllocInfo)
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)

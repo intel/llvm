@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // <algorithm>
 
@@ -115,8 +114,8 @@ constexpr bool all_the_algorithms()
     (void)std::ranges::is_heap_until(a, Less(), Proj(&copies)); assert(copies == 0);
     (void)std::ranges::is_partitioned(first, last, UnaryTrue(), Proj(&copies)); assert(copies == 0);
     (void)std::ranges::is_partitioned(a, UnaryTrue(), Proj(&copies)); assert(copies == 0);
-    //(void)std::ranges::is_permutation(first, last, first2, last2, Equal(), Proj(&copies), Proj(&copies)); assert(copies == 0);
-    //(void)std::ranges::is_permutation(a, b, Equal(), Proj(&copies), Proj(&copies)); assert(copies == 0);
+    (void)std::ranges::is_permutation(first, last, first2, last2, Equal(), Proj(&copies), Proj(&copies)); assert(copies == 0);
+    (void)std::ranges::is_permutation(a, b, Equal(), Proj(&copies), Proj(&copies)); assert(copies == 0);
     (void)std::ranges::is_sorted(first, last, Less(), Proj(&copies)); assert(copies == 0);
     (void)std::ranges::is_sorted(a, Less(), Proj(&copies)); assert(copies == 0);
     (void)std::ranges::is_sorted_until(first, last, Less(), Proj(&copies)); assert(copies == 0);

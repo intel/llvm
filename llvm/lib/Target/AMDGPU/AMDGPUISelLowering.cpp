@@ -84,6 +84,18 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::LOAD, MVT::v8f32, Promote);
   AddPromotedToType(ISD::LOAD, MVT::v8f32, MVT::v8i32);
 
+  setOperationAction(ISD::LOAD, MVT::v9f32, Promote);
+  AddPromotedToType(ISD::LOAD, MVT::v9f32, MVT::v9i32);
+
+  setOperationAction(ISD::LOAD, MVT::v10f32, Promote);
+  AddPromotedToType(ISD::LOAD, MVT::v10f32, MVT::v10i32);
+
+  setOperationAction(ISD::LOAD, MVT::v11f32, Promote);
+  AddPromotedToType(ISD::LOAD, MVT::v11f32, MVT::v11i32);
+
+  setOperationAction(ISD::LOAD, MVT::v12f32, Promote);
+  AddPromotedToType(ISD::LOAD, MVT::v12f32, MVT::v12i32);
+
   setOperationAction(ISD::LOAD, MVT::v16f32, Promote);
   AddPromotedToType(ISD::LOAD, MVT::v16f32, MVT::v16i32);
 
@@ -196,6 +208,18 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::STORE, MVT::v8f32, Promote);
   AddPromotedToType(ISD::STORE, MVT::v8f32, MVT::v8i32);
 
+  setOperationAction(ISD::STORE, MVT::v9f32, Promote);
+  AddPromotedToType(ISD::STORE, MVT::v9f32, MVT::v9i32);
+
+  setOperationAction(ISD::STORE, MVT::v10f32, Promote);
+  AddPromotedToType(ISD::STORE, MVT::v10f32, MVT::v10i32);
+
+  setOperationAction(ISD::STORE, MVT::v11f32, Promote);
+  AddPromotedToType(ISD::STORE, MVT::v11f32, MVT::v11i32);
+
+  setOperationAction(ISD::STORE, MVT::v12f32, Promote);
+  AddPromotedToType(ISD::STORE, MVT::v12f32, MVT::v12i32);
+
   setOperationAction(ISD::STORE, MVT::v16f32, Promote);
   AddPromotedToType(ISD::STORE, MVT::v16f32, MVT::v16i32);
 
@@ -302,27 +326,46 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
 
   setOperationAction({ISD::FLOG, ISD::FLOG10, ISD::FEXP}, MVT::f32, Custom);
 
-  setOperationAction(ISD::FNEARBYINT, {MVT::f32, MVT::f64}, Custom);
+  setOperationAction(ISD::FNEARBYINT, {MVT::f16, MVT::f32, MVT::f64}, Custom);
 
   setOperationAction(ISD::FREM, {MVT::f16, MVT::f32, MVT::f64}, Custom);
+
+  if (Subtarget->has16BitInsts())
+    setOperationAction(ISD::IS_FPCLASS, {MVT::f16, MVT::f32, MVT::f64}, Legal);
+  else
+    setOperationAction(ISD::IS_FPCLASS, {MVT::f32, MVT::f64}, Legal);
+
+  // FIXME: These IS_FPCLASS vector fp types are marked custom so it reaches
+  // scalarization code. Can be removed when IS_FPCLASS expand isn't called by
+  // default unless marked custom/legal.
+  setOperationAction(
+      ISD::IS_FPCLASS,
+      {MVT::v2f16, MVT::v3f16, MVT::v4f16, MVT::v16f16, MVT::v2f32, MVT::v3f32,
+       MVT::v4f32, MVT::v5f32, MVT::v6f32, MVT::v7f32, MVT::v8f32, MVT::v16f32,
+       MVT::v2f64, MVT::v3f64, MVT::v4f64, MVT::v8f64, MVT::v16f64},
+      Custom);
 
   // Expand to fneg + fadd.
   setOperationAction(ISD::FSUB, MVT::f64, Expand);
 
   setOperationAction(ISD::CONCAT_VECTORS,
-                     {MVT::v3i32, MVT::v3f32, MVT::v4i32, MVT::v4f32,
-                      MVT::v5i32, MVT::v5f32, MVT::v6i32, MVT::v6f32,
-                      MVT::v7i32, MVT::v7f32, MVT::v8i32, MVT::v8f32},
+                     {MVT::v3i32,  MVT::v3f32,  MVT::v4i32,  MVT::v4f32,
+                      MVT::v5i32,  MVT::v5f32,  MVT::v6i32,  MVT::v6f32,
+                      MVT::v7i32,  MVT::v7f32,  MVT::v8i32,  MVT::v8f32,
+                      MVT::v9i32,  MVT::v9f32,  MVT::v10i32, MVT::v10f32,
+                      MVT::v11i32, MVT::v11f32, MVT::v12i32, MVT::v12f32},
                      Custom);
   setOperationAction(
       ISD::EXTRACT_SUBVECTOR,
       {MVT::v2f16,  MVT::v2i16,  MVT::v4f16,  MVT::v4i16,  MVT::v2f32,
        MVT::v2i32,  MVT::v3f32,  MVT::v3i32,  MVT::v4f32,  MVT::v4i32,
        MVT::v5f32,  MVT::v5i32,  MVT::v6f32,  MVT::v6i32,  MVT::v7f32,
-       MVT::v7i32,  MVT::v8f32,  MVT::v8i32,  MVT::v16f16, MVT::v16i16,
-       MVT::v16f32, MVT::v16i32, MVT::v32f32, MVT::v32i32, MVT::v2f64,
-       MVT::v2i64,  MVT::v3f64,  MVT::v3i64,  MVT::v4f64,  MVT::v4i64,
-       MVT::v8f64,  MVT::v8i64,  MVT::v16f64, MVT::v16i64},
+       MVT::v7i32,  MVT::v8f32,  MVT::v8i32,  MVT::v9f32,  MVT::v9i32,
+       MVT::v10i32, MVT::v10f32, MVT::v11i32, MVT::v11f32, MVT::v12i32,
+       MVT::v12f32, MVT::v16f16, MVT::v16i16, MVT::v16f32, MVT::v16i32,
+       MVT::v32f32, MVT::v32i32, MVT::v2f64,  MVT::v2i64,  MVT::v3f64,
+       MVT::v3i64,  MVT::v4f64,  MVT::v4i64,  MVT::v8f64,  MVT::v8i64,
+       MVT::v16f64, MVT::v16i64},
       Custom);
 
   setOperationAction(ISD::FP16_TO_FP, MVT::f64, Expand);
@@ -369,7 +412,8 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
       MVT::i64, Custom);
 
   static const MVT::SimpleValueType VectorIntTypes[] = {
-      MVT::v2i32, MVT::v3i32, MVT::v4i32, MVT::v5i32, MVT::v6i32, MVT::v7i32};
+      MVT::v2i32, MVT::v3i32, MVT::v4i32, MVT::v5i32, MVT::v6i32, MVT::v7i32,
+      MVT::v9i32, MVT::v10i32, MVT::v11i32, MVT::v12i32};
 
   for (MVT VT : VectorIntTypes) {
     // Expand the following operations for the current type by default.
@@ -389,7 +433,8 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
   }
 
   static const MVT::SimpleValueType FloatVectorTypes[] = {
-      MVT::v2f32, MVT::v3f32, MVT::v4f32, MVT::v5f32, MVT::v6f32, MVT::v7f32};
+      MVT::v2f32, MVT::v3f32,  MVT::v4f32, MVT::v5f32, MVT::v6f32, MVT::v7f32,
+      MVT::v9f32, MVT::v10f32, MVT::v11f32, MVT::v12f32};
 
   for (MVT VT : FloatVectorTypes) {
     setOperationAction(
@@ -424,6 +469,18 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
 
   setOperationAction(ISD::SELECT, MVT::v7f32, Promote);
   AddPromotedToType(ISD::SELECT, MVT::v7f32, MVT::v7i32);
+
+  setOperationAction(ISD::SELECT, MVT::v9f32, Promote);
+  AddPromotedToType(ISD::SELECT, MVT::v9f32, MVT::v9i32);
+
+  setOperationAction(ISD::SELECT, MVT::v10f32, Promote);
+  AddPromotedToType(ISD::SELECT, MVT::v10f32, MVT::v10i32);
+
+  setOperationAction(ISD::SELECT, MVT::v11f32, Promote);
+  AddPromotedToType(ISD::SELECT, MVT::v11f32, MVT::v11i32);
+
+  setOperationAction(ISD::SELECT, MVT::v12f32, Promote);
+  AddPromotedToType(ISD::SELECT, MVT::v12f32, MVT::v12i32);
 
   // There are no libcalls of any kind.
   for (int I = 0; I < RTLIB::UNKNOWN_LIBCALL; ++I)
@@ -683,7 +740,7 @@ bool AMDGPUTargetLowering::isLoadBitCastBeneficial(EVT LoadTy, EVT CastTy,
   if ((LScalarSize >= CastScalarSize) && (CastScalarSize < 32))
     return false;
 
-  bool Fast = false;
+  unsigned Fast = 0;
   return allowsMemoryAccessForAlignment(*DAG.getContext(), DAG.getDataLayout(),
                                         CastTy, MMO, &Fast) &&
          Fast;
@@ -692,12 +749,11 @@ bool AMDGPUTargetLowering::isLoadBitCastBeneficial(EVT LoadTy, EVT CastTy,
 // SI+ has instructions for cttz / ctlz for 32-bit values. This is probably also
 // profitable with the expansion for 64-bit since it's generally good to
 // speculate things.
-// FIXME: These should really have the size as a parameter.
-bool AMDGPUTargetLowering::isCheapToSpeculateCttz() const {
+bool AMDGPUTargetLowering::isCheapToSpeculateCttz(Type *Ty) const {
   return true;
 }
 
-bool AMDGPUTargetLowering::isCheapToSpeculateCtlz() const {
+bool AMDGPUTargetLowering::isCheapToSpeculateCtlz(Type *Ty) const {
   return true;
 }
 
@@ -840,6 +896,39 @@ bool AMDGPUTargetLowering::isNarrowingProfitable(EVT SrcVT, EVT DestVT) const {
   return SrcVT.getSizeInBits() > 32 && DestVT.getSizeInBits() == 32;
 }
 
+bool AMDGPUTargetLowering::isDesirableToCommuteWithShift(
+    const SDNode* N, CombineLevel Level) const {
+  assert((N->getOpcode() == ISD::SHL || N->getOpcode() == ISD::SRA ||
+          N->getOpcode() == ISD::SRL) &&
+         "Expected shift op");
+  // Always commute pre-type legalization and right shifts.
+  // We're looking for shl(or(x,y),z) patterns.
+  if (Level < CombineLevel::AfterLegalizeTypes ||
+      N->getOpcode() != ISD::SHL || N->getOperand(0).getOpcode() != ISD::OR)
+    return true;
+
+  // If only user is a i32 right-shift, then don't destroy a BFE pattern.
+  if (N->getValueType(0) == MVT::i32 && N->use_size() == 1 &&
+      (N->use_begin()->getOpcode() == ISD::SRA ||
+       N->use_begin()->getOpcode() == ISD::SRL))
+    return false;
+
+  // Don't destroy or(shl(load_zext(),c), load_zext()) patterns.
+  auto IsShiftAndLoad = [](SDValue LHS, SDValue RHS) {
+    if (LHS.getOpcode() != ISD::SHL)
+      return false;
+    auto *RHSLd = dyn_cast<LoadSDNode>(RHS);
+    auto *LHS0 = dyn_cast<LoadSDNode>(LHS.getOperand(0));
+    auto *LHS1 = dyn_cast<ConstantSDNode>(LHS.getOperand(1));
+    return LHS0 && LHS1 && RHSLd && LHS0->getExtensionType() == ISD::ZEXTLOAD &&
+           LHS1->getAPIntValue() == LHS0->getMemoryVT().getScalarSizeInBits() &&
+           RHSLd->getExtensionType() == ISD::ZEXTLOAD;
+  };
+  SDValue LHS = N->getOperand(0).getOperand(0);
+  SDValue RHS = N->getOperand(0).getOperand(1);
+  return !(IsShiftAndLoad(LHS, RHS) || IsShiftAndLoad(RHS, LHS));
+}
+
 //===---------------------------------------------------------------------===//
 // TargetLowering Callbacks
 //===---------------------------------------------------------------------===//
@@ -940,7 +1029,7 @@ void AMDGPUTargetLowering::analyzeFormalArgumentsCompute(
     Type *BaseArgTy = Arg.getType();
     Type *MemArgTy = IsByRef ? Arg.getParamByRefType() : BaseArgTy;
     Align Alignment = DL.getValueOrABITypeAlignment(
-        IsByRef ? Arg.getParamAlign() : None, MemArgTy);
+        IsByRef ? Arg.getParamAlign() : std::nullopt, MemArgTy);
     MaxAlign = std::max(Alignment, MaxAlign);
     uint64_t AllocSize = DL.getTypeAllocSize(MemArgTy);
 
@@ -1017,7 +1106,9 @@ void AMDGPUTargetLowering::analyzeFormalArgumentsCompute(
       // Round up vec3/vec5 argument.
       if (MemVT.isVector() && !MemVT.isPow2VectorType()) {
         assert(MemVT.getVectorNumElements() == 3 ||
-               MemVT.getVectorNumElements() == 5);
+               MemVT.getVectorNumElements() == 5 ||
+               (MemVT.getVectorNumElements() >= 9 &&
+                MemVT.getVectorNumElements() <= 12));
         MemVT = MemVT.getPow2VectorType(State.getContext());
       } else if (!MemVT.isSimple() && !MemVT.isVector()) {
         MemVT = MemVT.getRoundIntegerType(State.getContext());
@@ -1631,14 +1722,17 @@ SDValue AMDGPUTargetLowering::LowerDIVREM24(SDValue Op, SelectionDAG &DAG,
   SDValue fqneg = DAG.getNode(ISD::FNEG, DL, FltVT, fq);
 
   MachineFunction &MF = DAG.getMachineFunction();
-  const AMDGPUMachineFunction *MFI = MF.getInfo<AMDGPUMachineFunction>();
+
+  bool UseFmadFtz = false;
+  if (Subtarget->isGCN()) {
+    const SIMachineFunctionInfo *MFI = MF.getInfo<SIMachineFunctionInfo>();
+    UseFmadFtz = MFI->getMode().allFP32Denormals();
+  }
 
   // float fr = mad(fqneg, fb, fa);
-  unsigned OpCode = !Subtarget->hasMadMacF32Insts() ?
-                    (unsigned)ISD::FMA :
-                    !MFI->getMode().allFP32Denormals() ?
-                    (unsigned)ISD::FMAD :
-                    (unsigned)AMDGPUISD::FMAD_FTZ;
+  unsigned OpCode = !Subtarget->hasMadMacF32Insts() ? (unsigned)ISD::FMA
+                    : UseFmadFtz ? (unsigned)AMDGPUISD::FMAD_FTZ
+                                 : (unsigned)ISD::FMAD;
   SDValue fr = DAG.getNode(OpCode, DL, FltVT, fqneg, fb, fa);
 
   // int iq = (int)fq;
@@ -2868,7 +2962,7 @@ SDValue AMDGPUTargetLowering::performLoadCombine(SDNode *N,
   unsigned Size = VT.getStoreSize();
   Align Alignment = LN->getAlign();
   if (Alignment < Size && isTypeLegal(VT)) {
-    bool IsFast;
+    unsigned IsFast;
     unsigned AS = LN->getAddressSpace();
 
     // Expand unaligned loads earlier than legalization. Due to visitation order
@@ -2921,7 +3015,7 @@ SDValue AMDGPUTargetLowering::performStoreCombine(SDNode *N,
   SelectionDAG &DAG = DCI.DAG;
   Align Alignment = SN->getAlign();
   if (Alignment < Size && isTypeLegal(VT)) {
-    bool IsFast;
+    unsigned IsFast;
     unsigned AS = SN->getAddressSpace();
 
     // Expand unaligned stores earlier than legalization. Due to visitation
@@ -3243,9 +3337,14 @@ SDValue AMDGPUTargetLowering::performTruncateCombine(
          Src.getOpcode() == ISD::SHL)) {
       SDValue Amt = Src.getOperand(1);
       KnownBits Known = DAG.computeKnownBits(Amt);
-      unsigned Size = VT.getScalarSizeInBits();
-      if ((Known.isConstant() && Known.getConstant().ule(Size)) ||
-          (Known.countMaxActiveBits() <= Log2_32(Size))) {
+
+      // - For left shifts, do the transform as long as the shift
+      //   amount is still legal for i32, so when ShiftAmt < 32 (<= 31)
+      // - For right shift, do it if ShiftAmt <= (32 - Size) to avoid
+      //   losing information stored in the high bits when truncating.
+      const unsigned MaxCstSize =
+          (Src.getOpcode() == ISD::SHL) ? 31 : (32 - VT.getScalarSizeInBits());
+      if (Known.getMaxValue().ule(MaxCstSize)) {
         EVT MidVT = VT.isVector() ?
           EVT::getVectorVT(*DAG.getContext(), MVT::i32,
                            VT.getVectorNumElements()) : MVT::i32;
@@ -4389,6 +4488,7 @@ const char* AMDGPUTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(BUFFER_LOAD_BYTE)
   NODE_NAME_CASE(BUFFER_LOAD_SHORT)
   NODE_NAME_CASE(BUFFER_LOAD_FORMAT)
+  NODE_NAME_CASE(BUFFER_LOAD_FORMAT_TFE)
   NODE_NAME_CASE(BUFFER_LOAD_FORMAT_D16)
   NODE_NAME_CASE(SBUFFER_LOAD)
   NODE_NAME_CASE(BUFFER_STORE)
@@ -4602,9 +4702,16 @@ void AMDGPUTargetLowering::computeKnownBitsForTargetNode(
     case Intrinsic::amdgcn_mbcnt_hi: {
       const GCNSubtarget &ST =
           DAG.getMachineFunction().getSubtarget<GCNSubtarget>();
-      // These return at most the wavefront size - 1.
+      // These return at most the (wavefront size - 1) + src1
+      // As long as src1 is an immediate we can calc known bits
+      KnownBits Src1Known = DAG.computeKnownBits(Op.getOperand(2), Depth + 1);
+      unsigned Src1ValBits = Src1Known.countMaxActiveBits();
+      unsigned MaxActiveBits = std::max(Src1ValBits, ST.getWavefrontSizeLog2());
+      // Cater for potential carry
+      MaxActiveBits += Src1ValBits ? 1 : 0;
       unsigned Size = Op.getValueType().getSizeInBits();
-      Known.Zero.setHighBits(Size - ST.getWavefrontSizeLog2());
+      if (MaxActiveBits < Size)
+        Known.Zero.setHighBits(Size - MaxActiveBits);
       break;
     }
     case Intrinsic::amdgcn_workitem_id_x:
@@ -4808,8 +4915,15 @@ AMDGPUTargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *RMW) const {
   case AtomicRMWInst::FMax:
   case AtomicRMWInst::FMin:
     return AtomicExpansionKind::CmpXChg;
-  default:
-    return AtomicExpansionKind::None;
+  default: {
+    if (auto *IntTy = dyn_cast<IntegerType>(RMW->getType())) {
+      unsigned Size = IntTy->getBitWidth();
+      if (Size == 32 || Size == 64)
+        return AtomicExpansionKind::None;
+    }
+
+    return AtomicExpansionKind::CmpXChg;
+  }
   }
 }
 

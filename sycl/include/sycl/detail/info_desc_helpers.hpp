@@ -12,7 +12,7 @@
 #include <sycl/info/info_desc.hpp>
 
 namespace sycl {
-__SYCL_INLINE_NAMESPACE(_V1) {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 template <typename T> struct PiInfoCode;
 template <typename T> struct is_platform_info_desc : std::false_type {};
@@ -81,20 +81,7 @@ struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
   struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
     using return_type = info::DescType::Desc::return_type;                     \
   };
-#define __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(DescType, Desc, ReturnT, InputT,   \
-                                            PiCode)                            \
-  template <> struct PiInfoCode<info::DescType::Desc> {                        \
-    static constexpr                                                           \
-        typename std::conditional<IsSubGroupInfo<info::DescType::Desc>::value, \
-                                  pi_kernel_sub_group_info,                    \
-                                  pi_kernel_group_info>::type value = PiCode;  \
-  };                                                                           \
-  template <>                                                                  \
-  struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
-    using with_input_return_type = info::DescType::Desc::return_type;          \
-  };
 #include <sycl/info/kernel_device_specific_traits.def>
-#undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
 #undef __SYCL_PARAM_TRAITS_SPEC
 // Need a static_cast here since piDeviceGetInfo can also accept
 // pi_usm_capability_query values.
@@ -107,8 +94,28 @@ struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
   struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
     using return_type = info::DescType::Desc::return_type;                     \
   };
+#define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, PiCode)  \
+  __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)
+
 #include <sycl/info/device_traits.def>
+
 #undef __SYCL_PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
+
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
+  template <> struct PiInfoCode<Namespace::info::DescType::Desc> {             \
+    static constexpr pi_device_info value =                                    \
+        static_cast<pi_device_info>(PiCode);                                   \
+  };                                                                           \
+  template <>                                                                  \
+  struct is_##DescType##_info_desc<Namespace::info::DescType::Desc>            \
+      : std::true_type {                                                       \
+    using return_type = Namespace::info::DescType::Desc::return_type;          \
+  };
+#include <sycl/info/ext_intel_device_traits.def>
+#include <sycl/info/ext_oneapi_device_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC
+
 } // namespace detail
-} // __SYCL_INLINE_NAMESPACE(_V1)
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

@@ -12,7 +12,6 @@
 
 #include "llvm/Transforms/Scalar/CorrelatedValuePropagation.h"
 #include "llvm/ADT/DepthFirstIterator.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/DomTreeUpdater.h"
@@ -44,6 +43,7 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include <cassert>
+#include <optional>
 #include <utility>
 
 using namespace llvm;
@@ -340,18 +340,16 @@ static bool processICmp(ICmpInst *Cmp, LazyValueInfo *LVI) {
 /// exploiting range information.
 static bool constantFoldCmp(CmpInst *Cmp, LazyValueInfo *LVI) {
   Value *Op0 = Cmp->getOperand(0);
-  auto *C = dyn_cast<Constant>(Cmp->getOperand(1));
-  if (!C)
-    return false;
-
+  Value *Op1 = Cmp->getOperand(1);
   LazyValueInfo::Tristate Result =
-      LVI->getPredicateAt(Cmp->getPredicate(), Op0, C, Cmp,
+      LVI->getPredicateAt(Cmp->getPredicate(), Op0, Op1, Cmp,
                           /*UseBlockValue=*/true);
   if (Result == LazyValueInfo::Unknown)
     return false;
 
   ++NumCmps;
-  Constant *TorF = ConstantInt::get(Type::getInt1Ty(Cmp->getContext()), Result);
+  Constant *TorF =
+      ConstantInt::get(CmpInst::makeCmpResultType(Op0->getType()), Result);
   Cmp->replaceAllUsesWith(TorF);
   Cmp->eraseFromParent();
   return true;
@@ -729,9 +727,9 @@ static bool narrowSDivOrSRem(BinaryOperator *Instr, LazyValueInfo *LVI) {
   // operands.
   unsigned OrigWidth = Instr->getType()->getIntegerBitWidth();
 
-  // What is the smallest bit width that can accomodate the entire value ranges
+  // What is the smallest bit width that can accommodate the entire value ranges
   // of both of the operands?
-  std::array<Optional<ConstantRange>, 2> CRs;
+  std::array<std::optional<ConstantRange>, 2> CRs;
   unsigned MinSignedBits = 0;
   for (auto I : zip(Instr->operands(), CRs)) {
     std::get<1>(I) = LVI->getConstantRange(std::get<0>(I), Instr);
@@ -781,7 +779,7 @@ static bool processUDivOrURem(BinaryOperator *Instr, LazyValueInfo *LVI) {
   // Find the smallest power of two bitwidth that's sufficient to hold Instr's
   // operands.
 
-  // What is the smallest bit width that can accomodate the entire value ranges
+  // What is the smallest bit width that can accommodate the entire value ranges
   // of both of the operands?
   unsigned MaxActiveBits = 0;
   for (Value *Operand : Instr->operands()) {
@@ -850,11 +848,13 @@ static bool processSRem(BinaryOperator *SDI, LazyValueInfo *LVI) {
       BinaryOperator::CreateURem(Ops[0].V, Ops[1].V, SDI->getName(), SDI);
   URem->setDebugLoc(SDI->getDebugLoc());
 
-  Value *Res = URem;
+  auto *Res = URem;
 
   // If the divident was non-positive, we need to negate the result.
-  if (Ops[0].D == Domain::NonPositive)
+  if (Ops[0].D == Domain::NonPositive) {
     Res = BinaryOperator::CreateNeg(Res, Res->getName() + ".neg", SDI);
+    Res->setDebugLoc(SDI->getDebugLoc());
+  }
 
   SDI->replaceAllUsesWith(Res);
   SDI->eraseFromParent();

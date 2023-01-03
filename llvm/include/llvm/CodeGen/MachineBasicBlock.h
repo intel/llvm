@@ -126,7 +126,7 @@ private:
   using const_probability_iterator =
       std::vector<BranchProbability>::const_iterator;
 
-  Optional<uint64_t> IrrLoopHeaderWeight;
+  std::optional<uint64_t> IrrLoopHeaderWeight;
 
   /// Keep track of the physical registers that are livein of the basicblock.
   using LiveInVector = std::vector<RegisterMaskPair>;
@@ -143,9 +143,13 @@ private:
   /// Indicate that this basic block is entered via an exception handler.
   bool IsEHPad = false;
 
-  /// Indicate that this basic block is potentially the target of an indirect
-  /// branch.
-  bool AddressTaken = false;
+  /// Indicate that this MachineBasicBlock is referenced somewhere other than
+  /// as predecessor/successor, a terminator MachineInstr, or a jump table.
+  bool MachineBlockAddressTaken = false;
+
+  /// If this MachineBasicBlock corresponds to an IR-level "blockaddress"
+  /// constant, this contains a pointer to that block.
+  BasicBlock *AddressTakenIRBlock = nullptr;
 
   /// Indicate that this basic block needs its symbol be emitted regardless of
   /// whether the flow just falls-through to it.
@@ -216,12 +220,35 @@ public:
   /// Return a formatted string to identify this block and its parent function.
   std::string getFullName() const;
 
-  /// Test whether this block is potentially the target of an indirect branch.
-  bool hasAddressTaken() const { return AddressTaken; }
+  /// Test whether this block is used as as something other than the target
+  /// of a terminator, exception-handling target, or jump table. This is
+  /// either the result of an IR-level "blockaddress", or some form
+  /// of target-specific branch lowering.
+  bool hasAddressTaken() const {
+    return MachineBlockAddressTaken || AddressTakenIRBlock;
+  }
 
-  /// Set this block to reflect that it potentially is the target of an indirect
-  /// branch.
-  void setHasAddressTaken() { AddressTaken = true; }
+  /// Test whether this block is used as something other than the target of a
+  /// terminator, exception-handling target, jump table, or IR blockaddress.
+  /// For example, its address might be loaded into a register, or
+  /// stored in some branch table that isn't part of MachineJumpTableInfo.
+  bool isMachineBlockAddressTaken() const { return MachineBlockAddressTaken; }
+
+  /// Test whether this block is the target of an IR BlockAddress.  (There can
+  /// more than one MBB associated with an IR BB where the address is taken.)
+  bool isIRBlockAddressTaken() const { return AddressTakenIRBlock; }
+
+  /// Retrieves the BasicBlock which corresponds to this MachineBasicBlock.
+  BasicBlock *getAddressTakenIRBlock() const { return AddressTakenIRBlock; }
+
+  /// Set this block to indicate that its address is used as something other
+  /// than the target of a terminator, exception-handling target, jump table,
+  /// or IR-level "blockaddress".
+  void setMachineBlockAddressTaken() { MachineBlockAddressTaken = true; }
+
+  /// Set this block to reflect that it corresponds to an IR-level basic block
+  /// with a BlockAddress.
+  void setAddressTakenIRBlock(BasicBlock *BB) { AddressTakenIRBlock = BB; }
 
   /// Test whether this block must have its label emitted.
   bool hasLabelMustBeEmitted() const { return LabelMustBeEmitted; }
@@ -788,6 +815,11 @@ public:
   /// instr_iterator instead.
   instr_iterator getFirstInstrTerminator();
 
+  /// Finds the first terminator in a block by scanning forward. This can handle
+  /// cases in GlobalISel where there may be non-terminator instructions between
+  /// terminators, for which getFirstTerminator() will not work correctly.
+  iterator getFirstTerminatorForward();
+
   /// Returns an iterator to the first non-debug instruction in the basic block,
   /// or end(). Skip any pseudo probe operation if \c SkipPseudoOp is true.
   /// Pseudo probes are like debug instructions which do not turn into real
@@ -1094,7 +1126,7 @@ public:
   /// Return the EHCatchret Symbol for this basic block.
   MCSymbol *getEHCatchretSymbol() const;
 
-  Optional<uint64_t> getIrrLoopHeaderWeight() const {
+  std::optional<uint64_t> getIrrLoopHeaderWeight() const {
     return IrrLoopHeaderWeight;
   }
 

@@ -420,7 +420,7 @@ static Optional<RefVal> refValFromRetEffect(RetEffect RE,
     return RefVal::makeNotOwned(RE.getObjKind(), ResultTy);
   }
 
-  return None;
+  return std::nullopt;
 }
 
 static bool isPointerToObject(QualType QT) {
@@ -767,7 +767,7 @@ ProgramStateRef RetainCountChecker::updateSymbol(ProgramStateRef state,
         break;
       }
 
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
 
     case DoNothing:
       return state;

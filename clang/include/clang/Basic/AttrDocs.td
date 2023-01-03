@@ -127,6 +127,10 @@ relative ordering of values is important. For example:
 ``Obj2`` will be initialized *before* ``Obj1`` despite the usual order of
 initialization being the opposite.
 
+On Windows, ``init_seg(compiler)`` is represented with a priority of 200 and
+``init_seg(library)`` is represented with a priority of 400. ``init_seg(user)``
+uses the default 65535 priority.
+
 This attribute is only supported for C++ and Objective-C++ and is ignored in
 other language modes. Currently, this attribute is not implemented on z/OS.
   }];
@@ -2327,7 +2331,7 @@ as ``-mlong-calls`` and ``-mno-long-calls``.
   }];
 }
 
-def IntelFPGADoublePumpAttrDocs : Documentation {
+def SYCLIntelDoublePumpAttrDocs : Documentation {
 let Category = DocCatVariable;
   let Heading = "intel::doublepump";
   let Content = [{
@@ -2348,7 +2352,7 @@ that is clocked at twice the rate of its accessors.
   }];
 }
 
-def IntelFPGASinglePumpAttrDocs : Documentation {
+def SYCLIntelSinglePumpAttrDocs : Documentation {
 let Category = DocCatVariable;
   let Heading = "intel::singlepump";
   let Content = [{
@@ -2369,7 +2373,7 @@ that is clocked at the same rate as its accessors.
   }];
 }
 
-def IntelFPGAMemoryAttrDocs : Documentation {
+def SYCLIntelMemoryAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::fpga_memory";
   let Content = [{
@@ -2393,7 +2397,7 @@ it indicates what type of memory to use.
   }];
 }
 
-def IntelFPGARegisterAttrDocs : Documentation {
+def SYCLIntelRegisterAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::fpga_register";
   let Content = [{
@@ -2414,7 +2418,7 @@ if possible.
   }];
 }
 
-def IntelFPGABankWidthAttrDocs : Documentation {
+def SYCLIntelBankWidthAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::bankwidth";
   let Content = [{
@@ -2436,7 +2440,7 @@ with banks that are N bytes wide.
   }];
 }
 
-def IntelFPGANumBanksAttrDocs : Documentation {
+def SYCLIntelNumBanksAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::numbanks";
   let Content = [{
@@ -2458,7 +2462,7 @@ with N banks.
   }];
 }
 
-def IntelFPGAPrivateCopiesAttrDocs : Documentation {
+def SYCLIntelPrivateCopiesAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::private_copies";
   let Content = [{
@@ -2481,7 +2485,7 @@ threads or loop iterations.
   }];
 }
 
-def IntelFPGAMergeAttrDocs : Documentation {
+def SYCLIntelMergeAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::merge";
   let Content = [{
@@ -2506,7 +2510,7 @@ depth-wise or width-wise manner.
   }];
 }
 
-def IntelFPGAMaxReplicatesAttrDocs : Documentation {
+def SYCLIntelMaxReplicatesAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::max_replicates";
   let Content = [{
@@ -2529,7 +2533,7 @@ simultaneous accesses from different load/store sites in the program.
   }];
 }
 
-def IntelFPGASimpleDualPortAttrDocs : Documentation {
+def SYCLIntelSimpleDualPortAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::simple_dual_port";
   let Content = [{
@@ -2551,7 +2555,7 @@ loads).
   }];
 }
 
-def IntelFPGABankBitsDocs : Documentation {
+def SYCLIntelBankBitsDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::bank_bits";
   let Content = [{
@@ -2579,7 +2583,7 @@ pointer address bits to bank on.
   }];
 }
 
-def IntelFPGAForcePow2DepthAttrDocs : Documentation {
+def SYCLIntelForcePow2DepthAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::force_pow2_depth";
   let Content = [{
@@ -3140,7 +3144,7 @@ sycl_detail namespace.
   }];
 }
 
-def SYCLFPGAPipeDocs : Documentation {
+def SYCLIntelPipeDocs : Documentation {
   let Category = DocCatStmt;
   let Heading = "pipe (read_only, write_only)";
   let Content = [{
@@ -3164,7 +3168,7 @@ with which a pipe interfaces. The id argument is the name of the I/O interface.
   }];
 }
 
-def SYCLIntelFPGAIVDepAttrDocs : Documentation {
+def SYCLIntelIVDepAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::ivdep";
   let Content = [{
@@ -3205,7 +3209,7 @@ or 1 is used.
   }];
 }
 
-def SYCLIntelFPGAInitiationIntervalAttrDocs : Documentation {
+def SYCLIntelInitiationIntervalAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::initiation_interval";
   let Content = [{
@@ -3238,7 +3242,7 @@ The ``[[intel::ii]]`` attribute spelling is a deprecated synonym for
   }];
 }
 
-def SYCLIntelFPGAMaxConcurrencyAttrDocs : Documentation {
+def SYCLIntelMaxConcurrencyAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::max_concurrency";
   let Content = [{
@@ -3266,7 +3270,7 @@ same loop or function, or in conjunction with ``disable_loop_pipelining``.
   }];
 }
 
-def SYCLIntelFPGALoopCoalesceAttrDocs : Documentation {
+def SYCLIntelLoopCoalesceAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::loop_coalesce";
   let Content = [{
@@ -3305,7 +3309,7 @@ of the nested loop levels should be coalesced.
   }];
 }
 
-def SYCLIntelFPGADisableLoopPipeliningAttrDocs : Documentation {
+def SYCLIntelDisableLoopPipeliningAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::disable_loop_pipelining";
   let Content = [{
@@ -3328,7 +3332,7 @@ function, or in conjunction with ``max_interleaving``,
   }];
 }
 
-def SYCLIntelFPGALoopCountAttrDocs : Documentation {
+def SYCLIntelLoopCountAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::loop_count_min, intel::loop_count_max, intel::loop_count_avg, intel::loop_count";
   let Content = [{
@@ -3372,7 +3376,7 @@ using PGO.
   }];
 }
 
-def SYCLIntelFPGAMaxInterleavingAttrDocs : Documentation {
+def SYCLIntelMaxInterleavingAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::max_interleaving";
   let Content = [{
@@ -3398,7 +3402,7 @@ used on the same loop in conjunction with disable_loop_pipelining.
   }];
 }
 
-def SYCLIntelFPGASpeculatedIterationsAttrDocs : Documentation {
+def SYCLIntelSpeculatedIterationsAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::speculated_iterations";
   let Content = [{
@@ -3423,7 +3427,7 @@ used on the same loop in conjunction with disable_loop_pipelining.
   }];
 }
 
-def SYCLIntelFPGANofusionAttrDocs : Documentation {
+def SYCLIntelNofusionAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::nofusion";
   let Content = [{
@@ -3447,7 +3451,7 @@ loop should not be fused with any adjacent loop.
   }];
 }
 
-def SYCLIntelFPGAMaxReinvocationDelayAttrDocs : Documentation {
+def SYCLIntelMaxReinvocationDelayAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::max_reinvocation_delay";
   let Content = [{
@@ -3855,9 +3859,12 @@ for the function.
 For X86, the attribute also allows ``tune="CPU"`` to optimize the generated
 code for the given CPU without changing the available instructions.
 
-For AArch64, the attribute also allows the "branch-protection=<args>" option,
-where the permissible arguments and their effect on code generation are the same
-as for the command-line option ``-mbranch-protection``.
+For AArch64, ``arch="Arch"`` will set the architecture, similar to the -march
+command line options. ``cpu="CPU"`` can be used to select a specific cpu,
+as per the ``-mcpu`` option, similarly for ``tune=``. The attribute also allows the
+"branch-protection=<args>" option, where the permissible arguments and their
+effect on code generation are the same as for the command-line option
+``-mbranch-protection``.
 
 Example "subtarget features" from the x86 backend include: "mmx", "sse", "sse4.2",
 "avx", "xop" and largely correspond to the machine specific options handled by
@@ -4698,6 +4705,18 @@ the function signature. For example:
     fmt(fmt, "hello", 123); // warning: format string is not a string literal
   }
 
+When using the format attribute on a variadic function, the first data parameter
+_must_ be the index of the ellipsis in the parameter list. Clang will generate
+a diagnostic otherwise, as it wouldn't be possible to forward that argument list
+to `printf`-family functions. For instance, this is an error:
+
+.. code-block:: c
+
+  __attribute__((__format__(__printf__, 1, 2)))
+  void fmt(const char *s, int b, ...);
+  // ^ error: format attribute parameter 3 is out of bounds
+  // (must be __printf__, 1, 3)
+
 Using the ``format`` attribute on a non-variadic function emits a GCC
 compatibility diagnostic.
   }];
@@ -5076,7 +5095,7 @@ Specifying ``#pragma nounroll`` indicates that the loop should not be unrolled:
   }
 
 ``#pragma unroll`` and ``#pragma unroll _value_`` have identical semantics to
-``#pragma clang loop unroll(full)`` and
+``#pragma clang loop unroll(enable)`` and
 ``#pragma clang loop unroll_count(_value_)`` respectively. ``#pragma nounroll``
 is equivalent to ``#pragma clang loop unroll(disable)``. See
 `language extensions
@@ -6054,8 +6073,10 @@ spelled "XYZ" in the `OpenMP 5.1 Standard`_).
 
 def NoStackProtectorDocs : Documentation {
   let Category = DocCatFunction;
+  let Heading = "no_stack_protector, safebuffers";
   let Content = [{
-Clang supports the ``__attribute__((no_stack_protector))`` attribute which disables
+Clang supports the GNU style ``__attribute__((no_stack_protector))`` and Microsoft
+style ``__declspec(safebuffers)`` attribute which disables
 the stack protector on the specified function. This attribute is useful for
 selectively disabling the stack protector on some functions when building with
 ``-fstack-protector`` compiler option.
@@ -6070,6 +6091,27 @@ option.
     foo (int x); // stack protection will be disabled for foo.
 
     int bar(int y); // bar can be built with the stack protector.
+
+    }];
+}
+
+def StrictGuardStackCheckDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+Clang supports the Microsoft style ``__declspec((strict_gs_check))`` attribute
+which upgrades the stack protector check from ``-fstack-protector`` to
+``-fstack-protector-strong``.
+
+For example, it upgrades the stack protector for the function ``foo`` to
+``-fstack-protector-strong`` but function ``bar`` will still be built with the
+stack protector with the ``-fstack-protector`` option.
+
+.. code-block:: c
+
+    __declspec((strict_gs_check))
+    int foo(int x); // stack protection will be upgraded for foo.
+
+    int bar(int y); // bar can be built with the standard stack protector checks.
 
     }];
 }
@@ -6136,6 +6178,16 @@ declarations. This attribute informs the compiler that the annotated function
 does not throw an exception. This prevents exception-unwinding. This attribute
 is particularly useful on functions in the C Standard Library that are
 guaranteed to not throw an exception.
+    }];
+}
+
+def NoUwtableDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+Clang supports the ``nouwtable`` attribute which skips emitting
+the unwind table entry for the specified function. This attribute is useful for
+selectively emitting the unwind table entry on some functions when building with
+``-funwind-tables`` compiler option.
     }];
 }
 
@@ -6847,6 +6899,21 @@ aarch64/aarch64-be/riscv32/riscv64/i386/x86-64 targets.
 }];
 }
 
+def HotFunctionEntryDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+``__attribute__((hot))`` marks a function as hot, as a manual alternative to PGO hotness data.
+If PGO data is available, the annotation ``__attribute__((hot))`` overrides the profile count based hotness (unlike ``__attribute__((cold))``).
+}];
+}
+
+def ColdFunctionEntryDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+``__attribute__((cold))`` marks a function as cold, as a manual alternative to PGO hotness data.
+If PGO data is available, the profile count based hotness overrides the ``__attribute__((cold))`` annotation (unlike ``__attribute__((hot))``).
+}];
+}
 def TransparentUnionDocs : Documentation {
   let Category = DocCatDecl;
   let Content = [{
@@ -7319,7 +7386,7 @@ by showing the control-flow statement where the path diverges.
     if (somePredicate()) {
       ...
       callback();
-    } esle {
+    } else {
       callback(); // OK: callback is called on every path
     }
   }
@@ -8141,6 +8208,62 @@ data binding to map the group index to the specified parameter. This attribute
 is only supported in compute shaders.
 
 The full documentation is available here: https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/sv-groupindex
+  }];
+}
+
+def HLSLResourceBindingDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+The resource binding attribute sets the virtual register and logical register space for a resource.
+Attribute spelling in HLSL is: ``register(slot [, space])``.
+``slot`` takes the format ``[type][number]``,
+where ``type`` is a single character specifying the resource type and ``number`` is the virtual register number.
+
+Register types are:
+t for shader resource views (SRV),
+s for samplers,
+u for unordered access views (UAV),
+b for constant buffer views (CBV).
+
+Register space is specified in the format ``space[number]`` and defaults to ``space0`` if omitted.
+Here're resource binding examples with and without space:
+.. code-block:: c++
+
+  RWBuffer<float> Uav : register(u3, space1);
+  Buffer<float> Buf : register(t1);
+
+The full documentation is available here: https://docs.microsoft.com/en-us/windows/win32/direct3d12/resource-binding-in-hlsl
+  }];
+}
+
+def HLSLSV_DispatchThreadIDDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+The ``SV_DispatchThreadID`` semantic, when applied to an input parameter,
+specifies a data binding to map the global thread offset within the Dispatch
+call (per dimension of the group) to the specified parameter.
+When applied to a field of a struct, the data binding is specified to the field
+when the struct is used as a parameter type.
+The semantic on the field is ignored when not used as a parameter.
+This attribute is only supported in compute shaders.
+
+The full documentation is available here: https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/sv-dispatchthreadid
+  }];
+}
+
+def HLSLGroupSharedAddressSpaceDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+HLSL enables threads of a compute shader to exchange values via shared memory.
+HLSL provides barrier primitives such as GroupMemoryBarrierWithGroupSync,
+and so on to ensure the correct ordering of reads and writes to shared memory
+in the shader and to avoid data races.
+Here's an example to declare a groupshared variable.
+.. code-block:: c++
+
+  groupshared GSData data[5*5*1];
+
+The full documentation is available here: https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-variable-syntax#group-shared
   }];
 }
 

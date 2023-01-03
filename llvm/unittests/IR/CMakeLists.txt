@@ -35,6 +35,7 @@ add_llvm_unittest(IRTests
   ModuleTest.cpp
   PassManagerTest.cpp
   PatternMatch.cpp
+  ShuffleVectorInstTest.cpp
   TimePassesTest.cpp
   TypesTest.cpp
   UseTest.cpp
@@ -46,6 +47,7 @@ add_llvm_unittest(IRTests
   VectorTypesTest.cpp
   VerifierTest.cpp
   VPIntrinsicTest.cpp
+  CoreBindings.cpp
   )
 
 target_link_libraries(IRTests PRIVATE LLVMTestingSupport)

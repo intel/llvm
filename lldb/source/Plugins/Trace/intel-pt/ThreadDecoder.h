@@ -9,10 +9,9 @@
 #ifndef LLDB_SOURCE_PLUGINS_TRACE_THREAD_DECODER_H
 #define LLDB_SOURCE_PLUGINS_TRACE_THREAD_DECODER_H
 
-#include "intel-pt.h"
-
 #include "DecodedThread.h"
 #include "forward-declarations.h"
+#include "intel-pt.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Utility/FileSpec.h"
 
@@ -37,9 +36,9 @@ public:
   llvm::Expected<DecodedThreadSP> Decode();
 
   /// \return
-  ///     The lowest TSC value in this trace if available, \a llvm::None if the
-  ///     trace is empty or the trace contains no timing information, or an \a
-  ///     llvm::Error if it was not possible to set up the decoder.
+  ///     The lowest TSC value in this trace if available, \a std::nullopt if
+  ///     the trace is empty or the trace contains no timing information, or an
+  ///     \a llvm::Error if it was not possible to set up the decoder.
   llvm::Expected<llvm::Optional<uint64_t>> FindLowestTSC();
 
   ThreadDecoder(const ThreadDecoder &other) = delete;

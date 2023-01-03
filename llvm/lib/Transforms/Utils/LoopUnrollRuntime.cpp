@@ -218,7 +218,7 @@ static void ConnectEpilog(Loop *L, Value *ModVal, BasicBlock *NewExit,
   for (PHINode &PN : NewExit->phis()) {
     // PN should be used in another PHI located in Exit block as
     // Exit was split by SplitBlockPredecessors into Exit and NewExit
-    // Basicaly it should look like:
+    // Basically it should look like:
     // NewExit:
     //   PN = PHI [I, Latch]
     // ...
@@ -400,7 +400,7 @@ CloneLoopBlocks(Loop *L, Value *NewIter, const bool UseEpilogRemainder,
   if (UnrollRemainder)
     return NewLoop;
 
-  Optional<MDNode *> NewLoopID = makeFollowupLoopID(
+  std::optional<MDNode *> NewLoopID = makeFollowupLoopID(
       LoopID, {LLVMLoopUnrollFollowupAll, LLVMLoopUnrollFollowupRemainder});
   if (NewLoopID) {
     NewLoop->setLoopID(NewLoopID.value());

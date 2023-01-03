@@ -18,6 +18,7 @@
 #define LLVM_CLANG_EXTRACTAPI_SERIALIZATION_SYMBOLGRAPHSERIALIZER_H
 
 #include "clang/ExtractAPI/API.h"
+#include "clang/ExtractAPI/APIIgnoresList.h"
 #include "clang/ExtractAPI/Serialization/SerializerBase.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/JSON.h"
@@ -120,8 +121,8 @@ private:
   /// This method also checks if the given \p Record should be skipped during
   /// serialization.
   ///
-  /// \returns \c None if this \p Record should be skipped, or a JSON object
-  /// containing common symbol information of \p Record.
+  /// \returns \c std::nullopt if this \p Record should be skipped, or a JSON
+  /// object containing common symbol information of \p Record.
   template <typename RecordTy>
   Optional<Object> serializeAPIRecord(const RecordTy &Record) const;
 
@@ -164,12 +165,13 @@ private:
   /// \param Component The component to push onto the path components stack.
   /// \return A PathComponentGuard responsible for removing the latest
   /// component from the stack on scope exit.
-  LLVM_NODISCARD PathComponentGuard makePathComponentGuard(StringRef Component);
+  [[nodiscard]] PathComponentGuard makePathComponentGuard(StringRef Component);
 
 public:
   SymbolGraphSerializer(const APISet &API, StringRef ProductName,
+                        const APIIgnoresList &IgnoresList,
                         APISerializerOption Options = {})
-      : APISerializer(API, ProductName, Options) {}
+      : APISerializer(API, ProductName, IgnoresList, Options) {}
 };
 
 } // namespace extractapi

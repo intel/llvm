@@ -13,11 +13,13 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/service_kernel_names.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception_list.hpp>
+#include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/property_list.hpp>
@@ -83,14 +85,14 @@ static event submitAssertCapture(queue &, event &, queue *,
 /// \sa kernel
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT queue {
+class __SYCL_EXPORT queue : public detail::OwnerLessBase<queue> {
 public:
   /// Constructs a SYCL queue instance using the device returned by an instance
   /// of default_selector.
   ///
   /// \param PropList is a list of properties for queue construction.
   explicit queue(const property_list &PropList = {})
-      : queue(default_selector(), async_handler{}, PropList) {}
+      : queue(default_selector(), detail::defaultAsyncHandler, PropList) {}
 
   /// Constructs a SYCL queue instance with an async_handler using the device
   /// returned by an instance of default_selector.
@@ -100,7 +102,6 @@ public:
   queue(const async_handler &AsyncHandler, const property_list &PropList = {})
       : queue(default_selector(), AsyncHandler, PropList) {}
 
-#if __cplusplus >= 201703L
   /// Constructs a SYCL queue instance using the device identified by the
   /// device selector provided.
   /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
@@ -108,7 +109,8 @@ public:
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
   template <typename DeviceSelector,
-            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
+            typename =
+                detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
   explicit queue(const DeviceSelector &deviceSelector,
                  const async_handler &AsyncHandler,
                  const property_list &PropList = {})
@@ -120,11 +122,12 @@ public:
   /// takes a device and returns an int
   /// \param PropList is a list of properties for queue construction.
   template <typename DeviceSelector,
-            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
+            typename =
+                detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
   explicit queue(const DeviceSelector &deviceSelector,
                  const property_list &PropList = {})
-      : queue(detail::select_device(deviceSelector), async_handler{},
-              PropList) {}
+      : queue(detail::select_device(deviceSelector),
+              detail::defaultAsyncHandler, PropList) {}
 
   /// Constructs a SYCL queue instance using the device identified by the
   /// device selector provided.
@@ -133,7 +136,8 @@ public:
   /// takes a device and returns an int
   /// \param PropList is a list of properties for queue construction.
   template <typename DeviceSelector,
-            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
+            typename =
+                detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
   explicit queue(const context &syclContext,
                  const DeviceSelector &deviceSelector,
                  const property_list &propList = {})
@@ -148,7 +152,8 @@ public:
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
   template <typename DeviceSelector,
-            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
+            typename =
+                detail::EnableIfSYCL2020DeviceSelectorInvocable<DeviceSelector>>
   explicit queue(const context &syclContext,
                  const DeviceSelector &deviceSelector,
                  const async_handler &AsyncHandler,
@@ -156,16 +161,17 @@ public:
       : queue(syclContext, detail::select_device(deviceSelector, syclContext),
               AsyncHandler, propList) {}
 
-#endif
-
   /// Constructs a SYCL queue instance using the device returned by the
   /// DeviceSelector provided.
   ///
   /// \param DeviceSelector is an instance of a SYCL 1.2.1 device_selector.
   /// \param PropList is a list of properties for queue construction.
+  __SYCL2020_DEPRECATED("SYCL 1.2.1 device selectors are deprecated. Please "
+                        "use SYCL 2020 device selectors instead.")
   queue(const device_selector &DeviceSelector,
         const property_list &PropList = {})
-      : queue(DeviceSelector.select_device(), async_handler{}, PropList) {}
+      : queue(DeviceSelector.select_device(), detail::defaultAsyncHandler,
+              PropList) {}
 
   /// Constructs a SYCL queue instance with an async_handler using the device
   /// returned by the DeviceSelector provided.
@@ -173,6 +179,8 @@ public:
   /// \param DeviceSelector is an instance of SYCL 1.2.1 device_selector.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
+  __SYCL2020_DEPRECATED("SYCL 1.2.1 device selectors are deprecated. Please "
+                        "use SYCL 2020 device selectors instead.")
   queue(const device_selector &DeviceSelector,
         const async_handler &AsyncHandler, const property_list &PropList = {})
       : queue(DeviceSelector.select_device(), AsyncHandler, PropList) {}
@@ -182,7 +190,7 @@ public:
   /// \param SyclDevice is an instance of SYCL device.
   /// \param PropList is a list of properties for queue construction.
   explicit queue(const device &SyclDevice, const property_list &PropList = {})
-      : queue(SyclDevice, async_handler{}, PropList) {}
+      : queue(SyclDevice, detail::defaultAsyncHandler, PropList) {}
 
   /// Constructs a SYCL queue instance with an async_handler using the device
   /// provided.
@@ -199,6 +207,8 @@ public:
   /// \param SyclContext is an instance of SYCL context.
   /// \param DeviceSelector is an instance of SYCL device selector.
   /// \param PropList is a list of properties for queue construction.
+  __SYCL2020_DEPRECATED("SYCL 1.2.1 device selectors are deprecated. Please "
+                        "use SYCL 2020 device selectors instead.")
   queue(const context &SyclContext, const device_selector &DeviceSelector,
         const property_list &PropList = {});
 
@@ -210,6 +220,8 @@ public:
   /// \param DeviceSelector is an instance of SYCL device selector.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
+  __SYCL2020_DEPRECATED("SYCL 1.2.1 device selectors are deprecated. Please "
+                        "use SYCL 2020 device selectors instead.")
   queue(const context &SyclContext, const device_selector &DeviceSelector,
         const async_handler &AsyncHandler, const property_list &PropList = {});
 
@@ -270,6 +282,8 @@ public:
   device get_device() const;
 
   /// \return true if this queue is a SYCL host queue.
+  __SYCL2020_DEPRECATED(
+      "is_host() is deprecated as the host device is no longer supported.")
   bool is_host() const;
 
   /// Queries SYCL queue for information.
@@ -294,28 +308,24 @@ public:
     _CODELOCARG(&CodeLoc);
 
 #if __SYCL_USE_FALLBACK_ASSERT
-    if (!is_host()) {
-      auto PostProcess = [this, &CodeLoc](bool IsKernel, bool KernelUsesAssert,
-                                          event &E) {
-        if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
-            KernelUsesAssert && !device_has(aspect::accelerator)) {
-          // __devicelib_assert_fail isn't supported by Device-side Runtime
-          // Linking against fallback impl of __devicelib_assert_fail is
-          // performed by program manager class
-          // Fallback assert isn't supported for FPGA
-          submitAssertCapture(*this, E, /* SecondaryQueue = */ nullptr,
-                              CodeLoc);
-        }
-      };
+    auto PostProcess = [this, &CodeLoc](bool IsKernel, bool KernelUsesAssert,
+                                        event &E) {
+      if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
+          KernelUsesAssert && !device_has(aspect::accelerator)) {
+        // __devicelib_assert_fail isn't supported by Device-side Runtime
+        // Linking against fallback impl of __devicelib_assert_fail is
+        // performed by program manager class
+        // Fallback assert isn't supported for FPGA
+        submitAssertCapture(*this, E, /* SecondaryQueue = */ nullptr, CodeLoc);
+      }
+    };
 
-      auto Event = submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
-      return discard_or_return(Event);
-    } else
+    auto Event = submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
+    return discard_or_return(Event);
+#else
+    auto Event = submit_impl(CGF, CodeLoc);
+    return discard_or_return(Event);
 #endif // __SYCL_USE_FALLBACK_ASSERT
-    {
-      auto Event = submit_impl(CGF, CodeLoc);
-      return discard_or_return(Event);
-    }
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -334,34 +344,27 @@ public:
     _CODELOCARG(&CodeLoc);
 
 #if __SYCL_USE_FALLBACK_ASSERT
-    if (!is_host()) {
-      auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
-                             bool IsKernel, bool KernelUsesAssert, event &E) {
-        if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
-            KernelUsesAssert && !device_has(aspect::accelerator)) {
-          // Only secondary queues on devices need to be added to the assert
-          // capture.
-          // TODO: Handle case where primary queue is host but the secondary
-          // queue is not.
-          queue *DeviceSecondaryQueue =
-              SecondaryQueue.is_host() ? nullptr : &SecondaryQueue;
-          // __devicelib_assert_fail isn't supported by Device-side Runtime
-          // Linking against fallback impl of __devicelib_assert_fail is
-          // performed by program manager class
-          // Fallback assert isn't supported for FPGA
-          submitAssertCapture(*this, E, DeviceSecondaryQueue, CodeLoc);
-        }
-      };
+    auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
+                           bool IsKernel, bool KernelUsesAssert, event &E) {
+      if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
+          KernelUsesAssert && !device_has(aspect::accelerator)) {
+        // Only secondary queues on devices need to be added to the assert
+        // capture.
+        // __devicelib_assert_fail isn't supported by Device-side Runtime
+        // Linking against fallback impl of __devicelib_assert_fail is
+        // performed by program manager class
+        // Fallback assert isn't supported for FPGA
+        submitAssertCapture(*this, E, &SecondaryQueue, CodeLoc);
+      }
+    };
 
-      auto Event = submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc,
-                                               PostProcess);
-      return discard_or_return(Event);
-    } else
+    auto Event =
+        submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc, PostProcess);
+    return discard_or_return(Event);
+#else
+    auto Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
+    return discard_or_return(Event);
 #endif // __SYCL_USE_FALLBACK_ASSERT
-    {
-      auto Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
-      return discard_or_return(Event);
-    }
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -600,8 +603,12 @@ public:
   /// \param Src is a USM pointer to the source memory.
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Count is a number of elements of type T to copy.
+  /// \param CodeLoc contains the code location of user code
   /// \return an event representing copy operation.
-  template <typename T> event copy(const T *Src, T *Dest, size_t Count) {
+  template <typename T>
+  event copy(const T *Src, T *Dest, size_t Count _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(T));
   }
 
@@ -615,9 +622,13 @@ public:
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Count is a number of elements of type T to copy.
   /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \param CodeLoc contains the code location of user code
   /// \return an event representing copy operation.
   template <typename T>
-  event copy(const T *Src, T *Dest, size_t Count, event DepEvent) {
+  event copy(const T *Src, T *Dest, size_t Count,
+             event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(T), DepEvent);
   }
 
@@ -631,10 +642,13 @@ public:
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Count is a number of elements of type T to copy.
   /// \param DepEvents is a vector of events that specifies the kernel
+  /// \param CodeLoc contains the code location of user code
   /// \return an event representing copy operation.
   template <typename T>
   event copy(const T *Src, T *Dest, size_t Count,
-             const std::vector<event> &DepEvents) {
+             const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(T), DepEvents);
   }
 
@@ -722,12 +736,339 @@ public:
     });
   }
 
+  /// Copies data from one 2D memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than either \param DestPitch or
+  /// \param SrcPitch. The behavior is undefined if any of the pointer
+  /// parameters is invalid.
+  ///
+  /// NOTE: Function is dependent to prevent the fallback kernels from
+  /// materializing without the use of the function.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcPitch is the pitch of the rows in \param Src.
+  /// \param Width is the width in bytes of the 2D region to copy.
+  /// \param Height is the height in number of rows of the 2D region to copy.
+  /// \return an event representing the copy operation.
+  template <typename T = unsigned char,
+            typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
+  event ext_oneapi_memcpy2d(void *Dest, size_t DestPitch, const void *Src,
+                            size_t SrcPitch, size_t Width,
+                            size_t Height _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.ext_oneapi_memcpy2d<T>(Dest, DestPitch, Src, SrcPitch, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one 2D memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than either \param DestPitch or
+  /// \param SrcPitch. The behavior is undefined if any of the pointer
+  /// parameters is invalid.
+  ///
+  /// NOTE: Function is dependent to prevent the fallback kernels from
+  /// materializing without the use of the function.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcPitch is the pitch of the rows in \param Src.
+  /// \param Width is the width in bytes of the 2D region to copy.
+  /// \param Height is the height in number of rows of the 2D region to copy.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  template <typename T = unsigned char,
+            typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
+  event ext_oneapi_memcpy2d(void *Dest, size_t DestPitch, const void *Src,
+                            size_t SrcPitch, size_t Width, size_t Height,
+                            event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.ext_oneapi_memcpy2d<T>(Dest, DestPitch, Src, SrcPitch, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one 2D memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than either \param DestPitch or
+  /// \param SrcPitch. The behavior is undefined if any of the pointer
+  /// parameters is invalid.
+  ///
+  /// NOTE: Function is dependent to prevent the fallback kernels from
+  /// materializing without the use of the function.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcPitch is the pitch of the rows in \param Src.
+  /// \param Width is the width in bytes of the 2D region to copy.
+  /// \param Height is the height in number of rows of the 2D region to copy.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the copy operation.
+  template <typename T = unsigned char,
+            typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
+  event ext_oneapi_memcpy2d(void *Dest, size_t DestPitch, const void *Src,
+                            size_t SrcPitch, size_t Width, size_t Height,
+                            const std::vector<event> &DepEvents
+                                _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.ext_oneapi_memcpy2d<T>(Dest, DestPitch, Src, SrcPitch, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one 2D memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than either \param DestPitch or
+  /// \param SrcPitch. The behavior is undefined if any of the pointer
+  /// parameters is invalid.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcPitch is the pitch of the rows in \param Src.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Width is the width in number of elements of the 2D region to copy.
+  /// \param Height is the height in number of rows of the 2D region to copy.
+  /// \return an event representing the copy operation.
+  template <typename T>
+  event ext_oneapi_copy2d(const T *Src, size_t SrcPitch, T *Dest,
+                          size_t DestPitch, size_t Width,
+                          size_t Height _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.ext_oneapi_copy2d<T>(Src, SrcPitch, Dest, DestPitch, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one 2D memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than either \param DestPitch or
+  /// \param SrcPitch. The behavior is undefined if any of the pointer
+  /// parameters is invalid.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcPitch is the pitch of the rows in \param Src.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Width is the width in number of elements of the 2D region to copy.
+  /// \param Height is the height in number of rows of the 2D region to copy.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  template <typename T>
+  event ext_oneapi_copy2d(const T *Src, size_t SrcPitch, T *Dest,
+                          size_t DestPitch, size_t Width, size_t Height,
+                          event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.ext_oneapi_copy2d<T>(Src, SrcPitch, Dest, DestPitch, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one 2D memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than either \param DestPitch or
+  /// \param SrcPitch. The behavior is undefined if any of the pointer
+  /// parameters is invalid.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcPitch is the pitch of the rows in \param Src.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Width is the width in number of elements of the 2D region to copy.
+  /// \param Height is the height in number of rows of the 2D region to copy.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the copy operation.
+  template <typename T>
+  event ext_oneapi_copy2d(const T *Src, size_t SrcPitch, T *Dest,
+                          size_t DestPitch, size_t Width, size_t Height,
+                          const std::vector<event> &DepEvents
+                              _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.ext_oneapi_copy2d<T>(Src, SrcPitch, Dest, DestPitch, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Fills the memory pointed by a USM pointer with the value specified.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than \param DestPitch. The behavior is
+  /// undefined if any of the pointer parameters is invalid.
+  ///
+  /// NOTE: Function is dependent to prevent the fallback kernels from
+  /// materializing without the use of the function.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Value is the value to fill into the region in \param Dest. Value is
+  /// cast as an unsigned char.
+  /// \param Width is the width in number of elements of the 2D region to fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
+  /// \return an event representing the fill operation.
+  template <typename T = unsigned char,
+            typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
+  event ext_oneapi_memset2d(void *Dest, size_t DestPitch, int Value,
+                            size_t Width,
+                            size_t Height _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.ext_oneapi_memset2d<T>(Dest, DestPitch, Value, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Fills the memory pointed by a USM pointer with the value specified.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than \param DestPitch. The behavior is
+  /// undefined if any of the pointer parameters is invalid.
+  ///
+  /// NOTE: Function is dependent to prevent the fallback kernels from
+  /// materializing without the use of the function.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Value is the value to fill into the region in \param Dest. Value is
+  /// cast as an unsigned char.
+  /// \param Width is the width in number of elements of the 2D region to fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the fill operation.
+  template <typename T = unsigned char,
+            typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
+  event ext_oneapi_memset2d(void *Dest, size_t DestPitch, int Value,
+                            size_t Width, size_t Height,
+                            event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.ext_oneapi_memset2d<T>(Dest, DestPitch, Value, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Fills the memory pointed by a USM pointer with the value specified.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than \param DestPitch. The behavior is
+  /// undefined if any of the pointer parameters is invalid.
+  ///
+  /// NOTE: Function is dependent to prevent the fallback kernels from
+  /// materializing without the use of the function.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Value is the value to fill into the region in \param Dest. Value is
+  /// cast as an unsigned char.
+  /// \param Width is the width in number of elements of the 2D region to fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the fill operation.
+  template <typename T = unsigned char,
+            typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
+  event ext_oneapi_memset2d(
+      void *Dest, size_t DestPitch, int Value, size_t Width, size_t Height,
+      const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.ext_oneapi_memset2d<T>(Dest, DestPitch, Value, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Fills the memory pointed by a USM pointer with the value specified.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than \param DestPitch. The behavior is
+  /// undefined if any of the pointer parameters is invalid.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Pattern is the pattern to fill into the memory.  T should be
+  /// trivially copyable.
+  /// \param Width is the width in number of elements of the 2D region to fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
+  /// \return an event representing the fill operation.
+  template <typename T>
+  event ext_oneapi_fill2d(void *Dest, size_t DestPitch, const T &Pattern,
+                          size_t Width, size_t Height _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.ext_oneapi_fill2d<T>(Dest, DestPitch, Pattern, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Fills the memory pointed by a USM pointer with the value specified.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than \param DestPitch. The behavior is
+  /// undefined if any of the pointer parameters is invalid.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Pattern is the pattern to fill into the memory.  T should be
+  /// trivially copyable.
+  /// \param Width is the width in number of elements of the 2D region to fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the fill operation.
+  template <typename T>
+  event ext_oneapi_fill2d(void *Dest, size_t DestPitch, const T &Pattern,
+                          size_t Width, size_t Height,
+                          event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.ext_oneapi_fill2d<T>(Dest, DestPitch, Pattern, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Fills the memory pointed by a USM pointer with the value specified.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than \param DestPitch. The behavior is
+  /// undefined if any of the pointer parameters is invalid.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Pattern is the pattern to fill into the memory.  T should be
+  /// trivially copyable.
+  /// \param Width is the width in number of elements of the 2D region to fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the fill operation.
+  template <typename T>
+  event ext_oneapi_fill2d(void *Dest, size_t DestPitch, const T &Pattern,
+                          size_t Width, size_t Height,
+                          const std::vector<event> &DepEvents
+                              _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.ext_oneapi_fill2d<T>(Dest, DestPitch, Pattern, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
   /// single_task version with a kernel represented as a lambda.
   ///
+  /// \param Properties is the kernel properties.
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType>
-  event single_task(_KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            typename PropertiesT>
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
+  single_task(PropertiesT Properties,
+              _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     static_assert(
         (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
                                     void()>::value ||
@@ -738,7 +1079,48 @@ public:
     _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
-          CGH.template single_task<KernelName, KernelType>(KernelFunc);
+          CGH.template single_task<KernelName, KernelType, PropertiesT>(
+              Properties, KernelFunc);
+        },
+        CodeLoc);
+  }
+
+  /// single_task version with a kernel represented as a lambda.
+  ///
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  event single_task(_KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    return single_task<KernelName, KernelType>(
+        ext::oneapi::experimental::detail::empty_properties_t{},
+        KernelFunc _CODELOCFW(CodeLoc));
+  }
+
+  /// single_task version with a kernel represented as a lambda.
+  ///
+  /// \param DepEvent is an event that specifies the kernel dependencies
+  /// \param Properties is the kernel properties.
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            typename PropertiesT>
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
+  single_task(event DepEvent, PropertiesT Properties,
+              _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    static_assert(
+        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void()>::value ||
+         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void(kernel_handler)>::value),
+        "sycl::queue.single_task() requires a kernel instead of command group. "
+        "Use queue.submit() instead");
+    _CODELOCARG(&CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvent);
+          CGH.template single_task<KernelName, KernelType, PropertiesT>(
+              Properties, KernelFunc);
         },
         CodeLoc);
   }
@@ -751,6 +1133,24 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(event DepEvent,
                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    return single_task<KernelName, KernelType>(
+        DepEvent, ext::oneapi::experimental::detail::empty_properties_t{},
+        KernelFunc _CODELOCFW(CodeLoc));
+  }
+
+  /// single_task version with a kernel represented as a lambda.
+  ///
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
+  /// \param Properties is the kernel properties.
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            typename PropertiesT>
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
+  single_task(const std::vector<event> &DepEvents, PropertiesT Properties,
+              _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     static_assert(
         (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
                                     void()>::value ||
@@ -761,8 +1161,9 @@ public:
     _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
-          CGH.depends_on(DepEvent);
-          CGH.template single_task<KernelName, KernelType>(KernelFunc);
+          CGH.depends_on(DepEvents);
+          CGH.template single_task<KernelName, KernelType, PropertiesT>(
+              Properties, KernelFunc);
         },
         CodeLoc);
   }
@@ -776,20 +1177,9 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(const std::vector<event> &DepEvents,
                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
-    static_assert(
-        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
-                                    void()>::value ||
-         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
-                                    void(kernel_handler)>::value),
-        "sycl::queue.single_task() requires a kernel instead of command group. "
-        "Use queue.submit() instead");
-    _CODELOCARG(&CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.template single_task<KernelName, KernelType>(KernelFunc);
-        },
-        CodeLoc);
+    return single_task<KernelName, KernelType>(
+        DepEvents, ext::oneapi::experimental::detail::empty_properties_t{},
+        KernelFunc _CODELOCFW(CodeLoc));
   }
 
   /// parallel_for version with a kernel represented as a lambda + range that
@@ -999,19 +1389,38 @@ public:
   /// specifies global, local sizes and offset.
   ///
   /// \param Range specifies the global and local work spaces of the kernel
+  /// \param Properties is the kernel properties.
+  /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
+  /// const KernelType &KernelFunc".
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename PropertiesT, typename... RestT>
+  std::enable_if_t<
+      detail::AreAllButLastReductions<RestT...>::value &&
+          ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event>
+  parallel_for(nd_range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
+    // Actual code location needs to be captured from KernelInfo object.
+    const detail::code_location CodeLoc = {};
+    return submit(
+        [&](handler &CGH) {
+          CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
+        },
+        CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + nd_range that
+  /// specifies global, local sizes and offset.
+  ///
+  /// \param Range specifies the global and local work spaces of the kernel
   /// \param Rest acts as-if: "ReductionTypes&&... Reductions,
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
   parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
-    // Actual code location needs to be captured from KernelInfo object.
-    const detail::code_location CodeLoc = {};
-    return submit(
-        [&](handler &CGH) {
-          CGH.template parallel_for<KernelName>(Range, Rest...);
-        },
-        CodeLoc);
+    return parallel_for<KernelName>(
+        Range, ext::oneapi::experimental::detail::empty_properties_t{},
+        Rest...);
   }
 
   /// parallel_for version with a kernel represented as a lambda + nd_range that
@@ -1056,6 +1465,132 @@ public:
         CodeLoc);
   }
 
+  /// Copies data from a memory region pointed to by a placeholder accessor to
+  /// another memory region pointed to by a shared_ptr.
+  ///
+  /// \param Src is a placeholder accessor to the source memory.
+  /// \param Dest is a shared_ptr to the destination memory.
+  /// \return an event representing copy operation.
+  template <typename SrcT, int SrcDims, access_mode SrcMode, target SrcTgt,
+            access::placeholder IsPlaceholder, typename DestT>
+  event copy(accessor<SrcT, SrcDims, SrcMode, SrcTgt, IsPlaceholder> Src,
+             std::shared_ptr<DestT> Dest _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.require(Src);
+      CGH.copy(Src, Dest);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from a memory region pointed to by a shared_ptr to another
+  /// memory region pointed to by a placeholder accessor.
+  ///
+  /// \param Src is a shared_ptr to the source memory.
+  /// \param Dest is a placeholder accessor to the destination memory.
+  /// \return an event representing copy operation.
+  template <typename SrcT, typename DestT, int DestDims, access_mode DestMode,
+            target DestTgt, access::placeholder IsPlaceholder>
+  event copy(std::shared_ptr<SrcT> Src,
+             accessor<DestT, DestDims, DestMode, DestTgt, IsPlaceholder> Dest
+                 _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.require(Dest);
+      CGH.copy(Src, Dest);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from a memory region pointed to by a placeholder accessor to
+  /// another memory region pointed to by a raw pointer.
+  ///
+  /// \param Src is a placeholder accessor to the source memory.
+  /// \param Dest is a raw pointer to the destination memory.
+  /// \return an event representing copy operation.
+  template <typename SrcT, int SrcDims, access_mode SrcMode, target SrcTgt,
+            access::placeholder IsPlaceholder, typename DestT>
+  event copy(accessor<SrcT, SrcDims, SrcMode, SrcTgt, IsPlaceholder> Src,
+             DestT *Dest _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.require(Src);
+      CGH.copy(Src, Dest);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from a memory region pointed to by a raw pointer to another
+  /// memory region pointed to by a placeholder accessor.
+  ///
+  /// \param Src is a raw pointer to the source memory.
+  /// \param Dest is a placeholder accessor to the destination memory.
+  /// \return an event representing copy operation.
+  template <typename SrcT, typename DestT, int DestDims, access_mode DestMode,
+            target DestTgt, access::placeholder IsPlaceholder>
+  event copy(const SrcT *Src,
+             accessor<DestT, DestDims, DestMode, DestTgt, IsPlaceholder> Dest
+                 _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.require(Dest);
+      CGH.copy(Src, Dest);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one memory region to another, both pointed by placeholder
+  /// accessors.
+  ///
+  /// \param Src is a placeholder accessor to the source memory.
+  /// \param Dest is a placeholder accessor to the destination memory.
+  /// \return an event representing copy operation.
+  template <typename SrcT, int SrcDims, access_mode SrcMode, target SrcTgt,
+            access::placeholder IsSrcPlaceholder, typename DestT, int DestDims,
+            access_mode DestMode, target DestTgt,
+            access::placeholder IsDestPlaceholder>
+  event
+  copy(accessor<SrcT, SrcDims, SrcMode, SrcTgt, IsSrcPlaceholder> Src,
+       accessor<DestT, DestDims, DestMode, DestTgt, IsDestPlaceholder> Dest
+           _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.require(Src);
+      CGH.require(Dest);
+      CGH.copy(Src, Dest);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Provides guarantees that the memory object accessed via Acc is updated
+  /// on the host after operation is complete.
+  ///
+  /// \param Acc is a SYCL accessor that needs to be updated on host.
+  /// \return an event representing update_host operation.
+  template <typename T, int Dims, access_mode Mode, target Tgt,
+            access::placeholder IsPlaceholder>
+  event update_host(
+      accessor<T, Dims, Mode, Tgt, IsPlaceholder> Acc _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.require(Acc);
+      CGH.update_host(Acc);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Fills the specified memory with the specified data.
+  ///
+  /// \param Dest is the placeholder accessor to the memory to fill.
+  /// \param Src is the data to fill the memory with. T should be
+  /// trivially copyable.
+  /// \return an event representing fill operation.
+  template <typename T, int Dims, access_mode Mode, target Tgt,
+            access::placeholder IsPlaceholder>
+  event fill(accessor<T, Dims, Mode, Tgt, IsPlaceholder> Dest,
+             const T &Src _CODELOCPARAM(&CodeLoc)) {
+    return submit([&](handler &CGH) {
+      CGH.require(Dest);
+      CGH.fill<T>(Dest, Src);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// @brief Returns true if the queue was created with the
+  /// ext::codeplay::experimental::property::queue::enable_fusion property.
+  ///
+  /// Equivalent to
+  /// `has_property<ext::codeplay::experimental::property::queue::enable_fusion>()`.
+  ///
+  bool ext_codeplay_supports_fusion() const;
+
 // Clean KERNELFUNC macros.
 #undef _KERNELFUNCPARAM
 
@@ -1068,6 +1603,12 @@ public:
   ///
   /// \return the backend associated with this queue.
   backend get_backend() const noexcept;
+
+  /// Allows to check status of the queue (completed vs noncompleted).
+  ///
+  /// \return returns true if all enqueued commands in the queue have been
+  /// completed, otherwise returns false.
+  bool ext_oneapi_empty() const;
 
 private:
   pi_native_handle getNative() const;
@@ -1131,15 +1672,57 @@ private:
   /// specifies global size only.
   ///
   /// \param Range specifies the global work space of the kernel
+  /// \param Properties is the kernel properties.
   /// \param KernelFunc is the Kernel functor or lambda
-  template <typename KernelName, int Dims, typename... RestT>
-  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
-  parallel_for_impl(range<Dims> Range, RestT &&...Rest) {
+  template <typename KernelName, int Dims, typename PropertiesT,
+            typename... RestT>
+  std::enable_if_t<
+      detail::AreAllButLastReductions<RestT...>::value &&
+          ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event>
+  parallel_for_impl(range<Dims> Range, PropertiesT Properties,
+                    RestT &&...Rest) {
     // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
     return submit(
         [&](handler &CGH) {
-          CGH.template parallel_for<KernelName>(Range, Rest...);
+          CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
+        },
+        CodeLoc);
+  }
+
+  /// parallel_for_impl with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param KernelFunc is the Kernel functor or lambda
+  template <typename KernelName, int Dims, typename... RestT>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value, event>
+  parallel_for_impl(range<Dims> Range, RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(
+        Range, ext::oneapi::experimental::detail::empty_properties_t{},
+        Rest...);
+  }
+
+  /// parallel_for_impl with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param DepEvent is an event that specifies the kernel dependencies
+  /// \param Properties is the kernel properties.
+  /// \param KernelFunc is the Kernel functor or lambda
+  template <typename KernelName, int Dims, typename PropertiesT,
+            typename... RestT>
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
+  parallel_for_impl(range<Dims> Range, event DepEvent, PropertiesT Properties,
+                    RestT &&...Rest) {
+    // Actual code location needs to be captured from KernelInfo object.
+    const detail::code_location CodeLoc = {};
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvent);
+          CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
         },
         CodeLoc);
   }
@@ -1150,15 +1733,33 @@ private:
   /// \param Range specifies the global work space of the kernel
   /// \param DepEvent is an event that specifies the kernel dependencies
   /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
   template <typename KernelName, int Dims, typename... RestT>
   event parallel_for_impl(range<Dims> Range, event DepEvent, RestT &&...Rest) {
+    return parallel_for_impl<KernelName>(
+        Range, DepEvent,
+        ext::oneapi::experimental::detail::empty_properties_t{}, Rest...);
+  }
+
+  /// parallel_for_impl version with a kernel represented as a lambda + range
+  /// that specifies global size only.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies
+  /// \param Properties is the kernel properties.
+  /// \param KernelFunc is the Kernel functor or lambda
+  template <typename KernelName, int Dims, typename PropertiesT,
+            typename... RestT>
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
+  parallel_for_impl(range<Dims> Range, const std::vector<event> &DepEvents,
+                    PropertiesT Properties, RestT &&...Rest) {
     // Actual code location needs to be captured from KernelInfo object.
     const detail::code_location CodeLoc = {};
     return submit(
         [&](handler &CGH) {
-          CGH.depends_on(DepEvent);
-          CGH.template parallel_for<KernelName>(Range, Rest...);
+          CGH.depends_on(DepEvents);
+          CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
         },
         CodeLoc);
   }
@@ -1174,14 +1775,9 @@ private:
   event parallel_for_impl(range<Dims> Range,
                           const std::vector<event> &DepEvents,
                           RestT &&...Rest) {
-    // Actual code location needs to be captured from KernelInfo object.
-    const detail::code_location CodeLoc = {};
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.template parallel_for<KernelName>(Range, Rest...);
-        },
-        CodeLoc);
+    return parallel_for_impl<KernelName>(
+        Range, DepEvents,
+        ext::oneapi::experimental::detail::empty_properties_t{}, Rest...);
   }
 
   buffer<detail::AssertHappened, 1> &getAssertHappenedBuffer();

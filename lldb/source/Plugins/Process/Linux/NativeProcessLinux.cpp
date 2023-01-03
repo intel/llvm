@@ -852,7 +852,7 @@ bool NativeProcessLinux::MonitorClone(NativeThreadLinux &parent,
       break;
     }
   }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case PTRACE_EVENT_FORK:
   case PTRACE_EVENT_VFORK: {
     bool is_vfork = event == PTRACE_EVENT_VFORK;
@@ -882,7 +882,8 @@ bool NativeProcessLinux::MonitorClone(NativeThreadLinux &parent,
 }
 
 bool NativeProcessLinux::SupportHardwareSingleStepping() const {
-  if (m_arch.GetMachine() == llvm::Triple::arm || m_arch.IsMIPS())
+  if (m_arch.IsMIPS() || m_arch.GetMachine() == llvm::Triple::arm ||
+      m_arch.GetTriple().isRISCV() || m_arch.GetTriple().isLoongArch())
     return false;
   return true;
 }
@@ -933,8 +934,14 @@ Status NativeProcessLinux::Resume(const ResumeActionList &resume_actions) {
     case eStateStepping: {
       // Run the thread, possibly feeding it the signal.
       const int signo = action->signal;
-      ResumeThread(static_cast<NativeThreadLinux &>(*thread), action->state,
-                   signo);
+      Status error = ResumeThread(static_cast<NativeThreadLinux &>(*thread),
+                                  action->state, signo);
+      if (error.Fail())
+        return Status("NativeProcessLinux::%s: failed to resume thread "
+                      "for pid %" PRIu64 ", tid %" PRIu64 ", error = %s",
+                      __FUNCTION__, GetID(), thread->GetID(),
+                      error.AsCString());
+
       break;
     }
 
@@ -1870,13 +1877,13 @@ static llvm::Optional<WaitStatus> HandlePid(::pid_t pid) {
       -1, ::waitpid, pid, &status, __WALL | __WNOTHREAD | WNOHANG);
 
   if (wait_pid == 0)
-    return llvm::None;
+    return std::nullopt;
 
   if (wait_pid == -1) {
     Status error(errno, eErrorTypePOSIX);
     LLDB_LOG(log, "waitpid({0}, &status, _) failed: {1}", pid,
              error);
-    return llvm::None;
+    return std::nullopt;
   }
 
   assert(wait_pid == pid);

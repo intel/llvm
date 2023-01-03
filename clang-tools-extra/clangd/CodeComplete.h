@@ -31,6 +31,7 @@
 #include "llvm/ADT/StringRef.h"
 #include <functional>
 #include <future>
+#include <utility>
 
 namespace clang {
 class NamedDecl;
@@ -129,7 +130,9 @@ struct CodeCompleteOptions {
   enum CodeCompletionRankingModel {
     Heuristics,
     DecisionForest,
-  } RankingModel = DecisionForest;
+  };
+  static const CodeCompletionRankingModel DefaultRankingModel;
+  CodeCompletionRankingModel RankingModel = DefaultRankingModel;
 
   /// Callback used to score a CompletionCandidate if DecisionForest ranking
   /// model is enabled.
@@ -262,7 +265,7 @@ struct SpeculativeFuzzyFind {
   llvm::Optional<FuzzyFindRequest> NewReq;
   /// The result is consumed by `codeComplete()` if speculation succeeded.
   /// NOTE: the destructor will wait for the async call to finish.
-  std::future<SymbolSlab> Result;
+  std::future<std::pair<bool /*Incomplete*/, SymbolSlab>> Result;
 };
 
 /// Gets code completions at a specified \p Pos in \p FileName.
@@ -290,7 +293,7 @@ SignatureHelp signatureHelp(PathRef FileName, Position Pos,
 // For index-based completion, we only consider:
 //   * symbols in namespaces or translation unit scopes (e.g. no class
 //     members, no locals)
-//   * enum constants in unscoped enum decl (e.g. "red" in "enum {red};")
+//   * enum constants (both scoped and unscoped)
 //   * primary templates (no specializations)
 // For the other cases, we let Clang do the completion because it does not
 // need any non-local information and it will be much better at following

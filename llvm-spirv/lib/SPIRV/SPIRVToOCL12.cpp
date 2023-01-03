@@ -75,184 +75,132 @@ bool SPIRVToOCL12Base::runSPIRVToOCL(Module &Module) {
 }
 
 void SPIRVToOCL12Base::visitCallSPIRVMemoryBarrier(CallInst *CI) {
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        Value *MemFenceFlags =
-            transSPIRVMemorySemanticsIntoOCLMemFenceFlags(Args[1], CI);
-        Args.assign(1, MemFenceFlags);
-        return kOCLBuiltinName::MemFence;
-      },
-      &Attrs);
+  mutateCallInst(CI, kOCLBuiltinName::MemFence)
+      .mapArg(1,
+              [=](Value *V) {
+                return transSPIRVMemorySemanticsIntoOCLMemFenceFlags(V, CI);
+              })
+      .removeArg(0);
 }
 
 void SPIRVToOCL12Base::visitCallSPIRVControlBarrier(CallInst *CI) {
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        auto *MemFenceFlags =
-            transSPIRVMemorySemanticsIntoOCLMemFenceFlags(Args[2], CI);
-        Args.assign(1, MemFenceFlags);
-        return kOCLBuiltinName::Barrier;
-      },
-      &Attrs);
+  mutateCallInst(CI, kOCLBuiltinName::Barrier)
+      .mapArg(2,
+              [=](Value *V) {
+                return transSPIRVMemorySemanticsIntoOCLMemFenceFlags(V, CI);
+              })
+      .removeArg(1)
+      .removeArg(0);
 }
 
-Instruction *SPIRVToOCL12Base::visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) {
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  return mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        Args.resize(1);
-        return mapAtomicName(OC, CI->getType());
-      },
-      &Attrs);
+void SPIRVToOCL12Base::visitCallSPIRVSplitBarrierINTEL(CallInst *CI, Op OC) {
+  mutateCallInst(CI, OCLSPIRVBuiltinMap::rmap(OC))
+      .mapArg(2,
+              [=](Value *V) {
+                return transSPIRVMemorySemanticsIntoOCLMemFenceFlags(V, CI);
+              })
+      .removeArg(1)
+      .removeArg(0);
+}
+
+void SPIRVToOCL12Base::visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) {
+  mutateCallInst(CI, mapAtomicName(OC, CI->getType()))
+      .removeArg(2)
+      .removeArg(1);
 }
 
 CallInst *SPIRVToOCL12Base::mutateCommonAtomicArguments(CallInst *CI, Op OC) {
-  assert(CI->getCalledFunction() && "Unexpected indirect call");
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  auto Ptr = findFirstPtr(CI->args());
+  auto NumOrder = getSPIRVAtomicBuiltinNumMemoryOrderArgs(OC);
+  auto ArgsToRemove = NumOrder + 1; // OpenCL1.2 builtins does not use
+                                    // scope and memory order arguments
 
-  return mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        auto Ptr = findFirstPtr(Args);
-        auto NumOrder = getSPIRVAtomicBuiltinNumMemoryOrderArgs(OC);
-        auto ArgsToRemove = NumOrder + 1; // OpenCL1.2 builtins does not use
-                                          // scope and memory order arguments
-        auto StartIdx = Ptr + 1;
-        auto StopIdx = StartIdx + ArgsToRemove;
-        Args.erase(Args.begin() + StartIdx, Args.begin() + StopIdx);
-        return mapAtomicName(OC, CI->getType());
-      },
-      &Attrs);
+  auto Mutator = mutateCallInst(CI, mapAtomicName(OC, CI->getType()));
+  Mutator.removeArgs(Ptr + 1, ArgsToRemove);
+  return cast<CallInst>(Mutator.getMutated());
 }
 
-Instruction *SPIRVToOCL12Base::visitCallSPIRVAtomicUMinUMax(CallInst *CI,
-                                                            Op OC) {
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  return mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        std::swap(Args[1], Args[3]);
-        Args.resize(2);
-        return mapAtomicName(OC, CI->getType());
-      },
-      &Attrs);
+void SPIRVToOCL12Base::visitCallSPIRVAtomicUMinUMax(CallInst *CI, Op OC) {
+  mutateCallInst(CI, mapAtomicName(OC, CI->getType()))
+      .moveArg(3, 1)
+      .removeArg(3)
+      .removeArg(2);
 }
 
-Instruction *SPIRVToOCL12Base::visitCallSPIRVAtomicLoad(CallInst *CI) {
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  return mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        Args.resize(1);
-        // There is no atomic_load in OpenCL 1.2 spec.
-        // Emit this builtin via call of atomic_add(*p, 0).
-        Type *PtrElemTy = CI->getType();
-        Args.push_back(Constant::getNullValue(PtrElemTy));
-        return mapAtomicName(OpAtomicIAdd, PtrElemTy);
-      },
-      &Attrs);
+void SPIRVToOCL12Base::visitCallSPIRVAtomicLoad(CallInst *CI) {
+  // There is no atomic_load in OpenCL 1.2 spec.
+  // Emit this builtin via call of atomic_add(*p, 0).
+  Type *PtrElemTy = CI->getType();
+  mutateCallInst(CI, mapAtomicName(OpAtomicIAdd, PtrElemTy))
+      .removeArg(2)
+      .removeArg(1)
+      .appendArg(Constant::getNullValue(PtrElemTy));
 }
 
-Instruction *SPIRVToOCL12Base::visitCallSPIRVAtomicStore(CallInst *CI) {
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  return mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args, Type *&RetTy) {
-        std::swap(Args[1], Args[3]);
-        Args.resize(2);
-        // The type of the value pointed to by Pointer (1st argument), or the
-        // value being exchanged (2nd argument) must be the same as Result Type.
-        RetTy = Args[1]->getType();
-        return mapAtomicName(OpAtomicExchange, RetTy);
-      },
-      [=](CallInst *CI) -> Instruction * { return CI; }, &Attrs);
+void SPIRVToOCL12Base::visitCallSPIRVAtomicStore(CallInst *CI) {
+  Type *RetTy = CI->getArgOperand(3)->getType();
+  mutateCallInst(CI, mapAtomicName(OpAtomicExchange, RetTy))
+      .removeArg(2)
+      .removeArg(1)
+      .changeReturnType(RetTy, nullptr);
 }
 
-Instruction *SPIRVToOCL12Base::visitCallSPIRVAtomicFlagClear(CallInst *CI) {
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  return mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args, Type *&RetTy) {
-        Args.resize(1);
-        Args.push_back(getInt32(M, 0));
-        RetTy = Type::getInt32Ty(M->getContext());
-        return mapAtomicName(OpAtomicExchange, RetTy);
-      },
-      [=](CallInst *CI) -> Instruction * { return CI; }, &Attrs);
+void SPIRVToOCL12Base::visitCallSPIRVAtomicFlagClear(CallInst *CI) {
+  Type *RetTy = Type::getInt32Ty(M->getContext());
+  mutateCallInst(CI, mapAtomicName(OpAtomicExchange, RetTy))
+      .removeArg(2)
+      .removeArg(1)
+      .appendArg(getInt32(M, 0))
+      .changeReturnType(RetTy, nullptr);
 }
 
-Instruction *
-SPIRVToOCL12Base::visitCallSPIRVAtomicFlagTestAndSet(CallInst *CI) {
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  return mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args, Type *&RetTy) {
-        Args.resize(1);
-        Args.push_back(getInt32(M, 1));
-        RetTy = Type::getInt32Ty(M->getContext());
-        return mapAtomicName(OpAtomicExchange, RetTy);
-      },
-      [=](CallInst *CI) -> Instruction * {
-        return BitCastInst::Create(Instruction::Trunc, CI,
-                                   Type::getInt1Ty(CI->getContext()), "",
-                                   CI->getNextNode());
-      },
-      &Attrs);
+void SPIRVToOCL12Base::visitCallSPIRVAtomicFlagTestAndSet(CallInst *CI) {
+  Type *RetTy = Type::getInt32Ty(M->getContext());
+  mutateCallInst(CI, mapAtomicName(OpAtomicExchange, RetTy))
+      .removeArg(2)
+      .removeArg(1)
+      .appendArg(getInt32(M, 1))
+      .changeReturnType(RetTy, [](IRBuilder<> &Builder, CallInst *NewCI) {
+        return Builder.CreateTrunc(NewCI, Builder.getInt1Ty());
+      });
 }
 
-Instruction *SPIRVToOCL12Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI) {
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  return mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        Args.erase(Args.begin() + 1, Args.begin() + 4);
-        // SPIRV OpAtomicCompareExchange and
-        // OpAtomicCompareExchangeWeak has Value and
-        // Comparator in different order than ocl functions
-        // both of them are translated into atomic_cmpxchg
-        std::swap(Args[1], Args[2]);
-        // Type of return value, pointee of the pointer
-        // operand, other operands, all match, and should
-        // be integer scalar types.
-        return mapAtomicName(OpAtomicCompareExchange, CI->getType());
-      },
-      &Attrs);
+void SPIRVToOCL12Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI) {
+  mutateCallInst(CI, mapAtomicName(OpAtomicCompareExchange, CI->getType()))
+      .removeArg(3)
+      .removeArg(2)
+      .removeArg(1)
+      // SPIRV OpAtomicCompareExchange and OpAtomicCompareExchangeWeak has Value
+      // and Comparator in different order than ocl functions both of them are
+      // translated into atomic_cmpxchg
+      .moveArg(2, 1);
 }
 
-Instruction *SPIRVToOCL12Base::visitCallSPIRVAtomicBuiltin(CallInst *CI,
-                                                           Op OC) {
-  Instruction *NewCI = nullptr;
+void SPIRVToOCL12Base::visitCallSPIRVAtomicBuiltin(CallInst *CI, Op OC) {
   switch (OC) {
   case OpAtomicLoad:
-    NewCI = visitCallSPIRVAtomicLoad(CI);
+    visitCallSPIRVAtomicLoad(CI);
     break;
   case OpAtomicStore:
-    NewCI = visitCallSPIRVAtomicStore(CI);
+    visitCallSPIRVAtomicStore(CI);
     break;
   case OpAtomicFlagClear:
-    NewCI = visitCallSPIRVAtomicFlagClear(CI);
+    visitCallSPIRVAtomicFlagClear(CI);
     break;
   case OpAtomicFlagTestAndSet:
-    NewCI = visitCallSPIRVAtomicFlagTestAndSet(CI);
+    visitCallSPIRVAtomicFlagTestAndSet(CI);
     break;
   case OpAtomicUMin:
   case OpAtomicUMax:
-    NewCI = visitCallSPIRVAtomicUMinUMax(CI, OC);
+    visitCallSPIRVAtomicUMinUMax(CI, OC);
     break;
   case OpAtomicCompareExchange:
   case OpAtomicCompareExchangeWeak:
-    NewCI = visitCallSPIRVAtomicCmpExchg(CI);
+    visitCallSPIRVAtomicCmpExchg(CI);
     break;
   default:
-    NewCI = mutateCommonAtomicArguments(CI, OC);
+    mutateCommonAtomicArguments(CI, OC);
   }
-
-  return NewCI;
 }
 
 void SPIRVToOCL12Base::visitCallSPIRVEnqueueKernel(CallInst *CI, Op OC) {
@@ -274,14 +222,8 @@ std::string SPIRVToOCL12Base::mapFPAtomicName(Op OC) {
   }
 }
 
-Instruction *SPIRVToOCL12Base::mutateAtomicName(CallInst *CI, Op OC) {
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  return mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        return OCL12SPIRVBuiltinMap::rmap(OC);
-      },
-      &Attrs);
+void SPIRVToOCL12Base::mutateAtomicName(CallInst *CI, Op OC) {
+  mutateCallInst(CI, OCL12SPIRVBuiltinMap::rmap(OC));
 }
 
 std::string SPIRVToOCL12Base::mapAtomicName(Op OC, Type *Ty) {

@@ -129,13 +129,20 @@ public:
       updateEntries();
     }
 
+    if (MEntries.empty())
+      return nullptr;
+
     return &*MEntries.begin();
   }
   typename T::NativeType *end() {
     if (MEntriesNeedUpdate) {
       updateEntries();
     }
-    return &*MEntries.end();
+
+    if (MEntries.empty())
+      return nullptr;
+
+    return &*MEntries.rbegin() + 1;
   }
 
 private:
@@ -150,10 +157,36 @@ private:
   bool MEntriesNeedUpdate = false;
 };
 
+#ifdef __cpp_deduction_guides
+template <typename T> PiArray(std::vector<T>) -> PiArray<T>;
+
+template <typename T> PiArray(std::initializer_list<T>) -> PiArray<T>;
+#endif // __cpp_deduction_guides
+
 /// Convenience wrapper for pi_device_binary_property_set.
 class PiPropertySet {
 public:
-  PiPropertySet() = default;
+  PiPropertySet() {
+    // Most of unit-tests are statically linked with SYCL RT. On Linux and Mac
+    // systems that causes incorrect RT installation directory detection, which
+    // prevents proper loading of fallback libraries. See intel/llvm#6945
+    //
+    // Fallback libraries are automatically loaded and linked into device image
+    // unless there is a special property attached to it or special env variable
+    // is set which forces RT to skip fallback libraries.
+    //
+    // Setting this property here so unit-tests can be launched under any
+    // environment.
+
+    std::vector<char> Data(/* eight elements */ 8,
+                           /* each element is zero */ 0);
+    // Name doesn't matter here, it is not used by RT
+    // Value must be an all-zero 32-bit mask, which would mean that no fallback
+    // libraries are needed to be loaded.
+    PiProperty DeviceLibReqMask("", Data, PI_PROPERTY_TYPE_UINT32);
+    insert(__SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK,
+           PiArray{DeviceLibReqMask});
+  }
 
   /// Adds a new array of properties to the set.
   ///
@@ -176,7 +209,7 @@ public:
   _pi_device_binary_property_set_struct *end() {
     if (MProperties.empty())
       return nullptr;
-    return &*MProperties.end();
+    return &*MProperties.rbegin() + 1;
   }
 
 private:
@@ -195,33 +228,11 @@ public:
           const std::string &CompileOptions, const std::string &LinkOptions,
           std::vector<char> Manifest, std::vector<unsigned char> Binary,
           PiArray<PiOffloadEntry> OffloadEntries, PiPropertySet PropertySet)
-      : MDeviceTargetSpec(DeviceTargetSpec), MCompileOptions(CompileOptions),
+      : MVersion(Version), MKind(Kind), MFormat(Format),
+        MDeviceTargetSpec(DeviceTargetSpec), MCompileOptions(CompileOptions),
         MLinkOptions(LinkOptions), MManifest(std::move(Manifest)),
         MBinary(std::move(Binary)), MOffloadEntries(std::move(OffloadEntries)),
-        MPropertySet(std::move(PropertySet)) {
-    auto [ManifestStart,
-          ManifestEnd] = [this]() -> std::pair<const char *, const char *> {
-      if (!MManifest.empty())
-        return {&*MManifest.cbegin(), &*MManifest.cend()};
-      return {nullptr, nullptr};
-    }();
-    MBinaryDesc = pi_device_binary_struct{
-        Version,
-        Kind,
-        Format,
-        MDeviceTargetSpec.c_str(),
-        MCompileOptions.c_str(),
-        MLinkOptions.c_str(),
-        ManifestStart,
-        ManifestEnd,
-        &*MBinary.begin(),
-        (&*MBinary.begin()) + MBinary.size(),
-        MOffloadEntries.begin(),
-        MOffloadEntries.end(),
-        MPropertySet.begin(),
-        MPropertySet.end(),
-    };
-  }
+        MPropertySet(std::move(PropertySet)) {}
 
   /// Constructs a SYCL device image of the latest version.
   PiImage(uint8_t Format, const std::string &DeviceTargetSpec,
@@ -233,9 +244,29 @@ public:
                 std::move(Binary), std::move(OffloadEntries),
                 std::move(PropertySet)) {}
 
-  pi_device_binary_struct convertToNativeType() const { return MBinaryDesc; }
+  pi_device_binary_struct convertToNativeType() {
+    return pi_device_binary_struct{
+        MVersion,
+        MKind,
+        MFormat,
+        MDeviceTargetSpec.c_str(),
+        MCompileOptions.c_str(),
+        MLinkOptions.c_str(),
+        MManifest.empty() ? nullptr : &*MManifest.cbegin(),
+        MManifest.empty() ? nullptr : &*MManifest.crbegin() + 1,
+        &*MBinary.begin(),
+        (&*MBinary.begin()) + MBinary.size(),
+        MOffloadEntries.begin(),
+        MOffloadEntries.end(),
+        MPropertySet.begin(),
+        MPropertySet.end(),
+    };
+  }
 
 private:
+  uint16_t MVersion;
+  uint8_t MKind;
+  uint8_t MFormat;
   std::string MDeviceTargetSpec;
   std::string MCompileOptions;
   std::string MLinkOptions;
@@ -243,7 +274,6 @@ private:
   std::vector<unsigned char> MBinary;
   PiArray<PiOffloadEntry> MOffloadEntries;
   PiPropertySet MPropertySet;
-  pi_device_binary_struct MBinaryDesc;
 };
 
 /// Convenience wrapper around pi_device_binaries_struct, that manages mock
@@ -252,7 +282,7 @@ template <size_t __NumberOfImages> class PiImageArray {
 public:
   static constexpr size_t NumberOfImages = __NumberOfImages;
 
-  PiImageArray(const PiImage *Imgs) {
+  PiImageArray(PiImage *Imgs) {
     for (size_t Idx = 0; Idx < NumberOfImages; ++Idx)
       MNativeImages[Idx] = Imgs[Idx].convertToNativeType();
 
@@ -423,6 +453,24 @@ makeKernelParamOptInfo(const std::string &Name, const size_t NumArgs,
   PiProperty Prop{Name, DescData, PI_PROPERTY_TYPE_BYTE_ARRAY};
 
   return Prop;
+}
+
+/// Utility function to add aspects to property set.
+inline void addAspects(PiPropertySet &Props,
+                       const std::vector<sycl::aspect> &Aspects) {
+  const size_t BYTES_FOR_SIZE = 8;
+  std::vector<char> ValData(BYTES_FOR_SIZE +
+                            Aspects.size() * sizeof(sycl::aspect));
+  uint64_t ValDataSize = ValData.size();
+  std::uninitialized_copy(&ValDataSize, &ValDataSize + sizeof(uint64_t),
+                          ValData.data());
+  auto *AspectsPtr = reinterpret_cast<const unsigned char *>(&Aspects[0]);
+  std::uninitialized_copy(AspectsPtr, AspectsPtr + Aspects.size(),
+                          ValData.data() + BYTES_FOR_SIZE);
+  PiProperty Prop{"aspects", ValData, PI_PROPERTY_TYPE_BYTE_ARRAY};
+  PiArray<PiProperty> Value{std::move(Prop)};
+  Props.insert(__SYCL_PI_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS,
+               std::move(Value));
 }
 
 } // namespace unittest

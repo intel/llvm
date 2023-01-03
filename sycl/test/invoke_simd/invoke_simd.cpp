@@ -1,4 +1,6 @@
-// RUN: %clangxx -c -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s
+// RUN: %clangxx -fsycl -fsyntax-only -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s
+// FIXME: check if -fno-sycl-device-code-split-esimd affects any pre-link steps
+//        and remove the flag if that is not the case
 
 // The tests checks that invoke_simd API is compileable.
 
@@ -38,6 +40,8 @@ ESIMD_CALLEE(float *A, esimd::simd<float, VL> b, int i) SYCL_ESIMD_FUNCTION {
 [[intel::device_indirectly_callable]] SYCL_EXTERNAL
     simd<float, VL> __regcall SIMD_CALLEE(float *A, simd<float, VL> b,
                                           int i) SYCL_ESIMD_FUNCTION;
+[[intel::device_indirectly_callable]] SYCL_EXTERNAL
+    void __regcall SIMD_CALLEE_VOID(simd<float, VL> b, int i) SYCL_ESIMD_FUNCTION {}
 
 float SPMD_CALLEE(float *A, float b, int i) { return A[i] + b; }
 
@@ -84,7 +88,8 @@ int main(void) {
   queue q(ESIMDSelector{}, createExceptionHandler());
 
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+            << "\n";
   auto ctxt = q.get_context();
   // TODO: release memory in the end of the test
   float *A =
@@ -119,6 +124,7 @@ int main(void) {
             if constexpr (use_invoke_simd) {
               res = invoke_simd(sg, SIMD_CALLEE, uniform{A}, B[wi_id],
                                 uniform{i});
+              invoke_simd(sg, SIMD_CALLEE_VOID, B[wi_id], uniform{i});
             } else {
               res = SPMD_CALLEE(A, B[wi_id], wi_id);
             }
@@ -182,6 +188,8 @@ struct SIMD_FUNCTOR {
   // E - N(u, N)
   SYCL_EXTERNAL __regcall simd<short, 8> operator()(simd<float, 3>,
                                                     simd<int, 8>) const;
+  // F - void
+  SYCL_EXTERNAL __regcall void operator()(simd<float, 3>) const;
 };
 
 // Functor-based tests.
@@ -207,6 +215,10 @@ SYCL_EXTERNAL void foo(sub_group sg, float a, float b, float *ptr) {
   // the target is "E" SIMD_FUNCTOR::() overload:
   auto v = invoke_simd(sg, ftor, uniform{simd<float, 3>{1}}, 1);
   static_assert(std::is_same_v<decltype(v), short>);
+
+  // the target is "F" SIMD_FUNCTOR::() overload:
+  invoke_simd(sg, ftor, uniform{simd<float, 3>{1}});
+
 }
 
 // Lambda-based tests, repeat functor test cases above.
@@ -252,6 +264,29 @@ SYCL_EXTERNAL auto bar(sub_group sg, float a, float b, float *ptr, char ch) {
     auto v = invoke_simd(sg, ftor, uniform{simd<float, 3>{1}}, 1);
     static_assert(std::is_same_v<decltype(v), short>);
   }
+
+  {
+    const auto ftor = [=] [[gnu::regcall]] (simd<float, 16>, float) {};
+    invoke_simd(sg, ftor, 1.f, uniform{a});
+  }
+  {
+    const auto ftor = [=] [[gnu::regcall]] (simd<float, 8>, float, int) {};
+    invoke_simd(sg, ftor, b, uniform{1.f}, uniform{10});
+  }
+  {
+    const auto ftor = [=] [[gnu::regcall]] (simd<float, 16>, float *) {};
+    invoke_simd(sg, ftor, b, uniform{ptr});
+  }
+  {
+    const auto ftor = [=] [[gnu::regcall]] (float *, simd<float, 3>,
+                                            simd<int, 5>) {};
+    invoke_simd(sg, ftor, uniform{ptr}, uniform{simd<float, 3>{1}},
+                         uniform{simd<int, 5>{2}});
+  }
+  {
+    const auto ftor = [=] [[gnu::regcall]] (simd<float, 3>, simd<int, 8>) {};
+    invoke_simd(sg, ftor, uniform{simd<float, 3>{1}}, 1);
+  }
 }
 
 // Function-pointer-based test
@@ -259,6 +294,11 @@ SYCL_EXTERNAL auto barx(sub_group sg, float a, char ch,
                         __regcall char(f)(simd<float, 16>, float)) {
   auto x = invoke_simd(sg, f, 1.f, uniform{a});
   static_assert(std::is_same_v<decltype(x), uniform<char>>);
+}
+
+SYCL_EXTERNAL auto barx_void(sub_group sg, float a, char ch,
+                        __regcall void(f)(simd<float, 16>, float)) {
+  invoke_simd(sg, f, 1.f, uniform{a});
 }
 
 // Internal is_function_ref_v meta-API checks {
@@ -281,6 +321,7 @@ void check_f(
   int(func)(float), int(__regcall func_regcall)(int)) {
 
   assert_is_func(SIMD_CALLEE);
+  assert_is_func(SIMD_CALLEE_VOID);
   assert_is_func(ordinary_func);
 
   assert_is_func(func_ptr);

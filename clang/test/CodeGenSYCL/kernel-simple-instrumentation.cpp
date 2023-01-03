@@ -2,7 +2,7 @@
 /// SYCL device code
 
 // RUN: %clang_cc1 -fsycl-is-device -fsycl-instrument-device-code -triple spir64-unknown-unknown -emit-llvm %s -o - | FileCheck %s
-// RUN: %clang_cc1 -fsycl-is-device -fno-legacy-pass-manager -fsycl-instrument-device-code -triple spir64-unknown-unknown -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -fsycl-instrument-device-code -triple spir64-unknown-unknown -emit-llvm %s -o - | FileCheck %s
 
 // CHECK: kernel_function
 // CHECK-NEXT: entry:

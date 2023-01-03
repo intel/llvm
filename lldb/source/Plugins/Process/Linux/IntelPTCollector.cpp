@@ -1,4 +1,4 @@
-//===-- IntelPTCollector.cpp ------------------------------------------------===//
+//===-- IntelPTCollector.cpp ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,18 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "IntelPTCollector.h"
-
 #include "Perf.h"
-#include "Procfs.h"
-
 #include "Plugins/Process/POSIX/ProcessPOSIXLog.h"
+#include "Procfs.h"
 #include "lldb/Host/linux/Support.h"
 #include "lldb/Utility/StreamString.h"
-
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MathExtras.h"
-
 #include <algorithm>
 #include <cstddef>
 #include <fcntl.h>
@@ -68,7 +64,7 @@ Error IntelPTCollector::TraceStop(const TraceStopRequest &request) {
 
 /// \return
 ///   some file descriptor in /sys/fs/ associated with the cgroup of the given
-///   pid, or \a llvm::None if the pid is not part of a cgroup.
+///   pid, or \a std::nullopt if the pid is not part of a cgroup.
 static Optional<int> GetCGroupFileDescriptor(lldb::pid_t pid) {
   static Optional<int> fd;
   if (fd)
@@ -77,7 +73,7 @@ static Optional<int> GetCGroupFileDescriptor(lldb::pid_t pid) {
   std::ifstream ifile;
   ifile.open(formatv("/proc/{0}/cgroup", pid));
   if (!ifile)
-    return None;
+    return std::nullopt;
 
   std::string line;
   while (std::getline(ifile, line)) {
@@ -86,7 +82,7 @@ static Optional<int> GetCGroupFileDescriptor(lldb::pid_t pid) {
 
     std::string slice = line.substr(line.find_first_of("/"));
     if (slice.empty())
-      return None;
+      return std::nullopt;
     std::string cgroup_file = formatv("/sys/fs/cgroup/{0}", slice);
     // This cgroup should for the duration of the target, so we don't need to
     // invoke close ourselves.
@@ -96,7 +92,7 @@ static Optional<int> GetCGroupFileDescriptor(lldb::pid_t pid) {
       return fd;
     }
   }
-  return None;
+  return std::nullopt;
 }
 
 Error IntelPTCollector::TraceStart(const TraceIntelPTStartRequest &request) {

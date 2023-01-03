@@ -138,7 +138,7 @@ XPTI_CALLBACK_API void piCallback(uint16_t TraceType,
     return;
 
   // Lock while we print information
-  std::lock_guard _{GlobalLock};
+  std::lock_guard<sycl::detail::SpinLock> _{GlobalLock};
   const auto *Data = static_cast<const xpti::function_with_args_t *>(UserData);
   if (TraceType == xpti::trace_function_with_args_begin) {
     const auto *Plugin = static_cast<pi_plugin *>(Data->user_data);

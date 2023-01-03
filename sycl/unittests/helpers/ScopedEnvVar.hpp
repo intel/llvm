@@ -20,9 +20,12 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace unittest {
 inline void set_env(const char *Name, const char *Value) {
 #ifdef _WIN32
-  (void)_putenv_s(Name, Value);
+  (void)_putenv_s(Name, Value ? Value : "");
 #else
-  (void)setenv(Name, Value, /*overwrite*/ 1);
+  if (Value)
+    (void)setenv(Name, Value, /*overwrite*/ 1);
+  else
+    (void)unsetenv(Name);
 #endif
 }
 

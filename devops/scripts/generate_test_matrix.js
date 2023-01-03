@@ -17,6 +17,8 @@ module.exports = ({core, process}) => {
               driverOld["linux"]["igc"]["version"] ||
           driverNew["linux"]["cm"]["version"] !==
               driverOld["linux"]["cm"]["version"] ||
+          driverNew["linux"]["level_zero"]["version"] !==
+              driverOld["linux"]["level_zero"]["version"] ||
           driverNew["linux"]["tbb"]["version"] !==
               driverOld["linux"]["tbb"]["version"] ||
           driverNew["linux"]["oclcpu"]["version"] !==
@@ -37,6 +39,7 @@ module.exports = ({core, process}) => {
                   driverNew["linux"]["compute_runtime"]["github_tag"],
               "igc_tag" : driverNew["linux"]["igc"]["github_tag"],
               "cm_tag" : driverNew["linux"]["cm"]["github_tag"],
+              "level_zero_tag" : driverNew["linux"]["level_zero"]["github_tag"],
               "tbb_tag" : driverNew["linux"]["tbb"]["github_tag"],
               "cpu_tag" : driverNew["linux"]["oclcpu"]["github_tag"],
               "fpgaemu_tag" : driverNew["linux"]["fpgaemu"]["github_tag"],
@@ -69,6 +72,44 @@ module.exports = ({core, process}) => {
 
       core.setOutput('lts_matrix', ltsString);
       core.setOutput('lts_aws_matrix', ltsAWSString);
+
+      const ctsConfigs = inputs.cts_config.split(';');
+
+      const enabledCTSConfigs = [];
+
+      testConfigs.cts.forEach(v => {
+        if (ctsConfigs.includes(v.config)) {
+          if (needsDrivers) {
+            v["env"] = {
+              "compute_runtime_tag" :
+                  driverNew["linux"]["compute_runtime"]["github_tag"],
+              "igc_tag" : driverNew["linux"]["igc"]["github_tag"],
+              "cm_tag" : driverNew["linux"]["cm"]["github_tag"],
+              "level_zero_tag" : driverNew["linux"]["level_zero"]["github_tag"],
+              "tbb_tag" : driverNew["linux"]["tbb"]["github_tag"],
+              "cpu_tag" : driverNew["linux"]["oclcpu"]["github_tag"],
+              "fpgaemu_tag" : driverNew["linux"]["fpgaemu"]["github_tag"],
+            };
+          } else {
+            v["env"] = {};
+          }
+          enabledCTSConfigs.push(v);
+        }
+      });
+
+      let ctsString = JSON.stringify(enabledCTSConfigs);
+      console.log(ctsString);
+
+      for (let [key, value] of Object.entries(inputs)) {
+        ctsString = ctsString.replaceAll("${{ inputs." + key + " }}", value);
+      }
+      if (needsDrivers) {
+        ctsString = ctsString.replaceAll(
+            "ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest",
+            "ghcr.io/intel/llvm/ubuntu2004_base:latest");
+      }
+
+      core.setOutput('cts_matrix', ctsString);
     }
   });
 }

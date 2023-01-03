@@ -21,7 +21,6 @@
 
 #include "llvm-c/Support.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
@@ -45,6 +44,7 @@
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cstdlib>
+#include <optional>
 #include <string>
 using namespace llvm;
 using namespace cl;
@@ -1153,17 +1153,16 @@ static void ExpandBasePaths(StringRef BasePath, StringSaver &Saver,
 }
 
 // FName must be an absolute path.
-static llvm::Error ExpandResponseFile(StringRef FName, StringSaver &Saver,
-                                      TokenizerCallback Tokenizer,
-                                      SmallVectorImpl<const char *> &NewArgv,
-                                      bool MarkEOLs, bool RelativeNames,
-                                      bool ExpandBasePath,
-                                      llvm::vfs::FileSystem &FS) {
+Error ExpansionContext::expandResponseFile(
+    StringRef FName, SmallVectorImpl<const char *> &NewArgv) {
   assert(sys::path::is_absolute(FName));
   llvm::ErrorOr<std::unique_ptr<MemoryBuffer>> MemBufOrErr =
-      FS.getBufferForFile(FName);
-  if (!MemBufOrErr)
-    return llvm::errorCodeToError(MemBufOrErr.getError());
+      FS->getBufferForFile(FName);
+  if (!MemBufOrErr) {
+    std::error_code EC = MemBufOrErr.getError();
+    return llvm::createStringError(EC, Twine("cannot not open file '") + FName +
+                                           "': " + EC.message());
+  }
   MemoryBuffer &MemBuf = *MemBufOrErr.get();
   StringRef Str(MemBuf.getBufferStart(), MemBuf.getBufferSize());
 
@@ -1185,33 +1184,51 @@ static llvm::Error ExpandResponseFile(StringRef FName, StringSaver &Saver,
   // Tokenize the contents into NewArgv.
   Tokenizer(Str, Saver, NewArgv, MarkEOLs);
 
-  if (!RelativeNames)
+  // Expanded file content may require additional transformations, like using
+  // absolute paths instead of relative in '@file' constructs or expanding
+  // macros.
+  if (!RelativeNames && !InConfigFile)
     return Error::success();
-  llvm::StringRef BasePath = llvm::sys::path::parent_path(FName);
-  // If names of nested response files should be resolved relative to including
-  // file, replace the included response file names with their full paths
-  // obtained by required resolution.
-  for (auto &Arg : NewArgv) {
+
+  StringRef BasePath = llvm::sys::path::parent_path(FName);
+  for (const char *&Arg : NewArgv) {
     if (!Arg)
       continue;
 
     // Substitute <CFGDIR> with the file's base path.
-    if (ExpandBasePath)
+    if (InConfigFile)
       ExpandBasePaths(BasePath, Saver, Arg);
 
-    // Skip non-rsp file arguments.
-    if (Arg[0] != '@')
+    // Discover the case, when argument should be transformed into '@file' and
+    // evaluate 'file' for it.
+    StringRef ArgStr(Arg);
+    StringRef FileName;
+    bool ConfigInclusion = false;
+    if (ArgStr.consume_front("@")) {
+      FileName = ArgStr;
+      if (!llvm::sys::path::is_relative(FileName))
+        continue;
+    } else if (ArgStr.consume_front("--config=")) {
+      FileName = ArgStr;
+      ConfigInclusion = true;
+    } else {
       continue;
+    }
 
-    StringRef FileName(Arg + 1);
-    // Skip if non-relative.
-    if (!llvm::sys::path::is_relative(FileName))
-      continue;
-
+    // Update expansion construct.
     SmallString<128> ResponseFile;
     ResponseFile.push_back('@');
-    ResponseFile.append(BasePath);
-    llvm::sys::path::append(ResponseFile, FileName);
+    if (ConfigInclusion && !llvm::sys::path::has_parent_path(FileName)) {
+      SmallString<128> FilePath;
+      if (!findConfigFile(FileName, FilePath))
+        return createStringError(
+            std::make_error_code(std::errc::no_such_file_or_directory),
+            "cannot not find configuration file: " + FileName);
+      ResponseFile.append(FilePath);
+    } else {
+      ResponseFile.append(BasePath);
+      llvm::sys::path::append(ResponseFile, FileName);
+    }
     Arg = Saver.save(ResponseFile.str()).data();
   }
   return Error::success();
@@ -1219,12 +1236,8 @@ static llvm::Error ExpandResponseFile(StringRef FName, StringSaver &Saver,
 
 /// Expand response files on a command line recursively using the given
 /// StringSaver and tokenization strategy.
-bool cl::ExpandResponseFiles(StringSaver &Saver, TokenizerCallback Tokenizer,
-                             SmallVectorImpl<const char *> &Argv, bool MarkEOLs,
-                             bool RelativeNames, bool ExpandBasePath,
-                             llvm::Optional<llvm::StringRef> CurrentDir,
-                             llvm::vfs::FileSystem &FS) {
-  bool AllExpanded = true;
+Error ExpansionContext::expandResponseFiles(
+    SmallVectorImpl<const char *> &Argv) {
   struct ResponseFileRecord {
     std::string File;
     size_t End;
@@ -1264,52 +1277,63 @@ bool cl::ExpandResponseFiles(StringSaver &Saver, TokenizerCallback Tokenizer,
     // always have an absolute path deduced from the containing file.
     SmallString<128> CurrDir;
     if (llvm::sys::path::is_relative(FName)) {
-      if (!CurrentDir)
-        llvm::sys::fs::current_path(CurrDir);
-      else
-        CurrDir = *CurrentDir;
+      if (CurrentDir.empty()) {
+        if (auto CWD = FS->getCurrentWorkingDirectory()) {
+          CurrDir = *CWD;
+        } else {
+          return createStringError(
+              CWD.getError(), Twine("cannot get absolute path for: ") + FName);
+        }
+      } else {
+        CurrDir = CurrentDir;
+      }
       llvm::sys::path::append(CurrDir, FName);
       FName = CurrDir.c_str();
     }
-    auto IsEquivalent = [FName, &FS](const ResponseFileRecord &RFile) {
-      llvm::ErrorOr<llvm::vfs::Status> LHS = FS.status(FName);
-      if (!LHS) {
-        // TODO: The error should be propagated up the stack.
-        llvm::consumeError(llvm::errorCodeToError(LHS.getError()));
-        return false;
+
+    ErrorOr<llvm::vfs::Status> Res = FS->status(FName);
+    if (!Res || !Res->exists()) {
+      std::error_code EC = Res.getError();
+      if (!InConfigFile) {
+        // If the specified file does not exist, leave '@file' unexpanded, as
+        // libiberty does.
+        if (!EC || EC == llvm::errc::no_such_file_or_directory) {
+          ++I;
+          continue;
+        }
       }
-      llvm::ErrorOr<llvm::vfs::Status> RHS = FS.status(RFile.File);
-      if (!RHS) {
-        // TODO: The error should be propagated up the stack.
-        llvm::consumeError(llvm::errorCodeToError(RHS.getError()));
-        return false;
-      }
-      return LHS->equivalent(*RHS);
+      if (!EC)
+        EC = llvm::errc::no_such_file_or_directory;
+      return createStringError(EC, Twine("cannot not open file '") + FName +
+                                       "': " + EC.message());
+    }
+    const llvm::vfs::Status &FileStatus = Res.get();
+
+    auto IsEquivalent =
+        [FileStatus, this](const ResponseFileRecord &RFile) -> ErrorOr<bool> {
+      ErrorOr<llvm::vfs::Status> RHS = FS->status(RFile.File);
+      if (!RHS)
+        return RHS.getError();
+      return FileStatus.equivalent(*RHS);
     };
 
     // Check for recursive response files.
-    if (any_of(drop_begin(FileStack), IsEquivalent)) {
-      // This file is recursive, so we leave it in the argument stream and
-      // move on.
-      AllExpanded = false;
-      ++I;
-      continue;
+    for (const auto &F : drop_begin(FileStack)) {
+      if (ErrorOr<bool> R = IsEquivalent(F)) {
+        if (R.get())
+          return createStringError(
+              R.getError(), Twine("recursive expansion of: '") + F.File + "'");
+      } else {
+        return createStringError(R.getError(),
+                                 Twine("cannot open file: ") + F.File);
+      }
     }
 
     // Replace this response file argument with the tokenization of its
     // contents.  Nested response files are expanded in subsequent iterations.
     SmallVector<const char *, 0> ExpandedArgv;
-    if (llvm::Error Err =
-            ExpandResponseFile(FName, Saver, Tokenizer, ExpandedArgv, MarkEOLs,
-                               RelativeNames, ExpandBasePath, FS)) {
-      // We couldn't read this file, so we leave it in the argument stream and
-      // move on.
-      // TODO: The error should be propagated up the stack.
-      llvm::consumeError(std::move(Err));
-      AllExpanded = false;
-      ++I;
-      continue;
-    }
+    if (Error Err = expandResponseFile(FName, ExpandedArgv))
+      return Err;
 
     for (ResponseFileRecord &Record : FileStack) {
       // Increase the end of all active records by the number of newly expanded
@@ -1328,16 +1352,7 @@ bool cl::ExpandResponseFiles(StringSaver &Saver, TokenizerCallback Tokenizer,
   // don't have a chance to pop the stack when encountering recursive files at
   // the end of the stream, so seeing that doesn't indicate a bug.
   assert(FileStack.size() > 0 && Argv.size() == FileStack.back().End);
-  return AllExpanded;
-}
-
-bool cl::ExpandResponseFiles(StringSaver &Saver, TokenizerCallback Tokenizer,
-                             SmallVectorImpl<const char *> &Argv, bool MarkEOLs,
-                             bool RelativeNames, bool ExpandBasePath,
-                             llvm::Optional<StringRef> CurrentDir) {
-  return ExpandResponseFiles(Saver, std::move(Tokenizer), Argv, MarkEOLs,
-                             RelativeNames, ExpandBasePath,
-                             std::move(CurrentDir), *vfs::getRealFileSystem());
+  return Error::success();
 }
 
 bool cl::expandResponseFiles(int Argc, const char *const *Argv,
@@ -1348,33 +1363,84 @@ bool cl::expandResponseFiles(int Argc, const char *const *Argv,
                       : cl::TokenizeGNUCommandLine;
   // The environment variable specifies initial options.
   if (EnvVar)
-    if (llvm::Optional<std::string> EnvValue = sys::Process::GetEnv(EnvVar))
+    if (std::optional<std::string> EnvValue = sys::Process::GetEnv(EnvVar))
       Tokenize(*EnvValue, Saver, NewArgv, /*MarkEOLs=*/false);
 
   // Command line options can override the environment variable.
   NewArgv.append(Argv + 1, Argv + Argc);
-  return ExpandResponseFiles(Saver, Tokenize, NewArgv);
-}
-
-bool cl::readConfigFile(StringRef CfgFile, StringSaver &Saver,
-                        SmallVectorImpl<const char *> &Argv) {
-  SmallString<128> AbsPath;
-  if (sys::path::is_relative(CfgFile)) {
-    llvm::sys::fs::current_path(AbsPath);
-    llvm::sys::path::append(AbsPath, CfgFile);
-    CfgFile = AbsPath.str();
-  }
-  if (llvm::Error Err = ExpandResponseFile(
-          CfgFile, Saver, cl::tokenizeConfigFile, Argv,
-          /*MarkEOLs=*/false, /*RelativeNames=*/true, /*ExpandBasePath=*/true,
-          *llvm::vfs::getRealFileSystem())) {
-    // TODO: The error should be propagated up the stack.
-    llvm::consumeError(std::move(Err));
+  ExpansionContext ECtx(Saver.getAllocator(), Tokenize);
+  if (Error Err = ECtx.expandResponseFiles(NewArgv)) {
+    errs() << toString(std::move(Err)) << '\n';
     return false;
   }
-  return ExpandResponseFiles(Saver, cl::tokenizeConfigFile, Argv,
-                             /*MarkEOLs=*/false, /*RelativeNames=*/true,
-                             /*ExpandBasePath=*/true, llvm::None);
+  return true;
+}
+
+bool cl::ExpandResponseFiles(StringSaver &Saver, TokenizerCallback Tokenizer,
+                             SmallVectorImpl<const char *> &Argv) {
+  ExpansionContext ECtx(Saver.getAllocator(), Tokenizer);
+  if (Error Err = ECtx.expandResponseFiles(Argv)) {
+    errs() << toString(std::move(Err)) << '\n';
+    return false;
+  }
+  return true;
+}
+
+ExpansionContext::ExpansionContext(BumpPtrAllocator &A, TokenizerCallback T)
+    : Saver(A), Tokenizer(T), FS(vfs::getRealFileSystem().get()) {}
+
+bool ExpansionContext::findConfigFile(StringRef FileName,
+                                      SmallVectorImpl<char> &FilePath) {
+  SmallString<128> CfgFilePath;
+  const auto FileExists = [this](SmallString<128> Path) -> bool {
+    auto Status = FS->status(Path);
+    return Status &&
+           Status->getType() == llvm::sys::fs::file_type::regular_file;
+  };
+
+  // If file name contains directory separator, treat it as a path to
+  // configuration file.
+  if (llvm::sys::path::has_parent_path(FileName)) {
+    CfgFilePath = FileName;
+    if (llvm::sys::path::is_relative(FileName) && FS->makeAbsolute(CfgFilePath))
+      return false;
+    if (!FileExists(CfgFilePath))
+      return false;
+    FilePath.assign(CfgFilePath.begin(), CfgFilePath.end());
+    return true;
+  }
+
+  // Look for the file in search directories.
+  for (const StringRef &Dir : SearchDirs) {
+    if (Dir.empty())
+      continue;
+    CfgFilePath.assign(Dir);
+    llvm::sys::path::append(CfgFilePath, FileName);
+    llvm::sys::path::native(CfgFilePath);
+    if (FileExists(CfgFilePath)) {
+      FilePath.assign(CfgFilePath.begin(), CfgFilePath.end());
+      return true;
+    }
+  }
+
+  return false;
+}
+
+Error ExpansionContext::readConfigFile(StringRef CfgFile,
+                                       SmallVectorImpl<const char *> &Argv) {
+  SmallString<128> AbsPath;
+  if (sys::path::is_relative(CfgFile)) {
+    AbsPath.assign(CfgFile);
+    if (std::error_code EC = FS->makeAbsolute(AbsPath))
+      return make_error<StringError>(
+          EC, Twine("cannot get absolute path for " + CfgFile));
+    CfgFile = AbsPath.str();
+  }
+  InConfigFile = true;
+  RelativeNames = true;
+  if (Error Err = expandResponseFile(CfgFile, Argv))
+    return Err;
+  return expandResponseFiles(Argv);
 }
 
 static void initCommonOptions();
@@ -1390,7 +1456,7 @@ bool cl::ParseCommandLineOptions(int argc, const char *const *argv,
 
   // Parse options from environment variable.
   if (EnvVar) {
-    if (llvm::Optional<std::string> EnvValue =
+    if (std::optional<std::string> EnvValue =
             sys::Process::GetEnv(StringRef(EnvVar)))
       TokenizeGNUCommandLine(*EnvValue, Saver, NewArgv);
   }
@@ -1429,25 +1495,27 @@ bool CommandLineParser::ParseCommandLineOptions(int argc,
                                                 bool LongOptionsUseDoubleDash) {
   assert(hasOptions() && "No options specified!");
 
-  // Expand response files.
-  SmallVector<const char *, 20> newArgv(argv, argv + argc);
-  BumpPtrAllocator A;
-  StringSaver Saver(A);
-  ExpandResponseFiles(Saver,
-         Triple(sys::getProcessTriple()).isOSWindows() ?
-         cl::TokenizeWindowsCommandLine : cl::TokenizeGNUCommandLine,
-         newArgv);
-  argv = &newArgv[0];
-  argc = static_cast<int>(newArgv.size());
-
-  // Copy the program name into ProgName, making sure not to overflow it.
-  ProgramName = std::string(sys::path::filename(StringRef(argv[0])));
-
   ProgramOverview = Overview;
   bool IgnoreErrors = Errs;
   if (!Errs)
     Errs = &errs();
   bool ErrorParsing = false;
+
+  // Expand response files.
+  SmallVector<const char *, 20> newArgv(argv, argv + argc);
+  BumpPtrAllocator A;
+  ExpansionContext ECtx(A, Triple(sys::getProcessTriple()).isOSWindows()
+                               ? cl::TokenizeWindowsCommandLine
+                               : cl::TokenizeGNUCommandLine);
+  if (Error Err = ECtx.expandResponseFiles(newArgv)) {
+    *Errs << toString(std::move(Err)) << '\n';
+    return false;
+  }
+  argv = &newArgv[0];
+  argc = static_cast<int>(newArgv.size());
+
+  // Copy the program name into ProgName, making sure not to overflow it.
+  ProgramName = std::string(sys::path::filename(StringRef(argv[0])));
 
   // Check out the positional arguments to collect information about them.
   unsigned NumPositionalRequired = 0;
@@ -1679,7 +1747,7 @@ bool CommandLineParser::ParseCommandLineOptions(int argc,
         switch (PositionalOpts[i]->getNumOccurrencesFlag()) {
         case cl::Optional:
           Done = true; // Optional arguments want _at most_ one value
-          LLVM_FALLTHROUGH;
+          [[fallthrough]];
         case cl::ZeroOrMore: // Zero or more will take all they can get...
         case cl::OneOrMore:  // One or more will take all they can get...
           ProvidePositionalOption(PositionalOpts[i],
@@ -1733,7 +1801,7 @@ bool CommandLineParser::ParseCommandLineOptions(int argc,
         Opt.second->error("must be specified at least once!");
         ErrorParsing = true;
       }
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     default:
       break;
     }

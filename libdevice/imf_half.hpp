@@ -10,8 +10,10 @@
 #define __LIBDEVICE_HALF_EMUL_H__
 
 #include "device.h"
+#include <cstddef>
 #include <cstdint>
-
+#include <limits>
+#include <type_traits>
 #ifdef __LIBDEVICE_IMF_ENABLED__
 
 #if defined(__SPIR__)
@@ -20,48 +22,450 @@ typedef _Float16 _iml_half_internal;
 typedef uint16_t _iml_half_internal;
 #endif
 
-// TODO: need to support float to half conversion with different
-// rounding mode.
+template <typename Ty> struct __iml_get_unsigned {};
+template <> struct __iml_get_unsigned<short> {
+  using utype = uint16_t;
+};
+
+template <> struct __iml_get_unsigned<int> {
+  using utype = uint32_t;
+};
+
+template <> struct __iml_get_unsigned<long long> {
+  using utype = uint64_t;
+};
+
+static uint16_t __iml_half_exp_mask = 0x7C00;
+
+template <typename Ty> struct __iml_fp_config {};
+
+template <> struct __iml_fp_config<float> {
+  // signed/unsigned integral type with same size
+  using utype = uint32_t;
+  using stype = int32_t;
+  const static uint32_t exp_mask = 0xFF;
+};
+
+template <> struct __iml_fp_config<double> {
+  using utype = uint64_t;
+  using stype = int64_t;
+  const static uint64_t exp_mask = 0x7FF;
+};
+
+static uint16_t __iml_half_overflow_handle(__iml_rounding_mode rounding_mode,
+                                           uint16_t sign) {
+  if (rounding_mode == __IML_RTZ) {
+    return (sign << 15) | 0x7BFF;
+  }
+
+  if (rounding_mode == __IML_RTP && sign) {
+    return 0xFBFF;
+  }
+  if (rounding_mode == __IML_RTN && !sign) {
+    return 0x7BFF;
+  }
+  return (sign << 15) | 0x7C00;
+}
+
+static uint16_t __iml_half_underflow_handle(__iml_rounding_mode rounding_mode,
+                                            uint16_t sign) {
+  if (rounding_mode == __IML_RTN && sign) {
+    return 0x8001;
+  }
+
+  if (rounding_mode == __IML_RTP && !sign) {
+    return 0x1;
+  }
+  return (sign << 15);
+}
+
+template <typename Ty>
+static uint16_t __iml_fp2half(Ty x, __iml_rounding_mode rounding_mode) {
+  typedef typename __iml_fp_config<Ty>::utype UTy;
+  typedef typename __iml_fp_config<Ty>::stype STy;
+  union {
+    Ty xf;
+    UTy xu;
+  } xs;
+
+  // extract sign bit
+  UTy one_bit = 0x1;
+  xs.xf = x;
+  uint16_t h_sign = xs.xu >> (sizeof(Ty) * 8 - 1);
+  // extract exponent and mantissa
+  UTy x_exp = (xs.xu >> (std::numeric_limits<Ty>::digits - 1)) &
+              (__iml_fp_config<Ty>::exp_mask);
+  UTy x_mant = xs.xu & ((one_bit << (std::numeric_limits<Ty>::digits - 1)) - 1);
+  STy x_exp1 = x_exp - std::numeric_limits<Ty>::max_exponent + 1;
+  uint16_t h_exp = static_cast<uint16_t>(x_exp1 + 15);
+  uint16_t mant_shift = std::numeric_limits<Ty>::digits - 11;
+  if (x_exp == __iml_fp_config<Ty>::exp_mask) {
+    uint16_t res;
+    if (x_mant) {
+      // NAN.
+      uint16_t h_mant = static_cast<uint16_t>(
+          x_mant >> (std::numeric_limits<Ty>::digits - 11));
+      h_mant |= 0x200;
+      res = (h_sign << 15) | __iml_half_exp_mask | h_mant;
+    } else {
+      // Infinity, zero mantissa
+      res = (h_sign << 15) | __iml_half_exp_mask;
+    }
+    return res;
+  }
+
+  if (!x_exp && !x_mant) {
+    return (h_sign << 15);
+  }
+
+  // overflow happens
+  if (x_exp1 > 15) {
+    return __iml_half_overflow_handle(rounding_mode, h_sign);
+  }
+
+  // underflow, if x < minmum denormal half value.
+  if (x_exp1 < -25) {
+    return __iml_half_underflow_handle(rounding_mode, h_sign);
+  }
+
+  // some number should be encoded as denorm number when converting to half
+  // minimum positive normalized half value is 2^-14
+  if (x_exp1 < -14) {
+    h_exp = 0;
+    x_mant |= (one_bit << (std::numeric_limits<Ty>::digits - 1));
+    mant_shift = -x_exp1 - 14 + std::numeric_limits<Ty>::digits - 11;
+  }
+
+  uint16_t h_mant = (uint16_t)(x_mant >> mant_shift);
+  // Used to get discarded mantissa from original fp value.
+  UTy mant_discard_mask = ((UTy)1 << mant_shift) - 1;
+  UTy mid_val = (UTy)1 << (mant_shift - 1);
+  switch (rounding_mode) {
+  case __IML_RTZ:
+    break;
+  case __IML_RTP:
+    if ((x_mant & mant_discard_mask) && !h_sign) {
+      ++h_mant;
+    }
+    break;
+  case __IML_RTN:
+    if ((x_mant & mant_discard_mask) && h_sign) {
+      ++h_mant;
+    }
+    break;
+  case __IML_RTE: {
+    UTy tmp = x_mant & mant_discard_mask;
+    if ((tmp > mid_val) || ((tmp == mid_val) && ((h_mant & 0x1) == 0x1))) {
+      ++h_mant;
+    }
+    break;
+  }
+  }
+
+  if (h_mant & 0x400) {
+    h_exp += 1;
+    h_mant = 0;
+  }
+  return (h_sign << 15) | (h_exp << 10) | h_mant;
+}
+
+template <typename Ty>
+static Ty __iml_half2integral_u(uint16_t h, __iml_rounding_mode rounding_mode) {
+  static_assert(std::is_unsigned<Ty>::value && std::is_integral<Ty>::value,
+                "__iml_half2integral_u only accepts unsigned integral type.");
+  uint16_t h_sign = h >> 15;
+  uint16_t h_exp = (h >> 10) & 0x1F;
+  uint16_t h_mant = h & 0x3FF;
+  int16_t h_exp1 = (int16_t)h_exp - 15;
+  if (h_sign)
+    return 0;
+
+  // For subnorm values, return 1 if rounding to +infinity.
+  if (!h_exp)
+    return (h_mant && (__IML_RTP == rounding_mode)) ? 1 : 0;
+
+  if (h_exp == 0x1F)
+    return h_mant ? 0 : std::numeric_limits<Ty>::max();
+
+  // Normalized value can be represented as 1.signifcand * 2^h_exp1
+  // and is equivalent to 1.signifcand * 2^10 * 2^(h_exp1 - 10).
+  // -24 <= h_exp1 - 10 <= 5
+  Ty x_val = h_mant;
+  Ty x_discard;
+  x_val |= (0x1 << 10);
+  h_exp1 -= 10;
+
+  if (h_exp1 >= 0)
+    return x_val <<= h_exp1;
+
+  // h_exp1 < 0, need right shift  -h_exp1 bits, if -h_exp1 > 11, the value
+  // is less than 0.5, so don't need to take special care for RTE
+  if (-h_exp1 > 11)
+    return (__IML_RTP == rounding_mode) ? 1 : 0;
+
+  x_discard = x_val & (((Ty)1 << -h_exp1) - 1);
+  Ty mid = 1 << (-h_exp1 - 1);
+  x_val >>= -h_exp1;
+  if (!x_discard)
+    return x_val;
+  switch (rounding_mode) {
+  case __IML_RTE:
+    if ((x_discard > mid) || ((x_discard == mid) && ((x_val & 0x1) == 0x1)))
+      x_val++;
+    break;
+  case __IML_RTN:
+    break;
+  case __IML_RTP:
+    x_val++;
+    break;
+  case __IML_RTZ:
+    break;
+  }
+
+  return x_val;
+}
+
+template <typename Ty>
+static Ty __iml_half2integral_s(uint16_t h, __iml_rounding_mode rounding_mode) {
+  static_assert(std::is_signed<Ty>::value && std::is_integral<Ty>::value,
+                "__iml_half2integral_s only accepts signed integral type.");
+  typedef typename __iml_get_unsigned<Ty>::utype UTy;
+  uint16_t h_sign = h >> 15;
+  uint16_t h_exp = (h >> 10) & 0x1F;
+  uint16_t h_mant = h & 0x3FF;
+  int h_exp1 = (int16_t)h_exp - 15;
+  if (!h_exp) {
+    if (!h_mant)
+      return 0;
+    else {
+      // For subnormal values
+      if (h_sign && (__IML_RTN == rounding_mode))
+        return -1;
+      if (!h_sign && (__IML_RTP == rounding_mode))
+        return 1;
+      return 0;
+    }
+  }
+
+  if (h_exp == 0x1F) {
+    // For NAN, return 0
+    if (h_mant) {
+      return 0;
+    } else {
+      // For +/-infinity value, return max and min integral value
+      return h_sign ? std::numeric_limits<Ty>::min()
+                    : std::numeric_limits<Ty>::max();
+    }
+  }
+
+  // Normalized value can be represented as 1.signifcand * 2^h_exp1
+  // and is equivalent to 1.signifcand * 2^10 * 2^(h_exp1 - 10).
+  // -24 <= h_exp1 - 10 <= 5
+  UTy x_val = h_mant;
+  UTy x_discard;
+  x_val |= (0x1 << 10);
+  h_exp1 -= 10;
+  // Overflow happens
+  if (h_exp1 >= (int)((sizeof(Ty) * 8) - 11)) {
+    return h_sign ? std::numeric_limits<Ty>::min()
+                  : std::numeric_limits<Ty>::max();
+  }
+
+  if (h_exp1 >= 0) {
+    x_val <<= h_exp1;
+    return !h_sign ? x_val : (~x_val + 1);
+  }
+
+  // h_exp1 < 0, need right shift  -h_exp1 bits, if -h_exp1 > 11, the value
+  // is less than 0.5, so don't need to take special care for RTE
+  if (-h_exp1 > 11) {
+    if (h_sign && (__IML_RTN == rounding_mode))
+      return -1;
+    if (!h_sign && (__IML_RTP == rounding_mode))
+      return 1;
+    return 0;
+  }
+
+  x_discard = x_val & (((UTy)1 << -h_exp1) - 1);
+  UTy mid = (UTy)1 << (-h_exp1 - 1);
+  x_val >>= -h_exp1;
+  if (!x_discard)
+    return x_val;
+  switch (rounding_mode) {
+  case __IML_RTE:
+    if ((x_discard > mid) || ((x_discard == mid) && ((x_val & 0x1) == 0x1)))
+      x_val++;
+    break;
+  case __IML_RTN:
+    if (h_sign)
+      x_val++;
+    break;
+  case __IML_RTP:
+    if (!h_sign)
+      x_val++;
+    break;
+  case __IML_RTZ:
+    break;
+  }
+
+  return !h_sign ? x_val : (~x_val + 1);
+}
+
+// pre assumes input value is not 0.
+template <typename Ty> static size_t get_msb_pos(Ty x) {
+  size_t idx = 0;
+  Ty mask = ((Ty)1 << (sizeof(Ty) * 8 - 1));
+  for (idx = 0; idx < (sizeof(Ty) * 8); ++idx) {
+    if ((x & mask) == mask)
+      break;
+    mask >>= 1;
+  }
+
+  return (sizeof(Ty) * 8 - 1 - idx);
+}
+
+template <typename Ty>
+static uint16_t __iml_integral2half_u(Ty u, __iml_rounding_mode rounding_mode) {
+  static_assert(std::is_unsigned<Ty>::value && std::is_integral<Ty>::value,
+                "__iml_integral2half_u only accepts unsigned integral type.");
+  if (!u)
+    return 0;
+  size_t msb_pos = get_msb_pos(u);
+  // return half representation for 1
+  if (msb_pos == 0)
+    return 0x3C00;
+  Ty mant = u & (((Ty)1 << msb_pos) - 1);
+  // Unsigned integral value can be represented by 1.mant * (2^msb_pos),
+  // msb_pos is also the bit number of mantissa, 0 < msb_pos < sizeof(Ty) * 8,
+  // exponent of half precision value range is [-14, 15].
+  bool is_overflow = false;
+  if (msb_pos > 15)
+    is_overflow = true;
+
+  uint16_t h_exp = msb_pos;
+  uint16_t h_mant;
+  if (!is_overflow) {
+    if (msb_pos <= 10) {
+      mant <<= (10 - msb_pos);
+      h_mant = (uint16_t)mant;
+    } else {
+      h_mant = (uint16_t)(mant >> (msb_pos - 10));
+      Ty mant_discard = mant & (((Ty)1 << (msb_pos - 10)) - 1);
+      Ty mid = (Ty)1 << (msb_pos - 11);
+      switch (rounding_mode) {
+      case __IML_RTE:
+        if ((mant_discard > mid) ||
+            ((mant_discard == mid) && ((h_mant & 0x1) == 0x1)))
+          h_mant++;
+        break;
+      case __IML_RTP:
+        if (mant_discard)
+          h_mant++;
+        break;
+      case __IML_RTN:
+      case __IML_RTZ:
+        break;
+      }
+    }
+    if (h_mant == 0x400) {
+      h_exp++;
+      h_mant = 0;
+      if (h_exp > 15)
+        is_overflow = true;
+    }
+  }
+
+  if (is_overflow) {
+    // According to IEEE-754 standards(Ch 7.4), RTE carries all overflows
+    // to infinity with sign, RTZ carries all overflows to format's largest
+    // finite number with sign, RTN carries positive overflows to format's
+    // largest finite number and carries negative overflows to -infinity.
+    // RTP carries negative overflows to the format's most negative finite
+    // number and carries positive overflow to +infinity.
+    if (__IML_RTZ == rounding_mode || __IML_RTN == rounding_mode)
+      return 0x7BFF;
+    else
+      return 0x7C00;
+  }
+  h_exp += 15;
+  return (h_exp << 10) | h_mant;
+}
+
+template <typename Ty>
+static uint16_t __iml_integral2half_s(Ty i, __iml_rounding_mode rounding_mode) {
+  static_assert(std::is_signed<Ty>::value && std::is_integral<Ty>::value,
+                "__iml_integral2half_s only accepts unsigned integral type.");
+
+  typedef typename __iml_get_unsigned<Ty>::utype UTy;
+  if (!i)
+    return 0;
+  uint16_t h_sign = (i >= 0) ? 0 : 0x8000;
+  UTy ui = (i > 0) ? static_cast<UTy>(i) : static_cast<UTy>(-i);
+  size_t msb_pos = get_msb_pos<UTy>(ui);
+  if (msb_pos == 0)
+    return h_sign ? 0xBC00 : 0x3C00;
+  UTy mant = ui & (((UTy)1 << msb_pos) - 1);
+  bool is_overflow = false;
+  if (msb_pos > 15)
+    is_overflow = true;
+
+  uint16_t h_exp = msb_pos;
+  uint16_t h_mant;
+  if (!is_overflow) {
+    if (msb_pos <= 10) {
+      mant <<= (10 - msb_pos);
+      h_mant = (uint16_t)mant;
+    } else {
+      h_mant = (uint16_t)(mant >> (msb_pos - 10));
+      Ty mant_discard = mant & ((1 << (msb_pos - 10)) - 1);
+      Ty mid = 1 << (msb_pos - 11);
+      switch (rounding_mode) {
+      case __IML_RTE:
+        if ((mant_discard > mid) ||
+            ((mant_discard == mid) && ((h_mant & 0x1) == 0x1)))
+          h_mant++;
+        break;
+      case __IML_RTP:
+        if (mant_discard && !h_sign)
+          h_mant++;
+        break;
+      case __IML_RTN:
+        if (mant_discard && h_sign)
+          h_mant++;
+      case __IML_RTZ:
+        break;
+      }
+    }
+    if (h_mant == 0x400) {
+      h_exp++;
+      h_mant = 0;
+      if (h_exp > 15)
+        is_overflow = true;
+    }
+  }
+
+  if (is_overflow) {
+    // According to IEEE-754 standards(Ch 7.4), RTE carries all overflows
+    // to infinity with sign, RTZ carries all overflows to format's largest
+    // finite number with sign, RTN carries positive overflows to format's
+    // largest finite number and carries negative overflows to -infinity.
+    // RTP carries negative overflows to the format's most negative finite
+    // number and carries positive overflow to +infinity.
+    if (__IML_RTE == rounding_mode || ((__IML_RTP == rounding_mode) && !h_sign))
+      return h_sign ? 0xFC00 : 0x7C00;
+    if (__IML_RTZ == rounding_mode ||
+        ((__IML_RTN == rounding_mode) && !h_sign) ||
+        ((__IML_RTP == rounding_mode) && h_sign))
+      return h_sign ? 0xFBFF : 0x7BFF;
+    return 0xFC00;
+  }
+  h_exp += 15;
+  return h_sign | (h_exp << 10) | h_mant;
+}
+
 static inline _iml_half_internal __float2half(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
-  uint32_t fp32_bits = __builtin_bit_cast(uint32_t, x);
-
-  const uint16_t sign = (fp32_bits & 0x80000000) >> 16;
-  const uint32_t frac32 = fp32_bits & 0x7fffff;
-  const uint8_t exp32 = (fp32_bits & 0x7f800000) >> 23;
-  const int16_t exp32_diff = exp32 - 127;
-
-  // initialize to 0, covers the case for 0 and small numbers
-  uint16_t exp16 = 0, frac16 = 0;
-
-  if (__builtin_expect(exp32_diff > 15, 0)) {
-    // Infinity and big numbers convert to infinity
-    exp16 = 0x1f;
-  } else if (__builtin_expect(exp32_diff > -14, 0)) {
-    // normal range for half type
-    exp16 = exp32_diff + 15;
-    // convert 23-bit mantissa to 10-bit mantissa.
-    frac16 = frac32 >> 13;
-    if (frac32 >> 12 & 0x01)
-      frac16 += 1;
-  } else if (__builtin_expect(exp32_diff > -24, 0)) {
-    // subnormals
-    frac16 = (frac32 | (uint32_t(1) << 23)) >> (-exp32_diff - 1);
-  }
-
-  if (__builtin_expect(exp32 == 0xff && frac32 != 0, 0)) {
-    // corner case: FP32 is NaN
-    exp16 = 0x1F;
-    frac16 = 0x200;
-  }
-
-  // Compose the final FP16 binary
-  uint16_t res = 0;
-  res |= sign;
-  res |= exp16 << 10;
-  res += frac16; // Add the carry bit from operation Frac16 += 1;
-
-  return res;
+  return __iml_fp2half<float>(x, __IML_RTE);
 #elif defined(__SPIR__)
   return __spirv_FConvert_Rhalf_rte(x);
 #endif

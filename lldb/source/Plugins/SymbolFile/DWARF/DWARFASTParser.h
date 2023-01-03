@@ -31,6 +31,9 @@ public:
                                           const DWARFDIE &die,
                                           bool *type_is_new_ptr) = 0;
 
+  virtual lldb_private::ConstString
+  ConstructDemangledNameFromDWARF(const DWARFDIE &die) = 0;
+
   virtual lldb_private::Function *
   ParseFunctionFromDWARF(lldb_private::CompileUnit &comp_unit,
                          const DWARFDIE &die,
@@ -51,6 +54,9 @@ public:
 
   virtual void EnsureAllDIEsInDeclContextHaveBeenParsed(
       lldb_private::CompilerDeclContext decl_context) = 0;
+
+  virtual lldb_private::ConstString
+  GetDIEClassTemplateParams(const DWARFDIE &die) = 0;
 
   static llvm::Optional<lldb_private::SymbolFile::ArrayInfo>
   ParseChildArrayInfo(const DWARFDIE &parent_die,

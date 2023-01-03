@@ -8,6 +8,7 @@
 
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_id_impl.hpp>
+#include <detail/program_manager/program_manager.hpp>
 
 #include <set>
 
@@ -113,6 +114,19 @@ bool kernel_bundle_plain::is_specialization_constant_set(
 ///// sycl::detail free functions
 //////////////////////////////////
 
+const std::vector<device>
+removeDuplicateDevices(const std::vector<device> &Devs) {
+  std::vector<device> UniqueDevices;
+
+  // Building a new vector with unique elements and keep original order
+  std::unordered_set<device> UniqueDeviceSet;
+  for (const device &Dev : Devs)
+    if (UniqueDeviceSet.insert(Dev).second)
+      UniqueDevices.push_back(Dev);
+
+  return UniqueDevices;
+}
+
 kernel_id get_kernel_id_impl(std::string KernelName) {
   return detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
 }
@@ -145,12 +159,6 @@ get_empty_interop_kernel_bundle_impl(const context &Ctx,
 }
 
 std::shared_ptr<detail::kernel_bundle_impl>
-join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles) {
-  return std::make_shared<detail::kernel_bundle_impl>(Bundles,
-                                                      bundle_state::input);
-}
-
-std::shared_ptr<detail::kernel_bundle_impl>
 join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles,
           bundle_state State) {
   return std::make_shared<detail::kernel_bundle_impl>(Bundles, State);
@@ -175,9 +183,6 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
   const std::vector<device_image_plain> DeviceImages =
       detail::ProgramManager::getInstance()
           .getSYCLDeviceImagesWithCompatibleState(Ctx, Devs, State);
-
-  // TODO: Add a check that all kernel ids are compatible with at least one
-  // device in Devs
 
   return (bool)DeviceImages.size();
 }
@@ -227,9 +232,6 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                   [&CombinedKernelIDs](const kernel_id &KernelID) {
                     return CombinedKernelIDs.count(KernelID);
                   });
-
-  // TODO: Add a check that all kernel ids are compatible with at least one
-  // device in Devs
 
   return AllKernelIDsRepresented;
 }
@@ -285,6 +287,15 @@ std::vector<sycl::device> find_device_intersection(
 
 std::vector<kernel_id> get_kernel_ids() {
   return detail::ProgramManager::getInstance().getAllSYCLKernelIDs();
+}
+
+bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
+  std::set<detail::RTDeviceBinaryImage *> BinImages =
+      detail::ProgramManager::getInstance().getRawDeviceImages(KernelIDs);
+  return std::all_of(BinImages.begin(), BinImages.end(),
+                     [&Dev](const detail::RTDeviceBinaryImage *Img) {
+                       return doesDevSupportImgAspects(Dev, *Img);
+                     });
 }
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

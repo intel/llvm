@@ -67,12 +67,23 @@ bool trace(TraceLevel level);
 #define __SYCL_CUDA_PLUGIN_NAME "pi_cuda.dll"
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "pi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
-#else
+#define __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME "pi_unified_runtime.dll"
+#elif defined(__SYCL_RT_OS_LINUX)
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.so"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.so"
 #define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.so"
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.so"
+#define __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME "libpi_unified_runtime.so"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.so"
+#elif defined(__SYCL_RT_OS_DARWIN)
+#define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.dylib"
+#define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.dylib"
+#define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.dylib"
+#define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.dylib"
+#define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dylib"
+#define __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME "libpi_unified_runtime.dylib"
+#else
+#error "Unsupported OS"
 #endif
 
 // Report error and no return (keeps compiler happy about no return statements).
@@ -104,6 +115,7 @@ using PiDeviceType = ::pi_device_type;
 using PiDeviceInfo = ::pi_device_info;
 using PiDeviceBinaryType = ::pi_device_binary_type;
 using PiContext = ::pi_context;
+using PiContextInfo = ::pi_context_info;
 using PiProgram = ::pi_program;
 using PiKernel = ::pi_kernel;
 using PiQueue = ::pi_queue;
@@ -151,6 +163,7 @@ template <class To, class From> To cast(From value);
 // Holds the PluginInformation for the plugin that is bound.
 // Currently a global variable is used to store OpenCL plugin information to be
 // used with SYCL Interoperability Constructors.
+// TODO: GlobalPlugin does not seem to be needed anymore. Consider removing it!
 extern std::shared_ptr<plugin> GlobalPlugin;
 
 // Performs PI one-time initialization.
@@ -206,196 +219,6 @@ uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, const char *FName,
 void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
                                   const char *FName, unsigned char *ArgsData,
                                   pi_result Result, pi_plugin Plugin);
-
-// A wrapper for passing around byte array properties
-class ByteArray {
-public:
-  using ConstIterator = const std::uint8_t *;
-
-  ByteArray(const std::uint8_t *Ptr, std::size_t Size) : Ptr{Ptr}, Size{Size} {}
-  const std::uint8_t &operator[](std::size_t Idx) const { return Ptr[Idx]; }
-  std::size_t size() const { return Size; }
-  ConstIterator begin() const { return Ptr; }
-  ConstIterator end() const { return Ptr + Size; }
-
-private:
-  const std::uint8_t *Ptr;
-  const std::size_t Size;
-};
-
-// C++ wrapper over the _pi_device_binary_property_struct structure.
-class DeviceBinaryProperty {
-public:
-  DeviceBinaryProperty(const _pi_device_binary_property_struct *Prop)
-      : Prop(Prop) {}
-
-  pi_uint32 asUint32() const;
-  ByteArray asByteArray() const;
-  const char *asCString() const;
-
-protected:
-  friend std::ostream &operator<<(std::ostream &Out,
-                                  const DeviceBinaryProperty &P);
-  const _pi_device_binary_property_struct *Prop;
-};
-
-std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P);
-
-// C++ convenience wrapper over the pi_device_binary_struct structure.
-class DeviceBinaryImage {
-public:
-  // Represents a range of properties to enable iteration over them.
-  // Implements the standard C++ STL input iterator interface.
-  class PropertyRange {
-  public:
-    using ValTy = std::remove_pointer<pi_device_binary_property>::type;
-
-    class ConstIterator {
-      pi_device_binary_property Cur;
-
-    public:
-      using iterator_category = std::input_iterator_tag;
-      using value_type = ValTy;
-      using difference_type = ptrdiff_t;
-      using pointer = const pi_device_binary_property;
-      using reference = pi_device_binary_property;
-
-      ConstIterator(pi_device_binary_property Cur = nullptr) : Cur(Cur) {}
-      ConstIterator &operator++() {
-        Cur++;
-        return *this;
-      }
-      ConstIterator operator++(int) {
-        ConstIterator Ret = *this;
-        ++(*this);
-        return Ret;
-      }
-      bool operator==(ConstIterator Other) const { return Cur == Other.Cur; }
-      bool operator!=(ConstIterator Other) const { return !(*this == Other); }
-      reference operator*() const { return Cur; }
-    };
-    ConstIterator begin() const { return ConstIterator(Begin); }
-    ConstIterator end() const { return ConstIterator(End); }
-    friend class DeviceBinaryImage;
-    bool isAvailable() const { return !(Begin == nullptr); }
-
-  private:
-    PropertyRange() : Begin(nullptr), End(nullptr) {}
-    // Searches for a property set with given name and constructs a
-    // PropertyRange spanning all its elements. If property set is not found,
-    // the range will span zero elements.
-    PropertyRange(pi_device_binary Bin, const char *PropSetName)
-        : PropertyRange() {
-      init(Bin, PropSetName);
-    };
-    void init(pi_device_binary Bin, const char *PropSetName);
-    pi_device_binary_property Begin;
-    pi_device_binary_property End;
-  };
-
-public:
-  DeviceBinaryImage(pi_device_binary Bin) { init(Bin); }
-  DeviceBinaryImage() : Bin(nullptr){};
-
-  virtual void print() const;
-  virtual void dump(std::ostream &Out) const;
-
-  size_t getSize() const {
-    assert(Bin && "binary image data not set");
-    return static_cast<size_t>(Bin->BinaryEnd - Bin->BinaryStart);
-  }
-
-  const char *getCompileOptions() const {
-    assert(Bin && "binary image data not set");
-    return Bin->CompileOptions;
-  }
-
-  const char *getLinkOptions() const {
-    assert(Bin && "binary image data not set");
-    return Bin->LinkOptions;
-  }
-
-  /// Returns the format of the binary image
-  pi::PiDeviceBinaryType getFormat() const {
-    assert(Bin && "binary image data not set");
-    return Format;
-  }
-
-  /// Returns a single property from SYCL_MISC_PROP category.
-  pi_device_binary_property getProperty(const char *PropName) const;
-
-  /// Gets the iterator range over specialization constants in this binary
-  /// image. For each property pointed to by an iterator within the
-  /// range, the name of the property is the specialization constant symbolic ID
-  /// and the value is a list of 3-element tuples of 32-bit unsigned integers,
-  /// describing the specialization constant.
-  /// This is done in order to unify representation of both scalar and composite
-  /// specialization constants: composite specialization constant is represented
-  /// by its leaf elements, so for scalars the list contains only a single
-  /// tuple, while for composite there might be more of them.
-  /// Each tuple consists of ID of scalar specialization constant, its location
-  /// within a composite (offset in bytes from the beginning or 0 if it is not
-  /// an element of a composite specialization constant) and its size.
-  /// For example, for the following structure:
-  /// struct A { int a; float b; };
-  /// struct POD { A a[2]; int b; };
-  /// List of tuples will look like:
-  /// { ID0, 0, 4 },  // .a[0].a
-  /// { ID1, 4, 4 },  // .a[0].b
-  /// { ID2, 8, 4 },  // .a[1].a
-  /// { ID3, 12, 4 }, // .a[1].b
-  /// { ID4, 16, 4 }, // .b
-  /// And for an interger specialization constant, the list of tuples will look
-  /// like:
-  /// { ID5, 0, 4 }
-  const PropertyRange &getSpecConstants() const { return SpecConstIDMap; }
-  const PropertyRange getSpecConstantsDefaultValues() const {
-    // We can't have this variable as a class member, since it would break
-    // the ABI backwards compatibility.
-    DeviceBinaryImage::PropertyRange SpecConstDefaultValuesMap;
-    SpecConstDefaultValuesMap.init(
-        Bin, __SYCL_PI_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP);
-    return SpecConstDefaultValuesMap;
-  }
-  const PropertyRange &getDeviceLibReqMask() const { return DeviceLibReqMask; }
-  const PropertyRange &getKernelParamOptInfo() const {
-    return KernelParamOptInfo;
-  }
-  const PropertyRange getAssertUsed() const {
-    // We can't have this variable as a class member, since it would break
-    // the ABI backwards compatibility.
-    PropertyRange AssertUsed;
-    AssertUsed.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_ASSERT_USED);
-    return AssertUsed;
-  }
-  const PropertyRange &getProgramMetadata() const { return ProgramMetadata; }
-  const PropertyRange getExportedSymbols() const {
-    // We can't have this variable as a class member, since it would break
-    // the ABI backwards compatibility.
-    DeviceBinaryImage::PropertyRange ExportedSymbols;
-    ExportedSymbols.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS);
-    return ExportedSymbols;
-  }
-  const PropertyRange getDeviceGlobals() const {
-    // We can't have this variable as a class member, since it would break
-    // the ABI backwards compatibility.
-    DeviceBinaryImage::PropertyRange DeviceGlobals;
-    DeviceGlobals.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS);
-    return DeviceGlobals;
-  }
-  virtual ~DeviceBinaryImage() {}
-
-protected:
-  void init(pi_device_binary Bin);
-  pi_device_binary get() const { return Bin; }
-
-  pi_device_binary Bin;
-  pi::PiDeviceBinaryType Format = PI_DEVICE_BINARY_TYPE_NONE;
-  DeviceBinaryImage::PropertyRange SpecConstIDMap;
-  DeviceBinaryImage::PropertyRange DeviceLibReqMask;
-  DeviceBinaryImage::PropertyRange KernelParamOptInfo;
-  DeviceBinaryImage::PropertyRange ProgramMetadata;
-};
 
 /// Tries to determine the device binary image foramat. Returns
 /// PI_DEVICE_BINARY_TYPE_NONE if unsuccessful.

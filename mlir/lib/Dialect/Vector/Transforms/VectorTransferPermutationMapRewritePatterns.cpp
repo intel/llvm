@@ -53,7 +53,7 @@ transposeInBoundsAttr(OpBuilder &builder, ArrayAttr attr,
 /// vector.transfer_read to do the transpose in memory instead.
 struct TransferReadPermutationLowering
     : public OpRewritePattern<vector::TransferReadOp> {
-  using OpRewritePattern<vector::TransferReadOp>::OpRewritePattern;
+  using OpRewritePattern::OpRewritePattern;
 
   LogicalResult matchAndRewrite(vector::TransferReadOp op,
                                 PatternRewriter &rewriter) const override {
@@ -83,26 +83,6 @@ struct TransferReadPermutationLowering
       newVectorShape[pos.value()] = originalShape[pos.index()];
     }
 
-    // Transpose mask operand.
-    Value newMask;
-    if (op.getMask()) {
-      // Remove unused dims from the permutation map. E.g.:
-      // E.g.:  (d0, d1, d2, d3, d4, d5) -> (d5, 0, d3, 0, d2)
-      // comp = (d0, d1, d2) -> (d2, 0, d1, 0 d0)
-      auto comp = compressUnusedDims(map);
-      // Get positions of remaining result dims.
-      // E.g.:  (d0, d1, d2) -> (d2, 0, d1, 0 d0)
-      // maskTransposeIndices = [ 2,     1,    0]
-      SmallVector<int64_t> maskTransposeIndices;
-      for (unsigned i = 0; i < comp.getNumResults(); ++i) {
-        if (auto expr = comp.getResult(i).dyn_cast<AffineDimExpr>())
-          maskTransposeIndices.push_back(expr.getPosition());
-      }
-
-      newMask = rewriter.create<vector::TransposeOp>(op.getLoc(), op.getMask(),
-                                                     maskTransposeIndices);
-    }
-
     // Transpose in_bounds attribute.
     ArrayAttr newInBoundsAttr =
         op.getInBounds() ? transposeInBoundsAttr(
@@ -114,7 +94,8 @@ struct TransferReadPermutationLowering
         VectorType::get(newVectorShape, op.getVectorType().getElementType());
     Value newRead = rewriter.create<vector::TransferReadOp>(
         op.getLoc(), newReadType, op.getSource(), op.getIndices(),
-        AffineMapAttr::get(newMap), op.getPadding(), newMask, newInBoundsAttr);
+        AffineMapAttr::get(newMap), op.getPadding(), op.getMask(),
+        newInBoundsAttr);
 
     // Transpose result of transfer_read.
     SmallVector<int64_t> transposePerm(permutation.begin(), permutation.end());
@@ -142,7 +123,7 @@ struct TransferReadPermutationLowering
 ///         permutation_map: (d0, d1, d2, d3) -> (d2, d3)
 struct TransferWritePermutationLowering
     : public OpRewritePattern<vector::TransferWriteOp> {
-  using OpRewritePattern<vector::TransferWriteOp>::OpRewritePattern;
+  using OpRewritePattern::OpRewritePattern;
 
   LogicalResult matchAndRewrite(vector::TransferWriteOp op,
                                 PatternRewriter &rewriter) const override {
@@ -168,11 +149,6 @@ struct TransferWritePermutationLowering
                       return expr.dyn_cast<AffineDimExpr>().getPosition();
                     });
 
-    // Transpose mask operand.
-    Value newMask = op.getMask() ? rewriter.create<vector::TransposeOp>(
-                                       op.getLoc(), op.getMask(), indices)
-                                 : Value();
-
     // Transpose in_bounds attribute.
     ArrayAttr newInBoundsAttr =
         op.getInBounds() ? transposeInBoundsAttr(
@@ -186,7 +162,7 @@ struct TransferWritePermutationLowering
         map.getNumDims(), map.getNumResults(), rewriter.getContext());
     rewriter.replaceOpWithNewOp<vector::TransferWriteOp>(
         op, newVec, op.getSource(), op.getIndices(), AffineMapAttr::get(newMap),
-        newMask, newInBoundsAttr);
+        op.getMask(), newInBoundsAttr);
 
     return success();
   }
@@ -201,7 +177,7 @@ struct TransferWritePermutationLowering
 ///         permutation_map: (d0, d1, d2, d3) -> (d1, 0, d3)
 ///     vector.broadcast %v
 struct TransferOpReduceRank : public OpRewritePattern<vector::TransferReadOp> {
-  using OpRewritePattern<vector::TransferReadOp>::OpRewritePattern;
+  using OpRewritePattern::OpRewritePattern;
 
   LogicalResult matchAndRewrite(vector::TransferReadOp op,
                                 PatternRewriter &rewriter) const override {
@@ -271,8 +247,8 @@ struct TransferOpReduceRank : public OpRewritePattern<vector::TransferReadOp> {
 };
 
 void mlir::vector::populateVectorTransferPermutationMapLoweringPatterns(
-    RewritePatternSet &patterns) {
+    RewritePatternSet &patterns, PatternBenefit benefit) {
   patterns.add<TransferReadPermutationLowering,
                TransferWritePermutationLowering, TransferOpReduceRank>(
-      patterns.getContext());
+      patterns.getContext(), benefit);
 }

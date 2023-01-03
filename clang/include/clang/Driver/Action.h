@@ -14,6 +14,7 @@
 #include "clang/Driver/Util.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
@@ -60,7 +61,6 @@ public:
     ForEachWrappingClass,
     PreprocessJobClass,
     PrecompileJobClass,
-    HeaderModulePrecompileJobClass,
     ExtractAPIJobClass,
     AnalyzeJobClass,
     MigrateJobClass,
@@ -308,10 +308,15 @@ public:
     OffloadKindList DeviceOffloadKinds;
 
   public:
-    /// Add a action along with the associated toolchain, bound arch, and
+    /// Add an action along with the associated toolchain, bound arch, and
     /// offload kind.
     void add(Action &A, const ToolChain &TC, const char *BoundArch,
              OffloadKind OKind);
+
+    /// Add an action along with the associated toolchain, bound arch, and
+    /// offload kinds.
+    void add(Action &A, const ToolChain &TC, const char *BoundArch,
+             unsigned OffloadKindMask);
 
     /// Get each of the individual arrays.
     const ActionList &getActions() const { return DeviceActions; }
@@ -438,29 +443,8 @@ public:
   PrecompileJobAction(Action *Input, types::ID OutputType);
 
   static bool classof(const Action *A) {
-    return A->getKind() == PrecompileJobClass ||
-           A->getKind() == HeaderModulePrecompileJobClass;
+    return A->getKind() == PrecompileJobClass;
   }
-};
-
-class HeaderModulePrecompileJobAction : public PrecompileJobAction {
-  void anchor() override;
-
-  const char *ModuleName;
-
-public:
-  HeaderModulePrecompileJobAction(Action *Input, types::ID OutputType,
-                                  const char *ModuleName);
-
-  static bool classof(const Action *A) {
-    return A->getKind() == HeaderModulePrecompileJobClass;
-  }
-
-  void addModuleHeaderInput(Action *Input) {
-    getInputs().push_back(Input);
-  }
-
-  const char *getModuleName() const { return ModuleName; }
 };
 
 class ExtractAPIJobAction : public JobAction {
@@ -834,7 +818,8 @@ public:
       REPLACE,
       REPLACE_CELL,
       RENAME,
-      COPY_SINGLE_FILE
+      COPY_SINGLE_FILE,
+      MERGE
     };
 
     Tform() = default;
@@ -871,6 +856,10 @@ public:
   // should copy the file at column <ColumnName> and row <Row> into the
   // output file.
   void addCopySingleFileTform(StringRef ColumnName, int Row);
+
+  // Merges all tables from filename listed at column <ColumnName> into a
+  // single output table.
+  void addMergeTform(StringRef ColumnName);
 
   static bool classof(const Action *A) {
     return A->getKind() == FileTableTformJobClass;
@@ -954,6 +943,14 @@ public:
   static bool classof(const Action *A) {
     return A->getKind() == ForEachWrappingClass;
   }
+
+  void addSerialAction(const Action *A) { SerialActions.insert(A); }
+  const llvm::SmallSetVector<const Action *, 2> &getSerialActions() const {
+    return SerialActions;
+  }
+
+private:
+  llvm::SmallSetVector<const Action *, 2> SerialActions;
 };
 
 } // namespace driver

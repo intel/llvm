@@ -12,7 +12,6 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/kernel.hpp>
-#include <sycl/program.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -20,11 +19,20 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 kernel::kernel(cl_kernel ClKernel, const context &SyclContext)
     : impl(std::make_shared<detail::kernel_impl>(
           detail::pi::cast<detail::RT::PiKernel>(ClKernel),
-          detail::getSyclObjImpl(SyclContext), nullptr)) {}
+          detail::getSyclObjImpl(SyclContext), nullptr)) {
+  // This is a special interop constructor for OpenCL, so the kernel must be
+  // retained.
+  impl->getPlugin().call<detail::PiApiKind::piKernelRetain>(
+      detail::pi::cast<detail::RT::PiKernel>(ClKernel));
+}
 
 cl_kernel kernel::get() const { return impl->get(); }
 
-bool kernel::is_host() const { return impl->is_host(); }
+bool kernel::is_host() const {
+  bool IsHost = impl->is_host();
+  assert(!IsHost && "kernel::is_host should not be called in implementation.");
+  return IsHost;
+}
 
 context kernel::get_context() const {
   return impl->get_info<info::kernel::context>();
@@ -36,10 +44,6 @@ kernel_bundle<sycl::bundle_state::executable>
 kernel::get_kernel_bundle() const {
   return detail::createSyclObjFromImpl<
       kernel_bundle<sycl::bundle_state::executable>>(impl->get_kernel_bundle());
-}
-
-program kernel::get_program() const {
-  return impl->get_info<info::kernel::program>();
 }
 
 template <typename Param>
@@ -61,25 +65,28 @@ kernel::get_info(const device &Dev) const {
   return impl->get_info<Param>(Dev);
 }
 
+// Deprecated overload for kernel_device_specific::max_sub_group_size taking
+// an extra argument.
 template <typename Param>
-typename detail::is_kernel_device_specific_info_desc<
-    Param>::with_input_return_type
+typename detail::is_kernel_device_specific_info_desc<Param>::return_type
 kernel::get_info(const device &Device, const range<3> &WGSize) const {
+  static_assert(
+      std::is_same_v<Param, info::kernel_device_specific::max_sub_group_size>,
+      "Unexpected param for kernel::get_info with range argument.");
   return impl->get_info<Param>(Device, WGSize);
 }
 
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template __SYCL_EXPORT ReturnT kernel::get_info<info::DescType::Desc>(       \
       const device &) const;
-#define __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT(DescType, Desc, ReturnT, InputT,   \
-                                            PiCode)                            \
-  template __SYCL_EXPORT ReturnT kernel::get_info<info::DescType::Desc>(       \
-      const device &, const InputT &) const;
 
 #include <sycl/info/kernel_device_specific_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
-#undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
+
+template __SYCL_EXPORT uint32_t
+kernel::get_info<info::kernel_device_specific::max_sub_group_size>(
+    const device &, const sycl::range<3> &) const;
 
 kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
 

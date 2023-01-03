@@ -369,7 +369,7 @@ public:
 };
 
 /// \returns The splat index of a G_SHUFFLE_VECTOR \p MI when \p MI is a splat.
-/// If \p MI is not a splat, returns None.
+/// If \p MI is not a splat, returns std::nullopt.
 Optional<int> getSplatIndex(MachineInstr &MI);
 
 /// \returns the scalar integral splat value of \p Reg if possible.
@@ -473,7 +473,7 @@ bool isConstantOrConstantVector(MachineInstr &MI,
 
 /// Determines if \p MI defines a constant integer or a splat vector of
 /// constant integers.
-/// \returns the scalar constant or None.
+/// \returns the scalar constant or std::nullopt.
 Optional<APInt> isConstantOrConstantSplatVector(MachineInstr &MI,
                                                 const MachineRegisterInfo &MRI);
 
@@ -487,6 +487,10 @@ bool matchUnaryPredicate(const MachineRegisterInfo &MRI, Register Reg,
 /// Returns true if given the TargetLowering's boolean contents information,
 /// the value \p Val contains a true value.
 bool isConstTrueVal(const TargetLowering &TLI, int64_t Val, bool IsVector,
+                    bool IsFP);
+/// \returns true if given the TargetLowering's boolean contents information,
+/// the value \p Val contains a false value.
+bool isConstFalseVal(const TargetLowering &TLI, int64_t Val, bool IsVector,
                     bool IsFP);
 
 /// Returns an integer representing true, as defined by the

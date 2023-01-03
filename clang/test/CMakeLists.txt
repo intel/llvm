@@ -3,6 +3,7 @@
 
 llvm_canonicalize_cmake_booleans(
   CLANG_BUILD_EXAMPLES
+  CLANG_BUILT_STANDALONE
   CLANG_DEFAULT_PIE_ON_LINUX
   CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL
   CLANG_ENABLE_ARCMT
@@ -11,6 +12,7 @@ llvm_canonicalize_cmake_booleans(
   CLANG_SPAWN_CC1
   ENABLE_BACKTRACES
   LLVM_ENABLE_ZLIB
+  LLVM_ENABLE_ZSTD
   LLVM_ENABLE_PER_TARGET_RUNTIME_DIR
   LLVM_ENABLE_THREADS
   LLVM_WITH_Z3
@@ -176,6 +178,7 @@ set_target_properties(check-clang PROPERTIES FOLDER "Clang tests")
 add_lit_testsuites(CLANG ${CMAKE_CURRENT_SOURCE_DIR}
   PARAMS ${CLANG_TEST_PARAMS}
   DEPENDS ${CLANG_TEST_DEPS}
+  FOLDER "Clang tests/Suites"
 )
 
 # Add a legacy target spelling: clang-test

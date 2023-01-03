@@ -1,7 +1,7 @@
 // RUN: mlir-opt -allow-unregistered-dialect %s -split-input-file -verify-diagnostics
 
 func.func @elementsattr_non_tensor_type() -> () {
-  "foo"(){bar = dense<[4]> : i32} : () -> () // expected-error {{elements literal must be a ranked tensor or vector type}}
+  "foo"(){bar = dense<[4]> : i32} : () -> () // expected-error {{elements literal must be a shaped type}}
 }
 
 // -----
@@ -521,3 +521,28 @@ func.func @duplicate_dictionary_attr_key() {
 
 // expected-error@+1 {{`dense_resource` expected a shaped type}}
 #attr = dense_resource<resource> : i32
+
+// -----
+
+// expected-error@below {{expected '<' after 'array'}}
+#attr = array
+
+// -----
+
+// expected-error@below {{expected integer or float type}}
+#attr = array<vector<i32>>
+
+// -----
+
+// expected-error@below {{element type bitwidth must be a multiple of 8}}
+#attr = array<i7>
+
+// -----
+
+// expected-error@below {{expected ':' after dense array type}}
+#attr = array<i8)
+
+// -----
+
+// expected-error@below {{expected '>' to close an array attribute}}
+#attr = array<i8: 1)

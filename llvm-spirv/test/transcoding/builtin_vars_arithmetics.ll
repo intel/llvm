@@ -2,9 +2,9 @@
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv %t.spv -r -o %t.rev.bc
+; RUN: llvm-spirv %t.spv -r -emit-opaque-pointers -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefixes=CHECK-LLVM,CHECK-LLVM-OCL
-; RUN: llvm-spirv %t.spv -r --spirv-target-env=SPV-IR -o %t.rev.bc
+; RUN: llvm-spirv %t.spv -r -emit-opaque-pointers --spirv-target-env=SPV-IR -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefixes=CHECK-LLVM,CHECK-LLVM-SPV
 
 ; Check that produced builtin-call-based SPV-IR is recognized by the translator
@@ -123,7 +123,7 @@ entry:
 
 attributes #0 = { norecurse "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="test.cpp" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
-; CHECK-LLVM-OCL: attributes #1 = { nounwind readnone willreturn }
+; CHECK-LLVM-OCL: attributes #1 = { nounwind willreturn memory(none) }
 
 !llvm.module.flags = !{!0}
 !opencl.spir.version = !{!1}

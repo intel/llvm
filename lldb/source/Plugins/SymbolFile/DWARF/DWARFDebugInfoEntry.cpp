@@ -18,6 +18,7 @@
 #include "lldb/Expression/DWARFExpression.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Utility/Stream.h"
+#include "lldb/Utility/StreamString.h"
 
 #include "DWARFCompileUnit.h"
 #include "DWARFDebugAbbrev.h"
@@ -432,7 +433,7 @@ size_t DWARFDebugInfoEntry::GetAttributes(DWARFUnit *cu,
           // curr_depth is not zero
           break;
         }
-        LLVM_FALLTHROUGH;
+        [[fallthrough]];
       default:
         attributes.Append(form_value, offset, attr);
         break;
@@ -544,6 +545,17 @@ uint64_t DWARFDebugInfoEntry::GetAttributeValueAsUnsigned(
                         check_specification_or_abstract_origin))
     return form_value.Unsigned();
   return fail_value;
+}
+
+llvm::Optional<uint64_t>
+DWARFDebugInfoEntry::GetAttributeValueAsOptionalUnsigned(
+    const DWARFUnit *cu, const dw_attr_t attr,
+    bool check_specification_or_abstract_origin) const {
+  DWARFFormValue form_value;
+  if (GetAttributeValue(cu, attr, form_value, nullptr,
+                        check_specification_or_abstract_origin))
+    return form_value.Unsigned();
+  return std::nullopt;
 }
 
 // GetAttributeValueAsReference
@@ -784,66 +796,6 @@ DWARFDebugInfoEntry::GetParentDeclContextDIE(
     die = die.GetParent();
   }
   return DWARFDIE();
-}
-
-const char *DWARFDebugInfoEntry::GetQualifiedName(DWARFUnit *cu,
-                                                  std::string &storage) const {
-  DWARFAttributes attributes;
-  GetAttributes(cu, attributes, Recurse::yes);
-  return GetQualifiedName(cu, attributes, storage);
-}
-
-const char *
-DWARFDebugInfoEntry::GetQualifiedName(DWARFUnit *cu,
-                                      const DWARFAttributes &attributes,
-                                      std::string &storage) const {
-
-  const char *name = GetName(cu);
-
-  if (name) {
-    DWARFDIE parent_decl_ctx_die = GetParentDeclContextDIE(cu);
-    storage.clear();
-    // TODO: change this to get the correct decl context parent....
-    while (parent_decl_ctx_die) {
-      const dw_tag_t parent_tag = parent_decl_ctx_die.Tag();
-      switch (parent_tag) {
-      case DW_TAG_namespace: {
-        const char *namespace_name = parent_decl_ctx_die.GetName();
-        if (namespace_name) {
-          storage.insert(0, "::");
-          storage.insert(0, namespace_name);
-        } else {
-          storage.insert(0, "(anonymous namespace)::");
-        }
-        parent_decl_ctx_die = parent_decl_ctx_die.GetParentDeclContextDIE();
-      } break;
-
-      case DW_TAG_class_type:
-      case DW_TAG_structure_type:
-      case DW_TAG_union_type: {
-        const char *class_union_struct_name = parent_decl_ctx_die.GetName();
-
-        if (class_union_struct_name) {
-          storage.insert(0, "::");
-          storage.insert(0, class_union_struct_name);
-        }
-        parent_decl_ctx_die = parent_decl_ctx_die.GetParentDeclContextDIE();
-      } break;
-
-      default:
-        parent_decl_ctx_die.Clear();
-        break;
-      }
-    }
-
-    if (storage.empty())
-      storage.append("::");
-
-    storage.append(name);
-  }
-  if (storage.empty())
-    return nullptr;
-  return storage.c_str();
 }
 
 lldb::offset_t DWARFDebugInfoEntry::GetFirstAttributeOffset() const {

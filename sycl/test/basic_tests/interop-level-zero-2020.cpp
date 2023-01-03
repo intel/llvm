@@ -4,7 +4,7 @@
 // Test for SYCL-2020 Level Zero interop API
 
 // clang-format off
-#include <level_zero/ze_api.h>
+#include <ze_api.h>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 // clang-format on
 
@@ -137,10 +137,6 @@ int main() {
   // expected-warning@+1 {{'make<sycl::event, nullptr>' is deprecated: Use SYCL 2020 sycl::make_event free function}}
   auto E = ext::oneapi::level_zero::make<event>(
       Context, ZeEvent, ext::oneapi::level_zero::ownership::keep);
-  // expected-warning@+2 {{'type' is deprecated: Use backend_input_t<backend::ext_oneapi_level_zero, queue> constructor with device parameter}}
-  backend_input_t<backend::ext_oneapi_level_zero, queue>
-      InteropQueueInputDeprecated{ZeQueue,
-                                  ext::oneapi::level_zero::ownership::keep};
 
   return 0;
 }

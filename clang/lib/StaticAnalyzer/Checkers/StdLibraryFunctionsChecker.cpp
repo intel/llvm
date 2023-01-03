@@ -52,23 +52,11 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 
+#include <optional>
 #include <string>
 
 using namespace clang;
 using namespace clang::ento;
-
-/// Produce a textual description of the state of \c errno (this describes the
-/// way how it is allowed to be used).
-/// The returned string is insertable into a longer warning message (in the form
-/// "the value 'errno' <...>").
-/// Currently only the \c errno_modeling::MustNotBeChecked state is supported.
-/// But later other kind of errno state may be needed if functions with special
-/// handling of \c errno are added.
-static const char *describeErrnoCheckState(errno_modeling::ErrnoCheckState CS) {
-  assert(CS == errno_modeling::MustNotBeChecked &&
-         "Errno description not applicable.");
-  return "may be undefined after the call and should not be used";
-}
 
 namespace {
 class StdLibraryFunctionsChecker
@@ -147,9 +135,18 @@ class StdLibraryFunctionsChecker
 
     virtual StringRef getName() const = 0;
 
+    // Represents that in which context do we require a description of the
+    // constraint.
+    enum class DescriptionKind {
+      // The constraint is violated.
+      Violation,
+      // We assume that the constraint is satisfied.
+      Assumption
+    };
+
     // Give a description that explains the constraint to the user. Used when
     // the bug is reported.
-    virtual std::string describe(ProgramStateRef State,
+    virtual std::string describe(DescriptionKind DK, ProgramStateRef State,
                                  const Summary &Summary) const {
       // There are some descendant classes that are not used as argument
       // constraints, e.g. ComparisonConstraint. In that case we can safely
@@ -187,7 +184,7 @@ class StdLibraryFunctionsChecker
     RangeConstraint(ArgNo ArgN, RangeKind Kind, const IntRangeVector &Ranges)
         : ValueConstraint(ArgN), Kind(Kind), Ranges(Ranges) {}
 
-    std::string describe(ProgramStateRef State,
+    std::string describe(DescriptionKind DK, ProgramStateRef State,
                          const Summary &Summary) const override;
 
     const IntRangeVector &getRanges() const { return Ranges; }
@@ -257,7 +254,7 @@ class StdLibraryFunctionsChecker
     bool CannotBeNull = true;
 
   public:
-    std::string describe(ProgramStateRef State,
+    std::string describe(DescriptionKind DK, ProgramStateRef State,
                          const Summary &Summary) const override;
     StringRef getName() const override { return "NonNull"; }
     ProgramStateRef apply(ProgramStateRef State, const CallEvent &Call,
@@ -300,13 +297,13 @@ class StdLibraryFunctionsChecker
   //   // Here, ptr is the buffer, and its minimum size is `size * nmemb`.
   class BufferSizeConstraint : public ValueConstraint {
     // The concrete value which is the minimum size for the buffer.
-    llvm::Optional<llvm::APSInt> ConcreteSize;
+    std::optional<llvm::APSInt> ConcreteSize;
     // The argument which holds the size of the buffer.
-    llvm::Optional<ArgNo> SizeArgN;
+    std::optional<ArgNo> SizeArgN;
     // The argument which is a multiplier to size. This is set in case of
     // `fread` like functions where the size is computed as a multiplication of
     // two arguments.
-    llvm::Optional<ArgNo> SizeMultiplierArgN;
+    std::optional<ArgNo> SizeMultiplierArgN;
     // The operator we use in apply. This is negated in negate().
     BinaryOperator::Opcode Op = BO_LE;
 
@@ -329,7 +326,7 @@ class StdLibraryFunctionsChecker
       return Result;
     }
 
-    std::string describe(ProgramStateRef State,
+    std::string describe(DescriptionKind DK, ProgramStateRef State,
                          const Summary &Summary) const override;
 
     ProgramStateRef apply(ProgramStateRef State, const CallEvent &Call,
@@ -392,45 +389,42 @@ class StdLibraryFunctionsChecker
   using ConstraintSet = std::vector<ValueConstraintPtr>;
 
   /// Define how a function affects the system variable 'errno'.
-  /// This works together with the ErrnoModeling and ErrnoChecker classes.
+  /// This works together with the \c ErrnoModeling and \c ErrnoChecker classes.
+  /// Currently 3 use cases exist: success, failure, irrelevant.
+  /// In the future the failure case can be customized to set \c errno to a
+  /// more specific constraint (for example > 0), or new case can be added
+  /// for functions which require check of \c errno in both success and failure
+  /// case.
   class ErrnoConstraintBase {
   public:
     /// Apply specific state changes related to the errno variable.
     virtual ProgramStateRef apply(ProgramStateRef State, const CallEvent &Call,
                                   const Summary &Summary,
                                   CheckerContext &C) const = 0;
-    /// Get a description about what is applied to 'errno' and how is it allowed
-    /// to be used. If ErrnoChecker generates a bug then this message is
-    /// displayed as a note at the function call.
-    /// It may return empty string if no note tag is to be added.
-    virtual std::string describe(StringRef FunctionName) const { return ""; }
+    /// Get a NoteTag about the changes made to 'errno' and the possible bug.
+    /// It may return \c nullptr (if no bug report from \c ErrnoChecker is
+    /// expected).
+    virtual const NoteTag *describe(CheckerContext &C,
+                                    StringRef FunctionName) const {
+      return nullptr;
+    }
 
     virtual ~ErrnoConstraintBase() {}
 
   protected:
-    /// Many of the descendant classes use this value.
-    const errno_modeling::ErrnoCheckState CheckState;
-
-    ErrnoConstraintBase(errno_modeling::ErrnoCheckState CS) : CheckState(CS) {}
+    ErrnoConstraintBase() = default;
 
     /// This is used for conjure symbol for errno to differentiate from the
     /// original call expression (same expression is used for the errno symbol).
     static int Tag;
   };
 
-  /// Set value of 'errno' to be related to 0 in a specified way, with a
-  /// specified "errno check state". For example with \c BO_GT 'errno' is
-  /// constrained to be greater than 0. Use this for failure cases of functions.
-  class ZeroRelatedErrnoConstraint : public ErrnoConstraintBase {
-    BinaryOperatorKind Op;
-
+  /// Set errno constraint at failure cases of standard functions.
+  /// Failure case: 'errno' becomes not equal to 0 and may or may not be checked
+  /// by the program. \c ErrnoChecker does not emit a bug report after such a
+  /// function call.
+  class FailureErrnoConstraint : public ErrnoConstraintBase {
   public:
-    ZeroRelatedErrnoConstraint(clang::BinaryOperatorKind OpK,
-                               errno_modeling::ErrnoCheckState CS)
-        : ErrnoConstraintBase(CS), Op(OpK) {
-      assert(BinaryOperator::isComparisonOp(OpK));
-    }
-
     ProgramStateRef apply(ProgramStateRef State, const CallEvent &Call,
                           const Summary &Summary,
                           CheckerContext &C) const override {
@@ -440,62 +434,36 @@ class StdLibraryFunctionsChecker
                                C.getLocationContext(), C.getASTContext().IntTy,
                                C.blockCount())
               .castAs<NonLoc>();
-      NonLoc ZeroVal =
-          SVB.makeZeroVal(C.getASTContext().IntTy).castAs<NonLoc>();
-      DefinedOrUnknownSVal Cond =
-          SVB.evalBinOp(State, Op, ErrnoSVal, ZeroVal, SVB.getConditionType())
-              .castAs<DefinedOrUnknownSVal>();
-      State = State->assume(Cond, true);
-      if (!State)
-        return State;
-      return errno_modeling::setErrnoValue(State, C.getLocationContext(),
-                                           ErrnoSVal, CheckState);
-    }
-
-    std::string describe(StringRef FunctionName) const override {
-      if (CheckState == errno_modeling::Irrelevant)
-        return "";
-      return (Twine("Assuming that function '") + FunctionName.str() +
-              "' fails, in this case the value 'errno' becomes " +
-              BinaryOperator::getOpcodeStr(Op).str() + " 0 and " +
-              describeErrnoCheckState(CheckState))
-          .str();
+      return errno_modeling::setErrnoForStdFailure(State, C, ErrnoSVal);
     }
   };
 
-  /// Applies the constraints to 'errno' for a common case when a standard
-  /// function is successful. The value of 'errno' after the call is not
-  /// specified by the standard (it may change or not). The \c ErrnoChecker can
-  /// generate a bug if 'errno' is read afterwards.
+  /// Set errno constraint at success cases of standard functions.
+  /// Success case: 'errno' is not allowed to be used.
+  /// \c ErrnoChecker can emit bug report after such a function call if errno
+  /// is used.
   class SuccessErrnoConstraint : public ErrnoConstraintBase {
   public:
-    SuccessErrnoConstraint()
-        : ErrnoConstraintBase(errno_modeling::MustNotBeChecked) {}
-
     ProgramStateRef apply(ProgramStateRef State, const CallEvent &Call,
                           const Summary &Summary,
                           CheckerContext &C) const override {
-      return errno_modeling::setErrnoState(State, CheckState);
+      return errno_modeling::setErrnoForStdSuccess(State, C);
     }
 
-    std::string describe(StringRef FunctionName) const override {
-      return (Twine("Assuming that function '") + FunctionName.str() +
-              "' is successful, in this case the value 'errno' " +
-              describeErrnoCheckState(CheckState))
-          .str();
+    const NoteTag *describe(CheckerContext &C,
+                            StringRef FunctionName) const override {
+      return errno_modeling::getNoteTagForStdSuccess(C, FunctionName);
     }
   };
 
-  /// Set errno constraints if use of 'errno' is completely irrelevant to the
+  /// Set errno constraints if use of 'errno' is irrelevant to the
   /// modeled function or modeling is not possible.
   class NoErrnoConstraint : public ErrnoConstraintBase {
   public:
-    NoErrnoConstraint() : ErrnoConstraintBase(errno_modeling::Irrelevant) {}
-
     ProgramStateRef apply(ProgramStateRef State, const CallEvent &Call,
                           const Summary &Summary,
                           CheckerContext &C) const override {
-      return errno_modeling::setErrnoState(State, CheckState);
+      return errno_modeling::setErrnoState(State, errno_modeling::Irrelevant);
     }
   };
 
@@ -746,9 +714,12 @@ private:
     // Highlight the range of the argument that was violated.
     R->addRange(Call.getArgSourceRange(VC->getArgNo()));
 
-    // Describe the argument constraint in a note.
-    R->addNote(VC->describe(C.getState(), Summary), R->getLocation(),
-               Call.getArgSourceRange(VC->getArgNo()));
+    // Describe the argument constraint violation in a note.
+    std::string Descr = VC->describe(
+        ValueConstraint::DescriptionKind::Violation, C.getState(), Summary);
+    // Capitalize the first letter b/c we want a full sentence.
+    Descr[0] = toupper(Descr[0]);
+    R->addNote(Descr, R->getLocation(), Call.getArgSourceRange(VC->getArgNo()));
 
     C.emitReport(std::move(R));
   }
@@ -758,10 +729,9 @@ private:
   /// Usually if a failure return value exists for function, that function
   /// needs different cases for success and failure with different errno
   /// constraints (and different return value constraints).
-  const NoErrnoConstraint ErrnoIrrelevant;
-  const SuccessErrnoConstraint ErrnoMustNotBeChecked;
-  const ZeroRelatedErrnoConstraint ErrnoNEZeroIrrelevant{
-      clang::BinaryOperatorKind::BO_NE, errno_modeling::Irrelevant};
+  const NoErrnoConstraint ErrnoIrrelevant{};
+  const SuccessErrnoConstraint ErrnoMustNotBeChecked{};
+  const FailureErrnoConstraint ErrnoNEZeroIrrelevant{};
 };
 
 int StdLibraryFunctionsChecker::ErrnoConstraintBase::Tag = 0;
@@ -778,24 +748,26 @@ static BasicValueFactory &getBVF(ProgramStateRef State) {
 }
 
 std::string StdLibraryFunctionsChecker::NotNullConstraint::describe(
-    ProgramStateRef State, const Summary &Summary) const {
+    DescriptionKind DK, ProgramStateRef State, const Summary &Summary) const {
   SmallString<48> Result;
-  Result += "The ";
+  const auto Violation = ValueConstraint::DescriptionKind::Violation;
+  Result += "the ";
   Result += getArgDesc(ArgN);
-  Result += " should not be NULL";
+  Result += DK == Violation ? " should not be NULL" : " is not NULL";
   return Result.c_str();
 }
 
 std::string StdLibraryFunctionsChecker::RangeConstraint::describe(
-    ProgramStateRef State, const Summary &Summary) const {
+    DescriptionKind DK, ProgramStateRef State, const Summary &Summary) const {
 
   BasicValueFactory &BVF = getBVF(State);
 
   QualType T = Summary.getArgType(getArgNo());
   SmallString<48> Result;
-  Result += "The ";
+  const auto Violation = ValueConstraint::DescriptionKind::Violation;
+  Result += "the ";
   Result += getArgDesc(ArgN);
-  Result += " should be ";
+  Result += DK == Violation ? " should be " : " is ";
 
   // Range kind as a string.
   Kind == OutOfRange ? Result += "out of" : Result += "within";
@@ -827,16 +799,18 @@ StdLibraryFunctionsChecker::getArgDesc(StdLibraryFunctionsChecker::ArgNo ArgN) {
   SmallString<8> Result;
   Result += std::to_string(ArgN + 1);
   Result += llvm::getOrdinalSuffix(ArgN + 1);
-  Result += " arg";
+  Result += " argument";
   return Result;
 }
 
 std::string StdLibraryFunctionsChecker::BufferSizeConstraint::describe(
-    ProgramStateRef State, const Summary &Summary) const {
+    DescriptionKind DK, ProgramStateRef State, const Summary &Summary) const {
   SmallString<96> Result;
-  Result += "The size of the ";
+  const auto Violation = ValueConstraint::DescriptionKind::Violation;
+  Result += "the size of the ";
   Result += getArgDesc(ArgN);
-  Result += " should be equal to or less than the value of ";
+  Result += DK == Violation ? " should be " : " is ";
+  Result += "equal to or greater than the value of ";
   if (ConcreteSize) {
     ConcreteSize->toString(Result);
   } else if (SizeArgN) {
@@ -970,6 +944,7 @@ void StdLibraryFunctionsChecker::checkPreCall(const CallEvent &Call,
   ProgramStateRef State = C.getState();
 
   ProgramStateRef NewState = State;
+  ExplodedNode *NewNode = C.getPredecessor();
   for (const ValueConstraintPtr &Constraint : Summary.getArgConstraints()) {
     ProgramStateRef SuccessSt = Constraint->apply(NewState, Call, Summary, C);
     ProgramStateRef FailureSt =
@@ -979,17 +954,28 @@ void StdLibraryFunctionsChecker::checkPreCall(const CallEvent &Call,
       if (ExplodedNode *N = C.generateErrorNode(NewState))
         reportBug(Call, N, Constraint.get(), Summary, C);
       break;
-    } else {
-      // We will apply the constraint even if we cannot reason about the
-      // argument. This means both SuccessSt and FailureSt can be true. If we
-      // weren't applying the constraint that would mean that symbolic
-      // execution continues on a code whose behaviour is undefined.
-      assert(SuccessSt);
-      NewState = SuccessSt;
+    }
+    // We will apply the constraint even if we cannot reason about the
+    // argument. This means both SuccessSt and FailureSt can be true. If we
+    // weren't applying the constraint that would mean that symbolic
+    // execution continues on a code whose behaviour is undefined.
+    assert(SuccessSt);
+    NewState = SuccessSt;
+    if (NewState != State) {
+      SmallString<64> Msg;
+      Msg += "Assuming ";
+      Msg += Constraint->describe(ValueConstraint::DescriptionKind::Assumption,
+                                  NewState, Summary);
+      const auto ArgSVal = Call.getArgSVal(Constraint->getArgNo());
+      NewNode = C.addTransition(
+          NewState, NewNode,
+          C.getNoteTag([Msg = std::move(Msg), ArgSVal](
+                           PathSensitiveBugReport &BR, llvm::raw_ostream &OS) {
+            if (BR.isInteresting(ArgSVal))
+              OS << Msg;
+          }));
     }
   }
-  if (NewState && NewState != State)
-    C.addTransition(NewState);
 }
 
 void StdLibraryFunctionsChecker::checkPostCall(const CallEvent &Call,
@@ -1017,13 +1003,10 @@ void StdLibraryFunctionsChecker::checkPostCall(const CallEvent &Call,
 
     if (NewState && NewState != State) {
       if (Case.getNote().empty()) {
-        std::string Note;
+        const NoteTag *NT = nullptr;
         if (const auto *D = dyn_cast_or_null<FunctionDecl>(Call.getDecl()))
-          Note = Case.getErrnoConstraint().describe(D->getNameAsString());
-        if (Note.empty())
-          C.addTransition(NewState);
-        else
-          C.addTransition(NewState, errno_modeling::getErrnoNoteTag(C, Note));
+          NT = Case.getErrnoConstraint().describe(C, D->getNameAsString());
+        C.addTransition(NewState, NT);
       } else {
         StringRef Note = Case.getNote();
         const NoteTag *Tag = C.getNoteTag(
@@ -1113,13 +1096,13 @@ Optional<StdLibraryFunctionsChecker::Summary>
 StdLibraryFunctionsChecker::findFunctionSummary(const FunctionDecl *FD,
                                                 CheckerContext &C) const {
   if (!FD)
-    return None;
+    return std::nullopt;
 
   initFunctionSummaries(C);
 
   auto FSMI = FunctionSummaryMap.find(FD->getCanonicalDecl());
   if (FSMI == FunctionSummaryMap.end())
-    return None;
+    return std::nullopt;
   return FSMI->second;
 }
 
@@ -1128,7 +1111,7 @@ StdLibraryFunctionsChecker::findFunctionSummary(const CallEvent &Call,
                                                 CheckerContext &C) const {
   const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(Call.getDecl());
   if (!FD)
-    return None;
+    return std::nullopt;
   return findFunctionSummary(FD, C);
 }
 
@@ -1153,7 +1136,7 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
       IdentifierInfo &II = ACtx.Idents.get(Name);
       auto LookupRes = ACtx.getTranslationUnitDecl()->lookup(&II);
       if (LookupRes.empty())
-        return None;
+        return std::nullopt;
 
       // Prioritze typedef declarations.
       // This is needed in case of C struct typedefs. E.g.:
@@ -1171,7 +1154,7 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
       for (Decl *D : LookupRes)
         if (auto *TD = dyn_cast<TypeDecl>(D))
           return ACtx.getTypeDeclType(TD).getCanonicalType();
-      return None;
+      return std::nullopt;
     }
   } lookupTy(ACtx);
 
@@ -1188,7 +1171,7 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
     Optional<QualType> operator()(Optional<QualType> Ty) {
       if (Ty)
         return operator()(*Ty);
-      return None;
+      return std::nullopt;
     }
   } getRestrictTy(ACtx);
   class GetPointerTy {
@@ -1200,13 +1183,13 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
     Optional<QualType> operator()(Optional<QualType> Ty) {
       if (Ty)
         return operator()(*Ty);
-      return None;
+      return std::nullopt;
     }
   } getPointerTy(ACtx);
   class {
   public:
     Optional<QualType> operator()(Optional<QualType> Ty) {
-      return Ty ? Optional<QualType>(Ty->withConst()) : None;
+      return Ty ? Optional<QualType>(Ty->withConst()) : std::nullopt;
     }
     QualType operator()(QualType Ty) { return Ty.withConst(); }
   } getConstTy;
@@ -1222,7 +1205,7 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
       if (Ty) {
         return operator()(*Ty);
       }
-      return None;
+      return std::nullopt;
     }
   } getMaxValue(BVF);
 
@@ -2928,6 +2911,10 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
         Summary(EvalCallAsPure).ArgConstraint(NotNull(ArgNo(0))));
 
     // Test range values.
+    addToFunctionSummaryMap(
+        "__single_val_0", Signature(ArgTypes{IntTy}, RetType{IntTy}),
+        Summary(EvalCallAsPure)
+            .ArgConstraint(ArgumentCondition(0U, WithinRange, SingleValue(0))));
     addToFunctionSummaryMap(
         "__single_val_1", Signature(ArgTypes{IntTy}, RetType{IntTy}),
         Summary(EvalCallAsPure)

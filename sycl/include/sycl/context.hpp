@@ -13,8 +13,10 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/exception_list.hpp>
+#include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/stl.hpp>
@@ -36,7 +38,7 @@ auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
 /// be executed.
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT context {
+class __SYCL_EXPORT context : public detail::OwnerLessBase<context> {
 public:
   /// Constructs a SYCL context instance using an instance of default_selector.
   ///
@@ -200,6 +202,8 @@ public:
   /// Checks if this context is a SYCL host context.
   ///
   /// \return true if this context is a SYCL host context.
+  __SYCL2020_DEPRECATED(
+      "is_host() is deprecated as the host device is no longer supported.")
   bool is_host() const;
 
   /// Returns the backend associated with this context.

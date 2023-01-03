@@ -69,11 +69,11 @@ entry:
   br i1 %trunc, label %bb0, label %bb1
 
 bb0:
-  store volatile i32 0, i32 addrspace(1)* undef
+  store volatile i32 0, ptr addrspace(1) undef
   unreachable
 
 bb1:
-  store volatile i32 1, i32 addrspace(1)* undef
+  store volatile i32 1, ptr addrspace(1) undef
   unreachable
 }
 
@@ -102,10 +102,10 @@ entry:
   br i1 %and, label %bb0, label %bb1
 
 bb0:
-  store volatile i32 0, i32 addrspace(1)* undef
+  store volatile i32 0, ptr addrspace(1) undef
   unreachable
 
 bb1:
-  store volatile i32 1, i32 addrspace(1)* undef
+  store volatile i32 1, ptr addrspace(1) undef
   unreachable
 }

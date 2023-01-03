@@ -16,9 +16,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace cuda {
+namespace ext::oneapi::cuda {
 
 // Implementation of ext_oneapi_cuda::make<device>
 inline __SYCL_EXPORT device make_device(pi_native_handle NativeHandle) {
@@ -33,9 +31,7 @@ inline __SYCL_EXPORT bool has_native_event(event sycl_event) {
   return false;
 }
 
-} // namespace cuda
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::cuda
 
 // CUDA context specialization
 template <>
@@ -69,22 +65,15 @@ interop_handle::get_native_context<backend::ext_oneapi_cuda>() const {
 template <>
 inline device make_device<backend::ext_oneapi_cuda>(
     const backend_input_t<backend::ext_oneapi_cuda, device> &BackendObject) {
+  auto devs = device::get_devices(info::device_type::gpu);
+  for (auto &dev : devs) {
+    if (dev.get_backend() == backend::ext_oneapi_cuda &&
+        BackendObject == get_native<backend::ext_oneapi_cuda>(dev)) {
+      return dev;
+    }
+  }
   pi_native_handle NativeHandle = static_cast<pi_native_handle>(BackendObject);
   return ext::oneapi::cuda::make_device(NativeHandle);
-}
-
-template <>
-backend_return_t<backend::ext_oneapi_cuda, device>
-get_native<backend::ext_oneapi_cuda, device>(const device &Obj) {
-  // TODO use SYCL 2020 exception when implemented
-  if (Obj.get_backend() != backend::ext_oneapi_cuda) {
-    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
-                              PI_ERROR_INVALID_OPERATION);
-  }
-  // CUDA uses a 32-bit int instead of an opaque pointer like other backends,
-  // so we need a specialization with static_cast instead of reinterpret_cast.
-  return static_cast<backend_return_t<backend::ext_oneapi_cuda, device>>(
-      Obj.getNative());
 }
 
 // CUDA event specialization
@@ -103,7 +92,7 @@ inline queue make_queue<backend::ext_oneapi_cuda>(
     const backend_input_t<backend::ext_oneapi_cuda, queue> &BackendObject,
     const context &TargetContext, const async_handler Handler) {
   return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
-                            TargetContext, true, Handler,
+                            TargetContext, nullptr, true, Handler,
                             /*Backend*/ backend::ext_oneapi_cuda);
 }
 

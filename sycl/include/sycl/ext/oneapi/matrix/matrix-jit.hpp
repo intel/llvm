@@ -10,15 +10,12 @@
 
 #include <CL/__spirv/spirv_ops.hpp>
 #include <sycl/detail/defines_elementary.hpp>
-#include <sycl/ext/oneapi/experimental/bfloat16.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/feature_test.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
-namespace matrix {
+namespace ext::oneapi::experimental::matrix {
 
 enum class matrix_layout { row_major, col_major, packed_a, packed_b };
 
@@ -57,7 +54,8 @@ template <typename T, size_t NumRows, size_t NumCols,
 struct joint_matrix {
 public:
   __spv::__spirv_JointMatrixINTEL<
-      T, NumRows, NumCols, spv_matrix_layout_traits<Layout>::value> *spvm;
+      T, NumRows, NumCols, spv_matrix_layout_traits<Layout>::value,
+      spv_scope_traits<Group>::value> *spvm;
   joint_matrix(Group sg) {
 #ifndef __SYCL_DEVICE_ONLY__
     (void)sg;
@@ -74,11 +72,10 @@ public:
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout = matrix_layout::row_major,
-          access::address_space Space>
-inline __SYCL_ALWAYS_INLINE void
-joint_matrix_load(Group sg,
-                  joint_matrix<T, NumRows, NumCols, Layout, Group> &res,
-                  multi_ptr<T, Space> src, size_t stride, matrix_layout MemL) {
+          access::address_space Space, access::decorated IsDecorated>
+inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
+    Group sg, joint_matrix<T, NumRows, NumCols, Layout, Group> &res,
+    multi_ptr<T, Space, IsDecorated> src, size_t stride, matrix_layout MemL) {
 #ifdef __SYCL_DEVICE_ONLY__
   T *Ptr = src.get();
   switch (MemL) {
@@ -126,11 +123,10 @@ joint_matrix_load(Group sg,
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_layout MatL = matrix_layout::row_major,
-          access::address_space Space>
-inline __SYCL_ALWAYS_INLINE void
-joint_matrix_store(Group sg,
-                   joint_matrix<T, NumRows, NumCols, MatL, Group> &src,
-                   multi_ptr<T, Space> res, size_t stride, matrix_layout MemL) {
+          access::address_space Space, access::decorated IsDecorated>
+inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
+    Group sg, joint_matrix<T, NumRows, NumCols, MatL, Group> &src,
+    multi_ptr<T, Space, IsDecorated> res, size_t stride, matrix_layout MemL) {
 #ifdef __SYCL_DEVICE_ONLY__
   T *Ptr = res.get();
   switch (MemL) {
@@ -172,7 +168,6 @@ joint_matrix_store(Group sg,
 #endif // __SYCL_DEVICE_ONLY__
 }
 
-#if __cplusplus >= 201703L // if constexpr
 template <typename Group, typename T1, typename T2, typename T3, size_t M,
           size_t K, size_t N, matrix_layout LayoutA, matrix_layout LayoutB,
           matrix_layout LayoutC>
@@ -204,7 +199,6 @@ joint_matrix_mad(Group sg, joint_matrix<T1, M, K, LayoutA, Group> &mA,
                       PI_ERROR_INVALID_DEVICE);
 #endif // __SYCL_DEVICE_ONLY__
 }
-#endif // __cplusplus >= 201703L
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout, typename T2>
@@ -458,18 +452,16 @@ public:
 };
 
 template <size_t NumRows, size_t NumCols, matrix_layout Layout, typename Group>
-class wi_element<sycl::ext::oneapi::experimental::bfloat16, NumRows, NumCols,
-                 Layout, Group> {
-  joint_matrix<sycl::ext::oneapi::experimental::bfloat16, NumRows, NumCols,
-               Layout, Group> &M;
+class wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Layout, Group> {
+  joint_matrix<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Layout, Group> &M;
   std::size_t idx;
 
 public:
-  wi_element(joint_matrix<sycl::ext::oneapi::experimental::bfloat16, NumRows,
-                          NumCols, Layout, Group> &Mat,
+  wi_element(joint_matrix<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Layout,
+                          Group> &Mat,
              std::size_t i)
       : M(Mat), idx(i) {}
-  operator sycl::ext::oneapi::experimental::bfloat16() {
+  operator sycl::ext::oneapi::bfloat16() {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_VectorExtractDynamic(M.spvm, idx);
 #else
@@ -488,7 +480,7 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 
-  wi_element &operator=(const sycl::ext::oneapi::experimental::bfloat16 &rhs) {
+  wi_element &operator=(const sycl::ext::oneapi::bfloat16 &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
     M.spvm = __spirv_VectorInsertDynamic(M.spvm, rhs, idx);
     return *this;
@@ -499,9 +491,8 @@ public:
 #endif // __SYCL_DEVICE_ONLY__
   }
 
-  wi_element &
-  operator=(const wi_element<sycl::ext::oneapi::experimental::bfloat16, NumRows,
-                             NumCols, Layout, Group> &rhs) {
+  wi_element &operator=(const wi_element<sycl::ext::oneapi::bfloat16, NumRows,
+                                         NumCols, Layout, Group> &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
     M.spvm = __spirv_VectorInsertDynamic(
         M.spvm, __spirv_VectorExtractDynamic(rhs.M.spvm, rhs.idx), idx);
@@ -515,16 +506,14 @@ public:
 
 #if __SYCL_DEVICE_ONLY__
 #define OP(opassign, op)                                                       \
-  wi_element &operator opassign(                                               \
-      const sycl::ext::oneapi::experimental::bfloat16 &rhs) {                  \
+  wi_element &operator opassign(const sycl::ext::oneapi::bfloat16 &rhs) {      \
     M.spvm = __spirv_VectorInsertDynamic(                                      \
         M.spvm, __spirv_VectorExtractDynamic(M.spvm, idx) op rhs, idx);        \
     return *this;                                                              \
   }
 #else // __SYCL_DEVICE_ONLY__
 #define OP(opassign, op)                                                       \
-  wi_element &operator opassign(                                               \
-      const sycl::ext::oneapi::experimental::bfloat16 &rhs) {                  \
+  wi_element &operator opassign(const sycl::ext::oneapi::bfloat16 &rhs) {      \
     (void)rhs;                                                                 \
     throw runtime_error("joint matrix is not supported on host device.",       \
                         PI_ERROR_INVALID_DEVICE);                              \
@@ -539,34 +528,34 @@ public:
 #if __SYCL_DEVICE_ONLY__
 #define OP(type, op)                                                           \
   friend type operator op(                                                     \
-      const wi_element<sycl::ext::oneapi::experimental::bfloat16, NumRows,     \
-                       NumCols, Layout, Group> &lhs,                           \
-      const sycl::ext::oneapi::experimental::bfloat16 &rhs) {                  \
+      const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Layout,  \
+                       Group> &lhs,                                            \
+      const sycl::ext::oneapi::bfloat16 &rhs) {                                \
     return __spirv_VectorExtractDynamic(lhs.M.spvm, lhs.idx) op rhs;           \
   }                                                                            \
   friend type operator op(                                                     \
-      const sycl::ext::oneapi::experimental::bfloat16 &lhs,                    \
-      const wi_element<sycl::ext::oneapi::experimental::bfloat16, NumRows,     \
-                       NumCols, Layout, Group> &rhs) {                         \
+      const sycl::ext::oneapi::bfloat16 &lhs,                                  \
+      const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Layout,  \
+                       Group> &rhs) {                                          \
     return __spirv_VectorExtractDynamic(rhs.M.spvm, rhs.idx) op lhs;           \
   }
-  OP(sycl::ext::oneapi::experimental::bfloat16, +)
-  OP(sycl::ext::oneapi::experimental::bfloat16, -)
-  OP(sycl::ext::oneapi::experimental::bfloat16, *)
-  OP(sycl::ext::oneapi::experimental::bfloat16, /)
+  OP(sycl::ext::oneapi::bfloat16, +)
+  OP(sycl::ext::oneapi::bfloat16, -)
+  OP(sycl::ext::oneapi::bfloat16, *)
+  OP(sycl::ext::oneapi::bfloat16, /)
 #undef OP
 #define OP(type, op)                                                           \
   friend type operator op(                                                     \
-      const wi_element<sycl::ext::oneapi::experimental::bfloat16, NumRows,     \
-                       NumCols, Layout, Group> &lhs,                           \
-      const sycl::ext::oneapi::experimental::bfloat16 &rhs) {                  \
+      const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Layout,  \
+                       Group> &lhs,                                            \
+      const sycl::ext::oneapi::bfloat16 &rhs) {                                \
     return type{static_cast<float>(__spirv_VectorExtractDynamic(               \
         lhs.M.spvm, lhs.idx)) op static_cast<float>(rhs)};                     \
   }                                                                            \
   friend type operator op(                                                     \
-      const sycl::ext::oneapi::experimental::bfloat16 &lhs,                    \
-      const wi_element<sycl::ext::oneapi::experimental::bfloat16, NumRows,     \
-                       NumCols, Layout, Group> &rhs) {                         \
+      const sycl::ext::oneapi::bfloat16 &lhs,                                  \
+      const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Layout,  \
+                       Group> &rhs) {                                          \
     return type{static_cast<float>(__spirv_VectorExtractDynamic(               \
         rhs.M.spvm, rhs.idx)) op static_cast<float>(lhs)};                     \
   }
@@ -579,24 +568,23 @@ public:
 #undef OP
 #else // __SYCL_DEVICE_ONLY__
 #define OP(type, op)                                                           \
-  friend type operator op(                                                     \
-      const wi_element<sycl::ext::oneapi::experimental::bfloat16, NumRows,     \
-                       NumCols, Layout, Group> &,                              \
-      const sycl::ext::oneapi::experimental::bfloat16 &) {                     \
+  friend type operator op(const wi_element<sycl::ext::oneapi::bfloat16,        \
+                                           NumRows, NumCols, Layout, Group> &, \
+                          const sycl::ext::oneapi::bfloat16 &) {               \
     throw runtime_error("joint matrix is not supported on host device.",       \
                         PI_ERROR_INVALID_DEVICE);                              \
   }                                                                            \
   friend type operator op(                                                     \
-      const sycl::ext::oneapi::experimental::bfloat16 &,                       \
-      const wi_element<sycl::ext::oneapi::experimental::bfloat16, NumRows,     \
-                       NumCols, Layout, Group> &) {                            \
+      const sycl::ext::oneapi::bfloat16 &,                                     \
+      const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Layout,  \
+                       Group> &) {                                             \
     throw runtime_error("joint matrix is not supported on host device.",       \
                         PI_ERROR_INVALID_DEVICE);                              \
   }
-  OP(sycl::ext::oneapi::experimental::bfloat16, +)
-  OP(sycl::ext::oneapi::experimental::bfloat16, -)
-  OP(sycl::ext::oneapi::experimental::bfloat16, *)
-  OP(sycl::ext::oneapi::experimental::bfloat16, /)
+  OP(sycl::ext::oneapi::bfloat16, +)
+  OP(sycl::ext::oneapi::bfloat16, -)
+  OP(sycl::ext::oneapi::bfloat16, *)
+  OP(sycl::ext::oneapi::bfloat16, /)
   OP(bool, ==)
   OP(bool, !=)
   OP(bool, <)
@@ -627,9 +615,8 @@ public:
   }
 };
 
-} // namespace matrix
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+#undef SPV_MATRIX_LAYOUT_TRAITS
+
+} // namespace ext::oneapi::experimental::matrix
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

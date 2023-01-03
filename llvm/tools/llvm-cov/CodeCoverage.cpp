@@ -41,6 +41,7 @@
 
 #include <functional>
 #include <map>
+#include <optional>
 #include <system_error>
 
 using namespace llvm;
@@ -157,7 +158,7 @@ private:
 
   /// The coverage data path to be remapped from, and the source path to be
   /// remapped to, when using -path-equivalence.
-  Optional<std::pair<std::string, std::string>> PathRemapping;
+  std::optional<std::pair<std::string, std::string>> PathRemapping;
 
   /// File status cache used when finding the same file.
   StringMap<Optional<sys::fs::file_status>> FileStatusCache;
@@ -553,13 +554,16 @@ void CodeCoverageTool::demangleSymbols(const CoverageMapping &Coverage) {
 
   // Invoke the demangler.
   std::vector<StringRef> ArgsV;
+  ArgsV.reserve(ViewOpts.DemanglerOpts.size());
   for (StringRef Arg : ViewOpts.DemanglerOpts)
     ArgsV.push_back(Arg);
-  Optional<StringRef> Redirects[] = {InputPath.str(), OutputPath.str(), {""}};
+  std::optional<StringRef> Redirects[] = {
+      InputPath.str(), OutputPath.str(), {""}};
   std::string ErrMsg;
-  int RC = sys::ExecuteAndWait(ViewOpts.DemanglerOpts[0], ArgsV,
-                               /*env=*/None, Redirects, /*secondsToWait=*/0,
-                               /*memoryLimit=*/0, &ErrMsg);
+  int RC =
+      sys::ExecuteAndWait(ViewOpts.DemanglerOpts[0], ArgsV,
+                          /*env=*/std::nullopt, Redirects, /*secondsToWait=*/0,
+                          /*memoryLimit=*/0, &ErrMsg);
   if (RC) {
     error(ErrMsg, ViewOpts.DemanglerOpts[0]);
     return;
@@ -1192,12 +1196,17 @@ int CodeCoverageTool::doExport(int argc, const char **argv,
                               cl::desc("Don't export per-function data"),
                               cl::cat(ExportCategory));
 
+  cl::opt<bool> SkipBranches("skip-branches", cl::Optional,
+                              cl::desc("Don't export branch data (LCOV)"),
+                              cl::cat(ExportCategory));
+
   auto Err = commandLineParser(argc, argv);
   if (Err)
     return Err;
 
   ViewOpts.SkipExpansions = SkipExpansions;
   ViewOpts.SkipFunctions = SkipFunctions;
+  ViewOpts.SkipBranches = SkipBranches;
 
   if (ViewOpts.Format != CoverageViewOptions::OutputFormat::Text &&
       ViewOpts.Format != CoverageViewOptions::OutputFormat::Lcov) {

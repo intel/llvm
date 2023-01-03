@@ -71,7 +71,7 @@ public:
       FTy = llvm::FunctionType::get(RetTy, ArgTys, false);
     }
     else {
-      FTy = llvm::FunctionType::get(RetTy, None, false);
+      FTy = llvm::FunctionType::get(RetTy, std::nullopt, false);
     }
   }
 
@@ -985,7 +985,7 @@ class CGObjCGNUstep2 : public CGObjCGNUstep {
 
     auto LiteralLength = SL->getLength();
 
-    if ((CGM.getTarget().getPointerWidth(0) == 64) &&
+    if ((CGM.getTarget().getPointerWidth(LangAS::Default) == 64) &&
         (LiteralLength < 9) && !isNonASCII) {
       // Tiny strings are only used on 64-bit platforms.  They store 8 7-bit
       // ASCII characters in the high 56 bits, followed by a 4-bit length and a
@@ -3316,7 +3316,7 @@ llvm::Constant *CGObjCGNU::MakeBitField(ArrayRef<bool> bits) {
   auto fields = builder.beginStruct();
   fields.addInt(Int32Ty, values.size());
   auto array = fields.beginArray();
-  for (auto v : values) array.add(v);
+  for (auto *v : values) array.add(v);
   array.finishAndAddTo(fields);
 
   llvm::Constant *GS =

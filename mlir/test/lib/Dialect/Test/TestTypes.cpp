@@ -134,7 +134,7 @@ static LogicalResult parseBarString(AsmParser &parser, StringRef foo) {
 }
 
 static void printBarString(AsmPrinter &printer, StringRef foo) {
-  printer << ' ' << foo;
+  printer << foo;
 }
 //===----------------------------------------------------------------------===//
 // Tablegen Generated Definitions
@@ -411,15 +411,15 @@ Type TestDialect::parseTestType(AsmParser &parser,
   {
     Type genType;
     auto parseResult = generatedTypeParser(parser, &typeTag, genType);
-    if (parseResult.hasValue())
+    if (parseResult.has_value())
       return genType;
   }
 
   {
     Type dynType;
     auto parseResult = parseOptionalDynamicType(typeTag, parser, dynType);
-    if (parseResult.hasValue()) {
-      if (succeeded(parseResult.getValue()))
+    if (parseResult.has_value()) {
+      if (succeeded(parseResult.value()))
         return dynType;
       return Type();
     }

@@ -19,8 +19,6 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -82,6 +80,7 @@
 #include <cstdint>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -311,6 +310,12 @@ static void PrintCallingConv(unsigned cc, raw_ostream &Out) {
   case CallingConv::AArch64_VectorCall: Out << "aarch64_vector_pcs"; break;
   case CallingConv::AArch64_SVE_VectorCall:
     Out << "aarch64_sve_vector_pcs";
+    break;
+  case CallingConv::AArch64_SME_ABI_Support_Routines_PreserveMost_From_X0:
+    Out << "aarch64_sme_preservemost_from_x0";
+    break;
+  case CallingConv::AArch64_SME_ABI_Support_Routines_PreserveMost_From_X2:
+    Out << "aarch64_sme_preservemost_from_x2";
     break;
   case CallingConv::MSP430_INTR:   Out << "msp430_intrcc"; break;
   case CallingConv::AVR_INTR:      Out << "avr_intrcc "; break;
@@ -1052,8 +1057,8 @@ int SlotTracker::processIndex() {
   // assigned consecutively. Since the StringMap iteration order isn't
   // guaranteed, use a std::map to order by module ID before assigning slots.
   std::map<uint64_t, StringRef> ModuleIdToPathMap;
-  for (auto &ModPath : TheIndex->modulePaths())
-    ModuleIdToPathMap[ModPath.second.first] = ModPath.first();
+  for (auto &[ModPath, ModId] : TheIndex->modulePaths())
+    ModuleIdToPathMap[ModId.first] = ModPath;
   for (auto &ModPair : ModuleIdToPathMap)
     CreateModulePathSlot(ModPair.second);
 
@@ -1573,7 +1578,7 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
                         static_cast<CmpInst::Predicate>(CE->getPredicate()));
     Out << " (";
 
-    Optional<unsigned> InRangeOp;
+    std::optional<unsigned> InRangeOp;
     if (const GEPOperator *GEP = dyn_cast<GEPOperator>(CE)) {
       WriterCtx.TypePrinter->print(GEP->getSourceElementType(), Out);
       Out << ", ";
@@ -1668,7 +1673,8 @@ struct MDFieldPrinter {
   void printInt(StringRef Name, IntTy Int, bool ShouldSkipZero = true);
   void printAPInt(StringRef Name, const APInt &Int, bool IsUnsigned,
                   bool ShouldSkipZero);
-  void printBool(StringRef Name, bool Value, Optional<bool> Default = None);
+  void printBool(StringRef Name, bool Value,
+                 std::optional<bool> Default = std::nullopt);
   void printDIFlags(StringRef Name, DINode::DIFlags Flags);
   void printDISPFlags(StringRef Name, DISubprogram::DISPFlags Flags);
   template <class IntTy, class Stringifier>
@@ -1752,7 +1758,7 @@ void MDFieldPrinter::printAPInt(StringRef Name, const APInt &Int,
 }
 
 void MDFieldPrinter::printBool(StringRef Name, bool Value,
-                               Optional<bool> Default) {
+                               std::optional<bool> Default) {
   if (Default && Value == *Default)
     return;
   Out << FS << Name << ": " << (Value ? "true" : "false");
@@ -1857,6 +1863,12 @@ static void writeDILocation(raw_ostream &Out, const DILocation *DL,
   Printer.printBool("isImplicitCode", DL->isImplicitCode(),
                     /* Default */ false);
   Out << ")";
+}
+
+static void writeDIAssignID(raw_ostream &Out, const DIAssignID *DL,
+                            AsmWriterContext &WriterCtx) {
+  Out << "!DIAssignID()";
+  MDFieldPrinter Printer(Out, WriterCtx);
 }
 
 static void writeDISubrange(raw_ostream &Out, const DISubrange *N,
@@ -2481,7 +2493,7 @@ static void WriteAsOperandInternal(raw_ostream &Out, const Metadata *MD,
 
   if (const MDNode *N = dyn_cast<MDNode>(MD)) {
     std::unique_ptr<SlotTracker> MachineStorage;
-    SaveAndRestore<SlotTracker *> SARMachine(WriterCtx.Machine);
+    SaveAndRestore SARMachine(WriterCtx.Machine);
     if (!WriterCtx.Machine) {
       MachineStorage = std::make_unique<SlotTracker>(WriterCtx.Context);
       WriterCtx.Machine = MachineStorage.get();
@@ -2861,13 +2873,12 @@ void AssemblyWriter::printModuleSummaryIndex() {
   std::string RegularLTOModuleName =
       ModuleSummaryIndex::getRegularLTOModuleName();
   moduleVec.resize(TheIndex->modulePaths().size());
-  for (auto &ModPath : TheIndex->modulePaths())
-    moduleVec[Machine.getModulePathSlot(ModPath.first())] = std::make_pair(
+  for (auto &[ModPath, ModId] : TheIndex->modulePaths())
+    moduleVec[Machine.getModulePathSlot(ModPath)] = std::make_pair(
         // A module id of -1 is a special entry for a regular LTO module created
         // during the thin link.
-        ModPath.second.first == -1u ? RegularLTOModuleName
-                                    : (std::string)std::string(ModPath.first()),
-        ModPath.second.second);
+        ModId.first == -1u ? RegularLTOModuleName : std::string(ModPath),
+        ModId.second);
 
   unsigned i = 0;
   for (auto &ModPair : moduleVec) {
@@ -3179,6 +3190,80 @@ void AssemblyWriter::printFunctionSummary(const FunctionSummary *FS) {
 
   if (const auto *TIdInfo = FS->getTypeIdInfo())
     printTypeIdInfo(*TIdInfo);
+
+  // The AllocationType identifiers capture the profiled context behavior
+  // reaching a specific static allocation site (possibly cloned). Thus
+  // "notcoldandcold" implies there are multiple contexts which reach this site,
+  // some of which are cold and some of which are not, and that need to
+  // disambiguate via cloning or other context identification.
+  auto AllocTypeName = [](uint8_t Type) -> const char * {
+    switch (Type) {
+    case (uint8_t)AllocationType::None:
+      return "none";
+    case (uint8_t)AllocationType::NotCold:
+      return "notcold";
+    case (uint8_t)AllocationType::Cold:
+      return "cold";
+    case (uint8_t)AllocationType::NotCold | (uint8_t)AllocationType::Cold:
+      return "notcoldandcold";
+    }
+    llvm_unreachable("Unexpected alloc type");
+  };
+
+  if (!FS->allocs().empty()) {
+    Out << ", allocs: (";
+    FieldSeparator AFS;
+    for (auto &AI : FS->allocs()) {
+      Out << AFS;
+      Out << "(versions: (";
+      FieldSeparator VFS;
+      for (auto V : AI.Versions) {
+        Out << VFS;
+        Out << AllocTypeName(V);
+      }
+      Out << "), memProf: (";
+      FieldSeparator MIBFS;
+      for (auto &MIB : AI.MIBs) {
+        Out << MIBFS;
+        Out << "(type: " << AllocTypeName((uint8_t)MIB.AllocType);
+        Out << ", stackIds: (";
+        FieldSeparator SIDFS;
+        for (auto Id : MIB.StackIdIndices) {
+          Out << SIDFS;
+          Out << TheIndex->getStackIdAtIndex(Id);
+        }
+        Out << "))";
+      }
+      Out << "))";
+    }
+    Out << ")";
+  }
+
+  if (!FS->callsites().empty()) {
+    Out << ", callsites: (";
+    FieldSeparator SNFS;
+    for (auto &CI : FS->callsites()) {
+      Out << SNFS;
+      if (CI.Callee)
+        Out << "(callee: ^" << Machine.getGUIDSlot(CI.Callee.getGUID());
+      else
+        Out << "(callee: null";
+      Out << ", clones: (";
+      FieldSeparator VFS;
+      for (auto V : CI.Clones) {
+        Out << VFS;
+        Out << V;
+      }
+      Out << "), stackIds: (";
+      FieldSeparator SIDFS;
+      for (auto Id : CI.StackIdIndices) {
+        Out << SIDFS;
+        Out << TheIndex->getStackIdAtIndex(Id);
+      }
+      Out << "))";
+    }
+    Out << ")";
+  }
 
   auto PrintRange = [&](const ConstantRange &Range) {
     Out << "[" << Range.getSignedMin() << ", " << Range.getSignedMax() << "]";
@@ -4084,8 +4169,7 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
     Out << " within ";
     writeOperand(FPI->getParentPad(), /*PrintType=*/false);
     Out << " [";
-    for (unsigned Op = 0, NumOps = FPI->getNumArgOperands(); Op < NumOps;
-         ++Op) {
+    for (unsigned Op = 0, NumOps = FPI->arg_size(); Op < NumOps; ++Op) {
       if (Op > 0)
         Out << ", ";
       writeOperand(FPI->getArgOperand(Op), /*PrintType=*/true);
@@ -4129,7 +4213,6 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
     // If possible, print out the short form of the call instruction.  We can
     // only do this if the first argument is a pointer to a nonvararg function,
     // and if the return type is not a pointer to a function.
-    //
     Out << ' ';
     TypePrinter.print(FTy->isVarArg() ? FTy : RetTy, Out);
     Out << ' ';
@@ -4145,8 +4228,11 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
     // is only to aid readability, musttail calls forward varargs by default.
     if (CI->isMustTailCall() && CI->getParent() &&
         CI->getParent()->getParent() &&
-        CI->getParent()->getParent()->isVarArg())
-      Out << ", ...";
+        CI->getParent()->getParent()->isVarArg()) {
+      if (CI->arg_size() > 0)
+        Out << ", ";
+      Out << "...";
+    }
 
     Out << ')';
     if (PAL.hasFnAttrs())
@@ -4520,7 +4606,7 @@ void NamedMDNode::print(raw_ostream &ROS, bool IsForDebug) const {
 
 void NamedMDNode::print(raw_ostream &ROS, ModuleSlotTracker &MST,
                         bool IsForDebug) const {
-  Optional<SlotTracker> LocalST;
+  std::optional<SlotTracker> LocalST;
   SlotTracker *SlotTable;
   if (auto *ST = MST.getMachine())
     SlotTable = ST;

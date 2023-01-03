@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CodeGen/MachineBasicBlock.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/CodeGen/LiveIntervals.h"
 #include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/LiveVariables.h"
@@ -34,6 +35,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include <algorithm>
+#include <cmath>
 using namespace llvm;
 
 #define DEBUG_TYPE "codegen"
@@ -251,6 +253,10 @@ MachineBasicBlock::instr_iterator MachineBasicBlock::getFirstInstrTerminator() {
   while (I != E && !I->isTerminator())
     ++I;
   return I;
+}
+
+MachineBasicBlock::iterator MachineBasicBlock::getFirstTerminatorForward() {
+  return find_if(instrs(), [](auto &II) { return II.isTerminator(); });
 }
 
 MachineBasicBlock::iterator
@@ -476,6 +482,28 @@ void MachineBasicBlock::printName(raw_ostream &os, unsigned printNameFlags,
   os << "bb." << getNumber();
   bool hasAttributes = false;
 
+  auto PrintBBRef = [&](const BasicBlock *bb) {
+    os << "%ir-block.";
+    if (bb->hasName()) {
+      os << bb->getName();
+    } else {
+      int slot = -1;
+
+      if (moduleSlotTracker) {
+        slot = moduleSlotTracker->getLocalSlot(bb);
+      } else if (bb->getParent()) {
+        ModuleSlotTracker tmpTracker(bb->getModule(), false);
+        tmpTracker.incorporateFunction(*bb->getParent());
+        slot = tmpTracker.getLocalSlot(bb);
+      }
+
+      if (slot == -1)
+        os << "<ir-block badref>";
+      else
+        os << slot;
+    }
+  };
+
   if (printNameFlags & PrintNameIr) {
     if (const auto *bb = getBasicBlock()) {
       if (bb->hasName()) {
@@ -483,29 +511,21 @@ void MachineBasicBlock::printName(raw_ostream &os, unsigned printNameFlags,
       } else {
         hasAttributes = true;
         os << " (";
-
-        int slot = -1;
-
-        if (moduleSlotTracker) {
-          slot = moduleSlotTracker->getLocalSlot(bb);
-        } else if (bb->getParent()) {
-          ModuleSlotTracker tmpTracker(bb->getModule(), false);
-          tmpTracker.incorporateFunction(*bb->getParent());
-          slot = tmpTracker.getLocalSlot(bb);
-        }
-
-        if (slot == -1)
-          os << "<ir-block badref>";
-        else
-          os << (Twine("%ir-block.") + Twine(slot)).str();
+        PrintBBRef(bb);
       }
     }
   }
 
   if (printNameFlags & PrintNameAttributes) {
-    if (hasAddressTaken()) {
+    if (isMachineBlockAddressTaken()) {
       os << (hasAttributes ? ", " : " (");
-      os << "address-taken";
+      os << "machine-block-address-taken";
+      hasAttributes = true;
+    }
+    if (isIRBlockAddressTaken()) {
+      os << (hasAttributes ? ", " : " (");
+      os << "ir-block-address-taken ";
+      PrintBBRef(getAddressTakenIRBlock());
       hasAttributes = true;
     }
     if (isEHPad()) {

@@ -2,6 +2,8 @@
 #define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
 #define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC __SYCL_PARAM_TRAITS_SPEC
 #endif
+
+
 // SYCL 2020 spec
 __SYCL_PARAM_TRAITS_SPEC(device, device_type, info::device_type,
                          PI_DEVICE_INFO_TYPE)
@@ -147,8 +149,6 @@ __SYCL_PARAM_TRAITS_SPEC(device, printf_buffer_size, size_t,
                          PI_DEVICE_INFO_PRINTF_BUFFER_SIZE)
 __SYCL_PARAM_TRAITS_SPEC(device, preferred_interop_user_sync, bool,
                          PI_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC)
-__SYCL_PARAM_TRAITS_SPEC(device, parent_device, sycl::device,
-                         PI_DEVICE_INFO_PARENT_DEVICE)
 __SYCL_PARAM_TRAITS_SPEC(device, partition_max_sub_devices, pi_uint32,
                          PI_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES)
 __SYCL_PARAM_TRAITS_SPEC(device, partition_properties,
@@ -163,6 +163,11 @@ __SYCL_PARAM_TRAITS_SPEC(device, partition_type_property,
 __SYCL_PARAM_TRAITS_SPEC(device, partition_type_affinity_domain,
                          info::partition_affinity_domain,
                          PI_DEVICE_INFO_PARTITION_TYPE)
+
+// Has custom specialization. 
+__SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(device, parent_device, sycl::device,
+                         PI_DEVICE_INFO_PARENT_DEVICE)
+
 // Extensions/deprecated
 __SYCL_PARAM_TRAITS_SPEC(device, atomic64, bool, PI_DEVICE_INFO_ATOMIC_64)
 __SYCL_PARAM_TRAITS_SPEC(device, kernel_kernel_pipe_support, bool, 0)
@@ -187,6 +192,15 @@ __SYCL_PARAM_TRAITS_SPEC(device, opencl_c_version, std::string,
 // Extensions
 __SYCL_PARAM_TRAITS_SPEC(device, sub_group_independent_forward_progress, bool,
                          PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
+__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_srgb, bool,
+                         PI_DEVICE_INFO_IMAGE_SRGB)
+__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_mem_channel, bool,
+                         PI_MEM_PROPERTIES_CHANNEL)
+__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_bfloat16_math_functions, bool,
+                         PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS)
+
+//Deprecated oneapi/intel extension
+//TODO:Remove when possible
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_pci_address, std::string,
                          PI_DEVICE_INFO_PCI_ADDRESS)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_gpu_eu_count, pi_uint32,
@@ -201,26 +215,19 @@ __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_gpu_eu_count_per_subslice, pi_uint32,
                          PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_gpu_hw_threads_per_eu, pi_uint32,
                          PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_max_mem_bandwidth, pi_uint64,
-                         PI_DEVICE_INFO_MAX_MEM_BANDWIDTH)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_mem_channel, bool,
-                         PI_MEM_PROPERTIES_CHANNEL)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_srgb, bool,
-                         PI_DEVICE_INFO_IMAGE_SRGB)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_device_info_uuid, detail::uuid_type,
                          PI_DEVICE_INFO_UUID)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_free_memory, pi_uint64,
-                         PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_global_work_groups, size_t,
-                         PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS)
+__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_max_mem_bandwidth, pi_uint64,
+                         PI_DEVICE_INFO_MAX_MEM_BANDWIDTH)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_1d, id<1>,
                          PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_2d, id<2>,
                          PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_3d, id<3>,
                          PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_bfloat16, bool,
-                         PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16)
+__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_global_work_groups, size_t,
+                         PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS)
+
 #ifdef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF

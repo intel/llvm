@@ -2008,6 +2008,10 @@ public:
     Walk(std::get<OmpScheduleClause::ScheduleType>(x.t));
     Walk(",", std::get<std::optional<ScalarIntExpr>>(x.t));
   }
+  void Unparse(const OmpDeviceClause &x) {
+    Walk(std::get<std::optional<OmpDeviceClause::DeviceModifier>>(x.t), ":");
+    Walk(std::get<ScalarIntExpr>(x.t));
+  }
   void Unparse(const OmpAlignedClause &x) {
     Walk(std::get<std::list<Name>>(x.t), ",");
     Walk(std::get<std::optional<ScalarIntConstantExpr>>(x.t));
@@ -2225,6 +2229,21 @@ public:
       break;
     }
   }
+
+  void Unparse(const OmpAtomicDefaultMemOrderClause &x) {
+    switch (x.v) {
+    case OmpAtomicDefaultMemOrderClause::Type::SeqCst:
+      Word("SEQ_CST");
+      break;
+    case OmpAtomicDefaultMemOrderClause::Type::AcqRel:
+      Word("ACQ_REL");
+      break;
+    case OmpAtomicDefaultMemOrderClause::Type::Relaxed:
+      Word("RELAXED");
+      break;
+    }
+  }
+
   void Unparse(const OmpAtomicClauseList &x) { Walk(" ", x.v, " "); }
 
   void Unparse(const OmpAtomic &x) {
@@ -2388,6 +2407,13 @@ public:
             [&](const OpenMPDeclareTargetConstruct &) {
               Word("DECLARE TARGET ");
               return true;
+            },
+            [&](const OpenMPRequiresConstruct &y) {
+              Word("REQUIRES ");
+              Walk(std::get<OmpClauseList>(y.t));
+              Put("\n");
+              EndOpenMP();
+              return false;
             },
             [&](const OpenMPThreadprivate &) {
               Word("THREADPRIVATE (");
@@ -2580,6 +2606,7 @@ public:
   WALK_NESTED_ENUM(OmpDependenceType, Type) // OMP dependence-type
   WALK_NESTED_ENUM(OmpMapType, Type) // OMP map-type
   WALK_NESTED_ENUM(OmpScheduleClause, ScheduleType) // OMP schedule-type
+  WALK_NESTED_ENUM(OmpDeviceClause, DeviceModifier) // OMP device modifier
   WALK_NESTED_ENUM(OmpIfClause, DirectiveNameModifier) // OMP directive-modifier
   WALK_NESTED_ENUM(OmpCancelType, Type) // OMP cancel-type
 #undef WALK_NESTED_ENUM
@@ -2594,6 +2621,7 @@ private:
   void PutKeywordLetter(char);
   void Word(const char *);
   void Word(const std::string &);
+  void Word(const std::string_view &);
   void Indent() { indent_ += indentationAmount_; }
   void Outdent() {
     CHECK(indent_ >= indentationAmount_);
@@ -2749,6 +2777,12 @@ void UnparseVisitor::Word(const char *str) {
 }
 
 void UnparseVisitor::Word(const std::string &str) { Word(str.c_str()); }
+
+void UnparseVisitor::Word(const std::string_view &str) {
+  for (std::size_t j{0}; j < str.length(); ++j) {
+    PutKeywordLetter(str[j]);
+  }
+}
 
 template <typename A>
 void Unparse(llvm::raw_ostream &out, const A &root, Encoding encoding,

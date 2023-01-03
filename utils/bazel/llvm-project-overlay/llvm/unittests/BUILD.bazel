@@ -4,10 +4,9 @@
 
 load("//llvm:tblgen.bzl", "gentbl")
 
-package(
-    default_visibility = ["//visibility:public"],
-    licenses = ["notice"],
-)
+package(default_visibility = ["//visibility:public"])
+
+licenses(["notice"])
 
 cc_test(
     name = "adt_tests",
@@ -24,8 +23,8 @@ cc_test(
         "//llvm:Core",
         "//llvm:Support",
         "//llvm:TestingSupport",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -50,8 +49,8 @@ cc_test(
         "//llvm:Support",
         "//llvm:TestingSupport",
         "//llvm:TransformUtils",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -66,8 +65,8 @@ cc_test(
         "//llvm:AsmParser",
         "//llvm:Core",
         "//llvm:Support",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -84,8 +83,8 @@ cc_test(
         "//llvm:BitWriter",
         "//llvm:Core",
         "//llvm:Support",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -100,8 +99,8 @@ cc_test(
         "//llvm:BitstreamReader",
         "//llvm:BitstreamWriter",
         "//llvm:Support",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -137,8 +136,8 @@ cc_test(
         "//llvm:Support",
         "//llvm:Target",
         "//llvm:TestingSupport",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -163,8 +162,8 @@ cc_test(
         "//llvm:FileCheckLib",
         "//llvm:Support",
         "//llvm:Target",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -196,8 +195,8 @@ cc_test(
         "//llvm:ObjectYAML",
         "//llvm:Support",
         "//llvm:TestingSupport",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -207,8 +206,8 @@ cc_test(
     deps = [
         "//llvm:Debuginfod",
         "//llvm:TestingSupport",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -226,8 +225,8 @@ cc_test(
         "//llvm:ExecutionEngine",
         "//llvm:Interpreter",
         "//llvm:Support",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -252,8 +251,8 @@ cc_test(
         "//llvm:MCJIT",
         "//llvm:Passes",
         "//llvm:Support",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -277,8 +276,8 @@ cc_test(
         "//llvm:OrcJIT",
         "//llvm:Support",
         "//llvm:TestingSupport",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -293,8 +292,8 @@ cc_test(
         "//llvm:FileCheckLib",
         "//llvm:Support",
         "//llvm:TestingSupport",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -321,8 +320,8 @@ cc_test(
         "//llvm:Support",
         "//llvm:TestingSupport",
         "//llvm:config",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -336,8 +335,8 @@ cc_test(
     deps = [
         "//llvm:LineEditor",
         "//llvm:Support",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -354,8 +353,8 @@ cc_test(
         "//llvm:FrontendOpenMP",
         "//llvm:Passes",
         "//llvm:Support",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -371,8 +370,8 @@ cc_test(
         "//llvm:Core",
         "//llvm:Linker",
         "//llvm:Support",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -389,8 +388,8 @@ cc_test(
         "//llvm:MC",
         "//llvm:MCDisassembler",
         "//llvm:Support",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -408,8 +407,8 @@ cc_test(
         "//llvm:Core",
         "//llvm:Support",
         "//llvm:Target",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -424,8 +423,8 @@ cc_test(
         "//llvm:Object",
         "//llvm:ObjectYAML",
         "//llvm:TestingSupport",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -440,8 +439,8 @@ cc_test(
         "//llvm:Object",
         "//llvm:ObjectYAML",
         "//llvm:TestingSupport",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -458,8 +457,8 @@ cc_test(
         "//llvm:ObjectYAML",
         "//llvm:Support",
         "//llvm:TestingSupport",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -516,8 +515,8 @@ cc_test(
         ":option_tests_gen",
         "//llvm:Option",
         "//llvm:Support",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -532,9 +531,9 @@ cc_test(
         "//llvm:BitReader",
         "//llvm:Remarks",
         "//llvm:Support",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
         "//llvm:remark_linker",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -551,8 +550,8 @@ cc_test(
         "//llvm:ProfileData",
         "//llvm:Support",
         "//llvm:TestingSupport",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -585,8 +584,8 @@ cc_test(
         "//llvm:Support",
         "//llvm:TestingSupport",
         "//llvm:config",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -602,8 +601,8 @@ cc_test(
         "//llvm:AllTargetsCodeGens",
         "//llvm:Support",
         "//llvm:config",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -621,9 +620,9 @@ cc_test(
         ":automata_tables_gen",
         "//llvm:Support",
         "//llvm:TableGen",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
         "//llvm:tblgen",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -639,8 +638,25 @@ cc_test(
     ],
     deps = [
         "//llvm:AArch64CodeGen",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "testing_adt_tests",
+    size = "small",
+    srcs = glob(
+        [
+            "Testing/ADT/*.cpp",
+        ],
+        allow_empty = False,
+    ),
+    deps = [
+        "//llvm:Support",
+        "//llvm:TestingADT",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -664,8 +680,8 @@ cc_test(
         "//llvm:Support",
         "//llvm:TestingSupport",
         "//llvm:TransformUtils",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )
 
@@ -682,12 +698,6 @@ cc_test(
     ) + [
         "tools/llvm-exegesis/Common/AssemblerUtils.h",
     ],
-    copts = ["-DHAVE_LIBPFM=1"],
-    linkopts = ["-lpfm"],
-    tags = [
-        "manual",  # External dependency (libpfm4)
-        "nobuildkite",  # TODO(chandlerc): Add support for fetching and building libpfm4 and enable this.
-    ],
     deps = [
         "//llvm:AllTargetsCodeGens",
         "//llvm:AllTargetsDisassemblers",
@@ -696,7 +706,7 @@ cc_test(
         "//llvm:MCDisassembler",
         "//llvm:Support",
         "//llvm:TestingSupport",
-        "//llvm:gtest",
-        "//llvm:gtest_main",
+        "//third-party/unittest:gtest",
+        "//third-party/unittest:gtest_main",
     ],
 )

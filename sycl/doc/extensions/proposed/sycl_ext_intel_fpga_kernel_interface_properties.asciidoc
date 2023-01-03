@@ -1,0 +1,301 @@
+= sycl_ext_intel_fpga_kernel_interface_properties
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Notice
+
+[%hardbreaks]
+Copyright (c) 2021-2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+https://github.com/intel/llvm/issues
+
+== Contributors
+
+Joe Garvey, Intel +
+Abhishek Tiwari, Intel
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, Revision 4 and
+the following extensions:
+
+- link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
+- link:sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties]
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback. Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state. The specification itself may also change in
+incompatible ways before it is finalized. *Shipping software products should not
+rely on APIs defined in this specification.*
+
+== Overview
+
+This extension introduces kernel properties to specify how or when control and
+data signals can be passed into or out of an FPGA kernel. These properties are
+meaningless on non-FPGA devices and can be ignored on such devices.
+
+== Specification
+
+=== Feature Test Macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_INTEL_FPGA_KERNEL_INTERFACE_PROPERTIES` to one of the values defined
+in the table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's APIs the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version.  Base features are supported.
+|===
+
+=== Introduction
+
+This extension introduces new kernel properties that can be applied to kernels
+using the mechanism defined in sycl_ext_oneapi_kernel_properties.
+
+=== Kernel Interface Properties
+
+```c++
+namespace sycl::ext::intel::experimental {
+
+enum class streaming_interface_options_enum {
+  accept_downstream_stall,
+  remove_downstream_stall
+};
+
+enum class register_map_interface_options_enum {
+  wait_for_done_write,
+  do_not_wait_for_done_write
+};
+
+struct streaming_interface_key {
+  template <streaming_interface_options_enum option>
+  using value_t = sycl::ext::oneapi::properties::property_value<
+    streaming_interface_key,
+    std::integral_constant<streaming_interface_options_enum, option>>;
+};
+
+struct register_map_interface_key {
+  template <register_map_interface_options_enum option>
+  using value_t = sycl::ext::oneapi::properties::property_value<
+    register_map_interface_key,
+    std::integral_constant<register_map_interface_options_enum, option>>;
+};
+
+struct pipelined_key {
+  template <int pipeline_directive_or_initiation_interval>
+  using value_t = sycl::ext::oneapi::properties::property_value<
+    pipelined_key,
+    std::integral_constant<size_t, pipeline_directive_or_initiation_interval>>;
+};
+
+template <streaming_interface_options_enum option>
+inline constexpr streaming_interface_key::value_t<option> streaming_interface;
+
+inline constexpr streaming_interface_key::value_t<
+  streaming_interface_options_enum::accept_downstream_stall>
+    streaming_interface_accept_downstream_stall;
+
+inline constexpr streaming_interface_key::value_t<
+  streaming_interface_options_enum::remove_downstream_stall>
+    streaming_interface_remove_downstream_stall;
+
+template <register_map_interface_options_enum option>
+inline constexpr register_map_interface_key::value_t<option>
+  register_map_interface;
+
+inline constexpr register_map_interface_key::value_t<
+  register_map_interface_options_enum::wait_for_done_write>
+    register_map_interface_wait_for_done_write;
+
+inline constexpr register_map_interface_key::value_t<
+  register_map_interface_options_enum::do_not_wait_for_done_write>
+    register_map_interface_do_not_wait_for_done_write;
+
+template<int pipeline_directive_or_initiation_interval>
+inline constexpr pipelined_key::value_t<
+  pipeline_directive_or_initiation_interval> pipelined;
+
+} // namespace sycl::ext::intel::experimental
+```
+
+|===
+|Property|Description
+|`streaming_interface`
+|The `streaming_interface` property adds the requirement that the kernel must
+ have dedicated ports for input / output signals. This applies for both
+ control, and kernel argument data signals. The following values are supported:
+
+ * `accept_downstream_stall`: Directs the compiler to generate a kernel
+    interface that can accept a back-pressure signal.
+
+ * `remove_downstream_stall`: Directs the compiler to generate a kernel
+    interface that does not accept a back-pressure signal.
+
+ If the `streaming_interface` property is not specified, the default behavior is
+ equivalent to one of the values listed above, but the choice is implementation
+ defined.
+
+ The following properties have been provided for convenience:
+ `streaming_interface_accept_downstream_stall`,
+ `streaming_interface_remove_downstream_stall`.
+
+|`register_map_interface`
+|The `register_map_interface` property adds the requirement that the kernel must
+ have its input / output control and kernel argument data signals placed in a
+ shared Control and Status Register (CSR) map. The following values are
+ supported:
+
+ * `wait_for_done_write`: Directs the compiler to generate logic that
+    back-pressures the kernel until the kernel is notified that its completion
+    has been detected. The kernel will be notified when the register it writes
+    its completion signal to is set to 0.
+
+ * `do_not_wait_for_done_write`: Directs the compiler to not generate logic that
+    would back-pressure the kernel until the kernel is notified of its
+    completion being detected.
+ 
+ If the `register_map_interface` property is not specified, the default behavior
+ is equivalent to one of the values listed above, but the choice is
+ implementation defined.
+
+ The following properties have been provided for convenience:
+ `register_map_interface_wait_for_done_write`,
+ `register_map_interface_do_not_wait_for_done_write`.
+
+|`pipelined`
+|A signed integer value is accepted as property parameter.
+
+ When the parameter is set to a non zero value, the property directs the
+ compiler to pipeline calls to the kernel such that multiple invocations of the
+ kernel can be in flight simultaneously.
+
+ When the parameter is a positive value, the value specifies the 'initiation
+ interval' (II) of the kernel i.e., the minimum number of cycles between successive
+ invocations. Example:
+
+ * `pipelined<N>` - For `N > 0`, the compiler will pipeline multiple kernel
+ invocations such that an invocation can be launched every `N` cycles if one is
+ available.
+
+ When the parameter is set to `-1`, the compiler will determine the II and
+ pipeline the kernel invocations.
+
+ When the parameter is set to `0`, the compiler will not pipeline kernel
+ invocations.
+
+ If the `pipelined` property is not specified, the default behavior is
+ equivalent to a combination of the property parameter values listed above, but
+ the choice is implementation defined.
+
+ If the property parameter (N) is not specified, the default value is `-1`.
+ Valid values for `N` are values greater than or equal to `-1`.
+|===
+
+Device compilers that do not support this extension may accept and ignore these
+ properties.
+
+=== Adding a Property List to a Kernel Launch
+
+A simple example of using this extension to launch a kernel with a streaming
+ interface is shown below.
+
+The example assumes that the kernel will not accept a signal that can
+back-pressure it and hence uses the property
+`streaming_interface_remove_downstream_stall`:
+
+```c++
+using sycl::ext::intel::experimental;
+{
+  ...
+  properties kernel_properties{streaming_interface_remove_downstream_stall};
+
+  q.single_task(kernel_properties, [=] {
+    *a = *b + *c;
+  }).wait();
+}
+```
+
+The example below shows how to launch a pipelined kernel with a streaming
+interface, and with a new kernel invocation being launched every 2 cycles.
+
+```c++
+using sycl::ext::intel::experimental;
+{
+  ...
+  properties kernel_properties{
+    streaming_interface_accept_downstream_stall, pipelined<2>};
+
+  q.single_task(kernel_properties, [=] {
+    *a = *b + *c;
+  }).wait();
+}
+```
+
+=== Embedding Properties into a Kernel
+
+The example below shows how the kernel from the previous section could be
+rewritten to leverage an embedded property list:
+
+```c++
+using sycl::ext::intel::experimental;
+struct KernelFunctor {
+
+  KernelFunctor(int* a, int* b, int* c) : a(a), b(b), c(c) {}
+
+  void operator()() const {
+    *a = *b + *c;
+  }
+
+  auto get(properties_tag) {
+    return properties{streaming_interface_accept_downstream_stall};
+  }
+
+  int* a;
+  int* b;
+  int* c;
+};
+
+...
+
+q.single_task(KernelFunctor{a, b, c}).wait();
+```
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2022-03-01|Abhishek Tiwari|*Initial public working draft*
+|2|2022-12-05|Abhishek Tiwari|*Make pipelined property parameter a signed int*
+|========================================

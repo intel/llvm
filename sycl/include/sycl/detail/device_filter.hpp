@@ -13,19 +13,66 @@
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/info/info_desc.hpp>
 
+#include <optional>
 #include <string>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
+// ---------------------------------------
+// ONEAPI_DEVICE_SELECTOR support
+
+template <typename T>
+std::ostream &operator<<(std::ostream &os, std::optional<T> const &opt) {
+  return opt ? os << opt.value() : os << "not set ";
+}
+
+// the ONEAPI_DEVICE_SELECTOR string gets broken down into these targets
+// will will match devices. If the target is negative, such as !opencl:*
+// then matching devices will not be made available to the user.
+struct ods_target {
+public:
+  std::optional<backend> Backend;
+  std::optional<info::device_type> DeviceType;
+
+  bool HasDeviceWildCard = false;
+  std::optional<int> DeviceNum;
+
+  bool HasSubDeviceWildCard = false;
+  std::optional<unsigned> SubDeviceNum;
+
+  bool HasSubSubDeviceWildCard = false; // two levels of sub-devices.
+  std::optional<unsigned> SubSubDeviceNum;
+
+  bool IsNegativeTarget = false; // used to represent negative filters.
+
+  ods_target(backend be) { Backend = be; };
+  ods_target(){};
+  friend std::ostream &operator<<(std::ostream &Out, const ods_target &Target);
+};
+
+class ods_target_list {
+  std::vector<ods_target> TargetList;
+
+public:
+  ods_target_list() {}
+  ods_target_list(const std::string &FilterString);
+  std::vector<ods_target> &get() { return TargetList; }
+  bool containsHost();
+  bool backendCompatible(backend Backend);
+};
+
+std::ostream &operator<<(std::ostream &Out, const ods_target &Target);
+std::vector<ods_target> Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envStr);
+
+// ---------------------------------------
+// SYCL_DEVICE_FILTER support
+
 struct device_filter {
-  backend Backend = backend::all;
-  info::device_type DeviceType = info::device_type::all;
-  int DeviceNum = 0;
-  bool HasBackend = false;
-  bool HasDeviceType = false;
-  bool HasDeviceNum = false;
+  std::optional<backend> Backend;
+  std::optional<info::device_type> DeviceType;
+  std::optional<int> DeviceNum;
   int MatchesSeen = 0;
 
   device_filter(){};
@@ -46,7 +93,6 @@ public:
   bool backendCompatible(backend Backend);
   bool deviceTypeCompatible(info::device_type DeviceType);
   bool deviceNumberCompatible(int DeviceNum);
-  bool containsHost();
   friend std::ostream &operator<<(std::ostream &Out,
                                   const device_filter_list &List);
 };
@@ -67,8 +113,8 @@ inline std::ostream &operator<<(std::ostream &Out,
   } else {
     Out << "unknown";
   }
-  if (Filter.HasDeviceNum) {
-    Out << ":" << Filter.DeviceNum;
+  if (Filter.DeviceNum) {
+    Out << ":" << Filter.DeviceNum.value();
   }
   return Out;
 }

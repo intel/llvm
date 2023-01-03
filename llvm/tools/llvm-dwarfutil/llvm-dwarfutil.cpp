@@ -44,7 +44,7 @@ enum ID {
 #include "Options.inc"
 #undef PREFIX
 
-const opt::OptTable::Info InfoTable[] = {
+static constexpr opt::OptTable::Info InfoTable[] = {
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
   {                                                                            \
@@ -481,7 +481,6 @@ int main(int Argc, char const *Argv[]) {
   InitializeAllTargetMCs();
   InitializeAllTargetInfos();
   InitializeAllAsmPrinters();
-  InitializeAllAsmParsers();
 
   ErrorOr<std::unique_ptr<MemoryBuffer>> BuffOrErr =
       MemoryBuffer::getFileOrSTDIN(Opts.InputFileName);

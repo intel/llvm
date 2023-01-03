@@ -304,7 +304,7 @@ class TypeSourceInfo;
     /// \param From Object to import.
     /// \return Error information (success or error).
     template <typename ImportT>
-    LLVM_NODISCARD llvm::Error importInto(ImportT &To, const ImportT &From) {
+    [[nodiscard]] llvm::Error importInto(ImportT &To, const ImportT &From) {
       auto ToOrErr = Import(From);
       if (ToOrErr)
         To = *ToOrErr;
@@ -482,7 +482,7 @@ class TypeSourceInfo;
 
     /// Import the definition of the given declaration, including all of
     /// the declarations it contains.
-    LLVM_NODISCARD llvm::Error ImportDefinition(Decl *From);
+    [[nodiscard]] llvm::Error ImportDefinition(Decl *From);
 
     /// Cope with a name conflict when importing a declaration into the
     /// given context.
@@ -577,7 +577,7 @@ class TypeSourceInfo;
     /// Determine the index of a field in its parent record.
     /// F should be a field (or indirect field) declaration.
     /// \returns The index of the field in its parent context (starting from 0).
-    /// On error `None` is returned (parent context is non-record).
+    /// On error `std::nullopt` is returned (parent context is non-record).
     static llvm::Optional<unsigned> getFieldIndex(Decl *F);
   };
 

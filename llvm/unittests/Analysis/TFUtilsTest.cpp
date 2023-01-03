@@ -57,7 +57,7 @@ TEST(TFUtilsTest, LoadAndExecuteTest) {
   }
   {
     auto ER = Evaluator.evaluate();
-    EXPECT_TRUE(ER.hasValue());
+    EXPECT_TRUE(ER.has_value());
     float Ret = *ER->getTensorValue<float>(0);
     EXPECT_EQ(static_cast<int64_t>(Ret), 80);
     EXPECT_EQ(ER->getUntypedTensorValue(0),
@@ -72,7 +72,7 @@ TEST(TFUtilsTest, LoadAndExecuteTest) {
   V[9] = 0;
   {
     auto ER = Evaluator.evaluate();
-    EXPECT_TRUE(ER.hasValue());
+    EXPECT_TRUE(ER.has_value());
     float Ret = *ER->getTensorValue<float>(0);
     EXPECT_EQ(static_cast<int64_t>(Ret), 80);
   }
@@ -89,15 +89,6 @@ TEST(TFUtilsTest, EvalError) {
       TensorSpec::createSpec<float>("StatefulPartitionedCall", {1})};
 
   TFModelEvaluator Evaluator(getModelPath(), InputSpecs, OutputSpecs);
-  EXPECT_TRUE(Evaluator.isValid());
-
-  int32_t *V = Evaluator.getInput<int32_t>(0);
-  // Fill it up with 1's, we know the output.
-  for (auto I = 0; I < KnownSize; ++I) {
-    V[I] = 1;
-  }
-  auto ER = Evaluator.evaluate();
-  EXPECT_FALSE(ER.hasValue());
   EXPECT_FALSE(Evaluator.isValid());
 }
 
@@ -109,24 +100,32 @@ TEST(TFUtilsTest, UnsupportedFeature) {
       TensorSpec::createSpec<float>("this_feature_does_not_exist", {2, 5})};
 
   LLVMContext Ctx;
-  auto Evaluator = ModelUnderTrainingRunner::createAndEnsureValid(
-      Ctx, getModelPath(), "StatefulPartitionedCall", InputSpecs,
-      {LoggedFeatureSpec{
-          TensorSpec::createSpec<float>("StatefulPartitionedCall", {1}),
-          None}});
-  int32_t *V = Evaluator->getTensor<int32_t>(0);
+  ModelUnderTrainingRunner Evaluator(
+      Ctx, getModelPath(), InputSpecs,
+      {TensorSpec::createSpec<float>("StatefulPartitionedCall", {1})});
+  EXPECT_TRUE(Evaluator.isValid());
+  int32_t *V = Evaluator.getTensor<int32_t>(0);
   // Fill it up with 1s, we know the output.
   for (auto I = 0; I < KnownSize; ++I)
     V[I] = 1;
 
-  float *F = Evaluator->getTensor<float>(1);
+  float *F = Evaluator.getTensor<float>(1);
   for (auto I = 0; I < 2 * 5; ++I)
     F[I] = 3.14 + I;
-  float Ret = Evaluator->evaluate<float>();
+  float Ret = Evaluator.evaluate<float>();
   EXPECT_EQ(static_cast<int64_t>(Ret), 80);
   // The input vector should be unchanged
   for (auto I = 0; I < KnownSize; ++I)
     EXPECT_EQ(V[I], 1);
   for (auto I = 0; I < 2 * 5; ++I)
     EXPECT_FLOAT_EQ(F[I], 3.14 + I);
+}
+
+TEST(TFUtilsTest, MissingFeature) {
+  std::vector<TensorSpec> InputSpecs{};
+  std::vector<TensorSpec> OutputSpecs{
+      TensorSpec::createSpec<float>("StatefulPartitionedCall", {1})};
+
+  TFModelEvaluator Evaluator(getModelPath(), InputSpecs, OutputSpecs);
+  EXPECT_FALSE(Evaluator.isValid());
 }

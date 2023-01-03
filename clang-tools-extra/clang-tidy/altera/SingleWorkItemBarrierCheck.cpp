@@ -57,8 +57,8 @@ void SingleWorkItemBarrierCheck::check(const MatchFinder::MatchResult &Result) {
     bool IsNDRange = false;
     if (MatchedDecl->hasAttr<ReqdWorkGroupSizeAttr>()) {
       const auto *Attribute = MatchedDecl->getAttr<ReqdWorkGroupSizeAttr>();
-      if (*Attribute->getXDimVal() > 1 || *Attribute->getYDimVal() > 1 ||
-          *Attribute->getZDimVal() > 1)
+      if (Attribute->getXDim() > 1 || Attribute->getYDim() > 1 ||
+          Attribute->getZDim() > 1)
         IsNDRange = true;
     }
     if (IsNDRange) // No warning if kernel is treated as an NDRange.

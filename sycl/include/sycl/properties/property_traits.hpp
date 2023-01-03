@@ -8,20 +8,26 @@
 
 #pragma once
 
+#include <sycl/detail/property_helper.hpp>
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Property traits
-template <typename propertyT> struct is_property : public std::false_type {};
+template <typename propertyT>
+struct is_property
+    : public std::bool_constant<
+          std::is_base_of_v<detail::DataLessPropertyBase, propertyT> ||
+          std::is_base_of_v<detail::PropertyWithDataBase, propertyT>> {};
 
 template <typename propertyT, typename syclObjectT>
 struct is_property_of : public std::false_type {};
 
 template <typename propertyT>
-__SYCL_INLINE_CONSTEXPR bool is_property_v = is_property<propertyT>::value;
+inline constexpr bool is_property_v = is_property<propertyT>::value;
 
 template <typename propertyT, typename syclObjectT>
-__SYCL_INLINE_CONSTEXPR bool is_property_of_v =
+inline constexpr bool is_property_of_v =
     is_property_of<propertyT, syclObjectT>::value;
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

@@ -56,7 +56,7 @@ class Availability {
   string instance = ?;
 }
 
-class MinVersionBase<string name, I32EnumAttr scheme, I32EnumAttrCase min>
+class MinVersionBase<string name, EnumAttr scheme, I32EnumAttrCase min>
     : Availability {
   let interfaceName = name;
 
@@ -68,14 +68,14 @@ class MinVersionBase<string name, I32EnumAttr scheme, I32EnumAttrCase min>
       "$overall = static_cast<" # scheme.returnType # ">("
                   "std::max(*$overall, $instance)); "
     "} else { $overall = $instance; }}";
-  let initializer = "::llvm::None";
-  let instanceType = scheme.cppNamespace # "::" # scheme.className;
+  let initializer = "::std::nullopt";
+  let instanceType = scheme.cppNamespace # "::" # scheme.enum.className;
 
-  let instance = scheme.cppNamespace # "::" # scheme.className # "::" #
+  let instance = scheme.cppNamespace # "::" # scheme.enum.className # "::" #
                  min.symbol;
 }
 
-class MaxVersionBase<string name, I32EnumAttr scheme, I32EnumAttrCase max>
+class MaxVersionBase<string name, EnumAttr scheme, I32EnumAttrCase max>
     : Availability {
   let interfaceName = name;
 
@@ -87,10 +87,10 @@ class MaxVersionBase<string name, I32EnumAttr scheme, I32EnumAttrCase max>
       "$overall = static_cast<" # scheme.returnType # ">("
                   "std::min(*$overall, $instance)); "
     "} else { $overall = $instance; }}";
-  let initializer = "::llvm::None";
-  let instanceType = scheme.cppNamespace # "::" # scheme.className;
+  let initializer = "::std::nullopt";
+  let instanceType = scheme.cppNamespace # "::" # scheme.enum.className;
 
-  let instance = scheme.cppNamespace # "::" # scheme.className # "::" #
+  let instance = scheme.cppNamespace # "::" # scheme.enum.className # "::" #
                  max.symbol;
 }
 

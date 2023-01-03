@@ -101,7 +101,7 @@ const unsigned struct_kernel_stat64_sz = 104;
 const unsigned struct_kernel_stat_sz =
     SANITIZER_ANDROID
         ? FIRST_32_SECOND_64(104, 128)
-        : FIRST_32_SECOND_64((_MIPS_SIM == _ABIN32) ? 160 : 144, 216);
+        : FIRST_32_SECOND_64((_MIPS_SIM == _ABIN32) ? 176 : 160, 216);
 const unsigned struct_kernel_stat64_sz = 104;
 #elif defined(__s390__) && !defined(__s390x__)
 const unsigned struct_kernel_stat_sz = 64;
@@ -843,7 +843,7 @@ typedef void __sanitizer_FILE;
 #if SANITIZER_LINUX && !SANITIZER_ANDROID &&                               \
     (defined(__i386) || defined(__x86_64) || defined(__mips64) ||          \
      defined(__powerpc64__) || defined(__aarch64__) || defined(__arm__) || \
-     defined(__s390__) || SANITIZER_RISCV64)
+     defined(__s390__) || defined(__loongarch__) || SANITIZER_RISCV64)
 extern unsigned struct_user_regs_struct_sz;
 extern unsigned struct_user_fpregs_struct_sz;
 extern unsigned struct_user_fpxregs_struct_sz;

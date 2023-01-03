@@ -366,6 +366,14 @@ Value *getSplatValue(const Value *V);
 /// not limited by finding a scalar source value to a splatted vector.
 bool isSplatValue(const Value *V, int Index = -1, unsigned Depth = 0);
 
+/// Transform a shuffle mask's output demanded element mask into demanded
+/// element masks for the 2 operands, returns false if the mask isn't valid.
+/// Both \p DemandedLHS and \p DemandedRHS are initialised to [SrcWidth].
+/// \p AllowUndefElts permits "-1" indices to be treated as undef.
+bool getShuffleDemandedElts(int SrcWidth, ArrayRef<int> Mask,
+                            const APInt &DemandedElts, APInt &DemandedLHS,
+                            APInt &DemandedRHS, bool AllowUndefElts = false);
+
 /// Replace each shuffle mask index with the scaled sequential indices for an
 /// equivalent mask of narrowed elements. Mask elements that are less than 0
 /// (sentinel values) are repeated in the output mask.
@@ -633,7 +641,7 @@ public:
   /// \returns false if the instruction doesn't belong to the group.
   bool insertMember(InstTy *Instr, int32_t Index, Align NewAlign) {
     // Make sure the key fits in an int32_t.
-    Optional<int32_t> MaybeKey = checkedAdd(Index, SmallestKey);
+    std::optional<int32_t> MaybeKey = checkedAdd(Index, SmallestKey);
     if (!MaybeKey)
       return false;
     int32_t Key = *MaybeKey;
@@ -656,7 +664,7 @@ public:
     } else if (Key < SmallestKey) {
 
       // Make sure the largest index fits in an int32_t.
-      Optional<int32_t> MaybeLargestIndex = checkedSub(LargestKey, Key);
+      std::optional<int32_t> MaybeLargestIndex = checkedSub(LargestKey, Key);
       if (!MaybeLargestIndex)
         return false;
 

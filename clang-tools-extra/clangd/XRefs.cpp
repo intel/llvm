@@ -50,7 +50,7 @@
 #include "clang/Tooling/Syntax/Tokens.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/None.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallSet.h"
@@ -60,6 +60,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
+#include <vector>
 
 namespace clang {
 namespace clangd {
@@ -117,16 +118,16 @@ void logIfOverflow(const SymbolLocation &Loc) {
 llvm::Optional<Location> toLSPLocation(const SymbolLocation &Loc,
                                        llvm::StringRef TUPath) {
   if (!Loc)
-    return None;
+    return std::nullopt;
   auto Uri = URI::parse(Loc.FileURI);
   if (!Uri) {
     elog("Could not parse URI {0}: {1}", Loc.FileURI, Uri.takeError());
-    return None;
+    return std::nullopt;
   }
   auto U = URIForFile::fromURI(*Uri, TUPath);
   if (!U) {
     elog("Could not resolve URI {0}: {1}", Loc.FileURI, U.takeError());
-    return None;
+    return std::nullopt;
   }
 
   Location LSPLoc;
@@ -208,11 +209,11 @@ llvm::Optional<Location> makeLocation(const ASTContext &AST, SourceLocation Loc,
   const auto &SM = AST.getSourceManager();
   const FileEntry *F = SM.getFileEntryForID(SM.getFileID(Loc));
   if (!F)
-    return None;
+    return std::nullopt;
   auto FilePath = getCanonicalPath(F, SM);
   if (!FilePath) {
     log("failed to get path!");
-    return None;
+    return std::nullopt;
   }
   Location L;
   L.uri = URIForFile::canonicalize(*FilePath, TUPath);
@@ -239,7 +240,7 @@ llvm::Optional<LocatedSymbol> locateFileReferent(const Position &Pos,
       return File;
     }
   }
-  return llvm::None;
+  return std::nullopt;
 }
 
 // Macros are simple: there's no declaration/definition distinction.
@@ -258,7 +259,7 @@ locateMacroReferent(const syntax::Token &TouchedIdentifier, ParsedAST &AST,
       return Macro;
     }
   }
-  return llvm::None;
+  return std::nullopt;
 }
 
 // A wrapper around `Decl::getCanonicalDecl` to support cases where Clang's
@@ -864,7 +865,8 @@ public:
   };
 
   ReferenceFinder(const ParsedAST &AST,
-                  const llvm::ArrayRef<const NamedDecl *> Targets, bool PerToken)
+                  const llvm::ArrayRef<const NamedDecl *> Targets,
+                  bool PerToken)
       : PerToken(PerToken), AST(AST) {
     for (const NamedDecl *ND : Targets) {
       const Decl *CD = ND->getCanonicalDecl();
@@ -937,7 +939,7 @@ private:
 };
 
 std::vector<ReferenceFinder::Reference>
-findRefs(const llvm::ArrayRef<const NamedDecl*> TargetDecls, ParsedAST &AST,
+findRefs(const llvm::ArrayRef<const NamedDecl *> TargetDecls, ParsedAST &AST,
          bool PerToken) {
   ReferenceFinder RefFinder(AST, TargetDecls, PerToken);
   index::IndexingOptions IndexOpts;
@@ -1206,7 +1208,7 @@ llvm::Optional<DocumentHighlight> toHighlight(SourceLocation Loc,
         CharSourceRange::getCharRange(Tok->location(), Tok->endLocation()));
     return Result;
   }
-  return llvm::None;
+  return std::nullopt;
 }
 
 } // namespace
@@ -1225,8 +1227,8 @@ std::vector<DocumentHighlight> findDocumentHighlights(ParsedAST &AST,
     if (const SelectionTree::Node *N = ST.commonAncestor()) {
       DeclRelationSet Relations =
           DeclRelation::TemplatePattern | DeclRelation::Alias;
-      auto TargetDecls=
-           targetDecl(N->ASTNode, Relations, AST.getHeuristicResolver());
+      auto TargetDecls =
+          targetDecl(N->ASTNode, Relations, AST.getHeuristicResolver());
       if (!TargetDecls.empty()) {
         // FIXME: we may get multiple DocumentHighlights with the same location
         // and different kinds, deduplicate them.
@@ -1566,11 +1568,11 @@ declToHierarchyItem(const NamedDecl &ND, llvm::StringRef TUPath) {
   const auto DeclRange =
       toHalfOpenFileRange(SM, Ctx.getLangOpts(), {BeginLoc, EndLoc});
   if (!DeclRange)
-    return llvm::None;
+    return std::nullopt;
   auto FilePath =
       getCanonicalPath(SM.getFileEntryForID(SM.getFileID(NameLoc)), SM);
   if (!FilePath)
-    return llvm::None; // Not useful without a uri.
+    return std::nullopt; // Not useful without a uri.
 
   Position NameBegin = sourceLocToPosition(SM, NameLoc);
   Position NameEnd = sourceLocToPosition(
@@ -1595,29 +1597,32 @@ declToHierarchyItem(const NamedDecl &ND, llvm::StringRef TUPath) {
 
   HI.uri = URIForFile::canonicalize(*FilePath, TUPath);
 
-  // Compute the SymbolID and store it in the 'data' field.
-  // This allows typeHierarchy/resolve to be used to
-  // resolve children of items returned in a previous request
-  // for parents.
-  if (auto ID = getSymbolID(&ND))
-    HI.data = ID.str();
-
   return HI;
 }
 
 static llvm::Optional<TypeHierarchyItem>
 declToTypeHierarchyItem(const NamedDecl &ND, llvm::StringRef TUPath) {
   auto Result = declToHierarchyItem<TypeHierarchyItem>(ND, TUPath);
-  if (Result)
+  if (Result) {
     Result->deprecated = ND.isDeprecated();
+    // Compute the SymbolID and store it in the 'data' field.
+    // This allows typeHierarchy/resolve to be used to
+    // resolve children of items returned in a previous request
+    // for parents.
+    Result->data.symbolID = getSymbolID(&ND);
+  }
   return Result;
 }
 
 static llvm::Optional<CallHierarchyItem>
 declToCallHierarchyItem(const NamedDecl &ND, llvm::StringRef TUPath) {
   auto Result = declToHierarchyItem<CallHierarchyItem>(ND, TUPath);
-  if (Result && ND.isDeprecated())
+  if (!Result)
+    return Result;
+  if (ND.isDeprecated())
     Result->tags.push_back(SymbolTag::Deprecated);
+  if (auto ID = getSymbolID(&ND))
+    Result->data = ID.str();
   return Result;
 }
 
@@ -1627,7 +1632,7 @@ static llvm::Optional<HierarchyItem> symbolToHierarchyItem(const Symbol &S,
   auto Loc = symbolToLocation(S, TUPath);
   if (!Loc) {
     elog("Failed to convert symbol to hierarchy item: {0}", Loc.takeError());
-    return llvm::None;
+    return std::nullopt;
   }
   HierarchyItem HI;
   HI.name = std::string(S.Name);
@@ -1637,10 +1642,6 @@ static llvm::Optional<HierarchyItem> symbolToHierarchyItem(const Symbol &S,
   // (https://github.com/clangd/clangd/issues/59).
   HI.range = HI.selectionRange;
   HI.uri = Loc->uri;
-  // Store the SymbolID in the 'data' field. The client will
-  // send this back in requests to resolve additional levels
-  // of the hierarchy.
-  HI.data = S.ID.str();
 
   return HI;
 }
@@ -1648,15 +1649,20 @@ static llvm::Optional<HierarchyItem> symbolToHierarchyItem(const Symbol &S,
 static llvm::Optional<TypeHierarchyItem>
 symbolToTypeHierarchyItem(const Symbol &S, PathRef TUPath) {
   auto Result = symbolToHierarchyItem<TypeHierarchyItem>(S, TUPath);
-  if (Result)
+  if (Result) {
     Result->deprecated = (S.Flags & Symbol::Deprecated);
+    Result->data.symbolID = S.ID;
+  }
   return Result;
 }
 
 static llvm::Optional<CallHierarchyItem>
 symbolToCallHierarchyItem(const Symbol &S, PathRef TUPath) {
   auto Result = symbolToHierarchyItem<CallHierarchyItem>(S, TUPath);
-  if (Result && (S.Flags & Symbol::Deprecated))
+  if (!Result)
+    return Result;
+  Result->data = S.ID.str();
+  if (S.Flags & Symbol::Deprecated)
     Result->tags.push_back(SymbolTag::Deprecated);
   return Result;
 }
@@ -1681,9 +1687,12 @@ static void fillSubTypes(const SymbolID &ID,
 
 using RecursionProtectionSet = llvm::SmallSet<const CXXRecordDecl *, 4>;
 
+// Extracts parents from AST and populates the type hierarchy item.
 static void fillSuperTypes(const CXXRecordDecl &CXXRD, llvm::StringRef TUPath,
-                           std::vector<TypeHierarchyItem> &SuperTypes,
+                           TypeHierarchyItem &Item,
                            RecursionProtectionSet &RPSet) {
+  Item.parents.emplace();
+  Item.data.parents.emplace();
   // typeParents() will replace dependent template specializations
   // with their class template, so to avoid infinite recursion for
   // certain types of hierarchies, keep the templates encountered
@@ -1699,9 +1708,9 @@ static void fillSuperTypes(const CXXRecordDecl &CXXRD, llvm::StringRef TUPath,
   for (const CXXRecordDecl *ParentDecl : typeParents(&CXXRD)) {
     if (Optional<TypeHierarchyItem> ParentSym =
             declToTypeHierarchyItem(*ParentDecl, TUPath)) {
-      ParentSym->parents.emplace();
-      fillSuperTypes(*ParentDecl, TUPath, *ParentSym->parents, RPSet);
-      SuperTypes.emplace_back(std::move(*ParentSym));
+      fillSuperTypes(*ParentDecl, TUPath, *ParentSym, RPSet);
+      Item.data.parents->emplace_back(ParentSym->data);
+      Item.parents->emplace_back(std::move(*ParentSym));
     }
   }
 
@@ -1710,11 +1719,12 @@ static void fillSuperTypes(const CXXRecordDecl &CXXRD, llvm::StringRef TUPath,
   }
 }
 
-const CXXRecordDecl *findRecordTypeAt(ParsedAST &AST, Position Pos) {
-  auto RecordFromNode =
-      [&AST](const SelectionTree::Node *N) -> const CXXRecordDecl * {
+std::vector<const CXXRecordDecl *> findRecordTypeAt(ParsedAST &AST,
+                                                    Position Pos) {
+  auto RecordFromNode = [&AST](const SelectionTree::Node *N) {
+    std::vector<const CXXRecordDecl *> Records;
     if (!N)
-      return nullptr;
+      return Records;
 
     // Note: explicitReferenceTargets() will search for both template
     // instantiations and template patterns, and prefer the former if available
@@ -1722,30 +1732,32 @@ const CXXRecordDecl *findRecordTypeAt(ParsedAST &AST, Position Pos) {
     // class template).
     auto Decls = explicitReferenceTargets(N->ASTNode, DeclRelation::Underlying,
                                           AST.getHeuristicResolver());
-    if (Decls.empty())
-      return nullptr;
+    for (const NamedDecl *D : Decls) {
 
-    const NamedDecl *D = Decls[0];
+      if (const VarDecl *VD = dyn_cast<VarDecl>(D)) {
+        // If this is a variable, use the type of the variable.
+        Records.push_back(VD->getType().getTypePtr()->getAsCXXRecordDecl());
+        continue;
+      }
 
-    if (const VarDecl *VD = dyn_cast<VarDecl>(D)) {
-      // If this is a variable, use the type of the variable.
-      return VD->getType().getTypePtr()->getAsCXXRecordDecl();
+      if (const CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(D)) {
+        // If this is a method, use the type of the class.
+        Records.push_back(Method->getParent());
+        continue;
+      }
+
+      // We don't handle FieldDecl because it's not clear what behaviour
+      // the user would expect: the enclosing class type (as with a
+      // method), or the field's type (as with a variable).
+
+      if (auto *RD = dyn_cast<CXXRecordDecl>(D))
+        Records.push_back(RD);
     }
-
-    if (const CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(D)) {
-      // If this is a method, use the type of the class.
-      return Method->getParent();
-    }
-
-    // We don't handle FieldDecl because it's not clear what behaviour
-    // the user would expect: the enclosing class type (as with a
-    // method), or the field's type (as with a variable).
-
-    return dyn_cast<CXXRecordDecl>(D);
+    return Records;
   };
 
   const SourceManager &SM = AST.getSourceManager();
-  const CXXRecordDecl *Result = nullptr;
+  std::vector<const CXXRecordDecl *> Result;
   auto Offset = positionToOffset(SM.getBufferData(SM.getMainFileID()), Pos);
   if (!Offset) {
     llvm::consumeError(Offset.takeError());
@@ -1754,7 +1766,7 @@ const CXXRecordDecl *findRecordTypeAt(ParsedAST &AST, Position Pos) {
   SelectionTree::createEach(AST.getASTContext(), AST.getTokens(), *Offset,
                             *Offset, [&](SelectionTree ST) {
                               Result = RecordFromNode(ST.commonAncestor());
-                              return Result != nullptr;
+                              return !Result.empty();
                             });
   return Result;
 }
@@ -1820,6 +1832,12 @@ static QualType typeForNode(const SelectionTree::Node *N) {
       // In general, expressions => type of expression.
       QualType VisitExpr(const Expr *S) {
         return S->IgnoreImplicitAsWritten()->getType();
+      }
+      QualType VisitMemberExpr(const MemberExpr *S) {
+        // The `foo` in `s.foo()` pretends not to have a real type!
+        if (S->getType()->isSpecificBuiltinType(BuiltinType::BoundMember))
+          return Expr::findBoundMemberType(S);
+        return VisitExpr(S);
       }
       // Exceptions for void expressions that operate on a type in some way.
       QualType VisitCXXDeleteExpr(const CXXDeleteExpr *S) {
@@ -1998,53 +2016,79 @@ std::vector<const CXXRecordDecl *> typeParents(const CXXRecordDecl *CXXRD) {
   return Result;
 }
 
-llvm::Optional<TypeHierarchyItem>
+std::vector<TypeHierarchyItem>
 getTypeHierarchy(ParsedAST &AST, Position Pos, int ResolveLevels,
                  TypeHierarchyDirection Direction, const SymbolIndex *Index,
                  PathRef TUPath) {
-  const CXXRecordDecl *CXXRD = findRecordTypeAt(AST, Pos);
-  if (!CXXRD)
-    return llvm::None;
+  std::vector<TypeHierarchyItem> Results;
+  for (const auto *CXXRD : findRecordTypeAt(AST, Pos)) {
 
-  bool WantParents = Direction == TypeHierarchyDirection::Parents ||
-                     Direction == TypeHierarchyDirection::Both;
-  bool WantChildren = Direction == TypeHierarchyDirection::Children ||
-                      Direction == TypeHierarchyDirection::Both;
+    bool WantChildren = Direction == TypeHierarchyDirection::Children ||
+                        Direction == TypeHierarchyDirection::Both;
 
-  // If we're looking for children, we're doing the lookup in the index.
-  // The index does not store relationships between implicit
-  // specializations, so if we have one, use the template pattern instead.
-  // Note that this needs to be done before the declToTypeHierarchyItem(),
-  // otherwise the type hierarchy item would misleadingly contain the
-  // specialization parameters, while the children would involve classes
-  // that derive from other specializations of the template.
-  if (WantChildren) {
-    if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(CXXRD))
-      CXXRD = CTSD->getTemplateInstantiationPattern();
-  }
+    // If we're looking for children, we're doing the lookup in the index.
+    // The index does not store relationships between implicit
+    // specializations, so if we have one, use the template pattern instead.
+    // Note that this needs to be done before the declToTypeHierarchyItem(),
+    // otherwise the type hierarchy item would misleadingly contain the
+    // specialization parameters, while the children would involve classes
+    // that derive from other specializations of the template.
+    if (WantChildren) {
+      if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(CXXRD))
+        CXXRD = CTSD->getTemplateInstantiationPattern();
+    }
 
-  Optional<TypeHierarchyItem> Result =
-      declToTypeHierarchyItem(*CXXRD, AST.tuPath());
-  if (!Result)
-    return Result;
-
-  if (WantParents) {
-    Result->parents.emplace();
+    Optional<TypeHierarchyItem> Result =
+        declToTypeHierarchyItem(*CXXRD, AST.tuPath());
+    if (!Result)
+      continue;
 
     RecursionProtectionSet RPSet;
-    fillSuperTypes(*CXXRD, AST.tuPath(), *Result->parents, RPSet);
-  }
+    fillSuperTypes(*CXXRD, AST.tuPath(), *Result, RPSet);
 
-  if (WantChildren && ResolveLevels > 0) {
-    Result->children.emplace();
+    if (WantChildren && ResolveLevels > 0) {
+      Result->children.emplace();
 
-    if (Index) {
-      if (auto ID = getSymbolID(CXXRD))
-        fillSubTypes(ID, *Result->children, Index, ResolveLevels, TUPath);
+      if (Index) {
+        if (auto ID = getSymbolID(CXXRD))
+          fillSubTypes(ID, *Result->children, Index, ResolveLevels, TUPath);
+      }
     }
+    Results.emplace_back(std::move(*Result));
   }
 
-  return Result;
+  return Results;
+}
+
+llvm::Optional<std::vector<TypeHierarchyItem>>
+superTypes(const TypeHierarchyItem &Item, const SymbolIndex *Index) {
+  std::vector<TypeHierarchyItem> Results;
+  if (!Item.data.parents)
+    return std::nullopt;
+  if (Item.data.parents->empty())
+    return Results;
+  LookupRequest Req;
+  llvm::DenseMap<SymbolID, const TypeHierarchyItem::ResolveParams *> IDToData;
+  for (const auto &Parent : *Item.data.parents) {
+    Req.IDs.insert(Parent.symbolID);
+    IDToData[Parent.symbolID] = &Parent;
+  }
+  Index->lookup(Req, [&Item, &Results, &IDToData](const Symbol &S) {
+    if (auto THI = symbolToTypeHierarchyItem(S, Item.uri.file())) {
+      THI->data = *IDToData.lookup(S.ID);
+      Results.emplace_back(std::move(*THI));
+    }
+  });
+  return Results;
+}
+
+std::vector<TypeHierarchyItem> subTypes(const TypeHierarchyItem &Item,
+                                        const SymbolIndex *Index) {
+  std::vector<TypeHierarchyItem> Results;
+  fillSubTypes(Item.data.symbolID, Results, Index, 1, Item.uri.file());
+  for (auto &ChildSym : Results)
+    ChildSym.data.parents = {Item.data};
+  return Results;
 }
 
 void resolveTypeHierarchy(TypeHierarchyItem &Item, int ResolveLevels,
@@ -2052,18 +2096,13 @@ void resolveTypeHierarchy(TypeHierarchyItem &Item, int ResolveLevels,
                           const SymbolIndex *Index) {
   // We only support typeHierarchy/resolve for children, because for parents
   // we ignore ResolveLevels and return all levels of parents eagerly.
-  if (Direction == TypeHierarchyDirection::Parents || ResolveLevels == 0)
+  if (!Index || Direction == TypeHierarchyDirection::Parents ||
+      ResolveLevels == 0)
     return;
 
   Item.children.emplace();
-
-  if (Index && Item.data) {
-    // We store the item's SymbolID in the 'data' field, and the client
-    // passes it back to us in typeHierarchy/resolve.
-    if (Expected<SymbolID> ID = SymbolID::fromStr(*Item.data)) {
-      fillSubTypes(*ID, *Item.children, Index, ResolveLevels, Item.uri.file());
-    }
-  }
+  fillSubTypes(Item.data.symbolID, *Item.children, Index, ResolveLevels,
+               Item.uri.file());
 }
 
 std::vector<CallHierarchyItem>

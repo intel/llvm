@@ -158,6 +158,16 @@ define i32 @icmp_nez(i32 %a) nounwind {
   ret i32 %2
 }
 
+define i32 @icmp_ne_neg_1(i32 %a) nounwind {
+; RV32I-LABEL: icmp_ne_neg_1:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    sltiu a0, a0, -1
+; RV32I-NEXT:    ret
+  %1 = icmp ne i32 %a, -1
+  %2 = zext i1 %1 to i32
+  ret i32 %2
+}
+
 define i32 @icmp_ugt(i32 %a, i32 %b) nounwind {
 ; RV32I-LABEL: icmp_ugt:
 ; RV32I:       # %bb.0:
@@ -588,8 +598,8 @@ define i32 @icmp_slt_constant_2047(i32 %a) nounwind {
 define i32 @icmp_slt_constant_2048(i32 %a) nounwind {
 ; RV32I-LABEL: icmp_slt_constant_2048:
 ; RV32I:       # %bb.0:
-; RV32I-NEXT:    lui a1, 1
-; RV32I-NEXT:    addi a1, a1, -2048
+; RV32I-NEXT:    li a1, 1
+; RV32I-NEXT:    slli a1, a1, 11
 ; RV32I-NEXT:    slt a0, a0, a1
 ; RV32I-NEXT:    ret
   %1 = icmp slt i32 %a, 2048
@@ -653,8 +663,8 @@ define i32 @icmp_sle_constant_2046(i32 %a) nounwind {
 define i32 @icmp_sle_constant_2047(i32 %a) nounwind {
 ; RV32I-LABEL: icmp_sle_constant_2047:
 ; RV32I:       # %bb.0:
-; RV32I-NEXT:    lui a1, 1
-; RV32I-NEXT:    addi a1, a1, -2048
+; RV32I-NEXT:    li a1, 1
+; RV32I-NEXT:    slli a1, a1, 11
 ; RV32I-NEXT:    slt a0, a0, a1
 ; RV32I-NEXT:    ret
   %1 = icmp sle i32 %a, 2047

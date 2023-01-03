@@ -3,7 +3,7 @@
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; The OpDot operands must be vectors; check that translating dot with
@@ -31,7 +31,7 @@ entry:
 ; CHECK-SPIRV: FunctionEnd
 
 ; CHECK-LLVM-LABEL: @testVector
-; CHECK-LLVM: call spir_func float @_Z3dotDv2_fS_
+; CHECK-LLVM: call spir_func float @_Z3dotDv2_fS_(
 
 ; Function Attrs: nounwind
 define spir_kernel void @testVector(<2 x float> %f) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {

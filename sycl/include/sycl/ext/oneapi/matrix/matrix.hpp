@@ -14,17 +14,18 @@
 
 #pragma once
 
-#include <sycl/feature_test.hpp>
+#ifndef SYCL_EXT_ONEAPI_MATRIX_VERSION
+#define SYCL_EXT_ONEAPI_MATRIX_VERSION 1
+#endif // SYCL_EXT_ONEAPI_MATRIX_VERSION
 
-#if (SYCL_EXT_ONEAPI_MATRIX == 1)
-#if defined(__AMXTILE__) && defined(__AMXINT8__) && defined(__AMXBF16__)
-#include <sycl/ext/oneapi/matrix/matrix-aot-amx.hpp>
-#endif
-#endif
-#if (SYCL_EXT_ONEAPI_MATRIX == 2)
+#if (SYCL_EXT_ONEAPI_MATRIX_VERSION == 1)
 #include <sycl/ext/oneapi/matrix/matrix-jit.hpp>
 #include <sycl/ext/oneapi/matrix/static-query.hpp>
-#endif
-#if (SYCL_EXT_ONEAPI_MATRIX == 3)
-#include <sycl/ext/oneapi/matrix/matrix-tensorcore.hpp>
-#endif
+#endif // SYCL_EXT_ONEAPI_MATRIX_VERSION
+#if (SYCL_EXT_ONEAPI_MATRIX_VERSION == 3)
+#include <sycl/ext/oneapi/matrix/matrix-tensorcores-legacy.hpp>
+#endif // SYCL_EXT_ONEAPI_MATRIX_VERSION
+#if (SYCL_EXT_ONEAPI_MATRIX_VERSION == 4)
+#include <sycl/ext/oneapi/matrix/matrix-unified.hpp>
+#include <sycl/ext/oneapi/matrix/static-query-use.hpp>
+#endif // SYCL_EXT_ONEAPI_MATRIX_VERSION

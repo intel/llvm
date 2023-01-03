@@ -88,15 +88,17 @@ extern "C" void LLVM_EXTERNAL_VISIBILITY LLVMInitializeAMDGPUAsmPrinter() {
 AMDGPUAsmPrinter::AMDGPUAsmPrinter(TargetMachine &TM,
                                    std::unique_ptr<MCStreamer> Streamer)
     : AsmPrinter(TM, std::move(Streamer)) {
+  assert(OutStreamer && "AsmPrinter constructed without streamer");
+
   if (TM.getTargetTriple().getOS() == Triple::AMDHSA) {
     if (isHsaAbiVersion2(getGlobalSTI())) {
-      HSAMetadataStream.reset(new HSAMD::MetadataStreamerV2());
+      HSAMetadataStream.reset(new HSAMD::MetadataStreamerYamlV2());
     } else if (isHsaAbiVersion3(getGlobalSTI())) {
-      HSAMetadataStream.reset(new HSAMD::MetadataStreamerV3());
+      HSAMetadataStream.reset(new HSAMD::MetadataStreamerMsgPackV3());
     } else if (isHsaAbiVersion5(getGlobalSTI())) {
-      HSAMetadataStream.reset(new HSAMD::MetadataStreamerV5());
+      HSAMetadataStream.reset(new HSAMD::MetadataStreamerMsgPackV5());
     } else {
-      HSAMetadataStream.reset(new HSAMD::MetadataStreamerV4());
+      HSAMetadataStream.reset(new HSAMD::MetadataStreamerMsgPackV4());
     }
   }
 }
@@ -158,10 +160,6 @@ void AMDGPUAsmPrinter::emitEndOfAsmFile(Module &M) {
   if (!IsTargetStreamerInitialized)
     initTargetStreamer(M);
 
-  // Following code requires TargetStreamer to be present.
-  if (!getTargetStreamer())
-    return;
-
   if (TM.getTargetTriple().getOS() != Triple::AMDHSA ||
       isHsaAbiVersion2(getGlobalSTI()))
     getTargetStreamer()->EmitISAVersion();
@@ -197,7 +195,7 @@ void AMDGPUAsmPrinter::emitFunctionBodyStart() {
 
   // TODO: Which one is called first, emitStartOfAsmFile or
   // emitFunctionBodyStart?
-  if (getTargetStreamer() && !getTargetStreamer()->getTargetID())
+  if (!getTargetStreamer()->getTargetID())
     initializeTargetID(*F.getParent());
 
   const auto &FunctionTargetID = STM.getTargetID();
@@ -254,9 +252,8 @@ void AMDGPUAsmPrinter::emitFunctionBodyEnd() {
 
   // CP microcode requires the kernel descriptor to be allocated on 64 byte
   // alignment.
-  Streamer.emitValueToAlignment(64, 0, 1, 0);
-  if (ReadOnlySection.getAlignment() < 64)
-    ReadOnlySection.setAlignment(Align(64));
+  Streamer.emitValueToAlignment(Align(64), 0, 1, 0);
+  ReadOnlySection.ensureMinAlignment(Align(64));
 
   const GCNSubtarget &STM = MF->getSubtarget<GCNSubtarget>();
 
@@ -338,8 +335,8 @@ void AMDGPUAsmPrinter::emitGlobalVariable(const GlobalVariable *GV) {
 
     emitVisibility(GVSym, GV->getVisibility(), !GV->isDeclaration());
     emitLinkage(GV, GVSym);
-    if (auto TS = getTargetStreamer())
-      TS->emitAMDGPULDS(GVSym, Size, Alignment);
+    auto TS = getTargetStreamer();
+    TS->emitAMDGPULDS(GVSym, Size, Alignment);
     return;
   }
 
@@ -417,7 +414,8 @@ uint16_t AMDGPUAsmPrinter::getAmdhsaKernelCodeProperties(
         amdhsa::KERNEL_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32;
   }
 
-  if (CurrentProgramInfo.DynamicCallStack) {
+  if (CurrentProgramInfo.DynamicCallStack &&
+      AMDGPU::getAmdhsaCodeObjectVersion() >= 5) {
     KernelCodeProperties |= amdhsa::KERNEL_CODE_PROPERTY_USES_DYNAMIC_STACK;
   }
 
@@ -949,7 +947,7 @@ void AMDGPUAsmPrinter::getSIProgramInfo(SIProgramInfo &ProgInfo,
 
 static unsigned getRsrcReg(CallingConv::ID CallConv) {
   switch (CallConv) {
-  default: LLVM_FALLTHROUGH;
+  default: [[fallthrough]];
   case CallingConv::AMDGPU_CS: return R_00B848_COMPUTE_PGM_RSRC1;
   case CallingConv::AMDGPU_LS: return R_00B528_SPI_SHADER_PGM_RSRC1_LS;
   case CallingConv::AMDGPU_HS: return R_00B428_SPI_SHADER_PGM_RSRC1_HS;

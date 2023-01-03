@@ -23,7 +23,7 @@
 #include "llvm/DebugInfo/Symbolize/MarkupFilter.h"
 #include "llvm/DebugInfo/Symbolize/SymbolizableModule.h"
 #include "llvm/DebugInfo/Symbolize/Symbolize.h"
-#include "llvm/Debuginfod/DIFetcher.h"
+#include "llvm/Debuginfod/BuildIDFetcher.h"
 #include "llvm/Debuginfod/Debuginfod.h"
 #include "llvm/Debuginfod/HTTPClient.h"
 #include "llvm/Option/Arg.h"
@@ -40,6 +40,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <iostream>
 #include <string>
 
 using namespace llvm;
@@ -59,7 +60,7 @@ enum ID {
 #include "Opts.inc"
 #undef PREFIX
 
-const opt::OptTable::Info InfoTable[] = {
+static constexpr opt::OptTable::Info InfoTable[] = {
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
   {                                                                            \
@@ -108,30 +109,31 @@ enum class Command {
   Frame,
 };
 
-static void enableDebuginfod(LLVMSymbolizer &Symbolizer) {
+static void enableDebuginfod(LLVMSymbolizer &Symbolizer,
+                             const opt::ArgList &Args) {
   static bool IsEnabled = false;
   if (IsEnabled)
     return;
   IsEnabled = true;
   // Look up symbols using the debuginfod client.
-  Symbolizer.addDIFetcher(std::make_unique<DebuginfodDIFetcher>());
+  Symbolizer.setBuildIDFetcher(std::make_unique<DebuginfodFetcher>(
+      Args.getAllArgValues(OPT_debug_file_directory_EQ)));
   // The HTTPClient must be initialized for use by the debuginfod client.
   HTTPClient::initialize();
 }
 
-static SmallVector<uint8_t> parseBuildID(StringRef Str) {
+static object::BuildID parseBuildID(StringRef Str) {
   std::string Bytes;
   if (!tryGetFromHex(Str, Bytes))
     return {};
   ArrayRef<uint8_t> BuildID(reinterpret_cast<const uint8_t *>(Bytes.data()),
                             Bytes.size());
-  return SmallVector<uint8_t>(BuildID.begin(), BuildID.end());
+  return object::BuildID(BuildID.begin(), BuildID.end());
 }
 
 static bool parseCommand(StringRef BinaryName, bool IsAddr2Line,
                          StringRef InputString, Command &Cmd,
-                         std::string &ModuleName,
-                         SmallVectorImpl<uint8_t> &BuildID,
+                         std::string &ModuleName, object::BuildID &BuildID,
                          uint64_t &ModuleOffset) {
   const char kDelimiters[] = " \n\r";
   ModuleName = "";
@@ -248,24 +250,24 @@ void executeCommand(StringRef ModuleName, const T &ModuleSpec, Command Cmd,
 }
 
 static void symbolizeInput(const opt::InputArgList &Args,
-                           ArrayRef<uint8_t> IncomingBuildID,
+                           object::BuildIDRef IncomingBuildID,
                            uint64_t AdjustVMA, bool IsAddr2Line,
                            OutputStyle Style, StringRef InputString,
                            LLVMSymbolizer &Symbolizer, DIPrinter &Printer) {
   Command Cmd;
   std::string ModuleName;
-  SmallVector<uint8_t> BuildID(IncomingBuildID.begin(), IncomingBuildID.end());
+  object::BuildID BuildID(IncomingBuildID.begin(), IncomingBuildID.end());
   uint64_t Offset = 0;
   if (!parseCommand(Args.getLastArgValue(OPT_obj_EQ), IsAddr2Line,
                     StringRef(InputString), Cmd, ModuleName, BuildID, Offset)) {
-    Printer.printInvalidCommand({ModuleName, None}, InputString);
+    Printer.printInvalidCommand({ModuleName, std::nullopt}, InputString);
     return;
   }
   bool ShouldInline = Args.hasFlag(OPT_inlines, OPT_no_inlines, !IsAddr2Line);
   if (!BuildID.empty()) {
     assert(ModuleName.empty());
     if (!Args.hasArg(OPT_no_debuginfod))
-      enableDebuginfod(Symbolizer);
+      enableDebuginfod(Symbolizer, Args);
     std::string BuildIDStr = toHex(BuildID);
     executeCommand(BuildIDStr, BuildID, Cmd, Offset, AdjustVMA, ShouldInline,
                    Style, Symbolizer, Printer);
@@ -339,25 +341,24 @@ static FunctionNameKind decideHowToPrintFunctions(const opt::InputArgList &Args,
   return IsAddr2Line ? FunctionNameKind::None : FunctionNameKind::LinkageName;
 }
 
-static Optional<bool> parseColorArg(const opt::InputArgList &Args) {
+static std::optional<bool> parseColorArg(const opt::InputArgList &Args) {
   if (Args.hasArg(OPT_color))
     return true;
   if (const opt::Arg *A = Args.getLastArg(OPT_color_EQ))
-    return StringSwitch<Optional<bool>>(A->getValue())
+    return StringSwitch<std::optional<bool>>(A->getValue())
         .Case("always", true)
         .Case("never", false)
-        .Case("auto", None);
-  return None;
+        .Case("auto", std::nullopt);
+  return std::nullopt;
 }
 
-static SmallVector<uint8_t> parseBuildIDArg(const opt::InputArgList &Args,
-                                            int ID) {
+static object::BuildID parseBuildIDArg(const opt::InputArgList &Args, int ID) {
   const opt::Arg *A = Args.getLastArg(ID);
   if (!A)
     return {};
 
   StringRef V(A->getValue());
-  SmallVector<uint8_t> BuildID = parseBuildID(V);
+  object::BuildID BuildID = parseBuildID(V);
   if (BuildID.empty()) {
     errs() << A->getSpelling() + ": expected a build ID, but got '" + V + "'\n";
     exit(1);
@@ -366,8 +367,8 @@ static SmallVector<uint8_t> parseBuildIDArg(const opt::InputArgList &Args,
 }
 
 // Symbolize markup from stdin and write the result to stdout.
-static void filterMarkup(const opt::InputArgList &Args) {
-  MarkupFilter Filter(outs(), parseColorArg(Args));
+static void filterMarkup(const opt::InputArgList &Args, LLVMSymbolizer &Symbolizer) {
+  MarkupFilter Filter(outs(), Symbolizer, parseColorArg(Args));
   std::string InputString;
   while (std::getline(std::cin, InputString)) {
     InputString += '\n';
@@ -437,8 +438,19 @@ int main(int argc, char **argv) {
     }
   }
 
+  LLVMSymbolizer Symbolizer(Opts);
+
+  // A debuginfod lookup could succeed if a HTTP client is available and at
+  // least one backing URL is configured.
+  bool ShouldUseDebuginfodByDefault =
+      HTTPClient::isAvailable() &&
+      !ExitOnErr(getDefaultDebuginfodUrls()).empty();
+  if (Args.hasFlag(OPT_debuginfod, OPT_no_debuginfod,
+                   ShouldUseDebuginfodByDefault))
+    enableDebuginfod(Symbolizer, Args);
+
   if (Args.hasArg(OPT_filter_markup)) {
-    filterMarkup(Args);
+    filterMarkup(Args, Symbolizer);
     return 0;
   }
 
@@ -456,18 +468,7 @@ int main(int argc, char **argv) {
     errs() << "error: cannot specify both --build-id and --obj\n";
     return EXIT_FAILURE;
   }
-  SmallVector<uint8_t> BuildID = parseBuildIDArg(Args, OPT_build_id_EQ);
-
-  LLVMSymbolizer Symbolizer(Opts);
-
-  // A debuginfod lookup could succeed if a HTTP client is available and at
-  // least one backing URL is configured.
-  bool ShouldUseDebuginfodByDefault =
-      HTTPClient::isAvailable() &&
-      !ExitOnErr(getDefaultDebuginfodUrls()).empty();
-  if (Args.hasFlag(OPT_debuginfod, OPT_no_debuginfod,
-                   ShouldUseDebuginfodByDefault))
-    enableDebuginfod(Symbolizer);
+  object::BuildID BuildID = parseBuildIDArg(Args, OPT_build_id_EQ);
 
   std::unique_ptr<DIPrinter> Printer;
   if (Style == OutputStyle::GNU)

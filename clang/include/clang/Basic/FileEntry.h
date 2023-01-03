@@ -24,6 +24,8 @@
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/FileSystem/UniqueID.h"
 
+#include <utility>
+
 namespace llvm {
 
 class MemoryBuffer;
@@ -222,8 +224,8 @@ public:
   OptionalStorage() = default;
 
   template <class... ArgTypes>
-  explicit OptionalStorage(in_place_t, ArgTypes &&...Args)
-      : StorageImpl(in_place_t{}, std::forward<ArgTypes>(Args)...) {}
+  explicit OptionalStorage(std::in_place_t, ArgTypes &&...Args)
+      : StorageImpl(std::in_place_t{}, std::forward<ArgTypes>(Args)...) {}
 
   OptionalStorage &operator=(clang::FileEntryRef Ref) {
     StorageImpl::operator=(Ref);
@@ -306,14 +308,14 @@ public:
   OptionalFileEntryRefDegradesToFileEntryPtr &
   operator=(const OptionalFileEntryRefDegradesToFileEntryPtr &) = default;
 
-  OptionalFileEntryRefDegradesToFileEntryPtr(llvm::NoneType) {}
+  OptionalFileEntryRefDegradesToFileEntryPtr(std::nullopt_t) {}
   OptionalFileEntryRefDegradesToFileEntryPtr(FileEntryRef Ref)
       : Optional<FileEntryRef>(Ref) {}
   OptionalFileEntryRefDegradesToFileEntryPtr(Optional<FileEntryRef> MaybeRef)
       : Optional<FileEntryRef>(MaybeRef) {}
 
-  OptionalFileEntryRefDegradesToFileEntryPtr &operator=(llvm::NoneType) {
-    Optional<FileEntryRef>::operator=(None);
+  OptionalFileEntryRefDegradesToFileEntryPtr &operator=(std::nullopt_t) {
+    Optional<FileEntryRef>::operator=(std::nullopt);
     return *this;
   }
   OptionalFileEntryRefDegradesToFileEntryPtr &operator=(FileEntryRef Ref) {
@@ -338,6 +340,23 @@ static_assert(
     std::is_trivially_copyable<
         OptionalFileEntryRefDegradesToFileEntryPtr>::value,
     "OptionalFileEntryRefDegradesToFileEntryPtr should be trivially copyable");
+
+inline bool operator==(const FileEntry *LHS,
+                       const Optional<FileEntryRef> &RHS) {
+  return LHS == (RHS ? &RHS->getFileEntry() : nullptr);
+}
+inline bool operator==(const Optional<FileEntryRef> &LHS,
+                       const FileEntry *RHS) {
+  return (LHS ? &LHS->getFileEntry() : nullptr) == RHS;
+}
+inline bool operator!=(const FileEntry *LHS,
+                       const Optional<FileEntryRef> &RHS) {
+  return !(LHS == RHS);
+}
+inline bool operator!=(const Optional<FileEntryRef> &LHS,
+                       const FileEntry *RHS) {
+  return !(LHS == RHS);
+}
 
 /// Cached information about one file (either on disk
 /// or in the virtual file system).

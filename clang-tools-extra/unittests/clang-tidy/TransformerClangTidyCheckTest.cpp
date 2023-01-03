@@ -28,6 +28,7 @@ using transformer::IncludeFormat;
 using transformer::makeRule;
 using transformer::node;
 using transformer::noopEdit;
+using transformer::note;
 using transformer::RewriteRuleWith;
 using transformer::RootID;
 using transformer::statement;
@@ -85,9 +86,57 @@ TEST(TransformerClangTidyCheckTest, DiagnosticsCorrectlyGenerated) {
   EXPECT_EQ(Errors.size(), 1U);
   EXPECT_EQ(Errors[0].Message.Message, "message");
   EXPECT_THAT(Errors[0].Message.Ranges, testing::IsEmpty());
+  EXPECT_THAT(Errors[0].Notes, testing::IsEmpty());
 
   // The diagnostic is anchored to the match, "return 5".
   EXPECT_EQ(Errors[0].Message.FileOffset, 10U);
+}
+
+transformer::ASTEdit noReplacementEdit(transformer::RangeSelector Target) {
+  transformer::ASTEdit E;
+  E.TargetRange = std::move(Target);
+  return E;
+}
+
+TEST(TransformerClangTidyCheckTest, EmptyReplacement) {
+  class DiagOnlyCheck : public TransformerClangTidyCheck {
+  public:
+    DiagOnlyCheck(StringRef Name, ClangTidyContext *Context)
+        : TransformerClangTidyCheck(
+              makeRule(returnStmt(), edit(noReplacementEdit(node(RootID))),
+                       cat("message")),
+              Name, Context) {}
+  };
+  std::string Input = "int h() { return 5; }";
+  std::vector<ClangTidyError> Errors;
+  EXPECT_EQ("int h() { }", test::runCheckOnCode<DiagOnlyCheck>(Input, &Errors));
+  EXPECT_EQ(Errors.size(), 1U);
+  EXPECT_EQ(Errors[0].Message.Message, "message");
+  EXPECT_THAT(Errors[0].Message.Ranges, testing::IsEmpty());
+
+  // The diagnostic is anchored to the match, "return 5".
+  EXPECT_EQ(Errors[0].Message.FileOffset, 10U);
+}
+
+TEST(TransformerClangTidyCheckTest, NotesCorrectlyGenerated) {
+  class DiagAndNoteCheck : public TransformerClangTidyCheck {
+  public:
+    DiagAndNoteCheck(StringRef Name, ClangTidyContext *Context)
+        : TransformerClangTidyCheck(
+              makeRule(returnStmt(),
+                       note(node(RootID), cat("some note")),
+                       cat("message")),
+              Name, Context) {}
+  };
+  std::string Input = "int h() { return 5; }";
+  std::vector<ClangTidyError> Errors;
+  EXPECT_EQ(Input, test::runCheckOnCode<DiagAndNoteCheck>(Input, &Errors));
+  EXPECT_EQ(Errors.size(), 1U);
+  EXPECT_EQ(Errors[0].Notes.size(), 1U);
+  EXPECT_EQ(Errors[0].Notes[0].Message, "some note");
+
+  // The note is anchored to the match, "return 5".
+  EXPECT_EQ(Errors[0].Notes[0].FileOffset, 10U);
 }
 
 TEST(TransformerClangTidyCheckTest, DiagnosticMessageEscaped) {
@@ -165,7 +214,7 @@ Optional<RewriteRuleWith<std::string>>
 needsObjC(const LangOptions &LangOpts,
           const ClangTidyCheck::OptionsView &Options) {
   if (!LangOpts.ObjC)
-    return None;
+    return std::nullopt;
   return makeRule(clang::ast_matchers::functionDecl(),
                   change(cat("void changed() {}")), cat("no message"));
 }
@@ -191,7 +240,7 @@ Optional<RewriteRuleWith<std::string>>
 noSkip(const LangOptions &LangOpts,
        const ClangTidyCheck::OptionsView &Options) {
   if (Options.get("Skip", "false") == "true")
-    return None;
+    return std::nullopt;
   return makeRule(clang::ast_matchers::functionDecl(),
                   changeTo(cat("void nothing();")), cat("no message"));
 }
@@ -210,11 +259,11 @@ TEST(TransformerClangTidyCheckTest, DisableByConfig) {
 
   Options.CheckOptions["test-check-0.Skip"] = "true";
   EXPECT_EQ(Input, test::runCheckOnCode<ConfigurableCheck>(
-                       Input, nullptr, "input.cc", None, Options));
+                       Input, nullptr, "input.cc", std::nullopt, Options));
 
   Options.CheckOptions["test-check-0.Skip"] = "false";
   EXPECT_EQ(Expected, test::runCheckOnCode<ConfigurableCheck>(
-                          Input, nullptr, "input.cc", None, Options));
+                          Input, nullptr, "input.cc", std::nullopt, Options));
 }
 
 RewriteRuleWith<std::string> replaceCall(IncludeFormat Format) {
@@ -297,19 +346,19 @@ int h(int x) { return 5; })cc";
   std::map<StringRef, StringRef> PathsToContent = {{"input.h", "\n"}};
   Options.CheckOptions["test-check-0.IncludeStyle"] = "llvm";
   EXPECT_EQ(TreatsAsLibraryHeader, test::runCheckOnCode<IncludeOrderCheck>(
-                                       Input, nullptr, "inputTest.cpp", None,
-                                       Options, PathsToContent));
+                                       Input, nullptr, "inputTest.cpp",
+                                       std::nullopt, Options, PathsToContent));
   EXPECT_EQ(TreatsAsNormalHeader, test::runCheckOnCode<IncludeOrderCheck>(
-                                      Input, nullptr, "input_test.cpp", None,
-                                      Options, PathsToContent));
+                                      Input, nullptr, "input_test.cpp",
+                                      std::nullopt, Options, PathsToContent));
 
   Options.CheckOptions["test-check-0.IncludeStyle"] = "google";
-  EXPECT_EQ(TreatsAsNormalHeader,
-            test::runCheckOnCode<IncludeOrderCheck>(
-                Input, nullptr, "inputTest.cc", None, Options, PathsToContent));
+  EXPECT_EQ(TreatsAsNormalHeader, test::runCheckOnCode<IncludeOrderCheck>(
+                                      Input, nullptr, "inputTest.cc",
+                                      std::nullopt, Options, PathsToContent));
   EXPECT_EQ(TreatsAsLibraryHeader, test::runCheckOnCode<IncludeOrderCheck>(
-                                       Input, nullptr, "input_test.cc", None,
-                                       Options, PathsToContent));
+                                       Input, nullptr, "input_test.cc",
+                                       std::nullopt, Options, PathsToContent));
 }
 
 TEST(TransformerClangTidyCheckTest, AddIncludeObeysSortStyleGlobalOption) {
@@ -329,19 +378,19 @@ int h(int x) { return 5; })cc";
   std::map<StringRef, StringRef> PathsToContent = {{"input.h", "\n"}};
   Options.CheckOptions["IncludeStyle"] = "llvm";
   EXPECT_EQ(TreatsAsLibraryHeader, test::runCheckOnCode<IncludeOrderCheck>(
-                                       Input, nullptr, "inputTest.cpp", None,
-                                       Options, PathsToContent));
+                                       Input, nullptr, "inputTest.cpp",
+                                       std::nullopt, Options, PathsToContent));
   EXPECT_EQ(TreatsAsNormalHeader, test::runCheckOnCode<IncludeOrderCheck>(
-                                      Input, nullptr, "input_test.cpp", None,
-                                      Options, PathsToContent));
+                                      Input, nullptr, "input_test.cpp",
+                                      std::nullopt, Options, PathsToContent));
 
   Options.CheckOptions["IncludeStyle"] = "google";
-  EXPECT_EQ(TreatsAsNormalHeader,
-            test::runCheckOnCode<IncludeOrderCheck>(
-                Input, nullptr, "inputTest.cc", None, Options, PathsToContent));
+  EXPECT_EQ(TreatsAsNormalHeader, test::runCheckOnCode<IncludeOrderCheck>(
+                                      Input, nullptr, "inputTest.cc",
+                                      std::nullopt, Options, PathsToContent));
   EXPECT_EQ(TreatsAsLibraryHeader, test::runCheckOnCode<IncludeOrderCheck>(
-                                       Input, nullptr, "input_test.cc", None,
-                                       Options, PathsToContent));
+                                       Input, nullptr, "input_test.cc",
+                                       std::nullopt, Options, PathsToContent));
 }
 
 } // namespace

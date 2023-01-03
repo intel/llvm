@@ -32,6 +32,66 @@ and not recommended to use in production environment.
       spir64_fpga-unknown-unknown, spir64_gen-unknown-unknown
     Available in special build configuration:
     * nvptx64-nvidia-cuda - generate code ahead of time for CUDA target;
+    Special target values specific to Intel, NVIDIA and AMD Processor Graphics support are
+    accepted, providing a streamlined interface for AOT. Only one of these
+    values at a time is supported.
+    * intel_gpu_pvc - Ponte Vecchio Intel graphics architecture
+    * intel_gpu_acm_g12 - Alchemist G12 Intel graphics architecture
+    * intel_gpu_acm_g11 - Alchemist G11 Intel graphics architecture
+    * intel_gpu_acm_g10 - Alchemist G10 Intel graphics architecture
+    * intel_gpu_dg1, intel_gpu_12_10_0 - DG1 Intel graphics architecture
+    * intel_gpu_adl_n - Alder Lake N Intel graphics architecture
+    * intel_gpu_adl_p - Alder Lake P Intel graphics architecture
+    * intel_gpu_rpl_s - Raptor Lake Intel graphics architecture
+    * intel_gpu_adl_s - Alder Lake S Intel graphics architecture
+    * intel_gpu_rkl - Rocket Lake Intel graphics architecture
+    * intel_gpu_tgllp, intel_gpu_12_0_0 - Tiger Lake Intel graphics architecture
+    * intel_gpu_ehl, intel_gpu_11_2_0 - Elkhart Lake Intel graphics architecture
+    * intel_gpu_icllp, intel_gpu_11_0_0 - Ice Lake Intel graphics architecture
+    * intel_gpu_cml, intel_gpu_9_7_0 - Comet Lake Intel graphics architecture
+    * intel_gpu_aml, intel_gpu_9_6_0 - Amber Lake Intel graphics architecture
+    * intel_gpu_whl, intel_gpu_9_5_0 - Whiskey Lake Intel graphics architecture
+    * intel_gpu_glk, intel_gpu_9_4_0 - Gemini Lake Intel graphics architecture
+    * intel_gpu_apl, intel_gpu_9_3_0 - Apollo Lake Intel graphics architecture
+    * intel_gpu_cfl, intel_gpu_9_2_9 - Coffee Lake Intel graphics architecture
+    * intel_gpu_kbl, intel_gpu_9_1_9 - Kaby Lake Intel graphics architecture
+    * intel_gpu_skl, intel_gpu_9_0_9 - Skylake Intel graphics architecture
+    * intel_gpu_bdw, intel_gpu_8_0_0 - Broadwell Intel graphics architecture
+    * nvidia_gpu_sm_50 - NVIDIA Maxwell architecture (compute capability 5.0)
+    * nvidia_gpu_sm_52 - NVIDIA Maxwell architecture (compute capability 5.2)
+    * nvidia_gpu_sm_53 - NVIDIA Maxwell architecture (compute capability 5.3)
+    * nvidia_gpu_sm_60 - NVIDIA Pascal architecture (compute capability 6.0)
+    * nvidia_gpu_sm_61 - NVIDIA Pascal architecture (compute capability 6.1)
+    * nvidia_gpu_sm_62 - NVIDIA Pascal architecture (compute capability 6.2)
+    * nvidia_gpu_sm_70 - NVIDIA Volta architecture (compute capability 7.0)
+    * nvidia_gpu_sm_72 - NVIDIA Volta architecture (compute capability 7.2)
+    * nvidia_gpu_sm_75 - NVIDIA Turing architecture (compute capability 7.5)
+    * nvidia_gpu_sm_80 - NVIDIA Ampere architecture (compute capability 8.0)
+    * nvidia_gpu_sm_86 - NVIDIA Ampere architecture (compute capability 8.6)
+    * nvidia_gpu_sm_87 - NVIDIA Jetson/Drive AGX Orin architecture
+    * nvidia_gpu_sm_89 - NVIDIA Ada Lovelace architecture
+    * nvidia_gpu_sm_90 - NVIDIA Hopper architecture
+    * amd_gpu_gfx700 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx701 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx702 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx801 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
+    * amd_gpu_gfx802 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
+    * amd_gpu_gfx803 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
+    * amd_gpu_gfx805 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
+    * amd_gpu_gfx810 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
+    * amd_gpu_gfx900 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx902 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx904 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx906 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx908 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx90a - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx1010 - AMD GCN GFX10.1 (RDNA 1) architecture
+    * amd_gpu_gfx1011 - AMD GCN GFX10.1 (RDNA 1) architecture
+    * amd_gpu_gfx1012 - AMD GCN GFX10.1 (RDNA 1) architecture
+    * amd_gpu_gfx1013 - AMD GCN GFX10.1 (RDNA 1) architecture
+    * amd_gpu_gfx1030 - AMD GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1031 - GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1032 - GCN GFX10.3 (RDNA 2) architecture
 
 ## Language options
 
@@ -82,6 +142,13 @@ and not recommended to use in production environment.
     * nd_item class get_global_id()/get_global_linear_id() member functions
     Enabled by default.
 
+**`-f[no-]sycl-force-inline-kernel-lambda`**
+
+  Enables/Disables inlining of the kernel lambda operator into the compiler
+  generated entry point function. This flag does not apply to ESIMD
+  kernels.
+  Disabled when optimizations are disabled (-O0 or equivalent). Enabled
+  otherwise.
 
 **`-fgpu-inline-threshold=<n>`**
 

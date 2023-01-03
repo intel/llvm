@@ -121,8 +121,8 @@ void ReplaceInstWithValue(BasicBlock::InstListType &BIL,
 /// Copies DebugLoc from BI to I, if I doesn't already have a DebugLoc. The
 /// original instruction is deleted and BI is updated to point to the new
 /// instruction.
-void ReplaceInstWithInst(BasicBlock::InstListType &BIL,
-                         BasicBlock::iterator &BI, Instruction *I);
+void ReplaceInstWithInst(BasicBlock *BB, BasicBlock::iterator &BI,
+                         Instruction *I);
 
 /// Replace the instruction specified by From with the instruction specified by
 /// To. Copies DebugLoc from BI to I, if I doesn't already have a DebugLoc.
@@ -464,10 +464,13 @@ Instruction *SplitBlockAndInsertIfThen(Value *Cond, Instruction *SplitBefore,
 ///     ElseBlock
 ///   SplitBefore
 ///   Tail
+///
+/// Updates DT if given.
 void SplitBlockAndInsertIfThenElse(Value *Cond, Instruction *SplitBefore,
                                    Instruction **ThenTerm,
                                    Instruction **ElseTerm,
-                                   MDNode *BranchWeights = nullptr);
+                                   MDNode *BranchWeights = nullptr,
+                                   DomTreeUpdater *DTU = nullptr);
 
 /// Check whether BB is the merge point of a if-region.
 /// If so, return the branch instruction that determines which entry into
@@ -574,11 +577,11 @@ bool SplitIndirectBrCriticalEdges(Function &F, bool IgnoreBlocksWithoutPHI,
 ///    for the caller to accomplish, since each specific use of this function
 ///    may have additional information which simplifies this fixup. For example,
 ///    see restoreSSA() in the UnifyLoopExits pass.
-BasicBlock *CreateControlFlowHub(DomTreeUpdater *DTU,
-                                 SmallVectorImpl<BasicBlock *> &GuardBlocks,
-                                 const SetVector<BasicBlock *> &Predecessors,
-                                 const SetVector<BasicBlock *> &Successors,
-                                 const StringRef Prefix);
+BasicBlock *CreateControlFlowHub(
+    DomTreeUpdater *DTU, SmallVectorImpl<BasicBlock *> &GuardBlocks,
+    const SetVector<BasicBlock *> &Predecessors,
+    const SetVector<BasicBlock *> &Successors, const StringRef Prefix,
+    std::optional<unsigned> MaxControlFlowBooleans = std::nullopt);
 
 } // end namespace llvm
 

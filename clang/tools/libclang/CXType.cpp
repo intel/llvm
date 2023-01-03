@@ -197,13 +197,13 @@ GetTemplateArguments(QualType Type) {
       return TemplateDecl->getTemplateArgs().asArray();
   }
 
-  return None;
+  return std::nullopt;
 }
 
 static Optional<QualType> TemplateArgumentToQualType(const TemplateArgument &A) {
   if (A.getKind() == TemplateArgument::Type)
     return A.getAsType();
-  return None;
+  return std::nullopt;
 }
 
 static Optional<QualType>
@@ -220,7 +220,7 @@ FindTemplateArgumentTypeAt(ArrayRef<TemplateArgument> TA, unsigned index) {
       return TemplateArgumentToQualType(A);
     current++;
   }
-  return None;
+  return std::nullopt;
 }
 
 CXType clang_getCursorType(CXCursor C) {
@@ -486,6 +486,14 @@ try_again:
       break;
   }
   return MakeCXType(T, GetTU(CT));
+}
+
+CXType clang_getUnqualifiedType(CXType CT) {
+  return MakeCXType(GetQualType(CT).getUnqualifiedType(), GetTU(CT));
+}
+
+CXType clang_getNonReferenceType(CXType CT) {
+  return MakeCXType(GetQualType(CT).getNonReferenceType(), GetTU(CT));
 }
 
 CXCursor clang_getTypeDeclaration(CXType CT) {

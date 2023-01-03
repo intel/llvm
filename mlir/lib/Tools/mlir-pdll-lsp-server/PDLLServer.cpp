@@ -62,14 +62,6 @@ static lsp::Location getLocationFromLoc(llvm::SourceMgr &mgr, SMRange range,
   return lsp::Location(getURIFromLoc(mgr, range, uri), lsp::Range(mgr, range));
 }
 
-/// Returns true if the given range contains the given source location. Note
-/// that this has different behavior than SMRange because it is inclusive of the
-/// end location.
-static bool contains(SMRange range, SMLoc loc) {
-  return range.Start.getPointer() <= loc.getPointer() &&
-         loc.getPointer() <= range.End.getPointer();
-}
-
 /// Convert the given MLIR diagnostic to the LSP form.
 static Optional<lsp::Diagnostic>
 getLspDiagnoticFromDiag(llvm::SourceMgr &sourceMgr, const ast::Diagnostic &diag,
@@ -87,7 +79,7 @@ getLspDiagnoticFromDiag(llvm::SourceMgr &sourceMgr, const ast::Diagnostic &diag,
 
   // Skip diagnostics that weren't emitted within the main file.
   if (loc.uri != uri)
-    return llvm::None;
+    return std::nullopt;
 
   // Convert the severity for the diagnostic.
   switch (diag.getSeverity()) {
@@ -126,47 +118,8 @@ static Optional<std::string> getDocumentationFor(llvm::SourceMgr &sourceMgr,
     return doc->str();
 
   // If the decl doesn't yet have documentation, try to extract it from the
-  // source file. This is a heuristic, and isn't intended to cover every case,
-  // but should cover the most common. We essentially look for a comment
-  // preceding the decl, and if we find one, use that as the documentation.
-  SMLoc startLoc = decl->getLoc().Start;
-  if (!startLoc.isValid())
-    return llvm::None;
-  int bufferId = sourceMgr.FindBufferContainingLoc(startLoc);
-  if (bufferId == 0)
-    return llvm::None;
-  const char *bufferStart =
-      sourceMgr.getMemoryBuffer(bufferId)->getBufferStart();
-  StringRef buffer(bufferStart, startLoc.getPointer() - bufferStart);
-
-  // Pop the last line from the buffer string.
-  auto popLastLine = [&]() -> Optional<StringRef> {
-    size_t newlineOffset = buffer.find_last_of("\n");
-    if (newlineOffset == StringRef::npos)
-      return llvm::None;
-    StringRef lastLine = buffer.drop_front(newlineOffset).trim();
-    buffer = buffer.take_front(newlineOffset);
-    return lastLine;
-  };
-
-  // Try to pop the current line, which contains the decl.
-  if (!popLastLine())
-    return llvm::None;
-
-  // Try to parse a comment string from the source file.
-  SmallVector<StringRef> commentLines;
-  while (Optional<StringRef> line = popLastLine()) {
-    // Check for a comment at the beginning of the line.
-    if (!line->startswith("//"))
-      break;
-
-    // Extract the document string from the comment.
-    commentLines.push_back(line->drop_while([](char c) { return c == '/'; }));
-  }
-
-  if (commentLines.empty())
-    return llvm::None;
-  return llvm::join(llvm::reverse(commentLines), "\n");
+  // source file.
+  return lsp::extractSourceDocComment(sourceMgr, decl->getLoc().Start);
 }
 
 //===----------------------------------------------------------------------===//
@@ -507,7 +460,7 @@ Optional<lsp::Hover> PDLDocument::findHover(const lsp::URIForFile &uri,
   SMRange hoverRange;
   const PDLIndexSymbol *symbol = index.lookup(posLoc, &hoverRange);
   if (!symbol)
-    return llvm::None;
+    return std::nullopt;
 
   // Add hover for operation names.
   if (const auto *op = symbol->definition.dyn_cast<const ods::Operation *>())
@@ -538,7 +491,7 @@ Optional<lsp::Hover> PDLDocument::findHover(const ast::Decl *decl,
   if (const auto *rewrite = dyn_cast<ast::UserRewriteDecl>(decl))
     return buildHoverForUserConstraintOrRewrite("Rewrite", rewrite, hoverRange);
 
-  return llvm::None;
+  return std::nullopt;
 }
 
 lsp::Hover PDLDocument::buildHoverForOpName(const ods::Operation *op,
@@ -807,7 +760,6 @@ public:
   }
 
   void codeCompleteConstraintName(ast::Type currentType,
-                                  bool allowNonCoreConstraints,
                                   bool allowInlineTypeConstraints,
                                   const ast::DeclScope *scope) final {
     auto addCoreConstraint = [&](StringRef constraint, StringRef mlirType,
@@ -855,9 +807,6 @@ public:
     while (scope) {
       for (const ast::Decl *decl : scope->getDecls()) {
         if (const auto *cst = dyn_cast<ast::UserConstraintDecl>(decl)) {
-          if (!allowNonCoreConstraints)
-            continue;
-
           lsp::CompletionItem item;
           item.label = cst->getName().getName().str();
           item.kind = lsp::CompletionItemKind::Interface;
@@ -1088,7 +1037,7 @@ public:
     const ods::Operation *odsOp =
         opName ? odsContext.lookupOperation(*opName) : nullptr;
     codeCompleteOperationOperandOrResultSignature(
-        opName, odsOp, odsOp ? odsOp->getOperands() : llvm::None,
+        opName, odsOp, odsOp ? odsOp->getOperands() : std::nullopt,
         currentNumOperands, "operand", "Value");
   }
 
@@ -1097,7 +1046,7 @@ public:
     const ods::Operation *odsOp =
         opName ? odsContext.lookupOperation(*opName) : nullptr;
     codeCompleteOperationOperandOrResultSignature(
-        opName, odsOp, odsOp ? odsOp->getResults() : llvm::None,
+        opName, odsOp, odsOp ? odsOp->getResults() : std::nullopt,
         currentNumResults, "result", "Type");
   }
 
@@ -1227,7 +1176,8 @@ void PDLDocument::getInlayHints(const lsp::URIForFile &uri,
     SMRange loc = node->getLoc();
 
     // Check that the location of this node is within the input range.
-    if (!contains(rangeLoc, loc.Start) && !contains(rangeLoc, loc.End))
+    if (!lsp::contains(rangeLoc, loc.Start) &&
+        !lsp::contains(rangeLoc, loc.End))
       return;
 
     // Handle hints for various types of nodes.
@@ -1782,7 +1732,7 @@ void lsp::PDLLServer::updateDocument(
 Optional<int64_t> lsp::PDLLServer::removeDocument(const URIForFile &uri) {
   auto it = impl->files.find(uri.file());
   if (it == impl->files.end())
-    return llvm::None;
+    return std::nullopt;
 
   int64_t version = it->second->getVersion();
   impl->files.erase(it);
@@ -1817,7 +1767,7 @@ Optional<lsp::Hover> lsp::PDLLServer::findHover(const URIForFile &uri,
   auto fileIt = impl->files.find(uri.file());
   if (fileIt != impl->files.end())
     return fileIt->second->findHover(uri, hoverPos);
-  return llvm::None;
+  return std::nullopt;
 }
 
 void lsp::PDLLServer::findDocumentSymbols(
@@ -1863,5 +1813,5 @@ lsp::PDLLServer::getPDLLViewOutput(const URIForFile &uri,
   auto fileIt = impl->files.find(uri.file());
   if (fileIt != impl->files.end())
     return fileIt->second->getPDLLViewOutput(kind);
-  return llvm::None;
+  return std::nullopt;
 }

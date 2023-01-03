@@ -31,7 +31,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
-#define DEBUG_TYPE "LoopUtils"
+#define DEBUG_TYPE "loop-utils"
 
 using namespace mlir;
 using namespace presburger;
@@ -1090,7 +1090,8 @@ static LogicalResult generateCleanupLoopForUnroll(AffineForOp forOp,
 /// is successfully unrolled.
 LogicalResult mlir::loopUnrollByFactor(
     AffineForOp forOp, uint64_t unrollFactor,
-    function_ref<void(unsigned, Operation *, OpBuilder)> annotateFn) {
+    function_ref<void(unsigned, Operation *, OpBuilder)> annotateFn,
+    bool cleanUpUnroll) {
   assert(unrollFactor > 0 && "unroll factor should be positive");
 
   Optional<uint64_t> mayBeConstantTripCount = getConstantTripCount(forOp);
@@ -1106,9 +1107,14 @@ LogicalResult mlir::loopUnrollByFactor(
     return success();
 
   // If the trip count is lower than the unroll factor, no unrolled body.
-  // TODO: option to specify cleanup loop unrolling.
-  if (mayBeConstantTripCount && *mayBeConstantTripCount < unrollFactor)
+  if (mayBeConstantTripCount && *mayBeConstantTripCount < unrollFactor) {
+    if (cleanUpUnroll) {
+      // Unroll the cleanup loop if cleanUpUnroll is specified.
+      return loopUnrollFull(forOp);
+    }
+
     return failure();
+  }
 
   // Generate the cleanup loop if trip count isn't a multiple of unrollFactor.
   if (getLargestDivisorOfTripCount(forOp) % unrollFactor != 0) {
@@ -1119,6 +1125,9 @@ LogicalResult mlir::loopUnrollByFactor(
     if (forOp.getLowerBoundMap().getNumResults() != 1 ||
         forOp.getUpperBoundMap().getNumResults() != 1)
       return failure();
+    if (cleanUpUnroll)
+      // Force unroll including cleanup loop
+      return loopUnrollFull(forOp);
     if (failed(generateCleanupLoopForUnroll(forOp, unrollFactor)))
       assert(false && "cleanup loop lower bound map for single result lower "
                       "and upper bound maps can always be determined");
@@ -1759,16 +1768,16 @@ LogicalResult mlir::coalesceLoops(MutableArrayRef<AffineForOp> loops) {
     // Maintain running product of loop upper bounds.
     prev = builder.create<AffineApplyOp>(
         loc,
-        AffineMap::get(/*numDims=*/1,
-                       /*numSymbols=*/1,
+        AffineMap::get(/*dimCount=*/1,
+                       /*symbolCount=*/1,
                        builder.getAffineDimExpr(0) *
                            builder.getAffineSymbolExpr(0)),
         operands);
   }
   // Set upper bound of the coalesced loop.
   AffineMap newUbMap = AffineMap::get(
-      /*numDims=*/0,
-      /*numSymbols=*/1, builder.getAffineSymbolExpr(0), builder.getContext());
+      /*dimCount=*/0,
+      /*symbolCount=*/1, builder.getAffineSymbolExpr(0), builder.getContext());
   outermost.setUpperBound(prev, newUbMap);
 
   builder.setInsertionPointToStart(outermost.getBody());
@@ -1790,7 +1799,7 @@ LogicalResult mlir::coalesceLoops(MutableArrayRef<AffineForOp> loops) {
       previous = builder.create<AffineApplyOp>(
           loc,
           AffineMap::get(
-              /*numDims=*/1, /*numSymbols=*/1,
+              /*dimCount=*/1, /*symbolCount=*/1,
               builder.getAffineDimExpr(0).floorDiv(
                   builder.getAffineSymbolExpr(0))),
           operands);
@@ -1807,7 +1816,7 @@ LogicalResult mlir::coalesceLoops(MutableArrayRef<AffineForOp> loops) {
       inductionVariable = builder.create<AffineApplyOp>(
           loc,
           AffineMap::get(
-              /*numDims=*/1, /*numSymbols=*/1,
+              /*dimCount=*/1, /*symbolCount=*/1,
               builder.getAffineDimExpr(0) % builder.getAffineSymbolExpr(0)),
           applyOperands);
     }
@@ -2747,8 +2756,8 @@ createFullTiles(MutableArrayRef<AffineForOp> inputNest,
     cst.setDimSymbolSeparation(cst.getNumDimAndSymbolVars() - 1);
     unsigned lbPos, ubPos;
     if (!cst.getConstantBoundOnDimSize(/*pos=*/0, /*lb=*/nullptr,
-                                       /*lbDivisor=*/nullptr, /*ub=*/nullptr,
-                                       &lbPos, &ubPos) ||
+                                       /*boundFloorDivisor=*/nullptr,
+                                       /*ub=*/nullptr, &lbPos, &ubPos) ||
         lbPos == ubPos) {
       LLVM_DEBUG(llvm::dbgs() << "[tile separation] Can't get constant diff / "
                                  "equalities not yet handled\n");

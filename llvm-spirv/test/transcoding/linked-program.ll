@@ -4,7 +4,7 @@
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: spirv-link %t.spv -o %t.linked.spv
-; RUN: llvm-spirv -r %t.linked.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.linked.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s
 ;
 ; This checks that SPIR-V programs with global variables are still consumable

@@ -7,10 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "IntelPTMultiCoreTrace.h"
-
-#include "Procfs.h"
-
 #include "Plugins/Process/POSIX/ProcessPOSIXLog.h"
+#include "Procfs.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -29,7 +27,8 @@ static Error IncludePerfEventParanoidMessageInError(Error &&error) {
   return createStringError(
       inconvertibleErrorCode(),
       "%s\nYou might need to rerun as sudo or to set "
-      "/proc/sys/kernel/perf_event_paranoid to a value of 0 or -1. You can use `sudo sysctl -w kernel.perf_event_paranoid=-1` for that.",
+      "/proc/sys/kernel/perf_event_paranoid to a value of 0 or -1. You can use "
+      "`sudo sysctl -w kernel.perf_event_paranoid=-1` for that.",
       toString(std::move(error)).c_str());
 }
 
@@ -52,7 +51,7 @@ IntelPTMultiCoreTrace::StartOnAllCores(const TraceIntelPTStartRequest &request,
 
   for (cpu_id_t cpu_id : *cpu_ids) {
     Expected<IntelPTSingleBufferTrace> core_trace =
-        IntelPTSingleBufferTrace::Start(request, /*tid=*/None, cpu_id,
+        IntelPTSingleBufferTrace::Start(request, /*tid=*/std::nullopt, cpu_id,
                                         /*disabled=*/true, cgroup_fd);
     if (!core_trace)
       return IncludePerfEventParanoidMessageInError(core_trace.takeError());
@@ -110,8 +109,7 @@ TraceIntelPTGetStateResponse IntelPTMultiCoreTrace::GetState() {
   state.using_cgroup_filtering = m_using_cgroup_filtering;
 
   for (NativeThreadProtocol &thread : m_process.Threads())
-    state.traced_threads.push_back(
-        TraceThreadState{thread.GetID(), {}});
+    state.traced_threads.push_back(TraceThreadState{thread.GetID(), {}});
 
   state.cpus.emplace();
   ForEachCore([&](lldb::cpu_id_t cpu_id,
@@ -151,7 +149,7 @@ Expected<Optional<std::vector<uint8_t>>>
 IntelPTMultiCoreTrace::TryGetBinaryData(
     const TraceGetBinaryDataRequest &request) {
   if (!request.cpu_id)
-    return None;
+    return std::nullopt;
   auto it = m_traces_per_core.find(*request.cpu_id);
   if (it == m_traces_per_core.end())
     return createStringError(
@@ -162,5 +160,5 @@ IntelPTMultiCoreTrace::TryGetBinaryData(
     return it->second.first.GetIptTrace();
   if (request.kind == IntelPTDataKinds::kPerfContextSwitchTrace)
     return it->second.second.GetReadOnlyDataBuffer();
-  return None;
+  return std::nullopt;
 }

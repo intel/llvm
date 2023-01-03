@@ -1043,7 +1043,7 @@ struct PragmaDebugHandler : public PragmaHandler {
     Token Tok;
     PP.LexUnexpandedToken(Tok);
     if (Tok.isNot(tok::identifier)) {
-      PP.Diag(Tok, diag::warn_pragma_diagnostic_invalid);
+      PP.Diag(Tok, diag::warn_pragma_debug_missing_command);
       return;
     }
     IdentifierInfo *II = Tok.getIdentifierInfo();
@@ -1181,6 +1181,23 @@ struct PragmaDebugHandler : public PragmaHandler {
         PP.Diag(Tok, diag::warn_pragma_debug_unexpected_command)
           << DumpII->getName();
       }
+    } else if (II->isStr("sloc_usage")) {
+      // An optional integer literal argument specifies the number of files to
+      // specifically report information about.
+      Optional<unsigned> MaxNotes;
+      Token ArgToken;
+      PP.Lex(ArgToken);
+      uint64_t Value;
+      if (ArgToken.is(tok::numeric_constant) &&
+          PP.parseSimpleIntegerLiteral(ArgToken, Value)) {
+        MaxNotes = Value;
+      } else if (ArgToken.isNot(tok::eod)) {
+        PP.Diag(ArgToken, diag::warn_pragma_debug_unexpected_argument);
+      }
+
+      PP.Diag(Tok, diag::remark_sloc_usage);
+      PP.getSourceManager().noteSLocAddressSpaceUsage(PP.getDiagnostics(),
+                                                      MaxNotes);
     } else {
       PP.Diag(Tok, diag::warn_pragma_debug_unexpected_command)
         << II->getName();
@@ -1940,6 +1957,15 @@ struct PragmaRegionHandler : public PragmaHandler {
   }
 };
 
+/// "\#pragma managed"
+/// "\#pragma managed(...)"
+/// "\#pragma unmanaged"
+/// MSVC ignores this pragma when not compiling using /clr, which clang doesn't
+/// support. We parse it and ignore it to avoid -Wunknown-pragma warnings.
+struct PragmaManagedHandler : public EmptyPragmaHandler {
+  PragmaManagedHandler(const char *pragma) : EmptyPragmaHandler(pragma) {}
+};
+
 /// This handles parsing pragmas that take a macro name and optional message
 static IdentifierInfo *HandleMacroAnnotationPragma(Preprocessor &PP, Token &Tok,
                                                    const char *Pragma,
@@ -2112,6 +2138,8 @@ void Preprocessor::RegisterBuiltinPragmas() {
     AddPragmaHandler(new PragmaIncludeAliasHandler());
     AddPragmaHandler(new PragmaHdrstopHandler());
     AddPragmaHandler(new PragmaSystemHeaderHandler());
+    AddPragmaHandler(new PragmaManagedHandler("managed"));
+    AddPragmaHandler(new PragmaManagedHandler("unmanaged"));
   }
 
   // Pragmas added by plugins

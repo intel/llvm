@@ -14,7 +14,6 @@
 #include "StatepointLowering.h"
 #include "SelectionDAGBuilder.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
@@ -165,7 +164,7 @@ static Optional<int> findPreviousSpillSlot(const Value *Val,
                                            int LookUpDepth) {
   // Can not look any further - give up now
   if (LookUpDepth <= 0)
-    return None;
+    return std::nullopt;
 
   // Spill location is known for gc relocates
   if (const auto *Relocate = dyn_cast<GCRelocateInst>(Val)) {
@@ -173,18 +172,18 @@ static Optional<int> findPreviousSpillSlot(const Value *Val,
     assert((isa<GCStatepointInst>(Statepoint) || isa<UndefValue>(Statepoint)) &&
            "GetStatepoint must return one of two types");
     if (isa<UndefValue>(Statepoint))
-      return None;
+      return std::nullopt;
 
     const auto &RelocationMap = Builder.FuncInfo.StatepointRelocationMaps
                                     [cast<GCStatepointInst>(Statepoint)];
 
     auto It = RelocationMap.find(Relocate);
     if (It == RelocationMap.end())
-      return None;
+      return std::nullopt;
 
     auto &Record = It->second;
     if (Record.type != RecordType::Spill)
-      return None;
+      return std::nullopt;
 
     return Record.payload.FI;
   }
@@ -197,16 +196,16 @@ static Optional<int> findPreviousSpillSlot(const Value *Val,
   // All incoming values should have same known stack slot, otherwise result
   // is unknown.
   if (const PHINode *Phi = dyn_cast<PHINode>(Val)) {
-    Optional<int> MergedResult = None;
+    Optional<int> MergedResult;
 
     for (const auto &IncomingValue : Phi->incoming_values()) {
       Optional<int> SpillSlot =
           findPreviousSpillSlot(IncomingValue, Builder, LookUpDepth - 1);
       if (!SpillSlot)
-        return None;
+        return std::nullopt;
 
       if (MergedResult && *MergedResult != *SpillSlot)
-        return None;
+        return std::nullopt;
 
       MergedResult = SpillSlot;
     }
@@ -241,7 +240,7 @@ static Optional<int> findPreviousSpillSlot(const Value *Val,
   // which we visit values is unspecified.
 
   // Don't know any information about this instruction
-  return None;
+  return std::nullopt;
 }
 
 /// Return true if-and-only-if the given SDValue can be lowered as either a
@@ -321,7 +320,7 @@ static void reservePreviousStackSlotForValue(const Value *IncomingValue,
 /// reference lowered call result
 static std::pair<SDValue, SDNode *> lowerCallFromStatepointLoweringInfo(
     SelectionDAGBuilder::StatepointLoweringInfo &SI,
-    SelectionDAGBuilder &Builder, SmallVectorImpl<SDValue> &PendingExports) {
+    SelectionDAGBuilder &Builder) {
   SDValue ReturnValue, CallEndVal;
   std::tie(ReturnValue, CallEndVal) =
       Builder.lowerInvokable(SI.CLI, SI.EHPadBB);
@@ -770,8 +769,7 @@ SDValue SelectionDAGBuilder::LowerAsSTATEPOINT(
   // Get call node, we will replace it later with statepoint
   SDValue ReturnVal;
   SDNode *CallNode;
-  std::tie(ReturnVal, CallNode) =
-      lowerCallFromStatepointLoweringInfo(SI, *this, PendingExports);
+  std::tie(ReturnVal, CallNode) = lowerCallFromStatepointLoweringInfo(SI, *this);
 
   // Construct the actual GC_TRANSITION_START, STATEPOINT, and GC_TRANSITION_END
   // nodes with all the appropriate arguments and return values.
@@ -921,7 +919,7 @@ SDValue SelectionDAGBuilder::LowerAsSTATEPOINT(
     auto *RetTy = Relocate->getType();
     Register Reg = FuncInfo.CreateRegs(RetTy);
     RegsForValue RFV(*DAG.getContext(), DAG.getTargetLoweringInfo(),
-                     DAG.getDataLayout(), Reg, RetTy, None);
+                     DAG.getDataLayout(), Reg, RetTy, std::nullopt);
     SDValue Chain = DAG.getRoot();
     RFV.getCopyToRegs(Relocated, DAG, getCurSDLoc(), Chain, nullptr);
     PendingExports.push_back(Chain);
@@ -1148,7 +1146,7 @@ SelectionDAGBuilder::LowerStatepoint(const GCStatepointInst &I,
   // TODO: To eliminate this problem we can remove gc.result intrinsics
   //       completely and make statepoint call to return a tuple.
   Type *RetTy = GCResultLocality.second->getType();
-  unsigned Reg = FuncInfo.CreateRegs(RetTy);
+  Register Reg = FuncInfo.CreateRegs(RetTy);
   RegsForValue RFV(*DAG.getContext(), DAG.getTargetLoweringInfo(),
                    DAG.getDataLayout(), Reg, RetTy,
                    I.getCallingConv());
@@ -1266,7 +1264,7 @@ void SelectionDAGBuilder::visitGCRelocate(const GCRelocateInst &Relocate) {
     Register InReg = Record.payload.Reg;
     RegsForValue RFV(*DAG.getContext(), DAG.getTargetLoweringInfo(),
                      DAG.getDataLayout(), InReg, Relocate.getType(),
-                     None); // This is not an ABI copy.
+                     std::nullopt); // This is not an ABI copy.
     // We generate copy to/from regs even for local uses, hence we must
     // chain with current root to ensure proper ordering of copies w.r.t.
     // statepoint.

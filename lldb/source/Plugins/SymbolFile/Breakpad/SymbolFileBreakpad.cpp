@@ -294,7 +294,7 @@ size_t SymbolFileBreakpad::ParseBlocksRecursive(Function &func) {
   ParseInlineOriginRecords();
   // A vector of current each level's parent block. For example, when parsing
   // "INLINE 0 ...", the current level is 0 and its parent block is the
-  // funciton block at index 0.
+  // function block at index 0.
   std::vector<Block *> blocks;
   Block &block = func.GetBlock(false);
   block.AddRange(Block::Range(0, func.GetAddressRange().GetByteSize()));
@@ -421,12 +421,13 @@ uint32_t SymbolFileBreakpad::ResolveSymbolContext(
 }
 
 void SymbolFileBreakpad::FindFunctions(
-    ConstString name, const CompilerDeclContext &parent_decl_ctx,
-    FunctionNameType name_type_mask, bool include_inlines,
+    const Module::LookupInfo &lookup_info,
+    const CompilerDeclContext &parent_decl_ctx, bool include_inlines,
     SymbolContextList &sc_list) {
   std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   // TODO: Implement this with supported FunctionNameType.
 
+  ConstString name = lookup_info.GetLookupName();
   for (uint32_t i = 0; i < GetNumCompileUnits(); ++i) {
     CompUnitSP cu_sp = GetCompileUnitAtIndex(i);
     FunctionSP func_sp = GetOrCreateFunction(*cu_sp);
@@ -494,7 +495,7 @@ void SymbolFileBreakpad::AddSymbols(Symtab &symtab) {
 
   for (llvm::StringRef line : lines(Record::Public)) {
     if (auto record = PublicRecord::parse(line))
-      add_symbol(record->Address, llvm::None, record->Name);
+      add_symbol(record->Address, std::nullopt, record->Name);
     else
       LLDB_LOG(log, "Failed to parse: {0}. Skipping record.", line);
   }
@@ -527,7 +528,7 @@ GetRule(llvm::StringRef &unwind_rules) {
   llvm::StringRef lhs, rest;
   std::tie(lhs, rest) = getToken(unwind_rules);
   if (!lhs.consume_back(":"))
-    return llvm::None;
+    return std::nullopt;
 
   // Seek forward to the next register: expression pair
   llvm::StringRef::size_type pos = rest.find(": ");
@@ -540,7 +541,7 @@ GetRule(llvm::StringRef &unwind_rules) {
   // Go back one token to find the end of the current rule.
   pos = rest.rfind(' ', pos);
   if (pos == llvm::StringRef::npos)
-    return llvm::None;
+    return std::nullopt;
 
   llvm::StringRef rhs = rest.take_front(pos);
   unwind_rules = rest.drop_front(pos);

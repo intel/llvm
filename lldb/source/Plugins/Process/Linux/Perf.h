@@ -17,9 +17,7 @@
 
 #include "lldb/Utility/TraceIntelPTGDBRemotePackets.h"
 #include "lldb/lldb-types.h"
-
 #include "llvm/Support/Error.h"
-
 #include <chrono>
 #include <cstdint>
 #include <linux/perf_event.h>
@@ -128,7 +126,7 @@ public:
   ///     all threads and processes are monitored.
   static llvm::Expected<PerfEvent>
   Init(perf_event_attr &attr, llvm::Optional<lldb::pid_t> pid,
-       llvm::Optional<lldb::cpu_id_t> core = llvm::None);
+       llvm::Optional<lldb::cpu_id_t> core = std::nullopt);
 
   /// Mmap the metadata page and the data and aux buffers of the perf event and
   /// expose them through \a PerfEvent::GetMetadataPage() , \a

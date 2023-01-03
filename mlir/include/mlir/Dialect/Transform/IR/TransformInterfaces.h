@@ -12,6 +12,7 @@
 #include "mlir/IR/OpDefinition.h"
 
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "mlir/Support/LogicalResult.h"
 #include "llvm/ADT/ScopeExit.h"
 
 namespace mlir {
@@ -31,9 +32,8 @@ namespace mlir {
 /// Transform IR operations containing other operations are allowed to do either
 /// with the results of the nested transformations, but must propagate definite
 /// failures as their diagnostics have been already reported to the user.
-class LLVM_NODISCARD DiagnosedSilenceableFailure {
+class [[nodiscard]] DiagnosedSilenceableFailure {
 public:
-  explicit DiagnosedSilenceableFailure(LogicalResult result) : result(result) {}
   DiagnosedSilenceableFailure(const DiagnosedSilenceableFailure &) = delete;
   DiagnosedSilenceableFailure &
   operator=(const DiagnosedSilenceableFailure &) = delete;
@@ -125,14 +125,14 @@ public:
     return result;
   }
 
-  /// Take the diagnostic and silence.
-  SmallVector<Diagnostic> &&takeDiagnostics() {
+  /// Take the diagnostics and silence.
+  void takeDiagnostics(SmallVectorImpl<Diagnostic> &diags) {
     assert(!diagnostics.empty() && "expected a diagnostic to be present");
-    auto guard = llvm::make_scope_exit([&]() { diagnostics.clear(); });
-    return std::move(diagnostics);
+    diags.append(std::make_move_iterator(diagnostics.begin()),
+                 std::make_move_iterator(diagnostics.end()));
   }
 
-  /// Streams the given values into the last diagnotic.
+  /// Streams the given values into the last diagnostic.
   /// Expects this object to be a silenceable failure.
   template <typename T>
   DiagnosedSilenceableFailure &operator<<(T &&value) & {
@@ -148,15 +148,16 @@ public:
 
   /// Attaches a note to the last diagnostic.
   /// Expects this object to be a silenceable failure.
-  Diagnostic &attachNote(Optional<Location> loc = llvm::None) {
+  Diagnostic &attachNote(Optional<Location> loc = std::nullopt) {
     assert(isSilenceableFailure() &&
            "can only attach notes to silenceable failures");
     return diagnostics.back().attachNote(loc);
   }
 
 private:
+  explicit DiagnosedSilenceableFailure(LogicalResult result) : result(result) {}
   explicit DiagnosedSilenceableFailure(Diagnostic &&diagnostic)
-      : diagnostics(), result(failure()) {
+      : result(failure()) {
     diagnostics.emplace_back(std::move(diagnostic));
   }
   explicit DiagnosedSilenceableFailure(SmallVector<Diagnostic> &&diagnostics)
@@ -179,6 +180,99 @@ private:
   bool reported = false;
 #endif // LLVM_ENABLE_ABI_BREAKING_CHECKS
 };
+
+class DiagnosedDefiniteFailure;
+
+DiagnosedDefiniteFailure emitDefiniteFailure(Location loc,
+                                             const Twine &message = {});
+
+/// A compatibility class connecting `InFlightDiagnostic` to
+/// `DiagnosedSilenceableFailure` while providing an interface similar to the
+/// former. Implicitly convertible to `DiagnosticSilenceableFailure` in definite
+/// failure state and to `LogicalResult` failure. Reports the error on
+/// conversion or on destruction. Instances of this class can be created by
+/// `emitDefiniteFailure()`.
+class DiagnosedDefiniteFailure {
+  friend DiagnosedDefiniteFailure emitDefiniteFailure(Location loc,
+                                                      const Twine &message);
+
+public:
+  /// Only move-constructible because it carries an in-flight diagnostic.
+  DiagnosedDefiniteFailure(DiagnosedDefiniteFailure &&) = default;
+
+  /// Forward the message to the diagnostic.
+  template <typename T>
+  DiagnosedDefiniteFailure &operator<<(T &&value) & {
+    diag << std::forward<T>(value);
+    return *this;
+  }
+  template <typename T>
+  DiagnosedDefiniteFailure &&operator<<(T &&value) && {
+    return std::move(this->operator<<(std::forward<T>(value)));
+  }
+
+  /// Attaches a note to the error.
+  Diagnostic &attachNote(Optional<Location> loc = std::nullopt) {
+    return diag.attachNote(loc);
+  }
+
+  /// Implicit conversion to DiagnosedSilenceableFailure in the definite failure
+  /// state. Reports the error.
+  operator DiagnosedSilenceableFailure() {
+    diag.report();
+    return DiagnosedSilenceableFailure::definiteFailure();
+  }
+
+  /// Implicit conversion to LogicalResult in the failure state. Reports the
+  /// error.
+  operator LogicalResult() {
+    diag.report();
+    return failure();
+  }
+
+private:
+  /// Constructs a definite failure at the given location with the given
+  /// message.
+  explicit DiagnosedDefiniteFailure(Location loc, const Twine &message)
+      : diag(emitError(loc, message)) {}
+
+  /// Copy-construction and any assignment is disallowed to prevent repeated
+  /// error reporting.
+  DiagnosedDefiniteFailure(const DiagnosedDefiniteFailure &) = delete;
+  DiagnosedDefiniteFailure &
+  operator=(const DiagnosedDefiniteFailure &) = delete;
+  DiagnosedDefiniteFailure &operator=(DiagnosedDefiniteFailure &&) = delete;
+
+  /// The error message.
+  InFlightDiagnostic diag;
+};
+
+/// Emits a definite failure with the given message. The returned object allows
+/// for last-minute modification to the error message, such as attaching notes
+/// and completing the message. It will be reported when the object is
+/// destructed or converted.
+inline DiagnosedDefiniteFailure emitDefiniteFailure(Location loc,
+                                                    const Twine &message) {
+  return DiagnosedDefiniteFailure(loc, message);
+}
+inline DiagnosedDefiniteFailure emitDefiniteFailure(Operation *op,
+                                                    const Twine &message = {}) {
+  return emitDefiniteFailure(op->getLoc(), message);
+}
+
+/// Emits a silenceable failure with the given message. A silenceable failure
+/// must be either suppressed or converted into a definite failure and reported
+/// to the user.
+inline DiagnosedSilenceableFailure
+emitSilenceableFailure(Location loc, const Twine &message = {}) {
+  Diagnostic diag(loc, DiagnosticSeverity::Error);
+  diag << message;
+  return DiagnosedSilenceableFailure::silenceableFailure(std::move(diag));
+}
+inline DiagnosedSilenceableFailure
+emitSilenceableFailure(Operation *op, const Twine &message = {}) {
+  return emitSilenceableFailure(op->getLoc(), message);
+}
 
 namespace transform {
 
@@ -205,15 +299,27 @@ private:
   bool expensiveChecksEnabled = true;
 };
 
+/// Entry point to the Transform dialect infrastructure. Applies the
+/// transformation specified by `transform` to payload IR contained in
+/// `payloadRoot`. The `transform` operation may contain other operations that
+/// will be executed following the internal logic of the operation. It must
+/// have the `PossibleTopLevelTransformOp` trait and not have any operands.
+/// This function internally keeps track of the transformation state.
+LogicalResult
+applyTransforms(Operation *payloadRoot, TransformOpInterface transform,
+                const TransformOptions &options = TransformOptions());
+
 /// The state maintained across applications of various ops implementing the
 /// TransformOpInterface. The operations implementing this interface and the
 /// surrounding structure are referred to as transform IR. The operations to
 /// which transformations apply are referred to as payload IR. The state thus
-/// contains the mapping between values defined in the transform IR ops and
-/// payload IR ops. It assumes that each value in the transform IR can be used
-/// at most once (since transformations are likely to change the payload IR ops
-/// the value corresponds to). Checks that transform IR values correspond to
-/// disjoint sets of payload IR ops throughout the transformation.
+/// contains the many-to-many mapping between values defined in the transform IR
+/// ops and payload IR ops. The "expensive-checks" option can be passed to
+/// the constructor at transformation execution time that transform IR values
+/// used as operands by a transform IR operation are not associated with
+/// dangling pointers to payload IR operations that are known to have been
+/// erased by previous transformation through the same or a different transform
+/// IR value.
 ///
 /// A reference to this class is passed as an argument to "apply" methods of the
 /// transform op interface. Thus the "apply" method can call
@@ -235,9 +341,10 @@ class TransformState {
   /// operations in the payload IR.
   using TransformOpMapping = DenseMap<Value, SmallVector<Operation *>>;
 
-  /// Mapping between a payload IR operation and the transform IR value it is
-  /// currently associated with.
-  using TransformOpReverseMapping = DenseMap<Operation *, Value>;
+  /// Mapping between a payload IR operation and the transform IR values it is
+  /// associated with.
+  using TransformOpReverseMapping =
+      DenseMap<Operation *, SmallVector<Value, 2>>;
 
   /// Bidirectional mappings between transform IR values and payload IR
   /// operations.
@@ -246,15 +353,11 @@ class TransformState {
     TransformOpReverseMapping reverse;
   };
 
-public:
-  /// Creates a state for transform ops living in the given region. The parent
-  /// operation of the region. The second argument points to the root operation
-  /// in the payload IR beind transformed, which may or may not contain the
-  /// region with transform ops. Additional options can be provided through the
-  /// trailing configuration object.
-  TransformState(Region &region, Operation *root,
-                 const TransformOptions &options = TransformOptions());
+  friend LogicalResult applyTransforms(Operation *payloadRoot,
+                                       TransformOpInterface transform,
+                                       const TransformOptions &options);
 
+public:
   /// Returns the op at which the transformation state is rooted. This is
   /// typically helpful for transformations that apply globally.
   Operation *getTopLevel() const;
@@ -263,9 +366,10 @@ public:
   /// This is helpful for transformations that apply to a particular handle.
   ArrayRef<Operation *> getPayloadOps(Value value) const;
 
-  /// Returns the Transform IR handle for the given Payload IR op if it exists
-  /// in the state, null otherwise.
-  Value getHandleForPayloadOp(Operation *op) const;
+  /// Populates `handles` with all handles pointing to the given Payload IR op.
+  /// Returns success if such handles exist, failure otherwise.
+  LogicalResult getHandlesForPayloadOp(Operation *op,
+                                       SmallVectorImpl<Value> &handles) const;
 
   /// Applies the transformation specified by the given transform op and updates
   /// the state accordingly.
@@ -275,6 +379,9 @@ public:
   /// list of operations in the payload IR. The arguments must be defined in
   /// blocks of the currently processed transform IR region, typically after a
   /// region scope is defined.
+  ///
+  /// Returns failure if the payload does not satisfy the conditions associated
+  /// with the type of the handle value.
   LogicalResult mapBlockArguments(BlockArgument argument,
                                   ArrayRef<Operation *> operations) {
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
@@ -379,7 +486,8 @@ public:
     const TransformState &getTransformState() const { return state; }
 
     /// Replaces the given payload op with another op. If the replacement op is
-    /// null, removes the association of the payload op with its handle.
+    /// null, removes the association of the payload op with its handle. Returns
+    /// failure if the op is not associated with any handle.
     LogicalResult replacePayloadOp(Operation *op, Operation *replacement);
 
   private:
@@ -429,6 +537,13 @@ private:
   /// Identifier for storing top-level value in the `operations` mapping.
   static constexpr Value kTopLevelValue = Value();
 
+  /// Creates a state for transform ops living in the given region. The second
+  /// argument points to the root operation in the payload IR being transformed,
+  /// which may or may not contain the region with transform ops. Additional
+  /// options can be provided through the trailing configuration object.
+  TransformState(Region *region, Operation *payloadRoot,
+                 const TransformOptions &options = TransformOptions());
+
   /// Returns the mappings frame for the reigon in which the value is defined.
   const Mappings &getMapping(Value value) const {
     return const_cast<TransformState *>(this)->getMapping(value);
@@ -451,19 +566,31 @@ private:
     return it->second;
   }
 
-  /// Sets the payload IR ops associated with the given transform IR value.
-  /// Fails if this would result in multiple transform IR values with uses
-  /// corresponding to the same payload IR ops. For example, a hypothetical
-  /// "find function by name" transform op would (indirectly) call this
-  /// function for its result. Having two such calls in a row with for different
-  /// values, e.g. coming from different ops:
+  /// Removes the mapping between the given payload IR operation and the given
+  /// transform IR value.
+  void dropReverseMapping(Mappings &mappings, Operation *op, Value value);
+
+  /// Sets the payload IR ops associated with the given transform IR value
+  /// (handle). A payload op may be associated multiple handles as long as
+  /// at most one of them gets consumed by further transformations.
+  /// For example, a hypothetical "find function by name" may be called twice in
+  /// a row to produce two handles pointing to the same function:
   ///
   ///   %0 = transform.find_func_by_name { name = "myfunc" }
   ///   %1 = transform.find_func_by_name { name = "myfunc" }
   ///
-  /// would lead to both values pointing to the same operation. The second call
-  /// to setPayloadOps will fail, unless the association with the %0 value is
-  /// removed first by calling update/removePayloadOps.
+  /// which is valid by itself. However, calling a hypothetical "rewrite and
+  /// rename function" transform on both handles:
+  ///
+  ///   transform.rewrite_and_rename %0 { new_name = "func" }
+  ///   transform.rewrite_and_rename %1 { new_name = "func" }
+  ///
+  /// is invalid given the transformation "consumes" the handle as expressed
+  /// by side effects. Practically, a transformation consuming a handle means
+  /// that the associated payload operation may no longer exist.
+  ///
+  /// Returns failure if the payload does not satisfy the conditions associated
+  /// with the type of the handle value.
   LogicalResult setPayloadOps(Value value, ArrayRef<Operation *> targets);
 
   /// Forgets the payload IR ops associated with the given transform IR value.
@@ -473,24 +600,22 @@ private:
   /// The callback function is called once per associated operation and is
   /// expected to return the modified operation or nullptr. In the latter case,
   /// the corresponding operation is no longer associated with the transform IR
-  /// value. May fail if the operation produced by the update callback is
-  /// already associated with a different Transform IR handle value.
+  /// value.
+  ///
+  /// Returns failure if the payload does not satisfy the conditions associated
+  /// with the type of the handle value.
   LogicalResult
   updatePayloadOps(Value value,
                    function_ref<Operation *(Operation *)> callback);
 
-  /// Attempts to record the mapping between the given Payload IR operation and
-  /// the given Transform IR handle. Fails and reports an error if the operation
-  /// is already tracked by another handle.
-  static LogicalResult tryEmplaceReverseMapping(Mappings &map, Operation *op,
-                                                Value handle);
-
   /// If the operand is a handle consumed by the operation, i.e. has the "free"
   /// memory effect associated with it, identifies other handles that are
   /// pointing to payload IR operations nested in the operations pointed to by
-  /// the consumed handle. Marks all such handles as invalidated so trigger
+  /// the consumed handle. Marks all such handles as invalidated to trigger
   /// errors if they are used.
   void recordHandleInvalidation(OpOperand &handle);
+  void recordHandleInvalidationOne(OpOperand &handle, Operation *payloadOp,
+                                   Value otherHandle);
 
   /// Checks that the operation does not use invalidated handles as operands.
   /// Reports errors and returns failure if it does. Otherwise, invalidates the
@@ -516,8 +641,9 @@ private:
 
   /// The mapping from invalidated handles to the error-reporting functions that
   /// describe when the handles were invalidated. Calling such a function emits
-  /// a user-visible diagnostic.
-  DenseMap<Value, std::function<void()>> invalidatedHandles;
+  /// a user-visible diagnostic with an additional note pointing to the given
+  /// location.
+  DenseMap<Value, std::function<void(Location)>> invalidatedHandles;
 
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
   /// A stack of nested regions that are being processed in the transform IR.
@@ -604,7 +730,6 @@ public:
   /// Sets up the mapping between the entry block of the given region of this op
   /// and the relevant list of Payload IR operations in the given state. The
   /// state is expected to be already scoped at the region of this operation.
-  /// Returns failure if the mapping failed, e.g., the value is already mapped.
   LogicalResult mapBlockArguments(TransformState &state, Region &region) {
     assert(region.getParentOp() == this->getOperation() &&
            "op comes from the wrong region");
@@ -819,8 +944,7 @@ DiagnosedSilenceableFailure applyTransformToEach(
     if (result.isDefiniteFailure())
       return result;
     if (result.isSilenceableFailure())
-      for (auto &&diag : result.takeDiagnostics())
-        silenceableStack.push_back(std::move(diag));
+      result.takeDiagnostics(silenceableStack);
   }
   if (!silenceableStack.empty()) {
     return DiagnosedSilenceableFailure::silenceableFailure(

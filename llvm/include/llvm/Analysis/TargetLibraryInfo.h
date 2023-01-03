@@ -11,10 +11,10 @@
 
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
+#include <optional>
 
 namespace llvm {
 
@@ -193,6 +193,9 @@ public:
   /// This queries the 'wchar_size' metadata.
   unsigned getWCharSize(const Module &M) const;
 
+  /// Returns the size of the size_t type in bits.
+  unsigned getSizeTSize(const Module &M) const;
+
   /// Get size of a C-level int or unsigned int, in bits.
   unsigned getIntSize() const {
     return SizeOfInt;
@@ -232,7 +235,7 @@ class TargetLibraryInfo {
 
 public:
   explicit TargetLibraryInfo(const TargetLibraryInfoImpl &Impl,
-                             Optional<const Function *> F = None)
+                             std::optional<const Function *> F = std::nullopt)
       : Impl(&Impl), OverrideAsUnavailable(NumLibFuncs) {
     if (!F)
       return;
@@ -406,6 +409,9 @@ public:
     return Impl->getWCharSize(M);
   }
 
+  /// \copydoc TargetLibraryInfoImpl::getSizeTSize()
+  unsigned getSizeTSize(const Module &M) const { return Impl->getSizeTSize(M); }
+
   /// \copydoc TargetLibraryInfoImpl::getIntSize()
   unsigned getIntSize() const {
     return Impl->getIntSize();
@@ -462,12 +468,12 @@ private:
   friend AnalysisInfoMixin<TargetLibraryAnalysis>;
   static AnalysisKey Key;
 
-  Optional<TargetLibraryInfoImpl> BaselineInfoImpl;
+  std::optional<TargetLibraryInfoImpl> BaselineInfoImpl;
 };
 
 class TargetLibraryInfoWrapperPass : public ImmutablePass {
   TargetLibraryAnalysis TLA;
-  Optional<TargetLibraryInfo> TLI;
+  std::optional<TargetLibraryInfo> TLI;
 
   virtual void anchor();
 

@@ -31,7 +31,7 @@ int main() {
     sycl::buffer<DataType, 1> BufB(DataB, DEFAULT_PROBLEM_SIZE);
     sycl::buffer<DataType, 1> BufC(DataC, DEFAULT_PROBLEM_SIZE);
 
-    sycl::queue deviceQueue(sycl::gpu_selector{}, AsyncHandler);
+    sycl::queue deviceQueue(sycl::gpu_selector_v, AsyncHandler);
 
     deviceQueue.submit([&](sycl::handler &cgh) {
       auto A = BufA.get_access<sycl::access::mode::read>(cgh);

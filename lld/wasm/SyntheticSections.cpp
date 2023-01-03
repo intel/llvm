@@ -88,7 +88,7 @@ void DylinkSection::writeBody() {
   // so that knows not to report an error for such symbols.
   std::vector<const Symbol *> importInfo;
   std::vector<const Symbol *> exportInfo;
-  for (const Symbol *sym : symtab->getSymbols()) {
+  for (const Symbol *sym : symtab->symbols()) {
     if (sym->isLive()) {
       if (sym->isExported() && sym->isTLS() && isa<DefinedData>(sym)) {
         exportInfo.push_back(sym);
@@ -162,7 +162,7 @@ void TypeSection::writeBody() {
 uint32_t ImportSection::getNumImports() const {
   assert(isSealed);
   uint32_t numImports = importedSymbols.size() + gotSymbols.size();
-  if (config->importMemory)
+  if (config->memoryImport.has_value())
     ++numImports;
   return numImports;
 }
@@ -234,10 +234,10 @@ void ImportSection::writeBody() {
 
   bool is64 = config->is64.value_or(false);
 
-  if (config->importMemory) {
+  if (config->memoryImport) {
     WasmImport import;
-    import.Module = defaultModule;
-    import.Field = "memory";
+    import.Module = config->memoryImport.value().first;
+    import.Field = config->memoryImport.value().second;
     import.Kind = WASM_EXTERNAL_MEMORY;
     import.Memory.Flags = 0;
     import.Memory.Minimum = out.memorySec->numMemoryPages;
@@ -597,10 +597,9 @@ void ElemSection::writeBody() {
 
 DataCountSection::DataCountSection(ArrayRef<OutputSegment *> segments)
     : SyntheticSection(llvm::wasm::WASM_SEC_DATACOUNT),
-      numSegments(std::count_if(segments.begin(), segments.end(),
-                                [](OutputSegment *const segment) {
-                                  return segment->requiredInBinary();
-                                })) {}
+      numSegments(llvm::count_if(segments, [](OutputSegment *const segment) {
+        return segment->requiredInBinary();
+      })) {}
 
 void DataCountSection::writeBody() {
   writeUleb128(bodyOutputStream, numSegments, "data count");
@@ -669,7 +668,7 @@ void LinkingSection::writeBody() {
     writeUleb128(sub.os, dataSegments.size(), "num data segments");
     for (const OutputSegment *s : dataSegments) {
       writeStr(sub.os, s->name, "segment name");
-      writeUleb128(sub.os, s->alignment, "alignment");
+      writeUleb128(sub.os, Log2(s->alignment), "alignment");
       writeUleb128(sub.os, s->linkingFlags, "flags");
     }
     sub.writeTo(os);
@@ -844,8 +843,7 @@ void ProducersSection::addInfo(const WasmProducerInfo &info) {
        {std::make_pair(&info.Languages, &languages),
         std::make_pair(&info.Tools, &tools), std::make_pair(&info.SDKs, &sDKs)})
     for (auto &producer : *producers.first)
-      if (producers.second->end() ==
-          llvm::find_if(*producers.second,
+      if (llvm::none_of(*producers.second,
                         [&](std::pair<std::string, std::string> seen) {
                           return seen.first == producer.first;
                         }))

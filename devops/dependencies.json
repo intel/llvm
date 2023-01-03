@@ -1,21 +1,27 @@
 {
   "linux": {
     "compute_runtime": {
-      "github_tag": "22.32.23937",
-      "version": "22.32.23937",
-      "url": "https://github.com/intel/compute-runtime/releases/tag/22.32.23937",
+      "github_tag": "22.43.24595.30",
+      "version": "22.43.24595.30",
+      "url": "https://github.com/intel/compute-runtime/releases/tag/22.43.24595.30",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "igc": {
-      "github_tag": "igc-1.0.11702.1",
-      "version": "1.0.11702.1",
-      "url": "https://github.com/intel/intel-graphics-compiler/releases/tag/igc-1.0.11702.1",
+      "github_tag": "igc-1.0.12504.5",
+      "version": "1.0.12504.5",
+      "url": "https://github.com/intel/intel-graphics-compiler/releases/tag/igc-1.0.12504.5",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "cm": {
       "github_tag": "cmclang-1.0.144",
       "version": "1.0.144",
       "url": "https://github.com/intel/cm-compiler/releases/tag/cmclang-1.0.144",
+      "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
+    },
+    "level_zero": {
+      "github_tag": "v1.8.12",
+      "version": "v1.8.12",
+      "url": "https://github.com/oneapi-src/level-zero/releases/tag/v1.8.12",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "tbb": {
@@ -34,47 +40,6 @@
       "github_tag": "2022-WW33",
       "version": "2022.14.8.0.04",
       "url": "https://github.com/intel/llvm/releases/download/2022-WW33/fpgaemu-2022.14.8.0.04_rel.tar.gz",
-      "root": "{DEPS_ROOT}/opencl/runtime/linux/oclfpgaemu"
-    },
-    "fpga": {
-      "root": "{ARCHIVE_ROOT}/comp/oclfpga/linux"
-    }
-  },
-  "linux_staging": {
-    "compute_runtime": {
-      "github_tag": "22.31.23852",
-      "version": "22.31.23852",
-      "url": "https://github.com/intel/compute-runtime/releases/tag/22.31.23852",
-      "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
-    },
-    "igc": {
-      "github_tag": "igc-1.0.11485",
-      "version": "1.0.11485",
-      "url": "https://github.com/intel/intel-graphics-compiler/releases/tag/igc-1.0.11485",
-      "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
-    },
-    "cm": {
-      "github_tag": "cmclang-1.0.144",
-      "version": "1.0.144",
-      "url": "https://github.com/intel/cm-compiler/releases/tag/cmclang-1.0.144",
-      "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
-    },
-    "tbb": {
-      "github_tag": "v2021.5.0",
-      "version": "2021.5.0",
-      "url": "https://github.com/oneapi-src/oneTBB/releases/download/v2021.5.0/oneapi-tbb-2021.5.0-lin.tgz",
-      "root": "{DEPS_ROOT}/tbb/lin"
-    },
-    "oclcpu": {
-      "github_tag": "2021-WW50",
-      "version": "2021.13.11.0.23",
-      "url": "https://github.com/intel/llvm/releases/download/2021-WW50/oclcpuexp-2021.13.11.0.23_rel.tar.gz",
-      "root": "{DEPS_ROOT}/opencl/runtime/linux/oclcpu"
-    },
-    "fpgaemu": {
-      "github_tag": "2021-WW50",
-      "version": "2021.13.11.0.23",
-      "url": "https://github.com/intel/llvm/releases/download/2021-WW50/fpgaemu-2021.13.11.0.23_rel.tar.gz",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclfpgaemu"
     },
     "fpga": {

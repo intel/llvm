@@ -14,7 +14,6 @@
 #include "llvm/Transforms/IPO/PartialInlining.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
@@ -753,7 +752,7 @@ BranchProbability PartialInlinerImpl::getOutliningCallBBRelativeFreq(
   // is predicted to be less likely, the predicted probablity is usually
   // higher than the actual. For instance, the actual probability of the
   // less likely target is only 5%, but the guessed probablity can be
-  // 40%. In the latter case, there is no need for further adjustement.
+  // 40%. In the latter case, there is no need for further adjustment.
   // FIXME: add an option for this.
   if (OutlineRegionRelFreq < BranchProbability(45, 100))
     return OutlineRegionRelFreq;
@@ -1083,10 +1082,8 @@ void PartialInlinerImpl::FunctionCloner::normalizeReturnBlock() const {
     return;
 
   auto IsTrivialPhi = [](PHINode *PN) -> Value * {
-    Value *CommonValue = PN->getIncomingValue(0);
-    if (all_of(PN->incoming_values(),
-               [&](Value *V) { return V == CommonValue; }))
-      return CommonValue;
+    if (llvm::all_equal(PN->incoming_values()))
+      return PN->getIncomingValue(0);
     return nullptr;
   };
 
@@ -1353,16 +1350,13 @@ bool PartialInlinerImpl::tryPartialInline(FunctionCloner &Cloner) {
   if (Cloner.OutlinedFunctions.empty())
     return false;
 
-  int SizeCost = 0;
-  BlockFrequency WeightedRcost;
-  int NonWeightedRcost;
-
   auto OutliningCosts = computeOutliningCosts(Cloner);
-  assert(std::get<0>(OutliningCosts).isValid() &&
-         std::get<1>(OutliningCosts).isValid() && "Expected valid costs");
 
-  SizeCost = *std::get<0>(OutliningCosts).getValue();
-  NonWeightedRcost = *std::get<1>(OutliningCosts).getValue();
+  InstructionCost SizeCost = std::get<0>(OutliningCosts);
+  InstructionCost NonWeightedRcost = std::get<1>(OutliningCosts);
+
+  assert(SizeCost.isValid() && NonWeightedRcost.isValid() &&
+         "Expected valid costs");
 
   // Only calculate RelativeToEntryFreq when we are doing single region
   // outlining.
@@ -1377,7 +1371,8 @@ bool PartialInlinerImpl::tryPartialInline(FunctionCloner &Cloner) {
     // execute the calls to outlined functions.
     RelativeToEntryFreq = BranchProbability(0, 1);
 
-  WeightedRcost = BlockFrequency(NonWeightedRcost) * RelativeToEntryFreq;
+  BlockFrequency WeightedRcost =
+      BlockFrequency(*NonWeightedRcost.getValue()) * RelativeToEntryFreq;
 
   // The call sequence(s) to the outlined function(s) are larger than the sum of
   // the original outlined region size(s), it does not increase the chances of
@@ -1438,7 +1433,7 @@ bool PartialInlinerImpl::tryPartialInline(FunctionCloner &Cloner) {
     InlineFunctionInfo IFI(nullptr, GetAssumptionCache, &PSI);
     // We can only forward varargs when we outlined a single region, else we
     // bail on vararg functions.
-    if (!InlineFunction(*CB, IFI, nullptr, true,
+    if (!InlineFunction(*CB, IFI, /*MergeAttributes=*/false, nullptr, true,
                         (Cloner.ClonedOI ? Cloner.OutlinedFunctions.back().first
                                          : nullptr))
              .isSuccess())
@@ -1492,16 +1487,6 @@ bool PartialInlinerImpl::run(Module &M) {
     Worklist.pop_back();
 
     if (CurrFunc->use_empty())
-      continue;
-
-    bool Recursive = false;
-    for (User *U : CurrFunc->users())
-      if (Instruction *I = dyn_cast<Instruction>(U))
-        if (I->getParent()->getParent() == CurrFunc) {
-          Recursive = true;
-          break;
-        }
-    if (Recursive)
       continue;
 
     std::pair<bool, Function *> Result = unswitchFunction(*CurrFunc);

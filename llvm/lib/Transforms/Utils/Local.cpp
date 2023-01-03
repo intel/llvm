@@ -17,7 +17,6 @@
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
@@ -58,6 +57,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/IntrinsicsWebAssembly.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Metadata.h"
@@ -80,6 +80,7 @@
 #include <cstdint>
 #include <iterator>
 #include <map>
+#include <optional>
 #include <utility>
 
 using namespace llvm;
@@ -443,8 +444,23 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
     if (isRemovableAlloc(CB, TLI))
       return true;
 
-  if (!I->willReturn())
-    return false;
+  if (!I->willReturn()) {
+    auto *II = dyn_cast<IntrinsicInst>(I);
+    if (!II)
+      return false;
+
+    // TODO: These intrinsics are not safe to remove, because this may remove
+    // a well-defined trap.
+    switch (II->getIntrinsicID()) {
+    case Intrinsic::wasm_trunc_signed:
+    case Intrinsic::wasm_trunc_unsigned:
+    case Intrinsic::ptrauth_auth:
+    case Intrinsic::ptrauth_resign:
+      return true;
+    default:
+      return false;
+    }
+  }
 
   if (!I->mayHaveSideEffects())
     return true;
@@ -488,7 +504,8 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
     }
 
     if (auto *FPI = dyn_cast<ConstrainedFPIntrinsic>(I)) {
-      Optional<fp::ExceptionBehavior> ExBehavior = FPI->getExceptionBehavior();
+      std::optional<fp::ExceptionBehavior> ExBehavior =
+          FPI->getExceptionBehavior();
       return *ExBehavior != fp::ebStrict;
     }
   }
@@ -798,7 +815,7 @@ void llvm::MergeBasicBlockIntoOnlyPred(BasicBlock *DestBB,
 
   // Splice all the instructions from PredBB to DestBB.
   PredBB->getTerminator()->eraseFromParent();
-  DestBB->getInstList().splice(DestBB->begin(), PredBB->getInstList());
+  DestBB->splice(DestBB->begin(), PredBB);
   new UnreachableInst(PredBB->getContext(), PredBB);
 
   // If the PredBB is the entry block of the function, move DestBB up to
@@ -807,7 +824,7 @@ void llvm::MergeBasicBlockIntoOnlyPred(BasicBlock *DestBB,
     DestBB->moveAfter(PredBB);
 
   if (DTU) {
-    assert(PredBB->getInstList().size() == 1 &&
+    assert(PredBB->size() == 1 &&
            isa<UnreachableInst>(PredBB->getTerminator()) &&
            "The successor list of PredBB isn't empty before "
            "applying corresponding DTU updates.");
@@ -1090,17 +1107,77 @@ bool llvm::TryToSimplifyUncondBranchFromEmptyBlock(BasicBlock *BB,
     }
   }
 
-  // We cannot fold the block if it's a branch to an already present callbr
-  // successor because that creates duplicate successors.
-  for (BasicBlock *PredBB : predecessors(BB)) {
-    if (auto *CBI = dyn_cast<CallBrInst>(PredBB->getTerminator())) {
-      if (Succ == CBI->getDefaultDest())
-        return false;
-      for (unsigned i = 0, e = CBI->getNumIndirectDests(); i != e; ++i)
-        if (Succ == CBI->getIndirectDest(i))
-          return false;
-    }
-  }
+  // 'BB' and 'BB->Pred' are loop latches, bail out to presrve inner loop
+  // metadata.
+  //
+  // FIXME: This is a stop-gap solution to preserve inner-loop metadata given
+  // current status (that loop metadata is implemented as metadata attached to
+  // the branch instruction in the loop latch block). To quote from review
+  // comments, "the current representation of loop metadata (using a loop latch
+  // terminator attachment) is known to be fundamentally broken. Loop latches
+  // are not uniquely associated with loops (both in that a latch can be part of
+  // multiple loops and a loop may have multiple latches). Loop headers are. The
+  // solution to this problem is also known: Add support for basic block
+  // metadata, and attach loop metadata to the loop header."
+  //
+  // Why bail out:
+  // In this case, we expect 'BB' is the latch for outer-loop and 'BB->Pred' is
+  // the latch for inner-loop (see reason below), so bail out to prerserve
+  // inner-loop metadata rather than eliminating 'BB' and attaching its metadata
+  // to this inner-loop.
+  // - The reason we believe 'BB' and 'BB->Pred' have different inner-most
+  // loops: assuming 'BB' and 'BB->Pred' are from the same inner-most loop L,
+  // then 'BB' is the header and latch of 'L' and thereby 'L' must consist of
+  // one self-looping basic block, which is contradictory with the assumption.
+  //
+  // To illustrate how inner-loop metadata is dropped:
+  //
+  // CFG Before
+  //
+  // BB is while.cond.exit, attached with loop metdata md2.
+  // BB->Pred is for.body, attached with loop metadata md1.
+  //
+  //      entry
+  //        |
+  //        v
+  // ---> while.cond   ------------->  while.end
+  // |       |
+  // |       v
+  // |   while.body
+  // |       |
+  // |       v
+  // |    for.body <---- (md1)
+  // |       |  |______|
+  // |       v
+  // |    while.cond.exit (md2)
+  // |       |
+  // |_______|
+  //
+  // CFG After
+  //
+  // while.cond1 is the merge of while.cond.exit and while.cond above.
+  // for.body is attached with md2, and md1 is dropped.
+  // If LoopSimplify runs later (as a part of loop pass), it could create
+  // dedicated exits for inner-loop (essentially adding `while.cond.exit`
+  // back), but won't it won't see 'md1' nor restore it for the inner-loop.
+  //
+  //       entry
+  //         |
+  //         v
+  // ---> while.cond1  ------------->  while.end
+  // |       |
+  // |       v
+  // |   while.body
+  // |       |
+  // |       v
+  // |    for.body <---- (md2)
+  // |_______|  |______|
+  if (Instruction *TI = BB->getTerminator())
+    if (TI->hasMetadata(LLVMContext::MD_loop))
+      for (BasicBlock *Pred : predecessors(BB))
+        if (Instruction *PredTI = Pred->getTerminator())
+          if (PredTI->hasMetadata(LLVMContext::MD_loop))
+            return false;
 
   LLVM_DEBUG(dbgs() << "Killing Trivial BB: \n" << *BB);
 
@@ -1143,8 +1220,7 @@ bool llvm::TryToSimplifyUncondBranchFromEmptyBlock(BasicBlock *BB,
 
     // Copy over any phi, debug or lifetime instruction.
     BB->getTerminator()->eraseFromParent();
-    Succ->getInstList().splice(Succ->getFirstNonPHI()->getIterator(),
-                               BB->getInstList());
+    Succ->splice(Succ->getFirstNonPHI()->getIterator(), BB);
   } else {
     while (PHINode *PN = dyn_cast<PHINode>(&BB->front())) {
       // We explicitly check for such uses in CanPropagatePredecessorsForPHIs.
@@ -1168,7 +1244,7 @@ bool llvm::TryToSimplifyUncondBranchFromEmptyBlock(BasicBlock *BB,
 
   // Clear the successor list of BB to match updates applying to DTU later.
   if (BB->getTerminator())
-    BB->getInstList().pop_back();
+    BB->back().eraseFromParent();
   new UnreachableInst(BB->getContext(), BB);
   assert(succ_empty(BB) && "The successor list of BB isn't empty before "
                            "applying corresponding DTU updates.");
@@ -1412,7 +1488,7 @@ static bool PhiHasDebugValue(DILocalVariable *DIVar,
 static bool valueCoversEntireFragment(Type *ValTy, DbgVariableIntrinsic *DII) {
   const DataLayout &DL = DII->getModule()->getDataLayout();
   TypeSize ValueSize = DL.getTypeAllocSizeInBits(ValTy);
-  if (Optional<uint64_t> FragmentSize = DII->getFragmentSizeInBits()) {
+  if (std::optional<uint64_t> FragmentSize = DII->getFragmentSizeInBits()) {
     assert(!ValueSize.isScalable() &&
            "Fragments don't work on scalable types.");
     return ValueSize.getFixedSize() >= *FragmentSize;
@@ -1426,7 +1502,8 @@ static bool valueCoversEntireFragment(Type *ValTy, DbgVariableIntrinsic *DII) {
            "address of variable must have exactly 1 location operand.");
     if (auto *AI =
             dyn_cast_or_null<AllocaInst>(DII->getVariableLocationOp(0))) {
-      if (Optional<TypeSize> FragmentSize = AI->getAllocationSizeInBits(DL)) {
+      if (std::optional<TypeSize> FragmentSize =
+              AI->getAllocationSizeInBits(DL)) {
         return TypeSize::isKnownGE(ValueSize, *FragmentSize);
       }
     }
@@ -1435,30 +1512,17 @@ static bool valueCoversEntireFragment(Type *ValTy, DbgVariableIntrinsic *DII) {
   return false;
 }
 
-/// Produce a DebugLoc to use for each dbg.declare/inst pair that are promoted
-/// to a dbg.value. Because no machine insts can come from debug intrinsics,
-/// only the scope and inlinedAt is significant. Zero line numbers are used in
-/// case this DebugLoc leaks into any adjacent instructions.
-static DebugLoc getDebugValueLoc(DbgVariableIntrinsic *DII, Instruction *Src) {
-  // Original dbg.declare must have a location.
-  const DebugLoc &DeclareLoc = DII->getDebugLoc();
-  MDNode *Scope = DeclareLoc.getScope();
-  DILocation *InlinedAt = DeclareLoc.getInlinedAt();
-  // Produce an unknown location with the correct scope / inlinedAt fields.
-  return DILocation::get(DII->getContext(), 0, 0, Scope, InlinedAt);
-}
-
 /// Inserts a llvm.dbg.value intrinsic before a store to an alloca'd value
 /// that has an associated llvm.dbg.declare or llvm.dbg.addr intrinsic.
 void llvm::ConvertDebugDeclareToDebugValue(DbgVariableIntrinsic *DII,
                                            StoreInst *SI, DIBuilder &Builder) {
-  assert(DII->isAddressOfVariable());
+  assert(DII->isAddressOfVariable() || isa<DbgAssignIntrinsic>(DII));
   auto *DIVar = DII->getVariable();
   assert(DIVar && "Missing variable");
   auto *DIExpr = DII->getExpression();
   Value *DV = SI->getValueOperand();
 
-  DebugLoc NewLoc = getDebugValueLoc(DII, SI);
+  DebugLoc NewLoc = getDebugValueLoc(DII);
 
   if (!valueCoversEntireFragment(DV->getType(), DII)) {
     // FIXME: If storing to a part of the variable described by the dbg.declare,
@@ -1493,7 +1557,7 @@ void llvm::ConvertDebugDeclareToDebugValue(DbgVariableIntrinsic *DII,
     return;
   }
 
-  DebugLoc NewLoc = getDebugValueLoc(DII, nullptr);
+  DebugLoc NewLoc = getDebugValueLoc(DII);
 
   // We are now tracking the loaded value instead of the address. In the
   // future if multi-location support is added to the IR, it might be
@@ -1527,7 +1591,7 @@ void llvm::ConvertDebugDeclareToDebugValue(DbgVariableIntrinsic *DII,
   BasicBlock *BB = APN->getParent();
   auto InsertionPt = BB->getFirstInsertionPt();
 
-  DebugLoc NewLoc = getDebugValueLoc(DII, nullptr);
+  DebugLoc NewLoc = getDebugValueLoc(DII);
 
   // The block may be a catchswitch block, which does not have a valid
   // insertion point.
@@ -1587,7 +1651,7 @@ bool llvm::LowerDbgDeclare(Function &F) {
     WorkList.push_back(AI);
     while (!WorkList.empty()) {
       const Value *V = WorkList.pop_back_val();
-      for (auto &AIUse : V->uses()) {
+      for (const auto &AIUse : V->uses()) {
         User *U = AIUse.getUser();
         if (StoreInst *SI = dyn_cast<StoreInst>(U)) {
           if (AIUse.getOperandNo() == 1)
@@ -1599,7 +1663,7 @@ bool llvm::LowerDbgDeclare(Function &F) {
           // pointer to the variable. Insert a *value* intrinsic that describes
           // the variable by dereferencing the alloca.
           if (!CI->isLifetimeStartOrEnd()) {
-            DebugLoc NewLoc = getDebugValueLoc(DDI, nullptr);
+            DebugLoc NewLoc = getDebugValueLoc(DDI);
             auto *DerefExpr =
                 DIExpression::append(DDI->getExpression(), dwarf::DW_OP_deref);
             DIB.insertDbgValueIntrinsic(AI, DDI->getVariable(), DerefExpr,
@@ -1653,12 +1717,12 @@ void llvm::insertDebugValuesForPHIs(BasicBlock *BB,
   // propagate the info through the new PHI. If we use more than one new PHI in
   // a single destination BB with the same old dbg.value, merge the updates so
   // that we get a single new dbg.value with all the new PHIs.
-  for (auto PHI : InsertedPHIs) {
+  for (auto *PHI : InsertedPHIs) {
     BasicBlock *Parent = PHI->getParent();
     // Avoid inserting an intrinsic into an EH block.
     if (Parent->getFirstNonPHI()->isEHPad())
       continue;
-    for (auto VI : PHI->operand_values()) {
+    for (auto *VI : PHI->operand_values()) {
       auto V = DbgValueMap.find(VI);
       if (V != DbgValueMap.end()) {
         auto *DbgII = cast<DbgVariableIntrinsic>(V->second);
@@ -1743,6 +1807,40 @@ void llvm::salvageDebugInfo(Instruction &I) {
   salvageDebugInfoForDbgValues(I, DbgUsers);
 }
 
+/// Salvage the address component of \p DAI.
+static void salvageDbgAssignAddress(DbgAssignIntrinsic *DAI) {
+  Instruction *I = dyn_cast<Instruction>(DAI->getAddress());
+  // Only instructions can be salvaged at the moment.
+  if (!I)
+    return;
+
+  assert(!DAI->getAddressExpression()->getFragmentInfo().has_value() &&
+         "address-expression shouldn't have fragment info");
+
+  // The address component of a dbg.assign cannot be variadic.
+  uint64_t CurrentLocOps = 0;
+  SmallVector<Value *, 4> AdditionalValues;
+  SmallVector<uint64_t, 16> Ops;
+  Value *NewV = salvageDebugInfoImpl(*I, CurrentLocOps, Ops, AdditionalValues);
+
+  // Check if the salvage failed.
+  if (!NewV)
+    return;
+
+  DIExpression *SalvagedExpr = DIExpression::appendOpsToArg(
+      DAI->getAddressExpression(), Ops, 0, /*StackValue=*/false);
+  assert(!SalvagedExpr->getFragmentInfo().has_value() &&
+         "address-expression shouldn't have fragment info");
+
+  // Salvage succeeds if no additional values are required.
+  if (AdditionalValues.empty()) {
+    DAI->setAddress(NewV);
+    DAI->setAddressExpression(SalvagedExpr);
+  } else {
+    DAI->setAddress(UndefValue::get(I->getType()));
+  }
+}
+
 void llvm::salvageDebugInfoForDbgValues(
     Instruction &I, ArrayRef<DbgVariableIntrinsic *> DbgUsers) {
   // These are arbitrary chosen limits on the maximum number of values and the
@@ -1753,6 +1851,15 @@ void llvm::salvageDebugInfoForDbgValues(
   bool Salvaged = false;
 
   for (auto *DII : DbgUsers) {
+    if (auto *DAI = dyn_cast<DbgAssignIntrinsic>(DII)) {
+      if (DAI->getAddress() == &I) {
+        salvageDbgAssignAddress(DAI);
+        Salvaged = true;
+      }
+      if (DAI->getValue() != &I)
+        continue;
+    }
+
     // Do not add DW_OP_stack_value for DbgDeclare and DbgAddr, because they
     // are implicitly pointing out the value as a DWARF memory location
     // description.
@@ -1789,13 +1896,15 @@ void llvm::salvageDebugInfoForDbgValues(
     bool IsValidSalvageExpr = SalvagedExpr->getNumElements() <= MaxExpressionSize;
     if (AdditionalValues.empty() && IsValidSalvageExpr) {
       DII->setExpression(SalvagedExpr);
-    } else if (isa<DbgValueInst>(DII) && IsValidSalvageExpr &&
+    } else if (isa<DbgValueInst>(DII) && !isa<DbgAssignIntrinsic>(DII) &&
+               IsValidSalvageExpr &&
                DII->getNumVariableLocationOps() + AdditionalValues.size() <=
                    MaxDebugArgs) {
       DII->addVariableLocationOps(AdditionalValues, SalvagedExpr);
     } else {
       // Do not salvage using DIArgList for dbg.addr/dbg.declare, as it is
-      // currently only valid for stack value expressions.
+      // currently only valid for stack value expressions. Do not salvage
+      // using DIArgList for dbg.assign yet. FIXME: support this.
       // Also do not salvage if the resulting DIArgList would contain an
       // unreasonably large number of values.
       Value *Undef = UndefValue::get(I.getOperand(0)->getType());
@@ -1956,7 +2065,7 @@ Value *llvm::salvageDebugInfoImpl(Instruction &I, uint64_t CurrentLocOps,
 }
 
 /// A replacement for a dbg.value expression.
-using DbgValReplacement = Optional<DIExpression *>;
+using DbgValReplacement = std::optional<DIExpression *>;
 
 /// Point debug users of \p From to \p To using exprs given by \p RewriteExpr,
 /// possibly moving/undefing users to prevent use-before-def. Returns true if
@@ -2082,7 +2191,7 @@ bool llvm::replaceAllDbgUsesWith(Instruction &From, Value &To,
       // Without knowing signedness, sign/zero extension isn't possible.
       auto Signedness = Var->getSignedness();
       if (!Signedness)
-        return None;
+        return std::nullopt;
 
       bool Signed = *Signedness == DIBasicType::Signedness::Signed;
       return DIExpression::appendExt(DII.getExpression(), ToBits, FromBits,
@@ -2146,7 +2255,7 @@ unsigned llvm::changeToUnreachable(Instruction *I, bool PreserveLCSSA,
   while (BBI != BBE) {
     if (!BBI->use_empty())
       BBI->replaceAllUsesWith(PoisonValue::get(BBI->getType()));
-    BB->getInstList().erase(BBI++);
+    BBI++->eraseFromParent();
     ++NumInstrsRemoved;
   }
   if (DTU) {
@@ -2216,7 +2325,7 @@ BasicBlock *llvm::changeToInvokeAndSplitBasicBlock(CallInst *CI,
                                  CI->getName() + ".noexc");
 
   // Delete the unconditional branch inserted by SplitBlock
-  BB->getInstList().pop_back();
+  BB->back().eraseFromParent();
 
   // Create the new invoke instruction.
   SmallVector<Value *, 8> InvokeArgs(CI->args());
@@ -2244,7 +2353,7 @@ BasicBlock *llvm::changeToInvokeAndSplitBasicBlock(CallInst *CI,
   CI->replaceAllUsesWith(II);
 
   // Delete the original call
-  Split->getInstList().pop_front();
+  Split->front().eraseFromParent();
   return Split;
 }
 
@@ -2297,7 +2406,9 @@ static bool markAliveBlocks(Function &F,
               }
           }
         } else if ((isa<ConstantPointerNull>(Callee) &&
-                    !NullPointerIsDefined(CI->getFunction())) ||
+                    !NullPointerIsDefined(CI->getFunction(),
+                                          cast<PointerType>(Callee->getType())
+                                              ->getAddressSpace())) ||
                    isa<UndefValue>(Callee)) {
           changeToUnreachable(CI, false, DTU);
           Changed = true;
@@ -2536,6 +2647,9 @@ void llvm::combineMetadata(Instruction *K, const Instruction *J,
         break;
       case LLVMContext::MD_dbg:
         llvm_unreachable("getAllMetadataOtherThanDebugLoc returned a MD_dbg");
+      case LLVMContext::MD_DIAssignID:
+        K->mergeDIAssignID(J);
+        break;
       case LLVMContext::MD_tbaa:
         K->setMetadata(Kind, MDNode::getMostGenericTBAA(JMD, KMD));
         break;
@@ -2815,7 +2929,7 @@ void llvm::copyRangeMetadata(const DataLayout &DL, const LoadInst &OldLI,
 
   unsigned BitWidth = DL.getPointerTypeSizeInBits(NewTy);
   if (!getConstantRangeFromMetadata(*N).contains(APInt(BitWidth, 0))) {
-    MDNode *NN = MDNode::get(OldLI.getContext(), None);
+    MDNode *NN = MDNode::get(OldLI.getContext(), std::nullopt);
     NewLI.setMetadata(LLVMContext::MD_nonnull, NN);
   }
 }
@@ -2864,9 +2978,8 @@ void llvm::hoistAllInstructionsInto(BasicBlock *DomBlock, Instruction *InsertPt,
     I->setDebugLoc(InsertPt->getDebugLoc());
     ++II;
   }
-  DomBlock->getInstList().splice(InsertPt->getIterator(), BB->getInstList(),
-                                 BB->begin(),
-                                 BB->getTerminator()->getIterator());
+  DomBlock->splice(InsertPt->getIterator(), BB, BB->begin(),
+                   BB->getTerminator()->getIterator());
 }
 
 namespace {
@@ -2917,15 +3030,15 @@ struct BitPart {
 ///
 /// Because we pass around references into \c BPS, we must use a container that
 /// does not invalidate internal references (std::map instead of DenseMap).
-static const Optional<BitPart> &
+static const std::optional<BitPart> &
 collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
-                std::map<Value *, Optional<BitPart>> &BPS, int Depth,
+                std::map<Value *, std::optional<BitPart>> &BPS, int Depth,
                 bool &FoundRoot) {
   auto I = BPS.find(V);
   if (I != BPS.end())
     return I->second;
 
-  auto &Result = BPS[V] = None;
+  auto &Result = BPS[V] = std::nullopt;
   auto BitWidth = V->getType()->getScalarSizeInBits();
 
   // Can't do integer/elements > 128 bits.
@@ -2961,7 +3074,7 @@ collectBitParts(Value *V, bool MatchBSwaps, bool MatchBitReversals,
         if (A->Provenance[BitIdx] != BitPart::Unset &&
             B->Provenance[BitIdx] != BitPart::Unset &&
             A->Provenance[BitIdx] != B->Provenance[BitIdx])
-          return Result = None;
+          return Result = std::nullopt;
 
         if (A->Provenance[BitIdx] == BitPart::Unset)
           Result->Provenance[BitIdx] = B->Provenance[BitIdx];
@@ -3169,7 +3282,7 @@ bool llvm::recognizeBSwapOrBitReverseIdiom(
 
   // Try to find all the pieces corresponding to the bswap.
   bool FoundRoot = false;
-  std::map<Value *, Optional<BitPart>> BPS;
+  std::map<Value *, std::optional<BitPart>> BPS;
   const auto &Res =
       collectBitParts(I, MatchBSwaps, MatchBitReversals, BPS, 0, FoundRoot);
   if (!Res)

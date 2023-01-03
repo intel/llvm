@@ -102,6 +102,7 @@ public:
   bool isTypeVectorOrScalarInt() const;
   bool isTypeVectorOrScalarFloat() const;
   bool isTypeVectorOrScalarBool() const;
+  bool isTypeVectorPointer() const;
   bool isTypeSubgroupAvcINTEL() const;
   bool isTypeSubgroupAvcMceINTEL() const;
 };
@@ -166,7 +167,7 @@ public:
     }
     return CV;
   }
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     switch (BitWidth) {
     case 8:
     case 16:
@@ -894,14 +895,14 @@ public:
     return getVec(CapabilityVectorComputeINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return {ExtensionID::SPV_INTEL_vector_compute};
   }
 
-  bool hasAccessQualifier() const { return AccessKind.hasValue(); }
+  bool hasAccessQualifier() const { return AccessKind.has_value(); }
   SPIRVAccessQualifierKind getAccessQualifier() const {
     assert(hasAccessQualifier());
-    return AccessKind.getValue();
+    return AccessKind.value();
   }
 
 protected:
@@ -917,7 +918,7 @@ protected:
   }
 
 private:
-  llvm::Optional<SPIRVAccessQualifierKind> AccessKind;
+  std::optional<SPIRVAccessQualifierKind> AccessKind;
 };
 
 // SPV_INTEL_device_side_avc_motion_estimation extension types
@@ -944,7 +945,7 @@ public:
     return getVec(CapabilitySubgroupAvcMotionEstimationINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_device_side_avc_motion_estimation;
   }
 
@@ -999,7 +1000,7 @@ public:
     return getVec(CapabilitySubgroupAvcMotionEstimationINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_device_side_avc_motion_estimation;
   }
 
@@ -1050,7 +1051,7 @@ public:
     return getVec(internal::CapabilityTokenTypeINTEL);
   }
 
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_token_type;
   }
 
@@ -1071,7 +1072,7 @@ public:
   // Incomplete constructor
   SPIRVTypeJointMatrixINTEL();
   _SPIRV_DCL_ENCDEC
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_joint_matrix;
   }
   SPIRVCapVec getRequiredCapability() const override {

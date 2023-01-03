@@ -49,7 +49,8 @@ static inline void workGroupBarrier() {
 //   class can be used to wrap the data. This class very simply constructs
 //   private data for a given group across the entire group.The id of the
 //   current work-item is passed to any access to grab the correct data.
-template <typename T, int Dimensions = 1> class private_memory {
+template <typename T, int Dimensions = 1>
+class __SYCL_TYPE(private_memory) private_memory {
 public:
   // Construct based directly off the number of work-items
   private_memory(const group<Dimensions> &G) {
@@ -90,7 +91,7 @@ private:
 /// within a parallel execution.
 ///
 /// \ingroup sycl_api
-template <int Dimensions = 1> class group {
+template <int Dimensions = 1> class __SYCL_TYPE(group) group {
 public:
 #ifndef __DISABLE_SYCL_INTEL_GROUP_ALGORITHMS__
   using id_type = id<Dimensions>;
@@ -114,6 +115,8 @@ public:
 
   size_t get_group_id(int dimension) const { return index[dimension]; }
 
+  __SYCL2020_DEPRECATED("calculate sycl::group::get_group_range() * "
+                        "sycl::group::get_max_local_range() instead")
   range<Dimensions> get_global_range() const { return globalRange; }
 
   size_t get_global_range(int dimension) const {
@@ -336,16 +339,18 @@ public:
   /// from the source pointed by \p Src to destination pointed by \p Dest
   /// with a stride specified by \p Stride, and returns a SYCL device_event
   /// which can be used to wait on the completion of the copy.
-  template <typename T, access::address_space DestS, access::address_space SrcS>
+  template <typename T, access::address_space DestS, access::address_space SrcS,
+            access::decorated DestIsDecorated, access::decorated SrcIsDecorated>
   detail::enable_if_t<detail::is_scalar_bool<T>::value, device_event>
-  async_work_group_copy(multi_ptr<T, DestS> Dest, multi_ptr<T, SrcS> Src,
+  async_work_group_copy(multi_ptr<T, DestS, DestIsDecorated> Dest,
+                        multi_ptr<T, SrcS, SrcIsDecorated> Src,
                         size_t NumElements, size_t Stride) const {
     static_assert(sizeof(bool) == sizeof(uint8_t),
                   "Async copy to/from bool memory is not supported.");
-    auto DestP =
-        multi_ptr<uint8_t, DestS>(reinterpret_cast<uint8_t *>(Dest.get()));
-    auto SrcP =
-        multi_ptr<uint8_t, SrcS>(reinterpret_cast<uint8_t *>(Src.get()));
+    auto DestP = multi_ptr<uint8_t, DestS, DestIsDecorated>(
+        reinterpret_cast<uint8_t *>(Dest.get()));
+    auto SrcP = multi_ptr<uint8_t, SrcS, SrcIsDecorated>(
+        reinterpret_cast<uint8_t *>(Src.get()));
     return async_work_group_copy(DestP, SrcP, NumElements, Stride);
   }
 
@@ -354,15 +359,19 @@ public:
   /// from the source pointed by \p Src to destination pointed by \p Dest
   /// with a stride specified by \p Stride, and returns a SYCL device_event
   /// which can be used to wait on the completion of the copy.
-  template <typename T, access::address_space DestS, access::address_space SrcS>
+  template <typename T, access::address_space DestS, access::address_space SrcS,
+            access::decorated DestIsDecorated, access::decorated SrcIsDecorated>
   detail::enable_if_t<detail::is_vector_bool<T>::value, device_event>
-  async_work_group_copy(multi_ptr<T, DestS> Dest, multi_ptr<T, SrcS> Src,
+  async_work_group_copy(multi_ptr<T, DestS, DestIsDecorated> Dest,
+                        multi_ptr<T, SrcS, SrcIsDecorated> Src,
                         size_t NumElements, size_t Stride) const {
     static_assert(sizeof(bool) == sizeof(uint8_t),
                   "Async copy to/from bool memory is not supported.");
     using VecT = detail::change_base_type_t<T, uint8_t>;
-    auto DestP = multi_ptr<VecT, DestS>(reinterpret_cast<VecT *>(Dest.get()));
-    auto SrcP = multi_ptr<VecT, SrcS>(reinterpret_cast<VecT *>(Src.get()));
+    auto DestP = address_space_cast<DestS, DestIsDecorated>(
+        reinterpret_cast<VecT *>(Dest.get()));
+    auto SrcP = address_space_cast<SrcS, SrcIsDecorated>(
+        reinterpret_cast<VecT *>(Src.get()));
     return async_work_group_copy(DestP, SrcP, NumElements, Stride);
   }
 
@@ -540,9 +549,7 @@ group<Dims> this_group() {
 #endif
 }
 
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 template <int Dims> group<Dims> this_group() {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::Builder::getElement(
@@ -553,8 +560,6 @@ template <int Dims> group<Dims> this_group() {
       "Free function calls are not supported on host device");
 #endif
 }
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

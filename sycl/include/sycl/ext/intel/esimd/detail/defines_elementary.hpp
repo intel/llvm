@@ -53,6 +53,8 @@
 #define __ESIMD_EMU_DNS sycl::ext::intel::esimd::emu::detail
 #define __ESIMD_ENS sycl::ext::intel::experimental::esimd
 #define __ESIMD_EDNS sycl::ext::intel::experimental::esimd::detail
+#define __ESIMD_XMX_NS sycl::ext::intel::esimd::xmx
+#define __ESIMD_XMX_DNS sycl::ext::intel::esimd::xmx::detail
 
 #define __ESIMD_QUOTE1(m) #m
 #define __ESIMD_QUOTE(m) __ESIMD_QUOTE1(m)

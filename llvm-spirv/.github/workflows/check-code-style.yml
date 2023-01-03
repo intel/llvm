@@ -29,7 +29,7 @@ env:
 jobs:
   clang-format-and-tidy:
     name: clang-format & clang-tidy
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
     - name: Checkout sources
       uses: actions/checkout@v2
@@ -64,11 +64,11 @@ jobs:
         # launched, so, we need to setup llvm package to perform cmake
         # configuration step to generate that database
         curl -L "https://apt.llvm.org/llvm-snapshot.gpg.key" | sudo apt-key add -
-        echo "deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic main" | sudo tee -a /etc/apt/sources.list
+        echo "deb https://apt.llvm.org/focal/ llvm-toolchain-focal main" | sudo tee -a /etc/apt/sources.list
         sudo apt-get update
         sudo apt-get install -yqq \
             clang-format-${{ env.LLVM_VERSION }} clang-tidy-${{ env.LLVM_VERSION }} \
-            llvm-${{ env.LLVM_VERSION }}-dev libomp-${{ env.LLVM_VERSION }}-dev \
+            llvm-${{ env.LLVM_VERSION }}-dev \
             mlir-${{ env.LLVM_VERSION }}-tools \
 
     - name: Generate compile command database

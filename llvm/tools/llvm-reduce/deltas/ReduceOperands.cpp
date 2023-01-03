@@ -22,9 +22,20 @@ extractOperandsFromModule(Oracle &O, Module &Program,
                           function_ref<Value *(Use &)> ReduceValue) {
   for (auto &F : Program.functions()) {
     for (auto &I : instructions(&F)) {
+      if (PHINode *Phi = dyn_cast<PHINode>(&I)) {
+        for (auto &Op : Phi->incoming_values()) {
+          if (!O.shouldKeep()) {
+            if (Value *Reduced = ReduceValue(Op))
+              Phi->setIncomingValueForBlock(Phi->getIncomingBlock(Op), Reduced);
+          }
+        }
+
+        continue;
+      }
+
       for (auto &Op : I.operands()) {
-        if (!O.shouldKeep()) {
-          if (Value *Reduced = ReduceValue(Op))
+        if (Value *Reduced = ReduceValue(Op)) {
+          if (!O.shouldKeep())
             Op.set(Reduced);
         }
       }
@@ -71,7 +82,6 @@ static bool switchCaseExists(Use &Op, ConstantInt *CI) {
 }
 
 void llvm::reduceOperandsOneDeltaPass(TestRunner &Test) {
-  errs() << "*** Reducing Operands to one...\n";
   auto ReduceValue = [](Use &Op) -> Value * {
     if (!shouldReduceOperand(Op))
       return nullptr;
@@ -92,23 +102,29 @@ void llvm::reduceOperandsOneDeltaPass(TestRunner &Test) {
       if (isOne(Op) || isZero(Op) || isZeroOrOneFP(Op))
         return nullptr;
 
-      if (auto *IntTy = dyn_cast<IntegerType>(VT->getElementType()))
-        return ConstantVector::getSplat(VT->getElementCount(),
-                                        ConstantInt::get(IntTy, 1));
-
-      return ConstantVector::getSplat(
-          VT->getElementCount(), ConstantFP::get(VT->getElementType(), 1.0));
+      Type *ElementType = VT->getElementType();
+      Constant *C;
+      if (ElementType->isFloatingPointTy()) {
+        C = ConstantFP::get(ElementType, 1.0);
+      } else if (IntegerType *IntTy = dyn_cast<IntegerType>(ElementType)) {
+        C = ConstantInt::get(IntTy, 1);
+      } else {
+        return nullptr;
+      }
+      return ConstantVector::getSplat(VT->getElementCount(), C);
     }
 
     return nullptr;
   };
-  runDeltaPass(Test, [ReduceValue](Oracle &O, Module &Program) {
-    extractOperandsFromModule(O, Program, ReduceValue);
-  });
+  runDeltaPass(
+      Test,
+      [ReduceValue](Oracle &O, Module &Program) {
+        extractOperandsFromModule(O, Program, ReduceValue);
+      },
+      "Reducing Operands to one");
 }
 
 void llvm::reduceOperandsZeroDeltaPass(TestRunner &Test) {
-  errs() << "*** Reducing Operands to zero...\n";
   auto ReduceValue = [](Use &Op) -> Value * {
     if (!shouldReduceOperand(Op))
       return nullptr;
@@ -119,13 +135,15 @@ void llvm::reduceOperandsZeroDeltaPass(TestRunner &Test) {
     // Don't replace existing zeroes.
     return isZero(Op) ? nullptr : Constant::getNullValue(Op->getType());
   };
-  runDeltaPass(Test, [ReduceValue](Oracle &O, Module &Program) {
-    extractOperandsFromModule(O, Program, ReduceValue);
-  });
+  runDeltaPass(
+      Test,
+      [ReduceValue](Oracle &O, Module &Program) {
+        extractOperandsFromModule(O, Program, ReduceValue);
+      },
+      "Reducing Operands to zero");
 }
 
 void llvm::reduceOperandsNaNDeltaPass(TestRunner &Test) {
-  errs() << "*** Reducing Operands to NaN...\n";
   auto ReduceValue = [](Use &Op) -> Value * {
     Type *Ty = Op->getType();
     if (!Ty->isFPOrFPVectorTy())
@@ -145,7 +163,10 @@ void llvm::reduceOperandsNaNDeltaPass(TestRunner &Test) {
 
     return ConstantFP::getQNaN(Ty);
   };
-  runDeltaPass(Test, [ReduceValue](Oracle &O, Module &Program) {
-    extractOperandsFromModule(O, Program, ReduceValue);
-  });
+  runDeltaPass(
+      Test,
+      [ReduceValue](Oracle &O, Module &Program) {
+        extractOperandsFromModule(O, Program, ReduceValue);
+      },
+      "Reducing Operands to NaN");
 }

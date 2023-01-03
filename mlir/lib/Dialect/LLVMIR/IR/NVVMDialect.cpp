@@ -16,7 +16,9 @@
 
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 
+#include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/MLIRContext.h"
@@ -27,6 +29,7 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Type.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/SourceMgr.h"
 
 using namespace mlir;
@@ -89,16 +92,16 @@ Optional<mlir::NVVM::MMATypes> MmaOp::inferOperandMMAType(Type operandElType,
   if (operandElType.isa<IntegerType>()) {
     if (isAccumulator)
       return NVVM::MMATypes::s32;
-    return llvm::None;
+    return std::nullopt;
   }
 
   if (auto structType = operandElType.dyn_cast<LLVM::LLVMStructType>()) {
     if (structType.getBody().empty())
-      return llvm::None;
+      return std::nullopt;
     return inferOperandMMAType(structType.getBody()[0], isAccumulator);
   }
 
-  return llvm::None;
+  return std::nullopt;
 }
 
 static bool isInt4PtxType(MMATypes type) {
@@ -233,9 +236,9 @@ void MmaOp::build(OpBuilder &builder, OperationState &result, Type resultType,
   result.addTypes(resultType);
   result.addAttribute(
       MmaOp::getOperandSegmentSizeAttr(),
-      builder.getI32VectorAttr({static_cast<int32_t>(operandA.size()),
-                                static_cast<int32_t>(operandB.size()),
-                                static_cast<int32_t>(operandC.size())}));
+      builder.getDenseI32ArrayAttr({static_cast<int32_t>(operandA.size()),
+                                    static_cast<int32_t>(operandB.size()),
+                                    static_cast<int32_t>(operandC.size())}));
 }
 
 // <operation> :=
@@ -326,7 +329,7 @@ ParseResult MmaOp::parse(OpAsmParser &parser, OperationState &result) {
   if (!namedAttributes.empty())
     result.addAttributes(namedAttributes);
   result.addAttribute(MmaOp::getOperandSegmentSizeAttr(),
-                      builder.getI32VectorAttr({
+                      builder.getDenseI32ArrayAttr({
                           static_cast<int32_t>(frags[0].regs.size()),
                           static_cast<int32_t>(frags[1].regs.size()),
                           static_cast<int32_t>(frags[2].regs.size()),
@@ -459,8 +462,7 @@ LogicalResult MmaOp::verify() {
 
   // Check that we matched an existing shape/dtype combination.
   if (expectedA.empty() || expectedB.empty() || expectedC.empty() ||
-      !llvm::any_of(allowedShapes,
-                    [&](const auto &allowed) { return allowed == mmaShape; })) {
+      !llvm::is_contained(allowedShapes, mmaShape)) {
     errorStream << "unimplemented variant for MMA shape <";
     llvm::interleaveComma(mmaShape, errorStream);
     errorStream << ">";
@@ -475,10 +477,7 @@ LogicalResult MmaOp::verify() {
     SmallVector<Type, 4> operandTySeg(operand_type_begin() + spec.first,
                                       operand_type_begin() + spec.first +
                                           spec.second);
-    bool match =
-        llvm::any_of(iter.value(), [&](const SmallVector<Type, 4> &typeSet) {
-          return typeSet == operandTySeg;
-        });
+    bool match = llvm::is_contained(iter.value(), operandTySeg);
 
     if (!match) {
       errorStream << "Could not match types for the "
@@ -676,13 +675,37 @@ void NVVMDialect::initialize() {
 
 LogicalResult NVVMDialect::verifyOperationAttribute(Operation *op,
                                                     NamedAttribute attr) {
+  StringAttr attrName = attr.getName();
   // Kernel function attribute should be attached to functions.
-  if (attr.getName() == NVVMDialect::getKernelFuncAttrName()) {
+  if (attrName == NVVMDialect::getKernelFuncAttrName()) {
     if (!isa<LLVM::LLVMFuncOp>(op)) {
       return op->emitError() << "'" << NVVMDialect::getKernelFuncAttrName()
                              << "' attribute attached to unexpected op";
     }
   }
+  // If maxntid and reqntid exist, it must be an array with max 3 dim
+  if (attrName == NVVMDialect::getMaxntidAttrName() ||
+      attrName == NVVMDialect::getReqntidAttrName()) {
+    auto values = attr.getValue().dyn_cast<ArrayAttr>();
+    if (!values || values.empty() || values.size() > 3)
+      return op->emitError()
+             << "'" << attrName
+             << "' attribute must be integer array with maximum 3 index";
+    for (auto val : attr.getValue().cast<ArrayAttr>()) {
+      if (!val.dyn_cast<IntegerAttr>())
+        return op->emitError()
+               << "'" << attrName
+               << "' attribute must be integer array with maximum 3 index";
+    }
+  }
+  // If minctasm and maxnreg exist, it must be an array with max 3 dim
+  if (attrName == NVVMDialect::getMinctasmAttrName() ||
+      attrName == NVVMDialect::getMaxnregAttrName()) {
+    if (!attr.getValue().dyn_cast<IntegerAttr>())
+      return op->emitError()
+             << "'" << attrName << "' attribute must be integer constant";
+  }
+
   return success();
 }
 

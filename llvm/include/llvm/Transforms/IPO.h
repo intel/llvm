@@ -111,12 +111,6 @@ Pass *createFunctionInliningPass(unsigned OptLevel, unsigned SizeOptLevel,
 Pass *createFunctionInliningPass(InlineParams &Params);
 
 //===----------------------------------------------------------------------===//
-/// createPruneEHPass - Return a new pass object which transforms invoke
-/// instructions into calls, if the callee can _not_ unwind the stack.
-///
-Pass *createPruneEHPass();
-
-//===----------------------------------------------------------------------===//
 /// createInternalizePass - This pass loops over all of the functions in the
 /// input module, internalizing all globals (functions and variables) it can.
 ////
@@ -149,20 +143,11 @@ ModulePass *createDeadArgHackingPass();
 ModulePass *createDeadArgEliminationSYCLPass();
 
 //===----------------------------------------------------------------------===//
-/// createOpenMPOptLegacyPass - OpenMP specific optimizations.
-Pass *createOpenMPOptCGSCCLegacyPass();
-
-//===----------------------------------------------------------------------===//
 /// createIPSCCPPass - This pass propagates constants from call sites into the
 /// bodies of functions, and keeps track of whether basic blocks are executable
 /// in the process.
 ///
 ModulePass *createIPSCCPPass();
-
-//===----------------------------------------------------------------------===//
-/// createFunctionSpecializationPass - This pass propagates constants from call
-/// sites to the specialized version of the callee function.
-ModulePass *createFunctionSpecializationPass();
 
 //===----------------------------------------------------------------------===//
 //
@@ -242,10 +227,6 @@ ModulePass *createCrossDSOCFIPass();
 /// This pass splits globals into pieces for the benefit of whole-program
 /// devirtualization and control-flow integrity.
 ModulePass *createGlobalSplitPass();
-
-/// Write ThinLTO-ready bitcode to Str.
-ModulePass *createWriteThinLTOBitcodePass(raw_ostream &Str,
-                                          raw_ostream *ThinLinkOS = nullptr);
 
 } // End llvm namespace
 

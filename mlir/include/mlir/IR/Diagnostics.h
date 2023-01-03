@@ -62,18 +62,16 @@ public:
   // Construct from a signed integer.
   template <typename T>
   explicit DiagnosticArgument(
-      T val,
-      typename std::enable_if<std::is_signed<T>::value &&
+      T val, std::enable_if_t<std::is_signed<T>::value &&
                               std::numeric_limits<T>::is_integer &&
-                              sizeof(T) <= sizeof(int64_t)>::type * = nullptr)
+                              sizeof(T) <= sizeof(int64_t)> * = nullptr)
       : kind(DiagnosticArgumentKind::Integer), opaqueVal(int64_t(val)) {}
   // Construct from an unsigned integer.
   template <typename T>
   explicit DiagnosticArgument(
-      T val,
-      typename std::enable_if<std::is_unsigned<T>::value &&
+      T val, std::enable_if_t<std::is_unsigned<T>::value &&
                               std::numeric_limits<T>::is_integer &&
-                              sizeof(T) <= sizeof(uint64_t)>::type * = nullptr)
+                              sizeof(T) <= sizeof(uint64_t)> * = nullptr)
       : kind(DiagnosticArgumentKind::Unsigned), opaqueVal(uint64_t(val)) {}
   // Construct from a string reference.
   explicit DiagnosticArgument(StringRef val)
@@ -175,10 +173,9 @@ public:
 
   /// Stream operator for inserting new diagnostic arguments.
   template <typename Arg>
-  typename std::enable_if<
-      !std::is_convertible<Arg, StringRef>::value &&
-          std::is_constructible<DiagnosticArgument, Arg>::value,
-      Diagnostic &>::type
+  std::enable_if_t<!std::is_convertible<Arg, StringRef>::value &&
+                       std::is_constructible<DiagnosticArgument, Arg>::value,
+                   Diagnostic &>
   operator<<(Arg &&val) {
     arguments.push_back(DiagnosticArgument(std::forward<Arg>(val)));
     return *this;
@@ -200,10 +197,10 @@ public:
   Diagnostic &operator<<(OperationName val);
 
   /// Stream in an Operation.
-  Diagnostic &operator<<(Operation &val);
-  Diagnostic &operator<<(Operation *val) { return *this << *val; }
+  Diagnostic &operator<<(Operation &op);
+  Diagnostic &operator<<(Operation *op) { return *this << *op; }
   /// Append an operation with the given printing flags.
-  Diagnostic &appendOp(Operation &val, const OpPrintingFlags &flags);
+  Diagnostic &appendOp(Operation &op, const OpPrintingFlags &flags);
 
   /// Stream in a Value.
   Diagnostic &operator<<(Value val);
@@ -247,7 +244,7 @@ public:
   /// Attaches a note to this diagnostic. A new location may be optionally
   /// provided, if not, then the location defaults to the one specified for this
   /// diagnostic. Notes may not be attached to other notes.
-  Diagnostic &attachNote(Optional<Location> noteLoc = llvm::None);
+  Diagnostic &attachNote(Optional<Location> noteLoc = std::nullopt);
 
   using note_iterator = llvm::pointee_iterator<NoteVector::iterator>;
   using const_note_iterator =
@@ -345,10 +342,14 @@ public:
   }
 
   /// Attaches a note to this diagnostic.
-  Diagnostic &attachNote(Optional<Location> noteLoc = llvm::None) {
+  Diagnostic &attachNote(Optional<Location> noteLoc = std::nullopt) {
     assert(isActive() && "diagnostic not active");
     return impl->attachNote(noteLoc);
   }
+
+  /// Returns the underlying diagnostic or nullptr if this diagnostic isn't
+  /// active.
+  Diagnostic *getUnderlyingDiagnostic() { return impl ? &*impl : nullptr; }
 
   /// Reports the diagnostic to the engine.
   void report();

@@ -14,6 +14,7 @@
 #include "clang/AST/PrettyDeclStackTrace.h"
 #include "clang/Basic/Attributes.h"
 #include "clang/Basic/PrettyStackTrace.h"
+#include "clang/Basic/TokenKinds.h"
 #include "clang/Parse/LoopHint.h"
 #include "clang/Parse/Parser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
@@ -36,8 +37,8 @@ StmtResult Parser::ParseStatement(SourceLocation *TrailingElseLoc,
 
   // We may get back a null statement if we found a #pragma. Keep going until
   // we get an actual statement.
+  StmtVector Stmts;
   do {
-    StmtVector Stmts;
     Res = ParseStatementOrDeclaration(Stmts, StmtCtx, TrailingElseLoc);
   } while (!Res.isInvalid() && !Res.get());
 
@@ -188,7 +189,8 @@ Retry:
     Actions.CodeCompleteOrdinaryName(getCurScope(), Sema::PCC_Statement);
     return StmtError();
 
-  case tok::identifier: {
+  case tok::identifier:
+  ParseIdentifier: {
     Token Next = NextToken();
     if (Next.is(tok::colon)) { // C99 6.8.1: labeled-statement
       // Both C++11 and GNU attributes preceding the label appertain to the
@@ -222,7 +224,7 @@ Retry:
     }
 
     // Fall through
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   }
 
   default: {
@@ -261,7 +263,19 @@ Retry:
       return StmtError();
     }
 
-    return ParseExprStatement(StmtCtx);
+    switch (Tok.getKind()) {
+#define TRANSFORM_TYPE_TRAIT_DEF(_, Trait) case tok::kw___##Trait:
+#include "clang/Basic/TransformTypeTraits.def"
+      if (NextToken().is(tok::less)) {
+        Tok.setKind(tok::identifier);
+        Diag(Tok, diag::ext_keyword_as_ident)
+            << Tok.getIdentifierInfo()->getName() << 0;
+        goto ParseIdentifier;
+      }
+      [[fallthrough]];
+    default:
+      return ParseExprStatement(StmtCtx);
+    }
   }
 
   case tok::kw___attribute: {
@@ -448,7 +462,7 @@ Retry:
     // processing a #pragma omp clause.
     ProhibitAttributes(CXX11Attrs);
     ProhibitAttributes(GNUAttrs);
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case tok::annot_attr_openmp:
     // Do not prohibit attributes if they were OpenMP attributes.
     return ParseOpenMPDeclarativeOrExecutableDirective(StmtCtx);
@@ -665,9 +679,12 @@ StmtResult Parser::ParseSEHLeaveStatement() {
 
 /// ParseLabeledStatement - We have an identifier and a ':' after it.
 ///
+///       label:
+///         identifier ':'
+/// [GNU]   identifier ':' attributes[opt]
+///
 ///       labeled-statement:
-///         identifier ':' statement
-/// [GNU]   identifier ':' attributes[opt] statement
+///         label statement
 ///
 StmtResult Parser::ParseLabeledStatement(ParsedAttributes &Attrs,
                                          ParsedStmtContext StmtCtx) {
@@ -711,6 +728,12 @@ StmtResult Parser::ParseLabeledStatement(ParsedAttributes &Attrs,
     }
   }
 
+  // The label may have no statement following it
+  if (SubStmt.isUnset() && Tok.is(tok::r_brace)) {
+    DiagnoseLabelAtEndOfCompoundStatement();
+    SubStmt = Actions.ActOnNullStmt(ColonLoc);
+  }
+
   // If we've not parsed a statement yet, parse one now.
   if (!SubStmt.isInvalid() && !SubStmt.isUsable())
     SubStmt = ParseStatement(nullptr, StmtCtx);
@@ -741,7 +764,7 @@ StmtResult Parser::ParseCaseStatement(ParsedStmtContext StmtCtx,
   // otherwise in the same context as the labeled-statement.
   StmtCtx &= ~ParsedStmtContext::AllowDeclarationsInC;
 
-  // It is very very common for code to contain many case statements recursively
+  // It is very common for code to contain many case statements recursively
   // nested, as in (but usually without indentation):
   //  case 1:
   //    case 2:
@@ -851,18 +874,13 @@ StmtResult Parser::ParseCaseStatement(ParsedStmtContext StmtCtx,
   // If we found a non-case statement, start by parsing it.
   StmtResult SubStmt;
 
-  if (Tok.isNot(tok::r_brace)) {
-    SubStmt = ParseStatement(/*TrailingElseLoc=*/nullptr, StmtCtx);
+  if (Tok.is(tok::r_brace)) {
+    // "switch (X) { case 4: }", is valid and is treated as if label was
+    // followed by a null statement.
+    DiagnoseLabelAtEndOfCompoundStatement();
+    SubStmt = Actions.ActOnNullStmt(ColonLoc);
   } else {
-    // Nicely diagnose the common error "switch (X) { case 4: }", which is
-    // not valid.  If ColonLoc doesn't point to a valid text location, there was
-    // another parsing error, so avoid producing extra diagnostics.
-    if (ColonLoc.isValid()) {
-      SourceLocation AfterColonLoc = PP.getLocForEndOfToken(ColonLoc);
-      Diag(AfterColonLoc, diag::err_label_end_of_compound_statement)
-        << FixItHint::CreateInsertion(AfterColonLoc, " ;");
-    }
-    SubStmt = StmtError();
+    SubStmt = ParseStatement(/*TrailingElseLoc=*/nullptr, StmtCtx);
   }
 
   // Install the body into the most deeply-nested case.
@@ -908,15 +926,13 @@ StmtResult Parser::ParseDefaultStatement(ParsedStmtContext StmtCtx) {
 
   StmtResult SubStmt;
 
-  if (Tok.isNot(tok::r_brace)) {
-    SubStmt = ParseStatement(/*TrailingElseLoc=*/nullptr, StmtCtx);
+  if (Tok.is(tok::r_brace)) {
+    // "switch (X) {... default: }", is valid and is treated as if label was
+    // followed by a null statement.
+    DiagnoseLabelAtEndOfCompoundStatement();
+    SubStmt = Actions.ActOnNullStmt(ColonLoc);
   } else {
-    // Diagnose the common error "switch (X) {... default: }", which is
-    // not valid.
-    SourceLocation AfterColonLoc = PP.getLocForEndOfToken(ColonLoc);
-    Diag(AfterColonLoc, diag::err_label_end_of_compound_statement)
-      << FixItHint::CreateInsertion(AfterColonLoc, " ;");
-    SubStmt = true;
+    SubStmt = ParseStatement(/*TrailingElseLoc=*/nullptr, StmtCtx);
   }
 
   // Broken sub-stmt shouldn't prevent forming the case statement properly.
@@ -1033,6 +1049,18 @@ void Parser::ParseCompoundStatementLeadingPragmas() {
 
 }
 
+void Parser::DiagnoseLabelAtEndOfCompoundStatement() {
+  if (getLangOpts().CPlusPlus) {
+    Diag(Tok, getLangOpts().CPlusPlus2b
+                  ? diag::warn_cxx20_compat_label_end_of_compound_statement
+                  : diag::ext_cxx_label_end_of_compound_statement);
+  } else {
+    Diag(Tok, getLangOpts().C2x
+                  ? diag::warn_c2x_compat_label_end_of_compound_statement
+                  : diag::ext_c_label_end_of_compound_statement);
+  }
+}
+
 /// Consume any extra semi-colons resulting in null statements,
 /// returning true if any tok::semi were consumed.
 bool Parser::ConsumeNullStmt(StmtVector &Stmts) {
@@ -1082,10 +1110,10 @@ StmtResult Parser::handleExprStmt(ExprResult E, ParsedStmtContext StmtCtx) {
   return Actions.ActOnExprStmt(E, /*DiscardedValue=*/!IsStmtExprResult);
 }
 
-/// ParseCompoundStatementBody - Parse a sequence of statements and invoke the
-/// ActOnCompoundStmt action.  This expects the '{' to be the current token, and
-/// consume the '}' at the end of the block.  It does not manipulate the scope
-/// stack.
+/// ParseCompoundStatementBody - Parse a sequence of statements optionally
+/// followed by a label and invoke the ActOnCompoundStmt action.  This expects
+/// the '{' to be the current token, and consume the '}' at the end of the
+/// block.  It does not manipulate the scope stack.
 StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
   PrettyStackTraceLoc CrashInfo(PP.getSourceManager(),
                                 Tok.getLocation(),
@@ -1242,20 +1270,20 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
 /// should try to recover harder.  It returns false if the condition is
 /// successfully parsed.  Note that a successful parse can still have semantic
 /// errors in the condition.
-/// Additionally, if LParenLoc and RParenLoc are non-null, it will assign
-/// the location of the outer-most '(' and ')', respectively, to them.
+/// Additionally, it will assign the location of the outer-most '(' and ')',
+/// to LParenLoc and RParenLoc, respectively.
 bool Parser::ParseParenExprOrCondition(StmtResult *InitStmt,
                                        Sema::ConditionResult &Cond,
                                        SourceLocation Loc,
-                                       Sema::ConditionKind CK, bool MissingOK,
-                                       SourceLocation *LParenLoc,
-                                       SourceLocation *RParenLoc) {
+                                       Sema::ConditionKind CK,
+                                       SourceLocation &LParenLoc,
+                                       SourceLocation &RParenLoc) {
   BalancedDelimiterTracker T(*this, tok::l_paren);
   T.consumeOpen();
   SourceLocation Start = Tok.getLocation();
 
   if (getLangOpts().CPlusPlus) {
-    Cond = ParseCXXCondition(InitStmt, Loc, CK, MissingOK);
+    Cond = ParseCXXCondition(InitStmt, Loc, CK, false);
   } else {
     ExprResult CondExpr = ParseExpression();
 
@@ -1264,7 +1292,7 @@ bool Parser::ParseParenExprOrCondition(StmtResult *InitStmt,
       Cond = Sema::ConditionError();
     else
       Cond = Actions.ActOnCondition(getCurScope(), Loc, CondExpr.get(), CK,
-                                    MissingOK);
+                                    /*MissingOK=*/false);
   }
 
   // If the parser was confused by the condition and we don't have a ')', try to
@@ -1284,18 +1312,13 @@ bool Parser::ParseParenExprOrCondition(StmtResult *InitStmt,
         Actions.PreferredConditionType(CK));
     if (!CondExpr.isInvalid())
       Cond = Actions.ActOnCondition(getCurScope(), Loc, CondExpr.get(), CK,
-                                    MissingOK);
+                                    /*MissingOK=*/false);
   }
 
   // Either the condition is valid or the rparen is present.
   T.consumeClose();
-
-  if (LParenLoc != nullptr) {
-    *LParenLoc = T.getOpenLocation();
-  }
-  if (RParenLoc != nullptr) {
-    *RParenLoc = T.getCloseLocation();
-  }
+  LParenLoc = T.getOpenLocation();
+  RParenLoc = T.getCloseLocation();
 
   // Check for extraneous ')'s to catch things like "if (foo())) {".  We know
   // that all callers are looking for a statement after the condition, so ")"
@@ -1471,7 +1494,7 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
     if (ParseParenExprOrCondition(&InitStmt, Cond, IfLoc,
                                   IsConstexpr ? Sema::ConditionKind::ConstexprIf
                                               : Sema::ConditionKind::Boolean,
-                                  /*MissingOK=*/false, &LParen, &RParen))
+                                  LParen, RParen))
       return StmtError();
 
     if (IsConstexpr)
@@ -1666,8 +1689,7 @@ StmtResult Parser::ParseSwitchStatement(SourceLocation *TrailingElseLoc) {
   SourceLocation LParen;
   SourceLocation RParen;
   if (ParseParenExprOrCondition(&InitStmt, Cond, SwitchLoc,
-                                Sema::ConditionKind::Switch,
-                                /*MissingOK=*/false, &LParen, &RParen))
+                                Sema::ConditionKind::Switch, LParen, RParen))
     return StmtError();
 
   StmtResult Switch = Actions.ActOnStartOfSwitchStmt(
@@ -1757,8 +1779,7 @@ StmtResult Parser::ParseWhileStatement(SourceLocation *TrailingElseLoc) {
   SourceLocation LParen;
   SourceLocation RParen;
   if (ParseParenExprOrCondition(nullptr, Cond, WhileLoc,
-                                Sema::ConditionKind::Boolean,
-                                /*MissingOK=*/false, &LParen, &RParen))
+                                Sema::ConditionKind::Boolean, LParen, RParen))
     return StmtError();
 
   // C99 6.8.5p5 - In C99, the body of the while statement is a scope, even if
@@ -2430,7 +2451,8 @@ Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
   // If the function body could not be parsed, make a bogus compoundstmt.
   if (FnBody.isInvalid()) {
     Sema::CompoundScopeRAII CompoundScope(Actions);
-    FnBody = Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, None, false);
+    FnBody =
+        Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, std::nullopt, false);
   }
 
   BodyScope.Exit();
@@ -2467,7 +2489,8 @@ Decl *Parser::ParseFunctionTryBlock(Decl *Decl, ParseScope &BodyScope) {
   // compound statement as the body.
   if (FnBody.isInvalid()) {
     Sema::CompoundScopeRAII CompoundScope(Actions);
-    FnBody = Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, None, false);
+    FnBody =
+        Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, std::nullopt, false);
   }
 
   BodyScope.Exit();

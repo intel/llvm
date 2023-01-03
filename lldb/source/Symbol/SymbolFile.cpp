@@ -120,9 +120,8 @@ void SymbolFile::FindGlobalVariables(const RegularExpression &regex,
                                      uint32_t max_matches,
                                      VariableList &variables) {}
 
-void SymbolFile::FindFunctions(ConstString name,
+void SymbolFile::FindFunctions(const Module::LookupInfo &lookup_info,
                                const CompilerDeclContext &parent_decl_ctx,
-                               lldb::FunctionNameType name_type_mask,
                                bool include_inlines,
                                SymbolContextList &sc_list) {}
 
@@ -228,12 +227,13 @@ void SymbolFileCommon::SetCompileUnitAtIndex(uint32_t idx,
   (*m_compile_units)[idx] = cu_sp;
 }
 
-llvm::Expected<TypeSystem &>
+llvm::Expected<TypeSystemSP>
 SymbolFileCommon::GetTypeSystemForLanguage(lldb::LanguageType language) {
   auto type_system_or_err =
       m_objfile_sp->GetModule()->GetTypeSystemForLanguage(language);
   if (type_system_or_err) {
-    type_system_or_err->SetSymbolFile(this);
+    if (auto ts = *type_system_or_err)
+      ts->SetSymbolFile(this);
   }
   return type_system_or_err;
 }

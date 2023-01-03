@@ -128,10 +128,20 @@ def ZeroOffsetMemOpOperand : AsmOperandClass {
   let ParserMethod = "parseZeroOffsetMemOp";
 }
 
-def GPRMemZeroOffset : RegisterOperand<GPR> {
+class MemOperand<RegisterClass regClass> : RegisterOperand<regClass>{
+  let OperandType = "OPERAND_MEMORY";
+}
+
+def GPRMemZeroOffset : MemOperand<GPR> {
   let ParserMatchClass = ZeroOffsetMemOpOperand;
   let PrintMethod = "printZeroOffsetMemOp";
 }
+
+def GPRMem : MemOperand<GPR>;
+
+def SPMem : MemOperand<SP>;
+
+def GPRCMem : MemOperand<GPRC>;
 
 class SImmAsmOperand<int width, string suffix = "">
     : ImmAsmOperand<"S", width, suffix> {
@@ -236,6 +246,11 @@ def simm12 : Operand<XLenVT>, ImmLeaf<XLenVT, [{return isInt<12>(Imm);}]> {
   let OperandType = "OPERAND_SIMM12";
   let OperandNamespace = "RISCVOp";
 }
+
+// A 12-bit signed immediate which cannot fit in 6-bit signed immediate,
+// but even negative value fit in 12-bit.
+def simm12_no6 : ImmLeaf<XLenVT, [{
+  return isInt<12>(Imm) && !isInt<6>(Imm) && isInt<12>(-Imm);}]>;
 
 // A 13-bit signed immediate where the least significant bit is zero.
 def simm13_lsb0 : Operand<OtherVT> {
@@ -366,15 +381,6 @@ def ixlenimm_li : Operand<XLenVT> {
 def simm12_plus1 : ImmLeaf<XLenVT,
   [{return (isInt<12>(Imm) && Imm != -2048) || Imm == 2048;}]>;
 
-// A 12-bit signed immediate sub one and exclude zero
-def simm12_minus1_nonzero : PatLeaf<(imm), [{
-  if (!N->hasOneUse())
-    return false;
-  // The immediate operand must be in range [-2049, 0) or (0, 2046].
-  int64_t Imm = N->getSExtValue();
-  return (Imm >= -2049 && Imm < 0) || (Imm > 0 && Imm <= 2046);
-}]>;
-
 // A 6-bit constant greater than 32.
 def uimm6gt32 : ImmLeaf<XLenVT, [{
   return isUInt<6>(Imm) && Imm > 32;
@@ -395,12 +401,6 @@ def NegImm : SDNodeXForm<imm, [{
 // Return an immediate value minus 32.
 def ImmSub32 : SDNodeXForm<imm, [{
   return CurDAG->getTargetConstant(N->getSExtValue() - 32, SDLoc(N),
-                                   N->getValueType(0));
-}]>;
-
-// Return an immediate value plus 1.
-def ImmPlus1 : SDNodeXForm<imm, [{
-  return CurDAG->getTargetConstant(N->getSExtValue() + 1, SDLoc(N),
                                    N->getValueType(0));
 }]>;
 
@@ -446,13 +446,13 @@ def AddiPairImmLarge : SDNodeXForm<imm, [{
 }]>;
 
 def TrailingZeros : SDNodeXForm<imm, [{
-  return CurDAG->getTargetConstant(N->getAPIntValue().countTrailingZeros(),
+  return CurDAG->getTargetConstant(countTrailingZeros(N->getZExtValue()),
                                    SDLoc(N), N->getValueType(0));
 }]>;
 
 def XLenSubTrailingOnes : SDNodeXForm<imm, [{
   uint64_t XLen = Subtarget->getXLen();
-  uint64_t TrailingOnes = N->getAPIntValue().countTrailingOnes();
+  uint64_t TrailingOnes = countTrailingOnes(N->getZExtValue());
   return CurDAG->getTargetConstant(XLen - TrailingOnes, SDLoc(N),
                                    N->getValueType(0));
 }]>;
@@ -470,6 +470,19 @@ def TrailingOnesMask : PatLeaf<(imm), [{
     return false;
   return !isInt<12>(N->getSExtValue()) && isMask_64(N->getZExtValue());
 }], XLenSubTrailingOnes>;
+
+// Similar to LeadingOnesMask, but only consider leading ones in the lower 32
+// bits.
+def LeadingOnesWMask : PatLeaf<(imm), [{
+  if (!N->hasOneUse())
+    return false;
+  // If the value is a uint32 but not an int32, it must have bit 31 set and
+  // bits 63:32 cleared. After that we're looking for a shifted mask but not
+  // an all ones mask.
+  int64_t Imm = N->getSExtValue();
+  return !isInt<32>(Imm) && isUInt<32>(Imm) && isShiftedMask_64(Imm) &&
+         Imm != UINT64_C(0xffffffff);
+}], TrailingZeros>;
 
 //===----------------------------------------------------------------------===//
 // Instruction Formats
@@ -493,7 +506,7 @@ class BranchCC_rri<bits<3> funct3, string opcodestr>
 
 let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in {
 class Load_ri<bits<3> funct3, string opcodestr>
-    : RVInstI<funct3, OPC_LOAD, (outs GPR:$rd), (ins GPR:$rs1, simm12:$imm12),
+    : RVInstI<funct3, OPC_LOAD, (outs GPR:$rd), (ins GPRMem:$rs1, simm12:$imm12),
               opcodestr, "$rd, ${imm12}(${rs1})">;
 
 class HLoad_r<bits<7> funct7, bits<5> funct5, string opcodestr>
@@ -509,7 +522,7 @@ class HLoad_r<bits<7> funct7, bits<5> funct5, string opcodestr>
 let hasSideEffects = 0, mayLoad = 0, mayStore = 1 in {
 class Store_rri<bits<3> funct3, string opcodestr>
     : RVInstS<funct3, OPC_STORE, (outs),
-              (ins GPR:$rs2, GPR:$rs1, simm12:$imm12),
+              (ins GPR:$rs2, GPRMem:$rs1, simm12:$imm12),
               opcodestr, "$rs2, ${imm12}(${rs1})">;
 
 class HStore_rr<bits<7> funct7, string opcodestr>
@@ -707,6 +720,23 @@ def UNIMP : RVInstI<0b001, OPC_SYSTEM, (outs), (ins), "unimp", "">,
   let rd = 0;
   let imm12 = 0b110000000000;
 }
+
+let Predicates = [HasStdExtZawrs] in {
+def WRS_NTO : RVInstI<0b000, OPC_SYSTEM, (outs), (ins), "wrs.nto", "">,
+              Sched<[]> {
+  let rs1 = 0;
+  let rd = 0;
+  let imm12 = 0b000000001101;
+}
+
+def WRS_STO : RVInstI<0b000, OPC_SYSTEM, (outs), (ins), "wrs.sto", "">,
+              Sched<[]> {
+  let rs1 = 0;
+  let rd = 0;
+  let imm12 = 0b000000011101;
+}
+} // Predicates = [HasStdExtZawrs]
+
 } // hasSideEffects = 1, mayLoad = 0, mayStore = 0
 
 def CSRRW : CSR_ir<0b001, "csrrw">;
@@ -720,7 +750,7 @@ def CSRRCI : CSR_ii<0b111, "csrrci">;
 /// RV64I instructions
 
 let Predicates = [IsRV64] in {
-def LWU   : Load_ri<0b110, "lwu">, Sched<[WriteLDWU, ReadMemBase]>;
+def LWU   : Load_ri<0b110, "lwu">, Sched<[WriteLDW, ReadMemBase]>;
 def LD    : Load_ri<0b011, "ld">, Sched<[WriteLDD, ReadMemBase]>;
 def SD    : Store_rri<0b011, "sd">, Sched<[WriteSTD, ReadStoreData, ReadMemBase]>;
 
@@ -776,6 +806,7 @@ def WFI : Priv<"wfi", 0b0001000>, Sched<[]> {
   let rs2 = 0b00101;
 }
 
+let Predicates = [HasStdExtSvinval] in {
 def SFENCE_W_INVAL : Priv<"sfence.w.inval", 0b0001100>, Sched<[]> {
   let rd = 0;
   let rs1 = 0;
@@ -787,13 +818,14 @@ def SFENCE_INVAL_IR : Priv<"sfence.inval.ir", 0b0001100>, Sched<[]> {
   let rs1 = 0;
   let rs2 = 0b00001;
 }
-
-def SFENCE_VMA  : Priv_rr<"sfence.vma", 0b0001001>, Sched<[]>;
 def SINVAL_VMA  : Priv_rr<"sinval.vma", 0b0001011>, Sched<[]>;
-def HFENCE_VVMA : Priv_rr<"hfence.vvma", 0b0010001>, Sched<[]>;
-def HFENCE_GVMA : Priv_rr<"hfence.gvma", 0b0110001>, Sched<[]>;
 def HINVAL_VVMA : Priv_rr<"hinval.vvma", 0b0010011>, Sched<[]>;
 def HINVAL_GVMA : Priv_rr<"hinval.gvma", 0b0110011>, Sched<[]>;
+} // Predicates = [HasStdExtSvinval]
+
+def SFENCE_VMA  : Priv_rr<"sfence.vma", 0b0001001>, Sched<[]>;
+def HFENCE_VVMA : Priv_rr<"hfence.vvma", 0b0010001>, Sched<[]>;
+def HFENCE_GVMA : Priv_rr<"hfence.gvma", 0b0110001>, Sched<[]>;
 
 def HLV_B   : HLoad_r<0b0110000, 0b00000, "hlv.b">, Sched<[]>;
 def HLV_BU  : HLoad_r<0b0110000, 0b00001, "hlv.bu">, Sched<[]>;
@@ -960,6 +992,13 @@ def : InstAlias<"hfence.gvma $rs", (HFENCE_GVMA GPR:$rs, X0)>;
 
 def : InstAlias<"hfence.vvma",     (HFENCE_VVMA      X0, X0)>;
 def : InstAlias<"hfence.vvma $rs", (HFENCE_VVMA GPR:$rs, X0)>;
+
+let Predicates = [HasStdExtZihintntl] in {
+  def : InstAlias<"ntl.p1",     (ADD   X0, X0, X2)>;
+  def : InstAlias<"ntl.pall",   (ADD   X0, X0, X3)>;
+  def : InstAlias<"ntl.s1",     (ADD   X0, X0, X4)>;
+  def : InstAlias<"ntl.all",    (ADD   X0, X0, X5)>;
+} // Predicates = [HasStdExtZihintntl]
 
 let EmitPriority = 0 in {
 def : InstAlias<"lb $rd, (${rs1})",
@@ -1143,7 +1182,9 @@ def sexti32 : ComplexPattern<i64, 1, "selectSExti32">;
 def assertzexti32 : PatFrag<(ops node:$src), (assertzext node:$src), [{
   return cast<VTSDNode>(N->getOperand(1))->getVT().bitsLE(MVT::i32);
 }]>;
-def zexti32 : ComplexPattern<i64, 1, "selectZExti32">;
+def zexti32 : ComplexPattern<i64, 1, "selectZExtBits<32>">;
+def zexti16 : ComplexPattern<XLenVT, 1, "selectZExtBits<16>">;
+def zexti8 : ComplexPattern<XLenVT, 1, "selectZExtBits<8>">;
 
 class binop_oneuse<SDPatternOperator operator>
     : PatFrag<(ops node:$A, node:$B),
@@ -1271,23 +1312,7 @@ def : Pat<(setne GPR:$rs1, simm12_plus1:$imm12),
           (SLTU X0, (ADDI GPR:$rs1, (NegImm simm12_plus1:$imm12)))>;
 def : Pat<(setne GPR:$rs1, -2048),
           (SLTU X0, (XORI GPR:$rs1, -2048))>;
-def : Pat<(setugt GPR:$rs1, GPR:$rs2), (SLTU GPR:$rs2, GPR:$rs1)>;
-def : Pat<(setuge GPR:$rs1, GPR:$rs2), (XORI (SLTU GPR:$rs1, GPR:$rs2), 1)>;
-def : Pat<(setule GPR:$rs1, GPR:$rs2), (XORI (SLTU GPR:$rs2, GPR:$rs1), 1)>;
-def : Pat<(setgt GPR:$rs1, GPR:$rs2), (SLT GPR:$rs2, GPR:$rs1)>;
-def : Pat<(setge GPR:$rs1, GPR:$rs2), (XORI (SLT GPR:$rs1, GPR:$rs2), 1)>;
-def : Pat<(setle GPR:$rs1, GPR:$rs2), (XORI (SLT GPR:$rs2, GPR:$rs1), 1)>;
-def : Pat<(setgt GPR:$rs1, simm12_minus1_nonzero:$imm),
-          (XORI (SLTI GPR:$rs1, (ImmPlus1 simm12_minus1_nonzero:$imm)), 1)>;
-def : Pat<(setugt GPR:$rs1, simm12_minus1_nonzero:$imm),
-          (XORI (SLTIU GPR:$rs1, (ImmPlus1 simm12_minus1_nonzero:$imm)), 1)>;
-
-// If negating a pattern that requires an XORI above, we can fold the XORI with
-// the NEG. The XORI is equivalent to 1-X and negating gives X-1.
-def : Pat<(ineg (setuge GPR:$rs1, GPR:$rs2)), (ADDI (SLTU GPR:$rs1, GPR:$rs2), -1)>;
-def : Pat<(ineg (setule GPR:$rs1, GPR:$rs2)), (ADDI (SLTU GPR:$rs2, GPR:$rs1), -1)>;
-def : Pat<(ineg (setge GPR:$rs1, GPR:$rs2)), (ADDI (SLT GPR:$rs1, GPR:$rs2), -1)>;
-def : Pat<(ineg (setle GPR:$rs1, GPR:$rs2)), (ADDI (SLT GPR:$rs2, GPR:$rs1), -1)>;
+def : Pat<(setne GPR:$rs1, -1), (SLTIU GPR:$rs1, -1)>;
 
 def IntCCtoRISCVCC : SDNodeXForm<riscv_selectcc, [{
   ISD::CondCode CC = cast<CondCodeSDNode>(N->getOperand(2))->get();
@@ -1301,6 +1326,20 @@ def riscv_selectcc_frag : PatFrag<(ops node:$lhs, node:$rhs, node:$cc,
                                                   node:$cc, node:$truev,
                                                   node:$falsev), [{}],
                                   IntCCtoRISCVCC>;
+
+let Predicates = [HasShortForwardBranchOpt],
+    Constraints = "$dst = $falsev", isCommutable = 1, Size = 8 in {
+// This instruction moves $truev to $dst when the condition is true. It will
+// be expanded to control flow in RISCVExpandPseudoInsts.
+def PseudoCCMOVGPR : Pseudo<(outs GPR:$dst),
+                            (ins GPR:$lhs, GPR:$rhs, ixlenimm:$cc,
+                             GPR:$falsev, GPR:$truev),
+                            [(set GPR:$dst,
+                              (riscv_selectcc_frag:$cc GPR:$lhs, GPR:$rhs,
+                                                       cond, GPR:$truev,
+                                                       GPR:$falsev))]>,
+                     Sched<[WriteSFB, ReadSFB, ReadSFB, ReadSFB, ReadSFB]>;
+}
 
 multiclass SelectCC_GPR_rrirr<RegisterClass valty> {
   let usesCustomInserter = 1 in
@@ -1318,7 +1357,20 @@ multiclass SelectCC_GPR_rrirr<RegisterClass valty> {
              (IntCCtoRISCVCC $cc), valty:$truev, valty:$falsev)>;
 }
 
+let Predicates = [NoShortForwardBranchOpt] in
 defm Select_GPR : SelectCC_GPR_rrirr<GPR>;
+
+class SelectCompressOpt<CondCode Cond>: Pat<(riscv_selectcc_frag:$select GPR:$lhs, simm12_no6:$Constant, Cond,
+                                                  GPR:$truev, GPR:$falsev),
+    (Select_GPR_Using_CC_GPR (ADDI GPR:$lhs, (NegImm simm12:$Constant)), X0,
+                          (IntCCtoRISCVCC $select), GPR:$truev, GPR:$falsev)>;
+
+def OptForMinSize : Predicate<"MF ? MF->getFunction().hasMinSize() : false">;
+
+let Predicates = [HasStdExtC, OptForMinSize] in {
+  def : SelectCompressOpt<SETEQ>;
+  def : SelectCompressOpt<SETNE>;
+}
 
 /// Branches and jumps
 
@@ -1331,12 +1383,20 @@ multiclass BccPat<CondCode Cond, RVInstB Inst> {
             (Inst GPR:$rs1, X0, simm13_lsb0:$imm12)>;
 }
 
+class BrccCompessOpt<CondCode Cond, RVInstB Inst> : Pat<(riscv_brcc GPR:$lhs, simm12_no6:$Constant, Cond, bb:$place),
+                              (Inst (ADDI GPR:$lhs, (NegImm simm12:$Constant)), X0, bb:$place)>;
+
 defm : BccPat<SETEQ, BEQ>;
 defm : BccPat<SETNE, BNE>;
 defm : BccPat<SETLT, BLT>;
 defm : BccPat<SETGE, BGE>;
 defm : BccPat<SETULT, BLTU>;
 defm : BccPat<SETUGE, BGEU>;
+
+let Predicates = [HasStdExtC, OptForMinSize] in {
+  def : BrccCompessOpt<SETEQ, BEQ>;
+  def : BrccCompessOpt<SETNE, BNE>;
+}
 
 let isBarrier = 1, isBranch = 1, isTerminator = 1 in
 def PseudoBR : Pseudo<(outs), (ins simm21_lsb0_jal:$imm20), [(br bb:$imm20)]>,
@@ -1566,6 +1626,7 @@ class SwapSysRegImm<SysReg SR, list<Register> Regs>
 def ReadFRM : ReadSysReg<SysRegFRM, [FRM]>;
 def WriteFRM : WriteSysReg<SysRegFRM, [FRM]>;
 def WriteFRMImm : WriteSysRegImm<SysRegFRM, [FRM]>;
+def SwapFRMImm : SwapSysRegImm<SysRegFRM, [FRM]>;
 
 let hasSideEffects = true in {
 def ReadFFLAGS : ReadSysReg<SysRegFFLAGS, [FFLAGS]>;
@@ -1605,7 +1666,20 @@ def sexti32_allwusers : PatFrag<(ops node:$src),
   return hasAllWUsers(Node);
 }]>;
 
+def ImmSExt32 : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(SignExtend64<32>(N->getSExtValue()),
+                                   SDLoc(N), N->getValueType(0));
+}]>;
+// Look for constants where the upper 32 bits are 0, but sign extending bit 31
+// would be an simm12.
+def u32simm12 : ImmLeaf<XLenVT, [{
+  return isUInt<32>(Imm) && isInt<12>(SignExtend64<32>(Imm));
+}], ImmSExt32>;
+
 let Predicates = [IsRV64] in {
+
+def : Pat<(i64 (and GPR:$rs, LeadingOnesWMask:$mask)),
+          (SLLI (SRLIW $rs, LeadingOnesWMask:$mask), LeadingOnesWMask:$mask)>;
 
 /// sext and zext
 
@@ -1641,6 +1715,16 @@ def : PatGprImm<binop_allwusers<shl>, SLLIW, uimm5>;
 def : Pat<(binop_allwusers<srl> (sext_inreg GPR:$rs1, i32), uimm5:$shamt),
           (SRAIW GPR:$rs1, uimm5:$shamt)>;
 
+// Use binop_allwusers to recover immediates that may have been broken by
+// SimplifyDemandedBits.
+def : Pat<(binop_allwusers<and> GPR:$rs1, u32simm12:$imm),
+          (ANDI GPR:$rs1, u32simm12:$imm)>;
+
+def : Pat<(binop_allwusers<or> GPR:$rs1, u32simm12:$imm),
+          (ORI GPR:$rs1, u32simm12:$imm)>;
+
+def : Pat<(binop_allwusers<xor> GPR:$rs1, u32simm12:$imm),
+          (XORI GPR:$rs1, u32simm12:$imm)>;
 /// Loads
 
 defm : LdPat<sextloadi32, LW, i64>;
@@ -1675,6 +1759,13 @@ def : Pat<(trap), (UNIMP)>;
 // debugger if possible.
 def : Pat<(debugtrap), (EBREAK)>;
 
+let Predicates = [IsRV64], Uses = [X5],
+    Defs = [X1, X6, X7, X28, X29, X30, X31] in
+def HWASAN_CHECK_MEMACCESS_SHORTGRANULES 
+  : Pseudo<(outs), (ins GPRJALR:$ptr, i32imm:$accessinfo),
+           [(int_hwasan_check_memaccess_shortgranules X5, GPRJALR:$ptr,
+                                                      (i32 timm:$accessinfo))]>;
+
 /// Simple optimization
 def : Pat<(add GPR:$rs1, (AddiPair:$rs2)),
           (ADDI (ADDI GPR:$rs1, (AddiPairImmLarge AddiPair:$rs2)),
@@ -1701,3 +1792,9 @@ include "RISCVInstrInfoZk.td"
 include "RISCVInstrInfoV.td"
 include "RISCVInstrInfoZfh.td"
 include "RISCVInstrInfoZicbo.td"
+
+//===----------------------------------------------------------------------===//
+// Vendor extensions
+//===----------------------------------------------------------------------===//
+
+include "RISCVInstrInfoXVentana.td"

@@ -8,18 +8,17 @@
 
 #include "TraceIntelPT.h"
 
-#include "TraceCursorIntelPT.h"
-
 #include "../common/ThreadPostMortemTrace.h"
 #include "CommandObjectTraceStartIntelPT.h"
 #include "DecodedThread.h"
+#include "TraceCursorIntelPT.h"
 #include "TraceIntelPTBundleLoader.h"
 #include "TraceIntelPTBundleSaver.h"
 #include "TraceIntelPTConstants.h"
 #include "lldb/Core/PluginManager.h"
+#include "lldb/Interpreter/OptionValueProperties.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Target.h"
-#include "llvm/ADT/None.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -40,11 +39,57 @@ TraceIntelPT::GetThreadTraceStartCommand(CommandInterpreter &interpreter) {
       new CommandObjectThreadTraceStartIntelPT(*this, interpreter));
 }
 
+#define LLDB_PROPERTIES_traceintelpt
+#include "TraceIntelPTProperties.inc"
+
+enum {
+#define LLDB_PROPERTIES_traceintelpt
+#include "TraceIntelPTPropertiesEnum.inc"
+};
+
+ConstString TraceIntelPT::PluginProperties::GetSettingName() {
+  return ConstString(TraceIntelPT::GetPluginNameStatic());
+}
+
+TraceIntelPT::PluginProperties::PluginProperties() : Properties() {
+  m_collection_sp = std::make_shared<OptionValueProperties>(GetSettingName());
+  m_collection_sp->Initialize(g_traceintelpt_properties);
+}
+
+uint64_t
+TraceIntelPT::PluginProperties::GetInfiniteDecodingLoopVerificationThreshold() {
+  const uint32_t idx = ePropertyInfiniteDecodingLoopVerificationThreshold;
+  return m_collection_sp->GetPropertyAtIndexAsUInt64(
+      nullptr, idx, g_traceintelpt_properties[idx].default_uint_value);
+}
+
+uint64_t TraceIntelPT::PluginProperties::GetExtremelyLargeDecodingThreshold() {
+  const uint32_t idx = ePropertyExtremelyLargeDecodingThreshold;
+  return m_collection_sp->GetPropertyAtIndexAsUInt64(
+      nullptr, idx, g_traceintelpt_properties[idx].default_uint_value);
+}
+
+TraceIntelPT::PluginProperties &TraceIntelPT::GetGlobalProperties() {
+  static TraceIntelPT::PluginProperties g_settings;
+  return g_settings;
+}
+
 void TraceIntelPT::Initialize() {
-  PluginManager::RegisterPlugin(GetPluginNameStatic(), "Intel Processor Trace",
-                                CreateInstanceForTraceBundle,
-                                CreateInstanceForLiveProcess,
-                                TraceIntelPTBundleLoader::GetSchema());
+  PluginManager::RegisterPlugin(
+      GetPluginNameStatic(), "Intel Processor Trace",
+      CreateInstanceForTraceBundle, CreateInstanceForLiveProcess,
+      TraceIntelPTBundleLoader::GetSchema(), DebuggerInitialize);
+}
+
+void TraceIntelPT::DebuggerInitialize(Debugger &debugger) {
+  if (!PluginManager::GetSettingForProcessPlugin(
+          debugger, PluginProperties::GetSettingName())) {
+    const bool is_global_setting = true;
+    PluginManager::CreateSettingForTracePlugin(
+        debugger, GetGlobalProperties().GetValueProperties(),
+        ConstString("Properties for the intel-pt trace plug-in."),
+        is_global_setting);
+  }
 }
 
 void TraceIntelPT::Terminate() {
@@ -79,12 +124,14 @@ TraceIntelPTSP TraceIntelPT::GetSharedPtr() {
   return std::static_pointer_cast<TraceIntelPT>(shared_from_this());
 }
 
+TraceIntelPT::TraceMode TraceIntelPT::GetTraceMode() { return trace_mode; }
+
 TraceIntelPTSP TraceIntelPT::CreateInstanceForPostmortemTrace(
     JSONTraceBundleDescription &bundle_description,
     ArrayRef<ProcessSP> traced_processes,
-    ArrayRef<ThreadPostMortemTraceSP> traced_threads) {
+    ArrayRef<ThreadPostMortemTraceSP> traced_threads, TraceMode trace_mode) {
   TraceIntelPTSP trace_sp(
-      new TraceIntelPT(bundle_description, traced_processes));
+      new TraceIntelPT(bundle_description, traced_processes, trace_mode));
   trace_sp->m_storage.tsc_conversion =
       bundle_description.tsc_perf_zero_conversion;
 
@@ -101,13 +148,12 @@ TraceIntelPTSP TraceIntelPT::CreateInstanceForPostmortemTrace(
       cpus.push_back(cpu.id);
     }
 
-    std::vector<tid_t> tids;
-    for (const JSONProcess &process : bundle_description.processes)
-      for (const JSONThread &thread : process.threads)
-        tids.push_back(thread.tid);
+    if (trace_mode == TraceMode::UserMode) {
+      trace_sp->m_storage.multicpu_decoder.emplace(trace_sp);
+    }
+  }
 
-    trace_sp->m_storage.multicpu_decoder.emplace(trace_sp);
-  } else {
+  if (!bundle_description.cpus || trace_mode == TraceMode::KernelMode) {
     for (const ThreadPostMortemTraceSP &thread : traced_threads) {
       trace_sp->m_storage.thread_decoders.try_emplace(
           thread->GetID(), std::make_unique<ThreadDecoder>(thread, *trace_sp));
@@ -124,9 +170,10 @@ TraceIntelPTSP TraceIntelPT::CreateInstanceForPostmortemTrace(
 }
 
 TraceIntelPT::TraceIntelPT(JSONTraceBundleDescription &bundle_description,
-                           ArrayRef<ProcessSP> traced_processes)
+                           ArrayRef<ProcessSP> traced_processes,
+                           TraceMode trace_mode)
     : Trace(traced_processes, bundle_description.GetCpuIds()),
-      m_cpu_info(bundle_description.cpu_info) {}
+      m_cpu_info(bundle_description.cpu_info), trace_mode(trace_mode) {}
 
 Expected<DecodedThreadSP> TraceIntelPT::Decode(Thread &thread) {
   if (const char *error = RefreshLiveProcessState())
@@ -149,7 +196,7 @@ Expected<Optional<uint64_t>> TraceIntelPT::FindBeginningOfTimeNanos() {
   storage.beginning_of_time_nanos_calculated = true;
 
   if (!storage.tsc_conversion)
-    return None;
+    return std::nullopt;
 
   Optional<uint64_t> lowest_tsc;
 
@@ -272,6 +319,20 @@ void TraceIntelPT::DumpTraceInfo(Thread &thread, Stream &s, bool verbose,
                event_to_count.second);
     }
   }
+  // Trace error stats
+  {
+    const DecodedThread::ErrorStats &error_stats =
+        decoded_thread_sp->GetErrorStats();
+    s << "\n  Errors:\n";
+    s.Format("    Number of individual errors: {0}\n",
+             error_stats.GetTotalCount());
+    s.Format("      Number of fatal errors: {0}\n", error_stats.fatal_errors);
+    for (const auto &[kind, count] : error_stats.libipt_errors) {
+      s.Format("     Number of libipt errors of kind [{0}]: {1}\n", kind,
+               count);
+    }
+    s.Format("      Number of other errors: {0}\n", error_stats.other_errors);
+  }
 
   if (storage.multicpu_decoder) {
     s << "\n  Multi-cpu decoding:\n";
@@ -286,20 +347,6 @@ void TraceIntelPT::DumpTraceInfo(Thread &thread, Stream &s, bool verbose,
              storage.multicpu_decoder->GePSBBlocksCountForThread(tid));
     s.Format("    Total number of unattributed PSB blocks found: {0}\n",
              storage.multicpu_decoder->GetUnattributedPSBBlocksCount());
-  }
-
-  // Errors
-  {
-    s << "\n  Errors:\n";
-    const DecodedThread::LibiptErrorsStats &tsc_errors_stats =
-        decoded_thread_sp->GetTscErrorsStats();
-    s.Format("    Number of TSC decoding errors: {0}\n",
-             tsc_errors_stats.total_count);
-    for (const auto &error_message_to_count :
-         tsc_errors_stats.libipt_errors_counts) {
-      s.Format("      {0}: {1}\n", error_message_to_count.first,
-               error_message_to_count.second);
-    }
   }
 }
 
@@ -366,6 +413,19 @@ void TraceIntelPT::DumpTraceInfoAsJson(Thread &thread, Stream &s,
           }
         });
       });
+      // Trace error stats
+      const DecodedThread::ErrorStats &error_stats =
+          decoded_thread_sp->GetErrorStats();
+      json_str.attributeObject("errors", [&] {
+        json_str.attribute("totalCount", error_stats.GetTotalCount());
+        json_str.attributeObject("libiptErrors", [&] {
+          for (const auto &[kind, count] : error_stats.libipt_errors) {
+            json_str.attribute(kind, count);
+          }
+        });
+        json_str.attribute("fatalErrors", error_stats.fatal_errors);
+        json_str.attribute("otherErrors", error_stats.other_errors);
+      });
 
       if (storage.multicpu_decoder) {
         json_str.attribute(
@@ -375,21 +435,8 @@ void TraceIntelPT::DumpTraceInfoAsJson(Thread &thread, Stream &s,
             "PSBBlocks",
             storage.multicpu_decoder->GePSBBlocksCountForThread(tid));
       }
-
-      // Errors
-      const DecodedThread::LibiptErrorsStats &tsc_errors_stats =
-          decoded_thread_sp->GetTscErrorsStats();
-      json_str.attributeObject("errorItems", [&] {
-        json_str.attribute("total", tsc_errors_stats.total_count);
-        json_str.attributeObject("individualErrors", [&] {
-          for (const auto &error_message_to_count :
-               tsc_errors_stats.libipt_errors_counts) {
-            json_str.attribute(error_message_to_count.first,
-                               error_message_to_count.second);
-          }
-        });
-      });
     });
+
     json_str.attributeObject("globalStats", [&] {
       json_str.attributeObject("timingInSeconds", [&] {
         GetTimer().ForGlobal().ForEachTimedTask(
@@ -417,7 +464,7 @@ void TraceIntelPT::DumpTraceInfoAsJson(Thread &thread, Stream &s,
 llvm::Expected<Optional<uint64_t>>
 TraceIntelPT::GetRawTraceSize(Thread &thread) {
   if (GetUpdatedStorage().multicpu_decoder)
-    return None; // TODO: calculate the amount of intel pt raw trace associated
+    return std::nullopt; // TODO: calculate the amount of intel pt raw trace associated
                  // with the given thread.
   if (GetLiveProcess())
     return GetLiveThreadBinaryDataSize(thread.GetID(),

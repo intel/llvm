@@ -57,6 +57,9 @@ def time_trace_granularity_eq: Joined<["--"], "time-trace-granularity=">,
 def deduplicate_literals: Flag<["--"], "deduplicate-literals">,
     HelpText<"Enable literal deduplication. This is implied by --icf={safe,all}">,
     Group<grp_lld>;
+def dead_strip_duplicates: Flag<["--"], "dead-strip-duplicates">,
+    HelpText<"Do not error on duplicate symbols that will be dead stripped.">,
+    Group<grp_lld>;
 def print_dylib_search: Flag<["--"], "print-dylib-search">,
     HelpText<"Print which paths lld searched when trying to find dylibs">,
     Group<grp_lld>;
@@ -68,7 +71,7 @@ def lto_O: Joined<["--"], "lto-O">,
     HelpText<"Set optimization level for LTO (default: 2)">,
     MetaVarName<"<opt-level>">,
     Group<grp_lld>;
-def thinlto_cache_policy: Joined<["--"], "thinlto-cache-policy=">,
+def thinlto_cache_policy_eq: Joined<["--"], "thinlto-cache-policy=">,
     HelpText<"Pruning policy for the ThinLTO cache">,
     Group<grp_lld>;
 def O : JoinedOrSeparate<["-"], "O">,
@@ -77,11 +80,11 @@ def start_lib: Flag<["--"], "start-lib">,
     HelpText<"Start a grouping of objects that should be treated as if they were together in an archive">;
 def end_lib: Flag<["--"], "end-lib">,
     HelpText<"End a grouping of objects that should be treated as if they were together in an archive">;
-def no_warn_dylib_install_name: Joined<["--"], "no-warn-dylib-install-name">,
-    HelpText<"Do not warn on -install-name if -dylib is not passed (default)">,
+def no_warn_dylib_install_name: Flag<["--"], "no-warn-dylib-install-name">,
+    HelpText<"Do not warn on -install_name if -dylib is not passed (default)">,
     Group<grp_lld>;
-def warn_dylib_install_name: Joined<["--"], "warn-dylib-install-name">,
-    HelpText<"Warn on -install-name if -dylib is not passed">,
+def warn_dylib_install_name: Flag<["--"], "warn-dylib-install-name">,
+    HelpText<"Warn on -install_name if -dylib is not passed">,
     Group<grp_lld>;
 def call_graph_profile_sort: Flag<["--"], "call-graph-profile-sort">,
     HelpText<"Reorder sections with call graph profile (default)">,
@@ -89,8 +92,14 @@ def call_graph_profile_sort: Flag<["--"], "call-graph-profile-sort">,
 def no_call_graph_profile_sort : Flag<["--"], "no-call-graph-profile-sort">,
     HelpText<"Do not reorder sections with call graph profile">,
     Group<grp_lld>;
-def print_symbol_order: Joined<["--"], "print-symbol-order=">,
+def print_symbol_order_eq: Joined<["--"], "print-symbol-order=">,
     HelpText<"Print a symbol order specified by --call-graph-profile-sort into the specified file">,
+    Group<grp_lld>;
+def ignore_auto_link_option : Separate<["--"], "ignore-auto-link-option">,
+    Group<grp_lld>;
+def ignore_auto_link_option_eq : Joined<["--"], "ignore-auto-link-option=">,
+    Alias<!cast<Separate>(ignore_auto_link_option)>,
+    HelpText<"Ignore a single auto-linked library or framework. Useful to ignore invalid options that ld64 ignores">,
     Group<grp_lld>;
 
 // This is a complete Options.td compiled from Apple's ld(1) manpage
@@ -978,6 +987,19 @@ def mcpu : Separate<["-"], "mcpu">,
 def no_dtrace_dof : Flag<["-"], "no_dtrace_dof">,
     HelpText<"Disable dtrace-dof processing (default).">,
     Group<grp_rare>;
+def objc_stubs_fast : Flag<["-"], "objc_stubs_fast">,
+    HelpText<"Produce larger stubs for Objective-C method calls with fewer jumps (default).">,
+    Group<grp_rare>;
+def objc_stubs_small : Flag<["-"], "objc_stubs_small">,
+    HelpText<"Produce smaller stubs for Objective-C method calls with more jumps.">,
+    Group<grp_rare>;
+def dyld_env : Separate<["-"], "dyld_env">,
+    MetaVarName<"<dyld_env_var>">,
+    HelpText<"Specifies a LC_DYLD_ENVIRONMENT variable value pair.">,
+    Group<grp_rare>;
+def ignore_auto_link : Flag<["-"], "ignore_auto_link">,
+    HelpText<"Ignore LC_LINKER_OPTIONs">,
+    Group<grp_rare>;
 
 def grp_deprecated : OptionGroup<"deprecated">, HelpText<"DEPRECATED">;
 
@@ -1206,10 +1228,6 @@ def debug_snapshot : Flag<["-"], "debug_snapshot">,
     Group<grp_undocumented>;
 def demangle : Flag<["-"], "demangle">,
     HelpText<"Demangle symbol names in diagnostics">;
-def dyld_env : Flag<["-"], "dyld_env">,
-    HelpText<"This option is undocumented in ld64">,
-    Flags<[HelpHidden]>,
-    Group<grp_undocumented>;
 def encryptable : Flag<["-"], "encryptable">,
     HelpText<"Generate the LC_ENCRYPTION_INFO load command">,
     Group<grp_undocumented>;
@@ -1221,8 +1239,10 @@ def executable_path : Flag<["-"], "executable_path">,
     Flags<[HelpHidden]>,
     Group<grp_undocumented>;
 def fixup_chains : Flag<["-"], "fixup_chains">,
-    HelpText<"This option is undocumented in ld64">,
-    Flags<[HelpHidden]>,
+    HelpText<"Emit chained fixups">,
+    Group<grp_undocumented>;
+def no_fixup_chains : Flag<["-"], "no_fixup_chains">,
+    HelpText<"Emit fixup information as classic dyld opcodes">,
     Group<grp_undocumented>;
 def fixup_chains_section : Flag<["-"], "fixup_chains_section">,
     HelpText<"This option is undocumented in ld64">,
@@ -1240,11 +1260,11 @@ def force_symbols_coalesce_list : Flag<["-"], "force_symbols_coalesce_list">,
     HelpText<"This option is undocumented in ld64">,
     Flags<[HelpHidden]>,
     Group<grp_undocumented>;
-def force_symbols_not_weak_list : Flag<["-"], "force_symbols_not_weak_list">,
+def force_symbols_not_weak_list : Separate<["-"], "force_symbols_not_weak_list">,
     HelpText<"This option is undocumented in ld64">,
     Flags<[HelpHidden]>,
     Group<grp_undocumented>;
-def force_symbols_weak_list : Flag<["-"], "force_symbols_weak_list">,
+def force_symbols_weak_list : Separate<["-"], "force_symbols_weak_list">,
     HelpText<"This option is undocumented in ld64">,
     Flags<[HelpHidden]>,
     Group<grp_undocumented>;
@@ -1259,16 +1279,11 @@ def i : Flag<["-"], "i">,
     HelpText<"This option is undocumented in ld64">,
     Flags<[HelpHidden]>,
     Group<grp_undocumented>;
-def ignore_auto_link : Flag<["-"], "ignore_auto_link">,
-    HelpText<"This option is undocumented in ld64">,
-    Flags<[HelpHidden]>,
-    Group<grp_undocumented>;
 def ignore_optimization_hints : Flag<["-"], "ignore_optimization_hints">,
     HelpText<"Ignore Linker Optimization Hints">,
     Group<grp_undocumented>;
 def init_offsets : Flag<["-"], "init_offsets">,
-    HelpText<"This option is undocumented in ld64">,
-    Flags<[HelpHidden]>,
+    HelpText<"Store __TEXT segment offsets of static initializers">,
     Group<grp_undocumented>;
 def keep_dwarf_unwind : Flag<["-"], "keep_dwarf_unwind">,
     HelpText<"This option is undocumented in ld64">,

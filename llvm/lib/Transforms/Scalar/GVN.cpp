@@ -76,6 +76,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <optional>
 #include <utility>
 
 using namespace llvm;
@@ -450,12 +451,28 @@ void GVNPass::ValueTable::add(Value *V, uint32_t num) {
 }
 
 uint32_t GVNPass::ValueTable::lookupOrAddCall(CallInst *C) {
-  if (AA->doesNotAccessMemory(C)) {
+  if (AA->doesNotAccessMemory(C) &&
+      // FIXME: Currently the calls which may access the thread id may
+      // be considered as not accessing the memory. But this is
+      // problematic for coroutines, since coroutines may resume in a
+      // different thread. So we disable the optimization here for the
+      // correctness. However, it may block many other correct
+      // optimizations. Revert this one when we detect the memory
+      // accessing kind more precisely.
+      !C->getFunction()->isPresplitCoroutine()) {
     Expression exp = createExpr(C);
     uint32_t e = assignExpNewValueNum(exp).first;
     valueNumbering[C] = e;
     return e;
-  } else if (MD && AA->onlyReadsMemory(C)) {
+  } else if (MD && AA->onlyReadsMemory(C) &&
+             // FIXME: Currently the calls which may access the thread id may
+             // be considered as not accessing the memory. But this is
+             // problematic for coroutines, since coroutines may resume in a
+             // different thread. So we disable the optimization here for the
+             // correctness. However, it may block many other correct
+             // optimizations. Revert this one when we detect the memory
+             // accessing kind more precisely.
+             !C->getFunction()->isPresplitCoroutine()) {
     Expression exp = createExpr(C);
     auto ValNum = assignExpNewValueNum(exp);
     if (ValNum.second) {
@@ -471,7 +488,7 @@ uint32_t GVNPass::ValueTable::lookupOrAddCall(CallInst *C) {
     }
 
     if (local_dep.isDef()) {
-      // For masked load/store intrinsics, the local_dep may actully be
+      // For masked load/store intrinsics, the local_dep may actually be
       // a normal load or store instruction.
       CallInst *local_cdep = dyn_cast<CallInst>(local_dep.getInst());
 
@@ -502,21 +519,20 @@ uint32_t GVNPass::ValueTable::lookupOrAddCall(CallInst *C) {
 
     // Check to see if we have a single dominating call instruction that is
     // identical to C.
-    for (unsigned i = 0, e = deps.size(); i != e; ++i) {
-      const NonLocalDepEntry *I = &deps[i];
-      if (I->getResult().isNonLocal())
+    for (const NonLocalDepEntry &I : deps) {
+      if (I.getResult().isNonLocal())
         continue;
 
       // We don't handle non-definitions.  If we already have a call, reject
       // instruction dependencies.
-      if (!I->getResult().isDef() || cdep != nullptr) {
+      if (!I.getResult().isDef() || cdep != nullptr) {
         cdep = nullptr;
         break;
       }
 
-      CallInst *NonLocalDepCall = dyn_cast<CallInst>(I->getResult().getInst());
+      CallInst *NonLocalDepCall = dyn_cast<CallInst>(I.getResult().getInst());
       // FIXME: All duplicated with non-local case.
-      if (NonLocalDepCall && DT->properlyDominates(I->getBB(), C->getParent())){
+      if (NonLocalDepCall && DT->properlyDominates(I.getBB(), C->getParent())) {
         cdep = NonLocalDepCall;
         continue;
       }
@@ -747,14 +763,14 @@ void GVNPass::printPipeline(
       OS, MapClassName2PassName);
 
   OS << "<";
-  if (Options.AllowPRE != None)
+  if (Options.AllowPRE != std::nullopt)
     OS << (Options.AllowPRE.value() ? "" : "no-") << "pre;";
-  if (Options.AllowLoadPRE != None)
+  if (Options.AllowLoadPRE != std::nullopt)
     OS << (Options.AllowLoadPRE.value() ? "" : "no-") << "load-pre;";
-  if (Options.AllowLoadPRESplitBackedge != None)
+  if (Options.AllowLoadPRESplitBackedge != std::nullopt)
     OS << (Options.AllowLoadPRESplitBackedge.value() ? "" : "no-")
        << "split-backedge-load-pre;";
-  if (Options.AllowMemDep != None)
+  if (Options.AllowMemDep != std::nullopt)
     OS << (Options.AllowMemDep.value() ? "" : "no-") << "memdep";
   OS << ">";
 }
@@ -794,7 +810,7 @@ static bool IsValueFullyAvailableInBlock(
     BasicBlock *BB,
     DenseMap<BasicBlock *, AvailabilityState> &FullyAvailableBlocks) {
   SmallVector<BasicBlock *, 32> Worklist;
-  Optional<BasicBlock *> UnavailableBB;
+  std::optional<BasicBlock *> UnavailableBB;
 
   // The number of times we didn't find an entry for a block in a map and
   // optimistically inserted an entry marking block as speculatively available.
@@ -1106,19 +1122,19 @@ static void reportMayClobberedLoad(LoadInst *Load, MemDepResult DepInfo,
 /// basic block, before the pointer select.
 /// 3. There must be no instructions between the found loads and \p End that may
 /// clobber the loads.
-static Optional<AvailableValue>
+static std::optional<AvailableValue>
 tryToConvertLoadOfPtrSelect(BasicBlock *DepBB, BasicBlock::iterator End,
                             Value *Address, Type *LoadTy, DominatorTree &DT,
                             AAResults *AA) {
 
   auto *Sel = dyn_cast_or_null<SelectInst>(Address);
   if (!Sel || DepBB != Sel->getParent())
-    return None;
+    return std::nullopt;
 
   LoadInst *L1 = findDominatingLoad(Sel->getOperand(1), LoadTy, Sel, DT);
   LoadInst *L2 = findDominatingLoad(Sel->getOperand(2), LoadTy, Sel, DT);
   if (!L1 || !L2)
-    return None;
+    return std::nullopt;
 
   // Ensure there are no accesses that may modify the locations referenced by
   // either L1 or L2 between L1, L2 and the specified End iterator.
@@ -1129,7 +1145,7 @@ tryToConvertLoadOfPtrSelect(BasicBlock *DepBB, BasicBlock::iterator End,
         return isModSet(AA->getModRefInfo(&I, L1Loc)) ||
                isModSet(AA->getModRefInfo(&I, L2Loc));
       }))
-    return None;
+    return std::nullopt;
 
   return AvailableValue::getSelect(Sel);
 }
@@ -1188,7 +1204,9 @@ bool GVNPass::AnalyzeLoadAvailability(LoadInst *Load, MemDepResult DepInfo,
             canCoerceMustAliasedValueToLoad(DepLoad, LoadType, DL)) {
           const auto ClobberOff = MD->getClobberOffset(DepLoad);
           // GVN has no deal with a negative offset.
-          Offset = (ClobberOff == None || *ClobberOff < 0) ? -1 : *ClobberOff;
+          Offset = (ClobberOff == std::nullopt || *ClobberOff < 0)
+                       ? -1
+                       : *ClobberOff;
         }
         if (Offset == -1)
           Offset =
@@ -1534,10 +1552,11 @@ bool GVNPass::PerformLoadPRE(LoadInst *Load, AvailValInBlkVect &ValuesPerBlock,
   // to speculatively execute the load at that points.
   if (MustEnsureSafetyOfSpeculativeExecution) {
     if (CriticalEdgePred.size())
-      if (!isSafeToSpeculativelyExecute(Load, LoadBB->getFirstNonPHI(), DT))
+      if (!isSafeToSpeculativelyExecute(Load, LoadBB->getFirstNonPHI(), AC, DT))
         return false;
     for (auto &PL : PredLoads)
-      if (!isSafeToSpeculativelyExecute(Load, PL.first->getTerminator(), DT))
+      if (!isSafeToSpeculativelyExecute(Load, PL.first->getTerminator(), AC,
+                                        DT))
         return false;
   }
 
@@ -1900,7 +1919,7 @@ bool GVNPass::processAssumeIntrinsic(AssumeInst *IntrinsicI) {
         // after the found access or before the terminator if no such access is
         // found.
         if (AL) {
-          for (auto &Acc : *AL) {
+          for (const auto &Acc : *AL) {
             if (auto *Current = dyn_cast<MemoryUseOrDef>(&Acc))
               if (!Current->getMemoryInst()->comesBefore(NewS)) {
                 FirstNonDom = Current;
@@ -2812,17 +2831,10 @@ bool GVNPass::performScalarPRE(Instruction *CurInst) {
       NumWithout = 2;
       break;
     }
-    // It is not safe to do PRE when P->CurrentBlock is a loop backedge, and
-    // when CurInst has operand defined in CurrentBlock (so it may be defined
-    // by phi in the loop header).
+    // It is not safe to do PRE when P->CurrentBlock is a loop backedge.
     assert(BlockRPONumber.count(P) && BlockRPONumber.count(CurrentBlock) &&
            "Invalid BlockRPONumber map.");
-    if (BlockRPONumber[P] >= BlockRPONumber[CurrentBlock] &&
-        llvm::any_of(CurInst->operands(), [&](const Use &U) {
-          if (auto *Inst = dyn_cast<Instruction>(U.get()))
-            return Inst->getParent() == CurrentBlock;
-          return false;
-        })) {
+    if (BlockRPONumber[P] >= BlockRPONumber[CurrentBlock]) {
       NumWithout = 2;
       break;
     }

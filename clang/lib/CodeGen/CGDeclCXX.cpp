@@ -199,7 +199,7 @@ void CodeGenFunction::EmitCXXGlobalVarDeclInit(const VarDecl &D,
   // For example, in the above CUDA code, the static local variable s has a
   // "shared" address space qualifier, but the constructor of StructWithCtor
   // expects "this" in the "generic" address space.
-  unsigned ExpectedAddrSpace = getContext().getTargetAddressSpace(T);
+  unsigned ExpectedAddrSpace = getTypes().getTargetAddressSpace(T);
   unsigned ActualAddrSpace = GV->getAddressSpace();
   llvm::Constant *DeclPtr = GV;
   if (ActualAddrSpace != ExpectedAddrSpace) {
@@ -557,7 +557,18 @@ CodeGenModule::EmitCXXGlobalVarDeclInitFunc(const VarDecl *D,
     CXXThreadLocalInits.push_back(Fn);
     CXXThreadLocalInitVars.push_back(D);
   } else if (PerformInit && ISA) {
-    EmitPointerToInitFunc(D, Addr, Fn, ISA);
+    // Contract with backend that "init_seg(compiler)" corresponds to priority
+    // 200 and "init_seg(lib)" corresponds to priority 400.
+    int Priority = -1;
+    if (ISA->getSection() == ".CRT$XCC")
+      Priority = 200;
+    else if (ISA->getSection() == ".CRT$XCL")
+      Priority = 400;
+
+    if (Priority != -1)
+      AddGlobalCtor(Fn, Priority, ~0U, COMDATKey);
+    else
+      EmitPointerToInitFunc(D, Addr, Fn, ISA);
   } else if (auto *IPA = D->getAttr<InitPriorityAttr>()) {
     OrderGlobalInitsOrStermFinalizers Key(IPA->getPriority(),
                                           PrioritizedCXXGlobalInits.size());
@@ -581,8 +592,16 @@ CodeGenModule::EmitCXXGlobalVarDeclInitFunc(const VarDecl *D,
     // SelectAny globals will be comdat-folded. Put the initializer into a
     // COMDAT group associated with the global, so the initializers get folded
     // too.
-
-    AddGlobalCtor(Fn, 65535, COMDATKey);
+    I = DelayedCXXInitPosition.find(D);
+    // CXXGlobalInits.size() is the lex order number for the next deferred
+    // VarDecl. Use it when the current VarDecl is non-deferred. Although this
+    // lex order number is shared between current VarDecl and some following
+    // VarDecls, their order of insertion into `llvm.global_ctors` is the same
+    // as the lexing order and the following stable sort would preserve such
+    // order.
+    unsigned LexOrder =
+        I == DelayedCXXInitPosition.end() ? CXXGlobalInits.size() : I->second;
+    AddGlobalCtor(Fn, 65535, LexOrder, COMDATKey);
     if (COMDATKey && (getTriple().isOSBinFormatELF() ||
                       getTarget().getCXXABI().isMicrosoft())) {
       // When COMDAT is used on ELF or in the MS C++ ABI, the key must be in
@@ -692,7 +711,7 @@ void CodeGenModule::EmitCXXModuleInitFunc(Module *Primary) {
   }
 
   // Now append the ones without specified priority.
-  for (auto F : CXXGlobalInits)
+  for (auto *F : CXXGlobalInits)
     ModuleInits.push_back(F);
   CXXGlobalInits.clear();
 
@@ -725,7 +744,7 @@ void CodeGenModule::EmitCXXModuleInitFunc(Module *Primary) {
   CodeGenFunction(*this).GenerateCXXGlobalInitFunc(
       Fn, ModuleInits, ConstantAddress(Guard, Int8Ty, GuardAlign));
   // We allow for the case that a module object is added to  a linked binary
-  // without a specific call to the the initializer.  This also ensure that
+  // without a specific call to the initializer.  This also ensure that
   // implementation partition initializers are called when the partition
   // is not imported as an interface.
   AddGlobalCtor(Fn);
@@ -829,7 +848,7 @@ CodeGenModule::EmitCXXGlobalInitFunc() {
 
       // Prepend the module inits to the highest priority set.
       if (!ModuleInits.empty()) {
-        for (auto F : ModuleInits)
+        for (auto *F : ModuleInits)
           LocalCXXGlobalInits.push_back(F);
         ModuleInits.clear();
       }
@@ -847,7 +866,7 @@ CodeGenModule::EmitCXXGlobalInitFunc() {
       CXXGlobalInits.empty())
     return;
 
-  for (auto F : CXXGlobalInits)
+  for (auto *F : CXXGlobalInits)
     ModuleInits.push_back(F);
   CXXGlobalInits.clear();
 

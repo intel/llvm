@@ -773,7 +773,7 @@ private:
   /// Returns size in bytes of the type associated with this variable
   ///
   /// \returns On success, returns byte size of the type associated
-  ///          with this variable. Returns NoneType otherwise.
+  ///          with this variable. Returns std::nullopt otherwise.
   virtual llvm::Optional<uint64_t>
   GetByteSize(ExecutionContextScope *scope) const = 0;
 
@@ -784,7 +784,7 @@ private:
   /// Returns alignment of the type associated with this variable in bits.
   ///
   /// \returns On success, returns alignment in bits for the type associated
-  ///          with this variable. Returns NoneType otherwise.
+  ///          with this variable. Returns std::nullopt otherwise.
   virtual llvm::Optional<size_t>
   GetTypeBitAlign(ExecutionContextScope *scope) const = 0;
 
@@ -1023,8 +1023,15 @@ public:
                                    llvm::toString(std::move(error)).c_str());
       return;
     }
+    auto ts = *type_system_or_err;
+    if (!ts) {
+      err.SetErrorStringWithFormat("Couldn't dematerialize a result variable: "
+                                   "couldn't corresponding type system is "
+                                   "no longer live.");
+      return;
+    }
     PersistentExpressionState *persistent_state =
-        type_system_or_err->GetPersistentExpressionState();
+        ts->GetPersistentExpressionState();
 
     if (!persistent_state) {
       err.SetErrorString("Couldn't dematerialize a result variable: "

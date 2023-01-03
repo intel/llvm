@@ -10,10 +10,12 @@
 #ifndef LLVM_ANALYSIS_MODELUNDERTRAININGRUNNER_H
 #define LLVM_ANALYSIS_MODELUNDERTRAININGRUNNER_H
 
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/iterator_range.h"
 #include "llvm/Analysis/TensorSpec.h"
 #include "llvm/Config/llvm-config.h"
 
-#ifdef LLVM_HAVE_TF_API
+#ifdef LLVM_HAVE_TFLITE
 #include "llvm/Analysis/MLModelRunner.h"
 #include "llvm/Analysis/Utils/TFUtils.h"
 #include "llvm/IR/LLVMContext.h"
@@ -32,8 +34,12 @@ public:
   ModelUnderTrainingRunner &
   operator=(const ModelUnderTrainingRunner &) = delete;
 
-  const std::vector<LoggedFeatureSpec> &outputLoggedFeatureSpecs() const {
-    return OutputSpecs;
+  const std::vector<TensorSpec> &extraOutputsForLoggingSpecs() const {
+    return ExtraOutputsForLogging;
+  }
+
+  const void *getUntypedExtraOutputValue(size_t ExtraOutputIndex) const {
+    return lastEvaluationResult()->getUntypedTensorValue(ExtraOutputIndex + 1);
   }
 
   const Optional<TFModelEvaluator::EvaluationResult> &
@@ -49,24 +55,23 @@ public:
                        StringRef DecisionName,
                        const std::vector<TensorSpec> &InputSpecs,
                        StringRef OutputSpecsPathOverride = "");
-  static std::unique_ptr<ModelUnderTrainingRunner>
-  createAndEnsureValid(LLVMContext &Ctx, const std::string &ModelPath,
-                       StringRef DecisionName,
-                       const std::vector<TensorSpec> &InputSpecs,
-                       const std::vector<LoggedFeatureSpec> &OutputSpecs);
+
+  ModelUnderTrainingRunner(
+      LLVMContext &Ctx, const std::string &ModelPath,
+      const std::vector<TensorSpec> &InputSpecs,
+      const std::vector<TensorSpec> &OutputSpecs,
+      const std::vector<TensorSpec> &ExtraOutputsForLogging = {});
+
+  bool isValid() const { return !!Evaluator; }
 
 private:
-  ModelUnderTrainingRunner(LLVMContext &Ctx, const std::string &ModelPath,
-                           const std::vector<TensorSpec> &InputSpecs,
-                           const std::vector<LoggedFeatureSpec> &OutputSpecs);
-
   std::unique_ptr<TFModelEvaluator> Evaluator;
-  const std::vector<LoggedFeatureSpec> OutputSpecs;
+  const std::vector<TensorSpec> OutputSpecs;
+  const std::vector<TensorSpec> ExtraOutputsForLogging;
   Optional<TFModelEvaluator::EvaluationResult> LastEvaluationResult;
   void *evaluateUntyped() override;
-  bool isValid() const { return !!Evaluator; }
 };
 
 } // namespace llvm
-#endif // define(LLVM_HAVE_TF_API)
+#endif // define(LLVM_HAVE_TFLITE)
 #endif // LLVM_ANALYSIS_MODELUNDERTRAININGRUNNER_H

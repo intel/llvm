@@ -122,6 +122,21 @@ provide pretty-printers itself. Those can be used as:
         -ex "python register_libcxx_printer_loader()" \
         <args>
 
+.. _include-what-you-use:
+
+include-what-you-use (IWYU)
+===========================
+
+libc++ provides an IWYU `mapping file <https://github.com/include-what-you-use/include-what-you-use/blob/master/docs/IWYUMappings.md>`,
+which drastically improves the accuracy of the tool when using libc++. To use the mapping file with
+IWYU, you should run the tool like so:
+
+.. code-block:: bash
+
+  $ include-what-you-use -Xiwyu /path/to/libcxx/include/libcxx.imp file.cpp
+
+If you would prefer to not use that flag, then you can replace ``/path/to/include-what-you-use/share/libcxx.imp```
+file with the libc++-provided ``libcxx.imp`` file.
 
 .. _assertions-mode:
 
@@ -155,11 +170,14 @@ value for ``_LIBCPP_ENABLE_ASSERTIONS`` (if any) will usually be respected.
 When an assertion fails, the program is aborted through a special verbose termination function. The
 library provides a default function that prints an error message and calls ``std::abort()``. Note
 that this function is provided by the static or shared library, so it is only available when deploying
-to a platform where the compiled library is sufficiently recent. However, users can also override that
-function with their own, which can be useful to provide custom behavior, or when deploying to older
-platforms where the default function isn't available.
+to a platform where the compiled library is sufficiently recent. On older platforms, the program will
+terminate in an unspecified unsuccessful manner, but the quality of diagnostics won't be great.
+However, users can also override that function with their own, which can be useful to either provide
+custom behavior or when deploying to an older platform where the default function isn't available.
 
-Replacing the default verbose termination function is done by defining the following function:
+Replacing the default verbose termination function is done by defining the
+``_LIBCPP_AVAILABILITY_CUSTOM_VERBOSE_ABORT_PROVIDED`` macro in all translation units of your program
+and defining the following function in exactly one translation unit:
 
 .. code-block:: cpp
 
@@ -197,20 +215,6 @@ and does return.
 Furthermore, exceptions should not be thrown from the function. Indeed, many functions in the
 library are ``noexcept``, and any exception thrown from the termination function will result
 in ``std::terminate`` being called.
-
-Back-deploying with a custom verbose termination function
----------------------------------------------------------
-When deploying to an older platform that does not provide a default verbose termination function,
-the compiler will diagnose the usage of ``std::__libcpp_verbose_abort`` with an error. This is done
-to avoid the load-time error that would otherwise happen if the code was being deployed on older
-systems.
-
-If you are providing a custom verbose termination function, this error is effectively a false positive.
-To let the library know that you are providing a custom function in back-deployment scenarios, you must
-define the ``_LIBCPP_AVAILABILITY_CUSTOM_VERBOSE_ABORT_PROVIDED`` macro, and the library will assume that
-you are providing your own definition. If no definition is provided and the code is back-deployed to an older
-platform, it will fail to load when the dynamic linker fails to find a definition of the function, so you
-should only remove the guard rails if you really mean it!
 
 Libc++ Configuration Macros
 ===========================
@@ -259,19 +263,9 @@ thread safety annotations.
   replacement scenarios from working, e.g. replacing `operator new` and
   expecting a non-replaced `operator new[]` to call the replaced `operator new`.
 
-**_LIBCPP_ENABLE_NODISCARD**:
-  Allow the library to add ``[[nodiscard]]`` attributes to entities not specified
-  as ``[[nodiscard]]`` by the current language dialect. This includes
-  backporting applications of ``[[nodiscard]]`` from newer dialects and
-  additional extended applications at the discretion of the library. All
-  additional applications of ``[[nodiscard]]`` are disabled by default.
-  See :ref:`Extended Applications of [[nodiscard]] <nodiscard extension>` for
-  more information.
-
 **_LIBCPP_DISABLE_NODISCARD_EXT**:
-  This macro prevents the library from applying ``[[nodiscard]]`` to entities
-  purely as an extension. See :ref:`Extended Applications of [[nodiscard]] <nodiscard extension>`
-  for more information.
+  This macro disables library-extensions of ``[[nodiscard]]``.
+  See :ref:`Extended Applications of [[nodiscard]] <nodiscard extension>` for more information.
 
 **_LIBCPP_DISABLE_DEPRECATION_WARNINGS**:
   This macro disables warnings when using deprecated components. For example,
@@ -361,25 +355,14 @@ Users who want help diagnosing misuses of STL functions may desire a more
 liberal application of ``[[nodiscard]]``.
 
 For this reason libc++ provides an extension that does just that! The
-extension must be enabled by defining ``_LIBCPP_ENABLE_NODISCARD``. The extended
-applications of ``[[nodiscard]]`` takes two forms:
+extension is enabled by default and can be disabled by defining ``_LIBCPP_DISABLE_NODISCARD_EXT``.
+The extended applications of ``[[nodiscard]]`` takes two forms:
 
 1. Backporting ``[[nodiscard]]`` to entities declared as such by the
    standard in newer dialects, but not in the present one.
 
 2. Extended applications of ``[[nodiscard]]``, at the library's discretion,
    applied to entities never declared as such by the standard.
-
-Users may also opt-out of additional applications ``[[nodiscard]]`` using
-additional macros.
-
-Applications of the first form, which backport ``[[nodiscard]]`` from a newer
-dialect, may be disabled using macros specific to the dialect in which it was
-added. For example, ``_LIBCPP_DISABLE_NODISCARD_AFTER_CXX17``.
-
-Applications of the second form, which are pure extensions, may be disabled
-by defining ``_LIBCPP_DISABLE_NODISCARD_EXT``.
-
 
 Entities declared with ``_LIBCPP_NODISCARD_EXT``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -425,6 +408,44 @@ which no dialect declares as such (See the second form described above).
 * ``search``
 * ``unique``
 * ``upper_bound``
+* ``ranges::adjacent_find``
+* ``ranges::all_of``
+* ``ranges::any_of``
+* ``ranges::binary_search``
+* ``ranges::clamp``
+* ``ranges::count_if``
+* ``ranges::count``
+* ``ranges::equal_range``
+* ``ranges::equal``
+* ``ranges::find_end``
+* ``ranges::find_first_of``
+* ``ranges::find_if_not``
+* ``ranges::find_if``
+* ``ranges::find``
+* ``ranges::get_temporary_buffer``
+* ``ranges::includes``
+* ``ranges::is_heap_until``
+* ``ranges::is_heap``
+* ``ranges::is_partitioned``
+* ``ranges::is_permutation``
+* ``ranges::is_sorted_until``
+* ``ranges::is_sorted``
+* ``ranges::lexicographical_compare``
+* ``ranges::lower_bound``
+* ``ranges::max_element``
+* ``ranges::max``
+* ``ranges::min_element``
+* ``ranges::min``
+* ``ranges::minmax_element``
+* ``ranges::minmax``
+* ``ranges::mismatch``
+* ``ranges::none_of``
+* ``ranges::remove_if``
+* ``ranges::remove``
+* ``ranges::search_n``
+* ``ranges::search``
+* ``ranges::unique``
+* ``ranges::upper_bound``
 * ``lock_guard``'s constructors
 * ``as_const``
 * ``bit_cast``
@@ -435,6 +456,21 @@ which no dialect declares as such (See the second form described above).
 * ``to_integer``
 * ``to_underlying``
 
+Extended integral type support
+------------------------------
+
+Several platforms support types that are not specified in the Standard, such as
+the 128-bit integral types ``__int128_t`` and ``__uint128_t``. As an extension,
+libc++ does a best-effort attempt to support these types like other integral
+types, by supporting them notably in:
+
+* ``<bits>``
+* ``<charconv>``
+* ``<functional>``
+* ``<type_traits>``
+* ``<format>``
+* ``<random>``
+
 Additional types supported in random distributions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -443,23 +479,6 @@ distributions with types other than ``short``, ``int``, ``long``, ``long long``,
 undefined. As an extension, libc++ supports instantiating ``binomial_distribution``, ``discrete_distribution``,
 ``geometric_distribution``, ``negative_binomial_distribution``, ``poisson_distribution``, and ``uniform_int_distribution``
 with ``int8_t``, ``__int128_t`` and their unsigned versions.
-
-Extended integral type support
-------------------------------
-
-Several platforms support the 128-bit integral types ``__int128_t`` and
-``__uint128_t``. When these types are present they can be used in the headers
-as required by the Standard:
-
-* ``<bits>``
-* ``<charconv>``
-* ``<functional>``
-* ``<type_traits>``
-
-As an extension these types can be used in the following headers:
-
-* ``<format>``
-* ``<random>``
 
 Extensions to ``<format>``
 --------------------------

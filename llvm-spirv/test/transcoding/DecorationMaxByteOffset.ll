@@ -2,12 +2,12 @@
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.txt
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 ; RUN: llvm-spirv %t.bc -spirv-text --spirv-max-version=1.0 -o - | FileCheck %s --check-prefix=CHECK-SPIRV_1_0
 
-; CHECK-LLVM: define spir_kernel void @worker(i8 addrspace(3)* dereferenceable(12) %ptr)
-; CHECK-LLVM: define spir_func void @not_a_kernel(i8 addrspace(3)* dereferenceable(123) %ptr2)
+; CHECK-LLVM: define spir_kernel void @worker(ptr addrspace(3) dereferenceable(12) %ptr)
+; CHECK-LLVM: define spir_func void @not_a_kernel(ptr addrspace(3) dereferenceable(123) %ptr2)
 
 ; CHECK-SPIRV: 3 Name [[PTR_ID:[0-9]+]] "ptr"
 ; CHECK-SPIRV: 4 Name [[PTR2_ID:[0-9]+]] "ptr2"

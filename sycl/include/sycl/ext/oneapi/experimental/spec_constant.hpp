@@ -21,11 +21,8 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-class program;
 
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 
 class spec_const_error : public compile_program_error {
   using compile_program_error::compile_program_error;
@@ -34,7 +31,8 @@ class spec_const_error : public compile_program_error {
 template <typename T, typename ID = T>
 class __SYCL2020_DEPRECATED(
     "Specialization constats extension is deprecated, use SYCL 2020"
-    " specialization constants instead") spec_constant {
+    " specialization constants instead")
+    __SYCL_TYPE(spec_constant) spec_constant {
 public:
   spec_constant() {}
 
@@ -47,7 +45,6 @@ private:
 #else
   char padding[sizeof(T)];
 #endif // __SYCL_DEVICE_ONLY__
-  friend class sycl::program;
 
 public:
   template <typename V = T>
@@ -79,9 +76,7 @@ public:
   }
 };
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

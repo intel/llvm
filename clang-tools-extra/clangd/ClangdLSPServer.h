@@ -23,6 +23,7 @@
 #include <chrono>
 #include <cstddef>
 #include <memory>
+#include <vector>
 
 namespace clang {
 namespace clangd {
@@ -41,7 +42,7 @@ public:
     /// Look for compilation databases, rather than using compile commands
     /// set via LSP (extensions) only.
     bool UseDirBasedCDB = true;
-    /// The offset-encoding to use, or None to negotiate it over LSP.
+    /// The offset-encoding to use, or std::nullopt to negotiate it over LSP.
     llvm::Optional<OffsetEncoding> Encoding;
     /// If set, periodically called to release memory.
     /// Consider malloc_trim(3)
@@ -132,10 +133,16 @@ private:
   void onRename(const RenameParams &, Callback<WorkspaceEdit>);
   void onHover(const TextDocumentPositionParams &,
                Callback<llvm::Optional<Hover>>);
-  void onTypeHierarchy(const TypeHierarchyParams &,
-                       Callback<llvm::Optional<TypeHierarchyItem>>);
+  void onPrepareTypeHierarchy(const TypeHierarchyPrepareParams &,
+                              Callback<std::vector<TypeHierarchyItem>>);
+  void onSuperTypes(const ResolveTypeHierarchyItemParams &,
+                    Callback<llvm::Optional<std::vector<TypeHierarchyItem>>>);
+  void onSubTypes(const ResolveTypeHierarchyItemParams &,
+                  Callback<std::vector<TypeHierarchyItem>>);
+  void onTypeHierarchy(const TypeHierarchyPrepareParams &,
+                       Callback<llvm::json::Value>);
   void onResolveTypeHierarchy(const ResolveTypeHierarchyItemParams &,
-                              Callback<llvm::Optional<TypeHierarchyItem>>);
+                              Callback<llvm::json::Value>);
   void onPrepareCallHierarchy(const CallHierarchyPrepareParams &,
                               Callback<std::vector<CallHierarchyItem>>);
   void onCallHierarchyIncomingCalls(

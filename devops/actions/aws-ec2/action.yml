@@ -34,6 +34,15 @@ inputs:
     #     groupadd -g 1001 gh_runner; useradd gh_runner -u 1001 -g 1001 -m -s /bin/bash; usermod -aG docker gh_runner; usermod -aG video gh_runner
     #     sync; shutdown -h now
 
+    # us-east-1 region:
+
+    #   ami-01cb0573cb039ab24 (for g5 instances): NVIDIA GPU-Optimized AMI 22.06.0-676eed8d-dcf5-4784-87d7-0de463205c17 (ami-003f25e6e2d2db8f1 with /dev/sda1 disk) with docker and and gh_runner (1001)
+    #     sudo -s
+    #     groupadd -g 1001 gh_runner; useradd gh_runner -u 1001 -g 1001 -m -s /bin/bash; usermod -aG docker gh_runner; usermod -aG video gh_runner
+    #     sync; shutdown -h now
+
+    #  ami-058347ad2ce9aef73: ami-02ec0f344128253f9 copy in us-east-1 region
+
     # aws-spot:     Enable usage of spot instances to save money (less reliable). Makes sense only for start mode. Default true.
     # aws-disk:     AWS EC2 instance AMI specific disk device path and size in GB (8 by default). Makes sense only for start mode. Default "/dev/sda1:16".
     # aws-timebomp: AWS EC2 instance maximum live time. Makes sense only for start mode. Default "1h".
@@ -59,8 +68,8 @@ inputs:
   aws-region:
     description: "AWS EC2 region"
     required: false
-    default: "us-east-2" # Ohio
+    default: "us-east-1" # North Virginia
 
 runs:
-  using: node12
+  using: node16
   main: ./aws-ec2.js

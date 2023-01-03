@@ -20,7 +20,7 @@ __CLC_NVVM_ATOMIC(float, f, float, f, add, _Z21__spirv_AtomicFAddEXT)
 
 #define __CLC_NVVM_ATOMIC_ADD_DOUBLE_IMPL(ADDR_SPACE, ADDR_SPACE_MANGLED,                                                                                     \
                                           ADDR_SPACE_NV, SUBSTITUTION1,                                                                                       \
-                                          SUBSTITUTION2)                                                                                                      \
+                                          SUBSTITUTION2, SUBSTITUTION3)                                                                                       \
   long                                                                                                                                                        \
       _Z18__spirv_AtomicLoadP##ADDR_SPACE_MANGLED##KlN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(                                                      \
           volatile ADDR_SPACE const long *, enum Scope,                                                                                                       \
@@ -30,7 +30,7 @@ __CLC_NVVM_ATOMIC(float, f, float, f, add, _Z21__spirv_AtomicFAddEXT)
           volatile ADDR_SPACE long *, enum Scope, enum MemorySemanticsMask,                                                                                   \
           enum MemorySemanticsMask, long, long);                                                                                                              \
   __attribute__((always_inline)) _CLC_DECL double                                                                                                             \
-      _Z21__spirv_AtomicFAddEXT##P##ADDR_SPACE_MANGLED##d##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE##d(                                             \
+      _Z21__spirv_AtomicFAddEXT##P##ADDR_SPACE_MANGLED##d##N5__spv5Scope4FlagENS##SUBSTITUTION3##_19MemorySemanticsMask4FlagE##d(                             \
           volatile ADDR_SPACE double *pointer, enum Scope scope,                                                                                              \
           enum MemorySemanticsMask semantics, double value) {                                                                                                 \
     /* Semantics mask may include memory order, storage class and other info                                                                                  \
@@ -105,9 +105,9 @@ Memory order is stored in the lowest 5 bits */                                  
     }                                                                                                                                                         \
   }
 
-__CLC_NVVM_ATOMIC_ADD_DOUBLE_IMPL(, , _gen_, 0, 4)
-__CLC_NVVM_ATOMIC_ADD_DOUBLE_IMPL(__global, U3AS1, _global_, 1, 5)
-__CLC_NVVM_ATOMIC_ADD_DOUBLE_IMPL(__local, U3AS3, _shared_, 1, 5)
+__CLC_NVVM_ATOMIC_ADD_DOUBLE_IMPL(, , _gen_, 0, 4, 0)
+__CLC_NVVM_ATOMIC_ADD_DOUBLE_IMPL(__global, U3AS1, _global_, 1, 5, 1)
+__CLC_NVVM_ATOMIC_ADD_DOUBLE_IMPL(__local, U3AS3, _shared_, 1, 5, 1)
 
 #endif
 

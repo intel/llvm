@@ -8,11 +8,11 @@ define void @d() local_unnamed_addr #0 {
 ; CHECK-LABEL: d:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    mflr r0
-; CHECK-NEXT:    std r0, 16(r1)
 ; CHECK-NEXT:    stdu r1, -208(r1)
 ; CHECK-NEXT:    addis r3, r2, .LC0@toc@ha
-; CHECK-NEXT:    std r29, 184(r1) # 8-byte Folded Spill
+; CHECK-NEXT:    std r0, 224(r1)
 ; CHECK-NEXT:    ld r3, .LC0@toc@l(r3)
+; CHECK-NEXT:    std r29, 184(r1) # 8-byte Folded Spill
 ; CHECK-NEXT:    std r30, 192(r1) # 8-byte Folded Spill
 ; CHECK-NEXT:    ld r29, 0(r3)
 ; CHECK-NEXT:    bl c
@@ -20,8 +20,8 @@ define void @d() local_unnamed_addr #0 {
 ; CHECK-NEXT:    mr r30, r3
 ; CHECK-NEXT:    bl b
 ; CHECK-NEXT:    nop
-; CHECK-NEXT:    cmpwi r30, 1
-; CHECK-NEXT:    blt cr0, .LBB0_9
+; CHECK-NEXT:    cmpwi r30, 0
+; CHECK-NEXT:    ble cr0, .LBB0_9
 ; CHECK-NEXT:  # %bb.1: # %for.body.preheader
 ; CHECK-NEXT:    cmplwi r30, 4
 ; CHECK-NEXT:    clrldi r4, r30, 32

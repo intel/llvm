@@ -15,7 +15,6 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/MapVector.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -104,7 +103,7 @@ class HoistSpillHelper : private LiveRangeEdit::Delegate {
 
   // Map from pair of (StackSlot and Original VNI) to a set of spills which
   // have the same stackslot and have equal values defined by Original VNI.
-  // These spills are mergeable and are hoist candiates.
+  // These spills are mergeable and are hoist candidates.
   using MergeableSpillsMap =
       MapVector<std::pair<int, VNInfo *>, SmallPtrSet<MachineInstr *, 16>>;
   MergeableSpillsMap MergeableSpills;
@@ -1613,7 +1612,7 @@ void HoistSpillHelper::hoistAllSpills() {
           RMEnt->removeOperand(i - 1);
       }
     }
-    Edit.eliminateDeadDefs(SpillsToRm, None);
+    Edit.eliminateDeadDefs(SpillsToRm, std::nullopt);
   }
 }
 

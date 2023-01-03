@@ -380,7 +380,7 @@ bool BranchProbabilityInfo::calcMetadataWeights(const BasicBlock *BB) {
   const Instruction *TI = BB->getTerminator();
   assert(TI->getNumSuccessors() > 1 && "expected more than one successor!");
   if (!(isa<BranchInst>(TI) || isa<SwitchInst>(TI) || isa<IndirectBrInst>(TI) ||
-        isa<InvokeInst>(TI)))
+        isa<InvokeInst>(TI) || isa<CallBrInst>(TI)))
     return false;
 
   MDNode *WeightsNode = TI->getMetadata(LLVMContext::MD_prof);
@@ -651,7 +651,7 @@ Optional<uint32_t>
 BranchProbabilityInfo::getEstimatedBlockWeight(const BasicBlock *BB) const {
   auto WeightIt = EstimatedBlockWeight.find(BB);
   if (WeightIt == EstimatedBlockWeight.end())
-    return None;
+    return std::nullopt;
   return WeightIt->second;
 }
 
@@ -659,7 +659,7 @@ Optional<uint32_t>
 BranchProbabilityInfo::getEstimatedLoopWeight(const LoopData &L) const {
   auto WeightIt = EstimatedLoopWeight.find(L);
   if (WeightIt == EstimatedLoopWeight.end())
-    return None;
+    return std::nullopt;
   return WeightIt->second;
 }
 
@@ -682,7 +682,7 @@ Optional<uint32_t> BranchProbabilityInfo::getMaxEstimatedEdgeWeight(
     auto Weight = getEstimatedEdgeWeight({SrcLoopBB, DstLoopBB});
 
     if (!Weight)
-      return None;
+      return std::nullopt;
 
     if (!MaxWeight || *MaxWeight < *Weight)
       MaxWeight = Weight;
@@ -805,7 +805,7 @@ Optional<uint32_t> BranchProbabilityInfo::getInitialEstimatedBlockWeight(
       if (CI->hasFnAttr(Attribute::Cold))
         return static_cast<uint32_t>(BlockExecWeight::COLD);
 
-  return None;
+  return std::nullopt;
 }
 
 // Does RPO traversal over all blocks in \p F and assigns weights to

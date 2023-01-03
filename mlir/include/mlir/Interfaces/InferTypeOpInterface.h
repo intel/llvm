@@ -94,7 +94,7 @@ private:
 /// The components consist of
 ///  - A ranked or unranked shape with the dimension specification match those
 ///    of ShapeType's getShape() (e.g., dynamic dimension represented using
-///    ShapedType::kDynamicSize)
+///    ShapedType::kDynamic)
 ///  - A element type, may be unset (nullptr)
 ///  - A attribute, may be unset (nullptr)
 /// Used by ShapedType type inferences.
@@ -119,7 +119,7 @@ public:
     if (ranked)
       adaptor.getDims(*this);
   }
-  template <typename Arg, typename = typename std::enable_if_t<
+  template <typename Arg, typename = std::enable_if_t<
                               std::is_constructible<ShapeStorageT, Arg>::value>>
   ShapedTypeComponents(Arg &&arg, Type elementType = nullptr,
                        Attribute attr = nullptr)

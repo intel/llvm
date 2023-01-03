@@ -401,7 +401,7 @@ std::string opts::breakpoint::substitute(StringRef Cmd) {
         OS << sys::path::parent_path(breakpoint::CommandFile);
         break;
       }
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     default:
       size_t pos = Cmd.find('%');
       OS << Cmd.substr(0, pos);
@@ -505,8 +505,9 @@ Error opts::symbols::findFunctions(lldb_private::Module &Module) {
         ContextOr->IsValid() ? *ContextOr : CompilerDeclContext();
 
     List.Clear();
-    Symfile.FindFunctions(ConstString(Name), ContextPtr, getFunctionNameFlags(),
-                         true, List);
+    Module::LookupInfo lookup_info(ConstString(Name), getFunctionNameFlags(),
+                                   eLanguageTypeUnknown);
+    Symfile.FindFunctions(lookup_info, ContextPtr, true, List);
   }
   outs() << formatv("Found {0} functions:\n", List.GetSize());
   StreamString Stream;
@@ -657,13 +658,13 @@ Error opts::symbols::dumpAST(lldb_private::Module &Module) {
   if (!symfile)
     return make_string_error("Module has no symbol file.");
 
-  llvm::Expected<TypeSystem &> type_system_or_err =
+  auto type_system_or_err =
       symfile->GetTypeSystemForLanguage(eLanguageTypeC_plus_plus);
   if (!type_system_or_err)
     return make_string_error("Can't retrieve TypeSystemClang");
 
-  auto *clang_ast_ctx =
-      llvm::dyn_cast_or_null<TypeSystemClang>(&type_system_or_err.get());
+  auto ts = *type_system_or_err;
+  auto *clang_ast_ctx = llvm::dyn_cast_or_null<TypeSystemClang>(ts.get());
   if (!clang_ast_ctx)
     return make_string_error("Retrieved TypeSystem was not a TypeSystemClang");
 
@@ -685,13 +686,12 @@ Error opts::symbols::dumpEntireClangAST(lldb_private::Module &Module) {
   if (!symfile)
     return make_string_error("Module has no symbol file.");
 
-  llvm::Expected<TypeSystem &> type_system_or_err =
+  auto type_system_or_err =
       symfile->GetTypeSystemForLanguage(eLanguageTypeObjC_plus_plus);
   if (!type_system_or_err)
     return make_string_error("Can't retrieve TypeSystemClang");
-
-  auto *clang_ast_ctx =
-      llvm::dyn_cast_or_null<TypeSystemClang>(&type_system_or_err.get());
+  auto ts = *type_system_or_err;
+  auto *clang_ast_ctx = llvm::dyn_cast_or_null<TypeSystemClang>(ts.get());
   if (!clang_ast_ctx)
     return make_string_error("Retrieved TypeSystem was not a TypeSystemClang");
 
@@ -878,11 +878,12 @@ static Mangled::NamePreference opts::symtab::getNamePreference() {
   case ManglingPreference::MangledWithoutArguments:
     return Mangled::ePreferDemangledWithoutArguments;
   }
+  llvm_unreachable("Fully covered switch above!");
 }
 
 int opts::symtab::handleSymtabCommand(Debugger &Dbg) {
   if (auto error = validate()) {
-    logAllUnhandledErrors(std::move(error.getValue()), WithColor::error(), "");
+    logAllUnhandledErrors(std::move(error.value()), WithColor::error(), "");
     return 1;
   }
 

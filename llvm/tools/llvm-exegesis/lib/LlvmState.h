@@ -16,6 +16,7 @@
 
 #include "MCInstrDescView.h"
 #include "RegisterAliasing.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
@@ -24,6 +25,8 @@
 #include "llvm/Target/TargetMachine.h"
 #include <memory>
 #include <string>
+
+static constexpr llvm::StringLiteral kNoRegister("%noreg");
 
 namespace llvm {
 namespace exegesis {
@@ -35,12 +38,12 @@ struct PfmCountersInfo;
 // measurements.
 class LLVMState {
 public:
-  // Uses the host triple. If CpuName is empty, uses the host CPU.
-  LLVMState(const std::string &CpuName);
-
-  LLVMState(const std::string &Triple,
-            const std::string &CpuName,
-            const std::string &Features = ""); // For tests.
+  // Factory function.
+  // If `Triple` is empty, uses the host triple.
+  // If `CpuName` is empty, uses the host CPU.
+  // `Features` is intended for tests.
+  static Expected<LLVMState> Create(std::string TripleName, std::string CpuName,
+                                    StringRef Features = "");
 
   const TargetMachine &getTargetMachine() const { return *TheTargetMachine; }
   std::unique_ptr<LLVMTargetMachine> createTargetMachine() const;
@@ -65,12 +68,33 @@ public:
 
   const PfmCountersInfo &getPfmCounters() const { return *PfmCounters; }
 
+  const StringMap<unsigned> &getOpcodeNameToOpcodeIdxMapping() const {
+    assert(OpcodeNameToOpcodeIdxMapping);
+    return *OpcodeNameToOpcodeIdxMapping;
+  };
+
+  const StringMap<unsigned> &getRegNameToRegNoMapping() const {
+    assert(RegNameToRegNoMapping);
+    return *RegNameToRegNoMapping;
+  }
+
 private:
+  std::unique_ptr<const StringMap<unsigned>>
+  createOpcodeNameToOpcodeIdxMapping() const;
+
+  std::unique_ptr<const StringMap<unsigned>>
+  createRegNameToRegNoMapping() const;
+
+  LLVMState(std::unique_ptr<const TargetMachine> TM, const ExegesisTarget *ET,
+            StringRef CpuName);
+
   const ExegesisTarget *TheExegesisTarget;
   std::unique_ptr<const TargetMachine> TheTargetMachine;
   std::unique_ptr<const RegisterAliasingTrackerCache> RATC;
   std::unique_ptr<const InstructionsCache> IC;
   const PfmCountersInfo *PfmCounters;
+  std::unique_ptr<const StringMap<unsigned>> OpcodeNameToOpcodeIdxMapping;
+  std::unique_ptr<const StringMap<unsigned>> RegNameToRegNoMapping;
 };
 
 } // namespace exegesis

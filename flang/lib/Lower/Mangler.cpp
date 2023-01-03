@@ -104,7 +104,7 @@ Fortran::lower::mangle::mangleName(const Fortran::semantics::Symbol &symbol,
             // Mangle external procedure without any scope prefix.
             if (!keepExternalInScope &&
                 Fortran::semantics::IsExternal(ultimateSymbol))
-              return fir::NameUniquer::doProcedure(llvm::None, llvm::None,
+              return fir::NameUniquer::doProcedure(std::nullopt, std::nullopt,
                                                    symbolName);
             // Separate module subprograms must be mangled according to the
             // scope where they were declared (the symbol we have is the
@@ -127,7 +127,7 @@ Fortran::lower::mangle::mangleName(const Fortran::semantics::Symbol &symbol,
             // Otherwise, this is an external procedure, even if it does not
             // have an explicit EXTERNAL attribute. Mangle it without any
             // prefix.
-            return fir::NameUniquer::doProcedure(llvm::None, llvm::None,
+            return fir::NameUniquer::doProcedure(std::nullopt, std::nullopt,
                                                  symbolName);
           },
           [&](const Fortran::semantics::ObjectEntityDetails &) {
@@ -154,6 +154,10 @@ Fortran::lower::mangle::mangleName(const Fortran::semantics::Symbol &symbol,
             // that kind type parameter values can be mangled.
             llvm::report_fatal_error(
                 "only derived type instances can be mangled");
+          },
+          [&](const Fortran::semantics::ProcBindingDetails &procBinding)
+              -> std::string {
+            return mangleName(procBinding.symbol(), keepExternalInScope);
           },
           [](const auto &) -> std::string { TODO_NOLOC("symbol mangling"); },
       },
@@ -222,7 +226,7 @@ std::string Fortran::lower::mangle::mangleArrayLiteral(
     const Fortran::evaluate::ConstantSubscripts &shape,
     Fortran::common::TypeCategory cat, int kind,
     Fortran::common::ConstantSubscript charLen) {
-  std::string typeId = "";
+  std::string typeId;
   for (Fortran::evaluate::ConstantSubscript extent : shape)
     typeId.append(std::to_string(extent)).append("x");
   if (charLen >= 0)

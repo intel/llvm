@@ -45,12 +45,12 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/Attributor.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/CallGraphUpdater.h"
 
 #include <algorithm>
+#include <optional>
 
 using namespace llvm;
 using namespace omp;
@@ -182,13 +182,13 @@ struct AAICVTracker;
 /// Attributor runs.
 struct OMPInformationCache : public InformationCache {
   OMPInformationCache(Module &M, AnalysisGetter &AG,
-                      BumpPtrAllocator &Allocator, SetVector<Function *> &CGSCC,
+                      BumpPtrAllocator &Allocator, SetVector<Function *> *CGSCC,
                       KernelSet &Kernels)
-      : InformationCache(M, AG, Allocator, &CGSCC), OMPBuilder(M),
+      : InformationCache(M, AG, Allocator, CGSCC), OMPBuilder(M),
         Kernels(Kernels) {
 
     OMPBuilder.initialize();
-    initializeRuntimeFunctions();
+    initializeRuntimeFunctions(M);
     initializeInternalControlVars();
   }
 
@@ -412,7 +412,7 @@ struct OMPInformationCache : public InformationCache {
     // TODO: We directly convert uses into proper calls and unknown uses.
     for (Use &U : RFI.Declaration->uses()) {
       if (Instruction *UserI = dyn_cast<Instruction>(U.getUser())) {
-        if (ModuleSlice.count(UserI->getFunction())) {
+        if (ModuleSlice.empty() || ModuleSlice.count(UserI->getFunction())) {
           RFI.getOrCreateUseVector(UserI->getFunction()).push_back(&U);
           ++NumUses;
         }
@@ -445,8 +445,7 @@ struct OMPInformationCache : public InformationCache {
 
   /// Helper to initialize all runtime function information for those defined
   /// in OpenMPKinds.def.
-  void initializeRuntimeFunctions() {
-    Module &M = *((*ModuleSlice.begin())->getParent());
+  void initializeRuntimeFunctions(Module &M) {
 
     // Helper macros for handling __VA_ARGS__ in OMP_RTL
 #define OMP_TYPE(VarName, ...)                                                 \
@@ -855,7 +854,7 @@ struct OpenMPOpt {
     InternalControlVar ICVs[] = {ICV_nthreads, ICV_active_levels, ICV_cancel,
                                  ICV_proc_bind};
 
-    for (Function *F : OMPInfoCache.ModuleSlice) {
+    for (Function *F : SCC) {
       for (auto ICV : ICVs) {
         auto ICVInfo = OMPInfoCache.ICVs[ICV];
         auto Remark = [&](OptimizationRemarkAnalysis ORA) {
@@ -1485,8 +1484,9 @@ private:
         // A barrier in a barrier pair is removeable if all instructions
         // between the barriers in the pair are side-effect free modulo the
         // barrier operation.
-        auto IsBarrierRemoveable = [&Kernel](BarrierInfo *StartBI,
-                                             BarrierInfo *EndBI) {
+        auto IsBarrierRemoveable = [&Kernel](
+                                       BarrierInfo *StartBI, BarrierInfo *EndBI,
+                                       SmallVector<AssumeInst *> &Assumptions) {
           assert(
               !StartBI->isImplicitExit() &&
               "Expected start barrier to be other than a kernel exit barrier");
@@ -1510,7 +1510,7 @@ private:
               continue;
 
             auto IsPotentiallyAffectedByBarrier =
-                [](Optional<MemoryLocation> Loc) {
+                [](std::optional<MemoryLocation> Loc) {
                   const Value *Obj = (Loc && Loc->Ptr)
                                          ? getUnderlyingObject(Loc->Ptr)
                                          : nullptr;
@@ -1540,11 +1540,12 @@ private:
                 };
 
             if (MemIntrinsic *MI = dyn_cast<MemIntrinsic>(I)) {
-              Optional<MemoryLocation> Loc = MemoryLocation::getForDest(MI);
+              std::optional<MemoryLocation> Loc =
+                  MemoryLocation::getForDest(MI);
               if (IsPotentiallyAffectedByBarrier(Loc))
                 return false;
               if (MemTransferInst *MTI = dyn_cast<MemTransferInst>(I)) {
-                Optional<MemoryLocation> Loc =
+                std::optional<MemoryLocation> Loc =
                     MemoryLocation::getForSource(MTI);
                 if (IsPotentiallyAffectedByBarrier(Loc))
                   return false;
@@ -1552,11 +1553,16 @@ private:
               continue;
             }
 
+            if (auto *AI = dyn_cast<AssumeInst>(I)) {
+              Assumptions.push_back(AI);
+              continue;
+            }
+
             if (auto *LI = dyn_cast<LoadInst>(I))
               if (LI->hasMetadata(LLVMContext::MD_invariant_load))
                 continue;
 
-            Optional<MemoryLocation> Loc = MemoryLocation::getOrNone(I);
+            std::optional<MemoryLocation> Loc = MemoryLocation::getOrNone(I);
             if (IsPotentiallyAffectedByBarrier(Loc))
               return false;
           }
@@ -1577,11 +1583,15 @@ private:
           if (StartBI->isImplicit() && EndBI->isImplicit())
             continue;
 
-          if (!IsBarrierRemoveable(StartBI, EndBI))
+          SmallVector<AssumeInst *> Assumptions;
+          if (!IsBarrierRemoveable(StartBI, EndBI, Assumptions))
             continue;
 
           assert(!(StartBI->isImplicit() && EndBI->isImplicit()) &&
                  "Expected at least one explicit barrier to remove.");
+
+          for (auto *Assumption : Assumptions)
+            Assumption->eraseFromParent();
 
           // Remove an explicit barrier, check first, then second.
           if (!StartBI->isImplicit()) {
@@ -2007,7 +2017,7 @@ private:
   bool isKernel(Function &F) { return OMPInfoCache.Kernels.count(&F); }
 
   /// Cache to remember the unique kernel for a function.
-  DenseMap<Function *, Optional<Kernel>> UniqueKernelMap;
+  DenseMap<Function *, std::optional<Kernel>> UniqueKernelMap;
 
   /// Find the unique kernel that will execute \p F, if any.
   Kernel getUniqueKernelFor(Function &F);
@@ -2148,12 +2158,12 @@ private:
 };
 
 Kernel OpenMPOpt::getUniqueKernelFor(Function &F) {
-  if (!OMPInfoCache.ModuleSlice.count(&F))
+  if (!OMPInfoCache.ModuleSlice.empty() && !OMPInfoCache.ModuleSlice.count(&F))
     return nullptr;
 
   // Use a scope to keep the lifetime of the CachedKernel short.
   {
-    Optional<Kernel> &CachedKernel = UniqueKernelMap[&F];
+    std::optional<Kernel> &CachedKernel = UniqueKernelMap[&F];
     if (CachedKernel)
       return *CachedKernel;
 
@@ -2339,16 +2349,16 @@ struct AAICVTracker : public StateWrapper<BooleanState, AbstractAttribute> {
   static AAICVTracker &createForPosition(const IRPosition &IRP, Attributor &A);
 
   /// Return the value with which \p I can be replaced for specific \p ICV.
-  virtual Optional<Value *> getReplacementValue(InternalControlVar ICV,
-                                                const Instruction *I,
-                                                Attributor &A) const {
-    return None;
+  virtual std::optional<Value *> getReplacementValue(InternalControlVar ICV,
+                                                     const Instruction *I,
+                                                     Attributor &A) const {
+    return std::nullopt;
   }
 
   /// Return an assumed unique ICV value if a single candidate is found. If
-  /// there cannot be one, return a nullptr. If it is not clear yet, return the
-  /// Optional::NoneType.
-  virtual Optional<Value *>
+  /// there cannot be one, return a nullptr. If it is not clear yet, return
+  /// std::nullopt.
+  virtual std::optional<Value *>
   getUniqueReplacementValue(InternalControlVar ICV) const = 0;
 
   // Currently only nthreads is being tracked.
@@ -2414,7 +2424,7 @@ struct AAICVTrackerFunction : public AAICVTracker {
       };
 
       auto CallCheck = [&](Instruction &I) {
-        Optional<Value *> ReplVal = getValueForCall(A, I, ICV);
+        std::optional<Value *> ReplVal = getValueForCall(A, I, ICV);
         if (ReplVal && ValuesMap.insert(std::make_pair(&I, *ReplVal)).second)
           HasChanged = ChangeStatus::CHANGED;
 
@@ -2441,13 +2451,13 @@ struct AAICVTrackerFunction : public AAICVTracker {
 
   /// Helper to check if \p I is a call and get the value for it if it is
   /// unique.
-  Optional<Value *> getValueForCall(Attributor &A, const Instruction &I,
-                                    InternalControlVar &ICV) const {
+  std::optional<Value *> getValueForCall(Attributor &A, const Instruction &I,
+                                         InternalControlVar &ICV) const {
 
     const auto *CB = dyn_cast<CallBase>(&I);
     if (!CB || CB->hasFnAttr("no_openmp") ||
         CB->hasFnAttr("no_openmp_routines"))
-      return None;
+      return std::nullopt;
 
     auto &OMPInfoCache = static_cast<OMPInformationCache &>(A.getInfoCache());
     auto &GetterRFI = OMPInfoCache.RFIs[OMPInfoCache.ICVs[ICV].Getter];
@@ -2458,7 +2468,7 @@ struct AAICVTrackerFunction : public AAICVTracker {
     if (CalledFunction == nullptr)
       return nullptr;
     if (CalledFunction == GetterRFI.Declaration)
-      return None;
+      return std::nullopt;
     if (CalledFunction == SetterRFI.Declaration) {
       if (ICVReplacementValuesMap[ICV].count(&I))
         return ICVReplacementValuesMap[ICV].lookup(&I);
@@ -2474,7 +2484,7 @@ struct AAICVTrackerFunction : public AAICVTracker {
         *this, IRPosition::callsite_returned(*CB), DepClassTy::REQUIRED);
 
     if (ICVTrackingAA.isAssumedTracked()) {
-      Optional<Value *> URV = ICVTrackingAA.getUniqueReplacementValue(ICV);
+      std::optional<Value *> URV = ICVTrackingAA.getUniqueReplacementValue(ICV);
       if (!URV || (*URV && AA::isValidAtPosition(AA::ValueAndContext(**URV, I),
                                                  OMPInfoCache)))
         return URV;
@@ -2484,16 +2494,16 @@ struct AAICVTrackerFunction : public AAICVTracker {
     return nullptr;
   }
 
-  // We don't check unique value for a function, so return None.
-  Optional<Value *>
+  // We don't check unique value for a function, so return std::nullopt.
+  std::optional<Value *>
   getUniqueReplacementValue(InternalControlVar ICV) const override {
-    return None;
+    return std::nullopt;
   }
 
   /// Return the value with which \p I can be replaced for specific \p ICV.
-  Optional<Value *> getReplacementValue(InternalControlVar ICV,
-                                        const Instruction *I,
-                                        Attributor &A) const override {
+  std::optional<Value *> getReplacementValue(InternalControlVar ICV,
+                                             const Instruction *I,
+                                             Attributor &A) const override {
     const auto &ValuesMap = ICVReplacementValuesMap[ICV];
     if (ValuesMap.count(I))
       return ValuesMap.lookup(I);
@@ -2502,7 +2512,7 @@ struct AAICVTrackerFunction : public AAICVTracker {
     SmallPtrSet<const Instruction *, 16> Visited;
     Worklist.push_back(I);
 
-    Optional<Value *> ReplVal;
+    std::optional<Value *> ReplVal;
 
     while (!Worklist.empty()) {
       const Instruction *CurrInst = Worklist.pop_back_val();
@@ -2515,7 +2525,7 @@ struct AAICVTrackerFunction : public AAICVTracker {
       // ICV.
       while ((CurrInst = CurrInst->getPrevNode())) {
         if (ValuesMap.count(CurrInst)) {
-          Optional<Value *> NewReplVal = ValuesMap.lookup(CurrInst);
+          std::optional<Value *> NewReplVal = ValuesMap.lookup(CurrInst);
           // Unknown value, track new.
           if (!ReplVal) {
             ReplVal = NewReplVal;
@@ -2530,7 +2540,7 @@ struct AAICVTrackerFunction : public AAICVTracker {
           break;
         }
 
-        Optional<Value *> NewReplVal = getValueForCall(A, *CurrInst, ICV);
+        std::optional<Value *> NewReplVal = getValueForCall(A, *CurrInst, ICV);
         if (!NewReplVal)
           continue;
 
@@ -2578,12 +2588,12 @@ struct AAICVTrackerFunctionReturned : AAICVTracker {
   }
 
   // Map of ICV to their values at specific program point.
-  EnumeratedArray<Optional<Value *>, InternalControlVar,
+  EnumeratedArray<std::optional<Value *>, InternalControlVar,
                   InternalControlVar::ICV___last>
       ICVReplacementValuesMap;
 
   /// Return the value with which \p I can be replaced for specific \p ICV.
-  Optional<Value *>
+  std::optional<Value *>
   getUniqueReplacementValue(InternalControlVar ICV) const override {
     return ICVReplacementValuesMap[ICV];
   }
@@ -2597,11 +2607,11 @@ struct AAICVTrackerFunctionReturned : AAICVTracker {
       return indicatePessimisticFixpoint();
 
     for (InternalControlVar ICV : TrackableICVs) {
-      Optional<Value *> &ReplVal = ICVReplacementValuesMap[ICV];
-      Optional<Value *> UniqueICVValue;
+      std::optional<Value *> &ReplVal = ICVReplacementValuesMap[ICV];
+      std::optional<Value *> UniqueICVValue;
 
       auto CheckReturnInst = [&](Instruction &I) {
-        Optional<Value *> NewReplVal =
+        std::optional<Value *> NewReplVal =
             ICVTrackingAA.getReplacementValue(ICV, &I, A);
 
         // If we found a second ICV value there is no unique returned value.
@@ -2672,7 +2682,7 @@ struct AAICVTrackerCallSite : AAICVTracker {
   void trackStatistics() const override {}
 
   InternalControlVar AssociatedICV;
-  Optional<Value *> ReplVal;
+  std::optional<Value *> ReplVal;
 
   ChangeStatus updateImpl(Attributor &A) override {
     const auto &ICVTrackingAA = A.getAAFor<AAICVTracker>(
@@ -2682,7 +2692,7 @@ struct AAICVTrackerCallSite : AAICVTracker {
     if (!ICVTrackingAA.isAssumedTracked())
       return indicatePessimisticFixpoint();
 
-    Optional<Value *> NewReplVal =
+    std::optional<Value *> NewReplVal =
         ICVTrackingAA.getReplacementValue(AssociatedICV, getCtxI(), A);
 
     if (ReplVal == NewReplVal)
@@ -2694,7 +2704,7 @@ struct AAICVTrackerCallSite : AAICVTracker {
 
   // Return the value with which associated value can be replaced for specific
   // \p ICV.
-  Optional<Value *>
+  std::optional<Value *>
   getUniqueReplacementValue(InternalControlVar ICV) const override {
     return ReplVal;
   }
@@ -2718,13 +2728,13 @@ struct AAICVTrackerCallSiteReturned : AAICVTracker {
   }
 
   // Map of ICV to their values at specific program point.
-  EnumeratedArray<Optional<Value *>, InternalControlVar,
+  EnumeratedArray<std::optional<Value *>, InternalControlVar,
                   InternalControlVar::ICV___last>
       ICVReplacementValuesMap;
 
   /// Return the value with which associated value can be replaced for specific
   /// \p ICV.
-  Optional<Value *>
+  std::optional<Value *>
   getUniqueReplacementValue(InternalControlVar ICV) const override {
     return ICVReplacementValuesMap[ICV];
   }
@@ -2740,8 +2750,8 @@ struct AAICVTrackerCallSiteReturned : AAICVTracker {
       return indicatePessimisticFixpoint();
 
     for (InternalControlVar ICV : TrackableICVs) {
-      Optional<Value *> &ReplVal = ICVReplacementValuesMap[ICV];
-      Optional<Value *> NewReplVal =
+      std::optional<Value *> &ReplVal = ICVReplacementValuesMap[ICV];
+      std::optional<Value *> NewReplVal =
           ICVTrackingAA.getUniqueReplacementValue(ICV);
 
       if (ReplVal == NewReplVal)
@@ -2970,7 +2980,7 @@ struct AAHeapToSharedFunction : public AAHeapToShared {
 
     Attributor::SimplifictionCallbackTy SCB =
         [](const IRPosition &, const AbstractAttribute *,
-           bool &) -> Optional<Value *> { return nullptr; };
+           bool &) -> std::optional<Value *> { return nullptr; };
     for (User *U : RFI.Declaration->users())
       if (CallBase *CB = dyn_cast<CallBase>(U)) {
         MallocCalls.insert(CB);
@@ -3214,7 +3224,7 @@ struct AAKernelInfoFunction : AAKernelInfo {
 
     Attributor::SimplifictionCallbackTy StateMachineSimplifyCB =
         [&](const IRPosition &IRP, const AbstractAttribute *AA,
-            bool &UsedAssumedInformation) -> Optional<Value *> {
+            bool &UsedAssumedInformation) -> std::optional<Value *> {
       // IRP represents the "use generic state machine" argument of an
       // __kmpc_target_init call. We will answer this one with the internal
       // state. As long as we are not in an invalid state, we will create a
@@ -3235,7 +3245,7 @@ struct AAKernelInfoFunction : AAKernelInfo {
 
     Attributor::SimplifictionCallbackTy ModeSimplifyCB =
         [&](const IRPosition &IRP, const AbstractAttribute *AA,
-            bool &UsedAssumedInformation) -> Optional<Value *> {
+            bool &UsedAssumedInformation) -> std::optional<Value *> {
       // IRP represents the "SPMDCompatibilityTracker" argument of an
       // __kmpc_target_init or
       // __kmpc_target_deinit call. We will answer this one with the internal
@@ -3258,7 +3268,7 @@ struct AAKernelInfoFunction : AAKernelInfo {
 
     Attributor::SimplifictionCallbackTy IsGenericModeSimplifyCB =
         [&](const IRPosition &IRP, const AbstractAttribute *AA,
-            bool &UsedAssumedInformation) -> Optional<Value *> {
+            bool &UsedAssumedInformation) -> std::optional<Value *> {
       // IRP represents the "RequiresFullRuntime" argument of an
       // __kmpc_target_init or __kmpc_target_deinit call. We will answer this
       // one with the internal state of the SPMDCompatibilityTracker, so if
@@ -3333,73 +3343,16 @@ struct AAKernelInfoFunction : AAKernelInfo {
     // If we can we change the execution mode to SPMD-mode otherwise we build a
     // custom state machine.
     ChangeStatus Changed = ChangeStatus::UNCHANGED;
-    if (!changeToSPMDMode(A, Changed))
-      return buildCustomStateMachine(A);
+    if (!changeToSPMDMode(A, Changed)) {
+      if (!KernelInitCB->getCalledFunction()->isDeclaration())
+        return buildCustomStateMachine(A);
+    }
 
     return Changed;
   }
 
-  bool changeToSPMDMode(Attributor &A, ChangeStatus &Changed) {
-    if (!mayContainParallelRegion())
-      return false;
-
+  void insertInstructionGuardsHelper(Attributor &A) {
     auto &OMPInfoCache = static_cast<OMPInformationCache &>(A.getInfoCache());
-
-    if (!SPMDCompatibilityTracker.isAssumed()) {
-      for (Instruction *NonCompatibleI : SPMDCompatibilityTracker) {
-        if (!NonCompatibleI)
-          continue;
-
-        // Skip diagnostics on calls to known OpenMP runtime functions for now.
-        if (auto *CB = dyn_cast<CallBase>(NonCompatibleI))
-          if (OMPInfoCache.RTLFunctions.contains(CB->getCalledFunction()))
-            continue;
-
-        auto Remark = [&](OptimizationRemarkAnalysis ORA) {
-          ORA << "Value has potential side effects preventing SPMD-mode "
-                 "execution";
-          if (isa<CallBase>(NonCompatibleI)) {
-            ORA << ". Add `__attribute__((assume(\"ompx_spmd_amenable\")))` to "
-                   "the called function to override";
-          }
-          return ORA << ".";
-        };
-        A.emitRemark<OptimizationRemarkAnalysis>(NonCompatibleI, "OMP121",
-                                                 Remark);
-
-        LLVM_DEBUG(dbgs() << TAG << "SPMD-incompatible side-effect: "
-                          << *NonCompatibleI << "\n");
-      }
-
-      return false;
-    }
-
-    // Get the actual kernel, could be the caller of the anchor scope if we have
-    // a debug wrapper.
-    Function *Kernel = getAnchorScope();
-    if (Kernel->hasLocalLinkage()) {
-      assert(Kernel->hasOneUse() && "Unexpected use of debug kernel wrapper.");
-      auto *CB = cast<CallBase>(Kernel->user_back());
-      Kernel = CB->getCaller();
-    }
-    assert(OMPInfoCache.Kernels.count(Kernel) && "Expected kernel function!");
-
-    // Check if the kernel is already in SPMD mode, if so, return success.
-    GlobalVariable *ExecMode = Kernel->getParent()->getGlobalVariable(
-        (Kernel->getName() + "_exec_mode").str());
-    assert(ExecMode && "Kernel without exec mode?");
-    assert(ExecMode->getInitializer() && "ExecMode doesn't have initializer!");
-
-    // Set the global exec mode flag to indicate SPMD-Generic mode.
-    assert(isa<ConstantInt>(ExecMode->getInitializer()) &&
-           "ExecMode is not an integer!");
-    const int8_t ExecModeVal =
-        cast<ConstantInt>(ExecMode->getInitializer())->getSExtValue();
-    if (ExecModeVal != OMP_TGT_EXEC_MODE_GENERIC)
-      return true;
-
-    // We will now unconditionally modify the IR, indicate a change.
-    Changed = ChangeStatus::CHANGED;
 
     auto CreateGuardedRegion = [&](Instruction *RegionStartI,
                                    Instruction *RegionEndI) {
@@ -3617,6 +3570,125 @@ struct AAKernelInfoFunction : AAKernelInfo {
 
     for (auto &GR : GuardedRegions)
       CreateGuardedRegion(GR.first, GR.second);
+  }
+
+  void forceSingleThreadPerWorkgroupHelper(Attributor &A) {
+    // Only allow 1 thread per workgroup to continue executing the user code.
+    //
+    //     InitCB = __kmpc_target_init(...)
+    //     ThreadIdInBlock = __kmpc_get_hardware_thread_id_in_block();
+    //     if (ThreadIdInBlock != 0) return;
+    // UserCode:
+    //     // user code
+    //
+    auto &Ctx = getAnchorValue().getContext();
+    Function *Kernel = getAssociatedFunction();
+    assert(Kernel && "Expected an associated function!");
+
+    // Create block for user code to branch to from initial block.
+    BasicBlock *InitBB = KernelInitCB->getParent();
+    BasicBlock *UserCodeBB = InitBB->splitBasicBlock(
+        KernelInitCB->getNextNode(), "main.thread.user_code");
+    BasicBlock *ReturnBB =
+        BasicBlock::Create(Ctx, "exit.threads", Kernel, UserCodeBB);
+
+    // Register blocks with attributor:
+    A.registerManifestAddedBasicBlock(*InitBB);
+    A.registerManifestAddedBasicBlock(*UserCodeBB);
+    A.registerManifestAddedBasicBlock(*ReturnBB);
+
+    // Debug location:
+    const DebugLoc &DLoc = KernelInitCB->getDebugLoc();
+    ReturnInst::Create(Ctx, ReturnBB)->setDebugLoc(DLoc);
+    InitBB->getTerminator()->eraseFromParent();
+
+    // Prepare call to OMPRTL___kmpc_get_hardware_thread_id_in_block.
+    Module &M = *Kernel->getParent();
+    auto &OMPInfoCache = static_cast<OMPInformationCache &>(A.getInfoCache());
+    FunctionCallee ThreadIdInBlockFn =
+        OMPInfoCache.OMPBuilder.getOrCreateRuntimeFunction(
+            M, OMPRTL___kmpc_get_hardware_thread_id_in_block);
+
+    // Get thread ID in block.
+    CallInst *ThreadIdInBlock =
+        CallInst::Create(ThreadIdInBlockFn, "thread_id.in.block", InitBB);
+    OMPInfoCache.setCallingConvention(ThreadIdInBlockFn, ThreadIdInBlock);
+    ThreadIdInBlock->setDebugLoc(DLoc);
+
+    // Eliminate all threads in the block with ID not equal to 0:
+    Instruction *IsMainThread =
+        ICmpInst::Create(ICmpInst::ICmp, CmpInst::ICMP_NE, ThreadIdInBlock,
+                         ConstantInt::get(ThreadIdInBlock->getType(), 0),
+                         "thread.is_main", InitBB);
+    IsMainThread->setDebugLoc(DLoc);
+    BranchInst::Create(ReturnBB, UserCodeBB, IsMainThread, InitBB);
+  }
+
+  bool changeToSPMDMode(Attributor &A, ChangeStatus &Changed) {
+    auto &OMPInfoCache = static_cast<OMPInformationCache &>(A.getInfoCache());
+
+    if (!SPMDCompatibilityTracker.isAssumed()) {
+      for (Instruction *NonCompatibleI : SPMDCompatibilityTracker) {
+        if (!NonCompatibleI)
+          continue;
+
+        // Skip diagnostics on calls to known OpenMP runtime functions for now.
+        if (auto *CB = dyn_cast<CallBase>(NonCompatibleI))
+          if (OMPInfoCache.RTLFunctions.contains(CB->getCalledFunction()))
+            continue;
+
+        auto Remark = [&](OptimizationRemarkAnalysis ORA) {
+          ORA << "Value has potential side effects preventing SPMD-mode "
+                 "execution";
+          if (isa<CallBase>(NonCompatibleI)) {
+            ORA << ". Add `__attribute__((assume(\"ompx_spmd_amenable\")))` to "
+                   "the called function to override";
+          }
+          return ORA << ".";
+        };
+        A.emitRemark<OptimizationRemarkAnalysis>(NonCompatibleI, "OMP121",
+                                                 Remark);
+
+        LLVM_DEBUG(dbgs() << TAG << "SPMD-incompatible side-effect: "
+                          << *NonCompatibleI << "\n");
+      }
+
+      return false;
+    }
+
+    // Get the actual kernel, could be the caller of the anchor scope if we have
+    // a debug wrapper.
+    Function *Kernel = getAnchorScope();
+    if (Kernel->hasLocalLinkage()) {
+      assert(Kernel->hasOneUse() && "Unexpected use of debug kernel wrapper.");
+      auto *CB = cast<CallBase>(Kernel->user_back());
+      Kernel = CB->getCaller();
+    }
+    assert(OMPInfoCache.Kernels.count(Kernel) && "Expected kernel function!");
+
+    // Check if the kernel is already in SPMD mode, if so, return success.
+    GlobalVariable *ExecMode = Kernel->getParent()->getGlobalVariable(
+        (Kernel->getName() + "_exec_mode").str());
+    assert(ExecMode && "Kernel without exec mode?");
+    assert(ExecMode->getInitializer() && "ExecMode doesn't have initializer!");
+
+    // Set the global exec mode flag to indicate SPMD-Generic mode.
+    assert(isa<ConstantInt>(ExecMode->getInitializer()) &&
+           "ExecMode is not an integer!");
+    const int8_t ExecModeVal =
+        cast<ConstantInt>(ExecMode->getInitializer())->getSExtValue();
+    if (ExecModeVal != OMP_TGT_EXEC_MODE_GENERIC)
+      return true;
+
+    // We will now unconditionally modify the IR, indicate a change.
+    Changed = ChangeStatus::CHANGED;
+
+    // Do not use instruction guards when no parallel is present inside
+    // the target region.
+    if (mayContainParallelRegion())
+      insertInstructionGuardsHelper(A);
+    else
+      forceSingleThreadPerWorkgroupHelper(A);
 
     // Adjust the global exec mode flag that tells the runtime what mode this
     // kernel is executed in.
@@ -4089,15 +4161,6 @@ struct AAKernelInfoFunction : AAKernelInfo {
       ReachedUnknownParallelRegions.indicateOptimisticFixpoint();
     }
 
-    // If we are sure there are no parallel regions in the kernel we do not
-    // want SPMD mode.
-    if (IsKernelEntry && ReachedUnknownParallelRegions.isAtFixpoint() &&
-        ReachedKnownParallelRegions.isAtFixpoint() &&
-        ReachedUnknownParallelRegions.isValidState() &&
-        ReachedKnownParallelRegions.isValidState() &&
-        !mayContainParallelRegion())
-      SPMDCompatibilityTracker.indicatePessimisticFixpoint();
-
     // If we haven't used any assumed information for the SPMD state we can fix
     // it.
     if (!UsedAssumedInformationInCheckRWInst &&
@@ -4457,7 +4520,7 @@ struct AAFoldRuntimeCallCallSiteReturned : AAFoldRuntimeCall {
     A.registerSimplificationCallback(
         IRPosition::callsite_returned(CB),
         [&](const IRPosition &IRP, const AbstractAttribute *AA,
-            bool &UsedAssumedInformation) -> Optional<Value *> {
+            bool &UsedAssumedInformation) -> std::optional<Value *> {
           assert((isValidState() ||
                   (SimplifiedValue && SimplifiedValue.value() == nullptr)) &&
                  "Unexpected invalid state!");
@@ -4534,7 +4597,7 @@ struct AAFoldRuntimeCallCallSiteReturned : AAFoldRuntimeCall {
 private:
   /// Fold __kmpc_is_spmd_exec_mode into a constant if possible.
   ChangeStatus foldIsSPMDExecMode(Attributor &A) {
-    Optional<Value *> SimplifiedValueBefore = SimplifiedValue;
+    std::optional<Value *> SimplifiedValueBefore = SimplifiedValue;
 
     unsigned AssumedSPMDCount = 0, KnownSPMDCount = 0;
     unsigned AssumedNonSPMDCount = 0, KnownNonSPMDCount = 0;
@@ -4596,7 +4659,7 @@ private:
 
   /// Fold __kmpc_is_generic_main_thread_id into a constant if possible.
   ChangeStatus foldIsGenericMainThread(Attributor &A) {
-    Optional<Value *> SimplifiedValueBefore = SimplifiedValue;
+    std::optional<Value *> SimplifiedValueBefore = SimplifiedValue;
 
     CallBase &CB = cast<CallBase>(getAssociatedValue());
     Function *F = CB.getFunction();
@@ -4618,7 +4681,7 @@ private:
 
   /// Fold __kmpc_parallel_level into a constant if possible.
   ChangeStatus foldParallelLevel(Attributor &A) {
-    Optional<Value *> SimplifiedValueBefore = SimplifiedValue;
+    std::optional<Value *> SimplifiedValueBefore = SimplifiedValue;
 
     auto &CallerKernelInfoAA = A.getAAFor<AAKernelInfo>(
         *this, IRPosition::function(*getAnchorScope()), DepClassTy::REQUIRED);
@@ -4680,7 +4743,7 @@ private:
   ChangeStatus foldKernelFnAttribute(Attributor &A, llvm::StringRef Attr) {
     // Specialize only if all the calls agree with the attribute constant value
     int32_t CurrentAttrValue = -1;
-    Optional<Value *> SimplifiedValueBefore = SimplifiedValue;
+    std::optional<Value *> SimplifiedValueBefore = SimplifiedValue;
 
     auto &CallerKernelInfoAA = A.getAAFor<AAKernelInfo>(
         *this, IRPosition::function(*getAnchorScope()), DepClassTy::REQUIRED);
@@ -4713,7 +4776,7 @@ private:
   /// An optional value the associated value is assumed to fold to. That is, we
   /// assume the associated value (which is a call) can be replaced by this
   /// simplified value.
-  Optional<Value *> SimplifiedValue;
+  std::optional<Value *> SimplifiedValue;
 
   /// The runtime function kind of the callee of the associated call site.
   RuntimeFunction RFKind;
@@ -4999,8 +5062,7 @@ PreservedAnalyses OpenMPOptPass::run(Module &M, ModuleAnalysisManager &AM) {
   BumpPtrAllocator Allocator;
   CallGraphUpdater CGUpdater;
 
-  SetVector<Function *> Functions(SCC.begin(), SCC.end());
-  OMPInformationCache InfoCache(M, AG, Allocator, /*CGSCC*/ Functions, Kernels);
+  OMPInformationCache InfoCache(M, AG, Allocator, /*CGSCC*/ nullptr, Kernels);
 
   unsigned MaxFixpointIterations =
       (isOpenMPDevice(M)) ? SetFixpointIterations : 32;
@@ -5012,6 +5074,7 @@ PreservedAnalyses OpenMPOptPass::run(Module &M, ModuleAnalysisManager &AM) {
   AC.OREGetter = OREGetter;
   AC.PassName = DEBUG_TYPE;
 
+  SetVector<Function *> Functions;
   Attributor A(Functions, InfoCache, AC);
 
   OpenMPOpt OMPOpt(SCC, CGUpdater, OREGetter, InfoCache, A);
@@ -5074,7 +5137,7 @@ PreservedAnalyses OpenMPOptCGSCCPass::run(LazyCallGraph::SCC &C,
 
   SetVector<Function *> Functions(SCC.begin(), SCC.end());
   OMPInformationCache InfoCache(*(Functions.back()->getParent()), AG, Allocator,
-                                /*CGSCC*/ Functions, Kernels);
+                                /*CGSCC*/ &Functions, Kernels);
 
   unsigned MaxFixpointIterations =
       (isOpenMPDevice(M)) ? SetFixpointIterations : 32;
@@ -5100,87 +5163,6 @@ PreservedAnalyses OpenMPOptCGSCCPass::run(LazyCallGraph::SCC &C,
 
   return PreservedAnalyses::all();
 }
-
-namespace {
-
-struct OpenMPOptCGSCCLegacyPass : public CallGraphSCCPass {
-  CallGraphUpdater CGUpdater;
-  static char ID;
-
-  OpenMPOptCGSCCLegacyPass() : CallGraphSCCPass(ID) {
-    initializeOpenMPOptCGSCCLegacyPassPass(*PassRegistry::getPassRegistry());
-  }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    CallGraphSCCPass::getAnalysisUsage(AU);
-  }
-
-  bool runOnSCC(CallGraphSCC &CGSCC) override {
-    if (!containsOpenMP(CGSCC.getCallGraph().getModule()))
-      return false;
-    if (DisableOpenMPOptimizations || skipSCC(CGSCC))
-      return false;
-
-    SmallVector<Function *, 16> SCC;
-    // If there are kernels in the module, we have to run on all SCC's.
-    for (CallGraphNode *CGN : CGSCC) {
-      Function *Fn = CGN->getFunction();
-      if (!Fn || Fn->isDeclaration())
-        continue;
-      SCC.push_back(Fn);
-    }
-
-    if (SCC.empty())
-      return false;
-
-    Module &M = CGSCC.getCallGraph().getModule();
-    KernelSet Kernels = getDeviceKernels(M);
-
-    CallGraph &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
-    CGUpdater.initialize(CG, CGSCC);
-
-    // Maintain a map of functions to avoid rebuilding the ORE
-    DenseMap<Function *, std::unique_ptr<OptimizationRemarkEmitter>> OREMap;
-    auto OREGetter = [&OREMap](Function *F) -> OptimizationRemarkEmitter & {
-      std::unique_ptr<OptimizationRemarkEmitter> &ORE = OREMap[F];
-      if (!ORE)
-        ORE = std::make_unique<OptimizationRemarkEmitter>(F);
-      return *ORE;
-    };
-
-    AnalysisGetter AG;
-    SetVector<Function *> Functions(SCC.begin(), SCC.end());
-    BumpPtrAllocator Allocator;
-    OMPInformationCache InfoCache(*(Functions.back()->getParent()), AG,
-                                  Allocator,
-                                  /*CGSCC*/ Functions, Kernels);
-
-    unsigned MaxFixpointIterations =
-        (isOpenMPDevice(M)) ? SetFixpointIterations : 32;
-
-    AttributorConfig AC(CGUpdater);
-    AC.DefaultInitializeLiveInternals = false;
-    AC.IsModulePass = false;
-    AC.RewriteSignatures = false;
-    AC.MaxFixpointIterations = MaxFixpointIterations;
-    AC.OREGetter = OREGetter;
-    AC.PassName = DEBUG_TYPE;
-
-    Attributor A(Functions, InfoCache, AC);
-
-    OpenMPOpt OMPOpt(SCC, CGUpdater, OREGetter, InfoCache, A);
-    bool Result = OMPOpt.run(false);
-
-    if (PrintModuleAfterOptimizations)
-      LLVM_DEBUG(dbgs() << TAG << "Module after OpenMPOpt CGSCC Pass:\n" << M);
-
-    return Result;
-  }
-
-  bool doFinalization(CallGraph &CG) override { return CGUpdater.finalize(); }
-};
-
-} // end anonymous namespace
 
 KernelSet llvm::omp::getDeviceKernels(Module &M) {
   // TODO: Create a more cross-platform way of determining device kernels.
@@ -5224,16 +5206,4 @@ bool llvm::omp::isOpenMPDevice(Module &M) {
     return false;
 
   return true;
-}
-
-char OpenMPOptCGSCCLegacyPass::ID = 0;
-
-INITIALIZE_PASS_BEGIN(OpenMPOptCGSCCLegacyPass, "openmp-opt-cgscc",
-                      "OpenMP specific optimizations", false, false)
-INITIALIZE_PASS_DEPENDENCY(CallGraphWrapperPass)
-INITIALIZE_PASS_END(OpenMPOptCGSCCLegacyPass, "openmp-opt-cgscc",
-                    "OpenMP specific optimizations", false, false)
-
-Pass *llvm::createOpenMPOptCGSCCLegacyPass() {
-  return new OpenMPOptCGSCCLegacyPass();
 }

@@ -443,7 +443,7 @@ public:
     return loadBindings.lookup(base);
   }
 
-  /// `load` must be a LHS array_load. Returns `llvm::None` on error.
+  /// `load` must be a LHS array_load. Returns `std::nullopt` on error.
   llvm::Optional<size_t> findArgPosition(fir::ArrayLoadOp load);
 
   bool isLHS(fir::ArrayLoadOp load) {
@@ -469,7 +469,7 @@ public:
     assert(i < lhsBases.size());
     if (lhsBases[counter])
       return findBinding(*lhsBases[counter]);
-    return llvm::None;
+    return std::nullopt;
   }
 
   /// Return the outermost loop in this FORALL nest.
@@ -565,7 +565,7 @@ template <typename A>
 bool symbolSetsIntersect(llvm::ArrayRef<FrontEndSymbol> ctrlSet,
                          const A &exprSyms) {
   for (const auto &sym : exprSyms)
-    if (std::find(ctrlSet.begin(), ctrlSet.end(), &sym.get()) != ctrlSet.end())
+    if (llvm::is_contained(ctrlSet, &sym.get()))
       return true;
   return false;
 }

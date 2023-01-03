@@ -27,6 +27,7 @@ void MachineIRBuilder::setMF(MachineFunction &MF) {
   State.MRI = &MF.getRegInfo();
   State.TII = MF.getSubtarget().getInstrInfo();
   State.DL = DebugLoc();
+  State.PCSections = nullptr;
   State.II = MachineBasicBlock::iterator();
   State.Observer = nullptr;
 }
@@ -36,8 +37,7 @@ void MachineIRBuilder::setMF(MachineFunction &MF) {
 //------------------------------------------------------------------------------
 
 MachineInstrBuilder MachineIRBuilder::buildInstrNoInsert(unsigned Opcode) {
-  MachineInstrBuilder MIB = BuildMI(getMF(), getDL(), getTII().get(Opcode));
-  return MIB;
+  return BuildMI(getMF(), {getDL(), getPCSections()}, getTII().get(Opcode));
 }
 
 MachineInstrBuilder MachineIRBuilder::insertInstr(MachineInstrBuilder MIB) {
@@ -205,7 +205,7 @@ MachineIRBuilder::materializePtrAdd(Register &Res, Register Op0,
 
   if (Value == 0) {
     Res = Op0;
-    return None;
+    return std::nullopt;
   }
 
   Res = getMRI()->createGenericVirtualRegister(getMRI()->getType(Op0));

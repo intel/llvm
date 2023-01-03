@@ -9,10 +9,6 @@
 // <algorithm>
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-has-no-incomplete-ranges
-
-// Older Clangs don't properly deduce decltype(auto) with a concept constraint
-// XFAIL: apple-clang-13.0
 
 // template<class T, class Proj = identity,
 //          indirect_strict_weak_order<projected<const T*, Proj>> Comp = ranges::less>
@@ -21,6 +17,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <concepts>
 #include <functional>
 #include <utility>
 

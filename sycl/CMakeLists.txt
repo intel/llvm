@@ -25,12 +25,16 @@ include(AddSYCLExecutable)
 include(AddSYCL)
 include(SYCLUtils)
 
-set(SYCL_MAJOR_VERSION 5)
-set(SYCL_MINOR_VERSION 7)
+# The change in SYCL_MAJOR_VERSION must be accompanied with the same update in
+# llvm/clang/lib/Driver/CMakeLists.txt.
+#
+# See doc/developer/ABIPolicyGuide.md for the meaning when in the middle of
+# development cycle.
+set(SYCL_MAJOR_VERSION 6)
+set(SYCL_MINOR_VERSION 2)
 set(SYCL_PATCH_VERSION 0)
-# Don't forget to re-enable sycl_symbols_windows.dump once we leave ABI-breaking
-# window!
-set(SYCL_DEV_ABI_VERSION 14)
+
+set(SYCL_DEV_ABI_VERSION 0)
 if (SYCL_ADD_DEV_VERSION_POSTFIX)
   set(SYCL_VERSION_POSTFIX "-${SYCL_DEV_ABI_VERSION}")
 endif()
@@ -140,6 +144,9 @@ install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
         DESTINATION ${SYCL_INCLUDE_DIR}/sycl
         COMPONENT OpenCL-Headers)
 
+# Option to enable online kernel fusion via a JIT compiler
+option(SYCL_ENABLE_KERNEL_FUSION "Enable kernel fusion via JIT compiler" OFF)
+
 # Needed for feature_test.hpp
 if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_PI_CUDA ON)
@@ -201,9 +208,14 @@ install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR}/sycl COMP
 install(DIRECTORY "${sycl_inc_dir}/std" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(DIRECTORY ${BOOST_MP11_DESTINATION_DIR} DESTINATION ${SYCL_INCLUDE_DIR}/sycl/detail COMPONENT boost_mp11-headers)
 
-set(SYCL_RT_LIBS sycl)
-if (MSVC)
-  list(APPEND SYCL_RT_LIBS sycld)
+if (WIN32)
+  set(SYCL_RT_LIBS sycl${SYCL_MAJOR_VERSION})
+  # Do we really support non-MSVC ABI on WIN?
+  if (MSVC)
+    list(APPEND SYCL_RT_LIBS sycl${SYCL_MAJOR_VERSION}d)
+  endif()
+else()
+  set(SYCL_RT_LIBS sycl)
 endif()
 
 # This function allows building multiple libraries with the same options.
@@ -286,8 +298,12 @@ add_custom_target(sycl-compiler
           opencl-aot
 )
 
-add_custom_target( sycl-toolchain
+add_custom_target( sycl-runtime-libraries
   DEPENDS ${SYCL_RT_LIBS}
+)
+
+add_custom_target( sycl-toolchain
+  DEPENDS sycl-runtime-libraries
           sycl-compiler
           sycl-ls
           ${XPTIFW_LIBS}
@@ -327,7 +343,7 @@ if(SYCL_INCLUDE_TESTS)
       message(FATAL_ERROR
         "Can't build SYCL tests without LLVM_INCLUDE_TESTS enabled.")
   endif()
-  if(EXISTS ${LLVM_MAIN_SRC_DIR}/utils/unittest/googletest/include/gtest/gtest.h)
+  if(EXISTS ${LLVM_THIRD_PARTY_DIR}/unittest/googletest/include/gtest/gtest.h)
     add_subdirectory(unittests)
     list(APPEND SYCL_TEST_DEPS SYCLUnitTests)
   endif()
@@ -346,8 +362,6 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      clang-offload-deps
      clang-offload-extract
      file-table-tform
-     level-zero-loader
-     level-zero-headers
      llc
      llvm-ar
      llvm-foreach
@@ -365,6 +379,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      sycl-headers-extras
      sycl
      libsycldevice
+     level-zero-sycl-dev
      ${XPTIFW_LIBS}
      ${SYCL_TOOLCHAIN_DEPS}
 )
@@ -383,6 +398,17 @@ if(OpenCL_INSTALL_KHRONOS_ICD_LOADER AND TARGET OpenCL-ICD)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS OpenCL-ICD)
 endif()
 
+# Build and install lld as part of the sycl-toolchain if available
+if("lld" IN_LIST LLVM_ENABLE_PROJECTS)
+  add_dependencies(sycl-toolchain lld)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS lld)
+endif()
+
+if("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
+  add_dependencies(sycl-toolchain libspirv-builtins)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins)
+endif()
+
 if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
   # Ensure that libclc is enabled.
   list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
@@ -391,8 +417,8 @@ if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
       "CUDA support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
 
-  add_dependencies(sycl-toolchain libspirv-builtins pi_cuda)
-  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_cuda)
+  add_dependencies(sycl-toolchain pi_cuda)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_cuda)
 endif()
 
 if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
@@ -403,14 +429,13 @@ if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
       "HIP support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
 
-  add_dependencies(sycl-toolchain libspirv-builtins pi_hip)
-  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_hip)
-
-  # On AMD platform lld is also needed
-  if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
-    add_dependencies(sycl-toolchain lld)
-    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS lld)
+  if(NOT TARGET lld AND "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
+    message(FATAL_ERROR
+      "HIP support requires adding \"lld\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
+
+  add_dependencies(sycl-toolchain pi_hip)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_hip)
 endif()
 
 if("esimd_emulator" IN_LIST SYCL_ENABLE_PLUGINS)

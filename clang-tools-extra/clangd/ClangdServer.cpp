@@ -140,7 +140,7 @@ public:
 private:
   llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> viewImpl() const override {
     auto OFS = llvm::makeIntrusiveRefCnt<llvm::vfs::OverlayFileSystem>(
-        Base.view(llvm::None));
+        Base.view(std::nullopt));
     OFS->pushOverlay(DirtyFiles.asVFS());
     return OFS;
   }
@@ -177,6 +177,7 @@ ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
       DynamicIdx(Opts.BuildDynamicSymbolIndex ? new FileIndex() : nullptr),
       ClangTidyProvider(Opts.ClangTidyProvider),
       UseDirtyHeaders(Opts.UseDirtyHeaders),
+      LineFoldingOnly(Opts.LineFoldingOnly),
       PreambleParseForwardingFunctions(Opts.PreambleParseForwardingFunctions),
       WorkspaceRoot(Opts.WorkspaceRoot),
       Transient(Opts.ImplicitCancellation ? TUScheduler::InvalidateOnUpdate
@@ -190,7 +191,7 @@ ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
   WorkScheduler.emplace(CDB, TUScheduler::Options(Opts),
                         std::make_unique<UpdateIndexCallbacks>(
                             DynamicIdx.get(), Callbacks, TFS,
-                            IndexTasks ? IndexTasks.getPointer() : nullptr));
+                            IndexTasks ? &*IndexTasks : nullptr));
   // Adds an index to the stack, at higher priority than existing indexes.
   auto AddIndex = [&](SymbolIndex *Idx) {
     if (this->Index != nullptr) {
@@ -407,7 +408,7 @@ void ClangdServer::codeComplete(PathRef File, Position Pos,
     // both the old and the new version in case only one of them matches.
     CodeCompleteResult Result = clangd::codeComplete(
         File, Pos, IP->Preamble, ParseInput, CodeCompleteOpts,
-        SpecFuzzyFind ? SpecFuzzyFind.getPointer() : nullptr);
+        SpecFuzzyFind ? &*SpecFuzzyFind : nullptr);
     {
       clang::clangd::trace::Span Tracer("Completion results callback");
       CB(std::move(Result));
@@ -514,7 +515,7 @@ void ClangdServer::formatOnType(PathRef File, Position Pos,
                  CB = std::move(CB), this]() mutable {
     auto Style = format::getStyle(format::DefaultFormatStyle, File,
                                   format::DefaultFallbackStyle, Code,
-                                  TFS.view(/*CWD=*/llvm::None).get());
+                                  TFS.view(/*CWD=*/std::nullopt).get());
     if (!Style)
       return CB(Style.takeError());
 
@@ -565,7 +566,7 @@ void ClangdServer::rename(PathRef File, Position Pos, llvm::StringRef NewName,
     if (!InpAST)
       return CB(InpAST.takeError());
     auto R = clangd::rename({Pos, NewName, InpAST->AST, File,
-                             DirtyFS->view(llvm::None), Index, Opts});
+                             DirtyFS->view(std::nullopt), Index, Opts});
     if (!R)
       return CB(R.takeError());
 
@@ -658,7 +659,7 @@ void ClangdServer::applyTweak(PathRef File, Range Sel, StringRef TweakID,
                  this](Expected<InputsAndAST> InpAST) mutable {
     if (!InpAST)
       return CB(InpAST.takeError());
-    auto FS = DirtyFS->view(llvm::None);
+    auto FS = DirtyFS->view(std::nullopt);
     auto Selections = tweakSelection(Sel, *InpAST, FS.get());
     if (!Selections)
       return CB(Selections.takeError());
@@ -712,7 +713,7 @@ void ClangdServer::switchSourceHeader(
   //  2) if 1) fails, we use the AST&Index approach, it is slower but supports
   //     different code layout.
   if (auto CorrespondingFile =
-          getCorrespondingHeaderOrSource(Path, TFS.view(llvm::None)))
+          getCorrespondingHeaderOrSource(Path, TFS.view(std::nullopt)))
     return CB(std::move(CorrespondingFile));
   auto Action = [Path = Path.str(), CB = std::move(CB),
                  this](llvm::Expected<InputsAndAST> InpAST) mutable {
@@ -751,7 +752,7 @@ void ClangdServer::findHover(PathRef File, Position Pos,
 
 void ClangdServer::typeHierarchy(PathRef File, Position Pos, int Resolve,
                                  TypeHierarchyDirection Direction,
-                                 Callback<Optional<TypeHierarchyItem>> CB) {
+                                 Callback<std::vector<TypeHierarchyItem>> CB) {
   auto Action = [File = File.str(), Pos, Resolve, Direction, CB = std::move(CB),
                  this](Expected<InputsAndAST> InpAST) mutable {
     if (!InpAST)
@@ -761,6 +762,22 @@ void ClangdServer::typeHierarchy(PathRef File, Position Pos, int Resolve,
   };
 
   WorkScheduler->runWithAST("TypeHierarchy", File, std::move(Action));
+}
+
+void ClangdServer::superTypes(
+    const TypeHierarchyItem &Item,
+    Callback<llvm::Optional<std::vector<TypeHierarchyItem>>> CB) {
+  WorkScheduler->run("typeHierarchy/superTypes", /*Path=*/"",
+                     [=, CB = std::move(CB)]() mutable {
+                       CB(clangd::superTypes(Item, Index));
+                     });
+}
+
+void ClangdServer::subTypes(const TypeHierarchyItem &Item,
+                            Callback<std::vector<TypeHierarchyItem>> CB) {
+  WorkScheduler->run(
+      "typeHierarchy/subTypes", /*Path=*/"",
+      [=, CB = std::move(CB)]() mutable { CB(clangd::subTypes(Item, Index)); });
 }
 
 void ClangdServer::resolveTypeHierarchy(
@@ -839,8 +856,9 @@ void ClangdServer::foldingRanges(llvm::StringRef File,
     return CB(llvm::make_error<LSPError>(
         "trying to compute folding ranges for non-added document",
         ErrorCode::InvalidParams));
-  auto Action = [CB = std::move(CB), Code = std::move(*Code)]() mutable {
-    CB(clangd::getFoldingRanges(Code));
+  auto Action = [LineFoldingOnly = LineFoldingOnly, CB = std::move(CB),
+                 Code = std::move(*Code)]() mutable {
+    CB(clangd::getFoldingRanges(Code, LineFoldingOnly));
   };
   // We want to make sure folding ranges are always available for all the open
   // files, hence prefer runQuick to not wait for operations on other files.
@@ -971,7 +989,7 @@ void ClangdServer::getAST(PathRef File, llvm::Optional<Range> R,
               return false;
             });
         if (!Success)
-          CB(llvm::None);
+          CB(std::nullopt);
       };
   WorkScheduler->runWithAST("GetAST", File, std::move(Action));
 }
@@ -1000,10 +1018,16 @@ llvm::StringMap<TUScheduler::FileStats> ClangdServer::fileStats() const {
   return WorkScheduler->fileStats();
 }
 
-LLVM_NODISCARD bool
+[[nodiscard]] bool
 ClangdServer::blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds) {
   // Order is important here: we don't want to block on A and then B,
   // if B might schedule work on A.
+
+#if defined(__has_feature) &&                                                  \
+    (__has_feature(address_sanitizer) || __has_feature(hwaddress_sanitizer) || \
+     __has_feature(memory_sanitizer) || __has_feature(thread_sanitizer))
+  (*TimeoutSeconds) *= 10;
+#endif
 
   // Nothing else can schedule work on TUScheduler, because it's not threadsafe
   // and we're blocking the main thread.

@@ -39,6 +39,8 @@ public:
   void printStackMap() const override;
   void printNeededLibraries() override;
   void printStringTable() override;
+  void printExceptionSection() override;
+  void printLoaderSection(bool PrintHeader, bool PrintSymbolTable) override;
 
   ScopedPrinter &getScopedPrinter() const { return W; }
 
@@ -46,6 +48,9 @@ private:
   template <typename T> void printSectionHeaders(ArrayRef<T> Sections);
   template <typename T> void printGenericSectionHeader(T &Sec) const;
   template <typename T> void printOverflowSectionHeader(T &Sec) const;
+  template <typename T>
+  void printExceptionSectionEntry(const T &ExceptionSectEnt) const;
+  template <typename T> void printExceptionSectionEntries() const;
   template <typename T> const T *getAuxEntPtr(uintptr_t AuxAddress);
   void printFileAuxEnt(const XCOFFFileAuxEnt *AuxEntPtr);
   void printCsectAuxEnt(XCOFFCsectAuxRef AuxEntRef);
@@ -62,6 +67,10 @@ private:
   void printRelocations(ArrayRef<Shdr> Sections);
   void printAuxiliaryHeader(const XCOFFAuxiliaryHeader32 *AuxHeader);
   void printAuxiliaryHeader(const XCOFFAuxiliaryHeader64 *AuxHeader);
+  void printLoaderSectionHeader(uintptr_t LoaderSectAddr);
+  void printLoaderSectionSymbols(uintptr_t LoaderSectAddr);
+  template <typename LoaderSectionSymbolEntry, typename LoaderSectionHeader>
+  void printLoaderSectionSymbolsHelper(uintptr_t LoaderSectAddr);
   const XCOFFObjectFile &Obj;
 };
 } // anonymous namespace
@@ -127,6 +136,170 @@ void XCOFFDumper::printSectionHeaders() {
     printSectionHeaders(Obj.sections64());
   else
     printSectionHeaders(Obj.sections32());
+}
+
+void XCOFFDumper::printLoaderSection(bool PrintHeader, bool PrintSymbolTable) {
+  DictScope DS(W, "Loader Section");
+  Expected<uintptr_t> LoaderSectionAddrOrError =
+      Obj.getSectionFileOffsetToRawData(XCOFF::STYP_LOADER);
+  if (!LoaderSectionAddrOrError) {
+    reportUniqueWarning(LoaderSectionAddrOrError.takeError());
+    return;
+  }
+  uintptr_t LoaderSectionAddr = LoaderSectionAddrOrError.get();
+
+  if (LoaderSectionAddr == 0)
+    return;
+
+  W.indent();
+  if (PrintHeader)
+    printLoaderSectionHeader(LoaderSectionAddr);
+
+  if (PrintSymbolTable)
+    printLoaderSectionSymbols(LoaderSectionAddr);
+
+  // TODO: Need to add printing of relocation entry of loader section later.
+  // For example:
+  //           if (PrintRelocation)
+  //             printLoaderSectionRelocationEntry();
+  W.unindent();
+}
+
+void XCOFFDumper::printLoaderSectionHeader(uintptr_t LoaderSectionAddr) {
+  DictScope DS(W, "Loader Section Header");
+
+  auto PrintLoadSecHeaderCommon = [&](const auto *LDHeader) {
+    W.printNumber("Version", LDHeader->Version);
+    W.printNumber("NumberOfSymbolEntries", LDHeader->NumberOfSymTabEnt);
+    W.printNumber("NumberOfRelocationEntries", LDHeader->NumberOfRelTabEnt);
+    W.printNumber("LengthOfImportFileIDStringTable",
+                  LDHeader->LengthOfImpidStrTbl);
+    W.printNumber("NumberOfImportFileIDs", LDHeader->NumberOfImpid);
+    W.printHex("OffsetToImportFileIDs", LDHeader->OffsetToImpid);
+    W.printNumber("LengthOfStringTable", LDHeader->LengthOfStrTbl);
+    W.printHex("OffsetToStringTable", LDHeader->OffsetToStrTbl);
+  };
+
+  if (Obj.is64Bit()) {
+    const LoaderSectionHeader64 *LoaderSec64 =
+        reinterpret_cast<const LoaderSectionHeader64 *>(LoaderSectionAddr);
+    PrintLoadSecHeaderCommon(LoaderSec64);
+    W.printHex("OffsetToSymbolTable", LoaderSec64->OffsetToSymTbl);
+    W.printHex("OffsetToRelocationEntries", LoaderSec64->OffsetToRelEnt);
+  } else {
+    const LoaderSectionHeader32 *LoaderSec32 =
+        reinterpret_cast<const LoaderSectionHeader32 *>(LoaderSectionAddr);
+    PrintLoadSecHeaderCommon(LoaderSec32);
+  }
+}
+
+const EnumEntry<XCOFF::StorageClass> SymStorageClass[] = {
+#define ECase(X)                                                               \
+  { #X, XCOFF::X }
+    ECase(C_NULL),  ECase(C_AUTO),    ECase(C_EXT),     ECase(C_STAT),
+    ECase(C_REG),   ECase(C_EXTDEF),  ECase(C_LABEL),   ECase(C_ULABEL),
+    ECase(C_MOS),   ECase(C_ARG),     ECase(C_STRTAG),  ECase(C_MOU),
+    ECase(C_UNTAG), ECase(C_TPDEF),   ECase(C_USTATIC), ECase(C_ENTAG),
+    ECase(C_MOE),   ECase(C_REGPARM), ECase(C_FIELD),   ECase(C_BLOCK),
+    ECase(C_FCN),   ECase(C_EOS),     ECase(C_FILE),    ECase(C_LINE),
+    ECase(C_ALIAS), ECase(C_HIDDEN),  ECase(C_HIDEXT),  ECase(C_BINCL),
+    ECase(C_EINCL), ECase(C_INFO),    ECase(C_WEAKEXT), ECase(C_DWARF),
+    ECase(C_GSYM),  ECase(C_LSYM),    ECase(C_PSYM),    ECase(C_RSYM),
+    ECase(C_RPSYM), ECase(C_STSYM),   ECase(C_TCSYM),   ECase(C_BCOMM),
+    ECase(C_ECOML), ECase(C_ECOMM),   ECase(C_DECL),    ECase(C_ENTRY),
+    ECase(C_FUN),   ECase(C_BSTAT),   ECase(C_ESTAT),   ECase(C_GTLS),
+    ECase(C_STTLS), ECase(C_EFCN)
+#undef ECase
+};
+
+template <typename LoaderSectionSymbolEntry, typename LoaderSectionHeader>
+void XCOFFDumper::printLoaderSectionSymbolsHelper(uintptr_t LoaderSectionAddr) {
+  const LoaderSectionHeader *LoadSecHeader =
+      reinterpret_cast<const LoaderSectionHeader *>(LoaderSectionAddr);
+  const LoaderSectionSymbolEntry *LoadSecSymEntPtr =
+      reinterpret_cast<LoaderSectionSymbolEntry *>(
+          LoaderSectionAddr + uintptr_t(LoadSecHeader->getOffsetToSymTbl()));
+
+  for (uint32_t i = 0; i < LoadSecHeader->NumberOfSymTabEnt;
+       ++i, ++LoadSecSymEntPtr) {
+    if (Error E = Binary::checkOffset(
+            Obj.getMemoryBufferRef(),
+            LoaderSectionAddr + uintptr_t(LoadSecHeader->getOffsetToSymTbl()) +
+                (i * sizeof(LoaderSectionSymbolEntry)),
+            sizeof(LoaderSectionSymbolEntry))) {
+      reportUniqueWarning(std::move(E));
+      return;
+    }
+
+    Expected<StringRef> SymbolNameOrErr =
+        LoadSecSymEntPtr->getSymbolName(LoadSecHeader);
+    if (!SymbolNameOrErr) {
+      reportUniqueWarning(SymbolNameOrErr.takeError());
+      return;
+    }
+
+    DictScope DS(W, "Symbol");
+    W.printString("Name", SymbolNameOrErr.get());
+    W.printHex("Virtual Address", LoadSecSymEntPtr->Value);
+    W.printNumber("SectionNum", LoadSecSymEntPtr->SectionNumber);
+    W.printHex("SymbolType", LoadSecSymEntPtr->SymbolType);
+    W.printEnum("StorageClass",
+                static_cast<uint8_t>(LoadSecSymEntPtr->StorageClass),
+                makeArrayRef(SymStorageClass));
+    W.printHex("ImportFileID", LoadSecSymEntPtr->ImportFileID);
+    W.printNumber("ParameterTypeCheck", LoadSecSymEntPtr->ParameterTypeCheck);
+  }
+}
+
+void XCOFFDumper::printLoaderSectionSymbols(uintptr_t LoaderSectionAddr) {
+  DictScope DS(W, "Loader Section Symbols");
+  if (Obj.is64Bit())
+    printLoaderSectionSymbolsHelper<LoaderSectionSymbolEntry64,
+                                    LoaderSectionHeader64>(LoaderSectionAddr);
+  else
+    printLoaderSectionSymbolsHelper<LoaderSectionSymbolEntry32,
+                                    LoaderSectionHeader32>(LoaderSectionAddr);
+}
+
+template <typename T>
+void XCOFFDumper::printExceptionSectionEntry(const T &ExceptionSectEnt) const {
+  if (ExceptionSectEnt.getReason())
+    W.printHex("Trap Instr Addr", ExceptionSectEnt.getTrapInstAddr());
+  else {
+    uint32_t SymIdx = ExceptionSectEnt.getSymbolIndex();
+    Expected<StringRef> ErrOrSymbolName = Obj.getSymbolNameByIndex(SymIdx);
+    if (Error E = ErrOrSymbolName.takeError()) {
+      reportUniqueWarning(std::move(E));
+      return;
+    }
+    StringRef SymName = *ErrOrSymbolName;
+
+    W.printNumber("Symbol", SymName, SymIdx);
+  }
+  W.printNumber("LangID", ExceptionSectEnt.getLangID());
+  W.printNumber("Reason", ExceptionSectEnt.getReason());
+}
+
+template <typename T> void XCOFFDumper::printExceptionSectionEntries() const {
+  Expected<ArrayRef<T>> ExceptSectEntsOrErr = Obj.getExceptionEntries<T>();
+  if (Error E = ExceptSectEntsOrErr.takeError()) {
+    reportUniqueWarning(std::move(E));
+    return;
+  }
+  ArrayRef<T> ExceptSectEnts = *ExceptSectEntsOrErr;
+
+  DictScope DS(W, "Exception section");
+  if (ExceptSectEnts.empty())
+    return;
+  for (auto &Ent : ExceptSectEnts)
+    printExceptionSectionEntry(Ent);
+}
+
+void XCOFFDumper::printExceptionSection() {
+  if (Obj.is64Bit())
+    printExceptionSectionEntries<ExceptionSectionEntry64>();
+  else
+    printExceptionSectionEntries<ExceptionSectionEntry32>();
 }
 
 void XCOFFDumper::printRelocations() {
@@ -371,25 +544,6 @@ void XCOFFDumper::printSectAuxEntForDWARF(const T *AuxEntPtr) {
                 makeArrayRef(SymAuxType));
 }
 
-const EnumEntry<XCOFF::StorageClass> SymStorageClass[] = {
-#define ECase(X)                                                               \
-  { #X, XCOFF::X }
-    ECase(C_NULL),  ECase(C_AUTO),    ECase(C_EXT),     ECase(C_STAT),
-    ECase(C_REG),   ECase(C_EXTDEF),  ECase(C_LABEL),   ECase(C_ULABEL),
-    ECase(C_MOS),   ECase(C_ARG),     ECase(C_STRTAG),  ECase(C_MOU),
-    ECase(C_UNTAG), ECase(C_TPDEF),   ECase(C_USTATIC), ECase(C_ENTAG),
-    ECase(C_MOE),   ECase(C_REGPARM), ECase(C_FIELD),   ECase(C_BLOCK),
-    ECase(C_FCN),   ECase(C_EOS),     ECase(C_FILE),    ECase(C_LINE),
-    ECase(C_ALIAS), ECase(C_HIDDEN),  ECase(C_HIDEXT),  ECase(C_BINCL),
-    ECase(C_EINCL), ECase(C_INFO),    ECase(C_WEAKEXT), ECase(C_DWARF),
-    ECase(C_GSYM),  ECase(C_LSYM),    ECase(C_PSYM),    ECase(C_RSYM),
-    ECase(C_RPSYM), ECase(C_STSYM),   ECase(C_TCSYM),   ECase(C_BCOMM),
-    ECase(C_ECOML), ECase(C_ECOMM),   ECase(C_DECL),    ECase(C_ENTRY),
-    ECase(C_FUN),   ECase(C_BSTAT),   ECase(C_ESTAT),   ECase(C_GTLS),
-    ECase(C_STTLS), ECase(C_EFCN)
-#undef ECase
-};
-
 static StringRef GetSymbolValueName(XCOFF::StorageClass SC) {
   switch (SC) {
   case XCOFF::C_EXT:
@@ -447,7 +601,7 @@ static void printUnexpectedRawAuxEnt(ScopedPrinter &W, uintptr_t AuxAddress) {
                        ArrayRef<uint8_t>(
                            reinterpret_cast<const uint8_t *>(AuxAddress),
                            XCOFF::SymbolTableEntrySize),
-                       None, XCOFF::SymbolTableEntrySize)
+                       std::nullopt, XCOFF::SymbolTableEntrySize)
                 << "\n";
 }
 
@@ -519,22 +673,13 @@ void XCOFFDumper::printSymbol(const SymbolRef &S) {
   case XCOFF::C_EXT:
   case XCOFF::C_WEAKEXT:
   case XCOFF::C_HIDEXT: {
-    if (!SymbolEntRef.isFunction() && NumberOfAuxEntries > 1)
-      reportUniqueWarning("the non-function " +
-                          enumToString(static_cast<uint8_t>(SymbolClass),
-                                       makeArrayRef(SymStorageClass)) +
-                          " symbol at index " + Twine(SymbolIdx) +
-                          " should have only 1 auxiliary entry, i.e. the CSECT "
-                          "auxiliary entry");
-
     // For 32-bit objects, print the function auxiliary symbol table entry. The
     // last one must be a CSECT auxiliary entry.
     // For 64-bit objects, both a function auxiliary entry and an exception
     // auxiliary entry may appear, print them in the loop and skip printing the
     // CSECT auxiliary entry, which will be printed outside the loop.
     for (int I = 1; I <= NumberOfAuxEntries; I++) {
-      if ((I == NumberOfAuxEntries && !Obj.is64Bit()) ||
-          !SymbolEntRef.isFunction())
+      if (I == NumberOfAuxEntries && !Obj.is64Bit())
         break;
 
       uintptr_t AuxAddress = XCOFFObjectFile::getAdvancedSymbolEntryAddress(

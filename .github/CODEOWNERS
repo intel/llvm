@@ -1,4 +1,4 @@
-* @pvchupin
+* @bader
 
 # Front-end compiler
 clang/ @intel/dpcpp-cfe-reviewers
@@ -60,7 +60,16 @@ sycl/include/sycl/ext/intel/esimd.hpp @intel/dpcpp-esimd-reviewers
 sycl/doc/extensions/experimental/sycl_ext_intel_esimd/ @intel/dpcpp-esimd-reviewers
 llvm/lib/SYCLLowerIR/CMakeLists.txt @intel/dpcpp-tools-reviewers @intel/dpcpp-esimd-reviewers
 
+# invoke_simd
+sycl/include/sycl/ext/oneapi/experimental/invoke_simd.hpp @rolandschulz @kbobrovs
+sycl/include/std/experimental/simd.hpp @rolandschulz @kbobrovs
+llvm/lib/SYCLLowerIR/LowerInvokeSimd.cpp @kbobrovs @v-klochkov @rolandschulz
+llvm/include/llvm/SYCLLowerIR/LowerInvokeSimd.h @kbobrovs @v-klochkov @rolandschulz
+
 # DevOps configs
 .github/workflows/ @intel/dpcpp-devops-reviewers
 buildbot/ @intel/dpcpp-devops-reviewers
 devops/ @intel/dpcpp-devops-reviewers
+
+# Kernel fusion JIT compiler
+sycl-fusion/ @victor-eds @Naghasan @sommerlukas

@@ -13,7 +13,7 @@
 
 #include <sycl/detail/spinlock.hpp>
 
-#include <level_zero/zet_api.h>
+#include <zet_api.h>
 
 #include <iostream>
 #include <mutex>
@@ -250,7 +250,7 @@ XPTI_CALLBACK_API void zeCallback(uint16_t TraceType,
                                   xpti::trace_event_data_t * /*Parent*/,
                                   xpti::trace_event_data_t * /*Event*/,
                                   uint64_t /*Instance*/, const void *UserData) {
-  std::lock_guard _{GlobalLock};
+  std::lock_guard<sycl::detail::SpinLock> _{GlobalLock};
   const auto *Data = static_cast<const xpti::function_with_args_t *>(UserData);
   const auto PrintPrefix = [] {
     if (HasPIPrinter)

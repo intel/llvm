@@ -20,7 +20,6 @@
 
 #include "llvm/Transforms/Instrumentation/ThreadSanitizer.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
@@ -341,13 +340,13 @@ void ThreadSanitizer::initialize(Module &M) {
   }
 
   MemmoveFn =
-      M.getOrInsertFunction("memmove", Attr, IRB.getInt8PtrTy(),
+      M.getOrInsertFunction("__tsan_memmove", Attr, IRB.getInt8PtrTy(),
                             IRB.getInt8PtrTy(), IRB.getInt8PtrTy(), IntptrTy);
   MemcpyFn =
-      M.getOrInsertFunction("memcpy", Attr, IRB.getInt8PtrTy(),
+      M.getOrInsertFunction("__tsan_memcpy", Attr, IRB.getInt8PtrTy(),
                             IRB.getInt8PtrTy(), IRB.getInt8PtrTy(), IntptrTy);
   MemsetFn =
-      M.getOrInsertFunction("memset", Attr, IRB.getInt8PtrTy(),
+      M.getOrInsertFunction("__tsan_memset", Attr, IRB.getInt8PtrTy(),
                             IRB.getInt8PtrTy(), IRB.getInt32Ty(), IntptrTy);
 }
 
@@ -379,7 +378,7 @@ static bool shouldInstrumentReadWriteFromAddress(const Module *M, Value *Addr) {
       return false;
   }
 
-  // Do not instrument acesses from different address spaces; we cannot deal
+  // Do not instrument accesses from different address spaces; we cannot deal
   // with them.
   if (Addr) {
     Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
@@ -561,12 +560,12 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
   // Instrument atomic memory accesses in any case (they can be used to
   // implement synchronization).
   if (ClInstrumentAtomics)
-    for (auto Inst : AtomicAccesses) {
+    for (auto *Inst : AtomicAccesses) {
       Res |= instrumentAtomic(Inst, DL);
     }
 
   if (ClInstrumentMemIntrinsics && SanitizeFunction)
-    for (auto Inst : MemIntrinCalls) {
+    for (auto *Inst : MemIntrinCalls) {
       Res |= instrumentMemIntrinsic(Inst);
     }
 
@@ -676,7 +675,7 @@ static ConstantInt *createOrdering(IRBuilder<> *IRB, AtomicOrdering ord) {
   switch (ord) {
     case AtomicOrdering::NotAtomic:
       llvm_unreachable("unexpected atomic ordering!");
-    case AtomicOrdering::Unordered:              LLVM_FALLTHROUGH;
+    case AtomicOrdering::Unordered:              [[fallthrough]];
     case AtomicOrdering::Monotonic:              v = 0; break;
     // Not specified yet:
     // case AtomicOrdering::Consume:                v = 1; break;
@@ -802,7 +801,7 @@ bool ThreadSanitizer::instrumentAtomic(Instruction *I, const DataLayout &DL) {
     }
 
     Value *Res =
-      IRB.CreateInsertValue(UndefValue::get(CASI->getType()), OldVal, 0);
+      IRB.CreateInsertValue(PoisonValue::get(CASI->getType()), OldVal, 0);
     Res = IRB.CreateInsertValue(Res, Success, 1);
 
     I->replaceAllUsesWith(Res);
