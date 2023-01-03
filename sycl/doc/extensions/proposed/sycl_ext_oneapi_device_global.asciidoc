@@ -620,7 +620,7 @@ a|
 This property is most useful for kernels that are submitted to an FPGA device,
 but it may be used with any kernel.  Normally, a single instance of a device
 global variable is allocated for each device, and that instance is shared by
-all kernels that belong to the same context and submitted to the same device,
+all kernels that belong to the same context and are submitted to the same device,
 regardless of which _device image_ contains the kernel.  When this property is
 specified, it is an assertion by the user that the device global is referenced
 only from kernels that are contained by the same _device image_.  An
