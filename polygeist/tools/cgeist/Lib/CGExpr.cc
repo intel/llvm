@@ -181,8 +181,14 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *Decl) {
 /// provided InitListExpr.
 mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
                                                            clang::Expr *Expr) {
-  // Struct initializan requires an extra 0, since the first index
-  // is the pointer index, and then the struct index.
+  LLVM_DEBUG({
+    llvm::dbgs() << "InitializeValueByInitListExpr: ";
+    Expr->dump();
+    llvm::dbgs() << "\n";
+  });
+
+  // Struct initialization requires an extra 0, since the first index is the
+  // pointer index, and then the struct index.
   const auto *PTT = Expr->getType()->getUnqualifiedDesugaredType();
 
   bool Inner = false;
@@ -718,74 +724,79 @@ ValueCategory MLIRScanner::VisitCXXDeleteExpr(clang::CXXDeleteExpr *Expr) {
 
   return nullptr;
 }
+
 ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *Expr) {
+  LLVM_DEBUG({
+    llvm::dbgs() << "VisitCXXNewExpr: ";
+    Expr->dump();
+    llvm::dbgs() << "\n";
+  });
+
   Location Loc = getMLIRLocation(Expr->getExprLoc());
 
   mlir::Value Count;
-
   if (Expr->isArray()) {
     Count = Visit(*Expr->raw_arg_begin()).getValue(Builder);
     Count = Builder.create<arith::IndexCastOp>(
         Loc, mlir::IndexType::get(Builder.getContext()), Count);
-  } else {
+  } else
     Count = getConstantIndex(1);
-  }
   assert(Count);
 
   mlir::Type Ty = Glob.getTypes().getMLIRType(Expr->getType());
 
-  mlir::Value Alloc;
-  mlir::Value ArrayCons;
+  mlir::Value Alloc, ArrayCons;
   if (!Expr->placement_arguments().empty()) {
     mlir::Value Val = Visit(*Expr->placement_arg_begin()).getValue(Builder);
-    if (auto MT = Ty.dyn_cast<mlir::MemRefType>()) {
+    if (auto MT = Ty.dyn_cast<mlir::MemRefType>())
       ArrayCons = Alloc =
           Builder.create<polygeist::Pointer2MemrefOp>(Loc, MT, Val);
-    } else {
+    else {
       ArrayCons = Alloc = Builder.create<mlir::LLVM::BitcastOp>(Loc, Ty, Val);
-      auto PT = Ty.cast<LLVM::LLVMPointerType>();
-      if (Expr->isArray())
+      if (Expr->isArray()) {
+        auto PT = Ty.cast<LLVM::LLVMPointerType>();
         ArrayCons = Builder.create<mlir::LLVM::BitcastOp>(
             Loc,
             LLVM::LLVMPointerType::get(
                 LLVM::LLVMArrayType::get(PT.getElementType(), 0),
                 PT.getAddressSpace()),
             Alloc);
+      }
     }
   } else if (auto MT = Ty.dyn_cast<mlir::MemRefType>()) {
-    auto Shape = std::vector<int64_t>(MT.getShape());
-    mlir::Value Args[1] = {Count};
-    ArrayCons = Alloc = Builder.create<mlir::memref::AllocOp>(Loc, MT, Args);
-    if (Expr->hasInitializer() && isa<InitListExpr>(Expr->getInitializer()))
-      (void)InitializeValueByInitListExpr(Alloc, Expr->getInitializer());
-
+    ArrayCons = Alloc =
+        Builder.create<mlir::memref::AllocOp>(Loc, MT, ValueRange{Count});
   } else {
     auto I64 = mlir::IntegerType::get(Count.getContext(), 64);
-    auto TypeSize = getTypeSize(Expr->getAllocatedType());
-    mlir::Value Args[1] = {Builder.create<arith::MulIOp>(Loc, TypeSize, Count)};
-    Args[0] = Builder.create<arith::IndexCastOp>(Loc, I64, Args[0]);
+    Value TypeSize = getTypeSize(Expr->getAllocatedType());
+    ValueRange Args = {Builder.create<arith::IndexCastOp>(
+        Loc, I64, Builder.create<arith::MulIOp>(Loc, TypeSize, Count))};
     ArrayCons = Alloc = Builder.create<mlir::LLVM::BitcastOp>(
         Loc, Ty,
         Builder
             .create<mlir::LLVM::CallOp>(Loc, Glob.getOrCreateMallocFunction(),
                                         Args)
             ->getResult(0));
-    auto PT = Ty.cast<LLVM::LLVMPointerType>();
-    if (Expr->isArray())
+    if (Expr->isArray()) {
+      auto PT = Ty.cast<LLVM::LLVMPointerType>();
       ArrayCons = Builder.create<mlir::LLVM::BitcastOp>(
           Loc,
           LLVM::LLVMPointerType::get(
               LLVM::LLVMArrayType::get(PT.getElementType(), 0),
               PT.getAddressSpace()),
           Alloc);
+    }
   }
   assert(Alloc);
 
-  if (Expr->getConstructExpr()) {
+  if (Expr->hasInitializer() && isa<InitListExpr>(Expr->getInitializer()))
+    (void)InitializeValueByInitListExpr(Alloc, Expr->getInitializer());
+
+  if (Expr->getConstructExpr())
     VisitConstructCommon(
         const_cast<CXXConstructExpr *>(Expr->getConstructExpr()),
         /*name*/ nullptr, /*memtype*/ 0, ArrayCons, Count);
-  }
+
   return ValueCategory(Alloc, /*isRefererence*/ false);
 }
 
