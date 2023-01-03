@@ -861,11 +861,10 @@ void CodeGenModule::Release() {
     // Indicate whether __nvvm_reflect should be configured to flush denormal
     // floating point values to 0.  (This corresponds to its "__CUDA_FTZ"
     // property.)
-    getModule().addModuleFlag(llvm::Module::Max, "nvvm-reflect-ftz",
-                              (CodeGenOpts.FP32DenormalMode.Output !=
-                                  llvm::DenormalMode::IEEE) ||
-                              (CodeGenOpts.FPDenormalMode.Output !=
-                                  llvm::DenormalMode::IEEE));
+    getModule().addModuleFlag(
+        llvm::Module::Max, "nvvm-reflect-ftz",
+        (CodeGenOpts.FP32DenormalMode.Output != llvm::DenormalMode::IEEE) ||
+            (CodeGenOpts.FPDenormalMode.Output != llvm::DenormalMode::IEEE));
     getModule().addModuleFlag(llvm::Module::Max, "nvvm-reflect-prec-sqrt",
                               getTarget().getTargetOpts().NVVMCudaPrecSqrt);
   }
