@@ -161,18 +161,18 @@ device::get_info<info::device::aspects>() const {
 #undef __SYCL_ASPECT
   };
 
-  DeviceAspects.erase(std::remove_if(DeviceAspects.begin(), DeviceAspects.end(),
-                                     [&](aspect Aspect) {
-                                       try {
-                                         return !impl->has(Aspect);
-                                       } catch (const runtime_error &ex) {
-                                         if (ex.get_cl_code() ==
-                                             PI_ERROR_INVALID_DEVICE)
-                                           return true;
-                                         throw;
-                                       }
-                                     }),
-                      DeviceAspects.end());
+  auto UnsupportedAspects = std::remove_if(
+      DeviceAspects.begin(), DeviceAspects.end(), [&](aspect Aspect) {
+        try {
+          return !impl->has(Aspect);
+        } catch (const runtime_error &ex) {
+          if (ex.get_cl_code() == PI_ERROR_INVALID_DEVICE)
+            return true;
+          throw;
+        }
+      });
+
+  DeviceAspects.erase(UnsupportedAspects, DeviceAspects.end());
 
   return DeviceAspects;
 }
