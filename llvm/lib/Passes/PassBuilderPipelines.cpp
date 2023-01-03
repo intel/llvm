@@ -2004,7 +2004,7 @@ void PassBuilder::addSYCLFrameworkSimplificationPipeline(
   // Compare/branch metadata may alter the behavior of passes like SimplifyCFG.
   EarlyFPM.addPass(LowerExpectIntrinsicPass());
   EarlyFPM.addPass(SimplifyCFGPass());
-  EarlyFPM.addPass(SROAPass());
+  EarlyFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
   EarlyFPM.addPass(EarlyCSEPass());
   MPM.addPass(
       createModuleToSYCLFrameworkFunctionPassAdaptor(std::move(EarlyFPM)));
