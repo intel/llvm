@@ -27,6 +27,7 @@
 #include "llvm/Passes/OptimizationLevel.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/SYCLLowerIR/IR/PassAdaptors.h"
+#include "llvm/SYCLLowerIR/SYCLFrameworkOptimization.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/PGOOptions.h"
@@ -128,7 +129,6 @@
 #include "llvm/Transforms/Vectorize/LoopVectorize.h"
 #include "llvm/Transforms/Vectorize/SLPVectorizer.h"
 #include "llvm/Transforms/Vectorize/VectorCombine.h"
-#include "llvm/SYCLLowerIR/SYCLFrameworkOptimization.h"
 
 using namespace llvm;
 
