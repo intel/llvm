@@ -8,6 +8,8 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
 
   # Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104
   set(CMAKE_INCLUDE_CURRENT_DIR OFF)
+  # Prevent L0 loader from exporting extra symbols
+  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS OFF)
 
   message(STATUS "Will fetch Level Zero Loader from ${LEVEL_ZERO_LOADER_REPO}")
   include(FetchContent)
@@ -109,11 +111,9 @@ add_sycl_plugin(level_zero
 #       toolchain installation. Instead these should be avaialble in the system.
 #       We keep shipping it until all environments are updated.
 install(TARGETS ze_loader
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    LIBRARY
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        COMPONENT level-zero-sycl-dev
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT level-zero-sycl-dev
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
         NAMELINK_SKIP
 )
 

@@ -146,7 +146,6 @@ bool CompilerInstance::createTarget() {
     return false;
 
   // Inform the target of the language options.
-  //
   // FIXME: We shouldn't need to do this, the target should be immutable once
   // created. This complexity should be lifted elsewhere.
   getTarget().adjust(getDiagnostics(), getLangOpts());

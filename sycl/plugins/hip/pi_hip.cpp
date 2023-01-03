@@ -2928,6 +2928,27 @@ pi_result hip_piEnqueueKernelLaunch(
       retImplEv->start();
     }
 
+    // Set local mem max size if env var is present
+    static const char *local_mem_sz_ptr =
+        std::getenv("SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE");
+
+    if (local_mem_sz_ptr) {
+      int device_max_local_mem = 0;
+      retError = PI_CHECK_ERROR(hipDeviceGetAttribute(
+          &device_max_local_mem, hipDeviceAttributeMaxSharedMemoryPerBlock,
+          command_queue->get_device()->get()));
+
+      static const int env_val = std::atoi(local_mem_sz_ptr);
+      if (env_val <= 0 || env_val > device_max_local_mem) {
+        setErrorMessage("Invalid value specified for "
+                        "SYCL_PI_HIP_MAX_LOCAL_MEM_SIZE",
+                        PI_ERROR_PLUGIN_SPECIFIC_ERROR);
+        return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+      }
+      retError = PI_CHECK_ERROR(hipFuncSetAttribute(
+          hipFunc, hipFuncAttributeMaxDynamicSharedMemorySize, env_val));
+    }
+
     retError = PI_CHECK_ERROR(hipModuleLaunchKernel(
         hipFunc, blocksPerGrid[0], blocksPerGrid[1], blocksPerGrid[2],
         threadsPerBlock[0], threadsPerBlock[1], threadsPerBlock[2],

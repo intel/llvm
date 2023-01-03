@@ -538,8 +538,8 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
 
   // Need empty command to be blocked until host accessor is destructed
   EmptyCommand *EmptyCmd =
-      addEmptyCmd<Requirement>(UpdateHostAccCmd, {Req}, HostQueue,
-                               Command::BlockReason::HostAccessor, ToEnqueue);
+      addEmptyCmd(UpdateHostAccCmd, {Req}, HostQueue,
+                  Command::BlockReason::HostAccessor, ToEnqueue);
 
   Req->MBlockedCmd = EmptyCmd;
 
@@ -851,15 +851,10 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
   }
 }
 
-template <typename T>
-typename detail::enable_if_t<
-    std::is_same<typename std::remove_cv_t<T>, Requirement>::value,
-    EmptyCommand *>
-Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
-                                     const QueueImplPtr &Queue,
-                                     Command::BlockReason Reason,
-                                     std::vector<Command *> &ToEnqueue,
-                                     const bool AddDepsToLeaves) {
+EmptyCommand *Scheduler::GraphBuilder::addEmptyCmd(
+    Command *Cmd, const std::vector<Requirement *> &Reqs,
+    const QueueImplPtr &Queue, Command::BlockReason Reason,
+    std::vector<Command *> &ToEnqueue, const bool AddDepsToLeaves) {
   EmptyCommand *EmptyCmd =
       new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
 
@@ -870,7 +865,7 @@ Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
   EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
   EmptyCmd->MBlockReason = Reason;
 
-  for (T *Req : Reqs) {
+  for (Requirement *Req : Reqs) {
     MemObjRecord *Record = getOrInsertMemObjRecord(Queue, Req, ToEnqueue);
     AllocaCommandBase *AllocaCmd =
         getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
