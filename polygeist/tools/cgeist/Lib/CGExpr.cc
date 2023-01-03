@@ -1348,7 +1348,7 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
     return ValueCategory(V, /*isReference*/ true);
   }
 
-  llvm_unreachable("couldnt find value");
+  llvm_unreachable("couldn't find value");
   return nullptr;
 }
 
@@ -1479,17 +1479,6 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     unsigned AS = Glob.getCGM().getContext().getTargetAddressSpace(
         DestTy->isPointerType() ? DestTy->getPointeeType().getAddressSpace()
                                 : DestTy.getAddressSpace());
-#ifdef DEBUG
-    if (ReturnVal) {
-      mlir::Type PostTy =
-          ReturnVal.getType().cast<MemRefType>().getElementType();
-      unsigned AS1 =
-          PostTy.isa<MemRefType>()
-              ? PostTy.cast<MemRefType>().getMemorySpaceAsInt()
-              : PostTy.cast<LLVM::LLVMPointerType>().getAddressSpace();
-      assert(AS == AS1);
-    }
-#endif
     return ValueCategory(castToMemSpace(Scalar.val, AS), Scalar.isReference);
   }
   case clang::CastKind::CK_Dynamic: {
