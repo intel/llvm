@@ -1,4 +1,4 @@
-= SYCL_EXT_ONEAPI_GRAPH
+= sycl_ext_oneapi_graph
 :source-highlighter: coderay
 :coderay-linenums-mode: table
 
@@ -21,16 +21,16 @@
 
 Copyright (c) 2022 Intel Corporation.  All rights reserved.
 
-IMPORTANT: This specification is a draft.
-
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
 trademarks of The Khronos Group Inc. OpenCL(TM) is a trademark of Apple Inc.
 used by permission by Khronos.
 
 
-This extension is written against the SYCL 2020 revision 5 specification. All
-references below to the "core SYCL specification" or to section numbers in the
-SYCL specification refer to that revision.
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
 
 == Contributors
 
@@ -49,6 +49,12 @@ Erik Tomusk, Codeplay +
 Bjoern Knafla, Codeplay +
 Lukas Sommer, Codeplay +
 Ronan Keryell, AMD +
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 6 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
 
 == Status
 
@@ -494,7 +500,7 @@ Table 6. Member functions of the `command_graph` class.
 using namespace ext::oneapi::experimental;
 node add(const property_list& propList = {});
 ----
-|This creates an empty node which is associated to no task. Its intended use is
+|This creates an empty node which contains no command. Its intended use is
 either a connection point inside a graph between groups of nodes, and can
 significantly reduce the number of edges ( O(n) vs. O(n^2) ). Another use-case
 is building the structure of a graph first and adding tasks later.
