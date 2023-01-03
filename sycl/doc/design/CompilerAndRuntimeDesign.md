@@ -473,7 +473,7 @@ is then processed by the
 The resulting device binary is inserted back into the file table in place of the
 extracted code file using `file-table-tform`. If `-fno-sycl-rdc` is specified,
 all shown tools are invoked multiple times, once per translation unit rather than
-once total.
+once total. See [Non-Reusable Device Code](NonReusableDeviceCode.md) for more information.
 
 ##### Device code splitting
 
