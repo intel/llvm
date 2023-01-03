@@ -34,7 +34,10 @@
 ; RUN: spirv-val %t.spv
 
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t1.bc --spirv-target-env="CL1.2"
-; RUN: llvm-dis < %t1.bc | FileCheck %s --check-prefix=CHECK-LLVM-12
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %t1.bc | FileCheck %s --check-prefix=CHECK-LLVM-12
 
 ; CHECK-LLVM-12: call spir_func void @_Z7barrierj(i32 2) [[attr:#[0-9]+]]
 ; CHECK-LLVM-12: call spir_func void @_Z7barrierj(i32 1) [[attr]]
@@ -45,7 +48,10 @@
 ; CHECK-LLVM-12: attributes [[attr]] = { convergent nounwind }
 
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t2.bc --spirv-target-env="CL2.0"
-; RUN: llvm-dis < %t2.bc | FileCheck %s --check-prefix=CHECK-LLVM-20
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %t2.bc | FileCheck %s --check-prefix=CHECK-LLVM-20
 
 ; CHECK-LLVM-20: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 2, i32 1) [[attr:#[0-9]+]]
 ; CHECK-LLVM-20: call spir_func void @_Z18work_group_barrierj12memory_scope(i32 1, i32 1) [[attr]]
@@ -56,7 +62,10 @@
 ; CHECK-LLVM-20: attributes [[attr]] = { convergent nounwind }
 
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t3.bc --spirv-target-env="SPV-IR"
-; RUN: llvm-dis < %t3.bc | FileCheck %s --check-prefix=CHECK-LLVM-SPV-IR
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %t3.bc | FileCheck %s --check-prefix=CHECK-LLVM-SPV-IR
 
 ; CHECK-LLVM-SPV-IR: call spir_func void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 528) [[attr:#[0-9]+]]
 ; CHECK-LLVM-SPV-IR: call spir_func void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) [[attr]]

@@ -1,10 +1,22 @@
 // RUN: %clang_cc1 -triple spir64-unknown-unknown -x cl -cl-std=CL2.0 -O0 -fdeclare-opencl-builtins -finclude-default-header -emit-llvm-bc %s -o %t.bc
-// RUN: llvm-spirv %t.bc -spirv-text -o %t.spt
+// Added -opaque-pointers.
+// FIXME: Align with the community code when project is ready to enable opaque
+// pointers by default
+// RUN: llvm-spirv -opaque-pointers %t.bc -spirv-text -o %t.spt
 // RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
-// RUN: llvm-spirv %t.bc -o %t.spv
+// Added -opaque-pointers.
+// FIXME: Align with the community code when project is ready to enable opaque
+// pointers by default
+// RUN: llvm-spirv -opaque-pointers %t.bc -o %t.spv
 // RUN: spirv-val %t.spv
-// RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc
-// RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
+// Added -opaque-pointers.
+// FIXME: Align with the community code when project is ready to enable opaque
+// pointers by default
+// RUN: llvm-spirv -opaque-pointers -r -emit-opaque-pointers %t.spv -o %t.bc
+// Added -opaque-pointers.
+// FIXME: Align with the community code when project is ready to enable opaque
+// pointers by default
+// RUN: llvm-dis -opaque-pointers < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 // CHECK-LLVM-LABEL: define spir_kernel void @test_float()
 // CHECK-LLVM-SAME: !vec_type_hint [[VFLOAT:![0-9]+]]

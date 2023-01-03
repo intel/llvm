@@ -2,7 +2,10 @@
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv %t.spv -o %t.spt --to-text
 ; RUN: llvm-spirv -r -emit-opaque-pointers -spirv-target-env="SPV-IR" %t.spv -o %t.bc
-; RUN: llvm-dis %t.bc -o %t.ll
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t.bc -o %t.ll
 ; RUN: FileCheck %s --input-file %t.spt -check-prefix=SPV
 ; RUN: FileCheck %s --input-file %t.ll  -check-prefix=LLVM
 ; RUN: spirv-val %t.spv

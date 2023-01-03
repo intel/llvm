@@ -3,7 +3,10 @@
 ; RUN: not llvm-spirv %t.bc 2>&1 | FileCheck %s --check-prefix=CHECK-WO-EXT
 
 ; RUN: llvm-spirv -s %t.bc -o %t.regularized.bc
-; RUN: llvm-dis %t.regularized.bc -o %t.regularized.ll
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t.regularized.bc -o %t.regularized.ll
 ; RUN: FileCheck < %t.regularized.ll %s --check-prefix=CHECK-REGULARIZED
 
 ; RUN: llvm-spirv --spirv-text %t.bc -o %t.spt --spirv-ext=+SPV_INTEL_bfloat16_conversion
@@ -12,11 +15,17 @@
 ; RUN: llvm-spirv -to-binary %t.spt -o %t.spv
 
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc --spirv-target-env=CL2.0
-; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM-CL20
 
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc --spirv-target-env=SPV-IR
-; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM-SPV
 
 ; CHECK-WO-EXT: RequiresExtension: Feature requires the following SPIR-V extension:

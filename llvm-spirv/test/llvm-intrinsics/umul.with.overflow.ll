@@ -5,7 +5,10 @@
 
 ; On LLVM level, we'll check that the intrinsics were generated again in reverse
 ; translation, replacing the SPIR-V level implementations.
-; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM \
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM \
 ; RUN:   "--implicit-check-not=declare {{.*}} @spirv.llvm_umul_with_overflow_{{.*}}"
 
 ; CHECK-SPIRV: Name [[NAME_UMUL_FUNC_8:[0-9]+]] "spirv.llvm_umul_with_overflow_i8"

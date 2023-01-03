@@ -44,7 +44,10 @@
 ; RUN: llvm-spirv %s -to-binary -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc
-; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-LLVM: %[[vector:[0-9]+]] = getelementptr inbounds <4 x i32>, ptr addrspace(1) %in, i64 %{{[0-9]*}}
 ; CHECK-LLVM: store <4 x i32> <i32 -123, i32 -122, i32 -121, i32 -119>, ptr addrspace(1) %[[vector]]

@@ -2,7 +2,10 @@
 ; RUN: llvm-spirv %t.bc -opaque-pointers=0 -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t_4mspirv.bc
-; RUN: llvm-dis %t_4mspirv.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-dis -opaque-pointers %t_4mspirv.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
 ;
 ; CHECK-SPIRV-DAG: TypeInt [[i32:[0-9]+]] 32 0
 ; CHECK-SPIRV-DAG: TypeInt [[i8:[0-9]+]] 8 0

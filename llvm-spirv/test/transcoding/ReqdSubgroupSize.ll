@@ -6,7 +6,10 @@
 ; RUN: llvm-as %s -o - | llvm-spirv -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv %t.spv -r -emit-opaque-pointers -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-spirv %t.spv -r -emit-opaque-pointers -o - | llvm-dis -opaque-pointers -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: Capability SubgroupDispatch
 ; CHECK-SPIRV: EntryPoint 6 [[kernel:[0-9]+]] "foo"

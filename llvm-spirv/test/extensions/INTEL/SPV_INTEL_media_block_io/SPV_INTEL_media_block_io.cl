@@ -1,11 +1,29 @@
 // RUN: %clang_cc1 -triple spir-unknown-unknown -O1 -cl-std=CL2.0 -fdeclare-opencl-builtins -finclude-default-header -emit-llvm-bc %s -o %t.bc
-// RUN: llvm-spirv --spirv-ext=+SPV_INTEL_media_block_io %t.bc -o %t.spv
-// RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+// Added -opaque-pointers.
+// FIXME: Align with the community code when project is ready to enable opaque
+// pointers by default
+// RUN: llvm-spirv -opaque-pointers --spirv-ext=+SPV_INTEL_media_block_io %t.bc -o %t.spv
+// Added -opaque-pointers.
+// FIXME: Align with the community code when project is ready to enable opaque
+// pointers by default
+// RUN: llvm-spirv -opaque-pointers %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 // RUN: spirv-val %t.spv
+// Added -opaque-pointers.
+// FIXME: Align with the community code when project is ready to enable opaque
+// pointers by default
 // RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-// RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+// Added -opaque-pointers.
+// FIXME: Align with the community code when project is ready to enable opaque
+// pointers by default
+// RUN: llvm-dis -opaque-pointers -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+// Added -opaque-pointers.
+// FIXME: Align with the community code when project is ready to enable opaque
+// pointers by default
 // RUN: llvm-spirv -r --spirv-target-env=SPV-IR %t.spv -o %t.rev.bc
-// RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
+// Added -opaque-pointers.
+// FIXME: Align with the community code when project is ready to enable opaque
+// pointers by default
+// RUN: llvm-dis -opaque-pointers -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
 
 uchar __attribute__((overloadable)) intel_sub_group_media_block_read_uc(int2 src_offset, int width, int height, read_only image2d_t image);
 uchar2 __attribute__((overloadable)) intel_sub_group_media_block_read_uc2(int2 src_offset, int width, int height, read_only image2d_t image);

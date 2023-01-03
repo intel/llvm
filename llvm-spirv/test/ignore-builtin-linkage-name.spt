@@ -49,7 +49,10 @@
 
 ; RUN: llvm-spirv %s -to-binary -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -spirv-target-env=SPV-IR -o - | llvm-dis | FileCheck %s -check-prefix=CHECK-LLVM
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -spirv-target-env=SPV-IR -o - | llvm-dis -opaque-pointers | FileCheck %s -check-prefix=CHECK-LLVM
 
 ; CHECK-LLVM-NOT: __spirv_WorkgroupSize
 ; CHECK-LLVM: __spirv_BuiltInWorkgroupSize

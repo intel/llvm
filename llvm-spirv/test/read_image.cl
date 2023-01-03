@@ -1,12 +1,30 @@
 // RUN: %clang_cc1 -triple spir64 -fdeclare-opencl-builtins -finclude-default-header -O0 -cl-std=CL2.0 -emit-llvm-bc %s -o %t.bc
-// RUN: llvm-spirv --spirv-max-version=1.3 %t.bc -o %t.spv
+// Added -opaque-pointers.
+// FIXME: Align with the community code when project is ready to enable opaque
+// pointers by default
+// RUN: llvm-spirv -opaque-pointers --spirv-max-version=1.3 %t.bc -o %t.spv
 // RUN: spirv-val %t.spv
-// RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+// Added -opaque-pointers.
+// FIXME: Align with the community code when project is ready to enable opaque
+// pointers by default
+// RUN: llvm-spirv -opaque-pointers %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+// Added -opaque-pointers.
+// FIXME: Align with the community code when project is ready to enable opaque
+// pointers by default
 // RUN: llvm-spirv -r %t.spv -o %t.rev.bc --spirv-target-env=SPV-IR
-// RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-LLVM
-// RUN: llvm-spirv --spirv-max-version=1.3 %t.rev.bc -o %t.rev.spv
+// Added -opaque-pointers.
+// FIXME: Align with the community code when project is ready to enable opaque
+// pointers by default
+// RUN: llvm-dis -opaque-pointers -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-LLVM
+// Added -opaque-pointers.
+// FIXME: Align with the community code when project is ready to enable opaque
+// pointers by default
+// RUN: llvm-spirv -opaque-pointers --spirv-max-version=1.3 %t.rev.bc -o %t.rev.spv
 // RUN: spirv-val %t.rev.spv
-// RUN: llvm-spirv --spirv-max-version=1.3 %t.rev.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+// Added -opaque-pointers.
+// FIXME: Align with the community code when project is ready to enable opaque
+// pointers by default
+// RUN: llvm-spirv -opaque-pointers --spirv-max-version=1.3 %t.rev.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
 // CHECK-SPIRV: TypeInt [[IntTy:[0-9]+]] 32
 // CHECK-SPIRV: TypeVector [[IVecTy:[0-9]+]] [[IntTy]]

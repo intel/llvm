@@ -1,11 +1,23 @@
 // RUN: %clang_cc1 -O1 -triple spir-unknown-unknown -cl-std=CL2.0 %s -finclude-default-header -emit-llvm-bc -o %t.bc
-// RUN: llvm-spirv %t.bc -spirv-text -o %t.txt
+// Added -opaque-pointers.
+// FIXME: Align with the community code when project is ready to enable opaque
+// pointers by default
+// RUN: llvm-spirv -opaque-pointers %t.bc -spirv-text -o %t.txt
 // RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
-// RUN: llvm-spirv %t.bc -o %t.spv
+// Added -opaque-pointers.
+// FIXME: Align with the community code when project is ready to enable opaque
+// pointers by default
+// RUN: llvm-spirv -opaque-pointers %t.bc -o %t.spv
 // RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-// RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+// Added -opaque-pointers.
+// FIXME: Align with the community code when project is ready to enable opaque
+// pointers by default
+// RUN: llvm-dis -opaque-pointers < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 // RUN: llvm-spirv -r %t.spv -o %t.rev.bc --spirv-target-env=SPV-IR
-// RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
+// Added -opaque-pointers.
+// FIXME: Align with the community code when project is ready to enable opaque
+// pointers by default
+// RUN: llvm-dis -opaque-pointers < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
 
 // CHECK-SPIRV: TypeVoid [[VOID_TY:[0-9]+]]
 // CHECK-SPIRV: TypeImage [[IMG2D_WO_TY:[0-9]+]] [[VOID_TY]] 1 0 0 0 0 0 1

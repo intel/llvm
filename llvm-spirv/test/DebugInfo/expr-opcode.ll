@@ -1,6 +1,9 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-allow-extra-diexpressions
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.rev.ll
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -opaque-pointers -o %t.rev.ll
 ; RUN: FileCheck %s --input-file %t.rev.ll
 
 ; RUN: llc -mtriple=%triple -dwarf-version=5 -filetype=obj -O0 < %t.rev.ll
