@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <svg
-   sodipodi:docname="NoRDCDeviceLinkAndWrapSourceFile.svg"
+   sodipodi:docname="NoRDCFatObject.svg"
    inkscape:version="1.2.2 (732a01da63, 2022-12-09)"
    id="svg8"
    version="1.1"
@@ -4982,17 +4982,17 @@
      fit-margin-left="0"
      fit-margin-top="0"
      inkscape:window-maximized="1"
-     inkscape:window-y="723"
-     inkscape:window-x="3832"
-     inkscape:window-height="1377"
-     inkscape:window-width="2560"
+     inkscape:window-y="-8"
+     inkscape:window-x="-8"
+     inkscape:window-height="1017"
+     inkscape:window-width="1920"
      showgrid="false"
      inkscape:document-rotation="0"
-     inkscape:current-layer="g891-1"
+     inkscape:current-layer="g841-6-4"
      inkscape:document-units="mm"
-     inkscape:cy="264.98761"
-     inkscape:cx="753.96577"
-     inkscape:zoom="1.8415955"
+     inkscape:cy="88.695735"
+     inkscape:cx="532.46238"
+     inkscape:zoom="5.2088187"
      inkscape:pageshadow="2"
      inkscape:pageopacity="0.0"
      borderopacity="1.0"
@@ -5088,7 +5088,7 @@
          id="path887-8"
          inkscape:connector-curvature="0" />
       <g
-         transform="matrix(1.1841501,0,0,0.9325611,-305.9399,-8.4725618)"
+         transform="matrix(1.1841501,0,0,0.9325611,-295.57287,-8.9045216)"
          id="g889-7">
         <g
            id="g891-1"
@@ -5101,10 +5101,11 @@
              xml:space="preserve"><tspan
                x="0"
                y="0"
-               id="tspan20870">b.cpp Device </tspan><tspan
+               id="tspan8162">b.o Device
+</tspan><tspan
                x="0"
                y="17.549999"
-               id="tspan20872">LLVM IR</tspan></text>
+               id="tspan8164"> LLVM IR</tspan></text>
           <circle
              id="path1218-3"
              style="fill:#000000;stroke:#000000;stroke-width:0.75"
@@ -7178,7 +7179,7 @@
          id="path887-8-1"
          inkscape:connector-curvature="0" />
       <g
-         transform="matrix(1.1841501,0,0,0.9325611,-305.9399,-8.4725618)"
+         transform="matrix(1.1841501,0,0,0.9325611,-296.2928,-8.6165483)"
          id="g889-7-6">
         <g
            id="g891-1-8"
@@ -7191,10 +7192,11 @@
              xml:space="preserve"><tspan
                x="0"
                y="0"
-               id="tspan20874">a.cpp Device </tspan><tspan
+               id="tspan8166">a.o Device
+</tspan><tspan
                x="0"
                y="17.549999"
-               id="tspan20876">LLVM IR</tspan></text>
+               id="tspan8168"> LLVM IR</tspan></text>
           <circle
              id="path1218-3-2"
              style="fill:#000000;stroke:#000000;stroke-width:0.75"

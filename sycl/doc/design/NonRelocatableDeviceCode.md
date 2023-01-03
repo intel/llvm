@@ -1,7 +1,7 @@
-# Non-Reusable Device Code
+# Non-Relocatable Device Code
 
 ## Overview
-By default, SYCL allows device code to be reusable, where function calls outside
+By default, SYCL allows device code to be relocatable, where function calls outside
 of the current translation unit are allowed using the `SYCL_EXTERNAL` attribute.
 To implement this, the compiler linkes all device code together, resolving all
 dependencies during the device linking process. This results in one large LLVM
@@ -18,8 +18,8 @@ device code on a per-translation-unit basis,
 which may improve runtime and memory usage of the compiler.
 
 ## Device code linking with source files
-Let's take an example where the device compiler has two input files:
-a.cpp and b.cpp, both containing device code. In this case,
+Let's take an example where the device linker has two input files:
+a.o and b.o, both containing device code. In this case,
 the device linking flow will look like the following:
 ![No-RDC Device object file link flows](images/NoRDCFatObject.svg)
 Diagram 1. No-RDC Device object file link flows.
@@ -38,7 +38,8 @@ Diagram 2. No-RDC Device fat static archive link flows.
 
 Each object file inside the static archive is processed seperately.
 `llvm-foreach` calls `sycl-post-link` once per object file. Since `llvm-spirv`
-is only called once, its input needs to be a single `TY_tempfilelist` containing
+is only called once per compiler input, here only once for the static archive,
+its input needs to be a single `TY_tempfilelist` containing
 all modules. Since `sycl-post-link` can output multiple modules per-run and
 it is called multiple times, the output of `sycl-post-link` is actually a
 `TY_tempfilelist` where each entry is the path to another `TY_tempfilelist`.
