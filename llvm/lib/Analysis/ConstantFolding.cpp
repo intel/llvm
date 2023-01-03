@@ -1906,8 +1906,8 @@ static bool getConstIntOrUndef(Value *Op, const APInt *&C) {
 /// \param St Exception flags raised during constant evaluation.
 static bool mayFoldConstrained(ConstrainedFPIntrinsic *CI,
                                APFloat::opStatus St) {
-  Optional<RoundingMode> ORM = CI->getRoundingMode();
-  Optional<fp::ExceptionBehavior> EB = CI->getExceptionBehavior();
+  std::optional<RoundingMode> ORM = CI->getRoundingMode();
+  std::optional<fp::ExceptionBehavior> EB = CI->getExceptionBehavior();
 
   // If the operation does not change exception status flags, it is safe
   // to fold.
@@ -1932,7 +1932,7 @@ static bool mayFoldConstrained(ConstrainedFPIntrinsic *CI,
 /// Returns the rounding mode that should be used for constant evaluation.
 static RoundingMode
 getEvaluationRoundingMode(const ConstrainedFPIntrinsic *CI) {
-  Optional<RoundingMode> ORM = CI->getRoundingMode();
+  std::optional<RoundingMode> ORM = CI->getRoundingMode();
   if (!ORM || *ORM == RoundingMode::Dynamic)
     // Even if the rounding mode is unknown, try evaluating the operation.
     // If it does not raise inexact exception, rounding was not applied,
@@ -1959,7 +1959,7 @@ static Constant *constantFoldCanonicalize(const Type *Ty, const CallBase *CI,
   if (Src.isNormal() || Src.isInfinity())
     return ConstantFP::get(CI->getContext(), Src);
 
-  if (Src.isDenormal()) {
+  if (Src.isDenormal() && CI->getParent() && CI->getFunction()) {
     DenormalMode DenormMode =
         CI->getFunction()->getDenormalMode(Src.getSemantics());
     if (DenormMode == DenormalMode::getIEEE())
@@ -2133,7 +2133,7 @@ static Constant *ConstantFoldScalarCall1(StringRef Name,
     // Rounding operations (floor, trunc, ceil, round and nearbyint) do not
     // raise FP exceptions, unless the argument is signaling NaN.
 
-    Optional<APFloat::roundingMode> RM;
+    std::optional<APFloat::roundingMode> RM;
     switch (IntrinsicID) {
     default:
       break;
@@ -2164,12 +2164,12 @@ static Constant *ConstantFoldScalarCall1(StringRef Name,
         APFloat::opStatus St = U.roundToIntegral(*RM);
         if (IntrinsicID == Intrinsic::experimental_constrained_rint &&
             St == APFloat::opInexact) {
-          Optional<fp::ExceptionBehavior> EB = CI->getExceptionBehavior();
+          std::optional<fp::ExceptionBehavior> EB = CI->getExceptionBehavior();
           if (EB && *EB == fp::ebStrict)
             return nullptr;
         }
       } else if (U.isSignaling()) {
-        Optional<fp::ExceptionBehavior> EB = CI->getExceptionBehavior();
+        std::optional<fp::ExceptionBehavior> EB = CI->getExceptionBehavior();
         if (EB && *EB != fp::ebIgnore)
           return nullptr;
         U = APFloat::getQNaN(U.getSemantics());

@@ -23,6 +23,7 @@
 #include "llvm/Support/AMDHSAKernelDescriptor.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/TargetParser.h"
+#include <optional>
 
 #define GET_INSTRINFO_NAMED_OPS
 #define GET_INSTRMAP_INFO
@@ -99,7 +100,7 @@ namespace AMDGPU {
 
 Optional<uint8_t> getHsaAbiVersion(const MCSubtargetInfo *STI) {
   if (STI && STI->getTargetTriple().getOS() != Triple::AMDHSA)
-    return None;
+    return std::nullopt;
 
   switch (AmdhsaCodeObjectVersion) {
   case 2:
@@ -433,6 +434,34 @@ bool isVOPD(unsigned Opc) {
   return AMDGPU::hasNamedOperand(Opc, AMDGPU::OpName::src0X);
 }
 
+bool isMAC(unsigned Opc) {
+  return Opc == AMDGPU::V_MAC_F32_e64_gfx6_gfx7 ||
+         Opc == AMDGPU::V_MAC_F32_e64_gfx10 ||
+         Opc == AMDGPU::V_MAC_F32_e64_vi ||
+         Opc == AMDGPU::V_MAC_LEGACY_F32_e64_gfx6_gfx7 ||
+         Opc == AMDGPU::V_MAC_LEGACY_F32_e64_gfx10 ||
+         Opc == AMDGPU::V_MAC_F16_e64_vi ||
+         Opc == AMDGPU::V_FMAC_F64_e64_gfx90a ||
+         Opc == AMDGPU::V_FMAC_F32_e64_gfx10 ||
+         Opc == AMDGPU::V_FMAC_F32_e64_gfx11 ||
+         Opc == AMDGPU::V_FMAC_F32_e64_vi ||
+         Opc == AMDGPU::V_FMAC_LEGACY_F32_e64_gfx10 ||
+         Opc == AMDGPU::V_FMAC_DX9_ZERO_F32_e64_gfx11 ||
+         Opc == AMDGPU::V_FMAC_F16_e64_gfx10 ||
+         Opc == AMDGPU::V_FMAC_F16_t16_e64_gfx11 ||
+         Opc == AMDGPU::V_DOT2C_F32_F16_e64_vi ||
+         Opc == AMDGPU::V_DOT2C_I32_I16_e64_vi ||
+         Opc == AMDGPU::V_DOT4C_I32_I8_e64_vi ||
+         Opc == AMDGPU::V_DOT8C_I32_I4_e64_vi;
+}
+
+bool isPermlane16(unsigned Opc) {
+  return Opc == AMDGPU::V_PERMLANE16_B32_gfx10 ||
+         Opc == AMDGPU::V_PERMLANEX16_B32_gfx10 ||
+         Opc == AMDGPU::V_PERMLANE16_B32_e64_gfx11 ||
+         Opc == AMDGPU::V_PERMLANEX16_B32_e64_gfx11;
+}
+
 bool isTrue16Inst(unsigned Opc) {
   const VOPTrue16Info *Info = getTrue16OpcodeHelper(Opc);
   return Info ? Info->IsTrue16 : false;
@@ -583,8 +612,8 @@ void AMDGPUTargetID::setTargetIDFromFeaturesString(StringRef FS) {
   // absence of the target features we assume we must generate code that can run
   // in any environment.
   SubtargetFeatures Features(FS);
-  Optional<bool> XnackRequested;
-  Optional<bool> SramEccRequested;
+  std::optional<bool> XnackRequested;
+  std::optional<bool> SramEccRequested;
 
   for (const std::string &Feature : Features.getFeatures()) {
     if (Feature == "+xnack")
@@ -2174,6 +2203,42 @@ unsigned getRegBitWidth(unsigned RCID) {
   case AMDGPU::AV_256RegClassID:
   case AMDGPU::AV_256_Align2RegClassID:
     return 256;
+  case AMDGPU::SGPR_288RegClassID:
+  case AMDGPU::SReg_288RegClassID:
+  case AMDGPU::VReg_288RegClassID:
+  case AMDGPU::AReg_288RegClassID:
+  case AMDGPU::VReg_288_Align2RegClassID:
+  case AMDGPU::AReg_288_Align2RegClassID:
+  case AMDGPU::AV_288RegClassID:
+  case AMDGPU::AV_288_Align2RegClassID:
+    return 288;
+  case AMDGPU::SGPR_320RegClassID:
+  case AMDGPU::SReg_320RegClassID:
+  case AMDGPU::VReg_320RegClassID:
+  case AMDGPU::AReg_320RegClassID:
+  case AMDGPU::VReg_320_Align2RegClassID:
+  case AMDGPU::AReg_320_Align2RegClassID:
+  case AMDGPU::AV_320RegClassID:
+  case AMDGPU::AV_320_Align2RegClassID:
+    return 320;
+  case AMDGPU::SGPR_352RegClassID:
+  case AMDGPU::SReg_352RegClassID:
+  case AMDGPU::VReg_352RegClassID:
+  case AMDGPU::AReg_352RegClassID:
+  case AMDGPU::VReg_352_Align2RegClassID:
+  case AMDGPU::AReg_352_Align2RegClassID:
+  case AMDGPU::AV_352RegClassID:
+  case AMDGPU::AV_352_Align2RegClassID:
+    return 352;
+  case AMDGPU::SGPR_384RegClassID:
+  case AMDGPU::SReg_384RegClassID:
+  case AMDGPU::VReg_384RegClassID:
+  case AMDGPU::AReg_384RegClassID:
+  case AMDGPU::VReg_384_Align2RegClassID:
+  case AMDGPU::AReg_384_Align2RegClassID:
+  case AMDGPU::AV_384RegClassID:
+  case AMDGPU::AV_384_Align2RegClassID:
+    return 384;
   case AMDGPU::SGPR_512RegClassID:
   case AMDGPU::SReg_512RegClassID:
   case AMDGPU::VReg_512RegClassID:
@@ -2376,25 +2441,26 @@ Optional<int64_t> getSMRDEncodedOffset(const MCSubtargetInfo &ST,
   // The signed version is always a byte offset.
   if (!IsBuffer && hasSMRDSignedImmOffset(ST)) {
     assert(hasSMEMByteOffset(ST));
-    return isInt<20>(ByteOffset) ? Optional<int64_t>(ByteOffset) : None;
+    return isInt<20>(ByteOffset) ? Optional<int64_t>(ByteOffset) : std::nullopt;
   }
 
   if (!isDwordAligned(ByteOffset) && !hasSMEMByteOffset(ST))
-    return None;
+    return std::nullopt;
 
   int64_t EncodedOffset = convertSMRDOffsetUnits(ST, ByteOffset);
   return isLegalSMRDEncodedUnsignedOffset(ST, EncodedOffset)
              ? Optional<int64_t>(EncodedOffset)
-             : None;
+             : std::nullopt;
 }
 
 Optional<int64_t> getSMRDEncodedLiteralOffset32(const MCSubtargetInfo &ST,
                                                 int64_t ByteOffset) {
   if (!isCI(ST) || !isDwordAligned(ByteOffset))
-    return None;
+    return std::nullopt;
 
   int64_t EncodedOffset = convertSMRDOffsetUnits(ST, ByteOffset);
-  return isUInt<32>(EncodedOffset) ? Optional<int64_t>(EncodedOffset) : None;
+  return isUInt<32>(EncodedOffset) ? Optional<int64_t>(EncodedOffset)
+                                   : std::nullopt;
 }
 
 unsigned getNumFlatOffsetBits(const MCSubtargetInfo &ST, bool Signed) {

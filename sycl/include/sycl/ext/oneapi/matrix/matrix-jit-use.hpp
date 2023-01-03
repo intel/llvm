@@ -15,10 +15,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
-namespace matrix {
+namespace ext::oneapi::experimental::matrix {
 
 // packed_a and packed_b will be replaced by packed once the use implementation
 // is stable.
@@ -641,9 +638,6 @@ public:
   }
 };
 
-} // namespace matrix
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental::matrix
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

@@ -198,7 +198,7 @@ template <typename T> void checkVecTypeKnownIdentity() {
 }
 
 void checkVecTypesKnownIdentity() {
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
   checkVecTypeKnownIdentity<std::byte>();
 #endif
   checkVecTypeKnownIdentity<int8_t>();
@@ -347,7 +347,7 @@ template <typename T> void checkMarrayTypeKnownIdentity() {
 }
 
 void checkMarrayTypesKnownIdentity() {
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
   checkMarrayTypeKnownIdentity<std::byte>();
 #endif
   checkMarrayTypeKnownIdentity<int8_t>();

@@ -17,11 +17,9 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 template <typename T, int N> class vec;
-namespace detail {
-namespace half_impl {
+namespace detail::half_impl {
 class half;
-} // namespace half_impl
-} // namespace detail
+} // namespace detail::half_impl
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 

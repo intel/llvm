@@ -490,7 +490,7 @@ spirv::Deserializer::processFunctionEnd(ArrayRef<uint32_t> operands) {
   }
 
   curBlock = nullptr;
-  curFunction = llvm::None;
+  curFunction = std::nullopt;
 
   LLVM_DEBUG({
     logger.unindent();
@@ -504,7 +504,7 @@ Optional<std::pair<Attribute, Type>>
 spirv::Deserializer::getConstant(uint32_t id) {
   auto constIt = constantMap.find(id);
   if (constIt == constantMap.end())
-    return llvm::None;
+    return std::nullopt;
   return constIt->getSecond();
 }
 
@@ -512,7 +512,7 @@ Optional<spirv::SpecConstOperationMaterializationInfo>
 spirv::Deserializer::getSpecConstantOperation(uint32_t id) {
   auto constIt = specConstOperationMap.find(id);
   if (constIt == specConstOperationMap.end())
-    return llvm::None;
+    return std::nullopt;
   return constIt->getSecond();
 }
 
@@ -1389,8 +1389,7 @@ Value spirv::Deserializer::materializeSpecConstantOperation(
   // SpecConstantOperation in the module, we simply re-use the fake ID since the
   // previous Value assigned to it isn't visible in the current scope anyway.
   DenseMap<uint32_t, Value> newValueMap;
-  llvm::SaveAndRestore<DenseMap<uint32_t, Value>> valueMapGuard(valueMap,
-                                                                newValueMap);
+  llvm::SaveAndRestore valueMapGuard(valueMap, newValueMap);
   constexpr uint32_t fakeID = static_cast<uint32_t>(-3);
 
   SmallVector<uint32_t, 4> enclosedOpResultTypeAndOperands;
@@ -2103,7 +2102,7 @@ spirv::Deserializer::processDebugLine(ArrayRef<uint32_t> operands) {
   return success();
 }
 
-void spirv::Deserializer::clearDebugLine() { debugLine = llvm::None; }
+void spirv::Deserializer::clearDebugLine() { debugLine = std::nullopt; }
 
 LogicalResult
 spirv::Deserializer::processDebugString(ArrayRef<uint32_t> operands) {

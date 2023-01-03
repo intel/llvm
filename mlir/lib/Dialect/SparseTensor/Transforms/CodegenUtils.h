@@ -338,7 +338,6 @@ inline bool isZeroRankedTensorOrScalar(Type type) {
 // loopEmiter.exitCurrentLoop(); // exit i
 //===----------------------------------------------------------------------===//
 
-// TODO: Sparsification should also rely on this class to generate loops.
 class SparseTensorLoopEmitter {
 public:
   /// Optional callback function to setup dense output tensors when
@@ -407,6 +406,15 @@ public:
                                       ArrayRef<size_t> extraTids = {},
                                       ArrayRef<size_t> extraDims = {});
 
+  Operation *enterFilterLoopOverTensorAtDim(OpBuilder &builder, Location loc,
+                                            size_t tid, size_t dim,
+                                            AffineExpr affine,
+                                            MutableArrayRef<Value> reduc = {});
+
+  void genDenseAffineAddressAtCurLevel(OpBuilder &builder, Location loc,
+                                       size_t tid, size_t dim,
+                                       AffineExpr affine);
+
   /// Emits a co-iteration loop over a set of tensors.
   Operation *enterCoIterationOverTensorsAtDims(
       OpBuilder &builder, Location loc, ArrayRef<size_t> tids,
@@ -421,6 +429,9 @@ public:
     for (auto &l : loopStack)
       coords.push_back(l.iv);
   }
+
+  /// Gets loop induction variable at the given level.
+  unsigned getCurrentDepth() const { return loopStack.size(); }
 
   /// Gets loop induction variable at the given level.
   Value getLoopIV(size_t level) const {

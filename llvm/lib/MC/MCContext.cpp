@@ -54,6 +54,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <cstdlib>
+#include <optional>
 #include <tuple>
 #include <utility>
 
@@ -639,7 +640,8 @@ Optional<unsigned> MCContext::getELFUniqueIDForEntsize(StringRef SectionName,
                                                        unsigned EntrySize) {
   auto I = ELFEntrySizeMap.find(
       MCContext::ELFEntrySizeKey{SectionName, Flags, EntrySize});
-  return (I != ELFEntrySizeMap.end()) ? Optional<unsigned>(I->second) : None;
+  return (I != ELFEntrySizeMap.end()) ? Optional<unsigned>(I->second)
+                                      : std::nullopt;
 }
 
 MCSectionGOFF *MCContext::getGOFFSection(StringRef Section, SectionKind Kind,
@@ -828,6 +830,14 @@ MCSectionXCOFF *MCContext::getXCOFFSection(
   if (Begin)
     Begin->setFragment(F);
 
+  // We might miss calculating the symbols difference as absolute value before
+  // adding fixups when symbol_A without the fragment set is the csect itself
+  // and symbol_B is in it.
+  // TODO: Currently we only set the fragment for XMC_PR csects because we don't
+  // have other cases that hit this problem yet.
+  if (!IsDwarfSec && CsectProp->MappingClass == XCOFF::XMC_PR)
+    QualName->setFragment(F);
+
   return Result;
 }
 
@@ -952,7 +962,7 @@ void MCContext::setGenDwarfRootFile(StringRef InputFileName, StringRef Buffer) {
       FileName = FileName.drop_front();
   assert(!FileName.empty());
   setMCLineTableRootFile(
-      /*CUID=*/0, getCompilationDir(), FileName, Cksum, None);
+      /*CUID=*/0, getCompilationDir(), FileName, Cksum, std::nullopt);
 }
 
 /// getDwarfFile - takes a file name and number to place in the dwarf file and
@@ -963,7 +973,7 @@ Expected<unsigned> MCContext::getDwarfFile(StringRef Directory,
                                            StringRef FileName,
                                            unsigned FileNumber,
                                            Optional<MD5::MD5Result> Checksum,
-                                           Optional<StringRef> Source,
+                                           std::optional<StringRef> Source,
                                            unsigned CUID) {
   MCDwarfLineTable &Table = MCDwarfLineTablesCUMap[CUID];
   return Table.tryGetFile(Directory, FileName, Checksum, Source, DwarfVersion,

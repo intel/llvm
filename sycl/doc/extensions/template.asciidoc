@@ -96,19 +96,32 @@ This extension is no longer implemented in {dpcpp}.  This specification is
 being archived only for historical purposes.  *The APIs defined in this
 specification no longer exist and cannot be used.*
 
-_This is an example of a note which can be added if your extension is
-implemented only for certain backends.  A note like this is appropriate if the
-extension is implemented only on certain devices or backends._
 
-[NOTE]
-====
+== Backend support status
+
+_Sometimes an extension can be used only on certain backends. Your
+extension document should include this section when this is the case._
+
+_Our preference is to tie the extension to a device aspect when it is
+available only on certain backends because it results in a clear error
+if the application mistakenly tries to use it on an unsupported backend.
+When this is the case, include a paragraph like this:_
+
+The APIs in this extension may be used only on a device that has
+`aspect::ext_oneapi_foo`.  The application must check that the device has
+this aspect before submitting a kernel using any of the APIs in this
+extension.  If the application fails to do this, the implementation throws
+a synchronous exception with the `errc::kernel_not_supported` error code
+when the kernel is submitted to the queue.
+
+_Occasionally, an extension is limited to certain backends and there is no
+related device aspect. When this is the case, include a paragraph like:_
+
 This extension is currently implemented in {dpcpp} only for GPU devices and
 only when using the Level Zero backend.  Attempting to use this extension in
-kernels that run on other devices or backends may result in undefined behavior.
-Be aware that the compiler is not able to issue a diagnostic to warn you if
-this happens.
-====
-
+kernels that run on other devices or backends may result in undefined
+behavior.  Be aware that the compiler is not able to issue a diagnostic to
+warn you if this happens.
 
 == Overview
 

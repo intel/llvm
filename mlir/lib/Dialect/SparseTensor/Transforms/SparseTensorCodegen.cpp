@@ -31,6 +31,11 @@ using namespace mlir::sparse_tensor;
 
 namespace {
 
+using FuncGeneratorType =
+    function_ref<void(OpBuilder &, ModuleOp, func::FuncOp, RankedTensorType)>;
+
+static constexpr const char kInsertFuncNamePrefix[] = "_insert_";
+
 static constexpr uint64_t dimSizesIdx = 0;
 static constexpr uint64_t memSizesIdx = 1;
 static constexpr uint64_t fieldsIdx = 2;
@@ -117,7 +122,7 @@ static Optional<Value> sizeFromTensorAtDim(OpBuilder &builder, Location loc,
                                            Value adaptedValue, unsigned dim) {
   auto enc = getSparseTensorEncoding(tensorTp);
   if (!enc)
-    return llvm::None;
+    return std::nullopt;
 
   // Access into static dimension can query original type directly.
   // Note that this is typically already done by DimOp's folding.
@@ -195,15 +200,13 @@ static Optional<LogicalResult>
 convertSparseTensorType(Type type, SmallVectorImpl<Type> &fields) {
   auto enc = getSparseTensorEncoding(type);
   if (!enc)
-    return llvm::None;
+    return std::nullopt;
   // Construct the basic types.
   auto *context = type.getContext();
-  unsigned idxWidth = enc.getIndexBitWidth();
-  unsigned ptrWidth = enc.getPointerBitWidth();
   RankedTensorType rType = type.cast<RankedTensorType>();
   Type indexType = IndexType::get(context);
-  Type idxType = idxWidth ? IntegerType::get(context, idxWidth) : indexType;
-  Type ptrType = ptrWidth ? IntegerType::get(context, ptrWidth) : indexType;
+  Type idxType = enc.getIndexType();
+  Type ptrType = enc.getPointerType();
   Type eltType = rType.getElementType();
   //
   // Sparse tensor storage scheme for rank-dimensional tensor is organized
@@ -237,16 +240,16 @@ convertSparseTensorType(Type type, SmallVectorImpl<Type> &fields) {
     // order. Clients of this type know what field is what from the sparse
     // tensor type.
     if (isCompressedDim(rType, r)) {
-      fields.push_back(MemRefType::get({ShapedType::kDynamicSize}, ptrType));
-      fields.push_back(MemRefType::get({ShapedType::kDynamicSize}, idxType));
+      fields.push_back(MemRefType::get({ShapedType::kDynamic}, ptrType));
+      fields.push_back(MemRefType::get({ShapedType::kDynamic}, idxType));
     } else if (isSingletonDim(rType, r)) {
-      fields.push_back(MemRefType::get({ShapedType::kDynamicSize}, idxType));
+      fields.push_back(MemRefType::get({ShapedType::kDynamic}, idxType));
     } else {
       assert(isDenseDim(rType, r)); // no fields
     }
   }
   // The values array.
-  fields.push_back(MemRefType::get({ShapedType::kDynamicSize}, eltType));
+  fields.push_back(MemRefType::get({ShapedType::kDynamic}, eltType));
   assert(fields.size() == lastField);
   return success();
 }
@@ -263,21 +266,20 @@ static void allocSchemeForRank(OpBuilder &builder, Location loc,
       // Append linear x pointers, initialized to zero. Since each compressed
       // dimension initially already has a single zero entry, this maintains
       // the desired "linear + 1" length property at all times.
-      unsigned ptrWidth = getSparseTensorEncoding(rtp).getPointerBitWidth();
-      Type indexType = builder.getIndexType();
-      Type ptrType = ptrWidth ? builder.getIntegerType(ptrWidth) : indexType;
+      Type ptrType = getSparseTensorEncoding(rtp).getPointerType();
       Value ptrZero = constantZero(builder, loc, ptrType);
       createPushback(builder, loc, fields, field, ptrZero, linear);
       return;
     }
     if (isSingletonDim(rtp, r)) {
       return; // nothing to do
-    }         // Keep compounding the size, but nothing needs to be initialized
-      // at this level. We will eventually reach a compressed level or
-      // otherwise the values array for the from-here "all-dense" case.
-      assert(isDenseDim(rtp, r));
-      Value size = sizeAtStoredDim(builder, loc, rtp, fields, r);
-      linear = builder.create<arith::MulIOp>(loc, linear, size);
+    }
+    // Keep compounding the size, but nothing needs to be initialized
+    // at this level. We will eventually reach a compressed level or
+    // otherwise the values array for the from-here "all-dense" case.
+    assert(isDenseDim(rtp, r));
+    Value size = sizeAtStoredDim(builder, loc, rtp, fields, r);
+    linear = builder.create<arith::MulIOp>(loc, linear, size);
   }
   // Reached values array so prepare for an insertion.
   Value valZero = constantZero(builder, loc, rtp.getElementType());
@@ -288,7 +290,7 @@ static void allocSchemeForRank(OpBuilder &builder, Location loc,
 /// Creates allocation operation.
 static Value createAllocation(OpBuilder &builder, Location loc, Type type,
                               Value sz, bool enableInit) {
-  auto memType = MemRefType::get({ShapedType::kDynamicSize}, type);
+  auto memType = MemRefType::get({ShapedType::kDynamic}, type);
   Value buffer = builder.create<memref::AllocOp>(loc, memType, sz);
   if (enableInit) {
     Value fillValue =
@@ -310,13 +312,10 @@ static void createAllocFields(OpBuilder &builder, Location loc, Type type,
                               SmallVectorImpl<Value> &fields) {
   auto enc = getSparseTensorEncoding(type);
   assert(enc);
-  // Construct the basic types.
-  unsigned idxWidth = enc.getIndexBitWidth();
-  unsigned ptrWidth = enc.getPointerBitWidth();
   RankedTensorType rtp = type.cast<RankedTensorType>();
   Type indexType = builder.getIndexType();
-  Type idxType = idxWidth ? builder.getIntegerType(idxWidth) : indexType;
-  Type ptrType = ptrWidth ? builder.getIntegerType(ptrWidth) : indexType;
+  Type idxType = enc.getIndexType();
+  Type ptrType = enc.getPointerType();
   Type eltType = rtp.getElementType();
   auto shape = rtp.getShape();
   unsigned rank = shape.size();
@@ -476,12 +475,24 @@ static Value genCompressed(OpBuilder &builder, Location loc,
 ///
 /// TODO: better unord/not-unique; also generalize, optimize, specialize!
 ///
-static void genInsert(OpBuilder &builder, Location loc, RankedTensorType rtp,
-                      SmallVectorImpl<Value> &fields,
-                      SmallVectorImpl<Value> &indices, Value value) {
+static void genInsertBody(OpBuilder &builder, ModuleOp module,
+                          func::FuncOp func, RankedTensorType rtp) {
+  OpBuilder::InsertionGuard insertionGuard(builder);
+  Block *entryBlock = func.addEntryBlock();
+  builder.setInsertionPointToStart(entryBlock);
+
+  Location loc = func.getLoc();
+  ValueRange args = entryBlock->getArguments();
   unsigned rank = rtp.getShape().size();
-  assert(rank == indices.size());
-  unsigned field = fieldsIdx; // start past header
+
+  // Construct fields and indices arrays from parameters.
+  ValueRange tmp = args.drop_back(rank + 1);
+  SmallVector<Value> fields(tmp.begin(), tmp.end());
+  tmp = args.take_back(rank + 1).drop_back();
+  SmallVector<Value> indices(tmp.begin(), tmp.end());
+  Value value = args.back();
+
+  unsigned field = fieldsIdx; // Start past header.
   Value pos = constantZero(builder, loc, builder.getIndexType());
   // Generate code for every dimension.
   for (unsigned d = 0; d < rank; d++) {
@@ -519,6 +530,77 @@ static void genInsert(OpBuilder &builder, Location loc, RankedTensorType rtp,
   else
     genStore(builder, loc, value, fields[field++], pos);
   assert(fields.size() == field);
+  builder.create<func::ReturnOp>(loc, fields);
+}
+
+/// Generates a call to a function to perform an insertion operation. If the
+/// function doesn't exist yet, call `createFunc` to generate the function.
+static void genInsertionCallHelper(OpBuilder &builder, RankedTensorType rtp,
+                                   SmallVectorImpl<Value> &fields,
+                                   SmallVectorImpl<Value> &indices, Value value,
+                                   func::FuncOp insertPoint,
+                                   StringRef namePrefix,
+                                   FuncGeneratorType createFunc) {
+  // The mangled name of the function has this format:
+  //   <namePrefix>_[C|S|D]_<shape>_<ordering>_<eltType>
+  //     _<indexBitWidth>_<pointerBitWidth>
+  SmallString<32> nameBuffer;
+  llvm::raw_svector_ostream nameOstream(nameBuffer);
+  nameOstream << namePrefix;
+  unsigned rank = rtp.getShape().size();
+  assert(rank == indices.size());
+  for (unsigned d = 0; d < rank; d++) {
+    if (isCompressedDim(rtp, d)) {
+      nameOstream << "C_";
+    } else if (isSingletonDim(rtp, d)) {
+      nameOstream << "S_";
+    } else {
+      nameOstream << "D_";
+    }
+  }
+  // Static dim sizes are used in the generated code while dynamic sizes are
+  // loaded from the dimSizes buffer. This is the reason for adding the shape
+  // to the function name.
+  for (auto d : rtp.getShape())
+    nameOstream << d << "_";
+  SparseTensorEncodingAttr enc = getSparseTensorEncoding(rtp);
+  // Permutation information is also used in generating insertion.
+  if (enc.getDimOrdering() && !enc.getDimOrdering().isIdentity())
+    nameOstream << enc.getDimOrdering() << "_";
+  nameOstream << rtp.getElementType() << "_";
+  nameOstream << enc.getIndexBitWidth() << "_" << enc.getPointerBitWidth();
+
+  // Look up the function.
+  ModuleOp module = insertPoint->getParentOfType<ModuleOp>();
+  MLIRContext *context = module.getContext();
+  auto result = SymbolRefAttr::get(context, nameOstream.str());
+  auto func = module.lookupSymbol<func::FuncOp>(result.getAttr());
+
+  // Construct parameters for fields and indices.
+  SmallVector<Value> operands(fields.begin(), fields.end());
+  operands.append(indices.begin(), indices.end());
+  operands.push_back(value);
+  Location loc = insertPoint.getLoc();
+
+  if (!func) {
+    // Create the function.
+    OpBuilder::InsertionGuard insertionGuard(builder);
+    builder.setInsertionPoint(insertPoint);
+
+    func = builder.create<func::FuncOp>(
+        loc, nameOstream.str(),
+        FunctionType::get(context, ValueRange(operands).getTypes(),
+                          ValueRange(fields).getTypes()));
+    func.setPrivate();
+    createFunc(builder, module, func, rtp);
+  }
+
+  // Generate a call to perform the insertion and update `fields` with values
+  // returned from the call.
+  func::CallOp call = builder.create<func::CallOp>(loc, func, operands);
+  for (size_t i = 0; i < fields.size(); i++) {
+    fields[i] = call.getResult(i);
+  }
 }
 
 /// Generations insertion finalization code.
@@ -534,9 +616,7 @@ static void genEndInsert(OpBuilder &builder, Location loc, RankedTensorType rtp,
       // TODO: avoid cleanup and keep compressed scheme consistent at all times?
       //
       if (d > 0) {
-        unsigned ptrWidth = getSparseTensorEncoding(rtp).getPointerBitWidth();
-        Type indexType = builder.getIndexType();
-        Type ptrType = ptrWidth ? builder.getIntegerType(ptrWidth) : indexType;
+        Type ptrType = getSparseTensorEncoding(rtp).getPointerType();
         Value mz = constantIndex(builder, loc, getMemSizesIndex(field));
         Value hi = genLoad(builder, loc, fields[memSizesIdx], mz);
         Value zero = constantIndex(builder, loc, 0);
@@ -792,7 +872,7 @@ public:
     assert(sz); // This for sure is a sparse tensor
     // Generate a memref for `sz` elements of type `t`.
     auto genAlloc = [&](Type t) {
-      auto memTp = MemRefType::get({ShapedType::kDynamicSize}, t);
+      auto memTp = MemRefType::get({ShapedType::kDynamic}, t);
       return rewriter.create<memref::AllocOp>(loc, memTp, ValueRange{*sz});
     };
     // Allocate temporary buffers for values/filled-switch and added.
@@ -865,7 +945,9 @@ public:
     Value value = genLoad(rewriter, loc, values, index);
     indices.push_back(index);
     // TODO: faster for subsequent insertions?
-    genInsert(rewriter, loc, dstType, fields, indices, value);
+    auto insertPoint = op->template getParentOfType<func::FuncOp>();
+    genInsertionCallHelper(rewriter, dstType, fields, indices, value,
+                           insertPoint, kInsertFuncNamePrefix, genInsertBody);
     genStore(rewriter, loc, constantZero(rewriter, loc, eltType), values,
              index);
     genStore(rewriter, loc, constantI1(rewriter, loc, false), filled, index);
@@ -899,7 +981,10 @@ public:
     SmallVector<Value> indices(adaptor.getIndices());
     // Generate insertion.
     Value value = adaptor.getValue();
-    genInsert(rewriter, op->getLoc(), dstType, fields, indices, value);
+    auto insertPoint = op->template getParentOfType<func::FuncOp>();
+    genInsertionCallHelper(rewriter, dstType, fields, indices, value,
+                           insertPoint, kInsertFuncNamePrefix, genInsertBody);
+
     // Replace operation with resulting memrefs.
     rewriter.replaceOp(op, genTuple(rewriter, op.getLoc(), dstType, fields));
     return success();
@@ -1020,7 +1105,7 @@ mlir::SparseTensorTypeToBufferConverter::SparseTensorTypeToBufferConverter() {
                               Location loc) -> Optional<Value> {
     if (!getSparseTensorEncoding(tp))
       // Not a sparse tensor.
-      return llvm::None;
+      return std::nullopt;
     // Sparse compiler knows how to cancel out these casts.
     return genTuple(builder, loc, tp, inputs);
   });

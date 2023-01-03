@@ -124,9 +124,10 @@ CodeGenModule::CodeGenModule(ASTContext &C,
   BFloatTy = llvm::Type::getBFloatTy(LLVMContext);
   FloatTy = llvm::Type::getFloatTy(LLVMContext);
   DoubleTy = llvm::Type::getDoubleTy(LLVMContext);
-  PointerWidthInBits = C.getTargetInfo().getPointerWidth(0);
+  PointerWidthInBits = C.getTargetInfo().getPointerWidth(LangAS::Default);
   PointerAlignInBytes =
-    C.toCharUnitsFromBits(C.getTargetInfo().getPointerAlign(0)).getQuantity();
+      C.toCharUnitsFromBits(C.getTargetInfo().getPointerAlign(LangAS::Default))
+          .getQuantity();
   SizeSizeInBytes =
     C.toCharUnitsFromBits(C.getTargetInfo().getMaxPointerWidth()).getQuantity();
   IntAlignInBytes =
@@ -141,6 +142,8 @@ CodeGenModule::CodeGenModule(ASTContext &C,
   const llvm::DataLayout &DL = M.getDataLayout();
   AllocaInt8PtrTy = Int8Ty->getPointerTo(DL.getAllocaAddrSpace());
   GlobalsInt8PtrTy = Int8Ty->getPointerTo(DL.getDefaultGlobalsAddressSpace());
+  DefaultInt8PtrTy =
+      Int8Ty->getPointerTo(getContext().getTargetAddressSpace(LangAS::Default));
   ASTAllocaAddressSpace = getTargetCodeGenInfo().getASTAllocaAddressSpace();
 
   // Build C++20 Module initializers.
@@ -546,6 +549,14 @@ void CodeGenModule::Release() {
   applyGlobalValReplacements();
   applyReplacements();
   emitMultiVersionFunctions();
+
+  if (Context.getLangOpts().IncrementalExtensions &&
+      GlobalTopLevelStmtBlockInFlight.first) {
+    const TopLevelStmtDecl *TLSD = GlobalTopLevelStmtBlockInFlight.second;
+    GlobalTopLevelStmtBlockInFlight.first->FinishFunction(TLSD->getEndLoc());
+    GlobalTopLevelStmtBlockInFlight = {nullptr, nullptr};
+  }
+
   if (CXX20ModuleInits && Primary && Primary->isInterfaceOrPartition())
     EmitCXXModuleInitFunc(Primary);
   else
@@ -1734,7 +1745,7 @@ void CodeGenModule::EmitCtorList(CtorList &Fns, const char *GlobalName) {
 
   // The LTO linker doesn't seem to like it when we set an alignment
   // on appending variables.  Take it off as a workaround.
-  list->setAlignment(llvm::None);
+  list->setAlignment(std::nullopt);
 
   Fns.clear();
 }
@@ -3488,7 +3499,7 @@ ConstantAddress CodeGenModule::GetWeakRefReference(const ValueDecl *VD) {
   // See if there is already something with the target's name in the module.
   llvm::GlobalValue *Entry = GetGlobalValue(AA->getAliasee());
   if (Entry) {
-    unsigned AS = getContext().getTargetAddressSpace(VD->getType());
+    unsigned AS = getTypes().getTargetAddressSpace(VD->getType());
     auto Ptr = llvm::ConstantExpr::getBitCast(Entry, DeclTy->getPointerTo(AS));
     return ConstantAddress(Ptr, DeclTy, Alignment);
   }
@@ -4076,7 +4087,7 @@ void CodeGenModule::emitCPUDispatchDefinition(GlobalDecl GD) {
   if (getTarget().supportsIFunc()) {
     ResolverType = llvm::FunctionType::get(
         llvm::PointerType::get(DeclTy,
-                               Context.getTargetAddressSpace(FD->getType())),
+                               getTypes().getTargetAddressSpace(FD->getType())),
         false);
   }
   else {
@@ -4214,8 +4225,8 @@ llvm::Constant *CodeGenModule::GetOrCreateMultiVersionResolver(GlobalDecl GD) {
   // cpu_dispatch will be emitted in this translation unit.
   if (getTarget().supportsIFunc() && !FD->isCPUSpecificMultiVersion()) {
     llvm::Type *ResolverType = llvm::FunctionType::get(
-        llvm::PointerType::get(
-            DeclTy, getContext().getTargetAddressSpace(FD->getType())),
+        llvm::PointerType::get(DeclTy,
+                               getTypes().getTargetAddressSpace(FD->getType())),
         false);
     llvm::Constant *Resolver = GetOrCreateLLVMFunction(
         MangledName + ".resolver", ResolverType, GlobalDecl{},
@@ -4318,7 +4329,8 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
     // (If function is requested for a definition, we always need to create a new
     // function, not just return a bitcast.)
     if (!IsForDefinition)
-      return llvm::ConstantExpr::getBitCast(Entry, Ty->getPointerTo());
+      return llvm::ConstantExpr::getBitCast(
+          Entry, Ty->getPointerTo(Entry->getAddressSpace()));
   }
 
   // This function doesn't have a complete type (for example, the return
@@ -5104,17 +5116,17 @@ void CodeGenModule::setAspectsEnumDecl(const EnumDecl *ED) {
 void CodeGenModule::generateIntelFPGAAnnotation(
     const Decl *D, llvm::SmallString<256> &AnnotStr) {
   llvm::raw_svector_ostream Out(AnnotStr);
-  if (D->hasAttr<IntelFPGARegisterAttr>())
+  if (D->hasAttr<SYCLIntelRegisterAttr>())
     Out << "{register:1}";
-  if (auto const *MA = D->getAttr<IntelFPGAMemoryAttr>()) {
-    IntelFPGAMemoryAttr::MemoryKind Kind = MA->getKind();
+  if (auto const *MA = D->getAttr<SYCLIntelMemoryAttr>()) {
+    SYCLIntelMemoryAttr::MemoryKind Kind = MA->getKind();
     Out << "{memory:";
     switch (Kind) {
-    case IntelFPGAMemoryAttr::MLAB:
-    case IntelFPGAMemoryAttr::BlockRAM:
-      Out << IntelFPGAMemoryAttr::ConvertMemoryKindToStr(Kind);
+    case SYCLIntelMemoryAttr::MLAB:
+    case SYCLIntelMemoryAttr::BlockRAM:
+      Out << SYCLIntelMemoryAttr::ConvertMemoryKindToStr(Kind);
       break;
-    case IntelFPGAMemoryAttr::Default:
+    case SYCLIntelMemoryAttr::Default:
       Out << "DEFAULT";
       break;
     }
@@ -5138,25 +5150,25 @@ void CodeGenModule::generateIntelFPGAAnnotation(
       Out << '}';
     }
   }
-  if (D->hasAttr<IntelFPGASinglePumpAttr>())
+  if (D->hasAttr<SYCLIntelSinglePumpAttr>())
     Out << "{pump:1}";
-  if (D->hasAttr<IntelFPGADoublePumpAttr>())
+  if (D->hasAttr<SYCLIntelDoublePumpAttr>())
     Out << "{pump:2}";
-  if (const auto *BWA = D->getAttr<IntelFPGABankWidthAttr>()) {
+  if (const auto *BWA = D->getAttr<SYCLIntelBankWidthAttr>()) {
     llvm::APSInt BWAInt = BWA->getValue()->EvaluateKnownConstInt(getContext());
     Out << '{' << BWA->getSpelling() << ':' << BWAInt << '}';
   }
-  if (const auto *PCA = D->getAttr<IntelFPGAPrivateCopiesAttr>()) {
+  if (const auto *PCA = D->getAttr<SYCLIntelPrivateCopiesAttr>()) {
     llvm::APSInt PCAInt = PCA->getValue()->EvaluateKnownConstInt(getContext());
     Out << '{' << PCA->getSpelling() << ':' << PCAInt << '}';
   }
-  if (const auto *NBA = D->getAttr<IntelFPGANumBanksAttr>()) {
+  if (const auto *NBA = D->getAttr<SYCLIntelNumBanksAttr>()) {
     llvm::APSInt NBAInt = NBA->getValue()->EvaluateKnownConstInt(getContext());
     Out << '{' << NBA->getSpelling() << ':' << NBAInt << '}';
   }
-  if (const auto *BBA = D->getAttr<IntelFPGABankBitsAttr>()) {
+  if (const auto *BBA = D->getAttr<SYCLIntelBankBitsAttr>()) {
     Out << '{' << BBA->getSpelling() << ':';
-    for (IntelFPGABankBitsAttr::args_iterator I = BBA->args_begin(),
+    for (SYCLIntelBankBitsAttr::args_iterator I = BBA->args_begin(),
                                               E = BBA->args_end();
          I != E; ++I) {
       if (I != BBA->args_begin())
@@ -5166,17 +5178,17 @@ void CodeGenModule::generateIntelFPGAAnnotation(
     }
     Out << '}';
   }
-  if (const auto *MRA = D->getAttr<IntelFPGAMaxReplicatesAttr>()) {
+  if (const auto *MRA = D->getAttr<SYCLIntelMaxReplicatesAttr>()) {
     llvm::APSInt MRAInt = MRA->getValue()->EvaluateKnownConstInt(getContext());
     Out << '{' << MRA->getSpelling() << ':' << MRAInt << '}';
   }
-  if (const auto *MA = D->getAttr<IntelFPGAMergeAttr>()) {
+  if (const auto *MA = D->getAttr<SYCLIntelMergeAttr>()) {
     Out << '{' << MA->getSpelling() << ':' << MA->getName() << ':'
         << MA->getDirection() << '}';
   }
-  if (D->hasAttr<IntelFPGASimpleDualPortAttr>())
+  if (D->hasAttr<SYCLIntelSimpleDualPortAttr>())
     Out << "{simple_dual_port:1}";
-  if (const auto *FP2D = D->getAttr<IntelFPGAForcePow2DepthAttr>()) {
+  if (const auto *FP2D = D->getAttr<SYCLIntelForcePow2DepthAttr>()) {
     llvm::APSInt FP2DInt =
         FP2D->getValue()->EvaluateKnownConstInt(getContext());
     Out << '{' << FP2D->getSpelling() << ':' << FP2DInt << '}';
@@ -6650,6 +6662,39 @@ void CodeGenModule::EmitLinkageSpec(const LinkageSpecDecl *LSD) {
   EmitDeclContext(LSD);
 }
 
+void CodeGenModule::EmitTopLevelStmt(const TopLevelStmtDecl *D) {
+  std::unique_ptr<CodeGenFunction> &CurCGF =
+      GlobalTopLevelStmtBlockInFlight.first;
+
+  // We emitted a top-level stmt but after it there is initialization.
+  // Stop squashing the top-level stmts into a single function.
+  if (CurCGF && CXXGlobalInits.back() != CurCGF->CurFn) {
+    CurCGF->FinishFunction(D->getEndLoc());
+    CurCGF = nullptr;
+  }
+
+  if (!CurCGF) {
+    // void __stmts__N(void)
+    // FIXME: Ask the ABI name mangler to pick a name.
+    std::string Name = "__stmts__" + llvm::utostr(CXXGlobalInits.size());
+    FunctionArgList Args;
+    QualType RetTy = getContext().VoidTy;
+    const CGFunctionInfo &FnInfo =
+        getTypes().arrangeBuiltinFunctionDeclaration(RetTy, Args);
+    llvm::FunctionType *FnTy = getTypes().GetFunctionType(FnInfo);
+    llvm::Function *Fn = llvm::Function::Create(
+        FnTy, llvm::GlobalValue::InternalLinkage, Name, &getModule());
+
+    CurCGF.reset(new CodeGenFunction(*this));
+    GlobalTopLevelStmtBlockInFlight.second = D;
+    CurCGF->StartFunction(GlobalDecl(), RetTy, Fn, FnInfo, Args,
+                          D->getBeginLoc(), D->getBeginLoc());
+    CXXGlobalInits.push_back(Fn);
+  }
+
+  CurCGF->EmitStmt(D->getStmt());
+}
+
 void CodeGenModule::EmitDeclContext(const DeclContext *DC) {
   for (auto *I : DC->decls()) {
     // Unlike other DeclContexts, the contents of an ObjCImplDecl at TU scope
@@ -6858,6 +6903,10 @@ void CodeGenModule::EmitTopLevelDecl(Decl *D) {
     getModule().appendModuleInlineAsm(AD->getAsmString()->getString());
     break;
   }
+
+  case Decl::TopLevelStmt:
+    EmitTopLevelStmt(cast<TopLevelStmtDecl>(D));
+    break;
 
   case Decl::Import: {
     auto *Import = cast<ImportDecl>(D);

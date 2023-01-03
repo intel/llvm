@@ -1,0 +1,275 @@
+= sycl_ext_intel_cslice
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 6 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This extension is implemented and fully supported by DPC++.
+
+
+== Overview
+
+:multi-CCS: https://github.com/intel/compute-runtime/blob/master/level_zero/doc/experimental_extensions/MULTI_CCS_MODES.md
+
+Some Intel GPU devices can be partitioned at a granularity of "cslice" (compute
+slice), which is a smaller granularity than "tile".  This form of partitioning
+is not currently enabled by default, so it is considered an advanced feature
+which most applications are not expected to use.  This extension provides a way
+for these advanced applications to partition a device by cslice when it is
+enabled in the device driver.
+
+Unlike "tile" partitions, a cslice partition does not have any different cache
+affinity from its sibling cslice partitions.  Therefore, this extension does
+not expose this type of partitioning through
+`info::partition_property::partition_by_affinity_domain`.  Instead, it adds a
+new partitioning type
+`info::partition_property::ext_intel_partition_by_cslice`.
+
+The only Intel GPU devices that currently support this type of partitioning
+are the Data Center GPU Max series (aka PVC), and this support is only
+available when the device driver is configured in {multi-CCS}[multi-CCS] mode.
+See that documentation for instructions on how to enable this mode and for
+other important information.  Currently, it is only possible to partition a
+device by cslice if the driver is in "2 CCS Mode" or "4 CCS Mode".  When in
+2 CCS Mode, a tile can be partitioned into two cslice sub-devices.  When in
+4 CCS Mode, a tile can be partitioned into four cslice sub-devices.
+
+This type of partitioning is currently supported only at the "tile" level.
+A device should be queried using `info::device::partition_properties` to
+determine if it supports partitioning by `ext_intel_partition_by_cslice`. If a
+device does not support partitioning by `ext_intel_partition_by_cslice` it may
+first need to be partitioned into per-tile sub-devices via
+`partition_by_affinity_domain`, and then each of the resulting sub-devices may
+be further partitioned by `ext_intel_partition_by_cslice`.
+
+It is important to understand that the device driver virtualizes work
+submission to the cslice sub-devices.  (More specifically, the device driver
+virtualizes work submission to different CCS-es, and this means that on Data
+Center GPU Max series devices the work submission to a cslice is virtualized.)
+This virtualization happens only between processes, and not within a single
+process.  For example, consider a single process that constructs two SYCL
+queues on cslice sub-device #0.  Kernels submitted to these two queues are
+guaranteed to conflict, both using the same set of execution units.  Therefore,
+if a single process wants to explicitly submit kernels to cslice sub-devices
+and it wants to avoid conflict, it should create queues on different
+sub-devices.  By contrast, consider an example where two separate processes
+create a SYCL queue on cslice sub-device #0.  In this case, the device driver
+virtualizes access to this cslice, and kernels submitted from the first process
+may run on different execution units than kernels submitted from the second
+process.  In this second case, the device driver binds the process's requested
+cslice to a physical cslice according to the overall system load.
+
+Note that this extension can be supported by any implementation.  If an
+implementation supports a backend or device without the concept of cslice
+partitions it can still conform to this extension by declaring the new
+enumerator and member functions specified below.  If the info descriptor query
+`info::device::partition_properties` does not report
+`ext_intel_partition_by_cslice`, then the backend or device does not support
+the creation of cslice partitions.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_INTEL_CSLICE` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== New partition property
+
+This extension adds a new enumerator named `ext_intel_partition_by_cslice` to
+`info::partition_property`:
+
+```
+namespace sycl::info {
+
+enum class partition_property : /* unspecified */ {
+  // ...
+  ext_intel_partition_by_cslice
+};
+
+} // namespace sycl::info
+```
+
+The behavior of the `info::device::partition_properties` info descriptor query
+is also extended to include `ext_intel_partition_by_cslice` in the vector of
+returned values if the device can be partitioned into at least two sub-devices
+along that partition property.
+
+=== New function template specialization to create sub-devices
+
+This extension adds a new function template specialization to the `device`
+class:
+
+```
+namespace sycl {
+
+class device {
+  // ...
+
+  // Available only when
+  // Prop == info::partition_property::ext_intel_partition_by_cslice
+  template <info::partition_property Prop>
+  std::vector<device> create_sub_devices() const;
+};
+
+} // namespace sycl
+```
+
+This function only participates in overload resolution if the `Prop` template
+parameter is `info::partition_property::ext_intel_partition_by_cslice`.  It
+returns a `std::vector` of sub-devices partitioned from this SYCL `device`,
+each representing a fixed set of hardware cslices.
+
+If the SYCL `device` does not support
+`info::partition_property::ext_intel_partition_by_cslice`, calling this
+function throws a synchronous `exception` with the
+`errc::feature_not_supported` error code.
+
+=== Behavior of device info queries for a "cslice" sub-device
+
+This section describes the behavior for some of the device info queries when
+applied to a `device` object that represents a "cslice" partition.
+
+* `info::device::partition_type_property`
++
+Returns `ext_intel_partition_by_cslice`.
+
+* `info::device::max_compute_units`
++
+When partitioning by `ext_intel_partition_by_cslice`, each sub-device
+represents a fixed subset of the parent device's compute units.  This query
+returns the number of compute units represented by the sub-device.
+
+The remaining device info queries return the properties or limits of the
+sub-device, as is typical for these queries.  In general, if a resource is
+partitioned among the sub-devices, then the associated info query will
+return each sub-device's share of the resource.  However, if a resource is
+shared by all of the sub-devices, then the associated info query for each
+sub-device will return the same value as for the parent device.  For example,
+if device global memory is shared by all cslice partitions in a tile, then the
+info query `info::device::global_mem_size` will return the same value for the
+`device` object representing the tile as for the `device` object representing
+a cslice.
+
+=== Behavior of the Level Zero backend interop functions
+
+The Level Zero device driver doesn't use the concept of sub-device to represent
+a fixed partition of cslices.  Instead, a Level Zero command queue can be
+created with a particular queue index, which represents a partition of the
+cslices.
+
+As a result, calling `get_native` for a SYCL `device` that represents a cslice
+partition returns the same `ze_device_handle_t` as the parent device.  If an
+application wants a native handle to the cslice partition, it must create a
+SYCL `queue` and then call `get_native` on the `queue`.  This will return a
+`ze_command_queue_handle_t` that corresponds to the cslice partition.
+
+=== Behavior of the OpenCL backend interop functions
+
+The OpenCL device driver doesn't use the concept of sub-device to represent a
+fixed partition of cslices.  Instead, an OpenCL command queue can be created
+with a particular queue index, which represents a partition of the cslices.
+
+As a result, calling `get_native` for a SYCL `device` that represents a cslice
+partition returns the same `cl_device_id` as the parent device.  If an
+application wants a native handle to the cslice partition, it must create a
+SYCL `queue` and then call `get_native` on the `queue`.  This will return a
+`cl_command_queue` that corresponds to the cslice partition.
+
+
+== Impact on the ONEAPI_DEVICE_SELECTOR environment variable
+
+:oneapi-device-selector: https://github.com/intel/llvm/blob/sycl/sycl/doc/EnvironmentVariables.md#oneapi_device_selector
+
+This section describes the effect of this extension on the {dpcpp}
+`ONEAPI_DEVICE_SELECTOR` environment variable.  Since this environment variable
+is not part of the SYCL specification, this section is not a normative part of
+the extension specification.  Rather, it only describes the impact on {dpcpp}.
+
+As described in the {oneapi-device-selector}[documentation] for the
+`ONEAPI_DEVICE_SELECTOR`, a term in the selector string can be an integral
+number followed by a decimal point (`.`), where the decimal point indicates a
+sub-device.  For example, `1.2` means sub-device #2 of device #1.  These
+decimal points can represent either a sub-device created via
+`partition_by_affinity_domain` or via `ext_intel_partition_by_cslice`.  When
+{dpcpp} processes a term with a decimal point, it first attempts to partition
+by `ext_intel_partition_by_cslice`.  If that is not possible, it next attempts
+to partition by `partition_by_affinity_domain` /
+`partition_affinity_domain::next_partitionable`.
+
+It is important to keep in mind, though, that requesting a specific cslice via
+this environment variable has limited effect due to the device driver's
+virtualization of cslices.  To illustrate, consider an example where two
+processes are launched as follows, selecting different cslice sub-devices:
+
+```
+$ ONEAPI_DEVICE_SELECTOR=level_zero:0.1.0 ZEX_NUMBER_OF_CCS=0:2 ./foo
+$ ONEAPI_DEVICE_SELECTOR=level_zero:0.1.1 ZEX_NUMBER_OF_CCS=0:2 ./foo
+```
+
+The first process selects cslice #0 while the second selects cslice #1.  This
+does have the effect that each process is constrained to a single cslice (which
+is not the {dpcpp} default).  However, the actual cslice number is irrelevant.
+Because of cslice virtualization, the device driver will choose some available
+cslice for each process instead of honoring the value requested in the
+environment variable.  As a result, the following example has exactly the same
+effect:
+
+```
+$ ONEAPI_DEVICE_SELECTOR=level_zero:0.1.0 ZEX_NUMBER_OF_CCS=0:2 ./foo
+$ ONEAPI_DEVICE_SELECTOR=level_zero:0.1.0 ZEX_NUMBER_OF_CCS=0:2 ./foo
+```

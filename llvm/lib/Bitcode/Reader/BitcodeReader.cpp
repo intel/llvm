@@ -80,6 +80,7 @@
 #include <deque>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <system_error>
@@ -553,7 +554,7 @@ public:
   Optional<unsigned> getInRangeIndex() const {
     assert(Opcode == Instruction::GetElementPtr);
     if (Extra == (unsigned)-1)
-      return None;
+      return std::nullopt;
     return Extra;
   }
 
@@ -593,7 +594,7 @@ class BitcodeReader : public BitcodeReaderBase, public GVMaterializer {
   /// ValueList must be destroyed before Alloc.
   BumpPtrAllocator Alloc;
   BitcodeReaderValueList ValueList;
-  Optional<MetadataLoader> MDLoader;
+  std::optional<MetadataLoader> MDLoader;
   std::vector<Comdat *> ComdatList;
   DenseSet<GlobalObject *> ImplicitComdatObjects;
   SmallVector<Instruction *, 64> InstructionList;
@@ -821,7 +822,9 @@ private:
   Error parseAttrKind(uint64_t Code, Attribute::AttrKind *Kind);
   Error parseModule(
       uint64_t ResumeBit, bool ShouldLazyLoadMetadata = false,
-      DataLayoutCallbackTy DataLayoutCallback = [](StringRef) { return None; });
+      DataLayoutCallbackTy DataLayoutCallback = [](StringRef) {
+        return std::nullopt;
+      });
 
   Error parseComdatRecord(ArrayRef<uint64_t> Record);
   Error parseGlobalVarRecord(ArrayRef<uint64_t> Record);
@@ -2873,8 +2876,8 @@ Error BitcodeReader::resolveGlobalAndIndirectSymbolInits() {
         Type *ResolverFTy =
             GlobalIFunc::getResolverFunctionType(GI->getValueType());
         // Transparently fix up the type for compatibility with older bitcode
-        GI->setResolver(
-            ConstantExpr::getBitCast(C, ResolverFTy->getPointerTo()));
+        GI->setResolver(ConstantExpr::getBitCast(
+            C, ResolverFTy->getPointerTo(GI->getAddressSpace())));
       } else {
         return error("Expected an alias or an ifunc");
       }
@@ -3205,7 +3208,7 @@ Error BitcodeReader::parseConstants() {
         PointeeType = getTypeByID(Record[OpNum++]);
 
       bool InBounds = false;
-      Optional<unsigned> InRangeIndex;
+      std::optional<unsigned> InRangeIndex;
       if (BitCode == bitc::CST_CODE_CE_GEP_WITH_INRANGE_INDEX) {
         uint64_t Op = Record[OpNum++];
         InBounds = Op & 1;
@@ -7914,7 +7917,7 @@ Expected<std::unique_ptr<Module>>
 BitcodeModule::getLazyModule(LLVMContext &Context, bool ShouldLazyLoadMetadata,
                              bool IsImporting) {
   return getModuleImpl(Context, false, ShouldLazyLoadMetadata, IsImporting,
-                       [](StringRef) { return None; });
+                       [](StringRef) { return std::nullopt; });
 }
 
 // Parse the specified bitcode buffer and merge the index into CombinedIndex.

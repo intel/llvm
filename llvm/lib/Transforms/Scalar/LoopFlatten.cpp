@@ -75,6 +75,7 @@
 #include "llvm/Transforms/Utils/LoopUtils.h"
 #include "llvm/Transforms/Utils/ScalarEvolutionExpander.h"
 #include "llvm/Transforms/Utils/SimplifyIndVar.h"
+#include <optional>
 
 using namespace llvm;
 using namespace llvm::PatternMatch;
@@ -413,7 +414,8 @@ static bool findLoopComponents(
   // increment variable.
   Increment =
       cast<BinaryOperator>(InductionPHI->getIncomingValueForBlock(Latch));
-  if (Increment->hasNUsesOrMore(3)) {
+  if ((Compare->getOperand(0) != Increment || !Increment->hasNUses(2)) &&
+      !Increment->hasNUses(1)) {
     LLVM_DEBUG(dbgs() << "Could not find valid increment\n");
     return false;
   }
@@ -912,7 +914,7 @@ PreservedAnalyses LoopFlattenPass::run(LoopNest &LN, LoopAnalysisManager &LAM,
 
   bool Changed = false;
 
-  Optional<MemorySSAUpdater> MSSAU;
+  std::optional<MemorySSAUpdater> MSSAU;
   if (AR.MSSA) {
     MSSAU = MemorySSAUpdater(AR.MSSA);
     if (VerifyMemorySSA)
@@ -924,7 +926,7 @@ PreservedAnalyses LoopFlattenPass::run(LoopNest &LN, LoopAnalysisManager &LAM,
   // this pass will simplify all loops that contain inner loops,
   // regardless of whether anything ends up being flattened.
   Changed |= Flatten(LN, &AR.DT, &AR.LI, &AR.SE, &AR.AC, &AR.TTI, &U,
-                     MSSAU ? MSSAU.getPointer() : nullptr);
+                     MSSAU ? &*MSSAU : nullptr);
 
   if (!Changed)
     return PreservedAnalyses::all();
@@ -982,15 +984,15 @@ bool LoopFlattenLegacyPass::runOnFunction(Function &F) {
   auto *AC = &getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F);
   auto *MSSA = getAnalysisIfAvailable<MemorySSAWrapperPass>();
 
-  Optional<MemorySSAUpdater> MSSAU;
+  std::optional<MemorySSAUpdater> MSSAU;
   if (MSSA)
     MSSAU = MemorySSAUpdater(&MSSA->getMSSA());
 
   bool Changed = false;
   for (Loop *L : *LI) {
     auto LN = LoopNest::getLoopNest(*L, *SE);
-    Changed |= Flatten(*LN, DT, LI, SE, AC, TTI, nullptr,
-                       MSSAU ? MSSAU.getPointer() : nullptr);
+    Changed |=
+        Flatten(*LN, DT, LI, SE, AC, TTI, nullptr, MSSAU ? &*MSSAU : nullptr);
   }
   return Changed;
 }

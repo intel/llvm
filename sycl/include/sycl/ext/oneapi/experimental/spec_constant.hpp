@@ -22,9 +22,7 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 
 class spec_const_error : public compile_program_error {
   using compile_program_error::compile_program_error;
@@ -50,7 +48,7 @@ private:
 
 public:
   template <typename V = T>
-  typename sycl::detail::enable_if_t<std::is_arithmetic<V>::value, V>
+  typename std::enable_if_t<std::is_arithmetic<V>::value, V>
   get() const { // explicit access.
 #ifdef __SYCL_DEVICE_ONLY__
     const char *TName = __builtin_sycl_unique_stable_name(ID);
@@ -61,9 +59,8 @@ public:
   }
 
   template <typename V = T>
-  typename sycl::detail::enable_if_t<std::is_class<V>::value &&
-                                         std::is_pod<V>::value,
-                                     V>
+  typename std::enable_if_t<std::is_class<V>::value && std::is_pod<V>::value,
+                            V>
   get() const { // explicit access.
 #ifdef __SYCL_DEVICE_ONLY__
     const char *TName = __builtin_sycl_unique_stable_name(ID);
@@ -78,9 +75,7 @@ public:
   }
 };
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

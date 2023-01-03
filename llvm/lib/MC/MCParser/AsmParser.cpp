@@ -64,6 +64,7 @@
 #include <cstdint>
 #include <deque>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <tuple>
@@ -73,8 +74,6 @@
 using namespace llvm;
 
 MCAsmParserSemaCallback::~MCAsmParserSemaCallback() = default;
-
-extern cl::opt<unsigned> AsmMacroMaxNestingDepth;
 
 namespace {
 
@@ -239,9 +238,11 @@ public:
     AssemblerDialect = i;
   }
 
-  void Note(SMLoc L, const Twine &Msg, SMRange Range = None) override;
-  bool Warning(SMLoc L, const Twine &Msg, SMRange Range = None) override;
-  bool printError(SMLoc L, const Twine &Msg, SMRange Range = None) override;
+  void Note(SMLoc L, const Twine &Msg, SMRange Range = std::nullopt) override;
+  bool Warning(SMLoc L, const Twine &Msg,
+               SMRange Range = std::nullopt) override;
+  bool printError(SMLoc L, const Twine &Msg,
+                  SMRange Range = std::nullopt) override;
 
   const AsmToken &Lex() override;
 
@@ -324,7 +325,7 @@ private:
 
   void printMacroInstantiations();
   void printMessage(SMLoc Loc, SourceMgr::DiagKind Kind, const Twine &Msg,
-                    SMRange Range = None) const {
+                    SMRange Range = std::nullopt) const {
     ArrayRef<SMRange> Ranges(Range);
     SrcMgr.PrintMessage(Loc, Kind, Msg, Ranges);
   }
@@ -541,6 +542,7 @@ private:
     DK_LTO_DISCARD,
     DK_LTO_SET_CONDITIONAL,
     DK_CFI_MTE_TAGGED_FRAME,
+    DK_MEMTAG,
     DK_END
   };
 
@@ -753,6 +755,8 @@ public:
 
 namespace llvm {
 
+extern cl::opt<unsigned> AsmMacroMaxNestingDepth;
+
 extern MCAsmParserExtension *createDarwinAsmParser();
 extern MCAsmParserExtension *createELFAsmParser();
 extern MCAsmParserExtension *createCOFFAsmParser();
@@ -948,10 +952,9 @@ bool AsmParser::enabledGenDwarfForAssembly() {
     // Use the first #line directive for this, if any. It's preprocessed, so
     // there is no checksum, and of course no source directive.
     if (!FirstCppHashFilename.empty())
-      getContext().setMCLineTableRootFile(/*CUID=*/0,
-                                          getContext().getCompilationDir(),
-                                          FirstCppHashFilename,
-                                          /*Cksum=*/None, /*Source=*/None);
+      getContext().setMCLineTableRootFile(
+          /*CUID=*/0, getContext().getCompilationDir(), FirstCppHashFilename,
+          /*Cksum=*/std::nullopt, /*Source=*/std::nullopt);
     const MCDwarfFile &RootFile =
         getContext().getMCDwarfLineTable(/*CUID=*/0).getRootFile();
     getContext().setGenDwarfFileNumber(getStreamer().emitDwarfFileDirective(
@@ -2298,6 +2301,8 @@ bool AsmParser::parseStatement(ParseStatementInfo &Info,
       return parseDirectivePseudoProbe();
     case DK_LTO_DISCARD:
       return parseDirectiveLTODiscard();
+    case DK_MEMTAG:
+      return parseDirectiveSymbolAttribute(MCSA_Memtag);
     }
 
     return Error(IDLoc, "unknown directive");
@@ -3485,11 +3490,11 @@ bool AsmParser::parseDirectiveAlign(bool IsPow2, unsigned ValueSize) {
   bool useCodeAlign = Section->useCodeAlign();
   if ((!HasFillExpr || Lexer.getMAI().getTextAlignFillValue() == FillExpr) &&
       ValueSize == 1 && useCodeAlign) {
-    getStreamer().emitCodeAlignment(Alignment, &getTargetParser().getSTI(),
-                                    MaxBytesToFill);
+    getStreamer().emitCodeAlignment(
+        Align(Alignment), &getTargetParser().getSTI(), MaxBytesToFill);
   } else {
     // FIXME: Target specific behavior about how the "extra" bytes are filled.
-    getStreamer().emitValueToAlignment(Alignment, FillExpr, ValueSize,
+    getStreamer().emitValueToAlignment(Align(Alignment), FillExpr, ValueSize,
                                        MaxBytesToFill);
   }
 
@@ -3534,7 +3539,7 @@ bool AsmParser::parseDirectiveFile(SMLoc DirectiveLoc) {
   uint64_t MD5Hi, MD5Lo;
   bool HasMD5 = false;
 
-  Optional<StringRef> Source;
+  std::optional<StringRef> Source;
   bool HasSource = false;
   std::string SourceString;
 
@@ -4808,9 +4813,7 @@ bool AsmParser::parseDirectiveBundleAlignMode() {
             "invalid bundle alignment size (expected between 0 and 30)"))
     return true;
 
-  // Because of AlignSizePow2's verified range we can safely truncate it to
-  // unsigned.
-  getStreamer().emitBundleAlignMode(static_cast<unsigned>(AlignSizePow2));
+  getStreamer().emitBundleAlignMode(Align(1ULL << AlignSizePow2));
   return false;
 }
 
@@ -4986,8 +4989,9 @@ bool AsmParser::parseDirectiveSymbolAttribute(MCSymbolAttr Attr) {
 
     MCSymbol *Sym = getContext().getOrCreateSymbol(Name);
 
-    // Assembler local symbols don't make any sense here. Complain loudly.
-    if (Sym->isTemporary())
+    // Assembler local symbols don't make any sense here, except for directives
+    // that the symbol should be tagged.
+    if (Sym->isTemporary() && Attr != MCSA_Memtag)
       return Error(Loc, "non-local symbol required");
 
     if (!getStreamer().emitSymbolAttribute(Sym, Attr))
@@ -5600,6 +5604,7 @@ void AsmParser::initializeDirectiveKindMap() {
   DirectiveKindMap[".pseudoprobe"] = DK_PSEUDO_PROBE;
   DirectiveKindMap[".lto_discard"] = DK_LTO_DISCARD;
   DirectiveKindMap[".lto_set_conditional"] = DK_LTO_SET_CONDITIONAL;
+  DirectiveKindMap[".memtag"] = DK_MEMTAG;
 }
 
 MCAsmMacro *AsmParser::parseMacroLikeBody(SMLoc DirectiveLoc) {
@@ -5695,7 +5700,8 @@ bool AsmParser::parseDirectiveRept(SMLoc DirectiveLoc, StringRef Dir) {
   raw_svector_ostream OS(Buf);
   while (Count--) {
     // Note that the AtPseudoVariable is disabled for instantiations of .rep(t).
-    if (expandMacro(OS, M->Body, None, None, false, getTok().getLoc()))
+    if (expandMacro(OS, M->Body, std::nullopt, std::nullopt, false,
+                    getTok().getLoc()))
       return true;
   }
   instantiateMacroLikeBody(M, DirectiveLoc, OS);

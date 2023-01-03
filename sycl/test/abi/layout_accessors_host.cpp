@@ -25,6 +25,7 @@ void hostAcc(accessor<int, 1, access::mode::read, access::target::host_buffer> A
 // CHECK-NEXT:  8 |         class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
 // CHECK-NEXT:  8 |           _Sp_counted_base<(_Lock_policy)2U> * _M_pi
 // CHECK-NEXT:  0 |   class sycl::detail::accessor_common<int, 1, sycl::access::mode::read, sycl::access::target::host_buffer, sycl::access::placeholder::false_t> (base) (empty)
+// CHECK-NEXT:  0 |   class sycl::detail::OwnerLessBase<class sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::host_buffer, sycl::access::placeholder::false_t> > (base) (empty)
 // CHECK-NEXT: 16 | detail::AccHostDataT * MAccData
 // CHECK-NEXT: 24 |   char[8] padding
 // CHECK-NEXT: [sizeof=32, dsize=32, align=8,
@@ -47,6 +48,7 @@ void hostAcc(accessor<int, 1, access::mode::read, access::target::global_buffer>
 // CHECK-NEXT: 8 |         class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
 // CHECK-NEXT: 8 |           _Sp_counted_base<(_Lock_policy)2U> * _M_pi
 // CHECK-NEXT: 0 |   class sycl::detail::accessor_common<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t> (base) (empty)
+// CHECK-NEXT: 0 |   class sycl::detail::OwnerLessBase<class sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t> > (base) (empty)
 // CHECK-NEXT: 16 | detail::AccHostDataT * MAccData
 // CHECK-NEXT: 24 |   char[8] padding
 // CHECK-NEXT: [sizeof=32, dsize=32, align=8,
@@ -71,6 +73,7 @@ void hostAcc(accessor<int, 1, access::mode::read_write, access::target::local> A
 // CHECK-NEXT: 8 |             _Sp_counted_base<(_Lock_policy)2U> * _M_pi
 // CHECK-NEXT: 0 |     class sycl::detail::accessor_common<int, 1, sycl::access::mode::read_write, sycl::access::target::local, sycl::access::placeholder::false_t> (base) (empty)
 // CHECK-NEXT: 16 |     char[16] padding
+// CHECK-NEXT: 0 |   class sycl::detail::OwnerLessBase<class sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::local, sycl::access::placeholder::false_t> > (base) (empty)
 // CHECK-NEXT: [sizeof=32, dsize=32, align=8,
 // CHECK-NEXT: nvsize=32, nvalign=8]
 
@@ -89,6 +92,7 @@ void hostAcc(local_accessor<int, 1> Acc) {
 // CHECK-NEXT: 8 |             _Sp_counted_base<(_Lock_policy)2U> * _M_pi
 // CHECK-NEXT: 0 |     class sycl::detail::accessor_common<int, 1, sycl::access::mode::read_write, sycl::access::target::local, sycl::access::placeholder::false_t> (base) (empty)
 // CHECK-NEXT: 16 |     char[16] padding
+// CHECK-NEXT: 0 |   class sycl::detail::OwnerLessBase<class sycl::local_accessor<int, 1> > (base) (empty)
 // CHECK-NEXT: [sizeof=32, dsize=32, align=8,
 // CHECK-NEXT: nvsize=32, nvalign=8]
 
@@ -111,6 +115,7 @@ void hostAcc(accessor<int4, 1, access::mode::read_write, access::target::host_im
 // CHECK-NEXT: 16 |     size_t MImageCount
 // CHECK-NEXT: 24 |     image_channel_order MImgChannelOrder
 // CHECK-NEXT: 28 |     image_channel_type MImgChannelType
+// CHECK-NEXT: 0 |   class sycl::detail::OwnerLessBase<class sycl::accessor<class sycl::vec<int, 4>, 1, sycl::access::mode::read_write, sycl::access::target::host_image, sycl::access::placeholder::false_t> > (base) (empty)
 // CHECK-NEXT: [sizeof=32, dsize=32, align=8,
 // CHECK-NEXT: nvsize=32, nvalign=8]
 
@@ -133,5 +138,6 @@ void hostAcc(accessor<int4, 1, access::mode::read, access::target::image> Acc) {
 // CHECK-NEXT: 16 |     size_t MImageCount
 // CHECK-NEXT: 24 |     image_channel_order MImgChannelOrder
 // CHECK-NEXT: 28 |     image_channel_type MImgChannelType
+// CHECK-NEXT: 0 |   class sycl::detail::OwnerLessBase<class sycl::accessor<class sycl::vec<int, 4>, 1, sycl::access::mode::read, sycl::access::target::image, sycl::access::placeholder::false_t> > (base) (empty)
 // CHECK-NEXT: [sizeof=32, dsize=32, align=8,
 // CHECK-NEXT: nvsize=32, nvalign=8]

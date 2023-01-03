@@ -17,9 +17,7 @@ using ext::oneapi::sub_group;
 // TODO move the entire sub_group class implementation to this file once
 // breaking changes are allowed.
 
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 inline sub_group this_sub_group() {
 #ifdef __SYCL_DEVICE_ONLY__
   return sub_group();
@@ -28,8 +26,6 @@ inline sub_group this_sub_group() {
                       PI_ERROR_INVALID_DEVICE);
 #endif
 }
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

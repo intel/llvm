@@ -481,8 +481,8 @@ namespace {
 
   /// The main ARC optimization pass.
 class ObjCARCOpt {
-  bool Changed;
-  bool CFGChanged;
+  bool Changed = false;
+  bool CFGChanged = false;
   ProvenanceAnalysis PA;
 
   /// A cache of references to runtime entry point constants.
@@ -999,7 +999,7 @@ void ObjCARCOpt::OptimizeIndividualCallImpl(
       CallInst *NewCall =
           CallInst::Create(Decl, Call->getArgOperand(0), "", Call);
       NewCall->setMetadata(MDKindCache.get(ARCMDKindID::ImpreciseRelease),
-                           MDNode::get(C, None));
+                           MDNode::get(C, std::nullopt));
 
       LLVM_DEBUG(dbgs() << "Replacing autorelease{,RV}(x) with objc_release(x) "
                            "since x is otherwise unused.\nOld: "

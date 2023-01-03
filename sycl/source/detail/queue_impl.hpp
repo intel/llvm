@@ -104,6 +104,18 @@ public:
                             "Queue cannot be constructed with both of "
                             "discard_events and enable_profiling.");
     }
+    if (has_property<ext::intel::property::queue::compute_index>()) {
+      int Idx = get_property<ext::intel::property::queue::compute_index>()
+                    .get_index();
+      int NumIndices =
+          createSyclObjFromImpl<device>(Device)
+              .get_info<ext::intel::info::device::max_compute_queue_indices>();
+      if (Idx < 0 || Idx >= NumIndices)
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Queue compute index must be a non-negative number less than "
+            "device's number of available compute queue indices.");
+    }
     if (!Context->isDeviceValid(Device)) {
       if (!Context->is_host() &&
           Context->getPlugin().getBackend() == backend::opencl)
@@ -297,10 +309,10 @@ public:
     RT::PiQueueProperties CreationFlags = 0;
 
     if (Order == QueueOrder::OOO) {
-      CreationFlags = PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+      CreationFlags = PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
     }
     if (MPropList.has_property<property::queue::enable_profiling>()) {
-      CreationFlags |= PI_QUEUE_PROFILING_ENABLE;
+      CreationFlags |= PI_QUEUE_FLAG_PROFILING_ENABLE;
     }
     if (MPropList.has_property<
             ext::oneapi::cuda::property::queue::use_default_stream>()) {
@@ -310,7 +322,7 @@ public:
             .has_property<ext::oneapi::property::queue::discard_events>()) {
       // Pass this flag to the Level Zero plugin to be able to check it from
       // queue property.
-      CreationFlags |= PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS;
+      CreationFlags |= PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS;
     }
     // Track that priority settings are not ambiguous.
     bool PrioritySeen = false;
@@ -325,7 +337,7 @@ public:
             make_error_code(errc::invalid),
             "Queue cannot be constructed with different priorities.");
       }
-      CreationFlags |= PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW;
+      CreationFlags |= PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW;
       PrioritySeen = true;
     }
     if (MPropList.has_property<ext::oneapi::property::queue::priority_high>()) {
@@ -334,7 +346,7 @@ public:
             make_error_code(errc::invalid),
             "Queue cannot be constructed with different priorities.");
       }
-      CreationFlags |= PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH;
+      CreationFlags |= PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH;
       PrioritySeen = true;
     }
     RT::PiQueue Queue{};
@@ -343,8 +355,16 @@ public:
     const detail::plugin &Plugin = getPlugin();
 
     assert(Plugin.getBackend() == MDevice->getPlugin().getBackend());
-    RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piQueueCreate>(
-        Context, Device, CreationFlags, &Queue);
+    RT::PiQueueProperties Properties[] = {PI_QUEUE_FLAGS, CreationFlags, 0, 0,
+                                          0};
+    if (has_property<ext::intel::property::queue::compute_index>()) {
+      int Idx = get_property<ext::intel::property::queue::compute_index>()
+                    .get_index();
+      Properties[2] = PI_QUEUE_COMPUTE_INDEX;
+      Properties[3] = static_cast<RT::PiQueueProperties>(Idx);
+    }
+    RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piextQueueCreate>(
+        Context, Device, Properties, &Queue);
 
     // If creating out-of-order queue failed and this property is not
     // supported (for example, on FPGA), it will return
@@ -476,6 +496,8 @@ public:
     MStreamsServiceEvents.push_back(Event);
   }
 
+  bool ext_oneapi_empty() const;
+
 protected:
   // template is needed for proper unit testing
   template <typename HandlerType = handler>
@@ -580,7 +602,7 @@ protected:
   void addEvent(const event &Event);
 
   /// Protects all the fields that can be changed by class' methods.
-  std::mutex MMutex;
+  mutable std::mutex MMutex;
 
   DeviceImplPtr MDevice;
   const ContextImplPtr MContext;
@@ -611,7 +633,7 @@ protected:
   // This event is employed for enhanced dependency tracking with in-order queue
   // Access to the event should be guarded with MLastEventMtx
   event MLastEvent;
-  std::mutex MLastEventMtx;
+  mutable std::mutex MLastEventMtx;
   // Used for in-order queues in pair with MLastEvent
   // Host tasks are explicitly synchronized in RT, pi tasks - implicitly by
   // backend. Using type to setup explicit sync between host and pi tasks.

@@ -30,11 +30,10 @@ public:
     case detail::CG::RunOnHostIntel: {
       CommandGroup.reset(new detail::CGExecKernel(
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
-          std::move(MImpl->MKernelBundle),
-          getArgsStorage(), getAccStorage(), getSharedPtrStorage(),
-          getRequirements(), getEvents(), getArgs(), getKernelName(),
-          getOSModuleHandle(), getStreamStorage(), std::move(MImpl->MAuxiliaryResources),
-          getCGType(), getCodeLoc()));
+          std::move(MImpl->MKernelBundle), getArgsStorage(), getAccStorage(),
+          getSharedPtrStorage(), getRequirements(), getEvents(), getArgs(),
+          getKernelName(), getOSModuleHandle(), getStreamStorage(),
+          std::move(MImpl->MAuxiliaryResources), getCGType(), getCodeLoc()));
       break;
     }
     default:
@@ -128,8 +127,7 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
   // Tree of dependencies should look like:
   // [MAIN_CG] -> [EMPTY_NODE {FlushBufMemObj}] -> [FILL_CG {FlushBufMemObj}] ->
   //     [[ALLOC_TASK {FlushBufMemObj}]
-  std::vector<CmdTypeTy> DepCmdsTypes({CmdTypeTy::EMPTY_TASK,
-                                       CmdTypeTy::RUN_CG, // FILL_CG
+  std::vector<CmdTypeTy> DepCmdsTypes({CmdTypeTy::RUN_CG, // FILL_CG
                                        CmdTypeTy::ALLOCA});
   ASSERT_TRUE(ValidateDepCommandsTree(NewCmd, DepCmdsTypes, FlushBufMemObjPtr))
       << "Dependency on stream flush buffer initialization not found";

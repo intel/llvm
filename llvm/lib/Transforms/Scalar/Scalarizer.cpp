@@ -489,11 +489,11 @@ ScalarizerVisitor::getVectorLayout(Type *Ty, Align Alignment,
   // Make sure we're dealing with a vector.
   Layout.VecTy = dyn_cast<VectorType>(Ty);
   if (!Layout.VecTy)
-    return None;
+    return std::nullopt;
   // Check that we're dealing with full-byte elements.
   Layout.ElemTy = Layout.VecTy->getElementType();
   if (!DL.typeSizeEqualsStoreSize(Layout.ElemTy))
-    return None;
+    return std::nullopt;
   Layout.VecAlign = Alignment;
   Layout.ElemSize = DL.getTypeStoreSize(Layout.ElemTy);
   return Layout;
@@ -848,7 +848,7 @@ bool ScalarizerVisitor::visitExtractElementInst(ExtractElementInst &EEI) {
   if (!ScalarizeVariableInsertExtract)
     return false;
 
-  Value *Res = UndefValue::get(VT->getElementType());
+  Value *Res = PoisonValue::get(VT->getElementType());
   for (unsigned I = 0; I < NumSrcElems; ++I) {
     Value *ShouldExtract =
         Builder.CreateICmpEQ(ExtIdx, ConstantInt::get(ExtIdx->getType(), I),

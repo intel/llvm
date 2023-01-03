@@ -766,7 +766,7 @@ static void maybeSynthesizeBlockSignature(TypeProcessingState &state,
       /*NumExceptions=*/0,
       /*NoexceptExpr=*/nullptr,
       /*ExceptionSpecTokens=*/nullptr,
-      /*DeclsInPrototype=*/None, loc, loc, declarator));
+      /*DeclsInPrototype=*/std::nullopt, loc, loc, declarator));
 
   // For consistency, make sure the state still has us as processing
   // the decl spec.
@@ -5873,7 +5873,8 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           << T <<  D.getSourceRange();
         D.setEllipsisLoc(SourceLocation());
       } else {
-        T = Context.getPackExpansionType(T, None, /*ExpectPackInType=*/false);
+        T = Context.getPackExpansionType(T, std::nullopt,
+                                         /*ExpectPackInType=*/false);
       }
       break;
     case DeclaratorContext::TemplateParam:
@@ -5886,7 +5887,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
       // parameter packs in the type of the non-type template parameter, then
       // it expands those parameter packs.
       if (T->containsUnexpandedParameterPack())
-        T = Context.getPackExpansionType(T, None);
+        T = Context.getPackExpansionType(T, std::nullopt);
       else
         S.Diag(D.getEllipsisLoc(),
                LangOpts.CPlusPlus11
@@ -6825,8 +6826,8 @@ static void HandleAddressSpaceTypeAttribute(QualType &Type,
   }
 }
 
-static void HandleSYCLFPGAPipeAttribute(QualType &Type, const ParsedAttr &Attr,
-                                        TypeProcessingState &State) {
+static void HandleSYCLPipeAttribute(QualType &Type, const ParsedAttr &Attr,
+                                    TypeProcessingState &State) {
   Sema &S = State.getSema();
   ASTContext &Ctx = S.Context;
 
@@ -6866,7 +6867,7 @@ static void HandleSYCLFPGAPipeAttribute(QualType &Type, const ParsedAttr &Attr,
     return;
   }
 
-  auto *PipeAttr = ::new (Ctx) SYCLFPGAPipeAttr(Ctx, Attr, Str);
+  auto *PipeAttr = ::new (Ctx) SYCLIntelPipeAttr(Ctx, Attr, Str);
 
   // Apply pipe qualifiers just to the equivalent type, as the expression is not
   // value dependent (not templated).
@@ -7375,7 +7376,8 @@ static bool handleMSPointerTypeQualifierAttr(TypeProcessingState &State,
 
   // Add address space to type based on its attributes.
   LangAS ASIdx = LangAS::Default;
-  uint64_t PtrWidth = S.Context.getTargetInfo().getPointerWidth(0);
+  uint64_t PtrWidth =
+      S.Context.getTargetInfo().getPointerWidth(LangAS::Default);
   if (PtrWidth == 32) {
     if (Attrs[attr::Ptr64])
       ASIdx = LangAS::ptr64;
@@ -8528,8 +8530,8 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
       HandleOpenCLAccessAttr(type, attr, state.getSema());
       attr.setUsedAsTypeAttr();
       break;
-    case ParsedAttr::AT_SYCLFPGAPipe:
-      HandleSYCLFPGAPipeAttribute(type, attr, state);
+    case ParsedAttr::AT_SYCLIntelPipe:
+      HandleSYCLPipeAttribute(type, attr, state);
       attr.setUsedAsTypeAttr();
       break;
     case ParsedAttr::AT_LifetimeBound:

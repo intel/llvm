@@ -841,7 +841,7 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
 }
 
 template <typename T>
-typename detail::enable_if_t<
+typename std::enable_if_t<
     std::is_same<typename std::remove_cv_t<T>, Requirement>::value,
     EmptyCommand *>
 Scheduler::GraphBuilder::addEmptyCmd(Command *Cmd, const std::vector<T *> &Reqs,
@@ -923,7 +923,6 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
                                std::vector<Command *> &ToEnqueue) {
   std::vector<Requirement *> &Reqs = CommandGroup->MRequirements;
   const std::vector<detail::EventImplPtr> &Events = CommandGroup->MEvents;
-  const CG::CGTYPE CGType = CommandGroup->getType();
 
   auto NewCmd = std::make_unique<ExecCGCommand>(std::move(CommandGroup), Queue);
   if (!NewCmd)
@@ -1018,11 +1017,6 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
     if (Command *ConnCmd = NewCmd->addDep(e, ToCleanUp))
       ToEnqueue.push_back(ConnCmd);
   }
-
-  if (CGType == CG::CGTYPE::CodeplayHostTask)
-    NewCmd->MEmptyCmd =
-        addEmptyCmd(NewCmd.get(), NewCmd->getCG().MRequirements, Queue,
-                    Command::BlockReason::HostTask, ToEnqueue);
 
   if (MPrintOptionsArray[AfterAddCG])
     printGraphAsDot("after_addCG");
@@ -1323,8 +1317,6 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
     throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
   }
 
-  EmptyCommand *EmptyCmd = nullptr;
-
   if (Dep.MDepRequirement) {
     // make ConnectCmd depend on requirement
     // Dismiss the result here as it's not a connection now,
@@ -1333,27 +1325,13 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
     assert(reinterpret_cast<Command *>(DepEvent->getCommand()) ==
            Dep.MDepCommand);
     // add user to Dep.MDepCommand is already performed beyond this if branch
-
-    // ConnectCmd is added as dependency to Cmd
-    // We build the following structure Cmd->EmptyCmd/ConnectCmd->DepCmd
-    // No need to add ConnectCmd to leaves buffer since it is a dependency
-    // for command Cmd that will be added there
-
-    std::vector<Command *> ToEnqueue;
-    const std::vector<const Requirement *> Reqs(1, Dep.MDepRequirement);
-    EmptyCmd = addEmptyCmd(ConnectCmd, Reqs,
-                           Scheduler::getInstance().getDefaultHostQueue(),
-                           Command::BlockReason::HostTask, ToEnqueue, false);
-    assert(ToEnqueue.size() == 0);
-
-    // Depend Cmd on empty command
     {
-      DepDesc CmdDep = Dep;
-      CmdDep.MDepCommand = EmptyCmd;
+      DepDesc DepOnConnect = Dep;
+      DepOnConnect.MDepCommand = ConnectCmd;
 
       // Dismiss the result here as it's not a connection now,
-      // 'cause EmptyCmd is host one
-      (void)Cmd->addDep(CmdDep, ToCleanUp);
+      // 'cause ConnectCmd is host one
+      std::ignore = Cmd->addDep(DepOnConnect, ToCleanUp);
     }
   } else {
     // It is required condition in another a path and addUser will be set in
@@ -1361,28 +1339,12 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
     if (Command *DepCmd = reinterpret_cast<Command *>(DepEvent->getCommand()))
       DepCmd->addUser(ConnectCmd);
 
-    std::vector<Command *> ToEnqueue;
-    EmptyCmd = addEmptyCmd<Requirement>(
-        ConnectCmd, {}, Scheduler::getInstance().getDefaultHostQueue(),
-        Command::BlockReason::HostTask, ToEnqueue);
-    assert(ToEnqueue.size() == 0);
+    std::ignore = ConnectCmd->addDep(DepEvent, ToCleanUp);
 
-    // There is no requirement thus, empty command will only depend on
-    // ConnectCmd via its event.
-    // Dismiss the result here as it's not a connection now,
-    // 'cause ConnectCmd is host one.
-    (void)EmptyCmd->addDep(ConnectCmd->getEvent(), ToCleanUp);
-    (void)ConnectCmd->addDep(DepEvent, ToCleanUp);
+    std::ignore = Cmd->addDep(ConnectCmd->getEvent(), ToCleanUp);
 
-    // Depend Cmd on empty command
-    // Dismiss the result here as it's not a connection now,
-    // 'cause EmptyCmd is host one
-    (void)Cmd->addDep(EmptyCmd->getEvent(), ToCleanUp);
-    // Added by addDep in another path
-    EmptyCmd->addUser(Cmd);
+    ConnectCmd->addUser(Cmd);
   }
-
-  ConnectCmd->MEmptyCmd = EmptyCmd;
 
   return ConnectCmd;
 }

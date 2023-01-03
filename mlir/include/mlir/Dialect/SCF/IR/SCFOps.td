@@ -382,10 +382,10 @@ def ForeachThreadOp : SCF_Op<"foreach_thread", [
     An optional `mapping` is an attribute array that specifies processing units
     with their dimension, how it remaps 1-1 to a set of concrete processing
     element resources (e.g. a CUDA grid dimension or a level of concrete nested
-    async parallelism). It is expressed via any attribute that implements the 
-    device mapping interface. It is the reponsibility of the lowering mechanism 
-    to interpret the `mapping` attributes in the context of the concrete target 
-    the op is lowered to, or to ignore it when the specification is ill-formed 
+    async parallelism). It is expressed via any attribute that implements the
+    device mapping interface. It is the reponsibility of the lowering mechanism
+    to interpret the `mapping` attributes in the context of the concrete target
+    the op is lowered to, or to ignore it when the specification is ill-formed
     or unsupported for a particular target.
 
     The only allowed terminator is `scf.foreach_thread.perform_concurrently`.
@@ -445,7 +445,7 @@ def ForeachThreadOp : SCF_Op<"foreach_thread", [
 
     ```mlir
     //
-    // Sequential context. Here `mapping` is expressed as GPU thread mapping 
+    // Sequential context. Here `mapping` is expressed as GPU thread mapping
     // attributes
     //
     %matmul_and_pointwise:2 = scf.foreach_thread (%thread_id_1, %thread_id_2) in
@@ -487,6 +487,7 @@ def ForeachThreadOp : SCF_Op<"foreach_thread", [
   let results = (outs Variadic<AnyType>:$results);
   let regions = (region SizedRegion<1>:$region);
 
+  let hasCanonicalizer = 1;
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
 
@@ -510,9 +511,18 @@ def ForeachThreadOp : SCF_Op<"foreach_thread", [
           opOperand->getOperandNumber() - getRank());
     }
 
+    /// Return the num_threads operand that is tied to the given thread id
+    /// block argument.
     OpOperand *getTiedOpOperand(BlockArgument bbArg) {
       assert(bbArg.getArgNumber() >= getRank() && "invalid bbArg");
       return &getOperation()->getOpOperand(bbArg.getArgNumber());
+    }
+
+    /// Return the shared_outs operand that is tied to the given OpResult.
+    OpOperand *getTiedOpOperand(OpResult opResult) {
+      assert(opResult.getDefiningOp() == getOperation() && "invalid OpResult");
+      return &getOperation()->getOpOperand(
+          opResult.getResultNumber() + getRank());
     }
 
     BlockArgument getTiedBlockArgument(OpOperand *opOperand) {

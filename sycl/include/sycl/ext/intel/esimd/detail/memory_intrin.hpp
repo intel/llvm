@@ -70,7 +70,7 @@ constexpr unsigned int ElemsPerAddrEncoding() {
   else if constexpr (ElemsPerAddr == 4)
     return 2;
 
-  // other cases not needed since enable_if disallows other values
+  // other cases not needed since std::enable_if disallows other values
 }
 
 constexpr unsigned int ElemsPerAddrDecoding(unsigned int ElemsPerAddrEncoded) {

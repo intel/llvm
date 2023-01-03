@@ -204,6 +204,10 @@ struct LoaderSectionHeader32 {
   support::big32_t OffsetToImpid;
   support::ubig32_t LengthOfStrTbl;
   support::big32_t OffsetToStrTbl;
+
+  uint64_t getOffsetToSymTbl() const {
+    return NumberOfSymTabEnt == 0 ? 0 : sizeof(LoaderSectionHeader32);
+  }
 };
 
 struct LoaderSectionHeader64 {
@@ -217,6 +221,39 @@ struct LoaderSectionHeader64 {
   support::big64_t OffsetToStrTbl;
   support::big64_t OffsetToSymTbl;
   support::big64_t OffsetToRelEnt;
+
+  uint64_t getOffsetToSymTbl() const { return OffsetToSymTbl; }
+};
+
+struct LoaderSectionSymbolEntry32 {
+  struct NameOffsetInStrTbl {
+    support::big32_t IsNameInStrTbl; // Zero indicates name in string table.
+    support::ubig32_t Offset;
+  };
+
+  char SymbolName[XCOFF::NameSize];
+  support::ubig32_t Value; // The virtual address of the symbol.
+  support::big16_t SectionNumber;
+  uint8_t SymbolType;
+  XCOFF::StorageClass StorageClass;
+  support::ubig32_t ImportFileID;
+  support::ubig32_t ParameterTypeCheck;
+
+  Expected<StringRef>
+  getSymbolName(const LoaderSectionHeader32 *LoaderSecHeader) const;
+};
+
+struct LoaderSectionSymbolEntry64 {
+  support::ubig64_t Value; // The virtual address of the symbol.
+  support::ubig32_t Offset;
+  support::big16_t SectionNumber;
+  uint8_t SymbolType;
+  XCOFF::StorageClass StorageClass;
+  support::ubig32_t ImportFileID;
+  support::ubig32_t ParameterTypeCheck;
+
+  Expected<StringRef>
+  getSymbolName(const LoaderSectionHeader64 *LoaderSecHeader) const;
 };
 
 template <typename AddressType> struct ExceptionSectionEntry {
@@ -798,15 +835,15 @@ public:
 
 class XCOFFTracebackTable {
   const uint8_t *const TBPtr;
-  Optional<SmallString<32>> ParmsType;
-  Optional<uint32_t> TraceBackTableOffset;
-  Optional<uint32_t> HandlerMask;
-  Optional<uint32_t> NumOfCtlAnchors;
-  Optional<SmallVector<uint32_t, 8>> ControlledStorageInfoDisp;
-  Optional<StringRef> FunctionName;
-  Optional<uint8_t> AllocaRegister;
-  Optional<TBVectorExt> VecExt;
-  Optional<uint8_t> ExtensionTable;
+  std::optional<SmallString<32>> ParmsType;
+  std::optional<uint32_t> TraceBackTableOffset;
+  std::optional<uint32_t> HandlerMask;
+  std::optional<uint32_t> NumOfCtlAnchors;
+  std::optional<SmallVector<uint32_t, 8>> ControlledStorageInfoDisp;
+  std::optional<StringRef> FunctionName;
+  std::optional<uint8_t> AllocaRegister;
+  std::optional<TBVectorExt> VecExt;
+  std::optional<uint8_t> ExtensionTable;
 
   XCOFFTracebackTable(const uint8_t *Ptr, uint64_t &Size, Error &Err);
 
@@ -858,19 +895,30 @@ public:
   uint8_t getNumberOfFPParms() const;
   bool hasParmsOnStack() const;
 
-  const Optional<SmallString<32>> &getParmsType() const { return ParmsType; }
-  const Optional<uint32_t> &getTraceBackTableOffset() const {
+  const std::optional<SmallString<32>> &getParmsType() const {
+    return ParmsType;
+  }
+  const std::optional<uint32_t> &getTraceBackTableOffset() const {
     return TraceBackTableOffset;
   }
-  const Optional<uint32_t> &getHandlerMask() const { return HandlerMask; }
-  const Optional<uint32_t> &getNumOfCtlAnchors() { return NumOfCtlAnchors; }
-  const Optional<SmallVector<uint32_t, 8>> &getControlledStorageInfoDisp() {
+  const std::optional<uint32_t> &getHandlerMask() const { return HandlerMask; }
+  const std::optional<uint32_t> &getNumOfCtlAnchors() {
+    return NumOfCtlAnchors;
+  }
+  const std::optional<SmallVector<uint32_t, 8>> &
+  getControlledStorageInfoDisp() {
     return ControlledStorageInfoDisp;
   }
-  const Optional<StringRef> &getFunctionName() const { return FunctionName; }
-  const Optional<uint8_t> &getAllocaRegister() const { return AllocaRegister; }
-  const Optional<TBVectorExt> &getVectorExt() const { return VecExt; }
-  const Optional<uint8_t> &getExtensionTable() const { return ExtensionTable; }
+  const std::optional<StringRef> &getFunctionName() const {
+    return FunctionName;
+  }
+  const std::optional<uint8_t> &getAllocaRegister() const {
+    return AllocaRegister;
+  }
+  const std::optional<TBVectorExt> &getVectorExt() const { return VecExt; }
+  const std::optional<uint8_t> &getExtensionTable() const {
+    return ExtensionTable;
+  }
 };
 
 bool doesXCOFFTracebackTableBegin(ArrayRef<uint8_t> Bytes);

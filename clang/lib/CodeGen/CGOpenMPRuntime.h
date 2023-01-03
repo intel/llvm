@@ -306,14 +306,9 @@ public:
 
 protected:
   CodeGenModule &CGM;
-  StringRef FirstSeparator, Separator;
 
   /// An OpenMP-IR-Builder instance.
   llvm::OpenMPIRBuilder OMPBuilder;
-
-  /// Constructor allowing to redefine the name separator for the variables.
-  explicit CGOpenMPRuntime(CodeGenModule &CGM, StringRef FirstSeparator,
-                           StringRef Separator);
 
   /// Helper to emit outlined function for 'target' directive.
   /// \param D Directive to emit.
@@ -381,7 +376,7 @@ protected:
   /// Emits \p Callee function call with arguments \p Args with location \p Loc.
   void emitCall(CodeGenFunction &CGF, SourceLocation Loc,
                 llvm::FunctionCallee Callee,
-                ArrayRef<llvm::Value *> Args = llvm::None) const;
+                ArrayRef<llvm::Value *> Args = std::nullopt) const;
 
   /// Emits address of the word in a memory where current thread id is
   /// stored.
@@ -413,8 +408,7 @@ protected:
   ///
   llvm::Value *getCriticalRegionLock(StringRef CriticalName);
 
-private:
-
+protected:
   /// Map for SourceLocation and OpenMP runtime library debug locations.
   typedef llvm::DenseMap<SourceLocation, llvm::Value *> OpenMPDebugLocMapTy;
   OpenMPDebugLocMapTy OpenMPDebugLocMap;
@@ -692,8 +686,7 @@ private:
                           Address DependenciesArray);
 
 public:
-  explicit CGOpenMPRuntime(CodeGenModule &CGM)
-      : CGOpenMPRuntime(CGM, ".", ".") {}
+  explicit CGOpenMPRuntime(CodeGenModule &CGM);
   virtual ~CGOpenMPRuntime() {}
   virtual void clear();
 
@@ -1523,7 +1516,7 @@ public:
   virtual void
   emitOutlinedFunctionCall(CodeGenFunction &CGF, SourceLocation Loc,
                            llvm::FunctionCallee OutlinedFn,
-                           ArrayRef<llvm::Value *> Args = llvm::None) const;
+                           ArrayRef<llvm::Value *> Args = std::nullopt) const;
 
   /// Emits OpenMP-specific function prolog.
   /// Required for device constructs.

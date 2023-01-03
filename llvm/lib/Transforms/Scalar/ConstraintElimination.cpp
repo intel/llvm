@@ -243,61 +243,41 @@ decomposeGEP(GetElementPtrInst &GEP,
   if (!GEP.isInBounds())
     return &GEP;
 
+  Type *PtrTy = GEP.getType()->getScalarType();
+  unsigned BitWidth = DL.getIndexTypeSizeInBits(PtrTy);
+  MapVector<Value *, APInt> VariableOffsets;
+  APInt ConstantOffset(BitWidth, 0);
+  if (!GEP.collectOffset(DL, BitWidth, VariableOffsets, ConstantOffset))
+    return &GEP;
+
   // Handle the (gep (gep ....), C) case by incrementing the constant
   // coefficient of the inner GEP, if C is a constant.
   auto *InnerGEP = dyn_cast<GetElementPtrInst>(GEP.getPointerOperand());
-  if (InnerGEP && GEP.getNumOperands() == 2 &&
-      isa<ConstantInt>(GEP.getOperand(1))) {
-    APInt Offset = cast<ConstantInt>(GEP.getOperand(1))->getValue();
+  if (VariableOffsets.empty() && InnerGEP && InnerGEP->getNumOperands() == 2) {
     auto Result = decompose(InnerGEP, Preconditions, IsSigned, DL);
+    Result.add(ConstantOffset.getSExtValue());
 
-    auto GTI = gep_type_begin(GEP);
-    // Bail out for scalable vectors for now.
-    if (isa<ScalableVectorType>(GTI.getIndexedType()))
-      return &GEP;
-    int64_t Scale = static_cast<int64_t>(
-        DL.getTypeAllocSize(GTI.getIndexedType()).getFixedSize());
-
-    Result.add(multiplyWithOverflow(Scale, Offset.getSExtValue()));
-    if (Offset.isNegative()) {
+    if (ConstantOffset.isNegative()) {
+      unsigned Scale = DL.getTypeAllocSize(InnerGEP->getResultElementType());
+      int64_t ConstantOffsetI = ConstantOffset.getSExtValue();
+      if (ConstantOffsetI % Scale != 0)
+        return &GEP;
       // Add pre-condition ensuring the GEP is increasing monotonically and
       // can be de-composed.
+      // Both sides are normalized by being divided by Scale.
       Preconditions.emplace_back(
           CmpInst::ICMP_SGE, InnerGEP->getOperand(1),
           ConstantInt::get(InnerGEP->getOperand(1)->getType(),
-                           -1 * Offset.getSExtValue()));
+                           -1 * (ConstantOffsetI / Scale)));
     }
     return Result;
   }
 
-  Decomposition Result = GEP.getPointerOperand();
-  gep_type_iterator GTI = gep_type_begin(GEP);
-  for (User::const_op_iterator I = GEP.op_begin() + 1, E = GEP.op_end(); I != E;
-       ++I, ++GTI) {
-    Value *Index = *I;
-
-    // Bail out for scalable vectors for now.
-    if (isa<ScalableVectorType>(GTI.getIndexedType()))
-      return &GEP;
-
-    // Struct indices must be constants (and reference an existing field). Add
-    // them to the constant factor.
-    if (StructType *STy = GTI.getStructTypeOrNull()) {
-      // For a struct, add the member offset.
-      unsigned FieldNo = cast<ConstantInt>(Index)->getZExtValue();
-      if (FieldNo == 0)
-        continue;
-
-      // Add offset to constant factor.
-      Result.add(int64_t(DL.getStructLayout(STy)->getElementOffset(FieldNo)));
-      continue;
-    }
-
-    // For an array/pointer, add the element offset, explicitly scaled.
-    unsigned Scale = DL.getTypeAllocSize(GTI.getIndexedType()).getFixedSize();
-
+  Decomposition Result(ConstantOffset.getSExtValue(),
+                       DecompEntry(1, GEP.getPointerOperand()));
+  for (auto [Index, Scale] : VariableOffsets) {
     auto IdxResult = decompose(Index, Preconditions, IsSigned, DL);
-    IdxResult.mul(Scale);
+    IdxResult.mul(Scale.getSExtValue());
     Result.add(IdxResult);
 
     // If Op0 is signed non-negative, the GEP is increasing monotonically and

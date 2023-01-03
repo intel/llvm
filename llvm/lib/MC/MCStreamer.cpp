@@ -39,6 +39,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdlib>
+#include <optional>
 #include <utility>
 
 using namespace llvm;
@@ -230,7 +231,7 @@ Expected<unsigned>
 MCStreamer::tryEmitDwarfFileDirective(unsigned FileNo, StringRef Directory,
                                       StringRef Filename,
                                       Optional<MD5::MD5Result> Checksum,
-                                      Optional<StringRef> Source,
+                                      std::optional<StringRef> Source,
                                       unsigned CUID) {
   return getContext().getDwarfFile(Directory, Filename, FileNo, Checksum,
                                    Source, CUID);
@@ -239,7 +240,7 @@ MCStreamer::tryEmitDwarfFileDirective(unsigned FileNo, StringRef Directory,
 void MCStreamer::emitDwarfFile0Directive(StringRef Directory,
                                          StringRef Filename,
                                          Optional<MD5::MD5Result> Checksum,
-                                         Optional<StringRef> Source,
+                                         std::optional<StringRef> Source,
                                          unsigned CUID) {
   getContext().setMCLineTableRootFile(CUID, Directory, Filename, Checksum,
                                       Source);
@@ -1170,7 +1171,7 @@ void MCStreamer::emitCOFFSymbolType(int Type) {
 }
 void MCStreamer::emitXCOFFLocalCommonSymbol(MCSymbol *LabelSym, uint64_t Size,
                                             MCSymbol *CsectSym,
-                                            unsigned ByteAlign) {
+                                            Align Alignment) {
   llvm_unreachable("this directive only supported on XCOFF targets");
 }
 
@@ -1192,8 +1193,8 @@ void MCStreamer::emitXCOFFRefDirective(StringRef Name) {
 }
 
 void MCStreamer::emitXCOFFExceptDirective(const MCSymbol *Symbol,
-                                          MCSymbol *Trap, unsigned Lang,
-                                          unsigned Reason,
+                                          const MCSymbol *Trap, 
+                                          unsigned Lang, unsigned Reason,
                                           unsigned FunctionSize,
                                           bool hasDebug) {
   report_fatal_error("emitXCOFFExceptDirective is only supported on "
@@ -1219,15 +1220,14 @@ void MCStreamer::emitSLEB128Value(const MCExpr *Value) {}
 void MCStreamer::emitFill(const MCExpr &NumBytes, uint64_t Value, SMLoc Loc) {}
 void MCStreamer::emitFill(const MCExpr &NumValues, int64_t Size, int64_t Expr,
                           SMLoc Loc) {}
-void MCStreamer::emitValueToAlignment(unsigned ByteAlignment, int64_t Value,
+void MCStreamer::emitValueToAlignment(Align Alignment, int64_t Value,
                                       unsigned ValueSize,
                                       unsigned MaxBytesToEmit) {}
-void MCStreamer::emitCodeAlignment(unsigned ByteAlignment,
-                                   const MCSubtargetInfo *STI,
+void MCStreamer::emitCodeAlignment(Align Alignment, const MCSubtargetInfo *STI,
                                    unsigned MaxBytesToEmit) {}
 void MCStreamer::emitValueToOffset(const MCExpr *Offset, unsigned char Value,
                                    SMLoc Loc) {}
-void MCStreamer::emitBundleAlignMode(unsigned AlignPow2) {}
+void MCStreamer::emitBundleAlignMode(Align Alignment) {}
 void MCStreamer::emitBundleLock(bool AlignToEnd) {}
 void MCStreamer::finishImpl() {}
 void MCStreamer::emitBundleUnlock() {}

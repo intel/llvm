@@ -121,8 +121,7 @@ GetUnqualMultiPtr(const multi_ptr<CVT, Space, IsDecorated> &Mptr) {
 
 } // namespace detail
 
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 
 struct sub_group;
 namespace experimental {
@@ -791,8 +790,7 @@ inline sub_group this_sub_group() {
 #endif
 }
 
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

@@ -26,6 +26,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/IPO.h"
+#include <optional>
 #include <vector>
 
 #define DEBUG_TYPE "iroutliner"
@@ -133,7 +134,7 @@ struct OutlinableGroup {
 
   /// The argument that needs to be marked with the swifterr attribute.  If not
   /// needed, there is no value.
-  Optional<unsigned> SwiftErrorArgument;
+  std::optional<unsigned> SwiftErrorArgument;
 
   /// For the \ref Regions, we look at every Value.  If it is a constant,
   /// we check whether it is the same in Region.
@@ -468,7 +469,7 @@ constantMatches(Value *V, unsigned GVN,
   // See if we have a constants
   Constant *CST = dyn_cast<Constant>(V);
   if (!CST)
-    return None;
+    return std::nullopt;
 
   // Holds a mapping from a global value number to a Constant.
   DenseMap<unsigned, Constant *>::iterator GVNToConstantIt;
@@ -683,7 +684,8 @@ Function *IROutliner::createFunction(Module &M, OutlinableGroup &Group,
         Unit /* Context */, F->getName(), MangledNameStream.str(),
         Unit /* File */,
         0 /* Line 0 is reserved for compiler-generated code. */,
-        DB.createSubroutineType(DB.getOrCreateTypeArray(None)), /* void type */
+        DB.createSubroutineType(
+            DB.getOrCreateTypeArray(std::nullopt)), /* void type */
         0, /* Line 0 is reserved for compiler-generated code. */
         DINode::DIFlags::FlagArtificial /* Compiler-generated code. */,
         /* Outlined code is optimized code by definition. */
@@ -1192,7 +1194,7 @@ static Optional<unsigned> getGVNForPHINode(OutlinableRegion &Region,
     Optional<unsigned> OGVN = Cand.getGVN(Incoming);
     if (!OGVN && Blocks.contains(IncomingBlock)) {
       Region.IgnoreRegion = true;
-      return None;
+      return std::nullopt;
     }
 
     // If the incoming block isn't in the region, we don't have to worry about
@@ -2012,7 +2014,7 @@ Optional<unsigned> findDuplicateOutputBlock(
     MatchingNum++;
   }
 
-  return None;
+  return std::nullopt;
 }
 
 /// Remove empty output blocks from the outlined region.
@@ -2671,7 +2673,7 @@ void IROutliner::updateOutputMapping(OutlinableRegion &Region,
                                      LoadInst *LI) {
   // For and load instructions following the call
   Value *Operand = LI->getPointerOperand();
-  Optional<unsigned> OutputIdx;
+  std::optional<unsigned> OutputIdx;
   // Find if the operand it is an output register.
   for (unsigned ArgIdx = Region.NumExtractedInputs;
        ArgIdx < Region.Call->arg_size(); ArgIdx++) {

@@ -190,7 +190,6 @@ variables in production code.</span>
 | `SYCL_PRINT_EXECUTION_GRAPH` | Described [below](#sycl_print_execution_graph-options) | Print execution graph to DOT text file. |
 | `SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP` | Any(\*) | Disable cleanup of finished command nodes at host-device synchronization points. |
 | `SYCL_DISABLE_POST_ENQUEUE_CLEANUP` | Any(\*) | Disable cleanup of enqueued command nodes during submission. |
-| `SYCL_THROW_ON_BLOCK` | Any(\*) | Throw an exception on attempt to wait for a blocked command.  |
 | `SYCL_DEVICELIB_INHIBIT_NATIVE` | String of device library extensions (separated by a whitespace) | Do not rely on device native support for devicelib extensions listed in this option. |
 | `SYCL_PROGRAM_COMPILE_OPTIONS` | String of valid OpenCL compile options | Override compile options for all programs. |
 | `SYCL_PROGRAM_LINK_OPTIONS` | String of valid OpenCL link options | Override link options for all programs. |
@@ -250,6 +249,8 @@ variables in production code.</span>
 | `SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_FILL` | Integer | When set to a positive value enables use of a copy engine for memory fill operations. Default is 0. |
 | `SYCL_PI_LEVEL_ZERO_SINGLE_ROOT_DEVICE_BUFFER_MIGRATION` | Integer | When set to "0" tells to use single root-device allocation for all devices in a context where all devices have same root. Otherwise performs regular buffer migration. Default is 1. |
 | `SYCL_PI_LEVEL_ZERO_REUSE_DISCARDED_EVENTS` | Integer |  When set to a positive value enables the mode when discarded Level Zero events are reset and reused in scope of the same in-order queue based on the dependency chain between commands. Default is 1. |
+| `SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING` (Deprecated) | Integer | When set to non-zero value exposes compute slices as sub-sub-devices in `sycl::info::partition_property::partition_by_affinity_domain` partitioning scheme. Default is zero meaning that they are only exposed when partitioning by `sycl::info::partition_property::ext_intel_partition_by_cslice`. This option is introduced for compatibility reasons and is immediately deprecated. New code must not rely on this behavior. Also note that even if sub-sub-device was created using `partition_by_affinity_domain` it would still be reported as created via partitioning by compute slices. |
+| `SYCL_PI_LEVEL_ZERO_IMMEDIATE_COMMANDLISTS_EVENT_CLEANUP_THRESHOLD` | Integer | If non-negative then the threshold is set to this value. If negative, the threshold is set to INT_MAX. Whenever the number of events associated with an immediate command list exceeds this threshold, a check is made for signaled events and these events are recycled. Setting this threshold low causes events to be checked more often, which could result in unneeded events being recycled sooner. However, more frequent event status checks may cost time. The default is 20. |
 
 ## Debugging variables for CUDA Plugin
 

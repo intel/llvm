@@ -171,12 +171,12 @@ SingleDimLaunchConfigConversion<SourceOp, builtin>::matchAndRewrite(
 LogicalResult WorkGroupSizeConversion::matchAndRewrite(
     gpu::BlockDimOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  auto workGroupSizeAttr = spirv::lookupLocalWorkGroupSize(op);
+  DenseI32ArrayAttr workGroupSizeAttr = spirv::lookupLocalWorkGroupSize(op);
   if (!workGroupSizeAttr)
     return failure();
 
-  auto val = workGroupSizeAttr
-                 .getValues<int32_t>()[static_cast<int32_t>(op.getDimension())];
+  int val =
+      workGroupSizeAttr.asArrayRef()[static_cast<int32_t>(op.getDimension())];
   auto convertedType =
       getTypeConverter()->convertType(op.getResult().getType());
   if (!convertedType)
@@ -224,7 +224,7 @@ lowerAsEntryFunction(gpu::GPUFuncOp funcOp, TypeConverter &typeConverter,
   auto newFuncOp = rewriter.create<spirv::FuncOp>(
       funcOp.getLoc(), funcOp.getName(),
       rewriter.getFunctionType(signatureConverter.getConvertedTypes(),
-                               llvm::None));
+                               std::nullopt));
   for (const auto &namedAttr : funcOp->getAttrs()) {
     if (namedAttr.getName() == FunctionOpInterface::getTypeAttrName() ||
         namedAttr.getName() == SymbolTable::getSymbolAttrName())
@@ -329,7 +329,7 @@ LogicalResult GPUModuleConversion::matchAndRewrite(
   // Add a keyword to the module name to avoid symbolic conflict.
   std::string spvModuleName = (kSPIRVModule + moduleOp.getName()).str();
   auto spvModule = rewriter.create<spirv::ModuleOp>(
-      moduleOp.getLoc(), addressingModel, *memoryModel, llvm::None,
+      moduleOp.getLoc(), addressingModel, *memoryModel, std::nullopt,
       StringRef(spvModuleName));
 
   // Move the region from the module op into the SPIR-V module.
@@ -412,6 +412,10 @@ LogicalResult GPUShuffleConversion::matchAndRewrite(
   switch (shuffleOp.getMode()) {
   case gpu::ShuffleMode::XOR:
     result = rewriter.create<spirv::GroupNonUniformShuffleXorOp>(
+        loc, scope, adaptor.getValue(), adaptor.getOffset());
+    break;
+  case gpu::ShuffleMode::IDX:
+    result = rewriter.create<spirv::GroupNonUniformShuffleOp>(
         loc, scope, adaptor.getValue(), adaptor.getOffset());
     break;
   default:

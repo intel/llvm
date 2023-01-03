@@ -174,7 +174,6 @@ class MockScheduler;
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
-
 class queue_impl;
 class event_impl;
 class context_impl;
@@ -397,7 +396,14 @@ public:
   /// This member function is used by \ref buffer and \ref image.
   ///
   /// \param MemObj is a memory object that points to the buffer being removed.
-  void removeMemoryObject(detail::SYCLMemObjI *MemObj);
+  /// \param StrictLock WA, is a flag used to identify if strict read and write
+  /// lock are allowed or not. Default value is always applied in buffer_impl
+  /// destructor. StrictLock == false is introduced for
+  /// cleanupDeferredMemObjects to avoid blocking mem object release that may
+  /// lead to dead lock. \return WA, true if all release action completed and we
+  /// could delete memory object, false otherwise, most possible reason to
+  /// receive false - fail to obtain write lock.
+  bool removeMemoryObject(detail::SYCLMemObjI *MemObj, bool StrictLock = true);
 
   /// Removes finished non-leaf non-alloca commands from the subgraph (assuming
   /// that all its commands have been waited for).
@@ -445,8 +451,12 @@ public:
 
   static MemObjRecord *getMemObjRecord(const Requirement *const Req);
 
+  void deferMemObjRelease(const std::shared_ptr<detail::SYCLMemObjI> &MemObj);
+
   Scheduler();
   ~Scheduler();
+  void releaseResources();
+  bool isDeferredMemObjectsEmpty();
 
 protected:
   using RWLockT = std::shared_timed_mutex;
@@ -478,10 +488,17 @@ protected:
 
   void cleanupCommands(const std::vector<Command *> &Cmds);
 
-  void NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd);
+  void NotifyHostTaskCompletion(Command *Cmd);
 
   static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
                                          std::vector<Command *> &ToCleanUp);
+
+  static void
+  enqueueUnblockedCommands(const std::vector<EventImplPtr> &CmdsToEnqueue,
+                           std::vector<Command *> &ToCleanUp);
+
+  // May lock graph with read and write modes during execution.
+  void cleanupDeferredMemObjects(BlockingT Blocking);
 
   /// Graph builder class.
   ///
@@ -623,7 +640,7 @@ protected:
                                        const ContextImplPtr &Context);
 
     template <typename T>
-    typename detail::enable_if_t<
+    typename std::enable_if_t<
         std::is_same<typename std::remove_cv_t<T>, Requirement>::value,
         EmptyCommand *>
     addEmptyCmd(Command *Cmd, const std::vector<T *> &Req,
@@ -767,13 +784,30 @@ protected:
     ///
     /// \param EnqueueResult is set to specific status if enqueue failed.
     /// \param ToCleanUp container for commands that can be cleaned up.
+    /// \param RootCommand top level command enqueueCommand is called for.
     /// \return true if the command is successfully enqueued.
     ///
     /// The function may unlock and lock GraphReadLock as needed. Upon return
     /// the lock is left in locked state.
     static bool enqueueCommand(Command *Cmd, EnqueueResultT &EnqueueResult,
                                std::vector<Command *> &ToCleanUp,
+                               Command *RootCommand,
                                BlockingT Blocking = NON_BLOCKING);
+
+    /// Check if successfully enqueued command is expected to be blocking for
+    /// the dependent commands before its completion.
+    ///
+    /// \param Cmd command that is currently enqueued.
+    /// \param EnqueueResult enqueue status to be updated if command is
+    /// blocking.
+    /// \param RootCommand top level command enqueueCommand is called
+    /// for. If Cmd == RootCommand we should not report command as blocking as
+    /// no dependencies to be blocked yet.
+    /// \param Blocking mode for enqueue, we do not report command as blocking
+    /// if it is true and allow to wait for command completion in enqueueImp.
+    /// \return true if we should continue enqueue process.
+    static bool handleBlockingCmd(Command *Cmd, EnqueueResultT &EnqueueResult,
+                                  Command *RootCommand, BlockingT Blocking);
   };
 
   /// This function waits on all of the graph leaves which somehow use the
@@ -785,6 +819,7 @@ protected:
   /// GraphReadLock will be unlocked/locked as needed. Upon return from the
   /// function, GraphReadLock will be left in locked state.
   void waitForRecordToFinish(MemObjRecord *Record, ReadLockT &GraphReadLock);
+  bool checkLeavesCompletion(MemObjRecord *Record);
 
   GraphBuilder MGraphBuilder;
   RWLockT MGraphLock;
@@ -792,12 +827,16 @@ protected:
   std::vector<Command *> MDeferredCleanupCommands;
   std::mutex MDeferredCleanupMutex;
 
+  std::vector<std::shared_ptr<SYCLMemObjI>> MDeferredMemObjRelease;
+  std::mutex MDeferredMemReleaseMutex;
+
   QueueImplPtr DefaultHostQueue;
 
   friend class Command;
   friend class DispatchHostTask;
   friend class queue_impl;
   friend class event_impl;
+  friend class ::MockScheduler;
 
   /// Stream buffers structure.
   ///

@@ -112,8 +112,8 @@ int main() {
       auto *in_ptr = sycl::malloc_device<int>(1, Queue);
       Queue.submit([&](sycl::handler &cgh) {
         cgh.single_task<class DeviceAnnotation>([=]() {
-          sycl::device_ptr<int> input_ptr(in_ptr);
-          sycl::device_ptr<int> output_ptr(out_ptr);
+          sycl::ext::intel::device_ptr<int> input_ptr(in_ptr);
+          sycl::ext::intel::device_ptr<int> output_ptr(out_ptr);
           intelfpga::lsu_body<
               int, sycl::access::address_space::ext_intel_global_device_space>(
               input_ptr, output_ptr);

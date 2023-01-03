@@ -53,6 +53,7 @@ const Symbol *FindInterface(const Symbol &);
 const Symbol *FindSubprogram(const Symbol &);
 const Symbol *FindFunctionResult(const Symbol &);
 const Symbol *FindOverriddenBinding(const Symbol &);
+const Symbol *FindGlobal(const Symbol &);
 
 const DeclTypeSpec *FindParentTypeSpec(const DerivedTypeSpec &);
 const DeclTypeSpec *FindParentTypeSpec(const DeclTypeSpec &);
@@ -84,8 +85,13 @@ bool IsIntrinsicConcat(
 bool IsGenericDefinedOp(const Symbol &);
 bool IsDefinedOperator(SourceName);
 std::string MakeOpName(SourceName);
+
+// Returns true if maybeAncestor exists and is a proper ancestor of a
+// descendent scope (or symbol owner).  Will be false, unlike Scope::Contains(),
+// if maybeAncestor *is* the descendent.
 bool DoesScopeContain(const Scope *maybeAncestor, const Scope &maybeDescendent);
 bool DoesScopeContain(const Scope *, const Symbol &);
+
 bool IsUseAssociated(const Symbol &, const Scope &);
 bool IsHostAssociated(const Symbol &, const Scope &);
 bool IsHostAssociatedIntoSubprogram(const Symbol &, const Scope &);
@@ -181,8 +187,9 @@ bool HasCoarray(const parser::Expr &);
 bool IsAssumedType(const Symbol &);
 bool IsPolymorphic(const Symbol &);
 bool IsPolymorphicAllocatable(const Symbol &);
-// Return an error if component symbol is not accessible from scope (7.5.4.8(2))
-std::optional<parser::MessageFormattedText> CheckAccessibleComponent(
+
+// Return an error if a symbol is not accessible from a scope
+std::optional<parser::MessageFormattedText> CheckAccessibleSymbol(
     const semantics::Scope &, const Symbol &);
 
 // Analysis of image control statements
@@ -608,11 +615,6 @@ std::optional<ArraySpec> ToArraySpec(
 // Searches a derived type and a scope for a particular user defined I/O
 // procedure.
 bool HasDefinedIo(
-    GenericKind::DefinedIo, const DerivedTypeSpec &, const Scope * = nullptr);
-// Seeks out an allocatable or pointer ultimate component that is not
-// nested in a nonallocatable/nonpointer component with a specific
-// defined I/O procedure.
-const Symbol *FindUnsafeIoDirectComponent(
     GenericKind::DefinedIo, const DerivedTypeSpec &, const Scope * = nullptr);
 
 // Some intrinsic operators have more than one name (e.g. `operator(.eq.)` and

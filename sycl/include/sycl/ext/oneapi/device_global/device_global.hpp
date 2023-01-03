@@ -27,9 +27,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 
 namespace detail {
 // Type-trait for checking if a type defines `operator->`.
@@ -54,7 +52,7 @@ protected:
 template <typename T, typename... Props>
 class device_global_base<
     T, properties_t<Props...>,
-    sycl::detail::enable_if_t<properties_t<Props...>::template has_property<
+    std::enable_if_t<properties_t<Props...>::template has_property<
         device_image_scope_key>()>> {
 protected:
   T val{};
@@ -200,9 +198,7 @@ public:
   }
 };
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 

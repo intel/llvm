@@ -230,7 +230,7 @@ public:
   /// @param Offset is the starting element offset.
   /// @return \c simd_view representing the subregion.
   template <int Size, int Stride, typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is1D()>>
+            typename = std::enable_if_t<T::is1D()>>
   auto select(uint16_t Offset = 0) {
     using TopRegionTy = region1d_t<element_type, Size, Stride>;
     using NewRegionTy = std::pair<TopRegionTy, RegionTy>;
@@ -280,8 +280,7 @@ public:
   /// @return 2D simd_view of the subregion.
   // clang-format on
   template <int SizeY, int StrideY, int SizeX, int StrideX,
-            typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is2D()>>
+            typename T = Derived, typename = std::enable_if_t<T::is2D()>>
   auto select(uint16_t OffsetY = 0, uint16_t OffsetX = 0) {
     using TopRegionTy =
         region2d_t<element_type, SizeY, StrideY, SizeX, StrideX>;
@@ -472,8 +471,7 @@ public:
   /// Reference a row from a 2D region. Available only if this object is 2D.
   /// @param i Row index.
   /// @return A 2D view of a region representing i'th row of the target region.
-  template <typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is2D()>>
+  template <typename T = Derived, typename = std::enable_if_t<T::is2D()>>
   auto row(int i) {
     return select<1, 1, getSizeX(), 1>(i, 0)
         .template bit_cast_view<element_type>();
@@ -483,8 +481,7 @@ public:
   /// @param i Column index.
   /// @return A 2D view of a region representing i'th column of the target
   ///   region.
-  template <typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is2D()>>
+  template <typename T = Derived, typename = std::enable_if_t<T::is2D()>>
   auto column(int i) {
     return select<getSizeY(), 1, 1, 1>(0, i);
   }
@@ -492,8 +489,7 @@ public:
   /// Read a single element from the target 1D region.
   /// @param i Element index.
   /// @return Element value.
-  template <typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is1D()>>
+  template <typename T = Derived, typename = std::enable_if_t<T::is1D()>>
   element_type operator[](int i) const {
     const auto v = read();
     return v[i];
@@ -502,8 +498,7 @@ public:
   /// Return a writeable view of a single element in the target 1D region.
   /// @param i Element index.
   /// @return A new 1D view of the element. Can be used to update it.
-  template <typename T = Derived,
-            typename = sycl::detail::enable_if_t<T::is1D()>>
+  template <typename T = Derived, typename = std::enable_if_t<T::is1D()>>
   auto operator[](int i) {
     return select<1, 1>(i);
   }

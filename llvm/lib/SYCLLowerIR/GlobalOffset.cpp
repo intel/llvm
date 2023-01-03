@@ -147,7 +147,7 @@ void GlobalOffsetPass::processKernelEntryPoint(Function *Func) {
   AllocaInst *ImplicitOffset =
       Builder.CreateAlloca(ImplicitOffsetType, TargetAS);
   uint64_t AllocByteSize =
-      ImplicitOffset->getAllocationSizeInBits(M.getDataLayout()).getValue() / 8;
+      ImplicitOffset->getAllocationSizeInBits(M.getDataLayout()).value() / 8;
   CallInst *MemsetCall =
       Builder.CreateMemSet(ImplicitOffset, Builder.getInt8(0), AllocByteSize,
                            ImplicitOffset->getAlign());
@@ -303,7 +303,7 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
           Builder.CreateAlloca(ImplicitOffsetType, TargetAS);
       auto DL = M.getDataLayout();
       uint64_t AllocByteSize =
-          ImplicitOffsetAlloca->getAllocationSizeInBits(DL).getValue() / 8;
+          ImplicitOffsetAlloca->getAllocationSizeInBits(DL).value() / 8;
       // After AMD's kernel arg lowering pass runs the accesses to arguments
       // are replaced with uses of kernarg.segment.ptr which is in
       // addrspace(4), cast implicit offset arg to constant memory so the

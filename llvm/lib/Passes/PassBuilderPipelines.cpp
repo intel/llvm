@@ -191,6 +191,10 @@ static cl::opt<bool> EnableGlobalAnalyses(
     cl::desc("Enable inter-procedural analyses"));
 
 static cl::opt<bool>
+    SYCLOptimizationMode("sycl-opt", cl::init(false), cl::Hidden,
+                         cl::desc("Enable SYCL optimization mode."));
+
+static cl::opt<bool>
     RunPartialInlining("enable-partial-inlining", cl::init(false), cl::Hidden,
                        cl::desc("Run Partial inlinining pass"));
 
@@ -209,7 +213,7 @@ static cl::opt<bool> EnableUnrollAndJam("enable-unroll-and-jam",
                                         cl::init(false), cl::Hidden,
                                         cl::desc("Enable Unroll And Jam Pass"));
 
-static cl::opt<bool> EnableLoopFlatten("enable-loop-flatten", cl::init(false),
+static cl::opt<bool> EnableLoopFlatten("enable-loop-flatten", cl::init(true),
                                        cl::Hidden,
                                        cl::desc("Enable the LoopFlatten Pass"));
 
@@ -300,8 +304,6 @@ PipelineTuningOptions::PipelineTuningOptions() {
 namespace llvm {
 extern cl::opt<unsigned> MaxDevirtIterations;
 extern cl::opt<bool> EnableKnowledgeRetention;
-
-extern cl::opt<bool> SYCLOptimizationMode;
 } // namespace llvm
 
 void PassBuilder::invokePeepholeEPCallbacks(FunctionPassManager &FPM,
@@ -634,10 +636,11 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   // Delete small array after loop unroll.
   FPM.addPass(SROAPass());
 
-  // The matrix extension can introduce large vector operations early, which can
-  // benefit from running vector-combine early on.
-  if (EnableMatrix)
-    FPM.addPass(VectorCombinePass(/*ScalarizationOnly=*/true));
+  // Try vectorization/scalarization transforms that are both improvements
+  // themselves and can allow further folds with GVN and InstCombine.
+  // Disable for SYCL until SPIR-V reader is updated for all drivers.
+  if (!SYCLOptimizationMode)
+    FPM.addPass(VectorCombinePass(/*TryEarlyFoldsOnly=*/true));
 
   // Eliminate redundancies.
   FPM.addPass(MergedLoadStoreMotionPass());
@@ -698,8 +701,12 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   FPM.addPass(InstCombinePass());
   invokePeepholeEPCallbacks(FPM, Level);
 
+  // Don't add CHR pass for CSIRInstr build in PostLink as the profile
+  // is still the same as the PreLink compilation.
   if (EnableCHR && Level == OptimizationLevel::O3 && PGOOpt &&
-      (PGOOpt->Action == PGOOptions::IRUse ||
+      ((PGOOpt->Action == PGOOptions::IRUse &&
+        (Phase != ThinOrFullLTOPhase::ThinLTOPostLink ||
+         PGOOpt->CSAction != PGOOptions::CSIRInstr)) ||
        PGOOpt->Action == PGOOptions::SampleUse))
     FPM.addPass(ControlHeightReductionPass());
 

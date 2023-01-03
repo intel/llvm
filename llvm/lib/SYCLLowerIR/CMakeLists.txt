@@ -13,10 +13,10 @@ endif()
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
-    # Author: Victor Mustya <victor.mustya@intel.com>
-    # Date:   Fri Oct 14 21:03:46 2022 +0000
-    # Correctly restore pointer types for kernel args
-    set(LLVMGenXIntrinsics_GIT_TAG c708e3c18ad8467b4082cc61f7cca38f9f57c9c0)
+    # Author: Gorban, Igor <igor.gorban@intel.com>
+    # Date:   Thu Nov 24 17:13:40 2022 +0000
+    # Fix build after llvm commit 4b6b248731b81deb471838ff79392993aeb6c621
+    set(LLVMGenXIntrinsics_GIT_TAG 782fbf7301dc73acaa049a4324c976ad94f587f7)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)

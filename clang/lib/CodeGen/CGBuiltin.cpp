@@ -1180,7 +1180,7 @@ translateArmToMsvcIntrin(unsigned BuiltinID) {
   using MSVCIntrin = CodeGenFunction::MSVCIntrin;
   switch (BuiltinID) {
   default:
-    return None;
+    return std::nullopt;
   case clang::ARM::BI_BitScanForward:
   case clang::ARM::BI_BitScanForward64:
     return MSVCIntrin::_BitScanForward;
@@ -1326,7 +1326,7 @@ translateAarch64ToMsvcIntrin(unsigned BuiltinID) {
   using MSVCIntrin = CodeGenFunction::MSVCIntrin;
   switch (BuiltinID) {
   default:
-    return None;
+    return std::nullopt;
   case clang::AArch64::BI_BitScanForward:
   case clang::AArch64::BI_BitScanForward64:
     return MSVCIntrin::_BitScanForward;
@@ -1480,7 +1480,7 @@ translateX86ToMsvcIntrin(unsigned BuiltinID) {
   using MSVCIntrin = CodeGenFunction::MSVCIntrin;
   switch (BuiltinID) {
   default:
-    return None;
+    return std::nullopt;
   case clang::X86::BI_BitScanForward:
   case clang::X86::BI_BitScanForward64:
     return MSVCIntrin::_BitScanForward;
@@ -1715,7 +1715,7 @@ Value *CodeGenFunction::EmitCheckedArgForBuiltin(const Expr *E,
             SanitizerHandler::InvalidBuiltin,
             {EmitCheckSourceLocation(E->getExprLoc()),
              llvm::ConstantInt::get(Builder.getInt8Ty(), Kind)},
-            None);
+            std::nullopt);
   return ArgValue;
 }
 
@@ -16786,7 +16786,7 @@ Value *EmitAMDGPUWorkGroupSize(CodeGenFunction &CGF, unsigned Index) {
       APInt(16, CGF.getTarget().getMaxOpenCLWorkGroupSize() + 1));
   LD->setMetadata(llvm::LLVMContext::MD_range, RNode);
   LD->setMetadata(llvm::LLVMContext::MD_invariant_load,
-      llvm::MDNode::get(CGF.getLLVMContext(), None));
+                  llvm::MDNode::get(CGF.getLLVMContext(), std::nullopt));
   return LD;
 }
 
@@ -16803,7 +16803,7 @@ Value *EmitAMDGPUGridSize(CodeGenFunction &CGF, unsigned Index) {
   auto *LD = CGF.Builder.CreateLoad(
       Address(Cast, CGF.Int32Ty, CharUnits::fromQuantity(4)));
   LD->setMetadata(llvm::LLVMContext::MD_invariant_load,
-                  llvm::MDNode::get(CGF.getLLVMContext(), None));
+                  llvm::MDNode::get(CGF.getLLVMContext(), std::nullopt));
   return LD;
 }
 } // namespace
@@ -21050,22 +21050,22 @@ Value *CodeGenFunction::EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
     Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_shuffle);
     return Builder.CreateCall(Callee, Ops);
   }
-  case WebAssembly::BI__builtin_wasm_fma_f32x4:
-  case WebAssembly::BI__builtin_wasm_fms_f32x4:
-  case WebAssembly::BI__builtin_wasm_fma_f64x2:
-  case WebAssembly::BI__builtin_wasm_fms_f64x2: {
+  case WebAssembly::BI__builtin_wasm_relaxed_madd_f32x4:
+  case WebAssembly::BI__builtin_wasm_relaxed_nmadd_f32x4:
+  case WebAssembly::BI__builtin_wasm_relaxed_madd_f64x2:
+  case WebAssembly::BI__builtin_wasm_relaxed_nmadd_f64x2: {
     Value *A = EmitScalarExpr(E->getArg(0));
     Value *B = EmitScalarExpr(E->getArg(1));
     Value *C = EmitScalarExpr(E->getArg(2));
     unsigned IntNo;
     switch (BuiltinID) {
-    case WebAssembly::BI__builtin_wasm_fma_f32x4:
-    case WebAssembly::BI__builtin_wasm_fma_f64x2:
-      IntNo = Intrinsic::wasm_fma;
+    case WebAssembly::BI__builtin_wasm_relaxed_madd_f32x4:
+    case WebAssembly::BI__builtin_wasm_relaxed_madd_f64x2:
+      IntNo = Intrinsic::wasm_relaxed_madd;
       break;
-    case WebAssembly::BI__builtin_wasm_fms_f32x4:
-    case WebAssembly::BI__builtin_wasm_fms_f64x2:
-      IntNo = Intrinsic::wasm_fms;
+    case WebAssembly::BI__builtin_wasm_relaxed_nmadd_f32x4:
+    case WebAssembly::BI__builtin_wasm_relaxed_nmadd_f64x2:
+      IntNo = Intrinsic::wasm_relaxed_nmadd;
       break;
     default:
       llvm_unreachable("unexpected builtin ID");
@@ -21073,15 +21073,15 @@ Value *CodeGenFunction::EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
     Function *Callee = CGM.getIntrinsic(IntNo, A->getType());
     return Builder.CreateCall(Callee, {A, B, C});
   }
-  case WebAssembly::BI__builtin_wasm_laneselect_i8x16:
-  case WebAssembly::BI__builtin_wasm_laneselect_i16x8:
-  case WebAssembly::BI__builtin_wasm_laneselect_i32x4:
-  case WebAssembly::BI__builtin_wasm_laneselect_i64x2: {
+  case WebAssembly::BI__builtin_wasm_relaxed_laneselect_i8x16:
+  case WebAssembly::BI__builtin_wasm_relaxed_laneselect_i16x8:
+  case WebAssembly::BI__builtin_wasm_relaxed_laneselect_i32x4:
+  case WebAssembly::BI__builtin_wasm_relaxed_laneselect_i64x2: {
     Value *A = EmitScalarExpr(E->getArg(0));
     Value *B = EmitScalarExpr(E->getArg(1));
     Value *C = EmitScalarExpr(E->getArg(2));
     Function *Callee =
-        CGM.getIntrinsic(Intrinsic::wasm_laneselect, A->getType());
+        CGM.getIntrinsic(Intrinsic::wasm_relaxed_laneselect, A->getType());
     return Builder.CreateCall(Callee, {A, B, C});
   }
   case WebAssembly::BI__builtin_wasm_relaxed_swizzle_i8x16: {
@@ -21143,18 +21143,19 @@ Value *CodeGenFunction::EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
     Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_relaxed_q15mulr_signed);
     return Builder.CreateCall(Callee, {LHS, RHS});
   }
-  case WebAssembly::BI__builtin_wasm_dot_i8x16_i7x16_s_i16x8: {
+  case WebAssembly::BI__builtin_wasm_relaxed_dot_i8x16_i7x16_s_i16x8: {
     Value *LHS = EmitScalarExpr(E->getArg(0));
     Value *RHS = EmitScalarExpr(E->getArg(1));
-    Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_dot_i8x16_i7x16_signed);
+    Function *Callee =
+        CGM.getIntrinsic(Intrinsic::wasm_relaxed_dot_i8x16_i7x16_signed);
     return Builder.CreateCall(Callee, {LHS, RHS});
   }
-  case WebAssembly::BI__builtin_wasm_dot_i8x16_i7x16_add_s_i32x4: {
+  case WebAssembly::BI__builtin_wasm_relaxed_dot_i8x16_i7x16_add_s_i32x4: {
     Value *LHS = EmitScalarExpr(E->getArg(0));
     Value *RHS = EmitScalarExpr(E->getArg(1));
     Value *Acc = EmitScalarExpr(E->getArg(2));
     Function *Callee =
-        CGM.getIntrinsic(Intrinsic::wasm_dot_i8x16_i7x16_add_signed);
+        CGM.getIntrinsic(Intrinsic::wasm_relaxed_dot_i8x16_i7x16_add_signed);
     return Builder.CreateCall(Callee, {LHS, RHS, Acc});
   }
   case WebAssembly::BI__builtin_wasm_relaxed_dot_bf16x8_add_f32_f32x4: {
@@ -21177,7 +21178,7 @@ getIntrinsicForHexagonNonClangBuiltin(unsigned BuiltinID) {
     Intrinsic::ID IntrinsicID;
     unsigned VecLen;
   };
-  Info Infos[] = {
+  static Info Infos[] = {
 #define CUSTOM_BUILTIN_MAPPING(x,s) \
   { Hexagon::BI__builtin_HEXAGON_##x, Intrinsic::hexagon_##x, s },
     CUSTOM_BUILTIN_MAPPING(L2_loadrub_pci, 0)
@@ -21474,7 +21475,7 @@ RValue CodeGenFunction::EmitIntelFPGAMemBuiltin(const CallExpr *E) {
         (E->getNumArgs() > NumOfArg)
             ? E->getArg(NumOfArg)->getIntegerConstantExpr(Ctx)
             : APSInt::get(DefaultValue);
-    assert(IntVal.hasValue() && "Constant arg isn't actually constant?");
+    assert(IntVal.has_value() && "Constant arg isn't actually constant?");
     Out << "{" << StringToAdd << ":" << toString(*IntVal, 10) << "}";
   };
 
@@ -21745,9 +21746,6 @@ Value *CodeGenFunction::EmitLoongArchBuiltinExpr(unsigned BuiltinID,
   case LoongArch::BI__builtin_loongarch_dbar:
     ID = Intrinsic::loongarch_dbar;
     break;
-  case LoongArch::BI__builtin_loongarch_crc_w_d_w:
-    ID = Intrinsic::loongarch_crc_w_d_w;
-    break;
   case LoongArch::BI__builtin_loongarch_break:
     ID = Intrinsic::loongarch_break;
     break;
@@ -21756,6 +21754,30 @@ Value *CodeGenFunction::EmitLoongArchBuiltinExpr(unsigned BuiltinID,
     break;
   case LoongArch::BI__builtin_loongarch_syscall:
     ID = Intrinsic::loongarch_syscall;
+    break;
+  case LoongArch::BI__builtin_loongarch_crc_w_b_w:
+    ID = Intrinsic::loongarch_crc_w_b_w;
+    break;
+  case LoongArch::BI__builtin_loongarch_crc_w_h_w:
+    ID = Intrinsic::loongarch_crc_w_h_w;
+    break;
+  case LoongArch::BI__builtin_loongarch_crc_w_w_w:
+    ID = Intrinsic::loongarch_crc_w_w_w;
+    break;
+  case LoongArch::BI__builtin_loongarch_crc_w_d_w:
+    ID = Intrinsic::loongarch_crc_w_d_w;
+    break;
+  case LoongArch::BI__builtin_loongarch_crcc_w_b_w:
+    ID = Intrinsic::loongarch_crcc_w_b_w;
+    break;
+  case LoongArch::BI__builtin_loongarch_crcc_w_h_w:
+    ID = Intrinsic::loongarch_crcc_w_h_w;
+    break;
+  case LoongArch::BI__builtin_loongarch_crcc_w_w_w:
+    ID = Intrinsic::loongarch_crcc_w_w_w;
+    break;
+  case LoongArch::BI__builtin_loongarch_crcc_w_d_w:
+    ID = Intrinsic::loongarch_crcc_w_d_w;
     break;
     // TODO: Support more Intrinsics.
   }

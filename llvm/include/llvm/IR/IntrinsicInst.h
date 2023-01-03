@@ -35,6 +35,7 @@
 #include "llvm/Support/Casting.h"
 #include <cassert>
 #include <cstdint>
+#include <optional>
 
 namespace llvm {
 
@@ -313,10 +314,10 @@ public:
 
   /// Get the size (in bits) of the variable, or fragment of the variable that
   /// is described.
-  Optional<uint64_t> getFragmentSizeInBits() const;
+  std::optional<uint64_t> getFragmentSizeInBits() const;
 
   /// Get the FragmentInfo for the variable.
-  Optional<DIExpression::FragmentInfo> getFragment() const {
+  std::optional<DIExpression::FragmentInfo> getFragment() const {
     return getExpression()->getFragmentInfo();
   }
 
@@ -594,8 +595,8 @@ class ConstrainedFPIntrinsic : public IntrinsicInst {
 public:
   bool isUnaryOp() const;
   bool isTernaryOp() const;
-  Optional<RoundingMode> getRoundingMode() const;
-  Optional<fp::ExceptionBehavior> getExceptionBehavior() const;
+  std::optional<RoundingMode> getRoundingMode() const;
+  std::optional<fp::ExceptionBehavior> getExceptionBehavior() const;
   bool isDefaultFPEnvironment() const;
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:

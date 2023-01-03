@@ -23,18 +23,6 @@
 namespace clang {
 namespace clangd {
 
-llvm::Optional<StringRef> parseIWYUPragma(const char *Text) {
-  // This gets called for every comment seen in the preamble, so it's quite hot.
-  constexpr llvm::StringLiteral IWYUPragma = "// IWYU pragma: ";
-  if (strncmp(Text, IWYUPragma.data(), IWYUPragma.size()))
-    return llvm::None;
-  Text += IWYUPragma.size();
-  const char *End = Text;
-  while (*End != 0 && *End != '\n')
-    ++End;
-  return StringRef(Text, End - Text);
-}
-
 class IncludeStructure::RecordHeaders : public PPCallbacks,
                                         public CommentHandler {
 public:
@@ -136,7 +124,8 @@ public:
   }
 
   bool HandleComment(Preprocessor &PP, SourceRange Range) override {
-    auto Pragma = parseIWYUPragma(SM.getCharacterData(Range.getBegin()));
+    auto Pragma =
+        tooling::parseIWYUPragma(SM.getCharacterData(Range.getBegin()));
     if (!Pragma)
       return false;
 
@@ -253,7 +242,7 @@ IncludeStructure::getID(const FileEntry *Entry) const {
   }
   auto It = UIDToIndex.find(Entry->getUniqueID());
   if (It == UIDToIndex.end())
-    return llvm::None;
+    return std::nullopt;
   return It->second;
 }
 
@@ -347,7 +336,7 @@ IncludeInserter::calculateIncludePath(const HeaderFile &InsertedHeader,
   }
   // FIXME: should we allow (some limited number of) "../header.h"?
   if (llvm::sys::path::is_absolute(Suggested))
-    return None;
+    return std::nullopt;
   if (IsSystem)
     Suggested = "<" + Suggested + ">";
   else

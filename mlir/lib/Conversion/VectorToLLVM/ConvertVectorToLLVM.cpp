@@ -17,7 +17,6 @@
 #include "mlir/Dialect/Vector/Transforms/VectorTransforms.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/TypeUtilities.h"
-#include "mlir/Support/MathExtras.h"
 #include "mlir/Target/LLVMIR/TypeToLLVM.h"
 #include "mlir/Transforms/DialectConversion.h"
 
@@ -949,9 +948,9 @@ computeContiguousStrides(MemRefType memRefType) {
   int64_t offset;
   SmallVector<int64_t, 4> strides;
   if (failed(getStridesAndOffset(memRefType, strides, offset)))
-    return None;
+    return std::nullopt;
   if (!strides.empty() && strides.back() != 1)
-    return None;
+    return std::nullopt;
   // If no layout or identity layout, this is contiguous by definition.
   if (memRefType.getLayout().isIdentity())
     return strides;
@@ -963,11 +962,11 @@ computeContiguousStrides(MemRefType memRefType) {
   auto sizes = memRefType.getShape();
   for (int index = 0, e = strides.size() - 1; index < e; ++index) {
     if (ShapedType::isDynamic(sizes[index + 1]) ||
-        ShapedType::isDynamicStrideOrOffset(strides[index]) ||
-        ShapedType::isDynamicStrideOrOffset(strides[index + 1]))
-      return None;
+        ShapedType::isDynamic(strides[index]) ||
+        ShapedType::isDynamic(strides[index + 1]))
+      return std::nullopt;
     if (strides[index] != strides[index + 1] * sizes[index + 1])
-      return None;
+      return std::nullopt;
   }
   return strides;
 }
@@ -1009,7 +1008,7 @@ public:
     if (!targetStrides)
       return failure();
     // Only support static strides for now, regardless of contiguity.
-    if (llvm::any_of(*targetStrides, ShapedType::isDynamicStrideOrOffset))
+    if (llvm::any_of(*targetStrides, ShapedType::isDynamic))
       return failure();
 
     auto int64Ty = IntegerType::get(rewriter.getContext(), 64);

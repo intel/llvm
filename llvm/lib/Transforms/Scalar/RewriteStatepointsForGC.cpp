@@ -71,6 +71,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <optional>
 #include <set>
 #include <string>
 #include <utility>
@@ -301,7 +302,7 @@ static ArrayRef<Use> GetDeoptBundleOperands(const CallBase *Call) {
   if (!DeoptBundle) {
     assert(AllowStatepointWithNoDeoptInfo &&
            "Found non-leaf call without deopt info!");
-    return None;
+    return std::nullopt;
   }
 
   return DeoptBundle->Inputs;
@@ -1626,10 +1627,10 @@ makeStatepointExplicitImpl(CallBase *Call, /* to replace */
   uint32_t Flags = uint32_t(StatepointFlags::None);
 
   SmallVector<Value *, 8> CallArgs(Call->args());
-  Optional<ArrayRef<Use>> DeoptArgs;
+  std::optional<ArrayRef<Use>> DeoptArgs;
   if (auto Bundle = Call->getOperandBundle(LLVMContext::OB_deopt))
     DeoptArgs = Bundle->Inputs;
-  Optional<ArrayRef<Use>> TransitionArgs;
+  std::optional<ArrayRef<Use>> TransitionArgs;
   if (auto Bundle = Call->getOperandBundle(LLVMContext::OB_gc_transition)) {
     TransitionArgs = Bundle->Inputs;
     // TODO: This flag no longer serves a purpose and can be removed later

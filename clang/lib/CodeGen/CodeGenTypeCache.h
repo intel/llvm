@@ -69,6 +69,9 @@ struct CodeGenTypeCache {
     llvm::PointerType *AllocaInt8PtrTy;
   };
 
+  /// void* in target address space
+  llvm::PointerType *DefaultInt8PtrTy;
+
   /// void* in default globals address space
   union {
     llvm::PointerType *GlobalsVoidPtrTy;

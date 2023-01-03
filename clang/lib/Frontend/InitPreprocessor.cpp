@@ -618,7 +618,7 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     Builder.defineMacro("__cpp_unicode_literals", "200710L");
     Builder.defineMacro("__cpp_user_defined_literals", "200809L");
     Builder.defineMacro("__cpp_lambdas", "200907L");
-    Builder.defineMacro("__cpp_constexpr", LangOpts.CPlusPlus2b   ? "202110L"
+    Builder.defineMacro("__cpp_constexpr", LangOpts.CPlusPlus2b   ? "202211L"
                                            : LangOpts.CPlusPlus20 ? "201907L"
                                            : LangOpts.CPlusPlus17 ? "201603L"
                                            : LangOpts.CPlusPlus14 ? "201304L"
@@ -707,7 +707,7 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     Builder.defineMacro("__cpp_implicit_move", "202011L");
     Builder.defineMacro("__cpp_size_t_suffix", "202011L");
     Builder.defineMacro("__cpp_if_consteval", "202106L");
-    Builder.defineMacro("__cpp_multidimensional_subscript", "202110L");
+    Builder.defineMacro("__cpp_multidimensional_subscript", "202211L");
   }
 
   // We provide those C++2b features as extensions in earlier language modes, so
@@ -960,14 +960,14 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     Builder.defineMacro("__LITTLE_ENDIAN__");
   }
 
-  if (TI.getPointerWidth(0) == 64 && TI.getLongWidth() == 64
-      && TI.getIntWidth() == 32) {
+  if (TI.getPointerWidth(LangAS::Default) == 64 && TI.getLongWidth() == 64 &&
+      TI.getIntWidth() == 32) {
     Builder.defineMacro("_LP64");
     Builder.defineMacro("__LP64__");
   }
 
-  if (TI.getPointerWidth(0) == 32 && TI.getLongWidth() == 32
-      && TI.getIntWidth() == 32) {
+  if (TI.getPointerWidth(LangAS::Default) == 32 && TI.getLongWidth() == 32 &&
+      TI.getIntWidth() == 32) {
     Builder.defineMacro("_ILP32");
     Builder.defineMacro("__ILP32__");
   }
@@ -1000,7 +1000,8 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   DefineTypeSizeAndWidth("__SIZE", TI.getSizeType(), TI, Builder);
 
   DefineTypeSizeAndWidth("__UINTMAX", TI.getUIntMaxType(), TI, Builder);
-  DefineTypeSizeAndWidth("__PTRDIFF", TI.getPtrDiffType(0), TI, Builder);
+  DefineTypeSizeAndWidth("__PTRDIFF", TI.getPtrDiffType(LangAS::Default), TI,
+                         Builder);
   DefineTypeSizeAndWidth("__INTPTR", TI.getIntPtrType(), TI, Builder);
   DefineTypeSizeAndWidth("__UINTPTR", TI.getUIntPtrType(), TI, Builder);
 
@@ -1010,10 +1011,12 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   DefineTypeSizeof("__SIZEOF_LONG__", TI.getLongWidth(), TI, Builder);
   DefineTypeSizeof("__SIZEOF_LONG_DOUBLE__",TI.getLongDoubleWidth(),TI,Builder);
   DefineTypeSizeof("__SIZEOF_LONG_LONG__", TI.getLongLongWidth(), TI, Builder);
-  DefineTypeSizeof("__SIZEOF_POINTER__", TI.getPointerWidth(0), TI, Builder);
+  DefineTypeSizeof("__SIZEOF_POINTER__", TI.getPointerWidth(LangAS::Default),
+                   TI, Builder);
   DefineTypeSizeof("__SIZEOF_SHORT__", TI.getShortWidth(), TI, Builder);
   DefineTypeSizeof("__SIZEOF_PTRDIFF_T__",
-                   TI.getTypeWidth(TI.getPtrDiffType(0)), TI, Builder);
+                   TI.getTypeWidth(TI.getPtrDiffType(LangAS::Default)), TI,
+                   Builder);
   DefineTypeSizeof("__SIZEOF_SIZE_T__",
                    TI.getTypeWidth(TI.getSizeType()), TI, Builder);
   DefineTypeSizeof("__SIZEOF_WCHAR_T__",
@@ -1031,8 +1034,8 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   DefineFmt("__UINTMAX", TI.getUIntMaxType(), TI, Builder);
   Builder.defineMacro("__UINTMAX_C_SUFFIX__",
                       TI.getTypeConstantSuffix(TI.getUIntMaxType()));
-  DefineType("__PTRDIFF_TYPE__", TI.getPtrDiffType(0), Builder);
-  DefineFmt("__PTRDIFF", TI.getPtrDiffType(0), TI, Builder);
+  DefineType("__PTRDIFF_TYPE__", TI.getPtrDiffType(LangAS::Default), Builder);
+  DefineFmt("__PTRDIFF", TI.getPtrDiffType(LangAS::Default), TI, Builder);
   DefineType("__INTPTR_TYPE__", TI.getIntPtrType(), Builder);
   DefineFmt("__INTPTR", TI.getIntPtrType(), TI, Builder);
   DefineType("__SIZE_TYPE__", TI.getSizeType(), Builder);
@@ -1063,7 +1066,7 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
 
   // Define a __POINTER_WIDTH__ macro for stdint.h.
   Builder.defineMacro("__POINTER_WIDTH__",
-                      Twine((int)TI.getPointerWidth(0)));
+                      Twine((int)TI.getPointerWidth(LangAS::Default)));
 
   // Define __BIGGEST_ALIGNMENT__ to be compatible with gcc.
   Builder.defineMacro("__BIGGEST_ALIGNMENT__",
@@ -1176,8 +1179,9 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     DEFINE_LOCK_FREE_MACRO(INT, Int);
     DEFINE_LOCK_FREE_MACRO(LONG, Long);
     DEFINE_LOCK_FREE_MACRO(LLONG, LongLong);
-    Builder.defineMacro(Prefix + "POINTER_LOCK_FREE",
-                        getLockFreeValue(TI.getPointerWidth(0), TI));
+    Builder.defineMacro(
+        Prefix + "POINTER_LOCK_FREE",
+        getLockFreeValue(TI.getPointerWidth(LangAS::Default), TI));
 #undef DEFINE_LOCK_FREE_MACRO
   };
   addLockFreeMacros("__CLANG_ATOMIC_");

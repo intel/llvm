@@ -30,11 +30,11 @@ namespace detail {
 // TODO: Align these checks with the SYCL specification when the behaviour
 // with void * is clarified.
 template <typename DataT>
-using EnableIfOutputPointerT = detail::enable_if_t<
+using EnableIfOutputPointerT = std::enable_if_t<
     /*is_output_iterator<DataT>::value &&*/ std::is_pointer<DataT>::value>;
 
 template <typename DataT>
-using EnableIfOutputIteratorT = detail::enable_if_t<
+using EnableIfOutputIteratorT = std::enable_if_t<
     /*is_output_iterator<DataT>::value &&*/ !std::is_pointer<DataT>::value>;
 
 #if !defined(NDEBUG) && (_MSC_VER > 1929 || __has_builtin(__builtin_FILE))
@@ -219,6 +219,14 @@ static inline std::string codeToString(pi_int32 code) {
 // SYCL 2020 exceptions
 #define __SYCL_CHECK_CODE_THROW_VIA_ERRC(X, ERRC)                              \
   __SYCL_REPORT_ERR_TO_EXC_THROW_VIA_ERRC(X, ERRC)
+#endif
+
+// Helper for enabling empty-base optimizations on MSVC.
+// TODO: Remove this when MSVC has this optimization enabled by default.
+#ifdef _MSC_VER
+#define __SYCL_EBO __declspec(empty_bases)
+#else
+#define __SYCL_EBO
 #endif
 
 namespace sycl {

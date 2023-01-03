@@ -162,8 +162,11 @@ createPostSparsificationRewritePass(bool enableRT, bool enableForeach = true,
 // Other rewriting rules and passes.
 //===----------------------------------------------------------------------===//
 
-std::unique_ptr<Pass> createDenseBufferizationPass(
-    const bufferization::OneShotBufferizationOptions &options);
+std::unique_ptr<Pass> createSparsificationAndBufferizationPass(
+    const bufferization::OneShotBufferizationOptions &bufferizationOptions,
+    const SparsificationOptions &sparsificationOptions,
+    const SparseTensorConversionOptions &sparseTensorConversionOptions,
+    bool enableRuntimeLibrary, bool enableBufferInitialization);
 
 void populateSparseBufferRewriting(RewritePatternSet &patterns,
                                    bool enableBufferInitialization);
@@ -171,6 +174,16 @@ void populateSparseBufferRewriting(RewritePatternSet &patterns,
 std::unique_ptr<Pass> createSparseBufferRewritePass();
 std::unique_ptr<Pass>
 createSparseBufferRewritePass(bool enableBufferInitialization);
+
+void populateSparseVectorizationPatterns(RewritePatternSet &patterns,
+                                         unsigned vectorLength,
+                                         bool enableVLAVectorization,
+                                         bool enableSIMDIndex32);
+
+std::unique_ptr<Pass> createSparseVectorizationPass();
+std::unique_ptr<Pass> createSparseVectorizationPass(unsigned vectorLength,
+                                                    bool enableVLAVectorization,
+                                                    bool enableSIMDIndex32);
 
 //===----------------------------------------------------------------------===//
 // Registration.

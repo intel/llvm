@@ -90,7 +90,7 @@ constexpr int verify_parameters_and_deduce_exec_size() {
   verify_repeat_count<RepeatCount, AElemBitSize, BElemBitSize, IsDPASW>();
 
   constexpr int OpsPerChannel =
-      std::min(32 / std::max(AElemBitSize, BElemBitSize), 8);
+      std::max(std::min(32 / std::max(AElemBitSize, BElemBitSize), 8), 1);
 
   // A(_Mx_K) * B(_Kx_N) + C(_Mx_N)
   // where:
@@ -217,14 +217,15 @@ __ESIMD_NS::simd<T, N> dpas(__ESIMD_NS::simd<CT, N> C,
       SystolicDepth, RepeatCount, T, CT, BT, AT, BPrecision, APrecision, BN,
       AN>();
 
-  constexpr int ANCasted = AN / (sizeof(int) / sizeof(AT));
-  constexpr int BNCasted = BN / (sizeof(int) / sizeof(BT));
-  __ESIMD_NS::simd<int, ANCasted> ACasted = A.template bit_cast_view<int>();
-  __ESIMD_NS::simd<int, BNCasted> BCasted = B.template bit_cast_view<int>();
+  using MsgT = int;
+  constexpr int ANCasted = AN * sizeof(AT) / sizeof(MsgT);
+  constexpr int BNCasted = BN * sizeof(BT) / sizeof(MsgT);
+  __ESIMD_NS::simd<MsgT, ANCasted> ACasted = A.template bit_cast_view<MsgT>();
+  __ESIMD_NS::simd<MsgT, BNCasted> BCasted = B.template bit_cast_view<MsgT>();
   using CRawT = typename __ESIMD_NS::simd<CT, N>::raw_element_type;
   using RawT = typename __ESIMD_NS::simd<T, N>::raw_element_type;
   return __esimd_dpas2<BPrecision, APrecision, SystolicDepth, RepeatCount, RawT,
-                       CRawT, int, int, N, BNCasted, ANCasted>(
+                       CRawT, MsgT, MsgT, N, BNCasted, ANCasted>(
       C.data(), BCasted.data(), ACasted.data());
 }
 
@@ -252,16 +253,17 @@ auto dpas(__ESIMD_NS::simd<BT, BN> B, __ESIMD_NS::simd<AT, AN> A) {
   //   _N = ExecutionSize (unknown, but deducible), must be 8 or 16.
   constexpr int ResultN = RepeatCount * ExecutionSize;
 
-  constexpr int ANCasted = AN / (sizeof(int) / sizeof(AT));
-  constexpr int BNCasted = BN / (sizeof(int) / sizeof(BT));
-  __ESIMD_NS::simd<int, ANCasted> ACasted = A.template bit_cast_view<int>();
-  __ESIMD_NS::simd<int, BNCasted> BCasted = B.template bit_cast_view<int>();
+  using MsgT = int;
+  constexpr int ANCasted = AN * sizeof(AT) / sizeof(MsgT);
+  constexpr int BNCasted = BN * sizeof(BT) / sizeof(MsgT);
+  __ESIMD_NS::simd<MsgT, ANCasted> ACasted = A.template bit_cast_view<MsgT>();
+  __ESIMD_NS::simd<MsgT, BNCasted> BCasted = B.template bit_cast_view<MsgT>();
 
   constexpr int Info = (RepeatCount << 24) + (SystolicDepth << 16) +
                        ((int)APrecision << 8) + (int)BPrecision;
   using RawT = typename __ESIMD_NS::simd<T, ResultN>::raw_element_type;
   __ESIMD_NS::simd<T, ResultN> Result =
-      __esimd_dpas_nosrc0<Info, RawT, int, int, ResultN, BNCasted, ANCasted>(
+      __esimd_dpas_nosrc0<Info, RawT, MsgT, MsgT, ResultN, BNCasted, ANCasted>(
           BCasted.data(), ACasted.data());
   return Result;
 }
@@ -287,8 +289,8 @@ __ESIMD_NS::simd<T, N> dpasw(__ESIMD_NS::simd<T, N> C,
       SystolicDepth, RepeatCount, T, T, BT, AT, BPrecision, APrecision, BN, AN,
       IsDPASW>();
 
-  constexpr int ANCasted = AN / (sizeof(int) / sizeof(AT));
-  constexpr int BNCasted = BN / (sizeof(int) / sizeof(BT));
+  constexpr int ANCasted = AN * sizeof(AT) / sizeof(int);
+  constexpr int BNCasted = BN * sizeof(BT) / sizeof(int);
   __ESIMD_NS::simd<int, ANCasted> ACasted = A.template bit_cast_view<int>();
   __ESIMD_NS::simd<int, BNCasted> BCasted = B.template bit_cast_view<int>();
 
@@ -324,8 +326,8 @@ auto dpasw(__ESIMD_NS::simd<BT, BN> B, __ESIMD_NS::simd<AT, AN> A) {
   //   _N = ExecutionSize (unknown, but deducible), must be 8 or 16.
   constexpr int ResultN = RepeatCount * ExecutionSize;
 
-  constexpr int ANCasted = AN / (sizeof(int) / sizeof(AT));
-  constexpr int BNCasted = BN / (sizeof(int) / sizeof(BT));
+  constexpr int ANCasted = AN * sizeof(AT) / sizeof(int);
+  constexpr int BNCasted = BN * sizeof(BT) / sizeof(int);
   __ESIMD_NS::simd<int, ANCasted> ACasted = A.template bit_cast_view<int>();
   __ESIMD_NS::simd<int, BNCasted> BCasted = B.template bit_cast_view<int>();
 

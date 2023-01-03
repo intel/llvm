@@ -189,7 +189,7 @@ Optional<FileEntryRef> ModuleMap::findHeader(
         expectedToOptional(SourceMgr.getFileManager().getFileRef(Filename));
     if (!File || (Header.Size && File->getSize() != *Header.Size) ||
         (Header.ModTime && File->getModificationTime() != *Header.ModTime))
-      return None;
+      return std::nullopt;
     return *File;
   };
 
@@ -247,7 +247,7 @@ Optional<FileEntryRef> ModuleMap::findHeader(
           << Header.FileName << M->getFullModuleName();
       NeedsFramework = true;
     }
-    return None;
+    return std::nullopt;
   }
 
   return NormalHdrFile;
@@ -482,7 +482,7 @@ void ModuleMap::diagnoseHeaderInclusion(Module *RequestingModule,
 
   if (RequestingModule) {
     resolveUses(RequestingModule, /*Complain=*/false);
-    resolveHeaderDirectives(RequestingModule, /*File=*/llvm::None);
+    resolveHeaderDirectives(RequestingModule, /*File=*/std::nullopt);
   }
 
   bool Excluded = false;
@@ -690,7 +690,7 @@ ModuleMap::findAllModulesForHeader(const FileEntry *File) {
   if (findOrCreateModuleForHeaderInUmbrellaDir(File))
     return Headers.find(File)->second;
 
-  return None;
+  return std::nullopt;
 }
 
 ArrayRef<ModuleMap::KnownHeader>
@@ -699,7 +699,7 @@ ModuleMap::findResolvedModulesForHeader(const FileEntry *File) const {
   resolveHeaderDirectives(File);
   auto It = Headers.find(File);
   if (It == Headers.end())
-    return None;
+    return std::nullopt;
   return It->second;
 }
 
@@ -1262,7 +1262,7 @@ void ModuleMap::addHeader(Module *Mod, Module::Header Header,
 Optional<FileEntryRef>
 ModuleMap::getContainingModuleMapFile(const Module *Module) const {
   if (Module->DefinitionLoc.isInvalid())
-    return None;
+    return std::nullopt;
 
   return SourceMgr.getFileEntryRefForID(
       SourceMgr.getFileID(Module->DefinitionLoc));
@@ -1303,9 +1303,16 @@ ModuleMap::canonicalizeModuleMapPath(SmallVectorImpl<char> &Path) {
   // Canonicalize the directory.
   StringRef CanonicalDir = FM.getCanonicalName(*DirEntry);
   if (CanonicalDir != Dir) {
-    bool Done = llvm::sys::path::replace_path_prefix(Path, Dir, CanonicalDir);
-    (void)Done;
-    assert(Done && "Path should always start with Dir");
+    auto CanonicalDirEntry = FM.getDirectory(CanonicalDir);
+    // Only use the canonicalized path if it resolves to the same entry as the
+    // original. This is not true if there's a VFS overlay on top of a FS where
+    // the directory is a symlink. The overlay would not remap the target path
+    // of the symlink to the same directory entry in that case.
+    if (CanonicalDirEntry && *CanonicalDirEntry == *DirEntry) {
+      bool Done = llvm::sys::path::replace_path_prefix(Path, Dir, CanonicalDir);
+      (void)Done;
+      assert(Done && "Path should always start with Dir");
+    }
   }
 
   // In theory, the filename component should also be canonicalized if it

@@ -364,10 +364,10 @@ PerfInputFile PerfScriptReader::convertPerfDataToTrace(
   StringRef ScriptMMapArgs[] = {PerfPath, "script",   "--show-mmap-events",
                                 "-F",     "comm,pid", "-i",
                                 PerfData};
-  Optional<StringRef> Redirects[] = {llvm::None,               // Stdin
-                                     StringRef(PerfTraceFile), // Stdout
-                                     StringRef(ErrorFile)};    // Stderr
-  sys::ExecuteAndWait(PerfPath, ScriptMMapArgs, llvm::None, Redirects);
+  std::optional<StringRef> Redirects[] = {std::nullopt,             // Stdin
+                                          StringRef(PerfTraceFile), // Stdout
+                                          StringRef(ErrorFile)};    // Stderr
+  sys::ExecuteAndWait(PerfPath, ScriptMMapArgs, std::nullopt, Redirects);
 
   // Collect the PIDs
   TraceStream TraceIt(PerfTraceFile);
@@ -396,7 +396,7 @@ PerfInputFile PerfScriptReader::convertPerfDataToTrace(
   StringRef ScriptSampleArgs[] = {PerfPath, "script",     "--show-mmap-events",
                                   "-F",     "ip,brstack", "--pid",
                                   PIDs,     "-i",         PerfData};
-  sys::ExecuteAndWait(PerfPath, ScriptSampleArgs, llvm::None, Redirects);
+  sys::ExecuteAndWait(PerfPath, ScriptSampleArgs, std::nullopt, Redirects);
 
   return {PerfTraceFile, PerfFormat::PerfScript, PerfContent::UnknownContent};
 }

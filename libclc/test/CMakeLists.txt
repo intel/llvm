@@ -43,3 +43,27 @@ foreach( t ${LIBCLC_TARGET_TO_TEST} )
 
   endforeach( d )
 endforeach( t )
+
+if(LIBCLC_GENERATE_REMANGLED_VARIANTS)
+  # Run remangler in test mode if generating remangled variants and make sure
+  # it depends on check-libclc target.
+  # Both `long_widths` and `char_signedness` are set in AddLibclc.cmake and can
+  # be used here.
+  foreach(long_width ${long_widths})
+    foreach(signedness ${char_signedness})
+      # In `-t` (TestRun) the remangler does not perform any substitutions, it
+      # needs to make sure that the remangled name matches the original mangled
+      # one.
+      set (test_target_name "test-remangled-${long_width}-${signedness}_char")
+      add_custom_target(${test_target_name}
+        COMMAND libclc-remangler
+        --long-width=${long_width}
+        --char-signedness=${signedness}
+        --input-ir="$<TARGET_PROPERTY:prepare-${obj_suffix},TARGET_FILE>"
+        ${dummy_in} -t -o -
+        DEPENDS "${builtins_obj_path}" "prepare-${obj_suffix}" "${dummy_in}" libclc-remangler)
+
+      add_dependencies(check-libclc ${test_target_name})
+    endforeach()
+  endforeach()
+endif()

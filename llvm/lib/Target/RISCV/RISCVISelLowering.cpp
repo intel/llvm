@@ -39,6 +39,7 @@
 #include "llvm/Support/KnownBits.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -977,7 +978,7 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   }
 
   // Function alignments.
-  const Align FunctionAlignment(Subtarget.hasStdExtC() ? 2 : 4);
+  const Align FunctionAlignment(Subtarget.hasStdExtCOrZca() ? 2 : 4);
   setMinFunctionAlignment(FunctionAlignment);
   setPrefFunctionAlignment(FunctionAlignment);
 
@@ -1282,6 +1283,76 @@ bool RISCVTargetLowering::
   return !XC;
 }
 
+bool RISCVTargetLowering::canSplatOperand(unsigned Opcode, int Operand) const {
+  switch (Opcode) {
+  case Instruction::Add:
+  case Instruction::Sub:
+  case Instruction::Mul:
+  case Instruction::And:
+  case Instruction::Or:
+  case Instruction::Xor:
+  case Instruction::FAdd:
+  case Instruction::FSub:
+  case Instruction::FMul:
+  case Instruction::FDiv:
+  case Instruction::ICmp:
+  case Instruction::FCmp:
+    return true;
+  case Instruction::Shl:
+  case Instruction::LShr:
+  case Instruction::AShr:
+  case Instruction::UDiv:
+  case Instruction::SDiv:
+  case Instruction::URem:
+  case Instruction::SRem:
+    return Operand == 1;
+  default:
+    return false;
+  }
+}
+
+
+bool RISCVTargetLowering::canSplatOperand(Instruction *I, int Operand) const {
+  if (!I->getType()->isVectorTy() || !Subtarget.hasVInstructions())
+    return false;
+
+  if (canSplatOperand(I->getOpcode(), Operand))
+    return true;
+
+  auto *II = dyn_cast<IntrinsicInst>(I);
+  if (!II)
+    return false;
+
+  switch (II->getIntrinsicID()) {
+  case Intrinsic::fma:
+  case Intrinsic::vp_fma:
+    return Operand == 0 || Operand == 1;
+  case Intrinsic::vp_shl:
+  case Intrinsic::vp_lshr:
+  case Intrinsic::vp_ashr:
+  case Intrinsic::vp_udiv:
+  case Intrinsic::vp_sdiv:
+  case Intrinsic::vp_urem:
+  case Intrinsic::vp_srem:
+    return Operand == 1;
+    // These intrinsics are commutative.
+  case Intrinsic::vp_add:
+  case Intrinsic::vp_mul:
+  case Intrinsic::vp_and:
+  case Intrinsic::vp_or:
+  case Intrinsic::vp_xor:
+  case Intrinsic::vp_fadd:
+  case Intrinsic::vp_fmul:
+    // These intrinsics have 'vr' versions.
+  case Intrinsic::vp_sub:
+  case Intrinsic::vp_fsub:
+  case Intrinsic::vp_fdiv:
+    return Operand == 0 || Operand == 1;
+  default:
+    return false;
+  }
+}
+
 /// Check if sinking \p I's operands to I's basic block is profitable, because
 /// the operands can be folded into a target instruction, e.g.
 /// splats of scalars can fold into vector instructions.
@@ -1292,68 +1363,8 @@ bool RISCVTargetLowering::shouldSinkOperands(
   if (!I->getType()->isVectorTy() || !Subtarget.hasVInstructions())
     return false;
 
-  auto IsSinker = [&](Instruction *I, int Operand) {
-    switch (I->getOpcode()) {
-    case Instruction::Add:
-    case Instruction::Sub:
-    case Instruction::Mul:
-    case Instruction::And:
-    case Instruction::Or:
-    case Instruction::Xor:
-    case Instruction::FAdd:
-    case Instruction::FSub:
-    case Instruction::FMul:
-    case Instruction::FDiv:
-    case Instruction::ICmp:
-    case Instruction::FCmp:
-      return true;
-    case Instruction::Shl:
-    case Instruction::LShr:
-    case Instruction::AShr:
-    case Instruction::UDiv:
-    case Instruction::SDiv:
-    case Instruction::URem:
-    case Instruction::SRem:
-      return Operand == 1;
-    case Instruction::Call:
-      if (auto *II = dyn_cast<IntrinsicInst>(I)) {
-        switch (II->getIntrinsicID()) {
-        case Intrinsic::fma:
-        case Intrinsic::vp_fma:
-          return Operand == 0 || Operand == 1;
-        case Intrinsic::vp_shl:
-        case Intrinsic::vp_lshr:
-        case Intrinsic::vp_ashr:
-        case Intrinsic::vp_udiv:
-        case Intrinsic::vp_sdiv:
-        case Intrinsic::vp_urem:
-        case Intrinsic::vp_srem:
-          return Operand == 1;
-        // These intrinsics are commutative.
-        case Intrinsic::vp_add:
-        case Intrinsic::vp_mul:
-        case Intrinsic::vp_and:
-        case Intrinsic::vp_or:
-        case Intrinsic::vp_xor:
-        case Intrinsic::vp_fadd:
-        case Intrinsic::vp_fmul:
-        // These intrinsics have 'vr' versions.
-        case Intrinsic::vp_sub:
-        case Intrinsic::vp_fsub:
-        case Intrinsic::vp_fdiv:
-          return Operand == 0 || Operand == 1;
-        default:
-          return false;
-        }
-      }
-      return false;
-    default:
-      return false;
-    }
-  };
-
   for (auto OpIdx : enumerate(I->operands())) {
-    if (!IsSinker(I, OpIdx.index()))
+    if (!canSplatOperand(I, OpIdx.index()))
       continue;
 
     Instruction *Op = dyn_cast<Instruction>(OpIdx.value().get());
@@ -1370,7 +1381,7 @@ bool RISCVTargetLowering::shouldSinkOperands(
     // and vector registers
     for (Use &U : Op->uses()) {
       Instruction *Insn = cast<Instruction>(U.getUser());
-      if (!IsSinker(Insn, U.getOperandNo()))
+      if (!canSplatOperand(Insn, U.getOperandNo()))
         return false;
     }
 
@@ -2158,8 +2169,8 @@ struct VIDSequence {
   int64_t Addend;
 };
 
-static Optional<uint64_t> getExactInteger(const APFloat &APF,
-                                          uint32_t BitWidth) {
+static std::optional<uint64_t> getExactInteger(const APFloat &APF,
+                                               uint32_t BitWidth) {
   APSInt ValInt(BitWidth, !APF.isNegative());
   // We use an arbitrary rounding mode here. If a floating-point is an exact
   // integer (e.g., 1.0), the rounding mode does not affect the output value. If
@@ -2172,7 +2183,7 @@ static Optional<uint64_t> getExactInteger(const APFloat &APF,
   if ((APF.convertToInteger(ValInt, ArbitraryRM, &IsExact) ==
        APFloatBase::opInvalidOp) ||
       !IsExact)
-    return None;
+    return std::nullopt;
   return ValInt.extractBitsAsZExtValue(BitWidth, 0);
 }
 
@@ -2186,14 +2197,14 @@ static Optional<uint64_t> getExactInteger(const APFloat &APF,
 // Note that this method will also match potentially unappealing index
 // sequences, like <i32 0, i32 50939494>, however it is left to the caller to
 // determine whether this is worth generating code for.
-static Optional<VIDSequence> isSimpleVIDSequence(SDValue Op) {
+static std::optional<VIDSequence> isSimpleVIDSequence(SDValue Op) {
   unsigned NumElts = Op.getNumOperands();
   assert(Op.getOpcode() == ISD::BUILD_VECTOR && "Unexpected BUILD_VECTOR");
   bool IsInteger = Op.getValueType().isInteger();
 
-  Optional<unsigned> SeqStepDenom;
-  Optional<int64_t> SeqStepNum, SeqAddend;
-  Optional<std::pair<uint64_t, unsigned>> PrevElt;
+  std::optional<unsigned> SeqStepDenom;
+  std::optional<int64_t> SeqStepNum, SeqAddend;
+  std::optional<std::pair<uint64_t, unsigned>> PrevElt;
   unsigned EltSizeInBits = Op.getValueType().getScalarSizeInBits();
   for (unsigned Idx = 0; Idx < NumElts; Idx++) {
     // Assume undef elements match the sequence; we just have to be careful
@@ -2205,19 +2216,19 @@ static Optional<VIDSequence> isSimpleVIDSequence(SDValue Op) {
     if (IsInteger) {
       // The BUILD_VECTOR must be all constants.
       if (!isa<ConstantSDNode>(Op.getOperand(Idx)))
-        return None;
+        return std::nullopt;
       Val = Op.getConstantOperandVal(Idx) &
             maskTrailingOnes<uint64_t>(EltSizeInBits);
     } else {
       // The BUILD_VECTOR must be all constants.
       if (!isa<ConstantFPSDNode>(Op.getOperand(Idx)))
-        return None;
+        return std::nullopt;
       if (auto ExactInteger = getExactInteger(
               cast<ConstantFPSDNode>(Op.getOperand(Idx))->getValueAPF(),
               EltSizeInBits))
         Val = *ExactInteger;
       else
-        return None;
+        return std::nullopt;
     }
 
     if (PrevElt) {
@@ -2237,7 +2248,7 @@ static Optional<VIDSequence> isSimpleVIDSequence(SDValue Op) {
       if (Remainder != ValDiff) {
         // The difference must cleanly divide the element span.
         if (Remainder != 0)
-          return None;
+          return std::nullopt;
         ValDiff /= IdxDiff;
         IdxDiff = 1;
       }
@@ -2245,12 +2256,12 @@ static Optional<VIDSequence> isSimpleVIDSequence(SDValue Op) {
       if (!SeqStepNum)
         SeqStepNum = ValDiff;
       else if (ValDiff != SeqStepNum)
-        return None;
+        return std::nullopt;
 
       if (!SeqStepDenom)
         SeqStepDenom = IdxDiff;
       else if (IdxDiff != *SeqStepDenom)
-        return None;
+        return std::nullopt;
     }
 
     // Record this non-undef element for later.
@@ -2260,7 +2271,7 @@ static Optional<VIDSequence> isSimpleVIDSequence(SDValue Op) {
 
   // We need to have logged a step for this to count as a legal index sequence.
   if (!SeqStepNum || !SeqStepDenom)
-    return None;
+    return std::nullopt;
 
   // Loop back through the sequence and validate elements we might have skipped
   // while waiting for a valid step. While doing this, log any sequence addend.
@@ -2282,7 +2293,7 @@ static Optional<VIDSequence> isSimpleVIDSequence(SDValue Op) {
     if (!SeqAddend)
       SeqAddend = Addend;
     else if (Addend != SeqAddend)
-      return None;
+      return std::nullopt;
   }
 
   assert(SeqAddend && "Must have an addend if we have a step");
@@ -5496,8 +5507,7 @@ SDValue RISCVTargetLowering::LowerINTRINSIC_W_CHAIN(SDValue Op,
 
     // TODO: We restrict this to unmasked loads currently in consideration of
     // the complexity of hanlding all falses masks.
-    if (IsUnmasked && isNullConstant(Stride) &&
-        !Subtarget.hasOptimizedZeroStrideLoad()) {
+    if (IsUnmasked && isNullConstant(Stride)) {
       MVT ScalarVT = ContainerVT.getVectorElementType();
       SDValue ScalarLoad =
           DAG.getExtLoad(ISD::ZEXTLOAD, DL, XLenVT, Load->getChain(), Ptr,
@@ -8833,7 +8843,7 @@ canFoldToVWWithSameExtensionImpl(SDNode *Root, const NodeExtensionHelper &LHS,
                                  bool AllowZExt) {
   assert((AllowSExt || AllowZExt) && "Forgot to set what you want?");
   if (!LHS.areVLAndMaskCompatible(Root) || !RHS.areVLAndMaskCompatible(Root))
-    return None;
+    return std::nullopt;
   if (AllowZExt && LHS.SupportsZExt && RHS.SupportsZExt)
     return CombineResult(NodeExtensionHelper::getSameExtensionOpcode(
                              Root->getOpcode(), /*IsSExt=*/false),
@@ -8844,7 +8854,7 @@ canFoldToVWWithSameExtensionImpl(SDNode *Root, const NodeExtensionHelper &LHS,
                              Root->getOpcode(), /*IsSExt=*/true),
                          Root, LHS, /*SExtLHS=*/true, RHS,
                          /*SExtRHS=*/true);
-  return None;
+  return std::nullopt;
 }
 
 /// Check if \p Root follows a pattern Root(ext(LHS), ext(RHS))
@@ -8868,7 +8878,7 @@ static Optional<CombineResult> canFoldToVW_W(SDNode *Root,
                                              const NodeExtensionHelper &LHS,
                                              const NodeExtensionHelper &RHS) {
   if (!RHS.areVLAndMaskCompatible(Root))
-    return None;
+    return std::nullopt;
 
   // FIXME: Is it useful to form a vwadd.wx or vwsub.wx if it removes a scalar
   // sext/zext?
@@ -8877,12 +8887,12 @@ static Optional<CombineResult> canFoldToVW_W(SDNode *Root,
   if (RHS.SupportsZExt && (!RHS.isSplat() || AllowSplatInVW_W))
     return CombineResult(
         NodeExtensionHelper::getWOpcode(Root->getOpcode(), /*IsSExt=*/false),
-        Root, LHS, /*SExtLHS=*/None, RHS, /*SExtRHS=*/false);
+        Root, LHS, /*SExtLHS=*/std::nullopt, RHS, /*SExtRHS=*/false);
   if (RHS.SupportsSExt && (!RHS.isSplat() || AllowSplatInVW_W))
     return CombineResult(
         NodeExtensionHelper::getWOpcode(Root->getOpcode(), /*IsSExt=*/true),
-        Root, LHS, /*SExtLHS=*/None, RHS, /*SExtRHS=*/true);
-  return None;
+        Root, LHS, /*SExtLHS=*/std::nullopt, RHS, /*SExtRHS=*/true);
+  return std::nullopt;
 }
 
 /// Check if \p Root follows a pattern Root(sext(LHS), sext(RHS))
@@ -8915,9 +8925,9 @@ static Optional<CombineResult> canFoldToVW_SU(SDNode *Root,
                                               const NodeExtensionHelper &LHS,
                                               const NodeExtensionHelper &RHS) {
   if (!LHS.SupportsSExt || !RHS.SupportsZExt)
-    return None;
+    return std::nullopt;
   if (!LHS.areVLAndMaskCompatible(Root) || !RHS.areVLAndMaskCompatible(Root))
-    return None;
+    return std::nullopt;
   return CombineResult(NodeExtensionHelper::getSUOpcode(Root->getOpcode()),
                        Root, LHS, /*SExtLHS=*/true, RHS, /*SExtRHS=*/false);
 }
@@ -9698,6 +9708,33 @@ SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
         SDValue And = DAG.getNode(ISD::AND, DL, VT, Mask, Src1); // Mask & z
         return DAG.getNode(Opcode, DL, VT, And, Src2);           // And Op y
       }
+    }
+
+    // (select (x < 0), y, z)  -> x >> (XLEN - 1) & (y - z) + z
+    // (select (x >= 0), y, z) -> x >> (XLEN - 1) & (z - y) + y
+    if (!Subtarget.hasShortForwardBranchOpt() && isa<ConstantSDNode>(TrueV) &&
+        isa<ConstantSDNode>(FalseV) && isNullConstant(RHS) &&
+        (CCVal == ISD::CondCode::SETLT || CCVal == ISD::CondCode::SETGE)) {
+      if (CCVal == ISD::CondCode::SETGE)
+        std::swap(TrueV, FalseV);
+
+      int64_t TrueSImm = cast<ConstantSDNode>(TrueV)->getSExtValue();
+      int64_t FalseSImm = cast<ConstantSDNode>(FalseV)->getSExtValue();
+      // Only handle simm12, if it is not in this range, it can be considered as
+      // register.
+      if (isInt<12>(TrueSImm) && isInt<12>(FalseSImm) &&
+          isInt<12>(TrueSImm - FalseSImm)) {
+        SDValue SRA =
+            DAG.getNode(ISD::SRA, DL, VT, LHS,
+                        DAG.getConstant(Subtarget.getXLen() - 1, DL, VT));
+        SDValue AND =
+            DAG.getNode(ISD::AND, DL, VT, SRA,
+                        DAG.getConstant(TrueSImm - FalseSImm, DL, VT));
+        return DAG.getNode(ISD::ADD, DL, VT, AND, FalseV);
+      }
+
+      if (CCVal == ISD::CondCode::SETGE)
+        std::swap(TrueV, FalseV);
     }
 
     if (combine_CC(LHS, RHS, CC, DL, DAG, Subtarget))
@@ -11440,7 +11477,7 @@ static Optional<unsigned> preAssignMask(const ArgTy &Args) {
     if (ArgVT.isVector() && ArgVT.getVectorElementType() == MVT::i1)
       return ArgIdx.index();
   }
-  return None;
+  return std::nullopt;
 }
 
 void RISCVTargetLowering::analyzeInputArgs(
@@ -13314,7 +13351,7 @@ bool RISCVTargetLowering::allowsMisalignedMemoryAccesses(
 
 bool RISCVTargetLowering::splitValueIntoRegisterParts(
     SelectionDAG &DAG, const SDLoc &DL, SDValue Val, SDValue *Parts,
-    unsigned NumParts, MVT PartVT, Optional<CallingConv::ID> CC) const {
+    unsigned NumParts, MVT PartVT, std::optional<CallingConv::ID> CC) const {
   bool IsABIRegCopy = CC.has_value();
   EVT ValueVT = Val.getValueType();
   if (IsABIRegCopy && ValueVT == MVT::f16 && PartVT == MVT::f32) {
@@ -13368,7 +13405,7 @@ bool RISCVTargetLowering::splitValueIntoRegisterParts(
 
 SDValue RISCVTargetLowering::joinRegisterPartsIntoValue(
     SelectionDAG &DAG, const SDLoc &DL, const SDValue *Parts, unsigned NumParts,
-    MVT PartVT, EVT ValueVT, Optional<CallingConv::ID> CC) const {
+    MVT PartVT, EVT ValueVT, std::optional<CallingConv::ID> CC) const {
   bool IsABIRegCopy = CC.has_value();
   if (IsABIRegCopy && ValueVT == MVT::f16 && PartVT == MVT::f32) {
     SDValue Val = Parts[0];

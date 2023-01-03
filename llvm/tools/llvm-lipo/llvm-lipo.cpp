@@ -31,6 +31,7 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/TextAPI/Architecture.h"
+#include <optional>
 
 using namespace llvm;
 using namespace llvm::object;
@@ -105,7 +106,7 @@ enum class LipoAction {
 };
 
 struct InputFile {
-  Optional<StringRef> ArchType;
+  std::optional<StringRef> ArchType;
   StringRef FileName;
 };
 
@@ -181,7 +182,7 @@ static Config parseLipoOptions(ArrayRef<const char *> ArgsArr) {
     reportError("unknown argument '" + Arg->getAsString(InputArgs) + "'");
 
   for (auto *Arg : InputArgs.filtered(LIPO_INPUT))
-    C.InputFiles.push_back({None, Arg->getValue()});
+    C.InputFiles.push_back({std::nullopt, Arg->getValue()});
   for (auto *Arg : InputArgs.filtered(LIPO_arch)) {
     validateArchitectureName(Arg->getValue(0));
     assert(Arg->getValue(1) && "file_name is missing");

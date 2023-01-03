@@ -58,7 +58,7 @@ RISCVInstrInfo::RISCVInstrInfo(RISCVSubtarget &STI)
       STI(STI) {}
 
 MCInst RISCVInstrInfo::getNop() const {
-  if (STI.getFeatureBits()[RISCV::FeatureStdExtC])
+  if (STI.hasStdExtCOrZca())
     return MCInstBuilder(RISCV::C_NOP);
   return MCInstBuilder(RISCV::ADDI)
       .addReg(RISCV::X0)
@@ -1124,7 +1124,7 @@ RISCVInstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
       return DestSourcePair{MI.getOperand(0), MI.getOperand(1)};
     break;
   }
-  return None;
+  return std::nullopt;
 }
 
 void RISCVInstrInfo::setSpecialOperandAttr(MachineInstr &OldMI1,
@@ -1199,28 +1199,26 @@ static bool isFMUL(unsigned Opc) {
   }
 }
 
-static bool isAssociativeAndCommutativeFPOpcode(unsigned Opc) {
-  return isFADD(Opc) || isFMUL(Opc);
+bool RISCVInstrInfo::hasReassociableSibling(const MachineInstr &Inst,
+                                            bool &Commuted) const {
+  if (!TargetInstrInfo::hasReassociableSibling(Inst, Commuted))
+    return false;
+
+  const MachineRegisterInfo &MRI = Inst.getMF()->getRegInfo();
+  unsigned OperandIdx = Commuted ? 2 : 1;
+  const MachineInstr &Sibling =
+      *MRI.getVRegDef(Inst.getOperand(OperandIdx).getReg());
+
+  return RISCV::hasEqualFRM(Inst, Sibling);
 }
 
-static bool canReassociate(MachineInstr &Root, MachineOperand &MO) {
-  if (!MO.isReg() || !Register::isVirtualRegister(MO.getReg()))
-    return false;
-  MachineRegisterInfo &MRI = Root.getMF()->getRegInfo();
-  MachineInstr *MI = MRI.getVRegDef(MO.getReg());
-  if (!MI || !MRI.hasOneNonDBGUse(MO.getReg()))
-    return false;
-
-  if (MI->getOpcode() != Root.getOpcode())
-    return false;
-
-  if (!Root.getFlag(MachineInstr::MIFlag::FmReassoc) ||
-      !Root.getFlag(MachineInstr::MIFlag::FmNsz) ||
-      !MI->getFlag(MachineInstr::MIFlag::FmReassoc) ||
-      !MI->getFlag(MachineInstr::MIFlag::FmNsz))
-    return false;
-
-  return RISCV::hasEqualFRM(Root, *MI);
+bool RISCVInstrInfo::isAssociativeAndCommutative(
+    const MachineInstr &Inst) const {
+  unsigned Opc = Inst.getOpcode();
+  if (isFADD(Opc) || isFMUL(Opc))
+    return Inst.getFlag(MachineInstr::MIFlag::FmReassoc) &&
+           Inst.getFlag(MachineInstr::MIFlag::FmNsz);
+  return false;
 }
 
 static bool canCombineFPFusedMultiply(const MachineInstr &Root,
@@ -1251,23 +1249,6 @@ static bool canCombineFPFusedMultiply(const MachineInstr &Root,
 }
 
 static bool
-getFPReassocPatterns(MachineInstr &Root,
-                     SmallVectorImpl<MachineCombinerPattern> &Patterns) {
-  bool Added = false;
-  if (canReassociate(Root, Root.getOperand(1))) {
-    Patterns.push_back(MachineCombinerPattern::REASSOC_AX_BY);
-    Patterns.push_back(MachineCombinerPattern::REASSOC_XA_BY);
-    Added = true;
-  }
-  if (canReassociate(Root, Root.getOperand(2))) {
-    Patterns.push_back(MachineCombinerPattern::REASSOC_AX_YB);
-    Patterns.push_back(MachineCombinerPattern::REASSOC_XA_YB);
-    Added = true;
-  }
-  return Added;
-}
-
-static bool
 getFPFusedMultiplyPatterns(MachineInstr &Root,
                            SmallVectorImpl<MachineCombinerPattern> &Patterns,
                            bool DoRegPressureReduce) {
@@ -1294,10 +1275,7 @@ getFPFusedMultiplyPatterns(MachineInstr &Root,
 static bool getFPPatterns(MachineInstr &Root,
                           SmallVectorImpl<MachineCombinerPattern> &Patterns,
                           bool DoRegPressureReduce) {
-  bool Added = getFPFusedMultiplyPatterns(Root, Patterns, DoRegPressureReduce);
-  if (isAssociativeAndCommutativeFPOpcode(Root.getOpcode()))
-    Added |= getFPReassocPatterns(Root, Patterns);
-  return Added;
+  return getFPFusedMultiplyPatterns(Root, Patterns, DoRegPressureReduce);
 }
 
 bool RISCVInstrInfo::getMachineCombinerPatterns(
@@ -1707,8 +1685,10 @@ outliner::OutlinedFunction RISCVInstrInfo::getOutliningCandidateInfo(
 
   // jr t0 = 4 bytes, 2 bytes if compressed instructions are enabled.
   unsigned FrameOverhead = 4;
-  if (RepeatedSequenceLocs[0].getMF()->getSubtarget()
-          .getFeatureBits()[RISCV::FeatureStdExtC])
+  if (RepeatedSequenceLocs[0]
+          .getMF()
+          ->getSubtarget<RISCVSubtarget>()
+          .hasStdExtCOrZca())
     FrameOverhead = 2;
 
   return outliner::OutlinedFunction(RepeatedSequenceLocs, SequenceSize,
@@ -2407,7 +2387,7 @@ Optional<std::pair<unsigned, unsigned>>
 RISCV::isRVVSpillForZvlsseg(unsigned Opcode) {
   switch (Opcode) {
   default:
-    return None;
+    return std::nullopt;
   case RISCV::PseudoVSPILL2_M1:
   case RISCV::PseudoVRELOAD2_M1:
     return std::make_pair(2u, 1u);

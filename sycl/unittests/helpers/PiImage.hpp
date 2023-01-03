@@ -157,10 +157,36 @@ private:
   bool MEntriesNeedUpdate = false;
 };
 
+#ifdef __cpp_deduction_guides
+template <typename T> PiArray(std::vector<T>) -> PiArray<T>;
+
+template <typename T> PiArray(std::initializer_list<T>) -> PiArray<T>;
+#endif // __cpp_deduction_guides
+
 /// Convenience wrapper for pi_device_binary_property_set.
 class PiPropertySet {
 public:
-  PiPropertySet() = default;
+  PiPropertySet() {
+    // Most of unit-tests are statically linked with SYCL RT. On Linux and Mac
+    // systems that causes incorrect RT installation directory detection, which
+    // prevents proper loading of fallback libraries. See intel/llvm#6945
+    //
+    // Fallback libraries are automatically loaded and linked into device image
+    // unless there is a special property attached to it or special env variable
+    // is set which forces RT to skip fallback libraries.
+    //
+    // Setting this property here so unit-tests can be launched under any
+    // environment.
+
+    std::vector<char> Data(/* eight elements */ 8,
+                           /* each element is zero */ 0);
+    // Name doesn't matter here, it is not used by RT
+    // Value must be an all-zero 32-bit mask, which would mean that no fallback
+    // libraries are needed to be loaded.
+    PiProperty DeviceLibReqMask("", Data, PI_PROPERTY_TYPE_UINT32);
+    insert(__SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK,
+           PiArray{DeviceLibReqMask});
+  }
 
   /// Adds a new array of properties to the set.
   ///
@@ -427,6 +453,24 @@ makeKernelParamOptInfo(const std::string &Name, const size_t NumArgs,
   PiProperty Prop{Name, DescData, PI_PROPERTY_TYPE_BYTE_ARRAY};
 
   return Prop;
+}
+
+/// Utility function to add aspects to property set.
+inline void addAspects(PiPropertySet &Props,
+                       const std::vector<sycl::aspect> &Aspects) {
+  const size_t BYTES_FOR_SIZE = 8;
+  std::vector<char> ValData(BYTES_FOR_SIZE +
+                            Aspects.size() * sizeof(sycl::aspect));
+  uint64_t ValDataSize = ValData.size();
+  std::uninitialized_copy(&ValDataSize, &ValDataSize + sizeof(uint64_t),
+                          ValData.data());
+  auto *AspectsPtr = reinterpret_cast<const unsigned char *>(&Aspects[0]);
+  std::uninitialized_copy(AspectsPtr, AspectsPtr + Aspects.size(),
+                          ValData.data() + BYTES_FOR_SIZE);
+  PiProperty Prop{"aspects", ValData, PI_PROPERTY_TYPE_BYTE_ARRAY};
+  PiArray<PiProperty> Value{std::move(Prop)};
+  Props.insert(__SYCL_PI_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS,
+               std::move(Value));
 }
 
 } // namespace unittest

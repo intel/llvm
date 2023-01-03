@@ -23,8 +23,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 namespace detail {
 
 // Import from detail:: into ext::oneapi::detail:: to improve readability later
@@ -91,7 +90,7 @@ inline constexpr memory_order getLoadOrder(memory_order order) {
 template <typename T, typename = void> struct bit_equal;
 
 template <typename T>
-struct bit_equal<T, typename detail::enable_if_t<std::is_integral<T>::value>> {
+struct bit_equal<T, typename std::enable_if_t<std::is_integral<T>::value>> {
   bool operator()(const T &lhs, const T &rhs) { return lhs == rhs; }
 };
 
@@ -267,7 +266,7 @@ public:
 template <typename T, memory_order DefaultOrder, memory_scope DefaultScope,
           access::address_space AddressSpace>
 class atomic_ref_impl<T, DefaultOrder, DefaultScope, AddressSpace,
-                      typename detail::enable_if_t<std::is_integral<T>::value>>
+                      typename std::enable_if_t<std::is_integral<T>::value>>
     : public atomic_ref_base<T, DefaultOrder, DefaultScope, AddressSpace> {
 
 public:
@@ -415,7 +414,7 @@ template <typename T, memory_order DefaultOrder, memory_scope DefaultScope,
           access::address_space AddressSpace>
 class atomic_ref_impl<
     T, DefaultOrder, DefaultScope, AddressSpace,
-    typename detail::enable_if_t<std::is_floating_point<T>::value>>
+    typename std::enable_if_t<std::is_floating_point<T>::value>>
     : public atomic_ref_base<T, DefaultOrder, DefaultScope, AddressSpace> {
 
 public:
@@ -668,8 +667,7 @@ public:
                                 AddressSpace>::operator=;
 };
 
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

@@ -32,6 +32,7 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/LowerAtomicPass.h"
 #include "llvm/Transforms/Utils.h"
+#include <optional>
 using namespace llvm;
 
 #define DEBUG_TYPE "wasm"
@@ -85,7 +86,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeWebAssemblyTarget() {
 // WebAssembly Lowering public interface.
 //===----------------------------------------------------------------------===//
 
-static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM,
+static Reloc::Model getEffectiveRelocModel(std::optional<Reloc::Model> RM,
                                            const Triple &TT) {
   if (!RM) {
     // Default to static relocation model.  This should always be more optimial
@@ -108,8 +109,8 @@ static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM,
 ///
 WebAssemblyTargetMachine::WebAssemblyTargetMachine(
     const Target &T, const Triple &TT, StringRef CPU, StringRef FS,
-    const TargetOptions &Options, Optional<Reloc::Model> RM,
-    Optional<CodeModel::Model> CM, CodeGenOpt::Level OL, bool JIT)
+    const TargetOptions &Options, std::optional<Reloc::Model> RM,
+    std::optional<CodeModel::Model> CM, CodeGenOpt::Level OL, bool JIT)
     : LLVMTargetMachine(
           T,
           TT.isArch64Bit()
@@ -323,6 +324,7 @@ public:
   void addIRPasses() override;
   void addISelPrepare() override;
   bool addInstSelector() override;
+  void addOptimizedRegAlloc() override;
   void addPostRegAlloc() override;
   bool addGCPasses() override { return false; }
   void addPreEmitPass() override;
@@ -480,12 +482,26 @@ bool WebAssemblyPassConfig::addInstSelector() {
   return false;
 }
 
+void WebAssemblyPassConfig::addOptimizedRegAlloc() {
+  // Currently RegisterCoalesce degrades wasm debug info quality by a
+  // significant margin. As a quick fix, disable this for -O1, which is often
+  // used for debugging large applications. Disabling this increases code size
+  // of Emscripten core benchmarks by ~5%, which is acceptable for -O1, which is
+  // usually not used for production builds.
+  // TODO Investigate why RegisterCoalesce degrades debug info quality and fix
+  // it properly
+  if (getOptLevel() == CodeGenOpt::Less)
+    disablePass(&RegisterCoalescerID);
+  TargetPassConfig::addOptimizedRegAlloc();
+}
+
 void WebAssemblyPassConfig::addPostRegAlloc() {
   // TODO: The following CodeGen passes don't currently support code containing
   // virtual registers. Consider removing their restrictions and re-enabling
   // them.
 
   // These functions all require the NoVRegs property.
+  disablePass(&MachineLateInstrsCleanupID);
   disablePass(&MachineCopyPropagationID);
   disablePass(&PostRAMachineSinkingID);
   disablePass(&PostRASchedulerID);

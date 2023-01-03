@@ -185,6 +185,7 @@ void foo() {
 // CHECK-NEXT: 544 |     unsigned long MColumnNo
 // CHECK-NEXT: 552 |   _Bool MIsFinalized
 // CHECK-NEXT: 560 |   class sycl::event MLastEvent
+// CHECK-NEXT: 560 | class sycl::detail::OwnerLessBase<class sycl::event> (base) (empty)
 // CHECK-NEXT: 560 |     class std::shared_ptr<class sycl::detail::event_impl> impl
 // CHECK-NEXT: 560 |       class std::__shared_ptr<class sycl::detail::event_impl, __gnu_cxx::_S_atomic> (base)
 // CHECK-NEXT: 560 |         class std::__shared_ptr_access<class sycl::detail::event_impl, __gnu_cxx::_S_atomic, false, false> (base) (empty)

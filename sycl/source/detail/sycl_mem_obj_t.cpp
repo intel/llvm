@@ -31,7 +31,7 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
       MInteropContext(detail::getSyclObjImpl(SyclContext)),
       MOpenCLInterop(true), MHostPtrReadOnly(false), MNeedWriteBack(true),
       MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
-      MSharedPtrStorage(nullptr) {
+      MSharedPtrStorage(nullptr), MHostPtrProvided(true) {
   if (MInteropContext->is_host())
     throw sycl::invalid_parameter_error(
         "Creation of interoperability memory object using host context is "
@@ -90,8 +90,13 @@ void SYCLMemObjT::updateHostMemory() {
 
   // If we're attached to a memory record, process the deletion of the memory
   // record. We may get detached before we do this.
-  if (MRecord)
-    Scheduler::getInstance().removeMemoryObject(this);
+  if (MRecord) {
+    bool Result = Scheduler::getInstance().removeMemoryObject(this);
+    std::ignore = Result; // for no assert build
+    assert(
+        Result &&
+        "removeMemoryObject should not return false in mem object destructor");
+  }
   releaseHostMem(MShadowCopy);
 
   if (MOpenCLInterop) {
@@ -147,6 +152,18 @@ void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
   } else
     HostPtrReadOnly = false;
 }
+
+void SYCLMemObjT::detachMemoryObject(
+    const std::shared_ptr<SYCLMemObjT> &Self) const {
+  // Check MRecord without read lock because at this point we expect that no
+  // commands that operate on the buffer can be created. MRecord is nullptr on
+  // buffer creation and set to meaningfull
+  // value only if any operation on buffer submitted inside addCG call. addCG is
+  // called from queue::submit and buffer destruction could not overlap with it.
+  if (MRecord && !MHostPtrProvided)
+    Scheduler::getInstance().deferMemObjRelease(Self);
+}
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

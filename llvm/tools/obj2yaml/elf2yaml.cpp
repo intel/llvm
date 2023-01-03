@@ -18,6 +18,7 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/YAMLTraits.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -32,7 +33,7 @@ class ELFDumper {
 
   DenseMap<StringRef, uint32_t> UsedSectionNames;
   std::vector<std::string> SectionNames;
-  Optional<uint32_t> ShStrTabIndex;
+  std::optional<uint32_t> ShStrTabIndex;
 
   DenseMap<StringRef, uint32_t> UsedSymbolNames;
   std::vector<std::string> SymbolNames;
@@ -549,7 +550,7 @@ Optional<DWARFYAML::Data> ELFDumper<ELFT>::dumpDWARFSections(
   }
 
   if (DWARF.getNonEmptySectionNames().empty())
-    return None;
+    return std::nullopt;
   return DWARF;
 }
 

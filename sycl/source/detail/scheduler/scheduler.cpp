@@ -26,6 +26,18 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
+bool Scheduler::checkLeavesCompletion(MemObjRecord *Record) {
+  for (Command *Cmd : Record->MReadLeaves) {
+    if (!Cmd->getEvent()->isCompleted())
+      return false;
+  }
+  for (Command *Cmd : Record->MWriteLeaves) {
+    if (!Cmd->getEvent()->isCompleted())
+      return false;
+  }
+  return true;
+}
+
 void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
                                       ReadLockT &GraphReadLock) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -35,7 +47,7 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
   std::vector<Command *> ToCleanUp;
   for (Command *Cmd : Record->MReadLeaves) {
     EnqueueResultT Res;
-    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp, Cmd);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.",
                           PI_ERROR_INVALID_OPERATION);
@@ -47,7 +59,7 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
   }
   for (Command *Cmd : Record->MWriteLeaves) {
     EnqueueResultT Res;
-    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp, Cmd);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.",
                           PI_ERROR_INVALID_OPERATION);
@@ -59,7 +71,8 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
   for (AllocaCommandBase *AllocaCmd : Record->MAllocaCommands) {
     Command *ReleaseCmd = AllocaCmd->getReleaseCmd();
     EnqueueResultT Res;
-    bool Enqueued = GraphProcessor::enqueueCommand(ReleaseCmd, Res, ToCleanUp);
+    bool Enqueued =
+        GraphProcessor::enqueueCommand(ReleaseCmd, Res, ToCleanUp, ReleaseCmd);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.",
                           PI_ERROR_INVALID_OPERATION);
@@ -129,7 +142,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
     };
 
     for (Command *Cmd : AuxiliaryCmds) {
-      Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+      Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp, Cmd);
       try {
         if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
           throw runtime_error("Auxiliary enqueue process failed.",
@@ -146,7 +159,8 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       // TODO: Check if lazy mode.
       EnqueueResultT Res;
       try {
-        bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp);
+        bool Enqueued =
+            GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp, NewCmd);
         if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
           throw runtime_error("Enqueue process failed.",
                               PI_ERROR_INVALID_OPERATION);
@@ -186,13 +200,13 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
     bool Enqueued;
 
     for (Command *Cmd : AuxiliaryCmds) {
-      Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+      Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp, Cmd);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Enqueue process failed.",
                             PI_ERROR_INVALID_OPERATION);
     }
 
-    Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp);
+    Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp, NewCmd);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.",
                           PI_ERROR_INVALID_OPERATION);
@@ -256,7 +270,8 @@ void Scheduler::cleanupFinishedCommands(const EventImplPtr &FinishedEvent) {
   deallocateStreams(StreamsToDeallocate);
 }
 
-void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
+bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
+                                   bool StrictLock) {
   // We are going to traverse a graph of finished commands. Gather stream
   // objects from these commands if any and deallocate buffers for these stream
   // objects, this is needed to guarantee that streamed data is printed and
@@ -269,23 +284,25 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
   std::vector<std::shared_ptr<const void>> AuxResourcesToDeallocate;
 
   {
-    MemObjRecord *Record = nullptr;
+    MemObjRecord *Record = MGraphBuilder.getMemObjRecord(MemObj);
+    if (!Record)
+      // No operations were performed on the mem object
+      return true;
 
     {
       // This only needs a shared mutex as it only involves enqueueing and
       // awaiting for events
-      ReadLockT Lock = acquireReadLock();
-
-      Record = MGraphBuilder.getMemObjRecord(MemObj);
-      if (!Record)
-        // No operations were performed on the mem object
-        return;
-
+      ReadLockT Lock = StrictLock ? ReadLockT(MGraphLock)
+                                  : ReadLockT(MGraphLock, std::try_to_lock);
+      if (!Lock.owns_lock())
+        return false;
       waitForRecordToFinish(Record, Lock);
     }
-
     {
-      WriteLockT Lock = acquireWriteLock();
+      WriteLockT Lock = StrictLock ? acquireWriteLock()
+                                   : WriteLockT(MGraphLock, std::try_to_lock);
+      if (!Lock.owns_lock())
+        return false;
       MGraphBuilder.decrementLeafCountersForRecord(Record);
       MGraphBuilder.cleanupCommandsForRecord(Record, StreamsToDeallocate,
                                              AuxResourcesToDeallocate);
@@ -293,6 +310,7 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
     }
   }
   deallocateStreams(StreamsToDeallocate);
+  return true;
 }
 
 EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
@@ -315,14 +333,14 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
     bool Enqueued;
 
     for (Command *Cmd : AuxiliaryCmds) {
-      Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+      Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp, Cmd);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Enqueue process failed.",
                             PI_ERROR_INVALID_OPERATION);
     }
 
     if (Command *NewCmd = static_cast<Command *>(NewCmdEvent->getCommand())) {
-      Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp);
+      Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, ToCleanUp, NewCmd);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Enqueue process failed.",
                             PI_ERROR_INVALID_OPERATION);
@@ -355,7 +373,7 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
   auto EnqueueLeaves = [&ToCleanUp](LeavesCollection &Leaves) {
     for (Command *Cmd : Leaves) {
       EnqueueResultT Res;
-      bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp);
+      bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp, Cmd);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
         throw runtime_error("Enqueue process failed.",
                             PI_ERROR_INVALID_OPERATION);
@@ -364,6 +382,21 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
 
   EnqueueLeaves(Record->MReadLeaves);
   EnqueueLeaves(Record->MWriteLeaves);
+}
+
+void Scheduler::enqueueUnblockedCommands(
+    const std::vector<EventImplPtr> &ToEnqueue,
+    std::vector<Command *> &ToCleanUp) {
+  for (auto &Event : ToEnqueue) {
+    Command *Cmd = static_cast<Command *>(Event->getCommand());
+    if (!Cmd)
+      continue;
+    EnqueueResultT Res;
+    bool Enqueued = GraphProcessor::enqueueCommand(Cmd, Res, ToCleanUp, Cmd);
+    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+      throw runtime_error("Enqueue process failed.",
+                          PI_ERROR_INVALID_OPERATION);
+  }
 }
 
 void Scheduler::allocateStreamBuffers(stream_impl *Impl,
@@ -406,10 +439,29 @@ Scheduler::~Scheduler() {
           "not all resources were released. Please be sure that all kernels "
           "have synchronization points.\n\n");
   }
-  // There might be some commands scheduled for post enqueue cleanup that
-  // haven't been freed because of the graph mutex being locked at the time,
-  // clean them up now.
+  DefaultHostQueue.reset();
+}
+
+void Scheduler::releaseResources() {
+  if (DefaultHostQueue) {
+    DefaultHostQueue->wait();
+  }
+  GlobalHandler::instance().drainThreadPool();
+
+  //  There might be some commands scheduled for post enqueue cleanup that
+  //  haven't been freed because of the graph mutex being locked at the time,
+  //  clean them up now.
   cleanupCommands({});
+
+  // We need loop since sometimes we may need new objects to be added to
+  // deferred mem objects storage during cleanup. Known example is: we cleanup
+  // existing deferred mem objects under write lock, during this process we
+  // cleanup commands related to this record, command may have last reference to
+  // queue_impl, ~queue_impl is called and buffer for assert (which is created
+  // with size only so all confitions for deferred release are satisfied) is
+  // added to deferred mem obj storage. So we may end up with leak.
+  while (!isDeferredMemObjectsEmpty())
+    cleanupDeferredMemObjects(BlockingT::BLOCKING);
 }
 
 MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
@@ -417,8 +469,9 @@ MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
 }
 
 void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
-  if (Cmds.empty())
-  {
+  cleanupDeferredMemObjects(BlockingT::NON_BLOCKING);
+
+  if (Cmds.empty()) {
     std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
     if (MDeferredCleanupCommands.empty())
       return;
@@ -447,7 +500,7 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
   }
 }
 
-void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
+void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
   // Completing command's event along with unblocking enqueue readiness of
   // empty command may lead to quick deallocation of MThisCmd by some cleanup
   // process. Thus we'll copy deps prior to completing of event and unblocking
@@ -461,15 +514,75 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd, Command *BlockingCmd) {
 
     std::vector<DepDesc> Deps = Cmd->MDeps;
 
-    // update self-event status
-    Cmd->getEvent()->setComplete();
-
-    BlockingCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
-
-    for (const DepDesc &Dep : Deps)
-      Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement, ToCleanUp);
+    {
+      std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
+      // update self-event status
+      Cmd->getEvent()->setComplete();
+    }
+    Scheduler::enqueueUnblockedCommands(Cmd->MBlockedUsers, ToCleanUp);
   }
   cleanupCommands(ToCleanUp);
+}
+
+void Scheduler::deferMemObjRelease(const std::shared_ptr<SYCLMemObjI> &MemObj) {
+  {
+    std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
+    MDeferredMemObjRelease.push_back(MemObj);
+  }
+  cleanupDeferredMemObjects(BlockingT::NON_BLOCKING);
+}
+
+inline bool Scheduler::isDeferredMemObjectsEmpty() {
+  std::lock_guard<std::mutex> Lock{MDeferredMemReleaseMutex};
+  return MDeferredMemObjRelease.empty();
+}
+
+void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
+  if (isDeferredMemObjectsEmpty())
+    return;
+  if (Blocking == BlockingT::BLOCKING) {
+    std::vector<std::shared_ptr<SYCLMemObjI>> TempStorage;
+    {
+      std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
+      MDeferredMemObjRelease.swap(TempStorage);
+    }
+    // if any objects in TempStorage exist - it is leaving scope and being
+    // deleted
+  }
+
+  std::vector<std::shared_ptr<SYCLMemObjI>> ObjsReadyToRelease;
+  {
+    // Lock is needed for checkLeavesCompletion - if walks through Record leaves
+    ReadLockT Lock = ReadLockT(MGraphLock, std::try_to_lock);
+    if (Lock.owns_lock()) {
+      // Not expected that Blocking == true will be used in parallel with
+      // adding MemObj to storage, no such scenario.
+      std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
+      auto MemObjIt = MDeferredMemObjRelease.begin();
+      while (MemObjIt != MDeferredMemObjRelease.end()) {
+        MemObjRecord *Record = MGraphBuilder.getMemObjRecord((*MemObjIt).get());
+        if (!checkLeavesCompletion(Record)) {
+          MemObjIt++;
+          continue;
+        }
+        ObjsReadyToRelease.push_back(*MemObjIt);
+        MemObjIt = MDeferredMemObjRelease.erase(MemObjIt);
+      }
+    }
+  }
+  auto ReleaseCandidateIt = ObjsReadyToRelease.begin();
+  while (ReleaseCandidateIt != ObjsReadyToRelease.end()) {
+    if (!removeMemoryObject(ReleaseCandidateIt->get(), false))
+      break;
+    ReleaseCandidateIt = ObjsReadyToRelease.erase(ReleaseCandidateIt);
+  }
+  if (!ObjsReadyToRelease.empty()) {
+    std::lock_guard<std::mutex> LockDef{MDeferredMemReleaseMutex};
+    MDeferredMemObjRelease.insert(
+        MDeferredMemObjRelease.end(),
+        std::make_move_iterator(ObjsReadyToRelease.begin()),
+        std::make_move_iterator(ObjsReadyToRelease.end()));
+  }
 }
 
 } // namespace detail

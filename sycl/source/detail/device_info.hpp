@@ -358,6 +358,7 @@ static bool is_sycl_partition_property(info::partition_property PP) {
   case info::partition_property::partition_equally:
   case info::partition_property::partition_by_counts:
   case info::partition_property::partition_by_affinity_domain:
+  case info::partition_property::ext_intel_partition_by_cslice:
     return true;
   }
   return false;
@@ -1588,6 +1589,14 @@ inline uint32_t
 get_device_info_host<ext::intel::info::device::memory_bus_width>() {
   throw runtime_error(
       "Obtaining the device memory bus width is not supported on HOST device",
+      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline int32_t
+get_device_info_host<ext::intel::info::device::max_compute_queue_indices>() {
+  throw runtime_error(
+      "Obtaining max compute queue indices is not supported on HOST device",
       PI_ERROR_INVALID_DEVICE);
 }
 
