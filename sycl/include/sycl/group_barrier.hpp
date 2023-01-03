@@ -39,8 +39,8 @@ group_barrier(Group, memory_scope FenceScope = Group::fence_scope) {
   // fence operations. All work-items execute a release fence prior to
   // barrier and acquire fence afterwards. The rest of semantics flags specify
   // which type of memory this behavior is applied to.
-  __spirv_ControlBarrier(detail::group_barrier_scope<Group>::Scope,
-                         sycl::detail::spirv::getScope(FenceScope),
+  constexpr auto SPIRVScope = sycl::detail::spirv::getScope(FenceScope);
+  __spirv_ControlBarrier(detail::group_barrier_scope<Group>::Scope, SPIRVScope,
                          __spv::MemorySemanticsMask::SequentiallyConsistent |
                              __spv::MemorySemanticsMask::SubgroupMemory |
                              __spv::MemorySemanticsMask::WorkgroupMemory |

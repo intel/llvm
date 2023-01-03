@@ -287,9 +287,9 @@ inline typename detail::enable_if_t<std::is_integral<T>::value, T>
 AtomicCompareExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr,
                       memory_scope Scope, memory_order Success,
                       memory_order Failure, T Desired, T Expected) {
-  auto SPIRVSuccess = getMemorySemanticsMask(Success);
-  auto SPIRVFailure = getMemorySemanticsMask(Failure);
-  auto SPIRVScope = getScope(Scope);
+  constexpr auto SPIRVSuccess = getMemorySemanticsMask(Success);
+  constexpr auto SPIRVFailure = getMemorySemanticsMask(Failure);
+  constexpr auto SPIRVScope = getScope(Scope);
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
   return __spirv_AtomicCompareExchange(Ptr, SPIRVScope, SPIRVSuccess,
                                        SPIRVFailure, Desired, Expected);
@@ -302,9 +302,9 @@ AtomicCompareExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr,
                       memory_scope Scope, memory_order Success,
                       memory_order Failure, T Desired, T Expected) {
   using I = detail::make_unsinged_integer_t<T>;
-  auto SPIRVSuccess = getMemorySemanticsMask(Success);
-  auto SPIRVFailure = getMemorySemanticsMask(Failure);
-  auto SPIRVScope = getScope(Scope);
+  constexpr auto SPIRVSuccess = getMemorySemanticsMask(Success);
+  constexpr auto SPIRVFailure = getMemorySemanticsMask(Failure);
+  constexpr auto SPIRVScope = getScope(Scope);
   auto *PtrInt = GetMultiPtrDecoratedAs<I>(MPtr);
   I DesiredInt = bit_cast<I>(Desired);
   I ExpectedInt = bit_cast<I>(Expected);
@@ -319,8 +319,8 @@ inline typename detail::enable_if_t<std::is_integral<T>::value, T>
 AtomicLoad(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
-  auto SPIRVOrder = getMemorySemanticsMask(Order);
-  auto SPIRVScope = getScope(Scope);
+  constexpr auto SPIRVOrder = getMemorySemanticsMask(Order);
+  constexpr auto SPIRVScope = getScope(Scope);
   return __spirv_AtomicLoad(Ptr, SPIRVScope, SPIRVOrder);
 }
 
@@ -331,8 +331,8 @@ AtomicLoad(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order) {
   using I = detail::make_unsinged_integer_t<T>;
   auto *PtrInt = GetMultiPtrDecoratedAs<I>(MPtr);
-  auto SPIRVOrder = getMemorySemanticsMask(Order);
-  auto SPIRVScope = getScope(Scope);
+  constexpr auto SPIRVOrder = getMemorySemanticsMask(Order);
+  constexpr auto SPIRVScope = getScope(Scope);
   I ResultInt = __spirv_AtomicLoad(PtrInt, SPIRVScope, SPIRVOrder);
   return bit_cast<T>(ResultInt);
 }
@@ -343,8 +343,8 @@ inline typename detail::enable_if_t<std::is_integral<T>::value>
 AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
             memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
-  auto SPIRVOrder = getMemorySemanticsMask(Order);
-  auto SPIRVScope = getScope(Scope);
+  constexpr auto SPIRVOrder = getMemorySemanticsMask(Order);
+  constexpr auto SPIRVScope = getScope(Scope);
   __spirv_AtomicStore(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
@@ -355,8 +355,8 @@ AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
             memory_order Order, T Value) {
   using I = detail::make_unsinged_integer_t<T>;
   auto *PtrInt = GetMultiPtrDecoratedAs<I>(MPtr);
-  auto SPIRVOrder = getMemorySemanticsMask(Order);
-  auto SPIRVScope = getScope(Scope);
+  constexpr auto SPIRVOrder = getMemorySemanticsMask(Order);
+  constexpr auto SPIRVScope = getScope(Scope);
   I ValueInt = bit_cast<I>(Value);
   __spirv_AtomicStore(PtrInt, SPIRVScope, SPIRVOrder, ValueInt);
 }
@@ -367,8 +367,8 @@ inline typename detail::enable_if_t<std::is_integral<T>::value, T>
 AtomicExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
                memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
-  auto SPIRVOrder = getMemorySemanticsMask(Order);
-  auto SPIRVScope = getScope(Scope);
+  constexpr auto SPIRVOrder = getMemorySemanticsMask(Order);
+  constexpr auto SPIRVScope = getScope(Scope);
   return __spirv_AtomicExchange(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
@@ -379,8 +379,8 @@ AtomicExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
                memory_order Order, T Value) {
   using I = detail::make_unsinged_integer_t<T>;
   auto *PtrInt = GetMultiPtrDecoratedAs<I>(MPtr);
-  auto SPIRVOrder = getMemorySemanticsMask(Order);
-  auto SPIRVScope = getScope(Scope);
+  constexpr auto SPIRVOrder = getMemorySemanticsMask(Order);
+  constexpr auto SPIRVScope = getScope(Scope);
   I ValueInt = bit_cast<I>(Value);
   I ResultInt =
       __spirv_AtomicExchange(PtrInt, SPIRVScope, SPIRVOrder, ValueInt);
@@ -393,8 +393,8 @@ inline typename detail::enable_if_t<std::is_integral<T>::value, T>
 AtomicIAdd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
-  auto SPIRVOrder = getMemorySemanticsMask(Order);
-  auto SPIRVScope = getScope(Scope);
+  constexpr auto SPIRVOrder = getMemorySemanticsMask(Order);
+  constexpr auto SPIRVScope = getScope(Scope);
   return __spirv_AtomicIAdd(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
@@ -404,8 +404,8 @@ inline typename detail::enable_if_t<std::is_integral<T>::value, T>
 AtomicISub(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
-  auto SPIRVOrder = getMemorySemanticsMask(Order);
-  auto SPIRVScope = getScope(Scope);
+  constexpr auto SPIRVOrder = getMemorySemanticsMask(Order);
+  constexpr auto SPIRVScope = getScope(Scope);
   return __spirv_AtomicISub(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
@@ -415,8 +415,8 @@ inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicFAdd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
-  auto SPIRVOrder = getMemorySemanticsMask(Order);
-  auto SPIRVScope = getScope(Scope);
+  constexpr auto SPIRVOrder = getMemorySemanticsMask(Order);
+  constexpr auto SPIRVScope = getScope(Scope);
   return __spirv_AtomicFAddEXT(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
@@ -426,8 +426,8 @@ inline typename detail::enable_if_t<std::is_integral<T>::value, T>
 AtomicAnd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
-  auto SPIRVOrder = getMemorySemanticsMask(Order);
-  auto SPIRVScope = getScope(Scope);
+  constexpr auto SPIRVOrder = getMemorySemanticsMask(Order);
+  constexpr auto SPIRVScope = getScope(Scope);
   return __spirv_AtomicAnd(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
@@ -437,8 +437,8 @@ inline typename detail::enable_if_t<std::is_integral<T>::value, T>
 AtomicOr(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
          memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
-  auto SPIRVOrder = getMemorySemanticsMask(Order);
-  auto SPIRVScope = getScope(Scope);
+  constexpr auto SPIRVOrder = getMemorySemanticsMask(Order);
+  constexpr auto SPIRVScope = getScope(Scope);
   return __spirv_AtomicOr(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
@@ -448,8 +448,8 @@ inline typename detail::enable_if_t<std::is_integral<T>::value, T>
 AtomicXor(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
-  auto SPIRVOrder = getMemorySemanticsMask(Order);
-  auto SPIRVScope = getScope(Scope);
+  constexpr auto SPIRVOrder = getMemorySemanticsMask(Order);
+  constexpr auto SPIRVScope = getScope(Scope);
   return __spirv_AtomicXor(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
@@ -459,8 +459,8 @@ inline typename detail::enable_if_t<std::is_integral<T>::value, T>
 AtomicMin(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
-  auto SPIRVOrder = getMemorySemanticsMask(Order);
-  auto SPIRVScope = getScope(Scope);
+  constexpr auto SPIRVOrder = getMemorySemanticsMask(Order);
+  constexpr auto SPIRVScope = getScope(Scope);
   return __spirv_AtomicMin(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
@@ -470,8 +470,8 @@ inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicMin(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
-  auto SPIRVOrder = getMemorySemanticsMask(Order);
-  auto SPIRVScope = getScope(Scope);
+  constexpr auto SPIRVOrder = getMemorySemanticsMask(Order);
+  constexpr auto SPIRVScope = getScope(Scope);
   return __spirv_AtomicMin(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
@@ -481,8 +481,8 @@ inline typename detail::enable_if_t<std::is_integral<T>::value, T>
 AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
-  auto SPIRVOrder = getMemorySemanticsMask(Order);
-  auto SPIRVScope = getScope(Scope);
+  constexpr auto SPIRVOrder = getMemorySemanticsMask(Order);
+  constexpr auto SPIRVScope = getScope(Scope);
   return __spirv_AtomicMax(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
@@ -492,8 +492,8 @@ inline typename detail::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
-  auto SPIRVOrder = getMemorySemanticsMask(Order);
-  auto SPIRVScope = getScope(Scope);
+  constexpr auto SPIRVOrder = getMemorySemanticsMask(Order);
+  constexpr auto SPIRVScope = getScope(Scope);
   return __spirv_AtomicMax(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
