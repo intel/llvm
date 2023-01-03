@@ -3,7 +3,7 @@
 
 #include <sycl/sycl.hpp>
 
-#include <sycl/ext/intel/experimental/fpga_kernel_attributes.hpp>
+#include <sycl/ext/intel/experimental/fpga_kernel_properties.hpp>
 
 using namespace sycl::ext;
 

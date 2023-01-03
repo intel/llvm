@@ -1,5 +1,5 @@
-//==----- fpga_kernel_attributes.hpp - SYCL properties associated with FPGA
-// kernel attributes ---==//
+//==----- fpga_kernel_properties.hpp - SYCL properties associated with FPGA
+// kernel properties ---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
