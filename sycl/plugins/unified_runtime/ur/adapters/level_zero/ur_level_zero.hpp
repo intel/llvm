@@ -222,3 +222,8 @@ extern ZeUSMImportExtension ZeUSMImport;
 
 // This will count the calls to Level-Zero
 extern std::map<const char *, int> *ZeCallCount;
+
+// Some opencl extensions we know are supported by all Level Zero devices.
+constexpr char ZE_SUPPORTED_EXTENSIONS[] =
+    "cl_khr_il_program cl_khr_subgroups cl_intel_subgroups "
+    "cl_intel_subgroups_short cl_intel_required_subgroup_size ";

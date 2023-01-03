@@ -37,6 +37,7 @@
 #include <shared_mutex>
 #include <string>
 #include <sycl/detail/pi.h>
+#include <thread>
 #include <tuple>
 #include <unordered_map>
 #include <unordered_set>
@@ -63,101 +64,6 @@ template <> uint32_t inline pi_cast(uint64_t Value) {
   assert((uint64_t)CastedValue == Value);
   return CastedValue;
 }
-
-// The wrapper for immutable Level-Zero data.
-// The data is initialized only once at first access (via ->) with the
-// initialization function provided in Init. All subsequent access to
-// the data just returns the already stored data.
-//
-template <class T> struct ZeCache : private T {
-  // The initialization function takes a reference to the data
-  // it is going to initialize, since it is private here in
-  // order to disallow access other than through "->".
-  //
-  using InitFunctionType = std::function<void(T &)>;
-  InitFunctionType Compute{nullptr};
-  bool Computed{false};
-  pi_mutex ZeCacheMutex;
-
-  ZeCache() : T{} {}
-
-  // Access to the fields of the original T data structure.
-  T *operator->() {
-    std::unique_lock<pi_mutex> Lock(ZeCacheMutex);
-    if (!Computed) {
-      Compute(*this);
-      Computed = true;
-    }
-    return this;
-  }
-};
-
-// This wrapper around std::atomic is created to limit operations with reference
-// counter and to make allowed operations more transparent in terms of
-// thread-safety in the plugin. increment() and load() operations do not need a
-// mutex guard around them since the underlying data is already atomic.
-// decrementAndTest() method is used to guard a code which needs to be
-// executed when object's ref count becomes zero after release. This method also
-// doesn't need a mutex guard because decrement operation is atomic and only one
-// thread can reach ref count equal to zero, i.e. only a single thread can pass
-// through this check.
-struct ReferenceCounter {
-  ReferenceCounter() : RefCount{1} {}
-
-  // Reset the counter to the initial value.
-  void reset() { RefCount = 1; }
-
-  // Used when retaining an object.
-  void increment() { RefCount++; }
-
-  // Supposed to be used in pi*GetInfo* methods where ref count value is
-  // requested.
-  pi_uint32 load() { return RefCount.load(); }
-
-  // This method allows to guard a code which needs to be executed when object's
-  // ref count becomes zero after release. It is important to notice that only a
-  // single thread can pass through this check. This is true because of several
-  // reasons:
-  //   1. Decrement operation is executed atomically.
-  //   2. It is not allowed to retain an object after its refcount reaches zero.
-  //   3. It is not allowed to release an object more times than the value of
-  //   the ref count.
-  // 2. and 3. basically means that we can't use an object at all as soon as its
-  // refcount reaches zero. Using this check guarantees that code for deleting
-  // an object and releasing its resources is executed once by a single thread
-  // and we don't need to use any mutexes to guard access to this object in the
-  // scope after this check. Of course if we access another objects in this code
-  // (not the one which is being deleted) then access to these objects must be
-  // guarded, for example with a mutex.
-  bool decrementAndTest() { return --RefCount == 0; }
-
-private:
-  std::atomic<pi_uint32> RefCount;
-};
-
-// Base class to store common data
-struct _pi_object {
-  _pi_object() : RefCount{} {}
-
-  // Level Zero doesn't do the reference counting, so we have to do.
-  // Must be atomic to prevent data race when incrementing/decrementing.
-  ReferenceCounter RefCount;
-
-  // This mutex protects accesses to all the non-const member variables.
-  // Exclusive access is required to modify any of these members.
-  //
-  // To get shared access to the object in a scope use std::shared_lock:
-  //    std::shared_lock Lock(Obj->Mutex);
-  // To get exclusive access to the object in a scope use std::scoped_lock:
-  //    std::scoped_lock Lock(Obj->Mutex);
-  //
-  // If several pi objects are accessed in a scope then each object's mutex must
-  // be locked. For example, to get write access to Obj1 and Obj2 and read
-  // access to Obj3 in a scope use the following approach:
-  //   std::shared_lock Obj3Lock(Obj3->Mutex, std::defer_lock);
-  //   std::scoped_lock LockAll(Obj1->Mutex, Obj2->Mutex, Obj3Lock);
-  pi_shared_mutex Mutex;
-};
 
 // Record for a memory allocation. This structure is used to keep information
 // for each memory allocation.
@@ -371,7 +277,7 @@ struct _pi_device : _pi_object {
   bool ImmCommandListsPreferred;
 
   // Return whether to use immediate commandlists for this device.
-  bool useImmediateCommandLists();
+  int useImmediateCommandLists();
 
   bool isSubDevice() { return RootDevice != nullptr; }
 
@@ -702,19 +608,23 @@ struct _pi_queue : _pi_object {
     uint32_t NextIndex{0};
   };
 
-  pi_queue_group_t ComputeQueueGroup{this, queue_type::Compute};
+  // A map of compute groups containing compute queue handles, one per thread.
+  // When a queue is accessed from multiple host threads, a separate queue group
+  // is created for each thread. The key used for mapping is the thread ID.
+  std::unordered_map<std::thread::id, pi_queue_group_t> ComputeQueueGroupsByTID;
 
-  // Vector of Level Zero copy command command queue handles.
-  // In this vector, main copy engine, if available, come first followed by
-  // link copy engines, if available.
-  pi_queue_group_t CopyQueueGroup{this, queue_type::MainCopy};
+  // A group containing copy queue handles. The main copy engine, if available,
+  // comes first followed by link copy engines, if available.
+  // When a queue is accessed from multiple host threads, a separate queue group
+  // is created for each thread. The key used for mapping is the thread ID.
+  std::unordered_map<std::thread::id, pi_queue_group_t> CopyQueueGroupsByTID;
 
   // Wait for all commandlists associated with this Queue to finish operations.
   pi_result synchronize();
 
-  pi_queue_group_t &getQueueGroup(bool UseCopyEngine) {
-    return UseCopyEngine ? CopyQueueGroup : ComputeQueueGroup;
-  }
+  // Return the queue group to use based on standard/immediate commandlist mode,
+  // and if immediate mode, the thread-specific group.
+  pi_queue_group_t &getQueueGroup(bool UseCopyEngine);
 
   // This function considers multiple factors including copy engine
   // availability and user preference and returns a boolean that is used to

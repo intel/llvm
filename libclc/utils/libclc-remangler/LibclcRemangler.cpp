@@ -794,7 +794,7 @@ private:
   bool createClones(llvm::Module *M, std::string OriginalMangledName,
                     std::string RemangledName,
                     const itanium_demangle::Node *FunctionTree,
-                    TargetTypeReplacements Replacements) {
+                    TargetTypeReplacements &Replacements) {
     // create clone of original function
     if (!createCloneFromMap(M, OriginalMangledName, FunctionTree,
                             Replacements.getCloneTypeReplacements(),
