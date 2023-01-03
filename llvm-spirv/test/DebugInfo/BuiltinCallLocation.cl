@@ -21,7 +21,8 @@
 // CHECK-SPIRV: ExtInst {{.*}} DebugScope
 // CHECK-SPIRV: ExtInst {{.*}} sin
 // CHECK-LLVM: call spir_func float @_Z3sinf(float %{{.*}}) {{.*}} !dbg ![[loc:[0-9]+]]
-// CHECK-LLVM: ![[loc]] = !DILocation(line: 14, column: 10, scope: !{{.*}})
+// FIXME: Due to shift in lines, DILocation line moved 14 -> 27
+// CHECK-LLVM: ![[loc]] = !DILocation(line: 27, column: 10, scope: !{{.*}})
 float f(float x) {
   return sin(x);
 }

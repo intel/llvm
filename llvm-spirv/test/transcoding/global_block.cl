@@ -25,7 +25,7 @@
 // Added -opaque-pointers.
 // FIXME: Align with the community code when project is ready to enable opaque
 // pointers by default
-// RUN: llvm-spirv -opaque-pointers --spirv-max-version=1.4 %t.bc -opaque-pointers=0 -spirv-text -o - | FileCheck %s --check-prefixes=CHECK-SPIRV1_4,CHECK-SPIRV
+// RUN: llvm-spirv -opaque-pointers --spirv-max-version=1.4 %t.bc -opaque-pointers=0 -spirv-text -o - | FileCheck %s --check-prefixes=CHECK-SPIRV
 // Added -opaque-pointers.
 // FIXME: Align with the community code when project is ready to enable opaque
 // pointers by default

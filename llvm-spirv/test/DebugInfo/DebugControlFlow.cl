@@ -37,14 +37,16 @@ void sample() {
 }
 
 // Check that all Line items are retained
-// CHECK-SPIRV: Line [[File:[0-9]+]] 18 0
+// FIXME: Due to shift in lines, DILocation line moved 18 -> 30
+// CHECK-SPIRV: Line [[File:[0-9]+]] 30 0
 // Control flow
 // CHECK-SPIRV: {{[0-9]+}} LoopMerge [[MergeBlock:[0-9]+]] [[ContinueTarget:[0-9]+]] 1
 // CHECK-SPIRV-NEXT: BranchConditional
 
 // Check that all Line items are retained
-// CHECK-SPIRV: Line [[File]] 23 0
-// CHECK-SPIRV: Line [[File]] 24 0
+// FIXME: Due to shift in lines, DILocation line moved 23 -> 35 and 23 -> 36
+// CHECK-SPIRV: Line [[File]] 35 0
+// CHECK-SPIRV: Line [[File]] 36 0
 // Control flow
 // CHECK-SPIRV: {{[0-9]+}} LoopMerge [[MergeBlock:[0-9]+]] [[ContinueTarget:[0-9]+]] 1
 // CHECK-SPIRV-NEXT: Branch
