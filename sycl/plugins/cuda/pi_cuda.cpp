@@ -1931,11 +1931,15 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
 
   case PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY: {
+    CUcontext primary_context;
+    PI_CHECK_ERROR(cuDevicePrimaryCtxRetain(&primary_context, device->get()));
+    PI_CHECK_ERROR(cuCtxSetCurrent(primary_context));
     size_t FreeMemory = 0;
     size_t TotalMemory = 0;
     sycl::detail::pi::assertion(cuMemGetInfo(&FreeMemory, &TotalMemory) ==
                                     CUDA_SUCCESS,
                                 "failed cuMemGetInfo() API.");
+    PI_CHECK_ERROR(cuDevicePrimaryCtxRelease(device->get()));
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    FreeMemory);
   }
