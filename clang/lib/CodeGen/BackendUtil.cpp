@@ -1040,15 +1040,17 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
         MPM.addPass(DeadArgumentEliminationSYCLPass());
 
       // Add SPIRITTAnnotations pass to the pass manager if
-      // -fsycl-instrument-device-code option was passed. This option can be used
-      // only with spir triple.
+      // -fsycl-instrument-device-code option was passed. This option can be
+      // used only with spir triple.
       if (CodeGenOpts.SPIRITTAnnotations) {
-        assert(TargetTriple.isSPIR() &&
-              "ITT annotations can only be added to a module with spir target");
+        assert(
+            TargetTriple.isSPIR() &&
+            "ITT annotations can only be added to a module with spir target");
         MPM.addPass(SPIRITTAnnotationsPass());
       }
 
-      // Allocate static local memory in SYCL kernel scope for each allocation call.
+      // Allocate static local memory in SYCL kernel scope for each allocation
+      // call.
       MPM.addPass(SYCLLowerWGLocalMemoryPass());
     }
   }
