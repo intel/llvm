@@ -1325,7 +1325,7 @@ def SYCLSpecialClass: InheritableAttr {
 def SYCLType: InheritableAttr {
   let Spellings = [CXX11<"__sycl_detail__", "sycl_type">];
   let Subjects = SubjectList<[CXXRecord, Enum], ErrorDiag>;
-  let LangOpts = [SYCLIsDevice, SYCLIsHost];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Args = [EnumArgument<"Type", "SYCLType",
                            ["accessor", "local_accessor", "spec_constant",
                             "specialization_id", "kernel_handler", "buffer_location",
