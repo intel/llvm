@@ -1273,7 +1273,6 @@ protected:
     ExpectDiagnosticsFor(SourceCode, ast_matchers::hasName("target"));
   }
 
-private:
   template <typename FuncDeclMatcher>
   void ExpectDiagnosticsFor(std::string SourceCode,
                             FuncDeclMatcher FuncMatcher) {
@@ -1307,14 +1306,15 @@ private:
     llvm::Error Error = checkDataflow<UncheckedOptionalAccessModel>(
         AnalysisInputs<UncheckedOptionalAccessModel>(
             SourceCode, std::move(FuncMatcher),
-            [Options](ASTContext &Ctx, Environment &) {
-              return UncheckedOptionalAccessModel(Ctx, Options);
+            [](ASTContext &Ctx, Environment &) {
+              return UncheckedOptionalAccessModel(Ctx);
             })
             .withPostVisitCFG(
                 [&Diagnostics,
                  Diagnoser = UncheckedOptionalAccessDiagnoser(Options)](
                     ASTContext &Ctx, const CFGElement &Elt,
-                    const TypeErasedDataflowAnalysisState &State) mutable {
+                    const TransferStateForDiagnostics<NoopLattice>
+                        &State) mutable {
                   auto EltDiagnostics =
                       Diagnoser.diagnose(Ctx, &Elt, State.Env);
                   llvm::move(EltDiagnostics, std::back_inserter(Diagnostics));
@@ -2106,9 +2106,30 @@ TEST_P(UncheckedOptionalAccessTest, StdSwap) {
   )");
 }
 
+TEST_P(UncheckedOptionalAccessTest, UniquePtrToOptional) {
+  // We suppress diagnostics for optionals in smart pointers (other than
+  // `optional` itself).
+  ExpectDiagnosticsFor(
+      R"(
+    #include "unchecked_optional_access_test.h"
+
+    template <typename T>
+    struct smart_ptr {
+      T& operator*() &;
+      T* operator->();
+    };
+
+    void target() {
+      smart_ptr<$ns::$optional<bool>> foo;
+      foo->value();
+      (*foo).value();
+    }
+  )");
+}
+
 TEST_P(UncheckedOptionalAccessTest, UniquePtrToStructWithOptionalField) {
-  // We suppress diagnostics for values reachable from smart pointers (other
-  // than `optional` itself).
+  // We suppress diagnostics for optional fields reachable from smart pointers
+  // (other than `optional` itself) through (exactly) one member access.
   ExpectDiagnosticsFor(
       R"(
     #include "unchecked_optional_access_test.h"
@@ -2600,6 +2621,10 @@ TEST_P(UncheckedOptionalAccessTest, OptionalValueInitialization) {
   )");
 }
 
+// This test is aimed at the core model, not the diagnostic. It is a regression
+// test against a crash when using non-trivial smart pointers, like
+// `std::unique_ptr`. As such, it doesn't test the access itself, which would be
+// ignored regardless because of `IgnoreSmartPointerDereference = true`, above.
 TEST_P(UncheckedOptionalAccessTest, AssignThroughLvalueReferencePtr) {
   ExpectDiagnosticsFor(
       R"(
@@ -2611,9 +2636,9 @@ TEST_P(UncheckedOptionalAccessTest, AssignThroughLvalueReferencePtr) {
     };
 
     void target() {
-      smart_ptr<$ns::$optional<float>> x;
-      *x = $ns::nullopt;
-      (*x).value(); // [[unsafe]]
+      smart_ptr<$ns::$optional<int>> x;
+      // Verify that this assignment does not crash.
+      *x = 3;
     }
   )");
 }
@@ -2911,6 +2936,38 @@ TEST_P(UncheckedOptionalAccessTest, StructuredBindingsFromTupleLikeType) {
       content ? *content : "";
     }
   )");
+}
+
+TEST_P(UncheckedOptionalAccessTest, CtorInitializerNullopt) {
+  using namespace ast_matchers;
+  ExpectDiagnosticsFor(
+      R"(
+    #include "unchecked_optional_access_test.h"
+
+    struct Target {
+      Target(): opt($ns::nullopt) {
+        opt.value(); // [[unsafe]]
+      }
+      $ns::$optional<int> opt;
+    };
+  )",
+      cxxConstructorDecl(ofClass(hasName("Target"))));
+}
+
+TEST_P(UncheckedOptionalAccessTest, CtorInitializerValue) {
+  using namespace ast_matchers;
+  ExpectDiagnosticsFor(
+      R"(
+    #include "unchecked_optional_access_test.h"
+
+    struct Target {
+      Target(): opt(3) {
+        opt.value();
+      }
+      $ns::$optional<int> opt;
+    };
+  )",
+      cxxConstructorDecl(ofClass(hasName("Target"))));
 }
 
 // FIXME: Add support for:

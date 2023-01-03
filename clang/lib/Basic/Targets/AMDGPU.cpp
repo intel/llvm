@@ -86,7 +86,7 @@ const LangASMap AMDGPUTargetInfo::AMDGPUDefIsPrivMap = {
 } // namespace targets
 } // namespace clang
 
-const Builtin::Info AMDGPUTargetInfo::BuiltinInfo[] = {
+static constexpr Builtin::Info BuiltinInfo[] = {
 #define BUILTIN(ID, TYPE, ATTRS)                                               \
   {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr},
 #define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE)                               \
@@ -364,6 +364,12 @@ AMDGPUTargetInfo::AMDGPUTargetInfo(const llvm::Triple &Triple,
   setAddressSpaceMap(Triple.getOS() == llvm::Triple::Mesa3D ||
                      !isAMDGCN(Triple));
   UseAddrSpaceMapMangling = true;
+
+  if (isAMDGCN(Triple)) {
+    // __bf16 is always available as a load/store only type on AMDGCN.
+    BFloat16Width = BFloat16Align = 16;
+    BFloat16Format = &llvm::APFloat::BFloat();
+  }
 
   HasLegalHalfType = true;
   HasFloat16 = true;
