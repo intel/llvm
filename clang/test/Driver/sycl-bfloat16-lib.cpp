@@ -3,7 +3,6 @@
 ///
 
 // UNSUPPORTED: system-windows
-// R EQUIRES: opencl-aot, ocloc, cpu, gpu
 // UNSUPPORTED: cuda
 
 /// ###########################################################################
