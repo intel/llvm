@@ -223,7 +223,7 @@ urContextCreateWithNativeHandle(
 /// @brief Call extended deleter function as callback.
 /// 
 /// @details
-///     - Calls exnteded deleter, a user-defined callback to delete context on
+///     - Calls extended deleter, a user-defined callback to delete context on
 ///       some platforms.
 ///     - This is done for performance reasons.
 ///     - This API might be called directly by an application instead of a
@@ -959,7 +959,7 @@ urEnqueueMemImageCopy(
 /// @details
 ///     - Input parameter blockingMap indicates if the map is blocking or
 ///       non-blocking.
-///     - Currently, no direct support in Leverl Zero. Implemented as a shared
+///     - Currently, no direct support in Level Zero. Implemented as a shared
 ///       allocation followed by copying on discrete GPU
 ///     - TODO: add a driver function in Level Zero?
 /// 
