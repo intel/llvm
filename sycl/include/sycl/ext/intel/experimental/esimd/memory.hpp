@@ -294,7 +294,7 @@ constexpr void check_lsc_atomic() {
 }
 
 template <cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
-constexpr uint32_t get_lsc_cache_mask() {
+constexpr uint32_t get_lsc_load_cache_mask() {
   if constexpr (L1H == cache_hint::read_invalidate &&
                 L3H == cache_hint::cached) {
     return 7;
@@ -309,6 +309,33 @@ constexpr uint32_t get_lsc_cache_mask() {
     return 4;
   }
   if constexpr (L1H == cache_hint::cached && L3H == cache_hint::uncached) {
+    return 3;
+  }
+  if constexpr (L1H == cache_hint::uncached && L3H == cache_hint::cached) {
+    return 2;
+  }
+  if constexpr (L1H == cache_hint::uncached && L3H == cache_hint::uncached) {
+    return 1;
+  }
+  return 0;
+}
+
+template <cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
+constexpr uint32_t get_lsc_store_cache_mask() {
+  if constexpr (L1H == cache_hint::write_back && L3H == cache_hint::cached) {
+    return 7;
+  }
+  if constexpr (L1H == cache_hint::streaming && L3H == cache_hint::cached) {
+    return 6;
+  }
+  if constexpr (L1H == cache_hint::streaming && L3H == cache_hint::uncached) {
+    return 5;
+  }
+  if constexpr (L1H == cache_hint::write_through && L3H == cache_hint::cached) {
+    return 4;
+  }
+  if constexpr (L1H == cache_hint::write_through &&
+                L3H == cache_hint::uncached) {
     return 3;
   }
   if constexpr (L1H == cache_hint::uncached && L3H == cache_hint::cached) {
@@ -1556,7 +1583,8 @@ lsc_load2d(config_2d_mem_access<T> &payload) {
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
   static_assert(!Transposed || !Transformed,
                 "Transposed and transformed is not supported");
-  constexpr uint32_t cache_mask = detail::get_lsc_cache_mask<L1H, L3H>() << 17;
+  constexpr uint32_t cache_mask = detail::get_lsc_load_cache_mask<L1H, L3H>()
+                                  << 17;
   constexpr uint32_t base_desc = 0x2800403;
   constexpr uint32_t transformMask = Transformed ? 1 << 7 : 0;
   constexpr uint32_t transposeMask = Transposed ? 1 << 15 : 0;
@@ -1593,7 +1621,8 @@ lsc_prefetch2d(config_2d_mem_access<T> &payload) {
   detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L3H>();
   static_assert(!Transposed || !Transformed,
                 "Transposed and transformed is not supported");
-  constexpr uint32_t cache_mask = detail::get_lsc_cache_mask<L1H, L3H>() << 17;
+  constexpr uint32_t cache_mask = detail::get_lsc_load_cache_mask<L1H, L3H>()
+                                  << 17;
   constexpr uint32_t base_desc = 0x2000403;
   constexpr uint32_t transformMask = Transformed ? 1 << 7 : 0;
   constexpr uint32_t transposeMask = Transposed ? 1 << 15 : 0;
@@ -1628,7 +1657,8 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION void
 lsc_store2d(config_2d_mem_access<T> &payload, __ESIMD_NS::simd<T, N> Data) {
   detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
 
-  constexpr uint32_t cache_mask = detail::get_lsc_cache_mask<L1H, L3H>() << 17;
+  constexpr uint32_t cache_mask = detail::get_lsc_store_cache_mask<L1H, L3H>()
+                                  << 17;
   constexpr uint32_t base_desc = 0x2000407;
 
   constexpr uint32_t exDesc = 0x0;
