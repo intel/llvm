@@ -1,4 +1,4 @@
-//==-------- joint_matrix_query.cpp  - DPC++ joint_matrix------------ ----==//
+//==-------- joint_matrix_query_default.cpp  - DPC++ joint_matrix-----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -38,9 +38,9 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
   assert(NUM_ROWS_C == NUM_ROWS_A && NUM_COLS_A == NUM_ROWS_B * 4);
 
   using myparams2 = tpu_params<tpu::amx, int8_t, int8_t, int>;
-  constexpr int TM = myparams2::defaultM;
-  constexpr int TN = myparams2::defaultN;
-  constexpr int TK = myparams2::defaultK;
+  constexpr int TM = myparams2::M;
+  constexpr int TN = myparams2::N;
+  constexpr int TK = myparams2::K;
 
   std::cout << "AMX query sizes are: M " << TM << " N " << TN << " K " << TK
             << std::endl;
@@ -74,9 +74,11 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
 
            ext::oneapi::sub_group sg = spmd_item.get_sub_group();
 
-           myparams2::joint_matrix_a<sub_group> sub_a;
-           myparams2::joint_matrix_b<sub_group> sub_b;
-           myparams2::joint_matrix_c<sub_group> sub_c;
+           myparams2::joint_matrix_a<sub_group, layout::row_major> sub_a;
+           myparams2::joint_matrix_b<
+               sub_group, ext::intel::experimental::matrix::layout::packed>
+               sub_b;
+           myparams2::joint_matrix_accumulator<sub_group> sub_c;
 
            joint_matrix_load(sg, sub_c,
                              accC.get_pointer() + (sg_startx * TM) * N +
