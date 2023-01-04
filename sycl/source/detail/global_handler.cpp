@@ -205,39 +205,39 @@ void GlobalHandler::unloadPlugins() {
 }
 
 void shutdown() {
-  GlobalHandler *handler = nullptr;
+  GlobalHandler *Handler = nullptr;
   {
     const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
-    std::swap(handler, GlobalHandler::MSyclGlobalObjectsHandler);
+    std::swap(Handler, GlobalHandler::MSyclGlobalObjectsHandler);
   }
-  assert(handler && "Handler could not be deallocated earlier");
+  assert(Handler && "Handler could not be deallocated earlier");
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
 
-  handler->releaseResources();
+  Handler->releaseResources();
 
-  if (handler->MHostTaskThreadPool.Inst)
-    handler->MHostTaskThreadPool.Inst->finishAndWait();
+  if (Handler->MHostTaskThreadPool.Inst)
+    Handler->MHostTaskThreadPool.Inst->finishAndWait();
 
   // If default contexts are requested after the first default contexts have
   // been released there may be a new default context. These must be released
   // prior to closing the plugins.
   // Note: Releasing a default context here may cause failures in plugins with
   // global state as the global state may have been released.
-  handler->releaseDefaultContexts();
+  Handler->releaseDefaultContexts();
 
   // First, release resources, that may access plugins.
-  handler->MPlatformCache.Inst.reset(nullptr);
-  handler->MScheduler.Inst.reset(nullptr);
-  handler->MProgramManager.Inst.reset(nullptr);
+  Handler->MPlatformCache.Inst.reset(nullptr);
+  Handler->MScheduler.Inst.reset(nullptr);
+  Handler->MProgramManager.Inst.reset(nullptr);
 
   // Clear the plugins and reset the instance if it was there.
-  handler->unloadPlugins();
-  if (handler->MPlugins.Inst)
-    handler->MPlugins.Inst.reset(nullptr);
+  Handler->unloadPlugins();
+  if (Handler->MPlugins.Inst)
+    Handler->MPlugins.Inst.reset(nullptr);
 
   // Release the rest of global resources.
-  delete handler;
+  delete Handler;
 }
 
 void GlobalHandler::drainThreadPool() {
