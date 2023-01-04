@@ -963,9 +963,9 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
   {
     auto It = m_DeviceImages.find(KSId);
     if (It == m_DeviceImages.end())
-      throw runtime_error(
-          "No device image found for KernelSetId " + std::to_string(KSId) + " was found",
-          PI_INVALID_KERNEL_NAME);
+      throw runtime_error("No device image found for KernelSetId " +
+                              std::to_string(KSId) + " was found",
+                          PI_ERROR_INVALID_KERNEL_NAME);
     ImgsPtr = It->second.get();
   }
   std::vector<RTDeviceBinaryImageUPtr> &Imgs = *ImgsPtr;
