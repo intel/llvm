@@ -465,7 +465,7 @@ typedef void (ur_context_extended_deleter_t)(
 /// @brief Call extended deleter function as callback.
 /// 
 /// @details
-///     - Calls exnteded deleter, a user-defined callback to delete context on
+///     - Calls extended deleter, a user-defined callback to delete context on
 ///       some platforms.
 ///     - This is done for performance reasons.
 ///     - This API might be called directly by an application instead of a
@@ -1131,7 +1131,7 @@ typedef enum ur_usm_migration_flag_t
 /// @details
 ///     - Input parameter blockingMap indicates if the map is blocking or
 ///       non-blocking.
-///     - Currently, no direct support in Leverl Zero. Implemented as a shared
+///     - Currently, no direct support in Level Zero. Implemented as a shared
 ///       allocation followed by copying on discrete GPU
 ///     - TODO: add a driver function in Level Zero?
 /// 
@@ -2883,7 +2883,7 @@ typedef enum ur_device_info_t
     UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE = 6,         ///< size_t: max work group size
     UR_DEVICE_INFO_SINGLE_FP_CONFIG = 7,            ///< Return a bit field of ::ur_fp_capability_flags_t: single precision
                                                     ///< floating point capability
-    UR_DEVICE_INFO_HALF_FP_CONFIG = 8,              ///< Return a bit field of ::ur_fp_capability_flags_t: half precsion
+    UR_DEVICE_INFO_HALF_FP_CONFIG = 8,              ///< Return a bit field of ::ur_fp_capability_flags_t: half precision
                                                     ///< floating point capability
     UR_DEVICE_INFO_DOUBLE_FP_CONFIG = 9,            ///< Return a bit field of ::ur_fp_capability_flags_t: double precision
                                                     ///< floating point capability
@@ -2933,8 +2933,8 @@ typedef enum ur_device_info_t
     UR_DEVICE_INFO_MAX_CONSTANT_ARGS = 49,          ///< uint32_t: max number of __const declared arguments in a kernel
     UR_DEVICE_INFO_LOCAL_MEM_TYPE = 50,             ///< ::ur_device_local_mem_type_t: local memory type
     UR_DEVICE_INFO_LOCAL_MEM_SIZE = 51,             ///< uint64_t: local memory size in bytes
-    UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT = 52,   ///< bool: support error correction to gloal and local memory
-    UR_DEVICE_INFO_HOST_UNIFIED_MEMORY = 53,        ///< bool: unifed host device memory
+    UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT = 52,   ///< bool: support error correction to global and local memory
+    UR_DEVICE_INFO_HOST_UNIFIED_MEMORY = 53,        ///< bool: unified host device memory
     UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION = 54, ///< size_t: profiling timer resolution in nanoseconds
     UR_DEVICE_INFO_ENDIAN_LITTLE = 55,              ///< bool: little endian byte order
     UR_DEVICE_INFO_AVAILABLE = 56,                  ///< bool: device is available
