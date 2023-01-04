@@ -82,9 +82,25 @@ int main() {
 #ifdef SYCL_EXT_ONEAPI_SUB_GROUP_MASK
   queue Queue;
 
-  test<8>(Queue);
-  test<16>(Queue);
-  test<32>(Queue);
+  for (const auto &x :
+       Queue.get_device().get_info<info::device::sub_group_sizes>()) {
+
+    switch (x) {
+    case 8:
+      test<8>(Queue);
+      break;
+    case 16:
+      test<16>(Queue);
+      break;
+    case 32:
+      test<32>(Queue);
+      break;
+    default:
+      std::cout << "Sub group size of " << x << " supported, but not tested."
+                << std::endl;
+      break;
+    }
+  }
 
   std::cout << "Test passed." << std::endl;
 #else
