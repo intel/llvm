@@ -155,7 +155,7 @@ etors:
       desc: "size_t: max depth of Image3D object"
     - name: IMAGE_MAX_BUFFER_SIZE
       desc: "size_t: max image buffer size"
-    - name: IMAGE_MAX_ARRAR_SIZE
+    - name: IMAGE_MAX_ARRAY_SIZE
       desc: "size_t: max image array size"
     - name: MAX_SAMPLERS
       desc: "uint32_t: max number of samplers that can be used in a kernel"
