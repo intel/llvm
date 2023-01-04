@@ -1187,7 +1187,6 @@ constexpr void check_lsc_block_2d_restrictions() {
 
 template <typename T, int NBlocks, int Height, int Width, bool Transposed>
 constexpr int get_lsc_block_2d_data_size() {
-  constexpr int ElemsPerDword = 4 / sizeof(T);
   constexpr int GRFRowSize = Transposed ? Height : Width;
   constexpr int GRFRowPitch = __ESIMD_DNS::getNextPowerOf2<GRFRowSize>();
   constexpr int GRFBlockSize = GRFRowPitch * (Transposed ? Width : Height);
@@ -1368,9 +1367,11 @@ public:
   /// in rows</param>
   /// <param name="Width">the block width in number of elements</param>
   /// <param name="Height">block height in number of elements</param>
+  /// <param name="NBlocks">Number of blocks</param>
   config_2d_mem_access(const T *Ptr, uint32_t SurfaceWidth,
                        uint32_t SurfaceHeight, uint32_t SurfacePitch, int32_t X,
-                       int32_t Y, int32_t Width, int32_t Height)
+                       int32_t Y, int32_t Width, int32_t Height,
+                       int32_t NBlocks)
       : payload(0) {
     payload.template bit_cast_view<uint64_t>().template select<1, 1>(0) =
         (uint64_t)Ptr;
@@ -1383,6 +1384,8 @@ public:
         Width - 1;
     payload.template bit_cast_view<uchar>().template select<1, 1>(29) =
         Height - 1;
+    payload.template bit_cast_view<uchar>().template select<1, 1>(30) =
+        NBlocks - 1;
   }
 
   /// <summary>
@@ -1459,6 +1462,17 @@ public:
     return const_cast<config_2d_mem_access>(this)
                ->payload.template bit_cast_view<uint8_t>()
                .template select<1, 1>(29) +
+           1;
+  }
+
+  /// <summary>
+  /// Get number of blocks
+  /// </summary>
+  /// <returns>Height of the block</returns>
+  int32_t get_number_of_blocks() const {
+    return const_cast<config_2d_mem_access>(this)
+               ->payload.template bit_cast_view<uint8_t>()
+               .template select<1, 1>(30) +
            1;
   }
 
@@ -1542,6 +1556,16 @@ public:
   config_2d_mem_access &set_height(int32_t Height) {
     payload.template bit_cast_view<uchar>().template select<1, 1>(29) =
         Height - 1;
+  }
+
+  /// <summary>
+  /// Sets number of blocks
+  /// </summary>
+  /// <param name="NBlocks">Number of blocks</param>
+  /// <returns>Reference to the modified object</returns>
+  config_2d_mem_access &set_number_of_blocks(int32_t NBlocks) {
+    payload.template bit_cast_view<uchar>().template select<1, 1>(30) =
+        NBlocks - 1;
   }
 
 private:
