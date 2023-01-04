@@ -2019,10 +2019,6 @@ pi_result hip_piContextRelease(pi_context ctxt) {
   }
   ctxt->invoke_extended_deleters();
 
-  std::unique_ptr<_pi_context> context{ctxt};
-
-  PI_CHECK_ERROR(hipEventDestroy(context->evBase_));
-
   if (!ctxt->is_primary()) {
     hipCtx_t hipCtxt = ctxt->get();
     // hipCtxSynchronize is not supported for AMD platform so we can just
