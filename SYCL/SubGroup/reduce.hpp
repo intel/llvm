@@ -28,10 +28,10 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
             ext::oneapi::sub_group sg = NdItem.get_sub_group();
             if (skip_init) {
               acc[NdItem.get_global_id(0)] =
-                  ext::oneapi::reduce(sg, T(NdItem.get_global_id(0)), op);
+                  reduce_over_group(sg, T(NdItem.get_global_id(0)), op);
             } else {
               acc[NdItem.get_global_id(0)] =
-                  ext::oneapi::reduce(sg, T(NdItem.get_global_id(0)), init, op);
+                  reduce_over_group(sg, T(NdItem.get_global_id(0)), init, op);
             }
             if (NdItem.get_global_id(0) == 0)
               sgsizeacc[0] = sg.get_max_local_range()[0];
