@@ -154,10 +154,10 @@ Source locations:
 
 - `llvm/lib/SYCLLowerIR/ESIMD/ESIMDVerifier.cpp`
 
-### SYCL post-link tool
+### sycl-post-link transformations
 
 As a part of the input device code module transformation pipeline, the
-post-link tool splits the input module (or modules resulting from splitting
+sycl-post-link tool splits the input module (or modules resulting from splitting
 by other characteristics, such as aspects) into two - SYCL and ESIMD ones.
 Shared functions invoked both from SYCL and ESIMD are cloned during the process.
 This is necessary because SYCL and ESIMD parts must undergo different set of
@@ -166,9 +166,7 @@ splitting are marked with specific device binary property `isEsimdImage` (see
 [source](https://github.com/intel/llvm/blob/9dc14a292f479880b5ab2e95f99a8414b31d1165/llvm/tools/sycl-post-link/sycl-post-link.cpp#L453)
 .)
 
-#### Driver
-
-`sycl-post-link.exe` is the post-link process driver, it invokes necessary
+`sycl-post-link` is the post-link process driver, it invokes necessary
 transformations as well as optimizations on fully linked device code. As a part
 of the process it splits SYCL and ESIMD parts of the code into separate LLVM IR
 modules and invokes different set or transformations on them. If a program has
