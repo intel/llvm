@@ -764,15 +764,15 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *Expr) {
       }
     }
   } else if (auto MT = Ty.dyn_cast<mlir::MemRefType>()) {
-    ArrayCons = Alloc =
-        Builder.create<mlir::memref::AllocOp>(Loc, MT, ValueRange{Count});
+    mlir::Value Args[1] = {Count};
+    ArrayCons = Alloc = Builder.create<mlir::memref::AllocOp>(Loc, MT, Args);
     if (Expr->hasInitializer() && isa<InitListExpr>(Expr->getInitializer()))
       (void)InitializeValueByInitListExpr(Alloc, Expr->getInitializer());
   } else {
     auto I64 = mlir::IntegerType::get(Count.getContext(), 64);
     Value TypeSize = getTypeSize(Expr->getAllocatedType());
-    ValueRange Args = {Builder.create<arith::IndexCastOp>(
-        Loc, I64, Builder.create<arith::MulIOp>(Loc, TypeSize, Count))};
+    mlir::Value Args[1] = {Builder.create<arith::MulIOp>(Loc, TypeSize, Count)};
+    Args[0] = Builder.create<arith::IndexCastOp>(Loc, I64, Args[0]);
     ArrayCons = Alloc = Builder.create<mlir::LLVM::BitcastOp>(
         Loc, Ty,
         Builder
@@ -780,9 +780,8 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *Expr) {
                                         Args)
             ->getResult(0));
 
-    //    if (Expr->hasInitializer() &&
-    //    isa<InitListExpr>(Expr->getInitializer()))
-    //    (void)InitializeValueByInitListExpr(Alloc, Expr->getInitializer());
+    if (Expr->hasInitializer() && isa<InitListExpr>(Expr->getInitializer()))
+      (void)InitializeValueByInitListExpr(Alloc, Expr->getInitializer());
 
     if (Expr->isArray()) {
       auto PT = Ty.cast<LLVM::LLVMPointerType>();
@@ -1297,8 +1296,6 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
     llvm::dbgs() << "\n";
   });
 
-  auto Name = E->getDecl()->getName().str();
-
   if (auto *Tocall = dyn_cast<FunctionDecl>(E->getDecl()))
     return ValueCategory(Builder.create<LLVM::AddressOfOp>(
                              Loc, Glob.getOrCreateLLVMFunction(Tocall)),
@@ -1307,7 +1304,7 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
   if (auto *VD = dyn_cast<VarDecl>(E->getDecl())) {
     if (Captures.find(VD) != Captures.end()) {
       FieldDecl *Field = Captures[VD];
-      auto Res = CommonFieldLookup(
+      ValueCategory Res = CommonFieldLookup(
           cast<CXXMethodDecl>(EmittingFunctionDecl)->getThisObjectType(), Field,
           ThisVal.val,
           isa<clang::ReferenceType>(
@@ -1315,12 +1312,9 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
       assert(CaptureKinds.find(VD) != CaptureKinds.end());
       return Res;
     }
-  }
 
-  if (auto *PD = dyn_cast<VarDecl>(E->getDecl())) {
-    auto Found = Params.find(PD);
-    if (Found != Params.end()) {
-      auto Res = Found->second;
+    if (Params.find(VD) != Params.end()) {
+      ValueCategory Res = Params[VD];
       assert(Res.val);
       return Res;
     }
@@ -1337,6 +1331,7 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
     return Visit(ED->getInitExpr());
   }
   if (auto *VD = dyn_cast<ValueDecl>(E->getDecl())) {
+    const std::string Name = E->getDecl()->getName().str();
     if (Glob.getTypes()
             .getMLIRType(
                 Glob.getCGM().getContext().getPointerType(E->getType()))
@@ -1366,10 +1361,8 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
     // TODO check reference
     return ValueCategory(V, /*isReference*/ true);
   }
-  E->dump();
-  E->getDecl()->dump();
-  llvm::errs() << "couldn't find " << Name << "\n";
-  assert(0 && "couldnt find value");
+
+  llvm_unreachable("couldn't find value");
   return nullptr;
 }
 
@@ -1472,14 +1465,16 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     E->dump();
     llvm::dbgs() << "\n";
   });
+
   Location Loc = getMLIRLocation(E->getExprLoc());
+
   switch (E->getCastKind()) {
   case clang::CastKind::CK_NullToPointer: {
-    mlir::Type LlvmType = Glob.getTypes().getMLIRType(E->getType());
-    if (LlvmType.isa<LLVM::LLVMPointerType>())
-      return ValueCategory(Builder.create<mlir::LLVM::NullOp>(Loc, LlvmType),
+    mlir::Type LLVMTy = Glob.getTypes().getMLIRType(E->getType());
+    if (LLVMTy.isa<LLVM::LLVMPointerType>())
+      return ValueCategory(Builder.create<mlir::LLVM::NullOp>(Loc, LLVMTy),
                            /*isReference*/ false);
-    if (auto MT = LlvmType.dyn_cast<MemRefType>())
+    if (auto MT = LLVMTy.dyn_cast<MemRefType>())
       return ValueCategory(
           Builder.create<polygeist::Pointer2MemrefOp>(
               Loc, MT,
@@ -1493,17 +1488,17 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     return Visit(E->getSubExpr());
 
   case clang::CastKind::CK_AddressSpaceConversion: {
-    auto Scalar = Visit(E->getSubExpr());
-    // JLE_QUEL::TODO (II-201)
-    // assert(scalar.isReference);
-    auto PostTy = ReturnVal.getType().cast<MemRefType>().getElementType();
-    return ValueCategory(castToMemSpaceOfType(Scalar.val, PostTy),
-                         Scalar.isReference);
+    ValueCategory Scalar = Visit(E->getSubExpr());
+    QualType DestTy = E->getType();
+    unsigned AS = Glob.getCGM().getContext().getTargetAddressSpace(
+        DestTy->isPointerType() ? DestTy->getPointeeType().getAddressSpace()
+                                : DestTy.getAddressSpace());
+    return ValueCategory(castToMemSpace(Scalar.val, AS), Scalar.isReference);
   }
   case clang::CastKind::CK_Dynamic: {
     E->dump();
-    assert(0 && "dynamic cast not handled yet\n");
-  }
+    llvm_unreachable("dynamic cast not handled yet\n");
+  } break;
   case clang::CastKind::CK_UncheckedDerivedToBase:
   case clang::CastKind::CK_DerivedToBase: {
     auto SE = Visit(E->getSubExpr());
@@ -1762,22 +1757,16 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
             Builder.create<mlir::NVVM::WarpSizeOp>(Loc, MLIRTy),
             /*isReference*/ false);
       }
-      /*
-      if (dr->isNonOdrUseReason() == clang::NonOdrUseReason::NOUR_Constant) {
-        dr->dump();
-        auto VD = cast<VarDecl>(dr->getDecl());
-        assert(VD->getInit());
-      }
-      */
     }
-    auto Prev = EmitLValue(E->getSubExpr());
 
+    ValueCategory Prev = EmitLValue(E->getSubExpr());
     bool IsArray = false;
     Glob.getTypes().getMLIRType(E->getType(), &IsArray);
     if (IsArray)
       return Prev;
 
-    auto Lres = Prev.getValue(Builder);
+    mlir::Value Lres = Prev.getValue(Builder);
+
     LLVM_DEBUG({
       if (!Prev.isReference) {
         llvm::dbgs() << "LValueToRValue cast performed on an RValue: ";
@@ -1796,38 +1785,19 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     return EmitScalarConversion(Visit(E->getSubExpr()),
                                 E->getSubExpr()->getType(), E->getType(),
                                 E->getExprLoc());
-  case clang::CastKind::CK_ArrayToPointerDecay: {
+
+  case clang::CastKind::CK_ArrayToPointerDecay:
     return CommonArrayToPointer(Visit(E->getSubExpr()));
 
-#if 0
-    auto mt = Scalar.val.getType().cast<mlir::MemRefType>();
-    auto shape2 = std::vector<int64_t>(mt.getShape());
-    if (shape2.size() == 0) {
-      E->dump();
-      //nex.dump();
-      assert(0);
-    }
-    shape2[0] = ShapedType::kDynamic;
-    auto nex = mlir::MemRefType::get(shape2, mt.getElementType(),
-                                     mt.getLayout(), mt.getMemorySpace());
-    auto cst = Builder.create<mlir::MemRefCastOp>(Loc, Scalar.val, nex);
-    //llvm::errs() << "<ArrayToPtrDecay>\n";
-    //E->dump();
-    //llvm::errs() << cst << " - " << Scalar.val << "\n";
-    //auto offs = Scalar.offsets;
-    //offs.push_back(getConstantIndex(0));
-    return ValueCategory(cst, Scalar.isReference);
-#endif
-  }
   case clang::CastKind::CK_FunctionToPointerDecay: {
     auto Scalar = Visit(E->getSubExpr());
     assert(Scalar.isReference);
     return ValueCategory(Scalar.val, /*isReference*/ false);
   }
   case clang::CastKind::CK_ConstructorConversion:
-  case clang::CastKind::CK_NoOp: {
+  case clang::CastKind::CK_NoOp:
     return Visit(E->getSubExpr());
-  }
+
   case clang::CastKind::CK_ToVoid: {
     Visit(E->getSubExpr());
     return nullptr;
