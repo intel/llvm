@@ -25,9 +25,9 @@ struct KernelFunctor : WithInputBuffers<T, 1>, WithOutputBuffer<T> {
 
     cgh.parallel_for<KernelFunctor<T>>(
         sycl::range<1>{this->getOutputBufferSize()},
-        [=](sycl::id<1> wiID) [[intel::reqd_sub_group_size(8)]] {
+        [=](sycl::id<1> wiID) [[intel::reqd_sub_group_size(16)]] {
 #if defined(__SYCL_DEVICE_ONLY__)
-          asm("mov (M1, 8) %0(0, 0)<1> (-)%1(0, 0)<1;1,0>"
+          asm("mov (M1, 16) %0(0, 0)<1> (-)%1(0, 0)<1;1,0>"
               : "=rw"(B[wiID])
               : "rw"(A[wiID]));
 #else

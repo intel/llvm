@@ -18,13 +18,13 @@ template <typename T = DataType> struct KernelFunctor : WithOutputBuffer<T> {
     bool switchField = false;
     CGH.parallel_for<KernelFunctor<T>>(
         sycl::range<1>{this->getOutputBufferSize()},
-        [=](sycl::id<1> wiID) [[intel::reqd_sub_group_size(8)]] {
+        [=](sycl::id<1> wiID) [[intel::reqd_sub_group_size(16)]] {
           int Output = 0;
 #if defined(__SYCL_DEVICE_ONLY__)
           asm volatile("{\n"
                        ".decl P1 v_type=P num_elts=1\n"
-                       "cmp.eq (M1_NM, 8) P1 %1(0,0)<0;1,0> 0x0:b\n"
-                       "(P1) sel (M1_NM, 8) %0(0,0)<1> 0x7:d 0x8:d"
+                       "cmp.eq (M1_NM, 16) P1 %1(0,0)<0;1,0> 0x0:b\n"
+                       "(P1) sel (M1_NM, 16) %0(0,0)<1> 0x7:d 0x8:d"
                        "}\n"
                        : "=rw"(Output)
                        : "rw"(switchField));

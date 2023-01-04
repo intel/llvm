@@ -18,25 +18,25 @@ template <typename T = DataType> struct KernelFunctor : WithOutputBuffer<T> {
     int switchField = 2;
     CGH.parallel_for<KernelFunctor<T>>(
         sycl::range<1>{this->getOutputBufferSize()},
-        [=](sycl::id<1> wiID) [[intel::reqd_sub_group_size(8)]] {
+        [=](sycl::id<1> wiID) [[intel::reqd_sub_group_size(16)]] {
           int Output = 0;
 #if defined(__SYCL_DEVICE_ONLY__)
           asm volatile("{\n"
                        ".decl P1 v_type=P num_elts=1\n"
                        ".decl P2 v_type=P num_elts=1\n"
                        ".decl P3 v_type=P num_elts=1\n"
-                       "cmp.ne (M1_NM, 8) P1 %1(0,0)<0;1,0> 0x0:d\n"
+                       "cmp.ne (M1_NM, 16) P1 %1(0,0)<0;1,0> 0x0:d\n"
                        "(P1) goto (M1, 1) label0%=\n"
                        "mov (M1, 8) %0(0,0)<1> 0x9:d\n"
                        "(P1) goto (M1, 1) label0%=\n"
                        "label0%=:\n"
-                       "cmp.ne (M1_NM, 8) P2 %1(0,0)<0;1,0> 0x1:d\n"
+                       "cmp.ne (M1_NM, 16) P2 %1(0,0)<0;1,0> 0x1:d\n"
                        "(P2) goto (M1, 1) label1%=\n"
                        "mov (M1, 8) %0(0,0)<1> 0x8:d\n"
                        "label1%=:\n"
-                       "cmp.ne (M1_NM, 8) P3 %1(0,0)<0;1,0> 0x2:d\n"
+                       "cmp.ne (M1_NM, 16) P3 %1(0,0)<0;1,0> 0x2:d\n"
                        "(P3) goto (M1, 1) label2%=\n"
-                       "mov (M1, 8) %0(0,0)<1> 0x7:d\n"
+                       "mov (M1, 16) %0(0,0)<1> 0x7:d\n"
                        "label2%=:"
                        "}\n"
                        : "=rw"(Output)

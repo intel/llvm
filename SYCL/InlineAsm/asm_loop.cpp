@@ -29,21 +29,21 @@ struct KernelFunctor : WithInputBuffers<T, 2>, WithOutputBuffer<T> {
             CGH);
     CGH.parallel_for<KernelFunctor<T>>(
         sycl::range<1>{this->getOutputBufferSize()},
-        [=](sycl::id<1> wiID) [[intel::reqd_sub_group_size(8)]] {
+        [=](sycl::id<1> wiID) [[intel::reqd_sub_group_size(16)]] {
 #if defined(__SYCL_DEVICE_ONLY__)
           asm volatile("{\n"
-                       ".decl P1 v_type=P num_elts=8\n"
-                       ".decl P2 v_type=P num_elts=8\n"
-                       ".decl temp v_type=G type=d num_elts=8 align=dword\n"
-                       "mov (M1, 8) %0(0, 0)<1> 0x0:d\n"
-                       "cmp.le (M1, 8) P1 %1(0,0)<1;1,0> 0x0:d\n"
-                       "(P1) goto (M1, 8) label0%=\n"
-                       "mov (M1, 8) temp(0,0)<1> 0x0:d\n"
+                       ".decl P1 v_type=P num_elts=16\n"
+                       ".decl P2 v_type=P num_elts=16\n"
+                       ".decl temp v_type=G type=d num_elts=16 align=dword\n"
+                       "mov (M1, 16) %0(0, 0)<1> 0x0:d\n"
+                       "cmp.le (M1, 16) P1 %1(0,0)<1;1,0> 0x0:d\n"
+                       "(P1) goto (M1, 16) label0%=\n"
+                       "mov (M1, 16) temp(0,0)<1> 0x0:d\n"
                        "label1%=:\n"
-                       "add (M1, 8) temp(0,0)<1> temp(0,0)<1;1,0> 0x1:w\n"
-                       "add (M1, 8) %0(0,0)<1> %0(0,0)<1;1,0> %2(0,0)<1;1,0>\n"
-                       "cmp.lt (M1, 8) P2 temp(0,0)<0;8,1> %1(0,0)<0;8,1>\n"
-                       "(P2) goto (M1, 8) label1%=\n"
+                       "add (M1, 16) temp(0,0)<1> temp(0,0)<1;1,0> 0x1:w\n"
+                       "add (M1, 16) %0(0,0)<1> %0(0,0)<1;1,0> %2(0,0)<1;1,0>\n"
+                       "cmp.lt (M1, 16) P2 temp(0,0)<0;16,1> %1(0,0)<0;16,1>\n"
+                       "(P2) goto (M1, 16) label1%=\n"
                        "label0%=:"
                        "}\n"
                        : "+rw"(C[wiID])
