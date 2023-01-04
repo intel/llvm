@@ -745,7 +745,7 @@ name: MemBufferMap
 ordinal: "0"
 details: 
     - "Input parameter blockingMap indicates if the map is blocking or non-blocking."
-    - "Currently, no direct support in Leverl Zero. Implemented as a shared allocation followed by copying on discrete GPU"
+    - "Currently, no direct support in Level Zero. Implemented as a shared allocation followed by copying on discrete GPU"
     - "TODO: add a driver function in Level Zero?"
 analogue:
     - "**clEnqueueMapBuffer**"

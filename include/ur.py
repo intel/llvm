@@ -637,7 +637,7 @@ class ur_device_info_v(IntEnum):
     MAX_WORK_GROUP_SIZE = 6                         ## size_t: max work group size
     SINGLE_FP_CONFIG = 7                            ## Return a bit field of ::ur_fp_capability_flags_t: single precision
                                                     ## floating point capability
-    HALF_FP_CONFIG = 8                              ## Return a bit field of ::ur_fp_capability_flags_t: half precsion
+    HALF_FP_CONFIG = 8                              ## Return a bit field of ::ur_fp_capability_flags_t: half precision
                                                     ## floating point capability
     DOUBLE_FP_CONFIG = 9                            ## Return a bit field of ::ur_fp_capability_flags_t: double precision
                                                     ## floating point capability
@@ -687,8 +687,8 @@ class ur_device_info_v(IntEnum):
     MAX_CONSTANT_ARGS = 49                          ## uint32_t: max number of __const declared arguments in a kernel
     LOCAL_MEM_TYPE = 50                             ## ::ur_device_local_mem_type_t: local memory type
     LOCAL_MEM_SIZE = 51                             ## uint64_t: local memory size in bytes
-    ERROR_CORRECTION_SUPPORT = 52                   ## bool: support error correction to gloal and local memory
-    HOST_UNIFIED_MEMORY = 53                        ## bool: unifed host device memory
+    ERROR_CORRECTION_SUPPORT = 52                   ## bool: support error correction to global and local memory
+    HOST_UNIFIED_MEMORY = 53                        ## bool: unified host device memory
     PROFILING_TIMER_RESOLUTION = 54                 ## size_t: profiling timer resolution in nanoseconds
     ENDIAN_LITTLE = 55                              ## bool: little endian byte order
     AVAILABLE = 56                                  ## bool: device is available

@@ -94,7 +94,7 @@ etors:
     - name: SINGLE_FP_CONFIG
       desc: "Return a bit field of $x_fp_capability_flags_t: single precision floating point capability"
     - name: HALF_FP_CONFIG
-      desc: "Return a bit field of $x_fp_capability_flags_t: half precsion floating point capability"
+      desc: "Return a bit field of $x_fp_capability_flags_t: half precision floating point capability"
     - name: DOUBLE_FP_CONFIG
       desc: "Return a bit field of $x_fp_capability_flags_t: double precision floating point capability"
     - name: QUEUE_PROPERTIES
@@ -182,9 +182,9 @@ etors:
     - name: LOCAL_MEM_SIZE
       desc: "uint64_t: local memory size in bytes"
     - name: ERROR_CORRECTION_SUPPORT
-      desc: "bool: support error correction to gloal and local memory"
+      desc: "bool: support error correction to global and local memory"
     - name: HOST_UNIFIED_MEMORY
-      desc: "bool: unifed host device memory"
+      desc: "bool: unified host device memory"
     - name: PROFILING_TIMER_RESOLUTION
       desc: "size_t: profiling timer resolution in nanoseconds"
     - name: ENDIAN_LITTLE
