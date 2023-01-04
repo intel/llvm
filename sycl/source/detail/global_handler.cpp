@@ -205,8 +205,6 @@ void GlobalHandler::unloadPlugins() {
 }
 
 void shutdown() {
-  { printf("%s\n", "shutdown"); };
-
   GlobalHandler *handler = nullptr;
   {
     const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
