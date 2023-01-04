@@ -358,11 +358,8 @@ inline __SYCL_ALWAYS_INLINE float round_to_tf32(float &a) {
   uint32_t tmp_uint = reinterpret_cast<uint32_t &>(a);
   tmp_uint += 0x1000u;
   tmp_uint &= 0xFFFFE000u;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstrict-aliasing"
-  float ret = reinterpret_cast<float &>(tmp_uint);
-#pragma GCC diagnostic pop
-  return ret;
+  float *ret = reinterpret_cast<float *>(&tmp_uint);
+  return *ret;
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
