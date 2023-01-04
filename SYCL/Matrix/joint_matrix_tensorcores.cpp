@@ -1,7 +1,5 @@
 
 // REQUIRES: cuda
-// Temp xfail: test was merged early.
-// XFAIL: cuda
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -Xsycl-target-backend --cuda-gpu-arch=sm_80 -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 %s -o %t.out
 // RUN: %t.out
 //
@@ -14,7 +12,7 @@
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
-using namespace sycl::ext::oneapi::experimental;
+using namespace sycl::ext::oneapi;
 using namespace sycl::ext::oneapi::experimental::matrix;
 constexpr float bf16_eps = 0.00390625;
 
@@ -146,9 +144,11 @@ void test(queue &q) {
             // column id of current submatrix of BIG C matrix
             const auto n = item.get_group().get_group_id()[1];
 
-            joint_matrix<T3, use::a, M, K, layout::row_major> sub_a;
-            joint_matrix<T3, use::b, K, N, layout::row_major> sub_b;
-            joint_matrix<std::remove_const_t<T2>, use::accumulator, M, N> sub_c;
+            joint_matrix<sub_group, T3, use::a, M, K, layout::row_major> sub_a;
+            joint_matrix<sub_group, T3, use::b, K, N, layout::row_major> sub_b;
+            joint_matrix<sub_group, std::remove_const_t<T2>, use::accumulator,
+                         M, N>
+                sub_c;
 
             joint_matrix_load(sg, sub_c,
                               accC.get_pointer() + (m * M) * Big_N + n * N,
@@ -165,11 +165,13 @@ void test(queue &q) {
 
               // round values to correct precision if using tf32
               if constexpr (std::is_same<T3, precision::tf32>::value) {
-                auto wi_size = sub_a.wi_marray.size();
-                assert(wi_size == sub_b.wi_marray.size());
+                auto wi_size = get_wi_data(sg, sub_a).length();
+                assert(wi_size == get_wi_data(sg, sub_b).length());
                 for (auto i = 0; i < wi_size; ++i) {
-                  sub_a.wi_marray[i] = round_to_tf32(sub_a.wi_marray[i]);
-                  sub_b.wi_marray[i] = round_to_tf32(sub_b.wi_marray[i]);
+                  get_wi_data(sg, sub_a)[i] =
+                      round_to_tf32(get_wi_data(sg, sub_a)[i]);
+                  get_wi_data(sg, sub_b)[i] =
+                      round_to_tf32(get_wi_data(sg, sub_b)[i]);
                 }
               }
 

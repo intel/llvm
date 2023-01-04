@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: cuda
-// Temp xfail: test was merged early.
-// XFAIL: cuda
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -Xsycl-target-backend --cuda-gpu-arch=sm_80 -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 %s -o %t.out
 // RUN: %t.out
 
@@ -65,15 +63,15 @@ void matrix_verify_op(queue q, big_matrix<T2, M * nWGperDim, N * nWGperDim> &C,
 
              auto sg = spmd_item.get_sub_group();
 
-             joint_matrix<T, use::a, M, K, layout::row_major> sub_a;
-             joint_matrix<T, use::b, K, N, layout::row_major> sub_b;
-             joint_matrix<T2, use::accumulator, M, N> sub_c;
+             joint_matrix<sub_group, T, use::a, M, K, layout::row_major> sub_a;
+             joint_matrix<sub_group, T, use::b, K, N, layout::row_major> sub_b;
+             joint_matrix<sub_group, T2, use::accumulator, M, N> sub_c;
 
              joint_matrix_fill(sg, sub_a, 3);
              joint_matrix_fill(sg, sub_b, 1);
              joint_matrix_fill(sg, sub_c, -80);
 
-             auto wi_slice_a = sub_a.get_wi_data();
+             auto wi_slice_a = get_wi_data(sg, sub_a);
              for (int i = 0; i < wi_slice_a.length(); i++) {
                if constexpr (std::is_same_v<Operation, Logical>) {
                  if (wi_slice_a[i]) {
