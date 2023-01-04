@@ -34,10 +34,11 @@ GlobalHandler *GlobalHandler::MSyclGlobalObjectsHandler = new GlobalHandler();
 SpinLock GlobalHandler::MSyclGlobalHandlerProtector{};
 
 // Utility class to track references on object.
-// Used for Scheduler now and created as thread_local object.
-// Origin idea is to track usage of Scheduler from main and other used threads -
-// they increment MCounter; and to use but not add extra reference by our
-// thread_pool threads. For this control MIncrementCounter class member is used.
+// Used for GlobalHandler now and created as thread_local object on the first
+// Scheduler usage. Origin idea is to track usage of Scheduler from main and
+// other used threads - they increment MCounter; and to use but not add extra
+// reference by our thread_pool threads. For this control MIncrementCounter
+// class member is used.
 template <class ResourceHandler> class ObjectUsageCounter {
 public:
   // Note: -Wctad-maybe-unsupported may generate warning if no ResourceHandler
@@ -215,8 +216,7 @@ void shutdown() {
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
 
-  if (handler->MScheduler.Inst)
-    handler->MScheduler.Inst->releaseResources();
+  handler->releaseResources();
 
   if (handler->MHostTaskThreadPool.Inst)
     handler->MHostTaskThreadPool.Inst->finishAndWait();
@@ -242,9 +242,13 @@ void shutdown() {
   delete handler;
 }
 
-void GlobalHandler::releaseResources() {
+void GlobalHandler::drainThreadPool() {
   if (MHostTaskThreadPool.Inst)
     MHostTaskThreadPool.Inst->drain();
+}
+
+void GlobalHandler::releaseResources() {
+  drainThreadPool();
   if (MScheduler.Inst)
     MScheduler.Inst->releaseResources();
 }

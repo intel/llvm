@@ -77,9 +77,11 @@ public:
   void unloadPlugins();
   void releaseDefaultContexts();
 
+  void releaseResources();
+  void drainThreadPool();
+
   // For testing purposes only
   void attachScheduler(Scheduler *Scheduler);
-  void releaseResources();
 
 private:
   static GlobalHandler *MSyclGlobalObjectsHandler;
