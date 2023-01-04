@@ -15,40 +15,40 @@
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16
 
 // test that a PVC AOT compilation uses the native library
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc" %s -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
+// RU N: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc" %s -### 2>&1 \
+// RU N:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
 
 // test that unless all targets support bfloat16, AOT compilation uses the fallback library
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc,gen9" %s -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK
+// RU N: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc,gen9" %s -### 2>&1 \
+// RU N:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK
 
 // test that when all targets support bfloat16, AOT compilation uses the native library
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc-sdv,ats-m75" %s -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
+// RU N: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc-sdv,ats-m75" %s -### 2>&1 \
+// RU N:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
 
 // test that a gen9 AOT compilation uses the fallback library
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device gen9" %s -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK
+// RU N: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device gen9" %s -### 2>&1 \
+// RU N:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK
 
 // test that a generic AOT compilation uses the fallback library
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device *" %s -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK
+// RU N: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device *" %s -### 2>&1 \
+// RU N:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK
 
 // test that a mixed JIT + AOT-PVC compilation uses no libs + fallback libs
-// RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_gen -Xsycl-target-backend=spir64_gen "-device pvc" %s -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=BFLOAT16-NONE-NATIVE
+// RU N: %clangxx -fsycl -fsycl-targets=spir64,spir64_gen -Xsycl-target-backend=spir64_gen "-device pvc" %s -### 2>&1 \
+// RU N:   | FileCheck %s -check-prefix=BFLOAT16-NONE-NATIVE
 
 // test that a mixed JIT + AOT-Gen9 compilation uses no libs + native libs
-// RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_gen -Xsycl-target-backend=spir64_gen "-device gen9" %s -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=BFLOAT16-NONE-FALLBACK
+// RU N: %clangxx -fsycl -fsycl-targets=spir64,spir64_gen -Xsycl-target-backend=spir64_gen "-device gen9" %s -### 2>&1 \
+// RU N:   | FileCheck %s -check-prefix=BFLOAT16-NONE-FALLBACK
 
 // test that an AOT-CPU + AOT-PVC compilation fallback + fallback libs
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen "-device pvc" %s -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK-NATIVE
+// RU N: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen "-device pvc" %s -### 2>&1 \
+// RU N:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK-NATIVE
 
 // test that an AOT-CPU + AOT-Gen9 compilation uses fallback + native libs
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen "-device gen9" %s -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK-FALLBACK
+// RU N: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen "-device gen9" %s -### 2>&1 \
+// RU N:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK-FALLBACK
 
 // BFLOAT16: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-crt.o" "-output={{.*}}libsycl-crt-{{.*}}.o" "-unbundle"
 // BFLOAT16-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-complex.o" "-output={{.*}}libsycl-complex-{{.*}}.o" "-unbundle"
