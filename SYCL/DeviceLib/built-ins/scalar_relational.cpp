@@ -379,5 +379,37 @@ int main() {
     assert(r <= 123.124 && r >= 123.122); // r = 123.123
   }
 
+  // select-float,bool
+  {
+    s::cl_float r{0};
+    {
+      s::buffer<s::cl_float, 1> BufR(&r, s::range<1>(1));
+      s::queue myQueue;
+      myQueue.submit([&](s::handler &cgh) {
+        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        cgh.single_task<class selectF1F1B1true>([=]() {
+          AccR[0] = s::select(s::cl_float{34.34}, s::cl_float{123.123}, true);
+        });
+      });
+    }
+    assert(r <= 123.124 && r >= 123.122); // r = 123.123
+  }
+
+  // select-float,bool
+  {
+    s::cl_float r{0};
+    {
+      s::buffer<s::cl_float, 1> BufR(&r, s::range<1>(1));
+      s::queue myQueue;
+      myQueue.submit([&](s::handler &cgh) {
+        auto AccR = BufR.get_access<s::access::mode::write>(cgh);
+        cgh.single_task<class selectF1F1B1false>([=]() {
+          AccR[0] = s::select(s::cl_float{34.34}, s::cl_float{123.123}, false);
+        });
+      });
+    }
+    assert(r <= 34.35 && r >= 34.33); // r = 34.34
+  }
+
   return 0;
 }
