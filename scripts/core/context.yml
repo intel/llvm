@@ -187,7 +187,7 @@ name: SetExtendedDeleter
 decl: static
 ordinal: "0"
 details:
-    - "Calls exnteded deleter, a user-defined callback to delete context on some platforms."
+    - "Calls extended deleter, a user-defined callback to delete context on some platforms."
     - "This is done for performance reasons."
     - "This API might be called directly by an application instead of a runtime backend."
     - "The application may call this function from simultaneous threads for the same context."
