@@ -83,6 +83,7 @@ public:
 
 private:
   static GlobalHandler *MSyclGlobalObjectsHandler;
+  static SpinLock MSyclGlobalHandlerProtector;
   friend void shutdown();
 
   // Constructor and destructor are declared out-of-line to allow incomplete

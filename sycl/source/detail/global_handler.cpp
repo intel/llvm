@@ -28,7 +28,10 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
+using LockGuard = std::lock_guard<SpinLock>;
+
 GlobalHandler *GlobalHandler::MSyclGlobalObjectsHandler = new GlobalHandler();
+SpinLock GlobalHandler::MSyclGlobalHandlerProtector{};
 
 // Utility class to track references on object.
 // Used for Scheduler now and created as thread_local object.
@@ -39,8 +42,9 @@ template <class ResourceHandler> class ObjectUsageCounter {
 public:
   // Note: -Wctad-maybe-unsupported may generate warning if no ResourceHandler
   // type explicitly declared.
-  ObjectUsageCounter(ResourceHandler *&Obj, bool ModifyCounter)
-      : MModifyCounter(ModifyCounter), MObj(Obj) {
+  ObjectUsageCounter(ResourceHandler *&Obj, SpinLock &ObjProtector,
+                     bool ModifyCounter)
+      : MModifyCounter(ModifyCounter), MObj(Obj), MObjProtector(ObjProtector) {
     if (MModifyCounter)
       MCounter++;
   }
@@ -49,24 +53,28 @@ public:
       return;
 
     MCounter--;
-    if (!MCounter && MObj)
-      MObj->releaseResources();
+    if (!MCounter) {
+      LockGuard Guard(MObjProtector);
+      if (MObj)
+        MObj->releaseResources();
+    }
   }
 
 private:
   static std::atomic_uint MCounter;
   bool MModifyCounter;
   ResourceHandler *&MObj;
+  SpinLock &MObjProtector;
 };
 template <class ResourceHandler>
 std::atomic_uint ObjectUsageCounter<ResourceHandler>::MCounter{0};
-
-using LockGuard = std::lock_guard<SpinLock>;
 
 GlobalHandler::GlobalHandler() = default;
 GlobalHandler::~GlobalHandler() = default;
 
 GlobalHandler &GlobalHandler::instance() {
+  // No protection since sycl usage in parallel with main exit is not valid,
+  // otherwise MSyclGlobalObjectsHandler exists at any call to instance().
   assert(MSyclGlobalObjectsHandler &&
          "Handler must not be deallocated earlier");
   return *MSyclGlobalObjectsHandler;
@@ -98,7 +106,7 @@ Scheduler &GlobalHandler::getScheduler() {
 
 void GlobalHandler::registerSchedulerUsage(bool ModifyCounter) {
   thread_local ObjectUsageCounter<GlobalHandler> SchedulerCounter(
-      MSyclGlobalObjectsHandler, ModifyCounter);
+      MSyclGlobalObjectsHandler, MSyclGlobalHandlerProtector, ModifyCounter);
 }
 
 ProgramManager &GlobalHandler::getProgramManager() {
@@ -196,8 +204,13 @@ void GlobalHandler::unloadPlugins() {
 }
 
 void shutdown() {
+  { printf("%s\n", "shutdown"); };
+
   GlobalHandler *handler = nullptr;
-  std::swap(handler, GlobalHandler::MSyclGlobalObjectsHandler);
+  {
+    const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
+    std::swap(handler, GlobalHandler::MSyclGlobalObjectsHandler);
+  }
   assert(handler && "Handler could not be deallocated earlier");
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
