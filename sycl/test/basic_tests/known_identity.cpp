@@ -419,7 +419,10 @@ int main() {
   checkCommonKnownIdentity<cl_double>();
 
   checkCommonKnownIdentity<half>();
-  checkCommonKnownIdentity<sycl::cl_half>();
+  checkCommonKnownIdentity<sycl::opencl::cl_half>();
+  // FIXME: why do we check identity of a cl_half in global namespace?
+  // This test does not include CL/cl.h, which means that ::cl_half is not
+  // guaranteed to be available.
   checkCommonKnownIdentity<::cl_half>();
 
   checkBoolKnownIdentity<bool>();

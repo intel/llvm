@@ -151,9 +151,14 @@ int main() {
   test_is_arithmetic<s::half2>();
 
   test_make_type_t<int, d::gtl::scalar_unsigned_int_list, unsigned int>();
-  test_make_type_t<s::cl_int, d::gtl::scalar_float_list, s::cl_float>();
-  test_make_type_t<s::cl_int3, d::gtl::scalar_unsigned_int_list, s::cl_uint3>();
-  test_make_type_t<s::cl_int3, d::gtl::scalar_float_list, s::cl_float3>();
+  test_make_type_t<s::opencl::cl_int, d::gtl::scalar_float_list,
+                   s::opencl::cl_float>();
+  // FIXME: is it a correct test change?
+  test_make_type_t<s::vec<s::opencl::cl_int, 3>,
+                   d::gtl::scalar_unsigned_int_list,
+                   s::vec<s::opencl::cl_uint, 3>>();
+  test_make_type_t<s::vec<s::opencl::cl_int, 3>, d::gtl::scalar_float_list,
+                   s::vec<s::opencl::cl_float, 3>>();
 
   test_make_larger_t<s::half, float>();
   test_make_larger_t<s::half3, s::float3>();
@@ -180,6 +185,7 @@ int main() {
   test_vector_element_t<volatile s::int2, volatile int>();
   test_vector_element_t<const volatile s::int2, const volatile int>();
 
+#if SYCL_LANGUAGE_VERSION < 202001
   test_nan_types<s::ushort, s::ushort>();
   test_nan_types<s::uint, s::uint>();
   test_nan_types<s::ulong, s::ulong>();
@@ -187,6 +193,7 @@ int main() {
   test_nan_types<s::ushort2, s::ushort2>();
   test_nan_types<s::uint2, s::uint2>();
   test_nan_types<s::ulong2, s::ulong2>();
+#endif
 
   test_make_signed_t<int, int>();
   test_make_signed_t<const int, const int>();

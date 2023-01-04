@@ -100,18 +100,18 @@ int main() {
   static_assert(sizeof(s::byte) == sizeof(int8_t), "");
 
   // Table 4.94: Scalar data type aliases supported by SYCL
-  static_assert(is_same<s::cl_bool, decltype(0 != 1)>::value, "");
-  checkSizeForSignedIntegral<s::cl_char, sizeof(int8_t)>();
-  checkSizeForUnsignedIntegral<s::cl_uchar, sizeof(uint8_t)>();
-  checkSizeForSignedIntegral<s::cl_short, sizeof(int16_t)>();
-  checkSizeForUnsignedIntegral<s::cl_ushort, sizeof(uint16_t)>();
-  checkSizeForSignedIntegral<s::cl_int, sizeof(int32_t)>();
-  checkSizeForUnsignedIntegral<s::cl_uint, sizeof(uint32_t)>();
-  checkSizeForSignedIntegral<s::cl_long, sizeof(int64_t)>();
-  checkSizeForUnsignedIntegral<s::cl_ulong, sizeof(uint64_t)>();
-  checkSizeForFloatingPoint<s::cl_half, sizeof(int16_t)>();
-  checkSizeForFloatingPoint<s::cl_float, sizeof(int32_t)>();
-  checkSizeForFloatingPoint<s::cl_double, sizeof(int64_t)>();
+  static_assert(is_same<s::opencl::cl_bool, decltype(0 != 1)>::value, "");
+  checkSizeForSignedIntegral<s::opencl::cl_char, sizeof(int8_t)>();
+  checkSizeForUnsignedIntegral<s::opencl::cl_uchar, sizeof(uint8_t)>();
+  checkSizeForSignedIntegral<s::opencl::cl_short, sizeof(int16_t)>();
+  checkSizeForUnsignedIntegral<s::opencl::cl_ushort, sizeof(uint16_t)>();
+  checkSizeForSignedIntegral<s::opencl::cl_int, sizeof(int32_t)>();
+  checkSizeForUnsignedIntegral<s::opencl::cl_uint, sizeof(uint32_t)>();
+  checkSizeForSignedIntegral<s::opencl::cl_long, sizeof(int64_t)>();
+  checkSizeForUnsignedIntegral<s::opencl::cl_ulong, sizeof(uint64_t)>();
+  checkSizeForFloatingPoint<s::opencl::cl_half, sizeof(int16_t)>();
+  checkSizeForFloatingPoint<s::opencl::cl_float, sizeof(int32_t)>();
+  checkSizeForFloatingPoint<s::opencl::cl_double, sizeof(int64_t)>();
 
   return 0;
 }

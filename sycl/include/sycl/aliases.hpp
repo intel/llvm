@@ -27,14 +27,21 @@ class half;
 #define __SYCL_MAKE_VECTOR_ALIAS(ALIAS, TYPE, N)                               \
   using ALIAS##N = sycl::vec<TYPE, N>;
 
-#define __SYCL_MAKE_VECTOR_ALIASES_FOR_ARITHMETIC_TYPES(N)                     \
+#define __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(N)                        \
   __SYCL_MAKE_VECTOR_ALIAS(char, char, N)                                      \
   __SYCL_MAKE_VECTOR_ALIAS(short, short, N)                                    \
   __SYCL_MAKE_VECTOR_ALIAS(int, int, N)                                        \
   __SYCL_MAKE_VECTOR_ALIAS(long, long, N)                                      \
   __SYCL_MAKE_VECTOR_ALIAS(float, float, N)                                    \
   __SYCL_MAKE_VECTOR_ALIAS(double, double, N)                                  \
-  __SYCL_MAKE_VECTOR_ALIAS(half, half, N)
+  __SYCL_MAKE_VECTOR_ALIAS(half, half, N)                                      \
+  __SYCL_MAKE_VECTOR_ALIAS(schar, signed char, N)                              \
+  __SYCL_MAKE_VECTOR_ALIAS(uchar, unsigned char, N)                            \
+  __SYCL_MAKE_VECTOR_ALIAS(ushort, unsigned short, N)                          \
+  __SYCL_MAKE_VECTOR_ALIAS(uint, unsigned int, N)                              \
+  __SYCL_MAKE_VECTOR_ALIAS(ulong, unsigned long, N)                            \
+  __SYCL_MAKE_VECTOR_ALIAS(longlong, long long, N)                             \
+  __SYCL_MAKE_VECTOR_ALIAS(ulonglong, unsigned long long, N)
 
 #define __SYCL_MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(N)                         \
   __SYCL_MAKE_VECTOR_ALIAS(cl_char, sycl::cl_char, N)                          \
@@ -49,24 +56,7 @@ class half;
   __SYCL_MAKE_VECTOR_ALIAS(cl_double, sycl::cl_double, N)                      \
   __SYCL_MAKE_VECTOR_ALIAS(cl_half, sycl::cl_half, N)
 
-#define __SYCL_MAKE_VECTOR_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES(N)            \
-  __SYCL_MAKE_VECTOR_ALIAS(schar, signed char, N)                              \
-  __SYCL_MAKE_VECTOR_ALIAS(uchar, unsigned char, N)                            \
-  __SYCL_MAKE_VECTOR_ALIAS(ushort, unsigned short, N)                          \
-  __SYCL_MAKE_VECTOR_ALIAS(uint, unsigned int, N)                              \
-  __SYCL_MAKE_VECTOR_ALIAS(ulong, unsigned long, N)                            \
-  __SYCL_MAKE_VECTOR_ALIAS(longlong, long long, N)                             \
-  __SYCL_MAKE_VECTOR_ALIAS(ulonglong, unsigned long long, N)
-
-#define __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(N)                        \
-  __SYCL_MAKE_VECTOR_ALIASES_FOR_ARITHMETIC_TYPES(N)                           \
-  __SYCL_MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(N)                               \
-  __SYCL_MAKE_VECTOR_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES(N)
-
-// FIXME: OpenCL vector aliases are not defined by SYCL 2020 spec and should be
-//        removed from here. See intel/llvm#7888
 #define __SYCL_2020_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(N)                   \
-  __SYCL_MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(N)                               \
   __SYCL_MAKE_VECTOR_ALIAS(char, std::int8_t, N)                               \
   __SYCL_MAKE_VECTOR_ALIAS(uchar, std::uint8_t, N)                             \
   __SYCL_MAKE_VECTOR_ALIAS(short, std::int16_t, N)                             \
@@ -82,17 +72,11 @@ class half;
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 using byte __SYCL2020_DEPRECATED("use std::byte instead") = std::uint8_t;
-using schar = signed char;
-using uchar = unsigned char;
-using ushort = unsigned short;
-using uint = unsigned int;
-using ulong = unsigned long;
-using longlong = long long;
-using ulonglong = unsigned long long;
 using half = sycl::detail::half_impl::half;
 
-// FIXME: SYCL 2020 spec says that cl_* aliases should reside in sycl::opencl
-// namespace.
+namespace opencl {
+// Strictly speaking, those alases do not exist in this namespace in SYCL 1.2.1,
+// but we still provide them for the sake of implmentation simplicity
 using cl_bool = bool;
 using cl_char = std::int8_t;
 using cl_uchar = std::uint8_t;
@@ -105,9 +89,36 @@ using cl_ulong = std::uint64_t;
 using cl_half = half;
 using cl_float = float;
 using cl_double = double;
+} // namespace opencl
+
+#if SYCL_LANGUAGE_VERSION < 202001
+// These aliases in sycl namespace are provided with compatibility with
+// SYCL 1.2.1
+
+using schar = signed char;
+using uchar = unsigned char;
+using ushort = unsigned short;
+using uint = unsigned int;
+using ulong = unsigned long;
+using longlong = long long;
+using ulonglong = unsigned long long;
+
+using cl_bool = bool;
+using cl_char = std::int8_t;
+using cl_uchar = std::uint8_t;
+using cl_short = std::int16_t;
+using cl_ushort = std::uint16_t;
+using cl_int = std::int32_t;
+using cl_uint = std::uint32_t;
+using cl_long = std::int64_t;
+using cl_ulong = std::uint64_t;
+using cl_half = half;
+using cl_float = float;
+using cl_double = double;
+#endif
 
 // Vector aliases are different between SYCL 1.2.1 and SYCL 2020
-#if SYCL_LANGUAGE_VERSION >= 202001
+#if !defined(SYCL_LANGUAGE_VERSION) || SYCL_LANGUAGE_VERSION >= 202001
 __SYCL_2020_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(2)
 __SYCL_2020_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(3)
 __SYCL_2020_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(4)
@@ -119,13 +130,18 @@ __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(3)
 __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(4)
 __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(8)
 __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(16)
+
+__SYCL_MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(2)
+__SYCL_MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(3)
+__SYCL_MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(4)
+__SYCL_MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(8)
+__SYCL_MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(16)
 #endif
+
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
 
 #undef __SYCL_MAKE_VECTOR_ALIAS
-#undef __SYCL_MAKE_VECTOR_ALIASES_FOR_ARITHMETIC_TYPES
 #undef __SYCL_MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES
-#undef __SYCL_MAKE_VECTOR_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES
 #undef __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH
 #undef __SYCL_2020_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH
