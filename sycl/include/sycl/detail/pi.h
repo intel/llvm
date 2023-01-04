@@ -74,8 +74,8 @@
 // PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT, and
 // PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT context info query
 // descriptors.
-// 12.22 Added new piextEnqueueDeviceVariableWrite and
-// piextEnqueueDeviceVariableRead functions.
+// 12.22 Added new piextEnqueueDeviceGlobalVariableWrite and
+// piextEnqueueDeviceGlobalVariableRead functions.
 
 #define _PI_H_VERSION_MAJOR 12
 #define _PI_H_VERSION_MINOR 22
@@ -437,8 +437,8 @@ typedef enum {
   PI_COMMAND_TYPE_SVM_MEMFILL = 0x120B,
   PI_COMMAND_TYPE_SVM_MAP = 0x120C,
   PI_COMMAND_TYPE_SVM_UNMAP = 0x120D,
-  PI_COMMAND_TYPE_DEVICE_VARIABLE_READ = 0x418E,
-  PI_COMMAND_TYPE_DEVICE_VARIABLE_WRITE = 0x418F
+  PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_READ = 0x418E,
+  PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_WRITE = 0x418F
 } _pi_command_type;
 
 typedef enum {
@@ -1881,42 +1881,42 @@ __SYCL_EXPORT pi_result piextUSMEnqueueMemcpy2D(
     pi_event *event);
 
 ///
-/// Device variable
+/// Device global variable
 ///
 
-/// API for writing data from host to a device variable.
+/// API for writing data from host to a device global variable.
 ///
 /// \param queue is the queue
-/// \param program is the program containing the device variable
+/// \param program is the program containing the device global variable
 /// \param blocking_write is true if the write should block
-/// \param name is the unique identifier for the device variable
+/// \param name is the unique identifier for the device global variable
 /// \param count is the number of bytes to copy
-/// \param offset is the byte offset into the device variable to start copying
+/// \param offset is the byte offset into the device global variable to start
+/// copying
 /// \param src is a pointer to where the data must be copied from
 /// \param num_events_in_wait_list is a number of events in the wait list
 /// \param event_wait_list is the wait list
 /// \param event is the resulting event
-pi_result piextEnqueueDeviceVariableWrite(pi_queue queue, pi_program program,
-                                          const char *name,
-                                          pi_bool blocking_write, size_t count,
-                                          size_t offset, const void *src,
-                                          pi_uint32 num_events_in_wait_list,
-                                          const pi_event *event_wait_list,
-                                          pi_event *event);
+pi_result piextEnqueueDeviceGlobalVariableWrite(
+    pi_queue queue, pi_program program, const char *name,
+    pi_bool blocking_write, size_t count, size_t offset, const void *src,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event);
 
-/// API reading data from a device variable to host.
+/// API reading data from a device global variable to host.
 ///
 /// \param device is the device
-/// \param program is the program containing the device variable
+/// \param program is the program containing the device global variable
 /// \param blocking_read is true if the read should block
-/// \param name is the unique identifier for the device variable
+/// \param name is the unique identifier for the device global variable
 /// \param count is the number of bytes to copy
-/// \param offset is the byte offset into the device variable to start copying
+/// \param offset is the byte offset into the device global variable to start
+/// copying
 /// \param dst is a pointer to where the data must be copied to
 /// \param num_events_in_wait_list is a number of events in the wait list
 /// \param event_wait_list is the wait list
 /// \param event is the resulting event
-pi_result piextEnqueueDeviceVariableRead(
+pi_result piextEnqueueDeviceGlobalVariableRead(
     pi_queue queue, pi_program program, const char *name, pi_bool blocking_read,
     size_t count, size_t offset, void *dst, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event);

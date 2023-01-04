@@ -8873,19 +8873,20 @@ pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
   return PI_SUCCESS;
 }
 
-/// API for writing data from host to a device variable.
+/// API for writing data from host to a device global variable.
 ///
 /// \param Queue is the queue
-/// \param Program is the program containing the device variable
-/// \param Name is the unique identifier for the device variable
+/// \param Program is the program containing the device global variable
+/// \param Name is the unique identifier for the device global variable
 /// \param BlockingWrite is true if the write should block
 /// \param Count is the number of bytes to copy
-/// \param Offset is the byte offset into the device variable to start copying
+/// \param Offset is the byte offset into the device global variable to start
+/// copying
 /// \param Src is a pointer to where the data must be copied from
 /// \param NumEventsInWaitList is a number of events in the wait list
 /// \param EventWaitList is the wait list
 /// \param Event is the resulting event
-pi_result piextEnqueueDeviceVariableWrite(
+pi_result piextEnqueueDeviceGlobalVariableWrite(
     pi_queue Queue, pi_program Program, const char *Name, pi_bool BlockingWrite,
     size_t Count, size_t Offset, const void *Src, pi_uint32 NumEventsInWaitList,
     const pi_event *EventsWaitList, pi_event *Event) {
@@ -8907,30 +8908,29 @@ pi_result piextEnqueueDeviceVariableWrite(
   // Temporary option added to use copy engine for D2D copy
   PreferCopyEngine |= UseCopyEngineForD2DCopy;
 
-  return enqueueMemCopyHelper(PI_COMMAND_TYPE_DEVICE_VARIABLE_WRITE, Queue,
-                              pi_cast<char *>(GlobalVarPtr) + Offset,
+  return enqueueMemCopyHelper(PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_WRITE,
+                              Queue, pi_cast<char *>(GlobalVarPtr) + Offset,
                               BlockingWrite, Count, Src, NumEventsInWaitList,
                               EventsWaitList, Event, PreferCopyEngine);
 }
 
-/// API reading data from a device variable to host.
+/// API reading data from a device global variable to host.
 ///
 /// \param Queue is the queue
-/// \param Program is the program containing the device variable
-/// \param Name is the unique identifier for the device variable
+/// \param Program is the program containing the device global variable
+/// \param Name is the unique identifier for the device global variable
 /// \param BlockingRead is true if the read should block
 /// \param Count is the number of bytes to copy
-/// \param Offset is the byte offset into the device variable to start copying
+/// \param Offset is the byte offset into the device global variable to start
+/// copying
 /// \param Dst is a pointer to where the data must be copied to
 /// \param NumEventsInWaitList is a number of events in the wait list
 /// \param EventWaitList is the wait list
 /// \param Event is the resulting event
-pi_result piextEnqueueDeviceVariableRead(pi_queue Queue, pi_program Program,
-                                         const char *Name, pi_bool BlockingRead,
-                                         size_t Count, size_t Offset, void *Dst,
-                                         pi_uint32 NumEventsInWaitList,
-                                         const pi_event *EventsWaitList,
-                                         pi_event *Event) {
+pi_result piextEnqueueDeviceGlobalVariableRead(
+    pi_queue Queue, pi_program Program, const char *Name, pi_bool BlockingRead,
+    size_t Count, size_t Offset, void *Dst, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *Event) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
   std::scoped_lock<pi_shared_mutex> lock(Queue->Mutex);
@@ -8950,8 +8950,8 @@ pi_result piextEnqueueDeviceVariableRead(pi_queue Queue, pi_program Program,
   PreferCopyEngine |= UseCopyEngineForD2DCopy;
 
   return enqueueMemCopyHelper(
-      PI_COMMAND_TYPE_DEVICE_VARIABLE_READ, Queue, Dst, BlockingRead, Count,
-      pi_cast<char *>(GlobalVarPtr) + Offset, NumEventsInWaitList,
+      PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_READ, Queue, Dst, BlockingRead,
+      Count, pi_cast<char *>(GlobalVarPtr) + Offset, NumEventsInWaitList,
       EventsWaitList, Event, PreferCopyEngine);
 }
 

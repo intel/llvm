@@ -5221,7 +5221,7 @@ pi_result hip_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   return result;
 }
 
-pi_result hip_piextEnqueueDeviceVariableWrite(
+pi_result hip_piextEnqueueDeviceGlobalVariableWrite(
     pi_queue queue, pi_program program, const char *name,
     pi_bool blocking_write, size_t count, size_t offset, const void *src,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
@@ -5237,11 +5237,12 @@ pi_result hip_piextEnqueueDeviceVariableWrite(
   (void)event_wait_list;
   (void)event;
 
-  sycl::detail::pi::die("hip_piextEnqueueDeviceVariableWrite not implemented");
+  sycl::detail::pi::die(
+      "hip_piextEnqueueDeviceGlobalVariableWrite not implemented");
   return {};
 }
 
-pi_result hip_piextEnqueueDeviceVariableRead(
+pi_result hip_piextEnqueueDeviceGlobalVariableRead(
     pi_queue queue, pi_program program, const char *name, pi_bool blocking_read,
     size_t count, size_t offset, void *dst, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
@@ -5256,7 +5257,8 @@ pi_result hip_piextEnqueueDeviceVariableRead(
   (void)event_wait_list;
   (void)event;
 
-  sycl::detail::pi::die("hip_piextEnqueueDeviceVariableRead not implemented");
+  sycl::detail::pi::die(
+      "hip_piextEnqueueDeviceGlobalVariableRead not implemented");
   return {};
 }
 
@@ -5405,9 +5407,11 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueueFill2D, hip_piextUSMEnqueueFill2D)
   _PI_CL(piextUSMEnqueueMemset2D, hip_piextUSMEnqueueMemset2D)
   _PI_CL(piextUSMGetMemAllocInfo, hip_piextUSMGetMemAllocInfo)
-  // Device variable
-  _PI_CL(piextEnqueueDeviceVariableWrite, hip_piextEnqueueDeviceVariableWrite)
-  _PI_CL(piextEnqueueDeviceVariableRead, hip_piextEnqueueDeviceVariableRead)
+  // Device global variable
+  _PI_CL(piextEnqueueDeviceGlobalVariableWrite,
+         hip_piextEnqueueDeviceGlobalVariableWrite)
+  _PI_CL(piextEnqueueDeviceGlobalVariableRead,
+         hip_piextEnqueueDeviceGlobalVariableRead)
 
   _PI_CL(piextKernelSetArgMemObj, hip_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, hip_piextKernelSetArgSampler)

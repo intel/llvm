@@ -5480,7 +5480,7 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   return result;
 }
 
-pi_result cuda_piextEnqueueDeviceVariableWrite(
+pi_result cuda_piextEnqueueDeviceGlobalVariableWrite(
     pi_queue queue, pi_program program, const char *name,
     pi_bool blocking_write, size_t count, size_t offset, const void *src,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
@@ -5518,7 +5518,7 @@ pi_result cuda_piextEnqueueDeviceVariableWrite(
   return result;
 }
 
-pi_result cuda_piextEnqueueDeviceVariableRead(
+pi_result cuda_piextEnqueueDeviceGlobalVariableRead(
     pi_queue queue, pi_program program, const char *name, pi_bool blocking_read,
     size_t count, size_t offset, void *dst, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
@@ -5707,9 +5707,11 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueueMemset2D, cuda_piextUSMEnqueueMemset2D)
   _PI_CL(piextUSMEnqueueMemcpy2D, cuda_piextUSMEnqueueMemcpy2D)
   _PI_CL(piextUSMGetMemAllocInfo, cuda_piextUSMGetMemAllocInfo)
-  // Device variable
-  _PI_CL(piextEnqueueDeviceVariableWrite, cuda_piextEnqueueDeviceVariableWrite)
-  _PI_CL(piextEnqueueDeviceVariableRead, cuda_piextEnqueueDeviceVariableRead)
+  // Device global variable
+  _PI_CL(piextEnqueueDeviceGlobalVariableWrite,
+         cuda_piextEnqueueDeviceGlobalVariableWrite)
+  _PI_CL(piextEnqueueDeviceGlobalVariableRead,
+         cuda_piextEnqueueDeviceGlobalVariableRead)
 
   _PI_CL(piextKernelSetArgMemObj, cuda_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, cuda_piextKernelSetArgSampler)

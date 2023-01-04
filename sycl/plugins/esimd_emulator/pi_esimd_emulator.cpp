@@ -2029,17 +2029,17 @@ pi_result piextUSMEnqueuePrefetch(pi_queue, const void *, size_t,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextEnqueueDeviceVariableWrite(pi_queue, pi_program, const char *,
-                                          pi_bool, size_t, size_t, const void *,
-                                          pi_uint32, const pi_event *,
-                                          pi_event *) {
+pi_result piextEnqueueDeviceGlobalVariableWrite(pi_queue, pi_program,
+                                                const char *, pi_bool, size_t,
+                                                size_t, const void *, pi_uint32,
+                                                const pi_event *, pi_event *) {
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piextEnqueueDeviceVariableRead(pi_queue, pi_program, const char *,
-                                         pi_bool, size_t, size_t, void *,
-                                         pi_uint32, const pi_event *,
-                                         pi_event *) {
+pi_result piextEnqueueDeviceGlobalVariableRead(pi_queue, pi_program,
+                                               const char *, pi_bool, size_t,
+                                               size_t, void *, pi_uint32,
+                                               const pi_event *, pi_event *) {
   DIE_NO_IMPLEMENTATION;
 }
 

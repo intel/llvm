@@ -94,13 +94,11 @@ static pi_result after_piextUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t,
   return PI_SUCCESS;
 }
 
-pi_result after_piextEnqueueDeviceVariableWrite(pi_queue, pi_program,
-                                                const char *, pi_bool, size_t,
-                                                size_t, const void *, pi_uint32,
-                                                const pi_event *,
-                                                pi_event *event) {
+pi_result after_piextEnqueueDeviceGlobalVariableWrite(
+    pi_queue, pi_program, const char *, pi_bool, size_t, size_t, const void *,
+    pi_uint32, const pi_event *, pi_event *event) {
   EXPECT_FALSE(DeviceGlobalWriteEvent.has_value())
-      << "piextEnqueueDeviceVariableWrite is called multiple times!";
+      << "piextEnqueueDeviceGlobalVariableWrite is called multiple times!";
   DeviceGlobalWriteEvent = *event;
   return PI_SUCCESS;
 }
@@ -188,8 +186,9 @@ TEST(DeviceGlobalTest, DeviceGlobalInitBeforeUse) {
 
   Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMEnqueueMemset>(
       after_piextUSMEnqueueMemset);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piextEnqueueDeviceVariableWrite>(
-      after_piextEnqueueDeviceVariableWrite);
+  Mock.redefineAfter<
+      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
+      after_piextEnqueueDeviceGlobalVariableWrite);
   Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
       after_piEventGetInfo);
   Mock.redefineAfter<sycl::detail::PiApiKind::piEnqueueKernelLaunch>(

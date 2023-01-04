@@ -1572,25 +1572,24 @@ typedef CL_API_ENTRY cl_int(CL_API_CALL *clEnqueueReadGlobalVariable_fn)(
     cl_command_queue, cl_program, const char *, cl_bool, size_t, size_t, void *,
     cl_uint, const cl_event *, cl_event *);
 
-/// API for writing data from host to a device variable.
+/// API for writing data from host to a device global variable.
 ///
 /// \param queue is the queue
-/// \param program is the program containing the device variable
-/// \param name is the unique identifier for the device variable
+/// \param program is the program containing the device global variable
+/// \param name is the unique identifier for the device global variable
 /// \param blocking_write is true if the write should block
 /// \param count is the number of bytes to copy
-/// \param offset is the byte offset into the device variable to start copying
+/// \param offset is the byte offset into the device global variable to start
+/// copying
 /// \param src is a pointer to where the data must be copied from
 /// \param num_events_in_wait_list is a number of events in the wait list
 /// \param event_wait_list is the wait list
 /// \param event is the resulting event
-pi_result piextEnqueueDeviceVariableWrite(pi_queue queue, pi_program program,
-                                          const char *name,
-                                          pi_bool blocking_write, size_t count,
-                                          size_t offset, const void *src,
-                                          pi_uint32 num_events_in_wait_list,
-                                          const pi_event *event_wait_list,
-                                          pi_event *event) {
+pi_result piextEnqueueDeviceGlobalVariableWrite(
+    pi_queue queue, pi_program program, const char *name,
+    pi_bool blocking_write, size_t count, size_t offset, const void *src,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event) {
   cl_context Ctx = nullptr;
   cl_int Res =
       clGetCommandQueueInfo(cast<cl_command_queue>(queue), CL_QUEUE_CONTEXT,
@@ -1611,19 +1610,20 @@ pi_result piextEnqueueDeviceVariableWrite(pi_queue queue, pi_program program,
   return cast<pi_result>(Res);
 }
 
-/// API reading data from a device variable to host.
+/// API reading data from a device global variable to host.
 ///
 /// \param queue is the queue
-/// \param program is the program containing the device variable
-/// \param name is the unique identifier for the device variable
+/// \param program is the program containing the device global variable
+/// \param name is the unique identifier for the device global variable
 /// \param blocking_read is true if the read should block
 /// \param count is the number of bytes to copy
-/// \param offset is the byte offset into the device variable to start copying
+/// \param offset is the byte offset into the device global variable to start
+/// copying
 /// \param dst is a pointer to where the data must be copied to
 /// \param num_events_in_wait_list is a number of events in the wait list
 /// \param event_wait_list is the wait list
 /// \param event is the resulting event
-pi_result piextEnqueueDeviceVariableRead(
+pi_result piextEnqueueDeviceGlobalVariableRead(
     pi_queue queue, pi_program program, const char *name, pi_bool blocking_read,
     size_t count, size_t offset, void *dst, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event) {
@@ -1884,9 +1884,11 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueueMemset2D, piextUSMEnqueueMemset2D)
   _PI_CL(piextUSMEnqueueMemcpy2D, piextUSMEnqueueMemcpy2D)
   _PI_CL(piextUSMGetMemAllocInfo, piextUSMGetMemAllocInfo)
-  // Device variable
-  _PI_CL(piextEnqueueDeviceVariableWrite, piextEnqueueDeviceVariableWrite)
-  _PI_CL(piextEnqueueDeviceVariableRead, piextEnqueueDeviceVariableRead)
+  // Device global variable
+  _PI_CL(piextEnqueueDeviceGlobalVariableWrite,
+         piextEnqueueDeviceGlobalVariableWrite)
+  _PI_CL(piextEnqueueDeviceGlobalVariableRead,
+         piextEnqueueDeviceGlobalVariableRead)
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)

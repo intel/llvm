@@ -339,7 +339,7 @@ std::vector<RT::PiEvent> context_impl::initializeDeviceGlobals(
       // initialize events list.
       RT::PiEvent InitEvent;
       void *USMPtr = DeviceGlobalUSM.getPtr();
-      Plugin.call<PiApiKind::piextEnqueueDeviceVariableWrite>(
+      Plugin.call<PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
           QueueImpl->getHandleRef(), NativePrg,
           DeviceGlobalEntry->MUniqueId.c_str(), false, sizeof(void *), 0,
           &USMPtr, 0, nullptr, &InitEvent);
