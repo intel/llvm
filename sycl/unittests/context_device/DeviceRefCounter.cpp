@@ -8,8 +8,8 @@
 
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
-#include <helpers/PiMock.hpp>
 #include <gtest/gtest.h>
+#include <helpers/PiMock.hpp>
 #include <sycl/sycl.hpp>
 
 int DevRefCounter = 0;
