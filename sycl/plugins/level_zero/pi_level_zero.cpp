@@ -1175,9 +1175,9 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
         CopyQueueGroup.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
             CopyQueueGroup.ZeQueues.size(), CommandListMap.end());
       }
-      CopyQueueGroupsByTID.insert({TID, CopyQueueGroup});
     }
   }
+  CopyQueueGroupsByTID.insert({TID, CopyQueueGroup});
 
   // Initialize compute/copy command batches.
   ComputeCommandBatch.OpenCommandList = CommandListMap.end();
