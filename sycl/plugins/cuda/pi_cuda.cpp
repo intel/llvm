@@ -694,7 +694,7 @@ pi_result _pi_program::set_metadata(const pi_device_binary_property *metadata,
       // Read values and pad with 1's for values not present.
       std::uint32_t reqdWorkGroupElements[] = {1, 1, 1};
       std::memcpy(reqdWorkGroupElements, ValuePtr, MDElemsSize);
-      kernelReqdWorkGroupSizeMD_[kernelName] =
+      kernelReqdWorkGroupSizeMD_[prefix] =
           std::make_tuple(reqdWorkGroupElements[0], reqdWorkGroupElements[1],
                           reqdWorkGroupElements[2]);
     } else if (tag == __SYCL_PI_PROGRAM_METADATA_GLOBAL_ID_MAPPING) {
