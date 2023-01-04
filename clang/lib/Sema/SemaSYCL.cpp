@@ -4645,6 +4645,10 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
   if (Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>())
     return;
 
+  // If Callee has a CUDA device attribute, no diagnostic needed.
+  if (getLangOpts().CUDA && Callee->hasAttr<CUDADeviceAttr>())
+    return;
+
   // Diagnose if this is an undefined function and it is not a builtin.
   // Currently, there is an exception of "__failed_assertion" in libstdc++-11,
   // this undefined function is used to trigger a compiling error.
