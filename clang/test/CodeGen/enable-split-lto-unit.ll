@@ -3,8 +3,14 @@
 ; Disable the verifier so the compiler doesn't abort and thus lead to empty
 ; output and false pass.
 ;
-; RUN: %clang_cc1 -emit-llvm-bc -flto=full -disable-llvm-verifier -o - %s | llvm-dis | FileCheck %s --check-prefix=FULL
-; RUN: %clang_cc1 -emit-llvm-bc -flto=thin -disable-llvm-verifier -o - %s | llvm-dis | FileCheck %s --check-prefix=THIN
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: %clang_cc1 -emit-llvm-bc -flto=full -disable-llvm-verifier -o - %s | llvm-dis -opaque-pointers | FileCheck %s --check-prefix=FULL
+; Added -opaque-pointers.
+; FIXME: Align with the community code when project is ready to enable opaque
+; pointers by default
+; RUN: %clang_cc1 -emit-llvm-bc -flto=thin -disable-llvm-verifier -o - %s | llvm-dis -opaque-pointers | FileCheck %s --check-prefix=THIN
 
 define dso_local void @main() local_unnamed_addr {
 entry:
