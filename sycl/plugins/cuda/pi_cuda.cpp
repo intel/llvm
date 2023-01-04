@@ -680,14 +680,21 @@ pi_result _pi_program::set_metadata(const pi_device_binary_property *metadata,
     if (tag == __SYCL_PI_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE) {
       // If metadata is reqd_work_group_size, record it for the corresponding
       // kernel name.
-      assert(metadataElement->ValSize ==
-                 sizeof(std::uint64_t) + sizeof(std::uint32_t) * 3 &&
+      size_t MDElemsSize = metadataElement->ValSize - sizeof(std::uint64_t);
+
+      // Expect between 1 and 3 32-bit integer values.
+      assert(MDElemsSize >= sizeof(std::uint32_t) &&
+             MDElemsSize <= sizeof(std::uint32_t) * 3 &&
              "Unexpected size for reqd_work_group_size metadata");
 
       // Get pointer to data, skipping 64-bit size at the start of the data.
-      const auto *reqdWorkGroupElements =
-          reinterpret_cast<const std::uint32_t *>(metadataElement->ValAddr) + 2;
-      kernelReqdWorkGroupSizeMD_[prefix] =
+      const char *ValuePtr =
+          reinterpret_cast<const char *>(metadataElement->ValAddr) +
+          sizeof(std::uint64_t);
+      // Read values and pad with 1's for values not present.
+      std::uint32_t reqdWorkGroupElements[] = {1, 1, 1};
+      std::memcpy(reqdWorkGroupElements, ValuePtr, MDElemsSize);
+      kernelReqdWorkGroupSizeMD_[kernelName] =
           std::make_tuple(reqdWorkGroupElements[0], reqdWorkGroupElements[1],
                           reqdWorkGroupElements[2]);
     } else if (tag == __SYCL_PI_PROGRAM_METADATA_GLOBAL_ID_MAPPING) {

@@ -80,20 +80,20 @@ public:
 
   // Override subscript operators and conversions to wrap in an atomic_ref
   template <int Dims = Dimensions>
-  operator typename std::enable_if_t<Dims == 0, reference>() const {
+  operator typename detail::enable_if_t<Dims == 0, reference>() const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
     return reference(getQualifiedPtr()[LinearIndex]);
   }
 
   template <int Dims = Dimensions>
-  typename std::enable_if_t<(Dims > 0), reference>
+  typename detail::enable_if_t<(Dims > 0), reference>
   operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return reference(getQualifiedPtr()[LinearIndex]);
   }
 
   template <int Dims = Dimensions>
-  typename std::enable_if_t<Dims == 1, reference>
+  typename detail::enable_if_t<Dims == 1, reference>
   operator[](size_t Index) const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>(Index));
     return reference(getQualifiedPtr()[LinearIndex]);

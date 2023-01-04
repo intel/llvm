@@ -1,4 +1,4 @@
-// RUN: %clangxx -c -fno-color-diagnostics -std=c++17 -I %sycl_include/sycl -I %sycl_include -Xclang -ast-dump %s | FileCheck %s
+// RUN: %clangxx -fsyntax-only -fno-color-diagnostics -std=c++17 -I %sycl_include/sycl -I %sycl_include -Xclang -ast-dump %s | FileCheck %s
 // RUN: %clangxx -c -fno-color-diagnostics -std=c++17 -I %sycl_include/sycl -I %sycl_include -Xclang -emit-llvm -g %s -o - | FileCheck %s --check-prefixes CHECK-DEBUG-INFO
 // UNSUPPORTED: windows
 #include <sycl/sycl.hpp>

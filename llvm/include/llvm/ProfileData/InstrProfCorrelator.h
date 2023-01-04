@@ -17,6 +17,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/YAMLTraits.h"
+#include <optional>
 #include <vector>
 
 namespace llvm {
@@ -41,7 +42,7 @@ public:
   virtual Error dumpYaml(raw_ostream &OS) = 0;
 
   /// Return the number of ProfileData elements.
-  llvm::Optional<size_t> getDataSize() const;
+  std::optional<size_t> getDataSize() const;
 
   /// Return a pointer to the names string that this class constructs.
   const char *getNamesPointer() const { return Names.c_str(); }
@@ -83,12 +84,12 @@ protected:
 
   struct Probe {
     std::string FunctionName;
-    Optional<std::string> LinkageName;
+    std::optional<std::string> LinkageName;
     yaml::Hex64 CFGHash;
     yaml::Hex64 CounterOffset;
     uint32_t NumCounters;
-    Optional<std::string> FilePath;
-    Optional<int> LineNumber;
+    std::optional<std::string> FilePath;
+    std::optional<int> LineNumber;
   };
 
   struct CorrelationData {
@@ -165,7 +166,7 @@ private:
   std::unique_ptr<DWARFContext> DICtx;
 
   /// Return the address of the object that the provided DIE symbolizes.
-  llvm::Optional<uint64_t> getLocation(const DWARFDie &Die) const;
+  std::optional<uint64_t> getLocation(const DWARFDie &Die) const;
 
   /// Returns true if the provided DIE symbolizes an instrumentation probe
   /// symbol.

@@ -35,17 +35,17 @@ struct GroupOpFP {};
 template <typename T, typename = void> struct GroupOpTag;
 
 template <typename T>
-struct GroupOpTag<T, std::enable_if_t<detail::is_sigeninteger<T>::value>> {
+struct GroupOpTag<T, detail::enable_if_t<detail::is_sigeninteger<T>::value>> {
   using type = GroupOpISigned;
 };
 
 template <typename T>
-struct GroupOpTag<T, std::enable_if_t<detail::is_sugeninteger<T>::value>> {
+struct GroupOpTag<T, detail::enable_if_t<detail::is_sugeninteger<T>::value>> {
   using type = GroupOpIUnsigned;
 };
 
 template <typename T>
-struct GroupOpTag<T, std::enable_if_t<detail::is_sgenfloat<T>::value>> {
+struct GroupOpTag<T, detail::enable_if_t<detail::is_sgenfloat<T>::value>> {
   using type = GroupOpFP;
 };
 

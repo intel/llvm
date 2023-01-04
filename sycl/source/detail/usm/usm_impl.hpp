@@ -15,11 +15,12 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 namespace usm {
 
-void *alignedAlloc(size_t Alignment, size_t Size, const context_impl *CtxImpl,
-                   const device_impl *DevImpl, sycl::usm::alloc Kind,
-                   const property_list &PropList = {});
+void *alignedAllocInternal(size_t Alignment, size_t Size,
+                           const context_impl *CtxImpl,
+                           const device_impl *DevImpl, sycl::usm::alloc Kind,
+                           const property_list &PropList = {});
 
-void free(void *Ptr, const context_impl *CtxImpl);
+void freeInternal(void *Ptr, const context_impl *CtxImpl);
 
 } // namespace usm
 } // namespace detail

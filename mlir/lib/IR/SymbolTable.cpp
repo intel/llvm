@@ -749,8 +749,8 @@ static Optional<SymbolTable::UseRange> getSymbolUsesImpl(FromT from) {
 /// symbol tables, and will also only return uses on 'from' if it does not
 /// also define a symbol table. This is because we treat the region as the
 /// boundary of the symbol table, and not the op itself. This function returns
-/// None if there are any unknown operations that may potentially be symbol
-/// tables.
+/// std::nullopt if there are any unknown operations that may potentially be
+/// symbol tables.
 auto SymbolTable::getSymbolUses(Operation *from) -> Optional<UseRange> {
   return getSymbolUsesImpl(from);
 }
@@ -778,8 +778,8 @@ static Optional<SymbolTable::UseRange> getSymbolUsesImpl(SymbolT symbol,
 
 /// Get all of the uses of the given symbol that are nested within the given
 /// operation 'from', invoking the provided callback for each. This does not
-/// traverse into any nested symbol tables. This function returns None if there
-/// are any unknown operations that may potentially be symbol tables.
+/// traverse into any nested symbol tables. This function returns std::nullopt
+/// if there are any unknown operations that may potentially be symbol tables.
 auto SymbolTable::getSymbolUses(StringAttr symbol, Operation *from)
     -> Optional<UseRange> {
   return getSymbolUsesImpl(symbol, from);

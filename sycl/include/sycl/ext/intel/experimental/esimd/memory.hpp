@@ -393,12 +393,14 @@ __ESIMD_API __ESIMD_NS::simd<T, NElts> lsc_slm_block_load(uint32_t offset) {
 /// @param pred is predicates.
 /// @return is a vector of type T and size N * NElts
 ///
-template <
-    typename T, int NElts = 1, lsc_data_size DS = lsc_data_size::default_size,
-    cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none, int N>
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          int N, typename Toffset>
 __ESIMD_API __ESIMD_NS::simd<T, N * NElts>
-lsc_gather(const T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
+lsc_gather(const T *p, __ESIMD_NS::simd<Toffset, N> offsets,
            __ESIMD_NS::simd_mask<N> pred = 1) {
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
@@ -417,6 +419,18 @@ lsc_gather(const T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
                                  _DS, _VS, _Transposed, N>(pred.data(),
                                                            addrs.data());
   return detail::lsc_format_ret<T>(Tmp);
+}
+
+template <
+    typename T, int NElts = 1, lsc_data_size DS = lsc_data_size::default_size,
+    cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none, int N,
+    typename Toffset, typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
+__ESIMD_API __ESIMD_NS::simd<T, N * NElts>
+lsc_gather(const T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
+           __ESIMD_NS::simd_mask<N> pred = 1) {
+  using Ty = typename __ESIMD_NS::simd_view<Toffset, RegionTy>::element_type;
+  return lsc_gather<T, NElts, DS, L1H, L3H, N>(
+      p, __ESIMD_NS::simd<Ty, N>(offsets), pred);
 }
 
 /// Accessor-based gather.
@@ -630,11 +644,13 @@ lsc_block_load(AccessorTy acc, uint32_t offset,
 /// @param offsets is the zero-based offsets in bytes.
 /// @param pred is predicates.
 ///
-template <
-    typename T, int NElts = 1, lsc_data_size DS = lsc_data_size::default_size,
-    cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none, int N>
-__ESIMD_API void lsc_prefetch(const T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          int N, typename Toffset>
+__ESIMD_API void lsc_prefetch(const T *p, __ESIMD_NS::simd<Toffset, N> offsets,
                               __ESIMD_NS::simd_mask<N> pred = 1) {
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L3H>();
@@ -651,6 +667,18 @@ __ESIMD_API void lsc_prefetch(const T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
   __esimd_lsc_prefetch_stateless<_MsgT, L1H, L3H, _AddressScale, _ImmOffset,
                                  _DS, _VS, _Transposed, N>(pred.data(),
                                                            addrs.data());
+}
+
+template <
+    typename T, int NElts = 1, lsc_data_size DS = lsc_data_size::default_size,
+    cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none, int N,
+    typename Toffset, typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
+__ESIMD_API void lsc_prefetch(const T *p,
+                              __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
+                              __ESIMD_NS::simd_mask<N> pred = 1) {
+  using Ty = typename __ESIMD_NS::simd_view<Toffset, RegionTy>::element_type;
+  lsc_prefetch<T, NElts, DS, L1H, L3H, N>(p, __ESIMD_NS::simd<Ty, N>(offsets),
+                                          pred);
 }
 
 /// USM pointer prefetch transposed gather with 1 channel.
@@ -869,12 +897,14 @@ __ESIMD_API void lsc_slm_block_store(uint32_t offset,
 /// @param vals is values to store.
 /// @param pred is predicates.
 ///
-template <
-    typename T, int NElts = 1, lsc_data_size DS = lsc_data_size::default_size,
-    cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none, int N>
-__ESIMD_API void lsc_scatter(T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
+template <typename T, int NElts = 1,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          int N, typename Toffset>
+__ESIMD_API void lsc_scatter(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
                              __ESIMD_NS::simd<T, N * NElts> vals,
                              __ESIMD_NS::simd_mask<N> pred = 1) {
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
@@ -893,6 +923,19 @@ __ESIMD_API void lsc_scatter(T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
   __esimd_lsc_store_stateless<_MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS,
                               _VS, _Transposed, N>(pred.data(), addrs.data(),
                                                    Tmp.data());
+}
+
+template <
+    typename T, int NElts = 1, lsc_data_size DS = lsc_data_size::default_size,
+    cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none, int N,
+    typename Toffset, typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
+__ESIMD_API void lsc_scatter(T *p,
+                             __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
+                             __ESIMD_NS::simd<T, N * NElts> vals,
+                             __ESIMD_NS::simd_mask<N> pred = 1) {
+  using Ty = typename __ESIMD_NS::simd_view<Toffset, RegionTy>::element_type;
+  lsc_scatter<T, NElts, DS, L1H, L3H, N>(p, __ESIMD_NS::simd<Ty, N>(offsets),
+                                         vals, pred);
 }
 
 /// Accessor-based scatter.
@@ -1423,10 +1466,12 @@ lsc_slm_atomic_update(__ESIMD_NS::simd<uint32_t, N> offsets,
 ///
 template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename Toffset>
 __ESIMD_API __ESIMD_NS::simd<T, N>
-lsc_atomic_update(T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
+lsc_atomic_update(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd_mask<N> pred) {
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -1450,6 +1495,19 @@ lsc_atomic_update(T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
   return detail::lsc_format_ret<T>(Tmp);
 }
 
+template <__ESIMD_NS::atomic_op Op, typename T, int N,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename Toffset,
+          typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
+__ESIMD_API __ESIMD_NS::simd<T, N>
+lsc_atomic_update(T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
+                  __ESIMD_NS::simd_mask<N> pred = 1) {
+  using Ty = typename __ESIMD_NS::simd_view<Toffset, RegionTy>::element_type;
+  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
+      p, __ESIMD_NS::simd<Ty, N>(offsets), pred);
+}
+
 /// USM pointer atomic.
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_atomic_<OP>.ugm
@@ -1467,10 +1525,12 @@ lsc_atomic_update(T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
 ///
 template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename Toffset>
 __ESIMD_API __ESIMD_NS::simd<T, N>
-lsc_atomic_update(T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
+lsc_atomic_update(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd_mask<N> pred) {
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -1490,8 +1550,23 @@ lsc_atomic_update(T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
   __ESIMD_NS::simd<_MsgT, N> Tmp =
       __esimd_lsc_xatomic_stateless_1<_MsgT, _Op, L1H, L3H, _AddressScale,
                                       _ImmOffset, _DS, _VS, _Transposed, N>(
-          pred.data(), addrs.data(), src0.data());
+          pred.data(), addrs.data(),
+          src0.template bit_cast_view<_MsgT>().data());
   return detail::lsc_format_ret<T>(Tmp);
+}
+
+template <__ESIMD_NS::atomic_op Op, typename T, int N,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename Toffset,
+          typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
+__ESIMD_API __ESIMD_NS::simd<T, N>
+lsc_atomic_update(T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
+                  __ESIMD_NS::simd<T, N> src0,
+                  __ESIMD_NS::simd_mask<N> pred = 1) {
+  using Ty = typename __ESIMD_NS::simd_view<Toffset, RegionTy>::element_type;
+  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
+      p, __ESIMD_NS::simd<Ty, N>(offsets), src0, pred);
 }
 
 /// USM pointer atomic.
@@ -1512,11 +1587,13 @@ lsc_atomic_update(T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
 ///
 template <__ESIMD_NS::atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename Toffset>
 __ESIMD_API __ESIMD_NS::simd<T, N>
-lsc_atomic_update(T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
+lsc_atomic_update(T *p, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
                   __ESIMD_NS::simd_mask<N> pred) {
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   constexpr __ESIMD_NS::native::lsc::atomic_op _Op =
@@ -1536,8 +1613,24 @@ lsc_atomic_update(T *p, __ESIMD_NS::simd<uint32_t, N> offsets,
   __ESIMD_NS::simd<_MsgT, N> Tmp =
       __esimd_lsc_xatomic_stateless_2<_MsgT, _Op, L1H, L3H, _AddressScale,
                                       _ImmOffset, _DS, _VS, _Transposed, N>(
-          pred.data(), addrs.data(), src0.data(), src1.data());
+          pred.data(), addrs.data(),
+          src0.template bit_cast_view<_MsgT>().data(),
+          src1.template bit_cast_view<_MsgT>().data());
   return detail::lsc_format_ret<T>(Tmp);
+}
+
+template <__ESIMD_NS::atomic_op Op, typename T, int N,
+          lsc_data_size DS = lsc_data_size::default_size,
+          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          typename Toffset,
+          typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
+__ESIMD_API __ESIMD_NS::simd<T, N>
+lsc_atomic_update(T *p, __ESIMD_NS::simd_view<Toffset, RegionTy> offsets,
+                  __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
+                  __ESIMD_NS::simd_mask<N> pred = 1) {
+  using Ty = typename __ESIMD_NS::simd_view<Toffset, RegionTy>::element_type;
+  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
+      p, __ESIMD_NS::simd<Ty, N>(offsets), src0, src1, pred);
 }
 
 /// Accessor-based atomic.
@@ -1728,32 +1821,88 @@ namespace esimd {
 /// LSC version of no argument variant of the \c atomic_update - accepts
 /// <tt>native::lsc::atomic_op</tt> instead of <tt>atomic_op</tt> as atomic
 /// operation template argument.
-template <native::lsc::atomic_op Op, typename T, int N>
-__ESIMD_API simd<T, N> atomic_update(T *p, simd<unsigned, N> offset,
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset>
+__ESIMD_API simd<T, N> atomic_update(T *p, simd<Toffset, N> offset,
                                      simd_mask<N> mask) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       p, offset, mask);
 }
 
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
+          typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
+__ESIMD_API simd<T, N> atomic_update(T *p, simd_view<Toffset, RegionTy> offsets,
+                                     simd_mask<N> mask = 1) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      p, offsets, mask);
+}
+
 /// LSC version of the single-argument atomic update.
-template <native::lsc::atomic_op Op, typename T, int N>
-__ESIMD_API simd<T, N> atomic_update(T *p, simd<unsigned, N> offset,
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset>
+__ESIMD_API simd<T, N> atomic_update(T *p, simd<Toffset, N> offset,
                                      simd<T, N> src0, simd_mask<N> mask) {
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       p, offset, src0, mask);
 }
 
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
+          typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
+__ESIMD_API simd<T, N> atomic_update(T *p, simd_view<Toffset, RegionTy> offsets,
+                                     simd<T, N> src0, simd_mask<N> mask = 1) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      p, offsets, src0, mask);
+}
+
 /// LSC version of the two-argument atomic update.
-template <native::lsc::atomic_op Op, typename T, int N>
-__ESIMD_API simd<T, N> atomic_update(T *p, simd<unsigned, N> offset,
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset>
+__ESIMD_API simd<T, N> atomic_update(T *p, simd<Toffset, N> offset,
                                      simd<T, N> src0, simd<T, N> src1,
                                      simd_mask<N> mask) {
   // 2-argument lsc_atomic_update arguments order matches the standard one -
-  // expected value first, then new value. But atomic_update uses reverse order,
-  // hence the src1/src0 swap.
+  // expected value first, then new value. But atomic_update uses reverse
+  // order, hence the src1/src0 swap.
   return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
       p, offset, src1, src0, mask);
 }
+
+template <native::lsc::atomic_op Op, typename T, int N, typename Toffset,
+          typename RegionTy = __ESIMD_NS::region1d_t<Toffset, N, 1>>
+__ESIMD_API simd<T, N> atomic_update(T *p, simd_view<Toffset, RegionTy> offsets,
+                                     simd<T, N> src0, simd<T, N> src1,
+                                     simd_mask<N> mask = 1) {
+  return __ESIMD_ENS::lsc_atomic_update<detail::to_atomic_op<Op>(), T, N>(
+      p, offsets, src1, src0, mask);
+}
+
+/// RAII-style class used to implement "semi-dynamic" SLM allocation.
+/// SLM is allocated in the constructor and released in the destructor, that's
+/// why it is "dynamic", as opposed to fully static allocation style of
+/// 'slm_init'. Actual offset of SLM chunk allocated by the call is calculated
+/// at compile time, that's why it is "semi-". To calculate SLM usage by a
+/// kernel, compiler finds a path in a callgraph with the largest amount of SLM
+/// "locked" by slm_allocator objects live along the paths. slm_init call also
+/// participates in calculating SLM budget. It can be modelled as
+/// \c slm_allocator object declared at the very beginning of a kernel and live
+/// till its the very end.
+/// Only compile-time constant SLM amount is supported for now, it is provided
+/// as a class' template argument.
+///
+/// Since a call graph is used, function pointers and recursion is not
+/// supported.
+///
+/// @tparam SLMAmount The amount allocated in bytes
+template <int SLMAmount> class slm_allocator {
+  int offset;
+
+public:
+  /// Allocates the amount of SLM which is class' template parameter.
+  slm_allocator() { offset = __esimd_slm_alloc(SLMAmount); }
+
+  /// @return The allocated chunk's offset in bytes.
+  int get_offset() const { return offset; }
+
+  /// Releases the SLM chunk allocated in the constructor.
+  ~slm_allocator() { __esimd_slm_free(offset); }
+};
 
 } // namespace esimd
 } // namespace ext::intel

@@ -504,19 +504,19 @@ void SPIRVTypeScavenger::correctUseTypes(Instruction &I) {
       } else if (auto *DeferredUseTy = dyn_cast<DeferredType *>(UsedTy)) {
         // Source type is fixed, use type is deferred: set the deferred type to
         // the fixed type.
-        fixType(*DeferredUseTy, FixedTy);
         ReplaceTypeInOperands(DeferredUseTy, FixedTy);
+        fixType(*DeferredUseTy, FixedTy);
       }
     } else if (auto *DeferredTy = dyn_cast<DeferredType *>(SourceTy)) {
       if (auto *FixedUseTy = dyn_cast<Type *>(UsedTy)) {
         // Source type is fixed, use type is deferred: set the deferred type to
         // the fixed type.
-        fixType(*DeferredTy, FixedUseTy);
         ReplaceTypeInOperands(DeferredTy, FixedUseTy);
+        fixType(*DeferredTy, FixedUseTy);
       } else if (auto *DeferredUseTy = dyn_cast<DeferredType *>(UsedTy)) {
         // If they're both deferred, merge the two types together.
-        mergeType(DeferredTy, DeferredUseTy);
         ReplaceTypeInOperands(DeferredUseTy, DeferredTy);
+        mergeType(DeferredTy, DeferredUseTy);
       }
     }
   }

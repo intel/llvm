@@ -45,7 +45,6 @@
 #include "llvm/Transforms/Scalar/InductiveRangeCheckElimination.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PriorityWorklist.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -236,7 +235,7 @@ class InductiveRangeCheckElimination {
   LoopInfo &LI;
 
   using GetBFIFunc =
-      llvm::Optional<llvm::function_ref<llvm::BlockFrequencyInfo &()> >;
+      std::optional<llvm::function_ref<llvm::BlockFrequencyInfo &()>>;
   GetBFIFunc GetBFI;
 
   // Returns true if it is profitable to do a transform basing on estimation of
@@ -542,10 +541,10 @@ class LoopConstrainer {
 
   // Calculated subranges we restrict the iteration space of the main loop to.
   // See the implementation of `calculateSubRanges' for more details on how
-  // these fields are computed.  `LowLimit` is None if there is no restriction
-  // on low end of the restricted iteration space of the main loop.  `HighLimit`
-  // is None if there is no restriction on high end of the restricted iteration
-  // space of the main loop.
+  // these fields are computed.  `LowLimit` is std::nullopt if there is no
+  // restriction on low end of the restricted iteration space of the main loop.
+  // `HighLimit` is std::nullopt if there is no restriction on high end of the
+  // restricted iteration space of the main loop.
 
   struct SubRanges {
     std::optional<const SCEV *> LowLimit;
@@ -554,7 +553,7 @@ class LoopConstrainer {
 
   // Compute a safe set of limits for the main loop to run in -- effectively the
   // intersection of `Range' and the iteration space of the original loop.
-  // Return None if unable to compute the set of subranges.
+  // Return std::nullopt if unable to compute the set of subranges.
   Optional<SubRanges> calculateSubRanges(bool IsSignedPredicate) const;
 
   // Clone `OriginalLoop' and return the result in CLResult.  The IR after
@@ -1581,7 +1580,7 @@ bool LoopConstrainer::run() {
 
 /// Computes and returns a range of values for the induction variable (IndVar)
 /// in which the range check can be safely elided.  If it cannot compute such a
-/// range, returns None.
+/// range, returns std::nullopt.
 Optional<InductiveRangeCheck::Range>
 InductiveRangeCheck::computeSafeIterationSpace(
     ScalarEvolution &SE, const SCEVAddRecExpr *IndVar,
@@ -1733,7 +1732,7 @@ IntersectSignedRange(ScalarEvolution &SE,
   const SCEV *NewBegin = SE.getSMaxExpr(R1Value.getBegin(), R2.getBegin());
   const SCEV *NewEnd = SE.getSMinExpr(R1Value.getEnd(), R2.getEnd());
 
-  // If the resulting range is empty, just return None.
+  // If the resulting range is empty, just return std::nullopt.
   auto Ret = InductiveRangeCheck::Range(NewBegin, NewEnd);
   if (Ret.isEmpty(SE, /* IsSigned */ true))
     return std::nullopt;
@@ -1762,7 +1761,7 @@ IntersectUnsignedRange(ScalarEvolution &SE,
   const SCEV *NewBegin = SE.getUMaxExpr(R1Value.getBegin(), R2.getBegin());
   const SCEV *NewEnd = SE.getUMinExpr(R1Value.getEnd(), R2.getEnd());
 
-  // If the resulting range is empty, just return None.
+  // If the resulting range is empty, just return std::nullopt.
   auto Ret = InductiveRangeCheck::Range(NewBegin, NewEnd);
   if (Ret.isEmpty(SE, /* IsSigned */ false))
     return std::nullopt;

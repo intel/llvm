@@ -21,7 +21,7 @@
 #endif
 #endif
 
-#if __has_attribute(sycl_special_class)
+#if __has_attribute(sycl_special_class) && (defined __SYCL_DEVICE_ONLY__)
 #define __SYCL_SPECIAL_CLASS __attribute__((sycl_special_class))
 #else
 #define __SYCL_SPECIAL_CLASS

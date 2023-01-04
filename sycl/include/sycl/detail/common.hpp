@@ -30,11 +30,11 @@ namespace detail {
 // TODO: Align these checks with the SYCL specification when the behaviour
 // with void * is clarified.
 template <typename DataT>
-using EnableIfOutputPointerT = std::enable_if_t<
+using EnableIfOutputPointerT = detail::enable_if_t<
     /*is_output_iterator<DataT>::value &&*/ std::is_pointer<DataT>::value>;
 
 template <typename DataT>
-using EnableIfOutputIteratorT = std::enable_if_t<
+using EnableIfOutputIteratorT = detail::enable_if_t<
     /*is_output_iterator<DataT>::value &&*/ !std::is_pointer<DataT>::value>;
 
 #if !defined(NDEBUG) && (_MSC_VER > 1929 || __has_builtin(__builtin_FILE))
@@ -118,6 +118,58 @@ private:
 #define _CODELOCARG(a) const detail::code_location a = {}
 #define _CODELOCFW(a)
 #endif
+
+/// @brief Data type that manages the code_location information in TLS
+/// @details As new SYCL features are added, they all enable the propagation of
+/// the code location information where the SYCL API was called by the
+/// application layer. In order to facilitate this, the tls_code_loc_t object
+/// assists in managing the data in TLS :
+///   (1) Populate the information when you at the top level function in the
+///   call chain. This is usually the end-user entry point function into SYCL.
+///   (2) Remove the information when the object goes out of scope in the top
+///   level function.
+///
+/// Usage:-
+///   void bar() {
+///     tls_code_loc_t p;
+///     // Print the source information of where foo() was called in main()
+///     std::cout << p.query().fileName() << ":" << p.query().lineNumber() <<
+///     std::endl;
+///   }
+///   // Will work for arbitrary call chain lengths.
+///   void bar1() {bar();}
+///
+///   // Foo() is equivalent to a SYCL end user entry point such as
+///   // queue.memcpy() or queue.copy()
+///   void foo(const code_location &loc) {
+///     tls_code_loc_t tp(loc);
+///     bar1();
+///   }
+///
+///   void main() {
+///     foo(const code_location &loc = code_location::current());
+///   }
+class __SYCL_EXPORT tls_code_loc_t {
+public:
+  /// @brief Consructor that checks to see if a TLS entry already exists
+  /// @details If a previous populated TLS entry exists, this constructor will
+  /// capture the informationa and allow you to query the information later.
+  tls_code_loc_t();
+  /// @brief Iniitializes TLS with CodeLoc if a TLS entry not present
+  /// @param CodeLoc The code location information to set up the TLS slot with.
+  tls_code_loc_t(const detail::code_location &CodeLoc);
+  /// If the code location is set up by this instance, reset it.
+  ~tls_code_loc_t();
+  /// @brief  Query the information in the TLS slot
+  /// @return The code location information saved in the TLS slot. If not TLS
+  /// entry has been set up, a default coe location is returned.
+  const detail::code_location &query();
+
+private:
+  // The flag that is used to determine if the object is in a local scope or in
+  // the top level scope.
+  bool MLocalScope = true;
+};
 
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)

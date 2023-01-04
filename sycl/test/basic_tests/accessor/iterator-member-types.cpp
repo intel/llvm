@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -c %s
+// RUN: %clangxx -fsycl -fsyntax-only %s
 //
 // Purpose of this test is to check that [accessor|host_accessor]::iterator and
 // ::const_iterator are aliased to the correct type.

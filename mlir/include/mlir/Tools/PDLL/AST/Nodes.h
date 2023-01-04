@@ -508,7 +508,7 @@ public:
                                ArrayRef<Expr *> resultTypes,
                                ArrayRef<NamedAttributeDecl *> attributes);
 
-  /// Return the name of the operation, or None if there isn't one.
+  /// Return the name of the operation, or std::nullopt if there isn't one.
   Optional<StringRef> getName() const;
 
   /// Return the declaration of the operation name.
@@ -668,7 +668,7 @@ public:
   void setDocComment(Context &ctx, StringRef comment);
 
   /// Return the documentation comment attached to this decl if it has been set.
-  /// Otherwise, returns None.
+  /// Otherwise, returns std::nullopt.
   Optional<StringRef> getDocComment() const { return docComment; }
 
 protected:
@@ -764,7 +764,7 @@ public:
   static OpConstraintDecl *create(Context &ctx, SMRange loc,
                                   const OpNameDecl *nameDecl = nullptr);
 
-  /// Return the name of the operation, or None if there isn't one.
+  /// Return the name of the operation, or std::nullopt if there isn't one.
   Optional<StringRef> getName() const;
 
   /// Return the declaration of the operation name.
@@ -901,8 +901,8 @@ public:
     return const_cast<UserConstraintDecl *>(this)->getInputs();
   }
 
-  /// Return the explicit native type to use for the given input. Returns None
-  /// if no explicit type was set.
+  /// Return the explicit native type to use for the given input. Returns
+  /// std::nullopt if no explicit type was set.
   Optional<StringRef> getNativeInputType(unsigned index) const;
 
   /// Return the explicit results of the constraint declaration. May be empty,
@@ -1028,7 +1028,7 @@ public:
                              bool hasBoundedRecursion,
                              const CompoundStmt *body);
 
-  /// Return the benefit of this pattern if specified, or None.
+  /// Return the benefit of this pattern if specified, or std::nullopt.
   Optional<uint16_t> getBenefit() const { return benefit; }
 
   /// Return if this pattern has bounded rewrite recursion.

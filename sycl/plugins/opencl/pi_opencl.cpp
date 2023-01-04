@@ -166,7 +166,9 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
   thread_local static std::map<pi_context, T> FuncPtrs;
 
   // if cached, return cached FuncPtr
-  if (auto F = FuncPtrs[context]) {
+  auto It = FuncPtrs.find(context);
+  if (It != FuncPtrs.end()) {
+    auto F = It->second;
     // if cached that extension is not available return nullptr and
     // PI_ERROR_INVALID_VALUE
     *fptr = F;
@@ -775,7 +777,7 @@ pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
     return cast<pi_result>(Res);
 
   std::string ClResult(Size, ' ');
-  ret_err =
+  Res =
       clGetProgramInfo(cast<cl_program>(program), PI_PROGRAM_INFO_KERNEL_NAMES,
                        ClResult.size(), &ClResult[0], nullptr);
   if (Res != CL_SUCCESS)

@@ -76,7 +76,7 @@ struct is_sycl_accessor_with
 
 template <typename T, accessor_mode_cap_val_t Capability,
           sycl::access::target AccessTarget, typename RetT>
-using EnableIfAccessor = std::enable_if_t<
+using EnableIfAccessor = sycl::detail::enable_if_t<
     detail::is_sycl_accessor_with<T, Capability, AccessTarget>::value, RetT>;
 
 } // namespace ext::intel::esimd::detail

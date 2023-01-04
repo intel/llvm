@@ -157,7 +157,6 @@ set(SYCL_SOURCES
     "detail/scheduler/commands.cpp"
     "detail/scheduler/leaves_collection.cpp"
     "detail/scheduler/scheduler.cpp"
-    "detail/scheduler/scheduler_helpers.cpp"
     "detail/scheduler/graph_processor.cpp"
     "detail/scheduler/graph_builder.cpp"
     "detail/spec_constant_impl.cpp"

@@ -63,6 +63,7 @@
 #include "llvm/Support/Threading.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/YAMLParser.h"
+#include <optional>
 
 using namespace clang::driver;
 using namespace clang::driver::tools;
@@ -782,6 +783,11 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
     else
       D.Diag(clang::diag::warn_drv_fjmc_for_elf_only);
   }
+
+  if (Args.hasFlag(options::OPT_fstack_size_section,
+                   options::OPT_fno_stack_size_section, false))
+    CmdArgs.push_back(
+        Args.MakeArgString(Twine(PluginOptPrefix) + "-stack-size-section"));
 
   // Setup statistics file output.
   SmallString<128> StatsFile = getStatsFileName(Args, Output, Input, D);
@@ -2162,7 +2168,7 @@ void tools::AddStaticDeviceLibs(Compilation *C, const Tool *T,
 
   SmallVector<std::string, 8> LibraryPaths;
   // Add search directories from LIBRARY_PATH env variable
-  llvm::Optional<std::string> LibPath =
+  std::optional<std::string> LibPath =
       llvm::sys::Process::GetEnv("LIBRARY_PATH");
   if (LibPath) {
     SmallVector<StringRef, 8> Frags;
@@ -2329,7 +2335,7 @@ void tools::addOpenMPDeviceRTL(const Driver &D,
   LibraryPaths.emplace_back(DefaultLibPath.c_str());
 
   // Add user defined library paths from LIBRARY_PATH.
-  llvm::Optional<std::string> LibPath =
+  std::optional<std::string> LibPath =
       llvm::sys::Process::GetEnv("LIBRARY_PATH");
   if (LibPath) {
     SmallVector<StringRef, 8> Frags;

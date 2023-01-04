@@ -15,7 +15,6 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitmaskEnum.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -598,11 +597,12 @@ public:
 
 private:
   std::optional<ChecksumInfo<MDString *>> Checksum;
-  std::optional<MDString *> Source;
+  /// An optional source. A nullptr means none.
+  MDString *Source;
 
   DIFile(LLVMContext &C, StorageType Storage,
-         std::optional<ChecksumInfo<MDString *>> CS,
-         std::optional<MDString *> Src, ArrayRef<Metadata *> Ops);
+         std::optional<ChecksumInfo<MDString *>> CS, MDString *Src,
+         ArrayRef<Metadata *> Ops);
   ~DIFile() = default;
 
   static DIFile *getImpl(LLVMContext &Context, StringRef Filename,
@@ -615,15 +615,13 @@ private:
       MDChecksum.emplace(CS->Kind, getCanonicalMDString(Context, CS->Value));
     return getImpl(Context, getCanonicalMDString(Context, Filename),
                    getCanonicalMDString(Context, Directory), MDChecksum,
-                   Source ? std::optional<MDString *>(
-                                getCanonicalMDString(Context, *Source))
-                          : std::nullopt,
-                   Storage, ShouldCreate);
+                   Source ? MDString::get(Context, *Source) : nullptr, Storage,
+                   ShouldCreate);
   }
   static DIFile *getImpl(LLVMContext &Context, MDString *Filename,
                          MDString *Directory,
                          std::optional<ChecksumInfo<MDString *>> CS,
-                         std::optional<MDString *> Source, StorageType Storage,
+                         MDString *Source, StorageType Storage,
                          bool ShouldCreate = true);
 
   TempDIFile cloneImpl() const {
@@ -640,7 +638,7 @@ public:
   DEFINE_MDNODE_GET(DIFile,
                     (MDString * Filename, MDString *Directory,
                      std::optional<ChecksumInfo<MDString *>> CS = std::nullopt,
-                     std::optional<MDString *> Source = std::nullopt),
+                     MDString *Source = nullptr),
                     (Filename, Directory, CS, Source))
 
   TempDIFile clone() const { return cloneImpl(); }
@@ -654,7 +652,7 @@ public:
     return StringRefChecksum;
   }
   std::optional<StringRef> getSource() const {
-    return Source ? std::optional<StringRef>((*Source)->getString())
+    return Source ? std::optional<StringRef>(Source->getString())
                   : std::nullopt;
   }
 
@@ -663,7 +661,7 @@ public:
   std::optional<ChecksumInfo<MDString *>> getRawChecksum() const {
     return Checksum;
   }
-  std::optional<MDString *> getRawSource() const { return Source; }
+  MDString *getRawSource() const { return Source; }
 
   static StringRef getChecksumKindAsString(ChecksumKind CSKind);
   static std::optional<ChecksumKind> getChecksumKind(StringRef CSKindStr);
@@ -860,8 +858,8 @@ public:
 
   enum class Signedness { Signed, Unsigned };
 
-  /// Return the signedness of this type, or None if this type is neither
-  /// signed nor unsigned.
+  /// Return the signedness of this type, or std::nullopt if this type is
+  /// neither signed nor unsigned.
   std::optional<Signedness> getSignedness() const;
 
   static bool classof(const Metadata *MD) {
@@ -1581,6 +1579,13 @@ public:
   /// chain.
   DISubprogram *getSubprogram() const;
 
+  /// Traverses the scope chain rooted at RootScope until it hits a Subprogram,
+  /// recreating the chain with "NewSP" instead.
+  static DILocalScope *
+  cloneScopeForSubprogram(DILocalScope &RootScope, DISubprogram &NewSP,
+                          LLVMContext &Ctx,
+                          DenseMap<const MDNode *, MDNode *> &Cache);
+
   /// Get the first non DILexicalBlockFile scope of this scope.
   ///
   /// Return this if it's not a \a DILexicalBlockFIle; otherwise, look up the
@@ -1728,7 +1733,7 @@ public:
   /// Returns a new DILocation with updated base discriminator \p BD. Only the
   /// base discriminator is set in the new DILocation, the other encoded values
   /// are elided.
-  /// If the discriminator cannot be encoded, the function returns None.
+  /// If the discriminator cannot be encoded, the function returns std::nullopt.
   inline std::optional<const DILocation *>
   cloneWithBaseDiscriminator(unsigned BD) const;
 
@@ -1745,7 +1750,7 @@ public:
   /// Returns a new DILocation with duplication factor \p DF * current
   /// duplication factor encoded in the discriminator. The current duplication
   /// factor is as defined by getDuplicationFactor().
-  /// Returns None if encoding failed.
+  /// Returns std::nullopt if encoding failed.
   inline std::optional<const DILocation *>
   cloneByMultiplyingDuplicationFactor(unsigned DF) const;
 
@@ -1802,9 +1807,9 @@ public:
   /// \p DF: duplication factor
   /// \p CI: copy index
   ///
-  /// The return is None if the values cannot be encoded in 32 bits - for
-  /// example, values for BD or DF larger than 12 bits. Otherwise, the return is
-  /// the encoded value.
+  /// The return is std::nullopt if the values cannot be encoded in 32 bits -
+  /// for example, values for BD or DF larger than 12 bits. Otherwise, the
+  /// return is the encoded value.
   static std::optional<unsigned> encodeDiscriminator(unsigned BD, unsigned DF,
                                                      unsigned CI);
 
@@ -2120,6 +2125,11 @@ public:
   DILocalScope *getScope() const { return cast<DILocalScope>(getRawScope()); }
 
   Metadata *getRawScope() const { return getOperand(1); }
+
+  void replaceScope(DIScope *Scope) {
+    assert(!isUniqued());
+    setOperand(1, Scope);
+  }
 
   static bool classof(const Metadata *MD) {
     return MD->getMetadataID() == DILexicalBlockKind ||
@@ -2552,8 +2562,8 @@ public:
   /// Determines the size of the variable's type.
   std::optional<uint64_t> getSizeInBits() const;
 
-  /// Return the signedness of this variable's type, or None if this type is
-  /// neither signed nor unsigned.
+  /// Return the signedness of this variable's type, or std::nullopt if this
+  /// type is neither signed nor unsigned.
   std::optional<DIBasicType::Signedness> getSignedness() const {
     if (auto *BT = dyn_cast<DIBasicType>(getType()))
       return BT->getSignedness();

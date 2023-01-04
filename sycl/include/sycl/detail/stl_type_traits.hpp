@@ -20,6 +20,9 @@ namespace detail {
 // Type traits identical to those in std in newer versions. Can be removed when
 // SYCL requires a newer version of the C++ standard.
 // C++14
+template <bool B, class T = void>
+using enable_if_t = typename std::enable_if<B, T>::type;
+
 template <bool B, class T, class F>
 using conditional_t = typename std::conditional<B, T, F>::type;
 

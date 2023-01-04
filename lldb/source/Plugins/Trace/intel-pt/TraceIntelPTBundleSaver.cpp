@@ -18,7 +18,6 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Target/ThreadList.h"
 #include "lldb/lldb-types.h"
-#include "llvm/ADT/None.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/JSON.h"
 #include <fstream>
@@ -131,9 +130,9 @@ BuildThreadsSection(Process &process, FileSpec directory) {
 }
 
 /// \return
-///   an \a llvm::Error in case of failures, \a None if the trace is not written
-///   to disk because the trace is empty and the \p compact flag is present, or
-///   the FileSpec of the trace file on disk.
+///   an \a llvm::Error in case of failures, \a std::nullopt if the trace is not
+///   written to disk because the trace is empty and the \p compact flag is
+///   present, or the FileSpec of the trace file on disk.
 static Expected<Optional<FileSpec>>
 WriteContextSwitchTrace(TraceIntelPT &trace_ipt, lldb::cpu_id_t cpu_id,
                         const FileSpec &cpus_dir, bool compact) {
@@ -170,7 +169,7 @@ WriteContextSwitchTrace(TraceIntelPT &trace_ipt, lldb::cpu_id_t cpu_id,
     return std::move(err);
 
   if (should_skip)
-    return None;
+    return std::nullopt;
   return output_context_switch_trace;
 }
 
@@ -193,7 +192,7 @@ static Expected<FileSpec> WriteIntelPTTrace(TraceIntelPT &trace_ipt,
 static llvm::Expected<llvm::Optional<std::vector<JSONCpu>>>
 BuildCpusSection(TraceIntelPT &trace_ipt, FileSpec directory, bool compact) {
   if (trace_ipt.GetTracedCpus().empty())
-    return None;
+    return std::nullopt;
 
   std::vector<JSONCpu> json_cpus;
   FileSpec cpus_dir = directory;

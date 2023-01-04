@@ -76,13 +76,13 @@ public:
 #endif // __SYCL_DISABLE_ITEM_TO_INT_CONV__
   template <bool has_offset = with_offset>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
-  std::enable_if_t<has_offset, id<dimensions>> get_offset() const {
+  detail::enable_if_t<has_offset, id<dimensions>> get_offset() const {
     return MImpl.MOffset;
   }
 
   template <bool has_offset = with_offset>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
-  std::enable_if_t<has_offset, size_t> __SYCL_ALWAYS_INLINE
+  detail::enable_if_t<has_offset, size_t> __SYCL_ALWAYS_INLINE
       get_offset(int dimension) const {
     size_t Id = MImpl.MOffset[dimension];
     __SYCL_ASSUME_INT(Id);
@@ -90,7 +90,7 @@ public:
   }
 
   template <bool has_offset = with_offset>
-  operator std::enable_if_t<!has_offset, item<dimensions, true>>() const {
+  operator detail::enable_if_t<!has_offset, item<dimensions, true>>() const {
     return detail::Builder::createItem<dimensions, true>(
         MImpl.MExtent, MImpl.MIndex, /*Offset*/ {});
   }
@@ -115,12 +115,12 @@ public:
 
 protected:
   template <bool has_offset = with_offset>
-  item(std::enable_if_t<has_offset, const range<dimensions>> &extent,
+  item(detail::enable_if_t<has_offset, const range<dimensions>> &extent,
        const id<dimensions> &index, const id<dimensions> &offset)
       : MImpl{extent, index, offset} {}
 
   template <bool has_offset = with_offset>
-  item(std::enable_if_t<!has_offset, const range<dimensions>> &extent,
+  item(detail::enable_if_t<!has_offset, const range<dimensions>> &extent,
        const id<dimensions> &index)
       : MImpl{extent, index} {}
 

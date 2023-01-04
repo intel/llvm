@@ -2535,7 +2535,7 @@ LSRInstance::OptimizeLoopTermCond() {
         ICmpInst *OldCond = Cond;
         Cond = cast<ICmpInst>(Cond->clone());
         Cond->setName(L->getHeader()->getName() + ".termcond");
-        ExitingBlock->getInstList().insert(TermBr->getIterator(), Cond);
+        Cond->insertAt(ExitingBlock, TermBr->getIterator());
 
         // Clone the IVUse, as the old use still exists!
         CondUse = &IU.AddUser(Cond, CondUse->getOperandValToReplace());
@@ -6436,7 +6436,7 @@ static bool SalvageDVI(llvm::Loop *L, ScalarEvolution &SE,
 
     // Create an offset-based salvage expression if possible, as it requires
     // less DWARF ops than an iteration count-based expression.
-    if (Optional<APInt> Offset =
+    if (std::optional<APInt> Offset =
             SE.computeConstantDifference(DVIRec.SCEVs[i], SCEVInductionVar)) {
       if (Offset.value().getMinSignedBits() <= 64)
         SalvageExpr->createOffsetExpr(Offset.value().getSExtValue(),

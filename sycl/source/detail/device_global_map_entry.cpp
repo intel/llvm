@@ -52,9 +52,9 @@ DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
   if (DGUSMPtr != MDeviceToUSMPtrMap.end())
     return DGUSMPtr->second;
 
-  void *NewDGUSMPtr =
-      detail::usm::alignedAlloc(0, MDeviceGlobalTSize, CtxImpl.get(),
-                                DevImpl.get(), sycl::usm::alloc::device);
+  void *NewDGUSMPtr = detail::usm::alignedAllocInternal(
+      0, MDeviceGlobalTSize, CtxImpl.get(), DevImpl.get(),
+      sycl::usm::alloc::device);
 
   auto NewAllocIt = MDeviceToUSMPtrMap.emplace(
       std::piecewise_construct,
@@ -85,7 +85,7 @@ void DeviceGlobalMapEntry::removeAssociatedResources(
         MDeviceToUSMPtrMap.find({getSyclObjImpl(Device).get(), CtxImpl});
     if (USMPtrIt != MDeviceToUSMPtrMap.end()) {
       DeviceGlobalUSMMem &USMMem = USMPtrIt->second;
-      detail::usm::free(USMMem.MPtr, CtxImpl);
+      detail::usm::freeInternal(USMMem.MPtr, CtxImpl);
       if (USMMem.MZeroInitEvent.has_value())
         CtxImpl->getPlugin().call<PiApiKind::piEventRelease>(
             *USMMem.MZeroInitEvent);

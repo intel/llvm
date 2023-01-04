@@ -75,7 +75,7 @@ using is_validImageDataT = typename detail::is_contained<
 
 template <typename DataT>
 using EnableIfImgAccDataT =
-    typename std::enable_if_t<is_validImageDataT<DataT>::value, DataT>;
+    typename detail::enable_if_t<is_validImageDataT<DataT>::value, DataT>;
 
 // The non-template base for the sycl::image class
 class __SYCL_EXPORT image_plain {
@@ -201,7 +201,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range,
-        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         const property_list &PropList = {})
       : image_plain(Order, Type, detail::convertToArrayOfN<3, 1>(Range),
                     detail::convertToArrayOfN<2, 0>(Pitch),
@@ -213,7 +213,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range,
-        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         AllocatorT Allocator, const property_list &PropList = {})
       : image_plain(
             Order, Type, detail::convertToArrayOfN<3, 1>(Range),
@@ -261,7 +261,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(void *HostPointer, image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range,
-        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         const property_list &PropList = {})
       : image_plain(HostPointer, Order, Type,
                     detail::convertToArrayOfN<3, 1>(Range),
@@ -274,7 +274,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(void *HostPointer, image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range,
-        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         AllocatorT Allocator, const property_list &PropList = {})
       : image_plain(
             HostPointer, Order, Type, detail::convertToArrayOfN<3, 1>(Range),
@@ -305,7 +305,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(std::shared_ptr<void> &HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
-        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         const property_list &PropList = {})
       : image_plain(HostPointer, Order, Type,
                     detail::convertToArrayOfN<3, 1>(Range),
@@ -318,7 +318,7 @@ public:
   template <bool B = (Dimensions > 1)>
   image(std::shared_ptr<void> &HostPointer, image_channel_order Order,
         image_channel_type Type, const range<Dimensions> &Range,
-        const typename std::enable_if_t<B, range<Dimensions - 1>> &Pitch,
+        const typename detail::enable_if_t<B, range<Dimensions - 1>> &Pitch,
         AllocatorT Allocator, const property_list &PropList = {})
       : image_plain(
             HostPointer, Order, Type, detail::convertToArrayOfN<3, 1>(Range),
@@ -367,7 +367,7 @@ public:
 
   /* Available only when: dimensions >1 */
   template <bool B = (Dimensions > 1)>
-  typename std::enable_if_t<B, range<Dimensions - 1>> get_pitch() const {
+  typename detail::enable_if_t<B, range<Dimensions - 1>> get_pitch() const {
     return detail::convertToArrayOfN<Dimensions - 1, 0>(
         image_plain::get_pitch());
   }
@@ -417,7 +417,7 @@ public:
   }
 
   template <template <typename WeakT> class WeakPtrT, typename WeakT>
-  std::enable_if_t<
+  detail::enable_if_t<
       std::is_convertible<WeakPtrT<WeakT>, std::weak_ptr<WeakT>>::value>
   set_final_data_internal(WeakPtrT<WeakT> FinalData) {
     std::weak_ptr<WeakT> TempFinalData(FinalData);

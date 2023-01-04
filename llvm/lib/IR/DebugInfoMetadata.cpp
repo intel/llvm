@@ -801,8 +801,8 @@ DISubroutineType *DISubroutineType::getImpl(LLVMContext &Context, DIFlags Flags,
 }
 
 DIFile::DIFile(LLVMContext &C, StorageType Storage,
-               std::optional<ChecksumInfo<MDString *>> CS,
-               std::optional<MDString *> Src, ArrayRef<Metadata *> Ops)
+               std::optional<ChecksumInfo<MDString *>> CS, MDString *Src,
+               ArrayRef<Metadata *> Ops)
     : DIScope(C, DIFileKind, Storage, dwarf::DW_TAG_file_type, Ops),
       Checksum(CS), Source(Src) {}
 
@@ -834,15 +834,15 @@ DIFile::getChecksumKind(StringRef CSKindStr) {
 DIFile *DIFile::getImpl(LLVMContext &Context, MDString *Filename,
                         MDString *Directory,
                         std::optional<DIFile::ChecksumInfo<MDString *>> CS,
-                        std::optional<MDString *> Source, StorageType Storage,
+                        MDString *Source, StorageType Storage,
                         bool ShouldCreate) {
   assert(isCanonical(Filename) && "Expected canonical MDString");
   assert(isCanonical(Directory) && "Expected canonical MDString");
   assert((!CS || isCanonical(CS->Value)) && "Expected canonical MDString");
-  assert((!Source || isCanonical(*Source)) && "Expected canonical MDString");
+  // We do *NOT* expect Source to be a canonical MDString because nullptr
+  // means none, so we need something to represent the empty file.
   DEFINE_GETIMPL_LOOKUP(DIFile, (Filename, Directory, CS, Source));
-  Metadata *Ops[] = {Filename, Directory, CS ? CS->Value : nullptr,
-                     Source.value_or(nullptr)};
+  Metadata *Ops[] = {Filename, Directory, CS ? CS->Value : nullptr, Source};
   DEFINE_GETIMPL_STORE(DIFile, (CS, Source), Ops);
 }
 DICompileUnit::DICompileUnit(LLVMContext &C, StorageType Storage,
@@ -972,6 +972,35 @@ DILocalScope *DILocalScope::getNonLexicalBlockFileScope() const {
   if (auto *File = dyn_cast<DILexicalBlockFile>(this))
     return File->getScope()->getNonLexicalBlockFileScope();
   return const_cast<DILocalScope *>(this);
+}
+
+DILocalScope *DILocalScope::cloneScopeForSubprogram(
+    DILocalScope &RootScope, DISubprogram &NewSP, LLVMContext &Ctx,
+    DenseMap<const MDNode *, MDNode *> &Cache) {
+  SmallVector<DIScope *> ScopeChain;
+  DIScope *CachedResult = nullptr;
+
+  for (DIScope *Scope = &RootScope; !isa<DISubprogram>(Scope);
+       Scope = Scope->getScope()) {
+    if (auto It = Cache.find(Scope); It != Cache.end()) {
+      CachedResult = cast<DIScope>(It->second);
+      break;
+    }
+    ScopeChain.push_back(Scope);
+  }
+
+  // Recreate the scope chain, bottom-up, starting at the new subprogram (or a
+  // cached result).
+  DIScope *UpdatedScope = CachedResult ? CachedResult : &NewSP;
+  for (DIScope *ScopeToUpdate : reverse(ScopeChain)) {
+    TempMDNode ClonedScope = ScopeToUpdate->clone();
+    cast<DILexicalBlockBase>(*ClonedScope).replaceScope(UpdatedScope);
+    UpdatedScope =
+        cast<DIScope>(MDNode::replaceWithUniqued(std::move(ClonedScope)));
+    Cache[ScopeToUpdate] = UpdatedScope;
+  }
+
+  return cast<DILocalScope>(UpdatedScope);
 }
 
 DISubprogram::DISPFlags DISubprogram::getFlag(StringRef Flag) {

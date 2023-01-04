@@ -21,6 +21,7 @@
 struct DummyHandleT {
   DummyHandleT(size_t DataSize = 0)
       : MStorage(DataSize), MData(MStorage.data()) {}
+  DummyHandleT(unsigned char *Data) : MData(Data) {}
   std::atomic<size_t> MRefCounter = 1;
   std::vector<unsigned char> MStorage;
   unsigned char *MData = nullptr;
@@ -33,6 +34,13 @@ using DummyHandlePtrT = DummyHandleT *;
 // memory. The handle has to be deallocated using 'releaseDummyHandle'.
 template <class T> inline T createDummyHandle(size_t Size = 0) {
   DummyHandlePtrT DummyHandlePtr = new DummyHandleT(Size);
+  return reinterpret_cast<T>(DummyHandlePtr);
+}
+
+// Allocates a dummy handle of type T with support of reference counting
+// and associates it with the provided Data.
+template <class T> inline T createDummyHandleWithData(unsigned char *Data) {
+  DummyHandlePtrT DummyHandlePtr = new DummyHandleT(Data);
   return reinterpret_cast<T>(DummyHandlePtr);
 }
 
@@ -385,7 +393,11 @@ inline pi_result
 mock_piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
                        void *host_ptr, pi_mem *ret_mem,
                        const pi_mem_properties *properties = nullptr) {
-  *ret_mem = createDummyHandle<pi_mem>(size);
+  if (host_ptr && flags & PI_MEM_FLAGS_HOST_PTR_USE)
+    *ret_mem = createDummyHandleWithData<pi_mem>(
+        reinterpret_cast<unsigned char *>(host_ptr));
+  else
+    *ret_mem = createDummyHandle<pi_mem>(size);
   return PI_SUCCESS;
 }
 

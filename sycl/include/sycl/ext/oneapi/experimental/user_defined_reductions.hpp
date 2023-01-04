@@ -14,14 +14,10 @@
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::oneapi::experimental {
-
-// ---- reduce_over_group
+namespace detail {
 template <typename GroupHelper, typename T, typename BinaryOperation>
-std::enable_if_t<(is_group_helper_v<GroupHelper>), T>
-reduce_over_group(GroupHelper group_helper, T x, BinaryOperation binary_op) {
-  if constexpr (sycl::detail::is_native_op<T, BinaryOperation>::value) {
-    return sycl::reduce_over_group(group_helper.get_group(), x, binary_op);
-  }
+T reduce_over_group_impl(GroupHelper group_helper, T x, size_t num_elements,
+                         BinaryOperation binary_op) {
 #ifdef __SYCL_DEVICE_ONLY__
   T *Memory = reinterpret_cast<T *>(group_helper.get_memory().data());
   auto g = group_helper.get_group();
@@ -29,7 +25,7 @@ reduce_over_group(GroupHelper group_helper, T x, BinaryOperation binary_op) {
   group_barrier(g);
   T result = Memory[0];
   if (g.leader()) {
-    for (int i = 1; i < g.get_local_linear_range(); i++) {
+    for (int i = 1; i < num_elements; i++) {
       result = binary_op(result, Memory[i]);
     }
   }
@@ -37,6 +33,27 @@ reduce_over_group(GroupHelper group_helper, T x, BinaryOperation binary_op) {
   return group_broadcast(g, result);
 #else
   std::ignore = group_helper;
+  std::ignore = x;
+  std::ignore = num_elements;
+  std::ignore = binary_op;
+  throw runtime_error("Group algorithms are not supported on host.",
+                      PI_ERROR_INVALID_DEVICE);
+#endif
+}
+} // namespace detail
+
+// ---- reduce_over_group
+template <typename GroupHelper, typename T, typename BinaryOperation>
+sycl::detail::enable_if_t<(is_group_helper_v<GroupHelper>), T>
+reduce_over_group(GroupHelper group_helper, T x, BinaryOperation binary_op) {
+  if constexpr (sycl::detail::is_native_op<T, BinaryOperation>::value) {
+    return sycl::reduce_over_group(group_helper.get_group(), x, binary_op);
+  }
+#ifdef __SYCL_DEVICE_ONLY__
+  return detail::reduce_over_group_impl(
+      group_helper, x, group_helper.get_group().get_local_linear_range(),
+      binary_op);
+#else
   throw runtime_error("Group algorithms are not supported on host.",
                       PI_ERROR_INVALID_DEVICE);
 #endif
@@ -44,7 +61,7 @@ reduce_over_group(GroupHelper group_helper, T x, BinaryOperation binary_op) {
 
 template <typename GroupHelper, typename V, typename T,
           typename BinaryOperation>
-std::enable_if_t<(is_group_helper_v<GroupHelper>), T>
+sycl::detail::enable_if_t<(is_group_helper_v<GroupHelper>), T>
 reduce_over_group(GroupHelper group_helper, V x, T init,
                   BinaryOperation binary_op) {
   if constexpr (sycl::detail::is_native_op<V, BinaryOperation>::value &&
@@ -63,9 +80,9 @@ reduce_over_group(GroupHelper group_helper, V x, T init,
 
 // ---- joint_reduce
 template <typename GroupHelper, typename Ptr, typename BinaryOperation>
-std::enable_if_t<(is_group_helper_v<GroupHelper> &&
-                  sycl::detail::is_pointer<Ptr>::value),
-                 typename std::iterator_traits<Ptr>::value_type>
+sycl::detail::enable_if_t<(is_group_helper_v<GroupHelper> &&
+                           sycl::detail::is_pointer<Ptr>::value),
+                          typename std::iterator_traits<Ptr>::value_type>
 joint_reduce(GroupHelper group_helper, Ptr first, Ptr last,
              BinaryOperation binary_op) {
   if constexpr (sycl::detail::is_native_op<
@@ -84,7 +101,10 @@ joint_reduce(GroupHelper group_helper, Ptr first, Ptr last,
   sycl::detail::for_each(g, second, last,
                          [&](const T &x) { partial = binary_op(partial, x); });
   group_barrier(g);
-  return reduce_over_group(group_helper, partial, binary_op);
+  size_t num_elements = last - first;
+  num_elements = std::min(num_elements, g.get_local_linear_range());
+  return detail::reduce_over_group_impl(group_helper, partial, num_elements,
+                                        binary_op);
 #else
   std::ignore = group_helper;
   std::ignore = first;
@@ -97,7 +117,7 @@ joint_reduce(GroupHelper group_helper, Ptr first, Ptr last,
 
 template <typename GroupHelper, typename Ptr, typename T,
           typename BinaryOperation>
-std::enable_if_t<
+sycl::detail::enable_if_t<
     (is_group_helper_v<GroupHelper> && sycl::detail::is_pointer<Ptr>::value), T>
 joint_reduce(GroupHelper group_helper, Ptr first, Ptr last, T init,
              BinaryOperation binary_op) {

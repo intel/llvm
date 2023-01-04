@@ -168,6 +168,8 @@ static std::string commandToNodeType(Command::CommandType Type) {
     return "host_acc_create_buffer_lock_node";
   case Command::CommandType::EMPTY_TASK:
     return "host_acc_destroy_buffer_release_node";
+  case Command::CommandType::FUSION:
+    return "kernel_fusion_placeholder_node";
   default:
     return "unknown_node";
   }
@@ -196,6 +198,8 @@ static std::string commandToName(Command::CommandType Type) {
     return "Host Accessor Creation/Buffer Lock";
   case Command::CommandType::EMPTY_TASK:
     return "Host Accessor Destruction/Buffer Lock Release";
+  case Command::CommandType::FUSION:
+    return "Kernel Fusion Placeholder";
   default:
     return "Unknown Action";
   }
@@ -619,6 +623,11 @@ bool Command::producesPiEvent() const { return true; }
 
 bool Command::supportsPostEnqueueCleanup() const { return true; }
 
+bool Command::readyForCleanup() const {
+  return MLeafCounter == 0 &&
+         MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess;
+}
+
 Command *Command::addDep(DepDesc NewDep, std::vector<Command *> &ToCleanUp) {
   Command *ConnectionCmd = nullptr;
 
@@ -748,8 +757,8 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
     MEnqueueStatus = EnqueueResultT::SyclEnqueueSuccess;
     if (MLeafCounter == 0 && supportsPostEnqueueCleanup() &&
         !SYCLConfig<SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::get()) {
-      assert(!MPostEnqueueCleanup);
-      MPostEnqueueCleanup = true;
+      assert(!MMarkedForCleanup);
+      MMarkedForCleanup = true;
       ToCleanUp.push_back(this);
     }
   }
@@ -850,6 +859,8 @@ void AllocaCommandBase::emitInstrumentationData() {
 bool AllocaCommandBase::producesPiEvent() const { return false; }
 
 bool AllocaCommandBase::supportsPostEnqueueCleanup() const { return false; }
+
+bool AllocaCommandBase::readyForCleanup() const { return false; }
 
 AllocaCommand::AllocaCommand(QueueImplPtr Queue, Requirement Req,
                              bool InitFromUserData,
@@ -1127,6 +1138,8 @@ bool ReleaseCommand::producesPiEvent() const { return false; }
 
 bool ReleaseCommand::supportsPostEnqueueCleanup() const { return false; }
 
+bool ReleaseCommand::readyForCleanup() const { return false; }
+
 MapMemObject::MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req,
                            void **DstPtr, QueueImplPtr Queue,
                            access::mode MapMode)
@@ -1393,22 +1406,11 @@ AllocaCommandBase *ExecCGCommand::getAllocaForReq(Requirement *Req) {
                       PI_ERROR_INVALID_OPERATION);
 }
 
-std::vector<StreamImplPtr> ExecCGCommand::getStreams() const {
-  if (MCommandGroup->getType() == CG::Kernel)
-    return ((CGExecKernel *)MCommandGroup.get())->getStreams();
-  return {};
-}
-
 std::vector<std::shared_ptr<const void>>
 ExecCGCommand::getAuxiliaryResources() const {
   if (MCommandGroup->getType() == CG::Kernel)
     return ((CGExecKernel *)MCommandGroup.get())->getAuxiliaryResources();
   return {};
-}
-
-void ExecCGCommand::clearStreams() {
-  if (MCommandGroup->getType() == CG::Kernel)
-    ((CGExecKernel *)MCommandGroup.get())->clearStreams();
 }
 
 void ExecCGCommand::clearAuxiliaryResources() {
@@ -1714,12 +1716,7 @@ ExecCGCommand::ExecCGCommand(std::unique_ptr<detail::CG> CommandGroup,
   if (MCommandGroup->getType() == detail::CG::CodeplayHostTask) {
     MEvent->setSubmittedQueue(
         static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue);
-    MEvent->setNeedsCleanupAfterWait(true);
-  } else if (MCommandGroup->getType() == CG::CGTYPE::Kernel &&
-             (static_cast<CGExecKernel *>(MCommandGroup.get())->hasStreams() ||
-              static_cast<CGExecKernel *>(MCommandGroup.get())
-                  ->hasAuxiliaryResources()))
-    MEvent->setNeedsCleanupAfterWait(true);
+  }
 
   emitInstrumentationDataProxy();
 }
@@ -2601,15 +2598,135 @@ bool ExecCGCommand::producesPiEvent() const {
 }
 
 bool ExecCGCommand::supportsPostEnqueueCleanup() const {
-  // TODO enable cleaning up host task commands and kernels with streams after
-  // enqueue
+  // Host tasks are cleaned up upon completion instead.
   return Command::supportsPostEnqueueCleanup() &&
-         (MCommandGroup->getType() != CG::CGTYPE::CodeplayHostTask) &&
-         (MCommandGroup->getType() != CG::CGTYPE::Kernel ||
-          (!static_cast<CGExecKernel *>(MCommandGroup.get())->hasStreams() &&
-           !static_cast<CGExecKernel *>(MCommandGroup.get())
-                ->hasAuxiliaryResources()));
+         (MCommandGroup->getType() != CG::CGTYPE::CodeplayHostTask);
 }
+
+bool ExecCGCommand::readyForCleanup() const {
+  if (MCommandGroup->getType() == CG::CGTYPE::CodeplayHostTask)
+    return MLeafCounter == 0 && MEvent->isCompleted();
+  return Command::readyForCleanup();
+}
+
+KernelFusionCommand::KernelFusionCommand(QueueImplPtr Queue)
+    : Command(Command::CommandType::FUSION, Queue),
+      MStatus(FusionStatus::ACTIVE) {
+  emitInstrumentationDataProxy();
+}
+
+std::vector<Command *> &KernelFusionCommand::auxiliaryCommands() {
+  return MAuxiliaryCommands;
+}
+
+void KernelFusionCommand::addToFusionList(ExecCGCommand *Kernel) {
+  MFusionList.push_back(Kernel);
+}
+
+std::vector<ExecCGCommand *> &KernelFusionCommand::getFusionList() {
+  return MFusionList;
+}
+
+bool KernelFusionCommand::producesPiEvent() const { return false; }
+
+pi_int32 KernelFusionCommand::enqueueImp() {
+  waitForPreparedHostEvents();
+  waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
+
+  return PI_SUCCESS;
+}
+
+void KernelFusionCommand::setFusionStatus(FusionStatus Status) {
+  MStatus = Status;
+}
+
+void KernelFusionCommand::emitInstrumentationData() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (!xptiTraceEnabled()) {
+    return;
+  }
+  // Create a payload with the command name and an event using this payload to
+  // emit a node_create
+  MCommandNodeType = commandToNodeType(MType);
+  MCommandName = commandToName(MType);
+
+  static unsigned FusionNodeCount = 0;
+  std::stringstream PayloadStr;
+  PayloadStr << "Fusion command #" << FusionNodeCount++;
+  xpti::payload_t Payload = xpti::payload_t(PayloadStr.str().c_str());
+
+  uint64_t CommandInstanceNo = 0;
+  xpti_td *CmdTraceEvent =
+      xptiMakeEvent(MCommandName.c_str(), &Payload, xpti::trace_graph_event,
+                    xpti_at::active, &CommandInstanceNo);
+
+  MInstanceID = CommandInstanceNo;
+  if (CmdTraceEvent) {
+    MTraceEvent = static_cast<void *>(CmdTraceEvent);
+    // If we are seeing this event again, then the instance ID
+    // will be greater
+    // than 1; in this case, we must skip sending a
+    // notification to create a node as this node has already
+    // been created. We return this value so the epilog method
+    // can be called selectively.
+    // See makeTraceEventProlog.
+    MFirstInstance = (CommandInstanceNo == 1);
+  }
+
+  // This function is called in the constructor of the command. At this point
+  // the kernel fusion list is still empty, so we don't have a terrible lot of
+  // information we could attach to this node here.
+  if (MFirstInstance && CmdTraceEvent) {
+    xpti::addMetadata(CmdTraceEvent, "sycl_device",
+                      deviceToID(MQueue->get_device()));
+    xpti::addMetadata(CmdTraceEvent, "sycl_device_type",
+                      deviceToString(MQueue->get_device()));
+    xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
+                      getSyclObjImpl(MQueue->get_device())->getDeviceName());
+  }
+
+  if (MFirstInstance) {
+    xptiNotifySubscribers(MStreamID, xpti::trace_node_create,
+                          detail::GSYCLGraphEvent,
+                          static_cast<xpti_td *>(MTraceEvent), MInstanceID,
+                          static_cast<const void *>(MCommandNodeType.c_str()));
+  }
+
+#endif
+}
+
+void KernelFusionCommand::printDot(std::ostream &Stream) const {
+  Stream << "\"" << this << "\" [style=filled, fillcolor=\"#AFFF82\", label=\"";
+
+  Stream << "ID = " << this << "\\n";
+  Stream << "KERNEL FUSION on " << deviceToString(MQueue->get_device()) << "\\n"
+         << "FUSION LIST: {";
+  bool Initial = true;
+  for (auto *Cmd : MFusionList) {
+    if (!Initial) {
+      Stream << ",\\n";
+    }
+    Initial = false;
+    auto *KernelCG = static_cast<detail::CGExecKernel *>(&Cmd->getCG());
+    if (KernelCG->MSyclKernel && KernelCG->MSyclKernel->isCreatedFromSource()) {
+      Stream << "created from source";
+    } else {
+      Stream << demangleKernelName(KernelCG->getKernelName());
+    }
+  }
+  Stream << "}\\n";
+
+  Stream << "\"];" << std::endl;
+
+  for (const auto &Dep : MDeps) {
+    Stream << "  \"" << this << "\" -> \"" << Dep.MDepCommand << "\""
+           << " [ label = \"Access mode: "
+           << accessModeToString(Dep.MDepRequirement->MAccessMode) << "\\n"
+           << "MemObj: " << Dep.MDepRequirement->MSYCLMemObj << " \" ]"
+           << std::endl;
+  }
+}
+
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

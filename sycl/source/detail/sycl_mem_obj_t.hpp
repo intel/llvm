@@ -43,11 +43,11 @@ class __SYCL_EXPORT SYCLMemObjT : public SYCLMemObjI {
   // TODO: Align these checks with the SYCL specification when the behaviour
   // with void * is clarified.
   template <typename T>
-  using EnableIfOutputPointerT = std::enable_if_t<
+  using EnableIfOutputPointerT = enable_if_t<
       /*is_output_iterator<T>::value &&*/ std::is_pointer<T>::value>;
 
   template <typename T>
-  using EnableIfOutputIteratorT = std::enable_if_t<
+  using EnableIfOutputIteratorT = enable_if_t<
       /*is_output_iterator<T>::value &&*/ !std::is_pointer<T>::value>;
 
 public:

@@ -1164,7 +1164,8 @@ template <class SecondTy, class... RestTy>
 
 /// Main generic intersect function.
 /// It intersects all of the given range sets.  If some of the given arguments
-/// don't hold a range set (nullptr or llvm::None), the function will skip them.
+/// don't hold a range set (nullptr or std::nullopt), the function will skip
+/// them.
 ///
 /// Available representations for the arguments are:
 ///   * RangeSet
@@ -1179,7 +1180,7 @@ template <class SecondTy, class... RestTy>
 /// simply RangeSet, in other cases we have to back off to Optional<RangeSet>.
 ///
 /// Please, prefer optional range sets to raw pointers.  If the last argument is
-/// a raw pointer and all previous arguments are None, it will cost one
+/// a raw pointer and all previous arguments are std::nullopt, it will cost one
 /// additional check to convert RangeSet * into Optional<RangeSet>.
 template <class HeadTy, class SecondTy, class... RestTy>
 [[nodiscard]] inline
@@ -1332,18 +1333,7 @@ private:
   }
 
   RangeSet VisitBinaryOperator(RangeSet LHS, BinaryOperator::Opcode Op,
-                               RangeSet RHS, QualType T) {
-    switch (Op) {
-    case BO_Or:
-      return VisitBinaryOperator<BO_Or>(LHS, RHS, T);
-    case BO_And:
-      return VisitBinaryOperator<BO_And>(LHS, RHS, T);
-    case BO_Rem:
-      return VisitBinaryOperator<BO_Rem>(LHS, RHS, T);
-    default:
-      return infer(T);
-    }
-  }
+                               RangeSet RHS, QualType T);
 
   //===----------------------------------------------------------------------===//
   //                         Ranges and operators
@@ -1361,7 +1351,7 @@ private:
 
   /// Try to convert given range into the given type.
   ///
-  /// It will return llvm::None only when the trivial conversion is possible.
+  /// It will return std::nullopt only when the trivial conversion is possible.
   llvm::Optional<Range> convert(const Range &Origin, APSIntType To) {
     if (To.testInRange(Origin.From(), false) != APSIntType::RTR_Within ||
         To.testInRange(Origin.To(), false) != APSIntType::RTR_Within) {
@@ -1625,6 +1615,32 @@ private:
 //===----------------------------------------------------------------------===//
 
 template <>
+RangeSet SymbolicRangeInferrer::VisitBinaryOperator<BO_NE>(RangeSet LHS,
+                                                           RangeSet RHS,
+                                                           QualType T) {
+
+  assert(!LHS.isEmpty() && !RHS.isEmpty() && "Both ranges should be non-empty");
+
+  if (LHS.getAPSIntType() == RHS.getAPSIntType()) {
+    if (intersect(RangeFactory, LHS, RHS).isEmpty())
+      return getTrueRange(T);
+  } else {
+    // Both RangeSets should be casted to bigger unsigned type.
+    APSIntType CastingType(std::max(LHS.getBitWidth(), RHS.getBitWidth()),
+                           LHS.isUnsigned() || RHS.isUnsigned());
+
+    RangeSet CastedLHS = RangeFactory.castTo(LHS, CastingType);
+    RangeSet CastedRHS = RangeFactory.castTo(RHS, CastingType);
+
+    if (intersect(RangeFactory, CastedLHS, CastedRHS).isEmpty())
+      return getTrueRange(T);
+  }
+
+  // In all other cases, the resulting range cannot be deduced.
+  return infer(T);
+}
+
+template <>
 RangeSet SymbolicRangeInferrer::VisitBinaryOperator<BO_Or>(Range LHS, Range RHS,
                                                            QualType T) {
   APSIntType ResultType = ValueFactory.getAPSIntType(T);
@@ -1782,6 +1798,23 @@ RangeSet SymbolicRangeInferrer::VisitBinaryOperator<BO_Rem>(Range LHS,
   // Nevertheless, the symmetrical range for RHS is a conservative estimate
   // for any sign of either LHS, or RHS.
   return {RangeFactory, ValueFactory.getValue(Min), ValueFactory.getValue(Max)};
+}
+
+RangeSet SymbolicRangeInferrer::VisitBinaryOperator(RangeSet LHS,
+                                                    BinaryOperator::Opcode Op,
+                                                    RangeSet RHS, QualType T) {
+  switch (Op) {
+  case BO_NE:
+    return VisitBinaryOperator<BO_NE>(LHS, RHS, T);
+  case BO_Or:
+    return VisitBinaryOperator<BO_Or>(LHS, RHS, T);
+  case BO_And:
+    return VisitBinaryOperator<BO_And>(LHS, RHS, T);
+  case BO_Rem:
+    return VisitBinaryOperator<BO_Rem>(LHS, RHS, T);
+  default:
+    return infer(T);
+  }
 }
 
 //===----------------------------------------------------------------------===//

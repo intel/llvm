@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -sycl-std=1.2.1 -fsycl-targets=%sycl_triple -fsyntax-only %s
 //==------------ aliases.cpp - SYCL type aliases test ----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

@@ -24,7 +24,8 @@
 
 using namespace llvm;
 
-Optional<MCFixupKind> LoongArchAsmBackend::getFixupKind(StringRef Name) const {
+std::optional<MCFixupKind>
+LoongArchAsmBackend::getFixupKind(StringRef Name) const {
   if (STI.getTargetTriple().isOSBinFormatELF()) {
     auto Type = llvm::StringSwitch<unsigned>(Name)
 #define ELF_RELOC(X, Y) .Case(#X, Y)
@@ -37,7 +38,7 @@ Optional<MCFixupKind> LoongArchAsmBackend::getFixupKind(StringRef Name) const {
     if (Type != -1u)
       return static_cast<MCFixupKind>(FirstLiteralRelocationKind + Type);
   }
-  return None;
+  return std::nullopt;
 }
 
 const MCFixupKindInfo &
@@ -178,13 +179,14 @@ bool LoongArchAsmBackend::shouldForceRelocation(const MCAssembler &Asm,
 
 bool LoongArchAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count,
                                        const MCSubtargetInfo *STI) const {
-  // Check for byte count not multiple of instruction word size
-  if (Count % 4 != 0)
-    return false;
+  // We mostly follow binutils' convention here: align to 4-byte boundary with a
+  // 0-fill padding.
+  OS.write_zeros(Count % 4);
 
-  // The nop on LoongArch is andi r0, r0, 0.
+  // The remainder is now padded with 4-byte nops.
+  // nop: andi r0, r0, 0
   for (; Count >= 4; Count -= 4)
-    support::endian::write<uint32_t>(OS, 0x03400000, support::little);
+    OS.write("\0\0\x40\x03", 4);
 
   return true;
 }
