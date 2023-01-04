@@ -1905,7 +1905,7 @@ pi_result piextEnqueueDeviceGlobalVariableWrite(
 
 /// API reading data from a device global variable to host.
 ///
-/// \param device is the device
+/// \param queue is the queue
 /// \param program is the program containing the device global variable
 /// \param blocking_read is true if the read should block
 /// \param name is the unique identifier for the device global variable

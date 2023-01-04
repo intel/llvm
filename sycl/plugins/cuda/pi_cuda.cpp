@@ -661,7 +661,7 @@ _pi_program::_pi_program(pi_context ctxt)
 _pi_program::~_pi_program() { cuda_piContextRelease(context_); }
 
 std::pair<std::string, std::string>
-splitMetadataName(std::string metadataName) {
+splitMetadataName(const std::string &metadataName) {
   size_t splitPos = metadataName.rfind('@');
   if (splitPos == std::string::npos)
     return std::make_pair(metadataName, std::string{});

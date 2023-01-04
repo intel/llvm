@@ -1647,7 +1647,7 @@ std::vector<DeviceGlobalMapEntry *> ProgramManager::getDeviceGlobalEntries(
     auto DeviceGlobalEntry = m_DeviceGlobals.find(UniqueId);
     assert(DeviceGlobalEntry != m_DeviceGlobals.end() &&
            "Device global not found in map.");
-    if (ExcludeDeviceImageScopeDecorated &&
+    if (!ExcludeDeviceImageScopeDecorated ||
         !DeviceGlobalEntry->second->MIsDeviceImageScopeDecorated)
       FoundEntries.push_back(DeviceGlobalEntry->second.get());
   }
