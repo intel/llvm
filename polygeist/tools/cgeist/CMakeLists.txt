@@ -29,6 +29,7 @@ add_clang_executable(cgeist
   Lib/Attributes.cc
   Lib/ConstantFolder.cc
   Lib/CGCall.cc
+  Lib/CGDecl.cc
   Lib/CGExpr.cc
   Lib/CGStmt.cc
   Lib/CodeGenTypes.cc  
