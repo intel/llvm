@@ -3,10 +3,7 @@
 // RUN: %clang_cc1 -flto -flto-unit -triple x86_64-pc-windows-msvc -emit-llvm -fwhole-program-vtables -o - %s | FileCheck %s --check-prefix=CHECK-MS --check-prefix=CHECK-NOVFE
 
 // Check that in ThinLTO we also get vcall_visibility summary entries in the bitcode
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: %clang_cc1 -flto=thin -flto-unit -triple x86_64-unknown-linux -emit-llvm-bc -fwhole-program-vtables -o - %s | llvm-dis -opaque-pointers -o - | FileCheck %s --check-prefix=CHECK --check-prefix=CHECK-NOVFE --check-prefix=CHECK-SUMMARY
+// RUN: %clang_cc1 -flto=thin -flto-unit -triple x86_64-unknown-linux -emit-llvm-bc -fwhole-program-vtables -o - %s | llvm-dis -o - | FileCheck %s --check-prefix=CHECK --check-prefix=CHECK-NOVFE --check-prefix=CHECK-SUMMARY
 
 
 // Anonymous namespace.
