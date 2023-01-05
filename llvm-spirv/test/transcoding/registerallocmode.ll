@@ -12,8 +12,10 @@
 
 ; CHECK-LLVM: @[[FLAG0:[0-9]+]] = private unnamed_addr constant [20 x i8] c"num-thread-per-eu 4\00", section "llvm.metadata"
 ; CHECK-LLVM: @[[FLAG1:[0-9]+]] = private unnamed_addr constant [20 x i8] c"num-thread-per-eu 8\00", section "llvm.metadata"
+; CHECK-LLVM: @[[FLAG2:[0-9]+]] = private unnamed_addr constant [20 x i8] c"num-thread-per-eu 4\00", section "llvm.metadata"
+; CHECK-LLVM: @[[FLAG3:[0-9]+]] = private unnamed_addr constant [20 x i8] c"num-thread-per-eu 8\00", section "llvm.metadata"
 
-; CHECK-LLVM: @llvm.global.annotations = appending global [2 x { ptr, ptr, ptr, i32, ptr }] [{ ptr, ptr, ptr, i32, ptr } { ptr @main_l3, ptr @[[FLAG0]], ptr undef, i32 undef, ptr undef }, { ptr, ptr, ptr, i32, ptr } { ptr @main_l6, ptr @[[FLAG1]], ptr undef, i32 undef, ptr undef }], section "llvm.metadata"
+; CHECK-LLVM: @llvm.global.annotations = appending global [4 x { ptr, ptr, ptr, i32, ptr }] [{ ptr, ptr, ptr, i32, ptr } { ptr @main_l3, ptr @[[FLAG0]], ptr undef, i32 undef, ptr undef }, { ptr, ptr, ptr, i32, ptr } { ptr @main_l6, ptr @[[FLAG1]], ptr undef, i32 undef, ptr undef }, { ptr, ptr, ptr, i32, ptr } { ptr @main_l3, ptr @[[FLAG2]], ptr undef, i32 undef, ptr undef }, { ptr, ptr, ptr, i32, ptr } { ptr @main_l6, ptr @[[FLAG3]], ptr undef, i32 undef, ptr undef }], section "llvm.metadata"
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64"
