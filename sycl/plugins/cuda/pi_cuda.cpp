@@ -5368,11 +5368,13 @@ pi_result cuda_piextUSMEnqueueMemset2D(pi_queue, void *, size_t, int, size_t,
 /// \param num_events_in_waitlist is the number of events to wait on
 /// \param events_waitlist is an array of events to wait on
 /// \param event is the event that represents this operation
-pi_result cuda_piextUSMEnqueueMemcpy2D(
-    pi_queue Queue, pi_bool Blocking, void *DstPtr, size_t DstPitch,
-    const void *SrcPtr, size_t SrcPitch, size_t Width, size_t Height,
-    pi_uint32 NumEventsInWaitlist, const pi_event *EventWaitlist,
-    pi_event *Event) {
+pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue Queue, pi_bool Blocking,
+                                       void *DstPtr, size_t DstPitch,
+                                       const void *SrcPtr, size_t SrcPitch,
+                                       size_t Width, size_t Height,
+                                       pi_uint32 NumEventsInWaitlist,
+                                       const pi_event *EventWaitlist,
+                                       pi_event *Event) {
 
   assert(Queue != nullptr);
 
@@ -5383,8 +5385,8 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(
   try {
     ScopedContext active(Queue->get_context());
     CUstream cuStream = Queue->get_next_transfer_stream();
-    result = enqueueEventsWait(Queue, cuStream, NumEventsInWaitlist,
-                               EventWaitlist);
+    result =
+        enqueueEventsWait(Queue, cuStream, NumEventsInWaitlist, EventWaitlist);
     if (Event) {
       event_ptr = std::unique_ptr<_pi_event>(_pi_event::make_native(
           PI_COMMAND_TYPE_MEM_BUFFER_COPY, Queue, cuStream));
@@ -5414,8 +5416,8 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(
     cpyDesc.srcY = 0;
     cpyDesc.srcMemoryType = srcType;
     cpyDesc.srcDevice = srcType == CU_MEMORYTYPE_DEVICE
-	? *static_cast<const CUdeviceptr *>(SrcPtr)
-	: 0;
+                            ? *static_cast<const CUdeviceptr *>(SrcPtr)
+                            : 0;
     cpyDesc.srcHost = srcType == CU_MEMORYTYPE_HOST ? SrcPtr : nullptr;
     cpyDesc.srcArray = nullptr;
     cpyDesc.srcPitch = SrcPitch;
@@ -5424,8 +5426,8 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(
     cpyDesc.dstY = 0;
     cpyDesc.dstMemoryType = dstType;
     cpyDesc.dstDevice = dstType == CU_MEMORYTYPE_DEVICE
-	? *static_cast<CUdeviceptr *>(DstPtr)
-	: 0;
+                            ? *static_cast<CUdeviceptr *>(DstPtr)
+                            : 0;
     cpyDesc.dstHost = dstType == CU_MEMORYTYPE_HOST ? DstPtr : nullptr;
     cpyDesc.dstArray = nullptr;
     cpyDesc.dstPitch = DstPitch;
@@ -5448,7 +5450,6 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(
     result = err;
   }
   return result;
-
 }
 
 /// API to query information about USM allocated pointers

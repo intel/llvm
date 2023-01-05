@@ -5115,7 +5115,6 @@ pi_result hip_piextUSMEnqueueMemset2D(pi_queue, void *, size_t, int, size_t,
   return {};
 }
 
-
 /// 2D Memcpy API
 ///
 /// \param queue is the queue to submit to
@@ -5130,13 +5129,14 @@ pi_result hip_piextUSMEnqueueMemset2D(pi_queue, void *, size_t, int, size_t,
 /// \param num_events_in_waitlist is the number of events to wait on
 /// \param events_waitlist is an array of events to wait on
 /// \param event is the event that represents this operation
-pi_result hip_piextUSMEnqueueMemcpy2D(
-    pi_queue Queue, pi_bool Blocking, void *DstPtr, size_t DstPitch,
-    const void *SrcPtr, size_t SrcPitch, size_t Width, size_t Height,
-    pi_uint32 NumEventsInWaitlist, const pi_event *EventWaitlist,
-    pi_event *Event) {
-
-  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+pi_result hip_piextUSMEnqueueMemcpy2D(pi_queue Queue, pi_bool Blocking,
+                                      void *DstPtr, size_t DstPitch,
+                                      const void *SrcPtr, size_t SrcPitch,
+                                      size_t Width, size_t Height,
+                                      pi_uint32 NumEventsInWaitlist,
+                                      const pi_event *EventWaitlist,
+                                      pi_event *Event) {
+  assert(Queue != nullptr);
 
   pi_result result = PI_SUCCESS;
   std::unique_ptr<_pi_event> retImplEv{nullptr};
@@ -5144,17 +5144,17 @@ pi_result hip_piextUSMEnqueueMemcpy2D(
   try {
     ScopedContext active(Queue->get_context());
     hipStream_t hipStream = Queue->get_next_transfer_stream();
-    result = enqueueEventsWait(Queue, hipStream, NumEventsInWaitlist,
-                               EventWaitlist);
+    result =
+        enqueueEventsWait(Queue, hipStream, NumEventsInWaitlist, EventWaitlist);
     if (Event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
           PI_COMMAND_TYPE_MEM_BUFFER_COPY, Queue, hipStream));
       retImplEv->start();
     }
 
-    result = PI_CHECK_ERROR(
-        hipMemcpy2DAsync(DstPtr, DstPitch, SrcPtr, SrcPitch, Width,
-			 Height, hipMemcpyDefault, hipStream));
+    result = PI_CHECK_ERROR(hipMemcpy2DAsync(DstPtr, DstPitch, SrcPtr, SrcPitch,
+                                             Width, Height, hipMemcpyDefault,
+                                             hipStream));
 
     if (Event) {
       result = retImplEv->record();
