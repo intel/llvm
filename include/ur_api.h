@@ -1454,6 +1454,68 @@ urEnqueueUSMMemcpy2D(
                                                     ///< particular kernel execution instance.
     );
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue a command to write data from host to device global variable
+/// 
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///         + `NULL == hProgram`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == name`
+///         + `NULL == pSrc`
+UR_APIEXPORT ur_result_t UR_APICALL
+urEnqueueDeviceGlobalVariableWrite(
+    ur_queue_handle_t hQueue,                       ///< [in] handle of the queue to submit to.
+    ur_program_handle_t hProgram,                   ///< [in] the program containing the device global.
+    const char* name,                               ///< [in] the unique identifier for the device global variable.
+    bool blockingWrite,                             ///< [in] indicates if this operation should block.
+    size_t count,                                   ///< [in] the number of bytes to copy.
+    size_t offset,                                  ///< [in] the byte offset into the device global variable to start copying.
+    const void* pSrc,                               ///< [in] pointer to where the data must be copied from.
+    uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                    ///< events that must be complete before the kernel execution.
+                                                    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+                                                    ///< event. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular kernel execution instance.
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue a command to read data from a device global variable to host
+/// 
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///         + `NULL == hProgram`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == name`
+///         + `NULL == pDst`
+UR_APIEXPORT ur_result_t UR_APICALL
+urEnqueueDeviceGlobalVariableRead(
+    ur_queue_handle_t hQueue,                       ///< [in] handle of the queue to submit to.
+    ur_program_handle_t hProgram,                   ///< [in] the program containing the device global.
+    const char* name,                               ///< [in] the unique identifier for the device global variable.
+    bool blockingRead,                              ///< [in] indicates if this operation should block.
+    size_t count,                                   ///< [in] the number of bytes to copy.
+    size_t offset,                                  ///< [in] the byte offset into the device global variable to start copying.
+    void* pDst,                                     ///< [in] pointer to where the data must be copied to.
+    uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                    ///< events that must be complete before the kernel execution.
+                                                    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+                                                    ///< event. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular kernel execution instance.    
+    );
+
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
@@ -6819,6 +6881,68 @@ typedef void (UR_APICALL *ur_pfnEnqueueUSMMemcpy2DCb_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function parameters for urEnqueueDeviceGlobalVariableWrite 
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_device_global_variable_write_params_t
+{
+    ur_queue_handle_t* phQueue;
+    ur_program_handle_t* phProgram;
+    const char** pname;
+    bool* pblockingWrite;
+    size_t* pcount;
+    size_t* poffset;
+    const void** ppSrc;
+    uint32_t* pnumEventsInWaitList;
+    const ur_event_handle_t** pphEventWaitList;
+    ur_event_handle_t** pphEvent;
+} ur_enqueue_device_global_variable_write_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function-pointer for urEnqueueDeviceGlobalVariableWrite 
+/// @param[in] params Parameters passed to this instance
+/// @param[in] result Return value
+/// @param[in] pTracerUserData Per-Tracer user data
+/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
+typedef void (UR_APICALL *ur_pfnEnqueueDeviceGlobalVariableWriteCb_t)(
+    ur_enqueue_device_global_variable_write_params_t* params,
+    ur_result_t result,
+    void* pTracerUserData,
+    void** ppTracerInstanceUserData
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function parameters for urEnqueueDeviceGlobalVariableRead 
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_device_global_variable_read_params_t
+{
+    ur_queue_handle_t* phQueue;
+    ur_program_handle_t* phProgram;
+    const char** pname;
+    bool* pblockingRead;
+    size_t* pcount;
+    size_t* poffset;
+    void** ppDst;
+    uint32_t* pnumEventsInWaitList;
+    const ur_event_handle_t** pphEventWaitList;
+    ur_event_handle_t** pphEvent;
+} ur_enqueue_device_global_variable_read_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function-pointer for urEnqueueDeviceGlobalVariableRead 
+/// @param[in] params Parameters passed to this instance
+/// @param[in] result Return value
+/// @param[in] pTracerUserData Per-Tracer user data
+/// @param[in,out] ppTracerInstanceUserData Per-Tracer, Per-Instance user data
+typedef void (UR_APICALL *ur_pfnEnqueueDeviceGlobalVariableReadCb_t)(
+    ur_enqueue_device_global_variable_read_params_t* params,
+    ur_result_t result,
+    void* pTracerUserData,
+    void** ppTracerInstanceUserData
+    );
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Enqueue callback functions pointers
 typedef struct ur_enqueue_callbacks_t
 {
@@ -6844,6 +6968,8 @@ typedef struct ur_enqueue_callbacks_t
     ur_pfnEnqueueUSMFill2DCb_t                                      pfnUSMFill2DCb;
     ur_pfnEnqueueUSMMemset2DCb_t                                    pfnUSMMemset2DCb;
     ur_pfnEnqueueUSMMemcpy2DCb_t                                    pfnUSMMemcpy2DCb;
+    ur_pfnEnqueueDeviceGlobalVariableWriteCb_t                      pfnDeviceGlobalVariableWriteCb;
+    ur_pfnEnqueueDeviceGlobalVariableReadCb_t                       pfnDeviceGlobalVariableReadCb;
 } ur_enqueue_callbacks_t;
 
 ///////////////////////////////////////////////////////////////////////////////
