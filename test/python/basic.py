@@ -13,5 +13,5 @@ import os
 import include.ur as ur
 
 def test_ddi():
-        ddi = ur.UR_DDI(ur.ur_api_version_v.CURRENT);
+        ddi = ur.UR_DDI(ur.ur_api_version_v.CURRENT)
         assert True
