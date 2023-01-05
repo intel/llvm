@@ -126,7 +126,7 @@ std::vector<platform> platform_impl::get_platforms() {
           // insert PiPlatform into the Plugin
           Plugin.getPlatformId(PiPlatform);
         }
-        
+
         if (!Platform.get_devices(info::device_type::all).empty()) {
           Platforms.push_back(Platform);
         }
