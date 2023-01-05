@@ -107,7 +107,7 @@ static LogicalResult convertMethod(SYCLMethodOpInterface method,
   const auto ResTyOrNone = [=]() -> llvm::Optional<mlir::Type> {
     const auto ResTys = method->getResultTypes();
     if (ResTys.empty())
-      return llvm::None;
+      return std::nullopt;
     assert(ResTys.size() == 1 && "Returning multiple values is not allowed in "
                                  "SYCLMethodOpInterface instances");
     return ResTys[0];

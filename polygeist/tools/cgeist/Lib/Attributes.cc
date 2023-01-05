@@ -188,14 +188,14 @@ AttrBuilder &AttrBuilder::addAttribute(Twine AttrName, mlir::Attribute Attr) {
 
 AttrBuilder &
 AttrBuilder::addPassThroughAttribute(llvm::Attribute::AttrKind Kind) {
-  return addAttributeImpl(Kind, llvm::None,
+  return addAttributeImpl(Kind, std::nullopt,
                           &AttrBuilder::addPassThroughAttributeImpl);
 }
 
 AttrBuilder &
 AttrBuilder::addPassThroughAttribute(llvm::Attribute::AttrKind Kind,
                                      mlir::Type Ty) {
-  return addAttributeImpl(Kind, Ty, llvm::None,
+  return addAttributeImpl(Kind, Ty, std::nullopt,
                           &AttrBuilder::addPassThroughAttributeImpl);
 }
 

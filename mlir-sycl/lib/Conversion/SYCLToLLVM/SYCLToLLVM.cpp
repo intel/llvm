@@ -61,7 +61,7 @@ static Optional<Type> getI8Struct(StringRef name,
   if (!convertedTy.isInitialized())
     if (failed(convertedTy.setBody(IntegerType::get(&converter.getContext(), 8),
                                    /*isPacked=*/false)))
-      return llvm::None;
+      return std::nullopt;
   return convertedTy;
 }
 
@@ -77,12 +77,12 @@ static Optional<Type> convertBodyType(StringRef name,
   SmallVector<Type> convertedElemTypes;
   convertedElemTypes.reserve(body.size());
   if (failed(converter.convertTypes(body, convertedElemTypes)))
-    return llvm::None;
+    return std::nullopt;
   auto convertedTy =
       LLVM::LLVMStructType::getIdentified(&converter.getContext(), name);
   if (!convertedTy.isInitialized()) {
     if (failed(convertedTy.setBody(convertedElemTypes, /*isPacked=*/false)))
-      return llvm::None;
+      return std::nullopt;
   } else if (convertedElemTypes != convertedTy.getBody()) {
     // If the name is already in use, create a new type.
     convertedTy = LLVM::LLVMStructType::getNewIdentified(
@@ -142,7 +142,7 @@ static Optional<Type> convertArrayType(sycl::ArrayType type,
     auto arrayTy =
         LLVM::LLVMArrayType::get(converter.getIndexType(), type.getDimension());
     if (failed(structTy.setBody(arrayTy, /*isPacked=*/false)))
-      return llvm::None;
+      return std::nullopt;
   }
   return structTy;
 }
