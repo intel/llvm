@@ -722,6 +722,11 @@ void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
                          unsigned int DstElemSize,
                          std::vector<RT::PiEvent> DepEvents,
                          RT::PiEvent &OutEvent) {
+  assert(SYCLMemObj && "The SYCLMemObj is nullptr");
+
+  if (!SrcMem || !DstMem)
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+        "NULL pointer argument in copy operation.");
 
   if (SrcQueue->is_host()) {
     if (TgtQueue->is_host())
@@ -759,6 +764,10 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                          std::vector<RT::PiEvent> DepEvents,
                          RT::PiEvent &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
+
+  if (!Mem)
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+        "NULL pointer argument in fill operation.");
 
   const detail::plugin &Plugin = Queue->getPlugin();
   if (SYCLMemObj->getType() == detail::SYCLMemObjI::MemObjType::Buffer) {
@@ -893,6 +902,10 @@ void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   assert(!Queue->getContextImplPtr()->is_host() &&
          "Host queue not supported in prefetch_usm.");
 
+  if (!Mem)
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+        "NULL pointer argument in prefetch operation.");
+
   const detail::plugin &Plugin = Queue->getPlugin();
   Plugin.call<PiApiKind::piextUSMEnqueuePrefetch>(
       Queue->getHandleRef(), Mem, Length, _pi_usm_migration_flags(0),
@@ -905,6 +918,10 @@ void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
                                RT::PiEvent *OutEvent) {
   assert(!Queue->getContextImplPtr()->is_host() &&
          "Host queue not supported in advise_usm.");
+
+  if (!Mem)
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+        "NULL pointer argument in advise operation.");
 
   const detail::plugin &Plugin = Queue->getPlugin();
   Plugin.call<PiApiKind::piextUSMEnqueueMemAdvise>(Queue->getHandleRef(), Mem,
