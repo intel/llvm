@@ -420,7 +420,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
 template <typename ChannelType>
 void convertReadData(const vec<ChannelType, 4> PixelData,
                      const image_channel_type ImageChannelType,
-                     vec<cl_half, 4> &RetData) {
+                     vec<opencl::cl_half, 4> &RetData) {
   vec<opencl::cl_float, 4> RetDataFloat;
   switch (ImageChannelType) {
   case image_channel_type::snorm_int8:
@@ -463,7 +463,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
   case image_channel_type::fp16:
-    RetData = PixelData.template convert<cl_half>();
+    RetData = PixelData.template convert<opencl::cl_half>();
     return;
   case image_channel_type::fp32:
     throw sycl::invalid_parameter_error(
@@ -471,7 +471,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
   }
-  RetData = RetDataFloat.template convert<cl_half>();
+  RetData = RetDataFloat.template convert<opencl::cl_half>();
 }
 
 // Converts data to write into appropriate datatype based on the channel of the
