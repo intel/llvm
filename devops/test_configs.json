@@ -29,7 +29,8 @@
       "name": "OCL x64 LLVM Test Suite",
       "runs-on": [
         "Linux",
-        "x64"
+        "x64",
+        "x86-cpu"
       ],
       "image": "${{ inputs.intel_drivers_image }}",
       "container_options": "-u 1001",
@@ -41,7 +42,8 @@
       "name": "ESIMD Emu LLVM Test Suite",
       "runs-on": [
         "Linux",
-        "x64"
+        "x64",
+        "x86-cpu"
       ],
       "image": "${{ inputs.intel_drivers_image }}",
       "container_options": "-u 1001",
