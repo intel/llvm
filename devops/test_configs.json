@@ -79,7 +79,10 @@
       "name": "[AWS] CUDA LLVM Test Suite",
       "runs-on": "aws-cuda_${{ inputs.uniq }}",
       "aws-ami": "ami-01cb0573cb039ab24",
-      "aws-type": [ "g5.2xlarge", "g5.4xlarge" ],
+      "aws-type": [
+        "g5.2xlarge",
+        "g5.4xlarge"
+      ],
       "aws-disk": "/dev/sda1:64",
       "aws-spot": "false",
       "image": "${{ inputs.cuda_image }}",
