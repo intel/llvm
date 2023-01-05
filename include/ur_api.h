@@ -2920,7 +2920,7 @@ typedef enum ur_device_info_t
     UR_DEVICE_INFO_IMAGE3D_MAX_HEIGHT = 36,         ///< size_t: max height of Image3D object
     UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH = 37,          ///< size_t: max depth of Image3D object
     UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE = 38,      ///< size_t: max image buffer size
-    UR_DEVICE_INFO_IMAGE_MAX_ARRAR_SIZE = 39,       ///< size_t: max image array size
+    UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE = 39,       ///< size_t: max image array size
     UR_DEVICE_INFO_MAX_SAMPLERS = 40,               ///< uint32_t: max number of samplers that can be used in a kernel
     UR_DEVICE_INFO_MAX_PARAMETER_SIZE = 41,         ///< size_t: max size in bytes of all arguments passed to a kernel
     UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN = 42,        ///< uint32_t: memory base address alignment
