@@ -7482,6 +7482,7 @@ NamedDecl *Sema::ActOnVariableDeclarator(
     return nullptr;
   }
 
+
   DeclSpec::SCS SCSpec = D.getDeclSpec().getStorageClassSpec();
   StorageClass SC = StorageClassSpecToVarDeclStorageClass(D.getDeclSpec());
 
@@ -16221,7 +16222,9 @@ void Sema::AddKnownFunctionAttributes(FunctionDecl *FD) {
       // Add the appropriate attribute, depending on the CUDA compilation mode
       // and which target the builtin belongs to. For example, during host
       // compilation, aux builtins are __device__, while the rest are __host__.
-      if (getLangOpts().CUDAIsDevice !=
+      if (((getLangOpts().SYCLIsDevice && getLangOpts().CUDA &&
+            !getLangOpts().CUDAIsDevice) ||
+           getLangOpts().CUDAIsDevice) !=
           Context.BuiltinInfo.isAuxBuiltinID(BuiltinID))
         FD->addAttr(CUDADeviceAttr::CreateImplicit(Context, FD->getLocation()));
       else
