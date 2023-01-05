@@ -2011,13 +2011,13 @@ pi_result _pi_queue::insertActiveBarriers(pi_command_list_ptr_t &CmdList,
           UseCopyEngine))
     return Res;
 
+  // We can now replace active barriers with the ones in the wait list.
+  ActiveBarriers.clear();
+
   if (ActiveBarriersWaitList.Length == 0) {
-    ActiveBarriers.clear();
     return PI_SUCCESS;
   }
 
-  // We can now replace active barriers with the ones in the wait list.
-  ActiveBarriers.clear();
   for (pi_uint32 I = 0; I < ActiveBarriersWaitList.Length; ++I) {
     auto &Event = ActiveBarriersWaitList.PiEventList[I];
     ActiveBarriers.add(Event);
