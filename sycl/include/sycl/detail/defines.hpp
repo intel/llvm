@@ -21,13 +21,20 @@
 #endif
 #endif
 
+// FIXME Check for  __SYCL_DEVICE_ONLY__ can be removed if implementation of
+// __has_attribute is fixed to consider LangOpts when generating attributes in
+// tablegen.
 #if __has_attribute(sycl_special_class) && (defined __SYCL_DEVICE_ONLY__)
 #define __SYCL_SPECIAL_CLASS __attribute__((sycl_special_class))
 #else
 #define __SYCL_SPECIAL_CLASS
 #endif
 
-#if __has_cpp_attribute(__sycl_detail__::sycl_type)
+// FIXME Check for  __SYCL_DEVICE_ONLY__ can be removed if implementation of
+// __has_attribute is fixed to consider LangOpts when generating attributes in
+// tablegen.
+#if __has_cpp_attribute(__sycl_detail__::sycl_type) &&                         \
+    (defined __SYCL_DEVICE_ONLY__)
 #define __SYCL_TYPE(x) [[__sycl_detail__::sycl_type(x)]]
 #else
 #define __SYCL_TYPE(x)
