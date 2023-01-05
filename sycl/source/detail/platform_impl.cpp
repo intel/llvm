@@ -575,8 +575,13 @@ typename Param::return_type platform_impl::get_info() const {
 }
 
 // All devices on the platform must have the given aspect.
+// False if there are no devices.
 bool platform_impl::has(aspect Aspect) const {
-  for (const auto &dev : get_devices()) {
+  std::vector<device> devices = get_devices();
+  if (devices.size() == 0)
+    return false;
+
+  for (const auto &dev : devices) {
     if (dev.has(Aspect) == false) {
       return false;
     }
