@@ -78,4 +78,24 @@ endif()
 FetchContent_MakeAvailable(ocl-icd)
 add_library(OpenCL-ICD ALIAS OpenCL)
 
+# OpenCL RT build requires headers from ICD loader, propagating location
+set(OpenCL_LOADER_DIR
+  ${ocl-icd_SOURCE_DIR} CACHE PATH "Path to OpenCL Loader")
+
+# TODO: Remove suppressing Werror.
+if(MSVC)
+  target_compile_options(OpenCL PRIVATE "-WX-")
+else()
+  target_compile_options(OpenCL PRIVATE "-Wno-error")
+endif()
+# Deploy OpenCL loader into package, this is required for xmain tc tests.
+# The deploy destination is different for OpenCL stand-alone product. See
+# opencl-intel/framework/CMakeLists.txt.
+if (NOT INTEL_OPENCL_STANDALONE_PRODUCT)
+  install(TARGETS OpenCL
+          ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT OpenCL-ICD
+          LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT OpenCL-ICD
+          RUNTIME DESTINATION "bin" COMPONENT OpenCL-ICD)
+endif()
+
 add_subdirectory(opencl-aot)
