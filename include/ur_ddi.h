@@ -1154,6 +1154,36 @@ typedef ur_result_t (UR_APICALL *ur_pfnEnqueueUSMMemcpy2D_t)(
     );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueDeviceGlobalVariableWrite 
+typedef ur_result_t (UR_APICALL *ur_pfnEnqueueDeviceGlobalVariableWrite_t)(
+    ur_queue_handle_t,
+    ur_program_handle_t,
+    const char*,
+    bool,
+    size_t,
+    size_t,
+    const void*,
+    uint32_t,
+    const ur_event_handle_t*,
+    ur_event_handle_t*
+    );
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueDeviceGlobalVariableRead 
+typedef ur_result_t (UR_APICALL *ur_pfnEnqueueDeviceGlobalVariableRead_t)(
+    ur_queue_handle_t,
+    ur_program_handle_t,
+    const char*,
+    bool,
+    size_t,
+    size_t,
+    void*,
+    uint32_t,
+    const ur_event_handle_t*,
+    ur_event_handle_t*
+    );
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Enqueue functions pointers
 typedef struct ur_enqueue_dditable_t
 {
@@ -1179,6 +1209,8 @@ typedef struct ur_enqueue_dditable_t
     ur_pfnEnqueueUSMFill2D_t                                    pfnUSMFill2D;
     ur_pfnEnqueueUSMMemset2D_t                                  pfnUSMMemset2D;
     ur_pfnEnqueueUSMMemcpy2D_t                                  pfnUSMMemcpy2D;
+    ur_pfnEnqueueDeviceGlobalVariableWrite_t                    pfnDeviceGlobalVariableWrite;
+    ur_pfnEnqueueDeviceGlobalVariableRead_t                     pfnDeviceGlobalVariableRead;
 } ur_enqueue_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////

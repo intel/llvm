@@ -1061,6 +1061,82 @@ namespace driver
     }
 
     ///////////////////////////////////////////////////////////////////////////////
+    /// @brief Intercept function for urEnqueueDeviceGlobalVariableWrite
+    __urdlllocal ur_result_t UR_APICALL
+    urEnqueueDeviceGlobalVariableWrite(
+        ur_queue_handle_t hQueue,                       ///< [in] handle of the queue to submit to.
+        ur_program_handle_t hProgram,                   ///< [in] the program containing the device global.
+        const char* name,                               ///< [in] the unique identifier for the device global variable.
+        bool blockingWrite,                             ///< [in] indicates if this operation should block.
+        size_t count,                                   ///< [in] the number of bytes to copy.
+        size_t offset,                                  ///< [in] the byte offset into the device global variable to start copying.
+        const void* pSrc,                               ///< [in] pointer to where the data must be copied from.
+        uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
+        const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                        ///< events that must be complete before the kernel execution.
+                                                        ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+                                                        ///< event. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular kernel execution instance.
+        )
+    {
+        ur_result_t result = UR_RESULT_SUCCESS;
+
+        // if the driver has created a custom function, then call it instead of using the generic path
+        auto pfnDeviceGlobalVariableWrite = d_context.urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite;
+        if( nullptr != pfnDeviceGlobalVariableWrite )
+        {
+            result = pfnDeviceGlobalVariableWrite( hQueue, hProgram, name, blockingWrite, count, offset, pSrc, numEventsInWaitList, phEventWaitList, phEvent );
+        }
+        else
+        {
+            // generic implementation
+            if( nullptr != phEvent ) *phEvent = reinterpret_cast<ur_event_handle_t>( d_context.get() );
+
+        }
+
+        return result;
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////
+    /// @brief Intercept function for urEnqueueDeviceGlobalVariableRead
+    __urdlllocal ur_result_t UR_APICALL
+    urEnqueueDeviceGlobalVariableRead(
+        ur_queue_handle_t hQueue,                       ///< [in] handle of the queue to submit to.
+        ur_program_handle_t hProgram,                   ///< [in] the program containing the device global.
+        const char* name,                               ///< [in] the unique identifier for the device global variable.
+        bool blockingRead,                              ///< [in] indicates if this operation should block.
+        size_t count,                                   ///< [in] the number of bytes to copy.
+        size_t offset,                                  ///< [in] the byte offset into the device global variable to start copying.
+        void* pDst,                                     ///< [in] pointer to where the data must be copied to.
+        uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
+        const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                        ///< events that must be complete before the kernel execution.
+                                                        ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+                                                        ///< event. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular kernel execution instance.    
+        )
+    {
+        ur_result_t result = UR_RESULT_SUCCESS;
+
+        // if the driver has created a custom function, then call it instead of using the generic path
+        auto pfnDeviceGlobalVariableRead = d_context.urDdiTable.Enqueue.pfnDeviceGlobalVariableRead;
+        if( nullptr != pfnDeviceGlobalVariableRead )
+        {
+            result = pfnDeviceGlobalVariableRead( hQueue, hProgram, name, blockingRead, count, offset, pDst, numEventsInWaitList, phEventWaitList, phEvent );
+        }
+        else
+        {
+            // generic implementation
+            if( nullptr != phEvent ) *phEvent = reinterpret_cast<ur_event_handle_t>( d_context.get() );
+
+        }
+
+        return result;
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////
     /// @brief Intercept function for urEventGetInfo
     __urdlllocal ur_result_t UR_APICALL
     urEventGetInfo(
@@ -3391,6 +3467,10 @@ urGetEnqueueProcAddrTable(
     pDdiTable->pfnUSMMemset2D                            = driver::urEnqueueUSMMemset2D;
 
     pDdiTable->pfnUSMMemcpy2D                            = driver::urEnqueueUSMMemcpy2D;
+
+    pDdiTable->pfnDeviceGlobalVariableWrite              = driver::urEnqueueDeviceGlobalVariableWrite;
+
+    pDdiTable->pfnDeviceGlobalVariableRead               = driver::urEnqueueDeviceGlobalVariableRead;
 
     return result;
 }

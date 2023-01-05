@@ -1583,6 +1583,128 @@ namespace loader
     }
 
     ///////////////////////////////////////////////////////////////////////////////
+    /// @brief Intercept function for urEnqueueDeviceGlobalVariableWrite
+    __urdlllocal ur_result_t UR_APICALL
+    urEnqueueDeviceGlobalVariableWrite(
+        ur_queue_handle_t hQueue,                       ///< [in] handle of the queue to submit to.
+        ur_program_handle_t hProgram,                   ///< [in] the program containing the device global.
+        const char* name,                               ///< [in] the unique identifier for the device global variable.
+        bool blockingWrite,                             ///< [in] indicates if this operation should block.
+        size_t count,                                   ///< [in] the number of bytes to copy.
+        size_t offset,                                  ///< [in] the byte offset into the device global variable to start copying.
+        const void* pSrc,                               ///< [in] pointer to where the data must be copied from.
+        uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
+        const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                        ///< events that must be complete before the kernel execution.
+                                                        ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+                                                        ///< event. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular kernel execution instance.
+        )
+    {
+        ur_result_t result = UR_RESULT_SUCCESS;
+
+        // extract platform's function pointer table
+        auto dditable = reinterpret_cast<ur_queue_object_t*>( hQueue )->dditable;
+        auto pfnDeviceGlobalVariableWrite = dditable->ur.Enqueue.pfnDeviceGlobalVariableWrite;
+        if( nullptr == pfnDeviceGlobalVariableWrite )
+            return UR_RESULT_ERROR_UNINITIALIZED;
+
+        // convert loader handle to platform handle
+        hQueue = reinterpret_cast<ur_queue_object_t*>( hQueue )->handle;
+
+        // convert loader handle to platform handle
+        hProgram = reinterpret_cast<ur_program_object_t*>( hProgram )->handle;
+
+        // convert loader handles to platform handles
+        auto phEventWaitListLocal = new ur_event_handle_t [numEventsInWaitList];
+        for( size_t i = 0; ( nullptr != phEventWaitList ) && ( i < numEventsInWaitList ); ++i )
+            phEventWaitListLocal[ i ] = reinterpret_cast<ur_event_object_t*>( phEventWaitList[ i ] )->handle;
+
+        // forward to device-platform
+        result = pfnDeviceGlobalVariableWrite( hQueue, hProgram, name, blockingWrite, count, offset, pSrc, numEventsInWaitList, phEventWaitList, phEvent );
+        delete []phEventWaitListLocal;
+
+        if( UR_RESULT_SUCCESS != result )
+            return result;
+
+        try
+        {
+            // convert platform handle to loader handle
+            if( nullptr != phEvent )
+                *phEvent = reinterpret_cast<ur_event_handle_t>(
+                    ur_event_factory.getInstance( *phEvent, dditable ) );
+        }
+        catch( std::bad_alloc& )
+        {
+            result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+        }
+
+        return result;
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////
+    /// @brief Intercept function for urEnqueueDeviceGlobalVariableRead
+    __urdlllocal ur_result_t UR_APICALL
+    urEnqueueDeviceGlobalVariableRead(
+        ur_queue_handle_t hQueue,                       ///< [in] handle of the queue to submit to.
+        ur_program_handle_t hProgram,                   ///< [in] the program containing the device global.
+        const char* name,                               ///< [in] the unique identifier for the device global variable.
+        bool blockingRead,                              ///< [in] indicates if this operation should block.
+        size_t count,                                   ///< [in] the number of bytes to copy.
+        size_t offset,                                  ///< [in] the byte offset into the device global variable to start copying.
+        void* pDst,                                     ///< [in] pointer to where the data must be copied to.
+        uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
+        const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                        ///< events that must be complete before the kernel execution.
+                                                        ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+                                                        ///< event. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular kernel execution instance.    
+        )
+    {
+        ur_result_t result = UR_RESULT_SUCCESS;
+
+        // extract platform's function pointer table
+        auto dditable = reinterpret_cast<ur_queue_object_t*>( hQueue )->dditable;
+        auto pfnDeviceGlobalVariableRead = dditable->ur.Enqueue.pfnDeviceGlobalVariableRead;
+        if( nullptr == pfnDeviceGlobalVariableRead )
+            return UR_RESULT_ERROR_UNINITIALIZED;
+
+        // convert loader handle to platform handle
+        hQueue = reinterpret_cast<ur_queue_object_t*>( hQueue )->handle;
+
+        // convert loader handle to platform handle
+        hProgram = reinterpret_cast<ur_program_object_t*>( hProgram )->handle;
+
+        // convert loader handles to platform handles
+        auto phEventWaitListLocal = new ur_event_handle_t [numEventsInWaitList];
+        for( size_t i = 0; ( nullptr != phEventWaitList ) && ( i < numEventsInWaitList ); ++i )
+            phEventWaitListLocal[ i ] = reinterpret_cast<ur_event_object_t*>( phEventWaitList[ i ] )->handle;
+
+        // forward to device-platform
+        result = pfnDeviceGlobalVariableRead( hQueue, hProgram, name, blockingRead, count, offset, pDst, numEventsInWaitList, phEventWaitList, phEvent );
+        delete []phEventWaitListLocal;
+
+        if( UR_RESULT_SUCCESS != result )
+            return result;
+
+        try
+        {
+            // convert platform handle to loader handle
+            if( nullptr != phEvent )
+                *phEvent = reinterpret_cast<ur_event_handle_t>(
+                    ur_event_factory.getInstance( *phEvent, dditable ) );
+        }
+        catch( std::bad_alloc& )
+        {
+            result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+        }
+
+        return result;
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////
     /// @brief Intercept function for urEventGetInfo
     __urdlllocal ur_result_t UR_APICALL
     urEventGetInfo(
@@ -4507,6 +4629,8 @@ urGetEnqueueProcAddrTable(
             pDdiTable->pfnUSMFill2D                                = loader::urEnqueueUSMFill2D;
             pDdiTable->pfnUSMMemset2D                              = loader::urEnqueueUSMMemset2D;
             pDdiTable->pfnUSMMemcpy2D                              = loader::urEnqueueUSMMemcpy2D;
+            pDdiTable->pfnDeviceGlobalVariableWrite                = loader::urEnqueueDeviceGlobalVariableWrite;
+            pDdiTable->pfnDeviceGlobalVariableRead                 = loader::urEnqueueDeviceGlobalVariableRead;
         }
         else
         {
