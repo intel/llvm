@@ -30,7 +30,7 @@ namespace detail {
 
 using LockGuard = std::lock_guard<SpinLock>;
 
-GlobalHandler *GlobalHandler::MSyclGlobalObjectsHandler = new GlobalHandler();
+GlobalHandler *GlobalHandler::MSyclGlobalObjectsHandler;
 SpinLock GlobalHandler::MSyclGlobalHandlerProtector{};
 
 // Utility class to track references on object.
@@ -74,6 +74,11 @@ GlobalHandler::GlobalHandler() = default;
 GlobalHandler::~GlobalHandler() = default;
 
 GlobalHandler &GlobalHandler::instance() {
+  static std::once_flag InitCreation;
+  std::call_once(InitCreation, []() {
+    const LockGuard Lock{MSyclGlobalHandlerProtector};
+    MSyclGlobalObjectsHandler = new GlobalHandler();
+  });
   // No protection since sycl usage in parallel with main exit is not valid,
   // otherwise MSyclGlobalObjectsHandler exists at any call to instance().
   assert(MSyclGlobalObjectsHandler &&
@@ -210,10 +215,11 @@ void shutdown() {
     const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
     std::swap(Handler, GlobalHandler::MSyclGlobalObjectsHandler);
   }
-  assert(Handler && "Handler could not be deallocated earlier");
+  if (!Handler)
+    return;
+
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
-
   Handler->releaseResources();
 
   if (Handler->MHostTaskThreadPool.Inst)
