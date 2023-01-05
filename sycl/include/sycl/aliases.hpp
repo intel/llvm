@@ -106,6 +106,23 @@ using cl_half = half;
 using cl_float = float;
 using cl_double = double;
 
+namespace opencl {
+// Strictly speaking, cl_* aliases should not be defined in opencl namespace in
+// SYCL 1.2.1 mode, but we do so to simplify our implementation
+using cl_bool = bool;
+using cl_char = std::int8_t;
+using cl_uchar = std::uint8_t;
+using cl_short = std::int16_t;
+using cl_ushort = std::uint16_t;
+using cl_int = std::int32_t;
+using cl_uint = std::uint32_t;
+using cl_long = std::int64_t;
+using cl_ulong = std::uint64_t;
+using cl_half = half;
+using cl_float = float;
+using cl_double = double;
+} // namespace opencl
+
 // Vector aliases are different between SYCL 1.2.1 and SYCL 2020
 #if SYCL_LANGUAGE_VERSION >= 202001
 __SYCL_2020_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(2)
