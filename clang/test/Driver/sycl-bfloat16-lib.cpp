@@ -7,12 +7,12 @@
 
 /// ###########################################################################
 /// test that no bfloat16 libraries are added in JIT mode
-// RUN: %clangxx -fsycl %s -### 2>&1 \
+// RUN: %clangxx -fsycl %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16 --dump-input=always
 
 // test that no bfloat16 libraries are added in JIT mode with generic target
-// R UN: %clangxx -fsycl -fsycl-targets=spir64 %s -### 2>&1 \
-// R UN:   | FileCheck %s -check-prefix=BFLOAT16
+// RUN: %clangxx -fsycl -fsycl-targets=spir64 %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16
 
 // test that a PVC AOT compilation uses the native library
 // R UN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device pvc" %s -### 2>&1 \
