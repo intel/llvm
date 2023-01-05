@@ -207,11 +207,8 @@ void GlobalHandler::drainThreadPool() {
 }
 
 void shutdown() {
-  GlobalHandler *Handler = nullptr;
-  {
-    const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
-    std::swap(Handler, GlobalHandler::getInstancePtr());
-  }
+  const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
+  GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
   if (!Handler)
     return;
 
@@ -243,6 +240,7 @@ void shutdown() {
 
   // Release the rest of global resources.
   delete Handler;
+  Handler = nullptr;
 }
 
 #ifdef _WIN32
