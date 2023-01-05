@@ -82,15 +82,7 @@ add_library(OpenCL-ICD ALIAS OpenCL)
 set(OpenCL_LOADER_DIR
   ${ocl-icd_SOURCE_DIR} CACHE PATH "Path to OpenCL Loader")
 
-# TODO: Remove suppressing Werror.
-if(MSVC)
-  target_compile_options(OpenCL PRIVATE "-WX-")
-else()
-  target_compile_options(OpenCL PRIVATE "-Wno-error")
-endif()
-# Deploy OpenCL loader into package, this is required for xmain tc tests.
-# The deploy destination is different for OpenCL stand-alone product. See
-# opencl-intel/framework/CMakeLists.txt.
+# Deploy OpenCL loader into package, this is required for OCL CPU test.
 if (NOT INTEL_OPENCL_STANDALONE_PRODUCT)
   install(TARGETS OpenCL
           ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT OpenCL-ICD
