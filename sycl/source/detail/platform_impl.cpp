@@ -127,6 +127,9 @@ std::vector<platform> platform_impl::get_platforms() {
           Plugin.getPlatformId(PiPlatform);
         }
 
+        // The SYCL spec says that a platform has one or more devices. ( SYCL
+        // 2020 4.6.2 ) If we have an empty platform, we don't report it back
+        // from platform::get_platforms().
         if (!Platform.get_devices(info::device_type::all).empty()) {
           Platforms.push_back(Platform);
         }
