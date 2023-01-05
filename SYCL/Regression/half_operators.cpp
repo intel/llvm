@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-unnamed-lambda %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel -fsycl-unnamed-lambda %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // REQUIRES: gpu
 #include <iostream>
@@ -26,9 +26,7 @@ template <typename T> bool are_bitwise_equal(T lhs, T rhs) {
   return result;
 }
 
-template <typename T> bool test() {
-  sycl::queue queue{};
-
+template <typename T> bool test(sycl::queue &queue) {
   constexpr int NumElems{32};
   bool pass{true};
 
@@ -69,8 +67,10 @@ template <typename T> bool test() {
 }
 
 int main(int argc, char **argv) {
+  sycl::queue queue{};
   bool passed = true;
-  passed &= test<float>();
-  passed &= test<sycl::half>();
+  passed &= test<float>(queue);
+  if (queue.get_device().has(sycl::aspect::fp16))
+    passed &= test<sycl::half>(queue);
   return passed ? 0 : 1;
 }
