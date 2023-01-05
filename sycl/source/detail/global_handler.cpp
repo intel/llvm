@@ -79,8 +79,6 @@ GlobalHandler &GlobalHandler::instance() {
     const LockGuard Lock{MSyclGlobalHandlerProtector};
     MSyclGlobalObjectsHandler = new GlobalHandler();
   });
-  // No protection since sycl usage in parallel with main exit is not valid,
-  // otherwise MSyclGlobalObjectsHandler exists at any call to instance().
   assert(MSyclGlobalObjectsHandler &&
          "Handler must not be deallocated earlier");
   return *MSyclGlobalObjectsHandler;
@@ -209,6 +207,11 @@ void GlobalHandler::unloadPlugins() {
   getPlugins().clear();
 }
 
+void GlobalHandler::drainThreadPool() {
+  if (MHostTaskThreadPool.Inst)
+    MHostTaskThreadPool.Inst->drain();
+}
+
 void shutdown() {
   GlobalHandler *Handler = nullptr;
   {
@@ -244,11 +247,6 @@ void shutdown() {
 
   // Release the rest of global resources.
   delete Handler;
-}
-
-void GlobalHandler::drainThreadPool() {
-  if (MHostTaskThreadPool.Inst)
-    MHostTaskThreadPool.Inst->drain();
 }
 
 void GlobalHandler::releaseResources() {
