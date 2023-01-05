@@ -51,8 +51,11 @@ public:
     if (!MCounter) {
       LockGuard Guard(GlobalHandler::MSyclGlobalHandlerProtector);
       GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
-      if (RTGlobalObjHandler)
-        RTGlobalObjHandler->releaseSchedulerResources();
+      if (RTGlobalObjHandler) {
+        RTGlobalObjHandler->drainThreadPool();
+        if (RTGlobalObjHandler->MScheduler.Inst)
+          RTGlobalObjHandler->MScheduler.Inst->releaseResources();
+      }
     }
   }
 
@@ -214,7 +217,9 @@ void shutdown() {
 
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
-  Handler->releaseSchedulerResources();
+  Handler->drainThreadPool();
+  if (Handler->MScheduler.Inst)
+    Handler->MScheduler.Inst->releaseResources();
 
   if (Handler->MHostTaskThreadPool.Inst)
     Handler->MHostTaskThreadPool.Inst->finishAndWait();
@@ -238,12 +243,6 @@ void shutdown() {
 
   // Release the rest of global resources.
   delete Handler;
-}
-
-void GlobalHandler::releaseSchedulerResources() {
-  drainThreadPool();
-  if (MScheduler.Inst)
-    MScheduler.Inst->releaseResources();
 }
 
 #ifdef _WIN32

@@ -76,8 +76,6 @@ public:
 
   void unloadPlugins();
   void releaseDefaultContexts();
-
-  void releaseSchedulerResources();
   void drainThreadPool();
 
   // For testing purposes only
