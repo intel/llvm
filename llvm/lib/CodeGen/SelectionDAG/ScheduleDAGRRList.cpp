@@ -302,6 +302,8 @@ private:
 
 }  // end anonymous namespace
 
+static constexpr unsigned RegSequenceCost = 1;
+
 /// GetCostForDef - Looks up the register class and cost for a given definition.
 /// Typically this just means looking up the representative register class,
 /// but for untyped values (MVT::Untyped) it means inspecting the node's
@@ -333,7 +335,7 @@ static void GetCostForDef(const ScheduleDAGSDNodes::RegDefIter &RegDefPos,
       unsigned DstRCIdx = cast<ConstantSDNode>(Node->getOperand(0))->getZExtValue();
       const TargetRegisterClass *RC = TRI->getRegClass(DstRCIdx);
       RegClass = RC->getID();
-      Cost = 1;
+      Cost = RegSequenceCost;
       return;
     }
 
@@ -1282,7 +1284,8 @@ static MVT getPhysicalRegisterVT(SDNode *N, unsigned Reg,
     NumRes = 1;
   } else {
     const MCInstrDesc &MCID = TII->get(N->getMachineOpcode());
-    assert(MCID.ImplicitDefs && "Physical reg def must be in implicit def list!");
+    assert(MCID.getImplicitDefs() &&
+           "Physical reg def must be in implicit def list!");
     NumRes = MCID.getNumDefs();
     for (const MCPhysReg *ImpDef = MCID.getImplicitDefs(); *ImpDef; ++ImpDef) {
       if (Reg == *ImpDef)
@@ -1436,7 +1439,7 @@ DelayForLiveRegsBottomUp(SUnit *SU, SmallVectorImpl<unsigned> &LRegs) {
           CheckForLiveRegDef(SU, Reg, LiveRegDefs.get(), RegAdded, LRegs, TRI);
         }
     }
-    if (!MCID.ImplicitDefs)
+    if (!MCID.getImplicitDefs())
       continue;
     for (const MCPhysReg *Reg = MCID.getImplicitDefs(); *Reg; ++Reg)
       CheckForLiveRegDef(SU, *Reg, LiveRegDefs.get(), RegAdded, LRegs, TRI);
@@ -2300,6 +2303,16 @@ void RegReductionPQBase::unscheduledNode(SUnit *SU) {
       MVT VT = PN->getSimpleValueType(0);
       unsigned RCId = TLI->getRepRegClassFor(VT)->getID();
       RegPressure[RCId] += TLI->getRepRegClassCostFor(VT);
+      continue;
+    }
+    if (POpc == TargetOpcode::REG_SEQUENCE) {
+      unsigned DstRCIdx =
+          cast<ConstantSDNode>(PN->getOperand(0))->getZExtValue();
+      const TargetRegisterClass *RC = TRI->getRegClass(DstRCIdx);
+      unsigned RCId = RC->getID();
+      // REG_SEQUENCE is untyped, so getRepRegClassCostFor could not be used
+      // here. Instead use the same constant as in GetCostForDef.
+      RegPressure[RCId] += RegSequenceCost;
       continue;
     }
     unsigned NumDefs = TII->get(PN->getMachineOpcode()).getNumDefs();

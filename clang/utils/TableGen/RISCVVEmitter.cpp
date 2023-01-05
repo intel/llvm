@@ -25,6 +25,7 @@
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
 #include <numeric>
+#include <optional>
 
 using namespace llvm;
 using namespace clang::RISCV;
@@ -197,11 +198,13 @@ void emitCodeGenSwitchBody(const RVVIntrinsic *RVVI, raw_ostream &OS) {
         OS << "  Ops.push_back(ConstantInt::get(Ops.back()->getType(),"
               " PolicyAttrs));\n";
       if (RVVI->hasMaskedOffOperand() && RVVI->getPolicyAttrs().isTAMAPolicy())
-        OS << "  Ops.insert(Ops.begin(), llvm::UndefValue::get(ResultType));\n";
+        OS << "  Ops.insert(Ops.begin(), "
+              "llvm::PoisonValue::get(ResultType));\n";
       // Masked reduction cases.
       if (!RVVI->hasMaskedOffOperand() && RVVI->hasPassthruOperand() &&
           RVVI->getPolicyAttrs().isTAMAPolicy())
-        OS << "  Ops.insert(Ops.begin(), llvm::UndefValue::get(ResultType));\n";
+        OS << "  Ops.insert(Ops.begin(), "
+              "llvm::PoisonValue::get(ResultType));\n";
     } else {
       OS << "  std::rotate(Ops.begin(), Ops.begin() + 1, Ops.end());\n";
     }
@@ -210,7 +213,7 @@ void emitCodeGenSwitchBody(const RVVIntrinsic *RVVI, raw_ostream &OS) {
       OS << "  Ops.push_back(ConstantInt::get(Ops.back()->getType(), "
             "PolicyAttrs));\n";
     else if (RVVI->hasPassthruOperand() && RVVI->getPolicyAttrs().isTAPolicy())
-      OS << "  Ops.insert(Ops.begin(), llvm::UndefValue::get(ResultType));\n";
+      OS << "  Ops.insert(Ops.begin(), llvm::PoisonValue::get(ResultType));\n";
   }
 
   OS << "  IntrinsicTypes = {";
@@ -558,7 +561,7 @@ void RVVEmitter::createRVVIntrinsics(
     for (char I : TypeRange) {
       for (int Log2LMUL : Log2LMULList) {
         BasicType BT = ParseBasicType(I);
-        Optional<RVVTypes> Types =
+        std::optional<RVVTypes> Types =
             TypeCache.computeTypes(BT, Log2LMUL, NF, Prototype);
         // Ignored to create new intrinsic if there are any illegal types.
         if (!Types)
@@ -582,7 +585,7 @@ void RVVEmitter::createRVVIntrinsics(
                     BasicPrototype, /*IsMasked=*/false,
                     /*HasMaskedOffOperand=*/false, HasVL, NF,
                     IsPrototypeDefaultTU, UnMaskedPolicyScheme, P);
-            Optional<RVVTypes> PolicyTypes =
+            std::optional<RVVTypes> PolicyTypes =
                 TypeCache.computeTypes(BT, Log2LMUL, NF, PolicyPrototype);
             Out.push_back(std::make_unique<RVVIntrinsic>(
                 Name, SuffixStr, OverloadedName, OverloadedSuffixStr, IRName,
@@ -594,7 +597,7 @@ void RVVEmitter::createRVVIntrinsics(
         if (!HasMasked)
           continue;
         // Create a masked intrinsic
-        Optional<RVVTypes> MaskTypes =
+        std::optional<RVVTypes> MaskTypes =
             TypeCache.computeTypes(BT, Log2LMUL, NF, Prototype);
         Out.push_back(std::make_unique<RVVIntrinsic>(
             Name, SuffixStr, OverloadedName, OverloadedSuffixStr, MaskedIRName,
@@ -609,7 +612,7 @@ void RVVEmitter::createRVVIntrinsics(
               RVVIntrinsic::computeBuiltinTypes(
                   BasicPrototype, /*IsMasked=*/true, HasMaskedOffOperand, HasVL,
                   NF, IsPrototypeDefaultTU, MaskedPolicyScheme, P);
-          Optional<RVVTypes> PolicyTypes =
+          std::optional<RVVTypes> PolicyTypes =
               TypeCache.computeTypes(BT, Log2LMUL, NF, PolicyPrototype);
           Out.push_back(std::make_unique<RVVIntrinsic>(
               Name, SuffixStr, OverloadedName, OverloadedSuffixStr,

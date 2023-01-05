@@ -62,7 +62,7 @@ class LLVM_FloatArithmeticOp<string mnemonic, string instName,
   let arguments = !con(commonArgs, fmfArg);
   string mlirBuilder = [{
     auto op = $_builder.create<$_qualCppClassName>($_location, $lhs, $rhs);
-    setFastmathFlagsAttr(inst, op);
+    moduleImport.setFastmathFlagsAttr(inst, op);
     $res = op;
   }];
 }
@@ -82,7 +82,7 @@ class LLVM_UnaryFloatArithmeticOp<Type type, string mnemonic,
   string llvmInstName = instName;
   string mlirBuilder = [{
     auto op = $_builder.create<$_qualCppClassName>($_location, $operand);
-    setFastmathFlagsAttr(inst, op);
+    moduleImport.setFastmathFlagsAttr(inst, op);
     $res = op;
    }];
 }
@@ -157,7 +157,7 @@ def LLVM_FCmpOp : LLVM_ArithmeticCmpOp<"fcmp", [
     auto *fCmpInst = cast<llvm::FCmpInst>(inst);
     auto op = $_builder.create<$_qualCppClassName>(
       $_location, getFCmpPredicate(fCmpInst->getPredicate()), $lhs, $rhs);
-    setFastmathFlagsAttr(inst, op);
+    moduleImport.setFastmathFlagsAttr(inst, op);
     $res = op;
   }];
   // Set the $predicate index to -1 to indicate there is no matching operand
@@ -227,7 +227,8 @@ def LLVM_AllocaOp : LLVM_Op<"alloca">, MemoryOpWithAlignmentBase {
   // FIXME: Import attributes.
   string mlirBuilder = [{
     auto *allocaInst = cast<llvm::AllocaInst>(inst);
-    Type allocatedType = convertType(allocaInst->getAllocatedType());
+    Type allocatedType =
+      moduleImport.convertType(allocaInst->getAllocatedType());
     unsigned alignment = allocaInst->getAlign().value();
     $res = $_builder.create<LLVM::AllocaOp>(
       $_location, $_resultType, allocatedType, $arraySize, alignment);
@@ -399,7 +400,7 @@ def LLVM_StoreOp : LLVM_Op<"store">, MemoryOpWithAlignmentAndAttributes {
      # setAliasScopeMetadataCode;
   // FIXME: Import attributes.
   string mlirBuilder = [{
-    $_builder.create<LLVM::StoreOp>($_location, $value, $addr);
+    $_op = $_builder.create<LLVM::StoreOp>($_location, $value, $addr);
   }];
   let builders = [
     OpBuilder<(ins "Value":$value, "Value":$addr,
@@ -825,10 +826,11 @@ def LLVM_ReturnOp : LLVM_TerminatorOp<"return", [Pure, ReturnLike]> {
       builder.CreateRetVoid();
   }];
   string mlirBuilder = [{
-    FailureOr<SmallVector<Value>> mlirOperands = convertValues(llvmOperands);
+    FailureOr<SmallVector<Value>> mlirOperands =
+      moduleImport.convertValues(llvmOperands);
     if (failed(mlirOperands))
       return failure();
-    $_builder.create<LLVM::ReturnOp>($_location, *mlirOperands);
+    $_op = $_builder.create<LLVM::ReturnOp>($_location, *mlirOperands);
   }];
 }
 
@@ -839,7 +841,7 @@ def LLVM_ResumeOp : LLVM_TerminatorOp<"resume"> {
   string llvmInstName = "Resume";
   string llvmBuilder = [{ builder.CreateResume($value); }];
   string mlirBuilder = [{
-    $_builder.create<LLVM::ResumeOp>($_location, $value);
+    $_op = $_builder.create<LLVM::ResumeOp>($_location, $value);
   }];
 }
 def LLVM_UnreachableOp : LLVM_TerminatorOp<"unreachable"> {
@@ -847,7 +849,7 @@ def LLVM_UnreachableOp : LLVM_TerminatorOp<"unreachable"> {
   string llvmInstName = "Unreachable";
   string llvmBuilder = [{ builder.CreateUnreachable(); }];
   string mlirBuilder = [{
-    $_builder.create<LLVM::UnreachableOp>($_location);
+    $_op = $_builder.create<LLVM::UnreachableOp>($_location);
   }];
 }
 
@@ -1557,7 +1559,7 @@ def LLVM_FenceOp : LLVM_Op<"fence"> {
   }];
   string mlirBuilder = [{
     llvm::FenceInst *fenceInst = cast<llvm::FenceInst>(inst);
-    $_builder.create<LLVM::FenceOp>(
+    $_op = $_builder.create<LLVM::FenceOp>(
       $_location,
       getLLVMAtomicOrdering(fenceInst->getOrdering()),
       getLLVMSyncScope(fenceInst));

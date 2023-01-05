@@ -26,6 +26,7 @@
 #include "omptarget.h"
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/Triple.h"
 #include "llvm/Frontend/OpenMP/OMPConstants.h"
 #include "llvm/Frontend/OpenMP/OMPGridValues.h"
 #include "llvm/Support/Allocator.h"
@@ -377,6 +378,17 @@ struct GenericDeviceTy : public DeviceAllocatorTy {
   }
   uint32_t getDynamicMemorySize() const { return OMPX_SharedMemorySize; }
 
+  /// Get target architecture.
+  virtual std::string getArch() const {
+    return "unknown";
+  }
+
+  /// Post processing after jit backend. The ownership of \p MB will be taken.
+  virtual Expected<std::unique_ptr<MemoryBuffer>>
+  doJITPostProcessing(std::unique_ptr<MemoryBuffer> MB) const {
+    return MB;
+  }
+
 private:
   /// Register offload entry for global variable.
   Error registerGlobalOffloadEntry(DeviceImageTy &DeviceImage,
@@ -460,6 +472,10 @@ protected:
     return ((const char *)It->first + It->second > (const char *)Buffer);
   }
 
+  /// Return the execution mode used for kernel \p Name.
+  Expected<OMPTgtExecModeFlags> getExecutionModeForKernel(StringRef Name,
+                                                          DeviceImageTy &Image);
+
   /// Environment variables defined by the LLVM OpenMP implementation
   /// regarding the initial number of streams and events.
   UInt32Envar OMPX_InitialNumStreams;
@@ -525,6 +541,11 @@ struct GenericPluginTy {
 
   /// Get the ELF code to recognize the binary image of this plugin.
   virtual uint16_t getMagicElfBits() const = 0;
+
+  /// Get the target triple of this plugin.
+  virtual Triple::ArchType getTripleArch() const {
+    return Triple::ArchType::UnknownArch;
+  }
 
   /// Allocate a structure using the internal allocator.
   template <typename Ty> Ty *allocate() {

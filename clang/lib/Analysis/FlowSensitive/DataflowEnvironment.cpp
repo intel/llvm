@@ -93,7 +93,19 @@ static Value *mergeDistinctValues(QualType Type, Value &Val1,
                                   Environment::ValueModel &Model) {
   // Join distinct boolean values preserving information about the constraints
   // in the respective path conditions.
-  if (auto *Expr1 = dyn_cast<BoolValue>(&Val1)) {
+  if (Type->isBooleanType()) {
+    // FIXME: The type check above is a workaround and should be unnecessary.
+    // However, right now we can end up with BoolValue's in integer-typed
+    // variables due to our incorrect handling of boolean-to-integer casts (we
+    // just propagate the BoolValue to the result of the cast). For example:
+    // std::optional<bool> o;
+    //
+    //
+    // int x;
+    // if (o.has_value()) {
+    //   x = o.value();
+    // }
+    auto *Expr1 = cast<BoolValue>(&Val1);
     auto *Expr2 = cast<BoolValue>(&Val2);
     auto &MergedVal = MergedEnv.makeAtomicBoolValue();
     MergedEnv.addToFlowCondition(MergedEnv.makeOr(
@@ -223,14 +235,12 @@ Environment::Environment(DataflowAnalysisContext &DACtx,
     if (Parent->isLambda())
       MethodDecl = dyn_cast<CXXMethodDecl>(Parent->getDeclContext());
 
+    // FIXME: Initialize the ThisPointeeLoc of lambdas too.
     if (MethodDecl && !MethodDecl->isStatic()) {
       QualType ThisPointeeType = MethodDecl->getThisObjectType();
-      // FIXME: Add support for union types.
-      if (!ThisPointeeType->isUnionType()) {
-        ThisPointeeLoc = &createStorageLocation(ThisPointeeType);
-        if (Value *ThisPointeeVal = createValue(ThisPointeeType))
-          setValue(*ThisPointeeLoc, *ThisPointeeVal);
-      }
+      ThisPointeeLoc = &createStorageLocation(ThisPointeeType);
+      if (Value *ThisPointeeVal = createValue(ThisPointeeType))
+        setValue(*ThisPointeeLoc, *ThisPointeeVal);
     }
   }
 
@@ -558,7 +568,7 @@ void Environment::setValue(const StorageLocation &Loc, Value &Val) {
     auto &AggregateLoc = *cast<AggregateStorageLocation>(&Loc);
 
     const QualType Type = AggregateLoc.getType();
-    assert(Type->isStructureOrClassType());
+    assert(Type->isStructureOrClassType() || Type->isUnionType());
 
     for (const FieldDecl *Field : getObjectFields(Type)) {
       assert(Field != nullptr);
@@ -672,7 +682,7 @@ Value *Environment::createValueUnlessSelfReferential(
     return &takeOwnership(std::make_unique<PointerValue>(PointeeLoc));
   }
 
-  if (Type->isStructureOrClassType()) {
+  if (Type->isStructureOrClassType() || Type->isUnionType()) {
     CreatedValuesCount++;
     // FIXME: Initialize only fields that are accessed in the context that is
     // being analyzed.

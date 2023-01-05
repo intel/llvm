@@ -16,6 +16,7 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
@@ -686,6 +687,8 @@ struct FoldLaunchArguments : public OpRewritePattern<LaunchOp> {
       // Check if size is trivially one.
       if (!matchPattern(size, m_One()))
         return;
+      if (id.getUses().empty())
+        return;
       if (!simplified) {
         // Create a zero value the first time.
         OpBuilder::InsertionGuard guard(rewriter);
@@ -693,7 +696,7 @@ struct FoldLaunchArguments : public OpRewritePattern<LaunchOp> {
         zero =
             rewriter.create<arith::ConstantIndexOp>(op.getLoc(), /*value=*/0);
       }
-      id.replaceAllUsesWith(zero);
+      rewriter.replaceAllUsesWith(id, zero);
       simplified = true;
     };
     constPropIdUses(op.getBlockIds().x, op.getGridSizeX());
@@ -1054,6 +1057,27 @@ LogicalResult GPUFuncOp::verifyBody() {
                                 GPUDialect::getPrivateAddressSpace())))
     return failure();
 
+  return success();
+}
+
+static LogicalResult verifyKnownLaunchSizeAttr(gpu::GPUFuncOp op,
+                                               StringRef attrName) {
+  auto maybeAttr = op->getAttr(attrName);
+  if (!maybeAttr)
+    return success();
+  auto array = maybeAttr.dyn_cast<DenseI32ArrayAttr>();
+  if (!array)
+    return op.emitOpError(attrName + " must be a dense i32 array");
+  if (array.size() != 3)
+    return op.emitOpError(attrName + " must contain exactly 3 elements");
+  return success();
+}
+
+LogicalResult GPUFuncOp::verify() {
+  if (failed(verifyKnownLaunchSizeAttr(*this, getKnownBlockSizeAttrName())))
+    return failure();
+  if (failed(verifyKnownLaunchSizeAttr(*this, getKnownGridSizeAttrName())))
+    return failure();
   return success();
 }
 

@@ -16995,6 +16995,13 @@ Value *CodeGenFunction::EmitAMDGPUBuiltinExpr(unsigned BuiltinID,
     return emitTernaryBuiltin(*this, E, Intrinsic::amdgcn_ubfe);
   case AMDGPU::BI__builtin_amdgcn_sbfe:
     return emitTernaryBuiltin(*this, E, Intrinsic::amdgcn_sbfe);
+  case AMDGPU::BI__builtin_amdgcn_ballot_w32:
+  case AMDGPU::BI__builtin_amdgcn_ballot_w64: {
+    llvm::Type *ResultType = ConvertType(E->getType());
+    llvm::Value *Src = EmitScalarExpr(E->getArg(0));
+    Function *F = CGM.getIntrinsic(Intrinsic::amdgcn_ballot, { ResultType });
+    return Builder.CreateCall(F, { Src });
+  }
   case AMDGPU::BI__builtin_amdgcn_uicmp:
   case AMDGPU::BI__builtin_amdgcn_uicmpl:
   case AMDGPU::BI__builtin_amdgcn_sicmp:
@@ -21780,6 +21787,12 @@ Value *CodeGenFunction::EmitLoongArchBuiltinExpr(unsigned BuiltinID,
     break;
   case LoongArch::BI__builtin_loongarch_ibar:
     ID = Intrinsic::loongarch_ibar;
+    break;
+  case LoongArch::BI__builtin_loongarch_movfcsr2gr:
+    ID = Intrinsic::loongarch_movfcsr2gr;
+    break;
+  case LoongArch::BI__builtin_loongarch_movgr2fcsr:
+    ID = Intrinsic::loongarch_movgr2fcsr;
     break;
   case LoongArch::BI__builtin_loongarch_syscall:
     ID = Intrinsic::loongarch_syscall;

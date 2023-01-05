@@ -1430,7 +1430,10 @@ std::string NVPTXTargetLowering::getPrototype(
   if (VAInfo)
     O << (first ? "" : ",") << " .param .align " << VAInfo->second
       << " .b8 _[]\n";
-  O << ");";
+  O << ")";
+  if (shouldEmitPTXNoReturn(&CB, *nvTM))
+    O << " .noreturn";
+  O << ";";
 
   return Prototype;
 }
@@ -1819,10 +1822,11 @@ SDValue NVPTXTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
                       ->getAPIntValue()))
             : std::nullopt,
         *CB, UniqueCallSite);
-    const char *ProtoStr =
-      nvTM->getManagedStrPool()->getManagedString(Proto.c_str())->c_str();
+    const char *ProtoStr = nvTM->getStrPool().save(Proto).data();
     SDValue ProtoOps[] = {
-      Chain, DAG.getTargetExternalSymbol(ProtoStr, MVT::i32), InFlag,
+        Chain,
+        DAG.getTargetExternalSymbol(ProtoStr, MVT::i32),
+        InFlag,
     };
     Chain = DAG.getNode(NVPTXISD::CallPrototype, dl, ProtoVTs, ProtoOps);
     InFlag = Chain.getValue(1);
@@ -2631,9 +2635,9 @@ SDValue NVPTXTargetLowering::getParamSymbol(SelectionDAG &DAG, int idx,
   else
     ParamStr << "_param_" << idx;
 
-  std::string *SavedStr =
-    nvTM->getManagedStrPool()->getManagedString(ParamSym.c_str());
-  return DAG.getTargetExternalSymbol(SavedStr->c_str(), v);
+  StringRef SavedStr =
+    nvTM->getStrPool().save(ParamSym);
+  return DAG.getTargetExternalSymbol(SavedStr.data(), v);
 }
 
 SDValue NVPTXTargetLowering::LowerFormalArguments(

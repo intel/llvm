@@ -31,7 +31,9 @@ static constexpr Builtin::Info BuiltinInfo[] = {
 #include "clang/Basic/BuiltinsNEON.def"
 
 #define BUILTIN(ID, TYPE, ATTRS)                                               \
-   {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr},
+  {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr},
+#define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE)                               \
+  {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, FEATURE},
 #include "clang/Basic/BuiltinsSVE.def"
 
 #define BUILTIN(ID, TYPE, ATTRS)                                               \
@@ -647,7 +649,7 @@ unsigned AArch64TargetInfo::multiVersionSortPriority(StringRef Name) const {
 #define AARCH64_ARCH_EXT_NAME(NAME, ID, FEATURE, NEGFEATURE, FMV_ID,           \
                               DEP_FEATURES, FMV_PRIORITY)                      \
   .Case(NAME, FMV_PRIORITY)
-#include "../../../../llvm/include/llvm/TargetParser/AArch64TargetParser.def"
+#include "llvm/TargetParser/AArch64TargetParser.def"
       ;
   assert((Name == "none" || Priority < multiVersionFeatureCost()) &&
          "FMV priority is out of bounds!");
@@ -666,7 +668,7 @@ bool AArch64TargetInfo::getFeatureDepOptions(StringRef Name,
 #define AARCH64_ARCH_EXT_NAME(NAME, ID, FEATURE, NEGFEATURE, FMV_ID,           \
                               DEP_FEATURES, FMV_PRIORITY)                      \
   .Case(NAME, DEP_FEATURES)
-#include "../../../../llvm/include/llvm/TargetParser/AArch64TargetParser.def"
+#include "llvm/TargetParser/AArch64TargetParser.def"
                    .Default("");
   return FeatureVec != "";
 }
@@ -676,7 +678,7 @@ bool AArch64TargetInfo::validateCpuSupports(StringRef FeatureStr) const {
 #define AARCH64_ARCH_EXT_NAME(NAME, ID, FEATURE, NEGFEATURE, FMV_ID,           \
                               DEP_FEATURES, FMV_PRIORITY)                      \
   .Case(NAME, llvm::AArch64::FEAT_##FMV_ID)
-#include "../../../../llvm/include/llvm/TargetParser/AArch64TargetParser.def"
+#include "llvm/TargetParser/AArch64TargetParser.def"
                       .Default(llvm::AArch64::FEAT_MAX);
   return Feat != llvm::AArch64::FEAT_MAX;
 }

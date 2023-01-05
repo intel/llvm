@@ -3703,7 +3703,6 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case ShuffleVectorExprClass:
   case ConvertVectorExprClass:
   case AsTypeExprClass:
-  case CXXParenListInitExprClass:
     // These have a side-effect if any subexpression does.
     break;
 

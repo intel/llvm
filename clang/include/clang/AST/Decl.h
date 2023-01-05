@@ -915,10 +915,7 @@ public:
     CallInit,
 
     /// Direct list-initialization (C++11)
-    ListInit,
-
-    /// Parenthesized list-initialization (C++20)
-    ParenListInit
+    ListInit
   };
 
   /// Kinds of thread-local storage.

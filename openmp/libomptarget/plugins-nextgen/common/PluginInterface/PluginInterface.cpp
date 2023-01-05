@@ -11,9 +11,13 @@
 #include "PluginInterface.h"
 #include "Debug.h"
 #include "GlobalHandler.h"
+#include "JIT.h"
 #include "elf_common.h"
 #include "omptarget.h"
 #include "omptargetplugin.h"
+
+#include "llvm/Frontend/OpenMP/OMPConstants.h"
+#include "llvm/Support/Error.h"
 
 #include <cstdint>
 #include <limits>
@@ -356,6 +360,34 @@ Error GenericDeviceTy::registerKernelOffloadEntry(
   return Plugin::success();
 }
 
+Expected<OMPTgtExecModeFlags>
+GenericDeviceTy::getExecutionModeForKernel(StringRef Name,
+                                           DeviceImageTy &Image) {
+  // Create a metadata object for the exec mode global (auto-generated).
+  StaticGlobalTy<llvm::omp::OMPTgtExecModeFlags> ExecModeGlobal(Name.data(),
+                                                                "_exec_mode");
+
+  // Retrieve execution mode for the kernel. This may fail since some kernels
+  // may not have an execution mode.
+  GenericGlobalHandlerTy &GHandler = Plugin::get().getGlobalHandler();
+  if (auto Err = GHandler.readGlobalFromImage(*this, Image, ExecModeGlobal)) {
+    // Consume the error since it is acceptable to fail.
+    [[maybe_unused]] std::string ErrStr = toString(std::move(Err));
+    DP("Failed to read execution mode for '%s': %s\n"
+       "Using default SPMD (2) execution mode\n",
+       Name.data(), ErrStr.data());
+
+    return OMP_TGT_EXEC_MODE_SPMD;
+  }
+
+  // Check that the retrieved execution mode is valid.
+  if (!GenericKernelTy::isValidExecutionMode(ExecModeGlobal.getValue()))
+    return Plugin::error("Invalid execution mode %d for '%s'",
+                         ExecModeGlobal.getValue(), Name.data());
+
+  return ExecModeGlobal.getValue();
+}
+
 Error GenericDeviceTy::registerHostPinnedMemoryBuffer(const void *Buffer,
                                                       size_t Size) {
   std::lock_guard<std::shared_mutex> Lock(HostAllocationsMutex);
@@ -629,7 +661,10 @@ int32_t __tgt_rtl_is_valid_binary(__tgt_device_image *TgtImage) {
   if (!Plugin::isActive())
     return false;
 
-  return elf_check_machine(TgtImage, Plugin::get().getMagicElfBits());
+  if (elf_check_machine(TgtImage, Plugin::get().getMagicElfBits()))
+    return true;
+
+  return jit::checkBitcodeImage(TgtImage, Plugin::get().getTripleArch());
 }
 
 int32_t __tgt_rtl_is_valid_binary_info(__tgt_device_image *TgtImage,
@@ -700,7 +735,37 @@ int32_t __tgt_rtl_is_data_exchangable(int32_t SrcDeviceId,
 __tgt_target_table *__tgt_rtl_load_binary(int32_t DeviceId,
                                           __tgt_device_image *TgtImage) {
   GenericPluginTy &Plugin = Plugin::get();
-  auto TableOrErr = Plugin.getDevice(DeviceId).loadBinary(Plugin, TgtImage);
+  GenericDeviceTy &Device = Plugin.getDevice(DeviceId);
+
+  // If it is a bitcode image, we have to jit the binary image before loading to
+  // the device.
+  {
+    UInt32Envar JITOptLevel("LIBOMPTARGET_JIT_OPT_LEVEL", 3);
+    Triple::ArchType TA = Plugin.getTripleArch();
+    std::string Arch = Device.getArch();
+
+    jit::PostProcessingFn PostProcessing =
+        [&Device](std::unique_ptr<MemoryBuffer> MB)
+        -> Expected<std::unique_ptr<MemoryBuffer>> {
+      return Device.doJITPostProcessing(std::move(MB));
+    };
+
+    if (jit::checkBitcodeImage(TgtImage, TA)) {
+      auto TgtImageOrErr =
+          jit::compile(TgtImage, TA, Arch, JITOptLevel, PostProcessing);
+      if (!TgtImageOrErr) {
+        auto Err = TgtImageOrErr.takeError();
+        REPORT("Failure to jit binary image from bitcode image %p on device "
+               "%d: %s\n",
+               TgtImage, DeviceId, toString(std::move(Err)).data());
+        return nullptr;
+      }
+
+      TgtImage = *TgtImageOrErr;
+    }
+  }
+
+  auto TableOrErr = Device.loadBinary(Plugin, TgtImage);
   if (!TableOrErr) {
     auto Err = TableOrErr.takeError();
     REPORT("Failure to load binary image %p on device %d: %s\n", TgtImage,

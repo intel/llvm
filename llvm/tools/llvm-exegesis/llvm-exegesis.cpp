@@ -144,6 +144,18 @@ static cl::opt<bool> IgnoreInvalidSchedClass(
     cl::desc("ignore instructions that do not define a sched class"),
     cl::cat(BenchmarkOptions), cl::init(false));
 
+static cl::opt<exegesis::InstructionBenchmarkFilter> AnalysisSnippetFilter(
+    "analysis-filter", cl::desc("Filter the benchmarks before analysing them"),
+    cl::cat(BenchmarkOptions),
+    cl::values(
+        clEnumValN(exegesis::InstructionBenchmarkFilter::All, "all",
+                   "Keep all benchmarks (default)"),
+        clEnumValN(exegesis::InstructionBenchmarkFilter::RegOnly, "reg-only",
+                   "Keep only those benchmarks that do *NOT* involve memory"),
+        clEnumValN(exegesis::InstructionBenchmarkFilter::WithMem, "mem-only",
+                   "Keep only the benchmarks that *DO* involve memory")),
+    cl::init(exegesis::InstructionBenchmarkFilter::All));
+
 static cl::opt<exegesis::InstructionBenchmarkClustering::ModeE>
     AnalysisClusteringAlgorithm(
         "analysis-clustering", cl::desc("the clustering algorithm to use"),
@@ -205,11 +217,11 @@ static cl::opt<std::string>
          cl::desc("Target a specific cpu type (-mcpu=help for details)"),
          cl::value_desc("cpu-name"), cl::cat(Options), cl::init("native"));
 
-static cl::opt<bool>
-    DumpObjectToDisk("dump-object-to-disk",
-                     cl::desc("dumps the generated benchmark object to disk "
-                              "and prints a message to access it"),
-                     cl::cat(BenchmarkOptions), cl::init(true));
+static cl::opt<bool> DumpObjectToDisk(
+    "dump-object-to-disk",
+    cl::desc("dumps the generated benchmark object to disk "
+             "and prints a message to access it (default = false)"),
+    cl::cat(BenchmarkOptions), cl::init(false));
 
 static ExitOnError ExitOnErr("llvm-exegesis error: ");
 
@@ -495,6 +507,26 @@ static void maybeRunAnalysis(const Analysis &Analyzer, const std::string &Name,
     ExitOnFileError(OutputFilename, std::move(Err));
 }
 
+static void filterPoints(MutableArrayRef<InstructionBenchmark> Points,
+                         const MCInstrInfo &MCII) {
+  if (AnalysisSnippetFilter == exegesis::InstructionBenchmarkFilter::All)
+    return;
+
+  bool WantPointsWithMemOps =
+      AnalysisSnippetFilter == exegesis::InstructionBenchmarkFilter::WithMem;
+  for (InstructionBenchmark &Point : Points) {
+    if (!Point.Error.empty())
+      continue;
+    if (WantPointsWithMemOps ==
+        any_of(Point.Key.Instructions, [&MCII](const MCInst &Inst) {
+          const MCInstrDesc &MCDesc = MCII.get(Inst.getOpcode());
+          return MCDesc.mayLoad() || MCDesc.mayStore();
+        }))
+      continue;
+    Point.Error = "filtered out by user";
+  }
+}
+
 static void analysisMain() {
   ExitOnErr.setBanner("llvm-exegesis: ");
   if (BenchmarkFile.empty())
@@ -540,7 +572,7 @@ static void analysisMain() {
   // Read benchmarks.
   const LLVMState State = ExitOnErr(
       LLVMState::Create(TripleAndCpu.LLVMTriple, TripleAndCpu.CpuName));
-  const std::vector<InstructionBenchmark> Points = ExitOnFileError(
+  std::vector<InstructionBenchmark> Points = ExitOnFileError(
       BenchmarkFile, InstructionBenchmark::readYamls(State, *MemoryBuffer));
 
   outs() << "Parsed " << Points.size() << " benchmark points\n";
@@ -549,6 +581,8 @@ static void analysisMain() {
     return;
   }
   // FIXME: Merge points from several runs (latency and uops).
+
+  filterPoints(Points, State.getInstrInfo());
 
   const auto Clustering = ExitOnErr(InstructionBenchmarkClustering::create(
       Points, AnalysisClusteringAlgorithm, AnalysisDbscanNumPoints,

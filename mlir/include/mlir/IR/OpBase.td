@@ -1292,6 +1292,7 @@ def UnitAttr : Attr<CPred<"$_self.isa<::mlir::UnitAttr>()">, "unit attribute"> {
 class DictionaryAttrBase<Pred condition, string summary> :
     Attr<condition, summary> {
   let storageType = [{ ::mlir::DictionaryAttr }];
+  let constBuilderCall = "$_builder.getDictionaryAttr($0)";
   let returnType = [{ ::mlir::DictionaryAttr }];
   let valueType = NoneType;
   let convertFromStorage = "$_self";
@@ -1669,6 +1670,10 @@ class ArrayMinCount<int n> : AttrConstraint<
 
 class ArrayCount<int n> : AttrConstraint<
     CPred<"$_self.cast<::mlir::ArrayAttr>().size() == " #n>,
+    "with exactly " # n # " elements">;
+
+class DenseArrayCount<int n> : AttrConstraint<
+    CPred<"$_self.cast<::mlir::DenseArrayAttr>().size() == " #n>,
     "with exactly " # n # " elements">;
 
 class DenseArrayStrictlyPositive<DenseArrayAttrBase arrayType> : AttrConstraint<

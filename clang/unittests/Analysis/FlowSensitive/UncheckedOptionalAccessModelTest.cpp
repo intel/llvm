@@ -1498,6 +1498,23 @@ TEST_P(UncheckedOptionalAccessTest, NulloptConstructor) {
   )");
 }
 
+TEST_P(UncheckedOptionalAccessTest, NulloptConstructorWithSugaredType) {
+  ExpectDiagnosticsFor(
+      R"(
+    #include "unchecked_optional_access_test.h"
+    template <typename T>
+    using wrapper = T;
+
+    template <typename T>
+    wrapper<T> wrap(T);
+
+    void target() {
+      $ns::$optional<int> opt(wrap($ns::nullopt));
+      opt.value(); // [[unsafe]]
+    }
+  )");
+}
+
 TEST_P(UncheckedOptionalAccessTest, InPlaceConstructor) {
   ExpectDiagnosticsFor(R"(
     #include "unchecked_optional_access_test.h"
@@ -2970,6 +2987,23 @@ TEST_P(UncheckedOptionalAccessTest, CtorInitializerValue) {
       cxxConstructorDecl(ofClass(hasName("Target"))));
 }
 
+// This is regression test, it shouldn't crash.
+TEST_P(UncheckedOptionalAccessTest, Bitfield) {
+  using namespace ast_matchers;
+  ExpectDiagnosticsFor(
+      R"(
+    #include "unchecked_optional_access_test.h"
+    struct Dst {
+      unsigned int n : 1;
+    };
+    void target() {
+      $ns::$optional<bool> v;
+      Dst d;
+      if (v.has_value())
+        d.n = v.value();
+    }
+  )");
+}
 // FIXME: Add support for:
 // - constructors (copy, move)
 // - assignment operators (default, copy, move)

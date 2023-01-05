@@ -267,7 +267,7 @@ static cl::opt<bool>
                  cl::desc("Enable lowering of the matrix intrinsics"));
 
 static cl::opt<bool> EnableConstraintElimination(
-    "enable-constraint-elimination", cl::init(false), cl::Hidden,
+    "enable-constraint-elimination", cl::init(true), cl::Hidden,
     cl::desc(
         "Enable pass to eliminate conditions based on linear constraints"));
 
@@ -504,9 +504,6 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
         SimplifyCFGPass(SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
   }
 
-  if (EnableConstraintElimination)
-    FPM.addPass(ConstraintEliminationPass());
-
   // Speculative execution if the target has divergent branches; otherwise nop.
   FPM.addPass(SpeculativeExecutionPass(/* OnlyIfDivergentTarget =*/true));
 
@@ -519,6 +516,9 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   FPM.addPass(InstCombinePass());
   if (Level == OptimizationLevel::O3)
     FPM.addPass(AggressiveInstCombinePass());
+
+  if (EnableConstraintElimination)
+    FPM.addPass(ConstraintEliminationPass());
 
   if (!Level.isOptimizingForSize())
     FPM.addPass(LibCallsShrinkWrapPass());
@@ -1752,6 +1752,9 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   FPM.addPass(InstCombinePass());
   invokePeepholeEPCallbacks(FPM, Level);
 
+  if (EnableConstraintElimination)
+    FPM.addPass(ConstraintEliminationPass());
+
   FPM.addPass(JumpThreadingPass());
 
   // Do a post inline PGO instrumentation and use pass. This is a context
@@ -1808,9 +1811,6 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   // Nuke dead stores.
   MainFPM.addPass(DSEPass());
   MainFPM.addPass(MergedLoadStoreMotionPass());
-
-  if (EnableConstraintElimination)
-    MainFPM.addPass(ConstraintEliminationPass());
 
   LoopPassManager LPM;
   if (EnableLoopFlatten && Level.getSpeedupLevel() > 1)

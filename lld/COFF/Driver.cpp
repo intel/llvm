@@ -18,6 +18,7 @@
 #include "Symbols.h"
 #include "Writer.h"
 #include "lld/Common/Args.h"
+#include "lld/Common/CommonLinkerContext.h"
 #include "lld/Common/Driver.h"
 #include "lld/Common/Filesystem.h"
 #include "lld/Common/Timer.h"
@@ -413,6 +414,9 @@ void LinkerDriver::parseDirectives(InputFile *file) {
       break;
     case OPT_nodefaultlib:
       config->noDefaultLibs.insert(doFindLib(arg->getValue()).lower());
+      break;
+    case OPT_release:
+      config->writeCheckSum = true;
       break;
     case OPT_section:
       parseSection(arg->getValue());
@@ -2020,6 +2024,10 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   if (errorCount())
     return;
 
+  // Handle /RELEASE
+  if (args.hasArg(OPT_release))
+    config->writeCheckSum = true;
+  
   // Handle /safeseh, x86 only, on by default, except for mingw.
   if (config->machine == I386) {
     config->safeSEH = args.hasFlag(OPT_safeseh, OPT_safeseh_no, !config->mingw);
