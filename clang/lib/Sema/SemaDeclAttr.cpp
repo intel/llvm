@@ -4060,6 +4060,7 @@ static void handleIntelNamedSubGroupSize(Sema &S, Decl *D,
   if (!IntelNamedSubGroupSizeAttr::ConvertStrToSubGroupSizeType(SizeStr,
                                                                 SizeType)) {
     S.Diag(Loc, diag::warn_attribute_type_not_supported) << AL << SizeStr;
+    return;
   }
   D->addAttr(IntelNamedSubGroupSizeAttr::Create(S.Context, SizeType, AL));
 }
@@ -10710,6 +10711,11 @@ void Sema::AddSYCLDeviceHasAttr(Decl *D, const AttributeCommonInfo &CI,
 }
 
 static void handleSYCLDeviceHasAttr(Sema &S, Decl *D, const ParsedAttr &A) {
+  // Ignore the attribute if compiling for the host side because aspects may not
+  // be marked properly for such compilation
+  if (!S.Context.getLangOpts().SYCLIsDevice)
+    return;
+
   SmallVector<Expr *, 5> Args;
   for (unsigned I = 0; I < A.getNumArgs(); ++I)
     Args.push_back(A.getArgAsExpr(I));
@@ -10751,6 +10757,11 @@ void Sema::AddSYCLUsesAspectsAttr(Decl *D, const AttributeCommonInfo &CI,
 }
 
 static void handleSYCLUsesAspectsAttr(Sema &S, Decl *D, const ParsedAttr &A) {
+  // Ignore the attribute if compiling for the host because aspects may not be
+  // marked properly for such compilation
+  if (!S.Context.getLangOpts().SYCLIsDevice)
+    return;
+
   SmallVector<Expr *, 5> Args;
   for (unsigned I = 0; I < A.getNumArgs(); ++I)
     Args.push_back(A.getArgAsExpr(I));

@@ -1673,13 +1673,18 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   if (getLangOpts().CUDA && !getLangOpts().CUDAIsDevice &&
       getLangOpts().SYCLIsHost && !FD->hasAttr<CUDAHostAttr>() &&
       FD->hasAttr<CUDADeviceAttr>()) {
-    Fn->setLinkage(llvm::Function::WeakODRLinkage);
     if (FD->getReturnType()->isVoidType())
       Builder.CreateRetVoid();
     else
       Builder.CreateRet(llvm::UndefValue::get(Fn->getReturnType()));
     return;
   }
+  // When compiling a CUDA file in SYCL device mode,
+  // set weak ODR linkage for possibly duplicated functions.
+  if (getLangOpts().CUDA && !getLangOpts().CUDAIsDevice &&
+      getLangOpts().SYCLIsDevice &&
+      (FD->hasAttr<CUDADeviceAttr>() || FD->hasAttr<CUDAHostAttr>()))
+    Fn->setLinkage(llvm::Function::WeakODRLinkage);
 
   // Generate the body of the function.
   PGO.assignRegionCounters(GD, CurFn);

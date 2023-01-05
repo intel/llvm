@@ -434,7 +434,8 @@ It returns 0 if no kernels are present and 1 otherwise.
 
 #### Device code post-link step
 
-At link time all the device code is always linked into a single LLVM IR module.
+At link time all the device code is linked into
+a single LLVM IR module unless `-fno-sycl-rdc` is specified.
 `sycl-post-link` tool performs a number of final transformations on this LLVM IR
 module before handing it off to the offload wrapper. Those include:
 
@@ -470,7 +471,10 @@ Targeting PTX currently only accepts a single input file for processing, so
 is then processed by the
 ["PTX target processing" step](#device-code-post-link-step-for-CUDA).
 The resulting device binary is inserted back into the file table in place of the
-extracted code file using `file-table-tform`.
+extracted code file using `file-table-tform`. If `-fno-sycl-rdc` is specified,
+all shown tools are invoked multiple times, once per translation unit rather than
+once total. See [Non-Relocatable Device Code](NonRelocatableDeviceCode.md) for
+more information.
 
 ##### Device code splitting
 
@@ -490,12 +494,17 @@ ones. The following features is supported:
 - Emitting a separate module for source (translation unit)
 - Emitting a separate module for each kernel
 
+If the device code does not use `SYCL_EXTERNAL` functions, device code splitting
+can be combined with the `-fno-sycl-rdc` option for improved compiler performance.
+
 The current approach is:
 
 - Generate special meta-data with translation unit ID for each kernel in SYCL
 front-end. This ID will be used to group kernels on per-translation unit basis
 - Link all device LLVM modules using llvm-link
-- Perform split on a fully linked module
+- Perform split on a fully linked module, unless `-fno-sycl-rdc` is specified,
+  where splits are performed on a module containing only current translation unit and
+  linked device libraries
 - Generate a symbol table (list of kernels) for each produced device module for
 proper module selection in runtime
 - Perform SPIR-V translation and AOT compilation (if requested) on each produced
@@ -505,6 +514,9 @@ image
 
 Device code splitting process:
 ![Device code splitting](images/DeviceCodeSplit.svg)
+
+The `llvm-link` box does not occur when `-fno-sycl-rdc` is specified. Rather,
+all subsequent boxes occur per-source.
 
 The "split" box is implemented as functionality of the dedicated tool
 `sycl-post-link`. The tool runs a set of LLVM passes to split input module and
@@ -520,7 +532,8 @@ There are three possible values for this option:
 - `per_source` - enables emitting a separate module for each source (translation
 unit)
 - `per_kernel` - enables emitting a separate module for each kernel
-- `off` - disables device code split
+- `off` - disables device code split. If `-fno-sycl-rdc` is specified, the behavior is
+   the same as `per_source`
 
 ##### Symbol table generation
 
