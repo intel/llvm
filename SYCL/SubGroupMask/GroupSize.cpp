@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel %s -o %t.out
 // REQUIRES: gpu
 // UNSUPPORTED: hip
 // GroupNonUniformBallot capability is supported on Intel GPU only
