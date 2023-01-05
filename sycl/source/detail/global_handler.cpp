@@ -150,16 +150,7 @@ ThreadPool &GlobalHandler::getHostTaskThreadPool() {
 
 void GlobalHandler::releaseDefaultContexts() {
   // Release shared-pointers to SYCL objects.
-#ifndef _WIN32
   GlobalHandler::instance().MPlatformToDefaultContextCache.Inst.reset(nullptr);
-#else
-  // Windows does not maintain dependencies between dynamically loaded libraries
-  // and can unload SYCL runtime dependencies before sycl.dll's DllMain has
-  // finished. To avoid calls to nowhere, intentionally leak platform to device
-  // cache. This will prevent destructors from being called, thus no PI cleanup
-  // routines will be called in the end.
-  GlobalHandler::instance().MPlatformToDefaultContextCache.Inst.release();
-#endif
 }
 
 struct DefaultContextReleaseHandler {
