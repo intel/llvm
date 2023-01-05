@@ -20,16 +20,14 @@ template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
           layout Layout>
 struct joint_matrix {
 
-#if defined(__SYCL_DEVICE_ONLY__)
-#if defined(__NVPTX__)
-  sycl::ext::oneapi::detail::joint_matrix_cuda<T, Use, Rows, Cols, Layout>
-      cuda_impl;
-#else
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
   __spv::__spirv_JointMatrixINTEL<
       T, Rows, Cols, spv_matrix_layout_traits<Layout>::value,
       spv_scope_traits<Group>::value, spv_matrix_use_traits<Use>::value> *spvm;
-#endif // defined(__SYCL_DEVICE_ONLY__)
-#endif
+#else
+  sycl::ext::oneapi::detail::joint_matrix_cuda<T, Use, Rows, Cols, Layout>
+      cuda_impl;
+#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
 
   joint_matrix() {
 #ifndef __SYCL_DEVICE_ONLY__
@@ -39,7 +37,6 @@ struct joint_matrix {
   }
 };
 
-#ifdef __SYCL_DEVICE_ONLY__
 template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
           layout Layout>
 class wi_data {
@@ -56,58 +53,28 @@ class wi_data {
 
 public:
   size_t length() {
-#if defined(__NVPTX__)
-    return jm.cuda_impl.wi_marray.size();
-#else
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
     return __spirv_JointMatrixWorkItemLengthINTEL(jm.spvm);
-#endif
+#else
+    return jm.cuda_impl.wi_marray.size();
+#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
   };
 
   decltype(auto) operator[](size_t i) {
-#if defined(__NVPTX__)
-    return (jm.cuda_impl.wi_marray[i]);
-#else
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
     return wi_element<T, Rows, Cols, Use, Layout, Group>(jm, i);
-#endif
+#else
+    return (jm.cuda_impl.wi_marray[i]);
+#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
   };
 };
-#else
-template <typename type, size_t size> class wi_data {
-  marray<type, size> &data;
-  wi_data(marray<type, size> &wi_marray) : data(wi_marray){};
-  template <typename Grp, typename Type, use UseJm, size_t NumRows,
-            size_t NumCols, layout LayoutJm>
-  friend decltype(auto)
-  get_wi_data(Grp,
-              joint_matrix<Grp, Type, UseJm, NumRows, NumCols, LayoutJm> &);
-
-public:
-  size_t length() { return data.size(); };
-
-  type &operator[](size_t i) { return data[i]; };
-};
-#endif
 
 template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
           layout Layout>
 inline __SYCL_ALWAYS_INLINE decltype(auto)
 get_wi_data(Group sg, joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm) {
-#if defined(__SYCL_DEVICE_ONLY__)
-#if defined(__NVPTX__)
   std::ignore = sg;
   return wi_data(jm);
-#else
-  return wi_data<Group, T, Use, Rows, Cols, Layout>(jm);
-#endif // defined(__NVPTX__)
-#else
-  if constexpr (std::is_same_v<T, precision::tf32>) {
-    marray<float, 1> unused{};
-    return wi_data<float, 1>(unused);
-  } else {
-    marray<T, 1> unused{};
-    return wi_data<T, 1>(unused);
-  }
-#endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols, use Use,
