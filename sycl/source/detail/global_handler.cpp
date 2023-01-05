@@ -29,8 +29,6 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 using LockGuard = std::lock_guard<SpinLock>;
-
-GlobalHandler *GlobalHandler::MSyclGlobalObjectsHandler;
 SpinLock GlobalHandler::MSyclGlobalHandlerProtector{};
 
 // Utility class to track references on object.
@@ -39,13 +37,9 @@ SpinLock GlobalHandler::MSyclGlobalHandlerProtector{};
 // other used threads - they increment MCounter; and to use but not add extra
 // reference by our thread_pool threads. For this control MIncrementCounter
 // class member is used.
-template <class ResourceHandler> class ObjectUsageCounter {
+class ObjectUsageCounter {
 public:
-  // Note: -Wctad-maybe-unsupported may generate warning if no ResourceHandler
-  // type explicitly declared.
-  ObjectUsageCounter(ResourceHandler *&Obj, SpinLock &ObjProtector,
-                     bool ModifyCounter)
-      : MModifyCounter(ModifyCounter), MObj(Obj), MObjProtector(ObjProtector) {
+  ObjectUsageCounter(bool ModifyCounter) : MModifyCounter(ModifyCounter) {
     if (MModifyCounter)
       MCounter++;
   }
@@ -55,33 +49,31 @@ public:
 
     MCounter--;
     if (!MCounter) {
-      LockGuard Guard(MObjProtector);
-      if (MObj)
-        MObj->releaseResources();
+      LockGuard Guard(GlobalHandler::MSyclGlobalHandlerProtector);
+      GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
+      if (RTGlobalObjHandler)
+        RTGlobalObjHandler->releaseSchedulerResources();
     }
   }
 
 private:
   static std::atomic_uint MCounter;
   bool MModifyCounter;
-  ResourceHandler *&MObj;
-  SpinLock &MObjProtector;
 };
-template <class ResourceHandler>
-std::atomic_uint ObjectUsageCounter<ResourceHandler>::MCounter{0};
+std::atomic_uint ObjectUsageCounter::MCounter{0};
 
 GlobalHandler::GlobalHandler() = default;
 GlobalHandler::~GlobalHandler() = default;
 
+GlobalHandler *&GlobalHandler::getInstancePtr() {
+  static GlobalHandler *RTGlobalObjHandler = new GlobalHandler();
+  return RTGlobalObjHandler;
+}
+
 GlobalHandler &GlobalHandler::instance() {
-  static std::once_flag InitCreation;
-  std::call_once(InitCreation, []() {
-    const LockGuard Lock{MSyclGlobalHandlerProtector};
-    MSyclGlobalObjectsHandler = new GlobalHandler();
-  });
-  assert(MSyclGlobalObjectsHandler &&
-         "Handler must not be deallocated earlier");
-  return *MSyclGlobalObjectsHandler;
+  GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
+  assert(RTGlobalObjHandler && "Handler must not be deallocated earlier");
+  return *RTGlobalObjHandler;
 }
 
 template <typename T, typename... Types>
@@ -109,8 +101,7 @@ Scheduler &GlobalHandler::getScheduler() {
 }
 
 void GlobalHandler::registerSchedulerUsage(bool ModifyCounter) {
-  thread_local ObjectUsageCounter<GlobalHandler> SchedulerCounter(
-      MSyclGlobalObjectsHandler, MSyclGlobalHandlerProtector, ModifyCounter);
+  thread_local ObjectUsageCounter SchedulerCounter(ModifyCounter);
 }
 
 ProgramManager &GlobalHandler::getProgramManager() {
@@ -216,14 +207,14 @@ void shutdown() {
   GlobalHandler *Handler = nullptr;
   {
     const LockGuard Lock{GlobalHandler::MSyclGlobalHandlerProtector};
-    std::swap(Handler, GlobalHandler::MSyclGlobalObjectsHandler);
+    std::swap(Handler, GlobalHandler::getInstancePtr());
   }
   if (!Handler)
     return;
 
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
-  Handler->releaseResources();
+  Handler->releaseSchedulerResources();
 
   if (Handler->MHostTaskThreadPool.Inst)
     Handler->MHostTaskThreadPool.Inst->finishAndWait();
@@ -249,7 +240,7 @@ void shutdown() {
   delete Handler;
 }
 
-void GlobalHandler::releaseResources() {
+void GlobalHandler::releaseSchedulerResources() {
   drainThreadPool();
   if (MScheduler.Inst)
     MScheduler.Inst->releaseResources();

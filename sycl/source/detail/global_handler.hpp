@@ -77,16 +77,17 @@ public:
   void unloadPlugins();
   void releaseDefaultContexts();
 
-  void releaseResources();
+  void releaseSchedulerResources();
   void drainThreadPool();
 
   // For testing purposes only
   void attachScheduler(Scheduler *Scheduler);
 
 private:
-  static GlobalHandler *MSyclGlobalObjectsHandler;
-  static SpinLock MSyclGlobalHandlerProtector;
   friend void shutdown();
+  friend class ObjectUsageCounter;
+  static GlobalHandler *&getInstancePtr();
+  static SpinLock MSyclGlobalHandlerProtector;
 
   // Constructor and destructor are declared out-of-line to allow incomplete
   // types as template arguments to unique_ptr.
