@@ -17,10 +17,10 @@
 ;}
 ; bash$ clang -cc1 -triple spir64-unknown-unknown -x cl -cl-std=CL2.0 -O0 -include opencl.h -emit-llvm OpSwitch.cl -o test_64.ll
 
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
-; RUN: llvm-spirv %t.bc -opaque-pointers=0 -spirv-text -o %t.spt
+; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-spirv %t.bc -spirv-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv %t.bc -opaque-pointers=0 -o %t.spv
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
@@ -33,20 +33,20 @@ target triple = "spir64-unknown-unknown"
 
 ;CHECK-LLVM: test_64
 ;CHECK-LLVM: entry
-;CHECK-LLVM: switch i64 %6, label %sw.epilog [
+;CHECK-LLVM: switch i64 %7, label %sw.epilog [
 ;CHECK-LLVM: i64 0, label %sw.bb
 ;CHECK-LLVM: i64 1, label %sw.bb1
 ;CHECK-LLVM: i64 21474836481, label %sw.bb3
 
 ; Function Attrs: nounwind
-define spir_kernel void @test_64(i32 addrspace(1)* %res) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2  !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
+define spir_kernel void @test_64(ptr addrspace(1) %res) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2  !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
 entry:
-  %res.addr = alloca i32 addrspace(1)*, align 8
+  %res.addr = alloca ptr addrspace(1), align 8
   %tid = alloca i64, align 8
-  store i32 addrspace(1)* %res, i32 addrspace(1)** %res.addr, align 8
+  store ptr addrspace(1) %res, ptr %res.addr, align 8
   %call = call spir_func i64 @_Z13get_global_idj(i32 0) #2
-  store i64 %call, i64* %tid, align 8
-  %0 = load i64, i64* %tid, align 8
+  store i64 %call, ptr %tid, align 8
+  %0 = load i64, ptr %tid, align 8
   switch i64 %0, label %sw.epilog [
     i64 0, label %sw.bb
     i64 1, label %sw.bb1
@@ -56,28 +56,28 @@ entry:
 ;CHECK-LLVM: sw.bb
 ;CHECK-LLVM: preds = %entry
 sw.bb:                                            ; preds = %entry
-  %1 = load i64, i64* %tid, align 8
-  %2 = load i32 addrspace(1)*, i32 addrspace(1)** %res.addr, align 8
-  %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %2, i64 %1
-  store i32 1, i32 addrspace(1)* %arrayidx, align 4
+  %1 = load i64, ptr %tid, align 8
+  %2 = load ptr addrspace(1), ptr %res.addr, align 8
+  %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %2, i64 %1
+  store i32 1, ptr addrspace(1) %arrayidx, align 4
   br label %sw.epilog
 
 ;CHECK-LLVM: sw.bb1
 ;CHECK-LLVM: preds = %entry
 sw.bb1:                                           ; preds = %entry
-  %3 = load i64, i64* %tid, align 8
-  %4 = load i32 addrspace(1)*, i32 addrspace(1)** %res.addr, align 8
-  %arrayidx2 = getelementptr inbounds i32, i32 addrspace(1)* %4, i64 %3
-  store i32 2, i32 addrspace(1)* %arrayidx2, align 4
+  %3 = load i64, ptr %tid, align 8
+  %4 = load ptr addrspace(1), ptr %res.addr, align 8
+  %arrayidx2 = getelementptr inbounds i32, ptr addrspace(1) %4, i64 %3
+  store i32 2, ptr addrspace(1) %arrayidx2, align 4
   br label %sw.epilog
 
 ;CHECK-LLVM: sw.bb3
 ;CHECK-LLVM: preds = %entry
 sw.bb3:                                           ; preds = %entry
-  %5 = load i64, i64* %tid, align 8
-  %6 = load i32 addrspace(1)*, i32 addrspace(1)** %res.addr, align 8
-  %arrayidx4 = getelementptr inbounds i32, i32 addrspace(1)* %6, i64 %5
-  store i32 3, i32 addrspace(1)* %arrayidx4, align 4
+  %5 = load i64, ptr %tid, align 8
+  %6 = load ptr addrspace(1), ptr %res.addr, align 8
+  %arrayidx4 = getelementptr inbounds i32, ptr addrspace(1) %6, i64 %5
+  store i32 3, ptr addrspace(1) %arrayidx4, align 4
   br label %sw.epilog
 
 ;CHECK-LLVM: sw.epilog
