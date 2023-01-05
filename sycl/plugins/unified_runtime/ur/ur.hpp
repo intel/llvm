@@ -121,7 +121,7 @@ template <class T> struct ZeCache : private T {
 
   // Access to the fields of the original T data structure.
   T *operator->() {
-    std::call_once(Computed, Compute, static_cast<T&>(*this));
+    std::call_once(Computed, Compute, static_cast<T &>(*this));
     return this;
   }
 };

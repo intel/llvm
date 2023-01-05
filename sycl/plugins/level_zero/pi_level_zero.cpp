@@ -2015,7 +2015,7 @@ pi_result _pi_queue::insertActiveBarriers(pi_command_list_ptr_t &CmdList,
     ActiveBarriers.clear();
     return PI_SUCCESS;
   }
-  
+
   // We can now replace active barriers with the ones in the wait list.
   ActiveBarriers.clear();
   for (pi_uint32 I = 0; I < ActiveBarriersWaitList.Length; ++I) {
@@ -2025,7 +2025,7 @@ pi_result _pi_queue::insertActiveBarriers(pi_command_list_ptr_t &CmdList,
 
   pi_event Event = nullptr;
   if (auto Res = createEventAndAssociateQueue(
-      this, &Event, PI_COMMAND_TYPE_USER, CmdList, /*IsInternal*/ true))
+          this, &Event, PI_COMMAND_TYPE_USER, CmdList, /*IsInternal*/ true))
     return Res;
 
   Event->WaitList = ActiveBarriersWaitList;
@@ -2035,7 +2035,7 @@ pi_result _pi_queue::insertActiveBarriers(pi_command_list_ptr_t &CmdList,
   // do not need an event for finishing so we pass nullptr.
   ZE_CALL(zeCommandListAppendBarrier,
           (CmdList->first, nullptr, ActiveBarriersWaitList.Length,
-            ActiveBarriersWaitList.ZeEventList));
+           ActiveBarriersWaitList.ZeEventList));
   return PI_SUCCESS;
 }
 
@@ -6578,11 +6578,11 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   // Helper function for appending a barrier to a command list.
   auto insertBarrierIntoCmdList =
       [&Queue](pi_command_list_ptr_t CmdList,
-               const _pi_ze_event_list_t &EventWaitList, pi_event &Event, bool IsInternal) {
-
+               const _pi_ze_event_list_t &EventWaitList, pi_event &Event,
+               bool IsInternal) {
         if (auto Res = createEventAndAssociateQueue(
-              Queue, &Event, PI_COMMAND_TYPE_USER, CmdList, IsInternal))
-            return Res;
+                Queue, &Event, PI_COMMAND_TYPE_USER, CmdList, IsInternal))
+          return Res;
 
         Event->WaitList = EventWaitList;
         ZE_CALL(zeCommandListAppendBarrier,
@@ -6704,8 +6704,9 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     // command-lists.
     std::vector<pi_event> EventWaitVector(CmdLists.size());
     for (size_t I = 0; I < CmdLists.size(); ++I) {
-      if (auto Res = insertBarrierIntoCmdList(
-              CmdLists[I], _pi_ze_event_list_t{}, EventWaitVector[I], /*IsInternal*/true))
+      if (auto Res =
+              insertBarrierIntoCmdList(CmdLists[I], _pi_ze_event_list_t{},
+                                       EventWaitVector[I], /*IsInternal*/ true))
         return Res;
     }
     // If there were multiple queues we need to create a "convergence" event to
