@@ -5354,14 +5354,101 @@ pi_result cuda_piextUSMEnqueueMemset2D(pi_queue, void *, size_t, int, size_t,
   return {};
 }
 
-// TODO: Implement this. Remember to return true for
-//       PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT when it is implemented.
-pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue, pi_bool, void *, size_t,
-                                       const void *, size_t, size_t, size_t,
-                                       pi_uint32, const pi_event *,
-                                       pi_event *) {
-  sycl::detail::pi::die("piextUSMEnqueueMemcpy2D not implemented");
-  return {};
+/// 2D Memcpy API
+///
+/// \param queue is the queue to submit to
+/// \param blocking is whether this operation should block the host
+/// \param dst_ptr is the location the data will be copied
+/// \param dst_pitch is the total width of the destination memory including
+/// padding
+/// \param src_ptr is the data to be copied
+/// \param dst_pitch is the total width of the source memory including padding
+/// \param width is width in bytes of each row to be copied
+/// \param height is height the columns to be copied
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+pi_result cuda_piextUSMEnqueueMemcpy2D(
+    pi_queue Queue, pi_bool Blocking, void *DstPtr, size_t DstPitch,
+    const void *SrcPtr, size_t SrcPitch, size_t Width, size_t Height,
+    pi_uint32 NumEventsInWaitlist, const pi_event *EventWaitlist,
+    pi_event *Event) {
+
+  assert(Queue != nullptr);
+
+  pi_result result = PI_SUCCESS;
+
+  std::unique_ptr<_pi_event> event_ptr{nullptr};
+
+  try {
+    ScopedContext active(Queue->get_context());
+    CUstream cuStream = Queue->get_next_transfer_stream();
+    result = enqueueEventsWait(Queue, cuStream, NumEventsInWaitlist,
+                               EventWaitlist);
+    if (Event) {
+      event_ptr = std::unique_ptr<_pi_event>(_pi_event::make_native(
+          PI_COMMAND_TYPE_MEM_BUFFER_COPY, Queue, cuStream));
+      event_ptr->start();
+    }
+
+    // Determine the direction of Copy using cuPointerGetAttributes
+    // for both the SrcPtr and DstPtr
+    // TODO: Doesn't yet support CU_MEMORYTYPE_UNIFIED
+    bool is_managed;
+    CUmemorytype_enum srcType;
+    void *attribute_values[2] = {&is_managed, &srcType};
+    CUpointer_attribute attributes[2] = {CU_POINTER_ATTRIBUTE_IS_MANAGED,
+                                         CU_POINTER_ATTRIBUTE_MEMORY_TYPE};
+    result = PI_CHECK_ERROR(cuPointerGetAttributes(
+        2, attributes, attribute_values, (CUdeviceptr)SrcPtr));
+    assert(srcType == CU_MEMORYTYPE_DEVICE || srcType == CU_MEMORYTYPE_HOST);
+
+    CUmemorytype_enum dstType;
+    result = PI_CHECK_ERROR(cuPointerGetAttributes(
+        2, attributes, attribute_values, (CUdeviceptr)DstPtr));
+    assert(dstType == CU_MEMORYTYPE_DEVICE || dstType == CU_MEMORYTYPE_HOST);
+
+    CUDA_MEMCPY2D cpyDesc = {};
+
+    cpyDesc.srcXInBytes = 0;
+    cpyDesc.srcY = 0;
+    cpyDesc.srcMemoryType = srcType;
+    cpyDesc.srcDevice = srcType == CU_MEMORYTYPE_DEVICE
+	? *static_cast<const CUdeviceptr *>(SrcPtr)
+	: 0;
+    cpyDesc.srcHost = srcType == CU_MEMORYTYPE_HOST ? SrcPtr : nullptr;
+    cpyDesc.srcArray = nullptr;
+    cpyDesc.srcPitch = SrcPitch;
+
+    cpyDesc.dstXInBytes = 0;
+    cpyDesc.dstY = 0;
+    cpyDesc.dstMemoryType = dstType;
+    cpyDesc.dstDevice = dstType == CU_MEMORYTYPE_DEVICE
+	? *static_cast<CUdeviceptr *>(DstPtr)
+	: 0;
+    cpyDesc.dstHost = dstType == CU_MEMORYTYPE_HOST ? DstPtr : nullptr;
+    cpyDesc.dstArray = nullptr;
+    cpyDesc.dstPitch = DstPitch;
+
+    cpyDesc.WidthInBytes = Width;
+    cpyDesc.Height = Height;
+
+    result = PI_CHECK_ERROR(cuMemcpy2DAsync(&cpyDesc, cuStream));
+
+    if (Event) {
+      result = event_ptr->record();
+    }
+    if (Blocking) {
+      result = PI_CHECK_ERROR(cuStreamSynchronize(cuStream));
+    }
+    if (Event) {
+      *Event = event_ptr.release();
+    }
+  } catch (pi_result err) {
+    result = err;
+  }
+  return result;
+
 }
 
 /// API to query information about USM allocated pointers

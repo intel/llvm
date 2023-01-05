@@ -858,7 +858,7 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
 
   const detail::plugin &Plugin = SrcQueue->getPlugin();
   Plugin.call<PiApiKind::piextUSMEnqueueMemcpy>(SrcQueue->getHandleRef(),
-                                                /* blocking */ false, DstMem,
+                                                /* blocking */PI_FALSE, DstMem,
                                                 SrcMem, Len, DepEvents.size(),
                                                 DepEvents.data(), OutEvent);
 }
@@ -928,12 +928,21 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
     return;
   }
 
+  // Undefined behavior with Pitch of zero
+  if (SrcPitch == 0 || DstPitch == 0)
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+       "DstPitch/SrcPitch is zero in 2D memory copy operation.");
+  // Width must not exceed either SrcPitch or DstPitch
+  if (Width > SrcPitch || Width > DstPitch)
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+       "Width must not exceed DstPitch/SrcPitch in 2D memory copy operation.");
   if (!DstMem || !SrcMem)
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "NULL pointer argument in 2D memory copy operation.");
+
   const detail::plugin &Plugin = Queue->getPlugin();
   Plugin.call<PiApiKind::piextUSMEnqueueMemcpy2D>(
-      Queue->getHandleRef(), /*blocking=*/false, DstMem, DstPitch, SrcMem,
+      Queue->getHandleRef(), /*blocking=*/PI_FALSE, DstMem, DstPitch, SrcMem,
       SrcPitch, Width, Height, DepEvents.size(), DepEvents.data(), OutEvent);
 }
 

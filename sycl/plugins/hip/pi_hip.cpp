@@ -5115,13 +5115,61 @@ pi_result hip_piextUSMEnqueueMemset2D(pi_queue, void *, size_t, int, size_t,
   return {};
 }
 
-// TODO: Implement this. Remember to return true for
-//       PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT when it is implemented.
-pi_result hip_piextUSMEnqueueMemcpy2D(pi_queue, pi_bool, void *, size_t,
-                                      const void *, size_t, size_t, size_t,
-                                      pi_uint32, const pi_event *, pi_event *) {
-  sycl::detail::pi::die("piextUSMEnqueueMemcpy2D not implemented");
-  return {};
+
+/// 2D Memcpy API
+///
+/// \param queue is the queue to submit to
+/// \param blocking is whether this operation should block the host
+/// \param dst_ptr is the location the data will be copied
+/// \param dst_pitch is the total width of the destination memory including
+/// padding
+/// \param src_ptr is the data to be copied
+/// \param dst_pitch is the total width of the source memory including padding
+/// \param width is width in bytes of each row to be copied
+/// \param height is height the columns to be copied
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+pi_result hip_piextUSMEnqueueMemcpy2D(
+    pi_queue Queue, pi_bool Blocking, void *DstPtr, size_t DstPitch,
+    const void *SrcPtr, size_t SrcPitch, size_t Width, size_t Height,
+    pi_uint32 NumEventsInWaitlist, const pi_event *EventWaitlist,
+    pi_event *Event) {
+
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+
+  pi_result result = PI_SUCCESS;
+  std::unique_ptr<_pi_event> retImplEv{nullptr};
+
+  try {
+    ScopedContext active(Queue->get_context());
+    hipStream_t hipStream = Queue->get_next_transfer_stream();
+    result = enqueueEventsWait(Queue, hipStream, NumEventsInWaitlist,
+                               EventWaitlist);
+    if (Event) {
+      retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
+          PI_COMMAND_TYPE_MEM_BUFFER_COPY, Queue, hipStream));
+      retImplEv->start();
+    }
+
+    result = PI_CHECK_ERROR(
+        hipMemcpy2DAsync(DstPtr, DstPitch, SrcPtr, SrcPitch, Width,
+			 Height, hipMemcpyDefault, hipStream));
+
+    if (Event) {
+      result = retImplEv->record();
+    }
+    if (Blocking) {
+      result = PI_CHECK_ERROR(hipStreamSynchronize(hipStream));
+    }
+    if (Event) {
+      *Event = retImplEv.release();
+    }
+  } catch (pi_result err) {
+    result = err;
+  }
+
+  return result;
 }
 
 /// API to query information about USM allocated pointers
