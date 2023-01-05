@@ -724,10 +724,6 @@ void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
                          RT::PiEvent &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
-  if (!SrcMem || !DstMem)
-    throw sycl::exception(sycl::make_error_code(errc::invalid),
-        "NULL pointer argument in copy operation.");
-
   if (SrcQueue->is_host()) {
     if (TgtQueue->is_host())
       copyH2H(SYCLMemObj, (char *)SrcMem, std::move(SrcQueue), DimSrc, SrcSize,
