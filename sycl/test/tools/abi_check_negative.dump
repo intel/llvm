@@ -1,4 +1,4 @@
-# RUN: not env LLVM_BIN_PATH=%llvm_build_bin_dir python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %sycl_libs_dir/libsycl.so | FileCheck %s
+# RUN: not env LLVM_BIN_PATH=%llvm_build_bin_dir %python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %sycl_libs_dir/libsycl.so | FileCheck %s
 # REQUIRES: linux
 
 # CHECK: The following symbols are missing from the new object file:

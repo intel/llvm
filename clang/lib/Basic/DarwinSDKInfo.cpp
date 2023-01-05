@@ -11,6 +11,7 @@
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
+#include <optional>
 
 using namespace clang;
 
@@ -29,7 +30,7 @@ std::optional<VersionTuple> DarwinSDKInfo::RelatedTargetVersionMapping::map(
   // the major-only check.
   if (Key.getMinor())
     return map(VersionTuple(Key.getMajor()), MinimumValue, MaximumValue);
-  // If this a major only key, return None for a missing entry.
+  // If this a major only key, return std::nullopt for a missing entry.
   return std::nullopt;
 }
 
@@ -61,8 +62,8 @@ DarwinSDKInfo::RelatedTargetVersionMapping::parseJSON(
       Min, Max, MinValue, MaximumDeploymentTarget, std::move(Mapping));
 }
 
-static Optional<VersionTuple> getVersionKey(const llvm::json::Object &Obj,
-                                            StringRef Key) {
+static std::optional<VersionTuple> getVersionKey(const llvm::json::Object &Obj,
+                                                 StringRef Key) {
   auto Value = Obj.getString(Key);
   if (!Value)
     return std::nullopt;

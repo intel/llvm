@@ -221,11 +221,8 @@ bool SimplifyIndvar::makeIVComparisonInvariant(ICmpInst *ICmp,
 
   // Do not generate something ridiculous.
   auto *PHTerm = Preheader->getTerminator();
-  if (Rewriter.isHighCostExpansion(InvariantLHS, L, SCEVCheapExpansionBudget,
-                                   TTI, PHTerm))
-    return false;
-  if (Rewriter.isHighCostExpansion(InvariantRHS, L, SCEVCheapExpansionBudget,
-                                   TTI, PHTerm))
+  if (Rewriter.isHighCostExpansion({ InvariantLHS, InvariantRHS }, L,
+                                   2 * SCEVCheapExpansionBudget, TTI, PHTerm))
     return false;
   auto *NewLHS =
       Rewriter.expandCodeFor(InvariantLHS, IVOperand->getType(), PHTerm);
@@ -1038,12 +1035,13 @@ class WidenIV {
   // context.
   DenseMap<DefUserPair, ConstantRange> PostIncRangeInfos;
 
-  Optional<ConstantRange> getPostIncRangeInfo(Value *Def,
-                                              Instruction *UseI) {
+  std::optional<ConstantRange> getPostIncRangeInfo(Value *Def,
+                                                   Instruction *UseI) {
     DefUserPair Key(Def, UseI);
     auto It = PostIncRangeInfos.find(Key);
-    return It == PostIncRangeInfos.end() ? Optional<ConstantRange>(std::nullopt)
-                                         : Optional<ConstantRange>(It->second);
+    return It == PostIncRangeInfos.end()
+               ? std::optional<ConstantRange>(std::nullopt)
+               : std::optional<ConstantRange>(It->second);
   }
 
   void calculatePostIncRanges(PHINode *OrigPhi);

@@ -7365,7 +7365,8 @@ public:
                                           unsigned InitStyle, Expr *Init);
 
   /// Add an init-capture to a lambda scope.
-  void addInitCapture(sema::LambdaScopeInfo *LSI, VarDecl *Var);
+  void addInitCapture(sema::LambdaScopeInfo *LSI, VarDecl *Var,
+                      bool isReferenceType);
 
   /// Note that we have finished the explicit captures for the
   /// given lambda.
@@ -11995,8 +11996,9 @@ public:
   /// \param TI The trait info object representing the match clause.
   /// \param NumAppendArgs The number of omp_interop_t arguments to account for
   /// in checking.
-  /// \returns None, if the function/variant function are not compatible with
-  /// the pragma, pair of original function/variant ref expression otherwise.
+  /// \returns std::nullopt, if the function/variant function are not compatible
+  /// with the pragma, pair of original function/variant ref expression
+  /// otherwise.
   Optional<std::pair<FunctionDecl *, Expr *>>
   checkOpenMPDeclareVariantFunction(DeclGroupPtrTy DG, Expr *VariantRef,
                                     OMPTraitInfo &TI, unsigned NumAppendArgs,
@@ -12127,10 +12129,11 @@ public:
                                        SourceLocation LParenLoc,
                                        SourceLocation EndLoc);
   /// Called on well-formed 'order' clause.
-  OMPClause *ActOnOpenMPOrderClause(OpenMPOrderClauseKind Kind,
-                                    SourceLocation KindLoc,
+  OMPClause *ActOnOpenMPOrderClause(OpenMPOrderClauseModifier Modifier,
+                                    OpenMPOrderClauseKind Kind,
                                     SourceLocation StartLoc,
                                     SourceLocation LParenLoc,
+                                    SourceLocation MLoc, SourceLocation KindLoc,
                                     SourceLocation EndLoc);
   /// Called on well-formed 'update' clause.
   OMPClause *ActOnOpenMPUpdateClause(OpenMPDependClauseKind Kind,

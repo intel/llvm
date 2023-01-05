@@ -979,7 +979,7 @@ void __kmp_exit_thread(int exit_status) {
 #if KMP_USE_MONITOR
 void __kmp_resume_monitor();
 
-void __kmp_reap_monitor(kmp_info_t *th) {
+extern "C" void __kmp_reap_monitor(kmp_info_t *th) {
   int status;
   void *exit_val;
 
@@ -1020,6 +1020,12 @@ void __kmp_reap_monitor(kmp_info_t *th) {
                 th->th.th_info.ds.ds_thread));
 
   KMP_MB(); /* Flush all pending memory write invalidates.  */
+}
+#else
+// Empty symbol to export (see exports_so.txt) when
+// monitor thread feature is disabled
+extern "C" void __kmp_reap_monitor(kmp_info_t *th) {
+  (void)th;
 }
 #endif // KMP_USE_MONITOR
 
@@ -2442,7 +2448,8 @@ finish: // Clean up and exit.
 
 #if !(KMP_ARCH_X86 || KMP_ARCH_X86_64 || KMP_MIC ||                            \
       ((KMP_OS_LINUX || KMP_OS_DARWIN) && KMP_ARCH_AARCH64) ||                 \
-      KMP_ARCH_PPC64 || KMP_ARCH_RISCV64 || KMP_ARCH_LOONGARCH64)
+      KMP_ARCH_PPC64 || KMP_ARCH_RISCV64 || KMP_ARCH_LOONGARCH64 ||            \
+      KMP_ARCH_ARM)
 
 // we really only need the case with 1 argument, because CLANG always build
 // a struct of pointers to shared variables referenced in the outlined function

@@ -65,7 +65,7 @@ protected:
     if (!DAG)
       report_fatal_error("DAG?");
     OptimizationRemarkEmitter ORE(F);
-    DAG->init(*MF, ORE, nullptr, nullptr, nullptr, nullptr, nullptr);
+    DAG->init(*MF, ORE, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
   }
 
   TargetLoweringBase::LegalizeTypeAction getTypeAction(EVT VT) {
@@ -224,11 +224,15 @@ TEST_F(AArch64SelectionDAGTest, SimplifyDemandedBitsSVE) {
 
   SDValue Op = DAG->getNode(ISD::AND, Loc, InVecVT, N0, Mask2V);
 
+  // N0 = ?000?0?0
+  // Mask2V = 01010101
+  //  =>
+  // Known.Zero = 00100000 (0xAA)
   KnownBits Known;
   APInt DemandedBits = APInt(8, 0xFF);
   TargetLowering::TargetLoweringOpt TLO(*DAG, false, false);
-  EXPECT_FALSE(TL.SimplifyDemandedBits(Op, DemandedBits, Known, TLO));
-  EXPECT_EQ(Known.Zero, APInt(8, 0));
+  EXPECT_TRUE(TL.SimplifyDemandedBits(Op, DemandedBits, Known, TLO));
+  EXPECT_EQ(Known.Zero, APInt(8, 0xAA));
 }
 
 // Piggy-backing on the AArch64 tests to verify SelectionDAG::computeKnownBits.

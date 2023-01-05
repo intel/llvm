@@ -8,6 +8,8 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
 
   # Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104
   set(CMAKE_INCLUDE_CURRENT_DIR OFF)
+  # Prevent L0 loader from exporting extra symbols
+  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS OFF)
 
   message(STATUS "Will fetch Level Zero Loader from ${LEVEL_ZERO_LOADER_REPO}")
   include(FetchContent)
@@ -16,12 +18,21 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
     GIT_TAG           ${LEVEL_ZERO_LOADER_TAG}
   )
 
-  # Suppress some pedantic warnings for Level Zero build
+  # Workaround warnings/errors for Level Zero build
   set(CMAKE_CXX_FLAGS_BAK "${CMAKE_CXX_FLAGS}")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-but-set-variable")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-pedantic")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-stringop-truncation")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-warning-option")
+  if (WIN32)
+    # FIXME: Level Zero build fails with /DUNICODE
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /UUNICODE")
+    # USE_Z7 forces use of /Z7 instead of /Zi which is broken with sccache
+    set(USE_Z7 ON)
+  else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-but-set-variable")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-pedantic")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-stringop-truncation")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-parameter")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++98-compat-extra-semi")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-warning-option")
+  endif()
 
   FetchContent_MakeAvailable(level-zero-loader)
   FetchContent_GetProperties(level-zero-loader)
@@ -74,13 +85,13 @@ add_sycl_plugin(level_zero
     "../unified_runtime/pi2ur.cpp"
     "../unified_runtime/ur/ur.hpp"
     "../unified_runtime/ur/ur.cpp"
+    "../unified_runtime/ur/usm_allocator.cpp"
+    "../unified_runtime/ur/usm_allocator.hpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero.hpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero.cpp"
     # Following are the PI Level-Zero Plugin only codes.
     "pi_level_zero.cpp"
     "pi_level_zero.hpp"
-    "usm_allocator.cpp"
-    "usm_allocator.hpp"
     "tracing.cpp"
     ${XPTI_PROXY_SRC}
   INCLUDE_DIRS
@@ -95,6 +106,23 @@ add_sycl_plugin(level_zero
     Threads::Threads
     ${XPTI_LIBS}
 )
+
+#FIXME: We should stop shipping level zero loader and headers as part of the
+#       toolchain installation. Instead these should be avaialble in the system.
+#       We keep shipping it until all environments are updated.
+install(TARGETS ze_loader
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT level-zero-sycl-dev
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT level-zero-sycl-dev
+        NAMELINK_SKIP
+)
+
+file(GLOB LEVEL_ZERO_API_HEADERS "${LEVEL_ZERO_INCLUDE_DIR}/*.h")
+install(FILES ${LEVEL_ZERO_API_HEADERS}
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/include/sycl/level_zero/
+    COMPONENT level-zero-sycl-dev
+)
+# end of FIXME
 
 add_dependencies(pi_level_zero ze-api)
 

@@ -23,6 +23,7 @@ define void @last_chance_recoloring_failure() {
 ; CHECK-NEXT:    li a1, 24
 ; CHECK-NEXT:    mul a0, a0, a1
 ; CHECK-NEXT:    sub sp, sp, a0
+; CHECK-NEXT:    .cfi_escape 0x0f, 0x0d, 0x72, 0x00, 0x11, 0x20, 0x22, 0x11, 0x18, 0x92, 0xa2, 0x38, 0x00, 0x1e, 0x22 # sp + 32 + 24 * vlenb
 ; CHECK-NEXT:    li a0, 55
 ; CHECK-NEXT:    vsetvli zero, a0, e16, m4, ta, ma
 ; CHECK-NEXT:    vloxseg2ei32.v v8, (a0), v8
@@ -63,7 +64,7 @@ define void @last_chance_recoloring_failure() {
 ; CHECK-NEXT:    slli a1, a1, 4
 ; CHECK-NEXT:    add a1, sp, a1
 ; CHECK-NEXT:    addi a1, a1, 16
-; CHECK-NEXT:    vl8re8.v v8, (a1) # Unknown-size Folded Reload
+; CHECK-NEXT:    vl8r.v v8, (a1) # Unknown-size Folded Reload
 ; CHECK-NEXT:    vfwsub.wv v16, v8, v24
 ; CHECK-NEXT:    addi a1, sp, 16
 ; CHECK-NEXT:    vs8r.v v16, (a1) # Unknown-size Folded Spill
@@ -74,9 +75,9 @@ define void @last_chance_recoloring_failure() {
 ; CHECK-NEXT:    slli a0, a0, 4
 ; CHECK-NEXT:    add a0, sp, a0
 ; CHECK-NEXT:    addi a0, a0, 16
-; CHECK-NEXT:    vl8re8.v v16, (a0) # Unknown-size Folded Reload
+; CHECK-NEXT:    vl8r.v v16, (a0) # Unknown-size Folded Reload
 ; CHECK-NEXT:    addi a0, sp, 16
-; CHECK-NEXT:    vl8re8.v v8, (a0) # Unknown-size Folded Reload
+; CHECK-NEXT:    vl8r.v v8, (a0) # Unknown-size Folded Reload
 ; CHECK-NEXT:    vfdiv.vv v8, v16, v8, v0.t
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    csrr a0, vlenb
@@ -99,6 +100,7 @@ define void @last_chance_recoloring_failure() {
 ; SUBREGLIVENESS-NEXT:    csrr a0, vlenb
 ; SUBREGLIVENESS-NEXT:    slli a0, a0, 4
 ; SUBREGLIVENESS-NEXT:    sub sp, sp, a0
+; SUBREGLIVENESS-NEXT:    .cfi_escape 0x0f, 0x0d, 0x72, 0x00, 0x11, 0x20, 0x22, 0x11, 0x10, 0x92, 0xa2, 0x38, 0x00, 0x1e, 0x22 # sp + 32 + 16 * vlenb
 ; SUBREGLIVENESS-NEXT:    li a0, 55
 ; SUBREGLIVENESS-NEXT:    vsetvli zero, a0, e16, m4, ta, ma
 ; SUBREGLIVENESS-NEXT:    vloxseg2ei32.v v8, (a0), v8
@@ -133,7 +135,7 @@ define void @last_chance_recoloring_failure() {
 ; SUBREGLIVENESS-NEXT:    add a1, a1, a2
 ; SUBREGLIVENESS-NEXT:    vl4r.v v24, (a1) # Unknown-size Folded Reload
 ; SUBREGLIVENESS-NEXT:    addi a1, sp, 16
-; SUBREGLIVENESS-NEXT:    vl8re8.v v24, (a1) # Unknown-size Folded Reload
+; SUBREGLIVENESS-NEXT:    vl8r.v v24, (a1) # Unknown-size Folded Reload
 ; SUBREGLIVENESS-NEXT:    vfwsub.wv v8, v24, v20
 ; SUBREGLIVENESS-NEXT:    vsetvli zero, a0, e16, m4, tu, mu
 ; SUBREGLIVENESS-NEXT:    vssubu.vv v16, v16, v8, v0.t

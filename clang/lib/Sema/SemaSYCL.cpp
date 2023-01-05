@@ -3009,8 +3009,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
                    InitializationKind InitKind) {
     InitializedEntity Entity = InitializedEntity::InitializeBase(
         SemaRef.Context, &BS, /*IsInheritedVirtualBase*/ false, &VarEntity);
-    InitializationSequence InitSeq(SemaRef, Entity, InitKind, None);
-    ExprResult Init = InitSeq.Perform(SemaRef, Entity, InitKind, None);
+    InitializationSequence InitSeq(SemaRef, Entity, InitKind, std::nullopt);
+    ExprResult Init = InitSeq.Perform(SemaRef, Entity, InitKind, std::nullopt);
 
     InitListExpr *ParentILE = CollectionInitExprs.back();
     ParentILE->updateInit(SemaRef.getASTContext(), ParentILE->getNumInits(),
@@ -3211,7 +3211,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
   // Default inits the type, then calls the init-method in the body.
   bool handleSpecialType(FieldDecl *FD, QualType Ty) {
-    addFieldInit(FD, Ty, None,
+    addFieldInit(FD, Ty, std::nullopt,
                  InitializationKind::CreateDefault(KernelCallerSrcLoc));
 
     addFieldMemberExpr(FD, Ty);
@@ -3262,8 +3262,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
         InitializedEntity::InitializeVariable(KernelHandlerClone);
     InitializationKind InitKind =
         InitializationKind::CreateDefault(KernelCallerSrcLoc);
-    InitializationSequence InitSeq(SemaRef, VarEntity, InitKind, None);
-    ExprResult Init = InitSeq.Perform(SemaRef, VarEntity, InitKind, None);
+    InitializationSequence InitSeq(SemaRef, VarEntity, InitKind, std::nullopt);
+    ExprResult Init = InitSeq.Perform(SemaRef, VarEntity, InitKind, std::nullopt);
     KernelHandlerClone->setInit(
         SemaRef.MaybeCreateExprWithCleanups(Init.get()));
     KernelHandlerClone->setInitStyle(VarDecl::CallInit);
@@ -4643,6 +4643,10 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
 
   // If Callee has a SYCL attribute, no diagnostic needed.
   if (Callee->hasAttr<SYCLDeviceAttr>() || Callee->hasAttr<SYCLKernelAttr>())
+    return;
+
+  // If Callee has a CUDA device attribute, no diagnostic needed.
+  if (getLangOpts().CUDA && Callee->hasAttr<CUDADeviceAttr>())
     return;
 
   // Diagnose if this is an undefined function and it is not a builtin.

@@ -47,6 +47,8 @@ add_sycl_plugin(unified_runtime
     "ur/ur.cpp"
     "ur/adapters/level_zero/ur_level_zero.hpp"
     "ur/adapters/level_zero/ur_level_zero.cpp"
+    "ur/usm_allocator.hpp"
+    "ur/usm_allocator.cpp"
     # These below belong to Unified Runtime PI Plugin only
     "pi_unified_runtime.hpp"
     "pi_unified_runtime.cpp"

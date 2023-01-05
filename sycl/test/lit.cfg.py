@@ -24,7 +24,11 @@ config.name = 'SYCL'
 config.test_format = lit.formats.ShTest()
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = ['.c', '.cpp', '.dump', '.test'] #add .spv. Currently not clear what to do with those
+dump_only_tests = bool(lit_config.params.get('SYCL_LIB_DUMPS_ONLY', False))
+if dump_only_tests:
+    config.suffixes = ['.dump'] # Only run dump testing
+else:
+    config.suffixes = ['.c', '.cpp', '.dump', '.test'] #add .spv. Currently not clear what to do with those
 
 # feature tests are considered not so lightweight, so, they are excluded by default
 config.excludes = ['Inputs', 'feature-tests']
@@ -37,6 +41,8 @@ config.test_exec_root = os.path.join(config.sycl_obj_root, 'test')
 
 # Propagate some variables from the host environment.
 llvm_config.with_system_environment(['PATH', 'OCL_ICD_FILENAMES', 'SYCL_DEVICE_ALLOWLIST', 'SYCL_CONFIG_FILE_NAME'])
+
+config.substitutions.append(('%python', '"%s"' % (sys.executable)))
 
 # Propagate extra environment variables
 if config.extra_environment:
@@ -119,7 +125,9 @@ if triple == 'amdgcn-amd-amdhsa':
         additional_flags += ['-Xsycl-target-backend=amdgcn-amd-amdhsa',
                             '--offload-arch=gfx906']
 
-llvm_config.use_clang(additional_flags=additional_flags)
+# Dump-only tests do not have clang available
+if not dump_only_tests:
+    llvm_config.use_clang(additional_flags=additional_flags)
 
 # Set timeout for test = 10 mins
 try:

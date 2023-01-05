@@ -30,7 +30,6 @@
 #include "clang/Basic/Specifiers.h"
 #include "clang/Index/USRGeneration.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
@@ -63,8 +62,8 @@ getTemplateSpecializationArgLocs(const NamedDecl &ND) {
     if (auto *Args = Var->getTemplateArgsInfo())
       return Args->arguments();
   }
-  // We return None for ClassTemplateSpecializationDecls because it does not
-  // contain TemplateArgumentLoc information.
+  // We return std::nullopt for ClassTemplateSpecializationDecls because it does
+  // not contain TemplateArgumentLoc information.
   return std::nullopt;
 }
 

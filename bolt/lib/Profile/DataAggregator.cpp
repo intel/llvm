@@ -30,6 +30,7 @@
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
 #include <map>
+#include <optional>
 #include <unordered_map>
 #include <utility>
 
@@ -144,7 +145,7 @@ void DataAggregator::deleteTempFiles() {
 }
 
 void DataAggregator::findPerfExecutable() {
-  Optional<std::string> PerfExecutable =
+  std::optional<std::string> PerfExecutable =
       sys::Process::FindInEnvPath("PATH", "perf");
   if (!PerfExecutable) {
     outs() << "PERF2BOLT: No perf executable found!\n";
@@ -298,7 +299,7 @@ void DataAggregator::processFileBuildID(StringRef FileBuildID) {
   FileBuf = std::move(*MB);
   ParsingBuf = FileBuf->getBuffer();
 
-  Optional<StringRef> FileName = getFileNameForBuildID(FileBuildID);
+  std::optional<StringRef> FileName = getFileNameForBuildID(FileBuildID);
   if (!FileName) {
     if (hasAllBuildIDs()) {
       errs() << "PERF2BOLT-ERROR: failed to match build-id from perf output. "
@@ -326,15 +327,22 @@ bool DataAggregator::checkPerfDataMagic(StringRef FileName) {
     return true;
 
   Expected<sys::fs::file_t> FD = sys::fs::openNativeFileForRead(FileName);
-  if (!FD)
+  if (!FD) {
+    consumeError(FD.takeError());
     return false;
+  }
 
   char Buf[7] = {0, 0, 0, 0, 0, 0, 0};
 
   auto Close = make_scope_exit([&] { sys::fs::closeFile(*FD); });
   Expected<size_t> BytesRead = sys::fs::readNativeFileSlice(
       *FD, makeMutableArrayRef(Buf, sizeof(Buf)), 0);
-  if (!BytesRead || *BytesRead != 7)
+  if (!BytesRead) {
+    consumeError(BytesRead.takeError());
+    return false;
+  }
+
+  if (*BytesRead != 7)
     return false;
 
   if (strncmp(Buf, "PERFILE", 7) == 0)
@@ -467,7 +475,7 @@ Error DataAggregator::preprocessProfile(BinaryContext &BC) {
     return Error::success();
   }
 
-  if (Optional<StringRef> FileBuildID = BC.getFileBuildID()) {
+  if (std::optional<StringRef> FileBuildID = BC.getFileBuildID()) {
     outs() << "BOLT-INFO: binary build-id is:     " << *FileBuildID << "\n";
     processFileBuildID(*FileBuildID);
   } else {
@@ -823,7 +831,7 @@ bool DataAggregator::doTrace(const LBREntry &First, const LBREntry &Second,
     return false;
   }
 
-  Optional<BoltAddressTranslation::FallthroughListTy> FTs =
+  std::optional<BoltAddressTranslation::FallthroughListTy> FTs =
       BAT ? BAT->getFallthroughsInTrace(FromFunc->getAddress(), First.To,
                                         Second.From)
           : getFallthroughsInTrace(*FromFunc, First, Second, Count);
@@ -935,7 +943,7 @@ bool DataAggregator::recordTrace(
   return true;
 }
 
-Optional<SmallVector<std::pair<uint64_t, uint64_t>, 16>>
+std::optional<SmallVector<std::pair<uint64_t, uint64_t>, 16>>
 DataAggregator::getFallthroughsInTrace(BinaryFunction &BF,
                                        const LBREntry &FirstLBR,
                                        const LBREntry &SecondLBR,
@@ -1815,7 +1823,7 @@ void DataAggregator::processPreAggregated() {
   outs() << "\n";
 }
 
-Optional<int32_t> DataAggregator::parseCommExecEvent() {
+std::optional<int32_t> DataAggregator::parseCommExecEvent() {
   size_t LineEnd = ParsingBuf.find_first_of("\n");
   if (LineEnd == StringRef::npos) {
     reportError("expected rest of line");
@@ -1843,7 +1851,7 @@ Optional<int32_t> DataAggregator::parseCommExecEvent() {
 }
 
 namespace {
-Optional<uint64_t> parsePerfTime(const StringRef TimeStr) {
+std::optional<uint64_t> parsePerfTime(const StringRef TimeStr) {
   const StringRef SecTimeStr = TimeStr.split('.').first;
   const StringRef USecTimeStr = TimeStr.split('.').second;
   uint64_t SecTime;
@@ -1855,7 +1863,7 @@ Optional<uint64_t> parsePerfTime(const StringRef TimeStr) {
 }
 }
 
-Optional<DataAggregator::ForkInfo> DataAggregator::parseForkEvent() {
+std::optional<DataAggregator::ForkInfo> DataAggregator::parseForkEvent() {
   while (checkAndConsumeFS()) {
   }
 
@@ -1877,7 +1885,7 @@ Optional<DataAggregator::ForkInfo> DataAggregator::parseForkEvent() {
 
   const StringRef TimeStr =
       Line.substr(0, Pos).rsplit(':').first.rsplit(FieldSeparator).second;
-  if (Optional<uint64_t> TimeRes = parsePerfTime(TimeStr)) {
+  if (std::optional<uint64_t> TimeRes = parsePerfTime(TimeStr)) {
     FI.Time = *TimeRes;
   }
 
@@ -1930,7 +1938,7 @@ DataAggregator::parseMMapEvent() {
 
   const StringRef TimeStr =
       Line.substr(0, Pos).rsplit(':').first.rsplit(FieldSeparator).second;
-  if (Optional<uint64_t> TimeRes = parsePerfTime(TimeStr))
+  if (std::optional<uint64_t> TimeRes = parsePerfTime(TimeStr))
     ParsedInfo.Time = *TimeRes;
 
   Line = Line.drop_front(Pos);
@@ -2049,7 +2057,7 @@ std::error_code DataAggregator::parseMMapEvents() {
 
     // Set base address for shared objects.
     if (!BC->HasFixedLoadAddress) {
-      Optional<uint64_t> BaseAddress =
+      std::optional<uint64_t> BaseAddress =
           BC->getBaseAddressForMapping(MMapInfo.MMapAddress, MMapInfo.Offset);
       if (!BaseAddress) {
         errs() << "PERF2BOLT-WARNING: unable to find base address of the "
@@ -2095,7 +2103,7 @@ std::error_code DataAggregator::parseTaskEvents() {
                      TimerGroupDesc, opts::TimeAggregator);
 
   while (hasData()) {
-    if (Optional<int32_t> CommInfo = parseCommExecEvent()) {
+    if (std::optional<int32_t> CommInfo = parseCommExecEvent()) {
       // Remove forked child that ran execve
       auto MMapInfoIter = BinaryMMapInfo.find(*CommInfo);
       if (MMapInfoIter != BinaryMMapInfo.end() && MMapInfoIter->second.Forked)
@@ -2104,7 +2112,7 @@ std::error_code DataAggregator::parseTaskEvents() {
       continue;
     }
 
-    Optional<ForkInfo> ForkInfo = parseForkEvent();
+    std::optional<ForkInfo> ForkInfo = parseForkEvent();
     if (!ForkInfo)
       continue;
 
@@ -2140,7 +2148,7 @@ std::error_code DataAggregator::parseTaskEvents() {
   return std::error_code();
 }
 
-Optional<std::pair<StringRef, StringRef>>
+std::optional<std::pair<StringRef, StringRef>>
 DataAggregator::parseNameBuildIDPair() {
   while (checkAndConsumeFS()) {
   }
@@ -2182,13 +2190,14 @@ bool DataAggregator::hasAllBuildIDs() {
   return !HasInvalidEntries;
 }
 
-Optional<StringRef>
+std::optional<StringRef>
 DataAggregator::getFileNameForBuildID(StringRef FileBuildID) {
   const StringRef SavedParsingBuf = ParsingBuf;
 
   StringRef FileName;
   while (hasData()) {
-    Optional<std::pair<StringRef, StringRef>> IDPair = parseNameBuildIDPair();
+    std::optional<std::pair<StringRef, StringRef>> IDPair =
+        parseNameBuildIDPair();
     if (!IDPair) {
       consumeRestOfLine();
       continue;

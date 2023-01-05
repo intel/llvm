@@ -5,14 +5,14 @@
 // RUN: echo "void foo(void) {}" > %t1.cpp
 // RUN: %clangxx -target x86_64-pc-windows-msvc -fsycl %t1.cpp -c -o %t1_bundle.o
 // RUN: llvm-ar cr %t_lib.a %t1_bundle.o
-// RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=off --sysroot=%S/Inputs/SYCL %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
-// RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=auto --sysroot=%S/Inputs/SYCL %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
-// RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=per_kernel --sysroot=%S/Inputs/SYCL %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
-// RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=per_source --sysroot=%S/Inputs/SYCL %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
-// RUN: %clang_cl -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=off --sysroot=%S/Inputs/SYCL %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
-// RUN: %clang_cl -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=auto --sysroot=%S/Inputs/SYCL %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
-// RUN: %clang_cl -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=per_kernel --sysroot=%S/Inputs/SYCL %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
-// RUN: %clang_cl -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=per_source --sysroot=%S/Inputs/SYCL %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=off --sysroot=%S/Inputs/SYCL-windows %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=auto --sysroot=%S/Inputs/SYCL-windows %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=per_kernel --sysroot=%S/Inputs/SYCL-windows %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=per_source --sysroot=%S/Inputs/SYCL-windows %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang_cl -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=off /clang:--sysroot=%S/Inputs/SYCL-windows %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang_cl -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=auto /clang:--sysroot=%S/Inputs/SYCL-windows %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang_cl -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=per_kernel /clang:--sysroot=%S/Inputs/SYCL-windows %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang_cl -### -fsycl -fno-sycl-rdc -fsycl-device-code-split=per_source /clang:--sysroot=%S/Inputs/SYCL-windows %t_lib.a 2>&1 -ccc-print-phases | FileCheck %s
 // CHECK: 2: input, "{{.*}}_lib.a", archive
 // CHECK: 3: clang-offload-unbundler, {2}, tempfilelist
 // CHECK: 4: spirv-to-ir-wrapper, {3}, tempfilelist, (device-sycl)

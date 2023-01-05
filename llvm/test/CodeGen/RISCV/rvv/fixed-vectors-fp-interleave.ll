@@ -263,6 +263,7 @@ define <64 x float> @interleave_v32f32(<32 x float> %x, <32 x float> %y) {
 ; RV32-V128-NEXT:    csrr a0, vlenb
 ; RV32-V128-NEXT:    slli a0, a0, 4
 ; RV32-V128-NEXT:    sub sp, sp, a0
+; RV32-V128-NEXT:    .cfi_escape 0x0f, 0x0d, 0x72, 0x00, 0x11, 0x10, 0x22, 0x11, 0x10, 0x92, 0xa2, 0x38, 0x00, 0x1e, 0x22 # sp + 16 + 16 * vlenb
 ; RV32-V128-NEXT:    lui a0, %hi(.LCPI10_0)
 ; RV32-V128-NEXT:    addi a0, a0, %lo(.LCPI10_0)
 ; RV32-V128-NEXT:    li a1, 32
@@ -289,12 +290,12 @@ define <64 x float> @interleave_v32f32(<32 x float> %x, <32 x float> %y) {
 ; RV32-V128-NEXT:    slli a0, a0, 3
 ; RV32-V128-NEXT:    add a0, sp, a0
 ; RV32-V128-NEXT:    addi a0, a0, 16
-; RV32-V128-NEXT:    vl8re8.v v24, (a0) # Unknown-size Folded Reload
+; RV32-V128-NEXT:    vl8r.v v24, (a0) # Unknown-size Folded Reload
 ; RV32-V128-NEXT:    vrgather.vv v8, v16, v24, v0.t
 ; RV32-V128-NEXT:    vmv.v.v v24, v8
 ; RV32-V128-NEXT:    vsetvli zero, a1, e32, m4, ta, ma
 ; RV32-V128-NEXT:    addi a0, sp, 16
-; RV32-V128-NEXT:    vl8re8.v v8, (a0) # Unknown-size Folded Reload
+; RV32-V128-NEXT:    vl8r.v v8, (a0) # Unknown-size Folded Reload
 ; RV32-V128-NEXT:    vwaddu.vv v0, v8, v16
 ; RV32-V128-NEXT:    li a0, -1
 ; RV32-V128-NEXT:    vwmaccu.vx v0, a0, v16
@@ -313,6 +314,7 @@ define <64 x float> @interleave_v32f32(<32 x float> %x, <32 x float> %y) {
 ; RV64-V128-NEXT:    csrr a0, vlenb
 ; RV64-V128-NEXT:    slli a0, a0, 4
 ; RV64-V128-NEXT:    sub sp, sp, a0
+; RV64-V128-NEXT:    .cfi_escape 0x0f, 0x0d, 0x72, 0x00, 0x11, 0x10, 0x22, 0x11, 0x10, 0x92, 0xa2, 0x38, 0x00, 0x1e, 0x22 # sp + 16 + 16 * vlenb
 ; RV64-V128-NEXT:    lui a0, %hi(.LCPI10_0)
 ; RV64-V128-NEXT:    addi a0, a0, %lo(.LCPI10_0)
 ; RV64-V128-NEXT:    li a1, 32
@@ -339,12 +341,12 @@ define <64 x float> @interleave_v32f32(<32 x float> %x, <32 x float> %y) {
 ; RV64-V128-NEXT:    slli a0, a0, 3
 ; RV64-V128-NEXT:    add a0, sp, a0
 ; RV64-V128-NEXT:    addi a0, a0, 16
-; RV64-V128-NEXT:    vl8re8.v v24, (a0) # Unknown-size Folded Reload
+; RV64-V128-NEXT:    vl8r.v v24, (a0) # Unknown-size Folded Reload
 ; RV64-V128-NEXT:    vrgather.vv v8, v16, v24, v0.t
 ; RV64-V128-NEXT:    vmv.v.v v24, v8
 ; RV64-V128-NEXT:    vsetvli zero, a1, e32, m4, ta, ma
 ; RV64-V128-NEXT:    addi a0, sp, 16
-; RV64-V128-NEXT:    vl8re8.v v8, (a0) # Unknown-size Folded Reload
+; RV64-V128-NEXT:    vl8r.v v8, (a0) # Unknown-size Folded Reload
 ; RV64-V128-NEXT:    vwaddu.vv v0, v8, v16
 ; RV64-V128-NEXT:    li a0, -1
 ; RV64-V128-NEXT:    vwmaccu.vx v0, a0, v16

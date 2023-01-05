@@ -30,7 +30,6 @@
 #include "clang/Analysis/FlowSensitive/Value.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Error.h"
@@ -210,7 +209,7 @@ struct AnalysisContext {
 ///
 ///   All predecessors of `Block` except those with loop back edges must have
 ///   already been transferred. States in `AC.BlockStates` that are set to
-///   `llvm::None` represent basic blocks that are not evaluated yet.
+///   `std::nullopt` represent basic blocks that are not evaluated yet.
 static TypeErasedDataflowAnalysisState
 computeBlockInputState(const CFGBlock &Block, AnalysisContext &AC) {
   llvm::DenseSet<const CFGBlock *> Preds;
@@ -346,14 +345,12 @@ void builtinTransfer(const CFGElement &Elt,
                      TypeErasedDataflowAnalysisState &State,
                      AnalysisContext &AC) {
   switch (Elt.getKind()) {
-  case CFGElement::Statement: {
+  case CFGElement::Statement:
     builtinTransferStatement(Elt.castAs<CFGStmt>(), State, AC);
     break;
-  }
-  case CFGElement::Initializer: {
+  case CFGElement::Initializer:
     builtinTransferInitializer(Elt.castAs<CFGInitializer>(), State);
     break;
-  }
   default:
     // FIXME: Evaluate other kinds of `CFGElement`.
     break;
@@ -479,7 +476,7 @@ runTypeErasedDataflowAnalysis(
     Worklist.enqueueSuccessors(Block);
   }
   // FIXME: Consider evaluating unreachable basic blocks (those that have a
-  // state set to `llvm::None` at this point) to also analyze dead code.
+  // state set to `std::nullopt` at this point) to also analyze dead code.
 
   if (PostVisitCFG) {
     for (const CFGBlock *Block : CFCtx.getCFG()) {
