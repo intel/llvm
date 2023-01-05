@@ -126,10 +126,8 @@ std::vector<platform> platform_impl::get_platforms() {
           // insert PiPlatform into the Plugin
           Plugin.getPlatformId(PiPlatform);
         }
-        // The users of (deprecated) SYCL_DEVICE_ALLOWLIST expect that
-        // platforms with no devices will not be reported.
-        if (!SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get() ||
-            !Platform.get_devices(info::device_type::all).empty()) {
+        
+        if (!Platform.get_devices(info::device_type::all).empty()) {
           Platforms.push_back(Platform);
         }
       }
