@@ -34,6 +34,8 @@ jobs:
       lts_matrix: ${{ needs.test_matrix.outputs.lts_matrix }}
       cts_matrix: ${{ needs.test_matrix.outputs.cts_matrix }}
       lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
+      build_configure_extra_args: --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON"
+      build_type: RelWithDebInfo
   linux_no_assert:
     name: Linux (no assert)
     uses: ./.github/workflows/sycl_linux_build_and_test.yml

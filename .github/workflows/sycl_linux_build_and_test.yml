@@ -18,6 +18,10 @@ on:
       build_ref:
         type: string
         required: false
+      build_type:
+        type: string
+        required: false
+        default: "Release"
       build_cache_root:
         type: string
         required: true
@@ -97,12 +101,13 @@ jobs:
         CACHE_SIZE: ${{ inputs.build_cache_size }}
         ARGS: ${{ inputs.build_configure_extra_args }}
         CUDA_LIB_PATH: "/usr/local/cuda/lib64/stubs"
+        BUILD_TYPE: ${{ inputs.build_type }}
       run: |
         mkdir -p $CACHE_ROOT/build_cache_$CACHE_SUFFIX
         mkdir -p $GITHUB_WORKSPACE/build
         cd $GITHUB_WORKSPACE/build
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
-          -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
+          -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t $BUILD_TYPE \
           --ci-defaults $ARGS \
           --cmake-opt="-DLLVM_CCACHE_BUILD=ON" \
           --cmake-opt="-DLLVM_CCACHE_DIR=$CACHE_ROOT/build_cache_$CACHE_SUFFIX" \

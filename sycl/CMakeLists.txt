@@ -324,6 +324,10 @@ if (SYCL_ENABLE_XPTI_TRACING)
   endif()
 endif()
 
+if (SYCL_ENABLE_STACK_PRINTING)
+  add_dependencies(sycl-toolchain llvm-symbolizer)
+endif()
+
 option(SYCL_INCLUDE_TESTS
   "Generate build targets for the SYCL unit tests."
   ${LLVM_INCLUDE_TESTS})

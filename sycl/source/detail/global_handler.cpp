@@ -6,6 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifdef ENABLE_STACK_TRACE
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Signals.h"
+#endif
+
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
@@ -87,9 +92,25 @@ void GlobalHandler::attachScheduler(Scheduler *Scheduler) {
   MScheduler.Inst.reset(Scheduler);
 }
 
+static void enableOnCrashStackPrinting() {
+#ifdef ENABLE_STACK_TRACE
+  static std::once_flag PrintStackFlag;
+  std::call_once(PrintStackFlag, []() {
+    llvm::sys::PrintStackTraceOnErrorSignal(llvm::StringRef());
+  });
+#endif
+}
+
 Scheduler &GlobalHandler::getScheduler() {
   getOrCreate(MScheduler);
   registerSchedulerUsage();
+  // On Windows the regestration of the signal handler before main function
+  // (e.g. from DLLMain or from constructors of program scope objects) doesn't
+  // work. So, registering signal handler here because:
+  // 1) getScheduler is likely to be called for any non-trivial application;
+  // 2) first call to getScheduler is likely to be done after main starts
+  // The same is done in getPlugins
+  enableOnCrashStackPrinting();
   return *MScheduler.Inst;
 }
 
@@ -125,6 +146,7 @@ std::mutex &GlobalHandler::getFilterMutex() {
   return getOrCreate(MFilterMutex);
 }
 std::vector<plugin> &GlobalHandler::getPlugins() {
+  enableOnCrashStackPrinting();
   return getOrCreate(MPlugins);
 }
 device_filter_list &

@@ -26,6 +26,17 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
               $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
               ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
 
+  # Unlike for sycl library, for LLVMSupport we have only one version for a given build,
+  # so, we link LLVMSupport lib to matching sycl version only.
+  if (SYCL_ENABLE_STACK_PRINTING)
+    if(NOT MSVC OR (CMAKE_BUILD_TYPE STREQUAL "Debug" AND ARG_COMPILE_OPTIONS MATCHES ".*MDd.*") OR
+      (NOT CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ARG_COMPILE_OPTIONS MATCHES ".*MDd.*"))
+        add_dependencies(${LIB_NAME} LLVMSupport)
+        target_compile_definitions(${LIB_OBJ_NAME} PUBLIC ENABLE_STACK_TRACE)
+        target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport)
+    endif()
+  endif()
+
   if (SYCL_ENABLE_COVERAGE)
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
       -fprofile-instr-generate -fcoverage-mapping
