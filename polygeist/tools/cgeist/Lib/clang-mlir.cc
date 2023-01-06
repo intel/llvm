@@ -992,11 +992,11 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
           Builder.create<LLVM::ICmpOp>(Loc, LLVM::ICmpPredicate::ne, Cond,
                                        Builder.create<LLVM::NullOp>(Loc, LT));
 
-    LLVM_DEBUG(if (!Cond.getType().isa<IntegerType>()) {
+    LLVM_DEBUG({if (!Cond.getType().isa<IntegerType>()) {
       BO->dump();
       BO->getType()->dump();
       llvm::dbgs() << "cond: " << Cond << "\n";
-    });
+    }});
 
     auto PrevTy = Cond.getType().cast<IntegerType>();
     if (!PrevTy.isInteger(1))
