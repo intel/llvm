@@ -271,7 +271,6 @@ urContextSetExtendedDeleter(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pGlobalWorkOffset`
 ///         + `NULL == pGlobalWorkSize`
-///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
@@ -301,10 +300,8 @@ urEnqueueKernelLaunch(
                                                     ///< events that must be complete before the kernel execution.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
                                                     ///< event. 
-    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular kernel
-                                                    ///< execution instance.
-                                                    ///< Contrary to clEnqueueNDRangeKernel, its input can not be a nullptr. 
-                                                    ///< TODO: change to allow nullptr.
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular kernel execution instance.
     )
 {
     auto pfnKernelLaunch = ur_lib::context->urDdiTable.Enqueue.pfnKernelLaunch;
@@ -333,8 +330,6 @@ urEnqueueKernelLaunch(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -349,10 +344,8 @@ urEnqueueEventsWait(
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
                                                     ///< previously enqueued commands
                                                     ///< must be complete. 
-    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                    ///< command instance.
-                                                    ///< Input can not be a nullptr.
-                                                    ///< TODO: change to allow nullptr. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular command instance.
     )
 {
     auto pfnEventsWait = ur_lib::context->urDdiTable.Enqueue.pfnEventsWait;
@@ -383,8 +376,6 @@ urEnqueueEventsWait(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
@@ -399,10 +390,8 @@ urEnqueueEventsWaitWithBarrier(
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
                                                     ///< previously enqueued commands
                                                     ///< must be complete. 
-    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                    ///< command instance.
-                                                    ///< Input can not be a nullptr.
-                                                    ///< TODO: change to allow nullptr. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular command instance.
     )
 {
     auto pfnEventsWaitWithBarrier = ur_lib::context->urDdiTable.Enqueue.pfnEventsWaitWithBarrier;
@@ -432,7 +421,6 @@ urEnqueueEventsWaitWithBarrier(
 ///         + `NULL == hBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pDst`
-///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
@@ -451,10 +439,8 @@ urEnqueueMemBufferRead(
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                    ///< command instance.
-                                                    ///< Input can not be a nullptr.
-                                                    ///< TODO: change to allow nullptr. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular command instance.
     )
 {
     auto pfnMemBufferRead = ur_lib::context->urDdiTable.Enqueue.pfnMemBufferRead;
@@ -484,7 +470,6 @@ urEnqueueMemBufferRead(
 ///         + `NULL == hBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pSrc`
-///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
@@ -503,10 +488,8 @@ urEnqueueMemBufferWrite(
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                    ///< command instance.
-                                                    ///< Input can not be a nullptr.
-                                                    ///< TODO: change to allow nullptr. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular command instance.
     )
 {
     auto pfnMemBufferWrite = ur_lib::context->urDdiTable.Enqueue.pfnMemBufferWrite;
@@ -539,7 +522,6 @@ urEnqueueMemBufferWrite(
 ///         + `NULL == hBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pDst`
-///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
@@ -565,10 +547,8 @@ urEnqueueMemBufferReadRect(
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                    ///< command instance.
-                                                    ///< Input can not be a nullptr.
-                                                    ///< TODO: change to allow nullptr. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular command instance.
     )
 {
     auto pfnMemBufferReadRect = ur_lib::context->urDdiTable.Enqueue.pfnMemBufferReadRect;
@@ -601,7 +581,6 @@ urEnqueueMemBufferReadRect(
 ///         + `NULL == hBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pSrc`
-///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
@@ -628,10 +607,8 @@ urEnqueueMemBufferWriteRect(
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                    ///< command instance.
-                                                    ///< Input can not be a nullptr.
-                                                    ///< TODO: change to allow nullptr. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular command instance. 
     )
 {
     auto pfnMemBufferWriteRect = ur_lib::context->urDdiTable.Enqueue.pfnMemBufferWriteRect;
@@ -656,8 +633,6 @@ urEnqueueMemBufferWriteRect(
 ///         + `NULL == hQueue`
 ///         + `NULL == hBufferSrc`
 ///         + `NULL == hBufferDst`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
@@ -674,10 +649,8 @@ urEnqueueMemBufferCopy(
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                    ///< command instance.
-                                                    ///< Input can not be a nullptr.
-                                                    ///< TODO: change to allow nullptr. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular command instance. 
     )
 {
     auto pfnMemBufferCopy = ur_lib::context->urDdiTable.Enqueue.pfnMemBufferCopy;
@@ -703,8 +676,6 @@ urEnqueueMemBufferCopy(
 ///         + `NULL == hQueue`
 ///         + `NULL == hBufferSrc`
 ///         + `NULL == hBufferDst`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
@@ -727,10 +698,8 @@ urEnqueueMemBufferCopyRect(
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                    ///< command instance.
-                                                    ///< Input can not be a nullptr.
-                                                    ///< TODO: change to allow nullptr. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular command instance.
     )
 {
     auto pfnMemBufferCopyRect = ur_lib::context->urDdiTable.Enqueue.pfnMemBufferCopyRect;
@@ -757,7 +726,6 @@ urEnqueueMemBufferCopyRect(
 ///         + `NULL == hBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pPattern`
-///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
@@ -776,10 +744,8 @@ urEnqueueMemBufferFill(
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                    ///< command instance.
-                                                    ///< Input can not be a nullptr.
-                                                    ///< TODO: change to allow nullptr. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular command instance.
     )
 {
     auto pfnMemBufferFill = ur_lib::context->urDdiTable.Enqueue.pfnMemBufferFill;
@@ -810,7 +776,6 @@ urEnqueueMemBufferFill(
 ///         + `NULL == hImage`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pDst`
-///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
@@ -832,10 +797,8 @@ urEnqueueMemImageRead(
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                    ///< command instance.
-                                                    ///< Input can not be a nullptr.
-                                                    ///< TODO: change to allow nullptr. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular command instance. 
     )
 {
     auto pfnMemImageRead = ur_lib::context->urDdiTable.Enqueue.pfnMemImageRead;
@@ -866,7 +829,6 @@ urEnqueueMemImageRead(
 ///         + `NULL == hImage`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pSrc`
-///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
@@ -888,10 +850,8 @@ urEnqueueMemImageWrite(
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                    ///< command instance.
-                                                    ///< Input can not be a nullptr.
-                                                    ///< TODO: change to allow nullptr. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular command instance.
     )
 {
     auto pfnMemImageWrite = ur_lib::context->urDdiTable.Enqueue.pfnMemImageWrite;
@@ -916,8 +876,6 @@ urEnqueueMemImageWrite(
 ///         + `NULL == hQueue`
 ///         + `NULL == hImageSrc`
 ///         + `NULL == hImageDst`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
@@ -939,10 +897,8 @@ urEnqueueMemImageCopy(
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                    ///< command instance.
-                                                    ///< Input can not be a nullptr.
-                                                    ///< TODO: change to allow nullptr. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular command instance. 
     )
 {
     auto pfnMemImageCopy = ur_lib::context->urDdiTable.Enqueue.pfnMemImageCopy;
@@ -977,7 +933,6 @@ urEnqueueMemImageCopy(
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `0x3 < mapFlags`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phEvent`
 ///         + `NULL == ppRetMap`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
@@ -997,10 +952,8 @@ urEnqueueMemBufferMap(
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* phEvent,                     ///< [in,out] return an event object that identifies this particular
-                                                    ///< command instance.
-                                                    ///< Input can not be a nullptr.
-                                                    ///< TODO: change to allow nullptr. 
+    ur_event_handle_t* phEvent,                     ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular command instance.
     void** ppRetMap                                 ///< [in,out] return mapped pointer.  TODO: move it before
                                                     ///< numEventsInWaitList?
     )
@@ -1029,7 +982,6 @@ urEnqueueMemBufferMap(
 ///         + `NULL == hMem`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMappedPtr`
-///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
@@ -1045,10 +997,8 @@ urEnqueueMemUnmap(
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                    ///< command instance.
-                                                    ///< Input can not be a nullptr.
-                                                    ///< TODO: change to allow nullptr. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular command instance.
     )
 {
     auto pfnMemUnmap = ur_lib::context->urDdiTable.Enqueue.pfnMemUnmap;
@@ -1069,7 +1019,6 @@ urEnqueueMemUnmap(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == ptr`
-///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
@@ -1086,10 +1035,8 @@ urEnqueueUSMMemset(
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                    ///< command instance.
-                                                    ///< Input can not be a nullptr.
-                                                    ///< TODO: change to allow nullptr. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular command instance. 
     )
 {
     auto pfnUSMMemset = ur_lib::context->urDdiTable.Enqueue.pfnUSMMemset;
@@ -1111,7 +1058,6 @@ urEnqueueUSMMemset(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pDst`
 ///         + `NULL == pSrc`
-///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
@@ -1129,10 +1075,8 @@ urEnqueueUSMMemcpy(
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                    ///< command instance.
-                                                    ///< Input can not be a nullptr.
-                                                    ///< TODO: change to allow nullptr. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular command instance.
     )
 {
     auto pfnUSMMemcpy = ur_lib::context->urDdiTable.Enqueue.pfnUSMMemcpy;
@@ -1153,7 +1097,6 @@ urEnqueueUSMMemcpy(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMem`
-///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `0x1 < flags`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
@@ -1172,10 +1115,8 @@ urEnqueueUSMPrefetch(
                                                     ///< events that must be complete before this command can be executed.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                     ///< command does not wait on any event to complete.
-    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                    ///< command instance.
-                                                    ///< Input can not be a nullptr.
-                                                    ///< TODO: change to allow nullptr. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular command instance.
     )
 {
     auto pfnUSMPrefetch = ur_lib::context->urDdiTable.Enqueue.pfnUSMPrefetch;
@@ -1196,7 +1137,6 @@ urEnqueueUSMPrefetch(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pMem`
-///         + `NULL == phEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_MEM_ADVICE_DEFAULT < advice`
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
@@ -1210,10 +1150,8 @@ urEnqueueUSMMemAdvice(
     const void* pMem,                               ///< [in] pointer to the USM memory object
     size_t size,                                    ///< [in] size in bytes to be adviced
     ur_mem_advice_t advice,                         ///< [in] USM memory advice
-    ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                    ///< command instance.
-                                                    ///< Input can not be a nullptr.
-                                                    ///< TODO: change to allow nullptr. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular command instance.
     )
 {
     auto pfnUSMMemAdvice = ur_lib::context->urDdiTable.Enqueue.pfnUSMMemAdvice;
@@ -1351,9 +1289,6 @@ urEnqueueUSMMemcpy2D(
 ///         + `NULL == hEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_EVENT_INFO_REFERENCE_COUNT < propName`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pPropValue`
-///         + `NULL == pPropValueSizeRet`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
@@ -1363,8 +1298,8 @@ urEventGetInfo(
     ur_event_handle_t hEvent,                       ///< [in] handle of the event object
     ur_event_info_t propName,                       ///< [in] the name of the event property to query
     size_t propValueSize,                           ///< [in] size in bytes of the event property value
-    void* pPropValue,                               ///< [out] value of the event property
-    size_t* pPropValueSizeRet                       ///< [out] bytes returned in event property
+    void* pPropValue,                               ///< [out][optional] value of the event property
+    size_t* pPropValueSizeRet                       ///< [out][optional] bytes returned in event property
     )
 {
     auto pfnGetInfo = ur_lib::context->urDdiTable.Event.pfnGetInfo;

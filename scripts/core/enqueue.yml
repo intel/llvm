@@ -49,9 +49,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out] return an event object that identifies this particular kernel execution instance.
-            Contrary to clEnqueueNDRangeKernel, its input can not be a nullptr. 
-            TODO: change to allow nullptr.
+            [in,out][optional] return an event object that identifies this particular kernel execution instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_KERNEL
@@ -88,9 +86,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out] return an event object that identifies this particular command instance.
-            Input can not be a nullptr.
-            TODO: change to allow nullptr. 
+            [in,out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -125,9 +121,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out] return an event object that identifies this particular command instance.
-            Input can not be a nullptr.
-            TODO: change to allow nullptr. 
+            [in,out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -174,9 +168,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out] return an event object that identifies this particular command instance.
-            Input can not be a nullptr.
-            TODO: change to allow nullptr. 
+            [in,out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -223,9 +215,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out] return an event object that identifies this particular command instance.
-            Input can not be a nullptr.
-            TODO: change to allow nullptr. 
+            [in,out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -288,9 +278,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out] return an event object that identifies this particular command instance.
-            Input can not be a nullptr.
-            TODO: change to allow nullptr. 
+            [in,out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -353,9 +341,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out] return an event object that identifies this particular command instance.
-            Input can not be a nullptr.
-            TODO: change to allow nullptr. 
+            [in,out][optional] return an event object that identifies this particular command instance. 
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -394,9 +380,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out] return an event object that identifies this particular command instance.
-            Input can not be a nullptr.
-            TODO: change to allow nullptr. 
+            [in,out][optional] return an event object that identifies this particular command instance. 
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -453,9 +437,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out] return an event object that identifies this particular command instance.
-            Input can not be a nullptr.
-            TODO: change to allow nullptr. 
+            [in,out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -500,9 +482,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out] return an event object that identifies this particular command instance.
-            Input can not be a nullptr.
-            TODO: change to allow nullptr. 
+            [in,out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -555,9 +535,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out] return an event object that identifies this particular command instance.
-            Input can not be a nullptr.
-            TODO: change to allow nullptr. 
+            [in,out][optional] return an event object that identifies this particular command instance. 
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -610,9 +588,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out] return an event object that identifies this particular command instance.
-            Input can not be a nullptr.
-            TODO: change to allow nullptr. 
+            [in,out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -657,9 +633,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out] return an event object that identifies this particular command instance.
-            Input can not be a nullptr.
-            TODO: change to allow nullptr. 
+            [in,out][optional] return an event object that identifies this particular command instance. 
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -707,9 +681,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out] return an event object that identifies this particular command instance.
-            Input can not be a nullptr.
-            TODO: change to allow nullptr. 
+            [in,out][optional] return an event object that identifies this particular command instance. 
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -779,9 +751,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out] return an event object that identifies this particular command instance.
-            Input can not be a nullptr.
-            TODO: change to allow nullptr. 
+            [in,out][optional] return an event object that identifies this particular command instance.
     - type: void**
       name: ppRetMap
       desc: "[in,out] return mapped pointer.  TODO: move it before numEventsInWaitList?"
@@ -843,9 +813,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out] return an event object that identifies this particular command instance.
-            Input can not be a nullptr.
-            TODO: change to allow nullptr. 
+            [in,out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -881,9 +849,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out] return an event object that identifies this particular command instance.
-            Input can not be a nullptr.
-            TODO: change to allow nullptr. 
+            [in,out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -920,9 +886,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out] return an event object that identifies this particular command instance.
-            Input can not be a nullptr.
-            TODO: change to allow nullptr. 
+            [in,out][optional] return an event object that identifies this particular command instance. 
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -962,9 +926,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out] return an event object that identifies this particular command instance.
-            Input can not be a nullptr.
-            TODO: change to allow nullptr. 
+            [in,out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -1001,9 +963,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out] return an event object that identifies this particular command instance.
-            Input can not be a nullptr.
-            TODO: change to allow nullptr. 
+            [in,out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -1040,9 +1000,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [in,out] return an event object that identifies this particular command instance.
-            Input can not be a nullptr.
-            TODO: change to allow nullptr. 
+            [in,out][optional] return an event object that identifies this particular command instance.
 returns:      
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
