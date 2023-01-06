@@ -4060,6 +4060,7 @@ static void handleIntelNamedSubGroupSize(Sema &S, Decl *D,
   if (!IntelNamedSubGroupSizeAttr::ConvertStrToSubGroupSizeType(SizeStr,
                                                                 SizeType)) {
     S.Diag(Loc, diag::warn_attribute_type_not_supported) << AL << SizeStr;
+    return;
   }
   D->addAttr(IntelNamedSubGroupSizeAttr::Create(S.Context, SizeType, AL));
 }
