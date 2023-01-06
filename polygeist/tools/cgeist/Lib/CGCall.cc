@@ -328,14 +328,13 @@ ValueCategory MLIRScanner::callHelper(
     for (int I = 0; I < 3; I++) {
       Value Val = L0.val;
       if (auto MT = Val.getType().dyn_cast<MemRefType>()) {
-        Value Idx[] = {getConstantIndex(0), getConstantIndex(I)};
         assert(MT.getShape().size() == 2);
         Blocks[I] = Builder.create<arith::IndexCastOp>(
             Loc, IndexType::get(Builder.getContext()),
-            Builder.create<memref::LoadOp>(Loc, Val, Idx));
+            Builder.create<memref::LoadOp>(
+                Loc, Val,
+                ValueRange({getConstantIndex(0), getConstantIndex(I)})));
       } else {
-        Value Idx[] = {Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
-                       Builder.create<arith::ConstantIntOp>(Loc, I, 32)};
         auto PT = Val.getType().cast<LLVM::LLVMPointerType>();
         auto ET = PT.getElementType().cast<LLVM::LLVMStructType>().getBody()[I];
         Blocks[I] = Builder.create<arith::IndexCastOp>(
@@ -344,7 +343,10 @@ ValueCategory MLIRScanner::callHelper(
                 Loc,
                 Builder.create<LLVM::GEPOp>(
                     Loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
-                    Val, Idx)));
+                    Val,
+                    ValueRange(
+                        {Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
+                         Builder.create<arith::ConstantIntOp>(Loc, I, 32)}))));
       }
     }
 
@@ -354,14 +356,13 @@ ValueCategory MLIRScanner::callHelper(
     for (int I = 0; I < 3; I++) {
       Value Val = T0.val;
       if (auto MT = Val.getType().dyn_cast<MemRefType>()) {
-        Value Idx[] = {getConstantIndex(0), getConstantIndex(I)};
         assert(MT.getShape().size() == 2);
         Threads[I] = Builder.create<arith::IndexCastOp>(
             Loc, IndexType::get(Builder.getContext()),
-            Builder.create<memref::LoadOp>(Loc, Val, Idx));
+            Builder.create<memref::LoadOp>(
+                Loc, Val,
+                ValueRange({getConstantIndex(0), getConstantIndex(I)})));
       } else {
-        Value Idx[] = {Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
-                       Builder.create<arith::ConstantIntOp>(Loc, I, 32)};
         auto PT = Val.getType().cast<LLVM::LLVMPointerType>();
         auto ET = PT.getElementType().cast<LLVM::LLVMStructType>().getBody()[I];
         Threads[I] = Builder.create<arith::IndexCastOp>(
@@ -370,7 +371,10 @@ ValueCategory MLIRScanner::callHelper(
                 Loc,
                 Builder.create<LLVM::GEPOp>(
                     Loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
-                    Val, Idx)));
+                    Val,
+                    ValueRange(
+                        {Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
+                         Builder.create<arith::ConstantIntOp>(Loc, I, 32)}))));
       }
     }
     Value Stream = nullptr;
@@ -444,7 +448,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
     llvm::dbgs() << "\n";
   });
 
-  auto Loc = getMLIRLocation(Expr->getExprLoc());
+  Location Loc = getMLIRLocation(Expr->getExprLoc());
 
   auto ValEmitted = emitGPUCallExpr(Expr);
   if (ValEmitted.second)
@@ -636,9 +640,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
       Module->push_back(Glob.getFunctions()[Name]);
     }
 
-    Value Vals[] = {V0};
     return ValueCategory(
-        Builder.create<func::CallOp>(Loc, Glob.getFunctions()[Name], Vals)
+        Builder.create<func::CallOp>(Loc, Glob.getFunctions()[Name], V0)
             .getResult(0),
         false);
   }
@@ -709,7 +712,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
 
     Expr->dump();
     llvm::errs() << " val: " << Val << " T: " << T << "\n";
-    assert(0 && "unhandled builtin addressof");
+    llvm_unreachable("unhandled builtin addressof");
   }
   }
 
@@ -807,9 +810,10 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
           Module->push_back(Glob.getFunctions()[Name]);
         }
 
-        Value Vals[] = {V0, V1};
         return ValueCategory(
-            Builder.create<func::CallOp>(Loc, Glob.getFunctions()[Name], Vals)
+            Builder
+                .create<func::CallOp>(Loc, Glob.getFunctions()[Name],
+                                      ValueRange({V0, V1}))
                 .getResult(0),
             false);
       }
@@ -874,8 +878,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
 
         Glob.getFunctions()[Name] = Function;
         Module->push_back(Function);
-        Value Vals[] = {V, V2};
-        V = Builder.create<func::CallOp>(Loc, Function, Vals).getResult(0);
+        V = Builder.create<func::CallOp>(Loc, Function, ValueRange({V, V2}))
+                .getResult(0);
         return ValueCategory(V, /*isRef*/ false);
       }
       if (Sr->getDecl()->getIdentifier() &&
@@ -1187,11 +1191,13 @@ MLIRScanner::emitGPUCallExpr(clang::CallExpr *Expr) {
         Value Arg = Visit(Sub).getValue(Builder);
 
         if (Arg.getType().isa<LLVM::LLVMPointerType>()) {
-          const auto *Callee = EmitCallee(Expr->getCallee());
-          auto StrcmpF = Glob.getOrCreateLLVMFunction(Callee);
-          Value Args[] = {Builder.create<LLVM::BitcastOp>(
-              Loc, LLVM::LLVMPointerType::get(Builder.getIntegerType(8)), Arg)};
-          Builder.create<LLVM::CallOp>(Loc, StrcmpF, Args);
+          const clang::FunctionDecl *Callee = EmitCallee(Expr->getCallee());
+          LLVM::LLVMFuncOp StrcmpF = Glob.getOrCreateLLVMFunction(Callee);
+          Builder.create<LLVM::CallOp>(
+              Loc, StrcmpF,
+              ValueRange({Builder.create<LLVM::BitcastOp>(
+                  Loc, LLVM::LLVMPointerType::get(Builder.getIntegerType(8)),
+                  Arg)}));
         } else {
           Builder.create<memref::DeallocOp>(Loc, Arg);
         }
@@ -1236,10 +1242,10 @@ MLIRScanner::emitGPUCallExpr(clang::CallExpr *Expr) {
               } else
                 AllocSize = Visit(Expr->getArg(1)).getValue(Builder);
               auto IdxType = IndexType::get(Builder.getContext());
-              Value Args[1] = {Builder.create<arith::DivUIOp>(
+              ValueRange Args({Builder.create<arith::DivUIOp>(
                   Loc,
                   Builder.create<arith::IndexCastOp>(Loc, IdxType, AllocSize),
-                  ElemSize)};
+                  ElemSize)});
               auto Alloc = Builder.create<memref::AllocOp>(
                   Loc,
                   (Sr->getDecl()->getName() != "cudaMallocHost" && !CudaLower)
