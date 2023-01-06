@@ -93,6 +93,8 @@ private:
     case mlir::sycl::MemoryAccessMode::Atomic:
       return "ato";
     }
+
+    llvm_unreachable("Unhandled kind");
   }
 
   static constexpr llvm::StringRef
@@ -113,6 +115,8 @@ private:
     case mlir::sycl::MemoryTargetMode::ImageArray:
       return "ia";
     }
+
+    llvm_unreachable("Unhandled kind");
   }
 };
 
