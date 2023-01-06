@@ -952,6 +952,8 @@ typedef ur_result_t (UR_APICALL *ur_pfnEnqueueMemBufferCopy_t)(
     ur_mem_handle_t,
     ur_mem_handle_t,
     size_t,
+    size_t,
+    size_t,
     uint32_t,
     const ur_event_handle_t*,
     ur_event_handle_t*

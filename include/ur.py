@@ -1649,9 +1649,9 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urEnqueueMemBufferCopy
 if __use_win_types:
-    _urEnqueueMemBufferCopy_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, ur_mem_handle_t, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urEnqueueMemBufferCopy_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, ur_mem_handle_t, c_size_t, c_size_t, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 else:
-    _urEnqueueMemBufferCopy_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, ur_mem_handle_t, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urEnqueueMemBufferCopy_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_mem_handle_t, ur_mem_handle_t, c_size_t, c_size_t, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urEnqueueMemBufferCopyRect
