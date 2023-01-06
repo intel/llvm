@@ -51,11 +51,15 @@ struct Wrapper {
     // B->print(OS, b);
   }
   RWrapper *getParent() const {
-    Region *R = ((Block *)(this))->getParent();
+    Region *R = ((Block *)(const_cast<Wrapper *>(this)))->getParent();
     return (RWrapper *)R;
   }
-  mlir::Block &operator*() const { return *(Block *)(this); }
-  mlir::Block *operator->() const { return (Block *)(this); }
+  mlir::Block &operator*() const {
+    return *(Block *)(const_cast<Wrapper *>(this));
+  }
+  mlir::Block *operator->() const {
+    return (Block *)(const_cast<Wrapper *>(this));
+  }
 };
 
 Wrapper &RWrapper::front() { return *(Wrapper *)&((Region *)this)->front(); }

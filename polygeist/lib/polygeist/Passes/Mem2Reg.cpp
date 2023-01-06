@@ -1798,10 +1798,10 @@ bool Mem2Reg::forwardStoreToLoad(
           }
         }
         SmallVector<ValueRange> vrange;
-        for (auto &c : cases) {
+        for (auto &c : cases)
           vrange.push_back(c);
-        }
-        auto newop = builder.create<cf::SwitchOp>(
+
+        builder.create<cf::SwitchOp>(
             op.getLoc(), op.getFlag(), op.getDefaultDestination(), defaultOps,
             op.getCaseValuesAttr(), op.getCaseDestinations(), vrange);
         op.erase();
