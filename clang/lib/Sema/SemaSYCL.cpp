@@ -477,12 +477,6 @@ static void checkSYCLType(Sema &S, QualType Ty, SourceRange Loc,
     Emitting = true;
   }
 
-  if (Ty->getTypeClass()) {
-    S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_type_unsupported)
-        << Ty.getUnqualifiedType().getCanonicalType();
-    Emitting = true;
-  }
-
   if (Emitting && UsedAtLoc.isValid())
     S.SYCLDiagIfDeviceCode(UsedAtLoc.getBegin(), diag::note_used_here);
 

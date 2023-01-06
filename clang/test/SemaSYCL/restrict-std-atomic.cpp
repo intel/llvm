@@ -5,8 +5,8 @@
 
 #include "Inputs/sycl.hpp"
 
-namespace std {   
- const bool test = true;    
+namespace std {
+const bool test = true;    
 template< class T >   
 struct atomic {       
   atomic() {}         
@@ -20,9 +20,9 @@ struct atomic {
 using namespace sycl;
 queue q;
 
-int main() {                          
-   const std::atomic<bool> flag;       
-   q.submit([&](handler &h) {          
+int main() {                         
+   const std::atomic<bool> flag;     
+   q.submit([&](handler &h) {         
      h.single_task<class KernelA>([=] {
        flag.use();                     
        //const bool x = std::test;
