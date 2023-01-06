@@ -1177,7 +1177,7 @@ returns:
   - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a command to write data from host to device global variable"
+desc: "Enqueue a command to write data from the host to device global variable."
 class: $xEnqueue
 name: DeviceGlobalVariableWrite
 ordinal: "0"
