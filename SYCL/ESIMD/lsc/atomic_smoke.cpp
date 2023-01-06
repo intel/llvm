@@ -344,6 +344,33 @@ template <class T, int N> struct ImplDec {
 // processed.
 constexpr float FPDELTA = 0.5f;
 
+template <class T, int N> struct ImplLoad {
+  static constexpr AtomicOp atomic_op = AtomicOp::load;
+  static constexpr int n_args = 0;
+
+  static T init(int i, const Config &cfg) { return (T)(i + FPDELTA); }
+
+  static T gold(int i, const Config &cfg) {
+    T gold = init(i, cfg);
+    return gold;
+  }
+};
+
+template <class T, int N> struct ImplStore {
+  static constexpr AtomicOp atomic_op = AtomicOp::store;
+  static constexpr int n_args = 1;
+  static constexpr T base = (T)(2 + FPDELTA);
+
+  static T init(int i, const Config &cfg) { return 0; }
+
+  static T gold(int i, const Config &cfg) {
+    T gold = is_updated(i, N, cfg) ? base : init(i, cfg);
+    return gold;
+  }
+
+  static T arg0(int i) { return base; }
+};
+
 template <class T, int N, class C, C Op> struct ImplAdd {
   static constexpr C atomic_op = Op;
   static constexpr int n_args = 1;
@@ -576,6 +603,13 @@ int main(void) {
   passed &= test<float, 8, ImplLSCFcmpwr>(q, cfg);
 #endif // USE_DWORD_ATOMICS
 #endif // CMPXCHG_TEST
+
+#ifndef USE_DWORD_ATOMICS
+  // Check load/store operations
+  passed &= test_int_types<8, ImplLoad>(q, cfg);
+  passed &= test_int_types<8, ImplStore>(q, cfg);
+  passed &= test<float, 8, ImplStore>(q, cfg);
+#endif // USE_DWORD_ATOMICS
   // TODO: check double other vector lengths in LSC mode.
 
   std::cout << (passed ? "Passed\n" : "FAILED\n");
