@@ -1055,6 +1055,8 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
                    capabilities);
   }
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
+    // 2D USM memcpy is supported.
+    return true;
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT:
     // 2D USM operations currently not supported.
