@@ -333,7 +333,7 @@ ValueCategory MLIRScanner::callHelper(
             Loc, IndexType::get(Builder.getContext()),
             Builder.create<memref::LoadOp>(
                 Loc, Val,
-                ArrayRef<Value>({getConstantIndex(0), getConstantIndex(I)})));
+                ValueRange({getConstantIndex(0), getConstantIndex(I)})));
       } else {
         auto PT = Val.getType().cast<LLVM::LLVMPointerType>();
         auto ET = PT.getElementType().cast<LLVM::LLVMStructType>().getBody()[I];
@@ -344,7 +344,7 @@ ValueCategory MLIRScanner::callHelper(
                 Builder.create<LLVM::GEPOp>(
                     Loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
                     Val,
-                    ArrayRef<Value>(
+                    ValueRange(
                         {Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
                          Builder.create<arith::ConstantIntOp>(Loc, I, 32)}))));
       }
@@ -361,7 +361,7 @@ ValueCategory MLIRScanner::callHelper(
             Loc, IndexType::get(Builder.getContext()),
             Builder.create<memref::LoadOp>(
                 Loc, Val,
-                ArrayRef<Value>({getConstantIndex(0), getConstantIndex(I)})));
+                ValueRange({getConstantIndex(0), getConstantIndex(I)})));
       } else {
         auto PT = Val.getType().cast<LLVM::LLVMPointerType>();
         auto ET = PT.getElementType().cast<LLVM::LLVMStructType>().getBody()[I];
@@ -372,7 +372,7 @@ ValueCategory MLIRScanner::callHelper(
                 Builder.create<LLVM::GEPOp>(
                     Loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
                     Val,
-                    ArrayRef<Value>(
+                    ValueRange(
                         {Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
                          Builder.create<arith::ConstantIntOp>(Loc, I, 32)}))));
       }
@@ -640,12 +640,10 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
       Module->push_back(Glob.getFunctions()[Name]);
     }
 
-    return ValueCategory(Builder
-                             .create<func::CallOp>(Loc,
-                                                   Glob.getFunctions()[Name],
-                                                   ArrayRef<Value>({V0}))
-                             .getResult(0),
-                         false);
+    return ValueCategory(
+        Builder.create<func::CallOp>(Loc, Glob.getFunctions()[Name], V0)
+            .getResult(0),
+        false);
   }
   case clang::Builtin::BI__builtin_isnormal: {
     Value V = GetLLVM(Expr->getArg(0));
@@ -815,7 +813,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
         return ValueCategory(
             Builder
                 .create<func::CallOp>(Loc, Glob.getFunctions()[Name],
-                                      ArrayRef<Value>({V0, V1}))
+                                      ValueRange({V0, V1}))
                 .getResult(0),
             false);
       }
@@ -880,8 +878,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
 
         Glob.getFunctions()[Name] = Function;
         Module->push_back(Function);
-        V = Builder
-                .create<func::CallOp>(Loc, Function, ArrayRef<Value>({V, V2}))
+        V = Builder.create<func::CallOp>(Loc, Function, ValueRange({V, V2}))
                 .getResult(0);
         return ValueCategory(V, /*isRef*/ false);
       }
@@ -1198,7 +1195,7 @@ MLIRScanner::emitGPUCallExpr(clang::CallExpr *Expr) {
           LLVM::LLVMFuncOp StrcmpF = Glob.getOrCreateLLVMFunction(Callee);
           Builder.create<LLVM::CallOp>(
               Loc, StrcmpF,
-              ArrayRef<Value>({Builder.create<LLVM::BitcastOp>(
+              ValueRange({Builder.create<LLVM::BitcastOp>(
                   Loc, LLVM::LLVMPointerType::get(Builder.getIntegerType(8)),
                   Arg)}));
         } else {
@@ -1245,7 +1242,7 @@ MLIRScanner::emitGPUCallExpr(clang::CallExpr *Expr) {
               } else
                 AllocSize = Visit(Expr->getArg(1)).getValue(Builder);
               auto IdxType = IndexType::get(Builder.getContext());
-              ArrayRef<Value> Args({Builder.create<arith::DivUIOp>(
+              ValueRange Args({Builder.create<arith::DivUIOp>(
                   Loc,
                   Builder.create<arith::IndexCastOp>(Loc, IdxType, AllocSize),
                   ElemSize)});

@@ -463,12 +463,11 @@ ValueCategory MLIRScanner::VisitCXXStdInitializerListExpr(
   auto Zero = Builder.create<arith::ConstantIntOp>(Loc, 0, 32);
   auto GEP0 = Builder.create<LLVM::GEPOp>(
       Loc, LLVM::LLVMPointerType::get(SubType.getBody()[0], 0), Alloca,
-      ArrayRef<Value>({Zero, Zero}));
+      ValueRange({Zero, Zero}));
   Builder.create<LLVM::StoreOp>(Loc, ArrayPtr.getValue(Builder), GEP0);
   auto GEP1 = Builder.create<LLVM::GEPOp>(
       Loc, LLVM::LLVMPointerType::get(SubType.getBody()[1], 0), Alloca,
-      ArrayRef<Value>(
-          {Zero, Builder.create<arith::ConstantIntOp>(Loc, 1, 32)}));
+      ValueRange({Zero, Builder.create<arith::ConstantIntOp>(Loc, 1, 32)}));
   ++Field;
   auto ITy =
       Glob.getTypes().getMLIRType(Field->getType()).cast<mlir::IntegerType>();
@@ -742,8 +741,8 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *Expr) {
             Alloc);
     }
   } else if (auto MT = Ty.dyn_cast<mlir::MemRefType>()) {
-    ArrayCons = Alloc = Builder.create<mlir::memref::AllocOp>(
-        Loc, MT, ArrayRef<Value>({Count}));
+    ArrayCons = Alloc =
+        Builder.create<mlir::memref::AllocOp>(Loc, MT, ValueRange({Count}));
     if (Expr->hasInitializer() && isa<InitListExpr>(Expr->getInitializer()))
       (void)InitializeValueByInitListExpr(Alloc, Expr->getInitializer());
   } else {
