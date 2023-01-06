@@ -200,7 +200,7 @@ public:
 
 protected:
   InlineAdvisor(Module &M, FunctionAnalysisManager &FAM,
-                Optional<InlineContext> IC = llvm::None);
+                Optional<InlineContext> IC = std::nullopt);
   virtual std::unique_ptr<InlineAdvice> getAdviceImpl(CallBase &CB) = 0;
   virtual std::unique_ptr<InlineAdvice> getMandatoryAdvice(CallBase &CB,
                                                            bool Advice);
@@ -293,8 +293,8 @@ getDevelopmentModeAdvisor(Module &M, ModuleAnalysisManager &MAM,
 
 /// Return the cost only if the inliner should attempt to inline at the given
 /// CallSite. If we return the cost, we will emit an optimisation remark later
-/// using that cost, so we won't do so from this function. Return None if
-/// inlining should not be attempted.
+/// using that cost, so we won't do so from this function. Return std::nullopt
+/// if inlining should not be attempted.
 Optional<InlineCost>
 shouldInline(CallBase &CB, function_ref<InlineCost(CallBase &CB)> GetInlineCost,
              OptimizationRemarkEmitter &ORE, bool EnableDeferral = true);

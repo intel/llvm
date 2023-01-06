@@ -32,6 +32,12 @@ set(compile_opts
   -sycl-std=2020
   )
 
+set(SYCL_LIBDEVICE_GCC_TOOLCHAIN "" CACHE PATH "Path to GCC installation")
+
+if (NOT SYCL_LIBDEVICE_GCC_TOOLCHAIN STREQUAL "")
+  list(APPEND compile_opts "--gcc-toolchain=${SYCL_LIBDEVICE_GCC_TOOLCHAIN}")
+endif()
+
 if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   string(APPEND sycl_targets_opt ",nvptx64-nvidia-cuda")
   list(APPEND compile_opts
@@ -101,6 +107,7 @@ set(complex_obj_deps device_complex.h device.h sycl-compiler)
 set(cmath_obj_deps device_math.h device.h sycl-compiler)
 set(imf_obj_deps device_imf.hpp imf_half.hpp imf_bf16.hpp device.h sycl-compiler)
 set(itt_obj_deps device_itt.h spirv_vars.h device.h sycl-compiler)
+set(bfloat16_obj_deps sycl-compiler)
 
 add_devicelib_obj(libsycl-itt-stubs SRC itt_stubs.cpp DEP ${itt_obj_deps})
 add_devicelib_obj(libsycl-itt-compiler-wrappers SRC itt_compiler_wrappers.cpp DEP ${itt_obj_deps})
@@ -114,6 +121,7 @@ add_devicelib_obj(libsycl-cmath-fp64 SRC cmath_wrapper_fp64.cpp DEP ${cmath_obj_
 add_devicelib_obj(libsycl-imf SRC imf_wrapper.cpp DEP ${imf_obj_deps})
 add_devicelib_obj(libsycl-imf-fp64 SRC imf_wrapper_fp64.cpp DEP ${imf_obj_deps})
 add_devicelib_obj(libsycl-imf-bf16 SRC imf_wrapper_bf16.cpp DEP ${imf_obj_deps})
+add_devicelib_obj(libsycl-bfloat16 SRC bfloat16_wrapper.cpp DEP ${cmath_obj_deps} )
 if(WIN32)
 add_devicelib_obj(libsycl-msvc-math SRC msvc_math.cpp DEP ${cmath_obj_deps})
 endif()
@@ -124,6 +132,8 @@ add_fallback_devicelib(libsycl-fallback-complex SRC fallback-complex.cpp DEP ${c
 add_fallback_devicelib(libsycl-fallback-complex-fp64 SRC fallback-complex-fp64.cpp DEP ${complex_obj_deps} )
 add_fallback_devicelib(libsycl-fallback-cmath SRC fallback-cmath.cpp DEP ${cmath_obj_deps})
 add_fallback_devicelib(libsycl-fallback-cmath-fp64 SRC fallback-cmath-fp64.cpp DEP ${cmath_obj_deps})
+add_fallback_devicelib(libsycl-fallback-bfloat16 SRC fallback-bfloat16.cpp DEP ${bfloat16_obj_deps})
+add_fallback_devicelib(libsycl-native-bfloat16 SRC bfloat16_wrapper.cpp DEP ${bfloat16_obj_deps})
 
 file(MAKE_DIRECTORY ${obj_binary_dir}/libdevice)
 set(imf_fallback_src_dir ${obj_binary_dir}/libdevice)

@@ -17,16 +17,13 @@
 #ifndef CLANG_INCLUDE_CLEANER_RECORD_H
 #define CLANG_INCLUDE_CLEANER_RECORD_H
 
+#include "clang-include-cleaner/Types.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/FileSystem/UniqueID.h"
-#include "clang-include-cleaner/Types.h"
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/StringMap.h"
 #include <memory>
 #include <vector>
 
@@ -73,6 +70,9 @@ public:
   /// Returns true if the given file is a self-contained file.
   bool isSelfContained(const FileEntry *File) const;
 
+  /// Returns true if the given file is marked with the IWYU private pragma.
+  bool isPrivate(const FileEntry *File) const;
+
 private:
   class RecordPragma;
   /// 1-based Line numbers for the #include directives of the main file that
@@ -80,7 +80,8 @@ private:
   /// export` right after).
   llvm::DenseSet</*LineNumber*/ unsigned> ShouldKeep;
 
-  /// The public header mapping by the IWYU private pragma.
+  /// The public header mapping by the IWYU private pragma. For private pragmas
+  //  without public mapping an empty StringRef is stored.
   //
   // !!NOTE: instead of using a FileEntry* to identify the physical file, we
   // deliberately use the UniqueID to ensure the result is stable across
@@ -130,29 +131,8 @@ struct RecordedPP {
   /// Describes where macros were used in the main file.
   std::vector<SymbolReference> MacroReferences;
 
-  /// A container for all includes present in the main file.
-  /// Supports efficiently hit-testing Headers against Includes.
-  /// FIXME: is there a more natural header for this class?
-  class RecordedIncludes {
-  public:
-    void add(const Include &);
-
-    /// All #includes seen, in the order they appear.
-    llvm::ArrayRef<Include> all() const { return All; }
-
-    /// Determine #includes that match a header (that provides a used symbol).
-    ///
-    /// Matching is based on the type of Header specified:
-    ///  - for a physical file like /path/to/foo.h, we check Resolved
-    ///  - for a logical file like <vector>, we check Spelled
-    llvm::SmallVector<const Include *> match(Header H) const;
-
-  private:
-    std::vector<Include> All;
-    // Lookup structures for match(), values are index into All.
-    llvm::StringMap<llvm::SmallVector<unsigned>> BySpelling;
-    llvm::DenseMap<const FileEntry *, llvm::SmallVector<unsigned>> ByFile;
-  } Includes;
+  /// The include directives seen in the main file.
+  include_cleaner::Includes Includes;
 };
 
 } // namespace include_cleaner

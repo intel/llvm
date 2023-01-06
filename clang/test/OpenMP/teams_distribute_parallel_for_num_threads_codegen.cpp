@@ -187,7 +187,7 @@ int main() {
 // CHECK1:       eh.resume:
 // CHECK1-NEXT:    [[EXN:%.*]] = load ptr, ptr [[EXN_SLOT]], align 8
 // CHECK1-NEXT:    [[SEL:%.*]] = load i32, ptr [[EHSELECTOR_SLOT]], align 4
-// CHECK1-NEXT:    [[LPAD_VAL:%.*]] = insertvalue { ptr, i32 } undef, ptr [[EXN]], 0
+// CHECK1-NEXT:    [[LPAD_VAL:%.*]] = insertvalue { ptr, i32 } poison, ptr [[EXN]], 0
 // CHECK1-NEXT:    [[LPAD_VAL10:%.*]] = insertvalue { ptr, i32 } [[LPAD_VAL]], i32 [[SEL]], 1
 // CHECK1-NEXT:    resume { ptr, i32 } [[LPAD_VAL10]]
 //
@@ -365,7 +365,7 @@ int main() {
 //
 //
 // CHECK1-LABEL: define {{[^@]+}}@__clang_call_terminate
-// CHECK1-SAME: (ptr [[TMP0:%.*]]) #[[ATTR5:[0-9]+]] comdat {
+// CHECK1-SAME: (ptr noundef [[TMP0:%.*]]) #[[ATTR5:[0-9]+]] comdat {
 // CHECK1-NEXT:    [[TMP2:%.*]] = call ptr @__cxa_begin_catch(ptr [[TMP0]]) #[[ATTR6]]
 // CHECK1-NEXT:    call void @_ZSt9terminatev() #[[ATTR9]]
 // CHECK1-NEXT:    unreachable
@@ -1431,7 +1431,7 @@ int main() {
 // CHECK5:       eh.resume:
 // CHECK5-NEXT:    [[EXN:%.*]] = load ptr, ptr [[EXN_SLOT]], align 8
 // CHECK5-NEXT:    [[SEL:%.*]] = load i32, ptr [[EHSELECTOR_SLOT]], align 4
-// CHECK5-NEXT:    [[LPAD_VAL:%.*]] = insertvalue { ptr, i32 } undef, ptr [[EXN]], 0
+// CHECK5-NEXT:    [[LPAD_VAL:%.*]] = insertvalue { ptr, i32 } poison, ptr [[EXN]], 0
 // CHECK5-NEXT:    [[LPAD_VAL10:%.*]] = insertvalue { ptr, i32 } [[LPAD_VAL]], i32 [[SEL]], 1
 // CHECK5-NEXT:    resume { ptr, i32 } [[LPAD_VAL10]]
 //
@@ -1609,7 +1609,7 @@ int main() {
 //
 //
 // CHECK5-LABEL: define {{[^@]+}}@__clang_call_terminate
-// CHECK5-SAME: (ptr [[TMP0:%.*]]) #[[ATTR5:[0-9]+]] comdat {
+// CHECK5-SAME: (ptr noundef [[TMP0:%.*]]) #[[ATTR5:[0-9]+]] comdat {
 // CHECK5-NEXT:    [[TMP2:%.*]] = call ptr @__cxa_begin_catch(ptr [[TMP0]]) #[[ATTR6]]
 // CHECK5-NEXT:    call void @_ZSt9terminatev() #[[ATTR9]]
 // CHECK5-NEXT:    unreachable

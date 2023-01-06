@@ -56,7 +56,7 @@ using namespace mlir::LLVM::detail;
 static FailureOr<llvm::DataLayout>
 translateDataLayout(DataLayoutSpecInterface attribute,
                     const DataLayout &dataLayout,
-                    Optional<Location> loc = llvm::None) {
+                    Optional<Location> loc = std::nullopt) {
   if (!loc)
     loc = UnknownLoc::get(attribute.getContext());
 
@@ -923,6 +923,13 @@ LogicalResult ModuleTranslation::convertFunctionSignatures() {
           return function.emitError(
               "llvm.noalias attribute attached to LLVM non-pointer argument");
         llvmArg.addAttr(llvm::Attribute::AttrKind::NoAlias);
+      }
+      if (auto attr = function.getArgAttrOfType<UnitAttr>(
+              argIdx, LLVMDialect::getReadonlyAttrName())) {
+        if (!mlirArgTy.isa<LLVM::LLVMPointerType>())
+          return function.emitError(
+              "llvm.readonly attribute attached to LLVM non-pointer argument");
+        llvmArg.addAttr(llvm::Attribute::AttrKind::ReadOnly);
       }
 
       if (auto attr = function.getArgAttrOfType<IntegerAttr>(

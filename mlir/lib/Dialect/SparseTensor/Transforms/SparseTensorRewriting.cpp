@@ -48,16 +48,39 @@ static bool isSparseTensor(OpOperand *op) {
   return false;
 }
 
+static bool isAllDimOrdered(RankedTensorType rtp) {
+  if (auto enc = getSparseTensorEncoding(rtp))
+    return llvm::all_of(enc.getDimLevelType(), isOrderedDLT);
+
+  return true;
+}
+
+static bool hasSameDimOrdering(RankedTensorType rtp1, RankedTensorType rtp2) {
+  assert(rtp1.getRank() == rtp2.getRank());
+  AffineMap idMap =
+      AffineMap::getMultiDimIdentityMap(rtp1.getRank(), rtp1.getContext());
+
+  auto enc1 = getSparseTensorEncoding(rtp1);
+  auto enc2 = getSparseTensorEncoding(rtp2);
+
+  auto order1 = (enc1 && enc1.getDimOrdering()) ? enc1.getDimOrdering() : idMap;
+  auto order2 = (enc2 && enc2.getDimOrdering()) ? enc2.getDimOrdering() : idMap;
+
+  return order1 == order2;
+}
+
 // Helper method to find zero/uninitialized allocation.
 static bool isAlloc(OpOperand *op, bool isZero) {
   Value val = op->get();
+  // Check allocation, with zero alloc when required.
   if (auto alloc = val.getDefiningOp<AllocTensorOp>()) {
     Value copy = alloc.getCopy();
     if (isZero)
       return copy && isZeroValue(copy);
     return !copy;
   }
-  return false;
+  // Last resort for zero alloc: the whole value is zero.
+  return isZero && isZeroValue(val);
 }
 
 // Helper to detect sampling operation.
@@ -117,7 +140,7 @@ static void sizesForTensor(OpBuilder &builder, SmallVectorImpl<Value> &sizes,
                            Location loc, ShapedType stp, Value tensor) {
   for (const auto &d : enumerate(stp.getShape())) {
     Value dim;
-    if (d.value() == ShapedType::kDynamicSize)
+    if (d.value() == ShapedType::kDynamic)
       dim = builder.create<tensor::DimOp>(loc, tensor, d.index());
     else
       dim = constantIndex(builder, loc, d.value());
@@ -165,7 +188,7 @@ static void getDynamicSizes(RankedTensorType tp,
                             const SmallVectorImpl<Value> &sizes,
                             SmallVectorImpl<Value> &dynSizes) {
   for (const auto &d : enumerate(tp.getShape())) {
-    if (d.value() == ShapedType::kDynamicSize)
+    if (d.value() == ShapedType::kDynamic)
       dynSizes.push_back(sizes[d.index()]);
   }
 }
@@ -197,6 +220,29 @@ static LogicalResult genForeachOnSparseConstant(ForeachOp op,
 
   rewriter.replaceOp(op, reduc);
   return success();
+}
+
+/// Populates the given sizes array for concatenation from types (for static
+/// sizes) and from the source tensors (for dynamic sizes).
+static void concatSizesFromInputs(OpBuilder &builder,
+                                  SmallVectorImpl<Value> &sizes, Location loc,
+                                  ShapedType dstTp, ValueRange srcs,
+                                  unsigned dim) {
+  auto dstShape = dstTp.getShape();
+  sizesFromSrc(builder, sizes, loc, srcs[0]);
+
+  // Sum up on the `dim` if the dimension is dynamic.
+  if (dstShape[dim] != ShapedType::kDynamic) {
+    // Faithfully take the static size.
+    sizes[dim] = constantIndex(builder, loc, dstShape[dim]);
+  } else {
+    // Else, compute the shape dynamically.
+    for (const auto &src : srcs.drop_front()) {
+      Value srcSz = linalg::createOrFoldDimOp(builder, loc, src, dim);
+      // Sum up all the sizes.
+      sizes[dim] = builder.create<arith::AddIOp>(loc, sizes[dim], srcSz);
+    }
+  }
 }
 
 //===---------------------------------------------------------------------===//
@@ -375,7 +421,7 @@ public:
       genReshapeDstShape(loc, rewriter, dstSizes, srcSizes, dstShape,
                          op.getReassociationIndices());
       for (auto &d : llvm::enumerate(dstShape)) {
-        if (d.value() == ShapedType::kDynamicSize)
+        if (d.value() == ShapedType::kDynamic)
           dstDynSizes.push_back(dstSizes[d.index()]);
       }
     }
@@ -458,80 +504,107 @@ struct ConcatenateRewriter : public OpRewritePattern<ConcatenateOp> {
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(ConcatenateOp op,
                                 PatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    auto rtp = op.getType().cast<RankedTensorType>();
-    size_t conDim = op.getDimension().getZExtValue();
-    SmallVector<Value> dynSizes;
-    if (!rtp.hasStaticShape()) {
-      ArrayRef<int64_t> rShape = rtp.getShape();
-      for (const auto &d : llvm::enumerate(rShape)) {
-        if (d.value() == ShapedType::kDynamicSize) {
-          Value v =
-              createOrFoldDimOp(rewriter, loc, op.getOperand(0), d.index());
-          rewriter.create<tensor::DimOp>(loc, op.getOperand(0), d.index());
-          for (const auto &opnd : op.getOperands().drop_front()) {
-            Value t = createOrFoldDimOp(rewriter, loc, opnd, d.index());
-            v = rewriter.create<arith::AddIOp>(loc, v, t);
-          }
-          dynSizes.push_back(v);
-        }
-      }
-    }
+    Location loc = op.getLoc();
+    auto dstTp = op.getType().cast<RankedTensorType>();
+    uint64_t conDim = op.getDimension().getZExtValue();
+    SmallVector<Value> sizes;
+    concatSizesFromInputs(rewriter, sizes, loc, dstTp, op.getInputs(), conDim);
 
     // %t = concatenate %s1, %s2, %s3 {dim = 1}
     // ==>
-    // %tmp = bufferization.alloc_tensor : unordered COO
+    // if (isSparseDst)
+    //   if (allDense)
+    //     %tmp = bufferization.alloc_tensor dstTp
+    //   else
+    //     %tmp = bufferization.alloc_tensor : unordered COO
+    // else
+    //   %tmp = memref.alloc : dense tensor
     // foreach in %s1 : insert d0, d1, %tmp
     // foreach in %s2 : insert d0, d1 + size(s1), %tmp
     // foreach in %s3 : insert d0, d1 + size(s1) + size(s2), %tmp
-    // %t = sparse_tensor.cast %tmp
-    auto cooTp = getUnorderedCOOFromType(rtp);
-    auto cooBuffer =
-        rewriter.create<AllocTensorOp>(loc, cooTp, dynSizes).getResult();
-    auto rank = rtp.getRank();
+    // %t = convert_to_dest_tensor(%tmp)
+    SparseTensorEncodingAttr encDst = getSparseTensorEncoding(dstTp);
+    Value dst; // Destination tensor for inserting source tensor values.
+    bool allDense = false;
+    if (encDst) {
+      allDense = llvm::all_of(encDst.getDimLevelType(),
+                              [](DimLevelType dlt) { return isDenseDLT(dlt); });
+      SmallVector<Value> dynSizes;
+      getDynamicSizes(dstTp, sizes, dynSizes);
+      RankedTensorType tp = dstTp;
+      if (!allDense) {
+        tp = getUnorderedCOOFromType(dstTp);
+        encDst = getSparseTensorEncoding(tp);
+      }
+      dst = rewriter.create<AllocTensorOp>(loc, tp, dynSizes).getResult();
+    } else {
+      // TODO: Dense buffers should be allocated/deallocated via the callback
+      // in BufferizationOptions.
+      dst = allocDenseTensor(rewriter, loc, dstTp, sizes);
+    }
+
+    int64_t rank = dstTp.getRank();
     Value offset = constantIndex(rewriter, loc, 0);
+    SmallVector<Value> initArgs;
+    if (encDst)
+      initArgs.push_back(dst);
     ForeachOp foreachOp;
     for (Value input : op.getInputs()) {
       // Build a for op for each input tensor to append new values into the
       // output tensor.
       foreachOp = rewriter.create<ForeachOp>(
-          loc, input, cooBuffer,
+          loc, input, initArgs,
           [&](OpBuilder &builder, Location loc, ValueRange args, Value v,
               ValueRange reduc) {
-            SmallVector<Value> indices;
+            SmallVector<Value> indices(rank, Value());
             for (int64_t i = 0; i < rank; i++) {
               Value idx = args[i];
               if (i == static_cast<int64_t>(conDim))
-                // transform coordinates on matching dim
+                // Transform coordinates for the concatenating dim.
                 idx = builder.create<arith::AddIOp>(loc, idx, offset);
-              indices.push_back(idx);
+              indices[toStoredDim(encDst, i)] = idx;
             }
-            Value cond = genIsNonzero(rewriter, loc, v);
-            scf::IfOp ifOp = builder.create<scf::IfOp>(
-                loc, TypeRange(reduc.front().getType()), cond, /*else*/ true);
-            builder.setInsertionPointToStart(&ifOp.getThenRegion().front());
-            Value t = builder.create<InsertOp>(loc, v, reduc.front(), indices);
-            rewriter.create<scf::YieldOp>(loc, t);
-            rewriter.setInsertionPointToStart(&ifOp.getElseRegion().front());
-            rewriter.create<scf::YieldOp>(loc, reduc.front());
-            rewriter.setInsertionPointAfter(ifOp);
-            rewriter.create<sparse_tensor::YieldOp>(loc, ifOp.getResult(0));
+            if (encDst) {
+              Value cond = genIsNonzero(rewriter, loc, v);
+              scf::IfOp ifOp = builder.create<scf::IfOp>(
+                  loc, TypeRange(reduc.front().getType()), cond, /*else*/ true);
+              builder.setInsertionPointToStart(&ifOp.getThenRegion().front());
+              Value t =
+                  builder.create<InsertOp>(loc, v, reduc.front(), indices);
+              rewriter.create<scf::YieldOp>(loc, t);
+              rewriter.setInsertionPointToStart(&ifOp.getElseRegion().front());
+              rewriter.create<scf::YieldOp>(loc, reduc.front());
+              rewriter.setInsertionPointAfter(ifOp);
+              rewriter.create<sparse_tensor::YieldOp>(loc, ifOp.getResult(0));
+            } else {
+              builder.create<memref::StoreOp>(loc, v, dst, indices);
+              builder.create<sparse_tensor::YieldOp>(loc);
+            }
           });
       // Accumulates the offset. Note that only static-shaped inputs are allowed
       // by concatenate op verifier, which saves us from computing the offset
       // dynamically.
-      auto d = input.getType().cast<RankedTensorType>().getShape()[conDim];
+      int64_t d = input.getType().cast<RankedTensorType>().getShape()[conDim];
       assert(!ShapedType::isDynamic(d));
       offset = rewriter.create<arith::AddIOp>(loc, offset,
                                               constantIndex(rewriter, loc, d));
-      cooBuffer = foreachOp.getResult(0);
+      if (encDst) {
+        dst = foreachOp.getResult(0);
+        initArgs[0] = dst;
+      }
     }
 
-    cooBuffer = rewriter.create<LoadOp>(loc, cooBuffer, true);
-    Value converted =
-        rewriter.create<ConvertOp>(loc, rtp, cooBuffer).getResult();
-    rewriter.create<DeallocTensorOp>(loc, cooBuffer);
-    rewriter.replaceOp(op, converted);
+    if (encDst) {
+      dst = rewriter.create<LoadOp>(loc, dst, true);
+      if (!allDense) {
+        Value tmpCoo = dst;
+        dst = rewriter.create<ConvertOp>(loc, dstTp, tmpCoo).getResult();
+        rewriter.create<DeallocTensorOp>(loc, tmpCoo);
+      }
+      rewriter.replaceOp(op, dst);
+    } else {
+      rewriter.replaceOpWithNewOp<bufferization::ToTensorOp>(op, dstTp, dst);
+    }
     return success();
   }
 };
@@ -645,7 +718,7 @@ private:
     Block *insertionBlock = rewriter.getInsertionBlock();
     bool noEscape = bufferization::allocationDoesNotEscape(op->getOpResult(0));
 
-    rewriter.create<ForeachOp>(loc, src, llvm::None,
+    rewriter.create<ForeachOp>(loc, src, std::nullopt,
                                [&](OpBuilder &builder, Location loc,
                                    ValueRange args, Value v, ValueRange reduc) {
                                  builder.create<memref::StoreOp>(loc, v, dst,
@@ -680,7 +753,13 @@ private:
     SmallVector<Value> srcSizes;
     sizesForTensor(rewriter, srcSizes, loc, srcTp, src);
     Value tmpCoo = Value();
-    if (!isUniqueCOOType(srcTp)) {
+    // We need a tmp COO buffer if and only if
+    // 1. the src tensor is not a COO and
+    // 2. the src tensor is not ordered in the same way as the target
+    // tensor (e.g., src tensor is not ordered or src tensor haves a different
+    // dimOrdering).
+    if (!isUniqueCOOType(srcTp) &&
+        !(isAllDimOrdered(srcTp) && hasSameDimOrdering(srcTp, dstTp))) {
       // Construct a COO tensor from the src tensor.
       // TODO: there may be cases for which more efficiently without
       // going through an intermediate COO, such as cases that only change
@@ -702,32 +781,36 @@ private:
       src = rewriter.create<LoadOp>(loc, foreachOp.getResult(0), true);
     }
 
-    // Sort the COO tensor so that its elements are ordered via increasing
-    // indices for the storage ordering of the dst tensor.
-    SparseTensorEncodingAttr encSrc = getSparseTensorEncoding(srcTp);
-    auto dynShape = {ShapedType::kDynamicSize};
-    auto indTp =
-        MemRefType::get(dynShape, getIndexOverheadType(rewriter, encSrc));
-    uint64_t rank = dstTp.getRank();
-    // Gather the indices-arrays in the dst tensor storage order.
-    SmallVector<Value> xs(rank, Value());
-    for (uint64_t i = 0; i < rank; i++) {
-      uint64_t orgDim = toOrigDim(encSrc, i);
-      xs[toStoredDim(encDst, orgDim)] = rewriter.create<ToIndicesOp>(
-          loc, indTp, src, rewriter.getIndexAttr(i));
+    // Only need to sort if the srcTp is not already sorted (we faithfully take
+    // the guarantee from the sparse tensor encoding).
+    if (!isAllDimOrdered(srcTp)) {
+      // Sort the COO tensor so that its elements are ordered via increasing
+      // indices for the storage ordering of the dst tensor.
+      SparseTensorEncodingAttr encSrc = getSparseTensorEncoding(srcTp);
+      auto dynShape = {ShapedType::kDynamic};
+      auto indTp =
+          MemRefType::get(dynShape, getIndexOverheadType(rewriter, encSrc));
+      uint64_t rank = dstTp.getRank();
+      // Gather the indices-arrays in the dst tensor storage order.
+      SmallVector<Value> xs(rank, Value());
+      for (uint64_t i = 0; i < rank; i++) {
+        uint64_t orgDim = toOrigDim(encSrc, i);
+        xs[toStoredDim(encDst, orgDim)] = rewriter.create<ToIndicesOp>(
+            loc, indTp, src, rewriter.getIndexAttr(i));
+      }
+
+      // Retrieve NNZ.
+      Value nnz = rewriter.create<NumberOfEntriesOp>(loc, src);
+      nnz = rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(),
+                                                nnz);
+
+      // Retrieve the values-array.
+      auto valTp = MemRefType::get(dynShape, srcTp.getElementType());
+      Value y = rewriter.create<ToValuesOp>(loc, valTp, src);
+
+      // Sort the COO tensor.
+      rewriter.create<SortOp>(loc, nnz, xs, ValueRange{y});
     }
-
-    // Retrieve NNZ.
-    Value nnz = rewriter.create<NumberOfEntriesOp>(loc, src);
-    nnz =
-        rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(), nnz);
-
-    // Retrieve the values-array.
-    auto valTp = MemRefType::get(dynShape, srcTp.getElementType());
-    Value y = rewriter.create<ToValuesOp>(loc, valTp, src);
-
-    // Sort the COO tensor.
-    rewriter.create<SortOp>(loc, nnz, xs, ValueRange{y});
 
     // For each element in the COO tensor, insert the element to the dst tensor.
     SmallVector<Value> dynDstSizes;
@@ -863,9 +946,8 @@ struct NewRewriter : public OpRewritePattern<NewOp> {
     Location loc = op.getLoc();
     auto dstTp = op.getResult().getType().template cast<RankedTensorType>();
     SparseTensorEncodingAttr encDst = getSparseTensorEncoding(dstTp);
-    if (!encDst) {
+    if (!encDst)
       return failure();
-    }
 
     // Create a sparse tensor reader.
     Value fileName = op.getSource();
@@ -883,12 +965,12 @@ struct NewRewriter : public OpRewritePattern<NewOp> {
     // the sparse tensor reader.
     SmallVector<Value> dynSizesArray;
     if (!dstTp.hasStaticShape()) {
-      createFuncCall(rewriter, loc, "getSparseTensorReaderDimSizes", {},
+      createFuncCall(rewriter, loc, "copySparseTensorReaderDimSizes", {},
                      {reader, dimSizes}, EmitCInterface::On)
           .getResult(0);
       ArrayRef<int64_t> dstShape = dstTp.getShape();
       for (auto &d : llvm::enumerate(dstShape)) {
-        if (d.value() == ShapedType::kDynamicSize) {
+        if (d.value() == ShapedType::kDynamic) {
           dynSizesArray.push_back(rewriter.create<memref::LoadOp>(
               loc, dimSizes, constantIndex(rewriter, loc, d.index())));
         }
@@ -912,8 +994,8 @@ struct NewRewriter : public OpRewritePattern<NewOp> {
                                {indexTp}, {reader}, EmitCInterface::Off)
                     .getResult(0);
     Value symmetric;
-    // We assume only rank 2 tensors may have the isSymmetric flag set.
-    if (rank == 2) {
+    // The verifier ensures only 2D tensors can have the expandSymmetry flag.
+    if (rank == 2 && op.getExpandSymmetry()) {
       symmetric =
           createFuncCall(rewriter, loc, "getSparseTensorReaderIsSymmetric",
                          {rewriter.getI1Type()}, {reader}, EmitCInterface::Off)
@@ -927,7 +1009,7 @@ struct NewRewriter : public OpRewritePattern<NewOp> {
                                                    ArrayRef<Value>(cooBuffer));
     rewriter.setInsertionPointToStart(forOp.getBody());
 
-    SmallString<18> getNextFuncName{"getSparseTensorReaderNext",
+    SmallString<29> getNextFuncName{"getSparseTensorReaderNext",
                                     primaryTypeFunctionSuffix(eltTp)};
     Value indices = dimSizes; // Reuse the indices memref to store indices.
     createFuncCall(rewriter, loc, getNextFuncName, {}, {reader, indices, value},
@@ -1010,13 +1092,13 @@ struct OutRewriter : public OpRewritePattern<OutOp> {
 
     Value indices = dimSizes; // Reuse the dimSizes buffer for indices.
     Type eltTp = srcTp.getElementType();
-    SmallString<18> outNextFuncName{"outSparseTensorWriterNext",
+    SmallString<29> outNextFuncName{"outSparseTensorWriterNext",
                                     primaryTypeFunctionSuffix(eltTp)};
     Value value = genAllocaScalar(rewriter, loc, eltTp);
     ModuleOp module = op->getParentOfType<ModuleOp>();
     // For each element in the source tensor, output the element.
     rewriter.create<ForeachOp>(
-        loc, src, llvm::None,
+        loc, src, std::nullopt,
         [&](OpBuilder &builder, Location loc, ValueRange args, Value v,
             ValueRange reduc) {
           for (uint64_t i = 0; i < rank; i++) {

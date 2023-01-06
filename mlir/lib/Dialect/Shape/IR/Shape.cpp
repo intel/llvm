@@ -1073,7 +1073,7 @@ Optional<int64_t> DimOp::getConstantIndex() {
     return constSizeOp.getValue().getLimitedValue();
   if (auto constantOp = getIndex().getDefiningOp<arith::ConstantOp>())
     return constantOp.getValue().cast<IntegerAttr>().getInt();
-  return llvm::None;
+  return std::nullopt;
 }
 
 OpFoldResult DimOp::fold(ArrayRef<Attribute> operands) {
@@ -1300,8 +1300,9 @@ void FuncOp::build(OpBuilder &builder, OperationState &state, StringRef name,
   if (argAttrs.empty())
     return;
   assert(type.getNumInputs() == argAttrs.size());
-  function_interface_impl::addArgAndResultAttrs(builder, state, argAttrs,
-                                                /*resultAttrs=*/llvm::None);
+  function_interface_impl::addArgAndResultAttrs(
+      builder, state, argAttrs, /*resultAttrs=*/std::nullopt,
+      getArgAttrsAttrName(state.name), getResAttrsAttrName(state.name));
 }
 
 ParseResult FuncOp::parse(OpAsmParser &parser, OperationState &result) {
@@ -1311,11 +1312,15 @@ ParseResult FuncOp::parse(OpAsmParser &parser, OperationState &result) {
          std::string &) { return builder.getFunctionType(argTypes, results); };
 
   return function_interface_impl::parseFunctionOp(
-      parser, result, /*allowVariadic=*/false, buildFuncType);
+      parser, result, /*allowVariadic=*/false,
+      getFunctionTypeAttrName(result.name), buildFuncType,
+      getArgAttrsAttrName(result.name), getResAttrsAttrName(result.name));
 }
 
 void FuncOp::print(OpAsmPrinter &p) {
-  function_interface_impl::printFunctionOp(p, *this, /*isVariadic=*/false);
+  function_interface_impl::printFunctionOp(
+      p, *this, /*isVariadic=*/false, getFunctionTypeAttrName(),
+      getArgAttrsAttrName(), getResAttrsAttrName());
 }
 
 //===----------------------------------------------------------------------===//
@@ -1327,7 +1332,7 @@ Optional<int64_t> GetExtentOp::getConstantDim() {
     return constSizeOp.getValue().getLimitedValue();
   if (auto constantOp = getDim().getDefiningOp<arith::ConstantOp>())
     return constantOp.getValue().cast<IntegerAttr>().getInt();
-  return llvm::None;
+  return std::nullopt;
 }
 
 OpFoldResult GetExtentOp::fold(ArrayRef<Attribute> operands) {
@@ -1763,7 +1768,7 @@ LogicalResult mlir::shape::ShapeOfOp::inferReturnTypes(
   else {
     auto shapedTy = operands[0].getType().cast<ShapedType>();
     int64_t rank =
-        shapedTy.hasRank() ? shapedTy.getRank() : ShapedType::kDynamicSize;
+        shapedTy.hasRank() ? shapedTy.getRank() : ShapedType::kDynamic;
     Type indexTy = IndexType::get(context);
     Type extentTensorTy = RankedTensorType::get({rank}, indexTy);
     inferredReturnTypes.assign({extentTensorTy});

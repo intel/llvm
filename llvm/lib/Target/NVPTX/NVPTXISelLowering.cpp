@@ -191,9 +191,9 @@ static void ComputePTXValueVTs(const TargetLowering &TLI, const DataLayout &DL,
       unsigned NumElts = VT.getVectorNumElements();
       EVT EltVT = VT.getVectorElementType();
       // Vectors with an even number of f16 elements will be passed to
-      // us as an array of v2f16 elements. We must match this so we
+      // us as an array of v2f16/v2bf16 elements. We must match this so we
       // stay in sync with Ins/Outs.
-      if ((EltVT == MVT::f16 || EltVT == MVT::f16) && NumElts % 2 == 0) {
+      if ((EltVT == MVT::f16 || EltVT == MVT::bf16) && NumElts % 2 == 0) {
         EltVT = EltVT == MVT::f16 ? MVT::v2f16 : MVT::v2bf16;
         NumElts /= 2;
       }
@@ -1661,7 +1661,7 @@ SDValue NVPTXTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   }
 
   GlobalAddressSDNode *Func = dyn_cast<GlobalAddressSDNode>(Callee.getNode());
-  MaybeAlign retAlignment = None;
+  MaybeAlign retAlignment = std::nullopt;
 
   // Handle Result
   if (Ins.size() > 0) {
@@ -1790,7 +1790,7 @@ SDValue NVPTXTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   }
 
   SmallVector<SDValue, 16> ProxyRegOps;
-  SmallVector<Optional<MVT>, 16> ProxyRegTruncates;
+  SmallVector<std::optional<MVT>, 16> ProxyRegTruncates;
 
   // Generate loads from param memory/moves from registers for result
   if (Ins.size() > 0) {
@@ -1873,9 +1873,9 @@ SDValue NVPTXTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
           ProxyRegOps.push_back(RetVal.getValue(j));
 
           if (needTruncate)
-            ProxyRegTruncates.push_back(Optional<MVT>(Ins[VecIdx + j].VT));
+            ProxyRegTruncates.push_back(std::optional<MVT>(Ins[VecIdx + j].VT));
           else
-            ProxyRegTruncates.push_back(Optional<MVT>());
+            ProxyRegTruncates.push_back(std::optional<MVT>());
         }
 
         Chain = RetVal.getValue(NumElts);
@@ -1952,7 +1952,6 @@ NVPTXTargetLowering::LowerCONCAT_VECTORS(SDValue Op, SelectionDAG &DAG) const {
 // generates good SASS in both cases.
 SDValue NVPTXTargetLowering::LowerBUILD_VECTOR(SDValue Op,
                                                SelectionDAG &DAG) const {
-  //return Op;
   if (!(Op->getValueType(0) == MVT::v2f16 &&
         isa<ConstantFPSDNode>(Op->getOperand(0)) &&
         isa<ConstantFPSDNode>(Op->getOperand(1))))

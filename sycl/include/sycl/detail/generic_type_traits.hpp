@@ -27,13 +27,22 @@ template <typename T> using is_floatn = is_contained<T, gtl::vector_float_list>;
 template <typename T> using is_genfloatf = is_contained<T, gtl::float_list>;
 
 template <typename T>
+using is_svgenfloatf = is_contained<T, gtl::scalar_vector_float_list>;
+
+template <typename T>
 using is_doublen = is_contained<T, gtl::vector_double_list>;
 
 template <typename T> using is_genfloatd = is_contained<T, gtl::double_list>;
 
+template <typename T>
+using is_svgenfloatd = is_contained<T, gtl::scalar_vector_double_list>;
+
 template <typename T> using is_halfn = is_contained<T, gtl::vector_half_list>;
 
 template <typename T> using is_genfloath = is_contained<T, gtl::half_list>;
+
+template <typename T>
+using is_svgenfloath = is_contained<T, gtl::scalar_vector_half_list>;
 
 template <typename T> using is_genfloat = is_contained<T, gtl::floating_list>;
 
@@ -42,6 +51,9 @@ using is_sgenfloat = is_contained<T, gtl::scalar_floating_list>;
 
 template <typename T>
 using is_vgenfloat = is_contained<T, gtl::vector_floating_list>;
+
+template <typename T>
+using is_svgenfloat = is_contained<T, gtl::scalar_vector_floating_list>;
 
 template <typename T>
 using is_gengeofloat = is_contained<T, gtl::geo_float_list>;
@@ -115,17 +127,6 @@ template <typename T>
 using is_intn = is_contained<T, gtl::vector_signed_int_list>;
 
 template <typename T> using is_genint = is_contained<T, gtl::signed_int_list>;
-
-template <typename T>
-using is_ulongn = is_contained<T, gtl::vector_unsigned_long_list>;
-
-template <typename T>
-using is_ugenlong = is_contained<T, gtl::unsigned_long_list>;
-
-template <typename T>
-using is_longn = is_contained<T, gtl::vector_signed_long_list>;
-
-template <typename T> using is_genlong = is_contained<T, gtl::signed_long_list>;
 
 template <typename T>
 using is_ulonglongn = is_contained<T, gtl::vector_unsigned_longlong_list>;
@@ -502,7 +503,7 @@ template <typename T> struct TypeHelper {
   using RetType = T;
 };
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <> struct TypeHelper<std::byte> {
   using RetType = std::uint8_t;
 };

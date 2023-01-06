@@ -18,7 +18,6 @@
 #define LLVM_CODEGEN_LIVERANGEEDIT_H
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -241,7 +240,7 @@ public:
   /// allocator.  These registers should not be split into new intervals
   /// as currently those new intervals are not guaranteed to spill.
   void eliminateDeadDefs(SmallVectorImpl<MachineInstr *> &Dead,
-                         ArrayRef<Register> RegsBeingSpilled = None);
+                         ArrayRef<Register> RegsBeingSpilled = std::nullopt);
 
   /// calculateRegClassAndHint - Recompute register class and hint for each new
   /// register.

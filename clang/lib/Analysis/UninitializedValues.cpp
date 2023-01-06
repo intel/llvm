@@ -28,7 +28,6 @@
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PackedVector.h"
 #include "llvm/ADT/SmallBitVector.h"
@@ -90,7 +89,7 @@ void DeclToIndex::computeMap(const DeclContext &dc) {
 Optional<unsigned> DeclToIndex::getValueIndex(const VarDecl *d) const {
   llvm::DenseMap<const VarDecl *, unsigned>::const_iterator I = map.find(d);
   if (I == map.end())
-    return None;
+    return std::nullopt;
   return I->second;
 }
 

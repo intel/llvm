@@ -34,7 +34,6 @@ namespace mlir {
 /// failures as their diagnostics have been already reported to the user.
 class [[nodiscard]] DiagnosedSilenceableFailure {
 public:
-  explicit DiagnosedSilenceableFailure(LogicalResult result) : result(result) {}
   DiagnosedSilenceableFailure(const DiagnosedSilenceableFailure &) = delete;
   DiagnosedSilenceableFailure &
   operator=(const DiagnosedSilenceableFailure &) = delete;
@@ -149,13 +148,14 @@ public:
 
   /// Attaches a note to the last diagnostic.
   /// Expects this object to be a silenceable failure.
-  Diagnostic &attachNote(Optional<Location> loc = llvm::None) {
+  Diagnostic &attachNote(Optional<Location> loc = std::nullopt) {
     assert(isSilenceableFailure() &&
            "can only attach notes to silenceable failures");
     return diagnostics.back().attachNote(loc);
   }
 
 private:
+  explicit DiagnosedSilenceableFailure(LogicalResult result) : result(result) {}
   explicit DiagnosedSilenceableFailure(Diagnostic &&diagnostic)
       : result(failure()) {
     diagnostics.emplace_back(std::move(diagnostic));
@@ -212,7 +212,7 @@ public:
   }
 
   /// Attaches a note to the error.
-  Diagnostic &attachNote(Optional<Location> loc = llvm::None) {
+  Diagnostic &attachNote(Optional<Location> loc = std::nullopt) {
     return diag.attachNote(loc);
   }
 

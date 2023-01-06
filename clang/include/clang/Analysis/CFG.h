@@ -21,7 +21,6 @@
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/GraphTraits.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/iterator_range.h"
@@ -103,12 +102,12 @@ public:
     return t;
   }
 
-  /// Convert to the specified CFGElement type, returning None if this
+  /// Convert to the specified CFGElement type, returning std::nullopt if this
   /// CFGElement is not of the desired type.
   template<typename T>
   Optional<T> getAs() const {
     if (!T::isKind(*this))
-      return None;
+      return std::nullopt;
     T t;
     CFGElement& e = t;
     e = *this;

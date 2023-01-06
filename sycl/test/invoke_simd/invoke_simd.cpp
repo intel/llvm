@@ -1,4 +1,6 @@
-// RUN: %clangxx -c -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s
+// RUN: %clangxx -fsycl -fsyntax-only -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s
+// FIXME: check if -fno-sycl-device-code-split-esimd affects any pre-link steps
+//        and remove the flag if that is not the case
 
 // The tests checks that invoke_simd API is compileable.
 

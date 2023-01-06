@@ -1356,6 +1356,7 @@ define <vscale x 8 x i64> @bitreverse_nxv8i64(<vscale x 8 x i64> %va) {
 ; RV32-NEXT:    csrr a0, vlenb
 ; RV32-NEXT:    slli a0, a0, 3
 ; RV32-NEXT:    sub sp, sp, a0
+; RV32-NEXT:    .cfi_escape 0x0f, 0x0d, 0x72, 0x00, 0x11, 0x10, 0x22, 0x11, 0x08, 0x92, 0xa2, 0x38, 0x00, 0x1e, 0x22 # sp + 16 + 8 * vlenb
 ; RV32-NEXT:    sw zero, 12(sp)
 ; RV32-NEXT:    lui a0, 1044480
 ; RV32-NEXT:    sw a0, 8(sp)
@@ -1391,9 +1392,8 @@ define <vscale x 8 x i64> @bitreverse_nxv8i64(<vscale x 8 x i64> %va) {
 ; RV32-NEXT:    vand.vv v16, v16, v24
 ; RV32-NEXT:    vor.vv v16, v16, v0
 ; RV32-NEXT:    addi a5, sp, 16
-; RV32-NEXT:    vl8re8.v v0, (a5) # Unknown-size Folded Reload
+; RV32-NEXT:    vl8r.v v0, (a5) # Unknown-size Folded Reload
 ; RV32-NEXT:    vor.vv v16, v16, v0
-; RV32-NEXT:    addi a5, sp, 16
 ; RV32-NEXT:    vs8r.v v16, (a5) # Unknown-size Folded Spill
 ; RV32-NEXT:    vand.vx v0, v8, a2
 ; RV32-NEXT:    vsll.vx v0, v0, a1
@@ -1407,7 +1407,7 @@ define <vscale x 8 x i64> @bitreverse_nxv8i64(<vscale x 8 x i64> %va) {
 ; RV32-NEXT:    vlse64.v v16, (a3), zero
 ; RV32-NEXT:    vor.vv v8, v0, v8
 ; RV32-NEXT:    addi a0, sp, 16
-; RV32-NEXT:    vl8re8.v v24, (a0) # Unknown-size Folded Reload
+; RV32-NEXT:    vl8r.v v24, (a0) # Unknown-size Folded Reload
 ; RV32-NEXT:    vor.vv v8, v8, v24
 ; RV32-NEXT:    vsrl.vi v24, v8, 4
 ; RV32-NEXT:    vand.vv v24, v24, v16

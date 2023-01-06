@@ -204,6 +204,20 @@ TEST_F(BracesRemoverTest, RemoveBraces) {
                "while (j < 0) { ++j; }",
                Style);
 
+  verifyFormat("for (;;) {\n"
+               "  for (;;)\n"
+               "    for (;;)\n"
+               "      a;\n"
+               "}",
+               "for (;;) {\n"
+               "  for (;;) {\n"
+               "    for (;;) {\n"
+               "      a;\n"
+               "    }\n"
+               "  }\n"
+               "}",
+               Style);
+
   verifyFormat("if (a)\n"
                "  b; // comment\n"
                "else if (c)\n"
@@ -667,6 +681,41 @@ TEST_F(BracesRemoverTest, RemoveBraces) {
                "    return b;\n"
                "}}\n"
                "return a;",
+               Style);
+
+  verifyFormat("if (a)\n"
+               "#ifdef FOO\n"
+               "  if (b)\n"
+               "    bar = c;\n"
+               "  else\n"
+               "#endif\n"
+               "  {\n"
+               "    foo = d;\n"
+               "#ifdef FOO\n"
+               "    bar = e;\n"
+               "#else\n"
+               "  bar = f;\n" // FIXME: should be indented 1 more level.
+               "#endif\n"
+               "  }\n"
+               "else\n"
+               "  bar = g;",
+               "if (a)\n"
+               "#ifdef FOO\n"
+               "  if (b)\n"
+               "    bar = c;\n"
+               "  else\n"
+               "#endif\n"
+               "  {\n"
+               "    foo = d;\n"
+               "#ifdef FOO\n"
+               "    bar = e;\n"
+               "#else\n"
+               "    bar = f;\n"
+               "#endif\n"
+               "  }\n"
+               "else {\n"
+               "  bar = g;\n"
+               "}",
                Style);
 
   Style.ColumnLimit = 65;

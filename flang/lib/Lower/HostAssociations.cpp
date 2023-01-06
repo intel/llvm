@@ -229,6 +229,32 @@ static bool isDerivedWithLenParameters(const Fortran::semantics::Symbol &sym) {
   return false;
 }
 
+/// Class defining how polymorphic entities are captured in internal procedures.
+/// Polymorphic entities are always boxed as a fir.class box.
+class CapturedPolymorphic : public CapturedSymbols<CapturedPolymorphic> {
+public:
+  static mlir::Type getType(Fortran::lower::AbstractConverter &converter,
+                            const Fortran::semantics::Symbol &sym) {
+    return fir::ClassType::get(converter.genType(sym));
+  }
+  static void instantiateHostTuple(const InstantiateHostTuple &args,
+                                   Fortran::lower::AbstractConverter &converter,
+                                   const Fortran::semantics::Symbol &) {
+    fir::FirOpBuilder &builder = converter.getFirOpBuilder();
+    mlir::Type typeInTuple = fir::dyn_cast_ptrEleTy(args.addrInTuple.getType());
+    assert(typeInTuple && "addrInTuple must be an address");
+    mlir::Value castBox = builder.createConvert(args.loc, typeInTuple,
+                                                fir::getBase(args.hostValue));
+    builder.create<fir::StoreOp>(args.loc, castBox, args.addrInTuple);
+  }
+  static void getFromTuple(const GetFromTuple &args,
+                           Fortran::lower::AbstractConverter &converter,
+                           const Fortran::semantics::Symbol &sym,
+                           const Fortran::lower::BoxAnalyzer &ba) {
+    args.symMap.addSymbol(sym, args.valueInTuple);
+  }
+};
+
 /// Class defining how allocatable and pointers entities are captured in
 /// internal procedures. Allocatable and pointers are simply captured by placing
 /// their !fir.ref<fir.box<>> address in the host tuple.
@@ -321,15 +347,15 @@ public:
           .genThen([&]() {
             fir::factory::associateMutableBox(builder, loc, boxInTuple,
                                               args.hostValue,
-                                              /*lbounds=*/llvm::None);
+                                              /*lbounds=*/std::nullopt);
           })
           .genElse([&]() {
             fir::factory::disassociateMutableBox(builder, loc, boxInTuple);
           })
           .end();
     } else {
-      fir::factory::associateMutableBox(builder, loc, boxInTuple,
-                                        args.hostValue, /*lbounds=*/llvm::None);
+      fir::factory::associateMutableBox(
+          builder, loc, boxInTuple, args.hostValue, /*lbounds=*/std::nullopt);
     }
   }
 
@@ -360,7 +386,7 @@ public:
     }
 
     if (canReadCapturedBoxValue(converter, sym)) {
-      fir::BoxValue boxValue(box, lbounds, /*explicitParams=*/llvm::None);
+      fir::BoxValue boxValue(box, lbounds, /*explicitParams=*/std::nullopt);
       args.symMap.addSymbol(sym,
                             fir::factory::readBoxValue(builder, loc, boxValue));
     } else {
@@ -380,7 +406,7 @@ public:
         box = builder.create<mlir::arith::SelectOp>(loc, isPresent, box,
                                                     absentBox);
       }
-      fir::BoxValue boxValue(box, lbounds, /*explicitParams=*/llvm::None);
+      fir::BoxValue boxValue(box, lbounds, /*explicitParams=*/std::nullopt);
       args.symMap.addSymbol(sym, boxValue);
     }
   }
@@ -423,6 +449,12 @@ walkCaptureCategories(T visitor, Fortran::lower::AbstractConverter &converter,
   ba.analyze(sym);
   if (Fortran::semantics::IsAllocatableOrPointer(sym))
     return CapturedAllocatableAndPointer::visit(visitor, converter, sym, ba);
+  if (Fortran::semantics::IsPolymorphic(sym)) {
+    if (ba.isArray() && !ba.lboundIsAllOnes())
+      TODO(converter.genLocation(sym.name()),
+           "polymorphic array with non default lower bound");
+    return CapturedPolymorphic::visit(visitor, converter, sym, ba);
+  }
   if (ba.isArray())
     return CapturedArrays::visit(visitor, converter, sym, ba);
   if (ba.isChar())

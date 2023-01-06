@@ -783,6 +783,8 @@ public:
     return getGeneration() < SEA_ISLANDS;
   }
 
+  bool hasInstPrefetch() const { return getGeneration() >= GFX10; }
+
   // Scratch is allocated in 256 dword per wave blocks for the entire
   // wavefront. When viewed from the perspective of an arbitrary workitem, this
   // is 4-byte aligned.
@@ -1216,14 +1218,14 @@ public:
     return AMDGPU::IsaInfo::getAddressableNumVGPRs(this);
   }
 
-  /// \returns Minimum number of VGPRs that meets given number of waves per
-  /// execution unit requirement supported by the subtarget.
+  /// \returns the minimum number of VGPRs that will prevent achieving more than
+  /// the specified number of waves \p WavesPerEU.
   unsigned getMinNumVGPRs(unsigned WavesPerEU) const {
     return AMDGPU::IsaInfo::getMinNumVGPRs(this, WavesPerEU);
   }
 
-  /// \returns Maximum number of VGPRs that meets given number of waves per
-  /// execution unit requirement supported by the subtarget.
+  /// \returns the maximum number of VGPRs that can be used and still achieved
+  /// at least the specified number of waves \p WavesPerEU.
   unsigned getMaxNumVGPRs(unsigned WavesPerEU) const {
     return AMDGPU::IsaInfo::getMaxNumVGPRs(this, WavesPerEU);
   }

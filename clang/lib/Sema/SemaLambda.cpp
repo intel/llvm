@@ -887,11 +887,12 @@ VarDecl *Sema::createLambdaInitCaptureVarDecl(SourceLocation Loc,
   return NewVD;
 }
 
-void Sema::addInitCapture(LambdaScopeInfo *LSI, VarDecl *Var) {
+void Sema::addInitCapture(LambdaScopeInfo *LSI, VarDecl *Var,
+                          bool isReferenceType) {
   assert(Var->isInitCapture() && "init capture flag should be set");
-  LSI->addCapture(Var, /*isBlock*/false, Var->getType()->isReferenceType(),
-                  /*isNested*/false, Var->getLocation(), SourceLocation(),
-                  Var->getType(), /*Invalid*/false);
+  LSI->addCapture(Var, /*isBlock*/ false, isReferenceType,
+                  /*isNested*/ false, Var->getLocation(), SourceLocation(),
+                  Var->getType(), /*Invalid*/ false);
 }
 
 void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
@@ -953,8 +954,8 @@ void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
     QualType DefaultTypeForNoTrailingReturn =
         getLangOpts().CPlusPlus14 ? Context.getAutoDeductType()
                                   : Context.DependentTy;
-    QualType MethodTy =
-        Context.getFunctionType(DefaultTypeForNoTrailingReturn, None, EPI);
+    QualType MethodTy = Context.getFunctionType(DefaultTypeForNoTrailingReturn,
+                                                std::nullopt, EPI);
     MethodTyInfo = Context.getTrivialTypeSourceInfo(MethodTy);
     ExplicitParams = false;
     ExplicitResultType = false;
@@ -1261,7 +1262,7 @@ void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
     }
 
     if (C->Init.isUsable()) {
-      addInitCapture(LSI, cast<VarDecl>(Var));
+      addInitCapture(LSI, cast<VarDecl>(Var), C->Kind == LCK_ByRef);
     } else {
       TryCaptureKind Kind = C->Kind == LCK_ByRef ? TryCapture_ExplicitByRef :
                                                    TryCapture_ExplicitByVal;
@@ -1411,7 +1412,7 @@ static void addFunctionPointerConversion(Sema &S, SourceRange IntroducerRange,
   ConvExtInfo.TypeQuals.addConst();
   ConvExtInfo.ExceptionSpec.Type = EST_BasicNoexcept;
   QualType ConvTy =
-      S.Context.getFunctionType(PtrToFunctionTy, None, ConvExtInfo);
+      S.Context.getFunctionType(PtrToFunctionTy, std::nullopt, ConvExtInfo);
 
   SourceLocation Loc = IntroducerRange.getBegin();
   DeclarationName ConversionName
@@ -1588,7 +1589,8 @@ static void addBlockPointerConversion(Sema &S,
           /*IsVariadic=*/false, /*IsCXXMethod=*/true));
   ConversionEPI.TypeQuals = Qualifiers();
   ConversionEPI.TypeQuals.addConst();
-  QualType ConvTy = S.Context.getFunctionType(BlockPtrTy, None, ConversionEPI);
+  QualType ConvTy =
+      S.Context.getFunctionType(BlockPtrTy, std::nullopt, ConversionEPI);
 
   SourceLocation Loc = IntroducerRange.getBegin();
   DeclarationName Name

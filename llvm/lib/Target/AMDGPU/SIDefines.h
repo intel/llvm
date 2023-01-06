@@ -203,6 +203,9 @@ enum OperandType : unsigned {
   OPERAND_SRC_FIRST = OPERAND_REG_IMM_INT32,
   OPERAND_SRC_LAST = OPERAND_REG_INLINE_C_LAST,
 
+  OPERAND_KIMM_FIRST = OPERAND_KIMM32,
+  OPERAND_KIMM_LAST = OPERAND_KIMM16,
+
   // Operand for source modifiers for VOP instructions
   OPERAND_INPUT_MODS,
 
@@ -420,9 +423,6 @@ enum Offset : unsigned { // Offset, (5) [10:6]
   OFFSET_MASK_ = (((1 << OFFSET_WIDTH_) - 1) << OFFSET_SHIFT_),
 
   OFFSET_MEM_VIOL = 8,
-
-  OFFSET_SRC_SHARED_BASE = 16,
-  OFFSET_SRC_PRIVATE_BASE = 0
 };
 
 enum WidthMinusOne : unsigned { // WidthMinusOne, (5) [15:11]
@@ -430,9 +430,6 @@ enum WidthMinusOne : unsigned { // WidthMinusOne, (5) [15:11]
   WIDTH_M1_SHIFT_ = 11,
   WIDTH_M1_WIDTH_ = 5,
   WIDTH_M1_MASK_ = (((1 << WIDTH_M1_WIDTH_) - 1) << WIDTH_M1_SHIFT_),
-
-  WIDTH_M1_SRC_SHARED_BASE = 15,
-  WIDTH_M1_SRC_PRIVATE_BASE = 15
 };
 
 // Some values from WidthMinusOne mapped into Width domain.

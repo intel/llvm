@@ -196,8 +196,8 @@ __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_srgb, bool,
                          PI_DEVICE_INFO_IMAGE_SRGB)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_mem_channel, bool,
                          PI_MEM_PROPERTIES_CHANNEL)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_bfloat16, bool,
-                         PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16)
+__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_bfloat16_math_functions, bool,
+                         PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS)
 
 //Deprecated oneapi/intel extension
 //TODO:Remove when possible

@@ -85,12 +85,6 @@ public:
   /// \param Self is a pointer to this event.
   void wait_and_throw(std::shared_ptr<sycl::detail::event_impl> Self);
 
-  /// Clean up the command associated with the event. Assumes that the task this
-  /// event is associated with has been completed.
-  ///
-  /// \param Self is a pointer to this event.
-  void cleanupCommand(std::shared_ptr<sycl::detail::event_impl> Self) const;
-
   /// Queries this event for profiling information.
   ///
   /// If the requested info is not available when this member function is
@@ -207,11 +201,6 @@ public:
   /// \return true if this event is discarded.
   bool isDiscarded() const { return MState == HES_Discarded; }
 
-  void setNeedsCleanupAfterWait(bool NeedsCleanupAfterWait) {
-    MNeedsCleanupAfterWait = NeedsCleanupAfterWait;
-  }
-  bool needsCleanupAfterWait() { return MNeedsCleanupAfterWait; }
-
   /// Returns worker queue for command.
   ///
   /// @return shared_ptr to MWorkerQueue, please be aware it can be empty
@@ -242,6 +231,11 @@ public:
   /// \return true if the event is considered to be in a fully initialized
   /// state.
   bool isInitialized() const noexcept { return MIsInitialized; }
+
+  /// Checks if this event is complete.
+  ///
+  /// \return true if this event is complete.
+  bool isCompleted();
 
   void attachEventToComplete(const EventImplPtr &Event) {
     std::lock_guard<std::mutex> Lock(MMutex);
@@ -287,12 +281,6 @@ protected:
   // backend's representation (e.g. alloca). Used values are listed in
   // HostEventState enum.
   std::atomic<int> MState;
-
-  // A temporary workaround for the current limitations of post enqueue graph
-  // cleanup. Indicates that the command associated with this event isn't
-  // handled by post enqueue cleanup yet and has to be deleted by cleanup after
-  // wait.
-  bool MNeedsCleanupAfterWait = false;
 
   std::mutex MMutex;
   std::condition_variable cv;

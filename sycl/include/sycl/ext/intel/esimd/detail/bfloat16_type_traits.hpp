@@ -13,7 +13,7 @@
 #include <sycl/ext/intel/esimd/detail/elem_type_traits.hpp>
 #include <sycl/ext/intel/esimd/detail/intrin.hpp>
 
-#include <sycl/ext/oneapi/experimental/bfloat16.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
 
 /// @cond ESIMD_DETAIL
 
@@ -21,7 +21,7 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::intel::esimd::detail {
 
-using bfloat16 = sycl::ext::oneapi::experimental::bfloat16;
+using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 template <> struct element_type_traits<bfloat16> {
   // TODO map the raw type to __bf16 once SPIRV target supports it:

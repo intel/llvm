@@ -14,8 +14,6 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/AliasAnalysis.h"
@@ -127,7 +125,7 @@ public:
 
   Value *createHvxIntrinsic(IRBuilderBase &Builder, Intrinsic::ID IntID,
                             Type *RetTy, ArrayRef<Value *> Args,
-                            ArrayRef<Type *> ArgTys = None) const;
+                            ArrayRef<Type *> ArgTys = std::nullopt) const;
   SmallVector<Value *> splitVectorElements(IRBuilderBase &Builder, Value *Vec,
                                            unsigned ToWidth) const;
   Value *joinVectorElements(IRBuilderBase &Builder, ArrayRef<Value *> Values,
@@ -379,6 +377,8 @@ private:
                       Value *CarryIn = nullptr) const
       -> std::pair<Value *, Value *>;
   auto createMul16(IRBuilderBase &Builder, SValue X, SValue Y) const -> Value *;
+  auto createMulH16(IRBuilderBase &Builder, SValue X, SValue Y) const
+      -> Value *;
   auto createMul32(IRBuilderBase &Builder, SValue X, SValue Y) const
       -> std::pair<Value *, Value *>;
   auto createAddLong(IRBuilderBase &Builder, ArrayRef<Value *> WordX,
@@ -1379,7 +1379,7 @@ auto HvxIdioms::processFxpMul(Instruction &In, const FxpOp &Op) const
       break;
   }
 
-  if (Results.back() == nullptr)
+  if (Results.empty() || Results.back() == nullptr)
     return nullptr;
 
   Value *Cat = HVC.concat(Builder, Results);
@@ -1420,7 +1420,14 @@ auto HvxIdioms::processFxpMulChopped(IRBuilderBase &Builder, Instruction &In,
     // Getting here with Op.Frac == 0 isn't wrong, but suboptimal: here we
     // generate a full precision products, which is unnecessary if there is
     // no shift.
+    assert(Width == 16);
     assert(Op.Frac != 0 && "Unshifted mul should have been skipped");
+    if (Op.Frac == 16) {
+      // Multiply high
+      if (Value *MulH = createMulH16(Builder, Op.X, Op.Y))
+        return MulH;
+    }
+    // Do full-precision multiply and shift.
     Value *Prod32 = createMul16(Builder, Op.X, Op.Y);
     if (Rounding) {
       Value *RoundVal = HVC.getConstSplat(Prod32->getType(), 1 << *Op.RoundAt);
@@ -1567,6 +1574,7 @@ auto HvxIdioms::createMul16(IRBuilderBase &Builder, SValue X, SValue Y) const
   if (X.Sgn == Signed) {
     V6_vmpyh = HVC.HST.getIntrinsicId(Hexagon::V6_vmpyhv);
   } else if (Y.Sgn == Signed) {
+    // In vmpyhus the second operand is unsigned
     V6_vmpyh = HVC.HST.getIntrinsicId(Hexagon::V6_vmpyhus);
   } else {
     V6_vmpyh = HVC.HST.getIntrinsicId(Hexagon::V6_vmpyuhv);
@@ -1574,9 +1582,33 @@ auto HvxIdioms::createMul16(IRBuilderBase &Builder, SValue X, SValue Y) const
 
   // i16*i16 -> i32 / interleaved
   Value *P =
-      HVC.createHvxIntrinsic(Builder, V6_vmpyh, HvxP32Ty, {X.Val, Y.Val});
+      HVC.createHvxIntrinsic(Builder, V6_vmpyh, HvxP32Ty, {Y.Val, X.Val});
   // Deinterleave
-  return HVC.vdeal(Builder, HVC.sublo(Builder, P), HVC.subhi(Builder, P));
+  return HVC.vshuff(Builder, HVC.sublo(Builder, P), HVC.subhi(Builder, P));
+}
+
+auto HvxIdioms::createMulH16(IRBuilderBase &Builder, SValue X, SValue Y) const
+    -> Value * {
+  Type *HvxI16Ty = HVC.getHvxTy(HVC.getIntTy(16), /*Pair=*/false);
+
+  if (HVC.HST.useHVXV69Ops()) {
+    if (X.Sgn != Signed && Y.Sgn != Signed) {
+      auto V6_vmpyuhvs = HVC.HST.getIntrinsicId(Hexagon::V6_vmpyuhvs);
+      return HVC.createHvxIntrinsic(Builder, V6_vmpyuhvs, HvxI16Ty,
+                                    {X.Val, Y.Val});
+    }
+  }
+
+  Type *HvxP16Ty = HVC.getHvxTy(HVC.getIntTy(16), /*Pair=*/true);
+  Value *Pair16 = Builder.CreateBitCast(createMul16(Builder, X, Y), HvxP16Ty);
+  unsigned Len = HVC.length(HvxP16Ty) / 2;
+
+  SmallVector<int, 128> PickOdd(Len);
+  for (int i = 0; i != static_cast<int>(Len); ++i)
+    PickOdd[i] = 2 * i + 1;
+
+  return Builder.CreateShuffleVector(HVC.sublo(Builder, Pair16),
+                                     HVC.subhi(Builder, Pair16), PickOdd);
 }
 
 auto HvxIdioms::createMul32(IRBuilderBase &Builder, SValue X, SValue Y) const
@@ -2288,6 +2320,8 @@ auto HexagonVectorCombine::calculatePointerDifference(Value *Ptr0,
   auto *Gep1 = cast<GetElementPtrInst>(Ptr1);
   if (Gep0->getPointerOperand() != Gep1->getPointerOperand())
     return std::nullopt;
+  if (Gep0->getSourceElementType() != Gep1->getSourceElementType())
+    return std::nullopt;
 
   Builder B(Gep0->getParent());
   int Scale = getSizeOf(Gep0->getSourceElementType(), Alloc);
@@ -2355,7 +2389,8 @@ auto HexagonVectorCombine::isSafeToMoveBeforeInBB(const Instruction &In,
                                                   BasicBlock::const_iterator To,
                                                   const T &IgnoreInsts) const
     -> bool {
-  auto getLocOrNone = [this](const Instruction &I) -> Optional<MemoryLocation> {
+  auto getLocOrNone =
+      [this](const Instruction &I) -> std::optional<MemoryLocation> {
     if (const auto *II = dyn_cast<IntrinsicInst>(&I)) {
       switch (II->getIntrinsicID()) {
       case Intrinsic::masked_load:

@@ -105,10 +105,10 @@ public:
     return *this;
   }
 
-  friend accessor_iterator operator-(accessor_iterator &Lhs,
+  friend accessor_iterator operator-(const accessor_iterator &Lhs,
                                      difference_type N) {
-    Lhs -= N;
-    return Lhs;
+    auto Temp = Lhs;
+    return Temp -= N;
   }
 
   reference &operator[](difference_type N) {

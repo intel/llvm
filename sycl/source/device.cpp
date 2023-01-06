@@ -117,6 +117,14 @@ template __SYCL_EXPORT std::vector<device> device::create_sub_devices<
     info::partition_property::partition_by_affinity_domain>(
     info::partition_affinity_domain AffinityDomain) const;
 
+template <info::partition_property prop>
+std::vector<device> device::create_sub_devices() const {
+  return impl->create_sub_devices();
+}
+
+template __SYCL_EXPORT std::vector<device> device::create_sub_devices<
+    info::partition_property::ext_intel_partition_by_cslice>() const;
+
 bool device::has_extension(const std::string &extension_name) const {
   return impl->has_extension(extension_name);
 }

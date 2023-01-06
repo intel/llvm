@@ -16,6 +16,7 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -101,11 +102,12 @@ static void removeTailCallAttribute(AllocaInst *Frame, AAResults &AA) {
 
 // Given a resume function @f.resume(%f.frame* %frame), returns the size
 // and expected alignment of %f.frame type.
-static Optional<std::pair<uint64_t, Align>> getFrameLayout(Function *Resume) {
+static std::optional<std::pair<uint64_t, Align>>
+getFrameLayout(Function *Resume) {
   // Pull information from the function attributes.
   auto Size = Resume->getParamDereferenceableBytes(0);
   if (!Size)
-    return None;
+    return std::nullopt;
   return std::make_pair(Size, Resume->getParamAlign(0).valueOrOne());
 }
 

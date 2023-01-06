@@ -33,12 +33,6 @@ FunctionPass *createAlignmentFromAssumptionsPass();
 
 //===----------------------------------------------------------------------===//
 //
-// AnnotationRemarks - Emit remarks for !annotation metadata.
-//
-FunctionPass *createAnnotationRemarksLegacyPass();
-
-//===----------------------------------------------------------------------===//
-//
 // SCCP - Sparse conditional constant propagation.
 //
 FunctionPass *createSCCPPass();
@@ -111,7 +105,7 @@ FunctionPass *createBitTrackingDCEPass();
 //
 // SROA - Replace aggregates or pieces of aggregates with scalar SSA values.
 //
-FunctionPass *createSROAPass();
+FunctionPass *createSROAPass(bool PreserveCFG = true);
 
 //===----------------------------------------------------------------------===//
 //

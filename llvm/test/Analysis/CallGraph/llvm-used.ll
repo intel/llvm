@@ -1,4 +1,4 @@
-; RUN: opt < %s -print-callgraph -disable-output 2>&1 | FileCheck %s
+; RUN: opt < %s -passes=print-callgraph -disable-output 2>&1 | FileCheck %s
 
 ; The test will report used1 and used2 functions as used on the grounds
 ; of llvm.*.used references. Passing IgnoreLLVMUsed = true into the
@@ -17,9 +17,9 @@
 ; CHECK-NEXT:   Call graph node for function: 'used2'<<{{.*}}>>  #uses=1
 ; CHECK-EMPTY:
 
-@llvm.used = appending global [1 x i8*] [i8* bitcast (void ()* @used1 to i8*)]
-@llvm.compiler.used = appending global [1 x void()*] [void ()* @used2]
-@array = appending global [1 x i8*] [i8* bitcast (void ()* @unused to i8*)]
+@llvm.used = appending global [1 x ptr] [ptr @used1]
+@llvm.compiler.used = appending global [1 x ptr] [ptr @used2]
+@array = appending global [1 x ptr] [ptr @unused]
 
 define internal void @used1() {
 entry:

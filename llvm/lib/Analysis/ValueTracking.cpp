@@ -15,7 +15,6 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -74,6 +73,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <optional>
 #include <utility>
 
 using namespace llvm;
@@ -1016,7 +1016,7 @@ static void computeKnownBitsFromShiftOperator(
   // If we know the shifter operand is nonzero, we can sometimes infer more
   // known bits. However this is expensive to compute, so be lazy about it and
   // only compute it when absolutely necessary.
-  Optional<bool> ShifterOperandIsNonZero;
+  std::optional<bool> ShifterOperandIsNonZero;
 
   // Early exit if we can't constrain any well-defined shift amount.
   if (!(ShiftAmtKZ & (PowerOf2Ceil(BitWidth) - 1)) &&
@@ -1746,7 +1746,7 @@ static void computeKnownBitsFromOperator(const Operator *I,
           break;
 
         auto Attr = II->getFunction()->getFnAttribute(Attribute::VScaleRange);
-        Optional<unsigned> VScaleMax = Attr.getVScaleRangeMax();
+        std::optional<unsigned> VScaleMax = Attr.getVScaleRangeMax();
 
         if (!VScaleMax)
           break;
@@ -2741,15 +2741,15 @@ bool isKnownNonZero(const Value* V, unsigned Depth, const Query& Q) {
 
 /// If the pair of operators are the same invertible function, return the
 /// the operands of the function corresponding to each input. Otherwise,
-/// return None.  An invertible function is one that is 1-to-1 and maps
+/// return std::nullopt.  An invertible function is one that is 1-to-1 and maps
 /// every input value to exactly one output value.  This is equivalent to
 /// saying that Op1 and Op2 are equal exactly when the specified pair of
 /// operands are equal, (except that Op1 and Op2 may be poison more often.)
-static Optional<std::pair<Value*, Value*>>
+static std::optional<std::pair<Value*, Value*>>
 getInvertibleOperands(const Operator *Op1,
                       const Operator *Op2) {
   if (Op1->getOpcode() != Op2->getOpcode())
-    return None;
+    return std::nullopt;
 
   auto getOperands = [&](unsigned OpNum) -> auto {
     return std::make_pair(Op1->getOperand(OpNum), Op2->getOperand(OpNum));
@@ -2843,7 +2843,7 @@ getInvertibleOperands(const Operator *Op1,
     return std::make_pair(Start1, Start2);
   }
   }
-  return None;
+  return std::nullopt;
 }
 
 /// Return true if V2 == V1 + X, where X is known non-zero.
@@ -3652,6 +3652,9 @@ static bool cannotBeOrderedLessThanZeroImpl(const Value *V,
     switch (IID) {
     default:
       break;
+    case Intrinsic::canonicalize:
+    case Intrinsic::arithmetic_fence:
+      return cannotBeOrderedLessThanZeroImpl(I->getOperand(0), TLI, SignBitOnly, Depth + 1);
     case Intrinsic::maxnum: {
       Value *V0 = I->getOperand(0), *V1 = I->getOperand(1);
       auto isPositiveNum = [&](Value *V) {
@@ -3690,7 +3693,10 @@ static bool cannotBeOrderedLessThanZeroImpl(const Value *V,
     case Intrinsic::exp2:
     case Intrinsic::fabs:
       return true;
-
+    case Intrinsic::copysign:
+      // Only the sign operand matters.
+      return cannotBeOrderedLessThanZeroImpl(I->getOperand(1), TLI, true,
+                                             Depth + 1);
     case Intrinsic::sqrt:
       // sqrt(x) is always >= -0 or NaN.  Moreover, sqrt(x) == -0 iff x == -0.
       if (!SignBitOnly)
@@ -3792,6 +3798,7 @@ bool llvm::isKnownNeverInfinity(const Value *V, const TargetLibraryInfo *TLI,
       case Intrinsic::fabs:
       case Intrinsic::canonicalize:
       case Intrinsic::copysign:
+      case Intrinsic::arithmetic_fence:
         return isKnownNeverInfinity(Inst->getOperand(0), TLI, Depth + 1);
       default:
         break;
@@ -3891,6 +3898,7 @@ bool llvm::isKnownNeverNaN(const Value *V, const TargetLibraryInfo *TLI,
     case Intrinsic::nearbyint:
     case Intrinsic::round:
     case Intrinsic::roundeven:
+    case Intrinsic::arithmetic_fence:
       return isKnownNeverNaN(II->getArgOperand(0), TLI, Depth + 1);
     case Intrinsic::sqrt:
       return isKnownNeverNaN(II->getArgOperand(0), TLI, Depth + 1) &&
@@ -4099,7 +4107,7 @@ static Value *BuildSubAggregate(Value *From, ArrayRef<unsigned> idx_range,
   assert(InsertBefore && "Must have someplace to insert!");
   Type *IndexedType = ExtractValueInst::getIndexedType(From->getType(),
                                                              idx_range);
-  Value *To = UndefValue::get(IndexedType);
+  Value *To = PoisonValue::get(IndexedType);
   SmallVector<unsigned, 10> Idxs(idx_range.begin(), idx_range.end());
   unsigned IdxSkip = Idxs.size();
 
@@ -5176,7 +5184,24 @@ static bool canCreateUndefOrPoison(const Operator *Op, bool PoisonOnly,
     if (auto *II = dyn_cast<IntrinsicInst>(Op)) {
       switch (II->getIntrinsicID()) {
       // TODO: Add more intrinsics.
+      case Intrinsic::ctlz:
+      case Intrinsic::cttz:
+      case Intrinsic::abs:
+        if (cast<ConstantInt>(II->getArgOperand(1))->isNullValue())
+          return false;
+        break;
       case Intrinsic::ctpop:
+      case Intrinsic::bswap:
+      case Intrinsic::bitreverse:
+      case Intrinsic::fshl:
+      case Intrinsic::fshr:
+      case Intrinsic::smax:
+      case Intrinsic::smin:
+      case Intrinsic::umax:
+      case Intrinsic::umin:
+      case Intrinsic::ptrmask:
+      case Intrinsic::fptoui_sat:
+      case Intrinsic::fptosi_sat:
       case Intrinsic::sadd_with_overflow:
       case Intrinsic::ssub_with_overflow:
       case Intrinsic::smul_with_overflow:
@@ -6656,28 +6681,28 @@ static bool isTruePredicate(CmpInst::Predicate Pred, const Value *LHS,
 }
 
 /// Return true if "icmp Pred BLHS BRHS" is true whenever "icmp Pred
-/// ALHS ARHS" is true.  Otherwise, return None.
+/// ALHS ARHS" is true.  Otherwise, return std::nullopt.
 static Optional<bool>
 isImpliedCondOperands(CmpInst::Predicate Pred, const Value *ALHS,
                       const Value *ARHS, const Value *BLHS, const Value *BRHS,
                       const DataLayout &DL, unsigned Depth) {
   switch (Pred) {
   default:
-    return None;
+    return std::nullopt;
 
   case CmpInst::ICMP_SLT:
   case CmpInst::ICMP_SLE:
     if (isTruePredicate(CmpInst::ICMP_SLE, BLHS, ALHS, DL, Depth) &&
         isTruePredicate(CmpInst::ICMP_SLE, ARHS, BRHS, DL, Depth))
       return true;
-    return None;
+    return std::nullopt;
 
   case CmpInst::ICMP_ULT:
   case CmpInst::ICMP_ULE:
     if (isTruePredicate(CmpInst::ICMP_ULE, BLHS, ALHS, DL, Depth) &&
         isTruePredicate(CmpInst::ICMP_ULE, ARHS, BRHS, DL, Depth))
       return true;
-    return None;
+    return std::nullopt;
   }
 }
 
@@ -6693,7 +6718,7 @@ static bool areMatchingOperands(const Value *L0, const Value *L1, const Value *R
 
 /// Return true if "icmp1 LPred X, Y" implies "icmp2 RPred X, Y" is true.
 /// Return false if "icmp1 LPred X, Y" implies "icmp2 RPred X, Y" is false.
-/// Otherwise, return None if we can't infer anything.
+/// Otherwise, return std::nullopt if we can't infer anything.
 static Optional<bool> isImpliedCondMatchingOperands(CmpInst::Predicate LPred,
                                                     CmpInst::Predicate RPred,
                                                     bool AreSwappedOps) {
@@ -6706,12 +6731,12 @@ static Optional<bool> isImpliedCondMatchingOperands(CmpInst::Predicate LPred,
   if (CmpInst::isImpliedFalseByMatchingCmp(LPred, RPred))
     return false;
 
-  return None;
+  return std::nullopt;
 }
 
 /// Return true if "icmp LPred X, LC" implies "icmp RPred X, RC" is true.
 /// Return false if "icmp LPred X, LC" implies "icmp RPred X, RC" is false.
-/// Otherwise, return None if we can't infer anything.
+/// Otherwise, return std::nullopt if we can't infer anything.
 static Optional<bool> isImpliedCondCommonOperandWithConstants(
     CmpInst::Predicate LPred, const APInt &LC, CmpInst::Predicate RPred,
     const APInt &RC) {
@@ -6723,12 +6748,12 @@ static Optional<bool> isImpliedCondCommonOperandWithConstants(
     return false;
   if (Difference.isEmptySet())
     return true;
-  return None;
+  return std::nullopt;
 }
 
 /// Return true if LHS implies RHS (expanded to its components as "R0 RPred R1")
-/// is true.  Return false if LHS implies RHS is false. Otherwise, return None
-/// if we can't infer anything.
+/// is true.  Return false if LHS implies RHS is false. Otherwise, return
+/// std::nullopt if we can't infer anything.
 static Optional<bool> isImpliedCondICmps(const ICmpInst *LHS,
                                          CmpInst::Predicate RPred,
                                          const Value *R0, const Value *R1,
@@ -6756,12 +6781,13 @@ static Optional<bool> isImpliedCondICmps(const ICmpInst *LHS,
   if (LPred == RPred)
     return isImpliedCondOperands(LPred, L0, L1, R0, R1, DL, Depth);
 
-  return None;
+  return std::nullopt;
 }
 
 /// Return true if LHS implies RHS is true.  Return false if LHS implies RHS is
-/// false.  Otherwise, return None if we can't infer anything.  We expect the
-/// RHS to be an icmp and the LHS to be an 'and', 'or', or a 'select' instruction.
+/// false.  Otherwise, return std::nullopt if we can't infer anything.  We
+/// expect the RHS to be an icmp and the LHS to be an 'and', 'or', or a 'select'
+/// instruction.
 static Optional<bool>
 isImpliedCondAndOr(const Instruction *LHS, CmpInst::Predicate RHSPred,
                    const Value *RHSOp0, const Value *RHSOp1,
@@ -6787,9 +6813,9 @@ isImpliedCondAndOr(const Instruction *LHS, CmpInst::Predicate RHSPred,
     if (Optional<bool> Implication = isImpliedCondition(
             ARHS, RHSPred, RHSOp0, RHSOp1, DL, LHSIsTrue, Depth + 1))
       return Implication;
-    return None;
+    return std::nullopt;
   }
-  return None;
+  return std::nullopt;
 }
 
 Optional<bool>
@@ -6798,12 +6824,12 @@ llvm::isImpliedCondition(const Value *LHS, CmpInst::Predicate RHSPred,
                          const DataLayout &DL, bool LHSIsTrue, unsigned Depth) {
   // Bail out when we hit the limit.
   if (Depth == MaxAnalysisRecursionDepth)
-    return None;
+    return std::nullopt;
 
   // A mismatch occurs when we compare a scalar cmp to a vector cmp, for
   // example.
   if (RHSOp0->getType()->isVectorTy() != LHS->getType()->isVectorTy())
-    return None;
+    return std::nullopt;
 
   assert(LHS->getType()->isIntOrIntVectorTy(1) &&
          "Expected integer type only!");
@@ -6824,7 +6850,7 @@ llvm::isImpliedCondition(const Value *LHS, CmpInst::Predicate RHSPred,
       return isImpliedCondAndOr(LHSI, RHSPred, RHSOp0, RHSOp1, DL, LHSIsTrue,
                                 Depth);
   }
-  return None;
+  return std::nullopt;
 }
 
 Optional<bool> llvm::isImpliedCondition(const Value *LHS, const Value *RHS,
@@ -6840,7 +6866,7 @@ Optional<bool> llvm::isImpliedCondition(const Value *LHS, const Value *RHS,
                               LHSIsTrue, Depth);
 
   if (Depth == MaxAnalysisRecursionDepth)
-    return None;
+    return std::nullopt;
 
   // LHS ==> (RHS1 || RHS2) if LHS ==> RHS1 or LHS ==> RHS2
   // LHS ==> !(RHS1 && RHS2) if LHS ==> !RHS1 or LHS ==> !RHS2
@@ -6866,7 +6892,7 @@ Optional<bool> llvm::isImpliedCondition(const Value *LHS, const Value *RHS,
         return false;
   }
 
-  return None;
+  return std::nullopt;
 }
 
 // Returns a pair (Condition, ConditionIsTrue), where Condition is a branch
@@ -6907,7 +6933,7 @@ Optional<bool> llvm::isImpliedByDomCondition(const Value *Cond,
   auto PredCond = getDomPredecessorCondition(ContextI);
   if (PredCond.first)
     return isImpliedCondition(PredCond.first, Cond, DL, PredCond.second);
-  return None;
+  return std::nullopt;
 }
 
 Optional<bool> llvm::isImpliedByDomCondition(CmpInst::Predicate Pred,
@@ -6918,7 +6944,7 @@ Optional<bool> llvm::isImpliedByDomCondition(CmpInst::Predicate Pred,
   if (PredCond.first)
     return isImpliedCondition(PredCond.first, Pred, LHS, RHS, DL,
                               PredCond.second);
-  return None;
+  return std::nullopt;
 }
 
 static void setLimitsForBinOp(const BinaryOperator &BO, APInt &Lower,
@@ -7322,7 +7348,7 @@ ConstantRange llvm::computeConstantRange(const Value *V, bool ForSigned,
   return CR;
 }
 
-static Optional<int64_t>
+static std::optional<int64_t>
 getOffsetFromIndex(const GEPOperator *GEP, unsigned Idx, const DataLayout &DL) {
   // Skip over the first indices.
   gep_type_iterator GTI = gep_type_begin(GEP);
@@ -7334,7 +7360,7 @@ getOffsetFromIndex(const GEPOperator *GEP, unsigned Idx, const DataLayout &DL) {
   for (unsigned i = Idx, e = GEP->getNumOperands(); i != e; ++i, ++GTI) {
     ConstantInt *OpC = dyn_cast<ConstantInt>(GEP->getOperand(i));
     if (!OpC)
-      return None;
+      return std::nullopt;
     if (OpC->isZero())
       continue; // No offset.
 
@@ -7348,7 +7374,7 @@ getOffsetFromIndex(const GEPOperator *GEP, unsigned Idx, const DataLayout &DL) {
     // vector. Multiply the index by the ElementSize.
     TypeSize Size = DL.getTypeAllocSize(GTI.getIndexedType());
     if (Size.isScalable())
-      return None;
+      return std::nullopt;
     Offset += Size.getFixedSize() * OpC->getSExtValue();
   }
 
@@ -7376,7 +7402,7 @@ Optional<int64_t> llvm::isPointerOffset(const Value *Ptr1, const Value *Ptr2,
   // handle no other case.
   if (!GEP1 || !GEP2 || GEP1->getOperand(0) != GEP2->getOperand(0) ||
       GEP1->getSourceElementType() != GEP2->getSourceElementType())
-    return None;
+    return std::nullopt;
 
   // Skip any common indices and track the GEP types.
   unsigned Idx = 1;
@@ -7387,7 +7413,7 @@ Optional<int64_t> llvm::isPointerOffset(const Value *Ptr1, const Value *Ptr2,
   auto IOffset1 = getOffsetFromIndex(GEP1, Idx, DL);
   auto IOffset2 = getOffsetFromIndex(GEP2, Idx, DL);
   if (!IOffset1 || !IOffset2)
-    return None;
+    return std::nullopt;
   return *IOffset2 - *IOffset1 + Offset2.getSExtValue() -
          Offset1.getSExtValue();
 }

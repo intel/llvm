@@ -625,6 +625,12 @@ void Sema::diagnoseZeroToNullptrConversion(CastKind Kind, const Expr *E) {
           CodeSynthesisContext::RewritingOperatorAsSpaceship)
     return;
 
+  // Ignore null pointers in defaulted comparison operators.
+  FunctionDecl *FD = getCurFunctionDecl();
+  if (FD && FD->isDefaulted()) {
+    return;
+  }
+
   // If it is a macro from system header, and if the macro name is not "NULL",
   // do not warn.
   SourceLocation MaybeMacroLoc = E->getBeginLoc();
@@ -1962,12 +1968,13 @@ Sema::targetDiag(SourceLocation Loc, unsigned DiagID, FunctionDecl *FD) {
   if (LangOpts.OpenMP)
     return LangOpts.OpenMPIsDevice ? diagIfOpenMPDeviceCode(Loc, DiagID, FD)
                                    : diagIfOpenMPHostCode(Loc, DiagID, FD);
-  if (getLangOpts().CUDA)
-    return getLangOpts().CUDAIsDevice ? CUDADiagIfDeviceCode(Loc, DiagID)
-                                      : CUDADiagIfHostCode(Loc, DiagID);
 
   if (getLangOpts().SYCLIsDevice)
     return SYCLDiagIfDeviceCode(Loc, DiagID);
+
+  if (getLangOpts().CUDA)
+    return getLangOpts().CUDAIsDevice ? CUDADiagIfDeviceCode(Loc, DiagID)
+                                      : CUDADiagIfHostCode(Loc, DiagID);
 
   return SemaDiagnosticBuilder(SemaDiagnosticBuilder::K_Immediate, Loc, DiagID,
                                FD, *this, DeviceDiagnosticReason::All);
@@ -2567,7 +2574,7 @@ bool Sema::tryExprAsCall(Expr &E, QualType &ZeroArgCallReturnTy,
   if (IsMemExpr && !E.isTypeDependent()) {
     Sema::TentativeAnalysisScope Trap(*this);
     ExprResult R = BuildCallToMemberFunction(nullptr, &E, SourceLocation(),
-                                             None, SourceLocation());
+                                             std::nullopt, SourceLocation());
     if (R.isUsable()) {
       ZeroArgCallReturnTy = R.get()->getType();
       return true;
@@ -2717,7 +2724,7 @@ bool Sema::tryToRecoverWithCall(ExprResult &E, const PartialDiagnostic &PD,
 
       // FIXME: Try this before emitting the fixit, and suppress diagnostics
       // while doing so.
-      E = BuildCallExpr(nullptr, E.get(), Range.getEnd(), None,
+      E = BuildCallExpr(nullptr, E.get(), Range.getEnd(), std::nullopt,
                         Range.getEnd().getLocWithOffset(1));
       return true;
     }

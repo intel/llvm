@@ -14,10 +14,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace codeplay {
-namespace experimental {
-namespace property {
+namespace ext::codeplay::experimental::property {
 
 class promote_private
     : public detail::DataLessProperty<detail::FusionPromotePrivate> {};
@@ -33,10 +30,7 @@ namespace queue {
 class enable_fusion : public detail::DataLessProperty<detail::FusionEnable> {};
 } // namespace queue
 
-} // namespace property
-} // namespace experimental
-} // namespace codeplay
-} // namespace ext
+} // namespace ext::codeplay::experimental::property
 
 // Forward declarations
 template <typename T, int Dimensions, typename AllocatorT, typename Enable>

@@ -40,7 +40,6 @@
 #include "AArch64ExpandImm.h"
 #include "AArch64InstrInfo.h"
 #include "MCTargetDesc/AArch64AddressingModes.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"
 
@@ -65,7 +64,7 @@ struct AArch64MIPeepholeOpt : public MachineFunctionPass {
   using OpcodePair = std::pair<unsigned, unsigned>;
   template <typename T>
   using SplitAndOpcFunc =
-      std::function<Optional<OpcodePair>(T, unsigned, T &, T &)>;
+      std::function<std::optional<OpcodePair>(T, unsigned, T &, T &)>;
   using BuildMIFunc =
       std::function<void(MachineInstr &, OpcodePair, unsigned, unsigned,
                          Register, Register, Register)>;
@@ -173,10 +172,11 @@ bool AArch64MIPeepholeOpt::visitAND(
 
   return splitTwoPartImm<T>(
       MI,
-      [Opc](T Imm, unsigned RegSize, T &Imm0, T &Imm1) -> Optional<OpcodePair> {
+      [Opc](T Imm, unsigned RegSize, T &Imm0,
+            T &Imm1) -> std::optional<OpcodePair> {
         if (splitBitmaskImm(Imm, RegSize, Imm0, Imm1))
           return std::make_pair(Opc, Opc);
-        return None;
+        return std::nullopt;
       },
       [&TII = TII](MachineInstr &MI, OpcodePair Opcode, unsigned Imm0,
                    unsigned Imm1, Register SrcReg, Register NewTmpReg,
@@ -337,12 +337,12 @@ bool AArch64MIPeepholeOpt::visitADDSUB(
   return splitTwoPartImm<T>(
       MI,
       [PosOpc, NegOpc](T Imm, unsigned RegSize, T &Imm0,
-                       T &Imm1) -> Optional<OpcodePair> {
+                       T &Imm1) -> std::optional<OpcodePair> {
         if (splitAddSubImm(Imm, RegSize, Imm0, Imm1))
           return std::make_pair(PosOpc, PosOpc);
         if (splitAddSubImm(-Imm, RegSize, Imm0, Imm1))
           return std::make_pair(NegOpc, NegOpc);
-        return None;
+        return std::nullopt;
       },
       [&TII = TII](MachineInstr &MI, OpcodePair Opcode, unsigned Imm0,
                    unsigned Imm1, Register SrcReg, Register NewTmpReg,
@@ -367,21 +367,22 @@ bool AArch64MIPeepholeOpt::visitADDSSUBS(
   // that the condition code usages are only for Equal and Not Equal
   return splitTwoPartImm<T>(
       MI,
-      [PosOpcs, NegOpcs, &MI, &TRI = TRI, &MRI = MRI](
-          T Imm, unsigned RegSize, T &Imm0, T &Imm1) -> Optional<OpcodePair> {
+      [PosOpcs, NegOpcs, &MI, &TRI = TRI,
+       &MRI = MRI](T Imm, unsigned RegSize, T &Imm0,
+                   T &Imm1) -> std::optional<OpcodePair> {
         OpcodePair OP;
         if (splitAddSubImm(Imm, RegSize, Imm0, Imm1))
           OP = PosOpcs;
         else if (splitAddSubImm(-Imm, RegSize, Imm0, Imm1))
           OP = NegOpcs;
         else
-          return None;
+          return std::nullopt;
         // Check conditional uses last since it is expensive for scanning
         // proceeding instructions
         MachineInstr &SrcMI = *MRI->getUniqueVRegDef(MI.getOperand(1).getReg());
-        Optional<UsedNZCV> NZCVUsed = examineCFlagsUse(SrcMI, MI, *TRI);
+        std::optional<UsedNZCV> NZCVUsed = examineCFlagsUse(SrcMI, MI, *TRI);
         if (!NZCVUsed || NZCVUsed->C || NZCVUsed->V)
-          return None;
+          return std::nullopt;
         return OP;
       },
       [&TII = TII](MachineInstr &MI, OpcodePair Opcode, unsigned Imm0,

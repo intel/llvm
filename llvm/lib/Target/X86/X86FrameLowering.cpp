@@ -580,7 +580,7 @@ void X86FrameLowering::emitZeroCallUsedRegs(BitVector RegsToZero,
 void X86FrameLowering::emitStackProbe(
     MachineFunction &MF, MachineBasicBlock &MBB,
     MachineBasicBlock::iterator MBBI, const DebugLoc &DL, bool InProlog,
-    Optional<MachineFunction::DebugInstrOperandPair> InstrNum) const {
+    std::optional<MachineFunction::DebugInstrOperandPair> InstrNum) const {
   const X86Subtarget &STI = MF.getSubtarget<X86Subtarget>();
   if (STI.isTargetWindowsCoreCLR()) {
     if (InProlog) {
@@ -733,7 +733,8 @@ void X86FrameLowering::emitStackProbeInlineGenericLoop(
     uint64_t AlignOffset) const {
   assert(Offset && "null offset");
 
-  assert(!MBB.isLiveIn(X86::EFLAGS) &&
+  assert(MBB.computeRegisterLiveness(TRI, X86::EFLAGS, MBBI) !=
+             MachineBasicBlock::LQR_Live &&
          "Inline stack probe loop will clobber live EFLAGS.");
 
   const bool NeedsDwarfCFI = needsDwarfCFI(MF);
@@ -873,7 +874,8 @@ void X86FrameLowering::emitStackProbeInlineWindowsCoreCLR64(
   const TargetInstrInfo &TII = *STI.getInstrInfo();
   const BasicBlock *LLVM_BB = MBB.getBasicBlock();
 
-  assert(!MBB.isLiveIn(X86::EFLAGS) &&
+  assert(MBB.computeRegisterLiveness(TRI, X86::EFLAGS, MBBI) !=
+             MachineBasicBlock::LQR_Live &&
          "Inline stack probe loop will clobber live EFLAGS.");
 
   // RAX contains the number of bytes of desired stack adjustment.
@@ -1104,7 +1106,7 @@ void X86FrameLowering::emitStackProbeInlineWindowsCoreCLR64(
 void X86FrameLowering::emitStackProbeCall(
     MachineFunction &MF, MachineBasicBlock &MBB,
     MachineBasicBlock::iterator MBBI, const DebugLoc &DL, bool InProlog,
-    Optional<MachineFunction::DebugInstrOperandPair> InstrNum) const {
+    std::optional<MachineFunction::DebugInstrOperandPair> InstrNum) const {
   bool IsLargeCodeModel = MF.getTarget().getCodeModel() == CodeModel::Large;
 
   // FIXME: Add indirect thunk support and remove this.
@@ -1112,7 +1114,8 @@ void X86FrameLowering::emitStackProbeCall(
     report_fatal_error("Emitting stack probe calls on 64-bit with the large "
                        "code model and indirect thunks not yet implemented.");
 
-  assert(!MBB.isLiveIn(X86::EFLAGS) &&
+  assert(MBB.computeRegisterLiveness(TRI, X86::EFLAGS, MBBI) !=
+             MachineBasicBlock::LQR_Live &&
          "Stack probe calls will clobber live EFLAGS.");
 
   unsigned CallOp;

@@ -1247,7 +1247,8 @@ Corrected:
   // member accesses, as we need to defer certain access checks until we know
   // the context.
   bool ADL = UseArgumentDependentLookup(SS, Result, NextToken.is(tok::l_paren));
-  if (Result.isSingleResult() && !ADL && !FirstDecl->isCXXClassMember())
+  if (Result.isSingleResult() && !ADL &&
+      (!FirstDecl->isCXXClassMember() || isa<EnumConstantDecl>(FirstDecl)))
     return NameClassification::NonType(Result.getRepresentativeDecl());
 
   // Otherwise, this is an overload set that we will need to resolve later.
@@ -2224,7 +2225,7 @@ void Sema::ActOnPopScope(SourceLocation Loc, Scope *S) {
   };
   SmallVector<LocAndDiag, 16> DeclDiags;
   auto addDiag = [&DeclDiags](SourceLocation Loc, PartialDiagnostic PD) {
-    DeclDiags.push_back(LocAndDiag{Loc, None, std::move(PD)});
+    DeclDiags.push_back(LocAndDiag{Loc, std::nullopt, std::move(PD)});
   };
   auto addDiagWithPrev = [&DeclDiags](SourceLocation Loc,
                                       SourceLocation PreviousDeclLoc,
@@ -2962,24 +2963,24 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.MergeSYCLIntelSchedulerTargetFmaxMhzAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelNoGlobalWorkOffsetAttr>(Attr))
     NewAttr = S.MergeSYCLIntelNoGlobalWorkOffsetAttr(D, *A);
-  else if (const auto *A = dyn_cast<IntelFPGAMaxReplicatesAttr>(Attr))
-    NewAttr = S.MergeIntelFPGAMaxReplicatesAttr(D, *A);
-  else if (const auto *A = dyn_cast<SYCLIntelFPGAMaxConcurrencyAttr>(Attr))
-    NewAttr = S.MergeSYCLIntelFPGAMaxConcurrencyAttr(D, *A);
-  else if (const auto *A = dyn_cast<IntelFPGAForcePow2DepthAttr>(Attr))
-    NewAttr = S.MergeIntelFPGAForcePow2DepthAttr(D, *A);
-  else if (const auto *A = dyn_cast<SYCLIntelFPGAInitiationIntervalAttr>(Attr))
-    NewAttr = S.MergeSYCLIntelFPGAInitiationIntervalAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLIntelMaxReplicatesAttr>(Attr))
+    NewAttr = S.MergeSYCLIntelMaxReplicatesAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLIntelMaxConcurrencyAttr>(Attr))
+    NewAttr = S.MergeSYCLIntelMaxConcurrencyAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLIntelForcePow2DepthAttr>(Attr))
+    NewAttr = S.MergeSYCLIntelForcePow2DepthAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLIntelInitiationIntervalAttr>(Attr))
+    NewAttr = S.MergeSYCLIntelInitiationIntervalAttr(D, *A);
   else if (const auto *A = dyn_cast<WorkGroupSizeHintAttr>(Attr))
     NewAttr = S.MergeWorkGroupSizeHintAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelMaxGlobalWorkDimAttr>(Attr))
     NewAttr = S.MergeSYCLIntelMaxGlobalWorkDimAttr(D, *A);
   else if (const auto *BTFA = dyn_cast<BTFDeclTagAttr>(Attr))
     NewAttr = S.mergeBTFDeclTagAttr(D, *BTFA);
-  else if (const auto *A = dyn_cast<IntelFPGABankWidthAttr>(Attr))
-    NewAttr = S.MergeIntelFPGABankWidthAttr(D, *A);
-  else if (const auto *A = dyn_cast<IntelFPGANumBanksAttr>(Attr))
-    NewAttr = S.MergeIntelFPGANumBanksAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLIntelBankWidthAttr>(Attr))
+    NewAttr = S.MergeSYCLIntelBankWidthAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLIntelNumBanksAttr>(Attr))
+    NewAttr = S.MergeSYCLIntelNumBanksAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLDeviceHasAttr>(Attr))
     NewAttr = S.MergeSYCLDeviceHasAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLUsesAspectsAttr>(Attr))
@@ -3000,8 +3001,8 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.MergeSYCLAddIRAttributesGlobalVariableAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLAddIRAnnotationsMemberAttr>(Attr))
     NewAttr = S.MergeSYCLAddIRAnnotationsMemberAttr(D, *A);
-  else if (const auto *A = dyn_cast<ReqdWorkGroupSizeAttr>(Attr))
-    NewAttr = S.MergeReqdWorkGroupSizeAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLReqdWorkGroupSizeAttr>(Attr))
+    NewAttr = S.MergeSYCLReqdWorkGroupSizeAttr(D, *A);
   else if (const auto *NT = dyn_cast<HLSLNumThreadsAttr>(Attr))
     NewAttr =
         S.mergeHLSLNumThreadsAttr(D, *NT, NT->getX(), NT->getY(), NT->getZ());
@@ -7451,6 +7452,7 @@ NamedDecl *Sema::ActOnVariableDeclarator(
     return nullptr;
   }
 
+
   DeclSpec::SCS SCSpec = D.getDeclSpec().getStorageClassSpec();
   StorageClass SC = StorageClassSpecToVarDeclStorageClass(D.getDeclSpec());
 
@@ -10237,6 +10239,15 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       Diag(NewFD->getLocation(), diag::err_return_value_with_address_space);
       NewFD->setInvalidDecl();
     }
+  }
+
+  if (getLangOpts().SYCLIsDevice && !getLangOpts().GPURelocatableDeviceCode &&
+      NewFD->hasAttr<SYCLDeviceAttr>() &&
+      !getSourceManager().isInSystemHeader(NewFD->getLocation())) {
+    Diag(NewFD->getLocation(), diag::err_sycl_external_no_rdc)
+        << (D.getFunctionDefinitionKind() ==
+            clang::FunctionDefinitionKind::Definition);
+    NewFD->setInvalidDecl();
   }
 
   if (!getLangOpts().CPlusPlus) {
@@ -13704,8 +13715,8 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
     InitializationKind Kind
       = InitializationKind::CreateDefault(Var->getLocation());
 
-    InitializationSequence InitSeq(*this, Entity, Kind, None);
-    ExprResult Init = InitSeq.Perform(*this, Entity, Kind, None);
+    InitializationSequence InitSeq(*this, Entity, Kind, std::nullopt);
+    ExprResult Init = InitSeq.Perform(*this, Entity, Kind, std::nullopt);
 
     if (Init.get()) {
       Var->setInit(MaybeCreateExprWithCleanups(Init.get()));
@@ -15859,8 +15870,8 @@ NamedDecl *Sema::ImplicitlyDefineFunction(SourceLocation Loc,
                                              /*NumExceptions=*/0,
                                              /*NoexceptExpr=*/nullptr,
                                              /*ExceptionSpecTokens=*/nullptr,
-                                             /*DeclsInPrototype=*/None, Loc,
-                                             Loc, D),
+                                             /*DeclsInPrototype=*/std::nullopt,
+                                             Loc, Loc, D),
                 std::move(DS.getAttributes()), SourceLocation());
   D.SetIdentifier(&II, Loc);
 
@@ -16045,7 +16056,9 @@ void Sema::AddKnownFunctionAttributes(FunctionDecl *FD) {
       // Add the appropriate attribute, depending on the CUDA compilation mode
       // and which target the builtin belongs to. For example, during host
       // compilation, aux builtins are __device__, while the rest are __host__.
-      if (getLangOpts().CUDAIsDevice !=
+      if (((getLangOpts().SYCLIsDevice && getLangOpts().CUDA &&
+            !getLangOpts().CUDAIsDevice) ||
+           getLangOpts().CUDAIsDevice) !=
           Context.BuiltinInfo.isAuxBuiltinID(BuiltinID))
         FD->addAttr(CUDADeviceAttr::CreateImplicit(Context, FD->getLocation()));
       else
@@ -18292,8 +18305,11 @@ static bool AreSpecialMemberFunctionsSameKind(ASTContext &Context,
                                               CXXMethodDecl *M1,
                                               CXXMethodDecl *M2,
                                               Sema::CXXSpecialMember CSM) {
+  // We don't want to compare templates to non-templates: See
+  // https://github.com/llvm/llvm-project/issues/59206
   if (CSM == Sema::CXXDefaultConstructor)
-    return true;
+    return bool(M1->getDescribedFunctionTemplate()) ==
+           bool(M2->getDescribedFunctionTemplate());
   if (!Context.hasSameType(M1->getParamDecl(0)->getType(),
                            M2->getParamDecl(0)->getType()))
     return false;
@@ -19646,6 +19662,12 @@ Decl *Sema::ActOnFileScopeAsmDecl(Expr *expr,
                                                    AsmString, StartLoc,
                                                    EndLoc);
   CurContext->addDecl(New);
+  return New;
+}
+
+Decl *Sema::ActOnTopLevelStmtDecl(Stmt *Statement) {
+  auto *New = TopLevelStmtDecl::Create(Context, Statement);
+  Context.getTranslationUnitDecl()->addDecl(New);
   return New;
 }
 

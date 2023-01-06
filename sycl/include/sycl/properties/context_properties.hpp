@@ -14,21 +14,12 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace cuda {
-namespace property {
-namespace context {
+namespace ext::oneapi::cuda::property::context {
 class use_primary_context : public ::sycl::detail::DataLessProperty<
                                 ::sycl::detail::UsePrimaryContext> {};
-} // namespace context
-} // namespace property
-} // namespace cuda
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::cuda::property::context
 
-namespace property {
-namespace context {
+namespace property::context {
 namespace __SYCL2020_DEPRECATED(
     "use 'sycl::ext::oneapi::cuda::property::context' instead") cuda {
 class use_primary_context
@@ -37,8 +28,7 @@ class use_primary_context
 // clang-format off
 } // namespace cuda
 // clang-format on
-} // namespace context
-} // namespace property
+} // namespace property::context
 
 // Forward declaration
 class context;

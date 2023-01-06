@@ -722,7 +722,7 @@ LogicalResult matchAndRewriteSortOp(OpTy op, ValueRange xys, uint64_t nx,
     auto mtp = v.getType().cast<MemRefType>();
     if (!mtp.isDynamicDim(0)) {
       auto newMtp =
-          MemRefType::get({ShapedType::kDynamicSize}, mtp.getElementType());
+          MemRefType::get({ShapedType::kDynamic}, mtp.getElementType());
       v = rewriter.create<memref::CastOp>(loc, newMtp, v);
     }
     operands.push_back(v);
@@ -786,7 +786,7 @@ public:
 
       Value c2 = constantIndex(rewriter, loc, 2);
       auto bufferType =
-          MemRefType::get({ShapedType::kDynamicSize}, value.getType());
+          MemRefType::get({ShapedType::kDynamic}, value.getType());
       scf::IfOp ifOp = rewriter.create<scf::IfOp>(loc, bufferType, cond,
                                                   /*else=*/true);
       // True branch.
@@ -823,8 +823,7 @@ public:
           rewriter.create<memref::ReallocOp>(loc, bufferType, buffer, capacity);
       if (enableBufferInitialization) {
         Value fillSize = rewriter.create<arith::SubIOp>(loc, capacity, newSize);
-        Value fillValue = rewriter.create<arith::ConstantOp>(
-            loc, value.getType(), rewriter.getZeroAttr(value.getType()));
+        Value fillValue = constantZero(rewriter, loc, value.getType());
         Value subBuffer = rewriter.create<memref::SubViewOp>(
             loc, newBuffer, /*offset=*/ValueRange{newSize},
             /*size=*/ValueRange{fillSize},

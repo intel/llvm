@@ -13,12 +13,12 @@
 #ifndef LLVM_ANALYSIS_BASICALIASANALYSIS_H
 #define LLVM_ANALYSIS_BASICALIASANALYSIS_H
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include <memory>
+#include <optional>
 #include <utility>
 
 namespace llvm {
@@ -46,20 +46,19 @@ class BasicAAResult : public AAResultBase {
   const TargetLibraryInfo &TLI;
   AssumptionCache &AC;
   DominatorTree *DT;
-  PhiValues *PV;
 
 public:
   BasicAAResult(const DataLayout &DL, const Function &F,
                 const TargetLibraryInfo &TLI, AssumptionCache &AC,
-                DominatorTree *DT = nullptr, PhiValues *PV = nullptr)
-      : DL(DL), F(F), TLI(TLI), AC(AC), DT(DT), PV(PV) {}
+                DominatorTree *DT = nullptr)
+      : DL(DL), F(F), TLI(TLI), AC(AC), DT(DT) {}
 
   BasicAAResult(const BasicAAResult &Arg)
       : AAResultBase(Arg), DL(Arg.DL), F(Arg.F), TLI(Arg.TLI), AC(Arg.AC),
-        DT(Arg.DT), PV(Arg.PV) {}
+        DT(Arg.DT) {}
   BasicAAResult(BasicAAResult &&Arg)
       : AAResultBase(std::move(Arg)), DL(Arg.DL), F(Arg.F), TLI(Arg.TLI),
-        AC(Arg.AC), DT(Arg.DT), PV(Arg.PV) {}
+        AC(Arg.AC), DT(Arg.DT) {}
 
   /// Handle invalidation events in the new pass manager.
   bool invalidate(Function &Fn, const PreservedAnalyses &PA,
@@ -187,8 +186,8 @@ BasicAAResult createLegacyPMBasicAAResult(Pass &P, Function &F);
 /// they live long enough to be queried, but we re-use them each time.
 class LegacyAARGetter {
   Pass &P;
-  Optional<BasicAAResult> BAR;
-  Optional<AAResults> AAR;
+  std::optional<BasicAAResult> BAR;
+  std::optional<AAResults> AAR;
 
 public:
   LegacyAARGetter(Pass &P) : P(P) {}

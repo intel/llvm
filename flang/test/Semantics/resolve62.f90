@@ -1,6 +1,6 @@
 ! RUN: %python %S/test_errors.py %s %flang_fc1
 ! Resolve generic based on number of arguments
-subroutine s1
+subroutine subr1
   interface f
     real function f1(x)
       optional :: x
@@ -10,12 +10,12 @@ subroutine s1
   end interface
   z = f(1.0)
   z = f(1.0, 2.0)
-  !ERROR: No specific procedure of generic 'f' matches the actual arguments
+  !ERROR: No specific function of generic 'f' matches the actual arguments
   z = f(1.0, 2.0, 3.0)
 end
 
 ! Elemental and non-element function both match: non-elemental one should be used
-subroutine s2
+subroutine subr2
   interface f
     logical elemental function f1(x)
       intent(in) :: x
@@ -53,10 +53,10 @@ module m4
   real, protected :: x
   real :: y
   interface s
-    pure subroutine s1(x)
+    pure subroutine s101(x)
       real, intent(out) :: x
     end
-    subroutine s2(x, y)
+    subroutine s102(x, y)
       real :: x, y
     end
   end interface

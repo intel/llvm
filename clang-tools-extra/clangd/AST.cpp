@@ -30,7 +30,6 @@
 #include "clang/Basic/Specifiers.h"
 #include "clang/Index/USRGeneration.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
@@ -63,9 +62,9 @@ getTemplateSpecializationArgLocs(const NamedDecl &ND) {
     if (auto *Args = Var->getTemplateArgsInfo())
       return Args->arguments();
   }
-  // We return None for ClassTemplateSpecializationDecls because it does not
-  // contain TemplateArgumentLoc information.
-  return llvm::None;
+  // We return std::nullopt for ClassTemplateSpecializationDecls because it does
+  // not contain TemplateArgumentLoc information.
+  return std::nullopt;
 }
 
 template <class T>
@@ -571,7 +570,7 @@ llvm::Optional<QualType> getDeducedType(ASTContext &ASTCtx,
   DeducedTypeVisitor V(Loc);
   V.TraverseAST(ASTCtx);
   if (V.DeducedType.isNull())
-    return llvm::None;
+    return std::nullopt;
   return V.DeducedType;
 }
 
@@ -862,7 +861,7 @@ private:
         return std::distance(Args.begin(), Begin);
       }
     }
-    return llvm::None;
+    return std::nullopt;
   }
 
   static FunctionDecl *getCalleeDeclOrUniqueOverload(CallExpr *E) {

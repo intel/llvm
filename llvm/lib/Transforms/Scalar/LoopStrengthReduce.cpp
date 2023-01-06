@@ -124,6 +124,7 @@
 #include <limits>
 #include <map>
 #include <numeric>
+#include <optional>
 #include <utility>
 
 using namespace llvm;
@@ -2534,7 +2535,7 @@ LSRInstance::OptimizeLoopTermCond() {
         ICmpInst *OldCond = Cond;
         Cond = cast<ICmpInst>(Cond->clone());
         Cond->setName(L->getHeader()->getName() + ".termcond");
-        ExitingBlock->getInstList().insert(TermBr->getIterator(), Cond);
+        Cond->insertAt(ExitingBlock, TermBr->getIterator());
 
         // Clone the IVUse, as the old use still exists!
         CondUse = &IU.AddUser(Cond, CondUse->getOperandValToReplace());
@@ -6435,7 +6436,7 @@ static bool SalvageDVI(llvm::Loop *L, ScalarEvolution &SE,
 
     // Create an offset-based salvage expression if possible, as it requires
     // less DWARF ops than an iteration count-based expression.
-    if (Optional<APInt> Offset =
+    if (std::optional<APInt> Offset =
             SE.computeConstantDifference(DVIRec.SCEVs[i], SCEVInductionVar)) {
       if (Offset.value().getMinSignedBits() <= 64)
         SalvageExpr->createOffsetExpr(Offset.value().getSExtValue(),
@@ -6614,22 +6615,22 @@ static llvm::PHINode *GetInductionVariable(const Loop &L, ScalarEvolution &SE,
   return nullptr;
 }
 
-static Optional<std::pair<PHINode *, std::pair<PHINode *, const SCEV *>>>
+static std::optional<std::pair<PHINode *, std::pair<PHINode *, const SCEV *>>>
 canFoldTermCondOfLoop(Loop *L, ScalarEvolution &SE, DominatorTree &DT,
                       const LoopInfo &LI) {
   if (!L->isInnermost()) {
     LLVM_DEBUG(dbgs() << "Cannot fold on non-innermost loop\n");
-    return None;
+    return std::nullopt;
   }
   // Only inspect on simple loop structure
   if (!L->isLoopSimplifyForm()) {
     LLVM_DEBUG(dbgs() << "Cannot fold on non-simple loop\n");
-    return None;
+    return std::nullopt;
   }
 
   if (!SE.hasLoopInvariantBackedgeTakenCount(L)) {
     LLVM_DEBUG(dbgs() << "Cannot fold on backedge that is loop variant\n");
-    return None;
+    return std::nullopt;
   }
 
   BasicBlock *LoopPreheader = L->getLoopPreheader();
@@ -6639,18 +6640,18 @@ canFoldTermCondOfLoop(Loop *L, ScalarEvolution &SE, DominatorTree &DT,
   // Terminating condition is foldable when it is an eq/ne icmp
   BranchInst *BI = cast<BranchInst>(LoopLatch->getTerminator());
   if (BI->isUnconditional())
-    return None;
+    return std::nullopt;
   Value *TermCond = BI->getCondition();
   if (!isa<ICmpInst>(TermCond) || !cast<ICmpInst>(TermCond)->isEquality()) {
     LLVM_DEBUG(dbgs() << "Cannot fold on branching condition that is not an "
                          "ICmpInst::eq / ICmpInst::ne\n");
-    return None;
+    return std::nullopt;
   }
   if (!TermCond->hasOneUse()) {
     LLVM_DEBUG(
         dbgs()
         << "Cannot replace terminating condition with more than one use\n");
-    return None;
+    return std::nullopt;
   }
 
   // For `IsToFold`, a primary IV can be replaced by other affine AddRec when it
@@ -6768,7 +6769,7 @@ canFoldTermCondOfLoop(Loop *L, ScalarEvolution &SE, DominatorTree &DT,
              << "  ToHelpFold: " << *ToHelpFold << "\n");
 
   if (!ToFold || !ToHelpFold)
-    return None;
+    return std::nullopt;
   return {{ToFold, {ToHelpFold, TermValueS}}};
 }
 

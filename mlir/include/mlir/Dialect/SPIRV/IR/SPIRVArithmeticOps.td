@@ -53,7 +53,32 @@ class SPIRV_ArithmeticUnaryOp<string mnemonic, Type type,
     SPIRV_ScalarOrVectorOrCoopMatrixOf<type>:$result
   );
   let assemblyFormat = "operands attr-dict `:` type($result)";
-  }
+}
+
+class SPIRV_ArithmeticExtendedBinaryOp<string mnemonic,
+                                       list<Trait> traits = []> :
+      // Result type is a struct with two operand-typed elements.
+      SPIRV_BinaryOp<mnemonic, SPIRV_AnyStruct, SPIRV_Integer, traits> {
+  let arguments = (ins
+    SPIRV_ScalarOrVectorOf<SPIRV_Integer>:$operand1,
+    SPIRV_ScalarOrVectorOf<SPIRV_Integer>:$operand2
+  );
+
+  let results = (outs
+    SPIRV_AnyStruct:$result
+  );
+
+  let builders = [
+    OpBuilder<(ins "Value":$operand1, "Value":$operand2), [{
+      build($_builder, $_state,
+            ::mlir::spirv::StructType::get({operand1.getType(), operand1.getType()}),
+            operand1, operand2);
+    }]>
+  ];
+
+  // These ops require a custom verifier.
+  let hasVerifier = 1;
+}
 
 // -----
 
@@ -321,9 +346,8 @@ def SPIRV_IAddOp : SPIRV_ArithmeticBinaryOp<"IAdd",
 
 // -----
 
-def SPIRV_IAddCarryOp : SPIRV_BinaryOp<"IAddCarry",
-                                   SPIRV_AnyStruct, SPIRV_Integer,
-                                   [Commutative, Pure]> {
+def SPIRV_IAddCarryOp : SPIRV_ArithmeticExtendedBinaryOp<"IAddCarry",
+                                                         [Commutative, Pure]> {
   let summary = [{
     Integer addition of Operand 1 and Operand 2, including the carry.
   }];
@@ -355,25 +379,6 @@ def SPIRV_IAddCarryOp : SPIRV_BinaryOp<"IAddCarry",
     %2 = spirv.IAddCarry %0, %1 : !spirv.struct<(vector<2xi32>, vector<2xi32>)>
     ```
   }];
-
-  let arguments = (ins
-    SPIRV_ScalarOrVectorOf<SPIRV_Integer>:$operand1,
-    SPIRV_ScalarOrVectorOf<SPIRV_Integer>:$operand2
-  );
-
-  let results = (outs
-    SPIRV_AnyStruct:$result
-  );
-
-  let builders = [
-    OpBuilder<(ins "Value":$operand1, "Value":$operand2), [{
-      build($_builder, $_state,
-            ::mlir::spirv::StructType::get({operand1.getType(), operand1.getType()}),
-            operand1, operand2);
-    }]>
-  ];
-
-  let hasVerifier = 1;
 }
 
 // -----
@@ -458,8 +463,8 @@ def SPIRV_ISubOp : SPIRV_ArithmeticBinaryOp<"ISub",
 
 // -----
 
-def SPIRV_ISubBorrowOp : SPIRV_BinaryOp<"ISubBorrow", SPIRV_AnyStruct, SPIRV_Integer,
-                                    [Pure]> {
+def SPIRV_ISubBorrowOp : SPIRV_ArithmeticExtendedBinaryOp<"ISubBorrow",
+                                                          [Pure]> {
   let summary = [{
     Result is the unsigned integer subtraction of Operand 2 from Operand 1,
     and what it needed to borrow.
@@ -494,25 +499,6 @@ def SPIRV_ISubBorrowOp : SPIRV_BinaryOp<"ISubBorrow", SPIRV_AnyStruct, SPIRV_Int
     %2 = spirv.ISubBorrow %0, %1 : !spirv.struct<(vector<2xi32>, vector<2xi32>)>
     ```
   }];
-
-  let arguments = (ins
-    SPIRV_ScalarOrVectorOf<SPIRV_Integer>:$operand1,
-    SPIRV_ScalarOrVectorOf<SPIRV_Integer>:$operand2
-  );
-
-  let results = (outs
-    SPIRV_AnyStruct:$result
-  );
-
-  let builders = [
-    OpBuilder<(ins "Value":$operand1, "Value":$operand2), [{
-      build($_builder, $_state,
-            ::mlir::spirv::StructType::get({operand1.getType(), operand1.getType()}),
-            operand1, operand2);
-    }]>
-  ];
-
-  let hasVerifier = 1;
 }
 
 // -----
@@ -591,6 +577,40 @@ def SPIRV_SModOp : SPIRV_ArithmeticBinaryOp<"SMod",
 
 // -----
 
+def SPIRV_SMulExtendedOp : SPIRV_ArithmeticExtendedBinaryOp<"SMulExtended",
+                                                            [Pure, Commutative]> {
+  let summary = [{
+    Result is the full value of the signed integer multiplication of Operand
+    1 and Operand 2.
+  }];
+
+  let description = [{
+    Result Type must be from OpTypeStruct.  The struct must have two
+    members, and the two members must be the same type.  The member type
+    must be a scalar or vector of integer type.
+
+    Operand 1 and Operand 2 must have the same type as the members of Result
+    Type. These are consumed as signed integers.
+
+    Results are computed per component.
+
+    Member 0 of the result gets the low-order bits of the multiplication.
+
+    Member 1 of the result gets the high-order bits of the multiplication.
+
+    <!-- End of AutoGen section -->
+
+    #### Example:
+
+    ```mlir
+    %2 = spirv.SMulExtended %0, %1 : !spirv.struct<(i32, i32)>
+    %2 = spirv.SMulExtended %0, %1 : !spirv.struct<(vector<2xi32>, vector<2xi32>)>
+    ```
+  }];
+}
+
+// -----
+
 def SPIRV_SNegateOp : SPIRV_ArithmeticUnaryOp<"SNegate",
                                           SPIRV_Integer,
                                           [UsableInSpecConstantOp]> {
@@ -599,7 +619,7 @@ def SPIRV_SNegateOp : SPIRV_ArithmeticUnaryOp<"SNegate",
   let description = [{
     Result Type must be a scalar or vector of integer type.
 
-    Operand’s type  must be a scalar or vector of integer type.  It must
+    Operand's type  must be a scalar or vector of integer type.  It must
     have the same number of components as Result Type.  The component width
     must equal the component width in Result Type.
 
@@ -685,6 +705,41 @@ def SPIRV_UDivOp : SPIRV_ArithmeticBinaryOp<"UDiv",
     %4 = spirv.UDiv %0, %1 : i32
     %5 = spirv.UDiv %2, %3 : vector<4xi32>
 
+    ```
+  }];
+}
+
+// -----
+
+def SPIRV_UMulExtendedOp : SPIRV_ArithmeticExtendedBinaryOp<"UMulExtended",
+                                                            [Pure, Commutative]> {
+  let summary = [{
+    Result is the full value of the unsigned integer multiplication of
+    Operand 1 and Operand 2.
+  }];
+
+  let description = [{
+    Result Type must be from OpTypeStruct.  The struct must have two
+    members, and the two members must be the same type.  The member type
+    must be a scalar or vector of integer type, whose Signedness operand is
+    0.
+
+    Operand 1 and Operand 2 must have the same type as the members of Result
+    Type. These are consumed as unsigned integers.
+
+    Results are computed per component.
+
+    Member 0 of the result gets the low-order bits of the multiplication.
+
+    Member 1 of the result gets the high-order bits of the multiplication.
+
+    <!-- End of AutoGen section -->
+
+    #### Example:
+
+    ```mlir
+    %2 = spirv.UMulExtended %0, %1 : !spirv.struct<(i32, i32)>
+    %2 = spirv.UMulExtended %0, %1 : !spirv.struct<(vector<2xi32>, vector<2xi32>)>
     ```
   }];
 }

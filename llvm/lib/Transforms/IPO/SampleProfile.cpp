@@ -494,7 +494,7 @@ protected:
 
   bool inlineHotFunctions(Function &F,
                           DenseSet<GlobalValue::GUID> &InlinedGUIDs);
-  Optional<InlineCost> getExternalInlineAdvisorCost(CallBase &CB);
+  std::optional<InlineCost> getExternalInlineAdvisorCost(CallBase &CB);
   bool getExternalInlineAdvisorShouldInline(CallBase &CB);
   InlineCost shouldInlineCandidate(InlineCandidate &Candidate);
   bool getInlineCandidate(InlineCandidate *NewCandidate, CallBase *CB);
@@ -620,7 +620,7 @@ ErrorOr<uint64_t> SampleProfileLoader::getInstWeight(const Instruction &Inst) {
 ErrorOr<uint64_t> SampleProfileLoader::getProbeWeight(const Instruction &Inst) {
   assert(FunctionSamples::ProfileIsProbeBased &&
          "Profile is not pseudo probe based");
-  Optional<PseudoProbe> Probe = extractProbe(Inst);
+  std::optional<PseudoProbe> Probe = extractProbe(Inst);
   // Ignore the non-probe instruction. If none of the instruction in the BB is
   // probe, we choose to infer the BB's weight.
   if (!Probe)
@@ -773,7 +773,7 @@ SampleProfileLoader::findIndirectCallFunctionSamples(
 const FunctionSamples *
 SampleProfileLoader::findFunctionSamples(const Instruction &Inst) const {
   if (FunctionSamples::ProfileIsProbeBased) {
-    Optional<PseudoProbe> Probe = extractProbe(Inst);
+    std::optional<PseudoProbe> Probe = extractProbe(Inst);
     if (!Probe)
       return nullptr;
   }
@@ -1154,7 +1154,7 @@ bool SampleProfileLoader::inlineHotFunctions(
       bool Hot = false;
       SmallVector<CallBase *, 10> AllCandidates;
       SmallVector<CallBase *, 10> ColdCandidates;
-      for (auto &I : BB.getInstList()) {
+      for (auto &I : BB) {
         const FunctionSamples *FS = nullptr;
         if (auto *CB = dyn_cast<CallBase>(&I)) {
           if (!isa<IntrinsicInst>(I)) {
@@ -1286,7 +1286,7 @@ bool SampleProfileLoader::tryInlineCandidate(
   // aggregation of duplication.
   if (Candidate.CallsiteDistribution < 1) {
     for (auto &I : IFI.InlinedCallSites) {
-      if (Optional<PseudoProbe> Probe = extractProbe(*I))
+      if (std::optional<PseudoProbe> Probe = extractProbe(*I))
         setProbeDistributionFactor(*I, Probe->Factor *
                                    Candidate.CallsiteDistribution);
     }
@@ -1311,7 +1311,7 @@ bool SampleProfileLoader::getInlineCandidate(InlineCandidate *NewCandidate,
     return false;
 
   float Factor = 1.0;
-  if (Optional<PseudoProbe> Probe = extractProbe(*CB))
+  if (std::optional<PseudoProbe> Probe = extractProbe(*CB))
     Factor = Probe->Factor;
 
   uint64_t CallsiteCount =
@@ -1320,7 +1320,7 @@ bool SampleProfileLoader::getInlineCandidate(InlineCandidate *NewCandidate,
   return true;
 }
 
-Optional<InlineCost>
+std::optional<InlineCost>
 SampleProfileLoader::getExternalInlineAdvisorCost(CallBase &CB) {
   std::unique_ptr<InlineAdvice> Advice = nullptr;
   if (ExternalInlineAdvisor) {
@@ -1339,13 +1339,13 @@ SampleProfileLoader::getExternalInlineAdvisorCost(CallBase &CB) {
 }
 
 bool SampleProfileLoader::getExternalInlineAdvisorShouldInline(CallBase &CB) {
-  Optional<InlineCost> Cost = getExternalInlineAdvisorCost(CB);
+  std::optional<InlineCost> Cost = getExternalInlineAdvisorCost(CB);
   return Cost ? !!Cost.value() : false;
 }
 
 InlineCost
 SampleProfileLoader::shouldInlineCandidate(InlineCandidate &Candidate) {
-  if (Optional<InlineCost> ReplayCost =
+  if (std::optional<InlineCost> ReplayCost =
           getExternalInlineAdvisorCost(*Candidate.CallInstr))
     return ReplayCost.value();
   // Adjust threshold based on call site hotness, only do this for callsite
@@ -1423,7 +1423,7 @@ bool SampleProfileLoader::inlineHotFunctionsWithPriority(
   CandidateQueue CQueue;
   InlineCandidate NewCandidate;
   for (auto &BB : F) {
-    for (auto &I : BB.getInstList()) {
+    for (auto &I : BB) {
       auto *CB = dyn_cast<CallBase>(&I);
       if (!CB)
         continue;
@@ -1617,7 +1617,7 @@ void SampleProfileLoader::generateMDProfMetadata(Function &F) {
     BasicBlock *BB = &BI;
 
     if (BlockWeights[BB]) {
-      for (auto &I : BB->getInstList()) {
+      for (auto &I : *BB) {
         if (!isa<CallInst>(I) && !isa<InvokeInst>(I))
           continue;
         if (!cast<CallBase>(I).getCalledFunction()) {
@@ -1636,7 +1636,7 @@ void SampleProfileLoader::generateMDProfMetadata(Function &F) {
             // Prorate the callsite counts based on the pre-ICP distribution
             // factor to reflect what is already done to the callsite before
             // ICP, such as calliste cloning.
-            if (Optional<PseudoProbe> Probe = extractProbe(I)) {
+            if (std::optional<PseudoProbe> Probe = extractProbe(I)) {
               if (Probe->Factor < 1)
                 T = SampleRecord::adjustCallTargets(T.get(), Probe->Factor);
             }
@@ -1669,7 +1669,7 @@ void SampleProfileLoader::generateMDProfMetadata(Function &F) {
     } else if (OverwriteExistingWeights || ProfileSampleBlockAccurate) {
       // Set profile metadata (possibly annotated by LTO prelink) to zero or
       // clear it for cold code.
-      for (auto &I : BB->getInstList()) {
+      for (auto &I : *BB) {
         if (isa<CallInst>(I) || isa<InvokeInst>(I)) {
           if (cast<CallBase>(I).isIndirectCall())
             I.setMetadata(LLVMContext::MD_prof, nullptr);
@@ -2072,7 +2072,7 @@ void SampleProfileMatcher::detectProfileMismatch(const Function &F,
   // Go through all the callsites on the IR and flag the callsite if the target
   // name is the same as the one in the profile.
   for (auto &BB : F) {
-    for (auto &I : BB.getInstList()) {
+    for (auto &I : BB) {
       if (!isa<CallBase>(&I) || isa<IntrinsicInst>(&I))
         continue;
 

@@ -26,6 +26,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -560,11 +561,11 @@ public:
   Error ReadAbbrevRecord();
 
   /// Read and return a block info block from the bitstream. If an error was
-  /// encountered, return None.
+  /// encountered, return std::nullopt.
   ///
   /// \param ReadBlockInfoNames Whether to read block/record name information in
   /// the BlockInfo block. Only llvm-bcanalyzer uses this.
-  Expected<Optional<BitstreamBlockInfo>>
+  Expected<std::optional<BitstreamBlockInfo>>
   ReadBlockInfoBlock(bool ReadBlockInfoNames = false);
 
   /// Set the block info to be used by this BitstreamCursor to interpret

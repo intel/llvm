@@ -60,6 +60,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include <cstring>
 #include <functional>
+#include <optional>
 
 #define DEBUG_TYPE "exprconstant"
 
@@ -5049,8 +5050,10 @@ static EvalStmtResult EvaluateSwitch(StmtResult &Result, EvalInfo &Info,
 static bool CheckLocalVariableDeclaration(EvalInfo &Info, const VarDecl *VD) {
   // An expression E is a core constant expression unless the evaluation of E
   // would evaluate one of the following: [C++2b] - a control flow that passes
-  // through a declaration of a variable with static or thread storage duration.
-  if (VD->isLocalVarDecl() && VD->isStaticLocal()) {
+  // through a declaration of a variable with static or thread storage duration
+  // unless that variable is usable in constant expressions.
+  if (VD->isLocalVarDecl() && VD->isStaticLocal() &&
+      !VD->isUsableInConstantExpressions(Info.Ctx)) {
     Info.CCEDiag(VD->getLocation(), diag::note_constexpr_static_local)
         << (VD->getTSCSpec() == TSCS_unspecified ? 0 : 1) << VD;
     return false;
@@ -5678,7 +5681,7 @@ static Optional<DynamicType> ComputeDynamicType(EvalInfo &Info, const Expr *E,
   // meaningful dynamic type. (We consider objects of non-class type to have no
   // dynamic type.)
   if (!checkDynamicType(Info, E, This, AK, true))
-    return None;
+    return std::nullopt;
 
   // Refuse to compute a dynamic type in the presence of virtual bases. This
   // shouldn't happen other than in constant-folding situations, since literal
@@ -5690,7 +5693,7 @@ static Optional<DynamicType> ComputeDynamicType(EvalInfo &Info, const Expr *E,
       This.Designator.MostDerivedType->getAsCXXRecordDecl();
   if (!Class || Class->getNumVBases()) {
     Info.FFDiag(E);
-    return None;
+    return std::nullopt;
   }
 
   // FIXME: For very deep class hierarchies, it might be beneficial to use a
@@ -5723,7 +5726,7 @@ static Optional<DynamicType> ComputeDynamicType(EvalInfo &Info, const Expr *E,
   // 'This', so that object has not yet begun its period of construction and
   // any polymorphic operation on it results in undefined behavior.
   Info.FFDiag(E);
-  return None;
+  return std::nullopt;
 }
 
 /// Perform virtual dispatch.
@@ -6737,7 +6740,7 @@ static const FunctionDecl *getVirtualOperatorDelete(QualType T) {
 /// still exists and is of the right kind for the purpose of a deletion.
 ///
 /// On success, returns the heap allocation to deallocate. On failure, produces
-/// a diagnostic and returns None.
+/// a diagnostic and returns std::nullopt.
 static Optional<DynAlloc *> CheckDeleteKind(EvalInfo &Info, const Expr *E,
                                             const LValue &Pointer,
                                             DynAlloc::Kind DeallocKind) {
@@ -6751,13 +6754,13 @@ static Optional<DynAlloc *> CheckDeleteKind(EvalInfo &Info, const Expr *E,
         << PointerAsString();
     if (Pointer.Base)
       NoteLValueLocation(Info, Pointer.Base);
-    return None;
+    return std::nullopt;
   }
 
   Optional<DynAlloc *> Alloc = Info.lookupDynamicAlloc(DA);
   if (!Alloc) {
     Info.FFDiag(E, diag::note_constexpr_double_delete);
-    return None;
+    return std::nullopt;
   }
 
   QualType AllocType = Pointer.Base.getDynamicAllocType();
@@ -6765,7 +6768,7 @@ static Optional<DynAlloc *> CheckDeleteKind(EvalInfo &Info, const Expr *E,
     Info.FFDiag(E, diag::note_constexpr_new_delete_mismatch)
         << DeallocKind << (*Alloc)->getKind() << AllocType;
     NoteLValueLocation(Info, Pointer.Base);
-    return None;
+    return std::nullopt;
   }
 
   bool Subobject = false;
@@ -6779,7 +6782,7 @@ static Optional<DynAlloc *> CheckDeleteKind(EvalInfo &Info, const Expr *E,
   if (Subobject) {
     Info.FFDiag(E, diag::note_constexpr_delete_subobject)
         << PointerAsString() << Pointer.Designator.isOnePastTheEnd();
-    return None;
+    return std::nullopt;
   }
 
   return Alloc;
@@ -6831,7 +6834,7 @@ class BitCastBuffer {
   // FIXME: Its possible under the C++ standard for 'char' to not be 8 bits, but
   // we don't support a host or target where that is the case. Still, we should
   // use a more generic type in case we ever do.
-  SmallVector<Optional<unsigned char>, 32> Bytes;
+  SmallVector<std::optional<unsigned char>, 32> Bytes;
 
   static_assert(std::numeric_limits<unsigned char>::digits >= 8,
                 "Need at least 8 bit unsigned char");
@@ -7026,7 +7029,7 @@ public:
     CharUnits DstSize = Info.Ctx.getTypeSizeInChars(BCE->getType());
     APValueToBufferConverter Converter(Info, DstSize, BCE);
     if (!Converter.visit(Src, BCE->getSubExpr()->getType()))
-      return None;
+      return std::nullopt;
     return Converter.Buffer;
   }
 };
@@ -7044,18 +7047,18 @@ class BufferToAPValueConverter {
   // Emit an unsupported bit_cast type error. Sema refuses to build a bit_cast
   // with an invalid type, so anything left is a deficiency on our part (FIXME).
   // Ideally this will be unreachable.
-  llvm::NoneType unsupportedType(QualType Ty) {
+  std::nullopt_t unsupportedType(QualType Ty) {
     Info.FFDiag(BCE->getBeginLoc(),
                 diag::note_constexpr_bit_cast_unsupported_type)
         << Ty;
-    return None;
+    return std::nullopt;
   }
 
-  llvm::NoneType unrepresentableValue(QualType Ty, const APSInt &Val) {
+  std::nullopt_t unrepresentableValue(QualType Ty, const APSInt &Val) {
     Info.FFDiag(BCE->getBeginLoc(),
                 diag::note_constexpr_bit_cast_unrepresentable_value)
         << Ty << toString(Val, /*Radix=*/10);
-    return None;
+    return std::nullopt;
   }
 
   Optional<APValue> visit(const BuiltinType *T, CharUnits Offset,
@@ -7095,7 +7098,7 @@ class BufferToAPValueConverter {
         Info.FFDiag(BCE->getExprLoc(),
                     diag::note_constexpr_bit_cast_indet_dest)
             << DisplayType << Info.Ctx.getLangOpts().CharIsSigned;
-        return None;
+        return std::nullopt;
       }
 
       return APValue::IndeterminateValue();
@@ -7150,7 +7153,7 @@ class BufferToAPValueConverter {
         Optional<APValue> SubObj = visitType(
             BS.getType(), Layout.getBaseClassOffset(BaseDecl) + Offset);
         if (!SubObj)
-          return None;
+          return std::nullopt;
         ResultVal.getStructBase(I) = *SubObj;
       }
     }
@@ -7163,7 +7166,7 @@ class BufferToAPValueConverter {
       if (FD->isBitField()) {
         Info.FFDiag(BCE->getBeginLoc(),
                     diag::note_constexpr_bit_cast_unsupported_bitfield);
-        return None;
+        return std::nullopt;
       }
 
       uint64_t FieldOffsetBits = Layout.getFieldOffset(FieldIdx);
@@ -7175,7 +7178,7 @@ class BufferToAPValueConverter {
       QualType FieldTy = FD->getType();
       Optional<APValue> SubObj = visitType(FieldTy, FieldOffset);
       if (!SubObj)
-        return None;
+        return std::nullopt;
       ResultVal.getStructField(FieldIdx) = *SubObj;
       ++FieldIdx;
     }
@@ -7203,7 +7206,7 @@ class BufferToAPValueConverter {
       Optional<APValue> ElementValue =
           visitType(Ty->getElementType(), Offset + I * ElementWidth);
       if (!ElementValue)
-        return None;
+        return std::nullopt;
       ArrayValue.getArrayInitializedElt(I) = std::move(*ElementValue);
     }
 
@@ -7959,8 +7962,8 @@ public:
   bool VisitStmtExpr(const StmtExpr *E) {
     // We will have checked the full-expressions inside the statement expression
     // when they were completed, and don't need to check them again now.
-    llvm::SaveAndRestore<bool> NotCheckingForUB(
-        Info.CheckingForUndefinedBehavior, false);
+    llvm::SaveAndRestore NotCheckingForUB(Info.CheckingForUndefinedBehavior,
+                                          false);
 
     const CompoundStmt *CS = E->getSubStmt();
     if (CS->body_empty())
@@ -10587,7 +10590,7 @@ static llvm::Optional<APValue> handleVectorUnaryOperator(ASTContext &Ctx,
   }
   default:
     // FIXME: Implement the rest of the unary operators.
-    return llvm::None;
+    return std::nullopt;
   }
 }
 
@@ -15976,7 +15979,7 @@ Optional<llvm::APSInt> Expr::getIntegerConstantExpr(const ASTContext &Ctx,
                                                     bool isEvaluated) const {
   if (isValueDependent()) {
     // Expression evaluator can't succeed on a dependent expression.
-    return None;
+    return std::nullopt;
   }
 
   APSInt Value;
@@ -15984,11 +15987,11 @@ Optional<llvm::APSInt> Expr::getIntegerConstantExpr(const ASTContext &Ctx,
   if (Ctx.getLangOpts().CPlusPlus11) {
     if (EvaluateCPlusPlus11IntegralConstantExpr(Ctx, this, &Value, Loc))
       return Value;
-    return None;
+    return std::nullopt;
   }
 
   if (!isIntegerConstantExpr(Ctx, Loc))
-    return None;
+    return std::nullopt;
 
   // The only possible side-effects here are due to UB discovered in the
   // evaluation (for instance, INT_MAX + 1). In such a case, we are still

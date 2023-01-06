@@ -237,21 +237,22 @@ public:
   /// of instructions in the machine function \p MF.
   SIMemOpAccess(MachineFunction &MF);
 
-  /// \returns Load info if \p MI is a load operation, "None" otherwise.
+  /// \returns Load info if \p MI is a load operation, "std::nullopt" otherwise.
   Optional<SIMemOpInfo> getLoadInfo(
       const MachineBasicBlock::iterator &MI) const;
 
-  /// \returns Store info if \p MI is a store operation, "None" otherwise.
+  /// \returns Store info if \p MI is a store operation, "std::nullopt"
+  /// otherwise.
   Optional<SIMemOpInfo> getStoreInfo(
       const MachineBasicBlock::iterator &MI) const;
 
   /// \returns Atomic fence info if \p MI is an atomic fence operation,
-  /// "None" otherwise.
+  /// "std::nullopt" otherwise.
   Optional<SIMemOpInfo> getAtomicFenceInfo(
       const MachineBasicBlock::iterator &MI) const;
 
   /// \returns Atomic cmpxchg/rmw info if \p MI is an atomic cmpxchg or
-  /// rmw operation, "None" otherwise.
+  /// rmw operation, "std::nullopt" otherwise.
   Optional<SIMemOpInfo> getAtomicCmpxchgOrRmwInfo(
       const MachineBasicBlock::iterator &MI) const;
 };
@@ -664,7 +665,7 @@ SIMemOpAccess::toSIAtomicScope(SyncScope::ID SSID,
     return std::make_tuple(SIAtomicScope::SINGLETHREAD,
                            SIAtomicAddrSpace::ATOMIC & InstrAddrSpace,
                            false);
-  return None;
+  return std::nullopt;
 }
 
 SIAtomicAddrSpace SIMemOpAccess::toSIAtomicAddrSpace(unsigned AS) const {
@@ -711,7 +712,7 @@ Optional<SIMemOpInfo> SIMemOpAccess::constructFromMIWithMMO(
       if (!IsSyncScopeInclusion) {
         reportUnsupported(MI,
           "Unsupported non-inclusive atomic synchronization scope");
-        return None;
+        return std::nullopt;
       }
 
       SSID = *IsSyncScopeInclusion ? SSID : MMO->getSyncScopeID();
@@ -730,7 +731,7 @@ Optional<SIMemOpInfo> SIMemOpAccess::constructFromMIWithMMO(
     auto ScopeOrNone = toSIAtomicScope(SSID, InstrAddrSpace);
     if (!ScopeOrNone) {
       reportUnsupported(MI, "Unsupported atomic synchronization scope");
-      return None;
+      return std::nullopt;
     }
     std::tie(Scope, OrderingAddrSpace, IsCrossAddressSpaceOrdering) =
         *ScopeOrNone;
@@ -738,7 +739,7 @@ Optional<SIMemOpInfo> SIMemOpAccess::constructFromMIWithMMO(
         ((OrderingAddrSpace & SIAtomicAddrSpace::ATOMIC) != OrderingAddrSpace) ||
         ((InstrAddrSpace & SIAtomicAddrSpace::ATOMIC) == SIAtomicAddrSpace::NONE)) {
       reportUnsupported(MI, "Unsupported atomic address space");
-      return None;
+      return std::nullopt;
     }
   }
   return SIMemOpInfo(Ordering, Scope, OrderingAddrSpace, InstrAddrSpace,
@@ -751,7 +752,7 @@ Optional<SIMemOpInfo> SIMemOpAccess::getLoadInfo(
   assert(MI->getDesc().TSFlags & SIInstrFlags::maybeAtomic);
 
   if (!(MI->mayLoad() && !MI->mayStore()))
-    return None;
+    return std::nullopt;
 
   // Be conservative if there are no memory operands.
   if (MI->getNumMemOperands() == 0)
@@ -765,7 +766,7 @@ Optional<SIMemOpInfo> SIMemOpAccess::getStoreInfo(
   assert(MI->getDesc().TSFlags & SIInstrFlags::maybeAtomic);
 
   if (!(!MI->mayLoad() && MI->mayStore()))
-    return None;
+    return std::nullopt;
 
   // Be conservative if there are no memory operands.
   if (MI->getNumMemOperands() == 0)
@@ -779,7 +780,7 @@ Optional<SIMemOpInfo> SIMemOpAccess::getAtomicFenceInfo(
   assert(MI->getDesc().TSFlags & SIInstrFlags::maybeAtomic);
 
   if (MI->getOpcode() != AMDGPU::ATOMIC_FENCE)
-    return None;
+    return std::nullopt;
 
   AtomicOrdering Ordering =
     static_cast<AtomicOrdering>(MI->getOperand(0).getImm());
@@ -788,7 +789,7 @@ Optional<SIMemOpInfo> SIMemOpAccess::getAtomicFenceInfo(
   auto ScopeOrNone = toSIAtomicScope(SSID, SIAtomicAddrSpace::ATOMIC);
   if (!ScopeOrNone) {
     reportUnsupported(MI, "Unsupported atomic synchronization scope");
-    return None;
+    return std::nullopt;
   }
 
   SIAtomicScope Scope = SIAtomicScope::NONE;
@@ -800,7 +801,7 @@ Optional<SIMemOpInfo> SIMemOpAccess::getAtomicFenceInfo(
   if ((OrderingAddrSpace == SIAtomicAddrSpace::NONE) ||
       ((OrderingAddrSpace & SIAtomicAddrSpace::ATOMIC) != OrderingAddrSpace)) {
     reportUnsupported(MI, "Unsupported atomic address space");
-    return None;
+    return std::nullopt;
   }
 
   return SIMemOpInfo(Ordering, Scope, OrderingAddrSpace, SIAtomicAddrSpace::ATOMIC,
@@ -812,7 +813,7 @@ Optional<SIMemOpInfo> SIMemOpAccess::getAtomicCmpxchgOrRmwInfo(
   assert(MI->getDesc().TSFlags & SIInstrFlags::maybeAtomic);
 
   if (!(MI->mayLoad() && MI->mayStore()))
-    return None;
+    return std::nullopt;
 
   // Be conservative if there are no memory operands.
   if (MI->getNumMemOperands() == 0)

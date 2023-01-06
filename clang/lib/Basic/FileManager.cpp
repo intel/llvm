@@ -31,6 +31,7 @@
 #include <climits>
 #include <cstdint>
 #include <cstdlib>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -123,7 +124,7 @@ FileManager::getDirectoryRef(StringRef DirName, bool CacheFailure) {
       DirName != llvm::sys::path::root_path(DirName) &&
       llvm::sys::path::is_separator(DirName.back()))
     DirName = DirName.substr(0, DirName.size()-1);
-  Optional<std::string> DirNameStr;
+  std::optional<std::string> DirNameStr;
   if (is_style_windows(llvm::sys::path::Style::native)) {
     // Fixing a problem with "clang C:test.c" on Windows.
     // Stat("C:") does not recognize "C:" as a valid directory
@@ -474,7 +475,7 @@ llvm::Optional<FileEntryRef> FileManager::getBypassFile(FileEntryRef VF) {
   // Stat of the file and return nullptr if it doesn't exist.
   llvm::vfs::Status Status;
   if (getStatValue(VF.getName(), Status, /*isFile=*/true, /*F=*/nullptr))
-    return None;
+    return std::nullopt;
 
   if (!SeenBypassFileEntries)
     SeenBypassFileEntries = std::make_unique<

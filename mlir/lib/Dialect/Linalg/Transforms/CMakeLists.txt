@@ -3,6 +3,7 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   BufferizableOpInterfaceImpl.cpp
   Bufferize.cpp
   ConstantFold.cpp
+  DataLayoutPropagation.cpp
   DecomposeLinalgOps.cpp
   Detensorize.cpp
   DropUnitDims.cpp
@@ -52,6 +53,7 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   MLIRInferTypeOpInterface
   MLIRIR
   MLIRMemRefDialect
+  MLIRMemRefTransforms
   MLIRLinalgDialect
   MLIRLinalgAnalysis
   MLIRLinalgUtils

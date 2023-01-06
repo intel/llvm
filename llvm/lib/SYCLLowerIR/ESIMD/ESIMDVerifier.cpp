@@ -19,11 +19,13 @@
 #include "llvm/IR/Module.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
+#include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Regex.h"
 
 using namespace llvm;
+using namespace llvm::esimd;
 namespace id = itanium_demangle;
 
 #define DEBUG_TYPE "esimd-verifier"
@@ -52,7 +54,8 @@ static const char *LegalSYCLFunctions[] = {
     "^sycl::_V1::ext::oneapi::sub_group::.+",
     "^sycl::_V1::ext::oneapi::experimental::spec_constant<.+>::.+",
     "^sycl::_V1::ext::oneapi::experimental::this_sub_group",
-    "^sycl::_V1::ext::oneapi::experimental::bfloat16::.+"};
+    "^sycl::_V1::ext::oneapi::experimental::bfloat16::.+",
+    "^sycl::_V1::ext::oneapi::experimental::if_architecture_is"};
 
 static const char *LegalSYCLFunctionsInStatelessMode[] = {
     "^sycl::_V1::multi_ptr<.+>::get",
@@ -63,36 +66,6 @@ static const char *LegalSYCLFunctionsInStatelessMode[] = {
     "^sycl::_V1::accessor<.+>::getTotalOffset"};
 
 namespace {
-
-// Simplest possible implementation of an allocator for the Itanium demangler
-class SimpleAllocator {
-protected:
-  SmallVector<void *, 128> Ptrs;
-
-public:
-  void reset() {
-    for (void *Ptr : Ptrs) {
-      // Destructors are not called, but that is OK for the
-      // itanium_demangle::Node subclasses
-      std::free(Ptr);
-    }
-    Ptrs.resize(0);
-  }
-
-  template <typename T, typename... Args> T *makeNode(Args &&...args) {
-    void *Ptr = std::calloc(1, sizeof(T));
-    Ptrs.push_back(Ptr);
-    return new (Ptr) T(std::forward<Args>(args)...);
-  }
-
-  void *allocateNodeArray(size_t sz) {
-    void *Ptr = std::calloc(sz, sizeof(id::Node *));
-    Ptrs.push_back(Ptr);
-    return Ptr;
-  }
-
-  ~SimpleAllocator() { reset(); }
-};
 
 class ESIMDVerifierImpl {
   const Module &M;

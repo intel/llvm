@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/MC/MCWin64EH.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
@@ -156,7 +155,7 @@ static void EmitRuntimeFunction(MCStreamer &streamer,
                                 const WinEH::FrameInfo *info) {
   MCContext &context = streamer.getContext();
 
-  streamer.emitValueToAlignment(4);
+  streamer.emitValueToAlignment(Align(4));
   EmitSymbolRefWithOfs(streamer, info->Begin, info->Begin);
   EmitSymbolRefWithOfs(streamer, info->Begin, info->End);
   streamer.emitValue(MCSymbolRefExpr::create(info->Symbol,
@@ -172,7 +171,7 @@ static void EmitUnwindInfo(MCStreamer &streamer, WinEH::FrameInfo *info) {
   MCContext &context = streamer.getContext();
   MCSymbol *Label = context.createTempSymbol();
 
-  streamer.emitValueToAlignment(4);
+  streamer.emitValueToAlignment(Align(4));
   streamer.emitLabel(Label);
   info->Symbol = Label;
 
@@ -274,9 +273,9 @@ static const MCExpr *GetSubDivExpr(MCStreamer &Streamer, const MCSymbol *LHS,
   return Expr;
 }
 
-static Optional<int64_t> GetOptionalAbsDifference(MCStreamer &Streamer,
-                                                  const MCSymbol *LHS,
-                                                  const MCSymbol *RHS) {
+static std::optional<int64_t> GetOptionalAbsDifference(MCStreamer &Streamer,
+                                                       const MCSymbol *LHS,
+                                                       const MCSymbol *RHS) {
   MCContext &Context = Streamer.getContext();
   const MCExpr *Diff =
       MCBinaryExpr::createSub(MCSymbolRefExpr::create(LHS, Context),
@@ -287,13 +286,14 @@ static Optional<int64_t> GetOptionalAbsDifference(MCStreamer &Streamer,
   // unusual constructs, like an inline asm with an alignment directive.
   int64_t value;
   if (!Diff->evaluateAsAbsolute(value, OS->getAssembler()))
-    return None;
+    return std::nullopt;
   return value;
 }
 
 static int64_t GetAbsDifference(MCStreamer &Streamer, const MCSymbol *LHS,
                                 const MCSymbol *RHS) {
-  Optional<int64_t> MaybeDiff = GetOptionalAbsDifference(Streamer, LHS, RHS);
+  std::optional<int64_t> MaybeDiff =
+      GetOptionalAbsDifference(Streamer, LHS, RHS);
   if (!MaybeDiff)
     report_fatal_error("Failed to evaluate function length in SEH unwind info");
   return *MaybeDiff;
@@ -305,7 +305,7 @@ static void checkARM64Instructions(MCStreamer &Streamer,
                                    StringRef Name, StringRef Type) {
   if (!End)
     return;
-  Optional<int64_t> MaybeDistance =
+  std::optional<int64_t> MaybeDistance =
       GetOptionalAbsDifference(Streamer, End, Begin);
   if (!MaybeDistance)
     return;
@@ -984,6 +984,38 @@ static bool tryARM64PackedUnwind(WinEH::FrameInfo *info, uint32_t FuncLength,
         return false;
       Location = End;
       break;
+    case Win64EH::UOP_SaveAnyRegI:
+    case Win64EH::UOP_SaveAnyRegIP:
+    case Win64EH::UOP_SaveAnyRegD:
+    case Win64EH::UOP_SaveAnyRegDP:
+    case Win64EH::UOP_SaveAnyRegQ:
+    case Win64EH::UOP_SaveAnyRegQP:
+    case Win64EH::UOP_SaveAnyRegIX:
+    case Win64EH::UOP_SaveAnyRegIPX:
+    case Win64EH::UOP_SaveAnyRegDX:
+    case Win64EH::UOP_SaveAnyRegDPX:
+    case Win64EH::UOP_SaveAnyRegQX:
+    case Win64EH::UOP_SaveAnyRegQPX:
+      // These are never canonical; they don't show up with the usual Arm64
+      // calling convention.
+      return false;
+    case Win64EH::UOP_AllocLarge:
+      // Allocations this large can't be represented in packed unwind (and
+      // usually don't fit the canonical form anyway because we need to use
+      // __chkstk to allocate the stack space).
+      return false;
+    case Win64EH::UOP_AddFP:
+      // "add x29, sp, #N" doesn't show up in the canonical pattern (except for
+      // N=0, which is UOP_SetFP).
+      return false;
+    case Win64EH::UOP_TrapFrame:
+    case Win64EH::UOP_Context:
+    case Win64EH::UOP_ClearUnwoundToCall:
+    case Win64EH::UOP_PushMachFrame:
+      // These are special opcodes that aren't normally generated.
+      return false;
+    default:
+      report_fatal_error("Unknown Arm64 unwind opcode");
     }
   }
   if (RegI > 10 || RegF > 8)
@@ -1169,7 +1201,7 @@ static void ARM64EmitUnwindInfoForSegment(MCStreamer &streamer,
   MCContext &context = streamer.getContext();
   MCSymbol *Label = context.createTempSymbol();
 
-  streamer.emitValueToAlignment(4);
+  streamer.emitValueToAlignment(Align(4));
   streamer.emitLabel(Label);
   Seg.Symbol = Label;
   // Use the 1st segemnt's label as function's.
@@ -1520,7 +1552,7 @@ static void checkARMInstructions(MCStreamer &Streamer,
                                  StringRef Name, StringRef Type) {
   if (!End)
     return;
-  Optional<int64_t> MaybeDistance =
+  std::optional<int64_t> MaybeDistance =
       GetOptionalAbsDifference(Streamer, End, Begin);
   if (!MaybeDistance)
     return;
@@ -1742,7 +1774,7 @@ static int checkARMPackedEpilog(MCStreamer &streamer, WinEH::FrameInfo *info,
 
   // Check that the epilog actually is at the very end of the function,
   // otherwise it can't be packed.
-  Optional<int64_t> MaybeDistance = GetOptionalAbsDifference(
+  std::optional<int64_t> MaybeDistance = GetOptionalAbsDifference(
       streamer, info->FuncletOrFuncEnd, info->EpilogMap.begin()->first);
   if (!MaybeDistance)
     return -1;
@@ -1968,7 +2000,7 @@ static bool tryARMPackedUnwind(MCStreamer &streamer, WinEH::FrameInfo *info,
     if (EpilogInfo.Condition != 0xe) // ARMCC::AL
       return false;
     const std::vector<WinEH::Instruction> &Epilog = EpilogInfo.Instructions;
-    Optional<int64_t> MaybeDistance = GetOptionalAbsDifference(
+    std::optional<int64_t> MaybeDistance = GetOptionalAbsDifference(
         streamer, info->FuncletOrFuncEnd, info->EpilogMap.begin()->first);
     if (!MaybeDistance)
       return false;
@@ -2253,7 +2285,7 @@ static void ARMEmitUnwindInfo(MCStreamer &streamer, WinEH::FrameInfo *info,
   MCContext &context = streamer.getContext();
   MCSymbol *Label = context.createTempSymbol();
 
-  streamer.emitValueToAlignment(4);
+  streamer.emitValueToAlignment(Align(4));
   streamer.emitLabel(Label);
   info->Symbol = Label;
 
@@ -2278,7 +2310,7 @@ static void ARMEmitUnwindInfo(MCStreamer &streamer, WinEH::FrameInfo *info,
                        " not correctly terminated");
   }
 
-  Optional<int64_t> RawFuncLength;
+  std::optional<int64_t> RawFuncLength;
   const MCExpr *FuncLengthExpr = nullptr;
   if (!info->FuncletOrFuncEnd) {
     report_fatal_error("FuncletOrFuncEnd not set");
@@ -2408,7 +2440,7 @@ static void ARMEmitUnwindInfo(MCStreamer &streamer, WinEH::FrameInfo *info,
       MCSymbol *EpilogStart = I.first;
       uint32_t EpilogIndex = I.second;
 
-      Optional<int64_t> MaybeEpilogOffset =
+      std::optional<int64_t> MaybeEpilogOffset =
           GetOptionalAbsDifference(streamer, EpilogStart, info->Begin);
       const MCExpr *OffsetExpr = nullptr;
       uint32_t EpilogOffset = 0;
@@ -2465,7 +2497,7 @@ static void ARM64EmitRuntimeFunction(MCStreamer &streamer,
                                      const WinEH::FrameInfo *info) {
   MCContext &context = streamer.getContext();
 
-  streamer.emitValueToAlignment(4);
+  streamer.emitValueToAlignment(Align(4));
   for (const auto &S : info->Segments) {
     EmitSymbolRefWithOfs(streamer, info->Begin, S.Offset);
     if (info->PackedInfo)
@@ -2483,7 +2515,7 @@ static void ARMEmitRuntimeFunction(MCStreamer &streamer,
                                    const WinEH::FrameInfo *info) {
   MCContext &context = streamer.getContext();
 
-  streamer.emitValueToAlignment(4);
+  streamer.emitValueToAlignment(Align(4));
   EmitSymbolRefWithOfs(streamer, info->Begin, info->Begin);
   if (info->PackedInfo)
     streamer.emitInt32(info->PackedInfo);

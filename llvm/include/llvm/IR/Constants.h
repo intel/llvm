@@ -23,8 +23,6 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Constant.h"
@@ -38,6 +36,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 namespace llvm {
 
@@ -1213,32 +1212,32 @@ public:
   /// Getelementptr form.  Value* is only accepted for convenience;
   /// all elements must be Constants.
   ///
-  /// \param InRangeIndex the inrange index if present or None.
+  /// \param InRangeIndex the inrange index if present or std::nullopt.
   /// \param OnlyIfReducedTy see \a getWithOperands() docs.
-  static Constant *getGetElementPtr(Type *Ty, Constant *C,
-                                    ArrayRef<Constant *> IdxList,
-                                    bool InBounds = false,
-                                    Optional<unsigned> InRangeIndex = None,
-                                    Type *OnlyIfReducedTy = nullptr) {
+  static Constant *
+  getGetElementPtr(Type *Ty, Constant *C, ArrayRef<Constant *> IdxList,
+                   bool InBounds = false,
+                   std::optional<unsigned> InRangeIndex = std::nullopt,
+                   Type *OnlyIfReducedTy = nullptr) {
     return getGetElementPtr(
         Ty, C, makeArrayRef((Value *const *)IdxList.data(), IdxList.size()),
         InBounds, InRangeIndex, OnlyIfReducedTy);
   }
-  static Constant *getGetElementPtr(Type *Ty, Constant *C, Constant *Idx,
-                                    bool InBounds = false,
-                                    Optional<unsigned> InRangeIndex = None,
-                                    Type *OnlyIfReducedTy = nullptr) {
+  static Constant *
+  getGetElementPtr(Type *Ty, Constant *C, Constant *Idx, bool InBounds = false,
+                   std::optional<unsigned> InRangeIndex = std::nullopt,
+                   Type *OnlyIfReducedTy = nullptr) {
     // This form of the function only exists to avoid ambiguous overload
     // warnings about whether to convert Idx to ArrayRef<Constant *> or
     // ArrayRef<Value *>.
     return getGetElementPtr(Ty, C, cast<Value>(Idx), InBounds, InRangeIndex,
                             OnlyIfReducedTy);
   }
-  static Constant *getGetElementPtr(Type *Ty, Constant *C,
-                                    ArrayRef<Value *> IdxList,
-                                    bool InBounds = false,
-                                    Optional<unsigned> InRangeIndex = None,
-                                    Type *OnlyIfReducedTy = nullptr);
+  static Constant *
+  getGetElementPtr(Type *Ty, Constant *C, ArrayRef<Value *> IdxList,
+                   bool InBounds = false,
+                   std::optional<unsigned> InRangeIndex = std::nullopt,
+                   Type *OnlyIfReducedTy = nullptr);
 
   /// Create an "inbounds" getelementptr. See the documentation for the
   /// "inbounds" flag in LangRef.html for details.

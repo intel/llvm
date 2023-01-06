@@ -46,7 +46,11 @@ void Parser::MaybeSkipAttributes(tok::ObjCKeywordKind Kind) {
 /// [OBJC]  objc-protocol-definition
 /// [OBJC]  objc-method-definition
 /// [OBJC]  '@' 'end'
-Parser::DeclGroupPtrTy Parser::ParseObjCAtDirectives(ParsedAttributes &Attrs) {
+Parser::DeclGroupPtrTy
+Parser::ParseObjCAtDirectives(ParsedAttributes &DeclAttrs,
+                              ParsedAttributes &DeclSpecAttrs) {
+  DeclAttrs.takeAllFrom(DeclSpecAttrs);
+
   SourceLocation AtLoc = ConsumeToken(); // the "@"
 
   if (Tok.is(tok::code_completion)) {
@@ -55,17 +59,29 @@ Parser::DeclGroupPtrTy Parser::ParseObjCAtDirectives(ParsedAttributes &Attrs) {
     return nullptr;
   }
 
+  switch (Tok.getObjCKeywordID()) {
+  case tok::objc_interface:
+  case tok::objc_protocol:
+  case tok::objc_implementation:
+    break;
+  default:
+    llvm::for_each(DeclAttrs, [this](const auto &Attr) {
+      if (Attr.isGNUAttribute())
+        Diag(Tok.getLocation(), diag::err_objc_unexpected_attr);
+    });
+  }
+
   Decl *SingleDecl = nullptr;
   switch (Tok.getObjCKeywordID()) {
   case tok::objc_class:
     return ParseObjCAtClassDeclaration(AtLoc);
   case tok::objc_interface:
-    SingleDecl = ParseObjCAtInterfaceDeclaration(AtLoc, Attrs);
+    SingleDecl = ParseObjCAtInterfaceDeclaration(AtLoc, DeclAttrs);
     break;
   case tok::objc_protocol:
-    return ParseObjCAtProtocolDeclaration(AtLoc, Attrs);
+    return ParseObjCAtProtocolDeclaration(AtLoc, DeclAttrs);
   case tok::objc_implementation:
-    return ParseObjCAtImplementationDeclaration(AtLoc, Attrs);
+    return ParseObjCAtImplementationDeclaration(AtLoc, DeclAttrs);
   case tok::objc_end:
     return ParseObjCAtEndDeclaration(AtLoc);
   case tok::objc_compatibility_alias:
@@ -651,7 +667,8 @@ void Parser::ParseObjCInterfaceDeclList(tok::ObjCKeywordKind contextKey,
       if (Tok.is(tok::r_brace))
         break;
 
-      ParsedAttributes EmptyAttrs(AttrFactory);
+      ParsedAttributes EmptyDeclAttrs(AttrFactory);
+      ParsedAttributes EmptyDeclSpecAttrs(AttrFactory);
 
       // Since we call ParseDeclarationOrFunctionDefinition() instead of
       // ParseExternalDeclaration() below (so that this doesn't parse nested
@@ -659,13 +676,14 @@ void Parser::ParseObjCInterfaceDeclList(tok::ObjCKeywordKind contextKey,
       if (Tok.isOneOf(tok::kw_static_assert, tok::kw__Static_assert)) {
         SourceLocation DeclEnd;
         ParsedAttributes EmptyDeclSpecAttrs(AttrFactory);
-        allTUVariables.push_back(ParseDeclaration(
-            DeclaratorContext::File, DeclEnd, EmptyAttrs, EmptyDeclSpecAttrs));
+        allTUVariables.push_back(ParseDeclaration(DeclaratorContext::File,
+                                                  DeclEnd, EmptyDeclAttrs,
+                                                  EmptyDeclSpecAttrs));
         continue;
       }
 
-      allTUVariables.push_back(
-          ParseDeclarationOrFunctionDefinition(EmptyAttrs));
+      allTUVariables.push_back(ParseDeclarationOrFunctionDefinition(
+          EmptyDeclAttrs, EmptyDeclSpecAttrs));
       continue;
     }
 
@@ -2236,9 +2254,11 @@ Parser::ParseObjCAtImplementationDeclaration(SourceLocation AtLoc,
   {
     ObjCImplParsingDataRAII ObjCImplParsing(*this, ObjCImpDecl);
     while (!ObjCImplParsing.isFinished() && !isEofOrEom()) {
-      ParsedAttributes attrs(AttrFactory);
-      MaybeParseCXX11Attributes(attrs);
-      if (DeclGroupPtrTy DGP = ParseExternalDeclaration(attrs)) {
+      ParsedAttributes DeclAttrs(AttrFactory);
+      MaybeParseCXX11Attributes(DeclAttrs);
+      ParsedAttributes EmptyDeclSpecAttrs(AttrFactory);
+      if (DeclGroupPtrTy DGP =
+              ParseExternalDeclaration(DeclAttrs, EmptyDeclSpecAttrs)) {
         DeclGroupRef DG = DGP.get();
         DeclsInGroup.append(DG.begin(), DG.end());
       }
@@ -3181,14 +3201,14 @@ Parser::ParseObjCMessageExpressionBody(SourceLocation LBracLoc,
   if (Tok.is(tok::code_completion)) {
     cutOffParsing();
     if (SuperLoc.isValid())
-      Actions.CodeCompleteObjCSuperMessage(getCurScope(), SuperLoc, None,
-                                           false);
+      Actions.CodeCompleteObjCSuperMessage(getCurScope(), SuperLoc,
+                                           std::nullopt, false);
     else if (ReceiverType)
-      Actions.CodeCompleteObjCClassMessage(getCurScope(), ReceiverType, None,
-                                           false);
+      Actions.CodeCompleteObjCClassMessage(getCurScope(), ReceiverType,
+                                           std::nullopt, false);
     else
       Actions.CodeCompleteObjCInstanceMessage(getCurScope(), ReceiverExpr,
-                                              None, false);
+                                              std::nullopt, false);
     return ExprError();
   }
 
@@ -3520,9 +3540,8 @@ ExprResult Parser::ParseObjCDictionaryLiteral(SourceLocation AtLoc) {
 
     // We have a valid expression. Collect it in a vector so we can
     // build the argument list.
-    ObjCDictionaryElement Element = {
-      KeyExpr.get(), ValueExpr.get(), EllipsisLoc, None
-    };
+    ObjCDictionaryElement Element = {KeyExpr.get(), ValueExpr.get(),
+                                     EllipsisLoc, std::nullopt};
     Elements.push_back(Element);
 
     if (!TryConsumeToken(tok::comma) && Tok.isNot(tok::r_brace))

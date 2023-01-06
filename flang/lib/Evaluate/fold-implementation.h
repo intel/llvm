@@ -533,7 +533,6 @@ Expr<TR> FoldElementalIntrinsic(FoldingContext &context,
       context, std::move(funcRef), func, std::index_sequence_for<TA...>{});
 }
 
-std::optional<std::int64_t> GetInt64Arg(const std::optional<ActualArgument> &);
 std::optional<std::int64_t> GetInt64ArgOr(
     const std::optional<ActualArgument> &, std::int64_t defaultValue);
 
@@ -900,8 +899,8 @@ template <typename T> Expr<T> Folder<T>::SPREAD(FunctionRef<T> &&funcRef) {
   auto args{funcRef.arguments()};
   CHECK(args.size() == 3);
   const Constant<T> *source{UnwrapConstantValue<T>(args[0])};
-  auto dim{GetInt64Arg(args[1])};
-  auto ncopies{GetInt64Arg(args[2])};
+  auto dim{ToInt64(args[1])};
+  auto ncopies{ToInt64(args[2])};
   if (!source || !dim) {
     return Expr<T>{std::move(funcRef)};
   }
@@ -1171,10 +1170,12 @@ public:
         return Expr<T>{Constant<T>{array.GetType().GetDerivedTypeSpec(),
             std::move(elements_), ConstantSubscripts{n}}};
       } else if constexpr (T::category == TypeCategory::Character) {
-        auto length{Fold(context_, common::Clone(array.LEN()))};
-        if (std::optional<ConstantSubscript> lengthValue{ToInt64(length)}) {
-          return Expr<T>{Constant<T>{
-              *lengthValue, std::move(elements_), ConstantSubscripts{n}}};
+        if (const auto *len{array.LEN()}) {
+          auto length{Fold(context_, common::Clone(*len))};
+          if (std::optional<ConstantSubscript> lengthValue{ToInt64(length)}) {
+            return Expr<T>{Constant<T>{
+                *lengthValue, std::move(elements_), ConstantSubscripts{n}}};
+          }
         }
       } else {
         return Expr<T>{
@@ -1371,12 +1372,13 @@ std::optional<Expr<RESULT>> MapOperation(FoldingContext &context,
 template <typename RESULT, typename A>
 ArrayConstructor<RESULT> ArrayConstructorFromMold(
     const A &prototype, std::optional<Expr<SubscriptInteger>> &&length) {
+  ArrayConstructor<RESULT> result{prototype};
   if constexpr (RESULT::category == TypeCategory::Character) {
-    return ArrayConstructor<RESULT>{
-        std::move(length.value()), ArrayConstructorValues<RESULT>{}};
-  } else {
-    return ArrayConstructor<RESULT>{prototype};
+    if (length) {
+      result.set_LEN(std::move(*length));
+    }
   }
+  return result;
 }
 
 // array * array case

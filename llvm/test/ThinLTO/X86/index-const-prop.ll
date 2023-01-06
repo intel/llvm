@@ -6,7 +6,7 @@
 ; -stats requires asserts
 ; REQUIRES: asserts
 
-; RUN: opt -module-summary %s -o %t1.bc
+; RUN: opt -module-summary -opaque-pointers %s -o %t1.bc
 ; RUN: opt -module-summary %p/Inputs/index-const-prop.ll -o %t2.bc
 ; RUN: llvm-lto -thinlto-action=thinlink -o %t3.index.bc %t1.bc %t2.bc
 ; RUN: llvm-lto -thinlto-action=import -exported-symbol=main  %t1.bc -thinlto-index=%t3.index.bc -o %t1.imported.bc -stats 2>&1 | FileCheck %s --check-prefix=STATS
@@ -38,8 +38,8 @@ target triple = "x86_64-pc-linux-gnu"
 @gDead = internal unnamed_addr global i32 1, align 4
 
 define i32 @main() local_unnamed_addr {
-  %call = tail call i32 bitcast (i32 (...)* @foo to i32 ()*)()
-  %call1 = tail call i32 bitcast (i32 (...)* @bar to i32 ()*)()
+  %call = tail call i32 @foo()
+  %call1 = tail call i32 @bar()
   %add = add nsw i32 %call1, %call
   ret i32 %add
 }

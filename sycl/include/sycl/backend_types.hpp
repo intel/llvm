@@ -32,6 +32,7 @@ enum class backend : char {
       ext_intel_esimd_emulator,
   ext_oneapi_hip = 6,
   hip __SYCL2020_DEPRECATED("use 'ext_oneapi_hip' instead") = ext_oneapi_hip,
+  ext_oneapi_unified_runtime = 7,
 };
 
 template <backend Backend> class backend_traits;
@@ -62,6 +63,9 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
     break;
   case backend::ext_oneapi_hip:
     Out << "ext_oneapi_hip";
+    break;
+  case backend::ext_oneapi_unified_runtime:
+    Out << "ext_oneapi_unified_runtime";
     break;
   case backend::all:
     Out << "all";

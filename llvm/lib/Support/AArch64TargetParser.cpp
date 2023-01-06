@@ -30,12 +30,12 @@ uint64_t AArch64::getDefaultExtensions(StringRef CPU, AArch64::ArchKind AK) {
     return AArch64ARCHNames[static_cast<unsigned>(AK)].ArchBaseExtensions;
 
   return StringSwitch<uint64_t>(CPU)
-#define AARCH64_CPU_NAME(NAME, ID, DEFAULT_FPU, IS_DEFAULT, DEFAULT_EXT)       \
+#define AARCH64_CPU_NAME(NAME, ID, DEFAULT_EXT)                                \
   .Case(NAME, AArch64ARCHNames[static_cast<unsigned>(ArchKind::ID)]            \
                       .ArchBaseExtensions |                                    \
                   DEFAULT_EXT)
 #include "../../include/llvm/Support/AArch64TargetParser.def"
-  .Default(AArch64::AEK_INVALID);
+      .Default(AArch64::AEK_INVALID);
 }
 
 AArch64::ArchKind AArch64::getCPUArchKind(StringRef CPU) {
@@ -43,10 +43,9 @@ AArch64::ArchKind AArch64::getCPUArchKind(StringRef CPU) {
     return ArchKind::ARMV8A;
 
   return StringSwitch<AArch64::ArchKind>(CPU)
-#define AARCH64_CPU_NAME(NAME, ID, DEFAULT_FPU, IS_DEFAULT, DEFAULT_EXT)       \
-  .Case(NAME, ArchKind::ID)
+#define AARCH64_CPU_NAME(NAME, ID, DEFAULT_EXT) .Case(NAME, ArchKind::ID)
 #include "../../include/llvm/Support/AArch64TargetParser.def"
-  .Default(ArchKind::INVALID);
+      .Default(ArchKind::INVALID);
 }
 
 AArch64::ArchKind AArch64::getSubArchArchKind(StringRef SubArch) {
@@ -75,18 +74,13 @@ bool AArch64::getExtensionFeatures(uint64_t Extensions,
 
 StringRef AArch64::resolveCPUAlias(StringRef CPU) {
   return StringSwitch<StringRef>(CPU)
-#define AARCH64_CPU_ALIAS(ALIAS,NAME)                                          \
-  .Case(ALIAS, NAME)
+#define AARCH64_CPU_ALIAS(ALIAS, NAME) .Case(ALIAS, NAME)
 #include "../../include/llvm/Support/AArch64TargetParser.def"
-  .Default(CPU);
+      .Default(CPU);
 }
 
-bool AArch64::getArchFeatures(AArch64::ArchKind AK,
-                              std::vector<StringRef> &Features) {
-  if (AK == ArchKind::INVALID)
-    return false;
-  Features.push_back(AArch64ARCHNames[static_cast<unsigned>(AK)].ArchFeature);
-  return true;
+StringRef AArch64::getArchFeature(AArch64::ArchKind AK) {
+  return AArch64ARCHNames[static_cast<unsigned>(AK)].ArchFeature;
 }
 
 StringRef AArch64::getArchName(AArch64::ArchKind AK) {

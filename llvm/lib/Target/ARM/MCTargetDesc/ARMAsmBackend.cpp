@@ -47,11 +47,12 @@ public:
 };
 } // end anonymous namespace
 
-Optional<MCFixupKind> ARMAsmBackend::getFixupKind(StringRef Name) const {
-  return None;
+std::optional<MCFixupKind> ARMAsmBackend::getFixupKind(StringRef Name) const {
+  return std::nullopt;
 }
 
-Optional<MCFixupKind> ARMAsmBackendELF::getFixupKind(StringRef Name) const {
+std::optional<MCFixupKind>
+ARMAsmBackendELF::getFixupKind(StringRef Name) const {
   unsigned Type = llvm::StringSwitch<unsigned>(Name)
 #define ELF_RELOC(X, Y) .Case(#X, Y)
 #include "llvm/BinaryFormat/ELFRelocs/ARM.def"
@@ -62,7 +63,7 @@ Optional<MCFixupKind> ARMAsmBackendELF::getFixupKind(StringRef Name) const {
                       .Case("BFD_RELOC_32", ELF::R_ARM_ABS32)
                       .Default(-1u);
   if (Type == -1u)
-    return None;
+    return std::nullopt;
   return static_cast<MCFixupKind>(FirstLiteralRelocationKind + Type);
 }
 

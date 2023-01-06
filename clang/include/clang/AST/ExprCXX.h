@@ -40,7 +40,6 @@
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TypeTraits.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/StringRef.h"
@@ -2268,32 +2267,32 @@ public:
 
   bool isArray() const { return CXXNewExprBits.IsArray; }
 
-  /// This might return None even if isArray() returns true,
+  /// This might return std::nullopt even if isArray() returns true,
   /// since there might not be an array size expression.
   /// If the result is not-None, it will never wrap a nullptr.
   Optional<Expr *> getArraySize() {
     if (!isArray())
-      return None;
+      return std::nullopt;
 
     if (auto *Result =
             cast_or_null<Expr>(getTrailingObjects<Stmt *>()[arraySizeOffset()]))
       return Result;
 
-    return None;
+    return std::nullopt;
   }
 
-  /// This might return None even if isArray() returns true,
+  /// This might return std::nullopt even if isArray() returns true,
   /// since there might not be an array size expression.
   /// If the result is not-None, it will never wrap a nullptr.
   Optional<const Expr *> getArraySize() const {
     if (!isArray())
-      return None;
+      return std::nullopt;
 
     if (auto *Result =
             cast_or_null<Expr>(getTrailingObjects<Stmt *>()[arraySizeOffset()]))
       return Result;
 
-    return None;
+    return std::nullopt;
   }
 
   unsigned getNumPlacementArgs() const {
@@ -4116,7 +4115,7 @@ public:
     if (NumExpansions)
       return NumExpansions - 1;
 
-    return None;
+    return std::nullopt;
   }
 
   SourceLocation getBeginLoc() const LLVM_READONLY {
@@ -4201,11 +4200,11 @@ class SizeOfPackExpr final
       : Expr(SizeOfPackExprClass, Empty), Length(NumPartialArgs) {}
 
 public:
-  static SizeOfPackExpr *Create(ASTContext &Context, SourceLocation OperatorLoc,
-                                NamedDecl *Pack, SourceLocation PackLoc,
-                                SourceLocation RParenLoc,
-                                Optional<unsigned> Length = None,
-                                ArrayRef<TemplateArgument> PartialArgs = None);
+  static SizeOfPackExpr *
+  Create(ASTContext &Context, SourceLocation OperatorLoc, NamedDecl *Pack,
+         SourceLocation PackLoc, SourceLocation RParenLoc,
+         Optional<unsigned> Length = std::nullopt,
+         ArrayRef<TemplateArgument> PartialArgs = std::nullopt);
   static SizeOfPackExpr *CreateDeserialized(ASTContext &Context,
                                             unsigned NumPartialArgs);
 
@@ -4316,7 +4315,7 @@ public:
 
   Optional<unsigned> getPackIndex() const {
     if (PackIndex == 0)
-      return None;
+      return std::nullopt;
     return PackIndex - 1;
   }
 
@@ -4681,7 +4680,7 @@ public:
   Optional<unsigned> getNumExpansions() const {
     if (NumExpansions)
       return NumExpansions - 1;
-    return None;
+    return std::nullopt;
   }
 
   SourceLocation getBeginLoc() const LLVM_READONLY {

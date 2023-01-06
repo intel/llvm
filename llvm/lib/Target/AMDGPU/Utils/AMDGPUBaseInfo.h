@@ -10,7 +10,6 @@
 #define LLVM_LIB_TARGET_AMDGPU_UTILS_AMDGPUBASEINFO_H
 
 #include "SIDefines.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/Support/Alignment.h"
 #include <array>
@@ -32,6 +31,7 @@ class MCRegisterInfo;
 class MCSubtargetInfo;
 class StringRef;
 class Triple;
+class raw_ostream;
 
 namespace amdhsa {
 struct kernel_descriptor_t;
@@ -262,15 +262,17 @@ unsigned getNumSGPRBlocks(const MCSubtargetInfo *STI, unsigned NumSGPRs);
 ///
 /// For subtargets which support it, \p EnableWavefrontSize32 should match
 /// the ENABLE_WAVEFRONT_SIZE32 kernel descriptor field.
-unsigned getVGPRAllocGranule(const MCSubtargetInfo *STI,
-                             Optional<bool> EnableWavefrontSize32 = None);
+unsigned
+getVGPRAllocGranule(const MCSubtargetInfo *STI,
+                    Optional<bool> EnableWavefrontSize32 = std::nullopt);
 
 /// \returns VGPR encoding granularity for given subtarget \p STI.
 ///
 /// For subtargets which support it, \p EnableWavefrontSize32 should match
 /// the ENABLE_WAVEFRONT_SIZE32 kernel descriptor field.
-unsigned getVGPREncodingGranule(const MCSubtargetInfo *STI,
-                                Optional<bool> EnableWavefrontSize32 = None);
+unsigned
+getVGPREncodingGranule(const MCSubtargetInfo *STI,
+                       Optional<bool> EnableWavefrontSize32 = std::nullopt);
 
 /// \returns Total number of VGPRs for given subtarget \p STI.
 unsigned getTotalNumVGPRs(const MCSubtargetInfo *STI);
@@ -286,13 +288,18 @@ unsigned getMinNumVGPRs(const MCSubtargetInfo *STI, unsigned WavesPerEU);
 /// execution unit requirement for given subtarget \p STI.
 unsigned getMaxNumVGPRs(const MCSubtargetInfo *STI, unsigned WavesPerEU);
 
+/// \returns Number of waves reachable for a given \p NumVGPRs usage for given
+/// subtarget \p STI.
+unsigned getNumWavesPerEUWithNumVGPRs(const MCSubtargetInfo *STI,
+                                      unsigned NumVGPRs);
+
 /// \returns Number of VGPR blocks needed for given subtarget \p STI when
 /// \p NumVGPRs are used.
 ///
 /// For subtargets which support it, \p EnableWavefrontSize32 should match the
 /// ENABLE_WAVEFRONT_SIZE32 kernel descriptor field.
 unsigned getNumVGPRBlocks(const MCSubtargetInfo *STI, unsigned NumSGPRs,
-                          Optional<bool> EnableWavefrontSize32 = None);
+                          Optional<bool> EnableWavefrontSize32 = std::nullopt);
 
 } // end namespace IsaInfo
 
@@ -508,6 +515,12 @@ int getVOPDFull(unsigned OpX, unsigned OpY);
 
 LLVM_READONLY
 bool isVOPD(unsigned Opc);
+
+LLVM_READNONE
+bool isMAC(unsigned Opc);
+
+LLVM_READNONE
+bool isPermlane16(unsigned Opc);
 
 namespace VOPD {
 
@@ -1118,8 +1131,15 @@ unsigned getMCReg(unsigned Reg, const MCSubtargetInfo &STI);
 LLVM_READNONE
 unsigned mc2PseudoReg(unsigned Reg);
 
-/// Can this operand also contain immediate values?
+LLVM_READNONE
+bool isInlineValue(unsigned Reg);
+
+/// Is this an AMDGPU specific source operand? These include registers,
+/// inline constants, literals and mandatory literals (KImm).
 bool isSISrcOperand(const MCInstrDesc &Desc, unsigned OpNo);
+
+/// Is this a KImm operand?
+bool isKImmOperand(const MCInstrDesc &Desc, unsigned OpNo);
 
 /// Is this floating-point operand?
 bool isSISrcFPOperand(const MCInstrDesc &Desc, unsigned OpNo);
@@ -1229,7 +1249,7 @@ bool isLegalSMRDEncodedSignedOffset(const MCSubtargetInfo &ST,
 uint64_t convertSMRDOffsetUnits(const MCSubtargetInfo &ST, uint64_t ByteOffset);
 
 /// \returns The encoding that will be used for \p ByteOffset in the
-/// SMRD offset field, or None if it won't fit. On GFX9 and GFX10
+/// SMRD offset field, or std::nullopt if it won't fit. On GFX9 and GFX10
 /// S_LOAD instructions have a signed offset, on other subtargets it is
 /// unsigned. S_BUFFER has an unsigned offset for all subtargets.
 Optional<int64_t> getSMRDEncodedOffset(const MCSubtargetInfo &ST,

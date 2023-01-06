@@ -195,7 +195,9 @@ jobs:
 
   llvm_test_suite:
     needs: [build, aws-start]
-    if: ${{ !failure() && inputs.lts_matrix != '[]' }}
+    # Continue if build was successful. If aws-start is not successful all
+    # AWS tasks will fail, but all non-AWS tasks should continue.
+    if: ${{ always() && needs.build.result == 'success' && inputs.lts_matrix != '[]' }}
     strategy:
       fail-fast: false
       max-parallel: ${{ inputs.max_parallel }}
@@ -242,7 +244,7 @@ jobs:
         check_sycl_all: ${{ matrix.check_sycl_all }}
         results_name_suffix: ${{ matrix.config }}_${{ inputs.build_artifact_suffix }}
         cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
-  
+
   khronos_sycl_cts:
     needs: build
     if: ${{ inputs.cts_matrix != '' }}
@@ -293,6 +295,8 @@ jobs:
   aws-stop:
     name: Stop AWS
     needs: [ aws-start, llvm_test_suite ]
+    # Always attempt to shutdown AWS instance, even if AWS start was not
+    # successful.
     if: ${{ always() && inputs.lts_aws_matrix != '[]' }}
     runs-on: ubuntu-latest
     environment: aws

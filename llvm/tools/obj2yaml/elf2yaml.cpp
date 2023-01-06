@@ -18,6 +18,7 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/YAMLTraits.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -32,7 +33,7 @@ class ELFDumper {
 
   DenseMap<StringRef, uint32_t> UsedSectionNames;
   std::vector<std::string> SectionNames;
-  Optional<uint32_t> ShStrTabIndex;
+  std::optional<uint32_t> ShStrTabIndex;
 
   DenseMap<StringRef, uint32_t> UsedSymbolNames;
   std::vector<std::string> SymbolNames;
@@ -53,11 +54,11 @@ class ELFDumper {
   Expected<std::vector<ELFYAML::ProgramHeader>>
   dumpProgramHeaders(ArrayRef<std::unique_ptr<ELFYAML::Chunk>> Sections);
 
-  Optional<DWARFYAML::Data>
+  std::optional<DWARFYAML::Data>
   dumpDWARFSections(std::vector<std::unique_ptr<ELFYAML::Chunk>> &Sections);
 
   Error dumpSymbols(const Elf_Shdr *Symtab,
-                    Optional<std::vector<ELFYAML::Symbol>> &Symbols);
+                    std::optional<std::vector<ELFYAML::Symbol>> &Symbols);
   Error dumpSymbol(const Elf_Sym *Sym, const Elf_Shdr *SymTab,
                    StringRef StrTable, ELFYAML::Symbol &S);
   Expected<std::vector<std::unique_ptr<ELFYAML::Chunk>>> dumpSections();
@@ -101,7 +102,7 @@ class ELFDumper {
   dumpPlaceholderSection(const Elf_Shdr *Shdr);
 
   bool shouldPrintSection(const ELFYAML::Section &S, const Elf_Shdr &SHdr,
-                          Optional<DWARFYAML::Data> DWARF);
+                          std::optional<DWARFYAML::Data> DWARF);
 
 public:
   ELFDumper(const object::ELFFile<ELFT> &O, std::unique_ptr<DWARFContext> DCtx);
@@ -182,7 +183,7 @@ ELFDumper<ELFT>::getUniquedSymbolName(const Elf_Sym *Sym, StringRef StrTable,
 template <class ELFT>
 bool ELFDumper<ELFT>::shouldPrintSection(const ELFYAML::Section &S,
                                          const Elf_Shdr &SHdr,
-                                         Optional<DWARFYAML::Data> DWARF) {
+                                         std::optional<DWARFYAML::Data> DWARF) {
   // We only print the SHT_NULL section at index 0 when it
   // has at least one non-null field, because yaml2obj
   // normally creates the zero section at index 0 implicitly.
@@ -510,7 +511,7 @@ ELFDumper<ELFT>::dumpProgramHeaders(
 }
 
 template <class ELFT>
-Optional<DWARFYAML::Data> ELFDumper<ELFT>::dumpDWARFSections(
+std::optional<DWARFYAML::Data> ELFDumper<ELFT>::dumpDWARFSections(
     std::vector<std::unique_ptr<ELFYAML::Chunk>> &Sections) {
   DWARFYAML::Data DWARF;
   for (std::unique_ptr<ELFYAML::Chunk> &C : Sections) {
@@ -549,7 +550,7 @@ Optional<DWARFYAML::Data> ELFDumper<ELFT>::dumpDWARFSections(
   }
 
   if (DWARF.getNonEmptySectionNames().empty())
-    return None;
+    return std::nullopt;
   return DWARF;
 }
 
@@ -673,7 +674,8 @@ ELFDumper<ELFT>::dumpSections() {
 
 template <class ELFT>
 Error ELFDumper<ELFT>::dumpSymbols(
-    const Elf_Shdr *Symtab, Optional<std::vector<ELFYAML::Symbol>> &Symbols) {
+    const Elf_Shdr *Symtab,
+    std::optional<std::vector<ELFYAML::Symbol>> &Symbols) {
   if (!Symtab)
     return Error::success();
 

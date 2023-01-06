@@ -11,6 +11,7 @@
 #include "mlir/Dialect/Transform/IR/TransformDialect.h"
 #include "mlir/Dialect/Transform/IR/TransformInterfaces.h"
 #include "mlir/Dialect/Transform/IR/TransformTypes.h"
+#include "mlir/Dialect/Transform/IR/TransformUtils.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
@@ -33,14 +34,6 @@ using namespace mlir;
 //===----------------------------------------------------------------------===//
 
 namespace {
-/// A simple pattern rewriter that can be constructed from a context. This is
-/// necessary to apply patterns to a specific op locally.
-class TrivialPatternRewriter : public PatternRewriter {
-public:
-  explicit TrivialPatternRewriter(MLIRContext *context)
-      : PatternRewriter(context) {}
-};
-
 /// A TransformState extension that keeps track of compiled PDL pattern sets.
 /// This is intended to be used along the WithPDLPatterns op. The extension
 /// can be constructed given an operation that has a SymbolTable trait and
@@ -95,8 +88,8 @@ LogicalResult PatternApplicatorExtension::findAllMatches(
     // also used by the following operations.
     auto *dialect =
         root->getContext()->getLoadedDialect<transform::TransformDialect>();
-    for (const auto &pair : dialect->getPDLConstraintHooks())
-      patternModule.registerConstraintFunction(pair.first(), pair.second);
+    for (const auto &[name, constraintFn] : dialect->getPDLConstraintHooks())
+      patternModule.registerConstraintFunction(name, constraintFn);
 
     // Register a noop rewriter because PDL requires patterns to end with some
     // rewrite call.
@@ -109,7 +102,7 @@ LogicalResult PatternApplicatorExtension::findAllMatches(
   }
 
   PatternApplicator applicator(it->second);
-  TrivialPatternRewriter rewriter(root->getContext());
+  transform::TrivialPatternRewriter rewriter(root->getContext());
   applicator.applyDefaultCostModel();
   root->walk([&](Operation *op) {
     if (succeeded(applicator.matchAndRewrite(op, rewriter)))
@@ -652,13 +645,22 @@ checkDoubleConsume(Value value,
 }
 
 LogicalResult transform::SequenceOp::verify() {
+  assert(getBodyBlock()->getNumArguments() == 1 &&
+         "the number of arguments must have been verified to be 1 by "
+         "PossibleTopLevelTransformOpTrait");
+
+  BlockArgument arg = getBodyBlock()->getArgument(0);
+  if (getRoot()) {
+    if (arg.getType() != getRoot().getType()) {
+      return emitOpError() << "expects the type of the block argument to match "
+                              "the type of the operand";
+    }
+  }
+
   // Check if the block argument has more than one consuming use.
-  for (BlockArgument argument : getBodyBlock()->getArguments()) {
-    auto report = [&]() {
-      return (emitOpError() << "block argument #" << argument.getArgNumber());
-    };
-    if (failed(checkDoubleConsume(argument, report)))
-      return failure();
+  if (failed(checkDoubleConsume(
+          arg, [this]() { return (emitOpError() << "block argument #0"); }))) {
+    return failure();
   }
 
   // Check properties of the nested operations they cannot check themselves.
@@ -772,12 +774,12 @@ void transform::SequenceOp::build(OpBuilder &builder, OperationState &state,
                                   SequenceBodyBuilderFn bodyBuilder) {
   build(builder, state, resultTypes, failurePropagationMode, root);
   Region *region = state.regions.back().get();
-  auto bbArgType = root.getType();
+  Type bbArgType = root.getType();
+  OpBuilder::InsertionGuard guard(builder);
   Block *bodyBlock = builder.createBlock(
       region, region->begin(), TypeRange{bbArgType}, {state.location});
 
   // Populate body.
-  OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPointToStart(bodyBlock);
   bodyBuilder(builder, state.location, bodyBlock->getArgument(0));
 }
@@ -789,11 +791,11 @@ void transform::SequenceOp::build(OpBuilder &builder, OperationState &state,
                                   SequenceBodyBuilderFn bodyBuilder) {
   build(builder, state, resultTypes, failurePropagationMode, /*root=*/Value());
   Region *region = state.regions.back().get();
+  OpBuilder::InsertionGuard guard(builder);
   Block *bodyBlock = builder.createBlock(
       region, region->begin(), TypeRange{bbArgType}, {state.location});
 
   // Populate body.
-  OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPointToStart(bodyBlock);
   bodyBuilder(builder, state.location, bodyBlock->getArgument(0));
 }
@@ -881,19 +883,19 @@ void transform::PrintOp::build(OpBuilder &builder, OperationState &result,
 DiagnosedSilenceableFailure
 transform::PrintOp::apply(transform::TransformResults &results,
                           transform::TransformState &state) {
-  llvm::errs() << "[[[ IR printer: ";
+  llvm::outs() << "[[[ IR printer: ";
   if (getName().has_value())
-    llvm::errs() << *getName() << " ";
+    llvm::outs() << *getName() << " ";
 
   if (!getTarget()) {
-    llvm::errs() << "top-level ]]]\n" << *state.getTopLevel() << "\n";
+    llvm::outs() << "top-level ]]]\n" << *state.getTopLevel() << "\n";
     return DiagnosedSilenceableFailure::success();
   }
 
-  llvm::errs() << "]]]\n";
+  llvm::outs() << "]]]\n";
   ArrayRef<Operation *> targets = state.getPayloadOps(getTarget());
   for (Operation *target : targets)
-    llvm::errs() << *target << "\n";
+    llvm::outs() << *target << "\n";
 
   return DiagnosedSilenceableFailure::success();
 }

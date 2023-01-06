@@ -110,19 +110,19 @@ entry:
   %0 = bitcast i32* %var_one to i8*
   call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #4
   %var_one1 = bitcast i32* %var_one to i8*
-  ; CHECK-LLVM: call void @llvm.var.annotation(ptr %{{.*}}, ptr [[STR]], ptr undef, i32 undef, ptr undef)
+  ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{.*}}, ptr [[STR]], ptr undef, i32 undef, ptr undef)
   call void @llvm.var.annotation(i8* %var_one1, i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 2, i8* undef)
   %1 = bitcast i32* %var_two to i8*
   call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #4
   %var_two2 = bitcast i32* %var_two to i8*
-  ; CHECK-LLVM: call void @llvm.var.annotation(ptr %{{.*}}, ptr [[STR2]], ptr undef, i32 undef, ptr undef)
+  ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{.*}}, ptr [[STR2]], ptr undef, i32 undef, ptr undef)
   call void @llvm.var.annotation(i8* %var_two2, i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str.2, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 3, i8* undef)
   call void @llvm.lifetime.start.p0i8(i64 1, i8* %var_three) #4
-  ; CHECK-LLVM: call void @llvm.var.annotation(ptr %{{.*}}, ptr [[STR3]], ptr undef, i32 undef, ptr undef)
+  ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{.*}}, ptr [[STR3]], ptr undef, i32 undef, ptr undef)
   call void @llvm.var.annotation(i8* %var_three, i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str.3, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 4, i8* undef)
   call void @llvm.lifetime.end.p0i8(i64 1, i8* %var_three) #4
   call void @llvm.lifetime.start.p0i8(i64 1, i8* %var_four) #4
-  ; CHECK-LLVM: call void @llvm.var.annotation(ptr %{{.*}}, ptr [[STR7]], ptr undef, i32 undef, ptr undef)
+  ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{.*}}, ptr [[STR7]], ptr undef, i32 undef, ptr undef)
   call void @llvm.var.annotation(i8* %var_four, i8* getelementptr inbounds ([22 x i8], [22 x i8]* @.str.7, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 4, i8* bitcast ({ i32, i32 }* @.args.0 to i8*))
   call void @llvm.lifetime.end.p0i8(i64 1, i8* %var_four) #4
   %2 = bitcast i32* %var_two to i8*
@@ -144,24 +144,24 @@ entry:
   ; CHECK-LLVM: %[[FIELD1:.*]] = getelementptr inbounds %struct.bar, ptr %{{[a-zA-Z0-9]+}}, i32 0, i32 0
   ; CHECK-LLVM: call ptr @llvm.ptr.annotation.p0{{.*}}%[[FIELD1]]{{.*}}[[STR4]]
   %f1 = getelementptr inbounds %struct.bar, %struct.bar* %s1, i32 0, i32 0
-  %1 = call i32* @llvm.ptr.annotation.p0i32(i32* %f1, i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str.4, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 8, i8* undef)
+  %1 = call i32* @llvm.ptr.annotation.p0i32.p0i8(i32* %f1, i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str.4, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 8, i8* undef)
   store i32 0, i32* %1, align 4, !tbaa !9
   ; CHECK-LLVM: %[[FIELD2:.*]] = getelementptr inbounds %struct.bar, ptr %{{[a-zA-Z0-9]+}}, i32 0, i32 1
   ; CHECK-LLVM: call ptr @llvm.ptr.annotation.p0{{.*}}%[[FIELD2]]{{.*}}[[STR5]]
   %f2 = getelementptr inbounds %struct.bar, %struct.bar* %s1, i32 0, i32 1
-  %2 = call i8* @llvm.ptr.annotation.p0i8(i8* %f2, i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str.5, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 9, i8* undef)
+  %2 = call i8* @llvm.ptr.annotation.p0i8.p0i8(i8* %f2, i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str.5, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 9, i8* undef)
   store i8 0, i8* %2, align 4, !tbaa !13
   ; CHECK-LLVM: %[[FIELD3:.*]] = getelementptr inbounds %struct.bar, ptr %{{[a-zA-Z0-9]+}}, i32 0, i32 2
   ; CHECK-LLVM: call ptr @llvm.ptr.annotation.p0{{.*}}%[[FIELD3]]{{.*}}[[STR6]]
   %f3 = getelementptr inbounds %struct.bar, %struct.bar* %s1, i32 0, i32 2
   %3 = bitcast float* %f3 to i8*
-  %4 = call i8* @llvm.ptr.annotation.p0i8(i8* %3, i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str.6, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 9, i8* undef)
+  %4 = call i8* @llvm.ptr.annotation.p0i8.p0i8(i8* %3, i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str.6, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 9, i8* undef)
   %5 = bitcast i8* %4 to float*
   store float 0.000000e+00, float* %5, align 4, !tbaa !14
   ; CHECK-LLVM: %[[FIELD4:.*]] = getelementptr inbounds %struct.bar, ptr %{{[a-zA-Z0-9]+}}, i32 0, i32 3
   ; CHECK-LLVM: call ptr @llvm.ptr.annotation.p0{{.*}}%[[FIELD4]]{{.*}}[[STR8]]
   %f4 = getelementptr inbounds %struct.bar, %struct.bar* %s1, i32 0, i32 3
-  %6 = call i8* @llvm.ptr.annotation.p0i8(i8* %f4, i8* getelementptr inbounds ([22 x i8], [22 x i8]* @.str.7, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 9, i8* bitcast ({ i32, i32, i32 }* @.args.1 to i8*))
+  %6 = call i8* @llvm.ptr.annotation.p0i8.p0i8(i8* %f4, i8* getelementptr inbounds ([22 x i8], [22 x i8]* @.str.7, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 9, i8* bitcast ({ i32, i32, i32 }* @.args.1 to i8*))
   store i8 0, i8* %6, align 4, !tbaa !13
   %7 = bitcast %struct.bar* %s1 to i8*
   call void @llvm.lifetime.end.p0i8(i64 12, i8* %7) #4
@@ -175,9 +175,9 @@ entry:
   %s = alloca %struct.S, align 4
   store i32 0, i32* %retval, align 4
   %a = getelementptr inbounds %struct.S, %struct.S* %s, i32 0, i32 0
-  %0 = call i32* @llvm.ptr.annotation.p0i32(i32* %a, i8* getelementptr inbounds ([31 x i8], [31 x i8]* @.str.8, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 3, i8* bitcast ({ i32, i32, i32 }* @.args.2 to i8*))
+  %0 = call i32* @llvm.ptr.annotation.p0i32.p0i8(i32* %a, i8* getelementptr inbounds ([31 x i8], [31 x i8]* @.str.8, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 3, i8* bitcast ({ i32, i32, i32 }* @.args.2 to i8*))
   ; CHECK-LLVM: %[[FIELD5:.*]] = getelementptr inbounds %struct.S, ptr %{{[a-z]+}}, i32 0, i32 0
-  ; CHECK-LLVM: call ptr @llvm.ptr.annotation.p0{{.*}}%[[FIELD5]]{{.*}}[[STR9]]
+  ; CHECK-LLVM: call ptr @llvm.ptr.annotation.p0.p0{{.*}}%[[FIELD5]]{{.*}}[[STR9]]
   %1 = load i32, i32* %0, align 4
   call void @_Z3fooi(i32 noundef %1)
   ret i32 0
@@ -190,7 +190,7 @@ entry:
   %s = alloca %struct.S.1, align 4
   store i32 0, i32* %retval, align 4
   %a = getelementptr inbounds %struct.S.1, %struct.S.1* %s, i32 0, i32 0
-  %0 = call i32* @llvm.ptr.annotation.p0i32(i32* %a, i8* getelementptr inbounds ([22 x i8], [22 x i8]* @.str.9, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 3, i8* bitcast ({ i1 }* @.args.3 to i8*))
+  %0 = call i32* @llvm.ptr.annotation.p0i32.p0i8(i32* %a, i8* getelementptr inbounds ([22 x i8], [22 x i8]* @.str.9, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 3, i8* bitcast ({ i1 }* @.args.3 to i8*))
   ; CHECK-LLVM: %[[FIELD6:.*]] = getelementptr inbounds %struct.S.1, ptr %{{[a-z]+}}, i32 0, i32 0
   ; CHECK-LLVM: call ptr @llvm.ptr.annotation.p0{{.*}}%[[FIELD6]]{{.*}}[[STR10]]
   %1 = load i32, i32* %0, align 4
@@ -205,7 +205,7 @@ entry:
   %s = alloca %struct.S.2, align 4
   store i32 0, i32* %retval, align 4
   %a = getelementptr inbounds %struct.S.2, %struct.S.2* %s, i32 0, i32 0
-  %0 = call i32* @llvm.ptr.annotation.p0i32(i32* %a, i8* getelementptr inbounds ([17 x i8], [17 x i8]* @.str.10, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 3, i8* bitcast ({ i32, i32, i32 }* @.args.4 to i8*))
+  %0 = call i32* @llvm.ptr.annotation.p0i32.p0i8(i32* %a, i8* getelementptr inbounds ([17 x i8], [17 x i8]* @.str.10, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 3, i8* bitcast ({ i32, i32, i32 }* @.args.4 to i8*))
   ; CHECK-LLVM: %[[FIELD7:.*]] = getelementptr inbounds %struct.S.2, ptr %{{[a-z]+}}, i32 0, i32 0
   ; CHECK-LLVM: call ptr @llvm.ptr.annotation.p0{{.*}}%[[FIELD7]]{{.*}}[[STR11]]
   %1 = load i32, i32* %0, align 4
@@ -219,10 +219,10 @@ define weak_odr dso_local spir_kernel void @_ZTSZ11TestKernelAvE4MyIP(i32 addrsp
   %3 = bitcast %struct.MyIP* %2 to i8*
   call void @llvm.lifetime.start.p0i8(i64 8, i8* nonnull %3) #4
   %4 = addrspacecast i8* %3 to i8 addrspace(4)*
-  %5 = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 addrspace(4)* %4, i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str.11, i64 0, i64 0), i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.1.12, i64 0, i64 0), i32 13, i8* bitcast ({ i32, i32, i32 }* @.args to i8*))
+  %5 = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8.p0i8(i8 addrspace(4)* %4, i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str.11, i64 0, i64 0), i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.1.12, i64 0, i64 0), i32 13, i8* bitcast ({ i32, i32, i32 }* @.args to i8*))
   ; CHECK-LLVM: %[[ALLOCA:.*]] = alloca %struct.MyIP, align 8
   ; CHECK-LLVM: %[[GEP:.*]] = getelementptr inbounds %struct.MyIP, ptr %[[ALLOCA]], i32 0, i32 0
-  ; CHECK-LLVM: call ptr @llvm.ptr.annotation.p0(ptr %[[GEP]], ptr [[STR12]], ptr undef, i32 undef, ptr undef)
+  ; CHECK-LLVM: call ptr @llvm.ptr.annotation.p0.p0(ptr %[[GEP]], ptr [[STR12]], ptr undef, i32 undef, ptr undef)
   %6 = bitcast i8 addrspace(4)* %5 to i32 addrspace(4)* addrspace(4)*
   %7 = addrspacecast i32 addrspace(1)* %0 to i32 addrspace(4)*
   store i32 addrspace(4)* %7, i32 addrspace(4)* addrspace(4)* %6, align 8, !tbaa !17
@@ -242,7 +242,7 @@ entry:
   %s = alloca %struct.S.3, align 4
   store i32 0, i32* %retval, align 4
   %a = getelementptr inbounds %struct.S.3, %struct.S.3* %s, i32 0, i32 0
-  %0 = call i32* @llvm.ptr.annotation.p0i32(i32* %a, i8* getelementptr inbounds ([21 x i8], [21 x i8]* @.str.12, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 3, i8* bitcast ({ i1 }* @.args.5 to i8*))
+  %0 = call i32* @llvm.ptr.annotation.p0i32.p0i8(i32* %a, i8* getelementptr inbounds ([21 x i8], [21 x i8]* @.str.12, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 3, i8* bitcast ({ i1 }* @.args.5 to i8*))
   ; CHECK-LLVM: %[[FIELD8:.*]] = getelementptr inbounds %struct.S.3, ptr %{{[a-z]+}}, i32 0, i32 0
   ; CHECK-LLVM: call ptr @llvm.ptr.annotation.p0{{.*}}%[[FIELD8]]{{.*}}[[STR13]]
   %1 = load i32, i32* %0, align 4
@@ -253,13 +253,13 @@ entry:
 declare dso_local void @_Z3fooi(i32 noundef)
 
 ; Function Attrs: nounwind
-declare i8* @llvm.ptr.annotation.p0i8(i8*, i8*, i8*, i32, i8*) #4
+declare i8* @llvm.ptr.annotation.p0i8.p0i8(i8*, i8*, i8*, i32, i8*) #4
 
 ; Function Attrs: nounwind
-declare i32* @llvm.ptr.annotation.p0i32(i32*, i8*, i8*, i32, i8*) #4
+declare i32* @llvm.ptr.annotation.p0i32.p0i8(i32*, i8*, i8*, i32, i8*) #4
 
 ; Function Attrs: nounwind
-declare i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 addrspace(4)*, i8*, i8*, i32, i8*) #4
+declare i8 addrspace(4)* @llvm.ptr.annotation.p4i8.p0i8(i8 addrspace(4)*, i8*, i8*, i32, i8*) #4
 
 attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind }

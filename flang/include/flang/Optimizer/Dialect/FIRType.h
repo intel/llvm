@@ -280,6 +280,9 @@ bool isAllocatableType(mlir::Type ty);
 /// e.g. !fir.box<!fir.type<derived>>
 bool isBoxedRecordType(mlir::Type ty);
 
+/// Return the nested RecordType if one if found. Return ty otherwise.
+mlir::Type getDerivedType(mlir::Type ty);
+
 /// Return true iff `ty` is the type of an polymorphic entity or
 /// value.
 bool isPolymorphicType(mlir::Type ty);
@@ -287,6 +290,9 @@ bool isPolymorphicType(mlir::Type ty);
 /// Return true iff `ty` is the type of an unlimited polymorphic entity or
 /// value.
 bool isUnlimitedPolymorphicType(mlir::Type ty);
+
+/// Return the inner type of the given type.
+mlir::Type unwrapInnerType(mlir::Type ty);
 
 /// Return true iff `ty` is a RecordType with members that are allocatable.
 bool isRecordWithAllocatableMember(mlir::Type ty);

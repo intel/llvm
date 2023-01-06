@@ -1352,9 +1352,8 @@ private:
       next();
       next(); // Consume first token (so we fix leading whitespace).
       while (CurrentToken) {
-        if (IsMarkOrRegion || CurrentToken->Previous->is(TT_BinaryOperator)) {
+        if (IsMarkOrRegion || CurrentToken->Previous->is(TT_BinaryOperator))
           CurrentToken->setType(TT_ImplicitStringLiteral);
-        }
         next();
       }
     }
@@ -2584,7 +2583,7 @@ public:
           (Start->Previous &&
            Start->Previous->isOneOf(TT_RequiresClause,
                                     TT_RequiresClauseInARequiresExpression))
-              ? [this](){
+              ? [this]() {
                   auto Ret = Current ? Current : Line.Last;
                   while (!Ret->ClosesRequiresClause && Ret->Previous)
                     Ret = Ret->Previous;
@@ -2838,7 +2837,7 @@ static bool isFunctionDeclarationName(bool IsCpp, const FormatToken &Current,
     if (!Current.is(TT_StartOfName) || Current.NestingLevel != 0)
       return false;
     for (; Next; Next = Next->Next) {
-      if (Next->is(TT_TemplateOpener)) {
+      if (Next->is(TT_TemplateOpener) && Next->MatchingParen) {
         Next = Next->MatchingParen;
       } else if (Next->is(tok::coloncolon)) {
         Next = Next->Next;
@@ -2852,6 +2851,8 @@ static bool isFunctionDeclarationName(bool IsCpp, const FormatToken &Current,
           return false;
       } else if (isCppAttribute(IsCpp, *Next)) {
         Next = Next->MatchingParen;
+        if (!Next)
+          return false;
       } else if (Next->is(tok::l_paren)) {
         break;
       } else {
@@ -5015,6 +5016,11 @@ bool TokenAnnotator::canBreakBefore(const AnnotatedLine &Line,
         !Right.MatchingParen) {
       return false;
     }
+    auto Next = Right.Next;
+    if (Next && Next->is(tok::r_paren))
+      Next = Next->Next;
+    if (Next && Next->is(tok::l_paren))
+      return false;
     const FormatToken *Previous = Right.MatchingParen->Previous;
     return !(Previous && (Previous->is(tok::kw_for) || Previous->isIf()));
   }

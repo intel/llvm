@@ -375,6 +375,9 @@ FLAGS_ENUM(SymbolContextItem){
     /// from being used during frame PC lookups and many other
     /// potential address to symbol context lookups.
     eSymbolContextVariable = (1u << 7),
+
+    // Keep this last and up-to-date for what the last enum value is.
+    eSymbolContextLastItem = eSymbolContextVariable,
 };
 LLDB_MARK_AS_BITMASK_ENUM(SymbolContextItem)
 
@@ -1203,6 +1206,16 @@ enum TraceCursorSeekType {
   eTraceCursorSeekTypeEnd
 };
 
+/// Enum to control the verbosity level of `dwim-print` execution.
+enum DWIMPrintVerbosity {
+  /// Run `dwim-print` with no verbosity.
+  eDWIMPrintVerbosityNone,
+  /// Print a message when `dwim-print` uses `expression` evaluation.
+  eDWIMPrintVerbosityExpression,
+  /// Always print a message indicating how `dwim-print` is evaluating its
+  /// expression.
+  eDWIMPrintVerbosityFull,
+};
 
 } // namespace lldb
 

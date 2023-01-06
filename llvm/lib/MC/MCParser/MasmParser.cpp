@@ -14,8 +14,6 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitVector.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
@@ -67,6 +65,7 @@
 #include <ctime>
 #include <deque>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <tuple>
@@ -74,8 +73,6 @@
 #include <vector>
 
 using namespace llvm;
-
-extern cl::opt<unsigned> AsmMacroMaxNestingDepth;
 
 namespace {
 
@@ -109,7 +106,7 @@ struct ParseStatementInfo {
   bool ParseError = false;
 
   /// The value associated with a macro exit.
-  Optional<std::string> ExitValue;
+  std::optional<std::string> ExitValue;
 
   SmallVectorImpl<AsmRewrite> *AsmRewrites = nullptr;
 
@@ -511,9 +508,11 @@ public:
     AssemblerDialect = i;
   }
 
-  void Note(SMLoc L, const Twine &Msg, SMRange Range = None) override;
-  bool Warning(SMLoc L, const Twine &Msg, SMRange Range = None) override;
-  bool printError(SMLoc L, const Twine &Msg, SMRange Range = None) override;
+  void Note(SMLoc L, const Twine &Msg, SMRange Range = std::nullopt) override;
+  bool Warning(SMLoc L, const Twine &Msg,
+               SMRange Range = std::nullopt) override;
+  bool printError(SMLoc L, const Twine &Msg,
+                  SMRange Range = std::nullopt) override;
 
   enum ExpandKind { ExpandMacros, DoNotExpandMacros };
   const AsmToken &Lex(ExpandKind ExpandNextToken);
@@ -620,7 +619,7 @@ private:
   bool expandStatement(SMLoc Loc);
 
   void printMessage(SMLoc Loc, SourceMgr::DiagKind Kind, const Twine &Msg,
-                    SMRange Range = None) const {
+                    SMRange Range = std::nullopt) const {
     ArrayRef<SMRange> Ranges(Range);
     SrcMgr.PrintMessage(Loc, Kind, Msg, Ranges);
   }
@@ -847,8 +846,8 @@ private:
 
   const MCExpr *evaluateBuiltinValue(BuiltinSymbol Symbol, SMLoc StartLoc);
 
-  llvm::Optional<std::string> evaluateBuiltinTextMacro(BuiltinSymbol Symbol,
-                                                       SMLoc StartLoc);
+  std::optional<std::string> evaluateBuiltinTextMacro(BuiltinSymbol Symbol,
+                                                      SMLoc StartLoc);
 
   // ".ascii", ".asciz", ".string"
   bool parseDirectiveAscii(StringRef IDVal, bool ZeroTerminated);
@@ -1082,6 +1081,8 @@ private:
 
 namespace llvm {
 
+extern cl::opt<unsigned> AsmMacroMaxNestingDepth;
+
 extern MCAsmParserExtension *createCOFFMasmParser();
 
 } // end namespace llvm
@@ -1198,7 +1199,7 @@ bool MasmParser::expandMacros() {
     return false;
   }
 
-  llvm::Optional<std::string> ExpandedValue;
+  std::optional<std::string> ExpandedValue;
   auto BuiltinIt = BuiltinSymbolMap.find(IDLower);
   if (BuiltinIt != BuiltinSymbolMap.end()) {
     ExpandedValue =
@@ -1322,10 +1323,9 @@ bool MasmParser::enabledGenDwarfForAssembly() {
     // Use the first #line directive for this, if any. It's preprocessed, so
     // there is no checksum, and of course no source directive.
     if (!FirstCppHashFilename.empty())
-      getContext().setMCLineTableRootFile(/*CUID=*/0,
-                                          getContext().getCompilationDir(),
-                                          FirstCppHashFilename,
-                                          /*Cksum=*/None, /*Source=*/None);
+      getContext().setMCLineTableRootFile(
+          /*CUID=*/0, getContext().getCompilationDir(), FirstCppHashFilename,
+          /*Cksum=*/std::nullopt, /*Source=*/std::nullopt);
     const MCDwarfFile &RootFile =
         getContext().getMCDwarfLineTable(/*CUID=*/0).getRootFile();
     getContext().setGenDwarfFileNumber(getStreamer().emitDwarfFileDirective(
@@ -2883,7 +2883,7 @@ bool MasmParser::expandMacro(raw_svector_ostream &OS, StringRef Body,
     Name.clear();
   }
 
-  Optional<char> CurrentQuote;
+  std::optional<char> CurrentQuote;
   while (!Body.empty()) {
     // Scan for the next substitution.
     std::size_t End = Body.size(), Pos = 0;
@@ -3615,7 +3615,7 @@ bool MasmParser::parseTextItem(std::string &Data) {
       // Try to resolve as a built-in text macro
       auto BuiltinIt = BuiltinSymbolMap.find(ID.lower());
       if (BuiltinIt != BuiltinSymbolMap.end()) {
-        llvm::Optional<std::string> BuiltinText =
+        std::optional<std::string> BuiltinText =
             evaluateBuiltinTextMacro(BuiltinIt->getValue(), StartLoc);
         if (!BuiltinText) {
           // Not a text macro; break without substituting
@@ -4214,7 +4214,7 @@ bool MasmParser::parseStructInitializer(const StructInfo &Structure,
                                         StructInitializer &Initializer) {
   const AsmToken FirstToken = getTok();
 
-  Optional<AsmToken::TokenKind> EndToken;
+  std::optional<AsmToken::TokenKind> EndToken;
   if (parseOptionalToken(AsmToken::LCurly)) {
     EndToken = AsmToken::RCurly;
   } else if (parseOptionalAngleBracketOpen()) {
@@ -4742,11 +4742,12 @@ bool MasmParser::emitAlignTo(int64_t Alignment) {
     const MCSection *Section = getStreamer().getCurrentSectionOnly();
     assert(Section && "must have section to emit alignment");
     if (Section->useCodeAlign()) {
-      getStreamer().emitCodeAlignment(Alignment, &getTargetParser().getSTI(),
+      getStreamer().emitCodeAlignment(Align(Alignment),
+                                      &getTargetParser().getSTI(),
                                       /*MaxBytesToEmit=*/0);
     } else {
       // FIXME: Target specific behavior about how the "extra" bytes are filled.
-      getStreamer().emitValueToAlignment(Alignment, /*Value=*/0,
+      getStreamer().emitValueToAlignment(Align(Alignment), /*Value=*/0,
                                          /*ValueSize=*/1,
                                          /*MaxBytesToEmit=*/0);
     }
@@ -4841,7 +4842,7 @@ bool MasmParser::parseDirectiveFile(SMLoc DirectiveLoc) {
   uint64_t MD5Hi, MD5Lo;
   bool HasMD5 = false;
 
-  Optional<StringRef> Source;
+  std::optional<StringRef> Source;
   bool HasSource = false;
   std::string SourceString;
 
@@ -4885,7 +4886,7 @@ bool MasmParser::parseDirectiveFile(SMLoc DirectiveLoc) {
       Ctx.setGenDwarfForAssembly(false);
     }
 
-    Optional<MD5::MD5Result> CKMem;
+    std::optional<MD5::MD5Result> CKMem;
     if (HasMD5) {
       MD5::MD5Result Sum;
       for (unsigned i = 0; i != 8; ++i) {
@@ -6118,11 +6119,12 @@ bool MasmParser::parseDirectiveComm(bool IsLocal) {
 
   // Create the Symbol as a common or local common with Size and Pow2Alignment.
   if (IsLocal) {
-    getStreamer().emitLocalCommonSymbol(Sym, Size, 1 << Pow2Alignment);
+    getStreamer().emitLocalCommonSymbol(Sym, Size,
+                                        Align(1ULL << Pow2Alignment));
     return false;
   }
 
-  getStreamer().emitCommonSymbol(Sym, Size, 1 << Pow2Alignment);
+  getStreamer().emitCommonSymbol(Sym, Size, Align(1ULL << Pow2Alignment));
   return false;
 }
 
@@ -6889,7 +6891,7 @@ bool MasmParser::expandStatement(SMLoc Loc) {
   StringMap<std::string> BuiltinValues;
   for (const auto &S : BuiltinSymbolMap) {
     const BuiltinSymbol &Sym = S.getValue();
-    if (llvm::Optional<std::string> Text = evaluateBuiltinTextMacro(Sym, Loc)) {
+    if (std::optional<std::string> Text = evaluateBuiltinTextMacro(Sym, Loc)) {
       BuiltinValues[S.getKey().lower()] = std::move(*Text);
     }
   }
@@ -6989,7 +6991,8 @@ bool MasmParser::parseDirectiveRepeat(SMLoc DirectiveLoc, StringRef Dir) {
   SmallString<256> Buf;
   raw_svector_ostream OS(Buf);
   while (Count--) {
-    if (expandMacro(OS, M->Body, None, None, M->Locals, getTok().getLoc()))
+    if (expandMacro(OS, M->Body, std::nullopt, std::nullopt, M->Locals,
+                    getTok().getLoc()))
       return true;
   }
   instantiateMacroLikeBody(M, DirectiveLoc, OS);
@@ -7022,7 +7025,8 @@ bool MasmParser::parseDirectiveWhile(SMLoc DirectiveLoc) {
   if (Condition) {
     // Instantiate the macro, then resume at this directive to recheck the
     // condition.
-    if (expandMacro(OS, M->Body, None, None, M->Locals, getTok().getLoc()))
+    if (expandMacro(OS, M->Body, std::nullopt, std::nullopt, M->Locals,
+                    getTok().getLoc()))
       return true;
     instantiateMacroLikeBody(M, DirectiveLoc, /*ExitLoc=*/DirectiveLoc, OS);
   }
@@ -7687,7 +7691,7 @@ const MCExpr *MasmParser::evaluateBuiltinValue(BuiltinSymbol Symbol,
   llvm_unreachable("unhandled built-in symbol");
 }
 
-llvm::Optional<std::string>
+std::optional<std::string>
 MasmParser::evaluateBuiltinTextMacro(BuiltinSymbol Symbol, SMLoc StartLoc) {
   switch (Symbol) {
   default:

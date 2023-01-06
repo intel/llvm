@@ -54,8 +54,8 @@ def SparsificationPass : Pass<"sparsification", "ModuleOp"> {
 
     // Multiply a sparse matrix A with a dense vector b into a dense vector x.
     func.func @kernel_matvec(%arga: tensor<?x?xf64, #SparseMatrix>,
-                        %argb: tensor<?xf64>,
-                        %argx: tensor<?xf64>) -> tensor<?xf64> {
+                             %argb: tensor<?xf64>,
+                             %argx: tensor<?xf64>) -> tensor<?xf64> {
       %0 = linalg.generic #matvec
         ins(%arga, %argb: tensor<?x?xf64, #SparseMatrix>, tensor<?xf64>)
         outs(%argx: tensor<?xf64>) {
@@ -142,17 +142,19 @@ def SparseTensorConversionPass : Pass<"sparse-tensor-conversion", "ModuleOp"> {
 
     ```mlir
       Before:
-        %c1 = arith.constant 1 : index
-        %0 = sparse_tensor.pointers %arg0, %c1
-          : tensor<8x8xf32, #sparse_tensor.encoding<{
-              dimLevelType = [ "dense", "compressed" ],
-              pointerBitWidth = 0,
-              indexBitWidth = 0
-            }>> to memref<?xindex>
+        func.func @foo(%arg0: tensor<8x8xf32, #CSR>) -> memref<?xindex> {
+          %0 = sparse_tensor.pointers %arg0 {dimension = 1 : index}
+             : tensor<8x8xf32, #CSR> to memref<?xindex>
+          return %0 : memref<?xindex>
+        }
 
       After:
-        %c1 = arith.constant 1 : index
-        %0 = call @sparsePointers(%arg0, %c1) : (!llvm.ptr<i8>, index) -> memref<?xindex>
+        func.func @foo(%arg0: !llvm.ptr<i8>) -> memref<?xindex> {
+          %c1 = arith.constant 1 : index
+          %0 = call @sparsePointers0(%arg0, %c1)
+             : (!llvm.ptr<i8>, index) -> memref<?xindex>
+          return %0 : memref<?xindex>
+        }
     ```
   }];
   let constructor = "mlir::createSparseTensorConversionPass()";
@@ -186,7 +188,21 @@ def SparseTensorCodegen : Pass<"sparse-tensor-codegen", "ModuleOp"> {
     Example of the conversion:
 
     ```mlir
-    TBD
+      Before:
+        func.func @foo(%arg0: tensor<8x8xf32, #CSR>) -> memref<?xindex> {
+          %0 = sparse_tensor.pointers %arg0 {dimension = 1 : index}
+             : tensor<8x8xf32, #CSR> to memref<?xindex>
+          return %0 : memref<?xindex>
+        }
+
+      After:
+        func.func @foo(%arg0: memref<2xindex>,
+                       %arg1: memref<3xindex>,
+                       %arg2: memref<?xindex>,
+                       %arg3: memref<?xindex>,
+                       %arg4: memref<?xf32>) -> memref<?xindex> {
+          return %arg2 : memref<?xindex>
+        }
     ```
   }];
   let constructor = "mlir::createSparseTensorCodegenPass()";
@@ -222,6 +238,66 @@ def SparseBufferRewrite : Pass<"sparse-buffer-rewrite", "ModuleOp"> {
   let options = [
     Option<"enableBufferInitialization", "enable-buffer-initialization", "bool",
            "false", "Enable zero-initialization of the memory buffers">,
+  ];
+}
+
+def SparseVectorization : Pass<"sparse-vectorization", "ModuleOp"> {
+  let summary = "Vectorizes loops after sparsification";
+  let description = [{
+    A pass that converts loops after sparsification into vector loops.
+    The vector dialect is used as target to provide an architectural
+    neutral way of exploiting any platform that supports SIMD instructions.
+
+    The vector length (viz. `vl`) describes the number of packed data elements
+    (e.g. both vector<16xf32> and vector<16xf64> have a vector length of 16 even
+    though the actual bitwidths differ). A small multiple of the actual lengths
+    supported in hardware typically results in efficient SIMD code, since the
+    backend will map longer vectors to multiple vector registers, thereby
+    effectively unrolling an addition level within the generated for-loop.
+
+    Example of the conversion:
+
+    ```mlir
+      Before:
+        %3 = memref.load %2[] : memref<f32>
+        %4 = scf.for %arg3 = %c0 to %c1024 step %c1 iter_args(%arg4 = %3) -> (f32) {
+          %6 = memref.load %0[%arg3] : memref<?xf32>
+          %7 = memref.load %1[%arg3] : memref<1024xf32>
+          %8 = arith.mulf %6, %7 : f32
+          %9 = arith.addf %arg4, %8 : f32
+          scf.yield %9 : f32
+        }
+        memref.store %4, %2[] : memref<f32>
+
+      After:
+        %3 = memref.load %2[] : memref<f32>
+        %4 = vector.insertelement %3, %cst[%c0 : index] : vector<32xf32>
+        %5 = scf.for %arg3 = %c0 to %c1024 step %c32 iter_args(%arg4 = %4) -> (vector<32xf32>) {
+          %8 = vector.load %0[%arg3] : memref<?xf32>, vector<32xf32>
+          %9 = vector.load %1[%arg3] : memref<1024xf32>, vector<32xf32>
+          %10 = arith.mulf %8, %9 : vector<32xf32>
+          %11 = arith.addf %arg4, %10 : vector<32xf32>
+          scf.yield %11 : vector<32xf32>
+        }
+        %6 = vector.reduction <add>, %5 : vector<32xf32> into f32
+        memref.store %6, %2[] : memref<f32>
+    ```
+  }];
+  let constructor = "mlir::createSparseVectorizationPass()";
+  let dependentDialects = [
+    "arith::ArithDialect",
+    "memref::MemRefDialect",
+    "scf::SCFDialect",
+    "sparse_tensor::SparseTensorDialect",
+    "vector::VectorDialect",
+  ];
+  let options = [
+    Option<"vectorLength", "vl", "int32_t", "0",
+           "Set the vector length (use 0 to disable vectorization)">,
+    Option<"enableVLAVectorization", "enable-vla-vectorization", "bool",
+           "false", "Enable vector length agnostic vectorization">,
+    Option<"enableSIMDIndex32", "enable-simd-index32", "bool", "false",
+           "Enable i32 indexing into vectors (for efficient gather/scatter)">,
   ];
 }
 

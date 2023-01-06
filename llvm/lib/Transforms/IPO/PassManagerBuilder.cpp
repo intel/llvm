@@ -15,8 +15,6 @@
 #include "llvm-c/Transforms/PassManagerBuilder.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/Analysis/CFLAndersAliasAnalysis.h"
-#include "llvm/Analysis/CFLSteensAliasAnalysis.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
@@ -43,11 +41,6 @@
 
 using namespace llvm;
 
-namespace llvm {
-cl::opt<bool> SYCLOptimizationMode("sycl-opt", cl::init(false), cl::Hidden,
-                                   cl::desc("Enable SYCL optimization mode."));
-} // namespace llvm
-
 PassManagerBuilder::PassManagerBuilder() {
     OptLevel = 2;
     SizeLevel = 0;
@@ -73,64 +66,6 @@ PassManagerBuilder::~PassManagerBuilder() {
   delete Inliner;
 }
 
-/// Set of global extensions, automatically added as part of the standard set.
-static ManagedStatic<
-    SmallVector<std::tuple<PassManagerBuilder::ExtensionPointTy,
-                           PassManagerBuilder::ExtensionFn,
-                           PassManagerBuilder::GlobalExtensionID>,
-                8>>
-    GlobalExtensions;
-static PassManagerBuilder::GlobalExtensionID GlobalExtensionsCounter;
-
-/// Check if GlobalExtensions is constructed and not empty.
-/// Since GlobalExtensions is a managed static, calling 'empty()' will trigger
-/// the construction of the object.
-static bool GlobalExtensionsNotEmpty() {
-  return GlobalExtensions.isConstructed() && !GlobalExtensions->empty();
-}
-
-PassManagerBuilder::GlobalExtensionID
-PassManagerBuilder::addGlobalExtension(PassManagerBuilder::ExtensionPointTy Ty,
-                                       PassManagerBuilder::ExtensionFn Fn) {
-  auto ExtensionID = GlobalExtensionsCounter++;
-  GlobalExtensions->push_back(std::make_tuple(Ty, std::move(Fn), ExtensionID));
-  return ExtensionID;
-}
-
-void PassManagerBuilder::removeGlobalExtension(
-    PassManagerBuilder::GlobalExtensionID ExtensionID) {
-  // RegisterStandardPasses may try to call this function after GlobalExtensions
-  // has already been destroyed; doing so should not generate an error.
-  if (!GlobalExtensions.isConstructed())
-    return;
-
-  auto GlobalExtension =
-      llvm::find_if(*GlobalExtensions, [ExtensionID](const auto &elem) {
-        return std::get<2>(elem) == ExtensionID;
-      });
-  assert(GlobalExtension != GlobalExtensions->end() &&
-         "The extension ID to be removed should always be valid.");
-
-  GlobalExtensions->erase(GlobalExtension);
-}
-
-void PassManagerBuilder::addExtension(ExtensionPointTy Ty, ExtensionFn Fn) {
-  Extensions.push_back(std::make_pair(Ty, std::move(Fn)));
-}
-
-void PassManagerBuilder::addExtensionsToPM(ExtensionPointTy ETy,
-                                           legacy::PassManagerBase &PM) const {
-  if (GlobalExtensionsNotEmpty()) {
-    for (auto &Ext : *GlobalExtensions) {
-      if (std::get<0>(Ext) == ETy)
-        std::get<1>(Ext)(*this, PM);
-    }
-  }
-  for (const auto &[PT, Fn] : Extensions)
-    if (PT == ETy)
-      Fn(*this, PM);
-}
-
 void PassManagerBuilder::addInitialAliasAnalysisPasses(
     legacy::PassManagerBase &PM) const {
   // Add TypeBasedAliasAnalysis before BasicAliasAnalysis so that
@@ -142,8 +77,6 @@ void PassManagerBuilder::addInitialAliasAnalysisPasses(
 
 void PassManagerBuilder::populateFunctionPassManager(
     legacy::FunctionPassManager &FPM) {
-  addExtensionsToPM(EP_EarlyAsPossible, FPM);
-
   // Add LibraryInfo if we have some.
   if (LibraryInfo)
     FPM.add(new TargetLibraryInfoWrapperPass(*LibraryInfo));
@@ -182,7 +115,6 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
   MPM.add(createInstructionCombiningPass());
   if (SizeLevel == 0)
     MPM.add(createLibCallsShrinkWrapPass());
-  addExtensionsToPM(EP_Peephole, MPM);
 
   // TODO: Investigate the cost/benefit of tail call elimination on debugging.
   if (OptLevel > 1)
@@ -190,15 +122,7 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
   MPM.add(
       createCFGSimplificationPass(SimplifyCFGOptions().convertSwitchRangeToICmp(
           true)));                            // Merge & remove BBs
-  // FIXME: re-association increases variables liveness and therefore register
-  // pressure.
-  if (!SYCLOptimizationMode)
-    MPM.add(createReassociatePass()); // Reassociate expressions
-
-// Do not run loop pass pipeline in "SYCL Optimization Mode". Loop
-// optimizations rely on TTI, which is not accurate for SPIR target.
-if (!SYCLOptimizationMode) { // broken formatting to simplify pulldown
-  // Begin the loop pass pipeline.
+  MPM.add(createReassociatePass());           // Reassociate expressions
 
   // The simple loop unswitch pass relies on separate cleanup passes. Schedule
   // them first so when we re-process a loop they run before other loop
@@ -229,16 +153,12 @@ if (!SYCLOptimizationMode) { // broken formatting to simplify pulldown
   // We resume loop passes creating a second loop pipeline here.
   MPM.add(createLoopIdiomPass());             // Recognize idioms like memset.
   MPM.add(createIndVarSimplifyPass());        // Canonicalize indvars
-  addExtensionsToPM(EP_LateLoopOptimizations, MPM);
   MPM.add(createLoopDeletionPass());          // Delete dead loops
 
   // Unroll small loops and perform peeling.
   MPM.add(createSimpleLoopUnrollPass(OptLevel, DisableUnrollLoops,
                                      ForgetAllSCEVInLoopUnroll));
-  addExtensionsToPM(EP_LoopOptimizerEnd, MPM);
   // This ends the loop pass pipelines.
-
-} // broken formatting on this line to simplify pulldown
 
   // Break up allocas that may now be splittable after loop unrolling.
   MPM.add(createSROAPass());
@@ -257,7 +177,6 @@ if (!SYCLOptimizationMode) { // broken formatting to simplify pulldown
   // Run instcombine after redundancy elimination to exploit opportunities
   // opened up by them.
   MPM.add(createInstructionCombiningPass());
-  addExtensionsToPM(EP_Peephole, MPM);
   if (OptLevel > 1) {
     MPM.add(createJumpThreadingPass());         // Thread jumps
     MPM.add(createCorrelatedValuePropagationPass());
@@ -272,18 +191,12 @@ if (!SYCLOptimizationMode) { // broken formatting to simplify pulldown
                            /*AllowSpeculation=*/true));
   }
 
-  addExtensionsToPM(EP_ScalarOptimizerLate, MPM);
-
   // Merge & remove BBs and sink & hoist common instructions.
-  if (SYCLOptimizationMode)
-    MPM.add(createCFGSimplificationPass());
-  else
-    MPM.add(createCFGSimplificationPass(
-        SimplifyCFGOptions().hoistCommonInsts(true).sinkCommonInsts(true)));
+  MPM.add(createCFGSimplificationPass(
+      SimplifyCFGOptions().hoistCommonInsts(true).sinkCommonInsts(true)));
 
   // Clean up after everything.
   MPM.add(createInstructionCombiningPass());
-  addExtensionsToPM(EP_Peephole, MPM);
 }
 
 /// FIXME: Should LTO cause any differences to this set of passes?
@@ -344,7 +257,6 @@ void PassManagerBuilder::addVectorPasses(legacy::PassManagerBase &PM,
   PM.add(createVectorCombinePass());
 
   if (!IsFullLTO) {
-    addExtensionsToPM(EP_Peephole, PM);
     PM.add(createInstructionCombiningPass());
 
     // Unroll small loops
@@ -396,12 +308,6 @@ void PassManagerBuilder::populateModulePassManager(
     // builds. The function merging pass is
     if (MergeFunctions)
       MPM.add(createMergeFunctionsPass());
-    else if (GlobalExtensionsNotEmpty() || !Extensions.empty())
-      MPM.add(createBarrierNoopPass());
-
-    addExtensionsToPM(EP_EnabledOnOptLevel0, MPM);
-
-    MPM.add(createAnnotationRemarksLegacyPass());
     return;
   }
 
@@ -413,8 +319,6 @@ void PassManagerBuilder::populateModulePassManager(
 
   // Infer attributes about declarations if possible.
   MPM.add(createInferFunctionAttrsLegacyPass());
-
-  addExtensionsToPM(EP_ModuleOptimizerEarly, MPM);
 
   if (OptLevel > 2)
     MPM.add(createCallSiteSplittingPass());
@@ -429,7 +333,6 @@ void PassManagerBuilder::populateModulePassManager(
   MPM.add(createDeadArgEliminationPass()); // Dead argument elimination
 
   MPM.add(createInstructionCombiningPass()); // Clean up after IPCP & DAE
-  addExtensionsToPM(EP_Peephole, MPM);
   MPM.add(
       createCFGSimplificationPass(SimplifyCFGOptions().convertSwitchRangeToICmp(
           true))); // Clean up after IPCP & DAE
@@ -447,14 +350,8 @@ void PassManagerBuilder::populateModulePassManager(
     RunInliner = true;
   }
 
-  // Try to perform OpenMP specific optimizations. This is a (quick!) no-op if
-  // there are no OpenMP runtime calls present in the module.
-  if (OptLevel > 1)
-    MPM.add(createOpenMPOptCGSCCLegacyPass());
-
   MPM.add(createPostOrderFunctionAttrsLegacyPass());
 
-  addExtensionsToPM(EP_CGSCCOptimizerLate, MPM);
   addFunctionSimplificationPasses(MPM);
 
   // FIXME: This is a HACK! The inliner pass above implicitly creates a CGSCC
@@ -507,22 +404,18 @@ void PassManagerBuilder::populateModulePassManager(
   MPM.add(createFloat2IntPass());
   MPM.add(createLowerConstantIntrinsicsPass());
 
-  addExtensionsToPM(EP_VectorizerStart, MPM);
-  
-  if (!SYCLOptimizationMode) {
-    // Re-rotate loops in all our loop nests. These may have fallout out of
-    // rotated form due to GVN or other transformations, and the vectorizer relies
-    // on the rotated form. Disable header duplication at -Oz.
-    MPM.add(createLoopRotatePass(SizeLevel == 2 ? 0 : -1, false));
+  // Re-rotate loops in all our loop nests. These may have fallout out of
+  // rotated form due to GVN or other transformations, and the vectorizer relies
+  // on the rotated form. Disable header duplication at -Oz.
+  MPM.add(createLoopRotatePass(SizeLevel == 2 ? 0 : -1, false));
 
-    // Distribute loops to allow partial vectorization.  I.e. isolate dependences
-    // into separate loop that would otherwise inhibit vectorization.  This is
-    // currently only performed for loops marked with the metadata
-    // llvm.loop.distribute=true or when -enable-loop-distribute is specified.
-    MPM.add(createLoopDistributePass());
+  // Distribute loops to allow partial vectorization.  I.e. isolate dependences
+  // into separate loop that would otherwise inhibit vectorization.  This is
+  // currently only performed for loops marked with the metadata
+  // llvm.loop.distribute=true or when -enable-loop-distribute is specified.
+  MPM.add(createLoopDistributePass());
 
-    addVectorPasses(MPM, /* IsFullLTO */ false);
-  }
+  addVectorPasses(MPM, /* IsFullLTO */ false);
 
   // FIXME: We shouldn't bother with this anymore.
   MPM.add(createStripDeadPrototypesPass()); // Get rid of dead prototypes
@@ -554,10 +447,6 @@ void PassManagerBuilder::populateModulePassManager(
   // resulted in single-entry-single-exit or empty blocks. Clean up the CFG.
   MPM.add(createCFGSimplificationPass(
       SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
-
-  addExtensionsToPM(EP_OptimizerLast, MPM);
-
-  MPM.add(createAnnotationRemarksLegacyPass());
 }
 
 LLVMPassManagerBuilderRef LLVMPassManagerBuilderCreate() {

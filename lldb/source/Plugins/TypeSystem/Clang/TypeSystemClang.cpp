@@ -1802,6 +1802,17 @@ bool TypeSystemClang::RecordHasFields(const RecordDecl *record_decl) {
         return true;
     }
   }
+
+  // We always want forcefully completed types to show up so we can print a
+  // message in the summary that indicates that the type is incomplete.
+  // This will help users know when they are running into issues with
+  // -flimit-debug-info instead of just seeing nothing if this is a base class
+  // (since we were hiding empty base classes), or nothing when you turn open
+  // an valiable whose type was incomplete.
+  ClangASTMetadata *meta_data = GetMetadata(record_decl);
+  if (meta_data && meta_data->IsForcefullyCompleted())
+    return true;
+
   return false;
 }
 
@@ -1829,7 +1840,7 @@ CompilerType TypeSystemClang::CreateObjCClass(
   return GetType(ast.getObjCInterfaceType(decl));
 }
 
-static inline bool BaseSpecifierIsEmpty(const CXXBaseSpecifier *b) {
+bool TypeSystemClang::BaseSpecifierIsEmpty(const CXXBaseSpecifier *b) {
   return !TypeSystemClang::RecordHasFields(b->getType()->getAsCXXRecordDecl());
 }
 
@@ -1875,9 +1886,9 @@ NamespaceDecl *TypeSystemClang::GetUniqueNamespaceDeclaration(
         return namespace_decl;
     }
 
-    namespace_decl =
-        NamespaceDecl::Create(ast, decl_ctx, is_inline, SourceLocation(),
-                              SourceLocation(), &identifier_info, nullptr);
+    namespace_decl = NamespaceDecl::Create(ast, decl_ctx, is_inline,
+                                           SourceLocation(), SourceLocation(),
+                                           &identifier_info, nullptr, false);
 
     decl_ctx->addDecl(namespace_decl);
   } else {
@@ -1888,7 +1899,7 @@ NamespaceDecl *TypeSystemClang::GetUniqueNamespaceDeclaration(
 
       namespace_decl =
           NamespaceDecl::Create(ast, decl_ctx, false, SourceLocation(),
-                                SourceLocation(), nullptr, nullptr);
+                                SourceLocation(), nullptr, nullptr, false);
       translation_unit_decl->setAnonymousNamespace(namespace_decl);
       translation_unit_decl->addDecl(namespace_decl);
       assert(namespace_decl == translation_unit_decl->getAnonymousNamespace());
@@ -1900,7 +1911,7 @@ NamespaceDecl *TypeSystemClang::GetUniqueNamespaceDeclaration(
           return namespace_decl;
         namespace_decl =
             NamespaceDecl::Create(ast, decl_ctx, false, SourceLocation(),
-                                  SourceLocation(), nullptr, nullptr);
+                                  SourceLocation(), nullptr, nullptr, false);
         parent_namespace_decl->setAnonymousNamespace(namespace_decl);
         parent_namespace_decl->addDecl(namespace_decl);
         assert(namespace_decl ==
@@ -3705,15 +3716,15 @@ bool TypeSystemClang::SupportsLanguage(lldb::LanguageType language) {
 Optional<std::string>
 TypeSystemClang::GetCXXClassName(const CompilerType &type) {
   if (!type)
-    return llvm::None;
+    return std::nullopt;
 
   clang::QualType qual_type(ClangUtil::GetCanonicalQualType(type));
   if (qual_type.isNull())
-    return llvm::None;
+    return std::nullopt;
 
   clang::CXXRecordDecl *cxx_record_decl = qual_type->getAsCXXRecordDecl();
   if (!cxx_record_decl)
-    return llvm::None;
+    return std::nullopt;
 
   return std::string(cxx_record_decl->getIdentifier()->getNameStart());
 }
@@ -4708,7 +4719,7 @@ TypeSystemClang::GetBitSize(lldb::opaque_compiler_type_t type,
       if (GetCompleteType(type))
         return getASTContext().getTypeSize(qual_type);
       else
-        return None;
+        return std::nullopt;
       break;
 
     case clang::Type::ObjCInterface:
@@ -4758,7 +4769,7 @@ TypeSystemClang::GetBitSize(lldb::opaque_compiler_type_t type,
         return bit_size;
     }
   }
-  return None;
+  return std::nullopt;
 }
 
 llvm::Optional<size_t>
@@ -5334,7 +5345,7 @@ GetDynamicArrayInfo(TypeSystemClang &ast, SymbolFile *sym_file,
     if (auto *metadata = ast.GetMetadata(qual_type.getTypePtr()))
       return sym_file->GetDynamicArrayInfoForUID(metadata->GetUserID(),
                                                  exe_ctx);
-  return llvm::None;
+  return std::nullopt;
 }
 
 uint32_t TypeSystemClang::GetNumChildren(lldb::opaque_compiler_type_t type,
@@ -6608,9 +6619,10 @@ CompilerType TypeSystemClang::GetChildCompilerTypeAtIndex(
   return CompilerType();
 }
 
-static uint32_t GetIndexForRecordBase(const clang::RecordDecl *record_decl,
-                                      const clang::CXXBaseSpecifier *base_spec,
-                                      bool omit_empty_base_classes) {
+uint32_t TypeSystemClang::GetIndexForRecordBase(
+    const clang::RecordDecl *record_decl,
+    const clang::CXXBaseSpecifier *base_spec,
+    bool omit_empty_base_classes) {
   uint32_t child_idx = 0;
 
   const clang::CXXRecordDecl *cxx_record_decl =
@@ -6635,9 +6647,9 @@ static uint32_t GetIndexForRecordBase(const clang::RecordDecl *record_decl,
   return UINT32_MAX;
 }
 
-static uint32_t GetIndexForRecordChild(const clang::RecordDecl *record_decl,
-                                       clang::NamedDecl *canonical_decl,
-                                       bool omit_empty_base_classes) {
+uint32_t TypeSystemClang::GetIndexForRecordChild(
+    const clang::RecordDecl *record_decl, clang::NamedDecl *canonical_decl,
+    bool omit_empty_base_classes) {
   uint32_t child_idx = TypeSystemClang::GetNumBaseClasses(
       llvm::dyn_cast<clang::CXXRecordDecl>(record_decl),
       omit_empty_base_classes);
@@ -7278,11 +7290,11 @@ TypeSystemClang::GetIntegralTemplateArgument(lldb::opaque_compiler_type_t type,
   const clang::ClassTemplateSpecializationDecl *template_decl =
       GetAsTemplateSpecialization(type);
   if (!template_decl)
-    return llvm::None;
+    return std::nullopt;
 
   const auto *arg = GetNthTemplateArgument(template_decl, idx, expand_pack);
   if (!arg || arg->getKind() != clang::TemplateArgument::Integral)
-    return llvm::None;
+    return std::nullopt;
 
   return {{arg->getAsIntegral(), GetType(arg->getIntegralType())}};
 }
@@ -9847,7 +9859,7 @@ void TypeSystemClang::RequireCompleteType(CompilerType type) {
   const clang::TagDecl *td = ClangUtil::GetAsTagDecl(type);
   auto ts = type.GetTypeSystem().dyn_cast_or_null<TypeSystemClang>();
   if (ts)
-    ts->GetMetadata(td)->SetIsForcefullyCompleted();
+    ts->SetDeclIsForcefullyCompleted(td);
 }
 
 namespace {
@@ -9878,7 +9890,7 @@ public:
 } // namespace
 
 char ScratchTypeSystemClang::ID;
-const llvm::NoneType ScratchTypeSystemClang::DefaultAST = llvm::None;
+const std::nullopt_t ScratchTypeSystemClang::DefaultAST = std::nullopt;
 
 ScratchTypeSystemClang::ScratchTypeSystemClang(Target &target,
                                                llvm::Triple triple)
@@ -10033,4 +10045,31 @@ TypeSystemClang &ScratchTypeSystemClang::GetIsolatedAST(
                                               m_triple, CreateASTSource());
   m_isolated_asts.insert({feature, new_ast_sp});
   return *new_ast_sp;
+}
+
+bool TypeSystemClang::IsForcefullyCompleted(lldb::opaque_compiler_type_t type) {
+  if (type) {
+    clang::QualType qual_type(GetQualType(type));
+    const clang::RecordType *record_type =
+        llvm::dyn_cast<clang::RecordType>(qual_type.getTypePtr());
+    if (record_type) {
+      const clang::RecordDecl *record_decl = record_type->getDecl();
+      assert(record_decl);
+      ClangASTMetadata *metadata = GetMetadata(record_decl);
+      if (metadata)
+        return metadata->IsForcefullyCompleted();
+    }
+  }
+  return false;
+}
+
+bool TypeSystemClang::SetDeclIsForcefullyCompleted(const clang::TagDecl *td) {
+  if (td == nullptr)
+    return false;
+  ClangASTMetadata *metadata = GetMetadata(td);
+  if (metadata == nullptr)
+    return false;
+  m_has_forcefully_completed_types = true;
+  metadata->SetIsForcefullyCompleted();
+  return true;
 }

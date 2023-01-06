@@ -16,8 +16,6 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -78,6 +76,7 @@
 #include <iterator>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -96,7 +95,9 @@ static cl::opt<bool> WriteRelBFToSummary(
     "write-relbf-to-summary", cl::Hidden, cl::init(false),
     cl::desc("Write relative block frequency to function summary "));
 
+namespace llvm {
 extern FunctionSummary::ForceSummaryHotnessType ForceSummaryEdgesCold;
+}
 
 namespace {
 
@@ -523,10 +524,10 @@ private:
   void writeModStrings();
   void writeCombinedGlobalValueSummary();
 
-  Optional<unsigned> getValueId(GlobalValue::GUID ValGUID) {
+  std::optional<unsigned> getValueId(GlobalValue::GUID ValGUID) {
     auto VMI = GUIDToValueIdMap.find(ValGUID);
     if (VMI == GUIDToValueIdMap.end())
-      return None;
+      return std::nullopt;
     return VMI->second;
   }
 
@@ -1806,7 +1807,7 @@ void ModuleBitcodeWriter::writeDIFile(const DIFile *N,
   }
   auto Source = N->getRawSource();
   if (Source)
-    Record.push_back(VE.getMetadataOrNullID(*Source));
+    Record.push_back(VE.getMetadataOrNullID(Source));
 
   Stream.EmitRecord(bitc::METADATA_FILE, Record, Abbrev);
   Record.clear();
@@ -2655,7 +2656,7 @@ void ModuleBitcodeWriter::writeConstants(unsigned FirstVal, unsigned LastVal,
         Code = bitc::CST_CODE_CE_GEP;
         const auto *GO = cast<GEPOperator>(C);
         Record.push_back(VE.getTypeID(GO->getSourceElementType()));
-        if (Optional<unsigned> Idx = GO->getInRangeIndex()) {
+        if (std::optional<unsigned> Idx = GO->getInRangeIndex()) {
           Code = bitc::CST_CODE_CE_GEP_WITH_INRANGE_INDEX;
           Record.push_back((*Idx << 1) | GO->isInBounds());
         } else if (GO->isInBounds())
@@ -3809,7 +3810,7 @@ static void writeFunctionTypeMetadataRecords(BitstreamWriter &Stream,
       Record.push_back(Arg.Calls.size());
       for (auto &Call : Arg.Calls) {
         Record.push_back(Call.ParamNo);
-        Optional<unsigned> ValueID = GetValueID(Call.Callee);
+        std::optional<unsigned> ValueID = GetValueID(Call.Callee);
         if (!ValueID) {
           // If ValueID is unknown we can't drop just this call, we must drop
           // entire parameter.
@@ -3973,7 +3974,7 @@ void ModuleBitcodeWriterBase::writePerModuleFunctionSummaryRecord(
   FunctionSummary *FS = cast<FunctionSummary>(Summary);
 
   writeFunctionTypeMetadataRecords(
-      Stream, FS, [&](const ValueInfo &VI) -> Optional<unsigned> {
+      Stream, FS, [&](const ValueInfo &VI) -> std::optional<unsigned> {
         return {VE.getValueID(VI.getValue())};
       });
 
@@ -4427,9 +4428,9 @@ void IndexBitcodeWriter::writeCombinedGlobalValueSummary() {
       return;
     }
 
-    auto GetValueId = [&](const ValueInfo &VI) -> Optional<unsigned> {
+    auto GetValueId = [&](const ValueInfo &VI) -> std::optional<unsigned> {
       if (!VI)
-        return None;
+        return std::nullopt;
       return getValueId(VI.getGUID());
     };
 
@@ -4441,7 +4442,7 @@ void IndexBitcodeWriter::writeCombinedGlobalValueSummary() {
         Stream, FS, CallsiteAbbrev, AllocAbbrev,
         /*PerModule*/ false,
         /*GetValueId*/ [&](const ValueInfo &VI) -> unsigned {
-          Optional<unsigned> ValueID = GetValueId(VI);
+          std::optional<unsigned> ValueID = GetValueId(VI);
           // This can happen in shared index files for distributed ThinLTO if
           // the callee function summary is not included. Record 0 which we
           // will have to deal with conservatively when doing any kind of
@@ -4497,7 +4498,7 @@ void IndexBitcodeWriter::writeCombinedGlobalValueSummary() {
     for (auto &EI : FS->calls()) {
       // If this GUID doesn't have a value id, it doesn't have a function
       // summary and we don't need to record any calls to it.
-      Optional<unsigned> CallValueId = GetValueId(EI.first);
+      std::optional<unsigned> CallValueId = GetValueId(EI.first);
       if (!CallValueId)
         continue;
       NameVals.push_back(*CallValueId);

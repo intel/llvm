@@ -1815,7 +1815,8 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
       Ty = VecTy->getElementType();
     }
     if ((!Ty->isFloatTy() && !Ty->isDoubleTy() && !Ty->isHalfTy()) ||
-        ((NumElems > 4) && (NumElems != 8) && (NumElems != 16))) {
+        (!BM->hasCapability(CapabilityVectorAnyINTEL) &&
+         ((NumElems > 4) && (NumElems != 8) && (NumElems != 16)))) {
       BM->SPIRVCK(
           false, InvalidFunctionCall, II->getCalledOperand()->getName().str());
       return false;
@@ -1830,7 +1831,8 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
       Ty = VecTy->getElementType();
     }
     if ((!Ty->isIntegerTy()) ||
-        ((NumElems > 4) && (NumElems != 8) && (NumElems != 16))) {
+        (!BM->hasCapability(CapabilityVectorAnyINTEL) &&
+         ((NumElems > 4) && (NumElems != 8) && (NumElems != 16)))) {
       BM->SPIRVCK(
           false, InvalidFunctionCall, II->getCalledOperand()->getName().str());
     }
@@ -1931,9 +1933,7 @@ bool lowerBuiltinVariableToCall(GlobalVariable *GV,
     Func->setCallingConv(CallingConv::SPIR_FUNC);
     Func->addFnAttr(Attribute::NoUnwind);
     Func->addFnAttr(Attribute::WillReturn);
-    for (llvm::Argument &Arg : Func->args())
-      if (Arg.getType()->isPointerTy())
-        Arg.addAttr(Attribute::ReadNone);
+    Func->setDoesNotAccessMemory();
   }
 
   // Collect instructions in these containers to remove them later.
@@ -2020,6 +2020,12 @@ bool lowerBuiltinVariableToCall(GlobalVariable *GV,
         } else {
           llvm_unreachable("Unexpected pattern!");
         }
+      }
+    } else if (auto *GEP = dyn_cast<GetElementPtrInst>(UI)) {
+      GEPs.push_back(GEP);
+      for (auto *GEPUser : GEP->users()) {
+        if (!ReplaceIfLoad(GEPUser))
+          llvm_unreachable("Unexpected pattern!");
       }
     } else if (!ReplaceIfLoad(UI)) {
       llvm_unreachable("Unexpected pattern!");
@@ -2399,8 +2405,5 @@ MetadataAsValue *map2MDString(LLVMContext &C, SPIRVValue *V) {
   std::string Str = SPIRVMap<T, std::string>::map(static_cast<T>(Const));
   return MetadataAsValue::get(C, MDString::get(C, Str));
 }
-template MetadataAsValue *
-map2MDString<internal::InternalJointMatrixLayout>(LLVMContext &, SPIRVValue *);
-template MetadataAsValue *map2MDString<spv::Scope>(LLVMContext &, SPIRVValue *);
 
 } // namespace SPIRV

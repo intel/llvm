@@ -1591,22 +1591,25 @@ TEST(TargetParserTest, testAArch64Extension) {
 
 TEST(TargetParserTest, AArch64ExtensionFeatures) {
   std::vector<uint64_t> Extensions = {
-      AArch64::AEK_CRC,     AArch64::AEK_LSE,      AArch64::AEK_RDM,
-      AArch64::AEK_CRYPTO,  AArch64::AEK_SM4,      AArch64::AEK_SHA3,
-      AArch64::AEK_SHA2,    AArch64::AEK_AES,      AArch64::AEK_DOTPROD,
-      AArch64::AEK_FP,      AArch64::AEK_SIMD,     AArch64::AEK_FP16,
-      AArch64::AEK_FP16FML, AArch64::AEK_PROFILE,  AArch64::AEK_RAS,
-      AArch64::AEK_SVE,     AArch64::AEK_SVE2,     AArch64::AEK_SVE2AES,
-      AArch64::AEK_SVE2SM4, AArch64::AEK_SVE2SHA3, AArch64::AEK_SVE2BITPERM,
-      AArch64::AEK_RCPC,    AArch64::AEK_RAND,     AArch64::AEK_MTE,
-      AArch64::AEK_SSBS,    AArch64::AEK_SB,       AArch64::AEK_PREDRES,
-      AArch64::AEK_BF16,    AArch64::AEK_I8MM,     AArch64::AEK_F32MM,
-      AArch64::AEK_F64MM,   AArch64::AEK_TME,      AArch64::AEK_LS64,
-      AArch64::AEK_BRBE,    AArch64::AEK_PAUTH,    AArch64::AEK_FLAGM,
+      AArch64::AEK_CRC,     AArch64::AEK_LSE,       AArch64::AEK_RDM,
+      AArch64::AEK_CRYPTO,  AArch64::AEK_SM4,       AArch64::AEK_SHA3,
+      AArch64::AEK_SHA2,    AArch64::AEK_AES,       AArch64::AEK_DOTPROD,
+      AArch64::AEK_FP,      AArch64::AEK_SIMD,      AArch64::AEK_FP16,
+      AArch64::AEK_FP16FML, AArch64::AEK_PROFILE,   AArch64::AEK_RAS,
+      AArch64::AEK_SVE,     AArch64::AEK_SVE2,      AArch64::AEK_SVE2AES,
+      AArch64::AEK_SVE2SM4, AArch64::AEK_SVE2SHA3,  AArch64::AEK_SVE2BITPERM,
+      AArch64::AEK_RCPC,    AArch64::AEK_RAND,      AArch64::AEK_MTE,
+      AArch64::AEK_SSBS,    AArch64::AEK_SB,        AArch64::AEK_PREDRES,
+      AArch64::AEK_BF16,    AArch64::AEK_I8MM,      AArch64::AEK_F32MM,
+      AArch64::AEK_F64MM,   AArch64::AEK_TME,       AArch64::AEK_LS64,
+      AArch64::AEK_BRBE,    AArch64::AEK_PAUTH,     AArch64::AEK_FLAGM,
       AArch64::AEK_SME,     AArch64::AEK_SMEF64F64, AArch64::AEK_SMEI16I64,
-      AArch64::AEK_SME2,    AArch64::AEK_HBC,      AArch64::AEK_MOPS,
-      AArch64::AEK_PERFMON, AArch64::AEK_SVE2p1,   AArch64::AEK_SME2p1,
-      AArch64::AEK_B16B16,  AArch64::AEK_SMEF16F16};
+      AArch64::AEK_SME2,    AArch64::AEK_HBC,       AArch64::AEK_MOPS,
+      AArch64::AEK_PERFMON, AArch64::AEK_SVE2p1,    AArch64::AEK_SME2p1,
+      AArch64::AEK_B16B16,  AArch64::AEK_SMEF16F16, AArch64::AEK_CSSC,
+      AArch64::AEK_RCPC3,   AArch64::AEK_THE,       AArch64::AEK_D128,
+      AArch64::AEK_LSE128,  AArch64::AEK_SPECRES2,
+  };
 
   std::vector<StringRef> Features;
 
@@ -1671,6 +1674,12 @@ TEST(TargetParserTest, AArch64ExtensionFeatures) {
   EXPECT_TRUE(llvm::is_contained(Features, "+hbc"));
   EXPECT_TRUE(llvm::is_contained(Features, "+mops"));
   EXPECT_TRUE(llvm::is_contained(Features, "+perfmon"));
+  EXPECT_TRUE(llvm::is_contained(Features, "+cssc"));
+  EXPECT_TRUE(llvm::is_contained(Features, "+rcpc3"));
+  EXPECT_TRUE(llvm::is_contained(Features, "+the"));
+  EXPECT_TRUE(llvm::is_contained(Features, "+d128"));
+  EXPECT_TRUE(llvm::is_contained(Features, "+lse128"));
+  EXPECT_TRUE(llvm::is_contained(Features, "+specres2"));
 
   // Assuming we listed every extension above, this should produce the same
   // result. (note that AEK_NONE doesn't have a name so it won't be in the
@@ -1681,14 +1690,23 @@ TEST(TargetParserTest, AArch64ExtensionFeatures) {
 }
 
 TEST(TargetParserTest, AArch64ArchFeatures) {
-  std::vector<StringRef> Features;
-
-  for (auto AK : AArch64::ArchKinds) {
-    if (AK == AArch64::ArchKind::INVALID)
-      EXPECT_FALSE(AArch64::getArchFeatures(AK, Features));
-    else
-      EXPECT_TRUE(AArch64::getArchFeatures(AK, Features));
-  }
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::INVALID), "+");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV8A), "+v8a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV8_1A), "+v8.1a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV8_2A), "+v8.2a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV8_3A), "+v8.3a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV8_4A), "+v8.4a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV8_5A), "+v8.5a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV8_6A), "+v8.6a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV8_7A), "+v8.7a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV8_8A), "+v8.8a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV8_9A), "+v8.9a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV9A), "+v9a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV9_1A), "+v9.1a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV9_2A), "+v9.2a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV9_3A), "+v9.3a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV9_4A), "+v9.4a");
+  EXPECT_EQ(AArch64::getArchFeature(AArch64::ArchKind::ARMV8R), "+v8r");
 }
 
 TEST(TargetParserTest, AArch64ArchV9toV8Conversion) {
@@ -1754,6 +1772,7 @@ TEST(TargetParserTest, AArch64ArchExtFeature) {
       {"hbc", "nohbc", "+hbc", "-hbc"},
       {"mops", "nomops", "+mops", "-mops"},
       {"pmuv3", "nopmuv3", "+perfmon", "-perfmon"},
+      {"predres2", "nopredres2", "+specres2", "-specres2"},
   };
 
   for (unsigned i = 0; i < std::size(ArchExt); i++) {

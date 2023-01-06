@@ -139,7 +139,7 @@ protected:
   Tool *buildLinker() const override;
   Tool *buildAssembler() const override;
 private:
-  llvm::Optional<llvm::StringRef> WinSdkDir, WinSdkVersion, WinSysRoot;
+  std::optional<llvm::StringRef> WinSdkDir, WinSdkVersion, WinSysRoot;
   std::string VCToolChainPath;
   llvm::ToolsetLayout VSLayout = llvm::ToolsetLayout::OlderVS;
   CudaInstallationDetector CudaInstallation;

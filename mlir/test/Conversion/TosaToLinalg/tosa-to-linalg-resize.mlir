@@ -4,10 +4,10 @@
 // CHECK: #map1 = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
 // CHECK-LABEL: @broadcast_resize_nearest_fp
 func.func @broadcast_resize_nearest_fp(%arg0 : tensor<3x1x1x7xf32>) -> tensor<3x15x13x7xf32> {
-  // CHECK: %[[COLLAPSE:.+]] = tensor.collapse_shape %arg0 
+  // CHECK: %[[COLLAPSE:.+]] = tensor.collapse_shape %arg0
   // CHECK-SAME{literal}: [[0], [1, 2, 3]]
   // CHECK: %[[EMPTY:.+]] = tensor.empty() : tensor<3x15x13x7xf32>
-  // CHECK: %[[GENERIC:.+]] = linalg.generic 
+  // CHECK: %[[GENERIC:.+]] = linalg.generic
   // CHECK-SAME: indexing_maps = [#map, #map1]
   // CHECK-SAME: iterator_types = ["parallel", "parallel", "parallel", "parallel"]}
   // CHECK-SAME: ins(%[[COLLAPSE]] : tensor<3x7xf32>)
@@ -29,7 +29,7 @@ func.func @broadcast_resize_bilinear_fp(%arg0 : tensor<3x1x1x7xf32>) -> tensor<3
   // CHECK: %[[COLLAPSE:.+]] = tensor.collapse_shape %arg0
   // CHECK-SAME{literal}: [[0], [1, 2, 3]]
   // CHECK: %[[EMPTY:.+]] = tensor.empty() : tensor<3x15x13x7xf32>
-  // CHECK: %[[GENERIC:.+]] = linalg.generic 
+  // CHECK: %[[GENERIC:.+]] = linalg.generic
   // CHECK-SAME: indexing_maps = [#map, #map1]
   // CHECK-SAME: iterator_types = ["parallel", "parallel", "parallel", "parallel"]}
   // CHECK-SAME: ins(%[[COLLAPSE]] : tensor<3x7xf32>)
@@ -51,7 +51,7 @@ func.func @broadcast_resize_nearest_i8(%arg0 : tensor<3x1x1x7xi8>) -> tensor<3x1
   // CHECK: %[[COLLAPSE:.+]] = tensor.collapse_shape %arg0
   // CHECK-SAME{literal}: [[0], [1, 2, 3]]
   // CHECK: %[[EMPTY:.+]] = tensor.empty() : tensor<3x15x13x7xi8>
-  // CHECK: %[[GENERIC:.+]] = linalg.generic 
+  // CHECK: %[[GENERIC:.+]] = linalg.generic
   // CHECK-SAME: indexing_maps = [#map, #map1]
   // CHECK-SAME: iterator_types = ["parallel", "parallel", "parallel", "parallel"]}
   // CHECK-SAME: ins(%[[COLLAPSE]] : tensor<3x7xi8>)
@@ -70,16 +70,16 @@ func.func @broadcast_resize_nearest_i8(%arg0 : tensor<3x1x1x7xi8>) -> tensor<3x1
 // CHECK: #map1 = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
 // CHECK-LABEL: @broadcast_resize_nearest_i32
 func.func @broadcast_resize_nearest_i32(%arg0 : tensor<3x1x1x7xi8>) -> tensor<3x15x13x7xi32> {
-  // CHECK: %[[COLLAPSE:.+]] = tensor.collapse_shape %arg0 
+  // CHECK: %[[COLLAPSE:.+]] = tensor.collapse_shape %arg0
   // CHECK-SAME{literal}: [[0], [1, 2, 3]]
   // CHECK: %[[EMPTY:.+]] = tensor.empty() : tensor<3x15x13x7xi32>
-  // CHECK: %[[GENERIC:.+]] = linalg.generic 
+  // CHECK: %[[GENERIC:.+]] = linalg.generic
   // CHECK-SAME: indexing_maps = [#map, #map1]
   // CHECK-SAME: iterator_types = ["parallel", "parallel", "parallel", "parallel"]}
   // CHECK-SAME: ins(%[[COLLAPSE]] : tensor<3x7xi8>)
   // CHECK-SAME: outs(%[[EMPTY]] : tensor<3x15x13x7xi32>)
   // CHECK-NEXT: ^bb0(%[[IN:.+]]: i8, %[[OUT:.+]]: i32):
-  // CHECK:   %[[EXT:.+]] = arith.extsi %[[IN]] : i8 to i32 
+  // CHECK:   %[[EXT:.+]] = arith.extsi %[[IN]] : i8 to i32
   // CHECK:   linalg.yield %[[EXT]]
   %resize = "tosa.resize"(%arg0) {mode = "NEAREST_NEIGHBOR", scale = [2, 2, 1, 1], offset = [0, 0], border = [0, 0]} : (tensor<3x1x1x7xi8>) -> tensor<3x15x13x7xi32>
 
@@ -96,13 +96,13 @@ func.func @broadcast_resize_bilinear_i32(%arg0 : tensor<3x1x1x7xi8>) -> tensor<3
   // CHECK: %[[COLLAPSE:.+]] = tensor.collapse_shape %arg0
   // CHECK-SAME{literal}: [[0], [1, 2, 3]]
   // CHECK: %[[EMPTY:.+]] = tensor.empty() : tensor<3x15x13x7xi32>
-  // CHECK: %[[GENERIC:.+]] = linalg.generic 
+  // CHECK: %[[GENERIC:.+]] = linalg.generic
   // CHECK-SAME: indexing_maps = [#map, #map1]
   // CHECK-SAME: iterator_types = ["parallel", "parallel", "parallel", "parallel"]}
   // CHECK-SAME: ins(%[[COLLAPSE]] : tensor<3x7xi8>)
   // CHECK-SAME: outs(%[[EMPTY]] : tensor<3x15x13x7xi32>)
   // CHECK-NEXT: ^bb0(%[[IN:.+]]: i8, %[[OUT:.+]]: i32):
-  // CHECK: %[[EXT:.+]] = arith.extsi %[[IN]] : i8 to i32 
+  // CHECK: %[[EXT:.+]] = arith.extsi %[[IN]] : i8 to i32
   // CHECK-DAG: %[[C2:.+]] = arith.constant 2 : i32
   // CHECK: %[[MUL1:.+]] = arith.muli %[[EXT]], %[[C2]] : i32
   // CHECK-DAG: %[[C1:.+]] = arith.constant 1 : i32
@@ -145,8 +145,8 @@ func.func @resize_nearest_int(%arg0: tensor<1x15x13x1xi8>) -> () {
   // CHECK: %[[TEMP_X:.*]] = arith.muli %[[X]], %[[SCALE_X_D]]
   // CHECK: %[[Y:.*]] = arith.addi %[[TEMP_Y]], %[[OFFSET_Y]]
   // CHECK: %[[X:.*]] = arith.addi %[[TEMP_X]], %[[OFFSET_X]]
-  // CHECK: %[[I_Y:.*]] = arith.divui %[[Y]], %[[SCALE_Y_N]]
-  // CHECK: %[[I_X:.*]] = arith.divui %[[X]], %[[SCALE_X_N]]
+  // CHECK: %[[I_Y:.*]] = arith.divsi %[[Y]], %[[SCALE_Y_N]]
+  // CHECK: %[[I_X:.*]] = arith.divsi %[[X]], %[[SCALE_X_N]]
   // CHECK: %[[TEMP_Y:.*]] = arith.muli %[[I_Y]], %[[SCALE_Y_N]]
   // CHECK: %[[TEMP_X:.*]] = arith.muli %[[I_X]], %[[SCALE_X_N]]
   // CHECK: %[[D_Y:.*]] = arith.subi %[[Y]], %[[TEMP_Y]]
@@ -156,10 +156,10 @@ func.func @resize_nearest_int(%arg0: tensor<1x15x13x1xi8>) -> () {
 
   // CHECK-DAG: %[[ZERO:.*]] = arith.constant 0
   // CHECK-DAG: %[[ONE:.*]] = arith.constant 1
-  // CHECK: %[[SCALE_Y_N_HALF:.*]] = arith.shrsi %[[SCALE_Y_N]], %[[ONE]]
-  // CHECK: %[[SCALE_X_N_HALF:.*]] = arith.shrsi %[[SCALE_X_N]], %[[ONE]]
-  // CHECK: %[[PRED_Y:.*]] = arith.cmpi sge, %[[D_Y]], %[[SCALE_Y_N_HALF]]
-  // CHECK: %[[PRED_X:.*]] = arith.cmpi sge, %[[D_X]], %[[SCALE_X_N_HALF]]
+  // CHECK: %[[D_Y_DOUBLE:.*]] = arith.shli %[[D_Y]], %[[ONE]]
+  // CHECK: %[[D_X_DOUBLE:.*]] = arith.shli %[[D_X]], %[[ONE]]
+  // CHECK: %[[PRED_Y:.*]] = arith.cmpi sge, %[[D_Y_DOUBLE]], %[[SCALE_Y_N]]
+  // CHECK: %[[PRED_X:.*]] = arith.cmpi sge, %[[D_X_DOUBLE]], %[[SCALE_X_N]]
   // CHECK: %[[VAL_37:.*]] = arith.select %[[PRED_Y]], %[[ONE]], %[[ZERO]]
   // CHECK: %[[VAL_38:.*]] = arith.select %[[PRED_X]], %[[ONE]], %[[ZERO]]
   // CHECK: %[[VAL_39:.*]] = arith.addi %[[I_Y]], %[[VAL_37]]
@@ -217,8 +217,8 @@ func.func @resize_bilinear_int(%arg0: tensor<1x19x19x1xi8>) {
   // CHECK: %[[TEMP_X:.*]] = arith.muli %[[X]], %[[SCALE_X_D]]
   // CHECK: %[[Y:.*]] = arith.addi %[[TEMP_Y]], %[[OFFSET_Y]]
   // CHECK: %[[X:.*]] = arith.addi %[[TEMP_X]], %[[OFFSET_X]]
-  // CHECK: %[[I_Y:.*]] = arith.divui %[[Y]], %[[SCALE_Y_N]]
-  // CHECK: %[[I_X:.*]] = arith.divui %[[X]], %[[SCALE_X_N]]
+  // CHECK: %[[I_Y:.*]] = arith.divsi %[[Y]], %[[SCALE_Y_N]]
+  // CHECK: %[[I_X:.*]] = arith.divsi %[[X]], %[[SCALE_X_N]]
   // CHECK: %[[TEMP_Y:.*]] = arith.muli %[[I_Y]], %[[SCALE_Y_N]]
   // CHECK: %[[TEMP_X:.*]] = arith.muli %[[I_X]], %[[SCALE_X_N]]
   // CHECK: %[[D_Y:.*]] = arith.subi %[[Y]], %[[TEMP_Y]]
@@ -483,4 +483,12 @@ func.func @resize_dyn(%input: tensor<?x2x2x1xi8>) -> () {
   // CHECK: %[[GENERIC:.+]] = linalg.generic
   %output = "tosa.resize"(%input) { scale = [4, 2, 4, 2], offset = [-1, -1], border = [1, 1], mode = "BILINEAR" } : (tensor<?x2x2x1xi8>)  -> (tensor<?x4x4x1xi32>)
   return
+}
+
+// -----
+
+// CHECK-LABEL: @resize_bilinear_int48
+func.func @resize_bilinear_int48(%arg0: tensor<1x19x19x1xi16>) {
+  %0 = "tosa.resize"(%arg0) {mode = "BILINEAR", scale = [16, 1, 16, 1], offset = [0, 0], border = [0, 0]} : (tensor<1x19x19x1xi16>) -> tensor<1x289x289x1xi48>
+           return
 }

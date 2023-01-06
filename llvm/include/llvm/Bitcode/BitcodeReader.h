@@ -23,6 +23,7 @@
 #include "llvm/Support/MemoryBufferRef.h"
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -33,7 +34,7 @@ class Module;
 class MemoryBuffer;
 class ModuleSummaryIndex;
 
-typedef llvm::function_ref<Optional<std::string>(StringRef)>
+typedef llvm::function_ref<std::optional<std::string>(StringRef)>
     DataLayoutCallbackTy;
 
   // These functions are for converting Expected/Error values to
@@ -107,7 +108,7 @@ typedef llvm::function_ref<Optional<std::string>(StringRef)>
     /// Read the entire bitcode module and return it.
     Expected<std::unique_ptr<Module>> parseModule(
         LLVMContext &Context, DataLayoutCallbackTy DataLayoutCallback =
-                                  [](StringRef) { return None; });
+                                  [](StringRef) { return std::nullopt; });
 
     /// Returns information about the module to be used for LTO: whether to
     /// compile with ThinLTO, and whether it has a summary.
@@ -175,7 +176,7 @@ typedef llvm::function_ref<Optional<std::string>(StringRef)>
   Expected<std::unique_ptr<Module>> parseBitcodeFile(
       MemoryBufferRef Buffer, LLVMContext &Context,
       DataLayoutCallbackTy DataLayoutCallback = [](StringRef) {
-        return None;
+        return std::nullopt;
       });
 
   /// Returns LTO information for the specified bitcode file.

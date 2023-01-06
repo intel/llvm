@@ -63,6 +63,7 @@
 #include <cassert>
 #include <iterator>
 #include <numeric>
+#include <optional>
 #include <utility>
 
 #define DEBUG_TYPE "simple-loop-unswitch"
@@ -123,8 +124,8 @@ struct NonTrivialUnswitchCandidate {
   TinyPtrVector<Value *> Invariants;
   Optional<InstructionCost> Cost;
   NonTrivialUnswitchCandidate(Instruction *TI, ArrayRef<Value *> Invariants,
-                              Optional<InstructionCost> Cost = None)
-      : TI(TI), Invariants(Invariants), Cost(Cost) {};
+                              Optional<InstructionCost> Cost = std::nullopt)
+      : TI(TI), Invariants(Invariants), Cost(Cost){};
 };
 } // end anonymous namespace.
 
@@ -253,7 +254,7 @@ static void buildPartialInvariantUnswitchConditionalBranch(
   for (auto *Val : reverse(ToDuplicate)) {
     Instruction *Inst = cast<Instruction>(Val);
     Instruction *NewInst = Inst->clone();
-    BB.getInstList().insert(BB.end(), NewInst);
+    NewInst->insertAt(&BB, BB.end());
     RemapInstruction(NewInst, VMap,
                      RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
     VMap[Val] = NewInst;
@@ -578,13 +579,12 @@ static bool unswitchTrivialBranch(Loop &L, BranchInst &BI, DominatorTree &DT,
     // If fully unswitching, we can use the existing branch instruction.
     // Splice it into the old PH to gate reaching the new preheader and re-point
     // its successors.
-    OldPH->getInstList().splice(OldPH->end(), BI.getParent()->getInstList(),
-                                BI);
+    OldPH->splice(OldPH->end(), BI.getParent(), BI.getIterator());
     BI.setCondition(Cond);
     if (MSSAU) {
       // Temporarily clone the terminator, to make MSSA update cheaper by
       // separating "insert edge" updates from "remove edge" ones.
-      ParentBB->getInstList().push_back(BI.clone());
+      BI.clone()->insertAt(ParentBB, ParentBB->end());
     } else {
       // Create a new unconditional branch that will continue the loop as a new
       // terminator.
@@ -2250,11 +2250,11 @@ static void unswitchNontrivialInvariants(
   if (FullUnswitch) {
     // Splice the terminator from the original loop and rewrite its
     // successors.
-    SplitBB->getInstList().splice(SplitBB->end(), ParentBB->getInstList(), TI);
+    SplitBB->splice(SplitBB->end(), ParentBB, TI.getIterator());
 
     // Keep a clone of the terminator for MSSA updates.
     Instruction *NewTI = TI.clone();
-    ParentBB->getInstList().push_back(NewTI);
+    NewTI->insertAt(ParentBB, ParentBB->end());
 
     // First wire up the moved terminator to the preheaders.
     if (BI) {
@@ -2988,7 +2988,7 @@ static NonTrivialUnswitchCandidate findBestNonTrivialUnswitchCandidate(
     return (LoopCost - Cost) * (SuccessorsCount - 1);
   };
 
-  Optional<NonTrivialUnswitchCandidate> Best;
+  std::optional<NonTrivialUnswitchCandidate> Best;
   for (auto &Candidate : UnswitchCandidates) {
     Instruction &TI = *Candidate.TI;
     ArrayRef<Value *> Invariants = Candidate.Invariants;
@@ -3210,15 +3210,15 @@ PreservedAnalyses SimpleLoopUnswitchPass::run(Loop &L, LoopAnalysisManager &AM,
     U.markLoopAsDeleted(L, Name);
   };
 
-  Optional<MemorySSAUpdater> MSSAU;
+  std::optional<MemorySSAUpdater> MSSAU;
   if (AR.MSSA) {
     MSSAU = MemorySSAUpdater(AR.MSSA);
     if (VerifyMemorySSA)
       AR.MSSA->verifyMemorySSA();
   }
   if (!unswitchLoop(L, AR.DT, AR.LI, AR.AC, AR.AA, AR.TTI, Trivial, NonTrivial,
-                    UnswitchCB, &AR.SE, MSSAU ? MSSAU.getPointer() : nullptr,
-                    PSI, AR.BFI, DestroyLoopCB))
+                    UnswitchCB, &AR.SE, MSSAU ? &*MSSAU : nullptr, PSI, AR.BFI,
+                    DestroyLoopCB))
     return PreservedAnalyses::all();
 
   if (AR.MSSA && VerifyMemorySSA)

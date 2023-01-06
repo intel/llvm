@@ -80,6 +80,7 @@ def FeatureStdExtZfh
 def HasStdExtZfh : Predicate<"Subtarget->hasStdExtZfh()">,
                              AssemblerPredicate<(all_of FeatureStdExtZfh),
                              "'Zfh' (Half-Precision Floating-Point)">;
+def NoStdExtZfh : Predicate<"!Subtarget->hasStdExtZfh()">;
 
 def HasStdExtZfhOrZfhmin
     : Predicate<"Subtarget->hasStdExtZfh() || Subtarget->hasStdExtZfhmin()">,
@@ -291,6 +292,26 @@ def HasStdExtCOrZca
                                    "'C' (Compressed Instructions) or "
                                    "'Zca' (part of the C extension, excluding "
                                    "compressed floating point loads/stores)">;
+
+def FeatureExtZcd
+    : SubtargetFeature<"experimental-zcd", "HasStdExtZcd", "true",
+                       "'Zcd' (Compressed Double-Precision Floating-Point Instructions)">;
+
+def HasStdExtCOrZcd
+    : Predicate<"Subtarget->hasStdExtC() || Subtarget->hasStdExtZcd()">,
+                AssemblerPredicate<(any_of FeatureStdExtC, FeatureExtZcd),
+                                   "'C' (Compressed Instructions) or "
+                                   "'Zcd' (Compressed Double-Precision Floating-Point Instructions)">;
+
+def FeatureExtZcf
+    : SubtargetFeature<"experimental-zcf", "HasStdExtZcf", "true",
+                       "'Zcf' (Compressed Single-Precision Floating-Point Instructions)">;
+
+def HasStdExtCOrZcf
+    : Predicate<"Subtarget->hasStdExtC() || Subtarget->hasStdExtZcf()">,
+                AssemblerPredicate<(any_of FeatureStdExtC, FeatureExtZcf),
+                                   "'C' (Compressed Instructions) or "
+                                   "'Zcf' (Compressed Single-Precision Floating-Point Instructions)">;
 
 def FeatureNoRVCHints
     : SubtargetFeature<"no-rvc-hints", "EnableRVCHintInstrs", "false",
