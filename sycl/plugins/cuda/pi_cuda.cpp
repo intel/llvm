@@ -5368,83 +5368,82 @@ pi_result cuda_piextUSMEnqueueMemset2D(pi_queue, void *, size_t, int, size_t,
 /// \param num_events_in_waitlist is the number of events to wait on
 /// \param events_waitlist is an array of events to wait on
 /// \param event is the event that represents this operation
-pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue Queue, pi_bool Blocking,
-                                       void *DstPtr, size_t DstPitch,
-                                       const void *SrcPtr, size_t SrcPitch,
-                                       size_t Width, size_t Height,
-                                       pi_uint32 NumEventsInWaitlist,
-                                       const pi_event *EventWaitlist,
-                                       pi_event *Event) {
+pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
+                                       void *dst_ptr, size_t dst_pitch,
+                                       const void *src_ptr, size_t src_pitch,
+                                       size_t width, size_t height,
+                                       pi_uint32 num_events_in_wait_list,
+                                       const pi_event *event_wait_list,
+                                       pi_event *event) {
 
-  assert(Queue != nullptr);
+  assert(queue != nullptr);
 
   pi_result result = PI_SUCCESS;
-
   std::unique_ptr<_pi_event> event_ptr{nullptr};
 
   try {
-    ScopedContext active(Queue->get_context());
-    CUstream cuStream = Queue->get_next_transfer_stream();
-    result =
-        enqueueEventsWait(Queue, cuStream, NumEventsInWaitlist, EventWaitlist);
-    if (Event) {
+    ScopedContext active(queue->get_context());
+    CUstream cuStream = queue->get_next_transfer_stream();
+    result = enqueueEventsWait(queue, cuStream, num_events_in_wait_list,
+                               event_wait_list);
+    if (event) {
       event_ptr = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_COPY, Queue, cuStream));
+          PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue, cuStream));
       event_ptr->start();
     }
 
     // Determine the direction of Copy using cuPointerGetAttributes
-    // for both the SrcPtr and DstPtr
+    // for both the src_ptr and dst_ptr
     // TODO: Doesn't yet support CU_MEMORYTYPE_UNIFIED
     bool is_managed;
-    CUmemorytype_enum srcType;
-    void *attribute_values[2] = {&is_managed, &srcType};
+    CUmemorytype_enum src_type;
+    void *attribute_values[2] = {&is_managed, &src_type};
     CUpointer_attribute attributes[2] = {CU_POINTER_ATTRIBUTE_IS_MANAGED,
                                          CU_POINTER_ATTRIBUTE_MEMORY_TYPE};
     result = PI_CHECK_ERROR(cuPointerGetAttributes(
-        2, attributes, attribute_values, (CUdeviceptr)SrcPtr));
-    assert(srcType == CU_MEMORYTYPE_DEVICE || srcType == CU_MEMORYTYPE_HOST);
+        2, attributes, attribute_values, (CUdeviceptr)src_ptr));
+    assert(src_type == CU_MEMORYTYPE_DEVICE || src_type == CU_MEMORYTYPE_HOST);
 
-    CUmemorytype_enum dstType;
+    CUmemorytype_enum dst_type;
     result = PI_CHECK_ERROR(cuPointerGetAttributes(
-        2, attributes, attribute_values, (CUdeviceptr)DstPtr));
-    assert(dstType == CU_MEMORYTYPE_DEVICE || dstType == CU_MEMORYTYPE_HOST);
+        2, attributes, attribute_values, (CUdeviceptr)dst_ptr));
+    assert(dst_type == CU_MEMORYTYPE_DEVICE || dst_type == CU_MEMORYTYPE_HOST);
 
     CUDA_MEMCPY2D cpyDesc = {};
 
     cpyDesc.srcXInBytes = 0;
     cpyDesc.srcY = 0;
-    cpyDesc.srcMemoryType = srcType;
-    cpyDesc.srcDevice = srcType == CU_MEMORYTYPE_DEVICE
-                            ? *static_cast<const CUdeviceptr *>(SrcPtr)
+    cpyDesc.srcMemoryType = src_type;
+    cpyDesc.srcDevice = src_type == CU_MEMORYTYPE_DEVICE
+                            ? *static_cast<const CUdeviceptr *>(src_ptr)
                             : 0;
-    cpyDesc.srcHost = srcType == CU_MEMORYTYPE_HOST ? SrcPtr : nullptr;
+    cpyDesc.srcHost = src_type == CU_MEMORYTYPE_HOST ? src_ptr : nullptr;
     cpyDesc.srcArray = nullptr;
-    cpyDesc.srcPitch = SrcPitch;
+    cpyDesc.srcPitch = src_pitch;
 
     cpyDesc.dstXInBytes = 0;
     cpyDesc.dstY = 0;
-    cpyDesc.dstMemoryType = dstType;
-    cpyDesc.dstDevice = dstType == CU_MEMORYTYPE_DEVICE
-                            ? *static_cast<CUdeviceptr *>(DstPtr)
+    cpyDesc.dstMemoryType = dst_type;
+    cpyDesc.dstDevice = dst_type == CU_MEMORYTYPE_DEVICE
+                            ? *static_cast<CUdeviceptr *>(dst_ptr)
                             : 0;
-    cpyDesc.dstHost = dstType == CU_MEMORYTYPE_HOST ? DstPtr : nullptr;
+    cpyDesc.dstHost = dst_type == CU_MEMORYTYPE_HOST ? dst_ptr : nullptr;
     cpyDesc.dstArray = nullptr;
-    cpyDesc.dstPitch = DstPitch;
+    cpyDesc.dstPitch = dst_pitch;
 
-    cpyDesc.WidthInBytes = Width;
-    cpyDesc.Height = Height;
+    cpyDesc.widthInBytes = width;
+    cpyDesc.height = height;
 
     result = PI_CHECK_ERROR(cuMemcpy2DAsync(&cpyDesc, cuStream));
 
-    if (Event) {
+    if (event) {
       result = event_ptr->record();
     }
-    if (Blocking) {
+    if (blocking) {
       result = PI_CHECK_ERROR(cuStreamSynchronize(cuStream));
     }
-    if (Event) {
-      *Event = event_ptr.release();
+    if (event) {
+      *event = event_ptr.release();
     }
   } catch (pi_result err) {
     result = err;
