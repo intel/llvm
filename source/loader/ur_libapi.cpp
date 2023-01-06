@@ -2973,6 +2973,8 @@ urKernelCreate(
 /// @brief Set kernel argument to a value.
 /// 
 /// @details
+///     - The application may call this function from simultaneous threads with
+///       the same kernel handle.
 ///     - The implementation of this function should be lock-free.
 /// 
 /// @returns
@@ -3004,6 +3006,8 @@ urKernelSetArgValue(
 /// @brief Set kernel argument to a local buffer.
 /// 
 /// @details
+///     - The application may call this function from simultaneous threads with
+///       the same kernel handle.
 ///     - The implementation of this function should be lock-free.
 /// 
 /// @returns
@@ -3196,6 +3200,8 @@ urKernelRelease(
 /// @brief Set a USM pointer as the argument value of a Kernel.
 /// 
 /// @details
+///     - The application may call this function from simultaneous threads with
+///       the same kernel handle.
 ///     - The implementation of this function should be lock-free.
 /// 
 /// @remarks
@@ -3268,6 +3274,8 @@ urKernelSetExecInfo(
 /// @brief Set a Sampler object as the argument value of a Kernel.
 /// 
 /// @details
+///     - The application may call this function from simultaneous threads with
+///       the same kernel handle.
 ///     - The implementation of this function should be lock-free.
 /// 
 /// @returns
@@ -3296,6 +3304,8 @@ urKernelSetArgSampler(
 /// @brief Set a Memory object as the argument value of a Kernel.
 /// 
 /// @details
+///     - The application may call this function from simultaneous threads with
+///       the same kernel handle.
 ///     - The implementation of this function should be lock-free.
 /// 
 /// @returns
