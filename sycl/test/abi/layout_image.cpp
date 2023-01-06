@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -c -fno-color-diagnostics -Xclang -fdump-record-layouts %s | FileCheck %s
+// RUN: %clangxx -fsycl -fsyntax-only -fno-color-diagnostics -Xclang -fdump-record-layouts %s | FileCheck %s
 // REQUIRES: linux
 // UNSUPPORTED: libcxx
 

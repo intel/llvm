@@ -489,7 +489,7 @@ _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
       streamToken_{stream_token}, evEnd_{nullptr}, evStart_{nullptr},
       evQueued_{nullptr}, queue_{queue}, stream_{stream}, context_{context} {
 
-  bool profilingEnabled = queue_->properties_ & PI_QUEUE_PROFILING_ENABLE;
+  bool profilingEnabled = queue_->properties_ & PI_QUEUE_FLAG_PROFILING_ENABLE;
 
   PI_CHECK_ERROR(cuEventCreate(
       &evEnd_, profilingEnabled ? CU_EVENT_DEFAULT : CU_EVENT_DISABLE_TIMING));
@@ -526,7 +526,7 @@ pi_result _pi_event::start() {
   pi_result result = PI_SUCCESS;
 
   try {
-    if (queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
+    if (queue_->properties_ & PI_QUEUE_FLAG_PROFILING_ENABLE) {
       // NOTE: This relies on the default stream to be unused.
       result = PI_CHECK_ERROR(cuEventRecord(evQueued_, 0));
       result = PI_CHECK_ERROR(cuEventRecord(evStart_, stream_));
@@ -633,7 +633,7 @@ pi_result _pi_event::release() {
 
   PI_CHECK_ERROR(cuEventDestroy(evEnd_));
 
-  if (queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
+  if (queue_->properties_ & PI_QUEUE_FLAG_PROFILING_ENABLE) {
     PI_CHECK_ERROR(cuEventDestroy(evQueued_));
     PI_CHECK_ERROR(cuEventDestroy(evStart_));
   }
@@ -685,13 +685,20 @@ pi_result _pi_program::set_metadata(const pi_device_binary_property *metadata,
     if (get_kernel_metadata(metadataElementName,
                             __SYCL_PI_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE,
                             kernelName)) {
-      assert(metadataElement->ValSize ==
-                 sizeof(std::uint64_t) + sizeof(std::uint32_t) * 3 &&
+      size_t MDElemsSize = metadataElement->ValSize - sizeof(std::uint64_t);
+
+      // Expect between 1 and 3 32-bit integer values.
+      assert(MDElemsSize >= sizeof(std::uint32_t) &&
+             MDElemsSize <= sizeof(std::uint32_t) * 3 &&
              "Unexpected size for reqd_work_group_size metadata");
 
       // Get pointer to data, skipping 64-bit size at the start of the data.
-      const auto *reqdWorkGroupElements =
-          reinterpret_cast<const std::uint32_t *>(metadataElement->ValAddr) + 2;
+      const char *ValuePtr =
+          reinterpret_cast<const char *>(metadataElement->ValAddr) +
+          sizeof(std::uint64_t);
+      // Read values and pad with 1's for values not present.
+      std::uint32_t reqdWorkGroupElements[] = {1, 1, 1};
+      std::memcpy(reqdWorkGroupElements, ValuePtr, MDElemsSize);
       kernelReqdWorkGroupSizeMD_[kernelName] =
           std::make_tuple(reqdWorkGroupElements[0], reqdWorkGroupElements[1],
                           reqdWorkGroupElements[2]);
@@ -1047,6 +1054,12 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT:
+    // 2D USM operations currently not supported.
+    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
+                            false);
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
@@ -1681,14 +1694,14 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES: {
     // The mandated minimum capability:
-    auto capability =
-        PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+    auto capability = PI_QUEUE_FLAG_PROFILING_ENABLE |
+                      PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capability);
   }
   case PI_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
     // The mandated minimum capability:
-    auto capability = PI_QUEUE_PROFILING_ENABLE;
+    auto capability = PI_QUEUE_FLAG_PROFILING_ENABLE;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capability);
   }
@@ -1918,11 +1931,27 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
 
   case PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY: {
+    // Check the device of the currently set context uses the same device.
+    // CUDA_ERROR_INVALID_CONTEXT signifies the absence of an active context.
+    CUdevice current_ctx_device;
+    CUresult current_ctx_device_ret = cuCtxGetDevice(&current_ctx_device);
+    if (current_ctx_device_ret != CUDA_ERROR_INVALID_CONTEXT)
+      PI_CHECK_ERROR(current_ctx_device_ret);
+    bool need_primary_ctx = current_ctx_device_ret == CUDA_ERROR_INVALID_CONTEXT ||
+                            current_ctx_device != device->get();
+    if (need_primary_ctx) {
+      // Use the primary context for the device if no context with the device is set.
+      CUcontext primary_context;
+      PI_CHECK_ERROR(cuDevicePrimaryCtxRetain(&primary_context, device->get()));
+      PI_CHECK_ERROR(cuCtxSetCurrent(primary_context));
+    }
     size_t FreeMemory = 0;
     size_t TotalMemory = 0;
     sycl::detail::pi::assertion(cuMemGetInfo(&FreeMemory, &TotalMemory) ==
                                     CUDA_SUCCESS,
                                 "failed cuMemGetInfo() API.");
+    if (need_primary_ctx)
+      PI_CHECK_ERROR(cuDevicePrimaryCtxRelease(device->get()));
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    FreeMemory);
   }
@@ -1944,6 +1973,10 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                              device->get()) == CUDA_SUCCESS);
     sycl::detail::pi::assertion(value >= 0);
     return getInfo(param_value_size, param_value, param_value_size_ret, value);
+  }
+  case PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   pi_int32{1});
   }
 
     // TODO: Investigate if this information is available on CUDA.
@@ -2501,7 +2534,7 @@ pi_result cuda_piQueueCreate(pi_context context, pi_device device,
     }
 
     const bool is_out_of_order =
-        properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+        properties & PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
 
     std::vector<CUstream> computeCuStreams(
         is_out_of_order ? _pi_queue::default_num_compute_streams : 1);
@@ -2523,6 +2556,21 @@ pi_result cuda_piQueueCreate(pi_context context, pi_device device,
 
     return PI_ERROR_OUT_OF_RESOURCES;
   }
+}
+pi_result cuda_piextQueueCreate(pi_context Context, pi_device Device,
+                                pi_queue_properties *Properties,
+                                pi_queue *Queue) {
+  assert(Properties);
+  // Expect flags mask to be passed first.
+  assert(Properties[0] == PI_QUEUE_FLAGS);
+  if (Properties[0] != PI_QUEUE_FLAGS)
+    return PI_ERROR_INVALID_VALUE;
+  pi_queue_properties Flags = Properties[1];
+  // Extra data isn't supported yet.
+  assert(Properties[2] == 0);
+  if (Properties[2] != 0)
+    return PI_ERROR_INVALID_VALUE;
+  return cuda_piQueueCreate(Context, Device, Flags, Queue);
 }
 
 pi_result cuda_piQueueGetInfo(pi_queue command_queue, pi_queue_info param_name,
@@ -3849,7 +3897,8 @@ pi_result cuda_piEventGetProfilingInfo(pi_event event,
   assert(event != nullptr);
 
   pi_queue queue = event->get_queue();
-  if (queue == nullptr || !(queue->properties_ & PI_QUEUE_PROFILING_ENABLE)) {
+  if (queue == nullptr ||
+      !(queue->properties_ & PI_QUEUE_FLAG_PROFILING_ENABLE)) {
     return PI_ERROR_PROFILING_INFO_NOT_AVAILABLE;
   }
 
@@ -5303,6 +5352,34 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
   return result;
 }
 
+// TODO: Implement this. Remember to return true for
+//       PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT when it is implemented.
+pi_result cuda_piextUSMEnqueueFill2D(pi_queue, void *, size_t, size_t,
+                                     const void *, size_t, size_t, pi_uint32,
+                                     const pi_event *, pi_event *) {
+  sycl::detail::pi::die("piextUSMEnqueueFill2D: not implemented");
+  return {};
+}
+
+// TODO: Implement this. Remember to return true for
+//       PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT when it is implemented.
+pi_result cuda_piextUSMEnqueueMemset2D(pi_queue, void *, size_t, int, size_t,
+                                       size_t, pi_uint32, const pi_event *,
+                                       pi_event *) {
+  sycl::detail::pi::die("cuda_piextUSMEnqueueMemset2D: not implemented");
+  return {};
+}
+
+// TODO: Implement this. Remember to return true for
+//       PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT when it is implemented.
+pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue, pi_bool, void *, size_t,
+                                       const void *, size_t, size_t, size_t,
+                                       pi_uint32, const pi_event *,
+                                       pi_event *) {
+  sycl::detail::pi::die("piextUSMEnqueueMemcpy2D not implemented");
+  return {};
+}
+
 /// API to query information about USM allocated pointers
 /// Valid Queries:
 ///   PI_MEM_ALLOC_TYPE returns host/device/shared pi_host_usm value
@@ -5473,6 +5550,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
          cuda_piextContextCreateWithNativeHandle)
   // Queue
   _PI_CL(piQueueCreate, cuda_piQueueCreate)
+  _PI_CL(piextQueueCreate, cuda_piextQueueCreate)
   _PI_CL(piQueueGetInfo, cuda_piQueueGetInfo)
   _PI_CL(piQueueFinish, cuda_piQueueFinish)
   _PI_CL(piQueueFlush, cuda_piQueueFlush)
@@ -5563,6 +5641,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueueMemcpy, cuda_piextUSMEnqueueMemcpy)
   _PI_CL(piextUSMEnqueuePrefetch, cuda_piextUSMEnqueuePrefetch)
   _PI_CL(piextUSMEnqueueMemAdvise, cuda_piextUSMEnqueueMemAdvise)
+  _PI_CL(piextUSMEnqueueFill2D, cuda_piextUSMEnqueueFill2D)
+  _PI_CL(piextUSMEnqueueMemset2D, cuda_piextUSMEnqueueMemset2D)
+  _PI_CL(piextUSMEnqueueMemcpy2D, cuda_piextUSMEnqueueMemcpy2D)
   _PI_CL(piextUSMGetMemAllocInfo, cuda_piextUSMGetMemAllocInfo)
 
   _PI_CL(piextKernelSetArgMemObj, cuda_piextKernelSetArgMemObj)

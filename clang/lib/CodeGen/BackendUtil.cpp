@@ -243,6 +243,7 @@ getSanitizerBinaryMetadataOptions(const CodeGenOptions &CGOpts) {
   SanitizerBinaryMetadataOptions Opts;
   Opts.Covered = CGOpts.SanitizeBinaryMetadataCovered;
   Opts.Atomics = CGOpts.SanitizeBinaryMetadataAtomics;
+  Opts.UAR = CGOpts.SanitizeBinaryMetadataUAR;
   return Opts;
 }
 
@@ -781,7 +782,7 @@ static void addSanitizers(const Triple &TargetTriple,
 void EmitAssemblyHelper::RunOptimizationPipeline(
     BackendAction Action, std::unique_ptr<raw_pwrite_stream> &OS,
     std::unique_ptr<llvm::ToolOutputFile> &ThinLinkOS) {
-  Optional<PGOOptions> PGOOpt;
+  std::optional<PGOOptions> PGOOpt;
 
   if (CodeGenOpts.hasProfileIRInstr())
     // -fprofile-generate.
@@ -915,11 +916,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
   ModulePassManager MPM;
 
-  // FIXME: Change this when -fno-sycl-early-optimizations is not tied to
-  // -disable-llvm-passes.
-  if (CodeGenOpts.DisableLLVMPasses && LangOpts.SYCLIsDevice)
-    MPM.addPass(SYCLPropagateAspectsUsagePass());
-
   if (!CodeGenOpts.DisableLLVMPasses) {
     // Map our optimization levels into one of the distinct levels used to
     // configure the pipeline.
@@ -1020,7 +1016,10 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             MPM.addPass(InstrProfiling(*Options, false));
           });
 
-    if (CodeGenOpts.OptimizationLevel == 0) {
+    if (CodeGenOpts.DisableSYCLEarlyOpts) {
+      MPM =
+          PB.buildO0DefaultPipeline(OptimizationLevel::O0, IsLTO || IsThinLTO);
+    } else if (CodeGenOpts.OptimizationLevel == 0) {
       MPM = PB.buildO0DefaultPipeline(Level, IsLTO || IsThinLTO);
     } else if (IsThinLTO) {
       MPM = PB.buildThinLTOPreLinkDefaultPipeline(Level);
@@ -1034,31 +1033,26 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       MPM.addPass(createModuleToFunctionPassAdaptor(MemProfilerPass()));
       MPM.addPass(ModuleMemProfilerPass());
     }
-  }
-  if (LangOpts.SYCLIsDevice) {
-    MPM.addPass(SYCLMutatePrintfAddrspacePass());
-    if (!CodeGenOpts.DisableLLVMPasses && LangOpts.EnableDAEInSpirKernels)
-      MPM.addPass(DeadArgumentEliminationSYCLPass());
-  }
 
-  // Add SPIRITTAnnotations pass to the pass manager if
-  // -fsycl-instrument-device-code option was passed. This option can be used
-  // only with spir triple.
-  if (LangOpts.SYCLIsDevice && CodeGenOpts.SPIRITTAnnotations) {
-    assert(TargetTriple.isSPIR() &&
-           "ITT annotations can only be added to a module with spir target");
-    MPM.addPass(SPIRITTAnnotationsPass());
-  }
+    if (LangOpts.SYCLIsDevice) {
+      MPM.addPass(SYCLMutatePrintfAddrspacePass());
+      if (LangOpts.EnableDAEInSpirKernels)
+        MPM.addPass(DeadArgumentEliminationSYCLPass());
 
-  // Allocate static local memory in SYCL kernel scope for each allocation
-  // call. It should be called after inlining pass.
-  if (LangOpts.SYCLIsDevice) {
-    // Group local memory pass depends on inlining. Turn it on even in case if
-    // all llvm passes or SYCL early optimizations are disabled.
-    // FIXME: Remove this workaround when dependency on inlining is eliminated.
-    if (CodeGenOpts.DisableLLVMPasses)
-      MPM.addPass(AlwaysInlinerPass(false));
-    MPM.addPass(SYCLLowerWGLocalMemoryPass());
+      // Add SPIRITTAnnotations pass to the pass manager if
+      // -fsycl-instrument-device-code option was passed. This option can be
+      // used only with spir triple.
+      if (CodeGenOpts.SPIRITTAnnotations) {
+        assert(
+            TargetTriple.isSPIR() &&
+            "ITT annotations can only be added to a module with spir target");
+        MPM.addPass(SPIRITTAnnotationsPass());
+      }
+
+      // Allocate static local memory in SYCL kernel scope for each allocation
+      // call.
+      MPM.addPass(SYCLLowerWGLocalMemoryPass());
+    }
   }
 
   // Add a verifier pass if requested. We don't have to do this if the action

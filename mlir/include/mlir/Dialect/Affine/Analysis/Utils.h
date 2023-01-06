@@ -110,7 +110,7 @@ struct ComputationSliceState {
   bool isEmpty() const { return ivs.empty(); }
 
   /// Returns true if the computation slice encloses all the iterations of the
-  /// sliced loop nest. Returns false if it does not. Returns llvm::None if it
+  /// sliced loop nest. Returns false if it does not. Returns std::nullopt if it
   /// cannot determine if the slice is maximal or not.
   // TODO: Cache 'isMaximal' so that we don't recompute it when the slice
   // information hasn't changed.
@@ -129,7 +129,7 @@ struct ComputationSliceState {
   /// If this difference is empty, the slice is declared to be valid. Otherwise,
   /// return false as it implies that the effective fusion results in at least
   /// one iteration of the slice that was not originally in the source's domain.
-  /// If the validity cannot be determined, returns llvm:None.
+  /// If the validity cannot be determined, returns std::nullopt.
   Optional<bool> isSliceValid();
 
   void dump() const;
@@ -139,7 +139,7 @@ private:
   /// if each slice dimension maps to an existing dst dimension and both the src
   /// and the dst loops for those dimensions have the same bounds. Returns false
   /// if both the src and the dst loops don't have the same bounds. Returns
-  /// llvm::None if none of the above can be proven.
+  /// std::nullopt if none of the above can be proven.
   Optional<bool> isSliceMaximalFastCheck() const;
 };
 
@@ -292,15 +292,16 @@ struct MemRefRegion {
   void setWrite(bool flag) { write = flag; }
 
   /// Returns a constant upper bound on the number of elements in this region if
-  /// bounded by a known constant (always possible for static shapes), None
-  /// otherwise. Note that the symbols of the region are treated specially,
-  /// i.e., the returned bounding constant holds for *any given* value of the
-  /// symbol variables. The 'shape' vector is set to the corresponding
-  /// dimension-wise bounds major to minor. The number of elements and all the
-  /// dimension-wise bounds are guaranteed to be non-negative. We use int64_t
-  /// instead of uint64_t since index types can be at most int64_t. `lbs` are
-  /// set to the lower bounds for each of the rank dimensions, and lbDivisors
-  /// contains the corresponding denominators for floorDivs.
+  /// bounded by a known constant (always possible for static shapes),
+  /// std::nullopt otherwise. Note that the symbols of the region are treated
+  /// specially, i.e., the returned bounding constant holds for *any given*
+  /// value of the symbol variables. The 'shape' vector is set to the
+  /// corresponding dimension-wise bounds major to minor. The number of elements
+  /// and all the dimension-wise bounds are guaranteed to be non-negative. We
+  /// use int64_t instead of uint64_t since index types can be at most
+  /// int64_t. `lbs` are set to the lower bounds for each of the rank
+  /// dimensions, and lbDivisors contains the corresponding denominators for
+  /// floorDivs.
   Optional<int64_t> getConstantBoundingSizeAndShape(
       SmallVectorImpl<int64_t> *shape = nullptr,
       std::vector<SmallVector<int64_t, 4>> *lbs = nullptr,
@@ -353,8 +354,8 @@ struct MemRefRegion {
   FlatAffineValueConstraints cst;
 };
 
-/// Returns the size of memref data in bytes if it's statically shaped, None
-/// otherwise.
+/// Returns the size of memref data in bytes if it's statically shaped,
+/// std::nullopt otherwise.
 Optional<uint64_t> getMemRefSizeInBytes(MemRefType memRefType);
 
 /// Checks a load or store op for an out of bound access; returns failure if the

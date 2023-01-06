@@ -53,9 +53,6 @@ static void PutBound(llvm::raw_ostream &, const Bound &);
 static void PutShapeSpec(llvm::raw_ostream &, const ShapeSpec &);
 static void PutShape(
     llvm::raw_ostream &, const ArraySpec &, char open, char close);
-llvm::raw_ostream &PutAttrs(llvm::raw_ostream &, Attrs,
-    const std::string * = nullptr, std::string before = ","s,
-    std::string after = ""s);
 
 static llvm::raw_ostream &PutAttr(llvm::raw_ostream &, Attr);
 static llvm::raw_ostream &PutType(llvm::raw_ostream &, const DeclTypeSpec &);
@@ -132,6 +129,7 @@ static std::string ModFileName(const SourceName &name,
 // Write the module file for symbol, which must be a module or submodule.
 void ModFileWriter::Write(const Symbol &symbol) {
   auto *ancestor{symbol.get<ModuleDetails>().ancestor()};
+  isSubmodule_ = ancestor != nullptr;
   auto ancestorName{ancestor ? ancestor->GetName().value().ToString() : ""s};
   auto path{context_.moduleDirectory() + '/' +
       ModFileName(symbol.name(), ancestorName, context_.moduleFileSuffix())};
@@ -310,6 +308,9 @@ void ModFileWriter::PutSymbol(
               sep = ',';
             }
             decls_ << '\n';
+            if (!isSubmodule_ && symbol.attrs().test(Attr::PRIVATE)) {
+              decls_ << "private::" << symbol.name() << '\n';
+            }
           },
           [&](const CommonBlockDetails &x) {
             decls_ << "common/" << symbol.name();
@@ -519,7 +520,7 @@ void ModFileWriter::PutGeneric(const Symbol &symbol) {
     }
   }
   decls_ << "end interface\n";
-  if (symbol.attrs().test(Attr::PRIVATE)) {
+  if (!isSubmodule_ && symbol.attrs().test(Attr::PRIVATE)) {
     PutGenericName(decls_ << "private::", symbol) << '\n';
   }
 }
@@ -543,7 +544,7 @@ void ModFileWriter::PutUse(const Symbol &symbol) {
   uses_ << '\n';
   PutUseExtraAttr(Attr::VOLATILE, symbol, use);
   PutUseExtraAttr(Attr::ASYNCHRONOUS, symbol, use);
-  if (symbol.attrs().test(Attr::PRIVATE)) {
+  if (!isSubmodule_ && symbol.attrs().test(Attr::PRIVATE)) {
     PutGenericName(useExtraAttrs_ << "private::", symbol) << '\n';
   }
 }
@@ -686,7 +687,7 @@ void ModFileWriter::PutObjectEntity(
 void ModFileWriter::PutProcEntity(llvm::raw_ostream &os, const Symbol &symbol) {
   if (symbol.attrs().test(Attr::INTRINSIC)) {
     os << "intrinsic::" << symbol.name() << '\n';
-    if (symbol.attrs().test(Attr::PRIVATE)) {
+    if (!isSubmodule_ && symbol.attrs().test(Attr::PRIVATE)) {
       os << "private::" << symbol.name() << '\n';
     }
     return;
@@ -777,10 +778,13 @@ void ModFileWriter::PutEntity(llvm::raw_ostream &os, const Symbol &symbol,
 
 // Put out each attribute to os, surrounded by `before` and `after` and
 // mapped to lower case.
-llvm::raw_ostream &PutAttrs(llvm::raw_ostream &os, Attrs attrs,
-    const std::string *bindName, std::string before, std::string after) {
+llvm::raw_ostream &ModFileWriter::PutAttrs(llvm::raw_ostream &os, Attrs attrs,
+    const std::string *bindName, std::string before, std::string after) const {
   attrs.set(Attr::PUBLIC, false); // no need to write PUBLIC
   attrs.set(Attr::EXTERNAL, false); // no need to write EXTERNAL
+  if (isSubmodule_) {
+    attrs.set(Attr::PRIVATE, false);
+  }
   if (bindName) {
     os << before << "bind(c, name=\"" << *bindName << "\")" << after;
     attrs.set(Attr::BIND_C, false);
@@ -1252,11 +1256,14 @@ bool SubprogramSymbolCollector::NeedImport(
     const SourceName &name, const Symbol &symbol) {
   if (!isInterface_) {
     return false;
+  } else if (IsSeparateModuleProcedureInterface(&symbol_)) {
+    return false; // IMPORT needed only for external and dummy procedure
+                  // interfaces
   } else if (&symbol == scope_.symbol()) {
     return false;
   } else if (symbol.owner().Contains(scope_)) {
     return true;
-  } else if (const Symbol * found{scope_.FindSymbol(name)}) {
+  } else if (const Symbol *found{scope_.FindSymbol(name)}) {
     // detect import from ancestor of use-associated symbol
     return found->has<UseDetails>() && found->owner() != scope_;
   } else {

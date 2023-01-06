@@ -1675,8 +1675,10 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
       llvm::Value *Arg = Builder.CreateBitCast(V, DestPtrTy, V->getName());
       if (address.getAddressSpace() != 0)
         Arg = Builder.CreateAddrSpaceCast(Arg, CGM.Int8PtrTy, V->getName());
-      EmitAnnotationCall(CGM.getIntrinsic(llvm::Intrinsic::var_annotation), Arg,
-                         AnnotStr, D.getLocation());
+      EmitAnnotationCall(
+          CGM.getIntrinsic(llvm::Intrinsic::var_annotation,
+                           {CGM.Int8PtrTy, CGM.ConstGlobalsPtrTy}),
+          Arg, AnnotStr, D.getLocation());
     }
   }
 

@@ -3001,8 +3001,8 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.MergeSYCLAddIRAttributesGlobalVariableAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLAddIRAnnotationsMemberAttr>(Attr))
     NewAttr = S.MergeSYCLAddIRAnnotationsMemberAttr(D, *A);
-  else if (const auto *A = dyn_cast<ReqdWorkGroupSizeAttr>(Attr))
-    NewAttr = S.MergeReqdWorkGroupSizeAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLReqdWorkGroupSizeAttr>(Attr))
+    NewAttr = S.MergeSYCLReqdWorkGroupSizeAttr(D, *A);
   else if (const auto *NT = dyn_cast<HLSLNumThreadsAttr>(Attr))
     NewAttr =
         S.mergeHLSLNumThreadsAttr(D, *NT, NT->getX(), NT->getY(), NT->getZ());
@@ -7451,6 +7451,7 @@ NamedDecl *Sema::ActOnVariableDeclarator(
     Diag(D.getIdentifierLoc(), diag::err_bad_variable_name) << Name;
     return nullptr;
   }
+
 
   DeclSpec::SCS SCSpec = D.getDeclSpec().getStorageClassSpec();
   StorageClass SC = StorageClassSpecToVarDeclStorageClass(D.getDeclSpec());
@@ -16055,7 +16056,9 @@ void Sema::AddKnownFunctionAttributes(FunctionDecl *FD) {
       // Add the appropriate attribute, depending on the CUDA compilation mode
       // and which target the builtin belongs to. For example, during host
       // compilation, aux builtins are __device__, while the rest are __host__.
-      if (getLangOpts().CUDAIsDevice !=
+      if (((getLangOpts().SYCLIsDevice && getLangOpts().CUDA &&
+            !getLangOpts().CUDAIsDevice) ||
+           getLangOpts().CUDAIsDevice) !=
           Context.BuiltinInfo.isAuxBuiltinID(BuiltinID))
         FD->addAttr(CUDADeviceAttr::CreateImplicit(Context, FD->getLocation()));
       else
@@ -18302,8 +18305,11 @@ static bool AreSpecialMemberFunctionsSameKind(ASTContext &Context,
                                               CXXMethodDecl *M1,
                                               CXXMethodDecl *M2,
                                               Sema::CXXSpecialMember CSM) {
+  // We don't want to compare templates to non-templates: See
+  // https://github.com/llvm/llvm-project/issues/59206
   if (CSM == Sema::CXXDefaultConstructor)
-    return true;
+    return bool(M1->getDescribedFunctionTemplate()) ==
+           bool(M2->getDescribedFunctionTemplate());
   if (!Context.hasSameType(M1->getParamDecl(0)->getType(),
                            M2->getParamDecl(0)->getType()))
     return false;

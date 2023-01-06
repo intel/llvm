@@ -115,8 +115,9 @@ def HasDotProd       : Predicate<"Subtarget->hasDotProd()">,
                                  AssemblerPredicateWithAll<(all_of FeatureDotProd), "dotprod">;
 def HasCRC           : Predicate<"Subtarget->hasCRC()">,
                                  AssemblerPredicateWithAll<(all_of FeatureCRC), "crc">;
-def HasCSSC           : Predicate<"Subtarget->hasCSSC()">,
+def HasCSSC          : Predicate<"Subtarget->hasCSSC()">,
                                  AssemblerPredicateWithAll<(all_of FeatureCSSC), "cssc">;
+def HasNoCSSC        : Predicate<"!Subtarget->hasCSSC()">;
 def HasLSE           : Predicate<"Subtarget->hasLSE()">,
                                  AssemblerPredicateWithAll<(all_of FeatureLSE), "lse">;
 def HasNoLSE         : Predicate<"!Subtarget->hasLSE()">;
@@ -124,7 +125,6 @@ def HasRAS           : Predicate<"Subtarget->hasRAS()">,
                                  AssemblerPredicateWithAll<(all_of FeatureRAS), "ras">;
 def HasRDM           : Predicate<"Subtarget->hasRDM()">,
                                  AssemblerPredicateWithAll<(all_of FeatureRDM), "rdm">;
-def HasPerfMon       : Predicate<"Subtarget->hasPerfMon()">;
 def HasFullFP16      : Predicate<"Subtarget->hasFullFP16()">,
                                  AssemblerPredicateWithAll<(all_of FeatureFullFP16), "fullfp16">;
 def HasFP16FML       : Predicate<"Subtarget->hasFP16FML()">,
@@ -232,6 +232,10 @@ def HasHBC           : Predicate<"Subtarget->hasHBC()">,
                        AssemblerPredicateWithAll<(all_of FeatureHBC), "hbc">;
 def HasMOPS          : Predicate<"Subtarget->hasMOPS()">,
                        AssemblerPredicateWithAll<(all_of FeatureMOPS), "mops">;
+def HasCLRBHB        : Predicate<"Subtarget->hasCLRBHB()">,
+                       AssemblerPredicateWithAll<(all_of FeatureCLRBHB), "clrbhb">;
+def HasSPECRES2      : Predicate<"Subtarget->hasSPECRES2()">,
+                       AssemblerPredicateWithAll<(all_of FeatureSPECRES2), "specres2">;
 def HasITE           : Predicate<"Subtarget->hasITE()">,
                        AssemblerPredicateWithAll<(all_of FeatureITE), "ite">;
 def HasTHE           : Predicate<"Subtarget->hasTHE()">,
@@ -794,6 +798,12 @@ def add_and_or_is_add : PatFrags<(ops node:$lhs, node:$rhs),
      return MI.getOpcode() == TargetOpcode::G_ADD;
   }];
 }
+
+// Match mul with enough sign-bits. Can be reduced to a smaller mul operand.
+def smullwithsignbits : PatFrag<(ops node:$l, node:$r), (mul node:$l, node:$r), [{
+  return CurDAG->ComputeNumSignBits(N->getOperand(0)) > 32 &&
+         CurDAG->ComputeNumSignBits(N->getOperand(1)) > 32;
+}]>;
 
 //===----------------------------------------------------------------------===//
 
@@ -1515,9 +1525,8 @@ def HWASAN_CHECK_MEMACCESS_SHORTGRANULES : Pseudo<
   Sched<[]>;
 }
 
-// The cycle counter PMC register is PMCCNTR_EL0.
-let Predicates = [HasPerfMon] in
-def : Pat<(readcyclecounter), (MRS 0xdce8)>;
+// The virtual cycle counter register is CNTVCT_EL0.
+def : Pat<(readcyclecounter), (MRS 0xdf02)>;
 
 // FPCR register
 let Uses = [FPCR] in
@@ -1925,6 +1934,26 @@ def : Pat<(i64 (sub GPR64:$Ra, (mul (sext_inreg GPR64:$Rn, i32),
                                     (s64imm_32bit:$C)))),
           (SMSUBLrrr (i32 (EXTRACT_SUBREG GPR64:$Rn, sub_32)),
                      (MOVi32imm (trunc_imm imm:$C)), GPR64:$Ra)>;
+
+def : Pat<(i64 (smullwithsignbits GPR64:$Rn, GPR64:$Rm)),
+          (SMADDLrrr (EXTRACT_SUBREG $Rn, sub_32), (EXTRACT_SUBREG $Rm, sub_32), XZR)>;
+def : Pat<(i64 (smullwithsignbits GPR64:$Rn, (sext GPR32:$Rm))),
+          (SMADDLrrr (EXTRACT_SUBREG $Rn, sub_32), $Rm, XZR)>;
+
+def : Pat<(i64 (add (smullwithsignbits GPR64:$Rn, GPR64:$Rm), GPR64:$Ra)),
+          (SMADDLrrr (EXTRACT_SUBREG $Rn, sub_32), (EXTRACT_SUBREG $Rm, sub_32), GPR64:$Ra)>;
+def : Pat<(i64 (add (smullwithsignbits GPR64:$Rn, (sext GPR32:$Rm)), GPR64:$Ra)),
+          (SMADDLrrr (EXTRACT_SUBREG $Rn, sub_32), $Rm, GPR64:$Ra)>;
+
+def : Pat<(i64 (ineg (smullwithsignbits GPR64:$Rn, GPR64:$Rm))),
+          (SMSUBLrrr (EXTRACT_SUBREG $Rn, sub_32), (EXTRACT_SUBREG $Rm, sub_32), XZR)>;
+def : Pat<(i64 (ineg (smullwithsignbits GPR64:$Rn, (sext GPR32:$Rm)))),
+          (SMSUBLrrr (EXTRACT_SUBREG $Rn, sub_32), $Rm, XZR)>;
+
+def : Pat<(i64 (sub GPR64:$Ra, (smullwithsignbits GPR64:$Rn, GPR64:$Rm))),
+          (SMSUBLrrr (EXTRACT_SUBREG $Rn, sub_32), (EXTRACT_SUBREG $Rm, sub_32), GPR64:$Ra)>;
+def : Pat<(i64 (sub GPR64:$Ra, (smullwithsignbits GPR64:$Rn, (sext GPR32:$Rm)))),
+          (SMSUBLrrr (EXTRACT_SUBREG $Rn, sub_32), $Rm, GPR64:$Ra)>;
 } // AddedComplexity = 5
 
 def : MulAccumWAlias<"mul", MADDWrrr>;
@@ -5066,7 +5095,7 @@ def : Pat<(i64 (int_aarch64_neon_sqsub (i64 FPR64:$Rd),
 // Advanced SIMD two scalar instructions.
 //===----------------------------------------------------------------------===//
 
-defm ABS    : SIMDTwoScalarD<    0, 0b01011, "abs", abs>;
+defm ABS    : SIMDTwoScalarD<    0, 0b01011, "abs", abs, [HasNoCSSC]>;
 defm CMEQ   : SIMDCmpTwoScalarD< 0, 0b01001, "cmeq", AArch64cmeqz>;
 defm CMGE   : SIMDCmpTwoScalarD< 1, 0b01000, "cmge", AArch64cmgez>;
 defm CMGT   : SIMDCmpTwoScalarD< 0, 0b01000, "cmgt", AArch64cmgtz>;
@@ -8519,6 +8548,11 @@ def : Pat<(AArch64AssertZExtBool GPR32:$op),
 //===----------------------------===//
 // 2022 Architecture Extensions:
 //===----------------------------===//
+def : InstAlias<"clrbhb",  (HINT 22), 0>;
+let Predicates = [HasCLRBHB] in {
+  def : InstAlias<"clrbhb",  (HINT 22), 1>;
+}
+
 defm RCW     : ReadCheckWriteCompareAndSwap;
 
 defm RCWCLR  : ReadCheckWriteOperation<0b001, "clr">;
@@ -8528,14 +8562,14 @@ defm RCWSWP  : ReadCheckWriteOperation<0b010, "swp">;
 //===----------------------------------------------------------------------===//
 // General Data-Processing Instructions (FEAT_V94_DP)
 //===----------------------------------------------------------------------===//
-defm ABS : OneOperandData<0b001000, "abs">, Requires<[HasCSSC]>;
+defm ABS : OneOperandData<0b001000, "abs", abs>, Requires<[HasCSSC]>;
 defm CNT : OneOperandData<0b000111, "cnt", ctpop>, Requires<[HasCSSC]>;
-defm CTZ : OneOperandData<0b000110, "ctz">, Requires<[HasCSSC]>;
+defm CTZ : OneOperandData<0b000110, "ctz", cttz>, Requires<[HasCSSC]>;
 
-defm SMAX : ComparisonOp<0, 0, "smax">, Requires<[HasCSSC]>;
-defm SMIN : ComparisonOp<0, 1, "smin">, Requires<[HasCSSC]>;
-defm UMAX : ComparisonOp<1, 0, "umax">, Requires<[HasCSSC]>;
-defm UMIN : ComparisonOp<1, 1, "umin">, Requires<[HasCSSC]>;
+defm SMAX : ComparisonOp<0, 0, "smax", smax>, Requires<[HasCSSC]>;
+defm SMIN : ComparisonOp<0, 1, "smin", smin>, Requires<[HasCSSC]>;
+defm UMAX : ComparisonOp<1, 0, "umax", umax>, Requires<[HasCSSC]>;
+defm UMIN : ComparisonOp<1, 1, "umin", umin>, Requires<[HasCSSC]>;
 
 def RPRFM:
     I<(outs), (ins rprfop:$Rt, GPR64:$Rm, GPR64sp:$Rn),

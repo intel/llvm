@@ -603,8 +603,12 @@ public:
   /// \param Src is a USM pointer to the source memory.
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Count is a number of elements of type T to copy.
+  /// \param CodeLoc contains the code location of user code
   /// \return an event representing copy operation.
-  template <typename T> event copy(const T *Src, T *Dest, size_t Count) {
+  template <typename T>
+  event copy(const T *Src, T *Dest, size_t Count _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(T));
   }
 
@@ -618,9 +622,13 @@ public:
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Count is a number of elements of type T to copy.
   /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \param CodeLoc contains the code location of user code
   /// \return an event representing copy operation.
   template <typename T>
-  event copy(const T *Src, T *Dest, size_t Count, event DepEvent) {
+  event copy(const T *Src, T *Dest, size_t Count,
+             event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(T), DepEvent);
   }
 
@@ -634,10 +642,13 @@ public:
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Count is a number of elements of type T to copy.
   /// \param DepEvents is a vector of events that specifies the kernel
+  /// \param CodeLoc contains the code location of user code
   /// \return an event representing copy operation.
   template <typename T>
   event copy(const T *Src, T *Dest, size_t Count,
-             const std::vector<event> &DepEvents) {
+             const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(T), DepEvents);
   }
 
@@ -725,6 +736,328 @@ public:
     });
   }
 
+  /// Copies data from one 2D memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than either \param DestPitch or
+  /// \param SrcPitch. The behavior is undefined if any of the pointer
+  /// parameters is invalid.
+  ///
+  /// NOTE: Function is dependent to prevent the fallback kernels from
+  /// materializing without the use of the function.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcPitch is the pitch of the rows in \param Src.
+  /// \param Width is the width in bytes of the 2D region to copy.
+  /// \param Height is the height in number of rows of the 2D region to copy.
+  /// \return an event representing the copy operation.
+  template <typename T = unsigned char,
+            typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
+  event ext_oneapi_memcpy2d(void *Dest, size_t DestPitch, const void *Src,
+                            size_t SrcPitch, size_t Width,
+                            size_t Height _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.ext_oneapi_memcpy2d<T>(Dest, DestPitch, Src, SrcPitch, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one 2D memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than either \param DestPitch or
+  /// \param SrcPitch. The behavior is undefined if any of the pointer
+  /// parameters is invalid.
+  ///
+  /// NOTE: Function is dependent to prevent the fallback kernels from
+  /// materializing without the use of the function.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcPitch is the pitch of the rows in \param Src.
+  /// \param Width is the width in bytes of the 2D region to copy.
+  /// \param Height is the height in number of rows of the 2D region to copy.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  template <typename T = unsigned char,
+            typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
+  event ext_oneapi_memcpy2d(void *Dest, size_t DestPitch, const void *Src,
+                            size_t SrcPitch, size_t Width, size_t Height,
+                            event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.ext_oneapi_memcpy2d<T>(Dest, DestPitch, Src, SrcPitch, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one 2D memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than either \param DestPitch or
+  /// \param SrcPitch. The behavior is undefined if any of the pointer
+  /// parameters is invalid.
+  ///
+  /// NOTE: Function is dependent to prevent the fallback kernels from
+  /// materializing without the use of the function.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcPitch is the pitch of the rows in \param Src.
+  /// \param Width is the width in bytes of the 2D region to copy.
+  /// \param Height is the height in number of rows of the 2D region to copy.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the copy operation.
+  template <typename T = unsigned char,
+            typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
+  event ext_oneapi_memcpy2d(void *Dest, size_t DestPitch, const void *Src,
+                            size_t SrcPitch, size_t Width, size_t Height,
+                            const std::vector<event> &DepEvents
+                                _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.ext_oneapi_memcpy2d<T>(Dest, DestPitch, Src, SrcPitch, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one 2D memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than either \param DestPitch or
+  /// \param SrcPitch. The behavior is undefined if any of the pointer
+  /// parameters is invalid.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcPitch is the pitch of the rows in \param Src.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Width is the width in number of elements of the 2D region to copy.
+  /// \param Height is the height in number of rows of the 2D region to copy.
+  /// \return an event representing the copy operation.
+  template <typename T>
+  event ext_oneapi_copy2d(const T *Src, size_t SrcPitch, T *Dest,
+                          size_t DestPitch, size_t Width,
+                          size_t Height _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.ext_oneapi_copy2d<T>(Src, SrcPitch, Dest, DestPitch, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one 2D memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than either \param DestPitch or
+  /// \param SrcPitch. The behavior is undefined if any of the pointer
+  /// parameters is invalid.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcPitch is the pitch of the rows in \param Src.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Width is the width in number of elements of the 2D region to copy.
+  /// \param Height is the height in number of rows of the 2D region to copy.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  template <typename T>
+  event ext_oneapi_copy2d(const T *Src, size_t SrcPitch, T *Dest,
+                          size_t DestPitch, size_t Width, size_t Height,
+                          event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.ext_oneapi_copy2d<T>(Src, SrcPitch, Dest, DestPitch, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Copies data from one 2D memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than either \param DestPitch or
+  /// \param SrcPitch. The behavior is undefined if any of the pointer
+  /// parameters is invalid.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcPitch is the pitch of the rows in \param Src.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Width is the width in number of elements of the 2D region to copy.
+  /// \param Height is the height in number of rows of the 2D region to copy.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the copy operation.
+  template <typename T>
+  event ext_oneapi_copy2d(const T *Src, size_t SrcPitch, T *Dest,
+                          size_t DestPitch, size_t Width, size_t Height,
+                          const std::vector<event> &DepEvents
+                              _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.ext_oneapi_copy2d<T>(Src, SrcPitch, Dest, DestPitch, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Fills the memory pointed by a USM pointer with the value specified.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than \param DestPitch. The behavior is
+  /// undefined if any of the pointer parameters is invalid.
+  ///
+  /// NOTE: Function is dependent to prevent the fallback kernels from
+  /// materializing without the use of the function.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Value is the value to fill into the region in \param Dest. Value is
+  /// cast as an unsigned char.
+  /// \param Width is the width in number of elements of the 2D region to fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
+  /// \return an event representing the fill operation.
+  template <typename T = unsigned char,
+            typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
+  event ext_oneapi_memset2d(void *Dest, size_t DestPitch, int Value,
+                            size_t Width,
+                            size_t Height _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.ext_oneapi_memset2d<T>(Dest, DestPitch, Value, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Fills the memory pointed by a USM pointer with the value specified.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than \param DestPitch. The behavior is
+  /// undefined if any of the pointer parameters is invalid.
+  ///
+  /// NOTE: Function is dependent to prevent the fallback kernels from
+  /// materializing without the use of the function.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Value is the value to fill into the region in \param Dest. Value is
+  /// cast as an unsigned char.
+  /// \param Width is the width in number of elements of the 2D region to fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the fill operation.
+  template <typename T = unsigned char,
+            typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
+  event ext_oneapi_memset2d(void *Dest, size_t DestPitch, int Value,
+                            size_t Width, size_t Height,
+                            event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.ext_oneapi_memset2d<T>(Dest, DestPitch, Value, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Fills the memory pointed by a USM pointer with the value specified.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than \param DestPitch. The behavior is
+  /// undefined if any of the pointer parameters is invalid.
+  ///
+  /// NOTE: Function is dependent to prevent the fallback kernels from
+  /// materializing without the use of the function.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Value is the value to fill into the region in \param Dest. Value is
+  /// cast as an unsigned char.
+  /// \param Width is the width in number of elements of the 2D region to fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the fill operation.
+  template <typename T = unsigned char,
+            typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
+  event ext_oneapi_memset2d(
+      void *Dest, size_t DestPitch, int Value, size_t Width, size_t Height,
+      const std::vector<event> &DepEvents _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.ext_oneapi_memset2d<T>(Dest, DestPitch, Value, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Fills the memory pointed by a USM pointer with the value specified.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than \param DestPitch. The behavior is
+  /// undefined if any of the pointer parameters is invalid.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Pattern is the pattern to fill into the memory.  T should be
+  /// trivially copyable.
+  /// \param Width is the width in number of elements of the 2D region to fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
+  /// \return an event representing the fill operation.
+  template <typename T>
+  event ext_oneapi_fill2d(void *Dest, size_t DestPitch, const T &Pattern,
+                          size_t Width, size_t Height _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.ext_oneapi_fill2d<T>(Dest, DestPitch, Pattern, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Fills the memory pointed by a USM pointer with the value specified.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than \param DestPitch. The behavior is
+  /// undefined if any of the pointer parameters is invalid.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Pattern is the pattern to fill into the memory.  T should be
+  /// trivially copyable.
+  /// \param Width is the width in number of elements of the 2D region to fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the fill operation.
+  template <typename T>
+  event ext_oneapi_fill2d(void *Dest, size_t DestPitch, const T &Pattern,
+                          size_t Width, size_t Height,
+                          event DepEvent _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.depends_on(DepEvent);
+      CGH.ext_oneapi_fill2d<T>(Dest, DestPitch, Pattern, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
+  /// Fills the memory pointed by a USM pointer with the value specified.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than \param DestPitch. The behavior is
+  /// undefined if any of the pointer parameters is invalid.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Pattern is the pattern to fill into the memory.  T should be
+  /// trivially copyable.
+  /// \param Width is the width in number of elements of the 2D region to fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the fill operation.
+  template <typename T>
+  event ext_oneapi_fill2d(void *Dest, size_t DestPitch, const T &Pattern,
+                          size_t Width, size_t Height,
+                          const std::vector<event> &DepEvents
+                              _CODELOCPARAM(&CodeLoc)) {
+    return submit([=](handler &CGH) {
+      CGH.depends_on(DepEvents);
+      CGH.ext_oneapi_fill2d<T>(Dest, DestPitch, Pattern, Width, Height);
+    } _CODELOCFW(CodeLoc));
+  }
+
   /// single_task version with a kernel represented as a lambda.
   ///
   /// \param Properties is the kernel properties.
@@ -737,9 +1070,9 @@ public:
   single_task(PropertiesT Properties,
               _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     static_assert(
-        (detail::check_fn_signature<std::remove_reference_t<KernelType>,
+        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
                                     void()>::value ||
-         detail::check_fn_signature<std::remove_reference_t<KernelType>,
+         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
                                     void(kernel_handler)>::value),
         "sycl::queue.single_task() requires a kernel instead of command group. "
         "Use queue.submit() instead");
@@ -776,9 +1109,9 @@ public:
   single_task(event DepEvent, PropertiesT Properties,
               _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     static_assert(
-        (detail::check_fn_signature<std::remove_reference_t<KernelType>,
+        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
                                     void()>::value ||
-         detail::check_fn_signature<std::remove_reference_t<KernelType>,
+         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
                                     void(kernel_handler)>::value),
         "sycl::queue.single_task() requires a kernel instead of command group. "
         "Use queue.submit() instead");
@@ -819,9 +1152,9 @@ public:
   single_task(const std::vector<event> &DepEvents, PropertiesT Properties,
               _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
     static_assert(
-        (detail::check_fn_signature<std::remove_reference_t<KernelType>,
+        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
                                     void()>::value ||
-         detail::check_fn_signature<std::remove_reference_t<KernelType>,
+         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
                                     void(kernel_handler)>::value),
         "sycl::queue.single_task() requires a kernel instead of command group. "
         "Use queue.submit() instead");

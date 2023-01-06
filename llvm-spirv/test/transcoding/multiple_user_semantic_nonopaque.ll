@@ -23,14 +23,14 @@
 ; CHECK-LLVM-DAG: @[[StrStructB:[0-9_.]+]] = {{.*}}"class_annotation_b\00"
 ; CHECK-LLVM: [[#Var:]] = alloca i32, align 4
 ; CHECK-LLVM: [[#Bitcast1:]] = bitcast i32* %[[#Var]] to i8*
-; CHECK-LLVM: call void @llvm.var.annotation(i8* %[[#Bitcast1]], i8* getelementptr inbounds ([17 x i8], [17 x i8]* @[[StrA]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
+; CHECK-LLVM: call void @llvm.var.annotation.p0i8.p0i8(i8* %[[#Bitcast1]], i8* getelementptr inbounds ([17 x i8], [17 x i8]* @[[StrA]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
 ; CHECK-LLVM: [[#Bitcast2:]] = bitcast i32* %[[#Var]] to i8*
-; CHECK-LLVM: call void @llvm.var.annotation(i8* %[[#Bitcast2]], i8* getelementptr inbounds ([17 x i8], [17 x i8]* @[[StrB]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
+; CHECK-LLVM: call void @llvm.var.annotation.p0i8.p0i8(i8* %[[#Bitcast2]], i8* getelementptr inbounds ([17 x i8], [17 x i8]* @[[StrB]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
 ; CHECK-LLVM: %[[#StructMember:]] = alloca %class.Sample, align 4
 ; CHECK-LLVM: %[[#GEP1:]] = getelementptr inbounds %class.Sample, %class.Sample* %[[#StructMember]], i32 0, i32 0
-; CHECK-LLVM: call i32* @llvm.ptr.annotation.p0i32(i32* %[[#GEP1:]], i8* getelementptr inbounds ([19 x i8], [19 x i8]* @[[StrStructA]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
+; CHECK-LLVM: call i32* @llvm.ptr.annotation.p0i32.p0i8(i32* %[[#GEP1:]], i8* getelementptr inbounds ([19 x i8], [19 x i8]* @[[StrStructA]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
 ; CHECK-LLVM: %[[#GEP2:]] = getelementptr inbounds %class.Sample, %class.Sample* %[[#StructMember]], i32 0, i32 0
-; CHECK-LLVM: call i32* @llvm.ptr.annotation.p0i32(i32* %[[#GEP2]], i8* getelementptr inbounds ([19 x i8], [19 x i8]* @[[StrStructB]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
+; CHECK-LLVM: call i32* @llvm.ptr.annotation.p0i32.p0i8(i32* %[[#GEP2]], i8* getelementptr inbounds ([19 x i8], [19 x i8]* @[[StrStructB]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
 
 
 source_filename = "llvm-link"

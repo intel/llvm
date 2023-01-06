@@ -14,7 +14,6 @@
 #define LLVM_ANALYSIS_MEMORYDEPENDENCEANALYSIS_H
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerEmbeddedInt.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/PointerSumType.h"
@@ -33,7 +32,6 @@ class AssumptionCache;
 class BatchAAResults;
 class DominatorTree;
 class PHITransAddr;
-class PhiValues;
 
 /// A memory dependence query can return one of three different answers.
 class MemDepResult {
@@ -349,7 +347,6 @@ private:
   AssumptionCache &AC;
   const TargetLibraryInfo &TLI;
   DominatorTree &DT;
-  PhiValues &PV;
   PredIteratorCache PredCache;
 
   unsigned DefaultBlockScanLimit;
@@ -361,8 +358,8 @@ private:
 public:
   MemoryDependenceResults(AAResults &AA, AssumptionCache &AC,
                           const TargetLibraryInfo &TLI, DominatorTree &DT,
-                          PhiValues &PV, unsigned DefaultBlockScanLimit)
-      : AA(AA), AC(AC), TLI(TLI), DT(DT), PV(PV),
+                          unsigned DefaultBlockScanLimit)
+      : AA(AA), AC(AC), TLI(TLI), DT(DT),
         DefaultBlockScanLimit(DefaultBlockScanLimit) {}
 
   /// Handle invalidation in the new PM.

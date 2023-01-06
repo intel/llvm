@@ -32,6 +32,11 @@
 
 #include <utility>
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+#include "xpti/xpti_trace_framework.hpp"
+#include <detail/xpti_registry.hpp>
+#endif
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
@@ -98,11 +103,52 @@ public:
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MHasDiscardEventsSupport(MDiscardEvents &&
                                  (MHostQueue ? true : MIsInorder)) {
+    // We enable XPTI tracing events using the TLS mechanism; if the code
+    // location data is available, then the tracing data will be rich.
+#if XPTI_ENABLE_INSTRUMENTATION
+    /// This section of code is relying on scoped objects, so they cannot be
+    /// encapsulated in a function
+    XPTIScope PrepareNotify((void *)this,
+                            (uint16_t)xpti::trace_point_type_t::queue_create,
+                            SYCL_STREAM_NAME, "queue_create");
+    // Cache the trace event, stream id and instance IDs for the destructor
+    if (xptiTraceEnabled()) {
+      MTraceEvent = (void *)PrepareNotify.traceEvent();
+      MStreamID = PrepareNotify.streamID();
+      MInstanceID = PrepareNotify.instanceID();
+    }
+    // Add the function to capture meta data for the XPTI trace event
+    PrepareNotify.addMetadata([&](auto TEvent) {
+      xpti::addMetadata(TEvent, "sycl_context",
+                        reinterpret_cast<size_t>(MContext->getHandleRef()));
+      if (MDevice) {
+        xpti::addMetadata(TEvent, "sycl_device_name", MDevice->getDeviceName());
+        xpti::addMetadata(
+            TEvent, "sycl_device",
+            reinterpret_cast<size_t>(
+                MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+      }
+      xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
+    });
+    PrepareNotify.notify();
+#endif
     if (has_property<ext::oneapi::property::queue::discard_events>() &&
         has_property<property::queue::enable_profiling>()) {
       throw sycl::exception(make_error_code(errc::invalid),
                             "Queue cannot be constructed with both of "
                             "discard_events and enable_profiling.");
+    }
+    if (has_property<ext::intel::property::queue::compute_index>()) {
+      int Idx = get_property<ext::intel::property::queue::compute_index>()
+                    .get_index();
+      int NumIndices =
+          createSyclObjFromImpl<device>(Device)
+              .get_info<ext::intel::info::device::max_compute_queue_indices>();
+      if (Idx < 0 || Idx >= NumIndices)
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Queue compute index must be a non-negative number less than "
+            "device's number of available compute queue indices.");
     }
     if (!Context->isDeviceValid(Device)) {
       if (!Context->is_host() &&
@@ -122,6 +168,8 @@ public:
       const QueueOrder QOrder =
           MIsInorder ? QueueOrder::Ordered : QueueOrder::OOO;
       MQueues.push_back(createQueue(QOrder));
+      // This section is the second part of the instrumentation that uses the
+      // tracepoint information and notifies
     }
   }
 
@@ -141,6 +189,37 @@ public:
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MHasDiscardEventsSupport(MDiscardEvents &&
                                  (MHostQueue ? true : MIsInorder)) {
+    // The following commented section provides a guideline on how to use the
+    // TLS enabled mechanism to create a tracepoint and notify using XPTI. This
+    // is the prolog section and the epilog section will initiate the
+    // notification.
+#if XPTI_ENABLE_INSTRUMENTATION
+    /// This section of code is relying on scoped objects, so they cannot be
+    /// encapsulated in a function
+    XPTIScope PrepareNotify((void *)this,
+                            (uint16_t)xpti::trace_point_type_t::queue_create,
+                            SYCL_STREAM_NAME, "queue_create");
+    if (xptiTraceEnabled()) {
+      // Cache the trace event, stream id and instance IDs for the destructor
+      MTraceEvent = (void *)PrepareNotify.traceEvent();
+      MStreamID = PrepareNotify.streamID();
+      MInstanceID = PrepareNotify.instanceID();
+    }
+    // Add the function to capture meta data for the XPTI trace event
+    PrepareNotify.addMetadata([&](auto TEvent) {
+      xpti::addMetadata(TEvent, "sycl_context",
+                        reinterpret_cast<size_t>(MContext->getHandleRef()));
+      if (MDevice) {
+        xpti::addMetadata(TEvent, "sycl_device_name", MDevice->getDeviceName());
+        xpti::addMetadata(
+            TEvent, "sycl_device",
+            reinterpret_cast<size_t>(
+                MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+      }
+      xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
+    });
+    PrepareNotify.notify();
+#endif
     if (has_property<ext::oneapi::property::queue::discard_events>() &&
         has_property<property::queue::enable_profiling>()) {
       throw sycl::exception(make_error_code(errc::invalid),
@@ -156,13 +235,26 @@ public:
     Plugin.call<PiApiKind::piQueueGetInfo>(
         MQueues[0], PI_QUEUE_INFO_DEVICE, sizeof(DevicePI), &DevicePI, nullptr);
     MDevice = MContext->findMatchingDeviceImpl(DevicePI);
-    if (MDevice == nullptr)
+    if (MDevice == nullptr) {
       throw sycl::exception(
           make_error_code(errc::invalid),
           "Device provided by native Queue not found in Context.");
+    }
   }
 
   ~queue_impl() {
+    // The trace event created in the constructor should be active through the
+    // lifetime of the queue object as member variables when ABI breakage is
+    // allowed. This example shows MTraceEvent as a member variable.
+#if XPTI_ENABLE_INSTRUMENTATION
+    if (xptiTraceEnabled()) {
+      // Used cached information in member variables
+      xptiNotifySubscribers(
+          MStreamID, (uint16_t)xpti::trace_point_type_t::queue_destroy, nullptr,
+          (xpti::trace_event_data_t *)MTraceEvent, MInstanceID,
+          static_cast<const void *>("queue_destroy"));
+    }
+#endif
     throw_asynchronous();
     if (!MHostQueue) {
       getPlugin().call<PiApiKind::piQueueRelease>(MQueues[0]);
@@ -297,10 +389,10 @@ public:
     RT::PiQueueProperties CreationFlags = 0;
 
     if (Order == QueueOrder::OOO) {
-      CreationFlags = PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+      CreationFlags = PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
     }
     if (MPropList.has_property<property::queue::enable_profiling>()) {
-      CreationFlags |= PI_QUEUE_PROFILING_ENABLE;
+      CreationFlags |= PI_QUEUE_FLAG_PROFILING_ENABLE;
     }
     if (MPropList.has_property<
             ext::oneapi::cuda::property::queue::use_default_stream>()) {
@@ -310,7 +402,7 @@ public:
             .has_property<ext::oneapi::property::queue::discard_events>()) {
       // Pass this flag to the Level Zero plugin to be able to check it from
       // queue property.
-      CreationFlags |= PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS;
+      CreationFlags |= PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS;
     }
     // Track that priority settings are not ambiguous.
     bool PrioritySeen = false;
@@ -325,7 +417,7 @@ public:
             make_error_code(errc::invalid),
             "Queue cannot be constructed with different priorities.");
       }
-      CreationFlags |= PI_EXT_ONEAPI_QUEUE_PRIORITY_LOW;
+      CreationFlags |= PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW;
       PrioritySeen = true;
     }
     if (MPropList.has_property<ext::oneapi::property::queue::priority_high>()) {
@@ -334,7 +426,7 @@ public:
             make_error_code(errc::invalid),
             "Queue cannot be constructed with different priorities.");
       }
-      CreationFlags |= PI_EXT_ONEAPI_QUEUE_PRIORITY_HIGH;
+      CreationFlags |= PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH;
       PrioritySeen = true;
     }
     RT::PiQueue Queue{};
@@ -343,8 +435,16 @@ public:
     const detail::plugin &Plugin = getPlugin();
 
     assert(Plugin.getBackend() == MDevice->getPlugin().getBackend());
-    RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piQueueCreate>(
-        Context, Device, CreationFlags, &Queue);
+    RT::PiQueueProperties Properties[] = {PI_QUEUE_FLAGS, CreationFlags, 0, 0,
+                                          0};
+    if (has_property<ext::intel::property::queue::compute_index>()) {
+      int Idx = get_property<ext::intel::property::queue::compute_index>()
+                    .get_index();
+      Properties[2] = PI_QUEUE_COMPUTE_INDEX;
+      Properties[3] = static_cast<RT::PiQueueProperties>(Idx);
+    }
+    RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piextQueueCreate>(
+        Context, Device, Properties, &Queue);
 
     // If creating out-of-order queue failed and this property is not
     // supported (for example, on FPGA), it will return
@@ -477,6 +577,15 @@ public:
   }
 
   bool ext_oneapi_empty() const;
+
+  /// Check whether the queue is in fusion mode.
+  ///
+  /// \return true if the queue is in fusion mode, false otherwise.
+  bool is_in_fusion_mode() {
+    return detail::Scheduler::getInstance().isInFusionMode(
+        std::hash<typename std::shared_ptr<queue_impl>::element_type *>()(
+            this));
+  }
 
 protected:
   // template is needed for proper unit testing
@@ -622,6 +731,16 @@ protected:
   const bool MIsInorder;
 
   std::vector<EventImplPtr> MStreamsServiceEvents;
+
+  // All member variable defined here  are needed for the SYCL instrumentation
+  // layer. Do not guard these variables below with XPTI_ENABLE_INSTRUMENTATION
+  // to ensure we have the same object layout when the macro in the library and
+  // SYCL app are not the same.
+  void *MTraceEvent = nullptr;
+  /// The stream under which the traces are emitted from the queue object
+  uint8_t MStreamID;
+  /// The instance ID of the trace event for queue object
+  uint64_t MInstanceID = 0;
 
 public:
   // Queue constructed with the discard_events property

@@ -8,6 +8,7 @@
 // ===-------------------------------------------------------------------=== //
 
 #pragma once
+#include "matrix-unified-utils.hpp"
 #include <sycl/ext/oneapi/bfloat16.hpp>
 
 namespace sycl {
@@ -16,10 +17,6 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 namespace matrix {
-
-enum class use { a, b, accumulator };
-
-enum class layout { row_major, col_major, dynamic };
 
 namespace precision {
 class tf32 {
@@ -30,26 +27,6 @@ class tf32 {
 template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
           layout Layout = layout::dynamic>
 struct joint_matrix;
-
-template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
-          layout Layout>
-class wi_data {
-
-  joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm;
-
-  wi_data(joint_matrix<Group, T, Use, Rows, Cols, Layout> &_jm) : jm(_jm){};
-
-  template <typename Grp, typename Type, use UseJm, size_t NumRows,
-            size_t NumCols, layout LayoutJm>
-  friend wi_data<Grp, Type, UseJm, NumRows, NumCols, LayoutJm>
-  get_wi_data(Grp,
-              joint_matrix<Grp, Type, UseJm, NumRows, NumCols, LayoutJm> &);
-
-public:
-  size_t length() { return jm.cuda_impl.wi_marray.size(); };
-
-  decltype(auto) operator[](size_t i) { return (jm.cuda_impl.wi_marray[i]); };
-};
 
 } // namespace matrix
 } // namespace experimental

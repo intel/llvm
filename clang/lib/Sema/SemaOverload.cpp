@@ -40,6 +40,7 @@
 #include "llvm/Support/Casting.h"
 #include <algorithm>
 #include <cstdlib>
+#include <optional>
 
 using namespace clang;
 using namespace sema;
@@ -9671,8 +9672,8 @@ static Comparison compareEnableIfAttrs(const Sema &S, const FunctionDecl *Cand1,
 
   llvm::FoldingSetNodeID Cand1ID, Cand2ID;
   for (auto Pair : zip_longest(Cand1Attrs, Cand2Attrs)) {
-    Optional<EnableIfAttr *> Cand1A = std::get<0>(Pair);
-    Optional<EnableIfAttr *> Cand2A = std::get<1>(Pair);
+    std::optional<EnableIfAttr *> Cand1A = std::get<0>(Pair);
+    std::optional<EnableIfAttr *> Cand2A = std::get<1>(Pair);
 
     // It's impossible for Cand1 to be better than (or equal to) Cand2 if Cand1
     // has fewer enable_if attributes than Cand2, and vice versa.
@@ -9750,8 +9751,8 @@ isBetterMultiversionCandidate(const OverloadCandidate &Cand1,
 }
 
 /// Compute the type of the implicit object parameter for the given function,
-/// if any. Returns None if there is no implicit object parameter, and a null
-/// QualType if there is a 'matches anything' implicit object parameter.
+/// if any. Returns std::nullopt if there is no implicit object parameter, and a
+/// null QualType if there is a 'matches anything' implicit object parameter.
 static Optional<QualType> getImplicitObjectParamType(ASTContext &Context,
                                                      const FunctionDecl *F) {
   if (!isa<CXXMethodDecl>(F) || isa<CXXConstructorDecl>(F))

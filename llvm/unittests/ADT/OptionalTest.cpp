@@ -10,6 +10,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/raw_ostream.h"
+#include "MoveOnly.h"
 #include "gtest/gtest-spi.h"
 #include "gtest/gtest.h"
 
@@ -291,36 +292,6 @@ TEST(OptionalTest, InPlaceConstructionAndEmplaceEquivalentTest) {
   }
   EXPECT_EQ(2u, MultiArgConstructor::Destructions);
 }
-
-struct MoveOnly {
-  static unsigned MoveConstructions;
-  static unsigned Destructions;
-  static unsigned MoveAssignments;
-  int val;
-  explicit MoveOnly(int val) : val(val) {
-  }
-  MoveOnly(MoveOnly&& other) {
-    val = other.val;
-    ++MoveConstructions;
-  }
-  MoveOnly &operator=(MoveOnly&& other) {
-    val = other.val;
-    ++MoveAssignments;
-    return *this;
-  }
-  ~MoveOnly() {
-    ++Destructions;
-  }
-  static void ResetCounts() {
-    MoveConstructions = 0;
-    Destructions = 0;
-    MoveAssignments = 0;
-  }
-};
-
-unsigned MoveOnly::MoveConstructions = 0;
-unsigned MoveOnly::Destructions = 0;
-unsigned MoveOnly::MoveAssignments = 0;
 
 static_assert(!std::is_trivially_copyable_v<Optional<MoveOnly>>,
               "not trivially copyable");
@@ -813,16 +784,17 @@ struct Comparable {
 TEST(OptionalTest, UseInUnitTests) {
   // Test that we invoke the streaming operators when pretty-printing values in
   // EXPECT macros.
-  EXPECT_NONFATAL_FAILURE(EXPECT_EQ(llvm::None, ComparableAndStreamable::get()),
-                          "Expected equality of these values:\n"
-                          "  llvm::None\n"
-                          "    Which is: None\n"
-                          "  ComparableAndStreamable::get()\n"
-                          "    Which is: ComparableAndStreamable");
+  EXPECT_NONFATAL_FAILURE(
+      EXPECT_EQ(std::nullopt, ComparableAndStreamable::get()),
+      "Expected equality of these values:\n"
+      "  std::nullopt\n"
+      "    Which is: None\n"
+      "  ComparableAndStreamable::get()\n"
+      "    Which is: ComparableAndStreamable");
 
   // Test that it is still possible to compare objects which do not have a
   // custom streaming operator.
-  EXPECT_NONFATAL_FAILURE(EXPECT_EQ(llvm::None, Comparable::get()), "object");
+  EXPECT_NONFATAL_FAILURE(EXPECT_EQ(std::nullopt, Comparable::get()), "object");
 }
 
 TEST(OptionalTest, HashValue) {

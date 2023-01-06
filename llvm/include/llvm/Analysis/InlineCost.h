@@ -300,8 +300,8 @@ getInlineCost(CallBase &Call, Function *Callee, const InlineParams &Params,
 /// because of user directives, and the inlining is viable. Returns
 /// InlineResult::failure() if the inlining may never happen because of user
 /// directives or incompatibilities detectable without needing callee traversal.
-/// Otherwise returns None, meaning that inlining should be decided based on
-/// other criteria (e.g. cost modeling).
+/// Otherwise returns std::nullopt, meaning that inlining should be decided
+/// based on other criteria (e.g. cost modeling).
 Optional<InlineResult> getAttributeBasedInliningDecision(
     CallBase &Call, Function *Callee, TargetTransformInfo &CalleeTTI,
     function_ref<const TargetLibraryInfo &(Function &)> GetTLI);
@@ -312,7 +312,7 @@ Optional<InlineResult> getAttributeBasedInliningDecision(
 /// Contrary to getInlineCost, which makes a threshold-based final evaluation of
 /// should/shouldn't inline, captured in InlineResult, getInliningCostEstimate
 /// returns:
-/// - None, if the inlining cannot happen (is illegal)
+/// - std::nullopt, if the inlining cannot happen (is illegal)
 /// - an integer, representing the cost.
 Optional<int> getInliningCostEstimate(
     CallBase &Call, TargetTransformInfo &CalleeTTI,

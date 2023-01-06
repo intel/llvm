@@ -12,7 +12,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -4970,7 +4969,7 @@ MachOObjectFile::getChainedFixupsLoadCommand() const {
       *DyldChainedFixupsOrErr;
 
   // If the load command is present but the data offset has been zeroed out,
-  // as is the case for dylib stubs, return None (no error).
+  // as is the case for dylib stubs, return std::nullopt (no error).
   if (!DyldChainedFixups.dataoff)
     return std::nullopt;
   return DyldChainedFixups;

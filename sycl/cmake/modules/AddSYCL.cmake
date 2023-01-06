@@ -1,6 +1,6 @@
 function(add_sycl_library LIB_NAME TYPE)
   cmake_parse_arguments("ARG"
-    "TOOLCHAIN"
+    ""
     "LINKER_SCRIPT"
     "SOURCES;INCLUDE_DIRS;LIBRARIES"
     ${ARGN}
@@ -9,9 +9,7 @@ function(add_sycl_library LIB_NAME TYPE)
   target_include_directories(${LIB_NAME} PRIVATE ${ARG_INCLUDE_DIRS})
   target_link_libraries(${LIB_NAME} PRIVATE ${ARG_LIBRARIES})
 
-  if (ARG_TOOLCHAIN)
-    add_dependencies(sycl-toolchain ${LIB_NAME})
-  endif()
+  add_dependencies(sycl-runtime-libraries ${LIB_NAME})
 
   if (ARG_LINKER_SCRIPT AND UNIX AND NOT APPLE)
     target_link_libraries(${LIB_NAME} PRIVATE
@@ -39,7 +37,6 @@ function(add_sycl_plugin PLUGIN_NAME)
   )
 
   add_sycl_library("pi_${PLUGIN_NAME}" SHARED
-    TOOLCHAIN
     LINKER_SCRIPT "${PROJECT_SOURCE_DIR}/plugins/ld-version-script.txt"
     SOURCES ${ARG_SOURCES}
     INCLUDE_DIRS

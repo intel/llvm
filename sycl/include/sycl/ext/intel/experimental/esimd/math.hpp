@@ -763,7 +763,7 @@ line(float P, float Q, __ESIMD_NS::simd<T, SZ> src1, Sat sat = {}) {
 // The only input and return types for these APIs are floats.
 // In order to be able to use the old emu code, we keep the template argument
 // for the type, although the type "T" can only be float.
-// We use std::enable_if to force the float type only.
+// We use enable_if to force the float type only.
 // If the gen is not specified we warn the programmer that they are potentially
 // using a less efficient implementation if not on GEN10 or above.
 
@@ -1032,7 +1032,7 @@ __ESIMD_API __ESIMD_NS::simd<float, SZ> lrp(__ESIMD_NS::simd<float, SZ> src0,
 // The only input and return types for these APIs are floats.
 // In order to be able to use the old emu code, we keep the template argument
 // for the type, although the type "T" can only be float.
-// We use std::enable_if to force the float type only.
+// We use enable_if to force the float type only.
 // If the gen is not specified we warn the programmer that they are potentially
 // using less efficient implementation.
 template <typename T, int SZ, typename U, typename V,

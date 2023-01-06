@@ -26,24 +26,24 @@ template <int dimensions = 1> class range : public detail::array<dimensions> {
                 "range can only be 1, 2, or 3 dimensional.");
   using base = detail::array<dimensions>;
   template <typename N, typename T>
-  using IntegralType = std::enable_if_t<std::is_integral<N>::value, T>;
+  using IntegralType = detail::enable_if_t<std::is_integral<N>::value, T>;
 
 public:
   /* The following constructor is only available in the range class
   specialization where: dimensions==1 */
   template <int N = dimensions>
-  range(typename std::enable_if_t<(N == 1), size_t> dim0) : base(dim0) {}
+  range(typename detail::enable_if_t<(N == 1), size_t> dim0) : base(dim0) {}
 
   /* The following constructor is only available in the range class
   specialization where: dimensions==2 */
   template <int N = dimensions>
-  range(typename std::enable_if_t<(N == 2), size_t> dim0, size_t dim1)
+  range(typename detail::enable_if_t<(N == 2), size_t> dim0, size_t dim1)
       : base(dim0, dim1) {}
 
   /* The following constructor is only available in the range class
   specialization where: dimensions==3 */
   template <int N = dimensions>
-  range(typename std::enable_if_t<(N == 3), size_t> dim0, size_t dim1,
+  range(typename detail::enable_if_t<(N == 3), size_t> dim0, size_t dim1,
         size_t dim2)
       : base(dim0, dim1, dim2) {}
 

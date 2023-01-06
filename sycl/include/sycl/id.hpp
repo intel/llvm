@@ -35,7 +35,7 @@ private:
   static_assert(dimensions >= 1 && dimensions <= 3,
                 "id can only be 1, 2, or 3 dimensional.");
   template <int N, int val, typename T>
-  using ParamTy = std::enable_if_t<(N == val), T>;
+  using ParamTy = detail::enable_if_t<(N == val), T>;
 
 #ifndef __SYCL_DISABLE_ID_TO_INT_CONV__
   /* Helper class for conversion operator. Void type is not suitable. User
@@ -45,9 +45,9 @@ private:
   class __private_class;
 
   template <typename N, typename T>
-  using EnableIfIntegral = std::enable_if_t<std::is_integral<N>::value, T>;
+  using EnableIfIntegral = detail::enable_if_t<std::is_integral<N>::value, T>;
   template <bool B, typename T>
-  using EnableIfT = std::conditional_t<B, T, __private_class>;
+  using EnableIfT = detail::conditional_t<B, T, __private_class>;
 #endif // __SYCL_DISABLE_ID_TO_INT_CONV__
 
 public:

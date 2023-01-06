@@ -880,9 +880,9 @@ static void instantiateSYCLIntelMaxWorkGroupSizeAttr(
                                      ZResult.get());
 }
 
-static void instantiateReqdWorkGroupSizeAttr(
+static void instantiateSYCLReqdWorkGroupSizeAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const ReqdWorkGroupSizeAttr *A, Decl *New) {
+    const SYCLReqdWorkGroupSizeAttr *A, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult XResult = S.SubstExpr(A->getXDim(), TemplateArgs);
@@ -895,8 +895,8 @@ static void instantiateReqdWorkGroupSizeAttr(
   if (ZResult.isInvalid())
     return;
 
-  S.AddReqdWorkGroupSizeAttr(New, *A, XResult.get(), YResult.get(),
-                             ZResult.get());
+  S.AddSYCLReqdWorkGroupSizeAttr(New, *A, XResult.get(), YResult.get(),
+                                 ZResult.get());
 }
 
 // This doesn't take any template parameters, but we have a custom action that
@@ -1147,10 +1147,10 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
           *this, TemplateArgs, SYCLIntelNoGlobalWorkOffset, New);
       continue;
     }
-    if (const auto *ReqdWorkGroupSize =
-            dyn_cast<ReqdWorkGroupSizeAttr>(TmplAttr)) {
-      instantiateReqdWorkGroupSizeAttr(*this, TemplateArgs, ReqdWorkGroupSize,
-                                       New);
+    if (const auto *SYCLReqdWorkGroupSize =
+            dyn_cast<SYCLReqdWorkGroupSizeAttr>(TmplAttr)) {
+      instantiateSYCLReqdWorkGroupSizeAttr(*this, TemplateArgs,
+                                           SYCLReqdWorkGroupSize, New);
       continue;
     }
     if (const auto *SYCLIntelMaxWorkGroupSize =

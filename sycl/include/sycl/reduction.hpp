@@ -80,17 +80,17 @@ namespace detail {
 template <typename T, class BinaryOperation>
 using IsReduOptForFastAtomicFetch =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
-    std::bool_constant<false>;
+    bool_constant<false>;
 #else
-    std::bool_constant<((is_sgenfloat<T>::value && sizeof(T) == 4) ||
-                        is_sgeninteger<T>::value) &&
-                       IsValidAtomicType<T>::value &&
-                       (IsPlus<T, BinaryOperation>::value ||
-                        IsMinimum<T, BinaryOperation>::value ||
-                        IsMaximum<T, BinaryOperation>::value ||
-                        IsBitOR<T, BinaryOperation>::value ||
-                        IsBitXOR<T, BinaryOperation>::value ||
-                        IsBitAND<T, BinaryOperation>::value)>;
+    bool_constant<((is_sgenfloat<T>::value && sizeof(T) == 4) ||
+                   is_sgeninteger<T>::value) &&
+                  IsValidAtomicType<T>::value &&
+                  (IsPlus<T, BinaryOperation>::value ||
+                   IsMinimum<T, BinaryOperation>::value ||
+                   IsMaximum<T, BinaryOperation>::value ||
+                   IsBitOR<T, BinaryOperation>::value ||
+                   IsBitXOR<T, BinaryOperation>::value ||
+                   IsBitAND<T, BinaryOperation>::value)>;
 #endif
 
 // This type trait is used to detect if the atomic operation BinaryOperation
@@ -104,12 +104,12 @@ using IsReduOptForFastAtomicFetch =
 template <typename T, class BinaryOperation>
 using IsReduOptForAtomic64Op =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
-    std::bool_constant<false>;
+    bool_constant<false>;
 #else
-    std::bool_constant<(IsPlus<T, BinaryOperation>::value ||
-                        IsMinimum<T, BinaryOperation>::value ||
-                        IsMaximum<T, BinaryOperation>::value) &&
-                       is_sgenfloat<T>::value && sizeof(T) == 8>;
+    bool_constant<(IsPlus<T, BinaryOperation>::value ||
+                   IsMinimum<T, BinaryOperation>::value ||
+                   IsMaximum<T, BinaryOperation>::value) &&
+                  is_sgenfloat<T>::value && sizeof(T) == 8>;
 #endif
 
 // This type trait is used to detect if the group algorithm reduce() used with
@@ -120,14 +120,14 @@ using IsReduOptForAtomic64Op =
 template <typename T, class BinaryOperation>
 using IsReduOptForFastReduce =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
-    std::bool_constant<false>;
+    bool_constant<false>;
 #else
-    std::bool_constant<((is_sgeninteger<T>::value &&
-                         (sizeof(T) == 4 || sizeof(T) == 8)) ||
-                        is_sgenfloat<T>::value) &&
-                       (IsPlus<T, BinaryOperation>::value ||
-                        IsMinimum<T, BinaryOperation>::value ||
-                        IsMaximum<T, BinaryOperation>::value)>;
+    bool_constant<((is_sgeninteger<T>::value &&
+                    (sizeof(T) == 4 || sizeof(T) == 8)) ||
+                   is_sgenfloat<T>::value) &&
+                  (IsPlus<T, BinaryOperation>::value ||
+                   IsMinimum<T, BinaryOperation>::value ||
+                   IsMaximum<T, BinaryOperation>::value)>;
 #endif
 
 // std::tuple seems to be a) too heavy and b) not copyable to device now
@@ -178,45 +178,45 @@ template <class Reducer> class combiner {
 
 public:
   template <typename _T = Ty, int _Dims = Dims>
-  std::enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value &&
-                   is_geninteger<_T>::value>
+  enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value &&
+              is_geninteger<_T>::value>
   operator++() {
     static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  std::enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value &&
-                   is_geninteger<_T>::value>
+  enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value &&
+              is_geninteger<_T>::value>
   operator++(int) {
     static_cast<Reducer *>(this)->combine(static_cast<_T>(1));
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  std::enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsPlus<_T, BinaryOp>::value>
   operator+=(const _T &Partial) {
     static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  std::enable_if_t<(_Dims == 0) && IsMultiplies<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsMultiplies<_T, BinaryOp>::value>
   operator*=(const _T &Partial) {
     static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  std::enable_if_t<(_Dims == 0) && IsBitOR<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsBitOR<_T, BinaryOp>::value>
   operator|=(const _T &Partial) {
     static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  std::enable_if_t<(_Dims == 0) && IsBitXOR<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsBitXOR<_T, BinaryOp>::value>
   operator^=(const _T &Partial) {
     static_cast<Reducer *>(this)->combine(Partial);
   }
 
   template <typename _T = Ty, int _Dims = Dims>
-  std::enable_if_t<(_Dims == 0) && IsBitAND<_T, BinaryOp>::value>
+  enable_if_t<(_Dims == 0) && IsBitAND<_T, BinaryOp>::value>
   operator&=(const _T &Partial) {
     static_cast<Reducer *>(this)->combine(Partial);
   }
@@ -250,10 +250,10 @@ public:
   /// Atomic ADD operation: *ReduVarPtr += MValue;
   template <access::address_space Space = access::address_space::global_space,
             typename _T = Ty, class _BinaryOperation = BinaryOp>
-  std::enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
-                   (IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value ||
-                    IsReduOptForAtomic64Op<_T, _BinaryOperation>::value) &&
-                   IsPlus<_T, _BinaryOperation>::value>
+  enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
+              (IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value ||
+               IsReduOptForAtomic64Op<_T, _BinaryOperation>::value) &&
+              IsPlus<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_add(Val); });
@@ -262,9 +262,9 @@ public:
   /// Atomic BITWISE OR operation: *ReduVarPtr |= MValue;
   template <access::address_space Space = access::address_space::global_space,
             typename _T = Ty, class _BinaryOperation = BinaryOp>
-  std::enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
-                   IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value &&
-                   IsBitOR<_T, _BinaryOperation>::value>
+  enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
+              IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value &&
+              IsBitOR<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_or(Val); });
@@ -273,9 +273,9 @@ public:
   /// Atomic BITWISE XOR operation: *ReduVarPtr ^= MValue;
   template <access::address_space Space = access::address_space::global_space,
             typename _T = Ty, class _BinaryOperation = BinaryOp>
-  std::enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
-                   IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value &&
-                   IsBitXOR<_T, _BinaryOperation>::value>
+  enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
+              IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value &&
+              IsBitXOR<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_xor(Val); });
@@ -284,11 +284,11 @@ public:
   /// Atomic BITWISE AND operation: *ReduVarPtr &= MValue;
   template <access::address_space Space = access::address_space::global_space,
             typename _T = Ty, class _BinaryOperation = BinaryOp>
-  std::enable_if_t<std::is_same<remove_decoration_t<_T>, _T>::value &&
-                   IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value &&
-                   IsBitAND<_T, _BinaryOperation>::value &&
-                   (Space == access::address_space::global_space ||
-                    Space == access::address_space::local_space)>
+  enable_if_t<std::is_same<remove_decoration_t<_T>, _T>::value &&
+              IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value &&
+              IsBitAND<_T, _BinaryOperation>::value &&
+              (Space == access::address_space::global_space ||
+               Space == access::address_space::local_space)>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_and(Val); });
@@ -297,10 +297,10 @@ public:
   /// Atomic MIN operation: *ReduVarPtr = sycl::minimum(*ReduVarPtr, MValue);
   template <access::address_space Space = access::address_space::global_space,
             typename _T = Ty, class _BinaryOperation = BinaryOp>
-  std::enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
-                   (IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value ||
-                    IsReduOptForAtomic64Op<_T, _BinaryOperation>::value) &&
-                   IsMinimum<_T, _BinaryOperation>::value>
+  enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
+              (IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value ||
+               IsReduOptForAtomic64Op<_T, _BinaryOperation>::value) &&
+              IsMinimum<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_min(Val); });
@@ -309,10 +309,10 @@ public:
   /// Atomic MAX operation: *ReduVarPtr = sycl::maximum(*ReduVarPtr, MValue);
   template <access::address_space Space = access::address_space::global_space,
             typename _T = Ty, class _BinaryOperation = BinaryOp>
-  std::enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
-                   (IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value ||
-                    IsReduOptForAtomic64Op<_T, _BinaryOperation>::value) &&
-                   IsMaximum<_T, _BinaryOperation>::value>
+  enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
+              (IsReduOptForFastAtomicFetch<_T, _BinaryOperation>::value ||
+               IsReduOptForAtomic64Op<_T, _BinaryOperation>::value) &&
+              IsMaximum<_T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
         ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_max(Val); });
@@ -478,14 +478,14 @@ protected:
 public:
   /// Returns the statically known identity value.
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  std::enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value,
-                   _T> constexpr getIdentity() {
+  enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value,
+              _T> constexpr getIdentity() {
     return known_identity_impl<_BinaryOperation, _T>::value;
   }
 
   /// Returns the identity value given by user.
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  std::enable_if_t<!IsKnownIdentityOp<_T, _BinaryOperation>::value, _T>
+  enable_if_t<!IsKnownIdentityOp<_T, _BinaryOperation>::value, _T>
   getIdentity() {
     return MIdentity;
   }
@@ -750,8 +750,8 @@ public:
   static_assert(Dims <= 1, "Multi-dimensional reductions are not supported.");
 
   /// Constructs reduction_impl when the identity value is statically known.
-  template <typename _self = self, std::enable_if_t<_self::is_known_identity &&
-                                                    !_self::is_usm> * = nullptr>
+  template <typename _self = self,
+            enable_if_t<_self::is_known_identity && !_self::is_usm> * = nullptr>
   reduction_impl(RedOutVar &Acc)
       : algo(reducer_type::getIdentity(), BinaryOperation(), false, Acc) {
     if (Acc.size() != 1)
@@ -764,8 +764,8 @@ public:
   /// The \param VarPtr is a USM pointer to memory, to where the computed
   /// reduction value is added using BinaryOperation, i.e. it is expected that
   /// the memory is pre-initialized with some meaningful value.
-  template <typename _self = self, std::enable_if_t<_self::is_known_identity &&
-                                                    _self::is_usm> * = nullptr>
+  template <typename _self = self,
+            enable_if_t<_self::is_known_identity && _self::is_usm> * = nullptr>
   reduction_impl(RedOutVar VarPtr, bool InitializeToIdentity = false)
       : algo(reducer_type::getIdentity(), BinaryOperation(),
              InitializeToIdentity, VarPtr) {}
@@ -785,7 +785,7 @@ public:
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
-  template <typename _self = self, std::enable_if_t<!_self::is_usm> * = nullptr>
+  template <typename _self = self, enable_if_t<!_self::is_usm> * = nullptr>
   reduction_impl(RedOutVar &Acc, const T &Identity, BinaryOperation BOp)
       : algo(chooseIdentity(Identity), BOp, false, Acc) {
     if (Acc.size() != 1)
@@ -797,13 +797,13 @@ public:
   /// The \param VarPtr is a USM pointer to memory, to where the computed
   /// reduction value is added using BinaryOperation, i.e. it is expected that
   /// the memory is pre-initialized with some meaningful value.
-  template <typename _self = self, std::enable_if_t<_self::is_usm> * = nullptr>
+  template <typename _self = self, enable_if_t<_self::is_usm> * = nullptr>
   reduction_impl(RedOutVar VarPtr, const T &Identity, BinaryOperation BOp,
                  bool InitializeToIdentity = false)
       : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, VarPtr) {}
 
   /// For placeholder accessor.
-  template <typename _self = self, std::enable_if_t<!_self::is_usm> * = nullptr>
+  template <typename _self = self, enable_if_t<!_self::is_usm> * = nullptr>
   reduction_impl(RedOutVar &Acc, handler &CGH, const T &Identity,
                  BinaryOperation BOp, bool InitializeToIdentity)
       : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, Acc) {

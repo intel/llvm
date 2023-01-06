@@ -8,6 +8,8 @@
 
 #include <detail/fusion/fusion_wrapper_impl.hpp>
 
+#include <detail/scheduler/scheduler.hpp>
+
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
@@ -20,22 +22,22 @@ std::shared_ptr<detail::queue_impl> fusion_wrapper_impl::get_queue() const {
   return MQueue;
 }
 
-bool fusion_wrapper_impl::is_in_fusion_mode() const { return false; }
+bool fusion_wrapper_impl::is_in_fusion_mode() const {
+  return MQueue->is_in_fusion_mode();
+}
 
 void fusion_wrapper_impl::start_fusion() {
-  throw sycl::exception(sycl::errc::feature_not_supported,
-                        "Fusion not yet implemented");
+  detail::Scheduler::getInstance().startFusion(MQueue);
 }
 
 void fusion_wrapper_impl::cancel_fusion() {
-  throw sycl::exception(sycl::errc::feature_not_supported,
-                        "Fusion not yet implemented");
+  detail::Scheduler::getInstance().cancelFusion(MQueue);
 }
 
 event fusion_wrapper_impl::complete_fusion(const property_list &PropList) {
-  (void)PropList;
-  throw sycl::exception(sycl::errc::feature_not_supported,
-                        "Fusion not yet implemented");
+  auto EventImpl =
+      detail::Scheduler::getInstance().completeFusion(MQueue, PropList);
+  return detail::createSyclObjFromImpl<event>(EventImpl);
 }
 
 } // namespace detail

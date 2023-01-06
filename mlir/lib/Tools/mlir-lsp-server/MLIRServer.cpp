@@ -41,10 +41,10 @@ static Optional<lsp::Location> getLocationFromLoc(StringRef uriScheme,
   return lsp::Location{*sourceURI, lsp::Range(position)};
 }
 
-/// Returns a language server location from the given MLIR location, or None if
-/// one couldn't be created. `uriScheme` is the scheme to use when building new
-/// uris. `uri` is an optional additional filter that, when present, is used to
-/// filter sub locations that do not share the same uri.
+/// Returns a language server location from the given MLIR location, or
+/// std::nullopt if one couldn't be created. `uriScheme` is the scheme to use
+/// when building new uris. `uri` is an optional additional filter that, when
+/// present, is used to filter sub locations that do not share the same uri.
 static Optional<lsp::Location>
 getLocationFromLoc(llvm::SourceMgr &sourceMgr, Location loc,
                    StringRef uriScheme, const lsp::URIForFile *uri = nullptr) {
@@ -126,7 +126,7 @@ static bool isDefOrUse(const AsmParserState::SMDefinition &def, SMLoc loc,
 }
 
 /// Given a location pointing to a result, return the result number it refers
-/// to or None if it refers to all of the results.
+/// to or std::nullopt if it refers to all of the results.
 static Optional<unsigned> getResultNumberFromLoc(SMLoc loc) {
   // Skip all of the identifier characters.
   auto isIdentifierChar = [](char c) {
@@ -153,7 +153,7 @@ static Optional<unsigned> getResultNumberFromLoc(SMLoc loc) {
 }
 
 /// Given a source location range, return the text covered by the given range.
-/// If the range is invalid, returns None.
+/// If the range is invalid, returns std::nullopt.
 static Optional<StringRef> getTextFromRange(SMRange range) {
   if (!range.isValid())
     return std::nullopt;

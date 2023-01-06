@@ -894,7 +894,8 @@ public:
   BinaryBasicBlock *getLandingPadBBFor(const BinaryBasicBlock &BB,
                                        const MCInst &InvokeInst) const {
     assert(BC.MIB->isInvoke(InvokeInst) && "must be invoke instruction");
-    const Optional<MCPlus::MCLandingPad> LP = BC.MIB->getEHInfo(InvokeInst);
+    const std::optional<MCPlus::MCLandingPad> LP =
+        BC.MIB->getEHInfo(InvokeInst);
     if (LP && LP->first) {
       BinaryBasicBlock *LBB = BB.getLandingPad(LP->first);
       assert(LBB && "Landing pad should be defined");
@@ -971,7 +972,7 @@ public:
   /// returns false. Stop if Callback returns true or all names have been used.
   /// Return the name for which the Callback returned true if any.
   template <typename FType>
-  Optional<StringRef> forEachName(FType Callback) const {
+  std::optional<StringRef> forEachName(FType Callback) const {
     for (MCSymbol *Symbol : Symbols)
       if (Callback(Symbol->getName()))
         return Symbol->getName();
@@ -992,11 +993,12 @@ public:
   }
 
   /// Check if any of function names matches the given regex.
-  Optional<StringRef> hasNameRegex(const StringRef NameRegex) const;
+  std::optional<StringRef> hasNameRegex(const StringRef NameRegex) const;
 
   /// Check if any of restored function names matches the given regex.
   /// Restored name means stripping BOLT-added suffixes like "/1",
-  Optional<StringRef> hasRestoredNameRegex(const StringRef NameRegex) const;
+  std::optional<StringRef>
+  hasRestoredNameRegex(const StringRef NameRegex) const;
 
   /// Return a vector of all possible names for the function.
   std::vector<StringRef> getNames() const {
@@ -1316,7 +1318,7 @@ public:
   }
 
   /// Return the name of the section this function originated from.
-  Optional<StringRef> getOriginSectionName() const {
+  std::optional<StringRef> getOriginSectionName() const {
     if (!OriginSection)
       return std::nullopt;
     return OriginSection->getName();

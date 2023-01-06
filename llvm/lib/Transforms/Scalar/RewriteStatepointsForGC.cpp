@@ -17,7 +17,6 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/MapVector.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
@@ -296,7 +295,7 @@ using RematCandTy = MapVector<Value *, RematerizlizationCandidateRecord>;
 } // end anonymous namespace
 
 static ArrayRef<Use> GetDeoptBundleOperands(const CallBase *Call) {
-  Optional<OperandBundleUse> DeoptBundle =
+  std::optional<OperandBundleUse> DeoptBundle =
       Call->getOperandBundle(LLVMContext::OB_deopt);
 
   if (!DeoptBundle) {

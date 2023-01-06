@@ -146,7 +146,7 @@ void ComputationSliceState::dump() const {
 /// each slice dimension maps to an existing dst dimension and both the src
 /// and the dst loops for those dimensions have the same bounds. Returns false
 /// if both the src and the dst loops don't have the same bounds. Returns
-/// llvm::None if none of the above can be proven.
+/// std::nullopt if none of the above can be proven.
 Optional<bool> ComputationSliceState::isSliceMaximalFastCheck() const {
   assert(lbs.size() == ubs.size() && !lbs.empty() && !ivs.empty() &&
          "Unexpected number of lbs, ubs and ivs in slice");
@@ -283,7 +283,7 @@ Optional<bool> ComputationSliceState::isSliceValid() {
 }
 
 /// Returns true if the computation slice encloses all the iterations of the
-/// sliced loop nest. Returns false if it does not. Returns llvm::None if it
+/// sliced loop nest. Returns false if it does not. Returns std::nullopt if it
 /// cannot determine if the slice is maximal or not.
 Optional<bool> ComputationSliceState::isMaximal() const {
   // Fast check to determine if the computation slice is maximal. If the result
@@ -634,9 +634,9 @@ Optional<int64_t> MemRefRegion::getRegionSize() {
   return getMemRefEltSizeInBytes(memRefType) * *numElements;
 }
 
-/// Returns the size of memref data in bytes if it's statically shaped, None
-/// otherwise.  If the element of the memref has vector type, takes into account
-/// size of the vector as well.
+/// Returns the size of memref data in bytes if it's statically shaped,
+/// std::nullopt otherwise.  If the element of the memref has vector type, takes
+/// into account size of the vector as well.
 //  TODO: improve/complete this when we have target data.
 Optional<uint64_t> mlir::getMemRefSizeInBytes(MemRefType memRefType) {
   if (!memRefType.hasStaticShape())

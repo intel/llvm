@@ -173,18 +173,21 @@ enum PropKind : uint32_t {
   WorkGroupSizeHint = 7,
   SubGroupSize = 8,
   DeviceHas = 9,
-  RegisterMap = 10,
-  Conduit = 11,
-  Stable = 12,
-  BufferLocation = 13,
-  AddrWidth = 14,
-  DataWidth = 15,
-  Latency = 16,
-  RWMode = 17,
-  MaxBurst = 18,
-  WaitRequest = 19,
+  StreamingInterface = 10,  // kernel attribute
+  RegisterMapInterface = 11,
+  Pipelined = 12,
+  RegisterMap = 13,   // kernel argument attribute
+  Conduit = 14,
+  Stable = 15,
+  BufferLocation = 16,
+  AddrWidth = 17,
+  DataWidth = 18,
+  Latency = 19,
+  RWMode = 20,
+  MaxBurst = 21,
+  WaitRequest = 22,
   // PropKindSize must always be the last value.
-  PropKindSize = 20,
+  PropKindSize = 23,
 };
 
 // This trait must be specialized for all properties and must have a unique

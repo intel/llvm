@@ -8,9 +8,9 @@
 
 #include "xpti/xpti_data_types.h"
 #include <exception>
-#include <level_zero/layers/zel_tracing_api.h>
-#include <level_zero/ze_api.h>
+#include <layers/zel_tracing_api.h>
 #include <xpti/xpti_trace_framework.h>
+#include <ze_api.h>
 
 #include <sycl/detail/iostream_proxy.hpp>
 

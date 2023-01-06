@@ -52,7 +52,6 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
@@ -98,6 +97,7 @@
 #include <fstream>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -115,7 +115,7 @@ using namespace llvm::opt;
 
 // Parse misexpect tolerance argument value.
 // Valid option values are integers in the range [0, 100)
-inline Expected<Optional<uint32_t>> parseToleranceOption(StringRef Arg) {
+static Expected<std::optional<uint32_t>> parseToleranceOption(StringRef Arg) {
   uint32_t Val;
   if (Arg.getAsInteger(10, Val))
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
@@ -170,18 +170,19 @@ CompilerInvocationRefBase::~CompilerInvocationRefBase() = default;
 #include "clang/Driver/Options.inc"
 #undef SIMPLE_ENUM_VALUE_TABLE
 
-static llvm::Optional<bool> normalizeSimpleFlag(OptSpecifier Opt,
-                                                unsigned TableIndex,
-                                                const ArgList &Args,
-                                                DiagnosticsEngine &Diags) {
+static std::optional<bool> normalizeSimpleFlag(OptSpecifier Opt,
+                                               unsigned TableIndex,
+                                               const ArgList &Args,
+                                               DiagnosticsEngine &Diags) {
   if (Args.hasArg(Opt))
     return true;
   return std::nullopt;
 }
 
-static Optional<bool> normalizeSimpleNegativeFlag(OptSpecifier Opt, unsigned,
-                                                  const ArgList &Args,
-                                                  DiagnosticsEngine &) {
+static std::optional<bool> normalizeSimpleNegativeFlag(OptSpecifier Opt,
+                                                       unsigned,
+                                                       const ArgList &Args,
+                                                       DiagnosticsEngine &) {
   if (Args.hasArg(Opt))
     return false;
   return std::nullopt;
@@ -206,7 +207,7 @@ template <typename T,
           std::enable_if_t<!is_uint64_t_convertible<T>(), bool> = false>
 static auto makeFlagToValueNormalizer(T Value) {
   return [Value](OptSpecifier Opt, unsigned, const ArgList &Args,
-                 DiagnosticsEngine &) -> Optional<T> {
+                 DiagnosticsEngine &) -> std::optional<T> {
     if (Args.hasArg(Opt))
       return Value;
     return std::nullopt;
@@ -221,9 +222,9 @@ static auto makeFlagToValueNormalizer(T Value) {
 
 static auto makeBooleanOptionNormalizer(bool Value, bool OtherValue,
                                         OptSpecifier OtherOpt) {
-  return [Value, OtherValue, OtherOpt](OptSpecifier Opt, unsigned,
-                                       const ArgList &Args,
-                                       DiagnosticsEngine &) -> Optional<bool> {
+  return [Value, OtherValue,
+          OtherOpt](OptSpecifier Opt, unsigned, const ArgList &Args,
+                    DiagnosticsEngine &) -> std::optional<bool> {
     if (const Arg *A = Args.getLastArg(Opt, OtherOpt)) {
       return A->getOption().matches(Opt) ? Value : OtherValue;
     }
@@ -270,7 +271,7 @@ denormalizeString(SmallVectorImpl<const char *> &Args, const char *Spelling,
   denormalizeStringImpl(Args, Spelling, SA, OptClass, TableIndex, Twine(Value));
 }
 
-static Optional<SimpleEnumValue>
+static std::optional<SimpleEnumValue>
 findValueTableByName(const SimpleEnumValueTable &Table, StringRef Name) {
   for (int I = 0, E = Table.Size; I != E; ++I)
     if (Name == Table.Table[I].Name)
@@ -279,7 +280,7 @@ findValueTableByName(const SimpleEnumValueTable &Table, StringRef Name) {
   return std::nullopt;
 }
 
-static Optional<SimpleEnumValue>
+static std::optional<SimpleEnumValue>
 findValueTableByValue(const SimpleEnumValueTable &Table, unsigned Value) {
   for (int I = 0, E = Table.Size; I != E; ++I)
     if (Value == Table.Table[I].Value)
@@ -288,10 +289,10 @@ findValueTableByValue(const SimpleEnumValueTable &Table, unsigned Value) {
   return std::nullopt;
 }
 
-static llvm::Optional<unsigned> normalizeSimpleEnum(OptSpecifier Opt,
-                                                    unsigned TableIndex,
-                                                    const ArgList &Args,
-                                                    DiagnosticsEngine &Diags) {
+static std::optional<unsigned> normalizeSimpleEnum(OptSpecifier Opt,
+                                                   unsigned TableIndex,
+                                                   const ArgList &Args,
+                                                   DiagnosticsEngine &Diags) {
   assert(TableIndex < SimpleEnumValueTablesSize);
   const SimpleEnumValueTable &Table = SimpleEnumValueTables[TableIndex];
 
@@ -334,9 +335,10 @@ static void denormalizeSimpleEnum(SmallVectorImpl<const char *> &Args,
                                    static_cast<unsigned>(Value));
 }
 
-static Optional<std::string> normalizeString(OptSpecifier Opt, int TableIndex,
-                                             const ArgList &Args,
-                                             DiagnosticsEngine &Diags) {
+static std::optional<std::string> normalizeString(OptSpecifier Opt,
+                                                  int TableIndex,
+                                                  const ArgList &Args,
+                                                  DiagnosticsEngine &Diags) {
   auto *Arg = Args.getLastArg(Opt);
   if (!Arg)
     return std::nullopt;
@@ -344,9 +346,9 @@ static Optional<std::string> normalizeString(OptSpecifier Opt, int TableIndex,
 }
 
 template <typename IntTy>
-static Optional<IntTy> normalizeStringIntegral(OptSpecifier Opt, int,
-                                               const ArgList &Args,
-                                               DiagnosticsEngine &Diags) {
+static std::optional<IntTy> normalizeStringIntegral(OptSpecifier Opt, int,
+                                                    const ArgList &Args,
+                                                    DiagnosticsEngine &Diags) {
   auto *Arg = Args.getLastArg(Opt);
   if (!Arg)
     return std::nullopt;
@@ -359,7 +361,7 @@ static Optional<IntTy> normalizeStringIntegral(OptSpecifier Opt, int,
   return Res;
 }
 
-static Optional<std::vector<std::string>>
+static std::optional<std::vector<std::string>>
 normalizeStringVector(OptSpecifier Opt, int, const ArgList &Args,
                       DiagnosticsEngine &) {
   return Args.getAllArgValues(Opt);
@@ -397,9 +399,10 @@ static void denormalizeStringVector(SmallVectorImpl<const char *> &Args,
   }
 }
 
-static Optional<std::string> normalizeTriple(OptSpecifier Opt, int TableIndex,
-                                             const ArgList &Args,
-                                             DiagnosticsEngine &Diags) {
+static std::optional<std::string> normalizeTriple(OptSpecifier Opt,
+                                                  int TableIndex,
+                                                  const ArgList &Args,
+                                                  DiagnosticsEngine &Diags) {
   auto *Arg = Args.getLastArg(Opt);
   if (!Arg)
     return std::nullopt;
@@ -576,10 +579,9 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
 static unsigned getOptimizationLevel(ArgList &Args, InputKind IK,
                                      DiagnosticsEngine &Diags) {
   unsigned DefaultOpt = llvm::CodeGenOpt::None;
-  if (((IK.getLanguage() == Language::OpenCL ||
-        IK.getLanguage() == Language::OpenCLCXX) &&
-       !Args.hasArg(OPT_cl_opt_disable)) ||
-      Args.hasArg(OPT_fsycl_is_device))
+  if ((IK.getLanguage() == Language::OpenCL ||
+       IK.getLanguage() == Language::OpenCLCXX) &&
+      !Args.hasArg(OPT_cl_opt_disable))
     DefaultOpt = llvm::CodeGenOpt::Default;
 
   if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
@@ -1073,7 +1075,7 @@ static void initOption(AnalyzerOptions::ConfigTable &Config,
                        DiagnosticsEngine *Diags,
                        bool &OptionField, StringRef Name, bool DefaultVal) {
   auto PossiblyInvalidVal =
-      llvm::StringSwitch<Optional<bool>>(
+      llvm::StringSwitch<std::optional<bool>>(
           getStringOption(Config, Name, (DefaultVal ? "true" : "false")))
           .Case("true", true)
           .Case("false", false)
@@ -1370,7 +1372,7 @@ void CompilerInvocation::GenerateCodeGenArgs(
   else if (!Opts.DirectAccessExternalData && LangOpts->PICLevel == 0)
     GenerateArg(Args, OPT_fno_direct_access_external_data, SA);
 
-  Optional<StringRef> DebugInfoVal;
+  std::optional<StringRef> DebugInfoVal;
   switch (Opts.DebugInfo) {
   case codegenoptions::DebugLineTablesOnly:
     DebugInfoVal = "line-tables-only";
@@ -1688,11 +1690,6 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
     Opts.CoveragePrefixMap.insert(
         {std::string(Split.first), std::string(Split.second)});
   }
-
-  Opts.DisableLLVMPasses =
-      Args.hasArg(OPT_disable_llvm_passes) ||
-      (Args.hasArg(OPT_fsycl_is_device) && T.isSPIR() &&
-       Args.hasArg(OPT_fno_sycl_early_optimizations));
 
   const llvm::Triple::ArchType DebugEntryValueArchs[] = {
       llvm::Triple::x86, llvm::Triple::x86_64, llvm::Triple::aarch64,
@@ -2173,6 +2170,16 @@ static bool ParseDependencyOutputArgs(DependencyOutputOptions &Opts,
       Opts.ExtraDeps.emplace_back(std::string(Val), EDK_ModuleFile);
   }
 
+  // Check for invalid combinations of header-include-format
+  // and header-include-filtering.
+  if ((Opts.HeaderIncludeFormat == HIFMT_Textual &&
+       Opts.HeaderIncludeFiltering != HIFIL_None) ||
+      (Opts.HeaderIncludeFormat == HIFMT_JSON &&
+       Opts.HeaderIncludeFiltering != HIFIL_Only_Direct_System))
+    Diags.Report(diag::err_drv_print_header_env_var_combination_cc1)
+        << Args.getLastArg(OPT_header_include_format_EQ)->getValue()
+        << Args.getLastArg(OPT_header_include_filtering_EQ)->getValue();
+
   return Diags.getNumErrors() == NumErrorsBefore;
 }
 
@@ -2380,7 +2387,7 @@ clang::CreateAndPopulateDiagOpts(ArrayRef<const char *> Argv) {
 bool clang::ParseDiagnosticArgs(DiagnosticOptions &Opts, ArgList &Args,
                                 DiagnosticsEngine *Diags,
                                 bool DefaultDiagColor) {
-  Optional<DiagnosticsEngine> IgnoringDiags;
+  std::optional<DiagnosticsEngine> IgnoringDiags;
   if (!Diags) {
     IgnoringDiags.emplace(new DiagnosticIDs(), new DiagnosticOptions(),
                           new IgnoringDiagConsumer());
@@ -3008,8 +3015,8 @@ static void GenerateHeaderSearchArgs(HeaderSearchOptions &Opts,
 
   auto Matches = [](const HeaderSearchOptions::Entry &Entry,
                     llvm::ArrayRef<frontend::IncludeDirGroup> Groups,
-                    llvm::Optional<bool> IsFramework,
-                    llvm::Optional<bool> IgnoreSysRoot) {
+                    std::optional<bool> IsFramework,
+                    std::optional<bool> IgnoreSysRoot) {
     return llvm::is_contained(Groups, Entry.Group) &&
            (!IsFramework || (Entry.IsFramework == *IsFramework)) &&
            (!IgnoreSysRoot || (Entry.IgnoreSysRoot == *IgnoreSysRoot));

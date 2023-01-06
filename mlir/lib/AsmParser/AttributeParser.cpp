@@ -23,6 +23,7 @@
 #include "mlir/IR/IntegerSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Endian.h"
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::detail;
@@ -290,7 +291,7 @@ ParseResult Parser::parseAttributeDict(NamedAttrList &attributes) {
   llvm::SmallDenseSet<StringAttr> seenKeys;
   auto parseElt = [&]() -> ParseResult {
     // The name of an attribute can either be a bare identifier, or a string.
-    Optional<StringAttr> nameId;
+    std::optional<StringAttr> nameId;
     if (getToken().is(Token::string))
       nameId = builder.getStringAttr(getToken().getStringValue());
     else if (getToken().isAny(Token::bare_identifier, Token::inttype) ||
@@ -512,7 +513,7 @@ private:
   std::vector<std::pair<bool, Token>> storage;
 
   /// Storage used when parsing elements that were stored as hex values.
-  Optional<Token> hexStorage;
+  std::optional<Token> hexStorage;
 };
 } // namespace
 
@@ -844,9 +845,7 @@ public:
   ParseResult parseFloatElement(Parser &p);
 
   /// Convert the current contents to a dense array.
-  DenseArrayAttr getAttr() {
-    return DenseArrayAttr::get(RankedTensorType::get(size, type), rawData);
-  }
+  DenseArrayAttr getAttr() { return DenseArrayAttr::get(type, size, rawData); }
 
 private:
   /// Append the raw data of an APInt to the result.
@@ -934,18 +933,9 @@ Attribute Parser::parseDenseArrayAttr(Type attrType) {
     return {};
 
   SMLoc typeLoc = getToken().getLoc();
-  Type eltType;
-  // If an attribute type was provided, use its element type.
-  if (attrType) {
-    auto tensorType = attrType.dyn_cast<RankedTensorType>();
-    if (!tensorType) {
-      emitError(typeLoc, "dense array attribute expected ranked tensor type");
-      return {};
-    }
-    eltType = tensorType.getElementType();
-
-    // Otherwise, parse a type.
-  } else if (!(eltType = parseType())) {
+  Type eltType = parseType();
+  if (!eltType) {
+    emitError(typeLoc, "expected an integer or floating point type");
     return {};
   }
 
@@ -960,23 +950,11 @@ Attribute Parser::parseDenseArrayAttr(Type attrType) {
     return {};
   }
 
-  // If a type was provided, check that it matches the parsed type.
-  auto checkProvidedType = [&](DenseArrayAttr result) -> Attribute {
-    if (attrType && result.getType() != attrType) {
-      emitError(typeLoc, "expected attribute type ")
-          << attrType << " does not match parsed type " << result.getType();
-      return {};
-    }
-    return result;
-  };
-
   // Check for empty list.
-  if (consumeIf(Token::greater)) {
-    return checkProvidedType(
-        DenseArrayAttr::get(RankedTensorType::get(0, eltType), {}));
-  }
-  if (!attrType &&
-      parseToken(Token::colon, "expected ':' after dense array type"))
+  if (consumeIf(Token::greater))
+    return DenseArrayAttr::get(eltType, 0, {});
+
+  if (parseToken(Token::colon, "expected ':' after dense array type"))
     return {};
 
   DenseArrayElementParser eltParser(eltType);
@@ -991,7 +969,7 @@ Attribute Parser::parseDenseArrayAttr(Type attrType) {
   }
   if (parseToken(Token::greater, "expected '>' to close an array attribute"))
     return {};
-  return checkProvidedType(eltParser.getAttr());
+  return eltParser.getAttr();
 }
 
 /// Parse a dense elements attribute.
@@ -1166,8 +1144,8 @@ Attribute Parser::parseStridedLayoutAttr() {
     return nullptr;
 
   // Parses either an integer token or a question mark token. Reports an error
-  // and returns None if the current token is neither. The integer token must
-  // fit into int64_t limits.
+  // and returns std::nullopt if the current token is neither. The integer token
+  // must fit into int64_t limits.
   auto parseStrideOrOffset = [&]() -> Optional<int64_t> {
     if (consumeIf(Token::question))
       return ShapedType::kDynamic;

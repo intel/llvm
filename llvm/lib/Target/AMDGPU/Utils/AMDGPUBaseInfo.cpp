@@ -1018,15 +1018,38 @@ unsigned getAddressableNumVGPRs(const MCSubtargetInfo *STI) {
   return 256;
 }
 
+unsigned getNumWavesPerEUWithNumVGPRs(const MCSubtargetInfo *STI,
+                                      unsigned NumVGPRs) {
+  unsigned MaxWaves = getMaxWavesPerEU(STI);
+  unsigned Granule = getVGPRAllocGranule(STI);
+  if (NumVGPRs < Granule)
+    return MaxWaves;
+  unsigned RoundedRegs = alignTo(NumVGPRs, Granule);
+  return std::min(std::max(getTotalNumVGPRs(STI) / RoundedRegs, 1u), MaxWaves);
+}
+
 unsigned getMinNumVGPRs(const MCSubtargetInfo *STI, unsigned WavesPerEU) {
   assert(WavesPerEU != 0);
 
-  if (WavesPerEU >= getMaxWavesPerEU(STI))
+  unsigned MaxWavesPerEU = getMaxWavesPerEU(STI);
+  if (WavesPerEU >= MaxWavesPerEU)
     return 0;
-  unsigned MinNumVGPRs =
-      alignDown(getTotalNumVGPRs(STI) / (WavesPerEU + 1),
-                getVGPRAllocGranule(STI)) + 1;
-  return std::min(MinNumVGPRs, getAddressableNumVGPRs(STI));
+
+  unsigned TotNumVGPRs = getTotalNumVGPRs(STI);
+  unsigned AddrsableNumVGPRs = getAddressableNumVGPRs(STI);
+  unsigned Granule = getVGPRAllocGranule(STI);
+  unsigned MaxNumVGPRs = alignDown(TotNumVGPRs / WavesPerEU, Granule);
+
+  if (MaxNumVGPRs == alignDown(TotNumVGPRs / MaxWavesPerEU, Granule))
+    return 0;
+
+  unsigned MinWavesPerEU = getNumWavesPerEUWithNumVGPRs(STI, AddrsableNumVGPRs);
+  if (WavesPerEU < MinWavesPerEU)
+    return getMinNumVGPRs(STI, MinWavesPerEU);
+
+  unsigned MaxNumVGPRsNext = alignDown(TotNumVGPRs / (WavesPerEU + 1), Granule);
+  unsigned MinNumVGPRs = 1 + std::min(MaxNumVGPRs - Granule, MaxNumVGPRsNext);
+  return std::min(MinNumVGPRs, AddrsableNumVGPRs);
 }
 
 unsigned getMaxNumVGPRs(const MCSubtargetInfo *STI, unsigned WavesPerEU) {
@@ -2070,6 +2093,29 @@ unsigned mc2PseudoReg(unsigned Reg) {
   MAP_REG2REG
 }
 
+bool isInlineValue(unsigned Reg) {
+  switch (Reg) {
+  case AMDGPU::SRC_SHARED_BASE_LO:
+  case AMDGPU::SRC_SHARED_BASE:
+  case AMDGPU::SRC_SHARED_LIMIT_LO:
+  case AMDGPU::SRC_SHARED_LIMIT:
+  case AMDGPU::SRC_PRIVATE_BASE_LO:
+  case AMDGPU::SRC_PRIVATE_BASE:
+  case AMDGPU::SRC_PRIVATE_LIMIT_LO:
+  case AMDGPU::SRC_PRIVATE_LIMIT:
+  case AMDGPU::SRC_POPS_EXITING_WAVE_ID:
+    return true;
+  case AMDGPU::SRC_VCCZ:
+  case AMDGPU::SRC_EXECZ:
+  case AMDGPU::SRC_SCC:
+    return true;
+  case AMDGPU::SGPR_NULL:
+    return true;
+  default:
+    return false;
+  }
+}
+
 #undef CASE_CI_VI
 #undef CASE_VI_GFX9PLUS
 #undef CASE_GFXPRE11_GFX11PLUS
@@ -2081,6 +2127,13 @@ bool isSISrcOperand(const MCInstrDesc &Desc, unsigned OpNo) {
   unsigned OpType = Desc.OpInfo[OpNo].OperandType;
   return OpType >= AMDGPU::OPERAND_SRC_FIRST &&
          OpType <= AMDGPU::OPERAND_SRC_LAST;
+}
+
+bool isKImmOperand(const MCInstrDesc &Desc, unsigned OpNo) {
+  assert(OpNo < Desc.NumOperands);
+  unsigned OpType = Desc.OpInfo[OpNo].OperandType;
+  return OpType >= AMDGPU::OPERAND_KIMM_FIRST &&
+         OpType <= AMDGPU::OPERAND_KIMM_LAST;
 }
 
 bool isSISrcFPOperand(const MCInstrDesc &Desc, unsigned OpNo) {

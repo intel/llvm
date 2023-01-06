@@ -13,7 +13,6 @@
 
 #include "llvm/IR/Instructions.h"
 #include "LLVMContextImpl.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Twine.h"
@@ -43,6 +42,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 using namespace llvm;
@@ -55,7 +55,7 @@ static cl::opt<bool> DisableI2pP2iOpt(
 //                            AllocaInst Class
 //===----------------------------------------------------------------------===//
 
-Optional<TypeSize>
+std::optional<TypeSize>
 AllocaInst::getAllocationSizeInBits(const DataLayout &DL) const {
   TypeSize Size = DL.getTypeAllocSizeInBits(getAllocatedType());
   if (isArrayAllocation()) {
@@ -824,7 +824,7 @@ static Instruction *createMalloc(Instruction *InsertBefore,
     MCall = CallInst::Create(MallocFunc, AllocSize, OpB, "malloccall");
     Result = MCall;
     if (Result->getType() != AllocPtrType) {
-      InsertAtEnd->getInstList().push_back(MCall);
+      MCall->insertAt(InsertAtEnd, InsertAtEnd->end());
       // Create a cast instruction to convert to the right type...
       Result = new BitCastInst(MCall, AllocPtrType, Name);
     }
@@ -2815,7 +2815,7 @@ UnaryOperator *UnaryOperator::Create(UnaryOps Op, Value *S,
                                      const Twine &Name,
                                      BasicBlock *InsertAtEnd) {
   UnaryOperator *Res = Create(Op, S, Name);
-  InsertAtEnd->getInstList().push_back(Res);
+  Res->insertAt(InsertAtEnd, InsertAtEnd->end());
   return Res;
 }
 
@@ -2946,7 +2946,7 @@ BinaryOperator *BinaryOperator::Create(BinaryOps Op, Value *S1, Value *S2,
                                        const Twine &Name,
                                        BasicBlock *InsertAtEnd) {
   BinaryOperator *Res = Create(Op, S1, S2, Name);
-  InsertAtEnd->getInstList().push_back(Res);
+  Res->insertAt(InsertAtEnd, InsertAtEnd->end());
   return Res;
 }
 

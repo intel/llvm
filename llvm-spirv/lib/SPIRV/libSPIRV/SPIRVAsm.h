@@ -38,7 +38,7 @@ public:
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(CapabilityAsmINTEL);
   }
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_inline_assembly;
   }
   const std::string &getTarget() const { return Target; }
@@ -75,7 +75,7 @@ public:
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(CapabilityAsmINTEL);
   }
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_inline_assembly;
   }
   const std::string &getInstructions() const { return Instructions; }
@@ -113,7 +113,7 @@ public:
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(CapabilityAsmINTEL);
   }
-  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+  std::optional<ExtensionID> getRequiredExtension() const override {
     return ExtensionID::SPV_INTEL_inline_assembly;
   }
   bool isOperandLiteral(unsigned int Index) const override { return false; }

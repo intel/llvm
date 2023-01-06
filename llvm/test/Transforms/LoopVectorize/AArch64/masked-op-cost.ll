@@ -1,5 +1,5 @@
 ; REQUIRES: asserts
-; RUN: opt -loop-vectorize -force-vector-interleave=1 -S -debug-only=loop-vectorize < %s 2>%t | FileCheck %s
+; RUN: opt -passes=loop-vectorize -force-vector-interleave=1 -S -debug-only=loop-vectorize < %s 2>%t | FileCheck %s
 ; RUN: cat %t | FileCheck %s --check-prefix=CHECK-COST
 
 target triple = "aarch64-unknown-linux-gnu"
@@ -46,7 +46,7 @@ for.inc:                                          ; preds = %for.body, %if.then
 
 
 ; CHECK-COST: Checking a loop in 'scalable'
-; CHECK-COST: Found an estimated cost of 2 for VF vscale x 4 For instruction:   store i32 2, i32* %arrayidx1, align 4
+; CHECK-COST: Found an estimated cost of 1 for VF vscale x 4 For instruction:   store i32 2, i32* %arrayidx1, align 4
 
 define void @scalable(i32* noalias nocapture %a, i32* noalias nocapture readonly %b, i64 %n) #0 {
 ; CHECK-LABEL: @scalable(

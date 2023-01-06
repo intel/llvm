@@ -32,15 +32,10 @@ set(compile_opts
   -sycl-std=2020
   )
 
-if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  # If we use non-system GCC, need to pass its location when using
-  # freshly built clang. The system one might be very old.
-  get_filename_component(gcc_bin_dir ${CMAKE_CXX_COMPILER} DIRECTORY)
-  get_filename_component(gcc_install_dir ${gcc_bin_dir} DIRECTORY)
-  # /bin/g++ doesn't need any fixup.
-  if (NOT gcc_install_dir STREQUAL "/")
-    list(APPEND compile_opts "--gcc-toolchain=${gcc_install_dir}")
-  endif()
+set(SYCL_LIBDEVICE_GCC_TOOLCHAIN "" CACHE PATH "Path to GCC installation")
+
+if (NOT SYCL_LIBDEVICE_GCC_TOOLCHAIN STREQUAL "")
+  list(APPEND compile_opts "--gcc-toolchain=${SYCL_LIBDEVICE_GCC_TOOLCHAIN}")
 endif()
 
 if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
