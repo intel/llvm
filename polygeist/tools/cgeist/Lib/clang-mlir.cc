@@ -373,7 +373,7 @@ void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
     assert(!isa<gpu::GPUFuncOp>(Function) &&
            "SYCL kernel functions must always have a void return type.");
     Builder.create<func::ReturnOp>(
-        Loc, ArrayRef<Value>({Builder.create<memref::LoadOp>(Loc, ReturnVal)}));
+        Loc, ValueRange({Builder.create<memref::LoadOp>(Loc, ReturnVal)}));
   } else if (isa<gpu::GPUFuncOp>(Function))
     Builder.create<gpu::ReturnOp>(Loc);
   else
@@ -449,7 +449,7 @@ Value MLIRScanner::createAllocOp(Type T, clang::VarDecl *Name,
         ABuilder.create<memref::StoreOp>(
             VarLoc, ValueCategory::getUndefValue(ABuilder, VarLoc, T).val,
             Alloc,
-            ArrayRef<Value>({ABuilder.create<arith::ConstantIndexOp>(Loc, 0)}));
+            ValueRange({ABuilder.create<arith::ConstantIndexOp>(Loc, 0)}));
     }
   } else {
     auto MT = T.cast<MemRefType>();
@@ -606,9 +606,8 @@ ValueCategory MLIRScanner::CommonArrayToPointer(ValueCategory Scalar) {
         Builder.create<LLVM::GEPOp>(
             Loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
             Scalar.val,
-            ArrayRef<Value>(
-                {Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
-                 Builder.create<arith::ConstantIntOp>(Loc, 0, 32)})),
+            ValueRange({Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
+                        Builder.create<arith::ConstantIntOp>(Loc, 0, 32)})),
         /*isReference*/ false);
   }
 
@@ -630,12 +629,11 @@ ValueCategory MLIRScanner::CommonArrayLookup(ValueCategory Array, Value Idx,
 
   if (Val.getType().isa<LLVM::LLVMPointerType>()) {
     // TODO sub
-    return ValueCategory(
-        Builder.create<LLVM::GEPOp>(
-            Loc, Val.getType(), Val,
-            ArrayRef<Value>({Builder.create<arith::IndexCastOp>(
-                Loc, Builder.getIntegerType(64), Idx)})),
-        /*isReference*/ true);
+    return ValueCategory(Builder.create<LLVM::GEPOp>(
+                             Loc, Val.getType(), Val,
+                             ValueRange({Builder.create<arith::IndexCastOp>(
+                                 Loc, Builder.getIntegerType(64), Idx)})),
+                         /*isReference*/ true);
   }
 
   if (!Val.getType().isa<MemRefType>()) {
@@ -1007,7 +1005,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
           Builder.create<arith::ConstantIntOp>(Loc, 0, PrevTy));
 
     auto IfOp = Builder.create<scf::IfOp>(
-        Loc, ArrayRef<Type>({Builder.getIntegerType(1)}), Cond,
+        Loc, TypeRange({Builder.getIntegerType(1)}), Cond,
         /*hasElseRegion*/ true);
 
     Block::iterator OldPoint = Builder.getInsertionPoint();
@@ -1025,11 +1023,11 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
           Loc, arith::CmpIPredicate::ne, RHS,
           Builder.create<arith::ConstantIntOp>(Loc, 0, RHS.getType()));
 
-    Builder.create<scf::YieldOp>(Loc, ArrayRef<Value>({RHS}));
+    Builder.create<scf::YieldOp>(Loc, ValueRange({RHS}));
 
     Builder.setInsertionPointToStart(&IfOp.getElseRegion().back());
     Builder.create<scf::YieldOp>(
-        Loc, ArrayRef<Value>({Builder.create<arith::ConstantIntOp>(
+        Loc, ValueRange({Builder.create<arith::ConstantIntOp>(
                  Loc, 0, Builder.getIntegerType(1))}));
 
     Builder.setInsertionPoint(OldBlock, OldPoint);
@@ -1045,7 +1043,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
           Builder.create<arith::ConstantIntOp>(Loc, 0, PrevTy));
 
     auto IfOp = Builder.create<scf::IfOp>(
-        Loc, ArrayRef<Type>({Builder.getIntegerType(1)}), Cond,
+        Loc, TypeRange({Builder.getIntegerType(1)}), Cond,
         /*hasElseRegion*/ true);
 
     Block::iterator OldPoint = Builder.getInsertionPoint();
@@ -1053,7 +1051,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     Builder.setInsertionPointToStart(&IfOp.getThenRegion().back());
 
     Builder.create<scf::YieldOp>(
-        Loc, ArrayRef<Value>({Builder.create<arith::ConstantIntOp>(
+        Loc, ValueRange({Builder.create<arith::ConstantIntOp>(
                  Loc, 1, Builder.getIntegerType(1))}));
 
     Builder.setInsertionPointToStart(&IfOp.getElseRegion().back());
@@ -1064,7 +1062,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
           Builder.create<arith::ConstantIntOp>(Loc, 0, RHS.getType()));
     }
     assert(RHS != nullptr);
-    Builder.create<scf::YieldOp>(Loc, ArrayRef<Value>({RHS}));
+    Builder.create<scf::YieldOp>(Loc, ValueRange({RHS}));
 
     Builder.setInsertionPoint(OldBlock, OldPoint);
 
@@ -1242,8 +1240,8 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
                       [](auto Ty) { return Ty.getElementType(); });
     Value CommonGep = Builder.create<LLVM::GEPOp>(
         Loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()), Val,
-        ArrayRef<Value>({Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
-                         Builder.create<arith::ConstantIntOp>(Loc, FNum, 32)}));
+        ValueRange({Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
+                    Builder.create<arith::ConstantIntOp>(Loc, FNum, 32)}));
 
     if (RD->isUnion()) {
       LLVM::TypeFromLLVMIRTranslator TypeTranslator(*Module->getContext());
@@ -1418,7 +1416,7 @@ Value MLIRScanner::GetAddressOfDerivedClass(
           Ptr);
 
     Ptr = Builder.create<LLVM::GEPOp>(Loc, Ptr.getType(), Ptr,
-                                      ArrayRef<Value>({Offset}));
+                                      ValueRange({Offset}));
 
     if (auto PT = NT.dyn_cast<LLVM::LLVMPointerType>())
       Val = Builder.create<LLVM::BitcastOp>(
@@ -1723,7 +1721,7 @@ MLIRASTConsumer::getOrCreateLLVMGlobal(const clang::ValueDecl *FD,
       Builder.create<LLVM::StoreOp>(
           Module->getLoc(), Res,
           Builder.create<LLVM::AddressOfOp>(Module->getLoc(), Glob));
-      Builder.create<LLVM::ReturnOp>(Module->getLoc(), ArrayRef<Value>());
+      Builder.create<LLVM::ReturnOp>(Module->getLoc(), ValueRange());
     }
   }
 
