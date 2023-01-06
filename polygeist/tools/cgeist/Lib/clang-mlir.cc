@@ -992,11 +992,13 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
           Builder.create<LLVM::ICmpOp>(Loc, LLVM::ICmpPredicate::ne, Cond,
                                        Builder.create<LLVM::NullOp>(Loc, LT));
 
-    LLVM_DEBUG({if (!Cond.getType().isa<IntegerType>()) {
-      BO->dump();
-      BO->getType()->dump();
-      llvm::dbgs() << "cond: " << Cond << "\n";
-    }});
+    LLVM_DEBUG({
+      if (!Cond.getType().isa<IntegerType>()) {
+        BO->dump();
+        BO->getType()->dump();
+        llvm::dbgs() << "cond: " << Cond << "\n";
+      }
+    });
 
     auto PrevTy = Cond.getType().cast<IntegerType>();
     if (!PrevTy.isInteger(1))
@@ -1355,8 +1357,9 @@ Value MLIRScanner::GetAddressOfDerivedClass(
 
   SmallVector<const clang::CXXRecordDecl *> ToBase = {DerivedClass};
   SmallVector<const clang::CXXBaseSpecifier *> Bases;
-  for (const auto *I = Start; I != End; I++) {
-    const clang::CXXBaseSpecifier *Base = *I;
+
+  for (clang::CastExpr::path_const_iterator It = Start; It != End; ++It) {
+    const clang::CXXBaseSpecifier *Base = *It;
     const auto *BaseDecl = cast<clang::CXXRecordDecl>(
         Base->getType()->castAs<clang::RecordType>()->getDecl());
     ToBase.push_back(BaseDecl);

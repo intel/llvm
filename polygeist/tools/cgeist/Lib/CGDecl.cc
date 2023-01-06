@@ -99,7 +99,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *Decl) {
 
   Block *Block = nullptr;
   Block::iterator Iter;
-  Value Op = createAllocOp(SubType, Decl, MemType, IsArray, LLVMABI);
+  Value Op;
 
   if (Decl->isStaticLocal() && MemType == 0) {
     OpBuilder ABuilder(Builder.getContext());
@@ -153,7 +153,8 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *Decl) {
           VarLoc, Builder.create<arith::ConstantIntOp>(VarLoc, false, 1), V,
           std::vector<Value>({getConstantIndex(0)}));
     }
-  }
+  } else
+    Op = createAllocOp(SubType, Decl, MemType, IsArray, LLVMABI);
 
   if (InitExpr.val)
     ValueCategory(Op, /*isReference*/ true).store(Builder, InitExpr, IsArray);
