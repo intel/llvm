@@ -1587,13 +1587,13 @@ namespace loader
     __urdlllocal ur_result_t UR_APICALL
     urEnqueueDeviceGlobalVariableWrite(
         ur_queue_handle_t hQueue,                       ///< [in] handle of the queue to submit to.
-        ur_program_handle_t hProgram,                   ///< [in] the program containing the device global.
+        ur_program_handle_t hProgram,                   ///< [in] handle of the program containing the device global variable.
         const char* name,                               ///< [in] the unique identifier for the device global variable.
         bool blockingWrite,                             ///< [in] indicates if this operation should block.
         size_t count,                                   ///< [in] the number of bytes to copy.
         size_t offset,                                  ///< [in] the byte offset into the device global variable to start copying.
         const void* pSrc,                               ///< [in] pointer to where the data must be copied from.
-        uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
+        uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list.
         const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                         ///< events that must be complete before the kernel execution.
                                                         ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
@@ -1648,13 +1648,13 @@ namespace loader
     __urdlllocal ur_result_t UR_APICALL
     urEnqueueDeviceGlobalVariableRead(
         ur_queue_handle_t hQueue,                       ///< [in] handle of the queue to submit to.
-        ur_program_handle_t hProgram,                   ///< [in] the program containing the device global.
+        ur_program_handle_t hProgram,                   ///< [in] handle of the program containing the device global variable.
         const char* name,                               ///< [in] the unique identifier for the device global variable.
         bool blockingRead,                              ///< [in] indicates if this operation should block.
         size_t count,                                   ///< [in] the number of bytes to copy.
         size_t offset,                                  ///< [in] the byte offset into the device global variable to start copying.
         void* pDst,                                     ///< [in] pointer to where the data must be copied to.
-        uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
+        uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list.
         const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                         ///< events that must be complete before the kernel execution.
                                                         ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
