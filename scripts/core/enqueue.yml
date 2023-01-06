@@ -1139,3 +1139,83 @@ params:
             [in,out][optional] return an event object that identifies this particular kernel execution instance.
 returns:
   - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to write data from the host to device global variable."
+class: $xEnqueue
+name: DeviceGlobalVariableWrite
+ordinal: "0"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue to submit to."
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in] handle of the program containing the device global variable."
+    - type: const char*
+      name: name
+      desc: "[in] the unique identifier for the device global variable."
+    - type: bool
+      name: blockingWrite
+      desc: "[in] indicates if this operation should block."
+    - type: size_t
+      name: count
+      desc: "[in] the number of bytes to copy."
+    - type: size_t
+      name: offset
+      desc: "[in] the byte offset into the device global variable to start copying."
+    - type: const void*
+      name: pSrc
+      desc: "[in] pointer to where the data must be copied from."
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list."
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event. 
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [in,out][optional] return an event object that identifies this particular kernel execution instance.
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a command to read data from a device global variable to the host."
+class: $xEnqueue
+name: DeviceGlobalVariableRead
+ordinal: "0"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue to submit to."
+    - type: $x_program_handle_t
+      name: hProgram
+      desc: "[in] handle of the program containing the device global variable."
+    - type: const char*
+      name: name
+      desc: "[in] the unique identifier for the device global variable."
+    - type: bool
+      name: blockingRead
+      desc: "[in] indicates if this operation should block."
+    - type: size_t
+      name: count
+      desc: "[in] the number of bytes to copy."
+    - type: size_t
+      name: offset
+      desc: "[in] the byte offset into the device global variable to start copying."
+    - type: void*
+      name: pDst
+      desc: "[in] pointer to where the data must be copied to."
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list."
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event. 
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [in,out][optional] return an event object that identifies this particular kernel execution instance.    

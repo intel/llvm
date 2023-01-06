@@ -1751,6 +1751,20 @@ if __use_win_types:
 else:
     _urEnqueueUSMMemcpy2D_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_bool, c_void_p, c_size_t, c_void_p, c_size_t, c_size_t, c_size_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 
+###############################################################################
+## @brief Function-pointer for urEnqueueDeviceGlobalVariableWrite
+if __use_win_types:
+    _urEnqueueDeviceGlobalVariableWrite_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_program_handle_t, c_char_p, c_bool, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+else:
+    _urEnqueueDeviceGlobalVariableWrite_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_program_handle_t, c_char_p, c_bool, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+
+###############################################################################
+## @brief Function-pointer for urEnqueueDeviceGlobalVariableRead
+if __use_win_types:
+    _urEnqueueDeviceGlobalVariableRead_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_program_handle_t, c_char_p, c_bool, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+else:
+    _urEnqueueDeviceGlobalVariableRead_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_program_handle_t, c_char_p, c_bool, c_size_t, c_size_t, c_void_p, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+
 
 ###############################################################################
 ## @brief Table of Enqueue functions pointers
@@ -1777,7 +1791,9 @@ class ur_enqueue_dditable_t(Structure):
         ("pfnUSMMemAdvice", c_void_p),                                  ## _urEnqueueUSMMemAdvice_t
         ("pfnUSMFill2D", c_void_p),                                     ## _urEnqueueUSMFill2D_t
         ("pfnUSMMemset2D", c_void_p),                                   ## _urEnqueueUSMMemset2D_t
-        ("pfnUSMMemcpy2D", c_void_p)                                    ## _urEnqueueUSMMemcpy2D_t
+        ("pfnUSMMemcpy2D", c_void_p),                                   ## _urEnqueueUSMMemcpy2D_t
+        ("pfnDeviceGlobalVariableWrite", c_void_p),                     ## _urEnqueueDeviceGlobalVariableWrite_t
+        ("pfnDeviceGlobalVariableRead", c_void_p)                       ## _urEnqueueDeviceGlobalVariableRead_t
     ]
 
 ###############################################################################
@@ -2194,6 +2210,8 @@ class UR_DDI:
         self.urEnqueueUSMFill2D = _urEnqueueUSMFill2D_t(self.__dditable.Enqueue.pfnUSMFill2D)
         self.urEnqueueUSMMemset2D = _urEnqueueUSMMemset2D_t(self.__dditable.Enqueue.pfnUSMMemset2D)
         self.urEnqueueUSMMemcpy2D = _urEnqueueUSMMemcpy2D_t(self.__dditable.Enqueue.pfnUSMMemcpy2D)
+        self.urEnqueueDeviceGlobalVariableWrite = _urEnqueueDeviceGlobalVariableWrite_t(self.__dditable.Enqueue.pfnDeviceGlobalVariableWrite)
+        self.urEnqueueDeviceGlobalVariableRead = _urEnqueueDeviceGlobalVariableRead_t(self.__dditable.Enqueue.pfnDeviceGlobalVariableRead)
 
         # call driver to get function pointers
         USM = ur_usm_dditable_t()
