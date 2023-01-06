@@ -31,14 +31,13 @@
 
 // CHECK-LLVM-LABEL: define weak_odr spir_kernel void @_ZTSN4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EE
 // CHECK-LLVM-SAME:     (%"class.sycl::_V1::range.1"* noundef byval(%"class.sycl::_V1::range.1") align 8 %0, 
-// CHECK-LLVM-SAME:     { { i32 addrspace(1)*, i32 addrspace(1)*, i64, [1 x i64], [1 x i64] } }* noundef byval({ { i32 addrspace(1)*, i32 addrspace(1)*, i64, [1 x i64], [1 x i64] } }) align 8 %1) local_unnamed_addr #0 {
+// CHECK-LLVM-SAME:     { i32 addrspace(1)* }* noundef byval({ i32 addrspace(1)* }) align 8 %1) local_unnamed_addr #0 {
 // CHECK-LLVM-NEXT:  %3 = addrspacecast %"class.sycl::_V1::range.1"* %0 to %"class.sycl::_V1::range.1" addrspace(4)*
 // CHECK-LLVM-NEXT:  %4 = getelementptr %"class.sycl::_V1::range.1", %"class.sycl::_V1::range.1" addrspace(4)* %3, i64 0, i32 0, i32 0, i64 0
 // CHECK-LLVM-NEXT:  %5 = load i64, i64 addrspace(4)* %4, align 8
-// CHECK-LLVM-NEXT:  %.elt1.i = getelementptr inbounds { { i32 addrspace(1)*, i32 addrspace(1)*, i64, [1 x i64], [1 x i64] } }, { { i32 addrspace(1)*, i32 addrspace(1)*, i64, [1 x i64], [1 x i64] } }* %1, i64 0, i32 0, i32 1
-// CHECK-LLVM-NEXT:  %6 = bitcast i32 addrspace(1)** %.elt1.i to i32 addrspace(4)**
+// CHECK-LLVM-NEXT:  %6 = bitcast { i32 addrspace(1)* }* %1 to i32 addrspace(4)**
 // CHECK-LLVM-NEXT:  %7 = addrspacecast i32 addrspace(4)** %6 to i32 addrspace(4)* addrspace(4)*
-// CHECK-LLVM-NEXT:  %.unpack2.i = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %7, align 8
+// CHECK-LLVM-NEXT:  %.val = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %7, align 8
 // CHECK-LLVM-NEXT:  %8 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*), align 32
 // CHECK-LLVM-NEXT:  %9 = extractelement <3 x i64> %8, i64 0
 // CHECK-LLVM-NEXT:  %10 = icmp slt i64 %9, 2147483648
@@ -47,7 +46,7 @@
 // CHECK-LLVM-NEXT:  br i1 %.not, label %11, label %14
 // CHECK-LLVM:       11: 
 // CHECK-LLVM-NEXT:    %12 = trunc i64 %9 to i32
-// CHECK-LLVM-NEXT:    %13 = getelementptr i32, i32 addrspace(4)* %.unpack2.i, i64 %9
+// CHECK-LLVM-NEXT:    %13 = getelementptr i32, i32 addrspace(4)* %.val, i64 %9
 // CHECK-LLVM-NEXT:    store i32 %12, i32 addrspace(4)* %13, align 4
 // CHECK-LLVM-NEXT:    br label %14
 // CHECK-LLVM:       14:

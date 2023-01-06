@@ -22,6 +22,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "polygeist/Passes/Utils.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "sycl-to-llvm"
@@ -461,6 +462,33 @@ private:
   }
 };
 
+class BarePtrCastPattern final
+    : public ConvertOpToLLVMPattern<sycl::SYCLCastOp> {
+public:
+  using ConvertOpToLLVMPattern<sycl::SYCLCastOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(SYCLCastOp op, OpAdaptor opAdaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    const auto srcType = op.getSource().getType().cast<MemRefType>();
+    const auto resType = op.getResult().getType().cast<MemRefType>();
+    const auto convSrcType = typeConverter->convertType(srcType);
+    const auto convResType = typeConverter->convertType(resType);
+
+    // Ensure the input and result types are legal.
+    if (!canBeLoweredToBarePtr(srcType) || !canBeLoweredToBarePtr(resType) ||
+        !convSrcType || !convResType)
+      return failure();
+
+    Location loc = op.getLoc();
+    LLVMBuilder builder(rewriter, loc);
+    rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(op, convResType,
+                                                 opAdaptor.getSource());
+
+    return success();
+  }
+};
+
 //===----------------------------------------------------------------------===//
 // ConstructorPattern - Converts `sycl.constructor` to LLVM.
 //===----------------------------------------------------------------------===//
@@ -611,5 +639,7 @@ void mlir::sycl::populateSYCLToLLVMConversionPatterns(
 
   patterns.add<CallPattern>(typeConverter);
   patterns.add<CastPattern>(typeConverter);
+  if (typeConverter.getOptions().useBarePtrCallConv)
+    patterns.add<BarePtrCastPattern>(typeConverter, /*benefit*/ 2);
   patterns.add<ConstructorPattern>(typeConverter);
 }
