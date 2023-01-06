@@ -367,6 +367,12 @@ params:
       name: hBufferDst
       desc: "[in] handle of the dest buffer object"
     - type: size_t
+      name: srcOffset
+      desc: "[in] offset into hBufferSrc to begin copying from"
+    - type: size_t 
+      name: dstOffset
+      desc: "[in] offset info hBufferDst to begin copying into"
+    - type: size_t
       name: size
       desc: "[in] size in bytes of data being copied"
     - type: uint32_t

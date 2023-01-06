@@ -836,6 +836,8 @@ urEnqueueMemBufferCopy(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue object
     ur_mem_handle_t hBufferSrc,                     ///< [in] handle of the src buffer object
     ur_mem_handle_t hBufferDst,                     ///< [in] handle of the dest buffer object
+    size_t srcOffset,                               ///< [in] offset into hBufferSrc to begin copying from
+    size_t dstOffset,                               ///< [in] offset info hBufferDst to begin copying into
     size_t size,                                    ///< [in] size in bytes of data being copied
     uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
     const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -6324,6 +6326,8 @@ typedef struct ur_enqueue_mem_buffer_copy_params_t
     ur_queue_handle_t* phQueue;
     ur_mem_handle_t* phBufferSrc;
     ur_mem_handle_t* phBufferDst;
+    size_t* psrcOffset;
+    size_t* pdstOffset;
     size_t* psize;
     uint32_t* pnumEventsInWaitList;
     const ur_event_handle_t** pphEventWaitList;
