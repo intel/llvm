@@ -28,7 +28,9 @@ permission by Khronos.
 
 == Dependencies
 
-This extension is written against the SYCL 2020 specification, Revision 6. All references below to the "core SYCL specification" or to section numbers in the SYCL specification refer to that revision.
+This extension is written against the SYCL 2020 specification, Revision 6.
+All references below to the "core SYCL specification" or to section numbers in
+the SYCL specification refer to that revision.
 
 This extension also depends on the following other SYCL extensions:
 
@@ -40,7 +42,8 @@ This extension also depends on the following other SYCL extensions:
 
 == Overview
 
-This extention defines free functions for load/store operations within work group scope.
+This extention defines free functions for load/store operations within work
+group scope.
 
 == Single Value Functions
 
@@ -63,11 +66,13 @@ void joint_store(Group gh, InputT in,
 
 This APIs provides the following features:
 
-* load/store with temporary memory buffer, which can be passed via GroupHelper such as `group_with_scratchpad` link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc#group-helper[group_with_scratchpad description from sort over group proposal]
+* load/store with temporary memory buffer, which can be passed via GroupHelper
+such as `group_with_scratchpad` link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc#group-helper[group_with_scratchpad description from sort over group proposal]
 
 * load/store flexible amount of elements per work item as sycl::span
 
-* specify data placement type via properties (1) or extra options such as setting boundary values or limiting numbers of work items
+* specify data placement type via properties (1) or extra options such as
+setting boundary values or limiting numbers of work items
 
 [source,c++]
 ----
@@ -77,14 +82,14 @@ namespace sycl::ext::oneapi::experimental {
 template<typename GroupHelper, typename InputIteratorT, typename OutputT,
         std::size_t ElementsPerWorkItem, typename Properties = properties<>>
 void joint_load(GroupHelper gh, InputIteratorT in_ptr,
-                      sycl::span<OutputT, ItemsPerWorkItem> out, Properties = {}); (1)
+                sycl::span<OutputT, ItemsPerWorkItem> out, Properties = {}); (1)
 
 
 // Store API
 template<typename GroupHelper, typename OutputIteratorT, typename InputT,
         std::size_t ElementsPerWorkItem, typename Properties = properties<>>
 void joint_store(GroupHelper gh, OutputIteratorT out_ptr,
-                      sycl::span<InputT, ItemsPerWorkItem> in, Properties = {}); (2)
+                  sycl::span<InputT, ItemsPerWorkItem> in, Properties = {}); (2)
 
 
 // Properties:
@@ -95,10 +100,12 @@ enum class group_algorithm_data_placement {
 
 // TO DO: add extra properties for setting boundary values
 
-// Support memory function to define the needed amount of temporary memory needed (name TBD)
+// Support memory function to define the needed amount of temporary memory
+// needed (name TBD)
 
 template<typename T, std::size_t ElementsPerWorkItem>
-constexpr std::size_t memory_required(sycl::memory_scope scope, std::size_t block_size); (3)
+constexpr std::size_t memory_required(sycl::memory_scope scope,
+                                      std::size_t block_size); (3)
 
 }
 ----
@@ -124,53 +131,90 @@ using the `gh` group helper object. Properties can specify data placement.
 
 == Usage Examples
 
-1.Example shows the simple case of block load of global memory from `input` to the private array `data` and store it back to `output`
+1.Example shows the simpliest case without local memory usage of blocked load
+of global memory from `input` to the private array `data` and store it back to
+`output`
+
+[source,c++]
+----
+namespace sycl_exp = sycl::ext::oneapi::experimental;
+
+q.submit([&](sycl::handler& cgh) {
+    cgh.parallel_for(
+        sycl::nd_range<1>(global_size, local_size),
+        [=](sycl::nd_item<1> item) {
+            T data[items_per_thread];
+
+            sycl_exp::joint_load(item.get_group(), input, sycl::span{ data });
+
+            // Work with data...
+
+            sycl_exp::joint_store(item.get_group(), output, sycl::span{ data });
+        });
+});
+----
+
+2.Example shows the simple case of blocked load of global memory from `input` to
+the private array `data` and store it back to `output`
 The temporary memory is allocated via `sycl::local_accessor`
 
 [source,c++]
 ----
 namespace sycl_exp = sycl::ext::oneapi::experimental;
 
-queue.submit([&](sycl::handler &cgh) {
-  constexpr auto temp_memory_size = sycl_exp::memory_required<T, items_per_thread>(sycl::memory_scope::work_group, block_size);
-  sycl::local_accessor<std::byte> buffer(temp_memory_size, cgh);
-  cgh.parallel_for(sycl::nd_range<1>(global_size, local_size), [=](sycl::nd_item<1> item) {
-      T data[items_per_thread];
-      sycl_exp::group_with_scratchpad gh{item.get_group(),
-                                        sycl::span{buffer.get_pointer().get(), temp_memory_size}};
-      sycl_exp::joint_load(gh, input, sycl::span{data});
+q.submit([&](sycl::handler& cgh) {
+    constexpr auto temp_memory_size = sycl_exp::memory_required<T, items_per_thread>(
+        sycl::memory_scope::work_group, block_size);
+    sycl::local_accessor<std::byte> buf(temp_memory_size, cgh);
+    cgh.parallel_for(
+        sycl::nd_range<1>(global_size, local_size),
+        [=](sycl::nd_item<1> item) {
+            T data[items_per_thread];
+            std::byte* buf_ptr = buf.get_pointer().get();
+            sycl_exp::group_with_scratchpad gh{ item.get_group(),
+                                                sycl::span{ buf_ptr, temp_memory_size } };
 
-      // Work with data...
-      
-      sycl_exp::joint_store(gh, output, sycl::span{data});
-  });
+            sycl_exp::joint_load(gh, input, sycl::span{ data });
+
+            // Work with data...
+
+            sycl_exp::joint_store(gh, output, sycl::span{ data });
+        });
 });
 ----
 
-
-2.Example shows the case of striped block load of global memory from `input` to the private array `data` and store it back to `output`
-The temporary memory is allocated via `group_local_memory` API, described in  link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_oneapi_local_memory.asciidoc[sycl_ext_oneapi_local_memory]
+3.Example shows the case of striped load of global memory from `input` to
+the private array `data` and store it back to `output`
+The temporary memory is allocated via `group_local_memory` API, described in
+link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_oneapi_local_memory.asciidoc[sycl_ext_oneapi_local_memory]
 
 [source,c++]
 ----
 namespace sycl_exp = sycl::ext::oneapi::experimental;
 
-queue.submit([&](sycl::handler &cgh) {
-  constexpr auto temp_memory_size = sycl_exp::memory_required<T, items_per_thread>(sycl::memory_scope::work_group, block_size);
-  
-  cgh.parallel_for(sycl::nd_range<1>(global_size, local_size), [=](sycl::nd_item<1> item) {
-      T data[items_per_thread];
+q.submit([&](sycl::handler& cgh) {
+    constexpr auto temp_memory_size = sycl_exp::memory_required<T, items_per_thread>(
+        sycl::memory_scope::work_group, block_size);
+    cgh.parallel_for(
+        sycl::nd_range<1>(block_count * block_size, block_size),
+        [=](sycl::nd_item<1> item) {
+            T data[items_per_thread];
+            auto scratch =
+                sycl::ext::oneapi::group_local_memory<std::byte[temp_memory_size]>(
+                    item.get_group());
+            std::byte* buf_ptr = (std::byte*)(scratch.get());
 
-      auto scratch = sycl::ext::oneapi::group_local_memory<std::byte[temp_memory_size]>(item.get_group());
+            sycl_exp::group_with_scratchpad gh{ item.get_group(),
+                                                sycl::span{ buf_ptr, temp_memory_size } };
 
-      sycl_exp::group_with_scratchpad gh{item.get_group(), sycl::span{scratch.get(), temp_memory_size}};
-      
-      sycl_exp::joint_load(gh, input, sycl::span{data}, properties<data_placement<striped>>{});
+            sycl_exp::joint_load(gh, input, sycl::span{ data },
+                                 sycl::properties<sycl_exp::data_placement<sycl_exp::striped>>{});
 
-      // Work with data...
-      
-      sycl_exp::joint_store(gh, output, sycl::span{data}, properties<data_placement<striped>>{});
-  });
+            // Work with data...
+
+            sycl_exp::joint_store(gh, output, sycl::span{ data },
+                                  sycl::properties<sycl_exp::data_placement<sycl_exp::striped>>{});
+        });
 });
 ----
 
