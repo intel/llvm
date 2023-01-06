@@ -52,8 +52,8 @@ params:
       name: pArgValue
       desc: "[in] argument value represented as matching arg type."
 returns:
-    - $X_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-    - $X_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
+    - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+    - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Set kernel argument to a local buffer."
@@ -73,8 +73,8 @@ params:
       name: argSize
       desc: "[in] size of the local buffer to be allocated by the runtime"
 returns:
-    - $X_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-    - $X_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
+    - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+    - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Get Kernel object information"
@@ -275,8 +275,8 @@ params:
       name: pArgValue
       desc: "[in][optional] SVM pointer to memory location holding the argument value. If null then argument value is considered null."
 returns:
-    - $X_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-    - $X_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
+    - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+    - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Set additional Kernel execution attributes."
@@ -319,7 +319,7 @@ params:
       name: hArgValue
       desc: "[in] handle of Sampler object."
 returns:
-    - $X_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+    - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Set a Memory object as the argument value of a Kernel."
@@ -339,7 +339,7 @@ params:
       name: hArgValue
       desc: "[in][optional] handle of Memory object."
 returns:
-    - $X_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+    - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Return platform native kernel handle."

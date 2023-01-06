@@ -3351,8 +3351,8 @@ urKernelCreate(
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pArgValue`
-///     - ::UR_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-///     - ::UR_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgValue(
     ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
@@ -3375,8 +3375,8 @@ urKernelSetArgValue(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hKernel`
-///     - ::UR_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-///     - ::UR_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgLocal(
     ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
@@ -3586,8 +3586,8 @@ urKernelRelease(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hKernel`
-///     - ::UR_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
-///     - ::UR_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgPointer(
     ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
@@ -3643,7 +3643,7 @@ urKernelSetExecInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hKernel`
 ///         + `NULL == hArgValue`
-///     - ::UR_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgSampler(
     ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
@@ -3665,7 +3665,7 @@ urKernelSetArgSampler(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hKernel`
-///     - ::UR_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgMemObj(
     ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
