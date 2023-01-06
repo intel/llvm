@@ -59,10 +59,10 @@ params:
       desc: "[in] size in bytes of the event property value"
     - type: void*
       name: pPropValue
-      desc: "[out] value of the event property"
+      desc: "[out][optional] value of the event property"
     - type: size_t*
       name: pPropValueSizeRet
-      desc: "[out] bytes returned in event property"
+      desc: "[out][optional] bytes returned in event property"
 returns:
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_EVENT
