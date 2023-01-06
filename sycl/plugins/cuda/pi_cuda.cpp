@@ -1056,7 +1056,8 @@ pi_result cuda_piContextGetInfo(pi_context context, pi_context_info param_name,
   }
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
     // 2D USM memcpy is supported.
-    return true;
+    return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
+                            true);
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT:
     // 2D USM operations currently not supported.
@@ -5449,8 +5450,8 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
     cpyDesc.dstArray = nullptr;
     cpyDesc.dstPitch = dst_pitch;
 
-    cpyDesc.widthInBytes = width;
-    cpyDesc.height = height;
+    cpyDesc.WidthInBytes = width;
+    cpyDesc.Height = height;
 
     result = PI_CHECK_ERROR(cuMemcpy2DAsync(&cpyDesc, cuStream));
 
