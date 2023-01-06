@@ -165,7 +165,6 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
   llvm::SmallSet<unsigned, 1> symbolsToPromote;
 
   unsigned numDims = map.getNumDims();
-  unsigned numSymbols = map.getNumSymbols();
 
   SmallVector<AffineExpr, 8> dimReplacements;
   SmallVector<AffineExpr, 8> symReplacements;
@@ -246,10 +245,10 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
     if (((!isValidSymbolInt(t, /*recur*/ false) &&
           (t.getDefiningOp<AddIOp>() || t.getDefiningOp<SubIOp>() ||
            (t.getDefiningOp<MulIOp>() &&
-            (isValidIndex(t.getDefiningOp()->getOperand(0)) &&
-                 isValidSymbolInt(t.getDefiningOp()->getOperand(1)) ||
-             isValidIndex(t.getDefiningOp()->getOperand(1)) &&
-                 isValidSymbolInt(t.getDefiningOp()->getOperand(0))) &&
+            ((isValidIndex(t.getDefiningOp()->getOperand(0)) &&
+              isValidSymbolInt(t.getDefiningOp()->getOperand(1))) ||
+             (isValidIndex(t.getDefiningOp()->getOperand(1)) &&
+              isValidSymbolInt(t.getDefiningOp()->getOperand(0)))) &&
             !(fix(t.getDefiningOp()->getOperand(0), false) &&
               fix(t.getDefiningOp()->getOperand(1), false))
 
@@ -650,16 +649,6 @@ struct AffineCFGPass : public AffineCFGBase<AffineCFGPass> {
   void runOnOperation() override;
 };
 } // namespace
-
-static void setLocationAfter(PatternRewriter &b, mlir::Value val) {
-  if (val.getDefiningOp()) {
-    auto it = val.getDefiningOp()->getIterator();
-    it++;
-    b.setInsertionPoint(val.getDefiningOp()->getBlock(), it);
-  }
-  if (auto bop = val.dyn_cast<mlir::BlockArgument>())
-    b.setInsertionPoint(bop.getOwner(), bop.getOwner()->begin());
-}
 
 struct IndexCastMovement : public OpRewritePattern<IndexCastOp> {
   using OpRewritePattern<IndexCastOp>::OpRewritePattern;

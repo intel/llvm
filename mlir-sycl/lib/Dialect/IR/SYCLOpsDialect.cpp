@@ -92,9 +92,9 @@ private:
       return "drw";
     case mlir::sycl::MemoryAccessMode::Atomic:
       return "ato";
-    default:
-      llvm_unreachable("Unhandled kind");
     }
+
+    llvm_unreachable("Unhandled kind");
   }
 
   static constexpr llvm::StringRef
@@ -114,9 +114,9 @@ private:
       return "hi";
     case mlir::sycl::MemoryTargetMode::ImageArray:
       return "ia";
-    default:
-      llvm_unreachable("Unhandled kind");
     }
+
+    llvm_unreachable("Unhandled kind");
   }
 };
 
@@ -245,7 +245,7 @@ mlir::sycl::SYCLDialect::findMethodFromBaseClass(
     if (auto Method = findMethod(DerivedTy, MethodName))
       return Method;
   }
-  return llvm::None;
+  return std::nullopt;
 }
 
 void mlir::sycl::SYCLDialect::registerMethodDefinition(
@@ -268,7 +268,7 @@ llvm::Optional<llvm::StringRef>
 mlir::sycl::MethodRegistry::lookupMethod(mlir::TypeID BaseType,
                                          llvm::StringRef MethodName) const {
   const auto Iter = Methods.find({BaseType, MethodName});
-  return Iter == Methods.end() ? llvm::None
+  return Iter == Methods.end() ? std::nullopt
                                : llvm::Optional<llvm::StringRef>{Iter->second};
 }
 
@@ -347,7 +347,7 @@ llvm::Optional<mlir::func::FuncOp> mlir::sycl::MethodRegistry::lookupDefinition(
   if (Iter == Definitions.end()) {
     llvm::WithColor::warning() << "Could not find function \"" << Name
                                << "\" with type " << FuncType << "\n";
-    return llvm::None;
+    return std::nullopt;
   }
   LLVM_DEBUG(llvm::dbgs() << "Function found: " << Iter->second << "\n");
   return Iter->second;

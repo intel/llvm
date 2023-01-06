@@ -2013,8 +2013,6 @@ Value MLIRASTConsumer::getOrCreateGlobalLLVMString(
     case FunctionContext::Host:
       Builder.setInsertionPointToStart(Module->getBody());
       break;
-    default:
-      llvm_unreachable("Unknown Functin Context while creating global string");
     }
 
     auto type = LLVM::LLVMArrayType::get(

@@ -601,7 +601,6 @@ struct WhileToForHelper {
   }
 
   void prepareFor(PatternRewriter &rewriter) {
-    Value one;
     if (lb_addOne) {
       Value one =
           rewriter.create<ConstantIntOp>(loop.getLoc(), 1, lb.getType());

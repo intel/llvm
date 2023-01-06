@@ -211,7 +211,7 @@ bool isReadNone(Operation *op) {
     // memory.
     SmallVector<MemoryEffects::EffectInstance, 1> effects;
     effectInterface.getEffects(effects);
-    return llvm::all_of(effects, [op](const MemoryEffects::EffectInstance &it) {
+    return llvm::all_of(effects, [](const MemoryEffects::EffectInstance &it) {
       return isa<MemoryEffects::Read>(it.getEffect()) ||
              isa<MemoryEffects::Write>(it.getEffect());
     });
@@ -1481,8 +1481,6 @@ public:
 
   Value computeIndex(Op op, size_t idx, PatternRewriter &rewriter) const;
 
-  void rewrite(Op op, Value ptr, PatternRewriter &rewriter) const;
-
   LogicalResult matchAndRewrite(Op op,
                                 PatternRewriter &rewriter) const override {
     Value opPtr = op.getMemref();
@@ -1552,9 +1550,14 @@ public:
       Value idxs[] = {idx};
       val = rewriter.create<LLVM::GEPOp>(op.getLoc(), val.getType(), val, idxs);
     }
-    rewrite(op, val, rewriter);
+
+    replaceOpWithNewOp(op, val, rewriter);
+
     return success();
   }
+
+private:
+  void replaceOpWithNewOp(Op op, Value ptr, PatternRewriter &rewriter) const;
 };
 
 template <>
@@ -1564,7 +1567,7 @@ Value MetaPointer2Memref<memref::LoadOp>::computeIndex(
 }
 
 template <>
-void MetaPointer2Memref<memref::LoadOp>::rewrite(
+void MetaPointer2Memref<memref::LoadOp>::replaceOpWithNewOp(
     memref::LoadOp op, Value ptr, PatternRewriter &rewriter) const {
   rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, op.getType(), ptr);
 }
@@ -1576,7 +1579,7 @@ Value MetaPointer2Memref<memref::StoreOp>::computeIndex(
 }
 
 template <>
-void MetaPointer2Memref<memref::StoreOp>::rewrite(
+void MetaPointer2Memref<memref::StoreOp>::replaceOpWithNewOp(
     memref::StoreOp op, Value ptr, PatternRewriter &rewriter) const {
   rewriter.replaceOpWithNewOp<LLVM::StoreOp>(op, op.getValue(), ptr);
 }
@@ -1591,7 +1594,7 @@ Value MetaPointer2Memref<AffineLoadOp>::computeIndex(
 }
 
 template <>
-void MetaPointer2Memref<AffineLoadOp>::rewrite(
+void MetaPointer2Memref<AffineLoadOp>::replaceOpWithNewOp(
     AffineLoadOp op, Value ptr, PatternRewriter &rewriter) const {
   rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, op.getType(), ptr);
 }
@@ -1606,7 +1609,7 @@ Value MetaPointer2Memref<AffineStoreOp>::computeIndex(
 }
 
 template <>
-void MetaPointer2Memref<AffineStoreOp>::rewrite(
+void MetaPointer2Memref<AffineStoreOp>::replaceOpWithNewOp(
     AffineStoreOp op, Value ptr, PatternRewriter &rewriter) const {
   rewriter.replaceOpWithNewOp<LLVM::StoreOp>(op, op.getValue(), ptr);
 }
