@@ -1277,6 +1277,84 @@ urEnqueueUSMMemcpy2D(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue a command to write data from the host to device global
+///        variable.
+/// 
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///         + `NULL == hProgram`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == name`
+///         + `NULL == pSrc`
+ur_result_t UR_APICALL
+urEnqueueDeviceGlobalVariableWrite(
+    ur_queue_handle_t hQueue,                       ///< [in] handle of the queue to submit to.
+    ur_program_handle_t hProgram,                   ///< [in] handle of the program containing the device global variable.
+    const char* name,                               ///< [in] the unique identifier for the device global variable.
+    bool blockingWrite,                             ///< [in] indicates if this operation should block.
+    size_t count,                                   ///< [in] the number of bytes to copy.
+    size_t offset,                                  ///< [in] the byte offset into the device global variable to start copying.
+    const void* pSrc,                               ///< [in] pointer to where the data must be copied from.
+    uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list.
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                    ///< events that must be complete before the kernel execution.
+                                                    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+                                                    ///< event. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular kernel execution instance.
+    )
+{
+    auto pfnDeviceGlobalVariableWrite = ur_lib::context->urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite;
+    if( nullptr == pfnDeviceGlobalVariableWrite )
+        return UR_RESULT_ERROR_UNINITIALIZED;
+
+    return pfnDeviceGlobalVariableWrite( hQueue, hProgram, name, blockingWrite, count, offset, pSrc, numEventsInWaitList, phEventWaitList, phEvent );
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue a command to read data from a device global variable to the
+///        host.
+/// 
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///         + `NULL == hProgram`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == name`
+///         + `NULL == pDst`
+ur_result_t UR_APICALL
+urEnqueueDeviceGlobalVariableRead(
+    ur_queue_handle_t hQueue,                       ///< [in] handle of the queue to submit to.
+    ur_program_handle_t hProgram,                   ///< [in] handle of the program containing the device global variable.
+    const char* name,                               ///< [in] the unique identifier for the device global variable.
+    bool blockingRead,                              ///< [in] indicates if this operation should block.
+    size_t count,                                   ///< [in] the number of bytes to copy.
+    size_t offset,                                  ///< [in] the byte offset into the device global variable to start copying.
+    void* pDst,                                     ///< [in] pointer to where the data must be copied to.
+    uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list.
+    const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                    ///< events that must be complete before the kernel execution.
+                                                    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+                                                    ///< event. 
+    ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                    ///< particular kernel execution instance.    
+    )
+{
+    auto pfnDeviceGlobalVariableRead = ur_lib::context->urDdiTable.Enqueue.pfnDeviceGlobalVariableRead;
+    if( nullptr == pfnDeviceGlobalVariableRead )
+        return UR_RESULT_ERROR_UNINITIALIZED;
+
+    return pfnDeviceGlobalVariableRead( hQueue, hProgram, name, blockingRead, count, offset, pDst, numEventsInWaitList, phEventWaitList, phEvent );
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Get event object information
 /// 
 /// @remarks
