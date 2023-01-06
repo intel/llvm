@@ -1337,7 +1337,8 @@ urEnqueueUSMMemcpy2D(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Enqueue a command to write data from host to device global variable
+/// @brief Enqueue a command to write data from the host to device global
+///        variable.
 /// 
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -1352,13 +1353,13 @@ urEnqueueUSMMemcpy2D(
 ur_result_t UR_APICALL
 urEnqueueDeviceGlobalVariableWrite(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue to submit to.
-    ur_program_handle_t hProgram,                   ///< [in] the program containing the device global.
+    ur_program_handle_t hProgram,                   ///< [in] handle of the program containing the device global variable.
     const char* name,                               ///< [in] the unique identifier for the device global variable.
     bool blockingWrite,                             ///< [in] indicates if this operation should block.
     size_t count,                                   ///< [in] the number of bytes to copy.
     size_t offset,                                  ///< [in] the byte offset into the device global variable to start copying.
     const void* pSrc,                               ///< [in] pointer to where the data must be copied from.
-    uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
+    uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list.
     const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                     ///< events that must be complete before the kernel execution.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
@@ -1375,7 +1376,8 @@ urEnqueueDeviceGlobalVariableWrite(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Enqueue a command to read data from a device global variable to host
+/// @brief Enqueue a command to read data from a device global variable to the
+///        host.
 /// 
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -1390,13 +1392,13 @@ urEnqueueDeviceGlobalVariableWrite(
 ur_result_t UR_APICALL
 urEnqueueDeviceGlobalVariableRead(
     ur_queue_handle_t hQueue,                       ///< [in] handle of the queue to submit to.
-    ur_program_handle_t hProgram,                   ///< [in] the program containing the device global.
+    ur_program_handle_t hProgram,                   ///< [in] handle of the program containing the device global variable.
     const char* name,                               ///< [in] the unique identifier for the device global variable.
     bool blockingRead,                              ///< [in] indicates if this operation should block.
     size_t count,                                   ///< [in] the number of bytes to copy.
     size_t offset,                                  ///< [in] the byte offset into the device global variable to start copying.
     void* pDst,                                     ///< [in] pointer to where the data must be copied to.
-    uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list
+    uint32_t numEventsInWaitList,                   ///< [in] size of the event wait list.
     const ur_event_handle_t* phEventWaitList,       ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                                     ///< events that must be complete before the kernel execution.
                                                     ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
