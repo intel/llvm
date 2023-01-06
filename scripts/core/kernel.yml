@@ -36,6 +36,7 @@ desc: "Set kernel argument to a value."
 class: $xKernel
 name: SetArgValue
 details:
+    - "The application may call this function from simultaneous threads with the same kernel handle."
     - "The implementation of this function should be lock-free."
 params:
     - type: "$x_kernel_handle_t"
@@ -59,6 +60,7 @@ desc: "Set kernel argument to a local buffer."
 class: $xKernel
 name: SetArgLocal
 details:
+    - "The application may call this function from simultaneous threads with the same kernel handle."
     - "The implementation of this function should be lock-free."
 params:
     - type: "$x_kernel_handle_t"
@@ -257,6 +259,7 @@ name: SetArgPointer
 analogue:
     - "**clSetKernelArgSVMPointer**"
 details:
+    - "The application may call this function from simultaneous threads with the same kernel handle."
     - "The implementation of this function should be lock-free."
 params:
     - type: "$x_kernel_handle_t"
@@ -303,6 +306,7 @@ desc: "Set a Sampler object as the argument value of a Kernel."
 class: $xKernel
 name: SetArgSampler
 details:
+    - "The application may call this function from simultaneous threads with the same kernel handle."
     - "The implementation of this function should be lock-free."
 params:
     - type: "$x_kernel_handle_t"
@@ -322,6 +326,7 @@ desc: "Set a Memory object as the argument value of a Kernel."
 class: $xKernel
 name: SetArgMemObj
 details:
+    - "The application may call this function from simultaneous threads with the same kernel handle."
     - "The implementation of this function should be lock-free."
 params:
     - type: "$x_kernel_handle_t"
