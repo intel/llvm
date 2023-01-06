@@ -218,7 +218,7 @@ template <typename Group, typename T, class BinaryOperation>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_vector_arithmetic<T>::value &&
                      detail::is_native_op<T, BinaryOperation>::value),
-                    T>
+                    T> __attribute__((always_inline))
 reduce_over_group(Group g, T x, BinaryOperation binary_op) {
   // FIXME: Do not special-case for half precision
   static_assert(
@@ -228,6 +228,7 @@ reduce_over_group(Group g, T x, BinaryOperation binary_op) {
            std::is_same<decltype(binary_op(x[0], x[0])), float>::value),
       "Result type of binary_op must match reduction accumulation type.");
   T result;
+#pragma unroll
   for (int s = 0; s < x.size(); ++s) {
     result[s] = reduce_over_group(g, x[s], binary_op);
   }
