@@ -422,8 +422,7 @@ public:
 
     const auto *NSDecl = cast<NamespaceDecl>(DeclCtx);
     if (NSDecl->isStdNamespace()) {
-      S.SYCLDiagIfDeviceCode(KernelInvocationFuncLoc.getBegin(),
-                             diag::std_atomic_type_unsupported);
+      S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::std_atomic_type_unsupported);
       return;
     }
   }

@@ -15,8 +15,6 @@ struct atomic {
 };                    
 } // namespace std   
 
-
-
 using namespace sycl;
 queue q;
 
