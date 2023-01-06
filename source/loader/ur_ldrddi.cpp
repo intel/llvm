@@ -274,10 +274,8 @@ namespace loader
                                                         ///< events that must be complete before the kernel execution.
                                                         ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
                                                         ///< event. 
-        ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular kernel
-                                                        ///< execution instance.
-                                                        ///< Contrary to clEnqueueNDRangeKernel, its input can not be a nullptr. 
-                                                        ///< TODO: change to allow nullptr.
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular kernel execution instance.
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
@@ -309,8 +307,9 @@ namespace loader
         try
         {
             // convert platform handle to loader handle
-            *phEvent = reinterpret_cast<ur_event_handle_t>(
-                ur_event_factory.getInstance( *phEvent, dditable ) );
+            if( nullptr != phEvent )
+                *phEvent = reinterpret_cast<ur_event_handle_t>(
+                    ur_event_factory.getInstance( *phEvent, dditable ) );
         }
         catch( std::bad_alloc& )
         {
@@ -331,10 +330,8 @@ namespace loader
                                                         ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
                                                         ///< previously enqueued commands
                                                         ///< must be complete. 
-        ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                        ///< command instance.
-                                                        ///< Input can not be a nullptr.
-                                                        ///< TODO: change to allow nullptr. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular command instance.
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
@@ -363,8 +360,9 @@ namespace loader
         try
         {
             // convert platform handle to loader handle
-            *phEvent = reinterpret_cast<ur_event_handle_t>(
-                ur_event_factory.getInstance( *phEvent, dditable ) );
+            if( nullptr != phEvent )
+                *phEvent = reinterpret_cast<ur_event_handle_t>(
+                    ur_event_factory.getInstance( *phEvent, dditable ) );
         }
         catch( std::bad_alloc& )
         {
@@ -385,10 +383,8 @@ namespace loader
                                                         ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
                                                         ///< previously enqueued commands
                                                         ///< must be complete. 
-        ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                        ///< command instance.
-                                                        ///< Input can not be a nullptr.
-                                                        ///< TODO: change to allow nullptr. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular command instance.
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
@@ -417,8 +413,9 @@ namespace loader
         try
         {
             // convert platform handle to loader handle
-            *phEvent = reinterpret_cast<ur_event_handle_t>(
-                ur_event_factory.getInstance( *phEvent, dditable ) );
+            if( nullptr != phEvent )
+                *phEvent = reinterpret_cast<ur_event_handle_t>(
+                    ur_event_factory.getInstance( *phEvent, dditable ) );
         }
         catch( std::bad_alloc& )
         {
@@ -443,10 +440,8 @@ namespace loader
                                                         ///< events that must be complete before this command can be executed.
                                                         ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                         ///< command does not wait on any event to complete.
-        ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                        ///< command instance.
-                                                        ///< Input can not be a nullptr.
-                                                        ///< TODO: change to allow nullptr. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular command instance.
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
@@ -478,8 +473,9 @@ namespace loader
         try
         {
             // convert platform handle to loader handle
-            *phEvent = reinterpret_cast<ur_event_handle_t>(
-                ur_event_factory.getInstance( *phEvent, dditable ) );
+            if( nullptr != phEvent )
+                *phEvent = reinterpret_cast<ur_event_handle_t>(
+                    ur_event_factory.getInstance( *phEvent, dditable ) );
         }
         catch( std::bad_alloc& )
         {
@@ -504,10 +500,8 @@ namespace loader
                                                         ///< events that must be complete before this command can be executed.
                                                         ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                         ///< command does not wait on any event to complete.
-        ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                        ///< command instance.
-                                                        ///< Input can not be a nullptr.
-                                                        ///< TODO: change to allow nullptr. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular command instance.
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
@@ -539,8 +533,9 @@ namespace loader
         try
         {
             // convert platform handle to loader handle
-            *phEvent = reinterpret_cast<ur_event_handle_t>(
-                ur_event_factory.getInstance( *phEvent, dditable ) );
+            if( nullptr != phEvent )
+                *phEvent = reinterpret_cast<ur_event_handle_t>(
+                    ur_event_factory.getInstance( *phEvent, dditable ) );
         }
         catch( std::bad_alloc& )
         {
@@ -572,10 +567,8 @@ namespace loader
                                                         ///< events that must be complete before this command can be executed.
                                                         ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                         ///< command does not wait on any event to complete.
-        ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                        ///< command instance.
-                                                        ///< Input can not be a nullptr.
-                                                        ///< TODO: change to allow nullptr. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular command instance.
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
@@ -607,8 +600,9 @@ namespace loader
         try
         {
             // convert platform handle to loader handle
-            *phEvent = reinterpret_cast<ur_event_handle_t>(
-                ur_event_factory.getInstance( *phEvent, dditable ) );
+            if( nullptr != phEvent )
+                *phEvent = reinterpret_cast<ur_event_handle_t>(
+                    ur_event_factory.getInstance( *phEvent, dditable ) );
         }
         catch( std::bad_alloc& )
         {
@@ -641,10 +635,8 @@ namespace loader
                                                         ///< events that must be complete before this command can be executed.
                                                         ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                         ///< command does not wait on any event to complete.
-        ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                        ///< command instance.
-                                                        ///< Input can not be a nullptr.
-                                                        ///< TODO: change to allow nullptr. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular command instance. 
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
@@ -676,8 +668,9 @@ namespace loader
         try
         {
             // convert platform handle to loader handle
-            *phEvent = reinterpret_cast<ur_event_handle_t>(
-                ur_event_factory.getInstance( *phEvent, dditable ) );
+            if( nullptr != phEvent )
+                *phEvent = reinterpret_cast<ur_event_handle_t>(
+                    ur_event_factory.getInstance( *phEvent, dditable ) );
         }
         catch( std::bad_alloc& )
         {
@@ -700,10 +693,8 @@ namespace loader
                                                         ///< events that must be complete before this command can be executed.
                                                         ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                         ///< command does not wait on any event to complete.
-        ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                        ///< command instance.
-                                                        ///< Input can not be a nullptr.
-                                                        ///< TODO: change to allow nullptr. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular command instance. 
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
@@ -738,8 +729,9 @@ namespace loader
         try
         {
             // convert platform handle to loader handle
-            *phEvent = reinterpret_cast<ur_event_handle_t>(
-                ur_event_factory.getInstance( *phEvent, dditable ) );
+            if( nullptr != phEvent )
+                *phEvent = reinterpret_cast<ur_event_handle_t>(
+                    ur_event_factory.getInstance( *phEvent, dditable ) );
         }
         catch( std::bad_alloc& )
         {
@@ -768,10 +760,8 @@ namespace loader
                                                         ///< events that must be complete before this command can be executed.
                                                         ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                         ///< command does not wait on any event to complete.
-        ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                        ///< command instance.
-                                                        ///< Input can not be a nullptr.
-                                                        ///< TODO: change to allow nullptr. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular command instance.
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
@@ -806,8 +796,9 @@ namespace loader
         try
         {
             // convert platform handle to loader handle
-            *phEvent = reinterpret_cast<ur_event_handle_t>(
-                ur_event_factory.getInstance( *phEvent, dditable ) );
+            if( nullptr != phEvent )
+                *phEvent = reinterpret_cast<ur_event_handle_t>(
+                    ur_event_factory.getInstance( *phEvent, dditable ) );
         }
         catch( std::bad_alloc& )
         {
@@ -832,10 +823,8 @@ namespace loader
                                                         ///< events that must be complete before this command can be executed.
                                                         ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                         ///< command does not wait on any event to complete.
-        ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                        ///< command instance.
-                                                        ///< Input can not be a nullptr.
-                                                        ///< TODO: change to allow nullptr. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular command instance.
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
@@ -867,8 +856,9 @@ namespace loader
         try
         {
             // convert platform handle to loader handle
-            *phEvent = reinterpret_cast<ur_event_handle_t>(
-                ur_event_factory.getInstance( *phEvent, dditable ) );
+            if( nullptr != phEvent )
+                *phEvent = reinterpret_cast<ur_event_handle_t>(
+                    ur_event_factory.getInstance( *phEvent, dditable ) );
         }
         catch( std::bad_alloc& )
         {
@@ -896,10 +886,8 @@ namespace loader
                                                         ///< events that must be complete before this command can be executed.
                                                         ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                         ///< command does not wait on any event to complete.
-        ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                        ///< command instance.
-                                                        ///< Input can not be a nullptr.
-                                                        ///< TODO: change to allow nullptr. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular command instance. 
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
@@ -931,8 +919,9 @@ namespace loader
         try
         {
             // convert platform handle to loader handle
-            *phEvent = reinterpret_cast<ur_event_handle_t>(
-                ur_event_factory.getInstance( *phEvent, dditable ) );
+            if( nullptr != phEvent )
+                *phEvent = reinterpret_cast<ur_event_handle_t>(
+                    ur_event_factory.getInstance( *phEvent, dditable ) );
         }
         catch( std::bad_alloc& )
         {
@@ -960,10 +949,8 @@ namespace loader
                                                         ///< events that must be complete before this command can be executed.
                                                         ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                         ///< command does not wait on any event to complete.
-        ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                        ///< command instance.
-                                                        ///< Input can not be a nullptr.
-                                                        ///< TODO: change to allow nullptr. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular command instance.
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
@@ -995,8 +982,9 @@ namespace loader
         try
         {
             // convert platform handle to loader handle
-            *phEvent = reinterpret_cast<ur_event_handle_t>(
-                ur_event_factory.getInstance( *phEvent, dditable ) );
+            if( nullptr != phEvent )
+                *phEvent = reinterpret_cast<ur_event_handle_t>(
+                    ur_event_factory.getInstance( *phEvent, dditable ) );
         }
         catch( std::bad_alloc& )
         {
@@ -1024,10 +1012,8 @@ namespace loader
                                                         ///< events that must be complete before this command can be executed.
                                                         ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                         ///< command does not wait on any event to complete.
-        ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                        ///< command instance.
-                                                        ///< Input can not be a nullptr.
-                                                        ///< TODO: change to allow nullptr. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular command instance. 
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
@@ -1062,8 +1048,9 @@ namespace loader
         try
         {
             // convert platform handle to loader handle
-            *phEvent = reinterpret_cast<ur_event_handle_t>(
-                ur_event_factory.getInstance( *phEvent, dditable ) );
+            if( nullptr != phEvent )
+                *phEvent = reinterpret_cast<ur_event_handle_t>(
+                    ur_event_factory.getInstance( *phEvent, dditable ) );
         }
         catch( std::bad_alloc& )
         {
@@ -1088,10 +1075,8 @@ namespace loader
                                                         ///< events that must be complete before this command can be executed.
                                                         ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                         ///< command does not wait on any event to complete.
-        ur_event_handle_t* phEvent,                     ///< [in,out] return an event object that identifies this particular
-                                                        ///< command instance.
-                                                        ///< Input can not be a nullptr.
-                                                        ///< TODO: change to allow nullptr. 
+        ur_event_handle_t* phEvent,                     ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular command instance.
         void** ppRetMap                                 ///< [in,out] return mapped pointer.  TODO: move it before
                                                         ///< numEventsInWaitList?
         )
@@ -1125,8 +1110,9 @@ namespace loader
         try
         {
             // convert platform handle to loader handle
-            *phEvent = reinterpret_cast<ur_event_handle_t>(
-                ur_event_factory.getInstance( *phEvent, dditable ) );
+            if( nullptr != phEvent )
+                *phEvent = reinterpret_cast<ur_event_handle_t>(
+                    ur_event_factory.getInstance( *phEvent, dditable ) );
         }
         catch( std::bad_alloc& )
         {
@@ -1148,10 +1134,8 @@ namespace loader
                                                         ///< events that must be complete before this command can be executed.
                                                         ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                         ///< command does not wait on any event to complete.
-        ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                        ///< command instance.
-                                                        ///< Input can not be a nullptr.
-                                                        ///< TODO: change to allow nullptr. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular command instance.
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
@@ -1183,8 +1167,9 @@ namespace loader
         try
         {
             // convert platform handle to loader handle
-            *phEvent = reinterpret_cast<ur_event_handle_t>(
-                ur_event_factory.getInstance( *phEvent, dditable ) );
+            if( nullptr != phEvent )
+                *phEvent = reinterpret_cast<ur_event_handle_t>(
+                    ur_event_factory.getInstance( *phEvent, dditable ) );
         }
         catch( std::bad_alloc& )
         {
@@ -1207,10 +1192,8 @@ namespace loader
                                                         ///< events that must be complete before this command can be executed.
                                                         ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                         ///< command does not wait on any event to complete.
-        ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                        ///< command instance.
-                                                        ///< Input can not be a nullptr.
-                                                        ///< TODO: change to allow nullptr. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular command instance. 
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
@@ -1239,8 +1222,9 @@ namespace loader
         try
         {
             // convert platform handle to loader handle
-            *phEvent = reinterpret_cast<ur_event_handle_t>(
-                ur_event_factory.getInstance( *phEvent, dditable ) );
+            if( nullptr != phEvent )
+                *phEvent = reinterpret_cast<ur_event_handle_t>(
+                    ur_event_factory.getInstance( *phEvent, dditable ) );
         }
         catch( std::bad_alloc& )
         {
@@ -1264,10 +1248,8 @@ namespace loader
                                                         ///< events that must be complete before this command can be executed.
                                                         ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                         ///< command does not wait on any event to complete.
-        ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                        ///< command instance.
-                                                        ///< Input can not be a nullptr.
-                                                        ///< TODO: change to allow nullptr. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular command instance.
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
@@ -1296,8 +1278,9 @@ namespace loader
         try
         {
             // convert platform handle to loader handle
-            *phEvent = reinterpret_cast<ur_event_handle_t>(
-                ur_event_factory.getInstance( *phEvent, dditable ) );
+            if( nullptr != phEvent )
+                *phEvent = reinterpret_cast<ur_event_handle_t>(
+                    ur_event_factory.getInstance( *phEvent, dditable ) );
         }
         catch( std::bad_alloc& )
         {
@@ -1320,10 +1303,8 @@ namespace loader
                                                         ///< events that must be complete before this command can be executed.
                                                         ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                                         ///< command does not wait on any event to complete.
-        ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                        ///< command instance.
-                                                        ///< Input can not be a nullptr.
-                                                        ///< TODO: change to allow nullptr. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular command instance.
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
@@ -1352,8 +1333,9 @@ namespace loader
         try
         {
             // convert platform handle to loader handle
-            *phEvent = reinterpret_cast<ur_event_handle_t>(
-                ur_event_factory.getInstance( *phEvent, dditable ) );
+            if( nullptr != phEvent )
+                *phEvent = reinterpret_cast<ur_event_handle_t>(
+                    ur_event_factory.getInstance( *phEvent, dditable ) );
         }
         catch( std::bad_alloc& )
         {
@@ -1371,10 +1353,8 @@ namespace loader
         const void* pMem,                               ///< [in] pointer to the USM memory object
         size_t size,                                    ///< [in] size in bytes to be adviced
         ur_mem_advice_t advice,                         ///< [in] USM memory advice
-        ur_event_handle_t* phEvent                      ///< [in,out] return an event object that identifies this particular
-                                                        ///< command instance.
-                                                        ///< Input can not be a nullptr.
-                                                        ///< TODO: change to allow nullptr. 
+        ur_event_handle_t* phEvent                      ///< [in,out][optional] return an event object that identifies this
+                                                        ///< particular command instance.
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
@@ -1397,8 +1377,9 @@ namespace loader
         try
         {
             // convert platform handle to loader handle
-            *phEvent = reinterpret_cast<ur_event_handle_t>(
-                ur_event_factory.getInstance( *phEvent, dditable ) );
+            if( nullptr != phEvent )
+                *phEvent = reinterpret_cast<ur_event_handle_t>(
+                    ur_event_factory.getInstance( *phEvent, dditable ) );
         }
         catch( std::bad_alloc& )
         {
@@ -1589,8 +1570,8 @@ namespace loader
         ur_event_handle_t hEvent,                       ///< [in] handle of the event object
         ur_event_info_t propName,                       ///< [in] the name of the event property to query
         size_t propValueSize,                           ///< [in] size in bytes of the event property value
-        void* pPropValue,                               ///< [out] value of the event property
-        size_t* pPropValueSizeRet                       ///< [out] bytes returned in event property
+        void* pPropValue,                               ///< [out][optional] value of the event property
+        size_t* pPropValueSizeRet                       ///< [out][optional] bytes returned in event property
         )
     {
         ur_result_t result = UR_RESULT_SUCCESS;
