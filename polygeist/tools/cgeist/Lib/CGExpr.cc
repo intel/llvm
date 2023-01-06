@@ -183,6 +183,12 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *Decl) {
 /// provided InitListExpr.
 mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
                                                            clang::Expr *Expr) {
+  LLVM_DEBUG({
+    llvm::dbgs() << "InitializeValueByInitListExpr: ";
+    Expr->dump();
+    llvm::dbgs() << "\n";
+  });
+
   // Struct initialization requires an extra 0, since the first index is the
   // pointer index, and then the struct index.
   const clang::Type *PTT = Expr->getType()->getUnqualifiedDesugaredType();
@@ -710,6 +716,12 @@ ValueCategory MLIRScanner::VisitCXXDeleteExpr(clang::CXXDeleteExpr *Expr) {
 }
 
 ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *Expr) {
+  LLVM_DEBUG({
+    llvm::dbgs() << "VisitCXXNewExpr: ";
+    Expr->dump();
+    llvm::dbgs() << "\n";
+  });
+
   Location Loc = getMLIRLocation(Expr->getExprLoc());
 
   mlir::Value Count;
@@ -726,19 +738,20 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *Expr) {
   mlir::Value Alloc, ArrayCons;
   if (!Expr->placement_arguments().empty()) {
     mlir::Value Val = Visit(*Expr->placement_arg_begin()).getValue(Builder);
-    if (auto MT = Ty.dyn_cast<mlir::MemRefType>()) {
+    if (auto MT = Ty.dyn_cast<mlir::MemRefType>())
       ArrayCons = Alloc =
           Builder.create<polygeist::Pointer2MemrefOp>(Loc, MT, Val);
-    } else {
+    else {
       ArrayCons = Alloc = Builder.create<mlir::LLVM::BitcastOp>(Loc, Ty, Val);
-      auto PT = Ty.cast<LLVM::LLVMPointerType>();
-      if (Expr->isArray())
+      if (Expr->isArray()) {
+        auto PT = Ty.cast<LLVM::LLVMPointerType>();
         ArrayCons = Builder.create<mlir::LLVM::BitcastOp>(
             Loc,
             LLVM::LLVMPointerType::get(
                 LLVM::LLVMArrayType::get(PT.getElementType(), 0),
                 PT.getAddressSpace()),
             Alloc);
+      }
     }
   } else if (auto MT = Ty.dyn_cast<mlir::MemRefType>()) {
     ArrayCons = Alloc =
@@ -756,22 +769,27 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *Expr) {
             .create<mlir::LLVM::CallOp>(Loc, Glob.getOrCreateMallocFunction(),
                                         Args)
             ->getResult(0));
-    auto PT = Ty.cast<LLVM::LLVMPointerType>();
-    if (Expr->isArray())
+
+    if (Expr->hasInitializer() && isa<InitListExpr>(Expr->getInitializer()))
+      (void)InitializeValueByInitListExpr(Alloc, Expr->getInitializer());
+
+    if (Expr->isArray()) {
+      auto PT = Ty.cast<LLVM::LLVMPointerType>();
       ArrayCons = Builder.create<mlir::LLVM::BitcastOp>(
           Loc,
           LLVM::LLVMPointerType::get(
               LLVM::LLVMArrayType::get(PT.getElementType(), 0),
               PT.getAddressSpace()),
           Alloc);
+    }
   }
   assert(Alloc);
 
-  if (Expr->getConstructExpr()) {
+  if (Expr->getConstructExpr())
     VisitConstructCommon(
         const_cast<CXXConstructExpr *>(Expr->getConstructExpr()),
         /*name*/ nullptr, /*memtype*/ 0, ArrayCons, Count);
-  }
+
   return ValueCategory(Alloc, /*isRefererence*/ false);
 }
 
