@@ -5437,7 +5437,7 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
     cpyDesc.srcY = 0;
     cpyDesc.srcMemoryType = src_type;
     cpyDesc.srcDevice = src_type == CU_MEMORYTYPE_DEVICE
-                            ? reinterpret_cast<const CUdeviceptr>(src_ptr)
+                            ? *static_cast<const CUdeviceptr*>(src_ptr)
                             : 0;
     cpyDesc.srcHost = src_type == CU_MEMORYTYPE_HOST ? src_ptr : nullptr;
     cpyDesc.srcArray = nullptr;
@@ -5447,7 +5447,7 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
     cpyDesc.dstY = 0;
     cpyDesc.dstMemoryType = dst_type;
     cpyDesc.dstDevice = dst_type == CU_MEMORYTYPE_DEVICE
-                            ? reinterpret_cast<CUdeviceptr>(dst_ptr)
+                            ? *static_cast<CUdeviceptr*>(dst_ptr)
                             : 0;
     cpyDesc.dstHost = dst_type == CU_MEMORYTYPE_HOST ? dst_ptr : nullptr;
     cpyDesc.dstArray = nullptr;
