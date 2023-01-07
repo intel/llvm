@@ -120,13 +120,13 @@ int main() {
     for (int j = 0; j < MATRIX_K; j++) {
       // bfloat16 is created using unsigned short since conversion from float to
       // bfloat16 is not supported on the host side yet
-      A[i][j] = bfloat16::from_bits(make_bf16(1.0f * (i + j)));
+      A[i][j] = bfloat16(1.0f * (i + j));
       Aref[i][j] = make_bf16(1.0f * (i + j));
     }
   }
   for (int i = 0; i < MATRIX_K / 2; i++) {
     for (int j = 0; j < MATRIX_N * 2; j++) {
-      B[i][j] = bfloat16::from_bits((make_bf16(2.0f * i + 3.0f * j)));
+      B[i][j] = bfloat16(2.0f * i + 3.0f * j);
       Bref[i][j] = make_bf16(2.0f * i + 3.0f * j);
     }
   }
@@ -152,8 +152,6 @@ int main() {
         res = false;
     }
   }
-  if (res)
-    std::cout << "passed\n";
-  else
-    std::cout << "failed\n";
+  std::cout << (res ? "passed" : "failed") << std::endl;
+  return !res;
 }

@@ -117,8 +117,8 @@ bfloat16 B[MATRIX_K / 2][MATRIX_N * 2];
 float C[MATRIX_M][MATRIX_N];
 float D[MATRIX_M][MATRIX_N];
 
-float make_fp32(short x) {
-  unsigned int y = x;
+float make_fp32(bfloat16 x) {
+  unsigned int y = *((int *)&x);
   y = y << 16;
   float *res = reinterpret_cast<float *>(&y);
   return *res;
@@ -126,14 +126,12 @@ float make_fp32(short x) {
 
 void matrix_multiply_ref(int *A_mem, int *B_mem, int *C_mem, int M, int N,
                          int K) {
-  // tiling
   for (int m = 0; m < M; m++)
     for (int n = 0; n < N; n++) {
       for (int k = 0; k < K; k++) {
-        short *va = (short *)(A_mem + m * K + k);
-        short *vb = (short *)(B_mem + k * N + n);
+        bfloat16 *va = (bfloat16 *)(A_mem + m * K + k);
+        bfloat16 *vb = (bfloat16 *)(B_mem + k * N + n);
         float acc = *((float *)(C_mem + m * N + n));
-        // FIXME: Should we do reduce-add in another version?
         for (int i = 0; i < 2; i++) {
           acc += (make_fp32(va[i]) * make_fp32(vb[i]));
         }

@@ -78,34 +78,25 @@ static constexpr size_t MATRIX_N = TN * 2;
 static constexpr size_t MATRIX_K = TK * 2;
 bfloat16 A[MATRIX_M][MATRIX_K];
 bfloat16 B[MATRIX_K / 2][MATRIX_N * 2];
-unsigned short Aref[MATRIX_M][MATRIX_K];
-unsigned short Bref[MATRIX_K / 2][MATRIX_N * 2];
 float C[MATRIX_M][MATRIX_N];
 float D[MATRIX_M][MATRIX_N];
 
-float make_fp32(short x) {
-  unsigned int y = x;
+float make_fp32(bfloat16 x) {
+  unsigned int y = *((int *)&x);
   y = y << 16;
   float *res = reinterpret_cast<float *>(&y);
   return *res;
 }
 
-unsigned short make_bf16(float x) {
-  int *res = reinterpret_cast<int *>(&x);
-  *res = *res >> 16;
-  return (unsigned short)*res;
-}
-
 void matrix_multiply_ref(int *A_mem, int *B_mem, int *C_mem, int M, int N,
                          int K) {
-  // tiling
   for (int m = 0; m < M; m++)
     for (int n = 0; n < N; n++) {
       for (int k = 0; k < K; k++) {
-        short *va = (short *)(A_mem + m * K + k);
-        short *vb = (short *)(B_mem + k * N + n);
+        // Because B was assumed VNNIed
+        bfloat16 *va = (bfloat16 *)(A_mem + m * K + k);
+        bfloat16 *vb = (bfloat16 *)(B_mem + k * N + n);
         float acc = *((float *)(C_mem + m * N + n));
-        // FIXME: Should we do reduce-add in another version?
         for (int i = 0; i < 2; i++) {
           acc += (make_fp32(va[i]) * make_fp32(vb[i]));
         }
@@ -117,16 +108,12 @@ void matrix_multiply_ref(int *A_mem, int *B_mem, int *C_mem, int M, int N,
 int main() {
   for (int i = 0; i < MATRIX_M; i++) {
     for (int j = 0; j < MATRIX_K; j++) {
-      // bfloat16 is created using unsigned short since conversion from float to
-      // bfloat16 is not supported on the host side yet
       A[i][j] = bfloat16(1.0f * (i + j));
-      Aref[i][j] = make_bf16(1.0f * (i + j));
     }
   }
   for (int i = 0; i < MATRIX_K / 2; i++) {
     for (int j = 0; j < MATRIX_N * 2; j++) {
       B[i][j] = bfloat16(2.0f * i + 3.0f * j);
-      Bref[i][j] = make_bf16(2.0f * i + 3.0f * j);
     }
   }
   for (int i = 0; i < MATRIX_M; i++) {
@@ -141,7 +128,7 @@ int main() {
   big_matrix<bfloat16, MATRIX_M, MATRIX_K> MA((bfloat16 *)&A);
   big_matrix<bfloat16, MATRIX_K / 2, MATRIX_N * 2> MB((bfloat16 *)&B);
   matrix_multiply(MC, MA, MB);
-  matrix_multiply_ref((int32_t *)Aref, (int32_t *)Bref, (int32_t *)D, MATRIX_M,
+  matrix_multiply_ref((int32_t *)A, (int32_t *)B, (int32_t *)D, MATRIX_M,
                       MATRIX_N, MATRIX_K / 2);
 
   bool res = true;

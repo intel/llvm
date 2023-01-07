@@ -1,4 +1,4 @@
-//==-- joint_matrix_bfloat16_colmajorA_colmajorB.cpp  - DPC++ joint_matrix--==//
+//==----- joint_matrix_int8_colmajorA_colmajorB.cpp  - DPC++ joint_matrix---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix
 
-// RUN: %clangxx -fsycl %s -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// RUN: %clangxx -fsycl %s -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=1
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
@@ -21,8 +21,7 @@
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 #define SG_SZ 16
 
-#include "joint_matrix_bfloat16_colmajorA_colmajorB_impl.hpp"
+#include "joint_matrix_int8_colmajorA_colmajorB_impl.hpp"

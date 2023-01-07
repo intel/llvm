@@ -41,29 +41,32 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
            const auto sg_startx = global_idx - spmd_item.get_local_id(0);
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
-           ext::oneapi::sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<bfloat16, TM, TK> sub_a(sg);
-           joint_matrix<bfloat16, TK, TN, matrix_layout::packed_b> sub_b(sg);
-           joint_matrix<float, TM, TN> sub_c(sg);
+           sub_group sg = spmd_item.get_sub_group();
+           joint_matrix<sub_group, bfloat16, use::a, TM, TK, layout::row_major>
+               sub_a;
+           // For B, we assume B has been already VNNIed.
+           joint_matrix<sub_group, bfloat16, use::b, TK, TN, layout::row_major>
+               sub_b;
+           joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
 
            joint_matrix_load(sg, sub_c,
                              accC.get_pointer() + (sg_startx * TM) * N +
                                  sg_starty / SG_SZ * TN,
-                             N, matrix_layout::row_major);
+                             N, layout::row_major);
            for (int k = 0; k < K / TK; k += 1) {
              joint_matrix_load(
                  sg, sub_a, accA.get_pointer() + (sg_startx * TM) * K + k * TK,
-                 K, matrix_layout::row_major);
+                 K);
              joint_matrix_load(sg, sub_b,
                                accB.get_pointer() + (k * TK) * (N) +
                                    sg_starty / SG_SZ * TN,
-                               N, matrix_layout::row_major);
+                               N);
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(sg, sub_c,
                               accC.get_pointer() + (sg_startx * TM) * N +
                                   sg_starty / SG_SZ * TN,
-                              N, matrix_layout::row_major);
+                              N, layout::row_major);
          }); // parallel for
    }).wait();
 }
@@ -73,29 +76,21 @@ static constexpr size_t MATRIX_N = TN * 2;
 static constexpr size_t MATRIX_K = TK * 2;
 bfloat16 A[MATRIX_M][MATRIX_K];
 bfloat16 B[MATRIX_K][MATRIX_N];
-unsigned short Aref[MATRIX_M][MATRIX_K];
-unsigned short Bref[MATRIX_K][MATRIX_N];
 float C[MATRIX_M][MATRIX_N];
 float D[MATRIX_M][MATRIX_N];
 
-float make_fp32(short x) {
-  unsigned int y = x;
+float make_fp32(bfloat16 x) {
+  unsigned int y = *((int *)&x);
   y = y << 16;
   float *res = reinterpret_cast<float *>(&y);
   return *res;
-}
-
-unsigned short make_bf16(float x) {
-  int *res = reinterpret_cast<int *>(&x);
-  *res = *res >> 16;
-  return (unsigned short)*res;
 }
 
 void matrix_multiply_ref(int M, int N, int K) {
   for (int m = 0; m < M; m++)
     for (int n = 0; n < N; n++) {
       for (int k = 0; k < K; k++) {
-        D[m][n] += make_fp32(Aref[m][k]) * make_fp32(Bref[k][n]);
+        D[m][n] += make_fp32(A[m][k]) * make_fp32(B[k][n]);
       }
     }
 }
@@ -103,16 +98,12 @@ void matrix_multiply_ref(int M, int N, int K) {
 int main() {
   for (int i = 0; i < MATRIX_M; i++) {
     for (int j = 0; j < MATRIX_K; j++) {
-      // bfloat16 is created using unsigned short since conversion from float to
-      // bfloat16 is not supported on the host side yet
       A[i][j] = bfloat16(1.0f * (i + j));
-      Aref[i][j] = make_bf16(1.0f * (i + j));
     }
   }
   for (int i = 0; i < MATRIX_K; i++) {
     for (int j = 0; j < MATRIX_N; j++) {
       B[i][j] = bfloat16(2.0f * i + 3.0f * j);
-      Bref[i][j] = make_bf16(2.0f * i + 3.0f * j);
     }
   }
   for (int i = 0; i < MATRIX_M; i++) {

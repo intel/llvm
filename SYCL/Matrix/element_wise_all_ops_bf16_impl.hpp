@@ -3,8 +3,8 @@
 #define TN SG_SZ
 #define TK 16
 
-static float make_fp32(uint16_t x) {
-  unsigned int y = x;
+static float make_fp32(bfloat16 x) {
+  unsigned int y = *((int *)&x);
   y = y << 16;
   float *res = reinterpret_cast<float *>(&y);
   return *res;
