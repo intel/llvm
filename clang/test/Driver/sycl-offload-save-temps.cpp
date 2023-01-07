@@ -40,3 +40,10 @@
 // RUN: | FileCheck %s --check-prefix=CHK_LLVM_PASSES
 // CHK_LLVM_PASSES-NOT: clang{{.*}} "-triple" "spir64-unknown-unknown" {{.*}} "-disable-llvm-passes"
 // CHK_LLVM_PASSES: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-disable-llvm-passes"
+
+/// Usage of -save-temps with a file in $CWD should create the intermediate
+/// files _not_ in /tmp.
+// RUN: touch dummy.c
+// RUN: %clangxx -save-temps dummy.c -### 2>&1  \
+// RUN:   | FileCheck %s --check-prefix=CHK_CWD_FILE
+// CHK_CWD_FILE: clang{{.*}} "-o" "dummy.ii"
