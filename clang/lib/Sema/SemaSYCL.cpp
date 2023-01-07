@@ -411,6 +411,7 @@ static void checkSYCLType(Sema &S, QualType Ty, SourceRange Loc,
 
   bool Emitting = false;
 
+  // Check any use of 'std::atomic' types in device code and emit an error.
   if (auto *RD = Ty->getAsCXXRecordDecl()) {
     if (RD->getEnclosingNamespaceContext()->isStdNamespace() &&
         RD->getName() == "atomic")
