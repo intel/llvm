@@ -396,38 +396,6 @@ static bool isZeroSizedArray(Sema &SemaRef, QualType Ty) {
   return false;
 }
 
-class StdAtomicTypeVisitor : public TypeVisitor<StdAtomicTypeVisitor> {
-  Sema &S;
-  SourceRange Loc;
-  QualType StdAtomicType;
-  using InnerTypeVisitor = TypeVisitor<StdAtomicTypeVisitor>;
-
-public:
-  StdAtomicTypeVisitor(Sema &S, SourceRange Loc, QualType StdAtomicType)
-      : S(S), Loc(Loc), StdAtomicType(StdAtomicType) {}
-
-  void Visit(QualType T) {
-    if (T.isNull())
-      return;
-    InnerTypeVisitor::Visit(T.getTypePtr());
-  }
-
-  void VisitTagType(const TagType *TT) {
-    return DiagnoseStdAtomicType(TT->getDecl());
-  }
-
-  void DiagnoseStdAtomicType(const NamedDecl *DeclNamed) {
-
-    const DeclContext *DeclCtx = DeclNamed->getDeclContext();
-
-    const auto *NSDecl = cast<NamespaceDecl>(DeclCtx);
-    if (NSDecl->isStdNamespace()) {
-      S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::std_atomic_type_unsupported);
-      return;
-    }
-  }
-};
-
 static void checkSYCLType(Sema &S, QualType Ty, SourceRange Loc,
                           llvm::DenseSet<QualType> Visited,
                           SourceRange UsedAtLoc = SourceRange()) {
@@ -443,8 +411,12 @@ static void checkSYCLType(Sema &S, QualType Ty, SourceRange Loc,
 
   bool Emitting = false;
 
-  StdAtomicTypeVisitor StdAtomicVisitor(S, Loc, Ty);
-  StdAtomicVisitor.Visit(Ty.getCanonicalType());
+  if (auto *RD = Ty->getAsCXXRecordDecl()) {
+    if (RD->getEnclosingNamespaceContext()->isStdNamespace() &&
+        RD->getName() == "atomic")
+      S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::std_atomic_type_unsupported);
+    Emitting = true;
+  }
 
   //--- check types ---
 

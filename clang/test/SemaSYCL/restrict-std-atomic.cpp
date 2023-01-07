@@ -6,24 +6,32 @@
 #include "Inputs/sycl.hpp"
 
 namespace std {
-const bool test = true;    
+struct int8_t;
 template< class T >   
 struct atomic {       
   atomic() {}         
-  void use() const {} 
-  T t;                
 };                    
 } // namespace std   
 
 using namespace sycl;
 queue q;
 
+void usage() {
+
+    // expected-error@+1 {{std::atomic type is not supported in device code}}
+    std::atomic<char> AtomicChar;
+    // expected-error@+1 {{std::atomic type is not supported in device code}}
+    std::atomic<bool> AtomicBool;
+    // expected-error@+1 {{std::atomic type is not supported in device code}}
+    std::atomic<std::int8_t> AtomicInt8_t;
+}
+
 int main() {                         
-   const std::atomic<bool> flag;     
+   // expected-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<KernelA, (lambda}}
    q.submit([&](handler &h) {         
      h.single_task<class KernelA>([=] {
-       flag.use();                     
-       //const bool x = std::test;
+      // expected-note@+1 {{called by 'operator()'}}
+        usage();
      });                               
    });  
 }                               
