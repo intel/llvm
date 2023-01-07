@@ -1,7 +1,7 @@
 // Check that SYCLLowerWGLocalMemory pass is added to the SYCL device
 // compilation pipeline with the inliner pass (new Pass Manager).
 
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -emit-llvm -O2 \
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -emit-llvm \
 // RUN:   -mdebug-pass Structure %s -o /dev/null 2>&1 \
 // RUN:   | FileCheck %s -check-prefixes=CHECK-INL,CHECK
 

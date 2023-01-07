@@ -9,16 +9,10 @@
 
 // CHECK: define{{.*}} void @_Z3fooDB4096_S_(i4096 addrspace(4)* {{.*}} sret(i4096) align 8 %agg.result, i4096* {{.*}} byval(i4096) align 8 %[[ARG1:[0-9]+]], i4096* {{.*}} byval(i4096) align 8 %[[ARG2:[0-9]+]])
 signed _BitInt(4096) foo(signed _BitInt(4096) a, signed _BitInt(4096) b) {
-  // CHECK: %a.addr.ascast = addrspacecast i4096* %a.addr to i4096 addrspace(4)*
-  // CHECK: %b.addr.ascast = addrspacecast i4096* %b.addr to i4096 addrspace(4)*
-  // CHECK: %a = load i4096, i4096* %[[ARG1]], align 8
-  // CHECK: %b = load i4096, i4096* %[[ARG2]], align 8
-  // CHECK: store i4096 %a, i4096 addrspace(4)* %a.addr.ascast, align 8
-  // CHECK: store i4096 %b, i4096 addrspace(4)* %b.addr.ascast, align 8
-  // CHECK: %2 = load i4096, i4096 addrspace(4)* %a.addr.ascast, align 8
-  // CHECK: %3 = load i4096, i4096 addrspace(4)* %b.addr.ascast, align 8
-  // CHECK: %div = sdiv i4096 %2, %3
-  // CHECK: store i4096 %div, i4096 addrspace(4)* %agg.result, align 8
+  // CHECK: %[[VAR_A:a]] = load i4096, i4096* %[[ARG1]], align 8
+  // CHECK: %[[VAR_B:b]] = load i4096, i4096* %[[ARG2]], align 8
+  // CHECK: %[[RES:div]] = sdiv i4096 %[[VAR_A]], %[[VAR_B]]
+  // CHECK: store i4096 %[[RES]], i4096 addrspace(4)* %agg.result, align 8
   // CHECK: ret void
   return a / b;
 }

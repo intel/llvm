@@ -15,6 +15,7 @@ int main() {
     const int WG_CONST = 10;
   });
 // CHECK:  store i32 10, i32 addrspace(4)* addrspacecast (i32 addrspace(3)* @{{.*}}WG_CONST{{.*}} to i32 addrspace(4)*)
+// CHECK:  %{{[0-9]+}} = call {}* @llvm.invariant.start.p4i8(i64 4, i8 addrspace(4)* addrspacecast (i8 addrspace(3)* bitcast (i32 addrspace(3)* @{{.*}}WG_CONST{{.*}} to i8 addrspace(3)*) to i8 addrspace(4)*))
 
   return 0;
 }

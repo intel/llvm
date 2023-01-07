@@ -4999,10 +4999,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-Wno-sycl-strict");
     }
 
-    // Set O2 optimization level by default
-    if (!Args.getLastArg(options::OPT_O_Group))
-      CmdArgs.push_back("-O2");
-
     // Add the integration header option to generate the header.
     StringRef Header(D.getIntegrationHeader(Input.getBaseInput()));
     if (!Header.empty()) {

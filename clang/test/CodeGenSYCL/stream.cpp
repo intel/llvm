@@ -13,9 +13,8 @@
 
 // Alloca and addrspace casts for kernel parameters
 // CHECK: [[ARG:%[a-zA-Z0-9_]+]].addr = alloca ptr addrspace(1), align 8
-// CHECK: [[ARG]].addr.ascast = addrspacecast ptr [[ARG]].addr to ptr addrspace(4)
-// CHECK: store ptr addrspace(1) [[ARG]], ptr addrspace(4) [[ARG]].addr.ascast, align 8
-// CHECK: [[ARG_LOAD:%[a-zA-Z0-9_]+]] = load ptr addrspace(1), ptr addrspace(4) [[ARG]].addr.ascast, align 8
+// CHECK: [[ARG:%[a-zA-Z0-9_]+]].addr.ascast = addrspacecast ptr [[ARG]].addr to ptr addrspace(4)
+// CHECK: [[ARG_LOAD:%[a-zA-Z0-9_]+]] = load ptr addrspace(1), ptr addrspace(4) [[ARG]].addr.ascast, align 8,
 
 // Check __init and __finalize method calls
 // CHECK:  call spir_func void @{{.*}}__init{{.*}}(ptr addrspace(4) noundef align 4 dereferenceable_or_null(16) %{{[a-zA-Z0-9_]+}}, ptr addrspace(1) noundef [[ARG_LOAD]], ptr noundef byval(%[[RANGE_TYPE]]) {{.*}}%{{.*}}

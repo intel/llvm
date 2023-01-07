@@ -5,6 +5,8 @@
 // CHECK: [[ANON:%[a-zA-Z0-9_]+]] = alloca %class.anon, align 8
 // CHECK: [[ANONCAST:%[a-zA-Z0-9_.]+]] = addrspacecast %class.anon* [[ANON]] to %class.anon addrspace(4)*
 // CHECK: store %opencl.sampler_t addrspace(2)* [[SAMPLER_ARG]], %opencl.sampler_t addrspace(2)* addrspace(4)* [[SAMPLER_ARG]].addr.ascast, align 8
+// CHECK-NEXT: [[BITCAST:%[0-9]+]] = bitcast %class.anon* [[ANON]] to i8*
+// CHECK-NEXT: call void @llvm.lifetime.start.p0i8(i64 8, i8* [[BITCAST]]) #4
 // CHECK-NEXT: [[GEP:%[a-zA-z0-9]+]]  = getelementptr inbounds %class.anon, %class.anon addrspace(4)* [[ANONCAST]], i32 0, i32 0
 // CHECK-NEXT: [[LOAD_SAMPLER_ARG:%[0-9]+]] = load %opencl.sampler_t addrspace(2)*, %opencl.sampler_t addrspace(2)* addrspace(4)* [[SAMPLER_ARG]].addr.ascast, align 8
 // CHECK-NEXT: call spir_func void @{{[a-zA-Z0-9_]+}}(%"class.sycl::_V1::sampler" addrspace(4)* {{[^,]*}} [[GEP]], %opencl.sampler_t addrspace(2)* [[LOAD_SAMPLER_ARG]])

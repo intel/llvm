@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -O2 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -internal-isystem %S/Inputs -disable-llvm-passes -triple spir64-unknown-unknown -sycl-std=2020 -no-opaque-pointers -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -internal-isystem %S/Inputs -disable-llvm-passes -triple spir64-unknown-unknown -sycl-std=2020 -no-opaque-pointers -emit-llvm -o - %s | FileCheck %s
 
 #include "sycl.hpp"
 

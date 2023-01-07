@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -O1 -fsycl-is-device -triple spir64-unknown-unknown -opaque-pointers -emit-llvm -x c++ %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -opaque-pointers -emit-llvm -x c++ %s -o - | FileCheck %s
 
 class kernel;
 

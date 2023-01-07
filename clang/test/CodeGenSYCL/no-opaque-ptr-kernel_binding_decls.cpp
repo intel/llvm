@@ -33,11 +33,11 @@ void foo() {
 
 // Store the int and the float into the struct created
 // CHECK: %x = getelementptr inbounds %class.anon, %class.anon addrspace(4)* %__SYCLKernel{{.*}}, i32 0, i32 0
-// CHECK: %0 = load i32, i32 addrspace(4)* %_arg_x.addr
-// CHECK: store i32 %0, i32 addrspace(4)* %x
+// CHECK: %1 = load i32, i32 addrspace(4)* %_arg_x.addr
+// CHECK: store i32 %1, i32 addrspace(4)* %x
 // CHECK: %f2 = getelementptr inbounds %class.anon, %class.anon addrspace(4)* %__SYCLKernel{{.*}}, i32 0, i32 1
-// CHECK: %1 = load float, float addrspace(4)* %_arg_f2.addr
-// CHECK: store float %1, float addrspace(4)* %f2
+// CHECK: %2 = load float, float addrspace(4)* %_arg_f2.addr
+// CHECK: store float %2, float addrspace(4)* %f2
 
 // Call the lambda
 // CHECK: call spir_func void @{{.*}}foo{{.*}}(%class.anon addrspace(4)* {{.*}} %__SYCLKernel{{.*}})
