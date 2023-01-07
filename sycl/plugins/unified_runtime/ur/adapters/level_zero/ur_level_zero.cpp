@@ -394,3 +394,57 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerPlatformGet(
 
   return ZER_RESULT_SUCCESS;
 }
+
+ZER_APIEXPORT zer_result_t ZER_APICALL zerPlatformGetInfo(
+    zer_platform_handle_t Platform, ///< [in] handle of the platform
+    zer_platform_info_t ParamName,  ///< [in] type of the info to retrieve
+    size_t *pSize, ///< [in,out] pointer to the number of bytes needed to return
+                   ///< info queried. the call shall update it with the real
+                   ///< number of bytes needed to return the info
+    void *ParamValue ///< [out][optional] array of bytes holding the info.
+                     ///< if *pSize is not equal to the real number of bytes
+                     ///< needed to return the info then the
+                     ///< ::ZER_RESULT_ERROR_INVALID_SIZE error is returned and
+                     ///< pPlatformInfo is not used.
+) {
+
+  PI_ASSERT(Platform, ZER_RESULT_INVALID_PLATFORM);
+  UrReturnHelper ReturnValue(pSize, ParamValue);
+
+  switch (ParamName) {
+  case ZER_PLATFORM_INFO_NAME:
+    // TODO: Query Level Zero driver when relevant info is added there.
+    return ReturnValue("Intel(R) oneAPI Unified Runtime over Level-Zero");
+  case ZER_PLATFORM_INFO_VENDOR_NAME:
+    // TODO: Query Level Zero driver when relevant info is added there.
+    return ReturnValue("Intel(R) Corporation");
+  case ZER_PLATFORM_INFO_EXTENSIONS:
+    // Convention adopted from OpenCL:
+    //     "Returns a space-separated list of extension names (the extension
+    // names themselves do not contain any spaces) supported by the platform.
+    // Extensions defined here must be supported by all devices associated
+    // with this platform."
+    //
+    // TODO: Check the common extensions supported by all connected devices and
+    // return them. For now, hardcoding some extensions we know are supported by
+    // all Level Zero devices.
+    return ReturnValue(ZE_SUPPORTED_EXTENSIONS);
+  case ZER_PLATFORM_INFO_PROFILE:
+    // TODO: figure out what this means and how is this used
+    return ReturnValue("FULL_PROFILE");
+  case ZER_PLATFORM_INFO_VERSION:
+    // TODO: this should query to zeDriverGetDriverVersion
+    // but we don't yet have the driver handle here.
+    //
+    // From OpenCL 2.1: "This version string has the following format:
+    // OpenCL<space><major_version.minor_version><space><platform-specific
+    // information>. Follow the same notation here.
+    //
+    return ReturnValue(Platform->ZeDriverApiVersion.c_str());
+  default:
+    zePrint("piPlatformGetInfo: unrecognized ParamName\n");
+    return ZER_RESULT_INVALID_VALUE;
+  }
+
+  return ZER_RESULT_SUCCESS;
+}

@@ -9,8 +9,9 @@
 
 #include <atomic>
 #include <cstdint>
-#include <iostream>
+#include <cstring>
 #include <functional>
+#include <iostream>
 #include <mutex>
 #include <shared_mutex>
 #include <string>
@@ -114,18 +115,13 @@ template <class T> struct ZeCache : private T {
   //
   using InitFunctionType = std::function<void(T &)>;
   InitFunctionType Compute{nullptr};
-  bool Computed{false};
-  pi_mutex ZeCacheMutex;
+  std::once_flag Computed;
 
   ZeCache() : T{} {}
 
   // Access to the fields of the original T data structure.
   T *operator->() {
-    std::unique_lock<pi_mutex> Lock(ZeCacheMutex);
-    if (!Computed) {
-      Compute(*this);
-      Computed = true;
-    }
+    std::call_once(Computed, Compute, static_cast<T &>(*this));
     return this;
   }
 };
@@ -216,3 +212,106 @@ extern bool PrintTrace;
 extern std::vector<zer_platform_handle_t> *PiPlatformsCache;
 extern SpinLock *PiPlatformsCacheMutex;
 extern bool PiPlatformCachePopulated;
+
+// The getInfo*/ReturnHelper facilities provide shortcut way of
+// writing return bytes for the various getInfo APIs.
+template <typename T, typename Assign>
+zer_result_t getInfoImpl(size_t param_value_size, void *param_value,
+                         size_t *param_value_size_ret, T value,
+                         size_t value_size, Assign &&assign_func) {
+
+  if (param_value != nullptr) {
+
+    if (param_value_size < value_size) {
+      return ZER_RESULT_INVALID_VALUE;
+    }
+
+    assign_func(param_value, value, value_size);
+  }
+
+  if (param_value_size_ret != nullptr) {
+    *param_value_size_ret = value_size;
+  }
+
+  return ZER_RESULT_SUCCESS;
+}
+
+template <typename T>
+zer_result_t getInfo(size_t param_value_size, void *param_value,
+                     size_t *param_value_size_ret, T value) {
+
+  auto assignment = [](void *param_value, T value, size_t value_size) {
+    (void)value_size;
+    *static_cast<T *>(param_value) = value;
+  };
+
+  return getInfoImpl(param_value_size, param_value, param_value_size_ret, value,
+                     sizeof(T), assignment);
+}
+
+template <typename T>
+zer_result_t getInfoArray(size_t array_length, size_t param_value_size,
+                          void *param_value, size_t *param_value_size_ret,
+                          const T *value) {
+  return getInfoImpl(param_value_size, param_value, param_value_size_ret, value,
+                     array_length * sizeof(T), memcpy);
+}
+
+template <typename T, typename RetType>
+zer_result_t getInfoArray(size_t array_length, size_t param_value_size,
+                          void *param_value, size_t *param_value_size_ret,
+                          const T *value) {
+  if (param_value) {
+    memset(param_value, 0, param_value_size);
+    for (uint32_t I = 0; I < array_length; I++)
+      ((RetType *)param_value)[I] = (RetType)value[I];
+  }
+  if (param_value_size_ret)
+    *param_value_size_ret = array_length * sizeof(RetType);
+  return ZER_RESULT_SUCCESS;
+}
+
+template <>
+inline zer_result_t
+getInfo<const char *>(size_t param_value_size, void *param_value,
+                      size_t *param_value_size_ret, const char *value) {
+  return getInfoArray(strlen(value) + 1, param_value_size, param_value,
+                      param_value_size_ret, value);
+}
+
+class UrReturnHelper {
+public:
+  UrReturnHelper(size_t param_value_size, void *param_value,
+                 size_t *param_value_size_ret)
+      : param_value_size(param_value_size), param_value(param_value),
+        param_value_size_ret(param_value_size_ret) {}
+
+  // A version where in/out info size is represented by a single pointer
+  // to a value which is updated on return
+  UrReturnHelper(size_t *param_value_size, void *param_value)
+      : param_value_size(*param_value_size), param_value(param_value),
+        param_value_size_ret(param_value_size) {}
+
+  // Scalar return value
+  template <class T> zer_result_t operator()(const T &t) {
+    return getInfo(param_value_size, param_value, param_value_size_ret, t);
+  }
+
+  // Array return value
+  template <class T> zer_result_t operator()(const T *t, size_t s) {
+    return getInfoArray(s, param_value_size, param_value, param_value_size_ret,
+                        t);
+  }
+
+  // Array return value where element type is differrent from T
+  template <class RetType, class T>
+  zer_result_t operator()(const T *t, size_t s) {
+    return getInfoArray<T, RetType>(s, param_value_size, param_value,
+                                    param_value_size_ret, t);
+  }
+
+protected:
+  size_t param_value_size;
+  void *param_value;
+  size_t *param_value_size_ret;
+};
