@@ -1940,10 +1940,12 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     CUresult current_ctx_device_ret = cuCtxGetDevice(&current_ctx_device);
     if (current_ctx_device_ret != CUDA_ERROR_INVALID_CONTEXT)
       PI_CHECK_ERROR(current_ctx_device_ret);
-    bool need_primary_ctx = current_ctx_device_ret == CUDA_ERROR_INVALID_CONTEXT ||
-                            current_ctx_device != device->get();
+    bool need_primary_ctx =
+        current_ctx_device_ret == CUDA_ERROR_INVALID_CONTEXT ||
+        current_ctx_device != device->get();
     if (need_primary_ctx) {
-      // Use the primary context for the device if no context with the device is set.
+      // Use the primary context for the device if no context with the device is
+      // set.
       CUcontext primary_context;
       PI_CHECK_ERROR(cuDevicePrimaryCtxRetain(&primary_context, device->get()));
       PI_CHECK_ERROR(cuCtxSetCurrent(primary_context));
@@ -5416,16 +5418,17 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
     // TODO: Doesn't yet support CU_MEMORYTYPE_UNIFIED
     bool is_managed;
     CUmemorytype_enum src_type;
-    void *attribute_values[2] = {&is_managed, &src_type};
+    void *src_attribute_values[2] = {&is_managed, &src_type};
     CUpointer_attribute attributes[2] = {CU_POINTER_ATTRIBUTE_IS_MANAGED,
                                          CU_POINTER_ATTRIBUTE_MEMORY_TYPE};
     result = PI_CHECK_ERROR(cuPointerGetAttributes(
-        2, attributes, attribute_values, (CUdeviceptr)src_ptr));
+        2, attributes, src_attribute_values, (CUdeviceptr)src_ptr));
     assert(src_type == CU_MEMORYTYPE_DEVICE || src_type == CU_MEMORYTYPE_HOST);
 
     CUmemorytype_enum dst_type;
+    void *dst_attribute_values[2] = {&is_managed, &dst_type};
     result = PI_CHECK_ERROR(cuPointerGetAttributes(
-        2, attributes, attribute_values, (CUdeviceptr)dst_ptr));
+        2, attributes, dst_attribute_values, (CUdeviceptr)dst_ptr));
     assert(dst_type == CU_MEMORYTYPE_DEVICE || dst_type == CU_MEMORYTYPE_HOST);
 
     CUDA_MEMCPY2D cpyDesc = {};
@@ -5434,7 +5437,7 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
     cpyDesc.srcY = 0;
     cpyDesc.srcMemoryType = src_type;
     cpyDesc.srcDevice = src_type == CU_MEMORYTYPE_DEVICE
-                            ? *static_cast<const CUdeviceptr *>(src_ptr)
+                            ? reinterpret_cast<const CUdeviceptr>(src_ptr)
                             : 0;
     cpyDesc.srcHost = src_type == CU_MEMORYTYPE_HOST ? src_ptr : nullptr;
     cpyDesc.srcArray = nullptr;
@@ -5444,7 +5447,7 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
     cpyDesc.dstY = 0;
     cpyDesc.dstMemoryType = dst_type;
     cpyDesc.dstDevice = dst_type == CU_MEMORYTYPE_DEVICE
-                            ? *static_cast<CUdeviceptr *>(dst_ptr)
+                            ? reinterpret_cast<CUdeviceptr>(dst_ptr)
                             : 0;
     cpyDesc.dstHost = dst_type == CU_MEMORYTYPE_HOST ? dst_ptr : nullptr;
     cpyDesc.dstArray = nullptr;
