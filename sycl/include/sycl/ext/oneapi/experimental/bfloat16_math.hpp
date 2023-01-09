@@ -44,18 +44,21 @@ std::enable_if_t<std::is_same<T, bfloat16>::value, T> fabs(T x) {
   oneapi::detail::Bfloat16StorageT XBits = oneapi::detail::bfloat16ToBits(x);
   return oneapi::detail::bitsToBfloat16(__clc_fabs(XBits));
 #else
-  std::ignore = x;
-  throw runtime_error(
-      "bfloat16 math functions are not currently supported on the host device.",
-      PI_ERROR_INVALID_DEVICE);
+  if (!isnan(x)) {
+    const static oneapi::detail::Bfloat16StorageT SignMask = 0x8000;
+    oneapi::detail::Bfloat16StorageT XBits = oneapi::detail::bfloat16ToBits(x);
+    x = ((XBits & SignMask) == SignMask)
+            ? oneapi::detail::bitsToBfloat16(XBits & ~SignMask)
+            : x;
+  }
+  return x;
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
 template <size_t N>
 sycl::marray<bfloat16, N> fabs(sycl::marray<bfloat16, N> x) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   sycl::marray<bfloat16, N> res;
-
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   for (size_t i = 0; i < N / 2; i++) {
     auto partial_res = __clc_fabs(detail::to_uint32_t(x, i * 2));
     std::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
@@ -66,13 +69,12 @@ sycl::marray<bfloat16, N> fabs(sycl::marray<bfloat16, N> x) {
         oneapi::detail::bfloat16ToBits(x[N - 1]);
     res[N - 1] = oneapi::detail::bitsToBfloat16(__clc_fabs(XBits));
   }
-  return res;
 #else
-  std::ignore = x;
-  throw runtime_error(
-      "bfloat16 math functions are not currently supported on the host device.",
-      PI_ERROR_INVALID_DEVICE);
+  for (size_t i = 0; i < N; i++) {
+    res[i] = fabs(x[i]);
+  }
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  return res;
 }
 
 template <typename T>
