@@ -38,10 +38,6 @@
 #include "xpti/xpti_trace_framework.h"
 #endif
 
-#define STR(x) #x
-#define SYCL_VERSION_STR                                                       \
-  "sycl " STR(__LIBSYCL_MAJOR_VERSION) "." STR(__LIBSYCL_MINOR_VERSION)
-
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
@@ -54,11 +50,6 @@ xpti_td *GSYCLGraphEvent = nullptr;
 xpti_td *GPICallEvent = nullptr;
 /// Event to be used by PI layer calls with arguments
 xpti_td *GPIArgCallEvent = nullptr;
-/// Constants being used as placeholder until one is able to reliably get the
-/// version of the SYCL runtime
-constexpr uint32_t GMajVer = __LIBSYCL_MAJOR_VERSION;
-constexpr uint32_t GMinVer = __LIBSYCL_MINOR_VERSION;
-constexpr const char *GVerStr = SYCL_VERSION_STR;
 #endif // XPTI_ENABLE_INSTRUMENTATION
 
 template <sycl::backend BE> void *getPluginOpaqueData(void *OpaqueDataParam) {

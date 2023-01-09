@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <detail/xpti_registry.hpp>
 #include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/util.hpp>
 
@@ -77,11 +78,17 @@ public:
   void unloadPlugins();
   void releaseDefaultContexts();
   void drainThreadPool();
+  void InitXPTIStuff();
 
   // For testing purposes only
   void attachScheduler(Scheduler *Scheduler);
 
 private:
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  xpti_td *GSYCLCallEvent = nullptr;
+  xpti_td *GSYCLArgCallEvent = nullptr;
+#endif
+
   friend void shutdown();
 
   // Constructor and destructor are declared out-of-line to allow incomplete

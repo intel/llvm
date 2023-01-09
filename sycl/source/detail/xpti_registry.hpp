@@ -13,6 +13,7 @@
 #include <unordered_set>
 
 #include <sycl/detail/common.hpp>
+#include <sycl/version.hpp>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting
@@ -39,11 +40,23 @@ extern uint8_t GBufferStreamID;
 extern uint8_t GMemAllocStreamID;
 extern xpti::trace_event_data_t *GMemAllocEvent;
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
+
+#define STR(x) #x
+#define SYCL_VERSION_STR                                                       \
+  "sycl " STR(__LIBSYCL_MAJOR_VERSION) "." STR(__LIBSYCL_MINOR_VERSION)
+
+/// Constants being used as placeholder until one is able to reliably get the
+/// version of the SYCL runtime
+constexpr uint32_t GMajVer = __LIBSYCL_MAJOR_VERSION;
+constexpr uint32_t GMinVer = __LIBSYCL_MINOR_VERSION;
+constexpr const char *GVerStr = SYCL_VERSION_STR;
 #endif
 
 // Stream name being used to notify about buffer objects.
 inline constexpr const char *SYCL_BUFFER_STREAM_NAME =
     "sycl.experimental.buffer";
+
+inline constexpr const char *SYCL_SYCLCALL_STREAM_NAME = "sycl.api";
 
 class XPTIRegistry {
 public:
