@@ -3357,7 +3357,7 @@ void Sema::AddSYCLWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
   // or the original expression converted to a constant expression.
   auto CheckAndConvertArg = [&](Expr *E) -> Optional<Expr *> {
     // We can only check if the expression is not value dependent.
-    if (E &&!E->isValueDependent()) {
+    if (E && !E->isValueDependent()) {
       llvm::APSInt ArgVal;
       ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
       if (Res.isInvalid())
