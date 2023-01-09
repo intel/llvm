@@ -8899,7 +8899,11 @@ pi_result piextEnqueueDeviceGlobalVariableWrite(
   void *GlobalVarPtr = nullptr;
   ZE_CALL(zeModuleGetGlobalPointer,
           (Program->ZeModule, Name, &GlobalVarSize, &GlobalVarPtr));
-  PI_ASSERT(GlobalVarSize >= Offset + Count, PI_ERROR_INVALID_VALUE);
+  if (GlobalVarSize < Offset + Count) {
+    setErrorMessage("Write device global variable is out of range.",
+                    PI_ERROR_INVALID_VALUE);
+    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+  }
 
   // Copy engine is preferred only for host to device transfer.
   // Device to device transfers run faster on compute engines.
@@ -8940,7 +8944,11 @@ pi_result piextEnqueueDeviceGlobalVariableRead(
   void *GlobalVarPtr = nullptr;
   ZE_CALL(zeModuleGetGlobalPointer,
           (Program->ZeModule, Name, &GlobalVarSize, &GlobalVarPtr));
-  PI_ASSERT(GlobalVarSize >= Offset + Count, PI_ERROR_INVALID_VALUE);
+  if (GlobalVarSize < Offset + Count) {
+    setErrorMessage("Read from device global variable is out of range.",
+                    PI_ERROR_INVALID_VALUE);
+    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+  }
 
   // Copy engine is preferred only for host to device transfer.
   // Device to device transfers run faster on compute engines.
