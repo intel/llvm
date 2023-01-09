@@ -546,43 +546,6 @@ joint_matrix<sub_group, int, use::accumulator, msize, nsize> sub_c;
 //Remainder handling
 ```
 
-## Future-looking API
-
-### Memory scope
-The current experimental API uses `joint_` semantics to define the memory scope of the matrix. The long term solution is to use the proposed link:../supported/sycl_ext_oneapi_local_memory.asciidoc[`group_local_memory` extension] to allocate the matrix in local memory associated with a SYCL group as shown in the example below.
-
-
-```c++
-multi_ptr<matrix<T>, address_space::local_space> tA_ptr = group_local_memory<matrix<sub_group, int8_t, tM, tN, use::a>>(sg);
-```
-We did not utilize this extension for this matrix API version because sub-group local memory is not yet well defined in {dpcpp}. Moreover, the representation of this notion in LLVM IR and SPIR-V is not clear yet. 
-
-### WI data to joint matrix mapping coordinates information for piece-wise operations
-The indexing provided inside the `wi_data` class accesses only the portion of the matrix held by the current WI. It is not possible to know the location of this portion in the original matrix.  This coordinates mapping  is implementation defined and changes from one backend to the other. For general piece-wise operations like sum of rows of a matrix, the WI data to joint matrix mapping information is needed to reason about the matrix view.
-Within the joint matrix extension, we want to write, as much as possible, one code to run on different backends. If backend X states that a WI owns one exact row of the matrix for instance, writing the following code will work only on that backend for that version of hardware. If a different hardware and implementation is used, the same WI may own only half of the row if, for example, the SG size increased. 
-
-```c++
-auto data = get_wi_data(sg, C);
-for (int i = 0; i < data.length(); ++i) {
-  sum_of_local_rows[row] += data[i];
-}
-```
-
-We want to keep backward compatibility in the joint matrix code when implementations or hardware change. To that end, instead of hard-coding this mapping, we use general backend and target-agnostic functionality, especially in the JIT compilation mode of SYCL. For this reason we would like to be able to query this mapping so that code does not have to change from one version to the other.
-
-So for the mapping problem, since this mapping is implementation-defined, one of the proposals is to add runtime functions like:
-```c++
-auto data = get_wi_data(sg, C);
-for (int i = 0; i < data.length; ++i) {
-  auto row, col = data[i].get_coord();
-  sum_of_local_rows[row] += data[i];
-}
-```
-
-## TODO List
-- Add WI data to joint matrix mapping coordinates information for piece-wise operations. This will be added as part of the query or new methods to the 'get_wi_data' class. 
-- Add a more realistic and complete example that shows the value of the general query. 
-
 
 ## Revision History
 
