@@ -73,8 +73,7 @@ ldg(const T *ptr) {
   return *ptr;
 #endif
 #else
-  throw runtime_error("ldg is not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw runtime_error("ldg is not supported on host.", PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
