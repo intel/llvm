@@ -10,7 +10,7 @@
 // RUN: %clangxx -fsycl %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16
 
-// Test that fallback bfloat16 libraries are added in JIT mode with \
+// Test that fallback bfloat16 libraries are added in JIT mode with
 // generic target.
 // RUN: %clangxx -fsycl -fsycl-targets=spir64 %s \
 // RUN:   --sysroot=%S/Inputs/SYCL -### 2>&1 \
@@ -21,13 +21,13 @@
 // RUN:   "-device pvc" %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE
 
-// Test that unless all targets support bfloat16, AOT compilation uses the \
+// Test that unless all targets support bfloat16, AOT compilation uses the
 // fallback library.
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend \
 // RUN:   "-device pvc,gen9" %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK
 
-// Test that when all targets support bfloat16, AOT compilation uses the \
+// Test that when all targets support bfloat16, AOT compilation uses the
 // native library.
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend \
 // RUN:   "-device pvc-sdv,ats-m75" %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
