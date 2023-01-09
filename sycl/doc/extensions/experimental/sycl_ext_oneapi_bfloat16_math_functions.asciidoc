@@ -55,13 +55,13 @@ specification.
 
 == Overview
 
-This extension adds `bfloat16` support to the `fma`, `fmin`, `fmax` and
-`fabs` SYCL floating point math functions. These functions can be used as
+This extension adds `bfloat16` support to the `fma`, `fmin`, `fmax`, `fabs`
+and `isnan` SYCL floating point math functions. These functions can be used as
 element wise operations on matrices, supplementing the `bfloat16` support
 in the sycl_ext_oneapi_matrix extension.
 
-The descriptions of the `fma`, `fmin`, `fmax` and `fabs` SYCL floating point
-math functions can be found in the SYCL specification:
+The descriptions of the `fma`, `fmin`, `fmax`, `fabs` and `isnan` SYCL floating
+point math functions can be found in the SYCL specification:
 https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_math_functions.
 
 == Specification
@@ -103,6 +103,20 @@ then it supports the `bfloat16` math functions described in the next section.
 The following functions are only available when `T` is `bfloat16` or
 `sycl::marray<bfloat16, {N}>`, where `{N}` means any positive value of
 `size_t` type.
+
+==== isnan
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+
+template <typename T>
+bool isnan(T x);
+} // namespace sycl::ext::oneapi::experimental
+```
+
+===== Description
+
+Returns true if x is NAN value, otherwise returns false.
 
 ==== fma
 
