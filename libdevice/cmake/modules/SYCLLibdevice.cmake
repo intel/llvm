@@ -300,7 +300,8 @@ add_custom_target(imf_fp32_host_obj DEPENDS ${obj_binary_dir}/imf-fp32-host.${li
 add_custom_target(imf_fp64_host_obj DEPENDS ${obj_binary_dir}/imf-fp64-host.${lib-suffix})
 add_custom_target(imf_bf16_host_obj DEPENDS ${obj_binary_dir}/imf-bf16-host.${lib-suffix})
 
-add_custom_target(imf_host_obj
+add_custom_target(imf_host_obj DEPENDS ${obj_binary_dir}/${devicelib_host_static})
+add_custom_command(OUTPUT ${obj_binary_dir}/${devicelib_host_static}
                   COMMAND ${llvm-ar} rcs ${obj_binary_dir}/${devicelib_host_static}
                           ${obj_binary_dir}/imf-fp32-host.${lib-suffix}
                           ${obj_binary_dir}/fallback-imf-fp32-host.${lib-suffix}
