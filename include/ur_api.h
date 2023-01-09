@@ -2479,6 +2479,19 @@ typedef enum ur_sampler_properties_t
 } ur_sampler_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Sampler addressing mode
+typedef enum ur_sampler_addressing_mode_t
+{
+    UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT = 0, ///< Mirrored Repeat
+    UR_SAMPLER_ADDRESSING_MODE_REPEAT = 1,          ///< Repeat
+    UR_SAMPLER_ADDRESSING_MODE_CLAMP = 2,           ///< Clamp
+    UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE = 3,   ///< Clamp to edge
+    UR_SAMPLER_ADDRESSING_MODE_NONE = 4,            ///< None
+    UR_SAMPLER_ADDRESSING_MODE_FORCE_UINT32 = 0x7fffffff
+
+} ur_sampler_addressing_mode_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Sampler properties <name, value> pair
 typedef struct ur_sampler_property_value_t
 {
