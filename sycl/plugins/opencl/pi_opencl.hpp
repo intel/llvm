@@ -228,8 +228,14 @@ inline const OpenCLVersion V3_0(3, 0);
 // plugin
 
 struct _pi_device : _pi_object {
+  enum device_level {
+    ROOTDEVICE = 0,
+    SUBDEVICE = 1,
+    SUBSUBDEVICE = 2,
+    INVALID = -1
+  };
   _pi_device(pi_platform Plt) : Platform{Plt} {
-    subLevel = -1;
+    level = INVALID;
     family = index = 0;
     // NOTE: one must additionally call initialize() to complete
     // PI device creation.
@@ -238,12 +244,13 @@ struct _pi_device : _pi_object {
   pi_platform Platform;
 
   // Info stored for sub-sub device queue creation
-  int subLevel;     // 0 - root device; 1 - sub-device; 2 - sub-sub-device
+  device_level level;
   pi_uint32 family; // SYCL queue family
   pi_uint32 index;  // SYCL queue index inside a given family of queues
-  bool isRootDevice(void) { return subLevel == 0; }
-  bool isSubDevice(void) { return subLevel == 1; }
-  bool isSubSubDevice(void) { return subLevel == 2; }
+
+  bool isRootDevice(void) { return level == ROOTDEVICE; }
+  bool isSubDevice(void) { return level == SUBDEVICE; }
+  bool isSubSubDevice(void) { return level == SUBSUBDEVICE; }
 };
 
 #endif // PI_OPENCL_HPP
