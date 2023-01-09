@@ -104,12 +104,12 @@ static void enableOnCrashStackPrinting() {
 Scheduler &GlobalHandler::getScheduler() {
   getOrCreate(MScheduler);
   registerSchedulerUsage();
-  // On Windows the regestration of the signal handler before main function
+  // On Windows the registration of the signal handler before main function
   // (e.g. from DLLMain or from constructors of program scope objects) doesn't
   // work. So, registering signal handler here because:
   // 1) getScheduler is likely to be called for any non-trivial application;
-  // 2) first call to getScheduler is likely to be done after main starts
-  // The same is done in getPlugins
+  // 2) first call to getScheduler is likely to be done after main starts.
+  // The same is done in getPlugins.
   enableOnCrashStackPrinting();
   return *MScheduler.Inst;
 }
