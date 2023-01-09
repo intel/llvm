@@ -205,7 +205,7 @@ public:
 
   void HandleTranslationUnit(clang::ASTContext &Context) override;
 
-  bool HandleTopLevelDecl(clang::DeclGroupRef dg) override;
+  bool HandleTopLevelDecl(clang::DeclGroupRef DG) override;
 
   void HandleDeclContext(clang::DeclContext *DC);
 
