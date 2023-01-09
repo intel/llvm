@@ -511,7 +511,7 @@ pi_result piDevicePartition(pi_device device,
   } else if (device->isSubDevice()) {
     cl_queue_family_properties_intel qfprops[3];
     size_t qsize = 0;
-    cl_int family = -1;
+    pi_uint32 family = 0;
     cl_uint partitionMaxSubDevices = 0;
     clGetDeviceInfo(
         cast<cl_device_id>(device), CL_DEVICE_QUEUE_FAMILY_PROPERTIES_INTEL,

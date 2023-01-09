@@ -229,7 +229,8 @@ inline const OpenCLVersion V3_0(3, 0);
 
 struct _pi_device : _pi_object {
   _pi_device(pi_platform Plt) : Platform{Plt} {
-    subLevel = family = index = -1;
+    subLevel = -1;
+    family = index = 0;
     // NOTE: one must additionally call initialize() to complete
     // PI device creation.
   }
@@ -237,9 +238,9 @@ struct _pi_device : _pi_object {
   pi_platform Platform;
 
   // Info stored for sub-sub device queue creation
-  int subLevel;    // 0 - root device; 1 - sub-device; 2 - sub-sub-device
-  pi_int32 family; // SYCL queue family
-  pi_int32 index;  // SYCL queue index inside a given family of queues
+  int subLevel;     // 0 - root device; 1 - sub-device; 2 - sub-sub-device
+  pi_uint32 family; // SYCL queue family
+  pi_uint32 index;  // SYCL queue index inside a given family of queues
   bool isRootDevice(void) { return subLevel == 0; }
   bool isSubDevice(void) { return subLevel == 1; }
   bool isSubSubDevice(void) { return subLevel == 2; }
