@@ -1968,12 +1968,13 @@ Sema::targetDiag(SourceLocation Loc, unsigned DiagID, FunctionDecl *FD) {
   if (LangOpts.OpenMP)
     return LangOpts.OpenMPIsDevice ? diagIfOpenMPDeviceCode(Loc, DiagID, FD)
                                    : diagIfOpenMPHostCode(Loc, DiagID, FD);
-  if (getLangOpts().CUDA)
-    return getLangOpts().CUDAIsDevice ? CUDADiagIfDeviceCode(Loc, DiagID)
-                                      : CUDADiagIfHostCode(Loc, DiagID);
 
   if (getLangOpts().SYCLIsDevice)
     return SYCLDiagIfDeviceCode(Loc, DiagID);
+
+  if (getLangOpts().CUDA)
+    return getLangOpts().CUDAIsDevice ? CUDADiagIfDeviceCode(Loc, DiagID)
+                                      : CUDADiagIfHostCode(Loc, DiagID);
 
   return SemaDiagnosticBuilder(SemaDiagnosticBuilder::K_Immediate, Loc, DiagID,
                                FD, *this, DeviceDiagnosticReason::All);

@@ -240,7 +240,8 @@ and not recommended to use in production environment.
       kernels grouped on per-source basis and all their dependencies, such as
       all used variables and called functions, including the `SYCL_EXTERNAL`
       macro-marked functions from other translation units.
-    * off - creates a single module for all kernels.
+    * off - creates a single module for all kernels. If `-fsycl-no-rdc` is
+      specified, the behavior is the same as per_source.
     * auto - the compiler will use a heuristic to select the best way of
       splitting device code. This is default mode.
 
@@ -299,6 +300,16 @@ and not recommended to use in production environment.
     the expected unbundling type even though the target given does not match.
     The forced target applies to all objects, archives and default device
     libraries.
+
+**`-f[no-]sycl-rdc`**
+
+    Enables/disables relocatable device code. If relocatable device code is
+    disabled, device code cannot use SYCL_EXTERNAL functions, which allows
+    the compiler to link device code on a per-translation-unit basis.
+    This may result in compile time and compiler memory usage improvements.
+    '-fno-sycl-rdc' used along with '-fsycl-max-parallel-link-jobs' will enable
+    additional device linking parallism for fat static archives.
+    Relocatable device code is enabled by default.
 
 ## Intel FPGA specific options
 

@@ -141,13 +141,13 @@ int main() {
     for (int j = 0; j < MATRIX_K; j++) {
       // Ee create bfloat16 from unsigned short since float-to-bfloat's
       // conversion is not allowed.
-      A[i][j] = make_bf16(1.0f * (i + j));
+      A[i][j] = bfloat16(1.0f * (i + j));
       Aref[i][j] = make_bf16(1.0f * (i + j));
     }
   }
   for (int i = 0; i < MATRIX_K / 2; i++) {
     for (int j = 0; j < MATRIX_N * 2; j++) {
-      B[i][j] = make_bf16(2.0f * i + 3.0f * j);
+      B[i][j] = bfloat16(2.0f * i + 3.0f * j);
       Bref[i][j] = make_bf16(2.0f * i + 3.0f * j);
     }
   }

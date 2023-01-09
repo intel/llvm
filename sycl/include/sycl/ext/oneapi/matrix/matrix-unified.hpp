@@ -28,8 +28,8 @@ struct joint_matrix {
   __spv::__spirv_JointMatrixINTEL<
       T, Rows, Cols, spv_matrix_layout_traits<Layout>::value,
       spv_scope_traits<Group>::value, spv_matrix_use_traits<Use>::value> *spvm;
+#endif // defined(__NVPTX__)
 #endif // defined(__SYCL_DEVICE_ONLY__)
-#endif
 
   joint_matrix() {
 #ifndef __SYCL_DEVICE_ONLY__
@@ -93,12 +93,8 @@ template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
 inline __SYCL_ALWAYS_INLINE decltype(auto)
 get_wi_data(Group sg, joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm) {
 #if defined(__SYCL_DEVICE_ONLY__)
-#if defined(__NVPTX__)
   std::ignore = sg;
   return wi_data(jm);
-#else
-  return wi_data<Group, T, Use, Rows, Cols, Layout>(jm);
-#endif // defined(__NVPTX__)
 #else
   std::ignore = sg;
   std::ignore = jm;
@@ -133,10 +129,8 @@ joint_matrix_fill(Group sg,
   std::ignore = sg;
   std::ignore = res;
   std::ignore = v;
-  throw runtime_error(
-      "This version of the matrix extension is only currently supported on "
-      "Nvidia devices",
-      PI_ERROR_INVALID_DEVICE);
+  throw runtime_error("joint matrix is not supported on host device.",
+                      PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -157,8 +151,6 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
   sycl::ext::oneapi::detail::load_accumulator_cuda(res.cuda_impl, src, stride,
                                                    Layout);
 #else
-  // intel's impl
-  // matL is determined by matrix.use?
   T *Ptr = src.get();
   switch (Layout) {
   default:
@@ -192,10 +184,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
   std::ignore = src;
   std::ignore = stride;
   std::ignore = Layout;
-  throw runtime_error(
-      "This version of the matrix extension is only currently supported on "
-      "Nvidia devices",
-      PI_ERROR_INVALID_DEVICE);
+  throw runtime_error("joint matrix is not supported on host device.",
+                      PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -231,10 +221,8 @@ joint_matrix_load(Group sg,
   std::ignore = res;
   std::ignore = src;
   std::ignore = stride;
-  throw runtime_error(
-      "This version of the matrix extension is only currently supported on "
-      "Nvidia devices",
-      PI_ERROR_INVALID_DEVICE);
+  throw runtime_error("joint matrix is not supported on host device.",
+                      PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -253,7 +241,6 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
                                                      Space>(src.cuda_impl, dst,
                                                             stride, Layout);
 #else
-  // intel's impl
   T *Ptr = dst.get();
   switch (Layout) {
   default:
@@ -287,10 +274,8 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
   std::ignore = dst;
   std::ignore = stride;
   std::ignore = Layout;
-  throw runtime_error(
-      "This version of the matrix extension is only currently supported on "
-      "Nvidia devices",
-      PI_ERROR_INVALID_DEVICE);
+  throw runtime_error("joint matrix is not supported on host device.",
+                      PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
@@ -341,10 +326,8 @@ inline __SYCL_ALWAYS_INLINE
   std::ignore = A;
   std::ignore = B;
   std::ignore = C;
-  throw runtime_error(
-      "This version of the matrix extension is only currently supported on "
-      "Nvidia devices",
-      PI_ERROR_INVALID_DEVICE);
+  throw runtime_error("joint matrix is not supported on host device.",
+                      PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
