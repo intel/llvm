@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // 4.9.2 Exception Class Interface
+#include <detail/global_handler.hpp>
 #include <sycl/context.hpp>
 #include <sycl/exception.hpp>
 
@@ -60,11 +61,11 @@ exception::exception(context Ctx, int EV, const std::error_category &ECat)
 exception::exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
                      const std::string &WhatArg)
     : MMsg(std::make_shared<std::string>(WhatArg)),
-      MPIErr(PI_ERROR_INVALID_VALUE), MContext(SharedPtrCtx), MErrC(EC) {}
-
-const std::error_code &exception::code() const noexcept {
-  return MErrC;
+      MPIErr(PI_ERROR_INVALID_VALUE), MContext(SharedPtrCtx), MErrC(EC) {
+  detail::GlobalHandler::instance().TraceEventXPTI();
 }
+
+const std::error_code &exception::code() const noexcept { return MErrC; }
 
 const std::error_category &exception::category() const noexcept {
   return code().category();

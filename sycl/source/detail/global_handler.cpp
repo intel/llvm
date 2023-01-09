@@ -75,6 +75,50 @@ void GlobalHandler::InitXPTIStuff() {
                     xpti_at::active, &SYCLInstanceNo);
 }
 
+std::string BuildPayloadStr(const xpti::payload_t &Payload) {
+  std::string Result;
+  const char Separator[] = ":";
+  const char NoData[] = "?";
+  if (Payload.flags & (uint64_t)xpti::payload_flag_t::NameAvailable) {
+    Result += Payload.name;
+    Result.append(Separator);
+  }
+  if (Payload.flags & (uint64_t)xpti::payload_flag_t::SourceFileAvailable) {
+    Result.append(Payload.source_file);
+    Result.append(Separator);
+    Result.append("ln");
+    if (Payload.flags & (uint64_t)xpti::payload_flag_t::LineInfoAvailable)
+      Result += std::to_string(Payload.line_no);
+    else
+      Result.append(NoData);
+    Result.append(Separator);
+    Result.append("col");
+    if (Payload.flags & (uint64_t)xpti::payload_flag_t::ColumnInfoAvailable)
+      Result += std::to_string(Payload.column_no);
+    else
+      Result.append(NoData);
+  }
+  if (Result.empty()) {
+    Result = "No code location data is available.";
+  }
+  return Result;
+}
+
+void GlobalHandler::TraceEventXPTI() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    uint64_t Uid = xptiGetUniqueId(); // Gets the UID from TLS
+    auto Payload = xptiQueryPayloadByUID(Uid);
+    uint8_t StreamID = xptiRegisterStream(SYCL_SYCLCALL_STREAM_NAME);
+    xptiNotifySubscribers(
+        StreamID, (uint16_t)xpti::trace_point_type_t::diagnostics,
+        GSYCLCallEvent, nullptr, Uid,
+        static_cast<const void *>(BuildPayloadStr(Payload).c_str()));
+  }
+
+#endif
+}
+
 GlobalHandler &GlobalHandler::instance() {
   static GlobalHandler *SyclGlobalObjectsHandler = new GlobalHandler();
 

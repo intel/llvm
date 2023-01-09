@@ -79,6 +79,7 @@ public:
   void releaseDefaultContexts();
   void drainThreadPool();
   void InitXPTIStuff();
+  void TraceEventXPTI();
 
   // For testing purposes only
   void attachScheduler(Scheduler *Scheduler);
