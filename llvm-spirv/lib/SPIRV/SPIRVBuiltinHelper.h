@@ -43,7 +43,6 @@
 #include "LLVMSPIRVLib.h"
 #include "libSPIRV/SPIRVOpCode.h"
 #include "libSPIRV/SPIRVType.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/IRBuilder.h"
@@ -334,7 +333,7 @@ public:
   /// true, a pointer type will be used instead.
   llvm::Type *getSPIRVType(spv::Op TypeOpcode, llvm::Type *InnerType,
                            SPIRVTypeImageDescriptor Desc,
-                           llvm::Optional<spv::AccessQualifier> Access,
+                           std::optional<spv::AccessQualifier> Access,
                            bool UseRealType = false);
 
   /// Create a new type representing a SPIR-V opaque type that takes arbitrary

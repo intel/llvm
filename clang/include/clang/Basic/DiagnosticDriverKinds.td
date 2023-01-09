@@ -352,6 +352,8 @@ def warn_drv_sycl_offload_target_duplicate : Warning<
 def warn_drv_sycl_target_missing : Warning<
   "linked binaries do not contain expected '%0' target; found targets: '%1'">,
   InGroup<SyclTarget>;
+def err_drv_no_rdc_sycl_target_missing : Error<
+  "linked binaries do not contain expected '%0' target; found targets: '%1', this is not supported with '-fno-sycl-rdc'">;
 def err_drv_multiple_target_with_forced_target : Error<
   "multiple target usage with '%0' is not supported with '%1'">;
 def err_drv_failed_to_deduce_target_from_arch : Error<
@@ -378,6 +380,13 @@ def err_drv_small_columns : Error<
 
 def err_drv_invalid_malign_branch_EQ : Error<
   "invalid argument '%0' to -malign-branch=; each element must be one of: %1">;
+
+def err_drv_print_header_env_var : Error<
+  "environment variable CC_PRINT_HEADERS_%select{FORMAT|FILTERING}0 has invalid value %1">;
+def err_drv_print_header_env_var_combination : Error<
+  "unsupported combination: CC_PRINT_HEADERS_FORMAT=%0 and CC_PRINT_HEADERS_FILTERING=%1">;
+def err_drv_print_header_env_var_combination_cc1 : Error<
+  "unsupported combination: -header-include-format=%0 and -header-include-filtering=%1">;
 
 def warn_O4_is_O3 : Warning<"-O4 is equivalent to -O3">, InGroup<Deprecated>;
 def warn_drv_optimization_value : Warning<"optimization level '%0' is not supported; using '%1%2' instead">,
@@ -501,6 +510,10 @@ def err_analyzer_not_built_with_z3 : Error<
 def warn_analyzer_deprecated_option : Warning<
   "analyzer option '%0' is deprecated. This flag will be removed in %1, and "
   "passing this option will be an error.">,
+  InGroup<DeprecatedStaticAnalyzerFlag>;
+def warn_analyzer_deprecated_option_with_alternative : Warning<
+  "analyzer option '%0' is deprecated. This flag will be removed in %1, and "
+  "passing this option will be an error. Use '%2' instead.">,
   InGroup<DeprecatedStaticAnalyzerFlag>;
 
 def warn_drv_needs_hvx : Warning<

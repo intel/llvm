@@ -19,6 +19,7 @@
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/Pass.h"
+#include <optional>
 
 namespace llvm {
 
@@ -451,10 +452,10 @@ public:
   // pairs that can be used to prove that there are no vectorization-preventing
   // dependencies at runtime. There are is a vectorization-preventing dependency
   // if any pointer-difference is <u VF * InterleaveCount * access size. Returns
-  // None if pointer-difference checks cannot be used.
-  Optional<ArrayRef<PointerDiffInfo>> getDiffChecks() const {
+  // std::nullopt if pointer-difference checks cannot be used.
+  std::optional<ArrayRef<PointerDiffInfo>> getDiffChecks() const {
     if (!CanUseDiffCheck)
-      return None;
+      return std::nullopt;
     return {DiffChecks};
   }
 
@@ -720,7 +721,7 @@ const SCEV *replaceSymbolicStrideSCEV(PredicatedScalarEvolution &PSE,
                                       Value *Ptr);
 
 /// If the pointer has a constant stride return it in units of the access type
-/// size.  Otherwise return None.
+/// size.  Otherwise return std::nullopt.
 ///
 /// Ensure that it does not wrap in the address space, assuming the predicate
 /// associated with \p PSE is true.

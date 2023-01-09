@@ -8,22 +8,15 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 
-namespace oneapi {
-namespace property {
-namespace usm {
+namespace oneapi::property::usm {
 class device_read_only
     : public sycl::detail::DataLessProperty<sycl::detail::DeviceReadOnly> {
 public:
   device_read_only() = default;
 };
-} // namespace usm
-} // namespace property
-} // namespace oneapi
+} // namespace oneapi::property::usm
 
-namespace intel {
-namespace experimental {
-namespace property {
-namespace usm {
+namespace intel::experimental::property::usm {
 
 class buffer_location
     : public sycl::detail::PropertyWithData<
@@ -36,10 +29,7 @@ private:
   uint64_t MLocation;
 };
 
-} // namespace usm
-} // namespace property
-} // namespace experimental
-} // namespace intel
+} // namespace intel::experimental::property::usm
 } // namespace ext
 
 template <>

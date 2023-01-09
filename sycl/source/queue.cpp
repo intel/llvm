@@ -9,6 +9,7 @@
 #include <detail/backend_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>
+#include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
@@ -202,6 +203,8 @@ bool queue::is_in_order() const {
 }
 
 backend queue::get_backend() const noexcept { return getImplBackend(impl); }
+
+bool queue::ext_oneapi_empty() const { return impl->ext_oneapi_empty(); }
 
 pi_native_handle queue::getNative() const { return impl->getNative(); }
 

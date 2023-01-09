@@ -20,6 +20,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/LowerKernelProps.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/IPO/StripDeadPrototypes.h"
@@ -40,8 +41,6 @@ constexpr char GLOBAL_SCOPE_NAME[] = "<GLOBAL>";
 constexpr char SYCL_SCOPE_NAME[] = "<SYCL>";
 constexpr char ESIMD_SCOPE_NAME[] = "<ESIMD>";
 constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
-
-constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
 
 bool hasIndirectFunctionsOrCalls(const Module &M) {
   for (const auto &F : M.functions()) {
@@ -144,7 +143,7 @@ bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
     // If not disabled, SYCL_EXTERNAL functions with sycl-module-id attribute
     // are also considered as entry points (except __spirv_* and __sycl_*
     // functions)
-    return F.hasFnAttribute(ATTR_SYCL_MODULE_ID) &&
+    return llvm::sycl::utils::isSYCLExternalFunction(&F) &&
            !isSpirvSyclBuiltin(F.getName()) && !isESIMDBuiltin(F.getName()) &&
            !isGenericBuiltin(F.getName());
   }
@@ -225,15 +224,15 @@ EntryPointGroupVec groupEntryPointsByScope(ModuleDesc &MD,
       break;
 
     case Scope_PerModule: {
-      if (!F.hasFnAttribute(ATTR_SYCL_MODULE_ID))
+      if (!llvm::sycl::utils::isSYCLExternalFunction(&F))
         // TODO It may make sense to group all entry points w/o the attribute
         // into a separate module rather than issuing an error. Should probably
         // be controlled by an option.
-        error("no '" + Twine(ATTR_SYCL_MODULE_ID) +
+        error("no '" + Twine(llvm::sycl::utils::ATTR_SYCL_MODULE_ID) +
               "' attribute for entry point '" + F.getName() +
               "', per-module split is not possible");
 
-      Attribute Id = F.getFnAttribute(ATTR_SYCL_MODULE_ID);
+      Attribute Id = F.getFnAttribute(llvm::sycl::utils::ATTR_SYCL_MODULE_ID);
       StringRef Val = Id.getValueAsString();
       EntryPointMap[Val].insert(&F);
       break;
@@ -257,42 +256,6 @@ EntryPointGroupVec groupEntryPointsByScope(ModuleDesc &MD,
   } else {
     // No entry points met, record this.
     EntryPointGroups.emplace_back(GLOBAL_SCOPE_NAME, EntryPointSet{});
-  }
-  return EntryPointGroups;
-}
-
-template <class EntryPoinGroupFunc>
-EntryPointGroupVec
-groupEntryPointsByAttribute(ModuleDesc &MD, StringRef AttrName,
-                            bool EmitOnlyKernelsAsEntryPoints,
-                            EntryPoinGroupFunc F) {
-  EntryPointGroupVec EntryPointGroups{};
-  std::map<StringRef, EntryPointSet> EntryPointMap;
-  Module &M = MD.getModule();
-
-  // Only process module entry points:
-  for (auto &F : M.functions()) {
-    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
-        !MD.isEntryPointCandidate(F)) {
-      continue;
-    }
-    if (F.hasFnAttribute(AttrName)) {
-      EntryPointMap[AttrName].insert(&F);
-    } else {
-      EntryPointMap[""].insert(&F);
-    }
-  }
-  if (!EntryPointMap.empty()) {
-    EntryPointGroups.reserve(EntryPointMap.size());
-    for (auto &EPG : EntryPointMap) {
-      EntryPointGroups.emplace_back(EPG.first, std::move(EPG.second),
-                                    MD.getEntryPointGroup().Props);
-      F(EntryPointGroups.back());
-    }
-  } else {
-    // No entry points met, record this.
-    EntryPointGroups.emplace_back(GLOBAL_SCOPE_NAME, EntryPointSet{});
-    F(EntryPointGroups.back());
   }
   return EntryPointGroups;
 }
@@ -741,24 +704,6 @@ void EntryPointGroup::rebuildFromNames(const std::vector<std::string> &Names,
   });
 }
 
-std::unique_ptr<ModuleSplitterBase>
-getLargeGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
-  EntryPointGroupVec Groups = groupEntryPointsByAttribute(
-      MD, sycl::kernel_props::ATTR_LARGE_GRF, EmitOnlyKernelsAsEntryPoints,
-      [](EntryPointGroup &G) {
-        if (G.GroupId == sycl::kernel_props::ATTR_LARGE_GRF) {
-          G.Props.UsesLargeGRF = true;
-        }
-      });
-  assert(!Groups.empty() && "At least one group is expected");
-  assert(Groups.size() <= 2 && "At most 2 groups are expected");
-
-  if (Groups.size() > 1)
-    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
-  else
-    return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
-}
-
 namespace {
 // Data structure, which represent a combination of all possible optional
 // features used in a function.
@@ -766,8 +711,9 @@ namespace {
 // It has extra methods to be useable as a key in llvm::DenseMap.
 struct UsedOptionalFeatures {
   SmallVector<int, 4> Aspects;
-  // TODO: extend this further with reqd-sub-group-size, reqd-work-group-size,
-  // large-grf and other properties
+  bool UsesLargeGRF = false;
+  // TODO: extend this further with reqd-sub-group-size, reqd-work-group-size
+  // and other properties
 
   UsedOptionalFeatures() = default;
 
@@ -785,12 +731,16 @@ struct UsedOptionalFeatures {
       llvm::sort(Aspects);
     }
 
+    if (F->hasFnAttribute(::sycl::kernel_props::ATTR_LARGE_GRF))
+      UsesLargeGRF = true;
+
     llvm::hash_code AspectsHash =
         llvm::hash_combine_range(Aspects.begin(), Aspects.end());
-    Hash = static_cast<unsigned>(llvm::hash_combine(AspectsHash));
+    llvm::hash_code LargeGRFHash = llvm::hash_value(UsesLargeGRF);
+    Hash = static_cast<unsigned>(llvm::hash_combine(AspectsHash, LargeGRFHash));
   }
 
-  std::string getName(StringRef BaseName) const {
+  std::string generateModuleName(StringRef BaseName) const {
     if (Aspects.empty())
       return BaseName.str() + "-no-aspects";
 
@@ -798,6 +748,10 @@ struct UsedOptionalFeatures {
     for (int A : Aspects) {
       Ret += "-" + std::to_string(A);
     }
+
+    if (UsesLargeGRF)
+      Ret += "-large-grf";
+
     return Ret;
   }
 
@@ -833,7 +787,7 @@ public:
         return false;
     }
 
-    return IsEmpty == Other.IsEmpty;
+    return IsEmpty == Other.IsEmpty && UsesLargeGRF == Other.UsesLargeGRF;
   }
 
   unsigned hash() const { return static_cast<unsigned>(Hash); }
@@ -885,9 +839,18 @@ getSplitterByOptionalFeatures(ModuleDesc &&MD,
     Groups.emplace_back(GLOBAL_SCOPE_NAME, EntryPointSet{});
   } else {
     Groups.reserve(PropertiesToFunctionsMap.size());
-    for (auto &EPG : PropertiesToFunctionsMap) {
-      Groups.emplace_back(EPG.first.getName(MD.getEntryPointGroup().GroupId),
-                          std::move(EPG.second), MD.getEntryPointGroup().Props);
+    for (auto &It : PropertiesToFunctionsMap) {
+      const UsedOptionalFeatures &Features = It.first;
+      EntryPointSet &EntryPoints = It.second;
+
+      // Start with properties of a source module
+      EntryPointGroup::Properties MDProps = MD.getEntryPointGroup().Props;
+      // Propagate LargeGRF flag to entry points group
+      if (Features.UsesLargeGRF)
+        MDProps.UsesLargeGRF = true;
+      Groups.emplace_back(
+          Features.generateModuleName(MD.getEntryPointGroup().GroupId),
+          std::move(EntryPoints), MDProps);
     }
   }
 

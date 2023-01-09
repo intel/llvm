@@ -50,7 +50,7 @@ private:
     if (Position != Maps.end())
       return Position->getSecond();
     else
-      return None;
+      return std::nullopt;
   }
 
   std::mutex ConcurrentAccess;
@@ -90,8 +90,8 @@ private:
       // try to distinguish already compiled & library symbols
       if (!ImplSymbol)
         continue;
-      const auto &ImplSymbolName = ImplSymbol.getPointer()->first;
-      JITDylib *ImplJD = ImplSymbol.getPointer()->second;
+      const auto &ImplSymbolName = ImplSymbol->first;
+      JITDylib *ImplJD = ImplSymbol->second;
       auto &SymbolsInJD = SpeculativeLookUpImpls[ImplJD];
       SymbolsInJD.insert(ImplSymbolName);
     }

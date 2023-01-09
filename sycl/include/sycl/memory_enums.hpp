@@ -31,7 +31,6 @@ enum class memory_scope : int {
   system = 4
 };
 
-#if __cplusplus >= 201703L
 inline constexpr auto memory_scope_work_item = memory_scope::work_item;
 inline constexpr auto memory_scope_sub_group = memory_scope::sub_group;
 inline constexpr auto memory_scope_work_group = memory_scope::work_group;
@@ -43,7 +42,6 @@ inline constexpr auto memory_order_acquire = memory_order::acquire;
 inline constexpr auto memory_order_release = memory_order::release;
 inline constexpr auto memory_order_acq_rel = memory_order::acq_rel;
 inline constexpr auto memory_order_seq_cst = memory_order::seq_cst;
-#endif
 
 namespace detail {
 

@@ -13,9 +13,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 namespace detail {
 
 // Base class for property values with a single non-type value
@@ -41,7 +39,6 @@ struct property_value : public detail::PropertyValueBase<Ts...> {
   using key_t = PropertyT;
 };
 
-#if __cplusplus >= 201703L // pack fold expressions
 template <typename PropertyT, typename... A, typename... B>
 constexpr std::enable_if_t<detail::IsCompileTimeProperty<PropertyT>::value,
                            bool>
@@ -57,7 +54,6 @@ operator!=(const property_value<PropertyT, A...> &,
            const property_value<PropertyT, B...> &) {
   return (!std::is_same<A, B>::value || ...);
 }
-#endif // __cplusplus >= 201703L
 
 template <typename V, typename = void> struct is_property_value {
   static constexpr bool value =
@@ -88,8 +84,6 @@ struct IsCompileTimePropertyValue<property_value<PropertyT, PropertyValueTs...>>
     : IsCompileTimeProperty<PropertyT> {};
 
 } // namespace detail
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

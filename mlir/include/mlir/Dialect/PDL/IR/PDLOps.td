@@ -354,11 +354,11 @@ def PDL_OperationOp : PDL_Op<"operation", [AttrSizedOperandSegments]> {
   }];
 
   let builders = [
-    OpBuilder<(ins CArg<"Optional<StringRef>", "llvm::None">:$name,
-      CArg<"ValueRange", "llvm::None">:$operandValues,
-      CArg<"ArrayRef<StringRef>", "llvm::None">:$attrNames,
-      CArg<"ValueRange", "llvm::None">:$attrValues,
-      CArg<"ValueRange", "llvm::None">:$resultTypes), [{
+    OpBuilder<(ins CArg<"Optional<StringRef>", "std::nullopt">:$name,
+      CArg<"ValueRange", "std::nullopt">:$operandValues,
+      CArg<"ArrayRef<StringRef>", "std::nullopt">:$attrNames,
+      CArg<"ValueRange", "std::nullopt">:$attrValues,
+      CArg<"ValueRange", "std::nullopt">:$resultTypes), [{
       auto nameAttr = name ? $_builder.getStringAttr(*name) : StringAttr();
       build($_builder, $_state, $_builder.getType<OperationType>(), nameAttr,
             operandValues, attrValues, $_builder.getStrArrayAttr(attrNames),
@@ -420,7 +420,7 @@ def PDL_PatternOp : PDL_Op<"pattern", [
 
   let builders = [
     OpBuilder<(ins CArg<"Optional<uint16_t>", "1">:$benefit,
-                   CArg<"Optional<StringRef>", "llvm::None">:$name)>,
+                   CArg<"Optional<StringRef>", "std::nullopt">:$name)>,
   ];
   let extraClassDeclaration = [{
     //===------------------------------------------------------------------===//
@@ -456,7 +456,7 @@ def PDL_RangeOp : PDL_Op<"range", [Pure, HasParent<"pdl::RewriteOp">]> {
 
     // Construct a range of types.
     %typeRange = pdl.range %inputType, %inputRange : !pdl.type, !pdl.range<type>
-    
+
     // Construct an empty range of types.
     %valueRange = pdl.range : !pdl.range<type>
     ```

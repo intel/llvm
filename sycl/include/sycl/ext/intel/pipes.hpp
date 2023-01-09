@@ -14,8 +14,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace intel {
+namespace ext::intel {
 
 template <class _name, class _dataT, int32_t _min_capacity = 0> class pipe {
 public:
@@ -218,8 +217,7 @@ private:
 #endif // __SYCL_DEVICE_ONLY__
 };
 
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

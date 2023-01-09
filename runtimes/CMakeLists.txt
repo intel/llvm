@@ -1,5 +1,12 @@
 # This file handles building LLVM runtime sub-projects.
 cmake_minimum_required(VERSION 3.13.4)
+if ("${CMAKE_VERSION}" VERSION_LESS "3.20.0")
+  message(WARNING
+    "Your CMake version is ${CMAKE_VERSION}. Starting with LLVM 17.0.0, the "
+    "minimum version of CMake required to build LLVM will become 3.20.0, and "
+    "using an older CMake will become an error. Please upgrade your CMake to "
+    "at least 3.20.0 now to avoid issues in the future!")
+endif()
 project(Runtimes C CXX ASM)
 
 # Add path for custom and the LLVM build's modules to the CMake module path.
@@ -232,7 +239,12 @@ if(LLVM_INCLUDE_TESTS)
   # LLVM_RUNTIMES_LIT_DEPENDS is populated when lit tests are added between
   # umbrella_list_testsuite begin and end. The bootstrap runtimes builds
   # currently assumes this target exists.
-  add_custom_target(runtimes-test-depends ${LLVM_RUNTIMES_LIT_DEPENDS})
+  get_property(LLVM_RUNTIMES_LIT_DEPENDS GLOBAL PROPERTY LLVM_RUNTIMES_LIT_DEPENDS)
+  add_custom_target(runtimes-test-depends)
+  if(LLVM_RUNTIMES_LIT_DEPENDS)
+    # add_dependencies complains if called with no dependencies
+    add_dependencies(runtimes-test-depends ${LLVM_RUNTIMES_LIT_DEPENDS})
+  endif()
   # Add a global check rule now that all subdirectories have been traversed
   # and we know the total set of lit testsuites.
   umbrella_lit_testsuite_end(check-runtimes)
@@ -268,9 +280,6 @@ if(SUB_COMPONENTS)
 
     if(TARGET install-${component})
       list(APPEND SUB_INSTALL_TARGETS install-${component})
-    endif()
-    if(TARGET install-${component}-stripped)
-      list(APPEND SUB_INSTALL_TARGETS install-${component}-stripped)
     endif()
   endforeach()
 

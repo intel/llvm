@@ -12,8 +12,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/None.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -71,6 +69,7 @@
 #include <cstdint>
 #include <iterator>
 #include <limits>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -1083,7 +1082,7 @@ void ScopedAliasMetadataDeepCloner::clone() {
 
   SmallVector<TempMDTuple, 16> DummyNodes;
   for (const MDNode *I : MD) {
-    DummyNodes.push_back(MDTuple::getTemporary(I->getContext(), None));
+    DummyNodes.push_back(MDTuple::getTemporary(I->getContext(), std::nullopt));
     MDMap[I].reset(DummyNodes.back().get());
   }
 
@@ -1896,7 +1895,8 @@ static void updateCallProfile(Function *Callee, const ValueToValueMapTy &VMap,
                               BlockFrequencyInfo *CallerBFI) {
   if (CalleeEntryCount.isSynthetic() || CalleeEntryCount.getCount() < 1)
     return;
-  auto CallSiteCount = PSI ? PSI->getProfileCount(TheCall, CallerBFI) : None;
+  auto CallSiteCount =
+      PSI ? PSI->getProfileCount(TheCall, CallerBFI) : std::nullopt;
   int64_t CallCount =
       std::min(CallSiteCount.value_or(0), CalleeEntryCount.getCount());
   updateProfileCallee(Callee, -CallCount, &VMap);
@@ -2137,7 +2137,7 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
   if (CallerPersonality) {
     EHPersonality Personality = classifyEHPersonality(CallerPersonality);
     if (isScopedEHPersonality(Personality)) {
-      Optional<OperandBundleUse> ParentFunclet =
+      std::optional<OperandBundleUse> ParentFunclet =
           CB.getOperandBundle(LLVMContext::OB_funclet);
       if (ParentFunclet)
         CallSiteEHPad = cast<FuncletPadInst>(ParentFunclet->Inputs.front());
@@ -2282,7 +2282,7 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
       HandleByValArgumentInit(Init.Ty, Init.Dst, Init.Src, Caller->getParent(),
                               &*FirstNewBlock, IFI);
 
-    Optional<OperandBundleUse> ParentDeopt =
+    std::optional<OperandBundleUse> ParentDeopt =
         CB.getOperandBundle(LLVMContext::OB_deopt);
     if (ParentDeopt) {
       SmallVector<OperandBundleDef, 2> OpDefs;
@@ -2411,8 +2411,8 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
       // Transfer all of the allocas over in a block.  Using splice means
       // that the instructions aren't removed from the symbol table, then
       // reinserted.
-      Caller->getEntryBlock().getInstList().splice(
-          InsertPoint, FirstNewBlock->getInstList(), AI->getIterator(), I);
+      Caller->getEntryBlock().splice(InsertPoint, &*FirstNewBlock,
+                                     AI->getIterator(), I);
     }
   }
 
@@ -2755,8 +2755,8 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
   // the calling basic block.
   if (Returns.size() == 1 && std::distance(FirstNewBlock, Caller->end()) == 1) {
     // Move all of the instructions right before the call.
-    OrigBB->getInstList().splice(CB.getIterator(), FirstNewBlock->getInstList(),
-                                 FirstNewBlock->begin(), FirstNewBlock->end());
+    OrigBB->splice(CB.getIterator(), &*FirstNewBlock, FirstNewBlock->begin(),
+                   FirstNewBlock->end());
     // Remove the cloned basic block.
     Caller->getBasicBlockList().pop_back();
 
@@ -2896,8 +2896,7 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
 
     // Splice the code from the return block into the block that it will return
     // to, which contains the code that was after the call.
-    AfterCallBB->getInstList().splice(AfterCallBB->begin(),
-                                      ReturnBB->getInstList());
+    AfterCallBB->splice(AfterCallBB->begin(), ReturnBB);
 
     if (CreatedBranchToNormalDest)
       CreatedBranchToNormalDest->setDebugLoc(Returns[0]->getDebugLoc());
@@ -2927,10 +2926,10 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
   // Splice the code entry block into calling block, right before the
   // unconditional branch.
   CalleeEntry->replaceAllUsesWith(OrigBB);  // Update PHI nodes
-  OrigBB->getInstList().splice(Br->getIterator(), CalleeEntry->getInstList());
+  OrigBB->splice(Br->getIterator(), CalleeEntry);
 
   // Remove the unconditional branch.
-  OrigBB->getInstList().erase(Br);
+  Br->eraseFromParent();
 
   // Now we can remove the CalleeEntry block, which is now empty.
   Caller->getBasicBlockList().erase(CalleeEntry);

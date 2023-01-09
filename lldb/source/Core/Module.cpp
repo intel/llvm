@@ -419,8 +419,6 @@ void Module::DumpSymbolContext(Stream *s) {
 
 size_t Module::GetNumCompileUnits() {
   std::lock_guard<std::recursive_mutex> guard(m_mutex);
-  LLDB_SCOPED_TIMERF("Module::GetNumCompileUnits (module = %p)",
-                     static_cast<void *>(this));
   if (SymbolFile *symbols = GetSymbolFile())
     return symbols->GetNumCompileUnits();
   return 0;
@@ -598,7 +596,7 @@ uint32_t Module::ResolveSymbolContextsForFileSpec(
 
   if (SymbolFile *symbols = GetSymbolFile()) {
     // TODO: Handle SourceLocationSpec column information
-    SourceLocationSpec location_spec(file_spec, line, /*column=*/llvm::None,
+    SourceLocationSpec location_spec(file_spec, line, /*column=*/std::nullopt,
                                      check_inlines, /*exact_match=*/false);
 
     symbols->ResolveSymbolContext(location_spec, resolve_scope, sc_list);
@@ -939,7 +937,7 @@ void Module::FindAddressesForLine(const lldb::TargetSP target_sp,
   SearchFilterByModule filter(target_sp, m_file);
 
   // TODO: Handle SourceLocationSpec column information
-  SourceLocationSpec location_spec(file, line, /*column=*/llvm::None,
+  SourceLocationSpec location_spec(file, line, /*column=*/std::nullopt,
                                    /*check_inlines=*/true,
                                    /*exact_match=*/false);
   AddressResolverFileLine resolver(location_spec);
@@ -1647,7 +1645,15 @@ Module::RemapSourceFile(llvm::StringRef path) const {
 void Module::RegisterXcodeSDK(llvm::StringRef sdk_name,
                               llvm::StringRef sysroot) {
   XcodeSDK sdk(sdk_name.str());
-  llvm::StringRef sdk_path(HostInfo::GetXcodeSDKPath(sdk));
+  auto sdk_path_or_err = HostInfo::GetXcodeSDKPath(sdk);
+
+  if (!sdk_path_or_err) {
+    Debugger::ReportError("Error while searching for Xcode SDK: " +
+                          toString(sdk_path_or_err.takeError()));
+    return;
+  }
+
+  auto sdk_path = *sdk_path_or_err;
   if (sdk_path.empty())
     return;
   // If the SDK changed for a previously registered source path, update it.

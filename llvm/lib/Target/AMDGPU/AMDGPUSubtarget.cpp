@@ -540,7 +540,7 @@ uint64_t AMDGPUSubtarget::getExplicitKernArgSize(const Function &F,
     const bool IsByRef = Arg.hasByRefAttr();
     Type *ArgTy = IsByRef ? Arg.getParamByRefType() : Arg.getType();
     Align Alignment = DL.getValueOrABITypeAlignment(
-        IsByRef ? Arg.getParamAlign() : None, ArgTy);
+        IsByRef ? Arg.getParamAlign() : std::nullopt, ArgTy);
     uint64_t AllocSize = DL.getTypeAllocSize(ArgTy);
     ExplicitArgBytes = alignTo(ExplicitArgBytes, Alignment) + AllocSize;
     MaxAlign = std::max(MaxAlign, Alignment);
@@ -625,13 +625,8 @@ unsigned GCNSubtarget::getOccupancyWithNumSGPRs(unsigned SGPRs) const {
   return 5;
 }
 
-unsigned GCNSubtarget::getOccupancyWithNumVGPRs(unsigned VGPRs) const {
-  unsigned MaxWaves = getMaxWavesPerEU();
-  unsigned Granule = getVGPRAllocGranule();
-  if (VGPRs < Granule)
-    return MaxWaves;
-  unsigned RoundedRegs = ((VGPRs + Granule - 1) / Granule) * Granule;
-  return std::min(std::max(getTotalNumVGPRs() / RoundedRegs, 1u), MaxWaves);
+unsigned GCNSubtarget::getOccupancyWithNumVGPRs(unsigned NumVGPRs) const {
+  return AMDGPU::IsaInfo::getNumWavesPerEUWithNumVGPRs(this, NumVGPRs);
 }
 
 unsigned

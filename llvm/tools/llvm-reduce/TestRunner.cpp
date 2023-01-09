@@ -33,7 +33,7 @@ TestRunner::TestRunner(StringRef TestName,
 
 /// Runs the interestingness test, passes file to be tested as first argument
 /// and other specified test arguments after that.
-int TestRunner::run(StringRef Filename) {
+int TestRunner::run(StringRef Filename) const {
   std::vector<StringRef> ProgramArgs;
   ProgramArgs.push_back(TestName);
 
@@ -43,15 +43,15 @@ int TestRunner::run(StringRef Filename) {
   ProgramArgs.push_back(Filename);
 
   std::string ErrMsg;
-  SmallVector<Optional<StringRef>, 3> Redirects;
-  Optional<StringRef> Empty = StringRef();
+  SmallVector<std::optional<StringRef>, 3> Redirects;
+  std::optional<StringRef> Empty = StringRef();
   if (!Verbose) {
     for (int i = 0; i < 3; ++i)
       Redirects.push_back(Empty);
   }
-  int Result =
-      sys::ExecuteAndWait(TestName, ProgramArgs, /*Env=*/None, Redirects,
-                          /*SecondsToWait=*/0, /*MemoryLimit=*/0, &ErrMsg);
+  int Result = sys::ExecuteAndWait(
+      TestName, ProgramArgs, /*Env=*/std::nullopt, Redirects,
+      /*SecondsToWait=*/0, /*MemoryLimit=*/0, &ErrMsg);
 
   if (Result < 0) {
     Error E = make_error<StringError>("Error running interesting-ness test: " +

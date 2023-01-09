@@ -62,7 +62,7 @@ static void registerTranslation(StringRef name, StringRef description,
 
 TranslateRegistration::TranslateRegistration(
     StringRef name, StringRef description, const TranslateFunction &function) {
-  registerTranslation(name, description, /*inputAlignment=*/llvm::None,
+  registerTranslation(name, description, /*inputAlignment=*/std::nullopt,
                       function);
 }
 
@@ -75,8 +75,8 @@ TranslateRegistration::TranslateRegistration(
 static void registerTranslateToMLIRFunction(
     StringRef name, StringRef description, Optional<llvm::Align> inputAlignment,
     const TranslateSourceMgrToMLIRFunction &function) {
-  auto wrappedFn = [function](llvm::SourceMgr &sourceMgr, raw_ostream &output,
-                              MLIRContext *context) {
+  auto wrappedFn = [function](const std::shared_ptr<llvm::SourceMgr> &sourceMgr,
+                              raw_ostream &output, MLIRContext *context) {
     OwningOpRef<Operation *> op = function(sourceMgr, context);
     if (!op || failed(verify(*op)))
       return failure();
@@ -92,6 +92,15 @@ TranslateToMLIRRegistration::TranslateToMLIRRegistration(
     Optional<llvm::Align> inputAlignment) {
   registerTranslateToMLIRFunction(name, description, inputAlignment, function);
 }
+TranslateToMLIRRegistration::TranslateToMLIRRegistration(
+    StringRef name, StringRef description,
+    const TranslateRawSourceMgrToMLIRFunction &function,
+    Optional<llvm::Align> inputAlignment) {
+  registerTranslateToMLIRFunction(
+      name, description, inputAlignment,
+      [function](const std::shared_ptr<llvm::SourceMgr> &sourceMgr,
+                 MLIRContext *ctx) { return function(*sourceMgr, ctx); });
+}
 /// Wraps `function` with a lambda that extracts a StringRef from a source
 /// manager and registers the wrapper lambda as a to-MLIR conversion.
 TranslateToMLIRRegistration::TranslateToMLIRRegistration(
@@ -100,9 +109,10 @@ TranslateToMLIRRegistration::TranslateToMLIRRegistration(
     Optional<llvm::Align> inputAlignment) {
   registerTranslateToMLIRFunction(
       name, description, inputAlignment,
-      [function](llvm::SourceMgr &sourceMgr, MLIRContext *ctx) {
+      [function](const std::shared_ptr<llvm::SourceMgr> &sourceMgr,
+                 MLIRContext *ctx) {
         const llvm::MemoryBuffer *buffer =
-            sourceMgr.getMemoryBuffer(sourceMgr.getMainFileID());
+            sourceMgr->getMemoryBuffer(sourceMgr->getMainFileID());
         return function(buffer->getBuffer(), ctx);
       });
 }
@@ -116,10 +126,10 @@ TranslateFromMLIRRegistration::TranslateFromMLIRRegistration(
     const TranslateFromMLIRFunction &function,
     const std::function<void(DialectRegistry &)> &dialectRegistration) {
   registerTranslation(
-      name, description, /*inputAlignment=*/llvm::None,
-      [function, dialectRegistration](llvm::SourceMgr &sourceMgr,
-                                      raw_ostream &output,
-                                      MLIRContext *context) {
+      name, description, /*inputAlignment=*/std::nullopt,
+      [function,
+       dialectRegistration](const std::shared_ptr<llvm::SourceMgr> &sourceMgr,
+                            raw_ostream &output, MLIRContext *context) {
         DialectRegistry registry;
         dialectRegistration(registry);
         context->appendDialectRegistry(registry);

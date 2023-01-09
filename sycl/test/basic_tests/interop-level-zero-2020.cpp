@@ -4,7 +4,7 @@
 // Test for SYCL-2020 Level Zero interop API
 
 // clang-format off
-#include <level_zero/ze_api.h>
+#include <ze_api.h>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 // clang-format on
 

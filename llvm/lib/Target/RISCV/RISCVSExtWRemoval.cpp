@@ -316,13 +316,25 @@ static bool isSignExtendingOpW(MachineInstr &MI, MachineRegisterInfo &MRI) {
   return false;
 }
 
-static bool isSignExtendedW(MachineInstr &OrigMI, MachineRegisterInfo &MRI,
+static bool isSignExtendedW(Register SrcReg, MachineRegisterInfo &MRI,
                             SmallPtrSetImpl<MachineInstr *> &FixableDef) {
 
   SmallPtrSet<const MachineInstr *, 4> Visited;
   SmallVector<MachineInstr *, 4> Worklist;
 
-  Worklist.push_back(&OrigMI);
+  auto AddRegDefToWorkList = [&](Register SrcReg) {
+    if (!SrcReg.isVirtual())
+      return false;
+    MachineInstr *SrcMI = MRI.getVRegDef(SrcReg);
+    if (!SrcMI)
+      return false;
+    // Add SrcMI to the worklist.
+    Worklist.push_back(SrcMI);
+    return true;
+  };
+
+  if (!AddRegDefToWorkList(SrcReg))
+    return false;
 
   while (!Worklist.empty()) {
     MachineInstr *MI = Worklist.pop_back_val();
@@ -355,17 +367,9 @@ static bool isSignExtendedW(MachineInstr &OrigMI, MachineRegisterInfo &MRI,
 
       // TODO: Handle returns from calls?
 
-      Register SrcReg = MI->getOperand(1).getReg();
-
-      // If this is a copy from another register, check its source instruction.
-      if (!SrcReg.isVirtual())
-        return false;
-      MachineInstr *SrcMI = MRI.getVRegDef(SrcReg);
-      if (!SrcMI)
+      if (!AddRegDefToWorkList(MI->getOperand(1).getReg()))
         return false;
 
-      // Add SrcMI to the worklist.
-      Worklist.push_back(SrcMI);
       break;
     }
 
@@ -383,15 +387,9 @@ static bool isSignExtendedW(MachineInstr &OrigMI, MachineRegisterInfo &MRI,
       // |Remainder| is always <= |Dividend|. If D is 32-bit, then so is R.
       // DIV doesn't work because of the edge case 0xf..f 8000 0000 / (long)-1
       // Logical operations use a sign extended 12-bit immediate.
-      Register SrcReg = MI->getOperand(1).getReg();
-      if (!SrcReg.isVirtual())
-        return false;
-      MachineInstr *SrcMI = MRI.getVRegDef(SrcReg);
-      if (!SrcMI)
+      if (!AddRegDefToWorkList(MI->getOperand(1).getReg()))
         return false;
 
-      // Add SrcMI to the worklist.
-      Worklist.push_back(SrcMI);
       break;
     }
     case RISCV::REMU:
@@ -426,15 +424,8 @@ static bool isSignExtendedW(MachineInstr &OrigMI, MachineRegisterInfo &MRI,
         if (!MI->getOperand(I).isReg())
           return false;
 
-        Register SrcReg = MI->getOperand(I).getReg();
-        if (!SrcReg.isVirtual())
+        if (!AddRegDefToWorkList(MI->getOperand(I).getReg()))
           return false;
-        MachineInstr *SrcMI = MRI.getVRegDef(SrcReg);
-        if (!SrcMI)
-          return false;
-
-        // Add SrcMI to the worklist.
-        Worklist.push_back(SrcMI);
       }
 
       break;
@@ -492,14 +483,13 @@ bool RISCVSExtWRemoval::runOnMachineFunction(MachineFunction &MF) {
 
   MachineRegisterInfo &MRI = MF.getRegInfo();
   const RISCVSubtarget &ST = MF.getSubtarget<RISCVSubtarget>();
+  const RISCVInstrInfo &TII = *ST.getInstrInfo();
 
   if (!ST.is64Bit())
     return false;
 
-  SmallPtrSet<MachineInstr *, 4> SExtWRemovalCands;
+  bool MadeChange = false;
 
-  // Replacing instructions invalidates the MI iterator
-  // we collect the candidates, then iterate over them separately.
   for (MachineBasicBlock &MBB : MF) {
     for (auto I = MBB.begin(), IE = MBB.end(); I != IE;) {
       MachineInstr *MI = &*I++;
@@ -508,54 +498,37 @@ bool RISCVSExtWRemoval::runOnMachineFunction(MachineFunction &MF) {
       if (!RISCV::isSEXT_W(*MI))
         continue;
 
-      // Input should be a virtual register.
       Register SrcReg = MI->getOperand(1).getReg();
-      if (!SrcReg.isVirtual())
+
+      SmallPtrSet<MachineInstr *, 4> FixableDefs;
+
+      // If all definitions reaching MI sign-extend their output,
+      // then sext.w is redundant
+      if (!isSignExtendedW(SrcReg, MRI, FixableDefs))
         continue;
 
-      SExtWRemovalCands.insert(MI);
+      Register DstReg = MI->getOperand(0).getReg();
+      if (!MRI.constrainRegClass(SrcReg, MRI.getRegClass(DstReg)))
+        continue;
+
+      // Convert Fixable instructions to their W versions.
+      for (MachineInstr *Fixable : FixableDefs) {
+        LLVM_DEBUG(dbgs() << "Replacing " << *Fixable);
+        Fixable->setDesc(TII.get(getWOp(Fixable->getOpcode())));
+        Fixable->clearFlag(MachineInstr::MIFlag::NoSWrap);
+        Fixable->clearFlag(MachineInstr::MIFlag::NoUWrap);
+        Fixable->clearFlag(MachineInstr::MIFlag::IsExact);
+        LLVM_DEBUG(dbgs() << "     with " << *Fixable);
+        ++NumTransformedToWInstrs;
+      }
+
+      LLVM_DEBUG(dbgs() << "Removing redundant sign-extension\n");
+      MRI.replaceRegWith(DstReg, SrcReg);
+      MRI.clearKillFlags(SrcReg);
+      MI->eraseFromParent();
+      ++NumRemovedSExtW;
+      MadeChange = true;
     }
-  }
-
-  bool MadeChange = false;
-  for (auto *MI : SExtWRemovalCands) {
-    SmallPtrSet<MachineInstr *, 4> FixableDef;
-    Register SrcReg = MI->getOperand(1).getReg();
-    MachineInstr &SrcMI = *MRI.getVRegDef(SrcReg);
-
-    // If all definitions reaching MI sign-extend their output,
-    // then sext.w is redundant
-    if (!isSignExtendedW(SrcMI, MRI, FixableDef))
-      continue;
-
-    Register DstReg = MI->getOperand(0).getReg();
-    if (!MRI.constrainRegClass(SrcReg, MRI.getRegClass(DstReg)))
-      continue;
-    // Replace Fixable instructions with their W versions.
-    for (MachineInstr *Fixable : FixableDef) {
-      MachineBasicBlock &MBB = *Fixable->getParent();
-      const DebugLoc &DL = Fixable->getDebugLoc();
-      unsigned Code = getWOp(Fixable->getOpcode());
-      MachineInstrBuilder Replacement =
-          BuildMI(MBB, Fixable, DL, ST.getInstrInfo()->get(Code));
-      for (auto Op : Fixable->operands())
-        Replacement.add(Op);
-      for (auto *Op : Fixable->memoperands())
-        Replacement.addMemOperand(Op);
-
-      LLVM_DEBUG(dbgs() << "Replacing " << *Fixable);
-      LLVM_DEBUG(dbgs() << "     with " << *Replacement);
-
-      Fixable->eraseFromParent();
-      ++NumTransformedToWInstrs;
-    }
-
-    LLVM_DEBUG(dbgs() << "Removing redundant sign-extension\n");
-    MRI.replaceRegWith(DstReg, SrcReg);
-    MRI.clearKillFlags(SrcReg);
-    MI->eraseFromParent();
-    ++NumRemovedSExtW;
-    MadeChange = true;
   }
 
   return MadeChange;

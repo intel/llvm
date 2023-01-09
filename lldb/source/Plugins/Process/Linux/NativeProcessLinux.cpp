@@ -883,7 +883,7 @@ bool NativeProcessLinux::MonitorClone(NativeThreadLinux &parent,
 
 bool NativeProcessLinux::SupportHardwareSingleStepping() const {
   if (m_arch.IsMIPS() || m_arch.GetMachine() == llvm::Triple::arm ||
-      m_arch.GetTriple().isRISCV())
+      m_arch.GetTriple().isRISCV() || m_arch.GetTriple().isLoongArch())
     return false;
   return true;
 }
@@ -1877,13 +1877,13 @@ static llvm::Optional<WaitStatus> HandlePid(::pid_t pid) {
       -1, ::waitpid, pid, &status, __WALL | __WNOTHREAD | WNOHANG);
 
   if (wait_pid == 0)
-    return llvm::None;
+    return std::nullopt;
 
   if (wait_pid == -1) {
     Status error(errno, eErrorTypePOSIX);
     LLDB_LOG(log, "waitpid({0}, &status, _) failed: {1}", pid,
              error);
-    return llvm::None;
+    return std::nullopt;
   }
 
   assert(wait_pid == pid);

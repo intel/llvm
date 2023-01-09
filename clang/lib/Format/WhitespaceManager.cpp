@@ -957,7 +957,8 @@ void WhitespaceManager::alignTrailingComments() {
     if (Style.AlignTrailingComments.Kind == FormatStyle::TCAS_Leave) {
       auto OriginalSpaces =
           Changes[i].OriginalWhitespaceRange.getEnd().getRawEncoding() -
-          Changes[i].OriginalWhitespaceRange.getBegin().getRawEncoding();
+          Changes[i].OriginalWhitespaceRange.getBegin().getRawEncoding() -
+          Changes[i].Tok->NewlinesBefore;
       unsigned RestoredLineLength = Changes[i].StartOfTokenColumn +
                                     Changes[i].TokenLength + OriginalSpaces;
       // If leaving comments makes the line exceed the column limit, give up to
@@ -1049,7 +1050,7 @@ void WhitespaceManager::alignTrailingComments(unsigned Start, unsigned End,
               Changes[i].StartOfBlockComment->StartOfTokenColumn -
               Changes[i].StartOfTokenColumn;
     }
-    if (Shift < 0)
+    if (Shift <= 0)
       continue;
     Changes[i].Spaces += Shift;
     if (i + 1 != Changes.size())

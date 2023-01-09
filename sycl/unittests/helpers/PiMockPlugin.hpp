@@ -21,6 +21,7 @@
 struct DummyHandleT {
   DummyHandleT(size_t DataSize = 0)
       : MStorage(DataSize), MData(MStorage.data()) {}
+  DummyHandleT(unsigned char *Data) : MData(Data) {}
   std::atomic<size_t> MRefCounter = 1;
   std::vector<unsigned char> MStorage;
   unsigned char *MData = nullptr;
@@ -33,6 +34,13 @@ using DummyHandlePtrT = DummyHandleT *;
 // memory. The handle has to be deallocated using 'releaseDummyHandle'.
 template <class T> inline T createDummyHandle(size_t Size = 0) {
   DummyHandlePtrT DummyHandlePtr = new DummyHandleT(Size);
+  return reinterpret_cast<T>(DummyHandlePtr);
+}
+
+// Allocates a dummy handle of type T with support of reference counting
+// and associates it with the provided Data.
+template <class T> inline T createDummyHandleWithData(unsigned char *Data) {
+  DummyHandlePtrT DummyHandlePtr = new DummyHandleT(Data);
   return reinterpret_cast<T>(DummyHandlePtr);
 }
 
@@ -322,6 +330,12 @@ inline pi_result mock_piQueueCreate(pi_context context, pi_device device,
   *queue = createDummyHandle<pi_queue>();
   return PI_SUCCESS;
 }
+inline pi_result mock_piextQueueCreate(pi_context context, pi_device device,
+                                       pi_queue_properties *properties,
+                                       pi_queue *queue) {
+  *queue = createDummyHandle<pi_queue>();
+  return PI_SUCCESS;
+}
 
 inline pi_result mock_piQueueGetInfo(pi_queue command_queue,
                                      pi_queue_info param_name,
@@ -379,7 +393,11 @@ inline pi_result
 mock_piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
                        void *host_ptr, pi_mem *ret_mem,
                        const pi_mem_properties *properties = nullptr) {
-  *ret_mem = createDummyHandle<pi_mem>(size);
+  if (host_ptr && flags & PI_MEM_FLAGS_HOST_PTR_USE)
+    *ret_mem = createDummyHandleWithData<pi_mem>(
+        reinterpret_cast<unsigned char *>(host_ptr));
+  else
+    *ret_mem = createDummyHandle<pi_mem>(size);
   return PI_SUCCESS;
 }
 
@@ -1035,6 +1053,34 @@ inline pi_result mock_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
 inline pi_result mock_piextUSMGetMemAllocInfo(
     pi_context context, const void *ptr, pi_mem_alloc_info param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextUSMEnqueueFill2D(pi_queue queue, void *ptr,
+                                            size_t pitch, size_t pattern_size,
+                                            const void *pattern, size_t width,
+                                            size_t height,
+                                            pi_uint32 num_events_in_waitlist,
+                                            const pi_event *events_waitlist,
+                                            pi_event *event) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextUSMEnqueueMemset2D(pi_queue queue, void *ptr,
+                                              size_t pitch, int value,
+                                              size_t width, size_t height,
+                                              pi_uint32 num_events_in_waitlist,
+                                              const pi_event *events_waitlist,
+                                              pi_event *event) {
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking, void *dst_ptr,
+                             size_t dst_pitch, const void *src_ptr,
+                             size_t src_pitch, size_t width, size_t height,
+                             pi_uint32 num_events_in_waitlist,
+                             const pi_event *events_waitlist, pi_event *event) {
   return PI_SUCCESS;
 }
 

@@ -71,9 +71,7 @@ __builtin_invoke_simd(HelperFunc helper, UserSimdFuncAndSpmdArgs... args)
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-namespace ext {
-namespace oneapi {
-namespace experimental {
+namespace ext::oneapi::experimental {
 
 // --- Basic definitions prescribed by the spec.
 namespace simd_abi {
@@ -370,8 +368,6 @@ __attribute__((always_inline)) auto invoke_simd(sycl::sub_group sg,
 #endif // __INVOKE_SIMD_ENABLE_ALL_CALLABLES
 }
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

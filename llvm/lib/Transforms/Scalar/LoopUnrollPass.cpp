@@ -15,7 +15,6 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
@@ -64,6 +63,7 @@
 #include <cassert>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -185,9 +185,10 @@ TargetTransformInfo::UnrollingPreferences llvm::gatherUnrollingPreferences(
     Loop *L, ScalarEvolution &SE, const TargetTransformInfo &TTI,
     BlockFrequencyInfo *BFI, ProfileSummaryInfo *PSI,
     OptimizationRemarkEmitter &ORE, int OptLevel,
-    Optional<unsigned> UserThreshold, Optional<unsigned> UserCount,
-    Optional<bool> UserAllowPartial, Optional<bool> UserRuntime,
-    Optional<bool> UserUpperBound, Optional<unsigned> UserFullUnrollMaxCount) {
+    std::optional<unsigned> UserThreshold, std::optional<unsigned> UserCount,
+    std::optional<bool> UserAllowPartial, std::optional<bool> UserRuntime,
+    std::optional<bool> UserUpperBound,
+    std::optional<unsigned> UserFullUnrollMaxCount) {
   TargetTransformInfo::UnrollingPreferences UP;
 
   // Set up the defaults
@@ -342,7 +343,7 @@ struct PragmaInfo {
 /// cost of the 'false'-block).
 /// \returns Optional value, holding the RolledDynamicCost and UnrolledCost. If
 /// the analysis failed (no benefits expected from the unrolling, or the loop is
-/// too big to analyze), the returned value is None.
+/// too big to analyze), the returned value is std::nullopt.
 static Optional<EstimatedUnrollCost> analyzeLoopUnrollCost(
     const Loop *L, unsigned TripCount, DominatorTree &DT, ScalarEvolution &SE,
     const SmallPtrSetImpl<const Value *> &EphValues,
@@ -358,11 +359,11 @@ static Optional<EstimatedUnrollCost> analyzeLoopUnrollCost(
   // Only analyze inner loops. We can't properly estimate cost of nested loops
   // and we won't visit inner loops again anyway.
   if (!L->isInnermost())
-    return None;
+    return std::nullopt;
 
   // Don't simulate loops with a big or unknown tripcount
   if (!TripCount || TripCount > MaxIterationsCountToAnalyze)
-    return None;
+    return std::nullopt;
 
   SmallSetVector<BasicBlock *, 16> BBWorklist;
   SmallSetVector<std::pair<BasicBlock *, BasicBlock *>, 4> ExitWorklist;
@@ -558,7 +559,7 @@ static Optional<EstimatedUnrollCost> analyzeLoopUnrollCost(
           const Function *Callee = CI->getCalledFunction();
           if (!Callee || TTI.isLoweredToCall(Callee)) {
             LLVM_DEBUG(dbgs() << "Can't analyze cost of loop with call\n");
-            return None;
+            return std::nullopt;
           }
         }
 
@@ -573,7 +574,7 @@ static Optional<EstimatedUnrollCost> analyzeLoopUnrollCost(
                             << "  UnrolledCost: " << UnrolledCost
                             << ", MaxUnrolledLoopSize: " << MaxUnrolledLoopSize
                             << "\n");
-          return None;
+          return std::nullopt;
         }
       }
 
@@ -631,7 +632,7 @@ static Optional<EstimatedUnrollCost> analyzeLoopUnrollCost(
     if (UnrolledCost == RolledDynamicCost) {
       LLVM_DEBUG(dbgs() << "  No opportunities found.. exiting.\n"
                         << "  UnrolledCost: " << UnrolledCost << "\n");
-      return None;
+      return std::nullopt;
     }
   }
 
@@ -772,7 +773,7 @@ public:
   }
 };
 
-static Optional<unsigned>
+static std::optional<unsigned>
 shouldPragmaUnroll(Loop *L, const PragmaInfo &PInfo,
                    const unsigned TripMultiple, const unsigned TripCount,
                    const UnrollCostEstimator UCE,
@@ -797,10 +798,10 @@ shouldPragmaUnroll(Loop *L, const PragmaInfo &PInfo,
     return TripCount;
 
   // if didn't return until here, should continue to other priorties
-  return None;
+  return std::nullopt;
 }
 
-static Optional<unsigned> shouldFullUnroll(
+static std::optional<unsigned> shouldFullUnroll(
     Loop *L, const TargetTransformInfo &TTI, DominatorTree &DT,
     ScalarEvolution &SE, const SmallPtrSetImpl<const Value *> &EphValues,
     const unsigned FullUnrollTripCount, const UnrollCostEstimator UCE,
@@ -808,7 +809,7 @@ static Optional<unsigned> shouldFullUnroll(
   assert(FullUnrollTripCount && "should be non-zero!");
 
   if (FullUnrollTripCount > UP.FullUnrollMaxCount)
-    return None;
+    return std::nullopt;
 
   // When computing the unrolled size, note that BEInsns are not replicated
   // like the rest of the loop body.
@@ -827,16 +828,16 @@ static Optional<unsigned> shouldFullUnroll(
     if (Cost->UnrolledCost < UP.Threshold * Boost / 100)
       return FullUnrollTripCount;
   }
-  return None;
+  return std::nullopt;
 }
 
-static Optional<unsigned>
+static std::optional<unsigned>
 shouldPartialUnroll(const unsigned LoopSize, const unsigned TripCount,
                     const UnrollCostEstimator UCE,
                     const TargetTransformInfo::UnrollingPreferences &UP) {
 
   if (!TripCount)
-    return None;
+    return std::nullopt;
 
   if (!UP.Partial) {
     LLVM_DEBUG(dbgs() << "  will not try to unroll partially because "
@@ -1119,17 +1120,20 @@ bool llvm::computeUnrollCount(
   return ExplicitUnroll;
 }
 
-static LoopUnrollResult tryToUnrollLoop(
-    Loop *L, DominatorTree &DT, LoopInfo *LI, ScalarEvolution &SE,
-    const TargetTransformInfo &TTI, AssumptionCache &AC,
-    OptimizationRemarkEmitter &ORE, BlockFrequencyInfo *BFI,
-    ProfileSummaryInfo *PSI, bool PreserveLCSSA, int OptLevel,
-    bool OnlyWhenForced, bool ForgetAllSCEV, Optional<unsigned> ProvidedCount,
-    Optional<unsigned> ProvidedThreshold, Optional<bool> ProvidedAllowPartial,
-    Optional<bool> ProvidedRuntime, Optional<bool> ProvidedUpperBound,
-    Optional<bool> ProvidedAllowPeeling,
-    Optional<bool> ProvidedAllowProfileBasedPeeling,
-    Optional<unsigned> ProvidedFullUnrollMaxCount) {
+static LoopUnrollResult
+tryToUnrollLoop(Loop *L, DominatorTree &DT, LoopInfo *LI, ScalarEvolution &SE,
+                const TargetTransformInfo &TTI, AssumptionCache &AC,
+                OptimizationRemarkEmitter &ORE, BlockFrequencyInfo *BFI,
+                ProfileSummaryInfo *PSI, bool PreserveLCSSA, int OptLevel,
+                bool OnlyWhenForced, bool ForgetAllSCEV,
+                std::optional<unsigned> ProvidedCount,
+                std::optional<unsigned> ProvidedThreshold,
+                std::optional<bool> ProvidedAllowPartial,
+                std::optional<bool> ProvidedRuntime,
+                std::optional<bool> ProvidedUpperBound,
+                std::optional<bool> ProvidedAllowPeeling,
+                std::optional<bool> ProvidedAllowProfileBasedPeeling,
+                std::optional<unsigned> ProvidedFullUnrollMaxCount) {
   LLVM_DEBUG(dbgs() << "Loop Unroll: F["
                     << L->getHeader()->getParent()->getName() << "] Loop %"
                     << L->getHeader()->getName() << "\n");
@@ -1321,7 +1325,7 @@ static LoopUnrollResult tryToUnrollLoop(
     return LoopUnrollResult::Unmodified;
 
   if (RemainderLoop) {
-    Optional<MDNode *> RemainderLoopID =
+    std::optional<MDNode *> RemainderLoopID =
         makeFollowupLoopID(OrigLoopID, {LLVMLoopUnrollFollowupAll,
                                         LLVMLoopUnrollFollowupRemainder});
     if (RemainderLoopID)
@@ -1329,7 +1333,7 @@ static LoopUnrollResult tryToUnrollLoop(
   }
 
   if (UnrollResult != LoopUnrollResult::FullyUnrolled) {
-    Optional<MDNode *> NewLoopID =
+    std::optional<MDNode *> NewLoopID =
         makeFollowupLoopID(OrigLoopID, {LLVMLoopUnrollFollowupAll,
                                         LLVMLoopUnrollFollowupUnrolled});
     if (NewLoopID) {
@@ -1367,23 +1371,25 @@ public:
   /// Otherwise, forgetAllLoops and rebuild when needed next.
   bool ForgetAllSCEV;
 
-  Optional<unsigned> ProvidedCount;
-  Optional<unsigned> ProvidedThreshold;
-  Optional<bool> ProvidedAllowPartial;
-  Optional<bool> ProvidedRuntime;
-  Optional<bool> ProvidedUpperBound;
-  Optional<bool> ProvidedAllowPeeling;
-  Optional<bool> ProvidedAllowProfileBasedPeeling;
-  Optional<unsigned> ProvidedFullUnrollMaxCount;
+  std::optional<unsigned> ProvidedCount;
+  std::optional<unsigned> ProvidedThreshold;
+  std::optional<bool> ProvidedAllowPartial;
+  std::optional<bool> ProvidedRuntime;
+  std::optional<bool> ProvidedUpperBound;
+  std::optional<bool> ProvidedAllowPeeling;
+  std::optional<bool> ProvidedAllowProfileBasedPeeling;
+  std::optional<unsigned> ProvidedFullUnrollMaxCount;
 
   LoopUnroll(int OptLevel = 2, bool OnlyWhenForced = false,
-             bool ForgetAllSCEV = false, Optional<unsigned> Threshold = None,
-             Optional<unsigned> Count = None,
-             Optional<bool> AllowPartial = None, Optional<bool> Runtime = None,
-             Optional<bool> UpperBound = None,
-             Optional<bool> AllowPeeling = None,
-             Optional<bool> AllowProfileBasedPeeling = None,
-             Optional<unsigned> ProvidedFullUnrollMaxCount = None)
+             bool ForgetAllSCEV = false,
+             std::optional<unsigned> Threshold = std::nullopt,
+             std::optional<unsigned> Count = std::nullopt,
+             std::optional<bool> AllowPartial = std::nullopt,
+             std::optional<bool> Runtime = std::nullopt,
+             std::optional<bool> UpperBound = std::nullopt,
+             std::optional<bool> AllowPeeling = std::nullopt,
+             std::optional<bool> AllowProfileBasedPeeling = std::nullopt,
+             std::optional<unsigned> ProvidedFullUnrollMaxCount = std::nullopt)
       : LoopPass(ID), OptLevel(OptLevel), OnlyWhenForced(OnlyWhenForced),
         ForgetAllSCEV(ForgetAllSCEV), ProvidedCount(std::move(Count)),
         ProvidedThreshold(Threshold), ProvidedAllowPartial(AllowPartial),
@@ -1455,12 +1461,12 @@ Pass *llvm::createLoopUnrollPass(int OptLevel, bool OnlyWhenForced,
   // callers.
   return new LoopUnroll(
       OptLevel, OnlyWhenForced, ForgetAllSCEV,
-      Threshold == -1 ? None : Optional<unsigned>(Threshold),
-      Count == -1 ? None : Optional<unsigned>(Count),
-      AllowPartial == -1 ? None : Optional<bool>(AllowPartial),
-      Runtime == -1 ? None : Optional<bool>(Runtime),
-      UpperBound == -1 ? None : Optional<bool>(UpperBound),
-      AllowPeeling == -1 ? None : Optional<bool>(AllowPeeling));
+      Threshold == -1 ? std::nullopt : std::optional<unsigned>(Threshold),
+      Count == -1 ? std::nullopt : std::optional<unsigned>(Count),
+      AllowPartial == -1 ? std::nullopt : std::optional<bool>(AllowPartial),
+      Runtime == -1 ? std::nullopt : std::optional<bool>(Runtime),
+      UpperBound == -1 ? std::nullopt : std::optional<bool>(UpperBound),
+      AllowPeeling == -1 ? std::nullopt : std::optional<bool>(AllowPeeling));
 }
 
 Pass *llvm::createSimpleLoopUnrollPass(int OptLevel, bool OnlyWhenForced,
@@ -1488,16 +1494,17 @@ PreservedAnalyses LoopFullUnrollPass::run(Loop &L, LoopAnalysisManager &AM,
 
   std::string LoopName = std::string(L.getName());
 
-  bool Changed = tryToUnrollLoop(&L, AR.DT, &AR.LI, AR.SE, AR.TTI, AR.AC, ORE,
-                                 /*BFI*/ nullptr, /*PSI*/ nullptr,
-                                 /*PreserveLCSSA*/ true, OptLevel,
-                                 OnlyWhenForced, ForgetSCEV, /*Count*/ None,
-                                 /*Threshold*/ None, /*AllowPartial*/ false,
-                                 /*Runtime*/ false, /*UpperBound*/ false,
-                                 /*AllowPeeling*/ true,
-                                 /*AllowProfileBasedPeeling*/ false,
-                                 /*FullUnrollMaxCount*/ None) !=
-                 LoopUnrollResult::Unmodified;
+  bool Changed =
+      tryToUnrollLoop(&L, AR.DT, &AR.LI, AR.SE, AR.TTI, AR.AC, ORE,
+                      /*BFI*/ nullptr, /*PSI*/ nullptr,
+                      /*PreserveLCSSA*/ true, OptLevel, OnlyWhenForced,
+                      ForgetSCEV, /*Count*/ std::nullopt,
+                      /*Threshold*/ std::nullopt, /*AllowPartial*/ false,
+                      /*Runtime*/ false, /*UpperBound*/ false,
+                      /*AllowPeeling*/ true,
+                      /*AllowProfileBasedPeeling*/ false,
+                      /*FullUnrollMaxCount*/ std::nullopt) !=
+      LoopUnrollResult::Unmodified;
   if (!Changed)
     return PreservedAnalyses::all();
 
@@ -1608,7 +1615,7 @@ PreservedAnalyses LoopUnrollPass::run(Function &F,
     // Check if the profile summary indicates that the profiled application
     // has a huge working set size, in which case we disable peeling to avoid
     // bloating it further.
-    Optional<bool> LocalAllowPeeling = UnrollOpts.AllowPeeling;
+    std::optional<bool> LocalAllowPeeling = UnrollOpts.AllowPeeling;
     if (PSI && PSI->hasHugeWorkingSetSize())
       LocalAllowPeeling = false;
     std::string LoopName = std::string(L.getName());
@@ -1617,9 +1624,9 @@ PreservedAnalyses LoopUnrollPass::run(Function &F,
     LoopUnrollResult Result = tryToUnrollLoop(
         &L, DT, &LI, SE, TTI, AC, ORE, BFI, PSI,
         /*PreserveLCSSA*/ true, UnrollOpts.OptLevel, UnrollOpts.OnlyWhenForced,
-        UnrollOpts.ForgetSCEV, /*Count*/ None,
-        /*Threshold*/ None, UnrollOpts.AllowPartial, UnrollOpts.AllowRuntime,
-        UnrollOpts.AllowUpperBound, LocalAllowPeeling,
+        UnrollOpts.ForgetSCEV, /*Count*/ std::nullopt,
+        /*Threshold*/ std::nullopt, UnrollOpts.AllowPartial,
+        UnrollOpts.AllowRuntime, UnrollOpts.AllowUpperBound, LocalAllowPeeling,
         UnrollOpts.AllowProfileBasedPeeling, UnrollOpts.FullUnrollMaxCount);
     Changed |= Result != LoopUnrollResult::Unmodified;
 
@@ -1645,18 +1652,18 @@ void LoopUnrollPass::printPipeline(
   static_cast<PassInfoMixin<LoopUnrollPass> *>(this)->printPipeline(
       OS, MapClassName2PassName);
   OS << "<";
-  if (UnrollOpts.AllowPartial != None)
+  if (UnrollOpts.AllowPartial != std::nullopt)
     OS << (UnrollOpts.AllowPartial.value() ? "" : "no-") << "partial;";
-  if (UnrollOpts.AllowPeeling != None)
+  if (UnrollOpts.AllowPeeling != std::nullopt)
     OS << (UnrollOpts.AllowPeeling.value() ? "" : "no-") << "peeling;";
-  if (UnrollOpts.AllowRuntime != None)
+  if (UnrollOpts.AllowRuntime != std::nullopt)
     OS << (UnrollOpts.AllowRuntime.value() ? "" : "no-") << "runtime;";
-  if (UnrollOpts.AllowUpperBound != None)
+  if (UnrollOpts.AllowUpperBound != std::nullopt)
     OS << (UnrollOpts.AllowUpperBound.value() ? "" : "no-") << "upperbound;";
-  if (UnrollOpts.AllowProfileBasedPeeling != None)
+  if (UnrollOpts.AllowProfileBasedPeeling != std::nullopt)
     OS << (UnrollOpts.AllowProfileBasedPeeling.value() ? "" : "no-")
        << "profile-peeling;";
-  if (UnrollOpts.FullUnrollMaxCount != None)
+  if (UnrollOpts.FullUnrollMaxCount != std::nullopt)
     OS << "full-unroll-max=" << UnrollOpts.FullUnrollMaxCount << ";";
   OS << "O" << UnrollOpts.OptLevel;
   OS << ">";

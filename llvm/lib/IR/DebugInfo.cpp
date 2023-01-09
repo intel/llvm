@@ -36,6 +36,7 @@
 #include "llvm/Support/Casting.h"
 #include <algorithm>
 #include <cassert>
+#include <optional>
 #include <utility>
 
 using namespace llvm;
@@ -1745,43 +1746,43 @@ void at::deleteAll(Function *F) {
 }
 
 /// Collect constant properies (base, size, offset) of \p StoreDest.
-/// Return None if any properties are not constants.
-static Optional<AssignmentInfo> getAssignmentInfoImpl(const DataLayout &DL,
-                                                      const Value *StoreDest,
-                                                      uint64_t SizeInBits) {
+/// Return std::nullopt if any properties are not constants.
+static std::optional<AssignmentInfo>
+getAssignmentInfoImpl(const DataLayout &DL, const Value *StoreDest,
+                      uint64_t SizeInBits) {
   APInt GEPOffset(DL.getIndexTypeSizeInBits(StoreDest->getType()), 0);
   const Value *Base = StoreDest->stripAndAccumulateConstantOffsets(
       DL, GEPOffset, /*AllowNonInbounds*/ true);
   uint64_t OffsetInBytes = GEPOffset.getLimitedValue();
   // Check for overflow.
   if (OffsetInBytes == UINT64_MAX)
-    return None;
+    return std::nullopt;
   if (const auto *Alloca = dyn_cast<AllocaInst>(Base))
     return AssignmentInfo(DL, Alloca, OffsetInBytes * 8, SizeInBits);
-  return None;
+  return std::nullopt;
 }
 
-Optional<AssignmentInfo> at::getAssignmentInfo(const DataLayout &DL,
-                                               const MemIntrinsic *I) {
+std::optional<AssignmentInfo> at::getAssignmentInfo(const DataLayout &DL,
+                                                    const MemIntrinsic *I) {
   const Value *StoreDest = I->getRawDest();
   // Assume 8 bit bytes.
   auto *ConstLengthInBytes = dyn_cast<ConstantInt>(I->getLength());
   if (!ConstLengthInBytes)
     // We can't use a non-const size, bail.
-    return None;
+    return std::nullopt;
   uint64_t SizeInBits = 8 * ConstLengthInBytes->getZExtValue();
   return getAssignmentInfoImpl(DL, StoreDest, SizeInBits);
 }
 
-Optional<AssignmentInfo> at::getAssignmentInfo(const DataLayout &DL,
-                                               const StoreInst *SI) {
+std::optional<AssignmentInfo> at::getAssignmentInfo(const DataLayout &DL,
+                                                    const StoreInst *SI) {
   const Value *StoreDest = SI->getPointerOperand();
   uint64_t SizeInBits = DL.getTypeSizeInBits(SI->getValueOperand()->getType());
   return getAssignmentInfoImpl(DL, StoreDest, SizeInBits);
 }
 
-Optional<AssignmentInfo> at::getAssignmentInfo(const DataLayout &DL,
-                                               const AllocaInst *AI) {
+std::optional<AssignmentInfo> at::getAssignmentInfo(const DataLayout &DL,
+                                                    const AllocaInst *AI) {
   uint64_t SizeInBits = DL.getTypeSizeInBits(AI->getAllocatedType());
   return getAssignmentInfoImpl(DL, AI, SizeInBits);
 }
@@ -1793,14 +1794,16 @@ static CallInst *emitDbgAssign(AssignmentInfo Info, Value *Val, Value *Dest,
   assert(ID && "Store instruction must have DIAssignID metadata");
   (void)ID;
 
-  DIExpression *Expr = DIExpression::get(StoreLikeInst.getContext(), None);
+  DIExpression *Expr =
+      DIExpression::get(StoreLikeInst.getContext(), std::nullopt);
   if (!Info.StoreToWholeAlloca) {
     auto R = DIExpression::createFragmentExpression(Expr, Info.OffsetInBits,
                                                     Info.SizeInBits);
     assert(R.has_value() && "failed to create fragment expression");
     Expr = R.value();
   }
-  DIExpression *AddrExpr = DIExpression::get(StoreLikeInst.getContext(), None);
+  DIExpression *AddrExpr =
+      DIExpression::get(StoreLikeInst.getContext(), std::nullopt);
   return DIB.insertDbgAssign(&StoreLikeInst, Val, VarRec.Var, Expr, Dest,
                              AddrExpr, VarRec.DL);
 }
@@ -1827,7 +1830,7 @@ void at::trackAssignments(Function::iterator Start, Function::iterator End,
   for (auto BBI = Start; BBI != End; ++BBI) {
     for (Instruction &I : *BBI) {
 
-      Optional<AssignmentInfo> Info = None;
+      std::optional<AssignmentInfo> Info = std::nullopt;
       Value *ValueComponent = nullptr;
       Value *DestComponent = nullptr;
       if (auto *AI = dyn_cast<AllocaInst>(&I)) {

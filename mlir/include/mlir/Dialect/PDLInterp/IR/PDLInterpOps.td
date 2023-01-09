@@ -652,7 +652,9 @@ def PDLInterp_FuncOp : PDLInterp_Op<"func", [
 
   let arguments = (ins
     SymbolNameAttr:$sym_name,
-    TypeAttrOf<FunctionType>:$function_type
+    TypeAttrOf<FunctionType>:$function_type,
+    OptionalAttr<DictArrayAttr>:$arg_attrs,
+    OptionalAttr<DictArrayAttr>:$res_attrs
   );
   let regions = (region MinSizedRegion<1>:$body);
 
@@ -1013,7 +1015,7 @@ def PDLInterp_CreateRangeOp : PDLInterp_Op<"create_range", [Pure]> {
 
     // Construct a range of types.
     %typeRange = pdl_interp.create_range %inputType, %inputRange : !pdl.type, !pdl.range<type>
-    
+
     // Construct an empty range of types.
     %valueRange = pdl_interp.create_range : !pdl.range<type>
     ```

@@ -19,7 +19,6 @@
 #define LLVM_MC_TARGETREGISTRY_H
 
 #include "llvm-c/DisassemblerTypes.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/ADT/iterator_range.h"
@@ -31,6 +30,7 @@
 #include <cstddef>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace llvm {
@@ -166,8 +166,8 @@ public:
                                                        StringRef Features);
   using TargetMachineCtorTy = TargetMachine
       *(*)(const Target &T, const Triple &TT, StringRef CPU, StringRef Features,
-           const TargetOptions &Options, Optional<Reloc::Model> RM,
-           Optional<CodeModel::Model> CM, CodeGenOpt::Level OL, bool JIT);
+           const TargetOptions &Options, std::optional<Reloc::Model> RM,
+           std::optional<CodeModel::Model> CM, CodeGenOpt::Level OL, bool JIT);
   // If it weren't for layering issues (this header is in llvm/Support, but
   // depends on MC?) this should take the Streamer by value rather than rvalue
   // reference.
@@ -478,13 +478,11 @@ public:
   /// feature set; it should always be provided. Generally this should be
   /// either the target triple from the module, or the target triple of the
   /// host if that does not exist.
-  TargetMachine *createTargetMachine(StringRef TT, StringRef CPU,
-                                     StringRef Features,
-                                     const TargetOptions &Options,
-                                     Optional<Reloc::Model> RM,
-                                     Optional<CodeModel::Model> CM = None,
-                                     CodeGenOpt::Level OL = CodeGenOpt::Default,
-                                     bool JIT = false) const {
+  TargetMachine *createTargetMachine(
+      StringRef TT, StringRef CPU, StringRef Features,
+      const TargetOptions &Options, std::optional<Reloc::Model> RM,
+      std::optional<CodeModel::Model> CM = std::nullopt,
+      CodeGenOpt::Level OL = CodeGenOpt::Default, bool JIT = false) const {
     if (!TargetMachineCtorFn)
       return nullptr;
     return TargetMachineCtorFn(*this, Triple(TT), CPU, Features, Options, RM,
@@ -1359,10 +1357,12 @@ template <class TargetMachineImpl> struct RegisterTargetMachine {
   }
 
 private:
-  static TargetMachine *
-  Allocator(const Target &T, const Triple &TT, StringRef CPU, StringRef FS,
-            const TargetOptions &Options, Optional<Reloc::Model> RM,
-            Optional<CodeModel::Model> CM, CodeGenOpt::Level OL, bool JIT) {
+  static TargetMachine *Allocator(const Target &T, const Triple &TT,
+                                  StringRef CPU, StringRef FS,
+                                  const TargetOptions &Options,
+                                  std::optional<Reloc::Model> RM,
+                                  std::optional<CodeModel::Model> CM,
+                                  CodeGenOpt::Level OL, bool JIT) {
     return new TargetMachineImpl(T, TT, CPU, FS, Options, RM, CM, OL, JIT);
   }
 };

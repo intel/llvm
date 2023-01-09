@@ -22,7 +22,6 @@ define amdgpu_kernel void @zero_init_kernel() {
 ; GFX9-NEXT:    v_mov_b32_e32 v2, s2
 ; GFX9-NEXT:    v_mov_b32_e32 v3, s3
 ; GFX9-NEXT:    s_mov_b32 s1, 0
-; GFX9-NEXT:    s_mov_b32 s0, 0
 ; GFX9-NEXT:    s_mov_b32 vcc_lo, 0
 ; GFX9-NEXT:    s_mov_b32 vcc_hi, 0
 ; GFX9-NEXT:    scratch_store_dwordx4 off, v[0:3], s1 offset:52
@@ -88,7 +87,6 @@ define amdgpu_kernel void @zero_init_kernel() {
 ; GFX9-PAL-NEXT:    v_mov_b32_e32 v2, s2
 ; GFX9-PAL-NEXT:    v_mov_b32_e32 v3, s3
 ; GFX9-PAL-NEXT:    s_mov_b32 s1, 0
-; GFX9-PAL-NEXT:    s_mov_b32 s0, 0
 ; GFX9-PAL-NEXT:    scratch_store_dwordx4 off, v[0:3], s1 offset:52
 ; GFX9-PAL-NEXT:    scratch_store_dwordx4 off, v[0:3], s0 offset:36
 ; GFX9-PAL-NEXT:    scratch_store_dwordx4 off, v[0:3], vcc_lo offset:20
@@ -131,7 +129,6 @@ define amdgpu_kernel void @zero_init_kernel() {
 ; GFX1010-PAL-NEXT:    v_mov_b32_e32 v3, s3
 ; GFX1010-PAL-NEXT:    s_mov_b32 s2, 0
 ; GFX1010-PAL-NEXT:    s_mov_b32 s1, 0
-; GFX1010-PAL-NEXT:    s_mov_b32 s0, 0
 ; GFX1010-PAL-NEXT:    scratch_store_dwordx4 off, v[0:3], s2 offset:52
 ; GFX1010-PAL-NEXT:    scratch_store_dwordx4 off, v[0:3], s1 offset:36
 ; GFX1010-PAL-NEXT:    scratch_store_dwordx4 off, v[0:3], s0 offset:20
@@ -980,7 +977,6 @@ define amdgpu_kernel void @zero_init_small_offset_kernel() {
 ; GFX9-NEXT:    v_mov_b32_e32 v2, s2
 ; GFX9-NEXT:    v_mov_b32_e32 v3, s3
 ; GFX9-NEXT:    s_mov_b32 s1, 0
-; GFX9-NEXT:    s_mov_b32 s0, 0
 ; GFX9-NEXT:    s_mov_b32 vcc_lo, 0
 ; GFX9-NEXT:    s_mov_b32 vcc_hi, 0
 ; GFX9-NEXT:    scratch_store_dwordx4 off, v[0:3], s1 offset:260
@@ -1053,7 +1049,6 @@ define amdgpu_kernel void @zero_init_small_offset_kernel() {
 ; GFX9-PAL-NEXT:    v_mov_b32_e32 v2, s2
 ; GFX9-PAL-NEXT:    v_mov_b32_e32 v3, s3
 ; GFX9-PAL-NEXT:    s_mov_b32 s1, 0
-; GFX9-PAL-NEXT:    s_mov_b32 s0, 0
 ; GFX9-PAL-NEXT:    scratch_store_dwordx4 off, v[0:3], s1 offset:260
 ; GFX9-PAL-NEXT:    scratch_store_dwordx4 off, v[0:3], s0 offset:276
 ; GFX9-PAL-NEXT:    scratch_store_dwordx4 off, v[0:3], vcc_lo offset:292
@@ -1100,7 +1095,6 @@ define amdgpu_kernel void @zero_init_small_offset_kernel() {
 ; GFX1010-PAL-NEXT:    v_mov_b32_e32 v3, s3
 ; GFX1010-PAL-NEXT:    s_mov_b32 s2, 0
 ; GFX1010-PAL-NEXT:    s_mov_b32 s1, 0
-; GFX1010-PAL-NEXT:    s_mov_b32 s0, 0
 ; GFX1010-PAL-NEXT:    s_mov_b32 vcc_lo, 0
 ; GFX1010-PAL-NEXT:    scratch_store_dwordx4 off, v[0:3], s2 offset:260
 ; GFX1010-PAL-NEXT:    scratch_store_dwordx4 off, v[0:3], s1 offset:276

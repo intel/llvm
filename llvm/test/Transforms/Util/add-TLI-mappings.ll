@@ -1,9 +1,7 @@
-; RUN: opt -opaque-pointers -vector-library=SVML       -inject-tli-mappings        -S < %s | FileCheck %s  --check-prefixes=COMMON,SVML
-; RUN: opt -opaque-pointers -vector-library=SVML       -passes=inject-tli-mappings -S < %s | FileCheck %s  --check-prefixes=COMMON,SVML
-; RUN: opt -opaque-pointers -vector-library=MASSV      -inject-tli-mappings        -S < %s | FileCheck %s  --check-prefixes=COMMON,MASSV
-; RUN: opt -opaque-pointers -vector-library=MASSV      -passes=inject-tli-mappings -S < %s | FileCheck %s  --check-prefixes=COMMON,MASSV
-; RUN: opt -opaque-pointers -vector-library=Accelerate -inject-tli-mappings        -S < %s | FileCheck %s  --check-prefixes=COMMON,ACCELERATE
-; RUN: opt -opaque-pointers -vector-library=LIBMVEC-X86 -inject-tli-mappings        -S < %s | FileCheck %s  --check-prefixes=COMMON,LIBMVEC-X86
+; TODO: Remove -opaque-pointers flag when the project supports opaque pointers
+; by default
+; RUN: opt -opaque-pointers -vector-library=SVML -passes=inject-tli-mappings -S < %s | FileCheck %s  --check-prefixes=COMMON,SVML
+; RUN: opt -opaque-pointers -vector-library=MASSV -passes=inject-tli-mappings -S < %s | FileCheck %s  --check-prefixes=COMMON,MASSV
 ; RUN: opt -opaque-pointers -vector-library=LIBMVEC-X86 -passes=inject-tli-mappings -S < %s | FileCheck %s  --check-prefixes=COMMON,LIBMVEC-X86
 ; RUN: opt -opaque-pointers -vector-library=Accelerate -passes=inject-tli-mappings -S < %s | FileCheck %s  --check-prefixes=COMMON,ACCELERATE
 

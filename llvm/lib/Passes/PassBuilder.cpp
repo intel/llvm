@@ -24,8 +24,6 @@
 #include "llvm/Analysis/BranchProbabilityInfo.h"
 #include "llvm/Analysis/CFGPrinter.h"
 #include "llvm/Analysis/CFGSCCPrinter.h"
-#include "llvm/Analysis/CFLAndersAliasAnalysis.h"
-#include "llvm/Analysis/CFLSteensAliasAnalysis.h"
 #include "llvm/Analysis/CGSCCPassManager.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/CallPrinter.h"
@@ -75,11 +73,11 @@
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/Dominators.h"
-#include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PrintPasses.h"
 #include "llvm/IR/SafepointIRVerifier.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
@@ -145,6 +143,7 @@
 #include "llvm/Transforms/Instrumentation/HWAddressSanitizer.h"
 #include "llvm/Transforms/Instrumentation/InstrOrderFile.h"
 #include "llvm/Transforms/Instrumentation/InstrProfiling.h"
+#include "llvm/Transforms/Instrumentation/KCFI.h"
 #include "llvm/Transforms/Instrumentation/MemProfiler.h"
 #include "llvm/Transforms/Instrumentation/MemorySanitizer.h"
 #include "llvm/Transforms/Instrumentation/PGOInstrumentation.h"
@@ -261,6 +260,7 @@
 #include "llvm/Transforms/Vectorize/LoopVectorize.h"
 #include "llvm/Transforms/Vectorize/SLPVectorizer.h"
 #include "llvm/Transforms/Vectorize/VectorCombine.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -402,7 +402,7 @@ public:
 } // namespace
 
 PassBuilder::PassBuilder(TargetMachine *TM, PipelineTuningOptions PTO,
-                         Optional<PGOOptions> PGOOpt,
+                         std::optional<PGOOptions> PGOOpt,
                          PassInstrumentationCallbacks *PIC)
     : TM(TM), PTO(PTO), PGOOpt(PGOOpt), PIC(PIC) {
   if (TM)
@@ -479,21 +479,21 @@ void PassBuilder::registerLoopAnalyses(LoopAnalysisManager &LAM) {
     C(LAM);
 }
 
-static Optional<int> parseRepeatPassName(StringRef Name) {
+static std::optional<int> parseRepeatPassName(StringRef Name) {
   if (!Name.consume_front("repeat<") || !Name.consume_back(">"))
-    return None;
+    return std::nullopt;
   int Count;
   if (Name.getAsInteger(0, Count) || Count <= 0)
-    return None;
+    return std::nullopt;
   return Count;
 }
 
-static Optional<int> parseDevirtPassName(StringRef Name) {
+static std::optional<int> parseDevirtPassName(StringRef Name) {
   if (!Name.consume_front("devirt<") || !Name.consume_back(">"))
-    return None;
+    return std::nullopt;
   int Count;
   if (Name.getAsInteger(0, Count) || Count < 0)
-    return None;
+    return std::nullopt;
   return Count;
 }
 
@@ -843,6 +843,19 @@ Expected<GVNOptions> parseGVNOptions(StringRef Params) {
   return Result;
 }
 
+Expected<SROAOptions> parseSROAOptions(StringRef Params) {
+  if (Params.empty() || Params == "modify-cfg")
+    return SROAOptions::ModifyCFG;
+  if (Params == "preserve-cfg")
+    return SROAOptions::PreserveCFG;
+  return make_error<StringError>(
+      formatv("invalid SROA pass parameter '{0}' (either preserve-cfg or "
+              "modify-cfg can be specified)",
+              Params)
+          .str(),
+      inconvertibleErrorCode());
+}
+
 Expected<StackLifetime::LivenessType>
 parseStackLifetimeOptions(StringRef Params) {
   StackLifetime::LivenessType Result = StackLifetime::LivenessType::May;
@@ -1034,7 +1047,7 @@ static bool isLoopPassName(StringRef Name, CallbacksT &Callbacks,
   return callbacksAcceptPassName<LoopPassManager>(Name, Callbacks);
 }
 
-Optional<std::vector<PassBuilder::PipelineElement>>
+std::optional<std::vector<PassBuilder::PipelineElement>>
 PassBuilder::parsePipelineText(StringRef Text) {
   std::vector<PipelineElement> ResultPipeline;
 
@@ -1067,7 +1080,7 @@ PassBuilder::parsePipelineText(StringRef Text) {
     do {
       // If we try to pop the outer pipeline we have unbalanced parentheses.
       if (PipelineStack.size() == 1)
-        return None;
+        return std::nullopt;
 
       PipelineStack.pop_back();
     } while (Text.consume_front(")"));
@@ -1079,12 +1092,12 @@ PassBuilder::parsePipelineText(StringRef Text) {
     // Otherwise, the end of an inner pipeline always has to be followed by
     // a comma, and then we can continue.
     if (!Text.consume_front(","))
-      return None;
+      return std::nullopt;
   }
 
   if (PipelineStack.size() > 1)
     // Unbalanced paretheses.
-    return None;
+    return std::nullopt;
 
   assert(PipelineStack.back() == &ResultPipeline &&
          "Wrong pipeline at the bottom of the stack!");

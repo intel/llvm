@@ -153,7 +153,7 @@ template <typename T1, typename T2, typename T3, std::size_t M, std::size_t K,
           __spv::MatrixLayout LB = __spv::MatrixLayout::RowMajor,
           __spv::MatrixLayout LC = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T2, M, N, LC, S> *
+extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *
 __spirv_JointMatrixUUMadINTEL(
     __spv::__spirv_JointMatrixINTEL<T1, M, K, LA, S> *A,
     __spv::__spirv_JointMatrixINTEL<T2, K, N, LB, S> *B,
@@ -416,6 +416,14 @@ __SYCL_GenericCastToPtrExplicit_ToGlobal(const void *Ptr) noexcept {
 }
 
 template <typename dataT>
+extern volatile __attribute__((opencl_global)) dataT *
+__SYCL_GenericCastToPtrExplicit_ToGlobal(volatile void *Ptr) noexcept {
+  return (volatile __attribute__((opencl_global)) dataT *)
+      __spirv_GenericCastToPtrExplicit_ToGlobal(
+          Ptr, __spv::StorageClass::CrossWorkgroup);
+}
+
+template <typename dataT>
 extern const volatile __attribute__((opencl_global)) dataT *
 __SYCL_GenericCastToPtrExplicit_ToGlobal(const volatile void *Ptr) noexcept {
   return (const volatile __attribute__((opencl_global)) dataT *)
@@ -440,6 +448,14 @@ __SYCL_GenericCastToPtrExplicit_ToLocal(const void *Ptr) noexcept {
 }
 
 template <typename dataT>
+extern volatile __attribute__((opencl_local)) dataT *
+__SYCL_GenericCastToPtrExplicit_ToLocal(volatile void *Ptr) noexcept {
+  return (volatile __attribute__((opencl_local)) dataT *)
+      __spirv_GenericCastToPtrExplicit_ToLocal(Ptr,
+                                               __spv::StorageClass::Workgroup);
+}
+
+template <typename dataT>
 extern const volatile __attribute__((opencl_local)) dataT *
 __SYCL_GenericCastToPtrExplicit_ToLocal(const volatile void *Ptr) noexcept {
   return (const volatile __attribute__((opencl_local)) dataT *)
@@ -459,6 +475,14 @@ template <typename dataT>
 extern const __attribute__((opencl_private)) dataT *
 __SYCL_GenericCastToPtrExplicit_ToPrivate(const void *Ptr) noexcept {
   return (const __attribute__((opencl_private)) dataT *)
+      __spirv_GenericCastToPtrExplicit_ToPrivate(Ptr,
+                                                 __spv::StorageClass::Function);
+}
+
+template <typename dataT>
+extern volatile __attribute__((opencl_private)) dataT *
+__SYCL_GenericCastToPtrExplicit_ToPrivate(volatile void *Ptr) noexcept {
+  return (volatile __attribute__((opencl_private)) dataT *)
       __spirv_GenericCastToPtrExplicit_ToPrivate(Ptr,
                                                  __spv::StorageClass::Function);
 }

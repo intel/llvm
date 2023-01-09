@@ -1202,7 +1202,7 @@ SYCL_EXTERNAL complex<_Tp> acos(const complex<_Tp> &__x) {
   }
   if (sycl::isinf(__x.imag()))
     return complex<_Tp>(__pi / _Tp(2), -__x.imag());
-  if (__x.real() == 0 && (__x.imag() == 0 || isnan(__x.imag())))
+  if (__x.real() == 0 && (__x.imag() == 0 || sycl::isnan(__x.imag())))
     return complex<_Tp>(__pi / _Tp(2), -__x.imag());
   complex<_Tp> __z = log(__x + sqrt(__sqr(__x) - _Tp(1)));
   if (sycl::signbit(__x.imag()))

@@ -26,7 +26,6 @@
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Lex/Token.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
@@ -1261,7 +1260,7 @@ Optional<Token> Lexer::findNextToken(SourceLocation Loc,
                                      const LangOptions &LangOpts) {
   if (Loc.isMacroID()) {
     if (!Lexer::isAtEndOfMacroExpansion(Loc, SM, LangOpts, &Loc))
-      return None;
+      return std::nullopt;
   }
   Loc = Lexer::getLocForEndOfToken(Loc, 0, SM, LangOpts);
 
@@ -1272,7 +1271,7 @@ Optional<Token> Lexer::findNextToken(SourceLocation Loc,
   bool InvalidTemp = false;
   StringRef File = SM.getBufferData(LocInfo.first, &InvalidTemp);
   if (InvalidTemp)
-    return None;
+    return std::nullopt;
 
   const char *TokenBegin = File.data() + LocInfo.second;
 
@@ -3216,7 +3215,7 @@ llvm::Optional<uint32_t> Lexer::tryReadNumericUCN(const char *&StartPtr,
   if (!LangOpts.CPlusPlus && !LangOpts.C99) {
     if (Diagnose)
       Diag(SlashLoc, diag::warn_ucn_not_valid_in_c89);
-    return llvm::None;
+    return std::nullopt;
   }
 
   const char *CurPtr = StartPtr + CharSize;
@@ -3244,13 +3243,13 @@ llvm::Optional<uint32_t> Lexer::tryReadNumericUCN(const char *&StartPtr,
       if (Diagnose)
         Diag(BufferPtr, diag::warn_delimited_ucn_incomplete)
             << StringRef(KindLoc, 1);
-      return llvm::None;
+      return std::nullopt;
     }
 
     if (CodePoint & 0xF000'0000) {
       if (Diagnose)
         Diag(KindLoc, diag::err_escape_too_large) << 0;
-      return llvm::None;
+      return std::nullopt;
     }
 
     CodePoint <<= 4;
@@ -3264,13 +3263,13 @@ llvm::Optional<uint32_t> Lexer::tryReadNumericUCN(const char *&StartPtr,
       Diag(StartPtr, FoundEndDelimiter ? diag::warn_delimited_ucn_empty
                                        : diag::warn_ucn_escape_no_digits)
           << StringRef(KindLoc, 1);
-    return llvm::None;
+    return std::nullopt;
   }
 
   if (Delimited && Kind == 'U') {
     if (Diagnose)
       Diag(StartPtr, diag::err_hex_escape_no_digits) << StringRef(KindLoc, 1);
-    return llvm::None;
+    return std::nullopt;
   }
 
   if (!Delimited && Count != NumHexDigits) {
@@ -3283,7 +3282,7 @@ llvm::Optional<uint32_t> Lexer::tryReadNumericUCN(const char *&StartPtr,
             << FixItHint::CreateReplacement(URange, "u");
       }
     }
-    return llvm::None;
+    return std::nullopt;
   }
 
   if (Delimited && PP) {
@@ -3321,7 +3320,7 @@ llvm::Optional<uint32_t> Lexer::tryReadNamedUCN(const char *&StartPtr,
   if (C != '{') {
     if (Diagnose)
       Diag(StartPtr, diag::warn_ucn_escape_incomplete);
-    return llvm::None;
+    return std::nullopt;
   }
   CurPtr += CharSize;
   const char *StartName = CurPtr;
@@ -3345,7 +3344,7 @@ llvm::Optional<uint32_t> Lexer::tryReadNamedUCN(const char *&StartPtr,
       Diag(StartPtr, FoundEndDelimiter ? diag::warn_delimited_ucn_empty
                                        : diag::warn_delimited_ucn_incomplete)
           << StringRef(KindLoc, 1);
-    return llvm::None;
+    return std::nullopt;
   }
 
   StringRef Name(Buffer.data(), Buffer.size());
@@ -3367,7 +3366,7 @@ llvm::Optional<uint32_t> Lexer::tryReadNamedUCN(const char *&StartPtr,
     // When finding a match using Unicode loose matching rules
     // recover after having emitted a diagnostic.
     if (!LooseMatch)
-      return llvm::None;
+      return std::nullopt;
     // We do not offer misspelled character names suggestions here
     // as the set of what would be a valid suggestion depends on context,
     // and we should not make invalid suggestions.

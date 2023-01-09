@@ -232,6 +232,7 @@ public:
       return;
 
     MPiPluginMockPtr->PiFunctionTable = *OrigFuncTable;
+    detail::GlobalHandler::instance().releaseDefaultContexts();
   }
 
   /// Returns a handle to the SYCL platform instance.

@@ -11,9 +11,11 @@
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
+#include <sycl/ext/oneapi/weak_object_base.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 
@@ -37,7 +39,7 @@ class kernel_id_impl;
 /// Objects of the class identify kernel is some kernel_bundle related APIs
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT kernel_id {
+class __SYCL_EXPORT kernel_id : public detail::OwnerLessBase<kernel_id> {
 public:
   kernel_id() = delete;
 
@@ -101,7 +103,8 @@ protected:
 
 /// Objects of the class represents an instance of an image in a specific state.
 template <sycl::bundle_state State>
-class device_image : public detail::device_image_plain {
+class device_image : public detail::device_image_plain,
+                     public detail::OwnerLessBase<device_image<State>> {
 public:
   device_image() = delete;
 
@@ -195,7 +198,8 @@ protected:
 ///
 /// \ingroup sycl_api
 template <bundle_state State>
-class kernel_bundle : public detail::kernel_bundle_plain {
+class kernel_bundle : public detail::kernel_bundle_plain,
+                      public detail::OwnerLessBase<kernel_bundle<State>> {
 public:
   using device_image_iterator = const device_image<State> *;
 
@@ -257,10 +261,6 @@ public:
     return detail::kernel_bundle_plain::get_kernel(KernelID);
   }
 
-  // This guard is needed because the libsycl.so can compiled with C++ <=14
-  // while the code requires C++17. This code is not supposed to be used by the
-  // libsycl.so so it should not be a problem.
-#if __cplusplus >= 201703L
   /// \returns true if any device image in the kernel_bundle uses specialization
   /// constant whose address is SpecName
   template <auto &SpecName> bool has_specialization_constant() const noexcept {
@@ -298,7 +298,6 @@ public:
 
     return *reinterpret_cast<SCType *>(RetValue.data());
   }
-#endif
 
   /// \returns an iterator to the first device image kernel_bundle contains
   device_image_iterator begin() const {
@@ -341,9 +340,8 @@ private:
     return ReturnValue;
   }
 };
-#if __cplusplus >= 201703L
-template <bundle_state State> kernel_bundle(kernel_bundle<State> &&) -> kernel_bundle<State>;
-#endif
+template <bundle_state State>
+kernel_bundle(kernel_bundle<State> &&) -> kernel_bundle<State>;
 
 /////////////////////////
 // get_kernel_id API
@@ -564,7 +562,8 @@ bool has_kernel_bundle(const context &Ctx, const std::vector<device> &Devs) {
 
 /// \returns true if all of the kernels identified by KernelIDs are compatible
 /// with the device Dev.
-bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev);
+__SYCL_EXPORT bool is_compatible(const std::vector<kernel_id> &KernelIDs,
+                                 const device &Dev);
 
 template <typename KernelName> bool is_compatible(const device &Dev) {
   return is_compatible({get_kernel_id<KernelName>()}, Dev);

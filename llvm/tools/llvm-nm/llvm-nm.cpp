@@ -68,7 +68,7 @@ enum ID {
 #include "Opts.inc"
 #undef PREFIX
 
-const opt::OptTable::Info InfoTable[] = {
+static constexpr opt::OptTable::Info InfoTable[] = {
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
   {                                                                            \
@@ -651,7 +651,7 @@ static Optional<std::string> demangle(StringRef Name) {
   std::string Demangled;
   if (nonMicrosoftDemangle(Name.str().c_str(), Demangled))
     return Demangled;
-  return None;
+  return std::nullopt;
 }
 
 static Optional<std::string> demangleXCOFF(StringRef Name) {
@@ -662,7 +662,7 @@ static Optional<std::string> demangleXCOFF(StringRef Name) {
   Optional<std::string> DemangledName = demangle(Name);
   if (DemangledName)
     return "." + *DemangledName;
-  return None;
+  return std::nullopt;
 }
 
 static Optional<std::string> demangleMachO(StringRef Name) {

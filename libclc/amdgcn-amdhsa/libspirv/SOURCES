@@ -1,5 +1,6 @@
 
 workitem/get_global_offset.ll
+group/group_ballot.cl
 group/collectives.cl
 group/collectives_helpers.ll
 atomic/loadstore_helpers.ll

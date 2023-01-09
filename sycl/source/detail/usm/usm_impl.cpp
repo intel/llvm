@@ -23,19 +23,7 @@
 // Include the headers necessary for emitting
 // traces using the trace framework
 #include "xpti/xpti_trace_framework.hpp"
-
-#define XPTI_CREATE_TRACEPOINT(CodeLoc)                                        \
-  std::unique_ptr<xpti::framework::tracepoint_t> _TP(nullptr);                 \
-  if (xptiTraceEnabled()) {                                                    \
-    xpti::payload_t Payload{CodeLoc.functionName(), CodeLoc.fileName(),        \
-                            static_cast<int>(CodeLoc.lineNumber()),            \
-                            static_cast<int>(CodeLoc.columnNumber()),          \
-                            nullptr};                                          \
-    _TP = std::make_unique<xpti::framework::tracepoint_t>(&Payload);           \
-  }                                                                            \
-  (void)_TP;
-#else
-#define XPTI_CREATE_TRACEPOINT(CodeLoc)
+#include <detail/xpti_registry.hpp>
 #endif
 
 namespace sycl {
@@ -44,12 +32,31 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 using alloc = sycl::usm::alloc;
 
 namespace detail {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+extern xpti::trace_event_data_t *GSYCLGraphEvent;
+#endif
 namespace usm {
 
 void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
                        alloc Kind, const property_list &PropList,
                        const detail::code_location &CodeLoc) {
-  XPTI_CREATE_TRACEPOINT(CodeLoc);
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  // Stash the code location information and propagate
+  detail::tls_code_loc_t CL(CodeLoc);
+  XPTIScope PrepareNotify((void *)alignedAllocHost,
+                          (uint16_t)xpti::trace_point_type_t::node_create,
+                          SYCL_MEM_ALLOC_STREAM_NAME, "malloc_host");
+  PrepareNotify.addMetadata([&](auto TEvent) {
+    xpti::addMetadata(TEvent, "sycl_device_name", std::string("Host"));
+    xpti::addMetadata(TEvent, "sycl_device", 0);
+    xpti::addMetadata(TEvent, "memory_size", Size);
+  });
+  // Notify XPTI about the memset submission
+  PrepareNotify.notify();
+  // Emit a begin/end scope for this call
+  PrepareNotify.scopedNotify(
+      (uint16_t)xpti::trace_point_type_t::mem_alloc_begin);
+#endif
   void *RetVal = nullptr;
   if (Size == 0)
     return nullptr;
@@ -117,7 +124,25 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
 void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
                    const device &Dev, alloc Kind, const property_list &PropList,
                    const detail::code_location &CodeLoc) {
-  XPTI_CREATE_TRACEPOINT(CodeLoc);
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  // Stash the code location information and propagate
+  detail::tls_code_loc_t CL(CodeLoc);
+  XPTIScope PrepareNotify((void *)alignedAlloc,
+                          (uint16_t)xpti::trace_point_type_t::node_create,
+                          SYCL_MEM_ALLOC_STREAM_NAME, "usm::alignedAlloc");
+  PrepareNotify.addMetadata([&](auto TEvent) {
+    xpti::addMetadata(TEvent, "sycl_device_name",
+                      Dev.get_info<info::device::name>());
+    // Need to determine how to get the device handle reference
+    // xpti::addMetadata(TEvent, "sycl_device", Dev.getHandleRef()));
+    xpti::addMetadata(TEvent, "memory_size", Size);
+  });
+  // Notify XPTI about the memset submission
+  PrepareNotify.notify();
+  // Emit a begin/end scope for this call
+  PrepareNotify.scopedNotify(
+      (uint16_t)xpti::trace_point_type_t::mem_alloc_begin);
+#endif
   void *RetVal = nullptr;
   if (Size == 0)
     return nullptr;
@@ -220,7 +245,21 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
 
 void free(void *Ptr, const context &Ctxt,
           const detail::code_location &CodeLoc) {
-  XPTI_CREATE_TRACEPOINT(CodeLoc);
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  // Stash the code location information and propagate
+  detail::tls_code_loc_t CL(CodeLoc);
+  XPTIScope PrepareNotify((void *)free,
+                          (uint16_t)xpti::trace_point_type_t::node_create,
+                          SYCL_MEM_ALLOC_STREAM_NAME, "usm::free");
+  PrepareNotify.addMetadata([&](auto TEvent) {
+    xpti::addMetadata(TEvent, "memory_ptr", reinterpret_cast<size_t>(Ptr));
+  });
+  // Notify XPTI about the memset submission
+  PrepareNotify.notify();
+  // Emit a begin/end scope for this call
+  PrepareNotify.scopedNotify(
+      (uint16_t)xpti::trace_point_type_t::mem_release_begin);
+#endif
   if (Ptr == nullptr)
     return;
 

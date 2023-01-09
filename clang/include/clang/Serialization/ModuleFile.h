@@ -59,6 +59,17 @@ enum ModuleKind {
   MK_PrebuiltModule
 };
 
+/// The input file info that has been loaded from an AST file.
+struct InputFileInfo {
+  std::string Filename;
+  uint64_t ContentHash;
+  off_t StoredSize;
+  time_t StoredTime;
+  bool Overridden;
+  bool Transient;
+  bool TopLevelModuleMap;
+};
+
 /// The input file that has been loaded from this AST file, along with
 /// bools indicating whether this was an overridden buffer or if it was
 /// out-of-date or not-found.
@@ -94,7 +105,7 @@ public:
   OptionalFileEntryRefDegradesToFileEntryPtr getFile() const {
     if (auto *P = Val.getPointer())
       return FileEntryRef(*P);
-    return None;
+    return std::nullopt;
   }
   bool isOverridden() const { return Val.getInt() == Overridden; }
   bool isOutOfDate() const { return Val.getInt() == OutOfDate; }
@@ -234,6 +245,9 @@ public:
 
   /// The input files that have been loaded from this AST file.
   std::vector<InputFile> InputFilesLoaded;
+
+  /// The input file infos that have been loaded from this AST file.
+  std::vector<InputFileInfo> InputFileInfosLoaded;
 
   // All user input files reside at the index range [0, NumUserInputFiles), and
   // system input files reside at [NumUserInputFiles, InputFilesLoaded.size()).

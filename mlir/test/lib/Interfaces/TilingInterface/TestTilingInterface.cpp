@@ -50,18 +50,17 @@ struct LinalgTransformationFilter {
 
   explicit LinalgTransformationFilter(
       ArrayRef<StringAttr> matchDisjunction = {},
-      Optional<StringAttr> replacement = None);
+      Optional<StringAttr> replacement = std::nullopt);
 
   explicit LinalgTransformationFilter(
       const FilterFunction &f, ArrayRef<StringAttr> matchDisjunction = {},
-      Optional<StringAttr> replacement = None);
+      Optional<StringAttr> replacement = std::nullopt);
 
   LinalgTransformationFilter(LinalgTransformationFilter &&) = default;
   LinalgTransformationFilter(const LinalgTransformationFilter &) = default;
   LogicalResult checkAndNotify(PatternRewriter &rewriter, Operation *op) const;
   void replaceLinalgTransformationFilter(PatternRewriter &rewriter,
                                          Operation *op) const;
-  bool hasReplacementFilter(Operation *op) const;
 
   LinalgTransformationFilter &addFilter(const FilterFunction &f) {
     if (f)
@@ -99,15 +98,6 @@ LinalgTransformationFilter::LinalgTransformationFilter(
     ArrayRef<StringAttr> matchDisjunction, Optional<StringAttr> replacement)
     : matchDisjunction(matchDisjunction.begin(), matchDisjunction.end()),
       replacement(replacement), matchByDefault(false) {}
-
-LinalgTransformationFilter::LinalgTransformationFilter(
-    const FilterFunction &f, ArrayRef<StringAttr> matchDisjunction,
-    Optional<StringAttr> replacement)
-    : matchDisjunction(matchDisjunction.begin(), matchDisjunction.end()),
-      replacement(replacement), matchByDefault(false) {
-  if (f)
-    filters.push_back(f);
-}
 
 LogicalResult
 LinalgTransformationFilter::checkAndNotify(PatternRewriter &rewriter,
@@ -148,13 +138,6 @@ void LinalgTransformationFilter::replaceLinalgTransformationFilter(
     op->setAttr(kLinalgTransformMarker, replacement.value());
   else
     op->removeAttr(rewriter.getStringAttr(kLinalgTransformMarker));
-}
-
-bool LinalgTransformationFilter::hasReplacementFilter(Operation *op) const {
-  if (!replacement)
-    return false;
-  auto attr = op->getAttr(kLinalgTransformMarker).dyn_cast<StringAttr>();
-  return attr && attr == *replacement;
 }
 
 /// Pattern for testing `TileUsingSCFForOp` pattern (that tiles operations using
@@ -385,6 +368,9 @@ void TestTilingInterfacePass::addTestPatterns(MLIRContext *context,
     // 5. Tile and fuse a sequence of GEMMs by tiling and fusing only along M
     // dimension.
     addPatternForTileAndFuse(context, patterns, "gemm_sequence_fusion", {10});
+    // 6. Fusion of back-to-back-reduction ops
+    addPatternForTileAndFuse(context, patterns, "reduction_sequence_fusion",
+                             {10});
     return;
   }
   if (testLoweringToScalar) {

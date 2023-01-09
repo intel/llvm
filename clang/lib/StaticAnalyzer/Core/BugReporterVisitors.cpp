@@ -46,7 +46,6 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/SValBuilder.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SVals.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -206,8 +205,8 @@ static bool hasVisibleUpdate(const ExplodedNode *LeftNode, SVal LeftVal,
     RLCV->getStore() == RightNode->getState()->getStore();
 }
 
-static Optional<SVal> getSValForVar(const Expr *CondVarExpr,
-                                    const ExplodedNode *N) {
+static std::optional<SVal> getSValForVar(const Expr *CondVarExpr,
+                                         const ExplodedNode *N) {
   ProgramStateRef State = N->getState();
   const LocationContext *LCtx = N->getLocationContext();
 
@@ -227,16 +226,16 @@ static Optional<SVal> getSValForVar(const Expr *CondVarExpr,
       if (auto FieldL = State->getSVal(ME, LCtx).getAs<Loc>())
         return State->getRawSVal(*FieldL, FD->getType());
 
-  return None;
+  return std::nullopt;
 }
 
-static Optional<const llvm::APSInt *>
+static std::optional<const llvm::APSInt *>
 getConcreteIntegerValue(const Expr *CondVarExpr, const ExplodedNode *N) {
 
-  if (Optional<SVal> V = getSValForVar(CondVarExpr, N))
+  if (std::optional<SVal> V = getSValForVar(CondVarExpr, N))
     if (auto CI = V->getAs<nonloc::ConcreteInt>())
       return &CI->getValue();
-  return None;
+  return std::nullopt;
 }
 
 static bool isVarAnInterestingCondition(const Expr *CondVarExpr,
@@ -248,7 +247,7 @@ static bool isVarAnInterestingCondition(const Expr *CondVarExpr,
   if (!B->getErrorNode()->getStackFrame()->isParentOf(N->getStackFrame()))
     return false;
 
-  if (Optional<SVal> V = getSValForVar(CondVarExpr, N))
+  if (std::optional<SVal> V = getSValForVar(CondVarExpr, N))
     if (Optional<bugreporter::TrackingKind> K = B->getInterestingnessKind(*V))
       return *K == bugreporter::TrackingKind::Condition;
 
@@ -257,7 +256,7 @@ static bool isVarAnInterestingCondition(const Expr *CondVarExpr,
 
 static bool isInterestingExpr(const Expr *E, const ExplodedNode *N,
                               const PathSensitiveBugReport *B) {
-  if (Optional<SVal> V = getSValForVar(E, N))
+  if (std::optional<SVal> V = getSValForVar(E, N))
     return B->getInterestingnessKind(*V).has_value();
   return false;
 }
@@ -538,7 +537,7 @@ private:
   /// Dereferences fields up to a given recursion limit.
   /// Note that \p Vec is passed by value, leading to quadratic copying cost,
   /// but it's OK in practice since its length is limited to DEREFERENCE_LIMIT.
-  /// \return A chain fields leading to the region of interest or None.
+  /// \return A chain fields leading to the region of interest or std::nullopt.
   const Optional<RegionVector>
   findRegionOfInterestInRecord(const RecordDecl *RD, ProgramStateRef State,
                                const MemRegion *R, const RegionVector &Vec = {},
@@ -619,7 +618,7 @@ static bool potentiallyWritesIntoIvar(const Decl *Parent,
 /// Dereferences fields up to a given recursion limit.
 /// Note that \p Vec is passed by value, leading to quadratic copying cost,
 /// but it's OK in practice since its length is limited to DEREFERENCE_LIMIT.
-/// \return A chain fields leading to the region of interest or None.
+/// \return A chain fields leading to the region of interest or std::nullopt.
 const Optional<NoStoreFuncVisitor::RegionVector>
 NoStoreFuncVisitor::findRegionOfInterestInRecord(
     const RecordDecl *RD, ProgramStateRef State, const MemRegion *R,
@@ -627,11 +626,11 @@ NoStoreFuncVisitor::findRegionOfInterestInRecord(
     int depth /* = 0 */) {
 
   if (depth == DEREFERENCE_LIMIT) // Limit the recursion depth.
-    return None;
+    return std::nullopt;
 
   if (const auto *RDX = dyn_cast<CXXRecordDecl>(RD))
     if (!RDX->hasDefinition())
-      return None;
+      return std::nullopt;
 
   // Recursively examine the base classes.
   // Note that following base classes does not increase the recursion depth.
@@ -669,7 +668,7 @@ NoStoreFuncVisitor::findRegionOfInterestInRecord(
         return Out;
   }
 
-  return None;
+  return std::nullopt;
 }
 
 PathDiagnosticPieceRef
@@ -933,7 +932,7 @@ private:
     ProgramStateRef State = N->getState();
     auto *LCtx = N->getLocationContext();
     if (!S)
-      return None;
+      return std::nullopt;
 
     if (const auto *DS = dyn_cast<DeclStmt>(S)) {
       if (const auto *VD = dyn_cast<VarDecl>(DS->getSingleDecl()))
@@ -948,7 +947,7 @@ private:
         return RHS->getBeginLoc();
       }
     }
-    return None;
+    return std::nullopt;
   }
 };
 
@@ -3245,7 +3244,7 @@ bool ConditionBRVisitor::printValue(const Expr *CondVarExpr, raw_ostream &Out,
   if (!Ty->isIntegralOrEnumerationType())
     return false;
 
-  Optional<const llvm::APSInt *> IntValue;
+  std::optional<const llvm::APSInt *> IntValue;
   if (!IsAssuming)
     IntValue = getConcreteIntegerValue(CondVarExpr, N);
 

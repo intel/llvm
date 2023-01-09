@@ -27,7 +27,6 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/MapVector.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
@@ -389,9 +388,8 @@ public:
   /// Sets the method's parameters and selector source locations.
   /// If the method is implicit (not coming from source) \p SelLocs is
   /// ignored.
-  void setMethodParams(ASTContext &C,
-                       ArrayRef<ParmVarDecl*> Params,
-                       ArrayRef<SourceLocation> SelLocs = llvm::None);
+  void setMethodParams(ASTContext &C, ArrayRef<ParmVarDecl *> Params,
+                       ArrayRef<SourceLocation> SelLocs = std::nullopt);
 
   // Iterator access to parameter types.
   struct GetTypeFn {

@@ -125,7 +125,7 @@ enum ID {
 #include "LinkerWrapperOpts.inc"
 #undef PREFIX
 
-static const OptTable::Info InfoTable[] = {
+static constexpr OptTable::Info InfoTable[] = {
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
   {PREFIX, NAME,  HELPTEXT,    METAVAR,     OPT_##ID,  Option::KIND##Class,    \
@@ -843,7 +843,9 @@ Error linkBitcodeFiles(SmallVectorImpl<OffloadFile> &InputFiles,
   // Run the LTO job to compile the bitcode.
   size_t MaxTasks = LTOBackend->getMaxTasks();
   SmallVector<StringRef> Files(MaxTasks);
-  auto AddStream = [&](size_t Task) -> std::unique_ptr<CachedFileStream> {
+  auto AddStream =
+      [&](size_t Task,
+          const Twine &ModuleName) -> std::unique_ptr<CachedFileStream> {
     int FD = -1;
     auto &TempFile = Files[Task];
     StringRef Extension = (Triple.isNVPTX()) ? "s" : "o";
@@ -874,7 +876,7 @@ Error linkBitcodeFiles(SmallVectorImpl<OffloadFile> &InputFiles,
     if (BitcodeOutput.size() != 1 || !SingleOutput)
       return createStringError(inconvertibleErrorCode(),
                                "Cannot embed bitcode with multiple files.");
-    OutputFiles.push_back(static_cast<std::string>(BitcodeOutput.front()));
+    OutputFiles.push_back(Args.MakeArgString(BitcodeOutput.front()));
     return Error::success();
   }
 
@@ -1151,7 +1153,8 @@ linkAndWrapDeviceFiles(SmallVectorImpl<OffloadFile> &LinkerInputFiles,
 
     DenseSet<OffloadKind> ActiveOffloadKinds;
     for (const auto &File : Input)
-      ActiveOffloadKinds.insert(File.getBinary()->getOffloadKind());
+      if (File.getBinary()->getOffloadKind() != OFK_None)
+        ActiveOffloadKinds.insert(File.getBinary()->getOffloadKind());
 
     // First link and remove all the input files containing bitcode.
     SmallVector<StringRef> InputFiles;
@@ -1184,7 +1187,8 @@ linkAndWrapDeviceFiles(SmallVectorImpl<OffloadFile> &LinkerInputFiles,
         return createFileError(*OutputOrErr, EC);
 
       OffloadingImage TheImage{};
-      TheImage.TheImageKind = IMG_Object;
+      TheImage.TheImageKind =
+          Args.hasArg(OPT_embed_bitcode) ? IMG_Bitcode : IMG_Object;
       TheImage.TheOffloadKind = Kind;
       TheImage.StringData = {
           {"triple",
@@ -1234,7 +1238,7 @@ Optional<std::string> findFile(StringRef Dir, StringRef Root,
 
   if (sys::fs::exists(Path))
     return static_cast<std::string>(Path);
-  return None;
+  return std::nullopt;
 }
 
 Optional<std::string> findFromSearchPaths(StringRef Name, StringRef Root,
@@ -1242,7 +1246,7 @@ Optional<std::string> findFromSearchPaths(StringRef Name, StringRef Root,
   for (StringRef Dir : SearchPaths)
     if (Optional<std::string> File = findFile(Dir, Root, Name))
       return File;
-  return None;
+  return std::nullopt;
 }
 
 Optional<std::string> searchLibraryBaseName(StringRef Name, StringRef Root,
@@ -1253,7 +1257,7 @@ Optional<std::string> searchLibraryBaseName(StringRef Name, StringRef Root,
     if (Optional<std::string> File = findFile(Dir, Root, "lib" + Name + ".a"))
       return File;
   }
-  return None;
+  return std::nullopt;
 }
 
 /// Search for static libraries in the linker's library path given input like

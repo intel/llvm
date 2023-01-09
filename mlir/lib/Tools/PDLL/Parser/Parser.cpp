@@ -981,7 +981,8 @@ ast::Decl *Parser::createODSNativePDLLConstraintDecl(
   // Build the native constraint.
   auto *constraintDecl = ast::UserConstraintDecl::createNative(
       ctx, ast::Name::create(ctx, name, loc), paramVar,
-      /*results=*/llvm::None, codeBlock, ast::TupleType::get(ctx), nativeType);
+      /*results=*/std::nullopt, codeBlock, ast::TupleType::get(ctx),
+      nativeType);
   constraintDecl->setDocComment(ctx, docString);
   curDeclScope->add(constraintDecl);
   return constraintDecl;
@@ -1293,7 +1294,7 @@ FailureOr<T *> Parser::parseUserConstraintOrRewriteDecl(
     StringRef anonymousNamePrefix, bool isInline) {
   SMRange loc = curToken.getLoc();
   consumeToken();
-  llvm::SaveAndRestore<ParserContext> saveCtx(parserContext, declContext);
+  llvm::SaveAndRestore saveCtx(parserContext, declContext);
 
   // Parse the name of the decl.
   const ast::Name *name = nullptr;
@@ -1466,8 +1467,7 @@ FailureOr<ast::CompoundStmt *> Parser::parsePatternLambdaBody() {
 FailureOr<ast::Decl *> Parser::parsePatternDecl() {
   SMRange loc = curToken.getLoc();
   consumeToken(Token::kw_Pattern);
-  llvm::SaveAndRestore<ParserContext> saveCtx(parserContext,
-                                              ParserContext::PatternMatch);
+  llvm::SaveAndRestore saveCtx(parserContext, ParserContext::PatternMatch);
 
   // Check for an optional identifier for the pattern name.
   const ast::Name *name = nullptr;
@@ -1783,7 +1783,7 @@ Parser::parseConstraint(Optional<SMRange> &typeConstraint,
 
 FailureOr<ast::ConstraintRef> Parser::parseArgOrResultConstraint() {
   Optional<SMRange> typeConstraint;
-  return parseConstraint(typeConstraint, /*existingConstraints=*/llvm::None,
+  return parseConstraint(typeConstraint, /*existingConstraints=*/std::nullopt,
                          /*allowInlineTypeConstraints=*/false);
 }
 
@@ -2377,8 +2377,7 @@ FailureOr<ast::ReplaceStmt *> Parser::parseReplaceStmt() {
     return failure();
 
   // The replacement portion of this statement is within a rewrite context.
-  llvm::SaveAndRestore<ParserContext> saveCtx(parserContext,
-                                              ParserContext::Rewrite);
+  llvm::SaveAndRestore saveCtx(parserContext, ParserContext::Rewrite);
 
   // Parse the replacement values.
   SmallVector<ast::Expr *> replValues;
@@ -2445,8 +2444,7 @@ FailureOr<ast::RewriteStmt *> Parser::parseRewriteStmt() {
     return emitError("expected `{` to start rewrite body");
 
   // The rewrite body of this statement is within a rewrite context.
-  llvm::SaveAndRestore<ParserContext> saveCtx(parserContext,
-                                              ParserContext::Rewrite);
+  llvm::SaveAndRestore saveCtx(parserContext, ParserContext::Rewrite);
 
   FailureOr<ast::CompoundStmt *> rewriteBody = parseCompoundStmt();
   if (failed(rewriteBody))
@@ -2859,7 +2857,7 @@ Parser::validateOperationOperands(SMRange loc, Optional<StringRef> name,
                                   SmallVectorImpl<ast::Expr *> &operands) {
   return validateOperationOperandsOrResults(
       "operand", loc, odsOp ? odsOp->getLoc() : Optional<SMRange>(), name,
-      operands, odsOp ? odsOp->getOperands() : llvm::None, valueTy,
+      operands, odsOp ? odsOp->getOperands() : std::nullopt, valueTy,
       valueRangeTy);
 }
 
@@ -2869,7 +2867,7 @@ Parser::validateOperationResults(SMRange loc, Optional<StringRef> name,
                                  SmallVectorImpl<ast::Expr *> &results) {
   return validateOperationOperandsOrResults(
       "result", loc, odsOp ? odsOp->getLoc() : Optional<SMRange>(), name,
-      results, odsOp ? odsOp->getResults() : llvm::None, typeTy, typeRangeTy);
+      results, odsOp ? odsOp->getResults() : std::nullopt, typeTy, typeRangeTy);
 }
 
 void Parser::checkOperationResultTypeInferrence(SMRange loc, StringRef opName,
@@ -2968,8 +2966,8 @@ LogicalResult Parser::validateOperationOperandsOrResults(
       // Otherwise, create dummy values for each of the entries so that we
       // adhere to the ODS signature.
       for (unsigned i = 0, e = odsValues.size(); i < e; ++i) {
-        values.push_back(
-            ast::RangeExpr::create(ctx, loc, /*elements=*/llvm::None, rangeTy));
+        values.push_back(ast::RangeExpr::create(
+            ctx, loc, /*elements=*/std::nullopt, rangeTy));
       }
       return success();
     }

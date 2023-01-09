@@ -162,7 +162,9 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
   thread_local static std::map<pi_context, T> FuncPtrs;
 
   // if cached, return cached FuncPtr
-  if (auto F = FuncPtrs[context]) {
+  auto It = FuncPtrs.find(context);
+  if (It != FuncPtrs.end()) {
+    auto F = It->second;
     // if cached that extension is not available return nullptr and
     // PI_ERROR_INVALID_VALUE
     *fptr = F;
@@ -295,8 +297,12 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     std::memcpy(paramValue, &result, sizeof(cl_bool));
     return PI_SUCCESS;
   }
-  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16:
-    return PI_ERROR_INVALID_VALUE;
+  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS: {
+    // bfloat16 math functions are not yet supported on Intel GPUs.
+    cl_bool result = false;
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    return PI_SUCCESS;
+  }
   case PI_DEVICE_INFO_IMAGE_SRGB: {
     cl_bool result = true;
     std::memcpy(paramValue, &result, sizeof(cl_bool));
@@ -330,6 +336,11 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
         out[2] = Max;
       return PI_SUCCESS;
     }
+  case PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
+    pi_int32 result = 1;
+    std::memcpy(paramValue, &result, sizeof(pi_int32));
+    return PI_SUCCESS;
+  }
 
   default:
     cl_int result = clGetDeviceInfo(
@@ -457,6 +468,20 @@ pi_result piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
   return PI_SUCCESS;
 }
 
+pi_result piextQueueCreate(pi_context Context, pi_device Device,
+                           pi_queue_properties *Properties, pi_queue *Queue) {
+  assert(Properties);
+  // Expect flags mask to be passed first.
+  assert(Properties[0] == PI_QUEUE_FLAGS);
+  if (Properties[0] != PI_QUEUE_FLAGS)
+    return PI_ERROR_INVALID_VALUE;
+  pi_queue_properties Flags = Properties[1];
+  // Extra data isn't supported yet.
+  assert(Properties[2] == 0);
+  if (Properties[2] != 0)
+    return PI_ERROR_INVALID_VALUE;
+  return piQueueCreate(Context, Device, Flags, Queue);
+}
 pi_result piQueueCreate(pi_context context, pi_device device,
                         pi_queue_properties properties, pi_queue *queue) {
   assert(queue && "piQueueCreate failed, queue argument is null");
@@ -470,9 +495,10 @@ pi_result piQueueCreate(pi_context context, pi_device device,
 
   // Check that unexpected bits are not set.
   assert(!(properties &
-           ~(PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE |
-             PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_ON_DEVICE |
-             PI_QUEUE_ON_DEVICE_DEFAULT | PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS)));
+           ~(PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
+             PI_QUEUE_FLAG_PROFILING_ENABLE | PI_QUEUE_FLAG_ON_DEVICE |
+             PI_QUEUE_FLAG_ON_DEVICE_DEFAULT |
+             PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS)));
 
   // Properties supported by OpenCL backend.
   cl_command_queue_properties SupportByOpenCL =
@@ -499,6 +525,28 @@ pi_result piQueueCreate(pi_context context, pi_device device,
       cast<cl_context>(context), cast<cl_device_id>(device),
       CreationFlagProperties, &ret_err));
   return cast<pi_result>(ret_err);
+}
+
+pi_result piQueueGetInfo(pi_queue queue, pi_queue_info param_name,
+                         size_t param_value_size, void *param_value,
+                         size_t *param_value_size_ret) {
+  if (queue == nullptr) {
+    return PI_ERROR_INVALID_QUEUE;
+  }
+
+  switch (param_name) {
+  case PI_EXT_ONEAPI_QUEUE_INFO_EMPTY:
+    // OpenCL doesn't provide API to check the status of the queue.
+    return PI_ERROR_INVALID_VALUE;
+  default:
+    cl_int CLErr = clGetCommandQueueInfo(
+        cast<cl_command_queue>(queue), cast<cl_command_queue_info>(param_name),
+        param_value_size, param_value, param_value_size_ret);
+    if (CLErr != CL_SUCCESS) {
+      return cast<pi_result>(CLErr);
+    }
+  }
+  return PI_SUCCESS;
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
@@ -725,7 +773,7 @@ pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
     return cast<pi_result>(Res);
 
   std::string ClResult(Size, ' ');
-  ret_err =
+  Res =
       clGetProgramInfo(cast<cl_program>(program), PI_PROGRAM_INFO_KERNEL_NAMES,
                        ClResult.size(), &ClResult[0], nullptr);
   if (Res != CL_SUCCESS)
@@ -783,6 +831,26 @@ pi_result piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
   assert(ownNativeHandle == false);
   *piContext = reinterpret_cast<pi_context>(nativeHandle);
   return PI_SUCCESS;
+}
+
+pi_result piContextGetInfo(pi_context context, pi_context_info paramName,
+                           size_t paramValueSize, void *paramValue,
+                           size_t *paramValueSizeRet) {
+  switch (paramName) {
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
+  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT: {
+    // 2D USM memops are not supported.
+    cl_bool result = false;
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    return PI_SUCCESS;
+  }
+  default:
+    cl_int result = clGetContextInfo(
+        cast<cl_context>(context), cast<cl_context_info>(paramName),
+        paramValueSize, paramValue, paramValueSizeRet);
+    return static_cast<pi_result>(result);
+  }
 }
 
 pi_result piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
@@ -1365,6 +1433,98 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
   */
 }
 
+/// USM 2D Fill API
+///
+/// \param queue is the queue to submit to
+/// \param ptr is the ptr to fill
+/// \param pattern is a pointer with the bytes of the pattern to set
+/// \param pattern_size is the size in bytes of the pattern
+/// \param pitch is the total width of the destination memory including padding
+/// \param width is width in bytes of each row to fill
+/// \param height is height the columns to fill
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+__SYCL_EXPORT pi_result piextUSMEnqueueFill2D(pi_queue queue, void *ptr,
+                                              size_t pitch, size_t pattern_size,
+                                              const void *pattern, size_t width,
+                                              size_t height,
+                                              pi_uint32 num_events_in_waitlist,
+                                              const pi_event *events_waitlist,
+                                              pi_event *event) {
+  std::ignore = queue;
+  std::ignore = ptr;
+  std::ignore = pitch;
+  std::ignore = pattern_size;
+  std::ignore = pattern;
+  std::ignore = width;
+  std::ignore = height;
+  std::ignore = num_events_in_waitlist;
+  std::ignore = events_waitlist;
+  std::ignore = event;
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+/// USM 2D Memset API
+///
+/// \param queue is the queue to submit to
+/// \param ptr is the ptr to memset
+/// \param value contains the byte to set with
+/// \param pitch is the total width of the destination memory including padding
+/// \param width is width in bytes of each row to memset
+/// \param height is height the columns to memset
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+__SYCL_EXPORT pi_result piextUSMEnqueueMemset2D(
+    pi_queue queue, void *ptr, size_t pitch, int value, size_t width,
+    size_t height, pi_uint32 num_events_in_waitlist,
+    const pi_event *events_waitlist, pi_event *event) {
+  std::ignore = queue;
+  std::ignore = ptr;
+  std::ignore = pitch;
+  std::ignore = value;
+  std::ignore = width;
+  std::ignore = height;
+  std::ignore = num_events_in_waitlist;
+  std::ignore = events_waitlist;
+  std::ignore = event;
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+/// USM 2D Memcpy API
+///
+/// \param queue is the queue to submit to
+/// \param blocking is whether this operation should block the host
+/// \param dst_ptr is the location the data will be copied
+/// \param dst_pitch is the total width of the destination memory including
+/// padding
+/// \param src_ptr is the data to be copied
+/// \param dst_pitch is the total width of the source memory including padding
+/// \param width is width in bytes of each row to be copied
+/// \param height is height the columns to be copied
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+__SYCL_EXPORT pi_result piextUSMEnqueueMemcpy2D(
+    pi_queue queue, pi_bool blocking, void *dst_ptr, size_t dst_pitch,
+    const void *src_ptr, size_t src_pitch, size_t width, size_t height,
+    pi_uint32 num_events_in_waitlist, const pi_event *events_waitlist,
+    pi_event *event) {
+  std::ignore = queue;
+  std::ignore = blocking;
+  std::ignore = dst_ptr;
+  std::ignore = dst_pitch;
+  std::ignore = src_ptr;
+  std::ignore = src_pitch;
+  std::ignore = width;
+  std::ignore = height;
+  std::ignore = num_events_in_waitlist;
+  std::ignore = events_waitlist;
+  std::ignore = event;
+  return PI_ERROR_INVALID_OPERATION;
+}
+
 /// API to query information about USM allocated pointers
 /// Valid Queries:
 ///   PI_MEM_ALLOC_TYPE returns host/device/shared pi_host_usm value
@@ -1538,14 +1698,15 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextDeviceCreateWithNativeHandle, piextDeviceCreateWithNativeHandle)
   // Context
   _PI_CL(piContextCreate, piContextCreate)
-  _PI_CL(piContextGetInfo, clGetContextInfo)
+  _PI_CL(piContextGetInfo, piContextGetInfo)
   _PI_CL(piContextRetain, clRetainContext)
   _PI_CL(piContextRelease, clReleaseContext)
   _PI_CL(piextContextGetNativeHandle, piextContextGetNativeHandle)
   _PI_CL(piextContextCreateWithNativeHandle, piextContextCreateWithNativeHandle)
   // Queue
   _PI_CL(piQueueCreate, piQueueCreate)
-  _PI_CL(piQueueGetInfo, clGetCommandQueueInfo)
+  _PI_CL(piextQueueCreate, piextQueueCreate)
+  _PI_CL(piQueueGetInfo, piQueueGetInfo)
   _PI_CL(piQueueFinish, clFinish)
   _PI_CL(piQueueFlush, clFlush)
   _PI_CL(piQueueRetain, clRetainCommandQueue)
@@ -1632,6 +1793,9 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueueMemcpy, piextUSMEnqueueMemcpy)
   _PI_CL(piextUSMEnqueuePrefetch, piextUSMEnqueuePrefetch)
   _PI_CL(piextUSMEnqueueMemAdvise, piextUSMEnqueueMemAdvise)
+  _PI_CL(piextUSMEnqueueFill2D, piextUSMEnqueueFill2D)
+  _PI_CL(piextUSMEnqueueMemset2D, piextUSMEnqueueMemset2D)
+  _PI_CL(piextUSMEnqueueMemcpy2D, piextUSMEnqueueMemcpy2D)
   _PI_CL(piextUSMGetMemAllocInfo, piextUSMGetMemAllocInfo)
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)

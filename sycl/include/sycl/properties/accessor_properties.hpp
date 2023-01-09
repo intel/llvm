@@ -25,13 +25,12 @@ class __SYCL2020_DEPRECATED("spelling is now: no_init") noinit
 
 } // namespace property
 
-__SYCL_INLINE_CONSTEXPR property::no_init no_init;
+inline constexpr property::no_init no_init;
 
 __SYCL2020_DEPRECATED("spelling is now: no_init")
-__SYCL_INLINE_CONSTEXPR property::noinit noinit;
+inline constexpr property::noinit noinit;
 
-namespace ext {
-namespace intel {
+namespace ext::intel {
 namespace property {
 struct __SYCL_TYPE(buffer_location) buffer_location {
   template <int A = 0> struct instance {
@@ -50,11 +49,9 @@ struct __SYCL_TYPE(buffer_location) buffer_location {
 
 template <int A>
 inline constexpr property::buffer_location::instance<A> buffer_location{};
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel
 
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 namespace property {
 struct no_offset {
   template <bool B = true> struct instance {
@@ -90,8 +87,7 @@ struct is_compile_time_property<ext::oneapi::property::no_alias>
 template <>
 struct is_compile_time_property<sycl::ext::intel::property::buffer_location>
     : std::true_type {};
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 // Forward declaration
 template <typename DataT, int Dimensions, access::mode AccessMode,
@@ -101,8 +97,7 @@ class accessor;
 template <typename DataT, int Dimensions, access::mode AccessMode>
 class host_accessor;
 
-namespace detail {
-namespace acc_properties {
+namespace detail::acc_properties {
 template <typename T> struct is_accessor : std::false_type {};
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder,
@@ -114,8 +109,7 @@ template <typename T> struct is_host_accessor : std::false_type {};
 template <typename DataT, int Dimensions, access::mode AccessMode>
 struct is_host_accessor<host_accessor<DataT, Dimensions, AccessMode>>
     : std::true_type {};
-} // namespace acc_properties
-} // namespace detail
+} // namespace detail::acc_properties
 
 // Accessor property trait specializations
 template <>

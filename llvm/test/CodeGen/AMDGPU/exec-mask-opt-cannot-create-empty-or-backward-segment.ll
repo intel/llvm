@@ -76,12 +76,10 @@ define amdgpu_kernel void @cannot_create_empty_or_backwards_segment(i1 %arg, i1 
 ; CHECK-NEXT:  ; %bb.10: ; %bb16
 ; CHECK-NEXT:    ; in Loop: Header=BB0_3 Depth=1
 ; CHECK-NEXT:    s_mov_b64 s[16:17], 0
-; CHECK-NEXT:    s_mov_b64 s[20:21], -1
 ; CHECK-NEXT:    s_mov_b64 s[22:23], s[10:11]
 ; CHECK-NEXT:    s_mov_b64 s[18:19], s[16:17]
 ; CHECK-NEXT:    s_branch .LBB0_2
 ; CHECK-NEXT:  .LBB0_11: ; in Loop: Header=BB0_3 Depth=1
-; CHECK-NEXT:    s_mov_b64 s[22:23], -1
 ; CHECK-NEXT:    s_mov_b64 s[20:21], 0
 ; CHECK-NEXT:    ; implicit-def: $sgpr16_sgpr17
 ; CHECK-NEXT:    s_mov_b64 s[18:19], s[16:17]
@@ -112,16 +110,17 @@ define amdgpu_kernel void @cannot_create_empty_or_backwards_segment(i1 %arg, i1 
 ; CHECK-NEXT:    s_cbranch_vccnz .LBB0_22
 ; CHECK-NEXT:  ; %bb.18: ; %loop.exit.guard5
 ; CHECK-NEXT:    s_and_b64 vcc, exec, s[18:19]
-; CHECK-NEXT:    s_cbranch_vccnz .LBB0_22
+; CHECK-NEXT:    s_cbranch_vccnz .LBB0_23
 ; CHECK-NEXT:  ; %bb.19: ; %bb17
 ; CHECK-NEXT:    s_and_b64 vcc, exec, s[6:7]
 ; CHECK-NEXT:    s_cbranch_vccz .LBB0_21
 ; CHECK-NEXT:  ; %bb.20: ; %bb19
 ; CHECK-NEXT:    v_cmp_ne_u32_e32 vcc, 1, v0
 ; CHECK-NEXT:    s_cbranch_vccz .LBB0_22
-; CHECK-NEXT:  .LBB0_21: ; %bb21
+; CHECK-NEXT:  .LBB0_21: ; %bb18
 ; CHECK-NEXT:    s_endpgm
-; CHECK-NEXT:  .LBB0_22: ; %UnifiedUnreachableBlock
+; CHECK-NEXT:  .LBB0_22: ; %bb20
+; CHECK-NEXT:  .LBB0_23: ; %bb12
 bb:
   br label %bb6
 

@@ -101,10 +101,10 @@ f15() {} // OK
 [[intel::max_work_group_size(1, 2, 3)]] [[sycl::reqd_work_group_size(1, 2, 3)]] void f17(){}; // OK
 
 [[sycl::reqd_work_group_size(16)]]            // expected-note {{conflicting attribute is here}}
-[[intel::max_work_group_size(1, 1, 16)]] void // expected-error {{'max_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
+[[intel::max_work_group_size(16, 1, 1)]] void // expected-error {{'max_work_group_size' attribute conflicts with 'reqd_work_group_size' attribute}}
 f18();
 
-[[intel::max_work_group_size(16, 16, 1)]] void f19();
+[[intel::max_work_group_size(1, 16, 16)]] void f19();
 [[sycl::reqd_work_group_size(16, 16)]] void f19(); // OK
 
 // Test that checks wrong function template instantiation and ensures that the type
