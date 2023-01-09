@@ -611,7 +611,6 @@ static int finalize(mlir::MLIRContext &Ctx,
       PM3.addPass(mlir::sycl::createSYCLMethodToSYCLCallPass());
       LowerToLLVMOptions Options(&Ctx);
       Options.dataLayout = DL;
-      // invalid for gemm.c init array
       Options.useBarePtrCallConv = true;
       PM3.addPass(polygeist::createConvertPolygeistToLLVMPass(Options));
       // PM3.addPass(mlir::createLowerFuncToLLVMPass(options));
