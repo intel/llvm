@@ -1,4 +1,4 @@
-# Additional Intel-only specifics about matrix extension for DPC++
+# Intel-specific matrix features
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -153,11 +153,11 @@ The table below provides a list of the combinations that `joint_matrix` implemen
 
 
 ## WI data to joint matrix mapping coordinates information for piece-wise operations
-The indexing provided inside the `wi_data` class accesses only the portion of the matrix held by the current WI. It is not possible to know the location of this portion in the joint matrix.  This coordinates mapping  is implementation defined and changes from one backend to the other. For general piece-wise operations like sum of rows of a matrix, the WI data to joint matrix mapping information is needed to reason about the matrix view.
-Within the joint matrix extension, we want to write, as much as possible, one code to run on different backends. If backend X states that a WI owns one exact row of the matrix for instance, writing the following code will work only on that backend for that version of hardware. If a different implementation is used, the same WI may own only half of the row if, for example, the SG size increased.
-The following code locally calculates sum of rows of matrix `joint_matrix<sub_group, int8_t, use::a, 8, 8, layout::row_major> tA;`. In this example, we assume each WI owns 1 columns of `tA` and the sub-group size is 8. `data.length` returns 8 elements per WI.
+The indexing provided inside the `wi_data` class accesses only the portion of the matrix held by the current WI. It is not possible to know the location of this portion in the joint matrix because the coordinates mapping  is implementation defined and changes from one backend to the other. For general piece-wise operations like sum of rows of a matrix, the WI data to joint matrix mapping information is needed to reason about the matrix view.
+The joint matrix extension aims to enable writing, as much as possible, one code to run on different backends. If backend X states that a WI owns one exact column of the matrix for instance, writing the following code will work only on that backend for that version of hardware. If a different implementation is used, the same WI may own only half of the row if, for example, the SG size increased.
+The following code locally calculates sum of rows of matrix `joint_matrix<sub_group, int8_t, use::a, 8, 16, layout::row_major> tA;`. In this example, we assume each WI owns 2 successive columns of `tA` and the sub-group size is 8. `data.length` returns 16 elements per WI.
 
-[frame="none",options="header"]
+[frame="none"]
 |======================
 | a00 | a01 | a02 |a03 | a04 | a05|a06|a07|a08|a09|a010|a011|a012|a013|a014|a015
 | a10 | a11 | a12 |a13 | a14 | a15|a16|a17|a18|a19|a110|a111|a112|a113|a114|a115
@@ -170,16 +170,43 @@ The following code locally calculates sum of rows of matrix `joint_matrix<sub_gr
 |======================
 
 
+
+WI0 elements returned in `data`  are the first 2 columns as follows:
+
+[frame="none"]
+|======================
+| a00 | a01 | a10 |a11 | a20 | a21|a30|a31|a40|a41|a50|a51|a60|a61|a70|a71
+
+
 ```c++
 auto data = get_wi_data(sg, tA);
 // each WI calculates local sum of rows
 for (int row = 0; row < 8; row++) { 
-  for (int i = 0; i < data.length()/8; ++i) {//WI owns 1 element per row
-    sum_of_local_rows[row] += data[i+row];
+  for (int i = 0; i < data.length()/8; ++i) {//WI owns 2 element per row
+    sum_of_local_rows[row] += data[i+row*2];
   }
 }  
 ```
-The code above assumes knowledge of the distribution of the joint matrix across the different work-items. This is different when a different distribution happens. In order to be agnostic to this distribution, instead of hard-coding this mapping, we use general backend and target-agnostic functionality. To this end, a new method is added to 'wi_element' to query this mapping.
+The code above assumes knowledge of the distribution of the joint matrix across the different work-items. This is different when a different distribution happens.
+
+For instance, if we assume a round-robin distribution of the joint matrix elements among the work-items, WI0 elements returned in `data`  are the first and 8th columns as follows:
+
+[frame="none"]
+|======================
+| a00 | a10 | a20 |a30 | a40 | a50|a60|a70|a08|a18|a28|a38|a48|a58|a68|a78
+
+The code becomes:
+```c++
+auto data = get_wi_data(sg, tA);
+// each WI calculates local sum of rows
+for (int row = 0; row < 8; row++) { 
+  for (int i = 0; i < data.length()/8; ++i) {//WI owns 2 element per row
+    sum_of_local_rows[row] += data[i*8+row];
+  }
+}  
+```
+
+In order to be agnostic to this distribution, instead of hard-coding this mapping, we use general backend and target-agnostic functionality. To this end, a new method is added to 'wi_element' to query this mapping.
 
 ```c++
 namespace sycl::ext::intel::experimental::matrix {
