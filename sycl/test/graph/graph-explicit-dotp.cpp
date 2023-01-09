@@ -81,7 +81,7 @@ int main() {
   auto executable_graph = g.finalize(q.get_context());
 
   // Using shortcut for executing a graph of commands
-  q.exec_graph(executable_graph).wait();
+  q.ext_oneapi_graph(executable_graph).wait();
 
   if (*dotp != host_gold_result()) {
     std::cout << "Error unexpected result!\n";

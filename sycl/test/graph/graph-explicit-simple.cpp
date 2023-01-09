@@ -30,7 +30,7 @@ int main() {
 
   auto result_before_exec2 = arr[0];
 
-  q.submit([&](sycl::handler &h) { h.exec_graph(executable_graph); });
+  q.submit([&](sycl::handler &h) { h.ext_oneapi_graph(executable_graph); });
 
   auto result = arr[0];
 

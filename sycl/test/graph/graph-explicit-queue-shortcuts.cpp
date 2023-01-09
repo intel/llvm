@@ -26,10 +26,10 @@ int main() {
 
   auto executable_graph = g.finalize(q.get_context());
 
-  auto e1 = q.exec_graph(executable_graph);
-  auto e2 = q.exec_graph(executable_graph, e1);
-  auto e3 = q.exec_graph(executable_graph, e1);
-  q.exec_graph(executable_graph, {e2, e3}).wait();
+  auto e1 = q.ext_oneapi_graph(executable_graph);
+  auto e2 = q.ext_oneapi_graph(executable_graph, e1);
+  auto e3 = q.ext_oneapi_graph(executable_graph, e1);
+  q.ext_oneapi_graph(executable_graph, {e2, e3}).wait();
 
   sycl::free(arr, q);
 
