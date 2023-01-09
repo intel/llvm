@@ -5694,6 +5694,16 @@ class OffloadingActionBuilder final {
             return TypedPostLinkAction;
           };
           Action *PostLinkAction = createPostLinkAction();
+          if (isNVPTX && Args.hasArg(options::OPT_fsycl_embed_ir)) {
+            // When compiling for Nvidia/CUDA devices and the user requested the
+            // IR to be embedded in the application (via option), run the output
+            // of sycl-post-link (filetable referencing LLVM Bitcode + symbols)
+            // through the offload wrapper and link the resulting object to the
+            // application.
+            auto *WrapBitcodeAction = C.MakeAction<OffloadWrapperJobAction>(
+                PostLinkAction, types::TY_Object, true);
+            DA.add(*WrapBitcodeAction, *TC, BoundArch, Action::OFK_SYCL);
+          }
           bool NoRDCFatStaticArchive =
               !IsRDC &&
               FullDeviceLinkAction->getType() == types::TY_Tempfilelist;
