@@ -57,7 +57,7 @@ This extension is supported by all backends. However, as described in the follow
 
 == Overview
 
-When used with the `ext_oneapi_cuda` backend only, this extension exposes the https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-ld-global-nc[ld-global-nc] ptx instruction so that users can load a register variable to the non-coherent read-only texture cache. The texture cache is designed for random access reads and is most performant when work-items within a sub-group read a set of addresses of texture memory that are close to one another in the cache. This extension introduces a free function, `$$__$$ldg`, that is available for all backends and devices; however this function will only make use of a special hardware feature (The texture cache) when called from the `ext_oneapi_cuda` backend. The only reason that `$$__$$ldg` is supported on backends other than `ext_oneapi_cuda` is to allow for code portability.
+When used with the `ext_oneapi_cuda` backend only, this extension exposes the https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-ld-global-nc[ld-global-nc] ptx instruction so that users can load a register variable to the non-coherent read-only texture cache. The texture cache is designed for random access reads and is most performant when work-items within a sub-group read a set of addresses of texture memory that are close to one another in the cache. This extension introduces a free function, `ldg`, that is available for all backends and devices; however this function will only make use of a special hardware feature (The texture cache) when called from the `ext_oneapi_cuda` backend. The only reason that `ldg` is supported on backends other than `ext_oneapi_cuda` is to allow for code portability.
 
 == Specification
 
@@ -81,7 +81,7 @@ supports.
  feature-test macro always has this value.
 |===
 
-=== `__ldg` free function
+=== `ldg` free function
 
 This extension adds a single templated free function which may be called from device
 code. This function is not available in host code.
@@ -90,12 +90,12 @@ code. This function is not available in host code.
 namespace sycl::ext::oneapi::experimental::cuda {
 
 template<typename T>
-T __ldg(const T* ptr);
+T ldg(const T* ptr);
 
 } // namespace sycl::ext::oneapi::experimental::cuda
 ```
 
-`$$__$$ldg` returns the data of type `T` located at address `ptr`. When called from the `ext_oneapi_cuda` backend the data is cached in the read-only texture cache.
+`ldg` returns the data of type `T` located at address `ptr`. When called from the `ext_oneapi_cuda` backend the data is cached in the read-only texture cache.
 When called from any other backend a copy of the data stored at address `ptr` is returned without using any special cache.
 
 The template parameter `T` can be one of `float`, `vec<float, 2>`, `vec<float, 4>`, `double`, or `vec<double, 2>`.
@@ -105,13 +105,13 @@ The template parameter `T` can be one of `float`, `vec<float, 2>`, `vec<float, 4
 ```
     h.parallel_for<class kernel_name>(range, [=](sycl::nd_item<1> item) {
       const int idx = item.get_global_id(0);
-      auto cachedA = sycl::ext::oneapi::experimental::cuda::__ldg(&A[idx]);
-      auto cachedB = sycl::ext::oneapi::experimental::cuda::__ldg(&B[idx]);
+      auto cachedA = sycl::ext::oneapi::experimental::cuda::ldg(&A[idx]);
+      auto cachedB = sycl::ext::oneapi::experimental::cuda::ldg(&B[idx]);
       C[idx] = cachedA + cachedB;
     });
 ```
 
-IMPORTANT: Data returned from `$$__$$ldg`, e.g. `cacheA` and `cacheB` in the above example, should not be written to at any point within the kernel. If such data is written to at any point in the kernel, the code will compile and execute correctly, however the texture cache will not be used. Sometimes the compiler may not be sure that the read-only condition is satisfied. In such cases users can mark the declaration of the pointer used as the argument to `$$__$$ldg` with both the `const` and `$$__$$restrict$$__$$` qualifiers, which may aid the compiler in detecting the read-only condition.
+IMPORTANT: Data returned from `ldg`, e.g. `cacheA` and `cacheB` in the above example, should not be written to at any point within the kernel. If such data is written to at any point in the kernel, the code will compile and execute correctly, however the texture cache will not be used. Sometimes the compiler may not be sure that the read-only condition is satisfied. In such cases users can mark the declaration of the pointer used as the argument to `ldg` with both the `const` and `$$__$$restrict$$__$$` qualifiers, which may aid the compiler in detecting the read-only condition.
 
 === Issues
 
