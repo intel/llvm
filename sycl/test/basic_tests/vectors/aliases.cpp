@@ -10,6 +10,9 @@
       std::is_same_v<sycl::type##elems, sycl::vec<storage_type, elems>>);
 
 #define CHECK_ALIASES_FOR_VEC_LENGTH(N)                                        \
+  CHECK_ALIAS(schar, std::int8_t, N)                                           \
+  CHECK_ALIAS(longlong, std::int64_t, N)                                       \
+  CHECK_ALIAS(ulonglong, std::uint64_t, N)                                     \
   CHECK_ALIAS(char, std::int8_t, N)                                            \
   CHECK_ALIAS(uchar, std::uint8_t, N)                                          \
   CHECK_ALIAS(short, std::int16_t, N)                                          \
