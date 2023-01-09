@@ -239,6 +239,7 @@ static void populateOpPatterns(LLVMTypeConverter &converter,
 void mlir::populateGpuToNVVMConversionPatterns(LLVMTypeConverter &converter,
                                                RewritePatternSet &patterns) {
   populateWithGenerated(patterns);
+  patterns.add<GPUPrintfOpToVPrintfLowering>(converter);
   patterns
       .add<GPUIndexIntrinsicOpLowering<gpu::ThreadIdOp, NVVM::ThreadIdXOp,
                                        NVVM::ThreadIdYOp, NVVM::ThreadIdZOp>,
@@ -265,6 +266,8 @@ void mlir::populateGpuToNVVMConversionPatterns(LLVMTypeConverter &converter,
                                    "__nv_atan");
   populateOpPatterns<math::Atan2Op>(converter, patterns, "__nv_atan2f",
                                     "__nv_atan2");
+  populateOpPatterns<math::CbrtOp>(converter, patterns, "__nv_cbrtf",
+                                   "__nv_cbrt");
   populateOpPatterns<math::CeilOp>(converter, patterns, "__nv_ceilf",
                                    "__nv_ceil");
   populateOpPatterns<math::CosOp>(converter, patterns, "__nv_cosf", "__nv_cos");

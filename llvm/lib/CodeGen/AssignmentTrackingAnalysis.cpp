@@ -278,6 +278,7 @@ static DebugAggregate getAggregate(const DebugVariable &Var) {
   return DebugAggregate(Var.getVariable(), Var.getInlinedAt());
 }
 
+namespace {
 /// In dwarf emission, the following sequence
 ///    1. dbg.value ... Fragment(0, 64)
 ///    2. dbg.value ... Fragment(0, 32)
@@ -1121,6 +1122,7 @@ public:
   /// true if any variable locations have been added to FnVarLocs.
   bool run(FunctionVarLocsBuilder *FnVarLocs);
 };
+} // namespace
 
 void AssignmentTrackingLowering::setLocKind(BlockInfo *LiveSet, VariableID Var,
                                             LocKind K) {
@@ -1215,6 +1217,7 @@ bool AssignmentTrackingLowering::hasVarWithAssignment(VariableID Var,
   return true;
 }
 
+#ifndef NDEBUG
 const char *locStr(AssignmentTrackingLowering::LocKind Loc) {
   using LocKind = AssignmentTrackingLowering::LocKind;
   switch (Loc) {
@@ -1227,6 +1230,7 @@ const char *locStr(AssignmentTrackingLowering::LocKind Loc) {
   };
   llvm_unreachable("unknown LocKind");
 }
+#endif
 
 void AssignmentTrackingLowering::emitDbgValue(
     AssignmentTrackingLowering::LocKind Kind,

@@ -3876,7 +3876,7 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
     if (EltSize > (2 * SrcEltSize)) {
       if (IsInt2FP) {
         // Do a regular integer sign/zero extension then convert to float.
-        MVT IVecVT = MVT::getVectorVT(MVT::getIntegerVT(EltSize),
+        MVT IVecVT = MVT::getVectorVT(MVT::getIntegerVT(EltSize / 2),
                                       VT.getVectorElementCount());
         unsigned ExtOpcode = Op.getOpcode() == ISD::UINT_TO_FP
                                  ? ISD::ZERO_EXTEND
@@ -8509,6 +8509,7 @@ static SDValue performTRUNCATECombine(SDNode *N, SelectionDAG &DAG,
   return SDValue();
 }
 
+namespace {
 // Helper class contains information about comparison operation.
 // The first two operands of this operation are compared values and the
 // last one is the operation.
@@ -8602,6 +8603,7 @@ public:
   // Returns consition code of comparison operation.
   ISD::CondCode getCondCode() const { return CCode; }
 };
+} // namespace
 
 // Verifies conditions to apply an optimization.
 // Returns Reference comparison code and three operands A, B, C.

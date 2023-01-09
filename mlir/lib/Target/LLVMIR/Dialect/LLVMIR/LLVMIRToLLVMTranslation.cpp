@@ -18,6 +18,7 @@
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Instructions.h"
@@ -69,8 +70,8 @@ static LogicalResult convertIntrinsicImpl(OpBuilder &odsBuilder,
 /// dialect attributes.
 static ArrayRef<unsigned> getSupportedMetadataImpl() {
   static const SmallVector<unsigned> convertibleMetadata = {
-      llvm::LLVMContext::MD_prof // profiling metadata
-  };
+      llvm::LLVMContext::MD_prof, // profiling metadata
+      llvm::LLVMContext::MD_tbaa};
   return convertibleMetadata;
 }
 
@@ -116,15 +117,27 @@ static LogicalResult setProfilingAttrs(OpBuilder &builder, llvm::MDNode *node,
   }
 
   // Attach the branch weights to the operations that support it.
-  if (auto condBrOp = dyn_cast<CondBrOp>(op)) {
-    condBrOp.setBranchWeightsAttr(builder.getI32VectorAttr(branchWeights));
-    return success();
-  }
-  if (auto switchOp = dyn_cast<SwitchOp>(op)) {
-    switchOp.setBranchWeightsAttr(builder.getI32VectorAttr(branchWeights));
-    return success();
-  }
-  return failure();
+  return llvm::TypeSwitch<Operation *, LogicalResult>(op)
+      .Case<CondBrOp, SwitchOp, CallOp, InvokeOp>([&](auto branchWeightOp) {
+        branchWeightOp.setBranchWeightsAttr(
+            builder.getI32VectorAttr(branchWeights));
+        return success();
+      })
+      .Default([](auto) { return failure(); });
+}
+
+/// Attaches the given TBAA metadata `node` to the imported operation.
+/// Returns success, if the metadata has been converted and the attachment
+/// succeeds, failure - otherwise.
+static LogicalResult setTBAAAttrs(const llvm::MDNode *node, Operation *op,
+                                  LLVM::ModuleImport &moduleImport) {
+  SymbolRefAttr tbaaTagSym = moduleImport.lookupTBAAAttr(node);
+  if (!tbaaTagSym)
+    return failure();
+
+  op->setAttr(LLVMDialect::getTBAAAttrName(),
+              ArrayAttr::get(op->getContext(), tbaaTagSym));
+  return success();
 }
 
 namespace {
@@ -151,6 +164,8 @@ public:
     // Call metadata specific handlers.
     if (kind == llvm::LLVMContext::MD_prof)
       return setProfilingAttrs(builder, node, op, moduleImport);
+    if (kind == llvm::LLVMContext::MD_tbaa)
+      return setTBAAAttrs(node, op, moduleImport);
 
     // A handler for a supported metadata kind is missing.
     llvm_unreachable("unknown metadata type");

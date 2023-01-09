@@ -2901,8 +2901,7 @@ Expr *ParmVarDecl::getDefaultArg() {
 
   Expr *Arg = getInit();
   if (auto *E = dyn_cast_or_null<FullExpr>(Arg))
-    if (!isa<ConstantExpr>(E))
-      return E->getSubExpr();
+    return E->getSubExpr();
 
   return Arg;
 }
@@ -5384,8 +5383,8 @@ ArrayRef<SourceLocation> ImportDecl::getIdentifierLocs() const {
     return std::nullopt;
 
   const auto *StoredLocs = getTrailingObjects<SourceLocation>();
-  return llvm::makeArrayRef(StoredLocs,
-                            getNumModuleIdentifiers(getImportedModule()));
+  return llvm::ArrayRef(StoredLocs,
+                        getNumModuleIdentifiers(getImportedModule()));
 }
 
 SourceRange ImportDecl::getSourceRange() const {

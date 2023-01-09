@@ -1102,11 +1102,10 @@ TypeResult Sema::actOnObjCProtocolQualifierType(
              SourceLocation rAngleLoc) {
   // Form id<protocol-list>.
   QualType Result = Context.getObjCObjectType(
-                      Context.ObjCBuiltinIdTy, { },
-                      llvm::makeArrayRef(
-                        (ObjCProtocolDecl * const *)protocols.data(),
-                        protocols.size()),
-                      false);
+      Context.ObjCBuiltinIdTy, {},
+      llvm::ArrayRef((ObjCProtocolDecl *const *)protocols.data(),
+                     protocols.size()),
+      false);
   Result = Context.getObjCObjectPointerType(Result);
 
   TypeSourceInfo *ResultTInfo = Context.CreateTypeSourceInfo(Result);
@@ -1173,8 +1172,8 @@ TypeResult Sema::actOnObjCTypeArgsAndProtocolQualifiers(
       T, BaseTypeInfo->getTypeLoc().getSourceRange().getBegin(),
       TypeArgsLAngleLoc, ActualTypeArgInfos, TypeArgsRAngleLoc,
       ProtocolLAngleLoc,
-      llvm::makeArrayRef((ObjCProtocolDecl *const *)Protocols.data(),
-                         Protocols.size()),
+      llvm::ArrayRef((ObjCProtocolDecl *const *)Protocols.data(),
+                     Protocols.size()),
       ProtocolLocs, ProtocolRAngleLoc,
       /*FailOnError=*/false,
       /*Rebuilding=*/false);
