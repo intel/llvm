@@ -27,7 +27,7 @@ int main() {
   q.wait();
 
   q.submit([=](sycl::handler &h) {
-    h.single_task<class ldg>([=] {
+    h.single_task<class check>([=] {
       //CHECK: tail call float @llvm.nvvm.ldg.global.f.f32.p0f32(float* %0, i32 4)
       //CHECK-OPAQUE: tail call float @llvm.nvvm.ldg.global.f.f32.p0(ptr %0, i32 4)
       auto cached_f = ldg(&in_f[0]);
