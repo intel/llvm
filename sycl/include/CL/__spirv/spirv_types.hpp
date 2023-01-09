@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/detail/defines.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 
 #include <cstddef>
@@ -108,7 +109,14 @@ enum class GroupOperation : uint32_t {
   ExclusiveScan = 2
 };
 
-#if (SYCL_EXT_ONEAPI_MATRIX_VERSION == 1)
+#if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)
+enum class MatrixLayout : uint32_t {
+  RowMajor = 0,
+  ColumnMajor = 1,
+  Packed = 2,
+  Dynamic = 3
+};
+#else
 enum class MatrixLayout : uint32_t {
   RowMajor = 0,
   ColumnMajor = 1,
@@ -116,25 +124,18 @@ enum class MatrixLayout : uint32_t {
   PackedB = 3,
   Unused = 4
 };
-#else
-enum class MatrixLayout : uint32_t {
-  RowMajor = 0,
-  ColumnMajor = 1,
-  Packed = 2,
-  Dynamic = 3
-};
 #endif
 
 enum class MatrixUse : uint32_t { MatrixA = 0, MatrixB = 1, Accumulator = 2 };
 
-#if (SYCL_EXT_ONEAPI_MATRIX_VERSION == 1)
-template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
-          Scope::Flag S = Scope::Flag::Subgroup>
-struct __spirv_JointMatrixINTEL;
-#else
+#if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)
 template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
           Scope::Flag S = Scope::Flag::Subgroup,
           MatrixUse U = MatrixUse::MatrixA>
+struct __spirv_JointMatrixINTEL;
+#else
+template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
+          Scope::Flag S = Scope::Flag::Subgroup>
 struct __spirv_JointMatrixINTEL;
 #endif // SYCL_EXT_ONEAPI_MATRIX_VERSION
 
