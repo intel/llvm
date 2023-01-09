@@ -10,12 +10,15 @@
 #TODO: Currently, the pi.h header is common between sycl and plugin library sources.
 #This can be changed by copying the pi.h file in the plugins project.
 
+find_package(Threads REQUIRED)
+
 add_sycl_plugin(opencl
   SOURCES
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "pi_opencl.cpp"
   LIBRARIES
     OpenCL-ICD
+    Threads::Threads
 )
 
 set_target_properties(pi_opencl PROPERTIES LINKER_LANGUAGE CXX)

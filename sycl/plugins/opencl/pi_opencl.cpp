@@ -20,6 +20,7 @@
 #include <sycl/detail/cl.h>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/pi.h>
+#include <sycl/detail/spinlock.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -29,7 +30,20 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
+
+#include "pi_utils.hpp"
+
+static const bool ExposeCSliceInAffinityPartitioning = [] {
+  const char *Flag =
+      std::getenv("SYCL_PI_OPENCL_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING");
+  return Flag ? std::atoi(Flag) != 0 : false;
+}();
+
+#define PI_ASSERT(condition, error)                                            \
+  if (!(condition))                                                            \
+    return error;
 
 #define CHECK_ERR_SET_NULL_RET(err, ptr, reterr)                               \
   if (err != CL_SUCCESS) {                                                     \
@@ -258,9 +272,37 @@ static pi_result USMSetIndirectAccess(pi_kernel kernel) {
 
 extern "C" {
 
+// Return sub-device level
+// 0 -> root device
+// 1 -> sub-device
+// 2 -> sub-sub-device (CCS)
+// -1 -> invalid device
+static int getSubLevel(pi_device device) {
+  if (!device)
+    return -1;
+  cl_device_id parentId = nullptr;
+  clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_PARENT_DEVICE,
+                  sizeof(cl_device_id), &parentId, NULL);
+  if (parentId == nullptr)
+    return 0;
+  cl_device_id parentParentId = nullptr;
+  clGetDeviceInfo(parentId, CL_DEVICE_PARENT_DEVICE, sizeof(cl_device_id),
+                  &parentParentId, NULL);
+  if (parentParentId == nullptr)
+    return 1;
+  cl_device_id parentParentParentId = nullptr;
+  clGetDeviceInfo(parentParentId, CL_DEVICE_PARENT_DEVICE, sizeof(cl_device_id),
+                  &parentParentParentId, NULL);
+  if (parentParentParentId == nullptr)
+    return 2;
+  return -1;
+}
+
 pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
                           size_t paramValueSize, void *paramValue,
                           size_t *paramValueSizeRet) {
+  PI_ASSERT(device, PI_ERROR_INVALID_DEVICE);
+  ReturnHelper ReturnValue(paramValueSize, paramValue, paramValueSizeRet);
   switch (paramName) {
     // TODO: Check regularly to see if support in enabled in OpenCL.
     // Intel GPU EU device-specific information extensions.
@@ -342,12 +384,168 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     return PI_SUCCESS;
   }
 
+  case PI_DEVICE_INFO_PARTITION_PROPERTIES: {
+    // SYCL spec says: if this SYCL device cannot be partitioned into at least
+    // two sub devices then the returned vector must be empty.
+    pi_uint32 partitionMaxSubDevices = 0;
+    if (device->subLevel == -1)
+      device->subLevel = getSubLevel(device);
+    if (device->isRootDevice()) {
+      clGetDeviceInfo(
+          cast<cl_device_id>(device), CL_DEVICE_PARTITION_MAX_SUB_DEVICES,
+          sizeof(partitionMaxSubDevices), &partitionMaxSubDevices, nullptr);
+    } else if (device->isSubDevice()) {
+      // find out number of CCSes
+      bool supported = false;
+      cl_int ret_err = CL_SUCCESS;
+      ret_err =
+          checkDeviceExtensions(cast<cl_device_id>(device),
+                                {"cl_intel_command_queue_families"}, supported);
+      if (ret_err != CL_SUCCESS)
+        return static_cast<pi_result>(ret_err);
+      if (!supported) {
+        std::cout
+            << "This device does not support cl_intel_command_queue_families"
+            << std::endl;
+        return ReturnValue(pi_device_partition_property{0});
+      }
+      cl_queue_family_properties_intel qfprops[3];
+      size_t qsize = 0;
+      clGetDeviceInfo(
+          cast<cl_device_id>(device), CL_DEVICE_QUEUE_FAMILY_PROPERTIES_INTEL,
+          3*sizeof(cl_queue_family_properties_intel), qfprops, &qsize);
+      qsize = qsize/sizeof(cl_queue_family_properties_intel);
+      for ( size_t q = 0; q < qsize; q++ ) {
+        if (qfprops[q].capabilities == CL_QUEUE_DEFAULT_CAPABILITIES_INTEL &&
+            qfprops[q].count > partitionMaxSubDevices) {
+          partitionMaxSubDevices = qfprops[q].count;
+        }
+      }
+    } else {
+      return ReturnValue(pi_device_partition_property{0});
+    }
+
+    auto ReturnHelper = [&](auto... Partitions) {
+      struct {
+        pi_device_partition_property Arr[sizeof...(Partitions) + 1];
+      } PartitionProperties = {{Partitions..., 0}};
+      return ReturnValue(PartitionProperties);
+    };
+
+    // Root device
+    if (device->subLevel == -1)
+      device->subLevel = getSubLevel(device);
+    if (device->isRootDevice()) {
+      if (partitionMaxSubDevices < 2) {
+        return ReturnValue(pi_device_partition_property{0});
+      }
+      return ReturnHelper(PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN);
+    } else if (device->isSubDevice()) {
+      if (partitionMaxSubDevices < 2) {
+        return ReturnValue(pi_device_partition_property{0});
+      }
+      if (ExposeCSliceInAffinityPartitioning) {
+        return ReturnHelper(PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE,
+                            PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN);
+      } else {
+        return ReturnHelper(PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE);
+      }
+    } else {
+      return ReturnValue(pi_device_partition_property{0});
+    }
+  }
+  case PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN:
+    return ReturnValue(pi_device_affinity_domain{
+        PI_DEVICE_AFFINITY_DOMAIN_NUMA |
+        PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE});
+  case PI_DEVICE_INFO_PARTITION_TYPE: {
+    if (device->subLevel == -1)
+      device->subLevel = getSubLevel(device);
+    // For root-device there is no partitioning to report.
+    if (device->isRootDevice())
+      return ReturnValue(pi_device_partition_property{0});
+    if (device->isSubDevice()) {
+      struct {
+        pi_device_partition_property Arr[3];
+      } PartitionProperties = {{PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
+                                PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE,
+                                0}};
+      return ReturnValue(PartitionProperties);
+    }
+    if (device->isSubSubDevice()) {
+      struct {
+        pi_device_partition_property Arr[2];
+      } PartitionProperties = {{PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE, 0}};
+      return ReturnValue(PartitionProperties);
+    }
+    return ReturnValue(pi_device_partition_property{0});
+  }
+
   default:
     cl_int result = clGetDeviceInfo(
         cast<cl_device_id>(device), cast<cl_device_info>(paramName),
         paramValueSize, paramValue, paramValueSizeRet);
     return static_cast<pi_result>(result);
   }
+}
+
+pi_result piDevicePartition(pi_device device,
+                            const pi_device_partition_property *properties,
+                            pi_uint32 num_devices, pi_device *out_devices,
+                            pi_uint32 *out_num_devices) {
+  cl_int result = CL_DEVICE_NOT_FOUND;
+  if (device->subLevel == -1)
+    device->subLevel = getSubLevel(device);
+  // For root-device there is no partitioning to report.
+  if (device->isRootDevice()) {
+    result = clCreateSubDevices(
+        cast<cl_device_id>(device),
+        cast<const cl_device_partition_property *>(properties),
+        cast<cl_uint>(num_devices), cast<cl_device_id *>(out_devices),
+        cast<cl_uint *>(out_num_devices));
+    if (out_devices) {
+      for (uint32_t i = 0; i < *out_num_devices; ++i) {
+        out_devices[i]->subLevel = device->subLevel + 1;
+      }
+    }
+  } else if (device->isSubDevice()) {
+    cl_queue_family_properties_intel qfprops[3];
+    size_t qsize = 0;
+    cl_int family = -1;
+    cl_uint partitionMaxSubDevices = 0;
+    clGetDeviceInfo(
+        cast<cl_device_id>(device), CL_DEVICE_QUEUE_FAMILY_PROPERTIES_INTEL,
+        3*sizeof(cl_queue_family_properties_intel), qfprops, &qsize);
+    qsize = qsize/sizeof(cl_queue_family_properties_intel);
+    for ( size_t q = 0; q < qsize; q++ ) {
+      if (qfprops[q].capabilities == CL_QUEUE_DEFAULT_CAPABILITIES_INTEL &&
+          qfprops[q].count > partitionMaxSubDevices) {
+        family = q;
+        partitionMaxSubDevices = qfprops[q].count;
+      }
+    }
+    *out_num_devices = partitionMaxSubDevices;
+    if (out_devices) {
+      for (uint32_t i = 0; i < *out_num_devices; ++i) {
+        pi_device cloneDevice(device);
+        out_devices[i] = cloneDevice;
+      }
+      for (uint32_t i = 0; i < *out_num_devices; ++i) {
+        out_devices[i]->subLevel = device->subLevel + 1;
+        out_devices[i]->family = family;
+        out_devices[i]->index = i % (*out_num_devices);
+      }
+    }
+    return PI_SUCCESS;
+  }
+  // Absorb the CL_DEVICE_NOT_FOUND and just return 0 in out_num_devices
+  if (result == CL_DEVICE_NOT_FOUND) {
+    std::cout << "Device not found\n";
+    assert(out_num_devices != 0);
+    *out_num_devices = 0;
+    return PI_SUCCESS;
+  }
+  return cast<pi_result>(result);
 }
 
 pi_result piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
@@ -381,6 +579,9 @@ pi_result piDevicesGet(pi_platform platform, pi_device_type device_type,
       cast<cl_uint>(num_entries), cast<cl_device_id *>(devices),
       cast<cl_uint *>(num_devices));
 
+  for (pi_uint32 i = 0; i < num_entries; ++i) {
+    devices[i]->subLevel = 0;
+  }
   // Absorb the CL_DEVICE_NOT_FOUND and just return 0 in num_devices
   if (result == CL_DEVICE_NOT_FOUND) {
     assert(num_devices != 0);
@@ -482,6 +683,7 @@ pi_result piextQueueCreate(pi_context Context, pi_device Device,
     return PI_ERROR_INVALID_VALUE;
   return piQueueCreate(Context, Device, Flags, Queue);
 }
+
 pi_result piQueueCreate(pi_context context, pi_device device,
                         pi_queue_properties properties, pi_queue *queue) {
   assert(queue && "piQueueCreate failed, queue argument is null");
@@ -518,12 +720,26 @@ pi_result piQueueCreate(pi_context context, pi_device device,
     return cast<pi_result>(ret_err);
   }
 
-  cl_queue_properties CreationFlagProperties[] = {
-      CL_QUEUE_PROPERTIES,
-      cast<cl_command_queue_properties>(properties) & SupportByOpenCL, 0};
-  *queue = cast<pi_queue>(clCreateCommandQueueWithProperties(
-      cast<cl_context>(context), cast<cl_device_id>(device),
-      CreationFlagProperties, &ret_err));
+  if (device->subLevel == 2) {
+    cl_queue_properties CreationFlagProperties[] = {
+        CL_QUEUE_PROPERTIES,
+        cast<cl_command_queue_properties>(properties) & SupportByOpenCL,
+        CL_QUEUE_FAMILY_INTEL,
+        device->family,
+        CL_QUEUE_INDEX_INTEL,
+        device->index,
+        0};
+    *queue = cast<pi_queue>(clCreateCommandQueueWithProperties(
+        cast<cl_context>(context), cast<cl_device_id>(device),
+        CreationFlagProperties, &ret_err));
+  } else {
+    cl_queue_properties CreationFlagProperties[] = {
+        CL_QUEUE_PROPERTIES,
+        cast<cl_command_queue_properties>(properties) & SupportByOpenCL, 0};
+    *queue = cast<pi_queue>(clCreateCommandQueueWithProperties(
+        cast<cl_context>(context), cast<cl_device_id>(device),
+        CreationFlagProperties, &ret_err));
+  }
   return cast<pi_result>(ret_err);
 }
 
@@ -1689,7 +1905,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Device
   _PI_CL(piDevicesGet, piDevicesGet)
   _PI_CL(piDeviceGetInfo, piDeviceGetInfo)
-  _PI_CL(piDevicePartition, clCreateSubDevices)
+  _PI_CL(piDevicePartition, piDevicePartition)
   _PI_CL(piDeviceRetain, clRetainDevice)
   _PI_CL(piDeviceRelease, clReleaseDevice)
   _PI_CL(piextDeviceSelectBinary, piextDeviceSelectBinary)
