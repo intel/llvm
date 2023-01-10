@@ -152,10 +152,22 @@ The table below provides a list of the combinations that `joint_matrix` implemen
 |======================
 
 
-## WI data to joint matrix mapping coordinates information for piece-wise operations
+## WI data to joint matrix mapping coordinates
 The indexing provided inside the `wi_data` class accesses only the portion of the matrix held by the current WI. It is not possible to know the location of this portion in the joint matrix because the coordinates mapping  is implementation defined and changes from one backend to the other. For general piece-wise operations like sum of rows of a matrix, the WI data to joint matrix mapping information is needed to reason about the matrix view.
-The joint matrix extension aims to enable writing, as much as possible, one code to run on different backends. If backend X states that a WI owns one exact column of the matrix for instance, writing the following code will work only on that backend for that version of hardware. If a different implementation is used, the same WI may own only half of the row if, for example, the SG size increased.
-The following code locally calculates sum of rows of matrix `joint_matrix<sub_group, int8_t, use::a, 8, 16, layout::row_major> tA;`. In this example, we assume each WI owns 2 successive columns of `tA` and the sub-group size is 8. `data.length` returns 16 elements per WI.
+The joint matrix extension aims to enable writing, as much as possible, one code to run on different backends. If backend X states that a WI owns one exact column of the matrix for instance, writing code like sum of rows or sum of columns will only work on that backend for that version of hardware. If a different implementation is used, the same WI may own only half of the row if, for example, the SG size increased.
+
+The following code locally calculates sum of rows of matrix `joint_matrix<sub_group, int8_t, use::a, 8, 16, layout::row_major> tA;`. In this example, we assume that each WI owns 2 successive columns of `tA` and the sub-group size is 8. `data.length` returns 16 elements per WI.
+
+```c++
+auto data = get_wi_data(sg, tA);
+// each WI calculates local sum of rows
+for (int row = 0; row < 8; row++) { 
+  for (int i = 0; i < data.length()/8; ++i) {//WI owns 2 element per row
+    sum_of_local_rows[row] += data[i+row*2];
+  }
+}  
+```
+`tA` matrix can be visualized as follows:
 
 [frame="none"]
 |======================
@@ -169,26 +181,17 @@ The following code locally calculates sum of rows of matrix `joint_matrix<sub_gr
 | a70 | a71 | a72 |a73 | a74 | a75|a76|a77|a78|a79|a710|a711|a712|a713|a714|a715
 |======================
 
-WI0 elements returned in `data`  are the first 2 columns as follows:
+WI0 elements returned in `data`  are the first 2 columns of `tA` and can be visualized as follows:
 
 [frame="none"]
 |======================
 | a00 | a01 | a10 |a11 | a20 | a21|a30|a31|a40|a41|a50|a51|a60|a61|a70|a71
 |======================
 
-```c++
-auto data = get_wi_data(sg, tA);
-// each WI calculates local sum of rows
-for (int row = 0; row < 8; row++) { 
-  for (int i = 0; i < data.length()/8; ++i) {//WI owns 2 element per row
-    sum_of_local_rows[row] += data[i+row*2];
-  }
-}  
-```
 
-The code above assumes knowledge of the distribution of the joint matrix across the different work-items. This is different when a different distribution happens.
+The code above assumes knowledge of the distribution of the joint matrix across the different work-items. The same code will be different when a different distribution happens.
 
-For instance, if we assume a round-robin distribution of the joint matrix elements among the work-items, WI0 elements returned in `data`  are the first and 8th columns as follows:
+For instance, if we assume a round-robin distribution of the joint matrix elements among the work-items. In this case, WI0 elements returned in `data`  are the first and the 8th columns as follows:
 
 [frame="none"]
 |======================
