@@ -78,10 +78,6 @@ endif()
 FetchContent_MakeAvailable(ocl-icd)
 add_library(OpenCL-ICD ALIAS OpenCL)
 
-# OpenCL RT build requires headers from ICD loader, propagating location
-set(OpenCL_LOADER_DIR
-  ${ocl-icd_SOURCE_DIR} CACHE PATH "Path to OpenCL Loader")
-
 # Deploy OpenCL loader into package, this is required for OCL CPU test.
 if (NOT INTEL_OPENCL_STANDALONE_PRODUCT)
   install(TARGETS OpenCL
