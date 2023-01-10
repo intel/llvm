@@ -112,7 +112,7 @@ enum class layout {
 
 
 #### Group Memory Scope
-In this API, we use the terminology of `joint_matrix` instead of plain `matrix` to emphasize that the matrix is shared among a group of work items and is not private to each work item. The group scope is added as an additional template parameter and is also part of the constructor arguments.
+In this API, we use the terminology of `joint_matrix` instead of plain `matrix` to emphasize that the matrix is shared among a group of work items and is not private to each work item. The group scope is added as an additional template parameter.
 
 IMPORTANT: In the current implementation, only the `sub_group` scope is supported
 
@@ -188,7 +188,7 @@ The matrix multiply and add function performs the multiply operation on the matr
 
 
 #### Matrix Initialization: `joint_matrix_fill`
-The current interface presented above assumes that all the matrices are directly loaded from memory. This new function called `joint_matrix_fill`  makes it possible to multiply a matrix which is not directly loaded from memory but rather initialized directly in the register. On Intel AMX, if the initialization constant is zero, this would map to the `_tile_zero` intrinsic: 
+Unlike `joint_matrix_load` that assumes that all the matrices are directly loaded from memory, `joint_matrix_fill`  makes it possible to multiply a matrix which is not directly loaded from memory but rather initialized directly in the register. On Intel AMX, if the initialization constant is zero, this would map to the `_tile_zero` intrinsic: 
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
