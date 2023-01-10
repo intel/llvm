@@ -551,3 +551,32 @@ func.func private @ptr2memref(%arg0: !llvm.ptr<f32>) -> memref<?xf32> {
   %res = "polygeist.pointer2memref"(%arg0) : (!llvm.ptr<f32>) -> memref<?xf32>
   return %res : memref<?xf32>
 }
+
+// -----
+
+#layout = affine_map<(s0) -> (s0 - 1)>
+
+// CHECK-LABEL:   llvm.func @non_bare_due_to_layout(
+// CHECK-SAME:                                      %[[VAL_0:.*]]: !llvm.ptr<i64>,
+// CHECK-SAME:                                      %[[VAL_1:.*]]: i64) -> i64
+// CHECK:           %[[VAL_2:.*]] = llvm.mlir.undef : !llvm.struct<(ptr<i64>, ptr<i64>, i64, array<1 x i64>, array<1 x i64>)>
+// CHECK:           %[[VAL_3:.*]] = llvm.insertvalue %[[VAL_0]], %[[VAL_2]][0] : !llvm.struct<(ptr<i64>, ptr<i64>, i64, array<1 x i64>, array<1 x i64>)>
+// CHECK:           %[[VAL_4:.*]] = llvm.insertvalue %[[VAL_0]], %[[VAL_3]][1] : !llvm.struct<(ptr<i64>, ptr<i64>, i64, array<1 x i64>, array<1 x i64>)>
+// CHECK:           %[[VAL_5:.*]] = llvm.mlir.constant(-1 : index) : i64
+// CHECK:           %[[VAL_6:.*]] = llvm.insertvalue %[[VAL_5]], %[[VAL_4]][2] : !llvm.struct<(ptr<i64>, ptr<i64>, i64, array<1 x i64>, array<1 x i64>)>
+// CHECK:           %[[VAL_7:.*]] = llvm.mlir.constant(100 : index) : i64
+// CHECK:           %[[VAL_8:.*]] = llvm.insertvalue %[[VAL_7]], %[[VAL_6]][3, 0] : !llvm.struct<(ptr<i64>, ptr<i64>, i64, array<1 x i64>, array<1 x i64>)>
+// CHECK:           %[[VAL_9:.*]] = llvm.mlir.constant(1 : index) : i64
+// CHECK:           %[[VAL_10:.*]] = llvm.insertvalue %[[VAL_9]], %[[VAL_8]][4, 0] : !llvm.struct<(ptr<i64>, ptr<i64>, i64, array<1 x i64>, array<1 x i64>)>
+// CHECK:           %[[VAL_11:.*]] = llvm.extractvalue %[[VAL_10]][1] : !llvm.struct<(ptr<i64>, ptr<i64>, i64, array<1 x i64>, array<1 x i64>)>
+// CHECK:           %[[VAL_12:.*]] = llvm.mlir.constant(-1 : index) : i64
+// CHECK:           %[[VAL_13:.*]] = llvm.add %[[VAL_12]], %[[VAL_1]]  : i64
+// CHECK:           %[[VAL_14:.*]] = llvm.getelementptr %[[VAL_11]]{{\[}}%[[VAL_13]]] : (!llvm.ptr<i64>, i64) -> !llvm.ptr<i64>
+// CHECK:           %[[VAL_15:.*]] = llvm.load %[[VAL_14]] : !llvm.ptr<i64>
+// CHECK:           llvm.return %[[VAL_15]] : i64
+// CHECK:         }
+
+func.func private @non_bare_due_to_layout(%arg0: memref<100xi64, #layout>, %arg1: index) -> i64 {
+ %res = memref.load %arg0[%arg1] : memref<100xi64, #layout>
+ return %res : i64
+}

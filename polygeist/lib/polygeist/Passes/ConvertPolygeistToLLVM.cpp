@@ -62,15 +62,14 @@ struct GetGlobalMemrefOpLowering
     if (!canBeLoweredToBarePtr(memrefTy))
       return failure();
 
-    const auto loc = getGlobalOp.getLoc();
     const auto arrayTy =
         convertGlobalMemrefTypeToLLVM(memrefTy, *typeConverter);
     if (!arrayTy)
       return failure();
-    const auto memSpace = memrefTy.getMemorySpaceAsInt();
     const auto addressOf =
         static_cast<Value>(rewriter.create<LLVM::AddressOfOp>(
-            loc, LLVM::LLVMPointerType::get(arrayTy, memSpace),
+            getGlobalOp.getLoc(),
+            LLVM::LLVMPointerType::get(arrayTy, memrefTy.getMemorySpaceAsInt()),
             adaptor.getName()));
 
     // Get the address of the first element in the array by creating a GEP with
@@ -91,11 +90,11 @@ private:
     // this to a 1D array. However, for memref.global's with an initial value,
     // we do not intend to flatten the ElementsAttribute when going from std ->
     // LLVM dialect, so the LLVM type needs to me a multi-dimension array.
-    const auto shape = type.getShape();
     const auto convElemTy = typeConverter.convertType(type.getElementType());
     if (!convElemTy)
       return {};
     // Shape has the outermost dim at index 0, so need to walk it backwards
+    const auto shape = type.getShape();
     return std::accumulate(
         shape.rbegin(), shape.rend(), convElemTy,
         [](auto ty, auto dim) { return LLVM::LLVMArrayType::get(ty, dim); });
@@ -133,10 +132,10 @@ struct AllocaMemrefOpLowering
     if (!memrefType.hasStaticShape() || !memrefType.getLayout().isIdentity())
       return failure();
 
-    const auto loc = allocaOp.getLoc();
     const auto ptrType = typeConverter->convertType(allocaOp.getType());
     if (!ptrType)
       return failure();
+    const auto loc = allocaOp.getLoc();
     auto nullPtr = rewriter.create<LLVM::NullOp>(loc, ptrType);
     auto gepPtr = rewriter.create<LLVM::GEPOp>(
         loc, ptrType, nullPtr,
@@ -280,7 +279,7 @@ struct MemAccessLowering : public ConvertToLLVMPattern {
                                  ConversionPatternRewriter &rewriter) const {
     int64_t offset;
     SmallVector<int64_t, 4> strides;
-    auto successStrides = getStridesAndOffset(type, strides, offset);
+    LogicalResult successStrides = getStridesAndOffset(type, strides, offset);
     assert(succeeded(successStrides) && "unexpected non-strided memref");
     (void)successStrides;
 
@@ -320,7 +319,7 @@ struct LoadMemRefOpLowering : public MemAccessLowering {
     if (!canBeLoweredToBarePtr(loadOp.getMemRefType()))
       return failure();
     memref::LoadOp::Adaptor adaptor{args};
-    const auto DataPtr = getStridedElementBarePtr(
+    const Value DataPtr = getStridedElementBarePtr(
         loadOp.getLoc(), loadOp.getMemRefType(), adaptor.getMemref(),
         adaptor.getIndices(), rewriter);
     if (!DataPtr)
@@ -344,7 +343,7 @@ struct StoreMemRefOpLowering : public MemAccessLowering {
     if (!canBeLoweredToBarePtr(storeOp.getMemRefType()))
       return failure();
     memref::StoreOp::Adaptor adaptor{args};
-    const auto DataPtr = getStridedElementBarePtr(
+    const Value DataPtr = getStridedElementBarePtr(
         storeOp.getLoc(), storeOp.getMemRefType(), adaptor.getMemref(),
         adaptor.getIndices(), rewriter);
     if (!DataPtr)
@@ -918,10 +917,16 @@ void populatePolygeistToLLVMConversionPatterns(LLVMTypeConverter &converter,
                                                RewritePatternSet &patterns) {
   patterns.add<TypeSizeOpLowering, TypeAlignOpLowering, SubIndexOpLowering,
                Memref2PointerOpLowering, Pointer2MemrefOpLowering>(converter);
-  if (converter.getOptions().useBarePtrCallConv)
+  if (converter.getOptions().useBarePtrCallConv) {
+    // When adding these patterns (and other patterns changing the default
+    // conversion of operations on MemRef values), a higher benefit is passed
+    // (2), so that these patterns have a higher priority than the ones
+    // performing the default conversion, which should only run if the "bare
+    // pointer" ones fail.
     patterns.add<SubIndexBarePtrOpLowering, BareMemref2PointerOpLowering,
                  BarePointer2MemrefOpLowering>(converter,
                                                /*benefit*/ 2);
+  }
 }
 
 namespace {
@@ -1377,6 +1382,8 @@ struct ConvertPolygeistToLLVMPass
       converter.addConversion([&](async::TokenType type) { return type; });
       // This overrides the default
       if (useBarePtrCallConv)
+        // Patterns are tried in reverse add order, so this is tried before the
+        // one added by default.
         converter.addConversion([&](MemRefType type) -> Optional<Type> {
           if (!canBeLoweredToBarePtr(type))
             return std::nullopt;
