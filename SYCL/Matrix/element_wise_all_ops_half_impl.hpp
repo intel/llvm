@@ -41,7 +41,7 @@ void matrix_verify_add(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
 
-           joint_matrix_fill(sg, sub_a, 5.0);
+           joint_matrix_fill(sg, sub_a, 5);
 
            auto wi_slice_a = get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
@@ -75,7 +75,7 @@ void matrix_verify_sub(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
 
-           joint_matrix_fill(sg, sub_a, 5.0);
+           joint_matrix_fill(sg, sub_a, 5);
 
            auto wi_slice_a = get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
@@ -109,7 +109,7 @@ void matrix_verify_mul(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
 
-           joint_matrix_fill(sg, sub_a, 5.0);
+           joint_matrix_fill(sg, sub_a, 5);
 
            auto wi_slice_a = get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
@@ -143,7 +143,7 @@ void matrix_verify_div(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
 
-           joint_matrix_fill(sg, sub_a, 4.0);
+           joint_matrix_fill(sg, sub_a, 4);
 
            auto wi_slice_a = get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
@@ -177,7 +177,7 @@ void matrix_verify_logic(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
 
-           joint_matrix_fill(sg, sub_a, 5.0);
+           joint_matrix_fill(sg, sub_a, 5);
 
            auto wi_slice_a = get_wi_data(sg, sub_a);
            for (int i = 0; i < wi_slice_a.length(); i++) {
@@ -193,8 +193,8 @@ void matrix_verify_logic(queue q, big_matrix<T, M, N> &A, nd_range<2> &r,
                  val++;
                  if (wi_slice_a[i] == static_cast<half>(2.0)) {
                    val -= 2;
-                   val *= 3.0;
-                   val /= 2.0;
+                   val *= 3;
+                   val /= 2;
                  } else {
                    val += 2;
                  }
