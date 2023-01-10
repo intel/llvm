@@ -13,7 +13,7 @@ struct foo {
 // CHECK-MLIR-NEXT:    }
 
 // CHECK-LLVM-LABEL:   define { { i32* } } @id(
-// CHECK-LLVM-SAME:                                 { { i32* } } %[[VAL_0:.*]]) {
+// CHECK-LLVM-SAME:                            { { i32* } } %[[VAL_0:.*]]) {
 // CHECK-LLVM-NEXT:      ret { { i32* } } %[[VAL_0]]
 // CHECK-LLVM-NEXT:    }
 
