@@ -141,8 +141,10 @@ _PI_API(piPluginGetLastError)
 
 _PI_API(piTearDown)
 
+
 _PI_API(piextUSMEnqueueFill2D)
 _PI_API(piextUSMEnqueueMemset2D)
 _PI_API(piextUSMEnqueueMemcpy2D)
 
+_PI_API(piGetDeviceAndHostTimer)
 #undef _PI_API

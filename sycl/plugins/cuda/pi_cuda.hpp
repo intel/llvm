@@ -88,6 +88,7 @@ private:
   native_type cuDevice_;
   std::atomic_uint32_t refCount_;
   pi_platform platform_;
+  pi_context context_;
 
   static constexpr pi_uint32 max_work_item_dimensions = 3u;
   size_t max_work_item_sizes[max_work_item_dimensions];
@@ -102,6 +103,10 @@ public:
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
 
   pi_platform get_platform() const noexcept { return platform_; };
+
+  void set_context(pi_context ctx) { context_ = ctx; };
+
+  pi_context get_context() { return context_; };
 
   void save_max_work_item_sizes(size_t size,
                                 size_t *save_max_work_item_sizes) noexcept {
@@ -178,6 +183,7 @@ struct _pi_context {
               bool backend_owns = true)
       : kind_{k}, cuContext_{ctxt}, deviceId_{devId}, refCount_{1},
         has_ownership{backend_owns} {
+    deviceId_->set_context(this);
     cuda_piDeviceRetain(deviceId_);
   };
 
