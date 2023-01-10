@@ -37,6 +37,12 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     endif()
   endif()
 
+  # TODO: Enabled for MSVC
+  if (NOT MSVC AND SYCL_LIB_WITH_DEBUG_SYMBOLS)
+    separate_arguments(CMAKE_CXX_FLAGS_DEBUG_SEPARATED UNIX_COMMAND "${CMAKE_CXX_FLAGS_DEBUG}")
+    target_compile_options(${LIB_NAME} PRIVATE ${CMAKE_CXX_FLAGS_DEBUG_SEPARATED})
+  endif()
+
   if (SYCL_ENABLE_COVERAGE)
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
       -fprofile-instr-generate -fcoverage-mapping
