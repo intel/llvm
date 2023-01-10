@@ -137,6 +137,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       NewEvent = Result.NewEvent;
       ShouldEnqueue = Result.ShouldEnqueue;
     }
+    NewEvent->setSubmissionTime();
   }
 
   if (ShouldEnqueue) {
