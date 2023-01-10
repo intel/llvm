@@ -1053,13 +1053,11 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       // Allocate static local memory in SYCL kernel scope for each allocation
       // call.
       MPM.addPass(SYCLLowerWGLocalMemoryPass());
+
+      if (CodeGenOpts.DisableSYCLEarlyOpts)
+        MPM.addPass(CompileTimePropertiesPass());
     }
   }
-
-
-  if (LangOpts.SYCLIsDevice)
-    MPM.addPass(CompileTimePropertiesPass());
-
 
   // Add a verifier pass if requested. We don't have to do this if the action
   // requires code generation because there will already be a verifier pass in
