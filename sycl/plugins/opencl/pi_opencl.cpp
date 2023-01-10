@@ -1752,6 +1752,46 @@ pi_result piTearDown(void *PluginParameter) {
   return PI_SUCCESS;
 }
 
+pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
+                                  uint64_t *HostTime) {
+  OCLV::OpenCLVersion devVer, platVer;
+  cl_platform_id platform;
+  cl_device_id deviceID = cast<cl_device_id>(Device);
+
+  // TODO: Cache OpenCL version for each device and platform
+  auto ret_err = clGetDeviceInfo(deviceID, CL_DEVICE_PLATFORM,
+                                 sizeof(cl_platform_id), &platform, nullptr);
+  if (ret_err != CL_SUCCESS) {
+    return cast<pi_result>(ret_err);
+  }
+
+  ret_err = getDeviceVersion(deviceID, devVer);
+
+  if (ret_err != CL_SUCCESS) {
+    return cast<pi_result>(ret_err);
+  }
+
+  ret_err = getPlatformVersion(platform, platVer);
+
+  if (platVer < OCLV::V2_1 || devVer < OCLV::V2_1) {
+    setErrorMessage(
+        "OpenCL version for device and/or platform is less than 2.1",
+        PI_ERROR_INVALID_OPERATION);
+    return PI_ERROR_INVALID_OPERATION;
+  }
+
+  if (DeviceTime) {
+    uint64_t dummy;
+    clGetDeviceAndHostTimer(deviceID, DeviceTime,
+                            HostTime == nullptr ? &dummy : HostTime);
+
+  } else if (HostTime) {
+    clGetHostTimer(deviceID, HostTime);
+  }
+
+  return PI_SUCCESS;
+}
+
 const char SupportedVersion[] = _PI_OPENCL_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -1894,6 +1934,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)
   _PI_CL(piPluginGetLastError, piPluginGetLastError)
   _PI_CL(piTearDown, piTearDown)
+  _PI_CL(piGetDeviceAndHostTimer, piGetDeviceAndHostTimer)
 
 #undef _PI_CL
 

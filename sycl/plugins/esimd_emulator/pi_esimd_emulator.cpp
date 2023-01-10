@@ -2063,6 +2063,12 @@ pi_result piTearDown(void *) {
   return PI_SUCCESS;
 }
 
+pi_result piGetDeviceAndHostTimer(pi_device device, uint64_t *deviceTime,
+                                  uint64_t *hostTime) {
+  PiTrace(
+      "Warning : Querying device clock not supported under PI_ESIMD_EMULATOR");
+  return PI_SUCCESS;
+}
 const char SupportedVersion[] = _PI_ESIMD_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {

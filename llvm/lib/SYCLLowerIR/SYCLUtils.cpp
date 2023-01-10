@@ -181,10 +181,7 @@ bool collectPossibleStoredVals(
     Value *V = U->getUser();
 
     if (auto *StI = dyn_cast<StoreInst>(V)) {
-      constexpr int StoreInstValueOperandIndex = 0;
-
       if (U != &StI->getOperandUse(StoreInst::getPointerOperandIndex())) {
-        assert(U == &StI->getOperandUse(StoreInstValueOperandIndex));
         // this is double indirection - not supported
         return false;
       }
