@@ -1,7 +1,7 @@
 # Copyright (C) 2022 Intel Corporation
 # SPDX-License-Identifier: MIT
 
-cmake_minimum_required(VERSION 3.22.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.14.0 FATAL_ERROR)
 project(unified-runtime VERSION 0.5.0)
 
 include(GNUInstallDirs)
@@ -83,7 +83,9 @@ install(
 
 add_subdirectory(source)
 add_subdirectory(examples)
-add_subdirectory(test)
+if(UR_ENABLE_TESTS)
+    add_subdirectory(test)
+endif()
 
 # Add the list of installed targets to the install. This includes the namespace
 # which all installed targets will be prefixed with, e.g. for the headers

@@ -24,7 +24,7 @@ jobs:
       run: pip install -r third_party/requirements.txt
 
     - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DUR_ENABLE_TESTS=ON
 
     - name: Generate source from spec, check for uncommitted diff
       run: cmake --build ${{github.workspace}}/build --target check-generated
@@ -51,7 +51,7 @@ jobs:
         run: python3 -m pip install -r third_party/requirements.txt
 
       - name: Configure CMake
-        run: cmake -DCMAKE_POLICY_DEFAULT_CMP0094=NEW -B ${{github.workspace}}/build
+        run: cmake -DCMAKE_POLICY_DEFAULT_CMP0094=NEW -DUR_ENABLE_TESTS=ON -B ${{github.workspace}}/build
 
       - name: Generate source from spec, check for uncommitted diff
         run: cmake --build ${{github.workspace}}/build --target check-generated --config ${{env.BUILD_TYPE}}

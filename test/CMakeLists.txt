@@ -3,3 +3,4 @@
 
 add_subdirectory(python)
 add_subdirectory(loader)
+add_subdirectory(conformance)
