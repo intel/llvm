@@ -2,7 +2,8 @@
 ; RUN: llvm-spirv -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; FIXME: remove -opaque-pointers when supported by default
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -opaque-pointers -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: 8 Decorate 4 UserSemantic "num-thread-per-eu 4"
 ; CHECK-SPIRV: 8 Decorate 6 UserSemantic "num-thread-per-eu 8"
