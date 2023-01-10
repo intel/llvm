@@ -579,10 +579,9 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
 static unsigned getOptimizationLevel(ArgList &Args, InputKind IK,
                                      DiagnosticsEngine &Diags) {
   unsigned DefaultOpt = llvm::CodeGenOpt::None;
-  if (((IK.getLanguage() == Language::OpenCL ||
-        IK.getLanguage() == Language::OpenCLCXX) &&
-       !Args.hasArg(OPT_cl_opt_disable)) ||
-      Args.hasArg(OPT_fsycl_is_device))
+  if ((IK.getLanguage() == Language::OpenCL ||
+       IK.getLanguage() == Language::OpenCLCXX) &&
+      !Args.hasArg(OPT_cl_opt_disable))
     DefaultOpt = llvm::CodeGenOpt::Default;
 
   if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
@@ -1688,11 +1687,6 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
     Opts.CoveragePrefixMap.insert(
         {std::string(Split.first), std::string(Split.second)});
   }
-
-  Opts.DisableLLVMPasses =
-      Args.hasArg(OPT_disable_llvm_passes) ||
-      (Args.hasArg(OPT_fsycl_is_device) && T.isSPIR() &&
-       Args.hasArg(OPT_fno_sycl_early_optimizations));
 
   const llvm::Triple::ArchType DebugEntryValueArchs[] = {
       llvm::Triple::x86, llvm::Triple::x86_64, llvm::Triple::aarch64,

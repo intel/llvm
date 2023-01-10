@@ -32,6 +32,12 @@ set(compile_opts
   -sycl-std=2020
   )
 
+set(SYCL_LIBDEVICE_GCC_TOOLCHAIN "" CACHE PATH "Path to GCC installation")
+
+if (NOT SYCL_LIBDEVICE_GCC_TOOLCHAIN STREQUAL "")
+  list(APPEND compile_opts "--gcc-toolchain=${SYCL_LIBDEVICE_GCC_TOOLCHAIN}")
+endif()
+
 if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   string(APPEND sycl_targets_opt ",nvptx64-nvidia-cuda")
   list(APPEND compile_opts
@@ -294,7 +300,8 @@ add_custom_target(imf_fp32_host_obj DEPENDS ${obj_binary_dir}/imf-fp32-host.${li
 add_custom_target(imf_fp64_host_obj DEPENDS ${obj_binary_dir}/imf-fp64-host.${lib-suffix})
 add_custom_target(imf_bf16_host_obj DEPENDS ${obj_binary_dir}/imf-bf16-host.${lib-suffix})
 
-add_custom_target(imf_host_obj
+add_custom_target(imf_host_obj DEPENDS ${obj_binary_dir}/${devicelib_host_static})
+add_custom_command(OUTPUT ${obj_binary_dir}/${devicelib_host_static}
                   COMMAND ${llvm-ar} rcs ${obj_binary_dir}/${devicelib_host_static}
                           ${obj_binary_dir}/imf-fp32-host.${lib-suffix}
                           ${obj_binary_dir}/fallback-imf-fp32-host.${lib-suffix}

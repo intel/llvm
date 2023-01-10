@@ -754,6 +754,11 @@ void CudaToolChain::addClangTargetOptions(
     if (DriverArgs.hasFlag(options::OPT_fcuda_approx_transcendentals,
                            options::OPT_fno_cuda_approx_transcendentals, false))
       CC1Args.push_back("-fcuda-approx-transcendentals");
+
+    if (DriverArgs.hasArg(options::OPT_fsycl)) {
+      // Add these flags for .cu SYCL compilation.
+      CC1Args.append({"-std=c++17", "-fsycl-is-host"});
+    }
   }
 
   if (DeviceOffloadingKind == Action::OFK_SYCL) {

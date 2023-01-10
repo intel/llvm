@@ -129,17 +129,6 @@ using is_intn = is_contained<T, gtl::vector_signed_int_list>;
 template <typename T> using is_genint = is_contained<T, gtl::signed_int_list>;
 
 template <typename T>
-using is_ulongn = is_contained<T, gtl::vector_unsigned_long_list>;
-
-template <typename T>
-using is_ugenlong = is_contained<T, gtl::unsigned_long_list>;
-
-template <typename T>
-using is_longn = is_contained<T, gtl::vector_signed_long_list>;
-
-template <typename T> using is_genlong = is_contained<T, gtl::signed_long_list>;
-
-template <typename T>
 using is_ulonglongn = is_contained<T, gtl::vector_unsigned_longlong_list>;
 
 template <typename T>
