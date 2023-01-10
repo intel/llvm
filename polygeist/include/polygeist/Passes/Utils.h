@@ -107,3 +107,15 @@ static inline bool hasElse(mlir::scf::IfOp op) {
 static inline bool hasElse(mlir::AffineIfOp op) {
   return op.getElseRegion().getBlocks().size() > 0;
 }
+
+/// States whether a MemRefType can be lowered to a bare pointer
+///
+/// Only ranked MemRefTypes with identity map and non-dynamic dimensions in the
+/// range [1, rank) can be lowered to a bare pointer.
+inline bool canBeLoweredToBarePtr(mlir::MemRefType memRefType) {
+  if (!memRefType.getLayout().isIdentity() || !memRefType.hasRank())
+    return false;
+  const auto shape = memRefType.getShape();
+  return std::none_of(shape.begin() + 1, shape.end(),
+                      mlir::ShapedType::isDynamic);
+}

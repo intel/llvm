@@ -609,11 +609,9 @@ static int finalize(mlir::MLIRContext &Ctx,
       Module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
       mlir::PassManager PM3(&Ctx);
       PM3.addPass(mlir::sycl::createSYCLMethodToSYCLCallPass());
-      PM3.addPass(polygeist::createConvertToLLVMABIPass());
       LowerToLLVMOptions Options(&Ctx);
       Options.dataLayout = DL;
-      // invalid for gemm.c init array
-      // options.useBarePtrCallConv = true;
+      Options.useBarePtrCallConv = true;
       PM3.addPass(polygeist::createConvertPolygeistToLLVMPass(Options));
       // PM3.addPass(mlir::createLowerFuncToLLVMPass(options));
       PM3.addPass(polygeist::createLegalizeForSPIRVPass());

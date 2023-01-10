@@ -11,6 +11,8 @@
 //===----------------------------------------------------------------------===//
 #include "PassDetails.h"
 
+#include <numeric>
+
 #include "mlir/Analysis/DataLayoutAnalysis.h"
 #include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
 #include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
@@ -27,6 +29,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/Passes.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
+#include "mlir/Dialect/LLVMIR/FunctionCallUtils.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
@@ -37,6 +40,7 @@
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Transforms/RegionUtils.h"
 #include "polygeist/Ops.h"
+#include "polygeist/Passes/Utils.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
 
@@ -45,16 +49,512 @@
 using namespace mlir;
 using namespace polygeist;
 
-mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(ModuleOp module);
-mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module);
+/// Conversion similar to the canonical one, but not inserting the obtained
+/// pointer in a struct.
+struct GetGlobalMemrefOpLowering
+    : public ConvertOpToLLVMPattern<memref::GetGlobalOp> {
+  using ConvertOpToLLVMPattern<memref::GetGlobalOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(memref::GetGlobalOp getGlobalOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    const auto memrefTy = getGlobalOp.getType();
+    if (!canBeLoweredToBarePtr(memrefTy))
+      return failure();
+
+    const auto arrayTy =
+        convertGlobalMemrefTypeToLLVM(memrefTy, *typeConverter);
+    if (!arrayTy)
+      return failure();
+    const auto addressOf =
+        static_cast<Value>(rewriter.create<LLVM::AddressOfOp>(
+            getGlobalOp.getLoc(),
+            LLVM::LLVMPointerType::get(arrayTy, memrefTy.getMemorySpaceAsInt()),
+            adaptor.getName()));
+
+    // Get the address of the first element in the array by creating a GEP with
+    // the address of the GV as the base, and (rank + 1) number of 0 indices.
+    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
+        getGlobalOp, typeConverter->convertType(memrefTy), addressOf,
+        SmallVector<LLVM::GEPArg>(memrefTy.getRank() + 1, 0));
+
+    return success();
+  }
+
+private:
+  /// Returns the LLVM type of the global variable given the memref type `type`.
+  static Type convertGlobalMemrefTypeToLLVM(MemRefType type,
+                                            TypeConverter &typeConverter) {
+    // LLVM type for a global memref will be a multi-dimension array. For
+    // declarations or uninitialized global memrefs, we can potentially flatten
+    // this to a 1D array. However, for memref.global's with an initial value,
+    // we do not intend to flatten the ElementsAttribute when going from std ->
+    // LLVM dialect, so the LLVM type needs to me a multi-dimension array.
+    const auto convElemTy = typeConverter.convertType(type.getElementType());
+    if (!convElemTy)
+      return {};
+    // Shape has the outermost dim at index 0, so need to walk it backwards
+    const auto shape = type.getShape();
+    return std::accumulate(
+        shape.rbegin(), shape.rend(), convElemTy,
+        [](auto ty, auto dim) { return LLVM::LLVMArrayType::get(ty, dim); });
+  }
+};
+
+/// Simply replace by the source, as we don't care about the shape.
+struct ReshapeMemrefOpLowering
+    : public ConvertOpToLLVMPattern<memref::ReshapeOp> {
+  using ConvertOpToLLVMPattern<memref::ReshapeOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(memref::ReshapeOp reshape, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (!canBeLoweredToBarePtr(reshape.getType()) ||
+        !canBeLoweredToBarePtr(
+            reshape.getSource().getType().cast<MemRefType>()))
+      return failure();
+
+    rewriter.replaceOp(reshape, adaptor.getSource());
+    return success();
+  }
+};
+
+/// Conversion similar to the canonical one, but not inserting the obtained
+/// pointer in a struct.
+struct AllocaMemrefOpLowering
+    : public ConvertOpToLLVMPattern<memref::AllocaOp> {
+  using ConvertOpToLLVMPattern<memref::AllocaOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(memref::AllocaOp allocaOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    const auto memrefType = allocaOp.getType();
+    if (!memrefType.hasStaticShape() || !memrefType.getLayout().isIdentity())
+      return failure();
+
+    const auto ptrType = typeConverter->convertType(allocaOp.getType());
+    if (!ptrType)
+      return failure();
+    const auto loc = allocaOp.getLoc();
+    auto nullPtr = rewriter.create<LLVM::NullOp>(loc, ptrType);
+    auto gepPtr = rewriter.create<LLVM::GEPOp>(
+        loc, ptrType, nullPtr,
+        createIndexConstant(rewriter, loc,
+                            allocaOp.getType().getNumElements()));
+    auto sizeBytes =
+        rewriter.create<LLVM::PtrToIntOp>(loc, getIndexType(), gepPtr);
+
+    rewriter.replaceOpWithNewOp<LLVM::AllocaOp>(
+        allocaOp, ptrType, sizeBytes, allocaOp.getAlignment().value_or(0));
+    return success();
+  }
+};
+
+static Value createAligned(ConversionPatternRewriter &rewriter, Location loc,
+                           Value input, Value alignment) {
+  auto one = rewriter.create<LLVM::ConstantOp>(loc, alignment.getType(), 1);
+  auto bump = rewriter.create<LLVM::SubOp>(loc, alignment, one);
+  auto bumped = rewriter.create<LLVM::AddOp>(loc, input, bump);
+  auto mod = rewriter.create<LLVM::URemOp>(loc, bumped, alignment);
+  return rewriter.create<LLVM::SubOp>(loc, bumped, mod);
+}
+
+static LLVM::LLVMFuncOp getFreeFn(LLVMTypeConverter &typeConverter,
+                                  ModuleOp module) {
+  return typeConverter.getOptions().useGenericFunctions
+             ? LLVM::lookupOrCreateGenericFreeFn(module)
+             : LLVM::lookupOrCreateFreeFn(module);
+}
+
+static LLVM::LLVMFuncOp getAllocFn(LLVMTypeConverter &typeConverter,
+                                   ModuleOp module, Type indexType) {
+  return typeConverter.getOptions().useGenericFunctions
+             ? LLVM::lookupOrCreateGenericAllocFn(module, indexType)
+             : LLVM::lookupOrCreateMallocFn(module, indexType);
+}
+
+/// Conversion similar to the canonical one, but not inserting the obtained
+/// pointer in a struct.
+struct AllocMemrefOpLowering : public ConvertOpToLLVMPattern<memref::AllocOp> {
+  using ConvertOpToLLVMPattern<memref::AllocOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(memref::AllocOp allocOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    const auto memrefType = allocOp.getType();
+    const auto elementPtrType = typeConverter->convertType(memrefType);
+    if (!elementPtrType || !memrefType.hasStaticShape() ||
+        !memrefType.getLayout().isIdentity())
+      return failure();
+
+    const auto loc = allocOp.getLoc();
+    SmallVector<Value, 4> sizes;
+    SmallVector<Value, 4> strides;
+    Value sizeBytes;
+    getMemRefDescriptorSizes(loc, memrefType, adaptor.getOperands(), rewriter,
+                             sizes, strides, sizeBytes);
+
+    const auto alignment = allocOp.getAlignment().transform(
+        [&](auto val) { return createIndexConstant(rewriter, loc, val); });
+    if (alignment) {
+      // Adjust the allocation size to consider alignment.
+      sizeBytes = rewriter.create<LLVM::AddOp>(loc, sizeBytes, *alignment);
+    }
+
+    auto module = allocOp->getParentOfType<ModuleOp>();
+    const auto allocFuncOp =
+        getAllocFn(*getTypeConverter(), module, getIndexType());
+
+    const auto results =
+        rewriter.create<LLVM::CallOp>(loc, allocFuncOp, sizeBytes).getResults();
+    auto alignedPtr = static_cast<Value>(
+        rewriter.create<LLVM::BitcastOp>(loc, elementPtrType, results));
+    if (alignment) {
+      // Compute the aligned pointer.
+      const auto allocatedInt = static_cast<Value>(
+          rewriter.create<LLVM::PtrToIntOp>(loc, getIndexType(), alignedPtr));
+      const auto alignmentInt =
+          createAligned(rewriter, loc, allocatedInt, *alignment);
+      alignedPtr =
+          rewriter.create<LLVM::IntToPtrOp>(loc, elementPtrType, alignmentInt);
+    }
+    rewriter.replaceOp(allocOp, {alignedPtr});
+    return success();
+  }
+};
+
+/// Conversion similar to the canonical one, but not extracting the allocated
+/// pointer from a struct.
+struct DeallocOpLowering : public ConvertOpToLLVMPattern<memref::DeallocOp> {
+  using ConvertOpToLLVMPattern<memref::DeallocOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(memref::DeallocOp deallocOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (!canBeLoweredToBarePtr(
+            deallocOp.getMemref().getType().cast<MemRefType>()))
+      return failure();
+    // Insert the `free` declaration if it is not already present.
+    const auto freeFunc =
+        getFreeFn(*getTypeConverter(), deallocOp->getParentOfType<ModuleOp>());
+    const auto casted =
+        rewriter
+            .create<LLVM::BitcastOp>(deallocOp.getLoc(), getVoidPtrType(),
+                                     adaptor.getMemref())
+            .getRes();
+    rewriter.replaceOpWithNewOp<LLVM::CallOp>(deallocOp, freeFunc, casted);
+    return success();
+  }
+};
+
+/// Lowers to an identity operation.
+struct CastMemrefOpLowering : public ConvertOpToLLVMPattern<memref::CastOp> {
+  using ConvertOpToLLVMPattern<memref::CastOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult match(memref::CastOp castOp) const override {
+    const auto srcType = castOp.getOperand().getType().cast<MemRefType>();
+    const auto dstType = castOp.getType().cast<MemRefType>();
+
+    // This will be replaced by an identity function, so we need input and
+    // output types to match.
+    return success(canBeLoweredToBarePtr(dstType) &&
+                   canBeLoweredToBarePtr(srcType) &&
+                   typeConverter->convertType(srcType) ==
+                       typeConverter->convertType(dstType));
+  }
+
+  void rewrite(memref::CastOp castOp, OpAdaptor adaptor,
+               ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOp(castOp, adaptor.getSource());
+  }
+};
+
+/// Base class for lowering operations implementing memory accesses.
+struct MemAccessLowering : public ConvertToLLVMPattern {
+  using ConvertToLLVMPattern::ConvertToLLVMPattern;
+
+  /// Obtains offset from a memory access indices
+  Value getStridedElementBarePtr(Location loc, MemRefType type, Value base,
+                                 ValueRange indices,
+                                 ConversionPatternRewriter &rewriter) const {
+    int64_t offset;
+    SmallVector<int64_t, 4> strides;
+    LogicalResult successStrides = getStridesAndOffset(type, strides, offset);
+    assert(succeeded(successStrides) && "unexpected non-strided memref");
+    (void)successStrides;
+
+    auto index =
+        offset == 0 ? Value{} : createIndexConstant(rewriter, loc, offset);
+
+    for (const auto &iter : llvm::enumerate(llvm::zip(indices, strides))) {
+      auto increment = std::get<0>(iter.value());
+      const auto stride = std::get<1>(iter.value());
+      if (stride != 1) { // Skip if stride is 1.
+        increment = rewriter.create<LLVM::MulOp>(
+            loc, increment, createIndexConstant(rewriter, loc, stride));
+      }
+      index = index ? rewriter.create<LLVM::AddOp>(loc, index, increment)
+                    : increment;
+    }
+    const auto elementPtrType = getTypeConverter()->convertType(type);
+    if (!elementPtrType)
+      return {};
+    return index
+               ? rewriter.create<LLVM::GEPOp>(loc, elementPtrType, base, index)
+               : base;
+  }
+};
+
+struct LoadMemRefOpLowering : public MemAccessLowering {
+  LoadMemRefOpLowering(LLVMTypeConverter &typeConverter,
+                       PatternBenefit benefit = 1)
+      : MemAccessLowering{memref::LoadOp::getOperationName(),
+                          &typeConverter.getContext(), typeConverter, benefit} {
+  }
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> args,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loadOp = cast<memref::LoadOp>(op);
+    if (!canBeLoweredToBarePtr(loadOp.getMemRefType()))
+      return failure();
+    memref::LoadOp::Adaptor adaptor{args};
+    const Value DataPtr = getStridedElementBarePtr(
+        loadOp.getLoc(), loadOp.getMemRefType(), adaptor.getMemref(),
+        adaptor.getIndices(), rewriter);
+    if (!DataPtr)
+      return failure();
+    rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, DataPtr);
+    return success();
+  }
+};
+
+struct StoreMemRefOpLowering : public MemAccessLowering {
+  StoreMemRefOpLowering(LLVMTypeConverter &typeConverter,
+                        PatternBenefit benefit = 1)
+      : MemAccessLowering{memref::StoreOp::getOperationName(),
+                          &typeConverter.getContext(), typeConverter, benefit} {
+  }
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> args,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto storeOp = cast<memref::StoreOp>(op);
+    if (!canBeLoweredToBarePtr(storeOp.getMemRefType()))
+      return failure();
+    memref::StoreOp::Adaptor adaptor{args};
+    const Value DataPtr = getStridedElementBarePtr(
+        storeOp.getLoc(), storeOp.getMemRefType(), adaptor.getMemref(),
+        adaptor.getIndices(), rewriter);
+    if (!DataPtr)
+      return failure();
+    rewriter.replaceOpWithNewOp<LLVM::StoreOp>(op, adaptor.getValue(), DataPtr);
+    return success();
+  }
+};
+
+struct SignatureConversionPattern : public ConversionPattern {
+  using ConversionPattern::ConversionPattern;
+
+protected:
+  /// States whether a signature should be converted
+  ///
+  /// A signature should be converted if it contains at least a memref type and
+  /// all of the memref types in it can be lowered to a bare ptr.
+  static bool shouldConvertSignature(TypeRange types) {
+    bool hasMT{false};
+    for (auto type : types) {
+      if (auto mt = type.dyn_cast<MemRefType>()) {
+        if (!canBeLoweredToBarePtr(mt))
+          return false;
+        hasMT = true;
+      }
+    }
+    return hasMT;
+  }
+};
+
+/// See mlir/lib/Dialect/Func/Transforms/FuncConversions.cpp
+///
+/// Copied here to be able to pass custom benefit.
+struct ReturnOpTypeConversionPattern : public SignatureConversionPattern {
+  ReturnOpTypeConversionPattern(MLIRContext *context,
+                                PatternBenefit benefit = 1)
+      : SignatureConversionPattern(func::ReturnOp::getOperationName(), benefit,
+                                   context) {}
+  ReturnOpTypeConversionPattern(TypeConverter &typeConverter,
+                                MLIRContext *context,
+                                PatternBenefit benefit = 1)
+      : SignatureConversionPattern(typeConverter,
+                                   func::ReturnOp::getOperationName(), benefit,
+                                   context) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> args,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto returnOp = cast<func::ReturnOp>(op);
+    if (!shouldConvertSignature(returnOp.getOperandTypes()))
+      return failure();
+    func::ReturnOp::Adaptor adaptor{args};
+
+    rewriter.updateRootInPlace(
+        returnOp, [&] { returnOp->setOperands(adaptor.getOperands()); });
+    return success();
+  }
+};
+
+/// See mlir/lib/Dialect/Func/Transforms/FuncConversions.cpp
+///
+/// Copied here to be able to pass custom benefit.
+struct CallOpSignatureConversion : public SignatureConversionPattern {
+  CallOpSignatureConversion(MLIRContext *context, PatternBenefit benefit = 1)
+      : SignatureConversionPattern(func::CallOp::getOperationName(), benefit,
+                                   context) {}
+  CallOpSignatureConversion(TypeConverter &typeConverter, MLIRContext *context,
+                            PatternBenefit benefit = 1)
+      : SignatureConversionPattern(
+            typeConverter, func::CallOp::getOperationName(), benefit, context) {
+  }
+
+  /// Hook for derived classes to implement combined matching and rewriting.
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> args,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto callOp = cast<func::CallOp>(op);
+    if (!shouldConvertSignature(callOp.getOperandTypes()))
+      return failure();
+    func::CallOp::Adaptor adaptor{args};
+    // Convert the original function results.
+    SmallVector<Type, 1> convertedResults;
+    if (failed(typeConverter->convertTypes(callOp.getResultTypes(),
+                                           convertedResults)))
+      return failure();
+
+    // Substitute with the new result types from the corresponding FuncType
+    // conversion.
+    rewriter.replaceOpWithNewOp<func::CallOp>(
+        callOp, callOp.getCallee(), convertedResults, adaptor.getOperands());
+    return success();
+  }
+};
+
+/// See mlir/lib/Dialect/Func/Transforms/FuncConversions.cpp
+///
+/// Copied here to be able to pass custom benefit.
+struct AnyFunctionOpInterfaceSignatureConversion
+    : public SignatureConversionPattern {
+  AnyFunctionOpInterfaceSignatureConversion(MLIRContext *context,
+                                            PatternBenefit benefit = 1)
+      : SignatureConversionPattern(Pattern::MatchInterfaceOpTypeTag(),
+                                   FunctionOpInterface::getInterfaceID(),
+                                   benefit, context) {}
+  AnyFunctionOpInterfaceSignatureConversion(TypeConverter &typeConverter,
+                                            MLIRContext *context,
+                                            PatternBenefit benefit = 1)
+      : SignatureConversionPattern(
+            typeConverter, Pattern::MatchInterfaceOpTypeTag(),
+            FunctionOpInterface::getInterfaceID(), benefit, context) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto funcOp = cast<FunctionOpInterface>(op);
+    const auto type = funcOp.getFunctionType().cast<FunctionType>();
+    const auto operandTypes = type.getInputs();
+    const auto resultTypes = type.getResults();
+    if (!shouldConvertSignature(operandTypes) &&
+        !shouldConvertSignature(resultTypes))
+      return failure();
+
+    // Convert the original function types.
+    TypeConverter::SignatureConversion result(type.getNumInputs());
+    SmallVector<Type, 1> newResults;
+    if (failed(typeConverter->convertSignatureArgs(operandTypes, result)) ||
+        failed(typeConverter->convertTypes(resultTypes, newResults)) ||
+        failed(rewriter.convertRegionTypes(&funcOp.getFunctionBody(),
+                                           *typeConverter, &result)))
+      return failure();
+
+    // Update the function signature in-place.
+    auto newType = FunctionType::get(rewriter.getContext(),
+                                     result.getConvertedTypes(), newResults);
+
+    rewriter.updateRootInPlace(funcOp, [&] { funcOp.setType(newType); });
+
+    return success();
+  }
+};
+
+struct BaseSubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
+  using ConvertOpToLLVMPattern<SubIndexOp>::ConvertOpToLLVMPattern;
+
+protected:
+  // Compute the indices of the GEP operation we lower the SubIndexOp to.
+  // The indices are computed based on:
+  //   a) the (converted) source element type, and
+  //   b) the (converted) result element type that is requested
+  // Examples:
+  //  - src ty: ptr<struct<array<1xi64>>>, res ty: ptr<i64>
+  //      -> idxs = [0, 0, SubIndexOp's index]
+  //  - src ty: ptr<struct<array<1xi64>>>, res ty: ptr<array<1xi64>>
+  //      -> idxs = [0, SubIndexOp's index]
+  //
+  // Note: when the source element type is a struct with more than one member
+  // type, the result type that is requested is deemed illegal unless it is one
+  // of the source member types. For example assume:
+  //   - src ty: ptr<struct<array<1xi64>,i32>>
+  //   - res ty: ptr<i64>
+  // This is illegal because res ty can only be either ptr<i32> or
+  // ptr<array<1xi64>>
+  static void computeIndices(const LLVM::LLVMStructType &srcElemType,
+                             const Type &resElemType,
+                             SmallVectorImpl<Value> &indices, SubIndexOp op,
+                             OpAdaptor transformed,
+                             ConversionPatternRewriter &rewriter) {
+    assert(indices.empty() && "Expecting an empty vector");
+
+    ArrayRef<Type> memTypes = srcElemType.getBody();
+    unsigned numMembers = memTypes.size();
+    assert((numMembers == 1 ||
+            any_of(memTypes, [=](Type t) { return resElemType == t; })) &&
+           "The requested result memref element type is illegal");
+
+    Type indexType = transformed.getIndex().getType();
+    Value zero = rewriter.create<LLVM::ConstantOp>(
+        op.getLoc(), indexType, rewriter.getIntegerAttr(indexType, 0));
+    indices.push_back(zero);
+
+    if (numMembers == 1) {
+      Type currType = srcElemType.getBody()[0];
+      while (currType != resElemType) {
+        indices.push_back(zero);
+
+        TypeSwitch<Type>(currType)
+            .Case<LLVM::LLVMStructType>([&](LLVM::LLVMStructType t) {
+              assert(t.getBody().size() == 1 && "Expecting single member type");
+              currType = t.getBody()[0];
+            })
+            .Case<LLVM::LLVMArrayType, LLVM::LLVMPointerType>(
+                [&](auto t) { currType = t.getElementType(); })
+            .Default([&](Type t) {
+              currType = t;
+              assert(currType == resElemType &&
+                     "requested result type is illegal");
+            });
+      }
+    }
+
+    indices.push_back(transformed.getIndex());
+  }
+};
 
 /// Conversion pattern that transforms a subview op into:
 ///   1. An `llvm.mlir.undef` operation to create a memref descriptor
 ///   2. Updates to the descriptor to introduce the data ptr, offset, size
 ///      and stride.
 /// The subview op is replaced by the descriptor.
-struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
-  using ConvertOpToLLVMPattern<SubIndexOp>::ConvertOpToLLVMPattern;
+struct SubIndexOpLowering : public BaseSubIndexOpLowering {
+  using BaseSubIndexOpLowering::BaseSubIndexOpLowering;
 
   LogicalResult
   matchAndRewrite(SubIndexOp subViewOp, OpAdaptor transformed,
@@ -140,65 +640,79 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
     rewriter.replaceOp(subViewOp, {memRefDesc});
     return success();
   }
+};
 
-private:
-  // Compute the indices of the GEP operation we lower the SubIndexOp to.
-  // The indices are computed based on:
-  //   a) the (converted) source element type, and
-  //   b) the (converted) result element type that is requested
-  // Examples:
-  //  - src ty: ptr<struct<array<1xi64>>>, res ty: ptr<i64>
-  //      -> idxs = [0, 0, SubIndexOp's index]
-  //  - src ty: ptr<struct<array<1xi64>>>, res ty: ptr<array<1xi64>>
-  //      -> idxs = [0, SubIndexOp's index]
-  //
-  // Note: when the source element type is a struct with more than one member
-  // type, the result type that is requested is deemed illegal unless it is one
-  // of the source member types. For example assume:
-  //   - src ty: ptr<struct<array<1xi64>,i32>>
-  //   - res ty: ptr<i64>
-  // This is illegal because res ty can only be either ptr<i32> or
-  // ptr<array<1xi64>>
-  void computeIndices(const LLVM::LLVMStructType &srcElemType,
-                      const Type &resElemType, SmallVectorImpl<Value> &indices,
-                      SubIndexOp op, OpAdaptor transformed,
-                      ConversionPatternRewriter &rewriter) const {
-    assert(indices.empty() && "Expecting an empty vector");
+struct SubIndexBarePtrOpLowering : public BaseSubIndexOpLowering {
+  using BaseSubIndexOpLowering::BaseSubIndexOpLowering;
 
-    ArrayRef<Type> memTypes = srcElemType.getBody();
-    unsigned numMembers = memTypes.size();
-    assert((numMembers == 1 ||
-            any_of(memTypes, [=](Type t) { return resElemType == t; })) &&
-           "The requested result memref element type is illegal");
+  LogicalResult
+  matchAndRewrite(SubIndexOp subViewOp, OpAdaptor transformed,
+                  ConversionPatternRewriter &rewriter) const override {
+    assert(subViewOp.getSource().getType().isa<MemRefType>() &&
+           "Source operand should be a memref type");
+    assert(subViewOp.getType().isa<MemRefType>() &&
+           "Result should be a memref type");
 
-    Type indexType = transformed.getIndex().getType();
-    Value zero = rewriter.create<LLVM::ConstantOp>(
-        op.getLoc(), indexType, rewriter.getIntegerAttr(indexType, 0));
-    indices.push_back(zero);
+    auto sourceMemRefType = subViewOp.getSource().getType().cast<MemRefType>();
+    auto viewMemRefType = subViewOp.getType().cast<MemRefType>();
+    if (!canBeLoweredToBarePtr(sourceMemRefType) ||
+        !canBeLoweredToBarePtr(viewMemRefType))
+      return failure();
 
-    if (numMembers == 1) {
-      Type currType = srcElemType.getBody()[0];
-      while (currType != resElemType) {
-        indices.push_back(zero);
+    const auto loc = subViewOp.getLoc();
+    const auto target = transformed.getSource();
+    auto idx = transformed.getIndex();
 
-        TypeSwitch<Type>(currType)
-            .Case<LLVM::LLVMStructType>([&](LLVM::LLVMStructType t) {
-              assert(t.getBody().size() == 1 && "Expecting single member type");
-              currType = t.getBody()[0];
-            })
-            .Case<LLVM::LLVMArrayType>(
-                [&](LLVM::LLVMArrayType t) { currType = t.getElementType(); })
-            .Case<LLVM::LLVMPointerType>(
-                [&](LLVM::LLVMPointerType t) { currType = t.getElementType(); })
-            .Default([&](Type t) {
-              currType = t;
-              assert(currType == resElemType &&
-                     "requested result type is illegal");
-            });
+    if (sourceMemRefType.getRank() != viewMemRefType.getRank()) {
+      if (sourceMemRefType.getRank() != viewMemRefType.getRank() + 1)
+        return failure();
+
+      size_t sz = 1;
+      for (int64_t i = 1; i < sourceMemRefType.getRank(); i++) {
+        if (sourceMemRefType.getShape()[i] == ShapedType::kDynamic)
+          return failure();
+        sz *= sourceMemRefType.getShape()[i];
       }
+      Value cop = rewriter.create<LLVM::ConstantOp>(
+          loc, idx.getType(), rewriter.getIntegerAttr(idx.getType(), sz));
+      idx = rewriter.create<LLVM::MulOp>(loc, idx, cop);
     }
 
-    indices.push_back(transformed.getIndex());
+    Type sourceElemType = sourceMemRefType.getElementType();
+    Type convSourceElemType = getTypeConverter()->convertType(sourceElemType);
+    if (!convSourceElemType)
+      return failure();
+    Type viewElemType = viewMemRefType.getElementType();
+    Type convViewElemType = getTypeConverter()->convertType(viewElemType);
+    Type resType = getTypeConverter()->convertType(subViewOp.getType());
+
+    // Handle the general (non-SYCL) case first.
+    if (convViewElemType ==
+        target.getType().cast<LLVM::LLVMPointerType>().getElementType()) {
+      rewriter.replaceOpWithNewOp<LLVM::GEPOp>(subViewOp, resType, target, idx);
+      return success();
+    }
+    assert(convSourceElemType.isa<LLVM::LLVMStructType>() &&
+           "Expecting struct type");
+
+    // SYCL case
+    assert(sourceMemRefType.getRank() == viewMemRefType.getRank() &&
+           "Expecting the input and output MemRef ranks to be the same");
+
+    SmallVector<Value> indices;
+    computeIndices(convSourceElemType.cast<LLVM::LLVMStructType>(),
+                   convViewElemType, indices, subViewOp, transformed, rewriter);
+    assert(!indices.empty() && "Expecting a least one index");
+
+    // Note: MLIRScanner::InitializeValueByInitListExpr() in clang-mlir.cc, when
+    // a memref element type is a struct type, the return type of a
+    // polygeist.subindex operation should be a memref of the element type of
+    // the struct.
+
+    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(subViewOp, resType, target,
+                                             indices);
+
+    return success();
   }
 };
 
@@ -301,6 +815,44 @@ struct StreamToTokenOpLowering
   }
 };
 
+/// Lowers to a bitcast operation
+struct BareMemref2PointerOpLowering
+    : public ConvertOpToLLVMPattern<Memref2PointerOp> {
+  using ConvertOpToLLVMPattern<Memref2PointerOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(Memref2PointerOp op, OpAdaptor transformed,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (!canBeLoweredToBarePtr(op.getSource().getType()))
+      return failure();
+
+    const auto target = transformed.getSource();
+    rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(op, op.getType(), target);
+
+    return success();
+  }
+};
+
+/// Lowers to a bitcast operation
+struct BarePointer2MemrefOpLowering
+    : public ConvertOpToLLVMPattern<Pointer2MemrefOp> {
+  using ConvertOpToLLVMPattern<Pointer2MemrefOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(Pointer2MemrefOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (!canBeLoweredToBarePtr(op.getType()))
+      return failure();
+
+    const auto convertedType = getTypeConverter()->convertType(op.getType());
+    if (!convertedType)
+      return failure();
+    rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(op, convertedType,
+                                                 adaptor.getSource());
+    return success();
+  }
+};
+
 struct TypeSizeOpLowering : public ConvertOpToLLVMPattern<TypeSizeOp> {
   using ConvertOpToLLVMPattern<TypeSizeOp>::ConvertOpToLLVMPattern;
 
@@ -363,13 +915,18 @@ struct TypeAlignOpLowering : public ConvertOpToLLVMPattern<TypeAlignOp> {
 
 void populatePolygeistToLLVMConversionPatterns(LLVMTypeConverter &converter,
                                                RewritePatternSet &patterns) {
-  // clang-format off
-  patterns.add<TypeSizeOpLowering>(converter);
-  patterns.add<TypeAlignOpLowering>(converter);
-  patterns.add<SubIndexOpLowering>(converter);
-  patterns.add<Memref2PointerOpLowering>(converter);
-  patterns.add<Pointer2MemrefOpLowering>(converter);
-  // clang-format on
+  patterns.add<TypeSizeOpLowering, TypeAlignOpLowering, SubIndexOpLowering,
+               Memref2PointerOpLowering, Pointer2MemrefOpLowering>(converter);
+  if (converter.getOptions().useBarePtrCallConv) {
+    // When adding these patterns (and other patterns changing the default
+    // conversion of operations on MemRef values), a higher benefit is passed
+    // (2), so that these patterns have a higher priority than the ones
+    // performing the default conversion, which should only run if the "bare
+    // pointer" ones fail.
+    patterns.add<SubIndexBarePtrOpLowering, BareMemref2PointerOpLowering,
+                 BarePointer2MemrefOpLowering>(converter,
+                                               /*benefit*/ 2);
+  }
 }
 
 namespace {
@@ -573,7 +1130,7 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
           valueMapping.map(idx.value(),
                            rewriter.create<LLVM::LoadOp>(loc, next));
         }
-        auto freef = GetOrCreateFreeFunction(module);
+        auto freef = getFreeFn(*getTypeConverter(), module);
         Value args[] = {arg};
         rewriter.create<LLVM::CallOp>(loc, freef, args);
       }
@@ -615,7 +1172,7 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
           types.push_back(v.getType());
         auto ST = LLVM::LLVMStructType::getLiteral(ctx, types);
 
-        auto mallocf = GetOrCreateMallocFunction(module);
+        auto mallocf = getAllocFn(*getTypeConverter(), module, getIndexType());
 
         Value args[] = {rewriter.create<arith::IndexCastOp>(
             loc, rewriter.getI64Type(),
@@ -823,6 +1380,19 @@ struct ConvertPolygeistToLLVMPass
       populateVectorToLLVMConversionPatterns(converter, patterns);
 
       converter.addConversion([&](async::TokenType type) { return type; });
+      // This overrides the default
+      if (useBarePtrCallConv)
+        // Patterns are tried in reverse add order, so this is tried before the
+        // one added by default.
+        converter.addConversion([&](MemRefType type) -> Optional<Type> {
+          if (!canBeLoweredToBarePtr(type))
+            return std::nullopt;
+          const auto elemType = converter.convertType(type.getElementType());
+          if (!elemType)
+            return Type{};
+          return LLVM::LLVMPointerType::get(elemType,
+                                            type.getMemorySpaceAsInt());
+        });
 
       patterns
           .add<LLVMOpLowering, GlobalOpTypeConversion, ReturnOpTypeConversion>(
@@ -834,6 +1404,21 @@ struct ConvertPolygeistToLLVMPass
                    GPUReturnOpLowering, GPUModuleEndOpLowering>(converter);
 
       patterns.add<URLLVMOpLowering>(converter);
+
+      // Run these instead of the ones provided by the dialect to avoid lowering
+      // memrefs to a struct.
+      if (useBarePtrCallConv) {
+        patterns.add<GetGlobalMemrefOpLowering, ReshapeMemrefOpLowering,
+                     AllocMemrefOpLowering, AllocaMemrefOpLowering,
+                     CastMemrefOpLowering, DeallocOpLowering,
+                     LoadMemRefOpLowering, StoreMemRefOpLowering>(converter, 2);
+
+        // These should be run before lowering to the LLVM dialect to avoid
+        // lowering memrefs to a struct.
+        patterns.add<AnyFunctionOpInterfaceSignatureConversion,
+                     CallOpSignatureConversion, ReturnOpTypeConversionPattern>(
+            converter, &getContext(), /*benefit*/ 2);
+      }
 
       // Legality callback for operations that checks whether their operand and
       // results types are converted.

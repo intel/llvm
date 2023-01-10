@@ -164,11 +164,12 @@ SYCL_EXTERNAL void range_size(sycl::range<2> r) {
 // CHECK-LLVM:           %"class.sycl::_V1::nd_range.2"* noundef byval(%"class.sycl::_V1::nd_range.2") align 8 %0) #[[FUNCATTRS]]  
 // CHECK-LLVM: %{{.*}} = call spir_func %"class.sycl::_V1::range.2" @_ZNK4sycl3_V18nd_rangeILi2EE16get_global_rangeEv(%"class.sycl::_V1::nd_range.2" addrspace(4)* %{{.*}})
 
+// VAL_3 has incorrect type. Issue 7972 open in GitHub to address this.
 // CHECK-LLVM: define linkonce_odr spir_func %"class.sycl::_V1::range.2" @_ZNK4sycl3_V18nd_rangeILi2EE16get_global_rangeEv(%"class.sycl::_V1::nd_range.2" addrspace(4)* noundef align 8 [[VAL_0:%.*]]) #1 {
 // CHECK-LLVM-NEXT:   [[VAL_2:%.*]] = alloca %"class.sycl::_V1::range.2", align 8
-// CHECK-LLVM-NEXT:   [[VAL_3:%.*]]  = addrspacecast %"class.sycl::_V1::range.2"* [[VAL_2]] to %"class.sycl::_V1::range.2" addrspace(4)*
-// CHECK-LLVM-NEXT:   [[VAL_4:%.*]]  = bitcast %"class.sycl::_V1::nd_range.2" addrspace(4)* [[VAL_0]] to %"class.sycl::_V1::range.2" addrspace(4)*
-// CHECK-LLVM-NEXT:   call spir_func void @_ZN4sycl3_V15rangeILi2EEC1ERKS2_(%"class.sycl::_V1::range.2" addrspace(4)* [[VAL_3]], %"class.sycl::_V1::range.2" addrspace(4)* [[VAL_4]])
+// CHECK-LLVM-NEXT:   [[VAL_3:%.*]] = getelementptr %"class.sycl::_V1::nd_range.2", %"class.sycl::_V1::nd_range.2" addrspace(4)* [[VAL_0]], i32 0, i32 0
+// CHECK-LLVM-NEXT:   [[VAL_4:%.*]] = addrspacecast %"class.sycl::_V1::range.2"* [[VAL_2]] to %"class.sycl::_V1::range.2" addrspace(4)*
+// CHECK-LLVM-NEXT:   call spir_func void @_ZN4sycl3_V15rangeILi2EEC1ERKS2_(%"class.sycl::_V1::range.2" addrspace(4)* [[VAL_4]], %"class.sycl::_V1::range.2" addrspace(4)* [[VAL_3]])
 // CHECK-LLVM-NEXT:   [[VAL_5:%.*]]  = load %"class.sycl::_V1::range.2", %"class.sycl::_V1::range.2"* [[VAL_2]], align 8
 // CHECK-LLVM-NEXT:   ret %"class.sycl::_V1::range.2" [[VAL_5]] 
 // CHECK-LLVM-NEXT: }
