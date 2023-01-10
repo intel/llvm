@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -sycl-std=2020 -opaque-pointers -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -sycl-std=2020 -no-opaque-pointers -emit-llvm -o - %s | FileCheck %s
 
 // Tests that work_group_size_hint and reqd_work_group_size generate the same
 // metadata nodes for the same arguments.
