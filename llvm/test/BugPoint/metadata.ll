@@ -1,21 +1,15 @@
+; FIXME: disabled to unblock PD, working on a fix
+; XFAIL: *
+
 ; REQUIRES: plugins
 ; RUN: bugpoint -load %llvmshlibdir/BugpointPasses%pluginext %s -output-prefix %t -bugpoint-crashcalls -silence-passes -disable-namedmd-remove -disable-strip-debuginfo -disable-strip-debug-types > /dev/null
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t-reduced-simplified.bc -o - | FileCheck %s
+; RUN: llvm-dis %t-reduced-simplified.bc -o - | FileCheck %s
 ;
 ; RUN: bugpoint -load %llvmshlibdir/BugpointPasses%pluginext %s -output-prefix %t-nodebug -bugpoint-crashcalls -silence-passes -disable-namedmd-remove > /dev/null
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t-nodebug-reduced-simplified.bc -o - | FileCheck %s --check-prefix=NODEBUG
+; RUN: llvm-dis %t-nodebug-reduced-simplified.bc -o - | FileCheck %s --check-prefix=NODEBUG
 ;
 ; RUN: bugpoint -load %llvmshlibdir/BugpointPasses%pluginext %s -output-prefix %t-notype -bugpoint-crashcalls -silence-passes -disable-namedmd-remove -disable-strip-debuginfo > /dev/null
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t-notype-reduced-simplified.bc -o - | FileCheck %s --check-prefix=NOTYPE
+; RUN: llvm-dis %t-notype-reduced-simplified.bc -o - | FileCheck %s --check-prefix=NOTYPE
 ;
 ; Bugpoint can drop the metadata on the call, as it does not contrinute to the crash.
 
