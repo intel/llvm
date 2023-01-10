@@ -99,7 +99,9 @@ int checkIfJobsAreFinished(std::list<sys::ProcessInfo> &JobsSubmitted,
   std::string ErrMsg;
   auto It = JobsSubmitted.begin();
   while (It != JobsSubmitted.end()) {
-    sys::ProcessInfo WaitResult = sys::Wait(*It, 0, &ErrMsg);
+    sys::ProcessInfo WaitResult = sys::Wait(
+        *It, /*SecondsToWait*/ BlockingWait ? std::nullopt : std::optional(0),
+        &ErrMsg);
 
     // Check if the job has finished (PID will be 0 if it's not).
     if (!BlockingWait && !WaitResult.Pid) {
