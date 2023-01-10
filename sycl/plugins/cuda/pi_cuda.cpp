@@ -277,18 +277,28 @@ int getAttribute(pi_device device, CUdevice_attribute attribute) {
 // Determine local work sizes that result in uniform work groups.
 // The default threadsPerBlock only require handling the first work_dim
 // dimension.
-void guessLocalWorkSize(size_t *threadsPerBlock, const size_t *global_work_size,
+void guessLocalWorkSize(_pi_device *device, size_t *threadsPerBlock,
+                        const size_t *global_work_size,
                         const size_t maxThreadsPerBlock[3], pi_kernel kernel,
                         pi_uint32 local_size) {
   assert(threadsPerBlock != nullptr);
   assert(global_work_size != nullptr);
   assert(kernel != nullptr);
-  int recommendedBlockSize, minGrid;
+  int recommendedBlockSize, minGrid, maxGridDimY, maxGridDimZ;
+
+  cuDeviceGetAttribute(&maxGridDimY, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y,
+                       device->get());
+  cuDeviceGetAttribute(&maxGridDimZ, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z,
+                       device->get());
+
+  threadsPerBlock[1] = (global_work_size[1] / maxGridDimY) + 1;
+  threadsPerBlock[2] = (global_work_size[2] / maxGridDimZ) + 1;
 
   PI_CHECK_ERROR(cuOccupancyMaxPotentialBlockSize(
       &minGrid, &recommendedBlockSize, kernel->get(), NULL, local_size,
       maxThreadsPerBlock[0]));
 
+  recommendedBlockSize /= (threadsPerBlock[1] * threadsPerBlock[2]);
   (void)minGrid; // Not used, avoid warnings
 
   threadsPerBlock[0] = std::min(
@@ -3124,8 +3134,9 @@ pi_result cuda_piEnqueueKernelLaunch(
             return err;
         }
       } else {
-        guessLocalWorkSize(threadsPerBlock, global_work_size,
-                           maxThreadsPerBlock, kernel, local_size);
+        guessLocalWorkSize(command_queue->device_, threadsPerBlock,
+                           global_work_size, maxThreadsPerBlock, kernel,
+                           local_size);
       }
     }
 
