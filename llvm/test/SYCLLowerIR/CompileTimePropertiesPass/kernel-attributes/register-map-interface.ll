@@ -1,5 +1,5 @@
 ; Check conversion of sycl-register-map-interface attribute
-; RUN: sycl-post-link --device-globals --ir-output-only %s -S -o - | FileCheck %s --check-prefix CHECK-IR
+; RUN: opt -passes="compile-time-properties" %s -S -o - | FileCheck %s --check-prefix CHECK-IR
 
 ; CHECK-IR-DAG: @pStreaming() #0 {{.*}}!ip_interface [[REGISTER_MAP:![0-9]+]] {
 ; Function Attrs: convergent norecurse
