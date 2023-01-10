@@ -39,6 +39,70 @@ translateBinaryImageFormat(pi::PiDeviceBinaryType Type) {
   }
 }
 
+std::pair<const RTDeviceBinaryImage *, RT::PiProgram>
+retrieveKernelBinary(QueueImplPtr &Queue, CGExecKernel *KernelCG) {
+  auto KernelName = KernelCG->getKernelName();
+
+  bool isNvidia = Queue->getDeviceImplPtr()->getPlugin().getBackend() ==
+                  backend::ext_oneapi_cuda;
+  if (isNvidia) {
+    auto KernelID = ProgramManager::getInstance().getSYCLKernelID(KernelName);
+    std::vector<kernel_id> KernelIds;
+    KernelIds.push_back(KernelID);
+    auto DeviceImages =
+        ProgramManager::getInstance().getRawDeviceImages(KernelIds);
+    const RTDeviceBinaryImage *DeviceImage = nullptr;
+    for (auto *DI : DeviceImages) {
+      // We are looking for a device image with LLVM IR format and target spec
+      // "llvm_nvptx64", which has been set by the offload-wrapper action.
+      if (DI->getFormat() == PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE &&
+          DI->getRawData().DeviceTargetSpec == std::string("llvm_nvptx64")) {
+        DeviceImage = DI;
+        break;
+      }
+    }
+    if (!DeviceImage) {
+      return {nullptr, nullptr};
+    }
+    auto ContextImpl = Queue->getContextImplPtr();
+    auto Context = detail::createSyclObjFromImpl<context>(ContextImpl);
+    auto DeviceImpl = Queue->getDeviceImplPtr();
+    auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
+    RT::PiProgram Program =
+        detail::ProgramManager::getInstance().createPIProgram(*DeviceImage,
+                                                              Context, Device);
+    return {DeviceImage, Program};
+  }
+
+  const RTDeviceBinaryImage *DeviceImage = nullptr;
+  RT::PiProgram Program = nullptr;
+  if (KernelCG->getKernelBundle() != nullptr) {
+    // Retrieve the device image from the kernel bundle.
+    auto KernelBundle = KernelCG->getKernelBundle();
+    kernel_id KernelID =
+        detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
+
+    auto SyclKernel = detail::getSyclObjImpl(
+        KernelBundle->get_kernel(KernelID, KernelBundle));
+
+    DeviceImage = SyclKernel->getDeviceImage()->get_bin_image_ref();
+    Program = SyclKernel->getDeviceImage()->get_program_ref();
+  } else if (KernelCG->MSyclKernel != nullptr) {
+    DeviceImage = KernelCG->MSyclKernel->getDeviceImage()->get_bin_image_ref();
+    Program = KernelCG->MSyclKernel->getDeviceImage()->get_program_ref();
+  } else {
+    auto ContextImpl = Queue->getContextImplPtr();
+    auto Context = detail::createSyclObjFromImpl<context>(ContextImpl);
+    auto DeviceImpl = Queue->getDeviceImplPtr();
+    auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
+    DeviceImage = &detail::ProgramManager::getInstance().getDeviceImage(
+        KernelCG->MOSModuleHandle, KernelName, Context, Device);
+    Program = detail::ProgramManager::getInstance().createPIProgram(
+        *DeviceImage, Context, Device);
+  }
+  return {DeviceImage, Program};
+}
+
 static ::jit_compiler::ParameterKind
 translateArgType(kernel_param_kind_t Kind) {
   using PK = ::jit_compiler::ParameterKind;
@@ -576,42 +640,19 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
           "Cannot fuse kernel with invalid kernel function name");
       return nullptr;
     }
-    const RTDeviceBinaryImage *DeviceImage = nullptr;
-    RT::PiProgram Program = nullptr;
-    const KernelArgMask *EliminatedArgs = nullptr;
-    if (KernelCG->getKernelBundle() != nullptr) {
-      // Retrieve the device image from the kernel bundle.
-      auto KernelBundle = KernelCG->getKernelBundle();
-      kernel_id KernelID =
-          detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
 
-      auto SyclKernel = detail::getSyclObjImpl(
-          KernelBundle->get_kernel(KernelID, KernelBundle));
+    auto [DeviceImage, Program] = retrieveKernelBinary(Queue, KernelCG);
 
-      DeviceImage = SyclKernel->getDeviceImage()->get_bin_image_ref();
-      Program = SyclKernel->getDeviceImage()->get_program_ref();
-      EliminatedArgs = SyclKernel->getKernelArgMask();
-    } else if (KernelCG->MSyclKernel != nullptr) {
-      DeviceImage =
-          KernelCG->MSyclKernel->getDeviceImage()->get_bin_image_ref();
-      Program = KernelCG->MSyclKernel->getDeviceImage()->get_program_ref();
-      EliminatedArgs = KernelCG->MSyclKernel->getKernelArgMask();
-    } else {
-      auto ContextImpl = Queue->getContextImplPtr();
-      auto Context = detail::createSyclObjFromImpl<context>(ContextImpl);
-      auto DeviceImpl = Queue->getDeviceImplPtr();
-      auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
-      DeviceImage = &detail::ProgramManager::getInstance().getDeviceImage(
-          KernelCG->MOSModuleHandle, KernelName, Context, Device);
-      Program = detail::ProgramManager::getInstance().createPIProgram(
-          *DeviceImage, Context, Device);
-      EliminatedArgs =
-          detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
-              KernelCG->MOSModuleHandle, Program, KernelName);
-    }
     if (!DeviceImage || !Program) {
       printPerformanceWarning("No suitable IR available for fusion");
       return nullptr;
+    }
+    const KernelArgMask *EliminatedArgs = nullptr;
+    if (Program && (KernelCG->MSyclKernel == nullptr ||
+                    !KernelCG->MSyclKernel->isCreatedFromSource())) {
+      EliminatedArgs =
+          detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
+              KernelCG->MOSModuleHandle, Program, KernelName);
     }
 
     // Collect information about the arguments of this kernel.
@@ -666,8 +707,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       return nullptr;
     }
     ::jit_compiler::SYCLKernelBinaryInfo BinInfo{
-        translateBinaryImageFormat(DeviceImage->getFormat()), 0,
-        RawDeviceImage.BinaryStart, DeviceImageSize};
+        BinaryImageFormat, 0, RawDeviceImage.BinaryStart, DeviceImageSize};
 
     constexpr auto SYCLTypeToIndices = [](auto Val) -> ::jit_compiler::Indices {
       return {Val.get(0), Val.get(1), Val.get(2)};

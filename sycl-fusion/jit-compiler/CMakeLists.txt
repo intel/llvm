@@ -2,13 +2,15 @@
 add_llvm_library(sycl-fusion
    lib/KernelFusion.cpp
    lib/JITContext.cpp
+   lib/translation/LoadKernels.cpp
    lib/translation/SPIRVLLVMTranslation.cpp
    lib/fusion/FusionPipeline.cpp
    lib/fusion/FusionHelper.cpp
    lib/fusion/ModuleHelper.cpp
    lib/helper/ConfigHelper.cpp
 
-  LINK_COMPONENTS
+   LINK_COMPONENTS
+   BitReader
    Core
    Support
    Analysis

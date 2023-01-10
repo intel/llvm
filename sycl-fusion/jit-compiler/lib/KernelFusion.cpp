@@ -15,6 +15,7 @@
 #include "fusion/FusionPipeline.h"
 #include "helper/ConfigHelper.h"
 #include "helper/ErrorHandling.h"
+#include "translation/LoadKernels.h"
 #include "translation/SPIRVLLVMTranslation.h"
 #include <llvm/Support/Error.h>
 #include <sstream>
@@ -97,8 +98,8 @@ FusionResult KernelFusion::fuseKernels(
   // Load all input kernels from their respective SPIR-V modules into a single
   // LLVM IR module.
   llvm::Expected<std::unique_ptr<llvm::Module>> ModOrError =
-      translation::SPIRVLLVMTranslator::loadSPIRVKernels(
-          *JITCtx.getLLVMContext(), ModuleInfo.kernels());
+      translation::KernelLoader::loadKernels(*JITCtx.getLLVMContext(),
+                                             ModuleInfo.kernels());
   if (auto Error = ModOrError.takeError()) {
     return errorToFusionResult(std::move(Error), "SPIR-V translation failed");
   }

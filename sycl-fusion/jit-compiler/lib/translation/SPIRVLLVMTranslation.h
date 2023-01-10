@@ -25,8 +25,7 @@ public:
   ///
   /// Load a list of SPIR-V kernels into a single LLVM module.
   static llvm::Expected<std::unique_ptr<llvm::Module>>
-  loadSPIRVKernels(llvm::LLVMContext &LLVMCtx,
-                   std::vector<SYCLKernelInfo> &Kernels);
+  loadSPIRVKernel(llvm::LLVMContext &LLVMCtx, SYCLKernelInfo &Kernel);
 
   ///
   /// Translate the LLVM IR module Mod to SPIR-V, store it in the JITContext and
@@ -35,10 +34,6 @@ public:
                                                             JITContext &JITCtx);
 
 private:
-  ///
-  /// Pair of address and size to represent a binary blob.
-  using BinaryBlob = std::pair<BinaryAddress, size_t>;
-
   ///
   /// Get an attribute value consisting of NumValues scalar constant integers
   /// from the MDNode.
@@ -52,12 +47,6 @@ private:
   ///   - reqd_work_group_size
   ///   - work_group_size_hint
   static void restoreKernelAttributes(llvm::Module *Mod, SYCLKernelInfo &Info);
-
-  ///
-  /// Read the given SPIR-V binary and translate it to a new LLVM module
-  /// associated with the given context.
-  static llvm::Expected<std::unique_ptr<llvm::Module>>
-  readAndTranslateSPIRV(llvm::LLVMContext &LLVMCtx, BinaryBlob Input);
 
   ///
   /// Default settings for the SPIRV translation options.

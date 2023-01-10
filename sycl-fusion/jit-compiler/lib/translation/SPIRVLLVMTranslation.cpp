@@ -16,7 +16,6 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
-#include "llvm/Linker/Linker.h"
 #include "llvm/Support/raw_ostream.h"
 #include <iostream>
 #include <sstream>
@@ -86,12 +85,19 @@ SPIRV::TranslatorOpts &SPIRVLLVMTranslator::translatorOpts() {
   return Opts;
 }
 
-Expected<std::unique_ptr<Module>>
-SPIRVLLVMTranslator::readAndTranslateSPIRV(LLVMContext &LLVMCtx,
-                                           BinaryBlob Input) {
-  // Create an input stream for the binary blob.
+Expected<std::unique_ptr<llvm::Module>>
+SPIRVLLVMTranslator::loadSPIRVKernel(llvm::LLVMContext &LLVMCtx,
+                                     SYCLKernelInfo &Kernel) {
+  std::unique_ptr<Module> Result{nullptr};
+
+  SYCLKernelBinaryInfo &BinInfo = Kernel.BinaryInfo;
+  assert(BinInfo.Format == BinaryFormat::SPIRV &&
+         "Only SPIR-V supported as input");
+
+  // Create an input stream for the SPIR-V binary.
   std::stringstream SPIRStream(
-      std::string(reinterpret_cast<const char *>(Input.first), Input.second),
+      std::string(reinterpret_cast<const char *>(BinInfo.BinaryStart),
+                  BinInfo.BinarySize),
       std::ios_base::in | std::ios_base::binary);
   std::string ErrMsg;
   // Create a raw pointer. readSpirv accepts a reference to a pointer,
@@ -105,77 +111,13 @@ SPIRVLLVMTranslator::readAndTranslateSPIRV(LLVMContext &LLVMCtx,
         "Failed to load and translate SPIR-V module with error %s",
         ErrMsg.c_str());
   }
-  return std::unique_ptr<Module>(LLVMMod);
-}
+  std::unique_ptr<Module> NewMod{LLVMMod};
 
-Expected<std::unique_ptr<llvm::Module>>
-SPIRVLLVMTranslator::loadSPIRVKernels(llvm::LLVMContext &LLVMCtx,
-                                      std::vector<SYCLKernelInfo> &Kernels) {
-  std::unique_ptr<Module> Result{nullptr};
-  bool First = true;
-  DenseSet<BinaryBlob> ParsedSPIRVModules;
-  size_t AddressBits = 0;
-  for (auto &Kernel : Kernels) {
-    // FIXME: Currently, we use the front of the list.
-    // Do we need to iterate to find the most suitable
-    // SPIR-V module?
-    SYCLKernelBinaryInfo &BinInfo = Kernel.BinaryInfo;
-    // TODO(Lukas, ONNX-399): Also support LLVM IR as input but simply skipping
-    // the translation from SPIR-V to LLVM.
-    assert(BinInfo.Format == BinaryFormat::SPIRV &&
-           "Only SPIR-V supported as input");
-    const unsigned char *SPRModulePtr = BinInfo.BinaryStart;
-    size_t SPRModuleSize = BinInfo.BinarySize;
-    BinaryBlob BinBlob{SPRModulePtr, SPRModuleSize};
-    if (ParsedSPIRVModules.contains(BinBlob)) {
-      // Multiple kernels can be stored in the same SPIR-V module.
-      // If we encountered the same SPIR-V module before, skip.
-      // NOTE: We compare the pointer as well as the size, in case
-      // a previous kernel only referenced part of the SPIR-V module.
-      // Not sure this can actually happen, but better safe than sorry.
-      continue;
-    }
-    // Simply load and translate the SPIR-V into the currently still empty
-    // module.
-    PROPAGATE_ERROR(NewMod, readAndTranslateSPIRV(LLVMCtx, BinBlob));
-
-    // We do not assume that the input binary information has the address bits
-    // set, but rather retrieve this information from the SPIR-V/LLVM module's
-    // data-layout.
-    BinInfo.AddressBits = NewMod->getDataLayout().getPointerSizeInBits();
-    assert((First || BinInfo.AddressBits == AddressBits) &&
-           "Address bits do not match");
-    // Restore SYCL/OpenCL kernel attributes such as 'reqd_work_group_size' or
-    // 'work_group_size_hint' from metadata attached to the kernel function and
-    // store it in the SYCLKernelInfo.
-    // TODO(Lukas, ONNX-399): Validate that DPC++ used metadata to represent
-    // that information.
-    restoreKernelAttributes(NewMod.get(), Kernel);
-
-    if (First) {
-      // We can simply assign the module we just loaded from SPIR-V to the
-      // empty pointer on the first iteration.
-      Result = std::move(NewMod);
-      // The first module will dictate the address bits for the remaining.
-      AddressBits = BinInfo.AddressBits;
-      First = false;
-    } else {
-      // We have already loaded some module, so now we need to
-      // link the module we just loaded with the result so far.
-      // FIXME: We allow duplicates to be overridden by the module
-      // read last. This could cause problems if different modules contain
-      // definitions with the same name, but different body/content.
-      // Check that this is not problematic.
-      Linker::linkModules(*Result, std::move(NewMod),
-                          Linker::Flags::OverrideFromSrc);
-      if (AddressBits != BinInfo.AddressBits) {
-        return createStringError(
-            inconvertibleErrorCode(),
-            "Number of address bits between SPIR-V modules does not match");
-      }
-    }
-  }
-  return std::move(Result);
+  // Restore SYCL/OpenCL kernel attributes such as 'reqd_work_group_size' or
+  // 'work_group_size_hint' from metadata attached to the kernel function and
+  // store it in the SYCLKernelInfo.
+  restoreKernelAttributes(NewMod.get(), Kernel);
+  return std::move(NewMod);
 }
 
 Expected<jit_compiler::SPIRVBinary *>
