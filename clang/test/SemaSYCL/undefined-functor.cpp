@@ -18,6 +18,13 @@ class FunctorWithCallOpDefined {
   void operator()() const {}
 };
 
+class FunctorWithCallOpTemplated {
+  int x;
+  public:
+  template <int x = 0>
+  void operator()() const {}
+};
+
 int main() {
   
   q.submit([&](sycl::handler &cgh) {
@@ -35,6 +42,10 @@ int main() {
   
   q.submit([&](sycl::handler &cgh) {
     cgh.single_task(FunctorWithCallOpDefined{});
+  });
+
+  q.submit([&](sycl::handler &cgh) {
+    cgh.single_task(FunctorWithCallOpTemplated{});
   });
 
 }
