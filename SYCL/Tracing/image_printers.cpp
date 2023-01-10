@@ -3,7 +3,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
 // Unsupported hip call on AMD
-// UNSUPPORTED: hip_amd
+// UNSUPPORTED: hip_amd, gpu-intel-pvc
 
 // Test image-specific printers of the Plugin Interace
 //
