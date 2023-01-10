@@ -462,10 +462,9 @@ private:
   }
 };
 
-class BarePtrCastPattern final
-    : public ConvertOpToLLVMPattern<sycl::SYCLCastOp> {
+class BarePtrCastPattern final : public ConvertOpToLLVMPattern<SYCLCastOp> {
 public:
-  using ConvertOpToLLVMPattern<sycl::SYCLCastOp>::ConvertOpToLLVMPattern;
+  using ConvertOpToLLVMPattern<SYCLCastOp>::ConvertOpToLLVMPattern;
 
   LogicalResult
   matchAndRewrite(SYCLCastOp op, OpAdaptor opAdaptor,
