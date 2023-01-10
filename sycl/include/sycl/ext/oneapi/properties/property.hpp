@@ -173,10 +173,10 @@ enum PropKind : uint32_t {
   WorkGroupSizeHint = 7,
   SubGroupSize = 8,
   DeviceHas = 9,
-  StreamingInterface = 10,  // kernel attribute
+  StreamingInterface = 10, // kernel attribute
   RegisterMapInterface = 11,
   Pipelined = 12,
-  RegisterMap = 13,   // kernel argument attribute
+  RegisterMap = 13, // kernel argument attribute
   Conduit = 14,
   Stable = 15,
   BufferLocation = 16,
