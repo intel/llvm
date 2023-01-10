@@ -34,7 +34,7 @@ jobs:
       lts_matrix: ${{ needs.test_matrix.outputs.lts_matrix }}
       cts_matrix: ${{ needs.test_matrix.outputs.cts_matrix }}
       lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
-      build_configure_extra_args: --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON -DLLVM_PARALLEL_LINK_JOBS=4"
+      build_configure_extra_args: --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DLLVM_PARALLEL_LINK_JOBS=4"
       build_type: RelWithDebInfo
   linux_no_assert:
     name: Linux (no assert)
