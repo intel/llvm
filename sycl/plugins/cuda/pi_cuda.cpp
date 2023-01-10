@@ -284,26 +284,25 @@ void guessLocalWorkSize(_pi_device *device, size_t *threadsPerBlock,
   assert(threadsPerBlock != nullptr);
   assert(global_work_size != nullptr);
   assert(kernel != nullptr);
-  int recommendedBlockSize, minGrid, maxGridDimY, maxGridDimZ;
+  int minGrid, maxBlockSize, gridDim[3];
 
-  cuDeviceGetAttribute(&maxGridDimY, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y,
+  cuDeviceGetAttribute(&gridDim[1], CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y,
                        device->get());
-  cuDeviceGetAttribute(&maxGridDimZ, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z,
+  cuDeviceGetAttribute(&gridDim[2], CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z,
                        device->get());
 
-  threadsPerBlock[1] = (global_work_size[1] / maxGridDimY) + 1;
-  threadsPerBlock[2] = (global_work_size[2] / maxGridDimZ) + 1;
+  threadsPerBlock[1] = ((global_work_size[1] - 1) / gridDim[1]) + 1;
+  threadsPerBlock[2] = ((global_work_size[2] - 1) / gridDim[2]) + 1;
 
   PI_CHECK_ERROR(cuOccupancyMaxPotentialBlockSize(
-      &minGrid, &recommendedBlockSize, kernel->get(), NULL, local_size,
+      &minGrid, &maxBlockSize, kernel->get(), NULL, local_size,
       maxThreadsPerBlock[0]));
 
-  recommendedBlockSize /= (threadsPerBlock[1] * threadsPerBlock[2]);
-  (void)minGrid; // Not used, avoid warnings
+  gridDim[0] = maxBlockSize / (threadsPerBlock[1] * threadsPerBlock[2]);
 
-  threadsPerBlock[0] = std::min(
-      maxThreadsPerBlock[0],
-      std::min(global_work_size[0], static_cast<size_t>(recommendedBlockSize)));
+  threadsPerBlock[0] =
+      std::min(maxThreadsPerBlock[0],
+               std::min(global_work_size[0], static_cast<size_t>(gridDim[0])));
 
   // Find a local work group size that is a divisor of the global
   // work group size to produce uniform work groups.
