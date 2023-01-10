@@ -37,15 +37,24 @@ __SYCL_EXPORT pi_result piDevicesGet(pi_platform Platform,
                                      pi_device_type DeviceType,
                                      pi_uint32 NumEntries, pi_device *Devices,
                                      pi_uint32 *NumDevices) {
-  (void)Platform;
-  (void)DeviceType;
-  (void)NumEntries;
-  (void)Devices;
-  // Report no devices, stab to have a minimal SYCL test running
-  if (NumDevices) {
-    *NumDevices = 0;
-  }
-  return PI_SUCCESS;
+  return pi2ur::piDevicesGet(Platform, DeviceType, NumEntries, Devices,
+                             NumDevices);
+}
+
+__SYCL_EXPORT pi_result piDeviceRetain(pi_device Device) {
+  return pi2ur::piDeviceRetain(Device);
+}
+
+__SYCL_EXPORT pi_result piDeviceRelease(pi_device Device) {
+  return pi2ur::piDeviceRelease(Device);
+}
+
+__SYCL_EXPORT pi_result piDeviceGetInfo(pi_device Device,
+                                        pi_device_info ParamName,
+                                        size_t ParamValueSize, void *ParamValue,
+                                        size_t *ParamValueSizeRet) {
+  return pi2ur::piDeviceGetInfo(Device, ParamName, ParamValueSize, ParamValue,
+                                ParamValueSizeRet);
 }
 
 // This interface is not in Unified Runtime currently
@@ -80,6 +89,9 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piPlatformsGet)
   _PI_API(piPlatformGetInfo)
   _PI_API(piDevicesGet)
+  _PI_API(piDeviceRetain)
+  _PI_API(piDeviceRelease)
+  _PI_API(piDeviceGetInfo)
   _PI_API(piTearDown)
 
   return PI_SUCCESS;
