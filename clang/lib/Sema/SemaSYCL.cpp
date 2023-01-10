@@ -991,12 +991,21 @@ static QualType GetSYCLKernelObjectType(const FunctionDecl *KernelCaller) {
   return KernelParamTy.getUnqualifiedType();
 }
 
-static CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
-  for (auto *MD : Rec->methods()) {
-    if (MD->getOverloadedOperator() == OO_Call)
-      return MD;
-  }
-  return nullptr;
+static CXXMethodDecl *getOperatorParens(const CXXRecordDecl *RD) {
+  DeclarationName Name =
+      RD->getASTContext().DeclarationNames.getCXXOperatorName(OO_Call);
+  DeclContext::lookup_result Calls = RD->lookup(Name);
+
+  assert(!Calls.empty() && "Missing functor call operator!");
+  NamedDecl *CallOp = Calls.front();
+
+  if (CallOp == nullptr)
+    return nullptr;
+
+  if (const auto *CallOpTmpl = dyn_cast<FunctionTemplateDecl>(CallOp))
+    return cast<CXXMethodDecl>(CallOpTmpl->getTemplatedDecl());
+
+  return cast<CXXMethodDecl>(CallOp);
 }
 
 // Fetch the associated call operator of the kernel object
