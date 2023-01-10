@@ -506,7 +506,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
       NumDevices, PiDevices.data(), nullptr);
 
   // Some elements of PiDevices vector might be filtered out, so make a copy of
-  // handles to do a cleaup later
+  // handles to do a cleanup later
   std::vector<RT::PiDevice> PiDevicesToCleanUp = PiDevices;
 
   // Filter out devices that are not present in the SYCL_DEVICE_ALLOWLIST
