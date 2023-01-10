@@ -3001,7 +3001,8 @@ def fsycl_max_parallel_jobs_EQ : Joined<["-"], "fsycl-max-parallel-link-jobs=">,
 def : Flag<["-"], "fsycl-rdc">, Flags<[CoreOption]>, Alias<fgpu_rdc>;
 def : Flag<["-"], "fno-sycl-rdc">, Flags<[CoreOption]>, Alias<fno_gpu_rdc>;
 def fsycl_optimize_framework : Flag<["-"], "fsycl-optimize-framework">,
-  Flags<[CC1Option, CoreOption]>, HelpText<"Option used in conjunction with -O0 flag to "
+  Flags<[CC1Option, CoreOption]>, MarshallingInfoFlag<CodeGenOpts<"OptimizeSYCLFramework">>,
+  HelpText<"Option used in conjunction with -O0 flag to "
   "optimize SYCL framework utility functions and leave unoptimized user kernel code. (experimental)">;
 def fsyntax_only : Flag<["-"], "fsyntax-only">,
   Flags<[NoXarchOption,CoreOption,CC1Option,FC1Option,FlangOption]>, Group<Action_Group>,

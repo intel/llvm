@@ -1154,7 +1154,9 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     Fn->addFnAttrs(FnAttrBuilder);
   }
 
-  if (getLangOpts().SYCLIsDevice && D && checkIfDeclaredInSYCLNamespace(D)) {
+  if (getLangOpts().SYCLIsDevice &&
+      CGM.getCodeGenOpts().OptimizeSYCLFramework && D &&
+      checkIfDeclaredInSYCLNamespace(D)) {
     Fn->setMetadata("sycl-framework", llvm::MDNode::get(getLLVMContext(), {}));
   }
 
