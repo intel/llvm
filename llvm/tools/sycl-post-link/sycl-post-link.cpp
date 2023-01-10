@@ -845,11 +845,6 @@ processInputModule(std::unique_ptr<Module> M) {
       DUMP_ENTRY_POINTS(MDesc2.entries(), MDesc2.Name.c_str(), 3);
       Modified |= processSpecConstants(MDesc2);
 
-      // TODO: detach compile-time properties from device globals.
-      if (DeviceGlobals.getNumOccurrences() > 0) {
-        Modified |=
-            runModulePass<CompileTimePropertiesPass>(MDesc2.getModule());
-      }
       if (!MDesc2.isSYCL() && LowerEsimd) {
         assert(MDesc2.isESIMD() && "NYI");
         // ESIMD lowering also detects large-GRF kernels, so it must happen
