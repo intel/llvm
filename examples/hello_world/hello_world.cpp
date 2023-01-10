@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
             status = urDeviceGetInfo(d, UR_DEVICE_INFO_TYPE, sizeof(ur_device_type_t), static_cast<void *>(&device_type), nullptr);
             if (status != UR_RESULT_SUCCESS)
             {
-                std::cout << "urDeviceGet failed with return code: " << status << std::endl;
+                std::cout << "urDeviceGetInfo failed with return code: " << status << std::endl;
                 goto out;
             }
             static const size_t DEVICE_NAME_MAX_LEN = 1024;
@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
             status = urDeviceGetInfo(d, UR_DEVICE_INFO_NAME, DEVICE_NAME_MAX_LEN - 1, static_cast<void *>(&device_name), nullptr);
             if (status != UR_RESULT_SUCCESS)
             {
-                std::cout << "urDeviceGet failed with return code: " << status << std::endl;
+                std::cout << "urDeviceGetInfo failed with return code: " << status << std::endl;
                 goto out;
             }
             if (device_type == UR_DEVICE_TYPE_GPU)
