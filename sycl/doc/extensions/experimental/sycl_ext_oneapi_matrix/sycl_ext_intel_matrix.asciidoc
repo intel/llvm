@@ -176,6 +176,7 @@ WI0 elements returned in `data`  are the first 2 columns as follows:
 [frame="none"]
 |======================
 | a00 | a01 | a10 |a11 | a20 | a21|a30|a31|a40|a41|a50|a51|a60|a61|a70|a71
+|======================
 
 
 ```c++
@@ -187,6 +188,7 @@ for (int row = 0; row < 8; row++) {
   }
 }  
 ```
+
 The code above assumes knowledge of the distribution of the joint matrix across the different work-items. This is different when a different distribution happens.
 
 For instance, if we assume a round-robin distribution of the joint matrix elements among the work-items, WI0 elements returned in `data`  are the first and 8th columns as follows:
@@ -194,8 +196,11 @@ For instance, if we assume a round-robin distribution of the joint matrix elemen
 [frame="none"]
 |======================
 | a00 | a10 | a20 |a30 | a40 | a50|a60|a70|a08|a18|a28|a38|a48|a58|a68|a78
+|======================
+
 
 The code becomes:
+
 ```c++
 auto data = get_wi_data(sg, tA);
 // each WI calculates local sum of rows
@@ -229,3 +234,12 @@ for (int i = 0; i < data.length(); ++i) {
 
 ## Open Questions
 - Should the same class, `joint_matrix`, handle both cases where sizes are constant (GPU case) and when sizes are variable (CPU case)? Note that a Intel AMX 2d tile register permits sizes up to 1024 (16rowsx64cols) bytes that can be variable. The ability to define only one interface for both would make it possible to give the user a way to make use of the flexibility introduced by the CPU but at the same time save resources on the GPU. In a previous version of the design, we used `sycl::dynamic_extent`  to differentiate between static and dynamic sizes. But since this was not implemented at all, we decided to remove it. We can revisit this design choice if this comes up as part of a customer request or if SPIRV matrix extension extends its support to dynamic sizes.
+
+## Revision History
+
+[frame="none",options="header"]
+|======================
+|Rev |Date       |Author     |Changes
+|1   |2022-11-07 |Dounia Khaldi |Add Intel-specific store API and layout information.
+|2   |2023-01-09 |Dounia Khaldi |Add `get_coord` API.
+|======================
