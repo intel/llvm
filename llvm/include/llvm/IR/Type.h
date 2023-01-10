@@ -68,13 +68,14 @@ public:
     TokenTyID,     ///< Tokens
 
     // Derived types... see DerivedTypes.h file.
-    IntegerTyID,       ///< Arbitrary bit width integers
-    FunctionTyID,      ///< Functions
-    PointerTyID,       ///< Pointers
-    StructTyID,        ///< Structures
-    ArrayTyID,         ///< Arrays
-    FixedVectorTyID,   ///< Fixed width SIMD vector type
-    ScalableVectorTyID ///< Scalable SIMD vector type
+    IntegerTyID,        ///< Arbitrary bit width integers
+    FunctionTyID,       ///< Functions
+    PointerTyID,        ///< Pointers
+    StructTyID,         ///< Structures
+    ArrayTyID,          ///< Arrays
+    FixedVectorTyID,    ///< Fixed width SIMD vector type
+    ScalableVectorTyID, ///< Scalable SIMD vector type
+    TypedPointerTyID,   ///< Typed pointer used by some GPU targets
   };
 
 private:
@@ -143,6 +144,11 @@ public:
   /// Return true if this is 'bfloat', a 16-bit bfloat type.
   bool isBFloatTy() const { return getTypeID() == BFloatTyID; }
 
+  /// Return true if this is a 16-bit float type.
+  bool is16bitFPTy() const {
+    return getTypeID() == BFloatTyID || getTypeID() == HalfTyID;
+  }
+
   /// Return true if this is 'float', a 32-bit IEEE fp type.
   bool isFloatTy() const { return getTypeID() == FloatTyID; }
 
@@ -158,11 +164,25 @@ public:
   /// Return true if this is powerpc long double.
   bool isPPC_FP128Ty() const { return getTypeID() == PPC_FP128TyID; }
 
-  /// Return true if this is one of the six floating-point types
+  /// Return true if this is a well-behaved IEEE-like type, which has a IEEE
+  /// compatible layout as defined by isIEEE(), and does not have unnormal
+  /// values
+  bool isIEEELikeFPTy() const {
+    switch (getTypeID()) {
+    case DoubleTyID:
+    case FloatTyID:
+    case HalfTyID:
+    case BFloatTyID:
+    case FP128TyID:
+      return true;
+    default:
+      return false;
+    }
+  }
+
+  /// Return true if this is one of the floating-point types
   bool isFloatingPointTy() const {
-    return getTypeID() == HalfTyID || getTypeID() == BFloatTyID ||
-           getTypeID() == FloatTyID || getTypeID() == DoubleTyID ||
-           getTypeID() == X86_FP80TyID || getTypeID() == FP128TyID ||
+    return isIEEELikeFPTy() || getTypeID() == X86_FP80TyID ||
            getTypeID() == PPC_FP128TyID;
   }
 
@@ -368,6 +388,9 @@ public:
 
   /// This method is deprecated without replacement. Pointer element types are
   /// not available with opaque pointers.
+  [[deprecated("Deprecated without replacement, see "
+               "https://llvm.org/docs/OpaquePointers.html for context and "
+               "migration instructions")]]
   Type *getPointerElementType() const {
     return getNonOpaquePointerElementType();
   }

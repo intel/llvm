@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // template<range R>
 //  requires is_object_v<R>
@@ -72,7 +70,7 @@ struct ForwardRange {
 
 struct Cpp17InputRange {
   struct sentinel {
-    friend constexpr bool operator==(sentinel, cpp17_input_iterator<int*> iter) { return iter.base() == globalBuff + 8; }
+    friend constexpr bool operator==(sentinel, cpp17_input_iterator<int*> iter) { return base(iter) == globalBuff + 8; }
     friend constexpr std::ptrdiff_t operator-(sentinel, cpp17_input_iterator<int*>) { return -8; }
     friend constexpr std::ptrdiff_t operator-(cpp17_input_iterator<int*>, sentinel) { return 8; }
   };
@@ -85,7 +83,7 @@ struct Cpp17InputRange {
 
 struct Cpp20InputRange {
   struct sentinel {
-    friend constexpr bool operator==(sentinel, const cpp20_input_iterator<int*> &iter) { return iter.base() == globalBuff + 8; }
+    friend constexpr bool operator==(sentinel, const cpp20_input_iterator<int*> &iter) { return base(iter) == globalBuff + 8; }
     friend constexpr std::ptrdiff_t operator-(sentinel, const cpp20_input_iterator<int*>&) { return -8; }
   };
 
@@ -129,15 +127,15 @@ constexpr bool test() {
 
     ForwardRange range2;
     std::ranges::ref_view<ForwardRange> view2 = range2;
-    assert(view2.begin().base() == globalBuff);
+    assert(base(view2.begin()) == globalBuff);
 
     Cpp17InputRange range3;
     std::ranges::ref_view<Cpp17InputRange> view3 = range3;
-    assert(view3.begin().base() == globalBuff);
+    assert(base(view3.begin()) == globalBuff);
 
     Cpp20InputRange range4;
     std::ranges::ref_view<Cpp20InputRange> view4 = range4;
-    assert(view4.begin().base() == globalBuff);
+    assert(base(view4.begin()) == globalBuff);
   }
 
   {
@@ -148,7 +146,7 @@ constexpr bool test() {
 
     ForwardRange range2;
     std::ranges::ref_view<ForwardRange> view2 = range2;
-    assert(view2.end().base() == globalBuff + 8);
+    assert(base(view2.end()) == globalBuff + 8);
 
     Cpp17InputRange range3;
     std::ranges::ref_view<Cpp17InputRange> view3 = range3;

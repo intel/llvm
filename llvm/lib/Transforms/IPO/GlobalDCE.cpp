@@ -21,7 +21,6 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/Operator.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
@@ -34,7 +33,7 @@ using namespace llvm;
 #define DEBUG_TYPE "globaldce"
 
 static cl::opt<bool>
-    ClEnableVFE("enable-vfe", cl::Hidden, cl::init(true), cl::ZeroOrMore,
+    ClEnableVFE("enable-vfe", cl::Hidden, cl::init(true),
                 cl::desc("Enable virtual function elimination"));
 
 STATISTIC(NumAliases  , "Number of global aliases removed");
@@ -86,6 +85,9 @@ ModulePass *llvm::createGlobalDCEPass() {
 
 /// Returns true if F is effectively empty.
 static bool isEmptyFunction(Function *F) {
+  // Skip external functions.
+  if (F->isDeclaration())
+    return false;
   BasicBlock &Entry = F->getEntryBlock();
   for (auto &I : Entry) {
     if (I.isDebugOrPseudoInst())
@@ -204,7 +206,7 @@ void GlobalDCEPass::ScanVTables(Module &M) {
 
 void GlobalDCEPass::ScanVTableLoad(Function *Caller, Metadata *TypeId,
                                    uint64_t CallOffset) {
-  for (auto &VTableInfo : TypeIdMap[TypeId]) {
+  for (const auto &VTableInfo : TypeIdMap[TypeId]) {
     GlobalVariable *VTable = VTableInfo.first;
     uint64_t VTableOffset = VTableInfo.second;
 
@@ -238,7 +240,7 @@ void GlobalDCEPass::ScanTypeCheckedLoadIntrinsics(Module &M) {
   if (!TypeCheckedLoadFunc)
     return;
 
-  for (auto U : TypeCheckedLoadFunc->users()) {
+  for (auto *U : TypeCheckedLoadFunc->users()) {
     auto CI = dyn_cast<CallInst>(U);
     if (!CI)
       continue;
@@ -252,7 +254,7 @@ void GlobalDCEPass::ScanTypeCheckedLoadIntrinsics(Module &M) {
     } else {
       // type.checked.load with a non-constant offset, so assume every entry in
       // every matching vtable is used.
-      for (auto &VTableInfo : TypeIdMap[TypeId]) {
+      for (const auto &VTableInfo : TypeIdMap[TypeId]) {
         VFESafeVTables.erase(VTableInfo.first);
       }
     }
@@ -298,7 +300,8 @@ PreservedAnalyses GlobalDCEPass::run(Module &M, ModuleAnalysisManager &MAM) {
   // marked as alive are discarded.
 
   // Remove empty functions from the global ctors list.
-  Changed |= optimizeGlobalCtorsList(M, isEmptyFunction);
+  Changed |= optimizeGlobalCtorsList(
+      M, [](uint32_t, Function *F) { return isEmptyFunction(F); });
 
   // Collect the set of members for each comdat.
   for (Function &F : M)

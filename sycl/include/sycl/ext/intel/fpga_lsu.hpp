@@ -8,13 +8,12 @@
 #pragma once
 
 #include "fpga_utils.hpp"
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/pointers.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/pointers.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace ext {
-namespace intel {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel {
 constexpr uint8_t BURST_COALESCE = 0x1;
 constexpr uint8_t CACHE = 0x2;
 constexpr uint8_t STATICALLY_COALESCE = 0x4;
@@ -48,8 +47,9 @@ template <class... _mem_access_params> class lsu final {
 public:
   lsu() = delete;
 
-  template <typename _T, access::address_space _space>
-  static _T load(sycl::multi_ptr<_T, _space> Ptr) {
+  template <typename _T, access::address_space _space,
+            access::decorated _is_decorated>
+  static _T load(sycl::multi_ptr<_T, _space, _is_decorated> Ptr) {
     check_space<_space>();
     check_load();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
@@ -62,8 +62,9 @@ public:
 #endif
   }
 
-  template <typename _T, access::address_space _space>
-  static void store(sycl::multi_ptr<_T, _space> Ptr, _T Val) {
+  template <typename _T, access::address_space _space,
+            access::decorated _is_decorated>
+  static void store(sycl::multi_ptr<_T, _space, _is_decorated> Ptr, _T Val) {
     check_space<_space>();
     check_store();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
@@ -98,11 +99,12 @@ private:
   static_assert(_cache_val >= 0, "cache size parameter must be non-negative");
 
   template <access::address_space _space> static void check_space() {
-    static_assert(_space == access::address_space::global_space ||
-                      _space == access::address_space::global_device_space ||
-                      _space == access::address_space::global_host_space,
-                  "lsu controls are only supported for global_ptr, "
-                  "device_ptr, and host_ptr objects");
+    static_assert(
+        _space == access::address_space::global_space ||
+            _space == access::address_space::ext_intel_global_device_space ||
+            _space == access::address_space::ext_intel_global_host_space,
+        "lsu controls are only supported for global_ptr, "
+        "device_ptr, and host_ptr objects");
   }
 
   static void check_load() {
@@ -121,8 +123,7 @@ private:
                   "unable to implement a store LSU with a prefetcher.");
   }
 };
-} // namespace intel
-} // namespace ext
+} // namespace ext::intel
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

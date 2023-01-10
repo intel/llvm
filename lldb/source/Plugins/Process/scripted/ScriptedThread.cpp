@@ -9,6 +9,7 @@
 #include "ScriptedThread.h"
 
 #include "Plugins/Process/Utility/RegisterContextThreadMemory.h"
+#include "Plugins/Process/Utility/StopInfoMachException.h"
 #include "lldb/Target/OperatingSystem.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/RegisterContext.h"
@@ -121,7 +122,7 @@ ScriptedThread::CreateRegisterContextForFrame(StackFrame *frame) {
 
   llvm::Optional<std::string> reg_data = GetInterface()->GetRegisterContext();
   if (!reg_data)
-    return GetInterface()->ErrorWithMessage<lldb::RegisterContextSP>(
+    return ScriptedInterface::ErrorWithMessage<lldb::RegisterContextSP>(
         LLVM_PRETTY_FUNCTION, "Failed to get scripted thread registers data.",
         error, LLDBLog::Thread);
 
@@ -129,7 +130,7 @@ ScriptedThread::CreateRegisterContextForFrame(StackFrame *frame) {
       std::make_shared<DataBufferHeap>(reg_data->c_str(), reg_data->size()));
 
   if (!data_sp->GetByteSize())
-    return GetInterface()->ErrorWithMessage<lldb::RegisterContextSP>(
+    return ScriptedInterface::ErrorWithMessage<lldb::RegisterContextSP>(
         LLVM_PRETTY_FUNCTION, "Failed to copy raw registers data.", error,
         LLDBLog::Thread);
 
@@ -137,7 +138,7 @@ ScriptedThread::CreateRegisterContextForFrame(StackFrame *frame) {
       std::make_shared<RegisterContextMemory>(
           *this, 0, *GetDynamicRegisterInfo(), LLDB_INVALID_ADDRESS);
   if (!reg_ctx_memory)
-    return GetInterface()->ErrorWithMessage<lldb::RegisterContextSP>(
+    return ScriptedInterface::ErrorWithMessage<lldb::RegisterContextSP>(
         LLVM_PRETTY_FUNCTION, "Failed to create a register context.", error,
         LLDBLog::Thread);
 
@@ -152,29 +153,27 @@ bool ScriptedThread::LoadArtificialStackFrames() {
 
   Status error;
   if (!arr_sp)
-    return GetInterface()->ErrorWithMessage<bool>(
+    return ScriptedInterface::ErrorWithMessage<bool>(
         LLVM_PRETTY_FUNCTION, "Failed to get scripted thread stackframes.",
         error, LLDBLog::Thread);
 
   size_t arr_size = arr_sp->GetSize();
   if (arr_size > std::numeric_limits<uint32_t>::max())
-    return GetInterface()->ErrorWithMessage<bool>(
+    return ScriptedInterface::ErrorWithMessage<bool>(
         LLVM_PRETTY_FUNCTION,
         llvm::Twine(
             "StackFrame array size (" + llvm::Twine(arr_size) +
             llvm::Twine(
-                ") is greater than maximum autorized for a StackFrameList."))
+                ") is greater than maximum authorized for a StackFrameList."))
             .str(),
         error, LLDBLog::Thread);
 
   StackFrameListSP frames = GetStackFrameList();
 
   for (size_t idx = 0; idx < arr_size; idx++) {
-
     StructuredData::Dictionary *dict;
-
     if (!arr_sp->GetItemAtIndexAsDictionary(idx, dict) || !dict)
-      return GetInterface()->ErrorWithMessage<bool>(
+      return ScriptedInterface::ErrorWithMessage<bool>(
           LLVM_PRETTY_FUNCTION,
           llvm::Twine(
               "Couldn't get artificial stackframe dictionary at index (" +
@@ -203,7 +202,7 @@ bool ScriptedThread::LoadArtificialStackFrames() {
         StackFrame::Kind::Artificial, behaves_like_zeroth_frame, &sc);
 
     if (!frames->SetFrameAtIndex(static_cast<uint32_t>(idx), synth_frame_sp))
-      return GetInterface()->ErrorWithMessage<bool>(
+      return ScriptedInterface::ErrorWithMessage<bool>(
           LLVM_PRETTY_FUNCTION,
           llvm::Twine("Couldn't add frame (" + llvm::Twine(idx) +
                       llvm::Twine(") to ScriptedThread StackFrameList."))
@@ -219,7 +218,7 @@ bool ScriptedThread::CalculateStopInfo() {
 
   Status error;
   if (!dict_sp)
-    return GetInterface()->ErrorWithMessage<bool>(
+    return ScriptedInterface::ErrorWithMessage<bool>(
         LLVM_PRETTY_FUNCTION, "Failed to get scripted thread stop info.", error,
         LLDBLog::Thread);
 
@@ -227,14 +226,14 @@ bool ScriptedThread::CalculateStopInfo() {
   lldb::StopReason stop_reason_type;
 
   if (!dict_sp->GetValueForKeyAsInteger("type", stop_reason_type))
-    return GetInterface()->ErrorWithMessage<bool>(
+    return ScriptedInterface::ErrorWithMessage<bool>(
         LLVM_PRETTY_FUNCTION,
         "Couldn't find value for key 'type' in stop reason dictionary.", error,
         LLDBLog::Thread);
 
   StructuredData::Dictionary *data_dict;
   if (!dict_sp->GetValueForKeyAsDictionary("data", data_dict))
-    return GetInterface()->ErrorWithMessage<bool>(
+    return ScriptedInterface::ErrorWithMessage<bool>(
         LLVM_PRETTY_FUNCTION,
         "Couldn't find value for key 'data' in stop reason dictionary.", error,
         LLDBLog::Thread);
@@ -259,14 +258,49 @@ bool ScriptedThread::CalculateStopInfo() {
         StopInfo::CreateStopReasonWithSignal(*this, signal, description.data());
   } break;
   case lldb::eStopReasonException: {
-    llvm::StringRef description;
-    data_dict->GetValueForKeyAsString("desc", description);
+#if defined(__APPLE__)
+    StructuredData::Dictionary *mach_exception;
+    if (data_dict->GetValueForKeyAsDictionary("mach_exception",
+                                              mach_exception)) {
+      llvm::StringRef value;
+      mach_exception->GetValueForKeyAsString("type", value);
+      auto exc_type =
+          StopInfoMachException::MachException::ExceptionCode(value.data());
 
+      if (!exc_type)
+        return false;
+
+      uint32_t exc_data_size = 0;
+      llvm::SmallVector<uint64_t, 3> raw_codes;
+
+      StructuredData::Array *exc_rawcodes;
+      mach_exception->GetValueForKeyAsArray("rawCodes", exc_rawcodes);
+      if (exc_rawcodes) {
+        auto fetch_data = [&raw_codes](StructuredData::Object *obj) {
+          if (!obj)
+            return false;
+          raw_codes.push_back(obj->GetIntegerValue());
+          return true;
+        };
+
+        exc_rawcodes->ForEach(fetch_data);
+        exc_data_size = raw_codes.size();
+      }
+
+      stop_info_sp = StopInfoMachException::CreateStopReasonWithMachException(
+          *this, *exc_type, exc_data_size,
+          exc_data_size >= 1 ? raw_codes[0] : 0,
+          exc_data_size >= 2 ? raw_codes[1] : 0,
+          exc_data_size >= 3 ? raw_codes[2] : 0);
+
+      break;
+    }
+#endif
     stop_info_sp =
-        StopInfo::CreateStopReasonWithException(*this, description.data());
+        StopInfo::CreateStopReasonWithException(*this, "EXC_BAD_ACCESS");
   } break;
   default:
-    return GetInterface()->ErrorWithMessage<bool>(
+    return ScriptedInterface::ErrorWithMessage<bool>(
         LLVM_PRETTY_FUNCTION,
         llvm::Twine("Unsupported stop reason type (" +
                     llvm::Twine(stop_reason_type) + llvm::Twine(")."))
@@ -298,15 +332,27 @@ std::shared_ptr<DynamicRegisterInfo> ScriptedThread::GetDynamicRegisterInfo() {
 
     Status error;
     if (!reg_info)
-      return GetInterface()
-          ->ErrorWithMessage<std::shared_ptr<DynamicRegisterInfo>>(
-              LLVM_PRETTY_FUNCTION,
-              "Failed to get scripted thread registers info.", error,
-              LLDBLog::Thread);
+      return ScriptedInterface::ErrorWithMessage<
+          std::shared_ptr<DynamicRegisterInfo>>(
+          LLVM_PRETTY_FUNCTION, "Failed to get scripted thread registers info.",
+          error, LLDBLog::Thread);
 
     m_register_info_sp = std::make_shared<DynamicRegisterInfo>(
         *reg_info, m_scripted_process.GetTarget().GetArchitecture());
   }
 
   return m_register_info_sp;
+}
+
+StructuredData::ObjectSP ScriptedThread::FetchThreadExtendedInfo() {
+  CheckInterpreterAndScriptObject();
+
+  Status error;
+  StructuredData::ArraySP extended_info_sp = GetInterface()->GetExtendedInfo();
+
+  if (!extended_info_sp || !extended_info_sp->GetSize())
+    return ScriptedInterface::ErrorWithMessage<StructuredData::ObjectSP>(
+        LLVM_PRETTY_FUNCTION, "No extended information found", error);
+
+  return extended_info_sp;
 }

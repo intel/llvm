@@ -4,7 +4,7 @@ target_include_directories(sycl-sanitize PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/../xpti_helpers/"
 )
 
-target_link_libraries(sycl-sanitize PRIVATE
+link_llvm_libs(sycl-sanitize
   LLVMSupport
 )
 

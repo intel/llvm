@@ -99,11 +99,10 @@ def FuncExtKhrLocalInt32ExtendedAtomics  : FunctionExtension<"cl_khr_local_int32
 def FuncExtKhrInt64BaseAtomics           : FunctionExtension<"cl_khr_int64_base_atomics">;
 def FuncExtKhrInt64ExtendedAtomics       : FunctionExtension<"cl_khr_int64_extended_atomics">;
 def FuncExtKhrMipmapImage                : FunctionExtension<"cl_khr_mipmap_image">;
-def FuncExtKhrMipmapImageReadWrite       : FunctionExtension<"cl_khr_mipmap_image __opencl_c_read_write_images">;
 def FuncExtKhrMipmapImageWrites          : FunctionExtension<"cl_khr_mipmap_image_writes">;
 def FuncExtKhrGlMsaaSharing              : FunctionExtension<"cl_khr_gl_msaa_sharing">;
-def FuncExtKhrGlMsaaSharingReadWrite     : FunctionExtension<"cl_khr_gl_msaa_sharing __opencl_c_read_write_images">;
 
+def FuncExtOpenCLCDeviceEnqueue          : FunctionExtension<"__opencl_c_device_enqueue">;
 def FuncExtOpenCLCGenericAddressSpace    : FunctionExtension<"__opencl_c_generic_address_space">;
 def FuncExtOpenCLCNamedAddressSpaceBuiltins : FunctionExtension<"__opencl_c_named_address_space_builtins">;
 def FuncExtOpenCLCPipes                  : FunctionExtension<"__opencl_c_pipes">;
@@ -133,9 +132,6 @@ def FuncExtFloatAtomicsFp64GenericASMinMax    : FunctionExtension<"cl_ext_float_
 
 // Not a real extension, but a workaround to add C++ for OpenCL specific builtins.
 def FuncExtOpenCLCxx                     : FunctionExtension<"__cplusplus">;
-
-// Multiple extensions
-def FuncExtKhrMipmapWritesAndWrite3d     : FunctionExtension<"cl_khr_mipmap_image_writes cl_khr_3d_image_writes">;
 
 // Arm extensions.
 def ArmIntegerDotProductInt8                   : FunctionExtension<"cl_arm_integer_dot_product_int8">;
@@ -246,7 +242,13 @@ class ImageType<Type _Ty, string _AccessQualifier> :
   let IsConst = _Ty.IsConst;
   let IsVolatile = _Ty.IsVolatile;
   let AddrSpace = _Ty.AddrSpace;
-  let Extension = _Ty.Extension;
+  // Add TypeExtensions for writable "image3d_t" and "read_write" image types.
+  let Extension = !cond(
+      !and(!eq(_Ty.Name, "image3d_t"), !eq(_AccessQualifier, "WO")) : TypeExtension<"cl_khr_3d_image_writes">,
+      !and(!eq(_Ty.Name, "image3d_t"), !eq(_AccessQualifier, "RW")) : TypeExtension<"cl_khr_3d_image_writes __opencl_c_read_write_images">,
+      !or(!eq(_Ty.Name, "image2d_depth_t"), !eq(_Ty.Name, "image2d_array_depth_t")) : TypeExtension<"cl_khr_depth_images">,
+      !eq(_AccessQualifier, "RW") : TypeExtension<"__opencl_c_read_write_images">,
+      true : _Ty.Extension);
 }
 
 // OpenCL enum type (e.g. memory_scope).
@@ -353,9 +355,22 @@ def Float     : Type<"float",     QualType<"Context.FloatTy">>;
 let Extension = Fp64TypeExt in {
   def Double    : Type<"double",    QualType<"Context.DoubleTy">>;
 }
+
+// The half type for builtins that require the cl_khr_fp16 extension.
 let Extension = Fp16TypeExt in {
   def Half      : Type<"half",      QualType<"Context.HalfTy">>;
 }
+
+// Without the cl_khr_fp16 extension, the half type can only be used to declare
+// a pointer.  Define const and non-const pointer types in all address spaces.
+// Use the "__half" alias to allow the TableGen emitter to distinguish the
+// (extensionless) pointee type of these pointer-to-half types from the "half"
+// type defined above that already carries the cl_khr_fp16 extension.
+foreach AS = [PrivateAS, GlobalAS, ConstantAS, LocalAS, GenericAS] in {
+  def "HalfPtr" # AS      : PointerType<Type<"__half", QualType<"Context.HalfTy">>, AS>;
+  def "HalfPtrConst" # AS : PointerType<ConstType<Type<"__half", QualType<"Context.HalfTy">>>, AS>;
+}
+
 def Size      : Type<"size_t",    QualType<"Context.getSizeType()">>;
 def PtrDiff   : Type<"ptrdiff_t", QualType<"Context.getPointerDiffType()">>;
 def IntPtr    : Type<"intptr_t",  QualType<"Context.getIntPtrType()">>;
@@ -878,22 +893,22 @@ defm : VloadVstore<[ConstantAS], 0>;
 
 multiclass VloadVstoreHalf<list<AddressSpace> addrspaces, bit defStores> {
   foreach AS = addrspaces in {
-    def : Builtin<"vload_half", [Float, Size, PointerType<ConstType<Half>, AS>], Attr.Pure>;
+    def : Builtin<"vload_half", [Float, Size, !cast<Type>("HalfPtrConst" # AS)], Attr.Pure>;
     foreach VSize = [2, 3, 4, 8, 16] in {
       foreach name = ["vload_half" # VSize, "vloada_half" # VSize] in {
-        def : Builtin<name, [VectorType<Float, VSize>, Size, PointerType<ConstType<Half>, AS>], Attr.Pure>;
+        def : Builtin<name, [VectorType<Float, VSize>, Size, !cast<Type>("HalfPtrConst" # AS)], Attr.Pure>;
       }
     }
     if defStores then {
       foreach rnd = ["", "_rte", "_rtz", "_rtp", "_rtn"] in {
         foreach name = ["vstore_half" # rnd] in {
-          def : Builtin<name, [Void, Float, Size, PointerType<Half, AS>]>;
-          def : Builtin<name, [Void, Double, Size, PointerType<Half, AS>]>;
+          def : Builtin<name, [Void, Float, Size, !cast<Type>("HalfPtr" # AS)]>;
+          def : Builtin<name, [Void, Double, Size, !cast<Type>("HalfPtr" # AS)]>;
         }
         foreach VSize = [2, 3, 4, 8, 16] in {
           foreach name = ["vstore_half" # VSize # rnd, "vstorea_half" # VSize # rnd] in {
-            def : Builtin<name, [Void, VectorType<Float, VSize>, Size, PointerType<Half, AS>]>;
-            def : Builtin<name, [Void, VectorType<Double, VSize>, Size, PointerType<Half, AS>]>;
+            def : Builtin<name, [Void, VectorType<Float, VSize>, Size, !cast<Type>("HalfPtr" # AS)]>;
+            def : Builtin<name, [Void, VectorType<Double, VSize>, Size, !cast<Type>("HalfPtr" # AS)]>;
           }
         }
       }
@@ -925,7 +940,7 @@ def : Builtin<"write_mem_fence", [Void, MemFenceFlags]>;
 // OpenCL v3.0 s6.15.10 - Address Space Qualifier Functions.
 // to_global, to_local, to_private are declared in Builtins.def.
 
-let MinVersion = CL20 in {
+let Extension = FuncExtOpenCLCGenericAddressSpace in {
   // The OpenCL 3.0 specification defines these with a "gentype" argument indicating any builtin
   // type or user-defined type, which cannot be represented currently.  Hence we slightly diverge
   // by providing only the following overloads with a void pointer.
@@ -1173,7 +1188,7 @@ let MinVersion = CL20 in {
       defvar extension_fp64 = !cast<FunctionExtension>("FuncExtFloatAtomicsFp64" # addrspace # "Add");
 
       defm : BuiltinAtomicExplicit<"atomic_fetch_" # ModOp,
-          [Half, PointerType<VolatileType<AtomicFloat>, addrspace>, Half], extension_fp16>;
+          [Half, PointerType<VolatileType<AtomicHalf>, addrspace>, Half], extension_fp16>;
       defm : BuiltinAtomicExplicit<"atomic_fetch_" # ModOp,
           [Float, PointerType<VolatileType<AtomicFloat>, addrspace>, Float], extension_fp32>;
       defm : BuiltinAtomicExplicit<"atomic_fetch_" # ModOp,
@@ -1456,7 +1471,7 @@ let Extension = FuncExtOpenCLCPipes in {
 // Defined in Builtins.def
 
 // --- Table 33 ---
-let MinVersion = CL20 in {
+let Extension = FuncExtOpenCLCDeviceEnqueue in {
   def : Builtin<"enqueue_marker",
       [Int, Queue, UInt, PointerType<ConstType<ClkEvent>, GenericAS>, PointerType<ClkEvent, GenericAS>]>;
 
@@ -1595,9 +1610,6 @@ multiclass ImageQueryNumMipLevels<string aQual> {
 let Extension = FuncExtKhrMipmapImage in {
   defm : ImageQueryNumMipLevels<"RO">;
   defm : ImageQueryNumMipLevels<"WO">;
-}
-
-let Extension = FuncExtKhrMipmapImageReadWrite in {
   defm : ImageQueryNumMipLevels<"RW">;
 }
 
@@ -1627,12 +1639,10 @@ let Extension = FuncExtKhrMipmapImageWrites in {
       def : Builtin<"write_imageui", [Void, ImageType<imgTy, aQual>, VectorType<Int, 4>, Int, VectorType<UInt, 4>]>;
     }
     def : Builtin<"write_imagef", [Void, ImageType<Image2dArrayDepth, aQual>, VectorType<Int, 4>, Int, Float]>;
-    let Extension = FuncExtKhrMipmapWritesAndWrite3d in {
-      foreach imgTy = [Image3d] in {
-        def : Builtin<"write_imagef", [Void, ImageType<imgTy, aQual>, VectorType<Int, 4>, Int, VectorType<Float, 4>]>;
-        def : Builtin<"write_imagei", [Void, ImageType<imgTy, aQual>, VectorType<Int, 4>, Int, VectorType<Int, 4>]>;
-        def : Builtin<"write_imageui", [Void, ImageType<imgTy, aQual>, VectorType<Int, 4>, Int, VectorType<UInt, 4>]>;
-      }
+    foreach imgTy = [Image3d] in {
+      def : Builtin<"write_imagef", [Void, ImageType<imgTy, aQual>, VectorType<Int, 4>, Int, VectorType<Float, 4>]>;
+      def : Builtin<"write_imagei", [Void, ImageType<imgTy, aQual>, VectorType<Int, 4>, Int, VectorType<Int, 4>]>;
+      def : Builtin<"write_imageui", [Void, ImageType<imgTy, aQual>, VectorType<Int, 4>, Int, VectorType<UInt, 4>]>;
     }
   }
 }
@@ -1676,9 +1686,6 @@ let Extension = FuncExtKhrGlMsaaSharing in {
   defm : ImageReadMsaa<"RO">;
   defm : ImageQueryMsaa<"RO">;
   defm : ImageQueryMsaa<"WO">;
-}
-
-let Extension = FuncExtKhrGlMsaaSharingReadWrite in {
   defm : ImageReadMsaa<"RW">;
   defm : ImageQueryMsaa<"RW">;
 }
@@ -1702,7 +1709,9 @@ let Extension = FuncExtKhrSubgroups in {
 // --- Table 28.2.2 ---
 let Extension = FuncExtKhrSubgroups in {
   def : Builtin<"sub_group_barrier", [Void, MemFenceFlags], Attr.Convergent>;
-  def : Builtin<"sub_group_barrier", [Void, MemFenceFlags, MemoryScope], Attr.Convergent>;
+  let MinVersion = CL20 in {
+    def : Builtin<"sub_group_barrier", [Void, MemFenceFlags, MemoryScope], Attr.Convergent>;
+  }
 }
 
 // --- Table 28.2.4 ---
@@ -1837,6 +1846,12 @@ let Extension = FunctionExtension<"__opencl_c_integer_dot_product_input_4x8bit_p
   def : Builtin<"dot_acc_sat_4x8packed_ss_int", [Int, UInt, UInt, Int], Attr.Const>;
   def : Builtin<"dot_acc_sat_4x8packed_us_int", [Int, UInt, UInt, Int], Attr.Const>;
   def : Builtin<"dot_acc_sat_4x8packed_su_int", [Int, UInt, UInt, Int], Attr.Const>;
+}
+
+// Section 48.3 - cl_khr_subgroup_rotate
+let Extension = FunctionExtension<"cl_khr_subgroup_rotate"> in {
+  def : Builtin<"sub_group_rotate", [AGenType1, AGenType1, Int], Attr.Convergent>;
+  def : Builtin<"sub_group_clustered_rotate", [AGenType1, AGenType1, Int, UInt], Attr.Convergent>;
 }
 
 //--------------------------------------------------------------------

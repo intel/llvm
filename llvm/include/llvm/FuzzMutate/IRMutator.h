@@ -10,6 +10,9 @@
 // configurable set of strategies. Some common strategies are also included
 // here.
 //
+// Fuzzer-friendly (de)serialization functions are also provided, as these
+// are usually needed when mutating IR.
+//
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_FUZZMUTATE_IRMUTATOR_H
@@ -92,6 +95,7 @@ public:
   void mutate(BasicBlock &BB, RandomIRBuilder &IB) override;
 };
 
+/// Strategy that deletes instructions when the Module is too large.
 class InstDeleterIRStrategy : public IRMutationStrategy {
 public:
   uint64_t getWeight(size_t CurrentSize, size_t MaxSize,
@@ -102,6 +106,7 @@ public:
   void mutate(Instruction &Inst, RandomIRBuilder &IB) override;
 };
 
+/// Strategy that modifies instruction attributes and operands.
 class InstModificationIRStrategy : public IRMutationStrategy {
 public:
   uint64_t getWeight(size_t CurrentSize, size_t MaxSize,
@@ -113,6 +118,65 @@ public:
   void mutate(Instruction &Inst, RandomIRBuilder &IB) override;
 };
 
-} // end llvm namespace
+/// Strategy to insert PHI Nodes at the head of each basic block.
+class InsertPHIStrategy : public IRMutationStrategy {
+public:
+  uint64_t getWeight(size_t CurrentSize, size_t MaxSize,
+                     uint64_t CurrentWeight) override {
+    return 2;
+  }
+
+  void mutate(BasicBlock &BB, RandomIRBuilder &IB) override;
+};
+
+/// Strategy to select a random instruction and add a new sink (user) to it to
+/// increate data dependency.
+class SinkInstructionStrategy : public IRMutationStrategy {
+public:
+  uint64_t getWeight(size_t CurrentSize, size_t MaxSize,
+                     uint64_t CurrentWeight) override {
+    return 2;
+  }
+
+  void mutate(Function &F, RandomIRBuilder &IB) override;
+  void mutate(BasicBlock &BB, RandomIRBuilder &IB) override;
+};
+
+/// Strategy to randomly select a block and shuffle the operations without
+/// affecting data dependency.
+class ShuffleBlockStrategy : public IRMutationStrategy {
+public:
+  uint64_t getWeight(size_t CurrentSize, size_t MaxSize,
+                     uint64_t CurrentWeight) override {
+    return 2;
+  }
+
+  void mutate(BasicBlock &BB, RandomIRBuilder &IB) override;
+};
+
+/// Fuzzer friendly interface for the llvm bitcode parser.
+///
+/// \param Data Bitcode we are going to parse
+/// \param Size Size of the 'Data' in bytes
+/// \return New module or nullptr in case of error
+std::unique_ptr<Module> parseModule(const uint8_t *Data, size_t Size,
+                                    LLVMContext &Context);
+
+/// Fuzzer friendly interface for the llvm bitcode printer.
+///
+/// \param M Module to print
+/// \param Dest Location to store serialized module
+/// \param MaxSize Size of the destination buffer
+/// \return Number of bytes that were written. When module size exceeds MaxSize
+///         returns 0 and leaves Dest unchanged.
+size_t writeModule(const Module &M, uint8_t *Dest, size_t MaxSize);
+
+/// Try to parse module and verify it. May output verification errors to the
+/// errs().
+/// \return New module or nullptr in case of error.
+std::unique_ptr<Module> parseAndVerify(const uint8_t *Data, size_t Size,
+                                       LLVMContext &Context);
+
+} // namespace llvm
 
 #endif // LLVM_FUZZMUTATE_IRMUTATOR_H

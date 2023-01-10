@@ -341,7 +341,7 @@ void Sema::DiagnoseUnusedExprResult(const Stmt *S, unsigned DiagID) {
       return DiagnoseUnusedExprResult(POE->getSemanticExpr(0), DiagID);
     if (isa<ObjCSubscriptRefExpr>(Source))
       DiagID = diag::warn_unused_container_subscript_expr;
-    else
+    else if (isa<ObjCPropertyRefExpr>(Source))
       DiagID = diag::warn_unused_property_expr;
   } else if (const CXXFunctionalCastExpr *FC
                                        = dyn_cast<CXXFunctionalCastExpr>(E)) {
@@ -382,7 +382,7 @@ void Sema::DiagnoseUnusedExprResult(const Stmt *S, unsigned DiagID) {
   // type of the left operand could be used for SFINAE, so technically it is
   // *used*.
   if (DiagID != diag::warn_unused_comma_left_operand || !isSFINAEContext())
-    DiagIfReachable(Loc, S ? llvm::makeArrayRef(S) : llvm::None,
+    DiagIfReachable(Loc, S ? llvm::makeArrayRef(S) : std::nullopt,
                     PDiag(DiagID) << R1 << R2);
 }
 
@@ -442,7 +442,16 @@ StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
       DiagnoseEmptyLoopBody(Elts[i], Elts[i + 1]);
   }
 
-  return CompoundStmt::Create(Context, Elts, L, R);
+  // Calculate difference between FP options in this compound statement and in
+  // the enclosing one. If this is a function body, take the difference against
+  // default options. In this case the difference will indicate options that are
+  // changed upon entry to the statement.
+  FPOptions FPO = (getCurFunction()->CompoundScopes.size() == 1)
+                      ? FPOptions(getLangOpts())
+                      : getCurCompoundScope().InitialFPFeatures;
+  FPOptionsOverride FPDiff = getCurFPFeatures().getChangesFrom(FPO);
+
+  return CompoundStmt::Create(Context, Elts, FPDiff, L, R);
 }
 
 ExprResult
@@ -587,7 +596,7 @@ StmtResult Sema::BuildAttributedStmt(SourceLocation AttrsLoc,
   return AttributedStmt::Create(Context, AttrsLoc, Attrs, SubStmt);
 }
 
-StmtResult Sema::ActOnAttributedStmt(const ParsedAttributesWithRange &Attrs,
+StmtResult Sema::ActOnAttributedStmt(const ParsedAttributes &Attrs,
                                      Stmt *SubStmt) {
   SmallVector<const Attr *, 1> SemanticAttrs;
   ProcessStmtAttributes(SubStmt, Attrs, SemanticAttrs);
@@ -888,8 +897,7 @@ StmtResult Sema::ActOnIfStmt(SourceLocation IfLoc,
     CommaVisitor(*this).Visit(CondExpr);
 
   if (!ConstevalOrNegatedConsteval && !elseStmt)
-    DiagnoseEmptyStmtBody(CondExpr->getEndLoc(), thenStmt,
-                          diag::warn_empty_if_body);
+    DiagnoseEmptyStmtBody(RParenLoc, thenStmt, diag::warn_empty_if_body);
 
   if (ConstevalOrNegatedConsteval ||
       StatementKind == IfStatementKind::Constexpr) {
@@ -1491,7 +1499,7 @@ Sema::ActOnFinishSwitchStmt(SourceLocation SwitchLoc, Stmt *Switch,
     // If switch has default case, then ignore it.
     if (!CaseListIsErroneous && !CaseListIsIncomplete && !HasConstantCond &&
         ET && ET->getDecl()->isCompleteDefinition() &&
-        !empty(ET->getDecl()->enumerators())) {
+        !ET->getDecl()->enumerators().empty()) {
       const EnumDecl *ED = ET->getDecl();
       EnumValsTy EnumVals;
 
@@ -2300,11 +2308,14 @@ Sema::ActOnObjCForCollectionStmt(SourceLocation ForLoc,
 
       // If the type contained 'auto', deduce the 'auto' to 'id'.
       if (FirstType->getContainedAutoType()) {
-        OpaqueValueExpr OpaqueId(D->getLocation(), Context.getObjCIdType(),
-                                 VK_PRValue);
+        SourceLocation Loc = D->getLocation();
+        OpaqueValueExpr OpaqueId(Loc, Context.getObjCIdType(), VK_PRValue);
         Expr *DeducedInit = &OpaqueId;
-        if (DeduceAutoType(D->getTypeSourceInfo(), DeducedInit, FirstType) ==
-                DAR_Failed)
+        TemplateDeductionInfo Info(Loc);
+        FirstType = QualType();
+        TemplateDeductionResult Result = DeduceAutoType(
+            D->getTypeSourceInfo()->getTypeLoc(), DeducedInit, FirstType, Info);
+        if (Result != TDK_Success && Result != TDK_AlreadyDiagnosed)
           DiagnoseAutoDeductionFailure(D, DeducedInit);
         if (FirstType.isNull()) {
           D->setInvalidDecl();
@@ -2368,10 +2379,16 @@ static bool FinishForRangeVarDecl(Sema &SemaRef, VarDecl *Decl, Expr *Init,
   // Deduce the type for the iterator variable now rather than leaving it to
   // AddInitializerToDecl, so we can produce a more suitable diagnostic.
   QualType InitType;
-  if ((!isa<InitListExpr>(Init) && Init->getType()->isVoidType()) ||
-      SemaRef.DeduceAutoType(Decl->getTypeSourceInfo(), Init, InitType) ==
-          Sema::DAR_Failed)
+  if (!isa<InitListExpr>(Init) && Init->getType()->isVoidType()) {
     SemaRef.Diag(Loc, DiagID) << Init->getType();
+  } else {
+    TemplateDeductionInfo Info(Init->getExprLoc());
+    Sema::TemplateDeductionResult Result = SemaRef.DeduceAutoType(
+        Decl->getTypeSourceInfo()->getTypeLoc(), Init, InitType, Info);
+    if (Result != Sema::TDK_Success && Result != Sema::TDK_AlreadyDiagnosed)
+      SemaRef.Diag(Loc, DiagID) << Init->getType();
+  }
+
   if (InitType.isNull()) {
     Decl->setInvalidDecl();
     return true;
@@ -2652,7 +2669,7 @@ BuildNonArrayForRange(Sema &SemaRef, Expr *BeginRange, Expr *EndRange,
                                   SemaRef.PDiag(diag::err_for_range_invalid)
                                       << BeginRange->getType() << BEFFound),
               SemaRef, OCD_AllCandidates, BeginRange);
-          LLVM_FALLTHROUGH;
+          [[fallthrough]];
 
         case Sema::FRS_DiagnosticIssued:
           for (NamedDecl *D : OldFound) {
@@ -3312,7 +3329,7 @@ Sema::ActOnContinueStmt(SourceLocation ContinueLoc, Scope *CurScope) {
     // C99 6.8.6.2p1: A break shall appear only in or as a loop body.
     return StmtError(Diag(ContinueLoc, diag::err_continue_not_in_loop));
   }
-  if (S->getFlags() & Scope::ConditionVarScope) {
+  if (S->isConditionVarScope()) {
     // We cannot 'continue;' from within a statement expression in the
     // initializer of a condition variable because we would jump past the
     // initialization of that variable.
@@ -3761,16 +3778,12 @@ TypeLoc Sema::getReturnTypeLoc(FunctionDecl *FD) const {
 /// C++1y [dcl.spec.auto]p6.
 bool Sema::DeduceFunctionTypeFromReturnExpr(FunctionDecl *FD,
                                             SourceLocation ReturnLoc,
-                                            Expr *&RetExpr,
-                                            AutoType *AT) {
-  // If this is the conversion function for a lambda, we choose to deduce it
+                                            Expr *RetExpr, const AutoType *AT) {
+  // If this is the conversion function for a lambda, we choose to deduce its
   // type from the corresponding call operator, not from the synthesized return
   // statement within it. See Sema::DeduceReturnType.
   if (isLambdaConversionOperator(FD))
     return false;
-
-  TypeLoc OrigResultType = getReturnTypeLoc(FD);
-  QualType Deduced;
 
   if (RetExpr && isa<InitListExpr>(RetExpr)) {
     //  If the deduction is for a return statement and the initializer is
@@ -3791,80 +3804,74 @@ bool Sema::DeduceFunctionTypeFromReturnExpr(FunctionDecl *FD,
     return false;
   }
 
-  if (RetExpr) {
-    //  Otherwise, [...] deduce a value for U using the rules of template
-    //  argument deduction.
-    DeduceAutoResult DAR = DeduceAutoType(OrigResultType, RetExpr, Deduced);
-
-    if (DAR == DAR_Failed && !FD->isInvalidDecl())
-      Diag(RetExpr->getExprLoc(), diag::err_auto_fn_deduction_failure)
-        << OrigResultType.getType() << RetExpr->getType();
-
-    if (DAR != DAR_Succeeded)
-      return true;
-
-    // If a local type is part of the returned type, mark its fields as
-    // referenced.
-    LocalTypedefNameReferencer Referencer(*this);
-    Referencer.TraverseType(RetExpr->getType());
-  } else {
-    //  In the case of a return with no operand, the initializer is considered
-    //  to be void().
-    //
-    // Deduction here can only succeed if the return type is exactly 'cv auto'
-    // or 'decltype(auto)', so just check for that case directly.
+  TypeLoc OrigResultType = getReturnTypeLoc(FD);
+  //  In the case of a return with no operand, the initializer is considered
+  //  to be void().
+  CXXScalarValueInitExpr VoidVal(Context.VoidTy, nullptr, SourceLocation());
+  if (!RetExpr) {
+    // For a function with a deduced result type to return with omitted
+    // expression, the result type as written must be 'auto' or
+    // 'decltype(auto)', possibly cv-qualified or constrained, but not
+    // ref-qualified.
     if (!OrigResultType.getType()->getAs<AutoType>()) {
       Diag(ReturnLoc, diag::err_auto_fn_return_void_but_not_auto)
-        << OrigResultType.getType();
+          << OrigResultType.getType();
       return true;
     }
-    // We always deduce U = void in this case.
-    Deduced = SubstAutoType(OrigResultType.getType(), Context.VoidTy);
-    if (Deduced.isNull())
-      return true;
+    RetExpr = &VoidVal;
   }
+
+  QualType Deduced = AT->getDeducedType();
+  {
+    //  Otherwise, [...] deduce a value for U using the rules of template
+    //  argument deduction.
+    TemplateDeductionInfo Info(RetExpr->getExprLoc());
+    TemplateDeductionResult Res =
+        DeduceAutoType(OrigResultType, RetExpr, Deduced, Info);
+    if (Res != TDK_Success && FD->isInvalidDecl())
+      return true;
+    switch (Res) {
+    case TDK_Success:
+      break;
+    case TDK_AlreadyDiagnosed:
+      return true;
+    case TDK_Inconsistent: {
+      //  If a function with a declared return type that contains a placeholder
+      //  type has multiple return statements, the return type is deduced for
+      //  each return statement. [...] if the type deduced is not the same in
+      //  each deduction, the program is ill-formed.
+      const LambdaScopeInfo *LambdaSI = getCurLambda();
+      if (LambdaSI && LambdaSI->HasImplicitReturnType)
+        Diag(ReturnLoc, diag::err_typecheck_missing_return_type_incompatible)
+            << Info.SecondArg << Info.FirstArg << true /*IsLambda*/;
+      else
+        Diag(ReturnLoc, diag::err_auto_fn_different_deductions)
+            << (AT->isDecltypeAuto() ? 1 : 0) << Info.SecondArg
+            << Info.FirstArg;
+      return true;
+    }
+    default:
+      Diag(RetExpr->getExprLoc(), diag::err_auto_fn_deduction_failure)
+          << OrigResultType.getType() << RetExpr->getType();
+      return true;
+    }
+  }
+
+  // If a local type is part of the returned type, mark its fields as
+  // referenced.
+  LocalTypedefNameReferencer(*this).TraverseType(RetExpr->getType());
 
   // CUDA: Kernel function must have 'void' return type.
-  if (getLangOpts().CUDA)
-    if (FD->hasAttr<CUDAGlobalAttr>() && !Deduced->isVoidType()) {
-      Diag(FD->getLocation(), diag::err_kern_type_not_void_return)
-          << FD->getType() << FD->getSourceRange();
-      return true;
-    }
+  if (getLangOpts().CUDA && FD->hasAttr<CUDAGlobalAttr>() &&
+      !Deduced->isVoidType()) {
+    Diag(FD->getLocation(), diag::err_kern_type_not_void_return)
+        << FD->getType() << FD->getSourceRange();
+    return true;
+  }
 
-  //  If a function with a declared return type that contains a placeholder type
-  //  has multiple return statements, the return type is deduced for each return
-  //  statement. [...] if the type deduced is not the same in each deduction,
-  //  the program is ill-formed.
-  QualType DeducedT = AT->getDeducedType();
-  if (!DeducedT.isNull() && !FD->isInvalidDecl()) {
-    AutoType *NewAT = Deduced->getContainedAutoType();
-    // It is possible that NewAT->getDeducedType() is null. When that happens,
-    // we should not crash, instead we ignore this deduction.
-    if (NewAT->getDeducedType().isNull())
-      return false;
-
-    CanQualType OldDeducedType = Context.getCanonicalFunctionResultType(
-                                   DeducedT);
-    CanQualType NewDeducedType = Context.getCanonicalFunctionResultType(
-                                   NewAT->getDeducedType());
-    if (!FD->isDependentContext() && OldDeducedType != NewDeducedType) {
-      const LambdaScopeInfo *LambdaSI = getCurLambda();
-      if (LambdaSI && LambdaSI->HasImplicitReturnType) {
-        Diag(ReturnLoc, diag::err_typecheck_missing_return_type_incompatible)
-          << NewAT->getDeducedType() << DeducedT
-          << true /*IsLambda*/;
-      } else {
-        Diag(ReturnLoc, diag::err_auto_fn_different_deductions)
-          << (AT->isDecltypeAuto() ? 1 : 0)
-          << NewAT->getDeducedType() << DeducedT;
-      }
-      return true;
-    }
-  } else if (!FD->isInvalidDecl()) {
+  if (!FD->isInvalidDecl() && AT->getDeducedType() != Deduced)
     // Update all declarations of the function to have the deduced return type.
     Context.adjustDeducedFunctionResultType(FD, Deduced);
-  }
 
   return false;
 }
@@ -3883,12 +3890,10 @@ Sema::ActOnReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp,
   if (R.isInvalid() || ExprEvalContexts.back().isDiscardedStatementContext())
     return R;
 
-  if (VarDecl *VD =
-      const_cast<VarDecl*>(cast<ReturnStmt>(R.get())->getNRVOCandidate())) {
-    CurScope->addNRVOCandidate(VD);
-  } else {
-    CurScope->setNoNRVO();
-  }
+  VarDecl *VD =
+      const_cast<VarDecl *>(cast<ReturnStmt>(R.get())->getNRVOCandidate());
+
+  CurScope->updateNRVOCandidate(VD);
 
   CheckJumpOutOfSEHFinally(*this, ReturnLoc, *CurScope->getFnParent());
 
@@ -4692,11 +4697,11 @@ buildCapturedStmtCaptureList(Sema &S, CapturedRegionScopeInfo *RSI,
       if (S.getLangOpts().OpenMP && RSI->CapRegionKind == CR_OpenMP)
         S.setOpenMPCaptureKind(Field, Cap.getVariable(), RSI->OpenMPLevel);
 
-      Captures.push_back(CapturedStmt::Capture(Cap.getLocation(),
-                                               Cap.isReferenceCapture()
-                                                   ? CapturedStmt::VCK_ByRef
-                                                   : CapturedStmt::VCK_ByCopy,
-                                               Cap.getVariable()));
+      Captures.push_back(CapturedStmt::Capture(
+          Cap.getLocation(),
+          Cap.isReferenceCapture() ? CapturedStmt::VCK_ByRef
+                                   : CapturedStmt::VCK_ByCopy,
+          cast<VarDecl>(Cap.getVariable())));
     }
     CaptureInits.push_back(Init.get());
   }

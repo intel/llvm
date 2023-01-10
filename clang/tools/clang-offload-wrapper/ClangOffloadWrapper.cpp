@@ -157,21 +157,18 @@ static cl::list<BinaryImageFormat>
 /// Sets offload target.
 static cl::list<std::string> Targets("target", cl::ZeroOrMore,
                                      cl::desc("offload target triple"),
-                                     cl::cat(ClangOffloadWrapperCategory),
                                      cl::cat(ClangOffloadWrapperCategory));
 
 /// Sets compile options for device binary image.
 static cl::list<std::string>
     CompileOptions("compile-opts", cl::ZeroOrMore,
                    cl::desc("compile options passed to the offload runtime"),
-                   cl::cat(ClangOffloadWrapperCategory),
                    cl::cat(ClangOffloadWrapperCategory));
 
 /// Sets link options for device binary image.
 static cl::list<std::string>
     LinkOptions("link-opts", cl::ZeroOrMore,
                 cl::desc("link options passed to the offload runtime"),
-                cl::cat(ClangOffloadWrapperCategory),
                 cl::cat(ClangOffloadWrapperCategory));
 
 /// Sets the name of the file containing offload function entries
@@ -262,13 +259,6 @@ static cl::opt<bool> AddOpenMPOffloadNotes(
     cl::desc("Add LLVMOMPOFFLOAD ELF notes to ELF device images."), cl::Hidden);
 
 namespace {
-
-struct OffloadKindToUint {
-  using argument_type = OffloadKind;
-  unsigned operator()(argument_type Kind) const {
-    return static_cast<unsigned>(Kind);
-  }
-};
 
 /// Implements binary image information collecting and wrapping it in a host
 /// bitcode file.
@@ -761,7 +751,7 @@ private:
     return addStructArrayToModule(PropInits, getSyclPropTy());
   }
 
-  // Given in-memory representaion of a set of property sets, inserts it into
+  // Given in-memory representation of a set of property sets, inserts it into
   // the wrapper object file. In-object representation is given below.
   //
   // column is a contiguous area of the wrapper object file;
@@ -1384,7 +1374,7 @@ public:
     bool ExecutionFailed = false;
     std::string ErrMsg;
     (void)sys::ExecuteAndWait(ObjcopyPath, Args,
-                              /*Env=*/llvm::None, /*Redirects=*/{},
+                              /*Env=*/std::nullopt, /*Redirects=*/{},
                               /*SecondsToWait=*/0,
                               /*MemoryLimit=*/0, &ErrMsg, &ExecutionFailed);
 
@@ -1420,10 +1410,6 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &Out,
   Out << "}\n";
   return Out;
 }
-
-// enable_if_t is available only starting with C++14
-template <bool Cond, typename T = void>
-using my_enable_if_t = typename std::enable_if<Cond, T>::type;
 
 // Helper class to order elements of multiple cl::list option lists according to
 // the sequence they occurred on the command line. Each cl::list defines a
@@ -1516,20 +1502,22 @@ private:
     return (*OptListIDs)[Cur];
   }
 
+  // clang-format off
   template <int MAX, int ID, typename XTy, typename... XTys>
-      my_enable_if_t < ID<MAX> addLists(XTy &Arg, XTys &... Args) {
+      std::enable_if_t<ID < MAX> addLists(XTy &Arg, XTys &...Args) {
+    // clang-format on
     addListImpl<ID>(Arg);
     addLists<MAX, ID + 1>(Args...);
   }
 
   template <int MAX, int ID, typename XTy>
-  my_enable_if_t<ID == MAX> addLists(XTy &Arg) {
+  std::enable_if_t<ID == MAX> addLists(XTy &Arg) {
     addListImpl<ID>(Arg);
   }
 
   /// Does the actual sequencing of options found in given list.
   template <int ID, typename T> void addListImpl(T &L) {
-    // iterate via all occurences of an option of given list class
+    // iterate via all occurrences of an option of given list class
     for (auto It = L.begin(); It != L.end(); It++) {
       // calculate its sequential position in the command line
       unsigned Pos = L.getPosition(It - L.begin());
@@ -1548,12 +1536,12 @@ private:
     }
   }
 
-  template <int N> my_enable_if_t<N != 0> inc() {
+  template <int N> std::enable_if_t<N != 0> inc() {
     incImpl<N>();
     inc<N - 1>();
   }
 
-  template <int N> my_enable_if_t<N == 0> inc() { incImpl<N>(); }
+  template <int N> std::enable_if_t<N == 0> inc() { incImpl<N>(); }
 };
 
 } // anonymous namespace

@@ -1,5 +1,5 @@
 import("//clang-tools-extra/clangd/quality/gen_decision_forest.gni")
-import("//llvm/utils/unittest/unittest.gni")
+import("//third-party/unittest/unittest.gni")
 
 gen_decision_forest("DecisionForestRuntimeTest") {
   model = "decision_forest_model"
@@ -99,6 +99,7 @@ unittest("ClangdTests") {
     "SemanticSelectionTests.cpp",
     "SerializationTests.cpp",
     "SourceCodeTests.cpp",
+    "StdLibTests.cpp",
     "SymbolCollectorTests.cpp",
     "SymbolInfoTests.cpp",
     "SyncAPI.cpp",
@@ -132,7 +133,9 @@ unittest("ClangdTests") {
     "tweaks/ExpandMacroTests.cpp",
     "tweaks/ExtractFunctionTests.cpp",
     "tweaks/ExtractVariableTests.cpp",
+    "tweaks/MemberwiseConstructorTests.cpp",
     "tweaks/ObjCLocalizeStringLiteralTests.cpp",
+    "tweaks/ObjCMemberwiseInitializerTests.cpp",
     "tweaks/PopulateSwitchTests.cpp",
     "tweaks/RawStringLiteralTests.cpp",
     "tweaks/RemoveUsingNamespaceTests.cpp",

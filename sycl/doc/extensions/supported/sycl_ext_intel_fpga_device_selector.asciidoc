@@ -1,0 +1,134 @@
+= sycl_ext_intel_fpga_device_selector
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 5 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+== Status
+
+This extension is implemented and fully supported by {dpcpp}.
+
+[NOTE]
+====
+This extension is currently implemented in {dpcpp} only for FPGA devices.
+In the {dpcpp} implementation, the application must be built with
+"-Xshardware" in order to use an FPGA hardware device.
+In the {dpcpp} implementation, the application must be built with
+"-Xssimulation" in order to use an FPGA simulator device.
+====
+
+
+== Overview
+
+This extension provides selectors to choose between FPGA hardware devices, FPGA
+simulator devices, and FPGA emulator devices. The current implementation is
+based on the platform name.  This is useful in the most common case when the
+user has one FPGA board installed in their system (one device per platform).
+
+To use these selectors, add
+....
+#include <sycl/ext/intel/fpga_device_selector.hpp>
+....
+to your source code.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_INTEL_FPGA_DEVICE_SELECTOR` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension. Base features are supported.
+
+|2
+|fpga_simulator_selector added.
+
+|3
+|SYCL 2020 selector variants `fpga_selector_v`, `fpga_simulator_selector_v`, and
+`fpga_emulator_selector_v` added.  Old selectors `fpga_selector`,
+`fpga_simulator_selector`, and `fpga_emulator_selector` deprecated.
+|===
+
+=== Select FPGA hardware device
+....
+// select FPGA hardware device
+sycl::queue deviceQueue1{sycl::ext::intel::fpga_selector{}}; // Deprecated
+sycl::queue deviceQueue2{sycl::ext::intel::fpga_selector_v};
+....
+
+=== Select FPGA simulator device
+....
+// select FPGA simulator device
+sycl::queue deviceQueue1{sycl::ext::intel::fpga_simulator_selector{}}; // Deprecated
+sycl::queue deviceQueue2{sycl::ext::intel::fpga_simulator_selector_v};
+....
+
+[NOTE]
+====
+Added in version 2 of this extension.
+====
+
+=== Select FPGA emulator device
+....
+// select FPGA emulator device
+sycl::queue deviceQueue1{sycl::ext::intel::fpga_emulator_selector{}}; // Deprecated
+sycl::queue deviceQueue2{sycl::ext::intel::fpga_emulator_selector_v};
+....
+
+== Implementation notes
+
+The current implementation has a restriction on the use of
+`fpga_simulator_selector` and `fpga_simulator_selector_v`.  If an object of
+`fpga_simulator_selector` is defined or `fpga_simulator_selector_v` is used in
+the application, FPGA hardware devices selected using fpga_selector` and
+`fpga_selector_v` will select a simulator device. This behaviour is expected to
+be eliminated in the future.
+

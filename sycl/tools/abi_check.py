@@ -51,6 +51,60 @@ def parse_readobj_output(output):
       sym_section = re.search(r"(?<=Section:\s)[\.\w]+", sym)
       if match_symbol(sym_binding, sym_type, sym_section):
         parsed_symbols.append(name.group())
+
+  # Presence of _dl_relocate_static_pie depends on whether ld.gold or ld.lld
+  # is used. Ignore it for the purpose of the library ABI check.
+  ignore_symbols = ["_dl_relocate_static_pie"]
+
+  # Starting from glibc 2.34 these symbols are not present anymore in the binary
+  # Ignoring these in case older glibc is used.
+  # Note that Ubuntu 20 has glibc 2.31 and Ubuntu 22 has glibc 2.35
+  # See: https://github.com/bminor/glibc/commit/035c012e32c11e84d64905efaf55e74f704d3668
+  ignore_symbols += ["__libc_csu_fini",
+                     "__libc_csu_init"]
+
+  # In some scenarios MSVC and clang-cl exhibit differences in regards to the exported symbols they generate.
+  # Some of them happen in the SYCL RT library and we think clang-cl's behavior is more reasonable.
+  #
+  # Case 1:
+  # pi.hpp:
+  #   template <backend BE> __SYCL_EXPORT const plugin &getPlugin();
+  #
+  # pi.cpp:
+  #   template <backend BE> const plugin &getPlugin() {
+  #     static const plugin *Plugin = nullptr;
+  #     ...
+  #   }
+  #   // explicit dllexport instantiations.
+  #
+  # clang-cl generates exported symbols for the static variables Plugin. These are never referenced
+  # in the user's headers so cannot be used outside DLL and not exporting them should not affect any
+  # usage scenario.
+  #
+  # In general, the compiler doesn't know if the definition is in the DLL or in the header and inline
+  # dllexport/dllimport functions have to be supported, hence clang-cl's behavior.
+  #
+  # See also https://devblogs.microsoft.com/oldnewthing/20140109-00/?p=2123.
+  ignore_symbols += ["?Plugin@?1???$getPlugin@$01@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB",
+                     "?Plugin@?1???$getPlugin@$00@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB",
+                     "?Plugin@?1???$getPlugin@$04@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB",
+                     "?Plugin@?1???$getPlugin@$02@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB"]
+  # Case 2:
+  # half_type.hpp:
+  #   class __SYCL_EXPORT half {
+  #     ...
+  #     constexpr half(const half &) = default;
+  #     constexpr half(half &&) = default;
+  #     ...
+  #   };
+  #
+  # For some reason MSVC creates exported symbols for the constexpr versions of those defaulted ctors
+  # although it never calls them at use point. Instead, those trivially copyable/moveable objects are
+  # memcpy/memmove'ed. We don't expect these symbols are ever referenced directly so having or not
+  # having them won't cause ABI issues.
+  ignore_symbols += ["??0half@host_half_impl@detail@_V1@sycl@@QEAA@AEBV01234@@Z",
+                     "??0half@host_half_impl@detail@_V1@sycl@@QEAA@$$QEAV01234@@Z"]
+  parsed_symbols = [s for s in parsed_symbols if s not in ignore_symbols]
   return parsed_symbols
 
 

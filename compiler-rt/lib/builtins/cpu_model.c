@@ -17,10 +17,17 @@
 #define __has_attribute(attr) 0
 #endif
 
-#if defined(HAVE_INIT_PRIORITY)
-#define CONSTRUCTOR_ATTRIBUTE __attribute__((__constructor__ 101))
-#elif __has_attribute(__constructor__)
-#define CONSTRUCTOR_ATTRIBUTE __attribute__((__constructor__))
+#if __has_attribute(constructor)
+#if __GNUC__ >= 9
+// Ordinarily init priorities below 101 are disallowed as they are reserved for the
+// implementation. However, we are the implementation, so silence the diagnostic,
+// since it doesn't apply to us.
+#pragma GCC diagnostic ignored "-Wprio-ctor-dtor"
+#endif
+// We're choosing init priority 90 to force our constructors to run before any
+// constructors in the end user application (starting at priority 101). This value
+// matches the libgcc choice for the same functions.
+#define CONSTRUCTOR_ATTRIBUTE __attribute__((constructor(90)))
 #else
 // FIXME: For MSVC, we should make a function pointer global in .CRT$X?? so that
 // this runs during initialization.
@@ -69,6 +76,9 @@ enum ProcessorTypes {
   INTEL_GOLDMONT_PLUS,
   INTEL_TREMONT,
   AMDFAM19H,
+  ZHAOXIN_FAM7H,
+  INTEL_SIERRAFOREST,
+  INTEL_GRANDRIDGE,
   CPU_TYPE_MAX
 };
 
@@ -100,6 +110,9 @@ enum ProcessorSubtypes {
   INTEL_COREI7_ALDERLAKE,
   AMDFAM19H_ZNVER3,
   INTEL_COREI7_ROCKETLAKE,
+  ZHAOXIN_FAM7H_LUJIAZUI,
+  AMDFAM19H_ZNVER4,
+  INTEL_COREI7_GRANITERAPIDS,
   CPU_SUBTYPE_MAX
 };
 
@@ -149,7 +162,7 @@ enum ProcessorFeatures {
 // Check motivated by bug reports for OpenSSL crashing on CPUs without CPUID
 // support. Consequently, for i386, the presence of CPUID is checked first
 // via the corresponding eflags bit.
-static bool isCpuIdSupported() {
+static bool isCpuIdSupported(void) {
 #if defined(__GNUC__) || defined(__clang__)
 #if defined(__i386__)
   int __cpuid_supported;
@@ -433,6 +446,12 @@ getIntelProcessorTypeAndSubtype(unsigned Family, unsigned Model,
     // Alderlake:
     case 0x97:
     case 0x9a:
+    // Raptorlake:
+    case 0xb7:
+    // Meteorlake:
+    case 0xb5:
+    case 0xaa:
+    case 0xac:
       CPU = "alderlake";
       *Type = INTEL_COREI7;
       *Subtype = INTEL_COREI7_ALDERLAKE;
@@ -451,6 +470,14 @@ getIntelProcessorTypeAndSubtype(unsigned Family, unsigned Model,
       CPU = "sapphirerapids";
       *Type = INTEL_COREI7;
       *Subtype = INTEL_COREI7_SAPPHIRERAPIDS;
+      break;
+
+    // Graniterapids:
+    case 0xae:
+    case 0xad:
+      CPU = "graniterapids";
+      *Type = INTEL_COREI7;
+      *Subtype = INTEL_COREI7_GRANITERAPIDS;
       break;
 
     case 0x1c: // Most 45 nm Intel Atom processors
@@ -485,6 +512,18 @@ getIntelProcessorTypeAndSubtype(unsigned Family, unsigned Model,
     case 0x86:
       CPU = "tremont";
       *Type = INTEL_TREMONT;
+      break;
+
+    // Sierraforest:
+    case 0xaf:
+      CPU = "sierraforest";
+      *Type = INTEL_SIERRAFOREST;
+      break;
+
+    // Grandridge:
+    case 0xb6:
+      CPU = "grandridge";
+      *Type = INTEL_GRANDRIDGE;
       break;
 
     case 0x57:
@@ -579,9 +618,14 @@ getAMDProcessorTypeAndSubtype(unsigned Family, unsigned Model,
   case 25:
     CPU = "znver3";
     *Type = AMDFAM19H;
-    if (Model <= 0x0f) {
+    if (Model <= 0x0f || (Model >= 0x20 && Model <= 0x5f)) {
+      // Family 19h Models 00h-0Fh - Zen3
+      // Family 19h Models 20h-2Fh - Zen3
+      // Family 19h Models 30h-3Fh - Zen3
+      // Family 19h Models 40h-4Fh - Zen3+
+      // Family 19h Models 50h-5Fh - Zen3+
       *Subtype = AMDFAM19H_ZNVER3;
-      break; // 00h-0Fh: Zen3
+      break;
     }
     break;
   default:
@@ -801,12 +845,23 @@ _Bool __aarch64_have_lse_atomics
 #if defined(__ANDROID__)
 #include <string.h>
 #include <sys/system_properties.h>
+#elif defined(__Fuchsia__)
+#include <zircon/features.h>
+#include <zircon/syscalls.h>
 #endif
 static void CONSTRUCTOR_ATTRIBUTE init_have_lse_atomics(void) {
 #if defined(__FreeBSD__)
   unsigned long hwcap;
   int result = elf_aux_info(AT_HWCAP, &hwcap, sizeof hwcap);
   __aarch64_have_lse_atomics = result == 0 && (hwcap & HWCAP_ATOMICS) != 0;
+#elif defined(__Fuchsia__)
+  // This ensures the vDSO is a direct link-time dependency of anything that
+  // needs this initializer code.
+#pragma comment(lib, "zircon")
+  uint32_t features;
+  zx_status_t status = _zx_system_get_features(ZX_FEATURE_KIND_CPU, &features);
+  __aarch64_have_lse_atomics =
+      status == ZX_OK && (features & ZX_ARM64_FEATURE_ISA_ATOMICS) != 0;
 #else
   unsigned long hwcap = getauxval(AT_HWCAP);
   _Bool result = (hwcap & HWCAP_ATOMICS) != 0;
@@ -815,8 +870,15 @@ static void CONSTRUCTOR_ATTRIBUTE init_have_lse_atomics(void) {
     char arch[PROP_VALUE_MAX];
     if (__system_property_get("ro.arch", arch) > 0 &&
         strncmp(arch, "exynos9810", sizeof("exynos9810") - 1) == 0) {
-      // Some cores of Exynos 9810 are ARMv8.2 and others are ARMv8.0,
-      // so disable the lse atomics completely.
+      // Some cores in the Exynos 9810 CPU are ARMv8.2 and others are ARMv8.0;
+      // only the former support LSE atomics.  However, the kernel in the
+      // initial Android 8.0 release of Galaxy S9/S9+ devices incorrectly
+      // reported the feature as being supported.
+      //
+      // The kernel appears to have been corrected to mark it unsupported as of
+      // the Android 9.0 release on those devices, and this issue has not been
+      // observed anywhere else. Thus, this workaround may be removed if
+      // compiler-rt ever drops support for Android 8.0.
       result = false;
     }
   }

@@ -27,7 +27,7 @@ struct DebugCounterOptions {
       "mlir-debug-counter",
       llvm::cl::desc(
           "Comma separated list of debug counter skip and count arguments"),
-      llvm::cl::CommaSeparated, llvm::cl::ZeroOrMore};
+      llvm::cl::CommaSeparated};
 
   llvm::cl::opt<bool> printCounterInfo{
       "mlir-print-debug-counter", llvm::cl::init(false), llvm::cl::Optional,
@@ -87,10 +87,11 @@ void DebugCounter::print(raw_ostream &os) const {
   // Order the registered counters by name.
   SmallVector<const llvm::StringMapEntry<Counter> *, 16> sortedCounters(
       llvm::make_pointer_range(counters));
-  llvm::sort(sortedCounters, [](const llvm::StringMapEntry<Counter> *lhs,
-                                const llvm::StringMapEntry<Counter> *rhs) {
-    return lhs->getKey() < rhs->getKey();
-  });
+  llvm::array_pod_sort(sortedCounters.begin(), sortedCounters.end(),
+                       [](const decltype(sortedCounters)::value_type *lhs,
+                          const decltype(sortedCounters)::value_type *rhs) {
+                         return (*lhs)->getKey().compare((*rhs)->getKey());
+                       });
 
   os << "DebugCounter counters:\n";
   for (const llvm::StringMapEntry<Counter> *counter : sortedCounters) {
@@ -121,8 +122,7 @@ void DebugCounter::applyCLOptions() {
       continue;
 
     // Debug counter arguments are expected to be in the form: `counter=value`.
-    StringRef counterName, counterValueStr;
-    std::tie(counterName, counterValueStr) = arg.split('=');
+    auto [counterName, counterValueStr] = arg.split('=');
     if (counterValueStr.empty()) {
       llvm::errs() << "error: expected DebugCounter argument to have an `=` "
                       "separating the counter name and value, but the provided "

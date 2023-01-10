@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: !stdlib=libc++ && (c++03 || c++11 || c++14)
+
 // <string_view>
 
 // constexpr const _CharT& operator[](size_type _pos) const;
@@ -32,8 +34,10 @@ int main(int, char**) {
     test ( "ABCDE", 5 );
     test ( "a", 1 );
 
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     test ( L"ABCDE", 5 );
     test ( L"a", 1 );
+#endif
 
 #if TEST_STD_VER >= 11
     test ( u"ABCDE", 5 );

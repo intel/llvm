@@ -13,7 +13,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Frontend/OpenMP/OMPContext.h"
-#include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
@@ -170,13 +169,13 @@ static int isVariantApplicableInContextHelper(
     if (MK == MK_ANY) {
       if (WasFound)
         return true;
-      return None;
+      return std::nullopt;
     }
 
     // In "all" or "none" mode we accept a matching or non-matching property
     // respectively and move on. We are not done yet!
     if ((WasFound && MK == MK_ALL) || (!WasFound && MK == MK_NONE))
-      return None;
+      return std::nullopt;
 
     // We missed a property, provide some debug output and indicate failure.
     LLVM_DEBUG({
@@ -214,8 +213,8 @@ static int isVariantApplicableInContextHelper(
       });
 
     Optional<bool> Result = HandleTrait(Property, IsActiveTrait);
-    if (Result.hasValue())
-      return Result.getValue();
+    if (Result)
+      return Result.value();
   }
 
   if (!DeviceSetOnly) {
@@ -235,8 +234,8 @@ static int isVariantApplicableInContextHelper(
         ConstructMatches->push_back(ConstructIdx - 1);
 
       Optional<bool> Result = HandleTrait(Property, FoundInOrder);
-      if (Result.hasValue())
-        return Result.getValue();
+      if (Result)
+        return Result.value();
 
       if (!FoundInOrder) {
         LLVM_DEBUG(dbgs() << "[" << DEBUG_TYPE << "] Construct property "

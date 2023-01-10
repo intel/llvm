@@ -448,3 +448,4 @@ float double2float_test4(double a, float b) {
   b -= a; // expected-warning {{implicit conversion when assigning computation result loses floating-point precision: 'double' to 'float'}}
   return b;
 }
+float f = 1.0 / 2.0; // expected-warning {{implicit conversion between floating point types of different sizes}}

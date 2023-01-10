@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "DialectGenUtilities.h"
 #include "mlir/TableGen/Class.h"
 #include "mlir/TableGen/CodeGenHelpers.h"
 #include "mlir/TableGen/Format.h"
@@ -55,28 +56,31 @@ filterForDialect(ArrayRef<llvm::Record *> records, Dialect &dialect) {
           DialectFilterIterator(records.end(), records.end(), filterFn)};
 }
 
-static Optional<Dialect>
-findSelectedDialect(ArrayRef<const llvm::Record *> dialectDefs) {
-  // Select the dialect to gen for.
-  if (dialectDefs.size() == 1 && selectedDialect.getNumOccurrences() == 0) {
-    return Dialect(dialectDefs.front());
+std::optional<Dialect>
+tblgen::findDialectToGenerate(ArrayRef<Dialect> dialects) {
+  if (dialects.empty()) {
+    llvm::errs() << "no dialect was found\n";
+    return std::nullopt;
   }
+
+  // Select the dialect to gen for.
+  if (dialects.size() == 1 && selectedDialect.getNumOccurrences() == 0)
+    return dialects.front();
 
   if (selectedDialect.getNumOccurrences() == 0) {
     llvm::errs() << "when more than 1 dialect is present, one must be selected "
                     "via '-dialect'\n";
-    return llvm::None;
+    return std::nullopt;
   }
 
-  const auto *dialectIt =
-      llvm::find_if(dialectDefs, [](const llvm::Record *def) {
-        return Dialect(def).getName() == selectedDialect;
-      });
-  if (dialectIt == dialectDefs.end()) {
+  const auto *dialectIt = llvm::find_if(dialects, [](const Dialect &dialect) {
+    return dialect.getName() == selectedDialect;
+  });
+  if (dialectIt == dialects.end()) {
     llvm::errs() << "selected dialect with '-dialect' does not exist\n";
-    return llvm::None;
+    return std::nullopt;
   }
-  return Dialect(*dialectIt);
+  return *dialectIt;
 }
 
 //===----------------------------------------------------------------------===//
@@ -87,16 +91,10 @@ findSelectedDialect(ArrayRef<const llvm::Record *> dialectDefs) {
 ///
 /// {0}: The name of the dialect class.
 /// {1}: The dialect namespace.
-/// {2}: initialization code that is emitted in the ctor body before calling
-/// initialize()
+/// {2}: The dialect parent class.
 static const char *const dialectDeclBeginStr = R"(
-class {0} : public ::mlir::Dialect {
-  explicit {0}(::mlir::MLIRContext *context)
-    : ::mlir::Dialect(getDialectNamespace(), context,
-      ::mlir::TypeID::get<{0}>()) {{
-    {2}
-    initialize();
-  }
+class {0} : public ::mlir::{2} {
+  explicit {0}(::mlir::MLIRContext *context);
 
   void initialize();
   friend class ::mlir::MLIRContext;
@@ -110,7 +108,7 @@ public:
 /// Registration for a single dependent dialect: to be inserted in the ctor
 /// above for each dependent dialect.
 const char *const dialectRegistrationTemplate = R"(
-    getContext()->getOrLoadDialect<{0}>();
+    getContext()->loadDialect<{0}>();
 )";
 
 /// The code block for the attribute parser/printer hooks.
@@ -185,34 +183,25 @@ static const char *const operationInterfaceFallbackDecl = R"(
 )";
 
 /// Generate the declaration for the given dialect class.
-static void
-emitDialectDecl(Dialect &dialect,
-                const iterator_range<DialectFilterIterator> &dialectAttrs,
-                const iterator_range<DialectFilterIterator> &dialectTypes,
-                raw_ostream &os) {
-  /// Build the list of dependent dialects
-  std::string dependentDialectRegistrations;
-  {
-    llvm::raw_string_ostream dialectsOs(dependentDialectRegistrations);
-    for (StringRef dependentDialect : dialect.getDependentDialects())
-      dialectsOs << llvm::formatv(dialectRegistrationTemplate,
-                                  dependentDialect);
-  }
-
+static void emitDialectDecl(Dialect &dialect, raw_ostream &os) {
   // Emit all nested namespaces.
   {
     NamespaceEmitter nsEmitter(os, dialect);
 
     // Emit the start of the decl.
     std::string cppName = dialect.getCppClassName();
+    StringRef superClassName =
+        dialect.isExtensible() ? "ExtensibleDialect" : "Dialect";
     os << llvm::formatv(dialectDeclBeginStr, cppName, dialect.getName(),
-                        dependentDialectRegistrations);
+                        superClassName);
 
-    // Check for any attributes/types registered to this dialect.  If there are,
-    // add the hooks for parsing/printing.
-    if (!dialectAttrs.empty() && dialect.useDefaultAttributePrinterParser())
+    // If the dialect requested the default attribute printer and parser, emit
+    // the declarations for the hooks.
+    if (dialect.useDefaultAttributePrinterParser())
       os << attrParserDecl;
-    if (!dialectTypes.empty() && dialect.useDefaultTypePrinterParser())
+    // If the dialect requested the default type printer and parser, emit the
+    // delcarations for the hooks.
+    if (dialect.useDefaultTypePrinterParser())
       os << typeParserDecl;
 
     // Add the decls for the various features of the dialect.
@@ -228,15 +217,14 @@ emitDialectDecl(Dialect &dialect,
       os << regionResultAttrVerifierDecl;
     if (dialect.hasOperationInterfaceFallback())
       os << operationInterfaceFallbackDecl;
-    if (llvm::Optional<StringRef> extraDecl =
-            dialect.getExtraClassDeclaration())
+    if (std::optional<StringRef> extraDecl = dialect.getExtraClassDeclaration())
       os << *extraDecl;
 
     // End the dialect decl.
     os << "};\n";
   }
   if (!dialect.getCppNamespace().empty())
-    os << "DECLARE_EXPLICIT_TYPE_ID(" << dialect.getCppNamespace()
+    os << "MLIR_DECLARE_EXPLICIT_TYPE_ID(" << dialect.getCppNamespace()
        << "::" << dialect.getCppClassName() << ")\n";
 }
 
@@ -248,19 +236,31 @@ static bool emitDialectDecls(const llvm::RecordKeeper &recordKeeper,
   if (dialectDefs.empty())
     return false;
 
-  Optional<Dialect> dialect = findSelectedDialect(dialectDefs);
+  SmallVector<Dialect> dialects(dialectDefs.begin(), dialectDefs.end());
+  std::optional<Dialect> dialect = findDialectToGenerate(dialects);
   if (!dialect)
     return true;
-  auto attrDefs = recordKeeper.getAllDerivedDefinitions("DialectAttr");
-  auto typeDefs = recordKeeper.getAllDerivedDefinitions("DialectType");
-  emitDialectDecl(*dialect, filterForDialect<Attribute>(attrDefs, *dialect),
-                  filterForDialect<Type>(typeDefs, *dialect), os);
+  emitDialectDecl(*dialect, os);
   return false;
 }
 
 //===----------------------------------------------------------------------===//
 // GEN: Dialect definitions
 //===----------------------------------------------------------------------===//
+
+/// The code block to generate a dialect constructor definition.
+///
+/// {0}: The name of the dialect class.
+/// {1}: initialization code that is emitted in the ctor body before calling
+///      initialize().
+/// {2}: The dialect parent class.
+static const char *const dialectConstructorStr = R"(
+{0}::{0}(::mlir::MLIRContext *context) 
+    : ::mlir::{2}(getDialectNamespace(), context, ::mlir::TypeID::get<{0}>()) {{
+  {1}
+  initialize();
+}
+)";
 
 /// The code block to generate a default desturctor definition.
 ///
@@ -271,16 +271,32 @@ static const char *const dialectDestructorStr = R"(
 )";
 
 static void emitDialectDef(Dialect &dialect, raw_ostream &os) {
+  std::string cppClassName = dialect.getCppClassName();
+
   // Emit the TypeID explicit specializations to have a single symbol def.
   if (!dialect.getCppNamespace().empty())
-    os << "DEFINE_EXPLICIT_TYPE_ID(" << dialect.getCppNamespace()
-       << "::" << dialect.getCppClassName() << ")\n";
+    os << "MLIR_DEFINE_EXPLICIT_TYPE_ID(" << dialect.getCppNamespace()
+       << "::" << cppClassName << ")\n";
 
   // Emit all nested namespaces.
   NamespaceEmitter nsEmitter(os, dialect);
 
+  /// Build the list of dependent dialects.
+  std::string dependentDialectRegistrations;
+  {
+    llvm::raw_string_ostream dialectsOs(dependentDialectRegistrations);
+    for (StringRef dependentDialect : dialect.getDependentDialects())
+      dialectsOs << llvm::formatv(dialectRegistrationTemplate,
+                                  dependentDialect);
+  }
+
+  // Emit the constructor and destructor.
+  StringRef superClassName =
+      dialect.isExtensible() ? "ExtensibleDialect" : "Dialect";
+  os << llvm::formatv(dialectConstructorStr, cppClassName,
+                      dependentDialectRegistrations, superClassName);
   if (!dialect.hasNonDefaultDestructor())
-    os << llvm::formatv(dialectDestructorStr, dialect.getCppClassName());
+    os << llvm::formatv(dialectDestructorStr, cppClassName);
 }
 
 static bool emitDialectDefs(const llvm::RecordKeeper &recordKeeper,
@@ -291,7 +307,8 @@ static bool emitDialectDefs(const llvm::RecordKeeper &recordKeeper,
   if (dialectDefs.empty())
     return false;
 
-  Optional<Dialect> dialect = findSelectedDialect(dialectDefs);
+  SmallVector<Dialect> dialects(dialectDefs.begin(), dialectDefs.end());
+  std::optional<Dialect> dialect = findDialectToGenerate(dialects);
   if (!dialect)
     return true;
   emitDialectDef(*dialect, os);

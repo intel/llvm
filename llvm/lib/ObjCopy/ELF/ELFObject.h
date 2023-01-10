@@ -115,13 +115,13 @@ public:
   Error visit(const OwnedDataSection &Sec) override;
   Error visit(const StringTableSection &Sec) override;
   Error visit(const DynamicRelocationSection &Sec) override;
-  virtual Error visit(const SymbolTableSection &Sec) override = 0;
-  virtual Error visit(const RelocationSection &Sec) override = 0;
-  virtual Error visit(const GnuDebugLinkSection &Sec) override = 0;
-  virtual Error visit(const GroupSection &Sec) override = 0;
-  virtual Error visit(const SectionIndexSection &Sec) override = 0;
-  virtual Error visit(const CompressedSection &Sec) override = 0;
-  virtual Error visit(const DecompressedSection &Sec) override = 0;
+  Error visit(const SymbolTableSection &Sec) override = 0;
+  Error visit(const RelocationSection &Sec) override = 0;
+  Error visit(const GnuDebugLinkSection &Sec) override = 0;
+  Error visit(const GroupSection &Sec) override = 0;
+  Error visit(const SectionIndexSection &Sec) override = 0;
+  Error visit(const CompressedSection &Sec) override = 0;
+  Error visit(const DecompressedSection &Sec) override = 0;
 
   explicit SectionWriter(WritableMemoryBuffer &Buf) : Out(Buf) {}
 };
@@ -536,47 +536,40 @@ public:
 class CompressedSection : public SectionBase {
   MAKE_SEC_WRITER_FRIEND
 
+  uint32_t ChType = 0;
   DebugCompressionType CompressionType;
   uint64_t DecompressedSize;
   uint64_t DecompressedAlign;
-  SmallVector<char, 128> CompressedData;
+  SmallVector<uint8_t, 128> CompressedData;
 
 public:
-  static Expected<CompressedSection>
-  create(const SectionBase &Sec, DebugCompressionType CompressionType);
-  static Expected<CompressedSection> create(ArrayRef<uint8_t> CompressedData,
-                                            uint64_t DecompressedSize,
-                                            uint64_t DecompressedAlign);
+  CompressedSection(const SectionBase &Sec,
+    DebugCompressionType CompressionType, bool Is64Bits);
+  CompressedSection(ArrayRef<uint8_t> CompressedData, uint32_t ChType,
+                    uint64_t DecompressedSize, uint64_t DecompressedAlign);
 
   uint64_t getDecompressedSize() const { return DecompressedSize; }
   uint64_t getDecompressedAlign() const { return DecompressedAlign; }
+  uint64_t getChType() const { return ChType; }
 
   Error accept(SectionVisitor &Visitor) const override;
   Error accept(MutableSectionVisitor &Visitor) override;
 
   static bool classof(const SectionBase *S) {
-    return (S->OriginalFlags & ELF::SHF_COMPRESSED) ||
-           (StringRef(S->Name).startswith(".zdebug"));
+    return S->OriginalFlags & ELF::SHF_COMPRESSED;
   }
-
-private:
-  CompressedSection(const SectionBase &Sec,
-                    DebugCompressionType CompressionType, Error &Err);
-  CompressedSection(ArrayRef<uint8_t> CompressedData, uint64_t DecompressedSize,
-                    uint64_t DecompressedAlign);
 };
 
 class DecompressedSection : public SectionBase {
   MAKE_SEC_WRITER_FRIEND
 
 public:
+  uint32_t ChType;
   explicit DecompressedSection(const CompressedSection &Sec)
-      : SectionBase(Sec) {
+      : SectionBase(Sec), ChType(Sec.getChType()) {
     Size = Sec.getDecompressedSize();
     Align = Sec.getDecompressedAlign();
     Flags = OriginalFlags = (Flags & ~ELF::SHF_COMPRESSED);
-    if (StringRef(Name).startswith(".zdebug"))
-      Name = "." + Name.substr(2);
   }
 
   Error accept(SectionVisitor &Visitor) const override;
@@ -628,6 +621,11 @@ enum SymbolShndxType {
   SYMBOL_HEXAGON_SCOMMON_2 = ELF::SHN_HEXAGON_SCOMMON_2,
   SYMBOL_HEXAGON_SCOMMON_4 = ELF::SHN_HEXAGON_SCOMMON_4,
   SYMBOL_HEXAGON_SCOMMON_8 = ELF::SHN_HEXAGON_SCOMMON_8,
+  SYMBOL_MIPS_ACOMMON = ELF::SHN_MIPS_ACOMMON,
+  SYMBOL_MIPS_TEXT = ELF::SHN_MIPS_TEXT,
+  SYMBOL_MIPS_DATA = ELF::SHN_MIPS_DATA,
+  SYMBOL_MIPS_SCOMMON = ELF::SHN_MIPS_SCOMMON,
+  SYMBOL_MIPS_SUNDEFINED = ELF::SHN_MIPS_SUNDEFINED,
   SYMBOL_HIPROC = ELF::SHN_HIPROC,
   SYMBOL_LOOS = ELF::SHN_LOOS,
   SYMBOL_HIOS = ELF::SHN_HIOS,
@@ -959,7 +957,7 @@ private:
   const ELFFile<ELFT> &ElfFile;
   Object &Obj;
   size_t EhdrOffset = 0;
-  Optional<StringRef> ExtractPartition;
+  std::optional<StringRef> ExtractPartition;
 
   void setParentSegment(Segment &Child);
   Error readProgramHeaders(const ELFFile<ELFT> &HeadersFile);
@@ -972,7 +970,7 @@ private:
 
 public:
   ELFBuilder(const ELFObjectFile<ELFT> &ElfObj, Object &Obj,
-             Optional<StringRef> ExtractPartition);
+             std::optional<StringRef> ExtractPartition);
 
   Error build(bool EnsureSymtab);
 };
@@ -1011,11 +1009,11 @@ public:
 
 class ELFReader : public Reader {
   Binary *Bin;
-  Optional<StringRef> ExtractPartition;
+  std::optional<StringRef> ExtractPartition;
 
 public:
   Expected<std::unique_ptr<Object>> create(bool EnsureSymtab) const override;
-  explicit ELFReader(Binary *B, Optional<StringRef> ExtractPartition)
+  explicit ELFReader(Binary *B, std::optional<StringRef> ExtractPartition)
       : Bin(B), ExtractPartition(ExtractPartition) {}
 };
 
@@ -1047,6 +1045,7 @@ public:
   Segment ElfHdrSegment;
   Segment ProgramHdrSegment;
 
+  bool Is64Bits;
   uint8_t OSABI;
   uint8_t ABIVersion;
   uint64_t Entry;

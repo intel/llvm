@@ -517,9 +517,9 @@ ValueObjectSP ABIWindows_x86_64::GetReturnValueObjectSimple(
             RegisterValue reg_value;
             if (reg_ctx->ReadRegister(xmm_reg, reg_value)) {
               Status error;
-              if (reg_value.GetAsMemoryData(
-                      xmm_reg, heap_data_up->GetBytes(),
-                      heap_data_up->GetByteSize(), byte_order, error)) {
+              if (reg_value.GetAsMemoryData(*xmm_reg, heap_data_up->GetBytes(),
+                                            heap_data_up->GetByteSize(),
+                                            byte_order, error)) {
                 DataExtractor data(DataBufferSP(heap_data_up.release()),
                                    byte_order,
                                    process_sp->GetTarget()
@@ -642,7 +642,7 @@ ValueObjectSP ABIWindows_x86_64::GetReturnValueObjectImpl(
                            0, aggregate_field_offsets,
                            aggregate_compiler_types)) {
     ByteOrder byte_order = target->GetArchitecture().GetByteOrder();
-    DataBufferSP data_sp(
+    WritableDataBufferSP data_sp(
         new DataBufferHeap(max_register_value_bit_width / 8, 0));
     DataExtractor return_ext(data_sp, byte_order,
         target->GetArchitecture().GetAddressByteSize());

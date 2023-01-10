@@ -215,19 +215,21 @@ public:
     return __get_symlink_status(&__ec);
   }
 
-  _LIBCPP_INLINE_VISIBILITY
-  bool operator<(directory_entry const& __rhs) const noexcept {
-    return __p_ < __rhs.__p_;
-  }
 
   _LIBCPP_INLINE_VISIBILITY
   bool operator==(directory_entry const& __rhs) const noexcept {
     return __p_ == __rhs.__p_;
   }
 
+#if _LIBCPP_STD_VER <= 17
   _LIBCPP_INLINE_VISIBILITY
   bool operator!=(directory_entry const& __rhs) const noexcept {
     return __p_ != __rhs.__p_;
+  }
+
+  _LIBCPP_INLINE_VISIBILITY
+  bool operator<(directory_entry const& __rhs) const noexcept {
+    return __p_ < __rhs.__p_;
   }
 
   _LIBCPP_INLINE_VISIBILITY
@@ -245,6 +247,15 @@ public:
     return __p_ >= __rhs.__p_;
   }
 
+#else // _LIBCPP_STD_VER <= 17
+
+  _LIBCPP_HIDE_FROM_ABI
+  strong_ordering operator<=>(const directory_entry& __rhs) const noexcept {
+    return __p_ <=> __rhs.__p_;
+  }
+
+#endif // _LIBCPP_STD_VER <= 17
+
   template <class _CharT, class _Traits>
   _LIBCPP_INLINE_VISIBILITY
   friend basic_ostream<_CharT, _Traits>& operator<<(basic_ostream<_CharT, _Traits>& __os, const directory_entry& __d) {
@@ -254,7 +265,7 @@ public:
 private:
   friend class directory_iterator;
   friend class recursive_directory_iterator;
-  friend class __dir_stream;
+  friend class _LIBCPP_HIDDEN __dir_stream;
 
   enum _CacheType : unsigned char {
     _Empty,

@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 %s -fsyntax-only -triple i386-unknown-unknown -verify
-// RUN: %clang_cc1 %s -fsyntax-only -triple i386-unknown-unknown -fms-compatibility -DWIN -verify
+// RUN: %clang_cc1 %s -fsyntax-only -Wno-strict-prototypes -triple i386-unknown-unknown -verify
+// RUN: %clang_cc1 %s -fsyntax-only -Wno-strict-prototypes -triple i386-unknown-unknown -fms-compatibility -DWIN -verify
 
 void __attribute__((fastcall)) foo(float *a) {
 }
@@ -31,7 +31,7 @@ void (__attribute__((fastcall)) *pfoo)(float*) = foo;
 
 void (__attribute__((stdcall)) *pbar)(float*) = bar;
 
-void (__attribute__((cdecl)) *ptest1)(void) = test1; // expected-warning {{incompatible function pointer types}}
+void (__attribute__((cdecl)) *ptest1)(void) = test1; // expected-error {{incompatible function pointer types}}
 
 void (*pctest0)() = ctest0;
 
@@ -52,6 +52,9 @@ int __attribute__((pcs("aapcs-vfp"))) pcs6(void); // expected-warning {{'pcs' ca
 int __attribute__((pcs("foo"))) pcs7(void); // expected-error {{invalid PCS type}}
 
 int __attribute__((aarch64_vector_pcs)) aavpcs(void); // expected-warning {{'aarch64_vector_pcs' calling convention is not supported for this target}}
+int __attribute__((aarch64_sve_pcs)) aasvepcs(void);  // expected-warning {{'aarch64_sve_pcs' calling convention is not supported for this target}}
+
+int __attribute__((amdgpu_kernel)) amdgpu_kernel(void); // expected-warning {{'amdgpu_kernel' calling convention is not supported for this target}}
 
 // PR6361
 void ctest3();

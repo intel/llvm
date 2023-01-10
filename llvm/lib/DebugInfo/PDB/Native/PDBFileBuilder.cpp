@@ -9,7 +9,6 @@
 #include "llvm/DebugInfo/PDB/Native/PDBFileBuilder.h"
 #include "llvm/DebugInfo/CodeView/CodeView.h"
 #include "llvm/DebugInfo/CodeView/GUID.h"
-#include "llvm/DebugInfo/MSF/IMSFFile.h"
 #include "llvm/DebugInfo/MSF/MSFBuilder.h"
 #include "llvm/DebugInfo/MSF/MSFCommon.h"
 #include "llvm/DebugInfo/MSF/MappedBlockStream.h"
@@ -355,8 +354,8 @@ Error PDBFileBuilder::commit(StringRef Filename, codeview::GUID *Guid) {
   } else {
     H->Age = Info->getAge();
     H->Guid = Info->getGuid();
-    Optional<uint32_t> Sig = Info->getSignature();
-    H->Signature = Sig.hasValue() ? *Sig : time(nullptr);
+    std::optional<uint32_t> Sig = Info->getSignature();
+    H->Signature = Sig ? *Sig : time(nullptr);
   }
 
   return Buffer.commit();

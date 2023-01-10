@@ -20,6 +20,7 @@
 #include "llvm/DebugInfo/PDB/PDBSymbolTypeBuiltin.h"
 
 #include <cassert>
+#include <optional>
 
 using namespace llvm;
 using namespace llvm::codeview;
@@ -54,7 +55,7 @@ private:
   NativeSession &Session;
   const NativeTypeEnum &ClassParent;
   std::vector<EnumeratorRecord> Enumerators;
-  Optional<TypeIndex> ContinuationIndex;
+  std::optional<TypeIndex> ContinuationIndex;
   uint32_t Index = 0;
 };
 } // namespace
@@ -67,10 +68,13 @@ NativeEnumEnumEnumerators::NativeEnumEnumEnumerators(
 
   ContinuationIndex = ClassParent.getEnumRecord().FieldList;
   while (ContinuationIndex) {
-    CVType FieldList = Types.getType(*ContinuationIndex);
-    assert(FieldList.kind() == LF_FIELDLIST);
+    CVType FieldListCVT = Types.getType(*ContinuationIndex);
+    assert(FieldListCVT.kind() == LF_FIELDLIST);
     ContinuationIndex.reset();
-    cantFail(visitMemberRecordStream(FieldList.data(), *this));
+    FieldListRecord FieldList;
+    cantFail(TypeDeserializer::deserializeAs<FieldListRecord>(FieldListCVT,
+                                                              FieldList));
+    cantFail(visitMemberRecordStream(FieldList.Data, *this));
   }
 }
 
@@ -137,7 +141,7 @@ void NativeTypeEnum::dump(raw_ostream &OS, int Indent,
   dumpSymbolField(OS, "name", getName(), Indent);
   dumpSymbolIdField(OS, "typeId", getTypeId(), Indent, Session,
                     PdbSymbolIdField::Type, ShowIdFields, RecurseIdFields);
-  if (Modifiers.hasValue())
+  if (Modifiers)
     dumpSymbolIdField(OS, "unmodifiedTypeId", getUnmodifiedTypeId(), Indent,
                       Session, PdbSymbolIdField::UnmodifiedType, ShowIdFields,
                       RecurseIdFields);
@@ -205,6 +209,8 @@ PDB_BuiltinType NativeTypeEnum::getBuiltinType() const {
     return PDB_BuiltinType::Char16;
   case SimpleTypeKind::Character32:
     return PDB_BuiltinType::Char32;
+  case SimpleTypeKind::Character8:
+    return PDB_BuiltinType::Char8;
   case SimpleTypeKind::Int128:
   case SimpleTypeKind::Int128Oct:
   case SimpleTypeKind::Int16:

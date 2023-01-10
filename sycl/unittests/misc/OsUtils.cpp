@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/os_util.hpp>
 #include <gtest/gtest.h>
+#include <sycl/detail/os_util.hpp>
 
 #ifdef _WIN32
 /// Compare for string equality, but ignore difference between forward slash (/)
@@ -39,12 +39,12 @@ bool isSameDir(const char* LHS, const char* RHS) {
   struct stat StatBuf;
   if (stat(LHS, &StatBuf)) {
     perror("stat failed");
-    exit(EXIT_FAILURE);
+    return false;
   }
   ino_t InodeLHS = StatBuf.st_ino;
   if (stat(RHS, &StatBuf)) {
     perror("stat failed");
-    exit(EXIT_FAILURE);
+    return false;
   }
   ino_t InodeRHS = StatBuf.st_ino;
   return InodeRHS == InodeLHS;
@@ -55,7 +55,7 @@ class OsUtilsTest : public ::testing::Test {
 };
 
 TEST_F(OsUtilsTest, getCurrentDSODir) {
-  std::string DSODir = cl::sycl::detail::OSUtil::getCurrentDSODir();
+  std::string DSODir = sycl::detail::OSUtil::getCurrentDSODir();
   ASSERT_TRUE(isSameDir(DSODir.c_str(), SYCL_LIB_DIR)) <<
       "expected: " << SYCL_LIB_DIR << ", got: " << DSODir;
 }

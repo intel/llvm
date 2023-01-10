@@ -3,17 +3,17 @@
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv -r %t.spv -o %t.spv.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.spv.bc
 ; RUN: llvm-dis < %t.spv.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: 3 LifetimeStart [[tmp:[0-9]+]] 0
 ; CHECK-SPIRV: 3 LifetimeStop [[tmp]] 0
 
-; CHECK-LLVM: %[[tmp1:[0-9]+]] = bitcast i32* %{{[0-9]+}} to i8*
-; CHECK-LLVM: call void @llvm.lifetime.start.p0i8(i64 -1, i8* %[[tmp1]])
-; CHECK-LLVM: call void @llvm.lifetime.end.p0i8(i64 -1, i8* %[[tmp1]])
-; CHECK-LLVM: declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture)
-; CHECK-LLVM: declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture)
+; CHECK-LLVM: %[[tmp1:[0-9]+]] = bitcast ptr %{{[0-9]+}} to ptr
+; CHECK-LLVM: call void @llvm.lifetime.start.p0(i64 -1, ptr %[[tmp1]])
+; CHECK-LLVM: call void @llvm.lifetime.end.p0(i64 -1, ptr %[[tmp1]])
+; CHECK-LLVM: declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture)
+; CHECK-LLVM: declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture)
 
 ; ModuleID = 'main'
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"

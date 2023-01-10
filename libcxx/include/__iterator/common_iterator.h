@@ -11,6 +11,13 @@
 #define _LIBCPP___ITERATOR_COMMON_ITERATOR_H
 
 #include <__assert>
+#include <__concepts/assignable.h>
+#include <__concepts/constructible.h>
+#include <__concepts/convertible_to.h>
+#include <__concepts/copyable.h>
+#include <__concepts/derived_from.h>
+#include <__concepts/equality_comparable.h>
+#include <__concepts/same_as.h>
 #include <__config>
 #include <__iterator/concepts.h>
 #include <__iterator/incrementable_traits.h>
@@ -18,7 +25,6 @@
 #include <__iterator/iter_swap.h>
 #include <__iterator/iterator_traits.h>
 #include <__iterator/readable_traits.h>
-#include <concepts>
 #include <variant>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -27,7 +33,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if !defined(_LIBCPP_HAS_NO_CONCEPTS)
+#if _LIBCPP_STD_VER > 17
 
 template<class _Iter>
 concept __can_use_postfix_proxy =
@@ -37,31 +43,18 @@ concept __can_use_postfix_proxy =
 template<input_or_output_iterator _Iter, sentinel_for<_Iter> _Sent>
   requires (!same_as<_Iter, _Sent> && copyable<_Iter>)
 class common_iterator {
-  class __proxy {
-    friend common_iterator;
-
-    iter_value_t<_Iter> __value;
-    // We can move __x because the only caller verifies that __x is not a reference.
-    constexpr __proxy(iter_reference_t<_Iter>&& __x)
-      : __value(_VSTD::move(__x)) {}
-
-  public:
+  struct __proxy {
     constexpr const iter_value_t<_Iter>* operator->() const noexcept {
-      return _VSTD::addressof(__value);
+      return _VSTD::addressof(__value_);
     }
+    iter_value_t<_Iter> __value_;
   };
 
-  class __postfix_proxy {
-    friend common_iterator;
-
-    iter_value_t<_Iter> __value;
-    constexpr __postfix_proxy(iter_reference_t<_Iter>&& __x)
-      : __value(_VSTD::forward<iter_reference_t<_Iter>>(__x)) {}
-
-  public:
+  struct __postfix_proxy {
     constexpr const iter_value_t<_Iter>& operator*() const noexcept {
-      return __value;
+      return __value_;
     }
+    iter_value_t<_Iter> __value_;
   };
 
 public:
@@ -133,7 +126,7 @@ public:
       auto&& __tmp = *_VSTD::__unchecked_get<_Iter>(__hold_);
       return _VSTD::addressof(__tmp);
     } else {
-      return __proxy(*_VSTD::__unchecked_get<_Iter>(__hold_));
+      return __proxy{*_VSTD::__unchecked_get<_Iter>(__hold_)};
     }
   }
 
@@ -152,7 +145,7 @@ public:
                          !__can_use_postfix_proxy<_Iter>) {
       return _VSTD::__unchecked_get<_Iter>(__hold_)++;
     } else {
-      __postfix_proxy __p(**this);
+      auto __p = __postfix_proxy{**this};
       ++*this;
       return __p;
     }
@@ -160,6 +153,7 @@ public:
 
   template<class _I2, sentinel_for<_Iter> _S2>
     requires sentinel_for<_Sent, _I2>
+  _LIBCPP_HIDE_FROM_ABI
   friend constexpr bool operator==(const common_iterator& __x, const common_iterator<_I2, _S2>& __y) {
     _LIBCPP_ASSERT(!__x.__hold_.valueless_by_exception(), "Attempted to compare a valueless common_iterator");
     _LIBCPP_ASSERT(!__y.__hold_.valueless_by_exception(), "Attempted to compare a valueless common_iterator");
@@ -178,6 +172,7 @@ public:
 
   template<class _I2, sentinel_for<_Iter> _S2>
     requires sentinel_for<_Sent, _I2> && equality_comparable_with<_Iter, _I2>
+  _LIBCPP_HIDE_FROM_ABI
   friend constexpr bool operator==(const common_iterator& __x, const common_iterator<_I2, _S2>& __y) {
     _LIBCPP_ASSERT(!__x.__hold_.valueless_by_exception(), "Attempted to compare a valueless common_iterator");
     _LIBCPP_ASSERT(!__y.__hold_.valueless_by_exception(), "Attempted to compare a valueless common_iterator");
@@ -199,6 +194,7 @@ public:
 
   template<sized_sentinel_for<_Iter> _I2, sized_sentinel_for<_Iter> _S2>
     requires sized_sentinel_for<_Sent, _I2>
+  _LIBCPP_HIDE_FROM_ABI
   friend constexpr iter_difference_t<_I2> operator-(const common_iterator& __x, const common_iterator<_I2, _S2>& __y) {
     _LIBCPP_ASSERT(!__x.__hold_.valueless_by_exception(), "Attempted to subtract from a valueless common_iterator");
     _LIBCPP_ASSERT(!__y.__hold_.valueless_by_exception(), "Attempted to subtract a valueless common_iterator");
@@ -218,7 +214,7 @@ public:
     return _VSTD::__unchecked_get<_Sent>(__x.__hold_) - _VSTD::__unchecked_get<_I2>(__y.__hold_);
   }
 
-  friend constexpr iter_rvalue_reference_t<_Iter> iter_move(const common_iterator& __i)
+  _LIBCPP_HIDE_FROM_ABI friend constexpr iter_rvalue_reference_t<_Iter> iter_move(const common_iterator& __i)
     noexcept(noexcept(ranges::iter_move(declval<const _Iter&>())))
       requires input_iterator<_Iter>
   {
@@ -227,7 +223,7 @@ public:
   }
 
   template<indirectly_swappable<_Iter> _I2, class _S2>
-  friend constexpr void iter_swap(const common_iterator& __x, const common_iterator<_I2, _S2>& __y)
+  _LIBCPP_HIDE_FROM_ABI friend constexpr void iter_swap(const common_iterator& __x, const common_iterator<_I2, _S2>& __y)
       noexcept(noexcept(ranges::iter_swap(declval<const _Iter&>(), declval<const _I2&>())))
   {
     _LIBCPP_ASSERT(holds_alternative<_Iter>(__x.__hold_), "Attempted to iter_swap a non-dereferenceable common_iterator");
@@ -276,7 +272,7 @@ struct iterator_traits<common_iterator<_Iter, _Sent>> {
   using reference = iter_reference_t<_Iter>;
 };
 
-#endif // !defined(_LIBCPP_HAS_NO_CONCEPTS)
+#endif // _LIBCPP_STD_VER > 17
 
 _LIBCPP_END_NAMESPACE_STD
 

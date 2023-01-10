@@ -1,0 +1,9 @@
+add_object_library(
+  test
+  SRCS
+    test.cpp
+  HDRS
+    test.h
+  DEPENDS
+    libc.src.__support.OSUtil.osutil
+)

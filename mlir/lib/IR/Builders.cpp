@@ -33,6 +33,14 @@ Location Builder::getFusedLoc(ArrayRef<Location> locs, Attribute metadata) {
 // Types.
 //===----------------------------------------------------------------------===//
 
+FloatType Builder::getFloat8E5M2Type() {
+  return FloatType::getFloat8E5M2(context);
+}
+
+FloatType Builder::getFloat8E4M3FNType() {
+  return FloatType::getFloat8E4M3FN(context);
+}
+
 FloatType Builder::getBF16Type() { return FloatType::getBF16(context); }
 
 FloatType Builder::getF16Type() { return FloatType::getF16(context); }
@@ -49,7 +57,13 @@ IndexType Builder::getIndexType() { return IndexType::get(context); }
 
 IntegerType Builder::getI1Type() { return IntegerType::get(context, 1); }
 
+IntegerType Builder::getI2Type() { return IntegerType::get(context, 2); }
+
+IntegerType Builder::getI4Type() { return IntegerType::get(context, 4); }
+
 IntegerType Builder::getI8Type() { return IntegerType::get(context, 8); }
+
+IntegerType Builder::getI16Type() { return IntegerType::get(context, 16); }
 
 IntegerType Builder::getI32Type() { return IntegerType::get(context, 32); }
 
@@ -122,6 +136,34 @@ DenseIntElementsAttr Builder::getIndexVectorAttr(ArrayRef<int64_t> values) {
   return DenseIntElementsAttr::get(
       VectorType::get(static_cast<int64_t>(values.size()), getIndexType()),
       values);
+}
+
+DenseBoolArrayAttr Builder::getDenseBoolArrayAttr(ArrayRef<bool> values) {
+  return DenseBoolArrayAttr::get(context, values);
+}
+
+DenseI8ArrayAttr Builder::getDenseI8ArrayAttr(ArrayRef<int8_t> values) {
+  return DenseI8ArrayAttr::get(context, values);
+}
+
+DenseI16ArrayAttr Builder::getDenseI16ArrayAttr(ArrayRef<int16_t> values) {
+  return DenseI16ArrayAttr::get(context, values);
+}
+
+DenseI32ArrayAttr Builder::getDenseI32ArrayAttr(ArrayRef<int32_t> values) {
+  return DenseI32ArrayAttr::get(context, values);
+}
+
+DenseI64ArrayAttr Builder::getDenseI64ArrayAttr(ArrayRef<int64_t> values) {
+  return DenseI64ArrayAttr::get(context, values);
+}
+
+DenseF32ArrayAttr Builder::getDenseF32ArrayAttr(ArrayRef<float> values) {
+  return DenseF32ArrayAttr::get(context, values);
+}
+
+DenseF64ArrayAttr Builder::getDenseF64ArrayAttr(ArrayRef<double> values) {
+  return DenseF64ArrayAttr::get(context, values);
 }
 
 DenseIntElementsAttr Builder::getI32TensorAttr(ArrayRef<int32_t> values) {
@@ -377,8 +419,19 @@ Block *OpBuilder::createBlock(Block *insertBefore, TypeRange argTypes,
 }
 
 /// Create an operation given the fields represented as an OperationState.
-Operation *OpBuilder::createOperation(const OperationState &state) {
+Operation *OpBuilder::create(const OperationState &state) {
   return insert(Operation::create(state));
+}
+
+/// Creates an operation with the given fields.
+Operation *OpBuilder::create(Location loc, StringAttr opName,
+                             ValueRange operands, TypeRange types,
+                             ArrayRef<NamedAttribute> attributes,
+                             BlockRange successors,
+                             MutableArrayRef<std::unique_ptr<Region>> regions) {
+  OperationState state(loc, opName, operands, types, attributes, successors,
+                       regions);
+  return create(state);
 }
 
 /// Attempts to fold the given operation and places new results within

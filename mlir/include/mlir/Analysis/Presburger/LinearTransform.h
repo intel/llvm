@@ -6,18 +6,19 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// Support for linear transforms and applying them to an IntegerPolyhedron.
+// Support for linear transforms and applying them to an IntegerRelation.
 //
 //===----------------------------------------------------------------------===//
 
 #ifndef MLIR_ANALYSIS_PRESBURGER_LINEARTRANSFORM_H
 #define MLIR_ANALYSIS_PRESBURGER_LINEARTRANSFORM_H
 
-#include "mlir/Analysis/Presburger/IntegerPolyhedron.h"
+#include "mlir/Analysis/Presburger/IntegerRelation.h"
 #include "mlir/Analysis/Presburger/Matrix.h"
 #include "llvm/ADT/SmallVector.h"
 
 namespace mlir {
+namespace presburger {
 
 class LinearTransform {
 public:
@@ -31,22 +32,21 @@ public:
   // strictly below that of the previous column, and all columns which have only
   // zeros are at the end.
   static std::pair<unsigned, LinearTransform>
-  makeTransformToColumnEchelon(Matrix m);
+  makeTransformToColumnEchelon(const Matrix &m);
 
-  // Returns an IntegerPolyhedron having a constraint vector vT for every
-  // constraint vector v in poly, where T is this transform.
-  IntegerPolyhedron applyTo(const IntegerPolyhedron &poly) const;
+  // Returns an IntegerRelation having a constraint vector vT for every
+  // constraint vector v in rel, where T is this transform.
+  IntegerRelation applyTo(const IntegerRelation &rel) const;
 
   // The given vector is interpreted as a row vector v. Post-multiply v with
   // this transform, say T, and return vT.
-  SmallVector<int64_t, 8> preMultiplyWithRow(ArrayRef<int64_t> rowVec) const {
+  SmallVector<MPInt, 8> preMultiplyWithRow(ArrayRef<MPInt> rowVec) const {
     return matrix.preMultiplyWithRow(rowVec);
   }
 
   // The given vector is interpreted as a column vector v. Pre-multiply v with
   // this transform, say T, and return Tv.
-  SmallVector<int64_t, 8>
-  postMultiplyWithColumn(ArrayRef<int64_t> colVec) const {
+  SmallVector<MPInt, 8> postMultiplyWithColumn(ArrayRef<MPInt> colVec) const {
     return matrix.postMultiplyWithColumn(colVec);
   }
 
@@ -54,5 +54,7 @@ private:
   Matrix matrix;
 };
 
+} // namespace presburger
 } // namespace mlir
+
 #endif // MLIR_ANALYSIS_PRESBURGER_LINEARTRANSFORM_H

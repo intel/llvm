@@ -21,9 +21,11 @@
 
 namespace llvm {
 
-Optional<unsigned> getVVPOpcode(unsigned Opcode);
+std::optional<unsigned> getVVPOpcode(unsigned Opcode);
 
+bool isVVPUnaryOp(unsigned Opcode);
 bool isVVPBinaryOp(unsigned Opcode);
+bool isVVPReductionOp(unsigned Opcode);
 
 MVT splitVectorType(MVT VT);
 
@@ -69,7 +71,7 @@ bool maySafelyIgnoreMask(SDValue Op);
 //
 /// AVL Functions {
 // The AVL operand position of this node.
-Optional<int> getAVLPos(unsigned);
+std::optional<int> getAVLPos(unsigned);
 
 // Whether this is a LEGALAVL node.
 bool isLegalAVL(SDValue AVL);
@@ -78,7 +80,7 @@ bool isLegalAVL(SDValue AVL);
 SDValue getNodeAVL(SDValue);
 
 // Mask position of this node.
-Optional<int> getMaskPos(unsigned);
+std::optional<int> getMaskPos(unsigned);
 
 SDValue getNodeMask(SDValue);
 
@@ -87,6 +89,32 @@ SDValue getNodeMask(SDValue);
 std::pair<SDValue, bool> getAnnotatedNodeAVL(SDValue);
 
 /// } AVL Functions
+
+/// Node Properties {
+
+std::optional<EVT> getIdiomaticVectorType(SDNode *Op);
+
+SDValue getLoadStoreStride(SDValue Op, VECustomDAG &CDAG);
+
+SDValue getMemoryPtr(SDValue Op);
+
+SDValue getNodeChain(SDValue Op);
+
+SDValue getStoredValue(SDValue Op);
+
+SDValue getNodePassthru(SDValue Op);
+
+SDValue getGatherScatterIndex(SDValue Op);
+
+SDValue getGatherScatterScale(SDValue Op);
+
+unsigned getScalarReductionOpcode(unsigned VVPOC, bool IsMask);
+
+// Whether this VP_REDUCE_*/ VECREDUCE_*/VVP_REDUCE_* SDNode has a start
+// parameter.
+bool hasReductionStartParam(unsigned VVPOC);
+
+/// } Node Properties
 
 enum class Packing {
   Normal = 0, // 256 element standard mode.
@@ -126,7 +154,7 @@ public:
 
   /// getNode {
   SDValue getNode(unsigned OC, SDVTList VTL, ArrayRef<SDValue> OpV,
-                  Optional<SDNodeFlags> Flags = None) const {
+                  std::optional<SDNodeFlags> Flags = std::nullopt) const {
     auto N = DAG.getNode(OC, DL, VTL, OpV);
     if (Flags)
       N->setFlags(*Flags);
@@ -134,7 +162,7 @@ public:
   }
 
   SDValue getNode(unsigned OC, ArrayRef<EVT> ResVT, ArrayRef<SDValue> OpV,
-                  Optional<SDNodeFlags> Flags = None) const {
+                  std::optional<SDNodeFlags> Flags = std::nullopt) const {
     auto N = DAG.getNode(OC, DL, ResVT, OpV);
     if (Flags)
       N->setFlags(*Flags);
@@ -142,7 +170,7 @@ public:
   }
 
   SDValue getNode(unsigned OC, EVT ResVT, ArrayRef<SDValue> OpV,
-                  Optional<SDNodeFlags> Flags = None) const {
+                  std::optional<SDNodeFlags> Flags = std::nullopt) const {
     auto N = DAG.getNode(OC, DL, ResVT, OpV);
     if (Flags)
       N->setFlags(*Flags);
@@ -152,10 +180,20 @@ public:
   SDValue getUNDEF(EVT VT) const { return DAG.getUNDEF(VT); }
   /// } getNode
 
+  /// Legalizing getNode {
+  SDValue getLegalReductionOpVVP(unsigned VVPOpcode, EVT ResVT, SDValue StartV,
+                                 SDValue VectorV, SDValue Mask, SDValue AVL,
+                                 SDNodeFlags Flags) const;
+  /// } Legalizing getNode
+
   /// Packing {
   SDValue getUnpack(EVT DestVT, SDValue Vec, PackElem Part, SDValue AVL) const;
   SDValue getPack(EVT DestVT, SDValue LoVec, SDValue HiVec, SDValue AVL) const;
   /// } Packing
+
+  SDValue getMergeValues(ArrayRef<SDValue> Values) const {
+    return DAG.getMergeValues(Values, DL);
+  }
 
   SDValue getConstant(uint64_t Val, EVT VT, bool IsTarget = false,
                       bool IsOpaque = false) const;
@@ -168,6 +206,16 @@ public:
   SDValue annotateLegalAVL(SDValue AVL) const;
   VETargetMasks getTargetSplitMask(SDValue RawMask, SDValue RawAVL,
                                    PackElem Part) const;
+
+  // Splitting support
+  SDValue getSplitPtrOffset(SDValue Ptr, SDValue ByteStride,
+                            PackElem Part) const;
+  SDValue getSplitPtrStride(SDValue PackStride) const;
+  SDValue getGatherScatterAddress(SDValue BasePtr, SDValue Scale, SDValue Index,
+                                  SDValue Mask, SDValue AVL) const;
+  EVT getVectorVT(EVT ElemVT, unsigned NumElems) const {
+    return EVT::getVectorVT(*DAG.getContext(), ElemVT, NumElems);
+  }
 };
 
 } // namespace llvm

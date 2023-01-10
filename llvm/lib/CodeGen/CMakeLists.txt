@@ -2,10 +2,7 @@ if (DEFINED LLVM_HAVE_TF_AOT OR DEFINED LLVM_HAVE_TF_API)
   include(TensorFlowCompile)
   set(LLVM_RAEVICT_MODEL_PATH_DEFAULT "models/regalloc-eviction")
 
-  # This url points to the most recent most which is known to be compatible with
-  # LLVM. When better models are published, this url should be updated to aid
-  # discoverability.
-  set(LLVM_RAEVICT_MODEL_CURRENT_URL "https://github.com/google/ml-compiler-opt/releases/download/regalloc-evict-v1.0/regalloc-evict-e67430c-v1.0.tar.gz")
+  set(LLVM_RAEVICT_MODEL_CURRENT_URL "<UNSPECIFIED>" CACHE STRING "URL to download the LLVM register allocator eviction model")
 
   if (DEFINED LLVM_HAVE_TF_AOT)
     tf_find_and_compile(
@@ -29,21 +26,25 @@ add_llvm_component_library(LLVMCodeGen
   AggressiveAntiDepBreaker.cpp
   AllocationOrder.cpp
   Analysis.cpp
+  AssignmentTrackingAnalysis.cpp
   AtomicExpandPass.cpp
   BasicTargetTransformInfo.cpp
   BranchFolding.cpp
   BranchRelaxation.cpp
   BreakFalseDeps.cpp
   BasicBlockSections.cpp
+  BasicBlockSectionsProfileReader.cpp
   CalcSpillWeights.cpp
   CallingConvLower.cpp
   CFGuardLongjmp.cpp
+  CFIFixup.cpp
   CFIInstrInserter.cpp
   CodeGen.cpp
   CodeGenCommonISel.cpp
   CodeGenPassBuilder.cpp
   CodeGenPrepare.cpp
   CommandFlags.cpp
+  ComplexDeinterleavingPass.cpp
   CriticalAntiDepBreaker.cpp
   DeadMachineInstructionElim.cpp
   DetectDeadLanes.cpp
@@ -53,6 +54,8 @@ add_llvm_component_library(LLVMCodeGen
   EdgeBundles.cpp
   EHContGuardCatchret.cpp
   ExecutionDomainFix.cpp
+  ExpandLargeDivRem.cpp
+  ExpandLargeFpConvert.cpp
   ExpandMemCmp.cpp
   ExpandPostRAPseudos.cpp
   ExpandReductions.cpp
@@ -101,6 +104,7 @@ add_llvm_component_library(LLVMCodeGen
   MachineBlockFrequencyInfo.cpp
   MachineBlockPlacement.cpp
   MachineBranchProbabilityInfo.cpp
+  MachineCFGPrinter.cpp
   MachineCombiner.cpp
   MachineCopyPropagation.cpp
   MachineCSE.cpp
@@ -116,6 +120,7 @@ add_llvm_component_library(LLVMCodeGen
   MachineFunctionSplitter.cpp
   MachineInstrBundle.cpp
   MachineInstr.cpp
+  MachineLateInstrsCleanup.cpp
   MachineLICM.cpp
   MachineLoopInfo.cpp
   MachineLoopUtils.cpp
@@ -142,6 +147,7 @@ add_llvm_component_library(LLVMCodeGen
   MIRSampleProfile.cpp
   MIRYamlMapping.cpp
   MLRegallocEvictAdvisor.cpp
+  MLRegallocPriorityAdvisor.cpp
   ModuloSchedule.cpp
   MultiHazardRecognizer.cpp
   PatchableFunction.cpp
@@ -172,6 +178,7 @@ add_llvm_component_library(LLVMCodeGen
   RegAllocFast.cpp
   RegAllocGreedy.cpp
   RegAllocPBQP.cpp
+  RegAllocPriorityAdvisor.cpp
   RegAllocScore.cpp
   RegisterClassInfo.cpp
   RegisterCoalescer.cpp
@@ -192,10 +199,12 @@ add_llvm_component_library(LLVMCodeGen
   RegisterBankInfo.cpp
   SafeStack.cpp
   SafeStackLayout.cpp
+  SanitizerBinaryMetadata.cpp
   ScheduleDAG.cpp
   ScheduleDAGInstrs.cpp
   ScheduleDAGPrinter.cpp
   ScoreboardHazardRecognizer.cpp
+  SelectOptimize.cpp
   ShadowStackGCLowering.cpp
   ShrinkWrap.cpp
   SjLjEHPrepare.cpp
@@ -251,6 +260,7 @@ add_llvm_component_library(LLVMCodeGen
   BitWriter
   Core
   MC
+  ObjCARC
   ProfileData
   Scalar
   Support

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Symbols.h"
+#include "Driver.h"
 #include "InputFiles.h"
 #include "InputSection.h"
 #include "OutputSections.h"
@@ -14,7 +15,8 @@
 #include "Target.h"
 #include "Writer.h"
 #include "lld/Common/ErrorHandler.h"
-#include "lld/Common/Strings.h"
+#include "llvm/Demangle/Demangle.h"
+#include "llvm/Support/Compiler.h"
 #include <cstring>
 
 using namespace llvm;
@@ -23,9 +25,34 @@ using namespace llvm::ELF;
 using namespace lld;
 using namespace lld::elf;
 
+static_assert(sizeof(SymbolUnion) <= 64, "SymbolUnion too large");
+
+template <typename T> struct AssertSymbol {
+  static_assert(std::is_trivially_destructible<T>(),
+                "Symbol types must be trivially destructible");
+  static_assert(sizeof(T) <= sizeof(SymbolUnion), "SymbolUnion too small");
+  static_assert(alignof(T) <= alignof(SymbolUnion),
+                "SymbolUnion not aligned enough");
+};
+
+LLVM_ATTRIBUTE_UNUSED static inline void assertSymbols() {
+  AssertSymbol<Defined>();
+  AssertSymbol<CommonSymbol>();
+  AssertSymbol<Undefined>();
+  AssertSymbol<SharedSymbol>();
+  AssertSymbol<LazyObject>();
+}
+
+// Returns a symbol for an error message.
+static std::string maybeDemangleSymbol(StringRef symName) {
+  if (elf::config->demangle)
+    return demangle(symName.str());
+  return symName.str();
+}
+
 std::string lld::toString(const elf::Symbol &sym) {
   StringRef name = sym.getName();
-  std::string ret = demangle(name, config->demangle);
+  std::string ret = maybeDemangleSymbol(name);
 
   const char *suffix = sym.getVersionSuffix();
   if (*suffix == '@')
@@ -46,12 +73,7 @@ Defined *ElfSym::mipsGpDisp;
 Defined *ElfSym::mipsLocalGp;
 Defined *ElfSym::relaIpltStart;
 Defined *ElfSym::relaIpltEnd;
-Defined *ElfSym::riscvGlobalPointer;
 Defined *ElfSym::tlsModuleBase;
-DenseMap<const Symbol *, std::pair<const InputFile *, const InputFile *>>
-    elf::backwardReferences;
-SmallVector<std::tuple<std::string, const InputFile *, const Symbol &>, 0>
-    elf::whyExtract;
 SmallVector<SymbolAux, 0> elf::symAux;
 
 static uint64_t getSymVA(const Symbol &sym, int64_t addend) {
@@ -106,7 +128,7 @@ static uint64_t getSymVA(const Symbol &sym, int64_t addend) {
     // field etc) do the same trick as compiler uses to mark microMIPS
     // for CPU - set the less-significant bit.
     if (config->emachine == EM_MIPS && isMicroMips() &&
-        ((sym.stOther & STO_MIPS_MICROMIPS) || sym.needsCopy))
+        ((sym.stOther & STO_MIPS_MICROMIPS) || sym.hasFlag(NEEDS_COPY)))
       va |= 1;
 
     if (d.isTls() && !config->relocatable) {
@@ -248,8 +270,8 @@ void Symbol::extract() const {
 }
 
 uint8_t Symbol::computeBinding() const {
-  if ((visibility != STV_DEFAULT && visibility != STV_PROTECTED) ||
-      versionId == VER_NDX_LOCAL)
+  auto v = visibility();
+  if ((v != STV_DEFAULT && v != STV_PROTECTED) || versionId == VER_NDX_LOCAL)
     return STB_LOCAL;
   if (binding == STB_GNU_UNIQUE && !config->gnuUnique)
     return STB_GLOBAL;
@@ -288,7 +310,7 @@ void elf::printTraceSymbol(const Symbol &sym, StringRef name) {
 
 static void recordWhyExtract(const InputFile *reference,
                              const InputFile &extracted, const Symbol &sym) {
-  whyExtract.emplace_back(toString(reference), &extracted, sym);
+  ctx.whyExtractRecords.emplace_back(toString(reference), &extracted, sym);
 }
 
 void elf::maybeWarnUnorderableSymbol(const Symbol *sym) {
@@ -328,7 +350,7 @@ bool elf::computeIsPreemptible(const Symbol &sym) {
 
   // Only symbols with default visibility that appear in dynsym can be
   // preempted. Symbols with protected visibility cannot be preempted.
-  if (!sym.includeInDynsym() || sym.visibility != STV_DEFAULT)
+  if (!sym.includeInDynsym() || sym.visibility() != STV_DEFAULT)
     return false;
 
   // At this point copy relocations have not been created yet, so any
@@ -351,32 +373,6 @@ bool elf::computeIsPreemptible(const Symbol &sym) {
   return true;
 }
 
-void elf::reportBackrefs() {
-  for (auto &it : backwardReferences) {
-    const Symbol &sym = *it.first;
-    std::string to = toString(it.second.second);
-    // Some libraries have known problems and can cause noise. Filter them out
-    // with --warn-backrefs-exclude=. to may look like *.o or *.a(*.o).
-    bool exclude = false;
-    for (const llvm::GlobPattern &pat : config->warnBackrefsExclude)
-      if (pat.match(to)) {
-        exclude = true;
-        break;
-      }
-    if (!exclude)
-      warn("backward reference detected: " + sym.getName() + " in " +
-           toString(it.second.first) + " refers to " + to);
-  }
-}
-
-static uint8_t getMinVisibility(uint8_t va, uint8_t vb) {
-  if (va == STV_DEFAULT)
-    return vb;
-  if (vb == STV_DEFAULT)
-    return va;
-  return std::min(va, vb);
-}
-
 // Merge symbol properties.
 //
 // When we have many symbols of the same name, we choose one of them,
@@ -385,52 +381,27 @@ static uint8_t getMinVisibility(uint8_t va, uint8_t vb) {
 void Symbol::mergeProperties(const Symbol &other) {
   if (other.exportDynamic)
     exportDynamic = true;
-  if (other.isUsedInRegularObj)
-    isUsedInRegularObj = true;
 
   // DSO symbols do not affect visibility in the output.
-  if (!other.isShared())
-    visibility = getMinVisibility(visibility, other.visibility);
-}
-
-void Symbol::resolve(const Symbol &other) {
-  mergeProperties(other);
-
-  if (isPlaceholder()) {
-    replace(other);
-    return;
-  }
-
-  switch (other.kind()) {
-  case Symbol::UndefinedKind:
-    resolveUndefined(cast<Undefined>(other));
-    break;
-  case Symbol::CommonKind:
-    resolveCommon(cast<CommonSymbol>(other));
-    break;
-  case Symbol::DefinedKind:
-    resolveDefined(cast<Defined>(other));
-    break;
-  case Symbol::LazyObjectKind:
-    resolveLazy(cast<LazyObject>(other));
-    break;
-  case Symbol::SharedKind:
-    resolveShared(cast<SharedSymbol>(other));
-    break;
-  case Symbol::PlaceholderKind:
-    llvm_unreachable("bad symbol kind");
+  if (!other.isShared() && other.visibility() != STV_DEFAULT) {
+    uint8_t v = visibility(), ov = other.visibility();
+    setVisibility(v == STV_DEFAULT ? ov : std::min(v, ov));
   }
 }
 
-void Symbol::resolveUndefined(const Undefined &other) {
+void Symbol::resolve(const Undefined &other) {
+  if (other.visibility() != STV_DEFAULT) {
+    uint8_t v = visibility(), ov = other.visibility();
+    setVisibility(v == STV_DEFAULT ? ov : std::min(v, ov));
+  }
   // An undefined symbol with non default visibility must be satisfied
   // in the same DSO.
   //
   // If this is a non-weak defined symbol in a discarded section, override the
   // existing undefined symbol for better error message later.
-  if ((isShared() && other.visibility != STV_DEFAULT) ||
+  if (isPlaceholder() || (isShared() && other.visibility() != STV_DEFAULT) ||
       (isUndefined() && other.binding != STB_WEAK && other.discardedSecIdx)) {
-    replace(other);
+    other.overwrite(*this);
     return;
   }
 
@@ -512,7 +483,8 @@ void Symbol::resolveUndefined(const Undefined &other) {
     // definition. this->file needs to be saved because in the case of LTO it
     // may be reset to nullptr or be replaced with a file named lto.tmp.
     if (backref && !isWeak())
-      backwardReferences.try_emplace(this, std::make_pair(other.file, file));
+      ctx.backwardReferences.try_emplace(this,
+                                         std::make_pair(other.file, file));
     return;
   }
 
@@ -529,57 +501,38 @@ void Symbol::resolveUndefined(const Undefined &other) {
   }
 }
 
-// Compare two symbols. Return 1 if the new symbol should win, -1 if
-// the new symbol should lose, or 0 if there is a conflict.
-int Symbol::compare(const Symbol *other) const {
-  assert(other->isDefined() || other->isCommon());
-
-  if (!isDefined() && !isCommon())
-    return 1;
-
-  // .symver foo,foo@@VER unfortunately creates two defined symbols: foo and
-  // foo@@VER. In GNU ld, if foo and foo@@VER are in the same file, foo is
-  // ignored. In our implementation, when this is foo, this->getName() may still
-  // contain @@, return 1 in this case as well.
-  if (file == other->file) {
-    if (other->getName().contains("@@"))
-      return 1;
-    if (getName().contains("@@"))
-      return -1;
-  }
-
-  if (other->isWeak())
-    return -1;
-
-  if (isWeak())
-    return 1;
-
-  if (isCommon() && other->isCommon()) {
-    if (config->warnCommon)
-      warn("multiple common of " + getName());
-    return 0;
-  }
-
-  if (isCommon()) {
+// Compare two symbols. Return true if the new symbol should win.
+bool Symbol::shouldReplace(const Defined &other) const {
+  if (LLVM_UNLIKELY(isCommon())) {
     if (config->warnCommon)
       warn("common " + getName() + " is overridden");
-    return 1;
+    return !other.isWeak();
   }
+  if (!isDefined())
+    return true;
 
-  if (other->isCommon()) {
-    if (config->warnCommon)
-      warn("common " + getName() + " is overridden");
-    return -1;
-  }
-
-  return 0;
+  // Incoming STB_GLOBAL overrides STB_WEAK/STB_GNU_UNIQUE. -fgnu-unique changes
+  // some vague linkage data in COMDAT from STB_WEAK to STB_GNU_UNIQUE. Treat
+  // STB_GNU_UNIQUE like STB_WEAK so that we prefer the first among all
+  // STB_WEAK/STB_GNU_UNIQUE copies. If we prefer an incoming STB_GNU_UNIQUE to
+  // an existing STB_WEAK, there may be discarded section errors because the
+  // selected copy may be in a non-prevailing COMDAT.
+  return !isGlobal() && other.isGlobal();
 }
 
-void elf::reportDuplicate(const Symbol &sym, InputFile *newFile,
+void elf::reportDuplicate(const Symbol &sym, const InputFile *newFile,
                           InputSectionBase *errSec, uint64_t errOffset) {
   if (config->allowMultipleDefinition)
     return;
-  const Defined *d = cast<Defined>(&sym);
+  // In glibc<2.32, crti.o has .gnu.linkonce.t.__x86.get_pc_thunk.bx, which
+  // is sort of proto-comdat. There is actually no duplicate if we have
+  // full support for .gnu.linkonce.
+  const Defined *d = dyn_cast<Defined>(&sym);
+  if (!d || d->getName() == "__x86.get_pc_thunk.bx")
+    return;
+  // Allow absolute symbols with the same value for GNU ld compatibility.
+  if (!d->section && !errSec && errOffset && d->value == errOffset)
+    return;
   if (!d->section || !errSec) {
     error("duplicate symbol: " + toString(sym) + "\n>>> defined in " +
           toString(sym.file) + "\n>>> defined in " + toString(newFile));
@@ -610,71 +563,81 @@ void elf::reportDuplicate(const Symbol &sym, InputFile *newFile,
 }
 
 void Symbol::checkDuplicate(const Defined &other) const {
-  if (compare(&other) == 0)
+  if (isDefined() && !isWeak() && !other.isWeak())
     reportDuplicate(*this, other.file,
                     dyn_cast_or_null<InputSectionBase>(other.section),
                     other.value);
 }
 
-void Symbol::resolveCommon(const CommonSymbol &other) {
-  int cmp = compare(&other);
-  if (cmp < 0)
+void Symbol::resolve(const CommonSymbol &other) {
+  if (other.exportDynamic)
+    exportDynamic = true;
+  if (other.visibility() != STV_DEFAULT) {
+    uint8_t v = visibility(), ov = other.visibility();
+    setVisibility(v == STV_DEFAULT ? ov : std::min(v, ov));
+  }
+  if (isDefined() && !isWeak()) {
+    if (config->warnCommon)
+      warn("common " + getName() + " is overridden");
     return;
+  }
 
-  if (cmp > 0) {
-    if (auto *s = dyn_cast<SharedSymbol>(this)) {
-      // Increase st_size if the shared symbol has a larger st_size. The shared
-      // symbol may be created from common symbols. The fact that some object
-      // files were linked into a shared object first should not change the
-      // regular rule that picks the largest st_size.
-      uint64_t size = s->size;
-      replace(other);
-      if (size > cast<CommonSymbol>(this)->size)
-        cast<CommonSymbol>(this)->size = size;
-    } else {
-      replace(other);
+  if (CommonSymbol *oldSym = dyn_cast<CommonSymbol>(this)) {
+    if (config->warnCommon)
+      warn("multiple common of " + getName());
+    oldSym->alignment = std::max(oldSym->alignment, other.alignment);
+    if (oldSym->size < other.size) {
+      oldSym->file = other.file;
+      oldSym->size = other.size;
     }
     return;
   }
 
-  CommonSymbol *oldSym = cast<CommonSymbol>(this);
-
-  oldSym->alignment = std::max(oldSym->alignment, other.alignment);
-  if (oldSym->size < other.size) {
-    oldSym->file = other.file;
-    oldSym->size = other.size;
+  if (auto *s = dyn_cast<SharedSymbol>(this)) {
+    // Increase st_size if the shared symbol has a larger st_size. The shared
+    // symbol may be created from common symbols. The fact that some object
+    // files were linked into a shared object first should not change the
+    // regular rule that picks the largest st_size.
+    uint64_t size = s->size;
+    other.overwrite(*this);
+    if (size > cast<CommonSymbol>(this)->size)
+      cast<CommonSymbol>(this)->size = size;
+  } else {
+    other.overwrite(*this);
   }
 }
 
-void Symbol::resolveDefined(const Defined &other) {
-  int cmp = compare(&other);
-  if (cmp > 0)
-    replace(other);
+void Symbol::resolve(const Defined &other) {
+  if (other.exportDynamic)
+    exportDynamic = true;
+  if (other.visibility() != STV_DEFAULT) {
+    uint8_t v = visibility(), ov = other.visibility();
+    setVisibility(v == STV_DEFAULT ? ov : std::min(v, ov));
+  }
+  if (shouldReplace(other))
+    other.overwrite(*this);
 }
 
-template <class LazyT>
-static void replaceCommon(Symbol &oldSym, const LazyT &newSym) {
-  backwardReferences.erase(&oldSym);
-  oldSym.replace(newSym);
-  newSym.extract();
-}
+void Symbol::resolve(const LazyObject &other) {
+  if (isPlaceholder()) {
+    other.overwrite(*this);
+    return;
+  }
 
-template <class LazyT> void Symbol::resolveLazy(const LazyT &other) {
   // For common objects, we want to look for global or weak definitions that
   // should be extracted as the canonical definition instead.
-  if (isCommon() && elf::config->fortranCommon) {
-    if (auto *loSym = dyn_cast<LazyObject>(&other)) {
-      if (loSym->file->shouldExtractForCommon(getName())) {
-        replaceCommon(*this, other);
-        return;
-      }
-    }
+  if (LLVM_UNLIKELY(isCommon()) && elf::config->fortranCommon &&
+      other.file->shouldExtractForCommon(getName())) {
+    ctx.backwardReferences.erase(this);
+    other.overwrite(*this);
+    other.extract();
+    return;
   }
 
   if (!isUndefined()) {
     // See the comment in resolveUndefined().
     if (isDefined())
-      backwardReferences.erase(this);
+      ctx.backwardReferences.erase(this);
     return;
   }
 
@@ -682,7 +645,7 @@ template <class LazyT> void Symbol::resolveLazy(const LazyT &other) {
   // Symbols.h for the details.
   if (isWeak()) {
     uint8_t ty = type;
-    replace(other);
+    other.overwrite(*this);
     type = ty;
     binding = STB_WEAK;
     return;
@@ -694,18 +657,23 @@ template <class LazyT> void Symbol::resolveLazy(const LazyT &other) {
     recordWhyExtract(oldFile, *file, *this);
 }
 
-void Symbol::resolveShared(const SharedSymbol &other) {
+void Symbol::resolve(const SharedSymbol &other) {
+  exportDynamic = true;
+  if (isPlaceholder()) {
+    other.overwrite(*this);
+    return;
+  }
   if (isCommon()) {
     // See the comment in resolveCommon() above.
     if (other.size > cast<CommonSymbol>(this)->size)
       cast<CommonSymbol>(this)->size = other.size;
     return;
   }
-  if (visibility == STV_DEFAULT && (isUndefined() || isLazy())) {
+  if (visibility() == STV_DEFAULT && (isUndefined() || isLazy())) {
     // An undefined symbol with non default visibility must be satisfied
     // in the same DSO.
     uint8_t bind = binding;
-    replace(other);
+    other.overwrite(*this);
     binding = bind;
   } else if (traced)
     printTraceSymbol(other, getName());

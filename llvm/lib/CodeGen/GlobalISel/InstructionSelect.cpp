@@ -12,8 +12,6 @@
 #include "llvm/CodeGen/GlobalISel/InstructionSelect.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/ScopeExit.h"
-#include "llvm/ADT/Twine.h"
-#include "llvm/Analysis/BlockFrequencyInfo.h"
 #include "llvm/Analysis/LazyBlockFrequencyInfo.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
@@ -23,14 +21,13 @@
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineOptimizationRemarkEmitter.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/Config/config.h"
-#include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/CodeGenCoverage.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Target/TargetMachine.h"
@@ -163,6 +160,7 @@ bool InstructionSelect::runOnMachineFunction(MachineFunction &MF) {
       // If so, erase it.
       if (isTriviallyDead(MI, MRI)) {
         LLVM_DEBUG(dbgs() << "Is dead; erasing.\n");
+        salvageDebugInfo(MRI, MI);
         MI.eraseFromParent();
         continue;
       }
@@ -183,6 +181,11 @@ bool InstructionSelect::runOnMachineFunction(MachineFunction &MF) {
                "Must be able to replace dst with src!");
         MI.eraseFromParent();
         MRI.replaceRegWith(DstReg, SrcReg);
+        continue;
+      }
+
+      if (MI.getOpcode() == TargetOpcode::G_INVOKE_REGION_START) {
+        MI.eraseFromParent();
         continue;
       }
 
@@ -250,7 +253,7 @@ bool InstructionSelect::runOnMachineFunction(MachineFunction &MF) {
   // that the size of the now-constrained vreg is unchanged and that it has a
   // register class.
   for (unsigned I = 0, E = MRI.getNumVirtRegs(); I != E; ++I) {
-    unsigned VReg = Register::index2VirtReg(I);
+    Register VReg = Register::index2VirtReg(I);
 
     MachineInstr *MI = nullptr;
     if (!MRI.def_empty(VReg))

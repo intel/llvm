@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s -o %t.out
-// expected-error@CL/sycl/stream.hpp:* {{Convert the byte to a numeric value using std::to_integer}}
+// expected-error@sycl/stream.hpp:* {{Convert the byte to a numeric value using std::to_integer}}
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   sycl::queue q;

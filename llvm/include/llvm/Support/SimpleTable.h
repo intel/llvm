@@ -132,6 +132,9 @@ public:
   Row &operator[](int I) { return Rows[I]; }
   const Row &operator[](int I) const { return Rows[I]; }
 
+  // Merge another table into this table
+  Error merge(const SimpleTable &Other);
+
 private:
   Error addColumnName(StringRef ColName);
   void rebuildName2NumMapping();

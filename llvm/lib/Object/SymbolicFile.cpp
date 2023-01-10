@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Object/SymbolicFile.h"
-#include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Object/COFFImportFile.h"
@@ -64,6 +63,7 @@ SymbolicFile::createSymbolicFile(MemoryBufferRef Object, file_magic Type,
   case file_magic::macho_dynamically_linked_shared_lib_stub:
   case file_magic::macho_dsym_companion:
   case file_magic::macho_kext_bundle:
+  case file_magic::macho_file_set:
   case file_magic::pecoff_executable:
   case file_magic::xcoff_object_32:
   case file_magic::xcoff_object_64:
@@ -114,6 +114,7 @@ bool SymbolicFile::isSymbolicFile(file_magic Type, const LLVMContext *Context) {
   case file_magic::macho_dynamically_linked_shared_lib_stub:
   case file_magic::macho_dsym_companion:
   case file_magic::macho_kext_bundle:
+  case file_magic::macho_file_set:
   case file_magic::pecoff_executable:
   case file_magic::xcoff_object_32:
   case file_magic::xcoff_object_64:

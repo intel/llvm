@@ -249,20 +249,19 @@ define <4 x i32> @uaddo_v4i1(<4 x i1> %a0, <4 x i1> %a1, <4 x i1>* %p2) nounwind
 ; CHECK-NEXT:    and v1.8b, v1.8b, v2.8b
 ; CHECK-NEXT:    and v0.8b, v0.8b, v2.8b
 ; CHECK-NEXT:    add v0.4h, v0.4h, v1.4h
-; CHECK-NEXT:    umov w8, v0.h[1]
-; CHECK-NEXT:    umov w9, v0.h[2]
-; CHECK-NEXT:    umov w10, v0.h[0]
+; CHECK-NEXT:    umov w8, v0.h[0]
+; CHECK-NEXT:    umov w9, v0.h[1]
+; CHECK-NEXT:    umov w10, v0.h[2]
 ; CHECK-NEXT:    umov w11, v0.h[3]
 ; CHECK-NEXT:    and v1.8b, v0.8b, v2.8b
 ; CHECK-NEXT:    cmeq v0.4h, v1.4h, v0.4h
 ; CHECK-NEXT:    and w8, w8, #0x1
-; CHECK-NEXT:    and w9, w9, #0x1
+; CHECK-NEXT:    bfi w8, w9, #1, #1
 ; CHECK-NEXT:    mvn v0.8b, v0.8b
+; CHECK-NEXT:    bfi w8, w10, #2, #1
+; CHECK-NEXT:    orr w8, w8, w11, lsl #3
+; CHECK-NEXT:    and w8, w8, #0xf
 ; CHECK-NEXT:    sshll v0.4s, v0.4h, #0
-; CHECK-NEXT:    bfi w10, w8, #1, #1
-; CHECK-NEXT:    bfi w10, w9, #2, #1
-; CHECK-NEXT:    bfi w10, w11, #3, #29
-; CHECK-NEXT:    and w8, w10, #0xf
 ; CHECK-NEXT:    strb w8, [x0]
 ; CHECK-NEXT:    ret
   %t = call {<4 x i1>, <4 x i1>} @llvm.uadd.with.overflow.v4i1(<4 x i1> %a0, <4 x i1> %a1)
@@ -278,18 +277,10 @@ define <2 x i32> @uaddo_v2i128(<2 x i128> %a0, <2 x i128> %a1, <2 x i128>* %p2) 
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    adds x8, x2, x6
 ; CHECK-NEXT:    adcs x9, x3, x7
-; CHECK-NEXT:    cmp x8, x2
-; CHECK-NEXT:    cset w10, lo
-; CHECK-NEXT:    cmp x9, x3
-; CHECK-NEXT:    cset w11, lo
-; CHECK-NEXT:    csel w10, w10, w11, eq
+; CHECK-NEXT:    cset w10, hs
 ; CHECK-NEXT:    adds x11, x0, x4
 ; CHECK-NEXT:    adcs x12, x1, x5
-; CHECK-NEXT:    cmp x11, x0
-; CHECK-NEXT:    cset w13, lo
-; CHECK-NEXT:    cmp x12, x1
-; CHECK-NEXT:    cset w14, lo
-; CHECK-NEXT:    csel w13, w13, w14, eq
+; CHECK-NEXT:    cset w13, hs
 ; CHECK-NEXT:    fmov s0, w13
 ; CHECK-NEXT:    mov v0.s[1], w10
 ; CHECK-NEXT:    ldr x10, [sp]

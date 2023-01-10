@@ -8,6 +8,7 @@
 
 #include "lldb/Host/Config.h"
 #include "lldb/Utility/Log.h"
+#include "lldb/Utility/Status.h"
 #include "lldb/lldb-enumerations.h"
 
 #if LLDB_ENABLE_PYTHON
@@ -120,13 +121,32 @@ ScriptedProcessPythonInterface::GetRegistersForThread(lldb::tid_t tid) {
 
 lldb::DataExtractorSP ScriptedProcessPythonInterface::ReadMemoryAtAddress(
     lldb::addr_t address, size_t size, Status &error) {
-  return Dispatch<lldb::DataExtractorSP>("read_memory_at_address", error,
-                                         address, size);
+  Status py_error;
+  lldb::DataExtractorSP data_sp = Dispatch<lldb::DataExtractorSP>(
+      "read_memory_at_address", py_error, address, size, error);
+
+  // If there was an error on the python call, surface it to the user.
+  if (py_error.Fail())
+    error = py_error;
+
+  return data_sp;
 }
 
-StructuredData::DictionarySP ScriptedProcessPythonInterface::GetLoadedImages() {
-  // TODO: Implement
-  return {};
+StructuredData::ArraySP ScriptedProcessPythonInterface::GetLoadedImages() {
+  Status error;
+  StructuredData::ArraySP array =
+      Dispatch<StructuredData::ArraySP>("get_loaded_images", error);
+
+  if (!array || !array->IsValid() || error.Fail()) {
+    return ScriptedInterface::ErrorWithMessage<StructuredData::ArraySP>(
+        LLVM_PRETTY_FUNCTION,
+        llvm::Twine("Null or invalid object (" +
+                    llvm::Twine(error.AsCString()) + llvm::Twine(")."))
+            .str(),
+        error);
+  }
+
+  return array;
 }
 
 lldb::pid_t ScriptedProcessPythonInterface::GetProcessID() {
@@ -163,6 +183,17 @@ ScriptedProcessPythonInterface::GetScriptedThreadPluginName() {
 lldb::ScriptedThreadInterfaceSP
 ScriptedProcessPythonInterface::CreateScriptedThreadInterface() {
   return std::make_shared<ScriptedThreadPythonInterface>(m_interpreter);
+}
+
+StructuredData::DictionarySP ScriptedProcessPythonInterface::GetMetadata() {
+  Status error;
+  StructuredData::DictionarySP dict =
+      Dispatch<StructuredData::DictionarySP>("get_process_metadata", error);
+
+  if (!CheckStructuredDataObject(LLVM_PRETTY_FUNCTION, dict, error))
+    return {};
+
+  return dict;
 }
 
 #endif

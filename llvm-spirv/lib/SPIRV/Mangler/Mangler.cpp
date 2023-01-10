@@ -118,8 +118,10 @@ public:
       Stream << "P" << AttrMangling;
       // and the pointee type itself.
       Me = P->getPointee()->accept(this);
-      // The type qualifiers plus a pointee type is a substitutable entity
-      recordSubstitution(Stream.str().substr(Fpos + 1));
+      // The type qualifiers plus a pointee type is a substitutable entity, but
+      // only when there are qualifiers in the first place.
+      if (!AttrMangling.empty())
+        recordSubstitution(Stream.str().substr(Fpos + 1));
       // The complete pointer type is substitutable as well
       recordSubstitution(Stream.str().substr(Fpos));
     }
@@ -167,6 +169,11 @@ public:
         }
       }
     Stream << "E";
+    // "Add" the function type (FvvE) and U13block_pointerFvvE to the
+    // substitution table. We don't actually substitute this if it's present,
+    // but since the block type only occurs at most once in any function we care
+    // about, this should be sufficient.
+    SeqId += 2;
     return MANGLE_SUCCESS;
   }
 

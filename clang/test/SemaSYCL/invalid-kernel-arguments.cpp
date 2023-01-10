@@ -56,7 +56,7 @@ int main() {
   F Obj4{};
   G<A> Obj5{};
   H Obj6{};
-  cl::sycl::kernel_single_task<class kernel>(
+  sycl::kernel_single_task<class kernel>(
       [=]() {
         (void)Obj;
         (void)Obj1;

@@ -8,20 +8,18 @@
 
 #pragma once
 
-#include <CL/sycl/detail/property_helper.hpp>
-#include <CL/sycl/types.hpp>
+#include <sycl/detail/property_helper.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/ext/oneapi/properties/property_utils.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
+#include <sycl/types.hpp>
 
 #include <tuple>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::oneapi::experimental {
 
 namespace detail {
 
@@ -95,7 +93,7 @@ struct ExtractProperties<std::tuple<PropertiesTs...>> {
   using ExtractedPropertiesT = std::tuple<>;
 
   template <typename... PropertyValueTs>
-  static ExtractedPropertiesT<PropertyValueTs...>
+  static constexpr ExtractedPropertiesT<PropertyValueTs...>
   Extract(std::tuple<PropertyValueTs...>) {
     return {};
   }
@@ -112,7 +110,7 @@ struct ExtractProperties<std::tuple<PropertyT, PropertiesTs...>> {
                             NextExtractedPropertiesT<PropertyValueTs...>>::type;
 
   template <typename... PropertyValueTs>
-  static ExtractedPropertiesT<PropertyValueTs...>
+  static constexpr ExtractedPropertiesT<PropertyValueTs...>
   Extract(std::tuple<PropertyValueTs...> PropertyValues) {
     PropertyT ThisExtractedProperty = std::get<PropertyT>(PropertyValues);
     NextExtractedPropertiesT<PropertyValueTs...> NextExtractedProperties =
@@ -137,7 +135,7 @@ template <typename PropertiesT> class properties {
 
 public:
   template <typename... PropertyValueTs>
-  properties(PropertyValueTs... props)
+  constexpr properties(PropertyValueTs... props)
       : Storage(detail::ExtractProperties<StorageT>::Extract(
             std::tuple<PropertyValueTs...>{props...})) {}
 
@@ -201,9 +199,30 @@ template <typename propertiesT>
 inline constexpr bool is_property_list_v = is_property_list<propertiesT>::value;
 #endif
 
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+namespace detail {
+// Helper for default properties when deduction guides are not enabled.
+using empty_properties_t = properties<std::tuple<>>;
+
+// Helper for reconstructing a properties type. This assumes that
+// PropertyValueTs is sorted and contains only valid properties.
+template <typename... PropertyValueTs>
+using properties_t = properties<std::tuple<PropertyValueTs...>>;
+
+// Helper for merging two property lists;
+template <typename LHSPropertiesT, typename RHSPropertiesT>
+struct merged_properties;
+template <typename... LHSPropertiesTs, typename... RHSPropertiesTs>
+struct merged_properties<properties_t<LHSPropertiesTs...>,
+                         properties_t<RHSPropertiesTs...>> {
+  using type = properties<typename MergeProperties<
+      std::tuple<LHSPropertiesTs...>, std::tuple<RHSPropertiesTs...>>::type>;
+};
+template <typename LHSPropertiesT, typename RHSPropertiesT>
+using merged_properties_t =
+    typename merged_properties<LHSPropertiesT, RHSPropertiesT>::type;
+
+} // namespace detail
+} // namespace ext::oneapi::experimental
 
 // If property_list is not trivially copyable, allow properties to propagate
 // is_device_copyable
@@ -220,5 +239,5 @@ struct is_device_copyable<
         const ext::oneapi::experimental::properties<PropertiesT>>::value>>
     : is_device_copyable<PropertiesT> {};
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

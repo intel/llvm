@@ -28,7 +28,7 @@
 - (void)dealloc __attribute__((no_instrument_function)) {
 }
 
-// CHECK: declare void @__cyg_profile_func_enter(i8*, i8*)
-// CHECK: declare void @__cyg_profile_func_exit(i8*, i8*)
+// CHECK: declare void @__cyg_profile_func_enter(ptr, ptr)
+// CHECK: declare void @__cyg_profile_func_exit(ptr, ptr)
 // BARE: declare void @__cyg_profile_func_enter_bare
 @end

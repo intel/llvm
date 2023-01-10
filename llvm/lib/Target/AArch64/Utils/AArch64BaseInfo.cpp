@@ -89,11 +89,25 @@ namespace llvm {
 }
 
 namespace llvm {
+  namespace AArch64RPRFM {
+#define GET_RPRFM_IMPL
+#include "AArch64GenSystemOperands.inc"
+  } // namespace AArch64RPRFM
+} // namespace llvm
+
+namespace llvm {
   namespace AArch64SVEPredPattern {
 #define GET_SVEPREDPAT_IMPL
 #include "AArch64GenSystemOperands.inc"
   }
 }
+
+namespace llvm {
+namespace AArch64SVEVecLenSpecifier {
+#define GET_SVEVECLENSPECIFIER_IMPL
+#include "AArch64GenSystemOperands.inc"
+} // namespace AArch64SVEVecLenSpecifier
+} // namespace llvm
 
 namespace llvm {
   namespace AArch64ExactFPImm {

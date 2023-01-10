@@ -8,10 +8,12 @@
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/Twine.h"
 #include "gtest/gtest.h"
 #include <array>
+#include <optional>
 
 using namespace llvm;
 
@@ -1181,18 +1183,22 @@ TEST(APIntTest, SaturatingMath) {
   APInt AP_100 = APInt(8, 100);
   APInt AP_200 = APInt(8, 200);
 
+  EXPECT_EQ(APInt(8, 100), AP_100.truncUSat(8));
   EXPECT_EQ(APInt(7, 100), AP_100.truncUSat(7));
   EXPECT_EQ(APInt(6, 63), AP_100.truncUSat(6));
   EXPECT_EQ(APInt(5, 31), AP_100.truncUSat(5));
 
+  EXPECT_EQ(APInt(8, 200), AP_200.truncUSat(8));
   EXPECT_EQ(APInt(7, 127), AP_200.truncUSat(7));
   EXPECT_EQ(APInt(6, 63), AP_200.truncUSat(6));
   EXPECT_EQ(APInt(5, 31), AP_200.truncUSat(5));
 
+  EXPECT_EQ(APInt(8, 42), AP_42.truncSSat(8));
   EXPECT_EQ(APInt(7, 42), AP_42.truncSSat(7));
   EXPECT_EQ(APInt(6, 31), AP_42.truncSSat(6));
   EXPECT_EQ(APInt(5, 15), AP_42.truncSSat(5));
 
+  EXPECT_EQ(APInt(8, -56), AP_200.truncSSat(8));
   EXPECT_EQ(APInt(7, -56), AP_200.truncSSat(7));
   EXPECT_EQ(APInt(6, -32), AP_200.truncSSat(6));
   EXPECT_EQ(APInt(5, -16), AP_200.truncSSat(5));
@@ -2637,26 +2643,28 @@ TEST(APIntTest, sext) {
   EXPECT_EQ(~uint64_t(0), APInt(1, 1).sext(64));
 
   APInt i32_max(APInt::getSignedMaxValue(32).sext(63));
+  EXPECT_EQ(i32_max, i32_max.sext(63));
   EXPECT_EQ(32U, i32_max.countLeadingZeros());
   EXPECT_EQ(0U, i32_max.countTrailingZeros());
   EXPECT_EQ(31U, i32_max.countPopulation());
 
   APInt i32_min(APInt::getSignedMinValue(32).sext(63));
+  EXPECT_EQ(i32_min, i32_min.sext(63));
   EXPECT_EQ(32U, i32_min.countLeadingOnes());
   EXPECT_EQ(31U, i32_min.countTrailingZeros());
   EXPECT_EQ(32U, i32_min.countPopulation());
 
   APInt i32_neg1(APInt(32, ~uint64_t(0)).sext(63));
+  EXPECT_EQ(i32_neg1, i32_neg1.sext(63));
   EXPECT_EQ(63U, i32_neg1.countLeadingOnes());
   EXPECT_EQ(0U, i32_neg1.countTrailingZeros());
   EXPECT_EQ(63U, i32_neg1.countPopulation());
 }
 
-TEST(APIntTest, truncOrSelf) {
+TEST(APIntTest, trunc) {
   APInt val(32, 0xFFFFFFFF);
-  EXPECT_EQ(0xFFFF, val.truncOrSelf(16));
-  EXPECT_EQ(0xFFFFFFFF, val.truncOrSelf(32));
-  EXPECT_EQ(0xFFFFFFFF, val.truncOrSelf(64));
+  EXPECT_EQ(0xFFFF, val.trunc(16));
+  EXPECT_EQ(0xFFFFFFFF, val.trunc(32));
 }
 
 TEST(APIntTest, concat) {
@@ -2888,10 +2896,9 @@ TEST(APIntTest, SolveQuadraticEquationWrap) {
         continue;
       for (int B = Low; B != High; ++B) {
         for (int C = Low; C != High; ++C) {
-          Optional<APInt> S = APIntOps::SolveQuadraticEquationWrap(
-                                APInt(Width, A), APInt(Width, B),
-                                APInt(Width, C), Width);
-          if (S.hasValue())
+          std::optional<APInt> S = APIntOps::SolveQuadraticEquationWrap(
+              APInt(Width, A), APInt(Width, B), APInt(Width, C), Width);
+          if (S)
             Validate(A, B, C, Width, S->getSExtValue());
         }
       }
@@ -2925,10 +2932,10 @@ TEST(APIntTest, MultiplicativeInverseExaustive) {
 
 TEST(APIntTest, GetMostSignificantDifferentBit) {
   EXPECT_EQ(APIntOps::GetMostSignificantDifferentBit(APInt(8, 0), APInt(8, 0)),
-            llvm::None);
+            std::nullopt);
   EXPECT_EQ(
       APIntOps::GetMostSignificantDifferentBit(APInt(8, 42), APInt(8, 42)),
-      llvm::None);
+      std::nullopt);
   EXPECT_EQ(*APIntOps::GetMostSignificantDifferentBit(APInt(8, 0), APInt(8, 1)),
             0u);
   EXPECT_EQ(*APIntOps::GetMostSignificantDifferentBit(APInt(8, 0), APInt(8, 2)),
@@ -2938,7 +2945,7 @@ TEST(APIntTest, GetMostSignificantDifferentBit) {
   EXPECT_EQ(*APIntOps::GetMostSignificantDifferentBit(APInt(8, 1), APInt(8, 0)),
             0u);
   EXPECT_EQ(APIntOps::GetMostSignificantDifferentBit(APInt(8, 1), APInt(8, 1)),
-            llvm::None);
+            std::nullopt);
   EXPECT_EQ(*APIntOps::GetMostSignificantDifferentBit(APInt(8, 1), APInt(8, 2)),
             1u);
   EXPECT_EQ(*APIntOps::GetMostSignificantDifferentBit(APInt(8, 1), APInt(8, 3)),
@@ -2950,10 +2957,10 @@ TEST(APIntTest, GetMostSignificantDifferentBit) {
 
 TEST(APIntTest, GetMostSignificantDifferentBitExaustive) {
   auto GetHighestDifferentBitBruteforce =
-      [](const APInt &V0, const APInt &V1) -> llvm::Optional<unsigned> {
+      [](const APInt &V0, const APInt &V1) -> std::optional<unsigned> {
     assert(V0.getBitWidth() == V1.getBitWidth() && "Must have same bitwidth");
     if (V0 == V1)
-      return llvm::None; // Bitwise identical.
+      return std::nullopt; // Bitwise identical.
     // There is a mismatch. Let's find the most significant different bit.
     for (int Bit = V0.getBitWidth() - 1; Bit >= 0; --Bit) {
       if (V0[Bit] == V1[Bit])
@@ -2972,7 +2979,7 @@ TEST(APIntTest, GetMostSignificantDifferentBitExaustive) {
         auto Bit = APIntOps::GetMostSignificantDifferentBit(A, B);
         EXPECT_EQ(Bit, GetHighestDifferentBitBruteforce(A, B));
 
-        if (!Bit.hasValue())
+        if (!Bit)
           EXPECT_EQ(A, B);
         else {
           EXPECT_NE(A, B);
@@ -3109,6 +3116,22 @@ TEST(APIntTest, ScaleBitMask) {
             APInt::getAllOnes(256));
   EXPECT_EQ(APIntOps::ScaleBitMask(APInt::getOneBitSet(4096, 32), 256),
             APInt::getOneBitSet(256, 2));
+
+  EXPECT_EQ(APIntOps::ScaleBitMask(APInt(2, 0x00), 8, true), APInt(8, 0x00));
+  EXPECT_EQ(APIntOps::ScaleBitMask(APInt(2, 0x01), 8, true), APInt(8, 0x0F));
+  EXPECT_EQ(APIntOps::ScaleBitMask(APInt(2, 0x02), 8, true), APInt(8, 0xF0));
+  EXPECT_EQ(APIntOps::ScaleBitMask(APInt(2, 0x03), 8, true), APInt(8, 0xFF));
+
+  EXPECT_EQ(APIntOps::ScaleBitMask(APInt(8, 0x00), 4, true), APInt(4, 0x00));
+  EXPECT_EQ(APIntOps::ScaleBitMask(APInt(8, 0xFF), 4, true), APInt(4, 0x0F));
+  EXPECT_EQ(APIntOps::ScaleBitMask(APInt(8, 0xE4), 4, true), APInt(4, 0x08));
+}
+
+TEST(APIntTest, DenseMap) {
+  DenseMap<APInt, int> Map;
+  APInt ZeroWidthInt(0, 0, false);
+  Map.insert({ZeroWidthInt, 0});
+  Map.find(ZeroWidthInt);
 }
 
 } // end anonymous namespace

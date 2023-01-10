@@ -129,9 +129,10 @@ PlatformFreeBSD::PlatformFreeBSD(bool is_host)
   }
 }
 
-std::vector<ArchSpec> PlatformFreeBSD::GetSupportedArchitectures() {
+std::vector<ArchSpec>
+PlatformFreeBSD::GetSupportedArchitectures(const ArchSpec &process_host_arch) {
   if (m_remote_platform_sp)
-    return m_remote_platform_sp->GetSupportedArchitectures();
+    return m_remote_platform_sp->GetSupportedArchitectures(process_host_arch);
   return m_supported_architectures;
 }
 
@@ -186,9 +187,12 @@ MmapArgList PlatformFreeBSD::GetMmapArgumentList(const ArchSpec &arch,
 }
 
 CompilerType PlatformFreeBSD::GetSiginfoType(const llvm::Triple &triple) {
-  if (!m_type_system_up)
-    m_type_system_up.reset(new TypeSystemClang("siginfo", triple));
-  TypeSystemClang *ast = m_type_system_up.get();
+  {
+    std::lock_guard<std::mutex> guard(m_mutex);
+    if (!m_type_system)
+      m_type_system = std::make_shared<TypeSystemClang>("siginfo", triple);
+  }
+  TypeSystemClang *ast = m_type_system.get();
 
   // generic types
   CompilerType int_type = ast->GetBasicType(eBasicTypeInt);

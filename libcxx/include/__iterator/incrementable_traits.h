@@ -10,8 +10,10 @@
 #ifndef _LIBCPP___ITERATOR_INCREMENTABLE_TRAITS_H
 #define _LIBCPP___ITERATOR_INCREMENTABLE_TRAITS_H
 
+#include <__concepts/arithmetic.h>
 #include <__config>
-#include <concepts>
+#include <__type_traits/is_primary_template.h>
+#include <cstddef>
 #include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -20,7 +22,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-#if !defined(_LIBCPP_HAS_NO_CONCEPTS)
+#if _LIBCPP_STD_VER > 17
 
 // [incrementable.traits]
 template<class> struct incrementable_traits {};
@@ -65,7 +67,7 @@ using iter_difference_t = typename conditional_t<__is_primary_template<iterator_
                                                  incrementable_traits<remove_cvref_t<_Ip> >,
                                                  iterator_traits<remove_cvref_t<_Ip> > >::difference_type;
 
-#endif // !defined(_LIBCPP_HAS_NO_CONCEPTS)
+#endif // _LIBCPP_STD_VER > 17
 
 _LIBCPP_END_NAMESPACE_STD
 

@@ -361,31 +361,31 @@ template <class R, class Alloc> struct uses_allocator<packaged_task<R>, Alloc>;
 
 */
 
-#include <__assert>
+#include <__assert> // all public C++ headers provide the assertion handler
 #include <__availability>
 #include <__chrono/duration.h>
 #include <__chrono/time_point.h>
 #include <__config>
 #include <__memory/allocator_arg_t.h>
+#include <__memory/allocator_destructor.h>
 #include <__memory/uses_allocator.h>
 #include <__utility/auto_cast.h>
 #include <__utility/forward.h>
+#include <__utility/move.h>
 #include <exception>
-#include <memory>
 #include <mutex>
+#include <new>
 #include <system_error>
 #include <thread>
 #include <version>
-
-#include <chrono> // TODO: Remove unused header
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
 #endif
 
 #ifdef _LIBCPP_HAS_NO_THREADS
-#error <future> is not supported on this single threaded system
-#else // !_LIBCPP_HAS_NO_THREADS
+# error "<future> is not supported since libc++ has been configured without support for threads."
+#endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -402,7 +402,7 @@ _LIBCPP_DECLARE_STRONG_ENUM_EPILOG(future_errc)
 template <>
 struct _LIBCPP_TEMPLATE_VIS is_error_code_enum<future_errc> : public true_type {};
 
-#ifdef _LIBCPP_HAS_NO_STRONG_ENUMS
+#ifdef _LIBCPP_CXX03_LANG
 template <>
 struct _LIBCPP_TEMPLATE_VIS is_error_code_enum<future_errc::__lx> : public true_type { };
 #endif
@@ -416,7 +416,7 @@ _LIBCPP_DECLARE_STRONG_ENUM(launch)
 };
 _LIBCPP_DECLARE_STRONG_ENUM_EPILOG(launch)
 
-#ifndef _LIBCPP_HAS_NO_STRONG_ENUMS
+#ifndef _LIBCPP_CXX03_LANG
 
 typedef underlying_type<launch>::type __launch_underlying_type;
 
@@ -476,7 +476,7 @@ operator^=(launch& __x, launch __y)
     __x = __x ^ __y; return __x;
 }
 
-#endif // !_LIBCPP_HAS_NO_STRONG_ENUMS
+#endif // !_LIBCPP_CXX03_LANG
 
 //enum class future_status
 _LIBCPP_DECLARE_STRONG_ENUM(future_status)
@@ -515,19 +515,19 @@ public:
     const error_code& code() const _NOEXCEPT {return __ec_;}
 
     future_error(const future_error&) _NOEXCEPT = default;
-    virtual ~future_error() _NOEXCEPT;
+    ~future_error() _NOEXCEPT override;
 };
 
 _LIBCPP_NORETURN inline _LIBCPP_INLINE_VISIBILITY
 #ifndef _LIBCPP_NO_EXCEPTIONS
 _LIBCPP_AVAILABILITY_FUTURE_ERROR
 #endif
-void __throw_future_error(future_errc _Ev)
+void __throw_future_error(future_errc __ev)
 {
 #ifndef _LIBCPP_NO_EXCEPTIONS
-    throw future_error(make_error_code(_Ev));
+    throw future_error(make_error_code(__ev));
 #else
-    ((void)_Ev);
+    ((void)__ev);
     _VSTD::abort();
 #endif
 }
@@ -541,7 +541,7 @@ protected:
     mutable condition_variable __cv_;
     unsigned __state_;
 
-    virtual void __on_zero_shared() _NOEXCEPT;
+    void __on_zero_shared() _NOEXCEPT override;
     void __sub_wait(unique_lock<mutex>& __lk);
 public:
     enum
@@ -628,7 +628,7 @@ class _LIBCPP_AVAILABILITY_FUTURE _LIBCPP_HIDDEN __assoc_state
 protected:
     _Up __value_;
 
-    virtual void __on_zero_shared() _NOEXCEPT;
+    void __on_zero_shared() _NOEXCEPT override;
 public:
 
     template <class _Arg>
@@ -638,7 +638,7 @@ public:
     void set_value_at_thread_exit(_Arg&& __arg);
 
     _Rp move();
-    typename add_lvalue_reference<_Rp>::type copy();
+    __add_lvalue_reference_t<_Rp> copy();
 };
 
 template <class _Rp>
@@ -689,7 +689,7 @@ __assoc_state<_Rp>::move()
 }
 
 template <class _Rp>
-typename add_lvalue_reference<_Rp>::type
+__add_lvalue_reference_t<_Rp>
 __assoc_state<_Rp>::copy()
 {
     unique_lock<mutex> __lk(this->__mut_);
@@ -708,7 +708,7 @@ class _LIBCPP_AVAILABILITY_FUTURE __assoc_state<_Rp&>
 protected:
     _Up __value_;
 
-    virtual void __on_zero_shared() _NOEXCEPT;
+    void __on_zero_shared() _NOEXCEPT override;
 public:
 
     void set_value(_Rp& __arg);
@@ -820,7 +820,7 @@ class _LIBCPP_AVAILABILITY_FUTURE __assoc_sub_state_alloc
     typedef __assoc_sub_state base;
     _Alloc __alloc_;
 
-    virtual void __on_zero_shared() _NOEXCEPT;
+    void __on_zero_shared() _NOEXCEPT override;
 public:
     _LIBCPP_INLINE_VISIBILITY
     explicit __assoc_sub_state_alloc(const _Alloc& __a)
@@ -892,7 +892,7 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     explicit __deferred_assoc_state(_Fp&& __f);
 
-    virtual void __execute();
+    void __execute() override;
 };
 
 template <class _Fp>
@@ -979,12 +979,12 @@ class _LIBCPP_AVAILABILITY_FUTURE __async_assoc_state<void, _Fp>
 
     _Fp __func_;
 
-    virtual void __on_zero_shared() _NOEXCEPT;
+    void __on_zero_shared() _NOEXCEPT override;
 public:
     _LIBCPP_INLINE_VISIBILITY
     explicit __async_assoc_state(_Fp&& __f);
 
-    virtual void __execute();
+    void __execute() override;
 };
 
 template <class _Fp>
@@ -1103,7 +1103,7 @@ future<_Rp>::future(__assoc_state<_Rp>* __state)
 
 struct __release_shared_count
 {
-    void operator()(__shared_count* p) {p->__release_shared();}
+    void operator()(__shared_count* __p) {__p->__release_shared();}
 };
 
 template <class _Rp>
@@ -1751,7 +1751,7 @@ template <class _Fp>
 __packaged_task_function<_Rp(_ArgTypes...)>::__packaged_task_function(_Fp&& __f)
     : __f_(nullptr)
 {
-    typedef typename remove_reference<typename decay<_Fp>::type>::type _FR;
+    typedef __libcpp_remove_reference_t<typename decay<_Fp>::type> _FR;
     typedef __packaged_task_func<_FR, allocator<_FR>, _Rp(_ArgTypes...)> _FF;
     if (sizeof(_FF) <= sizeof(__buf_))
     {
@@ -1775,7 +1775,7 @@ __packaged_task_function<_Rp(_ArgTypes...)>::__packaged_task_function(
                                   allocator_arg_t, const _Alloc& __a0, _Fp&& __f)
     : __f_(nullptr)
 {
-    typedef typename remove_reference<typename decay<_Fp>::type>::type _FR;
+    typedef __libcpp_remove_reference_t<typename decay<_Fp>::type> _FR;
     typedef __packaged_task_func<_FR, _Alloc, _Rp(_ArgTypes...)> _FF;
     if (sizeof(_FF) <= sizeof(__buf_))
     {
@@ -1888,11 +1888,11 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     packaged_task() _NOEXCEPT : __p_(nullptr) {}
     template <class _Fp,
-              class = __enable_if_t<!is_same<__uncvref_t<_Fp>, packaged_task>::value> >
+              class = __enable_if_t<!is_same<__remove_cvref_t<_Fp>, packaged_task>::value> >
         _LIBCPP_INLINE_VISIBILITY
         explicit packaged_task(_Fp&& __f) : __f_(_VSTD::forward<_Fp>(__f)) {}
     template <class _Fp, class _Allocator,
-              class = __enable_if_t<!is_same<__uncvref_t<_Fp>, packaged_task>::value> >
+              class = __enable_if_t<!is_same<__remove_cvref_t<_Fp>, packaged_task>::value> >
         _LIBCPP_INLINE_VISIBILITY
         packaged_task(allocator_arg_t, const _Allocator& __a, _Fp&& __f)
              : __f_(allocator_arg, __a, _VSTD::forward<_Fp>(__f)),
@@ -2003,11 +2003,11 @@ public:
     _LIBCPP_INLINE_VISIBILITY
     packaged_task() _NOEXCEPT : __p_(nullptr) {}
     template <class _Fp,
-              class = __enable_if_t<!is_same<__uncvref_t<_Fp>, packaged_task>::value> >
+              class = __enable_if_t<!is_same<__remove_cvref_t<_Fp>, packaged_task>::value> >
         _LIBCPP_INLINE_VISIBILITY
         explicit packaged_task(_Fp&& __f) : __f_(_VSTD::forward<_Fp>(__f)) {}
     template <class _Fp, class _Allocator,
-              class = __enable_if_t<!is_same<__uncvref_t<_Fp>, packaged_task>::value> >
+              class = __enable_if_t<!is_same<__remove_cvref_t<_Fp>, packaged_task>::value> >
         _LIBCPP_INLINE_VISIBILITY
         packaged_task(allocator_arg_t, const _Allocator& __a, _Fp&& __f)
              : __f_(allocator_arg, __a, _VSTD::forward<_Fp>(__f)),
@@ -2171,7 +2171,7 @@ inline _LIBCPP_INLINE_VISIBILITY bool __does_policy_contain(launch __policy, lau
 { return (int(__policy) & int(__value)) != 0; }
 
 template <class _Fp, class... _Args>
-_LIBCPP_NODISCARD_AFTER_CXX17
+_LIBCPP_NODISCARD_AFTER_CXX17 _LIBCPP_HIDE_FROM_ABI
 future<typename __invoke_of<typename decay<_Fp>::type, typename decay<_Args>::type...>::type>
 async(launch __policy, _Fp&& __f, _Args&&... __args)
 {
@@ -2433,6 +2433,8 @@ future<void>::share() _NOEXCEPT
 
 _LIBCPP_END_NAMESPACE_STD
 
-#endif // !_LIBCPP_HAS_NO_THREADS
+#if !defined(_LIBCPP_REMOVE_TRANSITIVE_INCLUDES) && _LIBCPP_STD_VER <= 17
+#  include <chrono>
+#endif
 
 #endif // _LIBCPP_FUTURE

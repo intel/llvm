@@ -151,10 +151,10 @@ public:
   virtual bool IsAllowedRuntimeValue(ConstString name) { return false; }
 
   virtual llvm::Optional<CompilerType> GetRuntimeType(CompilerType base_type) {
-    return llvm::None;
+    return std::nullopt;
   }
 
-  virtual void ModulesDidLoad(const ModuleList &module_list) override {}
+  void ModulesDidLoad(const ModuleList &module_list) override {}
 
   // Called by ClangExpressionParser::PrepareForExecution to query for any
   // custom LLVM IR passes that need to be run before an expression is

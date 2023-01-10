@@ -8,27 +8,30 @@
 
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/host_profiling_info.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/plugin.hpp>
+#include <sycl/detail/cl.h>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/host_profiling_info.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/stl.hpp>
 
 #include <atomic>
 #include <cassert>
+#include <condition_variable>
+#include <optional>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 class context;
 namespace detail {
 class plugin;
 class context_impl;
-using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
+using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 class queue_impl;
-using QueueImplPtr = std::shared_ptr<cl::sycl::detail::queue_impl>;
+using QueueImplPtr = std::shared_ptr<sycl::detail::queue_impl>;
 class event_impl;
-using EventImplPtr = std::shared_ptr<cl::sycl::detail::event_impl>;
+using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
 
 class event_impl {
 public:
@@ -41,7 +44,12 @@ public:
   /// Constructs a ready SYCL event.
   ///
   /// If the constructed SYCL event is waited on it will complete immediately.
-  event_impl(HostEventState State = HES_Complete);
+  /// Normally constructs a host event, use std::nullopt to instead instantiate
+  /// a device event.
+  event_impl(std::optional<HostEventState> State = HES_Complete)
+      : MIsInitialized(false), MHostEvent(State), MIsFlushed(true),
+        MState(State.value_or(HES_Complete)) {}
+
   /// Constructs an event instance from a plug-in event handle.
   ///
   /// The SyclContext must match the plug-in context associated with the
@@ -58,19 +66,14 @@ public:
   /// host device to avoid attempts to call method get on such events.
   //
   /// \return true if this event is a SYCL host event.
-  bool is_host() const;
-
-  /// Returns a valid OpenCL event interoperability handle.
-  ///
-  /// \return a valid instance of OpenCL cl_event.
-  cl_event get() const;
+  bool is_host();
 
   /// Waits for the event.
   ///
   /// Self is needed in order to pass shared_ptr to Scheduler.
   ///
   /// \param Self is a pointer to this event.
-  void wait(std::shared_ptr<cl::sycl::detail::event_impl> Self) const;
+  void wait(std::shared_ptr<sycl::detail::event_impl> Self);
 
   /// Waits for the event.
   ///
@@ -80,13 +83,7 @@ public:
   /// pass shared_ptr to Scheduler.
   ///
   /// \param Self is a pointer to this event.
-  void wait_and_throw(std::shared_ptr<cl::sycl::detail::event_impl> Self);
-
-  /// Clean up the command associated with the event. Assumes that the task this
-  /// event is associated with has been completed.
-  ///
-  /// \param Self is a pointer to this event.
-  void cleanupCommand(std::shared_ptr<cl::sycl::detail::event_impl> Self) const;
+  void wait_and_throw(std::shared_ptr<sycl::detail::event_impl> Self);
 
   /// Queries this event for profiling information.
   ///
@@ -99,20 +96,17 @@ public:
   /// exception is thrown.
   ///
   /// \return depends on template parameter.
-  template <info::event_profiling param>
-  typename info::param_traits<info::event_profiling, param>::return_type
-  get_profiling_info() const;
+  template <typename Param> typename Param::return_type get_profiling_info();
 
   /// Queries this SYCL event for information.
   ///
   /// \return depends on the information being requested.
-  template <info::event param>
-  typename info::param_traits<info::event, param>::return_type get_info() const;
+  template <typename Param> typename Param::return_type get_info();
 
   ~event_impl();
 
   /// Waits for the event with respect to device type.
-  void waitInternal() const;
+  void waitInternal();
 
   /// Marks this event as completed.
   void setComplete();
@@ -135,7 +129,7 @@ public:
 
   /// \return the Plugin associated with the context of this event.
   /// Should be called when this is not a Host Event.
-  const plugin &getPlugin() const;
+  const plugin &getPlugin();
 
   /// Associate event with the context.
   ///
@@ -144,6 +138,9 @@ public:
   ///
   /// @param Context is a shared pointer to an instance of valid context_impl.
   void setContextImpl(const ContextImplPtr &Context);
+
+  /// Clear the event state
+  void setStateIncomplete();
 
   /// Returns command that is associated with the event.
   ///
@@ -167,7 +164,7 @@ public:
   /// Gets the native handle of the SYCL event.
   ///
   /// \return a native handle.
-  pi_native_handle getNative() const;
+  pi_native_handle getNative();
 
   /// Returns vector of event dependencies.
   ///
@@ -193,20 +190,59 @@ public:
   /// to the device yet.
   void flushIfNeeded(const QueueImplPtr &UserQueue);
 
-  /// Cleans dependencies of this event_impl
+  /// Cleans dependencies of this event_impl.
   void cleanupDependencyEvents();
+
+  /// Cleans dependencies of this event's dependencies.
+  void cleanDepEventsThroughOneLevel();
 
   /// Checks if this event is discarded by SYCL implementation.
   ///
   /// \return true if this event is discarded.
   bool isDiscarded() const { return MState == HES_Discarded; }
 
-  void setNeedsCleanupAfterWait(bool NeedsCleanupAfterWait) {
-    MNeedsCleanupAfterWait = NeedsCleanupAfterWait;
-  }
-  bool needsCleanupAfterWait() { return MNeedsCleanupAfterWait; }
+  /// Returns worker queue for command.
+  ///
+  /// @return shared_ptr to MWorkerQueue, please be aware it can be empty
+  /// pointer
+  QueueImplPtr getWorkerQueue() { return MWorkerQueue.lock(); };
 
-private:
+  /// Sets worker queue for command.
+  ///
+  /// @return
+  void setWorkerQueue(const QueueImplPtr &WorkerQueue) {
+    MWorkerQueue = WorkerQueue;
+  };
+
+  /// Sets original queue used for submission.
+  ///
+  /// @return
+  void setSubmittedQueue(const QueueImplPtr &SubmittedQueue) {
+    MSubmittedQueue = SubmittedQueue;
+  };
+
+  QueueImplPtr getSubmittedQueue() const { return MSubmittedQueue.lock(); };
+
+  /// Checks if an event is in a fully intialized state. Default-constructed
+  /// events will return true only after having initialized its native event,
+  /// while other events will assume that they are fully initialized at
+  /// construction, relying on external sources to supply member data.
+  ///
+  /// \return true if the event is considered to be in a fully initialized
+  /// state.
+  bool isInitialized() const noexcept { return MIsInitialized; }
+
+  /// Checks if this event is complete.
+  ///
+  /// \return true if this event is complete.
+  bool isCompleted();
+
+  void attachEventToComplete(const EventImplPtr &Event) {
+    std::lock_guard<std::mutex> Lock(MMutex);
+    MPostCompleteEvents.push_back(Event);
+  }
+
+protected:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
   void *instrumentationProlog(std::string &Name, int32_t StreamID,
@@ -215,18 +251,27 @@ private:
   void instrumentationEpilog(void *TelementryEvent, const std::string &Name,
                              int32_t StreamID, uint64_t IId) const;
   void checkProfilingPreconditions() const;
+  // Events constructed without a context will lazily use the default context
+  // when needed.
+  void ensureContextInitialized();
+  bool MIsInitialized = true;
+  bool MIsContextInitialized = false;
   RT::PiEvent MEvent = nullptr;
   ContextImplPtr MContext;
-  bool MOpenCLInterop = false;
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;
   const bool MIsProfilingEnabled = false;
 
+  std::weak_ptr<queue_impl> MWorkerQueue;
+  std::weak_ptr<queue_impl> MSubmittedQueue;
+
   /// Dependency events prepared for waiting by backend.
   std::vector<EventImplPtr> MPreparedDepsEvents;
   std::vector<EventImplPtr> MPreparedHostDepsEvents;
+
+  std::vector<EventImplPtr> MPostCompleteEvents;
 
   /// Indicates that the task associated with this event has been submitted by
   /// the queue to the device.
@@ -237,15 +282,14 @@ private:
   // HostEventState enum.
   std::atomic<int> MState;
 
-  // A temporary workaround for the current limitations of post enqueue graph
-  // cleanup. Indicates that the command associated with this event isn't
-  // handled by post enqueue cleanup yet and has to be deleted by cleanup after
-  // wait.
-  bool MNeedsCleanupAfterWait = false;
-
   std::mutex MMutex;
+  std::condition_variable cv;
+
+  friend std::vector<RT::PiEvent>
+  getOrWaitEvents(std::vector<sycl::event> DepEvents,
+                  std::shared_ptr<sycl::detail::context_impl> Context);
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

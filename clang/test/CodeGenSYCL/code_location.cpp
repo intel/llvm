@@ -7,12 +7,12 @@
 // Check that meaningful information is returned when NDEBUG is not defined
 // and empty strings and 0s are emitted when it is.
 int test1() {
-  cl::sycl::queue q;
-  q.submit([&](cl::sycl::handler &h) { h.single_task([] {}); });
-  q.submit([&](cl::sycl::handler &h) { h.single_task<class KernelName>([]() {}); });
+  sycl::queue q;
+  q.submit([&](sycl::handler &h) { h.single_task([] {}); });
+  q.submit([&](sycl::handler &h) { h.single_task<class KernelName>([]() {}); });
   return 0;
 }
-// CHECK: template <> struct KernelInfoData<'_', 'Z', 'T', 'S', 'Z', 'Z', '5', 't', 'e', 's', 't', '1', 'v', 'E', 'N', 'K', 'U', 'l', 'R', 'N', '2', 'c', 'l', '4', 's', 'y', 'c', 'l', '7', 'h', 'a', 'n', 'd', 'l', 'e', 'r', 'E', 'E', '_', 'c', 'l', 'E', 'S', '2', '_', 'E', 'U', 'l', 'v', 'E', '_'> {
+// CHECK: template <> struct KernelInfoData<'_', 'Z', 'T', 'S', 'Z', 'Z', '5', 't', 'e', 's', 't', '1', 'v', 'E', 'N', 'K', 'U', 'l', 'R', 'N', '4', 's', 'y', 'c', 'l', '3', '_', 'V', '1', '7', 'h', 'a', 'n', 'd', 'l', 'e', 'r', 'E', 'E', '_', 'c', 'l', 'E', 'S', '2', '_', 'E', 'U', 'l', 'v', 'E', '_'> {
 // CHECK:   static constexpr const char* getFileName() {
 // CHECK: #ifndef NDEBUG
 // CHECK:     return "code_location.cpp";
@@ -22,7 +22,7 @@ int test1() {
 // CHECK:   }
 // CHECK:   static constexpr const char* getFunctionName() {
 // CHECK: #ifndef NDEBUG
-// CHECK:     return "";
+// CHECK:     return "class (lambda)";
 // CHECK: #else
 // CHECK:     return "";
 // CHECK: #endif
@@ -36,7 +36,7 @@ int test1() {
 // CHECK:   }
 // CHECK:   static constexpr unsigned getColumnNumber() {
 // CHECK: #ifndef NDEBUG
-// CHECK:     return 54;
+// CHECK:     return 50;
 // CHECK: #else
 // CHECK:     return 0;
 // CHECK: #endif
@@ -70,7 +70,7 @@ int test1() {
 // CHECK:   __SYCL_DLL_LOCAL
 // CHECK:   static constexpr unsigned getColumnNumber() {
 // CHECK: #ifndef NDEBUG
-// CHECK:     return 72;
+// CHECK:     return 68;
 // CHECK: #else
 // CHECK:     return 0;
 // CHECK: #endif
@@ -81,8 +81,8 @@ int test1() {
 // lambda and kernel name are defined on different lines
 class KernelName2;
 int test2() {
-  cl::sycl::queue q;
-  q.submit([&](cl::sycl::handler &h) { h.single_task<KernelName2>(
+  sycl::queue q;
+  q.submit([&](sycl::handler &h) { h.single_task<KernelName2>(
                                            [] { int i = 2; }); });
   return 0;
 }
@@ -120,8 +120,8 @@ int test2() {
 // Check that fully qualified name is returned
 template <typename T> class KernelName3;
 int test3() {
-  cl::sycl::queue q;
-  q.submit([&](cl::sycl::handler &h) { h.single_task<KernelName3<KernelName2>>(
+  sycl::queue q;
+  q.submit([&](sycl::handler &h) { h.single_task<KernelName3<KernelName2>>(
                                            [] { int i = 3; }); });
   return 0;
 }
@@ -159,8 +159,8 @@ int test3() {
 // Check that the location information returned is that of l4
 auto l4 = []() { return 4; };
 int test4() {
-  cl::sycl::queue q;
-  q.submit([=](cl::sycl::handler &h) { h.single_task<class KernelName4>(l4); });
+  sycl::queue q;
+  q.submit([=](sycl::handler &h) { h.single_task<class KernelName4>(l4); });
   return 0;
 }
 // CHECK: template <> struct KernelInfo<KernelName4> {
@@ -198,13 +198,13 @@ int test4() {
 // kernel is enclosed in a namespace
 namespace NS {
 int test5() {
-  cl::sycl::queue q;
-  q.submit([=](cl::sycl::handler &h) { h.single_task([] {}); });
-  q.submit([=](cl::sycl::handler &h) { h.single_task<class KernelName5>([] {}); });
+  sycl::queue q;
+  q.submit([=](sycl::handler &h) { h.single_task([] {}); });
+  q.submit([=](sycl::handler &h) { h.single_task<class KernelName5>([] {}); });
   return 0;
 }
 } // namespace NS
-// CHECK: template <> struct KernelInfoData<'_', 'Z', 'T', 'S', 'Z', 'Z', 'N', '2', 'N', 'S', '5', 't', 'e', 's', 't', '5', 'E', 'v', 'E', 'N', 'K', 'U', 'l', 'R', 'N', '2', 'c', 'l', '4', 's', 'y', 'c', 'l', '7', 'h', 'a', 'n', 'd', 'l', 'e', 'r', 'E', 'E', '_', 'c', 'l', 'E', 'S', '3', '_', 'E', 'U', 'l', 'v', 'E', '_'> {
+// CHECK: template <> struct KernelInfoData<'_', 'Z', 'T', 'S', 'Z', 'Z', 'N', '2', 'N', 'S', '5', 't', 'e', 's', 't', '5', 'E', 'v', 'E', 'N', 'K', 'U', 'l', 'R', 'N', '4', 's', 'y', 'c', 'l', '3', '_', 'V', '1', '7', 'h', 'a', 'n', 'd', 'l', 'e', 'r', 'E', 'E', '_', 'c', 'l', 'E', 'S', '3', '_', 'E', 'U', 'l', 'v', 'E', '_'> {
 // CHECK:   static constexpr const char* getFileName() {
 // CHECK: #ifndef NDEBUG
 // CHECK:     return "code_location.cpp";
@@ -214,7 +214,7 @@ int test5() {
 // CHECK:   }
 // CHECK:   static constexpr const char* getFunctionName() {
 // CHECK: #ifndef NDEBUG
-// CHECK:     return "NS::";
+// CHECK:     return "NS::class (lambda)";
 // CHECK: #else
 // CHECK:     return "";
 // CHECK: #endif
@@ -228,7 +228,7 @@ int test5() {
 // CHECK:   }
 // CHECK:   static constexpr unsigned getColumnNumber() {
 // CHECK: #ifndef NDEBUG
-// CHECK:     return 54;
+// CHECK:     return 50;
 // CHECK: #else
 // CHECK:     return 0;
 // CHECK: #endif
@@ -258,7 +258,7 @@ int test5() {
 // CHECK:   }
 // CHECK:   static constexpr unsigned getColumnNumber() {
 // CHECK: #ifndef NDEBUG
-// CHECK:     return 73;
+// CHECK:     return 69;
 // CHECK: #else
 // CHECK:     return 0;
 // CHECK: #endif
@@ -272,8 +272,8 @@ struct Functor {
 };
 int test6() {
   Functor F;
-  cl::sycl::queue q;
-  q.submit([=](cl::sycl::handler &h) { h.single_task<class KernelName6>(F); });
+  sycl::queue q;
+  q.submit([=](sycl::handler &h) { h.single_task<class KernelName6>(F); });
   return 0;
 }
 // CHECK: template <> struct KernelInfo<KernelName6> {

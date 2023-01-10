@@ -94,20 +94,11 @@ public:
   /// attaching to processes unless another platform is specified.
   static lldb::PlatformSP GetHostPlatform();
 
-  static lldb::PlatformSP
-  GetPlatformForArchitecture(const ArchSpec &arch, ArchSpec *platform_arch_ptr);
-
   static const char *GetHostPlatformName();
 
   static void SetHostPlatform(const lldb::PlatformSP &platform_sp);
 
-  // Find an existing platform plug-in by name
-  static lldb::PlatformSP Find(ConstString name);
-
-  static lldb::PlatformSP Create(ConstString name, Status &error);
-
-  static lldb::PlatformSP Create(const ArchSpec &arch,
-                                 ArchSpec *platform_arch_ptr, Status &error);
+  static lldb::PlatformSP Create(llvm::StringRef name);
 
   /// Augments the triple either with information from platform or the host
   /// system (if platform is null).
@@ -217,7 +208,7 @@ public:
   llvm::Optional<std::string> GetOSKernelDescription();
 
   // Returns the name of the platform
-  ConstString GetName();
+  llvm::StringRef GetName() { return GetPluginName(); }
 
   virtual const char *GetHostname();
 
@@ -241,11 +232,11 @@ public:
   virtual bool GetRemoteOSVersion() { return false; }
 
   virtual llvm::Optional<std::string> GetRemoteOSBuildString() {
-    return llvm::None;
+    return std::nullopt;
   }
 
   virtual llvm::Optional<std::string> GetRemoteOSKernelDescription() {
-    return llvm::None;
+    return std::nullopt;
   }
 
   // Remote Platform subclasses need to override this function
@@ -257,7 +248,7 @@ public:
 
   virtual bool SetRemoteWorkingDirectory(const FileSpec &working_dir);
 
-  virtual UserIDResolver &GetUserIDResolver() = 0;
+  virtual UserIDResolver &GetUserIDResolver();
 
   /// Locate a file for a platform.
   ///
@@ -310,7 +301,12 @@ public:
 
   /// Get the platform's supported architectures in the order in which they
   /// should be searched.
-  virtual std::vector<ArchSpec> GetSupportedArchitectures() = 0;
+  ///
+  /// \param[in] process_host_arch
+  ///     The process host architecture if it's known. An invalid ArchSpec
+  ///     represents that the process host architecture is unknown.
+  virtual std::vector<ArchSpec>
+  GetSupportedArchitectures(const ArchSpec &process_host_arch) = 0;
 
   virtual size_t GetSoftwareBreakpointTrapOpcode(Target &target,
                                                  BreakpointSite *bp_site);
@@ -332,7 +328,8 @@ public:
   /// Lets a platform answer if it is compatible with a given architecture and
   /// the target triple contained within.
   virtual bool IsCompatibleArchitecture(const ArchSpec &arch,
-                                        bool exact_arch_match,
+                                        const ArchSpec &process_host_arch,
+                                        ArchSpec::MatchType match,
                                         ArchSpec *compatible_arch_ptr);
 
   /// Not all platforms will support debugging a process by spawning somehow
@@ -493,34 +490,20 @@ public:
 
   virtual lldb::user_id_t OpenFile(const FileSpec &file_spec,
                                    File::OpenOptions flags, uint32_t mode,
-                                   Status &error) {
-    return UINT64_MAX;
-  }
+                                   Status &error);
 
-  virtual bool CloseFile(lldb::user_id_t fd, Status &error) { return false; }
+  virtual bool CloseFile(lldb::user_id_t fd, Status &error);
 
-  virtual lldb::user_id_t GetFileSize(const FileSpec &file_spec) {
-    return UINT64_MAX;
-  }
+  virtual lldb::user_id_t GetFileSize(const FileSpec &file_spec);
 
   virtual void AutoCompleteDiskFileOrDirectory(CompletionRequest &request,
                                                bool only_dir) {}
 
   virtual uint64_t ReadFile(lldb::user_id_t fd, uint64_t offset, void *dst,
-                            uint64_t dst_len, Status &error) {
-    error.SetErrorStringWithFormat(
-        "Platform::ReadFile() is not supported in the %s platform",
-        GetName().GetCString());
-    return -1;
-  }
+                            uint64_t dst_len, Status &error);
 
   virtual uint64_t WriteFile(lldb::user_id_t fd, uint64_t offset,
-                             const void *src, uint64_t src_len, Status &error) {
-    error.SetErrorStringWithFormat(
-        "Platform::WriteFile() is not supported in the %s platform",
-        GetName().GetCString());
-    return -1;
-  }
+                             const void *src, uint64_t src_len, Status &error);
 
   virtual Status GetFile(const FileSpec &source, const FileSpec &destination);
 
@@ -863,7 +846,37 @@ public:
     return nullptr;
   }
 
+  /// Detect a binary in memory that will determine which Platform and
+  /// DynamicLoader should be used in this target/process, and update
+  /// the Platform/DynamicLoader.
+  /// The binary will be loaded into the Target, or will be registered with
+  /// the DynamicLoader so that it will be loaded at a later stage.  Returns
+  /// true to indicate that this is a platform binary and has been
+  /// loaded/registered, no further action should be taken by the caller.
+  ///
+  /// \param[in] process
+  ///     Process read memory from, a Process must be provided.
+  ///
+  /// \param[in] addr
+  ///     Address of a binary in memory.
+  ///
+  /// \param[in] notify
+  ///     Whether ModulesDidLoad should be called, if a binary is loaded.
+  ///     Caller may prefer to call ModulesDidLoad for multiple binaries
+  ///     that were loaded at the same time.
+  ///
+  /// \return
+  ///     Returns true if the binary was loaded in the target (or will be
+  ///     via a DynamicLoader).  Returns false if the binary was not
+  ///     loaded/registered, and the caller must load it into the target.
+  virtual bool LoadPlatformBinaryAndSetup(Process *process, lldb::addr_t addr,
+                                          bool notify) {
+    return false;
+  }
+
   virtual CompilerType GetSiginfoType(const llvm::Triple &triple);
+  
+  virtual Args GetExtraStartupCommands();
 
 protected:
   /// Create a list of ArchSpecs with the given OS and a architectures. The
@@ -960,7 +973,7 @@ private:
 
 class PlatformList {
 public:
-  PlatformList() {}
+  PlatformList() = default;
 
   ~PlatformList() = default;
 
@@ -1014,6 +1027,58 @@ public:
       m_selected_platform_sp = m_platforms.back();
     }
   }
+
+  lldb::PlatformSP GetOrCreate(llvm::StringRef name);
+  lldb::PlatformSP GetOrCreate(const ArchSpec &arch,
+                               const ArchSpec &process_host_arch,
+                               ArchSpec *platform_arch_ptr, Status &error);
+  lldb::PlatformSP GetOrCreate(const ArchSpec &arch,
+                               const ArchSpec &process_host_arch,
+                               ArchSpec *platform_arch_ptr);
+
+  /// Get the platform for the given list of architectures.
+  ///
+  /// The algorithm works a follows:
+  ///
+  /// 1. Returns the selected platform if it matches any of the architectures.
+  /// 2. Returns the host platform if it matches any of the architectures.
+  /// 3. Returns the platform that matches all the architectures.
+  ///
+  /// If none of the above apply, this function returns a default platform. The
+  /// candidates output argument differentiates between either no platforms
+  /// supporting the given architecture or multiple platforms supporting the
+  /// given architecture.
+  lldb::PlatformSP GetOrCreate(llvm::ArrayRef<ArchSpec> archs,
+                               const ArchSpec &process_host_arch,
+                               std::vector<lldb::PlatformSP> &candidates);
+
+  lldb::PlatformSP Create(llvm::StringRef name);
+
+  /// Detect a binary in memory that will determine which Platform and
+  /// DynamicLoader should be used in this target/process, and update
+  /// the Platform/DynamicLoader.
+  /// The binary will be loaded into the Target, or will be registered with
+  /// the DynamicLoader so that it will be loaded at a later stage.  Returns
+  /// true to indicate that this is a platform binary and has been
+  /// loaded/registered, no further action should be taken by the caller.
+  ///
+  /// \param[in] process
+  ///     Process read memory from, a Process must be provided.
+  ///
+  /// \param[in] addr
+  ///     Address of a binary in memory.
+  ///
+  /// \param[in] notify
+  ///     Whether ModulesDidLoad should be called, if a binary is loaded.
+  ///     Caller may prefer to call ModulesDidLoad for multiple binaries
+  ///     that were loaded at the same time.
+  ///
+  /// \return
+  ///     Returns true if the binary was loaded in the target (or will be
+  ///     via a DynamicLoader).  Returns false if the binary was not
+  ///     loaded/registered, and the caller must load it into the target.
+  bool LoadPlatformBinaryAndSetup(Process *process, lldb::addr_t addr,
+                                  bool notify);
 
 protected:
   typedef std::vector<lldb::PlatformSP> collection;

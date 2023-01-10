@@ -56,6 +56,7 @@ macro(add_optional_dependency variable description package found)
   message(STATUS "${description}: ${${variable}}")
 endmacro()
 
+add_optional_dependency(LLDB_ENABLE_SWIG "Enable SWIG to generate LLDB bindings" SWIG SWIG_FOUND VERSION 3)
 add_optional_dependency(LLDB_ENABLE_LIBEDIT "Enable editline support in LLDB" LibEdit LibEdit_FOUND)
 add_optional_dependency(LLDB_ENABLE_CURSES "Enable curses support in LLDB" CursesAndPanel CURSESANDPANEL_FOUND)
 add_optional_dependency(LLDB_ENABLE_LZMA "Enable LZMA compression support in LLDB" LibLZMA LIBLZMA_FOUND)
@@ -168,22 +169,30 @@ else ()
 endif ()
 include_directories("${CMAKE_CURRENT_BINARY_DIR}/../clang/include")
 
+# GCC silently accepts any -Wno-<foo> option, but warns about those options
+# being unrecognized only if the compilation triggers other warnings to be
+# printed. Therefore, check for whether the compiler supports options in the
+# form -W<foo>, and if supported, add the corresponding -Wno-<foo> option.
+
 # Disable GCC warnings
-check_cxx_compiler_flag("-Wno-deprecated-declarations" CXX_SUPPORTS_NO_DEPRECATED_DECLARATIONS)
-append_if(CXX_SUPPORTS_NO_DEPRECATED_DECLARATIONS "-Wno-deprecated-declarations" CMAKE_CXX_FLAGS)
+check_cxx_compiler_flag("-Wdeprecated-declarations" CXX_SUPPORTS_DEPRECATED_DECLARATIONS)
+append_if(CXX_SUPPORTS_DEPRECATED_DECLARATIONS "-Wno-deprecated-declarations" CMAKE_CXX_FLAGS)
 
-check_cxx_compiler_flag("-Wno-unknown-pragmas" CXX_SUPPORTS_NO_UNKNOWN_PRAGMAS)
-append_if(CXX_SUPPORTS_NO_UNKNOWN_PRAGMAS "-Wno-unknown-pragmas" CMAKE_CXX_FLAGS)
+check_cxx_compiler_flag("-Wunknown-pragmas" CXX_SUPPORTS_UNKNOWN_PRAGMAS)
+append_if(CXX_SUPPORTS_UNKNOWN_PRAGMAS "-Wno-unknown-pragmas" CMAKE_CXX_FLAGS)
 
-check_cxx_compiler_flag("-Wno-strict-aliasing" CXX_SUPPORTS_NO_STRICT_ALIASING)
-append_if(CXX_SUPPORTS_NO_STRICT_ALIASING "-Wno-strict-aliasing" CMAKE_CXX_FLAGS)
+check_cxx_compiler_flag("-Wstrict-aliasing" CXX_SUPPORTS_STRICT_ALIASING)
+append_if(CXX_SUPPORTS_STRICT_ALIASING "-Wno-strict-aliasing" CMAKE_CXX_FLAGS)
+
+check_cxx_compiler_flag("-Wstringop-truncation" CXX_SUPPORTS_STRINGOP_TRUNCATION)
+append_if(CXX_SUPPORTS_STRINGOP_TRUNCATION "-Wno-stringop-truncation" CMAKE_CXX_FLAGS)
 
 # Disable Clang warnings
-check_cxx_compiler_flag("-Wno-deprecated-register" CXX_SUPPORTS_NO_DEPRECATED_REGISTER)
-append_if(CXX_SUPPORTS_NO_DEPRECATED_REGISTER "-Wno-deprecated-register" CMAKE_CXX_FLAGS)
+check_cxx_compiler_flag("-Wdeprecated-register" CXX_SUPPORTS_DEPRECATED_REGISTER)
+append_if(CXX_SUPPORTS_DEPRECATED_REGISTER "-Wno-deprecated-register" CMAKE_CXX_FLAGS)
 
-check_cxx_compiler_flag("-Wno-vla-extension" CXX_SUPPORTS_NO_VLA_EXTENSION)
-append_if(CXX_SUPPORTS_NO_VLA_EXTENSION "-Wno-vla-extension" CMAKE_CXX_FLAGS)
+check_cxx_compiler_flag("-Wvla-extension" CXX_SUPPORTS_VLA_EXTENSION)
+append_if(CXX_SUPPORTS_VLA_EXTENSION "-Wno-vla-extension" CMAKE_CXX_FLAGS)
 
 # Disable MSVC warnings
 if( MSVC )
@@ -263,12 +272,12 @@ endif()
 # directory that LLDB is using for its embedded Clang instance needs to point
 # to the resource directory of the used Clang installation.
 if (NOT TARGET clang-resource-headers)
-  set(LLDB_CLANG_RESOURCE_DIR_NAME "${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}")
+  set(LLDB_CLANG_RESOURCE_DIR_NAME "${LLVM_VERSION_MAJOR}")
   # Iterate over the possible places where the external resource directory
   # could be and pick the first that exists.
   foreach(CANDIDATE "${Clang_DIR}/../.." "${LLVM_DIR}" "${LLVM_LIBRARY_DIRS}"
                     "${LLVM_BUILD_LIBRARY_DIR}"
-                    "${LLVM_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}")
+                    "${LLVM_LIBRARY_DIR}")
     # Build the resource directory path by appending 'clang/<version number>'.
     set(CANDIDATE_RESOURCE_DIR "${CANDIDATE}/clang/${LLDB_CLANG_RESOURCE_DIR_NAME}")
     if (IS_DIRECTORY "${CANDIDATE_RESOURCE_DIR}")

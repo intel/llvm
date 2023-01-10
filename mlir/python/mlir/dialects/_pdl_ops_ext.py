@@ -59,14 +59,12 @@ class ApplyNativeConstraintOp:
   def __init__(self,
                name: Union[str, StringAttr],
                args: Sequence[Union[OpView, Operation, Value]] = [],
-               params: Optional[Union[ArrayAttr, Sequence[Attribute]]] = None,
                *,
                loc=None,
                ip=None):
     name = _get_str_attr(name)
     args = _get_values(args)
-    params = params if params is None else _get_array_attr(params)
-    super().__init__(name, args, params, loc=loc, ip=ip)
+    super().__init__(name, args, loc=loc, ip=ip)
 
 
 class ApplyNativeRewriteOp:
@@ -76,28 +74,26 @@ class ApplyNativeRewriteOp:
                results: Sequence[Type],
                name: Union[str, StringAttr],
                args: Sequence[Union[OpView, Operation, Value]] = [],
-               params: Optional[Union[ArrayAttr, Sequence[Attribute]]] = None,
                *,
                loc=None,
                ip=None):
     name = _get_str_attr(name)
     args = _get_values(args)
-    params = params if params is None else _get_array_attr(params)
-    super().__init__(results, name, args, params, loc=loc, ip=ip)
+    super().__init__(results, name, args, loc=loc, ip=ip)
 
 
 class AttributeOp:
   """Specialization for PDL attribute op class."""
 
   def __init__(self,
-               type: Optional[Union[OpView, Operation, Value]] = None,
+               valueType: Optional[Union[OpView, Operation, Value]] = None,
                value: Optional[Attribute] = None,
                *,
                loc=None,
                ip=None):
-    type = type if type is None else _get_value(type)
+    valueType = valueType if valueType is None else _get_value(valueType)
     result = pdl.AttributeType.get()
-    super().__init__(result, type, value, loc=loc, ip=ip)
+    super().__init__(result, valueType=valueType, value=value, loc=loc, ip=ip)
 
 
 class EraseOp:
@@ -122,7 +118,7 @@ class OperandOp:
                ip=None):
     type = type if type is None else _get_value(type)
     result = pdl.ValueType.get()
-    super().__init__(result, type, loc=loc, ip=ip)
+    super().__init__(result, valueType=type, loc=loc, ip=ip)
 
 
 class OperandsOp:
@@ -135,7 +131,7 @@ class OperandsOp:
                ip=None):
     types = types if types is None else _get_value(types)
     result = pdl.RangeType.get(pdl.ValueType.get())
-    super().__init__(result, types, loc=loc, ip=ip)
+    super().__init__(result, valueType=types, loc=loc, ip=ip)
 
 
 class OperationOp:
@@ -151,15 +147,15 @@ class OperationOp:
                ip=None):
     name = name if name is None else _get_str_attr(name)
     args = _get_values(args)
-    attributeNames = []
-    attributeValues = []
+    attrNames = []
+    attrValues = []
     for attrName, attrValue in attributes.items():
-      attributeNames.append(StringAttr.get(attrName))
-      attributeValues.append(_get_value(attrValue))
-    attributeNames = ArrayAttr.get(attributeNames)
+      attrNames.append(StringAttr.get(attrName))
+      attrValues.append(_get_value(attrValue))
+    attrNames = ArrayAttr.get(attrNames)
     types = _get_values(types)
     result = pdl.OperationType.get()
-    super().__init__(result, name, args, attributeValues, attributeNames, types, loc=loc, ip=ip)
+    super().__init__(result, args, attrValues, attrNames, types, opName=name, loc=loc, ip=ip)
 
 
 class PatternOp:
@@ -174,7 +170,7 @@ class PatternOp:
     """Creates an PDL `pattern` operation."""
     name_attr = None if name is None else _get_str_attr(name)
     benefit_attr = _get_int_attr(16, benefit)
-    super().__init__(benefit_attr, name_attr, loc=loc, ip=ip)
+    super().__init__(benefit_attr, sym_name=name_attr, loc=loc, ip=ip)
     self.regions[0].blocks.append()
 
   @property
@@ -196,7 +192,7 @@ class ReplaceOp:
     op = _get_value(op)
     with_op = with_op if with_op is None else _get_value(with_op)
     with_values = _get_values(with_values)
-    super().__init__(op, with_op, with_values, loc=loc, ip=ip)
+    super().__init__(op, with_values, replOperation=with_op, loc=loc, ip=ip)
 
 
 class ResultOp:
@@ -226,7 +222,7 @@ class ResultsOp:
                ip=None):
     parent = _get_value(parent)
     index = index if index is None else _get_int_attr(32, index)
-    super().__init__(result, parent, index, loc=loc, ip=ip)
+    super().__init__(result, parent, index=index, loc=loc, ip=ip)
 
 
 class RewriteOp:
@@ -236,15 +232,13 @@ class RewriteOp:
                root: Optional[Union[OpView, Operation, Value]] = None,
                name: Optional[Union[StringAttr, str]] = None,
                args: Sequence[Union[OpView, Operation, Value]] = [],
-               params: Optional[Union[ArrayAttr, Sequence[Attribute]]] = None,
                *,
                loc=None,
                ip=None):
     root = root if root is None else _get_value(root)
     name = name if name is None else _get_str_attr(name)
     args = _get_values(args)
-    params = params if params is None else _get_array_attr(params)
-    super().__init__(root, name, args, params, loc=loc, ip=ip)
+    super().__init__(args, root=root,name=name, loc=loc, ip=ip)
 
   def add_body(self):
     """Add body (block) to the rewrite."""
@@ -261,24 +255,26 @@ class TypeOp:
   """Specialization for PDL type op class."""
 
   def __init__(self,
-               type: Optional[Union[TypeAttr, Type]] = None,
+               constantType: Optional[Union[TypeAttr, Type]] = None,
                *,
                loc=None,
                ip=None):
-    type = type if type is None else _get_type_attr(type)
+    constantType = constantType if constantType is None else _get_type_attr(
+        constantType)
     result = pdl.TypeType.get()
-    super().__init__(result, type, loc=loc, ip=ip)
+    super().__init__(result, constantType=constantType, loc=loc, ip=ip)
 
 
 class TypesOp:
   """Specialization for PDL types op class."""
 
   def __init__(self,
-               types: Sequence[Union[TypeAttr, Type]] = [],
+               constantTypes: Sequence[Union[TypeAttr, Type]] = [],
                *,
                loc=None,
                ip=None):
-    types = _get_array_attr([_get_type_attr(ty) for ty in types])
-    types = None if not types else types
+    constantTypes = _get_array_attr(
+        [_get_type_attr(ty) for ty in constantTypes])
+    constantTypes = None if not constantTypes else constantTypes
     result = pdl.RangeType.get(pdl.TypeType.get())
-    super().__init__(result, types, loc=loc, ip=ip)
+    super().__init__(result, constantTypes=constantTypes, loc=loc, ip=ip)

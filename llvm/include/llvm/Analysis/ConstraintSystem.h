@@ -53,6 +53,11 @@ public:
   }
 
   bool addVariableRowFill(ArrayRef<int64_t> R) {
+    // If all variable coefficients are 0, the constraint does not provide any
+    // usable information.
+    if (all_of(makeArrayRef(R).drop_front(1), [](int64_t C) { return C == 0; }))
+      return false;
+
     for (auto &CR : Constraints) {
       while (CR.size() != R.size())
         CR.push_back(0);
@@ -74,7 +79,14 @@ public:
 
   bool isConditionImplied(SmallVector<int64_t, 8> R) const;
 
+  ArrayRef<int64_t> getLastConstraint() { return Constraints[0]; }
   void popLastConstraint() { Constraints.pop_back(); }
+  void popLastNVariables(unsigned N) {
+    for (auto &C : Constraints) {
+      for (unsigned i = 0; i < N; i++)
+        C.pop_back();
+    }
+  }
 
   /// Returns the number of rows in the constraint system.
   unsigned size() const { return Constraints.size(); }

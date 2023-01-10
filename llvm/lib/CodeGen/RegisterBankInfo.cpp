@@ -9,20 +9,17 @@
 /// This file implements the RegisterBankInfo class.
 //===----------------------------------------------------------------------===//
 
-#include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
-#include "llvm/ADT/SmallString.h"
+#include "llvm/CodeGen/RegisterBankInfo.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/iterator_range.h"
-#include "llvm/CodeGen/GlobalISel/RegisterBank.h"
-#include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/RegisterBank.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/Config/llvm-config.h"
-#include "llvm/IR/Type.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -452,6 +449,9 @@ void RegisterBankInfo::applyDefaultMapping(const OperandsMapper &OpdMapper) {
       LLVM_DEBUG(dbgs() << " is $noreg, nothing to be done\n");
       continue;
     }
+    LLT Ty = MRI.getType(MO.getReg());
+    if (!Ty.isValid())
+      continue;
     assert(OpdMapper.getInstrMapping().getOperandMapping(OpIdx).NumBreakDowns !=
                0 &&
            "Invalid mapping");
@@ -604,6 +604,7 @@ bool RegisterBankInfo::InstructionMapping::verify(
   const MachineFunction &MF = *MI.getMF();
   const RegisterBankInfo *RBI = MF.getSubtarget().getRegBankInfo();
   (void)RBI;
+  const MachineRegisterInfo &MRI = MF.getRegInfo();
 
   for (unsigned Idx = 0; Idx < NumOperands; ++Idx) {
     const MachineOperand &MO = MI.getOperand(Idx);
@@ -614,6 +615,9 @@ bool RegisterBankInfo::InstructionMapping::verify(
     }
     Register Reg = MO.getReg();
     if (!Reg)
+      continue;
+    LLT Ty = MRI.getType(Reg);
+    if (!Ty.isValid())
       continue;
     assert(getOperandMapping(Idx).isValid() &&
            "We must have a mapping for reg operands");

@@ -13,7 +13,7 @@
 #ifndef LLVM_LIB_TARGET_HEXAGON_HEXAGONSUBTARGET_H
 #define LLVM_LIB_TARGET_HEXAGON_HEXAGONSUBTARGET_H
 
-#include "HexagonArch.h"
+#include "HexagonDepArch.h"
 #include "HexagonFrameLowering.h"
 #include "HexagonISelLowering.h"
 #include "HexagonInstrInfo.h"
@@ -95,11 +95,11 @@ private:
   enum HexagonProcFamilyEnum { Others, TinyCore };
 
   std::string CPUString;
+  HexagonProcFamilyEnum HexagonProcFamily = Others;
   Triple TargetTriple;
 
   // The following objects can use the TargetTriple, so they must be
   // declared after it.
-  HexagonProcFamilyEnum HexagonProcFamily = Others;
   HexagonInstrInfo InstrInfo;
   HexagonRegisterInfo RegInfo;
   HexagonTargetLowering TLInfo;
@@ -198,6 +198,18 @@ public:
   bool hasV69OpsOnly() const {
     return getHexagonArchVersion() == Hexagon::ArchEnum::V69;
   }
+  bool hasV71Ops() const {
+    return getHexagonArchVersion() >= Hexagon::ArchEnum::V71;
+  }
+  bool hasV71OpsOnly() const {
+    return getHexagonArchVersion() == Hexagon::ArchEnum::V71;
+  }
+  bool hasV73Ops() const {
+    return getHexagonArchVersion() >= Hexagon::ArchEnum::V73;
+  }
+  bool hasV73OpsOnly() const {
+    return getHexagonArchVersion() == Hexagon::ArchEnum::V73;
+  }
 
   bool useAudioOps() const { return UseAudioOps; }
   bool useCompound() const { return UseCompound; }
@@ -242,6 +254,12 @@ public:
   }
   bool useHVXV69Ops() const {
     return HexagonHVXVersion >= Hexagon::ArchEnum::V69;
+  }
+  bool useHVXV71Ops() const {
+    return HexagonHVXVersion >= Hexagon::ArchEnum::V71;
+  }
+  bool useHVXV73Ops() const {
+    return HexagonHVXVersion >= Hexagon::ArchEnum::V73;
   }
   bool useHVX128BOps() const { return useHVXOps() && UseHVX128BOps; }
   bool useHVX64BOps() const { return useHVXOps() && UseHVX64BOps; }
@@ -311,7 +329,7 @@ public:
   }
 
   bool isHVXElementType(MVT Ty, bool IncludeBool = false) const;
-  bool isHVXVectorType(MVT VecTy, bool IncludeBool = false) const;
+  bool isHVXVectorType(EVT VecTy, bool IncludeBool = false) const;
   bool isTypeForHVX(Type *VecTy, bool IncludeBool = false) const;
 
   Align getTypeAlignment(MVT Ty) const {
@@ -322,6 +340,8 @@ public:
 
   unsigned getL1CacheLineSize() const;
   unsigned getL1PrefetchDistance() const;
+
+  Intrinsic::ID getIntrinsicId(unsigned Opc) const;
 
 private:
   // Helper function responsible for increasing the latency only.

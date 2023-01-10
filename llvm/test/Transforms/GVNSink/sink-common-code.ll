@@ -1,4 +1,4 @@
-; RUN: opt < %s -gvn-sink -simplifycfg -simplifycfg-require-and-preserve-domtree=1 -hoist-common-insts=true -simplifycfg-sink-common=false -S | FileCheck %s
+; RUN: opt < %s -passes=gvn-sink,simplifycfg -simplifycfg-require-and-preserve-domtree=1 -hoist-common-insts=true -simplifycfg-sink-common=false -S | FileCheck %s
 
 define zeroext i1 @test1(i1 zeroext %flag, i32 %blksA, i32 %blksB, i32 %nblks) {
 entry:
@@ -757,6 +757,27 @@ if.else:
 
 if.end:
   ret i32 1
+}
+
+; CHECK-LABEL: test_pr36954
+; CHECK-NOT: xor
+; PR36954 reproducer containing self referencing instruction shouldn't crash GVNSink pass.
+define void @test_pr36954() {
+bb1:
+  %i2 = trunc i32 undef to i8
+  br label %bb2
+
+bb2:
+  br i1 undef, label %bb2, label %exit
+
+bb4.critedge:
+  %i6 = sub i8 %i2, undef
+  %i7 = zext i8 %i6 to i32
+  %i8 = xor i32 %i8, %i7
+  br i1 false, label %exit, label %bb4.critedge
+
+exit:
+  ret void
 }
 
 ; CHECK: !0 = !{!1, !1, i64 0}

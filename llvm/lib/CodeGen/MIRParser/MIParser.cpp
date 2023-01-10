@@ -16,7 +16,6 @@
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
@@ -26,8 +25,6 @@
 #include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/AsmParser/Parser.h"
 #include "llvm/AsmParser/SlotMapping.h"
-#include "llvm/CodeGen/GlobalISel/RegisterBank.h"
-#include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
 #include "llvm/CodeGen/MIRFormatter.h"
 #include "llvm/CodeGen/MIRPrinter.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
@@ -38,6 +35,8 @@
 #include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/RegisterBank.h"
+#include "llvm/CodeGen/RegisterBankInfo.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
@@ -60,7 +59,6 @@
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCDwarf.h"
 #include "llvm/MC/MCInstrDesc.h"
-#include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/Support/AtomicOrdering.h"
 #include "llvm/Support/BranchProbability.h"
 #include "llvm/Support/Casting.h"
@@ -69,10 +67,8 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/SourceMgr.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetIntrinsicInfo.h"
 #include "llvm/Target/TargetMachine.h"
-#include <algorithm>
 #include <cassert>
 #include <cctype>
 #include <cstddef>
@@ -498,6 +494,7 @@ public:
                                          MachineOperand &Dest,
                                          Optional<unsigned> &TiedDefIdx);
   bool parseOffset(int64_t &Offset);
+  bool parseIRBlockAddressTaken(BasicBlock *&BB);
   bool parseAlignment(uint64_t &Alignment);
   bool parseAddrspace(unsigned &Addrspace);
   bool parseSectionID(Optional<MBBSectionID> &SID);
@@ -511,6 +508,7 @@ public:
   bool parseMachineMemoryOperand(MachineMemOperand *&Dest);
   bool parsePreOrPostInstrSymbol(MCSymbol *&Symbol);
   bool parseHeapAllocMarker(MDNode *&Node);
+  bool parsePCSections(MDNode *&Node);
 
   bool parseTargetImmMnemonic(const unsigned OpCode, const unsigned OpIdx,
                               MachineOperand &Dest, const MIRFormatter &MF);
@@ -596,7 +594,7 @@ bool MIParser::error(StringRef::iterator Loc, const Twine &Msg) {
   // Create a diagnostic for a YAML string literal.
   Error = SMDiagnostic(SM, SMLoc(), Buffer.getBufferIdentifier(), 1,
                        Loc - Source.data(), SourceMgr::DK_Error, Msg.str(),
-                       Source, None, None);
+                       Source, std::nullopt, std::nullopt);
   return true;
 }
 
@@ -672,7 +670,8 @@ bool MIParser::parseBasicBlockDefinition(
   auto Loc = Token.location();
   auto Name = Token.stringValue();
   lex();
-  bool HasAddressTaken = false;
+  bool MachineBlockAddressTaken = false;
+  BasicBlock *AddressTakenIRBlock = nullptr;
   bool IsLandingPad = false;
   bool IsInlineAsmBrIndirectTarget = false;
   bool IsEHFuncletEntry = false;
@@ -683,9 +682,13 @@ bool MIParser::parseBasicBlockDefinition(
     do {
       // TODO: Report an error when multiple same attributes are specified.
       switch (Token.kind()) {
-      case MIToken::kw_address_taken:
-        HasAddressTaken = true;
+      case MIToken::kw_machine_block_address_taken:
+        MachineBlockAddressTaken = true;
         lex();
+        break;
+      case MIToken::kw_ir_block_address_taken:
+        if (parseIRBlockAddressTaken(AddressTakenIRBlock))
+          return true;
         break;
       case MIToken::kw_landing_pad:
         IsLandingPad = true;
@@ -704,6 +707,7 @@ bool MIParser::parseBasicBlockDefinition(
           return true;
         break;
       case MIToken::IRBlock:
+      case MIToken::NamedIRBlock:
         // TODO: Report an error when both name and ir block are specified.
         if (parseIRBlock(BB, MF.getFunction()))
           return true;
@@ -739,13 +743,15 @@ bool MIParser::parseBasicBlockDefinition(
                           Twine(ID));
   if (Alignment)
     MBB->setAlignment(Align(Alignment));
-  if (HasAddressTaken)
-    MBB->setHasAddressTaken();
+  if (MachineBlockAddressTaken)
+    MBB->setMachineBlockAddressTaken();
+  if (AddressTakenIRBlock)
+    MBB->setAddressTakenIRBlock(AddressTakenIRBlock);
   MBB->setIsEHPad(IsLandingPad);
   MBB->setIsInlineAsmBrIndirectTarget(IsInlineAsmBrIndirectTarget);
   MBB->setIsEHFuncletEntry(IsEHFuncletEntry);
-  if (SectionID.hasValue()) {
-    MBB->setSectionID(SectionID.getValue());
+  if (SectionID) {
+    MBB->setSectionID(SectionID.value());
     MF.setBBSectionsType(BasicBlockSection::List);
   }
   return false;
@@ -1010,6 +1016,8 @@ bool MIParser::parse(MachineInstr *&MI) {
   while (!Token.isNewlineOrEOF() && Token.isNot(MIToken::kw_pre_instr_symbol) &&
          Token.isNot(MIToken::kw_post_instr_symbol) &&
          Token.isNot(MIToken::kw_heap_alloc_marker) &&
+         Token.isNot(MIToken::kw_pcsections) &&
+         Token.isNot(MIToken::kw_cfi_type) &&
          Token.isNot(MIToken::kw_debug_location) &&
          Token.isNot(MIToken::kw_debug_instr_number) &&
          Token.isNot(MIToken::coloncolon) && Token.isNot(MIToken::lbrace)) {
@@ -1039,6 +1047,24 @@ bool MIParser::parse(MachineInstr *&MI) {
   if (Token.is(MIToken::kw_heap_alloc_marker))
     if (parseHeapAllocMarker(HeapAllocMarker))
       return true;
+  MDNode *PCSections = nullptr;
+  if (Token.is(MIToken::kw_pcsections))
+    if (parsePCSections(PCSections))
+      return true;
+
+  unsigned CFIType = 0;
+  if (Token.is(MIToken::kw_cfi_type)) {
+    lex();
+    if (Token.isNot(MIToken::IntegerLiteral))
+      return error("expected an integer literal after 'cfi-type'");
+    // getUnsigned is sufficient for 32-bit integers.
+    if (getUnsigned(CFIType))
+      return true;
+    lex();
+    // Lex past trailing comma if present.
+    if (Token.is(MIToken::comma))
+      lex();
+  }
 
   unsigned InstrNum = 0;
   if (Token.is(MIToken::kw_debug_instr_number)) {
@@ -1103,7 +1129,7 @@ bool MIParser::parse(MachineInstr *&MI) {
     if (!IsImplicitOp) {
       if (!MCID.isVariadic() && NumExplicitOps >= MCID.getNumOperands() &&
           !Operand.Operand.isValidExcessOperand())
-        return error("too many operands for instruction");
+        return error(Operand.Begin, "too many operands for instruction");
 
       ++NumExplicitOps;
     }
@@ -1119,6 +1145,10 @@ bool MIParser::parse(MachineInstr *&MI) {
     MI->setPostInstrSymbol(MF, PostInstrSymbol);
   if (HeapAllocMarker)
     MI->setHeapAllocMarker(MF, HeapAllocMarker);
+  if (PCSections)
+    MI->setPCSections(MF, PCSections);
+  if (CFIType)
+    MI->setCFIType(MF, CFIType);
   if (!MemOperands.empty())
     MI->setMemRefs(MF, MemOperands);
   if (InstrNum)
@@ -1325,7 +1355,7 @@ bool MIParser::parseMetadata(Metadata *&MD) {
   // Forward reference.
   auto &FwdRef = PFS.MachineForwardRefMDNodes[ID];
   FwdRef = std::make_pair(
-      MDTuple::getTemporary(MF.getFunction().getContext(), None), Loc);
+      MDTuple::getTemporary(MF.getFunction().getContext(), std::nullopt), Loc);
   PFS.MachineMetadataNodes[ID].reset(FwdRef.first.get());
   MD = FwdRef.first.get();
 
@@ -1621,7 +1651,7 @@ bool MIParser::assignRegisterTies(MachineInstr &MI,
       continue;
     // The parser ensures that this operand is a register use, so we just have
     // to check the tied-def operand.
-    unsigned DefIdx = Operands[I].TiedDefIdx.getValue();
+    unsigned DefIdx = *Operands[I].TiedDefIdx;
     if (DefIdx >= E)
       return error(Operands[I].Begin,
                    Twine("use of invalid tied-def operand index '" +
@@ -1726,6 +1756,15 @@ bool MIParser::parseRegisterOperand(MachineOperand &Dest,
         RegInfo->Kind == VRegInfo::REGBANK)
       return error("generic virtual registers must have a type");
   }
+
+  if (Flags & RegState::Define) {
+    if (Flags & RegState::Kill)
+      return error("cannot have a killed def operand");
+  } else {
+    if (Flags & RegState::Dead)
+      return error("cannot have a dead use operand");
+  }
+
   Dest = MachineOperand::CreateReg(
       Reg, Flags & RegState::Define, Flags & RegState::Implicit,
       Flags & RegState::Kill, Flags & RegState::Dead, Flags & RegState::Undef,
@@ -2701,19 +2740,19 @@ bool MIParser::parseCustomRegisterMaskOperand(MachineOperand &Dest) {
     return true;
 
   uint32_t *Mask = MF.allocateRegMask();
-  while (true) {
-    if (Token.isNot(MIToken::NamedRegister))
-      return error("expected a named register");
-    Register Reg;
-    if (parseNamedRegister(Reg))
-      return true;
-    lex();
-    Mask[Reg / 32] |= 1U << (Reg % 32);
+  do {
+    if (Token.isNot(MIToken::rparen)) {
+      if (Token.isNot(MIToken::NamedRegister))
+        return error("expected a named register");
+      Register Reg;
+      if (parseNamedRegister(Reg))
+        return true;
+      lex();
+      Mask[Reg / 32] |= 1U << (Reg % 32);
+    }
+
     // TODO: Report an error if the same register is used more than once.
-    if (Token.isNot(MIToken::comma))
-      break;
-    lex();
-  }
+  } while (consumeIfPresent(MIToken::comma));
 
   if (expectAndConsume(MIToken::rparen))
     return true;
@@ -2842,7 +2881,7 @@ bool MIParser::parseMachineOperand(const unsigned OpCode, const unsigned OpIdx,
     if (const auto *Formatter = TII->getMIRFormatter()) {
       return parseTargetImmMnemonic(OpCode, OpIdx, Dest, *Formatter);
     }
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   }
   default:
     // FIXME: Parse the MCSymbol machine operand.
@@ -2908,6 +2947,19 @@ bool MIParser::parseOffset(int64_t &Offset) {
   Offset = Token.integerValue().getExtValue();
   if (IsNegative)
     Offset = -Offset;
+  lex();
+  return false;
+}
+
+bool MIParser::parseIRBlockAddressTaken(BasicBlock *&BB) {
+  assert(Token.is(MIToken::kw_ir_block_address_taken));
+  lex();
+  if (Token.isNot(MIToken::IRBlock) && Token.isNot(MIToken::NamedIRBlock))
+    return error("expected basic block after 'ir_block_address_taken'");
+
+  if (parseIRBlock(BB, MF.getFunction()))
+    return true;
+
   lex();
   return false;
 }
@@ -3281,11 +3333,21 @@ bool MIParser::parseMachineMemoryOperand(MachineMemOperand *&Dest) {
   MDNode *Range = nullptr;
   while (consumeIfPresent(MIToken::comma)) {
     switch (Token.kind()) {
-    case MIToken::kw_align:
+    case MIToken::kw_align: {
       // align is printed if it is different than size.
-      if (parseAlignment(BaseAlignment))
+      uint64_t Alignment;
+      if (parseAlignment(Alignment))
         return true;
+      if (Ptr.Offset & (Alignment - 1)) {
+        // MachineMemOperand::getAlign never returns a value greater than the
+        // alignment of offset, so this just guards against hand-written MIR
+        // that specifies a large "align" value when it should probably use
+        // "basealign" instead.
+        return error("specified alignment is more aligned than offset");
+      }
+      BaseAlignment = Alignment;
       break;
+    }
     case MIToken::kw_basealign:
       // basealign is printed if it is different than align.
       if (parseAlignment(BaseAlignment))
@@ -3362,12 +3424,28 @@ bool MIParser::parseHeapAllocMarker(MDNode *&Node) {
   return false;
 }
 
+bool MIParser::parsePCSections(MDNode *&Node) {
+  assert(Token.is(MIToken::kw_pcsections) &&
+         "Invalid token for a PC sections!");
+  lex();
+  parseMDNode(Node);
+  if (!Node)
+    return error("expected a MDNode after 'pcsections'");
+  if (Token.isNewlineOrEOF() || Token.is(MIToken::coloncolon) ||
+      Token.is(MIToken::lbrace))
+    return false;
+  if (Token.isNot(MIToken::comma))
+    return error("expected ',' before the next machine operand");
+  lex();
+  return false;
+}
+
 static void initSlots2BasicBlocks(
     const Function &F,
     DenseMap<unsigned, const BasicBlock *> &Slots2BasicBlocks) {
   ModuleSlotTracker MST(F.getParent(), /*ShouldInitializeAllMetadata=*/false);
   MST.incorporateFunction(F);
-  for (auto &BB : F) {
+  for (const auto &BB : F) {
     if (BB.hasName())
       continue;
     int Slot = MST.getLocalSlot(&BB);

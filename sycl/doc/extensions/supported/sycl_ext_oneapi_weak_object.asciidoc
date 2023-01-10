@@ -1,0 +1,332 @@
+= sycl_ext_oneapi_weak_object
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 6 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This extension is implemented and fully supported by {dpcpp}.
+
+
+== Overview
+
+SYCL 2020 has a number of classes with common reference semantics, which mean
+that copies of objects of these classes will reference the same objects and
+will be considered the same. As a result, these objects will only be fully
+destroyed when all copies have been destroyed. However, there is currently no
+way to have a reference to an object with these semantics without keeping the
+object alive.
+
+This extension adds the notion of a "weak" SYCL object, represented by the
+`weak_object` class. A weak object holds a reference to a SYCL object with
+common reference semantics of the specified type but will not keep the
+underlying object alive. A weak object is considered expired if the underlying
+object is no longer alive. If a weak object has not expired, a copy of the
+underlying object can be created by calling either `lock` or `try_lock`.
+
+Additionally this extension adds the notion of owner-based ordering to allow for
+use of SYCL object and their weak variants in order-oriented data structures and
+operations. 
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_WEAK_OBJECT` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+
+=== The new `weak_object` class
+
+This extension adds the following class:
+
+[source]
+----
+namespace sycl {
+namespace ext {
+namespace oneapi {
+
+template <typename SyclObject>
+class weak_object {
+public:
+  using object_type = SyclObject;
+
+  constexpr weak_object() noexcept;
+  weak_object(const SyclObject &SYCLObj) noexcept;
+  weak_object(const weak_object &Other) noexcept;
+  weak_object(weak_object &&Other) noexcept;
+
+  weak_object &operator=(const SyclObject &SYCLObj) noexcept;
+  weak_object &operator=(const weak_object &Other) noexcept;
+  weak_object &operator=(weak_object &&Other) noexcept;
+
+  void reset() noexcept;
+  void swap(weak_object &Other) noexcept;
+
+  bool expired() const noexcept;
+  std::optional<SyclObject> try_lock() const noexcept;
+  SyclObject lock() const;
+
+  bool owner_before(const weak_object &Other) const noexcept;
+  bool owner_before(const SyclObject &Other) const noexcept;
+};
+
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+----
+
+The methods of the new `weak_object` class have the following semantics:
+
+[cols="60a,40"]
+|===
+| Member Function | Description
+
+a|
+[source,c++]
+----
+constexpr weak_object() noexcept;
+----
+
+| Constructor for creating an empty `weak_object`.
+
+a|
+[source,c++]
+----
+weak_object(const SyclObject &SYCLObj) noexcept;
+
+weak_object(const weak_object &Other) noexcept;
+----
+
+| Copy constructor.
+
+a|
+[source,c++]
+----
+weak_object(weak_object &&Other) noexcept;
+----
+
+| Move constructor.
+
+a|
+[source,c++]
+----
+weak_object &operator=(const SyclObject &SYCLObj) noexcept;
+
+weak_object &operator=(const weak_object &Other) noexcept;
+----
+
+| Copy assignment operator.
+
+a|
+[source,c++]
+----
+weak_object &operator=(weak_object &&Other) noexcept;
+----
+
+| Move assignment operator.
+
+a|
+[source,c++]
+----
+void reset() noexcept;
+----
+
+| Releases the reference to the underlying SYCL object.
+
+a|
+[source,c++]
+----
+void swap(weak_object &Other) noexcept;
+----
+
+| Exchanges the reference to the underlying SYCL object with the one held by
+`Other`.
+
+a|
+[source,c++]
+----
+bool expired() const noexcept;
+----
+
+| Returns `true` if the underlying SYCL object has been destroyed or its
+destruction is imminent. Otherwise returns `false`.
+
+a|
+[source,c++]
+----
+std::optional<SyclObject> try_lock() const noexcept;
+----
+
+| Attempts to return the underlying SYCL object. Returns `std::nullopt` if the
+`weak_object` is empty or if `expired()` returns `true`.
+
+a|
+[source,c++]
+----
+SyclObject lock() const;
+----
+
+| Returns the underlying SYCL object.
+
+Throws an exception with the `errc::invalid` error code if the `weak_object` is
+empty or if `expired()` returns `true`.
+
+a|
+[source,c++]
+----
+bool owner_before(const weak_object &Other) const noexcept;
+
+bool owner_before(const SyclObject &Other) const noexcept;
+----
+
+| Checks whether this `weak_object` precedes `Other` in the
+implementation-defined owner-based order. The order is defined such that two
+objects defining this ordering compare equivalent if both are `weak_object`
+without an underlying SYCL object or if both reference the same SYCL object.
+
+|===
+
+Additionally the following members are added to the members in SYCL classes with
+common reference semantics:
+
+[source]
+----
+namespace sycl {
+
+// Where T is a SYCL type with common reference semantics.
+class T {
+  ...
+
+public:
+  ...
+
+  bool ext_oneapi_owner_before(const ext::oneapi::weak_object<T> &Other) const noexcept;
+  bool ext_oneapi_owner_before(const T &Other) const noexcept;
+};
+
+} // namespace sycl
+----
+
+These new methods have the following semantics:
+
+[cols="60a,40"]
+|===
+| Member Function | Description
+
+a|
+[source,c++]
+----
+bool ext_oneapi_owner_before(const ext::oneapi::weak_object<T> &Other) const noexcept;
+
+bool ext_oneapi_owner_before(const T &Other) const noexcept;
+----
+
+| Checks whether this SYCL object precedes `Other` in the
+implementation-defined owner-based order. The order is defined such that two
+objects defining this ordering compare equivalent if both are `weak_object`
+without an underlying SYCL object or if both reference the same SYCL object.
+
+|===
+
+The `owner_less` function object is added with the following specializations:
+
+[source]
+----
+namespace sycl {
+namespace ext {
+namespace oneapi {
+
+template <typename SyclObject> struct owner_less;
+
+// Where T is a SYCL type with common reference semantics.
+template <> struct owner_less<T> {
+  bool operator()(const T &lhs, const T &rhs) const noexcept;
+  bool operator()(const weak_object<T> &lhs,
+                  const weak_object<T> &rhs) const noexcept;
+  bool operator()(const T &lhs, const weak_object<T> &rhs) const noexcept;
+  bool operator()(const weak_object<T> &lhs, const T &rhs) const noexcept;
+};
+
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+----
+
+The operator overloads of the new `owner_less` function object have the
+following semantics:
+
+[cols="60a,40"]
+|===
+| Member Function | Description
+
+a|
+[source,c++]
+----
+bool operator()(const T &lhs, const T &rhs) const noexcept;
+bool operator()(const weak_object<T> &lhs,
+                const weak_object<T> &rhs) const noexcept;
+bool operator()(const T &lhs, const weak_object<T> &rhs) const noexcept;
+bool operator()(const weak_object<T> &lhs, const T &rhs) const noexcept;
+----
+
+| Compares `lhs` and `rhs` using owner-based semantics, similar to calling
+`owner_before` on `weak_object` or `ext_oneapi_owner_before` on SYCL objects.
+`lhs` and `rhs` are equivalent if they both reference the same SYCL object or if
+they are both empty `weak_object` instances.
+
+|===
+

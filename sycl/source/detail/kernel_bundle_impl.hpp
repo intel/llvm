@@ -8,15 +8,15 @@
 
 #pragma once
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.h>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/kernel_bundle.hpp>
 #include <detail/device_image_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/pi.h>
+#include <sycl/device.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -24,17 +24,15 @@
 #include <memory>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 static bool checkAllDevicesAreInContext(const std::vector<device> &Devices,
                                         const context &Context) {
-  const std::vector<device> &ContextDevices = Context.get_devices();
   return std::all_of(
-      Devices.begin(), Devices.end(), [&ContextDevices](const device &Dev) {
-        return ContextDevices.end() !=
-               std::find(ContextDevices.begin(), ContextDevices.end(), Dev);
+      Devices.begin(), Devices.end(), [&Context](const device &Dev) {
+        return getSyclObjImpl(Context)->isDeviceValid(getSyclObjImpl(Dev));
       });
 }
 
@@ -146,7 +144,7 @@ public:
       case bundle_state::input:
         throw sycl::runtime_error(
             "Internal error. The target state should not be input",
-            PI_INVALID_OPERATION);
+            PI_ERROR_INVALID_OPERATION);
         break;
       }
     }
@@ -238,8 +236,6 @@ public:
                      bundle_state State)
       : MContext(std::move(Ctx)), MDevices(std::move(Devs)), MState(State) {
 
-    // TODO: Add a check that all kernel ids are compatible with at least one
-    // device in Devs
     common_ctor_checks(State);
 
     MDeviceImages = detail::ProgramManager::getInstance().getSYCLDeviceImages(
@@ -524,5 +520,5 @@ private:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

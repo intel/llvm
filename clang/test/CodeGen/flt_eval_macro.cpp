@@ -43,36 +43,36 @@ float func() {
 #elif __FLT_EVAL_METHOD__ == 2
   temp = X * Y - Z;
 #endif
-  // CHECK-SRC: load float, float*
-  // CHECK-SRC: load float, float*
+  // CHECK-SRC: load float, ptr
+  // CHECK-SRC: load float, ptr
   // CHECK-SRC: fadd float
-  // CHECK-SRC: load float, float*
+  // CHECK-SRC: load float, ptr
   // CHECK-SRC: fadd float
 
-  // CHECK-DBL: load float, float*
+  // CHECK-DBL: load float, ptr
   // CHECK-DBL: fpext float
-  // CHECK-DBL: load float, float*
+  // CHECK-DBL: load float, ptr
   // CHECK-DBL: fpext float
   // CHECK-DBL: fmul double
-  // CHECK-DBL: load float, float*
+  // CHECK-DBL: load float, ptr
   // CHECK-DBL: fpext float
   // CHECK-DBL: fmul double
   // CHECK-DBL: fptrunc double
 
-  // CHECK-EXT-FLT: load float, float*
+  // CHECK-EXT-FLT: load float, ptr
   // CHECK-EXT-FLT: fpext float
-  // CHECK-EXT-FLT: load float, float*
+  // CHECK-EXT-FLT: load float, ptr
   // CHECK-EXT-FLT: fpext float
   // CHECK-EXT-FLT: fmul x86_fp80
-  // CHECK-EXT-FLT: load float, float*
+  // CHECK-EXT-FLT: load float, ptr
   // CHECK-EXT-FLT: fpext float
   // CHECK-EXT-FLT: fsub x86_fp80
   // CHECK-EXT-FLT: fptrunc x86_fp80
 
-  // CHECK-DBL-PPC: load float, float*
-  // CHECK-DBL-PPC: load float, float*
+  // CHECK-DBL-PPC: load float, ptr
+  // CHECK-DBL-PPC: load float, ptr
   // CHECK-DBL-PPC: fmul float
-  // CHECK-DBL-PPC: load float, float*
+  // CHECK-DBL-PPC: load float, ptr
   // CHECK-DBL-PPC: fmul float
 
   return temp;

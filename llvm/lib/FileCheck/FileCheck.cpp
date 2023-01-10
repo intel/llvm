@@ -206,7 +206,7 @@ Expected<ExpressionValue> llvm::operator+(const ExpressionValue &LeftOperand,
   if (LeftOperand.isNegative() && RightOperand.isNegative()) {
     int64_t LeftValue = cantFail(LeftOperand.getSignedValue());
     int64_t RightValue = cantFail(RightOperand.getSignedValue());
-    Optional<int64_t> Result = checkedAdd<int64_t>(LeftValue, RightValue);
+    std::optional<int64_t> Result = checkedAdd<int64_t>(LeftValue, RightValue);
     if (!Result)
       return make_error<OverflowError>();
 
@@ -224,7 +224,7 @@ Expected<ExpressionValue> llvm::operator+(const ExpressionValue &LeftOperand,
   // Both values are positive at this point.
   uint64_t LeftValue = cantFail(LeftOperand.getUnsignedValue());
   uint64_t RightValue = cantFail(RightOperand.getUnsignedValue());
-  Optional<uint64_t> Result =
+  std::optional<uint64_t> Result =
       checkedAddUnsigned<uint64_t>(LeftValue, RightValue);
   if (!Result)
     return make_error<OverflowError>();
@@ -241,7 +241,7 @@ Expected<ExpressionValue> llvm::operator-(const ExpressionValue &LeftOperand,
     // Result <= -1 - (max int64_t) which overflows on 1- and 2-complement.
     if (RightValue > (uint64_t)std::numeric_limits<int64_t>::max())
       return make_error<OverflowError>();
-    Optional<int64_t> Result =
+    std::optional<int64_t> Result =
         checkedSub(LeftValue, static_cast<int64_t>(RightValue));
     if (!Result)
       return make_error<OverflowError>();
@@ -306,7 +306,7 @@ Expected<ExpressionValue> llvm::operator*(const ExpressionValue &LeftOperand,
   // Result will be positive and can overflow.
   uint64_t LeftValue = cantFail(LeftOperand.getUnsignedValue());
   uint64_t RightValue = cantFail(RightOperand.getUnsignedValue());
-  Optional<uint64_t> Result =
+  std::optional<uint64_t> Result =
       checkedMulUnsigned<uint64_t>(LeftValue, RightValue);
   if (!Result)
     return make_error<OverflowError>();
@@ -702,7 +702,7 @@ Pattern::parseCallExpr(StringRef &Expr, StringRef FuncName,
                      .Case("min", min)
                      .Case("mul", operator*)
                      .Case("sub", operator-)
-                     .Default(None);
+                     .Default(std::nullopt);
 
   if (!OptFunc)
     return ErrorDiagnostic::get(
@@ -770,7 +770,7 @@ Expected<std::unique_ptr<Expression>> Pattern::parseNumericSubstitutionBlock(
     FileCheckPatternContext *Context, const SourceMgr &SM) {
   std::unique_ptr<ExpressionAST> ExpressionASTPointer = nullptr;
   StringRef DefExpr = StringRef();
-  DefinedNumericVariable = None;
+  DefinedNumericVariable = std::nullopt;
   ExpressionFormat ExplicitFormat = ExpressionFormat();
   unsigned Precision = 0;
 
@@ -1424,6 +1424,8 @@ void Pattern::printVariableDefs(const SourceMgr &SM,
   // Sort variable captures by the order in which they matched the input.
   // Ranges shouldn't be overlapping, so we can just compare the start.
   llvm::sort(VarCaptures, [](const VarCapture &A, const VarCapture &B) {
+    if (&A == &B)
+      return false;
     assert(A.Range.Start != B.Range.Start &&
            "unexpected overlapping variable captures");
     return A.Range.Start.getPointer() < B.Range.Start.getPointer();
@@ -1651,6 +1653,8 @@ std::string Check::FileCheckType::getDescription(StringRef Prefix) const {
   switch (Kind) {
   case Check::CheckNone:
     return "invalid";
+  case Check::CheckMisspelled:
+    return "misspelled";
   case Check::CheckPlain:
     if (Count > 1)
       return WithModifiers("-COUNT");
@@ -1680,7 +1684,8 @@ std::string Check::FileCheckType::getDescription(StringRef Prefix) const {
 }
 
 static std::pair<Check::FileCheckType, StringRef>
-FindCheckType(const FileCheckRequest &Req, StringRef Buffer, StringRef Prefix) {
+FindCheckType(const FileCheckRequest &Req, StringRef Buffer, StringRef Prefix,
+              bool &Misspelled) {
   if (Buffer.size() <= Prefix.size())
     return {Check::CheckNone, StringRef()};
 
@@ -1722,7 +1727,9 @@ FindCheckType(const FileCheckRequest &Req, StringRef Buffer, StringRef Prefix) {
   if (Rest.front() == '{')
     return ConsumeModifiers(Check::CheckPlain);
 
-  if (!Rest.consume_front("-"))
+  if (Rest.consume_front("_"))
+    Misspelled = true;
+  else if (!Rest.consume_front("-"))
     return {Check::CheckNone, StringRef()};
 
   if (Rest.consume_front("COUNT-")) {
@@ -1764,6 +1771,15 @@ FindCheckType(const FileCheckRequest &Req, StringRef Buffer, StringRef Prefix) {
     return ConsumeModifiers(Check::CheckEmpty);
 
   return {Check::CheckNone, Rest};
+}
+
+static std::pair<Check::FileCheckType, StringRef>
+FindCheckType(const FileCheckRequest &Req, StringRef Buffer, StringRef Prefix) {
+  bool Misspelled = false;
+  auto Res = FindCheckType(Req, Buffer, Prefix, Misspelled);
+  if (Res.first != Check::CheckNone && Misspelled)
+    return {Check::CheckMisspelled, Res.second};
+  return Res;
 }
 
 // From the given position, find the next character after the word.
@@ -1938,6 +1954,16 @@ bool FileCheck::readCheckFile(
     // suffix was processed).
     Buffer = AfterSuffix.empty() ? Buffer.drop_front(UsedPrefix.size())
                                  : AfterSuffix;
+
+    // Complain about misspelled directives.
+    if (CheckTy == Check::CheckMisspelled) {
+      StringRef UsedDirective(UsedPrefix.data(),
+                              AfterSuffix.data() - UsedPrefix.data());
+      SM.PrintMessage(SMLoc::getFromPointer(UsedDirective.data()),
+                      SourceMgr::DK_Error,
+                      "misspelled directive '" + UsedDirective + "'");
+      return true;
+    }
 
     // Complain about useful-looking but unsupported suffixes.
     if (CheckTy == Check::CheckBadNot) {
@@ -2677,8 +2703,9 @@ Error FileCheckPatternContext::defineCmdlineVariables(
       StringRef CmdlineDefExpr = CmdlineDef.substr(1);
       Optional<NumericVariable *> DefinedNumericVariable;
       Expected<std::unique_ptr<Expression>> ExpressionResult =
-          Pattern::parseNumericSubstitutionBlock(
-              CmdlineDefExpr, DefinedNumericVariable, false, None, this, SM);
+          Pattern::parseNumericSubstitutionBlock(CmdlineDefExpr,
+                                                 DefinedNumericVariable, false,
+                                                 std::nullopt, this, SM);
       if (!ExpressionResult) {
         Errs = joinErrors(std::move(Errs), ExpressionResult.takeError());
         continue;

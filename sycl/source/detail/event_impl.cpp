@@ -6,12 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/context.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/event_info.hpp>
 #include <detail/plugin.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <sycl/context.hpp>
+#include <sycl/device_selector.hpp>
 
 #include "detail/config.hpp"
 
@@ -24,25 +25,32 @@
 #include <sstream>
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
 #endif
 
-// Threat all devices that don't support interoperability as host devices to
-// avoid attempts to call method get on such events.
-bool event_impl::is_host() const { return MHostEvent || !MOpenCLInterop; }
+// If we do not yet have a context, use the default one.
+void event_impl::ensureContextInitialized() {
+  if (MIsContextInitialized)
+    return;
 
-cl_event event_impl::get() const {
-  if (!MOpenCLInterop) {
-    throw invalid_object_error(
-        "This instance of event doesn't support OpenCL interoperability.",
-        PI_INVALID_EVENT);
+  if (MHostEvent) {
+    QueueImplPtr HostQueue = Scheduler::getInstance().getDefaultHostQueue();
+    this->setContextImpl(detail::getSyclObjImpl(HostQueue->get_context()));
+  } else {
+    const device &SyclDevice = default_selector().select_device();
+    this->setContextImpl(detail::queue_impl::getDefaultOrNew(
+        detail::getSyclObjImpl(SyclDevice)));
   }
-  getPlugin().call<PiApiKind::piEventRetain>(MEvent);
-  return pi::cast<cl_event>(MEvent);
+}
+
+bool event_impl::is_host() {
+  // Treat all devices that don't support interoperability as host devices to
+  // avoid attempts to call method get on such events.
+  return MHostEvent;
 }
 
 event_impl::~event_impl() {
@@ -50,33 +58,42 @@ event_impl::~event_impl() {
     getPlugin().call<PiApiKind::piEventRelease>(MEvent);
 }
 
-void event_impl::waitInternal() const {
+void event_impl::waitInternal() {
   if (!MHostEvent && MEvent) {
+    // Wait for the native event
     getPlugin().call<PiApiKind::piEventsWait>(1, &MEvent);
-    return;
-  }
-
-  if (MState == HES_Discarded)
+  } else if (MState == HES_Discarded) {
+    // Waiting for the discarded event is invalid
     throw sycl::exception(
         make_error_code(errc::invalid),
         "waitInternal method cannot be used for a discarded event.");
+  } else if (MState != HES_Complete) {
+    // Wait for the host event
+    std::unique_lock<std::mutex> lock(MMutex);
+    cv.wait(lock, [this] { return MState == HES_Complete; });
+  }
 
-  while (MState != HES_Complete)
-    ;
+  // Wait for connected events(e.g. streams prints)
+  for (const EventImplPtr &Event : MPostCompleteEvents)
+    Event->wait(Event);
 }
 
 void event_impl::setComplete() {
   if (MHostEvent || !MEvent) {
+    {
+      std::unique_lock<std::mutex> lock(MMutex);
 #ifndef NDEBUG
-    int Expected = HES_NotComplete;
-    int Desired = HES_Complete;
+      int Expected = HES_NotComplete;
+      int Desired = HES_Complete;
 
-    bool Succeeded = MState.compare_exchange_strong(Expected, Desired);
+      bool Succeeded = MState.compare_exchange_strong(Expected, Desired);
 
-    assert(Succeeded && "Unexpected state of event");
+      assert(Succeeded && "Unexpected state of event");
 #else
-    MState.store(static_cast<int>(HES_Complete));
+      MState.store(static_cast<int>(HES_Complete));
 #endif
+    }
+    cv.notify_all();
     return;
   }
 
@@ -86,31 +103,34 @@ void event_impl::setComplete() {
 const RT::PiEvent &event_impl::getHandleRef() const { return MEvent; }
 RT::PiEvent &event_impl::getHandleRef() { return MEvent; }
 
-const ContextImplPtr &event_impl::getContextImpl() { return MContext; }
+const ContextImplPtr &event_impl::getContextImpl() {
+  ensureContextInitialized();
+  return MContext;
+}
 
-const plugin &event_impl::getPlugin() const { return MContext->getPlugin(); }
+const plugin &event_impl::getPlugin() {
+  ensureContextInitialized();
+  return MContext->getPlugin();
+}
+
+void event_impl::setStateIncomplete() { MState = HES_NotComplete; }
 
 void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MHostEvent = Context->is_host();
-  MOpenCLInterop = !MHostEvent;
   MContext = Context;
-
-  MState = HES_NotComplete;
+  MIsContextInitialized = true;
 }
 
-event_impl::event_impl(HostEventState State)
-    : MIsFlushed(true), MState(State) {}
-
 event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
-    : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
-      MOpenCLInterop(true), MHostEvent(false), MIsFlushed(true),
-      MState(HES_Complete) {
+    : MIsContextInitialized(true), MEvent(Event),
+      MContext(detail::getSyclObjImpl(SyclContext)), MHostEvent(false),
+      MIsFlushed(true), MState(HES_Complete) {
 
   if (MContext->is_host()) {
-    throw cl::sycl::invalid_parameter_error(
+    throw sycl::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
         "clEvent.",
-        PI_INVALID_CONTEXT);
+        PI_ERROR_INVALID_CONTEXT);
   }
 
   RT::PiContext TempContext;
@@ -118,25 +138,25 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
                                               sizeof(RT::PiContext),
                                               &TempContext, nullptr);
   if (MContext->getHandleRef() != TempContext) {
-    throw cl::sycl::invalid_parameter_error(
+    throw sycl::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
         "clEvent.",
-        PI_INVALID_CONTEXT);
+        PI_ERROR_INVALID_CONTEXT);
   }
-
-  getPlugin().call<PiApiKind::piEventRetain>(MEvent);
 }
 
 event_impl::event_impl(const QueueImplPtr &Queue)
-    : MQueue{Queue}, MIsProfilingEnabled{Queue->is_host() ||
-                                         Queue->MIsProfilingEnabled} {
+    : MQueue{Queue},
+      MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled} {
+  this->setContextImpl(Queue->getContextImplPtr());
+
   if (Queue->is_host()) {
     MState.store(HES_NotComplete);
 
     if (Queue->has_property<property::queue::enable_profiling>()) {
       MHostProfilingInfo.reset(new HostProfilingInfo());
       if (!MHostProfilingInfo)
-        throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+        throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
     }
     return;
   }
@@ -192,8 +212,7 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
 #endif
 }
 
-void event_impl::wait(
-    std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
+void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
   if (MState == HES_Discarded)
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait method cannot be used for a discarded event.");
@@ -212,7 +231,6 @@ void event_impl::wait(
     waitInternal();
   else if (MCommand)
     detail::Scheduler::getInstance().waitForEvent(Self);
-  cleanupCommand(std::move(Self));
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
@@ -220,112 +238,100 @@ void event_impl::wait(
 }
 
 void event_impl::wait_and_throw(
-    std::shared_ptr<cl::sycl::detail::event_impl> Self) {
-  Scheduler &Sched = Scheduler::getInstance();
-
-  QueueImplPtr submittedQueue = nullptr;
-  {
-    Scheduler::ReadLockT Lock(Sched.MGraphLock);
-    Command *Cmd = static_cast<Command *>(Self->getCommand());
-    if (Cmd)
-      submittedQueue = Cmd->getSubmittedQueue();
-  }
+    std::shared_ptr<sycl::detail::event_impl> Self) {
   wait(Self);
 
-  {
-    Scheduler::ReadLockT Lock(Sched.MGraphLock);
-    for (auto &EventImpl : getWaitList()) {
-      Command *Cmd = (Command *)EventImpl->getCommand();
-      if (Cmd)
-        Cmd->getSubmittedQueue()->throw_asynchronous();
-    }
-  }
-  if (submittedQueue)
-    submittedQueue->throw_asynchronous();
-}
-
-void event_impl::cleanupCommand(
-    std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
-  if (MCommand && !SYCLConfig<SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::get())
-    detail::Scheduler::getInstance().cleanupFinishedCommands(std::move(Self));
+  if (QueueImplPtr SubmittedQueue = MSubmittedQueue.lock())
+    SubmittedQueue->throw_asynchronous();
 }
 
 void event_impl::checkProfilingPreconditions() const {
-  if (!MIsProfilingEnabled) {
+  std::weak_ptr<queue_impl> EmptyPtr;
+
+  if (!EmptyPtr.owner_before(MQueue) && !MQueue.owner_before(EmptyPtr)) {
     throw sycl::exception(make_error_code(sycl::errc::invalid),
-                          "get_profiling_info() can't be used without set "
-                          "'enable_profiling' queue property");
+                          "Profiling information is unavailable as the event "
+                          "has no associated queue.");
+  }
+  if (!MIsProfilingEnabled) {
+    throw sycl::exception(
+        make_error_code(sycl::errc::invalid),
+        "Profiling information is unavailable as the queue associated with "
+        "the event does not have the 'enable_profiling' property.");
   }
 }
 
 template <>
-cl_ulong
-event_impl::get_profiling_info<info::event_profiling::command_submit>() const {
+uint64_t
+event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
     if (MEvent)
-      return get_event_profiling_info<
-          info::event_profiling::command_submit>::get(this->getHandleRef(),
-                                                      this->getPlugin());
-    return 0;
-  }
-  if (!MHostProfilingInfo)
-    throw invalid_object_error("Profiling info is not available.",
-                               PI_PROFILING_INFO_NOT_AVAILABLE);
-  return MHostProfilingInfo->getStartTime();
-}
-
-template <>
-cl_ulong
-event_impl::get_profiling_info<info::event_profiling::command_start>() const {
-  checkProfilingPreconditions();
-  if (!MHostEvent) {
-    if (MEvent)
-      return get_event_profiling_info<
-          info::event_profiling::command_start>::get(this->getHandleRef(),
-                                                     this->getPlugin());
-    return 0;
-  }
-  if (!MHostProfilingInfo)
-    throw invalid_object_error("Profiling info is not available.",
-                               PI_PROFILING_INFO_NOT_AVAILABLE);
-  return MHostProfilingInfo->getStartTime();
-}
-
-template <>
-cl_ulong
-event_impl::get_profiling_info<info::event_profiling::command_end>() const {
-  checkProfilingPreconditions();
-  if (!MHostEvent) {
-    if (MEvent)
-      return get_event_profiling_info<info::event_profiling::command_end>::get(
+      return get_event_profiling_info<info::event_profiling::command_submit>(
           this->getHandleRef(), this->getPlugin());
     return 0;
   }
   if (!MHostProfilingInfo)
     throw invalid_object_error("Profiling info is not available.",
-                               PI_PROFILING_INFO_NOT_AVAILABLE);
+                               PI_ERROR_PROFILING_INFO_NOT_AVAILABLE);
+  return MHostProfilingInfo->getStartTime();
+}
+
+template <>
+uint64_t
+event_impl::get_profiling_info<info::event_profiling::command_start>() {
+  checkProfilingPreconditions();
+  if (!MHostEvent) {
+    if (MEvent)
+      return get_event_profiling_info<info::event_profiling::command_start>(
+          this->getHandleRef(), this->getPlugin());
+    return 0;
+  }
+  if (!MHostProfilingInfo)
+    throw invalid_object_error("Profiling info is not available.",
+                               PI_ERROR_PROFILING_INFO_NOT_AVAILABLE);
+  return MHostProfilingInfo->getStartTime();
+}
+
+template <>
+uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
+  checkProfilingPreconditions();
+  if (!MHostEvent) {
+    if (MEvent)
+      return get_event_profiling_info<info::event_profiling::command_end>(
+          this->getHandleRef(), this->getPlugin());
+    return 0;
+  }
+  if (!MHostProfilingInfo)
+    throw invalid_object_error("Profiling info is not available.",
+                               PI_ERROR_PROFILING_INFO_NOT_AVAILABLE);
   return MHostProfilingInfo->getEndTime();
 }
 
-template <> cl_uint event_impl::get_info<info::event::reference_count>() const {
+template <> uint32_t event_impl::get_info<info::event::reference_count>() {
   if (!MHostEvent && MEvent) {
-    return get_event_info<info::event::reference_count>::get(
-        this->getHandleRef(), this->getPlugin());
+    return get_event_info<info::event::reference_count>(this->getHandleRef(),
+                                                        this->getPlugin());
   }
   return 0;
 }
 
 template <>
 info::event_command_status
-event_impl::get_info<info::event::command_execution_status>() const {
+event_impl::get_info<info::event::command_execution_status>() {
   if (MState == HES_Discarded)
     return info::event_command_status::ext_oneapi_unknown;
 
-  if (!MHostEvent && MEvent) {
-    return get_event_info<info::event::command_execution_status>::get(
-        this->getHandleRef(), this->getPlugin());
+  if (!MHostEvent) {
+    // Command is enqueued and PiEvent is ready
+    if (MEvent)
+      return get_event_info<info::event::command_execution_status>(
+          this->getHandleRef(), this->getPlugin());
+    // Command is blocked and not enqueued, PiEvent is not assigned yet
+    else if (MCommand)
+      return sycl::info::event_command_status::submitted;
   }
+
   return MHostEvent && MState.load() != HES_Complete
              ? sycl::info::event_command_status::submitted
              : info::event_command_status::complete;
@@ -341,8 +347,15 @@ void HostProfilingInfo::start() { StartTime = getTimestamp(); }
 
 void HostProfilingInfo::end() { EndTime = getTimestamp(); }
 
-pi_native_handle event_impl::getNative() const {
+pi_native_handle event_impl::getNative() {
+  ensureContextInitialized();
+
   auto Plugin = getPlugin();
+  if (!MIsInitialized) {
+    MIsInitialized = true;
+    auto TempContext = MContext.get()->getHandleRef();
+    Plugin.call<PiApiKind::piEventCreate>(TempContext, &MEvent);
+  }
   if (Plugin.getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piEventRetain>(getHandleRef());
   pi_native_handle Handle;
@@ -369,7 +382,9 @@ std::vector<EventImplPtr> event_impl::getWaitList() {
 }
 
 void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
-  if (MIsFlushed)
+  // Some events might not have a native handle underneath even at this point,
+  // e.g. those produced by memset with 0 size (no PI call is made).
+  if (MIsFlushed || !MEvent)
     return;
 
   QueueImplPtr Queue = MQueue.lock();
@@ -383,7 +398,6 @@ void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
     return;
 
   // Check if the task for this event has already been submitted.
-  assert(MEvent != nullptr);
   pi_event_status Status = PI_EVENT_QUEUED;
   getPlugin().call<PiApiKind::piEventGetInfo>(
       MEvent, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(pi_int32), &Status,
@@ -400,6 +414,21 @@ void event_impl::cleanupDependencyEvents() {
   MPreparedHostDepsEvents.clear();
 }
 
+void event_impl::cleanDepEventsThroughOneLevel() {
+  std::lock_guard<std::mutex> Lock(MMutex);
+  for (auto &Event : MPreparedDepsEvents) {
+    Event->cleanupDependencyEvents();
+  }
+  for (auto &Event : MPreparedHostDepsEvents) {
+    Event->cleanupDependencyEvents();
+  }
+}
+
+bool event_impl::isCompleted() {
+  return get_info<info::event::command_execution_status>() ==
+         info::event_command_status::complete;
+}
+
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

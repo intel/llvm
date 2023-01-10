@@ -24,7 +24,8 @@ class LoongArchReg32<bits<16> Enc, string n, list<string> alt = []>
 }
 
 def sub_32 : SubRegIndex<32>;
-class LoongArchReg64<LoongArchReg32 subreg> : Register<""> {
+class LoongArchReg64<LoongArchReg32 subreg>
+    : Register<""> {
   let HWEncoding = subreg.HWEncoding;
   let SubRegs = [subreg];
   let SubRegIndices = [sub_32];
@@ -39,6 +40,7 @@ def RegAliasName : RegAltNameIndex;
 // Integer registers
 
 let RegAltNameIndices = [RegAliasName] in {
+  let isConstant = true in
   def R0  : LoongArchReg<0,  "r0", ["zero"]>, DwarfRegNum<[0]>;
   def R1  : LoongArchReg<1,  "r1", ["ra"]>, DwarfRegNum<[1]>;
   def R2  : LoongArchReg<2,  "r2", ["tp"]>, DwarfRegNum<[2]>;
@@ -96,6 +98,16 @@ def GPR : RegisterClass<"LoongArch", [GRLenVT], 32, (add
   let RegInfos = GRLenRI;
 }
 
+// GPR for indirect tail calls. We can't use callee-saved registers, as they are
+// restored to the saved value before the tail call, which would clobber a call
+// address.
+def GPRT : RegisterClass<"LoongArch", [GRLenVT], 32, (add
+    // a0...a7, t0...t8
+    (sequence "R%u", 4, 20)
+  )> {
+  let RegInfos = GRLenRI;
+}
+
 // Floating point registers
 
 let RegAltNameIndices = [RegAliasName] in {
@@ -141,3 +153,20 @@ let RegAltNameIndices = [RegAliasName] in {
 // The order of registers represents the preferred allocation sequence.
 def FPR32 : RegisterClass<"LoongArch", [f32], 32, (sequence "F%u", 0, 31)>;
 def FPR64 : RegisterClass<"LoongArch", [f64], 64, (sequence "F%u_64", 0, 31)>;
+
+// Condition flag registers
+
+foreach I = 0-7 in
+def FCC#I : LoongArchReg<I, "fcc"#I>;
+
+def CFR : RegisterClass<"LoongArch", [GRLenVT], 32, (sequence "FCC%u", 0, 7)> {
+  let RegInfos = GRLenRI;
+}
+
+// Control and status registers
+
+foreach I = 0-3 in
+def FCSR#I : LoongArchReg<I, "fcsr"#I>;
+
+let isAllocatable = false in
+def FCSR : RegisterClass<"LoongArch", [i32], 32, (sequence "FCSR%u", 0, 3)>;

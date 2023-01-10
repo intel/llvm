@@ -46,7 +46,6 @@ add_entrypoint_object(
     getenv.h
   DEPENDS
     libc.config.linux.app_h
-    libc.src.string.strncmp
 )
 
 add_entrypoint_object(
@@ -202,6 +201,36 @@ add_entrypoint_object(
     libc.include.stdlib
 )
 
+add_object_library(
+  rand_util
+  SRCS
+    rand_util.cpp
+  HDRS
+    rand_util.h
+)
+
+add_entrypoint_object(
+  rand
+  SRCS
+    rand.cpp
+  HDRS
+    rand.h
+  DEPENDS
+    .rand_util
+    libc.include.stdlib
+)
+
+add_entrypoint_object(
+  srand
+  SRCS
+    srand.cpp
+  HDRS
+    srand.h
+  DEPENDS
+    .rand_util
+    libc.include.stdlib
+)
+
 if(LLVM_LIBC_INCLUDE_SCUDO)
   set(SCUDO_DEPS "")
 
@@ -236,6 +265,11 @@ if(LLVM_LIBC_INCLUDE_SCUDO)
       ${SCUDO_DEPS}
   )
   add_entrypoint_external(
+    aligned_alloc
+    DEPENDS
+      ${SCUDO_DEPS}
+  )
+  add_entrypoint_external(
     free
     DEPENDS
       ${SCUDO_DEPS}
@@ -249,6 +283,9 @@ else()
   )
   add_entrypoint_external(
     realloc
+  )
+  add_entrypoint_external(
+    aligned_alloc
   )
   add_entrypoint_external(
     free
@@ -276,11 +313,12 @@ add_entrypoint_object(
     atexit.cpp
   HDRS
     atexit.h
+  CXX_STANDARD
+    20 # For constinit of the atexit callback list.
   DEPENDS
-    libc.src.__support.CPP.vector
-    libc.src.threads.mtx_init
-    libc.src.threads.mtx_lock
-    libc.src.threads.mtx_unlock
+    libc.src.__support.fixedvector
+    libc.src.__support.blockstore
+    libc.src.__support.threads.mutex
 )
 
 add_entrypoint_object(
@@ -294,9 +332,9 @@ add_entrypoint_object(
     .atexit
 )
 
-# add_entrypoint_object(
-#   abort
-#   ALIAS
-#   DEPENDS
-#     .${LIBC_TARGET_OS}.abort
-# )
+add_entrypoint_object(
+  abort
+  ALIAS
+  DEPENDS
+    .${LIBC_TARGET_OS}.abort
+)

@@ -36,9 +36,12 @@ class MyTrait : public TraitBase<ConcreteType, MyTrait> {
 };
 ```
 
-Operation traits may also provide a `verifyTrait` hook, that is called when
-verifying the concrete operation. The trait verifiers will currently always be
-invoked before the main `Op::verify`.
+Operation traits may also provide a `verifyTrait` or `verifyRegionTrait` hook
+that is called when verifying the concrete operation. The difference between
+these two is that whether the verifier needs to access the regions, if so, the
+operations in the regions will be verified before the verification of this
+trait. The [verification order](DefiningDialects/Operations.md/#verification-ordering)
+determines when a verifier will be invoked.
 
 ```c++
 template <typename ConcreteType>
@@ -53,8 +56,9 @@ public:
 ```
 
 Note: It is generally good practice to define the implementation of the
-`verifyTrait` hook out-of-line as a free function when possible to avoid
-instantiating the implementation for every concrete operation type.
+`verifyTrait` or `verifyRegionTrait` hook out-of-line as a free function when
+possible to avoid instantiating the implementation for every concrete operation
+type.
 
 Operation traits may also provide a `foldTrait` hook that is called when folding
 the concrete operation. The trait folders will only be invoked if the concrete
@@ -135,7 +139,7 @@ class MyType : public Type::TypeBase<MyType, ..., MyTrait, MyParametricTrait<10>
 
 ### Attaching Operation Traits in ODS
 
-To use an operation trait in the [ODS](OpDefinitions.md) framework, we need to
+To use an operation trait in the [ODS](DefiningDialects/Operations.md) framework, we need to
 provide a definition of the trait class. This can be done using the
 `NativeOpTrait` and `ParamNativeOpTrait` classes. `ParamNativeOpTrait` provides
 a mechanism in which to specify arguments to a parametric trait class with an
@@ -157,7 +161,7 @@ These can then be used in the `traits` list of an op definition:
 def OpWithInferTypeInterfaceOp : Op<...[MyTrait, MyParametricTrait<10>]> { ... }
 ```
 
-See the documentation on [operation definitions](OpDefinitions.md) for more
+See the documentation on [operation definitions](DefiningDialects/Operations.md) for more
 details.
 
 ## Using a Trait

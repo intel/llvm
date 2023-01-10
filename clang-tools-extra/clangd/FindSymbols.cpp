@@ -15,16 +15,11 @@
 #include "index/Index.h"
 #include "support/Logger.h"
 #include "clang/AST/DeclTemplate.h"
-#include "clang/Index/IndexDataConsumer.h"
 #include "clang/Index/IndexSymbol.h"
-#include "clang/Index/IndexingAction.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Support/FormatVariadic.h"
-#include "llvm/Support/Path.h"
-#include "llvm/Support/ScopedPrinter.h"
 #include <limits>
 #include <tuple>
 
@@ -232,7 +227,7 @@ llvm::Optional<DocumentSymbol> declToSym(ASTContext &Ctx, const NamedDecl &ND) {
   const auto SymbolRange =
       toHalfOpenFileRange(SM, Ctx.getLangOpts(), {BeginLoc, EndLoc});
   if (!SymbolRange)
-    return llvm::None;
+    return std::nullopt;
 
   index::SymbolInfo SymInfo = index::getSymbolInfo(&ND);
   // FIXME: This is not classifying constructors, destructors and operators

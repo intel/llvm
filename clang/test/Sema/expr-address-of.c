@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -verify -fsyntax-only
+// RUN: %clang_cc1 %s -verify -fsyntax-only -Wno-strict-prototypes
 struct xx { int bitf:1; };
 
 struct entry { struct xx *whatever; 
@@ -105,7 +105,7 @@ char* f7(void) {
   int* dummy2 = &(t2.a); // expected-error {{address of bit-field requested}}
   int* dummy3 = &(t2.b); // expected-error {{address of bit-field requested}}
 
-  void* t3 = &(*(void*)0);
+  void* t3 = &*(void*)0;
 }
 
 void f8(void) {

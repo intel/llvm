@@ -1,6 +1,6 @@
 // RUN: %clang_cc1 -triple x86_64-apple-macos10.7.0 -fsyntax-only -verify -flax-vector-conversions=none -Wconversion %s
 
-typedef __attribute__((ext_vector_type(8))) _Bool BoolVector; // expected-error {{invalid vector element type '_Bool'}}
+typedef __attribute__((ext_vector_type(8))) _Bool BoolVector;
 
 typedef __attribute__(( ext_vector_type(2) )) float float2;
 typedef __attribute__(( ext_vector_type(3) )) float float3;
@@ -116,7 +116,7 @@ static void splats(int i, long l, __uint128_t t, float f, double d) {
   
   vf = 1 + vf;
   vf = l + vf; // expected-warning {{implicit conversion from 'long' to 'float2' (vector of 2 'float' values) may lose precision}}
-  vf = 2.0 + vf;
+  vf = 2.0 + vf; // expected-warning {{implicit conversion between floating point types of different sizes}}
   vf = d + vf; // expected-warning {{implicit conversion loses floating-point precision}}
   vf = vf + 0xffffffff; // expected-warning {{implicit conversion from 'unsigned int' to 'float2' (vector of 2 'float' values) changes value from 4294967295 to 4294967296}}
   vf = vf + 2.1; // expected-warning {{implicit conversion loses floating-point precision}}

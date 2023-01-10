@@ -8,6 +8,7 @@
 #include "ConfigFragment.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SourceMgr.h"
@@ -30,7 +31,7 @@ bestGuess(llvm::StringRef Search,
           llvm::ArrayRef<llvm::StringRef> AllowedValues) {
   unsigned MaxEdit = (Search.size() + 1) / 3;
   if (!MaxEdit)
-    return llvm::None;
+    return std::nullopt;
   llvm::Optional<llvm::StringRef> Result;
   for (const auto &AllowedValue : AllowedValues) {
     unsigned EditDistance = Search.edit_distance(AllowedValue, true, MaxEdit);
@@ -127,6 +128,7 @@ private:
     Dict.handle("UnusedIncludes", [&](Node &N) {
       F.UnusedIncludes = scalarValue(N, "UnusedIncludes");
     });
+    Dict.handle("Includes", [&](Node &N) { parse(F.Includes, N); });
     Dict.handle("ClangTidy", [&](Node &N) { parse(F.ClangTidy, N); });
     Dict.parse(N);
   }
@@ -153,6 +155,15 @@ private:
     Dict.parse(N);
   }
 
+  void parse(Fragment::DiagnosticsBlock::IncludesBlock &F, Node &N) {
+    DictParser Dict("Includes", this);
+    Dict.handle("IgnoreHeader", [&](Node &N) {
+      if (auto Values = scalarValues(N))
+        F.IgnoreHeader = std::move(*Values);
+    });
+    Dict.parse(N);
+  }
+
   void parse(Fragment::IndexBlock &F, Node &N) {
     DictParser Dict("Index", this);
     Dict.handle("Background",
@@ -165,13 +176,17 @@ private:
         parse(External, N);
       } else if (N.getType() == Node::NK_Scalar ||
                  N.getType() == Node::NK_BlockScalar) {
-        parse(External, scalarValue(N, "External").getValue());
+        parse(External, *scalarValue(N, "External"));
       } else {
         error("External must be either a scalar or a mapping.", N);
         return;
       }
       F.External.emplace(std::move(External));
       F.External->Range = N.getSourceRange();
+    });
+    Dict.handle("StandardLibrary", [&](Node &N) {
+      if (auto StandardLibrary = boolValue(N, "StandardLibrary"))
+        F.StandardLibrary = *StandardLibrary;
     });
     Dict.parse(N);
   }
@@ -342,7 +357,7 @@ private:
     if (auto *BS = llvm::dyn_cast<BlockScalarNode>(&N))
       return Located<std::string>(BS->getValue().str(), N.getSourceRange());
     warning(Desc + " should be scalar", N);
-    return llvm::None;
+    return std::nullopt;
   }
 
   llvm::Optional<Located<bool>> boolValue(Node &N, llvm::StringRef Desc) {
@@ -351,7 +366,7 @@ private:
         return Located<bool>(*Bool, Scalar->Range);
       warning(Desc + " should be a boolean", N);
     }
-    return llvm::None;
+    return std::nullopt;
   }
 
   // Try to parse a list of single scalar values, or just a single value.
@@ -370,7 +385,7 @@ private:
       }
     } else {
       warning("Expected scalar or list of scalars", N);
-      return llvm::None;
+      return std::nullopt;
     }
     return Result;
   }

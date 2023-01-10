@@ -500,7 +500,8 @@ static void collectStatsRecursive(
     return;
 
   // Handle any kind of lexical scope.
-  const bool HasAbstractOrigin = Die.find(dwarf::DW_AT_abstract_origin) != None;
+  const bool HasAbstractOrigin =
+      Die.find(dwarf::DW_AT_abstract_origin) != std::nullopt;
   const bool IsFunction = Tag == dwarf::DW_TAG_subprogram;
   const bool IsBlock = Tag == dwarf::DW_TAG_lexical_block;
   const bool IsInlinedFunction = Tag == dwarf::DW_TAG_inlined_subroutine;
@@ -1044,14 +1045,19 @@ bool dwarfdump::collectStatsForObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
                      LocStats.LocalVarNonEntryValLocStats);
   J.objectEnd();
   OS << '\n';
-  LLVM_DEBUG(llvm::dbgs() << "Total Availability: "
-                          << (int)std::round((VarParamWithLoc.Value * 100.0) /
+  LLVM_DEBUG(
+      llvm::dbgs() << "Total Availability: "
+                   << (VarParamTotal.Value
+                           ? (int)std::round((VarParamWithLoc.Value * 100.0) /
                                              VarParamTotal.Value)
-                          << "%\n";
-             llvm::dbgs() << "PC Ranges covered: "
-                          << (int)std::round(
+                           : 0)
+                   << "%\n";
+      llvm::dbgs() << "PC Ranges covered: "
+                   << (GlobalStats.ScopeBytes.Value
+                           ? (int)std::round(
                                  (GlobalStats.ScopeBytesCovered.Value * 100.0) /
                                  GlobalStats.ScopeBytes.Value)
-                          << "%\n");
+                           : 0)
+                   << "%\n");
   return true;
 }

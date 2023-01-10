@@ -77,7 +77,7 @@ public:
 
     bool MatchAndExplain(const llvm::Optional<T> &Input,
                          testing::MatchResultListener *L) const override {
-      return Input && ValueMatcher.MatchAndExplain(Input.getValue(), L);
+      return Input && ValueMatcher.MatchAndExplain(*Input, L);
     }
 
     void DescribeTo(std::ostream *OS) const override {
@@ -99,7 +99,7 @@ private:
 } // namespace detail
 
 /// Matches an llvm::Optional<T> with a value that conforms to an inner matcher.
-/// To match llvm::None you could use Eq(llvm::None).
+/// To match std::nullopt you could use Eq(std::nullopt).
 template <class InnerMatcher>
 detail::ValueIsMatcher<InnerMatcher> ValueIs(const InnerMatcher &ValueMatcher) {
   return detail::ValueIsMatcher<InnerMatcher>(ValueMatcher);
@@ -237,6 +237,12 @@ public:
       EXPECT_FALSE(llvm::sys::fs::remove(Path.str()));
     }
   }
+
+  TempFile(const TempFile &) = delete;
+  TempFile &operator=(const TempFile &) = delete;
+
+  TempFile(TempFile &&) = default;
+  TempFile &operator=(TempFile &&) = default;
 
   /// The path to the file.
   StringRef path() const { return Path; }

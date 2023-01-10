@@ -10,7 +10,10 @@ append_list_if(COMPILER_RT_HAS_WGLOBAL_CONSTRUCTORS_FLAG -Wglobal-constructors
 set(TSAN_RTL_DYNAMIC_CFLAGS ${TSAN_RTL_CFLAGS})
 list(REMOVE_ITEM TSAN_RTL_DYNAMIC_CFLAGS -fPIE)
 
-set(TSAN_DYNAMIC_LINK_LIBS ${SANITIZER_CXX_ABI_LIBRARIES} ${SANITIZER_COMMON_LINK_LIBS})
+set(TSAN_DYNAMIC_LINK_LIBS
+  ${COMPILER_RT_UNWINDER_LINK_LIBS}
+  ${SANITIZER_CXX_ABI_LIBRARIES}
+  ${SANITIZER_COMMON_LINK_LIBS})
 
 append_list_if(COMPILER_RT_HAS_LIBDL dl TSAN_DYNAMIC_LINK_LIBS)
 append_list_if(COMPILER_RT_HAS_LIBM m TSAN_DYNAMIC_LINK_LIBS)
@@ -172,7 +175,7 @@ else()
       add_asm_sources(TSAN_ASM_SOURCES
         tsan_rtl_amd64.S
         )
-      # Sanity check for Go runtime.
+      # Check for Go runtime.
       set(BUILDGO_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/../go/buildgo.sh)
       add_custom_target(GotsanRuntimeCheck
         COMMAND env "CC=${CMAKE_C_COMPILER} ${CMAKE_C_COMPILER_ARG1}"
@@ -186,7 +189,7 @@ else()
       add_asm_sources(TSAN_ASM_SOURCES
         tsan_rtl_aarch64.S
         )
-      # Sanity check for Go runtime.
+      # Check for Go runtime.
       set(BUILDGO_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/../go/buildgo.sh)
       add_custom_target(GotsanRuntimeCheck
 	COMMAND env "CC=${CMAKE_C_COMPILER} ${CMAKE_C_COMPILER_ARG1}"
@@ -200,7 +203,7 @@ else()
       add_asm_sources(TSAN_ASM_SOURCES
         tsan_rtl_ppc64.S
         )
-      # Sanity check for Go runtime.
+      # Check for Go runtime.
       set(BUILDGO_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/../go/buildgo.sh)
       add_custom_target(GotsanRuntimeCheck
 	COMMAND env "CC=${CMAKE_C_COMPILER} ${CMAKE_C_COMPILER_ARG1}"
@@ -218,7 +221,7 @@ else()
       add_asm_sources(TSAN_ASM_SOURCES
         tsan_rtl_s390x.S
         )
-      # Sanity check for Go runtime.
+      # Check for Go runtime.
       set(BUILDGO_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/../go/buildgo.sh)
       add_custom_target(GotsanRuntimeCheck
 	COMMAND env "CC=${CMAKE_C_COMPILER} ${CMAKE_C_COMPILER_ARG1}"

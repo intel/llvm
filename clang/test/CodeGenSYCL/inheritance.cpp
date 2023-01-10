@@ -1,10 +1,12 @@
-// RUN:  %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN:  %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -opaque-pointers -emit-llvm %s -o - | FileCheck %s
 
 #include "Inputs/sycl.hpp"
 
 class second_base {
 public:
   int *e;
+  int *arr[2];
+  second_base(int *E) : e(E) {}
 };
 
 class InnerFieldBase {
@@ -23,15 +25,15 @@ public:
 
 struct derived : base, second_base {
   int a;
-
+  derived() : second_base(nullptr) {}
   void operator()() const {
   }
 };
 
 int main() {
-  cl::sycl::queue q;
+  sycl::queue q;
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     derived f{};
     cgh.single_task(f);
   });
@@ -39,35 +41,39 @@ int main() {
   return 0;
 }
 
-// Check kernel paramters
-// CHECK: define {{.*}}spir_kernel void @{{.*}}derived(%struct.base* noundef byval(%struct.base) align 4 %_arg__base, %struct.__wrapper_class* noundef byval(%struct.__wrapper_class) align 8 %_arg_e, i32 noundef %_arg_a)
+// CHECK: %struct.base = type { i32, %class.InnerField }
+// CHECK: %class.InnerField = type { %class.InnerFieldBase, i32 }
+// CHECK: %class.InnerFieldBase = type { i32 }
+// CHECK: %class.__generated_second_base = type { ptr addrspace(1), [2 x ptr addrspace(1)] }
+// CHECK: %struct.derived = type <{ %struct.base, [4 x i8], %class.second_base, i32, [4 x i8] }>
+// CHECK: %class.second_base = type { ptr addrspace(4), [2 x ptr addrspace(4)] }
 
-// Check alloca for kernel paramters
-// CHECK: %[[ARG_AA:[a-zA-Z0-9_.]+]] = alloca i32, align 4
-// Check alloca for local functor object
-// CHECK: %[[LOCAL_OBJECT:[a-zA-Z0-9_.]+]] = alloca %struct.derived, align 8
-// CHECK: %[[ARG_A:[a-zA-Z0-9_.]+]] = addrspacecast i32* %[[ARG_AA]] to i32 addrspace(4)*
-// CHECK: store i32 %_arg_a, i32 addrspace(4)* %[[ARG_A]], align 4
+// Check kernel paramters
+// CHECK: define {{.*}}spir_kernel void @{{.*}}derived
+// CHECK-SAME: ptr noundef byval(%struct.base) align 4 %_arg__base
+// CHECK-SAME: ptr noundef byval(%class.__generated_second_base) align 8 %_arg__base1
+// CHECK-SAME: i32 noundef %_arg_a
+
+// Check allocas for kernel parameters and local functor object
+// CHECK: %[[ARG_A_ALLOCA:[a-zA-Z0-9_.]+]] = alloca i32, align 4
+// CHECK: %[[LOCAL_OBJECT_ALLOCA:[a-zA-Z0-9_.]+]] = alloca %struct.derived, align 8
+// CHECK: %[[ARG_A:[a-zA-Z0-9_.]+]] = addrspacecast ptr %[[ARG_A_ALLOCA]] to ptr addrspace(4)
+// CHECK: %[[LOCAL_OBJECT:[a-zA-Z0-9_.]+]] = addrspacecast ptr %[[LOCAL_OBJECT_ALLOCA]] to ptr addrspace(4)
+// CHECK: %[[ARG_BASE:[a-zA-Z0-9_.]+]] = addrspacecast ptr %_arg__base to ptr addrspace(4)
+// CHECK: %[[ARG_BASE1:[a-zA-Z0-9_.]+]] = addrspacecast ptr %_arg__base1 to ptr addrspace(4)
+// CHECK: store i32 %_arg_a, ptr addrspace(4) %[[ARG_A]], align 4
 
 // Initialize 'base' subobject
-// CHECK: %[[DERIVED_TO_BASE:.*]] = bitcast %struct.derived addrspace(4)* %[[LOCAL_OBJECT]].ascast to %struct.base addrspace(4)*
-// CHECK: %[[BASE_TO_PTR:.*]] = bitcast %struct.base addrspace(4)* %[[DERIVED_TO_BASE]] to i8 addrspace(4)*
-// CHECK: %[[PARAM_TO_PTR:.*]] = bitcast %struct.base addrspace(4)* %_arg__base.ascast to i8 addrspace(4)*
-// CHECK: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 8 %[[BASE_TO_PTR]], i8 addrspace(4)* align 4 %[[PARAM_TO_PTR]], i64 12, i1 false)
+// CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 8 %[[LOCAL_OBJECT]], ptr addrspace(4) align 4 %[[ARG_BASE]], i64 12, i1 false)
 
 // Initialize 'second_base' subobject
 // First, derived-to-base cast with offset:
-// CHECK: %[[DERIVED_PTR:.*]] = bitcast %struct.derived addrspace(4)* %[[LOCAL_OBJECT]].ascast to i8 addrspace(4)*
-// CHECK: %[[OFFSET_CALC:.*]] = getelementptr inbounds i8, i8 addrspace(4)* %[[DERIVED_PTR]], i64 16
-// CHECK: %[[TO_SECOND_BASE:.*]] = bitcast i8 addrspace(4)* %[[OFFSET_CALC]] to %class.second_base addrspace(4)*
-// Initialize 'second_base::e'
-// CHECK: %[[SECOND_BASE_PTR:.*]] = getelementptr inbounds %class.second_base, %class.second_base addrspace(4)* %[[TO_SECOND_BASE]], i32 0, i32 0
-// CHECK: %[[PTR_TO_WRAPPER:.*]] = getelementptr inbounds %struct.__wrapper_class, %struct.__wrapper_class addrspace(4)* %_arg_e.ascast, i32 0, i32 0
-// CHECK: %[[LOAD_PTR:.*]] = load i32 addrspace(1)*, i32 addrspace(1)* addrspace(4)* %[[PTR_TO_WRAPPER]]
-// CHECK: %[[AS_CAST:.*]] = addrspacecast i32 addrspace(1)* %[[LOAD_PTR]] to i32 addrspace(4)*
-// CHECK: store i32 addrspace(4)* %[[AS_CAST]], i32 addrspace(4)* addrspace(4)* %[[SECOND_BASE_PTR]]
+// CHECK: %[[OFFSET_CALC:.*]] = getelementptr inbounds i8, ptr addrspace(4) %[[LOCAL_OBJECT]], i64 16
+// Initialize 'second_base'
+// CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 8 %[[OFFSET_CALC]], ptr addrspace(4) align 8 %[[ARG_BASE1]], i64 24, i1 false)
 
 // Initialize field 'a'
-// CHECK: %[[GEP_A:[a-zA-Z0-9]+]] = getelementptr inbounds %struct.derived, %struct.derived addrspace(4)* %[[LOCAL_OBJECT]].ascast, i32 0, i32 3
-// CHECK: %[[LOAD_A:[0-9]+]] = load i32, i32 addrspace(4)* %[[ARG_A]], align 4
-// CHECK: store i32 %[[LOAD_A]], i32 addrspace(4)* %[[GEP_A]]
+// CHECK: %[[GEP_A:[a-zA-Z0-9]+]] = getelementptr inbounds %struct.derived, ptr addrspace(4) %[[LOCAL_OBJECT]], i32 0, i32 3
+// CHECK: %[[LOAD_A:[0-9]+]] = load i32, ptr addrspace(4) %[[ARG_A]], align 4
+// CHECK: store i32 %[[LOAD_A]], ptr addrspace(4) %[[GEP_A]]
+

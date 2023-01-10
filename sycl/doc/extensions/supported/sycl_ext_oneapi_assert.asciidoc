@@ -78,7 +78,7 @@ two mechanisms a device uses by testing the device aspect
 The `assert()` macro is defined in system include headers, not in SYCL headers.
 On most of systems it is `<cassert>` and/or `<assert.h>` header files.
 The user can disable assertions in device code by defining the `NDEBUG`
-preprocessor macro prior to including either of `<sycl.hpp>` and
+preprocessor macro prior to including either of `<sycl/sycl.hpp>` and
 `<cassert>/<assert.h>`.
 
 Following is an example use-case:

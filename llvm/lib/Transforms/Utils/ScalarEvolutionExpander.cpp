@@ -14,6 +14,7 @@
 
 #include "llvm/Transforms/Utils/ScalarEvolutionExpander.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/LoopInfo.h"
@@ -22,11 +23,8 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/Module.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
 
@@ -223,7 +221,8 @@ Value *SCEVExpander::InsertBinop(Instruction::BinaryOps Opcode,
   // Fold a binop with constant operands.
   if (Constant *CLHS = dyn_cast<Constant>(LHS))
     if (Constant *CRHS = dyn_cast<Constant>(RHS))
-      return ConstantExpr::get(Opcode, CLHS, CRHS);
+      if (Constant *Res = ConstantFoldBinaryOpOperands(Opcode, CLHS, CRHS, DL))
+        return Res;
 
   // Do a quick scan to see if we have this binop nearby.  If so, reuse it.
   unsigned ScanLimit = 6;
@@ -276,7 +275,9 @@ Value *SCEVExpander::InsertBinop(Instruction::BinaryOps Opcode,
   }
 
   // If we haven't found this binop, insert it.
-  Instruction *BO = cast<Instruction>(Builder.CreateBinOp(Opcode, LHS, RHS));
+  // TODO: Use the Builder, which will make CreateBinOp below fold with
+  // InstSimplifyFolder.
+  Instruction *BO = Builder.Insert(BinaryOperator::Create(Opcode, LHS, RHS));
   BO->setDebugLoc(Loc);
   if (Flags & SCEV::FlagNUW)
     BO->setHasNoUnsignedWrap();
@@ -509,7 +510,7 @@ Value *SCEVExpander::expandAddToGEP(const SCEV *const *op_begin,
       Value *Scaled =
           ScaledOps.empty()
               ? Constant::getNullValue(Ty)
-              : expandCodeForImpl(SE.getAddExpr(ScaledOps), Ty, false);
+              : expandCodeForImpl(SE.getAddExpr(ScaledOps), Ty);
       GepIndices.push_back(Scaled);
 
       // Collect struct field index operands.
@@ -570,7 +571,7 @@ Value *SCEVExpander::expandAddToGEP(const SCEV *const *op_begin,
            SE.DT.dominates(cast<Instruction>(V), &*Builder.GetInsertPoint()));
 
     // Expand the operands for a plain byte offset.
-    Value *Idx = expandCodeForImpl(SE.getAddExpr(Ops), Ty, false);
+    Value *Idx = expandCodeForImpl(SE.getAddExpr(Ops), Ty);
 
     // Fold a GEP with constant operands.
     if (Constant *CLHS = dyn_cast<Constant>(V))
@@ -787,14 +788,14 @@ Value *SCEVExpander::visitAddExpr(const SCEVAddExpr *S) {
       Sum = expandAddToGEP(NewOps.begin(), NewOps.end(), PTy, Ty, Sum);
     } else if (Op->isNonConstantNegative()) {
       // Instead of doing a negate and add, just do a subtract.
-      Value *W = expandCodeForImpl(SE.getNegativeSCEV(Op), Ty, false);
+      Value *W = expandCodeForImpl(SE.getNegativeSCEV(Op), Ty);
       Sum = InsertNoopCastOfTo(Sum, Ty);
       Sum = InsertBinop(Instruction::Sub, Sum, W, SCEV::FlagAnyWrap,
                         /*IsSafeToHoist*/ true);
       ++I;
     } else {
       // A simple add.
-      Value *W = expandCodeForImpl(Op, Ty, false);
+      Value *W = expandCodeForImpl(Op, Ty);
       Sum = InsertNoopCastOfTo(Sum, Ty);
       // Canonicalize a constant to the RHS.
       if (isa<Constant>(Sum)) std::swap(Sum, W);
@@ -845,7 +846,7 @@ Value *SCEVExpander::visitMulExpr(const SCEVMulExpr *S) {
 
     // Calculate powers with exponents 1, 2, 4, 8 etc. and include those of them
     // that are needed into the result.
-    Value *P = expandCodeForImpl(I->second, Ty, false);
+    Value *P = expandCodeForImpl(I->second, Ty);
     Value *Result = nullptr;
     if (Exponent & 1)
       Result = P;
@@ -904,7 +905,7 @@ Value *SCEVExpander::visitMulExpr(const SCEVMulExpr *S) {
 Value *SCEVExpander::visitUDivExpr(const SCEVUDivExpr *S) {
   Type *Ty = SE.getEffectiveSCEVType(S->getType());
 
-  Value *LHS = expandCodeForImpl(S->getLHS(), Ty, false);
+  Value *LHS = expandCodeForImpl(S->getLHS(), Ty);
   if (const SCEVConstant *SC = dyn_cast<SCEVConstant>(S->getRHS())) {
     const APInt &RHS = SC->getAPInt();
     if (RHS.isPowerOf2())
@@ -913,7 +914,7 @@ Value *SCEVExpander::visitUDivExpr(const SCEVUDivExpr *S) {
                          SCEV::FlagAnyWrap, /*IsSafeToHoist*/ true);
   }
 
-  Value *RHS = expandCodeForImpl(S->getRHS(), Ty, false);
+  Value *RHS = expandCodeForImpl(S->getRHS(), Ty);
   return InsertBinop(Instruction::UDiv, LHS, RHS, SCEV::FlagAnyWrap,
                      /*IsSafeToHoist*/ SE.isKnownNonZero(S->getRHS()));
 }
@@ -1024,7 +1025,8 @@ void SCEVExpander::fixupInsertPoints(Instruction *I) {
 /// hoistStep - Attempt to hoist a simple IV increment above InsertPos to make
 /// it available to other uses in this loop. Recursively hoist any operands,
 /// until we reach a value that dominates InsertPos.
-bool SCEVExpander::hoistIVInc(Instruction *IncV, Instruction *InsertPos) {
+bool SCEVExpander::hoistIVInc(Instruction *IncV, Instruction *InsertPos,
+                              bool RecomputePoisonFlags) {
   if (SE.DT.dominates(IncV, InsertPos))
       return true;
 
@@ -1052,6 +1054,19 @@ bool SCEVExpander::hoistIVInc(Instruction *IncV, Instruction *InsertPos) {
   for (Instruction *I : llvm::reverse(IVIncs)) {
     fixupInsertPoints(I);
     I->moveBefore(InsertPos);
+    if (!RecomputePoisonFlags)
+      continue;
+    // Drop flags that are potentially inferred from old context and infer flags
+    // in new context.
+    I->dropPoisonGeneratingFlags();
+    if (auto *OBO = dyn_cast<OverflowingBinaryOperator>(I))
+      if (auto Flags = SE.getStrengthenedNoWrapFlagsFromBinOp(OBO)) {
+        auto *BO = cast<BinaryOperator>(I);
+        BO->setHasNoUnsignedWrap(
+            ScalarEvolution::maskFlags(*Flags, SCEV::FlagNUW) == SCEV::FlagNUW);
+        BO->setHasNoSignedWrap(
+            ScalarEvolution::maskFlags(*Flags, SCEV::FlagNSW) == SCEV::FlagNSW);
+      }
   }
   return true;
 }
@@ -1278,7 +1293,7 @@ SCEVExpander::getAddRecExprPHILiterally(const SCEVAddRecExpr *Normalized,
          "Can't expand add recurrences without a loop preheader!");
   Value *StartV =
       expandCodeForImpl(Normalized->getStart(), ExpandTy,
-                        L->getLoopPreheader()->getTerminator(), false);
+                        L->getLoopPreheader()->getTerminator());
 
   // StartV must have been be inserted into L's preheader to dominate the new
   // phi.
@@ -1297,7 +1312,7 @@ SCEVExpander::getAddRecExprPHILiterally(const SCEVAddRecExpr *Normalized,
     Step = SE.getNegativeSCEV(Step);
   // Expand the step somewhere that dominates the loop header.
   Value *StepV = expandCodeForImpl(
-      Step, IntTy, &*L->getHeader()->getFirstInsertionPt(), false);
+      Step, IntTy, &*L->getHeader()->getFirstInsertionPt());
 
   // The no-wrap behavior proved by IsIncrement(NUW|NSW) is only applicable if
   // we actually do emit an addition.  It does not apply if we emit a
@@ -1455,7 +1470,7 @@ Value *SCEVExpander::expandAddRecExprLiterally(const SCEVAddRecExpr *S) {
         // Expand the step somewhere that dominates the loop header.
         SCEVInsertPointGuard Guard(Builder, this);
         StepV = expandCodeForImpl(
-            Step, IntTy, &*L->getHeader()->getFirstInsertionPt(), false);
+            Step, IntTy, &*L->getHeader()->getFirstInsertionPt());
       }
       Result = expandIVInc(PN, StepV, L, ExpandTy, IntTy, useSubtract);
     }
@@ -1475,7 +1490,7 @@ Value *SCEVExpander::expandAddRecExprLiterally(const SCEVAddRecExpr *S) {
     // Invert the result.
     if (InvertStep)
       Result = Builder.CreateSub(
-          expandCodeForImpl(Normalized->getStart(), TruncTy, false), Result);
+          expandCodeForImpl(Normalized->getStart(), TruncTy), Result);
   }
 
   // Re-apply any non-loop-dominating scale.
@@ -1483,14 +1498,14 @@ Value *SCEVExpander::expandAddRecExprLiterally(const SCEVAddRecExpr *S) {
     assert(S->isAffine() && "Can't linearly scale non-affine recurrences.");
     Result = InsertNoopCastOfTo(Result, IntTy);
     Result = Builder.CreateMul(Result,
-                               expandCodeForImpl(PostLoopScale, IntTy, false));
+                               expandCodeForImpl(PostLoopScale, IntTy));
   }
 
   // Re-apply any non-loop-dominating offset.
   if (PostLoopOffset) {
     if (PointerType *PTy = dyn_cast<PointerType>(ExpandTy)) {
       if (Result->getType()->isIntegerTy()) {
-        Value *Base = expandCodeForImpl(PostLoopOffset, ExpandTy, false);
+        Value *Base = expandCodeForImpl(PostLoopOffset, ExpandTy);
         Result = expandAddToGEP(SE.getUnknown(Result), PTy, IntTy, Base);
       } else {
         Result = expandAddToGEP(PostLoopOffset, PTy, IntTy, Result);
@@ -1498,7 +1513,7 @@ Value *SCEVExpander::expandAddRecExprLiterally(const SCEVAddRecExpr *S) {
     } else {
       Result = InsertNoopCastOfTo(Result, IntTy);
       Result = Builder.CreateAdd(
-          Result, expandCodeForImpl(PostLoopOffset, IntTy, false));
+          Result, expandCodeForImpl(PostLoopOffset, IntTy));
     }
   }
 
@@ -1508,7 +1523,7 @@ Value *SCEVExpander::expandAddRecExprLiterally(const SCEVAddRecExpr *S) {
 Value *SCEVExpander::visitAddRecExpr(const SCEVAddRecExpr *S) {
   // In canonical mode we compute the addrec as an expression of a canonical IV
   // using evaluateAtIteration and expand the resulting SCEV expression. This
-  // way we avoid introducing new IVs to carry on the comutation of the addrec
+  // way we avoid introducing new IVs to carry on the computation of the addrec
   // throughout the loop.
   //
   // For nested addrecs evaluateAtIteration might need a canonical IV of a
@@ -1541,7 +1556,7 @@ Value *SCEVExpander::visitAddRecExpr(const SCEVAddRecExpr *S) {
     BasicBlock::iterator NewInsertPt =
         findInsertPointAfter(cast<Instruction>(V), &*Builder.GetInsertPoint());
     V = expandCodeForImpl(SE.getTruncateExpr(SE.getUnknown(V), Ty), nullptr,
-                          &*NewInsertPt, false);
+                          &*NewInsertPt);
     return V;
   }
 
@@ -1635,7 +1650,6 @@ Value *SCEVExpander::visitAddRecExpr(const SCEVAddRecExpr *S) {
     NewS = Ext;
 
   const SCEV *V = cast<SCEVAddRecExpr>(NewS)->evaluateAtIteration(IH, SE);
-  //cerr << "Evaluated: " << *this << "\n     to: " << *V << "\n";
 
   // Truncate the result down to the original type, if needed.
   const SCEV *T = SE.getTruncateOrNoop(V, Ty);
@@ -1644,7 +1658,7 @@ Value *SCEVExpander::visitAddRecExpr(const SCEVAddRecExpr *S) {
 
 Value *SCEVExpander::visitPtrToIntExpr(const SCEVPtrToIntExpr *S) {
   Value *V =
-      expandCodeForImpl(S->getOperand(), S->getOperand()->getType(), false);
+      expandCodeForImpl(S->getOperand(), S->getOperand()->getType());
   return ReuseOrCreateCast(V, S->getType(), CastInst::PtrToInt,
                            GetOptimalInsertionPointForCastOf(V));
 }
@@ -1652,216 +1666,83 @@ Value *SCEVExpander::visitPtrToIntExpr(const SCEVPtrToIntExpr *S) {
 Value *SCEVExpander::visitTruncateExpr(const SCEVTruncateExpr *S) {
   Type *Ty = SE.getEffectiveSCEVType(S->getType());
   Value *V = expandCodeForImpl(
-      S->getOperand(), SE.getEffectiveSCEVType(S->getOperand()->getType()),
-      false);
+      S->getOperand(), SE.getEffectiveSCEVType(S->getOperand()->getType())
+      );
   return Builder.CreateTrunc(V, Ty);
 }
 
 Value *SCEVExpander::visitZeroExtendExpr(const SCEVZeroExtendExpr *S) {
   Type *Ty = SE.getEffectiveSCEVType(S->getType());
   Value *V = expandCodeForImpl(
-      S->getOperand(), SE.getEffectiveSCEVType(S->getOperand()->getType()),
-      false);
+      S->getOperand(), SE.getEffectiveSCEVType(S->getOperand()->getType())
+      );
   return Builder.CreateZExt(V, Ty);
 }
 
 Value *SCEVExpander::visitSignExtendExpr(const SCEVSignExtendExpr *S) {
   Type *Ty = SE.getEffectiveSCEVType(S->getType());
   Value *V = expandCodeForImpl(
-      S->getOperand(), SE.getEffectiveSCEVType(S->getOperand()->getType()),
-      false);
+      S->getOperand(), SE.getEffectiveSCEVType(S->getOperand()->getType())
+      );
   return Builder.CreateSExt(V, Ty);
 }
 
-Value *SCEVExpander::expandSMaxExpr(const SCEVNAryExpr *S) {
-  Value *LHS = expand(S->getOperand(S->getNumOperands()-1));
-  Type *Ty = LHS->getType();
-  for (int i = S->getNumOperands()-2; i >= 0; --i) {
-    // In the case of mixed integer and pointer types, do the
-    // rest of the comparisons as integer.
-    Type *OpTy = S->getOperand(i)->getType();
-    if (OpTy->isIntegerTy() != Ty->isIntegerTy()) {
-      Ty = SE.getEffectiveSCEVType(Ty);
-      LHS = InsertNoopCastOfTo(LHS, Ty);
-    }
-    Value *RHS = expandCodeForImpl(S->getOperand(i), Ty, false);
-    Value *Sel;
-    if (Ty->isIntegerTy())
-      Sel = Builder.CreateIntrinsic(Intrinsic::smax, {Ty}, {LHS, RHS},
-                                    /*FMFSource=*/nullptr, "smax");
-    else {
-      Value *ICmp = Builder.CreateICmpSGT(LHS, RHS);
-      Sel = Builder.CreateSelect(ICmp, LHS, RHS, "smax");
-    }
-    LHS = Sel;
-  }
-  // In the case of mixed integer and pointer types, cast the
-  // final result back to the pointer type.
-  if (LHS->getType() != S->getType())
-    LHS = InsertNoopCastOfTo(LHS, S->getType());
-  return LHS;
-}
-
-Value *SCEVExpander::expandUMaxExpr(const SCEVNAryExpr *S) {
-  Value *LHS = expand(S->getOperand(S->getNumOperands()-1));
-  Type *Ty = LHS->getType();
-  for (int i = S->getNumOperands()-2; i >= 0; --i) {
-    // In the case of mixed integer and pointer types, do the
-    // rest of the comparisons as integer.
-    Type *OpTy = S->getOperand(i)->getType();
-    if (OpTy->isIntegerTy() != Ty->isIntegerTy()) {
-      Ty = SE.getEffectiveSCEVType(Ty);
-      LHS = InsertNoopCastOfTo(LHS, Ty);
-    }
-    Value *RHS = expandCodeForImpl(S->getOperand(i), Ty, false);
-    Value *Sel;
-    if (Ty->isIntegerTy())
-      Sel = Builder.CreateIntrinsic(Intrinsic::umax, {Ty}, {LHS, RHS},
-                                    /*FMFSource=*/nullptr, "umax");
-    else {
-      Value *ICmp = Builder.CreateICmpUGT(LHS, RHS);
-      Sel = Builder.CreateSelect(ICmp, LHS, RHS, "umax");
-    }
-    LHS = Sel;
-  }
-  // In the case of mixed integer and pointer types, cast the
-  // final result back to the pointer type.
-  if (LHS->getType() != S->getType())
-    LHS = InsertNoopCastOfTo(LHS, S->getType());
-  return LHS;
-}
-
-Value *SCEVExpander::expandSMinExpr(const SCEVNAryExpr *S) {
+Value *SCEVExpander::expandMinMaxExpr(const SCEVNAryExpr *S,
+                                      Intrinsic::ID IntrinID, Twine Name,
+                                      bool IsSequential) {
   Value *LHS = expand(S->getOperand(S->getNumOperands() - 1));
   Type *Ty = LHS->getType();
+  if (IsSequential)
+    LHS = Builder.CreateFreeze(LHS);
   for (int i = S->getNumOperands() - 2; i >= 0; --i) {
-    // In the case of mixed integer and pointer types, do the
-    // rest of the comparisons as integer.
-    Type *OpTy = S->getOperand(i)->getType();
-    if (OpTy->isIntegerTy() != Ty->isIntegerTy()) {
-      Ty = SE.getEffectiveSCEVType(Ty);
-      LHS = InsertNoopCastOfTo(LHS, Ty);
-    }
-    Value *RHS = expandCodeForImpl(S->getOperand(i), Ty, false);
+    Value *RHS = expandCodeForImpl(S->getOperand(i), Ty);
+    if (IsSequential && i != 0)
+      RHS = Builder.CreateFreeze(RHS);
     Value *Sel;
     if (Ty->isIntegerTy())
-      Sel = Builder.CreateIntrinsic(Intrinsic::smin, {Ty}, {LHS, RHS},
-                                    /*FMFSource=*/nullptr, "smin");
+      Sel = Builder.CreateIntrinsic(IntrinID, {Ty}, {LHS, RHS},
+                                    /*FMFSource=*/nullptr, Name);
     else {
-      Value *ICmp = Builder.CreateICmpSLT(LHS, RHS);
-      Sel = Builder.CreateSelect(ICmp, LHS, RHS, "smin");
+      Value *ICmp =
+          Builder.CreateICmp(MinMaxIntrinsic::getPredicate(IntrinID), LHS, RHS);
+      Sel = Builder.CreateSelect(ICmp, LHS, RHS, Name);
     }
     LHS = Sel;
   }
-  // In the case of mixed integer and pointer types, cast the
-  // final result back to the pointer type.
-  if (LHS->getType() != S->getType())
-    LHS = InsertNoopCastOfTo(LHS, S->getType());
-  return LHS;
-}
-
-Value *SCEVExpander::expandUMinExpr(const SCEVNAryExpr *S) {
-  Value *LHS = expand(S->getOperand(S->getNumOperands() - 1));
-  Type *Ty = LHS->getType();
-  for (int i = S->getNumOperands() - 2; i >= 0; --i) {
-    // In the case of mixed integer and pointer types, do the
-    // rest of the comparisons as integer.
-    Type *OpTy = S->getOperand(i)->getType();
-    if (OpTy->isIntegerTy() != Ty->isIntegerTy()) {
-      Ty = SE.getEffectiveSCEVType(Ty);
-      LHS = InsertNoopCastOfTo(LHS, Ty);
-    }
-    Value *RHS = expandCodeForImpl(S->getOperand(i), Ty, false);
-    Value *Sel;
-    if (Ty->isIntegerTy())
-      Sel = Builder.CreateIntrinsic(Intrinsic::umin, {Ty}, {LHS, RHS},
-                                    /*FMFSource=*/nullptr, "umin");
-    else {
-      Value *ICmp = Builder.CreateICmpULT(LHS, RHS);
-      Sel = Builder.CreateSelect(ICmp, LHS, RHS, "umin");
-    }
-    LHS = Sel;
-  }
-  // In the case of mixed integer and pointer types, cast the
-  // final result back to the pointer type.
-  if (LHS->getType() != S->getType())
-    LHS = InsertNoopCastOfTo(LHS, S->getType());
   return LHS;
 }
 
 Value *SCEVExpander::visitSMaxExpr(const SCEVSMaxExpr *S) {
-  return expandSMaxExpr(S);
+  return expandMinMaxExpr(S, Intrinsic::smax, "smax");
 }
 
 Value *SCEVExpander::visitUMaxExpr(const SCEVUMaxExpr *S) {
-  return expandUMaxExpr(S);
+  return expandMinMaxExpr(S, Intrinsic::umax, "umax");
 }
 
 Value *SCEVExpander::visitSMinExpr(const SCEVSMinExpr *S) {
-  return expandSMinExpr(S);
+  return expandMinMaxExpr(S, Intrinsic::smin, "smin");
 }
 
 Value *SCEVExpander::visitUMinExpr(const SCEVUMinExpr *S) {
-  return expandUMinExpr(S);
+  return expandMinMaxExpr(S, Intrinsic::umin, "umin");
 }
 
 Value *SCEVExpander::visitSequentialUMinExpr(const SCEVSequentialUMinExpr *S) {
-  SmallVector<Value *> Ops;
-  for (const SCEV *Op : S->operands())
-    Ops.emplace_back(expand(Op));
-
-  Value *SaturationPoint =
-      MinMaxIntrinsic::getSaturationPoint(Intrinsic::umin, S->getType());
-
-  SmallVector<Value *> OpIsZero;
-  for (Value *Op : ArrayRef<Value *>(Ops).drop_back())
-    OpIsZero.emplace_back(Builder.CreateICmpEQ(Op, SaturationPoint));
-
-  Value *AnyOpIsZero = Builder.CreateLogicalOr(OpIsZero);
-
-  Value *NaiveUMin = expandUMinExpr(S);
-  return Builder.CreateSelect(AnyOpIsZero, SaturationPoint, NaiveUMin);
+  return expandMinMaxExpr(S, Intrinsic::umin, "umin", /*IsSequential*/true);
 }
 
 Value *SCEVExpander::expandCodeForImpl(const SCEV *SH, Type *Ty,
-                                       Instruction *IP, bool Root) {
+                                       Instruction *IP) {
   setInsertPoint(IP);
-  Value *V = expandCodeForImpl(SH, Ty, Root);
+  Value *V = expandCodeForImpl(SH, Ty);
   return V;
 }
 
-Value *SCEVExpander::expandCodeForImpl(const SCEV *SH, Type *Ty, bool Root) {
+Value *SCEVExpander::expandCodeForImpl(const SCEV *SH, Type *Ty) {
   // Expand the code for this SCEV.
   Value *V = expand(SH);
 
-  if (PreserveLCSSA) {
-    if (auto *Inst = dyn_cast<Instruction>(V)) {
-      // Create a temporary instruction to at the current insertion point, so we
-      // can hand it off to the helper to create LCSSA PHIs if required for the
-      // new use.
-      // FIXME: Ideally formLCSSAForInstructions (used in fixupLCSSAFormFor)
-      // would accept a insertion point and return an LCSSA phi for that
-      // insertion point, so there is no need to insert & remove the temporary
-      // instruction.
-      Instruction *Tmp;
-      if (Inst->getType()->isIntegerTy())
-        Tmp = cast<Instruction>(Builder.CreateIntToPtr(
-            Inst, Inst->getType()->getPointerTo(), "tmp.lcssa.user"));
-      else {
-        assert(Inst->getType()->isPointerTy());
-        Tmp = cast<Instruction>(Builder.CreatePtrToInt(
-            Inst, Type::getInt32Ty(Inst->getContext()), "tmp.lcssa.user"));
-      }
-      V = fixupLCSSAFormFor(Tmp, 0);
-
-      // Clean up temporary instruction.
-      InsertedValues.erase(Tmp);
-      InsertedPostIncValues.erase(Tmp);
-      Tmp->eraseFromParent();
-    }
-  }
-
-  InsertedExpressions[std::make_pair(SH, &*Builder.GetInsertPoint())] = V;
   if (Ty) {
     assert(SE.getTypeSizeInBits(Ty) == SE.getTypeSizeInBits(SH->getType()) &&
            "non-trivial casts should be done with the SCEVs directly!");
@@ -1870,35 +1751,33 @@ Value *SCEVExpander::expandCodeForImpl(const SCEV *SH, Type *Ty, bool Root) {
   return V;
 }
 
-ScalarEvolution::ValueOffsetPair
-SCEVExpander::FindValueInExprValueMap(const SCEV *S,
-                                      const Instruction *InsertPt) {
-  auto *Set = SE.getSCEVValues(S);
+Value *SCEVExpander::FindValueInExprValueMap(const SCEV *S,
+                                             const Instruction *InsertPt) {
   // If the expansion is not in CanonicalMode, and the SCEV contains any
   // sub scAddRecExpr type SCEV, it is required to expand the SCEV literally.
-  if (CanonicalMode || !SE.containsAddRecurrence(S)) {
-    // If S is scConstant, it may be worse to reuse an existing Value.
-    if (S->getSCEVType() != scConstant && Set) {
-      // Choose a Value from the set which dominates the InsertPt.
-      // InsertPt should be inside the Value's parent loop so as not to break
-      // the LCSSA form.
-      for (auto const &VOPair : *Set) {
-        Value *V = VOPair.first;
-        ConstantInt *Offset = VOPair.second;
-        Instruction *EntInst = dyn_cast_or_null<Instruction>(V);
-        if (!EntInst)
-          continue;
+  if (!CanonicalMode && SE.containsAddRecurrence(S))
+    return nullptr;
 
-        assert(EntInst->getFunction() == InsertPt->getFunction());
-        if (S->getType() == V->getType() &&
-            SE.DT.dominates(EntInst, InsertPt) &&
-            (SE.LI.getLoopFor(EntInst->getParent()) == nullptr ||
-             SE.LI.getLoopFor(EntInst->getParent())->contains(InsertPt)))
-          return {V, Offset};
-      }
-    }
+  // If S is a constant, it may be worse to reuse an existing Value.
+  if (isa<SCEVConstant>(S))
+    return nullptr;
+
+  // Choose a Value from the set which dominates the InsertPt.
+  // InsertPt should be inside the Value's parent loop so as not to break
+  // the LCSSA form.
+  for (Value *V : SE.getSCEVValues(S)) {
+    Instruction *EntInst = dyn_cast<Instruction>(V);
+    if (!EntInst)
+      continue;
+
+    assert(EntInst->getFunction() == InsertPt->getFunction());
+    if (S->getType() == V->getType() &&
+        SE.DT.dominates(EntInst, InsertPt) &&
+        (SE.LI.getLoopFor(EntInst->getParent()) == nullptr ||
+         SE.LI.getLoopFor(EntInst->getParent())->contains(InsertPt)))
+      return V;
   }
-  return {nullptr, nullptr};
+  return nullptr;
 }
 
 // The expansion of SCEV will either reuse a previous Value in ExprValueMap,
@@ -1967,12 +1846,11 @@ Value *SCEVExpander::expand(const SCEV *S) {
   Builder.SetInsertPoint(InsertPt);
 
   // Expand the expression into instructions.
-  ScalarEvolution::ValueOffsetPair VO = FindValueInExprValueMap(S, InsertPt);
-  Value *V = VO.first;
-
-  if (!V)
+  Value *V = FindValueInExprValueMap(S, InsertPt);
+  if (!V) {
     V = visit(S);
-  else {
+    V = fixupLCSSAFormFor(V);
+  } else {
     // If we're reusing an existing instruction, we are effectively CSEing two
     // copies of the instruction (with potentially different flags).  As such,
     // we need to drop any poison generating flags unless we can prove that
@@ -1980,21 +1858,6 @@ Value *SCEVExpander::expand(const SCEV *S) {
     if (auto *I = dyn_cast<Instruction>(V))
       if (I->hasPoisonGeneratingFlags() && !programUndefinedIfPoison(I))
         I->dropPoisonGeneratingFlags();
-
-    if (VO.second) {
-      if (PointerType *Vty = dyn_cast<PointerType>(V->getType())) {
-        int64_t Offset = VO.second->getSExtValue();
-        ConstantInt *Idx =
-          ConstantInt::getSigned(VO.second->getType(), -Offset);
-        unsigned AS = Vty->getAddressSpace();
-        V = Builder.CreateBitCast(V, Type::getInt8PtrTy(SE.getContext(), AS));
-        V = Builder.CreateGEP(Type::getInt8Ty(SE.getContext()), V, Idx,
-                              "uglygep");
-        V = Builder.CreateBitCast(V, Vty);
-      } else {
-        V = Builder.CreateSub(V, VO.second);
-      }
-    }
   }
   // Remember the expanded value for this SCEV at this location.
   //
@@ -2014,18 +1877,6 @@ void SCEVExpander::rememberInstruction(Value *I) {
       InsertedValues.insert(V);
   };
   DoInsert(I);
-
-  if (!PreserveLCSSA)
-    return;
-
-  if (auto *Inst = dyn_cast<Instruction>(I)) {
-    // A new instruction has been added, which might introduce new uses outside
-    // a defining loop. Fix LCSSA from for each operand of the new instruction,
-    // if required.
-    for (unsigned OpIdx = 0, OpEnd = Inst->getNumOperands(); OpIdx != OpEnd;
-         OpIdx++)
-      fixupLCSSAFormFor(Inst, OpIdx);
-  }
 }
 
 /// replaceCongruentIVs - Check for congruent phis in this loop header and
@@ -2060,7 +1911,7 @@ SCEVExpander::replaceCongruentIVs(Loop *L, const DominatorTree *DT,
   // so narrow phis can reuse them.
   for (PHINode *Phi : Phis) {
     auto SimplifyPHINode = [&](PHINode *PN) -> Value * {
-      if (Value *V = SimplifyInstruction(PN, {DL, &SE.TLI, &SE.DT, &SE.AC}))
+      if (Value *V = simplifyInstruction(PN, {DL, &SE.TLI, &SE.DT, &SE.AC}))
         return V;
       if (!SE.isSCEVable(PN->getType()))
         return nullptr;
@@ -2075,6 +1926,7 @@ SCEVExpander::replaceCongruentIVs(Loop *L, const DominatorTree *DT,
     if (Value *V = SimplifyPHINode(Phi)) {
       if (V->getType() != Phi->getType())
         continue;
+      SE.forgetValue(Phi);
       Phi->replaceAllUsesWith(V);
       DeadInsts.emplace_back(Phi);
       ++NumElim;
@@ -2131,12 +1983,14 @@ SCEVExpander::replaceCongruentIVs(Loop *L, const DominatorTree *DT,
         // with the original phi. It's worth eagerly cleaning up the
         // common case of a single IV increment so that DeleteDeadPHIs
         // can remove cycles that had postinc uses.
+        // Because we may potentially introduce a new use of OrigIV that didn't
+        // exist before at this point, its poison flags need readjustment.
         const SCEV *TruncExpr =
             SE.getTruncateOrNoop(SE.getSCEV(OrigInc), IsomorphicInc->getType());
         if (OrigInc != IsomorphicInc &&
             TruncExpr == SE.getSCEV(IsomorphicInc) &&
             SE.LI.replacementPreservesLCSSAForm(IsomorphicInc, OrigInc) &&
-            hoistIVInc(OrigInc, IsomorphicInc)) {
+            hoistIVInc(OrigInc, IsomorphicInc, /*RecomputePoisonFlags*/ true)) {
           SCEV_DEBUG_WITH_TYPE(
               DebugType, dbgs() << "INDVARS: Eliminated congruent iv.inc: "
                                 << *IsomorphicInc << '\n');
@@ -2176,9 +2030,9 @@ SCEVExpander::replaceCongruentIVs(Loop *L, const DominatorTree *DT,
   return NumElim;
 }
 
-Optional<ScalarEvolution::ValueOffsetPair>
-SCEVExpander::getRelatedExistingExpansion(const SCEV *S, const Instruction *At,
-                                          Loop *L) {
+Value *SCEVExpander::getRelatedExistingExpansion(const SCEV *S,
+                                                 const Instruction *At,
+                                                 Loop *L) {
   using namespace llvm::PatternMatch;
 
   SmallVector<BasicBlock *, 4> ExitingBlocks;
@@ -2195,25 +2049,17 @@ SCEVExpander::getRelatedExistingExpansion(const SCEV *S, const Instruction *At,
       continue;
 
     if (SE.getSCEV(LHS) == S && SE.DT.dominates(LHS, At))
-      return ScalarEvolution::ValueOffsetPair(LHS, nullptr);
+      return LHS;
 
     if (SE.getSCEV(RHS) == S && SE.DT.dominates(RHS, At))
-      return ScalarEvolution::ValueOffsetPair(RHS, nullptr);
+      return RHS;
   }
 
   // Use expand's logic which is used for reusing a previous Value in
   // ExprValueMap.  Note that we don't currently model the cost of
   // needing to drop poison generating flags on the instruction if we
   // want to reuse it.  We effectively assume that has zero cost.
-  ScalarEvolution::ValueOffsetPair VO = FindValueInExprValueMap(S, At);
-  if (VO.first)
-    return VO;
-
-  // There is potential to make this significantly smarter, but this simple
-  // heuristic already gets some interesting cases.
-
-  // Can not find suitable value.
-  return None;
+  return FindValueInExprValueMap(S, At);
 }
 
 template<typename T> static InstructionCost costAndCollectOperands(
@@ -2324,7 +2170,7 @@ template<typename T> static InstructionCost costAndCollectOperands(
   }
   case scAddRecExpr: {
     // In this polynominal, we may have some zero operands, and we shouldn't
-    // really charge for those. So how many non-zero coeffients are there?
+    // really charge for those. So how many non-zero coefficients are there?
     int NumTerms = llvm::count_if(S->operands(), [](const SCEV *Op) {
                                     return !Op->isZero();
                                   });
@@ -2333,7 +2179,7 @@ template<typename T> static InstructionCost costAndCollectOperands(
     assert(!(*std::prev(S->operands().end()))->isZero() &&
            "Last operand should not be zero");
 
-    // Ignoring constant term (operand 0), how many of the coeffients are u> 1?
+    // Ignoring constant term (operand 0), how many of the coefficients are u> 1?
     int NumNonZeroDegreeNonOneTerms =
       llvm::count_if(S->operands(), [](const SCEV *Op) {
                       auto *SConst = dyn_cast<SCEVConstant>(Op);
@@ -2484,9 +2330,9 @@ Value *SCEVExpander::expandCodeForPredicate(const SCEVPredicate *Pred,
 Value *SCEVExpander::expandComparePredicate(const SCEVComparePredicate *Pred,
                                             Instruction *IP) {
   Value *Expr0 =
-      expandCodeForImpl(Pred->getLHS(), Pred->getLHS()->getType(), IP, false);
+      expandCodeForImpl(Pred->getLHS(), Pred->getLHS()->getType(), IP);
   Value *Expr1 =
-      expandCodeForImpl(Pred->getRHS(), Pred->getRHS()->getType(), IP, false);
+      expandCodeForImpl(Pred->getRHS(), Pred->getRHS()->getType(), IP);
 
   Builder.SetInsertPoint(IP);
   auto InvPred = ICmpInst::getInversePredicate(Pred->getPredicate());
@@ -2520,15 +2366,15 @@ Value *SCEVExpander::generateOverflowCheck(const SCEVAddRecExpr *AR,
 
   IntegerType *CountTy = IntegerType::get(Loc->getContext(), SrcBits);
   Builder.SetInsertPoint(Loc);
-  Value *TripCountVal = expandCodeForImpl(ExitCount, CountTy, Loc, false);
+  Value *TripCountVal = expandCodeForImpl(ExitCount, CountTy, Loc);
 
   IntegerType *Ty =
       IntegerType::get(Loc->getContext(), SE.getTypeSizeInBits(ARTy));
 
-  Value *StepValue = expandCodeForImpl(Step, Ty, Loc, false);
+  Value *StepValue = expandCodeForImpl(Step, Ty, Loc);
   Value *NegStepValue =
-      expandCodeForImpl(SE.getNegativeSCEV(Step), Ty, Loc, false);
-  Value *StartValue = expandCodeForImpl(Start, ARTy, Loc, false);
+      expandCodeForImpl(SE.getNegativeSCEV(Step), Ty, Loc);
+  Value *StartValue = expandCodeForImpl(Start, ARTy, Loc);
 
   ConstantInt *Zero =
       ConstantInt::get(Loc->getContext(), APInt::getZero(DstBits));
@@ -2652,7 +2498,7 @@ Value *SCEVExpander::expandUnionPredicate(const SCEVUnionPredicate *Union,
                                           Instruction *IP) {
   // Loop over all checks in this set.
   SmallVector<Value *> Checks;
-  for (auto Pred : Union->getPredicates()) {
+  for (const auto *Pred : Union->getPredicates()) {
     Checks.push_back(expandCodeForPredicate(Pred, IP));
     Builder.SetInsertPoint(IP);
   }
@@ -2662,21 +2508,36 @@ Value *SCEVExpander::expandUnionPredicate(const SCEVUnionPredicate *Union,
   return Builder.CreateOr(Checks);
 }
 
-Value *SCEVExpander::fixupLCSSAFormFor(Instruction *User, unsigned OpIdx) {
-  assert(PreserveLCSSA);
-  SmallVector<Instruction *, 1> ToUpdate;
+Value *SCEVExpander::fixupLCSSAFormFor(Value *V) {
+  auto *DefI = dyn_cast<Instruction>(V);
+  if (!PreserveLCSSA || !DefI)
+    return V;
 
-  auto *OpV = User->getOperand(OpIdx);
-  auto *OpI = dyn_cast<Instruction>(OpV);
-  if (!OpI)
-    return OpV;
-
-  Loop *DefLoop = SE.LI.getLoopFor(OpI->getParent());
-  Loop *UseLoop = SE.LI.getLoopFor(User->getParent());
+  Instruction *InsertPt = &*Builder.GetInsertPoint();
+  Loop *DefLoop = SE.LI.getLoopFor(DefI->getParent());
+  Loop *UseLoop = SE.LI.getLoopFor(InsertPt->getParent());
   if (!DefLoop || UseLoop == DefLoop || DefLoop->contains(UseLoop))
-    return OpV;
+    return V;
 
-  ToUpdate.push_back(OpI);
+  // Create a temporary instruction to at the current insertion point, so we
+  // can hand it off to the helper to create LCSSA PHIs if required for the
+  // new use.
+  // FIXME: Ideally formLCSSAForInstructions (used in fixupLCSSAFormFor)
+  // would accept a insertion point and return an LCSSA phi for that
+  // insertion point, so there is no need to insert & remove the temporary
+  // instruction.
+  Type *ToTy;
+  if (DefI->getType()->isIntegerTy())
+    ToTy = DefI->getType()->getPointerTo();
+  else
+    ToTy = Type::getInt32Ty(DefI->getContext());
+  Instruction *User =
+      CastInst::CreateBitOrPointerCast(DefI, ToTy, "tmp.lcssa.user", InsertPt);
+  auto RemoveUserOnExit =
+      make_scope_exit([User]() { User->eraseFromParent(); });
+
+  SmallVector<Instruction *, 1> ToUpdate;
+  ToUpdate.push_back(DefI);
   SmallVector<PHINode *, 16> PHIsToRemove;
   formLCSSAForInstructions(ToUpdate, SE.DT, SE.LI, &SE, Builder, &PHIsToRemove);
   for (PHINode *PN : PHIsToRemove) {
@@ -2687,7 +2548,7 @@ Value *SCEVExpander::fixupLCSSAFormFor(Instruction *User, unsigned OpIdx) {
     PN->eraseFromParent();
   }
 
-  return User->getOperand(OpIdx);
+  return User->getOperand(0);
 }
 
 namespace {
@@ -2701,9 +2562,7 @@ namespace {
 // only needed when the expression includes some subexpression that is not IV
 // derived.
 //
-// Currently, we only allow division by a nonzero constant here. If this is
-// inadequate, we could easily allow division by SCEVUnknown by using
-// ValueTracking to check isKnownNonZero().
+// Currently, we only allow division by a value provably non-zero here.
 //
 // We cannot generally expand recurrences unless the step dominates the loop
 // header. The expander handles the special case of affine recurrences by
@@ -2721,8 +2580,7 @@ struct SCEVFindUnsafe {
 
   bool follow(const SCEV *S) {
     if (const SCEVUDivExpr *D = dyn_cast<SCEVUDivExpr>(S)) {
-      const SCEVConstant *SC = dyn_cast<SCEVConstant>(D->getRHS());
-      if (!SC || SC->getValue()->isZero()) {
+      if (!SE.isKnownNonZero(D->getRHS())) {
         IsUnsafe = true;
         return false;
       }
@@ -2746,18 +2604,17 @@ struct SCEVFindUnsafe {
   }
   bool isDone() const { return IsUnsafe; }
 };
-}
+} // namespace
 
-namespace llvm {
-bool isSafeToExpand(const SCEV *S, ScalarEvolution &SE, bool CanonicalMode) {
+bool SCEVExpander::isSafeToExpand(const SCEV *S) const {
   SCEVFindUnsafe Search(SE, CanonicalMode);
   visitAll(S, Search);
   return !Search.IsUnsafe;
 }
 
-bool isSafeToExpandAt(const SCEV *S, const Instruction *InsertionPoint,
-                      ScalarEvolution &SE) {
-  if (!isSafeToExpand(S, SE))
+bool SCEVExpander::isSafeToExpandAt(const SCEV *S,
+                                    const Instruction *InsertionPoint) const {
+  if (!isSafeToExpand(S))
     return false;
   // We have to prove that the expanded site of S dominates InsertionPoint.
   // This is easy when not in the same block, but hard when S is an instruction
@@ -2803,8 +2660,7 @@ void SCEVExpanderCleaner::cleanup() {
 #endif
     assert(!I->getType()->isVoidTy() &&
            "inserted instruction should have non-void types");
-    I->replaceAllUsesWith(UndefValue::get(I->getType()));
+    I->replaceAllUsesWith(PoisonValue::get(I->getType()));
     I->eraseFromParent();
   }
-}
 }

@@ -28,14 +28,15 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileOutputBuffer.h"
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/TextAPI/Architecture.h"
+#include <optional>
 
 using namespace llvm;
 using namespace llvm::object;
 
 static const StringRef ToolName = "llvm-lipo";
-static LLVMContext LLVMCtx;
 
 [[noreturn]] static void reportError(Twine Message) {
   WithColor::error(errs(), ToolName) << Message << "\n";
@@ -73,12 +74,12 @@ enum LipoID {
 };
 
 // LipoInfoTable below references LIPO_##PREFIX. OptionGroup has prefix nullptr.
-const char *const *LIPO_nullptr = nullptr;
+constexpr const char *const *LIPO_nullptr = nullptr;
 #define PREFIX(NAME, VALUE) const char *const LIPO_##NAME[] = VALUE;
 #include "LipoOpts.inc"
 #undef PREFIX
 
-const opt::OptTable::Info LipoInfoTable[] = {
+static constexpr opt::OptTable::Info LipoInfoTable[] = {
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
   {LIPO_##PREFIX, NAME,      HELPTEXT,                                         \
@@ -105,7 +106,7 @@ enum class LipoAction {
 };
 
 struct InputFile {
-  Optional<StringRef> ArchType;
+  std::optional<StringRef> ArchType;
   StringRef FileName;
 };
 
@@ -119,7 +120,7 @@ struct Config {
   LipoAction ActionToPerform;
 };
 
-static Slice createSliceFromArchive(const Archive &A) {
+static Slice createSliceFromArchive(LLVMContext &LLVMCtx, const Archive &A) {
   Expected<Slice> ArchiveOrSlice = Slice::create(A, &LLVMCtx);
   if (!ArchiveOrSlice)
     reportError(A.getFileName(), ArchiveOrSlice.takeError());
@@ -177,16 +178,14 @@ static Config parseLipoOptions(ArrayRef<const char *> ArgsArr) {
     exit(EXIT_SUCCESS);
   }
 
-  for (auto Arg : InputArgs.filtered(LIPO_UNKNOWN))
+  for (auto *Arg : InputArgs.filtered(LIPO_UNKNOWN))
     reportError("unknown argument '" + Arg->getAsString(InputArgs) + "'");
 
-  for (auto Arg : InputArgs.filtered(LIPO_INPUT))
-    C.InputFiles.push_back({None, Arg->getValue()});
-  for (auto Arg : InputArgs.filtered(LIPO_arch)) {
+  for (auto *Arg : InputArgs.filtered(LIPO_INPUT))
+    C.InputFiles.push_back({std::nullopt, Arg->getValue()});
+  for (auto *Arg : InputArgs.filtered(LIPO_arch)) {
     validateArchitectureName(Arg->getValue(0));
-    if (!Arg->getValue(1))
-      reportError(
-          "arch is missing an argument: expects -arch arch_type file_name");
+    assert(Arg->getValue(1) && "file_name is missing");
     C.InputFiles.push_back({StringRef(Arg->getValue(0)), Arg->getValue(1)});
   }
 
@@ -196,7 +195,7 @@ static Config parseLipoOptions(ArrayRef<const char *> ArgsArr) {
   if (InputArgs.hasArg(LIPO_output))
     C.OutputFile = std::string(InputArgs.getLastArgValue(LIPO_output));
 
-  for (auto Segalign : InputArgs.filtered(LIPO_segalign)) {
+  for (auto *Segalign : InputArgs.filtered(LIPO_segalign)) {
     if (!Segalign->getValue(1))
       reportError("segalign is missing an argument: expects -segalign "
                   "arch_type alignment_value");
@@ -240,7 +239,7 @@ static Config parseLipoOptions(ArrayRef<const char *> ArgsArr) {
     std::string Buf;
     raw_string_ostream OS(Buf);
     OS << "only one of the following actions can be specified:";
-    for (auto Arg : ActionArgs)
+    for (auto *Arg : ActionArgs)
       OS << " " << Arg->getSpelling();
     reportError(OS.str());
   }
@@ -294,11 +293,8 @@ static Config parseLipoOptions(ArrayRef<const char *> ArgsArr) {
     return C;
 
   case LIPO_replace:
-    for (auto Action : ActionArgs) {
-      if (!Action->getValue(1))
-        reportError(
-            "replace is missing an argument: expects -replace arch_type "
-            "file_name");
+    for (auto *Action : ActionArgs) {
+      assert(Action->getValue(1) && "file_name is missing");
       validateArchitectureName(Action->getValue(0));
       C.ReplacementFiles.push_back(
           {StringRef(Action->getValue(0)), Action->getValue(1)});
@@ -317,7 +313,7 @@ static Config parseLipoOptions(ArrayRef<const char *> ArgsArr) {
 }
 
 static SmallVector<OwningBinary<Binary>, 1>
-readInputBinaries(ArrayRef<InputFile> InputFiles) {
+readInputBinaries(LLVMContext &LLVMCtx, ArrayRef<InputFile> InputFiles) {
   SmallVector<OwningBinary<Binary>, 1> InputBinaries;
   for (const InputFile &IF : InputFiles) {
     Expected<OwningBinary<Binary>> BinaryOrErr =
@@ -329,11 +325,10 @@ readInputBinaries(ArrayRef<InputFile> InputFiles) {
         !B->isIR())
       reportError("File " + IF.FileName + " has unsupported binary format");
     if (IF.ArchType && (B->isMachO() || B->isArchive() || B->isIR())) {
-      const auto S = B->isMachO()
-                         ? Slice(*cast<MachOObjectFile>(B))
-                         : B->isArchive()
-                               ? createSliceFromArchive(*cast<Archive>(B))
-                               : createSliceFromIR(*cast<IRObjectFile>(B), 0);
+      const auto S = B->isMachO() ? Slice(*cast<MachOObjectFile>(B))
+                     : B->isArchive()
+                         ? createSliceFromArchive(LLVMCtx, *cast<Archive>(B))
+                         : createSliceFromIR(*cast<IRObjectFile>(B), 0);
       const auto SpecifiedCPUType = MachO::getCPUTypeFromArchitecture(
                                         MachO::getArchitectureFromName(
                                             Triple(*IF.ArchType).getArchName()))
@@ -381,7 +376,8 @@ verifyArch(ArrayRef<OwningBinary<Binary>> InputBinaries,
   exit(EXIT_SUCCESS);
 }
 
-static void printBinaryArchs(const Binary *Binary, raw_ostream &OS) {
+static void printBinaryArchs(LLVMContext &LLVMCtx, const Binary *Binary,
+                             raw_ostream &OS) {
   // Prints trailing space for compatibility with cctools lipo.
   if (auto UO = dyn_cast<MachOUniversalBinary>(Binary)) {
     for (const auto &O : UO->objects()) {
@@ -409,7 +405,8 @@ static void printBinaryArchs(const Binary *Binary, raw_ostream &OS) {
       if (ArchiveOrError) {
         consumeError(MachOObjOrError.takeError());
         consumeError(IROrError.takeError());
-        OS << createSliceFromArchive(**ArchiveOrError).getArchString() << " ";
+        OS << createSliceFromArchive(LLVMCtx, **ArchiveOrError).getArchString()
+           << " ";
         continue;
       }
       consumeError(ArchiveOrError.takeError());
@@ -430,26 +427,26 @@ static void printBinaryArchs(const Binary *Binary, raw_ostream &OS) {
   Expected<Slice> SliceOrErr = createSliceFromIR(*IR, 0);
   if (!SliceOrErr)
     reportError(IR->getFileName(), SliceOrErr.takeError());
-  
+
   OS << SliceOrErr->getArchString() << " \n";
 }
 
 [[noreturn]] static void
-printArchs(ArrayRef<OwningBinary<Binary>> InputBinaries) {
+printArchs(LLVMContext &LLVMCtx, ArrayRef<OwningBinary<Binary>> InputBinaries) {
   assert(InputBinaries.size() == 1 && "Incorrect number of input binaries");
-  printBinaryArchs(InputBinaries.front().getBinary(), outs());
+  printBinaryArchs(LLVMCtx, InputBinaries.front().getBinary(), outs());
   exit(EXIT_SUCCESS);
 }
 
 [[noreturn]] static void
-printInfo(ArrayRef<OwningBinary<Binary>> InputBinaries) {
+printInfo(LLVMContext &LLVMCtx, ArrayRef<OwningBinary<Binary>> InputBinaries) {
   // Group universal and thin files together for compatibility with cctools lipo
   for (auto &IB : InputBinaries) {
     const Binary *Binary = IB.getBinary();
     if (Binary->isMachOUniversalBinary()) {
       outs() << "Architectures in the fat file: " << Binary->getFileName()
              << " are: ";
-      printBinaryArchs(Binary, outs());
+      printBinaryArchs(LLVMCtx, Binary, outs());
     }
   }
   for (auto &IB : InputBinaries) {
@@ -458,13 +455,14 @@ printInfo(ArrayRef<OwningBinary<Binary>> InputBinaries) {
       assert(Binary->isMachO() && "expected MachO binary");
       outs() << "Non-fat file: " << Binary->getFileName()
              << " is architecture: ";
-      printBinaryArchs(Binary, outs());
+      printBinaryArchs(LLVMCtx, Binary, outs());
     }
   }
   exit(EXIT_SUCCESS);
 }
 
-[[noreturn]] static void thinSlice(ArrayRef<OwningBinary<Binary>> InputBinaries,
+[[noreturn]] static void thinSlice(LLVMContext &LLVMCtx,
+                                   ArrayRef<OwningBinary<Binary>> InputBinaries,
                                    StringRef ArchType,
                                    StringRef OutputFileName) {
   assert(!ArchType.empty() && "The architecture type should be non-empty");
@@ -552,7 +550,7 @@ static void checkUnusedAlignments(ArrayRef<Slice> Slices,
 // Updates vector ExtractedObjects with the MachOObjectFiles extracted from
 // Universal Binary files to transfer ownership.
 static SmallVector<Slice, 2>
-buildSlices(ArrayRef<OwningBinary<Binary>> InputBinaries,
+buildSlices(LLVMContext &LLVMCtx, ArrayRef<OwningBinary<Binary>> InputBinaries,
             const StringMap<const uint32_t> &Alignments,
             SmallVectorImpl<std::unique_ptr<SymbolicFile>> &ExtractedObjects) {
   SmallVector<Slice, 2> Slices;
@@ -583,7 +581,7 @@ buildSlices(ArrayRef<OwningBinary<Binary>> InputBinaries,
     } else if (const auto *O = dyn_cast<MachOObjectFile>(InputBinary)) {
       Slices.emplace_back(*O);
     } else if (const auto *A = dyn_cast<Archive>(InputBinary)) {
-      Slices.push_back(createSliceFromArchive(*A));
+      Slices.push_back(createSliceFromArchive(LLVMCtx, *A));
     } else if (const auto *IRO = dyn_cast<IRObjectFile>(InputBinary)) {
       // Original Apple's lipo set the alignment to 0
       Expected<Slice> SliceOrErr = Slice::create(*IRO, 0);
@@ -600,16 +598,15 @@ buildSlices(ArrayRef<OwningBinary<Binary>> InputBinaries,
   return Slices;
 }
 
-[[noreturn]] static void
-createUniversalBinary(ArrayRef<OwningBinary<Binary>> InputBinaries,
-                      const StringMap<const uint32_t> &Alignments,
-                      StringRef OutputFileName) {
+[[noreturn]] static void createUniversalBinary(
+    LLVMContext &LLVMCtx, ArrayRef<OwningBinary<Binary>> InputBinaries,
+    const StringMap<const uint32_t> &Alignments, StringRef OutputFileName) {
   assert(InputBinaries.size() >= 1 && "Incorrect number of input binaries");
   assert(!OutputFileName.empty() && "Create expects a single output file");
 
   SmallVector<std::unique_ptr<SymbolicFile>, 1> ExtractedObjects;
   SmallVector<Slice, 1> Slices =
-      buildSlices(InputBinaries, Alignments, ExtractedObjects);
+      buildSlices(LLVMCtx, InputBinaries, Alignments, ExtractedObjects);
   checkArchDuplicates(Slices);
   checkUnusedAlignments(Slices, Alignments);
 
@@ -621,7 +618,7 @@ createUniversalBinary(ArrayRef<OwningBinary<Binary>> InputBinaries,
 }
 
 [[noreturn]] static void
-extractSlice(ArrayRef<OwningBinary<Binary>> InputBinaries,
+extractSlice(LLVMContext &LLVMCtx, ArrayRef<OwningBinary<Binary>> InputBinaries,
              const StringMap<const uint32_t> &Alignments, StringRef ArchType,
              StringRef OutputFileName) {
   assert(!ArchType.empty() &&
@@ -637,7 +634,7 @@ extractSlice(ArrayRef<OwningBinary<Binary>> InputBinaries,
 
   SmallVector<std::unique_ptr<SymbolicFile>, 2> ExtractedObjects;
   SmallVector<Slice, 2> Slices =
-      buildSlices(InputBinaries, Alignments, ExtractedObjects);
+      buildSlices(LLVMCtx, InputBinaries, Alignments, ExtractedObjects);
   erase_if(Slices, [ArchType](const Slice &S) {
     return ArchType != S.getArchString();
   });
@@ -680,7 +677,8 @@ buildReplacementSlices(ArrayRef<OwningBinary<Binary>> ReplacementBinaries,
 }
 
 [[noreturn]] static void
-replaceSlices(ArrayRef<OwningBinary<Binary>> InputBinaries,
+replaceSlices(LLVMContext &LLVMCtx,
+              ArrayRef<OwningBinary<Binary>> InputBinaries,
               const StringMap<const uint32_t> &Alignments,
               StringRef OutputFileName, ArrayRef<InputFile> ReplacementFiles) {
   assert(InputBinaries.size() == 1 && "Incorrect number of input binaries");
@@ -692,13 +690,13 @@ replaceSlices(ArrayRef<OwningBinary<Binary>> InputBinaries,
                 " must be a fat file when the -replace option is specified");
 
   SmallVector<OwningBinary<Binary>, 1> ReplacementBinaries =
-      readInputBinaries(ReplacementFiles);
+      readInputBinaries(LLVMCtx, ReplacementFiles);
 
   StringMap<Slice> ReplacementSlices =
       buildReplacementSlices(ReplacementBinaries, Alignments);
   SmallVector<std::unique_ptr<SymbolicFile>, 2> ExtractedObjects;
   SmallVector<Slice, 2> Slices =
-      buildSlices(InputBinaries, Alignments, ExtractedObjects);
+      buildSlices(LLVMCtx, InputBinaries, Alignments, ExtractedObjects);
 
   for (auto &Slice : Slices) {
     auto It = ReplacementSlices.find(Slice.getArchString());
@@ -722,33 +720,40 @@ replaceSlices(ArrayRef<OwningBinary<Binary>> InputBinaries,
   exit(EXIT_SUCCESS);
 }
 
-int main(int argc, char **argv) {
+int llvm_lipo_main(int argc, char **argv) {
   InitLLVM X(argc, argv);
-  Config C = parseLipoOptions(makeArrayRef(argv + 1, argc));
+  llvm::InitializeAllTargetInfos();
+  llvm::InitializeAllTargetMCs();
+  llvm::InitializeAllAsmParsers();
+
+  Config C = parseLipoOptions(makeArrayRef(argv + 1, argc - 1));
+  LLVMContext LLVMCtx;
   SmallVector<OwningBinary<Binary>, 1> InputBinaries =
-      readInputBinaries(C.InputFiles);
+      readInputBinaries(LLVMCtx, C.InputFiles);
 
   switch (C.ActionToPerform) {
   case LipoAction::VerifyArch:
     verifyArch(InputBinaries, C.VerifyArchList);
     break;
   case LipoAction::PrintArchs:
-    printArchs(InputBinaries);
+    printArchs(LLVMCtx, InputBinaries);
     break;
   case LipoAction::PrintInfo:
-    printInfo(InputBinaries);
+    printInfo(LLVMCtx, InputBinaries);
     break;
   case LipoAction::ThinArch:
-    thinSlice(InputBinaries, C.ArchType, C.OutputFile);
+    thinSlice(LLVMCtx, InputBinaries, C.ArchType, C.OutputFile);
     break;
   case LipoAction::ExtractArch:
-    extractSlice(InputBinaries, C.SegmentAlignments, C.ArchType, C.OutputFile);
+    extractSlice(LLVMCtx, InputBinaries, C.SegmentAlignments, C.ArchType,
+                 C.OutputFile);
     break;
   case LipoAction::CreateUniversal:
-    createUniversalBinary(InputBinaries, C.SegmentAlignments, C.OutputFile);
+    createUniversalBinary(LLVMCtx, InputBinaries, C.SegmentAlignments,
+                          C.OutputFile);
     break;
   case LipoAction::ReplaceArch:
-    replaceSlices(InputBinaries, C.SegmentAlignments, C.OutputFile,
+    replaceSlices(LLVMCtx, InputBinaries, C.SegmentAlignments, C.OutputFile,
                   C.ReplacementFiles);
     break;
   }

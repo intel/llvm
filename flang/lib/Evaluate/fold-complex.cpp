@@ -30,7 +30,8 @@ Expr<Type<TypeCategory::Complex, KIND>> FoldIntrinsicFunction(
           context, std::move(funcRef), *callable);
     } else {
       context.messages().Say(
-          "%s(complex(kind=%d)) cannot be folded on host"_en_US, name, KIND);
+          "%s(complex(kind=%d)) cannot be folded on host"_warn_en_US, name,
+          KIND);
     }
   } else if (name == "conjg") {
     return FoldElementalIntrinsic<T, T>(
@@ -61,6 +62,8 @@ Expr<Type<TypeCategory::Complex, KIND>> FoldIntrinsicFunction(
                     ToReal<KIND>(context, std::move(im))}});
       }
     }
+  } else if (name == "dot_product") {
+    return FoldDotProduct<T>(context, std::move(funcRef));
   } else if (name == "merge") {
     return FoldMerge<T>(context, std::move(funcRef));
   } else if (name == "product") {
@@ -69,7 +72,7 @@ Expr<Type<TypeCategory::Complex, KIND>> FoldIntrinsicFunction(
   } else if (name == "sum") {
     return FoldSum<T>(context, std::move(funcRef));
   }
-  // TODO: dot_product, matmul, transfer
+  // TODO: matmul
   return Expr<T>{std::move(funcRef)};
 }
 

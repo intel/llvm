@@ -33,7 +33,9 @@ post-if: false
 runs:
   using: "composite"
   steps:
-  - run: cp -r /actions .
+  - run: |
+      cp -r /actions .
+      git config --global --add safe.directory /__w/repo_cache/intel/llvm-test-suite
     shell: bash
   - name: Checkout LLVM Test Suite
     uses: ./actions/cached_checkout
@@ -44,7 +46,7 @@ runs:
       default_branch: 'intel'
       cache_path: "/__w/repo_cache/"
   - name: Download compiler toolchain
-    uses: actions/download-artifact@v2
+    uses: actions/download-artifact@v3
     with:
       name: ${{ inputs.sycl_artifact }}
   - name: Extract SYCL toolchain
@@ -54,7 +56,7 @@ runs:
       tar -xf ${{ inputs.sycl_archive }} -C toolchain
       rm -f ${{ inputs.sycl_archive }}
   - name: Download LIT
-    uses: actions/download-artifact@v2
+    uses: actions/download-artifact@v3
     with:
       name: ${{ inputs.lit_artifact }}
   - name: Extract LIT
@@ -79,21 +81,25 @@ runs:
       export PATH=$PWD/toolchain/bin/:$PATH
       # TODO make this part of container build
       export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/rocm/hip/lib/:/opt/rocm/lib
-      export LIT_OPTS="-v --no-progress-bar --show-unsupported --time-tests -o $PWD/build/results_${{ inputs.results_name_suffix }}.json"
+      export LIT_OPTS="-v --no-progress-bar --show-unsupported --max-time 3600 --time-tests -o $PWD/build/results_${{ inputs.results_name_suffix }}.json"
       if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
         source /runtimes/oneapi-tbb/env/vars.sh;
+      elif [ -e /opt/runtimes/oneapi-tbb/env/vars.sh ]; then
+        source /opt/runtimes/oneapi-tbb/env/vars.sh;
+      else
+        echo "no TBB vars in /opt/runtimes or /runtimes";
       fi
       # TODO remove workaround of FPGA emu bug
       mkdir -p icd
       echo /usr/lib/x86_64-linux-gnu/intel-opencl/libigdrcl.so > icd/gpu.icd
       echo /runtimes/oclcpu/x64/libintelocl.so > icd/cpu.icd
+      echo /opt/runtimes/oclcpu/x64/libintelocl.so > icd/cpu2.icd
       export OCL_ICD_VENDORS=$PWD/icd
       echo "::group::sycl-ls --verbose"
       sycl-ls --verbose
       echo "::endgroup::"
       echo "::group::SYCL_PI_TRACE=-1 sycl-ls"
       echo $LD_LIBRARY_PATH
-      ldd $PWD/toolchain/lib/libpi_hip.so
       SYCL_PI_TRACE=-1 sycl-ls
       echo "::endgroup::"
       cd build

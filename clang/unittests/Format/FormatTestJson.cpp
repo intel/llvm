@@ -30,14 +30,12 @@ protected:
     if (Style.isJson() && !Style.DisableFormat) {
       auto Err = Replaces.add(
           tooling::Replacement(tooling::Replacement("", 0, 0, "x = ")));
-      if (Err) {
+      if (Err)
         llvm::errs() << "Bad Json variable insertion\n";
-      }
     }
     auto ChangedCode = applyAllReplacements(Code, Replaces);
-    if (!ChangedCode) {
+    if (!ChangedCode)
       llvm::errs() << "Bad Json varibale replacement\n";
-    }
     StringRef NewCode = *ChangedCode;
 
     std::vector<tooling::Range> Ranges(1, tooling::Range(0, NewCode.size()));
@@ -159,6 +157,27 @@ TEST_F(FormatTestJson, JsonArray) {
                "  },\n"
                "  {}\n"
                "]");
+}
+
+TEST_F(FormatTestJson, JsonArrayOneLine) {
+  FormatStyle Style = getLLVMStyle(FormatStyle::LK_Json);
+  Style.BreakArrays = false;
+  Style.SpacesInContainerLiterals = false;
+  verifyFormat("[]", Style);
+  verifyFormat("[1]", Style);
+  verifyFormat("[1, 2]", Style);
+  verifyFormat("[1, 2, 3]", Style);
+  verifyFormat("[1, 2, 3, 4]", Style);
+  verifyFormat("[1, 2, 3, 4, 5]", Style);
+
+  verifyFormat("[\n"
+               "  1,\n"
+               "  2,\n"
+               "  {\n"
+               "    A: 1\n"
+               "  }\n"
+               "]",
+               Style);
 }
 
 TEST_F(FormatTestJson, JsonNoStringSplit) {

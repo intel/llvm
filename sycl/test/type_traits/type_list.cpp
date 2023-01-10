@@ -7,14 +7,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <type_traits>
 
 using namespace std;
 
-namespace s = cl::sycl;
-namespace d = cl::sycl::detail;
+namespace s = sycl;
+namespace d = sycl::detail;
 
 template <template <typename, typename> class Predicate, typename T,
           typename T2, bool Expected = true>

@@ -1,13 +1,13 @@
-// RUN: mlir-opt %s -test-match-reduction -verify-diagnostics -split-input-file
+// RUN: mlir-opt %s -pass-pipeline="builtin.module(func.func(test-match-reduction))" -verify-diagnostics -split-input-file
 
 // Verify that the generic reduction detection utility works on different
 // dialects.
 
 // expected-remark@below {{Testing function}}
-func @linalg_red_add(%in0t : tensor<?xf32>, %out0t : tensor<1xf32>) {
+func.func @linalg_red_add(%in0t : tensor<?xf32>, %out0t : tensor<1xf32>) {
   // expected-remark@below {{Reduction found in output #0!}}
   // expected-remark@below {{Reduced Value: <block argument> of type 'f32' at index: 0}}
-  // expected-remark@below {{Combiner Op: %1 = arith.addf %arg2, %arg3 : f32}}
+  // expected-remark@below {{Combiner Op: %1 = arith.addf }}
   %red = linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>,
                                           affine_map<(d0) -> (0)>],
                                           iterator_types = ["reduction"]}
@@ -23,12 +23,12 @@ func @linalg_red_add(%in0t : tensor<?xf32>, %out0t : tensor<1xf32>) {
 // -----
 
 // expected-remark@below {{Testing function}}
-func @affine_red_add(%in: memref<256x512xf32>, %out: memref<256xf32>) {
+func.func @affine_red_add(%in: memref<256x512xf32>, %out: memref<256xf32>) {
  %cst = arith.constant 0.000000e+00 : f32
  affine.for %i = 0 to 256 {
    // expected-remark@below {{Reduction found in output #0!}}
-   // expected-remark@below {{Reduced Value: %1 = affine.load %arg0[%arg2, %arg3] : memref<256x512xf32>}}
-   // expected-remark@below {{Combiner Op: %2 = arith.addf %arg4, %1 : f32}}
+   // expected-remark@below {{Reduced Value: %1 = affine.load }}
+   // expected-remark@below {{Combiner Op: %2 = arith.addf }}
    %final_red = affine.for %j = 0 to 512 iter_args(%red_iter = %cst) -> (f32) {
      %ld = affine.load %in[%i, %j] : memref<256x512xf32>
      %add = arith.addf %red_iter, %ld : f32
@@ -43,7 +43,7 @@ func @affine_red_add(%in: memref<256x512xf32>, %out: memref<256xf32>) {
 
 // TODO: Iteration-carried values with multiple uses are not supported yet.
 // expected-remark@below {{Testing function}}
-func @linalg_red_max(%in0t: tensor<4x4xf32>, %out0t: tensor<4xf32>) {
+func.func @linalg_red_max(%in0t: tensor<4x4xf32>, %out0t: tensor<4xf32>) {
   // expected-remark@below {{Reduction NOT found in output #0!}}
   %red = linalg.generic {indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>,
                                           affine_map<(d0, d1) -> (d0)>],
@@ -61,10 +61,10 @@ func @linalg_red_max(%in0t: tensor<4x4xf32>, %out0t: tensor<4xf32>) {
 // -----
 
 // expected-remark@below {{Testing function}}
-func @linalg_fused_red_add(%in0t: tensor<4x4xf32>, %out0t: tensor<4xf32>) {
+func.func @linalg_fused_red_add(%in0t: tensor<4x4xf32>, %out0t: tensor<4xf32>) {
   // expected-remark@below {{Reduction found in output #0!}}
-  // expected-remark@below {{Reduced Value: %2 = arith.subf %1, %arg2 : f32}}
-  // expected-remark@below {{Combiner Op: %3 = arith.addf %2, %arg3 : f32}}
+  // expected-remark@below {{Reduced Value: %2 = arith.subf}}
+  // expected-remark@below {{Combiner Op: %3 = arith.addf}}
   %red = linalg.generic {indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>,
                                           affine_map<(d0, d1) -> (d0)>],
    iterator_types = ["parallel", "reduction"]}
@@ -82,7 +82,7 @@ func @linalg_fused_red_add(%in0t: tensor<4x4xf32>, %out0t: tensor<4xf32>) {
 // -----
 
 // expected-remark@below {{Testing function}}
-func @affine_no_red_rec(%in: memref<512xf32>) {
+func.func @affine_no_red_rec(%in: memref<512xf32>) {
  %cst = arith.constant 0.000000e+00 : f32
  // %rec is the value loaded in the previous iteration.
  // expected-remark@below {{Reduction NOT found in output #0!}}
@@ -97,7 +97,7 @@ func @affine_no_red_rec(%in: memref<512xf32>) {
 // -----
 
 // expected-remark@below {{Testing function}}
-func @affine_output_dep(%in: memref<512xf32>) {
+func.func @affine_output_dep(%in: memref<512xf32>) {
  %cst = arith.constant 0.000000e+00 : f32
  // Reduction %red is not supported because it depends on another
  // loop-carried dependence.

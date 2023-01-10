@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -opaque-pointers -emit-llvm %s -o - | FileCheck %s
 
 template <typename T>
 T bar(T arg);
@@ -22,6 +22,6 @@ int main() {
   return 0;
 }
 // CHECK: define {{.*}}spir_kernel void @_ZTSZ4mainE11fake_kernel()
-// CHECK: define internal spir_func void @_ZZ4mainENKUlvE_clEv(%class.anon addrspace(4)* {{[^,]*}} %this)
+// CHECK: define internal spir_func void @_ZZ4mainENKUlvE_clEv(ptr addrspace(4) {{[^,]*}} %this)
 // CHECK: define {{.*}}spir_func void @_Z3foov()
 // CHECK: define linkonce_odr spir_func noundef i32 @_Z3barIiET_S0_(i32 noundef %arg)

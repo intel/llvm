@@ -18,6 +18,7 @@
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/MC/TargetRegistry.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -27,27 +28,26 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeLoongArchTarget() {
   // Register the target.
   RegisterTargetMachine<LoongArchTargetMachine> X(getTheLoongArch32Target());
   RegisterTargetMachine<LoongArchTargetMachine> Y(getTheLoongArch64Target());
+  auto *PR = PassRegistry::getPassRegistry();
+  initializeLoongArchPreRAExpandPseudoPass(*PR);
 }
 
-// FIXME: This is just a placeholder to make current commit buildable. Body of
-// this function will be filled in later commits.
 static std::string computeDataLayout(const Triple &TT) {
-  std::string Ret;
-  Ret += "e";
-  return Ret;
+  if (TT.isArch64Bit())
+    return "e-m:e-p:64:64-i64:64-i128:128-n64-S128";
+  assert(TT.isArch32Bit() && "only LA32 and LA64 are currently supported");
+  return "e-m:e-p:32:32-i64:64-n32-S128";
 }
 
 static Reloc::Model getEffectiveRelocModel(const Triple &TT,
-                                           Optional<Reloc::Model> RM) {
-  if (!RM.hasValue())
-    return Reloc::Static;
-  return *RM;
+                                           std::optional<Reloc::Model> RM) {
+  return RM.value_or(Reloc::Static);
 }
 
 LoongArchTargetMachine::LoongArchTargetMachine(
     const Target &T, const Triple &TT, StringRef CPU, StringRef FS,
-    const TargetOptions &Options, Optional<Reloc::Model> RM,
-    Optional<CodeModel::Model> CM, CodeGenOpt::Level OL, bool JIT)
+    const TargetOptions &Options, std::optional<Reloc::Model> RM,
+    std::optional<CodeModel::Model> CM, CodeGenOpt::Level OL, bool JIT)
     : LLVMTargetMachine(T, computeDataLayout(TT), TT, CPU, FS, Options,
                         getEffectiveRelocModel(TT, RM),
                         getEffectiveCodeModel(CM, CodeModel::Small), OL),
@@ -103,17 +103,40 @@ public:
     return getTM<LoongArchTargetMachine>();
   }
 
+  void addIRPasses() override;
   bool addInstSelector() override;
+  void addPreEmitPass() override;
+  void addPreEmitPass2() override;
+  void addPreRegAlloc() override;
 };
-} // namespace
+} // end namespace
 
 TargetPassConfig *
 LoongArchTargetMachine::createPassConfig(PassManagerBase &PM) {
   return new LoongArchPassConfig(*this, PM);
 }
 
+void LoongArchPassConfig::addIRPasses() {
+  addPass(createAtomicExpandPass());
+
+  TargetPassConfig::addIRPasses();
+}
+
 bool LoongArchPassConfig::addInstSelector() {
   addPass(createLoongArchISelDag(getLoongArchTargetMachine()));
 
   return false;
+}
+
+void LoongArchPassConfig::addPreEmitPass() { addPass(&BranchRelaxationPassID); }
+
+void LoongArchPassConfig::addPreEmitPass2() {
+  // Schedule the expansion of AtomicPseudos at the last possible moment,
+  // avoiding the possibility for other passes to break the requirements for
+  // forward progress in the LL/SC block.
+  addPass(createLoongArchExpandAtomicPseudoPass());
+}
+
+void LoongArchPassConfig::addPreRegAlloc() {
+  addPass(createLoongArchPreRAExpandPseudoPass());
 }

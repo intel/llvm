@@ -12,18 +12,24 @@
 
 #include "LoongArchMCTargetDesc.h"
 #include "LoongArchBaseInfo.h"
+#include "LoongArchELFStreamer.h"
 #include "LoongArchInstPrinter.h"
 #include "LoongArchMCAsmInfo.h"
 #include "TargetInfo/LoongArchTargetInfo.h"
+#include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCAsmInfo.h"
+#include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCDwarf.h"
+#include "llvm/MC/MCInstrAnalysis.h"
 #include "llvm/MC/MCInstrInfo.h"
+#include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Compiler.h"
 
 #define GET_INSTRINFO_MC_DESC
+#define ENABLE_INSTR_PREDICATE_VERIFIER
 #include "LoongArchGenInstrInfo.inc"
 
 #define GET_REGINFO_MC_DESC
@@ -48,7 +54,7 @@ static MCInstrInfo *createLoongArchMCInstrInfo() {
 
 static MCSubtargetInfo *
 createLoongArchMCSubtargetInfo(const Triple &TT, StringRef CPU, StringRef FS) {
-  if (CPU.empty())
+  if (CPU.empty() || CPU == "generic")
     CPU = TT.isArch64Bit() ? "la464" : "generic-la32";
   return createLoongArchMCSubtargetInfoImpl(TT, CPU, /*TuneCPU*/ CPU, FS);
 }
@@ -58,7 +64,8 @@ static MCAsmInfo *createLoongArchMCAsmInfo(const MCRegisterInfo &MRI,
                                            const MCTargetOptions &Options) {
   MCAsmInfo *MAI = new LoongArchMCAsmInfo(TT);
 
-  MCRegister SP = MRI.getDwarfRegNum(LoongArch::R2, true);
+  // Initial state of the frame pointer is sp(r3).
+  MCRegister SP = MRI.getDwarfRegNum(LoongArch::R3, true);
   MCCFIInstruction Inst = MCCFIInstruction::cfiDefCfa(nullptr, SP, 0);
   MAI->addInitialFrameState(Inst);
 
@@ -73,27 +80,61 @@ static MCInstPrinter *createLoongArchMCInstPrinter(const Triple &T,
   return new LoongArchInstPrinter(MAI, MII, MRI);
 }
 
+static MCTargetStreamer *
+createLoongArchObjectTargetStreamer(MCStreamer &S, const MCSubtargetInfo &STI) {
+  return STI.getTargetTriple().isOSBinFormatELF()
+             ? new LoongArchTargetELFStreamer(S, STI)
+             : nullptr;
+}
+
+namespace {
+
+class LoongArchMCInstrAnalysis : public MCInstrAnalysis {
+public:
+  explicit LoongArchMCInstrAnalysis(const MCInstrInfo *Info)
+      : MCInstrAnalysis(Info) {}
+
+  bool evaluateBranch(const MCInst &Inst, uint64_t Addr, uint64_t Size,
+                      uint64_t &Target) const override {
+    unsigned NumOps = Inst.getNumOperands();
+    if (isBranch(Inst) || Inst.getOpcode() == LoongArch::BL) {
+      Target = Addr + Inst.getOperand(NumOps - 1).getImm();
+      return true;
+    }
+
+    return false;
+  }
+};
+
+} // end namespace
+
+static MCInstrAnalysis *createLoongArchInstrAnalysis(const MCInstrInfo *Info) {
+  return new LoongArchMCInstrAnalysis(Info);
+}
+
+namespace {
+MCStreamer *createLoongArchELFStreamer(const Triple &T, MCContext &Context,
+                                       std::unique_ptr<MCAsmBackend> &&MAB,
+                                       std::unique_ptr<MCObjectWriter> &&MOW,
+                                       std::unique_ptr<MCCodeEmitter> &&MCE,
+                                       bool RelaxAll) {
+  return createLoongArchELFStreamer(Context, std::move(MAB), std::move(MOW),
+                                    std::move(MCE), RelaxAll);
+}
+} // end namespace
+
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeLoongArchTargetMC() {
   for (Target *T : {&getTheLoongArch32Target(), &getTheLoongArch64Target()}) {
-    // Register the MC register info.
     TargetRegistry::RegisterMCRegInfo(*T, createLoongArchMCRegisterInfo);
-
-    // Register the MC instruction info.
     TargetRegistry::RegisterMCInstrInfo(*T, createLoongArchMCInstrInfo);
-
-    // Register the MC subtarget info.
     TargetRegistry::RegisterMCSubtargetInfo(*T, createLoongArchMCSubtargetInfo);
-
-    // Register the MC asm info.
     TargetRegistry::RegisterMCAsmInfo(*T, createLoongArchMCAsmInfo);
-
-    // Register the MC Code Emitter
     TargetRegistry::RegisterMCCodeEmitter(*T, createLoongArchMCCodeEmitter);
-
-    // Register the asm backend.
     TargetRegistry::RegisterMCAsmBackend(*T, createLoongArchAsmBackend);
-
-    // Register the MCInstPrinter.
     TargetRegistry::RegisterMCInstPrinter(*T, createLoongArchMCInstPrinter);
+    TargetRegistry::RegisterMCInstrAnalysis(*T, createLoongArchInstrAnalysis);
+    TargetRegistry::RegisterELFStreamer(*T, createLoongArchELFStreamer);
+    TargetRegistry::RegisterObjectTargetStreamer(
+        *T, createLoongArchObjectTargetStreamer);
   }
 }

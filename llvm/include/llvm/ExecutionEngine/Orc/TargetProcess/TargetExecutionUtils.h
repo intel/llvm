@@ -30,7 +30,10 @@ namespace orc {
 /// many main functions will expect a name argument at least, and will fail
 /// if none is provided.
 int runAsMain(int (*Main)(int, char *[]), ArrayRef<std::string> Args,
-              Optional<StringRef> ProgramName = None);
+              Optional<StringRef> ProgramName = std::nullopt);
+
+int runAsVoidFunction(int (*Func)(void));
+int runAsIntFunction(int (*Func)(int), int Arg);
 
 } // end namespace orc
 } // end namespace llvm

@@ -9,12 +9,9 @@
 
 # RUN: llc -mtriple powerpc-ibm-aix-xcoff -code-model=small -data-sections=false -mcpu=pwr4 -mattr=-altivec -O0 \
 # RUN:     -filetype=obj -o %t.o < %t.ll
-# RUN: llvm-objdump -D -r --symbol-description %t.o | FileCheck --check-prefix=DIS32 %s
+# RUN: llvm-objdump --no-print-imm-hex -D -r --symbol-description %t.o | FileCheck --check-prefix=DIS32 %s
 
-# RUN: not --crash llc -mtriple powerpc64-ibm-aix-xcoff -data-sections=false \
-# RUN:     -mcpu=pwr4 -mattr=-altivec -filetype=obj -o %t.o 2>&1 < %t.ll | \
-# RUN:   FileCheck --check-prefix=XCOFF64 %s
-# XCOFF64: LLVM ERROR: 64-bit XCOFF object files are not supported yet.
+## FIXME: currently only fileHeader and sectionHeaders are supported in XCOFF64.
 
 numentries = 12290
 for x in range(0, numentries):

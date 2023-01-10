@@ -15,7 +15,7 @@ void *f2(void) {
   abort();
   return 0;
 }
-// CHECK-LABEL: define {{.*}}i8* @f2()
+// CHECK-LABEL: define {{.*}}ptr @f2()
 // CHECK-NEXT: entry:
 // CHECK-NEXT:   call void @abort()
 // CHECK-NEXT:   unreachable

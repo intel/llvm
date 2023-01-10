@@ -46,7 +46,7 @@ class DWARFUnitIndex;
 /// information parsing. The actual data is supplied through DWARFObj.
 class DWARFContext : public DIContext {
   DWARFUnitVector NormalUnits;
-  Optional<DenseMap<uint64_t, DWARFTypeUnit*>> NormalTypeUnits;
+  std::optional<DenseMap<uint64_t, DWARFTypeUnit *>> NormalTypeUnits;
   std::unique_ptr<DWARFUnitIndex> CUIndex;
   std::unique_ptr<DWARFGdbIndex> GdbIndex;
   std::unique_ptr<DWARFUnitIndex> TUIndex;
@@ -65,7 +65,7 @@ class DWARFContext : public DIContext {
   std::unique_ptr<AppleAcceleratorTable> AppleObjC;
 
   DWARFUnitVector DWOUnits;
-  Optional<DenseMap<uint64_t, DWARFTypeUnit*>> DWOTypeUnits;
+  std::optional<DenseMap<uint64_t, DWARFTypeUnit *>> DWOTypeUnits;
   std::unique_ptr<DWARFDebugAbbrev> AbbrevDWO;
   std::unique_ptr<DWARFDebugMacro> MacinfoDWO;
   std::unique_ptr<DWARFDebugMacro> MacroDWO;
@@ -118,7 +118,7 @@ public:
                    WithColor::defaultErrorHandler,
                std::function<void(Error)> WarningHandler =
                    WithColor::defaultWarningHandler);
-  ~DWARFContext();
+  ~DWARFContext() override;
 
   DWARFContext(DWARFContext &) = delete;
   DWARFContext &operator=(DWARFContext &) = delete;
@@ -132,10 +132,10 @@ public:
   /// Dump a textual representation to \p OS. If any \p DumpOffsets are present,
   /// dump only the record at the specified offset.
   void dump(raw_ostream &OS, DIDumpOptions DumpOpts,
-            std::array<Optional<uint64_t>, DIDT_ID_Count> DumpOffsets);
+            std::array<std::optional<uint64_t>, DIDT_ID_Count> DumpOffsets);
 
   void dump(raw_ostream &OS, DIDumpOptions DumpOpts) override {
-    std::array<Optional<uint64_t>, DIDT_ID_Count> DumpOffsets;
+    std::array<std::optional<uint64_t>, DIDT_ID_Count> DumpOffsets;
     dump(OS, DumpOpts, DumpOffsets);
   }
 
@@ -333,6 +333,10 @@ public:
   getLineTableForUnit(DWARFUnit *U,
                       function_ref<void(Error)> RecoverableErrorHandler);
 
+  // Clear the line table object corresponding to a compile unit for memory
+  // management purpose. When it's referred to again, it'll be re-populated.
+  void clearLineTableForUnit(DWARFUnit *U);
+
   DataExtractor getStringExtractor() const {
     return DataExtractor(DObj->getStrSection(), false, 0);
   }
@@ -360,6 +364,8 @@ public:
   DILineInfo getLineInfoForAddress(
       object::SectionedAddress Address,
       DILineInfoSpecifier Specifier = DILineInfoSpecifier()) override;
+  DILineInfo
+  getLineInfoForDataAddress(object::SectionedAddress Address) override;
   DILineInfoTable getLineInfoForAddressRange(
       object::SectionedAddress Address, uint64_t Size,
       DILineInfoSpecifier Specifier = DILineInfoSpecifier()) override;

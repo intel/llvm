@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: !stdlib=libc++ && (c++03 || c++11 || c++14)
+
 // <string_view>
 
 // Test nested types and default template args:
@@ -70,8 +72,10 @@ test()
 int main(int, char**)
 {
     test<std::char_traits<char> >();
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
     test<std::char_traits<wchar_t> >();
-#if defined(__cpp_lib_char8_t) && __cpp_lib_char8_t >= 201811L
+#endif
+#ifndef TEST_HAS_NO_CHAR8_T
     test<std::char_traits<char8_t> >();
 #endif
     static_assert((std::is_same<std::basic_string_view<char>::traits_type,

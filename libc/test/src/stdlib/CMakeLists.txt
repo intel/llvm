@@ -77,6 +77,7 @@ add_libc_unittest(
   SRCS
     strtold_test.cpp
   DEPENDS
+    libc.src.__support.uint128
     libc.src.stdlib.strtold
 )
 
@@ -201,6 +202,18 @@ add_libc_unittest(
     libc.src.stdlib.qsort
 )
 
+add_libc_unittest(
+  rand_test
+  SUITE
+    libc_stdlib_unittests
+  SRCS
+    rand_test.cpp
+  DEPENDS
+    libc.include.stdlib
+    libc.src.stdlib.rand
+    libc.src.stdlib.srand
+)
+
 if(LLVM_LIBC_FULL_BUILD)
 
   add_libc_unittest(
@@ -226,21 +239,22 @@ if(LLVM_LIBC_FULL_BUILD)
       libc.src.stdlib._Exit
       libc.src.stdlib.exit
       libc.src.stdlib.atexit
-      libc.src.__support.CPP.standalone_cpp
+      libc.src.__support.CPP.array
+      libc.src.__support.CPP.utility
   )
 
-  # add_libc_unittest(
-  #   abort_test
-  #   SUITE
-  #     libc_stdlib_unittests
-  #   SRCS
-  #     abort_test.cpp
-  #   DEPENDS
-  #     libc.include.stdlib
-  #     libc.include.signal
-  #     libc.src.stdlib.abort
-  #     libc.src.stdlib._Exit
-  #     libc.src.signal.raise
-  # )
+  add_libc_unittest(
+    abort_test
+    SUITE
+      libc_stdlib_unittests
+    SRCS
+      abort_test.cpp
+    DEPENDS
+      libc.include.stdlib
+      libc.include.signal
+      libc.src.stdlib.abort
+      libc.src.stdlib._Exit
+      libc.src.signal.raise
+  )
 
 endif()

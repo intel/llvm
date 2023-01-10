@@ -66,8 +66,9 @@ def hex_decode_bytes(hex_bytes):
     """
     out = ""
     hex_len = len(hex_bytes)
+    i = 0
     while i < hex_len - 1:
-        out += chr(int(hex_bytes[i:i + 2]), 16)
+        out += chr(int(hex_bytes[i:i + 2], 16))
         i += 2
     return out
 
@@ -178,10 +179,14 @@ class MockGDBServerResponder:
             return self.qGetWorkingDir()
         if packet == "qOffsets":
             return self.qOffsets();
+        if packet == "qProcessInfo":
+            return self.qProcessInfo()
         if packet == "qsProcessInfo":
             return self.qsProcessInfo()
         if packet.startswith("qfProcessInfo"):
             return self.qfProcessInfo(packet)
+        if packet.startswith("jGetLoadedDynamicLibrariesInfos"):
+            return self.jGetLoadedDynamicLibrariesInfos(packet)
         if packet.startswith("qPathComplete:"):
             return self.qPathComplete()
         if packet.startswith("vFile:"):
@@ -208,10 +213,16 @@ class MockGDBServerResponder:
     def qfProcessInfo(self, packet):
         return "E04"
 
+    def jGetLoadedDynamicLibrariesInfos(self, packet):
+        return ""
+
     def qGetWorkingDir(self):
         return "2f"
 
     def qOffsets(self):
+        return ""
+
+    def qProcessInfo(self):
         return ""
 
     def qHostInfo(self):

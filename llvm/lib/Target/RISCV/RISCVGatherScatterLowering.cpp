@@ -21,9 +21,12 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/IntrinsicsRISCV.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/Transforms/Utils/Local.h"
+#include <optional>
 
 using namespace llvm;
+using namespace PatternMatch;
 
 #define DEBUG_TYPE "riscv-gather-scatter-lowering"
 
@@ -36,6 +39,11 @@ class RISCVGatherScatterLowering : public FunctionPass {
   const DataLayout *DL = nullptr;
 
   SmallVector<WeakTrackingVH> MaybeDeadPHIs;
+
+  // Cache of the BasePtr and Stride determined from this GEP. When a GEP is
+  // used by multiple gathers/scatters, this allow us to reuse the scalar
+  // instructions we created for the first gather/scatter for the others.
+  DenseMap<GetElementPtrInst *, std::pair<Value *, Value *>> StridedAddrs;
 
 public:
   static char ID; // Pass identification, replacement for typeid
@@ -133,6 +141,12 @@ static std::pair<Value *, Value *> matchStridedStart(Value *Start,
   auto *StartC = dyn_cast<Constant>(Start);
   if (StartC)
     return matchStridedConstant(StartC);
+
+  // Base case, start is a stepvector
+  if (match(Start, m_Intrinsic<Intrinsic::experimental_stepvector>())) {
+    auto *Ty = Start->getType()->getScalarType();
+    return std::make_pair(ConstantInt::get(Ty, 0), ConstantInt::get(Ty, 1));
+  }
 
   // Not a constant, maybe it's a strided constant with a splat added to it.
   auto *BO = dyn_cast<BinaryOperator>(Start);
@@ -323,18 +337,17 @@ std::pair<Value *, Value *>
 RISCVGatherScatterLowering::determineBaseAndStride(GetElementPtrInst *GEP,
                                                    IRBuilder<> &Builder) {
 
+  auto I = StridedAddrs.find(GEP);
+  if (I != StridedAddrs.end())
+    return I->second;
+
   SmallVector<Value *, 2> Ops(GEP->operands());
 
   // Base pointer needs to be a scalar.
   if (Ops[0]->getType()->isVectorTy())
     return std::make_pair(nullptr, nullptr);
 
-  // Make sure we're in a loop and it is in loop simplify form.
-  Loop *L = LI->getLoopFor(GEP->getParent());
-  if (!L || !L->isLoopSimplifyForm())
-    return std::make_pair(nullptr, nullptr);
-
-  Optional<unsigned> VecOperand;
+  std::optional<unsigned> VecOperand;
   unsigned TypeScale = 0;
 
   // Look for a vector operand and scale.
@@ -368,7 +381,37 @@ RISCVGatherScatterLowering::determineBaseAndStride(GetElementPtrInst *GEP,
   if (VecIndex->getType() != VecIntPtrTy)
     return std::make_pair(nullptr, nullptr);
 
-  Value *Stride;
+  // Handle the non-recursive case.  This is what we see if the vectorizer
+  // decides to use a scalar IV + vid on demand instead of a vector IV.
+  auto [Start, Stride] = matchStridedStart(VecIndex, Builder);
+  if (Start) {
+    assert(Stride);
+    Builder.SetInsertPoint(GEP);
+
+    // Replace the vector index with the scalar start and build a scalar GEP.
+    Ops[*VecOperand] = Start;
+    Type *SourceTy = GEP->getSourceElementType();
+    Value *BasePtr =
+      Builder.CreateGEP(SourceTy, Ops[0], makeArrayRef(Ops).drop_front());
+
+    // Convert stride to pointer size if needed.
+    Type *IntPtrTy = DL->getIntPtrType(BasePtr->getType());
+    assert(Stride->getType() == IntPtrTy && "Unexpected type");
+
+    // Scale the stride by the size of the indexed type.
+    if (TypeScale != 1)
+      Stride = Builder.CreateMul(Stride, ConstantInt::get(IntPtrTy, TypeScale));
+
+    auto P = std::make_pair(BasePtr, Stride);
+    StridedAddrs[GEP] = P;
+    return P;
+  }
+
+  // Make sure we're in a loop and that has a pre-header and a single latch.
+  Loop *L = LI->getLoopFor(GEP->getParent());
+  if (!L || !L->getLoopPreheader() || !L->getLoopLatch())
+    return std::make_pair(nullptr, nullptr);
+
   BinaryOperator *Inc;
   PHINode *BasePhi;
   if (!matchStridedRecurrence(VecIndex, L, Stride, BasePhi, Inc, Builder))
@@ -387,13 +430,6 @@ RISCVGatherScatterLowering::determineBaseAndStride(GetElementPtrInst *GEP,
   Value *BasePtr =
       Builder.CreateGEP(SourceTy, Ops[0], makeArrayRef(Ops).drop_front());
 
-  // Cast the GEP to an i8*.
-  LLVMContext &Ctx = GEP->getContext();
-  Type *I8PtrTy =
-      Type::getInt8PtrTy(Ctx, GEP->getType()->getPointerAddressSpace());
-  if (BasePtr->getType() != I8PtrTy)
-    BasePtr = Builder.CreatePointerCast(BasePtr, I8PtrTy);
-
   // Final adjustments to stride should go in the start block.
   Builder.SetInsertPoint(
       BasePhi->getIncomingBlock(1 - IncrementingBlock)->getTerminator());
@@ -406,7 +442,9 @@ RISCVGatherScatterLowering::determineBaseAndStride(GetElementPtrInst *GEP,
   if (TypeScale != 1)
     Stride = Builder.CreateMul(Stride, ConstantInt::get(IntPtrTy, TypeScale));
 
-  return std::make_pair(BasePtr, Stride);
+  auto P = std::make_pair(BasePtr, Stride);
+  StridedAddrs[GEP] = P;
+  return P;
 }
 
 bool RISCVGatherScatterLowering::tryCreateStridedLoadStore(IntrinsicInst *II,
@@ -468,6 +506,8 @@ bool RISCVGatherScatterLowering::runOnFunction(Function &F) {
   DL = &F.getParent()->getDataLayout();
   LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
 
+  StridedAddrs.clear();
+
   SmallVector<IntrinsicInst *, 4> Gathers;
   SmallVector<IntrinsicInst *, 4> Scatters;
 
@@ -476,11 +516,9 @@ bool RISCVGatherScatterLowering::runOnFunction(Function &F) {
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB) {
       IntrinsicInst *II = dyn_cast<IntrinsicInst>(&I);
-      if (II && II->getIntrinsicID() == Intrinsic::masked_gather &&
-          isa<FixedVectorType>(II->getType())) {
+      if (II && II->getIntrinsicID() == Intrinsic::masked_gather) {
         Gathers.push_back(II);
-      } else if (II && II->getIntrinsicID() == Intrinsic::masked_scatter &&
-                 isa<FixedVectorType>(II->getArgOperand(0)->getType())) {
+      } else if (II && II->getIntrinsicID() == Intrinsic::masked_scatter) {
         Scatters.push_back(II);
       }
     }

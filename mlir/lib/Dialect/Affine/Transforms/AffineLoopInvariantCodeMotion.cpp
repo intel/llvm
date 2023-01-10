@@ -10,7 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
+#include "mlir/Dialect/Affine/Passes.h"
+
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
@@ -18,18 +19,24 @@
 #include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
-#include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/Affine/Utils.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/Matchers.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_AFFINELOOPINVARIANTCODEMOTION
+#include "mlir/Dialect/Affine/Passes.h.inc"
+} // namespace mlir
 
 #define DEBUG_TYPE "licm"
 
@@ -43,7 +50,7 @@ namespace {
 /// TODO: This code should be removed once the new LICM pass can handle its
 ///       uses.
 struct LoopInvariantCodeMotion
-    : public AffineLoopInvariantCodeMotionBase<LoopInvariantCodeMotion> {
+    : public impl::AffineLoopInvariantCodeMotionBase<LoopInvariantCodeMotion> {
   void runOnOperation() override;
   void runOnAffineForOp(AffineForOp forOp);
 };
@@ -82,7 +89,7 @@ bool isOpLoopInvariant(Operation &op, Value indVar, ValueRange iterArgs,
   } else if (isa<AffineDmaStartOp, AffineDmaWaitOp>(op)) {
     // TODO: Support DMA ops.
     return false;
-  } else if (!isa<arith::ConstantOp, ConstantOp>(op)) {
+  } else if (!matchPattern(&op, m_Constant())) {
     // Register op in the set of ops that have users.
     opsWithUsers.insert(&op);
     if (isa<AffineMapAccessInterface>(op)) {
@@ -180,12 +187,12 @@ bool checkInvarianceOfNestedIfOps(Operation *op, Value indVar,
   assert(isa<AffineIfOp>(op));
   auto ifOp = cast<AffineIfOp>(op);
 
-  if (!areAllOpsInTheBlockListInvariant(ifOp.thenRegion(), indVar, iterArgs,
+  if (!areAllOpsInTheBlockListInvariant(ifOp.getThenRegion(), indVar, iterArgs,
                                         opsWithUsers, opsToHoist)) {
     return false;
   }
 
-  if (!areAllOpsInTheBlockListInvariant(ifOp.elseRegion(), indVar, iterArgs,
+  if (!areAllOpsInTheBlockListInvariant(ifOp.getElseRegion(), indVar, iterArgs,
                                         opsWithUsers, opsToHoist)) {
     return false;
   }
@@ -237,7 +244,7 @@ void LoopInvariantCodeMotion::runOnOperation() {
   });
 }
 
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::createAffineLoopInvariantCodeMotionPass() {
   return std::make_unique<LoopInvariantCodeMotion>();
 }

@@ -12,10 +12,7 @@ include(CheckCSourceCompiles)
 # libunwind (and the compiler implicit -lunwind wouldn't succeed as the newly
 # built libunwind isn't installed yet). For those cases, it'd be good to
 # link with --uwnindlib=none. Check if that option works.
-llvm_check_compiler_linker_flag(C "--unwindlib=none" LIBCXX_SUPPORTS_UNWINDLIB_NONE_FLAG)
-if (LIBCXX_SUPPORTS_UNWINDLIB_NONE_FLAG)
-  set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} --unwindlib=none")
-endif()
+llvm_check_compiler_linker_flag(C "--unwindlib=none" CXX_SUPPORTS_UNWINDLIB_EQ_NONE_FLAG)
 
 if(WIN32 AND NOT MINGW)
   # NOTE(compnerd) this is technically a lie, there is msvcrt, but for now, lets
@@ -46,17 +43,17 @@ endif()
 # required for the link to go through. We remove sanitizers from the
 # configuration checks to avoid spurious link errors.
 
-check_c_compiler_flag(-nostdlib++ LIBCXX_SUPPORTS_NOSTDLIBXX_FLAG)
-if (LIBCXX_SUPPORTS_NOSTDLIBXX_FLAG)
+check_cxx_compiler_flag(-nostdlib++ CXX_SUPPORTS_NOSTDLIBXX_FLAG)
+if (CXX_SUPPORTS_NOSTDLIBXX_FLAG)
   set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -nostdlib++")
 else()
-  check_c_compiler_flag(-nodefaultlibs LIBCXX_SUPPORTS_NODEFAULTLIBS_FLAG)
-  if (LIBCXX_SUPPORTS_NODEFAULTLIBS_FLAG)
+  check_c_compiler_flag(-nodefaultlibs C_SUPPORTS_NODEFAULTLIBS_FLAG)
+  if (C_SUPPORTS_NODEFAULTLIBS_FLAG)
     set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -nodefaultlibs")
   endif()
 endif()
 
-if (LIBCXX_SUPPORTS_NOSTDLIBXX_FLAG OR LIBCXX_SUPPORTS_NODEFAULTLIBS_FLAG)
+if (CXX_SUPPORTS_NOSTDLIBXX_FLAG OR C_SUPPORTS_NODEFAULTLIBS_FLAG)
   if (LIBCXX_HAS_C_LIB)
     list(APPEND CMAKE_REQUIRED_LIBRARIES c)
   endif ()
@@ -64,7 +61,11 @@ if (LIBCXX_SUPPORTS_NOSTDLIBXX_FLAG OR LIBCXX_SUPPORTS_NODEFAULTLIBS_FLAG)
     include(HandleCompilerRT)
     find_compiler_rt_library(builtins LIBCXX_BUILTINS_LIBRARY
                              FLAGS ${LIBCXX_COMPILE_FLAGS})
-    list(APPEND CMAKE_REQUIRED_LIBRARIES "${LIBCXX_BUILTINS_LIBRARY}")
+    if (LIBCXX_BUILTINS_LIBRARY)
+      list(APPEND CMAKE_REQUIRED_LIBRARIES "${LIBCXX_BUILTINS_LIBRARY}")
+    else()
+      message(WARNING "Could not find builtins library from libc++")
+    endif()
   elseif (LIBCXX_HAS_GCC_LIB)
     list(APPEND CMAKE_REQUIRED_LIBRARIES gcc)
   elseif (LIBCXX_HAS_GCC_S_LIB)
@@ -97,8 +98,8 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -Werror=unknown-pragmas")
   check_c_source_compiles("
 #pragma comment(lib, \"c\")
-int main() { return 0; }
-" LIBCXX_HAS_COMMENT_LIB_PRAGMA)
+int main(void) { return 0; }
+" C_SUPPORTS_COMMENT_LIB_PRAGMA)
   cmake_pop_check_state()
 endif()
 

@@ -14,4 +14,6 @@ struct BAR : FOO {
 
 #pragma pack(pop)
 
-BAR* x = 0;
+BAR f(BAR x) {
+  return x;
+}

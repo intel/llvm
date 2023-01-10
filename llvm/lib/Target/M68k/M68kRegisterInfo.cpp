@@ -19,6 +19,7 @@
 
 #include "MCTargetDesc/M68kMCTargetDesc.h"
 
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Type.h"
@@ -161,7 +162,7 @@ BitVector M68kRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   return Reserved;
 }
 
-void M68kRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
+bool M68kRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
                                            int SPAdj, unsigned FIOperandNum,
                                            RegScavenger *RS) const {
   MachineInstr &MI = *II;
@@ -207,6 +208,7 @@ void M68kRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     FIOffset += SPAdj;
 
   Disp.ChangeToImmediate(FIOffset + Imm);
+  return false;
 }
 
 bool M68kRegisterInfo::requiresRegisterScavenging(

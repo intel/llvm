@@ -45,8 +45,7 @@ llvm::ArrayRef<uint8_t> MinidumpParser::GetData() {
 }
 
 llvm::ArrayRef<uint8_t> MinidumpParser::GetStream(StreamType stream_type) {
-  return m_file->getRawStream(stream_type)
-      .getValueOr(llvm::ArrayRef<uint8_t>());
+  return m_file->getRawStream(stream_type).value_or(llvm::ArrayRef<uint8_t>());
 }
 
 UUID MinidumpParser::GetModuleUUID(const minidump::Module *module) {
@@ -69,13 +68,13 @@ UUID MinidumpParser::GetModuleUUID(const minidump::Module *module) {
       return UUID();
     if (GetArchitecture().GetTriple().isOSBinFormatELF()) {
       if (pdb70_uuid->Age != 0)
-        return UUID::fromOptionalData(pdb70_uuid, sizeof(*pdb70_uuid));
-      return UUID::fromOptionalData(&pdb70_uuid->Uuid,
+        return UUID(pdb70_uuid, sizeof(*pdb70_uuid));
+      return UUID(&pdb70_uuid->Uuid,
                                     sizeof(pdb70_uuid->Uuid));
     }
-    return UUID::fromCvRecord(*pdb70_uuid);
+    return UUID(*pdb70_uuid);
   } else if (cv_signature == CvSignature::ElfBuildId)
-    return UUID::fromOptionalData(cv_record);
+    return UUID(cv_record);
 
   return UUID();
 }
@@ -225,7 +224,7 @@ llvm::Optional<LinuxProcStatus> MinidumpParser::GetLinuxProcStatus() {
   llvm::ArrayRef<uint8_t> data = GetStream(StreamType::LinuxProcStatus);
 
   if (data.size() == 0)
-    return llvm::None;
+    return std::nullopt;
 
   return LinuxProcStatus::Parse(data);
 }
@@ -237,11 +236,11 @@ llvm::Optional<lldb::pid_t> MinidumpParser::GetPid() {
   }
 
   llvm::Optional<LinuxProcStatus> proc_status = GetLinuxProcStatus();
-  if (proc_status.hasValue()) {
+  if (proc_status) {
     return proc_status->GetPid();
   }
 
-  return llvm::None;
+  return std::nullopt;
 }
 
 llvm::ArrayRef<minidump::Module> MinidumpParser::GetModuleList() {
@@ -352,7 +351,7 @@ std::vector<const minidump::Module *> MinidumpParser::GetFilteredModuleList() {
 
   // Create memory regions from the linux maps only. We do this to avoid issues
   // with breakpad generated minidumps where if someone has mmap'ed a shared
-  // library into memory to accesss its data in the object file, we can get a
+  // library into memory to access its data in the object file, we can get a
   // minidump with two mappings for a binary: one whose base image points to a
   // memory region that is read + execute and one that is read only.
   MemoryRegionInfos linux_regions;
@@ -443,14 +442,14 @@ MinidumpParser::FindMemoryRange(lldb::addr_t addr) {
       const size_t range_size = loc_desc.DataSize;
 
       if (loc_desc.RVA + loc_desc.DataSize > GetData().size())
-        return llvm::None;
+        return std::nullopt;
 
       if (range_start <= addr && addr < range_start + range_size) {
         auto ExpectedSlice = GetMinidumpFile().getRawData(loc_desc);
         if (!ExpectedSlice) {
           LLDB_LOG_ERROR(log, ExpectedSlice.takeError(),
                          "Failed to get memory slice: {0}");
-          return llvm::None;
+          return std::nullopt;
         }
         return minidump::Range(range_start, *ExpectedSlice);
       }
@@ -469,14 +468,14 @@ MinidumpParser::FindMemoryRange(lldb::addr_t addr) {
         MinidumpMemoryDescriptor64::ParseMemory64List(data64);
 
     if (memory64_list.empty())
-      return llvm::None;
+      return std::nullopt;
 
     for (const auto &memory_desc64 : memory64_list) {
       const lldb::addr_t range_start = memory_desc64.start_of_memory_range;
       const size_t range_size = memory_desc64.data_size;
 
       if (base_rva + range_size > GetData().size())
-        return llvm::None;
+        return std::nullopt;
 
       if (range_start <= addr && addr < range_start + range_size) {
         return minidump::Range(range_start,
@@ -486,7 +485,7 @@ MinidumpParser::FindMemoryRange(lldb::addr_t addr) {
     }
   }
 
-  return llvm::None;
+  return std::nullopt;
 }
 
 llvm::ArrayRef<uint8_t> MinidumpParser::GetMemory(lldb::addr_t addr,

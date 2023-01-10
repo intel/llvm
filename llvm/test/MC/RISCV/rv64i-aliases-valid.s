@@ -35,8 +35,10 @@ li x10, 2047
 # CHECK-INST: addi a0, zero, -2047
 # CHECK-ALIAS: li a0, -2047
 li x10, -2047
-# CHECK-EXPAND: lui a1, 1
-# CHECK-EXPAND: addiw a1, a1, -2048
+# CHECK-INST: addi a1, zero, 1
+# CHECK-INST: slli a1, a1, 11
+# CHECK-ALIAS: li a1, 1
+# CHECK-ALIAS: slli a1, a1, 11
 li x11, 2048
 # CHECK-INST: addi a1, zero, -2048
 # CHECK-ALIAS: li a1, -2048
@@ -169,6 +171,28 @@ li x10, 0xE000000001FFFFFF
 # CHECK-ALIAS-NEXT: slli a1, a1, 12
 # CHECK-ALIAS-NEXT: addi a1, a1, 2047
 li x11, 0xFFFC007FFFFFF7FF
+
+# CHECK-INST: lui a2, 349525
+# CHECK-INST-NEXT: addiw a2, a2, 1365
+# CHECK-INST-NEXT: slli a2, a2, 1
+# CHECK-ALIAS: lui a2, 349525
+# CHECK-ALIAS-NEXT: addiw a2, a2, 1365
+# CHECK-ALIAS-NEXT: slli a2, a2, 1
+li x12, 0xaaaaaaaa
+
+# CHECK-INST: lui a3, 699051
+# CHECK-INST-NEXT: addiw a3, a3, -1365
+# CHECK-INST-NEXT: slli a3, a3, 1
+# CHECK-ALIAS: lui a3, 699051
+# CHECK-ALIAS-NEXT: addiw a3, a3, -1365
+# CHECK-ALIAS-NEXT: slli a3, a3, 1
+li x13, 0xffffffff55555556
+
+# CHECK-S-OBJ-NOALIAS: lui t0, 524288
+# CHECK-S-OBJ-NOALIAS-NEXT: addi t0, t0, -1365
+# CHECK-S-OBJ: lui t0, 524288
+# CHECK-S-OBJ-NEXT: addi t0, t0, -1365
+li x5, -2147485013
 
 # CHECK-INST: addi a0, zero, 1110
 # CHECK-ALIAS: li a0, 1110

@@ -13,7 +13,7 @@
 #ifdef __SPIR__
 
 // NOTE Layout of this structure should be aligned with the one in
-// sycl/include/CL/sycl/detail/assert_happened.hpp
+// sycl/include/sycl/detail/assert_happened.hpp
 struct AssertHappened {
   int Flag = 0;
   char Expr[256 + 1] = "";

@@ -9,6 +9,7 @@ endif()
 if (MLIR_ENABLE_ROCM_CONVERSIONS)
   set(AMDGPU_LIBS
     IRReader
+    IPO
     linker
     MCParser
     AMDGPUAsmParser
@@ -21,6 +22,7 @@ endif()
 
 add_mlir_dialect_library(MLIRGPUOps
   IR/GPUDialect.cpp
+  IR/InferIntRangeInterfaceImpls.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/GPU
@@ -32,10 +34,11 @@ add_mlir_dialect_library(MLIRGPUOps
   MLIRGPUOpInterfacesIncGen
 
   LINK_LIBS PUBLIC
-  MLIRArithmetic
-  MLIRDLTI
+  MLIRArithDialect
+  MLIRDLTIDialect
+  MLIRInferIntRangeInterface
   MLIRIR
-  MLIRMemRef
+  MLIRMemRefDialect
   MLIRSideEffectInterfaces
   MLIRSupport
   )
@@ -61,25 +64,27 @@ add_mlir_dialect_library(MLIRGPUTransforms
 
   DEPENDS
   MLIRGPUPassIncGen
-  MLIRParallelLoopMapperAttrGen
   MLIRParallelLoopMapperEnumsGen
 
   LINK_LIBS PUBLIC
   MLIRAffineUtils
-  MLIRArithmetic
-  MLIRAsync
+  MLIRArithDialect
+  MLIRAsyncDialect
   MLIRDataLayoutInterfaces
+  MLIRExecutionEngineUtils
   MLIRGPUOps
   MLIRIR
-  MLIRLLVMIR
+  MLIRLLVMDialect
   MLIRLLVMToLLVMIRTranslation
-  MLIRMemRef
+  MLIRMemRefDialect
   MLIRPass
-  MLIRSCF
-  MLIRStandard
+  MLIRSCFDialect
+  MLIRSideEffectInterfaces
   MLIRSupport
   MLIRTransformUtils
   )
+
+add_subdirectory(TransformOps)
 
 if(MLIR_ENABLE_CUDA_RUNNER)
   if(NOT MLIR_ENABLE_CUDA_CONVERSIONS)
@@ -120,7 +125,7 @@ if(MLIR_ENABLE_CUDA_RUNNER)
 
 endif()
 
-if(MLIR_ENABLE_ROCM_RUNNER)
+if(MLIR_ENABLE_ROCM_CONVERSIONS)
   if (NOT ("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD))
     message(SEND_ERROR
       "Building mlir with ROCm support requires the AMDGPU backend")
@@ -135,7 +140,6 @@ if(MLIR_ENABLE_ROCM_RUNNER)
 
   target_link_libraries(MLIRGPUTransforms
     PRIVATE
-    MLIRExecutionEngine
     MLIRROCDLToLLVMIRTranslation
   )
 endif()

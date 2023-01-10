@@ -15,15 +15,18 @@
 
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
 #include <list>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <set>
-#include <vector>
+#include <thread>
 
+#include "ExclusiveAccess.h"
 #include "omptarget.h"
 #include "rtl.h"
+#include "llvm/ADT/SmallVector.h"
 
 // Forward declarations.
 struct RTLInfoTy;
@@ -58,7 +61,8 @@ private:
   struct StatesTy {
     StatesTy(uint64_t DRC, uint64_t HRC)
         : DynRefCount(DRC), HoldRefCount(HRC),
-          MayContainAttachedPointers(false) {}
+          MayContainAttachedPointers(false), DeleteThreadId(std::thread::id()) {
+    }
     /// The dynamic reference count is the standard reference count as of OpenMP
     /// 4.5.  The hold reference count is an OpenMP extension for the sake of
     /// OpenACC support.
@@ -96,6 +100,14 @@ private:
     /// mechanism for D2H, and if the event cannot be shared between them, Event
     /// should be written as <tt>void *Event[2]</tt>.
     void *Event = nullptr;
+
+    /// The id of the thread responsible for deleting this entry. This thread
+    /// set the reference count to zero *last*. Other threads might reuse the
+    /// entry while it is marked for deletion but not yet deleted (e.g., the
+    /// data is still being moved back). If another thread reuses the entry we
+    /// will have a non-zero reference count *or* the thread will have changed
+    /// this id, effectively taking over deletion responsibility.
+    std::thread::id DeleteThreadId;
   };
   // When HostDataToTargetTy is used by std::set, std::set::iterator is const
   // use unique_ptr to make States mutable.
@@ -136,6 +148,14 @@ public:
   /// Returns OFFLOAD_FAIL if something went wrong, OFFLOAD_SUCCESS otherwise.
   int addEventIfNecessary(DeviceTy &Device, AsyncInfoTy &AsyncInfo) const;
 
+  /// Indicate that the current thread expected to delete this entry.
+  void setDeleteThreadId() const {
+    States->DeleteThreadId = std::this_thread::get_id();
+  }
+
+  /// Return the thread id of the thread expected to delete this entry.
+  std::thread::id getDeleteThreadId() const { return States->DeleteThreadId; }
+
   /// Set the event bound to this data map.
   void setEvent(void *Event) const { States->Event = Event; }
 
@@ -170,7 +190,7 @@ public:
       if (ThisRefCount > 0)
         --ThisRefCount;
       else
-        assert(OtherRefCount > 0 && "total refcount underflow");
+        assert(OtherRefCount >= 0 && "total refcount underflow");
     }
     return getTotalRefCount();
   }
@@ -209,36 +229,36 @@ public:
     return States->MayContainAttachedPointers;
   }
 
-  /// Helper to make sure the entry is locked in a scope.
-  /// TODO: We should generalize this and use it for all our objects that use
-  /// lock/unlock methods.
-  struct LockGuard {
-    const HostDataToTargetTy &Entry;
-
-  public:
-    LockGuard(const HostDataToTargetTy &Entry) : Entry(Entry) { Entry.lock(); }
-    ~LockGuard() { Entry.unlock(); }
-  };
-
-private:
   void lock() const { States->UpdateMtx.lock(); }
 
   void unlock() const { States->UpdateMtx.unlock(); }
 };
 
-typedef uintptr_t HstPtrBeginTy;
-inline bool operator<(const HostDataToTargetTy &lhs, const HstPtrBeginTy &rhs) {
-  return lhs.HstPtrBegin < rhs;
-}
-inline bool operator<(const HstPtrBeginTy &lhs, const HostDataToTargetTy &rhs) {
-  return lhs < rhs.HstPtrBegin;
-}
-inline bool operator<(const HostDataToTargetTy &lhs,
-                      const HostDataToTargetTy &rhs) {
-  return lhs.HstPtrBegin < rhs.HstPtrBegin;
-}
+/// Wrapper around the HostDataToTargetTy to be used in the HDTT map. In
+/// addition to the HDTT pointer we store the key value explicitly. This
+/// allows the set to inspect (sort/search/...) this entry without an additional
+/// load of HDTT. HDTT is a pointer to allow the modification of the set without
+/// invalidating HDTT entries which can now be inspected at the same time.
+struct HostDataToTargetMapKeyTy {
+  uintptr_t KeyValue;
 
-typedef std::set<HostDataToTargetTy, std::less<>> HostDataToTargetListTy;
+  HostDataToTargetMapKeyTy(void *Key) : KeyValue(uintptr_t(Key)) {}
+  HostDataToTargetMapKeyTy(HostDataToTargetTy *HDTT)
+      : KeyValue(HDTT->HstPtrBegin), HDTT(HDTT) {}
+  HostDataToTargetTy *HDTT;
+};
+inline bool operator<(const HostDataToTargetMapKeyTy &LHS,
+                      const uintptr_t &RHS) {
+  return LHS.KeyValue < RHS;
+}
+inline bool operator<(const uintptr_t &LHS,
+                      const HostDataToTargetMapKeyTy &RHS) {
+  return LHS < RHS.KeyValue;
+}
+inline bool operator<(const HostDataToTargetMapKeyTy &LHS,
+                      const HostDataToTargetMapKeyTy &RHS) {
+  return LHS.KeyValue < RHS.KeyValue;
+}
 
 struct LookupResult {
   struct {
@@ -247,7 +267,8 @@ struct LookupResult {
     unsigned ExtendsAfter : 1;
   } Flags;
 
-  HostDataToTargetListTy::iterator Entry;
+  /// The corresponding map table entry which is stable.
+  HostDataToTargetTy *Entry = nullptr;
 
   LookupResult() : Flags({0, 0, 0}), Entry() {}
 };
@@ -260,10 +281,16 @@ struct TargetPointerResultTy {
     unsigned IsNewEntry : 1;
     /// If the pointer is actually a host pointer (when unified memory enabled)
     unsigned IsHostPointer : 1;
-  } Flags = {0, 0};
+    /// If the pointer is present in the mapping table.
+    unsigned IsPresent : 1;
+  } Flags = {0, 0, 0};
 
-  /// The iterator to the corresponding map table entry
-  HostDataToTargetListTy::iterator MapTableEntry{};
+  bool isPresent() const { return Flags.IsPresent; }
+
+  bool isHostPointer() const { return Flags.IsHostPointer; }
+
+  /// The corresponding map table entry which is stable.
+  HostDataToTargetTy *Entry = nullptr;
 
   /// The corresponding target pointer
   void *TargetPointer = nullptr;
@@ -294,16 +321,24 @@ struct DeviceTy {
   std::once_flag InitFlag;
   bool HasPendingGlobals;
 
-  HostDataToTargetListTy HostDataToTargetMap;
+  /// Host data to device map type with a wrapper key indirection that allows
+  /// concurrent modification of the entries without invalidating the underlying
+  /// entries.
+  using HostDataToTargetListTy =
+      std::set<HostDataToTargetMapKeyTy, std::less<>>;
+
+  /// The HDTTMap is a protected object that can only be accessed by one thread
+  /// at a time.
+  ProtectedObj<HostDataToTargetListTy> HostDataToTargetMap;
+
+  /// The type used to access the HDTT map.
+  using HDTTMapAccessorTy = decltype(HostDataToTargetMap)::AccessorTy;
+
   PendingCtorsDtorsPerLibrary PendingCtorsDtors;
 
   ShadowPtrListTy ShadowPtrMap;
 
-  std::mutex DataMapMtx, PendingGlobalsMtx, ShadowMtx;
-
-  // NOTE: Once libomp gains full target-task support, this state should be
-  // moved into the target task in libomp.
-  std::map<int32_t, uint64_t> LoopTripCnt;
+  std::mutex PendingGlobalsMtx, ShadowMtx;
 
   DeviceTy(RTLInfoTy *RTL);
   // DeviceTy is not copyable
@@ -315,7 +350,11 @@ struct DeviceTy {
   // Return true if data can be copied to DstDevice directly
   bool isDataExchangable(const DeviceTy &DstDevice);
 
-  LookupResult lookupMapping(void *HstPtrBegin, int64_t Size);
+  /// Lookup the mapping of \p HstPtrBegin in \p HDTTMap. The accessor ensures
+  /// exclusive access to the HDTT map.
+  LookupResult lookupMapping(HDTTMapAccessorTy &HDTTMap, void *HstPtrBegin,
+                             int64_t Size);
+
   /// Get the target pointer based on host pointer begin and base. If the
   /// mapping already exists, the target pointer will be returned directly. In
   /// addition, if required, the memory region pointed by \p HstPtrBegin of size
@@ -332,26 +371,33 @@ struct DeviceTy {
                    bool HasFlagAlways, bool IsImplicit, bool UpdateRefCount,
                    bool HasCloseModifier, bool HasPresentModifier,
                    bool HasHoldModifier, AsyncInfoTy &AsyncInfo);
-  void *getTgtPtrBegin(void *HstPtrBegin, int64_t Size);
+
+  /// Return the target pointer for \p HstPtrBegin in \p HDTTMap. The accessor
+  /// ensures exclusive access to the HDTT map.
+  void *getTgtPtrBegin(HDTTMapAccessorTy &HDTTMap, void *HstPtrBegin,
+                       int64_t Size);
+
   TargetPointerResultTy getTgtPtrBegin(void *HstPtrBegin, int64_t Size,
                                        bool &IsLast, bool UpdateRefCount,
                                        bool UseHoldRefCount, bool &IsHostPtr,
                                        bool MustContain = false,
                                        bool ForceDelete = false);
-  /// For the map entry for \p HstPtrBegin, decrement the reference count
-  /// specified by \p HasHoldModifier and, if the the total reference count is
-  /// then zero, deallocate the corresponding device storage and remove the map
-  /// entry.  Return \c OFFLOAD_SUCCESS if the map entry existed, and return
-  /// \c OFFLOAD_FAIL if not.  It is the caller's responsibility to skip calling
-  /// this function if the map entry is not expected to exist because
-  /// \p HstPtrBegin uses shared memory.
-  int deallocTgtPtr(void *HstPtrBegin, int64_t Size, bool HasHoldModifier);
+
+  /// Deallocate \p LR and remove the entry. Assume the total reference count is
+  /// zero and the calling thread is the deleting thread for \p LR. \p HDTTMap
+  /// ensure the caller holds exclusive access and can modify the map. Return \c
+  /// OFFLOAD_SUCCESS if the map entry existed, and return \c OFFLOAD_FAIL if
+  /// not. It is the caller's responsibility to skip calling this function if
+  /// the map entry is not expected to exist because \p HstPtrBegin uses shared
+  /// memory.
+  int deallocTgtPtr(HDTTMapAccessorTy &HDTTMap, LookupResult LR, int64_t Size);
+
   int associatePtr(void *HstPtrBegin, void *TgtPtrBegin, int64_t Size);
   int disassociatePtr(void *HstPtrBegin);
 
   // calls to RTL
   int32_t initOnce();
-  __tgt_target_table *load_binary(void *Img);
+  __tgt_target_table *loadBinary(void *Img);
 
   // device memory allocation/deallocation routines
   /// Allocates \p Size bytes on the device, host or shared memory space
@@ -365,8 +411,9 @@ struct DeviceTy {
   void *allocData(int64_t Size, void *HstPtr = nullptr,
                   int32_t Kind = TARGET_ALLOC_DEFAULT);
   /// Deallocates memory which \p TgtPtrBegin points at and returns
-  /// OFFLOAD_SUCCESS/OFFLOAD_FAIL when succeeds/fails.
-  int32_t deleteData(void *TgtPtrBegin);
+  /// OFFLOAD_SUCCESS/OFFLOAD_FAIL when succeeds/fails. p Kind dictates what
+  /// allocator should be used (host, shared, device).
+  int32_t deleteData(void *TgtPtrBegin, int32_t Kind = TARGET_ALLOC_DEFAULT);
 
   // Data transfer. When AsyncInfo is nullptr, the transfer will be
   // synchronous.
@@ -420,9 +467,12 @@ struct DeviceTy {
 private:
   // Call to RTL
   void init(); // To be called only via DeviceTy::initOnce()
+
+  /// Deinitialize the device (and plugin).
+  void deinit();
 };
 
-extern bool device_is_ready(int device_num);
+extern bool deviceIsReady(int DeviceNum);
 
 /// Struct for the data required to handle plugins
 struct PluginManager {
@@ -432,15 +482,19 @@ struct PluginManager {
   /// RTLs identified on the host
   RTLsTy RTLs;
 
+  /// Executable images and information extracted from the input images passed
+  /// to the runtime.
+  std::list<std::pair<__tgt_device_image, __tgt_image_info>> Images;
+
   /// Devices associated with RTLs
-  std::vector<std::unique_ptr<DeviceTy>> Devices;
+  llvm::SmallVector<std::unique_ptr<DeviceTy>> Devices;
   std::mutex RTLsMtx; ///< For RTLs and Devices
 
   /// Translation table retreived from the binary
   HostEntriesBeginToTransTableTy HostEntriesBeginToTransTable;
   std::mutex TrlTblMtx; ///< For Translation Table
   /// Host offload entries in order of image registration
-  std::vector<__tgt_offload_entry *> HostEntriesBeginRegistrationOrder;
+  llvm::SmallVector<__tgt_offload_entry *> HostEntriesBeginRegistrationOrder;
 
   /// Map from ptrs on the host to an entry in the Translation Table
   HostPtrToTableMapTy HostPtrToTableMap;

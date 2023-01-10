@@ -80,7 +80,7 @@ public:
   static Expected<std::unique_ptr<MachOPlatform>>
   Create(ExecutionSession &ES, ObjectLinkingLayer &ObjLinkingLayer,
          JITDylib &PlatformJD, const char *OrcRuntimePath,
-         Optional<SymbolAliasMap> RuntimeAliases = None);
+         Optional<SymbolAliasMap> RuntimeAliases = std::nullopt);
 
   ExecutionSession &getExecutionSession() const { return ES; }
   ObjectLinkingLayer &getObjectLinkingLayer() const { return ObjLinkingLayer; }
@@ -137,9 +137,6 @@ private:
   private:
     using InitSymbolDepMap =
         DenseMap<MaterializationResponsibility *, JITLinkSymbolSet>;
-
-    void addEHAndTLVSupportPasses(MaterializationResponsibility &MR,
-                                  jitlink::PassConfiguration &Config);
 
     Error associateJITDylibHeaderSymbol(jitlink::LinkGraph &G,
                                         MaterializationResponsibility &MR);

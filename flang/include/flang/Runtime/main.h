@@ -12,9 +12,12 @@
 #include "flang/Runtime/c-or-cpp.h"
 #include "flang/Runtime/entry-names.h"
 
+struct EnvironmentDefaultList;
+
 FORTRAN_EXTERN_C_BEGIN
-void RTNAME(ProgramStart)(int, const char *[], const char *[]);
-void RTNAME(ByteswapOption)(); // -byteswapio
+void RTNAME(ProgramStart)(
+    int, const char *[], const char *[], const struct EnvironmentDefaultList *);
+void RTNAME(ByteswapOption)(void); // -byteswapio
 FORTRAN_EXTERN_C_END
 
 #endif // FORTRAN_RUNTIME_MAIN_H_

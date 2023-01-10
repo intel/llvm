@@ -8,7 +8,7 @@
 
 // <string>
 
-// size_type find(const basic_string& str, size_type pos = 0) const;
+// size_type find(const basic_string& str, size_type pos = 0) const; // constexpr since C++20
 
 #include <string>
 #include <cassert>
@@ -142,7 +142,7 @@ TEST_CONSTEXPR_CXX20 void test1()
     test(S("abcdeabcdeabcdeabcde"), S("abcdeabcdeabcdeabcde"), 0);
 }
 
-bool test() {
+TEST_CONSTEXPR_CXX20 bool test() {
   {
     typedef std::string S;
     test0<S>();
@@ -156,7 +156,7 @@ bool test() {
   }
 #endif
 
-#if TEST_STD_VER > 3
+#if TEST_STD_VER >= 11
   { // LWG 2946
     std::string s = " !";
     assert(s.find({"abc", 1}) == std::string::npos);
@@ -170,7 +170,7 @@ int main(int, char**)
 {
   test();
 #if TEST_STD_VER > 17
-  // static_assert(test());
+  static_assert(test());
 #endif
 
   return 0;

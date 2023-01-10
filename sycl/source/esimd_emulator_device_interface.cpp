@@ -15,11 +15,11 @@
 ///
 /// \ingroup sycl_pi_esimd_emulator
 
-#include <CL/sycl/detail/common.hpp>
-#include <sycl/ext/intel/experimental/esimd/emu/detail/esimd_emulator_device_interface.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/ext/intel/esimd/emu/detail/esimd_emulator_device_interface.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 __SYCL_EXPORT ESIMDDeviceInterface *getESIMDDeviceInterface() {
@@ -30,13 +30,12 @@ __SYCL_EXPORT ESIMDDeviceInterface *getESIMDDeviceInterface() {
 
   try {
     PIOpaqueData =
-        getPluginOpaqueData<cl::sycl::backend::ext_intel_esimd_emulator>(
-            nullptr);
+        getPluginOpaqueData<sycl::backend::ext_intel_esimd_emulator>(nullptr);
   } catch (...) {
     std::cerr << "ESIMD EMU plugin error or not loaded - try setting "
                  "SYCL_DEVICE_FILTER=esimd_emulator:gpu environment variable"
               << std::endl;
-    throw cl::sycl::feature_not_supported();
+    throw sycl::feature_not_supported();
   }
 
   ESIMDEmuPluginOpaqueData *OpaqueData =
@@ -74,5 +73,5 @@ __SYCL_EXPORT ESIMDDeviceInterface *getESIMDDeviceInterface() {
   return Interface;
 }
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

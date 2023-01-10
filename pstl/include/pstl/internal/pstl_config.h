@@ -13,7 +13,7 @@
 #include <__pstl_config_site>
 
 // The version is XYYZ, where X is major, YY is minor, and Z is patch (i.e. X.YY.Z)
-#define _PSTL_VERSION 15000
+#define _PSTL_VERSION 16000
 #define _PSTL_VERSION_MAJOR (_PSTL_VERSION / 1000)
 #define _PSTL_VERSION_MINOR ((_PSTL_VERSION % 1000) / 10)
 #define _PSTL_VERSION_PATCH (_PSTL_VERSION % 10)
@@ -27,7 +27,12 @@
 #    define _PSTL_USAGE_WARNINGS
 #endif
 
-#if !defined(_PSTL_ASSERT)
+#if defined(_LIBCPP_VERSION)
+#    include <__assert>
+#    define _PSTL_ASSERT(pred) _LIBCPP_ASSERT(pred, "")
+#elif defined(__GLIBCXX__)
+#    define _PSTL_ASSERT(pred) __glibcxx_assert(pred)
+#else
 #    include <cassert>
 #    define _PSTL_ASSERT(pred) (assert((pred)))
 #endif

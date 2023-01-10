@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++03
+// UNSUPPORTED: c++03 && !stdlib=libc++
 
 // <vector>
 
@@ -28,10 +28,10 @@ class A
     A(const A&);
     A& operator=(const A&);
 public:
-    A(int i, double d)
+    TEST_CONSTEXPR_CXX14 A(int i, double d)
         : i_(i), d_(d) {}
 
-    A(A&& a)
+    TEST_CONSTEXPR_CXX14 A(A&& a)
         : i_(a.i_),
           d_(a.d_)
     {
@@ -39,7 +39,7 @@ public:
         a.d_ = 0;
     }
 
-    A& operator=(A&& a)
+    TEST_CONSTEXPR_CXX14 A& operator=(A&& a)
     {
         i_ = a.i_;
         d_ = a.d_;
@@ -48,11 +48,11 @@ public:
         return *this;
     }
 
-    int geti() const {return i_;}
-    double getd() const {return d_;}
+    TEST_CONSTEXPR_CXX14 int geti() const {return i_;}
+    TEST_CONSTEXPR_CXX14 double getd() const {return d_;}
 };
 
-int main(int, char**)
+TEST_CONSTEXPR_CXX20 bool tests()
 {
     {
         std::vector<A> c;
@@ -109,8 +109,8 @@ int main(int, char**)
         assert(is_contiguous_container_asan_correct(c));
     }
     {
-        std::vector<A, min_allocator<A>> c;
-        std::vector<A, min_allocator<A>>::iterator i = c.emplace(c.cbegin(), 2, 3.5);
+        std::vector<A, min_allocator<A> > c;
+        std::vector<A, min_allocator<A> >::iterator i = c.emplace(c.cbegin(), 2, 3.5);
         assert(i == c.begin());
         assert(c.size() == 1);
         assert(c.front().geti() == 2);
@@ -133,5 +133,14 @@ int main(int, char**)
         assert(c.back().getd() == 4.5);
     }
 
-  return 0;
+    return true;
+}
+
+int main(int, char**)
+{
+    tests();
+#if TEST_STD_VER > 17
+    static_assert(tests());
+#endif
+    return 0;
 }

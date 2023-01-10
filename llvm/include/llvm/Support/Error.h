@@ -152,7 +152,7 @@ private:
 /// *All* Error instances must be checked before destruction, even if
 /// they're moved-assigned or constructed from Success values that have already
 /// been checked. This enforces checking through all levels of the call stack.
-class LLVM_NODISCARD Error {
+class [[nodiscard]] Error {
   // ErrorList needs to be able to yank ErrorInfoBase pointers out of Errors
   // to add to the error list. It can't rely on handleErrors for this, since
   // handleErrors does not support ErrorList handlers.
@@ -463,10 +463,10 @@ inline Error joinErrors(Error E1, Error E2) {
 ///     outs() << "The answer is " << *Result << "\n";
 ///   @endcode
 ///
-///  For unit-testing a function returning an 'Expceted<T>', see the
+///  For unit-testing a function returning an 'Expected<T>', see the
 ///  'EXPECT_THAT_EXPECTED' macros in llvm/Testing/Support/Error.h
 
-template <class T> class LLVM_NODISCARD Expected {
+template <class T> class [[nodiscard]] Expected {
   template <class T1> friend class ExpectedAsOutParameter;
   template <class OtherT> friend class Expected;
 
@@ -508,7 +508,7 @@ public:
   /// must be convertible to T.
   template <typename OtherT>
   Expected(OtherT &&Val,
-           std::enable_if_t<std::is_convertible<OtherT, T>::value> * = nullptr)
+           std::enable_if_t<std::is_convertible_v<OtherT, T>> * = nullptr)
       : HasError(false)
 #if LLVM_ENABLE_ABI_BREAKING_CHECKS
         // Expected is unchecked upon construction in Debug builds.
@@ -525,9 +525,8 @@ public:
   /// Move construct an Expected<T> value from an Expected<OtherT>, where OtherT
   /// must be convertible to T.
   template <class OtherT>
-  Expected(
-      Expected<OtherT> &&Other,
-      std::enable_if_t<std::is_convertible<OtherT, T>::value> * = nullptr) {
+  Expected(Expected<OtherT> &&Other,
+           std::enable_if_t<std::is_convertible_v<OtherT, T>> * = nullptr) {
     moveConstruct(std::move(Other));
   }
 
@@ -536,7 +535,7 @@ public:
   template <class OtherT>
   explicit Expected(
       Expected<OtherT> &&Other,
-      std::enable_if_t<!std::is_convertible<OtherT, T>::value> * = nullptr) {
+      std::enable_if_t<!std::is_convertible_v<OtherT, T>> * = nullptr) {
     moveConstruct(std::move(Other));
   }
 
@@ -822,8 +821,8 @@ T& cantFail(Expected<T&> ValOrErr, const char *Msg = nullptr) {
 /// ErrorInfo types.
 template <typename HandlerT>
 class ErrorHandlerTraits
-    : public ErrorHandlerTraits<decltype(
-          &std::remove_reference<HandlerT>::type::operator())> {};
+    : public ErrorHandlerTraits<
+          decltype(&std::remove_reference_t<HandlerT>::operator())> {};
 
 // Specialization functions of the form 'Error (const ErrT&)'.
 template <typename ErrT> class ErrorHandlerTraits<Error (&)(ErrT &)> {
@@ -1055,7 +1054,7 @@ template <typename T> Optional<T> expectedToOptional(Expected<T> &&E) {
   if (E)
     return std::move(*E);
   consumeError(E.takeError());
-  return None;
+  return std::nullopt;
 }
 
 /// Helper for converting an Error to a bool.
@@ -1141,7 +1140,7 @@ private:
 class ECError : public ErrorInfo<ECError> {
   friend Error errorCodeToError(std::error_code);
 
-  virtual void anchor() override;
+  void anchor() override;
 
 public:
   void setErrorCode(std::error_code EC) { this->EC = EC; }
@@ -1269,8 +1268,8 @@ public:
   void log(raw_ostream &OS) const override {
     assert(Err && "Trying to log after takeError().");
     OS << "'" << FileName << "': ";
-    if (Line.hasValue())
-      OS << "line " << Line.getValue() << ": ";
+    if (Line)
+      OS << "line " << Line.value() << ": ";
     Err->log(OS);
   }
 
@@ -1281,7 +1280,7 @@ public:
     return OS.str();
   }
 
-  StringRef getFileName() { return FileName; }
+  StringRef getFileName() const { return FileName; }
 
   Error takeError() { return Error(std::move(Err)); }
 

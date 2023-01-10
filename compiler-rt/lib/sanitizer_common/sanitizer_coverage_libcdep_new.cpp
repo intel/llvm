@@ -14,6 +14,7 @@
 #  include "sanitizer_allocator_internal.h"
 #  include "sanitizer_atomic.h"
 #  include "sanitizer_common.h"
+#  include "sanitizer_common/sanitizer_stacktrace.h"
 #  include "sanitizer_file.h"
 #  include "sanitizer_interface_internal.h"
 
@@ -222,7 +223,8 @@ SANITIZER_INTERFACE_ATTRIBUTE void __sanitizer_dump_coverage(const uptr* pcs,
 
 SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_trace_pc_guard, u32* guard) {
   if (!*guard) return;
-  __sancov::pc_guard_controller.TracePcGuard(guard, GET_CALLER_PC() - 1);
+  __sancov::pc_guard_controller.TracePcGuard(
+      guard, StackTrace::GetPreviousInstructionPc(GET_CALLER_PC()));
 }
 
 SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_trace_pc_guard_init,
@@ -257,6 +259,16 @@ SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_trace_div4, void) {}
 SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_trace_div8, void) {}
 SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_trace_gep, void) {}
 SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_trace_pc_indir, void) {}
+SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_load1, void){}
+SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_load2, void){}
+SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_load4, void){}
+SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_load8, void){}
+SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_load16, void){}
+SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_store1, void){}
+SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_store2, void){}
+SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_store4, void){}
+SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_store8, void){}
+SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_store16, void){}
 SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_8bit_counters_init,
                              char* start, char* end) {
   __sancov::SingletonCounterCoverage::Cov8bitCountersInit(start, end);

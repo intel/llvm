@@ -6,7 +6,7 @@ specifying properties which are known at compile time.  This extension is not
 itself a feature, but rather a building block that can be incorporated into
 other features.
 
-[1]: <../extensions/proposed/sycl_ext_oneapi_properties.asciidoc>
+[1]: <../extensions/experimental/sycl_ext_oneapi_properties.asciidoc>
 
 There are a number of situations where we plan to use compile-time constant
 properties, but this design document does not attempt to address them all.
@@ -45,7 +45,7 @@ for declaring global variables.  One such example is the
 ```
 namespace sycl::ext::oneapi {
 
-template <typename T, typename PropertyListT = property_list<>>
+template <typename T, typename PropertyListT = properties<>>
 class device_global {/*...*/};
 
 } // namespace sycl::ext::oneapi
@@ -57,10 +57,7 @@ two compile-time properties:
 ```
 using sycl::ext::oneapi;
 
-device_global<int,
-  property_list_t<
-    device_image_scope::value_t,
-    host_access::value_t<host_access::access::read>>>
+device_global<int, decltype(properties{device_image_scope, host_access_read})>
   dm1;
 ```
 
@@ -71,7 +68,7 @@ is a list that is created through a template parameter pack expansion:
 ```
 namespace sycl::ext::oneapi {
 
-template <typename T, typename PropertyListT = property_list<>>
+template <typename T, typename PropertyListT = properties<>>
 class device_global {/*...*/};
 
 // Partial specialization to make PropertyListT visible as a parameter pack
@@ -83,7 +80,7 @@ class
     Props::meta_name..., Props::meta_value...
     )]]
 #endif
-  device_global<T, property_list<Props...>> {/*...*/};
+  device_global<T, properties<Props...>> {/*...*/};
 
 } // namespace sycl::ext::oneapi
 ```
@@ -158,7 +155,7 @@ template <typename dataT,
           access::mode accessmode,
           access::target accessTarget,
           access::placeholder isPlaceholder,
-          typename PropertyListT = ext::oneapi::property_list<>>
+          typename PropertyListT = ext::oneapi::properties<>>
 class __attribute__((sycl_special_class)) accessor {/* ... */};
 
 } // namespace sycl
@@ -171,7 +168,7 @@ Typical usage would look like this (showing a hypothetical property named
 using sycl;
 using sycl::ext::oneapi;
 
-accessor acc(buf, cgh, property_list{no_alias_v, foo_v<32>});
+accessor acc(buf, cgh, properties{no_alias, foo<32>});
 ```
 
 In the headers the C++ attribute
@@ -188,7 +185,7 @@ template <typename dataT,
           access::mode accessmode,
           access::target accessTarget,
           access::placeholder isPlaceholder,
-          typename PropertyListT = ext::oneapi::property_list<>>
+          typename PropertyListT = ext::oneapi::properties<>>
 class __attribute__((sycl_special_class)) accessor {/* ... */};
 
 // Partial specialization to make PropertyListT visible as a parameter pack
@@ -204,7 +201,7 @@ class __attribute__((sycl_special_class)) accessor<dataT,
                                                    accessmode,
                                                    accessTarget,
                                                    isPlaceholder,
-                                                   property_list<Props...>> {
+                                                   properties<Props...>> {
   dataT *ptr;
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -269,12 +266,12 @@ the property value to a string if it is not already a string.
 
 ## Properties on kernel functions
 
-Compile-time properties can also be used to decorate kernel functions as with
-the [sycl\_ext\_oneapi\_properties][8] extension.  There are two ways the
-application can specify these properties.  The first is by passing a
-`property_list` parameter to the function that submits the kernel:
+Compile-time properties can also be used to decorate kernel functions as
+proposed in the [sycl\_ext\_oneapi\_kernel\_properties][8] extension.  There
+are two ways the application can specify these properties.  The first is by
+passing a `properties` parameter to the function that submits the kernel:
 
-[8]: <../extensions/proposed/sycl_ext_oneapi_properties.asciidoc>
+[8]: <../extensions/proposed/sycl_ext_oneapi_kernel_properties.asciidoc>
 
 ```
 namespace sycl {
@@ -295,13 +292,14 @@ using sycl::ext::oneapi;
 
 void foo(handler &cgh) {
   cgh.single_task(
-    property_list{sub_group_size_v<32>, device_has_v<aspect::fp16>},
+    properties{sub_group_size<32>, device_has<aspect::fp16>},
     [=] {/* ... */});
 }
 ```
 
 The second way an application can specify kernel properties is by adding a
-`properties` member variable to a named kernel function object:
+member function named `get(sycl::ext::oneapi::properties_tag)` to a named
+kernel function object:
 
 ```
 using sycl;
@@ -311,8 +309,9 @@ class MyKernel {
  public:
   void operator()() {/* ... */}
 
-  static constexpr auto properties =
-    property_list{sub_group_size_v<32>, device_has_v<aspect::fp16>};
+  auto get(properties_tag) {
+    return properties{sub_group_size<32>, device_has<aspect::fp16>};
+  }
 };
 
 void foo(handler &cgh) {
@@ -335,7 +334,7 @@ class KernelSingleTaskWrapper;
 // Partial specialization to make PropertyListT visible as a parameter pack
 // of properties.
 template<typename KernelType, typename ...Props>
-class KernelSingleTaskWrapper<KernelType, property_list<Props...>> {
+class KernelSingleTaskWrapper<KernelType, properties<Props...>> {
   KernelType k;
 
  public:
@@ -379,7 +378,7 @@ class.
 ```
 namespace sycl::ext::oneapi {
 
-template <typename T, typename PropertyListT = property_list_t<>>
+template <typename T, typename PropertyListT = properties<>>
 class annotated_ptr {
   T *ptr;
  public:
@@ -395,11 +394,7 @@ where an example use looks like:
 using sycl::ext::oneapi;
 
 void foo(int *p) {
-  annotated_ptr<int
-    property_list_t<
-      foo::value_t,
-      bar::value_t<32>>>
-    aptr(p);
+  annotated_ptr<int, decltype(properties{foo, bar<32>})> aptr(p);
 }
 ```
 
@@ -411,13 +406,13 @@ represent the properties.
 ```
 namespace sycl::ext::oneapi {
 
-template <typename T, typename PropertyListT = property_list_t<>>
+template <typename T, typename PropertyListT = properties<>>
 class annotated_ptr;
 
 // Partial specialization to make PropertyListT visible as a parameter pack
 // of properties.
 template <typename T, typename ...Props>
-class annotated_ptr<T, property_list<Props...>> {
+class annotated_ptr<T, properties<Props...>> {
   T *ptr
 #ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_annotations_member(
@@ -437,13 +432,13 @@ Illustrating this with properties from our previous example:
 ```
 namespace sycl::ext::oneapi {
 
-template <typename T, typename PropertyListT = property_list_t<>>
+template <typename T, typename PropertyListT = properties<>>
 class annotated_ptr;
 
 // Partial specialization to make PropertyListT visible as a parameter pack
 // of properties.
 template <typename T, typename ...Props>
-class annotated_ptr<T, property_list<Props...>> {
+class annotated_ptr<T, properties<Props...>> {
   T *ptr
 #ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_annotations_member(
@@ -465,25 +460,50 @@ When the device compiler generates code to reference the decorated member
 variable, it emits a call to the LLVM intrinsic function
 [`@llvm.ptr.annotation`][10] that annotates the pointer to that member
 variables, similar to the way the existing `[[clang::annotate()]]` attribute
-works.  Illustrating this with some simplified LLVM IR that matches the example
-code above:
+works.
 
 [10]: <https://llvm.org/docs/LangRef.html#llvm-ptr-annotation-intrinsic>
+
+The front-end encodes the properties from the C++ attribute
+`[[__sycl_detail__::add_ir_annotations_member()]]` into the
+`@llvm.ptr.annotation` call as follows:
+
+* The first parameter to `@llvm.ptr.annotation` is the pointer to annotate (as
+  with any call to this intrinsic).
+* The second parameter is the literal string `"sycl-properties"`.
+* The third parameter is the name of the source file (as with any call to this
+  intrinsic).
+* The fourth parameter is the line number (as with any call to this intrinsic).
+* The fifth parameter is a pointer to a constant global variable. The type of
+  this variable is an anonymous structure. The first field of the structure is
+  a pointer to a string literal representing the name of the first property. The
+  second field of the structure is a pointer to a string literal representing
+  the value of the first property. The third field of the structure is a pointer
+  to a string literal representing the name of the second property, etc.
+  Since each property has exactly one value, this tuple has an even number of
+  elements. Pointers to property value strings may be a null-pointer, signalling
+  a property without a value.
+
+The resulting LLVM IR for the previous example would be:
 
 ```
 @.str = private unnamed_addr constant [16 x i8] c"sycl-properties\00",
    section "llvm.metadata"
 @.str.1 = private unnamed_addr constant [9 x i8] c"file.cpp\00",
    section "llvm.metadata"
-@.str.2 = private unnamed_addr constant [9 x i8] c"sycl-foo\00", align 1
-@.str.3 = private unnamed_addr constant [9 x i8] c"sycl-bar\00", align 1
+@.str.2 = private unnamed_addr constant [9 x i8] c"sycl-foo\00",
+   section "llvm.metadata"
+@.str.3 = private unnamed_addr constant [9 x i8] c"sycl-bar\00",
+   section "llvm.metadata"
+@.str.4 = private unnamed_addr constant [3 x i8] c"32\00",
+   section "llvm.metadata"
 
-@.args = private unnamed_addr constant { [9 x i8]*, i8*, [9 x i8]*, i32 }
+@.args = private unnamed_addr constant { [9 x i8]*, i8*, [9 x i8]*, [3 x i8]* }
    {
      [9 x i8]* @.str.2,   ; Name of first property "sycl-foo"
      i8* null,            ; Null indicates this property has no value
      [9 x i8]* @.str.3,   ; Name of second property "sycl-bar"
-     i32 32               ; Value of second property
+     [3 x i8]* @.str.4    ; Value of second property
    },
    section "llvm.metadata"
 
@@ -497,30 +517,13 @@ define void @foo(i32* %ptr) {
     i8* getelementptr inbounds ([16 x i8], [16 x i8]* @.str, i64 0, i64 0),
     i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.1, i64 0, i64 0),
     i32 3,
-    i8* bitcast ({ [9 x i8]*, i8*, [9 x i8]*, i32 }* @.args to i8*))
+    i8* bitcast ({ [9 x i8]*, i8*, [9 x i8]*, [3 x i8]* }* @.args to i8*))
 
   %3 = bitcast i8* %2 to i32**
   store i32* %ptr, i32** %3
   ret void
 }
 ```
-
-The front-end encodes the properties from the C++ attribute
-`[[__sycl_detail__::add_ir_annotations_member()]]` into the
-`@llvm.ptr.annotation` call as follows:
-
-* The first parameter to `@llvm.ptr.annotation` is the pointer to annotate (as
-  with any call to this intrinsic).
-* The second parameter is the literal string `"sycl-properties"`.
-* The third parameter is the name of the source file (as with any call to this
-  intrinsic).
-* The fourth parameter is the line number (as with any call to this intrinsic).
-* The fifth parameter is a metadata tuple with information about all of the
-  properties.  The first element of the tuple is a string literal with the name
-  of the first property.  The second element is the value of the first
-  property.  The third element is a string literal with the name of the second
-  property, etc.  Since each property has exactly one value, this tuple has an
-  even number of elements.
 
 **NOTE**: Calls to the `@llvm.ptr.annotation` intrinsic function are known to
 disable many clang optimizations.  As a result, properties added to a
@@ -597,9 +600,9 @@ types listed above.
 
 Properties that are implemented using
 `[[__sycl_detail__::add_ir_annotations_member()]]`, are represented in LLVM IR
-as the fifth metadata parameter to the `@llvm.ptr.annotation` intrinsic
-function.  This parameter is a tuple of metadata values with the following
-sequence:
+as the fifth parameter to the `@llvm.ptr.annotation` intrinsic function.  This
+parameter is a pointer to a global variable with fields corresponding to the
+names and values of the properties in the following sequence:
 
 * Name of the first property
 * Value of the first property
@@ -607,8 +610,10 @@ sequence:
 * Value of the second property
 * Etc.
 
-Since metadata types are not limited to strings, there is no need to convert
-the property values to strings.
+Every field in the global variable pointed to by this parameter are string
+literals in seperate global variables. Property values are converted to strings
+in the same way as described above, except that the `nullptr` value and the
+empty string (`""`) is represented as `null` in the global variable field.
 
 
 ## Filtering properties
@@ -660,7 +665,7 @@ class __attribute__((sycl_special_class)) accessor<dataT,
                                                    accessmode,
                                                    accessTarget,
                                                    isPlaceholder,
-                                                   property_list<Props...>> {
+                                                   properties<Props...>> {
     T *ptr
 #ifdef __SYCL_DEVICE_ONLY__
     [[__sycl_detail__::add_ir_annotations_member(
@@ -806,26 +811,57 @@ into one (or both) of the following:
 In both cases, the decoration is a single **UserSemantic** decoration where the
 string literal is the same as the string literal in the LLVM annotation.
 
-When a SYCL structure member property needs to be represented in SPIR-V,
-however, we prefer to represent each property as an extended SPIR-V decoration
-rather than using a **UserSemantic** decoration.  There is no existing
-mechanism in the SPIR-V LLVM Translator to generate extended decorations like
-this, so we propose the following new mechanism.
+An exception to this is for a selection of FPGA-related decorations. If these
+are supported during translation from LLVM IR to SPIR-V the corresponding
+decorations will be generated, and otherwise it will fall back to creating a
+single **UserSemantic** decoration. In general these decorations occur in the
+annotation string as a series of **{X}** and **{X:Y}** where **X** is a reserved
+name and **Y** is one or more words and numbers separated by a comma (**,**) or
+a colon (**:**), depending on the decoration.
+
+As such we propose an extension to this functionality with the following
+changes:
+
+* To bring it in line with the format of the metadata decorations, the parsing
+  of these decorations should allow the use of SPIR-V decoration identifiers
+  rather than reserved names. With this there need not be any agreement between
+  the translator and LLVM IR producer, as the identifiers are specified by the
+  SPIR-V specification.
+* For decorations parsed with decoration identifiers, only the comma delimiter
+  is valid for separating decoration values.
+* In addition to words and numbers, string literals enclosed by quotation marks
+  are allowed as decoration values. No escapes are planned for this, so all
+  symbols between starting quotation mark and ending quotation mark are
+  considered part of the string literal.
 
 When a member variable property needs to be represented in SPIR-V, the
-`sycl-post-link` tool converts the `@llvm.ptr.annotation` intrinsic call into a
-call to the SPIR-V intrinsic `__spirv_AddMemberDecoration` which has a metadata
-function argument that specifies the decorations as illustrated below:
+`sycl-post-link` tool converts the `@llvm.ptr.annotation` intrinsic call
+produced by `[[__sycl_detail__::add_ir_annotations_member()]]` into another
+`@llvm.ptr.annotation` intrinsic call using this format. For example:
 
 ```
-%annotated_ptr = call i8* __spirv_AddMemberDecoration(i8* %ptr, metadata !0)
+; Contains decorations:
+;  * 7744 with no value.
+;  * 7745 with 20 and "str 1" as the values.
+@.str = private unnamed_addr constant [24 x i8] c"{7744}{7745:20,\22str 1\22}\00",
+  section "llvm.metadata"
+@.str.1 = private unnamed_addr constant [9 x i8] c"file.cpp\00",
+   section "llvm.metadata"
 
-!0 = !{!1, !2}            ; Each operand in this metadata represents one
-                          ;   decoration.
-!1 = !{i32 7744}          ; This is the integer value of the first decoration.
-!2 = !{i32 7745, i32 20}  ; The first operand is the integer value of the
-                          ;   second decoration.  Additional operands are
-                          ;   "extra operands" to the decoration.  These
-                          ;   operands may be either integer literals or string
-                          ;   literals.
+define void @foo(i32* %ptr) {
+  ...
+
+  ; %0 points to the annotated member field.
+  %2 = call i8* @llvm.ptr.annotation.p0i8(i8* nonnull %0,
+    i8* getelementptr inbounds ([16 x i8], [16 x i8]* @.str, i64 0, i64 0),
+    i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.1, i64 0, i64 0),
+    i32 3,
+    i8* null)
+
+  ...
+}
 ```
+
+**NOTE**: To allow backwards compatibility with the old format, reverse
+translation of decorations will produce a decorations in the annotation string
+following the old format if the decoration had a reserved name.

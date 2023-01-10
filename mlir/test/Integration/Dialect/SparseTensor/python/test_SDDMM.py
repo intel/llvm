@@ -1,4 +1,4 @@
-# RUN: SUPPORT_LIB=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+# RUN: SUPPORT_LIB=%mlir_lib_dir/libmlir_c_runner_utils%shlibext \
 # RUN:   %PYTHON %s | FileCheck %s
 
 import ctypes
@@ -8,10 +8,10 @@ import sys
 
 from mlir import ir
 from mlir import runtime as rt
-from mlir import execution_engine
 
 from mlir.dialects import sparse_tensor as st
 from mlir.dialects import builtin
+from mlir.dialects import func
 from mlir.dialects.linalg.opdsl import lang as dsl
 
 _SCRIPT_PATH = os.path.dirname(os.path.abspath(__file__))
@@ -44,7 +44,7 @@ def build_SDDMM(attr: st.EncodingAttr):
   arguments = [a, b, s, c]
   with ir.InsertionPoint(module.body):
 
-    @builtin.FuncOp.from_py_func(*arguments)
+    @func.FuncOp.from_py_func(*arguments)
     def sddmm(*args):
       return sddmm_dsl(args[0], args[1], args[2], outs=[args[3]])
 
@@ -54,7 +54,7 @@ def build_SDDMM(attr: st.EncodingAttr):
 def boilerplate(attr: st.EncodingAttr):
   """Returns boilerplate code for main driver."""
   return f"""
-func @main(%a: tensor<8x8xf64>,
+func.func @main(%a: tensor<8x8xf64>,
            %b: tensor<8x8xf64>,
            %c: tensor<8x8xf64>) -> tensor<8x8xf64> attributes {{ llvm.emit_c_interface }} {{
   %t = arith.constant sparse<[[0,0], [0,2], [4,1]], [1.0, 2.0, 3.0]> : tensor<8x8xf64>
@@ -68,17 +68,14 @@ func @main(%a: tensor<8x8xf64>,
 """
 
 
-def build_compile_and_run_SDDMMM(attr: st.EncodingAttr, opt: str,
-                                 support_lib: str, compiler):
+def build_compile_and_run_SDDMMM(attr: st.EncodingAttr, compiler):
   # Build.
   module = build_SDDMM(attr)
   func = str(module.operation.regions[0].blocks[0].operations[0].operation)
   module = ir.Module.parse(func + boilerplate(attr))
 
   # Compile.
-  compiler(module)
-  engine = execution_engine.ExecutionEngine(
-      module, opt_level=0, shared_libs=[support_lib])
+  engine = compiler.compile_and_jit(module)
 
   # Set up numpy input and buffer for output.
   a = np.array([[1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1],
@@ -147,18 +144,15 @@ def main():
       for ordering in orderings:
         for pwidth in [32]:
           for iwidth in [32]:
-            for par in [0]:
-              for vec in [0, 1]:
-                for e in [True]:
-                  vl = 1 if vec == 0 else 16
-                  attr = st.EncodingAttr.get(level, ordering, pwidth, iwidth)
-                  opt = (f'parallelization-strategy={par} '
-                         f'vectorization-strategy={vec} '
-                         f'vl={vl} enable-simd-index32={e}')
-                  compiler = sparse_compiler.SparseCompiler(options=opt)
-                  build_compile_and_run_SDDMMM(attr, opt, support_lib, compiler)
-                  count = count + 1
-  # CHECK: Passed 16 tests
+            for e in [True]:
+              attr = st.EncodingAttr.get(level, ordering, None, pwidth,
+                                         iwidth)
+              opt = (f'parallelization-strategy=none')
+              compiler = sparse_compiler.SparseCompiler(
+                  options=opt, opt_level=0, shared_libs=[support_lib])
+              build_compile_and_run_SDDMMM(attr, compiler)
+              count = count + 1
+  # CHECK: Passed 8 tests
   print('Passed ', count, 'tests')
 
 

@@ -14,6 +14,7 @@
 #ifndef LLVM_IR_DOMINATORS_H
 #define LLVM_IR_DOMINATORS_H
 
+#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseMapInfo.h"
@@ -22,6 +23,8 @@
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/ADT/ilist_iterator.h"
+#include "llvm/ADT/iterator_range.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/PassManager.h"
@@ -31,6 +34,7 @@
 #include "llvm/Support/CFGUpdate.h"
 #include "llvm/Support/GenericDomTree.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"
+#include <algorithm>
 #include <utility>
 #include <vector>
 
@@ -192,8 +196,12 @@ class DominatorTree : public DominatorTreeBase<BasicBlock, false> {
   /// Return true if value Def dominates all possible uses inside instruction
   /// User. Same comments as for the Use-based API apply.
   bool dominates(const Value *Def, const Instruction *User) const;
-  // Does not accept Value to avoid ambiguity with dominance checks between
-  // two basic blocks.
+
+  /// Returns true if Def would dominate a use in any instruction in BB.
+  /// If Def is an instruction in BB, then Def does not dominate BB.
+  ///
+  /// Does not accept Value to avoid ambiguity with dominance checks between
+  /// two basic blocks.
   bool dominates(const Instruction *Def, const BasicBlock *BB) const;
 
   /// Return true if an edge dominates a use.

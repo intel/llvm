@@ -8,10 +8,13 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_SYMBOLCOLLECTOR_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_INDEX_SYMBOLCOLLECTOR_H
 
-#include "CanonicalIncludes.h"
 #include "CollectMacros.h"
-#include "Index.h"
-#include "SymbolOrigin.h"
+#include "index/CanonicalIncludes.h"
+#include "index/Ref.h"
+#include "index/Relation.h"
+#include "index/Symbol.h"
+#include "index/SymbolID.h"
+#include "index/SymbolOrigin.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/Basic/SourceLocation.h"
@@ -19,8 +22,8 @@
 #include "clang/Index/IndexDataConsumer.h"
 #include "clang/Index/IndexSymbol.h"
 #include "clang/Sema/CodeCompleteConsumer.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/Support/Regex.h"
 #include <functional>
 
 namespace clang {
@@ -141,11 +144,18 @@ private:
 
   llvm::Optional<std::string> getIncludeHeader(const Symbol &S, FileID);
 
+  SymbolID getSymbolIDCached(const Decl *D);
+  SymbolID getSymbolIDCached(const llvm::StringRef MacroName,
+                             const MacroInfo *MI, const SourceManager &SM);
+
   // All Symbols collected from the AST.
   SymbolSlab::Builder Symbols;
   // File IDs for Symbol.IncludeHeaders.
   // The final spelling is calculated in finish().
   llvm::DenseMap<SymbolID, FileID> IncludeFiles;
+  // Files which contain ObjC symbols.
+  // This is finalized and used in finish().
+  llvm::DenseSet<FileID> FilesWithObjCConstructs;
   void setIncludeLocation(const Symbol &S, SourceLocation);
   // Indexed macros, to be erased if they turned out to be include guards.
   llvm::DenseSet<const IdentifierInfo *> IndexedMacros;
@@ -163,14 +173,14 @@ private:
   Options Opts;
   struct SymbolRef {
     SourceLocation Loc;
+    FileID FID;
     index::SymbolRoleSet Roles;
     const Decl *Container;
+    bool Spelled;
   };
+  void addRef(SymbolID ID, const SymbolRef &SR);
   // Symbols referenced from the current TU, flushed on finish().
-  llvm::DenseSet<const NamedDecl *> ReferencedDecls;
-  llvm::DenseSet<const IdentifierInfo *> ReferencedMacros;
-  llvm::DenseMap<const NamedDecl *, std::vector<SymbolRef>> DeclRefs;
-  llvm::DenseMap<SymbolID, std::vector<SymbolRef>> MacroRefs;
+  llvm::DenseSet<SymbolID> ReferencedSymbols;
   // Maps canonical declaration provided by clang to canonical declaration for
   // an index symbol, if clangd prefers a different declaration than that
   // provided by clang. For example, friend declaration might be considered
@@ -183,6 +193,8 @@ private:
   // to insert for which symbol, etc.
   class HeaderFileURICache;
   std::unique_ptr<HeaderFileURICache> HeaderFileURIs;
+  llvm::DenseMap<const Decl *, SymbolID> DeclToIDCache;
+  llvm::DenseMap<const MacroInfo *, SymbolID> MacroToIDCache;
 };
 
 } // namespace clangd

@@ -2,6 +2,7 @@ add_flang_unittest(FlangRuntimeTests
   BufferTest.cpp
   CharacterTest.cpp
   CommandTest.cpp
+  Complex.cpp
   CrashHandlerFixture.cpp
   ExternalIOTest.cpp
   Format.cpp
@@ -12,6 +13,7 @@ add_flang_unittest(FlangRuntimeTests
   Namelist.cpp
   Numeric.cpp
   NumericalFormatTest.cpp
+  Pointer.cpp
   Ragged.cpp
   Random.cpp
   Reduction.cpp

@@ -15,11 +15,13 @@
 
 #include "SymbolTable.h"
 #include "Config.h"
+#include "InputFiles.h"
 #include "Symbols.h"
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/Memory.h"
 #include "lld/Common/Strings.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/Demangle/Demangle.h"
 
 using namespace llvm;
 using namespace llvm::object;
@@ -27,7 +29,7 @@ using namespace llvm::ELF;
 using namespace lld;
 using namespace lld::elf;
 
-std::unique_ptr<SymbolTable> elf::symtab;
+SymbolTable elf::symtab;
 
 void SymbolTable::wrap(Symbol *sym, Symbol *real, Symbol *wrap) {
   // Redirect __real_foo to the original foo and foo to the original __wrap_foo.
@@ -38,7 +40,15 @@ void SymbolTable::wrap(Symbol *sym, Symbol *real, Symbol *wrap) {
   idx2 = idx1;
   idx1 = idx3;
 
-  if (!real->isUsedInRegularObj && sym->isUndefined())
+  // Propagate symbol usage information to the redirected symbols.
+  if (sym->isUsedInRegularObj)
+    wrap->isUsedInRegularObj = true;
+  if (real->isUsedInRegularObj)
+    sym->isUsedInRegularObj = true;
+  else if (!sym->isDefined())
+    // Now that all references to sym have been redirected to wrap, if there are
+    // no references to real (which has been redirected to sym), we only need to
+    // keep sym if it was defined, otherwise it's unused and can be dropped.
     sym->isUsedInRegularObj = false;
 
   // Now renaming is complete, and no one refers to real. We drop real from
@@ -78,27 +88,14 @@ Symbol *SymbolTable::insert(StringRef name) {
   Symbol *sym = reinterpret_cast<Symbol *>(make<SymbolUnion>());
   symVector.push_back(sym);
 
-  // *sym was not initialized by a constructor. Fields that may get referenced
-  // when it is a placeholder must be initialized here.
+  // *sym was not initialized by a constructor. Initialize all Symbol fields.
+  memset(sym, 0, sizeof(Symbol));
   sym->setName(name);
-  sym->symbolKind = Symbol::PlaceholderKind;
   sym->partition = 1;
-  sym->visibility = STV_DEFAULT;
-  sym->isUsedInRegularObj = false;
-  sym->exportDynamic = false;
-  sym->inDynamicList = false;
-  sym->referenced = false;
-  sym->traced = false;
-  sym->scriptDefined = false;
+  sym->verdefIndex = -1;
   sym->versionId = VER_NDX_GLOBAL;
   if (pos != StringRef::npos)
     sym->hasVersionSuffix = true;
-  return sym;
-}
-
-Symbol *SymbolTable::addSymbol(const Symbol &newSym) {
-  Symbol *sym = insert(newSym.getName());
-  sym->resolve(newSym);
   return sym;
 }
 
@@ -109,6 +106,7 @@ Symbol *SymbolTable::addAndCheckDuplicate(const Defined &newSym) {
   if (sym->isDefined())
     sym->checkDuplicate(newSym);
   sym->resolve(newSym);
+  sym->isUsedInRegularObj = true;
   return sym;
 }
 
@@ -148,13 +146,12 @@ StringMap<SmallVector<Symbol *, 0>> &SymbolTable::getDemangledSyms() {
         StringRef name = sym->getName();
         size_t pos = name.find('@');
         if (pos == std::string::npos)
-          demangled = demangle(name, config->demangle);
+          demangled = demangle(name.str());
         else if (pos + 1 == name.size() || name[pos + 1] == '@')
-          demangled = demangle(name.substr(0, pos), config->demangle);
+          demangled = demangle(name.substr(0, pos).str());
         else
-          demangled = (demangle(name.substr(0, pos), config->demangle) +
-                       name.substr(pos))
-                          .str();
+          demangled =
+              (demangle(name.substr(0, pos).str()) + name.substr(pos)).str();
         (*demangledSyms)[demangled].push_back(sym);
       }
   }

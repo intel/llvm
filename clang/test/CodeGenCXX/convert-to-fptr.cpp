@@ -38,5 +38,5 @@ int main()
  return 0;
 }
 
-// CHECK: call noundef i32 (i32)* @_ZN1AcvPFiiEEv
-// CHECK: call noundef nonnull i32 (i32)* @_ZN1BcvRFiiEEv
+// CHECK: call noundef ptr @_ZN1AcvPFiiEEv
+// CHECK: call noundef nonnull ptr @_ZN1BcvRFiiEEv

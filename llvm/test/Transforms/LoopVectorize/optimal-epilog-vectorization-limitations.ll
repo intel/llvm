@@ -1,10 +1,10 @@
 ; REQUIRES: asserts
-; RUN: opt < %s  -passes='loop-vectorize' -force-vector-width=2 -enable-epilogue-vectorization -epilogue-vectorization-force-VF=2 --debug-only=loop-vectorize -S 2>&1 | FileCheck %s
+; RUN: opt < %s -passes='loop-vectorize' -force-vector-width=2 -enable-epilogue-vectorization -epilogue-vectorization-force-VF=2 --debug-only=loop-vectorize -S 2>&1 | FileCheck %s
 
 target datalayout = "e-m:e-i64:64-n32:64-v256:256:256-v512:512:512"
 
 ; Currently we cannot handle live-out variables that are recurrences.
-; CHECK: LV: Checking a loop in "f2"
+; CHECK: LV: Checking a loop in 'f2'
 ; CHECK: LEV: Unable to vectorize epilogue because the loop is not a supported candidate.
 
 define signext i32 @f2(i8* noalias %A, i32 signext %n) {
@@ -38,7 +38,7 @@ for.end:                                          ; preds = %for.end.loopexit, %
 }
 
 ; Currently we cannot handle widended/truncated inductions.
-; CHECK: LV: Checking a loop in "f3"
+; CHECK: LV: Checking a loop in 'f3'
 ; CHECK: LEV: Unable to vectorize epilogue because the loop is not a supported candidate.
 
 define void @f3(i8* noalias %A, i32 signext %n) {

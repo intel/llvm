@@ -28,9 +28,11 @@
 // DISABLED-NOT: "-sycl-std={{.*}}"
 // DISABLED-NOT: "-fsycl-std-layout-kernel-params"
 
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice,nvptx64-nvidia-cuda-sycldevice -fno-sycl-libspirv -nocudalib -c %s 2>&1 | FileCheck %s --check-prefix=CHECK_WARNING
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64-unknown-unknown-sycldevice,nvptx64-nvidia-cuda-sycldevice -fno-sycl-libspirv -nocudalib -### -c %s 2>&1 | FileCheck %s --check-prefix=CHECK_WARNING
 // CHECK_WARNING: argument 'spir64-unknown-unknown-sycldevice' is deprecated, use 'spir64' instead
 // CHECK_WARNING: argument 'nvptx64-nvidia-cuda-sycldevice' is deprecated, use 'nvptx64-nvidia-cuda' instead
+// CHECK_WARNING: clang{{.*}} "-triple" "spir64-unknown-unknown"
+// CHECK_WARNING: clang{{.*}} "-triple" "nvptx64-nvidia-cuda"
 
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl-device-only -c %s 2>&1 | FileCheck %s --check-prefix=DEFAULT -DSPIRARCH=spir64
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT -DSPIRARCH=spir64
@@ -70,6 +72,16 @@
 // RUN: %clang_cl -### -fsycl-device-only -fno-sycl-unnamed-lambda %s 2>&1 | FileCheck %s --check-prefix=CHECK-NOT-LAMBDA
 // CHECK-NOT-LAMBDA: "-fno-sycl-unnamed-lambda"
 
+// -fsycl-force-inline-kernel-lambda
+// RUN: %clangxx -### -fsycl-device-only -fno-sycl-force-inline-kernel-lambda  %s 2>&1 | FileCheck %s --check-prefix=CHECK-NOT-INLINE
+// RUN: %clang_cl -### -fsycl-device-only -fno-sycl-force-inline-kernel-lambda  %s 2>&1 | FileCheck %s --check-prefix=CHECK-NOT-INLINE
+// RUN: %clangxx -### -fsycl-device-only -O0 %s 2>&1 | FileCheck %s --check-prefix=CHECK-NOT-INLINE
+// RUN: %clang_cl -### -fsycl-device-only -Od %s 2>&1 | FileCheck %s --check-prefix=CHECK-NOT-INLINE
+// RUN: %clangxx -### -fsycl-device-only -O1 %s 2>&1 | FileCheck %s --check-prefix=CHECK-INLINE
+// RUN: %clang_cl -### -fsycl-device-only -O2 %s 2>&1 | FileCheck %s --check-prefix=CHECK-INLINE
+// CHECK-NOT-INLINE: "-fno-sycl-force-inline-kernel-lambda"
+// CHECK-INLINE-NOT: "-fno-sycl-force-inline-kernel-lambda"
+
 /// -fsycl-device-only triple checks
 // RUN: %clang -fsycl-device-only -target x86_64-unknown-linux-gnu -### %s 2>&1 \
 // RUN:  | FileCheck --check-prefix=DEVICE-64 %s
@@ -106,7 +118,7 @@
 // RUN: env PATH=%t-sycl-dir %clang -### -fsycl-help=fpga %s 2>&1 | FileCheck %s --check-prefixes=SYCL-HELP-FPGA,SYCL-HELP-FPGA-OUT -DDIR=%t-sycl-dir
 // RUN: %clang -### -fsycl-help=x86_64 %s 2>&1 | FileCheck %s --check-prefix=SYCL-HELP-CPU
 // RUN: %clang -### -fsycl-help %s 2>&1 | FileCheck %s --check-prefixes=SYCL-HELP-GEN,SYCL-HELP-FPGA,SYCL-HELP-CPU
-// SYCL-HELP-BADARG: unsupported argument 'foo' to option 'fsycl-help='
+// SYCL-HELP-BADARG: unsupported argument 'foo' to option '-fsycl-help='
 // SYCL-HELP-GEN: Emitting help information for ocloc
 // SYCL-HELP-GEN: Use triple of 'spir64_gen-unknown-unknown' to enable ahead of time compilation
 // SYCL-HELP-FPGA: Emitting help information for aoc
@@ -142,3 +154,8 @@
 // RUN: %clang_cl -### -fsycl -- %s 2>&1 | FileCheck %s --check-prefix=DEFAULT_STD
 
 // DEFAULT_STD: "-sycl-std=2020"
+
+/// Verify correct match of offload arch with multiple sycl targets
+// RUN: %clang -fsycl -fsycl-targets=nvptx64-nvidia-cuda,amdgcn-amd-amdhsa -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx908 -Xsycl-target-backend=nvptx64-nvidia-cuda --offload-arch=sm_86 -c -ccc-print-phases %s 2>&1 | FileCheck %s --check-prefix=MULTIPLE_TARGETS
+// MULTIPLE_TARGETS: offload, "device-sycl (nvptx64-nvidia-cuda:sm_86)"
+// MULTIPLE_TARGETS: offload, "device-sycl (amdgcn-amd-amdhsa:gfx908)"

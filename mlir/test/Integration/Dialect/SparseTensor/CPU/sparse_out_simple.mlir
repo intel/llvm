@@ -1,20 +1,18 @@
-// RUN: mlir-opt %s --sparse-compiler | \
-// RUN: TENSOR0="%mlir_integration_test_dir/data/test.mtx" \
-// RUN: mlir-cpu-runner \
-// RUN:  -e entry -entry-point-result=void  \
-// RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
+// DEFINE: %{option} = enable-runtime-library=true
+// DEFINE: %{command} = mlir-opt %s --sparse-compiler=%{option} | \
+// DEFINE: TENSOR0="%mlir_src_dir/test/Integration/data/test.mtx" \
+// DEFINE: mlir-cpu-runner \
+// DEFINE:  -e entry -entry-point-result=void  \
+// DEFINE:  -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
+// DEFINE: FileCheck %s
 //
-// Do the same run, but now with SIMDization as well. This should not change the outcome.
+// RUN: %{command}
 //
-// RUN: mlir-opt %s --sparse-compiler="vectorization-strategy=2 vl=4" | \
-// RUN: TENSOR0="%mlir_integration_test_dir/data/test.mtx" \
-// RUN: mlir-cpu-runner \
-// RUN:  -e entry -entry-point-result=void  \
-// RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
+// Do the same run, but now with direct IR generation.
+// REDEFINE: %{option} = enable-runtime-library=false
+// RUN: %{command}
 
-!Filename = type !llvm.ptr<i8>
+!Filename = !llvm.ptr<i8>
 
 #DCSR = #sparse_tensor.encoding<{
   dimLevelType = [ "compressed", "compressed" ],
@@ -41,7 +39,7 @@ module {
   // a sparse tensor as output, but although the values of the
   // sparse tensor change, its nonzero structure remains the same.
   //
-  func @kernel_eltwise_mult(%argx: tensor<?x?xf64, #DCSR> {linalg.inplaceable = true})
+  func.func @kernel_eltwise_mult(%argx: tensor<?x?xf64, #DCSR>)
     -> tensor<?x?xf64, #DCSR> {
     %0 = linalg.generic #eltwise_mult
       outs(%argx: tensor<?x?xf64, #DCSR>) {
@@ -52,12 +50,12 @@ module {
     return %0 : tensor<?x?xf64, #DCSR>
   }
 
-  func private @getTensorFilename(index) -> (!Filename)
+  func.func private @getTensorFilename(index) -> (!Filename)
 
   //
   // Main driver that reads matrix from file and calls the sparse kernel.
   //
-  func @entry() {
+  func.func @entry() {
     %d0 = arith.constant 0.0 : f64
     %c0 = arith.constant 0 : index
 
@@ -77,7 +75,7 @@ module {
     vector.print %v : vector<9xf64>
 
     // Release the resources.
-    sparse_tensor.release %x : tensor<?x?xf64, #DCSR>
+    bufferization.dealloc_tensor %x : tensor<?x?xf64, #DCSR>
 
     return
   }

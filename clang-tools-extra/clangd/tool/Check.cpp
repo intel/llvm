@@ -24,13 +24,20 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "../clang-tidy/ClangTidyModuleRegistry.h"
+#include "../clang-tidy/GlobList.h"
 #include "ClangdLSPServer.h"
 #include "CodeComplete.h"
+#include "CompileCommands.h"
 #include "Config.h"
+#include "Feature.h"
 #include "GlobalCompilationDatabase.h"
 #include "Hover.h"
+#include "InlayHints.h"
 #include "ParsedAST.h"
 #include "Preamble.h"
+#include "Protocol.h"
+#include "SemanticHighlighting.h"
 #include "SourceCode.h"
 #include "XRefs.h"
 #include "index/CanonicalIncludes.h"
@@ -39,18 +46,42 @@
 #include "support/ThreadsafeFS.h"
 #include "support/Trace.h"
 #include "clang/AST/ASTContext.h"
-#include "clang/Basic/DiagnosticIDs.h"
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Format/Format.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/Process.h"
 
 namespace clang {
 namespace clangd {
 namespace {
+
+// These will never be shown in --help, ClangdMain doesn't list the category.
+llvm::cl::opt<std::string> CheckTidyTime{
+    "check-tidy-time",
+    llvm::cl::desc("Print the overhead of checks matching this glob"),
+    llvm::cl::init("")};
+llvm::cl::opt<std::string> CheckFileLines{
+    "check-lines",
+    llvm::cl::desc(
+        "Limits the range of tokens in -check file on which "
+        "various features are tested. Example --check-lines=3-7 restricts "
+        "testing to lines 3 to 7 (inclusive) or --check-lines=5 to restrict "
+        "to one line. Default is testing entire file."),
+    llvm::cl::init("")};
+llvm::cl::opt<bool> CheckLocations{
+    "check-locations",
+    llvm::cl::desc(
+        "Runs certain features (e.g. hover) at each point in the file. "
+        "Somewhat slow."),
+    llvm::cl::init(true)};
+llvm::cl::opt<bool> CheckCompletion{
+    "check-completion",
+    llvm::cl::desc("Run code-completion at each point (slow)"),
+    llvm::cl::init(false)};
 
 // Print (and count) the error-level diagnostics (warnings are ignored).
 unsigned showErrors(llvm::ArrayRef<Diag> Diags) {
@@ -62,6 +93,19 @@ unsigned showErrors(llvm::ArrayRef<Diag> Diags) {
     }
   }
   return ErrCount;
+}
+
+std::vector<std::string> listTidyChecks(llvm::StringRef Glob) {
+  tidy::GlobList G(Glob);
+  tidy::ClangTidyCheckFactories CTFactories;
+  for (const auto &E : tidy::ClangTidyModuleRegistry::entries())
+    E.instantiate()->addCheckFactories(CTFactories);
+  std::vector<std::string> Result;
+  for (const auto &E : CTFactories)
+    if (G.contains(E.getKey()))
+      Result.push_back(E.getKey().str());
+  llvm::sort(Result);
+  return Result;
 }
 
 // This class is just a linear pipeline whose functions get called in sequence.
@@ -99,18 +143,19 @@ public:
         Config::current().CompileFlags.CDBSearch.FixedCDBPath;
     std::unique_ptr<GlobalCompilationDatabase> BaseCDB =
         std::make_unique<DirectoryBasedGlobalCompilationDatabase>(CDBOpts);
-    BaseCDB = getQueryDriverDatabase(llvm::makeArrayRef(Opts.QueryDriverGlobs),
-                                     std::move(BaseCDB));
     auto Mangler = CommandMangler::detect();
+    Mangler.SystemIncludeExtractor =
+        getSystemIncludeExtractor(llvm::makeArrayRef(Opts.QueryDriverGlobs));
     if (Opts.ResourceDir)
       Mangler.ResourceDir = *Opts.ResourceDir;
     auto CDB = std::make_unique<OverlayCDB>(
-        BaseCDB.get(), std::vector<std::string>{},
-        tooling::ArgumentsAdjuster(std::move(Mangler)));
+        BaseCDB.get(), std::vector<std::string>{}, std::move(Mangler));
 
     if (auto TrueCmd = CDB->getCompileCommand(File)) {
       Cmd = std::move(*TrueCmd);
-      log("Compile command from CDB is: {0}", printArgv(Cmd.CommandLine));
+      log("Compile command {0} is: {1}",
+          Cmd.Heuristic.empty() ? "from CDB" : Cmd.Heuristic,
+          printArgv(Cmd.CommandLine));
     } else {
       Cmd = CDB->getFallbackCommand(File);
       log("Generic fallback command is: {0}", printArgv(Cmd.CommandLine));
@@ -127,11 +172,13 @@ public:
     Inputs.CompileCommand = Cmd;
     Inputs.TFS = &TFS;
     Inputs.ClangTidyProvider = Opts.ClangTidyProvider;
-    if (Contents.hasValue()) {
+    Inputs.Opts.PreambleParseForwardingFunctions =
+        Opts.PreambleParseForwardingFunctions;
+    if (Contents) {
       Inputs.Contents = *Contents;
       log("Imaginary source file contents:\n{0}", Inputs.Contents);
     } else {
-      if (auto Contents = TFS.view(llvm::None)->getBufferForFile(File)) {
+      if (auto Contents = TFS.view(std::nullopt)->getBufferForFile(File)) {
         Inputs.Contents = Contents->get()->getBuffer().str();
       } else {
         elog("Couldn't read {0}: {1}", File, Contents.getError().message());
@@ -188,13 +235,123 @@ public:
       log("Indexing AST...");
       Index.updateMain(File, *AST);
     }
+
+    if (!CheckTidyTime.empty()) {
+      if (!CLANGD_TIDY_CHECKS) {
+        elog("-{0} requires -DCLANGD_TIDY_CHECKS!", CheckTidyTime.ArgStr);
+        return false;
+      }
+      #ifndef NDEBUG
+      elog("Timing clang-tidy checks in asserts-mode is not representative!");
+      #endif
+      checkTidyTimes();
+    }
+
     return true;
   }
 
+  // For each check foo, we want to build with checks=-* and checks=-*,foo.
+  // (We do a full build rather than just AST matchers to meausre PPCallbacks).
+  //
+  // However, performance has both random noise and systematic changes, such as
+  // step-function slowdowns due to CPU scaling.
+  // We take the median of 5 measurements, and after every check discard the
+  // measurement if the baseline changed by >3%.
+  void checkTidyTimes() {
+    double Stability = 0.03;
+    log("Timing AST build with individual clang-tidy checks (target accuracy "
+        "{0:P0})",
+        Stability);
+
+    using Duration = std::chrono::nanoseconds;
+    // Measure time elapsed by a block of code. Currently: user CPU time.
+    auto Time = [&](auto &&Run) -> Duration {
+      llvm::sys::TimePoint<> Elapsed;
+      std::chrono::nanoseconds UserBegin, UserEnd, System;
+      llvm::sys::Process::GetTimeUsage(Elapsed, UserBegin, System);
+      Run();
+      llvm::sys::Process::GetTimeUsage(Elapsed, UserEnd, System);
+      return UserEnd - UserBegin;
+    };
+    auto Change = [&](Duration Exp, Duration Base) -> double {
+      return (double)(Exp.count() - Base.count()) / Base.count();
+    };
+    // Build ParsedAST with a fixed check glob, and return the time taken.
+    auto Build = [&](llvm::StringRef Checks) -> Duration {
+      TidyProvider CTProvider = [&](tidy::ClangTidyOptions &Opts,
+                                    llvm::StringRef) {
+        Opts.Checks = Checks.str();
+      };
+      Inputs.ClangTidyProvider = CTProvider;
+      // Sigh, can't reuse the CompilerInvocation.
+      IgnoringDiagConsumer IgnoreDiags;
+      auto Invocation = buildCompilerInvocation(Inputs, IgnoreDiags);
+      Duration Val = Time([&] {
+        ParsedAST::build(File, Inputs, std::move(Invocation), {}, Preamble);
+      });
+      vlog("    Measured {0} ==> {1}", Checks, Val);
+      return Val;
+    };
+    // Measure several times, return the median.
+    auto MedianTime = [&](llvm::StringRef Checks) -> Duration {
+      std::array<Duration, 5> Measurements;
+      for (auto &M : Measurements)
+        M = Build(Checks);
+      llvm::sort(Measurements);
+      return Measurements[Measurements.size() / 2];
+    };
+    Duration Baseline = MedianTime("-*");
+    log("  Baseline = {0}", Baseline);
+    // Attempt to time a check, may update Baseline if it is unstable.
+    auto Measure = [&](llvm::StringRef Check) -> double {
+      for (;;) {
+        Duration Median = MedianTime(("-*," + Check).str());
+        Duration NewBase = MedianTime("-*");
+
+        // Value only usable if baseline is fairly consistent before/after.
+        double DeltaFraction = Change(NewBase, Baseline);
+        Baseline = NewBase;
+        vlog("  Baseline = {0}", Baseline);
+        if (DeltaFraction < -Stability || DeltaFraction > Stability) {
+          elog("  Speed unstable, discarding measurement.");
+          continue;
+        }
+        return Change(Median, Baseline);
+      }
+    };
+
+    for (const auto& Check : listTidyChecks(CheckTidyTime)) {
+      // vlog the check name in case we crash!
+      vlog("  Timing {0}", Check);
+      double Fraction = Measure(Check);
+      log("  {0} = {1:P0}", Check, Fraction);
+    }
+    log("Finished individual clang-tidy checks");
+
+    // Restore old options.
+    Inputs.ClangTidyProvider = Opts.ClangTidyProvider;
+  }
+
+  // Build Inlay Hints for the entire AST or the specified range
+  void buildInlayHints(llvm::Optional<Range> LineRange) {
+    log("Building inlay hints");
+    auto Hints = inlayHints(*AST, LineRange);
+
+    for (const auto &Hint : Hints) {
+      vlog("  {0} {1} {2}", Hint.kind, Hint.position, Hint.label);
+    }
+  }
+
+  void buildSemanticHighlighting(llvm::Optional<Range> LineRange) {
+    log("Building semantic highlighting");
+    auto Highlights = getSemanticHighlightings(*AST);
+    for (const auto HL : Highlights)
+      if (!LineRange || LineRange->contains(HL.R))
+        vlog(" {0} {1} {2}", HL.R, HL.Kind, HL.Modifiers);
+  }
+
   // Run AST-based features at each token in the file.
-  void testLocationFeatures(
-      llvm::function_ref<bool(const Position &)> ShouldCheckLine,
-      const bool EnableCodeCompletion) {
+  void testLocationFeatures(llvm::Optional<Range> LineRange) {
     trace::Span Trace("testLocationFeatures");
     log("Testing features at each token (may be slow in large files)");
     auto &SM = AST->getSourceManager();
@@ -208,7 +365,7 @@ public:
       unsigned End = Start + Tok.length();
       Position Pos = offsetToPosition(Inputs.Contents, Start);
 
-      if (!ShouldCheckLine(Pos))
+      if (LineRange && !LineRange->contains(Pos))
         continue;
 
       trace::Span Trace("Token");
@@ -241,9 +398,12 @@ public:
       vlog("    definition: {0}", Definitions);
 
       auto Hover = getHover(*AST, Pos, Style, &Index);
-      vlog("    hover: {0}", Hover.hasValue());
+      vlog("    hover: {0}", Hover.has_value());
 
-      if (EnableCodeCompletion) {
+      unsigned DocHighlights = findDocumentHighlights(*AST, Pos).size();
+      vlog("    documentHighlight: {0}", DocHighlights);
+
+      if (CheckCompletion) {
         Position EndPos = offsetToPosition(Inputs.Contents, End);
         auto CC = codeComplete(File, EndPos, Preamble.get(), Inputs, CCOpts);
         vlog("    code completion: {0}",
@@ -255,10 +415,27 @@ public:
 
 } // namespace
 
-bool check(llvm::StringRef File,
-           llvm::function_ref<bool(const Position &)> ShouldCheckLine,
-           const ThreadsafeFS &TFS, const ClangdLSPServer::Options &Opts,
-           bool EnableCodeCompletion) {
+bool check(llvm::StringRef File, const ThreadsafeFS &TFS,
+           const ClangdLSPServer::Options &Opts) {
+  llvm::Optional<Range> LineRange;
+  if (!CheckFileLines.empty()) {
+    uint32_t Begin = 0, End = std::numeric_limits<uint32_t>::max();
+    StringRef RangeStr(CheckFileLines);
+    bool ParseError = RangeStr.consumeInteger(0, Begin);
+    if (RangeStr.empty()) {
+      End = Begin;
+    } else {
+      ParseError |= !RangeStr.consume_front("-");
+      ParseError |= RangeStr.consumeInteger(0, End);
+    }
+    if (ParseError || !RangeStr.empty() || Begin <= 0 || End < Begin) {
+      elog("Invalid --check-lines specified. Use Begin-End format, e.g. 3-17");
+      return false;
+    }
+    LineRange = Range{Position{static_cast<int>(Begin - 1), 0},
+                      Position{static_cast<int>(End), 0}};
+  }
+
   llvm::SmallString<0> FakeFile;
   llvm::Optional<std::string> Contents;
   if (File.empty()) {
@@ -285,7 +462,10 @@ bool check(llvm::StringRef File,
   if (!C.buildCommand(TFS) || !C.buildInvocation(TFS, Contents) ||
       !C.buildAST())
     return false;
-  C.testLocationFeatures(ShouldCheckLine, EnableCodeCompletion);
+  C.buildInlayHints(LineRange);
+  C.buildSemanticHighlighting(LineRange);
+  if (CheckLocations)
+    C.testLocationFeatures(LineRange);
 
   log("All checks completed, {0} errors", C.ErrCount);
   return C.ErrCount == 0;

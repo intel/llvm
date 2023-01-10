@@ -8,7 +8,6 @@
 #include "AST.h"
 #include "FindTarget.h"
 #include "Selection.h"
-#include "SourceCode.h"
 #include "refactor/Tweak.h"
 #include "support/Logger.h"
 #include "clang/AST/Decl.h"
@@ -17,8 +16,6 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Tooling/Core/Replacement.h"
-#include "clang/Tooling/Refactoring/RecursiveSymbolVisitor.h"
-#include "llvm/ADT/ScopeExit.h"
 
 namespace clang {
 namespace clangd {
@@ -157,6 +154,24 @@ Expected<Tweak::Effect> RemoveUsingNamespace::apply(const Selection &Inputs) {
           for (auto *T : Ref.Targets) {
             if (!visibleContext(T->getDeclContext())
                      ->Equals(TargetDirective->getNominatedNamespace()))
+              return;
+            auto Kind = T->getDeclName().getNameKind();
+            // Avoid adding qualifiers before operators, e.g.
+            //   using namespace std;
+            //   cout << "foo"; // Must not changed to std::cout std:: << "foo"
+            if (Kind == DeclarationName::CXXOperatorName)
+              return;
+            // Avoid adding qualifiers before user-defined literals, e.g.
+            //   using namespace std;
+            //   auto s = "foo"s; // Must not changed to auto s = "foo" std::s;
+            // FIXME: Add a using-directive for user-defined literals
+            // declared in an inline namespace, e.g.
+            //   using namespace s^td;
+            //   int main() { cout << "foo"s; }
+            // change to
+            //   using namespace std::literals;
+            //   int main() { std::cout << "foo"s; }
+            if (Kind == DeclarationName::NameKind::CXXLiteralOperatorName)
               return;
           }
           SourceLocation Loc = Ref.NameLoc;

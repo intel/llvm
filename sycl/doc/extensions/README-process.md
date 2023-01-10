@@ -40,6 +40,30 @@ While an extension is in the "proposed" state, it is perfectly OK to make
 further modifications to its specification.  There is no need to change the
 version of the extension's feature-test macro when this occurs.
 
+When proposing a new extension targeting a particular backend, consider
+which other backends may be likely to use similar architecture features
+and may be able to support the extension. Some types of devices, such as
+GPU accelerators (e.g. devices using `level_zero`, `ext_oneapi_cuda`, and
+`ext_oneapi_hip` backends) are often designed to target similar sets of
+programming patterns. For example, a common set of applications and
+patterns that are targeted by gpu accelerators includes AI algorithms and
+data analytics, quantum or classical particle based simulations, and quantum
+or classical field based simulations. This is important to consider
+early on in order to make sure that the extension design takes account of
+the requirements of all supportable backends. If unsure about the
+applicability of an extension to a backend, it is recommended to seek advice
+from one of the developers responsible for that backend. When an extension
+API is not supported on some backends or devices, one option is to treat the
+API as an "optional kernel feature" and tie it to a device
+aspect (or to one of the architecture enums).
+In this case, the application must do one of two things:
+
+- The host code can test the device and only submit the kernel to the
+  device if it has the required aspect, or
+- The device code can use the experimental `if_architecture_is` function to
+  call the API conditionally based on the device architecture. (This only
+  works for AOT compilation currently.)
+
 
 ## Implementing an extension
 

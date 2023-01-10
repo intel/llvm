@@ -9,11 +9,11 @@
 #define N 1000
 
 int test_amdgcn_target_tid_threads() {
-// CHECK-LABEL: define weak amdgpu_kernel void @{{.*}}test_amdgcn_target_tid_threads
+// CHECK-LABEL: define weak_odr protected amdgpu_kernel void @{{.*}}test_amdgcn_target_tid_threads
 
   int arr[N];
 
-// CHECK: call i32 @__kmpc_target_init(%struct.ident_t* addrspacecast (%struct.ident_t addrspace(1)* @1 to %struct.ident_t*), i8 1, i1 true, i1 true)
+// CHECK: call i32 @__kmpc_target_init(ptr addrspacecast (ptr addrspace(1) @1 to ptr), i8 1, i1 true, i1 true)
 #pragma omp target
   for (int i = 0; i < N; i++) {
     arr[i] = 1;
@@ -23,11 +23,11 @@ int test_amdgcn_target_tid_threads() {
 }
 
 int test_amdgcn_target_tid_threads_simd() {
-// CHECK-LABEL: define weak amdgpu_kernel void @{{.*}}test_amdgcn_target_tid_threads_simd
+// CHECK-LABEL: define weak_odr protected amdgpu_kernel void @{{.*}}test_amdgcn_target_tid_threads_simd
 
   int arr[N];
 
-// CHECK: call i32 @__kmpc_target_init(%struct.ident_t* addrspacecast (%struct.ident_t addrspace(1)* @1 to %struct.ident_t*), i8 2, i1 false, i1 false)
+// CHECK: call i32 @__kmpc_target_init(ptr addrspacecast (ptr addrspace(1) @1 to ptr), i8 2, i1 false, i1 true)
 #pragma omp target simd
   for (int i = 0; i < N; i++) {
     arr[i] = 1;

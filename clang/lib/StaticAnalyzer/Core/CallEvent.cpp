@@ -49,7 +49,6 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/ImmutableList.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/SmallSet.h"
@@ -424,6 +423,38 @@ static SVal processArgument(SVal Value, const Expr *ArgumentExpr,
   return Value;
 }
 
+/// Cast the argument value to the type of the parameter at the function
+/// declaration.
+/// Returns the argument value if it didn't need a cast.
+/// Or returns the cast argument if it needed a cast.
+/// Or returns 'Unknown' if it would need a cast but the callsite and the
+/// runtime definition don't match in terms of argument and parameter count.
+static SVal castArgToParamTypeIfNeeded(const CallEvent &Call, unsigned ArgIdx,
+                                       SVal ArgVal, SValBuilder &SVB) {
+  const FunctionDecl *RTDecl =
+      Call.getRuntimeDefinition().getDecl()->getAsFunction();
+  const auto *CallExprDecl = dyn_cast_or_null<FunctionDecl>(Call.getDecl());
+
+  if (!RTDecl || !CallExprDecl)
+    return ArgVal;
+
+  // The function decl of the Call (in the AST) will not have any parameter
+  // declarations, if it was 'only' declared without a prototype. However, the
+  // engine will find the appropriate runtime definition - basically a
+  // redeclaration, which has a function body (and a function prototype).
+  if (CallExprDecl->hasPrototype() || !RTDecl->hasPrototype())
+    return ArgVal;
+
+  // Only do this cast if the number arguments at the callsite matches with
+  // the parameters at the runtime definition.
+  if (Call.getNumArgs() != RTDecl->getNumParams())
+    return UnknownVal();
+
+  const Expr *ArgExpr = Call.getArgExpr(ArgIdx);
+  const ParmVarDecl *Param = RTDecl->getParamDecl(ArgIdx);
+  return SVB.evalCast(ArgVal, Param->getType(), ArgExpr->getType());
+}
+
 static void addParameterValuesToBindings(const StackFrameContext *CalleeCtx,
                                          CallEvent::BindingsTy &Bindings,
                                          SValBuilder &SVB,
@@ -449,12 +480,18 @@ static void addParameterValuesToBindings(const StackFrameContext *CalleeCtx,
     // which makes getArgSVal() fail and return UnknownVal.
     SVal ArgVal = Call.getArgSVal(Idx);
     const Expr *ArgExpr = Call.getArgExpr(Idx);
-    if (!ArgVal.isUnknown()) {
-      Loc ParamLoc = SVB.makeLoc(
-          MRMgr.getParamVarRegion(Call.getOriginExpr(), Idx, CalleeCtx));
-      Bindings.push_back(
-          std::make_pair(ParamLoc, processArgument(ArgVal, ArgExpr, *I, SVB)));
-    }
+
+    if (ArgVal.isUnknown())
+      continue;
+
+    // Cast the argument value to match the type of the parameter in some
+    // edge-cases.
+    ArgVal = castArgToParamTypeIfNeeded(Call, Idx, ArgVal, SVB);
+
+    Loc ParamLoc = SVB.makeLoc(
+        MRMgr.getParamVarRegion(Call.getOriginExpr(), Idx, CalleeCtx));
+    Bindings.push_back(
+        std::make_pair(ParamLoc, processArgument(ArgVal, ArgExpr, *I, SVB)));
   }
 
   // FIXME: Variadic arguments are not handled at all right now.
@@ -481,20 +518,20 @@ Optional<SVal>
 CallEvent::getReturnValueUnderConstruction() const {
   const auto *CC = getConstructionContext();
   if (!CC)
-    return None;
+    return std::nullopt;
 
   EvalCallOptions CallOpts;
   ExprEngine &Engine = getState()->getStateManager().getOwningEngine();
-  SVal RetVal =
-    Engine.computeObjectUnderConstruction(getOriginExpr(), getState(),
-                                          getLocationContext(), CC, CallOpts);
+  SVal RetVal = Engine.computeObjectUnderConstruction(
+      getOriginExpr(), getState(), &Engine.getBuilderContext(),
+      getLocationContext(), CC, CallOpts);
   return RetVal;
 }
 
 ArrayRef<ParmVarDecl*> AnyFunctionCall::parameters() const {
   const FunctionDecl *D = getDecl();
   if (!D)
-    return None;
+    return std::nullopt;
   return D->parameters();
 }
 
@@ -515,20 +552,28 @@ RuntimeDefinition AnyFunctionCall::getRuntimeDefinition() const {
       llvm::dbgs() << "Using autosynthesized body for " << FD->getName()
                    << "\n";
   });
-  if (Body) {
-    const Decl* Decl = AD->getDecl();
-    return RuntimeDefinition(Decl);
-  }
 
   ExprEngine &Engine = getState()->getStateManager().getOwningEngine();
+  cross_tu::CrossTranslationUnitContext &CTUCtx =
+      *Engine.getCrossTranslationUnitContext();
+
   AnalyzerOptions &Opts = Engine.getAnalysisManager().options;
+
+  if (Body) {
+    const Decl* Decl = AD->getDecl();
+    if (Opts.IsNaiveCTUEnabled && CTUCtx.isImportedAsNew(Decl)) {
+      // A newly created definition, but we had error(s) during the import.
+      if (CTUCtx.hasError(Decl))
+        return {};
+      return RuntimeDefinition(Decl, /*Foreign=*/true);
+    }
+    return RuntimeDefinition(Decl, /*Foreign=*/false);
+  }
 
   // Try to get CTU definition only if CTUDir is provided.
   if (!Opts.IsNaiveCTUEnabled)
     return {};
 
-  cross_tu::CrossTranslationUnitContext &CTUCtx =
-      *Engine.getCrossTranslationUnitContext();
   llvm::Expected<const FunctionDecl *> CTUDeclOrError =
       CTUCtx.getCrossTUDefinition(FD, Opts.CTUDir, Opts.CTUIndexName,
                                   Opts.DisplayCTUProgress);
@@ -541,7 +586,7 @@ RuntimeDefinition AnyFunctionCall::getRuntimeDefinition() const {
     return {};
   }
 
-  return RuntimeDefinition(*CTUDeclOrError);
+  return RuntimeDefinition(*CTUDeclOrError, /*Foreign=*/true);
 }
 
 void AnyFunctionCall::getInitialStackFrameContents(
@@ -672,7 +717,7 @@ SVal CXXInstanceCall::getCXXThisVal() const {
     return UnknownVal();
 
   SVal ThisVal = getSVal(Base);
-  assert(ThisVal.isUnknownOrUndef() || ThisVal.getAs<Loc>());
+  assert(ThisVal.isUnknownOrUndef() || isa<Loc>(ThisVal));
   return ThisVal;
 }
 
@@ -764,7 +809,7 @@ void CXXInstanceCall::getInitialStackFrameContents(
       // FIXME: CallEvent maybe shouldn't be directly accessing StoreManager.
       Optional<SVal> V =
           StateMgr.getStoreManager().evalBaseToDerived(ThisVal, Ty);
-      if (!V.hasValue()) {
+      if (!V) {
         // We might have suffered some sort of placement new earlier, so
         // we're constructing in a completely unexpected storage.
         // Fall back to a generic pointer cast for this-value.
@@ -811,7 +856,7 @@ const BlockDataRegion *BlockCall::getBlockRegion() const {
 ArrayRef<ParmVarDecl*> BlockCall::parameters() const {
   const BlockDecl *D = getDecl();
   if (!D)
-    return None;
+    return std::nullopt;
   return D->parameters();
 }
 
@@ -900,7 +945,7 @@ RuntimeDefinition CXXDestructorCall::getRuntimeDefinition() const {
 ArrayRef<ParmVarDecl*> ObjCMethodCall::parameters() const {
   const ObjCMethodDecl *D = getDecl();
   if (!D)
-    return None;
+    return std::nullopt;
   return D->parameters();
 }
 
@@ -1116,7 +1161,7 @@ static const ObjCMethodDecl *findDefiningRedecl(const ObjCMethodDecl *MD) {
 
   // Find the redeclaration that defines the method.
   if (!MD->hasBody()) {
-    for (auto I : MD->redecls())
+    for (auto *I : MD->redecls())
       if (I->hasBody())
         MD = cast<ObjCMethodDecl>(I);
   }
@@ -1184,7 +1229,7 @@ lookupRuntimeDefinition(const ObjCInterfaceDecl *Interface,
       PMC[{Interface, LookupSelector, InstanceMethod}];
 
   // Query lookupPrivateMethod() if the cache does not hit.
-  if (!Val.hasValue()) {
+  if (!Val) {
     Val = Interface->lookupPrivateMethod(LookupSelector, InstanceMethod);
 
     if (!*Val) {
@@ -1193,7 +1238,7 @@ lookupRuntimeDefinition(const ObjCInterfaceDecl *Interface,
     }
   }
 
-  return Val.getValue();
+  return *Val;
 }
 
 RuntimeDefinition ObjCMethodCall::getRuntimeDefinition() const {
@@ -1398,7 +1443,7 @@ CallEventManager::getCaller(const StackFrameContext *CalleeCtx,
     Trigger = Dtor->getBody();
 
   return getCXXDestructorCall(Dtor, Trigger, ThisVal.getAsRegion(),
-                              E.getAs<CFGBaseDtor>().hasValue(), State,
+                              E.getAs<CFGBaseDtor>().has_value(), State,
                               CallerCtx);
 }
 
@@ -1408,6 +1453,8 @@ CallEventRef<> CallEventManager::getCall(const Stmt *S, ProgramStateRef State,
     return getSimpleCall(CE, State, LC);
   } else if (const auto *NE = dyn_cast<CXXNewExpr>(S)) {
     return getCXXAllocatorCall(NE, State, LC);
+  } else if (const auto *DE = dyn_cast<CXXDeleteExpr>(S)) {
+    return getCXXDeallocatorCall(DE, State, LC);
   } else if (const auto *ME = dyn_cast<ObjCMessageExpr>(S)) {
     return getObjCMethodCall(ME, State, LC);
   } else {

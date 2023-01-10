@@ -3,7 +3,7 @@ function(add_fp_unittest name)
     "MATH_UNITTEST"
     "NEED_MPFR" # Optional arguments
     "" # Single value arguments
-    "" # Multi-value arguments
+    "LINK_LIBRARIES" # Multi-value arguments
     ${ARGN}
   )
 
@@ -14,15 +14,16 @@ function(add_fp_unittest name)
     endif()
   endif()
 
-  add_libc_unittest(${name} ${MATH_UNITTEST_UNPARSED_ARGUMENTS})
-  get_fq_target_name(${name} fq_target_name)
-  if (NOT TARGET ${fq_target_name})
-    return()
-  endif()
   if(MATH_UNITTEST_NEED_MPFR)
-    target_link_libraries(${fq_target_name} PRIVATE libcMPFRWrapper -lmpfr -lgmp)
+    list(APPEND MATH_UNITTEST_LINK_LIBRARIES libcMPFRWrapper -lmpfr -lgmp)
   endif()
-  target_link_libraries(${fq_target_name} PRIVATE LibcFPTestHelpers)
+  list(APPEND MATH_UNITTEST_LINK_LIBRARIES LibcFPTestHelpers)
+
+  add_libc_unittest(
+    ${name}
+    LINK_LIBRARIES "${MATH_UNITTEST_LINK_LIBRARIES}"
+    "${MATH_UNITTEST_UNPARSED_ARGUMENTS}"
+  )
 endfunction(add_fp_unittest)
 
 add_subdirectory(__support)
@@ -33,10 +34,13 @@ add_subdirectory(inttypes)
 add_subdirectory(math)
 add_subdirectory(string)
 add_subdirectory(stdlib)
+add_subdirectory(stdio)
 
 if(${LIBC_TARGET_OS} STREQUAL "linux")
   add_subdirectory(fcntl)
+  add_subdirectory(sched)
   add_subdirectory(sys)
+  add_subdirectory(termios)
   add_subdirectory(unistd)
 endif()
 
@@ -44,15 +48,18 @@ if(NOT LLVM_LIBC_FULL_BUILD)
   return()
 endif()
 
-# The signal API is currently disabled as signal.h is incorrect.
-# since assert uses the signal API, we disable assert also.
-# add_subdirectory(assert)
-# add_subdirectory(signal)
-add_subdirectory(stdio)
-add_subdirectory(threads)
+add_subdirectory(dirent)
+add_subdirectory(assert)
+add_subdirectory(setjmp)
+add_subdirectory(signal)
+add_subdirectory(spawn)
 add_subdirectory(time)
 
-set(public_test ${CMAKE_CURRENT_BINARY_DIR}/public_integration_test.cpp)
+if(${LIBC_TARGET_OS} STREQUAL "linux")
+  add_subdirectory(pthread)
+endif()
+
+set(public_test ${CMAKE_CURRENT_BINARY_DIR}/public_api_test.cpp)
 
 set(entrypoints_name_list "")
 foreach(entry IN LISTS TARGET_LLVMLIBC_ENTRYPOINTS)
@@ -66,7 +73,7 @@ list(TRANSFORM entrypoints_name_list PREPEND "-e=")
 
 file(GLOB spec_files ${LIBC_SOURCE_DIR}/spec/*.td)
 
-# Generate integration test souce code.
+# Generate api test souce code.
 add_custom_command(
   OUTPUT ${public_test}
   COMMAND $<TARGET_FILE:libc-prototype-testgen> -o ${public_test}
@@ -76,47 +83,35 @@ add_custom_command(
 
   DEPENDS ${LIBC_SOURCE_DIR}/config/${LIBC_TARGET_OS}/api.td ${spec_files}
           libc-prototype-testgen ${TARGET_PUBLIC_HEADERS}
-          llvmlibc
+          ${LIBC_TARGET}
 )
 
-add_executable(
-  libc-integration-test
-  EXCLUDE_FROM_ALL
-  ${public_test}
+add_custom_target(libc-api-test)
+set(
+  allocator_entrypoints 
+    libc.src.stdlib.malloc
+    libc.src.stdlib.calloc
+    libc.src.stdlib.realloc
+    libc.src.stdlib.aligned_alloc
+    libc.src.stdlib.free
 )
-# Blank out default include directories to prevent accidentally including
-# system headers or our own internal headers.
-set_target_properties(
-  libc-integration-test
-  PROPERTIES
-  INCLUDE_DIRECTORIES ""
+set(api-test-entrypoints ${TARGET_LLVMLIBC_ENTRYPOINTS})
+list(REMOVE_ITEM api-test-entrypoints ${allocator_entrypoints})
+add_integration_test(
+  api-test
+  SUITE
+    libc-api-test
+  SRCS
+    ${public_test}
+  LOADER
+    libc.loader.linux.crt1
+  DEPENDS
+    ${api-test-entrypoints}
 )
-# Only include we need is the include for cpp::IsSame and our generated
-# public headers.
-target_include_directories(
-  libc-integration-test BEFORE
-  PRIVATE
-    "${LIBC_SOURCE_DIR}/src/__support/CPP"
-    "${LIBC_BUILD_DIR}/include"
-)
-target_compile_options(
-  libc-integration-test
-  PRIVATE
-  -ffreestanding
-)
-target_link_options(
-  libc-integration-test
-  PRIVATE "-nostdlib"
-)
-set(library_files)
-foreach(library_name IN LISTS "llvmlibc")
-  get_target_property(library_file ${library_name} "LIBRARY_FILE")
-  list(APPEND library_files ${library_file})
-endforeach()
 
 if(COMPILER_RESOURCE_DIR AND LLVM_LIBC_ENABLE_LINTING)
   add_custom_target(
-    libc-integration-test-tidy
+    libc-api-test-tidy
     VERBATIM
     COMMAND $<TARGET_FILE:clang-tidy> --system-headers
       --checks=-*,llvmlibc-restrict-system-libc-headers
@@ -130,10 +125,5 @@ if(COMPILER_RESOURCE_DIR AND LLVM_LIBC_ENABLE_LINTING)
     DEPENDS
       clang-tidy ${public_test}
   )
-  add_dependencies(libc-integration-test libc-integration-test-tidy)
+  add_dependencies(libc-api-test libc-api-test-tidy)
 endif()
-
-target_link_libraries(libc-integration-test
-  PRIVATE
-  ${library_files}
-)

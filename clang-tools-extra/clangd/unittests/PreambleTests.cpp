@@ -16,17 +16,14 @@
 #include "TestTU.h"
 #include "XRefs.h"
 #include "clang/Format/Format.h"
+#include "clang/Frontend/FrontendActions.h"
 #include "clang/Frontend/PrecompiledPreamble.h"
-#include "clang/Lex/PreprocessorOptions.h"
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include <clang/Frontend/FrontendActions.h>
 #include <memory>
 #include <string>
 #include <vector>
@@ -197,7 +194,7 @@ llvm::Optional<ParsedAST> createPatchedAST(llvm::StringRef Baseline,
   auto BaselinePreamble = TestTU::withCode(Baseline).preamble();
   if (!BaselinePreamble) {
     ADD_FAILURE() << "Failed to build baseline preamble";
-    return llvm::None;
+    return std::nullopt;
   }
 
   IgnoreDiagnostics Diags;
@@ -206,7 +203,7 @@ llvm::Optional<ParsedAST> createPatchedAST(llvm::StringRef Baseline,
   auto CI = buildCompilerInvocation(TU.inputs(FS), Diags);
   if (!CI) {
     ADD_FAILURE() << "Failed to build compiler invocation";
-    return llvm::None;
+    return std::nullopt;
   }
   return ParsedAST::build(testPath(TU.Filename), TU.inputs(FS), std::move(CI),
                           {}, BaselinePreamble);

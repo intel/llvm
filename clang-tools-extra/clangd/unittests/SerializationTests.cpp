@@ -8,11 +8,9 @@
 
 #include "Headers.h"
 #include "RIFF.h"
-#include "index/Index.h"
 #include "index/Serialization.h"
 #include "support/Logger.h"
 #include "clang/Tooling/CompilationDatabase.h"
-#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Compression.h"
 #include "llvm/Support/Error.h"
@@ -55,8 +53,16 @@ ReturnType:    'int'
 IncludeHeaders:
   - Header:    'include1'
     References:    7
+    Directives:      [ Include ]
   - Header:    'include2'
     References:    3
+    Directives:      [ Import ]
+  - Header:    'include3'
+    References:    2
+    Directives:      [ Include, Import ]
+  - Header:    'include4'
+    References:    1
+    Directives:      [ ]
 ...
 ---
 !Symbol
@@ -116,8 +122,11 @@ DirectIncludes:
 
 MATCHER_P(id, I, "") { return arg.ID == cantFail(SymbolID::fromStr(I)); }
 MATCHER_P(qName, Name, "") { return (arg.Scope + arg.Name).str() == Name; }
-MATCHER_P2(IncludeHeaderWithRef, IncludeHeader, References, "") {
-  return (arg.IncludeHeader == IncludeHeader) && (arg.References == References);
+MATCHER_P3(IncludeHeaderWithRefAndDirectives, IncludeHeader, References,
+           SupportedDirectives, "") {
+  return (arg.IncludeHeader == IncludeHeader) &&
+         (arg.References == References) &&
+         (arg.SupportedDirectives == SupportedDirectives);
 }
 
 auto readIndexFile(llvm::StringRef Text) {
@@ -150,9 +159,14 @@ TEST(SerializationTest, YAMLConversions) {
   EXPECT_EQ(static_cast<uint8_t>(Sym1.Flags), 129);
   EXPECT_TRUE(Sym1.Flags & Symbol::IndexedForCodeCompletion);
   EXPECT_FALSE(Sym1.Flags & Symbol::Deprecated);
-  EXPECT_THAT(Sym1.IncludeHeaders,
-              UnorderedElementsAre(IncludeHeaderWithRef("include1", 7u),
-                                   IncludeHeaderWithRef("include2", 3u)));
+  EXPECT_THAT(
+      Sym1.IncludeHeaders,
+      UnorderedElementsAre(
+          IncludeHeaderWithRefAndDirectives("include1", 7u, Symbol::Include),
+          IncludeHeaderWithRefAndDirectives("include2", 3u, Symbol::Import),
+          IncludeHeaderWithRefAndDirectives("include3", 2u,
+                                            Symbol::Include | Symbol::Import),
+          IncludeHeaderWithRefAndDirectives("include4", 1u, Symbol::Invalid)));
 
   EXPECT_THAT(Sym2, qName("clang::Foo2"));
   EXPECT_EQ(Sym2.Signature, "-sig");
@@ -224,7 +238,7 @@ TEST(SerializationTest, BinaryConversions) {
   std::string Serialized = llvm::to_string(Out);
 
   auto In2 = readIndexFile(Serialized);
-  ASSERT_TRUE(bool(In2)) << In.takeError();
+  ASSERT_TRUE(bool(In2)) << In2.takeError();
   ASSERT_TRUE(In2->Symbols);
   ASSERT_TRUE(In2->Refs);
   ASSERT_TRUE(In2->Relations);
@@ -299,7 +313,7 @@ TEST(SerializationTest, CmdlTest) {
     ASSERT_TRUE(bool(In)) << In.takeError();
     ASSERT_TRUE(In->Cmd);
 
-    const tooling::CompileCommand &SerializedCmd = In->Cmd.getValue();
+    const tooling::CompileCommand &SerializedCmd = *In->Cmd;
     EXPECT_EQ(SerializedCmd.CommandLine, Cmd.CommandLine);
     EXPECT_EQ(SerializedCmd.Directory, Cmd.Directory);
     EXPECT_NE(SerializedCmd.Filename, Cmd.Filename);
@@ -393,7 +407,7 @@ TEST(SerializationTest, NoCrashOnBadArraySize) {
 // Check we detect invalid string table size size without allocating it first.
 // If this detection fails, the test should allocate a huge array and crash.
 TEST(SerializationTest, NoCrashOnBadStringTableSize) {
-  if (!llvm::zlib::isAvailable()) {
+  if (!llvm::compression::zlib::isAvailable()) {
     log("skipping test, no zlib");
     return;
   }

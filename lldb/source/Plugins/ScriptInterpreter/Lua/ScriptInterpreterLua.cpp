@@ -40,8 +40,8 @@ public:
                           ScriptInterpreterLua &script_interpreter,
                           ActiveIOHandler active_io_handler = eIOHandlerNone)
       : IOHandlerEditline(debugger, IOHandler::Type::LuaInterpreter, "lua",
-                          ">>> ", "..> ", true, debugger.GetUseColor(), 0,
-                          *this, nullptr),
+                          llvm::StringRef(">>> "), llvm::StringRef("..> "),
+                          true, debugger.GetUseColor(), 0, *this),
         m_script_interpreter(script_interpreter),
         m_active_io_handler(active_io_handler) {
     llvm::cantFail(m_script_interpreter.GetLua().ChangeIO(
@@ -217,7 +217,6 @@ bool ScriptInterpreterLua::LoadScriptingModule(
     lldb_private::Status &error, StructuredData::ObjectSP *module_sp,
     FileSpec extra_search_dir) {
 
-  FileSystem::Instance().Collect(filename);
   if (llvm::Error e = m_lua->LoadModule(filename)) {
     error.SetErrorStringWithFormatv("lua failed to import '{0}': {1}\n",
                                     filename, llvm::toString(std::move(e)));

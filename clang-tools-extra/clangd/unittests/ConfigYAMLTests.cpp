@@ -10,10 +10,8 @@
 #include "ConfigFragment.h"
 #include "ConfigTesting.h"
 #include "Protocol.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/SMLoc.h"
-#include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Testing/Support/SupportHelpers.h"
 #include "gmock/gmock.h"
@@ -83,12 +81,12 @@ Diagnostics:
   EXPECT_THAT(Results[1].CompileFlags.Add, ElementsAre(val("b\naz\n")));
 
   ASSERT_TRUE(Results[2].Index.Background);
-  EXPECT_EQ("Skip", *Results[2].Index.Background.getValue());
+  EXPECT_EQ("Skip", *Results[2].Index.Background.value());
   EXPECT_THAT(Results[3].Diagnostics.ClangTidy.CheckOptions,
               ElementsAre(PairVal("IgnoreMacros", "true"),
                           PairVal("example-check.ExampleOption", "0")));
   EXPECT_TRUE(Results[3].Diagnostics.UnusedIncludes);
-  EXPECT_EQ("Strict", *Results[3].Diagnostics.UnusedIncludes.getValue());
+  EXPECT_EQ("Strict", *Results[3].Diagnostics.UnusedIncludes.value());
 }
 
 TEST(ParseYAML, Locations) {
@@ -130,7 +128,7 @@ CompileFlags: {$unexpected^
                                     "Entry, or Flow Mapping End."),
                         diagKind(llvm::SourceMgr::DK_Error),
                         diagPos(YAML.point("unexpected")),
-                        diagRange(llvm::None))));
+                        diagRange(std::nullopt))));
 
   ASSERT_EQ(Results.size(), 1u); // invalid fragment discarded.
   EXPECT_THAT(Results.front().CompileFlags.Add, ElementsAre(val("first")));
@@ -164,10 +162,10 @@ Index:
   ASSERT_THAT(Diags.Diagnostics, IsEmpty());
   ASSERT_EQ(Results.size(), 1u);
   ASSERT_TRUE(Results[0].Index.External);
-  EXPECT_FALSE(Results[0].Index.External.getValue()->File.hasValue());
-  EXPECT_FALSE(Results[0].Index.External.getValue()->MountPoint.hasValue());
-  EXPECT_FALSE(Results[0].Index.External.getValue()->Server.hasValue());
-  EXPECT_THAT(*Results[0].Index.External.getValue()->IsNone, testing::Eq(true));
+  EXPECT_FALSE(Results[0].Index.External.value()->File.has_value());
+  EXPECT_FALSE(Results[0].Index.External.value()->MountPoint.has_value());
+  EXPECT_FALSE(Results[0].Index.External.value()->Server.has_value());
+  EXPECT_THAT(*Results[0].Index.External.value()->IsNone, testing::Eq(true));
 }
 
 TEST(ParseYAML, ExternalBlock) {
@@ -183,10 +181,10 @@ Index:
       Fragment::parseYAML(YAML.code(), "config.yaml", Diags.callback());
   ASSERT_EQ(Results.size(), 1u);
   ASSERT_TRUE(Results[0].Index.External);
-  EXPECT_THAT(*Results[0].Index.External.getValue()->File, val("foo"));
-  EXPECT_THAT(*Results[0].Index.External.getValue()->MountPoint, val("baz"));
+  EXPECT_THAT(*Results[0].Index.External.value()->File, val("foo"));
+  EXPECT_THAT(*Results[0].Index.External.value()->MountPoint, val("baz"));
   ASSERT_THAT(Diags.Diagnostics, IsEmpty());
-  EXPECT_THAT(*Results[0].Index.External.getValue()->Server, val("bar"));
+  EXPECT_THAT(*Results[0].Index.External.value()->Server, val("bar"));
 }
 
 TEST(ParseYAML, AllScopes) {
@@ -216,7 +214,7 @@ Completion:
                                 diagPos(YAML.range("diagrange").start),
                                 diagRange(YAML.range("diagrange")))));
   ASSERT_EQ(Results.size(), 1u);
-  EXPECT_THAT(Results[0].Completion.AllScopes, testing::Eq(llvm::None));
+  EXPECT_THAT(Results[0].Completion.AllScopes, testing::Eq(std::nullopt));
 }
 
 TEST(ParseYAML, ShowAKA) {
@@ -245,9 +243,36 @@ InlayHints:
   ASSERT_EQ(Results.size(), 1u);
   EXPECT_THAT(Results[0].InlayHints.Enabled, llvm::ValueIs(val(false)));
   EXPECT_THAT(Results[0].InlayHints.ParameterNames, llvm::ValueIs(val(true)));
-  EXPECT_EQ(Results[0].InlayHints.DeducedTypes, llvm::None);
+  EXPECT_EQ(Results[0].InlayHints.DeducedTypes, std::nullopt);
 }
 
+TEST(ParseYAML, IncludesIgnoreHeader) {
+  CapturedDiags Diags;
+  Annotations YAML(R"yaml(
+Diagnostics:
+  Includes:
+    IgnoreHeader: [foo, bar]
+  )yaml");
+  auto Results =
+      Fragment::parseYAML(YAML.code(), "config.yaml", Diags.callback());
+  ASSERT_THAT(Diags.Diagnostics, IsEmpty());
+  ASSERT_EQ(Results.size(), 1u);
+  EXPECT_THAT(Results[0].Diagnostics.Includes.IgnoreHeader,
+              ElementsAre(val("foo"), val("bar")));
+}
+
+TEST(ParseYAML, Style) {
+  CapturedDiags Diags;
+  Annotations YAML(R"yaml(
+Style:
+  FullyQualifiedNamespaces: [foo, bar])yaml");
+  auto Results =
+      Fragment::parseYAML(YAML.code(), "config.yaml", Diags.callback());
+  ASSERT_THAT(Diags.Diagnostics, IsEmpty());
+  ASSERT_EQ(Results.size(), 1u);
+  EXPECT_THAT(Results[0].Style.FullyQualifiedNamespaces,
+              ElementsAre(val("foo"), val("bar")));
+}
 } // namespace
 } // namespace config
 } // namespace clangd

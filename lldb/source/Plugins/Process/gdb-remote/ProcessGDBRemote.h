@@ -49,8 +49,6 @@ class ThreadGDBRemote;
 class ProcessGDBRemote : public Process,
                          private GDBRemoteClientBase::ContinueDelegate {
 public:
-  ProcessGDBRemote(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp);
-
   ~ProcessGDBRemote() override;
 
   static lldb::ProcessSP CreateInstance(lldb::TargetSP target_sp,
@@ -70,6 +68,8 @@ public:
 
   static std::chrono::seconds GetPacketTimeout();
 
+  ArchSpec GetSystemArchitecture() override;
+
   // Check if a given Process
   bool CanDebug(lldb::TargetSP target_sp,
                 bool plugin_specified_by_name) override;
@@ -77,16 +77,16 @@ public:
   CommandObject *GetPluginCommandObject() override;
 
   // Creating a new process, or attaching to an existing one
-  Status WillLaunch(Module *module) override;
+  Status DoWillLaunch(Module *module) override;
 
   Status DoLaunch(Module *exe_module, ProcessLaunchInfo &launch_info) override;
 
   void DidLaunch() override;
 
-  Status WillAttachToProcessWithID(lldb::pid_t pid) override;
+  Status DoWillAttachToProcessWithID(lldb::pid_t pid) override;
 
-  Status WillAttachToProcessWithName(const char *process_name,
-                                     bool wait_for_launch) override;
+  Status DoWillAttachToProcessWithName(const char *process_name,
+                                       bool wait_for_launch) override;
 
   Status DoConnectRemote(llvm::StringRef remote_url) override;
 
@@ -237,6 +237,8 @@ protected:
   friend class GDBRemoteCommunicationClient;
   friend class GDBRemoteRegisterContext;
 
+  ProcessGDBRemote(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp);
+
   bool SupportsMemoryTagging() override;
 
   /// Broadcaster event bits definitions.
@@ -281,7 +283,6 @@ protected:
   MMapMap m_addr_to_mmap_size;
   lldb::BreakpointSP m_thread_create_bp_sp;
   bool m_waiting_for_attach;
-  bool m_destroy_tried_resuming;
   lldb::CommandObjectSP m_command_sp;
   int64_t m_breakpoint_pc_offset;
   lldb::tid_t m_initial_tid; // The initial thread ID, given by stub on attach
@@ -306,8 +307,6 @@ protected:
   bool CanResume(lldb::StateType state) { return state == lldb::eStateStopped; }
 
   bool HasExited(lldb::StateType state) { return state == lldb::eStateExited; }
-
-  bool ProcessIDIsValid() const;
 
   void Clear();
 
@@ -344,10 +343,9 @@ protected:
 
   lldb::thread_result_t AsyncThread();
 
-  static bool
+  static void
   MonitorDebugserverProcess(std::weak_ptr<ProcessGDBRemote> process_wp,
-                            lldb::pid_t pid, bool exited, int signo,
-                            int exit_status);
+                            lldb::pid_t pid, int signo, int exit_status);
 
   lldb::StateType SetThreadStopInfo(StringExtractor &stop_packet);
 

@@ -397,9 +397,9 @@ bool Parser::parseIdentifierPrefixImpl(VariantValue *Value) {
       assert(NamedValue.isMatcher());
       llvm::Optional<DynTypedMatcher> Result =
           NamedValue.getMatcher().getSingleMatcher();
-      if (Result.hasValue()) {
+      if (Result) {
         llvm::Optional<DynTypedMatcher> Bound = Result->tryBind(BindID);
-        if (Bound.hasValue()) {
+        if (Bound) {
           *Value = VariantMatcher::SingleMatcher(*Bound);
           return true;
         }
@@ -645,7 +645,7 @@ bool Parser::parseMatcherExpressionImpl(const TokenInfo &NameToken,
   Tokenizer->SkipNewlines();
 
   {
-    ScopedContextEntry SCE(this, Ctor.getValueOr(nullptr));
+    ScopedContextEntry SCE(this, Ctor.value_or(nullptr));
 
     while (Tokenizer->nextTokenKind() != TokenInfo::TK_Eof) {
       if (Tokenizer->nextTokenKind() == TokenInfo::TK_CloseParen) {
@@ -910,14 +910,14 @@ Parser::parseMatcherExpression(StringRef &Code, Sema *S,
                                Diagnostics *Error) {
   VariantValue Value;
   if (!parseExpression(Code, S, NamedValues, &Value, Error))
-    return llvm::Optional<DynTypedMatcher>();
+    return std::nullopt;
   if (!Value.isMatcher()) {
     Error->addError(SourceRange(), Error->ET_ParserNotAMatcher);
-    return llvm::Optional<DynTypedMatcher>();
+    return std::nullopt;
   }
   llvm::Optional<DynTypedMatcher> Result =
       Value.getMatcher().getSingleMatcher();
-  if (!Result.hasValue()) {
+  if (!Result) {
     Error->addError(SourceRange(), Error->ET_ParserOverloadedType)
         << Value.getTypeAsString();
   }

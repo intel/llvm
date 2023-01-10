@@ -1,4 +1,5 @@
-; RUN: opt < %s -loop-vectorize -pass-remarks=loop-vectorize -pass-remarks-analysis=loop-vectorize -pass-remarks-missed=loop-vectorize -mtriple aarch64-unknown-linux-gnu -mattr=+sve,+bf16 -S 2>%t | FileCheck %s -check-prefix=CHECK
+; RUN: opt < %s -passes=loop-vectorize -prefer-predicate-over-epilogue=scalar-epilogue -pass-remarks=loop-vectorize -pass-remarks-analysis=loop-vectorize \
+; RUN:   -pass-remarks-missed=loop-vectorize -mtriple aarch64-unknown-linux-gnu -mattr=+sve,+bf16 -S 2>%t | FileCheck %s -check-prefix=CHECK
 ; RUN: cat %t | FileCheck %s -check-prefix=CHECK-REMARK
 
 ; Reduction can be vectorized
@@ -258,14 +259,14 @@ define float @fmin_fast(float* noalias nocapture readonly %a, i64 %n) #0 {
 ; CHECK: vector.body:
 ; CHECK: %[[LOAD1:.*]] = load <vscale x 8 x float>
 ; CHECK: %[[LOAD2:.*]] = load <vscale x 8 x float>
-; CHECK: %[[FCMP1:.*]] = fcmp olt <vscale x 8 x float> %[[LOAD1]]
-; CHECK: %[[FCMP2:.*]] = fcmp olt <vscale x 8 x float> %[[LOAD2]]
+; CHECK: %[[FCMP1:.*]] = fcmp fast olt <vscale x 8 x float> %[[LOAD1]]
+; CHECK: %[[FCMP2:.*]] = fcmp fast olt <vscale x 8 x float> %[[LOAD2]]
 ; CHECK: %[[SEL1:.*]] = select <vscale x 8 x i1> %[[FCMP1]], <vscale x 8 x float> %[[LOAD1]]
 ; CHECK: %[[SEL2:.*]] = select <vscale x 8 x i1> %[[FCMP2]], <vscale x 8 x float> %[[LOAD2]]
 ; CHECK: middle.block:
-; CHECK: %[[FCMP:.*]] = fcmp olt <vscale x 8 x float> %[[SEL1]], %[[SEL2]]
-; CHECK-NEXT: %[[SEL:.*]] = select <vscale x 8 x i1> %[[FCMP]], <vscale x 8 x float> %[[SEL1]], <vscale x 8 x float> %[[SEL2]]
-; CHECK-NEXT: call float @llvm.vector.reduce.fmin.nxv8f32(<vscale x 8 x float> %[[SEL]])
+; CHECK: %[[FCMP:.*]] = fcmp fast olt <vscale x 8 x float> %[[SEL1]], %[[SEL2]]
+; CHECK-NEXT: %[[SEL:.*]] = select fast <vscale x 8 x i1> %[[FCMP]], <vscale x 8 x float> %[[SEL1]], <vscale x 8 x float> %[[SEL2]]
+; CHECK-NEXT: call fast float @llvm.vector.reduce.fmin.nxv8f32(<vscale x 8 x float> %[[SEL]])
 entry:
   br label %for.body
 
@@ -274,7 +275,7 @@ for.body:
   %sum.07 = phi float [ 0.000000e+00, %entry ], [ %.sroa.speculated, %for.body ]
   %arrayidx = getelementptr inbounds float, float* %a, i64 %iv
   %0 = load float, float* %arrayidx, align 4
-  %cmp.i = fcmp olt float %0, %sum.07
+  %cmp.i = fcmp fast olt float %0, %sum.07
   %.sroa.speculated = select i1 %cmp.i, float %0, float %sum.07
   %iv.next = add nuw nsw i64 %iv, 1
   %exitcond.not = icmp eq i64 %iv.next, %n
@@ -320,10 +321,18 @@ for.end:
 
 ; ADD (with reduction stored in invariant address)
 
-; CHECK-REMARK: loop not vectorized: value that could not be identified as reduction is used outside the loop
+; CHECK-REMARK: vectorized loop (vectorization width: vscale x 4, interleaved count: 2)
 define void @invariant_store(i32* %dst, i32* readonly %src) {
 ; CHECK-LABEL: @invariant_store
-; CHECK-NOT: vector.body
+; CHECK: vector.body:
+; CHECK: %[[LOAD1:.*]] = load <vscale x 4 x i32>
+; CHECK: %[[LOAD2:.*]] = load <vscale x 4 x i32>
+; CHECK: %[[ADD1:.*]] = add <vscale x 4 x i32> %{{.*}}, %[[LOAD1]]
+; CHECK: %[[ADD2:.*]] = add <vscale x 4 x i32> %{{.*}}, %[[LOAD2]]
+; CHECK: middle.block:
+; CHECK: %[[ADD:.*]] = add <vscale x 4 x i32> %[[ADD2]], %[[ADD1]]
+; CHECK-NEXT: %[[SUM:.*]] = call i32 @llvm.vector.reduce.add.nxv4i32(<vscale x 4 x i32> %[[ADD]])
+; CHECK-NEXT: store i32 %[[SUM]], i32* %gep.dst, align 4
 entry:
   %gep.dst = getelementptr inbounds i32, i32* %dst, i64 42
   store i32 0, i32* %gep.dst, align 4

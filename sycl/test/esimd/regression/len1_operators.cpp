@@ -4,11 +4,11 @@
 // This test checks that compiler does not report 'ambiguous operator' error
 // when compiling simd or simd_view operations with lenth = 1.
 
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 #include <cstdint>
 
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 
 template <typename T1, typename T2>
 void test_esimd_ops(simd<T1, 1> a, T2 b, T2 w) SYCL_ESIMD_FUNCTION {

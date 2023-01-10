@@ -10,9 +10,9 @@
 // loading of a model from a command line option.
 //
 //===----------------------------------------------------------------------===//
+#include "llvm/Analysis/TensorSpec.h"
 #include "llvm/Config/config.h"
-#include "llvm/Support/Casting.h"
-#if defined(LLVM_HAVE_TF_API)
+#if defined(LLVM_HAVE_TFLITE)
 
 #include "llvm/ADT/BitVector.h"
 #include "llvm/Analysis/CallGraph.h"
@@ -21,11 +21,13 @@
 #include "llvm/Analysis/ModelUnderTrainingRunner.h"
 #include "llvm/Analysis/NoInferenceModelRunner.h"
 #include "llvm/Analysis/Utils/TFUtils.h"
+#include "llvm/Analysis/Utils/TrainingLogger.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ManagedStatic.h"
 
 #include <vector>
+#include <optional>
 
 using namespace llvm;
 
@@ -114,9 +116,6 @@ private:
   const ModelUnderTrainingRunner *const MUTR;
   std::unique_ptr<Logger> L;
   BitVector Effects;
-  /// There's at least one output. We'll set this to a different value if MUTR
-  /// is avaliable.
-  size_t OutputCount = 1;
   /// Set these 2 clearly OOB, to make sure we set them later.
   size_t DefaultDecisionPos = std::numeric_limits<size_t>::max();
   size_t DecisionPos = std::numeric_limits<size_t>::max();
@@ -273,8 +272,8 @@ static const std::vector<TensorSpec> TrainingOnlyFeatures{
 static const std::vector<TensorSpec> getInputFeatures() {
   std::vector<TensorSpec> InputSpecs;
   for (size_t I = 0; I < NumberOfFeatures; ++I)
-    InputSpecs.push_back(
-        TensorSpec::createSpec<int64_t>(TFFeedPrefix + FeatureNameMap[I], {1}));
+    InputSpecs.push_back(TensorSpec::createSpec<int64_t>(
+        TFFeedPrefix + FeatureMap[I].name(), FeatureMap[I].shape()));
   append_range(InputSpecs, TrainingOnlyFeatures);
   return InputSpecs;
 }
@@ -285,22 +284,16 @@ TrainingLogger::TrainingLogger(StringRef LogFileName,
                                const ModelUnderTrainingRunner *MUTR)
     : LogFileName(LogFileName), MUTR(MUTR) {
   // The first output is the inlining decision.
-  if (MUTR)
-    OutputCount = MUTR->outputLoggedFeatureSpecs().size();
-  std::vector<LoggedFeatureSpec> FT;
+  std::vector<TensorSpec> FT(FeatureMap.begin(), FeatureMap.end());
 
-  for (size_t I = 0; I < NumberOfFeatures; ++I)
-    FT.push_back(
-        {TensorSpec::createSpec<int64_t>(FeatureNameMap.at(I), {1}), None});
-  if (MUTR && MUTR->outputLoggedFeatureSpecs().size() > 1)
-    append_range(FT, drop_begin(MUTR->outputLoggedFeatureSpecs()));
+  if (MUTR)
+    append_range(FT, MUTR->extraOutputsForLoggingSpecs());
 
   DefaultDecisionPos = FT.size();
-  FT.push_back(
-      {TensorSpec::createSpec<int64_t>(DefaultDecisionName, {1}), None});
+  FT.push_back(TensorSpec::createSpec<int64_t>(DefaultDecisionName, {1}));
 
   DecisionPos = FT.size();
-  FT.push_back({TensorSpec::createSpec<int64_t>(DecisionName, {1}), None});
+  FT.push_back(TensorSpec::createSpec<int64_t>(DecisionName, {1}));
 
   L = std::make_unique<Logger>(
       FT, TensorSpec::createSpec<int64_t>(RewardName, {1}),
@@ -316,13 +309,13 @@ void TrainingLogger::logInlineEvent(const InlineEvent &Event,
     L->logInt64Value(CurrentFeature, &F);
   }
 
-  for (size_t I = 1; I < OutputCount; ++I) {
-    const auto &Result = *MUTR->lastEvaluationResult();
-    const char *RawData =
-        reinterpret_cast<const char *>(Result.getUntypedTensorValue(I));
-    L->logSpecifiedTensorValue(CurrentFeature, RawData);
-    ++CurrentFeature;
-  }
+  if (MUTR)
+    for (size_t I = 0; I < MUTR->extraOutputsForLoggingSpecs().size(); ++I) {
+      const char *RawData =
+          reinterpret_cast<const char *>(MUTR->getUntypedExtraOutputValue(I));
+      L->logSpecifiedTensorValue(CurrentFeature, RawData);
+      ++CurrentFeature;
+    }
 
   assert(CurrentFeature == DefaultDecisionPos);
   L->logInt64Value(DefaultDecisionPos, &Event.DefaultDecision);
@@ -363,7 +356,7 @@ DevelopmentModeMLInlineAdvisor::~DevelopmentModeMLInlineAdvisor() {
 Optional<size_t>
 DevelopmentModeMLInlineAdvisor::getNativeSizeEstimate(const Function &F) const {
   if (!InlineSizeEstimatorAnalysis::isEvaluatorRequested())
-    return None;
+    return std::nullopt;
   auto &R =
       FAM.getResult<InlineSizeEstimatorAnalysis>(const_cast<Function &>(F));
   if (!R) {
@@ -439,4 +432,4 @@ std::unique_ptr<InlineAdvisor> llvm::getDevelopmentModeAdvisor(
   return std::make_unique<DevelopmentModeMLInlineAdvisor>(
       M, MAM, std::move(Runner), GetDefaultAdvice, std::move(Logger));
 }
-#endif // defined(LLVM_HAVE_TF_API)
+#endif // defined(LLVM_HAVE_TFLITE)

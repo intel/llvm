@@ -1,4 +1,3 @@
-; RUN: opt -gvn -S -o - %s | FileCheck %s
 ; RUN: opt -passes=gvn -S -o - %s | FileCheck %s
 
 %struct.sk_buff = type opaque
@@ -31,9 +30,9 @@ if.then:                                          ; preds = %for.cond
 ; Splitting the critical edge from if.then to if.end will fail, but should not
 ; cause an infinite loop in GVN. If we can one day split edges of callbr
 ; indirect targets, great!
-; CHECK: callbr void asm sideeffect "", "i,~{dirflag},~{fpsr},~{flags}"(i8* blockaddress(@l2tp_recv_dequeue, %if.end))
+; CHECK: callbr void asm sideeffect "", "!i,~{dirflag},~{fpsr},~{flags}"()
 ; CHECK-NEXT: to label %asm.fallthrough.i [label %if.end]
-  callbr void asm sideeffect "", "i,~{dirflag},~{fpsr},~{flags}"(i8* blockaddress(@l2tp_recv_dequeue, %if.end))
+  callbr void asm sideeffect "", "!i,~{dirflag},~{fpsr},~{flags}"()
           to label %asm.fallthrough.i [label %if.end]
 
 asm.fallthrough.i:                                ; preds = %if.then

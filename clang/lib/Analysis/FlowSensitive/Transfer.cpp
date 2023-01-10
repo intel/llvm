@@ -20,10 +20,15 @@
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/StmtVisitor.h"
+#include "clang/Analysis/FlowSensitive/ControlFlowContext.h"
 #include "clang/Analysis/FlowSensitive/DataflowEnvironment.h"
+#include "clang/Analysis/FlowSensitive/NoopAnalysis.h"
+#include "clang/Analysis/FlowSensitive/Value.h"
+#include "clang/Basic/Builtins.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/ErrorHandling.h"
 #include <cassert>
 #include <memory>
 #include <tuple>
@@ -31,37 +36,116 @@
 namespace clang {
 namespace dataflow {
 
-static const Expr *skipExprWithCleanups(const Expr *E) {
-  if (auto *C = dyn_cast_or_null<ExprWithCleanups>(E))
-    return C->getSubExpr();
-  return E;
+static BoolValue &evaluateBooleanEquality(const Expr &LHS, const Expr &RHS,
+                                          Environment &Env) {
+  if (auto *LHSValue =
+          dyn_cast_or_null<BoolValue>(Env.getValue(LHS, SkipPast::Reference)))
+    if (auto *RHSValue =
+            dyn_cast_or_null<BoolValue>(Env.getValue(RHS, SkipPast::Reference)))
+      return Env.makeIff(*LHSValue, *RHSValue);
+
+  return Env.makeAtomicBoolValue();
+}
+
+// Functionally updates `V` such that any instances of `TopBool` are replaced
+// with fresh atomic bools. Note: This implementation assumes that `B` is a
+// tree; if `B` is a DAG, it will lose any sharing between subvalues that was
+// present in the original .
+static BoolValue &unpackValue(BoolValue &V, Environment &Env);
+
+template <typename Derived, typename M>
+BoolValue &unpackBinaryBoolValue(Environment &Env, BoolValue &B, M build) {
+  auto &V = *cast<Derived>(&B);
+  BoolValue &Left = V.getLeftSubValue();
+  BoolValue &Right = V.getRightSubValue();
+  BoolValue &ULeft = unpackValue(Left, Env);
+  BoolValue &URight = unpackValue(Right, Env);
+
+  if (&ULeft == &Left && &URight == &Right)
+    return V;
+
+  return (Env.*build)(ULeft, URight);
+}
+
+static BoolValue &unpackValue(BoolValue &V, Environment &Env) {
+  switch (V.getKind()) {
+  case Value::Kind::Integer:
+  case Value::Kind::Reference:
+  case Value::Kind::Pointer:
+  case Value::Kind::Struct:
+    llvm_unreachable("BoolValue cannot have any of these kinds.");
+
+  case Value::Kind::AtomicBool:
+    return V;
+
+  case Value::Kind::TopBool:
+    // Unpack `TopBool` into a fresh atomic bool.
+    return Env.makeAtomicBoolValue();
+
+  case Value::Kind::Negation: {
+    auto &N = *cast<NegationValue>(&V);
+    BoolValue &Sub = N.getSubVal();
+    BoolValue &USub = unpackValue(Sub, Env);
+
+    if (&USub == &Sub)
+      return V;
+    return Env.makeNot(USub);
+  }
+  case Value::Kind::Conjunction:
+    return unpackBinaryBoolValue<ConjunctionValue>(Env, V,
+                                                   &Environment::makeAnd);
+  case Value::Kind::Disjunction:
+    return unpackBinaryBoolValue<DisjunctionValue>(Env, V,
+                                                   &Environment::makeOr);
+  case Value::Kind::Implication:
+    return unpackBinaryBoolValue<ImplicationValue>(
+        Env, V, &Environment::makeImplication);
+  case Value::Kind::Biconditional:
+    return unpackBinaryBoolValue<BiconditionalValue>(Env, V,
+                                                     &Environment::makeIff);
+  }
+  llvm_unreachable("All reachable cases in switch return");
+}
+
+// Unpacks the value (if any) associated with `E` and updates `E` to the new
+// value, if any unpacking occured.
+static Value *maybeUnpackLValueExpr(const Expr &E, Environment &Env) {
+  auto *Loc = Env.getStorageLocation(E, SkipPast::Reference);
+  if (Loc == nullptr)
+    return nullptr;
+  auto *Val = Env.getValue(*Loc);
+
+  auto *B = dyn_cast_or_null<BoolValue>(Val);
+  if (B == nullptr)
+    return Val;
+
+  auto &UnpackedVal = unpackValue(*B, Env);
+  if (&UnpackedVal == Val)
+    return Val;
+  Env.setValue(*Loc, UnpackedVal);
+  return &UnpackedVal;
 }
 
 class TransferVisitor : public ConstStmtVisitor<TransferVisitor> {
 public:
-  TransferVisitor(const StmtToEnvMap &StmtToEnv, Environment &Env)
-      : StmtToEnv(StmtToEnv), Env(Env) {}
+  TransferVisitor(const StmtToEnvMap &StmtToEnv, Environment &Env,
+                  TransferOptions Options)
+      : StmtToEnv(StmtToEnv), Env(Env), Options(Options) {}
 
   void VisitBinaryOperator(const BinaryOperator *S) {
+    const Expr *LHS = S->getLHS();
+    assert(LHS != nullptr);
+
+    const Expr *RHS = S->getRHS();
+    assert(RHS != nullptr);
+
     switch (S->getOpcode()) {
     case BO_Assign: {
-      // The CFG does not contain `ParenExpr` as top-level statements in basic
-      // blocks, however sub-expressions can still be of that type.
-      assert(S->getLHS() != nullptr);
-      const Expr *LHS = S->getLHS()->IgnoreParens();
-
-      assert(LHS != nullptr);
       auto *LHSLoc = Env.getStorageLocation(*LHS, SkipPast::Reference);
       if (LHSLoc == nullptr)
         break;
 
-      // The CFG does not contain `ParenExpr` as top-level statements in basic
-      // blocks, however sub-expressions can still be of that type.
-      assert(S->getRHS() != nullptr);
-      const Expr *RHS = S->getRHS()->IgnoreParens();
-
-      assert(RHS != nullptr);
-      Value *RHSVal = Env.getValue(*RHS, SkipPast::Reference);
+      auto *RHSVal = Env.getValue(*RHS, SkipPast::Reference);
       if (RHSVal == nullptr)
         break;
 
@@ -74,55 +158,44 @@ public:
     }
     case BO_LAnd:
     case BO_LOr: {
-      const Expr *LHS = S->getLHS();
-      assert(LHS != nullptr);
-
-      const Expr *RHS = S->getRHS();
-      assert(RHS != nullptr);
-
-      BoolValue *LHSVal =
-          dyn_cast_or_null<BoolValue>(Env.getValue(*LHS, SkipPast::Reference));
-
-      // `RHS` and `S` might be part of different basic blocks. We need to
-      // access their values from the corresponding environments.
-      BoolValue *RHSVal = nullptr;
-      const Environment *RHSEnv = StmtToEnv.getEnvironment(*RHS);
-      if (RHSEnv != nullptr)
-        RHSVal = dyn_cast_or_null<BoolValue>(
-            RHSEnv->getValue(*RHS, SkipPast::Reference));
-
-      // Create fresh values for unknown boolean expressions.
-      // FIXME: Consider providing a `GetOrCreateFresh` util in case this style
-      // is expected to be common or make sure that all expressions are assigned
-      // values and drop this.
-      if (LHSVal == nullptr)
-        LHSVal = &Env.takeOwnership(std::make_unique<AtomicBoolValue>());
-      if (RHSVal == nullptr)
-        RHSVal = &Env.takeOwnership(std::make_unique<AtomicBoolValue>());
+      BoolValue &LHSVal = getLogicOperatorSubExprValue(*LHS);
+      BoolValue &RHSVal = getLogicOperatorSubExprValue(*RHS);
 
       auto &Loc = Env.createStorageLocation(*S);
       Env.setStorageLocation(*S, Loc);
       if (S->getOpcode() == BO_LAnd)
-        Env.setValue(Loc, Env.takeOwnership(std::make_unique<ConjunctionValue>(
-                              *LHSVal, *RHSVal)));
+        Env.setValue(Loc, Env.makeAnd(LHSVal, RHSVal));
       else
-        Env.setValue(Loc, Env.takeOwnership(std::make_unique<DisjunctionValue>(
-                              *LHSVal, *RHSVal)));
+        Env.setValue(Loc, Env.makeOr(LHSVal, RHSVal));
+      break;
+    }
+    case BO_NE:
+    case BO_EQ: {
+      auto &LHSEqRHSValue = evaluateBooleanEquality(*LHS, *RHS, Env);
+      auto &Loc = Env.createStorageLocation(*S);
+      Env.setStorageLocation(*S, Loc);
+      Env.setValue(Loc, S->getOpcode() == BO_EQ ? LHSEqRHSValue
+                                                : Env.makeNot(LHSEqRHSValue));
+      break;
+    }
+    case BO_Comma: {
+      if (auto *Loc = Env.getStorageLocation(*RHS, SkipPast::None))
+        Env.setStorageLocation(*S, *Loc);
       break;
     }
     default:
-      // FIXME: Add support for BO_EQ, BO_NE.
       break;
     }
   }
 
   void VisitDeclRefExpr(const DeclRefExpr *S) {
-    assert(S->getDecl() != nullptr);
-    auto *DeclLoc = Env.getStorageLocation(*S->getDecl(), SkipPast::None);
+    const ValueDecl *VD = S->getDecl();
+    assert(VD != nullptr);
+    auto *DeclLoc = Env.getStorageLocation(*VD, SkipPast::None);
     if (DeclLoc == nullptr)
       return;
 
-    if (S->getDecl()->getType()->isReferenceType()) {
+    if (VD->getType()->isReferenceType()) {
       Env.setStorageLocation(*S, *DeclLoc);
     } else {
       auto &Loc = Env.createStorageLocation(*S);
@@ -141,8 +214,15 @@ public:
     if (D.hasGlobalStorage())
       return;
 
-    auto &Loc = Env.createStorageLocation(D);
-    Env.setStorageLocation(D, Loc);
+    // The storage location for `D` could have been created earlier, before the
+    // variable's declaration statement (for example, in the case of
+    // BindingDecls).
+    auto *MaybeLoc = Env.getStorageLocation(D, SkipPast::None);
+    if (MaybeLoc == nullptr) {
+      MaybeLoc = &Env.createStorageLocation(D);
+      Env.setStorageLocation(D, *MaybeLoc);
+    }
+    auto &Loc = *MaybeLoc;
 
     const Expr *InitExpr = D.getInit();
     if (InitExpr == nullptr) {
@@ -152,11 +232,6 @@ public:
       return;
     }
 
-    // The CFG does not contain `ParenExpr` as top-level statements in basic
-    // blocks, however sub-expressions can still be of that type.
-    InitExpr = skipExprWithCleanups(D.getInit()->IgnoreParens());
-    assert(InitExpr != nullptr);
-
     if (D.getType()->isReferenceType()) {
       // Initializing a reference variable - do not create a reference to
       // reference.
@@ -165,39 +240,85 @@ public:
         auto &Val =
             Env.takeOwnership(std::make_unique<ReferenceValue>(*InitExprLoc));
         Env.setValue(Loc, Val);
-      } else {
-        // FIXME: The initializer expression must always be assigned a value.
-        // Replace this with an assert when we have sufficient coverage of
-        // language features.
-        if (Value *Val = Env.createValue(D.getType()))
-          Env.setValue(Loc, *Val);
       }
-      return;
+    } else if (auto *InitExprVal = Env.getValue(*InitExpr, SkipPast::None)) {
+      Env.setValue(Loc, *InitExprVal);
     }
 
-    if (auto *InitExprVal = Env.getValue(*InitExpr, SkipPast::None)) {
-      Env.setValue(Loc, *InitExprVal);
-    } else if (!D.getType()->isStructureOrClassType()) {
-      // FIXME: The initializer expression must always be assigned a value.
-      // Replace this with an assert when we have sufficient coverage of
-      // language features.
+    if (Env.getValue(Loc) == nullptr) {
+      // We arrive here in (the few) cases where an expression is intentionally
+      // "uninterpreted". There are two ways to handle this situation: propagate
+      // the status, so that uninterpreted initializers result in uninterpreted
+      // variables, or provide a default value. We choose the latter so that
+      // later refinements of the variable can be used for reasoning about the
+      // surrounding code.
+      //
+      // FIXME. If and when we interpret all language cases, change this to
+      // assert that `InitExpr` is interpreted, rather than supplying a default
+      // value (assuming we don't update the environment API to return
+      // references).
       if (Value *Val = Env.createValue(D.getType()))
         Env.setValue(Loc, *Val);
-    } else {
-      llvm_unreachable("structs and classes must always be assigned values");
+    }
+
+    if (const auto *Decomp = dyn_cast<DecompositionDecl>(&D)) {
+      // If VarDecl is a DecompositionDecl, evaluate each of its bindings. This
+      // needs to be evaluated after initializing the values in the storage for
+      // VarDecl, as the bindings refer to them.
+      // FIXME: Add support for ArraySubscriptExpr.
+      // FIXME: Consider adding AST nodes used in BindingDecls to the CFG.
+      for (const auto *B : Decomp->bindings()) {
+        if (auto *ME = dyn_cast_or_null<MemberExpr>(B->getBinding())) {
+          auto *DE = dyn_cast_or_null<DeclRefExpr>(ME->getBase());
+          if (DE == nullptr)
+            continue;
+
+          // ME and its base haven't been visited because they aren't included
+          // in the statements of the CFG basic block.
+          VisitDeclRefExpr(DE);
+          VisitMemberExpr(ME);
+
+          if (auto *Loc = Env.getStorageLocation(*ME, SkipPast::Reference))
+            Env.setStorageLocation(*B, *Loc);
+        } else if (auto *VD = B->getHoldingVar()) {
+          // Holding vars are used to back the BindingDecls of tuple-like
+          // types. The holding var declarations appear *after* this statement,
+          // so we have to create a location or them here to share with `B`. We
+          // don't visit the binding, because we know it will be a DeclRefExpr
+          // to `VD`.
+          auto &VDLoc = Env.createStorageLocation(*VD);
+          Env.setStorageLocation(*VD, VDLoc);
+          Env.setStorageLocation(*B, VDLoc);
+        }
+      }
     }
   }
 
   void VisitImplicitCastExpr(const ImplicitCastExpr *S) {
-    // The CFG does not contain `ParenExpr` as top-level statements in basic
-    // blocks, however sub-expressions can still be of that type.
-    assert(S->getSubExpr() != nullptr);
-    const Expr *SubExpr = S->getSubExpr()->IgnoreParens();
+    const Expr *SubExpr = S->getSubExpr();
     assert(SubExpr != nullptr);
 
     switch (S->getCastKind()) {
+    case CK_IntegralToBoolean: {
+      // This cast creates a new, boolean value from the integral value. We
+      // model that with a fresh value in the environment, unless it's already a
+      // boolean.
+      auto &Loc = Env.createStorageLocation(*S);
+      Env.setStorageLocation(*S, Loc);
+      if (auto *SubExprVal = dyn_cast_or_null<BoolValue>(
+              Env.getValue(*SubExpr, SkipPast::Reference)))
+        Env.setValue(Loc, *SubExprVal);
+      else
+        // FIXME: If integer modeling is added, then update this code to create
+        // the boolean based on the integer model.
+        Env.setValue(Loc, Env.makeAtomicBoolValue());
+      break;
+    }
+
     case CK_LValueToRValue: {
-      auto *SubExprVal = Env.getValue(*SubExpr, SkipPast::Reference);
+      // When an L-value is used as an R-value, it may result in sharing, so we
+      // need to unpack any nested `Top`s.
+      auto *SubExprVal = maybeUnpackLValueExpr(*SubExpr, Env);
       if (SubExprVal == nullptr)
         break;
 
@@ -206,6 +327,18 @@ public:
       Env.setValue(ExprLoc, *SubExprVal);
       break;
     }
+
+    case CK_IntegralCast:
+      // FIXME: This cast creates a new integral value from the
+      // subexpression. But, because we don't model integers, we don't
+      // distinguish between this new value and the underlying one. If integer
+      // modeling is added, then update this code to create a fresh location and
+      // value.
+    case CK_UncheckedDerivedToBase:
+    case CK_ConstructorConversion:
+    case CK_UserDefinedConversion:
+      // FIXME: Add tests that excercise CK_UncheckedDerivedToBase,
+      // CK_ConstructorConversion, and CK_UserDefinedConversion.
     case CK_NoOp: {
       // FIXME: Consider making `Environment::getStorageLocation` skip noop
       // expressions (this and other similar expressions in the file) instead of
@@ -217,18 +350,23 @@ public:
       Env.setStorageLocation(*S, *SubExprLoc);
       break;
     }
+    case CK_NullToPointer:
+    case CK_NullToMemberPointer: {
+      auto &Loc = Env.createStorageLocation(S->getType());
+      Env.setStorageLocation(*S, Loc);
+
+      auto &NullPointerVal =
+          Env.getOrCreateNullPointerValue(S->getType()->getPointeeType());
+      Env.setValue(Loc, NullPointerVal);
+      break;
+    }
     default:
-      // FIXME: Add support for CK_UserDefinedConversion,
-      // CK_ConstructorConversion, CK_UncheckedDerivedToBase.
       break;
     }
   }
 
   void VisitUnaryOperator(const UnaryOperator *S) {
-    // The CFG does not contain `ParenExpr` as top-level statements in basic
-    // blocks, however sub-expressions can still be of that type.
-    assert(S->getSubExpr() != nullptr);
-    const Expr *SubExpr = S->getSubExpr()->IgnoreParens();
+    const Expr *SubExpr = S->getSubExpr();
     assert(SubExpr != nullptr);
 
     switch (S->getOpcode()) {
@@ -269,8 +407,7 @@ public:
 
       auto &ExprLoc = Env.createStorageLocation(*S);
       Env.setStorageLocation(*S, ExprLoc);
-      Env.setValue(ExprLoc, Env.takeOwnership(
-                                std::make_unique<NegationValue>(*SubExprVal)));
+      Env.setValue(ExprLoc, Env.makeNot(*SubExprVal));
       break;
     }
     default:
@@ -280,12 +417,34 @@ public:
 
   void VisitCXXThisExpr(const CXXThisExpr *S) {
     auto *ThisPointeeLoc = Env.getThisPointeeStorageLocation();
-    assert(ThisPointeeLoc != nullptr);
+    if (ThisPointeeLoc == nullptr)
+      // Unions are not supported yet, and will not have a location for the
+      // `this` expression's pointee.
+      return;
 
     auto &Loc = Env.createStorageLocation(*S);
     Env.setStorageLocation(*S, Loc);
     Env.setValue(Loc, Env.takeOwnership(
                           std::make_unique<PointerValue>(*ThisPointeeLoc)));
+  }
+
+  void VisitReturnStmt(const ReturnStmt *S) {
+    auto *Ret = S->getRetValue();
+    if (Ret == nullptr)
+      return;
+
+    auto *Val = Env.getValue(*Ret, SkipPast::None);
+    if (Val == nullptr)
+      return;
+
+    // FIXME: Support reference-type returns.
+    if (Val->getKind() == Value::Kind::Reference)
+      return;
+
+    auto *Loc = Env.getReturnStorageLocation();
+    assert(Loc != nullptr);
+    // FIXME: Model NRVO.
+    Env.setValue(*Loc, *Val);
   }
 
   void VisitMemberExpr(const MemberExpr *S) {
@@ -381,6 +540,8 @@ public:
     Env.setStorageLocation(*S, Loc);
     if (Value *Val = Env.createValue(S->getType()))
       Env.setValue(Loc, *Val);
+
+    transferInlineCall(S, ConstructorDecl);
   }
 
   void VisitCXXOperatorCallExpr(const CXXOperatorCallExpr *S) {
@@ -407,15 +568,17 @@ public:
       if (Val == nullptr)
         return;
 
+      // Assign a value to the storage location of the object.
       Env.setValue(*ObjectLoc, *Val);
+
+      // FIXME: Add a test for the value of the whole expression.
+      // Assign a storage location for the whole expression.
+      Env.setStorageLocation(*S, *ObjectLoc);
     }
   }
 
   void VisitCXXFunctionalCastExpr(const CXXFunctionalCastExpr *S) {
     if (S->getCastKind() == CK_ConstructorConversion) {
-      // The CFG does not contain `ParenExpr` as top-level statements in basic
-      // blocks, however sub-expressions can still be of that type.
-      assert(S->getSubExpr() != nullptr);
       const Expr *SubExpr = S->getSubExpr();
       assert(SubExpr != nullptr);
 
@@ -435,6 +598,9 @@ public:
   }
 
   void VisitCallExpr(const CallExpr *S) {
+    // Of clang's builtins, only `__builtin_expect` is handled explicitly, since
+    // others (like trap, debugtrap, and unreachable) are handled by CFG
+    // construction.
     if (S->isCallToStdMove()) {
       assert(S->getNumArgs() == 1);
 
@@ -446,6 +612,19 @@ public:
         return;
 
       Env.setStorageLocation(*S, *ArgLoc);
+    } else if (S->getDirectCallee() != nullptr &&
+               S->getDirectCallee()->getBuiltinID() ==
+                   Builtin::BI__builtin_expect) {
+      assert(S->getNumArgs() > 0);
+      assert(S->getArg(0) != nullptr);
+      // `__builtin_expect` returns by-value, so strip away any potential
+      // references in the argument.
+      auto *ArgLoc = Env.getStorageLocation(*S->getArg(0), SkipPast::Reference);
+      if (ArgLoc == nullptr)
+        return;
+      Env.setStorageLocation(*S, *ArgLoc);
+    } else if (const FunctionDecl *F = S->getDirectCallee()) {
+      transferInlineCall(S, F);
     }
   }
 
@@ -507,11 +686,11 @@ public:
     Env.setValue(Loc, *Val);
 
     if (Type->isStructureOrClassType()) {
-      for (auto IT : llvm::zip(Type->getAsRecordDecl()->fields(), S->inits())) {
-        const FieldDecl *Field = std::get<0>(IT);
+      for (auto It : llvm::zip(Type->getAsRecordDecl()->fields(), S->inits())) {
+        const FieldDecl *Field = std::get<0>(It);
         assert(Field != nullptr);
 
-        const Expr *Init = std::get<1>(IT);
+        const Expr *Init = std::get<1>(It);
         assert(Init != nullptr);
 
         if (Value *InitVal = Env.getValue(*Init, SkipPast::None))
@@ -527,14 +706,107 @@ public:
     Env.setValue(Loc, Env.getBoolLiteralValue(S->getValue()));
   }
 
+  void VisitParenExpr(const ParenExpr *S) {
+    // The CFG does not contain `ParenExpr` as top-level statements in basic
+    // blocks, however manual traversal to sub-expressions may encounter them.
+    // Redirect to the sub-expression.
+    auto *SubExpr = S->getSubExpr();
+    assert(SubExpr != nullptr);
+    Visit(SubExpr);
+  }
+
+  void VisitExprWithCleanups(const ExprWithCleanups *S) {
+    // The CFG does not contain `ExprWithCleanups` as top-level statements in
+    // basic blocks, however manual traversal to sub-expressions may encounter
+    // them. Redirect to the sub-expression.
+    auto *SubExpr = S->getSubExpr();
+    assert(SubExpr != nullptr);
+    Visit(SubExpr);
+  }
+
 private:
+  BoolValue &getLogicOperatorSubExprValue(const Expr &SubExpr) {
+    // `SubExpr` and its parent logic operator might be part of different basic
+    // blocks. We try to access the value that is assigned to `SubExpr` in the
+    // corresponding environment.
+    if (const Environment *SubExprEnv = StmtToEnv.getEnvironment(SubExpr)) {
+      if (auto *Val = dyn_cast_or_null<BoolValue>(
+              SubExprEnv->getValue(SubExpr, SkipPast::Reference)))
+        return *Val;
+    }
+
+    if (Env.getStorageLocation(SubExpr, SkipPast::None) == nullptr) {
+      // Sub-expressions that are logic operators are not added in basic blocks
+      // (e.g. see CFG for `bool d = a && (b || c);`). If `SubExpr` is a logic
+      // operator, it may not have been evaluated and assigned a value yet. In
+      // that case, we need to first visit `SubExpr` and then try to get the
+      // value that gets assigned to it.
+      Visit(&SubExpr);
+    }
+
+    if (auto *Val = dyn_cast_or_null<BoolValue>(
+            Env.getValue(SubExpr, SkipPast::Reference)))
+      return *Val;
+
+    // If the value of `SubExpr` is still unknown, we create a fresh symbolic
+    // boolean value for it.
+    return Env.makeAtomicBoolValue();
+  }
+
+  // If context sensitivity is enabled, try to analyze the body of the callee
+  // `F` of `S`. The type `E` must be either `CallExpr` or `CXXConstructExpr`.
+  template <typename E>
+  void transferInlineCall(const E *S, const FunctionDecl *F) {
+    if (!(Options.ContextSensitiveOpts &&
+          Env.canDescend(Options.ContextSensitiveOpts->Depth, F)))
+      return;
+
+    const ControlFlowContext *CFCtx = Env.getControlFlowContext(F);
+    if (!CFCtx)
+      return;
+
+    // FIXME: We don't support context-sensitive analysis of recursion, so
+    // we should return early here if `F` is the same as the `FunctionDecl`
+    // holding `S` itself.
+
+    auto ExitBlock = CFCtx->getCFG().getExit().getBlockID();
+
+    if (const auto *NonConstructExpr = dyn_cast<CallExpr>(S)) {
+      // Note that it is important for the storage location of `S` to be set
+      // before `pushCall`, because the latter uses it to set the storage
+      // location for `return`.
+      auto &ReturnLoc = Env.createStorageLocation(*S);
+      Env.setStorageLocation(*S, ReturnLoc);
+    }
+    auto CalleeEnv = Env.pushCall(S);
+
+    // FIXME: Use the same analysis as the caller for the callee. Note,
+    // though, that doing so would require support for changing the analysis's
+    // ASTContext.
+    assert(CFCtx->getDecl() != nullptr &&
+           "ControlFlowContexts in the environment should always carry a decl");
+    auto Analysis = NoopAnalysis(CFCtx->getDecl()->getASTContext(),
+                                 DataflowAnalysisOptions{Options});
+
+    auto BlockToOutputState =
+        dataflow::runDataflowAnalysis(*CFCtx, Analysis, CalleeEnv);
+    assert(BlockToOutputState);
+    assert(ExitBlock < BlockToOutputState->size());
+
+    auto ExitState = (*BlockToOutputState)[ExitBlock];
+    assert(ExitState);
+
+    Env.popCall(ExitState->Env);
+  }
+
   const StmtToEnvMap &StmtToEnv;
   Environment &Env;
+  TransferOptions Options;
 };
 
-void transfer(const StmtToEnvMap &StmtToEnv, const Stmt &S, Environment &Env) {
-  assert(!isa<ParenExpr>(&S));
-  TransferVisitor(StmtToEnv, Env).Visit(&S);
+void transfer(const StmtToEnvMap &StmtToEnv, const Stmt &S, Environment &Env,
+              TransferOptions Options) {
+  TransferVisitor(StmtToEnv, Env, Options).Visit(&S);
 }
 
 } // namespace dataflow

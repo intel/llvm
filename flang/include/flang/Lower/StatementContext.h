@@ -13,6 +13,8 @@
 #ifndef FORTRAN_LOWER_STATEMENTCONTEXT_H
 #define FORTRAN_LOWER_STATEMENTCONTEXT_H
 
+#include "llvm/ADT/Optional.h"
+#include "llvm/ADT/SmallVector.h"
 #include <functional>
 
 namespace Fortran::lower {
@@ -33,7 +35,7 @@ public:
 
   ~StatementContext() {
     if (!cufs.empty())
-      finalize(/*popScope=*/true);
+      finalizeAndPop();
     assert(cufs.empty() && "invalid StatementContext destructor call");
   }
 
@@ -59,15 +61,29 @@ public:
     }
   }
 
-  /// Make cleanup calls.  Pop or reset the stack top list.
-  void finalize(bool popScope = false) {
+  /// Make cleanup calls.  Retain the stack top list for a repeat call.
+  void finalizeAndKeep() {
     assert(!cufs.empty() && "invalid finalize statement context");
     if (cufs.back())
       (*cufs.back())();
-    if (popScope)
-      cufs.pop_back();
-    else
-      cufs.back().reset();
+  }
+
+  /// Make cleanup calls.  Pop the stack top list.
+  void finalizeAndPop() {
+    finalizeAndKeep();
+    cufs.pop_back();
+  }
+
+  /// Make cleanup calls.  Clear the stack top list.
+  void finalize() {
+    finalizeAndKeep();
+    cufs.back().reset();
+  }
+
+  bool workListIsEmpty() const {
+    return cufs.empty() || llvm::all_of(cufs, [](auto &opt) -> bool {
+             return !opt.has_value();
+           });
   }
 
 private:

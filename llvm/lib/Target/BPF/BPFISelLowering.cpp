@@ -103,7 +103,6 @@ BPFTargetLowering::BPFTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::SDIVREM, VT, Expand);
     setOperationAction(ISD::UDIVREM, VT, Expand);
     setOperationAction(ISD::SREM, VT, Expand);
-    setOperationAction(ISD::UREM, VT, Expand);
     setOperationAction(ISD::MULHU, VT, Expand);
     setOperationAction(ISD::MULHS, VT, Expand);
     setOperationAction(ISD::UMUL_LOHI, VT, Expand);
@@ -168,6 +167,7 @@ BPFTargetLowering::BPFTargetLowering(const TargetMachine &TM,
     MaxStoresPerMemset = MaxStoresPerMemsetOptSize = 0;
     MaxStoresPerMemcpy = MaxStoresPerMemcpyOptSize = 0;
     MaxStoresPerMemmove = MaxStoresPerMemmoveOptSize = 0;
+    MaxLoadsPerMemcmp = 0;
   } else {
     // inline memcpy() for kernel to see explicit copy
     unsigned CommonMaxStores =
@@ -176,6 +176,7 @@ BPFTargetLowering::BPFTargetLowering(const TargetMachine &TM,
     MaxStoresPerMemset = MaxStoresPerMemsetOptSize = CommonMaxStores;
     MaxStoresPerMemcpy = MaxStoresPerMemcpyOptSize = CommonMaxStores;
     MaxStoresPerMemmove = MaxStoresPerMemmoveOptSize = CommonMaxStores;
+    MaxLoadsPerMemcmp = MaxLoadsPerMemcmpOptSize = CommonMaxStores;
   }
 
   // CPU/Feature control
@@ -485,9 +486,7 @@ SDValue BPFTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   InFlag = Chain.getValue(1);
 
   // Create the CALLSEQ_END node.
-  Chain = DAG.getCALLSEQ_END(
-      Chain, DAG.getConstant(NumBytes, CLI.DL, PtrVT, true),
-      DAG.getConstant(0, CLI.DL, PtrVT, true), InFlag, CLI.DL);
+  Chain = DAG.getCALLSEQ_END(Chain, NumBytes, 0, InFlag, CLI.DL);
   InFlag = Chain.getValue(1);
 
   // Handle result values, copying them out of physregs into vregs that we

@@ -29,7 +29,6 @@
 #include "clang/Basic/OpenMPKinds.h"
 #include "clang/Basic/TypeTraits.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
@@ -72,7 +71,7 @@ template <> struct ArgTypeTraits<std::string> {
   }
 
   static llvm::Optional<std::string> getBestGuess(const VariantValue &) {
-    return llvm::None;
+    return std::nullopt;
   }
 };
 
@@ -97,7 +96,7 @@ template <class T> struct ArgTypeTraits<ast_matchers::internal::Matcher<T>> {
   }
 
   static llvm::Optional<std::string> getBestGuess(const VariantValue &) {
-    return llvm::None;
+    return std::nullopt;
   }
 };
 
@@ -116,7 +115,7 @@ template <> struct ArgTypeTraits<bool> {
   }
 
   static llvm::Optional<std::string> getBestGuess(const VariantValue &) {
-    return llvm::None;
+    return std::nullopt;
   }
 };
 
@@ -135,7 +134,7 @@ template <> struct ArgTypeTraits<double> {
   }
 
   static llvm::Optional<std::string> getBestGuess(const VariantValue &) {
-    return llvm::None;
+    return std::nullopt;
   }
 };
 
@@ -154,7 +153,7 @@ template <> struct ArgTypeTraits<unsigned> {
   }
 
   static llvm::Optional<std::string> getBestGuess(const VariantValue &) {
-    return llvm::None;
+    return std::nullopt;
   }
 };
 
@@ -162,11 +161,11 @@ template <> struct ArgTypeTraits<attr::Kind> {
 private:
   static Optional<attr::Kind> getAttrKind(llvm::StringRef AttrKind) {
     if (!AttrKind.consume_front("attr::"))
-      return llvm::None;
+      return std::nullopt;
     return llvm::StringSwitch<Optional<attr::Kind>>(AttrKind)
 #define ATTR(X) .Case(#X, attr::X)
 #include "clang/Basic/AttrList.inc"
-        .Default(llvm::None);
+        .Default(std::nullopt);
   }
 
 public:
@@ -174,7 +173,7 @@ public:
     return Value.isString();
   }
   static bool hasCorrectValue(const VariantValue& Value) {
-    return getAttrKind(Value.getString()).hasValue();
+    return getAttrKind(Value.getString()).has_value();
   }
 
   static attr::Kind get(const VariantValue &Value) {
@@ -192,11 +191,11 @@ template <> struct ArgTypeTraits<CastKind> {
 private:
   static Optional<CastKind> getCastKind(llvm::StringRef AttrKind) {
     if (!AttrKind.consume_front("CK_"))
-      return llvm::None;
+      return std::nullopt;
     return llvm::StringSwitch<Optional<CastKind>>(AttrKind)
 #define CAST_OPERATION(Name) .Case(#Name, CK_##Name)
 #include "clang/AST/OperationKinds.def"
-        .Default(llvm::None);
+        .Default(std::nullopt);
   }
 
 public:
@@ -204,7 +203,7 @@ public:
     return Value.isString();
   }
   static bool hasCorrectValue(const VariantValue& Value) {
-    return getCastKind(Value.getString()).hasValue();
+    return getCastKind(Value.getString()).has_value();
   }
 
   static CastKind get(const VariantValue &Value) {
@@ -227,7 +226,7 @@ public:
     return Value.isString();
   }
   static bool hasCorrectValue(const VariantValue& Value) {
-    return getFlags(Value.getString()).hasValue();
+    return getFlags(Value.getString()).has_value();
   }
 
   static llvm::Regex::RegexFlags get(const VariantValue &Value) {
@@ -246,7 +245,7 @@ private:
 #define GEN_CLANG_CLAUSE_CLASS
 #define CLAUSE_CLASS(Enum, Str, Class) .Case(#Enum, llvm::omp::Clause::Enum)
 #include "llvm/Frontend/OpenMP/OMP.inc"
-        .Default(llvm::None);
+        .Default(std::nullopt);
   }
 
 public:
@@ -254,7 +253,7 @@ public:
     return Value.isString();
   }
   static bool hasCorrectValue(const VariantValue& Value) {
-    return getClauseKind(Value.getString()).hasValue();
+    return getClauseKind(Value.getString()).has_value();
   }
 
   static OpenMPClauseKind get(const VariantValue &Value) {
@@ -271,13 +270,13 @@ private:
   static Optional<UnaryExprOrTypeTrait>
   getUnaryOrTypeTraitKind(llvm::StringRef ClauseKind) {
     if (!ClauseKind.consume_front("UETT_"))
-      return llvm::None;
+      return std::nullopt;
     return llvm::StringSwitch<Optional<UnaryExprOrTypeTrait>>(ClauseKind)
 #define UNARY_EXPR_OR_TYPE_TRAIT(Spelling, Name, Key) .Case(#Name, UETT_##Name)
 #define CXX11_UNARY_EXPR_OR_TYPE_TRAIT(Spelling, Name, Key)                    \
   .Case(#Name, UETT_##Name)
 #include "clang/Basic/TokenKinds.def"
-        .Default(llvm::None);
+        .Default(std::nullopt);
   }
 
 public:
@@ -285,7 +284,7 @@ public:
     return Value.isString();
   }
   static bool hasCorrectValue(const VariantValue& Value) {
-    return getUnaryOrTypeTraitKind(Value.getString()).hasValue();
+    return getUnaryOrTypeTraitKind(Value.getString()).has_value();
   }
 
   static UnaryExprOrTypeTrait get(const VariantValue &Value) {
@@ -1060,7 +1059,7 @@ makeMatcherAutoMarshall(ReturnType (*Func)(), StringRef MatcherName) {
   BuildReturnTypeVector<ReturnType>::build(RetTypes);
   return std::make_unique<FixedArgCountMatcherDescriptor>(
       matcherMarshall0<ReturnType>, reinterpret_cast<void (*)()>(Func),
-      MatcherName, RetTypes, None);
+      MatcherName, RetTypes, std::nullopt);
 }
 
 /// 1-arg overload

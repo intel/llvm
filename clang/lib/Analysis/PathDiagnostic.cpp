@@ -32,7 +32,6 @@
 #include "clang/Basic/SourceManager.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/FoldingSet.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
@@ -239,7 +238,7 @@ compareControlFlow(const PathDiagnosticControlFlowPiece &X,
   FullSourceLoc YEL = Y.getEndLocation().asLocation();
   if (XEL != YEL)
     return XEL.isBeforeInTranslationUnitThan(YEL);
-  return None;
+  return std::nullopt;
 }
 
 static Optional<bool> compareMacro(const PathDiagnosticMacroPiece &X,
@@ -305,7 +304,7 @@ static Optional<bool> comparePiece(const PathDiagnosticPiece &X,
     case PathDiagnosticPiece::Event:
     case PathDiagnosticPiece::Note:
     case PathDiagnosticPiece::PopUp:
-      return None;
+      return std::nullopt;
   }
   llvm_unreachable("all cases handled");
 }
@@ -319,11 +318,11 @@ static Optional<bool> comparePath(const PathPieces &X, const PathPieces &Y) {
 
   for ( ; X_I != X_end && Y_I != Y_end; ++X_I, ++Y_I) {
     Optional<bool> b = comparePiece(**X_I, **Y_I);
-    if (b.hasValue())
-      return b.getValue();
+    if (b)
+      return b.value();
   }
 
-  return None;
+  return std::nullopt;
 }
 
 static bool compareCrossTUSourceLocs(FullSourceLoc XL, FullSourceLoc YL) {
@@ -367,7 +366,7 @@ static bool compare(const PathDiagnostic &X, const PathDiagnostic &Y) {
     return X.getShortDescription() < Y.getShortDescription();
   auto CompareDecls = [&XL](const Decl *D1, const Decl *D2) -> Optional<bool> {
     if (D1 == D2)
-      return None;
+      return std::nullopt;
     if (!D1)
       return true;
     if (!D2)
@@ -379,7 +378,7 @@ static bool compare(const PathDiagnostic &X, const PathDiagnostic &Y) {
       return compareCrossTUSourceLocs(FullSourceLoc(D1L, SM),
                                       FullSourceLoc(D2L, SM));
     }
-    return None;
+    return std::nullopt;
   };
   if (auto Result = CompareDecls(X.getDeclWithIssue(), Y.getDeclWithIssue()))
     return *Result;
@@ -396,8 +395,8 @@ static bool compare(const PathDiagnostic &X, const PathDiagnostic &Y) {
       return (*XI) < (*YI);
   }
   Optional<bool> b = comparePath(X.path, Y.path);
-  assert(b.hasValue());
-  return b.getValue();
+  assert(b);
+  return b.value();
 }
 
 void PathDiagnosticConsumer::FlushDiagnostics(
@@ -434,8 +433,8 @@ void PathDiagnosticConsumer::FlushDiagnostics(
 }
 
 PathDiagnosticConsumer::FilesMade::~FilesMade() {
-  for (PDFileEntry &Entry : Set)
-    Entry.~PDFileEntry();
+  for (auto It = Set.begin(); It != Set.end();)
+    (It++)->~PDFileEntry();
 }
 
 void PathDiagnosticConsumer::FilesMade::addDiagnostic(const PathDiagnostic &PD,

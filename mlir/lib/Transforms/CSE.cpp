@@ -11,16 +11,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-#include "mlir/IR/Dominance.h"
-#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/Passes.h"
+
+#include "mlir/IR/Dominance.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "mlir/Pass/Pass.h"
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/ScopedHashTable.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/RecyclingAllocator.h"
 #include <deque>
+
+namespace mlir {
+#define GEN_PASS_DEF_CSE
+#include "mlir/Transforms/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 
@@ -41,18 +47,77 @@ struct SimpleOperationInfo : public llvm::DenseMapInfo<Operation *> {
     if (lhs == getTombstoneKey() || lhs == getEmptyKey() ||
         rhs == getTombstoneKey() || rhs == getEmptyKey())
       return false;
+
+    // If op has no regions, operation equivalence w.r.t operands alone is
+    // enough.
+    if (lhs->getNumRegions() == 0 && rhs->getNumRegions() == 0) {
+      return OperationEquivalence::isEquivalentTo(
+          const_cast<Operation *>(lhsC), const_cast<Operation *>(rhsC),
+          OperationEquivalence::exactValueMatch,
+          OperationEquivalence::ignoreValueEquivalence,
+          OperationEquivalence::IgnoreLocations);
+    }
+
+    // If lhs or rhs does not have a single region with a single block, they
+    // aren't CSEed for now.
+    if (lhs->getNumRegions() != 1 || rhs->getNumRegions() != 1 ||
+        !llvm::hasSingleElement(lhs->getRegion(0)) ||
+        !llvm::hasSingleElement(rhs->getRegion(0)))
+      return false;
+
+    // Compare the two blocks.
+    Block &lhsBlock = lhs->getRegion(0).front();
+    Block &rhsBlock = rhs->getRegion(0).front();
+
+    // Don't CSE if number of arguments differ.
+    if (lhsBlock.getNumArguments() != rhsBlock.getNumArguments())
+      return false;
+
+    // Map to store `Value`s from `lhsBlock` that are equivalent to `Value`s in
+    // `rhsBlock`. `Value`s from `lhsBlock` are the key.
+    DenseMap<Value, Value> areEquivalentValues;
+    for (auto bbArgs : llvm::zip(lhs->getRegion(0).getArguments(),
+                                 rhs->getRegion(0).getArguments())) {
+      areEquivalentValues[std::get<0>(bbArgs)] = std::get<1>(bbArgs);
+    }
+
+    // Helper function to get the parent operation.
+    auto getParent = [](Value v) -> Operation * {
+      if (auto blockArg = v.dyn_cast<BlockArgument>())
+        return blockArg.getParentBlock()->getParentOp();
+      return v.getDefiningOp()->getParentOp();
+    };
+
+    // Callback to compare if operands of ops in the region of `lhs` and `rhs`
+    // are equivalent.
+    auto mapOperands = [&](Value lhsValue, Value rhsValue) -> LogicalResult {
+      if (lhsValue == rhsValue)
+        return success();
+      if (areEquivalentValues.lookup(lhsValue) == rhsValue)
+        return success();
+      return failure();
+    };
+
+    // Callback to compare if results of ops in the region of `lhs` and `rhs`
+    // are equivalent.
+    auto mapResults = [&](Value lhsResult, Value rhsResult) -> LogicalResult {
+      if (getParent(lhsResult) == lhs && getParent(rhsResult) == rhs) {
+        auto insertion = areEquivalentValues.insert({lhsResult, rhsResult});
+        return success(insertion.first->second == rhsResult);
+      }
+      return success();
+    };
+
     return OperationEquivalence::isEquivalentTo(
         const_cast<Operation *>(lhsC), const_cast<Operation *>(rhsC),
-        /*mapOperands=*/OperationEquivalence::exactValueMatch,
-        /*mapResults=*/OperationEquivalence::ignoreValueEquivalence,
-        OperationEquivalence::IgnoreLocations);
+        mapOperands, mapResults, OperationEquivalence::IgnoreLocations);
   }
 };
 } // namespace
 
 namespace {
 /// Simple common sub-expression elimination.
-struct CSE : public CSEBase<CSE> {
+struct CSE : public impl::CSEBase<CSE> {
   /// Shared implementation of operation elimination and scoped map definitions.
   using AllocatorTy = llvm::RecyclingAllocator<
       llvm::BumpPtrAllocator,
@@ -60,11 +125,18 @@ struct CSE : public CSEBase<CSE> {
   using ScopedMapTy = llvm::ScopedHashTable<Operation *, Operation *,
                                             SimpleOperationInfo, AllocatorTy>;
 
+  /// Cache holding MemoryEffects information between two operations. The first
+  /// operation is stored has the key. The second operation is stored inside a
+  /// pair in the value. The pair also hold the MemoryEffects between those
+  /// two operations. If the MemoryEffects is nullptr then we assume there is
+  /// no operation with MemoryEffects::Write between the two operations.
+  using MemEffectsCache =
+      DenseMap<Operation *, std::pair<Operation *, MemoryEffects::Effect *>>;
+
   /// Represents a single entry in the depth first traversal of a CFG.
   struct CFGStackNode {
     CFGStackNode(ScopedMapTy &knownValues, DominanceInfoNode *node)
-        : scope(knownValues), node(node), childIterator(node->begin()),
-          processed(false) {}
+        : scope(knownValues), node(node), childIterator(node->begin()) {}
 
     /// Scope for the known values.
     ScopedMapTy::ScopeTy scope;
@@ -73,7 +145,7 @@ struct CSE : public CSEBase<CSE> {
     DominanceInfoNode::const_iterator childIterator;
 
     /// If this node has been fully processed yet or not.
-    bool processed;
+    bool processed = false;
   };
 
   /// Attempt to eliminate a redundant operation. Returns success if the
@@ -86,11 +158,93 @@ struct CSE : public CSEBase<CSE> {
   void runOnOperation() override;
 
 private:
+  void replaceUsesAndDelete(ScopedMapTy &knownValues, Operation *op,
+                            Operation *existing, bool hasSSADominance);
+
+  /// Check if there is side-effecting operations other than the given effect
+  /// between the two operations.
+  bool hasOtherSideEffectingOpInBetween(Operation *fromOp, Operation *toOp);
+
   /// Operations marked as dead and to be erased.
   std::vector<Operation *> opsToErase;
   DominanceInfo *domInfo = nullptr;
+  MemEffectsCache memEffectsCache;
 };
 } // namespace
+
+void CSE::replaceUsesAndDelete(ScopedMapTy &knownValues, Operation *op,
+                               Operation *existing, bool hasSSADominance) {
+  // If we find one then replace all uses of the current operation with the
+  // existing one and mark it for deletion. We can only replace an operand in
+  // an operation if it has not been visited yet.
+  if (hasSSADominance) {
+    // If the region has SSA dominance, then we are guaranteed to have not
+    // visited any use of the current operation.
+    op->replaceAllUsesWith(existing);
+    opsToErase.push_back(op);
+  } else {
+    // When the region does not have SSA dominance, we need to check if we
+    // have visited a use before replacing any use.
+    for (auto it : llvm::zip(op->getResults(), existing->getResults())) {
+      std::get<0>(it).replaceUsesWithIf(
+          std::get<1>(it), [&](OpOperand &operand) {
+            return !knownValues.count(operand.getOwner());
+          });
+    }
+
+    // There may be some remaining uses of the operation.
+    if (op->use_empty())
+      opsToErase.push_back(op);
+  }
+
+  // If the existing operation has an unknown location and the current
+  // operation doesn't, then set the existing op's location to that of the
+  // current op.
+  if (existing->getLoc().isa<UnknownLoc>() && !op->getLoc().isa<UnknownLoc>())
+    existing->setLoc(op->getLoc());
+
+  ++numCSE;
+}
+
+bool CSE::hasOtherSideEffectingOpInBetween(Operation *fromOp, Operation *toOp) {
+  assert(fromOp->getBlock() == toOp->getBlock());
+  assert(
+      isa<MemoryEffectOpInterface>(fromOp) &&
+      cast<MemoryEffectOpInterface>(fromOp).hasEffect<MemoryEffects::Read>() &&
+      isa<MemoryEffectOpInterface>(toOp) &&
+      cast<MemoryEffectOpInterface>(toOp).hasEffect<MemoryEffects::Read>());
+  Operation *nextOp = fromOp->getNextNode();
+  auto result =
+      memEffectsCache.try_emplace(fromOp, std::make_pair(fromOp, nullptr));
+  if (result.second) {
+    auto memEffectsCachePair = result.first->second;
+    if (memEffectsCachePair.second == nullptr) {
+      // No MemoryEffects::Write has been detected until the cached operation.
+      // Continue looking from the cached operation to toOp.
+      nextOp = memEffectsCachePair.first;
+    } else {
+      // MemoryEffects::Write has been detected before so there is no need to
+      // check further.
+      return true;
+    }
+  }
+  while (nextOp && nextOp != toOp) {
+    auto nextOpMemEffects = dyn_cast<MemoryEffectOpInterface>(nextOp);
+    // TODO: Do we need to handle other effects generically?
+    // If the operation does not implement the MemoryEffectOpInterface we
+    // conservatively assumes it writes.
+    if ((nextOpMemEffects &&
+         nextOpMemEffects.hasEffect<MemoryEffects::Write>()) ||
+        !nextOpMemEffects) {
+      result.first->second =
+          std::make_pair(nextOp, MemoryEffects::Write::get());
+      return true;
+    }
+    nextOp = nextOp->getNextNode();
+  }
+  result.first->second = std::make_pair(toOp, nullptr);
+  return false;
+}
 
 /// Attempt to eliminate a redundant operation.
 LogicalResult CSE::simplifyOperation(ScopedMapTy &knownValues, Operation *op,
@@ -109,48 +263,38 @@ LogicalResult CSE::simplifyOperation(ScopedMapTy &knownValues, Operation *op,
   // Don't simplify operations with nested blocks. We don't currently model
   // equality comparisons correctly among other things. It is also unclear
   // whether we would want to CSE such operations.
-  if (op->getNumRegions() != 0)
+  if (op->getNumRegions() != 0 &&
+      (op->getNumRegions() != 1 || !llvm::hasSingleElement(op->getRegion(0))))
     return failure();
 
-  // TODO: We currently only eliminate non side-effecting
-  // operations.
-  if (!MemoryEffectOpInterface::hasNoEffect(op))
+  // Some simple use case of operation with memory side-effect are dealt with
+  // here. Operations with no side-effect are done after.
+  if (!isMemoryEffectFree(op)) {
+    auto memEffects = dyn_cast<MemoryEffectOpInterface>(op);
+    // TODO: Only basic use case for operations with MemoryEffects::Read can be
+    // eleminated now. More work needs to be done for more complicated patterns
+    // and other side-effects.
+    if (!memEffects || !memEffects.onlyHasEffect<MemoryEffects::Read>())
+      return failure();
+
+    // Look for an existing definition for the operation.
+    if (auto *existing = knownValues.lookup(op)) {
+      if (existing->getBlock() == op->getBlock() &&
+          !hasOtherSideEffectingOpInBetween(existing, op)) {
+        // The operation that can be deleted has been reach with no
+        // side-effecting operations in between the existing operation and
+        // this one so we can remove the duplicate.
+        replaceUsesAndDelete(knownValues, op, existing, hasSSADominance);
+        return success();
+      }
+    }
+    knownValues.insert(op, op);
     return failure();
+  }
 
   // Look for an existing definition for the operation.
   if (auto *existing = knownValues.lookup(op)) {
-
-    // If we find one then replace all uses of the current operation with the
-    // existing one and mark it for deletion. We can only replace an operand in
-    // an operation if it has not been visited yet.
-    if (hasSSADominance) {
-      // If the region has SSA dominance, then we are guaranteed to have not
-      // visited any use of the current operation.
-      op->replaceAllUsesWith(existing);
-      opsToErase.push_back(op);
-    } else {
-      // When the region does not have SSA dominance, we need to check if we
-      // have visited a use before replacing any use.
-      for (auto it : llvm::zip(op->getResults(), existing->getResults())) {
-        std::get<0>(it).replaceUsesWithIf(
-            std::get<1>(it), [&](OpOperand &operand) {
-              return !knownValues.count(operand.getOwner());
-            });
-      }
-
-      // There may be some remaining uses of the operation.
-      if (op->use_empty())
-        opsToErase.push_back(op);
-    }
-
-    // If the existing operation has an unknown location and the current
-    // operation doesn't, then set the existing op's location to that of the
-    // current op.
-    if (existing->getLoc().isa<UnknownLoc>() &&
-        !op->getLoc().isa<UnknownLoc>()) {
-      existing->setLoc(op->getLoc());
-    }
-
+    replaceUsesAndDelete(knownValues, op, existing, hasSSADominance);
     ++numCSE;
     return success();
   }
@@ -163,28 +307,28 @@ LogicalResult CSE::simplifyOperation(ScopedMapTy &knownValues, Operation *op,
 void CSE::simplifyBlock(ScopedMapTy &knownValues, Block *bb,
                         bool hasSSADominance) {
   for (auto &op : *bb) {
+    // Most operations don't have regions, so fast path that case.
+    if (op.getNumRegions() != 0) {
+      // If this operation is isolated above, we can't process nested regions
+      // with the given 'knownValues' map. This would cause the insertion of
+      // implicit captures in explicit capture only regions.
+      if (op.mightHaveTrait<OpTrait::IsIsolatedFromAbove>()) {
+        ScopedMapTy nestedKnownValues;
+        for (auto &region : op.getRegions())
+          simplifyRegion(nestedKnownValues, region);
+      } else {
+        // Otherwise, process nested regions normally.
+        for (auto &region : op.getRegions())
+          simplifyRegion(knownValues, region);
+      }
+    }
+
     // If the operation is simplified, we don't process any held regions.
     if (succeeded(simplifyOperation(knownValues, &op, hasSSADominance)))
       continue;
-
-    // Most operations don't have regions, so fast path that case.
-    if (op.getNumRegions() == 0)
-      continue;
-
-    // If this operation is isolated above, we can't process nested regions with
-    // the given 'knownValues' map. This would cause the insertion of implicit
-    // captures in explicit capture only regions.
-    if (op.mightHaveTrait<OpTrait::IsIsolatedFromAbove>()) {
-      ScopedMapTy nestedKnownValues;
-      for (auto &region : op.getRegions())
-        simplifyRegion(nestedKnownValues, region);
-      continue;
-    }
-
-    // Otherwise, process nested regions normally.
-    for (auto &region : op.getRegions())
-      simplifyRegion(knownValues, region);
   }
+  // Clear the MemoryEffects cache since its usage is by block only.
+  memEffectsCache.clear();
 }
 
 void CSE::simplifyRegion(ScopedMapTy &knownValues, Region &region) {

@@ -12,11 +12,13 @@
 
 #include <__availability>
 #include <__config>
+#include <__format/buffer.h>
 #include <__format/format_args.h>
 #include <__format/format_fwd.h>
 #include <__iterator/back_insert_iterator.h>
 #include <__iterator/concepts.h>
-#include <concepts>
+#include <__utility/move.h>
+#include <cstddef>
 
 #ifndef _LIBCPP_HAS_NO_LOCALIZATION
 #include <locale>
@@ -30,12 +32,6 @@
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 #if _LIBCPP_STD_VER > 17
-
-// TODO FMT Remove this once we require compilers with proper C++20 support.
-// If the compiler has no concepts support, the format header will be disabled.
-// Without concepts support enable_if needs to be used and that too much effort
-// to support compilers with partial C++20 support.
-#if !defined(_LIBCPP_HAS_NO_CONCEPTS)
 
 template <class _OutIt, class _CharT>
 requires output_iterator<_OutIt, const _CharT&>
@@ -53,8 +49,7 @@ __format_context_create(
     _OutIt __out_it,
     basic_format_args<basic_format_context<_OutIt, _CharT>> __args,
     optional<_VSTD::locale>&& __loc = nullopt) {
-  return _VSTD::basic_format_context(_VSTD::move(__out_it), __args,
-                                     _VSTD::move(__loc));
+  return _VSTD::basic_format_context(_VSTD::move(__out_it), __args, _VSTD::move(__loc));
 }
 #else
 template <class _OutIt, class _CharT>
@@ -66,16 +61,12 @@ __format_context_create(
 }
 #endif
 
-// TODO FMT Implement [format.context]/4
-// [Note 1: For a given type charT, implementations are encouraged to provide a
-// single instantiation of basic_format_context for appending to
-// basic_string<charT>, vector<charT>, or any other container with contiguous
-// storage by wrapping those in temporary objects with a uniform interface
-// (such as a span<charT>) and polymorphic reallocation. - end note]
-
-using format_context = basic_format_context<back_insert_iterator<string>, char>;
+using format_context =
+    basic_format_context<back_insert_iterator<__format::__output_buffer<char>>,
+                         char>;
 #ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
-using wformat_context = basic_format_context<back_insert_iterator<wstring>, wchar_t>;
+using wformat_context = basic_format_context<
+    back_insert_iterator<__format::__output_buffer<wchar_t>>, wchar_t>;
 #endif
 
 template <class _OutIt, class _CharT>
@@ -94,9 +85,6 @@ public:
   template <class _Tp>
   using formatter_type = formatter<_Tp, _CharT>;
 
-  basic_format_context(const basic_format_context&) = delete;
-  basic_format_context& operator=(const basic_format_context&) = delete;
-
   _LIBCPP_HIDE_FROM_ABI basic_format_arg<basic_format_context>
   arg(size_t __id) const noexcept {
     return __args_.get(__id);
@@ -108,8 +96,8 @@ public:
     return *__loc_;
   }
 #endif
-  _LIBCPP_HIDE_FROM_ABI iterator out() { return __out_it_; }
-  _LIBCPP_HIDE_FROM_ABI void advance_to(iterator __it) { __out_it_ = __it; }
+  _LIBCPP_HIDE_FROM_ABI iterator out() { return std::move(__out_it_); }
+  _LIBCPP_HIDE_FROM_ABI void advance_to(iterator __it) { __out_it_ = std::move(__it); }
 
 private:
   iterator __out_it_;
@@ -150,8 +138,7 @@ private:
       : __out_it_(_VSTD::move(__out_it)), __args_(__args) {}
 #endif
 };
-
-#endif // !defined(_LIBCPP_HAS_NO_CONCEPTS)
+_LIBCPP_CTAD_SUPPORTED_FOR_TYPE(basic_format_context);
 
 #endif //_LIBCPP_STD_VER > 17
 

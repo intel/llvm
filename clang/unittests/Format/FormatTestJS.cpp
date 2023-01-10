@@ -337,6 +337,13 @@ TEST_F(FormatTestJS, ReservedWords) {
                "  x: 'x'\n"
                "};",
                "const Axis = {for: 'for', x:   'x'};");
+  verifyFormat("export class Foo extends Bar {\n"
+               "  get case(): Case {\n"
+               "    return (\n"
+               "        (this.Bar$has('case')) ? (this.Bar$get('case')) :\n"
+               "                                 (this.case = new Case()));\n"
+               "  }\n"
+               "}");
 }
 
 TEST_F(FormatTestJS, ReservedWordsMethods) {
@@ -1868,6 +1875,11 @@ TEST_F(FormatTestJS, Modules) {
                                               " myX} from 'm';");
   verifyFormat("import * as lib from 'some/module.js';");
   verifyFormat("var x = {import: 1};\nx.import = 2;");
+  // Ensure an import statement inside a block is at the correct level.
+  verifyFormat("function() {\n"
+               "  var x;\n"
+               "  import 'some/module.js';\n"
+               "}");
 
   verifyFormat("export function fn() {\n"
                "  return 'fn';\n"
@@ -2133,6 +2145,9 @@ TEST_F(FormatTestJS, NestedTemplateStrings) {
 
   // Crashed at some point.
   verifyFormat("}");
+  verifyFormat("`");
+  // FIXME: still crashing?
+  // verifyFormat("`\\");
 }
 
 TEST_F(FormatTestJS, TaggedTemplateStrings) {
@@ -2699,7 +2714,7 @@ TEST_F(FormatTestJS, NumericSeparators) {
 
 TEST_F(FormatTestJS, AlignConsecutiveDeclarations) {
   FormatStyle Style = getGoogleStyle(FormatStyle::LK_JavaScript);
-  Style.AlignConsecutiveDeclarations = FormatStyle::ACS_Consecutive;
+  Style.AlignConsecutiveDeclarations.Enabled = true;
   verifyFormat("let    letVariable = 5;\n"
                "double constVariable = 10;",
                Style);
@@ -2736,7 +2751,7 @@ TEST_F(FormatTestJS, AlignConsecutiveDeclarations) {
 TEST_F(FormatTestJS, AlignConsecutiveAssignments) {
   FormatStyle Style = getGoogleStyle(FormatStyle::LK_JavaScript);
 
-  Style.AlignConsecutiveAssignments = FormatStyle::ACS_Consecutive;
+  Style.AlignConsecutiveAssignments.Enabled = true;
   verifyFormat("let letVariable      = 5;\n"
                "double constVariable = 10;",
                Style);
@@ -2772,8 +2787,8 @@ TEST_F(FormatTestJS, AlignConsecutiveAssignments) {
 
 TEST_F(FormatTestJS, AlignConsecutiveAssignmentsAndDeclarations) {
   FormatStyle Style = getGoogleStyle(FormatStyle::LK_JavaScript);
-  Style.AlignConsecutiveDeclarations = FormatStyle::ACS_Consecutive;
-  Style.AlignConsecutiveAssignments = FormatStyle::ACS_Consecutive;
+  Style.AlignConsecutiveDeclarations.Enabled = true;
+  Style.AlignConsecutiveAssignments.Enabled = true;
   verifyFormat("let    letVariable   = 5;\n"
                "double constVariable = 10;",
                Style);

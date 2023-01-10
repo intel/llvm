@@ -19,17 +19,15 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineBranchProbabilityInfo.h"
-#include "llvm/CodeGen/MachineBlockFrequencyInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/CodeGen/MachineSizeOpts.h"
 #include "llvm/CodeGen/MachineSSAUpdater.h"
+#include "llvm/CodeGen/MachineSizeOpts.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
@@ -370,8 +368,8 @@ void TailDuplicator::processPHI(
     return;
 
   // Remove PredBB from the PHI node.
-  MI->RemoveOperand(SrcOpIdx + 1);
-  MI->RemoveOperand(SrcOpIdx);
+  MI->removeOperand(SrcOpIdx + 1);
+  MI->removeOperand(SrcOpIdx);
   if (MI->getNumOperands() == 1)
     MI->eraseFromParent();
 }
@@ -385,8 +383,9 @@ void TailDuplicator::duplicateInstruction(
   // Allow duplication of CFI instructions.
   if (MI->isCFIInstruction()) {
     BuildMI(*PredBB, PredBB->end(), PredBB->findDebugLoc(PredBB->begin()),
-      TII->get(TargetOpcode::CFI_INSTRUCTION)).addCFIIndex(
-      MI->getOperand(0).getCFIIndex());
+            TII->get(TargetOpcode::CFI_INSTRUCTION))
+        .addCFIIndex(MI->getOperand(0).getCFIIndex())
+        .setMIFlags(MI->getFlags());
     return;
   }
   MachineInstr &NewMI = TII->duplicate(*PredBB, PredBB->end(), *MI);
@@ -496,15 +495,15 @@ void TailDuplicator::updateSuccessorsPHIs(
         for (unsigned i = MI.getNumOperands() - 2; i != Idx; i -= 2) {
           MachineOperand &MO = MI.getOperand(i + 1);
           if (MO.getMBB() == FromBB) {
-            MI.RemoveOperand(i + 1);
-            MI.RemoveOperand(i);
+            MI.removeOperand(i + 1);
+            MI.removeOperand(i);
           }
         }
       } else
         Idx = 0;
 
       // If Idx is set, the operands at Idx and Idx+1 must be removed.
-      // We reuse the location to avoid expensive RemoveOperand calls.
+      // We reuse the location to avoid expensive removeOperand calls.
 
       DenseMap<Register, AvailableValsTy>::iterator LI =
           SSAUpdateVals.find(Reg);
@@ -541,8 +540,8 @@ void TailDuplicator::updateSuccessorsPHIs(
         }
       }
       if (Idx != 0) {
-        MI.RemoveOperand(Idx + 1);
-        MI.RemoveOperand(Idx);
+        MI.removeOperand(Idx + 1);
+        MI.removeOperand(Idx);
       }
     }
   }
@@ -654,7 +653,7 @@ bool TailDuplicator::shouldTailDuplicate(bool IsSimple,
   // demonstrated by test/CodeGen/Hexagon/tail-dup-subreg-abort.ll.
   // Disable tail duplication for this case for now, until the problem is
   // fixed.
-  for (auto SB : TailBB.successors()) {
+  for (auto *SB : TailBB.successors()) {
     for (auto &I : *SB) {
       if (!I.isPHI())
         break;
@@ -717,8 +716,7 @@ bool TailDuplicator::canCompletelyDuplicateBB(MachineBasicBlock &BB) {
 
 bool TailDuplicator::duplicateSimpleBB(
     MachineBasicBlock *TailBB, SmallVectorImpl<MachineBasicBlock *> &TDBBs,
-    const DenseSet<Register> &UsedByPhi,
-    SmallVectorImpl<MachineInstr *> &Copies) {
+    const DenseSet<Register> &UsedByPhi) {
   SmallPtrSet<MachineBasicBlock *, 8> Succs(TailBB->succ_begin(),
                                             TailBB->succ_end());
   SmallVector<MachineBasicBlock *, 8> Preds(TailBB->predecessors());
@@ -800,6 +798,15 @@ bool TailDuplicator::canTailDuplicate(MachineBasicBlock *TailBB,
     return false;
   if (!PredCond.empty())
     return false;
+  // FIXME: This is overly conservative; it may be ok to relax this in the
+  // future under more specific conditions. If TailBB is an INLINEASM_BR
+  // indirect target, we need to see if the edge from PredBB to TailBB is from
+  // an INLINEASM_BR in PredBB, and then also if that edge was from the
+  // indirect target list, fallthrough/default target, or potentially both. If
+  // it's both, TailDuplicator::tailDuplicate will remove the edge, corrupting
+  // the successor list in PredBB and predecessor list in TailBB.
+  if (TailBB->isInlineAsmBrIndirectTarget())
+    return false;
   return true;
 }
 
@@ -827,7 +834,7 @@ bool TailDuplicator::tailDuplicate(bool IsSimple, MachineBasicBlock *TailBB,
   getRegsUsedByPHIs(*TailBB, &UsedByPhi);
 
   if (IsSimple)
-    return duplicateSimpleBB(TailBB, TDBBs, UsedByPhi, Copies);
+    return duplicateSimpleBB(TailBB, TDBBs, UsedByPhi);
 
   // Iterate through all the unique predecessors and tail-duplicate this
   // block into them, if possible. Copying the list ahead of time also

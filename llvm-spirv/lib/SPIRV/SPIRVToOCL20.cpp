@@ -74,53 +74,41 @@ bool SPIRVToOCL20Base::runSPIRVToOCL(Module &Module) {
 }
 
 void SPIRVToOCL20Base::visitCallSPIRVMemoryBarrier(CallInst *CI) {
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        Value *MemScope =
-            SPIRV::transSPIRVMemoryScopeIntoOCLMemoryScope(Args[0], CI);
-        Value *MemFenceFlags =
-            SPIRV::transSPIRVMemorySemanticsIntoOCLMemFenceFlags(Args[1], CI);
-        Value *MemOrder =
-            SPIRV::transSPIRVMemorySemanticsIntoOCLMemoryOrder(Args[1], CI);
-
-        Args.resize(3);
-        Args[0] = MemFenceFlags;
-        Args[1] = MemOrder;
-        Args[2] = MemScope;
-
-        return kOCLBuiltinName::AtomicWorkItemFence;
-      },
-      &Attrs);
+  Value *MemScope =
+      SPIRV::transSPIRVMemoryScopeIntoOCLMemoryScope(CI->getArgOperand(0), CI);
+  Value *MemFenceFlags = SPIRV::transSPIRVMemorySemanticsIntoOCLMemFenceFlags(
+      CI->getArgOperand(1), CI);
+  Value *MemOrder = SPIRV::transSPIRVMemorySemanticsIntoOCLMemoryOrder(
+      CI->getArgOperand(1), CI);
+  mutateCallInst(CI, kOCLBuiltinName::AtomicWorkItemFence)
+      .setArgs({MemFenceFlags, MemOrder, MemScope});
 }
 
 void SPIRVToOCL20Base::visitCallSPIRVControlBarrier(CallInst *CI) {
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  SmallVector<AttributeSet, 2> ArgAttrs = {Attrs.getParamAttrs(1),
-                                           Attrs.getParamAttrs(2)};
-  AttributeList NewAttrs = AttributeList::get(*Ctx, Attrs.getFnAttrs(),
-                                              Attrs.getRetAttrs(), ArgAttrs);
-  mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        auto GetArg = [=](unsigned I) {
-          return cast<ConstantInt>(Args[I])->getZExtValue();
-        };
-        auto ExecScope = static_cast<Scope>(GetArg(0));
-        Value *MemScope =
-            getInt32(M, rmap<OCLScopeKind>(static_cast<Scope>(GetArg(1))));
-        Value *MemFenceFlags =
-            SPIRV::transSPIRVMemorySemanticsIntoOCLMemFenceFlags(Args[2], CI);
+  auto GetArg = [=](unsigned I) {
+    return cast<ConstantInt>(CI->getArgOperand(I))->getZExtValue();
+  };
+  auto ExecScope = static_cast<Scope>(GetArg(0));
+  Value *MemScope =
+      getInt32(M, rmap<OCLScopeKind>(static_cast<Scope>(GetArg(1))));
+  Value *MemFenceFlags = SPIRV::transSPIRVMemorySemanticsIntoOCLMemFenceFlags(
+      CI->getArgOperand(2), CI);
+  mutateCallInst(CI, ExecScope == ScopeWorkgroup
+                         ? kOCLBuiltinName::WorkGroupBarrier
+                         : kOCLBuiltinName::SubGroupBarrier)
+      .setArgs({MemFenceFlags, MemScope});
+}
 
-        Args.resize(2);
-        Args[0] = MemFenceFlags;
-        Args[1] = MemScope;
-
-        return (ExecScope == ScopeWorkgroup) ? kOCLBuiltinName::WorkGroupBarrier
-                                             : kOCLBuiltinName::SubGroupBarrier;
-      },
-      &NewAttrs);
+void SPIRVToOCL20Base::visitCallSPIRVSplitBarrierINTEL(CallInst *CI, Op OC) {
+  auto GetArg = [=](unsigned I) {
+    return cast<ConstantInt>(CI->getArgOperand(I))->getZExtValue();
+  };
+  Value *MemScope =
+      getInt32(M, rmap<OCLScopeKind>(static_cast<Scope>(GetArg(1))));
+  Value *MemFenceFlags = SPIRV::transSPIRVMemorySemanticsIntoOCLMemFenceFlags(
+      CI->getArgOperand(2), CI);
+  mutateCallInst(CI, OCLSPIRVBuiltinMap::rmap(OC))
+      .setArgs({MemFenceFlags, MemScope});
 }
 
 std::string SPIRVToOCL20Base::mapFPAtomicName(Op OC) {
@@ -138,223 +126,167 @@ std::string SPIRVToOCL20Base::mapFPAtomicName(Op OC) {
   }
 }
 
-Instruction *SPIRVToOCL20Base::mutateAtomicName(CallInst *CI, Op OC) {
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  return mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        // Map fp atomic instructions to regular OpenCL built-ins.
-        if (isFPAtomicOpCode(OC))
-          return mapFPAtomicName(OC);
-        return OCLSPIRVBuiltinMap::rmap(OC);
-      },
-      &Attrs);
+void SPIRVToOCL20Base::mutateAtomicName(CallInst *CI, Op OC) {
+  // Map fp atomic instructions to regular OpenCL built-ins.
+  mutateCallInst(CI, isFPAtomicOpCode(OC) ? mapFPAtomicName(OC)
+                                          : OCLSPIRVBuiltinMap::rmap(OC));
 }
 
-Instruction *SPIRVToOCL20Base::visitCallSPIRVAtomicBuiltin(CallInst *CI,
-                                                           Op OC) {
+void SPIRVToOCL20Base::visitCallSPIRVAtomicBuiltin(CallInst *CI, Op OC) {
   CallInst *CIG = mutateCommonAtomicArguments(CI, OC);
 
-  Instruction *NewCI = nullptr;
   switch (OC) {
   case OpAtomicIIncrement:
   case OpAtomicIDecrement:
-    NewCI = visitCallSPIRVAtomicIncDec(CIG, OC);
+    visitCallSPIRVAtomicIncDec(CIG, OC);
     break;
   case OpAtomicCompareExchange:
   case OpAtomicCompareExchangeWeak:
-    NewCI = visitCallSPIRVAtomicCmpExchg(CIG);
+    visitCallSPIRVAtomicCmpExchg(CIG);
     break;
   default:
-    NewCI = mutateAtomicName(CIG, OC);
+    mutateAtomicName(CIG, OC);
   }
-
-  return NewCI;
 }
 
-Instruction *SPIRVToOCL20Base::visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) {
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  return mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        // Since OpenCL 2.0 doesn't have atomic_inc and atomic_dec builtins,
-        // we translate these instructions to atomic_fetch_add_explicit and
-        // atomic_fetch_sub_explicit OpenCL 2.0 builtins with "operand" argument
-        // = 1.
-        auto Name = OCLSPIRVBuiltinMap::rmap(
-            OC == OpAtomicIIncrement ? OpAtomicIAdd : OpAtomicISub);
-        auto Ptr = findFirstPtr(Args);
-        Type *ValueTy =
-            cast<PointerType>(Args[Ptr]->getType())->getPointerElementType();
-        assert(ValueTy->isIntegerTy());
-        Args.insert(Args.begin() + 1, llvm::ConstantInt::get(ValueTy, 1));
-        return Name;
-      },
-      &Attrs);
+void SPIRVToOCL20Base::visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) {
+  // Since OpenCL 2.0 doesn't have atomic_inc and atomic_dec builtins, we
+  // translate these instructions to atomic_fetch_add_explicit and
+  // atomic_fetch_sub_explicit OpenCL 2.0 builtins with "operand" argument = 1.
+  auto Name = OCLSPIRVBuiltinMap::rmap(OC == OpAtomicIIncrement ? OpAtomicIAdd
+                                                                : OpAtomicISub);
+  Type *ValueTy = CI->getType();
+  assert(ValueTy->isIntegerTy());
+  mutateCallInst(CI, Name).insertArg(1, ConstantInt::get(ValueTy, 1));
 }
 
 CallInst *SPIRVToOCL20Base::mutateCommonAtomicArguments(CallInst *CI, Op OC) {
-  assert(CI->getCalledFunction() && "Unexpected indirect call");
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  std::string Name;
+  // Map fp atomic instructions to regular OpenCL built-ins.
+  if (isFPAtomicOpCode(OC))
+    Name = mapFPAtomicName(OC);
+  else
+    Name = OCLSPIRVBuiltinMap::rmap(OC);
 
-  return mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        for (size_t I = 0; I < Args.size(); ++I) {
-          Value *PtrArg = Args[I];
-          Type *PtrArgTy = PtrArg->getType();
-          if (PtrArgTy->isPointerTy()) {
-            if (PtrArgTy->getPointerAddressSpace() != SPIRAS_Generic) {
-              Type *FixedPtr = PtrArgTy->getPointerElementType()->getPointerTo(
-                  SPIRAS_Generic);
-              Args[I] = CastInst::CreatePointerBitCastOrAddrSpaceCast(
-                  PtrArg, FixedPtr, PtrArg->getName() + ".as", CI);
-            }
-          }
-        }
-        auto Ptr = findFirstPtr(Args);
-        std::string Name;
-        // Map fp atomic instructions to regular OpenCL built-ins.
-        if (isFPAtomicOpCode(OC))
-          Name = mapFPAtomicName(OC);
-        else
-          Name = OCLSPIRVBuiltinMap::rmap(OC);
-        auto NumOrder = getSPIRVAtomicBuiltinNumMemoryOrderArgs(OC);
-        auto ScopeIdx = Ptr + 1;
-        auto OrderIdx = Ptr + 2;
+  auto Ptr = findFirstPtr(CI->args());
+  auto NumOrder = getSPIRVAtomicBuiltinNumMemoryOrderArgs(OC);
+  auto ScopeIdx = Ptr + 1;
+  auto OrderIdx = Ptr + 2;
+  auto Mutator = mutateCallInst(CI, Name);
 
-        Args[ScopeIdx] =
-            SPIRV::transSPIRVMemoryScopeIntoOCLMemoryScope(Args[ScopeIdx], CI);
-        for (size_t I = 0; I < NumOrder; ++I) {
-          Args[OrderIdx + I] =
-              SPIRV::transSPIRVMemorySemanticsIntoOCLMemoryOrder(
-                  Args[OrderIdx + I], CI);
-        }
-        std::swap(Args[ScopeIdx], Args.back());
-        return Name;
-      },
-      &Attrs);
+  Mutator.mapArgs([=](IRBuilder<> &Builder, Value *PtrArg, Type *PtrArgTy) {
+    if (auto *TypedPtrTy = dyn_cast<TypedPointerType>(PtrArgTy)) {
+      if (TypedPtrTy->getAddressSpace() != SPIRAS_Generic) {
+        Type *ElementTy = TypedPtrTy->getElementType();
+        Type *FixedPtr = PointerType::get(ElementTy, SPIRAS_Generic);
+        PtrArg = Builder.CreateAddrSpaceCast(PtrArg, FixedPtr,
+                                             PtrArg->getName() + ".as");
+        PtrArgTy = TypedPointerType::get(ElementTy, SPIRAS_Generic);
+      }
+    }
+    return std::make_pair(PtrArg, PtrArgTy);
+  });
+  Mutator.mapArg(ScopeIdx, [=](Value *Arg) {
+    return SPIRV::transSPIRVMemoryScopeIntoOCLMemoryScope(Arg, CI);
+  });
+  for (size_t I = 0; I < NumOrder; ++I) {
+    Mutator.mapArg(OrderIdx + I, [=](Value *Arg) {
+      return SPIRV::transSPIRVMemorySemanticsIntoOCLMemoryOrder(Arg, CI);
+    });
+  }
+  Mutator.moveArg(Mutator.arg_size() - 1, ScopeIdx + 1);
+  Mutator.moveArg(ScopeIdx, Mutator.arg_size() - 1);
+
+  return cast<CallInst>(Mutator.getMutated());
 }
 
-Instruction *SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI) {
-  assert(CI->getCalledFunction() && "Unexpected indirect call");
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  Instruction *PInsertBefore = CI;
+void SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI) {
+  Type *MemTy = CI->getType();
 
-  return mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args, Type *&RetTy) {
-        // OpAtomicCompareExchange[Weak] semantics is different from
-        // atomic_compare_exchange_strong semantics as well as
-        // arguments order.
-        // OCL built-ins returns boolean value and stores a new/original
-        // value by pointer passed as 2nd argument (aka expected) while SPIR-V
-        // instructions returns this new/original value as a resulting value.
-        AllocaInst *PExpected = new AllocaInst(CI->getType(), 0, "expected",
-                                               &(*PInsertBefore->getParent()
-                                                      ->getParent()
-                                                      ->getEntryBlock()
-                                                      .getFirstInsertionPt()));
-        PExpected->setAlignment(
-            Align(CI->getType()->getScalarSizeInBits() / 8));
-        new StoreInst(Args[1], PExpected, PInsertBefore);
-        unsigned AddrSpc = SPIRAS_Generic;
-        Type *PtrTyAS =
-            PExpected->getType()->getPointerElementType()->getPointerTo(
-                AddrSpc);
-        Args[1] = CastInst::CreatePointerBitCastOrAddrSpaceCast(
-            PExpected, PtrTyAS, PExpected->getName() + ".as", PInsertBefore);
-        std::swap(Args[3], Args[4]);
-        std::swap(Args[2], Args[3]);
-        RetTy = Type::getInt1Ty(*Ctx);
-        // OpAtomicCompareExchangeWeak is not "weak" at all, but instead has
-        // the same semantics as OpAtomicCompareExchange.
-        return "atomic_compare_exchange_strong_explicit";
-      },
-      [=](CallInst *CI) -> Instruction * {
+  // OpAtomicCompareExchange[Weak] semantics is different from
+  // atomic_compare_exchange_strong semantics as well as arguments order.
+  // OCL built-ins returns boolean value and stores a new/original
+  // value by pointer passed as 2nd argument (aka expected) while SPIR-V
+  // instructions returns this new/original value as a resulting value.
+  AllocaInst *PExpected = new AllocaInst(
+      MemTy, 0, "expected",
+      &*CI->getParent()->getParent()->getEntryBlock().getFirstInsertionPt());
+  PExpected->setAlignment(Align(MemTy->getScalarSizeInBits() / 8));
+
+  // OpAtomicCompareExchangeWeak is not "weak" at all, but instead has the same
+  // semantics as OpAtomicCompareExchange.
+  mutateCallInst(CI, "atomic_compare_exchange_strong_explicit")
+      .mapArg(1,
+              [=](IRBuilder<> &Builder, Value *Expected) {
+                Builder.CreateStore(Expected, PExpected);
+                unsigned AddrSpc = SPIRAS_Generic;
+                Type *PtrTyAS = PointerType::getWithSamePointeeType(
+                    cast<PointerType>(PExpected->getType()), AddrSpc);
+                Value *V = Builder.CreateAddrSpaceCast(
+                    PExpected, PtrTyAS, PExpected->getName() + ".as");
+                return std::make_pair(V, TypedPointerType::get(MemTy, AddrSpc));
+              })
+      .moveArg(4, 2)
+      .changeReturnType(Type::getInt1Ty(*Ctx), [=](IRBuilder<> &Builder,
+                                                   CallInst *NewCI) {
         // OCL built-ins atomic_compare_exchange_[strong|weak] return boolean
         // value. So, to obtain the same value as SPIR-V instruction is
         // returning it has to be loaded from the memory where 'expected'
         // value is stored. This memory must contain the needed value after a
         // call to OCL built-in is completed.
-        return new LoadInst(
-            CI->getArgOperand(1)->getType()->getPointerElementType(),
-            CI->getArgOperand(1), "original", PInsertBefore);
-      },
-      &Attrs);
+        return Builder.CreateLoad(MemTy, NewCI->getArgOperand(1), "original");
+      });
 }
 
 void SPIRVToOCL20Base::visitCallSPIRVEnqueueKernel(CallInst *CI, Op OC) {
-  assert(CI->getCalledFunction() && "Unexpected indirect call");
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  Instruction *PInsertBefore = CI;
+  bool HasVaargs = CI->arg_size() > 10;
+  bool HasEvents = true;
+  Value *EventRet = CI->getArgOperand(5);
+  if (isa<ConstantPointerNull>(EventRet)) {
+    Value *NumEvents = CI->getArgOperand(3);
+    if (isa<ConstantInt>(NumEvents)) {
+      ConstantInt *NE = cast<ConstantInt>(NumEvents);
+      HasEvents = NE->getZExtValue() != 0;
+    }
+  }
 
-  mutateCallInstOCL(
-      M, CI,
-      [=](CallInst *, std::vector<Value *> &Args) {
-        bool HasVaargs = Args.size() > 10;
-        bool HasEvents = true;
-        Value *EventRet = Args[5];
-        if (isa<ConstantPointerNull>(EventRet)) {
-          Value *NumEvents = Args[3];
-          if (isa<ConstantInt>(NumEvents)) {
-            ConstantInt *NE = cast<ConstantInt>(NumEvents);
-            HasEvents = NE->getZExtValue() != 0;
-          }
-        }
+  StringRef FName = "";
+  if (!HasVaargs && !HasEvents)
+    FName = "__enqueue_kernel_basic";
+  else if (!HasVaargs && HasEvents)
+    FName = "__enqueue_kernel_basic_events";
+  else if (HasVaargs && !HasEvents)
+    FName = "__enqueue_kernel_varargs";
+  else
+    FName = "__enqueue_kernel_events_varargs";
 
-        Value *Invoke = Args[6];
-        auto *Int8PtrTyGen = Type::getInt8PtrTy(*Ctx, SPIRAS_Generic);
-        Args[6] = CastInst::CreatePointerBitCastOrAddrSpaceCast(
-            Invoke, Int8PtrTyGen, "", PInsertBefore);
+  auto Mutator = mutateCallInst(CI, FName.str());
+  Mutator.mapArg(6, [=](IRBuilder<> &Builder, Value *Invoke) {
+    Value *Replace = CastInst::CreatePointerBitCastOrAddrSpaceCast(
+        Invoke, Builder.getInt8PtrTy(SPIRAS_Generic), "", CI);
+    return std::make_pair(
+        Replace, TypedPointerType::get(Builder.getInt8Ty(), SPIRAS_Generic));
+  });
 
-        // Don't remove arguments immediately, just mark them as removed with
-        // nullptr, and remove them at the end of processing. It allows for
-        // easier understanding of which argument is going to be removed.
-        auto MarkAsRemoved = [&Args](size_t Start, size_t End) {
-          assert(Start <= End);
-          for (size_t I = Start; I < End; I++)
-            Args[I] = nullptr;
-        };
+  if (!HasVaargs) {
+    // Remove arguments at indices 8 (Param Size), 9 (Param Align)
+    Mutator.removeArgs(8, 2);
+  } else {
+    // GEP to array of sizes of local arguments
+    Mutator.moveArg(10, 8);
+    Type *Int32Ty = Type::getInt32Ty(*Ctx);
+    size_t NumLocalArgs = Mutator.arg_size() - 10;
+    Mutator.insertArg(8, ConstantInt::get(Int32Ty, NumLocalArgs));
 
-        if (!HasEvents) {
-          // Mark arguments at indices 3 (Num Events), 4 (Wait Events), 5 (Ret
-          // Event) as removed.
-          MarkAsRemoved(3, 6);
-        }
+    // Mark all SPIRV-specific arguments as removed
+    Mutator.removeArgs(10, Mutator.arg_size() - 10);
+  }
 
-        if (!HasVaargs) {
-          // Mark arguments at indices 8 (Param Size), 9 (Param Align) as
-          // removed.
-          MarkAsRemoved(8, 10);
-        } else {
-          // GEP to array of sizes of local arguments
-          Value *GEP = Args[10];
-          size_t NumLocalArgs = Args.size() - 10;
-
-          // Mark all SPIRV-specific arguments as removed
-          MarkAsRemoved(8, Args.size());
-
-          Type *Int32Ty = Type::getInt32Ty(*Ctx);
-          Args[8] = ConstantInt::get(Int32Ty, NumLocalArgs);
-          Args[9] = GEP;
-        }
-
-        Args.erase(std::remove(Args.begin(), Args.end(), nullptr), Args.end());
-
-        std::string FName = "";
-        if (!HasVaargs && !HasEvents)
-          FName = "__enqueue_kernel_basic";
-        else if (!HasVaargs && HasEvents)
-          FName = "__enqueue_kernel_basic_events";
-        else if (HasVaargs && !HasEvents)
-          FName = "__enqueue_kernel_varargs";
-        else
-          FName = "__enqueue_kernel_events_varargs";
-
-        return FName;
-      },
-      &Attrs);
+  if (!HasEvents) {
+    // Remove arguments at indices 3 (Num Events), 4 (Wait Events), 5 (Ret
+    // Event).
+    Mutator.removeArgs(3, 3);
+  }
 }
 
 } // namespace SPIRV

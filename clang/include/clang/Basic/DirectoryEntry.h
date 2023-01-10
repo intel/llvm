@@ -22,6 +22,8 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/ErrorOr.h"
 
+#include <utility>
+
 namespace clang {
 namespace FileMgr {
 
@@ -32,7 +34,11 @@ template <class RefTy> class MapEntryOptionalStorage;
 /// Cached information about one directory (either on disk or in
 /// the virtual file system).
 class DirectoryEntry {
+  DirectoryEntry() = default;
+  DirectoryEntry(const DirectoryEntry &) = delete;
+  DirectoryEntry &operator=(const DirectoryEntry &) = delete;
   friend class FileManager;
+  friend class FileEntryTestHelper;
 
   // FIXME: We should not be storing a directory entry name here.
   StringRef Name; // Name of the directory.
@@ -121,23 +127,23 @@ public:
   MapEntryOptionalStorage() : MaybeRef(optional_none_tag()) {}
 
   template <class... ArgTypes>
-  explicit MapEntryOptionalStorage(llvm::in_place_t, ArgTypes &&...Args)
+  explicit MapEntryOptionalStorage(std::in_place_t, ArgTypes &&...Args)
       : MaybeRef(std::forward<ArgTypes>(Args)...) {}
 
   void reset() { MaybeRef = optional_none_tag(); }
 
-  bool hasValue() const { return MaybeRef.hasOptionalValue(); }
+  bool has_value() const { return MaybeRef.hasOptionalValue(); }
 
-  RefTy &getValue() & {
-    assert(hasValue());
+  RefTy &value() & {
+    assert(has_value());
     return MaybeRef;
   }
-  RefTy const &getValue() const & {
-    assert(hasValue());
+  RefTy const &value() const & {
+    assert(has_value());
     return MaybeRef;
   }
-  RefTy &&getValue() && {
-    assert(hasValue());
+  RefTy &&value() && {
+    assert(has_value());
     return std::move(MaybeRef);
   }
 
@@ -169,8 +175,8 @@ public:
   OptionalStorage() = default;
 
   template <class... ArgTypes>
-  explicit OptionalStorage(in_place_t, ArgTypes &&...Args)
-      : StorageImpl(in_place_t{}, std::forward<ArgTypes>(Args)...) {}
+  explicit OptionalStorage(std::in_place_t, ArgTypes &&...Args)
+      : StorageImpl(std::in_place_t{}, std::forward<ArgTypes>(Args)...) {}
 
   OptionalStorage &operator=(clang::DirectoryEntryRef Ref) {
     StorageImpl::operator=(Ref);
@@ -258,14 +264,15 @@ public:
   OptionalDirectoryEntryRefDegradesToDirectoryEntryPtr &
   operator=(const OptionalDirectoryEntryRefDegradesToDirectoryEntryPtr &) = default;
 
-  OptionalDirectoryEntryRefDegradesToDirectoryEntryPtr(llvm::NoneType) {}
+  OptionalDirectoryEntryRefDegradesToDirectoryEntryPtr(std::nullopt_t) {}
   OptionalDirectoryEntryRefDegradesToDirectoryEntryPtr(DirectoryEntryRef Ref)
       : Optional<DirectoryEntryRef>(Ref) {}
   OptionalDirectoryEntryRefDegradesToDirectoryEntryPtr(Optional<DirectoryEntryRef> MaybeRef)
       : Optional<DirectoryEntryRef>(MaybeRef) {}
 
-  OptionalDirectoryEntryRefDegradesToDirectoryEntryPtr &operator=(llvm::NoneType) {
-    Optional<DirectoryEntryRef>::operator=(None);
+  OptionalDirectoryEntryRefDegradesToDirectoryEntryPtr &
+  operator=(std::nullopt_t) {
+    Optional<DirectoryEntryRef>::operator=(std::nullopt);
     return *this;
   }
   OptionalDirectoryEntryRefDegradesToDirectoryEntryPtr &operator=(DirectoryEntryRef Ref) {
@@ -282,7 +289,7 @@ public:
   /// DirectoryEntry::getName have been deleted, delete this class and replace
   /// instances with Optional<DirectoryEntryRef>
   operator const DirectoryEntry *() const {
-    return hasValue() ? &getValue().getDirEntry() : nullptr;
+    return has_value() ? &value().getDirEntry() : nullptr;
   }
 };
 

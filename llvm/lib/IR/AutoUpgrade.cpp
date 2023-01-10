@@ -82,6 +82,26 @@ static bool UpgradeX86MaskedFPCompare(Function *F, Intrinsic::ID IID,
   return true;
 }
 
+static bool UpgradeX86BF16Intrinsic(Function *F, Intrinsic::ID IID,
+                                    Function *&NewFn) {
+  if (F->getReturnType()->getScalarType()->isBFloatTy())
+    return false;
+
+  rename(F);
+  NewFn = Intrinsic::getDeclaration(F->getParent(), IID);
+  return true;
+}
+
+static bool UpgradeX86BF16DPIntrinsic(Function *F, Intrinsic::ID IID,
+                                      Function *&NewFn) {
+  if (F->getFunctionType()->getParamType(1)->getScalarType()->isBFloatTy())
+    return false;
+
+  rename(F);
+  NewFn = Intrinsic::getDeclaration(F->getParent(), IID);
+  return true;
+}
+
 static bool ShouldUpgradeX86Intrinsic(Function *F, StringRef Name) {
   // All of the intrinsics matches below should be marked with which llvm
   // version started autoupgrading them. At some point in the future we would
@@ -488,6 +508,33 @@ static bool UpgradeX86IntrinsicFunction(Function *F, StringRef Name,
   if (Name == "avx512.mask.cmp.ps.512") // Added in 7.0
     return UpgradeX86MaskedFPCompare(F, Intrinsic::x86_avx512_mask_cmp_ps_512,
                                      NewFn);
+  if (Name == "avx512bf16.cvtne2ps2bf16.128") // Added in 9.0
+    return UpgradeX86BF16Intrinsic(
+        F, Intrinsic::x86_avx512bf16_cvtne2ps2bf16_128, NewFn);
+  if (Name == "avx512bf16.cvtne2ps2bf16.256") // Added in 9.0
+    return UpgradeX86BF16Intrinsic(
+        F, Intrinsic::x86_avx512bf16_cvtne2ps2bf16_256, NewFn);
+  if (Name == "avx512bf16.cvtne2ps2bf16.512") // Added in 9.0
+    return UpgradeX86BF16Intrinsic(
+        F, Intrinsic::x86_avx512bf16_cvtne2ps2bf16_512, NewFn);
+  if (Name == "avx512bf16.mask.cvtneps2bf16.128") // Added in 9.0
+    return UpgradeX86BF16Intrinsic(
+        F, Intrinsic::x86_avx512bf16_mask_cvtneps2bf16_128, NewFn);
+  if (Name == "avx512bf16.cvtneps2bf16.256") // Added in 9.0
+    return UpgradeX86BF16Intrinsic(
+        F, Intrinsic::x86_avx512bf16_cvtneps2bf16_256, NewFn);
+  if (Name == "avx512bf16.cvtneps2bf16.512") // Added in 9.0
+    return UpgradeX86BF16Intrinsic(
+        F, Intrinsic::x86_avx512bf16_cvtneps2bf16_512, NewFn);
+  if (Name == "avx512bf16.dpbf16ps.128") // Added in 9.0
+    return UpgradeX86BF16DPIntrinsic(
+        F, Intrinsic::x86_avx512bf16_dpbf16ps_128, NewFn);
+  if (Name == "avx512bf16.dpbf16ps.256") // Added in 9.0
+    return UpgradeX86BF16DPIntrinsic(
+        F, Intrinsic::x86_avx512bf16_dpbf16ps_256, NewFn);
+  if (Name == "avx512bf16.dpbf16ps.512") // Added in 9.0
+    return UpgradeX86BF16DPIntrinsic(
+        F, Intrinsic::x86_avx512bf16_dpbf16ps_512, NewFn);
 
   // frcz.ss/sd may need to have an argument dropped. Added in 3.2
   if (Name.startswith("xop.vfrcz.ss") && F->arg_size() == 2) {
@@ -536,7 +583,7 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
 
   // Quickly eliminate it, if it's not a candidate.
   StringRef Name = F->getName();
-  if (Name.size() <= 8 || !Name.startswith("llvm."))
+  if (Name.size() <= 7 || !Name.startswith("llvm."))
     return false;
   Name = Name.substr(5); // Strip off "llvm."
 
@@ -558,6 +605,59 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
                                         F->arg_begin()->getType());
       return true;
     }
+    if (Name == "aarch64.sve.bfdot.lane") {
+      NewFn = Intrinsic::getDeclaration(F->getParent(),
+                                        Intrinsic::aarch64_sve_bfdot_lane_v2);
+      return true;
+    }
+    if (Name == "aarch64.sve.bfmlalb.lane") {
+      NewFn = Intrinsic::getDeclaration(F->getParent(),
+                                        Intrinsic::aarch64_sve_bfmlalb_lane_v2);
+      return true;
+    }
+    if (Name == "aarch64.sve.bfmlalt.lane") {
+      NewFn = Intrinsic::getDeclaration(F->getParent(),
+                                        Intrinsic::aarch64_sve_bfmlalt_lane_v2);
+      return true;
+    }
+    static const Regex LdRegex("^aarch64\\.sve\\.ld[234](.nxv[a-z0-9]+|$)");
+    if (LdRegex.match(Name)) {
+      Type *ScalarTy =
+          dyn_cast<VectorType>(F->getReturnType())->getElementType();
+      ElementCount EC =
+          dyn_cast<VectorType>(F->arg_begin()->getType())->getElementCount();
+      Type *Ty = VectorType::get(ScalarTy, EC);
+      Intrinsic::ID ID =
+          StringSwitch<Intrinsic::ID>(Name)
+              .StartsWith("aarch64.sve.ld2", Intrinsic::aarch64_sve_ld2_sret)
+              .StartsWith("aarch64.sve.ld3", Intrinsic::aarch64_sve_ld3_sret)
+              .StartsWith("aarch64.sve.ld4", Intrinsic::aarch64_sve_ld4_sret)
+              .Default(Intrinsic::not_intrinsic);
+      NewFn = Intrinsic::getDeclaration(F->getParent(), ID, Ty);
+      return true;
+    }
+    if (Name.startswith("aarch64.sve.tuple.get")) {
+      Type *Tys[] = {F->getReturnType(), F->arg_begin()->getType()};
+      NewFn = Intrinsic::getDeclaration(F->getParent(),
+                                        Intrinsic::vector_extract, Tys);
+      return true;
+    }
+    if (Name.startswith("aarch64.sve.tuple.set")) {
+      auto Args = F->getFunctionType()->params();
+      Type *Tys[] = {Args[0], Args[2], Args[1]};
+      NewFn = Intrinsic::getDeclaration(F->getParent(),
+                                        Intrinsic::vector_insert, Tys);
+      return true;
+    }
+    static const Regex CreateTupleRegex(
+        "^aarch64\\.sve\\.tuple\\.create[234](.nxv[a-z0-9]+|$)");
+    if (CreateTupleRegex.match(Name)) {
+      auto Args = F->getFunctionType()->params();
+      Type *Tys[] = {F->getReturnType(), Args[1]};
+      NewFn = Intrinsic::getDeclaration(F->getParent(),
+                                        Intrinsic::vector_insert, Tys);
+      return true;
+    }
     if (Name.startswith("arm.neon.vclz")) {
       Type* args[2] = {
         F->arg_begin()->getType(),
@@ -574,19 +674,6 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
     if (Name.startswith("arm.neon.vcnt")) {
       NewFn = Intrinsic::getDeclaration(F->getParent(), Intrinsic::ctpop,
                                         F->arg_begin()->getType());
-      return true;
-    }
-    static const Regex vldRegex("^arm\\.neon\\.vld([1234]|[234]lane)\\.v[a-z0-9]*$");
-    if (vldRegex.match(Name)) {
-      auto fArgs = F->getFunctionType()->params();
-      SmallVector<Type *, 4> Tys(fArgs.begin(), fArgs.end());
-      // Can't use Intrinsic::getDeclaration here as the return types might
-      // then only be structurally equal.
-      FunctionType* fType = FunctionType::get(F->getReturnType(), Tys, false);
-      StringRef Suffix =
-          F->getContext().supportsTypedPointers() ? "p0i8" : "p0";
-      NewFn = Function::Create(fType, F->getLinkage(), F->getAddressSpace(),
-                               "llvm." + Name + "." + Suffix, F->getParent());
       return true;
     }
     static const Regex vstRegex("^arm\\.neon\\.vst([1234]|[234]lane)\\.v[a-z0-9]*$");
@@ -761,6 +848,23 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
     break;
   }
   case 'e': {
+    if (Name.startswith("experimental.vector.extract.")) {
+      rename(F);
+      Type *Tys[] = {F->getReturnType(), F->arg_begin()->getType()};
+      NewFn = Intrinsic::getDeclaration(F->getParent(),
+                                        Intrinsic::vector_extract, Tys);
+      return true;
+    }
+
+    if (Name.startswith("experimental.vector.insert.")) {
+      rename(F);
+      auto Args = F->getFunctionType()->params();
+      Type *Tys[] = {Args[0], Args[1]};
+      NewFn = Intrinsic::getDeclaration(F->getParent(),
+                                        Intrinsic::vector_insert, Tys);
+      return true;
+    }
+
     SmallVector<StringRef, 2> Groups;
     static const Regex R("^experimental.vector.reduce.([a-z]+)\\.[a-z][0-9]+");
     if (R.match(Name, &Groups)) {
@@ -989,9 +1093,9 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
       }
     } else if (Name.startswith("ptr.annotation.") && F->arg_size() == 4) {
       rename(F);
-      NewFn = Intrinsic::getDeclaration(F->getParent(),
-                                        Intrinsic::ptr_annotation,
-                                        F->arg_begin()->getType());
+      NewFn = Intrinsic::getDeclaration(
+          F->getParent(), Intrinsic::ptr_annotation,
+          {F->arg_begin()->getType(), F->getArg(1)->getType()});
       return true;
     }
     break;
@@ -1006,8 +1110,9 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
   case 'v': {
     if (Name == "var.annotation" && F->arg_size() == 4) {
       rename(F);
-      NewFn = Intrinsic::getDeclaration(F->getParent(),
-                                        Intrinsic::var_annotation);
+      NewFn = Intrinsic::getDeclaration(
+          F->getParent(), Intrinsic::var_annotation,
+          {{F->arg_begin()->getType(), F->getArg(1)->getType()}});
       return true;
     }
     break;
@@ -1017,10 +1122,35 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
     if (UpgradeX86IntrinsicFunction(F, Name, NewFn))
       return true;
   }
+
+  auto *ST = dyn_cast<StructType>(F->getReturnType());
+  if (ST && (!ST->isLiteral() || ST->isPacked())) {
+    // Replace return type with literal non-packed struct. Only do this for
+    // intrinsics declared to return a struct, not for intrinsics with
+    // overloaded return type, in which case the exact struct type will be
+    // mangled into the name.
+    SmallVector<Intrinsic::IITDescriptor> Desc;
+    Intrinsic::getIntrinsicInfoTableEntries(F->getIntrinsicID(), Desc);
+    if (Desc.front().Kind == Intrinsic::IITDescriptor::Struct) {
+      auto *FT = F->getFunctionType();
+      auto *NewST = StructType::get(ST->getContext(), ST->elements());
+      auto *NewFT = FunctionType::get(NewST, FT->params(), FT->isVarArg());
+      std::string Name = F->getName().str();
+      rename(F);
+      NewFn = Function::Create(NewFT, F->getLinkage(), F->getAddressSpace(),
+                               Name, F->getParent());
+
+      // The new function may also need remangling.
+      if (auto Result = llvm::Intrinsic::remangleIntrinsicFunction(NewFn))
+        NewFn = *Result;
+      return true;
+    }
+  }
+
   // Remangle our intrinsic since we upgrade the mangling
   auto Result = llvm::Intrinsic::remangleIntrinsicFunction(F);
-  if (Result != None) {
-    NewFn = Result.getValue();
+  if (Result != std::nullopt) {
+    NewFn = *Result;
     return true;
   }
 
@@ -1928,12 +2058,16 @@ static Value *UpgradeARMIntrinsicCall(StringRef Name, CallBase *CI, Function *F,
 /// Upgrade a call to an old intrinsic. All argument and return casting must be
 /// provided to seamlessly integrate with existing context.
 void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
-  Function *F = CI->getCalledFunction();
+  // Note dyn_cast to Function is not quite the same as getCalledFunction, which
+  // checks the callee's function type matches. It's likely we need to handle
+  // type changes here.
+  Function *F = dyn_cast<Function>(CI->getCalledOperand());
+  if (!F)
+    return;
+
   LLVMContext &C = CI->getContext();
   IRBuilder<> Builder(C);
   Builder.SetInsertPoint(CI->getParent(), CI->getIterator());
-
-  assert(F && "Intrinsic call is not direct?");
 
   if (!NewFn) {
     // Get the Function's name.
@@ -3784,12 +3918,41 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
     return;
   }
 
-  const auto &DefaultCase = [&NewFn, &CI]() -> void {
-    // Handle generic mangling change, but nothing else
-    assert(
-        (CI->getCalledFunction()->getName() != NewFn->getName()) &&
-        "Unknown function for CallBase upgrade and isn't just a name change");
-    CI->setCalledFunction(NewFn);
+  const auto &DefaultCase = [&]() -> void {
+    if (CI->getFunctionType() == NewFn->getFunctionType()) {
+      // Handle generic mangling change.
+      assert(
+          (CI->getCalledFunction()->getName() != NewFn->getName()) &&
+          "Unknown function for CallBase upgrade and isn't just a name change");
+      CI->setCalledFunction(NewFn);
+      return;
+    }
+
+    // This must be an upgrade from a named to a literal struct.
+    if (auto *OldST = dyn_cast<StructType>(CI->getType())) {
+      assert(OldST != NewFn->getReturnType() &&
+             "Return type must have changed");
+      assert(OldST->getNumElements() ==
+                 cast<StructType>(NewFn->getReturnType())->getNumElements() &&
+             "Must have same number of elements");
+
+      SmallVector<Value *> Args(CI->args());
+      Value *NewCI = Builder.CreateCall(NewFn, Args);
+      Value *Res = PoisonValue::get(OldST);
+      for (unsigned Idx = 0; Idx < OldST->getNumElements(); ++Idx) {
+        Value *Elem = Builder.CreateExtractValue(NewCI, Idx);
+        Res = Builder.CreateInsertValue(Res, Elem, Idx);
+      }
+      CI->replaceAllUsesWith(Res);
+      CI->eraseFromParent();
+      return;
+    }
+
+    // We're probably about to produce something invalid. Let the verifier catch
+    // it instead of dying here.
+    CI->setCalledOperand(
+        ConstantExpr::getPointerCast(NewFn, CI->getCalledOperand()->getType()));
+    return;
   };
   CallInst *NewCall = nullptr;
   switch (NewFn->getIntrinsicID()) {
@@ -3797,13 +3960,6 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
     DefaultCase();
     return;
   }
-  case Intrinsic::arm_neon_vld1:
-  case Intrinsic::arm_neon_vld2:
-  case Intrinsic::arm_neon_vld3:
-  case Intrinsic::arm_neon_vld4:
-  case Intrinsic::arm_neon_vld2lane:
-  case Intrinsic::arm_neon_vld3lane:
-  case Intrinsic::arm_neon_vld4lane:
   case Intrinsic::arm_neon_vst1:
   case Intrinsic::arm_neon_vst2:
   case Intrinsic::arm_neon_vst3:
@@ -3813,6 +3969,94 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
   case Intrinsic::arm_neon_vst4lane: {
     SmallVector<Value *, 4> Args(CI->args());
     NewCall = Builder.CreateCall(NewFn, Args);
+    break;
+  }
+  case Intrinsic::aarch64_sve_bfmlalb_lane_v2:
+  case Intrinsic::aarch64_sve_bfmlalt_lane_v2:
+  case Intrinsic::aarch64_sve_bfdot_lane_v2: {
+    LLVMContext &Ctx = F->getParent()->getContext();
+    SmallVector<Value *, 4> Args(CI->args());
+    Args[3] = ConstantInt::get(Type::getInt32Ty(Ctx),
+                               cast<ConstantInt>(Args[3])->getZExtValue());
+    NewCall = Builder.CreateCall(NewFn, Args);
+    break;
+  }
+  case Intrinsic::aarch64_sve_ld3_sret:
+  case Intrinsic::aarch64_sve_ld4_sret:
+  case Intrinsic::aarch64_sve_ld2_sret: {
+    StringRef Name = F->getName();
+    Name = Name.substr(5);
+    unsigned N = StringSwitch<unsigned>(Name)
+                     .StartsWith("aarch64.sve.ld2", 2)
+                     .StartsWith("aarch64.sve.ld3", 3)
+                     .StartsWith("aarch64.sve.ld4", 4)
+                     .Default(0);
+    ScalableVectorType *RetTy =
+        dyn_cast<ScalableVectorType>(F->getReturnType());
+    unsigned MinElts = RetTy->getMinNumElements() / N;
+    SmallVector<Value *, 2> Args(CI->args());
+    Value *NewLdCall = Builder.CreateCall(NewFn, Args);
+    Value *Ret = llvm::PoisonValue::get(RetTy);
+    for (unsigned I = 0; I < N; I++) {
+      Value *Idx = ConstantInt::get(Type::getInt64Ty(C), I * MinElts);
+      Value *SRet = Builder.CreateExtractValue(NewLdCall, I);
+      Ret = Builder.CreateInsertVector(RetTy, Ret, SRet, Idx);
+    }
+    NewCall = dyn_cast<CallInst>(Ret);
+    break;
+  }
+
+  case Intrinsic::vector_extract: {
+    StringRef Name = F->getName();
+    Name = Name.substr(5); // Strip llvm
+    if (!Name.startswith("aarch64.sve.tuple.get")) {
+      DefaultCase();
+      return;
+    }
+    ScalableVectorType *RetTy =
+        dyn_cast<ScalableVectorType>(F->getReturnType());
+    unsigned MinElts = RetTy->getMinNumElements();
+    unsigned I = cast<ConstantInt>(CI->getArgOperand(1))->getZExtValue();
+    Value *NewIdx = ConstantInt::get(Type::getInt64Ty(C), I * MinElts);
+    NewCall = Builder.CreateCall(NewFn, {CI->getArgOperand(0), NewIdx});
+    break;
+  }
+
+  case Intrinsic::vector_insert: {
+    StringRef Name = F->getName();
+    Name = Name.substr(5);
+    if (!Name.startswith("aarch64.sve.tuple")) {
+      DefaultCase();
+      return;
+    }
+    if (Name.startswith("aarch64.sve.tuple.set")) {
+      unsigned I = dyn_cast<ConstantInt>(CI->getArgOperand(1))->getZExtValue();
+      ScalableVectorType *Ty =
+          dyn_cast<ScalableVectorType>(CI->getArgOperand(2)->getType());
+      Value *NewIdx =
+          ConstantInt::get(Type::getInt64Ty(C), I * Ty->getMinNumElements());
+      NewCall = Builder.CreateCall(
+          NewFn, {CI->getArgOperand(0), CI->getArgOperand(2), NewIdx});
+      break;
+    }
+    if (Name.startswith("aarch64.sve.tuple.create")) {
+      unsigned N = StringSwitch<unsigned>(Name)
+                       .StartsWith("aarch64.sve.tuple.create2", 2)
+                       .StartsWith("aarch64.sve.tuple.create3", 3)
+                       .StartsWith("aarch64.sve.tuple.create4", 4)
+                       .Default(0);
+      assert(N > 1 && "Create is expected to be between 2-4");
+      ScalableVectorType *RetTy =
+          dyn_cast<ScalableVectorType>(F->getReturnType());
+      Value *Ret = llvm::PoisonValue::get(RetTy);
+      unsigned MinElts = RetTy->getMinNumElements() / N;
+      for (unsigned I = 0; I < N; I++) {
+        Value *Idx = ConstantInt::get(Type::getInt64Ty(C), I * MinElts);
+        Value *V = CI->getArgOperand(I);
+        Ret = Builder.CreateInsertVector(RetTy, Ret, V, Idx);
+      }
+      NewCall = dyn_cast<CallInst>(Ret);
+    }
     break;
   }
 
@@ -3903,13 +4147,17 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
 
   case Intrinsic::var_annotation:
     // Upgrade from versions that lacked the annotation attribute argument.
-    assert(CI->arg_size() == 4 &&
-           "Before LLVM 12.0 this intrinsic took four arguments");
+    if (CI->arg_size() != 4) {
+      DefaultCase();
+      return;
+    }
     // Create a new call with an added null annotation attribute argument.
     NewCall = Builder.CreateCall(
         NewFn,
         {CI->getArgOperand(0), CI->getArgOperand(1), CI->getArgOperand(2),
          CI->getArgOperand(3), Constant::getNullValue(Builder.getInt8PtrTy())});
+    NewCall->takeName(CI);
+    CI->replaceAllUsesWith(NewCall);
     CI->eraseFromParent();
     return;
 
@@ -4011,6 +4259,43 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
     return;
   }
 
+  case Intrinsic::x86_avx512bf16_cvtne2ps2bf16_128:
+  case Intrinsic::x86_avx512bf16_cvtne2ps2bf16_256:
+  case Intrinsic::x86_avx512bf16_cvtne2ps2bf16_512:
+  case Intrinsic::x86_avx512bf16_mask_cvtneps2bf16_128:
+  case Intrinsic::x86_avx512bf16_cvtneps2bf16_256:
+  case Intrinsic::x86_avx512bf16_cvtneps2bf16_512: {
+    SmallVector<Value *, 4> Args(CI->args());
+    unsigned NumElts = cast<FixedVectorType>(CI->getType())->getNumElements();
+    if (NewFn->getIntrinsicID() ==
+        Intrinsic::x86_avx512bf16_mask_cvtneps2bf16_128)
+      Args[1] = Builder.CreateBitCast(
+          Args[1], FixedVectorType::get(Builder.getBFloatTy(), NumElts));
+
+    NewCall = Builder.CreateCall(NewFn, Args);
+    Value *Res = Builder.CreateBitCast(
+        NewCall, FixedVectorType::get(Builder.getInt16Ty(), NumElts));
+
+    NewCall->takeName(CI);
+    CI->replaceAllUsesWith(Res);
+    CI->eraseFromParent();
+    return;
+  }
+  case Intrinsic::x86_avx512bf16_dpbf16ps_128:
+  case Intrinsic::x86_avx512bf16_dpbf16ps_256:
+  case Intrinsic::x86_avx512bf16_dpbf16ps_512:{
+    SmallVector<Value *, 4> Args(CI->args());
+    unsigned NumElts =
+        cast<FixedVectorType>(CI->getType())->getNumElements() * 2;
+    Args[1] = Builder.CreateBitCast(
+        Args[1], FixedVectorType::get(Builder.getBFloatTy(), NumElts));
+    Args[2] = Builder.CreateBitCast(
+        Args[2], FixedVectorType::get(Builder.getBFloatTy(), NumElts));
+
+    NewCall = Builder.CreateCall(NewFn, Args);
+    break;
+  }
+
   case Intrinsic::thread_pointer: {
     NewCall = Builder.CreateCall(NewFn, {});
     break;
@@ -4051,6 +4336,12 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
     Value *Args[4] = {CI->getArgOperand(0), CI->getArgOperand(1),
                       CI->getArgOperand(2), CI->getArgOperand(4)};
     NewCall = Builder.CreateCall(NewFn, Args);
+    AttributeList OldAttrs = CI->getAttributes();
+    AttributeList NewAttrs = AttributeList::get(
+        C, OldAttrs.getFnAttrs(), OldAttrs.getRetAttrs(),
+        {OldAttrs.getParamAttrs(0), OldAttrs.getParamAttrs(1),
+         OldAttrs.getParamAttrs(2), OldAttrs.getParamAttrs(4)});
+    NewCall->setAttributes(NewAttrs);
     auto *MemCI = cast<MemIntrinsic>(NewCall);
     // All mem intrinsics support dest alignment.
     const ConstantInt *Align = cast<ConstantInt>(CI->getArgOperand(3));
@@ -4130,7 +4421,7 @@ Instruction *llvm::UpgradeBitCastInst(unsigned Opc, Value *V, Type *DestTy,
   return nullptr;
 }
 
-Value *llvm::UpgradeBitCastExpr(unsigned Opc, Constant *C, Type *DestTy) {
+Constant *llvm::UpgradeBitCastExpr(unsigned Opc, Constant *C, Type *DestTy) {
   if (Opc != Instruction::BitCast)
     return nullptr;
 
@@ -4342,26 +4633,52 @@ bool llvm::UpgradeModuleFlags(Module &M) {
     MDString *ID = dyn_cast_or_null<MDString>(Op->getOperand(1));
     if (!ID)
       continue;
+    auto SetBehavior = [&](Module::ModFlagBehavior B) {
+      Metadata *Ops[3] = {ConstantAsMetadata::get(ConstantInt::get(
+                              Type::getInt32Ty(M.getContext()), B)),
+                          MDString::get(M.getContext(), ID->getString()),
+                          Op->getOperand(2)};
+      ModFlags->setOperand(I, MDNode::get(M.getContext(), Ops));
+      Changed = true;
+    };
+
     if (ID->getString() == "Objective-C Image Info Version")
       HasObjCFlag = true;
     if (ID->getString() == "Objective-C Class Properties")
       HasClassProperties = true;
-    // Upgrade PIC/PIE Module Flags. The module flag behavior for these two
-    // field was Error and now they are Max.
-    if (ID->getString() == "PIC Level" || ID->getString() == "PIE Level") {
+    // Upgrade PIC from Error/Max to Min.
+    if (ID->getString() == "PIC Level") {
+      if (auto *Behavior =
+              mdconst::dyn_extract_or_null<ConstantInt>(Op->getOperand(0))) {
+        uint64_t V = Behavior->getLimitedValue();
+        if (V == Module::Error || V == Module::Max)
+          SetBehavior(Module::Min);
+      }
+    }
+    // Upgrade "PIE Level" from Error to Max.
+    if (ID->getString() == "PIE Level")
+      if (auto *Behavior =
+              mdconst::dyn_extract_or_null<ConstantInt>(Op->getOperand(0)))
+        if (Behavior->getLimitedValue() == Module::Error)
+          SetBehavior(Module::Max);
+
+    // Upgrade branch protection and return address signing module flags. The
+    // module flag behavior for these fields were Error and now they are Min.
+    if (ID->getString() == "branch-target-enforcement" ||
+        ID->getString().startswith("sign-return-address")) {
       if (auto *Behavior =
               mdconst::dyn_extract_or_null<ConstantInt>(Op->getOperand(0))) {
         if (Behavior->getLimitedValue() == Module::Error) {
           Type *Int32Ty = Type::getInt32Ty(M.getContext());
           Metadata *Ops[3] = {
-              ConstantAsMetadata::get(ConstantInt::get(Int32Ty, Module::Max)),
-              MDString::get(M.getContext(), ID->getString()),
-              Op->getOperand(2)};
+              ConstantAsMetadata::get(ConstantInt::get(Int32Ty, Module::Min)),
+              Op->getOperand(1), Op->getOperand(2)};
           ModFlags->setOperand(I, MDNode::get(M.getContext(), Ops));
           Changed = true;
         }
       }
     }
+
     // Upgrade Objective-C Image Info Section. Removed the whitespce in the
     // section name so that llvm-lto will not complain about mismatching
     // module flags that is functionally the same.
@@ -4496,13 +4813,6 @@ void llvm::UpgradeFunctionAttributes(Function &F) {
     SFPV.visit(F);
   }
 
-  if (F.getCallingConv() == CallingConv::X86_INTR &&
-      !F.arg_empty() && !F.hasParamAttribute(0, Attribute::ByVal)) {
-    Type *ByValTy = F.getArg(0)->getType()->getPointerElementType();
-    Attribute NewAttr = Attribute::getWithByValType(F.getContext(), ByValTy);
-    F.addParamAttr(0, NewAttr);
-  }
-
   // Remove all incompatibile attributes from function.
   F.removeRetAttrs(AttributeFuncs::typeIncompatible(F.getReturnType()));
   for (auto &Arg : F.args())
@@ -4579,6 +4889,14 @@ std::string llvm::UpgradeDataLayoutString(StringRef DL, StringRef TT) {
     return DL.empty() ? std::string("G1") : (DL + "-G1").str();
   }
 
+  if (T.isRISCV64()) {
+    // Make i32 a native type for 64-bit RISC-V.
+    auto I = DL.find("-n64-");
+    if (I != StringRef::npos)
+      return (DL.take_front(I) + "-n32:64-" + DL.drop_front(I + 5)).str();
+    return DL.str();
+  }
+
   std::string Res = DL.str();
   if (!T.isX86())
     return Res;
@@ -4631,4 +4949,16 @@ void llvm::UpgradeAttributes(AttrBuilder &B) {
     if (NullPointerIsValid)
       B.addAttribute(Attribute::NullPointerIsValid);
   }
+}
+
+void llvm::UpgradeOperandBundles(std::vector<OperandBundleDef> &Bundles) {
+
+  // clang.arc.attachedcall bundles are now required to have an operand.
+  // If they don't, it's okay to drop them entirely: when there is an operand,
+  // the "attachedcall" is meaningful and required, but without an operand,
+  // it's just a marker NOP.  Dropping it merely prevents an optimization.
+  erase_if(Bundles, [&](OperandBundleDef &OBD) {
+    return OBD.getTag() == "clang.arc.attachedcall" &&
+           OBD.inputs().empty();
+  });
 }

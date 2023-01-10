@@ -42,6 +42,19 @@ def TestOpInterface : OpInterface<"TestOpInterface"> {
   ];
 }
 
+def TestOpInterfaceVerify : OpInterface<"TestOpInterfaceVerify"> {
+  let verify = [{
+    return foo();
+  }];
+}
+
+def TestOpInterfaceVerifyRegion : OpInterface<"TestOpInterfaceVerifyRegion"> {
+  let verify = [{
+    return foo();
+  }];
+  let verifyWithRegions = 1;
+}
+
 // Define Ops with TestOpInterface and
 // DeclareOpInterfaceMethods<TestOpInterface> traits to check that there
 // are not duplicated C++ classes generated.
@@ -60,8 +73,16 @@ def DeclareMethodsWithDefaultOp : Op<TestDialect, "declare_methods_op",
 // DECL-LABEL: TestOpInterfaceInterfaceTraits
 // DECL: class TestOpInterface : public ::mlir::OpInterface<TestOpInterface, detail::TestOpInterfaceInterfaceTraits>
 
+// DECL: /// some function comment
 // DECL: int foo(int input);
 
+// DECL-LABEL: struct TestOpInterfaceVerifyTrait
+// DECL: verifyTrait
+
+// DECL-LABEL: struct TestOpInterfaceVerifyRegionTrait
+// DECL: verifyRegionTrait
+
+// Method implementations come last, after all class definitions.
 // DECL: template<typename ConcreteOp>
 // DECL: int detail::TestOpInterfaceInterfaceTraits::Model<ConcreteOp>::foo
 

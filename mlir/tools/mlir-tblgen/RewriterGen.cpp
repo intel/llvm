@@ -243,7 +243,7 @@ private:
   StaticMatcherHelper &staticMatcherHelper;
 
   // The next unused ID for newly created values.
-  unsigned nextValueId;
+  unsigned nextValueId = 0;
 
   raw_indented_ostream os;
 
@@ -322,7 +322,7 @@ private:
   int staticMatcherCounter = 0;
 
   // The DagLeaf which contains type or attr constraint.
-  DenseSet<DagLeaf> constraints;
+  SetVector<DagLeaf> constraints;
 
   // Static type/attribute verification function emitter.
   StaticVerifierFunctionEmitter staticVerifierEmitter;
@@ -333,8 +333,7 @@ private:
 PatternEmitter::PatternEmitter(Record *pat, RecordOperatorMap *mapper,
                                raw_ostream &os, StaticMatcherHelper &helper)
     : loc(pat->getLoc()), opMap(mapper), pattern(pat, mapper),
-      symbolInfoMap(pat->getLoc()), staticMatcherHelper(helper), nextValueId(0),
-      os(os) {
+      symbolInfoMap(pat->getLoc()), staticMatcherHelper(helper), os(os) {
   fmtCtx.withBuilder("rewriter");
 }
 
@@ -1045,7 +1044,8 @@ void PatternEmitter::emitRewriteLogic() {
   }
 
   if (offsets.front() > 0) {
-    const char error[] = "no enough values generated to replace the matched op";
+    const char error[] =
+        "not enough values generated to replace the matched op";
     PrintFatalError(loc, error);
   }
 
@@ -1222,8 +1222,6 @@ std::string PatternEmitter::handleOpArgument(DagLeaf leaf,
   }
   if (leaf.isEnumAttrCase()) {
     auto enumCase = leaf.getAsEnumAttrCase();
-    if (enumCase.isStrCase())
-      return handleConstantAttr(enumCase, "\"" + enumCase.getSymbol() + "\"");
     // This is an enum case backed by an IntegerAttr. We need to get its value
     // to build the constant.
     std::string val = std::to_string(enumCase.getValue());
@@ -1488,7 +1486,7 @@ std::string PatternEmitter::handleOpCreation(DagNode tree, int resultIndex,
 
   // Then prepare the result types. We need to specify the types for all
   // results.
-  os.indent() << formatv("::mlir::SmallVector<::mlir::Type, 4> tblgen_types; "
+  os.indent() << formatv("::llvm::SmallVector<::mlir::Type, 4> tblgen_types; "
                          "(void)tblgen_types;\n");
   int numResults = resultOp.getNumResults();
   if (tail.returnType) {
@@ -1534,7 +1532,7 @@ void PatternEmitter::createSeparateLocalVarsForOpArgs(
     std::string varName;
     if (operand->isVariadic()) {
       varName = std::string(formatv("tblgen_values_{0}", valueIndex++));
-      os << formatv("::mlir::SmallVector<::mlir::Value, 4> {0};\n", varName);
+      os << formatv("::llvm::SmallVector<::mlir::Value, 4> {0};\n", varName);
       std::string range;
       if (node.isNestedDagArg(argIndex)) {
         range = childNodeNames[argIndex];
@@ -1617,9 +1615,9 @@ void PatternEmitter::createAggregateLocalVarsForOpArgs(
   Operator &resultOp = node.getDialectOp(opMap);
 
   auto scope = os.scope();
-  os << formatv("::mlir::SmallVector<::mlir::Value, 4> "
+  os << formatv("::llvm::SmallVector<::mlir::Value, 4> "
                 "tblgen_values; (void)tblgen_values;\n");
-  os << formatv("::mlir::SmallVector<::mlir::NamedAttribute, 4> "
+  os << formatv("::llvm::SmallVector<::mlir::NamedAttribute, 4> "
                 "tblgen_attrs; (void)tblgen_attrs;\n");
 
   const char *addAttrCmd =
@@ -1713,7 +1711,7 @@ void StaticMatcherHelper::populateStaticMatchers(raw_ostream &os) {
 }
 
 void StaticMatcherHelper::populateStaticConstraintFunctions(raw_ostream &os) {
-  staticVerifierEmitter.emitPatternConstraints(constraints);
+  staticVerifierEmitter.emitPatternConstraints(constraints.getArrayRef());
 }
 
 void StaticMatcherHelper::addPattern(Record *record) {
@@ -1746,9 +1744,9 @@ void StaticMatcherHelper::addPattern(Record *record) {
 
 StringRef StaticMatcherHelper::getVerifierName(DagLeaf leaf) {
   if (leaf.isAttrMatcher()) {
-    Optional<StringRef> constraint =
+    std::optional<StringRef> constraint =
         staticVerifierEmitter.getAttrConstraintFn(leaf.getAsConstraint());
-    assert(constraint.hasValue() && "attribute constraint was not uniqued");
+    assert(constraint && "attribute constraint was not uniqued");
     return *constraint;
   }
   assert(leaf.isOperandMatcher());

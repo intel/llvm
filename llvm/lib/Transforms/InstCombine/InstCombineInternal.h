@@ -152,7 +152,7 @@ public:
   Instruction *visitGEPOfBitcast(BitCastInst *BCI, GetElementPtrInst &GEP);
   Instruction *visitAllocaInst(AllocaInst &AI);
   Instruction *visitAllocSite(Instruction &FI);
-  Instruction *visitFree(CallInst &FI);
+  Instruction *visitFree(CallInst &FI, Value *FreedOp);
   Instruction *visitLoadInst(LoadInst &LI);
   Instruction *visitStoreInst(StoreInst &SI);
   Instruction *visitAtomicRMWInst(AtomicRMWInst &SI);
@@ -167,12 +167,14 @@ public:
   Instruction *visitInsertValueInst(InsertValueInst &IV);
   Instruction *visitInsertElementInst(InsertElementInst &IE);
   Instruction *visitExtractElementInst(ExtractElementInst &EI);
+  Instruction *simplifyBinOpSplats(ShuffleVectorInst &SVI);
   Instruction *visitShuffleVectorInst(ShuffleVectorInst &SVI);
   Instruction *visitExtractValueInst(ExtractValueInst &EV);
   Instruction *visitLandingPadInst(LandingPadInst &LI);
   Instruction *visitVAEndInst(VAEndInst &I);
   Value *pushFreezeToPreventPoisonFromPropagating(FreezeInst &FI);
-  bool freezeDominatedUses(FreezeInst &FI);
+  bool freezeOtherUses(FreezeInst &FI);
+  Instruction *foldFreezeIntoRecurrence(FreezeInst &I, PHINode *PN);
   Instruction *visitFreeze(FreezeInst &I);
 
   /// Specify what to return for unhandled instructions.
@@ -192,7 +194,7 @@ public:
                                  const Twine &Suffix = "");
 
 private:
-  void annotateAnyAllocSite(CallBase &Call, const TargetLibraryInfo *TLI);
+  bool annotateAnyAllocSite(CallBase &Call, const TargetLibraryInfo *TLI);
   bool isDesirableIntType(unsigned BitWidth) const;
   bool shouldChangeType(unsigned FromBitWidth, unsigned ToBitWidth) const;
   bool shouldChangeType(Type *From, Type *To) const;
@@ -325,7 +327,7 @@ private:
   Instruction *narrowMathIfNoOverflow(BinaryOperator &I);
   Instruction *narrowFunnelShift(TruncInst &Trunc);
   Instruction *optimizeBitCastFromPhi(CastInst &CI, PHINode *PN);
-  Instruction *matchSAddSubSat(Instruction &MinMax1);
+  Instruction *matchSAddSubSat(IntrinsicInst &MinMax1);
   Instruction *foldNot(BinaryOperator &I);
 
   void freelyInvertAllUsersOf(Value *V);
@@ -344,16 +346,20 @@ private:
                                             const CastInst *CI2);
   Value *simplifyIntToPtrRoundTripCast(Value *Val);
 
-  Value *foldAndOfICmps(ICmpInst *LHS, ICmpInst *RHS, BinaryOperator &And);
-  Value *foldOrOfICmps(ICmpInst *LHS, ICmpInst *RHS, BinaryOperator &Or);
+  Value *foldAndOrOfICmps(ICmpInst *LHS, ICmpInst *RHS, Instruction &I,
+                          bool IsAnd, bool IsLogical = false);
   Value *foldXorOfICmps(ICmpInst *LHS, ICmpInst *RHS, BinaryOperator &Xor);
 
   Value *foldEqOfParts(ICmpInst *Cmp0, ICmpInst *Cmp1, bool IsAnd);
 
+  Value *foldAndOrOfICmpsUsingRanges(ICmpInst *ICmp1, ICmpInst *ICmp2,
+                                     bool IsAnd);
+
   /// Optimize (fcmp)&(fcmp) or (fcmp)|(fcmp).
   /// NOTE: Unlike most of instcombine, this returns a Value which should
   /// already be inserted into the function.
-  Value *foldLogicOfFCmps(FCmpInst *LHS, FCmpInst *RHS, bool IsAnd);
+  Value *foldLogicOfFCmps(FCmpInst *LHS, FCmpInst *RHS, bool IsAnd,
+                          bool IsLogicalSelect = false);
 
   Value *foldAndOrOfICmpsOfAndWithPow2(ICmpInst *LHS, ICmpInst *RHS,
                                        Instruction *CxtI, bool IsAnd,
@@ -361,8 +367,10 @@ private:
   Value *matchSelectFromAndOr(Value *A, Value *B, Value *C, Value *D);
   Value *getSelectCondition(Value *A, Value *B);
 
+  Instruction *foldExtractOfOverflowIntrinsic(ExtractValueInst &EV);
   Instruction *foldIntrinsicWithOverflowCommon(IntrinsicInst *II);
   Instruction *foldFPSignBitOps(BinaryOperator &I);
+  Instruction *foldFDivConstantDivisor(BinaryOperator &I);
 
   // Optimize one of these forms:
   //   and i1 Op, SI / select i1 Op, i1 SI, i1 false (if IsAnd = true)
@@ -380,7 +388,7 @@ public:
     assert(New && !New->getParent() &&
            "New instruction already inserted into a basic block!");
     BasicBlock *BB = Old.getParent();
-    BB->getInstList().insert(Old.getIterator(), New); // Insert inst
+    New->insertAt(BB, Old.getIterator()); // Insert inst
     Worklist.add(New);
     return New;
   }
@@ -407,7 +415,7 @@ public:
     // If we are replacing the instruction with itself, this must be in a
     // segment of unreachable code, so just clobber the instruction.
     if (&I == V)
-      V = UndefValue::get(I.getType());
+      V = PoisonValue::get(I.getType());
 
     LLVM_DEBUG(dbgs() << "IC: Replacing " << I << "\n"
                       << "    with " << *V << '\n');
@@ -435,7 +443,7 @@ public:
   void CreateNonTerminatorUnreachable(Instruction *InsertAt) {
     auto &Ctx = InsertAt->getContext();
     new StoreInst(ConstantInt::getTrue(Ctx),
-                  UndefValue::get(Type::getInt1PtrTy(Ctx)),
+                  PoisonValue::get(Type::getInt1PtrTy(Ctx)),
                   InsertAt);
   }
 
@@ -538,7 +546,7 @@ public:
   /// -> "A*(B+C)") or expanding out if this results in simplifications (eg: "A
   /// & (B | C) -> (A&B) | (A&C)" if this is a win).  Returns the simplified
   /// value, or null if it didn't simplify.
-  Value *SimplifyUsingDistributiveLaws(BinaryOperator &I);
+  Value *foldUsingDistributiveLaws(BinaryOperator &I);
 
   /// Tries to simplify add operations using the definition of remainder.
   ///
@@ -554,8 +562,7 @@ public:
 
   /// This tries to simplify binary operations by factorizing out common terms
   /// (e. g. "(A*B)+(A*C)" -> "A*(B+C)").
-  Value *tryFactorization(BinaryOperator &, Instruction::BinaryOps, Value *,
-                          Value *, Value *, Value *);
+  Value *tryFactorizationFolds(BinaryOperator &I);
 
   /// Match a select chain which produces one of three values based on whether
   /// the LHS is less than, equal to, or greater than RHS respectively.
@@ -592,10 +599,9 @@ public:
   /// demanded bits.
   bool SimplifyDemandedInstructionBits(Instruction &Inst);
 
-  virtual Value *
-  SimplifyDemandedVectorElts(Value *V, APInt DemandedElts, APInt &UndefElts,
-                             unsigned Depth = 0,
-                             bool AllowMultipleUsers = false) override;
+  Value *SimplifyDemandedVectorElts(Value *V, APInt DemandedElts,
+                                    APInt &UndefElts, unsigned Depth = 0,
+                                    bool AllowMultipleUsers = false) override;
 
   /// Canonicalize the position of binops relative to shufflevector.
   Instruction *foldVectorBinop(BinaryOperator &Inst);
@@ -621,7 +627,8 @@ public:
   /// other operand, try to fold the binary operator into the select arguments.
   /// This also works for Cast instructions, which obviously do not have a
   /// second operand.
-  Instruction *FoldOpIntoSelect(Instruction &Op, SelectInst *SI);
+  Instruction *FoldOpIntoSelect(Instruction &Op, SelectInst *SI,
+                                bool FoldWithMultiUse = false);
 
   /// This is a convenience wrapper function for the above two functions.
   Instruction *foldBinOpIntoSelectOrPhi(BinaryOperator &I);
@@ -642,7 +649,7 @@ public:
   /// If an integer typed PHI has only one use which is an IntToPtr operation,
   /// replace the PHI with an existing pointer typed PHI if it exists. Otherwise
   /// insert a new pointer typed PHI and replace the original one.
-  Instruction *foldIntegerTypedPHI(PHINode &PN);
+  bool foldIntegerTypedPHI(PHINode &PN);
 
   /// Helper function for FoldPHIArgXIntoPHI() to set debug location for the
   /// folded operation.
@@ -650,6 +657,8 @@ public:
 
   Instruction *foldGEPICmp(GEPOperator *GEPLHS, Value *RHS,
                            ICmpInst::Predicate Cond, Instruction &I);
+  Instruction *foldSelectICmp(ICmpInst::Predicate Pred, SelectInst *SI,
+                              Value *RHS, const ICmpInst &I);
   Instruction *foldAllocaCmp(ICmpInst &ICI, const AllocaInst *Alloca);
   Instruction *foldCmpLoadFromIndexedGlobal(LoadInst *LI,
                                             GetElementPtrInst *GEP,
@@ -659,13 +668,16 @@ public:
                                     Constant *RHSC);
   Instruction *foldICmpAddOpConst(Value *X, const APInt &C,
                                   ICmpInst::Predicate Pred);
-  Instruction *foldICmpWithCastOp(ICmpInst &ICI);
+  Instruction *foldICmpWithCastOp(ICmpInst &ICmp);
+  Instruction *foldICmpWithZextOrSext(ICmpInst &ICmp);
 
   Instruction *foldICmpUsingKnownBits(ICmpInst &Cmp);
   Instruction *foldICmpWithDominatingICmp(ICmpInst &Cmp);
   Instruction *foldICmpWithConstant(ICmpInst &Cmp);
   Instruction *foldICmpInstWithConstant(ICmpInst &Cmp);
   Instruction *foldICmpInstWithConstantNotInt(ICmpInst &Cmp);
+  Instruction *foldICmpInstWithConstantAllowUndef(ICmpInst &Cmp,
+                                                  const APInt &C);
   Instruction *foldICmpBinOp(ICmpInst &Cmp, const SimplifyQuery &SQ);
   Instruction *foldICmpEquality(ICmpInst &Cmp);
   Instruction *foldIRemByPowerOfTwoToBitTest(ICmpInst &I);
@@ -674,6 +686,8 @@ public:
 
   Value *foldMultiplicationOverflowCheck(ICmpInst &Cmp);
 
+  Instruction *foldICmpBinOpWithConstant(ICmpInst &Cmp, BinaryOperator *BO,
+                                         const APInt &C);
   Instruction *foldICmpSelectConstant(ICmpInst &Cmp, SelectInst *Select,
                                       ConstantInt *C);
   Instruction *foldICmpTruncConstant(ICmpInst &Cmp, TruncInst *Trunc,
@@ -704,6 +718,8 @@ public:
                                      const APInt &C1);
   Instruction *foldICmpAndShift(ICmpInst &Cmp, BinaryOperator *And,
                                 const APInt &C1, const APInt &C2);
+  Instruction *foldICmpXorShiftConst(ICmpInst &Cmp, BinaryOperator *Xor,
+                                     const APInt &C);
   Instruction *foldICmpShrConstConst(ICmpInst &I, Value *ShAmt, const APInt &C1,
                                      const APInt &C2);
   Instruction *foldICmpShlConstConst(ICmpInst &I, Value *ShAmt, const APInt &C1,
@@ -719,6 +735,7 @@ public:
   Instruction *foldICmpBitCast(ICmpInst &Cmp);
 
   // Helpers of visitSelectInst().
+  Instruction *foldSelectOfBools(SelectInst &SI);
   Instruction *foldSelectExtConst(SelectInst &Sel);
   Instruction *foldSelectOpOp(SelectInst &SI, Instruction *TI, Instruction *FI);
   Instruction *foldSelectIntoOp(SelectInst &SI, Value *, Value *);
@@ -778,13 +795,13 @@ class Negator final {
 
   std::array<Value *, 2> getSortedOperandsOfBinOp(Instruction *I);
 
-  LLVM_NODISCARD Value *visitImpl(Value *V, unsigned Depth);
+  [[nodiscard]] Value *visitImpl(Value *V, unsigned Depth);
 
-  LLVM_NODISCARD Value *negate(Value *V, unsigned Depth);
+  [[nodiscard]] Value *negate(Value *V, unsigned Depth);
 
   /// Recurse depth-first and attempt to sink the negation.
   /// FIXME: use worklist?
-  LLVM_NODISCARD Optional<Result> run(Value *Root);
+  [[nodiscard]] Optional<Result> run(Value *Root);
 
   Negator(const Negator &) = delete;
   Negator(Negator &&) = delete;
@@ -794,8 +811,8 @@ class Negator final {
 public:
   /// Attempt to negate \p Root. Retuns nullptr if negation can't be performed,
   /// otherwise returns negated value.
-  LLVM_NODISCARD static Value *Negate(bool LHSIsZero, Value *Root,
-                                      InstCombinerImpl &IC);
+  [[nodiscard]] static Value *Negate(bool LHSIsZero, Value *Root,
+                                     InstCombinerImpl &IC);
 };
 
 } // end namespace llvm

@@ -37,9 +37,8 @@ def FunctionOpInterface : OpInterface<"FunctionOpInterface"> {
     The function, aside from implementing the various interface methods,
     should have the following ODS arguments:
 
-      - `type` (required)
+      - `function_type` (required)
         * A TypeAttr that holds the signature type of the function.
-        * TODO: this field will soon be renamed to something less generic.
 
       - `arg_attrs` (optional)
         * An ArrayAttr of DictionaryAttr that contains attribute dictionaries
@@ -50,6 +49,52 @@ def FunctionOpInterface : OpInterface<"FunctionOpInterface"> {
           for each of the function results.
   }];
   let methods = [
+    InterfaceMethod<[{
+      Returns the type of the function.
+    }],
+    "::mlir::Type", "getFunctionType">,
+    InterfaceMethod<[{
+      Set the type of the function. This method should perform an unsafe
+      modification to the function type; it should not update argument or
+      result attributes.
+    }],
+    "void", "setFunctionTypeAttr", (ins "::mlir::TypeAttr":$type)>,
+
+    InterfaceMethod<[{
+      Get the array of argument attribute dictionaries. The method should return
+      an array attribute containing only dictionary attributes equal in number
+      to the number of function arguments. Alternatively, the method can return
+      null to indicate that the function has no argument attributes.
+    }],
+    "::mlir::ArrayAttr", "getArgAttrsAttr">,
+    InterfaceMethod<[{
+      Get the array of result attribute dictionaries. The method should return
+      an array attribute containing only dictionary attributes equal in number
+      to the number of function results. Alternatively, the method can return
+      null to indicate that the function has no result attributes.
+    }],
+    "::mlir::ArrayAttr", "getResAttrsAttr">,
+    InterfaceMethod<[{
+      Set the array of argument attribute dictionaries.
+    }],
+    "void", "setArgAttrsAttr", (ins "::mlir::ArrayAttr":$attrs)>,
+    InterfaceMethod<[{
+      Set the array of result attribute dictionaries.
+    }],
+    "void", "setResAttrsAttr", (ins "::mlir::ArrayAttr":$attrs)>,
+    InterfaceMethod<[{
+      Remove the array of argument attribute dictionaries. This is the same as
+      setting all argument attributes to an empty dictionary. The method should
+      return the removed attribute.
+    }],
+    "::mlir::Attribute", "removeArgAttrsAttr">,
+    InterfaceMethod<[{
+      Remove the array of result attribute dictionaries. This is the same as
+      setting all result attributes to an empty dictionary. The method should
+      return the removed attribute.
+    }],
+    "::mlir::Attribute", "removeResAttrsAttr">,
+
     InterfaceMethod<[{
       Returns the function argument types based exclusively on
       the type (to allow for this method may be called on function
@@ -73,33 +118,85 @@ def FunctionOpInterface : OpInterface<"FunctionOpInterface"> {
     "::mlir::Type", "cloneTypeWith", (ins
       "::mlir::TypeRange":$inputs, "::mlir::TypeRange":$results
     ), /*methodBody=*/[{}], /*defaultImplementation=*/[{
-      return $_op.getType().clone(inputs, results);
+      return $_op.getFunctionType().clone(inputs, results);
     }]>,
 
     InterfaceMethod<[{
       Verify the contents of the body of this function.
 
-      Note: The default implementation merely checks that of the entry block
-      exists, it has the same number arguments as the function type.
+      Note: The default implementation merely checks that if the entry block
+      exists, it has the same number and type of arguments as the function type.
     }],
     "::mlir::LogicalResult", "verifyBody", (ins),
     /*methodBody=*/[{}], /*defaultImplementation=*/[{
       if ($_op.isExternal())
         return success();
+      ArrayRef<Type> fnInputTypes = $_op.getArgumentTypes();
+      // NOTE: This should just be $_op.front() but access generically
+      // because the interface methods defined here may be shadowed in
+      // arbitrary ways. https://github.com/llvm/llvm-project/issues/54807
+      Block &entryBlock = $_op->getRegion(0).front();
 
-      unsigned numArguments = $_op.getNumArguments();
-      if ($_op.front().getNumArguments() != numArguments)
+      unsigned numArguments = fnInputTypes.size();
+      if (entryBlock.getNumArguments() != numArguments)
         return $_op.emitOpError("entry block must have ")
               << numArguments << " arguments to match function signature";
+
+      for (unsigned i = 0, e = fnInputTypes.size(); i != e; ++i) {
+        Type argType = entryBlock.getArgument(i).getType();
+        if (fnInputTypes[i] != argType) {
+          return $_op.emitOpError("type of entry block argument #")
+                << i << '(' << argType
+                << ") must match the type of the corresponding argument in "
+                << "function signature(" << fnInputTypes[i] << ')';
+        }
+      }
+
       return success();
     }]>,
     InterfaceMethod<[{
       Verify the type attribute of the function for derived op-specific
       invariants.
     }],
-    "::mlir::LogicalResult", "verifyType">,
+    "::mlir::LogicalResult", "verifyType", (ins),
+    /*methodBody=*/[{}], /*defaultImplementation=*/[{
+      return success();
+    }]>,
   ];
 
+  let extraClassDeclaration = [{
+    //===------------------------------------------------------------------===//
+    // Name
+    //===------------------------------------------------------------------===//
+
+    /// Return the name of the function.
+    StringRef getName() { return SymbolTable::getSymbolName(*this); }
+  }];
+  let extraTraitClassDeclaration = [{
+    //===------------------------------------------------------------------===//
+    // Builders
+    //===------------------------------------------------------------------===//
+
+    /// Build the function with the given name, attributes, and type. This
+    /// builder also inserts an entry block into the function body with the
+    /// given argument types.
+    static void buildWithEntryBlock(
+        OpBuilder &builder, OperationState &state, StringRef name, Type type,
+        ArrayRef<NamedAttribute> attrs, TypeRange inputTypes) {
+      state.addAttribute(SymbolTable::getSymbolAttrName(),
+                        builder.getStringAttr(name));
+      state.addAttribute(ConcreteOp::getFunctionTypeAttrName(state.name),
+                        TypeAttr::get(type));
+      state.attributes.append(attrs.begin(), attrs.end());
+
+      // Add the function body.
+      Region *bodyRegion = state.addRegion();
+      Block *body = new Block();
+      bodyRegion->push_back(body);
+      for (Type input : inputTypes)
+        body->addArgument(input, state.location);
+    }
+  }];
   let extraSharedClassDeclaration = [{
     /// Block list iterator types.
     using BlockListType = Region::BlockListType;
@@ -118,36 +215,36 @@ def FunctionOpInterface : OpInterface<"FunctionOpInterface"> {
     bool isExternal() { return empty(); }
 
     /// Return the region containing the body of this function.
-    Region &getBody() { return $_op->getRegion(0); }
+    Region &getFunctionBody() { return $_op->getRegion(0); }
 
     /// Delete all blocks from this function.
     void eraseBody() {
-      getBody().dropAllReferences();
-      getBody().getBlocks().clear();
+      getFunctionBody().dropAllReferences();
+      getFunctionBody().getBlocks().clear();
     }
 
     /// Return the list of blocks within the function body.
-    BlockListType &getBlocks() { return getBody().getBlocks(); }
+    BlockListType &getBlocks() { return getFunctionBody().getBlocks(); }
 
-    iterator begin() { return getBody().begin(); }
-    iterator end() { return getBody().end(); }
-    reverse_iterator rbegin() { return getBody().rbegin(); }
-    reverse_iterator rend() { return getBody().rend(); }
+    iterator begin() { return getFunctionBody().begin(); }
+    iterator end() { return getFunctionBody().end(); }
+    reverse_iterator rbegin() { return getFunctionBody().rbegin(); }
+    reverse_iterator rend() { return getFunctionBody().rend(); }
 
     /// Returns true if this function has no blocks within the body.
-    bool empty() { return getBody().empty(); }
+    bool empty() { return getFunctionBody().empty(); }
 
     /// Push a new block to the back of the body region.
-    void push_back(Block *block) { getBody().push_back(block); }
+    void push_back(Block *block) { getFunctionBody().push_back(block); }
 
     /// Push a new block to the front of the body region.
-    void push_front(Block *block) { getBody().push_front(block); }
+    void push_front(Block *block) { getFunctionBody().push_front(block); }
 
     /// Return the last block in the body region.
-    Block &back() { return getBody().back(); }
+    Block &back() { return getFunctionBody().back(); }
 
     /// Return the first block in the body region.
-    Block &front() { return getBody().front(); }
+    Block &front() { return getFunctionBody().front(); }
 
     /// Add an entry block to an empty function, and set up the block arguments
     /// to match the signature of the function. The newly inserted entry block
@@ -156,7 +253,7 @@ def FunctionOpInterface : OpInterface<"FunctionOpInterface"> {
       assert(empty() && "function already has an entry block");
       Block *entry = new Block();
       push_back(entry);
-      
+
       // FIXME: Allow for passing in locations for these arguments instead of using
       // the operations location.
       ArrayRef<Type> inputTypes = $_op.getArgumentTypes();
@@ -189,34 +286,6 @@ def FunctionOpInterface : OpInterface<"FunctionOpInterface"> {
       function_interface_impl::setFunctionType(this->getOperation(), newType);
     }
 
-    // FIXME: These functions should be removed in favor of just forwarding to
-    // the derived operation, which should already have these defined
-    // (via ODS).
-
-    /// Returns the name of the attribute used for function types.
-    static StringRef getTypeAttrName() {
-      return function_interface_impl::getTypeAttrName();
-    }
-
-    /// Returns the name of the attribute used for function argument attributes.
-    static StringRef getArgDictAttrName() {
-      return function_interface_impl::getArgDictAttrName();
-    }
-
-    /// Returns the name of the attribute used for function argument attributes.
-    static StringRef getResultDictAttrName() {
-      return function_interface_impl::getResultDictAttrName();
-    }
-
-    /// Return the attribute containing the type of this function.
-    TypeAttr getTypeAttr() {
-      return this->getOperation()->template getAttrOfType<TypeAttr>(
-          getTypeAttrName());
-    }
-
-    /// Return the type of this function.
-    Type getType() { return getTypeAttr().getValue(); }
-
     //===------------------------------------------------------------------===//
     // Argument and Result Handling
     //===------------------------------------------------------------------===//
@@ -229,13 +298,13 @@ def FunctionOpInterface : OpInterface<"FunctionOpInterface"> {
 
     /// Returns the entry block function argument at the given index.
     BlockArgument getArgument(unsigned idx) {
-      return getBody().getArgument(idx);
+      return getFunctionBody().getArgument(idx);
     }
 
     /// Support argument iteration.
-    args_iterator args_begin() { return getBody().args_begin(); }
-    args_iterator args_end() { return getBody().args_end(); }
-    BlockArgListType getArguments() { return getBody().getArguments(); }
+    args_iterator args_begin() { return getFunctionBody().args_begin(); }
+    args_iterator args_end() { return getFunctionBody().args_end(); }
+    BlockArgListType getArguments() { return getFunctionBody().getArguments(); }
 
     /// Insert a single argument of type `argType` with attributes `argAttrs` and
     /// location `argLoc` at `argIndex`.
@@ -358,10 +427,8 @@ def FunctionOpInterface : OpInterface<"FunctionOpInterface"> {
 
     /// Return an ArrayAttr containing all argument attribute dictionaries of
     /// this function, or nullptr if no arguments have attributes.
-    ArrayAttr getAllArgAttrs() {
-      return this->getOperation()->template getAttrOfType<ArrayAttr>(
-          getArgDictAttrName());
-    }
+    ArrayAttr getAllArgAttrs() { return $_op.getArgAttrsAttr(); }
+
     /// Return all argument attributes of this function.
     void getAllArgAttrs(SmallVectorImpl<DictionaryAttr> &result) {
       if (ArrayAttr argAttrs = getAllArgAttrs()) {
@@ -413,7 +480,7 @@ def FunctionOpInterface : OpInterface<"FunctionOpInterface"> {
     }
     void setAllArgAttrs(ArrayAttr attributes) {
       assert(attributes.size() == $_op.getNumArguments());
-      this->getOperation()->setAttr(getArgDictAttrName(), attributes);
+      $_op.setArgAttrsAttr(attributes);
     }
 
     /// If the an attribute exists with the specified name, change it to the new
@@ -449,10 +516,8 @@ def FunctionOpInterface : OpInterface<"FunctionOpInterface"> {
 
     /// Return an ArrayAttr containing all result attribute dictionaries of this
     /// function, or nullptr if no result have attributes.
-    ArrayAttr getAllResultAttrs() {
-      return this->getOperation()->template getAttrOfType<ArrayAttr>(
-          getResultDictAttrName());
-    }
+    ArrayAttr getAllResultAttrs() { return $_op.getResAttrsAttr(); }
+
     /// Return all result attributes of this function.
     void getAllResultAttrs(SmallVectorImpl<DictionaryAttr> &result) {
       if (ArrayAttr argAttrs = getAllResultAttrs()) {
@@ -506,7 +571,7 @@ def FunctionOpInterface : OpInterface<"FunctionOpInterface"> {
     }
     void setAllResultAttrs(ArrayAttr attributes) {
       assert(attributes.size() == $_op.getNumResults());
-      this->getOperation()->setAttr(getResultDictAttrName(), attributes);
+      $_op.setResAttrsAttr(attributes);
     }
 
     /// If the an attribute exists with the specified name, change it to the new

@@ -14,23 +14,18 @@
 
 #include "InstrEmitter.h"
 #include "SDNodeDbgValue.h"
-#include "llvm/ADT/Statistic.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/CodeGen/MachineConstantPool.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/StackMaps.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
-#include "llvm/IR/DataLayout.h"
-#include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/PseudoProbe.h"
-#include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/MathExtras.h"
 #include "llvm/Target/TargetMachine.h"
 using namespace llvm;
 
@@ -322,8 +317,15 @@ InstrEmitter::AddRegisterOperand(MachineInstrBuilder &MIB,
       OpRC = TII->getRegClass(*II, IIOpNum, TRI, *MF);
 
     if (OpRC) {
+      unsigned MinNumRegs = MinRCSize;
+      // Don't apply any RC size limit for IMPLICIT_DEF. Each use has a unique
+      // virtual register.
+      if (Op.isMachineOpcode() &&
+          Op.getMachineOpcode() == TargetOpcode::IMPLICIT_DEF)
+        MinNumRegs = 0;
+
       const TargetRegisterClass *ConstrainedRC
-        = MRI->constrainRegClass(VReg, OpRC, MinRCSize);
+        = MRI->constrainRegClass(VReg, OpRC, MinNumRegs);
       if (!ConstrainedRC) {
         OpRC = TRI->getAllocatableClass(OpRC);
         assert(OpRC && "Constraints cannot be fulfilled for allocation");
@@ -1061,6 +1063,9 @@ EmitMachineNode(SDNode *Node, bool IsClone, bool IsCloned,
   // part of the function.
   MIB.setMemRefs(cast<MachineSDNode>(Node)->memoperands());
 
+  // Set the CFI type.
+  MIB->setCFIType(*MF, Node->getCFIType());
+
   // Insert the instruction into position in the block. This needs to
   // happen before any custom inserter hook is called so that the
   // hook knows where in the block to insert the replacement code.
@@ -1157,7 +1162,6 @@ EmitSpecialNode(SDNode *Node, bool IsClone, bool IsCloned,
 #endif
     llvm_unreachable("This target-independent node should have been selected!");
   case ISD::EntryToken:
-    llvm_unreachable("EntryToken should have been excluded from the schedule!");
   case ISD::MERGE_VALUES:
   case ISD::TokenFactor: // fall thru
     break;
@@ -1292,7 +1296,7 @@ EmitSpecialNode(SDNode *Node, bool IsClone, bool IsCloned,
         break;
       case InlineAsm::Kind_RegUse:  // Use of register.
       case InlineAsm::Kind_Imm:  // Immediate.
-      case InlineAsm::Kind_Mem:  // Addressing mode.
+      case InlineAsm::Kind_Mem:  // Non-function addressing mode.
         // The addressing mode has been selected, just add all of the
         // operands to the machine instruction.
         for (unsigned j = 0; j != NumVals; ++j, ++i)
@@ -1310,6 +1314,21 @@ EmitSpecialNode(SDNode *Node, bool IsClone, bool IsCloned,
           }
         }
         break;
+      case InlineAsm::Kind_Func: // Function addressing mode.
+        for (unsigned j = 0; j != NumVals; ++j, ++i) {
+          SDValue Op = Node->getOperand(i);
+          AddOperand(MIB, Op, 0, nullptr, VRBaseMap,
+                     /*IsDebug=*/false, IsClone, IsCloned);
+
+          // Adjust Target Flags for function reference.
+          if (auto *TGA = dyn_cast<GlobalAddressSDNode>(Op)) {
+            unsigned NewFlags =
+                MF->getSubtarget().classifyGlobalFunctionReference(
+                    TGA->getGlobal());
+            unsigned LastIdx = MIB.getInstr()->getNumOperands() - 1;
+            MIB.getInstr()->getOperand(LastIdx).setTargetFlags(NewFlags);
+          }
+        }
       }
     }
 
@@ -1342,11 +1361,12 @@ EmitSpecialNode(SDNode *Node, bool IsClone, bool IsCloned,
 /// InstrEmitter - Construct an InstrEmitter and set it to start inserting
 /// at the given position in the given block.
 InstrEmitter::InstrEmitter(const TargetMachine &TM, MachineBasicBlock *mbb,
-                           MachineBasicBlock::iterator insertpos)
+                           MachineBasicBlock::iterator insertpos,
+                           bool UseInstrRefDebugInfo)
     : MF(mbb->getParent()), MRI(&MF->getRegInfo()),
       TII(MF->getSubtarget().getInstrInfo()),
       TRI(MF->getSubtarget().getRegisterInfo()),
       TLI(MF->getSubtarget().getTargetLowering()), MBB(mbb),
       InsertPos(insertpos) {
-  EmitDebugInstrRefs = MF->useDebugInstrRef();
+  EmitDebugInstrRefs = UseInstrRefDebugInfo;
 }

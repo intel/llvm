@@ -12,8 +12,6 @@ from lldbsuite.test import lldbutil
 
 class ObjCPropertyTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
@@ -47,8 +45,8 @@ class ObjCPropertyTestCase(TestBase):
         process = target.LaunchSimple(
             None, None, self.get_process_working_directory())
 
-        self.assertEquals(process.GetState(), lldb.eStateStopped,
-                        PROCESS_STOPPED)
+        self.assertState(process.GetState(), lldb.eStateStopped,
+                         PROCESS_STOPPED)
 
         threads = lldbutil.get_threads_stopped_at_breakpoint(
             process, main_bkpt)
@@ -106,8 +104,8 @@ class ObjCPropertyTestCase(TestBase):
         self.assertSuccess(backed_error)
         backing_value = mine.GetChildMemberWithName("_backedInt")
         self.assertTrue(backing_value.IsValid())
-        self.assertTrue(backed_value.GetValueAsUnsigned(12345)
-                        == backing_value.GetValueAsUnsigned(23456))
+        self.assertEqual(backed_value.GetValueAsUnsigned(12345),
+                        backing_value.GetValueAsUnsigned(23456))
 
         value_from_typedef = frame.EvaluateExpression("typedefd.backedInt", False)
         self.assertSuccess(value_from_typedef.GetError())

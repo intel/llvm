@@ -25,6 +25,18 @@ TEST(ConvertUTFTest, ConvertUTF16LittleEndianToUTF8String) {
   EXPECT_EQ(Expected, Result);
 }
 
+TEST(ConvertUTFTest, ConvertUTF32LittleEndianToUTF8String) {
+  // Src is the look of disapproval.
+  alignas(UTF32) static const char Src[] =
+      "\xFF\xFE\x00\x00\xA0\x0C\x00\x00\x5F\x00\x00\x00\xA0\x0C\x00\x00";
+  ArrayRef<char> Ref(Src, sizeof(Src) - 1);
+  std::string Result;
+  bool Success = convertUTF32ToUTF8String(Ref, Result);
+  EXPECT_TRUE(Success);
+  std::string Expected("\xE0\xB2\xA0_\xE0\xB2\xA0");
+  EXPECT_EQ(Expected, Result);
+}
+
 TEST(ConvertUTFTest, ConvertUTF16BigEndianToUTF8String) {
   // Src is the look of disapproval.
   alignas(UTF16) static const char Src[] = "\xfe\xff\x0c\xa0\x00_\x0c\xa0";
@@ -33,6 +45,18 @@ TEST(ConvertUTFTest, ConvertUTF16BigEndianToUTF8String) {
   bool Success = convertUTF16ToUTF8String(Ref, Result);
   EXPECT_TRUE(Success);
   std::string Expected("\xe0\xb2\xa0_\xe0\xb2\xa0");
+  EXPECT_EQ(Expected, Result);
+}
+
+TEST(ConvertUTFTest, ConvertUTF32BigEndianToUTF8String) {
+  // Src is the look of disapproval.
+  alignas(UTF32) static const char Src[] =
+      "\x00\x00\xFE\xFF\x00\x00\x0C\xA0\x00\x00\x00\x5F\x00\x00\x0C\xA0";
+  ArrayRef<char> Ref(Src, sizeof(Src) - 1);
+  std::string Result;
+  bool Success = convertUTF32ToUTF8String(Ref, Result);
+  EXPECT_TRUE(Success);
+  std::string Expected("\xE0\xB2\xA0_\xE0\xB2\xA0");
   EXPECT_EQ(Expected, Result);
 }
 
@@ -57,7 +81,8 @@ TEST(ConvertUTFTest, OddLengthInput) {
 
 TEST(ConvertUTFTest, Empty) {
   std::string Result;
-  bool Success = convertUTF16ToUTF8String(llvm::ArrayRef<char>(None), Result);
+  bool Success =
+      convertUTF16ToUTF8String(llvm::ArrayRef<char>(std::nullopt), Result);
   EXPECT_TRUE(Success);
   EXPECT_TRUE(Result.empty());
 }
@@ -72,7 +97,7 @@ TEST(ConvertUTFTest, HasUTF16BOM) {
   HasBOM = hasUTF16ByteOrderMark(makeArrayRef("\xfe\xff\x00asdf", 6));
   EXPECT_TRUE(HasBOM);
 
-  HasBOM = hasUTF16ByteOrderMark(None);
+  HasBOM = hasUTF16ByteOrderMark(std::nullopt);
   EXPECT_FALSE(HasBOM);
   HasBOM = hasUTF16ByteOrderMark(makeArrayRef("\xfe", 1));
   EXPECT_FALSE(HasBOM);

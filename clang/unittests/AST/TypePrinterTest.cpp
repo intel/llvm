@@ -48,7 +48,7 @@ TEST(TypePrinter, TemplateId) {
   std::string Code = R"cpp(
     namespace N {
       template <typename> struct Type {};
-      
+
       template <typename T>
       void Foo(const Type<T> &Param);
     }
@@ -60,8 +60,24 @@ TEST(TypePrinter, TemplateId) {
       [](PrintingPolicy &Policy) { Policy.FullyQualifiedName = false; }));
 
   ASSERT_TRUE(PrintedTypeMatches(
-      Code, {}, Matcher, "const N::Type<T> &",
+      Code, {}, Matcher, "const Type<T> &",
       [](PrintingPolicy &Policy) { Policy.FullyQualifiedName = true; }));
+}
+
+TEST(TypePrinter, TemplateId2) {
+  std::string Code = R"cpp(
+      template <template <typename ...> class TemplatedType>
+      void func(TemplatedType<int> Param);
+    )cpp";
+  auto Matcher = parmVarDecl(hasType(qualType().bind("id")));
+
+  // Regression test ensuring we do not segfault getting the QualType as a
+  // string.
+  ASSERT_TRUE(PrintedTypeMatches(Code, {}, Matcher, "<int>",
+                                 [](PrintingPolicy &Policy) {
+                                   Policy.FullyQualifiedName = true;
+                                   Policy.PrintCanonicalTypes = true;
+                                 }));
 }
 
 TEST(TypePrinter, ParamsUglified) {
@@ -79,4 +95,35 @@ TEST(TypePrinter, ParamsUglified) {
   ASSERT_TRUE(PrintedTypeMatches(Code, {},
                                  varDecl(hasType(qualType().bind("id"))),
                                  "const f<Tp &> *", Clean));
+}
+
+TEST(TypePrinter, TemplateIdWithNTTP) {
+  constexpr char Code[] = R"cpp(
+    template <int N>
+    struct Str {
+      constexpr Str(char const (&s)[N]) { __builtin_memcpy(value, s, N); }
+      char value[N];
+    };
+    template <Str> class ASCII {};
+
+    ASCII<"this nontype template argument is too long to print"> x;
+  )cpp";
+  auto Matcher = classTemplateSpecializationDecl(
+      hasName("ASCII"), has(cxxConstructorDecl(
+                            isMoveConstructor(),
+                            has(parmVarDecl(hasType(qualType().bind("id")))))));
+
+  ASSERT_TRUE(PrintedTypeMatches(
+      Code, {"-std=c++20"}, Matcher,
+      R"(ASCII<Str<52>{"this nontype template argument is [...]"}> &&)",
+      [](PrintingPolicy &Policy) {
+        Policy.EntireContentsOfLargeArray = false;
+      }));
+
+  ASSERT_TRUE(PrintedTypeMatches(
+      Code, {"-std=c++20"}, Matcher,
+      R"(ASCII<Str<52>{"this nontype template argument is too long to print"}> &&)",
+      [](PrintingPolicy &Policy) {
+        Policy.EntireContentsOfLargeArray = true;
+      }));
 }

@@ -1,10 +1,9 @@
+include "mlir/IR/PatternBase.td"
 include "mlir/Dialect/Shape/IR/ShapeOps.td"
 include "mlir/Dialect/Tensor/IR/TensorOps.td"
 
 def AllInputShapesEq : Constraint<CPred< [{
-  llvm::all_of($0, [&](mlir::Value val) {
-    return $0[0] == val;
-  })
+  llvm::all_equal($0)
 }]>>;
 
 def HasSingleElement : Constraint<CPred< [{

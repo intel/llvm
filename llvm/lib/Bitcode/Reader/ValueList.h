@@ -14,14 +14,14 @@
 #define LLVM_LIB_BITCODE_READER_VALUELIST_H
 
 #include "llvm/IR/ValueHandle.h"
+#include "llvm/Support/Error.h"
 #include <cassert>
 #include <utility>
 #include <vector>
 
 namespace llvm {
 
-class Constant;
-class LLVMContext;
+class Error;
 class Type;
 class Value;
 
@@ -29,30 +29,20 @@ class BitcodeReaderValueList {
   /// Maps Value ID to pair of Value* and Type ID.
   std::vector<std::pair<WeakTrackingVH, unsigned>> ValuePtrs;
 
-  /// As we resolve forward-referenced constants, we add information about them
-  /// to this vector.  This allows us to resolve them in bulk instead of
-  /// resolving each reference at a time.  See the code in
-  /// ResolveConstantForwardRefs for more information about this.
-  ///
-  /// The key of this vector is the placeholder constant, the value is the slot
-  /// number that holds the resolved value.
-  using ResolveConstantsTy = std::vector<std::pair<Constant *, unsigned>>;
-  ResolveConstantsTy ResolveConstants;
-  LLVMContext &Context;
-
   /// Maximum number of valid references. Forward references exceeding the
   /// maximum must be invalid.
   unsigned RefsUpperBound;
 
-public:
-  BitcodeReaderValueList(LLVMContext &C, size_t RefsUpperBound)
-      : Context(C),
-        RefsUpperBound(std::min((size_t)std::numeric_limits<unsigned>::max(),
-                                RefsUpperBound)) {}
+  using MaterializeValueFnTy =
+      std::function<Expected<Value *>(unsigned, BasicBlock *)>;
+  MaterializeValueFnTy MaterializeValueFn;
 
-  ~BitcodeReaderValueList() {
-    assert(ResolveConstants.empty() && "Constants not resolved?");
-  }
+public:
+  BitcodeReaderValueList(size_t RefsUpperBound,
+                         MaterializeValueFnTy MaterializeValueFn)
+      : RefsUpperBound(std::min((size_t)std::numeric_limits<unsigned>::max(),
+                                RefsUpperBound)),
+        MaterializeValueFn(MaterializeValueFn) {}
 
   // vector compatibility methods
   unsigned size() const { return ValuePtrs.size(); }
@@ -64,7 +54,6 @@ public:
   }
 
   void clear() {
-    assert(ResolveConstants.empty() && "Constants not resolved?");
     ValuePtrs.clear();
   }
 
@@ -89,14 +78,15 @@ public:
     ValuePtrs.resize(N);
   }
 
-  Constant *getConstantFwdRef(unsigned Idx, Type *Ty, unsigned TyID);
-  Value *getValueFwdRef(unsigned Idx, Type *Ty, unsigned TyID);
+  void replaceValueWithoutRAUW(unsigned ValNo, Value *NewV) {
+    assert(ValNo < ValuePtrs.size());
+    ValuePtrs[ValNo].first = NewV;
+  }
 
-  void assignValue(unsigned Idx, Value *V, unsigned TypeID);
+  Value *getValueFwdRef(unsigned Idx, Type *Ty, unsigned TyID,
+                        BasicBlock *ConstExprInsertBB);
 
-  /// Once all constants are read, this method bulk resolves any forward
-  /// references.
-  void resolveConstantForwardRefs();
+  Error assignValue(unsigned Idx, Value *V, unsigned TypeID);
 };
 
 } // end namespace llvm

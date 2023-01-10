@@ -7,9 +7,9 @@
 
 // CHECK-LABEL: define {{.*}} @_Z1f
 const int *f(const int * const *p, int **q) {
-  // CHECK: load i32**, {{.*}}, !tbaa ![[INTPTR_TBAA:[^,]*]]
+  // CHECK: load ptr, {{.*}}, !tbaa ![[INTPTR_TBAA:[^,]*]]
   const int *x = *p;
-  // CHECK: store i32* null, {{.*}}, !tbaa ![[INTPTR_TBAA]]
+  // CHECK: store ptr null, {{.*}}, !tbaa ![[INTPTR_TBAA]]
   *q = 0;
   return x;
 }
@@ -18,9 +18,9 @@ struct A {};
 
 // CHECK-LABEL: define {{.*}} @_Z1g
 const int *(A::*const *g(const int *(A::* const **p)[3], int *(A::***q)[3]))[3] {
-  // CHECK: load i64**, {{.*}}, !tbaa ![[MEMPTR_TBAA:[^,]*]]
+  // CHECK: load ptr, {{.*}}, !tbaa ![[MEMPTR_TBAA:[^,]*]]
   const int *(A::*const *x)[3] = *p;
-  // CHECK: store i64* null, {{.*}}, !tbaa ![[MEMPTR_TBAA]]
+  // CHECK: store ptr null, {{.*}}, !tbaa ![[MEMPTR_TBAA]]
   *q = 0;
   return x;
 }

@@ -9,7 +9,7 @@ int f();
 
 void foo() {
   // CHECK-LABEL: define internal noundef i32 @___Z3foov_block_invoke
-  // CHECK: call i32 @__cxa_guard_acquire(i64* @_ZGVZZ3foovEUb_E5value
+  // CHECK: call i32 @__cxa_guard_acquire(ptr @_ZGVZZ3foovEUb_E5value
   (void)^(int x) { 
     static int value = f();
     return x + value;

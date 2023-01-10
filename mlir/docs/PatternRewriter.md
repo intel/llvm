@@ -232,7 +232,7 @@ creation, as well as many useful attribute and type construction methods.
 ## Pattern Application
 
 After a set of patterns have been defined, they are collected and provided to a
-specific driver for application. A driver consists of several high levels parts:
+specific driver for application. A driver consists of several high level parts:
 
 *   Input `RewritePatternSet`
 
@@ -283,7 +283,7 @@ public:
 
 /// Apply the custom driver to `op`.
 void applyMyPatternDriver(Operation *op,
-                          const RewritePatternSet &patterns) {
+                          const FrozenRewritePatternSet &patterns) {
   // Initialize the custom PatternRewriter.
   MyPatternRewriter rewriter(op->getContext());
 
@@ -357,7 +357,7 @@ Example output is shown below:
 ```
 //===-------------------------------------------===//
 Processing operation : 'cf.cond_br'(0x60f000001120) {
-  "cf.cond_br"(%arg0)[^bb2, ^bb2] {operand_segment_sizes = dense<[1, 0, 0]> : vector<3xi32>} : (i1) -> ()
+  "cf.cond_br"(%arg0)[^bb2, ^bb2] {operand_segment_sizes = array<i32: 1, 0, 0>} : (i1) -> ()
 
   * Pattern SimplifyConstCondBranchPred : 'cf.cond_br -> ()' {
   } -> failure : pattern failed to match
@@ -439,12 +439,10 @@ below:
 
 ```tablegen
 ListOption<"disabledPatterns", "disable-patterns", "std::string",
-           "Labels of patterns that should be filtered out during application",
-           "llvm::cl::MiscFlags::CommaSeparated">,
+           "Labels of patterns that should be filtered out during application">,
 ListOption<"enabledPatterns", "enable-patterns", "std::string",
            "Labels of patterns that should be used during application, all "
-           "other patterns are filtered out",
-           "llvm::cl::MiscFlags::CommaSeparated">,
+           "other patterns are filtered out">,
 ```
 
 These options may be used to provide filtering behavior when constructing any

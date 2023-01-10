@@ -40,8 +40,6 @@
 #include "llvm/Analysis/LoopAnalysisManager.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/LoopNestAnalysis.h"
-#include "llvm/IR/Dominators.h"
-#include "llvm/IR/PassInstrumentation.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Transforms/Utils/LCSSA.h"
 #include "llvm/Transforms/Utils/LoopSimplify.h"
@@ -52,6 +50,7 @@ namespace llvm {
 
 // Forward declarations of an update tracking API used in the pass manager.
 class LPMUpdater;
+class PassInstrumentation;
 
 namespace {
 
@@ -185,7 +184,7 @@ protected:
   std::vector<std::unique_ptr<LoopPassConceptT>> LoopPasses;
   std::vector<std::unique_ptr<LoopNestPassConceptT>> LoopNestPasses;
 
-  /// Run either a loop pass or a loop-nest pass. Returns `None` if
+  /// Run either a loop pass or a loop-nest pass. Returns `std::nullopt` if
   /// PassInstrumentation's BeforePass returns false. Otherwise, returns the
   /// preserved analyses of the pass.
   template <typename IRUnitT, typename PassT>
@@ -357,6 +356,16 @@ public:
     Worklist.insert(CurrentL);
   }
 
+  bool isLoopNestChanged() const {
+    return LoopNestChanged;
+  }
+
+  /// Loopnest passes should use this method to indicate if the
+  /// loopnest has been modified.
+  void markLoopNestChanged(bool Changed) {
+    LoopNestChanged = Changed;
+  }
+
 private:
   friend class llvm::FunctionToLoopPassAdaptor;
 
@@ -369,6 +378,7 @@ private:
   Loop *CurrentL;
   bool SkipCurrentLoop;
   const bool LoopNestMode;
+  bool LoopNestChanged;
 
 #ifdef LLVM_ENABLE_ABI_BREAKING_CHECKS
   // In debug builds we also track the parent loop to implement asserts even in
@@ -377,8 +387,10 @@ private:
 #endif
 
   LPMUpdater(SmallPriorityWorklist<Loop *, 4> &Worklist,
-             LoopAnalysisManager &LAM, bool LoopNestMode = false)
-      : Worklist(Worklist), LAM(LAM), LoopNestMode(LoopNestMode) {}
+             LoopAnalysisManager &LAM, bool LoopNestMode = false,
+             bool LoopNestChanged = false)
+      : Worklist(Worklist), LAM(LAM), LoopNestMode(LoopNestMode),
+        LoopNestChanged(LoopNestChanged) {}
 };
 
 template <typename IRUnitT, typename PassT>
@@ -391,13 +403,9 @@ Optional<PreservedAnalyses> LoopPassManager::runSinglePass(
   // Check the PassInstrumentation's BeforePass callbacks before running the
   // pass, skip its execution completely if asked to (callback returns false).
   if (!PI.runBeforePass<Loop>(*Pass, L))
-    return None;
+    return std::nullopt;
 
-  PreservedAnalyses PA;
-  {
-    TimeTraceScope TimeScope(Pass->name(), IR.getName());
-    PA = Pass->run(IR, AM, AR, U);
-  }
+  PreservedAnalyses PA = Pass->run(IR, AM, AR, U);
 
   // do not pass deleted Loop into the instrumentation
   if (U.skipCurrentLoop())

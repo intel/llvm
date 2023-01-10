@@ -24,12 +24,6 @@ _LIBCPP_BEGIN_NAMESPACE_STD
 
 #if _LIBCPP_STD_VER > 17
 
-// TODO FMT Remove this once we require compilers with proper C++20 support.
-// If the compiler has no concepts support, the format header will be disabled.
-// Without concepts support enable_if needs to be used and that too much effort
-// to support compilers with partial C++20 support.
-#if !defined(_LIBCPP_HAS_NO_CONCEPTS)
-
 namespace __format {
 
 template <class _CharT>
@@ -37,6 +31,9 @@ struct _LIBCPP_TEMPLATE_VIS __parse_number_result {
   const _CharT* __ptr;
   uint32_t __value;
 };
+
+template <class _CharT>
+__parse_number_result(const _CharT*, uint32_t) -> __parse_number_result<_CharT>;
 
 template <class _CharT>
 _LIBCPP_HIDE_FROM_ABI constexpr __parse_number_result<_CharT>
@@ -159,8 +156,6 @@ __parse_arg_id(const _CharT* __begin, const _CharT* __end, auto& __parse_ctx) {
 }
 
 } // namespace __format
-
-#endif // !defined(_LIBCPP_HAS_NO_CONCEPTS)
 
 #endif //_LIBCPP_STD_VER > 17
 

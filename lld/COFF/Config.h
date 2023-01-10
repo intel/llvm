@@ -11,17 +11,18 @@
 
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Object/COFF.h"
 #include "llvm/Support/CachePruning.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include <cstdint>
 #include <map>
 #include <set>
 #include <string>
 
-namespace lld {
-namespace coff {
+namespace lld::coff {
 
 using llvm::COFF::IMAGE_FILE_MACHINE_UNKNOWN;
 using llvm::COFF::WindowsSubsystem;
@@ -123,6 +124,7 @@ struct Configuration {
   bool showTiming = false;
   bool showSummary = false;
   unsigned debugTypes = static_cast<unsigned>(DebugType::None);
+  llvm::SmallVector<llvm::StringRef, 0> mllvmOpts;
   std::vector<std::string> natvisFiles;
   llvm::StringMap<std::string> namedStreams;
   llvm::SmallString<128> pdbAltPath;
@@ -140,6 +142,7 @@ struct Configuration {
   // True if we are creating a DLL.
   bool dll = false;
   StringRef implib;
+  bool noimplib = false;
   std::vector<Export> exports;
   bool hadExplicitExports;
   std::set<std::string> delayLoads;
@@ -170,8 +173,6 @@ struct Configuration {
   // Used for /opt:lldltocachepolicy=policy
   llvm::CachePruningPolicy ltoCachePolicy;
 
-  // Used for /opt:[no]ltonewpassmanager
-  bool ltoNewPassManager = false;
   // Used for /opt:[no]ltodebugpassmanager
   bool ltoDebugPassManager = false;
 
@@ -209,6 +210,9 @@ struct Configuration {
   // Used for /map.
   std::string mapFile;
 
+  // Used for /mapinfo.
+  bool mapInfo = false;
+
   // Used for /thinlto-index-only:
   llvm::StringRef thinLTOIndexOnlyArg;
 
@@ -238,6 +242,9 @@ struct Configuration {
 
   // Used for /print-symbol-order:
   StringRef printSymbolOrder;
+
+  // Used for /vfsoverlay:
+  std::unique_ptr<llvm::vfs::FileSystem> vfs;
 
   uint64_t align = 4096;
   uint64_t imageBase = -1;
@@ -286,7 +293,6 @@ struct Configuration {
 
 extern std::unique_ptr<Configuration> config;
 
-} // namespace coff
-} // namespace lld
+} // namespace lld::coff
 
 #endif

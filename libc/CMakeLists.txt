@@ -14,18 +14,21 @@ set(LIBC_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 # The top-level directory in which libc is being built.
 set(LIBC_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
+# For a runtimes build we need to manually include tablgen and LLVM directories.
+if ("libc" IN_LIST LLVM_ENABLE_RUNTIMES)
+  include(TableGen)
+  set(LLVM_LIBC_INCLUDE_DIRS ${LLVM_MAIN_INCLUDE_DIR} ${LLVM_BINARY_DIR}/include)
+endif()
+
 # Path libc/scripts directory.
 set(LIBC_BUILD_SCRIPTS_DIR "${LIBC_SOURCE_DIR}/utils/build_scripts")
 
-set(LIBC_TARGET_OS ${CMAKE_SYSTEM_NAME})
-string(TOLOWER ${LIBC_TARGET_OS} LIBC_TARGET_OS)
-
-# Defines LIBC_TARGET_ARCHITECTURE and associated macros.
-include(LLVMLibCArchitectures)
-include(LLVMLibCCheckMPFR)
-
 # Flags to pass down to the compiler while building the libc functions.
 set(LIBC_COMPILE_OPTIONS_DEFAULT "" CACHE STRING "Architecture to tell clang to optimize for (e.g. -march=... or -mcpu=...)")
+
+include(common_libc_tuners.cmake)
+
+list(APPEND LIBC_COMPILE_OPTIONS_DEFAULT ${LIBC_COMMON_TUNE_OPTIONS})
 
 # Check --print-resource-dir to find the compiler resource dir if this flag
 # is supported by the compiler.
@@ -49,31 +52,75 @@ else()
 endif()
 
 option(LLVM_LIBC_FULL_BUILD "Build and test LLVM libc as if it is the full libc" OFF)
-
+option(LLVM_LIBC_IMPLEMENTATION_DEFINED_TEST_BEHAVIOR "Build LLVM libc tests assuming our implementation-defined behavior" ON)
 option(LLVM_LIBC_ENABLE_LINTING "Enables linting of libc source files" OFF)
-if(LLVM_LIBC_ENABLE_LINTING AND (NOT LLVM_LIBC_FULL_BUILD))
-  message(FATAL_ERROR "Cannot enable linting when full libc build is not enabled.")
+
+# Set up the target architectures to build for the GPU
+set(ALL_GPU_ARCHITECTURES "sm_35;sm_37;sm_50;sm_52;sm_53;sm_60;sm_61;sm_62;sm_70;sm_72;sm_75;sm_80;sm_86;gfx700;gfx701;gfx801;gfx803;gfx900;gfx902;gfx906;gfx908;gfx90a;gfx90c;gfx940;gfx1010;gfx1030;gfx1031;gfx1032;gfx1033;gfx1034;gfx1035;gfx1036;gfx1100;gfx1101;gfx1102;gfx1103")
+set(LLVM_LIBC_GPU_ARCHITECTURES ${ALL_GPU_ARCHITECTURES} CACHE STRING "List of GPU architectures to support in LLVM libc")
+if (LLVM_LIBC_GPU_ARCHITECTURES STREQUAL "all")
+  set(LIBC_GPU_ARCHITECTURES ${ALL_GPU_ARCHITECTURES})
+else()
+  set(LIBC_GPU_ARCHITECTURES ${LLVM_LIBC_GPU_ARCHITECTURES})
 endif()
+
+set(LLVM_LIBC_TARGET_OS ${CMAKE_SYSTEM_NAME} CACHE STRING "Target operating system for LLVM libc")
+string(TOLOWER ${LLVM_LIBC_TARGET_OS} LIBC_TARGET_OS)
+
+# Defines LIBC_TARGET_ARCHITECTURE and associated macros.
+include(LLVMLibCArchitectures)
+include(LLVMLibCCheckMPFR)
+
+# Ensure the compiler is a valid clang when building the GPU target.
+if(LIBC_TARGET_ARCHITECTURE_IS_GPU AND NOT (CMAKE_CXX_COMPILER_ID MATCHES "[Cc]lang" AND 
+  ${CMAKE_CXX_COMPILER_VERSION} VERSION_EQUAL "${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}"))
+  message(FATAL_ERROR "Cannot build GPU library, CMake compiler '${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}' is not `Clang ${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}`")
+endif()
+if(LIBC_TARGET_ARCHITECTURE_IS_GPU AND NOT LLVM_LIBC_FULL_BUILD)
+  message(FATAL_ERROR "Cannot build GPU library, LLVM_LIBC_FULL_BUILD must be enabled")
+endif()
+
+if(LLVM_LIBC_CLANG_TIDY)
+  set(LLVM_LIBC_ENABLE_LINTING ON)
+endif()
+
 if(LLVM_LIBC_ENABLE_LINTING)
-  if("clang-tools-extra" IN_LIST LLVM_ENABLE_PROJECTS
-             AND "clang" IN_LIST LLVM_ENABLE_PROJECTS)
-    add_custom_target(lint-libc)
-    file(COPY ${LIBC_SOURCE_DIR}/.clang-tidy DESTINATION ${LIBC_BUILD_DIR})
+  if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    set(LLVM_LIBC_ENABLE_LINTING OFF)
+    message(WARNING "C++ compiler is not clang++, linting with be disabled.")
   else()
-    message(FATAL_ERROR "
-      'clang' and 'clang-tools-extra' are required in LLVM_ENABLE_PROJECTS to
-      lint llvm-libc. The linting step performs important checks to help prevent
-      the introduction of subtle bugs, but it may increase build times.
+    if (NOT LLVM_LIBC_CLANG_TIDY)
+      find_program(LLVM_LIBC_CLANG_TIDY NAMES clang-tidy)
+    endif()
 
-      To disable linting set LLVM_LIBC_ENABLE_LINTING to OFF
-      (pass -DLLVM_LIBC_ENABLE_LINTING=OFF to cmake).")
+    if(LLVM_LIBC_CLANG_TIDY)
+      # Check clang-tidy major version.
+      execute_process(COMMAND ${LLVM_LIBC_CLANG_TIDY} "--version"
+                      OUTPUT_VARIABLE CLANG_TIDY_OUTPUT)
+      string(REGEX MATCH "[0-9]+" CLANG_TIDY_VERSION "${CLANG_TIDY_OUTPUT}")
+      string(REGEX MATCH "[0-9]+" CLANG_MAJOR_VERSION
+             "${CMAKE_CXX_COMPILER_VERSION}")
+      if(NOT CLANG_TIDY_VERSION EQUAL CLANG_MAJOR_VERSION)
+        set(LLVM_LIBC_ENABLE_LINTING OFF)
+        message(WARNING "
+          'clang-tidy' (version ${CLANG_TIDY_VERSION}) is not the same as
+          'clang' (version ${CLANG_MAJOR_VERSION}).  Linting will
+          be disabled.
+
+          The path to the clang-tidy binary can be set manually by passing
+          -DLLVM_LIBC_CLANG_TIDY=<path/to/clang-tidy> to CMake.")
+      endif()
+    else()
+      message(FATAL_ERROR "
+        Linting is enabled but 'clang-tidy' is not found!
+
+        The path to the clang-tidy binary can be set manually by passing
+        -DLLVM_LIBC_CLANG_TIDY=<path/to/clang-tidy> to CMake.
+
+        To disable linting set LLVM_LIBC_ENABLE_LINTING to OFF
+        (pass -DLLVM_LIBC_ENABLE_LINTING=OFF to cmake).")
+    endif()
   endif()
-elseif(LLVM_LIBC_FULL_BUILD)
-  message(WARNING "
-    Linting for libc is currently disabled.
-
-    This is not recommended, to enable set LLVM_LIBC_ENABLE_LINTING to ON
-    (pass -DLLVM_LIBC_ENABLE_LINTING=ON to cmake).")
 endif()
 
 option(LLVM_LIBC_INCLUDE_SCUDO "Include the SCUDO standalone as the allocator for LLVM libc" OFF)
@@ -86,8 +133,8 @@ endif()
 option(LIBC_INCLUDE_DOCS "Build the libc documentation." ${LLVM_INCLUDE_DOCS})
 
 include(CMakeParseArguments)
-include(LLVMLibCRules)
 include(LLVMLibCCheckCpuFeatures)
+include(LLVMLibCRules)
 
 if(EXISTS "${LIBC_SOURCE_DIR}/config/${LIBC_TARGET_OS}/${LIBC_TARGET_ARCHITECTURE}/entrypoints.txt")
   set(entrypoint_file "${LIBC_SOURCE_DIR}/config/${LIBC_TARGET_OS}/${LIBC_TARGET_ARCHITECTURE}/entrypoints.txt")
@@ -122,6 +169,28 @@ if(LLVM_LIBC_FULL_BUILD)
   add_subdirectory(utils/HdrGen)
 endif()
 
+set(LIBC_TARGET)
+set(LIBC_COMPONENT)
+set(LIBC_INSTALL_DEPENDS)
+set(LIBC_INSTALL_TARGET)
+if(LLVM_LIBC_FULL_BUILD)
+  set(LIBC_TARGET libc)
+  set(LIBC_COMPONENT libc)
+  set(LIBC_INSTALL_DEPENDS "libc;install-libc-headers;libc-startup")
+  set(LIBC_INSTALL_TARGET install-libc)
+  if(LIBC_TARGET_ARCHITECTURE_IS_GPU)
+    set(LIBC_ARCHIVE_NAME cgpu)
+  else()
+    set(LIBC_ARCHIVE_NAME c)
+  endif()
+else()
+  set(LIBC_TARGET llvmlibc)
+  set(LIBC_COMPONENT llvmlibc)
+  set(LIBC_INSTALL_DEPENDS llvmlibc)
+  set(LIBC_INSTALL_TARGET install-llvmlibc)
+  set(LIBC_ARCHIVE_NAME llvmlibc)
+endif()
+
 add_subdirectory(include)
 add_subdirectory(config)
 add_subdirectory(src)
@@ -136,14 +205,32 @@ endif()
 # The lib and test directories are added at the very end as tests
 # and libraries potentially draw from the components present in all
 # of the other directories.
+# TODO: Add testing support for the libc GPU target.
 add_subdirectory(lib)
-if(LLVM_INCLUDE_TESTS)
+if(LLVM_INCLUDE_TESTS AND NOT LIBC_TARGET_ARCHITECTURE_IS_GPU)
   add_subdirectory(test)
   add_subdirectory(fuzzing)
 endif()
 
-add_subdirectory(benchmarks)
+if(LIBC_INCLUDE_BENCHMARKS)
+  add_subdirectory(benchmarks)
+endif()
 
 if (LIBC_INCLUDE_DOCS)
   add_subdirectory(docs)
 endif()
+
+
+if(LLVM_LIBC_FULL_BUILD)
+  add_llvm_install_targets(
+    install-libc-headers
+    DEPENDS libc-headers
+    COMPONENT libc-headers
+  )
+endif()
+
+add_llvm_install_targets(
+  ${LIBC_INSTALL_TARGET}
+  DEPENDS ${LIBC_INSTALL_DEPENDS}
+  COMPONENT ${LIBC_COMPONENT}
+)

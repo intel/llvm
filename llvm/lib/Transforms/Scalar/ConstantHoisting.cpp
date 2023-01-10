@@ -35,7 +35,6 @@
 #include "llvm/Transforms/Scalar/ConstantHoisting.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -52,6 +51,7 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Operator.h"
 #include "llvm/IR/Value.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
@@ -220,7 +220,7 @@ static void findBestInsertionSet(DominatorTree &DT, BlockFrequencyInfo &BFI,
   // dominated by any other blocks in set 'BBs', and all nodes in the path
   // in the dominator tree from Entry to 'BB'.
   SmallPtrSet<BasicBlock *, 16> Candidates;
-  for (auto BB : BBs) {
+  for (auto *BB : BBs) {
     // Ignore unreachable basic blocks.
     if (!DT.isReachableFromEntry(BB))
       continue;
@@ -257,7 +257,7 @@ static void findBestInsertionSet(DominatorTree &DT, BlockFrequencyInfo &BFI,
   Orders.push_back(Entry);
   while (Idx != Orders.size()) {
     BasicBlock *Node = Orders[Idx++];
-    for (auto ChildDomNode : DT.getNode(Node)->children()) {
+    for (auto *ChildDomNode : DT.getNode(Node)->children()) {
       if (Candidates.count(ChildDomNode->getBlock()))
         Orders.push_back(ChildDomNode->getBlock());
     }
@@ -329,7 +329,7 @@ SetVector<Instruction *> ConstantHoistingPass::findConstantInsertionPoint(
 
   if (BFI) {
     findBestInsertionSet(*DT, *BFI, Entry, BBs);
-    for (auto BB : BBs) {
+    for (auto *BB : BBs) {
       BasicBlock::iterator InsertPt = BB->begin();
       for (; isa<PHINode>(InsertPt) || InsertPt->isEHPad(); ++InsertPt)
         ;
@@ -533,7 +533,7 @@ void ConstantHoistingPass::collectConstantCandidates(Function &Fn) {
 // represented in uint64 we return an "empty" APInt. This is then interpreted
 // as the value is not in range.
 static Optional<APInt> calculateOffsetDiff(const APInt &V1, const APInt &V2) {
-  Optional<APInt> Res = None;
+  Optional<APInt> Res;
   unsigned BW = V1.getBitWidth() > V2.getBitWidth() ?
                 V1.getBitWidth() : V2.getBitWidth();
   uint64_t LimVal1 = V1.getLimitedValue();
@@ -610,9 +610,9 @@ ConstantHoistingPass::maximizeConstantsInRange(ConstCandVecType::iterator S,
                                    ConstCand->ConstInt->getValue());
         if (Diff) {
           const InstructionCost ImmCosts =
-              TTI->getIntImmCodeSizeCost(Opcode, OpndIdx, Diff.getValue(), Ty);
+              TTI->getIntImmCodeSizeCost(Opcode, OpndIdx, Diff.value(), Ty);
           Cost -= ImmCosts;
-          LLVM_DEBUG(dbgs() << "Offset " << Diff.getValue() << " "
+          LLVM_DEBUG(dbgs() << "Offset " << Diff.value() << " "
                             << "has penalty: " << ImmCosts << "\n"
                             << "Adjusted cost: " << Cost << "\n");
         }

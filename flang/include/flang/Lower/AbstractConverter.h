@@ -14,8 +14,13 @@
 #define FORTRAN_LOWER_ABSTRACTCONVERTER_H
 
 #include "flang/Common/Fortran.h"
+#include "flang/Lower/LoweringOptions.h"
+#include "flang/Lower/PFTDefs.h"
 #include "flang/Optimizer/Builder/BoxValue.h"
+#include "flang/Semantics/symbol.h"
+#include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/Operation.h"
 #include "llvm/ADT/ArrayRef.h"
 
 namespace fir {
@@ -75,29 +80,93 @@ public:
   /// Get the mlir instance of a symbol.
   virtual mlir::Value getSymbolAddress(SymbolRef sym) = 0;
 
+  virtual fir::ExtendedValue
+  getSymbolExtendedValue(const Fortran::semantics::Symbol &sym) = 0;
+
+  /// Get the binding of an implied do variable by name.
+  virtual mlir::Value impliedDoBinding(llvm::StringRef name) = 0;
+
+  /// Copy the binding of src to target symbol.
+  virtual void copySymbolBinding(SymbolRef src, SymbolRef target) = 0;
+
+  /// Binds the symbol to an fir extended value. The symbol binding will be
+  /// added or replaced at the inner-most level of the local symbol map.
+  virtual void bindSymbol(SymbolRef sym, const fir::ExtendedValue &exval) = 0;
+
+  /// Get the label set associated with a symbol.
+  virtual bool lookupLabelSet(SymbolRef sym, pft::LabelSet &labelSet) = 0;
+
+  /// Get the code defined by a label
+  virtual pft::Evaluation *lookupLabel(pft::Label label) = 0;
+
+  /// For a given symbol which is host-associated, create a clone using
+  /// parameters from the host-associated symbol.
+  virtual bool
+  createHostAssociateVarClone(const Fortran::semantics::Symbol &sym) = 0;
+
+  virtual void copyHostAssociateVar(
+      const Fortran::semantics::Symbol &sym,
+      mlir::OpBuilder::InsertPoint *copyAssignIP = nullptr) = 0;
+
+  /// Collect the set of symbols with \p flag in \p eval
+  /// region if \p collectSymbols is true. Likewise, collect the
+  /// set of the host symbols with \p flag of the associated symbols in \p eval
+  /// region if collectHostAssociatedSymbols is true.
+  virtual void collectSymbolSet(
+      pft::Evaluation &eval,
+      llvm::SetVector<const Fortran::semantics::Symbol *> &symbolSet,
+      Fortran::semantics::Symbol::Flag flag, bool collectSymbols = true,
+      bool collectHostAssociatedSymbols = false) = 0;
+
   //===--------------------------------------------------------------------===//
   // Expressions
   //===--------------------------------------------------------------------===//
 
-  /// Generate the address of the location holding the expression, someExpr.
-  virtual fir::ExtendedValue genExprAddr(const SomeExpr &, StatementContext &,
-                                         mlir::Location *loc = nullptr) = 0;
-  /// Generate the address of the location holding the expression, someExpr
-  fir::ExtendedValue genExprAddr(const SomeExpr *someExpr,
-                                 StatementContext &stmtCtx,
-                                 mlir::Location loc) {
-    return genExprAddr(*someExpr, stmtCtx, &loc);
+  /// Generate the address of the location holding the expression, \p expr.
+  /// If \p expr is a Designator that is not compile time contiguous, the
+  /// address returned is the one of a contiguous temporary storage holding the
+  /// expression value. The clean-up for this temporary is added to \p context.
+  virtual fir::ExtendedValue genExprAddr(const SomeExpr &expr,
+                                         StatementContext &context,
+                                         mlir::Location *locPtr = nullptr) = 0;
+
+  /// Generate the address of the location holding the expression, \p expr.
+  fir::ExtendedValue genExprAddr(mlir::Location loc, const SomeExpr *expr,
+                                 StatementContext &stmtCtx) {
+    return genExprAddr(*expr, stmtCtx, &loc);
+  }
+  fir::ExtendedValue genExprAddr(mlir::Location loc, const SomeExpr &expr,
+                                 StatementContext &stmtCtx) {
+    return genExprAddr(expr, stmtCtx, &loc);
   }
 
-  /// Generate the computations of the expression to produce a value
-  virtual fir::ExtendedValue genExprValue(const SomeExpr &, StatementContext &,
-                                          mlir::Location *loc = nullptr) = 0;
-  /// Generate the computations of the expression, someExpr, to produce a value
-  fir::ExtendedValue genExprValue(const SomeExpr *someExpr,
-                                  StatementContext &stmtCtx,
-                                  mlir::Location loc) {
-    return genExprValue(*someExpr, stmtCtx, &loc);
+  /// Generate the computations of the expression to produce a value.
+  virtual fir::ExtendedValue genExprValue(const SomeExpr &expr,
+                                          StatementContext &context,
+                                          mlir::Location *locPtr = nullptr) = 0;
+
+  /// Generate the computations of the expression, \p expr, to produce a value.
+  fir::ExtendedValue genExprValue(mlir::Location loc, const SomeExpr *expr,
+                                  StatementContext &stmtCtx) {
+    return genExprValue(*expr, stmtCtx, &loc);
   }
+  fir::ExtendedValue genExprValue(mlir::Location loc, const SomeExpr &expr,
+                                  StatementContext &stmtCtx) {
+    return genExprValue(expr, stmtCtx, &loc);
+  }
+
+  /// Generate or get a fir.box describing the expression. If SomeExpr is
+  /// a Designator, the fir.box describes an entity over the Designator base
+  /// storage without making a temporary.
+  virtual fir::ExtendedValue genExprBox(mlir::Location loc,
+                                        const SomeExpr &expr,
+                                        StatementContext &stmtCtx) = 0;
+
+  /// Generate the address of the box describing the variable designated
+  /// by the expression. The expression must be an allocatable or pointer
+  /// designator.
+  virtual fir::MutableBoxValue genExprMutableBox(mlir::Location loc,
+                                                 const SomeExpr &expr) = 0;
 
   /// Get FoldingContext that is required for some expression
   /// analysis.
@@ -107,22 +176,37 @@ public:
   /// which is itself a reference. Use bindTuple() to set this value.
   virtual mlir::Value hostAssocTupleValue() = 0;
 
+  /// Record a binding for the ssa-value of the host assoications tuple for this
+  /// function.
+  virtual void bindHostAssocTuple(mlir::Value val) = 0;
+
   //===--------------------------------------------------------------------===//
   // Types
   //===--------------------------------------------------------------------===//
 
-  /// Generate the type of a DataRef
-  virtual mlir::Type genType(const Fortran::evaluate::DataRef &) = 0;
   /// Generate the type of an Expr
   virtual mlir::Type genType(const SomeExpr &) = 0;
   /// Generate the type of a Symbol
   virtual mlir::Type genType(SymbolRef) = 0;
   /// Generate the type from a category
   virtual mlir::Type genType(Fortran::common::TypeCategory tc) = 0;
-  /// Generate the type from a category and kind
-  virtual mlir::Type genType(Fortran::common::TypeCategory tc, int kind) = 0;
+  /// Generate the type from a category and kind and length parameters.
+  virtual mlir::Type
+  genType(Fortran::common::TypeCategory tc, int kind,
+          llvm::ArrayRef<std::int64_t> lenParameters = std::nullopt) = 0;
+  /// Generate the type from a DerivedTypeSpec.
+  virtual mlir::Type genType(const Fortran::semantics::DerivedTypeSpec &) = 0;
   /// Generate the type from a Variable
   virtual mlir::Type genType(const pft::Variable &) = 0;
+
+  /// Register a runtime derived type information object symbol to ensure its
+  /// object will be generated as a global.
+  virtual void registerRuntimeTypeInfo(mlir::Location loc,
+                                       SymbolRef typeInfoSym) = 0;
+
+  virtual void registerDispatchTableInfo(
+      mlir::Location loc,
+      const Fortran::semantics::DerivedTypeSpec *typeSpec) = 0;
 
   //===--------------------------------------------------------------------===//
   // Locations
@@ -150,7 +234,22 @@ public:
   /// Get the KindMap.
   virtual const fir::KindMapping &getKindMap() = 0;
 
+  AbstractConverter(const Fortran::lower::LoweringOptions &loweringOptions)
+      : loweringOptions(loweringOptions) {}
   virtual ~AbstractConverter() = default;
+
+  //===--------------------------------------------------------------------===//
+  // Miscellaneous
+  //===--------------------------------------------------------------------===//
+
+  /// Return options controlling lowering behavior.
+  const Fortran::lower::LoweringOptions &getLoweringOptions() const {
+    return loweringOptions;
+  }
+
+private:
+  /// Options controlling lowering behavior.
+  const Fortran::lower::LoweringOptions &loweringOptions;
 };
 
 } // namespace lower

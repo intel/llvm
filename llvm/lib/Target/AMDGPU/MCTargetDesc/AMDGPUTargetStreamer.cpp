@@ -106,6 +106,7 @@ StringRef AMDGPUTargetStreamer::getArchNameFromElfMach(unsigned ElfMach) {
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX909:  AK = GK_GFX909;  break;
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX90A:  AK = GK_GFX90A;  break;
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX90C:  AK = GK_GFX90C;  break;
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX940:  AK = GK_GFX940;  break;
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1010: AK = GK_GFX1010; break;
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1011: AK = GK_GFX1011; break;
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1012: AK = GK_GFX1012; break;
@@ -116,6 +117,11 @@ StringRef AMDGPUTargetStreamer::getArchNameFromElfMach(unsigned ElfMach) {
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1033: AK = GK_GFX1033; break;
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1034: AK = GK_GFX1034; break;
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1035: AK = GK_GFX1035; break;
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1036: AK = GK_GFX1036; break;
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1100: AK = GK_GFX1100; break;
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1101: AK = GK_GFX1101; break;
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1102: AK = GK_GFX1102; break;
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1103: AK = GK_GFX1103; break;
   case ELF::EF_AMDGPU_MACH_NONE:           AK = GK_NONE;    break;
   }
 
@@ -169,6 +175,7 @@ unsigned AMDGPUTargetStreamer::getElfMach(StringRef GPU) {
   case GK_GFX909:  return ELF::EF_AMDGPU_MACH_AMDGCN_GFX909;
   case GK_GFX90A:  return ELF::EF_AMDGPU_MACH_AMDGCN_GFX90A;
   case GK_GFX90C:  return ELF::EF_AMDGPU_MACH_AMDGCN_GFX90C;
+  case GK_GFX940:  return ELF::EF_AMDGPU_MACH_AMDGCN_GFX940;
   case GK_GFX1010: return ELF::EF_AMDGPU_MACH_AMDGCN_GFX1010;
   case GK_GFX1011: return ELF::EF_AMDGPU_MACH_AMDGCN_GFX1011;
   case GK_GFX1012: return ELF::EF_AMDGPU_MACH_AMDGCN_GFX1012;
@@ -179,6 +186,11 @@ unsigned AMDGPUTargetStreamer::getElfMach(StringRef GPU) {
   case GK_GFX1033: return ELF::EF_AMDGPU_MACH_AMDGCN_GFX1033;
   case GK_GFX1034: return ELF::EF_AMDGPU_MACH_AMDGCN_GFX1034;
   case GK_GFX1035: return ELF::EF_AMDGPU_MACH_AMDGCN_GFX1035;
+  case GK_GFX1036: return ELF::EF_AMDGPU_MACH_AMDGCN_GFX1036;
+  case GK_GFX1100: return ELF::EF_AMDGPU_MACH_AMDGCN_GFX1100;
+  case GK_GFX1101: return ELF::EF_AMDGPU_MACH_AMDGCN_GFX1101;
+  case GK_GFX1102: return ELF::EF_AMDGPU_MACH_AMDGCN_GFX1102;
+  case GK_GFX1103: return ELF::EF_AMDGPU_MACH_AMDGCN_GFX1103;
   case GK_NONE:    return ELF::EF_AMDGPU_MACH_NONE;
   }
 
@@ -289,7 +301,7 @@ bool AMDGPUTargetAsmStreamer::EmitCodeEnd(const MCSubtargetInfo &STI) {
   uint32_t Encoded_pad = Encoded_s_code_end;
 
   // Instruction cache line size in bytes.
-  const unsigned Log2CacheLineSize = 6;
+  const unsigned Log2CacheLineSize = AMDGPU::isGFX11Plus(STI) ? 7 : 6;
   const unsigned CacheLineSize = 1u << Log2CacheLineSize;
 
   // Extra padding amount in bytes to support prefetch mode 3.
@@ -355,6 +367,9 @@ void AMDGPUTargetAsmStreamer::EmitAmdhsaKernelDescriptor(
     PRINT_FIELD(OS, ".amdhsa_wavefront_size32", KD,
                 kernel_code_properties,
                 amdhsa::KERNEL_CODE_PROPERTY_ENABLE_WAVEFRONT_SIZE32);
+  if (AMDGPU::getAmdhsaCodeObjectVersion() >= 5)
+    PRINT_FIELD(OS, ".amdhsa_uses_dynamic_stack", KD, kernel_code_properties,
+                amdhsa::KERNEL_CODE_PROPERTY_USES_DYNAMIC_STACK);
   PRINT_FIELD(OS,
               (hasArchitectedFlatScratch(STI)
                    ? ".amdhsa_enable_private_segment"
@@ -443,6 +458,8 @@ void AMDGPUTargetAsmStreamer::EmitAmdhsaKernelDescriptor(
     PRINT_FIELD(OS, ".amdhsa_forward_progress", KD,
                 compute_pgm_rsrc1,
                 amdhsa::COMPUTE_PGM_RSRC1_FWD_PROGRESS);
+    PRINT_FIELD(OS, ".amdhsa_shared_vgpr_count", KD, compute_pgm_rsrc3,
+                amdhsa::COMPUTE_PGM_RSRC3_GFX10_PLUS_SHARED_VGPR_COUNT);
   }
   PRINT_FIELD(
       OS, ".amdhsa_exception_fp_ieee_invalid_op", KD,
@@ -519,17 +536,17 @@ void AMDGPUTargetELFStreamer::EmitNote(
   if (STI.getTargetTriple().getOS() == Triple::AMDHSA)
     NoteFlags = ELF::SHF_ALLOC;
 
-  S.PushSection();
-  S.SwitchSection(
+  S.pushSection();
+  S.switchSection(
       Context.getELFSection(ElfNote::SectionName, ELF::SHT_NOTE, NoteFlags));
   S.emitInt32(NameSZ);                                        // namesz
   S.emitValue(DescSZ, 4);                                     // descz
   S.emitInt32(NoteType);                                      // type
   S.emitBytes(Name);                                          // name
-  S.emitValueToAlignment(4, 0, 1, 0);                         // padding 0
+  S.emitValueToAlignment(Align(4), 0, 1, 0);                  // padding 0
   EmitDesc(S);                                                // desc
-  S.emitValueToAlignment(4, 0, 1, 0);                         // padding 0
-  S.PopSection();
+  S.emitValueToAlignment(Align(4), 0, 1, 0);                  // padding 0
+  S.popSection();
 }
 
 unsigned AMDGPUTargetELFStreamer::getEFlags() {
@@ -703,9 +720,9 @@ void
 AMDGPUTargetELFStreamer::EmitAMDKernelCodeT(const amd_kernel_code_t &Header) {
 
   MCStreamer &OS = getStreamer();
-  OS.PushSection();
+  OS.pushSection();
   OS.emitBytes(StringRef((const char*)&Header, sizeof(Header)));
-  OS.PopSection();
+  OS.popSection();
 }
 
 void AMDGPUTargetELFStreamer::EmitAMDGPUSymbolType(StringRef SymbolName,
@@ -725,7 +742,7 @@ void AMDGPUTargetELFStreamer::emitAMDGPULDS(MCSymbol *Symbol, unsigned Size,
     SymbolELF->setExternal(true);
   }
 
-  if (SymbolELF->declareCommon(Size, Alignment.value(), true)) {
+  if (SymbolELF->declareCommon(Size, Alignment, true)) {
     report_fatal_error("Symbol: " + Symbol->getName() +
                        " redeclared as different type");
   }
@@ -810,7 +827,7 @@ bool AMDGPUTargetELFStreamer::EmitCodeEnd(const MCSubtargetInfo &STI) {
   uint32_t Encoded_pad = Encoded_s_code_end;
 
   // Instruction cache line size in bytes.
-  const unsigned Log2CacheLineSize = 6;
+  const unsigned Log2CacheLineSize = AMDGPU::isGFX11Plus(STI) ? 7 : 6;
   const unsigned CacheLineSize = 1u << Log2CacheLineSize;
 
   // Extra padding amount in bytes to support prefetch mode 3.
@@ -822,11 +839,11 @@ bool AMDGPUTargetELFStreamer::EmitCodeEnd(const MCSubtargetInfo &STI) {
   }
 
   MCStreamer &OS = getStreamer();
-  OS.PushSection();
-  OS.emitValueToAlignment(CacheLineSize, Encoded_pad, 4);
+  OS.pushSection();
+  OS.emitValueToAlignment(Align(CacheLineSize), Encoded_pad, 4);
   for (unsigned I = 0; I < FillSize; I += 4)
     OS.emitInt32(Encoded_pad);
-  OS.PopSection();
+  OS.popSection();
   return true;
 }
 

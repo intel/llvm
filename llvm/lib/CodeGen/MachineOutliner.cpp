@@ -59,6 +59,8 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/Analysis/OptimizationRemarkEmitter.h"
+#include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineOptimizationRemarkEmitter.h"
 #include "llvm/CodeGen/Passes.h"
@@ -663,17 +665,20 @@ MachineFunction *MachineOutliner::createOutlinedFunction(
        ++I) {
     if (I->isDebugInstr())
       continue;
-    MachineInstr *NewMI = MF.CloneMachineInstr(&*I);
-    if (I->isCFIInstruction()) {
-      unsigned CFIIndex = NewMI->getOperand(0).getCFIIndex();
-      MCCFIInstruction CFI = Instrs[CFIIndex];
-      (void)MF.addFrameInst(CFI);
-    }
-    NewMI->dropMemRefs(MF);
 
     // Don't keep debug information for outlined instructions.
-    NewMI->setDebugLoc(DebugLoc());
-    MBB.insert(MBB.end(), NewMI);
+    auto DL = DebugLoc();
+    if (I->isCFIInstruction()) {
+      unsigned CFIIndex = I->getOperand(0).getCFIIndex();
+      MCCFIInstruction CFI = Instrs[CFIIndex];
+      BuildMI(MBB, MBB.end(), DL, TII.get(TargetOpcode::CFI_INSTRUCTION))
+          .addCFIIndex(MF.addFrameInst(CFI));
+    } else {
+      MachineInstr *NewMI = MF.CloneMachineInstr(&*I);
+      NewMI->dropMemRefs(MF);
+      NewMI->setDebugLoc(DL);
+      MBB.insert(MBB.end(), NewMI);
+    }
   }
 
   // Set normal properties for a late MachineFunction.
@@ -722,7 +727,8 @@ MachineFunction *MachineOutliner::createOutlinedFunction(
         Unit /* Context */, F->getName(), StringRef(MangledNameStream.str()),
         Unit /* File */,
         0 /* Line 0 is reserved for compiler-generated code. */,
-        DB.createSubroutineType(DB.getOrCreateTypeArray(None)), /* void type */
+        DB.createSubroutineType(
+            DB.getOrCreateTypeArray(std::nullopt)), /* void type */
         0, /* Line 0 is reserved for compiler-generated code. */
         DINode::DIFlags::FlagArtificial /* Compiler-generated code. */,
         /* Outlined code is optimized code by definition. */
@@ -853,9 +859,10 @@ bool MachineOutliner::outline(Module &M,
       MBB.erase(std::next(StartIt), std::next(EndIt));
 
       // Keep track of what we removed by marking them all as -1.
-      std::for_each(Mapper.UnsignedVec.begin() + C.getStartIdx(),
-                    Mapper.UnsignedVec.begin() + C.getEndIdx() + 1,
-                    [](unsigned &I) { I = static_cast<unsigned>(-1); });
+      for (unsigned &I :
+           llvm::make_range(Mapper.UnsignedVec.begin() + C.getStartIdx(),
+                            Mapper.UnsignedVec.begin() + C.getEndIdx() + 1))
+        I = static_cast<unsigned>(-1);
       OutlinedSomething = true;
 
       // Statistics.

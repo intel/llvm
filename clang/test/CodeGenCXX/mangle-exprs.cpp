@@ -165,7 +165,7 @@ namespace test2 {
     i<float(*)()>(baz);
   }
 
-  // CHECK: store float {{.*}}, float* @_ZZN5test21gIPFfvEEEvT_DTclfL0p_EEE8variable,
+  // CHECK: store float {{.*}}, ptr @_ZZN5test21gIPFfvEEEvT_DTclfL0p_EEE8variable,
 }
 
 namespace test3 {

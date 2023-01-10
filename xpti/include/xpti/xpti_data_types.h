@@ -69,7 +69,7 @@ template <> struct hash<xpti::uid_t> {
 
 namespace xpti {
 constexpr int invalid_id = -1;
-constexpr int invalid_uid = 0;
+constexpr uint64_t invalid_uid = 0;
 constexpr uint8_t default_vendor = 0;
 
 /// @brief Flag values used by the payload_t structure to mark the information
@@ -376,7 +376,7 @@ enum class trace_point_type_t : uint16_t {
   /// Used to trace function call begin and its arguments.
   function_with_args_begin = XPTI_TRACE_POINT_BEGIN(14),
   /// Used to trace function call end.
-  function_with_args_end = XPTI_TRACE_POINT_END(15),
+  function_with_args_end = XPTI_TRACE_POINT_END(14),
   /// Used to notify that a new memory allocation is about to start.
   mem_alloc_begin = XPTI_TRACE_POINT_BEGIN(16),
   /// Used to notify that a memory allocation took place.
@@ -394,8 +394,14 @@ enum class trace_point_type_t : uint16_t {
   offload_alloc_destruct = XPTI_TRACE_POINT_BEGIN(22),
   /// Used to notify about releasing internal handle for offload buffer
   offload_alloc_release = XPTI_TRACE_POINT_BEGIN(23),
-  /// Used to notify about creation accessor for ofload buffer
+  /// Used to notify about creation accessor for offload buffer
   offload_alloc_accessor = XPTI_TRACE_POINT_BEGIN(24),
+  /// User to notify when a queue has been created
+  queue_create = XPTI_TRACE_POINT_BEGIN(25),
+  /// User to notify when a queue has been destroyed
+  queue_destroy = XPTI_TRACE_POINT_END(25),
+  /// Used to notify error/informational messages and no action to take
+  diagnostics = XPTI_TRACE_POINT_BEGIN(63),
   /// Indicates that the trace point is user defined and only the tool defined
   /// for a stream will be able to handle it
   user_defined = 1 << 7
@@ -569,6 +575,31 @@ struct offload_buffer_association_data_t {
   /// A pointer to platform specific handler for the offload object
   uintptr_t mem_object_handle = 0;
 };
+
+/// Describes enqueued kernel object
+struct offload_kernel_enqueue_data_t {
+  /// Global size
+  size_t global_size[3] = {0, 0, 0};
+  /// Local size
+  size_t local_size[3] = {0, 0, 0};
+  /// Offset
+  size_t offset[3] = {0, 0, 0};
+  /// Number of kernel arguments
+  size_t args_num = 0;
+};
+
+/// Describes enqueued kernel argument
+struct offload_kernel_arg_data_t {
+  /// Argument type as set in kernel_param_kind_t
+  int type = -1;
+  /// Pointer to the data
+  void *pointer = nullptr;
+  /// Size of the argument
+  int size = 0;
+  /// Index of the argument in the kernel
+  int index = 0;
+};
+
 /// Describes memory allocation
 struct mem_alloc_data_t {
   /// A platform-specific memory object handle. Some heterogeneous programming

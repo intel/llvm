@@ -8,8 +8,8 @@
 
 // <string>
 
-// const charT& front() const;
-//       charT& front();
+// const charT& front() const; // constexpr since C++20
+//       charT& front(); // constexpr since C++20
 
 #include <string>
 #include <cassert>
@@ -32,18 +32,16 @@ test(S s)
     assert(s.front() == typename S::value_type('z'));
 }
 
-bool test() {
-  {
-    typedef std::string S;
-    test(S("1"));
-    test(S("1234567890123456789012345678901234567890"));
-  }
+template <class S>
+TEST_CONSTEXPR_CXX20 void test_string() {
+  test(S("1"));
+  test(S("1234567890123456789012345678901234567890"));
+}
+
+TEST_CONSTEXPR_CXX20 bool test() {
+  test_string<std::string>();
 #if TEST_STD_VER >= 11
-  {
-    typedef std::basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test(S("1"));
-    test(S("1234567890123456789012345678901234567890"));
-  }
+  test_string<std::basic_string<char, std::char_traits<char>, min_allocator<char>>>();
 #endif
 
   return true;
@@ -53,7 +51,7 @@ int main(int, char**)
 {
   test();
 #if TEST_STD_VER > 17
-  // static_assert(test());
+  static_assert(test());
 #endif
 
   return 0;

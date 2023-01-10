@@ -7,23 +7,23 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/exception_list.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/property_list.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_program_cache.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/exception_list.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/property_list.hpp>
+#include <sycl/stl.hpp>
 
 #include <map>
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declaration
 class device;
 namespace detail {
@@ -54,7 +54,7 @@ public:
   /// \param DeviceList is a list of SYCL device instances.
   /// \param AsyncHandler is an instance of async_handler.
   /// \param PropList is an instance of property_list.
-  context_impl(const std::vector<cl::sycl::device> DeviceList,
+  context_impl(const std::vector<sycl::device> DeviceList,
                async_handler AsyncHandler, const property_list &PropList);
 
   /// Construct a context_impl using plug-in interoperability handle.
@@ -74,7 +74,7 @@ public:
   /// Checks if this context_impl has a property of type propertyT.
   ///
   /// \return true if this context_impl has a property of type propertyT.
-  template <typename propertyT> bool has_property() const {
+  template <typename propertyT> bool has_property() const noexcept {
     return MPropList.has_property<propertyT>();
   }
 
@@ -112,9 +112,7 @@ public:
   /// Queries this context for information.
   ///
   /// The return type depends on information being queried.
-  template <info::context param>
-  typename info::param_traits<info::context, param>::return_type
-  get_info() const;
+  template <typename Param> typename Param::return_type get_info() const;
 
   /// Gets the underlying context object (if any) without reference count
   /// modification.
@@ -140,6 +138,9 @@ public:
   /// reference.
   const std::vector<device> &getDevices() const { return MDevices; }
 
+  using CachedLibProgramsT =
+      std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>;
+
   /// In contrast to user programs, which are compiled from user code, library
   /// programs come from the SYCL runtime. They are identified by the
   /// corresponding extension:
@@ -151,10 +152,10 @@ public:
   /// See `doc/design/DeviceLibExtensions.rst' for
   /// more details.
   ///
-  /// \returns a map with device library programs.
-  std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram> &
-  getCachedLibPrograms() {
-    return MCachedLibPrograms;
+  /// \returns an instance of sycl::detail::Locked which wraps a map with device
+  /// library programs and the corresponding lock for synchronized access.
+  Locked<CachedLibProgramsT> acquireCachedLibPrograms() {
+    return {MCachedLibPrograms, MCachedLibProgramsMutex};
   }
 
   KernelProgramCache &getKernelProgramCache() const;
@@ -162,10 +163,40 @@ public:
   /// Returns true if and only if context contains the given device.
   bool hasDevice(std::shared_ptr<detail::device_impl> Device) const;
 
+  /// Returns true if and only if the device can be used within this context.
+  /// For OpenCL this is currently equivalent to hasDevice, for other backends
+  /// it returns true if the device is either a member of the context or a
+  /// descendant of a member.
+  bool isDeviceValid(DeviceImplPtr Device) {
+    // OpenCL does not support using descendants of context members within that
+    // context yet.
+    // TODO remove once this limitation is lifted
+    if (!is_host() && getPlugin().getBackend() == backend::opencl)
+      return hasDevice(Device);
+
+    while (!hasDevice(Device)) {
+      if (Device->isRootDevice())
+        return false;
+      Device = detail::getSyclObjImpl(
+          Device->get_info<info::device::parent_device>());
+    }
+
+    return true;
+  }
+
+  /// Given a PiDevice, returns the matching shared_ptr<device_impl>
+  /// within this context. May return nullptr if no match discovered.
+  DeviceImplPtr findMatchingDeviceImpl(RT::PiDevice &DevicePI) const;
+
   /// Gets the native handle of the SYCL context.
   ///
   /// \return a native handle.
   pi_native_handle getNative() const;
+
+  // Returns true if buffer_location property is supported by devices
+  bool isBufferLocationSupported() const;
+
+  enum PropertySupport { NotSupported = 0, Supported = 1, NotChecked = 2 };
 
 private:
   async_handler MAsyncHandler;
@@ -174,11 +205,12 @@ private:
   PlatformImplPtr MPlatform;
   property_list MPropList;
   bool MHostContext;
-  std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
-      MCachedLibPrograms;
+  CachedLibProgramsT MCachedLibPrograms;
+  std::mutex MCachedLibProgramsMutex;
   mutable KernelProgramCache MKernelProgramCache;
+  mutable PropertySupport MSupportBufferLocationByDevices;
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

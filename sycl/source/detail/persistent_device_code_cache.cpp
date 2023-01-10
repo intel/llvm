@@ -6,21 +6,23 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <cstdio>
 #include <detail/device_impl.hpp>
 #include <detail/persistent_device_code_cache.hpp>
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
-#if defined(__SYCL_RT_OS_LINUX)
+#include <cstdio>
+#include <optional>
+
+#if defined(__SYCL_RT_OS_POSIX_SUPPORT)
 #include <unistd.h>
 #else
 #include <direct.h>
 #include <io.h>
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 /* Lock file suffix */
@@ -45,11 +47,17 @@ LockCacheItem::~LockCacheItem() {
                                      FileName);
 }
 
+// Returns true if the specified format is either SPIRV or a native binary.
+static bool IsSupportedImageFormat(RT::PiDeviceBinaryType Format) {
+  return Format == PI_DEVICE_BINARY_TYPE_SPIRV ||
+         Format == PI_DEVICE_BINARY_TYPE_NATIVE;
+}
+
 /* Returns true if specified image should be cached on disk. It checks if
- * cache is enabled, image has SPIRV type and matches thresholds. */
+ * cache is enabled, image has supported format and matches thresholds. */
 bool PersistentDeviceCodeCache::isImageCached(const RTDeviceBinaryImage &Img) {
-  // Cache shoould be enabled and image type should be SPIR-V
-  if (!isEnabled() || Img.getFormat() != PI_DEVICE_BINARY_TYPE_SPIRV)
+  // Cache should be enabled and image type is one of the supported formats.
+  if (!isEnabled() || !IsSupportedImageFormat(Img.getFormat()))
     return false;
 
   // Disable cache for ITT-profiled images.
@@ -57,6 +65,7 @@ bool PersistentDeviceCodeCache::isImageCached(const RTDeviceBinaryImage &Img) {
     return false;
   }
 
+  // TODO: Move parsing logic and caching to specializations of SYCLConfig.
   static auto MaxImgSize = getNumParam<SYCL_CACHE_MAX_DEVICE_IMAGE_SIZE>(
       DEFAULT_MAX_DEVICE_IMAGE_SIZE);
   static auto MinImgSize = getNumParam<SYCL_CACHE_MIN_DEVICE_IMAGE_SIZE>(
@@ -318,14 +327,16 @@ bool PersistentDeviceCodeCache::isCacheItemSrcEqual(
 std::string PersistentDeviceCodeCache::getCacheItemPath(
     const device &Device, const RTDeviceBinaryImage &Img,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString) {
-  static std::string cache_root{getRootDir()};
+  std::string cache_root{getRootDir()};
   if (cache_root.empty()) {
     trace("Disable persistent cache due to unconfigured cache root.");
     return {};
   }
 
-  std::string ImgString{(const char *)Img.getRawData().BinaryStart,
-                        Img.getSize()};
+  std::string ImgString = "";
+  if (Img.getRawData().BinaryStart)
+    ImgString.assign((const char *)Img.getRawData().BinaryStart, Img.getSize());
+
   std::string DeviceString{getDeviceIDString(Device)};
   std::string SpecConstsString{(const char *)SpecConsts.data(),
                                SpecConsts.size()};
@@ -337,84 +348,24 @@ std::string PersistentDeviceCodeCache::getCacheItemPath(
          std::to_string(StringHasher(BuildOptionsString));
 }
 
-// TODO Currently parsing configuration variables and error reporting is not
-// centralized, and is basically re-implemented (with different level of
-// reliability) for each particular variable. As a variant, this can go into
-// the SYCLConfigBase class, which can be templated by value type, default value
-// and value parser (combined with error checker). It can also have typed get()
-// function returning one-time parsed and error-checked value.
-
-// Parses persistent cache configuration and checks it for errors.
-// Returns true if it is enabled, false otherwise.
-static bool parsePersistentCacheConfig() {
-  constexpr bool Default = false; // default is disabled
-
-  // Check if deprecated opt-out env var is used, then warn.
-  if (SYCLConfig<SYCL_CACHE_DISABLE_PERSISTENT>::get()) {
-    std::cerr
-        << "WARNING: " << SYCLConfig<SYCL_CACHE_DISABLE_PERSISTENT>::getName()
-        << " environment variable is deprecated "
-        << "and has no effect. By default, persistent device code caching is "
-        << (Default ? "enabled." : "disabled.") << " Use "
-        << SYCLConfig<SYCL_CACHE_PERSISTENT>::getName()
-        << "=1/0 to enable/disable.\n";
-  }
-  bool Ret = Default;
-  const char *RawVal = SYCLConfig<SYCL_CACHE_PERSISTENT>::get();
-
-  if (RawVal) {
-    if (!std::strcmp(RawVal, "0")) {
-      Ret = false;
-    } else if (!std::strcmp(RawVal, "1")) {
-      Ret = true;
-    } else {
-      std::string Msg =
-          std::string{"Invalid value for bool configuration variable "} +
-          SYCLConfig<SYCL_CACHE_PERSISTENT>::getName() + std::string{": "} +
-          RawVal;
-      throw runtime_error(Msg, PI_INVALID_OPERATION);
-    }
-  }
-  PersistentDeviceCodeCache::trace(Ret ? "enabled" : "disabled");
-  return Ret;
-}
-
 /* Returns true if persistent cache is enabled.
  */
 bool PersistentDeviceCodeCache::isEnabled() {
-  static bool Val = parsePersistentCacheConfig();
-  return Val;
+  bool CacheIsEnabled = SYCLConfig<SYCL_CACHE_PERSISTENT>::get();
+  static bool FirstCheck = true;
+  if (FirstCheck) {
+    PersistentDeviceCodeCache::trace(CacheIsEnabled ? "enabled" : "disabled");
+    FirstCheck = false;
+  }
+  return CacheIsEnabled;
 }
 
 /* Returns path for device code cache root directory
- * If environment variables are not available return an empty string to identify
- * that cache is not available.
  */
 std::string PersistentDeviceCodeCache::getRootDir() {
-  static const char *RootDir = SYCLConfig<SYCL_CACHE_DIR>::get();
-  if (RootDir)
-    return RootDir;
-
-  constexpr char DeviceCodeCacheDir[] = "/libsycl_cache";
-
-  // Use static to calculate directory only once per program run
-#if defined(__SYCL_RT_OS_LINUX)
-  static const char *CacheDir = std::getenv("XDG_CACHE_HOME");
-  static const char *HomeDir = std::getenv("HOME");
-  if (!CacheDir && !HomeDir)
-    return {};
-  static std::string Res{
-      std::string(CacheDir ? CacheDir : (std::string(HomeDir) + "/.cache")) +
-      DeviceCodeCacheDir};
-#else
-  static const char *AppDataDir = std::getenv("AppData");
-  if (!AppDataDir)
-    return {};
-  static std::string Res{std::string(AppDataDir) + DeviceCodeCacheDir};
-#endif
-  return Res;
+  return SYCLConfig<SYCL_CACHE_DIR>::get();
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

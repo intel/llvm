@@ -22,9 +22,9 @@ using namespace clang;
 /// Declarator is a well formed C++ inline method definition. Now lex its body
 /// and store its tokens for parsing after the C++ class is complete.
 NamedDecl *Parser::ParseCXXInlineMethodDef(
-    AccessSpecifier AS, ParsedAttributes &AccessAttrs, ParsingDeclarator &D,
-    const ParsedTemplateInfo &TemplateInfo, const VirtSpecifiers &VS,
-    SourceLocation PureSpecLoc) {
+    AccessSpecifier AS, const ParsedAttributesView &AccessAttrs,
+    ParsingDeclarator &D, const ParsedTemplateInfo &TemplateInfo,
+    const VirtSpecifiers &VS, SourceLocation PureSpecLoc) {
   assert(D.isFunctionDeclarator() && "This isn't a function declarator!");
   assert(Tok.isOneOf(tok::l_brace, tok::colon, tok::kw_try, tok::equal) &&
          "Current token not a '{', ':', '=', or 'try'!");
@@ -720,7 +720,6 @@ void Parser::ParseLexedAttribute(LateParsedAttribute &LA,
   ConsumeAnyToken(/*ConsumeCodeCompletionTok=*/true);
 
   ParsedAttributes Attrs(AttrFactory);
-  SourceLocation endLoc;
 
   if (LA.Decls.size() > 0) {
     Decl *D = LA.Decls[0];
@@ -743,7 +742,7 @@ void Parser::ParseLexedAttribute(LateParsedAttribute &LA,
         Actions.ActOnReenterFunctionContext(Actions.CurScope, D);
       }
 
-      ParseGNUAttributeArgs(&LA.AttrName, LA.AttrNameLoc, Attrs, &endLoc,
+      ParseGNUAttributeArgs(&LA.AttrName, LA.AttrNameLoc, Attrs, nullptr,
                             nullptr, SourceLocation(), ParsedAttr::AS_GNU,
                             nullptr);
 
@@ -752,7 +751,7 @@ void Parser::ParseLexedAttribute(LateParsedAttribute &LA,
     } else {
       // If there are multiple decls, then the decl cannot be within the
       // function scope.
-      ParseGNUAttributeArgs(&LA.AttrName, LA.AttrNameLoc, Attrs, &endLoc,
+      ParseGNUAttributeArgs(&LA.AttrName, LA.AttrNameLoc, Attrs, nullptr,
                             nullptr, SourceLocation(), ParsedAttr::AS_GNU,
                             nullptr);
     }
@@ -796,7 +795,7 @@ void Parser::ParseLexedPragma(LateParsedPragma &LP) {
   case tok::annot_attr_openmp:
   case tok::annot_pragma_openmp: {
     AccessSpecifier AS = LP.getAccessSpecifier();
-    ParsedAttributesWithRange Attrs(AttrFactory);
+    ParsedAttributes Attrs(AttrFactory);
     (void)ParseOpenMPDeclarativeDirectiveWithExtDecl(AS, Attrs);
     break;
   }
@@ -881,7 +880,7 @@ bool Parser::ConsumeAndStoreUntil(tok::TokenKind T1, tok::TokenKind T2,
     case tok::semi:
       if (StopAtSemi)
         return false;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     default:
       // consume this token.
       Toks.push_back(Tok);
@@ -1259,13 +1258,13 @@ bool Parser::ConsumeAndStoreInitializer(CachedTokens &Toks,
         goto consume_token;
       if (AngleCount) --AngleCount;
       if (KnownTemplateCount) --KnownTemplateCount;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case tok::greatergreater:
       if (!getLangOpts().CPlusPlus11)
         goto consume_token;
       if (AngleCount) --AngleCount;
       if (KnownTemplateCount) --KnownTemplateCount;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case tok::greater:
       if (AngleCount) --AngleCount;
       if (KnownTemplateCount) --KnownTemplateCount;
@@ -1370,7 +1369,7 @@ bool Parser::ConsumeAndStoreInitializer(CachedTokens &Toks,
     case tok::semi:
       if (CIK == CIK_DefaultInitializer)
         return true; // End of the default initializer.
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     default:
     consume_token:
       Toks.push_back(Tok);

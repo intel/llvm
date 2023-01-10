@@ -1,13 +1,13 @@
 ; Tests that the coro.destroy and coro.resume are devirtualized where possible,
 ; SCC pipeline restarts and inlines the direct calls.
 ; RUN: opt < %s -S \
-; RUN:   -passes='cgscc(repeat<2>(inline,function(coro-elide,dce)))' \
+; RUN: -passes='cgscc(repeat<2>(inline,function(coro-elide,dce)))' \
 ; RUN:   | FileCheck %s
 
 declare void @print(i32) nounwind
 
 ; resume part of the coroutine
-define fastcc void @f.resume(i8*) {
+define fastcc void @f.resume(i8* dereferenceable(1)) {
   tail call void @print(i32 0)
   ret void
 }

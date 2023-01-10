@@ -1,4 +1,6 @@
-; RUN: opt -S -hotcoldsplit -hotcoldsplit-threshold=0 < %s | FileCheck %s
+; TODO: Remove -opaque-pointers flag when the project supports opaque pointers
+; by default
+; RUN: opt -opaque-pointers -S -passes=hotcoldsplit -hotcoldsplit-threshold=0 < %s | FileCheck %s
 
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-apple-macosx10.14.0"
@@ -9,7 +11,7 @@ target triple = "x86_64-apple-macosx10.14.0"
 ; CHECK-LABEL: define {{.*}}@foo.cold.1(
 ; CHECK: call {{.*}}@sink
 ; CHECK: %p.ce = phi i32 [ 1, %coldbb ], [ 3, %coldbb2 ]
-; CHECK-NEXT: store i32 %p.ce, i32* %p.ce.out 
+; CHECK-NEXT: store i32 %p.ce, ptr %p.ce.out
 
 define void @foo(i32 %cond) {
 entry:

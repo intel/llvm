@@ -29,6 +29,7 @@
 #include "lldb/lldb-types.h"
 
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Chrono.h"
 
@@ -85,6 +86,7 @@ struct ModuleFunctionSearchOptions {
 class Module : public std::enable_shared_from_this<Module>,
                public SymbolContextScope {
 public:
+  class LookupInfo;
   // Static functions that can track the lifetime of module objects. This is
   // handy because we might have Module objects that are in shared pointers
   // that aren't in the global module list (from ModuleList). If this is the
@@ -261,9 +263,10 @@ public:
                                   lldb::SymbolType symbol_type,
                                   SymbolContextList &sc_list);
 
-  void FindSymbolsMatchingRegExAndType(const RegularExpression &regex,
-                                       lldb::SymbolType symbol_type,
-                                       SymbolContextList &sc_list);
+  void FindSymbolsMatchingRegExAndType(
+      const RegularExpression &regex, lldb::SymbolType symbol_type,
+      SymbolContextList &sc_list,
+      Mangled::NamePreference mangling_preference = Mangled::ePreferDemangled);
 
   /// Find a function symbols in the object file's symbol table.
   ///
@@ -293,6 +296,23 @@ public:
   ///     matches.
   void FindCompileUnits(const FileSpec &path, SymbolContextList &sc_list);
 
+  /// Find functions by lookup info.
+  ///
+  /// If the function is an inlined function, it will have a block,
+  /// representing the inlined function, and the function will be the
+  /// containing function.  If it is not inlined, then the block will be NULL.
+  ///
+  /// \param[in] lookup_info
+  ///     The lookup info of the function we are looking for.
+  ///
+  /// \param[out] sc_list
+  ///     A symbol context list that gets filled in with all of the
+  ///     matches.
+  void FindFunctions(const LookupInfo &lookup_info,
+                     const CompilerDeclContext &parent_decl_ctx,
+                     const ModuleFunctionSearchOptions &options,
+                     SymbolContextList &sc_list);
+
   /// Find functions by name.
   ///
   /// If the function is an inlined function, it will have a block,
@@ -300,7 +320,7 @@ public:
   /// containing function.  If it is not inlined, then the block will be NULL.
   ///
   /// \param[in] name
-  ///     The name of the compile unit we are looking for.
+  ///     The name of the function we are looking for.
   ///
   /// \param[in] name_type_mask
   ///     A bit mask of bits that indicate what kind of names should
@@ -792,8 +812,12 @@ public:
 
   bool GetIsDynamicLinkEditor();
 
-  llvm::Expected<TypeSystem &>
+  llvm::Expected<lldb::TypeSystemSP>
   GetTypeSystemForLanguage(lldb::LanguageType language);
+
+  /// Call \p callback for each \p TypeSystem in this \p Module.
+  /// Return true from callback to keep iterating, false to stop iterating.
+  void ForEachTypeSystem(llvm::function_ref<bool(lldb::TypeSystemSP)> callback);
 
   // Special error functions that can do printf style formatting that will
   // prepend the message with something appropriate for this module (like the
@@ -816,6 +840,12 @@ public:
   // so we don't spam the console with many messages.
   void ReportErrorIfModifyDetected(const char *format, ...)
       __attribute__((format(printf, 2, 3)));
+
+  void ReportWarningOptimization(llvm::Optional<lldb::user_id_t> debugger_id);
+
+  void
+  ReportWarningUnsupportedLanguage(lldb::LanguageType language,
+                                   llvm::Optional<lldb::user_id_t> debugger_id);
 
   // Return true if the file backing this module has changed since the module
   // was originally created  since we saved the initial file modification time
@@ -905,7 +935,7 @@ public:
   /// correctly.
   class LookupInfo {
   public:
-    LookupInfo() {}
+    LookupInfo() = default;
 
     LookupInfo(ConstString name, lldb::FunctionNameType name_type_mask,
                lldb::LanguageType language);
@@ -923,6 +953,12 @@ public:
     void SetNameTypeMask(lldb::FunctionNameType mask) {
       m_name_type_mask = mask;
     }
+
+    lldb::LanguageType GetLanguageType() const { return m_language; }
+
+    bool NameMatchesLookupInfo(
+        ConstString function_name,
+        lldb::LanguageType language_type = lldb::eLanguageTypeUnknown) const;
 
     void Prune(SymbolContextList &sc_list, size_t start_idx) const;
 
@@ -1052,6 +1088,9 @@ protected:
   /// an object file and a symbol file which both have symbol tables. The parse
   /// time for the symbol tables can be aggregated here.
   StatsDuration m_symtab_index_time;
+
+  std::once_flag m_optimization_warning;
+  std::once_flag m_language_warning;
 
   /// Resolve a file or load virtual address.
   ///

@@ -328,6 +328,11 @@ uint32_t Breakpoint::GetIgnoreCount() const {
 
 uint32_t Breakpoint::GetHitCount() const { return m_hit_counter.GetValue(); }
 
+void Breakpoint::ResetHitCount() {
+  m_hit_counter.Reset();
+  m_locations.ResetHitCount();
+}
+
 bool Breakpoint::IsOneShot() const { return m_options.IsOneShot(); }
 
 void Breakpoint::SetOneShot(bool one_shot) { m_options.SetOneShot(one_shot); }
@@ -1010,6 +1015,29 @@ void Breakpoint::SendBreakpointChangedEvent(BreakpointEventData *data) {
     delete data;
 }
 
+const char *Breakpoint::BreakpointEventTypeAsCString(BreakpointEventType type) {
+  switch (type) {
+    case eBreakpointEventTypeInvalidType: return "invalid";
+    case eBreakpointEventTypeAdded: return "breakpoint added";
+    case eBreakpointEventTypeRemoved: return "breakpoint removed";
+    case eBreakpointEventTypeLocationsAdded: return "locations added";
+    case eBreakpointEventTypeLocationsRemoved: return "locations removed";
+    case eBreakpointEventTypeLocationsResolved: return "locations resolved";
+    case eBreakpointEventTypeEnabled: return "breakpoint enabled";
+    case eBreakpointEventTypeDisabled: return "breakpoint disabled";
+    case eBreakpointEventTypeCommandChanged: return "command changed";
+    case eBreakpointEventTypeConditionChanged: return "condition changed";
+    case eBreakpointEventTypeIgnoreChanged: return "ignore count changed";
+    case eBreakpointEventTypeThreadChanged: return "thread changed";
+    case eBreakpointEventTypeAutoContinueChanged: return "autocontinue changed";
+  };
+  llvm_unreachable("Fully covered switch above!");
+}
+
+Log *Breakpoint::BreakpointEventData::GetLogChannel() {
+  return GetLog(LLDBLog::Breakpoints);
+}
+
 Breakpoint::BreakpointEventData::BreakpointEventData(
     BreakpointEventType sub_type, const BreakpointSP &new_breakpoint_sp)
     : m_breakpoint_event(sub_type), m_new_breakpoint_sp(new_breakpoint_sp) {}
@@ -1025,7 +1053,7 @@ ConstString Breakpoint::BreakpointEventData::GetFlavor() const {
   return BreakpointEventData::GetFlavorString();
 }
 
-BreakpointSP &Breakpoint::BreakpointEventData::GetBreakpoint() {
+BreakpointSP Breakpoint::BreakpointEventData::GetBreakpoint() const {
   return m_new_breakpoint_sp;
 }
 
@@ -1034,7 +1062,14 @@ Breakpoint::BreakpointEventData::GetBreakpointEventType() const {
   return m_breakpoint_event;
 }
 
-void Breakpoint::BreakpointEventData::Dump(Stream *s) const {}
+void Breakpoint::BreakpointEventData::Dump(Stream *s) const {
+  if (!s)
+    return;
+  BreakpointEventType event_type = GetBreakpointEventType();
+  break_id_t bkpt_id = GetBreakpoint()->GetID();
+  s->Format("bkpt: {0} type: {1}", bkpt_id,
+      BreakpointEventTypeAsCString(event_type));
+}
 
 const Breakpoint::BreakpointEventData *
 Breakpoint::BreakpointEventData::GetEventDataFromEvent(const Event *event) {

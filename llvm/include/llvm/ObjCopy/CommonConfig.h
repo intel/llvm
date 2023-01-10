@@ -18,9 +18,11 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Object/ELFTypes.h"
 #include "llvm/Support/GlobPattern.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Regex.h"
 // Necessary for llvm::DebugCompressionType::None
 #include "llvm/Target/TargetOptions.h"
+#include <optional>
 #include <vector>
 
 namespace llvm {
@@ -74,7 +76,7 @@ enum SectionFlag {
 struct SectionRename {
   StringRef OriginalName;
   StringRef NewName;
-  Optional<SectionFlag> NewFlags;
+  std::optional<SectionFlag> NewFlags;
 };
 
 struct SectionFlagsUpdate {
@@ -114,10 +116,10 @@ public:
          llvm::function_ref<Error(Error)> ErrorCallback);
 
   bool isPositiveMatch() const { return IsPositiveMatch; }
-  Optional<StringRef> getName() const {
+  std::optional<StringRef> getName() const {
     if (!R && !G)
       return Name;
-    return None;
+    return std::nullopt;
   }
   bool operator==(StringRef S) const {
     return R ? R->match(S) : G ? G->match(S) : Name == S;
@@ -137,7 +139,7 @@ public:
     if (!Matcher)
       return Matcher.takeError();
     if (Matcher->isPositiveMatch()) {
-      if (Optional<StringRef> MaybeName = Matcher->getName())
+      if (std::optional<StringRef> MaybeName = Matcher->getName())
         PosNames.insert(CachedHashStringRef(*MaybeName));
       else
         PosPatterns.push_back(std::move(*Matcher));
@@ -186,6 +188,16 @@ struct NewSymbolInfo {
   std::vector<StringRef> BeforeSyms;
 };
 
+// Specify section name and section body for newly added or updated section.
+struct NewSectionInfo {
+  NewSectionInfo() = default;
+  NewSectionInfo(StringRef Name, std::unique_ptr<MemoryBuffer> &&Buffer)
+      : SectionName(Name), SectionData(std::move(Buffer)) {}
+
+  StringRef SectionName;
+  std::shared_ptr<MemoryBuffer> SectionData;
+};
+
 // Configuration for copying/stripping a single file.
 struct CommonConfig {
   // Main input/output options
@@ -195,22 +207,22 @@ struct CommonConfig {
   FileFormat OutputFormat = FileFormat::Unspecified;
 
   // Only applicable when --output-format!=binary (e.g. elf64-x86-64).
-  Optional<MachineInfo> OutputArch;
+  std::optional<MachineInfo> OutputArch;
 
   // Advanced options
   StringRef AddGnuDebugLink;
   // Cached gnu_debuglink's target CRC
   uint32_t GnuDebugLinkCRC32;
-  Optional<StringRef> ExtractPartition;
+  std::optional<StringRef> ExtractPartition;
   StringRef SplitDWO;
   StringRef SymbolsPrefix;
   StringRef AllocSectionsPrefix;
   DiscardType DiscardMode = DiscardType::None;
 
   // Repeated options
-  std::vector<StringRef> AddSection;
+  std::vector<NewSectionInfo> AddSection;
   std::vector<StringRef> DumpSection;
-  std::vector<StringRef> UpdateSection;
+  std::vector<NewSectionInfo> UpdateSection;
 
   // Section matchers
   NameMatcher KeepSection;
@@ -230,6 +242,7 @@ struct CommonConfig {
   StringMap<SectionRename> SectionsToRename;
   StringMap<uint64_t> SetSectionAlignment;
   StringMap<SectionFlagsUpdate> SetSectionFlags;
+  StringMap<uint64_t> SetSectionType;
   StringMap<StringRef> SymbolsToRename;
 
   // Symbol info specified by --add-symbol option.

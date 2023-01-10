@@ -52,8 +52,8 @@ extern_struct_internal_ptr:
 .section .text,"",@
 foo:
   # %ptr = alloca i32
-  # %0 = load i32, i32* @data, align 4
-  # %1 = load i32 ()*, i32 ()** @indirect_func, align 4
+  # %0 = load i32, ptr @data, align 4
+  # %1 = load ptr, ptr @indirect_func, align 4
   # call i32 %1()
   # ret i32 %0
   .functype foo () -> (i32)
@@ -216,37 +216,36 @@ get_local_func_address:
 
 # DIS:      <__wasm_call_ctors>:
 # DIS-EMPTY:
-# DIS-NEXT:                 call    1
 # DIS-NEXT:                 end
 
 # DIS:      <__wasm_apply_data_relocs>:
 # DIS-EMPTY:
-# DIS-NEXT:                 global.get      1
 # DIS-NEXT:                 i64.const       4
+# DIS-NEXT:                 global.get      1
 # DIS-NEXT:                 i64.add
 # DIS-NEXT:                 global.get      5
 # DIS-NEXT:                 i64.store       0:p2align=2
-# DIS-NEXT:                 global.get      1
 # DIS-NEXT:                 i64.const       12
+# DIS-NEXT:                 global.get      1
 # DIS-NEXT:                 i64.add
 # DIS-NEXT:                 global.get      2
 # DIS-NEXT:                 i64.const       1
 # DIS-NEXT:                 i64.add
 # DIS-NEXT:                 i64.store       0:p2align=2
-# DIS-NEXT:                 global.get      1
 # DIS-NEXT:                 i64.const       20
+# DIS-NEXT:                 global.get      1
 # DIS-NEXT:                 i64.add
 # DIS-NEXT:                 global.get      1
 # DIS-NEXT:                 i32.const       0
 # DIS-NEXT:                 i32.add
 # DIS-NEXT:                 i32.store       0
-# DIS-NEXT:                 global.get      1
 # DIS-NEXT:                 i64.const       24
+# DIS-NEXT:                 global.get      1
 # DIS-NEXT:                 i64.add
 # DIS-NEXT:                 global.get      6
 # DIS-NEXT:                 i64.store       0:p2align=2
-# DIS-NEXT:                 global.get      1
 # DIS-NEXT:                 i64.const       32
+# DIS-NEXT:                 global.get      1
 # DIS-NEXT:                 i64.add
 # DIS-NEXT:                 global.get      7
 # DIS-NEXT:                 i32.const       4

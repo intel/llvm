@@ -63,13 +63,14 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/DepthFirstIterator.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/ADT/iterator.h"
+#include "llvm/Analysis/GlobalsModRef.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Attributes.h"
@@ -84,13 +85,11 @@
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
@@ -112,7 +111,6 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <iterator>
 #include <memory>
 #include <set>
 #include <string>
@@ -187,6 +185,15 @@ static cl::opt<bool> ClCombineOffsetLabelsOnGEP(
         "doing pointer arithmetic."),
     cl::Hidden, cl::init(true));
 
+static cl::list<std::string> ClCombineTaintLookupTables(
+    "dfsan-combine-taint-lookup-table",
+    cl::desc(
+        "When dfsan-combine-offset-labels-on-gep and/or "
+        "dfsan-combine-pointer-labels-on-load are false, this flag can "
+        "be used to re-enable combining offset and/or pointer taint when "
+        "loading specific constant global variables (i.e. lookup tables)."),
+    cl::Hidden);
+
 static cl::opt<bool> ClDebugNonzeroLabels(
     "dfsan-debug-nonzero-labels",
     cl::desc("Insert calls to __dfsan_nonzero_label on observing a parameter, "
@@ -215,6 +222,14 @@ static cl::opt<bool> ClConditionalCallbacks(
     "dfsan-conditional-callbacks",
     cl::desc("Insert calls to callback functions on conditionals."), cl::Hidden,
     cl::init(false));
+
+// Experimental feature that inserts callbacks for data reaching a function,
+// either via function arguments and loads.
+// This must be true for dfsan_set_reaches_function_callback() to have effect.
+static cl::opt<bool> ClReachesFunctionCallbacks(
+    "dfsan-reaches-function-callbacks",
+    cl::desc("Insert calls to callback functions on data reaching a function."),
+    cl::Hidden, cl::init(false));
 
 // Controls whether the pass tracks the control flow of select instructions.
 static cl::opt<bool> ClTrackSelectControlFlow(
@@ -433,21 +448,27 @@ class DataFlowSanitizer {
   FunctionType *DFSanUnionLoadFnTy;
   FunctionType *DFSanLoadLabelAndOriginFnTy;
   FunctionType *DFSanUnimplementedFnTy;
+  FunctionType *DFSanWrapperExternWeakNullFnTy;
   FunctionType *DFSanSetLabelFnTy;
   FunctionType *DFSanNonzeroLabelFnTy;
   FunctionType *DFSanVarargWrapperFnTy;
   FunctionType *DFSanConditionalCallbackFnTy;
   FunctionType *DFSanConditionalCallbackOriginFnTy;
+  FunctionType *DFSanReachesFunctionCallbackFnTy;
+  FunctionType *DFSanReachesFunctionCallbackOriginFnTy;
   FunctionType *DFSanCmpCallbackFnTy;
   FunctionType *DFSanLoadStoreCallbackFnTy;
   FunctionType *DFSanMemTransferCallbackFnTy;
   FunctionType *DFSanChainOriginFnTy;
   FunctionType *DFSanChainOriginIfTaintedFnTy;
   FunctionType *DFSanMemOriginTransferFnTy;
+  FunctionType *DFSanMemShadowOriginTransferFnTy;
+  FunctionType *DFSanMemShadowOriginConditionalExchangeFnTy;
   FunctionType *DFSanMaybeStoreOriginFnTy;
   FunctionCallee DFSanUnionLoadFn;
   FunctionCallee DFSanLoadLabelAndOriginFn;
   FunctionCallee DFSanUnimplementedFn;
+  FunctionCallee DFSanWrapperExternWeakNullFn;
   FunctionCallee DFSanSetLabelFn;
   FunctionCallee DFSanNonzeroLabelFn;
   FunctionCallee DFSanVarargWrapperFn;
@@ -456,10 +477,14 @@ class DataFlowSanitizer {
   FunctionCallee DFSanMemTransferCallbackFn;
   FunctionCallee DFSanConditionalCallbackFn;
   FunctionCallee DFSanConditionalCallbackOriginFn;
+  FunctionCallee DFSanReachesFunctionCallbackFn;
+  FunctionCallee DFSanReachesFunctionCallbackOriginFn;
   FunctionCallee DFSanCmpCallbackFn;
   FunctionCallee DFSanChainOriginFn;
   FunctionCallee DFSanChainOriginIfTaintedFn;
   FunctionCallee DFSanMemOriginTransferFn;
+  FunctionCallee DFSanMemShadowOriginTransferFn;
+  FunctionCallee DFSanMemShadowOriginConditionalExchangeFn;
   FunctionCallee DFSanMaybeStoreOriginFn;
   SmallPtrSet<Value *, 16> DFSanRuntimeFunctions;
   MDNode *ColdCallWeights;
@@ -467,6 +492,7 @@ class DataFlowSanitizer {
   DFSanABIList ABIList;
   DenseMap<Value *, Function *> UnwrappedFnMap;
   AttributeMask ReadOnlyNoneAttrs;
+  StringSet<> CombineTaintLookupTableNames;
 
   /// Memory map parameters used in calculation mapping application addresses
   /// to shadow addresses and origin addresses.
@@ -480,14 +506,13 @@ class DataFlowSanitizer {
   bool isInstrumented(const Function *F);
   bool isInstrumented(const GlobalAlias *GA);
   bool isForceZeroLabels(const Function *F);
-  FunctionType *getTrampolineFunctionType(FunctionType *T);
   TransformedFunction getCustomFunctionType(FunctionType *T);
   WrapperKind getWrapperKind(Function *F);
   void addGlobalNameSuffix(GlobalValue *GV);
+  void buildExternWeakCheckIfNeeded(IRBuilder<> &IRB, Function *F);
   Function *buildWrapperFunction(Function *F, StringRef NewFName,
                                  GlobalValue::LinkageTypes NewFLink,
                                  FunctionType *NewFT);
-  Constant *getOrBuildTrampolineFunction(FunctionType *FT, StringRef FName);
   void initializeCallbackFunctions(Module &M);
   void initializeRuntimeFunctions(Module &M);
   void injectMetadataGlobals(Module &M);
@@ -531,7 +556,8 @@ class DataFlowSanitizer {
 public:
   DataFlowSanitizer(const std::vector<std::string> &ABIListFiles);
 
-  bool runImpl(Module &M);
+  bool runImpl(Module &M,
+               llvm::function_ref<TargetLibraryInfo &(Function &)> GetTLI);
 };
 
 struct DFSanFunction {
@@ -540,6 +566,7 @@ struct DFSanFunction {
   DominatorTree DT;
   bool IsNativeABI;
   bool IsForceZeroLabels;
+  TargetLibraryInfo &TLI;
   AllocaInst *LabelReturnAlloca = nullptr;
   AllocaInst *OriginReturnAlloca = nullptr;
   DenseMap<Value *, Value *> ValShadowMap;
@@ -571,9 +598,9 @@ struct DFSanFunction {
   DenseMap<Value *, std::set<Value *>> ShadowElements;
 
   DFSanFunction(DataFlowSanitizer &DFS, Function *F, bool IsNativeABI,
-                bool IsForceZeroLabels)
+                bool IsForceZeroLabels, TargetLibraryInfo &TLI)
       : DFS(DFS), F(F), IsNativeABI(IsNativeABI),
-        IsForceZeroLabels(IsForceZeroLabels) {
+        IsForceZeroLabels(IsForceZeroLabels), TLI(TLI) {
     DT.recalculate(*F);
   }
 
@@ -657,6 +684,13 @@ struct DFSanFunction {
   // If ClConditionalCallbacks is enabled, insert a callback after a given
   // branch instruction using the given conditional expression.
   void addConditionalCallbacksIfEnabled(Instruction &I, Value *Condition);
+
+  // If ClReachesFunctionCallbacks is enabled, insert a callback for each
+  // argument and load instruction.
+  void addReachesFunctionCallbacksIfEnabled(IRBuilder<> &IRB, Instruction &I,
+                                            Value *Data);
+
+  bool isLookupTableConstant(Value *P);
 
 private:
   /// Collapses the shadow with aggregate type into a single primitive shadow
@@ -753,6 +787,10 @@ public:
   void visitAtomicRMWInst(AtomicRMWInst &I);
   void visitAtomicCmpXchgInst(AtomicCmpXchgInst &I);
   void visitReturnInst(ReturnInst &RI);
+  void visitLibAtomicLoad(CallBase &CB);
+  void visitLibAtomicStore(CallBase &CB);
+  void visitLibAtomicExchange(CallBase &CB);
+  void visitLibAtomicCompareExchange(CallBase &CB);
   void visitCallBase(CallBase &CB);
   void visitPHINode(PHINode &PN);
   void visitExtractElementInst(ExtractElementInst &I);
@@ -781,7 +819,30 @@ private:
 
   void addOriginArguments(Function &F, CallBase &CB, std::vector<Value *> &Args,
                           IRBuilder<> &IRB);
+
+  Value *makeAddAcquireOrderingTable(IRBuilder<> &IRB);
+  Value *makeAddReleaseOrderingTable(IRBuilder<> &IRB);
 };
+
+bool LibAtomicFunction(const Function &F) {
+  // This is a bit of a hack because TargetLibraryInfo is a function pass.
+  // The DFSan pass would need to be refactored to be function pass oriented
+  // (like MSan is) in order to fit together nicely with TargetLibraryInfo.
+  // We need this check to prevent them from being instrumented, or wrapped.
+  // Match on name and number of arguments.
+  if (!F.hasName() || F.isVarArg())
+    return false;
+  switch (F.arg_size()) {
+  case 4:
+    return F.getName() == "__atomic_load" || F.getName() == "__atomic_store";
+  case 5:
+    return F.getName() == "__atomic_exchange";
+  case 6:
+    return F.getName() == "__atomic_compare_exchange";
+  default:
+    return false;
+  }
+}
 
 } // end anonymous namespace
 
@@ -792,25 +853,9 @@ DataFlowSanitizer::DataFlowSanitizer(
   // FIXME: should we propagate vfs::FileSystem to this constructor?
   ABIList.set(
       SpecialCaseList::createOrDie(AllABIListFiles, *vfs::getRealFileSystem()));
-}
 
-FunctionType *DataFlowSanitizer::getTrampolineFunctionType(FunctionType *T) {
-  assert(!T->isVarArg());
-  SmallVector<Type *, 4> ArgTypes;
-  ArgTypes.push_back(T->getPointerTo());
-  ArgTypes.append(T->param_begin(), T->param_end());
-  ArgTypes.append(T->getNumParams(), PrimitiveShadowTy);
-  Type *RetType = T->getReturnType();
-  if (!RetType->isVoidTy())
-    ArgTypes.push_back(PrimitiveShadowPtrTy);
-
-  if (shouldTrackOrigins()) {
-    ArgTypes.append(T->getNumParams(), OriginTy);
-    if (!RetType->isVoidTy())
-      ArgTypes.push_back(OriginPtrTy);
-  }
-
-  return FunctionType::get(T->getReturnType(), ArgTypes, false);
+  for (StringRef v : ClCombineTaintLookupTables)
+    CombineTaintLookupTableNames.insert(v);
 }
 
 TransformedFunction DataFlowSanitizer::getCustomFunctionType(FunctionType *T) {
@@ -823,16 +868,8 @@ TransformedFunction DataFlowSanitizer::getCustomFunctionType(FunctionType *T) {
   std::vector<unsigned> ArgumentIndexMapping;
   for (unsigned I = 0, E = T->getNumParams(); I != E; ++I) {
     Type *ParamType = T->getParamType(I);
-    FunctionType *FT;
-    if (isa<PointerType>(ParamType) &&
-        (FT = dyn_cast<FunctionType>(ParamType->getPointerElementType()))) {
-      ArgumentIndexMapping.push_back(ArgTypes.size());
-      ArgTypes.push_back(getTrampolineFunctionType(FT)->getPointerTo());
-      ArgTypes.push_back(Type::getInt8PtrTy(*Ctx));
-    } else {
-      ArgumentIndexMapping.push_back(ArgTypes.size());
-      ArgTypes.push_back(ParamType);
-    }
+    ArgumentIndexMapping.push_back(ArgTypes.size());
+    ArgTypes.push_back(ParamType);
   }
   for (unsigned I = 0, E = T->getNumParams(); I != E; ++I)
     ArgTypes.push_back(PrimitiveShadowTy);
@@ -1005,6 +1042,45 @@ void DFSanFunction::addConditionalCallbacksIfEnabled(Instruction &I,
   }
 }
 
+void DFSanFunction::addReachesFunctionCallbacksIfEnabled(IRBuilder<> &IRB,
+                                                         Instruction &I,
+                                                         Value *Data) {
+  if (!ClReachesFunctionCallbacks) {
+    return;
+  }
+  const DebugLoc &dbgloc = I.getDebugLoc();
+  Value *DataShadow = collapseToPrimitiveShadow(getShadow(Data), IRB);
+  ConstantInt *CILine;
+  llvm::Value *FilePathPtr;
+
+  if (dbgloc.get() == nullptr) {
+    CILine = llvm::ConstantInt::get(I.getContext(), llvm::APInt(32, 0));
+    FilePathPtr = IRB.CreateGlobalStringPtr(
+        I.getFunction()->getParent()->getSourceFileName());
+  } else {
+    CILine = llvm::ConstantInt::get(I.getContext(),
+                                    llvm::APInt(32, dbgloc.getLine()));
+    FilePathPtr =
+        IRB.CreateGlobalStringPtr(dbgloc->getFilename());
+  }
+
+  llvm::Value *FunctionNamePtr =
+      IRB.CreateGlobalStringPtr(I.getFunction()->getName());
+
+  CallInst *CB;
+  std::vector<Value *> args;
+
+  if (DFS.shouldTrackOrigins()) {
+    Value *DataOrigin = getOrigin(Data);
+    args = { DataShadow, DataOrigin, FilePathPtr, CILine, FunctionNamePtr };
+    CB = IRB.CreateCall(DFS.DFSanReachesFunctionCallbackOriginFn, args);
+  } else {
+    args = { DataShadow, FilePathPtr, CILine, FunctionNamePtr };
+    CB = IRB.CreateCall(DFS.DFSanReachesFunctionCallbackFn, args);
+  }
+  CB->setDebugLoc(dbgloc);
+}
+
 Type *DataFlowSanitizer::getShadowTy(Type *OrigTy) {
   if (!OrigTy->isSized())
     return PrimitiveShadowTy;
@@ -1058,12 +1134,16 @@ bool DataFlowSanitizer::initializeModule(Module &M) {
                         /*isVarArg=*/false);
   DFSanUnimplementedFnTy = FunctionType::get(
       Type::getVoidTy(*Ctx), Type::getInt8PtrTy(*Ctx), /*isVarArg=*/false);
+  Type *DFSanWrapperExternWeakNullArgs[2] = {Int8Ptr, Int8Ptr};
+  DFSanWrapperExternWeakNullFnTy =
+      FunctionType::get(Type::getVoidTy(*Ctx), DFSanWrapperExternWeakNullArgs,
+                        /*isVarArg=*/false);
   Type *DFSanSetLabelArgs[4] = {PrimitiveShadowTy, OriginTy,
                                 Type::getInt8PtrTy(*Ctx), IntptrTy};
   DFSanSetLabelFnTy = FunctionType::get(Type::getVoidTy(*Ctx),
                                         DFSanSetLabelArgs, /*isVarArg=*/false);
-  DFSanNonzeroLabelFnTy =
-      FunctionType::get(Type::getVoidTy(*Ctx), None, /*isVarArg=*/false);
+  DFSanNonzeroLabelFnTy = FunctionType::get(Type::getVoidTy(*Ctx), std::nullopt,
+                                            /*isVarArg=*/false);
   DFSanVarargWrapperFnTy = FunctionType::get(
       Type::getVoidTy(*Ctx), Type::getInt8PtrTy(*Ctx), /*isVarArg=*/false);
   DFSanConditionalCallbackFnTy =
@@ -1072,6 +1152,16 @@ bool DataFlowSanitizer::initializeModule(Module &M) {
   Type *DFSanConditionalCallbackOriginArgs[2] = {PrimitiveShadowTy, OriginTy};
   DFSanConditionalCallbackOriginFnTy = FunctionType::get(
       Type::getVoidTy(*Ctx), DFSanConditionalCallbackOriginArgs,
+      /*isVarArg=*/false);
+  Type *DFSanReachesFunctionCallbackArgs[4] = {PrimitiveShadowTy, Int8Ptr,
+                                               OriginTy, Int8Ptr};
+  DFSanReachesFunctionCallbackFnTy =
+      FunctionType::get(Type::getVoidTy(*Ctx), DFSanReachesFunctionCallbackArgs,
+                        /*isVarArg=*/false);
+  Type *DFSanReachesFunctionCallbackOriginArgs[5] = {
+      PrimitiveShadowTy, OriginTy, Int8Ptr, OriginTy, Int8Ptr};
+  DFSanReachesFunctionCallbackOriginFnTy = FunctionType::get(
+      Type::getVoidTy(*Ctx), DFSanReachesFunctionCallbackOriginArgs,
       /*isVarArg=*/false);
   DFSanCmpCallbackFnTy =
       FunctionType::get(Type::getVoidTy(*Ctx), PrimitiveShadowTy,
@@ -1088,6 +1178,15 @@ bool DataFlowSanitizer::initializeModule(Module &M) {
   Type *DFSanMemOriginTransferArgs[3] = {Int8Ptr, Int8Ptr, IntptrTy};
   DFSanMemOriginTransferFnTy = FunctionType::get(
       Type::getVoidTy(*Ctx), DFSanMemOriginTransferArgs, /*isVarArg=*/false);
+  Type *DFSanMemShadowOriginTransferArgs[3] = {Int8Ptr, Int8Ptr, IntptrTy};
+  DFSanMemShadowOriginTransferFnTy =
+      FunctionType::get(Type::getVoidTy(*Ctx), DFSanMemShadowOriginTransferArgs,
+                        /*isVarArg=*/false);
+  Type *DFSanMemShadowOriginConditionalExchangeArgs[5] = {
+      IntegerType::get(*Ctx, 8), Int8Ptr, Int8Ptr, Int8Ptr, IntptrTy};
+  DFSanMemShadowOriginConditionalExchangeFnTy = FunctionType::get(
+      Type::getVoidTy(*Ctx), DFSanMemShadowOriginConditionalExchangeArgs,
+      /*isVarArg=*/false);
   Type *DFSanLoadStoreCallbackArgs[2] = {PrimitiveShadowTy, Int8Ptr};
   DFSanLoadStoreCallbackFnTy =
       FunctionType::get(Type::getVoidTy(*Ctx), DFSanLoadStoreCallbackArgs,
@@ -1149,6 +1248,23 @@ void DataFlowSanitizer::addGlobalNameSuffix(GlobalValue *GV) {
   }
 }
 
+void DataFlowSanitizer::buildExternWeakCheckIfNeeded(IRBuilder<> &IRB,
+                                                     Function *F) {
+  // If the function we are wrapping was ExternWeak, it may be null.
+  // The original code before calling this wrapper may have checked for null,
+  // but replacing with a known-to-not-be-null wrapper can break this check.
+  // When replacing uses of the extern weak function with the wrapper we try
+  // to avoid replacing uses in conditionals, but this is not perfect.
+  // In the case where we fail, and accidentally optimize out a null check
+  // for a extern weak function, add a check here to help identify the issue.
+  if (GlobalValue::isExternalWeakLinkage(F->getLinkage())) {
+    std::vector<Value *> Args;
+    Args.push_back(IRB.CreatePointerCast(F, IRB.getInt8PtrTy()));
+    Args.push_back(IRB.CreateGlobalStringPtr(F->getName()));
+    IRB.CreateCall(DFSanWrapperExternWeakNullFn, Args);
+  }
+}
+
 Function *
 DataFlowSanitizer::buildWrapperFunction(Function *F, StringRef NewFName,
                                         GlobalValue::LinkageTypes NewFLink,
@@ -1181,81 +1297,31 @@ DataFlowSanitizer::buildWrapperFunction(Function *F, StringRef NewFName,
   return NewF;
 }
 
-Constant *DataFlowSanitizer::getOrBuildTrampolineFunction(FunctionType *FT,
-                                                          StringRef FName) {
-  FunctionType *FTT = getTrampolineFunctionType(FT);
-  FunctionCallee C = Mod->getOrInsertFunction(FName, FTT);
-  Function *F = dyn_cast<Function>(C.getCallee());
-  if (F && F->isDeclaration()) {
-    F->setLinkage(GlobalValue::LinkOnceODRLinkage);
-    BasicBlock *BB = BasicBlock::Create(*Ctx, "entry", F);
-    std::vector<Value *> Args;
-    Function::arg_iterator AI = F->arg_begin() + 1;
-    for (unsigned N = FT->getNumParams(); N != 0; ++AI, --N)
-      Args.push_back(&*AI);
-    CallInst *CI = CallInst::Create(FT, &*F->arg_begin(), Args, "", BB);
-    Type *RetType = FT->getReturnType();
-    ReturnInst *RI = RetType->isVoidTy() ? ReturnInst::Create(*Ctx, BB)
-                                         : ReturnInst::Create(*Ctx, CI, BB);
-
-    // F is called by a wrapped custom function with primitive shadows. So
-    // its arguments and return value need conversion.
-    DFSanFunction DFSF(*this, F, /*IsNativeABI=*/true,
-                       /*IsForceZeroLabels=*/false);
-    Function::arg_iterator ValAI = F->arg_begin(), ShadowAI = AI;
-    ++ValAI;
-    for (unsigned N = FT->getNumParams(); N != 0; ++ValAI, ++ShadowAI, --N) {
-      Value *Shadow =
-          DFSF.expandFromPrimitiveShadow(ValAI->getType(), &*ShadowAI, CI);
-      DFSF.ValShadowMap[&*ValAI] = Shadow;
-    }
-    Function::arg_iterator RetShadowAI = ShadowAI;
-    const bool ShouldTrackOrigins = shouldTrackOrigins();
-    if (ShouldTrackOrigins) {
-      ValAI = F->arg_begin();
-      ++ValAI;
-      Function::arg_iterator OriginAI = ShadowAI;
-      if (!RetType->isVoidTy())
-        ++OriginAI;
-      for (unsigned N = FT->getNumParams(); N != 0; ++ValAI, ++OriginAI, --N) {
-        DFSF.ValOriginMap[&*ValAI] = &*OriginAI;
-      }
-    }
-    DFSanVisitor(DFSF).visitCallInst(*CI);
-    if (!RetType->isVoidTy()) {
-      Value *PrimitiveShadow = DFSF.collapseToPrimitiveShadow(
-          DFSF.getShadow(RI->getReturnValue()), RI);
-      new StoreInst(PrimitiveShadow, &*RetShadowAI, RI);
-      if (ShouldTrackOrigins) {
-        Value *Origin = DFSF.getOrigin(RI->getReturnValue());
-        new StoreInst(Origin, &*std::prev(F->arg_end()), RI);
-      }
-    }
-  }
-
-  return cast<Constant>(C.getCallee());
-}
-
 // Initialize DataFlowSanitizer runtime functions and declare them in the module
 void DataFlowSanitizer::initializeRuntimeFunctions(Module &M) {
+  LLVMContext &C = M.getContext();
   {
     AttributeList AL;
-    AL = AL.addFnAttribute(M.getContext(), Attribute::NoUnwind);
-    AL = AL.addFnAttribute(M.getContext(), Attribute::ReadOnly);
-    AL = AL.addRetAttribute(M.getContext(), Attribute::ZExt);
+    AL = AL.addFnAttribute(C, Attribute::NoUnwind);
+    AL = AL.addFnAttribute(
+        C, Attribute::getWithMemoryEffects(C, MemoryEffects::readOnly()));
+    AL = AL.addRetAttribute(C, Attribute::ZExt);
     DFSanUnionLoadFn =
         Mod->getOrInsertFunction("__dfsan_union_load", DFSanUnionLoadFnTy, AL);
   }
   {
     AttributeList AL;
-    AL = AL.addFnAttribute(M.getContext(), Attribute::NoUnwind);
-    AL = AL.addFnAttribute(M.getContext(), Attribute::ReadOnly);
-    AL = AL.addRetAttribute(M.getContext(), Attribute::ZExt);
+    AL = AL.addFnAttribute(C, Attribute::NoUnwind);
+    AL = AL.addFnAttribute(
+        C, Attribute::getWithMemoryEffects(C, MemoryEffects::readOnly()));
+    AL = AL.addRetAttribute(C, Attribute::ZExt);
     DFSanLoadLabelAndOriginFn = Mod->getOrInsertFunction(
         "__dfsan_load_label_and_origin", DFSanLoadLabelAndOriginFnTy, AL);
   }
   DFSanUnimplementedFn =
       Mod->getOrInsertFunction("__dfsan_unimplemented", DFSanUnimplementedFnTy);
+  DFSanWrapperExternWeakNullFn = Mod->getOrInsertFunction(
+      "__dfsan_wrapper_extern_weak_null", DFSanWrapperExternWeakNullFnTy);
   {
     AttributeList AL;
     AL = AL.addParamAttribute(M.getContext(), 0, Attribute::ZExt);
@@ -1285,6 +1351,13 @@ void DataFlowSanitizer::initializeRuntimeFunctions(Module &M) {
   DFSanMemOriginTransferFn = Mod->getOrInsertFunction(
       "__dfsan_mem_origin_transfer", DFSanMemOriginTransferFnTy);
 
+  DFSanMemShadowOriginTransferFn = Mod->getOrInsertFunction(
+      "__dfsan_mem_shadow_origin_transfer", DFSanMemShadowOriginTransferFnTy);
+
+  DFSanMemShadowOriginConditionalExchangeFn =
+      Mod->getOrInsertFunction("__dfsan_mem_shadow_origin_conditional_exchange",
+                               DFSanMemShadowOriginConditionalExchangeFnTy);
+
   {
     AttributeList AL;
     AL = AL.addParamAttribute(M.getContext(), 0, Attribute::ZExt);
@@ -1299,6 +1372,8 @@ void DataFlowSanitizer::initializeRuntimeFunctions(Module &M) {
       DFSanLoadLabelAndOriginFn.getCallee()->stripPointerCasts());
   DFSanRuntimeFunctions.insert(
       DFSanUnimplementedFn.getCallee()->stripPointerCasts());
+  DFSanRuntimeFunctions.insert(
+      DFSanWrapperExternWeakNullFn.getCallee()->stripPointerCasts());
   DFSanRuntimeFunctions.insert(
       DFSanSetLabelFn.getCallee()->stripPointerCasts());
   DFSanRuntimeFunctions.insert(
@@ -1316,6 +1391,10 @@ void DataFlowSanitizer::initializeRuntimeFunctions(Module &M) {
   DFSanRuntimeFunctions.insert(
       DFSanConditionalCallbackOriginFn.getCallee()->stripPointerCasts());
   DFSanRuntimeFunctions.insert(
+      DFSanReachesFunctionCallbackFn.getCallee()->stripPointerCasts());
+  DFSanRuntimeFunctions.insert(
+      DFSanReachesFunctionCallbackOriginFn.getCallee()->stripPointerCasts());
+  DFSanRuntimeFunctions.insert(
       DFSanCmpCallbackFn.getCallee()->stripPointerCasts());
   DFSanRuntimeFunctions.insert(
       DFSanChainOriginFn.getCallee()->stripPointerCasts());
@@ -1323,6 +1402,11 @@ void DataFlowSanitizer::initializeRuntimeFunctions(Module &M) {
       DFSanChainOriginIfTaintedFn.getCallee()->stripPointerCasts());
   DFSanRuntimeFunctions.insert(
       DFSanMemOriginTransferFn.getCallee()->stripPointerCasts());
+  DFSanRuntimeFunctions.insert(
+      DFSanMemShadowOriginTransferFn.getCallee()->stripPointerCasts());
+  DFSanRuntimeFunctions.insert(
+      DFSanMemShadowOriginConditionalExchangeFn.getCallee()
+          ->stripPointerCasts());
   DFSanRuntimeFunctions.insert(
       DFSanMaybeStoreOriginFn.getCallee()->stripPointerCasts());
 }
@@ -1343,6 +1427,11 @@ void DataFlowSanitizer::initializeCallbackFunctions(Module &M) {
   DFSanConditionalCallbackOriginFn =
       Mod->getOrInsertFunction("__dfsan_conditional_callback_origin",
                                DFSanConditionalCallbackOriginFnTy);
+  DFSanReachesFunctionCallbackFn = Mod->getOrInsertFunction(
+      "__dfsan_reaches_function_callback", DFSanReachesFunctionCallbackFnTy);
+  DFSanReachesFunctionCallbackOriginFn =
+      Mod->getOrInsertFunction("__dfsan_reaches_function_callback_origin",
+                               DFSanReachesFunctionCallbackOriginFnTy);
 }
 
 void DataFlowSanitizer::injectMetadataGlobals(Module &M) {
@@ -1365,7 +1454,8 @@ void DataFlowSanitizer::injectMetadataGlobals(Module &M) {
   });
 }
 
-bool DataFlowSanitizer::runImpl(Module &M) {
+bool DataFlowSanitizer::runImpl(
+    Module &M, llvm::function_ref<TargetLibraryInfo &(Function &)> GetTLI) {
   initializeModule(M);
 
   if (ABIList.isIn(M, "skip"))
@@ -1416,7 +1506,8 @@ bool DataFlowSanitizer::runImpl(Module &M) {
   SmallPtrSet<Function *, 2> FnsWithForceZeroLabel;
   SmallPtrSet<Constant *, 1> PersonalityFns;
   for (Function &F : M)
-    if (!F.isIntrinsic() && !DFSanRuntimeFunctions.contains(&F)) {
+    if (!F.isIntrinsic() && !DFSanRuntimeFunctions.contains(&F) &&
+        !LibAtomicFunction(F)) {
       FnsToInstrument.push_back(&F);
       if (F.hasPersonalityFn())
         PersonalityFns.insert(F.getPersonalityFn()->stripPointerCasts());
@@ -1427,9 +1518,7 @@ bool DataFlowSanitizer::runImpl(Module &M) {
       assert(isa<Function>(C) && "Personality routine is not a function!");
       Function *F = cast<Function>(C);
       if (!isInstrumented(F))
-        FnsToInstrument.erase(
-            std::remove(FnsToInstrument.begin(), FnsToInstrument.end(), F),
-            FnsToInstrument.end());
+        llvm::erase_value(FnsToInstrument, F);
     }
   }
 
@@ -1458,8 +1547,8 @@ bool DataFlowSanitizer::runImpl(Module &M) {
     }
   }
 
-  ReadOnlyNoneAttrs.addAttribute(Attribute::ReadOnly)
-      .addAttribute(Attribute::ReadNone);
+  // TODO: This could be more precise.
+  ReadOnlyNoneAttrs.addAttribute(Attribute::Memory);
 
   // First, change the ABI of every function in the module.  ABI-listed
   // functions keep their original ABI and get a wrapper function.
@@ -1500,7 +1589,40 @@ bool DataFlowSanitizer::runImpl(Module &M) {
 
       Value *WrappedFnCst =
           ConstantExpr::getBitCast(NewF, PointerType::getUnqual(FT));
-      F.replaceAllUsesWith(WrappedFnCst);
+
+      // Extern weak functions can sometimes be null at execution time.
+      // Code will sometimes check if an extern weak function is null.
+      // This could look something like:
+      //   declare extern_weak i8 @my_func(i8)
+      //   br i1 icmp ne (i8 (i8)* @my_func, i8 (i8)* null), label %use_my_func,
+      //   label %avoid_my_func
+      // The @"dfsw$my_func" wrapper is never null, so if we replace this use
+      // in the comparison, the icmp will simplify to false and we have
+      // accidentally optimized away a null check that is necessary.
+      // This can lead to a crash when the null extern_weak my_func is called.
+      //
+      // To prevent (the most common pattern of) this problem,
+      // do not replace uses in comparisons with the wrapper.
+      // We definitely want to replace uses in call instructions.
+      // Other uses (e.g. store the function address somewhere) might be
+      // called or compared or both - this case may not be handled correctly.
+      // We will default to replacing with wrapper in cases we are unsure.
+      auto IsNotCmpUse = [](Use &U) -> bool {
+        User *Usr = U.getUser();
+        if (ConstantExpr *CE = dyn_cast<ConstantExpr>(Usr)) {
+          // This is the most common case for icmp ne null
+          if (CE->getOpcode() == Instruction::ICmp) {
+            return false;
+          }
+        }
+        if (Instruction *I = dyn_cast<Instruction>(Usr)) {
+          if (I->getOpcode() == Instruction::ICmp) {
+            return false;
+          }
+        }
+        return true;
+      };
+      F.replaceUsesWithIf(WrappedFnCst, IsNotCmpUse);
 
       UnwrappedFnMap[WrappedFnCst] = &F;
       *FI = NewF;
@@ -1536,7 +1658,32 @@ bool DataFlowSanitizer::runImpl(Module &M) {
     removeUnreachableBlocks(*F);
 
     DFSanFunction DFSF(*this, F, FnsWithNativeABI.count(F),
-                       FnsWithForceZeroLabel.count(F));
+                       FnsWithForceZeroLabel.count(F), GetTLI(*F));
+
+    if (ClReachesFunctionCallbacks) {
+      // Add callback for arguments reaching this function.
+      for (auto &FArg : F->args()) {
+        Instruction *Next = &F->getEntryBlock().front();
+        Value *FArgShadow = DFSF.getShadow(&FArg);
+        if (isZeroShadow(FArgShadow))
+          continue;
+        if (Instruction *FArgShadowInst = dyn_cast<Instruction>(FArgShadow)) {
+          Next = FArgShadowInst->getNextNode();
+        }
+        if (shouldTrackOrigins()) {
+          if (Instruction *Origin =
+                  dyn_cast<Instruction>(DFSF.getOrigin(&FArg))) {
+            // Ensure IRB insertion point is after loads for shadow and origin.
+            Instruction *OriginNext = Origin->getNextNode();
+            if (Next->comesBefore(OriginNext)) {
+              Next = OriginNext;
+            }
+          }
+        }
+        IRBuilder<> IRB(Next);
+        DFSF.addReachesFunctionCallbacksIfEnabled(IRB, *Next, &FArg);
+      }
+    }
 
     // DFSanVisitor may create new basic blocks, which confuses df_iterator.
     // Build a copy of the list before iterating over it.
@@ -1919,6 +2066,14 @@ Align DFSanFunction::getOriginAlign(Align InstAlignment) {
   return Align(std::max(MinOriginAlignment, Alignment));
 }
 
+bool DFSanFunction::isLookupTableConstant(Value *P) {
+  if (GlobalVariable *GV = dyn_cast<GlobalVariable>(P->stripPointerCasts()))
+    if (GV->isConstant() && GV->hasName())
+      return DFS.CombineTaintLookupTableNames.count(GV->getName());
+
+  return false;
+}
+
 bool DFSanFunction::useCallbackLoadLabelAndOrigin(uint64_t Size,
                                                   Align InstAlignment) {
   // When enabling tracking load instructions, we always use
@@ -2172,6 +2327,29 @@ static AtomicOrdering addAcquireOrdering(AtomicOrdering AO) {
   llvm_unreachable("Unknown ordering");
 }
 
+Value *StripPointerGEPsAndCasts(Value *V) {
+  if (!V->getType()->isPointerTy())
+    return V;
+
+  // DFSan pass should be running on valid IR, but we'll
+  // keep a seen set to ensure there are no issues.
+  SmallPtrSet<const Value *, 4> Visited;
+  Visited.insert(V);
+  do {
+    if (auto *GEP = dyn_cast<GEPOperator>(V)) {
+      V = GEP->getPointerOperand();
+    } else if (Operator::getOpcode(V) == Instruction::BitCast) {
+      V = cast<Operator>(V)->getOperand(0);
+      if (!V->getType()->isPointerTy())
+        return V;
+    } else if (isa<GlobalAlias>(V)) {
+      V = cast<GlobalAlias>(V)->getAliasee();
+    }
+  } while (Visited.insert(V).second);
+
+  return V;
+}
+
 void DFSanVisitor::visitLoadInst(LoadInst &LI) {
   auto &DL = LI.getModule()->getDataLayout();
   uint64_t Size = DL.getTypeStoreSize(LI.getType());
@@ -2189,6 +2367,7 @@ void DFSanVisitor::visitLoadInst(LoadInst &LI) {
   if (LI.isAtomic())
     LI.setOrdering(addAcquireOrdering(LI.getOrdering()));
 
+  Instruction *AfterLi = LI.getNextNode();
   Instruction *Pos = LI.isAtomic() ? LI.getNextNode() : &LI;
   std::vector<Value *> Shadows;
   std::vector<Value *> Origins;
@@ -2200,7 +2379,9 @@ void DFSanVisitor::visitLoadInst(LoadInst &LI) {
     Shadows.push_back(PrimitiveShadow);
     Origins.push_back(Origin);
   }
-  if (ClCombinePointerLabelsOnLoad) {
+  if (ClCombinePointerLabelsOnLoad ||
+      DFSF.isLookupTableConstant(
+          StripPointerGEPsAndCasts(LI.getPointerOperand()))) {
     Value *PtrShadow = DFSF.getShadow(LI.getPointerOperand());
     PrimitiveShadow = DFSF.combineShadows(PrimitiveShadow, PtrShadow, Pos);
     if (ShouldTrackOrigins) {
@@ -2224,6 +2405,9 @@ void DFSanVisitor::visitLoadInst(LoadInst &LI) {
     Value *Addr8 = IRB.CreateBitCast(LI.getPointerOperand(), DFSF.DFS.Int8Ptr);
     IRB.CreateCall(DFSF.DFS.DFSanLoadCallbackFn, {PrimitiveShadow, Addr8});
   }
+
+  IRBuilder<> IRB(AfterLi);
+  DFSF.addReachesFunctionCallbacksIfEnabled(IRB, LI, &LI);
 }
 
 Value *DFSanFunction::updateOriginIfTainted(Value *Shadow, Value *Origin,
@@ -2384,7 +2568,7 @@ void DFSanFunction::storePrimitiveShadowOrigin(Value *Addr, uint64_t Size,
   if (LeftSize >= ShadowVecSize) {
     auto *ShadowVecTy =
         FixedVectorType::get(DFS.PrimitiveShadowTy, ShadowVecSize);
-    Value *ShadowVec = UndefValue::get(ShadowVecTy);
+    Value *ShadowVec = PoisonValue::get(ShadowVecTy);
     for (unsigned I = 0; I != ShadowVecSize; ++I) {
       ShadowVec = IRB.CreateInsertElement(
           ShadowVec, PrimitiveShadow,
@@ -2562,7 +2746,9 @@ void DFSanVisitor::visitLandingPadInst(LandingPadInst &LPI) {
 }
 
 void DFSanVisitor::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
-  if (ClCombineOffsetLabelsOnGEP) {
+  if (ClCombineOffsetLabelsOnGEP ||
+      DFSF.isLookupTableConstant(
+          StripPointerGEPsAndCasts(GEPI.getPointerOperand()))) {
     visitInstOperands(GEPI);
     return;
   }
@@ -2722,13 +2908,8 @@ void DFSanVisitor::visitMemTransferInst(MemTransferInst &I) {
   auto *MTI = cast<MemTransferInst>(
       IRB.CreateCall(I.getFunctionType(), I.getCalledOperand(),
                      {DestShadow, SrcShadow, LenShadow, I.getVolatileCst()}));
-  if (ClPreserveAlignment) {
-    MTI->setDestAlignment(I.getDestAlign() * DFSF.DFS.ShadowWidthBytes);
-    MTI->setSourceAlignment(I.getSourceAlign() * DFSF.DFS.ShadowWidthBytes);
-  } else {
-    MTI->setDestAlignment(Align(DFSF.DFS.ShadowWidthBytes));
-    MTI->setSourceAlignment(Align(DFSF.DFS.ShadowWidthBytes));
-  }
+  MTI->setDestAlignment(DFSF.getShadowAlign(I.getDestAlign().valueOrOne()));
+  MTI->setSourceAlignment(DFSF.getShadowAlign(I.getSourceAlign().valueOrOne()));
   if (ClEventCallbacks) {
     IRB.CreateCall(DFSF.DFS.DFSanMemTransferCallbackFn,
                    {RawDestShadow,
@@ -2864,16 +3045,19 @@ bool DFSanVisitor::visitWrappedCallBase(Function &F, CallBase &CB) {
     CB.setCalledFunction(&F);
     IRB.CreateCall(DFSF.DFS.DFSanUnimplementedFn,
                    IRB.CreateGlobalStringPtr(F.getName()));
+    DFSF.DFS.buildExternWeakCheckIfNeeded(IRB, &F);
     DFSF.setShadow(&CB, DFSF.DFS.getZeroShadow(&CB));
     DFSF.setOrigin(&CB, DFSF.DFS.ZeroOrigin);
     return true;
   case DataFlowSanitizer::WK_Discard:
     CB.setCalledFunction(&F);
+    DFSF.DFS.buildExternWeakCheckIfNeeded(IRB, &F);
     DFSF.setShadow(&CB, DFSF.DFS.getZeroShadow(&CB));
     DFSF.setOrigin(&CB, DFSF.DFS.ZeroOrigin);
     return true;
   case DataFlowSanitizer::WK_Functional:
     CB.setCalledFunction(&F);
+    DFSF.DFS.buildExternWeakCheckIfNeeded(IRB, &F);
     visitInstOperands(CB);
     return true;
   case DataFlowSanitizer::WK_Custom:
@@ -2905,22 +3089,7 @@ bool DFSanVisitor::visitWrappedCallBase(Function &F, CallBase &CB) {
     // Adds non-variable arguments.
     auto *I = CB.arg_begin();
     for (unsigned N = FT->getNumParams(); N != 0; ++I, --N) {
-      Type *T = (*I)->getType();
-      FunctionType *ParamFT;
-      if (isa<PointerType>(T) &&
-          (ParamFT = dyn_cast<FunctionType>(T->getPointerElementType()))) {
-        std::string TName = "dfst";
-        TName += utostr(FT->getNumParams() - N);
-        TName += "$";
-        TName += F.getName();
-        Constant *Trampoline =
-            DFSF.DFS.getOrBuildTrampolineFunction(ParamFT, TName);
-        Args.push_back(Trampoline);
-        Args.push_back(
-            IRB.CreateBitCast(*I, Type::getInt8PtrTy(*DFSF.DFS.Ctx)));
-      } else {
-        Args.push_back(*I);
-      }
+      Args.push_back(*I);
     }
 
     // Adds shadow arguments.
@@ -2976,6 +3145,146 @@ bool DFSanVisitor::visitWrappedCallBase(Function &F, CallBase &CB) {
   return false;
 }
 
+Value *DFSanVisitor::makeAddAcquireOrderingTable(IRBuilder<> &IRB) {
+  constexpr int NumOrderings = (int)AtomicOrderingCABI::seq_cst + 1;
+  uint32_t OrderingTable[NumOrderings] = {};
+
+  OrderingTable[(int)AtomicOrderingCABI::relaxed] =
+      OrderingTable[(int)AtomicOrderingCABI::acquire] =
+          OrderingTable[(int)AtomicOrderingCABI::consume] =
+              (int)AtomicOrderingCABI::acquire;
+  OrderingTable[(int)AtomicOrderingCABI::release] =
+      OrderingTable[(int)AtomicOrderingCABI::acq_rel] =
+          (int)AtomicOrderingCABI::acq_rel;
+  OrderingTable[(int)AtomicOrderingCABI::seq_cst] =
+      (int)AtomicOrderingCABI::seq_cst;
+
+  return ConstantDataVector::get(IRB.getContext(),
+                                 makeArrayRef(OrderingTable, NumOrderings));
+}
+
+void DFSanVisitor::visitLibAtomicLoad(CallBase &CB) {
+  // Since we use getNextNode here, we can't have CB terminate the BB.
+  assert(isa<CallInst>(CB));
+
+  IRBuilder<> IRB(&CB);
+  Value *Size = CB.getArgOperand(0);
+  Value *SrcPtr = CB.getArgOperand(1);
+  Value *DstPtr = CB.getArgOperand(2);
+  Value *Ordering = CB.getArgOperand(3);
+  // Convert the call to have at least Acquire ordering to make sure
+  // the shadow operations aren't reordered before it.
+  Value *NewOrdering =
+      IRB.CreateExtractElement(makeAddAcquireOrderingTable(IRB), Ordering);
+  CB.setArgOperand(3, NewOrdering);
+
+  IRBuilder<> NextIRB(CB.getNextNode());
+  NextIRB.SetCurrentDebugLocation(CB.getDebugLoc());
+
+  // TODO: Support ClCombinePointerLabelsOnLoad
+  // TODO: Support ClEventCallbacks
+
+  NextIRB.CreateCall(DFSF.DFS.DFSanMemShadowOriginTransferFn,
+                     {NextIRB.CreatePointerCast(DstPtr, NextIRB.getInt8PtrTy()),
+                      NextIRB.CreatePointerCast(SrcPtr, NextIRB.getInt8PtrTy()),
+                      NextIRB.CreateIntCast(Size, DFSF.DFS.IntptrTy, false)});
+}
+
+Value *DFSanVisitor::makeAddReleaseOrderingTable(IRBuilder<> &IRB) {
+  constexpr int NumOrderings = (int)AtomicOrderingCABI::seq_cst + 1;
+  uint32_t OrderingTable[NumOrderings] = {};
+
+  OrderingTable[(int)AtomicOrderingCABI::relaxed] =
+      OrderingTable[(int)AtomicOrderingCABI::release] =
+          (int)AtomicOrderingCABI::release;
+  OrderingTable[(int)AtomicOrderingCABI::consume] =
+      OrderingTable[(int)AtomicOrderingCABI::acquire] =
+          OrderingTable[(int)AtomicOrderingCABI::acq_rel] =
+              (int)AtomicOrderingCABI::acq_rel;
+  OrderingTable[(int)AtomicOrderingCABI::seq_cst] =
+      (int)AtomicOrderingCABI::seq_cst;
+
+  return ConstantDataVector::get(IRB.getContext(),
+                                 makeArrayRef(OrderingTable, NumOrderings));
+}
+
+void DFSanVisitor::visitLibAtomicStore(CallBase &CB) {
+  IRBuilder<> IRB(&CB);
+  Value *Size = CB.getArgOperand(0);
+  Value *SrcPtr = CB.getArgOperand(1);
+  Value *DstPtr = CB.getArgOperand(2);
+  Value *Ordering = CB.getArgOperand(3);
+  // Convert the call to have at least Release ordering to make sure
+  // the shadow operations aren't reordered after it.
+  Value *NewOrdering =
+      IRB.CreateExtractElement(makeAddReleaseOrderingTable(IRB), Ordering);
+  CB.setArgOperand(3, NewOrdering);
+
+  // TODO: Support ClCombinePointerLabelsOnStore
+  // TODO: Support ClEventCallbacks
+
+  IRB.CreateCall(DFSF.DFS.DFSanMemShadowOriginTransferFn,
+                 {IRB.CreatePointerCast(DstPtr, IRB.getInt8PtrTy()),
+                  IRB.CreatePointerCast(SrcPtr, IRB.getInt8PtrTy()),
+                  IRB.CreateIntCast(Size, DFSF.DFS.IntptrTy, false)});
+}
+
+void DFSanVisitor::visitLibAtomicExchange(CallBase &CB) {
+  // void __atomic_exchange(size_t size, void *ptr, void *val, void *ret, int
+  // ordering)
+  IRBuilder<> IRB(&CB);
+  Value *Size = CB.getArgOperand(0);
+  Value *TargetPtr = CB.getArgOperand(1);
+  Value *SrcPtr = CB.getArgOperand(2);
+  Value *DstPtr = CB.getArgOperand(3);
+
+  // This operation is not atomic for the shadow and origin memory.
+  // This could result in DFSan false positives or false negatives.
+  // For now we will assume these operations are rare, and
+  // the additional complexity to address this is not warrented.
+
+  // Current Target to Dest
+  IRB.CreateCall(DFSF.DFS.DFSanMemShadowOriginTransferFn,
+                 {IRB.CreatePointerCast(DstPtr, IRB.getInt8PtrTy()),
+                  IRB.CreatePointerCast(TargetPtr, IRB.getInt8PtrTy()),
+                  IRB.CreateIntCast(Size, DFSF.DFS.IntptrTy, false)});
+
+  // Current Src to Target (overriding)
+  IRB.CreateCall(DFSF.DFS.DFSanMemShadowOriginTransferFn,
+                 {IRB.CreatePointerCast(TargetPtr, IRB.getInt8PtrTy()),
+                  IRB.CreatePointerCast(SrcPtr, IRB.getInt8PtrTy()),
+                  IRB.CreateIntCast(Size, DFSF.DFS.IntptrTy, false)});
+}
+
+void DFSanVisitor::visitLibAtomicCompareExchange(CallBase &CB) {
+  // bool __atomic_compare_exchange(size_t size, void *ptr, void *expected, void
+  // *desired, int success_order, int failure_order)
+  Value *Size = CB.getArgOperand(0);
+  Value *TargetPtr = CB.getArgOperand(1);
+  Value *ExpectedPtr = CB.getArgOperand(2);
+  Value *DesiredPtr = CB.getArgOperand(3);
+
+  // This operation is not atomic for the shadow and origin memory.
+  // This could result in DFSan false positives or false negatives.
+  // For now we will assume these operations are rare, and
+  // the additional complexity to address this is not warrented.
+
+  IRBuilder<> NextIRB(CB.getNextNode());
+  NextIRB.SetCurrentDebugLocation(CB.getDebugLoc());
+
+  DFSF.setShadow(&CB, DFSF.DFS.getZeroShadow(&CB));
+
+  // If original call returned true, copy Desired to Target.
+  // If original call returned false, copy Target to Expected.
+  NextIRB.CreateCall(
+      DFSF.DFS.DFSanMemShadowOriginConditionalExchangeFn,
+      {NextIRB.CreateIntCast(&CB, NextIRB.getInt8Ty(), false),
+       NextIRB.CreatePointerCast(TargetPtr, NextIRB.getInt8PtrTy()),
+       NextIRB.CreatePointerCast(ExpectedPtr, NextIRB.getInt8PtrTy()),
+       NextIRB.CreatePointerCast(DesiredPtr, NextIRB.getInt8PtrTy()),
+       NextIRB.CreateIntCast(Size, DFSF.DFS.IntptrTy, false)});
+}
+
 void DFSanVisitor::visitCallBase(CallBase &CB) {
   Function *F = CB.getCalledFunction();
   if ((F && F->isIntrinsic()) || CB.isInlineAsm()) {
@@ -2987,6 +3296,40 @@ void DFSanVisitor::visitCallBase(CallBase &CB) {
   // instrument them.
   if (F == DFSF.DFS.DFSanVarargWrapperFn.getCallee()->stripPointerCasts())
     return;
+
+  LibFunc LF;
+  if (DFSF.TLI.getLibFunc(CB, LF)) {
+    // libatomic.a functions need to have special handling because there isn't
+    // a good way to intercept them or compile the library with
+    // instrumentation.
+    switch (LF) {
+    case LibFunc_atomic_load:
+      if (!isa<CallInst>(CB)) {
+        llvm::errs() << "DFSAN -- cannot instrument invoke of libatomic load. "
+                        "Ignoring!\n";
+        break;
+      }
+      visitLibAtomicLoad(CB);
+      return;
+    case LibFunc_atomic_store:
+      visitLibAtomicStore(CB);
+      return;
+    default:
+      break;
+    }
+  }
+
+  // TODO: These are not supported by TLI? They are not in the enum.
+  if (F && F->hasName() && !F->isVarArg()) {
+    if (F->getName() == "__atomic_exchange") {
+      visitLibAtomicExchange(CB);
+      return;
+    }
+    if (F->getName() == "__atomic_compare_exchange") {
+      visitLibAtomicCompareExchange(CB);
+      return;
+    }
+  }
 
   DenseMap<Value *, Function *>::iterator UnwrappedFnIt =
       DFSF.DFS.UnwrappedFnMap.find(CB.getCalledOperand());
@@ -3064,6 +3407,8 @@ void DFSanVisitor::visitCallBase(CallBase &CB) {
       DFSF.SkipInsts.insert(LI);
       DFSF.setOrigin(&CB, LI);
     }
+
+    DFSF.addReachesFunctionCallbacksIfEnabled(NextIRB, CB, &CB);
   }
 }
 
@@ -3092,38 +3437,20 @@ void DFSanVisitor::visitPHINode(PHINode &PN) {
   DFSF.PHIFixups.push_back({&PN, ShadowPN, OriginPN});
 }
 
-namespace {
-class DataFlowSanitizerLegacyPass : public ModulePass {
-private:
-  std::vector<std::string> ABIListFiles;
-
-public:
-  static char ID;
-
-  DataFlowSanitizerLegacyPass(
-      const std::vector<std::string> &ABIListFiles = std::vector<std::string>())
-      : ModulePass(ID), ABIListFiles(ABIListFiles) {}
-
-  bool runOnModule(Module &M) override {
-    return DataFlowSanitizer(ABIListFiles).runImpl(M);
-  }
-};
-} // namespace
-
-char DataFlowSanitizerLegacyPass::ID;
-
-INITIALIZE_PASS(DataFlowSanitizerLegacyPass, "dfsan",
-                "DataFlowSanitizer: dynamic data flow analysis.", false, false)
-
-ModulePass *llvm::createDataFlowSanitizerLegacyPassPass(
-    const std::vector<std::string> &ABIListFiles) {
-  return new DataFlowSanitizerLegacyPass(ABIListFiles);
-}
-
 PreservedAnalyses DataFlowSanitizerPass::run(Module &M,
                                              ModuleAnalysisManager &AM) {
-  if (DataFlowSanitizer(ABIListFiles).runImpl(M)) {
-    return PreservedAnalyses::none();
-  }
-  return PreservedAnalyses::all();
+  auto GetTLI = [&](Function &F) -> TargetLibraryInfo & {
+    auto &FAM =
+        AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
+    return FAM.getResult<TargetLibraryAnalysis>(F);
+  };
+  if (!DataFlowSanitizer(ABIListFiles).runImpl(M, GetTLI))
+    return PreservedAnalyses::all();
+
+  PreservedAnalyses PA = PreservedAnalyses::none();
+  // GlobalsAA is considered stateless and does not get invalidated unless
+  // explicitly invalidated; PreservedAnalyses::none() is not enough. Sanitizers
+  // make changes that require GlobalsAA to be invalidated.
+  PA.abandon<GlobalsAA>();
+  return PA;
 }

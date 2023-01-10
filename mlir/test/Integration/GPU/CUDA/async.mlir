@@ -1,17 +1,17 @@
 // RUN: mlir-opt %s \
-// RUN:   -gpu-kernel-outlining \
-// RUN:   -pass-pipeline='gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin)' \
-// RUN:   -gpu-async-region -gpu-to-llvm \
-// RUN:   -async-to-async-runtime -async-runtime-ref-counting \
-// RUN:   -convert-async-to-llvm -convert-std-to-llvm \
+// RUN: | mlir-opt -gpu-kernel-outlining \
+// RUN: | mlir-opt -pass-pipeline='builtin.module(gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin))' \
+// RUN: | mlir-opt -gpu-async-region -gpu-to-llvm \
+// RUN: | mlir-opt -async-to-async-runtime -async-runtime-ref-counting \
+// RUN: | mlir-opt -convert-async-to-llvm -convert-func-to-llvm \
 // RUN: | mlir-cpu-runner \
-// RUN:   --shared-libs=%linalg_test_lib_dir/libmlir_cuda_runtime%shlibext \
-// RUN:   --shared-libs=%linalg_test_lib_dir/libmlir_async_runtime%shlibext \
-// RUN:   --shared-libs=%linalg_test_lib_dir/libmlir_runner_utils%shlibext \
+// RUN:   --shared-libs=%mlir_lib_dir/libmlir_cuda_runtime%shlibext \
+// RUN:   --shared-libs=%mlir_lib_dir/libmlir_async_runtime%shlibext \
+// RUN:   --shared-libs=%mlir_lib_dir/libmlir_runner_utils%shlibext \
 // RUN:   --entry-point-result=void -O0 \
 // RUN: | FileCheck %s
 
-func @main() {
+func.func @main() {
   %c0    = arith.constant 0 : index
   %c1    = arith.constant 1 : index
   %count = arith.constant 2 : index
@@ -66,8 +66,8 @@ func @main() {
 
   async.await %t3 : !async.token
   // CHECK: [84, 84]
-  call @print_memref_i32(%h0_unranked) : (memref<*xi32>) -> ()
+  call @printMemrefI32(%h0_unranked) : (memref<*xi32>) -> ()
   return
 }
 
-func private @print_memref_i32(memref<*xi32>)
+func.func private @printMemrefI32(memref<*xi32>)

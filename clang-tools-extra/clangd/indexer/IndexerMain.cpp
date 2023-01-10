@@ -20,7 +20,6 @@
 #include "index/SymbolCollector.h"
 #include "support/Logger.h"
 #include "clang/Tooling/ArgumentsAdjusters.h"
-#include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Execution.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/Support/CommandLine.h"
@@ -148,7 +147,14 @@ int main(int argc, const char **argv) {
   auto Err = Executor->get()->execute(
       std::make_unique<clang::clangd::IndexActionFactory>(Data),
       clang::tooling::ArgumentsAdjuster(
-          clang::clangd::CommandMangler::detect()));
+          [Mangler = std::make_shared<clang::clangd::CommandMangler>(
+               clang::clangd::CommandMangler::detect())](
+              const std::vector<std::string> &Args, llvm::StringRef File) {
+            clang::tooling::CompileCommand Cmd;
+            Cmd.CommandLine = Args;
+            Mangler->operator()(Cmd, File);
+            return Cmd.CommandLine;
+          }));
   if (Err) {
     clang::clangd::elog("{0}", std::move(Err));
   }

@@ -31,19 +31,16 @@
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/CFG.h"
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/Module.h"
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/SimplifyCFG.h"
-#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/SimplifyCFGOptions.h"
 #include <utility>
@@ -111,12 +108,12 @@ performBlockTailMerging(Function &F, ArrayRef<BasicBlock *> BBs,
       std::get<1>(I) = PHINode::Create(std::get<0>(I)->getType(),
                                        /*NumReservedValues=*/BBs.size(),
                                        CanonicalBB->getName() + ".op");
-      CanonicalBB->getInstList().push_back(std::get<1>(I));
+      std::get<1>(I)->insertAt(CanonicalBB, CanonicalBB->end());
     }
     // Make it so that this canonical block actually has the right
     // terminator.
     CanonicalTerm = Term->clone();
-    CanonicalBB->getInstList().push_back(CanonicalTerm);
+    CanonicalTerm->insertAt(CanonicalBB, CanonicalBB->end());
     // If the canonical terminator has operands, rewrite it to take PHI's.
     for (auto I : zip(NewOps, CanonicalTerm->operands()))
       std::get<1>(I) = std::get<0>(I);

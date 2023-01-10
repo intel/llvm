@@ -43,10 +43,11 @@ using AT = A<int[3], int, int, short>;
 // CHECK:   `-ParmVarDecl {{.*}} 'short (*)[4]'
 // CHECK: FunctionProtoType {{.*}} 'auto (X<Ps...>, Ts (*)[Ns]...) -> A<T, Ts...>' dependent trailing_return
 // CHECK: |-InjectedClassNameType {{.*}} 'A<T, Ts...>' dependent
-// CHECK: |-TemplateSpecializationType {{.*}} 'X<Ps...>' dependent X
-// CHECK: | `-TemplateArgument expr
-// CHECK: |   `-PackExpansionExpr {{.*}} 'T *'
-// CHECK: |     `-DeclRefExpr {{.*}} 'T *' NonTypeTemplateParm {{.*}} 'Ps' 'T *'
+// CHECK: |-ElaboratedType {{.*}} 'X<Ps...>' sugar dependent
+// CHECK: | `-TemplateSpecializationType {{.*}} 'X<Ps...>' dependent X
+// CHECK: |   `-TemplateArgument expr
+// CHECK: |     `-PackExpansionExpr {{.*}} 'T *'
+// CHECK: |       `-DeclRefExpr {{.*}} 'T *' NonTypeTemplateParm {{.*}} 'Ps' 'T *'
 // CHECK: `-PackExpansionType {{.*}} 'Ts (*)[Ns]...' dependent
 // CHECK:   `-PointerType {{.*}} 'Ts (*)[Ns]' dependent contains_unexpanded_pack
 // CHECK:     `-ParenType {{.*}} 'Ts[Ns]' sugar dependent contains_unexpanded_pack
@@ -117,8 +118,9 @@ using CT = C<int>;
 // CHECK: |-InjectedClassNameType {{.*}} 'C<A>' dependent
 // CHECK: |-TemplateTypeParmType {{.*}} 'A' dependent depth 0 index 0
 // CHECK: | `-TemplateTypeParm {{.*}} 'A'
-// CHECK: |-TemplateSpecializationType {{.*}} 'Y<>' dependent Y
-// CHECK: | `-TemplateArgument template 
+// CHECK: |-ElaboratedType {{.*}} 'Y<>' sugar dependent
+// CHECK: | `-TemplateSpecializationType {{.*}} 'Y<>' dependent Y
+// CHECK: |   `-TemplateArgument template
 // CHECK: `-TemplateTypeParmType {{.*}} 'type-parameter-0-2' dependent depth 0 index 2
 
 template<typename ...T> struct D { // expected-note {{candidate}}
@@ -154,9 +156,8 @@ using DT = D<int, int>;
 // CHECK:               |-BuiltinType {{.*}} 'int'
 // CHECK:               |-TemplateTypeParmType {{.*}} 'T' dependent contains_unexpanded_pack depth 0 index 0 pack
 // CHECK:               | `-TemplateTypeParm {{.*}} 'T'
-// CHECK:               `-SubstTemplateTypeParmPackType {{.*}} 'U' dependent contains_unexpanded_pack
-// CHECK:                 |-TemplateTypeParmType {{.*}} 'U' dependent contains_unexpanded_pack depth 1 index 0 pack
-// CHECK:                 | `-TemplateTypeParm {{.*}} 'U'
+// CHECK:               `-SubstTemplateTypeParmPackType {{.*}} 'U' dependent contains_unexpanded_pack typename depth 1 index 0 ... U
+// CHECK:                 |-TypeAliasTemplate {{.*}} 'B'
 // CHECK:                 `-TemplateArgument pack
 // CHECK:                   |-TemplateArgument type 'type-parameter-0-1'
 // CHECK-NOT: Subst
@@ -206,3 +207,37 @@ using ET = E<1, 3>;
 // CHECK:                 `-TemplateArgument expr
 // CHECK-NOT: Subst
 // CHECK:                   `-DeclRefExpr {{.*}} 'int' NonTypeTemplateParm [[M2]] 'M2' 'int'
+
+template <char = 'x'> struct F;
+
+template <char> struct F {
+  template <typename U>
+  requires(false) F(U);
+  template <typename U>
+  requires(true) F(U);
+};
+
+F s(0);
+
+// CHECK-LABEL: Dumping <deduction guide for F>:
+// CHECK: FunctionTemplateDecl
+// CHECK: |-NonTypeTemplateParmDecl {{.*}} 'char' depth 0 index 0
+// CHECK:   `-TemplateArgument expr
+// CHECK: |   |-inherited from NonTypeTemplateParm {{.*}} '' 'char'
+// CHECK: |   `-ConstantExpr {{.*}} 'char'
+// CHECK: |     |-value: Int 120
+// CHECK: |     `-CharacterLiteral {{.*}} 'char' 120
+// CHECK: |-TemplateTypeParmDecl {{.*}} typename depth 0 index 1 U
+// CHECK: |-ParenExpr {{.*}} 'bool'
+// CHECK: | `-CXXBoolLiteralExpr {{.*}} 'bool' false
+// CHECK: |-CXXDeductionGuideDecl {{.*}} implicit <deduction guide for F> 'auto (type-parameter-0-1) -> F<>'
+// CHECK: | `-ParmVarDecl {{.*}} 'type-parameter-0-1'
+// CHECK: `-CXXDeductionGuideDecl {{.*}} implicit <deduction guide for F> 'auto (int) -> F<'x'>'
+// CHECK:   |-TemplateArgument integral 120
+// CHECK:   |-TemplateArgument type 'int'
+// CHECK:   | `-BuiltinType {{.*}} 'int'
+// CHECK:   `-ParmVarDecl {{.*}} 'int':'int'
+// CHECK: FunctionProtoType {{.*}} 'auto (type-parameter-0-1) -> F<>' dependent trailing_return cdecl
+// CHECK: |-InjectedClassNameType {{.*}} 'F<>' dependent
+// CHECK: | `-CXXRecord {{.*}} 'F'
+// CHECK: `-TemplateTypeParmType {{.*}} 'type-parameter-0-1' dependent depth 0 index 1

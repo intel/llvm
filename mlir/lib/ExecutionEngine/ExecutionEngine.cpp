@@ -96,7 +96,27 @@ void SimpleObjectCache::dumpToObjectFile(StringRef outputFilename) {
   file->keep();
 }
 
+bool SimpleObjectCache::isEmpty() { return cachedObjects.empty(); }
+
 void ExecutionEngine::dumpToObjectFile(StringRef filename) {
+  if (cache == nullptr) {
+    llvm::errs() << "cannot dump ExecutionEngine object code to file: "
+                    "object cache is disabled\n";
+    return;
+  }
+  // Compilation is lazy and it doesn't populate object cache unless requested.
+  // In case object dump is requested before cache is populated, we need to
+  // force compilation manually. 
+  if (cache->isEmpty()) {
+    for (std::string &functionName : functionNames) {
+      auto result = lookupPacked(functionName);
+      if (!result) {
+        llvm::errs() << "Could not compile " << functionName << ":\n  "
+                     << result.takeError() << "\n";
+        return;
+      }
+    }
+  }
   cache->dumpToObjectFile(filename);
 }
 
@@ -125,8 +145,8 @@ bool ExecutionEngine::setupTargetTriple(Module *llvmModule) {
   llvm::StringMap<bool> hostFeatures;
 
   if (llvm::sys::getHostCPUFeatures(hostFeatures))
-    for (auto &f : hostFeatures)
-      features.AddFeature(f.first(), f.second);
+    for (const auto &[feature, isEnabled] : hostFeatures)
+      features.AddFeature(feature, isEnabled);
 
   std::unique_ptr<llvm::TargetMachine> machine(target->createTargetMachine(
       targetTriple, cpu, features.getString(), {}, {}));
@@ -209,10 +229,11 @@ static void packFunctionArguments(Module *module) {
   }
 }
 
-ExecutionEngine::ExecutionEngine(bool enableObjectCache,
+ExecutionEngine::ExecutionEngine(bool enableObjectDump,
                                  bool enableGDBNotificationListener,
                                  bool enablePerfNotificationListener)
-    : cache(enableObjectCache ? new SimpleObjectCache() : nullptr),
+    : cache(enableObjectDump ? new SimpleObjectCache() : nullptr),
+      functionNames(),
       gdbListener(enableGDBNotificationListener
                       ? llvm::JITEventListener::createGDBRegistrationListener()
                       : nullptr),
@@ -227,10 +248,18 @@ ExecutionEngine::ExecutionEngine(bool enableObjectCache,
 }
 
 Expected<std::unique_ptr<ExecutionEngine>>
-ExecutionEngine::create(ModuleOp m, const ExecutionEngineOptions &options) {
+ExecutionEngine::create(Operation *m, const ExecutionEngineOptions &options) {
   auto engine = std::make_unique<ExecutionEngine>(
-      options.enableObjectCache, options.enableGDBNotificationListener,
+      options.enableObjectDump, options.enableGDBNotificationListener,
       options.enablePerfNotificationListener);
+
+  // Remember all entry-points if object dumping is enabled.
+  if (options.enableObjectDump) {
+    for (auto funcOp : m->getRegion(0).getOps<LLVM::LLVMFuncOp>()) {
+      StringRef funcName = funcOp.getSymName();
+      engine->functionNames.push_back(funcName.str());
+    }
+  }
 
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext);
   auto llvmModule = options.llvmModuleBuilder
@@ -298,7 +327,7 @@ ExecutionEngine::create(ModuleOp m, const ExecutionEngineOptions &options) {
   auto compileFunctionCreator = [&](JITTargetMachineBuilder jtmb)
       -> Expected<std::unique_ptr<IRCompileLayer::IRCompiler>> {
     if (options.jitCodeGenOptLevel)
-      jtmb.setCodeGenOptLevel(options.jitCodeGenOptLevel.getValue());
+      jtmb.setCodeGenOptLevel(*options.jitCodeGenOptLevel);
     auto tm = jtmb.createTargetMachine();
     if (!tm)
       return tm.takeError();
@@ -355,11 +384,9 @@ Expected<void *> ExecutionEngine::lookup(StringRef name) const {
     return makeStringError(os.str());
   }
 
-  auto rawFPtr = expectedSymbol->getAddress();
-  auto *fptr = reinterpret_cast<void *>(rawFPtr);
-  if (!fptr)
-    return makeStringError("looked up function is null");
-  return fptr;
+  if (void *fptr = expectedSymbol->toPtr<void *>())
+    return fptr;
+  return makeStringError("looked up function is null");
 }
 
 Error ExecutionEngine::invokePacked(StringRef name,

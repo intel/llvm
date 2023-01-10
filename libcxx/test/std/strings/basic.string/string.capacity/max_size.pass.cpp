@@ -9,7 +9,7 @@
 // UNSUPPORTED: no-exceptions
 // <string>
 
-// size_type max_size() const;
+// size_type max_size() const; // constexpr since C++20
 
 // NOTE: asan and msan will fail for one of two reasons
 // 1. If allocator_may_return_null=0 then they will fail because the allocation
@@ -20,12 +20,13 @@
 
 #include <string>
 #include <cassert>
+#include <new>
 
 #include "test_macros.h"
 #include "min_allocator.h"
 
 template <class S>
-void
+TEST_CONSTEXPR_CXX20 void
 test1(const S& s)
 {
     S s2(s);
@@ -36,7 +37,7 @@ test1(const S& s)
 }
 
 template <class S>
-void
+TEST_CONSTEXPR_CXX20 void
 test2(const S& s)
 {
     S s2(s);
@@ -47,7 +48,7 @@ test2(const S& s)
 }
 
 template <class S>
-void
+TEST_CONSTEXPR_CXX20 void
 test(const S& s)
 {
     assert(s.max_size() >= s.size());
@@ -55,30 +56,39 @@ test(const S& s)
     test2(s);
 }
 
-bool test() {
-  {
-    typedef std::string S;
-    test(S());
-    test(S("123"));
-    test(S("12345678901234567890123456789012345678901234567890"));
-  }
+template <class S>
+TEST_CONSTEXPR_CXX20 void test_string() {
+  test(S());
+  test(S("123"));
+  test(S("12345678901234567890123456789012345678901234567890"));
+}
+
+TEST_CONSTEXPR_CXX20 bool test() {
+  test_string<std::string>();
 #if TEST_STD_VER >= 11
-  {
-    typedef std::basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test(S());
-    test(S("123"));
-    test(S("12345678901234567890123456789012345678901234567890"));
-  }
+  test_string<std::basic_string<char, std::char_traits<char>, min_allocator<char>>>();
 #endif
 
   return true;
 }
 
+#if TEST_STD_VER > 17
+constexpr bool test_constexpr() {
+  std::string str;
+
+  size_t size = str.max_size();
+  assert(size > 0);
+
+  return true;
+}
+#endif
+
 int main(int, char**)
 {
   test();
 #if TEST_STD_VER > 17
-  // static_assert(test());
+  test_constexpr();
+  static_assert(test_constexpr());
 #endif
 
   return 0;

@@ -744,7 +744,7 @@ uint32_t Symtab::AppendSymbolIndexesWithNameAndType(
 
 uint32_t Symtab::AppendSymbolIndexesMatchingRegExAndType(
     const RegularExpression &regexp, SymbolType symbol_type,
-    std::vector<uint32_t> &indexes) {
+    std::vector<uint32_t> &indexes, Mangled::NamePreference name_preference) {
   std::lock_guard<std::recursive_mutex> guard(m_mutex);
 
   uint32_t prev_size = indexes.size();
@@ -753,7 +753,8 @@ uint32_t Symtab::AppendSymbolIndexesMatchingRegExAndType(
   for (uint32_t i = 0; i < sym_end; i++) {
     if (symbol_type == eSymbolTypeAny ||
         m_symbols[i].GetType() == symbol_type) {
-      const char *name = m_symbols[i].GetName().AsCString();
+      const char *name =
+          m_symbols[i].GetMangled().GetName(name_preference).AsCString();
       if (name) {
         if (regexp.Execute(name))
           indexes.push_back(i);
@@ -766,7 +767,7 @@ uint32_t Symtab::AppendSymbolIndexesMatchingRegExAndType(
 uint32_t Symtab::AppendSymbolIndexesMatchingRegExAndType(
     const RegularExpression &regexp, SymbolType symbol_type,
     Debug symbol_debug_type, Visibility symbol_visibility,
-    std::vector<uint32_t> &indexes) {
+    std::vector<uint32_t> &indexes, Mangled::NamePreference name_preference) {
   std::lock_guard<std::recursive_mutex> guard(m_mutex);
 
   uint32_t prev_size = indexes.size();
@@ -778,7 +779,8 @@ uint32_t Symtab::AppendSymbolIndexesMatchingRegExAndType(
       if (!CheckSymbolAtIndex(i, symbol_debug_type, symbol_visibility))
         continue;
 
-      const char *name = m_symbols[i].GetName().AsCString();
+      const char *name =
+          m_symbols[i].GetMangled().GetName(name_preference).AsCString();
       if (name) {
         if (regexp.Execute(name))
           indexes.push_back(i);
@@ -847,11 +849,13 @@ void Symtab::FindAllSymbolsWithNameAndType(
 void Symtab::FindAllSymbolsMatchingRexExAndType(
     const RegularExpression &regex, SymbolType symbol_type,
     Debug symbol_debug_type, Visibility symbol_visibility,
-    std::vector<uint32_t> &symbol_indexes) {
+    std::vector<uint32_t> &symbol_indexes,
+    Mangled::NamePreference name_preference) {
   std::lock_guard<std::recursive_mutex> guard(m_mutex);
 
   AppendSymbolIndexesMatchingRegExAndType(regex, symbol_type, symbol_debug_type,
-                                          symbol_visibility, symbol_indexes);
+                                          symbol_visibility, symbol_indexes,
+                                          name_preference);
 }
 
 Symbol *Symtab::FindFirstSymbolWithNameAndType(ConstString name,
@@ -1137,7 +1141,7 @@ void Symtab::FindFunctionSymbols(ConstString name, uint32_t name_type_mask,
   }
 
   if (!symbol_indexes.empty()) {
-    llvm::sort(symbol_indexes.begin(), symbol_indexes.end());
+    llvm::sort(symbol_indexes);
     symbol_indexes.erase(
         std::unique(symbol_indexes.begin(), symbol_indexes.end()),
         symbol_indexes.end());
@@ -1204,6 +1208,7 @@ bool DecodeCStrMap(const DataExtractor &data, lldb::offset_t *offset_ptr,
   if (identifier != kIdentifierCStrMap)
     return false;
   const uint32_t count = data.GetU32(offset_ptr);
+  cstr_map.Reserve(count);
   for (uint32_t i=0; i<count; ++i)
   {
     llvm::StringRef str(strtab.Get(data.GetU32(offset_ptr)));
@@ -1213,6 +1218,16 @@ bool DecodeCStrMap(const DataExtractor &data, lldb::offset_t *offset_ptr,
       return false;
     cstr_map.Append(ConstString(str), value);
   }
+  // We must sort the UniqueCStringMap after decoding it since it is a vector
+  // of UniqueCStringMap::Entry objects which contain a ConstString and type T.
+  // ConstString objects are sorted by "const char *" and then type T and
+  // the "const char *" are point values that will depend on the order in which
+  // ConstString objects are created and in which of the 256 string pools they
+  // are created in. So after we decode all of the entries, we must sort the
+  // name map to ensure name lookups succeed. If we encode and decode within
+  // the same process we wouldn't need to sort, so unit testing didn't catch
+  // this issue when first checked in.
+  cstr_map.Sort();
   return true;
 }
 

@@ -18,6 +18,7 @@ set_default("compiler_rt_src_root", "@COMPILER_RT_SOURCE_DIR@")
 set_default("compiler_rt_obj_root", "@COMPILER_RT_BINARY_DIR@")
 set_default("enable_per_target_runtime_dir", @LLVM_ENABLE_PER_TARGET_RUNTIME_DIR_PYBOOL@)
 set_default("llvm_tools_dir", "@LLVM_TOOLS_DIR@")
+set_default("lit_tools_dir", "@LLVM_LIT_TOOLS_DIR@")
 set_default("llvm_shlib_dir", "@LLVM_LIBRARY_OUTPUT_INTDIR@")
 set_default("gnu_ld_executable", "@GNU_LD_EXECUTABLE@")
 set_default("gold_executable", "@GOLD_EXECUTABLE@")
@@ -40,7 +41,6 @@ set_default("can_symbolize", @CAN_SYMBOLIZE@)
 set_default("use_lld", @COMPILER_RT_TEST_USE_LLD_PYBOOL@)
 set_default("use_thinlto", False)
 set_default("use_lto", config.use_thinlto)
-set_default("use_newpm", False)
 set_default("android", @ANDROID_PYBOOL@)
 set_default("android_api_level", "@ANDROID_API_LEVEL@")
 set_default("android_serial", "@ANDROID_SERIAL_FOR_TESTING@")
@@ -70,16 +70,15 @@ set_default("libcxx_used", "@LLVM_LIBCXX_USED@")
 
 # LLVM tools dir can be passed in lit parameters, so try to
 # apply substitution.
-try:
-  config.llvm_tools_dir = config.llvm_tools_dir % lit_config.params
-  config.clang = config.clang % lit_config.params
-  config.compiler_rt_libdir = config.compiler_rt_libdir % lit_config.params
-except KeyError as e:
-  key, = e.args
-  lit_config.fatal("unable to find %r parameter, use '--param=%s=VALUE'" % (key, key))
+config.llvm_tools_dir = lit_config.substitute(config.llvm_tools_dir)
+config.clang = lit_config.substitute(config.clang)
+config.compiler_rt_libdir = lit_config.substitute(config.compiler_rt_libdir)
 
 if not os.path.exists(config.clang):
   lit_config.fatal("Can't find compiler on path %r" % config.clang)
+
+import lit.llvm
+lit.llvm.initialize(lit_config, config)
 
 # Setup attributes common for all compiler-rt projects.
 lit_config.load_config(config, "@COMPILER_RT_SOURCE_DIR@/test/lit.common.cfg.py")

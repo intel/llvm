@@ -1,7 +1,10 @@
 // REQUIRES: arm-registered-target
 // RUN: %clang_cc1 -triple arm-unknown-linux-gnueabi -emit-llvm -o - %s | FileCheck %s
 
-// CHECK: declare i32 @printf(i8* noundef, ...)
+int printf(const char *, ...);
+void exit(int);
+
+// CHECK: declare i32 @printf(ptr noundef, ...)
 void f0() {
   printf("a\n");
 }
@@ -12,7 +15,7 @@ void f1() {
   exit(1);
 }
 
-// CHECK: call i8* @strstr{{.*}} [[NUW:#[0-9]+]]
+// CHECK: call ptr @strstr{{.*}} [[NUW:#[0-9]+]]
 char* f2(char* a, char* b) {
   return __builtin_strstr(a, b);
 }

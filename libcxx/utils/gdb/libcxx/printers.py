@@ -64,6 +64,36 @@ def _remove_generics(typename):
     return match.group(1)
 
 
+def _cc_field(node):
+    """Previous versions of libcxx had inconsistent field naming naming. Handle
+    both types.
+    """
+    try:
+        return node["__value_"]["__cc_"]
+    except:
+        return node["__value_"]["__cc"]
+
+
+def _data_field(node):
+    """Previous versions of libcxx had inconsistent field naming naming. Handle
+    both types.
+    """
+    try:
+        return node["__data_"]
+    except:
+        return node["__data"]
+
+
+def _size_field(node):
+    """Previous versions of libcxx had inconsistent field naming naming. Handle
+    both types.
+    """
+    try:
+        return node["__size_"]
+    except:
+        return node["__size"]
+
+
 # Some common substitutions on the types to reduce visual clutter (A user who
 # wants to see the actual details can always use print/r).
 _common_substitutions = [
@@ -192,49 +222,21 @@ def _value_of_pair_first(value):
 class StdStringPrinter(object):
     """Print a std::string."""
 
-    def _get_short_size(self, short_field, short_size):
-        """Short size depends on both endianness and a compile-time define."""
-
-        # If the padding field is present after all this indirection, then string
-        # was compiled with _LIBCPP_ABI_ALTERNATE_STRING_LAYOUT defined.
-        field = short_field.type.fields()[1].type.fields()[0]
-        libcpp_abi_alternate_string_layout = field.name and "__padding" in field.name
-
-        # This logical structure closely follows the original code (which is clearer
-        # in C++).  Keep them parallel to make them easier to compare.
-        if libcpp_abi_alternate_string_layout:
-            if _libcpp_big_endian:
-                return short_size >> 1
-            else:
-                return short_size
-        elif _libcpp_big_endian:
-            return short_size
-        else:
-            return short_size >> 1
-
     def __init__(self, val):
         self.val = val
 
     def to_string(self):
         """Build a python string from the data whether stored inline or separately."""
-
         value_field = _value_of_pair_first(self.val["__r_"])
         short_field = value_field["__s"]
         short_size = short_field["__size_"]
-        if short_size == 0:
-            return ""
-        short_mask = self.val["__short_mask"]
-        # Counter intuitive to compare the size and short_mask to see if the string
-        # is long, but that's the way the implementation does it. Note that
-        # __is_long() doesn't use get_short_size in C++.
-        is_long = short_size & short_mask
-        if is_long:
+        if short_field["__is_long_"]:
             long_field = value_field["__l"]
             data = long_field["__data_"]
             size = long_field["__size_"]
         else:
             data = short_field["__data_"]
-            size = self._get_short_size(short_field, short_size)
+            size = short_field["__size_"]
         return data.lazy_string(length=size)
 
     def display_hint(self):
@@ -253,9 +255,9 @@ class StdStringViewPrinter(object):
     def to_string(self):  # pylint: disable=g-bad-name
       """GDB calls this to compute the pretty-printed form."""
 
-      ptr = self.val["__data"]
+      ptr = _data_field(self.val)
       ptr = ptr.cast(ptr.type.target().strip_typedefs().pointer())
-      size = self.val["__size"]
+      size = _size_field(self.val)
       return ptr.lazy_string(length=size)
 
 
@@ -692,8 +694,7 @@ class StdMapPrinter(AbstractRBTreePrinter):
         return "map"
 
     def _get_key_value(self, node):
-        key_value = node.cast(self.util.cast_type).dereference()[
-            "__value_"]["__cc"]
+        key_value = _cc_field(node.cast(self.util.cast_type).dereference())
         return [key_value["first"], key_value["second"]]
 
 
@@ -759,7 +760,7 @@ class MapIteratorPrinter(AbstractRBTreeIteratorPrinter):
                          _remove_generics(_prettify_typename(val.type)))
 
     def _get_node_value(self, node):
-        return node["__value_"]["__cc"]
+        return _cc_field(node)
 
 
 class SetIteratorPrinter(AbstractRBTreeIteratorPrinter):
@@ -782,10 +783,18 @@ class StdFposPrinter(object):
         typename = _remove_generics(_prettify_typename(self.val.type))
         offset = self.val["__off_"]
         state = self.val["__st_"]
-        count = state["__count"]
-        value = state["__value"]["__wch"]
-        return "%s with stream offset:%s with state: {count:%s value:%s}" % (
-            typename, offset, count, value)
+
+        state_fields = []
+        if state.type.code == gdb.TYPE_CODE_STRUCT:
+            state_fields = [f.name for f in state.type.fields()]
+
+        state_string = ""
+        if "__count" in state_fields and "__value" in state_fields:
+            count = state["__count"]
+            value = state["__value"]["__wch"]
+            state_string = " with state: {count:%s value:%s}" % (count, value)
+
+        return "%s with stream offset:%s%s" % (typename, offset, state_string)
 
 
 class AbstractUnorderedCollectionPrinter(object):
@@ -838,7 +847,7 @@ class StdUnorderedMapPrinter(AbstractUnorderedCollectionPrinter):
     """Print a std::unordered_(multi)map."""
 
     def _get_key_value(self, node):
-        key_value = node["__value_"]["__cc"]
+        key_value = _cc_field(node)
         return [key_value["first"], key_value["second"]]
 
     def display_hint(self):
@@ -894,7 +903,7 @@ class StdUnorderedMapIteratorPrinter(AbstractHashMapIteratorPrinter):
         self._initialize(val, val["__i_"]["__node_"])
 
     def _get_key_value(self):
-        key_value = self.node["__value_"]["__cc"]
+        key_value = _cc_field(self.node)
         return [key_value["first"], key_value["second"]]
 
     def display_hint(self):

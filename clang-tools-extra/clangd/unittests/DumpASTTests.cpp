@@ -9,6 +9,7 @@
 #include "Annotations.h"
 #include "DumpAST.h"
 #include "TestTU.h"
+#include "clang/AST/ASTTypeTraits.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -120,7 +121,8 @@ declaration: Var - root
         expression: DeclRef - operator+
       expression: MaterializeTemporary - lvalue
         expression: CXXTemporaryObject - Foo
-          type: Record - Foo
+          type: Elaborated
+            type: Record - Foo
       expression: IntegerLiteral - 42
       )"},
       {R"cpp(
@@ -171,8 +173,7 @@ TEST(DumpASTTests, NoRange) {
   ASSERT_THAT(Node.children, Contains(withDetail("varFromSource")));
   ASSERT_THAT(Node.children, Not(Contains(withDetail("funcFromHeader"))));
   EXPECT_THAT(Node.arcana, testing::StartsWith("TranslationUnitDecl "));
-  ASSERT_FALSE(Node.range.hasValue())
-      << "Expected no range for translation unit";
+  ASSERT_FALSE(Node.range) << "Expected no range for translation unit";
 }
 
 TEST(DumpASTTests, Arcana) {

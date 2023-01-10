@@ -25,7 +25,6 @@
 #include "X86Subtarget.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -57,6 +56,7 @@
 #include <algorithm>
 #include <cassert>
 #include <iterator>
+#include <optional>
 #include <utility>
 
 using namespace llvm;
@@ -164,7 +164,7 @@ private:
   const X86InstrInfo *TII = nullptr;
   const TargetRegisterInfo *TRI = nullptr;
 
-  Optional<PredState> PS;
+  std::optional<PredState> PS;
 
   void hardenEdgesWithLFENCE(MachineFunction &MF);
 
@@ -181,17 +181,18 @@ private:
   void tracePredStateThroughBlocksAndHarden(MachineFunction &MF);
 
   unsigned saveEFLAGS(MachineBasicBlock &MBB,
-                      MachineBasicBlock::iterator InsertPt, DebugLoc Loc);
+                      MachineBasicBlock::iterator InsertPt,
+                      const DebugLoc &Loc);
   void restoreEFLAGS(MachineBasicBlock &MBB,
-                     MachineBasicBlock::iterator InsertPt, DebugLoc Loc,
+                     MachineBasicBlock::iterator InsertPt, const DebugLoc &Loc,
                      Register Reg);
 
   void mergePredStateIntoSP(MachineBasicBlock &MBB,
-                            MachineBasicBlock::iterator InsertPt, DebugLoc Loc,
-                            unsigned PredStateReg);
+                            MachineBasicBlock::iterator InsertPt,
+                            const DebugLoc &Loc, unsigned PredStateReg);
   unsigned extractPredStateFromSP(MachineBasicBlock &MBB,
                                   MachineBasicBlock::iterator InsertPt,
-                                  DebugLoc Loc);
+                                  const DebugLoc &Loc);
 
   void
   hardenLoadAddr(MachineInstr &MI, MachineOperand &BaseMO,
@@ -203,7 +204,7 @@ private:
   bool canHardenRegister(Register Reg);
   unsigned hardenValueInRegister(Register Reg, MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator InsertPt,
-                                 DebugLoc Loc);
+                                 const DebugLoc &Loc);
   unsigned hardenPostLoad(MachineInstr &MI);
   void hardenReturnInstr(MachineInstr &MI);
   void tracePredStateThroughCall(MachineInstr &MI);
@@ -356,8 +357,8 @@ static void canonicalizePHIOperands(MachineFunction &MF) {
         int OpIdx = DupIndices.pop_back_val();
         // Remove both the block and value operand, again in reverse order to
         // preserve indices.
-        MI.RemoveOperand(OpIdx + 1);
-        MI.RemoveOperand(OpIdx);
+        MI.removeOperand(OpIdx + 1);
+        MI.removeOperand(OpIdx);
       }
 
       Preds.clear();
@@ -1144,7 +1145,7 @@ X86SpeculativeLoadHardeningPass::tracePredStateThroughIndirectBranches(
     // Insert a comparison of the incoming target register with this block's
     // address. This also requires us to mark the block as having its address
     // taken explicitly.
-    MBB.setHasAddressTaken();
+    MBB.setMachineBlockAddressTaken();
     auto InsertPt = MBB.SkipPHIsLabelsAndDebug(MBB.begin());
     if (MF.getTarget().getCodeModel() == CodeModel::Small &&
         !Subtarget->isPositionIndependent()) {
@@ -1500,7 +1501,7 @@ void X86SpeculativeLoadHardeningPass::tracePredStateThroughBlocksAndHarden(
 /// as the save so that no PHI nodes are inserted.
 unsigned X86SpeculativeLoadHardeningPass::saveEFLAGS(
     MachineBasicBlock &MBB, MachineBasicBlock::iterator InsertPt,
-    DebugLoc Loc) {
+    const DebugLoc &Loc) {
   // FIXME: Hard coding this to a 32-bit register class seems weird, but matches
   // what instruction selection does.
   Register Reg = MRI->createVirtualRegister(&X86::GR32RegClass);
@@ -1517,8 +1518,8 @@ unsigned X86SpeculativeLoadHardeningPass::saveEFLAGS(
 /// This must be done within the same basic block as the save in order to
 /// reliably lower.
 void X86SpeculativeLoadHardeningPass::restoreEFLAGS(
-    MachineBasicBlock &MBB, MachineBasicBlock::iterator InsertPt, DebugLoc Loc,
-    Register Reg) {
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator InsertPt,
+    const DebugLoc &Loc, Register Reg) {
   BuildMI(MBB, InsertPt, Loc, TII->get(X86::COPY), X86::EFLAGS).addReg(Reg);
   ++NumInstsInserted;
 }
@@ -1528,8 +1529,8 @@ void X86SpeculativeLoadHardeningPass::restoreEFLAGS(
 /// a way that won't form non-canonical pointers and also will be preserved
 /// across normal stack adjustments.
 void X86SpeculativeLoadHardeningPass::mergePredStateIntoSP(
-    MachineBasicBlock &MBB, MachineBasicBlock::iterator InsertPt, DebugLoc Loc,
-    unsigned PredStateReg) {
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator InsertPt,
+    const DebugLoc &Loc, unsigned PredStateReg) {
   Register TmpReg = MRI->createVirtualRegister(PS->RC);
   // FIXME: This hard codes a shift distance based on the number of bits needed
   // to stay canonical on 64-bit. We should compute this somehow and support
@@ -1549,7 +1550,7 @@ void X86SpeculativeLoadHardeningPass::mergePredStateIntoSP(
 /// Extracts the predicate state stored in the high bits of the stack pointer.
 unsigned X86SpeculativeLoadHardeningPass::extractPredStateFromSP(
     MachineBasicBlock &MBB, MachineBasicBlock::iterator InsertPt,
-    DebugLoc Loc) {
+    const DebugLoc &Loc) {
   Register PredStateReg = MRI->createVirtualRegister(PS->RC);
   Register TmpReg = MRI->createVirtualRegister(PS->RC);
 
@@ -1780,7 +1781,7 @@ MachineInstr *X86SpeculativeLoadHardeningPass::sinkPostLoadHardenedInst(
 
   // See if we can sink hardening the loaded value.
   auto SinkCheckToSingleUse =
-      [&](MachineInstr &MI) -> Optional<MachineInstr *> {
+      [&](MachineInstr &MI) -> std::optional<MachineInstr *> {
     Register DefReg = MI.getOperand(0).getReg();
 
     // We need to find a single use which we can sink the check. We can
@@ -1852,7 +1853,7 @@ MachineInstr *X86SpeculativeLoadHardeningPass::sinkPostLoadHardenedInst(
   };
 
   MachineInstr *MI = &InitialMI;
-  while (Optional<MachineInstr *> SingleUse = SinkCheckToSingleUse(*MI)) {
+  while (std::optional<MachineInstr *> SingleUse = SinkCheckToSingleUse(*MI)) {
     // Update which MI we're checking now.
     MI = *SingleUse;
     if (!MI)
@@ -1907,7 +1908,7 @@ bool X86SpeculativeLoadHardeningPass::canHardenRegister(Register Reg) {
 /// register class as `Reg`.
 unsigned X86SpeculativeLoadHardeningPass::hardenValueInRegister(
     Register Reg, MachineBasicBlock &MBB, MachineBasicBlock::iterator InsertPt,
-    DebugLoc Loc) {
+    const DebugLoc &Loc) {
   assert(canHardenRegister(Reg) && "Cannot harden this register!");
   assert(Reg.isVirtual() && "Cannot harden a physical register!");
 

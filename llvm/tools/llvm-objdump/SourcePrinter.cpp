@@ -17,6 +17,7 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/DebugInfo/DWARF/DWARFExpression.h"
+#include "llvm/DebugInfo/Symbolize/SymbolizableModule.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/Support/FormatVariadic.h"
 
@@ -30,7 +31,7 @@ unsigned getInstStartColumn(const MCSubtargetInfo &STI) {
 }
 
 bool LiveVariable::liveAtAddress(object::SectionedAddress Addr) {
-  if (LocExpr.Range == None)
+  if (LocExpr.Range == std::nullopt)
     return false;
   return LocExpr.Range->SectionIndex == Addr.SectionIndex &&
          LocExpr.Range->LowPC <= Addr.Address &&

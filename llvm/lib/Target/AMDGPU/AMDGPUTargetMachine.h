@@ -17,6 +17,7 @@
 #include "GCNSubtarget.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/Target/TargetMachine.h"
+#include <optional>
 #include <utility>
 
 namespace llvm {
@@ -39,8 +40,8 @@ public:
 
   AMDGPUTargetMachine(const Target &T, const Triple &TT, StringRef CPU,
                       StringRef FS, TargetOptions Options,
-                      Optional<Reloc::Model> RM, Optional<CodeModel::Model> CM,
-                      CodeGenOpt::Level OL);
+                      std::optional<Reloc::Model> RM,
+                      std::optional<CodeModel::Model> CM, CodeGenOpt::Level OL);
   ~AMDGPUTargetMachine() override;
 
   const TargetSubtargetInfo *getSubtargetImpl() const;
@@ -49,8 +50,6 @@ public:
   TargetLoweringObjectFile *getObjFileLowering() const override {
     return TLOF.get();
   }
-
-  void adjustPassManager(PassManagerBuilder &) override;
 
   void registerPassBuilderCallbacks(PassBuilder &PB) override;
   void registerDefaultAliasAnalyses(AAManager &) override;
@@ -64,6 +63,8 @@ public:
 
   std::pair<const Value *, unsigned>
   getPredicatedAddrSpace(const Value *V) const override;
+
+  unsigned getAddressSpaceForPseudoSourceKind(unsigned Kind) const override;
 };
 
 //===----------------------------------------------------------------------===//
@@ -77,14 +78,15 @@ private:
 public:
   GCNTargetMachine(const Target &T, const Triple &TT, StringRef CPU,
                    StringRef FS, TargetOptions Options,
-                   Optional<Reloc::Model> RM, Optional<CodeModel::Model> CM,
-                   CodeGenOpt::Level OL, bool JIT);
+                   std::optional<Reloc::Model> RM,
+                   std::optional<CodeModel::Model> CM, CodeGenOpt::Level OL,
+                   bool JIT);
 
   TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
 
   const TargetSubtargetInfo *getSubtargetImpl(const Function &) const override;
 
-  TargetTransformInfo getTargetTransformInfo(const Function &F) override;
+  TargetTransformInfo getTargetTransformInfo(const Function &F) const override;
 
   bool useIPRA() const override {
     return true;

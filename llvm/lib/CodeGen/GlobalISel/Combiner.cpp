@@ -12,15 +12,15 @@
 
 #include "llvm/CodeGen/GlobalISel/Combiner.h"
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/CodeGen/GlobalISel/CSEInfo.h"
-#include "llvm/CodeGen/GlobalISel/CombinerInfo.h"
 #include "llvm/CodeGen/GlobalISel/CSEMIRBuilder.h"
+#include "llvm/CodeGen/GlobalISel/CombinerInfo.h"
 #include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
 #include "llvm/CodeGen/GlobalISel/GISelWorkList.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
 #include "llvm/CodeGen/MachineOptimizationRemarkEmitter.h"
-#include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "gi-combiner"
@@ -53,7 +53,9 @@ class WorkListMaintainer : public GISelChangeObserver {
   WorkListTy &WorkList;
   /// The instructions that have been created but we want to report once they
   /// have their operands. This is only maintained if debug output is requested.
-  SmallPtrSet<const MachineInstr *, 4> CreatedInstrs;
+#ifndef NDEBUG
+  SetVector<const MachineInstr *> CreatedInstrs;
+#endif
 
 public:
   WorkListMaintainer(WorkListTy &WorkList) : WorkList(WorkList) {}
@@ -114,7 +116,7 @@ bool Combiner::combineMachineInstrs(MachineFunction &MF,
 
   bool MFChanged = false;
   bool Changed;
-  MachineIRBuilder &B = *Builder.get();
+  MachineIRBuilder &B = *Builder;
 
   do {
     // Collect all instructions. Do a post order traversal for basic blocks and
@@ -133,6 +135,7 @@ bool Combiner::combineMachineInstrs(MachineFunction &MF,
         // Erase dead insts before even adding to the list.
         if (isTriviallyDead(CurMI, *MRI)) {
           LLVM_DEBUG(dbgs() << CurMI << "Is dead; erasing.\n");
+          llvm::salvageDebugInfo(*MRI, CurMI);
           CurMI.eraseFromParent();
           continue;
         }

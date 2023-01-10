@@ -90,12 +90,24 @@ public:
                  StringRef CPU,
                  const std::vector<std::string> &FeaturesVec) const override;
 
+  Optional<std::pair<unsigned, unsigned>>
+  getVScaleRange(const LangOptions &LangOpts) const override;
+
   bool hasFeature(StringRef Feature) const override;
 
   bool handleTargetFeatures(std::vector<std::string> &Features,
                             DiagnosticsEngine &Diags) override;
 
   bool hasBitIntType() const override { return true; }
+
+  bool useFP16ConversionIntrinsics() const override {
+    return false;
+  }
+
+  bool isValidCPUName(StringRef Name) const override;
+  void fillValidCPUList(SmallVectorImpl<StringRef> &Values) const override;
+  bool isValidTuneCPUName(StringRef Name) const override;
+  void fillValidTuneCPUList(SmallVectorImpl<StringRef> &Values) const override;
 };
 class LLVM_LIBRARY_VISIBILITY RISCV32TargetInfo : public RISCVTargetInfo {
 public:
@@ -115,11 +127,6 @@ public:
     return false;
   }
 
-  bool isValidCPUName(StringRef Name) const override;
-  void fillValidCPUList(SmallVectorImpl<StringRef> &Values) const override;
-  bool isValidTuneCPUName(StringRef Name) const override;
-  void fillValidTuneCPUList(SmallVectorImpl<StringRef> &Values) const override;
-
   void setMaxAtomicWidth() override {
     MaxAtomicPromoteWidth = 128;
 
@@ -133,7 +140,7 @@ public:
       : RISCVTargetInfo(Triple, Opts) {
     LongWidth = LongAlign = PointerWidth = PointerAlign = 64;
     IntMaxType = Int64Type = SignedLong;
-    resetDataLayout("e-m:e-p:64:64-i64:64-i128:128-n64-S128");
+    resetDataLayout("e-m:e-p:64:64-i64:64-i128:128-n32:64-S128");
   }
 
   bool setABI(const std::string &Name) override {
@@ -143,11 +150,6 @@ public:
     }
     return false;
   }
-
-  bool isValidCPUName(StringRef Name) const override;
-  void fillValidCPUList(SmallVectorImpl<StringRef> &Values) const override;
-  bool isValidTuneCPUName(StringRef Name) const override;
-  void fillValidTuneCPUList(SmallVectorImpl<StringRef> &Values) const override;
 
   void setMaxAtomicWidth() override {
     MaxAtomicPromoteWidth = 128;

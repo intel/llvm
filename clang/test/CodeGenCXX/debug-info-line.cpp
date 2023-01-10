@@ -30,7 +30,7 @@ foo::foo()
 #line 200
       i // CHECK: store i32 {{.*}} !dbg [[DBG_FOO_VALUE:!.*]]
       (src()),
-      j // CHECK: store i32* {{.*}} !dbg [[DBG_FOO_REF:!.*]]
+      j // CHECK: store ptr {{.*}} !dbg [[DBG_FOO_REF:!.*]]
       (src()),
       k // CHECK: store float {{.*}} !dbg [[DBG_FOO_COMPLEX:!.*]]
       (complex_src()) {

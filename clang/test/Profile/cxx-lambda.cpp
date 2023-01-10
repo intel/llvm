@@ -15,13 +15,13 @@
 
 // PGOGEN-LABEL: define {{.*}}void @_Z7lambdasv()
 // PGOUSE-LABEL: define {{.*}}void @_Z7lambdasv()
-// PGOGEN: store {{.*}} @[[LWC]], i32 0, i32 0
+// PGOGEN: store {{.*}} @[[LWC]]
 void lambdas() {
   int i = 1;
 
   // LMBGEN-LABEL: define internal{{( [0-9_a-z]*cc)?( noundef)?( zeroext)?}} i1 @"_ZZ7lambdasvENK3$_0clEi"(
   // LMBUSE-LABEL: define internal{{( [0-9_a-z]*cc)?( noundef)?( zeroext)?}} i1 @"_ZZ7lambdasvENK3$_0clEi"(
-  // LMBGEN: store {{.*}} @[[LFC]], i32 0, i32 0
+  // LMBGEN: store {{.*}} @[[LFC]]
   auto f = [&i](int k) {
     // LMBGEN: store {{.*}} @[[LFC]], i32 0, i32 1
     // LMBUSE: br {{.*}} !prof ![[LF1:[0-9]+]]

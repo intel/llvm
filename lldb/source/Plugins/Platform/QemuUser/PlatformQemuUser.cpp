@@ -23,6 +23,7 @@ using namespace lldb_private;
 
 LLDB_PLUGIN_DEFINE(PlatformQemuUser)
 
+namespace {
 #define LLDB_PROPERTIES_platformqemuuser
 #include "PlatformQemuUserProperties.inc"
 
@@ -71,6 +72,8 @@ public:
   }
 };
 
+} // namespace
+
 static PluginProperties &GetGlobalProperties() {
   static PluginProperties g_settings;
   return g_settings;
@@ -106,7 +109,8 @@ PlatformSP PlatformQemuUser::CreateInstance(bool force, const ArchSpec *arch) {
   return nullptr;
 }
 
-std::vector<ArchSpec> PlatformQemuUser::GetSupportedArchitectures() {
+std::vector<ArchSpec>
+PlatformQemuUser::GetSupportedArchitectures(const ArchSpec &process_host_arch) {
   llvm::Triple triple = HostInfo::GetArchitecture().GetTriple();
   triple.setEnvironment(llvm::Triple::UnknownEnvironment);
   triple.setArchName(GetGlobalProperties().GetArchitecture());
@@ -201,8 +205,7 @@ lldb::ProcessSP PlatformQemuUser::DebugProcess(ProcessLaunchInfo &launch_info,
 
   launch_info.SetLaunchInSeparateProcessGroup(true);
   launch_info.GetFlags().Clear(eLaunchFlagDebug);
-  launch_info.SetMonitorProcessCallback(ProcessLaunchInfo::NoOpMonitorCallback,
-                                        false);
+  launch_info.SetMonitorProcessCallback(ProcessLaunchInfo::NoOpMonitorCallback);
 
   // This is automatically done for host platform in
   // Target::FinalizeFileActions, but we're not a host platform.

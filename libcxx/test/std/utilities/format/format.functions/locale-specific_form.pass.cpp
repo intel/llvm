@@ -6,17 +6,11 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: libcpp-has-no-localization
+// UNSUPPORTED: no-localization
 // UNSUPPORTED: libcpp-has-no-incomplete-format
 
-// The issue is caused in __format_spec::__determine_grouping().
-// There a string iterator is modified. The string is returned
-// from the dylib's use_facet<numpunct<_CharT>>::grouping()
-// XFAIL: LIBCXX-DEBUG-FIXME
-
-// TODO FMT Evaluate gcc-11 status
-// UNSUPPORTED: gcc-11
+// TODO FMT Evaluate gcc-12 status
+// UNSUPPORTED: gcc-12
 
 // REQUIRES: locale.en_US.UTF-8
 
@@ -97,6 +91,8 @@
 #include "make_string.h"
 #include "platform_support.h" // locale name macros
 #include "format_tests.h"
+#include "string_literal.h"
+#include "test_format_string.h"
 
 #define STR(S) MAKE_STRING(CharT, S)
 #define SV(S) MAKE_STRING_VIEW(CharT, S)
@@ -127,41 +123,41 @@ struct numpunct<wchar_t> : std::numpunct<wchar_t> {
 #endif
 
 template <class CharT, class... Args>
-void test(std::basic_string_view<CharT> expected, std::basic_string_view<CharT> fmt, const Args&... args) {
+void test(std::basic_string_view<CharT> expected, test_format_string<CharT, Args...> fmt, Args&&... args) {
   // *** format ***
   {
-    std::basic_string<CharT> out = std::format(fmt, args...);
+    std::basic_string<CharT> out = std::format(fmt, std::forward<Args>(args)...);
     if constexpr (std::same_as<CharT, char>)
       if (out != expected)
-        std::cerr << "\nFormat string   " << fmt << "\nExpected output " << expected << "\nActual output   " << out
-                  << '\n';
+        std::cerr << "\nFormat string   " << fmt.get() << "\nExpected output " << expected << "\nActual output   "
+                  << out << '\n';
     assert(out == expected);
   }
   // *** vformat ***
   {
-    std::basic_string<CharT> out = std::vformat(fmt, std::make_format_args<context_t<CharT>>(args...));
+    std::basic_string<CharT> out = std::vformat(fmt.get(), std::make_format_args<context_t<CharT>>(args...));
     assert(out == expected);
   }
   // *** format_to ***
   {
     std::basic_string<CharT> out(expected.size(), CharT(' '));
-    auto it = std::format_to(out.begin(), fmt, args...);
+    auto it = std::format_to(out.begin(), fmt, std::forward<Args>(args)...);
     assert(it == out.end());
     assert(out == expected);
   }
   // *** vformat_to ***
   {
     std::basic_string<CharT> out(expected.size(), CharT(' '));
-    auto it = std::vformat_to(out.begin(), fmt, std::make_format_args<context_t<CharT>>(args...));
+    auto it = std::vformat_to(out.begin(), fmt.get(), std::make_format_args<context_t<CharT>>(args...));
     assert(it == out.end());
     assert(out == expected);
   }
   // *** format_to_n ***
   {
     std::basic_string<CharT> out;
-    std::format_to_n_result result = std::format_to_n(std::back_inserter(out), 1000, fmt, args...);
+    std::format_to_n_result result = std::format_to_n(std::back_inserter(out), 1000, fmt, std::forward<Args>(args)...);
     using diff_type = decltype(result.size);
-    diff_type formatted_size = std::formatted_size(fmt, args...);
+    diff_type formatted_size       = std::formatted_size(fmt, std::forward<Args>(args)...);
     diff_type size = std::min<diff_type>(1000, formatted_size);
 
     assert(result.size == formatted_size);
@@ -169,48 +165,49 @@ void test(std::basic_string_view<CharT> expected, std::basic_string_view<CharT> 
   }
   // *** formatted_size ***
   {
-    size_t size = std::formatted_size(fmt, args...);
+    size_t size = std::formatted_size(fmt, std::forward<Args>(args)...);
     assert(size == expected.size());
   }
 }
 
 template <class CharT, class... Args>
-void test(std::basic_string_view<CharT> expected, std::locale loc, std::basic_string_view<CharT> fmt,
-          const Args&... args) {
+void test(
+    std::basic_string_view<CharT> expected, std::locale loc, test_format_string<CharT, Args...> fmt, Args&&... args) {
   // *** format ***
   {
-    std::basic_string<CharT> out = std::format(loc, fmt, args...);
+    std::basic_string<CharT> out = std::format(loc, fmt, std::forward<Args>(args)...);
     if constexpr (std::same_as<CharT, char>)
       if (out != expected)
-        std::cerr << "\nFormat string   " << fmt << "\nExpected output " << expected << "\nActual output   " << out
-                  << '\n';
+        std::cerr << "\nFormat string   " << fmt.get() << "\nExpected output " << expected << "\nActual output   "
+                  << out << '\n';
     assert(out == expected);
   }
   // *** vformat ***
   {
-    std::basic_string<CharT> out = std::vformat(loc, fmt, std::make_format_args<context_t<CharT>>(args...));
+    std::basic_string<CharT> out = std::vformat(loc, fmt.get(), std::make_format_args<context_t<CharT>>(args...));
     assert(out == expected);
   }
   // *** format_to ***
   {
     std::basic_string<CharT> out(expected.size(), CharT(' '));
-    auto it = std::format_to(out.begin(), loc, fmt, args...);
+    auto it = std::format_to(out.begin(), loc, fmt, std::forward<Args>(args)...);
     assert(it == out.end());
     assert(out == expected);
   }
   // *** vformat_to ***
   {
     std::basic_string<CharT> out(expected.size(), CharT(' '));
-    auto it = std::vformat_to(out.begin(), loc, fmt, std::make_format_args<context_t<CharT>>(args...));
+    auto it = std::vformat_to(out.begin(), loc, fmt.get(), std::make_format_args<context_t<CharT>>(args...));
     assert(it == out.end());
     assert(out == expected);
   }
   // *** format_to_n ***
   {
     std::basic_string<CharT> out;
-    std::format_to_n_result result = std::format_to_n(std::back_inserter(out), 1000, loc, fmt, args...);
+    std::format_to_n_result result =
+        std::format_to_n(std::back_inserter(out), 1000, loc, fmt, std::forward<Args>(args)...);
     using diff_type = decltype(result.size);
-    diff_type formatted_size = std::formatted_size(loc, fmt, args...);
+    diff_type formatted_size = std::formatted_size(loc, fmt, std::forward<Args>(args)...);
     diff_type size = std::min<diff_type>(1000, formatted_size);
 
     assert(result.size == formatted_size);
@@ -218,7 +215,7 @@ void test(std::basic_string_view<CharT> expected, std::locale loc, std::basic_st
   }
   // *** formatted_size ***
   {
-    size_t size = std::formatted_size(loc, fmt, args...);
+    size_t size = std::formatted_size(loc, fmt, std::forward<Args>(args)...);
     assert(size == expected.size());
   }
 }

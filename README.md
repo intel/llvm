@@ -3,22 +3,24 @@
 This is the Intel staging area for llvm.org contributions and the home for
 Intel LLVM-based projects:
 
-- [oneAPI Data Parallel C++ compiler](#oneapi-data-parallel-c-compiler)
+- [oneAPI DPC++ compiler](#oneapi-dpc-compiler)
 - [Late-outline OpenMP and OpenMP Offload](#late-outline-openmp-and-openmp-offload)
 
-## oneAPI Data Parallel C++ compiler
+For general contribution process see [CONTRIBUTING.md](./CONTRIBUTING.md)
+
+## oneAPI DPC++ compiler
 
 [![](https://spec.oneapi.io/oneapi-logo-white-scaled.jpg)](https://www.oneapi.io/)
 
-[![Linux Post Commit Checks](https://github.com/intel/llvm/workflows/Linux%20Post%20Commit%20Checks/badge.svg)](https://github.com/intel/llvm/actions?query=workflow%3A%22Linux+Post+Commit+Checks%22)
-[![Generate Doxygen documentation](https://github.com/intel/llvm/workflows/Generate%20Doxygen%20documentation/badge.svg)](https://github.com/intel/llvm/actions?query=workflow%3A%22Generate+Doxygen+documentation%22)
+[![SYCL Post Commit](https://github.com/intel/llvm/actions/workflows/sycl_post_commit.yml/badge.svg?branch=sycl)](https://github.com/intel/llvm/actions/workflows/sycl_post_commit.yml)
+[![Generate Doxygen documentation](https://github.com/intel/llvm/actions/workflows/gh_pages.yml/badge.svg?branch=sycl)](https://github.com/intel/llvm/actions/workflows/gh_pages.yml)
 
-The Data Parallel C++ or DPC++ is a LLVM-based compiler project that implements
-compiler and runtime support for the SYCL\* language. The project is hosted in
-the [sycl](/../../tree/sycl) branch and is synced with the tip of the LLVM
-upstream main branch on a regular basis (revisions delay is usually not more
-than 1-2 weeks). DPC++ compiler takes everything from LLVM upstream as is,
-however some modules of LLVM might be not included in the default project build
+The DPC++ is a LLVM-based compiler project that implements compiler and runtime
+support for the SYCL\* language. The project is hosted in the
+[sycl](/../../tree/sycl) branch and is synced with the tip of the LLVM upstream
+main branch on a regular basis (revisions delay is usually not more than 1-2
+weeks). DPC++ compiler takes everything from LLVM upstream as is, however some
+modules of LLVM might be not included in the default project build
 configuration. Additional modules can be enabled by modifying build framework
 settings.
 

@@ -19,7 +19,7 @@ using namespace llvm;
 
 // Decides whether a '.section' directive
 // should be printed before the section name.
-bool MCSectionELF::ShouldOmitSectionDirective(StringRef Name,
+bool MCSectionELF::shouldOmitSectionDirective(StringRef Name,
                                               const MCAsmInfo &MAI) const {
   if (isUnique())
     return false;
@@ -50,10 +50,10 @@ static void printName(raw_ostream &OS, StringRef Name) {
   OS << '"';
 }
 
-void MCSectionELF::PrintSwitchToSection(const MCAsmInfo &MAI, const Triple &T,
+void MCSectionELF::printSwitchToSection(const MCAsmInfo &MAI, const Triple &T,
                                         raw_ostream &OS,
                                         const MCExpr *Subsection) const {
-  if (ShouldOmitSectionDirective(getName(), MAI)) {
+  if (shouldOmitSectionDirective(getName(), MAI)) {
     OS << '\t' << getName();
     if (Subsection) {
       OS << '\t';
@@ -165,6 +165,10 @@ void MCSectionELF::PrintSwitchToSection(const MCAsmInfo &MAI, const Triple &T,
     OS << "llvm_sympart";
   else if (Type == ELF::SHT_LLVM_BB_ADDR_MAP)
     OS << "llvm_bb_addr_map";
+  else if (Type == ELF::SHT_LLVM_BB_ADDR_MAP_V0)
+    OS << "llvm_bb_addr_map_v0";
+  else if (Type == ELF::SHT_LLVM_OFFLOADING)
+    OS << "llvm_offloading";
   else
     report_fatal_error("unsupported type 0x" + Twine::utohexstr(Type) +
                        " for section " + getName());
@@ -201,7 +205,7 @@ void MCSectionELF::PrintSwitchToSection(const MCAsmInfo &MAI, const Triple &T,
   }
 }
 
-bool MCSectionELF::UseCodeAlign() const {
+bool MCSectionELF::useCodeAlign() const {
   return getFlags() & ELF::SHF_EXECINSTR;
 }
 

@@ -67,20 +67,20 @@ void g(void);
 + (void)e:(id)xception;
 @end
 
-// CHECK-MACOSX-FRAGILE: personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*)
-// CHECK-MACOSX-FRAGILE-SEH: personality i8* bitcast (i32 (...)* @__gxx_personality_seh0 to i8*)
-// CHECK-MACOSX-FRAGILE-SJLJ: personality i8* bitcast (i32 (...)* @__gxx_personality_sj0 to i8*)
-// CHECK-NS: personality i8* bitcast (i32 (...)* @__objc_personality_v0 to i8*)
-// CHECK-GNUSTEP-1_7: personality i8* bitcast (i32 (...)* @__gnustep_objcxx_personality_v0 to i8*)
-// CHECK-GNUSTEP: personality i8* bitcast (i32 (...)* @__gnustep_objcxx_personality_v0 to i8*)
-// CHECK-GCC: personality i8* bitcast (i32 (...)* @__gnu_objc_personality_v0 to i8*)
-// CHECK-GCC-SEH: personality i8* bitcast (i32 (...)* @__gnu_objc_personality_seh0 to i8*)
-// CHECK-GCC-SJLJ: personality i8* bitcast (i32 (...)* @__gnu_objc_personality_sj0 to i8*)
-// CHECK-OBJFW: personality i8* bitcast (i32 (...)* @__gnu_objc_personality_v0 to i8*)
-// CHECK-OBJFW-SEH: personality i8* bitcast (i32 (...)* @__gnu_objc_personality_seh0 to i8*)
-// CHECK-OBJFW-SJLJ: personality i8* bitcast (i32 (...)* @__gnu_objc_personality_sj0 to i8*)
+// CHECK-MACOSX-FRAGILE: personality ptr @__gxx_personality_v0
+// CHECK-MACOSX-FRAGILE-SEH: personality ptr @__gxx_personality_seh0
+// CHECK-MACOSX-FRAGILE-SJLJ: personality ptr @__gxx_personality_sj0
+// CHECK-NS: personality ptr @__objc_personality_v0
+// CHECK-GNUSTEP-1_7: personality ptr @__gnustep_objcxx_personality_v0
+// CHECK-GNUSTEP: personality ptr @__gnustep_objcxx_personality_v0
+// CHECK-GCC: personality ptr @__gnu_objc_personality_v0
+// CHECK-GCC-SEH: personality ptr @__gnu_objc_personality_seh0
+// CHECK-GCC-SJLJ: personality ptr @__gnu_objc_personality_sj0
+// CHECK-OBJFW: personality ptr @__gnu_objc_personality_v0
+// CHECK-OBJFW-SEH: personality ptr @__gnu_objc_personality_seh0
+// CHECK-OBJFW-SJLJ: personality ptr @__gnu_objc_personality_sj0
 
-// CHECK-WIN-MSVC: personality i8* bitcast (i32 (...)* @__CxxFrameHandler3  to i8*)
+// CHECK-WIN-MSVC: personality ptr @__CxxFrameHandler3
 
 void f(void) {
   @try {
@@ -91,8 +91,8 @@ void f(void) {
 }
 
 #if defined(__SEH_EXCEPTIONS__)
-// CHECK-WIN-SEH-X86: personality i8* bitcast (i32 (...)* @_except_handler3 to i8*)
-// CHECK-WIN-SEH-X64: personality i8* bitcast (i32 (...)* @__C_specific_handler to i8*)
+// CHECK-WIN-SEH-X86: personality ptr @_except_handler3
+// CHECK-WIN-SEH-X64: personality ptr @__C_specific_handler
 
 void h(void) {
   __try {

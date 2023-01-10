@@ -16,14 +16,14 @@ extern float c;
 extern float d;
 
 // CHECK-LABEL:   @test_swdiv(
-// CHECK:         [[TMP0:%.*]] = load double, double* @a
-// CHECK-NEXT:    [[TMP1:%.*]] = load double, double* @b
+// CHECK:         [[TMP0:%.*]] = load double, ptr @a
+// CHECK-NEXT:    [[TMP1:%.*]] = load double, ptr @b
 // CHECK-NEXT:    [[SWDIV:%.*]] = fdiv double [[TMP0]], [[TMP1]]
 // CHECK-NEXT:    ret double [[SWDIV]]
 //
 // CHECK-OFAST-LABEL:   @test_swdiv(
-// CHECK-OFAST:         [[TMP0:%.*]] = load double, double* @a
-// CHECK-OFAST-NEXT:    [[TMP1:%.*]] = load double, double* @b
+// CHECK-OFAST:         [[TMP0:%.*]] = load double, ptr @a
+// CHECK-OFAST-NEXT:    [[TMP1:%.*]] = load double, ptr @b
 // CHECK-OFAST-NEXT:    [[SWDIV:%.*]] = fdiv fast double [[TMP0]], [[TMP1]]
 // CHECK-OFAST-NEXT:    ret double [[SWDIV]]
 //
@@ -32,14 +32,14 @@ double test_swdiv() {
 }
 
 // CHECK-LABEL:   @test_swdivs(
-// CHECK:         [[TMP0:%.*]] = load float, float* @c
-// CHECK-NEXT:    [[TMP1:%.*]] = load float, float* @d
+// CHECK:         [[TMP0:%.*]] = load float, ptr @c
+// CHECK-NEXT:    [[TMP1:%.*]] = load float, ptr @d
 // CHECK-NEXT:    [[SWDIVS:%.*]] = fdiv float [[TMP0]], [[TMP1]]
 // CHECK-NEXT:    ret float [[SWDIVS]]
 //
 // CHECK-OFAST-LABEL:   @test_swdivs(
-// CHECK-OFAST:         [[TMP0:%.*]] = load float, float* @c
-// CHECK-OFAST-NEXT:    [[TMP1:%.*]] = load float, float* @d
+// CHECK-OFAST:         [[TMP0:%.*]] = load float, ptr @c
+// CHECK-OFAST-NEXT:    [[TMP1:%.*]] = load float, ptr @d
 // CHECK-OFAST-NEXT:    [[SWDIVS:%.*]] = fdiv fast float [[TMP0]], [[TMP1]]
 // CHECK-OFAST-NEXT:    ret float [[SWDIVS]]
 //
@@ -48,14 +48,14 @@ float test_swdivs() {
 }
 
 // CHECK-LABEL:   @test_builtin_ppc_swdiv(
-// CHECK:         [[TMP0:%.*]] = load double, double* @a
-// CHECK-NEXT:    [[TMP1:%.*]] = load double, double* @b
+// CHECK:         [[TMP0:%.*]] = load double, ptr @a
+// CHECK-NEXT:    [[TMP1:%.*]] = load double, ptr @b
 // CHECK-NEXT:    [[SWDIV:%.*]] = fdiv double [[TMP0]], [[TMP1]]
 // CHECK-NEXT:    ret double [[SWDIV]]
 //
 // CHECK-OFAST-LABEL:   @test_builtin_ppc_swdiv(
-// CHECK-OFAST:         [[TMP0:%.*]] = load double, double* @a
-// CHECK-OFAST-NEXT:    [[TMP1:%.*]] = load double, double* @b
+// CHECK-OFAST:         [[TMP0:%.*]] = load double, ptr @a
+// CHECK-OFAST-NEXT:    [[TMP1:%.*]] = load double, ptr @b
 // CHECK-OFAST-NEXT:    [[SWDIV:%.*]] = fdiv fast double [[TMP0]], [[TMP1]]
 // CHECK-OFAST-NEXT:    ret double [[SWDIV]]
 //
@@ -64,14 +64,14 @@ double test_builtin_ppc_swdiv() {
 }
 
 // CHECK-LABEL:   @test_builtin_ppc_swdivs(
-// CHECK:         [[TMP0:%.*]] = load float, float* @c
-// CHECK-NEXT:    [[TMP1:%.*]] = load float, float* @d
+// CHECK:         [[TMP0:%.*]] = load float, ptr @c
+// CHECK-NEXT:    [[TMP1:%.*]] = load float, ptr @d
 // CHECK-NEXT:    [[SWDIVS:%.*]] = fdiv float [[TMP0]], [[TMP1]]
 // CHECK-NEXT:    ret float [[SWDIVS]]
 //
 // CHECK-OFAST-LABEL:   @test_builtin_ppc_swdivs(
-// CHECK-OFAST:         [[TMP0:%.*]] = load float, float* @c
-// CHECK-OFAST-NEXT:    [[TMP1:%.*]] = load float, float* @d
+// CHECK-OFAST:         [[TMP0:%.*]] = load float, ptr @c
+// CHECK-OFAST-NEXT:    [[TMP1:%.*]] = load float, ptr @d
 // CHECK-OFAST-NEXT:    [[SWDIVS:%.*]] = fdiv fast float [[TMP0]], [[TMP1]]
 // CHECK-OFAST-NEXT:    ret float [[SWDIVS]]
 //

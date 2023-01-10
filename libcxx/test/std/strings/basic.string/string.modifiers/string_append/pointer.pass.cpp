@@ -8,7 +8,7 @@
 
 // <string>
 
-// basic_string<charT,traits,Allocator>& append(const charT* s);
+// basic_string<charT,traits,Allocator>& append(const charT* s); // constexpr since C++20
 
 #include <string>
 #include <stdexcept>
@@ -18,7 +18,7 @@
 #include "min_allocator.h"
 
 template <class S>
-void
+TEST_CONSTEXPR_CXX20 void
 test(S s, const typename S::value_type* str, S expected)
 {
     s.append(str);
@@ -26,38 +26,26 @@ test(S s, const typename S::value_type* str, S expected)
     assert(s == expected);
 }
 
-bool test() {
-  {
-    typedef std::string S;
-    test(S(), "", S());
-    test(S(), "12345", S("12345"));
-    test(S(), "12345678901234567890", S("12345678901234567890"));
+template <class S>
+TEST_CONSTEXPR_CXX20 void test_string() {
+  test(S(), "", S());
+  test(S(), "12345", S("12345"));
+  test(S(), "12345678901234567890", S("12345678901234567890"));
 
-    test(S("12345"), "", S("12345"));
-    test(S("12345"), "12345", S("1234512345"));
-    test(S("12345"), "1234567890", S("123451234567890"));
+  test(S("12345"), "", S("12345"));
+  test(S("12345"), "12345", S("1234512345"));
+  test(S("12345"), "1234567890", S("123451234567890"));
 
-    test(S("12345678901234567890"), "", S("12345678901234567890"));
-    test(S("12345678901234567890"), "12345", S("1234567890123456789012345"));
-    test(S("12345678901234567890"), "12345678901234567890",
-         S("1234567890123456789012345678901234567890"));
-  }
+  test(S("12345678901234567890"), "", S("12345678901234567890"));
+  test(S("12345678901234567890"), "12345", S("1234567890123456789012345"));
+  test(S("12345678901234567890"), "12345678901234567890",
+        S("1234567890123456789012345678901234567890"));
+}
+
+TEST_CONSTEXPR_CXX20 bool test() {
+  test_string<std::string>();
 #if TEST_STD_VER >= 11
-  {
-    typedef std::basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test(S(), "", S());
-    test(S(), "12345", S("12345"));
-    test(S(), "12345678901234567890", S("12345678901234567890"));
-
-    test(S("12345"), "", S("12345"));
-    test(S("12345"), "12345", S("1234512345"));
-    test(S("12345"), "1234567890", S("123451234567890"));
-
-    test(S("12345678901234567890"), "", S("12345678901234567890"));
-    test(S("12345678901234567890"), "12345", S("1234567890123456789012345"));
-    test(S("12345678901234567890"), "12345678901234567890",
-         S("1234567890123456789012345678901234567890"));
-  }
+  test_string<std::basic_string<char, std::char_traits<char>, min_allocator<char>>>();
 #endif
 
   { // test appending to self
@@ -75,7 +63,6 @@ bool test() {
     s_long.append(s_long.c_str());
     assert(s_long == "Lorem ipsum dolor sit amet, consectetur/Lorem ipsum dolor sit amet, consectetur/");
   }
-
   return true;
 }
 
@@ -83,7 +70,7 @@ int main(int, char**)
 {
   test();
 #if TEST_STD_VER > 17
-  // static_assert(test());
+  static_assert(test());
 #endif
 
   return 0;

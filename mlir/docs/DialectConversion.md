@@ -5,13 +5,13 @@ conversions between, and within dialects. This framework allows for transforming
 illegal operations to those supported by a provided conversion target, via a set
 of pattern-based operation rewriting patterns.
 
-[TOC]
-
 The dialect conversion framework consists of the following components:
 
 *   A [Conversion Target](#conversion-target)
 *   A set of [Rewrite Patterns](#rewrite-pattern-specification)
 *   A [Type Converter](#type-conversion) (Optional)
+
+[TOC]
 
 ## Modes of Conversion
 
@@ -100,9 +100,9 @@ struct MyTarget : public ConversionTarget {
     /// constraints.
     addDynamicallyLegalDialect<AffineDialect>([](Operation *op) { ... });
 
-    /// Mark `std.return` as dynamically legal, but provide a specific legality
+    /// Mark `func.return` as dynamically legal, but provide a specific legality
     /// callback.
-    addDynamicallyLegalOp<ReturnOp>([](ReturnOp op) { ... });
+    addDynamicallyLegalOp<func::ReturnOp>([](func::ReturnOp op) { ... });
 
     /// Treat unknown operations, i.e. those without a legalization action
     /// directly set, as dynamically legal.
@@ -301,15 +301,15 @@ class TypeConverter {
   /// to any of the following forms(where `T` is a class derived from `Type`:
   ///   * Optional<Type>(T)
   ///     - This form represents a 1-1 type conversion. It should return nullptr
-  ///       or `llvm::None` to signify failure. If `llvm::None` is returned, the
+  ///       or `std::nullopt` to signify failure. If `std::nullopt` is returned, the
   ///       converter is allowed to try another conversion function to perform
   ///       the conversion.
   ///   * Optional<LogicalResult>(T, SmallVectorImpl<Type> &)
   ///     - This form represents a 1-N type conversion. It should return
-  ///       `failure` or `llvm::None` to signify a failed conversion. If the new
+  ///       `failure` or `std::nullopt` to signify a failed conversion. If the new
   ///       set of types is empty, the type is removed and any usages of the
   ///       existing value are expected to be removed during conversion. If
-  ///       `llvm::None` is returned, the converter is allowed to try another
+  ///       `std::nullopt` is returned, the converter is allowed to try another
   ///       conversion function to perform the conversion.
   ///   * Optional<LogicalResult>(T, SmallVectorImpl<Type> &, ArrayRef<Type>)
   ///     - This form represents a 1-N type conversion supporting recursive
@@ -334,7 +334,7 @@ class TypeConverter {
   /// This function is responsible for creating an operation, using the
   /// OpBuilder and Location provided, that "converts" a range of values into a
   /// single value of the given type `T`. It must return a Value of the
-  /// converted type on success, an `llvm::None` if it failed but other
+  /// converted type on success, an `std::nullopt` if it failed but other
   /// materialization can be attempted, and `nullptr` on unrecoverable failure.
   /// It will only be called for (sub)types of `T`.
   ///
@@ -379,7 +379,7 @@ move into that region. As noted above, the conversions performed by this method
 use the argument materialization hook on the `TypeConverter`. This hook also
 takes an optional `TypeConverter::SignatureConversion` parameter that applies a
 custom conversion to the entry block of the region. The types of the entry block
-arguments are often tied semantically to details on the operation, e.g. FuncOp,
+arguments are often tied semantically to details on the operation, e.g. func::FuncOp,
 AffineForOp, etc. To convert the signature of just the region entry block, and
 not any other blocks within the region, the `applySignatureConversion` hook may
 be used instead. A signature conversion, `TypeConverter::SignatureConversion`,
@@ -424,19 +424,19 @@ Example output is shown below:
 
 ```
 //===-------------------------------------------===//
-Legalizing operation : 'std.return'(0x608000002e20) {
-  "std.return"() : () -> ()
+Legalizing operation : 'func.return'(0x608000002e20) {
+  "func.return"() : () -> ()
 
   * Fold {
   } -> FAILURE : unable to fold
 
-  * Pattern : 'std.return -> ()' {
-    ** Insert  : 'spv.Return'(0x6070000453e0)
-    ** Replace : 'std.return'(0x608000002e20)
+  * Pattern : 'func.return -> ()' {
+    ** Insert  : 'spirv.Return'(0x6070000453e0)
+    ** Replace : 'func.return'(0x608000002e20)
 
     //===-------------------------------------------===//
-    Legalizing operation : 'spv.Return'(0x6070000453e0) {
-      "spv.Return"() : () -> ()
+    Legalizing operation : 'spirv.Return'(0x6070000453e0) {
+      "spirv.Return"() : () -> ()
 
     } -> SUCCESS : operation marked legal by the target
     //===-------------------------------------------===//
@@ -445,8 +445,8 @@ Legalizing operation : 'std.return'(0x608000002e20) {
 //===-------------------------------------------===//
 ```
 
-This output is describing the legalization of an `std.return` operation. We
+This output is describing the legalization of an `func.return` operation. We
 first try to legalize by folding the operation, but that is unsuccessful for
-`std.return`. From there, a pattern is applied that replaces the `std.return`
-with a `spv.Return`. The newly generated `spv.Return` is then processed for
+`func.return`. From there, a pattern is applied that replaces the `func.return`
+with a `spirv.Return`. The newly generated `spirv.Return` is then processed for
 legalization, but is found to already legal as per the target.

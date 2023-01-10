@@ -9,8 +9,8 @@
 #include <charconv>
 #include <chrono>
 #include <cmath>
-#include <fstream>
 #include <functional>
+#include <iterator>
 #include <limits>
 #include <locale>
 #include <optional>
@@ -48,7 +48,7 @@
 
 using namespace std;
 
-void initialize_randomness(mt19937_64& mt64, const int argc, char** const argv) {
+void initialize_randomness(mt19937_64& mt64, const int argc, char** const /*argv*/) {
     constexpr size_t n = mt19937_64::state_size;
     constexpr size_t w = mt19937_64::word_size;
     static_assert(w % 32 == 0);
@@ -58,32 +58,11 @@ void initialize_randomness(mt19937_64& mt64, const int argc, char** const argv) 
 
     puts("USAGE:");
     puts("test.exe              : generates seed data from random_device.");
-    puts("test.exe filename.txt : loads seed data from a given text file.");
 
     if (argc == 1) {
         random_device rd;
         generate(vec.begin(), vec.end(), ref(rd));
         puts("Generated seed data.");
-    } else if (argc == 2) {
-        const char* const filename = argv[1];
-
-        ifstream file(filename);
-
-        if (!file) {
-            printf("ERROR: Can't open %s.\n", filename);
-            abort();
-        }
-
-        for (auto& elem : vec) {
-            file >> elem;
-
-            if (!file) {
-                printf("ERROR: Can't read seed data from %s.\n", filename);
-                abort();
-            }
-        }
-
-        printf("Loaded seed data from %s.\n", filename);
     } else {
         puts("ERROR: Too many command-line arguments.");
         abort();
@@ -91,7 +70,7 @@ void initialize_randomness(mt19937_64& mt64, const int argc, char** const argv) 
 
     puts("SEED DATA:");
     for (const auto& elem : vec) {
-        printf("%u ", elem);
+        printf("%zu ", static_cast<size_t>(elem));
     }
     printf("\n");
 
@@ -566,7 +545,7 @@ void all_integer_tests() {
 
 void assert_message_bits(const bool b, const char* const msg, const uint32_t bits) {
     if (!b) {
-        fprintf(stderr, "%s failed for 0x%08X\n", msg, bits);
+        fprintf(stderr, "%s failed for 0x%08zX\n", msg, static_cast<size_t>(bits));
         fprintf(stderr, "This is a randomized test.\n");
         fprintf(stderr, "DO NOT IGNORE/RERUN THIS FAILURE.\n");
         fprintf(stderr, "You must report it to the STL maintainers.\n");
@@ -1093,7 +1072,7 @@ int main(int argc, char** argv) {
     const long long ms = chrono::duration_cast<chrono::milliseconds>(finish - start).count();
 
     puts("PASS");
-    printf("Randomized test cases: %u\n", PrefixesToTest * Fractions);
+    printf("Randomized test cases: %zu\n", static_cast<size_t>(PrefixesToTest * Fractions));
     printf("Total time: %lld ms\n", ms);
 
     if (ms < 3'000) {

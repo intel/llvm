@@ -15,18 +15,16 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitVector.h"
-#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/IndexedMap.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/iterator_range.h"
-#include "llvm/CodeGen/GlobalISel/RegisterBank.h"
-#include "llvm/CodeGen/LowLevelType.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBundle.h"
 #include "llvm/CodeGen/MachineOperand.h"
+#include "llvm/CodeGen/RegisterBank.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/MC/LaneBitmask.h"
@@ -585,6 +583,11 @@ public:
   /// instruction using the specified register. Said instruction may have
   /// multiple uses.
   bool hasOneNonDBGUser(Register RegNo) const;
+
+
+  /// hasAtMostUses - Return true if the given register has at most \p MaxUsers
+  /// non-debug user instructions.
+  bool hasAtMostUserInstrs(Register Reg, unsigned MaxUsers) const;
 
   /// replaceRegWith - Replace all instances of FromReg with ToReg in the
   /// machine function.  This is like llvm-level X->replaceAllUsesWith(Y),

@@ -60,10 +60,10 @@ void test1(void) {
   // -fwrapv should turn off inbounds for GEP's, PR9256
   extern int* P;
   ++P;
-  // DEFAULT: getelementptr inbounds i32, i32*
-  // WRAPV: getelementptr i32, i32*
-  // TRAPV: getelementptr inbounds i32, i32*
-  // CATCH_UB: getelementptr inbounds i32, i32*
+  // DEFAULT: getelementptr inbounds i32, ptr
+  // WRAPV: getelementptr i32, ptr
+  // TRAPV: getelementptr inbounds i32, ptr
+  // CATCH_UB: getelementptr inbounds i32, ptr
 
   // PR9350: char pre-increment never overflows.
   extern volatile signed char PR9350_char_inc;
@@ -99,8 +99,8 @@ void test1(void) {
 
   // PR24256: don't instrument __builtin_frame_address.
   __builtin_frame_address(0 + 0);
-  // DEFAULT:  call i8* @llvm.frameaddress.p0i8(i32 0)
-  // WRAPV:    call i8* @llvm.frameaddress.p0i8(i32 0)
-  // TRAPV:    call i8* @llvm.frameaddress.p0i8(i32 0)
-  // CATCH_UB: call i8* @llvm.frameaddress.p0i8(i32 0)
+  // DEFAULT:  call ptr @llvm.frameaddress.p0(i32 0)
+  // WRAPV:    call ptr @llvm.frameaddress.p0(i32 0)
+  // TRAPV:    call ptr @llvm.frameaddress.p0(i32 0)
+  // CATCH_UB: call ptr @llvm.frameaddress.p0(i32 0)
 }

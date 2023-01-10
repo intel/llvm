@@ -9,7 +9,6 @@
 #ifndef LLVM_DEBUGINFO_CODEVIEW_TYPEHASHING_H
 #define LLVM_DEBUGINFO_CODEVIEW_TYPEHASHING_H
 
-#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/StringRef.h"
@@ -62,7 +61,8 @@ struct LocallyHashedType {
 
 enum class GlobalTypeHashAlg : uint16_t {
   SHA1 = 0, // standard 20-byte SHA1 hash
-  SHA1_8    // last 8-bytes of standard SHA1 hash
+  SHA1_8,   // last 8-bytes of standard SHA1 hash
+  BLAKE3,   // truncated 8-bytes BLAKE3
 };
 
 /// A globally hashed type represents a hash value that is sufficient to

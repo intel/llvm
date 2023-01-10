@@ -106,11 +106,11 @@ int main(int argc, char **argv) {
 // RUN: %clang_cc1 -triple i686-cygwin -emit-llvm -debug-info-kind=limited -fexceptions -std=c++11 %s -o - | FileCheck -check-prefix=CHECK11 -check-prefix=CHECK %s
 // RUN: %clang_cc1 -triple armv7l-unknown-linux-gnueabihf -emit-llvm -debug-info-kind=limited -fexceptions -std=c++11 %s -o - | FileCheck -check-prefix=CHECK11 -check-prefix=CHECK %s
 
-// CHECK98: invoke {{.+}} @_ZN1BD1Ev(%class.B* {{[^,]*}} %b)
+// CHECK98: invoke {{.+}} @_ZN1BD1Ev(ptr {{[^,]*}} %b)
 // CHECK98-NEXT: unwind label %{{.+}}, !dbg ![[EXCEPTLOC:.*]]
-// CHECK11: call {{.+}} @_ZN1BD1Ev(%class.B* {{[^,]*}} %b){{.*}}, !dbg ![[EXCEPTLOC:.*]]
+// CHECK11: call {{.+}} @_ZN1BD1Ev(ptr {{[^,]*}} %b){{.*}}, !dbg ![[EXCEPTLOC:.*]]
 
-// CHECK: store i32 0, i32* %{{.+}}, !dbg ![[RETLOC:.*]]
+// CHECK: store i32 0, ptr %{{.+}}, !dbg ![[RETLOC:.*]]
 
 // CHECK: [[F:![0-9]*]] = !DICompositeType(tag: DW_TAG_structure_type, name: "F"
 // CHECK-SAME:                             DIFlagFwdDecl

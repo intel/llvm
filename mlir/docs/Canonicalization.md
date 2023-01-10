@@ -15,6 +15,8 @@ reuse it across many different IRs that it represents. This document describes
 the general approach, global canonicalizations performed, and provides sections
 to capture IR-specific rules for reference.
 
+[TOC]
+
 ## General Design
 
 MLIR has a single canonicalization pass, which iteratively applies
@@ -67,7 +69,7 @@ infrastructure allows for expressing many different types of canonicalizations.
 These transformations may be as simple as replacing a multiplication with a
 shift, or even replacing a conditional branch with an unconditional one.
 
-In [ODS](OpDefinitions.md), an operation can set the `hasCanonicalizer` bit or
+In [ODS](DefiningDialects/Operations.md), an operation can set the `hasCanonicalizer` bit or
 the `hasCanonicalizeMethod` bit to generate a declaration for the
 `getCanonicalizationPatterns` method:
 
@@ -117,7 +119,7 @@ replace the operation with. This ensures that the `fold` method is a truly
 "local" transformation, and can be invoked without the need for a pattern
 rewriter.
 
-In [ODS](OpDefinitions.md), an operation can set the `hasFolder` bit to generate
+In [ODS](DefiningDialects/Operations.md), an operation can set the `hasFolder` bit to generate
 a declaration for the `fold` method. This method takes on a different form,
 depending on the structure of the operation.
 
@@ -200,11 +202,11 @@ implement the `materializeConstant` hook. This hook takes in an `Attribute`
 value, generally returned by `fold`, and produces a "constant-like" operation
 that materializes that value.
 
-In [ODS](OpDefinitions.md), a dialect can set the `hasConstantMaterializer` bit
+In [ODS](DefiningDialects/_index.md), a dialect can set the `hasConstantMaterializer` bit
 to generate a declaration for the `materializeConstant` method.
 
 ```tablegen
-def MyDialect_Dialect : ... {
+def MyDialect : ... {
   let hasConstantMaterializer = 1;
 }
 ```

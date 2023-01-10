@@ -17,8 +17,8 @@
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
-#include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
+#include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DiagnosticInfo.h"
@@ -26,10 +26,10 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/MC/MCAsmInfo.h"
+#include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCParser/MCAsmLexer.h"
 #include "llvm/MC/MCParser/MCTargetAsmParser.h"
 #include "llvm/MC/MCStreamer.h"
-#include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -116,7 +116,7 @@ void AsmPrinter::emitInlineAsm(StringRef Str, const MCSubtargetInfo &STI,
     report_fatal_error("Inline asm not supported by this streamer because"
                        " we don't have an asm parser for this target\n");
   Parser->setAssemblerDialect(Dialect);
-  Parser->setTargetParser(*TAP.get());
+  Parser->setTargetParser(*TAP);
   // Enable lexing Masm binary and hex integer literals in intel inline
   // assembly.
   if (Dialect == InlineAsm::AD_Intel)
@@ -330,16 +330,8 @@ static void EmitInlineAsmStr(const char *AsmStr, const MachineInstr *MI,
 void AsmPrinter::emitInlineAsm(const MachineInstr *MI) const {
   assert(MI->isInlineAsm() && "printInlineAsm only works on inline asms");
 
-  // Count the number of register definitions to find the asm string.
-  unsigned NumDefs = 0;
-  for (; MI->getOperand(NumDefs).isReg() && MI->getOperand(NumDefs).isDef();
-       ++NumDefs)
-    assert(NumDefs != MI->getNumOperands()-2 && "No asm string?");
-
-  assert(MI->getOperand(NumDefs).isSymbol() && "No asm string?");
-
   // Disassemble the AsmStr, printing out the literal pieces, the operands, etc.
-  const char *AsmStr = MI->getOperand(NumDefs).getSymbolName();
+  const char *AsmStr = MI->getOperand(0).getSymbolName();
 
   // If this asmstr is empty, just print the #APP/#NOAPP markers.
   // These are useful to see where empty asm's wound up.
@@ -411,6 +403,14 @@ void AsmPrinter::emitInlineAsm(const MachineInstr *MI) const {
         LocCookie, Msg, DiagnosticSeverity::DS_Warning));
     MMI->getModule()->getContext().diagnose(
         DiagnosticInfoInlineAsm(LocCookie, Note, DiagnosticSeverity::DS_Note));
+
+    for (const Register RR : RestrRegs) {
+      if (std::optional<std::string> reason =
+              TRI->explainReservedReg(*MF, RR)) {
+        MMI->getModule()->getContext().diagnose(DiagnosticInfoInlineAsm(
+            LocCookie, *reason, DiagnosticSeverity::DS_Note));
+      }
+    }
   }
 
   emitInlineAsm(OS.str(), getSubtargetInfo(), TM.Options.MCOptions, LocMD,
@@ -480,7 +480,7 @@ bool AsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
         PrintAsmMemoryOperand(MI, OpNo, nullptr, O);
         return false;
       }
-      LLVM_FALLTHROUGH; // GCC allows '%a' to behave like '%c' with immediates.
+      [[fallthrough]]; // GCC allows '%a' to behave like '%c' with immediates.
     case 'c': // Substitute immediate value without immediate syntax
       if (MO.isImm()) {
         O << MO.getImm();

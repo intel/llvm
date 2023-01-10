@@ -11,9 +11,13 @@
 #define _LIBCPP___MEMORY_COMPRESSED_PAIR_H
 
 #include <__config>
+#include <__fwd/get.h>
+#include <__fwd/tuple.h>
+#include <__tuple/tuple_indices.h>
+#include <__type_traits/dependent_type.h>
 #include <__utility/forward.h>
 #include <__utility/move.h>
-#include <tuple> // needed in c++03 for some constructors
+#include <__utility/piecewise_construct.h>
 #include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -32,21 +36,21 @@ struct __compressed_pair_elem {
   using reference = _Tp&;
   using const_reference = const _Tp&;
 
-  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR __compressed_pair_elem(__default_init_tag) {}
-  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR __compressed_pair_elem(__value_init_tag) : __value_() {}
+  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR explicit __compressed_pair_elem(__default_init_tag) {}
+  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR explicit __compressed_pair_elem(__value_init_tag) : __value_() {}
 
   template <class _Up, class = __enable_if_t<!is_same<__compressed_pair_elem, typename decay<_Up>::type>::value> >
-  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR explicit
-  __compressed_pair_elem(_Up&& __u) : __value_(std::forward<_Up>(__u)) {}
+  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR
+  explicit __compressed_pair_elem(_Up&& __u) : __value_(std::forward<_Up>(__u)) {}
 
 #ifndef _LIBCPP_CXX03_LANG
   template <class... _Args, size_t... _Indices>
-  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
-  __compressed_pair_elem(piecewise_construct_t, tuple<_Args...> __args, __tuple_indices<_Indices...>)
+  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
+  explicit __compressed_pair_elem(piecewise_construct_t, tuple<_Args...> __args, __tuple_indices<_Indices...>)
       : __value_(std::forward<_Args>(std::get<_Indices>(__args))...) {}
 #endif
 
-  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX11 reference __get() _NOEXCEPT { return __value_; }
+  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX14 reference __get() _NOEXCEPT { return __value_; }
   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR const_reference __get() const _NOEXCEPT { return __value_; }
 
 private:
@@ -60,9 +64,9 @@ struct __compressed_pair_elem<_Tp, _Idx, true> : private _Tp {
   using const_reference = const _Tp&;
   using __value_type = _Tp;
 
-  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR __compressed_pair_elem() = default;
-  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR __compressed_pair_elem(__default_init_tag) {}
-  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR __compressed_pair_elem(__value_init_tag) : __value_type() {}
+  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR explicit __compressed_pair_elem() = default;
+  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR explicit __compressed_pair_elem(__default_init_tag) {}
+  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR explicit __compressed_pair_elem(__value_init_tag) : __value_type() {}
 
   template <class _Up, class = __enable_if_t<!is_same<__compressed_pair_elem, typename decay<_Up>::type>::value> >
   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR
@@ -70,12 +74,12 @@ struct __compressed_pair_elem<_Tp, _Idx, true> : private _Tp {
 
 #ifndef _LIBCPP_CXX03_LANG
   template <class... _Args, size_t... _Indices>
-  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
+  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
   __compressed_pair_elem(piecewise_construct_t, tuple<_Args...> __args, __tuple_indices<_Indices...>)
       : __value_type(std::forward<_Args>(std::get<_Indices>(__args))...) {}
 #endif
 
-  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX11 reference __get() _NOEXCEPT { return *this; }
+  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX14 reference __get() _NOEXCEPT { return *this; }
   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR const_reference __get() const _NOEXCEPT { return *this; }
 };
 
@@ -101,22 +105,22 @@ public:
     >
   >
   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR
-  __compressed_pair() : _Base1(__value_init_tag()), _Base2(__value_init_tag()) {}
+  explicit __compressed_pair() : _Base1(__value_init_tag()), _Base2(__value_init_tag()) {}
 
   template <class _U1, class _U2>
   _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR
-  __compressed_pair(_U1&& __t1, _U2&& __t2) : _Base1(std::forward<_U1>(__t1)), _Base2(std::forward<_U2>(__t2)) {}
+  explicit __compressed_pair(_U1&& __t1, _U2&& __t2) : _Base1(std::forward<_U1>(__t1)), _Base2(std::forward<_U2>(__t2)) {}
 
 #ifndef _LIBCPP_CXX03_LANG
   template <class... _Args1, class... _Args2>
-  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX14
-  __compressed_pair(piecewise_construct_t __pc, tuple<_Args1...> __first_args,
-                    tuple<_Args2...> __second_args)
+  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX17
+  explicit __compressed_pair(piecewise_construct_t __pc, tuple<_Args1...> __first_args,
+                             tuple<_Args2...> __second_args)
       : _Base1(__pc, std::move(__first_args), typename __make_tuple_indices<sizeof...(_Args1)>::type()),
         _Base2(__pc, std::move(__second_args), typename __make_tuple_indices<sizeof...(_Args2)>::type()) {}
 #endif
 
-  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX11
+  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX14
   typename _Base1::reference first() _NOEXCEPT {
     return static_cast<_Base1&>(*this).__get();
   }
@@ -126,7 +130,7 @@ public:
     return static_cast<_Base1 const&>(*this).__get();
   }
 
-  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX11
+  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX14
   typename _Base2::reference second() _NOEXCEPT {
     return static_cast<_Base2&>(*this).__get();
   }
@@ -145,7 +149,7 @@ public:
     return static_cast<_Base2*>(__pair);
   }
 
-  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX11
+  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX14
   void swap(__compressed_pair& __x)
       _NOEXCEPT_(__is_nothrow_swappable<_T1>::value && __is_nothrow_swappable<_T2>::value) {
     using std::swap;
@@ -155,7 +159,7 @@ public:
 };
 
 template <class _T1, class _T2>
-inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX11
+inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX14
 void swap(__compressed_pair<_T1, _T2>& __x, __compressed_pair<_T1, _T2>& __y)
     _NOEXCEPT_(__is_nothrow_swappable<_T1>::value && __is_nothrow_swappable<_T2>::value) {
   __x.swap(__y);

@@ -90,7 +90,7 @@ __attribute__ ((returns_twice)) void f18(void) {
 
 // CHECK-LABEL: define{{.*}} void @f19()
 // CHECK: {
-// CHECK: call i32 @setjmp(i32* noundef null)
+// CHECK: call i32 @setjmp(ptr noundef null)
 // CHECK: [[RT_CALL]]
 // CHECK: ret void
 typedef int jmp_buf[((9 * 2) + 3 + 16)];
@@ -101,7 +101,7 @@ void f19(void) {
 
 // CHECK-LABEL: define{{.*}} void @f20()
 // CHECK: {
-// CHECK: call i32 @_setjmp(i32* noundef null)
+// CHECK: call i32 @_setjmp(ptr noundef null)
 // CHECK: [[RT_CALL]]
 // CHECK: ret void
 int _setjmp(jmp_buf);
@@ -111,9 +111,9 @@ void f20(void) {
 
 // CHECK: attributes [[NUW]] = { nounwind optsize{{.*}} }
 // CHECK: attributes [[AI]] = { alwaysinline nounwind optsize{{.*}} }
-// CHECK: attributes [[NUW_OS_RN]] = { nounwind optsize readnone{{.*}} }
+// CHECK: attributes [[NUW_OS_RN]] = { nounwind optsize willreturn memory(none){{.*}} }
 // CHECK: attributes [[SR]] = { nounwind optsize{{.*}} "stackrealign"{{.*}} }
 // CHECK: attributes [[RT]] = { nounwind optsize returns_twice{{.*}} }
 // CHECK: attributes [[NR]] = { noreturn optsize }
-// CHECK: attributes [[NUW_RN]] = { nounwind optsize readnone willreturn }
+// CHECK: attributes [[NUW_RN]] = { nounwind optsize willreturn memory(none) }
 // CHECK: attributes [[RT_CALL]] = { optsize returns_twice }

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Pass/AnalysisManager.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
@@ -19,12 +20,18 @@ using namespace mlir::detail;
 namespace {
 /// Minimal class definitions for two analyses.
 struct MyAnalysis {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(MyAnalysis)
+
   MyAnalysis(Operation *) {}
 };
 struct OtherAnalysis {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(OtherAnalysis)
+
   OtherAnalysis(Operation *) {}
 };
 struct OpSpecificAnalysis {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(OpSpecificAnalysis)
+
   OpSpecificAnalysis(ModuleOp) {}
 };
 
@@ -45,19 +52,20 @@ TEST(AnalysisManagerTest, FineGrainModuleAnalysisPreservation) {
   am.invalidate(pa);
 
   // Check that only MyAnalysis is preserved.
-  EXPECT_TRUE(am.getCachedAnalysis<MyAnalysis>().hasValue());
-  EXPECT_FALSE(am.getCachedAnalysis<OtherAnalysis>().hasValue());
+  EXPECT_TRUE(am.getCachedAnalysis<MyAnalysis>().has_value());
+  EXPECT_FALSE(am.getCachedAnalysis<OtherAnalysis>().has_value());
 }
 
 TEST(AnalysisManagerTest, FineGrainFunctionAnalysisPreservation) {
   MLIRContext context;
+  context.loadDialect<func::FuncDialect>();
   Builder builder(&context);
 
   // Create a function and a module.
   OwningOpRef<ModuleOp> module(ModuleOp::create(UnknownLoc::get(&context)));
-  FuncOp func1 =
-      FuncOp::create(builder.getUnknownLoc(), "foo",
-                     builder.getFunctionType(llvm::None, llvm::None));
+  func::FuncOp func1 =
+      func::FuncOp::create(builder.getUnknownLoc(), "foo",
+                           builder.getFunctionType(std::nullopt, std::nullopt));
   func1.setPrivate();
   module->push_back(func1);
 
@@ -75,19 +83,20 @@ TEST(AnalysisManagerTest, FineGrainFunctionAnalysisPreservation) {
   fam.invalidate(pa);
 
   // Check that only MyAnalysis is preserved.
-  EXPECT_TRUE(fam.getCachedAnalysis<MyAnalysis>().hasValue());
-  EXPECT_FALSE(fam.getCachedAnalysis<OtherAnalysis>().hasValue());
+  EXPECT_TRUE(fam.getCachedAnalysis<MyAnalysis>().has_value());
+  EXPECT_FALSE(fam.getCachedAnalysis<OtherAnalysis>().has_value());
 }
 
 TEST(AnalysisManagerTest, FineGrainChildFunctionAnalysisPreservation) {
   MLIRContext context;
+  context.loadDialect<func::FuncDialect>();
   Builder builder(&context);
 
   // Create a function and a module.
   OwningOpRef<ModuleOp> module(ModuleOp::create(UnknownLoc::get(&context)));
-  FuncOp func1 =
-      FuncOp::create(builder.getUnknownLoc(), "foo",
-                     builder.getFunctionType(llvm::None, llvm::None));
+  func::FuncOp func1 =
+      func::FuncOp::create(builder.getUnknownLoc(), "foo",
+                           builder.getFunctionType(std::nullopt, std::nullopt));
   func1.setPrivate();
   module->push_back(func1);
 
@@ -97,7 +106,7 @@ TEST(AnalysisManagerTest, FineGrainChildFunctionAnalysisPreservation) {
   AnalysisManager am = mam;
 
   // Check that the analysis cache is initially empty.
-  EXPECT_FALSE(am.getCachedChildAnalysis<MyAnalysis>(func1).hasValue());
+  EXPECT_FALSE(am.getCachedChildAnalysis<MyAnalysis>(func1).has_value());
 
   // Query two different analyses, but only preserve one before invalidating.
   am.getChildAnalysis<MyAnalysis>(func1);
@@ -108,14 +117,18 @@ TEST(AnalysisManagerTest, FineGrainChildFunctionAnalysisPreservation) {
   am.invalidate(pa);
 
   // Check that only MyAnalysis is preserved.
-  EXPECT_TRUE(am.getCachedChildAnalysis<MyAnalysis>(func1).hasValue());
-  EXPECT_FALSE(am.getCachedChildAnalysis<OtherAnalysis>(func1).hasValue());
+  EXPECT_TRUE(am.getCachedChildAnalysis<MyAnalysis>(func1).has_value());
+  EXPECT_FALSE(am.getCachedChildAnalysis<OtherAnalysis>(func1).has_value());
 }
 
 /// Test analyses with custom invalidation logic.
-struct TestAnalysisSet {};
+struct TestAnalysisSet {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestAnalysisSet)
+};
 
 struct CustomInvalidatingAnalysis {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(CustomInvalidatingAnalysis)
+
   CustomInvalidatingAnalysis(Operation *) {}
 
   bool isInvalidated(const AnalysisManager::PreservedAnalyses &pa) {
@@ -137,13 +150,13 @@ TEST(AnalysisManagerTest, CustomInvalidation) {
   // Check that the analysis is invalidated properly.
   am.getAnalysis<CustomInvalidatingAnalysis>();
   am.invalidate(pa);
-  EXPECT_FALSE(am.getCachedAnalysis<CustomInvalidatingAnalysis>().hasValue());
+  EXPECT_FALSE(am.getCachedAnalysis<CustomInvalidatingAnalysis>().has_value());
 
   // Check that the analysis is preserved properly.
   am.getAnalysis<CustomInvalidatingAnalysis>();
   pa.preserve<TestAnalysisSet>();
   am.invalidate(pa);
-  EXPECT_TRUE(am.getCachedAnalysis<CustomInvalidatingAnalysis>().hasValue());
+  EXPECT_TRUE(am.getCachedAnalysis<CustomInvalidatingAnalysis>().has_value());
 }
 
 TEST(AnalysisManagerTest, OpSpecificAnalysis) {
@@ -156,10 +169,12 @@ TEST(AnalysisManagerTest, OpSpecificAnalysis) {
 
   // Query the op specific analysis for the module and verify that its cached.
   am.getAnalysis<OpSpecificAnalysis, ModuleOp>();
-  EXPECT_TRUE(am.getCachedAnalysis<OpSpecificAnalysis>().hasValue());
+  EXPECT_TRUE(am.getCachedAnalysis<OpSpecificAnalysis>().has_value());
 }
 
 struct AnalysisWithDependency {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(AnalysisWithDependency)
+
   AnalysisWithDependency(Operation *, AnalysisManager &am) {
     am.getAnalysis<MyAnalysis>();
   }
@@ -179,18 +194,20 @@ TEST(AnalysisManagerTest, DependentAnalysis) {
   AnalysisManager am = mam;
 
   am.getAnalysis<AnalysisWithDependency>();
-  EXPECT_TRUE(am.getCachedAnalysis<AnalysisWithDependency>().hasValue());
-  EXPECT_TRUE(am.getCachedAnalysis<MyAnalysis>().hasValue());
+  EXPECT_TRUE(am.getCachedAnalysis<AnalysisWithDependency>().has_value());
+  EXPECT_TRUE(am.getCachedAnalysis<MyAnalysis>().has_value());
 
   detail::PreservedAnalyses pa;
   pa.preserve<AnalysisWithDependency>();
   am.invalidate(pa);
 
-  EXPECT_FALSE(am.getCachedAnalysis<AnalysisWithDependency>().hasValue());
-  EXPECT_FALSE(am.getCachedAnalysis<MyAnalysis>().hasValue());
+  EXPECT_FALSE(am.getCachedAnalysis<AnalysisWithDependency>().has_value());
+  EXPECT_FALSE(am.getCachedAnalysis<MyAnalysis>().has_value());
 }
 
 struct AnalysisWithNestedDependency {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(AnalysisWithNestedDependency)
+
   AnalysisWithNestedDependency(Operation *, AnalysisManager &am) {
     am.getAnalysis<AnalysisWithDependency>();
   }
@@ -210,21 +227,24 @@ TEST(AnalysisManagerTest, NestedDependentAnalysis) {
   AnalysisManager am = mam;
 
   am.getAnalysis<AnalysisWithNestedDependency>();
-  EXPECT_TRUE(am.getCachedAnalysis<AnalysisWithNestedDependency>().hasValue());
-  EXPECT_TRUE(am.getCachedAnalysis<AnalysisWithDependency>().hasValue());
-  EXPECT_TRUE(am.getCachedAnalysis<MyAnalysis>().hasValue());
+  EXPECT_TRUE(am.getCachedAnalysis<AnalysisWithNestedDependency>().has_value());
+  EXPECT_TRUE(am.getCachedAnalysis<AnalysisWithDependency>().has_value());
+  EXPECT_TRUE(am.getCachedAnalysis<MyAnalysis>().has_value());
 
   detail::PreservedAnalyses pa;
   pa.preserve<AnalysisWithDependency>();
   pa.preserve<AnalysisWithNestedDependency>();
   am.invalidate(pa);
 
-  EXPECT_FALSE(am.getCachedAnalysis<AnalysisWithNestedDependency>().hasValue());
-  EXPECT_FALSE(am.getCachedAnalysis<AnalysisWithDependency>().hasValue());
-  EXPECT_FALSE(am.getCachedAnalysis<MyAnalysis>().hasValue());
+  EXPECT_FALSE(
+      am.getCachedAnalysis<AnalysisWithNestedDependency>().has_value());
+  EXPECT_FALSE(am.getCachedAnalysis<AnalysisWithDependency>().has_value());
+  EXPECT_FALSE(am.getCachedAnalysis<MyAnalysis>().has_value());
 }
 
 struct AnalysisWith2Ctors {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(AnalysisWith2Ctors)
+
   AnalysisWith2Ctors(Operation *) { ctor1called = true; }
 
   AnalysisWith2Ctors(Operation *, AnalysisManager &) { ctor2called = true; }

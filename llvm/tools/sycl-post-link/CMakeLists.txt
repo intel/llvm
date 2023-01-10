@@ -8,6 +8,9 @@ set(LLVM_LINK_COMPONENTS
   SYCLLowerIR
   InstCombine
   ScalarOpts
+  Linker
+  Passes
+  Analysis
   )
 
 get_property(LLVMGenXIntrinsics_SOURCE_DIR GLOBAL PROPERTY LLVMGenXIntrinsics_SOURCE_PROP)
@@ -21,9 +24,11 @@ add_llvm_tool(sycl-post-link
   sycl-post-link.cpp
   CompileTimePropertiesPass.cpp
   DeviceGlobals.cpp
+  ModuleSplitter.cpp
   SpecConstants.cpp
   SYCLDeviceLibReqMask.cpp
   SYCLKernelParamOptInfo.cpp
+  SYCLDeviceRequirements.cpp
   ADDITIONAL_HEADER_DIRS
   ${LLVMGenXIntrinsics_SOURCE_DIR}/GenXIntrinsics/include
   ${LLVMGenXIntrinsics_BINARY_DIR}/GenXIntrinsics/include

@@ -13,7 +13,9 @@
 #include "llvm/ProfileData/InstrProfReader.h"
 #include "llvm/ProfileData/InstrProfWriter.h"
 #include "llvm/ProfileData/MemProf.h"
+#include "llvm/ProfileData/MemProfData.inc"
 #include "llvm/Support/Compression.h"
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/Testing/Support/Error.h"
 #include "llvm/Testing/Support/SupportHelpers.h"
 #include "gtest/gtest.h"
@@ -21,7 +23,7 @@
 
 using namespace llvm;
 
-LLVM_NODISCARD static ::testing::AssertionResult
+[[nodiscard]] static ::testing::AssertionResult
 ErrorEquals(instrprof_error Expected, Error E) {
   instrprof_error Found;
   std::string FoundMsg;
@@ -222,22 +224,143 @@ TEST_F(InstrProfTest, test_writer_merge) {
   ASSERT_EQ(0U, R->Counts[1]);
 }
 
+using ::llvm::memprof::IndexedMemProfRecord;
+using ::llvm::memprof::MemInfoBlock;
+using FrameIdMapTy =
+    llvm::DenseMap<::llvm::memprof::FrameId, ::llvm::memprof::Frame>;
+
+static FrameIdMapTy getFrameMapping() {
+  FrameIdMapTy Mapping;
+  Mapping.insert({0, {0x123, 1, 2, false}});
+  Mapping.insert({1, {0x345, 3, 4, true}});
+  Mapping.insert({2, {0x125, 5, 6, false}});
+  Mapping.insert({3, {0x567, 7, 8, true}});
+  Mapping.insert({4, {0x124, 5, 6, false}});
+  Mapping.insert({5, {0x789, 8, 9, true}});
+  return Mapping;
+}
+
+IndexedMemProfRecord makeRecord(
+    std::initializer_list<std::initializer_list<::llvm::memprof::FrameId>>
+        AllocFrames,
+    std::initializer_list<std::initializer_list<::llvm::memprof::FrameId>>
+        CallSiteFrames,
+    const MemInfoBlock &Block = MemInfoBlock()) {
+  llvm::memprof::IndexedMemProfRecord MR;
+  for (const auto &Frames : AllocFrames)
+    MR.AllocSites.emplace_back(Frames, Block);
+  for (const auto &Frames : CallSiteFrames)
+    MR.CallSites.push_back(Frames);
+  return MR;
+}
+
+MATCHER_P(EqualsRecord, Want, "") {
+  const memprof::MemProfRecord &Got = arg;
+
+  auto PrintAndFail = [&]() {
+    std::string Buffer;
+    llvm::raw_string_ostream OS(Buffer);
+    OS << "Want:\n";
+    Want.print(OS);
+    OS << "Got:\n";
+    Got.print(OS);
+    OS.flush();
+    *result_listener << "MemProf Record differs!\n" << Buffer;
+    return false;
+  };
+
+  if (Want.AllocSites.size() != Got.AllocSites.size())
+    return PrintAndFail();
+  if (Want.CallSites.size() != Got.CallSites.size())
+    return PrintAndFail();
+
+  for (size_t I = 0; I < Got.AllocSites.size(); I++) {
+    if (Want.AllocSites[I].Info != Got.AllocSites[I].Info)
+      return PrintAndFail();
+    if (Want.AllocSites[I].CallStack != Got.AllocSites[I].CallStack)
+      return PrintAndFail();
+  }
+
+  for (size_t I = 0; I < Got.CallSites.size(); I++) {
+    if (Want.CallSites[I] != Got.CallSites[I])
+      return PrintAndFail();
+  }
+  return true;
+}
+
 TEST_F(InstrProfTest, test_memprof) {
   ASSERT_THAT_ERROR(Writer.mergeProfileKind(InstrProfKind::MemProf),
                     Succeeded());
-  llvm::memprof::MemProfRecord MR;
-  MR.CallStack.push_back({0x123, 1, 2, false});
-  MR.CallStack.push_back({0x345, 3, 4, true});
-  Writer.addRecord(MR, Err);
+
+  const IndexedMemProfRecord IndexedMR = makeRecord(
+      /*AllocFrames=*/
+      {
+          {0, 1},
+          {2, 3},
+      },
+      /*CallSiteFrames=*/{
+          {4, 5},
+      });
+  const FrameIdMapTy IdToFrameMap = getFrameMapping();
+  for (const auto &I : IdToFrameMap) {
+    Writer.addMemProfFrame(I.first, I.getSecond(), Err);
+  }
+  Writer.addMemProfRecord(/*Id=*/0x9999, IndexedMR);
 
   auto Profile = Writer.writeBuffer();
   readProfile(std::move(Profile));
 
-  auto RecordsOr = Reader->getMemProfRecord(0x123);
-  ASSERT_THAT_ERROR(RecordsOr.takeError(), Succeeded());
-  const auto Records = RecordsOr.get();
-  ASSERT_EQ(Records.size(), 1U);
-  EXPECT_EQ(Records[0], MR);
+  auto RecordOr = Reader->getMemProfRecord(0x9999);
+  ASSERT_THAT_ERROR(RecordOr.takeError(), Succeeded());
+  const memprof::MemProfRecord &Record = RecordOr.get();
+
+  memprof::FrameId LastUnmappedFrameId = 0;
+  bool HasFrameMappingError = false;
+  auto IdToFrameCallback = [&](const memprof::FrameId Id) {
+    auto Iter = IdToFrameMap.find(Id);
+    if (Iter == IdToFrameMap.end()) {
+      LastUnmappedFrameId = Id;
+      HasFrameMappingError = true;
+      return memprof::Frame(0, 0, 0, false);
+    }
+    return Iter->second;
+  };
+
+  const memprof::MemProfRecord WantRecord(IndexedMR, IdToFrameCallback);
+  ASSERT_FALSE(HasFrameMappingError)
+      << "could not map frame id: " << LastUnmappedFrameId;
+  EXPECT_THAT(WantRecord, EqualsRecord(Record));
+}
+
+TEST_F(InstrProfTest, test_memprof_getrecord_error) {
+  ASSERT_THAT_ERROR(Writer.mergeProfileKind(InstrProfKind::MemProf),
+                    Succeeded());
+
+  const IndexedMemProfRecord IndexedMR = makeRecord(
+      /*AllocFrames=*/
+      {
+          {0, 1},
+          {2, 3},
+      },
+      /*CallSiteFrames=*/{
+          {4, 5},
+      });
+  // We skip adding the frame mappings here unlike the test_memprof unit test
+  // above to exercise the failure path when getMemProfRecord is invoked.
+  Writer.addMemProfRecord(/*Id=*/0x9999, IndexedMR);
+
+  auto Profile = Writer.writeBuffer();
+  readProfile(std::move(Profile));
+
+  // Missing frames give a hash_mismatch error.
+  auto RecordOr = Reader->getMemProfRecord(0x9999);
+  ASSERT_TRUE(
+      ErrorEquals(instrprof_error::hash_mismatch, RecordOr.takeError()));
+
+  // Missing functions give a unknown_function error.
+  RecordOr = Reader->getMemProfRecord(0x1111);
+  ASSERT_TRUE(
+      ErrorEquals(instrprof_error::unknown_function, RecordOr.takeError()));
 }
 
 TEST_F(InstrProfTest, test_memprof_merge) {
@@ -247,10 +370,21 @@ TEST_F(InstrProfTest, test_memprof_merge) {
   ASSERT_THAT_ERROR(Writer2.mergeProfileKind(InstrProfKind::MemProf),
                     Succeeded());
 
-  llvm::memprof::MemProfRecord MR;
-  MR.CallStack.push_back({0x123, 1, 2, false});
-  MR.CallStack.push_back({0x345, 3, 4, true});
-  Writer2.addRecord(MR, Err);
+  const IndexedMemProfRecord IndexedMR = makeRecord(
+      /*AllocFrames=*/
+      {
+          {0, 1},
+          {2, 3},
+      },
+      /*CallSiteFrames=*/{
+          {4, 5},
+      });
+
+  const FrameIdMapTy IdToFrameMap = getFrameMapping();
+  for (const auto &I : IdToFrameMap) {
+    Writer.addMemProfFrame(I.first, I.getSecond(), Err);
+  }
+  Writer2.addMemProfRecord(/*Id=*/0x9999, IndexedMR);
 
   ASSERT_THAT_ERROR(Writer.mergeProfileKind(Writer2.getProfileKind()),
                     Succeeded());
@@ -264,23 +398,27 @@ TEST_F(InstrProfTest, test_memprof_merge) {
   ASSERT_EQ(1U, R->Counts.size());
   ASSERT_EQ(42U, R->Counts[0]);
 
-  auto RecordsOr = Reader->getMemProfRecord(0x123);
-  ASSERT_THAT_ERROR(RecordsOr.takeError(), Succeeded());
-  const auto Records = RecordsOr.get();
-  ASSERT_EQ(Records.size(), 1U);
-  EXPECT_EQ(Records[0], MR);
-}
+  auto RecordOr = Reader->getMemProfRecord(0x9999);
+  ASSERT_THAT_ERROR(RecordOr.takeError(), Succeeded());
+  const memprof::MemProfRecord &Record = RecordOr.get();
 
-TEST_F(InstrProfTest, test_memprof_invalid_add_record) {
-  llvm::memprof::MemProfRecord MR;
-  // At least one of the frames should be a non-inline frame.
-  MR.CallStack.push_back({0x123, 1, 2, true});
-  MR.CallStack.push_back({0x345, 3, 4, true});
+  memprof::FrameId LastUnmappedFrameId = 0;
+  bool HasFrameMappingError = false;
 
-  auto CheckErr = [](Error &&E) {
-    EXPECT_TRUE(ErrorEquals(instrprof_error::invalid_prof, std::move(E)));
+  auto IdToFrameCallback = [&](const memprof::FrameId Id) {
+    auto Iter = IdToFrameMap.find(Id);
+    if (Iter == IdToFrameMap.end()) {
+      LastUnmappedFrameId = Id;
+      HasFrameMappingError = true;
+      return memprof::Frame(0, 0, 0, false);
+    }
+    return Iter->second;
   };
-  Writer.addRecord(MR, CheckErr);
+
+  const memprof::MemProfRecord WantRecord(IndexedMR, IdToFrameCallback);
+  ASSERT_FALSE(HasFrameMappingError)
+      << "could not map frame id: " << LastUnmappedFrameId;
+  EXPECT_THAT(WantRecord, EqualsRecord(Record));
 }
 
 static const char callee1[] = "callee1";
@@ -628,7 +766,8 @@ TEST_P(MaybeSparseInstrProfTest, get_icall_data_merge1) {
 TEST_P(MaybeSparseInstrProfTest, get_icall_data_merge1_saturation) {
   static const char bar[] = "bar";
 
-  const uint64_t Max = std::numeric_limits<uint64_t>::max();
+  const uint64_t MaxValCount = std::numeric_limits<uint64_t>::max();
+  const uint64_t MaxEdgeCount = getInstrMaxCountValue();
 
   instrprof_error Result;
   auto Err = [&](Error E) { Result = InstrProfError::take(std::move(E)); };
@@ -638,7 +777,7 @@ TEST_P(MaybeSparseInstrProfTest, get_icall_data_merge1_saturation) {
 
   // Verify counter overflow.
   Result = instrprof_error::success;
-  Writer.addRecord({"foo", 0x1234, {Max}}, Err);
+  Writer.addRecord({"foo", 0x1234, {MaxEdgeCount}}, Err);
   ASSERT_EQ(Result, instrprof_error::counter_overflow);
 
   Result = instrprof_error::success;
@@ -656,7 +795,7 @@ TEST_P(MaybeSparseInstrProfTest, get_icall_data_merge1_saturation) {
   // Verify value data counter overflow.
   NamedInstrProfRecord Record5("baz", 0x5678, {5, 6});
   Record5.reserveSites(IPVK_IndirectCallTarget, 1);
-  InstrProfValueData VD5[] = {{uint64_t(bar), Max}};
+  InstrProfValueData VD5[] = {{uint64_t(bar), MaxValCount}};
   Record5.addValueData(IPVK_IndirectCallTarget, 0, VD5, 1, nullptr);
   Result = instrprof_error::success;
   Writer.addRecord(std::move(Record5), Err);
@@ -669,7 +808,7 @@ TEST_P(MaybeSparseInstrProfTest, get_icall_data_merge1_saturation) {
   Expected<InstrProfRecord> ReadRecord1 =
       Reader->getInstrProfRecord("foo", 0x1234);
   EXPECT_THAT_ERROR(ReadRecord1.takeError(), Succeeded());
-  ASSERT_EQ(Max, ReadRecord1->Counts[0]);
+  ASSERT_EQ(MaxEdgeCount, ReadRecord1->Counts[0]);
 
   Expected<InstrProfRecord> ReadRecord2 =
       Reader->getInstrProfRecord("baz", 0x5678);
@@ -678,7 +817,7 @@ TEST_P(MaybeSparseInstrProfTest, get_icall_data_merge1_saturation) {
   std::unique_ptr<InstrProfValueData[]> VD =
       ReadRecord2->getValueForSite(IPVK_IndirectCallTarget, 0);
   ASSERT_EQ(StringRef("bar"), StringRef((const char *)VD[0].Value, 3));
-  ASSERT_EQ(Max, VD[0].Count);
+  ASSERT_EQ(MaxValCount, VD[0].Count);
 }
 
 // This test tests that when there are too many values
@@ -973,7 +1112,7 @@ TEST_P(MaybeSparseInstrProfTest, instr_prof_symtab_module_test) {
   StringRef Funcs[] = {"Gfoo", "Gblah", "Gbar", "Ifoo", "Iblah", "Ibar",
                        "Pfoo", "Pblah", "Pbar", "Wfoo", "Wblah", "Wbar"};
 
-  for (unsigned I = 0; I < sizeof(Funcs) / sizeof(*Funcs); I++) {
+  for (unsigned I = 0; I < std::size(Funcs); I++) {
     Function *F = M->getFunction(Funcs[I]);
     ASSERT_TRUE(F != nullptr);
     std::string PGOName = getPGOFuncName(*F);
@@ -1009,14 +1148,16 @@ TEST_P(MaybeSparseInstrProfTest, instr_prof_symtab_compression_test) {
     // Compressing:
     std::string FuncNameStrings1;
     EXPECT_THAT_ERROR(collectPGOFuncNameStrings(
-                          FuncNames1, (DoCompression && zlib::isAvailable()),
+                          FuncNames1,
+                          (DoCompression && compression::zlib::isAvailable()),
                           FuncNameStrings1),
                       Succeeded());
 
     // Compressing:
     std::string FuncNameStrings2;
     EXPECT_THAT_ERROR(collectPGOFuncNameStrings(
-                          FuncNames2, (DoCompression && zlib::isAvailable()),
+                          FuncNames2,
+                          (DoCompression && compression::zlib::isAvailable()),
                           FuncNameStrings2),
                       Succeeded());
 

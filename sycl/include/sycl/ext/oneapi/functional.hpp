@@ -7,14 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/functional.hpp>
+#include <sycl/functional.hpp>
 
 #include <functional>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace ext {
-namespace oneapi {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::oneapi {
 
 template <typename T = void> using plus = std::plus<T>;
 template <typename T = void> using multiplies = std::multiplies<T>;
@@ -24,8 +23,7 @@ template <typename T = void> using bit_and = std::bit_and<T>;
 template <typename T = void> using maximum = sycl::maximum<T>;
 template <typename T = void> using minimum = sycl::minimum<T>;
 
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 #ifdef __SYCL_DEVICE_ONLY__
 namespace detail {
@@ -82,16 +80,16 @@ __SYCL_CALC_OVERLOAD(GroupOpISigned, IAdd, sycl::plus<T>)
 __SYCL_CALC_OVERLOAD(GroupOpIUnsigned, IAdd, sycl::plus<T>)
 __SYCL_CALC_OVERLOAD(GroupOpFP, FAdd, sycl::plus<T>)
 
-__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformIMul, sycl::multiplies<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformIMul, sycl::multiplies<T>)
-__SYCL_CALC_OVERLOAD(GroupOpFP, NonUniformFMul, sycl::multiplies<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, IMulKHR, sycl::multiplies<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, IMulKHR, sycl::multiplies<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, FMulKHR, sycl::multiplies<T>)
 
-__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformBitwiseOr, sycl::bit_or<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformBitwiseOr, sycl::bit_or<T>)
-__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformBitwiseXor, sycl::bit_xor<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformBitwiseXor, sycl::bit_xor<T>)
-__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformBitwiseAnd, sycl::bit_and<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformBitwiseAnd, sycl::bit_and<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, BitwiseOrKHR, sycl::bit_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseOrKHR, sycl::bit_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, BitwiseXorKHR, sycl::bit_xor<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseXorKHR, sycl::bit_xor<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, BitwiseAndKHR, sycl::bit_and<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseAndKHR, sycl::bit_and<T>)
 
 #undef __SYCL_CALC_OVERLOAD
 
@@ -104,5 +102,5 @@ static T calc(typename GroupOpTag<T>::type, T x, BinaryOperation<void>) {
 } // namespace detail
 #endif // __SYCL_DEVICE_ONLY__
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

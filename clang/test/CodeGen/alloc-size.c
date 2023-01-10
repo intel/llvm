@@ -238,7 +238,7 @@ void test7(void) {
 void test8(void) {
   // Non-const pointers aren't currently supported.
   void *buf = my_calloc(100, 5);
-  // CHECK: @llvm.objectsize.i64.p0i8(i8* %{{.*}}, i1 false, i1 true, i1
+  // CHECK: @llvm.objectsize.i64.p0(ptr %{{.*}}, i1 false, i1 true, i1
   gi = OBJECT_SIZE_BUILTIN(buf, 0);
   // CHECK: @llvm.objectsize
   gi = OBJECT_SIZE_BUILTIN(buf, 1);

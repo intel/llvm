@@ -1,14 +1,14 @@
 // RUN: mlir-opt %s \
-// RUN:   -gpu-kernel-outlining \
-// RUN:   -pass-pipeline='gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin)' \
-// RUN:   -gpu-to-llvm \
+// RUN: | mlir-opt -gpu-kernel-outlining \
+// RUN: | mlir-opt -pass-pipeline='builtin.module(gpu.module(strip-debuginfo,convert-gpu-to-nvvm,gpu-to-cubin))' \
+// RUN: | mlir-opt -gpu-to-llvm \
 // RUN: | mlir-cpu-runner \
-// RUN:   --shared-libs=%linalg_test_lib_dir/libmlir_cuda_runtime%shlibext \
-// RUN:   --shared-libs=%linalg_test_lib_dir/libmlir_runner_utils%shlibext \
+// RUN:   --shared-libs=%mlir_lib_dir/libmlir_cuda_runtime%shlibext \
+// RUN:   --shared-libs=%mlir_lib_dir/libmlir_runner_utils%shlibext \
 // RUN:   --entry-point-result=void \
 // RUN: | FileCheck %s
 
-func @main() {
+func.func @main() {
   %data = memref.alloc() : memref<2x6xi32>
   %sum = memref.alloc() : memref<2xi32>
   %cst0 = arith.constant 0 : i32
@@ -60,11 +60,11 @@ func @main() {
     gpu.terminator
   }
 
-  call @print_memref_i32(%cast_sum) : (memref<*xi32>) -> ()
+  call @printMemrefI32(%cast_sum) : (memref<*xi32>) -> ()
   // CHECK: [31, 1]
 
   return
 }
 
-func private @print_memref_i32(memref<*xi32>)
+func.func private @printMemrefI32(memref<*xi32>)
 

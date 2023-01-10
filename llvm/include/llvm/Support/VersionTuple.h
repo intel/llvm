@@ -17,11 +17,13 @@
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/Support/HashBuilder.h"
+#include "llvm/Support/Endian.h"
 #include <string>
 #include <tuple>
 
 namespace llvm {
+template <typename HasherT, support::endianness Endianness>
+class HashBuilderImpl;
 class raw_ostream;
 class StringRef;
 
@@ -72,21 +74,21 @@ public:
   /// Retrieve the minor version number, if provided.
   Optional<unsigned> getMinor() const {
     if (!HasMinor)
-      return None;
+      return std::nullopt;
     return Minor;
   }
 
   /// Retrieve the subminor version number, if provided.
   Optional<unsigned> getSubminor() const {
     if (!HasSubminor)
-      return None;
+      return std::nullopt;
     return Subminor;
   }
 
   /// Retrieve the build version number, if provided.
   Optional<unsigned> getBuild() const {
     if (!HasBuild)
-      return None;
+      return std::nullopt;
     return Build;
   }
 
@@ -167,8 +169,8 @@ public:
     return !(X < Y);
   }
 
-  friend llvm::hash_code hash_value(const VersionTuple &VT) {
-    return llvm::hash_combine(VT.Major, VT.Minor, VT.Subminor, VT.Build);
+  friend hash_code hash_value(const VersionTuple &VT) {
+    return hash_combine(VT.Major, VT.Minor, VT.Subminor, VT.Build);
   }
 
   template <typename HasherT, llvm::support::endianness Endianness>

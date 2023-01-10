@@ -315,15 +315,15 @@ define <3 x i82> @abs_nsw_sext(<3 x i7> %x) {
   ret <3 x i82> %a
 }
 
-define i32 @abs_sext_extra_use(i8 %x, i32* %p) {
+define i32 @abs_sext_extra_use(i8 %x, ptr %p) {
 ; CHECK-LABEL: @abs_sext_extra_use(
 ; CHECK-NEXT:    [[S:%.*]] = sext i8 [[X:%.*]] to i32
-; CHECK-NEXT:    store i32 [[S]], i32* [[P:%.*]], align 4
+; CHECK-NEXT:    store i32 [[S]], ptr [[P:%.*]], align 4
 ; CHECK-NEXT:    [[A:%.*]] = call i32 @llvm.abs.i32(i32 [[S]], i1 false)
 ; CHECK-NEXT:    ret i32 [[A]]
 ;
   %s = sext i8 %x to i32
-  store i32 %s, i32* %p
+  store i32 %s, ptr %p
   %a = call i32 @llvm.abs.i32(i32 %s, i1 0)
   ret i32 %a
 }
@@ -399,15 +399,15 @@ define i32 @srem_by_2_int_min_is_poison(i32 %x) {
   ret i32 %r
 }
 
-define <3 x i82> @srem_by_2(<3 x i82> %x, <3 x i82>* %p) {
+define <3 x i82> @srem_by_2(<3 x i82> %x, ptr %p) {
 ; CHECK-LABEL: @srem_by_2(
 ; CHECK-NEXT:    [[S:%.*]] = srem <3 x i82> [[X:%.*]], <i82 2, i82 2, i82 2>
-; CHECK-NEXT:    store <3 x i82> [[S]], <3 x i82>* [[P:%.*]], align 32
+; CHECK-NEXT:    store <3 x i82> [[S]], ptr [[P:%.*]], align 32
 ; CHECK-NEXT:    [[R:%.*]] = and <3 x i82> [[X]], <i82 1, i82 1, i82 1>
 ; CHECK-NEXT:    ret <3 x i82> [[R]]
 ;
   %s = srem <3 x i82> %x, <i82 2, i82 2, i82 2>
-  store <3 x i82> %s, <3 x i82>* %p
+  store <3 x i82> %s, ptr %p
   %r = call <3 x i82> @llvm.abs.v3i82(<3 x i82> %s, i1 false)
   ret <3 x i82> %r
 }
@@ -422,5 +422,138 @@ define i32 @srem_by_3(i32 %x) {
 ;
   %s = srem i32 %x, 3
   %r = call i32 @llvm.abs.i32(i32 %s, i1 true)
+  ret i32 %r
+}
+
+; Test from https://github.com/llvm/llvm-project/issues/54132.
+define i32 @sub_abs_gt(i32 %x, i32 %y) {
+; CHECK-LABEL: @sub_abs_gt(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[CMP:%.*]] = icmp sgt i32 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    br i1 [[CMP]], label [[COND_TRUE:%.*]], label [[COND_END:%.*]]
+; CHECK:       cond.true:
+; CHECK-NEXT:    [[SUB:%.*]] = sub nsw i32 [[X]], [[Y]]
+; CHECK-NEXT:    br label [[COND_END]]
+; CHECK:       cond.end:
+; CHECK-NEXT:    [[R:%.*]] = phi i32 [ [[SUB]], [[COND_TRUE]] ], [ 0, [[ENTRY:%.*]] ]
+; CHECK-NEXT:    ret i32 [[R]]
+;
+entry:
+  %cmp = icmp sgt i32 %x, %y
+  br i1 %cmp, label %cond.true, label %cond.end
+
+cond.true:
+  %sub = sub nsw i32 %x, %y
+  %0 = call i32 @llvm.abs.i32(i32 %sub, i1 true)
+  br label %cond.end
+
+cond.end:
+  %r = phi i32 [ %0, %cond.true ], [ 0, %entry ]
+  ret i32 %r
+}
+
+define i32 @sub_abs_lt(i32 %x, i32 %y) {
+; CHECK-LABEL: @sub_abs_lt(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[CMP:%.*]] = icmp sgt i32 [[Y:%.*]], [[X:%.*]]
+; CHECK-NEXT:    br i1 [[CMP]], label [[COND_TRUE:%.*]], label [[COND_END:%.*]]
+; CHECK:       cond.true:
+; CHECK-NEXT:    [[SUB_NEG:%.*]] = sub i32 [[Y]], [[X]]
+; CHECK-NEXT:    br label [[COND_END]]
+; CHECK:       cond.end:
+; CHECK-NEXT:    [[R:%.*]] = phi i32 [ [[SUB_NEG]], [[COND_TRUE]] ], [ 0, [[ENTRY:%.*]] ]
+; CHECK-NEXT:    ret i32 [[R]]
+;
+entry:
+  %cmp = icmp slt i32 %x, %y
+  br i1 %cmp, label %cond.true, label %cond.end
+
+cond.true:
+  %sub = sub nsw i32 %x, %y
+  %0 = call i32 @llvm.abs.i32(i32 %sub, i1 true)
+  br label %cond.end
+
+cond.end:
+  %r = phi i32 [ %0, %cond.true ], [ 0, %entry ]
+  ret i32 %r
+}
+
+define i32 @sub_abs_lt_min_not_poison(i32 %x, i32 %y) {
+; CHECK-LABEL: @sub_abs_lt_min_not_poison(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[CMP:%.*]] = icmp sgt i32 [[Y:%.*]], [[X:%.*]]
+; CHECK-NEXT:    br i1 [[CMP]], label [[COND_TRUE:%.*]], label [[COND_END:%.*]]
+; CHECK:       cond.true:
+; CHECK-NEXT:    [[SUB_NEG:%.*]] = sub i32 [[Y]], [[X]]
+; CHECK-NEXT:    br label [[COND_END]]
+; CHECK:       cond.end:
+; CHECK-NEXT:    [[R:%.*]] = phi i32 [ [[SUB_NEG]], [[COND_TRUE]] ], [ 0, [[ENTRY:%.*]] ]
+; CHECK-NEXT:    ret i32 [[R]]
+;
+entry:
+  %cmp = icmp slt i32 %x, %y
+  br i1 %cmp, label %cond.true, label %cond.end
+
+cond.true:
+  %sub = sub nsw i32 %x, %y
+  %0 = call i32 @llvm.abs.i32(i32 %sub, i1 false)
+  br label %cond.end
+
+cond.end:
+  %r = phi i32 [ %0, %cond.true ], [ 0, %entry ]
+  ret i32 %r
+}
+
+define i32 @sub_abs_wrong_pred(i32 %x, i32 %y) {
+; CHECK-LABEL: @sub_abs_wrong_pred(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[CMP:%.*]] = icmp ugt i32 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    br i1 [[CMP]], label [[COND_TRUE:%.*]], label [[COND_END:%.*]]
+; CHECK:       cond.true:
+; CHECK-NEXT:    [[SUB:%.*]] = sub nsw i32 [[X]], [[Y]]
+; CHECK-NEXT:    [[TMP0:%.*]] = call i32 @llvm.abs.i32(i32 [[SUB]], i1 true)
+; CHECK-NEXT:    br label [[COND_END]]
+; CHECK:       cond.end:
+; CHECK-NEXT:    [[R:%.*]] = phi i32 [ [[TMP0]], [[COND_TRUE]] ], [ 0, [[ENTRY:%.*]] ]
+; CHECK-NEXT:    ret i32 [[R]]
+;
+entry:
+  %cmp = icmp ugt i32 %x, %y
+  br i1 %cmp, label %cond.true, label %cond.end
+
+cond.true:
+  %sub = sub nsw i32 %x, %y
+  %0 = call i32 @llvm.abs.i32(i32 %sub, i1 true)
+  br label %cond.end
+
+cond.end:
+  %r = phi i32 [ %0, %cond.true ], [ 0, %entry ]
+  ret i32 %r
+}
+
+define i32 @sub_abs_no_nsw(i32 %x, i32 %y) {
+; CHECK-LABEL: @sub_abs_no_nsw(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[CMP:%.*]] = icmp sgt i32 [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    br i1 [[CMP]], label [[COND_TRUE:%.*]], label [[COND_END:%.*]]
+; CHECK:       cond.true:
+; CHECK-NEXT:    [[SUB:%.*]] = sub i32 [[X]], [[Y]]
+; CHECK-NEXT:    [[TMP0:%.*]] = call i32 @llvm.abs.i32(i32 [[SUB]], i1 true)
+; CHECK-NEXT:    br label [[COND_END]]
+; CHECK:       cond.end:
+; CHECK-NEXT:    [[R:%.*]] = phi i32 [ [[TMP0]], [[COND_TRUE]] ], [ 0, [[ENTRY:%.*]] ]
+; CHECK-NEXT:    ret i32 [[R]]
+;
+entry:
+  %cmp = icmp sgt i32 %x, %y
+  br i1 %cmp, label %cond.true, label %cond.end
+
+cond.true:
+  %sub = sub i32 %x, %y
+  %0 = call i32 @llvm.abs.i32(i32 %sub, i1 true)
+  br label %cond.end
+
+cond.end:
+  %r = phi i32 [ %0, %cond.true ], [ 0, %entry ]
   ret i32 %r
 }

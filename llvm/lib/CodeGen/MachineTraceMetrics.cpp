@@ -352,7 +352,7 @@ MinInstrCountEnsemble::pickTracePred(const MachineBasicBlock *MBB) {
 // Select the preferred successor for MBB.
 const MachineBasicBlock*
 MinInstrCountEnsemble::pickTraceSucc(const MachineBasicBlock *MBB) {
-  if (MBB->pred_empty())
+  if (MBB->succ_empty())
     return nullptr;
   const MachineLoop *CurLoop = getLoopFor(MBB);
   const MachineBasicBlock *Best = nullptr;
@@ -484,7 +484,7 @@ void MachineTraceMetrics::Ensemble::computeTrace(const MachineBasicBlock *MBB) {
   // Run an upwards post-order search for the trace start.
   Bounds.Downward = false;
   Bounds.Visited.clear();
-  for (auto I : inverse_post_order_ext(MBB, Bounds)) {
+  for (const auto *I : inverse_post_order_ext(MBB, Bounds)) {
     LLVM_DEBUG(dbgs() << "  pred for " << printMBBReference(*I) << ": ");
     TraceBlockInfo &TBI = BlockInfo[I->getNumber()];
     // All the predecessors have been visited, pick the preferred one.
@@ -502,7 +502,7 @@ void MachineTraceMetrics::Ensemble::computeTrace(const MachineBasicBlock *MBB) {
   // Run a downwards post-order search for the trace end.
   Bounds.Downward = true;
   Bounds.Visited.clear();
-  for (auto I : post_order_ext(MBB, Bounds)) {
+  for (const auto *I : post_order_ext(MBB, Bounds)) {
     LLVM_DEBUG(dbgs() << "  succ for " << printMBBReference(*I) << ": ");
     TraceBlockInfo &TBI = BlockInfo[I->getNumber()];
     // All the successors have been visited, pick the preferred one.

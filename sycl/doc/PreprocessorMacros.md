@@ -34,10 +34,6 @@ This file describes macros that have effect on SYCL compiler and run-time.
   Disables all deprecation warnings in SYCL runtime headers, including SYCL
   1.2.1 deprecations.
 
-- **SYCL_DISABLE_CPP_VERSION_CHECK_WARNING**
-
-  Disables a message which warns about unsupported C++ version.
-
 - **SYCL_FALLBACK_ASSERT**
 
   Defining as non-zero enables the fallback assert feature even on devices
@@ -55,12 +51,7 @@ This file describes macros that have effect on SYCL compiler and run-time.
 - **SYCL2020_CONFORMANT_APIS**
   This macro is used to comply with the SYCL 2020 specification, as some of the current 
   implementations may be widespread and not conform to it.
-  Description of what it changes:
-  1) According to spec, `backend_return_t` for opencl event 
-  should be `std::vector<cl_event>` instead of `cl_event`. Defining this macro 
-  will change the behavior of `sycl::get_native()` function and using types for 
-  next structs: `interop<backend::opencl, event>`, `BackendInput<backend::opencl, event>`, 
-  `BackendReturn<backend::opencl, event>` to be in line with the spec.
+  Defining this macro currently has no effect on the API.
 
 ## Version macros
 

@@ -28,6 +28,19 @@ class GreedyRewriteConfig;
 // Passes
 //===----------------------------------------------------------------------===//
 
+#define GEN_PASS_DECL_CANONICALIZER
+#define GEN_PASS_DECL_CONTROLFLOWSINK
+#define GEN_PASS_DECL_CSEPASS
+#define GEN_PASS_DECL_LOOPINVARIANTCODEMOTION
+#define GEN_PASS_DECL_STRIPDEBUGINFO
+#define GEN_PASS_DECL_PRINTOPSTATS
+#define GEN_PASS_DECL_INLINER
+#define GEN_PASS_DECL_SCCP
+#define GEN_PASS_DECL_SYMBOLDCE
+#define GEN_PASS_DECL_SYMBOLPRIVATIZE
+#define GEN_PASS_DECL_TOPOLOGICALSORT
+#include "mlir/Transforms/Passes.h.inc"
+
 /// Creates an instance of the Canonicalizer pass, configured with default
 /// settings (which can be overridden by pass options on the command line).
 std::unique_ptr<Pass> createCanonicalizerPass();
@@ -42,8 +55,8 @@ std::unique_ptr<Pass> createCanonicalizerPass();
 /// set to their type name.
 std::unique_ptr<Pass>
 createCanonicalizerPass(const GreedyRewriteConfig &config,
-                        ArrayRef<std::string> disabledPatterns = llvm::None,
-                        ArrayRef<std::string> enabledPatterns = llvm::None);
+                        ArrayRef<std::string> disabledPatterns = std::nullopt,
+                        ArrayRef<std::string> enabledPatterns = std::nullopt);
 
 /// Creates a pass to perform control-flow sinking.
 std::unique_ptr<Pass> createControlFlowSinkPass();
@@ -60,7 +73,11 @@ std::unique_ptr<Pass> createStripDebugInfoPass();
 
 /// Creates a pass which prints the list of ops and the number of occurrences in
 /// the module.
-std::unique_ptr<Pass> createPrintOpStatsPass();
+std::unique_ptr<Pass> createPrintOpStatsPass(raw_ostream &os = llvm::errs());
+
+/// Creates a pass which prints the list of ops and the number of occurrences in
+/// the module with the output format option.
+std::unique_ptr<Pass> createPrintOpStatsPass(raw_ostream &os, bool printAsJSON);
 
 /// Creates a pass which inlines calls and callable operations as defined by
 /// the CallGraph.
@@ -91,6 +108,11 @@ std::unique_ptr<Pass> createSymbolDCEPass();
 /// listed in `excludeSymbols`.
 std::unique_ptr<Pass>
 createSymbolPrivatizePass(ArrayRef<std::string> excludeSymbols = {});
+
+/// Creates a pass that recursively sorts nested regions without SSA dominance
+/// topologically such that, as much as possible, users of values appear after
+/// their producers.
+std::unique_ptr<Pass> createTopologicalSortPass();
 
 //===----------------------------------------------------------------------===//
 // Registration

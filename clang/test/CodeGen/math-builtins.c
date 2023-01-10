@@ -1,7 +1,7 @@
-// RUN: %clang_cc1 -triple x86_64-unknown-unknown -w -S -o - -emit-llvm              %s | FileCheck %s -check-prefix=NO__ERRNO
-// RUN: %clang_cc1 -triple x86_64-unknown-unknown -w -S -o - -emit-llvm -fmath-errno %s | FileCheck %s -check-prefix=HAS_ERRNO
-// RUN: %clang_cc1 -triple x86_64-unknown-unknown-gnu -w -S -o - -emit-llvm -fmath-errno %s | FileCheck %s --check-prefix=HAS_ERRNO_GNU
-// RUN: %clang_cc1 -triple x86_64-unknown-windows-msvc -w -S -o - -emit-llvm -fmath-errno %s | FileCheck %s --check-prefix=HAS_ERRNO_WIN
+// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-unknown-unknown -w -S -o - -emit-llvm              %s | FileCheck %s -check-prefix=NO__ERRNO
+// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-unknown-unknown -w -S -o - -emit-llvm -fmath-errno %s | FileCheck %s -check-prefix=HAS_ERRNO
+// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-unknown-unknown-gnu -w -S -o - -emit-llvm -fmath-errno %s | FileCheck %s --check-prefix=HAS_ERRNO_GNU
+// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-unknown-windows-msvc -w -S -o - -emit-llvm -fmath-errno %s | FileCheck %s --check-prefix=HAS_ERRNO_WIN
 
 // Test attributes and codegen of math builtins.
 
@@ -680,16 +680,16 @@ __builtin_trunc(f);      __builtin_truncf(f);     __builtin_truncl(f); __builtin
 // HAS_ERRNO: declare fp128 @llvm.trunc.f128(fp128) [[READNONE_INTRINSIC]]
 };
 
-// NO__ERRNO: attributes [[READNONE]] = { {{.*}}readnone{{.*}} }
-// NO__ERRNO: attributes [[READNONE_INTRINSIC]] = { {{.*}}readnone{{.*}} }
+// NO__ERRNO: attributes [[READNONE]] = { {{.*}}memory(none){{.*}} }
+// NO__ERRNO: attributes [[READNONE_INTRINSIC]] = { {{.*}}memory(none){{.*}} }
 // NO__ERRNO: attributes [[NOT_READNONE]] = { nounwind {{.*}} }
-// NO__ERRNO: attributes [[PURE]] = { {{.*}}readonly{{.*}} }
+// NO__ERRNO: attributes [[PURE]] = { {{.*}}memory(read){{.*}} }
 
 // HAS_ERRNO: attributes [[NOT_READNONE]] = { nounwind {{.*}} }
-// HAS_ERRNO: attributes [[READNONE_INTRINSIC]] = { {{.*}}readnone{{.*}} }
-// HAS_ERRNO: attributes [[PURE]] = { {{.*}}readonly{{.*}} }
-// HAS_ERRNO: attributes [[READNONE]] = { {{.*}}readnone{{.*}} }
+// HAS_ERRNO: attributes [[READNONE_INTRINSIC]] = { {{.*}}memory(none){{.*}} }
+// HAS_ERRNO: attributes [[PURE]] = { {{.*}}memory(read){{.*}} }
+// HAS_ERRNO: attributes [[READNONE]] = { {{.*}}memory(none){{.*}} }
 
-// HAS_ERRNO_GNU: attributes [[READNONE_INTRINSIC]] = { {{.*}}readnone{{.*}} }
-// HAS_ERRNO_WIN: attributes [[READNONE_INTRINSIC]] = { {{.*}}readnone{{.*}} }
+// HAS_ERRNO_GNU: attributes [[READNONE_INTRINSIC]] = { {{.*}}memory(none){{.*}} }
+// HAS_ERRNO_WIN: attributes [[READNONE_INTRINSIC]] = { {{.*}}memory(none){{.*}} }
 

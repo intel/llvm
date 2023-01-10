@@ -89,7 +89,8 @@ void Prescanner::Prescan(ProvenanceRange range) {
 
 void Prescanner::Statement() {
   TokenSequence tokens;
-  LineClassification line{ClassifyLine(nextLine_)};
+  const char *statementStart{nextLine_};
+  LineClassification line{ClassifyLine(statementStart)};
   switch (line.kind) {
   case LineClassification::Kind::Comment:
     nextLine_ += line.payloadOffset; // advance to '!' or newline
@@ -144,6 +145,10 @@ void Prescanner::Statement() {
   case LineClassification::Kind::Source:
     BeginStatementAndAdvance();
     if (inFixedForm_) {
+      if (features_.IsEnabled(LanguageFeature::OldDebugLines) &&
+          (*at_ == 'D' || *at_ == 'd')) {
+        NextChar();
+      }
       LabelField(tokens);
     } else if (skipLeadingAmpersand_) {
       skipLeadingAmpersand_ = false;
@@ -159,6 +164,11 @@ void Prescanner::Statement() {
   }
 
   while (NextToken(tokens)) {
+  }
+  if (continuationLines_ > 255) {
+    Say(GetProvenance(statementStart),
+        "%d continuation lines is more than the Fortran standard allows"_port_en_US,
+        continuationLines_);
   }
 
   Provenance newlineProvenance{GetCurrentProvenance()};
@@ -181,7 +191,7 @@ void Prescanner::Statement() {
     case LineClassification::Kind::DefinitionDirective:
     case LineClassification::Kind::PreprocessorDirective:
       Say(preprocessed->GetProvenanceRange(),
-          "Preprocessed line resembles a preprocessor directive"_en_US);
+          "Preprocessed line resembles a preprocessor directive"_warn_en_US);
       preprocessed->ToLowerCase()
           .CheckBadFortranCharacters(messages_)
           .CheckBadParentheses(messages_)
@@ -280,7 +290,7 @@ void Prescanner::LabelField(TokenSequence &token) {
   }
   if (bad && !preprocessor_.IsNameDefined(token.CurrentOpenToken())) {
     Say(GetProvenance(bad),
-        "Character in fixed-form label field must be a digit"_en_US);
+        "Character in fixed-form label field must be a digit"_warn_en_US);
     token.clear();
     at_ = start;
     return;
@@ -295,8 +305,8 @@ void Prescanner::LabelField(TokenSequence &token) {
   token.CloseToken();
   SkipToNextSignificantCharacter();
   if (IsDecimalDigit(*at_)) {
-    Say(GetProvenance(at_),
-        "Label digit is not in fixed-form label field"_en_US);
+    Say(GetCurrentProvenance(),
+        "Label digit is not in fixed-form label field"_port_en_US);
   }
 }
 
@@ -402,6 +412,7 @@ void Prescanner::SkipToNextSignificantCharacter() {
       mightNeedSpace = *at_ == '\n';
     }
     for (; Continuation(mightNeedSpace); mightNeedSpace = false) {
+      ++continuationLines_;
       if (MustSkipToEndOfLine()) {
         SkipToEndOfLine();
       }
@@ -489,7 +500,8 @@ bool Prescanner::NextToken(TokenSequence &tokens) {
       // Recognize and skip over classic C style /*comments*/ when
       // outside a character literal.
       if (features_.ShouldWarn(LanguageFeature::ClassicCComments)) {
-        Say(GetProvenance(at_), "nonstandard usage: C-style comment"_en_US);
+        Say(GetCurrentProvenance(),
+            "nonstandard usage: C-style comment"_port_en_US);
       }
       SkipCComments();
     }
@@ -698,7 +710,7 @@ void Prescanner::Hollerith(
     if (PadOutCharacterLiteral(tokens)) {
     } else if (*at_ == '\n') {
       Say(GetProvenanceRange(start, at_),
-          "Possible truncated Hollerith literal"_en_US);
+          "Possible truncated Hollerith literal"_warn_en_US);
       break;
     } else {
       NextChar();
@@ -827,7 +839,7 @@ void Prescanner::FortranInclude(const char *firstQuote) {
     for (; *p != '\n' && *p != '!'; ++p) {
     }
     Say(GetProvenanceRange(garbage, p),
-        "excess characters after path name"_en_US);
+        "excess characters after path name"_warn_en_US);
   }
   std::string buf;
   llvm::raw_string_ostream error{buf};
@@ -951,7 +963,7 @@ const char *Prescanner::FixedFormContinuationLine(bool mightNeedSpace) {
       // Extension: '&' as continuation marker
       if (features_.ShouldWarn(
               LanguageFeature::FixedFormContinuationWithColumn1Ampersand)) {
-        Say(GetProvenance(nextLine_), "nonstandard usage"_en_US);
+        Say(GetProvenance(nextLine_), "nonstandard usage"_port_en_US);
       }
       return nextLine_ + 1;
     }
@@ -1045,7 +1057,7 @@ bool Prescanner::FreeFormContinuation() {
       return false;
     } else if (*p != '!' &&
         features_.ShouldWarn(LanguageFeature::CruftAfterAmpersand)) {
-      Say(GetProvenance(p), "missing ! before comment after &"_en_US);
+      Say(GetProvenance(p), "missing ! before comment after &"_warn_en_US);
     }
   }
   do {

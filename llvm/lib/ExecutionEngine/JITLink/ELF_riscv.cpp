@@ -82,14 +82,14 @@ public:
 private:
   Section &getGOTSection() const {
     if (!GOTSection)
-      GOTSection = &G.createSection("$__GOT", MemProt::Read);
+      GOTSection = &G.createSection("$__GOT", orc::MemProt::Read);
     return *GOTSection;
   }
 
   Section &getStubsSection() const {
     if (!StubsSection)
       StubsSection =
-          &G.createSection("$__STUBS", MemProt::Read | MemProt::Exec);
+          &G.createSection("$__STUBS", orc::MemProt::Read | orc::MemProt::Exec);
     return *StubsSection;
   }
 
@@ -163,20 +163,13 @@ static uint32_t extractBits(uint32_t Num, unsigned Low, unsigned Size) {
   return (Num & (((1ULL << Size) - 1) << Low)) >> Low;
 }
 
-inline Error checkAlignment(llvm::orc::ExecutorAddr loc, uint64_t v, int n,
-                            const Edge &E) {
-  if (v & (n - 1))
-    return make_error<JITLinkError>("0x" + llvm::utohexstr(loc.getValue()) +
-                                    " improper alignment for relocation " +
-                                    formatv("{0:d}", E.getKind()) + ": 0x" +
-                                    llvm::utohexstr(v) + " is not aligned to " +
-                                    Twine(n) + " bytes");
-  return Error::success();
+static inline bool isAlignmentCorrect(uint64_t Value, int N) {
+  return (Value & (N - 1)) ? false : true;
 }
 
-static inline bool isInRangeForImmS32(int64_t Value) {
-  return (Value >= std::numeric_limits<int32_t>::min() &&
-          Value <= std::numeric_limits<int32_t>::max());
+// Requires 0 < N <= 64.
+static inline bool isInRangeForImm(int64_t Value, int N) {
+  return Value == llvm::SignExtend64(Value, N);
 }
 
 class ELFJITLinker_riscv : public JITLinker<ELFJITLinker_riscv> {
@@ -208,10 +201,10 @@ private:
     }
     case R_RISCV_BRANCH: {
       int64_t Value = E.getTarget().getAddress() + E.getAddend() - FixupAddress;
-      Error AlignmentIssue = checkAlignment(FixupAddress, Value, 2, E);
-      if (AlignmentIssue) {
-        return AlignmentIssue;
-      }
+      if (LLVM_UNLIKELY(!isInRangeForImm(Value >> 1, 12)))
+        return makeTargetOutOfRangeError(G, B, E);
+      if (LLVM_UNLIKELY(!isAlignmentCorrect(Value, 2)))
+        return makeAlignmentError(FixupAddress, Value, 2, E);
       uint32_t Imm31_25 =
           extractBits(Value, 5, 6) << 25 | extractBits(Value, 12, 1) << 31;
       uint32_t Imm11_7 =
@@ -222,10 +215,10 @@ private:
     }
     case R_RISCV_JAL: {
       int64_t Value = E.getTarget().getAddress() + E.getAddend() - FixupAddress;
-      Error AlignmentIssue = checkAlignment(FixupAddress, Value, 2, E);
-      if (AlignmentIssue) {
-        return AlignmentIssue;
-      }
+      if (LLVM_UNLIKELY(!isInRangeForImm(Value >> 1, 20)))
+        return makeTargetOutOfRangeError(G, B, E);
+      if (LLVM_UNLIKELY(!isAlignmentCorrect(Value, 2)))
+        return makeAlignmentError(FixupAddress, Value, 2, E);
       uint32_t Imm20 = extractBits(Value, 20, 1) << 31;
       uint32_t Imm10_1 = extractBits(Value, 1, 10) << 21;
       uint32_t Imm11 = extractBits(Value, 11, 1) << 20;
@@ -237,7 +230,7 @@ private:
     case R_RISCV_HI20: {
       int64_t Value = (E.getTarget().getAddress() + E.getAddend()).getValue();
       int64_t Hi = Value + 0x800;
-      if (LLVM_UNLIKELY(!isInRangeForImmS32(Hi)))
+      if (LLVM_UNLIKELY(!isInRangeForImm(Hi, 32)))
         return makeTargetOutOfRangeError(G, B, E);
       uint32_t RawInstr = *(little32_t *)FixupPtr;
       *(little32_t *)FixupPtr =
@@ -254,10 +247,21 @@ private:
           (RawInstr & 0xFFFFF) | (static_cast<uint32_t>(Lo & 0xFFF) << 20);
       break;
     }
+    case R_RISCV_LO12_S: {
+      // FIXME: We assume that R_RISCV_HI20 is present in object code and pairs
+      // with current relocation R_RISCV_LO12_S. So here may need a check.
+      int64_t Value = (E.getTarget().getAddress() + E.getAddend()).getValue();
+      int64_t Lo = Value & 0xFFF;
+      uint32_t Imm31_25 = extractBits(Lo, 5, 7) << 25;
+      uint32_t Imm11_7 = extractBits(Lo, 0, 5) << 7;
+      uint32_t RawInstr = *(little32_t *)FixupPtr;
+      *(little32_t *)FixupPtr = (RawInstr & 0x1FFF07F) | Imm31_25 | Imm11_7;
+      break;
+    }
     case R_RISCV_CALL: {
       int64_t Value = E.getTarget().getAddress() + E.getAddend() - FixupAddress;
       int64_t Hi = Value + 0x800;
-      if (LLVM_UNLIKELY(!isInRangeForImmS32(Hi)))
+      if (LLVM_UNLIKELY(!isInRangeForImm(Hi, 32)))
         return makeTargetOutOfRangeError(G, B, E);
       int32_t Lo = Value & 0xFFF;
       uint32_t RawInstrAuipc = *(little32_t *)FixupPtr;
@@ -271,7 +275,7 @@ private:
     case R_RISCV_PCREL_HI20: {
       int64_t Value = E.getTarget().getAddress() + E.getAddend() - FixupAddress;
       int64_t Hi = Value + 0x800;
-      if (LLVM_UNLIKELY(!isInRangeForImmS32(Hi)))
+      if (LLVM_UNLIKELY(!isInRangeForImm(Hi, 32)))
         return makeTargetOutOfRangeError(G, B, E);
       uint32_t RawInstr = *(little32_t *)FixupPtr;
       *(little32_t *)FixupPtr =
@@ -298,6 +302,8 @@ private:
       // pairs with current relocation R_RISCV_PCREL_LO12_S. So here may need a
       // check.
       auto RelHI20 = getRISCVPCRelHi20(E);
+      if (!RelHI20)
+        return RelHI20.takeError();
       int64_t Value = RelHI20->getTarget().getAddress() +
                       RelHI20->getAddend() - E.getTarget().getAddress();
       int64_t Lo = Value & 0xFFF;
@@ -372,6 +378,13 @@ private:
       *FixupPtr = static_cast<uint8_t>(Value);
       break;
     }
+    case R_RISCV_SUB6: {
+      int64_t Value =
+          *(reinterpret_cast<const uint8_t *>(FixupAddress.getValue())) & 0x3f;
+      Value -= E.getTarget().getAddress().getValue() - E.getAddend();
+      *FixupPtr = (*FixupPtr & 0xc0) | (static_cast<uint8_t>(Value) & 0x3f);
+      break;
+    }
     case R_RISCV_SET6: {
       int64_t Value = (E.getTarget().getAddress() + E.getAddend()).getValue();
       uint32_t RawData = *(little32_t *)FixupPtr;
@@ -429,6 +442,8 @@ private:
       return EdgeKind_riscv::R_RISCV_HI20;
     case ELF::R_RISCV_LO12_I:
       return EdgeKind_riscv::R_RISCV_LO12_I;
+    case ELF::R_RISCV_LO12_S:
+      return EdgeKind_riscv::R_RISCV_LO12_S;
     case ELF::R_RISCV_CALL:
       return EdgeKind_riscv::R_RISCV_CALL;
     case ELF::R_RISCV_PCREL_HI20:
@@ -457,6 +472,8 @@ private:
       return EdgeKind_riscv::R_RISCV_SUB16;
     case ELF::R_RISCV_SUB8:
       return EdgeKind_riscv::R_RISCV_SUB8;
+    case ELF::R_RISCV_SUB6:
+      return EdgeKind_riscv::R_RISCV_SUB6;
     case ELF::R_RISCV_SET6:
       return EdgeKind_riscv::R_RISCV_SET6;
     case ELF::R_RISCV_SET8:
@@ -469,8 +486,9 @@ private:
       return EdgeKind_riscv::R_RISCV_32_PCREL;
     }
 
-    return make_error<JITLinkError>("Unsupported riscv relocation:" +
-                                    formatv("{0:d}", Type));
+    return make_error<JITLinkError>(
+        "Unsupported riscv relocation:" + formatv("{0:d}: ", Type) +
+        object::getELFRelocationTypeName(ELF::EM_RISCV, Type));
   }
 
   Error addRelocations() override {
@@ -479,8 +497,8 @@ private:
     using Base = ELFLinkGraphBuilder<ELFT>;
     using Self = ELFLinkGraphBuilder_riscv<ELFT>;
     for (const auto &RelSect : Base::Sections)
-      if (Error Err = Base::forEachRelocation(RelSect, this,
-                                              &Self::addSingleRelocation))
+      if (Error Err = Base::forEachRelaRelocation(RelSect, this,
+                                                  &Self::addSingleRelocation))
         return Err;
 
     return Error::success();
@@ -490,6 +508,30 @@ private:
                             const typename ELFT::Shdr &FixupSect,
                             Block &BlockToFix) {
     using Base = ELFLinkGraphBuilder<ELFT>;
+
+    uint32_t Type = Rel.getType(false);
+    // We do not implement linker relaxation, except what is required for
+    // alignment (see below).
+    if (Type == llvm::ELF::R_RISCV_RELAX)
+      return Error::success();
+
+    int64_t Addend = Rel.r_addend;
+    if (Type == llvm::ELF::R_RISCV_ALIGN) {
+      uint64_t Alignment = PowerOf2Ceil(Addend);
+      // FIXME: Implement support for ensuring alignment together with linker
+      // relaxation; 2 bytes are guaranteed by the length of compressed
+      // instructions, so this does not need any action from our side.
+      if (Alignment > 2)
+        return make_error<JITLinkError>(
+            formatv("Unsupported relocation R_RISCV_ALIGN with alignment {0} "
+                    "larger than 2 (addend: {1})",
+                    Alignment, Addend));
+      return Error::success();
+    }
+
+    Expected<riscv::EdgeKind_riscv> Kind = getRelocationKind(Type);
+    if (!Kind)
+      return Kind.takeError();
 
     uint32_t SymbolIndex = Rel.getSymbol(false);
     auto ObjSymbol = Base::Obj.getRelocationSymbol(Rel, Base::SymTabSec);
@@ -505,12 +547,6 @@ private:
                   Base::GraphSymbols.size()),
           inconvertibleErrorCode());
 
-    uint32_t Type = Rel.getType(false);
-    Expected<riscv::EdgeKind_riscv> Kind = getRelocationKind(Type);
-    if (!Kind)
-      return Kind.takeError();
-
-    int64_t Addend = Rel.r_addend;
     auto FixupAddress = orc::ExecutorAddr(FixupSect.sh_addr) + Rel.r_offset;
     Edge::OffsetT Offset = FixupAddress - BlockToFix.getAddress();
     Edge GE(*Kind, Offset, *GraphSymbol, Addend);

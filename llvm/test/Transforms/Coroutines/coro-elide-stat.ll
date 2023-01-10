@@ -2,10 +2,10 @@
 ; REQUIRES: asserts
 ;
 ; RUN: opt < %s -S \
-; RUN:   -passes='cgscc(repeat<2>(inline,function(coro-elide,dce)))' -stats 2>&1 \
+; RUN: -passes='cgscc(repeat<2>(inline,function(coro-elide,dce)))' -stats 2>&1 \
 ; RUN:   | FileCheck %s
 ; RUN: opt < %s --disable-output \
-; RUN:   -passes='cgscc(repeat<2>(inline,function(coro-elide,dce)))' \
+; RUN: -passes='cgscc(repeat<2>(inline,function(coro-elide,dce)))' \
 ; RUN:   -coro-elide-info-output-file=%t && \
 ; RUN:  cat %t \
 ; RUN:   | FileCheck %s --check-prefix=FILE
@@ -17,7 +17,7 @@
 declare void @print(i32) nounwind
 
 ; resume part of the coroutine
-define fastcc void @f.resume(i8*) {
+define fastcc void @f.resume(i8* dereferenceable(1)) {
   tail call void @print(i32 0)
   ret void
 }

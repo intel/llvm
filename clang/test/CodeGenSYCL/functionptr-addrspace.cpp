@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -no-enable-noundef-analysis -emit-llvm -triple spir64 -verify -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -emit-llvm -triple spir64 -verify -emit-llvm %s -o - | FileCheck %s
 
 // expected-no-diagnostics
 
@@ -7,7 +7,7 @@ __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc();
 }
 
-// CHECK: define dso_local spir_func{{.*}}invoke_function{{.*}}(i32 ()* nocapture %fptr, i32 addrspace(4)* nocapture %ptr)
+// CHECK: define dso_local spir_func{{.*}}invoke_function{{.*}}(ptr noundef %fptr, ptr addrspace(4) noundef %ptr)
 void invoke_function(int (*fptr)(), int *ptr) {}
 
 int f() { return 0; }
@@ -21,5 +21,16 @@ int main() {
     invoke_function(r, &a);
     invoke_function(f, &a);
   });
+
+  // Test function pointer as kernel argument. Function pointers should have program address space i.e. 0.
+
+  int (*fptr)();
+  int *ptr;
+
+  // define dso_local spir_kernel void @{{.*}}fake_kernel_2{{.*}}(i32 ()* align 4 %_arg_fptr, i32 addrspace(1)* align 4 %_arg_ptr)
+  kernel_single_task<class fake_kernel_2>([=]() {
+    invoke_function(fptr, ptr);
+  });
+
   return 0;
 }

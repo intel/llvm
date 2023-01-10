@@ -8,6 +8,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "../lib/Transforms/Vectorize/VPlan.h"
+#include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/Analysis/VectorUtils.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -804,15 +806,15 @@ TEST(VPRecipeTest, CastVPWidenCallRecipeToVPUserAndVPDef) {
   SmallVector<VPValue *, 2> Args;
   Args.push_back(&Op1);
   Args.push_back(&Op2);
-  VPWidenCallRecipe Recipe(*Call, make_range(Args.begin(), Args.end()));
+  VPWidenCallRecipe Recipe(*Call, make_range(Args.begin(), Args.end()), false);
   EXPECT_TRUE(isa<VPUser>(&Recipe));
   VPRecipeBase *BaseR = &Recipe;
   EXPECT_TRUE(isa<VPUser>(BaseR));
   EXPECT_EQ(&Recipe, BaseR);
 
   VPValue *VPV = &Recipe;
-  EXPECT_TRUE(isa<VPRecipeBase>(VPV->getDef()));
-  EXPECT_EQ(&Recipe, dyn_cast<VPRecipeBase>(VPV->getDef()));
+  EXPECT_TRUE(VPV->getDefiningRecipe());
+  EXPECT_EQ(&Recipe, VPV->getDefiningRecipe());
 
   delete Call;
 }
@@ -839,8 +841,8 @@ TEST(VPRecipeTest, CastVPWidenSelectRecipeToVPUserAndVPDef) {
   EXPECT_EQ(&WidenSelectR, BaseR);
 
   VPValue *VPV = &WidenSelectR;
-  EXPECT_TRUE(isa<VPRecipeBase>(VPV->getDef()));
-  EXPECT_EQ(&WidenSelectR, dyn_cast<VPRecipeBase>(VPV->getDef()));
+  EXPECT_TRUE(isa<VPRecipeBase>(VPV->getDefiningRecipe()));
+  EXPECT_EQ(&WidenSelectR, VPV->getDefiningRecipe());
 
   delete SelectI;
 }
@@ -864,8 +866,8 @@ TEST(VPRecipeTest, CastVPWidenGEPRecipeToVPUserAndVPDef) {
   EXPECT_EQ(&Recipe, BaseR);
 
   VPValue *VPV = &Recipe;
-  EXPECT_TRUE(isa<VPRecipeBase>(VPV->getDef()));
-  EXPECT_EQ(&Recipe, dyn_cast<VPRecipeBase>(VPV->getDef()));
+  EXPECT_TRUE(isa<VPRecipeBase>(VPV->getDefiningRecipe()));
+  EXPECT_EQ(&Recipe, VPV->getDefiningRecipe());
 
   delete GEP;
 }
@@ -943,8 +945,8 @@ TEST(VPRecipeTest, CastVPWidenMemoryInstructionRecipeToVPUserAndVPDef) {
   EXPECT_EQ(&Recipe, BaseR);
 
   VPValue *VPV = Recipe.getVPSingleValue();
-  EXPECT_TRUE(isa<VPRecipeBase>(VPV->getDef()));
-  EXPECT_EQ(&Recipe, dyn_cast<VPRecipeBase>(VPV->getDef()));
+  EXPECT_TRUE(isa<VPRecipeBase>(VPV->getDefiningRecipe()));
+  EXPECT_EQ(&Recipe, VPV->getDefiningRecipe());
 
   delete Load;
 }
@@ -1009,7 +1011,7 @@ TEST(VPRecipeTest, MayHaveSideEffectsAndMayReadWriteMemory) {
   {
     VPValue Mask;
     VPBranchOnMaskRecipe Recipe(&Mask);
-    EXPECT_FALSE(Recipe.mayHaveSideEffects());
+    EXPECT_TRUE(Recipe.mayHaveSideEffects());
     EXPECT_FALSE(Recipe.mayReadFromMemory());
     EXPECT_FALSE(Recipe.mayWriteToMemory());
     EXPECT_FALSE(Recipe.mayReadOrWriteMemory());
@@ -1063,12 +1065,24 @@ TEST(VPRecipeTest, MayHaveSideEffectsAndMayReadWriteMemory) {
     SmallVector<VPValue *, 2> Args;
     Args.push_back(&Op1);
     Args.push_back(&Op2);
-    VPWidenCallRecipe Recipe(*Call, make_range(Args.begin(), Args.end()));
+    VPWidenCallRecipe Recipe(*Call, make_range(Args.begin(), Args.end()),
+                             false);
     EXPECT_TRUE(Recipe.mayHaveSideEffects());
     EXPECT_TRUE(Recipe.mayReadFromMemory());
     EXPECT_TRUE(Recipe.mayWriteToMemory());
     EXPECT_TRUE(Recipe.mayReadOrWriteMemory());
     delete Call;
+  }
+
+  {
+    VPValue Op1;
+    VPValue Op2;
+    InductionDescriptor IndDesc;
+    VPScalarIVStepsRecipe Recipe(IndDesc, &Op1, &Op2);
+    EXPECT_FALSE(Recipe.mayHaveSideEffects());
+    EXPECT_FALSE(Recipe.mayReadFromMemory());
+    EXPECT_FALSE(Recipe.mayWriteToMemory());
+    EXPECT_FALSE(Recipe.mayReadOrWriteMemory());
   }
 
   // The initial implementation is conservative with respect to VPInstructions.
@@ -1097,10 +1111,8 @@ TEST(VPRecipeTest, dump) {
       BinaryOperator::CreateAdd(UndefValue::get(Int32), UndefValue::get(Int32));
   AI->setName("a");
   SmallVector<VPValue *, 2> Args;
-  VPValue *ExtVPV1 = new VPValue();
-  VPValue *ExtVPV2 = new VPValue();
-  Plan.addExternalDef(ExtVPV1);
-  Plan.addExternalDef(ExtVPV2);
+  VPValue *ExtVPV1 = Plan.getOrAddExternalDef(ConstantInt::get(Int32, 1));
+  VPValue *ExtVPV2 = Plan.getOrAddExternalDef(ConstantInt::get(Int32, 2));
   Args.push_back(ExtVPV1);
   Args.push_back(ExtVPV2);
   VPWidenRecipe *WidenR =
@@ -1117,7 +1129,7 @@ TEST(VPRecipeTest, dump) {
           VPV->dump();
           exit(0);
         },
-        testing::ExitedWithCode(0), "WIDEN ir<%a> = add vp<%0>, vp<%1>");
+        testing::ExitedWithCode(0), "WIDEN ir<%a> = add ir<1>, ir<2>");
 
     // Test VPRecipeBase::dump().
     VPRecipeBase *R = WidenR;
@@ -1126,7 +1138,7 @@ TEST(VPRecipeTest, dump) {
           R->dump();
           exit(0);
         },
-        testing::ExitedWithCode(0), "WIDEN ir<%a> = add vp<%0>, vp<%1>");
+        testing::ExitedWithCode(0), "WIDEN ir<%a> = add ir<1>, ir<2>");
 
     // Test VPDef::dump().
     VPDef *D = WidenR;
@@ -1135,7 +1147,7 @@ TEST(VPRecipeTest, dump) {
           D->dump();
           exit(0);
         },
-        testing::ExitedWithCode(0), "WIDEN ir<%a> = add vp<%0>, vp<%1>");
+        testing::ExitedWithCode(0), "WIDEN ir<%a> = add ir<1>, ir<2>");
   }
 
   delete AI;
@@ -1206,10 +1218,10 @@ TEST(VPDoubleValueDefTest, traverseUseLists) {
   EXPECT_EQ(&I3, DoubleValueDefV1Users[1]);
 
   // Now check that we can get the right VPDef for each defined value.
-  EXPECT_EQ(&DoubleValueDef, I1.getOperand(0)->getDef());
-  EXPECT_EQ(&DoubleValueDef, I1.getOperand(1)->getDef());
-  EXPECT_EQ(&DoubleValueDef, I2.getOperand(0)->getDef());
-  EXPECT_EQ(&DoubleValueDef, I3.getOperand(0)->getDef());
+  EXPECT_EQ(&DoubleValueDef, I1.getOperand(0)->getDefiningRecipe());
+  EXPECT_EQ(&DoubleValueDef, I1.getOperand(1)->getDefiningRecipe());
+  EXPECT_EQ(&DoubleValueDef, I2.getOperand(0)->getDefiningRecipe());
+  EXPECT_EQ(&DoubleValueDef, I3.getOperand(0)->getDefiningRecipe());
 }
 
 } // namespace

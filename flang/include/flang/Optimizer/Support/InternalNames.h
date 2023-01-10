@@ -14,6 +14,10 @@
 #include "llvm/ADT/StringRef.h"
 #include <cstdint>
 
+static constexpr llvm::StringRef typeDescriptorSeparator = ".dt.";
+static constexpr llvm::StringRef bindingTableSeparator = ".v.";
+static constexpr llvm::StringRef boxprocSuffix = "UnboxProc";
+
 namespace fir {
 
 /// Internal name mangling of identifiers
@@ -136,6 +140,17 @@ struct NameUniquer {
   /// Does \p uniquedName belong to module \p moduleName?
   static bool belongsToModule(llvm::StringRef uniquedName,
                               llvm::StringRef moduleName);
+
+  /// Given a mangled derived type name, get the name of the related derived
+  /// type descriptor object. Returns an empty string if \p mangledTypeName is
+  /// not a valid mangled derived type name.
+  static std::string getTypeDescriptorName(llvm::StringRef mangledTypeName);
+
+  /// Given a mangled derived type name, get the name of the related binding
+  /// table object. Returns an empty string if \p mangledTypeName is not a valid
+  /// mangled derived type name.
+  static std::string
+  getTypeDescriptorBindingTableName(llvm::StringRef mangledTypeName);
 
 private:
   static std::string intAsString(std::int64_t i);

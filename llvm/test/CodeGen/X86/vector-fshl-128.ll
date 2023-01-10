@@ -106,7 +106,7 @@ define <2 x i64> @var_funnnel_v2i64(<2 x i64> %x, <2 x i64> %y, <2 x i64> %amt) 
 ;
 ; AVX512VL-LABEL: var_funnnel_v2i64:
 ; AVX512VL:       # %bb.0:
-; AVX512VL-NEXT:    vmovdqa {{.*#+}} xmm3 = [63,63]
+; AVX512VL-NEXT:    vpbroadcastq {{.*#+}} xmm3 = [63,63]
 ; AVX512VL-NEXT:    vpandn %xmm3, %xmm2, %xmm4
 ; AVX512VL-NEXT:    vpsrlq $1, %xmm1, %xmm1
 ; AVX512VL-NEXT:    vpsrlvq %xmm4, %xmm1, %xmm1
@@ -138,7 +138,7 @@ define <2 x i64> @var_funnnel_v2i64(<2 x i64> %x, <2 x i64> %y, <2 x i64> %amt) 
 ;
 ; AVX512VLBW-LABEL: var_funnnel_v2i64:
 ; AVX512VLBW:       # %bb.0:
-; AVX512VLBW-NEXT:    vmovdqa {{.*#+}} xmm3 = [63,63]
+; AVX512VLBW-NEXT:    vpbroadcastq {{.*#+}} xmm3 = [63,63]
 ; AVX512VLBW-NEXT:    vpandn %xmm3, %xmm2, %xmm4
 ; AVX512VLBW-NEXT:    vpsrlq $1, %xmm1, %xmm1
 ; AVX512VLBW-NEXT:    vpsrlvq %xmm4, %xmm1, %xmm1
@@ -237,26 +237,26 @@ define <4 x i32> @var_funnnel_v4i32(<4 x i32> %x, <4 x i32> %y, <4 x i32> %amt) 
 ;
 ; SSE41-LABEL: var_funnnel_v4i32:
 ; SSE41:       # %bb.0:
-; SSE41-NEXT:    movdqa {{.*#+}} xmm8 = [31,31,31,31]
+; SSE41-NEXT:    movdqa {{.*#+}} xmm3 = [31,31,31,31]
 ; SSE41-NEXT:    movdqa %xmm2, %xmm4
-; SSE41-NEXT:    pandn %xmm8, %xmm4
+; SSE41-NEXT:    pandn %xmm3, %xmm4
 ; SSE41-NEXT:    pshuflw {{.*#+}} xmm5 = xmm4[2,3,3,3,4,5,6,7]
 ; SSE41-NEXT:    psrld $1, %xmm1
 ; SSE41-NEXT:    movdqa %xmm1, %xmm6
 ; SSE41-NEXT:    psrld %xmm5, %xmm6
 ; SSE41-NEXT:    pshufd {{.*#+}} xmm5 = xmm4[2,3,2,3]
 ; SSE41-NEXT:    pshuflw {{.*#+}} xmm7 = xmm5[2,3,3,3,4,5,6,7]
-; SSE41-NEXT:    movdqa %xmm1, %xmm3
-; SSE41-NEXT:    psrld %xmm7, %xmm3
-; SSE41-NEXT:    pblendw {{.*#+}} xmm3 = xmm6[0,1,2,3],xmm3[4,5,6,7]
+; SSE41-NEXT:    movdqa %xmm1, %xmm8
+; SSE41-NEXT:    psrld %xmm7, %xmm8
+; SSE41-NEXT:    pblendw {{.*#+}} xmm8 = xmm6[0,1,2,3],xmm8[4,5,6,7]
 ; SSE41-NEXT:    pshuflw {{.*#+}} xmm4 = xmm4[0,1,1,1,4,5,6,7]
 ; SSE41-NEXT:    movdqa %xmm1, %xmm6
 ; SSE41-NEXT:    psrld %xmm4, %xmm6
 ; SSE41-NEXT:    pshuflw {{.*#+}} xmm4 = xmm5[0,1,1,1,4,5,6,7]
 ; SSE41-NEXT:    psrld %xmm4, %xmm1
 ; SSE41-NEXT:    pblendw {{.*#+}} xmm6 = xmm6[0,1,2,3],xmm1[4,5,6,7]
-; SSE41-NEXT:    pblendw {{.*#+}} xmm6 = xmm6[0,1],xmm3[2,3],xmm6[4,5],xmm3[6,7]
-; SSE41-NEXT:    pand %xmm8, %xmm2
+; SSE41-NEXT:    pblendw {{.*#+}} xmm6 = xmm6[0,1],xmm8[2,3],xmm6[4,5],xmm8[6,7]
+; SSE41-NEXT:    pand %xmm3, %xmm2
 ; SSE41-NEXT:    pslld $23, %xmm2
 ; SSE41-NEXT:    paddd {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm2
 ; SSE41-NEXT:    cvttps2dq %xmm2, %xmm1
@@ -976,7 +976,7 @@ define <2 x i64> @splatvar_funnnel_v2i64(<2 x i64> %x, <2 x i64> %y, <2 x i64> %
 ;
 ; AVX512VL-LABEL: splatvar_funnnel_v2i64:
 ; AVX512VL:       # %bb.0:
-; AVX512VL-NEXT:    vmovdqa {{.*#+}} xmm3 = [63,63]
+; AVX512VL-NEXT:    vpbroadcastq {{.*#+}} xmm3 = [63,63]
 ; AVX512VL-NEXT:    vpandn %xmm3, %xmm2, %xmm4
 ; AVX512VL-NEXT:    vpsrlq $1, %xmm1, %xmm1
 ; AVX512VL-NEXT:    vpsrlq %xmm4, %xmm1, %xmm1
@@ -1008,7 +1008,7 @@ define <2 x i64> @splatvar_funnnel_v2i64(<2 x i64> %x, <2 x i64> %y, <2 x i64> %
 ;
 ; AVX512VLBW-LABEL: splatvar_funnnel_v2i64:
 ; AVX512VLBW:       # %bb.0:
-; AVX512VLBW-NEXT:    vmovdqa {{.*#+}} xmm3 = [63,63]
+; AVX512VLBW-NEXT:    vpbroadcastq {{.*#+}} xmm3 = [63,63]
 ; AVX512VLBW-NEXT:    vpandn %xmm3, %xmm2, %xmm4
 ; AVX512VLBW-NEXT:    vpsrlq $1, %xmm1, %xmm1
 ; AVX512VLBW-NEXT:    vpsrlq %xmm4, %xmm1, %xmm1
@@ -1036,23 +1036,14 @@ define <2 x i64> @splatvar_funnnel_v2i64(<2 x i64> %x, <2 x i64> %y, <2 x i64> %
 ;
 ; X86-SSE2-LABEL: splatvar_funnnel_v2i64:
 ; X86-SSE2:       # %bb.0:
-; X86-SSE2-NEXT:    pshufd {{.*#+}} xmm3 = xmm2[0,1,0,1]
-; X86-SSE2-NEXT:    movdqa {{.*#+}} xmm4 = [63,0,63,0]
-; X86-SSE2-NEXT:    movdqa %xmm3, %xmm5
-; X86-SSE2-NEXT:    pandn %xmm4, %xmm5
+; X86-SSE2-NEXT:    movdqa {{.*#+}} xmm3 = [63,0,63,0]
+; X86-SSE2-NEXT:    movdqa %xmm2, %xmm4
+; X86-SSE2-NEXT:    pandn %xmm3, %xmm4
 ; X86-SSE2-NEXT:    psrlq $1, %xmm1
-; X86-SSE2-NEXT:    movdqa %xmm1, %xmm2
-; X86-SSE2-NEXT:    psrlq %xmm5, %xmm2
-; X86-SSE2-NEXT:    pshufd {{.*#+}} xmm5 = xmm5[2,3,2,3]
-; X86-SSE2-NEXT:    psrlq %xmm5, %xmm1
-; X86-SSE2-NEXT:    shufpd {{.*#+}} xmm2 = xmm2[0],xmm1[1]
-; X86-SSE2-NEXT:    pand %xmm4, %xmm3
-; X86-SSE2-NEXT:    movdqa %xmm0, %xmm1
-; X86-SSE2-NEXT:    psllq %xmm3, %xmm1
-; X86-SSE2-NEXT:    pshufd {{.*#+}} xmm3 = xmm3[2,3,2,3]
-; X86-SSE2-NEXT:    psllq %xmm3, %xmm0
-; X86-SSE2-NEXT:    movsd {{.*#+}} xmm0 = xmm1[0],xmm0[1]
-; X86-SSE2-NEXT:    orpd %xmm2, %xmm0
+; X86-SSE2-NEXT:    psrlq %xmm4, %xmm1
+; X86-SSE2-NEXT:    pand %xmm3, %xmm2
+; X86-SSE2-NEXT:    psllq %xmm2, %xmm0
+; X86-SSE2-NEXT:    por %xmm1, %xmm0
 ; X86-SSE2-NEXT:    retl
   %splat = shufflevector <2 x i64> %amt, <2 x i64> undef, <2 x i32> zeroinitializer
   %res = call <2 x i64> @llvm.fshl.v2i64(<2 x i64> %x, <2 x i64> %y, <2 x i64> %splat)
@@ -1165,33 +1156,17 @@ define <4 x i32> @splatvar_funnnel_v4i32(<4 x i32> %x, <4 x i32> %y, <4 x i32> %
 }
 
 define <8 x i16> @splatvar_funnnel_v8i16(<8 x i16> %x, <8 x i16> %y, <8 x i16> %amt) nounwind {
-; SSE2-LABEL: splatvar_funnnel_v8i16:
-; SSE2:       # %bb.0:
-; SSE2-NEXT:    movdqa {{.*#+}} xmm3 = [15,15,15,15,15,15,15,15]
-; SSE2-NEXT:    movdqa %xmm2, %xmm4
-; SSE2-NEXT:    pandn %xmm3, %xmm4
-; SSE2-NEXT:    pslldq {{.*#+}} xmm4 = zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,xmm4[0,1]
-; SSE2-NEXT:    psrldq {{.*#+}} xmm4 = xmm4[14,15],zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero
-; SSE2-NEXT:    psrlw $1, %xmm1
-; SSE2-NEXT:    psrlw %xmm4, %xmm1
-; SSE2-NEXT:    pand %xmm3, %xmm2
-; SSE2-NEXT:    pslldq {{.*#+}} xmm2 = zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,xmm2[0,1]
-; SSE2-NEXT:    psrldq {{.*#+}} xmm2 = xmm2[14,15],zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero
-; SSE2-NEXT:    psllw %xmm2, %xmm0
-; SSE2-NEXT:    por %xmm1, %xmm0
-; SSE2-NEXT:    retq
-;
-; SSE41-LABEL: splatvar_funnnel_v8i16:
-; SSE41:       # %bb.0:
-; SSE41-NEXT:    movdqa {{.*#+}} xmm3 = [15,0,0,0]
-; SSE41-NEXT:    movdqa %xmm2, %xmm4
-; SSE41-NEXT:    pandn %xmm3, %xmm4
-; SSE41-NEXT:    psrlw $1, %xmm1
-; SSE41-NEXT:    psrlw %xmm4, %xmm1
-; SSE41-NEXT:    pand %xmm3, %xmm2
-; SSE41-NEXT:    psllw %xmm2, %xmm0
-; SSE41-NEXT:    por %xmm1, %xmm0
-; SSE41-NEXT:    retq
+; SSE-LABEL: splatvar_funnnel_v8i16:
+; SSE:       # %bb.0:
+; SSE-NEXT:    movdqa {{.*#+}} xmm3 = [15,0,0,0]
+; SSE-NEXT:    movdqa %xmm2, %xmm4
+; SSE-NEXT:    pandn %xmm3, %xmm4
+; SSE-NEXT:    psrlw $1, %xmm1
+; SSE-NEXT:    psrlw %xmm4, %xmm1
+; SSE-NEXT:    pand %xmm3, %xmm2
+; SSE-NEXT:    psllw %xmm2, %xmm0
+; SSE-NEXT:    por %xmm1, %xmm0
+; SSE-NEXT:    retq
 ;
 ; AVX-LABEL: splatvar_funnnel_v8i16:
 ; AVX:       # %bb.0:
@@ -1277,16 +1252,12 @@ define <8 x i16> @splatvar_funnnel_v8i16(<8 x i16> %x, <8 x i16> %y, <8 x i16> %
 ;
 ; X86-SSE2-LABEL: splatvar_funnnel_v8i16:
 ; X86-SSE2:       # %bb.0:
-; X86-SSE2-NEXT:    movdqa {{.*#+}} xmm3 = [15,15,15,15,15,15,15,15]
+; X86-SSE2-NEXT:    movdqa {{.*#+}} xmm3 = [15,0,0,0]
 ; X86-SSE2-NEXT:    movdqa %xmm2, %xmm4
 ; X86-SSE2-NEXT:    pandn %xmm3, %xmm4
-; X86-SSE2-NEXT:    pslldq {{.*#+}} xmm4 = zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,xmm4[0,1]
-; X86-SSE2-NEXT:    psrldq {{.*#+}} xmm4 = xmm4[14,15],zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero
 ; X86-SSE2-NEXT:    psrlw $1, %xmm1
 ; X86-SSE2-NEXT:    psrlw %xmm4, %xmm1
 ; X86-SSE2-NEXT:    pand %xmm3, %xmm2
-; X86-SSE2-NEXT:    pslldq {{.*#+}} xmm2 = zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,xmm2[0,1]
-; X86-SSE2-NEXT:    psrldq {{.*#+}} xmm2 = xmm2[14,15],zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero,zero
 ; X86-SSE2-NEXT:    psllw %xmm2, %xmm0
 ; X86-SSE2-NEXT:    por %xmm1, %xmm0
 ; X86-SSE2-NEXT:    retl
@@ -1425,7 +1396,7 @@ define <16 x i8> @splatvar_funnnel_v16i8(<16 x i8> %x, <16 x i8> %y, <16 x i8> %
 ; CGP should allow a cross-block splat shift amount to be seen in SDAG.
 ; PR37426 - https://bugs.llvm.org/show_bug.cgi?id=37426
 
-define void @sink_splatvar(i32* %p, i32 %shift_amt) {
+define void @sink_splatvar(ptr %p, i32 %shift_amt) {
 ; SSE-LABEL: sink_splatvar:
 ; SSE:       # %bb.0: # %entry
 ; SSE-NEXT:    movd %esi, %xmm0
@@ -1651,11 +1622,10 @@ entry:
 
 loop:
   %index = phi i64 [ 0, %entry ], [ %inc, %loop ]
-  %addr = getelementptr inbounds i32, i32* %p, i64 %index
-  %addr_vec = bitcast i32* %addr to <4 x i32>*
-  %x = load <4 x i32>, <4 x i32>* %addr_vec, align 4
+  %addr = getelementptr inbounds i32, ptr %p, i64 %index
+  %x = load <4 x i32>, ptr %addr, align 4
   %fsh = call <4 x i32> @llvm.fshl.v4i32(<4 x i32> %x, <4 x i32> %x, <4 x i32> %splat)
-  store <4 x i32> %fsh, <4 x i32>* %addr_vec, align 4
+  store <4 x i32> %fsh, ptr %addr, align 4
   %inc = add i64 %index, 4
   %iv = icmp eq i64 %inc, 256
   br i1 %iv, label %end, label %loop
@@ -2394,7 +2364,7 @@ define <16 x i8> @splatconstant_funnnel_v16i8(<16 x i8> %x, <16 x i8> %y) nounwi
 ; AVX512VL:       # %bb.0:
 ; AVX512VL-NEXT:    vpsllw $4, %xmm0, %xmm2
 ; AVX512VL-NEXT:    vpsrlw $4, %xmm1, %xmm0
-; AVX512VL-NEXT:    vpternlogq $216, {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm2, %xmm0
+; AVX512VL-NEXT:    vpternlogq $216, {{\.?LCPI[0-9]+_[0-9]+}}(%rip){1to2}, %xmm2, %xmm0
 ; AVX512VL-NEXT:    retq
 ;
 ; AVX512BW-LABEL: splatconstant_funnnel_v16i8:
@@ -2419,14 +2389,14 @@ define <16 x i8> @splatconstant_funnnel_v16i8(<16 x i8> %x, <16 x i8> %y) nounwi
 ; AVX512VLBW:       # %bb.0:
 ; AVX512VLBW-NEXT:    vpsllw $4, %xmm0, %xmm2
 ; AVX512VLBW-NEXT:    vpsrlw $4, %xmm1, %xmm0
-; AVX512VLBW-NEXT:    vpternlogq $216, {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm2, %xmm0
+; AVX512VLBW-NEXT:    vpternlogq $216, {{\.?LCPI[0-9]+_[0-9]+}}(%rip){1to2}, %xmm2, %xmm0
 ; AVX512VLBW-NEXT:    retq
 ;
 ; AVX512VLVBMI2-LABEL: splatconstant_funnnel_v16i8:
 ; AVX512VLVBMI2:       # %bb.0:
 ; AVX512VLVBMI2-NEXT:    vpsllw $4, %xmm0, %xmm2
 ; AVX512VLVBMI2-NEXT:    vpsrlw $4, %xmm1, %xmm0
-; AVX512VLVBMI2-NEXT:    vpternlogq $216, {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm2, %xmm0
+; AVX512VLVBMI2-NEXT:    vpternlogq $216, {{\.?LCPI[0-9]+_[0-9]+}}(%rip){1to2}, %xmm2, %xmm0
 ; AVX512VLVBMI2-NEXT:    retq
 ;
 ; XOP-LABEL: splatconstant_funnnel_v16i8:

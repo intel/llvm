@@ -15,31 +15,37 @@
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "llvm/Support/CachePruning.h"
-#include "llvm/Support/MemoryBuffer.h"
 
-using namespace llvm;
 using namespace lldb_private;
 
-DataFileCache::DataFileCache(StringRef path) {
-  m_cache_dir.SetPath(path);
 
-  // Prune the cache based off of the LLDB settings each time we create a cache
-  // object.
-  ModuleListProperties &properties =
-      ModuleList::GetGlobalModuleListProperties();
-  CachePruningPolicy policy;
-  // Only scan once an hour. If we have lots of debug sessions we don't want
-  // to scan this directory too often. A timestamp file is written to the
-  // directory to ensure different processes don't scan the directory too often.
-  // This setting doesn't mean that a thread will continually scan the cache
-  // directory within this process.
-  policy.Interval = std::chrono::hours(1);
-  // Get the user settings for pruning.
-  policy.MaxSizeBytes = properties.GetLLDBIndexCacheMaxByteSize();
-  policy.MaxSizePercentageOfAvailableSpace =
-      properties.GetLLDBIndexCacheMaxPercent();
-  policy.Expiration =
-      std::chrono::hours(properties.GetLLDBIndexCacheExpirationDays() * 24);
+llvm::CachePruningPolicy DataFileCache::GetLLDBIndexCachePolicy() {
+  static llvm::CachePruningPolicy policy;
+  static llvm::once_flag once_flag;
+
+  llvm::call_once(once_flag, []() {
+    // Prune the cache based off of the LLDB settings each time we create a
+    // cache object.
+    ModuleListProperties &properties =
+        ModuleList::GetGlobalModuleListProperties();
+    // Only scan once an hour. If we have lots of debug sessions we don't want
+    // to scan this directory too often. A timestamp file is written to the
+    // directory to ensure different processes don't scan the directory too
+    // often. This setting doesn't mean that a thread will continually scan the
+    // cache directory within this process.
+    policy.Interval = std::chrono::hours(1);
+    // Get the user settings for pruning.
+    policy.MaxSizeBytes = properties.GetLLDBIndexCacheMaxByteSize();
+    policy.MaxSizePercentageOfAvailableSpace =
+        properties.GetLLDBIndexCacheMaxPercent();
+    policy.Expiration =
+        std::chrono::hours(properties.GetLLDBIndexCacheExpirationDays() * 24);
+  });
+  return policy;
+}
+
+DataFileCache::DataFileCache(llvm::StringRef path, llvm::CachePruningPolicy policy) {
+  m_cache_dir.SetPath(path);
   pruneCache(path, policy);
 
   // This lambda will get called when the data is gotten from the cache and
@@ -48,11 +54,12 @@ DataFileCache::DataFileCache(StringRef path) {
   // m_take_ownership member variable to indicate if we need to take
   // ownership.
 
-  auto add_buffer = [this](unsigned task, std::unique_ptr<llvm::MemoryBuffer> m) {
+  auto add_buffer = [this](unsigned task, const llvm::Twine &moduleName,
+                           std::unique_ptr<llvm::MemoryBuffer> m) {
     if (m_take_ownership)
       m_mem_buff_up = std::move(m);
   };
-  Expected<FileCache> cache_or_err =
+  llvm::Expected<llvm::FileCache> cache_or_err =
       llvm::localCache("LLDBModuleCache", "lldb-module", path, add_buffer);
   if (cache_or_err)
     m_cache_callback = std::move(*cache_or_err);
@@ -64,7 +71,7 @@ DataFileCache::DataFileCache(StringRef path) {
 }
 
 std::unique_ptr<llvm::MemoryBuffer>
-DataFileCache::GetCachedData(StringRef key) {
+DataFileCache::GetCachedData(llvm::StringRef key) {
   std::lock_guard<std::mutex> guard(m_mutex);
 
   const unsigned task = 1;
@@ -73,13 +80,14 @@ DataFileCache::GetCachedData(StringRef key) {
   // call the "add_buffer" lambda function from the constructor which will in
   // turn take ownership of the member buffer that is passed to the callback and
   // put it into a member variable.
-  Expected<AddStreamFn> add_stream_or_err = m_cache_callback(task, key);
+  llvm::Expected<llvm::AddStreamFn> add_stream_or_err =
+      m_cache_callback(task, key, "");
   m_take_ownership = false;
   // At this point we either already called the "add_buffer" lambda with
   // the data or we haven't. We can tell if we got the cached data by checking
   // the add_stream function pointer value below.
   if (add_stream_or_err) {
-    AddStreamFn &add_stream = *add_stream_or_err;
+    llvm::AddStreamFn &add_stream = *add_stream_or_err;
     // If the "add_stream" is nullptr, then the data was cached and we already
     // called the "add_buffer" lambda. If it is valid, then if we were to call
     // the add_stream function it would cause a cache file to get generated
@@ -97,18 +105,20 @@ DataFileCache::GetCachedData(StringRef key) {
   return std::unique_ptr<llvm::MemoryBuffer>();
 }
 
-bool DataFileCache::SetCachedData(StringRef key, llvm::ArrayRef<uint8_t> data) {
+bool DataFileCache::SetCachedData(llvm::StringRef key,
+                                  llvm::ArrayRef<uint8_t> data) {
   std::lock_guard<std::mutex> guard(m_mutex);
   const unsigned task = 2;
   // If we call this function and the data is cached, it will call the
   // add_buffer lambda function from the constructor which will ignore the
   // data.
-  Expected<AddStreamFn> add_stream_or_err = m_cache_callback(task, key);
+  llvm::Expected<llvm::AddStreamFn> add_stream_or_err =
+      m_cache_callback(task, key, "");
   // If we reach this code then we either already called the callback with
   // the data or we haven't. We can tell if we had the cached data by checking
   // the CacheAddStream function pointer value below.
   if (add_stream_or_err) {
-    AddStreamFn &add_stream = *add_stream_or_err;
+    llvm::AddStreamFn &add_stream = *add_stream_or_err;
     // If the "add_stream" is nullptr, then the data was cached. If it is
     // valid, then if we call the add_stream function with a task it will
     // cause the file to get generated, but we only want to check if the data
@@ -117,10 +127,10 @@ bool DataFileCache::SetCachedData(StringRef key, llvm::ArrayRef<uint8_t> data) {
     // provided, but we won't take ownership of the memory buffer as we just
     // want to write the data.
     if (add_stream) {
-      Expected<std::unique_ptr<CachedFileStream>> file_or_err =
-          add_stream(task);
+      llvm::Expected<std::unique_ptr<llvm::CachedFileStream>> file_or_err =
+          add_stream(task, "");
       if (file_or_err) {
-        CachedFileStream *cfs = file_or_err->get();
+        llvm::CachedFileStream *cfs = file_or_err->get();
         cfs->OS->write((const char *)data.data(), data.size());
         return true;
       } else {
@@ -197,21 +207,21 @@ enum SignatureEncoding {
   eSignatureEnd = 255u,
 };
 
-bool CacheSignature::Encode(DataEncoder &encoder) {
+bool CacheSignature::Encode(DataEncoder &encoder) const {
   if (!IsValid())
     return false; // Invalid signature, return false!
 
-  if (m_uuid.hasValue()) {
+  if (m_uuid) {
     llvm::ArrayRef<uint8_t> uuid_bytes = m_uuid->GetBytes();
     encoder.AppendU8(eSignatureUUID);
     encoder.AppendU8(uuid_bytes.size());
     encoder.AppendData(uuid_bytes);
   }
-  if (m_mod_time.hasValue()) {
+  if (m_mod_time) {
     encoder.AppendU8(eSignatureModTime);
     encoder.AppendU32(*m_mod_time);
   }
-  if (m_obj_mod_time.hasValue()) {
+  if (m_obj_mod_time) {
     encoder.AppendU8(eSignatureObjectModTime);
     encoder.AppendU32(*m_obj_mod_time);
   }
@@ -219,7 +229,7 @@ bool CacheSignature::Encode(DataEncoder &encoder) {
   return true;
 }
 
-bool CacheSignature::Decode(const DataExtractor &data,
+bool CacheSignature::Decode(const lldb_private::DataExtractor &data,
                             lldb::offset_t *offset_ptr) {
   Clear();
   while (uint8_t sig_encoding = data.GetU8(offset_ptr)) {
@@ -228,7 +238,7 @@ bool CacheSignature::Decode(const DataExtractor &data,
       const uint8_t length = data.GetU8(offset_ptr);
       const uint8_t *bytes = (const uint8_t *)data.GetData(offset_ptr, length);
       if (bytes != nullptr && length > 0)
-        m_uuid = UUID::fromData(llvm::ArrayRef<uint8_t>(bytes, length));
+        m_uuid = UUID(llvm::ArrayRef<uint8_t>(bytes, length));
     } break;
     case eSignatureModTime: {
       uint32_t mod_time = data.GetU32(offset_ptr);
@@ -238,10 +248,14 @@ bool CacheSignature::Decode(const DataExtractor &data,
     case eSignatureObjectModTime: {
       uint32_t mod_time = data.GetU32(offset_ptr);
       if (mod_time > 0)
-        m_mod_time = mod_time;
+        m_obj_mod_time = mod_time;
     } break;
     case eSignatureEnd:
-      return true;
+      // The definition of is valid changed to only be valid if the UUID is
+      // valid so make sure that if we attempt to decode an old cache file
+      // that we will fail to decode the cache file if the signature isn't
+      // considered valid.
+      return IsValid();
     default:
       break;
     }
@@ -284,7 +298,7 @@ bool ConstStringTable::Encode(DataEncoder &encoder) {
   return true;
 }
 
-bool StringTableReader::Decode(const DataExtractor &data,
+bool StringTableReader::Decode(const lldb_private::DataExtractor &data,
                                lldb::offset_t *offset_ptr) {
   llvm::StringRef identifier((const char *)data.GetData(offset_ptr, 4), 4);
   if (identifier != kStringTableIdentifier)
@@ -296,12 +310,13 @@ bool StringTableReader::Decode(const DataExtractor &data,
   const char *bytes = (const char *)data.GetData(offset_ptr, length);
   if (bytes == nullptr)
     return false;
-  m_data = StringRef(bytes, length);
+  m_data = llvm::StringRef(bytes, length);
   return true;
 }
 
-StringRef StringTableReader::Get(uint32_t offset) const {
+llvm::StringRef StringTableReader::Get(uint32_t offset) const {
   if (offset >= m_data.size())
-    return StringRef();
-  return StringRef(m_data.data() + offset);
+    return llvm::StringRef();
+  return llvm::StringRef(m_data.data() + offset);
 }
+

@@ -1,8 +1,7 @@
-// REQUIRES: clang-driver
 // REQUIRES: x86-registered-target
 // REQUIRES: amdgpu-registered-target
 
-// RUN: %clang -### -target x86_64-linux-gnu \
+// RUN: %clang -### --target=x86_64-linux-gnu \
 // RUN:   -x hip --cuda-gpu-arch=gfx803 --cuda-gpu-arch=gfx900 \
 // RUN:   --emit-static-lib -nogpulib \
 // RUN:   -fuse-ld=lld -fgpu-rdc -nogpuinc \
@@ -86,7 +85,7 @@
 // combine images generated into hip fat binary object
 // CHECK: [[BUNDLER:".*clang-offload-bundler"]] "-type=o"
 // CHECK-SAME: "-targets={{.*}},hipv4-amdgcn-amd-amdhsa--gfx803,hipv4-amdgcn-amd-amdhsa--gfx900"
-// CHECK-SAME: "-inputs={{.*}},[[IMG_DEV1]],[[IMG_DEV2]]" "-outputs=[[BUNDLE:.*hipfb]]"
+// CHECK-SAME: "-input=[[IMG_DEV1]]" "-input=[[IMG_DEV2]]" "-output=[[BUNDLE:.*hipfb]]"
 
 // CHECK: [[MC:".*llvm-mc.*"]] "-o" [[OBJBUNDLE:".*o"]] "{{.*}}.mcin" "--filetype=obj"
 

@@ -32,6 +32,8 @@ const char *getEdgeKindName(Edge::Kind K) {
     return "R_RISCV_HI20";
   case R_RISCV_LO12_I:
     return "R_RISCV_LO12_I";
+  case R_RISCV_LO12_S:
+    return "R_RISCV_LO12_S";
   case R_RISCV_PCREL_HI20:
     return "R_RISCV_PCREL_HI20";
   case R_RISCV_PCREL_LO12_I:
@@ -42,6 +44,10 @@ const char *getEdgeKindName(Edge::Kind K) {
     return "R_RISCV_CALL";
   case R_RISCV_32_PCREL:
     return "R_RISCV_32_PCREL";
+  case R_RISCV_GOT_HI20:
+    return "R_RISCV_GOT_HI20";
+  case R_RISCV_CALL_PLT:
+    return "R_RISCV_CALL_PLT";
   case R_RISCV_ADD64:
     return "R_RISCV_ADD64";
   case R_RISCV_ADD32:
@@ -58,6 +64,8 @@ const char *getEdgeKindName(Edge::Kind K) {
     return "R_RISCV_SUB16";
   case R_RISCV_SUB8:
     return "R_RISCV_SUB8";
+  case R_RISCV_SUB6:
+    return "R_RISCV_SUB6";
   case R_RISCV_SET6:
     return "R_RISCV_SET6";
   case R_RISCV_SET8:

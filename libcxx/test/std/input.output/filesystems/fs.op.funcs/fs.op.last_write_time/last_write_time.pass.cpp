@@ -8,11 +8,9 @@
 
 // UNSUPPORTED: c++03
 
-// XFAIL: LIBCXX-AIX-FIXME
-
 // The string reported on errors changed, which makes those tests fail when run
 // against already-released libc++'s.
-// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.15
+// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx{{10.15|11.0}}
 
 // <filesystem>
 
@@ -21,9 +19,6 @@
 // void last_write_time(const path& p, file_time_type new_time);
 // void last_write_time(const path& p, file_time_type new_type,
 //                      std::error_code& ec) noexcept;
-
-// Disable min() and max() macros in <windows.h> on Windows.
-// ADDITIONAL_COMPILE_FLAGS: -DNOMINMAX
 
 #include "filesystem_include.h"
 #include <chrono>
@@ -96,6 +91,9 @@ static int stat(const char *path, StatT *buf) {
 static int lstat(const char *path, StatT *buf) {
   return stat_file(path, buf, FILE_FLAG_OPEN_REPARSE_POINT);
 }
+#elif defined(_AIX)
+using TimeSpec = st_timespec_t;
+using StatT = struct stat;
 #else
 using TimeSpec = timespec;
 using StatT = struct stat;
@@ -199,14 +197,9 @@ Times GetSymlinkTimes(path const& p) {
 namespace {
 
 // In some configurations, the comparison is tautological and the test is valid.
-// We disable the warning so that we can actually test it regardless. Also, that
-// diagnostic is pretty new, so also don't fail if old clang does not support it
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunknown-warning-option"
-#pragma clang diagnostic ignored "-Wunknown-pragmas"
-#pragma clang diagnostic ignored "-Wtautological-constant-compare"
-#endif
+// We disable the warning so that we can actually test it regardless.
+TEST_DIAGNOSTIC_PUSH
+TEST_CLANG_DIAGNOSTIC_IGNORED("-Wtautological-constant-compare")
 
 static const bool SupportsNegativeTimes = [] {
   using namespace std::chrono;
@@ -371,9 +364,7 @@ inline bool TimeIsRepresentableByFilesystem(file_time_type tp) {
   return true;
 }
 
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
+TEST_DIAGNOSTIC_POP
 
 // Create a sub-second duration using the smallest period the filesystem supports.
 file_time_type::duration SubSec(long long val) {
@@ -485,6 +476,7 @@ TEST_CASE(set_last_write_time_dynamic_env_test)
     const file_time_type past_time = now - Minutes(3) - Sec(42) - SubSec(17);
     const file_time_type before_epoch_time =
         epoch_time - Minutes(3) - Sec(42) - SubSec(17);
+    (void)before_epoch_time;
     // FreeBSD has a bug in their utimes implementation where the time is not update
     // when the number of seconds is '-1'.
 #if defined(__FreeBSD__) || defined(__NetBSD__)
@@ -492,6 +484,7 @@ TEST_CASE(set_last_write_time_dynamic_env_test)
         epoch_time - Sec(2) - SubSec(17);
 #else
     const file_time_type just_before_epoch_time = epoch_time - SubSec(17);
+    (void)just_before_epoch_time;
 #endif
 
     struct TestCase {
@@ -504,12 +497,19 @@ TEST_CASE(set_last_write_time_dynamic_env_test)
         {"file, future_time", file, future_time},
         {"dir, future_time", dir, future_time},
         {"file, past_time", file, past_time},
-        {"dir, past_time", dir, past_time},
+        {"dir, past_time", dir, past_time}
+        // Exclude file time types of before epoch time from testing on AIX
+        // because AIX system call utimensat() does not accept the times
+        // parameter having a negative tv_sec or tv_nsec field.
+#if !defined(_AIX)
+        ,
         {"file, before_epoch_time", file, before_epoch_time},
         {"dir, before_epoch_time", dir, before_epoch_time},
         {"file, just_before_epoch_time", file, just_before_epoch_time},
         {"dir, just_before_epoch_time", dir, just_before_epoch_time}
+#endif
     };
+
     for (const auto& TC : cases) {
         const auto old_times = GetTimes(TC.p);
         file_time_type old_time;

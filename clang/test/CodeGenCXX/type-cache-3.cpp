@@ -5,7 +5,7 @@
 // CHECK: call void @"?dc@z@@SAXU1@@Z"
 
 // CHECK-LABEL: define {{.*}}@"?dc@z@@SAXU1@@Z"(
-// CHECK: store void ({}*)* %{{.*}}, void ({}*)** %{{.*}}
+// CHECK: store ptr %{{.*}}, ptr %{{.*}}
 struct z {
   static void dc(z) {}
   void (*p)(z);

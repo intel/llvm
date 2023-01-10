@@ -1,34 +1,33 @@
-// REQUIRES: clang-driver
 // REQUIRES: x86-registered-target
 // REQUIRES: amdgpu-registered-target
 
 // -fno-gpu-rdc without -o with -c
-// RUN: %clang -### -target x86_64-linux-gnu -nogpulib -save-temps \
+// RUN: %clang -### --target=x86_64-linux-gnu -nogpulib -save-temps \
 // RUN:   --cuda-gpu-arch=gfx900 -c %s 2>&1 | \
 // RUN:   FileCheck -check-prefixes=CHECK,NORDC %s
 
 // -fno-gpu-rdc without -o
-// RUN: %clang -### -target x86_64-linux-gnu -nogpulib -save-temps \
+// RUN: %clang -### --target=x86_64-linux-gnu -nogpulib -save-temps \
 // RUN:   --cuda-gpu-arch=gfx900 %s 2>&1 | \
 // RUN:   FileCheck -check-prefixes=CHECK,NORDC,NOUT %s
 
 // -fno-gpu-rdc with -o
-// RUN: %clang -### -target x86_64-linux-gnu -nogpulib -save-temps \
+// RUN: %clang -### --target=x86_64-linux-gnu -nogpulib -save-temps \
 // RUN:   -o executable --cuda-gpu-arch=gfx900 %s 2>&1 | \
 // RUN:   FileCheck -check-prefixes=CHECK,NORDC,WOUT %s
 
 // -fgpu-rdc without -o with -c
-// RUN: %clang -### -target x86_64-linux-gnu -nogpulib -save-temps \
+// RUN: %clang -### --target=x86_64-linux-gnu -nogpulib -save-temps \
 // RUN:   -fgpu-rdc --cuda-gpu-arch=gfx900 -c %s 2>&1 | \
 // RUN:   FileCheck -check-prefixes=CHECK,RDC,RDCC %s
 
 // -fgpu-rdc without -o
-// RUN: %clang -### -target x86_64-linux-gnu -nogpulib -save-temps \
+// RUN: %clang -### --target=x86_64-linux-gnu -nogpulib -save-temps \
 // RUN:   -fgpu-rdc --cuda-gpu-arch=gfx900 %s 2>&1 | \
 // RUN:   FileCheck -check-prefixes=CHECK,RDC,RDCL,NOUT %s
 
 // -fgpu-rdc with -o
-// UN: %clang -### -target x86_64-linux-gnu -nogpulib -save-temps \
+// UN: %clang -### --target=x86_64-linux-gnu -nogpulib -save-temps \
 // UN:   -o executable -fgpu-rdc --cuda-gpu-arch=gfx900 %s 2>&1 | \
 // UN:   FileCheck -check-prefixes=CHECK,RDC,RDCL,WOUT %s
 
@@ -60,8 +59,8 @@
 // RDCC: "{{.*clang.*}}" "-cc1" {{.*}} "-emit-llvm-bc" {{.*}} "-o" "hip-save-temps-host-x86_64-unknown-linux-gnu.bc"
 // RDCC: "{{.*clang.*}}" "-cc1" {{.*}} "-S" {{.*}} "-o" "hip-save-temps-host-x86_64-unknown-linux-gnu.s"
 // RDCC: "{{.*clang.*}}" "-cc1as" {{.*}} "-o" "hip-save-temps-host-x86_64-unknown-linux-gnu.o"
-// RDCC: "{{.*clang-offload-bundler.*}}" {{.*}} "-outputs=hip-save-temps.o"
-// RDCL: "{{.*clang-offload-bundler.*}}" {{.*}} "-outputs=hip-save-temps-hip-amdgcn-amd-amdhsa.hipfb"
+// RDCC: "{{.*clang-offload-bundler.*}}" {{.*}} "-output=hip-save-temps.o"
+// RDCL: "{{.*clang-offload-bundler.*}}" {{.*}} "-output=hip-save-temps-hip-amdgcn-amd-amdhsa.hipfb"
 // RDCL: {{.*}}llvm-mc{{.*}}"-o" "hip-save-temps-hip-amdgcn-amd-amdhsa.o" "hip-save-temps-hip-amdgcn-amd-amdhsa.mcin" "--filetype=obj"
 
 // -fno-gpu-rdc host object path

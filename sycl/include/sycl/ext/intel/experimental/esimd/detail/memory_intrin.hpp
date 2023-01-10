@@ -5,1121 +5,24 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Declares Explicit SIMD intrinsics used to implement working with
-// the SIMD classes objects.
+// Declares experimental memory Explicit SIMD intrinsics.
 //===----------------------------------------------------------------------===//
 
 /// @cond ESIMD_DETAIL
 
 #pragma once
 
-#include <CL/sycl/detail/accessor_impl.hpp>
-#include <CL/sycl/types.hpp>
-#include <sycl/ext/intel/experimental/esimd/common.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/util.hpp>
-
-#include <cstdint>
-
-#ifndef __SYCL_DEVICE_ONLY__
-// ESIMD_CPU Emulation support using esimd_cpu plugin
-
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/atomic_intrin.hpp>
-#include <sycl/ext/intel/experimental/esimd/emu/detail/esimd_emulator_device_interface.hpp>
-
-// Channel Mask Array for scaled-gather/scatter
-const std::array<__SEIEE::rgba_channel, 4> ChannelMaskArray{
-    __SEIEE::rgba_channel::R, __SEIEE::rgba_channel::G,
-    __SEIEE::rgba_channel::B, __SEIEE::rgba_channel::A};
-
-#endif // ifndef __SYCL_DEVICE_ONLY__
-
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace ext {
-namespace intel {
-namespace experimental {
-namespace esimd {
-namespace detail {
-
-// Provides access to sycl accessor class' private members.
-class AccessorPrivateProxy {
-public:
-#ifdef __SYCL_DEVICE_ONLY__
-  template <typename AccessorTy>
-  static auto getNativeImageObj(const AccessorTy &Acc) {
-    return Acc.getNativeImageObj();
-  }
-#else  // __SYCL_DEVICE_ONLY__
-  static void *getPtr(const sycl::detail::AccessorBaseHost &Acc) {
-    return Acc.getPtr();
-  }
-#endif // __SYCL_DEVICE_ONLY__
-};
-
-template <int ElemsPerAddr,
-          typename = std::enable_if_t<(ElemsPerAddr == 1 || ElemsPerAddr == 2 ||
-                                       ElemsPerAddr == 4)>>
-constexpr unsigned int ElemsPerAddrEncoding() {
-  // encoding requires log2 of ElemsPerAddr
-  if constexpr (ElemsPerAddr == 1)
-    return 0;
-  else if constexpr (ElemsPerAddr == 2)
-    return 1;
-  else if constexpr (ElemsPerAddr == 4)
-    return 2;
-
-  // other cases not needed since enable_if disallows other values
-}
-
-constexpr unsigned int ElemsPerAddrDecoding(unsigned int ElemsPerAddrEncoded) {
-  // encoding requires 2^ElemsPerAddrEncoded
-  return (1 << ElemsPerAddrEncoded);
-}
-
-} // namespace detail
-
-} // namespace esimd
-} // namespace experimental
-} // namespace intel
-} // namespace ext
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
-
-// flat_read does flat-address gather
-template <typename Ty, int N, int NumBlk = 0>
-__ESIMD_INTRIN
-    __SEIEED::vector_type_t<Ty, N * __SEIEED::ElemsPerAddrDecoding(NumBlk)>
-    __esimd_svm_gather(__SEIEED::vector_type_t<uint64_t, N> addrs,
-                       int ElemsPerAddr = NumBlk,
-                       __SEIEED::simd_mask_storage_t<N> pred = 1)
-#ifdef __SYCL_DEVICE_ONLY__
-        ;
-#else
-{
-  auto NumBlkDecoded = __SEIEED::ElemsPerAddrDecoding(NumBlk);
-  __SEIEED::vector_type_t<Ty, N * __SEIEED::ElemsPerAddrDecoding(NumBlk)> V = 0;
-  ElemsPerAddr = __SEIEED::ElemsPerAddrDecoding(ElemsPerAddr);
-  if (sizeof(Ty) == 2)
-    ElemsPerAddr = ElemsPerAddr / 2;
-
-  for (int I = 0; I < N; I++) {
-    if (pred[I]) {
-      Ty *Addr = reinterpret_cast<Ty *>(addrs[I]);
-      if (sizeof(Ty) <= 2) {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddr; J++)
-          V[I * NumBlkDecoded + J] = *(Addr + J);
-      } else {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddr; J++)
-          V[J * N + I] = *(Addr + J);
-      }
-    }
-  }
-  return V;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// flat_write does flat-address scatter
-template <typename Ty, int N, int NumBlk = 0>
-__ESIMD_INTRIN void __esimd_svm_scatter(
-    __SEIEED::vector_type_t<uint64_t, N> addrs,
-    __SEIEED::vector_type_t<Ty, N * __SEIEED::ElemsPerAddrDecoding(NumBlk)>
-        vals,
-    int ElemsPerAddr = NumBlk, __SEIEED::simd_mask_storage_t<N> pred = 1)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  auto NumBlkDecoded = __SEIEED::ElemsPerAddrDecoding(NumBlk);
-  ElemsPerAddr = __SEIEED::ElemsPerAddrDecoding(ElemsPerAddr);
-  if (sizeof(Ty) == 2)
-    ElemsPerAddr = ElemsPerAddr / 2;
-
-  for (int I = 0; I < N; I++) {
-    if (pred[I]) {
-      Ty *Addr = reinterpret_cast<Ty *>(addrs[I]);
-      if (sizeof(Ty) <= 2) {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddr; J++)
-          *(Addr + J) = vals[I * NumBlkDecoded + J];
-      } else {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddr; J++)
-          *(Addr + J) = vals[J * N + I];
-      }
-    }
-  }
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// flat_block_read reads a block of data from one flat address
-template <typename Ty, int N>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
-__esimd_svm_block_ld_unaligned(uint64_t addr)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __SEIEED::vector_type_t<Ty, N> V;
-
-  for (int I = 0; I < N; I++) {
-    Ty *Addr = reinterpret_cast<Ty *>(addr + I * sizeof(Ty));
-    V[I] = *Addr;
-  }
-  return V;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// Read a block of data from the given address. Address must be 16-byte aligned.
-template <typename Ty, int N>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
-__esimd_svm_block_ld(uint64_t addr)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __SEIEED::vector_type_t<Ty, N> V;
-
-  for (int I = 0; I < N; I++) {
-    Ty *Addr = reinterpret_cast<Ty *>(addr + I * sizeof(Ty));
-    V[I] = *Addr;
-  }
-  return V;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// flat_block_write writes a block of data using one flat address
-template <typename Ty, int N>
-__ESIMD_INTRIN void __esimd_svm_block_st(uint64_t addr,
-                                         __SEIEED::vector_type_t<Ty, N> vals)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  for (int I = 0; I < N; I++) {
-    Ty *Addr = reinterpret_cast<Ty *>(addr + I * sizeof(Ty));
-    *Addr = vals[I];
-  }
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// Reads a block of data from given surface at given offset.
-template <typename Ty, int N, typename SurfIndAliasTy, int32_t IsModified = 0>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
-__esimd_oword_ld_unaligned(SurfIndAliasTy surf_ind, uint32_t offset)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __SEIEED::vector_type_t<Ty, N> retv;
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  if (surf_ind == __SEIEE::detail::SLM_BTI) {
-    // O-word/Block load for Shared Local Memory
-    // __SEIEE::detail::SLM_BTI is special binding table index for SLM
-    char *SlmBase = I->__cm_emu_get_slm_ptr();
-    for (int i = 0; i < N; ++i) {
-      Ty *SlmAddr = reinterpret_cast<Ty *>(offset + SlmBase);
-      retv[i] = *SlmAddr;
-      offset += sizeof(Ty);
-    }
-  } else {
-    // O-word/Block load for regular surface indexed by surf_ind
-    char *readBase;
-    uint32_t width;
-    std::mutex *mutexLock;
-
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &readBase, &width,
-                                           &mutexLock);
-
-    std::unique_lock<std::mutex> lock(*mutexLock);
-
-    for (int idx = 0; idx < N; idx++) {
-      if (offset >= width) {
-        retv[idx] = 0;
-      } else {
-        retv[idx] = *((Ty *)(readBase + offset));
-      }
-      offset += (uint32_t)sizeof(Ty);
-    }
-  }
-  return retv;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// Writes given block of data to a surface with given index at given offset.
-template <typename Ty, int N, typename SurfIndAliasTy>
-__ESIMD_INTRIN void __esimd_oword_st(SurfIndAliasTy surf_ind, uint32_t offset,
-                                     __SEIEED::vector_type_t<Ty, N> vals)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  offset <<= 4;
-
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-  if (surf_ind == __SEIEE::detail::SLM_BTI) {
-    // O-word/Block store for Shared Local Memory
-    // __SEIEE::detail::SLM_BTI is special binding table index for SLM
-    char *SlmBase = I->__cm_emu_get_slm_ptr();
-    for (int i = 0; i < N; ++i) {
-      Ty *SlmAddr = reinterpret_cast<Ty *>(offset + SlmBase);
-      *SlmAddr = vals[i];
-      offset += sizeof(Ty);
-    }
-  } else {
-    // O-word/Block store for regular surface indexed by surf_ind
-    char *writeBase;
-    uint32_t width;
-    std::mutex *mutexLock;
-
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &writeBase, &width,
-                                           &mutexLock);
-
-    std::unique_lock<std::mutex> lock(*mutexLock);
-
-    for (int idx = 0; idx < N; idx++) {
-      if (offset < width) {
-        *((Ty *)(writeBase + offset)) = vals[idx];
-      } else {
-        break;
-      }
-      offset += (uint32_t)sizeof(Ty);
-    }
-
-    // TODO : Optimize
-    I->cm_fence_ptr();
-  }
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// flat_read4 does flat-address gather4
-template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask>
-__SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> __ESIMD_INTRIN
-__esimd_svm_gather4_scaled(__SEIEED::vector_type_t<uint64_t, N> addrs,
-                           __SEIEED::simd_mask_storage_t<N> pred = 1)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> V = 0;
-  unsigned int Next = 0;
-  uint64_t Offset = 0;
-
-  for (const auto &channel : ChannelMaskArray) {
-    if (__SEIEE::is_channel_enabled(Mask, channel)) {
-      for (int I = 0; I < N; I++, Next++) {
-        if (pred[I]) {
-          Ty *Addr = reinterpret_cast<Ty *>(addrs[I] + Offset);
-          V[Next] = *Addr;
-        }
-      }
-    }
-    Offset += (uint64_t)sizeof(Ty);
-  }
-
-  return V;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// flat_write does flat-address scatter
-template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask>
-__ESIMD_INTRIN void __esimd_svm_scatter4_scaled(
-    __SEIEED::vector_type_t<uint64_t, N> addrs,
-    __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> vals,
-    __SEIEED::simd_mask_storage_t<N> pred = 1)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> V;
-  unsigned int Next = 0;
-  uint64_t Offset = 0;
-
-  for (const auto &channel : ChannelMaskArray) {
-    if (__SEIEE::is_channel_enabled(Mask, channel)) {
-      for (int I = 0; I < N; I++, Next++) {
-        if (pred[I]) {
-          Ty *Addr = reinterpret_cast<Ty *>(addrs[I] + Offset);
-          *Addr = vals[Next];
-        }
-      }
-    }
-    Offset += (uint64_t)sizeof(Ty);
-  }
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// Low-level surface-based gather. Collects elements located at given offsets in
-// a surface and returns them as a single \ref simd object. Element can be
-// 1, 2 or 4-byte value, but is always returned as a 4-byte value within the
-// resulting simd object, with upper 2 or 3 bytes undefined.
-// Template (compile-time constant) parameters:
-// @tparam Ty - element type; can only be a 4-byte integer or \c float,
-// @tparam N  - the number of elements
-// @tparam SurfIndAliasTy - "surface index alias" type - internal type in the
-//   accessor used to denote the surface
-// @tparam TySizeLog2 - Log2 of the number of bytes read per element:
-//   0 - 1 byte, 1 - 2 bytes, 2 - 4 bytes
-// @tparam Scale - offset scaling factor; must be zero currently
-// @tparam L1H - L1 cache hint
-// @tparam L3H - L3 cache hint
-//
-// Formal parameters:
-// @param surf_ind - the surface index, taken from the SYCL memory object
-// @param global_offset - offset added to each individual element's offset to
-//   compute actual memory access offset for that element
-// @param elem_offsets - per-element offsets
-//
-template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
-          int16_t Scale = 0>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
-__esimd_gather_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
-                       __SEIEED::vector_type_t<uint32_t, N> elem_offsets)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  static_assert(N == 1 || N == 8 || N == 16 || N == 32);
-  static_assert(TySizeLog2 <= 2 && Scale == 0);
-  static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
-  throw cl::sycl::feature_not_supported();
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// Low-level surface-based scatter. Writes elements of a \ref simd object into a
-// surface at given offsets. Element can be a 1, 2 or 4-byte value, but it is
-// always represented as a 4-byte value within the input simd object,
-// unused (not written) upper bytes are ignored.
-// Template (compile-time constant) parameters:
-// @tparam Ty - element type; can only be a 4-byte integer or \c float,
-// @tparam N  - the number of elements to write
-// @tparam SurfIndAliasTy - "surface index alias" type - internal type in the
-//   accessor used to denote the surface
-// @tparam TySizeLog2 - Log2 of the number of bytes written per element:
-//   0 - 1 byte, 1 - 2 bytes, 2 - 4 bytes
-// @tparam Scale - offset scale; only 0 is supported for now
-// @tparam L1H - L1 cache hint
-// @tparam L3H - L3 cache hint
-//
-// Formal parameters:
-// @param pred - per-element predicates; elements with zero corresponding
-//   predicates are not written
-// @param surf_ind - the surface index, taken from the SYCL memory object
-// @param global_offset - offset added to each individual element's offset to
-//   compute actual memory access offset for that element
-// @param elem_offsets - per-element offsets
-// @param vals - values to write
-//
-template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
-          int16_t Scale = 0>
-__ESIMD_INTRIN void
-__esimd_scatter_scaled(__SEIEED::simd_mask_storage_t<N> pred,
-                       SurfIndAliasTy surf_ind, uint32_t global_offset,
-                       __SEIEED::vector_type_t<uint32_t, N> elem_offsets,
-                       __SEIEED::vector_type_t<Ty, N> vals)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  static_assert(N == 1 || N == 8 || N == 16 || N == 32);
-  static_assert(TySizeLog2 <= 2);
-  static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
-
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  if (surf_ind == __SEIEE::detail::SLM_BTI) {
-    // Scattered-store for Shared Local Memory
-    // __SEIEE::detail::SLM_BTI is special binding table index for SLM
-    assert(global_offset == 0);
-    char *SlmBase = I->__cm_emu_get_slm_ptr();
-    for (int i = 0; i < N; ++i) {
-      if (pred[i]) {
-        Ty *addr = reinterpret_cast<Ty *>(elem_offsets[i] + SlmBase);
-        *addr = vals[i];
-      }
-    }
-  } else {
-    // Scattered-store for regular surface indexed by surf_ind
-    char *writeBase;
-    uint32_t width;
-    std::mutex *mutexLock;
-
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &writeBase, &width,
-                                           &mutexLock);
-    writeBase += global_offset;
-
-    std::unique_lock<std::mutex> lock(*mutexLock);
-
-    for (int idx = 0; idx < N; idx++) {
-      if (pred[idx]) {
-        Ty *addr = reinterpret_cast<Ty *>(elem_offsets[idx] + writeBase);
-        *addr = vals[idx];
-      }
-    }
-
-    // TODO : Optimize
-    I->cm_fence_ptr();
-  }
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// flat_atomic: flat-address atomic
-template <__SEIEE::atomic_op Op, typename Ty, int N>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
-__esimd_svm_atomic0(__SEIEED::vector_type_t<uint64_t, N> addrs,
-                    __SEIEED::simd_mask_storage_t<N> pred)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  throw cl::sycl::feature_not_supported();
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-template <__SEIEE::atomic_op Op, typename Ty, int N>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
-__esimd_svm_atomic1(__SEIEED::vector_type_t<uint64_t, N> addrs,
-                    __SEIEED::vector_type_t<Ty, N> src0,
-                    __SEIEED::simd_mask_storage_t<N> pred)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __SEIEED::vector_type_t<Ty, N> retv;
-
-  for (int i = 0; i < N; i++) {
-    if (pred[i]) {
-      Ty *p = reinterpret_cast<Ty *>(addrs[i]);
-
-      switch (Op) {
-      case __SEIEE::atomic_op::add:
-        retv[i] = atomic_add_fetch<Ty>(p, src0[i]);
-        break;
-      default:
-        throw cl::sycl::feature_not_supported();
-      }
-    }
-  }
-
-  return retv;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-template <__SEIEE::atomic_op Op, typename Ty, int N>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
-__esimd_svm_atomic2(__SEIEED::vector_type_t<uint64_t, N> addrs,
-                    __SEIEED::vector_type_t<Ty, N> src0,
-                    __SEIEED::vector_type_t<Ty, N> src1,
-                    __SEIEED::simd_mask_storage_t<N> pred)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  throw cl::sycl::feature_not_supported();
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-__ESIMD_INTRIN void __esimd_slm_init(size_t size)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  sycl::detail::getESIMDDeviceInterface()->cm_slm_init_ptr(size);
-}
-#endif // ifndef __SYCL_DEVICE_ONLY__
-
-// esimd_barrier, generic group barrier
-__ESIMD_INTRIN void __esimd_barrier()
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  sycl::detail::getESIMDDeviceInterface()->cm_barrier_ptr();
-}
-#endif // __SYCL_DEVICE_ONLY__
+#include <sycl/ext/intel/esimd/detail/atomic_intrin.hpp>
+#include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
+#include <sycl/ext/intel/esimd/detail/memory_intrin.hpp>
 
 // generic work-group split barrier
-__ESIMD_INTRIN void __esimd_sbarrier(__SEIEE::split_barrier_action flag)
+__ESIMD_INTRIN void __esimd_sbarrier(__ESIMD_ENS::split_barrier_action flag)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
 {
   sycl::detail::getESIMDDeviceInterface()->cm_sbarrier_ptr((uint32_t)flag);
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// slm_fence sets the SLM read/write order
-__ESIMD_INTRIN void __esimd_fence(uint8_t cntl)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  sycl::detail::getESIMDDeviceInterface()->cm_fence_ptr();
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// Scaled gather from a surface.
-template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
-          int16_t Scale = 0>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
-__esimd_gather_scaled(__SEIEED::simd_mask_storage_t<N> pred,
-                      SurfIndAliasTy surf_ind, uint32_t global_offset,
-                      __SEIEED::vector_type_t<uint32_t, N> addrs)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __SEIEED::vector_type_t<Ty, N> retv = 0;
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-  if (surf_ind == __SEIEE::detail::SLM_BTI) {
-    // Scattered-load for Shared Local Memory
-    // __SEIEE::detail::SLM_BTI is special binding table index for SLM
-    assert(global_offset == 0);
-    char *SlmBase = I->__cm_emu_get_slm_ptr();
-    for (int i = 0; i < N; ++i) {
-      if (pred[i]) {
-        Ty *addr = reinterpret_cast<Ty *>(addrs[i] + SlmBase);
-        retv[i] = *addr;
-      }
-    }
-  } else {
-    // Scattered-load for regular surface indexed by surf_ind
-    char *readBase;
-    uint32_t width;
-    std::mutex *mutexLock;
-
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &readBase, &width,
-                                           &mutexLock);
-    readBase += global_offset;
-
-    std::unique_lock<std::mutex> lock(*mutexLock);
-
-    for (int idx = 0; idx < N; idx++) {
-      if (pred[idx]) {
-        Ty *addr = reinterpret_cast<Ty *>(addrs[idx] + readBase);
-        retv[idx] = *addr;
-      }
-    }
-
-    // TODO : Optimize
-    I->cm_fence_ptr();
-  }
-
-  return retv;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// Predicated (masked) scaled gather from a surface.
-//
-// Template (compile-time constant) parameters:
-// @tparam Ty - element type
-// @tparam N  - the number of elements to read
-// @tparam SurfIndAliasTy - "surface index alias" type - internal type in the
-//   accessor used to denote the surface
-// @tparam TySizeLog2 - Log2 of the number of bytes written per element:
-//   0 - 1 byte, 1 - 2 bytes, 2 - 4 bytes
-// @tparam Scale - offset scale; only 0 is supported for now
-//
-// Formal parameters:
-// @param surf_ind - the surface index, taken from the SYCL memory object
-// @param global_offset - offset added to each individual element's offset to
-//   compute actual memory access offset for that element
-// @param offsets - per-element offsets
-// @param pred - per-element predicates; elements with zero corresponding
-//   predicates are not written
-// @return - elements read ("gathered") from memory
-
-template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
-          int16_t Scale = 0>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
-__esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
-                              __SEIEED::vector_type_t<uint32_t, N> offsets,
-                              __SEIEED::simd_mask_storage_t<N> pred)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  static_assert(Scale == 0);
-
-  __SEIEED::vector_type_t<Ty, N> retv = 0;
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  if (surf_ind == __SEIEE::detail::SLM_BTI) {
-    // __SEIEE::detail::SLM_BTI is special binding table index for SLM
-    assert(global_offset == 0);
-    char *SlmBase = I->__cm_emu_get_slm_ptr();
-    for (int idx = 0; idx < N; ++idx) {
-      if (pred[idx]) {
-        Ty *addr = reinterpret_cast<Ty *>(offsets[idx] + SlmBase);
-        retv[idx] = *addr;
-      }
-    }
-  } else {
-    char *readBase;
-    uint32_t width;
-    std::mutex *mutexLock;
-
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &readBase, &width,
-                                           &mutexLock);
-
-    readBase += global_offset;
-    std::unique_lock<std::mutex> lock(*mutexLock);
-    for (int idx = 0; idx < N; idx++) {
-      if (pred[idx]) {
-        Ty *addr = reinterpret_cast<Ty *>(offsets[idx] + readBase);
-        retv[idx] = *addr;
-      }
-    }
-
-    // TODO : Optimize
-    I->cm_fence_ptr();
-  }
-  return retv;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// Reads a block of data from given surface at given offset, offset must be
-// 16-byte-aligned.
-template <typename Ty, int N, typename SurfIndAliasTy, int32_t IsModified = 0>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
-__esimd_oword_ld(SurfIndAliasTy surf_ind, uint32_t addr)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  addr <<= 4;
-
-  __SEIEED::vector_type_t<Ty, N> retv;
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  if (surf_ind == __SEIEE::detail::SLM_BTI) {
-    // O-word/Block load for Shared Local Memory
-    // __SEIEE::detail::SLM_BTI is special binding table index for SLM
-    char *SlmBase = I->__cm_emu_get_slm_ptr();
-    for (int i = 0; i < N; ++i) {
-      Ty *SlmAddr = reinterpret_cast<Ty *>(addr + SlmBase);
-      retv[i] = *SlmAddr;
-      addr += sizeof(Ty);
-    }
-  } else {
-    // O-word/Block load for regular surface indexed by surf_ind
-    char *readBase;
-    uint32_t width;
-    std::mutex *mutexLock;
-
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &readBase, &width,
-                                           &mutexLock);
-
-    std::unique_lock<std::mutex> lock(*mutexLock);
-
-    for (int idx = 0; idx < N; idx++) {
-      if (addr >= width) {
-        retv[idx] = 0;
-      } else {
-        retv[idx] = *((Ty *)(readBase + addr));
-      }
-      addr += (uint32_t)sizeof(Ty);
-    }
-  }
-  return retv;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// gather4 scaled from a surface/SLM
-template <typename Ty, int N, typename SurfIndAliasTy,
-          __SEIEE::rgba_channel_mask Mask, int16_t Scale = 0>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
-__esimd_gather4_scaled(__SEIEED::simd_mask_storage_t<N> pred,
-                       SurfIndAliasTy surf_ind, int global_offset,
-                       __SEIEED::vector_type_t<uint32_t, N> offsets)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> retv = 0;
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-  char *ReadBase;
-  unsigned int Next = 0;
-
-  if (surf_ind == __SEIEE::detail::SLM_BTI) {
-    ReadBase = I->__cm_emu_get_slm_ptr();
-  } else {
-    uint32_t width;
-    std::mutex *mutexLock;
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &ReadBase, &width,
-                                           &mutexLock);
-    std::unique_lock<std::mutex> lock(*mutexLock);
-  }
-
-  ReadBase += global_offset;
-
-  for (const auto &channel : ChannelMaskArray) {
-    if (__SEIEE::is_channel_enabled(Mask, channel)) {
-      for (int I = 0; I < N; I++, Next++) {
-        if (pred[I]) {
-          Ty *Addr = reinterpret_cast<Ty *>(ReadBase + offsets[I]);
-          retv[Next] = *Addr;
-        }
-      }
-    }
-    ReadBase += (uint64_t)sizeof(Ty);
-  }
-
-  return retv;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// scatter4 scaled to a surface/SLM
-template <typename Ty, int N, typename SurfIndAliasTy,
-          __SEIEE::rgba_channel_mask Mask, int16_t Scale = 0>
-__ESIMD_INTRIN void __esimd_scatter4_scaled(
-    __SEIEED::simd_mask_storage_t<N> pred, SurfIndAliasTy surf_ind,
-    int global_offset, __SEIEED::vector_type_t<uint32_t, N> offsets,
-    __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> vals)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-  char *WriteBase;
-  unsigned int Next = 0;
-
-  if (surf_ind == __SEIEE::detail::SLM_BTI) {
-    WriteBase = I->__cm_emu_get_slm_ptr();
-  } else {
-    uint32_t width;
-    std::mutex *mutexLock;
-    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &WriteBase, &width,
-                                           &mutexLock);
-    std::unique_lock<std::mutex> lock(*mutexLock);
-  }
-
-  WriteBase += global_offset;
-
-  for (const auto &channel : ChannelMaskArray) {
-    if (__SEIEE::is_channel_enabled(Mask, channel)) {
-      for (int I = 0; I < N; I++, Next++) {
-        if (pred[I]) {
-          Ty *Addr = reinterpret_cast<Ty *>(WriteBase + offsets[I]);
-          *Addr = vals[Next];
-        }
-      }
-    }
-    WriteBase += (uint64_t)sizeof(Ty);
-  }
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// Surface-based atomic operations
-template <__SEIEE::atomic_op Op, typename Ty, int N, typename SurfIndAliasTy>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
-__esimd_dword_atomic0(__SEIEED::simd_mask_storage_t<N> pred,
-                      SurfIndAliasTy surf_ind,
-                      __SEIEED::vector_type_t<uint32_t, N> addrs)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __SEIEED::vector_type_t<Ty, N> retv;
-
-  if (surf_ind == __SEIEE::detail::SLM_BTI) {
-    char *WriteBase =
-        sycl::detail::getESIMDDeviceInterface()->__cm_emu_get_slm_ptr();
-
-    for (int i = 0; i < N; i++) {
-      if (pred[i]) {
-        Ty *p = reinterpret_cast<Ty *>(addrs[i] + WriteBase);
-
-        switch (Op) {
-        case __SEIEE::atomic_op::inc:
-          retv[i] = atomic_add_fetch<Ty>(p, 1);
-          break;
-        default:
-          throw cl::sycl::feature_not_supported();
-        }
-      }
-    }
-  } else {
-    throw cl::sycl::feature_not_supported();
-  }
-  return retv;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-template <__SEIEE::atomic_op Op, typename Ty, int N, typename SurfIndAliasTy>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
-__esimd_dword_atomic1(__SEIEED::simd_mask_storage_t<N> pred,
-                      SurfIndAliasTy surf_ind,
-                      __SEIEED::vector_type_t<uint32_t, N> addrs,
-                      __SEIEED::vector_type_t<Ty, N> src0)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  throw cl::sycl::feature_not_supported();
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-template <__SEIEE::atomic_op Op, typename Ty, int N, typename SurfIndAliasTy>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N> __esimd_dword_atomic2(
-    __SEIEED::simd_mask_storage_t<N> pred, SurfIndAliasTy surf_ind,
-    __SEIEED::vector_type_t<uint32_t, N> addrs,
-    __SEIEED::vector_type_t<Ty, N> src0, __SEIEED::vector_type_t<Ty, N> src1)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  throw cl::sycl::feature_not_supported();
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// Media block load.
-//
-// @tparam Ty the element data type.
-// @tparam M the hight of the 2D block.
-// @tparam N the width of the 2D block.
-// @tparam Modifier top/bottom field surface access control.
-// @tparam TACC type of the surface handle.
-// @tparam Plane planar surface index.
-// @tparam BlockWidth the width of the return block.
-// @param handle the surface handle.
-// @param x X-coordinate of the left upper rectangle corner in BYTES.
-// @param y Y-coordinate of the left upper rectangle corner in ROWS.
-//
-// @return the linearized 2D block data read from surface.
-//
-template <typename Ty, int M, int N, int Modifier, typename TACC, int Plane,
-          int BlockWidth>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, M * N>
-__esimd_media_ld(TACC handle, unsigned x, unsigned y)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __SEIEED::vector_type_t<Ty, M * N> vals;
-  char *readBase;
-  uint32_t bpp;
-  uint32_t imgWidth;
-  uint32_t imgHeight;
-  std::mutex *mutexLock;
-
-  assert((handle != __SEIEE::detail::SLM_BTI) &&
-         "__esimd_media_ld cannot access SLM");
-
-  sycl::detail::getESIMDDeviceInterface()->sycl_get_cm_image_params_index_ptr(
-      handle, &readBase, &imgWidth, &imgHeight, &bpp, &mutexLock);
-
-  std::unique_lock<std::mutex> lock(*mutexLock);
-
-  int x_pos_a, y_pos_a, offset, index;
-
-  // TODO : Remove intermediate 'in' matrix
-  std::vector<std::vector<Ty>> in(M, std::vector<Ty>(N));
-  int R = M;
-  int C = N;
-  for (int i = 0; i < R; i++) {
-    for (int j = 0; j < C; j++) {
-      x_pos_a = x + j * sizeof(Ty);
-      { y_pos_a = y + i; }
-      // We should check the boundary condition based on sizeof(Ty), x_pos_a is
-      // 0-based Note: Use a signed variable; otherwise sizeof(Ty) is unsigned
-      if ((x_pos_a + sizeof(Ty)) > imgWidth) {
-        // If we're trying to read outside the boundary, limit the value of
-        // x_pos_a Assumption -- We don't this situation:
-        //         x_pos_a  width's boundary
-        //           |      |
-        //           <---type(Ty)--->
-        // At most x_pos_a+sizeof(Ty) is exactly at the boundary.
-        x_pos_a = imgWidth;
-      }
-      if (y_pos_a > imgHeight - 1) {
-        y_pos_a = imgHeight - 1;
-      }
-      if (y_pos_a < 0) {
-        y_pos_a = 0;
-      }
-      {
-        if (x_pos_a < 0) {
-          // Need to align x position to bbp
-          int offset = x % bpp;
-          x_pos_a -= offset;
-        }
-        while (x_pos_a < 0) {
-          // If we're trying to read outside the left boundary, increase x_pos_a
-          x_pos_a += bpp;
-        }
-      }
-
-      if (x_pos_a >= imgWidth) {
-        {
-          x_pos_a = x_pos_a - bpp;
-          for (uint byte_count = 0; byte_count < sizeof(Ty); byte_count++) {
-            if (x_pos_a >= imgWidth) {
-              x_pos_a = x_pos_a - bpp;
-            }
-            offset = y_pos_a * imgWidth + x_pos_a;
-
-            /*
-              If destination size per element is less then or equal pixel size
-              of the surface move the pixel value accross the destination
-              elements. If destination size per element is greater then pixel
-              size of the surface replicate pixel value in the destination
-              element.
-            */
-            if (sizeof(Ty) <= bpp) {
-              for (uint bpp_count = 0; j < C && bpp_count < bpp;
-                   j++, bpp_count += sizeof(Ty)) {
-                in[i][j] = *((Ty *)(readBase + offset + bpp_count));
-              }
-              j--;
-              break;
-            } else {
-              // ((unsigned char*)in.get_addr(i*C+j))[byte_count] = *((unsigned
-              // char*)((char*)buff_iter->p + offset));
-              unsigned char *pTempBase =
-                  ((unsigned char *)in[i].data()) + j * sizeof(Ty);
-              pTempBase[byte_count] = *((unsigned char *)(readBase + offset));
-            }
-
-            x_pos_a = x_pos_a + 1;
-          }
-          x_pos_a = imgWidth;
-        }
-      } else {
-        offset = y_pos_a * imgWidth + x_pos_a;
-        { in[i][j] = *((Ty *)(readBase + offset)); }
-      }
-    }
-  }
-
-  for (auto i = 0, k = 0; i < M; i++) {
-    for (auto j = 0; j < N; j++) {
-      vals[k++] = in[i][j];
-    }
-  }
-
-  return vals;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// Media block store
-//
-// @tparam Ty the element data type.
-// @tparam M the hight of the 2D block.
-// @tparam N the width of the 2D block.
-// @tparam Modifier top/bottom field surface access control.
-// @tparam TACC type of the surface handle.
-// @tparam Plane planar surface index.
-// @tparam BlockWidth the width of the return block.
-// @param handle the surface handle.
-// @param x X-coordinate of the left upper rectangle corner in BYTES.
-// @param y Y-coordinate of the left upper rectangle corner in ROWS.
-// @param vals the linearized 2D block data to be written to surface.
-//
-template <typename Ty, int M, int N, int Modifier, typename TACC, int Plane,
-          int BlockWidth>
-__ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
-                                     __SEIEED::vector_type_t<Ty, M * N> vals)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  char *writeBase;
-  uint32_t bpp;
-  uint32_t imgWidth;
-  uint32_t imgHeight;
-  std::mutex *mutexLock;
-
-  assert((handle != __SEIEE::detail::SLM_BTI) &&
-         "__esimd_media_ld cannot access SLM");
-
-  I->sycl_get_cm_image_params_index_ptr(handle, &writeBase, &imgWidth,
-                                        &imgHeight, &bpp, &mutexLock);
-
-  int x_pos_a, y_pos_a, offset;
-
-  assert((x % 4) == 0);
-  assert((N * sizeof(Ty)) % 4 == 0);
-
-  // TODO : Remove intermediate 'out' matrix
-  std::vector<std::vector<Ty>> out(M, std::vector<Ty>(N));
-
-  std::unique_lock<std::mutex> lock(*mutexLock);
-
-  for (int i = 0, k = 0; i < M; i++) {
-    for (int j = 0; j < N; j++) {
-      out[i][j] = vals[k++];
-    }
-  }
-
-  for (int i = 0; i < M; i++) {
-    for (int j = 0; j < N; j++) {
-      x_pos_a = x + j * sizeof(Ty);
-      { y_pos_a = y + i; }
-      if ((int)x_pos_a < 0) {
-        continue;
-      }
-      if ((int)y_pos_a < 0) {
-        continue;
-      }
-      if ((int)(x_pos_a + sizeof(Ty)) > imgWidth) {
-        continue;
-      }
-
-      if ((int)y_pos_a > imgHeight - 1) {
-        continue;
-      }
-      offset = y_pos_a * imgWidth + x_pos_a;
-      *((Ty *)(writeBase + offset)) = out[i][j];
-    }
-  }
-
-  // TODO : Optimize
-  I->cm_fence_ptr();
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// \brief Converts given value to a surface index.
-// The input must always be a result of
-//   detail::AccessorPrivateProxy::getNativeImageObj(acc)
-// where acc is a buffer or image accessor. If the result is, say, 'obj', then
-// 'obj' is really a value of the surface index kept in a differently typed
-// accessor field. Front-end compilation time type of 'obj' is either
-//   ConcreteASPtrType (detail::DecoratedType<DataT, AS>::type *), for a buffer
-// or
-//   image{1,2,3}d_t OpenCL type for an image
-// But when doing code generation, FE replaces e.g. '__read_only image2d_t' FE
-// type with '%opencl.image2d_ro_t addrspace(1) *' LLVM type.
-// image2d_t can neither be reinterpret_cast'ed from pointer to intptr_t
-// (because it is not a pointer at FE translation time), nor it can be
-// bit_cast'ed to intptr_t (because it is not trivially copyable). This
-// intrinsic takes advantage of the fact that in LLVM IR 'obj' is always a
-// pointer, where we can do ptr to uint32_t conversion.
-// This intrinsic can be called only from the device code, as
-// accessor => memory handle translation for host is different.
-// @param acc the SYCL accessor.
-//   getNativeImageObj.
-// Returns the binding table index value.
-template <typename MemObjTy>
-__ESIMD_INTRIN __SEIEE::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  return sycl::detail::getESIMDDeviceInterface()->sycl_get_cm_surface_index_ptr(
-      __SEIEED::AccessorPrivateProxy::getPtr(obj));
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1156,17 +59,19 @@ __ESIMD_INTRIN __SEIEE::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
 //
 template <typename Ty1, int N1, typename Ty2, int N2, typename Ty3, int N3,
           int N = 16>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty1, N1> __esimd_raw_sends2(
-    uint8_t modifier, uint8_t execSize, __SEIEED::simd_mask_storage_t<N> pred,
-    uint8_t numSrc0, uint8_t numSrc1, uint8_t numDst, uint8_t sfid,
-    uint32_t exDesc, uint32_t msgDesc, __SEIEED::vector_type_t<Ty2, N2> msgSrc0,
-    __SEIEED::vector_type_t<Ty3, N3> msgSrc1,
-    __SEIEED::vector_type_t<Ty1, N1> msgDst)
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty1, N1>
+__esimd_raw_sends2(uint8_t modifier, uint8_t execSize,
+                   __ESIMD_DNS::simd_mask_storage_t<N> pred, uint8_t numSrc0,
+                   uint8_t numSrc1, uint8_t numDst, uint8_t sfid,
+                   uint32_t exDesc, uint32_t msgDesc,
+                   __ESIMD_DNS::vector_type_t<Ty2, N2> msgSrc0,
+                   __ESIMD_DNS::vector_type_t<Ty3, N3> msgSrc1,
+                   __ESIMD_DNS::vector_type_t<Ty1, N1> msgDst)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
 {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1197,17 +102,17 @@ __ESIMD_INTRIN __SEIEED::vector_type_t<Ty1, N1> __esimd_raw_sends2(
 // Returns a simd vector of type Ty1 and size N1.
 //
 template <typename Ty1, int N1, typename Ty2, int N2, int N = 16>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty1, N1>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty1, N1>
 __esimd_raw_send2(uint8_t modifier, uint8_t execSize,
-                  __SEIEED::simd_mask_storage_t<N> pred, uint8_t numSrc0,
+                  __ESIMD_DNS::simd_mask_storage_t<N> pred, uint8_t numSrc0,
                   uint8_t numDst, uint8_t sfid, uint32_t exDesc,
-                  uint32_t msgDesc, __SEIEED::vector_type_t<Ty2, N2> msgSrc0,
-                  __SEIEED::vector_type_t<Ty1, N1> msgDst)
+                  uint32_t msgDesc, __ESIMD_DNS::vector_type_t<Ty2, N2> msgSrc0,
+                  __ESIMD_DNS::vector_type_t<Ty1, N1> msgDst)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
 {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1236,16 +141,18 @@ __esimd_raw_send2(uint8_t modifier, uint8_t execSize,
 // @param msgSrc1 the second source operand of send message.
 //
 template <typename Ty1, int N1, typename Ty2, int N2, int N = 16>
-__ESIMD_INTRIN void __esimd_raw_sends2_noresult(
-    uint8_t modifier, uint8_t execSize, __SEIEED::simd_mask_storage_t<N> pred,
-    uint8_t numSrc0, uint8_t numSrc1, uint8_t sfid, uint32_t exDesc,
-    uint32_t msgDesc, __SEIEED::vector_type_t<Ty1, N1> msgSrc0,
-    __SEIEED::vector_type_t<Ty2, N2> msgSrc1)
+__ESIMD_INTRIN void
+__esimd_raw_sends2_noresult(uint8_t modifier, uint8_t execSize,
+                            __ESIMD_DNS::simd_mask_storage_t<N> pred,
+                            uint8_t numSrc0, uint8_t numSrc1, uint8_t sfid,
+                            uint32_t exDesc, uint32_t msgDesc,
+                            __ESIMD_DNS::vector_type_t<Ty1, N1> msgSrc0,
+                            __ESIMD_DNS::vector_type_t<Ty2, N2> msgSrc1)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
 {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1269,15 +176,17 @@ __ESIMD_INTRIN void __esimd_raw_sends2_noresult(
 // @param msgSrc0 the first source operand of send message.
 //
 template <typename Ty1, int N1, int N = 16>
-__ESIMD_INTRIN void __esimd_raw_send2_noresult(
-    uint8_t modifier, uint8_t execSize, __SEIEED::simd_mask_storage_t<N> pred,
-    uint8_t numSrc0, uint8_t sfid, uint32_t exDesc, uint32_t msgDesc,
-    __SEIEED::vector_type_t<Ty1, N1> msgSrc0)
+__ESIMD_INTRIN void
+__esimd_raw_send2_noresult(uint8_t modifier, uint8_t execSize,
+                           __ESIMD_DNS::simd_mask_storage_t<N> pred,
+                           uint8_t numSrc0, uint8_t sfid, uint32_t exDesc,
+                           uint32_t msgDesc,
+                           __ESIMD_DNS::vector_type_t<Ty1, N1> msgSrc0)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
 {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1295,7 +204,7 @@ __ESIMD_INTRIN void __esimd_nbarrier(uint8_t mode, uint8_t id,
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1308,7 +217,7 @@ __ESIMD_INTRIN void __esimd_nbarrier_init(uint8_t count)
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1330,13 +239,527 @@ __ESIMD_INTRIN void __esimd_nbarrier_init(uint8_t count)
 template <typename Ty, int N>
 __ESIMD_INTRIN void __esimd_raw_send_nbarrier_signal(
     uint32_t is_sendc, uint32_t extended_descriptor, uint32_t descriptor,
-    __SEIEED::vector_type_t<Ty, N> msg_var, uint16_t pred = 1)
+    __ESIMD_DNS::vector_type_t<Ty, N> msg_var, uint16_t pred = 1)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
+#endif // __SYCL_DEVICE_ONLY__
+
+#ifndef __SYCL_DEVICE_ONLY__
+// Shared utility/helper functions for LSC support under emulation
+// (ESIMD_EMULATOR backend)
+
+// Raw-address increment function for u8u32 and u16u32
+template <typename Ty, __ESIMD_ENS::lsc_data_size DS>
+constexpr uint32_t rawAddressIncrement() {
+  if constexpr (DS == __ESIMD_ENS::lsc_data_size::u8u32) {
+    return 1;
+  } else if constexpr (DS == __ESIMD_ENS::lsc_data_size::u16u32) {
+    return 2;
+  } else {
+    return (uint32_t)sizeof(Ty);
+  }
+}
+
+// Vector index increment function for 'Transposed' 2D-surface access
+template <int N, __ESIMD_EDNS::lsc_data_order _Transposed>
+constexpr int vectorIndexIncrement() {
+  if constexpr (_Transposed == __ESIMD_EDNS::lsc_data_order::transpose) {
+    return 1;
+  } else {
+    return N;
+  }
+}
+
+// Load/Store align bitmask generator for 1-D vector load/store
+//
+// Not only generates address-align bitmask, but also checks
+// legitimacy of load/store operation with respect to vector size,
+// data size
+/// @tparam Ty is element type.
+/// @tparam DS is the data size.
+/// @tparam VS is the number of elements to load per address.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+template <typename Ty, __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_ENS::lsc_data_size DS, int N>
+constexpr unsigned loadstoreAlignMask() {
+  constexpr __ESIMD_ENS::lsc_data_size _DS =
+      __ESIMD_EDNS::finalize_data_size<Ty, DS>(); // Actual data_size
+
+  if constexpr (VS == __ESIMD_EDNS::lsc_vector_size::n1) {
+    static_assert(((_DS == __ESIMD_ENS::lsc_data_size::u32) ||
+                   (_DS == __ESIMD_ENS::lsc_data_size::u64) ||
+                   (_DS == __ESIMD_ENS::lsc_data_size::u8) ||
+                   (_DS == __ESIMD_ENS::lsc_data_size::u16) ||
+                   (_DS == __ESIMD_ENS::lsc_data_size::u8u32) ||
+                   (_DS == __ESIMD_ENS::lsc_data_size::u16u32)) &&
+                  "Wrong __ESIMD_EDNS::lsc_data_size for "
+                  "__ESIMD_EDNS::lsc_vector_size == 1\n"
+                  "(loadstoreAlignMask)");
+    return 0x0;
+  } else if constexpr ((VS == __ESIMD_EDNS::lsc_vector_size::n2) ||
+                       (VS == __ESIMD_EDNS::lsc_vector_size::n3) ||
+                       (VS == __ESIMD_EDNS::lsc_vector_size::n4) ||
+                       (VS == __ESIMD_EDNS::lsc_vector_size::n8)) {
+    static_assert(
+        ((_DS == __ESIMD_ENS::lsc_data_size::u32) ||
+         (_DS == __ESIMD_ENS::lsc_data_size::u64)) &&
+        "Wrong Data Size for __ESIMD_EDNS::lsc_vector_size == 2/3/4/8\n"
+        "(loadstoreAlignMask)");
+    // 0x3 for u32 / 0x7 for u64
+    if constexpr (_DS == __ESIMD_ENS::lsc_data_size::u32)
+      return 0x3;
+    else
+      return 0x7;
+  } else if constexpr ((VS == __ESIMD_EDNS::lsc_vector_size::n16) ||
+                       (VS == __ESIMD_EDNS::lsc_vector_size::n32) ||
+                       (VS == __ESIMD_EDNS::lsc_vector_size::n64)) {
+    static_assert(
+        (N == 1) &&
+        "Unsupported Size for __ESIMD_EDNS::lsc_vector_size = 16/32/64\n"
+        "(loadstoreAlignMask)");
+    // 0x3 for u32 / 0x7 for u64
+    if constexpr (_DS == __ESIMD_ENS::lsc_data_size::u32)
+      return 0x3;
+    else
+      return 0x7;
+  } else {
+    static_assert((N != N) && "Wrong Vector Size!!");
+  }
+}
+
+// Helper function for loading from indexed-surface and SLM
+// INT_MAX is for SLM
+template <typename Ty, uint16_t AddressScale, int ImmOffset,
+          __ESIMD_ENS::lsc_data_size DS, __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N, uint32_t MASK>
+auto __esimd_emu_lsc_offset_read(
+    __ESIMD_DNS::simd_mask_storage_t<N> Pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> Offsets, char *ReadBase,
+    int BufByteWidth = INT_MAX) {
+  // TODO : Support AddressScale, ImmOffset
+  static_assert(AddressScale == 1);
+  static_assert(ImmOffset == 0);
+  static_assert(DS != __ESIMD_ENS::lsc_data_size::u16u32h);
+
+  __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> Output = 0;
+
+  constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
+
+  for (int OffsetIdx = 0; OffsetIdx < N; OffsetIdx += 1) {
+    if (Pred[OffsetIdx] == 0) {
+      // Skip Output vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+
+    assert(((Offsets[OffsetIdx] & MASK)) == 0 && "Offset Alignment Error!!");
+
+    // ByteDistance : byte-distance from buffer-read base
+    int ByteDistance = Offsets[OffsetIdx];
+
+    for (int ChanelIdx = 0, VecIdx = OffsetIdx; ChanelIdx < ChanlCount;
+         ChanelIdx += 1, ByteDistance += rawAddressIncrement<Ty, DS>(),
+             VecIdx += vectorIndexIncrement<N, _Transposed>()) {
+
+      if ((ByteDistance >= 0) && (ByteDistance < BufByteWidth)) {
+        Output[VecIdx] = *((Ty *)(ReadBase + ByteDistance));
+      }
+    }
+  }
+  return Output;
+}
+
+// Helper function for storing to indexed-surface and SLM. INT_MAX is
+// for SLM
+template <typename Ty, uint16_t AddressScale, int ImmOffset,
+          __ESIMD_ENS::lsc_data_size DS, __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N, uint32_t MASK>
+void __esimd_emu_lsc_offset_write(
+    __ESIMD_DNS::simd_mask_storage_t<N> Pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> Offsets,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> vals,
+    char *WriteBase, int BufByteWidth = INT_MAX) {
+  // TODO : Support AddressScale, ImmOffset
+  static_assert(AddressScale == 1);
+  static_assert(ImmOffset == 0);
+  static_assert(DS != __ESIMD_ENS::lsc_data_size::u16u32h);
+
+  using StoreType = typename std::conditional_t<
+      DS == __ESIMD_ENS::lsc_data_size::u8, uint8_t,
+      std::conditional_t<
+          DS == __ESIMD_ENS::lsc_data_size::u16, uint16_t,
+          std::conditional_t<
+              DS == __ESIMD_ENS::lsc_data_size::u32, uint32_t,
+              std::conditional_t<
+                  DS == __ESIMD_ENS::lsc_data_size::u64, uint64_t,
+                  std::conditional_t<
+                      DS == __ESIMD_ENS::lsc_data_size::u8u32, uint8_t,
+                      std::conditional_t<DS ==
+                                             __ESIMD_ENS::lsc_data_size::u16u32,
+                                         uint16_t, void>>>>>>;
+
+  for (int OffsetIdx = 0; OffsetIdx < N; OffsetIdx += 1) {
+    if (Pred[OffsetIdx] == 0) {
+      // Skip input vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+
+    assert(((Offsets[OffsetIdx] & MASK)) == 0 && "Offset Alignment Error!!");
+
+    // ByteDistance : byte-distance from buffer-write base
+    int ByteDistance = Offsets[OffsetIdx];
+    constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
+
+    for (int ChanelIdx = 0, VecIdx = OffsetIdx; ChanelIdx < ChanlCount;
+         ChanelIdx += 1, ByteDistance += rawAddressIncrement<Ty, DS>(),
+             VecIdx += vectorIndexIncrement<N, _Transposed>()) {
+
+      if ((ByteDistance >= 0) && (ByteDistance < BufByteWidth)) {
+        *((StoreType *)(WriteBase + ByteDistance)) = vals[VecIdx];
+      }
+    }
+  }
+}
+
+/// Generic helper function of 2D Block Read supporting both 2d-load
+/// and raw_send
+template <typename Ty, int N>
+__ESIMD_DNS::vector_type_t<Ty, N>
+__esimd_emu_read_2d(__ESIMD_DNS::simd_mask_storage_t<N> Pred, uintptr_t Ptr,
+                    unsigned SurfaceWidth, unsigned SurfaceHeight,
+                    unsigned SurfacePitch, int X, int Y, int Width, int Height,
+                    int NBlks, __ESIMD_EDNS::lsc_data_order _Transposed,
+                    bool Transformed) {
+  assert(SurfaceHeight >= 0);
+  assert(SurfaceWidth >= 0);
+  assert(SurfaceWidth <= SurfacePitch);
+
+  SurfaceHeight += 1;
+  SurfaceWidth += 1;
+  SurfacePitch += 1;
+
+  constexpr unsigned sizeofTy = sizeof(Ty);
+
+  __ESIMD_DNS::vector_type_t<Ty, N> Output = 0;
+
+  char *buff = (char *)Ptr;
+  assert(buff != NULL);
+
+  int vecIdx = 0;
+  int blkCount = 0;
+
+  for (int xBase = X * sizeofTy; blkCount < NBlks; xBase += sizeofTy * Width) {
+    if (Transformed == true) {
+      constexpr int elems_per_DW = (sizeofTy == 1) ? 4 : 2; /// VNNI_pack
+      int yRead = Y * SurfacePitch;
+      for (int u = 0; u < Height;
+           u += elems_per_DW, yRead += SurfacePitch * elems_per_DW) {
+        vecIdx = u * sycl::detail::getNextPowerOfTwo(Width) +
+                 blkCount * Height * sycl::detail::getNextPowerOfTwo(Width);
+        if ((yRead < 0) || (yRead >= SurfacePitch * SurfaceHeight)) {
+          /// Vertically out-of-bound, skip corresponding vector elements
+          vecIdx += Width * elems_per_DW;
+          continue;
+        }
+
+        int xRead = xBase;
+        for (int v = 0; v < Width; v += 1, xRead += sizeofTy) {
+          if ((xRead < 0) || (xRead >= SurfaceWidth)) {
+            /// Horizontally out-of-bound, skip corresponding vector elements
+            vecIdx += elems_per_DW;
+            continue;
+          }
+
+          char *base = buff + xRead;
+          int offset = yRead;
+          for (int k = 0; k < elems_per_DW; k++, vecIdx += 1) {
+            if (Pred[vecIdx] != 0) {
+              if (offset >= 0 && offset < SurfacePitch * SurfaceHeight) {
+                Output[vecIdx] = *((Ty *)(base + offset));
+              }
+            }
+            // Increasing in Y-direction
+            offset += SurfacePitch;
+          } // k loop
+        }   // v loop
+      }     // u loop
+    }       // (Transformed == true)
+    else if (_Transposed == __ESIMD_EDNS::lsc_data_order::transpose) {
+      int xRead = xBase;
+      for (int v = 0; v < Width; v += 1, xRead += sizeofTy) {
+        if ((xRead < 0) || (xRead >= SurfaceWidth)) {
+          // Horizontally out-of-bound, skip corresponding vector elements
+          vecIdx += Height;
+          continue;
+        }
+
+        int yRead = Y * SurfacePitch;
+        for (int u = 0; u < Height;
+             u += 1, yRead += SurfacePitch, vecIdx += 1) {
+          if (Pred[vecIdx] != 0) {
+            if ((yRead >= 0) && (yRead < SurfacePitch * SurfaceHeight)) {
+              Output[vecIdx] = *((Ty *)(buff + yRead + xRead));
+            }
+          }
+        } // u loop
+      }   // v loop
+    }     // (_Transposed == __ESIMD_EDNS::lsc_data_order::transpose)
+    else {
+      int yRead = Y * SurfacePitch;
+      for (int u = 0; u < Height; u += 1, yRead += SurfacePitch) {
+        if ((yRead < 0) || (yRead >= SurfacePitch * SurfaceHeight)) {
+          // Vertically Out-of-bound, skip corresponding vector elements
+          vecIdx += Width;
+          continue;
+        }
+
+        int xRead = xBase;
+        for (int v = 0; v < Width; v += 1, xRead += sizeofTy, vecIdx += 1) {
+          if (Pred[vecIdx] != 0) {
+            if ((xRead >= 0) && (xRead < SurfaceWidth)) {
+              Output[vecIdx] = *((Ty *)(buff + yRead + xRead));
+            }
+          }
+        } // v loop
+      }   // u loop
+    }     // Linear loading
+    blkCount += 1;
+    vecIdx = blkCount * sycl::detail::getNextPowerOfTwo(Width) * Height;
+  } // xBase loop
+
+  return Output;
+}
+
+/// Generic helper function of 2D Block Write supporting both
+/// 2d-write and raw_send
+template <typename Ty, int N>
+void __esimd_emu_write_2d(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
+                          uintptr_t Ptr, unsigned SurfaceWidth,
+                          unsigned SurfaceHeight, unsigned SurfacePitch, int X,
+                          int Y, __ESIMD_DNS::vector_type_t<Ty, N> vals,
+                          int Width, int Height) {
+  assert(SurfaceHeight >= 0);
+  assert(SurfaceWidth >= 0);
+  assert(SurfaceWidth <= SurfacePitch);
+
+  SurfaceHeight += 1;
+  SurfaceWidth += 1;
+  SurfacePitch += 1;
+
+  constexpr unsigned sizeofTy = sizeof(Ty);
+
+  char *buff = (char *)Ptr;
+  assert(buff != NULL);
+
+  int vecIdx = 0;
+  int rowCount = 0;
+  for (int yWrite = Y * SurfacePitch; rowCount < Height;
+       yWrite += SurfacePitch) {
+    if (yWrite == SurfacePitch * SurfaceHeight) {
+      // Vertically Out-of-bound
+      break;
+    }
+    int writeCount = 0;
+    for (int xWrite = X * sizeofTy; writeCount < Width;
+         xWrite += sizeofTy, vecIdx += 1, writeCount += 1) {
+      if (xWrite >= 0 && xWrite < SurfaceWidth && Pred[vecIdx] != 0) {
+        *((Ty *)(buff + yWrite + xWrite)) = vals[vecIdx];
+      }
+    } // xWrite loop
+    rowCount += 1;
+  } // yWrite loop
+}
+
+/// Helper function for zero-source LSC-atomic operation accessing BTI
+/// or SLM
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N, uint32_t MASK>
+auto __esimd_emu_lsc_xatomic_offset_access_0(
+    __ESIMD_DNS::simd_mask_storage_t<N> Pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> Offsets, const char *BaseAddr,
+    const int BufByteWidth) {
+
+  assert(BaseAddr != nullptr &&
+         "Invalid BaseAddr for lsc_xatomic_operation under emulation!!");
+
+  __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> Oldval = 0;
+
+  for (int OffsetIdx = 0; OffsetIdx < N; OffsetIdx += 1) {
+    if (Pred[OffsetIdx] == 0) {
+      // Skip Oldval vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+
+    assert(((Offsets[OffsetIdx] & MASK)) == 0 && "Offset Alignment Error!!");
+
+    // ByteDistance : byte-distance from buffer-access base
+    int ByteDistance = Offsets[OffsetIdx];
+    constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
+
+    for (int ChanelIdx = 0, VecIdx = OffsetIdx; ChanelIdx < ChanlCount;
+         ChanelIdx += 1, ByteDistance += rawAddressIncrement<Ty, DS>(),
+             VecIdx += vectorIndexIncrement<N, _Transposed>()) {
+
+      if ((ByteDistance >= 0) && (ByteDistance < BufByteWidth)) {
+        if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::load) {
+          Oldval[VecIdx] =
+              __ESIMD_DNS::atomic_load<Ty>((Ty *)(BaseAddr + ByteDistance));
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::inc) {
+          Oldval[VecIdx] = __ESIMD_DNS::atomic_add<Ty>(
+              (Ty *)(BaseAddr + ByteDistance), static_cast<Ty>(1));
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::dec) {
+          Oldval[VecIdx] = __ESIMD_DNS::atomic_sub<Ty>(
+              (Ty *)(BaseAddr + ByteDistance), static_cast<Ty>(1));
+        }
+      }
+    }
+  }
+  return Oldval;
+}
+
+/// Helper function for one-source LSC-atomic operation accessing BTI
+/// or SLM
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N, uint32_t MASK>
+auto __esimd_emu_lsc_xatomic_offset_access_1(
+    __ESIMD_DNS::simd_mask_storage_t<N> Pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> Offsets, const char *BaseAddr,
+    const int BufByteWidth,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> src0) {
+
+  assert(BaseAddr != nullptr &&
+         "Invalid BaseAddr for lsc_xatomic_operation under emulation!!");
+
+  __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> Oldval = 0;
+
+  static_assert(AddressScale == 1);
+  static_assert(ImmOffset == 0);
+  static_assert(DS != __ESIMD_ENS::lsc_data_size::u16u32h);
+
+  for (int OffsetIdx = 0; OffsetIdx < N; OffsetIdx += 1) {
+    if (Pred[OffsetIdx] == 0) {
+      // Skip input vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+
+    assert(((Offsets[OffsetIdx] & MASK)) == 0 && "Offset Alignment Error!!");
+
+    // ByteDistance : byte-distance from buffer-write base
+    int ByteDistance = Offsets[OffsetIdx];
+    constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
+
+    for (int ChanelIdx = 0, VecIdx = OffsetIdx; ChanelIdx < ChanlCount;
+         ChanelIdx += 1, ByteDistance += rawAddressIncrement<Ty, DS>(),
+             VecIdx += vectorIndexIncrement<N, _Transposed>()) {
+
+      if ((ByteDistance >= 0) && (ByteDistance < BufByteWidth)) {
+        if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::store) {
+          Oldval[VecIdx] = __ESIMD_DNS::atomic_store<Ty>(
+              (Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+        } else if constexpr ((Op == __ESIMD_NS::native::lsc::atomic_op::add) ||
+                             (Op == __ESIMD_NS::native::lsc::atomic_op::fadd)) {
+          Oldval[VecIdx] = __ESIMD_DNS::atomic_add<Ty>(
+              (Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+        } else if constexpr ((Op == __ESIMD_NS::native::lsc::atomic_op::sub) ||
+                             (Op == __ESIMD_NS::native::lsc::atomic_op::fsub)) {
+          Oldval[VecIdx] = __ESIMD_DNS::atomic_sub<Ty>(
+              (Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+        } else if constexpr ((Op == __ESIMD_NS::native::lsc::atomic_op::smin) ||
+                             (Op == __ESIMD_NS::native::lsc::atomic_op::umin) ||
+                             (Op == __ESIMD_NS::native::lsc::atomic_op::fmin)) {
+          Oldval[VecIdx] = __ESIMD_DNS::atomic_min<Ty>(
+              (Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+        } else if constexpr ((Op == __ESIMD_NS::native::lsc::atomic_op::smax) ||
+                             (Op == __ESIMD_NS::native::lsc::atomic_op::umax) ||
+                             (Op == __ESIMD_NS::native::lsc::atomic_op::fmax)) {
+          Oldval[VecIdx] = __ESIMD_DNS::atomic_max<Ty>(
+              (Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+        } else if constexpr (Op ==
+                             __ESIMD_NS::native::lsc::atomic_op::bit_and) {
+          Oldval[VecIdx] = __ESIMD_DNS::atomic_and<Ty>(
+              (Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+        } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::bit_or) {
+          Oldval[VecIdx] = __ESIMD_DNS::atomic_or<Ty>(
+              (Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+        } else if constexpr (Op ==
+                             __ESIMD_NS::native::lsc::atomic_op::bit_xor) {
+          Oldval[VecIdx] = __ESIMD_DNS::atomic_xor<Ty>(
+              (Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+        }
+      }
+    }
+  }
+  return Oldval;
+}
+
+/// Helper function for two-source LSC-atomic operation accessing BTI
+/// or SLM
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N, uint32_t MASK>
+auto __esimd_emu_lsc_xatomic_offset_access_2(
+    __ESIMD_DNS::simd_mask_storage_t<N> Pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> Offsets, const char *BaseAddr,
+    const int BufByteWidth,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> src0,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> src1) {
+
+  assert(BaseAddr != nullptr &&
+         "Invalid BaseAddr for lsc_xatomic_operation under emulation!!");
+
+  __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> Oldval;
+
+  static_assert(AddressScale == 1);
+  static_assert(ImmOffset == 0);
+  static_assert(DS != __ESIMD_ENS::lsc_data_size::u16u32h);
+
+  for (int OffsetIdx = 0; OffsetIdx < N; OffsetIdx += 1) {
+    if (Pred[OffsetIdx] == 0) {
+      // Skip input vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+
+    assert(((Offsets[OffsetIdx] & MASK)) == 0 && "Offset Alignment Error!!");
+
+    // ByteDistance : byte-distance from buffer-write base
+    int ByteDistance = Offsets[OffsetIdx];
+    constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
+
+    for (int ChanelIdx = 0, VecIdx = OffsetIdx; ChanelIdx < ChanlCount;
+         ChanelIdx += 1, ByteDistance += rawAddressIncrement<Ty, DS>(),
+             VecIdx += vectorIndexIncrement<N, _Transposed>()) {
+
+      if ((ByteDistance >= 0) && (ByteDistance < BufByteWidth)) {
+        if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::cmpxchg) {
+          Oldval[VecIdx] = __ESIMD_DNS::atomic_cmpxchg(
+              (Ty *)(BaseAddr + ByteDistance), src0[VecIdx], src1[VecIdx]);
+        } else if constexpr (Op ==
+                             __ESIMD_NS::native::lsc::atomic_op::fcmpxchg) {
+          static_assert(__ESIMD_DNS::is_fp_type<Ty>::value);
+          Oldval[VecIdx] = __ESIMD_DNS::atomic_cmpxchg(
+              (Ty *)(BaseAddr + ByteDistance), src0[VecIdx], src1[VecIdx]);
+        }
+      }
+    }
+  }
+  return Oldval;
+}
+
+// End : Shared utility/helper functions for LSC support under
+// emulation
 #endif // __SYCL_DEVICE_ONLY__
 
 /// SLM gather.
@@ -1353,23 +776,28 @@ __ESIMD_INTRIN void __esimd_raw_send_nbarrier_signal(
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets for SLM buffer in bytes.
 /// @return is a vector of type T and size N * to_int<VS>()
-template <typename Ty, __SEIEE::cache_hint L1H, __SEIEE::cache_hint L3H,
-          uint16_t AddressScale, int ImmOffset, __SEIEE::lsc_data_size DS,
-          __SEIEED::lsc_vector_size VS, __SEIEED::lsc_data_order _Transposed,
-          int N>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()>
-__esimd_lsc_load_slm(__SEIEED::simd_mask_storage_t<N> pred,
-                     __SEIEED::vector_type_t<uint32_t, N> offsets)
+template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
+__esimd_lsc_load_slm(__ESIMD_DNS::simd_mask_storage_t<N> pred,
+                     __ESIMD_DNS::vector_type_t<uint32_t, N> offsets)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
-  return 0;
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  return __esimd_emu_lsc_offset_read<Ty, AddressScale, ImmOffset, DS, VS,
+                                     _Transposed, N,
+                                     loadstoreAlignMask<Ty, VS, DS, N>()>(
+      pred, offsets, I->__cm_emu_get_slm_ptr());
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1387,26 +815,40 @@ __esimd_lsc_load_slm(__SEIEED::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets in bytes.
 /// @param surf_ind is the surface index.
 /// @return is a vector of type T and N * to_int<VS>()
-template <typename Ty, __SEIEE::cache_hint L1H, __SEIEE::cache_hint L3H,
-          uint16_t AddressScale, int ImmOffset, __SEIEE::lsc_data_size DS,
-          __SEIEED::lsc_vector_size VS, __SEIEED::lsc_data_order _Transposed,
-          int N, typename SurfIndAliasTy>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()>
-__esimd_lsc_load_bti(__SEIEED::simd_mask_storage_t<N> pred,
-                     __SEIEED::vector_type_t<uint32_t, N> offsets,
+template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N,
+          typename SurfIndAliasTy>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
+__esimd_lsc_load_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
+                     __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
                      SurfIndAliasTy surf_ind)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
-  return 0;
+  char *readBase;
+  uint32_t width;
+  std::mutex *mutexLock;
+
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  I->sycl_get_cm_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
+
+  std::lock_guard<std::mutex> lock(*mutexLock);
+
+  return __esimd_emu_lsc_offset_read<Ty, AddressScale, ImmOffset, DS, VS,
+                                     _Transposed, N,
+                                     loadstoreAlignMask<Ty, VS, DS, N>()>(
+      pred, offsets, readBase, width);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1424,23 +866,51 @@ __esimd_lsc_load_bti(__SEIEED::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param addrs is the load addresses.
 /// @return is a vector of type T and N * to_int<VS>()
-template <typename Ty, __SEIEE::cache_hint L1H, __SEIEE::cache_hint L3H,
-          uint16_t AddressScale, int ImmOffset, __SEIEE::lsc_data_size DS,
-          __SEIEED::lsc_vector_size VS, __SEIEED::lsc_data_order _Transposed,
-          int N>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()>
-__esimd_lsc_load_stateless(__SEIEED::simd_mask_storage_t<N> pred,
-                           __SEIEED::vector_type_t<uintptr_t, N> addrs)
+template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
+__esimd_lsc_load_stateless(__ESIMD_DNS::simd_mask_storage_t<N> pred,
+                           __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
-  return 0;
+  // TODO : Support AddressScale, ImmOffset
+  static_assert(AddressScale == 1);
+  static_assert(ImmOffset == 0);
+  static_assert(DS != __ESIMD_ENS::lsc_data_size::u16u32h);
+
+  __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> Output = 0;
+
+  for (int AddrIdx = 0; AddrIdx < N; AddrIdx += 1) {
+    if (pred[AddrIdx] == 0) {
+      // Skip Output vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+
+    constexpr unsigned MASK = loadstoreAlignMask<Ty, VS, DS, N>();
+    constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
+
+    int ByteDistance = 0;
+    uintptr_t BaseAddr = addrs[AddrIdx];
+
+    assert(((BaseAddr & MASK)) == 0 && "Address Alignment Error!!");
+
+    for (int ChanelIdx = 0, VecIdx = AddrIdx; ChanelIdx < ChanlCount;
+         ChanelIdx += 1, ByteDistance += rawAddressIncrement<Ty, DS>(),
+             VecIdx += vectorIndexIncrement<N, _Transposed>()) {
+
+      Output[VecIdx] = *((Ty *)(BaseAddr + ByteDistance));
+    }
+  }
+  return Output;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1457,24 +927,26 @@ __esimd_lsc_load_stateless(__SEIEED::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets in bytes.
 /// @param surf_ind is the surface index.
-template <typename Ty, __SEIEE::cache_hint L1H, __SEIEE::cache_hint L3H,
-          uint16_t AddressScale, int ImmOffset, __SEIEE::lsc_data_size DS,
-          __SEIEED::lsc_vector_size VS, __SEIEED::lsc_data_order _Transposed,
-          int N, typename SurfIndAliasTy>
+template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N,
+          typename SurfIndAliasTy>
 __ESIMD_INTRIN void
-__esimd_lsc_prefetch_bti(__SEIEED::simd_mask_storage_t<N> pred,
-                         __SEIEED::vector_type_t<uint32_t, N> offsets,
+__esimd_lsc_prefetch_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
+                         __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
                          SurfIndAliasTy surf_ind)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
+  // Prefetch is NOP under ESIMD_EMULATOR
+  return;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1491,21 +963,22 @@ __esimd_lsc_prefetch_bti(__SEIEED::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param addrs is the prefetch addresses.
-template <typename Ty, __SEIEE::cache_hint L1H, __SEIEE::cache_hint L3H,
-          uint16_t AddressScale, int ImmOffset, __SEIEE::lsc_data_size DS,
-          __SEIEED::lsc_vector_size VS, __SEIEED::lsc_data_order _Transposed,
-          int N>
+template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N>
 __ESIMD_INTRIN void
-__esimd_lsc_prefetch_stateless(__SEIEED::simd_mask_storage_t<N> pred,
-                               __SEIEED::vector_type_t<uintptr_t, N> addrs)
+__esimd_lsc_prefetch_stateless(__ESIMD_DNS::simd_mask_storage_t<N> pred,
+                               __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
+  // Prefetch is NOP under ESIMD_EMULATOR
+  return;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1522,23 +995,28 @@ __esimd_lsc_prefetch_stateless(__SEIEED::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets for SLM buffer in bytes.
 /// @param vals is values to store.
-template <typename Ty, __SEIEE::cache_hint L1H, __SEIEE::cache_hint L3H,
-          uint16_t AddressScale, int ImmOffset, __SEIEE::lsc_data_size DS,
-          __SEIEED::lsc_vector_size VS, __SEIEED::lsc_data_order _Transposed,
-          int N>
+template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N>
 __ESIMD_INTRIN void __esimd_lsc_store_slm(
-    __SEIEED::simd_mask_storage_t<N> pred,
-    __SEIEED::vector_type_t<uint32_t, N> offsets,
-    __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()> vals)
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> vals)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  __esimd_emu_lsc_offset_write<Ty, AddressScale, ImmOffset, DS, VS, _Transposed,
+                               N, loadstoreAlignMask<Ty, VS, DS, N>()>(
+      pred, offsets, vals, I->__cm_emu_get_slm_ptr());
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1555,26 +1033,40 @@ __ESIMD_INTRIN void __esimd_lsc_store_slm(
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets in bytes.
 /// @param vals is values to store.
 /// @param surf_ind is the surface index.
-template <typename Ty, __SEIEE::cache_hint L1H, __SEIEE::cache_hint L3H,
-          uint16_t AddressScale, int ImmOffset, __SEIEE::lsc_data_size DS,
-          __SEIEED::lsc_vector_size VS, __SEIEED::lsc_data_order _Transposed,
-          int N, typename SurfIndAliasTy>
+template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N,
+          typename SurfIndAliasTy>
 __ESIMD_INTRIN void __esimd_lsc_store_bti(
-    __SEIEED::simd_mask_storage_t<N> pred,
-    __SEIEED::vector_type_t<uint32_t, N> offsets,
-    __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()> vals,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> vals,
     SurfIndAliasTy surf_ind)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
+  char *writeBase;
+  uint32_t width;
+  std::mutex *mutexLock;
+
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  I->sycl_get_cm_buffer_params_ptr(surf_ind, &writeBase, &width, &mutexLock);
+
+  std::lock_guard<std::mutex> lock(*mutexLock);
+
+  __esimd_emu_lsc_offset_write<Ty, AddressScale, ImmOffset, DS, VS, _Transposed,
+                               N, loadstoreAlignMask<Ty, VS, DS, N>()>(
+      pred, offsets, vals, writeBase, width);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1591,23 +1083,62 @@ __ESIMD_INTRIN void __esimd_lsc_store_bti(
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param addrs is the prefetch addresses.
 /// @param vals is values to store.
-template <typename Ty, __SEIEE::cache_hint L1H, __SEIEE::cache_hint L3H,
-          uint16_t AddressScale, int ImmOffset, __SEIEE::lsc_data_size DS,
-          __SEIEED::lsc_vector_size VS, __SEIEED::lsc_data_order _Transposed,
-          int N>
+template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N>
 __ESIMD_INTRIN void __esimd_lsc_store_stateless(
-    __SEIEED::simd_mask_storage_t<N> pred,
-    __SEIEED::vector_type_t<uintptr_t, N> addrs,
-    __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()> vals)
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> vals)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
+  // TODO : Support AddressScale, ImmOffset
+  static_assert(AddressScale == 1);
+  static_assert(ImmOffset == 0);
+  static_assert(DS != __ESIMD_ENS::lsc_data_size::u16u32h);
+
+  using StoreType = typename std::conditional_t<
+      DS == __ESIMD_ENS::lsc_data_size::u8, uint8_t,
+      std::conditional_t<
+          DS == __ESIMD_ENS::lsc_data_size::u16, uint16_t,
+          std::conditional_t<
+              DS == __ESIMD_ENS::lsc_data_size::u32, uint32_t,
+              std::conditional_t<
+                  DS == __ESIMD_ENS::lsc_data_size::u64, uint64_t,
+                  std::conditional_t<
+                      DS == __ESIMD_ENS::lsc_data_size::u8u32, uint8_t,
+                      std::conditional_t<DS ==
+                                             __ESIMD_ENS::lsc_data_size::u16u32,
+                                         uint16_t, void>>>>>>;
+
+  for (int AddrIdx = 0; AddrIdx < N; AddrIdx += 1) {
+    if (pred[AddrIdx] == 0) {
+      // Skip Output vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+
+    constexpr unsigned MASK = loadstoreAlignMask<Ty, VS, DS, N>();
+    constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
+
+    int ByteDistance = 0;
+    uintptr_t BaseAddr = addrs[AddrIdx];
+
+    assert(((BaseAddr & MASK)) == 0 && "Address Alignment Error!!");
+
+    for (int ChanelIdx = 0, VecIdx = AddrIdx; ChanelIdx < ChanlCount;
+         ChanelIdx += 1, ByteDistance += rawAddressIncrement<Ty, DS>(),
+             VecIdx += vectorIndexIncrement<N, _Transposed>()) {
+      *((StoreType *)(BaseAddr + ByteDistance)) = vals[VecIdx];
+    }
+  }
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1641,20 +1172,23 @@ __ESIMD_INTRIN void __esimd_lsc_store_stateless(
 ///  otherwise,
 ///  N = roundUpNextMultiple(BlockHeight, 4 / sizeof(T)) *
 ///   getNextPowerOf2(BlockWidth) * NBlocks
-template <typename Ty, __SEIEE::cache_hint L1H, __SEIEE::cache_hint L3H,
-          __SEIEE::lsc_data_size DS, __SEIEED::lsc_data_order _Transposed,
-          uint8_t NBlocks, int BlockWidth, int BlockHeight, bool Transformed,
-          int N>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
-__esimd_lsc_load2d_stateless(__SEIEED::simd_mask_storage_t<N> Pred,
+template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, uint8_t NBlocks,
+          int BlockWidth, int BlockHeight, bool Transformed, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
+__esimd_lsc_load2d_stateless(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
                              uintptr_t Ptr, int SurfaceWidth, int SurfaceHeight,
                              int SurfacePitch, int X, int Y)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
-  return 0;
+  // Template arguments are already checked by
+  // check_lsc_block_2d_restrictions()
+  return __esimd_emu_read_2d<Ty, N>(Pred, Ptr, SurfaceWidth, SurfaceHeight,
+                                    SurfacePitch, X, Y, BlockWidth, BlockHeight,
+                                    NBlocks, _Transposed, Transformed);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1682,18 +1216,19 @@ __esimd_lsc_load2d_stateless(__SEIEED::simd_mask_storage_t<N> Pred,
 /// number of elements.
 /// @param Y is zero based Y-coordinate of the left upper rectangle corner in
 /// rows.
-template <typename Ty, __SEIEE::cache_hint L1H, __SEIEE::cache_hint L3H,
-          __SEIEE::lsc_data_size DS, __SEIEED::lsc_data_order _Transposed,
-          uint8_t NBlocks, int BlockWidth, int BlockHeight, bool Transformed,
-          int N>
+template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, uint8_t NBlocks,
+          int BlockWidth, int BlockHeight, bool Transformed, int N>
 __ESIMD_INTRIN void __esimd_lsc_prefetch2d_stateless(
-    __SEIEED::simd_mask_storage_t<N> Pred, uintptr_t Ptr, int SurfaceWidth,
+    __ESIMD_DNS::simd_mask_storage_t<N> Pred, uintptr_t Ptr, int SurfaceWidth,
     int SurfaceHeight, int SurfacePitch, int X, int Y)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
+  // Prefetch is NOP under ESIMD_EMULATOR
+  return;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1726,20 +1261,24 @@ __ESIMD_INTRIN void __esimd_lsc_prefetch2d_stateless(
 ///  otherwise,
 ///  N = roundUpNextMultiple(BlockHeight, 4 / sizeof(T)) *
 ///   getNextPowerOf2(BlockWidth) * NBlocks
-template <typename Ty, __SEIEE::cache_hint L1H, __SEIEE::cache_hint L3H,
-          __SEIEE::lsc_data_size DS, __SEIEED::lsc_data_order _Transposed,
-          uint8_t NBlocks, int BlockWidth, int BlockHeight, bool Transformed,
-          int N>
+template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, uint8_t NBlocks,
+          int BlockWidth, int BlockHeight, bool Transformed, int N>
 __ESIMD_INTRIN void
-__esimd_lsc_store2d_stateless(__SEIEED::simd_mask_storage_t<N> Pred,
+__esimd_lsc_store2d_stateless(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
                               uintptr_t Ptr, int SurfaceWidth,
                               int SurfaceHeight, int SurfacePitch, int X, int Y,
-                              __SEIEED::vector_type_t<Ty, N> vals)
+                              __ESIMD_DNS::vector_type_t<Ty, N> vals)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
+  // Template arguments are already checked by
+  // check_lsc_block_2d_restrictions()
+  __esimd_emu_write_2d<Ty, N>(Pred, Ptr, SurfaceWidth, SurfaceHeight,
+                              SurfacePitch, X, Y, vals, BlockWidth,
+                              BlockHeight);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1755,22 +1294,28 @@ __esimd_lsc_store2d_stateless(__SEIEED::simd_mask_storage_t<N> Pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
-template <typename Ty, __SEIEED::lsc_atomic_op Op, __SEIEE::cache_hint L1H,
-          __SEIEE::cache_hint L3H, uint16_t AddressScale, int ImmOffset,
-          __SEIEE::lsc_data_size DS, __SEIEED::lsc_vector_size VS,
-          __SEIEED::lsc_data_order _Transposed, int N>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()>
-__esimd_lsc_xatomic_slm_0(__SEIEED::simd_mask_storage_t<N> pred,
-                          __SEIEED::vector_type_t<uint32_t, N> offsets)
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
+__esimd_lsc_xatomic_slm_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
+                          __ESIMD_DNS::vector_type_t<uint32_t, N> offsets)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
-  return 0;
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  return __esimd_emu_lsc_xatomic_offset_access_0<
+      Ty, Op, AddressScale, ImmOffset, DS, VS, _Transposed, N,
+      loadstoreAlignMask<Ty, VS, DS, N>()>(pred, offsets,
+                                           I->__cm_emu_get_slm_ptr(), INT_MAX);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1786,25 +1331,31 @@ __esimd_lsc_xatomic_slm_0(__SEIEED::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand.
-template <typename Ty, __SEIEED::lsc_atomic_op Op, __SEIEE::cache_hint L1H,
-          __SEIEE::cache_hint L3H, uint16_t AddressScale, int ImmOffset,
-          __SEIEE::lsc_data_size DS, __SEIEED::lsc_vector_size VS,
-          __SEIEED::lsc_data_order _Transposed, int N>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()>
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
 __esimd_lsc_xatomic_slm_1(
-    __SEIEED::simd_mask_storage_t<N> pred,
-    __SEIEED::vector_type_t<uint32_t, N> offsets,
-    __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()> src0)
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> src0)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
-  return 0;
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  return __esimd_emu_lsc_xatomic_offset_access_1<
+      Ty, Op, AddressScale, ImmOffset, DS, VS, _Transposed, N,
+      loadstoreAlignMask<Ty, VS, DS, N>()>(
+      pred, offsets, I->__cm_emu_get_slm_ptr(), INT_MAX, src0);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1820,27 +1371,33 @@ __esimd_lsc_xatomic_slm_1(
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand.
 /// @param src1 is the second atomic operand.
-template <typename Ty, __SEIEED::lsc_atomic_op Op, __SEIEE::cache_hint L1H,
-          __SEIEE::cache_hint L3H, uint16_t AddressScale, int ImmOffset,
-          __SEIEE::lsc_data_size DS, __SEIEED::lsc_vector_size VS,
-          __SEIEED::lsc_data_order _Transposed, int N>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()>
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
 __esimd_lsc_xatomic_slm_2(
-    __SEIEED::simd_mask_storage_t<N> pred,
-    __SEIEED::vector_type_t<uint32_t, N> offsets,
-    __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()> src0,
-    __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()> src1)
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> src0,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> src1)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
-  return 0;
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  return __esimd_emu_lsc_xatomic_offset_access_2<
+      Ty, Op, AddressScale, ImmOffset, DS, VS, _Transposed, N,
+      loadstoreAlignMask<Ty, VS, DS, N>()>(
+      pred, offsets, I->__cm_emu_get_slm_ptr(), INT_MAX, src0, src1);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1856,25 +1413,41 @@ __esimd_lsc_xatomic_slm_2(
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
 /// @param surf_ind is the surface index.
-template <typename Ty, __SEIEED::lsc_atomic_op Op, __SEIEE::cache_hint L1H,
-          __SEIEE::cache_hint L3H, uint16_t AddressScale, int ImmOffset,
-          __SEIEE::lsc_data_size DS, __SEIEED::lsc_vector_size VS,
-          __SEIEED::lsc_data_order _Transposed, int N, typename SurfIndAliasTy>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()>
-__esimd_lsc_xatomic_bti_0(__SEIEED::simd_mask_storage_t<N> pred,
-                          __SEIEED::vector_type_t<uint32_t, N> offsets,
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N,
+          typename SurfIndAliasTy>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
+__esimd_lsc_xatomic_bti_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
+                          __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
                           SurfIndAliasTy surf_ind)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
-  return 0;
+  char *accessBase;
+  uint32_t width;
+  std::mutex *mutexLock;
+
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  I->sycl_get_cm_buffer_params_ptr(surf_ind, &accessBase, &width, &mutexLock);
+
+  // Mutex is not needed as __atomic_* functions are used within
+  // helper function being called
+  // std::lock_guard<std::mutex> lock(*mutexLock);
+
+  return __esimd_emu_lsc_xatomic_offset_access_0<
+      Ty, Op, AddressScale, ImmOffset, DS, VS, _Transposed, N,
+      loadstoreAlignMask<Ty, VS, DS, N>()>(pred, offsets, accessBase, width);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1890,28 +1463,45 @@ __esimd_lsc_xatomic_bti_0(__SEIEED::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand.
 /// @param surf_ind is the surface index.
-template <typename Ty, __SEIEED::lsc_atomic_op Op, __SEIEE::cache_hint L1H,
-          __SEIEE::cache_hint L3H, uint16_t AddressScale, int ImmOffset,
-          __SEIEE::lsc_data_size DS, __SEIEED::lsc_vector_size VS,
-          __SEIEED::lsc_data_order _Transposed, int N, typename SurfIndAliasTy>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()>
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N,
+          typename SurfIndAliasTy>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
 __esimd_lsc_xatomic_bti_1(
-    __SEIEED::simd_mask_storage_t<N> pred,
-    __SEIEED::vector_type_t<uint32_t, N> offsets,
-    __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()> src0,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> src0,
     SurfIndAliasTy surf_ind)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
-  return 0;
+  char *accessBase;
+  uint32_t width;
+  std::mutex *mutexLock;
+
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  I->sycl_get_cm_buffer_params_ptr(surf_ind, &accessBase, &width, &mutexLock);
+
+  // Mutex is not needed as __atomic_* functions are used within
+  // helper function being called
+  // std::lock_guard<std::mutex> lock(*mutexLock);
+
+  return __esimd_emu_lsc_xatomic_offset_access_1<
+      Ty, Op, AddressScale, ImmOffset, DS, VS, _Transposed, N,
+      loadstoreAlignMask<Ty, VS, DS, N>()>(pred, offsets, accessBase, width,
+                                           src0);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1927,30 +1517,47 @@ __esimd_lsc_xatomic_bti_1(
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand.
 /// @param src1 is the second atomic operand.
 /// @param surf_ind is the surface index.
-template <typename Ty, __SEIEED::lsc_atomic_op Op, __SEIEE::cache_hint L1H,
-          __SEIEE::cache_hint L3H, uint16_t AddressScale, int ImmOffset,
-          __SEIEE::lsc_data_size DS, __SEIEED::lsc_vector_size VS,
-          __SEIEED::lsc_data_order _Transposed, int N, typename SurfIndAliasTy>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()>
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N,
+          typename SurfIndAliasTy>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
 __esimd_lsc_xatomic_bti_2(
-    __SEIEED::simd_mask_storage_t<N> pred,
-    __SEIEED::vector_type_t<uint32_t, N> offsets,
-    __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()> src0,
-    __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()> src1,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> src0,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> src1,
     SurfIndAliasTy surf_ind)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
-  return 0;
+  char *accessBase;
+  uint32_t width;
+  std::mutex *mutexLock;
+
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  I->sycl_get_cm_buffer_params_ptr(surf_ind, &accessBase, &width, &mutexLock);
+
+  // Mutex is not needed as __atomic_* functions are used within
+  // helper function being called
+  // std::lock_guard<std::mutex> lock(*mutexLock);
+
+  return __esimd_emu_lsc_xatomic_offset_access_2<
+      Ty, Op, AddressScale, ImmOffset, DS, VS, _Transposed, N,
+      loadstoreAlignMask<Ty, VS, DS, N>()>(pred, offsets, accessBase, width,
+                                           src0, src1);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1966,22 +1573,61 @@ __esimd_lsc_xatomic_bti_2(
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param addrs is the prefetch addresses.
-template <typename Ty, __SEIEED::lsc_atomic_op Op, __SEIEE::cache_hint L1H,
-          __SEIEE::cache_hint L3H, uint16_t AddressScale, int ImmOffset,
-          __SEIEE::lsc_data_size DS, __SEIEED::lsc_vector_size VS,
-          __SEIEED::lsc_data_order _Transposed, int N>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()>
-__esimd_lsc_xatomic_stateless_0(__SEIEED::simd_mask_storage_t<N> pred,
-                                __SEIEED::vector_type_t<uintptr_t, N> addrs)
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
+__esimd_lsc_xatomic_stateless_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
+                                __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
-  return 0;
+  // TODO : Support AddressScale, ImmOffset
+  static_assert(AddressScale == 1);
+  static_assert(ImmOffset == 0);
+  static_assert(DS != __ESIMD_ENS::lsc_data_size::u16u32h);
+
+  __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> Oldval = 0;
+
+  for (int AddrIdx = 0; AddrIdx < N; AddrIdx += 1) {
+    if (pred[AddrIdx] == 0) {
+      // Skip Oldval vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+
+    constexpr unsigned MASK = loadstoreAlignMask<Ty, VS, DS, N>();
+    constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
+
+    int ByteDistance = 0;
+    uintptr_t BaseAddr = addrs[AddrIdx];
+
+    assert(((BaseAddr & MASK)) == 0 && "Address Alignment Error!!");
+
+    for (int ChanelIdx = 0, VecIdx = AddrIdx; ChanelIdx < ChanlCount;
+         ChanelIdx += 1, ByteDistance += rawAddressIncrement<Ty, DS>(),
+             VecIdx += vectorIndexIncrement<N, _Transposed>()) {
+
+      if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::load) {
+        Oldval[VecIdx] =
+            __ESIMD_DNS::atomic_load<Ty>((Ty *)(BaseAddr + ByteDistance));
+      }
+      if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::inc) {
+        Oldval[VecIdx] = __ESIMD_DNS::atomic_add<Ty>(
+            (Ty *)(BaseAddr + ByteDistance), static_cast<Ty>(1));
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::dec) {
+        Oldval[VecIdx] = __ESIMD_DNS::atomic_sub<Ty>(
+            (Ty *)(BaseAddr + ByteDistance), static_cast<Ty>(1));
+      }
+    }
+  }
+  return Oldval;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1997,25 +1643,85 @@ __esimd_lsc_xatomic_stateless_0(__SEIEED::simd_mask_storage_t<N> pred,
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+
 /// @param pred is predicates.
 /// @param addrs is the prefetch addresses.
 /// @param src0 is the first atomic operand.
-template <typename Ty, __SEIEED::lsc_atomic_op Op, __SEIEE::cache_hint L1H,
-          __SEIEE::cache_hint L3H, uint16_t AddressScale, int ImmOffset,
-          __SEIEE::lsc_data_size DS, __SEIEED::lsc_vector_size VS,
-          __SEIEED::lsc_data_order _Transposed, int N>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()>
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
 __esimd_lsc_xatomic_stateless_1(
-    __SEIEED::simd_mask_storage_t<N> pred,
-    __SEIEED::vector_type_t<uintptr_t, N> addrs,
-    __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()> src0)
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> src0)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
-  return 0;
+  // TODO : Support AddressScale, ImmOffset
+  static_assert(AddressScale == 1);
+  static_assert(ImmOffset == 0);
+  static_assert(DS != __ESIMD_ENS::lsc_data_size::u16u32h);
+
+  __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> Oldval = 0;
+
+  for (int AddrIdx = 0; AddrIdx < N; AddrIdx += 1) {
+    if (pred[AddrIdx] == 0) {
+      // Skip Oldval vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+
+    constexpr unsigned MASK = loadstoreAlignMask<Ty, VS, DS, N>();
+    constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
+
+    int ByteDistance = 0;
+    uintptr_t BaseAddr = addrs[AddrIdx];
+
+    assert(((BaseAddr & MASK)) == 0 && "Address Alignment Error!!");
+
+    for (int ChanelIdx = 0, VecIdx = AddrIdx; ChanelIdx < ChanlCount;
+         ChanelIdx += 1, ByteDistance += rawAddressIncrement<Ty, DS>(),
+             VecIdx += vectorIndexIncrement<N, _Transposed>()) {
+
+      if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::store) {
+        Oldval[VecIdx] = __ESIMD_DNS::atomic_store<Ty>(
+            (Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+      } else if constexpr ((Op == __ESIMD_NS::native::lsc::atomic_op::add) ||
+                           (Op == __ESIMD_NS::native::lsc::atomic_op::fadd)) {
+        Oldval[VecIdx] = __ESIMD_DNS::atomic_add<Ty>(
+            (Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+      } else if constexpr ((Op == __ESIMD_NS::native::lsc::atomic_op::sub) ||
+                           (Op == __ESIMD_NS::native::lsc::atomic_op::fsub)) {
+        Oldval[VecIdx] = __ESIMD_DNS::atomic_sub<Ty>(
+            (Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+      } else if constexpr ((Op == __ESIMD_NS::native::lsc::atomic_op::smin) ||
+                           (Op == __ESIMD_NS::native::lsc::atomic_op::umin) ||
+                           (Op == __ESIMD_NS::native::lsc::atomic_op::fmin)) {
+        Oldval[VecIdx] = __ESIMD_DNS::atomic_min<Ty>(
+            (Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+      } else if constexpr ((Op == __ESIMD_NS::native::lsc::atomic_op::smax) ||
+                           (Op == __ESIMD_NS::native::lsc::atomic_op::umax) ||
+                           (Op == __ESIMD_NS::native::lsc::atomic_op::fmax)) {
+        Oldval[VecIdx] = __ESIMD_DNS::atomic_max<Ty>(
+            (Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::bit_and) {
+        Oldval[VecIdx] = __ESIMD_DNS::atomic_and<Ty>(
+            (Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::bit_or) {
+        Oldval[VecIdx] = __ESIMD_DNS::atomic_or<Ty>(
+            (Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+      } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::bit_xor) {
+        Oldval[VecIdx] = __ESIMD_DNS::atomic_xor<Ty>(
+            (Ty *)(BaseAddr + ByteDistance), src0[VecIdx]);
+      }
+    }
+  }
+  return Oldval;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -2031,27 +1737,59 @@ __esimd_lsc_xatomic_stateless_1(
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements per address.
 /// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 /// @param addrs is the prefetch addresses.
 /// @param src0 is the first atomic operand.
 /// @param src1 is the second atomic operand.
-template <typename Ty, __SEIEED::lsc_atomic_op Op, __SEIEE::cache_hint L1H,
-          __SEIEE::cache_hint L3H, uint16_t AddressScale, int ImmOffset,
-          __SEIEE::lsc_data_size DS, __SEIEED::lsc_vector_size VS,
-          __SEIEED::lsc_data_order _Transposed, int N>
-__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()>
+template <typename Ty, __ESIMD_NS::native::lsc::atomic_op Op,
+          __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
+          __ESIMD_EDNS::lsc_vector_size VS,
+          __ESIMD_EDNS::lsc_data_order _Transposed, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()>
 __esimd_lsc_xatomic_stateless_2(
-    __SEIEED::simd_mask_storage_t<N> pred,
-    __SEIEED::vector_type_t<uintptr_t, N> addrs,
-    __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()> src0,
-    __SEIEED::vector_type_t<Ty, N * __SEIEED::to_int<VS>()> src1)
+    __ESIMD_DNS::simd_mask_storage_t<N> Pred,
+    __ESIMD_DNS::vector_type_t<uintptr_t, N> Addrs,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> src0,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> src1)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
-  return 0;
+  // TODO : Support AddressScale, ImmOffset
+  static_assert(AddressScale == 1);
+  static_assert(ImmOffset == 0);
+  static_assert(DS != __ESIMD_ENS::lsc_data_size::u16u32h);
+
+  __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_EDNS::to_int<VS>()> Oldval = 0;
+
+  for (int AddrIdx = 0; AddrIdx < N; AddrIdx += 1) {
+    if (Pred[AddrIdx] == 0) {
+      // Skip Oldval vector elements correpsonding to
+      // predicates whose value is zero
+      continue;
+    }
+
+    constexpr unsigned MASK = loadstoreAlignMask<Ty, VS, DS, N>();
+    constexpr int ChanlCount = __ESIMD_EDNS::to_int<VS>();
+
+    int ByteDistance = 0;
+    uintptr_t BaseAddr = Addrs[AddrIdx];
+
+    assert(((BaseAddr & MASK)) == 0 && "Address Alignment Error!!");
+
+    for (int ChanelIdx = 0, VecIdx = AddrIdx; ChanelIdx < ChanlCount;
+         ChanelIdx += 1, ByteDistance += rawAddressIncrement<Ty, DS>(),
+             VecIdx += vectorIndexIncrement<N, _Transposed>()) {
+
+      static_assert((Op == __ESIMD_NS::native::lsc::atomic_op::cmpxchg) ||
+                    (Op == __ESIMD_NS::native::lsc::atomic_op::fcmpxchg));
+      Oldval[VecIdx] = __ESIMD_DNS::atomic_cmpxchg(
+          (Ty *)(BaseAddr + ByteDistance), src0[VecIdx], src1[VecIdx]);
+    }
+  }
+  return Oldval;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -2061,16 +1799,36 @@ __esimd_lsc_xatomic_stateless_2(
 /// @tparam Kind is the Sfid shaded function.
 /// @tparam FenceOp is the fence operation.
 /// @tparam Scope is the operation scope.
-/// @tparam N is the number of channels (platform dependent).
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
-template <__SEIEE::lsc_memory_kind Kind, __SEIEE::lsc_fence_op FenceOp,
-          __SEIEE::lsc_scope Scope, int N>
-__ESIMD_INTRIN void __esimd_lsc_fence(__SEIEED::simd_mask_storage_t<N> pred)
+template <__ESIMD_ENS::lsc_memory_kind Kind, __ESIMD_ENS::lsc_fence_op FenceOp,
+          __ESIMD_ENS::lsc_scope Scope, int N>
+__ESIMD_INTRIN void __esimd_lsc_fence(__ESIMD_DNS::simd_mask_storage_t<N> pred)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
+  __ESIMD_DNS::atomic_fence();
+}
+#endif // __SYCL_DEVICE_ONLY__
+
+__ESIMD_INTRIN uint32_t __esimd_slm_alloc(uint32_t size)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else  // __SYCL_DEVICE_ONLY__
+{
+  // TODO implement for the emulator
+  __ESIMD_UNSUPPORTED_ON_HOST;
+}
+#endif // __SYCL_DEVICE_ONLY__
+
+__ESIMD_INTRIN void __esimd_slm_free(uint32_t id)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else  // __SYCL_DEVICE_ONLY__
+{
+  // TODO implement for the emulator
+  __ESIMD_UNSUPPORTED_ON_HOST;
 }
 #endif // __SYCL_DEVICE_ONLY__
 

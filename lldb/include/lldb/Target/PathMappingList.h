@@ -9,10 +9,11 @@
 #ifndef LLDB_TARGET_PATHMAPPINGLIST_H
 #define LLDB_TARGET_PATHMAPPINGLIST_H
 
-#include <map>
-#include <vector>
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/Status.h"
+#include "llvm/Support/JSON.h"
+#include <map>
+#include <vector>
 
 namespace lldb_private {
 
@@ -36,10 +37,17 @@ public:
 
   void Append(const PathMappingList &rhs, bool notify);
 
+  /// Append <path, replacement> pair without duplication.
+  /// \return whether appending suceeds without duplication or not.
+  bool AppendUnique(llvm::StringRef path, llvm::StringRef replacement,
+                    bool notify);
+
   void Clear(bool notify);
 
   // By default, dump all pairs.
   void Dump(Stream *s, int pair_index = -1);
+
+  llvm::json::Value ToJSON();
 
   bool IsEmpty() const { return m_pairs.empty(); }
 
@@ -73,8 +81,8 @@ public:
   /// \param[in] only_if_exists
   ///     If \b true, besides matching \p path with the remapping rules, this
   ///     tries to check with the filesystem that the remapped file exists. If
-  ///     no valid file is found, \b None is returned. This might be expensive,
-  ///     specially on a network.
+  ///     no valid file is found, \b std::nullopt is returned. This might be
+  ///     expensive, specially on a network.
   ///
   ///     If \b false, then the existence of the returned remapping is not
   ///     checked.
@@ -85,7 +93,22 @@ public:
                                      bool only_if_exists = false) const;
   bool RemapPath(const char *, std::string &) const = delete;
 
-  bool ReverseRemapPath(const FileSpec &file, FileSpec &fixed) const;
+  /// Perform reverse source path remap for input \a file.
+  /// Source maps contains a list of <from_original_path, to_new_path> mappings.
+  /// Reverse remap means locating a matching entry prefix using "to_new_path"
+  /// part and replacing it with "from_original_path" part if found.
+  ///
+  /// \param[in] file
+  ///     The source path to reverse remap.
+  /// \param[in] fixed
+  ///     The reversed mapped new path.
+  ///
+  /// \return
+  ///     std::nullopt if no remapping happens, otherwise, the matching source
+  ///     map entry's ""to_new_pathto"" part (which is the prefix of \a file) is
+  ///     returned.
+  llvm::Optional<llvm::StringRef> ReverseRemapPath(const FileSpec &file,
+                                                   FileSpec &fixed) const;
 
   /// Finds a source file given a file spec using the path remappings.
   ///

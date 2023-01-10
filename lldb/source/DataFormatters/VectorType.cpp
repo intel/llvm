@@ -23,8 +23,10 @@ using namespace lldb_private::formatters;
 
 static CompilerType GetCompilerTypeForFormat(lldb::Format format,
                                              CompilerType element_type,
-                                             TypeSystem *type_system) {
+                                             TypeSystemSP type_system) {
   lldbassert(type_system && "type_system needs to be not NULL");
+  if (!type_system)
+    return {};
 
   switch (format) {
   case lldb::eFormatAddressInfo:
@@ -189,8 +191,7 @@ namespace formatters {
 class VectorTypeSyntheticFrontEnd : public SyntheticChildrenFrontEnd {
 public:
   VectorTypeSyntheticFrontEnd(lldb::ValueObjectSP valobj_sp)
-      : SyntheticChildrenFrontEnd(*valobj_sp), m_parent_format(eFormatInvalid),
-        m_item_format(eFormatInvalid), m_child_type(), m_num_children(0) {}
+      : SyntheticChildrenFrontEnd(*valobj_sp), m_child_type() {}
 
   ~VectorTypeSyntheticFrontEnd() override = default;
 
@@ -220,8 +221,9 @@ public:
     CompilerType parent_type(m_backend.GetCompilerType());
     CompilerType element_type;
     parent_type.IsVectorType(&element_type);
-    m_child_type = ::GetCompilerTypeForFormat(m_parent_format, element_type,
-                                              parent_type.GetTypeSystem());
+    m_child_type = ::GetCompilerTypeForFormat(
+        m_parent_format, element_type,
+        parent_type.GetTypeSystem().GetSharedPointer());
     m_num_children = ::CalculateNumChildren(parent_type, m_child_type);
     m_item_format = GetItemFormatForFormat(m_parent_format, m_child_type);
     return false;
@@ -238,10 +240,10 @@ public:
   }
 
 private:
-  lldb::Format m_parent_format;
-  lldb::Format m_item_format;
+  lldb::Format m_parent_format = eFormatInvalid;
+  lldb::Format m_item_format = eFormatInvalid;
   CompilerType m_child_type;
-  size_t m_num_children;
+  size_t m_num_children = 0;
 };
 
 } // namespace formatters

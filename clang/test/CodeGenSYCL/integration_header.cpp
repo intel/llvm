@@ -1,7 +1,7 @@
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -sycl-std=2020 -fsycl-int-header=%t.h %s -emit-llvm -o %t.ll
 // RUN: FileCheck -input-file=%t.h %s
 //
-// CHECK: #include <CL/sycl/detail/kernel_desc.hpp>
+// CHECK: #include <sycl/detail/kernel_desc.hpp>
 //
 // CHECK: class first_kernel;
 // CHECK-NEXT: namespace second_namespace {
@@ -18,6 +18,7 @@
 // CHECK-NEXT:   "_ZTSN16second_namespace13second_kernelIcEE",
 // CHECK-NEXT:   "_ZTS13fourth_kernelIJN15template_arg_ns14namespaced_argILi1EEEEE"
 // CHECK-NEXT:   "_ZTSZ4mainE16accessor_in_base"
+// CHECK-NEXT:   "_ZTSZ4mainE15annotated_types"
 // CHECK-NEXT: };
 //
 // CHECK: static constexpr
@@ -47,6 +48,11 @@
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 36 },
 // CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 40 },
 // CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 52 },
+// CHECK-EMPTY:
+// CHECK-NEXT:  //--- _ZTSZ4mainE15annotated_types
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 8 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 16 },
 // CHECK-EMPTY:
 // CHECK-NEXT:  { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },
 // CHECK-NEXT: };
@@ -86,31 +92,33 @@ struct other_base {
 };
 struct base {
   int i, j;
-  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> acc;
+  sycl::accessor<char, 1, sycl::access::mode::read> acc;
 };
 
 struct base2 : other_base,
-               cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> {
+               sycl::accessor<char, 1, sycl::access::mode::read> {
   int i;
-  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> acc;
+  sycl::accessor<char, 1, sycl::access::mode::read> acc;
 };
 
 struct captured : base, base2 {
-  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> acc;
+  sycl::accessor<char, 1, sycl::access::mode::read> acc;
   void use() const {}
 };
 
 }; // namespace accessor_in_base
 
+struct MockProperty {};
+
 int main() {
 
-  cl::sycl::accessor<char, 1, cl::sycl::access::mode::read> acc1;
-  cl::sycl::accessor<float, 2, cl::sycl::access::mode::write,
-                     cl::sycl::access::target::local,
-                     cl::sycl::access::placeholder::true_t>
+  sycl::accessor<char, 1, sycl::access::mode::read> acc1;
+  sycl::accessor<float, 2, sycl::access::mode::write,
+                     sycl::access::target::local,
+                     sycl::access::placeholder::true_t>
       acc2;
   int i = 13;
-  cl::sycl::sampler smplr;
+  sycl::sampler smplr;
   struct {
     char c;
     int i;
@@ -141,6 +149,15 @@ int main() {
   accessor_in_base::captured c;
   kernel_single_task<class accessor_in_base>([=]() {
     c.use();
+  });
+
+  sycl::ext::oneapi::experimental::annotated_arg<int, MockProperty> AA1;
+  sycl::ext::oneapi::experimental::annotated_ptr<int, MockProperty> AP2;
+  sycl::ext::oneapi::experimental::annotated_arg<float*, MockProperty> AP3;
+  kernel_single_task<class annotated_types>([=]() {
+    (void)AA1;
+    (void)AP2;
+    (void)AP3;
   });
 
   return 0;

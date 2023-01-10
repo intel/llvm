@@ -100,10 +100,7 @@ bool ShapeAdaptor::hasStaticShape() const {
     return true;
   }
   auto *stc = val.get<ShapedTypeComponents *>();
-  for (int64_t dim : stc->getDims())
-    if (ShapedType::isDynamic(dim))
-      return false;
-  return true;
+  return llvm::none_of(stc->getDims(), ShapedType::isDynamic);
 }
 
 int64_t ShapeAdaptor::getNumElements() const {
@@ -190,29 +187,25 @@ LogicalResult mlir::detail::inferReturnTensorTypes(
                              retComponents)))
     return failure();
   for (const auto &shapeAndType : retComponents) {
-    assert(shapeAndType.getAttribute() == nullptr && "attribute not supported");
-    if (shapeAndType.hasRank())
-      inferredReturnTypes.push_back(RankedTensorType::get(
-          shapeAndType.getDims(), shapeAndType.getElementType()));
-    else
+    Type element_ty = shapeAndType.getElementType();
+    assert(element_ty && "element type required to construct tensor");
+
+    Attribute attr = shapeAndType.getAttribute();
+    if (shapeAndType.hasRank()) {
       inferredReturnTypes.push_back(
-          UnrankedTensorType::get(shapeAndType.getElementType()));
+          RankedTensorType::get(shapeAndType.getDims(), element_ty, attr));
+    } else {
+      assert(attr == nullptr && "attribute not supported");
+      inferredReturnTypes.push_back(UnrankedTensorType::get(element_ty));
+    }
   }
   return success();
 }
 
 LogicalResult mlir::detail::verifyInferredResultTypes(Operation *op) {
-  SmallVector<Type, 4> inferredReturnTypes;
+  SmallVector<Type, 4> inferredReturnTypes(op->getResultTypes());
   auto retTypeFn = cast<InferTypeOpInterface>(op);
-  if (failed(retTypeFn.inferReturnTypes(
-          op->getContext(), op->getLoc(), op->getOperands(),
-          op->getAttrDictionary(), op->getRegions(), inferredReturnTypes)))
-    return failure();
-  if (!retTypeFn.isCompatibleReturnTypes(inferredReturnTypes,
-                                         op->getResultTypes()))
-    return op->emitOpError("inferred type(s) ")
-           << inferredReturnTypes
-           << " are incompatible with return type(s) of operation "
-           << op->getResultTypes();
-  return success();
+  return retTypeFn.refineReturnTypes(op->getContext(), op->getLoc(),
+                                     op->getOperands(), op->getAttrDictionary(),
+                                     op->getRegions(), inferredReturnTypes);
 }

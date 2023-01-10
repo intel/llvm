@@ -8,8 +8,8 @@
 
 // <string>
 
-// const_reference at(size_type pos) const;
-//       reference at(size_type pos);
+// const_reference at(size_type pos) const; // constexpr since C++20
+//       reference at(size_type pos); // constexpr since C++20
 
 #include <string>
 #include <stdexcept>
@@ -17,7 +17,9 @@
 
 #include "min_allocator.h"
 
+#include "make_string.h"
 #include "test_macros.h"
+#include "type_algorithms.h"
 
 template <class S>
 TEST_CONSTEXPR_CXX20 void
@@ -30,7 +32,7 @@ test(S s, typename S::size_type pos)
         assert(cs.at(pos) == cs[pos]);
     }
 #ifndef TEST_HAS_NO_EXCEPTIONS
-    else
+    else if (!TEST_IS_CONSTANT_EVALUATED)
     {
         try
         {
@@ -54,34 +56,36 @@ test(S s, typename S::size_type pos)
 #endif
 }
 
-bool test() {
-  {
-    typedef std::string S;
-    test(S(), 0);
-    test(S("123"), 0);
-    test(S("123"), 1);
-    test(S("123"), 2);
-    test(S("123"), 3);
-  }
-#if TEST_STD_VER >= 11
-  {
-    typedef std::basic_string<char, std::char_traits<char>, min_allocator<char>> S;
-    test(S(), 0);
-    test(S("123"), 0);
-    test(S("123"), 1);
-    test(S("123"), 2);
-    test(S("123"), 3);
-  }
-#endif
+template <class S>
+TEST_CONSTEXPR_CXX20 void test_string() {
+  test(S(), 0);
+  test(S(MAKE_CSTRING(typename S::value_type, "123")), 0);
+  test(S(MAKE_CSTRING(typename S::value_type, "123")), 1);
+  test(S(MAKE_CSTRING(typename S::value_type, "123")), 2);
+  test(S(MAKE_CSTRING(typename S::value_type, "123")), 3);
+}
 
-    return true;
+struct TestCaller {
+  template <class T>
+  TEST_CONSTEXPR_CXX20 void operator()() {
+        test_string<std::basic_string<T> >();
+#if TEST_STD_VER >= 11
+        test_string<std::basic_string<T, std::char_traits<T>, min_allocator<T> > >();
+#endif
+  }
+};
+
+TEST_CONSTEXPR_CXX20 bool test() {
+  meta::for_each(meta::character_types(), TestCaller());
+
+  return true;
 }
 
 int main(int, char**)
 {
   test();
 #if TEST_STD_VER > 17
-  // static_assert(test());
+  static_assert(test());
 #endif
 
   return 0;

@@ -10,6 +10,7 @@
 #include "llvm/Analysis/CGSCCPassManager.h"
 #include "llvm/Analysis/LoopAnalysisManager.h"
 #include "llvm/AsmParser/Parser.h"
+#include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachinePassManager.h"
 #include "llvm/IR/LLVMContext.h"
@@ -196,8 +197,8 @@ public:
       return;
 
     TargetOptions Options;
-    TM.reset(TheTarget->createTargetMachine(TripleName, "", "",
-                                            Options, None));
+    TM.reset(TheTarget->createTargetMachine(TripleName, "", "", Options,
+                                            std::nullopt));
   }
 };
 

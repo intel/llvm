@@ -19,7 +19,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "MapFile.h"
-#include "Driver.h"
 #include "InputFiles.h"
 #include "LinkerScript.h"
 #include "OutputSections.h"
@@ -56,11 +55,11 @@ static void writeHeader(raw_ostream &os, uint64_t vma, uint64_t lma,
 // Returns a list of all symbols that we want to print out.
 static std::vector<Defined *> getSymbols() {
   std::vector<Defined *> v;
-  for (ELFFileBase *file : objectFiles)
+  for (ELFFileBase *file : ctx.objectFiles)
     for (Symbol *b : file->getSymbols())
       if (auto *dr = dyn_cast<Defined>(b))
         if (!dr->isSection() && dr->section && dr->section->isLive() &&
-            (dr->file == file || dr->needsCopy || dr->section->bss))
+            (dr->file == file || dr->hasFlag(NEEDS_COPY) || dr->section->bss))
           v.push_back(dr);
   return v;
 }
@@ -93,7 +92,7 @@ static SymbolMapTy getSectionSyms(ArrayRef<Defined *> syms) {
 static DenseMap<Symbol *, std::string>
 getSymbolStrings(ArrayRef<Defined *> syms) {
   auto strs = std::make_unique<std::string[]>(syms.size());
-  parallelForEachN(0, syms.size(), [&](size_t i) {
+  parallelFor(0, syms.size(), [&](size_t i) {
     raw_string_ostream os(strs[i]);
     OutputSection *osec = syms[i]->getOutputSection();
     uint64_t vma = syms[i]->getVA();
@@ -169,8 +168,8 @@ static void writeMapFile(raw_fd_ostream &os) {
       continue;
     }
 
-    osec = cast<OutputSection>(cmd);
-    writeHeader(os, osec->addr, osec->getLMA(), osec->size, osec->alignment);
+    osec = &cast<OutputDesc>(cmd)->osec;
+    writeHeader(os, osec->addr, osec->getLMA(), osec->size, osec->addralign);
     os << osec->name << '\n';
 
     // Dump symbols for each input section.
@@ -183,7 +182,7 @@ static void writeMapFile(raw_fd_ostream &os) {
           }
 
           writeHeader(os, isec->getVA(), osec->getLMA() + isec->outSecOff,
-                      isec->getSize(), isec->alignment);
+                      isec->getSize(), isec->addralign);
           os << indent8 << toString(isec) << '\n';
           for (Symbol *sym : llvm::make_first_range(sectionSyms[isec]))
             os << symStr[sym] << '\n';
@@ -211,25 +210,6 @@ static void writeMapFile(raw_fd_ostream &os) {
   }
 }
 
-void elf::writeWhyExtract() {
-  if (config->whyExtract.empty())
-    return;
-
-  std::error_code ec;
-  raw_fd_ostream os(config->whyExtract, ec, sys::fs::OF_None);
-  if (ec) {
-    error("cannot open --why-extract= file " + config->whyExtract + ": " +
-          ec.message());
-    return;
-  }
-
-  os << "reference\textracted\tsymbol\n";
-  for (auto &entry : whyExtract) {
-    os << std::get<0>(entry) << '\t' << toString(std::get<1>(entry)) << '\t'
-       << toString(std::get<2>(entry)) << '\n';
-  }
-}
-
 // Output a cross reference table to stdout. This is for --cref.
 //
 // For each global symbol, we print out a file that defines the symbol
@@ -244,7 +224,7 @@ void elf::writeWhyExtract() {
 static void writeCref(raw_fd_ostream &os) {
   // Collect symbols and files.
   MapVector<Symbol *, SetVector<InputFile *>> map;
-  for (ELFFileBase *file : objectFiles) {
+  for (ELFFileBase *file : ctx.objectFiles) {
     for (Symbol *sym : file->getSymbols()) {
       if (isa<SharedSymbol>(sym))
         map[sym].insert(file);
@@ -293,34 +273,4 @@ void elf::writeMapAndCref() {
     writeMapFile(os);
   if (config->cref)
     writeCref(os);
-}
-
-void elf::writeArchiveStats() {
-  if (config->printArchiveStats.empty())
-    return;
-
-  std::error_code ec;
-  raw_fd_ostream os(config->printArchiveStats, ec, sys::fs::OF_None);
-  if (ec) {
-    error("--print-archive-stats=: cannot open " + config->printArchiveStats +
-          ": " + ec.message());
-    return;
-  }
-
-  os << "members\textracted\tarchive\n";
-
-  SmallVector<StringRef, 0> archives;
-  DenseMap<CachedHashStringRef, unsigned> all, extracted;
-  for (ELFFileBase *file : objectFiles)
-    if (file->archiveName.size())
-      ++extracted[CachedHashStringRef(file->archiveName)];
-  for (BitcodeFile *file : bitcodeFiles)
-    if (file->archiveName.size())
-      ++extracted[CachedHashStringRef(file->archiveName)];
-  for (std::pair<StringRef, unsigned> f : driver->archiveFiles) {
-    unsigned &v = extracted[CachedHashString(f.first)];
-    os << f.second << '\t' << v << '\t' << f.first << '\n';
-    // If the archive occurs multiple times, other instances have a count of 0.
-    v = 0;
-  }
 }

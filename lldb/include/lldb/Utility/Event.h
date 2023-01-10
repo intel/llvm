@@ -42,7 +42,9 @@ public:
   virtual ~EventData();
 
   virtual ConstString GetFlavor() const = 0;
-
+  
+  virtual Log *GetLogChannel() { return nullptr; }
+  
   virtual void Dump(Stream *s) const;
 
 private:
@@ -110,7 +112,7 @@ public:
 
   ConstString GetFlavor() const override { return GetFlavorString(); }
 
-  bool WaitForEventReceived(const Timeout<std::micro> &timeout = llvm::None) {
+  bool WaitForEventReceived(const Timeout<std::micro> &timeout = std::nullopt) {
     return m_predicate.WaitForValueEqualTo(true, timeout);
   }
 

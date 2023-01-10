@@ -1,4 +1,4 @@
-//===--- InterpState.cpp - Interpreter for the constexpr VM -----*- C++ -*-===//
+//===------- Interpcpp - Interpreter for the constexpr VM ------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -201,8 +201,8 @@ bool CheckArray(InterpState &S, CodePtr OpPC, const Pointer &Ptr) {
 
 bool CheckLive(InterpState &S, CodePtr OpPC, const Pointer &Ptr,
                AccessKinds AK) {
-  const auto &Src = S.Current->getSource(OpPC);
   if (Ptr.isZero()) {
+    const auto &Src = S.Current->getSource(OpPC);
 
     if (Ptr.isField())
       S.FFDiag(Src, diag::note_constexpr_null_subobject) << CSK_Field;
@@ -213,6 +213,7 @@ bool CheckLive(InterpState &S, CodePtr OpPC, const Pointer &Ptr,
   }
 
   if (!Ptr.isLive()) {
+    const auto &Src = S.Current->getSource(OpPC);
     bool IsTemp = Ptr.isTemporary();
 
     S.FFDiag(Src, diag::note_constexpr_lifetime_ended, 1) << AK << !IsTemp;
@@ -330,17 +331,18 @@ bool CheckInit(InterpState &S, CodePtr OpPC, const Pointer &Ptr) {
   return true;
 }
 
-bool CheckCallable(InterpState &S, CodePtr OpPC, Function *F) {
-  const SourceLocation &Loc = S.Current->getLocation(OpPC);
+bool CheckCallable(InterpState &S, CodePtr OpPC, const Function *F) {
 
   if (F->isVirtual()) {
     if (!S.getLangOpts().CPlusPlus20) {
+      const SourceLocation &Loc = S.Current->getLocation(OpPC);
       S.CCEDiag(Loc, diag::note_constexpr_virtual_call);
       return false;
     }
   }
 
   if (!F->isConstexpr()) {
+    const SourceLocation &Loc = S.Current->getLocation(OpPC);
     if (S.getLangOpts().CPlusPlus11) {
       const FunctionDecl *DiagDecl = F->getDecl();
 
@@ -398,8 +400,19 @@ bool CheckPure(InterpState &S, CodePtr OpPC, const CXXMethodDecl *MD) {
   S.Note(MD->getLocation(), diag::note_declared_at);
   return false;
 }
+
 bool Interpret(InterpState &S, APValue &Result) {
+  // The current stack frame when we started Interpret().
+  // This is being used by the ops to determine wheter
+  // to return from this function and thus terminate
+  // interpretation.
+  const InterpFrame *StartFrame = S.Current;
+  assert(!S.Current->isRoot());
   CodePtr PC = S.Current->getPC();
+
+  // Empty program.
+  if (!PC)
+    return true;
 
   for (;;) {
     auto Op = PC.read<Opcode>();

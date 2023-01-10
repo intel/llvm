@@ -314,6 +314,73 @@ define amdgpu_kernel void @v_nnan_inputs_med3_f32_pat0(float addrspace(1)* %out,
   ret void
 }
 
+
+; GCN-LABEL: {{^}}v_nnan_input_calls_med3_f32_pat0:
+; GCN: {{buffer_|flat_|global_}}load_dword [[A:v[0-9]+]]
+; GCN: {{buffer_|flat_|global_}}load_dword [[B:v[0-9]+]]
+; GCN: {{buffer_|flat_|global_}}load_dword [[C:v[0-9]+]]
+; GCN: v_med3_f32 v{{[0-9]+}}, [[A]], [[B]], [[C]]
+define amdgpu_kernel void @v_nnan_input_calls_med3_f32_pat0(float addrspace(1)* %out, float addrspace(1)* %aptr, float addrspace(1)* %bptr, float addrspace(1)* %cptr) #1 {
+  %tid = call i32 @llvm.amdgcn.workitem.id.x()
+  %gep0 = getelementptr float, float addrspace(1)* %aptr, i32 %tid
+  %gep1 = getelementptr float, float addrspace(1)* %bptr, i32 %tid
+  %gep2 = getelementptr float, float addrspace(1)* %cptr, i32 %tid
+  %outgep = getelementptr float, float addrspace(1)* %out, i32 %tid
+  %a = load volatile float, float addrspace(1)* %gep0
+  %b = load volatile float, float addrspace(1)* %gep1
+  %c = load volatile float, float addrspace(1)* %gep2
+  %tmp0 = call nnan float @llvm.minnum.f32(float %a, float %b)
+  %tmp1 = call nnan float @llvm.maxnum.f32(float %a, float %b)
+  %tmp2 = call nnan float @llvm.minnum.f32(float %tmp1, float %c)
+  %med3 = call float @llvm.maxnum.f32(float %tmp0, float %tmp2)
+  store float %med3, float addrspace(1)* %outgep
+  ret void
+}
+
+; GCN-LABEL: {{^}}v_nnan_call_med3_f32_pat0:
+; GCN: {{buffer_|flat_|global_}}load_dword [[A:v[0-9]+]]
+; GCN: {{buffer_|flat_|global_}}load_dword [[B:v[0-9]+]]
+; GCN: {{buffer_|flat_|global_}}load_dword [[C:v[0-9]+]]
+; GCN: v_med3_f32 v{{[0-9]+}}, [[A]], [[B]], [[C]]
+define amdgpu_kernel void @v_nnan_call_med3_f32_pat0(float addrspace(1)* %out, float addrspace(1)* %aptr, float addrspace(1)* %bptr, float addrspace(1)* %cptr) #1 {
+  %tid = call i32 @llvm.amdgcn.workitem.id.x()
+  %gep0 = getelementptr float, float addrspace(1)* %aptr, i32 %tid
+  %gep1 = getelementptr float, float addrspace(1)* %bptr, i32 %tid
+  %gep2 = getelementptr float, float addrspace(1)* %cptr, i32 %tid
+  %outgep = getelementptr float, float addrspace(1)* %out, i32 %tid
+  %a = load volatile float, float addrspace(1)* %gep0
+  %b = load volatile float, float addrspace(1)* %gep1
+  %c = load volatile float, float addrspace(1)* %gep2
+  %tmp0 = call nnan float @llvm.minnum.f32(float %a, float %b)
+  %tmp1 = call nnan float @llvm.maxnum.f32(float %a, float %b)
+  %tmp2 = call nnan float @llvm.minnum.f32(float %tmp1, float %c)
+  %med3 = call nnan float @llvm.maxnum.f32(float %tmp0, float %tmp2)
+  store float %med3, float addrspace(1)* %outgep
+  ret void
+}
+
+; GCN-LABEL: {{^}}v_fast_call_med3_f32_pat0:
+; GCN: {{buffer_|flat_|global_}}load_dword [[A:v[0-9]+]]
+; GCN: {{buffer_|flat_|global_}}load_dword [[B:v[0-9]+]]
+; GCN: {{buffer_|flat_|global_}}load_dword [[C:v[0-9]+]]
+; GCN: v_med3_f32 v{{[0-9]+}}, [[A]], [[B]], [[C]]
+define amdgpu_kernel void @v_fast_call_med3_f32_pat0(float addrspace(1)* %out, float addrspace(1)* %aptr, float addrspace(1)* %bptr, float addrspace(1)* %cptr) #1 {
+  %tid = call i32 @llvm.amdgcn.workitem.id.x()
+  %gep0 = getelementptr float, float addrspace(1)* %aptr, i32 %tid
+  %gep1 = getelementptr float, float addrspace(1)* %bptr, i32 %tid
+  %gep2 = getelementptr float, float addrspace(1)* %cptr, i32 %tid
+  %outgep = getelementptr float, float addrspace(1)* %out, i32 %tid
+  %a = load volatile float, float addrspace(1)* %gep0
+  %b = load volatile float, float addrspace(1)* %gep1
+  %c = load volatile float, float addrspace(1)* %gep2
+  %tmp0 = call fast float @llvm.minnum.f32(float %a, float %b)
+  %tmp1 = call fast float @llvm.maxnum.f32(float %a, float %b)
+  %tmp2 = call fast float @llvm.minnum.f32(float %tmp1, float %c)
+  %med3 = call fast float @llvm.maxnum.f32(float %tmp0, float %tmp2)
+  store float %med3, float addrspace(1)* %outgep
+  ret void
+}
+
 ; 16 combinations
 
 ; 0: max(min(x, y), min(max(x, y), z))
@@ -679,6 +746,31 @@ define amdgpu_kernel void @v_test_global_nnans_med3_f32_pat15(float addrspace(1)
   ret void
 }
 
+; Also handle `min` at the root:
+; min(max(x, y), max(min(x, y), z))
+
+; GCN-LABEL: {{^}}v_test_global_nnans_med3_f32_pat16:
+; GCN: {{buffer|flat|global}}_load_dword [[A:v[0-9]+]]
+; GCN: {{buffer|flat|global}}_load_dword [[B:v[0-9]+]]
+; GCN: {{buffer|flat|global}}_load_dword [[C:v[0-9]+]]
+; GCN: v_med3_f32 v{{[0-9]+}}, [[A]], [[B]], [[C]]
+define amdgpu_kernel void @v_test_global_nnans_med3_f32_pat16(float addrspace(1)* %out, float addrspace(1)* %aptr, float addrspace(1)* %bptr, float addrspace(1)* %cptr) #2 {
+  %tid = call i32 @llvm.amdgcn.workitem.id.x()
+  %gep0 = getelementptr float, float addrspace(1)* %aptr, i32 %tid
+  %gep1 = getelementptr float, float addrspace(1)* %bptr, i32 %tid
+  %gep2 = getelementptr float, float addrspace(1)* %cptr, i32 %tid
+  %outgep = getelementptr float, float addrspace(1)* %out, i32 %tid
+  %a = load volatile float, float addrspace(1)* %gep0
+  %b = load volatile float, float addrspace(1)* %gep1
+  %c = load volatile float, float addrspace(1)* %gep2
+  %tmp0 = call float @llvm.maxnum.f32(float %a, float %b)
+  %tmp1 = call float @llvm.minnum.f32(float %a, float %b)
+  %tmp2 = call float @llvm.maxnum.f32(float %tmp1, float %c)
+  %med3 = call float @llvm.minnum.f32(float %tmp0, float %tmp2)
+  store float %med3, float addrspace(1)* %outgep
+  ret void
+}
+
 ; ---------------------------------------------------------------------
 ; Negative patterns
 ; ---------------------------------------------------------------------
@@ -970,7 +1062,7 @@ define amdgpu_kernel void @two_non_inline_constant(float addrspace(1)* %out, flo
 
 ; FIXME: Simple stores do not work as a multiple use because they are bitcasted to integer constants.
 ; GCN-LABEL: {{^}}one_non_inline_constant:
-; GCN-DAG: s_mov_b32 [[K1:s[0-9]+]], 0x41800000
+; GCN-DAG: v_mov_b32_e32 [[K1:v[0-9]+]], 0x41800000
 ; GCN-DAG: v_add_f32_e32 [[ADD:v[0-9]+]], 0.5,
 ; GCN: v_med3_f32 v{{[0-9]+}}, [[ADD]], 1.0, [[K1]]
 define amdgpu_kernel void @one_non_inline_constant(float addrspace(1)* %out, float addrspace(1)* %aptr) #1 {
@@ -990,9 +1082,8 @@ define amdgpu_kernel void @one_non_inline_constant(float addrspace(1)* %out, flo
 }
 
 ; GCN-LABEL: {{^}}two_non_inline_constant_multi_use:
-; GCN-DAG: s_mov_b32 [[K1:s[0-9]+]], 0x41800000
 ; GCN-DAG: s_mov_b32 [[K0:s[0-9]+]], 0x41000000
-; GCN-DAG: v_mov_b32_e32 [[VK1:v[0-9]+]], [[K1]]
+; GCN-DAG: v_mov_b32_e32 [[VK1:v[0-9]+]], 0x41800000
 ; GCN-DAG: v_add_f32_e32 [[ADD:v[0-9]+]], 0.5,
 ; GCN: v_med3_f32 v{{[0-9]+}}, [[ADD]], [[K0]], [[VK1]]
 define amdgpu_kernel void @two_non_inline_constant_multi_use(float addrspace(1)* %out, float addrspace(1)* %aptr) #1 {

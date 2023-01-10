@@ -50,8 +50,8 @@ namespace delegate {
   };
   A::A(void *const p __attribute__((pass_object_size(0)))) {}
   // Ensure that we forward the size through a delegating constructor call.
-  // CHECK: define{{.*}} void @_ZN8delegate1AC1EPvU17pass_object_size0({{[^,]*}}, i8*{{[^,]*}}, i64{{[^,]*}})
-  // CHECK: call void @_ZN8delegate1AC2EPvU17pass_object_size0({{[^,]*}}, i8*{{[^,]*}}, i64{{[^,]*}})
+  // CHECK: define{{.*}} void @_ZN8delegate1AC1EPvU17pass_object_size0({{[^,]*}}, ptr {{.*}}, i64{{[^,]*}})
+  // CHECK: call void @_ZN8delegate1AC2EPvU17pass_object_size0({{[^,]*}}, ptr {{.*}}, i64{{[^,]*}})
 }
 
 namespace variadic {

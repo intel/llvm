@@ -14,7 +14,8 @@
 
 #include "PlatformDefs.h"
 
-#include "src/__support/CPP/TypeTraits.h"
+#include "src/__support/CPP/string_view.h"
+#include "src/__support/CPP/type_traits.h"
 #include "utils/testutils/ExecuteFunction.h"
 #include "utils/testutils/StreamWrapper.h"
 
@@ -52,6 +53,8 @@ struct MatcherBase {
   virtual void explainError(testutils::StreamWrapper &OS) {
     OS << "unknown error\n";
   }
+  // Override and return true to skip `explainError` step.
+  virtual bool is_silent() const { return false; }
 };
 
 template <typename T> struct Matcher : public MatcherBase { bool match(T &t); };
@@ -83,19 +86,35 @@ protected:
   // |Cond| on mismatched |LHS| and |RHS| types can potentially succeed because
   // of type promotion.
   template <typename ValType,
-            cpp::EnableIfType<cpp::IsIntegral<ValType>::Value, int> = 0>
+            cpp::enable_if_t<cpp::is_integral_v<ValType>, int> = 0>
   bool test(TestCondition Cond, ValType LHS, ValType RHS, const char *LHSStr,
             const char *RHSStr, const char *File, unsigned long Line) {
     return internal::test(Ctx, Cond, LHS, RHS, LHSStr, RHSStr, File, Line);
   }
 
-  template <
-      typename ValType,
-      cpp::EnableIfType<cpp::IsPointerType<ValType>::Value, ValType> = nullptr>
+  template <typename ValType,
+            cpp::enable_if_t<cpp::is_enum<ValType>::value, int> = 0>
+  bool test(TestCondition Cond, ValType LHS, ValType RHS, const char *LHSStr,
+            const char *RHSStr, const char *File, unsigned long Line) {
+    return internal::test(Ctx, Cond, (long long)LHS, (long long)RHS, LHSStr,
+                          RHSStr, File, Line);
+  }
+
+  template <typename ValType,
+            cpp::enable_if_t<cpp::is_pointer_v<ValType>, ValType> = nullptr>
   bool test(TestCondition Cond, ValType LHS, ValType RHS, const char *LHSStr,
             const char *RHSStr, const char *File, unsigned long Line) {
     return internal::test(Ctx, Cond, (unsigned long long)LHS,
                           (unsigned long long)RHS, LHSStr, RHSStr, File, Line);
+  }
+
+  template <
+      typename ValType,
+      cpp::enable_if_t<cpp::is_same_v<ValType, __llvm_libc::cpp::string_view>,
+                       int> = 0>
+  bool test(TestCondition Cond, ValType LHS, ValType RHS, const char *LHSStr,
+            const char *RHSStr, const char *File, unsigned long Line) {
+    return internal::test(Ctx, Cond, LHS, RHS, LHSStr, RHSStr, File, Line);
   }
 
   bool testStrEq(const char *LHS, const char *RHS, const char *LHSStr,
@@ -387,19 +406,16 @@ template <typename... Types> using TypeList = internal::TypeList<Types...>;
 #define UNIQUE_VAR(prefix) __CAT(prefix, __LINE__)
 
 #define EXPECT_THAT(MATCH, MATCHER)                                            \
-  do {                                                                         \
+  [&]() -> bool {                                                              \
     auto UNIQUE_VAR(__matcher) = (MATCHER);                                    \
-    this->testMatch(UNIQUE_VAR(__matcher).match((MATCH)),                      \
-                    UNIQUE_VAR(__matcher), #MATCH, #MATCHER, __FILE__,         \
-                    __LINE__);                                                 \
-  } while (0)
+    return this->testMatch(UNIQUE_VAR(__matcher).match((MATCH)),               \
+                           UNIQUE_VAR(__matcher), #MATCH, #MATCHER, __FILE__,  \
+                           __LINE__);                                          \
+  }()
 
 #define ASSERT_THAT(MATCH, MATCHER)                                            \
   do {                                                                         \
-    auto UNIQUE_VAR(__matcher) = (MATCHER);                                    \
-    if (!this->testMatch(UNIQUE_VAR(__matcher).match((MATCH)),                 \
-                         UNIQUE_VAR(__matcher), #MATCH, #MATCHER, __FILE__,    \
-                         __LINE__))                                            \
+    if (!EXPECT_THAT(MATCH, MATCHER))                                          \
       return;                                                                  \
   } while (0)
 

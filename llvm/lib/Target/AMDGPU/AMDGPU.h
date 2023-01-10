@@ -26,6 +26,7 @@ FunctionPass *createAMDGPUPostLegalizeCombiner(bool IsOptNone);
 FunctionPass *createAMDGPURegBankCombiner(bool IsOptNone);
 void initializeAMDGPURegBankCombinerPass(PassRegistry &);
 
+void initializeGlobalOffsetPass(PassRegistry &);
 void initializeLocalAccessorToSharedMemoryPass(PassRegistry &);
 
 // SI Passes
@@ -93,13 +94,9 @@ ModulePass *createAMDGPULowerIntrinsicsPass();
 void initializeAMDGPULowerIntrinsicsPass(PassRegistry &);
 extern char &AMDGPULowerIntrinsicsID;
 
-ModulePass *createAMDGPUFixFunctionBitcastsPass();
-void initializeAMDGPUFixFunctionBitcastsPass(PassRegistry &);
-extern char &AMDGPUFixFunctionBitcastsID;
-
-ModulePass *createAMDGPUCtorDtorLoweringPass();
-void initializeAMDGPUCtorDtorLoweringPass(PassRegistry &);
-extern char &AMDGPUCtorDtorLoweringID;
+ModulePass *createAMDGPUCtorDtorLoweringLegacyPass();
+void initializeAMDGPUCtorDtorLoweringLegacyPass(PassRegistry &);
+extern char &AMDGPUCtorDtorLoweringLegacyPassID;
 
 FunctionPass *createAMDGPULowerKernelArgumentsPass();
 void initializeAMDGPULowerKernelArgumentsPass(PassRegistry &);
@@ -296,6 +293,10 @@ extern char &AMDGPUCodeGenPrepareID;
 void initializeAMDGPULateCodeGenPreparePass(PassRegistry &);
 extern char &AMDGPULateCodeGenPrepareID;
 
+FunctionPass *createAMDGPURewriteUndefForPHIPass();
+void initializeAMDGPURewriteUndefForPHIPass(PassRegistry &);
+extern char &AMDGPURewriteUndefForPHIPassID;
+
 void initializeSIAnnotateControlFlowPass(PassRegistry&);
 extern char &SIAnnotateControlFlowPassID;
 
@@ -304,6 +305,12 @@ extern char &SIMemoryLegalizerID;
 
 void initializeSIModeRegisterPass(PassRegistry&);
 extern char &SIModeRegisterID;
+
+void initializeAMDGPUReleaseVGPRsPass(PassRegistry &);
+extern char &AMDGPUReleaseVGPRsID;
+
+void initializeAMDGPUInsertDelayAluPass(PassRegistry &);
+extern char &AMDGPUInsertDelayAluID;
 
 void initializeSIInsertHardClausesPass(PassRegistry &);
 extern char &SIInsertHardClausesID;
@@ -316,6 +323,9 @@ extern char &SIFormMemoryClausesID;
 
 void initializeSIPostRABundlerPass(PassRegistry&);
 extern char &SIPostRABundlerID;
+
+void initializeGCNCreateVOPDPass(PassRegistry &);
+extern char &GCNCreateVOPDID;
 
 void initializeAMDGPUUnifyDivergentExitNodesPass(PassRegistry&);
 extern char &AMDGPUUnifyDivergentExitNodesID;
@@ -336,6 +346,9 @@ extern char &GCNNSAReassignID;
 
 void initializeGCNPreRAOptimizationsPass(PassRegistry &);
 extern char &GCNPreRAOptimizationsID;
+
+FunctionPass *createAMDGPUSetWavePriorityPass();
+void initializeAMDGPUSetWavePriorityPass(PassRegistry &);
 
 namespace AMDGPU {
 enum TargetIndex {

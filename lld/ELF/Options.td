@@ -50,10 +50,9 @@ def Bdynamic: F<"Bdynamic">, HelpText<"Link against shared libraries (default)">
 
 def Bstatic: F<"Bstatic">, HelpText<"Do not link against shared libraries">;
 
-def build_id: F<"build-id">, HelpText<"Alias for --build-id=fast">;
-
-def build_id_eq: J<"build-id=">, HelpText<"Generate build ID note">,
+def build_id: J<"build-id=">, HelpText<"Generate build ID note">,
   MetaVarName<"[fast,md5,sha1,uuid,0x<hexstring>]">;
+def : F<"build-id">, Alias<build_id>, AliasArgs<["fast"]>, HelpText<"Alias for --build-id=fast">;
 
 defm check_sections: B<"check-sections",
     "Check section addresses for overlaps (default)",
@@ -61,7 +60,7 @@ defm check_sections: B<"check-sections",
 
 defm compress_debug_sections:
   Eq<"compress-debug-sections", "Compress DWARF debug sections">,
-  MetaVarName<"[none,zlib]">;
+  MetaVarName<"[none,zlib,zstd]">;
 
 defm defsym: Eq<"defsym", "Define a symbol alias">, MetaVarName<"<symbol>=<value>">;
 
@@ -119,12 +118,13 @@ defm call_graph_profile_sort: BB<"call-graph-profile-sort",
 // --chroot doesn't have a help text because it is an internal option.
 def chroot: Separate<["--"], "chroot">;
 
-defm color_diagnostics: BB<"color-diagnostics",
-  "Alias for --color-diagnostics=always",
-  "Alias for --color-diagnostics=never">;
-def color_diagnostics_eq: JJ<"color-diagnostics=">,
+def color_diagnostics: JJ<"color-diagnostics=">,
   HelpText<"Use colors in diagnostics (default: auto)">,
   MetaVarName<"[auto,always,never]">;
+def : Flag<["--"], "color-diagnostics">, Alias<color_diagnostics>, AliasArgs<["always"]>,
+  HelpText<"Alias for --color-diagnostics=always">;
+def : Flag<["--"], "no-color-diagnostics">, Alias<color_diagnostics>, AliasArgs<["never"]>,
+  HelpText<"Alias for --color-diagnostics=never">;
 
 def cref: FF<"cref">,
   HelpText<"Output cross reference table. If -Map is specified, print to the map file">;
@@ -176,7 +176,7 @@ defm entry: Eq<"entry", "Name of entry point symbol">,
   MetaVarName<"<entry>">;
 
 defm error_limit:
-  Eq<"error-limit", "Maximum number of errors to emit before stopping (0 = no limit)">;
+  EEq<"error-limit", "Maximum number of errors to emit before stopping (0 = no limit)">;
 
 def error_unresolved_symbols: F<"error-unresolved-symbols">,
   HelpText<"Report unresolved symbols as errors">;
@@ -297,6 +297,9 @@ def no_omagic: F<"no-omagic">, MetaVarName<"<magic>">,
 def no_undefined: F<"no-undefined">,
   HelpText<"Report unresolved symbols even if the linker is creating a shared library">;
 
+def no_warnings: FF<"no-warnings">, HelpText<"Suppress warnings and cancel --fatal-warnings">;
+def : Flag<["-"], "w">, Alias<no_warnings>, HelpText<"Alias for --no-warnings">;
+
 def o: JoinedOrSeparate<["-"], "o">, MetaVarName<"<path>">,
   HelpText<"Path to file to write output">;
 
@@ -408,8 +411,10 @@ defm threads
          "Number of threads. '1' disables multi-threading. By default all "
          "available hardware threads are used">;
 
-def time_trace: FF<"time-trace">, HelpText<"Record time trace">;
-def time_trace_file_eq: JJ<"time-trace-file=">, HelpText<"Specify time trace output file">;
+def time_trace_eq: JJ<"time-trace=">, MetaVarName<"<file>">,
+  HelpText<"Record time trace to <file>">;
+def : FF<"time-trace">, Alias<time_trace_eq>,
+  HelpText<"Record time trace to file next to output">;
 
 defm time_trace_granularity: EEq<"time-trace-granularity",
   "Minimum time granularity (in microseconds) traced by time profiler">;
@@ -438,7 +443,7 @@ defm unresolved_symbols:
   Eq<"unresolved-symbols", "Determine how to handle unresolved symbols">;
 
 defm undefined_version: B<"undefined-version",
-  "Allow unused version in version script (default)",
+  "Allow unused version in version script (disabled by default)",
   "Report version scripts that refer undefined symbols">;
 
 defm rsp_quoting: EEq<"rsp-quoting", "Quoting style for response files">,
@@ -501,6 +506,8 @@ def z: JoinedOrSeparate<["-"], "z">, MetaVarName<"<option>">,
 def visual_studio_diagnostics_format : FF<"vs-diagnostics">,
 HelpText<"Format diagnostics for Visual Studio compatibility">;
 
+def package_metadata: JJ<"package-metadata=">, HelpText<"Emit package metadata note">;
+
 // Aliases
 def: Separate<["-"], "f">, Alias<auxiliary>, HelpText<"Alias for --auxiliary">;
 def: F<"call_shared">, Alias<Bdynamic>, HelpText<"Alias for --Bdynamic">;
@@ -538,7 +545,7 @@ def: Flag<["-"], "t">, Alias<trace>, HelpText<"Alias for --trace">;
 def: Joined<["-", "--"], "Ttext-segment=">, Alias<Ttext_segment>;
 def: JoinedOrSeparate<["-"], "y">, Alias<trace_symbol>, HelpText<"Alias for --trace-symbol">;
 def: JoinedOrSeparate<["-"], "u">, Alias<undefined>, HelpText<"Alias for --undefined">;
-def: Flag<["-"], "V">, Alias<version>, HelpText<"Alias for --version">;
+def: Flag<["-"], "V">, Alias<v>, HelpText<"Alias for -v">;
 
 // LTO-related options.
 def lto_aa_pipeline: JJ<"lto-aa-pipeline=">,
@@ -547,9 +554,8 @@ def lto_debug_pass_manager: FF<"lto-debug-pass-manager">,
   HelpText<"Debug new pass manager">;
 def lto_emit_asm: FF<"lto-emit-asm">,
   HelpText<"Emit assembly code">;
-defm lto_legacy_pass_manager: BB<"lto-legacy-pass-manager",
-  "Use the legacy pass manager in LLVM",
-  "Use the new pass manager in LLVM">;
+def no_lto_legacy_pass_manager: FF<"no-lto-legacy-pass-manager">,
+  HelpText<"Use the new pass manager in LLVM">;
 def lto_newpm_passes: JJ<"lto-newpm-passes=">,
   HelpText<"Passes to run during LTO">;
 def lto_O: JJ<"lto-O">, MetaVarName<"<opt-level>">,
@@ -584,6 +590,8 @@ def opt_remarks_with_hotness: FF<"opt-remarks-with-hotness">,
 def opt_remarks_format: Separate<["--"], "opt-remarks-format">,
   HelpText<"The format used for serializing remarks (default: YAML)">;
 def save_temps: F<"save-temps">, HelpText<"Save intermediate LTO compilation results">;
+def save_temps_eq: JJ<"save-temps=">, HelpText<"Save select intermediate LTO compilation results">,
+  Values<"resolution,preopt,promote,internalize,import,opt,precodegen,prelink,combinedindex">;
 def lto_basic_block_sections: JJ<"lto-basic-block-sections=">,
   HelpText<"Enable basic block sections for LTO">;
 defm lto_unique_basic_block_section_names: BB<"lto-unique-basic-block-section-names",
@@ -597,14 +605,15 @@ def thinlto_cache_dir: JJ<"thinlto-cache-dir=">,
   HelpText<"Path to ThinLTO cached object file directory">;
 defm thinlto_cache_policy: EEq<"thinlto-cache-policy", "Pruning policy for the ThinLTO cache">;
 def thinlto_emit_imports_files: FF<"thinlto-emit-imports-files">;
+def thinlto_emit_index_files: FF<"thinlto-emit-index-files">;
 def thinlto_index_only: FF<"thinlto-index-only">;
 def thinlto_index_only_eq: JJ<"thinlto-index-only=">;
-def thinlto_jobs: JJ<"thinlto-jobs=">,
+def thinlto_jobs_eq: JJ<"thinlto-jobs=">,
   HelpText<"Number of ThinLTO jobs. Default to --threads=">;
 def thinlto_object_suffix_replace_eq: JJ<"thinlto-object-suffix-replace=">;
 def thinlto_prefix_replace_eq: JJ<"thinlto-prefix-replace=">;
 def thinlto_single_module_eq: JJ<"thinlto-single-module=">,
-  HelpText<"Specific a single module to compile in ThinLTO mode, for debugging only">;
+  HelpText<"Specify a single module to compile in ThinLTO mode, for debugging only">;
 
 def: J<"plugin-opt=O">, Alias<lto_O>, HelpText<"Alias for --lto-O">;
 def: F<"plugin-opt=debug-pass-manager">,
@@ -615,13 +624,11 @@ def plugin_opt_dwo_dir_eq: J<"plugin-opt=dwo_dir=">,
 def plugin_opt_emit_asm: F<"plugin-opt=emit-asm">,
   Alias<lto_emit_asm>, HelpText<"Alias for --lto-emit-asm">;
 def plugin_opt_emit_llvm: F<"plugin-opt=emit-llvm">;
-def: J<"plugin-opt=jobs=">, Alias<thinlto_jobs>, HelpText<"Alias for --thinlto-jobs">;
+def: J<"plugin-opt=jobs=">, Alias<thinlto_jobs_eq>, HelpText<"Alias for --thinlto-jobs=">;
 def: J<"plugin-opt=lto-partitions=">, Alias<lto_partitions>, HelpText<"Alias for --lto-partitions">;
 def plugin_opt_mcpu_eq: J<"plugin-opt=mcpu=">;
 def: F<"plugin-opt=new-pass-manager">,
   Alias<no_lto_legacy_pass_manager>, HelpText<"Alias for --no-lto-legacy-pass-manager">;
-def: F<"plugin-opt=legacy-pass-manager">,
-  Alias<lto_legacy_pass_manager>, HelpText<"Alias for --no-legacy-pass-manager">;
 def: F<"plugin-opt=cs-profile-generate">,
   Alias<lto_cs_profile_generate>, HelpText<"Alias for --lto-cs-profile-generate">;
 def: J<"plugin-opt=cs-profile-path=">,
@@ -629,6 +636,10 @@ def: J<"plugin-opt=cs-profile-path=">,
 def: J<"plugin-opt=obj-path=">,
   Alias<lto_obj_path_eq>,
   HelpText<"Alias for --lto-obj-path=">;
+def plugin_opt_opaque_pointers: F<"plugin-opt=opaque-pointers">,
+  HelpText<"Use opaque pointers in IR during LTO (default)">;
+def plugin_opt_no_opaque_pointers: F<"plugin-opt=no-opaque-pointers">,
+  HelpText<"Use typed pointers in IR during LTO">;
 def: J<"plugin-opt=opt-remarks-filename=">,
   Alias<opt_remarks_filename>,
   HelpText<"Alias for --opt-remarks-filename">;
@@ -647,6 +658,8 @@ def: J<"plugin-opt=opt-remarks-hotness-threshold=">,
 def: J<"plugin-opt=sample-profile=">,
   Alias<lto_sample_profile>, HelpText<"Alias for --lto-sample-profile">;
 def: F<"plugin-opt=save-temps">, Alias<save_temps>, HelpText<"Alias for --save-temps">;
+def plugin_opt_stats_file: J<"plugin-opt=stats-file=">,
+  HelpText<"Filename to write LTO statistics to">;
 def: F<"plugin-opt=thinlto-emit-imports-files">,
   Alias<thinlto_emit_imports_files>,
   HelpText<"Alias for --thinlto-emit-imports-files">;
@@ -685,11 +698,10 @@ def: J<"plugin-opt=-pass-through=">;
 def plugin_opt_eq : J<"plugin-opt=">;
 
 // Options listed below are silently ignored for now for compatibility.
-def: F<"detect-odr-violations">;
 def: Flag<["-"], "d">;
-def: Flag<["-"], "dc">;
 def: Flag<["-"], "g">;
 def: F<"long-plt">;
+def: FF<"no-add-needed">;
 def: F<"no-copy-dt-needed-entries">;
 def: F<"no-ctors-in-init-array">;
 def: F<"no-keep-memory">;
@@ -714,3 +726,17 @@ defm check_dynamic_relocations: BB<"check-dynamic-relocations",
     "Perform additional validation of the written dynamic relocations",
     "Do not perform additional validation of the written dynamic relocations">,
   Flags<[HelpHidden]>;
+
+defm load_pass_plugins: EEq<"load-pass-plugin", "Load passes from plugin library">;
+
+// Hidden options, used by clang's -fsanitize=memtag-* options to emit an ELF
+// note to designate what kinds of memory (stack/heap) should be protected using
+// ARM's MTE on armv8.5+. A binary's desire for stack MTE can't be obtained
+// implicitly, so we have a specific bit in the note to signal to the loader to
+// remap the stack as PROT_MTE.
+defm android_memtag_stack: BB<"android-memtag-stack",
+    "Instruct the dynamic loader to prepare for MTE stack instrumentation", "">;
+defm android_memtag_heap: BB<"android-memtag-heap",
+    "Instruct the dynamic loader to enable MTE protection for the heap", "">;
+defm android_memtag_mode: EEq<"android-memtag-mode",
+    "Instruct the dynamic loader to start under MTE mode {async, sync, none}">;

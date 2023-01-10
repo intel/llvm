@@ -11,6 +11,8 @@
 #include "gtest/gtest.h"
 #include "flang/Optimizer/Builder/Character.h"
 
+using namespace mlir;
+
 TEST_F(RuntimeCallTest, genAdjustLTest) {
   auto loc = firBuilder->getUnknownLoc();
   mlir::Value result = firBuilder->create<fir::UndefOp>(loc, boxTy);
@@ -82,7 +84,7 @@ void checkCharCompare2(
   auto cmpOp = mlir::dyn_cast<mlir::arith::CmpIOp>(res.getDefiningOp());
   checkCallOp(cmpOp.getLhs().getDefiningOp(), fctName, 4, /*addLocArgs=*/false);
   auto allocas = res.getParentBlock()->getOps<fir::AllocaOp>();
-  EXPECT_TRUE(llvm::empty(allocas));
+  EXPECT_TRUE(allocas.empty());
 }
 
 TEST_F(RuntimeCallTest, genCharCompare2Test) {

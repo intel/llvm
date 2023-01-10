@@ -24,6 +24,8 @@
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/FileSystem/UniqueID.h"
 
+#include <utility>
+
 namespace llvm {
 
 class MemoryBuffer;
@@ -59,13 +61,22 @@ class FileEntry;
 /// accessed by the FileManager's client.
 class FileEntryRef {
 public:
-  StringRef getName() const { return ME->first(); }
-  const FileEntry &getFileEntry() const {
-    return *ME->second->V.get<FileEntry *>();
-  }
-  DirectoryEntryRef getDir() const { return *ME->second->Dir; }
+  /// The name of this FileEntry. If a VFS uses 'use-external-name', this is
+  /// the redirected name. See getRequestedName().
+  StringRef getName() const { return getBaseMapEntry().first(); }
 
-  inline bool isValid() const;
+  /// The name of this FileEntry, as originally requested without applying any
+  /// remappings for VFS 'use-external-name'.
+  ///
+  /// FIXME: this should be the semantics of getName(). See comment in
+  /// FileManager::getFileRef().
+  StringRef getNameAsRequested() const { return ME->first(); }
+
+  const FileEntry &getFileEntry() const {
+    return *getBaseMapEntry().second->V.get<FileEntry *>();
+  }
+  DirectoryEntryRef getDir() const { return *getBaseMapEntry().second->Dir; }
+
   inline off_t getSize() const;
   inline unsigned getUID() const;
   inline const llvm::sys::fs::UniqueID &getUniqueID() const;
@@ -151,12 +162,19 @@ public:
   explicit FileEntryRef(const MapEntry &ME) : ME(&ME) {
     assert(ME.second && "Expected payload");
     assert(ME.second->V && "Expected non-null");
-    assert(ME.second->V.is<FileEntry *>() && "Expected FileEntry");
   }
 
   /// Expose the underlying MapEntry to simplify packing in a PointerIntPair or
   /// PointerUnion and allow construction in Optional.
   const clang::FileEntryRef::MapEntry &getMapEntry() const { return *ME; }
+
+  /// Retrieve the base MapEntry after redirects.
+  const MapEntry &getBaseMapEntry() const {
+    const MapEntry *ME = this->ME;
+    while (const void *Next = ME->second->V.dyn_cast<const void *>())
+      ME = static_cast<const MapEntry *>(Next);
+    return *ME;
+  }
 
 private:
   friend class FileMgr::MapEntryOptionalStorage<FileEntryRef>;
@@ -206,8 +224,8 @@ public:
   OptionalStorage() = default;
 
   template <class... ArgTypes>
-  explicit OptionalStorage(in_place_t, ArgTypes &&...Args)
-      : StorageImpl(in_place_t{}, std::forward<ArgTypes>(Args)...) {}
+  explicit OptionalStorage(std::in_place_t, ArgTypes &&...Args)
+      : StorageImpl(std::in_place_t{}, std::forward<ArgTypes>(Args)...) {}
 
   OptionalStorage &operator=(clang::FileEntryRef Ref) {
     StorageImpl::operator=(Ref);
@@ -290,14 +308,14 @@ public:
   OptionalFileEntryRefDegradesToFileEntryPtr &
   operator=(const OptionalFileEntryRefDegradesToFileEntryPtr &) = default;
 
-  OptionalFileEntryRefDegradesToFileEntryPtr(llvm::NoneType) {}
+  OptionalFileEntryRefDegradesToFileEntryPtr(std::nullopt_t) {}
   OptionalFileEntryRefDegradesToFileEntryPtr(FileEntryRef Ref)
       : Optional<FileEntryRef>(Ref) {}
   OptionalFileEntryRefDegradesToFileEntryPtr(Optional<FileEntryRef> MaybeRef)
       : Optional<FileEntryRef>(MaybeRef) {}
 
-  OptionalFileEntryRefDegradesToFileEntryPtr &operator=(llvm::NoneType) {
-    Optional<FileEntryRef>::operator=(None);
+  OptionalFileEntryRefDegradesToFileEntryPtr &operator=(std::nullopt_t) {
+    Optional<FileEntryRef>::operator=(std::nullopt);
     return *this;
   }
   OptionalFileEntryRefDegradesToFileEntryPtr &operator=(FileEntryRef Ref) {
@@ -314,7 +332,7 @@ public:
   /// FileEntry::getName have been deleted, delete this class and replace
   /// instances with Optional<FileEntryRef>
   operator const FileEntry *() const {
-    return hasValue() ? &getValue().getFileEntry() : nullptr;
+    return has_value() ? &value().getFileEntry() : nullptr;
   }
 };
 
@@ -323,6 +341,23 @@ static_assert(
         OptionalFileEntryRefDegradesToFileEntryPtr>::value,
     "OptionalFileEntryRefDegradesToFileEntryPtr should be trivially copyable");
 
+inline bool operator==(const FileEntry *LHS,
+                       const Optional<FileEntryRef> &RHS) {
+  return LHS == (RHS ? &RHS->getFileEntry() : nullptr);
+}
+inline bool operator==(const Optional<FileEntryRef> &LHS,
+                       const FileEntry *RHS) {
+  return (LHS ? &LHS->getFileEntry() : nullptr) == RHS;
+}
+inline bool operator!=(const FileEntry *LHS,
+                       const Optional<FileEntryRef> &RHS) {
+  return !(LHS == RHS);
+}
+inline bool operator!=(const Optional<FileEntryRef> &LHS,
+                       const FileEntry *RHS) {
+  return !(LHS == RHS);
+}
+
 /// Cached information about one file (either on disk
 /// or in the virtual file system).
 ///
@@ -330,6 +365,10 @@ static_assert(
 /// descriptor for the file.
 class FileEntry {
   friend class FileManager;
+  friend class FileEntryTestHelper;
+  FileEntry();
+  FileEntry(const FileEntry &) = delete;
+  FileEntry &operator=(const FileEntry &) = delete;
 
   std::string RealPathName;   // Real path to the file; could be empty.
   off_t Size = 0;             // File size in bytes.
@@ -338,7 +377,6 @@ class FileEntry {
   llvm::sys::fs::UniqueID UniqueID;
   unsigned UID = 0; // A unique (small) ID for the file.
   bool IsNamedPipe = false;
-  bool IsValid = false; // Is this \c FileEntry initialized and valid?
 
   /// The open file, if it is owned by the \p FileEntry.
   mutable std::unique_ptr<llvm::vfs::File> File;
@@ -355,17 +393,11 @@ class FileEntry {
   Optional<FileEntryRef> LastRef;
 
 public:
-  FileEntry();
   ~FileEntry();
-
-  FileEntry(const FileEntry &) = delete;
-  FileEntry &operator=(const FileEntry &) = delete;
-
   StringRef getName() const { return LastRef->getName(); }
   FileEntryRef getLastRef() const { return *LastRef; }
 
   StringRef tryGetRealPathName() const { return RealPathName; }
-  bool isValid() const { return IsValid; }
   off_t getSize() const { return Size; }
   unsigned getUID() const { return UID; }
   const llvm::sys::fs::UniqueID &getUniqueID() const { return UniqueID; }
@@ -374,16 +406,12 @@ public:
   /// Return the directory the file lives in.
   const DirectoryEntry *getDir() const { return Dir; }
 
-  bool operator<(const FileEntry &RHS) const { return UniqueID < RHS.UniqueID; }
-
   /// Check whether the file is a named pipe (and thus can't be opened by
   /// the native FileManager methods).
   bool isNamedPipe() const { return IsNamedPipe; }
 
   void closeFile() const;
 };
-
-bool FileEntryRef::isValid() const { return getFileEntry().isValid(); }
 
 off_t FileEntryRef::getSize() const { return getFileEntry().getSize(); }
 

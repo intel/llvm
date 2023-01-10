@@ -16,6 +16,7 @@
 #include "ManagedStringPool.h"
 #include "NVPTXSubtarget.h"
 #include "llvm/Target/TargetMachine.h"
+#include <optional>
 #include <utility>
 
 namespace llvm {
@@ -36,9 +37,9 @@ class NVPTXTargetMachine : public LLVMTargetMachine {
 public:
   NVPTXTargetMachine(const Target &T, const Triple &TT, StringRef CPU,
                      StringRef FS, const TargetOptions &Options,
-                     Optional<Reloc::Model> RM, Optional<CodeModel::Model> CM,
-                     CodeGenOpt::Level OP, bool is64bit);
-
+                     std::optional<Reloc::Model> RM,
+                     std::optional<CodeModel::Model> CM, CodeGenOpt::Level OP,
+                     bool is64bit);
   ~NVPTXTargetMachine() override;
   const NVPTXSubtarget *getSubtargetImpl(const Function &) const override {
     return &Subtarget;
@@ -62,10 +63,9 @@ public:
     return TLOF.get();
   }
 
-  void adjustPassManager(PassManagerBuilder &) override;
   void registerPassBuilderCallbacks(PassBuilder &PB) override;
 
-  TargetTransformInfo getTargetTransformInfo(const Function &F) override;
+  TargetTransformInfo getTargetTransformInfo(const Function &F) const override;
 
   bool isMachineVerifierClean() const override {
     return false;
@@ -77,20 +77,24 @@ public:
 
 class NVPTXTargetMachine32 : public NVPTXTargetMachine {
   virtual void anchor();
+
 public:
   NVPTXTargetMachine32(const Target &T, const Triple &TT, StringRef CPU,
                        StringRef FS, const TargetOptions &Options,
-                       Optional<Reloc::Model> RM, Optional<CodeModel::Model> CM,
-                       CodeGenOpt::Level OL, bool JIT);
+                       std::optional<Reloc::Model> RM,
+                       std::optional<CodeModel::Model> CM, CodeGenOpt::Level OL,
+                       bool JIT);
 };
 
 class NVPTXTargetMachine64 : public NVPTXTargetMachine {
   virtual void anchor();
+
 public:
   NVPTXTargetMachine64(const Target &T, const Triple &TT, StringRef CPU,
                        StringRef FS, const TargetOptions &Options,
-                       Optional<Reloc::Model> RM, Optional<CodeModel::Model> CM,
-                       CodeGenOpt::Level OL, bool JIT);
+                       std::optional<Reloc::Model> RM,
+                       std::optional<CodeModel::Model> CM, CodeGenOpt::Level OL,
+                       bool JIT);
 };
 
 } // end namespace llvm

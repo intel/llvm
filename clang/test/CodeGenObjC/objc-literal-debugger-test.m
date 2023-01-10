@@ -50,6 +50,6 @@ int main(void) {
 #endif
 }
 
-// CHECK: declare i8* @objc_msgSend(i8*, i8*, ...) [[NLB:#[0-9]+]]
+// CHECK: declare ptr @objc_msgSend(ptr, ptr, ...) [[NLB:#[0-9]+]]
 
 // CHECK: attributes [[NLB]] = { nonlazybind }

@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/Driver/Driver.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningService.h"
@@ -81,7 +82,7 @@ public:
                                        "" /*no-suffix*/, ErrorFile);
     llvm::FileRemover OutputRemover(OutputFile.c_str());
     llvm::FileRemover ErrorRemover(ErrorFile.c_str());
-    llvm::Optional<StringRef> Redirects[] = {
+    std::optional<StringRef> Redirects[] = {
         {""}, // Stdin
         OutputFile.str(),
         ErrorFile.str(),
@@ -116,15 +117,15 @@ static llvm::cl::opt<ScanningMode> ScanMode(
     "mode",
     llvm::cl::desc("The preprocessing mode used to compute the dependencies"),
     llvm::cl::values(
-        clEnumValN(ScanningMode::MinimizedSourcePreprocessing,
-                   "preprocess-minimized-sources",
-                   "The set of dependencies is computed by preprocessing the "
-                   "source files that were minimized to only include the "
-                   "contents that might affect the dependencies"),
+        clEnumValN(ScanningMode::DependencyDirectivesScan,
+                   "preprocess-dependency-directives",
+                   "The set of dependencies is computed by preprocessing with "
+                   "special lexing after scanning the source files to get the "
+                   "directives that might affect the dependencies"),
         clEnumValN(ScanningMode::CanonicalPreprocessing, "preprocess",
                    "The set of dependencies is computed by preprocessing the "
-                   "unmodified source files")),
-    llvm::cl::init(ScanningMode::MinimizedSourcePreprocessing),
+                   "source files")),
+    llvm::cl::init(ScanningMode::DependencyDirectivesScan),
     llvm::cl::cat(DependencyScannerCategory));
 
 static llvm::cl::opt<ScanningOutputFormat> Format(
@@ -138,41 +139,21 @@ static llvm::cl::opt<ScanningOutputFormat> Format(
     llvm::cl::init(ScanningOutputFormat::Make),
     llvm::cl::cat(DependencyScannerCategory));
 
-// This mode is mostly useful for development of explicitly built modules.
-// Command lines will contain arguments specifying modulemap file paths and
-// absolute paths to PCM files in the module cache directory.
-//
-// Build tools that want to put the PCM files in a different location should use
-// the C++ APIs instead, of which there are two flavors:
-//
-// 1. APIs that generate arguments with paths to modulemap and PCM files via
-//    callbacks provided by the client:
-//     * ModuleDeps::getCanonicalCommandLine(LookupPCMPath, LookupModuleDeps)
-//     * FullDependencies::getAdditionalArgs(LookupPCMPath, LookupModuleDeps)
-//
-// 2. APIs that don't generate arguments with paths to modulemap or PCM files
-//    and instead expect the client to append them manually after the fact:
-//     * ModuleDeps::getCanonicalCommandLineWithoutModulePaths()
-//     * FullDependencies::getAdditionalArgsWithoutModulePaths()
-//
-static llvm::cl::opt<bool> GenerateModulesPathArgs(
-    "generate-modules-path-args",
-    llvm::cl::desc(
-        "With '-format experimental-full', include arguments specifying "
-        "modules-related paths in the generated command lines: "
-        "'-fmodule-file=', '-o', '-fmodule-map-file='."),
-    llvm::cl::init(false), llvm::cl::cat(DependencyScannerCategory));
-
 static llvm::cl::opt<std::string> ModuleFilesDir(
     "module-files-dir",
-    llvm::cl::desc("With '-generate-modules-path-args', paths to module files "
-                   "in the generated command lines will begin with the "
-                   "specified directory instead the module cache directory."),
+    llvm::cl::desc(
+        "The build directory for modules. Defaults to the value of "
+        "'-fmodules-cache-path=' from command lines for implicit modules."),
     llvm::cl::cat(DependencyScannerCategory));
 
 static llvm::cl::opt<bool> OptimizeArgs(
     "optimize-args",
     llvm::cl::desc("Whether to optimize command-line arguments of modules."),
+    llvm::cl::init(false), llvm::cl::cat(DependencyScannerCategory));
+
+static llvm::cl::opt<bool> EagerLoadModules(
+    "eager-load-pcm",
+    llvm::cl::desc("Load PCM files eagerly (instead of lazily on import)."),
     llvm::cl::init(false), llvm::cl::cat(DependencyScannerCategory));
 
 llvm::cl::opt<unsigned>
@@ -186,22 +167,19 @@ llvm::cl::opt<std::string>
                   llvm::cl::desc("Compilation database"), llvm::cl::Required,
                   llvm::cl::cat(DependencyScannerCategory));
 
-llvm::cl::opt<bool> ReuseFileManager(
-    "reuse-filemanager",
-    llvm::cl::desc("Reuse the file manager and its cache between invocations."),
-    llvm::cl::init(true), llvm::cl::cat(DependencyScannerCategory));
-
-llvm::cl::opt<bool> SkipExcludedPPRanges(
-    "skip-excluded-pp-ranges",
-    llvm::cl::desc(
-        "Use the preprocessor optimization that skips excluded conditionals by "
-        "bumping the buffer pointer in the lexer instead of lexing the tokens  "
-        "until reaching the end directive."),
-    llvm::cl::init(true), llvm::cl::cat(DependencyScannerCategory));
-
 llvm::cl::opt<std::string> ModuleName(
     "module-name", llvm::cl::Optional,
     llvm::cl::desc("the module of which the dependencies are to be computed"),
+    llvm::cl::cat(DependencyScannerCategory));
+
+llvm::cl::list<std::string> ModuleDepTargets(
+    "dependency-target",
+    llvm::cl::desc("The names of dependency targets for the dependency file"),
+    llvm::cl::cat(DependencyScannerCategory));
+
+llvm::cl::opt<bool> DeprecatedDriverCommand(
+    "deprecated-driver-command", llvm::cl::Optional,
+    llvm::cl::desc("use a single driver command to build the tu (deprecated)"),
     llvm::cl::cat(DependencyScannerCategory));
 
 enum ResourceDirRecipeKind {
@@ -278,7 +256,7 @@ class FullDeps {
 public:
   void mergeDeps(StringRef Input, FullDependenciesResult FDR,
                  size_t InputIndex) {
-    const FullDependencies &FD = FDR.FullDeps;
+    FullDependencies &FD = FDR.FullDeps;
 
     InputDeps ID;
     ID.FileName = std::string(Input);
@@ -296,14 +274,8 @@ public:
       Modules.insert(I, {{MD.ID, InputIndex}, std::move(MD)});
     }
 
-    ID.CommandLine = GenerateModulesPathArgs
-                         ? FD.getCommandLine(
-                               [&](ModuleID MID) { return lookupPCMPath(MID); },
-                               [&](ModuleID MID) -> const ModuleDeps & {
-                                 return lookupModuleDeps(MID);
-                               })
-                         : FD.getCommandLineWithoutModulePaths();
-
+    ID.DriverCommandLine = std::move(FD.DriverCommandLine);
+    ID.Commands = std::move(FD.Commands);
     Inputs.push_back(std::move(ID));
   }
 
@@ -333,28 +305,40 @@ public:
           {"file-deps", toJSONSorted(MD.FileDeps)},
           {"clang-module-deps", toJSONSorted(MD.ClangModuleDeps)},
           {"clang-modulemap-file", MD.ClangModuleMapFile},
-          {"command-line",
-           GenerateModulesPathArgs
-               ? MD.getCanonicalCommandLine(
-                     [&](ModuleID MID) { return lookupPCMPath(MID); },
-                     [&](ModuleID MID) -> const ModuleDeps & {
-                       return lookupModuleDeps(MID);
-                     })
-               : MD.getCanonicalCommandLineWithoutModulePaths()},
+          {"command-line", MD.BuildArguments},
       };
       OutModules.push_back(std::move(O));
     }
 
     Array TUs;
     for (auto &&I : Inputs) {
-      Object O{
-          {"input-file", I.FileName},
-          {"clang-context-hash", I.ContextHash},
-          {"file-deps", I.FileDeps},
-          {"clang-module-deps", toJSONSorted(I.ModuleDeps)},
-          {"command-line", I.CommandLine},
-      };
-      TUs.push_back(std::move(O));
+      Array Commands;
+      if (I.DriverCommandLine.empty()) {
+        for (const auto &Cmd : I.Commands) {
+          Object O{
+              {"input-file", I.FileName},
+              {"clang-context-hash", I.ContextHash},
+              {"file-deps", I.FileDeps},
+              {"clang-module-deps", toJSONSorted(I.ModuleDeps)},
+              {"executable", Cmd.Executable},
+              {"command-line", Cmd.Arguments},
+          };
+          Commands.push_back(std::move(O));
+        }
+      } else {
+        Object O{
+            {"input-file", I.FileName},
+            {"clang-context-hash", I.ContextHash},
+            {"file-deps", I.FileDeps},
+            {"clang-module-deps", toJSONSorted(I.ModuleDeps)},
+            {"executable", "clang"},
+            {"command-line", I.DriverCommandLine},
+        };
+        Commands.push_back(std::move(O));
+      }
+      TUs.push_back(Object{
+          {"commands", std::move(Commands)},
+      });
     }
 
     Object Output{
@@ -366,31 +350,6 @@ public:
   }
 
 private:
-  StringRef lookupPCMPath(ModuleID MID) {
-    auto PCMPath = PCMPaths.insert({MID, ""});
-    if (PCMPath.second)
-      PCMPath.first->second = constructPCMPath(lookupModuleDeps(MID));
-    return PCMPath.first->second;
-  }
-
-  /// Construct a path for the explicitly built PCM.
-  std::string constructPCMPath(const ModuleDeps &MD) const {
-    StringRef Filename = llvm::sys::path::filename(MD.ImplicitModulePCMPath);
-
-    SmallString<256> ExplicitPCMPath(
-        !ModuleFilesDir.empty()
-            ? ModuleFilesDir
-            : MD.BuildInvocation.getHeaderSearchOpts().ModuleCachePath);
-    llvm::sys::path::append(ExplicitPCMPath, MD.ID.ContextHash, Filename);
-    return std::string(ExplicitPCMPath);
-  }
-
-  const ModuleDeps &lookupModuleDeps(ModuleID MID) {
-    auto I = Modules.find(IndexedModuleID{MID, 0});
-    assert(I != Modules.end());
-    return I->second;
-  };
-
   struct IndexedModuleID {
     ModuleID ID;
     mutable size_t InputIndex;
@@ -414,13 +373,13 @@ private:
     std::string ContextHash;
     std::vector<std::string> FileDeps;
     std::vector<ModuleID> ModuleDeps;
-    std::vector<std::string> CommandLine;
+    std::vector<std::string> DriverCommandLine;
+    std::vector<Command> Commands;
   };
 
   std::mutex Lock;
   std::unordered_map<IndexedModuleID, ModuleDeps, IndexedModuleIDHasher>
       Modules;
-  std::unordered_map<ModuleID, std::string, ModuleIDHasher> PCMPaths;
   std::vector<InputDeps> Inputs;
 };
 
@@ -440,6 +399,42 @@ static bool handleFullDependencyToolResult(
   }
   FD.mergeDeps(Input, std::move(*MaybeFullDeps), InputIndex);
   return false;
+}
+
+/// Construct a path for the explicitly built PCM.
+static std::string constructPCMPath(ModuleID MID, StringRef OutputDir) {
+  SmallString<256> ExplicitPCMPath(OutputDir);
+  llvm::sys::path::append(ExplicitPCMPath, MID.ContextHash,
+                          MID.ModuleName + "-" + MID.ContextHash + ".pcm");
+  return std::string(ExplicitPCMPath);
+}
+
+static std::string lookupModuleOutput(const ModuleID &MID, ModuleOutputKind MOK,
+                                      StringRef OutputDir) {
+  std::string PCMPath = constructPCMPath(MID, OutputDir);
+  switch (MOK) {
+  case ModuleOutputKind::ModuleFile:
+    return PCMPath;
+  case ModuleOutputKind::DependencyFile:
+    return PCMPath + ".d";
+  case ModuleOutputKind::DependencyTargets:
+    // Null-separate the list of targets.
+    return join(ModuleDepTargets, StringRef("\0", 1));
+  case ModuleOutputKind::DiagnosticSerializationFile:
+    return PCMPath + ".diag";
+  }
+  llvm_unreachable("Fully covered switch above!");
+}
+
+static std::string getModuleCachePath(ArrayRef<std::string> Args) {
+  for (StringRef Arg : llvm::reverse(Args)) {
+    Arg.consume_front("/clang:");
+    if (Arg.consume_front("-fmodules-cache-path="))
+      return std::string(Arg);
+  }
+  SmallString<128> Path;
+  driver::Driver::getDefaultModuleCachePath(Path);
+  return std::string(Path);
 }
 
 int main(int argc, const char **argv) {
@@ -529,8 +524,8 @@ int main(int argc, const char **argv) {
   // Print out the dependency results to STDOUT by default.
   SharedStream DependencyOS(llvm::outs());
 
-  DependencyScanningService Service(ScanMode, Format, ReuseFileManager,
-                                    SkipExcludedPPRanges, OptimizeArgs);
+  DependencyScanningService Service(ScanMode, Format, OptimizeArgs,
+                                    EagerLoadModules);
   llvm::ThreadPool Pool(llvm::hardware_concurrency(NumThreads));
   std::vector<std::unique_ptr<DependencyScanningTool>> WorkerTools;
   for (unsigned I = 0; I < Pool.getThreadCount(); ++I)
@@ -570,6 +565,14 @@ int main(int argc, const char **argv) {
         Optional<StringRef> MaybeModuleName;
         if (!ModuleName.empty())
           MaybeModuleName = ModuleName;
+
+        std::string OutputDir(ModuleFilesDir);
+        if (OutputDir.empty())
+          OutputDir = getModuleCachePath(Input->CommandLine);
+        auto LookupOutput = [&](const ModuleID &MID, ModuleOutputKind MOK) {
+          return ::lookupModuleOutput(MID, MOK, OutputDir);
+        };
+
         // Run the tool on it.
         if (Format == ScanningOutputFormat::Make) {
           auto MaybeFile = WorkerTools[I]->getDependencyFile(
@@ -577,9 +580,18 @@ int main(int argc, const char **argv) {
           if (handleMakeDependencyToolResult(Filename, MaybeFile, DependencyOS,
                                              Errs))
             HadErrors = true;
+        } else if (DeprecatedDriverCommand) {
+          auto MaybeFullDeps =
+              WorkerTools[I]->getFullDependenciesLegacyDriverCommand(
+                  Input->CommandLine, CWD, AlreadySeenModules, LookupOutput,
+                  MaybeModuleName);
+          if (handleFullDependencyToolResult(Filename, MaybeFullDeps, FD,
+                                             LocalIndex, DependencyOS, Errs))
+            HadErrors = true;
         } else {
           auto MaybeFullDeps = WorkerTools[I]->getFullDependencies(
-              Input->CommandLine, CWD, AlreadySeenModules, MaybeModuleName);
+              Input->CommandLine, CWD, AlreadySeenModules, LookupOutput,
+              MaybeModuleName);
           if (handleFullDependencyToolResult(Filename, MaybeFullDeps, FD,
                                              LocalIndex, DependencyOS, Errs))
             HadErrors = true;

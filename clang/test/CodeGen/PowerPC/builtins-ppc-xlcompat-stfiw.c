@@ -12,12 +12,12 @@ extern double da;
 
 void test_stfiw(void) {
   // CHECK-LABEL: test_stfiw
-  // CHECK: void @llvm.ppc.stfiw(i8* %0, double %1)
+  // CHECK: void @llvm.ppc.stfiw(ptr %0, double %1)
   __builtin_ppc_stfiw(cia, da);
 }
 
 void test_xl_stfiw(void) {
   // CHECK-LABEL: test_xl_stfiw
-  // CHECK: void @llvm.ppc.stfiw(i8* %0, double %1)
+  // CHECK: void @llvm.ppc.stfiw(ptr %0, double %1)
   __stfiw(cia, da);
 }

@@ -18,6 +18,7 @@
 #include "llvm/Support/Regex.h"
 
 #include <algorithm>
+#include <optional>
 
 #define DEBUG_TYPE "format-qualifier-alignment-fixer"
 
@@ -66,7 +67,7 @@ std::pair<tooling::Replacements, unsigned> QualifierAlignmentFixer::analyze(
                                NextStartColumn, LastStartColumn);
   if (!Env)
     return {};
-  llvm::Optional<std::string> CurrentCode = None;
+  std::optional<std::string> CurrentCode;
   tooling::Replacements Fixes;
   for (size_t I = 0, E = Passes.size(); I < E; ++I) {
     std::pair<tooling::Replacements, unsigned> PassFixes = Passes[I](*Env);
@@ -94,9 +95,10 @@ std::pair<tooling::Replacements, unsigned> QualifierAlignmentFixer::analyze(
 
     if (!OriginalCode.equals(Fix.getReplacementText())) {
       auto Err = NonNoOpFixes.add(Fix);
-      if (Err)
+      if (Err) {
         llvm::errs() << "Error adding replacements : "
                      << llvm::toString(std::move(Err)) << "\n";
+      }
     }
   }
   return {NonNoOpFixes, 0};
@@ -108,9 +110,10 @@ static void replaceToken(const SourceManager &SourceMgr,
   auto Replacement = tooling::Replacement(SourceMgr, Range, NewText);
   auto Err = Fixes.add(Replacement);
 
-  if (Err)
+  if (Err) {
     llvm::errs() << "Error while rearranging Qualifier : "
                  << llvm::toString(std::move(Err)) << "\n";
+  }
 }
 
 static void removeToken(const SourceManager &SourceMgr,
@@ -214,6 +217,29 @@ const FormatToken *LeftRightQualifierAlignmentFixer::analyzeRight(
   if (LeftRightQualifierAlignmentFixer::isPossibleMacro(Tok->Next))
     return Tok;
 
+  auto AnalyzeTemplate =
+      [&](const FormatToken *Tok,
+          const FormatToken *StartTemplate) -> const FormatToken * {
+    // Read from the TemplateOpener to TemplateCloser.
+    FormatToken *EndTemplate = StartTemplate->MatchingParen;
+    if (EndTemplate) {
+      // Move to the end of any template class members e.g.
+      // `Foo<int>::iterator`.
+      if (EndTemplate->startsSequence(TT_TemplateCloser, tok::coloncolon,
+                                      tok::identifier)) {
+        EndTemplate = EndTemplate->Next->Next;
+      }
+    }
+    if (EndTemplate && EndTemplate->Next &&
+        !EndTemplate->Next->isOneOf(tok::equal, tok::l_paren)) {
+      insertQualifierAfter(SourceMgr, Fixes, EndTemplate, Qualifier);
+      // Remove the qualifier.
+      removeToken(SourceMgr, Fixes, Tok);
+      return Tok;
+    }
+    return nullptr;
+  };
+
   FormatToken *Qual = Tok->Next;
   FormatToken *LastQual = Qual;
   while (Qual && isQualifierOrType(Qual, ConfiguredQualifierTokens)) {
@@ -224,27 +250,31 @@ const FormatToken *LeftRightQualifierAlignmentFixer::analyzeRight(
     rotateTokens(SourceMgr, Fixes, Tok, LastQual, /*Left=*/false);
     Tok = LastQual;
   } else if (Tok->startsSequence(QualifierType, tok::identifier,
+                                 TT_TemplateCloser)) {
+    FormatToken *Closer = Tok->Next->Next;
+    rotateTokens(SourceMgr, Fixes, Tok, Tok->Next, /*Left=*/false);
+    Tok = Closer;
+    return Tok;
+  } else if (Tok->startsSequence(QualifierType, tok::identifier,
                                  TT_TemplateOpener)) {
-    // Read from the TemplateOpener to
-    // TemplateCloser as in const ArrayRef<int> a; const ArrayRef<int> &a;
-    FormatToken *EndTemplate = Tok->Next->Next->MatchingParen;
-    if (EndTemplate) {
-      // Move to the end of any template class members e.g.
-      // `Foo<int>::iterator`.
-      if (EndTemplate->startsSequence(TT_TemplateCloser, tok::coloncolon,
-                                      tok::identifier))
-        EndTemplate = EndTemplate->Next->Next;
-    }
-    if (EndTemplate && EndTemplate->Next &&
-        !EndTemplate->Next->isOneOf(tok::equal, tok::l_paren)) {
-      insertQualifierAfter(SourceMgr, Fixes, EndTemplate, Qualifier);
-      // Remove the qualifier.
-      removeToken(SourceMgr, Fixes, Tok);
-      return Tok;
-    }
-  } else if (Tok->startsSequence(QualifierType, tok::identifier)) {
+    // `const ArrayRef<int> a;`
+    // `const ArrayRef<int> &a;`
+    const FormatToken *NewTok = AnalyzeTemplate(Tok, Tok->Next->Next);
+    if (NewTok)
+      return NewTok;
+  } else if (Tok->startsSequence(QualifierType, tok::coloncolon,
+                                 tok::identifier, TT_TemplateOpener)) {
+    // `const ::ArrayRef<int> a;`
+    // `const ::ArrayRef<int> &a;`
+    const FormatToken *NewTok = AnalyzeTemplate(Tok, Tok->Next->Next->Next);
+    if (NewTok)
+      return NewTok;
+  } else if (Tok->startsSequence(QualifierType, tok::identifier) ||
+             Tok->startsSequence(QualifierType, tok::coloncolon,
+                                 tok::identifier)) {
     FormatToken *Next = Tok->Next;
     // The case  `const Foo` -> `Foo const`
+    // The case  `const ::Foo` -> `::Foo const`
     // The case  `const Foo *` -> `Foo const *`
     // The case  `const Foo &` -> `Foo const &`
     // The case  `const Foo &&` -> `Foo const &&`
@@ -257,8 +287,9 @@ const FormatToken *LeftRightQualifierAlignmentFixer::analyzeRight(
       // Move to the end of any template class members e.g.
       // `Foo<int>::iterator`.
       if (Next && Next->startsSequence(TT_TemplateCloser, tok::coloncolon,
-                                       tok::identifier))
+                                       tok::identifier)) {
         return Tok;
+      }
       assert(Next && "Missing template opener");
       Next = Next->Next;
     }
@@ -297,6 +328,8 @@ const FormatToken *LeftRightQualifierAlignmentFixer::analyzeLeft(
 
   if (LastQual && Qual != LastQual && Qual->is(QualifierType)) {
     rotateTokens(SourceMgr, Fixes, Tok, Qual, /*Left=*/true);
+    if (!Qual->Next)
+      return Tok;
     Tok = Qual->Next;
   } else if (Tok->startsSequence(tok::identifier, QualifierType)) {
     if (Tok->Next->Next && Tok->Next->Next->isOneOf(tok::identifier, tok::star,
@@ -307,16 +340,25 @@ const FormatToken *LeftRightQualifierAlignmentFixer::analyzeLeft(
         rotateTokens(SourceMgr, Fixes, Tok, Tok->Next, /*Left=*/true);
         Tok = Tok->Next;
       }
+    } else if (Tok->startsSequence(tok::identifier, QualifierType,
+                                   TT_TemplateCloser)) {
+      FormatToken *Closer = Tok->Next->Next;
+      rotateTokens(SourceMgr, Fixes, Tok, Tok->Next, /*Left=*/true);
+      Tok = Closer;
     }
   }
   if (Tok->is(TT_TemplateOpener) && Tok->Next &&
       (Tok->Next->is(tok::identifier) || Tok->Next->isSimpleTypeSpecifier()) &&
-      Tok->Next->Next && Tok->Next->Next->is(QualifierType))
+      Tok->Next->Next && Tok->Next->Next->is(QualifierType)) {
     rotateTokens(SourceMgr, Fixes, Tok->Next, Tok->Next->Next, /*Left=*/true);
-  if (Tok->startsSequence(tok::identifier) && Tok->Next) {
+  }
+  if ((Tok->startsSequence(tok::coloncolon, tok::identifier) ||
+       Tok->is(tok::identifier)) &&
+      Tok->Next) {
     if (Tok->Previous &&
-        Tok->Previous->isOneOf(tok::star, tok::ampamp, tok::amp))
+        Tok->Previous->isOneOf(tok::star, tok::ampamp, tok::amp)) {
       return Tok;
+    }
     const FormatToken *Next = Tok->Next;
     // The case  `std::Foo<T> const` -> `const std::Foo<T> &&`
     while (Next && Next->isOneOf(tok::identifier, tok::coloncolon))
@@ -328,14 +370,21 @@ const FormatToken *LeftRightQualifierAlignmentFixer::analyzeLeft(
       if (Next->is(tok::comment) && Next->getNextNonComment())
         Next = Next->getNextNonComment();
       assert(Next->MatchingParen && "Missing template closer");
-      Next = Next->MatchingParen->Next;
+      Next = Next->MatchingParen;
+
+      // If the template closer is closing the requires clause,
+      // then stop and go back to the TemplateOpener and do whatever is
+      // inside the <>.
+      if (Next->ClosesRequiresClause)
+        return Next->MatchingParen;
+      Next = Next->Next;
 
       // Move to the end of any template class members e.g.
       // `Foo<int>::iterator`.
       if (Next && Next->startsSequence(tok::coloncolon, tok::identifier))
         Next = Next->Next->Next;
       if (Next && Next->is(QualifierType)) {
-        // Remove the const.
+        // Move the qualifier.
         insertQualifierBefore(SourceMgr, Fixes, Tok, Qualifier);
         removeToken(SourceMgr, Fixes, Next);
         return Next;
@@ -344,7 +393,7 @@ const FormatToken *LeftRightQualifierAlignmentFixer::analyzeLeft(
     if (Next && Next->Next &&
         Next->Next->isOneOf(tok::amp, tok::ampamp, tok::star)) {
       if (Next->is(QualifierType)) {
-        // Remove the qualifier.
+        // Move the qualifier.
         insertQualifierBefore(SourceMgr, Fixes, Tok, Qualifier);
         removeToken(SourceMgr, Fixes, Next);
         return Next;
@@ -389,6 +438,8 @@ LeftRightQualifierAlignmentFixer::analyze(
   assert(QualifierToken != tok::identifier && "Unrecognised Qualifier");
 
   for (AnnotatedLine *Line : AnnotatedLines) {
+    if (Line->InPPDirective)
+      continue;
     FormatToken *First = Line->First;
     assert(First);
     if (First->Finalized)
@@ -400,12 +451,13 @@ LeftRightQualifierAlignmentFixer::analyze(
          Tok = Tok->Next) {
       if (Tok->is(tok::comment))
         continue;
-      if (RightAlign)
+      if (RightAlign) {
         Tok = analyzeRight(SourceMgr, Keywords, Fixes, Tok, Qualifier,
                            QualifierToken);
-      else
+      } else {
         Tok = analyzeLeft(SourceMgr, Keywords, Fixes, Tok, Qualifier,
                           QualifierToken);
+      }
     }
   }
   return {Fixes, 0};
@@ -436,11 +488,12 @@ void QualifierAlignmentFixer::PrepareLeftRightOrdering(
     if (QualifierToken != tok::kw_typeof && QualifierToken != tok::identifier)
       Qualifiers.push_back(QualifierToken);
 
-    if (left)
+    if (left) {
       // Reverse the order for left aligned items.
       LeftOrder.insert(LeftOrder.begin(), s);
-    else
+    } else {
       RightOrder.push_back(s);
+    }
   }
 }
 
@@ -457,8 +510,10 @@ bool LeftRightQualifierAlignmentFixer::isPossibleMacro(const FormatToken *Tok) {
     return false;
   if (!Tok->is(tok::identifier))
     return false;
-  if (Tok->TokenText.upper() == Tok->TokenText.str())
-    return true;
+  if (Tok->TokenText.upper() == Tok->TokenText.str()) {
+    // T,K,U,V likely could be template arguments
+    return (Tok->TokenText.size() != 1);
+  }
   return false;
 }
 

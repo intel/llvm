@@ -76,13 +76,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Scalar/MergedLoadStoreMotion.h"
-#include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/AliasAnalysis.h"
-#include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/GlobalsModRef.h"
-#include "llvm/Analysis/Loads.h"
-#include "llvm/Analysis/ValueTracking.h"
-#include "llvm/IR/Metadata.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -253,12 +249,15 @@ void MergedLoadStoreMotion::sinkStoresAndGEPs(BasicBlock *BB, StoreInst *S0,
   // Intersect optional metadata.
   S0->andIRFlags(S1);
   S0->dropUnknownNonDebugMetadata();
+  S0->applyMergedLocation(S0->getDebugLoc(), S1->getDebugLoc());
+  S0->mergeDIAssignID(S1);
 
   // Create the new store to be inserted at the join point.
   StoreInst *SNew = cast<StoreInst>(S0->clone());
   Instruction *ANew = A0->clone();
   SNew->insertBefore(&*InsertPt);
   ANew->insertBefore(SNew);
+  ANew->applyMergedLocation(A0->getDebugLoc(), A1->getDebugLoc());
 
   assert(S0->getParent() == A0->getParent());
   assert(S1->getParent() == A1->getParent());

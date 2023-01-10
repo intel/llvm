@@ -1,4 +1,4 @@
-; RUN: opt -S < %s -basic-aa -loop-vectorize -force-vector-interleave=1 2>&1 | FileCheck %s
+; RUN: opt -S < %s -passes=loop-vectorize -force-vector-interleave=1 2>&1 | FileCheck %s
 
 target datalayout = "e-m:e-i64:64-i128:128-n32:64-S128"
 target triple = "aarch64"
@@ -116,9 +116,9 @@ for.body:                                         ; preds = %entry, %for.body
 }
 
 ; CHECK-LABEL: @add_d(
-; CHECK: load <4 x i16>
-; CHECK: add nsw <4 x i32>
-; CHECK: store <4 x i32>
+; CHECK: load <8 x i16>
+; CHECK: add nsw <8 x i32>
+; CHECK: store <8 x i32>
 define void @add_d(i16* noalias nocapture readonly %p, i32* noalias nocapture %q, i32 %len) #0 {
 entry:
   %cmp7 = icmp sgt i32 %len, 0
@@ -265,7 +265,7 @@ for.body:                                         ; preds = %entry, %for.body
 ; Function Attrs: nounwind
 ; When we vectorize this loop, we generate correct code
 ; even when %len exactly divides VF (since we extract from the second last index
-; and pass this to the for.cond.cleanup block). Vectorized loop returns 
+; and pass this to the for.cond.cleanup block). Vectorized loop returns
 ; the correct value a_phi = p[len -2]
 define i8 @add_phifail2(i8* noalias nocapture readonly %p, i8* noalias nocapture %q, i32 %len) #0 {
 ; CHECK-LABEL: @add_phifail2(

@@ -6,9 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
-#include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
@@ -30,31 +29,14 @@ redefinedMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
 }
 
 TEST(Stream, TestStreamConstructorExceptionNoAllocation) {
-  sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cout << "Not run on host - no PI buffers created in that case"
-              << std::endl;
-    return;
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
-    std::cout << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  }
-
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    return;
-  }
-
-  sycl::unittest::PiMock Mock{Plt};
-  setupDefaultMockAPIs(Mock);
-  Mock.redefine<sycl::detail::PiApiKind::piMemBufferCreate>(
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  Mock.redefineBefore<sycl::detail::PiApiKind::piMemBufferCreate>(
       redefinedMemBufferCreate);
 
   const sycl::device Dev = Plt.get_devices()[0];
-  sycl::queue Queue{Dev};
-  const sycl::context Ctx = Queue.get_context();
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
 
   sycl::kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
@@ -73,7 +55,7 @@ TEST(Stream, TestStreamConstructorExceptionNoAllocation) {
       FAIL() << "Unexpected exception was thrown.";
     }
 
-    CGH.single_task<TestKernel>([=]() {});
+    CGH.single_task<TestKernel<>>([=]() {});
   });
 
   ASSERT_EQ(GBufferCreateCounter, 0u) << "Buffers were unexpectedly created.";

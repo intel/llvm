@@ -25,7 +25,7 @@ config.name = 'Clang'
 config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = ['.c', '.cpp', '.i', '.cppm', '.m', '.mm', '.cu', '.hip',
+config.suffixes = ['.c', '.cpp', '.i', '.cppm', '.m', '.mm', '.cu', '.hip', '.hlsl',
                    '.ll', '.cl', '.clcpp', '.s', '.S', '.modulemap', '.test', '.rs', '.ifs', '.rc']
 
 # excludes: A list of directories to exclude from the testsuite. The 'Inputs'
@@ -49,10 +49,6 @@ config.substitutions.append(
 config.substitutions.append(
     ('%target_triple', config.target_triple))
 
-# Propagate path to symbolizer for ASan/MSan.
-llvm_config.with_system_environment(
-    ['ASAN_SYMBOLIZER_PATH', 'MSAN_SYMBOLIZER_PATH'])
-
 config.substitutions.append(('%PATH%', config.environment['PATH']))
 
 
@@ -63,8 +59,8 @@ config.substitutions.append(('%PATH%', config.environment['PATH']))
 tool_dirs = [config.clang_tools_dir, config.llvm_tools_dir]
 
 tools = [
-    'apinotes-test', 'c-index-test', 'clang-diff', 'clang-format', 'clang-repl',
-    'clang-tblgen', 'clang-scan-deps', 'opt', 'llvm-ifs', 'yaml2obj',
+    'apinotes-test', 'c-index-test', 'clang-diff', 'clang-format', 'clang-repl', 'clang-offload-packager',
+    'clang-tblgen', 'clang-scan-deps', 'opt', 'llvm-ifs', 'yaml2obj', 'clang-linker-wrapper',
     ToolSubst('%clang_extdef_map', command=FindTool(
         'clang-extdef-mapping'), unresolved='ignore'),
 ]
@@ -72,16 +68,15 @@ tools = [
 if config.clang_examples:
     config.available_features.add('examples')
 
-def have_host_jit_support():
+def have_host_jit_feature_support(feature_name):
     clang_repl_exe = lit.util.which('clang-repl', config.clang_tools_dir)
 
     if not clang_repl_exe:
-        print('clang-repl not found')
         return False
 
     try:
         clang_repl_cmd = subprocess.Popen(
-            [clang_repl_exe, '--host-supports-jit'], stdout=subprocess.PIPE)
+            [clang_repl_exe, '--host-supports-' + feature_name], stdout=subprocess.PIPE)
     except OSError:
         print('could not exec clang-repl')
         return False
@@ -91,7 +86,7 @@ def have_host_jit_support():
 
     return 'true' in clang_repl_out
 
-if have_host_jit_support():
+if have_host_jit_feature_support('jit'):
     config.available_features.add('host-supports-jit')
 
 if config.clang_staticanalyzer:
@@ -100,6 +95,8 @@ if config.clang_staticanalyzer:
 
     if config.clang_staticanalyzer_z3:
         config.available_features.add('z3')
+    else:
+        config.available_features.add('no-z3')
 
     check_analyzer_fixit_path = os.path.join(
         config.test_source_root, "Analysis", "check-analyzer-fixit.py")
@@ -111,7 +108,12 @@ llvm_config.add_tool_substitutions(tools, tool_dirs)
 
 config.substitutions.append(
     ('%hmaptool', "'%s' %s" % (config.python_executable,
-                             os.path.join(config.clang_tools_dir, 'hmaptool'))))
+                             os.path.join(config.clang_src_dir, 'utils', 'hmaptool', 'hmaptool'))))
+
+config.substitutions.append(
+    ('%deps-to-rsp',
+     '"%s" %s' % (config.python_executable, os.path.join(config.clang_src_dir, 'utils',
+                                                         'module-deps-to-rsp.py'))))
 
 config.substitutions.append(('%host_cc', config.host_cc))
 config.substitutions.append(('%host_cxx', config.host_cxx))
@@ -124,18 +126,17 @@ if config.has_plugins and config.llvm_plugin_ext:
 if config.clang_default_pie_on_linux:
     config.available_features.add('default-pie-on-linux')
 
+if config.clang_enable_opaque_pointers:
+    config.available_features.add('enable-opaque-pointers')
+
 # Set available features we allow tests to conditionalize on.
 #
 if config.clang_default_cxx_stdlib != '':
-    config.available_features.add('default-cxx-stdlib-set')
+    config.available_features.add('default-cxx-stdlib={}'.format(config.clang_default_cxx_stdlib))
 
 # As of 2011.08, crash-recovery tests still do not pass on FreeBSD.
 if platform.system() not in ['FreeBSD']:
     config.available_features.add('crash-recovery')
-
-# Support for new pass manager.
-if config.enable_experimental_new_pass_manager:
-    config.available_features.add('experimental-new-pass-manager')
 
 # ANSI escape sequences in non-dumb terminal
 if platform.system() not in ['Windows']:
@@ -179,12 +180,8 @@ if re.match(r'.*-(windows-msvc)$', config.target_triple):
     config.available_features.add('ms-sdk')
 
 # [PR8833] LLP64-incompatible tests
-if not re.match(r'^x86_64.*-(windows-msvc|windows-gnu)$', config.target_triple):
+if not re.match(r'^(aarch64|x86_64).*-(windows-msvc|windows-gnu)$', config.target_triple):
     config.available_features.add('LP64')
-
-# [PR12920] "clang-driver" -- set if gcc driver is not used.
-if not re.match(r'.*-(cygwin)$', config.target_triple):
-    config.available_features.add('clang-driver')
 
 # Tests that are specific to the Apple Silicon macOS.
 if re.match(r'^arm64(e)?-apple-(macos|darwin)', config.target_triple):
@@ -264,3 +261,28 @@ if 'aix' in config.target_triple:
                       '/ASTMerge/anonymous-fields', '/ASTMerge/injected-class-name-decl'):
         exclude_unsupported_files_for_aix(config.test_source_root + directory)
 
+# Some tests perform deep recursion, which requires a larger pthread stack size
+# than the relatively low default of 192 KiB for 64-bit processes on AIX. The
+# `AIXTHREAD_STK` environment variable provides a non-intrusive way to request
+# a larger pthread stack size for the tests. Various applications and runtime
+# libraries on AIX use a default pthread stack size of 4 MiB, so we will use
+# that as a default value here.
+if 'AIXTHREAD_STK' in os.environ:
+    config.environment['AIXTHREAD_STK'] = os.environ['AIXTHREAD_STK']
+elif platform.system() == 'AIX':
+    config.environment['AIXTHREAD_STK'] = '4194304'
+
+# The llvm-nm tool supports an environment variable "OBJECT_MODE" on AIX OS, which
+# controls the kind of objects they will support. If there is no "OBJECT_MODE"
+# environment variable specified, the default behaviour is to support 32-bit
+# objects only. In order to not affect most test cases, which expect to support
+# 32-bit and 64-bit objects by default, set the environment variable
+# "OBJECT_MODE" to 'any' for llvm-nm on AIX OS.
+
+if 'system-aix' in config.available_features:
+        config.substitutions.append(('llvm-nm', 'env OBJECT_MODE=any llvm-nm'))
+
+# It is not realistically possible to account for all options that could
+# possibly be present in system and user configuration files, so disable
+# default configs for the test runs.
+config.environment["CLANG_NO_DEFAULT_CONFIG"] = "1"

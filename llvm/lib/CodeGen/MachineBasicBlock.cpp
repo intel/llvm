@@ -11,8 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CodeGen/MachineBasicBlock.h"
-#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/CodeGen/LiveIntervals.h"
+#include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/LiveVariables.h"
 #include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -26,16 +27,15 @@
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/ModuleSlotTracker.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
-#include "llvm/Support/DataTypes.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include <algorithm>
+#include <cmath>
 using namespace llvm;
 
 #define DEBUG_TYPE "codegen"
@@ -134,7 +134,7 @@ void ilist_callback_traits<MachineBasicBlock>::addNodeToList(
   // Make sure the instructions have their operands in the reginfo lists.
   MachineRegisterInfo &RegInfo = MF.getRegInfo();
   for (MachineInstr &MI : N->instrs())
-    MI.AddRegOperandsToUseLists(RegInfo);
+    MI.addRegOperandsToUseLists(RegInfo);
 }
 
 void ilist_callback_traits<MachineBasicBlock>::removeNodeFromList(
@@ -152,7 +152,7 @@ void ilist_traits<MachineInstr>::addNodeToList(MachineInstr *N) {
   // Add the instruction's register operands to their corresponding
   // use/def lists.
   MachineFunction *MF = Parent->getParent();
-  N->AddRegOperandsToUseLists(MF->getRegInfo());
+  N->addRegOperandsToUseLists(MF->getRegInfo());
   MF->handleInsertion(*N);
 }
 
@@ -164,7 +164,7 @@ void ilist_traits<MachineInstr>::removeNodeFromList(MachineInstr *N) {
   // Remove from the use/def lists.
   if (MachineFunction *MF = N->getMF()) {
     MF->handleRemoval(*N);
-    N->RemoveRegOperandsFromUseLists(MF->getRegInfo());
+    N->removeRegOperandsFromUseLists(MF->getRegInfo());
   }
 
   N->setParent(nullptr);
@@ -253,6 +253,10 @@ MachineBasicBlock::instr_iterator MachineBasicBlock::getFirstInstrTerminator() {
   while (I != E && !I->isTerminator())
     ++I;
   return I;
+}
+
+MachineBasicBlock::iterator MachineBasicBlock::getFirstTerminatorForward() {
+  return find_if(instrs(), [](auto &II) { return II.isTerminator(); });
 }
 
 MachineBasicBlock::iterator
@@ -453,7 +457,7 @@ void MachineBasicBlock::print(raw_ostream &OS, ModuleSlotTracker &MST,
   if (IrrLoopHeaderWeight && IsStandalone) {
     if (Indexes) OS << '\t';
     OS.indent(2) << "; Irreducible loop header weight: "
-                 << IrrLoopHeaderWeight.getValue() << '\n';
+                 << IrrLoopHeaderWeight.value() << '\n';
   }
 }
 
@@ -478,6 +482,28 @@ void MachineBasicBlock::printName(raw_ostream &os, unsigned printNameFlags,
   os << "bb." << getNumber();
   bool hasAttributes = false;
 
+  auto PrintBBRef = [&](const BasicBlock *bb) {
+    os << "%ir-block.";
+    if (bb->hasName()) {
+      os << bb->getName();
+    } else {
+      int slot = -1;
+
+      if (moduleSlotTracker) {
+        slot = moduleSlotTracker->getLocalSlot(bb);
+      } else if (bb->getParent()) {
+        ModuleSlotTracker tmpTracker(bb->getModule(), false);
+        tmpTracker.incorporateFunction(*bb->getParent());
+        slot = tmpTracker.getLocalSlot(bb);
+      }
+
+      if (slot == -1)
+        os << "<ir-block badref>";
+      else
+        os << slot;
+    }
+  };
+
   if (printNameFlags & PrintNameIr) {
     if (const auto *bb = getBasicBlock()) {
       if (bb->hasName()) {
@@ -485,29 +511,21 @@ void MachineBasicBlock::printName(raw_ostream &os, unsigned printNameFlags,
       } else {
         hasAttributes = true;
         os << " (";
-
-        int slot = -1;
-
-        if (moduleSlotTracker) {
-          slot = moduleSlotTracker->getLocalSlot(bb);
-        } else if (bb->getParent()) {
-          ModuleSlotTracker tmpTracker(bb->getModule(), false);
-          tmpTracker.incorporateFunction(*bb->getParent());
-          slot = tmpTracker.getLocalSlot(bb);
-        }
-
-        if (slot == -1)
-          os << "<ir-block badref>";
-        else
-          os << (Twine("%ir-block.") + Twine(slot)).str();
+        PrintBBRef(bb);
       }
     }
   }
 
   if (printNameFlags & PrintNameAttributes) {
-    if (hasAddressTaken()) {
+    if (isMachineBlockAddressTaken()) {
       os << (hasAttributes ? ", " : " (");
-      os << "address-taken";
+      os << "machine-block-address-taken";
+      hasAttributes = true;
+    }
+    if (isIRBlockAddressTaken()) {
+      os << (hasAttributes ? ", " : " (");
+      os << "ir-block-address-taken ";
+      PrintBBRef(getAddressTakenIRBlock());
       hasAttributes = true;
     }
     if (isEHPad()) {
@@ -915,6 +933,10 @@ bool MachineBasicBlock::isSuccessor(const MachineBasicBlock *MBB) const {
 bool MachineBasicBlock::isLayoutSuccessor(const MachineBasicBlock *MBB) const {
   MachineFunction::const_iterator I(this);
   return std::next(I) == MachineFunction::const_iterator(MBB);
+}
+
+const MachineBasicBlock *MachineBasicBlock::getSingleSuccessor() const {
+  return Successors.size() == 1 ? Successors[0] : nullptr;
 }
 
 MachineBasicBlock *MachineBasicBlock::getFallThrough() {
@@ -1434,7 +1456,7 @@ MachineBasicBlock::getSuccProbability(const_succ_iterator Succ) const {
     // ditribute the complemental of the sum to each unknown probability.
     unsigned KnownProbNum = 0;
     auto Sum = BranchProbability::getZero();
-    for (auto &P : Probs) {
+    for (const auto &P : Probs) {
       if (!P.isUnknown()) {
         Sum += P;
         KnownProbNum++;
@@ -1617,6 +1639,16 @@ MachineBasicBlock::liveout_iterator MachineBasicBlock::liveout_begin() const {
   }
 
   return liveout_iterator(*this, ExceptionPointer, ExceptionSelector, false);
+}
+
+bool MachineBasicBlock::sizeWithoutDebugLargerThan(unsigned Limit) const {
+  unsigned Cntr = 0;
+  auto R = instructionsWithoutDebug(begin(), end());
+  for (auto I = R.begin(), E = R.end(); I != E; ++I) {
+    if (++Cntr > Limit)
+      return true;
+  }
+  return false;
 }
 
 const MBBSectionID MBBSectionID::ColdSectionID(MBBSectionID::SectionType::Cold);

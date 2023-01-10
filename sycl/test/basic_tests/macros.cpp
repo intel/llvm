@@ -1,18 +1,17 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-//==------------------- macros.cpp - SYCL buffer basic test ----------------==//
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-only -dM -E %s -o %t.device
+// RUN: %clangxx %fsycl-host-only -dM -E %s -o %t.host
 //
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// FIXME: we should also check that we don't leak __SYCL* and SYCL* macro from
+//        our header files.
+// RUN: FileCheck %s < %t.device --check-prefixes=DEVICE,COMMON \
+// RUN:     --implicit-check-not=__SPIRV
+// RUN: FileCheck %s < %t.host --check-prefixes=COMMON \
+// RUN:      --implicit-check-not=__SPIRV
 //
-//===----------------------------------------------------------------------===//
+// COMMON-DAG: #define SYCL_LANGUAGE_VERSION
+// COMMON-DAG: #define __SYCL_COMPILER_VERSION
+//
+// DEVICE-DAG: #define SYCL_EXTERNAL
+// DEVICE-DAG: #define __SYCL_DEVICE_ONLY__
 
-#include <CL/sycl.hpp>
-#include <iostream>
-
-int main() {
-  std::cout << "SYCL language version: " << SYCL_LANGUAGE_VERSION << std::endl;
-  std::cout << "SYCL compiler version: " << __SYCL_COMPILER_VERSION
-            << std::endl;
-  return 0;
-}
+#include <sycl/sycl.hpp>

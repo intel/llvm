@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
-#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Passes.h"
-#include "mlir/Dialect/StandardOps/Transforms/FuncConversions.h"
+
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Func/Transforms/FuncConversions.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -18,6 +19,11 @@
 #include <iterator>
 #include <memory>
 #include <utility>
+
+namespace mlir {
+#define GEN_PASS_DEF_LINALGDETENSORIZE
+#include "mlir/Dialect/Linalg/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::linalg;
@@ -49,10 +55,9 @@ bool canBeDetensored(TensorType tensorType) {
 bool shouldBeDetensored(Operation *op, TypeConverter typeConverter) {
   GenericOp genericOp = dyn_cast_or_null<GenericOp>(op);
   return genericOp &&
-         llvm::all_of(
-             genericOp.getInputAndOutputOperands(), [&](OpOperand *opOperand) {
-               return !typeConverter.isLegal(opOperand->get().getType());
-             });
+         llvm::all_of(genericOp->getOpOperands(), [&](OpOperand &opOperand) {
+           return !typeConverter.isLegal(opOperand.get().getType());
+         });
 }
 
 /// A conversion patttern for detensoring `linalg.generic` ops.
@@ -65,13 +70,13 @@ public:
     Block *originalBlock = op->getBlock();
 
     // Gather some information about the op before inling its region.
-    Block *opEntryBlock = &*op.region().begin();
-    YieldOp yieldOp = dyn_cast<YieldOp>(op.region().back().getTerminator());
+    Block *opEntryBlock = &*op.getRegion().begin();
+    YieldOp yieldOp = dyn_cast<YieldOp>(op.getRegion().back().getTerminator());
 
     // Split the op's region before the op. This way, we have a clear insertion
     // point in which the op can be inlined.
     Block *newBlock = rewriter.splitBlock(originalBlock, Block::iterator(op));
-    rewriter.inlineRegionBefore(op.region(), newBlock);
+    rewriter.inlineRegionBefore(op.getRegion(), newBlock);
     // Now that op's region is inlined, the operands of its YieldOp are mapped
     // to the materialized target values. Therefore, we can replace the op's
     // uses with those of its YielOp's operands.
@@ -100,7 +105,7 @@ struct FunctionNonEntryBlockConversion
   matchAndRewrite(FunctionOpInterface op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     rewriter.startRootUpdate(op);
-    Region &region = op.getBody();
+    Region &region = op.getFunctionBody();
     SmallVector<TypeConverter::SignatureConversion, 2> conversions;
 
     for (Block &block : llvm::drop_begin(region, 1)) {
@@ -158,7 +163,8 @@ public:
 };
 
 /// @see LinalgDetensorize in Linalg/Passes.td for more details.
-struct LinalgDetensorize : public LinalgDetensorizeBase<LinalgDetensorize> {
+struct LinalgDetensorize
+    : public impl::LinalgDetensorizeBase<LinalgDetensorize> {
   LinalgDetensorize() = default;
 
   class CostModel {
@@ -181,7 +187,7 @@ struct LinalgDetensorize : public LinalgDetensorizeBase<LinalgDetensorize> {
     /// For the following snippet:
     /// ...
     /// ^bb1(%6: tensor<i32>, %9: tensor<i32>):
-    ///   %7 = linalg.init_tensor [] : tensor<i32>
+    ///   %7 = tensor.empty() : tensor<i32>
     ///   %8 = linalg.generic #attrs
     ///     ins(%6, %6 : tensor<i32>, tensor<i32>)
     ///     outs(%7 : tensor<i32>) {
@@ -223,12 +229,12 @@ struct LinalgDetensorize : public LinalgDetensorizeBase<LinalgDetensorize> {
           auto blockOperands =
               terminator.getSuccessorOperands(pred.getSuccessorIndex());
 
-          if (!blockOperands || blockOperands->empty())
+          if (blockOperands.empty() ||
+              blockOperands.isOperandProduced(blockArgumentElem.getArgNumber()))
             continue;
 
           detensorableBranchOps[terminator].insert(
-              blockOperands->getBeginOperandIndex() +
-              blockArgumentElem.getArgNumber());
+              blockOperands.getOperandIndex(blockArgumentElem.getArgNumber()));
         }
       }
 
@@ -256,15 +262,11 @@ struct LinalgDetensorize : public LinalgDetensorizeBase<LinalgDetensorize> {
       SmallVector<Value> workList;
 
       func->walk([&](cf::CondBranchOp condBr) {
-        for (auto operand : condBr.getOperands()) {
-          workList.push_back(operand);
-        }
+        llvm::append_range(workList, condBr.getOperands());
       });
 
       func->walk([&](cf::BranchOp br) {
-        for (auto operand : br.getOperands()) {
-          workList.push_back(operand);
-        }
+        llvm::append_range(workList, br.getOperands());
       });
 
       DenseSet<Value> visitedValues;
@@ -310,8 +312,7 @@ struct LinalgDetensorize : public LinalgDetensorizeBase<LinalgDetensorize> {
         // detensorable and if so, their operands will be added to workList to
         // potentially discover other parts of the detensorable component.
         for (auto *user : currentItem.getUsers())
-          for (Value result : user->getResults())
-            workList.push_back(result);
+          llvm::append_range(workList, user->getResults());
 
         // 2   - Look backward:
         // 2.1 - The current item is defined by a block argument. If the owner
@@ -348,14 +349,15 @@ struct LinalgDetensorize : public LinalgDetensorizeBase<LinalgDetensorize> {
             auto ownerBlockOperands =
                 predTerminator.getSuccessorOperands(pred.getSuccessorIndex());
 
-            if (!ownerBlockOperands || ownerBlockOperands->empty())
+            if (ownerBlockOperands.empty() ||
+                ownerBlockOperands.isOperandProduced(
+                    currentItemBlockArgument.getArgNumber()))
               continue;
 
             // For each predecessor, add the value it passes to that argument to
             // workList to find out how it's computed.
             workList.push_back(
-                ownerBlockOperands
-                    .getValue()[currentItemBlockArgument.getArgNumber()]);
+                ownerBlockOperands[currentItemBlockArgument.getArgNumber()]);
           }
 
           continue;
@@ -383,10 +385,7 @@ struct LinalgDetensorize : public LinalgDetensorizeBase<LinalgDetensorize> {
           }
 
           opsToDetensor.insert(genericOp);
-
-          for (Value genericOpOperand : genericOp.inputs())
-            workList.push_back(genericOpOperand);
-
+          llvm::append_range(workList, genericOp.getInputs());
           continue;
         }
 
@@ -397,7 +396,7 @@ struct LinalgDetensorize : public LinalgDetensorizeBase<LinalgDetensorize> {
         // Note: No need to check whether the result type of this op is
         // detensorable since if it wasn't we wouldn't reach that point in the
         // work list.
-        if (dyn_cast<tensor::FromElementsOp>(currentItemDefiningOp))
+        if (isa<tensor::FromElementsOp>(currentItemDefiningOp))
           continue;
 
         // 2.4 - The current item is the result of a scalar op, add all its
@@ -405,8 +404,7 @@ struct LinalgDetensorize : public LinalgDetensorizeBase<LinalgDetensorize> {
         if (llvm::all_of(
                 currentItemDefiningOp->getResultTypes(),
                 [&](Type resultType) { return resultType.isIntOrFloat(); }))
-          for (Value scalarOpOperand : currentItemDefiningOp->getOperands())
-            workList.push_back(scalarOpOperand);
+          llvm::append_range(workList, currentItemDefiningOp->getOperands());
       }
 
       // Since the cost model gives up on some ops (see the details of step 2.2
@@ -427,18 +425,16 @@ struct LinalgDetensorize : public LinalgDetensorizeBase<LinalgDetensorize> {
           auto blockOperands =
               terminator.getSuccessorOperands(pred.getSuccessorIndex());
 
-          if (!blockOperands || blockOperands->empty())
+          if (blockOperands.empty() ||
+              blockOperands.isOperandProduced(blockArg.getArgNumber()))
             continue;
 
           Operation *definingOp =
-              terminator
-                  ->getOperand(blockOperands->getBeginOperandIndex() +
-                               blockArg.getArgNumber())
-                  .getDefiningOp();
+              blockOperands[blockArg.getArgNumber()].getDefiningOp();
 
           // If the operand is defined by a GenericOp that will not be
           // detensored, then do not detensor the corresponding block argument.
-          if (dyn_cast_or_null<GenericOp>(definingOp) &&
+          if (isa_and_nonnull<GenericOp>(definingOp) &&
               opsToDetensor.count(definingOp) == 0) {
             blockArgsToRemove.insert(blockArg);
             break;
@@ -464,7 +460,7 @@ struct LinalgDetensorize : public LinalgDetensorizeBase<LinalgDetensorize> {
           opsToDetensor.insert(genericOp);
       });
 
-      for (Block &block : llvm::drop_begin(func.getBody(), 1))
+      for (Block &block : llvm::drop_begin(func.getFunctionBody(), 1))
         for (BlockArgument blockArgument : block.getArguments())
           blockArgsToDetensor.insert(blockArgument);
     }
@@ -503,7 +499,7 @@ struct LinalgDetensorize : public LinalgDetensorizeBase<LinalgDetensorize> {
       // boundaries, which we conservatively approximate as all function
       // signatures.
       if (auto funcOp = dyn_cast<FunctionOpInterface>(op)) {
-        Region &body = funcOp.getBody();
+        Region &body = funcOp.getFunctionBody();
         return llvm::all_of(llvm::drop_begin(body, 1), [&](Block &block) {
           return !llvm::any_of(
               blockArgsToDetensor, [&](BlockArgument blockArgument) {

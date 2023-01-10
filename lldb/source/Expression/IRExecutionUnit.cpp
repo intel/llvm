@@ -21,6 +21,7 @@
 #include "lldb/Core/Module.h"
 #include "lldb/Core/Section.h"
 #include "lldb/Expression/IRExecutionUnit.h"
+#include "lldb/Host/HostInfo.h"
 #include "lldb/Symbol/CompileUnit.h"
 #include "lldb/Symbol/SymbolContext.h"
 #include "lldb/Symbol/SymbolFile.h"
@@ -150,7 +151,8 @@ Status IRExecutionUnit::DisassembleFunction(Stream &stream,
     return ret;
   }
 
-  lldb::DataBufferSP buffer_sp(new DataBufferHeap(func_range.second, 0));
+  lldb::WritableDataBufferSP buffer_sp(
+      new DataBufferHeap(func_range.second, 0));
 
   Process *process = exe_ctx.GetProcessPtr();
   Status err;
@@ -198,7 +200,9 @@ Status IRExecutionUnit::DisassembleFunction(Stream &stream,
                                       UINT32_MAX, false, false);
 
   InstructionList &instruction_list = disassembler_sp->GetInstructionList();
-  instruction_list.Dump(&stream, true, true, &exe_ctx);
+  instruction_list.Dump(&stream, true, true, /*show_control_flow_kind=*/true,
+                        &exe_ctx);
+
   return ret;
 }
 
@@ -306,27 +310,37 @@ void IRExecutionUnit::GetRunnableInfo(Status &error, lldb::addr_t &func_addr,
 
   class ObjectDumper : public llvm::ObjectCache {
   public:
+    ObjectDumper(FileSpec output_dir)  : m_out_dir(output_dir) {}
     void notifyObjectCompiled(const llvm::Module *module,
                               llvm::MemoryBufferRef object) override {
       int fd = 0;
       llvm::SmallVector<char, 256> result_path;
       std::string object_name_model =
           "jit-object-" + module->getModuleIdentifier() + "-%%%.o";
-      (void)llvm::sys::fs::createUniqueFile(object_name_model, fd, result_path);
-      llvm::raw_fd_ostream fds(fd, true);
-      fds.write(object.getBufferStart(), object.getBufferSize());
-    }
+      FileSpec model_spec 
+          = m_out_dir.CopyByAppendingPathComponent(object_name_model);
+      std::string model_path = model_spec.GetPath();
 
+      std::error_code result 
+        = llvm::sys::fs::createUniqueFile(model_path, fd, result_path);
+      if (!result) {
+          llvm::raw_fd_ostream fds(fd, true);
+          fds.write(object.getBufferStart(), object.getBufferSize());
+      }
+    }
     std::unique_ptr<llvm::MemoryBuffer>
-    getObject(const llvm::Module *module) override {
+    getObject(const llvm::Module *module) override  {
       // Return nothing - we're just abusing the object-cache mechanism to dump
       // objects.
       return nullptr;
-    }
+  }
+  private:
+    FileSpec m_out_dir;
   };
 
-  if (process_sp->GetTarget().GetEnableSaveObjects()) {
-    m_object_cache_up = std::make_unique<ObjectDumper>();
+  FileSpec save_objects_dir = process_sp->GetTarget().GetSaveJITObjectsDir();
+  if (save_objects_dir) {
+    m_object_cache_up = std::make_unique<ObjectDumper>(save_objects_dir);
     m_execution_engine_up->setObjectCache(m_object_cache_up.get());
   }
 
@@ -690,7 +704,7 @@ public:
 
   llvm::Optional<lldb::addr_t> Resolve(SymbolContextList &sc_list) {
     if (sc_list.IsEmpty())
-      return llvm::None;
+      return std::nullopt;
 
     lldb::addr_t load_address = LLDB_INVALID_ADDRESS;
 
@@ -744,7 +758,7 @@ public:
     if (m_symbol_was_missing_weak)
       return 0;
 
-    return llvm::None;
+    return std::nullopt;
   }
 
   lldb::addr_t GetBestInternalLoadAddress() const {

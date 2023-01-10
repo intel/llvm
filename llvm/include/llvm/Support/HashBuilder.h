@@ -23,6 +23,7 @@
 #include "llvm/Support/type_traits.h"
 
 #include <iterator>
+#include <optional>
 #include <utility>
 
 namespace llvm {
@@ -39,6 +40,9 @@ struct IsHashableData
 /// Declares the hasher member, and functions forwarding directly to the hasher.
 template <typename HasherT> class HashBuilderBase {
 public:
+  template <typename HasherT_ = HasherT>
+  using HashResultTy = decltype(std::declval<HasherT_ &>().final());
+
   HasherT &getHasher() { return Hasher; }
 
   /// Forward to `HasherT::update(ArrayRef<uint8_t>)`.
@@ -59,12 +63,12 @@ public:
   }
 
   /// Forward to `HasherT::final()` if available.
-  template <typename HasherT_ = HasherT> StringRef final() {
+  template <typename HasherT_ = HasherT> HashResultTy<HasherT_> final() {
     return this->getHasher().final();
   }
 
   /// Forward to `HasherT::result()` if available.
-  template <typename HasherT_ = HasherT> StringRef result() {
+  template <typename HasherT_ = HasherT> HashResultTy<HasherT_> result() {
     return this->getHasher().result();
   }
 
@@ -73,11 +77,11 @@ protected:
 
   template <typename... ArgTypes>
   explicit HashBuilderBase(ArgTypes &&...Args)
-      : OptionalHasher(in_place, std::forward<ArgTypes>(Args)...),
+      : OptionalHasher(std::in_place, std::forward<ArgTypes>(Args)...),
         Hasher(*OptionalHasher) {}
 
 private:
-  Optional<HasherT> OptionalHasher;
+  std::optional<HasherT> OptionalHasher;
   HasherT &Hasher;
 };
 
@@ -278,7 +282,7 @@ public:
   /// add(Arg2)
   /// ```
   template <typename T, typename... Ts>
-  typename std::enable_if<(sizeof...(Ts) >= 1), HashBuilderImpl &>::type
+  std::enable_if_t<(sizeof...(Ts) >= 1), HashBuilderImpl &>
   add(const T &FirstArg, const Ts &...Args) {
     add(FirstArg);
     add(Args...);

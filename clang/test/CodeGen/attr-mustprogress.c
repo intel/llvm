@@ -59,8 +59,8 @@ void f1(void) {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    br label %for.cond
 // CHECK:       for.cond:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i32, i32* @a, align 4
-// CHECK-NEXT:    [[TMP1:%.*]] = load i32, i32* @b, align 4
+// CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr @a, align 4
+// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr @b, align 4
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[TMP0]], [[TMP1]]
 // CHECK-NEXT:    br i1 [[CMP]], label %for.body, label %for.end
 // CHECK:       for.body:
@@ -88,8 +88,8 @@ void f2(void) {
 // CHECK:       for.end:
 // CHECK-NEXT:    br label %for.cond1
 // CHECK:       for.cond1:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i32, i32* @a, align 4
-// CHECK-NEXT:    [[TMP1:%.*]] = load i32, i32* @b, align 4
+// CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr @a, align 4
+// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr @b, align 4
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[TMP0]], [[TMP1]]
 // CHECK-NEXT:    br i1 [[CMP]], label %for.body2, label %for.end3
 // CHECK:       for.body2:
@@ -125,8 +125,8 @@ void w1(void) {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    br label %while.cond
 // CHECK:       while.cond:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i32, i32* @a, align 4
-// CHECK-NEXT:    [[TMP1:%.*]] = load i32, i32* @b, align 4
+// CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr @a, align 4
+// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr @b, align 4
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[TMP0]], [[TMP1]]
 // CHECK-NEXT:    br i1 [[CMP]], label %while.body, label %while.end
 // CHECK:       while.body:
@@ -146,8 +146,8 @@ void w2(void) {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    br label [[WHILE_COND:%.*]]
 // CHECK:       while.cond:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i32, i32* @a, align 4
-// CHECK-NEXT:    [[TMP1:%.*]] = load i32, i32* @b, align 4
+// CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr @a, align 4
+// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr @b, align 4
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[TMP0]], [[TMP1]]
 // CHECK-NEXT:    br i1 [[CMP]], label %while.body, label %while.end
 // CHECK:       while.body:
@@ -193,8 +193,8 @@ void d1(void) {
 // CHECK:       do.body:
 // CHECK-NEXT:    br label %do.cond
 // CHECK:       do.cond:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i32, i32* @a, align 4
-// CHECK-NEXT:    [[TMP1:%.*]] = load i32, i32* @b, align 4
+// CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr @a, align 4
+// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr @b, align 4
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[TMP0]], [[TMP1]]
 // C99-NOT:       br {{.*}}, !llvm.loop
 // C11:           br i1 [[CMP]], label %do.body, label %do.end, !llvm.loop [[LOOP5:!.*]]
@@ -220,8 +220,8 @@ void d2(void) {
 // CHECK:       do.body1:
 // CHECK-NEXT:    br label %do.cond2
 // CHECK:       do.cond2:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i32, i32* @a, align 4
-// CHECK-NEXT:    [[TMP1:%.*]] = load i32, i32* @b, align 4
+// CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr @a, align 4
+// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr @b, align 4
 // CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[TMP0]], [[TMP1]]
 // C99-NOT:       br {{.*}}, !llvm.loop
 // C11:           br i1 [[CMP]], label %do.body1, label %do.end3, !llvm.loop [[LOOP6:!.*]]

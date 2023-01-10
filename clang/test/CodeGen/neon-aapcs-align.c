@@ -14,6 +14,6 @@ int32x4_t gl_b;
 void t3(int32x4_t *src) {
 // CHECK: @t3
   gl_b = *src;
-// AAPCS: store <4 x i32> {{%.*}}, <4 x i32>* @gl_b, align 8
-// DEFAULT: store <4 x i32> {{%.*}}, <4 x i32>* @gl_b, align 16
+// AAPCS: store <4 x i32> {{%.*}}, ptr @gl_b, align 8
+// DEFAULT: store <4 x i32> {{%.*}}, ptr @gl_b, align 16
 }

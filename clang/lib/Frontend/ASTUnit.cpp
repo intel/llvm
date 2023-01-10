@@ -66,7 +66,6 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
@@ -87,6 +86,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
@@ -98,6 +98,7 @@
 #include <cstdlib>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -524,6 +525,7 @@ class ASTInfoCollector : public ASTReaderListener {
   IntrusiveRefCntPtr<TargetInfo> &Target;
   unsigned &Counter;
   bool InitializedLanguage = false;
+  bool InitializedHeaderSearchPaths = false;
 
 public:
   ASTInfoCollector(Preprocessor &PP, ASTContext *Context,
@@ -550,7 +552,34 @@ public:
   bool ReadHeaderSearchOptions(const HeaderSearchOptions &HSOpts,
                                StringRef SpecificModuleCachePath,
                                bool Complain) override {
+    // Preserve previously set header search paths.
+    llvm::SaveAndRestore X(this->HSOpts.UserEntries);
+    llvm::SaveAndRestore Y(this->HSOpts.SystemHeaderPrefixes);
+    llvm::SaveAndRestore Z(this->HSOpts.VFSOverlayFiles);
+
     this->HSOpts = HSOpts;
+
+    return false;
+  }
+
+  bool ReadHeaderSearchPaths(const HeaderSearchOptions &HSOpts,
+                             bool Complain) override {
+    if (InitializedHeaderSearchPaths)
+      return false;
+
+    this->HSOpts.UserEntries = HSOpts.UserEntries;
+    this->HSOpts.SystemHeaderPrefixes = HSOpts.SystemHeaderPrefixes;
+    this->HSOpts.VFSOverlayFiles = HSOpts.VFSOverlayFiles;
+
+    // Initialize the FileManager. We can't do this in update(), since that
+    // performs the initialization too late (once both target and language
+    // options are read).
+    PP.getFileManager().setVirtualFileSystem(createVFSFromOverlayFiles(
+        HSOpts.VFSOverlayFiles, PP.getDiagnostics(),
+        PP.getFileManager().getVirtualFileSystemPtr()));
+
+    InitializedHeaderSearchPaths = true;
+
     return false;
   }
 
@@ -705,10 +734,10 @@ void FilterAndStoreDiagnosticConsumer::HandleDiagnostic(
     }
 
     if (StandaloneDiags) {
-      llvm::Optional<StoredDiagnostic> StoredDiag = None;
+      std::optional<StoredDiagnostic> StoredDiag;
       if (!ResultDiag) {
         StoredDiag.emplace(Level, Info);
-        ResultDiag = StoredDiag.getPointer();
+        ResultDiag = &*StoredDiag;
       }
       StandaloneDiags->push_back(
           makeStandaloneDiagnostic(*LangOpts, *ResultDiag));
@@ -759,7 +788,8 @@ std::unique_ptr<ASTUnit> ASTUnit::LoadFromASTFile(
     WhatToLoad ToLoad, IntrusiveRefCntPtr<DiagnosticsEngine> Diags,
     const FileSystemOptions &FileSystemOpts, bool UseDebugInfo,
     bool OnlyLocalDecls, CaptureDiagsKind CaptureDiagnostics,
-    bool AllowASTWithCompilerErrors, bool UserFilesAreVolatile) {
+    bool AllowASTWithCompilerErrors, bool UserFilesAreVolatile,
+    IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS) {
   std::unique_ptr<ASTUnit> AST(new ASTUnit(true));
 
   // Recover resources if we crash before exiting this method.
@@ -775,8 +805,6 @@ std::unique_ptr<ASTUnit> ASTUnit::LoadFromASTFile(
   AST->OnlyLocalDecls = OnlyLocalDecls;
   AST->CaptureDiagnostics = CaptureDiagnostics;
   AST->Diagnostics = Diags;
-  IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS =
-      llvm::vfs::getRealFileSystem();
   AST->FileMgr = new FileManager(FileSystemOpts, VFS);
   AST->UserFilesAreVolatile = UserFilesAreVolatile;
   AST->SourceMgr = new SourceManager(AST->getDiagnostics(),
@@ -1350,7 +1378,7 @@ ASTUnit::getMainBufferWithPrecompiledPreamble(
   SmallVector<StoredDiagnostic, 4> NewPreambleDiags;
   ASTUnitPreambleCallbacks Callbacks;
   {
-    llvm::Optional<CaptureDroppedDiagnostics> Capture;
+    std::optional<CaptureDroppedDiagnostics> Capture;
     if (CaptureDiagnostics != CaptureDiagsKind::None)
       Capture.emplace(CaptureDiagnostics, *Diagnostics, &NewPreambleDiags,
                       &NewPreambleDiagsStandalone);
@@ -1729,8 +1757,12 @@ ASTUnit *ASTUnit::LoadFromCommandLine(
     CaptureDroppedDiagnostics Capture(CaptureDiagnostics, *Diags,
                                       &StoredDiagnostics, nullptr);
 
-    CI = createInvocationFromCommandLine(
-        llvm::makeArrayRef(ArgBegin, ArgEnd), Diags, VFS);
+    CreateInvocationOptions CIOpts;
+    CIOpts.VFS = VFS;
+    CIOpts.Diags = Diags;
+    CIOpts.ProbePrecompiled = true; // FIXME: historical default. Needed?
+    CI = createInvocation(llvm::makeArrayRef(ArgBegin, ArgEnd),
+                          std::move(CIOpts));
     if (!CI)
       return nullptr;
   }
@@ -1753,8 +1785,7 @@ ASTUnit *ASTUnit::LoadFromCommandLine(
       SkipFunctionBodies == SkipFunctionBodiesScope::PreambleAndMainFile;
 
   if (ModuleFormat)
-    CI->getHeaderSearchOpts().ModuleFormat =
-        std::string(ModuleFormat.getValue());
+    CI->getHeaderSearchOpts().ModuleFormat = std::string(*ModuleFormat);
 
   // Create the AST unit.
   std::unique_ptr<ASTUnit> AST;
@@ -2212,10 +2243,10 @@ void ASTUnit::CodeComplete(
   Clang->setCodeCompletionConsumer(AugmentedConsumer);
 
   auto getUniqueID =
-      [&FileMgr](StringRef Filename) -> Optional<llvm::sys::fs::UniqueID> {
+      [&FileMgr](StringRef Filename) -> std::optional<llvm::sys::fs::UniqueID> {
     if (auto Status = FileMgr.getVirtualFileSystem().status(Filename))
       return Status->getUniqueID();
-    return None;
+    return std::nullopt;
   };
 
   auto hasSameUniqueID = [getUniqueID](StringRef LHS, StringRef RHS) {

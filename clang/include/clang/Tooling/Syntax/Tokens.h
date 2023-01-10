@@ -27,7 +27,6 @@
 #ifndef LLVM_CLANG_TOOLING_SYNTAX_TOKENS_H
 #define LLVM_CLANG_TOOLING_SYNTAX_TOKENS_H
 
-#include "clang/Basic/FileManager.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
@@ -205,7 +204,7 @@ public:
   /// Returns the subrange of spelled tokens corresponding to AST node spanning
   /// \p Expanded. This is the text that should be replaced if a refactoring
   /// were to rewrite the node. If \p Expanded is empty, the returned value is
-  /// llvm::None.
+  /// std::nullopt.
   ///
   /// Will fail if the expanded tokens do not correspond to a sequence of
   /// spelled tokens. E.g. for the following example:
@@ -426,7 +425,7 @@ public:
 
   /// Finalizes token collection. Should be called after preprocessing is
   /// finished, i.e. after running Execute().
-  LLVM_NODISCARD TokenBuffer consume() &&;
+  [[nodiscard]] TokenBuffer consume() &&;
 
 private:
   /// Maps from a start to an end spelling location of transformations

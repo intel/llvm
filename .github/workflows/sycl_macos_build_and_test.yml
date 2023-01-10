@@ -1,0 +1,73 @@
+name: Reusable SYCL macOS build and test workflow
+
+on:
+  workflow_call:
+    inputs:
+      build_ref:
+        type: string
+        required: false
+      build_cache_suffix:
+        type: string
+        required: false
+        default: "default"
+      build_cache_size:
+        type: string
+        required: false
+        default: 2G
+      build_configure_extra_args:
+        type: string
+        required: false
+        default: ""
+      build_artifact_suffix:
+        type: string
+        required: false
+        default: "default"
+
+jobs:
+  build:
+    name: Build
+    runs-on: macos-12
+    steps:
+    - name: Install dependencies
+      run: brew install ccache ninja
+    - uses: actions/checkout@v3
+      with:
+        ref: ${{ inputs.build_ref }}
+        path: src
+    - uses: actions/cache@v3
+      with:
+        path: build_cache_${{ inputs.build_cache_suffix }}
+        key: sycl-${{ runner.os }}-${{ inputs.build_cache_suffix }}-${{ github.sha }}
+        restore-keys: sycl-${{ runner.os }}-${{ inputs.build_cache_suffix }}-
+    - name: Configure
+      env:
+        CACHE_SUFFIX: ${{ inputs.build_cache_suffix }}
+        CACHE_SIZE: ${{ inputs.build_cache_size }}
+        ARGS: ${{ inputs.build_configure_extra_args }}
+      run: |
+        mkdir -p $GITHUB_WORKSPACE/build_cache_$CACHE_SUFFIX
+        mkdir -p $GITHUB_WORKSPACE/build
+        cd $GITHUB_WORKSPACE/build
+        python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
+          -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
+          --ci-defaults $ARGS \
+          --cmake-opt="-DLLVM_CCACHE_BUILD=ON" \
+          --cmake-opt="-DLLVM_CCACHE_DIR=$GITHUB_WORKSPACE/build_cache_$CACHE_SUFFIX" \
+          --cmake-opt="-DLLVM_CCACHE_MAXSIZE=$CACHE_SIZE" \
+          --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
+          --cmake-opt="-DSYCL_PI_TESTS=OFF"
+    - name: Compile
+      id: build
+      run: cmake --build $GITHUB_WORKSPACE/build --target sycl-toolchain
+    - name: Install
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build --target deploy-sycl-toolchain
+
+    - name: Pack toolchain
+      run: tar -cJf llvm_sycl.tar.xz -C $GITHUB_WORKSPACE/build/install .
+    - name: Upload toolchain
+      uses: actions/upload-artifact@v3
+      with:
+        name: sycl_macos_${{ inputs.build_artifact_suffix }}
+        path: llvm_sycl.tar.xz
+

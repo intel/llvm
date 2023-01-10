@@ -10,10 +10,10 @@ void test(void) {
 // TODO: We should probably emit this specific pattern without the reclaim.
 
 // CHECK-LABEL:    define{{.*}} void @test()
-// CHECK:      [[T0:%.*]] = call i8* @make()
-// CHECK-NEXT: [[T1:%.*]] = notail call i8* @llvm.objc.retainAutoreleasedReturnValue(i8* [[T0]])
-// CHECK-NEXT: [[T2:%.*]] = call i8* @llvm.objc.autorelease(i8* [[T1]])
-// CHECK-NEXT: call void @objc_exception_throw(i8* [[T2]]) [[NR:#[0-9]+]]
+// CHECK:      [[T0:%.*]] = call ptr @make()
+// CHECK-NEXT: [[T1:%.*]] = notail call ptr @llvm.objc.retainAutoreleasedReturnValue(ptr [[T0]])
+// CHECK-NEXT: [[T2:%.*]] = call ptr @llvm.objc.autorelease(ptr [[T1]])
+// CHECK-NEXT: call void @objc_exception_throw(ptr [[T2]]) [[NR:#[0-9]+]]
 // CHECK-NEXT: unreachable
 
 // CHECK: attributes [[NR]] = { noreturn }

@@ -17,6 +17,7 @@
 #include "PPCSubtarget.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/Target/TargetMachine.h"
+#include <optional>
 
 namespace llvm {
 
@@ -37,8 +38,9 @@ private:
 public:
   PPCTargetMachine(const Target &T, const Triple &TT, StringRef CPU,
                    StringRef FS, const TargetOptions &Options,
-                   Optional<Reloc::Model> RM, Optional<CodeModel::Model> CM,
-                   CodeGenOpt::Level OL, bool JIT);
+                   std::optional<Reloc::Model> RM,
+                   std::optional<CodeModel::Model> CM, CodeGenOpt::Level OL,
+                   bool JIT);
 
   ~PPCTargetMachine() override;
 
@@ -51,7 +53,7 @@ public:
   // Pass Pipeline Configuration
   TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
 
-  TargetTransformInfo getTargetTransformInfo(const Function &F) override;
+  TargetTransformInfo getTargetTransformInfo(const Function &F) const override;
 
   TargetLoweringObjectFile *getObjFileLowering() const override {
     return TLOF.get();

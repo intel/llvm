@@ -122,7 +122,7 @@ for arch in ${architectures}; do
                 -DLIBCXXABI_LIBRARY_VERSION="${version}"
 
     if [ "$headers_only" = true ]; then
-        xcrun cmake --build "${build_dir}/${arch}" --target install-cxx-headers -- -v
+        xcrun cmake --build "${build_dir}/${arch}" --target install-cxx-headers install-cxxabi-headers -- -v
     else
         xcrun cmake --build "${build_dir}/${arch}" --target install-cxx install-cxxabi -- -v
     fi
@@ -158,7 +158,6 @@ step "Installing the libc++ and libc++abi headers to ${install_dir}/usr/include"
 any_arch=$(echo ${architectures} | cut -d ' ' -f 1)
 mkdir -p "${install_dir}/usr/include"
 ditto "${build_dir}/${any_arch}-install/include" "${install_dir}/usr/include"
-ditto "${llvm_root}/libcxxabi/include" "${install_dir}/usr/include" # TODO: libcxxabi should install its headers in CMake
 if [[ $EUID -eq 0 ]]; then # Only chown if we're running as root
     chown -R root:wheel "${install_dir}/usr/include"
 fi

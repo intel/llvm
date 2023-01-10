@@ -27,9 +27,7 @@
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Type.h"
 #include "llvm/InitializePasses.h"
-#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -131,8 +129,7 @@ llvm::SplitKnownCriticalEdge(Instruction *TI, unsigned SuccNum,
   SmallVector<BasicBlock *, 4> LoopPreds;
   // Check if extra modifications will be required to preserve loop-simplify
   // form after splitting. If it would require splitting blocks with IndirectBr
-  // or CallBr terminators, bail out if preserving loop-simplify form is
-  // requested.
+  // terminators, bail out if preserving loop-simplify form is requested.
   if (LI) {
     if (Loop *TIL = LI->getLoopFor(TIBB)) {
 
@@ -158,10 +155,7 @@ llvm::SplitKnownCriticalEdge(Instruction *TI, unsigned SuccNum,
       // Loop-simplify form can be preserved, if we can split all in-loop
       // predecessors.
       if (any_of(LoopPreds, [](BasicBlock *Pred) {
-            const Instruction *T = Pred->getTerminator();
-            if (const auto *CBR = dyn_cast<CallBrInst>(T))
-              return CBR->getDefaultDest() != Pred;
-            return isa<IndirectBrInst>(T);
+            return isa<IndirectBrInst>(Pred->getTerminator());
           })) {
         if (Options.PreserveLoopSimplify)
           return nullptr;

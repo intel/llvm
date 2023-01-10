@@ -9,7 +9,6 @@
 // Per-type parsers for program units
 
 #include "basic-parsers.h"
-#include "debug-parser.h"
 #include "expr-parsers.h"
 #include "misc-parsers.h"
 #include "stmt-parser.h"
@@ -31,10 +30,10 @@ namespace Fortran::parser {
 // statement without an otherwise empty list of dummy arguments.  That
 // MODULE prefix is disallowed by a constraint (C1547) in this context,
 // so the standard language is not ambiguous, but disabling its misrecognition
-// here would require context-sensitive keyword recognition or (or via)
-// variant parsers for several productions; giving the "module" production
-// priority here is a cleaner solution, though regrettably subtle.  Enforcing
-// C1547 is done in semantics.
+// here would require context-sensitive keyword recognition or variant parsers
+// for several productions; giving the "module" production priority here is a
+// cleaner solution, though regrettably subtle.
+// Enforcing C1547 is done in semantics.
 static constexpr auto programUnit{
     construct<ProgramUnit>(indirect(Parser<Module>{})) ||
     construct<ProgramUnit>(indirect(functionSubprogram)) ||
@@ -54,11 +53,13 @@ static constexpr auto globalCompilerDirective{
 // Consequently, a program unit END statement should be the last statement
 // on its line.  We parse those END statements via unterminatedStatement()
 // and then skip over the end of the line here.
-TYPE_PARSER(construct<Program>(
-    extension<LanguageFeature::EmptySourceFile>(skipStuffBeforeStatement >>
-        !nextCh >> pure<std::list<ProgramUnit>>()) ||
-    some(globalCompilerDirective || normalProgramUnit) /
-        skipStuffBeforeStatement))
+TYPE_PARSER(
+    construct<Program>(extension<LanguageFeature::EmptySourceFile>(
+                           "nonstandard usage: empty source file"_port_en_US,
+                           skipStuffBeforeStatement >> !nextCh >>
+                               pure<std::list<ProgramUnit>>()) ||
+        some(globalCompilerDirective || normalProgramUnit) /
+            skipStuffBeforeStatement))
 
 // R504 specification-part ->
 //         [use-stmt]... [import-stmt]... [implicit-part]
@@ -204,6 +205,7 @@ TYPE_CONTEXT_PARSER("main program"_en_US,
 TYPE_CONTEXT_PARSER("PROGRAM statement"_en_US,
     construct<ProgramStmt>("PROGRAM" >> name /
             maybe(extension<LanguageFeature::ProgramParentheses>(
+                "nonstandard usage: parentheses in PROGRAM statement"_port_en_US,
                 parenthesized(ok)))))
 
 // R1403 end-program-stmt -> END [PROGRAM [program-name]]
@@ -326,7 +328,9 @@ TYPE_PARSER(construct<InterfaceStmt>("INTERFACE" >> maybe(genericSpec)) ||
     construct<InterfaceStmt>(construct<Abstract>("ABSTRACT INTERFACE"_sptok)))
 
 // R1504 end-interface-stmt -> END INTERFACE [generic-spec]
-TYPE_PARSER(construct<EndInterfaceStmt>("END INTERFACE" >> maybe(genericSpec)))
+TYPE_PARSER(
+    construct<EndInterfaceStmt>(recovery("END INTERFACE" >> maybe(genericSpec),
+        constructEndStmtErrorRecovery >> pure<std::optional<GenericSpec>>())))
 
 // R1505 interface-body ->
 //         function-stmt [specification-part] end-function-stmt |
@@ -449,10 +453,14 @@ TYPE_PARSER(construct<ActualArgSpec>(
 // Semantics sorts it all out later.
 TYPE_PARSER(construct<ActualArg>(expr) ||
     construct<ActualArg>(Parser<AltReturnSpec>{}) ||
-    extension<LanguageFeature::PercentRefAndVal>(construct<ActualArg>(
-        construct<ActualArg::PercentRef>("%REF" >> parenthesized(variable)))) ||
-    extension<LanguageFeature::PercentRefAndVal>(construct<ActualArg>(
-        construct<ActualArg::PercentVal>("%VAL" >> parenthesized(expr)))))
+    extension<LanguageFeature::PercentRefAndVal>(
+        "nonstandard usage: %REF"_port_en_US,
+        construct<ActualArg>(construct<ActualArg::PercentRef>(
+            "%REF" >> parenthesized(variable)))) ||
+    extension<LanguageFeature::PercentRefAndVal>(
+        "nonstandard usage: %VAL"_port_en_US,
+        construct<ActualArg>(
+            construct<ActualArg::PercentVal>("%VAL" >> parenthesized(expr)))))
 
 // R1525 alt-return-spec -> * label
 TYPE_PARSER(construct<AltReturnSpec>(star >> label))
@@ -485,6 +493,7 @@ TYPE_CONTEXT_PARSER("FUNCTION statement"_en_US,
     construct<FunctionStmt>(many(prefixSpec), "FUNCTION" >> name,
         parenthesized(optionalList(name)), maybe(suffix)) ||
         extension<LanguageFeature::OmitFunctionDummies>(
+            "nonstandard usage: FUNCTION statement without dummy argument list"_port_en_US,
             construct<FunctionStmt>( // PGI & Intel accept "FUNCTION F"
                 many(prefixSpec), "FUNCTION" >> name,
                 construct<std::list<Name>>(),

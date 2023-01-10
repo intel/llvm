@@ -10,8 +10,6 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_CLANGDLSPSERVER_H
 
 #include "ClangdServer.h"
-#include "DraftStore.h"
-#include "FindSymbols.h"
 #include "GlobalCompilationDatabase.h"
 #include "LSPBinder.h"
 #include "Protocol.h"
@@ -20,13 +18,12 @@
 #include "support/MemoryTree.h"
 #include "support/Path.h"
 #include "support/Threading.h"
-#include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/JSON.h"
 #include <chrono>
 #include <cstddef>
 #include <memory>
+#include <vector>
 
 namespace clang {
 namespace clangd {
@@ -45,7 +42,7 @@ public:
     /// Look for compilation databases, rather than using compile commands
     /// set via LSP (extensions) only.
     bool UseDirBasedCDB = true;
-    /// The offset-encoding to use, or None to negotiate it over LSP.
+    /// The offset-encoding to use, or std::nullopt to negotiate it over LSP.
     llvm::Optional<OffsetEncoding> Encoding;
     /// If set, periodically called to release memory.
     /// Consider malloc_trim(3)
@@ -136,10 +133,16 @@ private:
   void onRename(const RenameParams &, Callback<WorkspaceEdit>);
   void onHover(const TextDocumentPositionParams &,
                Callback<llvm::Optional<Hover>>);
-  void onTypeHierarchy(const TypeHierarchyParams &,
-                       Callback<llvm::Optional<TypeHierarchyItem>>);
+  void onPrepareTypeHierarchy(const TypeHierarchyPrepareParams &,
+                              Callback<std::vector<TypeHierarchyItem>>);
+  void onSuperTypes(const ResolveTypeHierarchyItemParams &,
+                    Callback<llvm::Optional<std::vector<TypeHierarchyItem>>>);
+  void onSubTypes(const ResolveTypeHierarchyItemParams &,
+                  Callback<std::vector<TypeHierarchyItem>>);
+  void onTypeHierarchy(const TypeHierarchyPrepareParams &,
+                       Callback<llvm::json::Value>);
   void onResolveTypeHierarchy(const ResolveTypeHierarchyItemParams &,
-                              Callback<llvm::Optional<TypeHierarchyItem>>);
+                              Callback<llvm::json::Value>);
   void onPrepareCallHierarchy(const CallHierarchyPrepareParams &,
                               Callback<std::vector<CallHierarchyItem>>);
   void onCallHierarchyIncomingCalls(
@@ -148,7 +151,9 @@ private:
   void onCallHierarchyOutgoingCalls(
       const CallHierarchyOutgoingCallsParams &,
       Callback<std::vector<CallHierarchyOutgoingCall>>);
-  void onInlayHints(const InlayHintsParams &, Callback<std::vector<InlayHint>>);
+  void onClangdInlayHints(const InlayHintsParams &,
+                          Callback<llvm::json::Value>);
+  void onInlayHint(const InlayHintsParams &, Callback<std::vector<InlayHint>>);
   void onChangeConfiguration(const DidChangeConfigurationParams &);
   void onSymbolInfo(const TextDocumentPositionParams &,
                     Callback<std::vector<SymbolDetails>>);

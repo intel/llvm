@@ -113,8 +113,14 @@ public:
   /// The version of the darwin target variant SDK which was used during the
   /// compilation.
   llvm::VersionTuple DarwinTargetVariantSDKVersion;
+
+  /// The validator version for dxil.
+  std::string DxilValidatorVersion;
+
+  /// The entry point name for HLSL shader being compiled as specified by -E.
+  std::string HLSLEntry;
 };
 
-}  // end namespace clang
+} // end namespace clang
 
 #endif

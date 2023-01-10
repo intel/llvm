@@ -1,5 +1,5 @@
-; RUN: opt < %s -loop-vectorize -S | FileCheck %s
-; RUN: opt < %s -loop-vectorize -prefer-predicate-over-epilogue=predicate-dont-vectorize -S | FileCheck %s
+; RUN: opt < %s -passes=loop-vectorize -S | FileCheck %s
+; RUN: opt < %s -passes=loop-vectorize -prefer-predicate-over-epilogue=predicate-dont-vectorize -S | FileCheck %s
 
 target datalayout = "e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128"
 target triple = "aarch64-unknown-linux-gnu"
@@ -11,13 +11,9 @@ target triple = "aarch64-unknown-linux-gnu"
 ;      a[i] /= b[i];
 ;  }
 
-; Scalarizing the division cannot be done for scalable vectors at the moment
-; when the loop needs predication
-; Future implementation of llvm.vp could allow this to happen
-
 define void  @predication_in_loop(i32* %a, i32* %b, i32* %cond) #0 {
 ; CHECK-LABEL: @predication_in_loop
-; CHECK-NOT:  sdiv <vscale x 4 x i32>
+; CHECK:  sdiv <vscale x 4 x i32>
 ;
 entry:
   br label %for.body

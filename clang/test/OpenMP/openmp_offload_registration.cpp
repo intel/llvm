@@ -8,10 +8,10 @@ void foo(void) {
   {}
 }
 
-// CHECK-DAG: [[ENTTY:%.+]] = type { i8*, i8*, i[[SZ:32|64]], i32, i32 }
+// CHECK-DAG: [[ENTTY:%.+]] = type { ptr, ptr, i[[SZ:32|64]], i32, i32 }
 
 // Check target registration is registered as a Ctor.
-// CHECK: appending global [1 x { i32, void ()*, i8* }] [{ i32, void ()*, i8* } { i32 0, void ()* @.omp_offloading.requires_reg, i8* null }]
+// CHECK: appending global [1 x { i32, ptr, ptr }] [{ i32, ptr, ptr } { i32 0, ptr @.omp_offloading.requires_reg, ptr null }]
 
 // Check presence of foo() and the outlined target region
 // CHECK: define{{.*}} void [[FOO:@.+]]()

@@ -17,12 +17,12 @@
 #include "ARMTargetTransformInfo.h"
 #include "MCTargetDesc/ARMMCTargetDesc.h"
 #include "TargetInfo/ARMTargetInfo.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/ExecutionDomainFix.h"
+#include "llvm/CodeGen/GlobalISel/CSEInfo.h"
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
 #include "llvm/CodeGen/GlobalISel/IRTranslator.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelect.h"
@@ -30,20 +30,20 @@
 #include "llvm/CodeGen/GlobalISel/Legalizer.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
 #include "llvm/CodeGen/GlobalISel/RegBankSelect.h"
-#include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineScheduler.h"
 #include "llvm/CodeGen/Passes.h"
+#include "llvm/CodeGen/RegisterBankInfo.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Function.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/ARMTargetParser.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/ARMTargetParser.h"
 #include "llvm/Support/TargetParser.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
 #include "llvm/Target/TargetOptions.h"
@@ -52,6 +52,7 @@
 #include "llvm/Transforms/Scalar.h"
 #include <cassert>
 #include <memory>
+#include <optional>
 #include <string>
 
 using namespace llvm;
@@ -106,6 +107,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeARMTarget() {
   initializeMVEGatherScatterLoweringPass(Registry);
   initializeARMSLSHardeningPass(Registry);
   initializeMVELaneInterleavingPass(Registry);
+  initializeARMFixCortexA57AES1742098Pass(Registry);
 }
 
 static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
@@ -193,8 +195,8 @@ static std::string computeDataLayout(const Triple &TT, StringRef CPU,
 }
 
 static Reloc::Model getEffectiveRelocModel(const Triple &TT,
-                                           Optional<Reloc::Model> RM) {
-  if (!RM.hasValue())
+                                           std::optional<Reloc::Model> RM) {
+  if (!RM)
     // Default relocation model on Darwin is PIC.
     return TT.isOSBinFormatMachO() ? Reloc::PIC_ : Reloc::Static;
 
@@ -214,8 +216,8 @@ static Reloc::Model getEffectiveRelocModel(const Triple &TT,
 ARMBaseTargetMachine::ARMBaseTargetMachine(const Target &T, const Triple &TT,
                                            StringRef CPU, StringRef FS,
                                            const TargetOptions &Options,
-                                           Optional<Reloc::Model> RM,
-                                           Optional<CodeModel::Model> CM,
+                                           std::optional<Reloc::Model> RM,
+                                           std::optional<CodeModel::Model> CM,
                                            CodeGenOpt::Level OL, bool isLittle)
     : LLVMTargetMachine(T, computeDataLayout(TT, CPU, Options, isLittle), TT,
                         CPU, FS, Options, getEffectiveRelocModel(TT, RM),
@@ -307,23 +309,23 @@ ARMBaseTargetMachine::getSubtargetImpl(const Function &F) const {
 }
 
 TargetTransformInfo
-ARMBaseTargetMachine::getTargetTransformInfo(const Function &F) {
+ARMBaseTargetMachine::getTargetTransformInfo(const Function &F) const {
   return TargetTransformInfo(ARMTTIImpl(this, F));
 }
 
 ARMLETargetMachine::ARMLETargetMachine(const Target &T, const Triple &TT,
                                        StringRef CPU, StringRef FS,
                                        const TargetOptions &Options,
-                                       Optional<Reloc::Model> RM,
-                                       Optional<CodeModel::Model> CM,
+                                       std::optional<Reloc::Model> RM,
+                                       std::optional<CodeModel::Model> CM,
                                        CodeGenOpt::Level OL, bool JIT)
     : ARMBaseTargetMachine(T, TT, CPU, FS, Options, RM, CM, OL, true) {}
 
 ARMBETargetMachine::ARMBETargetMachine(const Target &T, const Triple &TT,
                                        StringRef CPU, StringRef FS,
                                        const TargetOptions &Options,
-                                       Optional<Reloc::Model> RM,
-                                       Optional<CodeModel::Model> CM,
+                                       std::optional<Reloc::Model> RM,
+                                       std::optional<CodeModel::Model> CM,
                                        CodeGenOpt::Level OL, bool JIT)
     : ARMBaseTargetMachine(T, TT, CPU, FS, Options, RM, CM, OL, false) {}
 
@@ -424,8 +426,12 @@ void ARMPassConfig::addIRPasses() {
   TargetPassConfig::addIRPasses();
 
   // Run the parallel DSP pass.
-  if (getOptLevel() == CodeGenOpt::Aggressive) 
+  if (getOptLevel() == CodeGenOpt::Aggressive)
     addPass(createARMParallelDSPPass());
+
+  // Match complex arithmetic patterns
+  if (TM->getOptLevel() >= CodeGenOpt::Default)
+    addPass(createComplexDeinterleavingPass(TM));
 
   // Match interleaved memory accesses to ldN/stN intrinsics.
   if (TM->getOptLevel() != CodeGenOpt::None)
@@ -508,6 +514,9 @@ bool ARMPassConfig::addGlobalInstructionSelect() {
 
 void ARMPassConfig::addPreRegAlloc() {
   if (getOptLevel() != CodeGenOpt::None) {
+    if (getOptLevel() == CodeGenOpt::Aggressive)
+      addPass(&MachinePipelinerID);
+
     addPass(createMVETPAndVPTOptimisationsPass());
 
     addPass(createMLxExpansionPass());
@@ -576,8 +585,20 @@ void ARMPassConfig::addPreEmitPass() {
 }
 
 void ARMPassConfig::addPreEmitPass2() {
+  // Inserts fixup instructions before unsafe AES operations. Instructions may
+  // be inserted at the start of blocks and at within blocks so this pass has to
+  // come before those below.
+  addPass(createARMFixCortexA57AES1742098Pass());
+  // Inserts BTIs at the start of functions and indirectly-called basic blocks,
+  // so passes cannot add to the start of basic blocks once this has run.
   addPass(createARMBranchTargetsPass());
+  // Inserts Constant Islands. Block sizes cannot be increased after this point,
+  // as this may push the branch ranges and load offsets of accessing constant
+  // pools out of range..
   addPass(createARMConstantIslandPass());
+  // Finalises Low-Overhead Loops. This replaces pseudo instructions with real
+  // instructions, but the pseudos all have conservative sizes so that block
+  // sizes will only be decreased by this pass.
   addPass(createARMLowOverheadLoopsPass());
 
   if (TM->getTargetTriple().isOSWindows()) {

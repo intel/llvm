@@ -128,6 +128,7 @@ namespace {
     void PrintRawSEHFinallyStmt(SEHFinallyStmt *S);
     void PrintOMPExecutableDirective(OMPExecutableDirective *S,
                                      bool ForceNoStmt = false);
+    void PrintFPPragmas(CompoundStmt *S);
 
     void PrintExpr(Expr *E) {
       if (E)
@@ -174,10 +175,71 @@ namespace {
 /// with no newline after the }.
 void StmtPrinter::PrintRawCompoundStmt(CompoundStmt *Node) {
   OS << "{" << NL;
+  PrintFPPragmas(Node);
   for (auto *I : Node->body())
     PrintStmt(I);
 
   Indent() << "}";
+}
+
+void StmtPrinter::PrintFPPragmas(CompoundStmt *S) {
+  if (!S->hasStoredFPFeatures())
+    return;
+  FPOptionsOverride FPO = S->getStoredFPFeatures();
+  bool FEnvAccess = false;
+  if (FPO.hasAllowFEnvAccessOverride()) {
+    FEnvAccess = FPO.getAllowFEnvAccessOverride();
+    Indent() << "#pragma STDC FENV_ACCESS " << (FEnvAccess ? "ON" : "OFF")
+             << NL;
+  }
+  if (FPO.hasSpecifiedExceptionModeOverride()) {
+    LangOptions::FPExceptionModeKind EM =
+        FPO.getSpecifiedExceptionModeOverride();
+    if (!FEnvAccess || EM != LangOptions::FPE_Strict) {
+      Indent() << "#pragma clang fp exceptions(";
+      switch (FPO.getSpecifiedExceptionModeOverride()) {
+      default:
+        break;
+      case LangOptions::FPE_Ignore:
+        OS << "ignore";
+        break;
+      case LangOptions::FPE_MayTrap:
+        OS << "maytrap";
+        break;
+      case LangOptions::FPE_Strict:
+        OS << "strict";
+        break;
+      }
+      OS << ")\n";
+    }
+  }
+  if (FPO.hasConstRoundingModeOverride()) {
+    LangOptions::RoundingMode RM = FPO.getConstRoundingModeOverride();
+    Indent() << "#pragma STDC FENV_ROUND ";
+    switch (RM) {
+    case llvm::RoundingMode::TowardZero:
+      OS << "FE_TOWARDZERO";
+      break;
+    case llvm::RoundingMode::NearestTiesToEven:
+      OS << "FE_TONEAREST";
+      break;
+    case llvm::RoundingMode::TowardPositive:
+      OS << "FE_UPWARD";
+      break;
+    case llvm::RoundingMode::TowardNegative:
+      OS << "FE_DOWNWARD";
+      break;
+    case llvm::RoundingMode::NearestTiesToAway:
+      OS << "FE_TONEARESTFROMZERO";
+      break;
+    case llvm::RoundingMode::Dynamic:
+      OS << "FE_DYNAMIC";
+      break;
+    default:
+      llvm_unreachable("Invalid rounding mode");
+    }
+    OS << NL;
+  }
 }
 
 void StmtPrinter::PrintRawDecl(Decl *D) {
@@ -749,6 +811,12 @@ void StmtPrinter::VisitOMPParallelMasterDirective(
   PrintOMPExecutableDirective(Node);
 }
 
+void StmtPrinter::VisitOMPParallelMaskedDirective(
+    OMPParallelMaskedDirective *Node) {
+  Indent() << "#pragma omp parallel masked";
+  PrintOMPExecutableDirective(Node);
+}
+
 void StmtPrinter::VisitOMPParallelSectionsDirective(
     OMPParallelSectionsDirective *Node) {
   Indent() << "#pragma omp parallel sections";
@@ -772,6 +840,11 @@ void StmtPrinter::VisitOMPBarrierDirective(OMPBarrierDirective *Node) {
 
 void StmtPrinter::VisitOMPTaskwaitDirective(OMPTaskwaitDirective *Node) {
   Indent() << "#pragma omp taskwait";
+  PrintOMPExecutableDirective(Node);
+}
+
+void StmtPrinter::VisitOMPErrorDirective(OMPErrorDirective *Node) {
+  Indent() << "#pragma omp error";
   PrintOMPExecutableDirective(Node);
 }
 
@@ -874,9 +947,21 @@ void StmtPrinter::VisitOMPMasterTaskLoopDirective(
   PrintOMPExecutableDirective(Node);
 }
 
+void StmtPrinter::VisitOMPMaskedTaskLoopDirective(
+    OMPMaskedTaskLoopDirective *Node) {
+  Indent() << "#pragma omp masked taskloop";
+  PrintOMPExecutableDirective(Node);
+}
+
 void StmtPrinter::VisitOMPMasterTaskLoopSimdDirective(
     OMPMasterTaskLoopSimdDirective *Node) {
   Indent() << "#pragma omp master taskloop simd";
+  PrintOMPExecutableDirective(Node);
+}
+
+void StmtPrinter::VisitOMPMaskedTaskLoopSimdDirective(
+    OMPMaskedTaskLoopSimdDirective *Node) {
+  Indent() << "#pragma omp masked taskloop simd";
   PrintOMPExecutableDirective(Node);
 }
 
@@ -886,9 +971,21 @@ void StmtPrinter::VisitOMPParallelMasterTaskLoopDirective(
   PrintOMPExecutableDirective(Node);
 }
 
+void StmtPrinter::VisitOMPParallelMaskedTaskLoopDirective(
+    OMPParallelMaskedTaskLoopDirective *Node) {
+  Indent() << "#pragma omp parallel masked taskloop";
+  PrintOMPExecutableDirective(Node);
+}
+
 void StmtPrinter::VisitOMPParallelMasterTaskLoopSimdDirective(
     OMPParallelMasterTaskLoopSimdDirective *Node) {
   Indent() << "#pragma omp parallel master taskloop simd";
+  PrintOMPExecutableDirective(Node);
+}
+
+void StmtPrinter::VisitOMPParallelMaskedTaskLoopSimdDirective(
+    OMPParallelMaskedTaskLoopSimdDirective *Node) {
+  Indent() << "#pragma omp parallel masked taskloop simd";
   PrintOMPExecutableDirective(Node);
 }
 
@@ -1005,6 +1102,30 @@ void StmtPrinter::VisitOMPGenericLoopDirective(OMPGenericLoopDirective *Node) {
   PrintOMPExecutableDirective(Node);
 }
 
+void StmtPrinter::VisitOMPTeamsGenericLoopDirective(
+    OMPTeamsGenericLoopDirective *Node) {
+  Indent() << "#pragma omp teams loop";
+  PrintOMPExecutableDirective(Node);
+}
+
+void StmtPrinter::VisitOMPTargetTeamsGenericLoopDirective(
+    OMPTargetTeamsGenericLoopDirective *Node) {
+  Indent() << "#pragma omp target teams loop";
+  PrintOMPExecutableDirective(Node);
+}
+
+void StmtPrinter::VisitOMPParallelGenericLoopDirective(
+    OMPParallelGenericLoopDirective *Node) {
+  Indent() << "#pragma omp parallel loop";
+  PrintOMPExecutableDirective(Node);
+}
+
+void StmtPrinter::VisitOMPTargetParallelGenericLoopDirective(
+    OMPTargetParallelGenericLoopDirective *Node) {
+  Indent() << "#pragma omp target parallel loop";
+  PrintOMPExecutableDirective(Node);
+}
+
 //===----------------------------------------------------------------------===//
 //  Expr printing methods.
 //===----------------------------------------------------------------------===//
@@ -1023,7 +1144,7 @@ void StmtPrinter::VisitDeclRefExpr(DeclRefExpr *Node) {
     return;
   }
   if (const auto *TPOD = dyn_cast<TemplateParamObjectDecl>(Node->getDecl())) {
-    TPOD->printAsExpr(OS);
+    TPOD->printAsExpr(OS, Policy);
     return;
   }
   if (NestedNameSpecifier *Qualifier = Node->getQualifier())
@@ -1159,12 +1280,18 @@ void StmtPrinter::VisitIntegerLiteral(IntegerLiteral *Node) {
   bool isSigned = Node->getType()->isSignedIntegerType();
   OS << toString(Node->getValue(), 10, isSigned);
 
+  if (isa<BitIntType>(Node->getType())) {
+    OS << (isSigned ? "wb" : "uwb");
+    return;
+  }
+
   // Emit suffixes.  Integer literals are always a builtin integer type.
   switch (Node->getType()->castAs<BuiltinType>()->getKind()) {
   default: llvm_unreachable("Unexpected type for integer literal!");
   case BuiltinType::Char_S:
   case BuiltinType::Char_U:    OS << "i8"; break;
   case BuiltinType::UChar:     OS << "Ui8"; break;
+  case BuiltinType::SChar:     OS << "i8"; break;
   case BuiltinType::Short:     OS << "i16"; break;
   case BuiltinType::UShort:    OS << "Ui16"; break;
   case BuiltinType::Int:       break; // no suffix.
@@ -1177,6 +1304,9 @@ void StmtPrinter::VisitIntegerLiteral(IntegerLiteral *Node) {
     break; // no suffix.
   case BuiltinType::UInt128:
     break; // no suffix.
+  case BuiltinType::WChar_S:
+  case BuiltinType::WChar_U:
+    break; // no suffix
   }
 }
 
@@ -1906,7 +2036,7 @@ void StmtPrinter::VisitUserDefinedLiteral(UserDefinedLiteral *Node) {
       cast<FunctionDecl>(DRE->getDecl())->getTemplateSpecializationArgs();
     assert(Args);
 
-    if (Args->size() != 1) {
+    if (Args->size() != 1 || Args->get(0).getKind() != TemplateArgument::Pack) {
       const TemplateParameterList *TPL = nullptr;
       if (!DRE->hadMultipleCandidates())
         if (const auto *TD = dyn_cast<TemplateDecl>(DRE->getDecl()))
@@ -1974,14 +2104,23 @@ void StmtPrinter::VisitCXXDefaultInitExpr(CXXDefaultInitExpr *Node) {
 }
 
 void StmtPrinter::VisitCXXFunctionalCastExpr(CXXFunctionalCastExpr *Node) {
-  Node->getType().print(OS, Policy);
-  // If there are no parens, this is list-initialization, and the braces are
-  // part of the syntax of the inner construct.
-  if (Node->getLParenLoc().isValid())
-    OS << "(";
+  auto TargetType = Node->getType();
+  auto *Auto = TargetType->getContainedDeducedType();
+  bool Bare = Auto && Auto->isDeduced();
+
+  // Parenthesize deduced casts.
+  if (Bare)
+    OS << '(';
+  TargetType.print(OS, Policy);
+  if (Bare)
+    OS << ')';
+
+  // No extra braces surrounding the inner construct.
+  if (!Node->isListInitialization())
+    OS << '(';
   PrintExpr(Node->getSubExpr());
-  if (Node->getLParenLoc().isValid())
-    OS << ")";
+  if (!Node->isListInitialization())
+    OS << ')';
 }
 
 void StmtPrinter::VisitCXXBindTemporaryExpr(CXXBindTemporaryExpr *Node) {
@@ -2068,7 +2207,8 @@ void StmtPrinter::VisitLambdaExpr(LambdaExpr *Node) {
       OS << "...";
 
     if (Node->isInitCapture(C)) {
-      VarDecl *D = C->getCapturedVar();
+      // Init captures are always VarDecl.
+      auto *D = cast<VarDecl>(C->getCapturedVar());
 
       llvm::StringRef Pre;
       llvm::StringRef Post;
@@ -2178,11 +2318,13 @@ void StmtPrinter::VisitCXXNewExpr(CXXNewExpr *E) {
     OS << ")";
 
   CXXNewExpr::InitializationStyle InitStyle = E->getInitializationStyle();
-  if (InitStyle) {
-    if (InitStyle == CXXNewExpr::CallInit)
+  if (InitStyle != CXXNewExpr::NoInit) {
+    bool Bare = InitStyle == CXXNewExpr::CallInit &&
+                !isa<ParenListExpr>(E->getInitializer());
+    if (Bare)
       OS << "(";
     PrintExpr(E->getInitializer());
-    if (InitStyle == CXXNewExpr::CallInit)
+    if (Bare)
       OS << ")";
   }
 }
@@ -2244,19 +2386,19 @@ void StmtPrinter::VisitExprWithCleanups(ExprWithCleanups *E) {
   PrintExpr(E->getSubExpr());
 }
 
-void
-StmtPrinter::VisitCXXUnresolvedConstructExpr(
-                                           CXXUnresolvedConstructExpr *Node) {
+void StmtPrinter::VisitCXXUnresolvedConstructExpr(
+    CXXUnresolvedConstructExpr *Node) {
   Node->getTypeAsWritten().print(OS, Policy);
-  OS << "(";
-  for (CXXUnresolvedConstructExpr::arg_iterator Arg = Node->arg_begin(),
-                                             ArgEnd = Node->arg_end();
-       Arg != ArgEnd; ++Arg) {
+  if (!Node->isListInitialization())
+    OS << '(';
+  for (auto Arg = Node->arg_begin(), ArgEnd = Node->arg_end(); Arg != ArgEnd;
+       ++Arg) {
     if (Arg != Node->arg_begin())
       OS << ", ";
     PrintExpr(*Arg);
   }
-  OS << ")";
+  if (!Node->isListInitialization())
+    OS << ')';
 }
 
 void StmtPrinter::VisitCXXDependentScopeMemberExpr(

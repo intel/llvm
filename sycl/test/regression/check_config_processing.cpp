@@ -5,9 +5,9 @@
 // RUN: ls *.dot
 // RUN: rm *.dot
 
-#include <CL/sycl.hpp>
 #include <iostream>
 #include <regex>
+#include <sycl/sycl.hpp>
 
 int main() {
   std::string testEnvVarValue = getenv("TEST");

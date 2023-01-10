@@ -12,23 +12,24 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVMPass.h"
+#include "mlir/Conversion/FuncToSPIRV/FuncToSPIRVPass.h"
 #include "mlir/Conversion/GPUToSPIRV/GPUToSPIRVPass.h"
 #include "mlir/Conversion/GPUToVulkan/ConvertGPUToVulkanPass.h"
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
 #include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
 #include "mlir/Conversion/ReconcileUnrealizedCasts/ReconcileUnrealizedCasts.h"
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
-#include "mlir/Conversion/StandardToSPIRV/StandardToSPIRVPass.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/GPU/GPUDialect.h"
-#include "mlir/Dialect/GPU/Passes.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
+#include "mlir/Dialect/GPU/Transforms/Passes.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/LLVMIR/Transforms/RequestCWrappers.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/Dialect/SPIRV/Transforms/Passes.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/ExecutionEngine/JitRunner.h"
 #include "mlir/ExecutionEngine/OptUtils.h"
 #include "mlir/Pass/Pass.h"
@@ -40,23 +41,29 @@
 
 using namespace mlir;
 
-static LogicalResult runMLIRPasses(ModuleOp module) {
+static LogicalResult runMLIRPasses(Operation *op, JitRunnerOptions &options) {
+  auto module = dyn_cast<ModuleOp>(op);
+  if (!module)
+    return op->emitOpError("expected a 'builtin.module' op");
   PassManager passManager(module.getContext());
   applyPassManagerCLOptions(passManager);
 
   passManager.addPass(createGpuKernelOutliningPass());
-  passManager.addPass(memref::createFoldSubViewOpsPass());
-  passManager.addPass(createConvertGPUToSPIRVPass());
+  passManager.addPass(memref::createFoldMemRefAliasOpsPass());
+
+  passManager.addPass(createConvertGPUToSPIRVPass(/*mapMemorySpace=*/true));
   OpPassManager &modulePM = passManager.nest<spirv::ModuleOp>();
   modulePM.addPass(spirv::createLowerABIAttributesPass());
   modulePM.addPass(spirv::createUpdateVersionCapabilityExtensionPass());
+
   passManager.addPass(createConvertGpuLaunchFuncToVulkanLaunchFuncPass());
   LowerToLLVMOptions llvmOptions(module.getContext(), DataLayout(module));
-  llvmOptions.emitCWrappers = true;
-  passManager.addPass(createMemRefToLLVMPass());
-  passManager.addPass(createLowerToLLVMPass(llvmOptions));
+  passManager.addPass(createMemRefToLLVMConversionPass());
+  passManager.nest<func::FuncOp>().addPass(LLVM::createRequestCWrappersPass());
+  passManager.addPass(createConvertFuncToLLVMPass(llvmOptions));
   passManager.addPass(createReconcileUnrealizedCastsPass());
   passManager.addPass(createConvertVulkanLaunchFuncToVulkanCallsPass());
+
   return passManager.run(module);
 }
 
@@ -67,15 +74,14 @@ int main(int argc, char **argv) {
   llvm::InitLLVM y(argc, argv);
   llvm::InitializeNativeTarget();
   llvm::InitializeNativeTargetAsmPrinter();
-  mlir::initializeLLVMPasses();
 
   mlir::JitRunnerConfig jitRunnerConfig;
   jitRunnerConfig.mlirTransformer = runMLIRPasses;
 
   mlir::DialectRegistry registry;
-  registry.insert<mlir::arith::ArithmeticDialect, mlir::LLVM::LLVMDialect,
+  registry.insert<mlir::arith::ArithDialect, mlir::LLVM::LLVMDialect,
                   mlir::gpu::GPUDialect, mlir::spirv::SPIRVDialect,
-                  mlir::StandardOpsDialect, mlir::memref::MemRefDialect>();
+                  mlir::func::FuncDialect, mlir::memref::MemRefDialect>();
   mlir::registerLLVMDialectTranslation(registry);
 
   return mlir::JitRunnerMain(argc, argv, registry, jitRunnerConfig);

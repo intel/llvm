@@ -133,17 +133,17 @@ bool MCPlusBuilder::isTailCall(const MCInst &Inst) const {
   return false;
 }
 
-Optional<MCLandingPad> MCPlusBuilder::getEHInfo(const MCInst &Inst) const {
+std::optional<MCLandingPad> MCPlusBuilder::getEHInfo(const MCInst &Inst) const {
   if (!isCall(Inst))
-    return NoneType();
-  Optional<int64_t> LPSym =
+    return std::nullopt;
+  std::optional<int64_t> LPSym =
       getAnnotationOpValue(Inst, MCAnnotation::kEHLandingPad);
   if (!LPSym)
-    return NoneType();
-  Optional<int64_t> Action =
+    return std::nullopt;
+  std::optional<int64_t> Action =
       getAnnotationOpValue(Inst, MCAnnotation::kEHAction);
   if (!Action)
-    return NoneType();
+    return std::nullopt;
 
   return std::make_pair(reinterpret_cast<const MCSymbol *>(*LPSym),
                         static_cast<uint64_t>(*Action));
@@ -159,8 +159,19 @@ void MCPlusBuilder::addEHInfo(MCInst &Inst, const MCLandingPad &LP) {
   }
 }
 
+bool MCPlusBuilder::updateEHInfo(MCInst &Inst, const MCLandingPad &LP) {
+  if (!isInvoke(Inst))
+    return false;
+
+  setAnnotationOpValue(Inst, MCAnnotation::kEHLandingPad,
+                       reinterpret_cast<int64_t>(LP.first));
+  setAnnotationOpValue(Inst, MCAnnotation::kEHAction,
+                       static_cast<int64_t>(LP.second));
+  return true;
+}
+
 int64_t MCPlusBuilder::getGnuArgsSize(const MCInst &Inst) const {
-  Optional<int64_t> Value =
+  std::optional<int64_t> Value =
       getAnnotationOpValue(Inst, MCAnnotation::kGnuArgsSize);
   if (!Value)
     return -1LL;
@@ -177,7 +188,7 @@ void MCPlusBuilder::addGnuArgsSize(MCInst &Inst, int64_t GnuArgsSize,
 }
 
 uint64_t MCPlusBuilder::getJumpTable(const MCInst &Inst) const {
-  Optional<int64_t> Value =
+  std::optional<int64_t> Value =
       getAnnotationOpValue(Inst, MCAnnotation::kJumpTable);
   if (!Value)
     return 0;
@@ -205,12 +216,12 @@ bool MCPlusBuilder::unsetJumpTable(MCInst &Inst) {
   return true;
 }
 
-Optional<uint64_t>
+std::optional<uint64_t>
 MCPlusBuilder::getConditionalTailCall(const MCInst &Inst) const {
-  Optional<int64_t> Value =
+  std::optional<int64_t> Value =
       getAnnotationOpValue(Inst, MCAnnotation::kConditionalTailCall);
   if (!Value)
-    return NoneType();
+    return std::nullopt;
   return static_cast<uint64_t>(*Value);
 }
 
@@ -229,16 +240,17 @@ bool MCPlusBuilder::unsetConditionalTailCall(MCInst &Inst) {
   return true;
 }
 
-Optional<uint32_t> MCPlusBuilder::getOffset(const MCInst &Inst) const {
-  Optional<int64_t> Value = getAnnotationOpValue(Inst, MCAnnotation::kOffset);
+std::optional<uint32_t> MCPlusBuilder::getOffset(const MCInst &Inst) const {
+  std::optional<int64_t> Value =
+      getAnnotationOpValue(Inst, MCAnnotation::kOffset);
   if (!Value)
-    return NoneType();
+    return std::nullopt;
   return static_cast<uint32_t>(*Value);
 }
 
 uint32_t MCPlusBuilder::getOffsetWithDefault(const MCInst &Inst,
                                              uint32_t Default) const {
-  if (Optional<uint32_t> Offset = getOffset(Inst))
+  if (std::optional<uint32_t> Offset = getOffset(Inst))
     return *Offset;
   return Default;
 }
@@ -441,17 +453,13 @@ bool MCPlusBuilder::hasUseOfPhysReg(const MCInst &MI, unsigned Reg) const {
 
 const BitVector &MCPlusBuilder::getAliases(MCPhysReg Reg,
                                            bool OnlySmaller) const {
-  // AliasMap caches a mapping of registers to the set of registers that
-  // alias (are sub or superregs of itself, including itself).
-  static std::vector<BitVector> AliasMap;
-  static std::vector<BitVector> SmallerAliasMap;
+  if (OnlySmaller)
+    return SmallerAliasMap[Reg];
+  return AliasMap[Reg];
+}
 
-  if (AliasMap.size() > 0) {
-    if (OnlySmaller)
-      return SmallerAliasMap[Reg];
-    return AliasMap[Reg];
-  }
-
+void MCPlusBuilder::initAliases() {
+  assert(AliasMap.size() == 0 && SmallerAliasMap.size() == 0);
   // Build alias map
   for (MCPhysReg I = 0, E = RegInfo->getNumRegs(); I != E; ++I) {
     BitVector BV(RegInfo->getNumRegs(), false);
@@ -492,10 +500,6 @@ const BitVector &MCPlusBuilder::getAliases(MCPhysReg Reg,
       dbgs() << "\n";
     }
   });
-
-  if (OnlySmaller)
-    return SmallerAliasMap[Reg];
-  return AliasMap[Reg];
 }
 
 uint8_t MCPlusBuilder::getRegSize(MCPhysReg Reg) const {

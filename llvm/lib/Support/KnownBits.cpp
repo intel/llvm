@@ -335,13 +335,13 @@ Optional<bool> KnownBits::eq(const KnownBits &LHS, const KnownBits &RHS) {
     return Optional<bool>(LHS.getConstant() == RHS.getConstant());
   if (LHS.One.intersects(RHS.Zero) || RHS.One.intersects(LHS.Zero))
     return Optional<bool>(false);
-  return None;
+  return std::nullopt;
 }
 
 Optional<bool> KnownBits::ne(const KnownBits &LHS, const KnownBits &RHS) {
   if (Optional<bool> KnownEQ = eq(LHS, RHS))
-    return Optional<bool>(!KnownEQ.getValue());
-  return None;
+    return Optional<bool>(!*KnownEQ);
+  return std::nullopt;
 }
 
 Optional<bool> KnownBits::ugt(const KnownBits &LHS, const KnownBits &RHS) {
@@ -351,13 +351,13 @@ Optional<bool> KnownBits::ugt(const KnownBits &LHS, const KnownBits &RHS) {
   // LHS >u RHS -> true if umin(LHS) > umax(RHS)
   if (LHS.getMinValue().ugt(RHS.getMaxValue()))
     return Optional<bool>(true);
-  return None;
+  return std::nullopt;
 }
 
 Optional<bool> KnownBits::uge(const KnownBits &LHS, const KnownBits &RHS) {
   if (Optional<bool> IsUGT = ugt(RHS, LHS))
-    return Optional<bool>(!IsUGT.getValue());
-  return None;
+    return Optional<bool>(!*IsUGT);
+  return std::nullopt;
 }
 
 Optional<bool> KnownBits::ult(const KnownBits &LHS, const KnownBits &RHS) {
@@ -375,13 +375,13 @@ Optional<bool> KnownBits::sgt(const KnownBits &LHS, const KnownBits &RHS) {
   // LHS >s RHS -> true if smin(LHS) > smax(RHS)
   if (LHS.getSignedMinValue().sgt(RHS.getSignedMaxValue()))
     return Optional<bool>(true);
-  return None;
+  return std::nullopt;
 }
 
 Optional<bool> KnownBits::sge(const KnownBits &LHS, const KnownBits &RHS) {
   if (Optional<bool> KnownSGT = sgt(RHS, LHS))
-    return Optional<bool>(!KnownSGT.getValue());
-  return None;
+    return Optional<bool>(!*KnownSGT);
+  return std::nullopt;
 }
 
 Optional<bool> KnownBits::slt(const KnownBits &LHS, const KnownBits &RHS) {
@@ -417,9 +417,8 @@ KnownBits KnownBits::mul(const KnownBits &LHS, const KnownBits &RHS,
   unsigned BitWidth = LHS.getBitWidth();
   assert(BitWidth == RHS.getBitWidth() && !LHS.hasConflict() &&
          !RHS.hasConflict() && "Operand mismatch");
-  assert(
-      (!NoUndefSelfMultiply || (LHS.One == RHS.One && LHS.Zero == RHS.Zero)) &&
-      "Self multiplication knownbits mismatch");
+  assert((!NoUndefSelfMultiply || LHS == RHS) &&
+         "Self multiplication knownbits mismatch");
 
   // Compute the high known-0 bits by multiplying the unsigned max of each side.
   // Conservatively, M active bits * N active bits results in M + N bits in the

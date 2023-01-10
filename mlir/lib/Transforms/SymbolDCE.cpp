@@ -11,13 +11,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
 #include "mlir/Transforms/Passes.h"
+
+#include "mlir/IR/SymbolTable.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_SYMBOLDCE
+#include "mlir/Transforms/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 
 namespace {
-struct SymbolDCE : public SymbolDCEBase<SymbolDCE> {
+struct SymbolDCE : public impl::SymbolDCEBase<SymbolDCE> {
   void runOnOperation() override;
 
   /// Compute the liveness of the symbols within the given symbol table.
@@ -62,8 +68,10 @@ void SymbolDCE::runOnOperation() {
       return;
     for (auto &block : nestedSymbolTable->getRegion(0)) {
       for (Operation &op : llvm::make_early_inc_range(block)) {
-        if (isa<SymbolOpInterface>(&op) && !liveSymbols.count(&op))
+        if (isa<SymbolOpInterface>(&op) && !liveSymbols.count(&op)) {
           op.erase();
+          ++numDCE;
+        }
       }
     }
   });

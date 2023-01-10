@@ -70,7 +70,7 @@ protected:
   virtual uint64_t GetSize() = 0;
 
   ExecutionContextRef m_exe_ctx_ref;
-  uint8_t m_ptr_size;
+  uint8_t m_ptr_size = 8;
   CompilerType m_id_type;
 };
 
@@ -226,7 +226,7 @@ public:
 
 private:
   ExecutionContextRef m_exe_ctx_ref;
-  uint8_t m_ptr_size;
+  uint8_t m_ptr_size = 8;
 
   D32 *m_data_32;
   D64 *m_data_64;
@@ -459,16 +459,15 @@ bool lldb_private::formatters::NSArraySummaryProvider(
   return true;
 }
 
-lldb_private::formatters::NSArrayMSyntheticFrontEndBase::NSArrayMSyntheticFrontEndBase(
-    lldb::ValueObjectSP valobj_sp)
-    : SyntheticChildrenFrontEnd(*valobj_sp), m_exe_ctx_ref(), m_ptr_size(8),
-      m_id_type() {
+lldb_private::formatters::NSArrayMSyntheticFrontEndBase::
+    NSArrayMSyntheticFrontEndBase(lldb::ValueObjectSP valobj_sp)
+    : SyntheticChildrenFrontEnd(*valobj_sp), m_exe_ctx_ref(), m_id_type() {
   if (valobj_sp) {
     auto *clang_ast_context = ScratchTypeSystemClang::GetForTarget(
         *valobj_sp->GetExecutionContextRef().GetTargetSP());
     if (clang_ast_context)
       m_id_type = CompilerType(
-          clang_ast_context,
+          clang_ast_context->weak_from_this(),
           clang_ast_context->getASTContext().ObjCBuiltinIdTy.getAsOpaquePtr());
     if (valobj_sp->GetProcessSP())
       m_ptr_size = valobj_sp->GetProcessSP()->GetAddressByteSize();
@@ -533,9 +532,8 @@ lldb_private::formatters::
     process_sp->ReadMemory(data_location, m_data_64, sizeof(D64),
                            error);
   }
-  if (error.Fail())
-    return false;
-  return false;
+
+  return error.Success();
 }
 
 bool
@@ -605,9 +603,8 @@ lldb_private::formatters::
 
 template <typename D32, typename D64, bool Inline>
 lldb_private::formatters::GenericNSArrayISyntheticFrontEnd<D32, D64, Inline>::
-  GenericNSArrayISyntheticFrontEnd(
-    lldb::ValueObjectSP valobj_sp)
-    : SyntheticChildrenFrontEnd(*valobj_sp), m_exe_ctx_ref(), m_ptr_size(8),
+    GenericNSArrayISyntheticFrontEnd(lldb::ValueObjectSP valobj_sp)
+    : SyntheticChildrenFrontEnd(*valobj_sp), m_exe_ctx_ref(),
       m_data_32(nullptr), m_data_64(nullptr) {
   if (valobj_sp) {
     CompilerType type = valobj_sp->GetCompilerType();
@@ -677,9 +674,8 @@ lldb_private::formatters::GenericNSArrayISyntheticFrontEnd<D32, D64, Inline>::
     process_sp->ReadMemory(data_location, m_data_64, sizeof(D64),
                            error);
   }
-  if (error.Fail())
-    return false;
-  return false;
+
+  return error.Success();
 }
 
 template <typename D32, typename D64, bool Inline>

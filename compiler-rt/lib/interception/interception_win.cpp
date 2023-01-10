@@ -738,7 +738,7 @@ bool OverrideFunctionWithRedirectJump(
     return false;
 
   if (orig_old_func) {
-    uptr relative_offset = *(u32*)(old_func + 1);
+    sptr relative_offset = *(s32 *)(old_func + 1);
     uptr absolute_target = old_func + relative_offset + kJumpInstructionLength;
     *orig_old_func = absolute_target;
   }
@@ -1068,4 +1068,4 @@ bool OverrideImportedFunction(const char *module_to_patch,
 
 }  // namespace __interception
 
-#endif  // SANITIZER_MAC
+#endif  // SANITIZER_APPLE

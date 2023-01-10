@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "OrcTestCommon.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/ExecutionEngine/Orc/Core.h"
 #include "llvm/ExecutionEngine/Orc/Shared/OrcError.h"
@@ -234,6 +235,27 @@ TEST_F(CoreAPIsStandardTest, RemoveSymbolsTest) {
   EXPECT_TRUE(BarMaterializerDestructed)
       << "\"Bar\"'s materializer should have been destructed";
   EXPECT_TRUE(OnCompletionRun) << "OnCompletion should have been run";
+}
+
+TEST_F(CoreAPIsStandardTest, DiscardInitSymbol) {
+  SymbolStringPtr ForwardedDiscardSym = nullptr;
+
+  auto MU = std::make_unique<SimpleMaterializationUnit>(
+      SymbolFlagsMap({{Foo, FooSym.getFlags()}, {Bar, BarSym.getFlags()}}),
+      [](std::unique_ptr<MaterializationResponsibility> R) {
+        llvm_unreachable("Materialize called unexpectedly?");
+      },
+      Foo,
+      [&](const JITDylib &, SymbolStringPtr Sym) {
+        ForwardedDiscardSym = std::move(Sym);
+      });
+
+  MU->doDiscard(JD, Foo);
+
+  EXPECT_EQ(ForwardedDiscardSym, Foo);
+  EXPECT_EQ(MU->getSymbols().size(), 1U);
+  EXPECT_TRUE(MU->getSymbols().count(Bar));
+  EXPECT_EQ(MU->getInitializerSymbol(), nullptr);
 }
 
 TEST_F(CoreAPIsStandardTest, LookupWithHiddenSymbols) {
@@ -1017,6 +1039,21 @@ TEST_F(CoreAPIsStandardTest, TestBasicWeakSymbolMaterialization) {
       << "Duplicate bar definition not discarded";
 }
 
+TEST_F(CoreAPIsStandardTest, RedefineBoundWeakSymbol) {
+  // Check that redefinition of a bound weak symbol fails.
+
+  JITSymbolFlags WeakExported(JITSymbolFlags::Exported);
+  WeakExported |= JITSymbolFlags::Weak;
+
+  // Define "Foo" as weak, force materialization.
+  cantFail(JD.define(absoluteSymbols({{Foo, {FooAddr, WeakExported}}})));
+  cantFail(ES.lookup({&JD}, Foo));
+
+  // Attempt to redefine "Foo". Expect failure, despite "Foo" being weak,
+  // since it has already been bound.
+  EXPECT_THAT_ERROR(JD.define(absoluteSymbols({{Foo, FooSym}})), Failed());
+}
+
 TEST_F(CoreAPIsStandardTest, DefineMaterializingSymbol) {
   bool ExpectNoMoreMaterialization = false;
   ES.setDispatchTask([&](std::unique_ptr<Task> T) {
@@ -1410,6 +1447,7 @@ TEST(JITDylibTest, GetDFSLinkOrderTree) {
   // form a tree.
 
   ExecutionSession ES{std::make_unique<UnsupportedExecutorProcessControl>()};
+  auto _ = make_scope_exit([&]() { cantFail(ES.endSession()); });
 
   auto &LibA = ES.createBareJITDylib("A");
   auto &LibB = ES.createBareJITDylib("B");
@@ -1451,6 +1489,8 @@ TEST(JITDylibTest, GetDFSLinkOrderDiamond) {
   // contain a diamond.
 
   ExecutionSession ES{std::make_unique<UnsupportedExecutorProcessControl>()};
+  auto _ = make_scope_exit([&]() { cantFail(ES.endSession()); });
+
   auto &LibA = ES.createBareJITDylib("A");
   auto &LibB = ES.createBareJITDylib("B");
   auto &LibC = ES.createBareJITDylib("C");
@@ -1473,6 +1513,8 @@ TEST(JITDylibTest, GetDFSLinkOrderCycle) {
   // contain a cycle.
 
   ExecutionSession ES{std::make_unique<UnsupportedExecutorProcessControl>()};
+  auto _ = make_scope_exit([&]() { cantFail(ES.endSession()); });
+
   auto &LibA = ES.createBareJITDylib("A");
   auto &LibB = ES.createBareJITDylib("B");
   auto &LibC = ES.createBareJITDylib("C");
@@ -1549,6 +1591,37 @@ TEST_F(CoreAPIsStandardTest, RemoveJITDylibs) {
   EXPECT_THAT_EXPECTED(JD.getDFSLinkOrder(), Failed());
 
   BazMR->failMaterialization();
+}
+
+TEST(CoreAPIsExtraTest, SessionTeardownByFailedToMaterialize) {
+
+  auto RunTestCase = []() -> Error {
+    ExecutionSession ES{std::make_unique<UnsupportedExecutorProcessControl>(
+        std::make_shared<SymbolStringPool>())};
+    auto Foo = ES.intern("foo");
+    auto FooFlags = JITSymbolFlags::Exported;
+
+    auto &JD = ES.createBareJITDylib("Foo");
+    cantFail(JD.define(std::make_unique<SimpleMaterializationUnit>(
+        SymbolFlagsMap({{Foo, FooFlags}}),
+        [&](std::unique_ptr<MaterializationResponsibility> R) {
+          R->failMaterialization();
+        })));
+
+    auto Sym = ES.lookup({&JD}, Foo);
+    assert(!Sym && "Query should have failed");
+    cantFail(ES.endSession());
+    return Sym.takeError();
+  };
+
+  auto Err = RunTestCase();
+  EXPECT_TRUE(!!Err); // Expect that error occurred.
+  EXPECT_TRUE(
+      Err.isA<FailedToMaterialize>()); // Expect FailedToMaterialize error.
+
+  // Make sure that we can log errors, even though the session has been
+  // destroyed.
+  logAllUnhandledErrors(std::move(Err), nulls(), "");
 }
 
 } // namespace

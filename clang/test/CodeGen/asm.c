@@ -197,7 +197,7 @@ void *t24(char c) {
   void *addr;
   // CHECK: @t24
   // CHECK: zext i8 {{.*}} to i32
-  // CHECK-NEXT: call i8* asm "foobar"
+  // CHECK-NEXT: call ptr asm "foobar"
   __asm__ ("foobar" : "=a" (addr) : "0" (c));
   return addr;
 }
@@ -246,7 +246,7 @@ void t29(void) {
                :
                : "m"(t29_var));
   // CHECK: @t29
-  // CHECK: call void asm sideeffect "movl %eax, $0", "*m,~{dirflag},~{fpsr},~{flags}"([1 x i32]* elementtype([1 x i32]) @t29_var)
+  // CHECK: call void asm sideeffect "movl %eax, $0", "*m,~{dirflag},~{fpsr},~{flags}"(ptr elementtype([1 x i32]) @t29_var)
 }
 
 void t30(int len) {
@@ -267,10 +267,21 @@ void t31(int len) {
 int t32(int cond)
 {
   asm goto("testl %0, %0; jne %l1;" :: "r"(cond)::label_true, loop);
-  // CHECK: callbr void asm sideeffect "testl $0, $0; jne ${1:l};", "r,i,i,~{dirflag},~{fpsr},~{flags}"(i32 %0, i8* blockaddress(@t32, %label_true), i8* blockaddress(@t32, %loop)) #1
+  // CHECK: callbr void asm sideeffect "testl $0, $0; jne ${1:l};", "r,!i,!i,~{dirflag},~{fpsr},~{flags}"(i32 %0) #1
+  // CHECK-NEXT: to label %asm.fallthrough [label %label_true, label %loop]
   return 0;
 loop:
   return 0;
 label_true:
   return 1;
+}
+
+void *t33(void *ptr)
+{
+  void *ret;
+  asm ("lea %1, %0" : "=r" (ret) : "p" (ptr));
+  return ret;
+
+  // CHECK: @t33
+  // CHECK: %1 = call ptr asm "lea $1, $0", "=r,p,~{dirflag},~{fpsr},~{flags}"(ptr %0)
 }

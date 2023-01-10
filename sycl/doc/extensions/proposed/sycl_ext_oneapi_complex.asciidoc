@@ -1,0 +1,459 @@
+= sycl_ext_oneapi_complex
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2022 Codeplay Ltd.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 5 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+[NOTE]
+====
+This extension is not currently implemented in {dpcpp}.
+====
+
+
+== Overview
+
+While {dpcpp} has support for `std::complex` in device code, it limits the
+complex interface and operations to the existing C++ standard. This proposal
+defines a SYCL complex extension based on but independent of the `std::complex`
+interface. This framework would allow for further development of complex math
+within oneAPI. Possible areas for deviation with `std::complex` include adding
+complex support for `marray` and `vec` and overloading mathematical
+functions to handle the element-wise operations.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_COMPLEX` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== Complex Class
+
+The core of this extension in the complex math class. This class contains a real
+and imaginary component and enables mathematical operations between complex
+numbers and decimals. The complex class interface and operations are shown
+below.
+
+The complex type is trivially copyable and type trait `is_device_copyable`
+should resolve to `std::true_type`.
+
+```C++
+namespace sycl {
+namespace ext {
+namespace oneapi {
+
+    template <typename T>
+    class complex {
+        public:
+            complex(const T&, const T&);
+            complex(const complex&)
+            complex(const std::complex<T>&)
+
+            operator std::complex();
+
+            T real();
+            T imag();
+
+            void real(T _re);
+            void imag(T _im);
+
+            /*Complex operators*/
+
+            // operator=
+            template<typename X>
+            complex& operator+=(const complex<X>&);
+
+            // operator+=
+            template<typename X>
+            complex& operator+=(const complex<X>&);
+
+            // operator-=
+            template<typename X>
+            complex& operator-=(const complex<X>&);
+
+            // operator*=
+            template<typename X>
+            complex& operator*=(const complex<X>&);
+
+            // operator/=
+            template<typename X>
+            complex& operator/=(const complex<X>&);
+
+            /*Scalar operators*/
+
+            // operator=
+            complex& operator=(const T&);
+
+            // operator+=
+            complex& operator+=(const T&);
+
+            // operator-=
+            complex& operator-=(const T&);
+
+            // operator*=
+            complex& operator*=(const T&);
+
+            // operator/=
+            complex& operator/=(const T &);
+    }
+
+    /*Complex operators*/
+
+    // operator+
+    template<typename T>
+    complex<T> operator+(const complex<T>&, const complex<T>&);
+
+    // operator-
+    template<typename T>
+    complex<T> operator-(const complex<T>&, const complex<T>&);
+
+    // operator*
+    template<typename T>
+    complex<T> operator*(const complex<T>&, const complex<T>&);
+
+    // operator/
+    template<typename T>
+    complex<T> operator/(const complex<T>&, const complex<T>&);
+
+    // operator==
+    template<typename T>
+    bool operator==(const complex<T>&, const complex<T>&);
+
+    // operator!=
+    template<typename T>
+    bool operator!=(const complex<T>&, const complex<T>&);
+
+    /*Scalar operators*/
+
+    // operator+
+    template<typename T>
+    complex<T> operator+(const complex<T>&, const T&);
+    template<typename T>
+    complex<T> operator+(const T&, const complex<T>&);
+
+    // operator-
+    template<typename T>
+    complex<T> operator/(const complex<T>&, const T&);
+    template<typename T>
+    complex<T> operator/(const T>&, const complex<T>&);
+
+    // operator==
+    template<typename T>
+    bool operator==(const complex<T>&, const T&);
+    template<typename T>
+    bool operator==(const T&, const complex<T>&);
+
+    // operator!=
+    template<typename T>
+    bool operator!=(const complex<T>&, const T&);
+    template<typename T>
+    bool operator!=(const T&, const complex<T>&);
+
+    /*Stream operator*/
+
+    // operator<<
+    template<typename T>
+    const sycl::stream& operator<<(sycl::stream&, const complex<T>&);
+
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+```
+
+The class `sycl::oneapi::complex` class, has specializations
+of `T`; `float`, `double`, and `sycl::half` defined.
+
+```C++
+namespace sycl {
+namespace ext {
+namespace oneapi {
+
+    template<> class complex<double>;
+    template<> class complex<float>;
+    template<> class complex<sycl::half>;
+
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+```
+
+The `sycl::oneapi::ext::complex` specializations can be generalised similar
+to existing SYCL arithmetic types. The generic type `gencomplex` is defined as
+types `complex<double>`, `complex<float>`, `complex<sycl::half>`.
+
+The table belows shows the operators defined by the SYCL complex interface
+along with a description of its operation.
+
+Note: When performing operations between complex numbers and decimals,
+the decimal is treated as a complex number with a real component equal to
+the decimal and an imaginary component equal to 0.
+
+
+[%header,cols="5,5"]
+|===
+|Function
+|Description
+
+|`gencomplex& operator+=(const gencomplex& x);`
+|Adds and assigns complex number x.
+|`gencomplex& operator+=(const genfloat& x);`
+|Adds and assigns scaler number x.
+|`gencomplex& operator-=(const gencomplex& x);`
+|Subtracts and assigns complex number x.
+|`gencomplex& operator-=(const genfloat& x);`
+|Subtracts and assigns scaler number x.
+|`gencomplex& operator*=(const gencomplex& x);`
+|Multiplies and assigns complex number x.
+|`gencomplex& operator*=(const genfloat& x);`
+|Multiplies and assigns scaler number x.
+|`gencomplex& operator/=(const gencomplex& x);`
+|Divides and assigns complex number x.
+|`gencomplex& operator/=(const genfloat& x);`
+|Divides and assigns scaler number x.
+|`gencomplex operator+(const gencomplex& x, const gencomplex& y);`
+|Adds complex numbers x and y and returns the value.
+|`gencomplex operator+(const gencomplex& x, const genfloat& y);`
+|Adds complex number x and decimal y and returns the value.
+|`gencomplex operator+(const genfloat& x, const gencomplex& y);`
+|Adds decimal x and complex number y and returns the value.
+|`gencomplex operator-(const gencomplex& x, const gencomplex& y);`
+|Subtracts complex values x and y and returns the value.
+|`gencomplex operator-(const gencomplex& x, const genfloat& y);`
+|Subtracts complex number x and decimal y and returns the value.
+|`gencomplex operator-(const genfloat& x, const gencomplex& y);`
+|Subtracts decimal x and complex number y and returns the value.
+|`gencomplex operator*(const gencomplex& x, const gencomplex& y);`
+|Multiplies complex numbers x and y and returns the value.
+|`gencomplex operator*(const gencomplex& x, const genfloat& y);`
+|Multiplies complex number x and decimal y and returns the value.
+|`gencomplex operator*(const genfloat& x, const gencomplex& y);`
+|Multiplies decimal x and complex number y and returns the value.
+|`gencomplex operator/(const gencomplex& x, const gencomplex& y);`
+|Divides complex numbers x and y and returns the value.
+|`gencomplex operator/(const gencomplex& x, const genfloat& y);`
+|Divides complex number x and decimal y and returns the value.
+|`gencomplex operator/(const genfloat& x, const gencomplex& y);`
+|Divides decimal x and complex number y and returns the value.
+|`gencomplex operator==(const gencomplex& x, const gencomplex& y);`
+|Compares complex numbers x and y and returns true if they are the same, otherwise false.
+|`gencomplex operator==(const gencomplex& x, const genfloat& y);`
+|Compares complex number x and decimal y and returns true if they are the same, otherwise false.
+|`gencomplex operator==(const genfloat& x, const gencomplex& y);`
+|Compares decimal x and complex number y and returns true if they are the same, otherwise false.
+|`gencomplex operator!=(const gencomplex& x, const gencomplex& y);`
+|Compares complex numbers x and y and returns true if they are different, otherwise false.
+|`gencomplex operator!=(const gencomplex& x, const genfloat& y);`
+|Compares complex number x and decimal y and returns true if they are different, otherwise false.
+|`gencomplex operator!=(const genfloat& x, const gencomplex& y);`
+|Compares decimal x and complex number y and returns true if they are different, otherwise false.
+|`const sycl::stream& operator<<(sycl::stream& x, const gencomplex& y);`
+|Streams the complex number y in the format "(real,imaginary)" into `sycl::stream` x and return the result.
+|===
+
+
+=== Mathematical operations
+
+This proposal adds `sycl::ext::oneapi` namespace math functions accepting
+`gencomplex` for the SYCL math functions, `abs`, `acos`, `asin`, `atan`,
+`acosh`, `asinh`, `atanh`, `arg`, `conj`, `cos`, `cosh`, `exp`, `log`, `log10`,
+`norm`, `polar`, `pow`, `proj`, `sin`, `sinh`, `sqrt`, `tan`, and `tanh`.
+Each math function should follow the C++ standard for handling NaN's and Inf
+values.
+
+```C++
+namespace sycl {
+namespace ext {
+namespace oneapi {
+
+    genfloat abs(const gencomplex& x);
+
+    gencomplex acos(const gencomplex& x);
+
+    gencomplex asin(const gencomplex& x);
+
+    gencomplex atan(const gencomplex& x);
+
+    gencomplex acosh(const gencomplex& x);
+
+    gencomplex asinh(const gencomplex& x);
+
+    gencomplex atanh(const gencomplex& x);
+
+    genfloat arg(const gencomplex& x);
+
+    gencomplex conj(const gencomplex& x);
+
+    gencomplex cos(const gencomplex& x);
+
+    gencomplex cosh(const gencomplex& x);
+
+    gencomplex exp(const gencomplex& x);
+
+    gencomplex log(const gencomplex& x);
+
+    gencomplex log10(const gencomplex& x);
+
+    genfloat norm(const gencomplex& x);
+
+    gencomplex polar(const genfloat& rho, const genfloat& theta = 0);
+
+    gencomplex pow(const gencomplex& x, const genfloat& y);
+
+    gencomplex pow(const gencomplex& x, const gencomplex& y);
+
+    gencomplex pow(const genfloat& x, const gencomplex& y);
+
+    gencomplex proj(const gencomplex& x);
+
+    gencomplex sin(const gencomplex& x);
+
+    gencomplex sinh(const gencomplex& x);
+
+    gencomplex sqrt(const gencomplex& x);
+
+    gencomplex tan(const gencomplex& x);
+
+    gencomplex tanh(const gencomplex& x);
+
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+```
+
+The table below shows each function along with a description of its
+mathematical operation.
+
+[%header,cols="5,5"]
+|===
+|Function
+|Description
+
+|`genfloat abs(const gencomplex& x)`
+|Compute the magnitude of complex number x.
+|`gencomplex acos(const gencomplex& x)`
+|Compute the inverse cosine of complex number x.
+|`gencomplex asin(const gencomplex& x)`
+|Compute the inverse sine of complex number x.
+|`gencomplex atan(const gencomplex& x)`
+|Compute the inverse tangent of complex number x.
+|`gencomplex acosh(const gencomplex& x)`
+|Compute the inverse hyperbolic cosine of complex number x.
+|`gencomplex asinh(const gencomplex& x)`
+|Compute the inverse hyperbolic sine of complex number x.
+|`gencomplex atanh(const gencomplex& x)`
+|Compute the inverse hyperbolic tangent of complex number x.
+|`genfloat arg(const gencomplex& x);`
+|Compute phase angle in radians of complex number x.
+|`gencomplex conj(const gencomplex& x)`
+|Compute the conjugate of complex number x.
+|`gencomplex cos(const gencomplex& x)`
+|Compute the cosine of complex number x.
+|`gencomplex cosh(const gencomplex& x)`
+|Compute the hyperbolic cosine of complex number x.
+|`gencomplex exp(const gencomplex& x)`
+|Compute the base-e exponent of complex number x.
+|`gencomplex log(const gencomplex& x)`
+|Compute the natural log of complex number x.
+|`gencomplex log10(const gencomplex& x)`
+|Compute the base-10 log of complex number x.
+|`genfloat norm(const gencomplex& x)`
+|Compute the squared magnitude of complex number x.
+|`gencomplex polar(const genfloat& rho, const genfloat& theta = 0)`
+|Construct a complex number from polar coordinates with mangitude rho and angle theta.
+|`gencomplex pow(const gencomplex& x, const genfloat& y)`
+|Compute complex number x raised to the power of decimal number y.
+|`gencomplex pow(const gencomplex& x, const gencomplex& y)`
+|Compute complex number x raised to the power of complex number y.
+|`gencomplex pow(const genfloat& x, const gencomplex& y)`
+|Compute decimal number x raised to the power of complex number y.
+|`gencomplex proj(const gencomplex& x)`
+|Compute the projection of complex number x.
+|`gencomplex sin(const gencomplex& x)`
+|Compute the sine of complex number x.
+|`gencomplex sinh(const gencomplex& x)`
+|Compute the hyperbolic sine of complex number x.
+|`gencomplex sqrt(const gencomplex& x)`
+|Compute the square root of complex number x.
+|`gencomplex tan(const gencomplex& x)`
+|Compute the tangent of complex number x.
+|`gencomplex tanh(const gencomplex& x)`
+|Compute the hyperbolic tangent of complex number x.
+|===
+
+== Implementation notes
+
+The complex mathematical operations can all be defined using SYCL built-ins.
+Therefore, implementing complex with SYCL built-ins would allow any backend
+with SYCL built-ins to support `sycl::ext::oneapi::complex`. The current
+implementation of `std::complex` relies on `libdevice`, which requires
+adjusting and altering the clang driver. This additional work would not be
+necessary for adding complex support with this extension.
+
+== Issues
+
+The motivation for adding this extension is to allow for complex support of
+`marray` and `vec`. This raises the issue of if this should be represented as
+an array of structs or a struct of arrays. The advantage of having an array
+of structs is that this is the most intuitive format for the user. As the
+user is likely thinking about the problem as a vector of complex numbers.
+However, this would cause the real and imaginary vectors to be non-contiguous.
+Conversely, having a struct of arrays would be less intuitive but would keep
+the vector's memory contiguous.

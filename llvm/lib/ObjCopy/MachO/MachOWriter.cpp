@@ -94,64 +94,19 @@ size_t MachOWriter::totalSize() const {
                      sizeof(uint32_t) * O.IndirectSymTable.Symbols.size());
   }
 
-  if (O.CodeSignatureCommandIndex) {
-    const MachO::linkedit_data_command &LinkEditDataCommand =
-        O.LoadCommands[*O.CodeSignatureCommandIndex]
-            .MachOLoadCommand.linkedit_data_command_data;
-    if (LinkEditDataCommand.dataoff)
-      Ends.push_back(LinkEditDataCommand.dataoff +
-                     LinkEditDataCommand.datasize);
-  }
-
-  if (O.DataInCodeCommandIndex) {
-    const MachO::linkedit_data_command &LinkEditDataCommand =
-        O.LoadCommands[*O.DataInCodeCommandIndex]
-            .MachOLoadCommand.linkedit_data_command_data;
-
-    if (LinkEditDataCommand.dataoff)
-      Ends.push_back(LinkEditDataCommand.dataoff +
-                     LinkEditDataCommand.datasize);
-  }
-
-  if (O.LinkerOptimizationHintCommandIndex) {
-    const MachO::linkedit_data_command &LinkEditDataCommand =
-        O.LoadCommands[*O.LinkerOptimizationHintCommandIndex]
-            .MachOLoadCommand.linkedit_data_command_data;
-
-    if (LinkEditDataCommand.dataoff)
-      Ends.push_back(LinkEditDataCommand.dataoff +
-                     LinkEditDataCommand.datasize);
-  }
-
-  if (O.FunctionStartsCommandIndex) {
-    const MachO::linkedit_data_command &LinkEditDataCommand =
-        O.LoadCommands[*O.FunctionStartsCommandIndex]
-            .MachOLoadCommand.linkedit_data_command_data;
-
-    if (LinkEditDataCommand.dataoff)
-      Ends.push_back(LinkEditDataCommand.dataoff +
-                     LinkEditDataCommand.datasize);
-  }
-
-  if (O.ChainedFixupsCommandIndex) {
-    const MachO::linkedit_data_command &LinkEditDataCommand =
-        O.LoadCommands[*O.ChainedFixupsCommandIndex]
-            .MachOLoadCommand.linkedit_data_command_data;
-
-    if (LinkEditDataCommand.dataoff)
-      Ends.push_back(LinkEditDataCommand.dataoff +
-                     LinkEditDataCommand.datasize);
-  }
-
-  if (O.ExportsTrieCommandIndex) {
-    const MachO::linkedit_data_command &LinkEditDataCommand =
-        O.LoadCommands[*O.ExportsTrieCommandIndex]
-            .MachOLoadCommand.linkedit_data_command_data;
-
-    if (LinkEditDataCommand.dataoff)
-      Ends.push_back(LinkEditDataCommand.dataoff +
-                     LinkEditDataCommand.datasize);
-  }
+  for (std::optional<size_t> LinkEditDataCommandIndex :
+       {O.CodeSignatureCommandIndex, O.DylibCodeSignDRsIndex,
+        O.DataInCodeCommandIndex, O.LinkerOptimizationHintCommandIndex,
+        O.FunctionStartsCommandIndex, O.ChainedFixupsCommandIndex,
+        O.ExportsTrieCommandIndex})
+    if (LinkEditDataCommandIndex) {
+      const MachO::linkedit_data_command &LinkEditDataCommand =
+          O.LoadCommands[*LinkEditDataCommandIndex]
+              .MachOLoadCommand.linkedit_data_command_data;
+      if (LinkEditDataCommand.dataoff)
+        Ends.push_back(LinkEditDataCommand.dataoff +
+                       LinkEditDataCommand.datasize);
+    }
 
   // Otherwise, use the last section / reloction.
   for (const LoadCommand &LC : O.LoadCommands)
@@ -348,9 +303,8 @@ void MachOWriter::writeSymbolTable() {
           .MachOLoadCommand.symtab_command_data;
 
   char *SymTable = (char *)Buf->getBufferStart() + SymTabCommand.symoff;
-  for (auto Iter = O.SymTable.Symbols.begin(), End = O.SymTable.Symbols.end();
-       Iter != End; Iter++) {
-    SymbolEntry *Sym = Iter->get();
+  for (auto &Symbol : O.SymTable.Symbols) {
+    SymbolEntry *Sym = Symbol.get();
     uint32_t Nstrx = LayoutBuilder.getStringTableBuilder().getOffset(Sym->Name);
 
     if (Is64Bit)
@@ -438,7 +392,8 @@ void MachOWriter::writeIndirectSymbolTable() {
   }
 }
 
-void MachOWriter::writeLinkData(Optional<size_t> LCIndex, const LinkData &LD) {
+void MachOWriter::writeLinkData(std::optional<size_t> LCIndex,
+                                const LinkData &LD) {
   if (!LCIndex)
     return;
   const MachO::linkedit_data_command &LinkEditDataCommand =
@@ -566,11 +521,12 @@ void MachOWriter::writeCodeSignatureData() {
   uint8_t *CurrHashWritePosition = HashWriteStart;
   while (CurrHashReadPosition < HashReadEnd) {
     StringRef Block(reinterpret_cast<char *>(CurrHashReadPosition),
-                    std::min(HashReadEnd - CurrHashReadPosition,
-                             static_cast<ssize_t>(CodeSignature.BlockSize)));
+                    std::min(static_cast<size_t>(HashReadEnd
+                             - CurrHashReadPosition),
+                             static_cast<size_t>(CodeSignature.BlockSize)));
     SHA256 Hasher;
     Hasher.update(Block);
-    StringRef Hash = Hasher.final();
+    std::array<uint8_t, 32> Hash = Hasher.final();
     assert(Hash.size() == CodeSignature.HashSize);
     memcpy(CurrHashWritePosition, Hash.data(), CodeSignature.HashSize);
     CurrHashReadPosition += CodeSignature.BlockSize;
@@ -605,12 +561,24 @@ void MachOWriter::writeFunctionStartsData() {
   return writeLinkData(O.FunctionStartsCommandIndex, O.FunctionStarts);
 }
 
+void MachOWriter::writeDylibCodeSignDRsData() {
+  return writeLinkData(O.DylibCodeSignDRsIndex, O.DylibCodeSignDRs);
+}
+
 void MachOWriter::writeChainedFixupsData() {
   return writeLinkData(O.ChainedFixupsCommandIndex, O.ChainedFixups);
 }
 
 void MachOWriter::writeExportsTrieData() {
-  return writeLinkData(O.ExportsTrieCommandIndex, O.ExportsTrie);
+  if (!O.ExportsTrieCommandIndex)
+    return;
+  const MachO::linkedit_data_command &ExportsTrieCmd =
+      O.LoadCommands[*O.ExportsTrieCommandIndex]
+          .MachOLoadCommand.linkedit_data_command_data;
+  char *Out = (char *)Buf->getBufferStart() + ExportsTrieCmd.dataoff;
+  assert((ExportsTrieCmd.datasize == O.Exports.Trie.size()) &&
+         "Incorrect export trie size");
+  memcpy(Out, O.Exports.Trie.data(), O.Exports.Trie.size());
 }
 
 void MachOWriter::writeTail() {
@@ -658,69 +626,30 @@ void MachOWriter::writeTail() {
                          &MachOWriter::writeIndirectSymbolTable);
   }
 
-  if (O.CodeSignatureCommandIndex) {
-    const MachO::linkedit_data_command &LinkEditDataCommand =
-        O.LoadCommands[*O.CodeSignatureCommandIndex]
-            .MachOLoadCommand.linkedit_data_command_data;
-
-    if (LinkEditDataCommand.dataoff)
-      Queue.emplace_back(LinkEditDataCommand.dataoff,
-                         &MachOWriter::writeCodeSignatureData);
+  std::initializer_list<std::pair<std::optional<size_t>, WriteHandlerType>>
+      LinkEditDataCommandWriters = {
+          {O.CodeSignatureCommandIndex, &MachOWriter::writeCodeSignatureData},
+          {O.DylibCodeSignDRsIndex, &MachOWriter::writeDylibCodeSignDRsData},
+          {O.DataInCodeCommandIndex, &MachOWriter::writeDataInCodeData},
+          {O.LinkerOptimizationHintCommandIndex,
+           &MachOWriter::writeLinkerOptimizationHint},
+          {O.FunctionStartsCommandIndex, &MachOWriter::writeFunctionStartsData},
+          {O.ChainedFixupsCommandIndex, &MachOWriter::writeChainedFixupsData},
+          {O.ExportsTrieCommandIndex, &MachOWriter::writeExportsTrieData}};
+  for (const auto &W : LinkEditDataCommandWriters) {
+    std::optional<size_t> LinkEditDataCommandIndex;
+    WriteHandlerType WriteHandler;
+    std::tie(LinkEditDataCommandIndex, WriteHandler) = W;
+    if (LinkEditDataCommandIndex) {
+      const MachO::linkedit_data_command &LinkEditDataCommand =
+          O.LoadCommands[*LinkEditDataCommandIndex]
+              .MachOLoadCommand.linkedit_data_command_data;
+      if (LinkEditDataCommand.dataoff)
+        Queue.emplace_back(LinkEditDataCommand.dataoff, WriteHandler);
+    }
   }
 
-  if (O.DataInCodeCommandIndex) {
-    const MachO::linkedit_data_command &LinkEditDataCommand =
-        O.LoadCommands[*O.DataInCodeCommandIndex]
-            .MachOLoadCommand.linkedit_data_command_data;
-
-    if (LinkEditDataCommand.dataoff)
-      Queue.emplace_back(LinkEditDataCommand.dataoff,
-                         &MachOWriter::writeDataInCodeData);
-  }
-
-  if (O.LinkerOptimizationHintCommandIndex) {
-    const MachO::linkedit_data_command &LinkEditDataCommand =
-        O.LoadCommands[*O.LinkerOptimizationHintCommandIndex]
-            .MachOLoadCommand.linkedit_data_command_data;
-
-    if (LinkEditDataCommand.dataoff)
-      Queue.emplace_back(LinkEditDataCommand.dataoff,
-                         &MachOWriter::writeLinkerOptimizationHint);
-  }
-
-  if (O.FunctionStartsCommandIndex) {
-    const MachO::linkedit_data_command &LinkEditDataCommand =
-        O.LoadCommands[*O.FunctionStartsCommandIndex]
-            .MachOLoadCommand.linkedit_data_command_data;
-
-    if (LinkEditDataCommand.dataoff)
-      Queue.emplace_back(LinkEditDataCommand.dataoff,
-                         &MachOWriter::writeFunctionStartsData);
-  }
-
-  if (O.ChainedFixupsCommandIndex) {
-    const MachO::linkedit_data_command &LinkEditDataCommand =
-        O.LoadCommands[*O.ChainedFixupsCommandIndex]
-            .MachOLoadCommand.linkedit_data_command_data;
-
-    if (LinkEditDataCommand.dataoff)
-      Queue.emplace_back(LinkEditDataCommand.dataoff,
-                         &MachOWriter::writeChainedFixupsData);
-  }
-
-  if (O.ExportsTrieCommandIndex) {
-    const MachO::linkedit_data_command &LinkEditDataCommand =
-        O.LoadCommands[*O.ExportsTrieCommandIndex]
-            .MachOLoadCommand.linkedit_data_command_data;
-
-    if (LinkEditDataCommand.dataoff)
-      Queue.emplace_back(LinkEditDataCommand.dataoff,
-                         &MachOWriter::writeExportsTrieData);
-  }
-
-  llvm::sort(Queue, [](const WriteOperation &LHS, const WriteOperation &RHS) {
-    return LHS.first < RHS.first;
-  });
+  llvm::sort(Queue, llvm::less_first());
 
   for (auto WriteOp : Queue)
     (this->*WriteOp.second)();
@@ -735,7 +664,6 @@ Error MachOWriter::write() {
     return createStringError(errc::not_enough_memory,
                              "failed to allocate memory buffer of " +
                                  Twine::utohexstr(TotalSize) + " bytes");
-  memset(Buf->getBufferStart(), 0, totalSize());
   writeHeader();
   writeLoadCommands();
   writeSections();

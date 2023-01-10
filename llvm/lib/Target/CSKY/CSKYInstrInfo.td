@@ -153,7 +153,7 @@ def CSKYSymbol : AsmOperandClass {
   let ParserMethod = "parseCSKYSymbol";
 }
 
-def br_symbol : Operand<iPTR> {
+def br_symbol : Operand<OtherVT> {
   let EncoderMethod =
     "getBranchSymbolOpValue<CSKY::fixup_csky_pcrel_imm16_scale2>";
   let ParserMatchClass = CSKYSymbol;
@@ -412,6 +412,19 @@ def psrflag : Operand<i32>, ImmLeaf<i32, "return isShiftedUInt<5, 0>(Imm);"> {
   let ParserMatchClass = PSRFlag;
   let PrintMethod = "printPSRFlag";
 }
+
+multiclass uimm8SRLXForm<SDNode opc> {
+  def _0: SDNodeXForm<opc,
+    [{return CurDAG->getTargetConstant((N->getZExtValue() >> 0) & 0xFF, SDLoc(N), MVT::i32);}]>;
+  def _8: SDNodeXForm<opc,
+    [{return CurDAG->getTargetConstant((N->getZExtValue() >> 8) & 0xFF, SDLoc(N), MVT::i32);}]>;
+  def _16: SDNodeXForm<opc,
+    [{return CurDAG->getTargetConstant((N->getZExtValue() >> 16) & 0xFF, SDLoc(N), MVT::i32);}]>;
+  def _24: SDNodeXForm<opc,
+    [{return CurDAG->getTargetConstant((N->getZExtValue() >> 24) & 0xFF, SDLoc(N), MVT::i32);}]>;
+}
+
+defm uimm8SRL : uimm8SRLXForm<imm>;
 
 //===----------------------------------------------------------------------===//
 // Instruction Formats
@@ -709,8 +722,6 @@ let Predicates= [iHasE2] in {
   def MOVI32 : I_16_MOV<0x10, "movi32", uimm16>;
   let Size = 4, isCodeGenOnly = 0 in
   def BGENI : CSKYPseudo<(outs GPR:$dst), (ins uimm5:$imm), "bgeni\t$dst, $imm", []>;
-  def : InstAlias<"bgeni16 $dst, $imm", (BGENI GPR:$dst, uimm5:$imm)>;
-  def : InstAlias<"bgeni32 $dst, $imm", (BGENI GPR:$dst, uimm5:$imm)>;
   def MOVIH32 : I_16_MOV<0x11, "movih32", uimm16_16_xform>;
   def MVC32 : R_Z_1<0x1, 0x8, "mvc32">;
   let isCodeGenOnly = 1 in
@@ -723,8 +734,8 @@ let Predicates= [iHasE2] in {
 
 let Predicates = [iHas2E3] in {
   def MVCV32 : R_Z_1<0x1, 0x10, "mvcv32">;
-  def CLRF32 : R_Z_2<0xB, 0x1, "clrf32", []>;
-  def CLRT32 : R_Z_2<0xB, 0x2, "clrt32", []>;
+  def CLRF32 : R_Z_2<0xB, 0x1, "clrf32">;
+  def CLRT32 : R_Z_2<0xB, 0x2, "clrt32">;
 }
 
 //===----------------------------------------------------------------------===//
@@ -779,8 +790,6 @@ def BNEZAD32 : CSKY32Inst<AddrModeNone, 0x3a,
 
 def BSR32 : J<0x38, (outs), (ins call_symbol:$offset), "bsr32", []>;
 
-def : InstAlias<"bsr $dst", (BSR32 call_symbol:$dst)>;
-
 def BSR32_BR : J<0x38, (outs), (ins call_symbol:$offset), "bsr32", []>{
   let isCodeGenOnly = 1;
   let isBranch = 1;
@@ -804,7 +813,6 @@ let Predicates = [iHas2E3] in {
 
 def GRS32 : I_18_Z_L<0x3, "grs32\t$rz, $offset",
                     (outs GPR:$rz), (ins bare_symbol:$offset), []>;
-def : InstAlias<"grs\t$rz, $offset", (GRS32 GPR:$rz, bare_symbol:$offset)>;
 
 let Uses = [R28] in {
 def LRS32B : I_18_Z_L<0x0, "lrs32.b\t$rz, $offset",
@@ -864,11 +872,11 @@ let Predicates = [iHas2E3] in {
   def BREV32 : R_XZ<0x18, 0x10, "brev32">;
   def ABS32 : R_XZ<0x0, 0x10, "abs32">;
   def BGENR32 : R_XZ<0x14, 0x2, "bgenr32">;
+  def REVB32 : R_XZ<0x18, 0x4, "revb32">;
+  def REVH32 : R_XZ<0x18, 0x8, "revh32">;
 }
 
 let Predicates = [iHasE2] in {
-  def REVB32 : R_XZ<0x18, 0x4, "revb32">;
-  def REVH32 : R_XZ<0x18, 0x8, "revh32">;
   def FF0 : R_XZ<0x1F, 0x1, "ff0.32">;
   def FF1 : R_XZ<0x1F, 0x2, "ff1.32">;
   def XTRB0 : R_XZ<0x1C, 0x1, "xtrb0.32">;
@@ -1109,6 +1117,7 @@ def : Pat<(CSKY_LOAD_ADDR tglobaladdr, tconstpool:$src2), (LRW32 tconstpool:$src
 def : Pat<(CSKY_LOAD_ADDR tblockaddress, tconstpool:$src2), (LRW32 tconstpool:$src2)>;
 def : Pat<(CSKY_LOAD_ADDR tjumptable:$src1, tconstpool:$src2), (LRW32_Gen tjumptable:$src1, tconstpool:$src2)>;
 def : Pat<(CSKY_LOAD_ADDR texternalsym, tconstpool:$src2), (LRW32 tconstpool:$src2)>;
+def : Pat<(CSKY_LOAD_ADDR tconstpool:$src1, tconstpool:$src2), (LRW32_Gen tconstpool:$src1, tconstpool:$src2)>;
 
 let Predicates = [iHas2E3] in
   def : Pat<(i32 constpool:$src), (GRS32 (to_tconstpool tconstpool:$src))>;
@@ -1221,50 +1230,59 @@ let Predicates = [iHasE2] in {
 
 // Select Patterns.
 let Predicates = [iHasE2] in {
+
 def : Pat<(select CARRY:$ca, GPR:$rx, GPR:$false),
           (MOVT32 CARRY:$ca, GPR:$rx, GPR:$false)>;
 def : Pat<(select (and CARRY:$ca, 1), GPR:$rx, GPR:$false),
           (MOVT32 CARRY:$ca, GPR:$rx, GPR:$false)>;
 
-def : Pat<(select (i32 (setne GPR:$rs1, GPR:$rs2)), GPR:$rx, GPR:$false),
-          (MOVT32 (CMPNE32 GPR:$rs1, GPR:$rs2), GPR:$rx, GPR:$false)>;
 def : Pat<(select (i32 (setne GPR:$rs1, uimm16:$rs2)), GPR:$rx, GPR:$false),
           (MOVT32 (CMPNEI32 GPR:$rs1, uimm16:$rs2), GPR:$rx, GPR:$false)>;
-def : Pat<(select (i32 (seteq GPR:$rs1, GPR:$rs2)), GPR:$rx, GPR:$false),
-          (MOVF32 (CMPNE32 GPR:$rs1, GPR:$rs2), GPR:$rx, GPR:$false)>;
 def : Pat<(select (i32 (seteq GPR:$rs1, uimm16:$rs2)), GPR:$rx, GPR:$false),
           (MOVF32 (CMPNEI32 GPR:$rs1, uimm16:$rs2), GPR:$rx, GPR:$false)>;
 
-def : Pat<(select (i32 (setuge GPR:$rs1, GPR:$rs2)), GPR:$rx, GPR:$false),
-          (MOVT32 (CMPHS32 GPR:$rs1, GPR:$rs2), GPR:$rx, GPR:$false)>;
 def : Pat<(select (i32 (setuge GPR:$rs1, oimm16:$rs2)), GPR:$rx, GPR:$false),
           (MOVT32 (CMPHSI32 GPR:$rs1, oimm16:$rs2), GPR:$rx, GPR:$false)>;
+def : Pat<(select (i32 (setult GPR:$rs1, oimm16:$rs2)), GPR:$rx, GPR:$false),
+          (MOVF32 (CMPHSI32 GPR:$rs1, oimm16:$rs2), GPR:$rx, GPR:$false)>;
+
+def : Pat<(select (i32 (setlt GPR:$rs1, oimm16:$rs2)), GPR:$rx, GPR:$false),
+          (MOVT32 (CMPLTI32 GPR:$rs1, oimm16:$rs2), GPR:$rx, GPR:$false)>;
+def : Pat<(select (i32 (setge GPR:$rs1, oimm16:$rs2)), GPR:$rx, GPR:$false),
+          (MOVF32 (CMPLTI32 GPR:$rs1, oimm16:$rs2), GPR:$rx, GPR:$false)>;
+
+def : Pat<(select CARRY:$ca, GPR:$rx, GPR:$false),
+          (ISEL32 CARRY:$ca, GPR:$rx, GPR:$false)>;
+def : Pat<(select (and CARRY:$ca, 1), GPR:$rx, GPR:$false),
+          (ISEL32 CARRY:$ca, GPR:$rx, GPR:$false)>;
+}
+
+
+let Predicates = [iHas2E3] in {
+
+def : Pat<(select (i32 (setne GPR:$rs1, GPR:$rs2)), GPR:$rx, GPR:$false),
+          (MOVT32 (CMPNE32 GPR:$rs1, GPR:$rs2), GPR:$rx, GPR:$false)>;
+def : Pat<(select (i32 (seteq GPR:$rs1, GPR:$rs2)), GPR:$rx, GPR:$false),
+          (MOVF32 (CMPNE32 GPR:$rs1, GPR:$rs2), GPR:$rx, GPR:$false)>;
+
+def : Pat<(select (i32 (setuge GPR:$rs1, GPR:$rs2)), GPR:$rx, GPR:$false),
+          (MOVT32 (CMPHS32 GPR:$rs1, GPR:$rs2), GPR:$rx, GPR:$false)>;
 def : Pat<(select (i32 (setule GPR:$rs1, GPR:$rs2)), GPR:$rx, GPR:$false),
           (MOVT32 (CMPHS32 GPR:$rs2, GPR:$rs1), GPR:$rx, GPR:$false)>;
 def : Pat<(select (i32 (setult GPR:$rs1, GPR:$rs2)), GPR:$rx, GPR:$false),
           (MOVF32 (CMPHS32 GPR:$rs1, GPR:$rs2), GPR:$rx, GPR:$false)>;
-def : Pat<(select (i32 (setult GPR:$rs1, oimm16:$rs2)), GPR:$rx, GPR:$false),
-          (MOVF32 (CMPHSI32 GPR:$rs1, oimm16:$rs2), GPR:$rx, GPR:$false)>;
 def : Pat<(select (i32 (setugt GPR:$rs1, GPR:$rs2)), GPR:$rx, GPR:$false),
           (MOVF32 (CMPHS32 GPR:$rs2, GPR:$rs1), GPR:$rx, GPR:$false)>;
 
 def : Pat<(select (i32 (setlt GPR:$rs1, GPR:$rs2)), GPR:$rx, GPR:$false),
           (MOVT32 (CMPLT32 GPR:$rs1, GPR:$rs2), GPR:$rx, GPR:$false)>;
-def : Pat<(select (i32 (setlt GPR:$rs1, oimm16:$rs2)), GPR:$rx, GPR:$false),
-          (MOVT32 (CMPLTI32 GPR:$rs1, oimm16:$rs2), GPR:$rx, GPR:$false)>;
 def : Pat<(select (i32 (setgt GPR:$rs1, GPR:$rs2)), GPR:$rx, GPR:$false),
           (MOVT32 (CMPLT32 GPR:$rs2, GPR:$rs1), GPR:$rx, GPR:$false)>;
 def : Pat<(select (i32 (setge GPR:$rs1, GPR:$rs2)), GPR:$rx, GPR:$false),
           (MOVF32 (CMPLT32 GPR:$rs1, GPR:$rs2), GPR:$rx, GPR:$false)>;
-def : Pat<(select (i32 (setge GPR:$rs1, oimm16:$rs2)), GPR:$rx, GPR:$false),
-          (MOVF32 (CMPLTI32 GPR:$rs1, oimm16:$rs2), GPR:$rx, GPR:$false)>;
 def : Pat<(select (i32 (setle GPR:$rs1, GPR:$rs2)), GPR:$rx, GPR:$false),
           (MOVF32 (CMPLT32 GPR:$rs2, GPR:$rs1), GPR:$rx, GPR:$false)>;
 
-def : Pat<(select CARRY:$ca, GPR:$rx, GPR:$false),
-          (ISEL32 CARRY:$ca, GPR:$rx, GPR:$false)>;
-def : Pat<(select (and CARRY:$ca, 1), GPR:$rx, GPR:$false),
-          (ISEL32 CARRY:$ca, GPR:$rx, GPR:$false)>;
 }
 
 // Constant materialize patterns.
@@ -1290,8 +1308,6 @@ let Predicates = [iHasE2] in {
 
 let isCall = 1, Defs = [ R15 ], mayLoad = 1, Size = 4, isCodeGenOnly = 0 in
 def JBSR32 : CSKYPseudo<(outs), (ins call_symbol:$src1), "jbsr32\t$src1", []>;
-
-def : InstAlias<"jbsr\t$src1", (JBSR32 call_symbol:$src1)>;
 
 def JBR32 : CSKYPseudo<(outs), (ins br_symbol:$src1), "jbr32\t$src1", []> {
   let isBranch = 1;
@@ -1338,18 +1354,13 @@ let mayLoad = 1, Size = 2, isCodeGenOnly = 0 in
 def PseudoLRW32 : CSKYPseudo<(outs GPR:$rz), (ins bare_symbol:$src), "lrw32 $rz, $src", []>;
 
 
-def : InstAlias<"lrw $rz, $src", (PseudoLRW32 GPR:$rz, bare_symbol:$src)>;
-def : InstAlias<"lrw $rz, $src", (LRW32 GPR:$rz, constpool_symbol:$src)>;
+
 
 let mayLoad = 1, Size = 4, isCodeGenOnly = 0 in
 def PseudoJSRI32 : CSKYPseudo<(outs), (ins call_symbol:$src), "jsri32 $src", []>;
-def : InstAlias<"jsri $dst", (PseudoJSRI32 call_symbol:$dst)>;
-def : InstAlias<"jsri $dst", (JSRI32 constpool_symbol:$dst)>;
 
 let mayLoad = 1, Size = 4, isCodeGenOnly = 0 in
 def PseudoJMPI32 : CSKYPseudo<(outs), (ins br_symbol:$src), "jmpi32 $src", []>;
-def : InstAlias<"jmpi $dst", (PseudoJMPI32 br_symbol:$dst)>;
-def : InstAlias<"jmpi $dst", (JMPI32 constpool_symbol:$dst)>;
 
 let isNotDuplicable = 1, mayLoad = 1, mayStore = 0, Size = 8 in
 def PseudoTLSLA32 : CSKYPseudo<(outs GPR:$dst1, GPR:$dst2),
@@ -1362,3 +1373,4 @@ def CONSTPOOL_ENTRY : CSKYPseudo<(outs),
 include "CSKYInstrInfo16Instr.td"
 include "CSKYInstrInfoF1.td"
 include "CSKYInstrInfoF2.td"
+include "CSKYInstrAlias.td"

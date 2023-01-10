@@ -15,16 +15,17 @@
 #ifndef LLVM_CODEGEN_ASMPRINTER_H
 #define LLVM_CODEGEN_ASMPRINTER_H
 
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/CodeGen/AsmPrinterHandler.h"
 #include "llvm/CodeGen/DwarfStringPoolEntry.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
+#include "llvm/CodeGen/StackMaps.h"
 #include "llvm/IR/InlineAsm.h"
-#include "llvm/IR/LLVMContext.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/SourceMgr.h"
 #include <cstdint>
 #include <memory>
 #include <utility>
@@ -32,6 +33,7 @@
 
 namespace llvm {
 
+class AddrLabelMap;
 class BasicBlock;
 class BlockAddress;
 class Constant;
@@ -42,6 +44,7 @@ class DIEAbbrev;
 class DwarfDebug;
 class GCMetadataPrinter;
 class GCStrategy;
+class GlobalAlias;
 class GlobalObject;
 class GlobalValue;
 class GlobalVariable;
@@ -68,7 +71,6 @@ class MDNode;
 class Module;
 class PseudoProbeHandler;
 class raw_ostream;
-class StackMaps;
 class StringRef;
 class TargetLoweringObjectFile;
 class TargetMachine;
@@ -176,6 +178,10 @@ private:
   // function. This is used to calculate the size of the BB section.
   MCSymbol *CurrentSectionBeginSym = nullptr;
 
+  /// This map keeps track of which symbol is being used for the specified basic
+  /// block's address of label.
+  std::unique_ptr<AddrLabelMap> AddrLabelSymbols;
+
   // The garbage collection metadata printer table.
   void *GCMetadataPrinters = nullptr; // Really a DenseMap.
 
@@ -185,15 +191,23 @@ private:
   /// Output stream for the stack usage file (i.e., .su file).
   std::unique_ptr<raw_fd_ostream> StackUsageStream;
 
+  /// List of symbols to be inserted into PC sections.
+  DenseMap<const MDNode *, SmallVector<const MCSymbol *>> PCSectionsSymbols;
+
   static char ID;
 
 protected:
   MCSymbol *CurrentFnBegin = nullptr;
 
+  /// For dso_local functions, the current $local alias for the function.
+  MCSymbol *CurrentFnBeginLocal = nullptr;
+
   /// A vector of all debug/EH info emitters we should use. This vector
   /// maintains ownership of the emitters.
   std::vector<HandlerInfo> Handlers;
   size_t NumUserHandlers = 0;
+
+  StackMaps SM;
 
 private:
   /// If generated on the fly this own the instance.
@@ -211,6 +225,16 @@ private:
 
   /// CFISection type the module needs i.e. either .eh_frame or .debug_frame.
   CFISection ModuleCFISection = CFISection::None;
+
+  /// True if the module contains split-stack functions. This is used to
+  /// emit .note.GNU-split-stack section as required by the linker for
+  /// special handling split-stack function calling no-split-stack function.
+  bool HasSplitStack = false;
+
+  /// True if the module contains no-split-stack functions. This is used to emit
+  /// .note.GNU-no-split-stack section when it also contains functions without a
+  /// split stack prologue.
+  bool HasNoSplitStack = false;
 
 protected:
   explicit AsmPrinter(TargetMachine &TM, std::unique_ptr<MCStreamer> Streamer);
@@ -253,6 +277,25 @@ public:
   // Return the exception symbol associated with the MBB section containing a
   // given basic block.
   MCSymbol *getMBBExceptionSym(const MachineBasicBlock &MBB);
+
+  /// Return the symbol to be used for the specified basic block when its
+  /// address is taken.  This cannot be its normal LBB label because the block
+  /// may be accessed outside its containing function.
+  MCSymbol *getAddrLabelSymbol(const BasicBlock *BB) {
+    return getAddrLabelSymbolToEmit(BB).front();
+  }
+
+  /// Return the symbol to be used for the specified basic block when its
+  /// address is taken.  If other blocks were RAUW'd to this one, we may have
+  /// to emit them as well, return the whole set.
+  ArrayRef<MCSymbol *> getAddrLabelSymbolToEmit(const BasicBlock *BB);
+
+  /// If the specified function has had any references to address-taken blocks
+  /// generated, but the block got deleted, return the symbol now so we can
+  /// emit it.  This prevents emitting a reference to a symbol that has no
+  /// definition.
+  void takeDeletedSymbolsForFunction(const Function *F,
+                                     std::vector<MCSymbol *> &Result);
 
   /// Return information about object file lowering.
   const TargetLoweringObjectFile &getObjFileLowering() const;
@@ -368,9 +411,18 @@ public:
 
   void emitBBAddrMapSection(const MachineFunction &MF);
 
+  void emitKCFITrapEntry(const MachineFunction &MF, const MCSymbol *Symbol);
+  virtual void emitKCFITypeId(const MachineFunction &MF);
+
   void emitPseudoProbe(const MachineInstr &MI);
 
   void emitRemarksSection(remarks::RemarkStreamer &RS);
+
+  /// Emits a label as reference for PC sections.
+  void emitPCSectionsLabel(const MachineFunction &MF, const MDNode &MD);
+
+  /// Emits the PC sections collected from instructions.
+  void emitPCSections(const MachineFunction &MF);
 
   /// Get the CFISection type for a function.
   CFISection getFunctionCFISectionType(const Function &F) const;
@@ -442,7 +494,11 @@ public:
   virtual const MCExpr *lowerConstant(const Constant *CV);
 
   /// Print a general LLVM constant to the .s file.
-  void emitGlobalConstant(const DataLayout &DL, const Constant *CV);
+  /// On AIX, when an alias refers to a sub-element of a global variable, the
+  /// label of that alias needs to be emitted before the corresponding element.
+  using AliasMapTy = DenseMap<uint64_t, SmallVector<const GlobalAlias *, 1>>;
+  void emitGlobalConstant(const DataLayout &DL, const Constant *CV,
+                          AliasMapTy *AliasList = nullptr);
 
   /// Unnamed constant global variables solely contaning a pointer to
   /// another globals variable act like a global variable "proxy", or GOT
@@ -460,7 +516,7 @@ public:
   void emitGlobalGOTEquivs();
 
   /// Emit the stack maps.
-  void emitStackMaps(StackMaps &SM);
+  void emitStackMaps();
 
   //===------------------------------------------------------------------===//
   // Overridable Hooks

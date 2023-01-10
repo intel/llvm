@@ -42,6 +42,9 @@ public:
   typedef std::map<std::string, RISCVExtensionInfo, ExtensionComparator>
       OrderedExtensionMap;
 
+  RISCVISAInfo(unsigned XLen, OrderedExtensionMap &Exts)
+      : XLen(XLen), FLen(0), MinVLen(0), MaxELen(0), MaxELenFp(0), Exts(Exts) {}
+
   /// Parse RISCV ISA info from arch string.
   static llvm::Expected<std::unique_ptr<RISCVISAInfo>>
   parseArchString(StringRef Arch, bool EnableExperimentalExtension,
@@ -60,6 +63,7 @@ public:
   unsigned getXLen() const { return XLen; };
   unsigned getFLen() const { return FLen; };
   unsigned getMinVLen() const { return MinVLen; }
+  unsigned getMaxVLen() const { return 65536; }
   unsigned getMaxELen() const { return MaxELen; }
   unsigned getMaxELenFp() const { return MaxELenFp; }
 
@@ -72,6 +76,8 @@ public:
   static bool isSupportedExtension(StringRef Ext);
   static bool isSupportedExtension(StringRef Ext, unsigned MajorVersion,
                                    unsigned MinorVersion);
+  static llvm::Expected<std::unique_ptr<RISCVISAInfo>>
+  postProcessAndChecking(std::unique_ptr<RISCVISAInfo> &&ISAInfo);
 
 private:
   RISCVISAInfo(unsigned XLen)
@@ -90,12 +96,10 @@ private:
   Error checkDependency();
 
   void updateImplication();
+  void updateCombination();
   void updateFLen();
   void updateMinVLen();
   void updateMaxELen();
-
-  static llvm::Expected<std::unique_ptr<RISCVISAInfo>>
-  postProcessAndChecking(std::unique_ptr<RISCVISAInfo> &&ISAInfo);
 };
 
 } // namespace llvm

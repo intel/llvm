@@ -454,7 +454,7 @@ llvm::Error dwarfgen::Generator::init(Triple TheTriple, uint16_t V) {
                                    inconvertibleErrorCode());
 
   TM.reset(TheTarget->createTargetMachine(TripleName, "", "", TargetOptions(),
-                                          None));
+                                          std::nullopt));
   if (!TM)
     return make_error<StringError>("no target machine for target " + TripleName,
                                    inconvertibleErrorCode());
@@ -521,7 +521,7 @@ StringRef dwarfgen::Generator::generate() {
   StringPool->emit(*Asm, TLOF->getDwarfStrSection(),
                    TLOF->getDwarfStrOffSection());
 
-  MS->SwitchSection(TLOF->getDwarfInfoSection());
+  MS->switchSection(TLOF->getDwarfInfoSection());
   for (auto &CU : CompileUnits) {
     uint16_t Version = CU->getVersion();
     auto Length = CU->getLength();
@@ -540,11 +540,11 @@ StringRef dwarfgen::Generator::generate() {
     Asm->emitDwarfDIE(*CU->getUnitDIE().Die);
   }
 
-  MS->SwitchSection(TLOF->getDwarfLineSection());
+  MS->switchSection(TLOF->getDwarfLineSection());
   for (auto &LT : LineTables)
     LT->generate(*MC, *Asm);
 
-  MS->Finish();
+  MS->finish();
   if (FileBytes.empty())
     return StringRef();
   return StringRef(FileBytes.data(), FileBytes.size());

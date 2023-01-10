@@ -280,7 +280,7 @@ public:
   ///
   /// Entry count is the number of times the function was executed.
   /// When AllowSynthetic is false, only pgo_data will be returned.
-  Optional<ProfileCount> getEntryCount(bool AllowSynthetic = false) const;
+  std::optional<ProfileCount> getEntryCount(bool AllowSynthetic = false) const;
 
   /// Return true if the function is annotated with profile data.
   ///
@@ -288,7 +288,7 @@ public:
   /// profile annotations. If IncludeSynthetic is false, only return true
   /// when the profile data is real.
   bool hasProfileData(bool IncludeSynthetic = false) const {
-    return getEntryCount(IncludeSynthetic).hasValue();
+    return getEntryCount(IncludeSynthetic).has_value();
   }
 
   /// Returns the set of GUIDs that needs to be imported to the function for
@@ -299,7 +299,7 @@ public:
   void setSectionPrefix(StringRef Prefix);
 
   /// Get the section prefix for this function.
-  Optional<StringRef> getSectionPrefix() const;
+  std::optional<StringRef> getSectionPrefix() const;
 
   /// hasGC/getGC/setGC/clearGC - The name of the garbage collection algorithm
   ///                             to use during code generation.
@@ -484,60 +484,42 @@ public:
     return AttributeSets.getParamDereferenceableOrNullBytes(ArgNo);
   }
 
-  /// A function will have the "coroutine.presplit" attribute if it's
-  /// a coroutine and has not gone through full CoroSplit pass.
+  /// Determine if the function is presplit coroutine.
   bool isPresplitCoroutine() const {
-    return hasFnAttribute("coroutine.presplit");
+    return hasFnAttribute(Attribute::PresplitCoroutine);
   }
+  void setPresplitCoroutine() { addFnAttr(Attribute::PresplitCoroutine); }
+  void setSplittedCoroutine() { removeFnAttr(Attribute::PresplitCoroutine); }
+
+  MemoryEffects getMemoryEffects() const;
+  void setMemoryEffects(MemoryEffects ME);
 
   /// Determine if the function does not access memory.
-  bool doesNotAccessMemory() const {
-    return hasFnAttribute(Attribute::ReadNone);
-  }
-  void setDoesNotAccessMemory() {
-    addFnAttr(Attribute::ReadNone);
-  }
+  bool doesNotAccessMemory() const;
+  void setDoesNotAccessMemory();
 
   /// Determine if the function does not access or only reads memory.
-  bool onlyReadsMemory() const {
-    return doesNotAccessMemory() || hasFnAttribute(Attribute::ReadOnly);
-  }
-  void setOnlyReadsMemory() {
-    addFnAttr(Attribute::ReadOnly);
-  }
+  bool onlyReadsMemory() const;
+  void setOnlyReadsMemory();
 
   /// Determine if the function does not access or only writes memory.
-  bool onlyWritesMemory() const {
-    return doesNotAccessMemory() || hasFnAttribute(Attribute::WriteOnly);
-  }
-  void setOnlyWritesMemory() {
-    addFnAttr(Attribute::WriteOnly);
-  }
+  bool onlyWritesMemory() const;
+  void setOnlyWritesMemory();
 
   /// Determine if the call can access memmory only using pointers based
   /// on its arguments.
-  bool onlyAccessesArgMemory() const {
-    return hasFnAttribute(Attribute::ArgMemOnly);
-  }
-  void setOnlyAccessesArgMemory() { addFnAttr(Attribute::ArgMemOnly); }
+  bool onlyAccessesArgMemory() const;
+  void setOnlyAccessesArgMemory();
 
   /// Determine if the function may only access memory that is
   ///  inaccessible from the IR.
-  bool onlyAccessesInaccessibleMemory() const {
-    return hasFnAttribute(Attribute::InaccessibleMemOnly);
-  }
-  void setOnlyAccessesInaccessibleMemory() {
-    addFnAttr(Attribute::InaccessibleMemOnly);
-  }
+  bool onlyAccessesInaccessibleMemory() const;
+  void setOnlyAccessesInaccessibleMemory();
 
   /// Determine if the function may only access memory that is
   ///  either inaccessible from the IR or pointed to by its arguments.
-  bool onlyAccessesInaccessibleMemOrArgMem() const {
-    return hasFnAttribute(Attribute::InaccessibleMemOrArgMemOnly);
-  }
-  void setOnlyAccessesInaccessibleMemOrArgMem() {
-    addFnAttr(Attribute::InaccessibleMemOrArgMemOnly);
-  }
+  bool onlyAccessesInaccessibleMemOrArgMem() const;
+  void setOnlyAccessesInaccessibleMemOrArgMem();
 
   /// Determine if the function cannot return.
   bool doesNotReturn() const {

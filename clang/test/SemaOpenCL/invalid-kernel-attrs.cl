@@ -45,7 +45,6 @@ kernel __attribute__((intel_reqd_sub_group_size(8))) __attribute__((intel_reqd_s
                                                                                                                        // expected-note {{previous attribute is here}}
 
 __kernel __attribute__((work_group_size_hint(8,-16,32))) void neg1() {} //expected-error{{'work_group_size_hint' attribute requires a positive integral compile time constant expression}}
-__kernel __attribute__((reqd_work_group_size(8, 16, -32))) void neg2() {} //expected-warning{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
 
 // 4294967294 is a negative integer if treated as signed.
 // Should compile successfully, since we expect an unsigned.

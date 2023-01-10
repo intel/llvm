@@ -12,6 +12,15 @@
 #ifndef OMPTARGET_TYPES_H
 #define OMPTARGET_TYPES_H
 
+// Tell the compiler that we do not have any "call-like" inline assembly in the
+// device rutime. That means we cannot have inline assembly which will call
+// another function but only inline assembly that performs some operation or
+// side-effect and then continues execution with something on the existing call
+// stack.
+//
+// TODO: Find a good place for this
+#pragma omp assumes ext_no_call_asm
+
 /// Base type declarations for freestanding mode
 ///
 ///{
@@ -23,6 +32,10 @@ using int32_t = int;
 using uint32_t = unsigned int;
 using int64_t = long;
 using uint64_t = unsigned long;
+using size_t = decltype(sizeof(char));
+// TODO: Properly implement this
+using intptr_t = int64_t;
+using uintptr_t = uint64_t;
 
 static_assert(sizeof(int8_t) == 1, "type size mismatch");
 static_assert(sizeof(uint8_t) == 1, "type size mismatch");
@@ -193,12 +206,12 @@ enum OMPTgtExecModeFlags : int8_t {
 // TODO: clang should use address space 5 for omp_thread_mem_alloc, but right
 //       now that's not the case.
 #define THREAD_LOCAL(NAME)                                                     \
-  NAME [[clang::loader_uninitialized, clang::address_space(5)]]
+  [[clang::address_space(5)]] NAME [[clang::loader_uninitialized]]
 
 // TODO: clang should use address space 4 for omp_const_mem_alloc, maybe it
 //       does?
 #define CONSTANT(NAME)                                                         \
-  NAME [[clang::loader_uninitialized, clang::address_space(4)]]
+  [[clang::address_space(4)]] NAME [[clang::loader_uninitialized]]
 
 ///}
 

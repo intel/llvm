@@ -11,7 +11,7 @@ name: Check code style
 on:
   pull_request:
     branches:
-      - master
+      - main
       - llvm_release_*
     paths-ignore: # no need to check formatting for:
       - 'docs/**' # documentation
@@ -24,12 +24,12 @@ env:
   # We need compile command database in order to perform clang-tidy check. So,
   # in order to perform configure step we need to setup llvm-dev package. This
   # env variable used to specify desired version of it
-  LLVM_VERSION: 15
+  LLVM_VERSION: 16
 
 jobs:
   clang-format-and-tidy:
     name: clang-format & clang-tidy
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
     - name: Checkout sources
       uses: actions/checkout@v2
@@ -43,7 +43,12 @@ jobs:
     - name: Gather list of changes
       id: gather-list-of-changes
       run: |
-        git diff -U0 --no-color ${{ github.sha }}^ -- include lib ':(exclude)lib/SPIRV/libSPIRV/spirv.hpp' > diff-to-inspect.txt
+        git diff -U0 --no-color ${{ github.sha }}^ -- include lib \
+            ':(exclude)include/LLVMSPIRVExtensions.inc' \
+            ':(exclude)lib/SPIRV/libSPIRV/SPIRVErrorEnum.h' \
+            ':(exclude)lib/SPIRV/libSPIRV/SPIRVOpCodeEnum.h' \
+            ':(exclude)lib/SPIRV/libSPIRV/SPIRVOpCodeEnumInternal.h' \
+            > diff-to-inspect.txt
         if [ -s diff-to-inspect.txt ]; then
           # Here we set an output of our step, which is used later to either
           # perform or skip further steps, i.e. there is no sense to install
@@ -59,11 +64,12 @@ jobs:
         # launched, so, we need to setup llvm package to perform cmake
         # configuration step to generate that database
         curl -L "https://apt.llvm.org/llvm-snapshot.gpg.key" | sudo apt-key add -
-        echo "deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic main" | sudo tee -a /etc/apt/sources.list
+        echo "deb https://apt.llvm.org/focal/ llvm-toolchain-focal main" | sudo tee -a /etc/apt/sources.list
         sudo apt-get update
         sudo apt-get install -yqq \
             clang-format-${{ env.LLVM_VERSION }} clang-tidy-${{ env.LLVM_VERSION }} \
-            llvm-${{ env.LLVM_VERSION }}-dev libomp-${{ env.LLVM_VERSION }}-dev
+            llvm-${{ env.LLVM_VERSION }}-dev \
+            mlir-${{ env.LLVM_VERSION }}-tools \
 
     - name: Generate compile command database
       if: ${{ steps.gather-list-of-changes.outputs.HAS_CHANGES }}

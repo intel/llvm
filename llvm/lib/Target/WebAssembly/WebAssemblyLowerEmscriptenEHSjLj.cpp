@@ -545,15 +545,13 @@ Value *WebAssemblyLowerEmscriptenEHSjLj::wrapInvoke(CallBase *CI) {
     ArgAttributes.push_back(InvokeAL.getParamAttrs(I));
 
   AttrBuilder FnAttrs(CI->getContext(), InvokeAL.getFnAttrs());
-  if (FnAttrs.contains(Attribute::AllocSize)) {
+  if (auto Args = FnAttrs.getAllocSizeArgs()) {
     // The allocsize attribute (if any) referes to parameters by index and needs
     // to be adjusted.
-    unsigned SizeArg;
-    Optional<unsigned> NEltArg;
-    std::tie(SizeArg, NEltArg) = FnAttrs.getAllocSizeArgs();
+    auto [SizeArg, NEltArg] = *Args;
     SizeArg += 1;
-    if (NEltArg.hasValue())
-      NEltArg = NEltArg.getValue() + 1;
+    if (NEltArg)
+      NEltArg = NEltArg.value() + 1;
     FnAttrs.addAllocSizeAttr(SizeArg, NEltArg);
   }
   // In case the callee has 'noreturn' attribute, We need to remove it, because
@@ -775,7 +773,7 @@ void WebAssemblyLowerEmscriptenEHSjLj::wrapTestSetjmp(
   // Output parameter assignment
   Label = LabelPHI;
   EndBB = EndBB1;
-  LongjmpResult = IRB.CreateCall(GetTempRet0F, None, "longjmp_result");
+  LongjmpResult = IRB.CreateCall(GetTempRet0F, std::nullopt, "longjmp_result");
 }
 
 void WebAssemblyLowerEmscriptenEHSjLj::rebuildSSA(Function &F) {
@@ -1227,9 +1225,9 @@ bool WebAssemblyLowerEmscriptenEHSjLj::runEHOnFunction(Function &F) {
     // Create a call to __cxa_find_matching_catch_N function
     Function *FMCF = getFindMatchingCatch(M, FMCArgs.size());
     CallInst *FMCI = IRB.CreateCall(FMCF, FMCArgs, "fmc");
-    Value *Undef = UndefValue::get(LPI->getType());
-    Value *Pair0 = IRB.CreateInsertValue(Undef, FMCI, 0, "pair0");
-    Value *TempRet0 = IRB.CreateCall(GetTempRet0F, None, "tempret0");
+    Value *Poison = PoisonValue::get(LPI->getType());
+    Value *Pair0 = IRB.CreateInsertValue(Poison, FMCI, 0, "pair0");
+    Value *TempRet0 = IRB.CreateCall(GetTempRet0F, std::nullopt, "tempret0");
     Value *Pair1 = IRB.CreateInsertValue(Pair0, TempRet0, 1, "pair1");
 
     LPI->replaceAllUsesWith(Pair1);
@@ -1290,9 +1288,11 @@ bool WebAssemblyLowerEmscriptenEHSjLj::runSjLjOnFunction(Function &F) {
                              "setjmpTableSize", Entry->getTerminator());
   SetjmpTableSize->setDebugLoc(FirstDL);
   // setjmpTable = (int *) malloc(40);
-  Instruction *SetjmpTable = CallInst::CreateMalloc(
-      SetjmpTableSize, IRB.getInt32Ty(), IRB.getInt32Ty(), IRB.getInt32(40),
-      nullptr, nullptr, "setjmpTable");
+  Type *IntPtrTy = getAddrIntType(&M);
+  Constant *size = ConstantInt::get(IntPtrTy, 40);
+  Instruction *SetjmpTable =
+      CallInst::CreateMalloc(SetjmpTableSize, IntPtrTy, IRB.getInt32Ty(), size,
+                             nullptr, nullptr, "setjmpTable");
   SetjmpTable->setDebugLoc(FirstDL);
   // CallInst::CreateMalloc may return a bitcast instruction if the result types
   // mismatch. We need to set the debug loc for the original call too.
@@ -1314,9 +1314,14 @@ bool WebAssemblyLowerEmscriptenEHSjLj::runSjLjOnFunction(Function &F) {
     BasicBlock *BB = CB->getParent();
     if (BB->getParent() != &F) // in other function
       continue;
-    if (CB->getOperandBundle(LLVMContext::OB_funclet))
-      report_fatal_error(
-          "setjmp within a catch clause is not supported in Wasm EH");
+    if (CB->getOperandBundle(LLVMContext::OB_funclet)) {
+      std::string S;
+      raw_string_ostream SS(S);
+      SS << "In function " + F.getName() +
+                ": setjmp within a catch clause is not supported in Wasm EH:\n";
+      SS << *CB;
+      report_fatal_error(StringRef(SS.str()));
+    }
 
     CallInst *CI = nullptr;
     // setjmp cannot throw. So if it is an invoke, lower it to a call
@@ -1350,7 +1355,7 @@ bool WebAssemblyLowerEmscriptenEHSjLj::runSjLjOnFunction(Function &F) {
     Instruction *NewSetjmpTable =
         IRB.CreateCall(SaveSetjmpF, Args, "setjmpTable");
     Instruction *NewSetjmpTableSize =
-        IRB.CreateCall(GetTempRet0F, None, "setjmpTableSize");
+        IRB.CreateCall(GetTempRet0F, std::nullopt, "setjmpTableSize");
     SetjmpTableInsts.push_back(NewSetjmpTable);
     SetjmpTableSizeInsts.push_back(NewSetjmpTableSize);
     ToErase.push_back(CI);
@@ -1492,10 +1497,16 @@ void WebAssemblyLowerEmscriptenEHSjLj::handleLongjmpableCallsForEmscriptenSjLj(
   for (unsigned I = 0; I < BBs.size(); I++) {
     BasicBlock *BB = BBs[I];
     for (Instruction &I : *BB) {
-      if (isa<InvokeInst>(&I))
-        report_fatal_error("When using Wasm EH with Emscripten SjLj, there is "
-                           "a restriction that `setjmp` function call and "
-                           "exception cannot be used within the same function");
+      if (isa<InvokeInst>(&I)) {
+        std::string S;
+        raw_string_ostream SS(S);
+        SS << "In function " << F.getName()
+           << ": When using Wasm EH with Emscripten SjLj, there is a "
+              "restriction that `setjmp` function call and exception cannot be "
+              "used within the same function:\n";
+        SS << I;
+        report_fatal_error(StringRef(SS.str()));
+      }
       auto *CI = dyn_cast<CallInst>(&I);
       if (!CI)
         continue;

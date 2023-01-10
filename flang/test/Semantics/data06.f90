@@ -28,6 +28,9 @@ subroutine s1
   integer :: a4(3)
   !ERROR: DATA statement designator 'a4(5_8)' is out of range
   data (a4(j),j=1,5,2) /3*222/
+  integer :: a5(3)
+  !ERROR: DATA statement designator 'a5(-2_8)' is out of range
+  data       a5(-2) / 1 /
   interface
     real function rfunc(x)
       real, intent(in) :: x
@@ -38,6 +41,7 @@ subroutine s1
   data rp/rfunc/
   procedure(rfunc), pointer :: rpp
   real, target :: rt
+  !WARNING: Procedure pointer 'rpp' in a DATA statement is not standard
   !ERROR: Data object 'rt' may not be used to initialize 'rpp', which is a procedure pointer
   data rpp/rt/
   !ERROR: Initializer for 'rt' must not be a pointer

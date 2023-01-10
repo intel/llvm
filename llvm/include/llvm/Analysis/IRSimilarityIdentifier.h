@@ -54,6 +54,7 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Allocator.h"
+#include <optional>
 
 namespace llvm {
 class Module;
@@ -127,7 +128,7 @@ struct IRInstructionData
   /// This is only relevant if we are wrapping a CmpInst where we needed to
   /// change the predicate of a compare instruction from a greater than form
   /// to a less than form.  It is None otherwise.
-  Optional<CmpInst::Predicate> RevisedPredicate;
+  std::optional<CmpInst::Predicate> RevisedPredicate;
 
   /// This is only relevant if we are wrapping a CallInst. If we are requiring
   /// that the function calls have matching names as well as types, and the
@@ -137,7 +138,7 @@ struct IRInstructionData
   /// function call type.  The value held here is used to create the hash of the
   /// instruction, and check to make sure two instructions are close to one
   /// another.
-  Optional<std::string> CalleeName;
+  std::optional<std::string> CalleeName;
 
   /// This structure holds the distances of how far "ahead of" or "behind" the
   /// target blocks of a branch, or the incoming blocks of a phi nodes are.
@@ -547,7 +548,7 @@ struct IRInstructionMapper {
       // an outlined function. Also, assume-like intrinsics could be removed
       // from the region, removing arguments, causing discrepencies in the
       // number of inputs between different regions.
-      if (II.isLifetimeStartOrEnd() || II.isAssumeLikeIntrinsic())
+      if (II.isAssumeLikeIntrinsic())
         return Illegal;
       return EnableIntrinsics ? Legal : Illegal;
     }
@@ -559,6 +560,18 @@ struct IRInstructionMapper {
       if (IsIndirectCall && !EnableIndirectCalls)
         return Illegal;
       if (!F && !IsIndirectCall)
+        return Illegal;
+      // Functions marked with the swifttailcc and tailcc calling conventions
+      // require special handling when outlining musttail functions.  The
+      // calling convention must be passed down to the outlined function as
+      // well. Further, there is special handling for musttail calls as well,
+      // requiring a return call directly after.  For now, the outliner does not
+      // support this, so we do not handle matching this case either.
+      if ((CI.getCallingConv() == CallingConv::SwiftTail ||
+           CI.getCallingConv() == CallingConv::Tail) &&
+          !EnableMustTailCalls)
+        return Illegal;
+      if (CI.isMustTailCall() && !EnableMustTailCalls)
         return Illegal;
       return Legal;
     }
@@ -581,6 +594,10 @@ struct IRInstructionMapper {
     // Flag that lets the classifier know whether we should allow intrinsics to
     // be checked for similarity.
     bool EnableIntrinsics = false;
+  
+    // Flag that lets the classifier know whether we should allow tail calls to
+    // be checked for similarity.
+    bool EnableMustTailCalls = false;
   };
 
   /// Maps an Instruction to a member of InstrType.
@@ -815,8 +832,6 @@ public:
   void getBasicBlocks(DenseSet<BasicBlock *> &BBSet) const {
     for (IRInstructionData &ID : *this) {
       BasicBlock *BB = ID.Inst->getParent();
-      if (BBSet.contains(BB))
-        continue;
       BBSet.insert(BB);
     }
   }
@@ -827,10 +842,8 @@ public:
                       SmallVector<BasicBlock *> &BBList) const {
     for (IRInstructionData &ID : *this) {
       BasicBlock *BB = ID.Inst->getParent();
-      if (BBSet.contains(BB))
-        continue;
-      BBSet.insert(BB);
-      BBList.push_back(BB);
+      if (BBSet.insert(BB).second)
+        BBList.push_back(BB);
     }
   }
 
@@ -875,23 +888,23 @@ public:
   /// Finds the positive number associated with \p V if it has been mapped.
   /// \param [in] V - the Value to find.
   /// \returns The positive number corresponding to the value.
-  /// \returns None if not present.
+  /// \returns std::nullopt if not present.
   Optional<unsigned> getGVN(Value *V) {
     assert(V != nullptr && "Value is a nullptr?");
     DenseMap<Value *, unsigned>::iterator VNIt = ValueToNumber.find(V);
     if (VNIt == ValueToNumber.end())
-      return None;
+      return std::nullopt;
     return VNIt->second;
   }
 
   /// Finds the Value associate with \p Num if it exists.
   /// \param [in] Num - the number to find.
   /// \returns The Value associated with the number.
-  /// \returns None if not present.
+  /// \returns std::nullopt if not present.
   Optional<Value *> fromGVN(unsigned Num) {
     DenseMap<unsigned, Value *>::iterator VNIt = NumberToValue.find(Num);
     if (VNIt == NumberToValue.end())
-      return None;
+      return std::nullopt;
     assert(VNIt->second != nullptr && "Found value is a nullptr!");
     return VNIt->second;
   }
@@ -900,12 +913,12 @@ public:
   /// candidate.
   ///
   /// \param N - The global value number to find the canonical number for.
-  /// \returns An optional containing the value, and None if it could not be
-  /// found.
+  /// \returns An optional containing the value, and std::nullopt if it could
+  /// not be found.
   Optional<unsigned> getCanonicalNum(unsigned N) {
     DenseMap<unsigned, unsigned>::iterator NCIt = NumberToCanonNum.find(N);
     if (NCIt == NumberToCanonNum.end())
-      return None;
+      return std::nullopt;
     return NCIt->second;
   }
 
@@ -913,12 +926,12 @@ public:
   /// candidate.
   ///
   /// \param N - The canonical number to find the global vlaue number for.
-  /// \returns An optional containing the value, and None if it could not be
-  /// found.
+  /// \returns An optional containing the value, and std::nullopt if it could
+  /// not be found.
   Optional<unsigned> fromCanonicalNum(unsigned N) {
     DenseMap<unsigned, unsigned>::iterator CNIt = CanonNumToNumber.find(N);
     if (CNIt == CanonNumToNumber.end())
-      return None;
+      return std::nullopt;
     return CNIt->second;
   }
 
@@ -968,11 +981,13 @@ public:
   IRSimilarityIdentifier(bool MatchBranches = true,
                          bool MatchIndirectCalls = true,
                          bool MatchCallsWithName = false,
-                         bool MatchIntrinsics = true)
+                         bool MatchIntrinsics = true,
+                         bool MatchMustTailCalls = true)
       : Mapper(&InstDataAllocator, &InstDataListAllocator),
         EnableBranches(MatchBranches), EnableIndirectCalls(MatchIndirectCalls),
         EnableMatchingCallsByName(MatchCallsWithName),
-        EnableIntrinsics(MatchIntrinsics) {}
+        EnableIntrinsics(MatchIntrinsics),
+        EnableMustTailCalls(MatchMustTailCalls) {}
 
 private:
   /// Map the instructions in the module to unsigned integers, using mapping
@@ -1025,7 +1040,7 @@ public:
     // If we've already analyzed a Module or set of Modules, so we must clear
     // the SimilarityCandidates to make sure we do not have only old values
     // hanging around.
-    if (SimilarityCandidates.hasValue())
+    if (SimilarityCandidates)
       SimilarityCandidates->clear();
     else
       SimilarityCandidates = SimilarityGroupList();
@@ -1065,8 +1080,12 @@ private:
   /// similarity.
   bool EnableIntrinsics = true;
 
+  // The flag variable that marks whether we should allow tailcalls
+  // to be checked for similarity.
+  bool EnableMustTailCalls = false;
+
   /// The SimilarityGroups found with the most recent run of \ref
-  /// findSimilarity. None if there is no recent run.
+  /// findSimilarity. std::nullopt if there is no recent run.
   Optional<SimilarityGroupList> SimilarityCandidates;
 };
 

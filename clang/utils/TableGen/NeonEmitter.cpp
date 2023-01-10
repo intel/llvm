@@ -26,7 +26,6 @@
 #include "TableGenBackends.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -321,8 +320,10 @@ class Intrinsic {
   /// The list of DAGs for the body. May be empty, in which case we should
   /// emit a builtin call.
   ListInit *Body;
-  /// The architectural #ifdef guard.
-  std::string Guard;
+  /// The architectural ifdef guard.
+  std::string ArchGuard;
+  /// The architectural target() guard.
+  std::string TargetGuard;
   /// Set if the Unavailable bit is 1. This means we don't generate a body,
   /// just an "unavailable" attribute on a declaration.
   bool IsUnavailable;
@@ -368,9 +369,9 @@ class Intrinsic {
 public:
   Intrinsic(Record *R, StringRef Name, StringRef Proto, TypeSpec OutTS,
             TypeSpec InTS, ClassKind CK, ListInit *Body, NeonEmitter &Emitter,
-            StringRef Guard, bool IsUnavailable, bool BigEndianSafe)
+            StringRef ArchGuard, StringRef TargetGuard, bool IsUnavailable, bool BigEndianSafe)
       : R(R), Name(Name.str()), OutTS(OutTS), InTS(InTS), CK(CK), Body(Body),
-        Guard(Guard.str()), IsUnavailable(IsUnavailable),
+        ArchGuard(ArchGuard.str()), TargetGuard(TargetGuard.str()), IsUnavailable(IsUnavailable),
         BigEndianSafe(BigEndianSafe), PolymorphicKeyType(0), NeededEarly(false),
         UseMacro(false), BaseType(OutTS, "."), InBaseType(InTS, "."),
         Emitter(Emitter) {
@@ -411,7 +412,8 @@ public:
   /// transitive closure.
   const std::set<Intrinsic *> &getDependencies() const { return Dependencies; }
   /// Get the architectural guard string (#ifdef).
-  std::string getGuard() const { return Guard; }
+  std::string getArchGuard() const { return ArchGuard; }
+  std::string getTargetGuard() const { return TargetGuard; }
   /// Get the non-mangled name.
   std::string getName() const { return Name; }
 
@@ -441,7 +443,7 @@ public:
   /// Return the index that parameter PIndex will sit at
   /// in a generated function call. This is often just PIndex,
   /// but may not be as things such as multiple-vector operands
-  /// and sret parameters need to be taken into accont.
+  /// and sret parameters need to be taken into account.
   unsigned getGeneratedParamIdx(unsigned PIndex) {
     unsigned Idx = 0;
     if (getReturnType().getNumVectors() > 1)
@@ -459,9 +461,11 @@ public:
   void setNeededEarly() { NeededEarly = true; }
 
   bool operator<(const Intrinsic &Other) const {
-    // Sort lexicographically on a two-tuple (Guard, Name)
-    if (Guard != Other.Guard)
-      return Guard < Other.Guard;
+    // Sort lexicographically on a three-tuple (ArchGuard, TargetGuard, Name)
+    if (ArchGuard != Other.ArchGuard)
+      return ArchGuard < Other.ArchGuard;
+    if (TargetGuard != Other.TargetGuard)
+      return TargetGuard < Other.TargetGuard;
     return Name < Other.Name;
   }
 
@@ -502,6 +506,7 @@ private:
   void emitBody(StringRef CallPrefix);
   void emitShadowedArgs();
   void emitArgumentReversal();
+  void emitReturnVarDecl();
   void emitReturnReversal();
   void emitReverseVariable(Variable &Dest, Variable &Src);
   void emitNewLine();
@@ -816,19 +821,19 @@ void Type::applyTypespec(bool &Quad) {
       break;
     case 'h':
       Kind = Float;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case 's':
       ElementBitwidth = 16;
       break;
     case 'f':
       Kind = Float;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case 'i':
       ElementBitwidth = 32;
       break;
     case 'd':
       Kind = Float;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case 'l':
       ElementBitwidth = 64;
       break;
@@ -950,7 +955,7 @@ std::string Intrinsic::getInstTypeCode(Type T, ClassKind CK) const {
   char typeCode = '\0';
   bool printNumber = true;
 
-  if (CK == ClassB)
+  if (CK == ClassB && TargetGuard == "")
     return "";
 
   if (T.isBFloat16())
@@ -974,7 +979,7 @@ std::string Intrinsic::getInstTypeCode(Type T, ClassKind CK) const {
       break;
     }
   }
-  if (CK == ClassB) {
+  if (CK == ClassB && TargetGuard == "") {
     typeCode = '\0';
   }
 
@@ -1076,7 +1081,7 @@ std::string Intrinsic::mangleName(std::string Name, ClassKind LocalCK) const {
     S += "_" + getInstTypeCode(InBaseType, LocalCK);
   }
 
-  if (LocalCK == ClassB)
+  if (LocalCK == ClassB && TargetGuard == "")
     S += "_v";
 
   // Insert a 'q' before the first '_' character so that it ends up before
@@ -1136,10 +1141,14 @@ void Intrinsic::initVariables() {
 }
 
 void Intrinsic::emitPrototype(StringRef NamePrefix) {
-  if (UseMacro)
+  if (UseMacro) {
     OS << "#define ";
-  else
-    OS << "__ai " << Types[0].str() << " ";
+  } else {
+    OS << "__ai ";
+    if (TargetGuard != "")
+      OS << "__attribute__((target(\"" << TargetGuard << "\"))) ";
+    OS << Types[0].str() << " ";
+  }
 
   OS << NamePrefix.str() << mangleName(Name, ClassS) << "(";
 
@@ -1225,6 +1234,15 @@ void Intrinsic::emitArgumentReversal() {
     OS << "  " << NewV.getType().str() << " " << NewV.getName() << ";";
     emitReverseVariable(NewV, V);
     V = NewV;
+  }
+}
+
+void Intrinsic::emitReturnVarDecl() {
+  assert(RetVar.getType() == Types[0]);
+  // Create a return variable, if we're not void.
+  if (!RetVar.getType().isVoid()) {
+    OS << "  " << RetVar.getType().str() << " " << RetVar.getName() << ";";
+    emitNewLine();
   }
 }
 
@@ -1352,13 +1370,6 @@ void Intrinsic::emitBodyAsBuiltinCall() {
 
 void Intrinsic::emitBody(StringRef CallPrefix) {
   std::vector<std::string> Lines;
-
-  assert(RetVar.getType() == Types[0]);
-  // Create a return variable, if we're not void.
-  if (!RetVar.getType().isVoid()) {
-    OS << "  " << RetVar.getType().str() << " " << RetVar.getName() << ";";
-    emitNewLine();
-  }
 
   if (!Body || Body->getValues().empty()) {
     // Nothing specific to output - must output a builtin.
@@ -1639,7 +1650,7 @@ std::pair<Type, std::string> Intrinsic::DagEmitter::emitDagShuffle(DagInit *DI){
                  std::make_unique<Rev>(Arg1.first.getElementSizeInBits()));
   ST.addExpander("MaskExpand",
                  std::make_unique<MaskExpander>(Arg1.first.getNumElements()));
-  ST.evaluate(DI->getArg(2), Elts, None);
+  ST.evaluate(DI->getArg(2), Elts, std::nullopt);
 
   std::string S = "__builtin_shufflevector(" + Arg1.second + ", " + Arg2.second;
   for (auto &E : Elts) {
@@ -1849,6 +1860,9 @@ void Intrinsic::generateImpl(bool ReverseArguments,
     OS << " __attribute__((unavailable));";
   } else {
     emitOpeningBrace();
+    // Emit return variable declaration first as to not trigger
+    // -Wdeclaration-after-statement.
+    emitReturnVarDecl();
     emitShadowedArgs();
     if (ReverseArguments)
       emitArgumentReversal();
@@ -1867,6 +1881,9 @@ void Intrinsic::indexBody() {
   CurrentRecord = R;
 
   initVariables();
+  // Emit return variable declaration first as to not trigger
+  // -Wdeclaration-after-statement.
+  emitReturnVarDecl();
   emitBody("");
   OS.str("");
 
@@ -1936,7 +1953,8 @@ void NeonEmitter::createIntrinsic(Record *R,
   std::string Types = std::string(R->getValueAsString("Types"));
   Record *OperationRec = R->getValueAsDef("Operation");
   bool BigEndianSafe  = R->getValueAsBit("BigEndianSafe");
-  std::string Guard = std::string(R->getValueAsString("ArchGuard"));
+  std::string ArchGuard = std::string(R->getValueAsString("ArchGuard"));
+  std::string TargetGuard = std::string(R->getValueAsString("TargetGuard"));
   bool IsUnavailable = OperationRec->getValueAsBit("Unavailable");
   std::string CartesianProductWith = std::string(R->getValueAsString("CartesianProductWith"));
 
@@ -1978,7 +1996,7 @@ void NeonEmitter::createIntrinsic(Record *R,
 
   for (auto &I : NewTypeSpecs) {
     Entry.emplace_back(R, Name, Proto, I.first, I.second, CK, Body, *this,
-                       Guard, IsUnavailable, BigEndianSafe);
+                       ArchGuard, TargetGuard, IsUnavailable, BigEndianSafe);
     Out.push_back(&Entry.back());
   }
 
@@ -1993,22 +2011,31 @@ void NeonEmitter::genBuiltinsDef(raw_ostream &OS,
 
   // We only want to emit a builtin once, and we want to emit them in
   // alphabetical order, so use a std::set.
-  std::set<std::string> Builtins;
+  std::set<std::pair<std::string, std::string>> Builtins;
 
   for (auto *Def : Defs) {
     if (Def->hasBody())
       continue;
 
-    std::string S = "BUILTIN(__builtin_neon_" + Def->getMangledName() + ", \"";
-
+    std::string S = "__builtin_neon_" + Def->getMangledName() + ", \"";
     S += Def->getBuiltinTypeStr();
-    S += "\", \"n\")";
+    S += "\", \"n\"";
 
-    Builtins.insert(S);
+    Builtins.emplace(S, Def->getTargetGuard());
   }
 
-  for (auto &S : Builtins)
-    OS << S << "\n";
+  for (auto &S : Builtins) {
+    if (S.second == "")
+      OS << "BUILTIN(";
+    else
+      OS << "TARGET_BUILTIN(";
+    OS << S.first;
+    if (S.second == "")
+      OS << ")\n";
+    else
+      OS << ", \"" << S.second << "\")\n";
+  }
+
   OS << "#endif\n\n";
 }
 
@@ -2325,10 +2352,8 @@ void NeonEmitter::run(raw_ostream &OS) {
 
   OS << "#include <stdint.h>\n\n";
 
-  OS << "#ifdef __ARM_FEATURE_BF16\n";
   OS << "#include <arm_bf16.h>\n";
   OS << "typedef __bf16 bfloat16_t;\n";
-  OS << "#endif\n\n";
 
   // Emit NEON-specific scalar typedefs.
   OS << "typedef float float32_t;\n";
@@ -2352,9 +2377,7 @@ void NeonEmitter::run(raw_ostream &OS) {
 
   emitNeonTypeDefs("cQcsQsiQilQlUcQUcUsQUsUiQUiUlQUlhQhfQfdQdPcQPcPsQPsPlQPl", OS);
 
-  OS << "#ifdef __ARM_FEATURE_BF16\n";
   emitNeonTypeDefs("bQb", OS);
-  OS << "#endif\n\n";
 
   OS << "#define __ai static __inline__ __attribute__((__always_inline__, "
         "__nodebug__))\n\n";
@@ -2390,10 +2413,10 @@ void NeonEmitter::run(raw_ostream &OS) {
       }
 
       // Emit #endif/#if pair if needed.
-      if ((*I)->getGuard() != InGuard) {
+      if ((*I)->getArchGuard() != InGuard) {
         if (!InGuard.empty())
           OS << "#endif\n";
-        InGuard = (*I)->getGuard();
+        InGuard = (*I)->getArchGuard();
         if (!InGuard.empty())
           OS << "#if " << InGuard << "\n";
       }
@@ -2499,10 +2522,10 @@ void NeonEmitter::runFP16(raw_ostream &OS) {
       }
 
       // Emit #endif/#if pair if needed.
-      if ((*I)->getGuard() != InGuard) {
+      if ((*I)->getArchGuard() != InGuard) {
         if (!InGuard.empty())
           OS << "#endif\n";
-        InGuard = (*I)->getGuard();
+        InGuard = (*I)->getArchGuard();
         if (!InGuard.empty())
           OS << "#if " << InGuard << "\n";
       }
@@ -2576,10 +2599,10 @@ void NeonEmitter::runBF16(raw_ostream &OS) {
       }
 
       // Emit #endif/#if pair if needed.
-      if ((*I)->getGuard() != InGuard) {
+      if ((*I)->getArchGuard() != InGuard) {
         if (!InGuard.empty())
           OS << "#endif\n";
-        InGuard = (*I)->getGuard();
+        InGuard = (*I)->getArchGuard();
         if (!InGuard.empty())
           OS << "#if " << InGuard << "\n";
       }

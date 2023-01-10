@@ -13,31 +13,67 @@
 
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
 #include "llvm/Demangle/Demangle.h"
+#include "llvm/Demangle/ItaniumDemangle.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
+#include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Regex.h"
 
 using namespace llvm;
+using namespace llvm::esimd;
+namespace id = itanium_demangle;
 
 #define DEBUG_TYPE "esimd-verifier"
 
-// A list of unsupported functions in ESIMD context.
-static const char *IllegalFunctions[] = {
-    "^cl::sycl::multi_ptr<.+> cl::sycl::accessor<.+>::get_pointer<.+>\\(\\) "
-    "const",
-    " cl::sycl::accessor<.+>::operator\\[\\]<.+>\\(.+\\) const"};
+// A list of SYCL functions (regexps) allowed for use in ESIMD context.
+static const char *LegalSYCLFunctions[] = {
+    "^sycl::_V1::accessor<.+>::accessor",
+    "^sycl::_V1::accessor<.+>::~accessor",
+    "^sycl::_V1::accessor<.+>::getNativeImageObj",
+    "^sycl::_V1::accessor<.+>::__init_esimd",
+    "^sycl::_V1::ext::oneapi::experimental::printf",
+    "^sycl::_V1::id<.+>::.+",
+    "^sycl::_V1::item<.+>::.+",
+    "^sycl::_V1::nd_item<.+>::.+",
+    "^sycl::_V1::group<.+>::.+",
+    "^sycl::_V1::sub_group<.+>::.+",
+    "^sycl::_V1::range<.+>::.+",
+    "^sycl::_V1::kernel_handler::.+",
+    "^sycl::_V1::cos<.+>",
+    "^sycl::_V1::sin<.+>",
+    "^sycl::_V1::log<.+>",
+    "^sycl::_V1::exp<.+>",
+    "^sycl::_V1::bit_cast<.+>",
+    "^sycl::_V1::operator.+<.+>",
+    "^sycl::_V1::ext::intel::experimental::set_kernel_properties",
+    "^sycl::_V1::ext::oneapi::sub_group::.+",
+    "^sycl::_V1::ext::oneapi::experimental::spec_constant<.+>::.+",
+    "^sycl::_V1::ext::oneapi::experimental::this_sub_group",
+    "^sycl::_V1::ext::oneapi::experimental::bfloat16::.+",
+    "^sycl::_V1::ext::oneapi::experimental::if_architecture_is"};
+
+static const char *LegalSYCLFunctionsInStatelessMode[] = {
+    "^sycl::_V1::multi_ptr<.+>::get",
+    "^sycl::_V1::multi_ptr<.+>::multi_ptr",
+    "^sycl::_V1::accessor<.+>::get_pointer.+",
+    "^sycl::_V1::accessor<.+>::getPointerAdjusted",
+    "^sycl::_V1::accessor<.+>::getQualifiedPtr",
+    "^sycl::_V1::accessor<.+>::getTotalOffset"};
 
 namespace {
 
 class ESIMDVerifierImpl {
   const Module &M;
+  bool ForceStatelessMem;
 
 public:
-  ESIMDVerifierImpl(const Module &M) : M(M) {}
+  ESIMDVerifierImpl(const Module &M, bool ForceStatelessMem)
+      : M(M), ForceStatelessMem(ForceStatelessMem) {}
 
   void verify() {
     SmallPtrSet<const Function *, 8u> Visited;
@@ -63,22 +99,52 @@ public:
           if (!Callee)
             continue;
 
-          // Demangle called function name and check if it matches any illegal
-          // function name. Report an error if there is a match.
-          std::string DemangledName = demangle(Callee->getName().str());
-          for (const char *Name : IllegalFunctions) {
-            Regex NameRE(Name);
-            assert(NameRE.isValid() && "invalid function name regex");
-            if (NameRE.match(DemangledName)) {
-              std::string ErrorMsg = std::string("function '") + DemangledName +
-                                     "' is not supported in ESIMD context";
-              F->getContext().emitError(&I, ErrorMsg);
-            }
-          }
-
           // Add callee to the list to be analyzed if it is not a declaration.
           if (!Callee->isDeclaration())
             Add2Worklist(Callee);
+
+          // Demangle called function name and check if it is legal to use this
+          // function in ESIMD context.
+          StringRef MangledName = Callee->getName();
+          id::ManglingParser<SimpleAllocator> Parser(MangledName.begin(),
+                                                     MangledName.end());
+          id::Node *AST = Parser.parse();
+          if (!AST || AST->getKind() != id::Node::KFunctionEncoding)
+            continue;
+
+          auto *FE = static_cast<id::FunctionEncoding *>(AST);
+          const id::Node *NameNode = FE->getName();
+          if (!NameNode) // Can it be null?
+            continue;
+
+          id::OutputBuffer NameBuf;
+          NameNode->print(NameBuf);
+          StringRef Name(NameBuf.getBuffer(), NameBuf.getCurrentPosition());
+
+          // We are interested in functions defined in SYCL namespace, but
+          // outside of ESIMD namespaces.
+          if (!Name.startswith("sycl::_V1::") ||
+              Name.startswith("sycl::_V1::detail::") ||
+              Name.startswith("sycl::_V1::ext::intel::esimd::") ||
+              Name.startswith("sycl::_V1::ext::intel::experimental::esimd::"))
+            continue;
+
+          // Check if function name matches any allowed SYCL function name.
+          auto checkLegalFunc = [Name](const char *LegalName) {
+            Regex LegalNameRE(LegalName);
+            assert(LegalNameRE.isValid() && "invalid function name regex");
+            return LegalNameRE.match(Name);
+          };
+          if (any_of(LegalSYCLFunctions, checkLegalFunc) ||
+              (ForceStatelessMem &&
+               any_of(LegalSYCLFunctionsInStatelessMode, checkLegalFunc)))
+            continue;
+
+          // If not, report an error.
+          std::string ErrorMsg = std::string("function '") +
+                                 demangle(MangledName.str()) +
+                                 "' is not supported in ESIMD context";
+          F->getContext().emitError(&I, ErrorMsg);
         }
       }
     }
@@ -88,7 +154,7 @@ public:
 } // end anonymous namespace
 
 PreservedAnalyses ESIMDVerifierPass::run(Module &M, ModuleAnalysisManager &AM) {
-  ESIMDVerifierImpl(M).verify();
+  ESIMDVerifierImpl(M, ForceStatelessMem).verify();
   return PreservedAnalyses::all();
 }
 
@@ -96,6 +162,7 @@ namespace {
 
 struct ESIMDVerifier : public ModulePass {
   static char ID;
+  bool ForceStatelessMem;
 
   ESIMDVerifier() : ModulePass(ID) {
     initializeESIMDVerifierPass(*PassRegistry::getPassRegistry());
@@ -106,7 +173,7 @@ struct ESIMDVerifier : public ModulePass {
   }
 
   bool runOnModule(Module &M) override {
-    ESIMDVerifierImpl(M).verify();
+    ESIMDVerifierImpl(M, ForceStatelessMem).verify();
     return false;
   }
 };

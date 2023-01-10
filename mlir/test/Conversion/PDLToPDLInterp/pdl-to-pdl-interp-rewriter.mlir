@@ -6,11 +6,11 @@
 module @external {
   // CHECK: module @rewriters
   // CHECK:   func @pdl_generated_rewriter(%[[ROOT:.*]]: !pdl.operation, %[[INPUT:.*]]: !pdl.value)
-  // CHECK:     pdl_interp.apply_rewrite "rewriter" [true](%[[ROOT]], %[[INPUT]] : !pdl.operation, !pdl.value)
+  // CHECK:     pdl_interp.apply_rewrite "rewriter"(%[[ROOT]], %[[INPUT]] : !pdl.operation, !pdl.value)
   pdl.pattern : benefit(1) {
     %input = operand
     %root = operation "foo.op"(%input : !pdl.value)
-    rewrite %root with "rewriter"[true](%input : !pdl.value)
+    rewrite %root with "rewriter"(%input : !pdl.value)
   }
 }
 
@@ -42,7 +42,7 @@ module @operation_attributes {
     %attr = attribute
     %root = operation "foo.op" {"attr" = %attr}
     rewrite %root {
-      %attr1 = attribute true
+      %attr1 = attribute = true
       %newOp = operation "foo.op" {"attr" = %attr, "attr1" = %attr1}
       erase %root
     }
@@ -86,7 +86,7 @@ module @operation_infer_types_from_replaceop {
     %root = operation "foo.op" -> (%rootType, %rootType1 : !pdl.type, !pdl.type)
     rewrite %root {
       %newType1 = type
-      %newOp = operation "foo.op" -> (%rootType, %newType1 : !pdl.type, !pdl.type)
+      %newOp = operation "foo.op"
       replace %root with %newOp
     }
   }
@@ -121,6 +121,29 @@ module @operation_infer_types_from_otherop_results {
     %root = operation "foo.op" -> (%rootTypes : !pdl.range<type>)
     rewrite %root {
       %newOp = operation "foo.op" -> (%rootTypes : !pdl.range<type>)
+    }
+  }
+}
+
+// -----
+
+// CHECK-LABEL: module @operation_infer_types_from_interface
+module @operation_infer_types_from_interface {
+  // Unused operation that ensures the arithmetic dialect is loaded for use in the pattern.
+  arith.constant true
+
+  // CHECK: module @rewriters
+  // CHECK:   func @pdl_generated_rewriter
+  // CHECK:     %[[CST:.*]] = pdl_interp.create_operation "arith.constant" -> <inferred>
+  // CHECK:     %[[CST_RES:.*]] = pdl_interp.get_results of %[[CST]] : !pdl.range<value>
+  // CHECK:     %[[CST_TYPE:.*]] = pdl_interp.get_value_type of %[[CST_RES]] : !pdl.range<type>
+  // CHECK:     pdl_interp.create_operation "foo.op"  -> (%[[CST_TYPE]] : !pdl.range<type>)
+  pdl.pattern : benefit(1) {
+    %root = operation "foo.op"
+    rewrite %root {
+      %types = types
+      %newOp = operation "arith.constant" -> (%types : !pdl.range<type>)
+      %newOp2 = operation "foo.op" -> (%types : !pdl.range<type>)
     }
   }
 }
@@ -191,13 +214,13 @@ module @replace_with_no_results {
 module @apply_native_rewrite {
   // CHECK: module @rewriters
   // CHECK:   func @pdl_generated_rewriter(%[[ROOT:.*]]: !pdl.operation)
-  // CHECK:     %[[TYPE:.*]] = pdl_interp.apply_rewrite "functor" [true](%[[ROOT]] : !pdl.operation) : !pdl.type
+  // CHECK:     %[[TYPE:.*]] = pdl_interp.apply_rewrite "functor"(%[[ROOT]] : !pdl.operation) : !pdl.type
   // CHECK:     pdl_interp.create_operation "foo.op" -> (%[[TYPE]] : !pdl.type)
   pdl.pattern : benefit(1) {
     %type = type
     %root = operation "foo.op" -> (%type : !pdl.type)
     rewrite %root {
-      %newType = apply_native_rewrite "functor"[true](%root : !pdl.operation) : !pdl.type
+      %newType = apply_native_rewrite "functor"(%root : !pdl.operation) : !pdl.type
       %newOp = operation "foo.op" -> (%newType : !pdl.type)
     }
   }
@@ -220,3 +243,20 @@ module @unbound_rewrite_op {
 }
 
 // -----
+
+// CHECK-LABEL: module @range_op
+module @range_op {
+  // CHECK: module @rewriters
+  // CHECK:   func @pdl_generated_rewriter(%[[OPERAND:.*]]: !pdl.value)
+  // CHECK:     %[[RANGE1:.*]] = pdl_interp.create_range : !pdl.range<value>
+  // CHECK:     %[[RANGE2:.*]] = pdl_interp.create_range %[[OPERAND]], %[[RANGE1]] : !pdl.value, !pdl.range<value>
+  // CHECK:     pdl_interp.finalize
+  pdl.pattern : benefit(1) {
+    %operand = pdl.operand
+    %root = operation "foo.op"(%operand : !pdl.value)
+    rewrite %root {
+      %emptyRange = pdl.range : !pdl.range<value>
+      %range = pdl.range %operand, %emptyRange : !pdl.value, !pdl.range<value>
+    }
+  }
+}

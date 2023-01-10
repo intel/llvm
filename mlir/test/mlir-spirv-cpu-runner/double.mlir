@@ -1,16 +1,17 @@
-// RUN: mlir-spirv-cpu-runner %s -e main --entry-point-result=void --shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext,%spirv_wrapper_library_dir/libmlir_test_spirv_cpu_runner_c_wrappers%shlibext
+// RUN: mlir-spirv-cpu-runner %s -e main --entry-point-result=void --shared-libs=%mlir_lib_dir/libmlir_runner_utils%shlibext,%mlir_lib_dir/libmlir_test_spirv_cpu_runner_c_wrappers%shlibext
 
 // CHECK: [8,  8,  8,  8,  8,  8]
 module attributes {
   gpu.container_module,
-  spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [Shader], [SPV_KHR_variable_pointers]>,
-    {max_compute_workgroup_invocations = 128 : i32,
-     max_compute_workgroup_size = dense<[128, 128, 64]> : vector<3xi32>}>
+  spirv.target_env = #spirv.target_env<
+    #spirv.vce<v1.0, [Shader], [SPV_KHR_variable_pointers]>,
+    #spirv.resource_limits<
+     max_compute_workgroup_invocations = 128,
+     max_compute_workgroup_size = [128, 128, 64]>>
 } {
   gpu.module @kernels {
     gpu.func @double(%arg0 : memref<6xi32>, %arg1 : memref<6xi32>)
-      kernel attributes { spv.entry_point_abi = {local_size = dense<[1, 1, 1]>: vector<3xi32>}} {
+      kernel attributes { spirv.entry_point_abi = #spirv.entry_point_abi<workgroup_size = [1, 1, 1]>} {
       %factor = arith.constant 2 : i32
 
       %i0 = arith.constant 0 : index
@@ -43,7 +44,7 @@ module attributes {
       gpu.return
     }
   }
-  func @main() {
+  func.func @main() {
     %input = memref.alloc() : memref<6xi32>
     %output = memref.alloc() : memref<6xi32>
     %four = arith.constant 4 : i32
@@ -58,10 +59,10 @@ module attributes {
         blocks in (%one, %one, %one) threads in (%one, %one, %one)
         args(%input : memref<6xi32>, %output : memref<6xi32>)
     %result = memref.cast %output : memref<6xi32> to memref<*xi32>
-    call @print_memref_i32(%result) : (memref<*xi32>) -> ()
+    call @printMemrefI32(%result) : (memref<*xi32>) -> ()
     return
   }
 
-  func private @fillI32Buffer(%arg0 : memref<?xi32>, %arg1 : i32)
-  func private @print_memref_i32(%ptr : memref<*xi32>)
+  func.func private @fillI32Buffer(%arg0 : memref<?xi32>, %arg1 : i32)
+  func.func private @printMemrefI32(%ptr : memref<*xi32>)
 }

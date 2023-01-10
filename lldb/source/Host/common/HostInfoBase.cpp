@@ -85,8 +85,7 @@ void HostInfoBase::Terminate() {
 
 llvm::Triple HostInfoBase::GetTargetTriple() {
   llvm::call_once(g_fields->m_host_triple_once, []() {
-    g_fields->m_host_triple =
-        HostInfo::GetArchitecture().GetTriple();
+    g_fields->m_host_triple = HostInfo::GetArchitecture().GetTriple();
   });
   return g_fields->m_host_triple;
 }
@@ -108,12 +107,13 @@ const ArchSpec &HostInfoBase::GetArchitecture(ArchitectureKind arch_kind) {
                                               : g_fields->m_host_arch_32;
 }
 
-llvm::Optional<HostInfoBase::ArchitectureKind> HostInfoBase::ParseArchitectureKind(llvm::StringRef kind) {
+llvm::Optional<HostInfoBase::ArchitectureKind>
+HostInfoBase::ParseArchitectureKind(llvm::StringRef kind) {
   return llvm::StringSwitch<llvm::Optional<ArchitectureKind>>(kind)
       .Case(LLDB_ARCH_DEFAULT, eArchKindDefault)
       .Case(LLDB_ARCH_DEFAULT_32BIT, eArchKind32)
       .Case(LLDB_ARCH_DEFAULT_64BIT, eArchKind64)
-      .Default(llvm::None);
+      .Default(std::nullopt);
 }
 
 FileSpec HostInfoBase::GetShlibDir() {
@@ -148,7 +148,8 @@ FileSpec HostInfoBase::GetHeaderDir() {
 
 FileSpec HostInfoBase::GetSystemPluginDir() {
   llvm::call_once(g_fields->m_lldb_system_plugin_dir_once, []() {
-    if (!HostInfo::ComputeSystemPluginsDirectory(g_fields->m_lldb_system_plugin_dir))
+    if (!HostInfo::ComputeSystemPluginsDirectory(
+            g_fields->m_lldb_system_plugin_dir))
       g_fields->m_lldb_system_plugin_dir = FileSpec();
     Log *log = GetLog(LLDBLog::Host);
     LLDB_LOG(log, "system plugin dir -> `{0}`",
@@ -159,7 +160,8 @@ FileSpec HostInfoBase::GetSystemPluginDir() {
 
 FileSpec HostInfoBase::GetUserPluginDir() {
   llvm::call_once(g_fields->m_lldb_user_plugin_dir_once, []() {
-    if (!HostInfo::ComputeUserPluginsDirectory(g_fields->m_lldb_user_plugin_dir))
+    if (!HostInfo::ComputeUserPluginsDirectory(
+            g_fields->m_lldb_user_plugin_dir))
       g_fields->m_lldb_user_plugin_dir = FileSpec();
     Log *log = GetLog(LLDBLog::Host);
     LLDB_LOG(log, "user plugin dir -> `{0}`", g_fields->m_lldb_user_plugin_dir);
@@ -169,7 +171,8 @@ FileSpec HostInfoBase::GetUserPluginDir() {
 
 FileSpec HostInfoBase::GetProcessTempDir() {
   llvm::call_once(g_fields->m_lldb_process_tmp_dir_once, []() {
-    if (!HostInfo::ComputeProcessTempFileDirectory( g_fields->m_lldb_process_tmp_dir))
+    if (!HostInfo::ComputeProcessTempFileDirectory(
+            g_fields->m_lldb_process_tmp_dir))
       g_fields->m_lldb_process_tmp_dir = FileSpec();
     Log *log = GetLog(LLDBLog::Host);
     LLDB_LOG(log, "process temp dir -> `{0}`",
@@ -180,7 +183,8 @@ FileSpec HostInfoBase::GetProcessTempDir() {
 
 FileSpec HostInfoBase::GetGlobalTempDir() {
   llvm::call_once(g_fields->m_lldb_global_tmp_dir_once, []() {
-    if (!HostInfo::ComputeGlobalTempFileDirectory( g_fields->m_lldb_global_tmp_dir))
+    if (!HostInfo::ComputeGlobalTempFileDirectory(
+            g_fields->m_lldb_global_tmp_dir))
       g_fields->m_lldb_global_tmp_dir = FileSpec();
 
     Log *log = GetLog(LLDBLog::Host);
@@ -205,7 +209,8 @@ ArchSpec HostInfoBase::GetAugmentedArchSpec(llvm::StringRef triple) {
     normalized_triple.setVendor(host_triple.getVendor());
   if (normalized_triple.getOSName().empty())
     normalized_triple.setOS(host_triple.getOS());
-  if (normalized_triple.getEnvironmentName().empty())
+  if (normalized_triple.getEnvironmentName().empty() &&
+      !host_triple.getEnvironmentName().empty())
     normalized_triple.setEnvironment(host_triple.getEnvironment());
   return ArchSpec(normalized_triple);
 }
@@ -237,7 +242,7 @@ bool HostInfoBase::ComputePathRelativeToLibrary(FileSpec &file_spec,
   raw_path = (parent_path + dir).str();
   LLDB_LOGF(log, "HostInfo::%s() derived the path as: %s", __FUNCTION__,
             raw_path.c_str());
-  file_spec.GetDirectory().SetString(raw_path);
+  file_spec.SetDirectory(raw_path);
   return (bool)file_spec.GetDirectory();
 }
 
@@ -247,14 +252,13 @@ bool HostInfoBase::ComputeSharedLibraryDirectory(FileSpec &file_spec) {
   // On other posix systems, we will get .../lib(64|32)?/liblldb.so.
 
   FileSpec lldb_file_spec(Host::GetModuleFileSpecForHostAddress(
-      reinterpret_cast<void *>(
-          HostInfoBase::ComputeSharedLibraryDirectory)));
+      reinterpret_cast<void *>(HostInfoBase::ComputeSharedLibraryDirectory)));
 
   if (g_shlib_dir_helper)
     g_shlib_dir_helper(lldb_file_spec);
 
   // Remove the filename so that this FileSpec only represents the directory.
-  file_spec.GetDirectory() = lldb_file_spec.GetDirectory();
+  file_spec.SetDirectory(lldb_file_spec.GetDirectory());
 
   return (bool)file_spec.GetDirectory();
 }
@@ -274,7 +278,7 @@ bool HostInfoBase::ComputeProcessTempFileDirectory(FileSpec &file_spec) {
   if (llvm::sys::fs::create_directory(temp_file_spec.GetPath()))
     return false;
 
-  file_spec.GetDirectory().SetCString(temp_file_spec.GetCString());
+  file_spec.SetDirectory(temp_file_spec.GetPathAsConstString());
   return true;
 }
 
@@ -297,7 +301,7 @@ bool HostInfoBase::ComputeGlobalTempFileDirectory(FileSpec &file_spec) {
   if (llvm::sys::fs::create_directory(temp_file_spec.GetPath()))
     return false;
 
-  file_spec.GetDirectory().SetCString(temp_file_spec.GetCString());
+  file_spec.SetDirectory(temp_file_spec.GetPathAsConstString());
   return true;
 }
 
@@ -335,6 +339,8 @@ void HostInfoBase::ComputeHostArchitectureSupport(ArchSpec &arch_32,
   case llvm::Triple::ppc64:
   case llvm::Triple::ppc64le:
   case llvm::Triple::x86_64:
+  case llvm::Triple::riscv64:
+  case llvm::Triple::loongarch64:
     arch_64.SetTriple(triple);
     arch_32.SetTriple(triple.get32BitArchVariant());
     break;

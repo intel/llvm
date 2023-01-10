@@ -4,21 +4,33 @@ add_mlir_dialect_library(MLIRBufferizationTransforms
   BufferOptimizations.cpp
   BufferResultsToOutParams.cpp
   BufferUtils.cpp
+  BufferViewFlowAnalysis.cpp
+  DropEquivalentBufferResults.cpp
+  EmptyTensorElimination.cpp
+  EmptyTensorToAllocTensor.cpp
+  FuncBufferizableOpInterfaceImpl.cpp
   OneShotAnalysis.cpp
+  OneShotModuleBufferize.cpp
+  TensorCopyInsertion.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Bufferization
 
   DEPENDS
   MLIRBufferizationPassIncGen
+  MLIRBufferizationEnumsIncGen
 
   LINK_LIBS PUBLIC
-  MLIRBufferization
+  MLIRBufferizationDialect
   MLIRControlFlowInterfaces
+  MLIRFuncDialect
   MLIRInferTypeOpInterface
   MLIRIR
-  MLIRMemRef
+  MLIRMemRefDialect
   MLIRPass
-  MLIRStandard
+  MLIRTensorDialect
+  MLIRSideEffectInterfaces
   MLIRTransforms
+  MLIRViewLikeInterface
 )
+

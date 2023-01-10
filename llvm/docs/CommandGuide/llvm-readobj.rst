@@ -106,6 +106,10 @@ file formats.
  When used with :option:`--sections`, display symbols for each section shown.
  This option has no effect for GNU style output.
 
+.. option:: --sort-symbols=<sort_key[,sort_key]>
+
+ Specify the keys to sort symbols before displaying symtab.
+ Valid values for sort_key are ``name`` and ``type``.
 .. option:: --stackmap
 
  Display contents of the stackmap section.
@@ -325,6 +329,18 @@ The following options are implemented only for the XCOFF file format.
 .. option:: --auxiliary-header
 
   Display XCOFF Auxiliary header.
+
+.. option:: --exception-section
+
+  Display XCOFF exception section entries.
+
+.. option:: --loader-section-header
+
+  Display XCOFF loader section header.
+
+.. option:: --loader-section-symbols
+
+  Display symbol table of loader section.
 
 EXIT STATUS
 -----------

@@ -10,7 +10,7 @@ import time
 
 from mlir import ir
 from mlir import runtime as rt
-from mlir.dialects import builtin
+from mlir.dialects import func
 from mlir.dialects.linalg.opdsl import lang as dsl
 from mlir.execution_engine import ExecutionEngine
 
@@ -43,7 +43,7 @@ def benchmark_sparse_mlir_multiplication():
         param2_type = ir.RankedTensorType.get([1500, 2000], f64)
         result_type = ir.RankedTensorType.get([1000, 2000], f64)
         with ir.InsertionPoint(module.body):
-            @builtin.FuncOp.from_py_func(param1_type, param2_type, result_type)
+            @func.FuncOp.from_py_func(param1_type, param2_type, result_type)
             def sparse_kernel(x, y, z):
                 return matmul_dsl(x, y, outs=[z])
 

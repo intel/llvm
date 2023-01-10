@@ -22,10 +22,10 @@
 #include "lld/Common/ErrorHandler.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/MapVector.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/raw_ostream.h"
+
 #include <numeric>
 
 using namespace llvm;
@@ -34,9 +34,11 @@ using namespace llvm::sys;
 using namespace lld;
 using namespace lld::macho;
 
+PriorityBuilder macho::priorityBuilder;
+
 namespace {
 
-size_t lowestPriority = std::numeric_limits<size_t>::max();
+size_t highestAvailablePriority = std::numeric_limits<size_t>::max();
 
 struct Edge {
   int from;
@@ -62,7 +64,7 @@ struct Cluster {
 
 class CallGraphSort {
 public:
-  CallGraphSort();
+  CallGraphSort(const MapVector<SectionPair, uint64_t> &profile);
 
   DenseMap<const InputSection *, size_t> run();
 
@@ -75,13 +77,9 @@ private:
 constexpr int MAX_DENSITY_DEGRADATION = 8;
 } // end anonymous namespace
 
-using SectionPair = std::pair<const InputSection *, const InputSection *>;
-
-// Take the edge list in config->callGraphProfile, resolve symbol names to
-// Symbols, and generate a graph between InputSections with the provided
-// weights.
-CallGraphSort::CallGraphSort() {
-  MapVector<SectionPair, uint64_t> &profile = config->callGraphProfile;
+// Take the edge list in callGraphProfile, resolve symbol names to Symbols, and
+// generate a graph between InputSections with the provided weights.
+CallGraphSort::CallGraphSort(const MapVector<SectionPair, uint64_t> &profile) {
   DenseMap<const InputSection *, int> secToCluster;
 
   auto getOrCreateCluster = [&](const InputSection *isec) -> int {
@@ -94,7 +92,7 @@ CallGraphSort::CallGraphSort() {
   };
 
   // Create the graph
-  for (std::pair<SectionPair, uint64_t> &c : profile) {
+  for (const std::pair<SectionPair, uint64_t> &c : profile) {
     const auto fromSec = c.first.first->canonical();
     const auto toSec = c.first.second->canonical();
     uint64_t weight = c.second;
@@ -212,7 +210,7 @@ DenseMap<const InputSection *, size_t> CallGraphSort::run() {
   // priority 0 and be placed at the end of sections.
   // NB: This is opposite from COFF/ELF to be compatible with the existing
   // order-file code.
-  int curOrder = lowestPriority;
+  int curOrder = highestAvailablePriority;
   for (int leader : sorted) {
     for (int i = leader;;) {
       orderMap[sections[i]] = curOrder--;
@@ -251,13 +249,14 @@ DenseMap<const InputSection *, size_t> CallGraphSort::run() {
   return orderMap;
 }
 
-static Optional<size_t> getSymbolPriority(const Defined *sym) {
+std::optional<size_t>
+macho::PriorityBuilder::getSymbolPriority(const Defined *sym) {
   if (sym->isAbsolute())
-    return None;
+    return std::nullopt;
 
-  auto it = config->priorities.find(sym->getName());
-  if (it == config->priorities.end())
-    return None;
+  auto it = priorities.find(sym->getName());
+  if (it == priorities.end())
+    return std::nullopt;
   const SymbolPriorityEntry &entry = it->second;
   const InputFile *f = sym->isec->getFile();
   if (!f)
@@ -273,9 +272,9 @@ static Optional<size_t> getSymbolPriority(const Defined *sym) {
   return std::max(entry.objectFiles.lookup(filename), entry.anyObjectFile);
 }
 
-void macho::extractCallGraphProfile() {
+void macho::PriorityBuilder::extractCallGraphProfile() {
   TimeTraceScope timeScope("Extract call graph profile");
-  bool hasOrderFile = !config->priorities.empty();
+  bool hasOrderFile = !priorities.empty();
   for (const InputFile *file : inputFiles) {
     auto *obj = dyn_cast_or_null<ObjFile>(file);
     if (!obj)
@@ -285,26 +284,24 @@ void macho::extractCallGraphProfile() {
              entry.toIndex < obj->symbols.size());
       auto *fromSym = dyn_cast_or_null<Defined>(obj->symbols[entry.fromIndex]);
       auto *toSym = dyn_cast_or_null<Defined>(obj->symbols[entry.toIndex]);
-      if (!fromSym || !toSym ||
-          (hasOrderFile &&
-           (getSymbolPriority(fromSym) || getSymbolPriority(toSym))))
-        continue;
-      config->callGraphProfile[{fromSym->isec, toSym->isec}] += entry.count;
+      if (fromSym && toSym &&
+          (!hasOrderFile ||
+           (!getSymbolPriority(fromSym) && !getSymbolPriority(toSym))))
+        callGraphProfile[{fromSym->isec, toSym->isec}] += entry.count;
     }
   }
 }
 
-void macho::parseOrderFile(StringRef path) {
-  assert(config->callGraphProfile.empty() &&
+void macho::PriorityBuilder::parseOrderFile(StringRef path) {
+  assert(callGraphProfile.empty() &&
          "Order file must be parsed before call graph profile is processed");
-  Optional<MemoryBufferRef> buffer = readFile(path);
+  std::optional<MemoryBufferRef> buffer = readFile(path);
   if (!buffer) {
     error("Could not read order file at " + path);
     return;
   }
 
   MemoryBufferRef mbref = *buffer;
-  size_t priority = std::numeric_limits<size_t>::max();
   for (StringRef line : args::getLines(mbref)) {
     StringRef objectFile, symbol;
     line = line.take_until([](char c) { return c == '#'; }); // ignore comments
@@ -339,42 +336,42 @@ void macho::parseOrderFile(StringRef path) {
     symbol = line.trim();
 
     if (!symbol.empty()) {
-      SymbolPriorityEntry &entry = config->priorities[symbol];
+      SymbolPriorityEntry &entry = priorities[symbol];
       if (!objectFile.empty())
-        entry.objectFiles.insert(std::make_pair(objectFile, priority));
+        entry.objectFiles.insert(
+            std::make_pair(objectFile, highestAvailablePriority));
       else
-        entry.anyObjectFile = std::max(entry.anyObjectFile, priority);
+        entry.anyObjectFile =
+            std::max(entry.anyObjectFile, highestAvailablePriority);
     }
 
-    --priority;
+    --highestAvailablePriority;
   }
-  lowestPriority = priority;
 }
 
-// Sort sections by the profile data provided by __LLVM,__cg_profile sections.
-//
-// This first builds a call graph based on the profile data then merges sections
-// according to the C³ heuristic. All clusters are then sorted by a density
-// metric to further improve locality.
-static DenseMap<const InputSection *, size_t> computeCallGraphProfileOrder() {
-  TimeTraceScope timeScope("Call graph profile sort");
-  return CallGraphSort().run();
-}
-
-DenseMap<const InputSection *, size_t> macho::buildInputSectionPriorities() {
+DenseMap<const InputSection *, size_t>
+macho::PriorityBuilder::buildInputSectionPriorities() {
   DenseMap<const InputSection *, size_t> sectionPriorities;
-  if (config->callGraphProfileSort)
-    sectionPriorities = computeCallGraphProfileOrder();
+  if (config->callGraphProfileSort) {
+    // Sort sections by the profile data provided by __LLVM,__cg_profile
+    // sections.
+    //
+    // This first builds a call graph based on the profile data then merges
+    // sections according to the C³ heuristic. All clusters are then sorted by a
+    // density metric to further improve locality.
+    TimeTraceScope timeScope("Call graph profile sort");
+    sectionPriorities = CallGraphSort(callGraphProfile).run();
+  }
 
-  if (config->priorities.empty())
+  if (priorities.empty())
     return sectionPriorities;
 
   auto addSym = [&](const Defined *sym) {
-    Optional<size_t> symbolPriority = getSymbolPriority(sym);
-    if (!symbolPriority.hasValue())
+    std::optional<size_t> symbolPriority = getSymbolPriority(sym);
+    if (!symbolPriority)
       return;
     size_t &priority = sectionPriorities[sym->isec];
-    priority = std::max(priority, symbolPriority.getValue());
+    priority = std::max(priority, symbolPriority.value());
   };
 
   // TODO: Make sure this handles weak symbols correctly.

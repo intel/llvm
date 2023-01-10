@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Object/ObjectFile.h"
-#include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Object/Binary.h"
@@ -97,6 +96,11 @@ bool ObjectFile::isBerkeleyData(DataRefImpl Sec) const {
 
 bool ObjectFile::isDebugSection(DataRefImpl Sec) const { return false; }
 
+bool ObjectFile::hasDebugInfo() const {
+  return any_of(sections(),
+                [](SectionRef Sec) { return Sec.isDebugSection(); });
+}
+
 Expected<section_iterator>
 ObjectFile::getRelocatedSection(DataRefImpl Sec) const {
   return section_iterator(SectionRef(Sec, this));
@@ -147,6 +151,9 @@ ObjectFile::createObjectFile(MemoryBufferRef Object, file_magic Type,
   case file_magic::pdb:
   case file_magic::minidump:
   case file_magic::goff_object:
+  case file_magic::cuda_fatbinary:
+  case file_magic::offload_binary:
+  case file_magic::dxcontainer_object:
     return errorCodeToError(object_error::invalid_file_type);
   case file_magic::tapi_file:
     return errorCodeToError(object_error::invalid_file_type);
@@ -167,6 +174,7 @@ ObjectFile::createObjectFile(MemoryBufferRef Object, file_magic Type,
   case file_magic::macho_dynamically_linked_shared_lib_stub:
   case file_magic::macho_dsym_companion:
   case file_magic::macho_kext_bundle:
+  case file_magic::macho_file_set:
     return createMachOObjectFile(Object);
   case file_magic::coff_object:
   case file_magic::coff_import_library:
@@ -197,4 +205,13 @@ ObjectFile::createObjectFile(StringRef ObjectPath) {
   std::unique_ptr<ObjectFile> Obj = std::move(ObjOrErr.get());
 
   return OwningBinary<ObjectFile>(std::move(Obj), std::move(Buffer));
+}
+
+bool ObjectFile::isReflectionSectionStrippable(
+    llvm::binaryformat::Swift5ReflectionSectionKind ReflectionSectionKind)
+    const {
+  using llvm::binaryformat::Swift5ReflectionSectionKind;
+  return ReflectionSectionKind == Swift5ReflectionSectionKind::fieldmd ||
+         ReflectionSectionKind == Swift5ReflectionSectionKind::reflstr ||
+         ReflectionSectionKind == Swift5ReflectionSectionKind::assocty;
 }

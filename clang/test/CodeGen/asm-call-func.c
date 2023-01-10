@@ -2,6 +2,6 @@
 
 void callee(void);
 void caller(void) {
-  //CHECK: call void asm sideeffect "rcall $0", "n,~{dirflag},~{fpsr},~{flags}"(void ()* @callee)
+  //CHECK: call void asm sideeffect "rcall $0", "n,~{dirflag},~{fpsr},~{flags}"(ptr @callee)
   asm("rcall %0" ::"n"(callee));
 }

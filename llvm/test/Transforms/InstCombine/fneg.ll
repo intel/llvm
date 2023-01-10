@@ -594,20 +594,22 @@ define <2 x float> @fake_fneg_nsz_fadd_constant_vec(<2 x float> %x) {
 
 define float @fneg_nsz_fadd_constant_expr(float %x) {
 ; CHECK-LABEL: @fneg_nsz_fadd_constant_expr(
-; CHECK-NEXT:    [[R:%.*]] = fsub nsz float fneg (float bitcast (i32 ptrtoint (i16* @g to i32) to float)), [[X:%.*]]
+; CHECK-NEXT:    [[A:%.*]] = fadd float [[X:%.*]], bitcast (i32 ptrtoint (ptr @g to i32) to float)
+; CHECK-NEXT:    [[R:%.*]] = fneg nsz float [[A]]
 ; CHECK-NEXT:    ret float [[R]]
 ;
-  %a = fadd float %x, bitcast (i32 ptrtoint (i16* @g to i32) to float)
+  %a = fadd float %x, bitcast (i32 ptrtoint (ptr @g to i32) to float)
   %r = fneg nsz float %a
   ret float %r
 }
 
 define float @fake_fneg_nsz_fadd_constant_expr(float %x) {
 ; CHECK-LABEL: @fake_fneg_nsz_fadd_constant_expr(
-; CHECK-NEXT:    [[R:%.*]] = fsub nsz float fneg (float bitcast (i32 ptrtoint (i16* @g to i32) to float)), [[X:%.*]]
+; CHECK-NEXT:    [[A:%.*]] = fadd float [[X:%.*]], bitcast (i32 ptrtoint (ptr @g to i32) to float)
+; CHECK-NEXT:    [[R:%.*]] = fneg nsz float [[A]]
 ; CHECK-NEXT:    ret float [[R]]
 ;
-  %a = fadd float %x, bitcast (i32 ptrtoint (i16* @g to i32) to float)
+  %a = fadd float %x, bitcast (i32 ptrtoint (ptr @g to i32) to float)
   %r = fsub nsz float -0.0, %a
   ret float %r
 }
@@ -627,7 +629,7 @@ define float @select_fneg_true(float %x, float %y, i1 %b) {
 define <2 x float> @select_fneg_false(<2 x float> %x, <2 x float> %y, <2 x i1> %b) {
 ; CHECK-LABEL: @select_fneg_false(
 ; CHECK-NEXT:    [[X_NEG:%.*]] = fneg nnan nsz <2 x float> [[X:%.*]]
-; CHECK-NEXT:    [[R:%.*]] = select nnan <2 x i1> [[B:%.*]], <2 x float> [[X_NEG]], <2 x float> [[Y:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = select nnan ninf <2 x i1> [[B:%.*]], <2 x float> [[X_NEG]], <2 x float> [[Y:%.*]]
 ; CHECK-NEXT:    ret <2 x float> [[R]]
 ;
   %ny = fneg nnan <2 x float> %y
@@ -648,6 +650,20 @@ define float @select_fneg_false_no_nsz(float %x, float %y, i1 %b) {
   ret float %r
 }
 
+; The removal of nsz in this pattern is not needed if the select condition can't be poison.
+
+define float @select_fneg_false_nsz_ok(float %x, float %y, i1 noundef %b) {
+; CHECK-LABEL: @select_fneg_false_nsz_ok(
+; CHECK-NEXT:    [[X_NEG:%.*]] = fneg nnan ninf nsz float [[X:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = select nnan ninf nsz i1 [[B:%.*]], float [[X_NEG]], float [[Y:%.*]]
+; CHECK-NEXT:    ret float [[R]]
+;
+  %ny = fneg float %y
+  %s = select i1 %b, float %x, float %ny
+  %r = fneg nsz ninf nnan float %s
+  ret float %r
+}
+
 define float @select_fneg_false_nsz(float %x, float %y, i1 %b) {
 ; CHECK-LABEL: @select_fneg_false_nsz(
 ; CHECK-NEXT:    [[X_NEG:%.*]] = fneg nnan ninf nsz float [[X:%.*]]
@@ -658,6 +674,98 @@ define float @select_fneg_false_nsz(float %x, float %y, i1 %b) {
   %s = select nsz i1 %b, float %x, float %ny
   %r = fneg ninf nnan nsz float %s
   ret float %r
+}
+
+; Special-case for propagating nsz: it's ok when selecting between an operand and its negation.
+
+define float @select_common_op_fneg_true(float %x, i1 %b) {
+; CHECK-LABEL: @select_common_op_fneg_true(
+; CHECK-NEXT:    [[X_NEG:%.*]] = fneg nnan ninf nsz float [[X:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = select nnan ninf nsz i1 [[B:%.*]], float [[X_NEG]], float [[X]]
+; CHECK-NEXT:    ret float [[R]]
+;
+  %nx = fneg float %x
+  %s = select i1 %b, float %x, float %nx
+  %r = fneg nsz ninf nnan float %s
+  ret float %r
+}
+
+define float @select_common_op_fneg_false(float %x, i1 %b) {
+; CHECK-LABEL: @select_common_op_fneg_false(
+; CHECK-NEXT:    [[X_NEG:%.*]] = fneg nnan ninf nsz float [[X:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = select nnan ninf nsz i1 [[B:%.*]], float [[X_NEG]], float [[X]]
+; CHECK-NEXT:    ret float [[R]]
+;
+  %nx = fneg float %x
+  %s = select i1 %b, float %x, float %nx
+  %r = fneg nsz ninf nnan float %s
+  ret float %r
+}
+
+; The transform above allows follow-on folds to convert to fabs.
+
+define float @fabs(float %a) {
+; CHECK-LABEL: @fabs(
+; CHECK-NEXT:    [[TMP1:%.*]] = call nnan ninf nsz float @llvm.fabs.f32(float [[A:%.*]])
+; CHECK-NEXT:    ret float [[TMP1]]
+;
+  %fneg = fneg float %a
+  %cmp = fcmp ogt float %a, %fneg
+  %sel = select i1 %cmp, float %fneg, float %a
+  %fneg1 = fneg nnan ninf nsz float %sel
+  ret float %fneg1
+}
+
+define float @fnabs(float %a) {
+; CHECK-LABEL: @fnabs(
+; CHECK-NEXT:    [[TMP1:%.*]] = call fast float @llvm.fabs.f32(float [[A:%.*]])
+; CHECK-NEXT:    [[FNEG1:%.*]] = fneg fast float [[TMP1]]
+; CHECK-NEXT:    ret float [[FNEG1]]
+;
+  %fneg = fneg float %a
+  %cmp = fcmp olt float %a, %fneg
+  %sel = select i1 %cmp, float %fneg, float %a
+  %fneg1 = fneg fast float %sel
+  ret float %fneg1
+}
+
+define float @fnabs_1(float %a) {
+; CHECK-LABEL: @fnabs_1(
+; CHECK-NEXT:    [[TMP1:%.*]] = call fast float @llvm.fabs.f32(float [[A:%.*]])
+; CHECK-NEXT:    [[FNEG1:%.*]] = fneg fast float [[TMP1]]
+; CHECK-NEXT:    ret float [[FNEG1]]
+;
+  %fneg = fneg float %a
+  %cmp = fcmp ogt float %a, %fneg
+  %sel = select i1 %cmp, float %a, float %fneg
+  %fneg1 = fneg fast float %sel
+  ret float %fneg1
+}
+
+define float @fnabs_2_nsz(float %a) {
+; CHECK-LABEL: @fnabs_2_nsz(
+; CHECK-NEXT:    [[TMP1:%.*]] = call nsz float @llvm.fabs.f32(float [[A:%.*]])
+; CHECK-NEXT:    [[FNEG1:%.*]] = fneg float [[TMP1]]
+; CHECK-NEXT:    ret float [[FNEG1]]
+;
+  %fneg = fneg float %a
+  %cmp = fcmp olt float %a, %fneg
+  %sel = select nsz i1 %cmp, float %fneg, float %a
+  %fneg1 = fneg float %sel
+  ret float %fneg1
+}
+
+define float @fnabs_2_nsz_nnan(float %a) {
+; CHECK-LABEL: @fnabs_2_nsz_nnan(
+; CHECK-NEXT:    [[TMP1:%.*]] = call nnan nsz float @llvm.fabs.f32(float [[A:%.*]])
+; CHECK-NEXT:    [[FNEG1:%.*]] = fneg float [[TMP1]]
+; CHECK-NEXT:    ret float [[FNEG1]]
+;
+  %fneg = fneg float %a
+  %cmp = fcmp olt float %a, %fneg
+  %sel = select nsz nnan i1 %cmp, float %fneg, float %a
+  %fneg1 = fneg float %sel
+  ret float %fneg1
 }
 
 define float @select_fneg_both(float %x, float %y, i1 %b) {
@@ -677,7 +785,7 @@ define float @select_fneg_use1(float %x, float %y, i1 %b) {
 ; CHECK-NEXT:    [[NX:%.*]] = fneg ninf float [[X:%.*]]
 ; CHECK-NEXT:    call void @use(float [[NX]])
 ; CHECK-NEXT:    [[Y_NEG:%.*]] = fneg float [[Y:%.*]]
-; CHECK-NEXT:    [[R:%.*]] = select i1 [[B:%.*]], float [[X]], float [[Y_NEG]]
+; CHECK-NEXT:    [[R:%.*]] = select fast i1 [[B:%.*]], float [[X]], float [[Y_NEG]]
 ; CHECK-NEXT:    ret float [[R]]
 ;
   %nx = fneg ninf float %x

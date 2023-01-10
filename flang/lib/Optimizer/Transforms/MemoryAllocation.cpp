@@ -6,17 +6,21 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
 #include "flang/Optimizer/Dialect/FIRDialect.h"
 #include "flang/Optimizer/Dialect/FIROps.h"
 #include "flang/Optimizer/Dialect/FIRType.h"
 #include "flang/Optimizer/Transforms/Passes.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
 #include "llvm/ADT/TypeSwitch.h"
+
+namespace fir {
+#define GEN_PASS_DEF_MEMORYALLOCATIONOPT
+#include "flang/Optimizer/Transforms/Passes.h.inc"
+} // namespace fir
 
 #define DEBUG_TYPE "flang-memory-allocation-opt"
 
@@ -37,11 +41,13 @@ struct MemoryAllocationOptions {
 
 class ReturnAnalysis {
 public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ReturnAnalysis)
+
   ReturnAnalysis(mlir::Operation *op) {
-    if (auto func = mlir::dyn_cast<mlir::FuncOp>(op))
+    if (auto func = mlir::dyn_cast<mlir::func::FuncOp>(op))
       for (mlir::Block &block : func)
         for (mlir::Operation &i : block)
-          if (mlir::isa<mlir::ReturnOp>(i)) {
+          if (mlir::isa<mlir::func::ReturnOp>(i)) {
             returnMap[op].push_back(&i);
             break;
           }
@@ -149,7 +155,7 @@ private:
 ///   2. If a stack allocation is an array with a runtime evaluated size make
 ///      it a heap allocation.
 class MemoryAllocationOpt
-    : public fir::MemoryAllocationOptBase<MemoryAllocationOpt> {
+    : public fir::impl::MemoryAllocationOptBase<MemoryAllocationOpt> {
 public:
   MemoryAllocationOpt() {
     // Set options with default values. (See Passes.td.) Note that the
@@ -188,8 +194,8 @@ public:
 
     const auto &analysis = getAnalysis<ReturnAnalysis>();
 
-    target.addLegalDialect<fir::FIROpsDialect, mlir::arith::ArithmeticDialect,
-                           mlir::StandardOpsDialect>();
+    target.addLegalDialect<fir::FIROpsDialect, mlir::arith::ArithDialect,
+                           mlir::func::FuncDialect>();
     target.addDynamicallyLegalOp<fir::AllocaOp>([&](fir::AllocaOp alloca) {
       return keepStackAllocation(alloca, &func.front(), options);
     });

@@ -17,10 +17,13 @@ class ModuleOp;
 template <typename T>
 class OperationPass;
 
+#define GEN_PASS_DECL_CONVERTLINALGTOSTANDARD
+#include "mlir/Conversion/Passes.h.inc"
+
 namespace linalg {
 
 //===----------------------------------------------------------------------===//
-// Patterns to convert a LinalgOp to std.call @external library implementation.
+// Patterns to convert a LinalgOp to func.call @external library implementation.
 //===----------------------------------------------------------------------===//
 // These patterns are exposed individually because they are expected to be
 // typically used individually.

@@ -45,7 +45,6 @@
 #ifndef LLVM_ANALYSIS_CALLGRAPH_H
 #define LLVM_ANALYSIS_CALLGRAPH_H
 
-#include "llvm/ADT/GraphTraits.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/PassManager.h"
@@ -59,6 +58,7 @@
 
 namespace llvm {
 
+template <class GraphType> struct GraphTraits;
 class CallGraphNode;
 class Function;
 class Module;
@@ -322,6 +322,17 @@ class CallGraphPrinterPass : public PassInfoMixin<CallGraphPrinterPass> {
 
 public:
   explicit CallGraphPrinterPass(raw_ostream &OS) : OS(OS) {}
+
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
+};
+
+/// Printer pass for the summarized \c CallGraphAnalysis results.
+class CallGraphSCCsPrinterPass
+    : public PassInfoMixin<CallGraphSCCsPrinterPass> {
+  raw_ostream &OS;
+
+public:
+  explicit CallGraphSCCsPrinterPass(raw_ostream &OS) : OS(OS) {}
 
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };

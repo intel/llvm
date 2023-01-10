@@ -30,6 +30,7 @@
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/Support/Allocator.h"
+#include <optional>
 
 namespace llvm {
 class MDNode;
@@ -157,8 +158,10 @@ class CGDebugInfo {
   llvm::DenseMap<const char *, llvm::TrackingMDRef> DIFileCache;
   llvm::DenseMap<const FunctionDecl *, llvm::TrackingMDRef> SPCache;
   /// Cache declarations relevant to DW_TAG_imported_declarations (C++
-  /// using declarations) that aren't covered by other more specific caches.
+  /// using declarations and global alias variables) that aren't covered
+  /// by other more specific caches.
   llvm::DenseMap<const Decl *, llvm::TrackingMDRef> DeclCache;
+  llvm::DenseMap<const Decl *, llvm::TrackingMDRef> ImportedDeclCache;
   llvm::DenseMap<const NamespaceDecl *, llvm::TrackingMDRef> NamespaceCache;
   llvm::DenseMap<const NamespaceAliasDecl *, llvm::TrackingMDRef>
       NamespaceAliasCache;
@@ -180,21 +183,17 @@ class CGDebugInfo {
   /// ivars and property accessors.
   llvm::DIType *CreateType(const BuiltinType *Ty);
   llvm::DIType *CreateType(const ComplexType *Ty);
-  llvm::DIType *CreateType(const AutoType *Ty);
   llvm::DIType *CreateType(const BitIntType *Ty);
-  llvm::DIType *CreateQualifiedType(QualType Ty, llvm::DIFile *Fg,
-                                    TypeLoc TL = TypeLoc());
+  llvm::DIType *CreateQualifiedType(QualType Ty, llvm::DIFile *Fg);
   llvm::DIType *CreateQualifiedType(const FunctionProtoType *Ty,
                                     llvm::DIFile *Fg);
   llvm::DIType *CreateType(const TypedefType *Ty, llvm::DIFile *Fg);
   llvm::DIType *CreateType(const TemplateSpecializationType *Ty,
                            llvm::DIFile *Fg);
   llvm::DIType *CreateType(const ObjCObjectPointerType *Ty, llvm::DIFile *F);
-  llvm::DIType *CreateType(const PointerType *Ty, llvm::DIFile *F,
-                           TypeLoc TL = TypeLoc());
+  llvm::DIType *CreateType(const PointerType *Ty, llvm::DIFile *F);
   llvm::DIType *CreateType(const BlockPointerType *Ty, llvm::DIFile *F);
-  llvm::DIType *CreateType(const FunctionType *Ty, llvm::DIFile *F,
-                           TypeLoc TL = TypeLoc());
+  llvm::DIType *CreateType(const FunctionType *Ty, llvm::DIFile *F);
   /// Get structure or union type.
   llvm::DIType *CreateType(const RecordType *Tyg);
   llvm::DIType *CreateTypeDefinition(const RecordType *Ty);
@@ -237,10 +236,10 @@ class CGDebugInfo {
   /// not updated to include implicit \c this pointer. Use this routine
   /// to get a method type which includes \c this pointer.
   llvm::DISubroutineType *getOrCreateMethodType(const CXXMethodDecl *Method,
-                                                llvm::DIFile *F, bool decl);
+                                                llvm::DIFile *F);
   llvm::DISubroutineType *
   getOrCreateInstanceMethodType(QualType ThisPtr, const FunctionProtoType *Func,
-                                llvm::DIFile *Unit, bool decl);
+                                llvm::DIFile *Unit);
   llvm::DISubroutineType *
   getOrCreateFunctionType(const Decl *D, QualType FnType, llvm::DIFile *F);
   /// \return debug info descriptor for vtable.
@@ -249,8 +248,7 @@ class CGDebugInfo {
   /// \return namespace descriptor for the given namespace decl.
   llvm::DINamespace *getOrCreateNamespace(const NamespaceDecl *N);
   llvm::DIType *CreatePointerLikeType(llvm::dwarf::Tag Tag, const Type *Ty,
-                                      QualType PointeeTy, llvm::DIFile *F,
-                                      TypeLoc TL = TypeLoc());
+                                      QualType PointeeTy, llvm::DIFile *F);
   llvm::DIType *getOrCreateStructPtrType(StringRef Name, llvm::DIType *&Cache);
 
   /// A helper function to create a subprogram for a single member
@@ -316,8 +314,7 @@ class CGDebugInfo {
                                 uint64_t offsetInBits, uint32_t AlignInBits,
                                 llvm::DIFile *tunit, llvm::DIScope *scope,
                                 const RecordDecl *RD = nullptr,
-                                llvm::DINodeArray Annotations = nullptr,
-                                TypeLoc TL = TypeLoc());
+                                llvm::DINodeArray Annotations = nullptr);
 
   llvm::DIType *createFieldType(StringRef name, QualType type,
                                 SourceLocation loc, AccessSpecifier AS,
@@ -517,6 +514,9 @@ public:
   /// Emit information about an external variable.
   void EmitExternalVariable(llvm::GlobalVariable *GV, const VarDecl *Decl);
 
+  /// Emit information about global variable alias.
+  void EmitGlobalAlias(const llvm::GlobalValue *GV, const GlobalDecl Decl);
+
   /// Emit C++ using directive.
   void EmitUsingDirective(const UsingDirectiveDecl &UD);
 
@@ -537,6 +537,14 @@ public:
 
   /// Emit an @import declaration.
   void EmitImportDecl(const ImportDecl &ID);
+
+  /// DebugInfo isn't attached to string literals by default. While certain
+  /// aspects of debuginfo aren't useful for string literals (like a name), it's
+  /// nice to be able to symbolize the line and column information. This is
+  /// especially useful for sanitizers, as it allows symbolization of
+  /// heap-buffer-overflows on constant strings.
+  void AddStringLiteralDebugInfo(llvm::GlobalVariable *GV,
+                                 const StringLiteral *S);
 
   /// Emit C++ namespace alias.
   llvm::DIImportedEntity *EmitNamespaceAlias(const NamespaceAliasDecl &NA);
@@ -628,11 +636,11 @@ private:
   void CreateCompileUnit();
 
   /// Compute the file checksum debug info for input file ID.
-  Optional<llvm::DIFile::ChecksumKind>
-  computeChecksum(FileID FID, SmallString<32> &Checksum) const;
+  std::optional<llvm::DIFile::ChecksumKind>
+  computeChecksum(FileID FID, SmallString<64> &Checksum) const;
 
   /// Get the source of the given file ID.
-  Optional<StringRef> getSource(const SourceManager &SM, FileID FID);
+  std::optional<StringRef> getSource(const SourceManager &SM, FileID FID);
 
   /// Convenience function to get the file debug info descriptor for the input
   /// location.
@@ -641,12 +649,11 @@ private:
   /// Create a file debug info descriptor for a source file.
   llvm::DIFile *
   createFile(StringRef FileName,
-             Optional<llvm::DIFile::ChecksumInfo<StringRef>> CSInfo,
-             Optional<StringRef> Source);
+             std::optional<llvm::DIFile::ChecksumInfo<StringRef>> CSInfo,
+             std::optional<StringRef> Source);
 
   /// Get the type from the cache or create a new type if necessary.
-  llvm::DIType *getOrCreateType(QualType Ty, llvm::DIFile *Fg,
-                                TypeLoc TL = TypeLoc());
+  llvm::DIType *getOrCreateType(QualType Ty, llvm::DIFile *Fg);
 
   /// Get a reference to a clang module.  If \p CreateSkeletonCU is true,
   /// this also creates a split dwarf skeleton compile unit.
@@ -661,8 +668,7 @@ private:
   llvm::DICompositeType *getOrCreateLimitedType(const RecordType *Ty);
 
   /// Create type metadata for a source language type.
-  llvm::DIType *CreateTypeNode(QualType Ty, llvm::DIFile *Fg,
-                               TypeLoc TL = TypeLoc());
+  llvm::DIType *CreateTypeNode(QualType Ty, llvm::DIFile *Fg);
 
   /// Create new member and increase Offset by FType's size.
   llvm::DIType *CreateMemberType(llvm::DIFile *Unit, QualType FType,

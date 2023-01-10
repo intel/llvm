@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // template<borrowed_range R>
 //   requires convertible-to-non-slicing<iterator_t<R>, I> &&

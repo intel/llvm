@@ -6,7 +6,7 @@ target_include_directories(sycl-prof PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/../xpti_helpers/"
 )
 
-target_link_libraries(sycl-prof PRIVATE
+link_llvm_libs(sycl-prof
   LLVMSupport
 )
 
@@ -22,8 +22,6 @@ target_include_directories(sycl_profiler_collector PRIVATE
     "${sycl_inc_dir}"
     "${sycl_src_dir}"
 )
-
-target_compile_options(sycl_profiler_collector PRIVATE -g)
 
 add_dependencies(sycl-prof sycl_profiler_collector)
 add_dependencies(sycl-toolchain sycl-prof)

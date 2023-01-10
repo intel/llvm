@@ -13,25 +13,25 @@ def __lldb_init_module(debugger, internal_dict):
                            '-l lldbDataFormatters.SmallVectorSynthProvider '
                            '-x "^llvm::SmallVectorImpl<.+>$"')
     debugger.HandleCommand('type summary add -w llvm '
-                           '-s "size=${svar%#}" '
+                           '-e -s "size=${svar%#}" '
                            '-x "^llvm::SmallVectorImpl<.+>$"')
     debugger.HandleCommand('type synthetic add -w llvm '
                            '-l lldbDataFormatters.SmallVectorSynthProvider '
                            '-x "^llvm::SmallVector<.+,.+>$"')
     debugger.HandleCommand('type summary add -w llvm '
-                           '-s "size=${svar%#}" '
+                           '-e -s "size=${svar%#}" '
                            '-x "^llvm::SmallVector<.+,.+>$"')
     debugger.HandleCommand('type synthetic add -w llvm '
                            '-l lldbDataFormatters.ArrayRefSynthProvider '
                            '-x "^llvm::ArrayRef<.+>$"')
     debugger.HandleCommand('type summary add -w llvm '
-                           '-s "size=${svar%#}" '
+                           '-e -s "size=${svar%#}" '
                            '-x "^llvm::ArrayRef<.+>$"')
     debugger.HandleCommand('type synthetic add -w llvm '
                            '-l lldbDataFormatters.OptionalSynthProvider '
                            '-x "^llvm::Optional<.+>$"')
     debugger.HandleCommand('type summary add -w llvm '
-                           '-F lldbDataFormatters.OptionalSummaryProvider '
+                           '-e -F lldbDataFormatters.OptionalSummaryProvider '
                            '-x "^llvm::Optional<.+>$"')
     debugger.HandleCommand('type summary add -w llvm '
                            '-F lldbDataFormatters.SmallStringSummaryProvider '
@@ -138,7 +138,11 @@ def GetOptionalValue(valobj):
 
 def OptionalSummaryProvider(valobj, internal_dict):
     val = GetOptionalValue(valobj)
-    return val.summary if val else 'None'
+    if val is None:
+        return 'None'
+    if val.summary:
+        return val.summary
+    return ''
 
 class OptionalSynthProvider:
     """Provides deref support to llvm::Optional<T>"""

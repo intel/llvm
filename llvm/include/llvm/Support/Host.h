@@ -54,16 +54,13 @@ namespace sys {
   /// \return - True on success.
   bool getHostCPUFeatures(StringMap<bool, MallocAllocator> &Features);
 
-  /// Get the number of physical cores (as opposed to logical cores returned
-  /// from thread::hardware_concurrency(), which includes hyperthreads).
-  /// Returns -1 if unknown for the current host system.
-  int getHostNumPhysicalCores();
-
   namespace detail {
   /// Helper functions to extract HostCPUName from /proc/cpuinfo on linux.
   StringRef getHostCPUNameForPowerPC(StringRef ProcCpuinfoContent);
   StringRef getHostCPUNameForARM(StringRef ProcCpuinfoContent);
   StringRef getHostCPUNameForS390x(StringRef ProcCpuinfoContent);
+  StringRef getHostCPUNameForRISCV(StringRef ProcCpuinfoContent);
+  StringRef getHostCPUNameForSPARC(StringRef ProcCpuinfoContent);
   StringRef getHostCPUNameForBPF();
 
   /// Helper functions to extract CPU details from CPUID on x86.

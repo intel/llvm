@@ -8,32 +8,30 @@
 
 #include "SymbolCollector.h"
 #include "AST.h"
-#include "CanonicalIncludes.h"
 #include "CodeComplete.h"
 #include "CodeCompletionStrings.h"
 #include "ExpectedTypes.h"
 #include "SourceCode.h"
-#include "SymbolLocation.h"
 #include "URI.h"
+#include "index/CanonicalIncludes.h"
 #include "index/Relation.h"
 #include "index/SymbolID.h"
-#include "support/Logger.h"
+#include "index/SymbolLocation.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
-#include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/AST/DeclarationName.h"
+#include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
-#include "clang/Basic/Specifiers.h"
 #include "clang/Index/IndexSymbol.h"
-#include "clang/Index/IndexingAction.h"
-#include "clang/Index/USRGeneration.h"
 #include "clang/Lex/Preprocessor.h"
-#include "clang/Tooling/Syntax/Tokens.h"
+#include "clang/Lex/Token.h"
+#include "clang/Tooling/Inclusions/HeaderAnalysis.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 
 namespace clang {
@@ -78,7 +76,7 @@ bool isPrivateProtoDecl(const NamedDecl &ND) {
 // We only collect #include paths for symbols that are suitable for global code
 // completion, except for namespaces since #include path for a namespace is hard
 // to define.
-bool shouldCollectIncludePath(index::SymbolKind Kind) {
+Symbol::IncludeDirective shouldCollectIncludePath(index::SymbolKind Kind) {
   using SK = index::SymbolKind;
   switch (Kind) {
   case SK::Macro:
@@ -91,9 +89,12 @@ bool shouldCollectIncludePath(index::SymbolKind Kind) {
   case SK::Function:
   case SK::Variable:
   case SK::EnumConstant:
-    return true;
+  case SK::Concept:
+    return Symbol::Include | Symbol::Import;
+  case SK::Protocol:
+    return Symbol::Import;
   default:
-    return false;
+    return Symbol::Invalid;
   }
 }
 
@@ -149,7 +150,7 @@ llvm::Optional<RelationKind> indexableRelation(const index::SymbolRelation &R) {
     return RelationKind::BaseOf;
   if (R.Roles & static_cast<unsigned>(index::SymbolRole::RelationOverrideOf))
     return RelationKind::OverriddenBy;
-  return None;
+  return std::nullopt;
 }
 
 // Given a ref contained in enclosing decl `Enclosing`, return
@@ -177,6 +178,22 @@ const Decl *getRefContainer(const Decl *Enclosing,
   return Enclosing;
 }
 
+// Check if there is an exact spelling of \p ND at \p Loc.
+bool isSpelled(SourceLocation Loc, const NamedDecl &ND) {
+  auto Name = ND.getDeclName();
+  const auto NameKind = Name.getNameKind();
+  if (NameKind != DeclarationName::Identifier &&
+      NameKind != DeclarationName::CXXConstructorName)
+    return false;
+  const auto &AST = ND.getASTContext();
+  const auto &SM = AST.getSourceManager();
+  const auto &LO = AST.getLangOpts();
+  clang::Token Tok;
+  if (clang::Lexer::getRawToken(Loc, Tok, SM, LO))
+    return false;
+  auto StrName = Name.getAsString();
+  return clang::Lexer::getSpelling(Tok, SM, LO) == StrName;
+}
 } // namespace
 
 // Encapsulates decisions about how to record header paths in the index,
@@ -295,7 +312,7 @@ private:
       ++I;
     }
     // Unexpected, must not be a framework header.
-    return llvm::None;
+    return std::nullopt;
   }
 
   // Frameworks typically have an umbrella header of the same name, e.g.
@@ -359,7 +376,7 @@ private:
       // Unexpected: must not be a proper framework header, don't cache the
       // failure.
       CachePathToFrameworkSpelling.erase(Res.first);
-      return llvm::None;
+      return std::nullopt;
     }
     auto DirKind = HS.getFileDirFlavor(FE);
     if (auto UmbrellaSpelling =
@@ -387,7 +404,8 @@ private:
     // If a file is mapped by canonical headers, use that mapping, regardless
     // of whether it's an otherwise-good header (header guards etc).
     if (Includes) {
-      llvm::StringRef Canonical = Includes->mapHeader(Filename);
+      llvm::StringRef Canonical =
+          Includes->mapHeader(*SM.getFileEntryRefForID(FID));
       if (!Canonical.empty()) {
         // If we had a mapping, always use it.
         if (Canonical.startswith("<") || Canonical.startswith("\""))
@@ -404,8 +422,8 @@ private:
                 getFrameworkHeaderIncludeSpelling(FE, HFI->Framework, HS))
           return *Spelling;
 
-    if (!isSelfContainedHeader(FE, FID, PP->getSourceManager(),
-                               PP->getHeaderSearchInfo())) {
+    if (!tooling::isSelfContainedHeader(FE, PP->getSourceManager(),
+                                        PP->getHeaderSearchInfo())) {
       // A .inc or .def file is often included into a real header to define
       // symbols (e.g. LLVM tablegen files).
       if (Filename.endswith(".inc") || Filename.endswith(".def"))
@@ -425,7 +443,7 @@ SymbolCollector::getTokenLocation(SourceLocation TokLoc) {
   const auto &SM = ASTCtx->getSourceManager();
   auto *FE = SM.getFileEntryForID(SM.getFileID(TokLoc));
   if (!FE)
-    return None;
+    return std::nullopt;
 
   SymbolLocation Result;
   Result.FileURI = HeaderFileURIs->toURI(FE).c_str();
@@ -550,24 +568,24 @@ bool SymbolCollector::handleDeclOccurrence(
   if (!ND)
     return true;
 
+  auto ID = getSymbolIDCached(ND);
+  if (!ID)
+    return true;
+
   // Mark D as referenced if this is a reference coming from the main file.
   // D may not be an interesting symbol, but it's cheaper to check at the end.
   auto &SM = ASTCtx->getSourceManager();
   if (Opts.CountReferences &&
       (Roles & static_cast<unsigned>(index::SymbolRole::Reference)) &&
       SM.getFileID(SM.getSpellingLoc(Loc)) == SM.getMainFileID())
-    ReferencedDecls.insert(ND);
-
-  auto ID = getSymbolID(ND);
-  if (!ID)
-    return true;
+    ReferencedSymbols.insert(ID);
 
   // ND is the canonical (i.e. first) declaration. If it's in the main file
   // (which is not a header), then no public declaration was visible, so assume
   // it's main-file only.
   bool IsMainFileOnly =
       SM.isWrittenInMainFile(SM.getExpansionLoc(ND->getBeginLoc())) &&
-      !isHeaderFile(SM.getFileEntryForID(SM.getMainFileID())->getName(),
+      !isHeaderFile(SM.getFileEntryRefForID(SM.getMainFileID())->getName(),
                     ASTCtx->getLangOpts());
   // In C, printf is a redecl of an implicit builtin! So check OrigD instead.
   if (ASTNode.OrigD->isImplicit() ||
@@ -581,13 +599,6 @@ bool SymbolCollector::handleDeclOccurrence(
   processRelations(*ND, ID, Relations);
 
   bool CollectRef = static_cast<bool>(Opts.RefFilter & toRefKind(Roles));
-  bool IsOnlyRef =
-      !(Roles & (static_cast<unsigned>(index::SymbolRole::Declaration) |
-                 static_cast<unsigned>(index::SymbolRole::Definition)));
-
-  if (IsOnlyRef && !CollectRef)
-    return true;
-
   // Unlike other fields, e.g. Symbols (which use spelling locations), we use
   // file locations for references (as it aligns the behavior of clangd's
   // AST-based xref).
@@ -595,13 +606,18 @@ bool SymbolCollector::handleDeclOccurrence(
   if (CollectRef &&
       (!IsMainFileOnly || Opts.CollectMainFileRefs ||
        ND->isExternallyVisible()) &&
-      !isa<NamespaceDecl>(ND) &&
-      (Opts.RefsInHeaders ||
-       SM.getFileID(SM.getFileLoc(Loc)) == SM.getMainFileID()))
-    DeclRefs[ND].push_back(SymbolRef{SM.getFileLoc(Loc), Roles,
-                                     getRefContainer(ASTNode.Parent, Opts)});
+      !isa<NamespaceDecl>(ND)) {
+    auto FileLoc = SM.getFileLoc(Loc);
+    auto FID = SM.getFileID(FileLoc);
+    if (Opts.RefsInHeaders || FID == SM.getMainFileID()) {
+      addRef(ID, SymbolRef{FileLoc, FID, Roles,
+                           getRefContainer(ASTNode.Parent, Opts),
+                           isSpelled(FileLoc, *ND)});
+    }
+  }
   // Don't continue indexing if this is a mere reference.
-  if (IsOnlyRef)
+  if (!(Roles & (static_cast<unsigned>(index::SymbolRole::Declaration) |
+                 static_cast<unsigned>(index::SymbolRole::Definition))))
     return true;
 
   // FIXME: ObjCPropertyDecl are not properly indexed here:
@@ -687,20 +703,24 @@ bool SymbolCollector::handleMacroOccurrence(const IdentifierInfo *Name,
       Name->getName() == "__GCC_HAVE_DWARF2_CFI_ASM")
     return true;
 
-  auto ID = getSymbolID(Name->getName(), MI, SM);
+  auto ID = getSymbolIDCached(Name->getName(), MI, SM);
   if (!ID)
     return true;
 
   auto SpellingLoc = SM.getSpellingLoc(Loc);
   bool IsMainFileOnly =
       SM.isInMainFile(SM.getExpansionLoc(DefLoc)) &&
-      !isHeaderFile(SM.getFileEntryForID(SM.getMainFileID())->getName(),
+      !isHeaderFile(SM.getFileEntryRefForID(SM.getMainFileID())->getName(),
                     ASTCtx->getLangOpts());
   // Do not store references to main-file macros.
   if ((static_cast<unsigned>(Opts.RefFilter) & Roles) && !IsMainFileOnly &&
-      (Opts.RefsInHeaders || SM.getFileID(SpellingLoc) == SM.getMainFileID()))
+      (Opts.RefsInHeaders || SM.getFileID(SpellingLoc) == SM.getMainFileID())) {
     // FIXME: Populate container information for macro references.
-    MacroRefs[ID].push_back({Loc, Roles, /*Container=*/nullptr});
+    // FIXME: All MacroRefs are marked as Spelled now, but this should be
+    // checked.
+    addRef(ID, SymbolRef{Loc, SM.getFileID(Loc), Roles, /*Container=*/nullptr,
+                         /*Spelled=*/true});
+  }
 
   // Collect symbols.
   if (!Opts.CollectMacro)
@@ -716,7 +736,7 @@ bool SymbolCollector::handleMacroOccurrence(const IdentifierInfo *Name,
   if (Opts.CountReferences &&
       (Roles & static_cast<unsigned>(index::SymbolRole::Reference)) &&
       SM.getFileID(SpellingLoc) == SM.getMainFileID())
-    ReferencedMacros.insert(Name);
+    ReferencedSymbols.insert(ID);
 
   // Don't continue indexing if this is a mere reference.
   // FIXME: remove macro with ID if it is undefined.
@@ -766,7 +786,7 @@ void SymbolCollector::processRelations(
       continue;
     const Decl *Object = R.RelatedSymbol;
 
-    auto ObjectID = getSymbolID(Object);
+    auto ObjectID = getSymbolIDCached(Object);
     if (!ObjectID)
       continue;
 
@@ -787,26 +807,23 @@ void SymbolCollector::processRelations(
 }
 
 void SymbolCollector::setIncludeLocation(const Symbol &S, SourceLocation Loc) {
-  if (Opts.CollectIncludePath)
-    if (shouldCollectIncludePath(S.SymInfo.Kind))
-      // Use the expansion location to get the #include header since this is
-      // where the symbol is exposed.
-      IncludeFiles[S.ID] =
-          PP->getSourceManager().getDecomposedExpansionLoc(Loc).first;
+  if (Opts.CollectIncludePath &&
+      shouldCollectIncludePath(S.SymInfo.Kind) != Symbol::Invalid)
+    // Use the expansion location to get the #include header since this is
+    // where the symbol is exposed.
+    IncludeFiles[S.ID] =
+        PP->getSourceManager().getDecomposedExpansionLoc(Loc).first;
 }
 
 void SymbolCollector::finish() {
   // At the end of the TU, add 1 to the refcount of all referenced symbols.
-  auto IncRef = [this](const SymbolID &ID) {
+  for (const auto &ID : ReferencedSymbols) {
     if (const auto *S = Symbols.find(ID)) {
-      Symbol Inc = *S;
-      ++Inc.References;
-      Symbols.insert(Inc);
-    }
-  };
-  for (const NamedDecl *ND : ReferencedDecls) {
-    if (auto ID = getSymbolID(ND)) {
-      IncRef(ID);
+      // SymbolSlab::Builder returns const symbols because strings are interned
+      // and modifying returned symbols without inserting again wouldn't go
+      // well. const_cast is safe here as we're modifying a data owned by the
+      // Symbol. This reduces time spent in SymbolCollector by ~1%.
+      ++const_cast<Symbol *>(S)->References;
     }
   }
   if (Opts.CollectMacro) {
@@ -814,22 +831,18 @@ void SymbolCollector::finish() {
     // First, drop header guards. We can't identify these until EOF.
     for (const IdentifierInfo *II : IndexedMacros) {
       if (const auto *MI = PP->getMacroDefinition(II).getMacroInfo())
-        if (auto ID = getSymbolID(II->getName(), MI, PP->getSourceManager()))
+        if (auto ID =
+                getSymbolIDCached(II->getName(), MI, PP->getSourceManager()))
           if (MI->isUsedForHeaderGuard())
             Symbols.erase(ID);
     }
-    // Now increment refcounts.
-    for (const IdentifierInfo *II : ReferencedMacros) {
-      if (const auto *MI = PP->getMacroDefinition(II).getMacroInfo())
-        if (auto ID = getSymbolID(II->getName(), MI, PP->getSourceManager()))
-          IncRef(ID);
-    }
   }
+  llvm::DenseMap<FileID, bool> FileToContainsImportsOrObjC;
   // Fill in IncludeHeaders.
   // We delay this until end of TU so header guards are all resolved.
   llvm::SmallString<128> QName;
-  for (const auto &Entry : IncludeFiles) {
-    if (const Symbol *S = Symbols.find(Entry.first)) {
+  for (const auto &[SID, FID] : IncludeFiles) {
+    if (const Symbol *S = Symbols.find(SID)) {
       llvm::StringRef IncludeHeader;
       // Look for an overridden include header for this symbol specifically.
       if (Opts.Includes) {
@@ -846,70 +859,36 @@ void SymbolCollector::finish() {
       }
       // Otherwise find the approprate include header for the defining file.
       if (IncludeHeader.empty())
-        IncludeHeader = HeaderFileURIs->getIncludeHeader(Entry.second);
+        IncludeHeader = HeaderFileURIs->getIncludeHeader(FID);
 
       // Symbols in slabs aren't mutable, insert() has to walk all the strings
       if (!IncludeHeader.empty()) {
-        Symbol NewSym = *S;
-        NewSym.IncludeHeaders.push_back({IncludeHeader, 1});
-        Symbols.insert(NewSym);
+        Symbol::IncludeDirective Directives = Symbol::Invalid;
+        auto CollectDirectives = shouldCollectIncludePath(S->SymInfo.Kind);
+        if ((CollectDirectives & Symbol::Include) != 0)
+          Directives |= Symbol::Include;
+        // Only allow #import for symbols from ObjC-like files.
+        if ((CollectDirectives & Symbol::Import) != 0) {
+          auto [It, Inserted] = FileToContainsImportsOrObjC.try_emplace(FID);
+          if (Inserted)
+            It->second = FilesWithObjCConstructs.contains(FID) ||
+                         tooling::codeContainsImports(
+                             ASTCtx->getSourceManager().getBufferData(FID));
+          if (It->second)
+            Directives |= Symbol::Import;
+        }
+        if (Directives != Symbol::Invalid) {
+          Symbol NewSym = *S;
+          NewSym.IncludeHeaders.push_back({IncludeHeader, 1, Directives});
+          Symbols.insert(NewSym);
+        }
       }
     }
   }
 
-  const auto &SM = ASTCtx->getSourceManager();
-  auto CollectRef = [&](SymbolID ID, const SymbolRef &LocAndRole,
-                        bool Spelled = false) {
-    auto FileID = SM.getFileID(LocAndRole.Loc);
-    // FIXME: use the result to filter out references.
-    shouldIndexFile(FileID);
-    if (const auto *FE = SM.getFileEntryForID(FileID)) {
-      auto Range = getTokenRange(LocAndRole.Loc, SM, ASTCtx->getLangOpts());
-      Ref R;
-      R.Location.Start = Range.first;
-      R.Location.End = Range.second;
-      R.Location.FileURI = HeaderFileURIs->toURI(FE).c_str();
-      R.Kind = toRefKind(LocAndRole.Roles, Spelled);
-      R.Container = getSymbolID(LocAndRole.Container);
-      Refs.insert(ID, R);
-    }
-  };
-  // Populate Refs slab from MacroRefs.
-  // FIXME: All MacroRefs are marked as Spelled now, but this should be checked.
-  for (const auto &IDAndRefs : MacroRefs)
-    for (const auto &LocAndRole : IDAndRefs.second)
-      CollectRef(IDAndRefs.first, LocAndRole, /*Spelled=*/true);
-  // Populate Refs slab from DeclRefs.
-  llvm::DenseMap<FileID, std::vector<syntax::Token>> FilesToTokensCache;
-  for (auto &DeclAndRef : DeclRefs) {
-    if (auto ID = getSymbolID(DeclAndRef.first)) {
-      for (auto &LocAndRole : DeclAndRef.second) {
-        const auto FileID = SM.getFileID(LocAndRole.Loc);
-        // FIXME: It's better to use TokenBuffer by passing spelled tokens from
-        // the caller of SymbolCollector.
-        if (!FilesToTokensCache.count(FileID))
-          FilesToTokensCache[FileID] =
-              syntax::tokenize(FileID, SM, ASTCtx->getLangOpts());
-        llvm::ArrayRef<syntax::Token> Tokens = FilesToTokensCache[FileID];
-        // Check if the referenced symbol is spelled exactly the same way the
-        // corresponding NamedDecl is. If it is, mark this reference as spelled.
-        const auto *IdentifierToken =
-            spelledIdentifierTouching(LocAndRole.Loc, Tokens);
-        DeclarationName Name = DeclAndRef.first->getDeclName();
-        const auto NameKind = Name.getNameKind();
-        bool IsTargetKind = NameKind == DeclarationName::Identifier ||
-                            NameKind == DeclarationName::CXXConstructorName;
-        bool Spelled = IdentifierToken && IsTargetKind &&
-                       Name.getAsString() == IdentifierToken->text(SM);
-        CollectRef(ID, LocAndRole, Spelled);
-      }
-    }
-  }
-
-  ReferencedDecls.clear();
-  ReferencedMacros.clear();
-  DeclRefs.clear();
+  ReferencedSymbols.clear();
   IncludeFiles.clear();
+  FilesWithObjCConstructs.clear();
 }
 
 const Symbol *SymbolCollector::addDeclaration(const NamedDecl &ND, SymbolID ID,
@@ -937,7 +916,8 @@ const Symbol *SymbolCollector::addDeclaration(const NamedDecl &ND, SymbolID ID,
   auto Loc = nameLocation(ND, SM);
   assert(Loc.isValid() && "Invalid source location for NamedDecl");
   // FIXME: use the result to filter out symbols.
-  shouldIndexFile(SM.getFileID(Loc));
+  auto FID = SM.getFileID(Loc);
+  shouldIndexFile(FID);
   if (auto DeclLoc = getTokenLocation(Loc))
     S.CanonicalDeclaration = *DeclLoc;
 
@@ -981,6 +961,8 @@ const Symbol *SymbolCollector::addDeclaration(const NamedDecl &ND, SymbolID ID,
 
   Symbols.insert(S);
   setIncludeLocation(S, ND.getLocation());
+  if (S.SymInfo.Lang == index::SymbolLanguage::ObjC)
+    FilesWithObjCConstructs.insert(FID);
   return Symbols.find(S.ID);
 }
 
@@ -988,16 +970,18 @@ void SymbolCollector::addDefinition(const NamedDecl &ND,
                                     const Symbol &DeclSym) {
   if (DeclSym.Definition)
     return;
+  const auto &SM = ND.getASTContext().getSourceManager();
+  auto Loc = nameLocation(ND, SM);
+  shouldIndexFile(SM.getFileID(Loc));
+  auto DefLoc = getTokenLocation(Loc);
   // If we saw some forward declaration, we end up copying the symbol.
   // This is not ideal, but avoids duplicating the "is this a definition" check
   // in clang::index. We should only see one definition.
+  if (!DefLoc)
+    return;
   Symbol S = DeclSym;
-  const auto &SM = ND.getASTContext().getSourceManager();
-  auto Loc = nameLocation(ND, SM);
   // FIXME: use the result to filter out symbols.
-  shouldIndexFile(SM.getFileID(Loc));
-  if (auto DefLoc = getTokenLocation(Loc))
-    S.Definition = *DefLoc;
+  S.Definition = *DefLoc;
   Symbols.insert(S);
 }
 
@@ -1010,5 +994,36 @@ bool SymbolCollector::shouldIndexFile(FileID FID) {
   return I.first->second;
 }
 
+void SymbolCollector::addRef(SymbolID ID, const SymbolRef &SR) {
+  const auto &SM = ASTCtx->getSourceManager();
+  // FIXME: use the result to filter out references.
+  shouldIndexFile(SR.FID);
+  if (const auto *FE = SM.getFileEntryForID(SR.FID)) {
+    auto Range = getTokenRange(SR.Loc, SM, ASTCtx->getLangOpts());
+    Ref R;
+    R.Location.Start = Range.first;
+    R.Location.End = Range.second;
+    R.Location.FileURI = HeaderFileURIs->toURI(FE).c_str();
+    R.Kind = toRefKind(SR.Roles, SR.Spelled);
+    R.Container = getSymbolIDCached(SR.Container);
+    Refs.insert(ID, R);
+  }
+}
+
+SymbolID SymbolCollector::getSymbolIDCached(const Decl *D) {
+  auto It = DeclToIDCache.try_emplace(D, SymbolID{});
+  if (It.second)
+    It.first->second = getSymbolID(D);
+  return It.first->second;
+}
+
+SymbolID SymbolCollector::getSymbolIDCached(const llvm::StringRef MacroName,
+                                            const MacroInfo *MI,
+                                            const SourceManager &SM) {
+  auto It = MacroToIDCache.try_emplace(MI, SymbolID{});
+  if (It.second)
+    It.first->second = getSymbolID(MacroName, MI, SM);
+  return It.first->second;
+}
 } // namespace clangd
 } // namespace clang

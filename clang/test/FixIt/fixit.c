@@ -1,7 +1,7 @@
-// RUN: %clang_cc1 -pedantic -Wunused-label -verify -x c %s
+// RUN: %clang_cc1 -pedantic -Wunused-label -Wno-deprecated-non-prototype -verify -x c %s
 // RUN: cp %s %t
 // RUN: not %clang_cc1 -pedantic -Wunused-label -fixit -x c %t
-// RUN: %clang_cc1 -pedantic -Wunused-label -Werror -x c %t
+// RUN: %clang_cc1 -pedantic -Wunused-label -Wno-deprecated-non-prototype -Werror -x c %t
 // RUN: grep -v CHECK %t | FileCheck %t
 
 /* This is a test of the various code modification hints that are
@@ -29,7 +29,7 @@ int array0[5] = { [3] 3 }; // expected-warning {{GNU 'missing ='}}
 
 // CHECK: int x
 // CHECK: int y
-void f1(x, y) // expected-warning 2{{defaulting to type 'int'}}
+void f1(x, y) // expected-error 2{{was not declared, defaults to 'int'; ISO C99 and later do not support implicit int}}
 {
 }
 
@@ -50,7 +50,7 @@ int test_cond(int y, int fooBar) { // expected-note {{here}}
 const typedef typedef int int_t; // expected-warning {{duplicate 'typedef'}}
 
 // <rdar://problem/7159693>
-enum Color { 
+enum Color {
   Red // expected-error{{missing ',' between enumerators}}
   Green = 17 // expected-error{{missing ',' between enumerators}}
   Blue,
@@ -85,26 +85,6 @@ int commaAtEndOfStatement(void) {
   a = 5, // expected-error {{';'}}
   int m = 5, // expected-error {{';'}}
   return 0, // expected-error {{';'}}
-}
-
-int noSemiAfterLabel(int n) {
-  switch (n) {
-    default:
-      return n % 4;
-    case 0:
-    case 1:
-    case 2:
-    // CHECK: /*FOO*/ case 3: ;
-    /*FOO*/ case 3: // expected-error {{expected statement}}
-  }
-  switch (n) {
-    case 1:
-    case 2:
-      return 0;
-    // CHECK: /*BAR*/ default: ;
-    /*BAR*/ default: // expected-error {{expected statement}}
-  }
-  return 1;
 }
 
 struct noSemiAfterStruct // expected-error {{expected ';' after struct}}

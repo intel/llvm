@@ -10,13 +10,14 @@
 
 #include "mlir/Dialect/Shape/IR/Shape.h"
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/CommonFolders.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Traits.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
@@ -132,7 +133,10 @@ void ShapeDialect::initialize() {
 #define GET_OP_LIST
 #include "mlir/Dialect/Shape/IR/ShapeOps.cpp.inc"
       >();
-  addTypes<ShapeType, SizeType, ValueShapeType, WitnessType>();
+  addTypes<
+#define GET_TYPEDEF_LIST
+#include "mlir/Dialect/Shape/IR/ShapeOpsTypes.cpp.inc"
+      >();
   addInterfaces<ShapeInlinerInterface>();
   // Allow unknown operations during prototyping and testing. As the dialect is
   // still evolving it makes it simple to start with an unregistered ops and
@@ -153,35 +157,6 @@ Operation *ShapeDialect::materializeConstant(OpBuilder &builder,
   if (arith::ConstantOp::isBuildableWith(value, type))
     return builder.create<arith::ConstantOp>(loc, type, value);
   return nullptr;
-}
-
-/// Parse a type registered to this dialect.
-Type ShapeDialect::parseType(DialectAsmParser &parser) const {
-  StringRef keyword;
-  if (parser.parseKeyword(&keyword))
-    return Type();
-
-  if (keyword == "shape")
-    return ShapeType::get(getContext());
-  if (keyword == "size")
-    return SizeType::get(getContext());
-  if (keyword == "value_shape")
-    return ValueShapeType::get(getContext());
-  if (keyword == "witness")
-    return WitnessType::get(getContext());
-
-  parser.emitError(parser.getNameLoc(), "unknown shape type: ") << keyword;
-  return Type();
-}
-
-/// Print a type registered to this dialect.
-void ShapeDialect::printType(Type type, DialectAsmPrinter &os) const {
-  TypeSwitch<Type>(type)
-      .Case<ShapeType>([&](Type) { os << "shape"; })
-      .Case<SizeType>([&](Type) { os << "size"; })
-      .Case<ValueShapeType>([&](Type) { os << "value_shape"; })
-      .Case<WitnessType>([&](Type) { os << "witness"; })
-      .Default([](Type) { llvm_unreachable("unexpected 'shape' type kind"); });
 }
 
 LogicalResult ShapeDialect::verifyOperationAttribute(Operation *op,
@@ -257,7 +232,7 @@ ParseResult AssumingOp::parse(OpAsmParser &parser, OperationState &result) {
   Region *doRegion = result.addRegion();
 
   auto &builder = parser.getBuilder();
-  OpAsmParser::OperandType cond;
+  OpAsmParser::UnresolvedOperand cond;
   if (parser.parseOperand(cond) ||
       parser.resolveOperand(cond, builder.getType<WitnessType>(),
                             result.operands))
@@ -317,9 +292,8 @@ struct AssumingOpRemoveUnusedResults : public OpRewritePattern<AssumingOp> {
 
     // Find used values.
     SmallVector<Value, 4> newYieldOperands;
-    Value opResult, yieldOperand;
-    for (auto it : llvm::zip(op.getResults(), yieldOp.getOperands())) {
-      std::tie(opResult, yieldOperand) = it;
+    for (auto [opResult, yieldOperand] :
+         llvm::zip(op.getResults(), yieldOp.getOperands())) {
       if (!opResult.getUses().empty()) {
         newYieldOperands.push_back(yieldOperand);
       }
@@ -366,7 +340,7 @@ void AssumingOp::getSuccessorRegions(
   // AssumingOp has unconditional control flow into the region and back to the
   // parent, so return the correct RegionSuccessor purely based on the index
   // being None or 0.
-  if (index.hasValue()) {
+  if (index) {
     regions.push_back(RegionSuccessor(getResults()));
     return;
   }
@@ -413,10 +387,6 @@ void AssumingOp::build(
   for (Value v : yieldValues)
     assumingTypes.push_back(v.getType());
   result.addTypes(assumingTypes);
-}
-
-LogicalResult AssumingOp::verify() {
-  return RegionBranchOpInterface::verifyTypes(*this);
 }
 
 //===----------------------------------------------------------------------===//
@@ -473,8 +443,8 @@ struct MergeAssumingAllOps : public OpRewritePattern<AssumingAllOp> {
     SmallVector<Value> operands;
 
     for (Value operand : op.getInputs()) {
-      if (auto assume_all = operand.getDefiningOp<AssumingAllOp>())
-        operands.append(assume_all.operand_begin(), assume_all->operand_end());
+      if (auto assumeAll = operand.getDefiningOp<AssumingAllOp>())
+        operands.append(assumeAll.operand_begin(), assumeAll->operand_end());
       else
         operands.push_back(operand);
     }
@@ -534,8 +504,8 @@ struct AssumingAllOfCstrBroadcastable : public OpRewritePattern<AssumingAllOp> {
     // Collect shapes checked by `cstr_broadcastable` operands.
     SmallVector<std::pair<CstrBroadcastableOp, DenseSet<Value>>> shapes;
     for (auto cstr : operands) {
-      DenseSet<Value> shapes_set(cstr->operand_begin(), cstr->operand_end());
-      shapes.emplace_back(cstr, std::move(shapes_set));
+      DenseSet<Value> shapesSet(cstr->operand_begin(), cstr->operand_end());
+      shapes.emplace_back(cstr, std::move(shapesSet));
     }
 
     // Sort by the number of shape operands (larger to smaller).
@@ -547,7 +517,7 @@ struct AssumingAllOfCstrBroadcastable : public OpRewritePattern<AssumingAllOp> {
     // shape operands, and remove redundant `cst_broadcastable` operations. We
     // do this until we find a set of `cst_broadcastable` operations with
     // non-overlapping constraints.
-    SmallVector<CstrBroadcastableOp> marked_for_erase;
+    SmallVector<CstrBroadcastableOp> markedForErase;
 
     for (unsigned i = 0; i < shapes.size(); ++i) {
       auto isSubset = [&](auto pair) {
@@ -557,24 +527,24 @@ struct AssumingAllOfCstrBroadcastable : public OpRewritePattern<AssumingAllOp> {
       // Keep redundant `cstr_broadcastable` operations to be erased.
       auto *it = std::remove_if(shapes.begin() + i + 1, shapes.end(), isSubset);
       for (auto *it0 = it; it0 < shapes.end(); ++it0)
-        marked_for_erase.push_back(it0->first);
+        markedForErase.push_back(it0->first);
       shapes.erase(it, shapes.end());
     }
 
     // We didn't find any operands that could be removed.
-    if (marked_for_erase.empty())
+    if (markedForErase.empty())
       return failure();
 
     // Collect non-overlapping `cst_broadcastable` constraints.
-    SmallVector<Value> unique_constraints;
+    SmallVector<Value> uniqueConstraints;
     for (auto &shape : shapes)
-      unique_constraints.push_back(shape.first.getResult());
+      uniqueConstraints.push_back(shape.first.getResult());
 
     // Replace with a new `assuming_all` operation ...
-    rewriter.replaceOpWithNewOp<AssumingAllOp>(op, unique_constraints);
+    rewriter.replaceOpWithNewOp<AssumingAllOp>(op, uniqueConstraints);
 
     // ... and maybe erase `cstr_broadcastable` ops without uses.
-    for (auto &op : marked_for_erase)
+    for (auto &op : markedForErase)
       if (op->use_empty())
         rewriter.eraseOp(op);
 
@@ -808,14 +778,14 @@ struct CanonicalizeCastExtentTensorOperandsPattern
                                 PatternRewriter &rewriter) const override {
     // Canonicalize operands.
     bool anyChange = false;
-    auto canonicalizeOperand = [&](Value operand) {
+    auto canonicalizeOperand = [&](Value operand) -> Value {
       if (auto castOp = operand.getDefiningOp<tensor::CastOp>()) {
         // Only eliminate the cast if it holds no shape information.
         bool isInformationLoosingCast =
             castOp.getType().cast<RankedTensorType>().isDynamicDim(0);
         if (isInformationLoosingCast) {
           anyChange = true;
-          return castOp.source();
+          return castOp.getSource();
         }
       }
       return operand;
@@ -1095,6 +1065,58 @@ OpFoldResult CstrRequireOp::fold(ArrayRef<Attribute> operands) {
 }
 
 //===----------------------------------------------------------------------===//
+// DimOp
+//===----------------------------------------------------------------------===//
+
+Optional<int64_t> DimOp::getConstantIndex() {
+  if (auto constSizeOp = getIndex().getDefiningOp<ConstSizeOp>())
+    return constSizeOp.getValue().getLimitedValue();
+  if (auto constantOp = getIndex().getDefiningOp<arith::ConstantOp>())
+    return constantOp.getValue().cast<IntegerAttr>().getInt();
+  return std::nullopt;
+}
+
+OpFoldResult DimOp::fold(ArrayRef<Attribute> operands) {
+  Type valType = getValue().getType();
+  auto valShapedType = valType.dyn_cast<ShapedType>();
+  if (!valShapedType || !valShapedType.hasRank())
+    return nullptr;
+  Optional<int64_t> index = getConstantIndex();
+  if (!index.has_value())
+    return nullptr;
+  if (index.value() >= valShapedType.getRank())
+    return nullptr;
+  auto extent = valShapedType.getDimSize(*index);
+  if (ShapedType::isDynamic(extent))
+    return nullptr;
+  return IntegerAttr::get(IndexType::get(getContext()), extent);
+}
+
+LogicalResult mlir::shape::DimOp::inferReturnTypes(
+    MLIRContext *context, Optional<Location> location, ValueRange operands,
+    DictionaryAttr attributes, RegionRange regions,
+    SmallVectorImpl<Type> &inferredReturnTypes) {
+  DimOpAdaptor dimOp(operands);
+  inferredReturnTypes.assign({dimOp.getIndex().getType()});
+  return success();
+}
+
+bool mlir::shape::DimOp::isCompatibleReturnTypes(TypeRange l, TypeRange r) {
+  return eachHasOnlyOneOfTypes<SizeType, IndexType>(l, r);
+}
+
+LogicalResult mlir::shape::DimOp::verify() {
+  auto st = getValue().getType().cast<ShapedType>();
+  if (!st.hasRank())
+    return success();
+  if (auto index = getConstantIndex()) {
+    if (*index < 0 || *index >= st.getRank())
+      return emitOpError("index is out of range");
+  }
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // DivOp
 //===----------------------------------------------------------------------===//
 
@@ -1242,6 +1264,66 @@ void FunctionLibraryOp::print(OpAsmPrinter &p) {
 }
 
 //===----------------------------------------------------------------------===//
+// FuncOp
+//===----------------------------------------------------------------------===//
+
+FuncOp FuncOp::create(Location location, StringRef name, FunctionType type,
+                      ArrayRef<NamedAttribute> attrs) {
+  OpBuilder builder(location->getContext());
+  OperationState state(location, getOperationName());
+  FuncOp::build(builder, state, name, type, attrs);
+  return cast<FuncOp>(Operation::create(state));
+}
+FuncOp FuncOp::create(Location location, StringRef name, FunctionType type,
+                      Operation::dialect_attr_range attrs) {
+  SmallVector<NamedAttribute, 8> attrRef(attrs);
+  return create(location, name, type, llvm::makeArrayRef(attrRef));
+}
+FuncOp FuncOp::create(Location location, StringRef name, FunctionType type,
+                      ArrayRef<NamedAttribute> attrs,
+                      ArrayRef<DictionaryAttr> argAttrs) {
+  FuncOp func = create(location, name, type, attrs);
+  func.setAllArgAttrs(argAttrs);
+  return func;
+}
+
+void FuncOp::build(OpBuilder &builder, OperationState &state, StringRef name,
+                   FunctionType type, ArrayRef<NamedAttribute> attrs,
+                   ArrayRef<DictionaryAttr> argAttrs) {
+  state.addAttribute(FuncOp::getSymNameAttrName(state.name),
+                     builder.getStringAttr(name));
+  state.addAttribute(FuncOp::getFunctionTypeAttrName(state.name),
+                     TypeAttr::get(type));
+  state.attributes.append(attrs.begin(), attrs.end());
+  state.addRegion();
+
+  if (argAttrs.empty())
+    return;
+  assert(type.getNumInputs() == argAttrs.size());
+  function_interface_impl::addArgAndResultAttrs(
+      builder, state, argAttrs, /*resultAttrs=*/std::nullopt,
+      getArgAttrsAttrName(state.name), getResAttrsAttrName(state.name));
+}
+
+ParseResult FuncOp::parse(OpAsmParser &parser, OperationState &result) {
+  auto buildFuncType =
+      [](Builder &builder, ArrayRef<Type> argTypes, ArrayRef<Type> results,
+         function_interface_impl::VariadicFlag,
+         std::string &) { return builder.getFunctionType(argTypes, results); };
+
+  return function_interface_impl::parseFunctionOp(
+      parser, result, /*allowVariadic=*/false,
+      getFunctionTypeAttrName(result.name), buildFuncType,
+      getArgAttrsAttrName(result.name), getResAttrsAttrName(result.name));
+}
+
+void FuncOp::print(OpAsmPrinter &p) {
+  function_interface_impl::printFunctionOp(
+      p, *this, /*isVariadic=*/false, getFunctionTypeAttrName(),
+      getArgAttrsAttrName(), getResAttrsAttrName());
+}
+
+//===----------------------------------------------------------------------===//
 // GetExtentOp
 //===----------------------------------------------------------------------===//
 
@@ -1250,7 +1332,7 @@ Optional<int64_t> GetExtentOp::getConstantDim() {
     return constSizeOp.getValue().getLimitedValue();
   if (auto constantOp = getDim().getDefiningOp<arith::ConstantOp>())
     return constantOp.getValue().cast<IntegerAttr>().getInt();
-  return llvm::None;
+  return std::nullopt;
 }
 
 OpFoldResult GetExtentOp::fold(ArrayRef<Attribute> operands) {
@@ -1258,11 +1340,11 @@ OpFoldResult GetExtentOp::fold(ArrayRef<Attribute> operands) {
   if (!elements)
     return nullptr;
   Optional<int64_t> dim = getConstantDim();
-  if (!dim.hasValue())
+  if (!dim.has_value())
     return nullptr;
-  if (dim.getValue() >= elements.getNumElements())
+  if (dim.value() >= elements.getNumElements())
     return nullptr;
-  return elements.getValues<Attribute>()[(uint64_t)dim.getValue()];
+  return elements.getValues<Attribute>()[(uint64_t)dim.value()];
 }
 
 void GetExtentOp::build(OpBuilder &builder, OperationState &result, Value shape,
@@ -1321,7 +1403,53 @@ LogicalResult mlir::shape::MeetOp::inferReturnTypes(
     MLIRContext *context, Optional<Location> location, ValueRange operands,
     DictionaryAttr attributes, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
-  inferredReturnTypes.assign({operands[0].getType()});
+  if (operands.empty())
+    return failure();
+
+  auto isShapeType = [](Type arg) {
+    if (arg.isa<ShapeType>())
+      return true;
+    return isExtentTensorType(arg);
+  };
+
+  ValueRange::type_range types = operands.getTypes();
+  Type acc = types.front();
+  for (auto t : drop_begin(types)) {
+    Type l = acc, r = t;
+    if (!l.isa<ShapeType, SizeType>())
+      std::swap(l, r);
+
+    // Handle sizes, propagate error type if present.
+    if (l.isa<SizeType>()) {
+      if (r.isa<SizeType, IndexType>())
+        acc = l;
+      else
+        return emitOptionalError(location, "requires all sizes or shapes");
+    } else if (l.isa<IndexType>()) {
+      if (r.isa<IndexType>())
+        acc = r;
+      else
+        return emitOptionalError(location, "requires all sizes or shapes");
+    } else if (l.isa<ShapeType>()) {
+      // Handle shapes, propagate error type if present.
+      if (isShapeType(r))
+        acc = l;
+      else
+        return emitOptionalError(location, "requires all sizes or shapes");
+    } else if (isExtentTensorType(l)) {
+      auto rank1 = l.cast<RankedTensorType>().getShape()[0];
+      auto rank2 = r.cast<RankedTensorType>().getShape()[0];
+      if (ShapedType::isDynamic(rank1))
+        acc = l;
+      else if (ShapedType::isDynamic(rank2))
+        acc = r;
+      else if (rank1 != rank2)
+        return emitOptionalError(location, "unequal shape cardinality");
+      else
+        acc = l;
+    }
+  }
+  inferredReturnTypes.assign({acc});
   return success();
 }
 
@@ -1334,11 +1462,13 @@ bool mlir::shape::MeetOp::isCompatibleReturnTypes(TypeRange l, TypeRange r) {
   Type lhs = l.front();
   Type rhs = r.front();
 
-  if (lhs != rhs)
-    return false;
+  if (!lhs.isa<ShapeType, SizeType>())
+    std::swap(lhs, rhs);
 
-  if (lhs.isa<SizeType>() || lhs.isa<ShapeType>())
-    return true;
+  if (lhs.isa<SizeType>())
+    return rhs.isa<SizeType, IndexType>();
+  if (lhs.isa<ShapeType>())
+    return rhs.isa<ShapeType, TensorType>();
 
   if (succeeded(verifyCompatibleShapes({lhs, rhs})))
     return true;
@@ -1608,7 +1738,7 @@ struct ShapeOfCastExtentTensor : public OpRewritePattern<tensor::CastOp> {
     if (!ty || ty.getRank() != 1)
       return failure();
 
-    auto shapeOfOp = op.source().getDefiningOp<ShapeOfOp>();
+    auto shapeOfOp = op.getSource().getDefiningOp<ShapeOfOp>();
     if (!shapeOfOp)
       return failure();
 
@@ -1638,7 +1768,7 @@ LogicalResult mlir::shape::ShapeOfOp::inferReturnTypes(
   else {
     auto shapedTy = operands[0].getType().cast<ShapedType>();
     int64_t rank =
-        shapedTy.hasRank() ? shapedTy.getRank() : ShapedType::kDynamicSize;
+        shapedTy.hasRank() ? shapedTy.getRank() : ShapedType::kDynamic;
     Type indexTy = IndexType::get(context);
     Type extentTensorTy = RankedTensorType::get({rank}, indexTy);
     inferredReturnTypes.assign({extentTensorTy});
@@ -1728,7 +1858,7 @@ LogicalResult SplitAtOp::fold(ArrayRef<Attribute> operands,
   // Verify that the split point is in the correct range.
   // TODO: Constant fold to an "error".
   int64_t rank = shape.size();
-  if (!(-rank <= splitPoint && splitPoint <= rank))
+  if (-rank > splitPoint || splitPoint > rank)
     return failure();
   if (splitPoint < 0)
     splitPoint += shape.size();
@@ -1836,7 +1966,7 @@ LogicalResult ReduceOp::verify() {
 
 ParseResult ReduceOp::parse(OpAsmParser &parser, OperationState &result) {
   // Parse operands.
-  SmallVector<OpAsmParser::OperandType, 3> operands;
+  SmallVector<OpAsmParser::UnresolvedOperand, 3> operands;
   Type shapeOrExtentTensorType;
   if (parser.parseOperandList(operands, /*requiredOperandCount=*/-1,
                               OpAsmParser::Delimiter::Paren) ||
@@ -1875,3 +2005,6 @@ void ReduceOp::print(OpAsmPrinter &p) {
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Shape/IR/ShapeOps.cpp.inc"
+
+#define GET_TYPEDEF_CLASSES
+#include "mlir/Dialect/Shape/IR/ShapeOpsTypes.cpp.inc"

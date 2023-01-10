@@ -5,6 +5,7 @@ executable("opt") {
     "//llvm/lib/Bitcode/Writer",
     "//llvm/lib/CodeGen",
     "//llvm/lib/IR",
+    "//llvm/lib/IRPrinter",
     "//llvm/lib/MC",
     "//llvm/lib/Passes",
     "//llvm/lib/Support",
@@ -22,10 +23,7 @@ executable("opt") {
   sources = [
     "AnalysisWrappers.cpp",
     "BreakpointPrinter.cpp",
-    "GraphPrinters.cpp",
     "NewPMDriver.cpp",
-    "PassPrinters.cpp",
-    "PrintSCC.cpp",
     "opt.cpp",
   ]
 

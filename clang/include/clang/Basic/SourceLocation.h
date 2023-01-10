@@ -24,7 +24,7 @@
 namespace llvm {
 
 class FoldingSetNodeID;
-template <typename T> struct FoldingSetTrait;
+template <typename T, typename Enable> struct FoldingSetTrait;
 
 } // namespace llvm
 
@@ -87,7 +87,7 @@ class SourceLocation {
   friend class ASTReader;
   friend class ASTWriter;
   friend class SourceManager;
-  friend struct llvm::FoldingSetTrait<SourceLocation>;
+  friend struct llvm::FoldingSetTrait<SourceLocation, void>;
 
 public:
   using UIntTy = uint32_t;
@@ -398,6 +398,12 @@ public:
   unsigned getExpansionLineNumber(bool *Invalid = nullptr) const;
   unsigned getExpansionColumnNumber(bool *Invalid = nullptr) const;
 
+  /// Decompose the underlying \c SourceLocation into a raw (FileID + Offset)
+  /// pair, after walking through all expansion records.
+  ///
+  /// \see SourceManager::getDecomposedExpansionLoc
+  std::pair<FileID, unsigned> getDecomposedExpansionLoc() const;
+
   unsigned getSpellingLineNumber(bool *Invalid = nullptr) const;
   unsigned getSpellingColumnNumber(bool *Invalid = nullptr) const;
 
@@ -507,7 +513,7 @@ namespace llvm {
   };
 
   // Allow calling FoldingSetNodeID::Add with SourceLocation object as parameter
-  template <> struct FoldingSetTrait<clang::SourceLocation> {
+  template <> struct FoldingSetTrait<clang::SourceLocation, void> {
     static void Profile(const clang::SourceLocation &X, FoldingSetNodeID &ID);
   };
 

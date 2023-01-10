@@ -16,7 +16,6 @@
 #include "X86DisassemblerTables.h"
 #include "X86DisassemblerShared.h"
 #include "X86ModRMFilters.h"
-#include "llvm/ADT/STLArrayExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Format.h"
@@ -105,8 +104,7 @@ static inline bool inheritsFrom(InstructionContext child,
   case IC_64BIT_ADSIZE:
     return (noPrefix && inheritsFrom(child, IC_64BIT_OPSIZE_ADSIZE, noPrefix));
   case IC_64BIT_OPSIZE_ADSIZE:
-    return (noPrefix &&
-            inheritsFrom(child, IC_64BIT_VEX_OPSIZE_ADSIZE, noPrefix));
+    return false;
   case IC_XD:
     return inheritsFrom(child, IC_64BIT_XD);
   case IC_XS:
@@ -127,11 +125,10 @@ static inline bool inheritsFrom(InstructionContext child,
   case IC_64BIT_OPSIZE:
     return inheritsFrom(child, IC_64BIT_REXW_OPSIZE) ||
            (!AdSize64 && inheritsFrom(child, IC_64BIT_OPSIZE_ADSIZE)) ||
-           (!AdSize64 && inheritsFrom(child, IC_64BIT_REXW_ADSIZE)) ||
-           (!AdSize64 && inheritsFrom(child, IC_64BIT_VEX_OPSIZE_ADSIZE));
+           (!AdSize64 && inheritsFrom(child, IC_64BIT_REXW_ADSIZE));
   case IC_64BIT_XD:
-    return (inheritsFrom(child, IC_64BIT_REXW_XD) ||
-            (!AdSize64 && inheritsFrom(child, IC_64BIT_XD_ADSIZE)));
+    return(inheritsFrom(child, IC_64BIT_REXW_XD) ||
+           (!AdSize64 && inheritsFrom(child, IC_64BIT_XD_ADSIZE)));
   case IC_64BIT_XS:
     return(inheritsFrom(child, IC_64BIT_REXW_XS) ||
            (!AdSize64 && inheritsFrom(child, IC_64BIT_XS_ADSIZE)));
@@ -161,12 +158,7 @@ static inline bool inheritsFrom(InstructionContext child,
   case IC_VEX_OPSIZE:
     return (VEX_LIG && VEX_WIG && inheritsFrom(child, IC_VEX_L_W_OPSIZE)) ||
            (VEX_WIG && inheritsFrom(child, IC_VEX_W_OPSIZE)) ||
-           (VEX_LIG && inheritsFrom(child, IC_VEX_L_OPSIZE)) ||
-           inheritsFrom(child, IC_64BIT_VEX_OPSIZE);
-  case IC_64BIT_VEX_OPSIZE:
-    return inheritsFrom(child, IC_64BIT_VEX_OPSIZE_ADSIZE);
-  case IC_64BIT_VEX_OPSIZE_ADSIZE:
-    return false;
+           (VEX_LIG && inheritsFrom(child, IC_VEX_L_OPSIZE));
   case IC_VEX_W:
     return VEX_LIG && inheritsFrom(child, IC_VEX_L_W);
   case IC_VEX_W_XS:
@@ -660,7 +652,7 @@ static const char* stringForDecisionType(ModRMDecisionType dt) {
 }
 
 DisassemblerTables::DisassemblerTables() {
-  for (unsigned i = 0; i < llvm::array_lengthof(Tables); i++)
+  for (unsigned i = 0; i < std::size(Tables); i++)
     Tables[i] = std::make_unique<ContextDecision>();
 
   HasConflicts = false;
@@ -673,7 +665,6 @@ void DisassemblerTables::emitModRMDecision(raw_ostream &o1, raw_ostream &o2,
                                            unsigned &i1, unsigned &i2,
                                            unsigned &ModRMTableNum,
                                            ModRMDecision &decision) const {
-  static uint32_t sTableNumber = 0;
   static uint32_t sEntryNumber = 1;
   ModRMDecisionType dt = getDecisionType(decision);
 
@@ -753,8 +744,6 @@ void DisassemblerTables::emitModRMDecision(raw_ostream &o1, raw_ostream &o2,
   assert(sEntryNumber < 65536U &&
          "Index into ModRMDecision is too large for uint16_t!");
   (void)sEntryNumber;
-
-  ++sTableNumber;
 }
 
 void DisassemblerTables::emitOpcodeDecision(raw_ostream &o1, raw_ostream &o2,
@@ -773,7 +762,7 @@ void DisassemblerTables::emitOpcodeDecision(raw_ostream &o1, raw_ostream &o2,
   }
   if (index == 256) {
     // If all 256 entries are MODRM_ONEENTRY, omit output.
-    static_assert(MODRM_ONEENTRY == 0, "");
+    static_assert(MODRM_ONEENTRY == 0);
     --i2;
     o2 << "},\n";
   } else {
@@ -891,9 +880,6 @@ void DisassemblerTables::emitContextTable(raw_ostream &o, unsigned &i) const {
     if ((index & ATTR_EVEX) || (index & ATTR_VEX) || (index & ATTR_VEXL)) {
       if (index & ATTR_EVEX)
         o << "IC_EVEX";
-      else if ((index & (ATTR_64BIT | ATTR_VEXL | ATTR_REXW | ATTR_OPSIZE)) ==
-               (ATTR_64BIT | ATTR_OPSIZE))
-        o << "IC_64BIT_VEX";
       else
         o << "IC_VEX";
 
@@ -905,13 +891,9 @@ void DisassemblerTables::emitContextTable(raw_ostream &o, unsigned &i) const {
       if (index & ATTR_REXW)
         o << "_W";
 
-      if (index & ATTR_OPSIZE) {
+      if (index & ATTR_OPSIZE)
         o << "_OPSIZE";
-        if ((index & (ATTR_64BIT | ATTR_EVEX | ATTR_VEX | ATTR_VEXL |
-                      ATTR_REXW | ATTR_ADSIZE)) ==
-            (ATTR_64BIT | ATTR_VEX | ATTR_ADSIZE))
-          o << "_ADSIZE";
-      } else if (index & ATTR_XD)
+      else if (index & ATTR_XD)
         o << "_XD";
       else if (index & ATTR_XS)
         o << "_XS";
@@ -925,7 +907,8 @@ void DisassemblerTables::emitContextTable(raw_ostream &o, unsigned &i) const {
         if (index & ATTR_EVEXB)
           o << "_B";
       }
-    } else if ((index & ATTR_64BIT) && (index & ATTR_REXW) && (index & ATTR_XS))
+    }
+    else if ((index & ATTR_64BIT) && (index & ATTR_REXW) && (index & ATTR_XS))
       o << "IC_64BIT_REXW_XS";
     else if ((index & ATTR_64BIT) && (index & ATTR_REXW) && (index & ATTR_XD))
       o << "IC_64BIT_REXW_XD";

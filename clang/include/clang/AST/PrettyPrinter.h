@@ -65,7 +65,8 @@ struct PrintingPolicy {
         SuppressStrongLifetime(false), SuppressLifetimeQualifiers(false),
         SuppressTypedefs(false), SuppressTemplateArgsInCXXConstructors(false),
         SuppressDefaultTemplateArgs(true), Bool(LO.Bool),
-        Nullptr(LO.CPlusPlus11), Restrict(LO.C99), Alignof(LO.CPlusPlus11),
+        Nullptr(LO.CPlusPlus11 || LO.C2x), NullptrTypeInNamespace(LO.CPlusPlus),
+        Restrict(LO.C99), Alignof(LO.CPlusPlus11),
         UnderscoreAlignof(LO.C11), UseVoidForZeroParams(!LO.CPlusPlus),
         SplitTemplateClosers(!LO.CPlusPlus11), TerseOutput(false),
         PolishForDeclaration(false), Half(LO.Half),
@@ -77,7 +78,8 @@ struct PrintingPolicy {
         SkipCanonicalizationOfTemplateTypeParms(false),
         PrintInjectedClassNameWithArguments(true), UsePreferredNames(true),
         AlwaysIncludeTypeForTemplateArgument(false),
-        CleanUglifiedParameters(false) {}
+        CleanUglifiedParameters(false), EntireContentsOfLargeArray(true),
+        UseEnumerators(true) {}
 
   /// Adjust this printing policy for cases where it's known that we're
   /// printing C++ code (for instance, if AST dumping reaches a C++-only
@@ -220,6 +222,9 @@ struct PrintingPolicy {
   /// constant.
   unsigned Nullptr : 1;
 
+  /// Whether 'nullptr_t' is in namespace 'std' or not.
+  unsigned NullptrTypeInNamespace : 1;
+
   /// Whether we can use 'restrict' rather than '__restrict'.
   unsigned Restrict : 1;
 
@@ -344,6 +349,14 @@ struct PrintingPolicy {
   /// e.g. std::vector<class _Tp> becomes std::vector<class Tp>.
   /// This only affects parameter names, and so describes a compatible API.
   unsigned CleanUglifiedParameters : 1;
+
+  /// Whether to print the entire array initializers, especially on non-type
+  /// template parameters, no matter how many elements there are.
+  unsigned EntireContentsOfLargeArray : 1;
+
+  /// Whether to print enumerator non-type template parameters with a matching
+  /// enumerator name or via cast of an integer.
+  unsigned UseEnumerators : 1;
 
   /// Callbacks to use to allow the behavior of printing to be customized.
   const PrintingCallbacks *Callbacks = nullptr;

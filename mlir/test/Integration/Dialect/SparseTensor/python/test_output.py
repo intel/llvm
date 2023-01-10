@@ -1,4 +1,4 @@
-# RUN: SUPPORT_LIB=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
+# RUN: SUPPORT_LIB=%mlir_lib_dir/libmlir_c_runner_utils%shlibext \
 # RUN:   %PYTHON %s | FileCheck %s
 
 import ctypes
@@ -6,7 +6,6 @@ import os
 import sys
 import tempfile
 
-from mlir import execution_engine
 from mlir import ir
 from mlir import runtime as rt
 
@@ -21,7 +20,7 @@ from tools import sparse_compiler
 def boilerplate(attr: st.EncodingAttr):
   """Returns boilerplate main method."""
   return f"""
-func @main(%p : !llvm.ptr<i8>) -> () attributes {{ llvm.emit_c_interface }} {{
+func.func @main(%p : !llvm.ptr<i8>) -> () attributes {{ llvm.emit_c_interface }} {{
   %d = arith.constant sparse<[[0, 0], [1, 1], [0, 9], [9, 0], [4, 4]],
                              [1.0, 2.0, 3.0, 4.0, 5.0]> : tensor<10x10xf64>
   %a = sparse_tensor.convert %d : tensor<10x10xf64> to tensor<10x10xf64, {attr}>
@@ -49,13 +48,10 @@ def expected():
 """
 
 
-def build_compile_and_run_output(attr: st.EncodingAttr, support_lib: str,
-                                 compiler):
+def build_compile_and_run_output(attr: st.EncodingAttr, compiler):
   # Build and Compile.
   module = ir.Module.parse(boilerplate(attr))
-  compiler(module)
-  engine = execution_engine.ExecutionEngine(
-      module, opt_level=0, shared_libs=[support_lib])
+  engine = compiler.compile_and_jit(module)
 
   # Invoke the kernel and compare output.
   with tempfile.TemporaryDirectory() as test_dir:
@@ -88,12 +84,13 @@ def main():
         ir.AffineMap.get_permutation([1, 0])
     ]
     bitwidths = [8, 16, 32, 64]
+    compiler = sparse_compiler.SparseCompiler(
+        options='', opt_level=2, shared_libs=[support_lib])
     for level in levels:
       for ordering in orderings:
         for bwidth in bitwidths:
-          attr = st.EncodingAttr.get(level, ordering, bwidth, bwidth)
-          compiler = sparse_compiler.SparseCompiler(options='')
-          build_compile_and_run_output(attr, support_lib, compiler)
+          attr = st.EncodingAttr.get(level, ordering, None, bwidth, bwidth)
+          build_compile_and_run_output(attr, compiler)
           count = count + 1
 
   # CHECK: Passed 16 tests

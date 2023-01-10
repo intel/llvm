@@ -7,6 +7,7 @@ set(LLVM_LINK_COMPONENTS
   AMDGPUCodeGen
   AMDGPUDesc
   AMDGPUInfo
+  AMDGPUUtils
   CodeGen
   Core
   MC
@@ -14,6 +15,9 @@ set(LLVM_LINK_COMPONENTS
   )
 
 add_llvm_target_unittest(AMDGPUTests
+  AMDGPUUnitTests.cpp
   DwarfRegMappings.cpp
   ExecMayBeModifiedBeforeAnyUse.cpp
   )
+
+set_property(TARGET AMDGPUTests PROPERTY FOLDER "Tests/UnitTests/TargetTests")

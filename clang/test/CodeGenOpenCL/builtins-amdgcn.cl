@@ -1,5 +1,5 @@
 // REQUIRES: amdgpu-registered-target
-// RUN: %clang_cc1 -cl-std=CL2.0 -triple amdgcn-unknown-unknown -S -emit-llvm -o - %s | FileCheck -enable-var-scope %s
+// RUN: %clang_cc1 -no-opaque-pointers -cl-std=CL2.0 -triple amdgcn-unknown-unknown -S -emit-llvm -o - %s | FileCheck -enable-var-scope %s
 
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
@@ -396,6 +396,45 @@ void test_wave_barrier()
   __builtin_amdgcn_wave_barrier();
 }
 
+// CHECK-LABEL: @test_sched_barrier
+// CHECK: call void @llvm.amdgcn.sched.barrier(i32 0)
+// CHECK: call void @llvm.amdgcn.sched.barrier(i32 1)
+// CHECK: call void @llvm.amdgcn.sched.barrier(i32 4)
+// CHECK: call void @llvm.amdgcn.sched.barrier(i32 15)
+void test_sched_barrier()
+{
+  __builtin_amdgcn_sched_barrier(0);
+  __builtin_amdgcn_sched_barrier(1);
+  __builtin_amdgcn_sched_barrier(4);
+  __builtin_amdgcn_sched_barrier(15);
+}
+
+// CHECK-LABEL: @test_sched_group_barrier
+// CHECK: call void @llvm.amdgcn.sched.group.barrier(i32 0, i32 1, i32 2)
+// CHECK: call void @llvm.amdgcn.sched.group.barrier(i32 1, i32 2, i32 4)
+// CHECK: call void @llvm.amdgcn.sched.group.barrier(i32 4, i32 8, i32 16)
+// CHECK: call void @llvm.amdgcn.sched.group.barrier(i32 15, i32 10000, i32 -1)
+void test_sched_group_barrier()
+{
+  __builtin_amdgcn_sched_group_barrier(0, 1, 2);
+  __builtin_amdgcn_sched_group_barrier(1, 2, 4);
+  __builtin_amdgcn_sched_group_barrier(4, 8, 16);
+  __builtin_amdgcn_sched_group_barrier(15, 10000, -1);
+}
+
+// CHECK-LABEL: @test_iglp_opt
+// CHECK: call void @llvm.amdgcn.iglp.opt(i32 0)
+// CHECK: call void @llvm.amdgcn.iglp.opt(i32 1)
+// CHECK: call void @llvm.amdgcn.iglp.opt(i32 4)
+// CHECK: call void @llvm.amdgcn.iglp.opt(i32 15)
+void test_iglp_opt()
+{
+  __builtin_amdgcn_iglp_opt(0);
+  __builtin_amdgcn_iglp_opt(1);
+  __builtin_amdgcn_iglp_opt(4);
+  __builtin_amdgcn_iglp_opt(15);
+}
+
 // CHECK-LABEL: @test_s_sleep
 // CHECK: call void @llvm.amdgcn.s.sleep(i32 1)
 // CHECK: call void @llvm.amdgcn.s.sleep(i32 15)
@@ -421,6 +460,15 @@ void test_s_decperflevel()
 {
   __builtin_amdgcn_s_decperflevel(1);
   __builtin_amdgcn_s_decperflevel(15);
+}
+
+// CHECK-LABEL: @test_s_setprio
+// CHECK: call void @llvm.amdgcn.s.setprio(i16 0)
+// CHECK: call void @llvm.amdgcn.s.setprio(i16 3)
+void test_s_setprio()
+{
+  __builtin_amdgcn_s_setprio(0);
+  __builtin_amdgcn_s_setprio(3);
 }
 
 // CHECK-LABEL: @test_cubeid(
@@ -748,7 +796,7 @@ kernel void test_s_setreg(uint val) {
 
 // CHECK-DAG: [[$WI_RANGE]] = !{i32 0, i32 1024}
 // CHECK-DAG: [[$WS_RANGE]] = !{i16 1, i16 1025}
-// CHECK-DAG: attributes #[[$NOUNWIND_READONLY:[0-9]+]] = { nofree nounwind readonly }
+// CHECK-DAG: attributes #[[$NOUNWIND_READONLY]] = { mustprogress nocallback nofree nosync nounwind willreturn memory(read) }
 // CHECK-DAG: attributes #[[$READ_EXEC_ATTRS]] = { convergent }
 // CHECK-DAG: ![[$EXEC]] = !{!"exec"}
 // CHECK-DAG: ![[$EXEC_LO]] = !{!"exec_lo"}

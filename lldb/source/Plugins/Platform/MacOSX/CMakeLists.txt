@@ -8,6 +8,7 @@ lldb_tablegen(PlatformMacOSXPropertiesEnum.inc -gen-lldb-property-enum-defs
 
 list(APPEND PLUGIN_PLATFORM_MACOSX_SOURCES
   PlatformDarwin.cpp
+  PlatformDarwinDevice.cpp
   PlatformDarwinKernel.cpp
   PlatformMacOSX.cpp
   PlatformRemoteAppleBridge.cpp
@@ -43,6 +44,8 @@ add_lldb_library(lldbPluginPlatformMacOSX PLUGIN
     lldbSymbol
     lldbTarget
     lldbUtility
+    lldbPluginDynamicLoaderDarwinKernel
+    lldbPluginObjectContainerMachOFileset
     lldbPluginPlatformPOSIX
     ${OBJC_LIBS}
   CLANG_LIBS

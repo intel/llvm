@@ -15,7 +15,7 @@
 // RUN: %{cxx} %{flags} %{compile_flags} %s %{link_flags} -DTU2 -c -o %t.tu2.o
 // RUN: %{cxx} %{flags} %t.tu1.o %t.tu2.o %{link_flags} -o %t.exe
 
-// UNSUPPORTED: libcpp-has-no-localization
+// UNSUPPORTED: no-localization
 
 #include <cstdint>
 #include <ios>
@@ -52,7 +52,7 @@ template class std::basic_string<char16, string16_char_traits>;
 #else
 extern template class std::basic_string<char16, string16_char_traits>;
 
-int main() {
+int main(int, char**) {
     std::basic_string<char16, string16_char_traits> s;
     s.shrink_to_fit();
 }

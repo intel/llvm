@@ -11,9 +11,9 @@ template<S s> constexpr const char *end() { return s.buf + __builtin_strlen(s.bu
 
 // ITANIUM: @p
 // MSABI: @"?p@@3PEBDEB"
-// CHECK-SAME: global i8* getelementptr inbounds ({{.*}}* [[HELLO]], i32 0, i32 0, i32 0, i32 0)
+// CHECK-SAME: global ptr [[HELLO]]
 const char *p = begin<S{"hello world"}>();
 // ITANIUM: @q
 // MSABI: @"?q@@3PEBDEB"
-// CHECK-SAME: global i8* getelementptr ({{.*}}* [[HELLO]], i32 0, i32 0, i32 0, i64 11)
+// CHECK-SAME: global ptr getelementptr (i8, ptr [[HELLO]], i64 11)
 const char *q = end<S{"hello world"}>();

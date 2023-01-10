@@ -32,12 +32,11 @@ add_llvm_tool(dsymutil
   DEPENDS
   intrinsics_gen
   ${tablegen_deps}
+  DsymutilTableGen
   )
 
 if(APPLE)
   target_link_libraries(dsymutil PRIVATE "-framework CoreFoundation")
 endif(APPLE)
 
-if(HAVE_CXX_ATOMICS_WITH_LIB OR HAVE_CXX_ATOMICS64_WITH_LIB)
-  target_link_libraries(dsymutil PRIVATE atomic)
-endif()
+target_link_libraries(dsymutil PRIVATE ${LLVM_ATOMIC_LIB})

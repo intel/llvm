@@ -3,7 +3,7 @@
 
 #define __global__ __attribute__((global))
 
-// CHECK: define {{.*}}spir_kernel void @_Z3fooPff(float addrspace(1)* {{.*}}, float {{.*}})
+// CHECK: define {{.*}}spir_kernel void @_Z3fooPff(ptr addrspace(1) {{.*}}, float {{.*}})
 __global__ void foo(float *a, float b) {
   *a = b;
 }

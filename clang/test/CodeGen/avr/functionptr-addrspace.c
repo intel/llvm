@@ -5,4 +5,4 @@ int main(void) {
   return 0;
 }
 
-// CHECK: %p = alloca i16 () addrspace(1)*
+// CHECK: %p = alloca ptr addrspace(1)

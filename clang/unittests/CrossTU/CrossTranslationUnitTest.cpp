@@ -12,7 +12,6 @@
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Tooling/Tooling.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/ToolOutputFile.h"
@@ -61,7 +60,7 @@ public:
     ASSERT_FALSE(llvm::sys::fs::createTemporaryFile("index", "txt", IndexFD,
                                                     IndexFileName));
     llvm::ToolOutputFile IndexFile(IndexFileName, IndexFD);
-    IndexFile.os() << "c:@F@f#I# " << ASTFileName << "\n";
+    IndexFile.os() << "9:c:@F@f#I# " << ASTFileName << "\n";
     IndexFile.os().flush();
     EXPECT_TRUE(llvm::sys::fs::exists(IndexFileName));
 

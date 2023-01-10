@@ -11,9 +11,9 @@
 
 // CHECK: define internal i32 @.omp_task_entry.
 
-// CHECK:  call void @llvm.dbg.declare(metadata i32** %.priv.ptr.addr.i, metadata [[PRIV1:![0-9]+]], metadata !DIExpression(DW_OP_deref))
-// CHECK:  call void @llvm.dbg.declare(metadata i32** %.priv.ptr.addr1.i, metadata [[PRIV2:![0-9]+]], metadata !DIExpression(DW_OP_deref))
-// CHECK:  call void @llvm.dbg.declare(metadata i32** %.firstpriv.ptr.addr.i, metadata [[FPRIV:![0-9]+]], metadata !DIExpression(DW_OP_deref))
+// CHECK:  call void @llvm.dbg.declare(metadata ptr %.priv.ptr.addr.i, metadata [[PRIV1:![0-9]+]], metadata !DIExpression(DW_OP_deref))
+// CHECK:  call void @llvm.dbg.declare(metadata ptr %.priv.ptr.addr1.i, metadata [[PRIV2:![0-9]+]], metadata !DIExpression(DW_OP_deref))
+// CHECK:  call void @llvm.dbg.declare(metadata ptr %.firstpriv.ptr.addr.i, metadata [[FPRIV:![0-9]+]], metadata !DIExpression(DW_OP_deref))
 // NEG-NOT: call void @llvm.dbg.declare
 
 // CHECK: [[PRIV1]] = !DILocalVariable(name: "priv1"

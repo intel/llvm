@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/GPU/Passes.h"
+#include "mlir/Dialect/GPU/Transforms/Passes.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Export.h"
@@ -41,7 +41,7 @@ gpu::SerializeToBlobPass::translateToISA(llvm::Module &llvmModule,
   llvmModule.setDataLayout(targetMachine.createDataLayout());
 
   if (failed(optimizeLlvm(llvmModule, targetMachine)))
-    return llvm::None;
+    return std::nullopt;
 
   std::string targetISA;
   llvm::raw_string_ostream stream(targetISA);
@@ -52,7 +52,7 @@ gpu::SerializeToBlobPass::translateToISA(llvm::Module &llvmModule,
 
     if (targetMachine.addPassesToEmitFile(codegenPasses, pstream, nullptr,
                                           llvm::CGFT_AssemblyFile))
-      return llvm::None;
+      return std::nullopt;
 
     codegenPasses.run(llvmModule);
   }
@@ -75,10 +75,10 @@ void gpu::SerializeToBlobPass::runOnOperation() {
   Optional<std::string> maybeTargetISA =
       translateToISA(*llvmModule, *targetMachine);
 
-  if (!maybeTargetISA.hasValue())
+  if (!maybeTargetISA.has_value())
     return signalPassFailure();
 
-  std::string targetISA = std::move(maybeTargetISA.getValue());
+  std::string targetISA = std::move(maybeTargetISA.value());
 
   LLVM_DEBUG({
     llvm::dbgs() << "ISA for module: " << getOperation().getNameAttr() << "\n";

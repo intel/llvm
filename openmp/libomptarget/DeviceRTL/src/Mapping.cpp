@@ -15,7 +15,7 @@
 #include "Types.h"
 #include "Utils.h"
 
-#pragma omp declare target
+#pragma omp begin declare target device_type(nohost)
 
 #include "llvm/Frontend/OpenMP/OMPGridValues.h"
 
@@ -24,30 +24,31 @@ using namespace _OMP;
 namespace _OMP {
 namespace impl {
 
+// Forward declarations defined to be defined for AMDGCN and NVPTX.
+const llvm::omp::GV &getGridValue();
+uint32_t getNumHardwareThreadsInBlock();
+LaneMaskTy activemask();
+LaneMaskTy lanemaskLT();
+LaneMaskTy lanemaskGT();
+uint32_t getThreadIdInWarp();
+uint32_t getThreadIdInBlock();
+uint32_t getKernelSize();
+uint32_t getBlockId();
+uint32_t getNumberOfBlocks();
+uint32_t getWarpId();
+uint32_t getNumberOfWarpsInBlock();
+
 /// AMDGCN Implementation
 ///
 ///{
 #pragma omp begin declare variant match(device = {arch(amdgcn)})
 
-static const llvm::omp::GV &getGridValue() {
+const llvm::omp::GV &getGridValue() {
   return llvm::omp::getAMDGPUGridValues<__AMDGCN_WAVEFRONT_SIZE>();
 }
 
-uint32_t getGridDim(uint32_t n, uint16_t d) {
-  uint32_t q = n / d;
-  return q + (n > q * d);
-}
-
-uint32_t getWorkgroupDim(uint32_t group_id, uint32_t grid_size,
-                         uint16_t group_size) {
-  uint32_t r = grid_size - group_id * group_size;
-  return (r < group_size) ? r : group_size;
-}
-
 uint32_t getNumHardwareThreadsInBlock() {
-  return getWorkgroupDim(__builtin_amdgcn_workgroup_id_x(),
-                         __builtin_amdgcn_grid_size_x(),
-                         __builtin_amdgcn_workgroup_size_x());
+  return __builtin_amdgcn_workgroup_size_x();
 }
 
 LaneMaskTy activemask() { return __builtin_amdgcn_read_exec(); }
@@ -79,8 +80,7 @@ uint32_t getKernelSize() { return __builtin_amdgcn_grid_size_x(); }
 uint32_t getBlockId() { return __builtin_amdgcn_workgroup_id_x(); }
 
 uint32_t getNumberOfBlocks() {
-  return getGridDim(__builtin_amdgcn_grid_size_x(),
-                    __builtin_amdgcn_workgroup_size_x());
+  return __builtin_amdgcn_grid_size_x() / __builtin_amdgcn_workgroup_size_x();
 }
 
 uint32_t getWarpId() {
@@ -104,9 +104,7 @@ uint32_t getNumHardwareThreadsInBlock() {
   return __nvvm_read_ptx_sreg_ntid_x();
 }
 
-static const llvm::omp::GV &getGridValue() {
-  return llvm::omp::NVPTXGridValues;
-}
+const llvm::omp::GV &getGridValue() { return llvm::omp::NVPTXGridValues; }
 
 LaneMaskTy activemask() {
   unsigned int Mask;
@@ -213,8 +211,8 @@ uint32_t mapping::getThreadIdInBlock() {
 uint32_t mapping::getWarpSize() { return impl::getWarpSize(); }
 
 uint32_t mapping::getBlockSize(bool IsSPMD) {
-  uint32_t BlockSize = mapping::getNumberOfProcessorElements() -
-                       (!IsSPMD * impl::getWarpSize());
+  uint32_t BlockSize =
+      mapping::getNumberOfProcessorElements() - (!IsSPMD * impl::getWarpSize());
   return BlockSize;
 }
 uint32_t mapping::getBlockSize() {
@@ -258,7 +256,10 @@ uint32_t mapping::getNumberOfProcessorElements() {
 /// Execution mode
 ///
 ///{
-static int SHARED(IsSPMDMode);
+
+// TODO: This is a workaround for initialization coming from kernels outside of
+//       the TU. We will need to solve this more correctly in the future.
+int __attribute__((weak)) SHARED(IsSPMDMode);
 
 void mapping::init(bool IsSPMD) {
   if (mapping::isInitialThreadInLevel0(IsSPMD))

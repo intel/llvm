@@ -13,8 +13,7 @@
 #ifndef DIALECT_TOSA_UTILS_COVERSION_UTILS_H_
 #define DIALECT_TOSA_UTILS_COVERSION_UTILS_H_
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
 #include "mlir/IR/PatternMatch.h"
@@ -23,22 +22,21 @@ namespace mlir {
 namespace tosa {
 
 // Creates a SmallVector of Stringrefs for N parallel loops
-SmallVector<StringRef> getNParallelLoopsAttrs(unsigned nParallelLoops);
+SmallVector<utils::IteratorType>
+getNParallelLoopsAttrs(unsigned nParallelLoops);
 
 // Takes a vector of values and condenses them to a vector with no gaps.
 SmallVector<Value> condenseValues(const SmallVector<Value> &values);
 
-// Takes the parameters for a clamp and turns it into a series of ops.
-template <typename T, typename P>
-arith::SelectOp clampHelper(Location loc, Value arg, arith::ConstantOp min,
-                            arith::ConstantOp max, P pred,
-                            OpBuilder &rewriter) {
-  auto smallerThanMin = rewriter.create<T>(loc, pred, arg, min);
-  auto minOrArg =
-      rewriter.create<arith::SelectOp>(loc, smallerThanMin, min, arg);
-  auto largerThanMax = rewriter.create<T>(loc, pred, max, arg);
-  return rewriter.create<arith::SelectOp>(loc, largerThanMax, max, minOrArg);
-}
+// Takes the parameters for a clamp and turns it into a series of ops for float
+// inputs.
+Value clampFloatHelper(Location loc, Value arg, arith::ConstantOp min,
+                       arith::ConstantOp max, OpBuilder &rewriter);
+
+// Takes the parameters for a clamp and turns it into a series of ops for
+// integer inputs.
+Value clampIntHelper(Location loc, Value arg, arith::ConstantOp min,
+                     arith::ConstantOp max, OpBuilder &rewriter);
 
 // Returns the values in an attribute as an array of values.
 template <typename T>
@@ -70,7 +68,7 @@ Optional<SmallVector<Value>> checkHasDynamicBatchDims(PatternRewriter &rewriter,
     if (llvm::any_of(dynTy.getShape().drop_front(), ShapedType::isDynamic)) {
       (void)rewriter.notifyMatchFailure(
           op, "input can only be dynamic for batch size");
-      return llvm::None;
+      return std::nullopt;
     }
   }
 

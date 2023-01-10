@@ -22,6 +22,7 @@ using namespace llvm;
 RISCVTargetStreamer::RISCVTargetStreamer(MCStreamer &S) : MCTargetStreamer(S) {}
 
 void RISCVTargetStreamer::finish() { finishAttributeSection(); }
+void RISCVTargetStreamer::reset() {}
 
 void RISCVTargetStreamer::emitDirectiveOptionPush() {}
 void RISCVTargetStreamer::emitDirectiveOptionPop() {}
@@ -31,6 +32,7 @@ void RISCVTargetStreamer::emitDirectiveOptionRVC() {}
 void RISCVTargetStreamer::emitDirectiveOptionNoRVC() {}
 void RISCVTargetStreamer::emitDirectiveOptionRelax() {}
 void RISCVTargetStreamer::emitDirectiveOptionNoRelax() {}
+void RISCVTargetStreamer::emitDirectiveVariantCC(MCSymbol &Symbol) {}
 void RISCVTargetStreamer::emitAttribute(unsigned Attribute, unsigned Value) {}
 void RISCVTargetStreamer::finishAttributeSection() {}
 void RISCVTargetStreamer::emitTextAttribute(unsigned Attribute,
@@ -38,6 +40,10 @@ void RISCVTargetStreamer::emitTextAttribute(unsigned Attribute,
 void RISCVTargetStreamer::emitIntTextAttribute(unsigned Attribute,
                                                unsigned IntValue,
                                                StringRef StringValue) {}
+void RISCVTargetStreamer::setTargetABI(RISCVABI::ABI ABI) {
+  assert(ABI != RISCVABI::ABI_Unknown && "Improperly initialized target ABI");
+  TargetABI = ABI;
+}
 
 void RISCVTargetStreamer::emitTargetAttributes(const MCSubtargetInfo &STI) {
   if (STI.hasFeature(RISCV::FeatureRV32E))

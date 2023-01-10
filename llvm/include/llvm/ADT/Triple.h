@@ -56,6 +56,7 @@ public:
     bpfel,          // eBPF or extended BPF or 64-bit BPF (little endian)
     bpfeb,          // eBPF or extended BPF or 64-bit BPF (big endian)
     csky,           // CSKY: csky
+    dxil,           // DXIL 32-bit DirectX bytecode
     hexagon,        // Hexagon: hexagon
     loongarch32,    // LoongArch (32-bit): loongarch32
     loongarch64,    // LoongArch (64-bit): loongarch64
@@ -110,10 +111,12 @@ public:
   enum SubArchType {
     NoSubArch,
 
+    ARMSubArch_v9_4a,
     ARMSubArch_v9_3a,
     ARMSubArch_v9_2a,
     ARMSubArch_v9_1a,
     ARMSubArch_v9,
+    ARMSubArch_v8_9a,
     ARMSubArch_v8_8a,
     ARMSubArch_v8_7a,
     ARMSubArch_v8_6a,
@@ -142,6 +145,7 @@ public:
     ARMSubArch_v4t,
 
     AArch64SubArch_arm64e,
+    AArch64SubArch_arm64ec,
 
     KalimbaSubArch_v3,
     KalimbaSubArch_v4,
@@ -153,7 +157,15 @@ public:
     SPIRSubArch_gen,
     SPIRSubArch_x86_64,
 
-    PPCSubArch_spe
+    PPCSubArch_spe,
+
+    // SPIR-V sub-arch corresponds to its version.
+    SPIRVSubArch_v10,
+    SPIRVSubArch_v11,
+    SPIRVSubArch_v12,
+    SPIRVSubArch_v13,
+    SPIRVSubArch_v14,
+    SPIRVSubArch_v15,
   };
   enum VendorType {
     UnknownVendor,
@@ -203,6 +215,7 @@ public:
     NVCL,       // NVIDIA OpenCL
     AMDHSA,     // AMD HSA Runtime
     PS4,
+    PS5,
     ELFIAMCU,
     TvOS,       // Apple tvOS
     WatchOS,    // Apple watchOS
@@ -214,7 +227,8 @@ public:
     Hurd,       // GNU/Hurd
     WASI,       // Experimental WebAssembly OS
     Emscripten,
-    LastOSType = Emscripten
+    ShaderModel, // DirectX ShaderModel
+    LastOSType = ShaderModel
   };
   enum EnvironmentType {
     UnknownEnvironment,
@@ -224,6 +238,9 @@ public:
     GNUABI64,
     GNUEABI,
     GNUEABIHF,
+    GNUF32,
+    GNUF64,
+    GNUSF,
     GNUX32,
     GNUILP32,
     CODE16,
@@ -241,15 +258,38 @@ public:
     CoreCLR,
     Simulator,  // Simulator variants of other systems, e.g., Apple's iOS
     MacABI, // Mac Catalyst variant of Apple's iOS deployment target.
-    LastEnvironmentType = MacABI
+    
+    // Shader Stages
+    // The order of these values matters, and must be kept in sync with the
+    // language options enum in Clang. The ordering is enforced in
+    // static_asserts in Triple.cpp and in Clang.
+    Pixel,
+    Vertex,
+    Geometry,
+    Hull,
+    Domain,
+    Compute,
+    Library,
+    RayGeneration,
+    Intersection,
+    AnyHit,
+    ClosestHit,
+    Miss,
+    Callable,
+    Mesh,
+    Amplification,
+
+    LastEnvironmentType = Amplification
   };
   enum ObjectFormatType {
     UnknownObjectFormat,
 
     COFF,
+    DXContainer,
     ELF,
     GOFF,
     MachO,
+    SPIRV,
     Wasm,
     XCOFF,
   };
@@ -258,22 +298,22 @@ private:
   std::string Data;
 
   /// The parsed arch type.
-  ArchType Arch;
+  ArchType Arch{};
 
   /// The parsed subarchitecture type.
-  SubArchType SubArch;
+  SubArchType SubArch{};
 
   /// The parsed vendor type.
-  VendorType Vendor;
+  VendorType Vendor{};
 
   /// The parsed OS type.
-  OSType OS;
+  OSType OS{};
 
   /// The parsed Environment type.
-  EnvironmentType Environment;
+  EnvironmentType Environment{};
 
   /// The object format type.
-  ObjectFormatType ObjectFormat;
+  ObjectFormatType ObjectFormat{};
 
 public:
   /// @name Constructors
@@ -281,7 +321,7 @@ public:
 
   /// Default constructor is the same as an empty string and leaves all
   /// triple fields unknown.
-  Triple() : Arch(), SubArch(), Vendor(), OS(), Environment(), ObjectFormat() {}
+  Triple() = default;
 
   explicit Triple(const Twine &Str);
   Triple(const Twine &ArchStr, const Twine &VendorStr, const Twine &OSStr);
@@ -479,7 +519,7 @@ public:
 
   bool isOSzOS() const { return getOS() == Triple::ZOS; }
 
-  /// Is this a "Darwin" OS (macOS, iOS, tvOS or watchOS).
+  /// Is this a "Darwin" OS (macOS, iOS, tvOS, watchOS, or DriverKit).
   bool isOSDarwin() const {
     return isMacOSX() || isiOS() || isWatchOS() || isDriverKit();
   }
@@ -530,7 +570,9 @@ public:
     EnvironmentType Env = getEnvironment();
     return Env == Triple::GNU || Env == Triple::GNUABIN32 ||
            Env == Triple::GNUABI64 || Env == Triple::GNUEABI ||
-           Env == Triple::GNUEABIHF || Env == Triple::GNUX32;
+           Env == Triple::GNUEABIHF || Env == Triple::GNUF32 ||
+           Env == Triple::GNUF64 || Env == Triple::GNUSF ||
+           Env == Triple::GNUX32;
   }
 
   bool isOSContiki() const {
@@ -556,6 +598,12 @@ public:
   bool isWindowsMSVCEnvironment() const {
     return isKnownWindowsMSVCEnvironment() ||
            (isOSWindows() && getEnvironment() == Triple::UnknownEnvironment);
+  }
+
+  // Checks if we're using the Windows Arm64EC ABI.
+  bool isWindowsArm64EC() const {
+    return getArch() == Triple::aarch64 &&
+           getSubArch() == Triple::AArch64SubArch_arm64ec;
   }
 
   bool isWindowsCoreCLREnvironment() const {
@@ -655,18 +703,27 @@ public:
     return getObjectFormat() == Triple::XCOFF;
   }
 
-  /// Tests whether the target is the PS4 CPU
-  bool isPS4CPU() const {
+  /// Tests whether the OS uses the DXContainer binary format.
+  bool isOSBinFormatDXContainer() const {
+    return getObjectFormat() == Triple::DXContainer;
+  }
+
+  /// Tests whether the target is the PS4 platform.
+  bool isPS4() const {
     return getArch() == Triple::x86_64 &&
            getVendor() == Triple::SCEI &&
            getOS() == Triple::PS4;
   }
 
-  /// Tests whether the target is the PS4 platform
-  bool isPS4() const {
-    return getVendor() == Triple::SCEI &&
-           getOS() == Triple::PS4;
+  /// Tests whether the target is the PS5 platform.
+  bool isPS5() const {
+    return getArch() == Triple::x86_64 &&
+      getVendor() == Triple::SCEI &&
+      getOS() == Triple::PS5;
   }
+
+  /// Tests whether the target is the PS4 or PS5 platform.
+  bool isPS() const { return isPS4() || isPS5(); }
 
   /// Tests whether the target is Android
   bool isAndroid() const { return getEnvironment() == Triple::Android; }
@@ -689,6 +746,11 @@ public:
            getEnvironment() == Triple::MuslEABI ||
            getEnvironment() == Triple::MuslEABIHF ||
            getEnvironment() == Triple::MuslX32;
+  }
+
+  /// Tests whether the target is DXIL.
+  bool isDXIL() const {
+    return getArch() == Triple::dxil;
   }
 
   /// Tests whether the target is SPIR (32- or 64-bit).
@@ -825,10 +887,25 @@ public:
     return getArch() == Triple::ppc64 || getArch() == Triple::ppc64le;
   }
 
+  /// Tests whether the target is 32-bit RISC-V.
+  bool isRISCV32() const { return getArch() == Triple::riscv32; }
+
+  /// Tests whether the target is 64-bit RISC-V.
+  bool isRISCV64() const { return getArch() == Triple::riscv64; }
+
   /// Tests whether the target is RISC-V (32- and 64-bit).
-  bool isRISCV() const {
-    return getArch() == Triple::riscv32 || getArch() == Triple::riscv64;
+  bool isRISCV() const { return isRISCV32() || isRISCV64(); }
+
+  /// Tests whether the target is 32-bit SPARC (little and big endian).
+  bool isSPARC32() const {
+    return getArch() == Triple::sparc || getArch() == Triple::sparcel;
   }
+
+  /// Tests whether the target is 64-bit SPARC (big endian).
+  bool isSPARC64() const { return getArch() == Triple::sparcv9; }
+
+  /// Tests whether the target is SPARC.
+  bool isSPARC() const { return isSPARC32() || isSPARC64(); }
 
   /// Tests whether the target is SystemZ.
   bool isSystemZ() const {
@@ -869,7 +946,8 @@ public:
 
   /// Tests whether the target supports comdat
   bool supportsCOMDAT() const {
-    return !(isOSBinFormatMachO() || isOSBinFormatXCOFF());
+    return !(isOSBinFormatMachO() || isOSBinFormatXCOFF() ||
+             isOSBinFormatDXContainer());
   }
 
   /// Tests whether the target uses emulated TLS as default.
@@ -883,7 +961,7 @@ public:
   }
 
   /// Tests if the environment supports dllimport/export annotations.
-  bool hasDLLImportExport() const { return isOSWindows() || isPS4CPU(); }
+  bool hasDLLImportExport() const { return isOSWindows() || isPS(); }
 
   /// @}
   /// @name Mutators
@@ -959,12 +1037,6 @@ public:
   ///          architecture if no such variant can be found.
   llvm::Triple getLittleEndianArchVariant() const;
 
-  /// Get the (LLVM) name of the minimum ARM CPU for the arch we are targeting.
-  ///
-  /// \param Arch the architecture name (e.g., "armv7s"). If it is an empty
-  /// string then the triple's arch name is used.
-  StringRef getARMCPUForArch(StringRef Arch = StringRef()) const;
-
   /// Tests whether the target triple is little endian.
   ///
   /// \returns true if the triple is little endian, false otherwise.
@@ -991,7 +1063,7 @@ public:
 
   /// Get the "prefix" canonical name for the \p Kind architecture. This is the
   /// prefix used by the architecture specific builtins, and is suitable for
-  /// passing to \see Intrinsic::getIntrinsicForGCCBuiltin().
+  /// passing to \see Intrinsic::getIntrinsicForClangBuiltin().
   ///
   /// \return - The architecture prefix, or 0 if none is defined.
   static StringRef getArchTypePrefix(ArchType Kind);

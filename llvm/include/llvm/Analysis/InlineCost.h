@@ -13,13 +13,18 @@
 #ifndef LLVM_ANALYSIS_INLINECOST_H
 #define LLVM_ANALYSIS_INLINECOST_H
 
-#include "llvm/Analysis/AssumptionCache.h"
+#include "llvm/ADT/APInt.h"
+#include "llvm/ADT/Optional.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/Analysis/InlineModelFeatureMaps.h"
-#include "llvm/Analysis/OptimizationRemarkEmitter.h"
+#include "llvm/IR/PassManager.h"
 #include <cassert>
 #include <climits>
+#include <optional>
 
 namespace llvm {
+class AssumptionCache;
+class OptimizationRemarkEmitter;
 class BlockFrequencyInfo;
 class CallBase;
 class DataLayout;
@@ -40,7 +45,7 @@ const int OptMinSizeThreshold = 5;
 const int OptAggressiveThreshold = 250;
 
 // Various magic constants used to adjust heuristics.
-const int InstrCost = 5;
+int getInstrCost();
 const int IndirectCallThreshold = 100;
 const int LoopPenalty = 25;
 const int LastCallToStaticBonus = 15000;
@@ -51,6 +56,11 @@ const unsigned TotalAllocaSizeRecursiveCaller = 1024;
 /// Do not inline dynamic allocas that have been constant propagated to be
 /// static allocas above this amount in bytes.
 const uint64_t MaxSimplifiedDynamicAllocaToInline = 65536;
+
+const char FunctionInlineCostMultiplierAttributeName[] =
+    "function-inline-cost-multiplier";
+
+const char MaxInlineStackSizeAttributeName[] = "inline-max-stacksize";
 } // namespace InlineConstants
 
 // The cost-benefit pair computed by cost-benefit analysis.
@@ -86,34 +96,41 @@ class InlineCost {
   /// The adjusted threshold against which this cost was computed.
   int Threshold = 0;
 
+  /// The amount of StaticBonus that has been applied.
+  int StaticBonusApplied = 0;
+
   /// Must be set for Always and Never instances.
   const char *Reason = nullptr;
 
   /// The cost-benefit pair computed by cost-benefit analysis.
-  Optional<CostBenefitPair> CostBenefit = None;
+  Optional<CostBenefitPair> CostBenefit = std::nullopt;
 
   // Trivial constructor, interesting logic in the factory functions below.
-  InlineCost(int Cost, int Threshold, const char *Reason = nullptr,
-             Optional<CostBenefitPair> CostBenefit = None)
-      : Cost(Cost), Threshold(Threshold), Reason(Reason),
+  InlineCost(int Cost, int Threshold, int StaticBonusApplied,
+             const char *Reason = nullptr,
+             Optional<CostBenefitPair> CostBenefit = std::nullopt)
+      : Cost(Cost), Threshold(Threshold),
+        StaticBonusApplied(StaticBonusApplied), Reason(Reason),
         CostBenefit(CostBenefit) {
     assert((isVariable() || Reason) &&
            "Reason must be provided for Never or Always");
   }
 
 public:
-  static InlineCost get(int Cost, int Threshold) {
+  static InlineCost get(int Cost, int Threshold, int StaticBonus = 0) {
     assert(Cost > AlwaysInlineCost && "Cost crosses sentinel value");
     assert(Cost < NeverInlineCost && "Cost crosses sentinel value");
-    return InlineCost(Cost, Threshold);
+    return InlineCost(Cost, Threshold, StaticBonus);
   }
-  static InlineCost getAlways(const char *Reason,
-                              Optional<CostBenefitPair> CostBenefit = None) {
-    return InlineCost(AlwaysInlineCost, 0, Reason, CostBenefit);
+  static InlineCost
+  getAlways(const char *Reason,
+            Optional<CostBenefitPair> CostBenefit = std::nullopt) {
+    return InlineCost(AlwaysInlineCost, 0, 0, Reason, CostBenefit);
   }
-  static InlineCost getNever(const char *Reason,
-                             Optional<CostBenefitPair> CostBenefit = None) {
-    return InlineCost(NeverInlineCost, 0, Reason, CostBenefit);
+  static InlineCost
+  getNever(const char *Reason,
+           Optional<CostBenefitPair> CostBenefit = std::nullopt) {
+    return InlineCost(NeverInlineCost, 0, 0, Reason, CostBenefit);
   }
 
   /// Test whether the inline cost is low enough for inlining.
@@ -134,6 +151,12 @@ public:
   int getThreshold() const {
     assert(isVariable() && "Invalid access of InlineCost");
     return Threshold;
+  }
+
+  /// Get the amount of StaticBonus applied.
+  int getStaticBonusApplied() const {
+    assert(isVariable() && "Invalid access of InlineCost");
+    return StaticBonusApplied;
   }
 
   /// Get the cost-benefit pair which was computed by cost-benefit analysis
@@ -207,14 +230,16 @@ struct InlineParams {
   Optional<int> ColdCallSiteThreshold;
 
   /// Compute inline cost even when the cost has exceeded the threshold.
-  Optional<bool> ComputeFullInlineCost;
+  std::optional<bool> ComputeFullInlineCost;
 
   /// Indicate whether we should allow inline deferral.
-  Optional<bool> EnableDeferral;
+  std::optional<bool> EnableDeferral;
 
   /// Indicate whether we allow inlining for recursive call.
-  Optional<bool> AllowRecursiveCall = false;
+  std::optional<bool> AllowRecursiveCall = false;
 };
+
+Optional<int> getStringFnAttrAsInt(CallBase &CB, StringRef AttrKind);
 
 /// Generate the parameters to tune the inline cost analysis based only on the
 /// commandline options.
@@ -235,7 +260,7 @@ InlineParams getInlineParams(unsigned OptLevel, unsigned SizeOptLevel);
 
 /// Return the cost associated with a callsite, including parameter passing
 /// and the call/return instruction.
-int getCallsiteCost(CallBase &Call, const DataLayout &DL);
+int getCallsiteCost(const CallBase &Call, const DataLayout &DL);
 
 /// Get an InlineCost object representing the cost of inlining this
 /// callsite.
@@ -275,8 +300,8 @@ getInlineCost(CallBase &Call, Function *Callee, const InlineParams &Params,
 /// because of user directives, and the inlining is viable. Returns
 /// InlineResult::failure() if the inlining may never happen because of user
 /// directives or incompatibilities detectable without needing callee traversal.
-/// Otherwise returns None, meaning that inlining should be decided based on
-/// other criteria (e.g. cost modeling).
+/// Otherwise returns std::nullopt, meaning that inlining should be decided
+/// based on other criteria (e.g. cost modeling).
 Optional<InlineResult> getAttributeBasedInliningDecision(
     CallBase &Call, Function *Callee, TargetTransformInfo &CalleeTTI,
     function_ref<const TargetLibraryInfo &(Function &)> GetTLI);
@@ -287,7 +312,7 @@ Optional<InlineResult> getAttributeBasedInliningDecision(
 /// Contrary to getInlineCost, which makes a threshold-based final evaluation of
 /// should/shouldn't inline, captured in InlineResult, getInliningCostEstimate
 /// returns:
-/// - None, if the inlining cannot happen (is illegal)
+/// - std::nullopt, if the inlining cannot happen (is illegal)
 /// - an integer, representing the cost.
 Optional<int> getInliningCostEstimate(
     CallBase &Call, TargetTransformInfo &CalleeTTI,

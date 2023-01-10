@@ -30,37 +30,6 @@
 
 using namespace llvm;
 
-class HostTest : public testing::Test {
-  Triple Host;
-
-protected:
-  bool isSupportedArchAndOS() {
-    // Initially this is only testing detection of the number of
-    // physical cores, which is currently only supported/tested on
-    // some systems.
-    return (Host.isOSWindows() && llvm_is_multithreaded()) ||
-           Host.isOSDarwin() || (Host.isX86() && Host.isOSLinux()) ||
-           (Host.isPPC64() && Host.isOSLinux()) ||
-           (Host.isSystemZ() && (Host.isOSLinux() || Host.isOSzOS()));
-  }
-
-  HostTest() : Host(Triple::normalize(sys::getProcessTriple())) {}
-};
-
-TEST_F(HostTest, NumPhysicalCoresSupported) {
-  if (!isSupportedArchAndOS())
-    GTEST_SKIP();
-  int Num = sys::getHostNumPhysicalCores();
-  ASSERT_GT(Num, 0);
-}
-
-TEST_F(HostTest, NumPhysicalCoresUnsupported) {
-  if (isSupportedArchAndOS())
-    GTEST_SKIP();
-  int Num = sys::getHostNumPhysicalCores();
-  ASSERT_EQ(Num, -1);
-}
-
 TEST(getLinuxHostCPUName, ARM) {
   StringRef CortexA9ProcCpuinfo = R"(
 processor       : 0
@@ -106,6 +75,9 @@ TEST(getLinuxHostCPUName, AArch64) {
   EXPECT_EQ(sys::detail::getHostCPUNameForARM("CPU implementer : 0x41\n"
                                               "CPU part        : 0xd03"),
             "cortex-a53");
+  EXPECT_EQ(sys::detail::getHostCPUNameForARM("CPU implementer : 0x41\n"
+                                              "CPU part        : 0xd05"),
+            "cortex-a55");
 
   EXPECT_EQ(sys::detail::getHostCPUNameForARM("CPU implementer : 0x41\n"
                                               "CPU part        : 0xd40"),
@@ -126,12 +98,25 @@ TEST(getLinuxHostCPUName, AArch64) {
   EXPECT_EQ(sys::detail::getHostCPUNameForARM("CPU implementer : 0x51\n"
                                               "CPU part        : 0x801"),
             "cortex-a73");
+  EXPECT_EQ(sys::detail::getHostCPUNameForARM("CPU implementer : 0x41\n"
+                                              "CPU part        : 0xd46"),
+            "cortex-a510");
+  EXPECT_EQ(sys::detail::getHostCPUNameForARM("CPU implementer : 0x41\n"
+                                              "CPU part        : 0xd47"),
+            "cortex-a710");
+  EXPECT_EQ(sys::detail::getHostCPUNameForARM("CPU implementer : 0x41\n"
+                                              "CPU part        : 0xd48"),
+            "cortex-x2");
   EXPECT_EQ(sys::detail::getHostCPUNameForARM("CPU implementer : 0x51\n"
                                               "CPU part        : 0xc00"),
             "falkor");
   EXPECT_EQ(sys::detail::getHostCPUNameForARM("CPU implementer : 0x51\n"
                                               "CPU part        : 0xc01"),
             "saphira");
+
+  EXPECT_EQ(sys::detail::getHostCPUNameForARM("CPU implementer : 0xc0\n"
+                                              "CPU part        : 0xac3"),
+            "ampere1");
 
   // MSM8992/4 weirdness
   StringRef MSM8992ProcCpuInfo = R"(
@@ -326,7 +311,7 @@ TEST(getLinuxHostCPUName, s390x) {
 
   // Model Id: 3931
   ExpectedCPUs.push_back("zEC12");
-  ExpectedCPUs.push_back("arch14");
+  ExpectedCPUs.push_back("z16");
 
   // Model Id: 8561
   ExpectedCPUs.push_back("zEC12");
@@ -374,6 +359,21 @@ TEST(getLinuxHostCPUName, s390x) {
   }
 }
 
+TEST(getLinuxHostCPUName, RISCV) {
+  const StringRef SifiveU74MCProcCPUInfo = R"(
+processor       : 0
+hart            : 2
+isa             : rv64imafdc
+mmu             : sv39
+uarch           : sifive,u74-mc
+)";
+  EXPECT_EQ(sys::detail::getHostCPUNameForRISCV(SifiveU74MCProcCPUInfo),
+            "sifive-u74");
+  EXPECT_EQ(
+      sys::detail::getHostCPUNameForRISCV("uarch           : sifive,bullet0\n"),
+      "sifive-u74");
+}
+
 static bool runAndGetCommandOutput(
     const char *ExePath, ArrayRef<llvm::StringRef> argv,
     std::unique_ptr<char[]> &Buffer, off_t &Size) {
@@ -387,9 +387,10 @@ static bool runAndGetCommandOutput(
     path::append(OutputFile, "out");
     StringRef OutputPath = OutputFile.str();
 
-    const Optional<StringRef> Redirects[] = {
-        /*STDIN=*/None, /*STDOUT=*/OutputPath, /*STDERR=*/None};
-    int RetCode = ExecuteAndWait(ExePath, argv, /*env=*/llvm::None, Redirects);
+    const std::optional<StringRef> Redirects[] = {
+        /*STDIN=*/std::nullopt, /*STDOUT=*/OutputPath, /*STDERR=*/std::nullopt};
+    int RetCode =
+        ExecuteAndWait(ExePath, argv, /*env=*/std::nullopt, Redirects);
     ASSERT_EQ(0, RetCode);
 
     int FD = 0;
@@ -408,13 +409,13 @@ static bool runAndGetCommandOutput(
   return Success;
 }
 
-TEST_F(HostTest, DummyRunAndGetCommandOutputUse) {
+TEST(HostTest, DummyRunAndGetCommandOutputUse) {
   // Suppress defined-but-not-used warnings when the tests using the helper are
   // disabled.
   (void)&runAndGetCommandOutput;
 }
 
-TEST_F(HostTest, getMacOSHostVersion) {
+TEST(HostTest, getMacOSHostVersion) {
   llvm::Triple HostTriple(llvm::sys::getProcessTriple());
   if (!HostTriple.isMacOSX())
     GTEST_SKIP();
@@ -460,7 +461,7 @@ static void getAIXSystemVersion(VersionTuple &SystemVersion) {
           .getOSVersion();
 }
 
-TEST_F(HostTest, AIXHostVersionDetect) {
+TEST(HostTest, AIXHostVersionDetect) {
   llvm::Triple HostTriple(llvm::sys::getProcessTriple());
   if (HostTriple.getOS() != Triple::AIX)
     GTEST_SKIP();
@@ -486,7 +487,7 @@ TEST_F(HostTest, AIXHostVersionDetect) {
   ASSERT_EQ(SysMinor, HostVersion.getMinor());
 }
 
-TEST_F(HostTest, AIXTargetVersionDetect) {
+TEST(HostTest, AIXTargetVersionDetect) {
   llvm::Triple TargetTriple(llvm::sys::getDefaultTargetTriple());
   if (TargetTriple.getOS() != Triple::AIX)
     GTEST_SKIP();
@@ -504,7 +505,7 @@ TEST_F(HostTest, AIXTargetVersionDetect) {
   ASSERT_EQ(SystemVersion.getMinor(), TargetVersion.getMinor());
 }
 
-TEST_F(HostTest, AIXHostCPUDetect) {
+TEST(HostTest, AIXHostCPUDetect) {
   llvm::Triple HostTriple(llvm::sys::getProcessTriple());
   if (HostTriple.getOS() != Triple::AIX)
     GTEST_SKIP();

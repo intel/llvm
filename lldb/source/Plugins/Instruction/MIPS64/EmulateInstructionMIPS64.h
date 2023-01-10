@@ -72,8 +72,8 @@ public:
     return false;
   }
 
-  bool GetRegisterInfo(lldb::RegisterKind reg_kind, uint32_t reg_num,
-                       lldb_private::RegisterInfo &reg_info) override;
+  llvm::Optional<lldb_private::RegisterInfo>
+  GetRegisterInfo(lldb::RegisterKind reg_kind, uint32_t reg_num) override;
 
   bool
   CreateFunctionEntryUnwind(lldb_private::UnwindPlan &unwind_plan) override;
@@ -85,7 +85,7 @@ protected:
     const char *insn_name;
   } MipsOpcode;
 
-  static MipsOpcode *GetOpcodeForInstruction(const char *op_name);
+  static MipsOpcode *GetOpcodeForInstruction(llvm::StringRef op_name);
 
   bool Emulate_DADDiu(llvm::MCInst &insn);
 

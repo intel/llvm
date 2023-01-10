@@ -34,8 +34,7 @@ class VariableDecl;
 /// This class provides a convenient API for interacting with source names. It
 /// contains a string name as well as the source location for that name.
 struct Name {
-  static const Name &create(Context &ctx, StringRef name,
-                            SMRange location);
+  static const Name &create(Context &ctx, StringRef name, SMRange location);
 
   /// Return the raw string name.
   StringRef getName() const { return name; }
@@ -47,8 +46,7 @@ private:
   Name() = delete;
   Name(const Name &) = delete;
   Name &operator=(const Name &) = delete;
-  Name(StringRef name, SMRange location)
-      : name(name), location(location) {}
+  Name(StringRef name, SMRange location) : name(name), location(location) {}
 
   /// The string name of the decl.
   StringRef name;
@@ -80,13 +78,15 @@ public:
   /// Lookup a decl with the given name starting from this scope. Returns
   /// nullptr if no decl could be found.
   Decl *lookup(StringRef name);
-  template <typename T> T *lookup(StringRef name) {
+  template <typename T>
+  T *lookup(StringRef name) {
     return dyn_cast_or_null<T>(lookup(name));
   }
   const Decl *lookup(StringRef name) const {
     return const_cast<DeclScope *>(this)->lookup(name);
   }
-  template <typename T> const T *lookup(StringRef name) const {
+  template <typename T>
+  const T *lookup(StringRef name) const {
     return dyn_cast_or_null<T>(lookup(name));
   }
 
@@ -107,7 +107,8 @@ private:
 class Node {
 public:
   /// This CRTP class provides several utilies when defining new AST nodes.
-  template <typename T, typename BaseT> class NodeBase : public BaseT {
+  template <typename T, typename BaseT>
+  class NodeBase : public BaseT {
   public:
     using Base = NodeBase<T, BaseT>;
 
@@ -130,6 +131,18 @@ public:
 
   /// Print this node to the given stream.
   void print(raw_ostream &os) const;
+
+  /// Walk all of the nodes including, and nested under, this node in pre-order.
+  void walk(function_ref<void(const Node *)> walkFn) const;
+  template <typename WalkFnT, typename ArgT = typename llvm::function_traits<
+                                  WalkFnT>::template arg_t<0>>
+  std::enable_if_t<!std::is_convertible<const Node *, ArgT>::value>
+  walk(WalkFnT &&walkFn) const {
+    walk([&](const Node *node) {
+      if (const ArgT *derivedNode = dyn_cast<ArgT>(node))
+        walkFn(derivedNode);
+    });
+  }
 
 protected:
   Node(TypeID typeID, SMRange loc) : typeID(typeID), loc(loc) {}
@@ -196,15 +209,13 @@ private:
 /// to define variables.
 class LetStmt final : public Node::NodeBase<LetStmt, Stmt> {
 public:
-  static LetStmt *create(Context &ctx, SMRange loc,
-                         VariableDecl *varDecl);
+  static LetStmt *create(Context &ctx, SMRange loc, VariableDecl *varDecl);
 
   /// Return the variable defined by this statement.
   VariableDecl *getVarDecl() const { return varDecl; }
 
 private:
-  LetStmt(SMRange loc, VariableDecl *varDecl)
-      : Base(loc), varDecl(varDecl) {}
+  LetStmt(SMRange loc, VariableDecl *varDecl) : Base(loc), varDecl(varDecl) {}
 
   /// The variable defined by this statement.
   VariableDecl *varDecl;
@@ -339,8 +350,7 @@ public:
   static bool classof(const Node *node);
 
 protected:
-  Expr(TypeID typeID, SMRange loc, Type type)
-      : Stmt(typeID, loc), type(type) {}
+  Expr(TypeID typeID, SMRange loc, Type type) : Stmt(typeID, loc), type(type) {}
 
 private:
   /// The type of this expression.
@@ -355,8 +365,7 @@ private:
 /// textual assembly format of that attribute.
 class AttributeExpr : public Node::NodeBase<AttributeExpr, Expr> {
 public:
-  static AttributeExpr *create(Context &ctx, SMRange loc,
-                               StringRef value);
+  static AttributeExpr *create(Context &ctx, SMRange loc, StringRef value);
 
   /// Get the raw value of this expression. This is the textual assembly format
   /// of the MLIR Attribute.
@@ -414,8 +423,7 @@ private:
 /// This expression represents a reference to a Decl node.
 class DeclRefExpr : public Node::NodeBase<DeclRefExpr, Expr> {
 public:
-  static DeclRefExpr *create(Context &ctx, SMRange loc, Decl *decl,
-                             Type type);
+  static DeclRefExpr *create(Context &ctx, SMRange loc, Decl *decl, Type type);
 
   /// Get the decl referenced by this expression.
   Decl *getDecl() const { return decl; }
@@ -447,8 +455,8 @@ public:
   StringRef getMemberName() const { return memberName; }
 
 private:
-  MemberAccessExpr(SMRange loc, const Expr *parentExpr,
-                   StringRef memberName, Type type)
+  MemberAccessExpr(SMRange loc, const Expr *parentExpr, StringRef memberName,
+                   Type type)
       : Base(loc, type), parentExpr(parentExpr), memberName(memberName) {}
 
   /// The parent expression of this access.
@@ -494,12 +502,13 @@ class OperationExpr final
                                     NamedAttributeDecl *> {
 public:
   static OperationExpr *create(Context &ctx, SMRange loc,
+                               const ods::Operation *odsOp,
                                const OpNameDecl *nameDecl,
                                ArrayRef<Expr *> operands,
                                ArrayRef<Expr *> resultTypes,
                                ArrayRef<NamedAttributeDecl *> attributes);
 
-  /// Return the name of the operation, or None if there isn't one.
+  /// Return the name of the operation, or std::nullopt if there isn't one.
   Optional<StringRef> getName() const;
 
   /// Return the declaration of the operation name.
@@ -558,6 +567,40 @@ private:
 };
 
 //===----------------------------------------------------------------------===//
+// RangeExpr
+//===----------------------------------------------------------------------===//
+
+/// This expression builds a range from a set of element values (which may be
+/// ranges themselves).
+class RangeExpr final : public Node::NodeBase<RangeExpr, Expr>,
+                        private llvm::TrailingObjects<RangeExpr, Expr *> {
+public:
+  static RangeExpr *create(Context &ctx, SMRange loc, ArrayRef<Expr *> elements,
+                           RangeType type);
+
+  /// Return the element expressions of this range.
+  MutableArrayRef<Expr *> getElements() {
+    return {getTrailingObjects<Expr *>(), numElements};
+  }
+  ArrayRef<Expr *> getElements() const {
+    return const_cast<RangeExpr *>(this)->getElements();
+  }
+
+  /// Return the range result type of this expression.
+  RangeType getType() const { return Base::getType().cast<RangeType>(); }
+
+private:
+  RangeExpr(SMRange loc, RangeType type, unsigned numElements)
+      : Base(loc, type), numElements(numElements) {}
+
+  /// The number of element values for this range.
+  unsigned numElements;
+
+  /// TrailingObject utilities.
+  friend class llvm::TrailingObjects<RangeExpr, Expr *>;
+};
+
+//===----------------------------------------------------------------------===//
 // TupleExpr
 //===----------------------------------------------------------------------===//
 
@@ -565,8 +608,7 @@ private:
 class TupleExpr final : public Node::NodeBase<TupleExpr, Expr>,
                         private llvm::TrailingObjects<TupleExpr, Expr *> {
 public:
-  static TupleExpr *create(Context &ctx, SMRange loc,
-                           ArrayRef<Expr *> elements,
+  static TupleExpr *create(Context &ctx, SMRange loc, ArrayRef<Expr *> elements,
                            ArrayRef<StringRef> elementNames);
 
   /// Return the element expressions of this tuple.
@@ -622,6 +664,13 @@ public:
   /// Provide type casting support.
   static bool classof(const Node *node);
 
+  /// Set the documentation comment for this decl.
+  void setDocComment(Context &ctx, StringRef comment);
+
+  /// Return the documentation comment attached to this decl if it has been set.
+  /// Otherwise, returns std::nullopt.
+  Optional<StringRef> getDocComment() const { return docComment; }
+
 protected:
   Decl(TypeID typeID, SMRange loc, const Name *name = nullptr)
       : Node(typeID, loc), name(name) {}
@@ -630,6 +679,10 @@ private:
   /// The name of the decl. This is optional for some decls, such as
   /// PatternDecl.
   const Name *name;
+
+  /// The documentation comment attached to this decl. Defaults to None if
+  /// the comment is unset/unknown.
+  Optional<StringRef> docComment;
 };
 
 //===----------------------------------------------------------------------===//
@@ -673,8 +726,7 @@ public:
   static bool classof(const Node *node);
 
 protected:
-  CoreConstraintDecl(TypeID typeID, SMRange loc,
-                     const Name *name = nullptr)
+  CoreConstraintDecl(TypeID typeID, SMRange loc, const Name *name = nullptr)
       : ConstraintDecl(typeID, loc, name) {}
 };
 
@@ -712,7 +764,7 @@ public:
   static OpConstraintDecl *create(Context &ctx, SMRange loc,
                                   const OpNameDecl *nameDecl = nullptr);
 
-  /// Return the name of the operation, or None if there isn't one.
+  /// Return the name of the operation, or std::nullopt if there isn't one.
   Optional<StringRef> getName() const;
 
   /// Return the declaration of the operation name.
@@ -762,8 +814,7 @@ protected:
 class ValueConstraintDecl
     : public Node::NodeBase<ValueConstraintDecl, CoreConstraintDecl> {
 public:
-  static ValueConstraintDecl *create(Context &ctx, SMRange loc,
-                                     Expr *typeExpr);
+  static ValueConstraintDecl *create(Context &ctx, SMRange loc, Expr *typeExpr);
 
   /// Return the optional type the value is constrained to.
   Expr *getTypeExpr() { return typeExpr; }
@@ -786,7 +837,7 @@ class ValueRangeConstraintDecl
     : public Node::NodeBase<ValueRangeConstraintDecl, CoreConstraintDecl> {
 public:
   static ValueRangeConstraintDecl *create(Context &ctx, SMRange loc,
-                                          Expr *typeExpr);
+                                          Expr *typeExpr = nullptr);
 
   /// Return the optional type the value range is constrained to.
   Expr *getTypeExpr() { return typeExpr; }
@@ -818,16 +869,15 @@ protected:
 ///     - This is a constraint which is defined using only PDLL constructs.
 class UserConstraintDecl final
     : public Node::NodeBase<UserConstraintDecl, ConstraintDecl>,
-      llvm::TrailingObjects<UserConstraintDecl, VariableDecl *> {
+      llvm::TrailingObjects<UserConstraintDecl, VariableDecl *, StringRef> {
 public:
   /// Create a native constraint with the given optional code block.
-  static UserConstraintDecl *createNative(Context &ctx, const Name &name,
-                                          ArrayRef<VariableDecl *> inputs,
-                                          ArrayRef<VariableDecl *> results,
-                                          Optional<StringRef> codeBlock,
-                                          Type resultType) {
-    return createImpl(ctx, name, inputs, results, codeBlock, /*body=*/nullptr,
-                      resultType);
+  static UserConstraintDecl *
+  createNative(Context &ctx, const Name &name, ArrayRef<VariableDecl *> inputs,
+               ArrayRef<VariableDecl *> results, Optional<StringRef> codeBlock,
+               Type resultType, ArrayRef<StringRef> nativeInputTypes = {}) {
+    return createImpl(ctx, name, inputs, nativeInputTypes, results, codeBlock,
+                      /*body=*/nullptr, resultType);
   }
 
   /// Create a PDLL constraint with the given body.
@@ -836,8 +886,8 @@ public:
                                         ArrayRef<VariableDecl *> results,
                                         const CompoundStmt *body,
                                         Type resultType) {
-    return createImpl(ctx, name, inputs, results, /*codeBlock=*/llvm::None,
-                      body, resultType);
+    return createImpl(ctx, name, inputs, /*nativeInputTypes=*/std::nullopt,
+                      results, /*codeBlock=*/std::nullopt, body, resultType);
   }
 
   /// Return the name of the constraint.
@@ -850,6 +900,10 @@ public:
   ArrayRef<VariableDecl *> getInputs() const {
     return const_cast<UserConstraintDecl *>(this)->getInputs();
   }
+
+  /// Return the explicit native type to use for the given input. Returns
+  /// std::nullopt if no explicit type was set.
+  Optional<StringRef> getNativeInputType(unsigned index) const;
 
   /// Return the explicit results of the constraint declaration. May be empty,
   /// even if the constraint has results (e.g. in the case of inferred results).
@@ -879,15 +933,17 @@ private:
   /// components.
   static UserConstraintDecl *
   createImpl(Context &ctx, const Name &name, ArrayRef<VariableDecl *> inputs,
+             ArrayRef<StringRef> nativeInputTypes,
              ArrayRef<VariableDecl *> results, Optional<StringRef> codeBlock,
              const CompoundStmt *body, Type resultType);
 
-  UserConstraintDecl(const Name &name, unsigned numInputs, unsigned numResults,
+  UserConstraintDecl(const Name &name, unsigned numInputs,
+                     bool hasNativeInputTypes, unsigned numResults,
                      Optional<StringRef> codeBlock, const CompoundStmt *body,
                      Type resultType)
       : Base(name.getLoc(), &name), numInputs(numInputs),
         numResults(numResults), codeBlock(codeBlock), constraintBody(body),
-        resultType(resultType) {}
+        resultType(resultType), hasNativeInputTypes(hasNativeInputTypes) {}
 
   /// The number of inputs to this constraint.
   unsigned numInputs;
@@ -904,8 +960,14 @@ private:
   /// The result type of the constraint.
   Type resultType;
 
+  /// Flag indicating if this constraint has explicit native input types.
+  bool hasNativeInputTypes;
+
   /// Allow access to various internals.
-  friend llvm::TrailingObjects<UserConstraintDecl, VariableDecl *>;
+  friend llvm::TrailingObjects<UserConstraintDecl, VariableDecl *, StringRef>;
+  size_t numTrailingObjects(OverloadToken<VariableDecl *>) const {
+    return numInputs + numResults;
+  }
 };
 
 //===----------------------------------------------------------------------===//
@@ -946,7 +1008,7 @@ public:
   /// Return the name of this operation, or none if the name is unknown.
   Optional<StringRef> getName() const {
     const Name *name = Decl::getName();
-    return name ? Optional<StringRef>(name->getName()) : llvm::None;
+    return name ? Optional<StringRef>(name->getName()) : std::nullopt;
   }
 
 private:
@@ -961,12 +1023,12 @@ private:
 /// This Decl represents a single Pattern.
 class PatternDecl : public Node::NodeBase<PatternDecl, Decl> {
 public:
-  static PatternDecl *create(Context &ctx, SMRange location,
-                             const Name *name, Optional<uint16_t> benefit,
+  static PatternDecl *create(Context &ctx, SMRange location, const Name *name,
+                             Optional<uint16_t> benefit,
                              bool hasBoundedRecursion,
                              const CompoundStmt *body);
 
-  /// Return the benefit of this pattern if specified, or None.
+  /// Return the benefit of this pattern if specified, or std::nullopt.
   Optional<uint16_t> getBenefit() const { return benefit; }
 
   /// Return if this pattern has bounded rewrite recursion.
@@ -1031,7 +1093,7 @@ public:
                                      ArrayRef<VariableDecl *> results,
                                      const CompoundStmt *body,
                                      Type resultType) {
-    return createImpl(ctx, name, inputs, results, /*codeBlock=*/llvm::None,
+    return createImpl(ctx, name, inputs, results, /*codeBlock=*/std::nullopt,
                       body, resultType);
   }
 
@@ -1133,6 +1195,23 @@ public:
     return cast<UserRewriteDecl>(this)->getResultType();
   }
 
+  /// Return the explicit results of the declaration. Note that these may be
+  /// empty, even if the callable has results (e.g. in the case of inferred
+  /// results).
+  ArrayRef<VariableDecl *> getResults() const {
+    if (const auto *cst = dyn_cast<UserConstraintDecl>(this))
+      return cst->getResults();
+    return cast<UserRewriteDecl>(this)->getResults();
+  }
+
+  /// Return the optional code block of this callable, if this is a native
+  /// callable with a provided implementation.
+  Optional<StringRef> getCodeBlock() const {
+    if (const auto *cst = dyn_cast<UserConstraintDecl>(this))
+      return cst->getCodeBlock();
+    return cast<UserRewriteDecl>(this)->getCodeBlock();
+  }
+
   /// Support LLVM type casting facilities.
   static bool classof(const Node *decl) {
     return isa<UserConstraintDecl, UserRewriteDecl>(decl);
@@ -1197,8 +1276,7 @@ private:
 class Module final : public Node::NodeBase<Module, Node>,
                      private llvm::TrailingObjects<Module, Decl *> {
 public:
-  static Module *create(Context &ctx, SMLoc loc,
-                        ArrayRef<Decl *> children);
+  static Module *create(Context &ctx, SMLoc loc, ArrayRef<Decl *> children);
 
   /// Return the children of this module.
   MutableArrayRef<Decl *> getChildren() {
@@ -1239,8 +1317,8 @@ inline bool CoreConstraintDecl::classof(const Node *node) {
 }
 
 inline bool Expr::classof(const Node *node) {
-  return isa<AttributeExpr, DeclRefExpr, MemberAccessExpr, OperationExpr,
-             TupleExpr, TypeExpr>(node);
+  return isa<AttributeExpr, CallExpr, DeclRefExpr, MemberAccessExpr,
+             OperationExpr, RangeExpr, TupleExpr, TypeExpr>(node);
 }
 
 inline bool OpRewriteStmt::classof(const Node *node) {

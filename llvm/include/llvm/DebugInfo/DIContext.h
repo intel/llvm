@@ -21,6 +21,7 @@
 #include <cassert>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -36,11 +37,11 @@ struct DILineInfo {
   std::string FileName;
   std::string FunctionName;
   std::string StartFileName;
-  Optional<StringRef> Source;
+  std::optional<StringRef> Source;
   uint32_t Line = 0;
   uint32_t Column = 0;
   uint32_t StartLine = 0;
-  Optional<uint64_t> StartAddress;
+  std::optional<uint64_t> StartAddress;
 
   // DWARF-specific.
   uint32_t Discriminator = 0;
@@ -90,6 +91,8 @@ class DIInliningInfo {
 public:
   DIInliningInfo() = default;
 
+  /// Returns the frame at `Index`. Frames are stored in bottom-up
+  /// (leaf-to-root) order with increasing index.
   const DILineInfo &getFrame(unsigned Index) const {
     assert(Index < Frames.size());
     return Frames[Index];
@@ -112,6 +115,8 @@ struct DIGlobal {
   std::string Name;
   uint64_t Start = 0;
   uint64_t Size = 0;
+  std::string DeclFile;
+  uint64_t DeclLine = 0;
 
   DIGlobal() : Name(DILineInfo::BadString) {}
 };
@@ -121,9 +126,9 @@ struct DILocal {
   std::string Name;
   std::string DeclFile;
   uint64_t DeclLine = 0;
-  Optional<int64_t> FrameOffset;
-  Optional<uint64_t> Size;
-  Optional<uint64_t> TagOffset;
+  std::optional<int64_t> FrameOffset;
+  std::optional<uint64_t> Size;
+  std::optional<uint64_t> TagOffset;
 };
 
 /// A DINameKind is passed to name search methods to specify a
@@ -237,6 +242,8 @@ public:
   virtual DILineInfo getLineInfoForAddress(
       object::SectionedAddress Address,
       DILineInfoSpecifier Specifier = DILineInfoSpecifier()) = 0;
+  virtual DILineInfo
+  getLineInfoForDataAddress(object::SectionedAddress Address) = 0;
   virtual DILineInfoTable getLineInfoForAddressRange(
       object::SectionedAddress Address, uint64_t Size,
       DILineInfoSpecifier Specifier = DILineInfoSpecifier()) = 0;

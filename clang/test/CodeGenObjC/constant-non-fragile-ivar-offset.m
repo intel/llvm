@@ -16,7 +16,7 @@
 }
 -(void)meth {
   static_layout_ivar = 0;
-  // CHECK-NOT: load i64, i64* @"OBJC_IVAR_$_StaticLayout
+  // CHECK-NOT: load i64, ptr @"OBJC_IVAR_$_StaticLayout
 }
 @end
 
@@ -33,6 +33,6 @@
 }
 -(void)meth {
   not_static_layout_ivar = 0;
-  // CHECK: load i64, i64* @"OBJC_IVAR_$_NotStaticLayout.not_static_layout_ivar
+  // CHECK: load i64, ptr @"OBJC_IVAR_$_NotStaticLayout.not_static_layout_ivar
 }
 @end

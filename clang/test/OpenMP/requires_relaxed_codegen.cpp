@@ -22,13 +22,13 @@ void foo() {
 // CHECK: store atomic i32 {{.*}} monotonic, align 4
 #pragma omp atomic write
   a = b;
-// CHECK: atomicrmw add i32* {{.*}} monotonic, align 4
+// CHECK: atomicrmw add ptr {{.*}} monotonic, align 4
 #pragma omp atomic
   a += 1;
-// CHECK: atomicrmw add i32* {{.*}} monotonic, align 4
+// CHECK: atomicrmw add ptr {{.*}} monotonic, align 4
 #pragma omp atomic update
   a += 1;
-// CHECK: atomicrmw add i32* {{.*}} monotonic, align 4
+// CHECK: atomicrmw add ptr {{.*}} monotonic, align 4
 #pragma omp atomic capture
   {
     b = a;

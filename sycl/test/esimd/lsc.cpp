@@ -5,17 +5,20 @@
 // Checks ESIMD intrinsic translation.
 // NOTE: must be run in -O0, as optimizer optimizes away some of the code
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/detail/image_ocl_types.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
+using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental::esimd;
 
-SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo();
+using AccType = sycl::accessor<uint8_t, 1, sycl::access::mode::read_write>;
+
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo(AccType &);
 
 class EsimdFunctor {
 public:
-  void operator()() __attribute__((sycl_explicit_simd)) { foo(); }
+  AccType acc;
+  void operator()() __attribute__((sycl_explicit_simd)) { foo(acc); }
 };
 
 template <typename name, typename Func>
@@ -23,12 +26,12 @@ __attribute__((sycl_kernel)) void kernel(Func kernelFunc) {
   kernelFunc();
 }
 
-void bar() {
-  EsimdFunctor esimdf;
+void bar(AccType &acc) {
+  EsimdFunctor esimdf{acc};
   kernel<class kernel_esimd>(esimdf);
 }
 
-SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo() {
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo(AccType &acc) {
   constexpr int VL = 4;
   int *ptr = 0;
   uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
@@ -56,7 +59,6 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo() {
   lsc_prefetch<int, 1, lsc_data_size::default_size, cache_hint::uncached,
                cache_hint::cached>(ptr, offsets);
 
-  sycl::accessor<uint8_t, 1, sycl::access::mode::read_write> acc;
   uint32_t surf_offset = 1 * VL * sizeof(int);
 
   // CHECK: call void @llvm.genx.lsc.store.bti.v1i1.v1i32.v4i32(<1 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, <4 x i32> {{[^)]+}}, i32 {{[^)]+}})

@@ -10,16 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "../PassDetail.h"
 #include "mlir/Conversion/TosaToLinalg/TosaToLinalg.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
-#include "mlir/Dialect/Tosa/Transforms/PassDetail.h"
 #include "mlir/Dialect/Tosa/Transforms/Passes.h"
 #include "mlir/Dialect/Tosa/Utils/QuantUtils.h"
 #include "mlir/IR/PatternMatch.h"
@@ -27,23 +26,28 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
+namespace mlir {
+#define GEN_PASS_DEF_TOSATOLINALGNAMED
+#include "mlir/Conversion/Passes.h.inc"
+} // namespace mlir
+
 using namespace mlir;
 
 namespace {
-struct TosaToLinalgNamed : public TosaToLinalgNamedBase<TosaToLinalgNamed> {
+struct TosaToLinalgNamed
+    : public impl::TosaToLinalgNamedBase<TosaToLinalgNamed> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<arith::ArithmeticDialect, linalg::LinalgDialect,
-                    math::MathDialect, StandardOpsDialect,
-                    tensor::TensorDialect, scf::SCFDialect>();
+    registry
+        .insert<arith::ArithDialect, linalg::LinalgDialect, math::MathDialect,
+                tensor::TensorDialect, scf::SCFDialect>();
   }
 
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
     ConversionTarget target(getContext());
-    target.addLegalDialect<linalg::LinalgDialect, StandardOpsDialect,
-                           tosa::TosaDialect, tensor::TensorDialect,
-                           scf::SCFDialect>();
+    target.addLegalDialect<linalg::LinalgDialect, tosa::TosaDialect,
+                           tensor::TensorDialect, scf::SCFDialect>();
 
     // Not every TOSA op can be legalized to linalg.
     target.addIllegalOp<tosa::Conv2DOp>();
@@ -55,7 +59,7 @@ public:
 
     target.markUnknownOpDynamicallyLegal([](Operation *) { return true; });
 
-    FuncOp func = getOperation();
+    FunctionOpInterface func = getOperation();
     mlir::tosa::populateTosaToLinalgNamedConversionPatterns(&patterns);
     if (failed(applyFullConversion(func, target, std::move(patterns))))
       signalPassFailure();

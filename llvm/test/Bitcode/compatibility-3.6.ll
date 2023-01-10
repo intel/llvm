@@ -981,7 +981,7 @@ exit:
   ; CHECK: select <2 x i1> <i1 true, i1 false>, <2 x i8> <i8 2, i8 3>, <2 x i8> <i8 3, i8 2>
 
   call void @f.nobuiltin() builtin
-  ; CHECK: call void @f.nobuiltin() #35
+  ; CHECK: call void @f.nobuiltin() #36
 
   call fastcc noalias i32* @f.noalias() noinline
   ; CHECK: call fastcc noalias i32* @f.noalias() #11
@@ -1168,8 +1168,8 @@ define void @intrinsics.codegen() {
 ; CHECK: attributes #15 = { nounwind }
 ; CHECK: attributes #16 = { noinline optnone }
 ; CHECK: attributes #17 = { optsize }
-; CHECK: attributes #18 = { readnone }
-; CHECK: attributes #19 = { readonly }
+; CHECK: attributes #18 = { memory(none) }
+; CHECK: attributes #19 = { memory(read) }
 ; CHECK: attributes #20 = { returns_twice }
 ; CHECK: attributes #21 = { sanitize_address }
 ; CHECK: attributes #22 = { sanitize_memory }
@@ -1179,13 +1179,14 @@ define void @intrinsics.codegen() {
 ; CHECK: attributes #26 = { sspstrong }
 ; CHECK: attributes #27 = { uwtable }
 ; CHECK: attributes #28 = { "cpu"="cortex-a8" }
-; CHECK: attributes #29 = { nofree nosync nounwind readnone willreturn }
-; CHECK: attributes #30 = { nofree nosync nounwind willreturn }
-; CHECK: attributes #31 = { argmemonly nounwind readonly }
-; CHECK: attributes #32 = { argmemonly nounwind }
-; CHECK: attributes #33 = { nounwind readonly }
-; CHECK: attributes #34 = { inaccessiblemem_or_argmemonly nofree nosync nounwind willreturn }
-; CHECK: attributes #35 = { builtin }
+; CHECK: attributes #29 = { nocallback nofree nosync nounwind willreturn memory(none) }
+; CHECK: attributes #30 = { nocallback nofree nosync nounwind willreturn }
+; CHECK: attributes #31 = { nounwind memory(argmem: read) }
+; CHECK: attributes #32 = { nounwind memory(argmem: readwrite) }
+; CHECK: attributes #33 = { nocallback nofree nosync nounwind willreturn memory(read) }
+; CHECK: attributes #34 = { nocallback nounwind }
+; CHECK: attributes #35 = { nocallback nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite) }
+; CHECK: attributes #36 = { builtin }
 
 ;; Metadata
 

@@ -20,7 +20,7 @@ namespace cppcoreguidelines {
 ///   i += 0.1;
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/cppcoreguidelines-narrowing-conversions.html
+/// http://clang.llvm.org/extra/clang-tidy/checks/cppcoreguidelines/narrowing-conversions.html
 class NarrowingConversionsCheck : public ClangTidyCheck {
 public:
   NarrowingConversionsCheck(StringRef Name, ClangTidyContext *Context);
@@ -102,7 +102,7 @@ private:
   const bool WarnOnFloatingPointNarrowingConversion;
   const bool WarnWithinTemplateInstantiation;
   const bool WarnOnEquivalentBitWidth;
-  const std::string IgnoreConversionFromTypes;
+  const StringRef IgnoreConversionFromTypes;
   const bool PedanticMode;
 };
 

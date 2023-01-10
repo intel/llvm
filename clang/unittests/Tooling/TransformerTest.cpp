@@ -12,6 +12,7 @@
 #include "clang/Tooling/Transformer/RangeSelector.h"
 #include "clang/Tooling/Transformer/RewriteRule.h"
 #include "clang/Tooling/Transformer/Stencil.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "gmock/gmock.h"
@@ -31,9 +32,11 @@ using ::clang::transformer::makeRule;
 using ::clang::transformer::member;
 using ::clang::transformer::name;
 using ::clang::transformer::node;
+using ::clang::transformer::noEdits;
 using ::clang::transformer::remove;
 using ::clang::transformer::rewriteDescendants;
 using ::clang::transformer::RewriteRule;
+using ::clang::transformer::RewriteRuleWith;
 using ::clang::transformer::statement;
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
@@ -80,7 +83,7 @@ static std::string format(StringRef Code) {
 }
 
 static void compareSnippets(StringRef Expected,
-                     const llvm::Optional<std::string> &MaybeActual) {
+                            const llvm::Optional<std::string> &MaybeActual) {
   ASSERT_TRUE(MaybeActual) << "Rewrite failed. Expecting: " << Expected;
   auto Actual = *MaybeActual;
   std::string HL = "#include \"header.h\"\n";
@@ -107,18 +110,18 @@ protected:
             "clang-tool", std::make_shared<PCHContainerOperations>(),
             FileContents)) {
       llvm::errs() << "Running tool failed.\n";
-      return None;
+      return std::nullopt;
     }
     if (ErrorCount != 0) {
       llvm::errs() << "Generating changes failed.\n";
-      return None;
+      return std::nullopt;
     }
     auto ChangedCode =
         applyAtomicChanges("input.cc", Code, Changes, ApplyChangesSpec());
     if (!ChangedCode) {
       llvm::errs() << "Applying changes failed: "
                    << llvm::toString(ChangedCode.takeError()) << "\n";
-      return None;
+      return std::nullopt;
     }
     return *ChangedCode;
   }
@@ -129,7 +132,7 @@ protected:
         Changes.insert(Changes.end(), std::make_move_iterator(C->begin()),
                        std::make_move_iterator(C->end()));
       } else {
-        // FIXME: stash this error rather then printing.
+        // FIXME: stash this error rather than printing.
         llvm::errs() << "Error generating changes: "
                      << llvm::toString(C.takeError()) << "\n";
         ++ErrorCount;
@@ -137,17 +140,47 @@ protected:
     };
   }
 
-  template <typename R>
-  void testRule(R Rule, StringRef Input, StringRef Expected) {
+  auto consumerWithStringMetadata() {
+    return [this](Expected<TransformerResult<std::string>> C) {
+      if (C) {
+        Changes.insert(Changes.end(),
+                       std::make_move_iterator(C->Changes.begin()),
+                       std::make_move_iterator(C->Changes.end()));
+        StringMetadata.push_back(std::move(C->Metadata));
+      } else {
+        // FIXME: stash this error rather than printing.
+        llvm::errs() << "Error generating changes: "
+                     << llvm::toString(C.takeError()) << "\n";
+        ++ErrorCount;
+      }
+    };
+  }
+
+  void testRule(RewriteRule Rule, StringRef Input, StringRef Expected) {
     Transformers.push_back(
         std::make_unique<Transformer>(std::move(Rule), consumer()));
     Transformers.back()->registerMatchers(&MatchFinder);
     compareSnippets(Expected, rewrite(Input));
   }
 
-  template <typename R> void testRuleFailure(R Rule, StringRef Input) {
+  void testRule(RewriteRuleWith<std::string> Rule, StringRef Input,
+                StringRef Expected) {
+    Transformers.push_back(std::make_unique<Transformer>(
+        std::move(Rule), consumerWithStringMetadata()));
+    Transformers.back()->registerMatchers(&MatchFinder);
+    compareSnippets(Expected, rewrite(Input));
+  }
+
+  void testRuleFailure(RewriteRule Rule, StringRef Input) {
     Transformers.push_back(
         std::make_unique<Transformer>(std::move(Rule), consumer()));
+    Transformers.back()->registerMatchers(&MatchFinder);
+    ASSERT_FALSE(rewrite(Input)) << "Expected failure to rewrite code";
+  }
+
+  void testRuleFailure(RewriteRuleWith<std::string> Rule, StringRef Input) {
+    Transformers.push_back(std::make_unique<Transformer>(
+        std::move(Rule), consumerWithStringMetadata()));
     Transformers.back()->registerMatchers(&MatchFinder);
     ASSERT_FALSE(rewrite(Input)) << "Expected failure to rewrite code";
   }
@@ -158,6 +191,7 @@ protected:
   // Records whether any errors occurred in individual changes.
   int ErrorCount = 0;
   AtomicChanges Changes;
+  std::vector<std::string> StringMetadata;
 
 private:
   FileContentMappings FileContents = {{"header.h", ""}};
@@ -169,7 +203,7 @@ protected:
 };
 
 // Given string s, change strlen($s.c_str()) to REPLACED.
-static RewriteRule ruleStrlenSize() {
+static RewriteRuleWith<std::string> ruleStrlenSize() {
   StringRef StringExpr = "strexpr";
   auto StringType = namedDecl(hasAnyName("::basic_string", "::string"));
   auto R = makeRule(
@@ -886,12 +920,12 @@ TEST_F(TransformerTest, FlattenWithMixedArgs) {
 
 TEST_F(TransformerTest, OrderedRuleUnrelated) {
   StringRef Flag = "flag";
-  RewriteRule FlagRule = makeRule(
+  RewriteRuleWith<std::string> FlagRule = makeRule(
       cxxMemberCallExpr(on(expr(hasType(cxxRecordDecl(
                                     hasName("proto::ProtoCommandLineFlag"))))
                                .bind(Flag)),
                         unless(callee(cxxMethodDecl(hasName("GetProto"))))),
-      changeTo(node(std::string(Flag)), cat("PROTO")));
+      changeTo(node(std::string(Flag)), cat("PROTO")), cat(""));
 
   std::string Input = R"cc(
     proto::ProtoCommandLineFlag flag;
@@ -1232,31 +1266,29 @@ void testIt()
   auto RewriteOutput =
       CodePrefix + RangeLoop + LoopBody + RangeLoop + LoopBody + CodeSuffix;
 
-    auto MatchedLoop = forStmt(
-        has(declStmt(
-            hasSingleDecl(varDecl(hasInitializer(integerLiteral(equals(0))))
-                              .bind("loopVar")))),
-        has(binaryOperator(hasOperatorName("!="),
-                           hasLHS(ignoringImplicit(declRefExpr(
-                               to(varDecl(equalsBoundNode("loopVar")))))),
-                           hasRHS(expr().bind("upperBoundExpr")))),
-        has(unaryOperator(hasOperatorName("++"),
-                          hasUnaryOperand(declRefExpr(
-                              to(varDecl(equalsBoundNode("loopVar"))))))
-                .bind("incrementOp")));
+  auto MatchedLoop = forStmt(
+      has(declStmt(hasSingleDecl(
+          varDecl(hasInitializer(integerLiteral(equals(0)))).bind("loopVar")))),
+      has(binaryOperator(hasOperatorName("!="),
+                         hasLHS(ignoringImplicit(declRefExpr(
+                             to(varDecl(equalsBoundNode("loopVar")))))),
+                         hasRHS(expr().bind("upperBoundExpr")))),
+      has(unaryOperator(hasOperatorName("++"),
+                        hasUnaryOperand(declRefExpr(
+                            to(varDecl(equalsBoundNode("loopVar"))))))
+              .bind("incrementOp")));
 
-    auto RewriteRule =
-        changeTo(transformer::enclose(node("loopVar"), node("incrementOp")),
-                 cat("auto ", name("loopVar"), " : boost::irange(",
-                     node("upperBoundExpr"), ")"));
+  auto RewriteRule =
+      changeTo(transformer::enclose(node("loopVar"), node("incrementOp")),
+               cat("auto ", name("loopVar"), " : boost::irange(",
+                   node("upperBoundExpr"), ")"));
 
-    testRule(makeRule(traverse(TK_IgnoreUnlessSpelledInSource, MatchedLoop),
-                      RewriteRule),
-             RewriteInput, RewriteOutput);
+  testRule(makeRule(traverse(TK_IgnoreUnlessSpelledInSource, MatchedLoop),
+                    RewriteRule),
+           RewriteInput, RewriteOutput);
 
-    testRuleFailure(makeRule(traverse(TK_AsIs, MatchedLoop), RewriteRule),
-                    RewriteInput);
-
+  testRuleFailure(makeRule(traverse(TK_AsIs, MatchedLoop), RewriteRule),
+                  RewriteInput);
 }
 
 TEST_F(TransformerTest, ImplicitNodes_ForStmt2) {
@@ -1305,31 +1337,29 @@ void testIt()
 
   auto RewriteOutput =
       CodePrefix + RangeLoop + LoopBody + RangeLoop + LoopBody + CodeSuffix;
-    auto MatchedLoop = forStmt(
-        hasLoopInit(declStmt(
-            hasSingleDecl(varDecl(hasInitializer(integerLiteral(equals(0))))
-                              .bind("loopVar")))),
-        hasCondition(binaryOperator(hasOperatorName("!="),
-                                    hasLHS(ignoringImplicit(declRefExpr(to(
-                                        varDecl(equalsBoundNode("loopVar")))))),
-                                    hasRHS(expr().bind("upperBoundExpr")))),
-        hasIncrement(unaryOperator(hasOperatorName("++"),
-                                   hasUnaryOperand(declRefExpr(to(
-                                       varDecl(equalsBoundNode("loopVar"))))))
-                         .bind("incrementOp")));
+  auto MatchedLoop = forStmt(
+      hasLoopInit(declStmt(hasSingleDecl(
+          varDecl(hasInitializer(integerLiteral(equals(0)))).bind("loopVar")))),
+      hasCondition(binaryOperator(hasOperatorName("!="),
+                                  hasLHS(ignoringImplicit(declRefExpr(to(
+                                      varDecl(equalsBoundNode("loopVar")))))),
+                                  hasRHS(expr().bind("upperBoundExpr")))),
+      hasIncrement(unaryOperator(hasOperatorName("++"),
+                                 hasUnaryOperand(declRefExpr(
+                                     to(varDecl(equalsBoundNode("loopVar"))))))
+                       .bind("incrementOp")));
 
-    auto RewriteRule =
-        changeTo(transformer::enclose(node("loopVar"), node("incrementOp")),
-                 cat("auto ", name("loopVar"), " : boost::irange(",
-                     node("upperBoundExpr"), ")"));
+  auto RewriteRule =
+      changeTo(transformer::enclose(node("loopVar"), node("incrementOp")),
+               cat("auto ", name("loopVar"), " : boost::irange(",
+                   node("upperBoundExpr"), ")"));
 
-    testRule(makeRule(traverse(TK_IgnoreUnlessSpelledInSource, MatchedLoop),
-                      RewriteRule),
-             RewriteInput, RewriteOutput);
+  testRule(makeRule(traverse(TK_IgnoreUnlessSpelledInSource, MatchedLoop),
+                    RewriteRule),
+           RewriteInput, RewriteOutput);
 
-    testRuleFailure(makeRule(traverse(TK_AsIs, MatchedLoop), RewriteRule),
-                    RewriteInput);
-
+  testRuleFailure(makeRule(traverse(TK_AsIs, MatchedLoop), RewriteRule),
+                  RewriteInput);
 }
 
 TEST_F(TransformerTest, TemplateInstantiation) {
@@ -1588,10 +1618,9 @@ TEST_F(TransformerTest, MultipleFiles) {
       "clang-tool", std::make_shared<PCHContainerOperations>(),
       {{"input.h", Header}}));
 
-  std::sort(Changes.begin(), Changes.end(),
-            [](const AtomicChange &L, const AtomicChange &R) {
-              return L.getFilePath() < R.getFilePath();
-            });
+  llvm::sort(Changes, [](const AtomicChange &L, const AtomicChange &R) {
+    return L.getFilePath() < R.getFilePath();
+  });
 
   ASSERT_EQ(Changes[0].getFilePath(), "./input.h");
   EXPECT_THAT(Changes[0].getInsertedHeaders(), IsEmpty());
@@ -1657,8 +1686,8 @@ TEST_F(TransformerTest, MultiFileEdit) {
       makeRule(callExpr(callee(functionDecl(hasName("Func"))),
                         forEachArgumentWithParam(expr().bind("arg"),
                                                  parmVarDecl().bind("param"))),
-               editList({changeTo(node("arg"), cat("ARG")),
-                         changeTo(node("param"), cat("PARAM"))})),
+               {changeTo(node("arg"), cat("ARG")),
+                changeTo(node("param"), cat("PARAM"))}),
       [&](Expected<MutableArrayRef<AtomicChange>> Changes) {
         if (Changes)
           ChangeSets.push_back(AtomicChanges(Changes->begin(), Changes->end()));
@@ -1680,6 +1709,41 @@ TEST_F(TransformerTest, MultiFileEdit) {
                    "input.cc"),
           ResultOf([](const AtomicChange &C) { return C.getFilePath(); },
                    "./input.h"))));
+}
+
+TEST_F(TransformerTest, GeneratesMetadata) {
+  std::string Input = R"cc(int target = 0;)cc";
+  std::string Expected = R"cc(REPLACE)cc";
+  RewriteRuleWith<std::string> Rule = makeRule(
+      varDecl(hasName("target")), changeTo(cat("REPLACE")), cat("METADATA"));
+  testRule(std::move(Rule), Input, Expected);
+  EXPECT_EQ(ErrorCount, 0);
+  EXPECT_THAT(StringMetadata, UnorderedElementsAre("METADATA"));
+}
+
+TEST_F(TransformerTest, GeneratesMetadataWithNoEdits) {
+  std::string Input = R"cc(int target = 0;)cc";
+  RewriteRuleWith<std::string> Rule = makeRule(
+      varDecl(hasName("target")).bind("var"), noEdits(), cat("METADATA"));
+  testRule(std::move(Rule), Input, Input);
+  EXPECT_EQ(ErrorCount, 0);
+  EXPECT_THAT(StringMetadata, UnorderedElementsAre("METADATA"));
+}
+
+TEST_F(TransformerTest, PropagateMetadataErrors) {
+  class AlwaysFail : public transformer::MatchComputation<std::string> {
+    llvm::Error eval(const ast_matchers::MatchFinder::MatchResult &,
+                     std::string *) const override {
+      return llvm::createStringError(llvm::errc::invalid_argument, "ERROR");
+    }
+    std::string toString() const override { return "AlwaysFail"; }
+  };
+  std::string Input = R"cc(int target = 0;)cc";
+  RewriteRuleWith<std::string> Rule = makeRule<std::string>(
+      varDecl(hasName("target")).bind("var"), changeTo(cat("REPLACE")),
+      std::make_shared<AlwaysFail>());
+  testRuleFailure(std::move(Rule), Input);
+  EXPECT_EQ(ErrorCount, 1);
 }
 
 } // namespace

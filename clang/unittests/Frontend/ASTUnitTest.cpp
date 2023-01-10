@@ -43,7 +43,9 @@ protected:
 
     Diags = CompilerInstance::createDiagnostics(new DiagnosticOptions());
 
-    CInvok = createInvocationFromCommandLine(Args, Diags);
+    CreateInvocationOptions CIOpts;
+    CIOpts.Diags = Diags;
+    CInvok = createInvocation(Args, std::move(CIOpts));
 
     if (!CInvok)
       return nullptr;
@@ -133,7 +135,9 @@ TEST_F(ASTUnitTest, ModuleTextualHeader) {
   const char *Args[] = {"clang", "test.cpp", "-fmodule-map-file=m.modulemap",
                         "-fmodule-name=M"};
   Diags = CompilerInstance::createDiagnostics(new DiagnosticOptions());
-  CInvok = createInvocationFromCommandLine(Args, Diags);
+  CreateInvocationOptions CIOpts;
+  CIOpts.Diags = Diags;
+  CInvok = createInvocation(Args, std::move(CIOpts));
   ASSERT_TRUE(CInvok);
 
   FileManager *FileMgr = new FileManager(FileSystemOptions(), InMemoryFs);
@@ -164,9 +168,9 @@ TEST_F(ASTUnitTest, LoadFromCommandLineEarlyError) {
 
   ASTUnit *AST = ASTUnit::LoadFromCommandLine(
       &Args[0], &Args[4], PCHContainerOps, Diags, "", false,
-      CaptureDiagsKind::All, None, true, 0, TU_Complete, false, false, false,
-      SkipFunctionBodiesScope::None, false, true, false, false, None, &ErrUnit,
-      nullptr);
+      CaptureDiagsKind::All, std::nullopt, true, 0, TU_Complete, false, false,
+      false, SkipFunctionBodiesScope::None, false, true, false, false,
+      std::nullopt, &ErrUnit, nullptr);
 
   ASSERT_EQ(AST, nullptr);
   ASSERT_NE(ErrUnit, nullptr);

@@ -28,6 +28,7 @@ def RawFrmImm8    : Format<7>;
 def RawFrmImm16   : Format<8>;
 def AddCCFrm      : Format<9>;
 def PrefixByte    : Format<10>;
+def MRMDestMem4VOp3CC : Format<20>;
 def MRMr0          : Format<21>;
 def MRMSrcMemFSIB  : Format<22>;
 def MRMDestMemFSIB : Format<23>;
@@ -196,7 +197,7 @@ class OpSize32 { OperandSize OpSize = OpSize32; }
 class AdSize16 { AddressSize AdSize = AdSize16; }
 class AdSize32 { AddressSize AdSize = AdSize32; }
 class AdSize64 { AddressSize AdSize = AdSize64; }
-class REX_W  { bit hasREX_WPrefix = 1; }
+class REX_W  { bit hasREX_W = 1; }
 class LOCK   { bit hasLockPrefix = 1; }
 class REP    { bit hasREPPrefix = 1; }
 class TB     { Map OpMap = TB; }
@@ -316,7 +317,7 @@ class X86Inst<bits<8> opcod, Format f, ImmType i, dag outs, dag ins,
   bits<3> OpPrefixBits = OpPrefix.Value;
   Map OpMap = OB;           // Which opcode map does this inst have?
   bits<4> OpMapBits = OpMap.Value;
-  bit hasREX_WPrefix  = 0;  // Does this inst require the REX.W prefix?
+  bit hasREX_W  = 0;  // Does this inst require the REX.W prefix?
   FPFormat FPForm = NotFP;  // What flavor of FP instruction is this?
   bit hasLockPrefix = 0;    // Does this inst have a 0xF0 prefix?
   Domain ExeDomain = d;
@@ -375,7 +376,7 @@ class X86Inst<bits<8> opcod, Format f, ImmType i, dag outs, dag ins,
   // No need for 3rd bit, we don't need to distinguish NoPrfx from PS.
   let TSFlags{12-11} = OpPrefixBits{1-0};
   let TSFlags{16-13} = OpMapBits;
-  let TSFlags{17}    = hasREX_WPrefix;
+  let TSFlags{17}    = hasREX_W;
   let TSFlags{21-18} = ImmT.Value;
   let TSFlags{24-22} = FPForm.Value;
   let TSFlags{25}    = hasLockPrefix;
@@ -472,13 +473,15 @@ class Ii32PCRel<bits<8> o, Format f, dag outs, dag ins, string asm,
 class FPI<bits<8> o, Format F, dag outs, dag ins, string asm>
   : I<o, F, outs, ins, asm, []> {
   let Defs = [FPSW];
+  let Predicates = [HasX87];
 }
 
-// FpI_ - Floating Point Pseudo Instruction template. Not Predicated.
+// FpI_ - Floating Point Pseudo Instruction template.
 class FpI_<dag outs, dag ins, FPFormat fp, list<dag> pattern>
   : PseudoI<outs, ins, pattern> {
   let FPForm = fp;
   let Defs = [FPSW];
+  let Predicates = [HasX87];
 }
 
 // Templates for instructions that use a 16- or 32-bit segmented address as
@@ -1011,7 +1014,8 @@ class MMXI64<bits<8> o, Format F, dag outs, dag ins, string asm,
       : I<o, F, outs, ins, asm, pattern>, PS, Requires<[HasMMX,In64BitMode]>;
 class MMXRI<bits<8> o, Format F, dag outs, dag ins, string asm,
             list<dag> pattern>
-      : I<o, F, outs, ins, asm, pattern>, PS, REX_W, Requires<[HasMMX]>;
+      : I<o, F, outs, ins, asm, pattern>, PS, REX_W,
+        Requires<[HasMMX,In64BitMode]>;
 class MMX2I<bits<8> o, Format F, dag outs, dag ins, string asm,
             list<dag> pattern>
       : I<o, F, outs, ins, asm, pattern>, PD, Requires<[HasMMX]>;

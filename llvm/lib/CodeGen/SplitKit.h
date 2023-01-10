@@ -22,19 +22,18 @@
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/CodeGen/LiveInterval.h"
 #include "llvm/CodeGen/LiveIntervalCalc.h"
 #include "llvm/CodeGen/LiveIntervals.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/SlotIndexes.h"
-#include "llvm/MC/LaneBitmask.h"
 #include "llvm/Support/Compiler.h"
 #include <utility>
 
 namespace llvm {
 
-class AAResults;
+class LiveInterval;
+class LiveRange;
 class LiveIntervals;
 class LiveRangeEdit;
 class MachineBlockFrequencyInfo;
@@ -257,7 +256,6 @@ public:
 ///
 class LLVM_LIBRARY_VISIBILITY SplitEditor {
   SplitAnalysis &SA;
-  AAResults &AA;
   LiveIntervals &LIS;
   VirtRegMap &VRM;
   MachineRegisterInfo &MRI;
@@ -436,9 +434,9 @@ private:
 public:
   /// Create a new SplitEditor for editing the LiveInterval analyzed by SA.
   /// Newly created intervals will be appended to newIntervals.
-  SplitEditor(SplitAnalysis &SA, AAResults &AA, LiveIntervals &LIS,
-              VirtRegMap &VRM, MachineDominatorTree &MDT,
-              MachineBlockFrequencyInfo &MBFI, VirtRegAuxInfo &VRAI);
+  SplitEditor(SplitAnalysis &SA, LiveIntervals &LIS, VirtRegMap &VRM,
+              MachineDominatorTree &MDT, MachineBlockFrequencyInfo &MBFI,
+              VirtRegAuxInfo &VRAI);
 
   /// reset - Prepare for a new split.
   void reset(LiveRangeEdit&, ComplementSpillMode = SM_Partition);

@@ -18,26 +18,6 @@ namespace tidy {
 namespace misc {
 
 namespace {
-// FIXME: Move ASTMatcher library.
-AST_POLYMORPHIC_MATCHER_P(
-    forEachTemplateArgument,
-    AST_POLYMORPHIC_SUPPORTED_TYPES(ClassTemplateSpecializationDecl,
-                                    TemplateSpecializationType, FunctionDecl),
-    clang::ast_matchers::internal::Matcher<TemplateArgument>, InnerMatcher) {
-  ArrayRef<TemplateArgument> TemplateArgs =
-      clang::ast_matchers::internal::getTemplateSpecializationArgs(Node);
-  clang::ast_matchers::internal::BoundNodesTreeBuilder Result;
-  bool Matched = false;
-  for (const auto &Arg : TemplateArgs) {
-    clang::ast_matchers::internal::BoundNodesTreeBuilder ArgBuilder(*Builder);
-    if (InnerMatcher.matches(Arg, Finder, &ArgBuilder)) {
-      Matched = true;
-      Result.addMatch(ArgBuilder);
-    }
-  }
-  *Builder = std::move(Result);
-  return Matched;
-}
 
 AST_MATCHER_P(DeducedTemplateSpecializationType, refsToTemplatedDecl,
               clang::ast_matchers::internal::Matcher<NamedDecl>, DeclMatcher) {
@@ -74,6 +54,7 @@ void UnusedUsingDeclsCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(loc(templateSpecializationType(forEachTemplateArgument(
                          templateArgument().bind("used")))),
                      this);
+  Finder->addMatcher(userDefinedLiteral().bind("used"), this);
   // Cases where we can identify the UsingShadowDecl directly, rather than
   // just its target.
   // FIXME: cover more cases in this way, as the AST supports it.
@@ -126,9 +107,6 @@ void UnusedUsingDeclsCheck::check(const MatchFinder::MatchResult &Result) {
     } else if (const auto *Specialization =
                    dyn_cast<ClassTemplateSpecializationDecl>(Used)) {
       removeFromFoundDecls(Specialization->getSpecializedTemplate());
-    } else if (const auto *FD = dyn_cast<FunctionDecl>(Used)) {
-      if (const auto *FDT = FD->getPrimaryTemplate())
-        removeFromFoundDecls(FDT);
     } else if (const auto *ECD = dyn_cast<EnumConstantDecl>(Used)) {
       if (const auto *ET = ECD->getType()->getAs<EnumType>())
         removeFromFoundDecls(ET->getDecl());
@@ -170,7 +148,11 @@ void UnusedUsingDeclsCheck::check(const MatchFinder::MatchResult &Result) {
       if (const auto *USD = dyn_cast<UsingShadowDecl>(ND))
         removeFromFoundDecls(USD->getTargetDecl()->getCanonicalDecl());
     }
+    return;
   }
+  // Check user-defined literals
+  if (const auto *UDL = Result.Nodes.getNodeAs<UserDefinedLiteral>("used"))
+    removeFromFoundDecls(UDL->getCalleeDecl());
 }
 
 void UnusedUsingDeclsCheck::removeFromFoundDecls(const Decl *D) {

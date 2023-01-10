@@ -14,14 +14,12 @@
 #include "llvm/ProfileData/InstrProfReader.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/ProfileSummary.h"
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/ProfileData/MemProf.h"
 #include "llvm/ProfileData/ProfileCommon.h"
-#include "llvm/ProfileData/RawMemProfReader.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorOr.h"
@@ -29,7 +27,6 @@
 #include "llvm/Support/SwapByteOrder.h"
 #include "llvm/Support/SymbolRemappingReader.h"
 #include <algorithm>
-#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -451,7 +448,7 @@ Error RawInstrProfReader<IntPtrT>::readHeader(
     return error(instrprof_error::bad_header);
 
   std::unique_ptr<InstrProfSymtab> NewSymtab = std::make_unique<InstrProfSymtab>();
-  if (Error E = createSymtab(*NewSymtab.get()))
+  if (Error E = createSymtab(*NewSymtab))
     return E;
 
   Symtab = std::move(NewSymtab);
@@ -548,7 +545,9 @@ Error RawInstrProfReader<IntPtrT>::readValueProfilingData(
 
 template <class IntPtrT>
 Error RawInstrProfReader<IntPtrT>::readNextRecord(NamedInstrProfRecord &Record) {
-  if (atEnd())
+  // Keep reading profiles that consist of only headers and no profile data and
+  // counters.
+  while (atEnd())
     // At this point, ValueDataStart field points to the next header.
     if (Error E = readNextHeader(getNextHeaderPos()))
       return error(std::move(E));
@@ -972,8 +971,14 @@ Error IndexedInstrProfReader::readHeader() {
         endian::byte_swap<uint64_t, little>(Header->MemProfOffset);
 
     const unsigned char *Ptr = Start + MemProfOffset;
-    // The value returned from Generator.Emit.
-    const uint64_t TableOffset =
+    // The value returned from RecordTableGenerator.Emit.
+    const uint64_t RecordTableOffset =
+        support::endian::readNext<uint64_t, little, unaligned>(Ptr);
+    // The offset in the stream right before invoking FrameTableGenerator.Emit.
+    const uint64_t FramePayloadOffset =
+        support::endian::readNext<uint64_t, little, unaligned>(Ptr);
+    // The value returned from FrameTableGenerator.Emit.
+    const uint64_t FrameTableOffset =
         support::endian::readNext<uint64_t, little, unaligned>(Ptr);
 
     // Read the schema.
@@ -983,10 +988,16 @@ Error IndexedInstrProfReader::readHeader() {
     Schema = SchemaOr.get();
 
     // Now initialize the table reader with a pointer into data buffer.
-    MemProfTable.reset(MemProfHashTable::Create(
-        /*Buckets=*/Start + TableOffset,
+    MemProfRecordTable.reset(MemProfRecordHashTable::Create(
+        /*Buckets=*/Start + RecordTableOffset,
         /*Payload=*/Ptr,
-        /*Base=*/Start, memprof::MemProfRecordLookupTrait(Schema)));
+        /*Base=*/Start, memprof::RecordLookupTrait(Schema)));
+
+    // Initialize the frame table reader with the payload and bucket offsets.
+    MemProfFrameTable.reset(MemProfFrameHashTable::Create(
+        /*Buckets=*/Start + FrameTableOffset,
+        /*Payload=*/Start + FramePayloadOffset,
+        /*Base=*/Start, memprof::FrameLookupTrait()));
   }
 
   // Load the remapping table now if requested.
@@ -1005,46 +1016,98 @@ Error IndexedInstrProfReader::readHeader() {
 }
 
 InstrProfSymtab &IndexedInstrProfReader::getSymtab() {
-  if (Symtab.get())
-    return *Symtab.get();
+  if (Symtab)
+    return *Symtab;
 
   std::unique_ptr<InstrProfSymtab> NewSymtab = std::make_unique<InstrProfSymtab>();
-  if (Error E = Index->populateSymtab(*NewSymtab.get())) {
+  if (Error E = Index->populateSymtab(*NewSymtab)) {
     consumeError(error(InstrProfError::take(std::move(E))));
   }
 
   Symtab = std::move(NewSymtab);
-  return *Symtab.get();
+  return *Symtab;
 }
 
-Expected<InstrProfRecord>
-IndexedInstrProfReader::getInstrProfRecord(StringRef FuncName,
-                                           uint64_t FuncHash) {
+Expected<InstrProfRecord> IndexedInstrProfReader::getInstrProfRecord(
+    StringRef FuncName, uint64_t FuncHash, uint64_t *MismatchedFuncSum) {
   ArrayRef<NamedInstrProfRecord> Data;
+  uint64_t FuncSum = 0;
   Error Err = Remapper->getRecords(FuncName, Data);
   if (Err)
     return std::move(Err);
   // Found it. Look for counters with the right hash.
+
+  // A flag to indicate if the records are from the same type
+  // of profile (i.e cs vs nocs).
+  bool CSBitMatch = false;
+  auto getFuncSum = [](const std::vector<uint64_t> &Counts) {
+    uint64_t ValueSum = 0;
+    for (uint64_t CountValue : Counts) {
+      if (CountValue == (uint64_t)-1)
+        continue;
+      // Handle overflow -- if that happens, return max.
+      if (std::numeric_limits<uint64_t>::max() - CountValue <= ValueSum)
+        return std::numeric_limits<uint64_t>::max();
+      ValueSum += CountValue;
+    }
+    return ValueSum;
+  };
+
   for (const NamedInstrProfRecord &I : Data) {
     // Check for a match and fill the vector if there is one.
     if (I.Hash == FuncHash)
       return std::move(I);
+    if (NamedInstrProfRecord::hasCSFlagInHash(I.Hash) ==
+        NamedInstrProfRecord::hasCSFlagInHash(FuncHash)) {
+      CSBitMatch = true;
+      if (MismatchedFuncSum == nullptr)
+        continue;
+      FuncSum = std::max(FuncSum, getFuncSum(I.Counts));
+    }
   }
-  return error(instrprof_error::hash_mismatch);
+  if (CSBitMatch) {
+    if (MismatchedFuncSum != nullptr)
+      *MismatchedFuncSum = FuncSum;
+    return error(instrprof_error::hash_mismatch);
+  }
+  return error(instrprof_error::unknown_function);
 }
 
-Expected<ArrayRef<memprof::MemProfRecord>>
+Expected<memprof::MemProfRecord>
 IndexedInstrProfReader::getMemProfRecord(const uint64_t FuncNameHash) {
   // TODO: Add memprof specific errors.
-  if (MemProfTable == nullptr)
+  if (MemProfRecordTable == nullptr)
     return make_error<InstrProfError>(instrprof_error::invalid_prof,
                                       "no memprof data available in profile");
-  auto Iter = MemProfTable->find(FuncNameHash);
-  if (Iter == MemProfTable->end())
+  auto Iter = MemProfRecordTable->find(FuncNameHash);
+  if (Iter == MemProfRecordTable->end())
+    return make_error<InstrProfError>(
+        instrprof_error::unknown_function,
+        "memprof record not found for function hash " + Twine(FuncNameHash));
+
+  // Setup a callback to convert from frame ids to frame using the on-disk
+  // FrameData hash table.
+  memprof::FrameId LastUnmappedFrameId = 0;
+  bool HasFrameMappingError = false;
+  auto IdToFrameCallback = [&](const memprof::FrameId Id) {
+    auto FrIter = MemProfFrameTable->find(Id);
+    if (FrIter == MemProfFrameTable->end()) {
+      LastUnmappedFrameId = Id;
+      HasFrameMappingError = true;
+      return memprof::Frame(0, 0, 0, false);
+    }
+    return *FrIter;
+  };
+
+  memprof::MemProfRecord Record(*Iter, IdToFrameCallback);
+
+  // Check that all frame ids were successfully converted to frames.
+  if (HasFrameMappingError) {
     return make_error<InstrProfError>(instrprof_error::hash_mismatch,
-                                      "memprof record not found for hash " +
-                                          Twine(FuncNameHash));
-  return *Iter;
+                                      "memprof frame not found for frame id " +
+                                          Twine(LastUnmappedFrameId));
+  }
+  return Record;
 }
 
 Error IndexedInstrProfReader::getFunctionCounts(StringRef FuncName,

@@ -8,6 +8,6 @@
 @implementation I
 @synthesize LONG_PROP;
 @end
-// CHECK-ARM: call void @objc_copyStruct(i8* noundef %{{.*}}, i8* noundef %{{.*}}, i32 noundef 8, i1 noundef zeroext true, i1 noundef zeroext false)
-// CHECK-ARM: call void @objc_copyStruct(i8* noundef %{{.*}}, i8* noundef %{{.*}}, i32 noundef 8, i1 noundef zeroext true, i1 noundef zeroext false)
+// CHECK-ARM: call void @objc_copyStruct(ptr noundef %{{.*}}, ptr noundef %{{.*}}, i32 noundef 8, i1 noundef zeroext true, i1 noundef zeroext false)
+// CHECK-ARM: call void @objc_copyStruct(ptr noundef %{{.*}}, ptr noundef %{{.*}}, i32 noundef 8, i1 noundef zeroext true, i1 noundef zeroext false)
 

@@ -26,6 +26,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/StringSaver.h"
@@ -45,6 +46,12 @@ static cl::opt<std::string> Output("o", cl::value_desc("output IR filename"),
 static cl::opt<std::string>
     LlvmSpirvOpts("llvm-spirv-opts", cl::value_desc("llvm-spirv options"),
                   cl::desc("options to pass to llvm-spirv"));
+
+// SkipUnknown - Skip unknown files (create empty output instead)
+static cl::opt<bool>
+    SkipUnknown("skip-unknown-input",
+                cl::desc("Only pass through files that are LLVM-IR or "
+                         "converted from SPIR-V"));
 
 static void error(const Twine &Message) {
   llvm::errs() << "spirv-to-ir-wrapper: " << Message << '\n';
@@ -82,6 +89,14 @@ static int copyInputToOutput() {
   return llvm::sys::fs::copy_file(InputFilename, Output).value();
 }
 
+static int createEmptyOutput() {
+  int FD = 0;
+  if (std::error_code EC = openFileForWrite(
+          Output, FD, sys::fs::CD_CreateAlways, sys::fs::OF_None))
+    return EC.value();
+  return llvm::sys::Process::SafelyCloseFileDescriptor(FD).value();
+}
+
 static bool isSPIRVBinary(const std::string &File) {
   auto FileOrError = MemoryBuffer::getFile(File, /*IsText=*/false,
                                            /*RequiresNullTerminator=*/false);
@@ -113,6 +128,9 @@ static int checkInputFileIsAlreadyLLVM(const char *Argv0) {
     return copyInputToOutput();
   if (Ext == "spv" || isSPIRVBinary(InputFilename))
     return convertSPIRVToLLVMIR(Argv0);
+
+  if (SkipUnknown)
+    return createEmptyOutput();
 
   // We could not directly determine the input file, so we just copy it
   // to the output file.

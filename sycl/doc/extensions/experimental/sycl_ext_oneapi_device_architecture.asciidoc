@@ -1,0 +1,613 @@
+= sycl_ext_oneapi_device_architecture
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 5 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+[comment]
+--
+_Add the following paragraph when this specification becomes "experimental"._
+
+There are important limitations with the DPC++ implementation of this
+experimental extension.  In particular, this extension may only be used when
+the application is compiled in AOT mode.  See the section below titled
+"Limitations with the experimental version" for a full description of the
+limitations.
+--
+
+
+== Overview
+
+This extension provides a way for device code to query the device architecture
+on which it is running.  This is similar to the
+link:./sycl_ext_oneapi_device_if.asciidoc[sycl_ext_oneapi_device_if] extension
+except the comparison is for the device's architecture not the device's
+aspects.  In some cases, low-level application code can use special features or
+do specific optimizations depending on the device architecture, and this
+extension enables such applications.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_DEVICE_ARCHITECTURE` to one of the values defined in the
+table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+
+|2
+|NVIDIA and AMD architectures are added.
+|===
+
+=== New enumeration of architectures
+
+This extension adds a new enumeration of the architectures that can be tested.
+
+```
+namespace sycl::ext::oneapi::experimental {
+
+enum class architecture : /* unspecified */ {
+  x86_64,
+  intel_gpu_bdw,
+  intel_gpu_skl,
+  intel_gpu_kbl,
+  intel_gpu_cfl,
+  intel_gpu_apl,
+  intel_gpu_glk,
+  intel_gpu_whl,
+  intel_gpu_aml,
+  intel_gpu_cml,
+  intel_gpu_icllp,
+  intel_gpu_ehl,
+  intel_gpu_tgllp,
+  intel_gpu_rkl,
+  intel_gpu_adl_s,
+  intel_gpu_rpl_s,
+  intel_gpu_adl_p,
+  intel_gpu_adl_n,
+  intel_gpu_dg1,
+  intel_gpu_acm_g10,
+  intel_gpu_acm_g11,
+  intel_gpu_acm_g12,
+  intel_gpu_pvc,
+
+  nvidia_gpu_sm_50,
+  nvidia_gpu_sm_52,
+  nvidia_gpu_sm_53,
+  nvidia_gpu_sm_60,
+  nvidia_gpu_sm_61,
+  nvidia_gpu_sm_62,
+  nvidia_gpu_sm_70,
+  nvidia_gpu_sm_72,
+  nvidia_gpu_sm_75,
+  nvidia_gpu_sm_80,
+  nvidia_gpu_sm_86,
+  nvidia_gpu_sm_87,
+  nvidia_gpu_sm_89,
+  nvidia_gpu_sm_90,
+
+  amd_gpu_gfx700,
+  amd_gpu_gfx701,
+  amd_gpu_gfx702,
+  amd_gpu_gfx801,
+  amd_gpu_gfx802,
+  amd_gpu_gfx803,
+  amd_gpu_gfx805,
+  amd_gpu_gfx810,
+  amd_gpu_gfx900,
+  amd_gpu_gfx902,
+  amd_gpu_gfx904,
+  amd_gpu_gfx906,
+  amd_gpu_gfx908,
+  amd_gpu_gfx90a,
+  amd_gpu_gfx1010,
+  amd_gpu_gfx1011,
+  amd_gpu_gfx1012,
+  amd_gpu_gfx1013,
+  amd_gpu_gfx1030,
+  amd_gpu_gfx1031,
+  amd_gpu_gfx1032,
+
+  intel_gpu_8_0_0 = intel_gpu_bdw,
+  intel_gpu_9_0_9 = intel_gpu_skl,
+  intel_gpu_9_1_9 = intel_gpu_kbl
+  intel_gpu_9_2_9 = intel_gpu_cfl,
+  intel_gpu_9_3_0 = intel_gpu_apl,
+  intel_gpu_9_4_0 = intel_gpu_glk,
+  intel_gpu_9_5_0 = intel_gpu_whl,
+  intel_gpu_9_6_0 = intel_gpu_aml,
+  intel_gpu_9_7_0 = intel_gpu_cml,
+  intel_gpu_11_0_0 = intel_gpu_icllp,
+  intel_gpu_11_2_0 = intel_gpu_ehl,
+  intel_gpu_12_0_0 = intel_gpu_tgllp,
+  intel_gpu_12_10_0 = intel_gpu_dg1 
+};
+
+} // namespace sycl::ext::oneapi::experimental
+```
+
+The following table tells which version of this extension first included each
+of these enumerators, and it provides a brief description of their meanings.
+
+[%header,cols="5,1,5"]
+|===
+|Enumerator name
+|Added in version
+|Description
+
+|`x86_64`
+|1
+|Any CPU device with the x86_64 instruction set.
+
+|`intel_gpu_bdw`
+|1
+|Broadwell Intel graphics architecture.
+
+|`intel_gpu_skl`
+|1
+|Broadwell Intel graphics architecture.
+
+|`intel_gpu_kbl`
+|1
+|Kaby Lake Intel graphics architecture.
+
+|`intel_gpu_cfl`
+|1
+|Coffee Lake Intel graphics architecture.
+
+|`intel_gpu_apl`
+|1
+|Apollo Lake Intel graphics architecture.
+
+|`intel_gpu_glk`
+|1
+|Gemini Lake Intel graphics architecture.
+
+|`intel_gpu_whl`
+|1
+|Whiskey Lake Intel graphics architecture.
+
+|`intel_gpu_aml`
+|1
+|Amber Lake Intel graphics architecture.
+
+|`intel_gpu_cml`
+|1
+|Comet Lake Intel graphics architecture.
+
+|`intel_gpu_icllp`
+|1
+|Ice Lake Intel graphics architecture.
+
+|`intel_gpu_ehl`
+|1
+|Elkhart Lake Intel graphics architecture.
+
+|`intel_gpu_tgllp`
+|1
+|Tiger Lake Intel graphics architecture.
+
+|`intel_gpu_rkl`
+|1
+|Rocket Lake Intel graphics architecture.
+
+|`intel_gpu_adl_s`
+|1
+|Alder Lake S Intel graphics architecture.
+
+|`intel_gpu_rpl_s`
+|1
+|Raptor Lake Intel graphics architecture.
+
+|`intel_gpu_adl_p`
+|1
+|Alder Lake P Intel graphics architecture.
+
+|`intel_gpu_adl_n`
+|1
+|Alder Lake N Intel graphics architecture.
+
+|`intel_gpu_dg1`
+|1
+|DG1 Intel graphics architecture.
+
+|`intel_gpu_acm_g10`
+|1
+|Alchemist G10 Intel graphics architecture.
+
+|`intel_gpu_acm_g11`
+|1
+|Alchemist G11 Intel graphics architecture.
+
+|`intel_gpu_acm_g12`
+|1
+|Alchemist G12 Intel graphics architecture.
+
+|`intel_gpu_pvc`
+|1
+|Ponte Vecchio Intel graphics architecture.
+
+|`intel_gpu_8_0_0`
+|1
+|Alias for `intel_gpu_bdw`.
+
+|`intel_gpu_9_0_9`
+|1
+|Alias for `intel_gpu_skl`.
+
+|`intel_gpu_9_1_9`
+|1
+|Alias for `intel_gpu_kbl`.
+
+|`intel_gpu_9_2_9`
+|1
+|Alias for `intel_gpu_cfl`.
+
+|`intel_gpu_9_3_0`
+|1
+|Alias for `intel_gpu_apl`.
+
+|`intel_gpu_9_4_0`
+|1
+|Alias for `intel_gpu_glk`.
+
+|`intel_gpu_9_5_0`
+|1
+|Alias for `intel_gpu_whl`.
+
+|`intel_gpu_9_6_0`
+|1
+|Alias for `intel_gpu_aml`.
+
+|`intel_gpu_9_7_0`
+|1
+|Alias for `intel_gpu_cml`.
+
+|`intel_gpu_11_0_0`
+|1
+|Alias for `intel_gpu_icllp`.
+
+|`intel_gpu_11_2_0`
+|1
+|Alias for `intel_gpu_ehl`.
+
+|`intel_gpu_12_0_0`
+|1
+|Alias for `intel_gpu_tgllp`.
+
+|`intel_gpu_12_10_0`
+|1
+|Alias for `intel_gpu_dg1`.
+
+|`nvidia_gpu_sm_50`
+|2
+|NVIDIA Maxwell architecture (compute capability 5.0).
+
+|`nvidia_gpu_sm_52`
+|2
+|NVIDIA Maxwell architecture (compute capability 5.2).
+
+|`nvidia_gpu_sm_53`
+|2
+|NVIDIA Maxwell architecture (compute capability 5.3).
+
+|`nvidia_gpu_sm_60`
+|2
+|NVIDIA Pascal architecture (compute capability 6.0).
+
+|`nvidia_gpu_sm_61`
+|2
+|NVIDIA Pascal architecture (compute capability 6.1).
+
+|`nvidia_gpu_sm_62`
+|2
+|NVIDIA Pascal architecture (compute capability 6.2).
+
+|`nvidia_gpu_sm_70`
+|2
+|NVIDIA Volta architecture (compute capability 7.0).
+
+|`nvidia_gpu_sm_72`
+|2
+|NVIDIA Volta architecture (compute capability 7.2).
+
+|`nvidia_gpu_sm_75`
+|2
+|NVIDIA Turing architecture (compute capability 7.5).
+
+|`nvidia_gpu_sm_80`
+|2
+|NVIDIA Ampere architecture (compute capability 8.0).
+
+|`nvidia_gpu_sm_86`
+|2
+|NVIDIA Ampere architecture (compute capability 8.6).
+
+|`nvidia_gpu_sm_87`
+|2
+|Jetson/Drive AGX Orin architecture.
+
+|`nvidia_gpu_sm_89`
+|2
+|NVIDIA Ada Lovelace architecture.
+
+|`nvidia_gpu_sm_90`
+|2
+|NVIDIA Hopper architecture.
+
+|`amd_gpu_gfx700`
+|2
+|AMD GCN GFX7 (Sea Islands (CI)) architecture.
+
+|`amd_gpu_gfx701`
+|2
+|AMD GCN GFX7 (Sea Islands (CI)) architecture.
+
+|`amd_gpu_gfx702`
+|2
+|AMD GCN GFX7 (Sea Islands (CI)) architecture.
+
+|`amd_gpu_gfx801`
+|2
+|AMD GCN GFX8 (Volcanic Islands (VI)) architecture.
+
+|`amd_gpu_gfx802`
+|2
+|AMD GCN GFX8 (Volcanic Islands (VI)) architecture.
+
+|`amd_gpu_gfx803`
+|2
+|AMD GCN GFX8 (Volcanic Islands (VI)) architecture.
+
+|`amd_gpu_gfx805`
+|2
+|AMD GCN GFX8 (Volcanic Islands (VI)) architecture.
+
+|`amd_gpu_gfx810`
+|2
+|AMD GCN GFX8 (Volcanic Islands (VI)) architecture.
+
+|`amd_gpu_gfx900`
+|2
+|AMD GCN GFX9 (Vega) architecture.
+
+|`amd_gpu_gfx902`
+|2
+|AMD GCN GFX9 (Vega) architecture.
+
+|`amd_gpu_gfx904`
+|2
+|AMD GCN GFX9 (Vega) architecture.
+
+|`amd_gpu_gfx906`
+|2
+|AMD GCN GFX9 (Vega) architecture.
+
+|`amd_gpu_gfx908`
+|2
+|AMD GCN GFX9 (Vega) architecture.
+
+|`amd_gpu_gfx90a`
+|2
+|AMD GCN GFX9 (Vega) architecture.
+
+|`amd_gpu_gfx1010`
+|2
+|AMD GCN GFX10.1 (RDNA 1) architecture.
+
+|`amd_gpu_gfx1011`
+|2
+|AMD GCN GFX10.1 (RDNA 1) architecture.
+
+|`amd_gpu_gfx1012`
+|2
+|AMD GCN GFX10.1 (RDNA 1) architecture.
+
+|`amd_gpu_gfx1013`
+|2
+|AMD GCN GFX10.1 (RDNA 1) architecture.
+
+|`amd_gpu_gfx1030`
+|2
+|AMD GCN GFX10.3 (RDNA 2) architecture.
+
+|`amd_gpu_gfx1031`
+|2
+|GCN GFX10.3 (RDNA 2) architecture.
+
+|`amd_gpu_gfx1032`
+|2
+|GCN GFX10.3 (RDNA 2) architecture.
+
+|===
+
+[NOTE]
+====
+* An "alias" enumerator is generally added for new devices only after hardware
+has finalized and the exact version is known.
+* For NVIDIA GPUs, the architecture enumerator corresponds to the
+https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#compute-capabilities[compute capability]
+of the device, and ext_oneapi_architecture_is can be used similarly to the \\__CUDA_ARCH__ macro in CUDA.
+====
+
+
+=== New `if_architecture_is` free function
+
+This extension adds one new free function which may be called from device
+code.  This function is not available in host code.
+
+```
+namespace sycl::ext::oneapi::experimental {
+
+template<architecture ...Archs, typename ...Args, typename T>
+/* unspecified */ if_architecture_is(T fn, Args ...args);
+
+} // namespace sycl::ext::oneapi::experimental
+```
+
+This function operates exactly like `if_device_has` from the
+link:./sycl_ext_oneapi_device_if.asciidoc[sycl_ext_oneapi_device_if] extension
+except that the condition gating execution of the callable function `fn` is
+determined by the `Archs` parameter pack.  This condition is `true` if the
+device which executes `if_architecture_is` matches **any** of the architectures
+listed in this pack.
+
+The value returned by `if_architecture_is` is an object _F_ of an unspecified
+type, which provides the following member functions:
+
+```
+class /* unspecified */ {
+ public:
+  template<architecture ...Archs, typename ...Args, typename T>
+  /* unspecified */ else_if_architecture_is(T fn, Args ...args);
+
+  template<typename T, typename ...Args>
+  void otherwise(T fn, Args ...args);
+};
+```
+
+The `otherwise` function behaves exactly like the `otherwise` function from the
+link:./sycl_ext_oneapi_device_if.asciidoc[sycl_ext_oneapi_device_if] extension.
+The `else_if_architecture_is` function behaves exactly like
+`else_if_device_has` from that extension except that the condition gating
+execution of the callable object `fn` is determined by the `Archs` parameter
+pack.  This condition is `true` only if the object _F_ comes from a previous
+call to `if_architecture_is` or `else_if_architecture_is` whose condition is
+`false` *and* if the device calling `else_if_architecture_is` has one of the
+architectures in the `Archs` parameter pack.
+
+
+== Future direction
+
+This experimental extension is still evolving.  We expect that future versions
+will include the following:
+
+* An extended member function like:
++
+--
+```
+namespace sycl {
+
+class device {
+  bool ext_oneapi_architecture_is(
+    ext::oneapi::experimental::architecture arch);
+};
+
+// namespace sycl
+```
+
+This provides a way to query a device's architecture from host code.
+--
+
+* An extended device information descriptor named
+  `sycl::ext::oneapi::experimental::info::device::architecture`, which returns
+  the architecture of the device.  This allows host code such as:
++
+--
+```
+using namespace sycl::ext::oneapi::experimental;
+
+architecture arch = dev.get_info<info::device::architecture>();
+switch (arch) {
+case architecture::x86_64:
+  /* ... */
+  break;
+case architecture::intel_gpu_bdw:
+  /* ... */
+  break;
+/* etc. */
+}
+```
+--
+
+* A compile-time constant property that can be used to decorate kernels and
+  non-kernel device functions:
++
+--
+```
+namespace sycl::ext::oneapi::experimental {
+
+struct device_architecture_is_key {
+  template <architecture... Archs>
+  using value_t = property_value<device_architecture_is_key,
+    std::integral_constant<architecture, Archs>...>;
+};
+
+template <architecture... Archs>
+struct property_value<device_architecture_is_key,
+  std::integral_constant<architecture, Archs>...>
+{
+  static constexpr std::array<architecture, sizeof...(Archs)> value;
+};
+
+template <architecture... Archs>
+inline constexpr device_architecture_is_key::value_t<Archs...>
+  device_architecture_is;
+
+} // namespace sycl::ext::oneapi::experimental
+```
+
+This property indicates that a kernel or non-kernel device function uses
+features that are available on devices with the given architecture list but
+may not be available on devices with other architectures.
+--
+
+* Additional enumerators in the `architecture` enumeration.  This could include
+  entries for different x86_64 architectures.

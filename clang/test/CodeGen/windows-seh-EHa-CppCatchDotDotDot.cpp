@@ -6,11 +6,11 @@
 // CHECK: invoke void @llvm.seh.scope.end()
 
 // CHECK: %[[dst:[0-9-]+]] = catchswitch within none [label %catch] unwind to caller
-// CHECK: %[[dst1:[0-9-]+]] = catchpad within %[[dst]] [i8* null, i32 0, i8* null]
+// CHECK: %[[dst1:[0-9-]+]] = catchpad within %[[dst]] [ptr null, i32 0, ptr null]
 // CHECK: "funclet"(token %[[dst1]])
 
 // CHECK: invoke void @llvm.seh.try.begin()
-// CHECK: %[[src:[0-9-]+]] = load volatile i32, i32* %i
+// CHECK: %[[src:[0-9-]+]] = load volatile i32, ptr %i
 // CHECK-NEXT: invoke void @"?crash@@YAXH@Z"(i32 noundef %[[src]])
 // CHECK: invoke void @llvm.seh.try.end()
 

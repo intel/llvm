@@ -1,9 +1,9 @@
-; RUN: opt -S -loop-simplify -loop-fusion -debug-only=loop-fusion -disable-output < %s 2>&1 | FileCheck %s
+; RUN: opt -S -passes=loop-simplify,loop-fusion -debug-only=loop-fusion -disable-output < %s 2>&1 | FileCheck %s
 ; REQUIRES: asserts
 
 @B = common global [1024 x i32] zeroinitializer, align 16
 
-; CHECK that the two candidates for fusion are placed into separate candidate
+; Check that the two candidates for fusion are placed into separate candidate
 ; sets because they are not control flow equivalent.
 
 ; CHECK: Performing Loop Fusion on function non_cfe

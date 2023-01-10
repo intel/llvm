@@ -1,23 +1,33 @@
 ; REQUIRES: asserts
 
-; RUN: opt -loop-vectorize -debug-only=loop-vectorize -force-vector-interleave=1 -force-vector-width=4 -vplan-print-in-dot-format -disable-output %s 2>&1 | FileCheck %s
+; RUN: opt -passes=loop-vectorize -debug-only=loop-vectorize -force-vector-interleave=1 -force-vector-width=4 -vplan-print-in-dot-format -disable-output %s 2>&1 | FileCheck %s
 
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128"
 
 ; Verify that -vplan-print-in-dot-format option works.
 
 define void @print_call_and_memory(i64 %n, float* noalias %y, float* noalias %x) nounwind uwtable {
-; CHECK:       subgraph cluster_N0 {
+; CHECK:      digraph VPlan {
+; CHECK-NEXT:  graph [labelloc=t, fontsize=30; label="Vectorization Plan\nInitial VPlan for VF=\{4\},UF\>=1"]
+; CHECK-NEXT:  node [shape=rect, fontname=Courier, fontsize=30]
+; CHECK-NEXT:  edge [fontname=Courier, fontsize=30]
+; CHECK-NEXT:  compound=true
+; CHECK-NEXT:  N0 [label =
+; CHECK-NEXT:    "vector.ph:\l" +
+; CHECK-NEXT:    "Successor(s): vector loop\l"
+; CHECK-NEXT:  ]
+; CHECK-NEXT:  N0 -> N1 [ label="" lhead=cluster_N2]
+; CHECK-NEXT:  subgraph cluster_N2 {
 ; CHECK-NEXT:    fontname=Courier
 ; CHECK-NEXT:    label="\<x1\> vector loop"
 ; CHECK-NEXT:    N1 [label =
-; CHECK-NEXT:    "for.body:\l" +
+; CHECK-NEXT:    "vector.body:\l" +
 ; CHECK-NEXT:    "  EMIT vp\<[[CAN_IV:%.+]]\> = CANONICAL-INDUCTION\l" +
-; CHECK-NEXT:    "  WIDEN-INDUCTION %iv = phi %iv.next, 0\l" +
-; CHECK-NEXT:    "  CLONE ir\<%arrayidx\> = getelementptr ir\<%y\>, ir\<%iv\>\l" +
+; CHECK-NEXT:    "  vp\<[[STEPS:%.+]]\> = SCALAR-STEPS vp\<[[CAN_IV]]\>, ir\<1\>\l" +
+; CHECK-NEXT:    "  CLONE ir\<%arrayidx\> = getelementptr ir\<%y\>, vp\<[[STEPS]]\>\l" +
 ; CHECK-NEXT:    "  WIDEN ir\<%lv\> = load ir\<%arrayidx\>\l" +
-; CHECK-NEXT:    "  WIDEN-CALL ir\<%call\> = call @llvm.sqrt.f32(ir\<%lv\>)\l" +
-; CHECK-NEXT:    "  CLONE ir\<%arrayidx2\> = getelementptr ir\<%x\>, ir\<%iv\>\l" +
+; CHECK-NEXT:    "  WIDEN-CALL ir\<%call\> = call @llvm.sqrt.f32(ir\<%lv\>) (using vector intrinsic)\l" +
+; CHECK-NEXT:    "  CLONE ir\<%arrayidx2\> = getelementptr ir\<%x\>, vp\<[[STEPS]]\>\l" +
 ; CHECK-NEXT:    "  WIDEN store ir\<%arrayidx2\>, ir\<%call\>\l" +
 ; CHECK-NEXT:    "  EMIT vp\<[[CAN_IV_NEXT:%.+]]\> = VF * UF +(nuw) vp\<[[CAN_IV]]\>\l" +
 ; CHECK-NEXT:    "  EMIT branch-on-count vp\<[[CAN_IV_NEXT]]\> vp\<{{.+}}\>\l" +

@@ -20,6 +20,6 @@ void runWithBlock(void(^)(int i));
 }
 
 @end
-// CHECK: call i8* @objc_assign_strongCast
-// CHECK: call i8* @objc_assign_strongCast
+// CHECK: call ptr @objc_assign_strongCast
+// CHECK: call ptr @objc_assign_strongCast
 

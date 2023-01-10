@@ -6,15 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/Twine.h"
 #include "llvm/Config/config.h"
 #include "llvm/Support/SMTAPI.h"
-#include <set>
 
 using namespace llvm;
 
 #if LLVM_WITH_Z3
+
+#include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/Twine.h"
+
+#include <set>
 
 #include <z3.h>
 
@@ -876,7 +878,7 @@ public:
     if (res == Z3_L_FALSE)
       return false;
 
-    return Optional<bool>();
+    return std::nullopt;
   }
 
   void push() override { return Z3_solver_push(Context.Context, Solver); }

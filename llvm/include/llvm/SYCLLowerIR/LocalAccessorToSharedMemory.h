@@ -5,24 +5,64 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This pass operates on SYCL kernels being compiled to CUDA. It modifies
-// kernel entry points which take pointers to shared memory and modifies them
-// to take offsets into shared memory (represented by a symbol in the shared
-// address space). The SYCL runtime is expected to provide offsets rather than
-// pointers to these functions.
-//
-//===----------------------------------------------------------------------===//
 
 #ifndef LLVM_SYCL_LOCALACCESSORTOSHAREDMEMORY_H
 #define LLVM_SYCL_LOCALACCESSORTOSHAREDMEMORY_H
 
 #include "llvm/IR/Module.h"
-#include "llvm/Pass.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/SYCLLowerIR/TargetHelpers.h"
 
 namespace llvm {
 
-ModulePass *createLocalAccessorToSharedMemoryPass();
+class ModulePass;
+class PassRegistry;
+
+/// This pass operates on SYCL kernels. It modifies kernel entry points which
+/// take pointers to shared memory and alters them to take offsets into shared
+/// memory (represented by a symbol in the shared address space). The SYCL
+/// runtime is expected to provide offsets rather than pointers to these
+/// functions.
+class LocalAccessorToSharedMemoryPass
+    : public PassInfoMixin<LocalAccessorToSharedMemoryPass> {
+private:
+  using KernelPayload = TargetHelpers::KernelPayload;
+  using ArchType = TargetHelpers::ArchType;
+
+public:
+  explicit LocalAccessorToSharedMemoryPass() {}
+
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+  static StringRef getPassName() {
+    return "SYCL Local Accessor to Shared Memory";
+  }
+
+private:
+  /// This function replaces pointers to shared memory with offsets to a global
+  /// symbol in shared memory.
+  /// It alters the signature of the kernel (pointer vs offset value) as well
+  /// as the access (dereferencing the argument pointer vs GEP to the global
+  /// symbol).
+  ///
+  /// \param F The kernel to be processed.
+  ///
+  /// \returns A new function with global symbol accesses.
+  Function *processKernel(Module &M, Function *F);
+
+  /// Update kernel metadata to reflect the change in the signature.
+  ///
+  /// \param A map of original kernels to the modified ones.
+  void postProcessKernels(
+      SmallVectorImpl<std::pair<Function *, KernelPayload>> &NewToOldKernels);
+
+private:
+  /// The value for NVVM's ADDRESS_SPACE_SHARED and AMD's LOCAL_ADDRESS happen
+  /// to be 3.
+  const unsigned SharedASValue = 3;
+};
+
+ModulePass *createLocalAccessorToSharedMemoryPassLegacy();
+void initializeLocalAccessorToSharedMemoryLegacyPass(PassRegistry &);
 
 } // end namespace llvm
 

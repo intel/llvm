@@ -12,25 +12,22 @@
 #include "gtest/gtest.h"
 
 using namespace llvm;
-using namespace clang;
 
-namespace {
+namespace clang {
 
-using FileMap = StringMap<llvm::ErrorOr<FileEntryRef::MapValue>>;
-using DirMap = StringMap<llvm::ErrorOr<DirectoryEntry &>>;
-
-struct RefMaps {
-  FileMap Files;
-  DirMap Dirs;
+class FileEntryTestHelper {
+  StringMap<llvm::ErrorOr<FileEntryRef::MapValue>> Files;
+  StringMap<llvm::ErrorOr<DirectoryEntry &>> Dirs;
 
   SmallVector<std::unique_ptr<FileEntry>, 5> FEs;
   SmallVector<std::unique_ptr<DirectoryEntry>, 5> DEs;
   DirectoryEntryRef DR;
 
-  RefMaps() : DR(addDirectory("dir")) {}
+public:
+  FileEntryTestHelper() : DR(addDirectory("dir")) {}
 
   DirectoryEntryRef addDirectory(StringRef Name) {
-    DEs.push_back(std::make_unique<DirectoryEntry>());
+    DEs.emplace_back(new DirectoryEntry());
     return DirectoryEntryRef(*Dirs.insert({Name, *DEs.back()}).first);
   }
   DirectoryEntryRef addDirectoryAlias(StringRef Name, DirectoryEntryRef Base) {
@@ -40,7 +37,7 @@ struct RefMaps {
   }
 
   FileEntryRef addFile(StringRef Name) {
-    FEs.push_back(std::make_unique<FileEntry>());
+    FEs.emplace_back(new FileEntry());
     return FileEntryRef(
         *Files.insert({Name, FileEntryRef::MapValue(*FEs.back().get(), DR)})
              .first);
@@ -53,42 +50,50 @@ struct RefMaps {
                             const_cast<FileEntry &>(Base.getFileEntry()), DR)})
              .first);
   }
+  FileEntryRef addFileRedirect(StringRef Name, FileEntryRef Base) {
+    return FileEntryRef(
+        *Files
+             .insert({Name, FileEntryRef::MapValue(
+                                const_cast<FileEntryRef::MapEntry &>(
+                                    Base.getMapEntry()))})
+             .first);
+  }
 };
 
-TEST(FileEntryTest, Constructor) {
-  FileEntry FE;
-  EXPECT_EQ(0, FE.getSize());
-  EXPECT_EQ(0, FE.getModificationTime());
-  EXPECT_EQ(nullptr, FE.getDir());
-  EXPECT_EQ(0U, FE.getUniqueID().getDevice());
-  EXPECT_EQ(0U, FE.getUniqueID().getFile());
-  EXPECT_EQ(false, FE.isNamedPipe());
-  EXPECT_EQ(false, FE.isValid());
-}
-
+namespace {
 TEST(FileEntryTest, FileEntryRef) {
-  RefMaps Refs;
+  FileEntryTestHelper Refs;
   FileEntryRef R1 = Refs.addFile("1");
   FileEntryRef R2 = Refs.addFile("2");
   FileEntryRef R1Also = Refs.addFileAlias("1-also", R1);
+  FileEntryRef R1Redirect = Refs.addFileRedirect("1-redirect", R1);
+  FileEntryRef R1Redirect2 = Refs.addFileRedirect("1-redirect2", R1Redirect);
 
   EXPECT_EQ("1", R1.getName());
   EXPECT_EQ("2", R2.getName());
   EXPECT_EQ("1-also", R1Also.getName());
+  EXPECT_EQ("1", R1Redirect.getName());
+  EXPECT_EQ("1", R1Redirect2.getName());
+
+  EXPECT_EQ("1", R1.getNameAsRequested());
+  EXPECT_EQ("1-redirect", R1Redirect.getNameAsRequested());
+  EXPECT_EQ("1-redirect2", R1Redirect2.getNameAsRequested());
 
   EXPECT_NE(&R1.getFileEntry(), &R2.getFileEntry());
   EXPECT_EQ(&R1.getFileEntry(), &R1Also.getFileEntry());
+  EXPECT_EQ(&R1.getFileEntry(), &R1Redirect.getFileEntry());
+  EXPECT_EQ(&R1Redirect.getFileEntry(), &R1Redirect2.getFileEntry());
 
   const FileEntry *CE1 = R1;
   EXPECT_EQ(CE1, &R1.getFileEntry());
 }
 
 TEST(FileEntryTest, OptionalFileEntryRefDegradesToFileEntryPtr) {
-  RefMaps Refs;
+  FileEntryTestHelper Refs;
   OptionalFileEntryRefDegradesToFileEntryPtr M0;
   OptionalFileEntryRefDegradesToFileEntryPtr M1 = Refs.addFile("1");
   OptionalFileEntryRefDegradesToFileEntryPtr M2 = Refs.addFile("2");
-  OptionalFileEntryRefDegradesToFileEntryPtr M0Also = None;
+  OptionalFileEntryRefDegradesToFileEntryPtr M0Also = std::nullopt;
   OptionalFileEntryRefDegradesToFileEntryPtr M1Also =
       Refs.addFileAlias("1-also", *M1);
 
@@ -102,10 +107,12 @@ TEST(FileEntryTest, OptionalFileEntryRefDegradesToFileEntryPtr) {
 }
 
 TEST(FileEntryTest, equals) {
-  RefMaps Refs;
+  FileEntryTestHelper Refs;
   FileEntryRef R1 = Refs.addFile("1");
   FileEntryRef R2 = Refs.addFile("2");
   FileEntryRef R1Also = Refs.addFileAlias("1-also", R1);
+  FileEntryRef R1Redirect = Refs.addFileRedirect("1-redirect", R1);
+  FileEntryRef R1Redirect2 = Refs.addFileRedirect("1-redirect2", R1Redirect);
 
   EXPECT_EQ(R1, &R1.getFileEntry());
   EXPECT_EQ(&R1.getFileEntry(), R1);
@@ -113,6 +120,8 @@ TEST(FileEntryTest, equals) {
   EXPECT_NE(R1, &R2.getFileEntry());
   EXPECT_NE(&R2.getFileEntry(), R1);
   EXPECT_NE(R1, R2);
+  EXPECT_EQ(R1, R1Redirect);
+  EXPECT_EQ(R1, R1Redirect2);
 
   OptionalFileEntryRefDegradesToFileEntryPtr M1 = R1;
 
@@ -123,19 +132,24 @@ TEST(FileEntryTest, equals) {
 }
 
 TEST(FileEntryTest, isSameRef) {
-  RefMaps Refs;
+  FileEntryTestHelper Refs;
   FileEntryRef R1 = Refs.addFile("1");
   FileEntryRef R2 = Refs.addFile("2");
   FileEntryRef R1Also = Refs.addFileAlias("1-also", R1);
+  FileEntryRef R1Redirect = Refs.addFileRedirect("1-redirect", R1);
+  FileEntryRef R1Redirect2 = Refs.addFileRedirect("1-redirect2", R1Redirect);
 
   EXPECT_TRUE(R1.isSameRef(FileEntryRef(R1)));
   EXPECT_TRUE(R1.isSameRef(FileEntryRef(R1.getMapEntry())));
   EXPECT_FALSE(R1.isSameRef(R2));
   EXPECT_FALSE(R1.isSameRef(R1Also));
+  EXPECT_FALSE(R1.isSameRef(R1Redirect));
+  EXPECT_FALSE(R1.isSameRef(R1Redirect2));
+  EXPECT_FALSE(R1Redirect.isSameRef(R1Redirect2));
 }
 
 TEST(FileEntryTest, DenseMapInfo) {
-  RefMaps Refs;
+  FileEntryTestHelper Refs;
   FileEntryRef R1 = Refs.addFile("1");
   FileEntryRef R2 = Refs.addFile("2");
   FileEntryRef R1Also = Refs.addFileAlias("1-also", R1);
@@ -164,7 +178,7 @@ TEST(FileEntryTest, DenseMapInfo) {
 }
 
 TEST(DirectoryEntryTest, isSameRef) {
-  RefMaps Refs;
+  FileEntryTestHelper Refs;
   DirectoryEntryRef R1 = Refs.addDirectory("1");
   DirectoryEntryRef R2 = Refs.addDirectory("2");
   DirectoryEntryRef R1Also = Refs.addDirectoryAlias("1-also", R1);
@@ -176,7 +190,7 @@ TEST(DirectoryEntryTest, isSameRef) {
 }
 
 TEST(DirectoryEntryTest, DenseMapInfo) {
-  RefMaps Refs;
+  FileEntryTestHelper Refs;
   DirectoryEntryRef R1 = Refs.addDirectory("1");
   DirectoryEntryRef R2 = Refs.addDirectory("2");
   DirectoryEntryRef R1Also = Refs.addDirectoryAlias("1-also", R1);
@@ -205,3 +219,4 @@ TEST(DirectoryEntryTest, DenseMapInfo) {
 }
 
 } // end namespace
+} // namespace clang

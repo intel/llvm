@@ -26,7 +26,6 @@
 #include "llvm/MC/MCTargetOptions.h"
 #include "llvm/MC/MCValue.h"
 #include "llvm/MC/TargetRegistry.h"
-#include "llvm/Support/EndianStream.h"
 #include "llvm/Support/ErrorHandling.h"
 using namespace llvm;
 
@@ -47,7 +46,7 @@ public:
     return AArch64::NumTargetFixupKinds;
   }
 
-  Optional<MCFixupKind> getFixupKind(StringRef Name) const override;
+  std::optional<MCFixupKind> getFixupKind(StringRef Name) const override;
 
   const MCFixupKindInfo &getFixupKindInfo(MCFixupKind Kind) const override {
     const static MCFixupKindInfo Infos[AArch64::NumTargetFixupKinds] = {
@@ -331,9 +330,10 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, const MCValue &Target,
   }
 }
 
-Optional<MCFixupKind> AArch64AsmBackend::getFixupKind(StringRef Name) const {
+std::optional<MCFixupKind>
+AArch64AsmBackend::getFixupKind(StringRef Name) const {
   if (!TheTriple.isOSBinFormatELF())
-    return None;
+    return std::nullopt;
 
   unsigned Type = llvm::StringSwitch<unsigned>(Name)
 #define ELF_RELOC(X, Y)  .Case(#X, Y)
@@ -345,7 +345,7 @@ Optional<MCFixupKind> AArch64AsmBackend::getFixupKind(StringRef Name) const {
                       .Case("BFD_RELOC_64", ELF::R_AARCH64_ABS64)
                       .Default(-1u);
   if (Type == -1u)
-    return None;
+    return std::nullopt;
   return static_cast<MCFixupKind>(FirstLiteralRelocationKind + Type);
 }
 
@@ -471,7 +471,7 @@ bool AArch64AsmBackend::writeNopData(raw_ostream &OS, uint64_t Count,
   // We are properly aligned, so write NOPs as requested.
   Count /= 4;
   for (uint64_t i = 0; i != Count; ++i)
-    support::endian::write<uint32_t>(OS, 0xd503201f, Endian);
+    OS.write("\x1f\x20\x03\xd5", 4);
   return true;
 }
 
@@ -593,17 +593,18 @@ public:
         if (XReg != AArch64::FP)
           return CU::UNWIND_ARM64_MODE_DWARF;
 
-        assert(XReg == AArch64::FP && "Invalid frame pointer!");
-        assert(i + 2 < e && "Insufficient CFI instructions to define a frame!");
+        if (i + 2 >= e)
+          return CU::UNWIND_ARM64_MODE_DWARF;
 
         const MCCFIInstruction &LRPush = Instrs[++i];
-        assert(LRPush.getOperation() == MCCFIInstruction::OpOffset &&
-               "Link register not pushed!");
+        if (LRPush.getOperation() != MCCFIInstruction::OpOffset)
+          return CU::UNWIND_ARM64_MODE_DWARF;
         const MCCFIInstruction &FPPush = Instrs[++i];
-        assert(FPPush.getOperation() == MCCFIInstruction::OpOffset &&
-               "Frame pointer not pushed!");
+        if (FPPush.getOperation() != MCCFIInstruction::OpOffset)
+          return CU::UNWIND_ARM64_MODE_DWARF;
 
-        assert(FPPush.getOffset() + 8 == LRPush.getOffset());
+        if (FPPush.getOffset() + 8 != LRPush.getOffset())
+          return CU::UNWIND_ARM64_MODE_DWARF;
         CurOffset = FPPush.getOffset();
 
         unsigned LRReg = *MRI.getLLVMRegNum(LRPush.getRegister(), true);
@@ -612,8 +613,8 @@ public:
         LRReg = getXRegFromWReg(LRReg);
         FPReg = getXRegFromWReg(FPReg);
 
-        assert(LRReg == AArch64::LR && FPReg == AArch64::FP &&
-               "Pushing invalid registers for frame!");
+        if (LRReg != AArch64::LR || FPReg != AArch64::FP)
+          return CU::UNWIND_ARM64_MODE_DWARF;
 
         // Indicate that the function has a frame.
         CompactUnwindEncoding |= CU::UNWIND_ARM64_MODE_FRAME;
@@ -621,7 +622,8 @@ public:
         break;
       }
       case MCCFIInstruction::OpDefCfaOffset: {
-        assert(StackSize == 0 && "We already have the CFA offset!");
+        if (StackSize != 0)
+          return CU::UNWIND_ARM64_MODE_DWARF;
         StackSize = std::abs(Inst.getOffset());
         break;
       }
@@ -744,7 +746,7 @@ public:
 
   std::unique_ptr<MCObjectTargetWriter>
   createObjectTargetWriter() const override {
-    return createAArch64WinCOFFObjectWriter();
+    return createAArch64WinCOFFObjectWriter(TheTriple);
   }
 };
 }

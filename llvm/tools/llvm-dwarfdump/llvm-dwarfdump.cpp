@@ -26,6 +26,7 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/ToolOutputFile.h"
@@ -121,7 +122,7 @@ using namespace cl;
 OptionCategory DwarfDumpCategory("Specific Options");
 static list<std::string>
     InputFilenames(Positional, desc("<input object files or .dSYM bundles>"),
-                   ZeroOrMore, cat(DwarfDumpCategory));
+                   cat(DwarfDumpCategory));
 
 cl::OptionCategory SectionCategory("Section-specific Dump Options",
                                    "These control which sections are dumped. "
@@ -136,8 +137,7 @@ static alias DumpAllAlias("a", desc("Alias for --all"), aliasopt(DumpAll),
 
 // Options for dumping specific sections.
 static unsigned DumpType = DIDT_Null;
-static std::array<llvm::Optional<uint64_t>, (unsigned)DIDT_ID_Count>
-    DumpOffsets;
+static std::array<std::optional<uint64_t>, (unsigned)DIDT_ID_Count> DumpOffsets;
 #define HANDLE_DWARF_SECTION(ENUM_NAME, ELF_NAME, CMDLINE_NAME, OPTION)        \
   static opt<OPTION> Dump##ENUM_NAME(CMDLINE_NAME,                             \
                                      desc("Dump the " ELF_NAME " section"),    \
@@ -247,6 +247,10 @@ static cl::opt<bool>
                      cl::desc("Show the sizes of all debug sections, "
                               "expressed in bytes."),
                      cat(DwarfDumpCategory));
+static cl::opt<bool>
+    ShowSources("show-sources",
+                cl::desc("Show the sources across all compilation units."),
+                cat(DwarfDumpCategory));
 static opt<bool> Verify("verify", desc("Verify the DWARF debug info."),
                         cat(DwarfDumpCategory));
 static opt<bool> Quiet("quiet", desc("Use with -verify to not emit to STDOUT."),
@@ -381,7 +385,7 @@ static void filterByName(const StringSet<> &Names,
 static void getDies(DWARFContext &DICtx, const AppleAcceleratorTable &Accel,
                     StringRef Name, SmallVectorImpl<DWARFDie> &Dies) {
   for (const auto &Entry : Accel.equal_range(Name)) {
-    if (llvm::Optional<uint64_t> Off = Entry.getDIESectionOffset()) {
+    if (std::optional<uint64_t> Off = Entry.getDIESectionOffset()) {
       if (DWARFDie Die = DICtx.getDIEForOffset(*Off))
         Dies.push_back(Die);
     }
@@ -390,8 +394,8 @@ static void getDies(DWARFContext &DICtx, const AppleAcceleratorTable &Accel,
 
 static DWARFDie toDie(const DWARFDebugNames::Entry &Entry,
                       DWARFContext &DICtx) {
-  llvm::Optional<uint64_t> CUOff = Entry.getCUOffset();
-  llvm::Optional<uint64_t> Off = Entry.getDIEUnitOffset();
+  std::optional<uint64_t> CUOff = Entry.getCUOffset();
+  std::optional<uint64_t> Off = Entry.getDIEUnitOffset();
   if (!CUOff || !Off)
     return DWARFDie();
 
@@ -399,7 +403,7 @@ static DWARFDie toDie(const DWARFDebugNames::Entry &Entry,
   if (!CU)
     return DWARFDie();
 
-  if (llvm::Optional<uint64_t> DWOId = CU->getDWOId()) {
+  if (std::optional<uint64_t> DWOId = CU->getDWOId()) {
     // This is a skeleton unit. Look up the DIE in the DWO unit.
     CU = DICtx.getDWOCompileUnitForHash(*DWOId);
     if (!CU)
@@ -464,6 +468,87 @@ static bool lookup(ObjectFile &Obj, DWARFContext &DICtx, uint64_t Address,
     LineInfo.dump(OS);
 
   return true;
+}
+
+// Collect all sources referenced from the given line table, scoped to the given
+// CU compilation directory.
+static bool collectLineTableSources(const DWARFDebugLine::LineTable &LT,
+                                    StringRef CompDir,
+                                    std::vector<std::string> &Sources) {
+  bool Result = true;
+  std::optional<uint64_t> LastIndex = LT.getLastValidFileIndex();
+  for (uint64_t I = LT.hasFileAtIndex(0) ? 0 : 1,
+                E = LastIndex ? *LastIndex + 1 : 0;
+       I < E; ++I) {
+    std::string Path;
+    Result &= LT.getFileNameByIndex(
+        I, CompDir, DILineInfoSpecifier::FileLineInfoKind::AbsoluteFilePath,
+        Path);
+    Sources.push_back(std::move(Path));
+  }
+  return Result;
+}
+
+static bool collectObjectSources(ObjectFile &Obj, DWARFContext &DICtx,
+                                 const Twine &Filename, raw_ostream &OS) {
+  bool Result = true;
+  std::vector<std::string> Sources;
+
+  bool HasCompileUnits = false;
+  for (const auto &CU : DICtx.compile_units()) {
+    HasCompileUnits = true;
+    // Extract paths from the line table for this CU. This allows combining the
+    // compilation directory with the line information, in case both the include
+    // directory and file names in the line table are relative.
+    const DWARFDebugLine::LineTable *LT = DICtx.getLineTableForUnit(CU.get());
+    StringRef CompDir = CU->getCompilationDir();
+    if (LT) {
+      Result &= collectLineTableSources(*LT, CompDir, Sources);
+    } else {
+      // Since there's no line table for this CU, collect the name from the CU
+      // itself.
+      const char *Name = CU->getUnitDIE().getShortName();
+      if (!Name) {
+        WithColor::warning()
+            << Filename << ": missing name for compilation unit\n";
+        continue;
+      }
+      SmallString<64> AbsName;
+      if (sys::path::is_relative(Name, sys::path::Style::posix) &&
+          sys::path::is_relative(Name, sys::path::Style::windows))
+        AbsName = CompDir;
+      sys::path::append(AbsName, Name);
+      Sources.push_back(std::string(AbsName));
+    }
+  }
+
+  if (!HasCompileUnits) {
+    // Since there's no compile units available, walk the line tables and
+    // extract out any referenced paths.
+    DWARFDataExtractor LineData(DICtx.getDWARFObj(),
+                                DICtx.getDWARFObj().getLineSection(),
+                                DICtx.isLittleEndian(), 0);
+    DWARFDebugLine::SectionParser Parser(LineData, DICtx, DICtx.normal_units());
+    while (!Parser.done()) {
+      const auto RecoverableErrorHandler = [&](Error Err) {
+        Result = false;
+        WithColor::defaultErrorHandler(std::move(Err));
+      };
+      void (*UnrecoverableErrorHandler)(Error Err) = error;
+
+      DWARFDebugLine::LineTable LT =
+          Parser.parseNext(RecoverableErrorHandler, UnrecoverableErrorHandler);
+      Result &= collectLineTableSources(LT, /*CompDir=*/"", Sources);
+    }
+  }
+
+  // Dedup and order the sources.
+  llvm::sort(Sources);
+  Sources.erase(std::unique(Sources.begin(), Sources.end()), Sources.end());
+
+  for (StringRef Name : Sources)
+    OS << Name << "\n";
+  return Result;
 }
 
 static bool dumpObjectFile(ObjectFile &Obj, DWARFContext &DICtx,
@@ -679,6 +764,9 @@ int main(int argc, char **argv) {
   } else if (ShowSectionSizes) {
     for (auto Object : Objects)
       Success &= handleFile(Object, collectObjectSectionSizes, OutputFile.os());
+  } else if (ShowSources) {
+    for (auto Object : Objects)
+      Success &= handleFile(Object, collectObjectSources, OutputFile.os());
   } else {
     for (auto Object : Objects)
       Success &= handleFile(Object, dumpObjectFile, OutputFile.os());

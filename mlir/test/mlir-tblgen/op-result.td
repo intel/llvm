@@ -27,7 +27,12 @@ def OpB : NS_Op<"same_input_output_type_op", [SameOperandsAndResultType]> {
 // CHECK: void OpB::build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::Type y, ::mlir::Value x)
 // CHECK:   odsState.addTypes(y);
 // CHECK: void OpB::build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::Value x)
-// CHECK:   odsState.addTypes({x.getType()});
+// CHECK:   ::llvm::SmallVector<::mlir::Type, 2> inferredReturnTypes;
+// CHECK:   if (::mlir::succeeded(OpB::inferReturnTypes(odsBuilder.getContext(),
+// CHECK:             odsState.location, odsState.operands,
+// CHECK:             odsState.attributes.getDictionary(odsState.getContext()),
+// CHECK:             odsState.regions, inferredReturnTypes)))
+// CHECK:     odsState.addTypes(inferredReturnTypes);
 
 def OpC : NS_Op<"three_normal_result_op", []> {
   let results = (outs I32:$x, /*unnamed*/I32, I32:$z);
@@ -60,7 +65,7 @@ def OpE : NS_Op<"value_attr_as_result_type", [FirstAttrDerivedResultType]> {
 
 // CHECK-LABEL: OpE definitions
 // CHECK: void OpE::build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::ValueRange operands, ::llvm::ArrayRef<::mlir::NamedAttribute> attributes)
-// CHECK: odsState.addTypes({attr.getValue().getType()});
+// CHECK: odsState.addTypes({attr.getValue().cast<::mlir::TypedAttr>().getType()});
 
 def OpF : NS_Op<"one_variadic_result_op", []> {
   let results = (outs Variadic<I32>:$x);
@@ -91,10 +96,10 @@ def OpI : NS_Op<"mix_variadic_and_normal_results_op", [SameVariadicResultSize]> 
   let results = (outs Variadic<AnyTensor>:$output1, AnyTensor:$output2, Variadic<AnyTensor>:$output3);
 }
 
-// CHECK-LABEL: ::mlir::Operation::result_range OpI::output1
+// CHECK-LABEL: ::mlir::Operation::result_range OpI::getOutput1
 // CHECK-NEXT:    return getODSResults(0);
 
-// CHECK-LABEL: ::mlir::Value OpI::output2
+// CHECK-LABEL: ::mlir::TypedValue<::mlir::TensorType> OpI::getOutput2
 // CHECK-NEXT:    return *getODSResults(1).begin();
 
 // CHECK-LABEL: OpI::build
@@ -123,7 +128,8 @@ def OpL1 : NS_Op<"op_with_all_types_constraint",
 
 // CHECK-LABEL: LogicalResult OpL1::inferReturnTypes
 // CHECK-NOT: }
-// CHECK: inferredReturnTypes[0] = operands[0].getType();
+// CHECK: ::mlir::Type odsInferredType0 = operands[0].getType();
+// CHECK: inferredReturnTypes[0] = odsInferredType0;
 
 def OpL2 : NS_Op<"op_with_all_types_constraint",
     [AllTypesMatch<["c", "b"]>, AllTypesMatch<["a", "d"]>]> {
@@ -133,5 +139,25 @@ def OpL2 : NS_Op<"op_with_all_types_constraint",
 
 // CHECK-LABEL: LogicalResult OpL2::inferReturnTypes
 // CHECK-NOT: }
-// CHECK: inferredReturnTypes[0] = operands[2].getType();
-// CHECK: inferredReturnTypes[1] = operands[0].getType();
+// CHECK: ::mlir::Type odsInferredType0 = operands[2].getType();
+// CHECK: ::mlir::Type odsInferredType1 = operands[0].getType();
+// CHECK: inferredReturnTypes[0] = odsInferredType0;
+// CHECK: inferredReturnTypes[1] = odsInferredType1;
+
+def OpL3 : NS_Op<"op_with_all_types_constraint",
+    [AllTypesMatch<["a", "b"]>]> {
+  let arguments = (ins I32Attr:$a);
+  let results = (outs AnyType:$b);
+}
+
+// CHECK-LABEL: LogicalResult OpL3::inferReturnTypes
+// CHECK-NOT: }
+// CHECK: ::mlir::Type odsInferredType0 = attributes.get("a").cast<::mlir::TypedAttr>().getType();
+// CHECK: inferredReturnTypes[0] = odsInferredType0;
+
+def OpM : NS_Op<"mix_diff_size_variadic_and_normal_results_op", [AttrSizedResultSegments]> {
+  let results = (outs Variadic<AnyTensor>:$output1, AnyTensor:$output2, Optional<AnyTensor>:$output3);
+}
+
+// CHECK-LABEL: OpM::build(::mlir::OpBuilder &odsBuilder, ::mlir::OperationState &odsState, ::mlir::TypeRange output1, ::mlir::Type output2, /*optional*/::mlir::Type output3)
+// CHECK: odsState.addAttribute(getResultSegmentSizesAttrName(odsState.name), odsBuilder.getDenseI32ArrayAttr({static_cast<int32_t>(output1.size()), 1, (output3 ? 1 : 0)}));

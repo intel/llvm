@@ -1,4 +1,3 @@
-; RUN: opt -S -partial-inliner -min-block-execution=1 -skip-partial-inlining-cost-analysis < %s | FileCheck %s
 ; RUN: opt -S -passes=partial-inliner -min-block-execution=1 -skip-partial-inlining-cost-analysis < %s | FileCheck %s
 ; Require a dummy block (if.then.b) as successor to if.then due to PI requirement
 ; of region containing more than one BB.
@@ -101,7 +100,7 @@ for.inc2:                                          ; preds = %if.end2
   br label %for.cond2
 
 for.end:                                          ; preds = %for.cond2
-  callbr void asm sideeffect "1: nop\0A\09.quad b, ${0:l}, $$5\0A\09", "X,~{dirflag},~{fpsr},~{flags}"(i8* blockaddress(@bar, %l_yes))
+  callbr void asm sideeffect "1: nop\0A\09.quad b, ${0:l}, $$5\0A\09", "!i,~{dirflag},~{fpsr},~{flags}"()
           to label %asm.fallthrough [label %l_yes]
 asm.fallthrough:                                  ; preds = %for.end
   br label %l_yes

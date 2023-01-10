@@ -10,21 +10,28 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/GPU/Transforms/Passes.h"
+
+#include "mlir/AsmParser/AsmParser.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
-#include "mlir/Dialect/GPU/GPUDialect.h"
-#include "mlir/Dialect/GPU/Passes.h"
-#include "mlir/Dialect/GPU/Utils.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
+#include "mlir/Dialect/GPU/Transforms/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/IR/SymbolTable.h"
-#include "mlir/Parser.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/RegionUtils.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_GPULAUNCHSINKINDEXCOMPUTATIONS
+#define GEN_PASS_DEF_GPUKERNELOUTLINING
+#include "mlir/Dialect/GPU/Transforms/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 
@@ -60,8 +67,8 @@ static void injectGpuIndexOperations(Location loc, Region &launchFuncOpBody,
 /// operations may not have side-effects, as otherwise sinking (and hence
 /// duplicating them) is not legal.
 static bool isLikelyAnIndexComputation(Operation *op) {
-  return isa<arith::ConstantOp, ConstantOp, memref::DimOp, arith::SelectOp,
-             arith::CmpIOp>(op);
+  return matchPattern(op, m_Constant()) ||
+         isa<memref::DimOp, arith::SelectOp, arith::CmpIOp>(op);
 }
 
 /// For a given operation `op`, computes whether it is beneficial to sink the
@@ -110,7 +117,7 @@ LogicalResult mlir::sinkOperationsIntoLaunchOp(
     gpu::LaunchOp launchOp,
     llvm::function_ref<bool(Operation *)> isSinkingBeneficiary) {
   assert(isSinkingBeneficiary);
-  Region &launchOpBody = launchOp.body();
+  Region &launchOpBody = launchOp.getBody();
 
   // Identify uses from values defined outside of the scope of the launch
   // operation.
@@ -135,7 +142,7 @@ LogicalResult mlir::sinkOperationsIntoLaunchOp(
     // Only replace uses within the launch op.
     for (auto pair : llvm::zip(op->getResults(), clonedOp->getResults()))
       replaceAllUsesInRegionWith(std::get<0>(pair), std::get<1>(pair),
-                                 launchOp.body());
+                                 launchOp.getBody());
   }
   return success();
 }
@@ -149,7 +156,7 @@ static gpu::GPUFuncOp outlineKernelFuncImpl(gpu::LaunchOp launchOp,
   // Create a builder with no insertion point, insertion will happen separately
   // due to symbol table manipulation.
   OpBuilder builder(launchOp.getContext());
-  Region &launchOpBody = launchOp.body();
+  Region &launchOpBody = launchOp.getBody();
 
   // Identify uses from values defined outside of the scope of the launch
   // operation.
@@ -170,7 +177,7 @@ static gpu::GPUFuncOp outlineKernelFuncImpl(gpu::LaunchOp launchOp,
 
   // Map the arguments corresponding to the launch parameters like blockIdx,
   // threadIdx, etc.
-  Region &outlinedFuncBody = outlinedFunc.body();
+  Region &outlinedFuncBody = outlinedFunc.getBody();
   injectGpuIndexOperations(loc, outlinedFuncBody, launchOpBody, map);
 
   // Map arguments from gpu.launch region to the arguments of the gpu.func
@@ -224,10 +231,14 @@ static void convertToLaunchFuncOp(gpu::LaunchOp launchOp,
   OpBuilder builder(launchOp);
   // The launch op has an optional dynamic shared memory size. If it doesn't
   // exist, we use zero.
-  builder.create<gpu::LaunchFuncOp>(
+  Value asyncToken = launchOp.getAsyncToken();
+  auto launchFunc = builder.create<gpu::LaunchFuncOp>(
       launchOp.getLoc(), kernelFunc, launchOp.getGridSizeOperandValues(),
-      launchOp.getBlockSizeOperandValues(), launchOp.dynamicSharedMemorySize(),
-      operands);
+      launchOp.getBlockSizeOperandValues(),
+      launchOp.getDynamicSharedMemorySize(), operands,
+      asyncToken ? asyncToken.getType() : nullptr,
+      launchOp.getAsyncDependencies());
+  launchOp.replaceAllUsesWith(launchFunc);
   launchOp.erase();
 }
 
@@ -235,7 +246,7 @@ namespace {
 /// Pass that moves ops which are likely an index computation into gpu.launch
 /// body.
 class GpuLaunchSinkIndexComputationsPass
-    : public GpuLaunchSinkIndexComputationsBase<
+    : public impl::GpuLaunchSinkIndexComputationsBase<
           GpuLaunchSinkIndexComputationsPass> {
 public:
   void runOnOperation() override {
@@ -262,7 +273,7 @@ public:
 /// a separate pass. The external functions can then be annotated with the
 /// symbol of the cubin accessor function.
 class GpuKernelOutliningPass
-    : public GpuKernelOutliningBase<GpuKernelOutliningPass> {
+    : public impl::GpuKernelOutliningBase<GpuKernelOutliningPass> {
 public:
   GpuKernelOutliningPass(StringRef dlStr) {
     if (!dlStr.empty() && !dataLayoutStr.hasValue())
@@ -270,8 +281,8 @@ public:
   }
 
   GpuKernelOutliningPass(const GpuKernelOutliningPass &other)
-      : dataLayoutSpec(other.dataLayoutSpec) {
-    dataLayoutStr = other.dataLayoutStr;
+      : GpuKernelOutliningBase(other), dataLayoutSpec(other.dataLayoutSpec) {
+    dataLayoutStr = other.dataLayoutStr.getValue();
   }
 
   LogicalResult initialize(MLIRContext *context) override {
@@ -292,13 +303,14 @@ public:
   void runOnOperation() override {
     SymbolTable symbolTable(getOperation());
     bool modified = false;
-    for (auto func : getOperation().getOps<FuncOp>()) {
+    for (auto func : getOperation().getOps<func::FuncOp>()) {
       // Insert just after the function.
       Block::iterator insertPt(func->getNextNode());
       auto funcWalkResult = func.walk([&](gpu::LaunchOp op) {
         SetVector<Value> operands;
         std::string kernelFnName =
-            Twine(op->getParentOfType<FuncOp>().getName(), "_kernel").str();
+            Twine(op->getParentOfType<func::FuncOp>().getName(), "_kernel")
+                .str();
 
         gpu::GPUFuncOp outlinedFunc =
             outlineKernelFuncImpl(op, kernelFnName, operands);

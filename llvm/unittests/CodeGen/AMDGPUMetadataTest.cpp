@@ -14,6 +14,7 @@
 
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Pass.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
 #include "gtest/gtest.h"
@@ -57,7 +58,7 @@ protected:
     TargetOptions Options;
     TM = std::unique_ptr<LLVMTargetMachine>(
         static_cast<LLVMTargetMachine *>(T->createTargetMachine(
-            "amdgcn--amdpal", "gfx1010", "", Options, None)));
+            "amdgcn--amdpal", "gfx1010", "", Options, std::nullopt)));
     if (!TM)
       GTEST_SKIP();
 

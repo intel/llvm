@@ -19,7 +19,8 @@ using namespace mlir;
 
 extern "C" MlirExecutionEngine
 mlirExecutionEngineCreate(MlirModule op, int optLevel, int numPaths,
-                          const MlirStringRef *sharedLibPaths) {
+                          const MlirStringRef *sharedLibPaths,
+                          bool enableObjectDump) {
   static bool initOnce = [] {
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmParser(); // needed for inline_asm
@@ -48,12 +49,13 @@ mlirExecutionEngineCreate(MlirModule op, int optLevel, int numPaths,
   // Create a transformer to run all LLVM optimization passes at the
   // specified optimization level.
   auto llvmOptLevel = static_cast<llvm::CodeGenOpt::Level>(optLevel);
-  auto transformer = mlir::makeLLVMPassesTransformer(
-      /*passes=*/{}, llvmOptLevel, /*targetMachine=*/tmOrError->get());
+  auto transformer = mlir::makeOptimizingTransformer(
+      llvmOptLevel, /*sizeLevel=*/0, /*targetMachine=*/tmOrError->get());
   ExecutionEngineOptions jitOptions;
   jitOptions.transformer = transformer;
   jitOptions.jitCodeGenOptLevel = llvmOptLevel;
   jitOptions.sharedLibPaths = libPaths;
+  jitOptions.enableObjectDump = enableObjectDump;
   auto jitOrError = ExecutionEngine::create(unwrap(op), jitOptions);
   if (!jitOrError) {
     consumeError(jitOrError.takeError());

@@ -42,7 +42,7 @@
 
 using namespace _OMP;
 
-#pragma omp declare target
+#pragma omp begin declare target device_type(nohost)
 
 namespace {
 
@@ -85,14 +85,25 @@ void __kmpc_parallel_51(IdentTy *ident, int32_t, int32_t if_expr,
   FunctionTracingRAII();
 
   uint32_t TId = mapping::getThreadIdInBlock();
-  // Handle the serialized case first, same for SPMD/non-SPMD.
-  if (OMP_UNLIKELY(!if_expr || icv::Level)) {
+
+  // Assert the parallelism level is zero if disabled by the user.
+  ASSERT((config::mayUseNestedParallelism() || icv::Level == 0) &&
+         "nested parallelism while disabled");
+
+  // Handle the serialized case first, same for SPMD/non-SPMD:
+  // 1) if-clause(0)
+  // 2) parallel in task or other thread state inducing construct
+  // 3) nested parallel regions
+  if (OMP_UNLIKELY(!if_expr || state::HasThreadState ||
+                   (config::mayUseNestedParallelism() && icv::Level))) {
     state::DateEnvironmentRAII DERAII(ident);
     ++icv::Level;
     invokeMicrotask(TId, 0, fn, args, nargs);
-    state::exitDataEnvironment();
     return;
   }
+
+  // From this point forward we know that there is no thread state used.
+  ASSERT(state::HasThreadState == false);
 
   uint32_t NumThreads = determineNumberOfThreads(num_threads);
   if (mapping::isSPMDMode()) {
@@ -104,18 +115,21 @@ void __kmpc_parallel_51(IdentTy *ident, int32_t, int32_t if_expr,
       // last or the other updates will cause a thread specific state to be
       // created.
       state::ValueRAII ParallelTeamSizeRAII(state::ParallelTeamSize, NumThreads,
-                                            1u, TId == 0, ident);
+                                            1u, TId == 0, ident,
+                                            /* ForceTeamState */ true);
       state::ValueRAII ActiveLevelRAII(icv::ActiveLevel, 1u, 0u, TId == 0,
-                                       ident);
-      state::ValueRAII LevelRAII(icv::Level, 1u, 0u, TId == 0, ident);
+                                       ident, /* ForceTeamState */ true);
+      state::ValueRAII LevelRAII(icv::Level, 1u, 0u, TId == 0, ident,
+                                 /* ForceTeamState */ true);
 
       // Synchronize all threads after the main thread (TId == 0) set up the
       // team state properly.
       synchronize::threadsAligned();
 
-      ASSERT(state::ParallelTeamSize == NumThreads);
-      ASSERT(icv::ActiveLevel == 1u);
-      ASSERT(icv::Level == 1u);
+      state::ParallelTeamSize.assert_eq(NumThreads, ident,
+                                        /* ForceTeamState */ true);
+      icv::ActiveLevel.assert_eq(1u, ident, /* ForceTeamState */ true);
+      icv::Level.assert_eq(1u, ident, /* ForceTeamState */ true);
 
       if (TId < NumThreads)
         invokeMicrotask(TId, 0, fn, args, nargs);
@@ -129,9 +143,9 @@ void __kmpc_parallel_51(IdentTy *ident, int32_t, int32_t if_expr,
     // __kmpc_target_deinit may not hold.
     synchronize::threadsAligned();
 
-    ASSERT(state::ParallelTeamSize == 1u);
-    ASSERT(icv::ActiveLevel == 0u);
-    ASSERT(icv::Level == 0u);
+    state::ParallelTeamSize.assert_eq(1u, ident, /* ForceTeamState */ true);
+    icv::ActiveLevel.assert_eq(0u, ident, /* ForceTeamState */ true);
+    icv::Level.assert_eq(0u, ident, /* ForceTeamState */ true);
     return;
   }
 
@@ -151,9 +165,62 @@ void __kmpc_parallel_51(IdentTy *ident, int32_t, int32_t if_expr,
   void **GlobalArgs = nullptr;
   if (nargs) {
     __kmpc_begin_sharing_variables(&GlobalArgs, nargs);
-#pragma unroll
-    for (int I = 0; I < nargs; I++)
-      GlobalArgs[I] = args[I];
+    switch (nargs) {
+    default:
+      for (int I = 0; I < nargs; I++)
+        GlobalArgs[I] = args[I];
+      break;
+    case 16:
+      GlobalArgs[15] = args[15];
+      [[fallthrough]];
+    case 15:
+      GlobalArgs[14] = args[14];
+      [[fallthrough]];
+    case 14:
+      GlobalArgs[13] = args[13];
+      [[fallthrough]];
+    case 13:
+      GlobalArgs[12] = args[12];
+      [[fallthrough]];
+    case 12:
+      GlobalArgs[11] = args[11];
+      [[fallthrough]];
+    case 11:
+      GlobalArgs[10] = args[10];
+      [[fallthrough]];
+    case 10:
+      GlobalArgs[9] = args[9];
+      [[fallthrough]];
+    case 9:
+      GlobalArgs[8] = args[8];
+      [[fallthrough]];
+    case 8:
+      GlobalArgs[7] = args[7];
+      [[fallthrough]];
+    case 7:
+      GlobalArgs[6] = args[6];
+      [[fallthrough]];
+    case 6:
+      GlobalArgs[5] = args[5];
+      [[fallthrough]];
+    case 5:
+      GlobalArgs[4] = args[4];
+      [[fallthrough]];
+    case 4:
+      GlobalArgs[3] = args[3];
+      [[fallthrough]];
+    case 3:
+      GlobalArgs[2] = args[2];
+      [[fallthrough]];
+    case 2:
+      GlobalArgs[1] = args[1];
+      [[fallthrough]];
+    case 1:
+      GlobalArgs[0] = args[0];
+      [[fallthrough]];
+    case 0:
+      break;
+    }
   }
 
   {
@@ -161,11 +228,15 @@ void __kmpc_parallel_51(IdentTy *ident, int32_t, int32_t if_expr,
     // last or the other updates will cause a thread specific state to be
     // created.
     state::ValueRAII ParallelTeamSizeRAII(state::ParallelTeamSize, NumThreads,
-                                          1u, true, ident);
+                                          1u, true, ident,
+                                          /* ForceTeamState */ true);
     state::ValueRAII ParallelRegionFnRAII(state::ParallelRegionFn, wrapper_fn,
-                                          (void *)nullptr, true, ident);
-    state::ValueRAII ActiveLevelRAII(icv::ActiveLevel, 1u, 0u, true, ident);
-    state::ValueRAII LevelRAII(icv::Level, 1u, 0u, true, ident);
+                                          (void *)nullptr, true, ident,
+                                          /* ForceTeamState */ true);
+    state::ValueRAII ActiveLevelRAII(icv::ActiveLevel, 1u, 0u, true, ident,
+                                     /* ForceTeamState */ true);
+    state::ValueRAII LevelRAII(icv::Level, 1u, 0u, true, ident,
+                               /* ForceTeamState */ true);
 
     // Master signals work to activate workers.
     synchronize::threads();

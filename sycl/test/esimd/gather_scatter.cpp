@@ -1,13 +1,13 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s
 // expected-no-diagnostics
 
-#include <CL/sycl.hpp>
 #include <limits>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 #include <utility>
 
-using namespace sycl::ext::intel::experimental::esimd;
-using namespace cl::sycl;
+using namespace sycl::ext::intel::esimd;
+using namespace sycl;
 
 void kernel(
     accessor<int, 1, access::mode::read_write, access::target::device> &buf)

@@ -35,7 +35,7 @@ int main(int argc, char* argv[])
 
 // PR8856 - -fshort-wchar makes wchar_t be unsigned.
 // CHECK: @test2
-// CHECK: store volatile i32 1, i32* %isUnsigned
+// CHECK: store volatile i32 1, ptr %isUnsigned
 void test2(void) {
   volatile int isUnsigned = (wchar_t)-1 > (wchar_t)0;
 }

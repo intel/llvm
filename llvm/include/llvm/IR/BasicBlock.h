@@ -116,7 +116,11 @@ public:
 
   /// Returns the terminator instruction if the block is well formed or null
   /// if the block is not well formed.
-  const Instruction *getTerminator() const LLVM_READONLY;
+  const Instruction *getTerminator() const LLVM_READONLY {
+    if (InstList.empty() || !InstList.back().isTerminator())
+      return nullptr;
+    return &InstList.back();
+  }
   Instruction *getTerminator() {
     return const_cast<Instruction *>(
         static_cast<const BasicBlock *>(this)->getTerminator());
@@ -190,6 +194,15 @@ public:
   iterator getFirstInsertionPt() {
     return static_cast<const BasicBlock *>(this)
                                           ->getFirstInsertionPt().getNonConst();
+  }
+
+  /// Returns an iterator to the first instruction in this block that is
+  /// not a PHINode, a debug intrinsic, a static alloca or any pseudo operation.
+  const_iterator getFirstNonPHIOrDbgOrAlloca() const;
+  iterator getFirstNonPHIOrDbgOrAlloca() {
+    return static_cast<const BasicBlock *>(this)
+        ->getFirstNonPHIOrDbgOrAlloca()
+        .getNonConst();
   }
 
   /// Return a const iterator range over the instructions in the block, skipping
@@ -440,6 +453,32 @@ public:
     return splitBasicBlockBefore(I->getIterator(), BBName);
   }
 
+  /// Transfer all instructions from \p FromBB to this basic block at \p ToIt.
+  void splice(BasicBlock::iterator ToIt, BasicBlock *FromBB) {
+    splice(ToIt, FromBB, FromBB->begin(), FromBB->end());
+  }
+
+  /// Transfer one instruction from \p FromBB at \p FromIt to this basic block
+  /// at \p ToIt.
+  void splice(BasicBlock::iterator ToIt, BasicBlock *FromBB,
+              BasicBlock::iterator FromIt) {
+    auto FromItNext = std::next(FromIt);
+    // Single-element splice is a noop if destination == source.
+    if (ToIt == FromIt || ToIt == FromItNext)
+      return;
+    splice(ToIt, FromBB, FromIt, FromItNext);
+  }
+
+  /// Transfer a range of instructions that belong to \p FromBB from \p
+  /// FromBeginIt to \p FromEndIt, to this basic block at \p ToIt.
+  void splice(BasicBlock::iterator ToIt, BasicBlock *FromBB,
+              BasicBlock::iterator FromBeginIt,
+              BasicBlock::iterator FromEndIt);
+
+  /// Erases a range of instructions from \p FromIt to (not including) \p ToIt.
+  /// \Returns \p ToIt.
+  BasicBlock::iterator erase(BasicBlock::iterator FromIt, BasicBlock::iterator ToIt);
+
   /// Returns true if there are any uses of this basic block other than
   /// direct branches, switches, etc. to it.
   bool hasAddressTaken() const {
@@ -481,7 +520,7 @@ public:
   /// This method can only be used on blocks that have a parent function.
   bool isEntryBlock() const;
 
-  Optional<uint64_t> getIrrLoopHeaderWeight() const;
+  std::optional<uint64_t> getIrrLoopHeaderWeight() const;
 
   /// Returns true if the Order field of child Instructions is valid.
   bool isInstrOrderValid() const {

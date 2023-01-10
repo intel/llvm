@@ -17,24 +17,21 @@
 
 #include "ASTSignals.h"
 #include "Compiler.h"
-#include "Headers.h"
 #include "Protocol.h"
 #include "Quality.h"
 #include "index/Index.h"
 #include "index/Symbol.h"
 #include "index/SymbolOrigin.h"
-#include "support/Logger.h"
 #include "support/Markup.h"
 #include "support/Path.h"
 #include "clang/Sema/CodeCompleteConsumer.h"
 #include "clang/Sema/CodeCompleteOptions.h"
-#include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Support/Error.h"
 #include <functional>
 #include <future>
+#include <utility>
 
 namespace clang {
 class NamedDecl;
@@ -133,7 +130,9 @@ struct CodeCompleteOptions {
   enum CodeCompletionRankingModel {
     Heuristics,
     DecisionForest,
-  } RankingModel = DecisionForest;
+  };
+  static const CodeCompletionRankingModel DefaultRankingModel;
+  CodeCompletionRankingModel RankingModel = DefaultRankingModel;
 
   /// Callback used to score a CompletionCandidate if DecisionForest ranking
   /// model is enabled.
@@ -146,9 +145,9 @@ struct CodeCompleteOptions {
   /// CompletionScore is NameMatch * pow(Base, Prediction).
   /// The optimal value of Base largely depends on the semantics of the model
   /// and prediction score (e.g. algorithm used during training, number of
-  /// trees, etc.). Usually if the range of Prediciton is [-20, 20] then a Base
+  /// trees, etc.). Usually if the range of Prediction is [-20, 20] then a Base
   /// in [1.2, 1.7] works fine.
-  /// Semantics: E.g. For Base = 1.3, if the Prediciton score reduces by 2.6
+  /// Semantics: E.g. For Base = 1.3, if the Prediction score reduces by 2.6
   /// points then completion score reduces by 50% or 1.3^(-2.6).
   float DecisionForestBase = 1.3f;
 };
@@ -159,6 +158,10 @@ struct CodeCompleteOptions {
 struct CodeCompletion {
   // The unqualified name of the symbol or other completion item.
   std::string Name;
+  // The name of the symbol for filtering and sorting purposes. Typically the
+  // same as `Name`, but may be different e.g. for ObjC methods, `Name` is the
+  // first selector fragment but the `FilterText` is the entire selector.
+  std::string FilterText;
   // The scope qualifier for the symbol name. e.g. "ns1::ns2::"
   // Empty for non-symbol completions. Not inserted, but may be displayed.
   std::string Scope;
@@ -262,7 +265,7 @@ struct SpeculativeFuzzyFind {
   llvm::Optional<FuzzyFindRequest> NewReq;
   /// The result is consumed by `codeComplete()` if speculation succeeded.
   /// NOTE: the destructor will wait for the async call to finish.
-  std::future<SymbolSlab> Result;
+  std::future<std::pair<bool /*Incomplete*/, SymbolSlab>> Result;
 };
 
 /// Gets code completions at a specified \p Pos in \p FileName.
@@ -290,7 +293,7 @@ SignatureHelp signatureHelp(PathRef FileName, Position Pos,
 // For index-based completion, we only consider:
 //   * symbols in namespaces or translation unit scopes (e.g. no class
 //     members, no locals)
-//   * enum constants in unscoped enum decl (e.g. "red" in "enum {red};")
+//   * enum constants (both scoped and unscoped)
 //   * primary templates (no specializations)
 // For the other cases, we let Clang do the completion because it does not
 // need any non-local information and it will be much better at following

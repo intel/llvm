@@ -9,21 +9,24 @@
 #ifndef LLVM_LIBC_UTILS_UNITTEST_FPMATCHER_H
 #define LLVM_LIBC_UTILS_UNITTEST_FPMATCHER_H
 
+#include "src/__support/FPUtil/FEnvImpl.h"
 #include "src/__support/FPUtil/FPBits.h"
-
 #include "utils/UnitTest/Test.h"
+
+#include <errno.h>
+#include <math.h>
 
 namespace __llvm_libc {
 namespace fputil {
 namespace testing {
 
 template <typename ValType, typename StreamType>
-cpp::EnableIfType<cpp::IsFloatingPointType<ValType>::Value, void>
+cpp::enable_if_t<cpp::is_floating_point_v<ValType>, void>
 describeValue(const char *label, ValType value, StreamType &stream);
 
 template <typename T, __llvm_libc::testing::TestCondition Condition>
 class FPMatcher : public __llvm_libc::testing::Matcher<T> {
-  static_assert(__llvm_libc::cpp::IsFloatingPointType<T>::Value,
+  static_assert(__llvm_libc::cpp::is_floating_point_v<T>,
                 "FPMatcher can only be used with floating point values.");
   static_assert(Condition == __llvm_libc::testing::Cond_EQ ||
                     Condition == __llvm_libc::testing::Cond_NE,
@@ -69,7 +72,7 @@ FPMatcher<T, C> getMatcher(T expectedValue) {
   using UIntType = typename FPBits::UIntType;                                  \
   const T zero = T(FPBits::zero());                                            \
   const T neg_zero = T(FPBits::neg_zero());                                    \
-  const T aNaN = T(FPBits::build_nan(1));                                      \
+  const T aNaN = T(FPBits::build_quiet_nan(1));                                \
   const T inf = T(FPBits::inf());                                              \
   const T neg_inf = T(FPBits::neg_inf());
 
@@ -96,5 +99,37 @@ FPMatcher<T, C> getMatcher(T expectedValue) {
       actual,                                                                  \
       __llvm_libc::fputil::testing::getMatcher<__llvm_libc::testing::Cond_NE>( \
           expected))
+
+#define EXPECT_MATH_ERRNO(expected)                                            \
+  do {                                                                         \
+    if (math_errhandling & MATH_ERRNO) {                                       \
+      int actual = errno;                                                      \
+      errno = 0;                                                               \
+      EXPECT_EQ(actual, expected);                                             \
+    }                                                                          \
+  } while (0)
+
+#define ASSERT_MATH_ERRNO(expected)                                            \
+  do {                                                                         \
+    if (math_errhandling & MATH_ERRNO) {                                       \
+      int actual = errno;                                                      \
+      errno = 0;                                                               \
+      ASSERT_EQ(actual, expected);                                             \
+    }                                                                          \
+  } while (0)
+
+#define EXPECT_FP_EXCEPTION(expected)                                          \
+  do {                                                                         \
+    if (math_errhandling & MATH_ERREXCEPT) {                                   \
+      EXPECT_EQ(__llvm_libc::fputil::test_except(FE_ALL_EXCEPT), expected);    \
+    }                                                                          \
+  } while (0)
+
+#define ASSERT_FP_EXCEPTION(expected)                                          \
+  do {                                                                         \
+    if (math_errhandling & MATH_ERREXCEPT) {                                   \
+      ASSERT_EQ(__llvm_libc::fputil::test_except(FE_ALL_EXCEPT), expected);    \
+    }                                                                          \
+  } while (0)
 
 #endif // LLVM_LIBC_UTILS_UNITTEST_FPMATCHER_H

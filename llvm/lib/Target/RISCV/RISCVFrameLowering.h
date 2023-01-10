@@ -24,11 +24,14 @@ public:
   explicit RISCVFrameLowering(const RISCVSubtarget &STI)
       : TargetFrameLowering(StackGrowsDown,
                             /*StackAlignment=*/Align(16),
-                            /*LocalAreaOffset=*/0),
+                            /*LocalAreaOffset=*/0,
+                            /*TransientStackAlignment=*/Align(16)),
         STI(STI) {}
 
   void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
   void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
+
+  uint64_t getStackSizeWithRVVPadding(const MachineFunction &MF) const;
 
   StackOffset getFrameIndexReference(const MachineFunction &MF, int FI,
                                      Register &FrameReg) const override;
@@ -65,6 +68,8 @@ public:
   bool canUseAsPrologue(const MachineBasicBlock &MBB) const override;
   bool canUseAsEpilogue(const MachineBasicBlock &MBB) const override;
 
+  bool enableShrinkWrapping(const MachineFunction &MF) const override;
+
   bool isSupportedStackID(TargetStackID::Value ID) const override;
   TargetStackID::Value getStackIDForScalableVectors() const override;
 
@@ -73,13 +78,11 @@ protected:
 
 private:
   void determineFrameLayout(MachineFunction &MF) const;
-  void adjustReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
-                 const DebugLoc &DL, Register DestReg, Register SrcReg,
-                 int64_t Val, MachineInstr::MIFlag Flag) const;
   void adjustStackForRVV(MachineFunction &MF, MachineBasicBlock &MBB,
                          MachineBasicBlock::iterator MBBI, const DebugLoc &DL,
                          int64_t Amount, MachineInstr::MIFlag Flag) const;
-  int64_t assignRVVStackObjectOffsets(MachineFrameInfo &MFI) const;
+  std::pair<int64_t, Align>
+  assignRVVStackObjectOffsets(MachineFunction &MF) const;
 };
-}
+} // namespace llvm
 #endif

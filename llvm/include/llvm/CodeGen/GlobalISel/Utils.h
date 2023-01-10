@@ -15,18 +15,20 @@
 #define LLVM_CODEGEN_GLOBALISEL_UTILS_H
 
 #include "GISelWorkList.h"
-#include "LostDebugLocObserver.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/Register.h"
+#include "llvm/IR/DebugLoc.h"
 #include "llvm/Support/Alignment.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/LowLevelTypeImpl.h"
 #include <cstdint>
 
 namespace llvm {
 
 class AnalysisUsage;
+class LostDebugLocObserver;
+class MachineBasicBlock;
 class BlockFrequencyInfo;
 class GISelKnownBits;
 class MachineFunction;
@@ -46,7 +48,6 @@ class TargetRegisterInfo;
 class TargetRegisterClass;
 class ConstantFP;
 class APFloat;
-class MachineIRBuilder;
 
 // Convenience macros for dealing with vector reduction opcodes.
 #define GISEL_VECREDUCE_CASES_ALL                                              \
@@ -267,13 +268,10 @@ Optional<APFloat> ConstantFoldFPBinOp(unsigned Opcode, const Register Op1,
                                       const MachineRegisterInfo &MRI);
 
 /// Tries to constant fold a vector binop with sources \p Op1 and \p Op2.
-/// If successful, returns the G_BUILD_VECTOR representing the folded vector
-/// constant. \p MIB should have an insertion point already set to create new
-/// G_CONSTANT instructions as needed.
-Register ConstantFoldVectorBinop(unsigned Opcode, const Register Op1,
-                                 const Register Op2,
-                                 const MachineRegisterInfo &MRI,
-                                 MachineIRBuilder &MIB);
+/// Returns an empty vector on failure.
+SmallVector<APInt> ConstantFoldVectorBinop(unsigned Opcode, const Register Op1,
+                                           const Register Op2,
+                                           const MachineRegisterInfo &MRI);
 
 Optional<APInt> ConstantFoldExtOp(unsigned Opcode, const Register Op1,
                                   uint64_t Imm, const MachineRegisterInfo &MRI);
@@ -371,12 +369,26 @@ public:
 };
 
 /// \returns The splat index of a G_SHUFFLE_VECTOR \p MI when \p MI is a splat.
-/// If \p MI is not a splat, returns None.
+/// If \p MI is not a splat, returns std::nullopt.
 Optional<int> getSplatIndex(MachineInstr &MI);
 
-/// Returns a scalar constant of a G_BUILD_VECTOR splat if it exists.
-Optional<int64_t> getBuildVectorConstantSplat(const MachineInstr &MI,
-                                              const MachineRegisterInfo &MRI);
+/// \returns the scalar integral splat value of \p Reg if possible.
+Optional<APInt> getIConstantSplatVal(const Register Reg,
+                                     const MachineRegisterInfo &MRI);
+
+/// \returns the scalar integral splat value defined by \p MI if possible.
+Optional<APInt> getIConstantSplatVal(const MachineInstr &MI,
+                                     const MachineRegisterInfo &MRI);
+
+/// \returns the scalar sign extended integral splat value of \p Reg if
+/// possible.
+Optional<int64_t> getIConstantSplatSExtVal(const Register Reg,
+                                           const MachineRegisterInfo &MRI);
+
+/// \returns the scalar sign extended integral splat value defined by \p MI if
+/// possible.
+Optional<int64_t> getIConstantSplatSExtVal(const MachineInstr &MI,
+                                           const MachineRegisterInfo &MRI);
 
 /// Returns a floating point scalar constant of a build vector splat if it
 /// exists. When \p AllowUndef == true some elements can be undef but not all.
@@ -461,7 +473,7 @@ bool isConstantOrConstantVector(MachineInstr &MI,
 
 /// Determines if \p MI defines a constant integer or a splat vector of
 /// constant integers.
-/// \returns the scalar constant or None.
+/// \returns the scalar constant or std::nullopt.
 Optional<APInt> isConstantOrConstantSplatVector(MachineInstr &MI,
                                                 const MachineRegisterInfo &MRI);
 
@@ -475,6 +487,10 @@ bool matchUnaryPredicate(const MachineRegisterInfo &MRI, Register Reg,
 /// Returns true if given the TargetLowering's boolean contents information,
 /// the value \p Val contains a true value.
 bool isConstTrueVal(const TargetLowering &TLI, int64_t Val, bool IsVector,
+                    bool IsFP);
+/// \returns true if given the TargetLowering's boolean contents information,
+/// the value \p Val contains a false value.
+bool isConstFalseVal(const TargetLowering &TLI, int64_t Val, bool IsVector,
                     bool IsFP);
 
 /// Returns an integer representing true, as defined by the
@@ -493,6 +509,10 @@ void eraseInstrs(ArrayRef<MachineInstr *> DeadInstrs, MachineRegisterInfo &MRI,
                  LostDebugLocObserver *LocObserver = nullptr);
 void eraseInstr(MachineInstr &MI, MachineRegisterInfo &MRI,
                 LostDebugLocObserver *LocObserver = nullptr);
+
+/// Assuming the instruction \p MI is going to be deleted, attempt to salvage
+/// debug users of \p MI by writing the effect of \p MI in a DIExpression.
+void salvageDebugInfo(const MachineRegisterInfo &MRI, MachineInstr &MI);
 
 } // End namespace llvm.
 #endif

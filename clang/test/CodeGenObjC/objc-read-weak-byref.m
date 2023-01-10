@@ -18,5 +18,5 @@ int main(void) {
     return 0;
 }
 
-// CHECK: call i8* @objc_read_weak
-// CHECK: call i8* @objc_read_weak
+// CHECK: call ptr @objc_read_weak
+// CHECK: call ptr @objc_read_weak

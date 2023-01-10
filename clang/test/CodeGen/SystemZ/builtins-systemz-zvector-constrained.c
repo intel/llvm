@@ -222,12 +222,12 @@ void test_float(void) {
   // CHECK-ASM: vfsqdb
 
   vd = vec_ld2f(cptrf);
-  // CHECK: [[VAL:%[^ ]+]] = load <2 x float>, <2 x float>* %{{.*}}
+  // CHECK: [[VAL:%[^ ]+]] = load <2 x float>, ptr %{{.*}}
   // CHECK: call <2 x double> @llvm.experimental.constrained.fpext.v2f64.v2f32(<2 x float> [[VAL]], metadata !{{.*}})
   // (emulated)
   vec_st2f(vd, ptrf);
   // CHECK: [[VAL:%[^ ]+]] = tail call <2 x float> @llvm.experimental.constrained.fptrunc.v2f32.v2f64(<2 x double> %{{.*}}, metadata !{{.*}})
-  // CHECK: store <2 x float> [[VAL]], <2 x float>* %{{.*}}
+  // CHECK: store <2 x float> [[VAL]], ptr %{{.*}}
   // (emulated)
 
   vd = vec_ctd(vsl, 0);

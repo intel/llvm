@@ -4,12 +4,12 @@
 // This test checks that esimd::cbit, esimd::fbl and esimd::fbh APIs can be
 // compiled by host and device compilers.
 
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
 #include <cstdint>
 
-using namespace sycl::ext::intel::experimental;
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel;
+using namespace sycl::ext::intel::esimd;
 
 template <typename T, int N> void test_esimd_cbit() SYCL_ESIMD_FUNCTION {
   simd<T, N> v;

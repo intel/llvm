@@ -19,41 +19,24 @@
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
-#include "clang/AST/Expr.h"
-#include "clang/AST/ExprCXX.h"
 #include "clang/AST/NestedNameSpecifier.h"
-#include "clang/AST/PrettyPrinter.h"
-#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Stmt.h"
-#include "clang/AST/TemplateBase.h"
-#include "clang/AST/Type.h"
-#include "clang/AST/TypeLoc.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TokenKinds.h"
-#include "clang/Driver/Types.h"
-#include "clang/Index/IndexDataConsumer.h"
-#include "clang/Index/IndexSymbol.h"
-#include "clang/Index/IndexingAction.h"
 #include "clang/Lex/Lexer.h"
-#include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/Token.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/FormatAdapters.h"
-#include "llvm/Support/FormatVariadic.h"
-#include "llvm/Support/Signals.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cstddef>
 #include <set>
@@ -76,7 +59,7 @@ llvm::Optional<SourceLocation> getSemicolonForDecl(const FunctionDecl *FD) {
   SourceLocation CurLoc = FD->getEndLoc();
   auto NextTok = Lexer::findNextToken(CurLoc, SM, LangOpts);
   if (!NextTok || !NextTok->is(tok::semi))
-    return llvm::None;
+    return std::nullopt;
   return NextTok->getLocation();
 }
 
@@ -369,17 +352,17 @@ llvm::Optional<tooling::Replacement>
 addInlineIfInHeader(const FunctionDecl *FD) {
   // This includes inline functions and constexpr functions.
   if (FD->isInlined() || llvm::isa<CXXMethodDecl>(FD))
-    return llvm::None;
+    return std::nullopt;
   // Primary template doesn't need inline.
   if (FD->isTemplated() && !FD->isFunctionTemplateSpecialization())
-    return llvm::None;
+    return std::nullopt;
 
   const SourceManager &SM = FD->getASTContext().getSourceManager();
   llvm::StringRef FileName = SM.getFilename(FD->getLocation());
 
   // If it is not a header we don't need to mark function as "inline".
   if (!isHeaderFile(FileName, FD->getASTContext().getLangOpts()))
-    return llvm::None;
+    return std::nullopt;
 
   return tooling::Replacement(SM, FD->getInnerLocStart(), 0, "inline ");
 }
@@ -401,7 +384,7 @@ addInlineIfInHeader(const FunctionDecl *FD) {
 ///
 class DefineInline : public Tweak {
 public:
-  const char *id() const override final;
+  const char *id() const final;
 
   llvm::StringLiteral kind() const override {
     return CodeAction::REFACTOR_KIND;

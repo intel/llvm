@@ -1,15 +1,9 @@
-// RUN:   mlir-opt %s -async-to-async-runtime                                  \
-// RUN:               -async-runtime-ref-counting                              \
-// RUN:               -async-runtime-ref-counting-opt                          \
-// RUN:               -convert-async-to-llvm                                   \
-// RUN:               -convert-arith-to-llvm                                   \
-// RUN:               -convert-std-to-llvm                                     \
-// RUN:               -reconcile-unrealized-casts                              \
+// RUN:   mlir-opt %s -pass-pipeline="builtin.module(async-to-async-runtime,func.func(async-runtime-ref-counting,async-runtime-ref-counting-opt),convert-async-to-llvm,func.func(convert-arith-to-llvm),convert-func-to-llvm,reconcile-unrealized-casts)" \
 // RUN: | mlir-cpu-runner                                                      \
 // RUN:     -e main -entry-point-result=void -O0                               \
-// RUN:     -shared-libs=%linalg_test_lib_dir/libmlir_c_runner_utils%shlibext  \
-// RUN:     -shared-libs=%linalg_test_lib_dir/libmlir_runner_utils%shlibext    \
-// RUN:     -shared-libs=%linalg_test_lib_dir/libmlir_async_runtime%shlibext   \
+// RUN:     -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext  \
+// RUN:     -shared-libs=%mlir_lib_dir/libmlir_runner_utils%shlibext    \
+// RUN:     -shared-libs=%mlir_lib_dir/libmlir_async_runtime%shlibext   \
 // RUN: | FileCheck %s
 
 // This is crashing in CI "most of the time" on a AMD Rome CPU VM on GCP with:
@@ -19,7 +13,10 @@
 // to keep the bot green for now.
 // UNSUPPORTED: asan
 
-func @main() {
+// FIXME: https://github.com/llvm/llvm-project/issues/57231
+// UNSUPPORTED: hwasan
+
+func.func @main() {
   %c1 = arith.constant 1 : index
   %c5 = arith.constant 5 : index
 
@@ -52,4 +49,4 @@ func @main() {
   return
 }
 
-func private @mlirAsyncRuntimePrintCurrentThreadId() -> ()
+func.func private @mlirAsyncRuntimePrintCurrentThreadId() -> ()

@@ -38,7 +38,8 @@ void test_alnum_concrete(int v) {
 }
 
 void test_alnum_symbolic(int x) {
-  int ret = isalnum(x);
+  int ret = isalnum(x); // \
+  // bugpath-note{{Assuming the character is non-alphanumeric}}
   (void)ret;
 
   clang_analyzer_eval(EOF <= x && x <= 255); // \
@@ -238,6 +239,7 @@ void test_constraints_on_multiple_args(int x, int y) {
   // State split should not happen here. I.e. x == 1 should not be evaluated
   // FALSE.
   __two_constrained_args(x, y);
+  //NOTE! Because of the second `clang_analyzer_eval` call we have two bug
   clang_analyzer_eval(x == 1); // \
   // report-warning{{TRUE}} \
   // bugpath-warning{{TRUE}} \
@@ -251,7 +253,6 @@ void test_constraints_on_multiple_args(int x, int y) {
 int __arg_constrained_twice(int);
 void test_multiple_constraints_on_same_arg(int x) {
   __arg_constrained_twice(x);
-  // Check that both constraints are applied and only one branch is there.
   clang_analyzer_eval(x < 1 || x > 2); // \
   // report-warning{{TRUE}} \
   // bugpath-warning{{TRUE}} \

@@ -8,10 +8,10 @@
 
 #include "llvm/FuzzMutate/RandomIRBuilder.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/FuzzMutate/OpDescriptor.h"
 #include "llvm/FuzzMutate/Random.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 
@@ -53,8 +53,11 @@ Value *RandomIRBuilder::newSource(BasicBlock &BB, ArrayRef<Instruction *> Insts,
       IP = ++I->getIterator();
       assert(IP != BB.end() && "guaranteed by the findPointer");
     }
-    auto *NewLoad =
-        new LoadInst(Ptr->getType()->getPointerElementType(), Ptr, "L", &*IP);
+    // For opaque pointers, pick the type independently.
+    Type *AccessTy = Ptr->getType()->isOpaquePointerTy()
+                         ? RS.getSelection()->getType()
+                         : Ptr->getType()->getNonOpaquePointerElementType();
+    auto *NewLoad = new LoadInst(AccessTy, Ptr, "L", &*IP);
 
     // Only sample this load if it really matches the descriptor
     if (Pred.matches(Srcs, NewLoad))
@@ -69,6 +72,7 @@ Value *RandomIRBuilder::newSource(BasicBlock &BB, ArrayRef<Instruction *> Insts,
 
 static bool isCompatibleReplacement(const Instruction *I, const Use &Operand,
                                     const Value *Replacement) {
+  unsigned int OperandNo = Operand.getOperandNo();
   if (Operand->getType() != Replacement->getType())
     return false;
   switch (I->getOpcode()) {
@@ -77,13 +81,21 @@ static bool isCompatibleReplacement(const Instruction *I, const Use &Operand,
   case Instruction::ExtractValue:
     // TODO: We could potentially validate these, but for now just leave indices
     // alone.
-    if (Operand.getOperandNo() >= 1)
+    if (OperandNo >= 1)
       return false;
     break;
   case Instruction::InsertValue:
   case Instruction::InsertElement:
   case Instruction::ShuffleVector:
-    if (Operand.getOperandNo() >= 2)
+    if (OperandNo >= 2)
+      return false;
+    break;
+  // For Br/Switch, we only try to modify the 1st Operand (condition).
+  // Modify other operands, like switch case may accidently change case from
+  // ConstantInt to a register, which is illegal.
+  case Instruction::Switch:
+  case Instruction::Br:
+    if (OperandNo >= 1)
       return false;
     break;
   default:
@@ -139,9 +151,12 @@ Value *RandomIRBuilder::findPointer(BasicBlock &BB,
     if (Inst->isTerminator())
       return false;
 
-    if (auto PtrTy = dyn_cast<PointerType>(Inst->getType())) {
+    if (auto *PtrTy = dyn_cast<PointerType>(Inst->getType())) {
+      if (PtrTy->isOpaque())
+        return true;
+
       // We can never generate loads from non first class or non sized types
-      Type *ElemTy = PtrTy->getPointerElementType();
+      Type *ElemTy = PtrTy->getNonOpaquePointerElementType();
       if (!ElemTy->isSized() || !ElemTy->isFirstClassType())
         return false;
 
@@ -153,4 +168,9 @@ Value *RandomIRBuilder::findPointer(BasicBlock &BB,
   if (auto RS = makeSampler(Rand, make_filter_range(Insts, IsMatchingPtr)))
     return RS.getSelection();
   return nullptr;
+}
+
+Type *RandomIRBuilder::randomType() {
+  uint64_t TyIdx = uniform<uint64_t>(Rand, 0, KnownTypes.size() - 1);
+  return KnownTypes[TyIdx];
 }

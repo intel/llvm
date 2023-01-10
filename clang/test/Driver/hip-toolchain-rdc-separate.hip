@@ -1,8 +1,8 @@
-// REQUIRES: clang-driver
 // REQUIRES: x86-registered-target
 // REQUIRES: amdgpu-registered-target
 
-// RUN: %clang -c -### -target x86_64-linux-gnu \
+// RUN: rm -rf %t && mkdir %t
+// RUN: %clang -c -### --target=x86_64-linux-gnu \
 // RUN:   -x hip --cuda-gpu-arch=gfx803 --cuda-gpu-arch=gfx900 \
 // RUN:   --hip-device-lib=lib1.bc --hip-device-lib=lib2.bc \
 // RUN:   --hip-device-lib-path=%S/Inputs/hip_multiple_inputs/lib1 \
@@ -16,7 +16,7 @@
 // CHECK-SAME: "-aux-triple" "x86_64-unknown-linux-gnu"
 // CHECK-SAME: "-emit-llvm-bc"
 // CHECK-SAME: {{.*}} "-main-file-name" "a.cu"
-// CHECK-SAME: "-fcuda-is-device" "-fcuda-allow-variadic-functions" "-fvisibility" "hidden"
+// CHECK-SAME: "-fcuda-is-device" "-fcuda-allow-variadic-functions" "-fvisibility=hidden"
 // CHECK-SAME: "-fapply-global-visibility-to-externs"
 // CHECK-SAME: "{{.*}}lib1.bc" "{{.*}}lib2.bc"
 // CHECK-SAME: "-target-cpu" "gfx803"
@@ -45,13 +45,13 @@
 
 // CHECK: [[BUNDLER:".*clang-offload-bundler"]] "-type=o"
 // CHECK-SAME: "-targets=hip-amdgcn-amd-amdhsa-gfx803,hip-amdgcn-amd-amdhsa-gfx900,host-x86_64-unknown-linux-gnu"
-// CHECK-SAME: "-outputs=[[A_O:.*a.o]]" "-inputs=[[A_BC1]],[[A_BC2]],[[A_OBJ_HOST]]"
+// CHECK-SAME: "-output=[[A_O:.*a.o]]" "-input=[[A_BC1]]" "-input=[[A_BC2]]" "-input=[[A_OBJ_HOST]]"
 
 // CHECK: [[CLANG]] "-cc1" "-triple" "amdgcn-amd-amdhsa"
 // CHECK-SAME: "-aux-triple" "x86_64-unknown-linux-gnu"
 // CHECK-SAME: "-emit-llvm-bc"
 // CHECK-SAME: {{.*}} "-main-file-name" "b.hip"
-// CHECK-SAME: "-fcuda-is-device" "-fcuda-allow-variadic-functions" "-fvisibility" "hidden"
+// CHECK-SAME: "-fcuda-is-device" "-fcuda-allow-variadic-functions" "-fvisibility=hidden"
 // CHECK-SAME: "-fapply-global-visibility-to-externs"
 // CHECK-SAME: "{{.*}}lib1.bc" "{{.*}}lib2.bc"
 // CHECK-SAME: "-target-cpu" "gfx803"
@@ -80,46 +80,45 @@
 
 // CHECK: [[BUNDLER:".*clang-offload-bundler"]] "-type=o"
 // CHECK-SAME: "-targets=hip-amdgcn-amd-amdhsa-gfx803,hip-amdgcn-amd-amdhsa-gfx900,host-x86_64-unknown-linux-gnu"
-// CHECK-SAME: "-outputs=[[B_O:.*b.o]]" "-inputs=[[B_BC1]],[[B_BC2]],[[B_OBJ_HOST]]"
+// CHECK-SAME: "-output=[[B_O:.*b.o]]" "-input=[[B_BC1]]" "-input=[[B_BC2]]" "-input=[[B_OBJ_HOST]]"
 
-// RUN: touch %T/a.o
-// RUN: touch %T/b.o
-// RUN: %clang --hip-link -### -target x86_64-linux-gnu \
+// RUN: touch %t/a.o %t/b.o
+// RUN: %clang --hip-link -### --target=x86_64-linux-gnu \
 // RUN:   --cuda-gpu-arch=gfx803 --cuda-gpu-arch=gfx900 \
 // RUN:   -fuse-ld=lld -fgpu-rdc -nogpuinc \
-// RUN:   %T/a.o %T/b.o \
+// RUN:   %t/a.o %t/b.o \
 // RUN: 2>&1 | FileCheck -check-prefixes=LINK,LINK-HOST-UNBUNDLE,LLD-TMP,LINK-BUNDLE,LINK-EMBED %s
 
-// RUN: %clang --hip-link -### -target x86_64-linux-gnu \
+// RUN: %clang --hip-link -### --target=x86_64-linux-gnu \
 // RUN:   --cuda-gpu-arch=gfx803 --cuda-gpu-arch=gfx900 \
 // RUN:   -fuse-ld=lld -fgpu-rdc -nogpuinc \
-// RUN:   %T/a.o %T/b.o --cuda-device-only \
+// RUN:   %t/a.o %t/b.o --cuda-device-only \
 // RUN: 2>&1 | FileCheck -check-prefixes=LINK,LLD-TMP,LINK-BUNDLE,LINK-NOEMBED %s
 
-// RUN: %clang --hip-link -### -target x86_64-linux-gnu \
+// RUN: %clang --hip-link -### --target=x86_64-linux-gnu \
 // RUN:   --cuda-gpu-arch=gfx803 --cuda-gpu-arch=gfx900 \
 // RUN:   -fuse-ld=lld -fgpu-rdc -nogpuinc \
-// RUN:   %T/a.o %T/b.o --cuda-device-only --no-gpu-bundle-output \
+// RUN:   %t/a.o %t/b.o --cuda-device-only --no-gpu-bundle-output \
 // RUN: 2>&1 | FileCheck -check-prefixes=LINK,LLD-FIN,LINK-NOBUNDLE,LINK-NOEMBED %s
 
 // LINK-HOST-UNBUNDLE: [[BUNDLER:".*clang-offload-bundler"]] "-type=o"
 // LINK-HOST-UNBUNDLE-SAME: "-targets=host-x86_64-unknown-linux-gnu,hip-amdgcn-amd-amdhsa-gfx803,hip-amdgcn-amd-amdhsa-gfx900"
-// LINK-HOST-UNBUNDLE-SAME: "-inputs=[[A_O:.*a.o]]" "-outputs=[[A_OBJ_HOST:.*o]],{{.*o}},{{.*o}}"
+// LINK-HOST-UNBUNDLE-SAME: "-input=[[A_O:.*a.o]]" "-output=[[A_OBJ_HOST:.*o]]" "-output={{.*o}}" "-output={{.*o}}"
 // LINK-HOST-UNBUNDLE: "-unbundle" "-allow-missing-bundles"
 
 // LINK-HOST-UNBUNDLE: [[BUNDLER:".*clang-offload-bundler"]] "-type=o"
 // LINK-HOST-UNBUNDLE-SAME: "-targets=host-x86_64-unknown-linux-gnu,hip-amdgcn-amd-amdhsa-gfx803,hip-amdgcn-amd-amdhsa-gfx900"
-// LINK-HOST-UNBUNDLE-SAME: "-inputs=[[B_O:.*b.o]]" "-outputs=[[B_OBJ_HOST:.*o]],{{.*o}},{{.*o}}"
+// LINK-HOST-UNBUNDLE-SAME: "-input=[[B_O:.*b.o]]" "-output=[[B_OBJ_HOST:.*o]]" "-output={{.*o}}" "-output={{.*o}}"
 // LINK-HOST-UNBUNDLE: "-unbundle" "-allow-missing-bundles"
 
 // LINK: [[BUNDLER:".*clang-offload-bundler"]] "-type=o"
 // LINK-SAME: "-targets=host-x86_64-unknown-linux-gnu,hip-amdgcn-amd-amdhsa-gfx803,hip-amdgcn-amd-amdhsa-gfx900"
-// LINK-SAME: "-inputs=[[A_O:.*a.o]]" "-outputs={{.*o}},[[A_BC1:.*o]],[[A_BC2:.*o]]"
+// LINK-SAME: "-input=[[A_O:.*a.o]]" "-output={{.*o}}" "-output=[[A_BC1:.*o]]" "-output=[[A_BC2:.*o]]"
 // LINK-SAME: "-unbundle" "-allow-missing-bundles"
 
 // LINK: [[BUNDLER:".*clang-offload-bundler"]] "-type=o"
 // LINK-SAME: "-targets=host-x86_64-unknown-linux-gnu,hip-amdgcn-amd-amdhsa-gfx803,hip-amdgcn-amd-amdhsa-gfx900"
-// LINK-SAME: "-inputs=[[B_O:.*b.o]]" "-outputs={{.*o}},[[B_BC1:.*o]],[[B_BC2:.*o]]"
+// LINK-SAME: "-input=[[B_O:.*b.o]]" "-output={{.*o}}" "-output=[[B_BC1:.*o]]" "-output=[[B_BC2:.*o]]"
 // LINK-SAME: "-unbundle" "-allow-missing-bundles"
 
 // LINK-NOT: "*.llvm-link"
@@ -142,7 +141,7 @@
 
 // LINK-BUNDLE: [[BUNDLER:".*clang-offload-bundler"]] "-type=o"
 // LINK-BUNDLE-SAME: "-targets={{.*}},hipv4-amdgcn-amd-amdhsa--gfx803,hipv4-amdgcn-amd-amdhsa--gfx900"
-// LINK-BUNDLE-SAME: "-inputs={{.*}},[[IMG_DEV1]],[[IMG_DEV2]]" "-outputs=[[BUNDLE:.*]]"
+// LINK-BUNDLE-SAME: "-input={{.*}}" "-input=[[IMG_DEV1]]" "-input=[[IMG_DEV2]]" "-output=[[BUNDLE:.*]]"
 // LINK-NOBUNDLE-NOT: {{".*clang-offload-bundler"}} "-type=o"
 
 // LINK-EMBED: {{".*llvm-mc.*"}} "-o" "[[OBJBUNDLE:.*o]]" "{{.*}}.mcin" "--filetype=obj"

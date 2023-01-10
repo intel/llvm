@@ -263,6 +263,10 @@ def FeatureISA3_1 : SubtargetFeature<"isa-v31-instructions", "IsISA3_1",
                                      "true",
                                      "Enable instructions in ISA 3.1.",
                                      [FeatureISA3_0]>;
+def FeatureISAFuture : SubtargetFeature<"isa-future-instructions",
+                                        "IsISAFuture", "true",
+                                        "Enable instructions for Future ISA.",
+                                        [FeatureISA3_1]>;
 def FeatureP9Altivec : SubtargetFeature<"power9-altivec", "HasP9Altivec", "true",
                                         "Enable POWER9 Altivec instructions",
                                         [FeatureISA3_0, FeatureP8Altivec]>;
@@ -311,6 +315,9 @@ def FeaturePredictableSelectIsExpensive :
                    "PredictableSelectIsExpensive",
                    "true",
                    "Prefer likely predicted branches over selects">;
+
+def FeatureFastMFLR : SubtargetFeature<"fast-MFLR", "HasFastMFLR", "true",
+                                       "MFLR is a fast instruction">;
 
 // Since new processors generally contain a superset of features of those that
 // came before them, the idea is to make implementations of new processors
@@ -376,7 +383,8 @@ def ProcessorFeatures {
      FeaturePartwordAtomic,
      FeatureQuadwordAtomic,
      FeaturePredictableSelectIsExpensive,
-     FeatureISA2_07
+     FeatureISA2_07,
+     FeatureCRBits
     ];
 
   list<SubtargetFeature> P8SpecificFeatures = [FeatureAddiLoadFusion,
@@ -419,7 +427,7 @@ def ProcessorFeatures {
     !listconcat(FusionFeatures, [
        DirectivePwr10, FeatureISA3_1, FeaturePrefixInstrs,
        FeaturePCRelativeMemops, FeatureP10Vector, FeatureMMA,
-       FeaturePairedVectorMemops]);
+       FeaturePairedVectorMemops, FeatureFastMFLR]);
   list<SubtargetFeature> P10SpecificFeatures = [];
   list<SubtargetFeature> P10InheritableFeatures =
     !listconcat(P9InheritableFeatures, P10AdditionalFeatures);
@@ -429,7 +437,7 @@ def ProcessorFeatures {
   // Future
   // For future CPU we assume that all of the existing features from Power10
   // still exist with the exception of those we know are Power10 specific.
-  list<SubtargetFeature> FutureAdditionalFeatures = [];
+  list<SubtargetFeature> FutureAdditionalFeatures = [FeatureISAFuture];
   list<SubtargetFeature> FutureSpecificFeatures = [];
   list<SubtargetFeature> FutureInheritableFeatures =
     !listconcat(P10InheritableFeatures, FutureAdditionalFeatures);
@@ -591,7 +599,8 @@ def : ProcessorModel<"a2", PPCA2Model,
                    FeatureSTFIWX, FeatureLFIWAX,
                    FeatureFPRND, FeatureFPCVT, FeatureISEL,
                    FeatureSlowPOPCNTD, FeatureCMPB, FeatureLDBRX,
-                   Feature64Bit /*, Feature64BitRegs */, FeatureMFTB]>;
+                   Feature64Bit /*, Feature64BitRegs */, FeatureMFTB,
+                   FeatureISA2_06]>;
 def : ProcessorModel<"pwr3", G5Model,
                   [DirectivePwr3, FeatureAltivec,
                    FeatureFRES, FeatureFRSQRTE, FeatureMFOCRF,
@@ -658,6 +667,7 @@ def PPCInstrInfo : InstrInfo {
   let decodePositionallyEncodedOperands = 1;
 
   let noNamedPositionallyEncodedOperands = 1;
+  let useDeprecatedPositionallyEncodedOperands = 1;
 }
 
 def PPCAsmWriter : AsmWriter {

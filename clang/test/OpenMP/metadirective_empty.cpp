@@ -19,18 +19,18 @@ void func() {
 // CHECK-LABEL: void @_Z4funcv()
 // CHECK: entry:
 // CHECK:   [[I:%.+]] = alloca i32,
-// CHECK:   store i32 0, i32* [[I]],
+// CHECK:   store i32 0, ptr [[I]],
 // CHECK:   br label %[[FOR_COND:.+]]
 // CHECK: [[FOR_COND]]:
-// CHECK:   [[ZERO:%.+]] = load i32, i32* [[I]],
+// CHECK:   [[ZERO:%.+]] = load i32, ptr [[I]],
 // CHECK:   [[CMP:%.+]] = icmp slt i32 [[ZERO]], 1000
 // CHECK:   br i1 [[CMP]], label %[[FOR_BODY:.+]], label %[[FOR_END:.+]]
 // CHECK: [[FOR_BODY]]:
 // CHECK:   br label %[[FOR_INC:.+]]
 // CHECK: [[FOR_INC]]:
-// CHECK:   [[ONE:%.+]] = load i32, i32* [[I]],
+// CHECK:   [[ONE:%.+]] = load i32, ptr [[I]],
 // CHECK:   [[INC:%.+]] = add nsw i32 [[ONE]], 1
-// CHECK:   store i32 [[INC]], i32* [[I]],
+// CHECK:   store i32 [[INC]], ptr [[I]],
 // CHECK:   br label %[[FOR_COND]],
 // CHECK: [[FOR_END]]:
 // CHECK:   ret void

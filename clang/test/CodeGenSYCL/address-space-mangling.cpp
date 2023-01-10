@@ -8,15 +8,15 @@ __attribute__((sycl_device)) void foo(__attribute__((opencl_local)) int *);
 __attribute__((sycl_device)) void foo(__attribute__((opencl_private)) int *);
 __attribute__((sycl_device)) void foo(int *);
 
-// SPIR: declare spir_func void @_Z3fooPU3AS1i(i32 addrspace(1)* noundef)
-// SPIR: declare spir_func void @_Z3fooPU3AS3i(i32 addrspace(3)* noundef)
-// SPIR: declare spir_func void @_Z3fooPU3AS0i(i32* noundef)
-// SPIR: declare spir_func void @_Z3fooPi(i32 addrspace(4)* noundef)
+// SPIR: declare spir_func void @_Z3fooPU3AS1i(ptr addrspace(1) noundef)
+// SPIR: declare spir_func void @_Z3fooPU3AS3i(ptr addrspace(3) noundef)
+// SPIR: declare spir_func void @_Z3fooPU3AS0i(ptr noundef)
+// SPIR: declare spir_func void @_Z3fooPi(ptr addrspace(4) noundef)
 
-// X86: declare void @_Z3fooPU8SYglobali(i32* noundef)
-// X86: declare void @_Z3fooPU7SYlocali(i32* noundef)
-// X86: declare void @_Z3fooPU9SYprivatei(i32* noundef)
-// X86: declare void @_Z3fooPi(i32* noundef)
+// X86: declare void @_Z3fooPU8SYglobali(ptr noundef)
+// X86: declare void @_Z3fooPU7SYlocali(ptr noundef)
+// X86: declare void @_Z3fooPU9SYprivatei(ptr noundef)
+// X86: declare void @_Z3fooPi(ptr noundef)
 
 __attribute__((sycl_device)) void test() {
   __attribute__((opencl_global)) int *glob;

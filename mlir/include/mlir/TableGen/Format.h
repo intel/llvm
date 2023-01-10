@@ -61,8 +61,8 @@ public:
   FmtContext &withOp(Twine subst);
   FmtContext &withSelf(Twine subst);
 
-  Optional<StringRef> getSubstFor(PHKind placeholder) const;
-  Optional<StringRef> getSubstFor(StringRef placeholder) const;
+  std::optional<StringRef> getSubstFor(PHKind placeholder) const;
+  std::optional<StringRef> getSubstFor(StringRef placeholder) const;
 
   static PHKind getPlaceHolderKind(StringRef str);
 
@@ -165,19 +165,24 @@ public:
     return s.str();
   }
 
-  template <unsigned N> SmallString<N> sstr() const {
+  template <unsigned N>
+  SmallString<N> sstr() const {
     SmallString<N> result;
     llvm::raw_svector_ostream s(result);
     format(s);
     return result;
   }
 
-  template <unsigned N> operator SmallString<N>() const { return sstr<N>(); }
+  template <unsigned N>
+  operator SmallString<N>() const {
+    return sstr<N>();
+  }
 
   operator std::string() const { return str(); }
 };
 
-template <typename Tuple> class FmtObject : public FmtObjectBase {
+template <typename Tuple>
+class FmtObject : public FmtObjectBase {
   // Storage for the parameter adapters.  Since the base class erases the type
   // of the parameters, we have to own the storage for the parameters here, and
   // have the base class store type-erased pointers into this tuple.
@@ -188,7 +193,7 @@ public:
       : FmtObjectBase(fmt, ctx, std::tuple_size<Tuple>::value),
         parameters(std::move(params)) {
     adapters.reserve(std::tuple_size<Tuple>::value);
-    adapters = llvm::apply_tuple(CreateAdapters(), parameters);
+    adapters = std::apply(CreateAdapters(), parameters);
   }
 
   FmtObject(FmtObject const &that) = delete;
@@ -196,7 +201,7 @@ public:
   FmtObject(FmtObject &&that)
       : FmtObjectBase(std::move(that)), parameters(std::move(that.parameters)) {
     adapters.reserve(that.adapters.size());
-    adapters = llvm::apply_tuple(CreateAdapters(), parameters);
+    adapters = std::apply(CreateAdapters(), parameters);
   }
 };
 

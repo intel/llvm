@@ -396,7 +396,7 @@ bool ARMConstantIslands::runOnMachineFunction(MachineFunction &mf) {
                     << MCP->getConstants().size() << " CP entries, aligned to "
                     << MCP->getConstantPoolAlign().value() << " bytes *****\n");
 
-  STI = &static_cast<const ARMSubtarget &>(MF->getSubtarget());
+  STI = &MF->getSubtarget<ARMSubtarget>();
   TII = STI->getInstrInfo();
   isPositionIndependentOrROPI =
       STI->getTargetLowering()->isPositionIndependent() || STI->isROPI();
@@ -801,7 +801,7 @@ initializeFunctionInfo(const std::vector<MachineInstr*> &CPEMIs) {
         case ARM::Bcc:
           isCond = true;
           UOpc = ARM::B;
-          LLVM_FALLTHROUGH;
+          [[fallthrough]];
         case ARM::B:
           Bits = 24;
           Scale = 4;

@@ -197,6 +197,15 @@ test.format_optional_enum_attr case5
 // CHECK-NOT: "case5"
 test.format_optional_enum_attr
 
+// CHECK: test.format_optional_default_attrs "foo" @foo case10
+test.format_optional_default_attrs "foo" @foo case10
+
+// CHECK: test.format_optional_default_attr
+// CHECK-NOT: "default"
+// CHECK-NOT: @default
+// CHECK-NOT: case5
+test.format_optional_default_attrs "default" @default case5
+
 //===----------------------------------------------------------------------===//
 // Format optional operands and results
 //===----------------------------------------------------------------------===//
@@ -310,7 +319,7 @@ test.format_qual_cpmd_nested_attr nested #test.cmpnd_nested_outer<i <42 <1, !tes
 
 // Check the `qualified` directive in the declarative assembly format.
 // CHECK: @qualifiedCompoundNestedExplicit(%arg0: !test.cmpnd_nested_outer<i <42 <1, !test.smpla, [5, 6]>>>)
-func @qualifiedCompoundNestedExplicit(%arg0: !test.cmpnd_nested_outer<i !test.cmpnd_inner<42 <1, !test.smpla, [5, 6]>>>) -> () {
+func.func @qualifiedCompoundNestedExplicit(%arg0: !test.cmpnd_nested_outer<i !test.cmpnd_inner<42 <1, !test.smpla, [5, 6]>>>) -> () {
   // Verify that the type prefix is not elided
   // CHECK: format_qual_cpmd_nested_type %arg0 nested !test.cmpnd_nested_outer<i <42 <1, !test.smpla, [5, 6]>>>
   test.format_qual_cpmd_nested_type %arg0 nested !test.cmpnd_nested_outer<i <42 <1, !test.smpla, [5, 6]>>>
@@ -377,7 +386,7 @@ test.format_custom_directive_with_optional_operand_ref %i64 : 1
 // CHECK: test.format_custom_directive_with_optional_operand_ref : 0
 test.format_custom_directive_with_optional_operand_ref : 0
 
-func @foo() {
+func.func @foo() {
   // CHECK: test.format_custom_directive_successors ^bb1, ^bb2
   test.format_custom_directive_successors ^bb1, ^bb2
 
@@ -386,6 +395,18 @@ func @foo() {
   test.format_custom_directive_successors ^bb2
 
 ^bb2:
+  return
+}
+
+// CHECK: test.format_custom_directive_spacing "a" "b"
+test.format_custom_directive_spacing "a" "b"
+
+// CHECK: test.format_literal_following_optional_group(5 : i32) : i32 {a}
+test.format_literal_following_optional_group(5 : i32) : i32 {a}
+
+func.func @variadic(%a: i32) {
+  // CHECK: test.ellipsis(%{{.*}} ...) : i32 ...
+  test.ellipsis(%a ...) : i32 ...
   return
 }
 
@@ -460,3 +481,18 @@ test.format_infer_variadic_type_from_non_variadic %i64, %i64 : i64
 
 // CHECK: test.has_str_value
 test.has_str_value {}
+
+//===----------------------------------------------------------------------===//
+// ElseAnchorOp
+//===----------------------------------------------------------------------===//
+
+// CHECK-LABEL: @else_anchor_op
+func.func @else_anchor_op(%a: !test.else_anchor<?>, %b: !test.else_anchor<5>) {
+  // CHECK: test.else_anchor(?) {a = !test.else_anchor_struct<?>}
+  test.else_anchor(?) {a = !test.else_anchor_struct<?>}
+  // CHECK: test.else_anchor(%{{.*}} : !test.else_anchor<?>) {a = !test.else_anchor_struct<a = 0>}
+  test.else_anchor(%a : !test.else_anchor<?>) {a = !test.else_anchor_struct<a = 0>}
+  // CHECK: test.else_anchor(%{{.*}} : !test.else_anchor<5>) {a = !test.else_anchor_struct<b = 0>}
+  test.else_anchor(%b : !test.else_anchor<5>) {a = !test.else_anchor_struct<b = 0>}
+  return
+}

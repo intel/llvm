@@ -15,7 +15,7 @@
 #include "OutputSegment.h"
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/Memory.h"
-#include "lld/Common/Strings.h"
+#include "llvm/Demangle/Demangle.h"
 
 #define DEBUG_TYPE "lld"
 
@@ -34,8 +34,9 @@ std::string maybeDemangleSymbol(StringRef name) {
   // `main` in the case where we need to pass it arguments.
   if (name == "__main_argc_argv")
     return "main";
-
-  return demangle(name, config->demangle);
+  if (wasm::config->demangle)
+    return demangle(name.str());
+  return name.str();
 }
 
 std::string toString(wasm::Symbol::Kind kind) {
@@ -83,8 +84,11 @@ DefinedData *WasmSym::dsoHandle;
 DefinedData *WasmSym::dataEnd;
 DefinedData *WasmSym::globalBase;
 DefinedData *WasmSym::heapBase;
+DefinedData *WasmSym::heapEnd;
 DefinedData *WasmSym::initMemoryFlag;
 GlobalSymbol *WasmSym::stackPointer;
+DefinedData *WasmSym::stackLow;
+DefinedData *WasmSym::stackHigh;
 GlobalSymbol *WasmSym::tlsBase;
 GlobalSymbol *WasmSym::tlsSize;
 GlobalSymbol *WasmSym::tlsAlign;
@@ -217,14 +221,14 @@ void Symbol::setHidden(bool isHidden) {
 }
 
 bool Symbol::isExported() const {
+  if (!isDefined() || isLocal())
+    return false;
+
   // Shared libraries must export all weakly defined symbols
   // in case they contain the version that will be chosen by
   // the dynamic linker.
-  if (config->shared && isLive() && isDefined() && isWeak())
+  if (config->shared && isLive() && isWeak() && !isHidden())
     return true;
-
-  if (!isDefined() || isLocal())
-    return false;
 
   if (config->exportAll || (config->exportDynamic && !isHidden()))
     return true;
@@ -453,6 +457,7 @@ void printTraceSymbol(Symbol *sym) {
 
 const char *defaultModule = "env";
 const char *functionTableName = "__indirect_function_table";
+const char *memoryName = "memory";
 
 } // namespace wasm
 } // namespace lld

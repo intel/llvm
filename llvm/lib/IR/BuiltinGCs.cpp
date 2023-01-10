@@ -20,7 +20,7 @@ using namespace llvm;
 
 namespace {
 
-/// An example GC which attempts to be compatibile with Erlang/OTP garbage
+/// An example GC which attempts to be compatible with Erlang/OTP garbage
 /// collector.
 ///
 /// The frametable emitter is in ErlangGCPrinter.cpp.
@@ -72,7 +72,7 @@ public:
     UsesMetadata = false;
   }
 
-  Optional<bool> isGCManagedPointer(const Type *Ty) const override {
+  std::optional<bool> isGCManagedPointer(const Type *Ty) const override {
     // Method is only valid on pointer typed values.
     const PointerType *PT = cast<PointerType>(Ty);
     // For the sake of this example GC, we arbitrarily pick addrspace(1) as our
@@ -104,7 +104,7 @@ public:
     UsesMetadata = false;
   }
 
-  Optional<bool> isGCManagedPointer(const Type *Ty) const override {
+  std::optional<bool> isGCManagedPointer(const Type *Ty) const override {
     // Method is only valid on pointer typed values.
     const PointerType *PT = cast<PointerType>(Ty);
     // We pick addrspace(1) as our GC managed heap.

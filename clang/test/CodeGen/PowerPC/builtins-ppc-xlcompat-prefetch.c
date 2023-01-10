@@ -11,16 +11,16 @@ extern void *vpa;
 
 void test_dcbtstt(void) {
   // CHECK-LABEL: @test_dcbtstt
-  // CHECK: %0 = load i8*, i8** @vpa
-  // CHECK: tail call void @llvm.ppc.dcbtstt(i8* %0)
+  // CHECK: %0 = load ptr, ptr @vpa
+  // CHECK: tail call void @llvm.ppc.dcbtstt(ptr %0)
   // CHECK: ret void
   __dcbtstt(vpa);
 }
 
 void test_dcbtt(void) {
   // CHECK-LABEL: @test_dcbt
-  // CHECK: %0 = load i8*, i8** @vpa
-  // CHECK: tail call void @llvm.ppc.dcbtt(i8* %0)
+  // CHECK: %0 = load ptr, ptr @vpa
+  // CHECK: tail call void @llvm.ppc.dcbtt(ptr %0)
   // CHECK: ret void
   __dcbtt(vpa);
 }

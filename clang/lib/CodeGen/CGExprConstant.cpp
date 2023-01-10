@@ -283,7 +283,7 @@ bool ConstantAggregateBuilder::addBits(llvm::APInt Bits, uint64_t OffsetInBits,
 /// Returns a position within Elems and Offsets such that all elements
 /// before the returned index end before Pos and all elements at or after
 /// the returned index begin at or after Pos. Splits elements as necessary
-/// to ensure this. Returns None if we find something we can't split.
+/// to ensure this. Returns std::nullopt if we find something we can't split.
 Optional<size_t> ConstantAggregateBuilder::splitAt(CharUnits Pos) {
   if (Pos >= Size)
     return Offsets.size();
@@ -305,7 +305,7 @@ Optional<size_t> ConstantAggregateBuilder::splitAt(CharUnits Pos) {
 
     // Try to decompose it into smaller constants.
     if (!split(LastAtOrBeforePosIndex, Pos))
-      return None;
+      return std::nullopt;
   }
 }
 
@@ -439,22 +439,33 @@ llvm::Constant *ConstantAggregateBuilder::buildFrom(
     // Can't emit as an array, carry on to emit as a struct.
   }
 
+  // The size of the constant we plan to generate.  This is usually just
+  // the size of the initialized type, but in AllowOversized mode (i.e.
+  // flexible array init), it can be larger.
   CharUnits DesiredSize = Utils.getSize(DesiredTy);
+  if (Size > DesiredSize) {
+    assert(AllowOversized && "Elems are oversized");
+    DesiredSize = Size;
+  }
+
+  // The natural alignment of an unpacked LLVM struct with the given elements.
   CharUnits Align = CharUnits::One();
   for (llvm::Constant *C : Elems)
     Align = std::max(Align, Utils.getAlignment(C));
+
+  // The natural size of an unpacked LLVM struct with the given elements.
   CharUnits AlignedSize = Size.alignTo(Align);
 
   bool Packed = false;
   ArrayRef<llvm::Constant*> UnpackedElems = Elems;
   llvm::SmallVector<llvm::Constant*, 32> UnpackedElemStorage;
-  if ((DesiredSize < AlignedSize && !AllowOversized) ||
-      DesiredSize.alignTo(Align) != DesiredSize) {
-    // The natural layout would be the wrong size; force use of a packed layout.
+  if (DesiredSize < AlignedSize || DesiredSize.alignTo(Align) != DesiredSize) {
+    // The natural layout would be too big; force use of a packed layout.
     NaturalLayout = false;
     Packed = true;
   } else if (DesiredSize > AlignedSize) {
-    // The constant would be too small. Add padding to fix it.
+    // The natural layout would be too small. Add padding to fix it. (This
+    // is ignored if we choose a packed layout.)
     UnpackedElemStorage.assign(Elems.begin(), Elems.end());
     UnpackedElemStorage.push_back(Utils.getPadding(DesiredSize - Size));
     UnpackedElems = UnpackedElemStorage;
@@ -482,7 +493,7 @@ llvm::Constant *ConstantAggregateBuilder::buildFrom(
     // If we're using the packed layout, pad it out to the desired size if
     // necessary.
     if (Packed) {
-      assert((SizeSoFar <= DesiredSize || AllowOversized) &&
+      assert(SizeSoFar <= DesiredSize &&
              "requested size is too small for contents");
       if (SizeSoFar < DesiredSize)
         PackedElems.push_back(Utils.getPadding(DesiredSize - SizeSoFar));
@@ -692,8 +703,8 @@ bool ConstStructBuilder::Build(InitListExpr *ILE, bool AllowOverwrite) {
         !declaresSameEntity(ILE->getInitializedFieldInUnion(), Field))
       continue;
 
-    // Don't emit anonymous bitfields or zero-sized fields.
-    if (Field->isUnnamedBitfield() || Field->isZeroSize(CGM.getContext()))
+    // Don't emit anonymous bitfields.
+    if (Field->isUnnamedBitfield())
       continue;
 
     // Get the initializer.  A struct can include fields without initializers,
@@ -703,6 +714,14 @@ bool ConstStructBuilder::Build(InitListExpr *ILE, bool AllowOverwrite) {
       Init = ILE->getInit(ElementNo++);
     if (Init && isa<NoInitExpr>(Init))
       continue;
+
+    // Zero-sized fields are not emitted, but their initializers may still
+    // prevent emission of this struct as a constant.
+    if (Field->isZeroSize(CGM.getContext())) {
+      if (Init->HasSideEffects(CGM.getContext()))
+        return false;
+      continue;
+    }
 
     // When emitting a DesignatedInitUpdateExpr, a nested InitListExpr
     // represents additional overwriting of our current constant value, and not
@@ -894,17 +913,16 @@ bool ConstStructBuilder::UpdateStruct(ConstantEmitter &Emitter,
 //                             ConstExprEmitter
 //===----------------------------------------------------------------------===//
 
-static ConstantAddress tryEmitGlobalCompoundLiteral(CodeGenModule &CGM,
-                                                    CodeGenFunction *CGF,
-                                              const CompoundLiteralExpr *E) {
+static ConstantAddress
+tryEmitGlobalCompoundLiteral(ConstantEmitter &emitter,
+                             const CompoundLiteralExpr *E) {
+  CodeGenModule &CGM = emitter.CGM;
   CharUnits Align = CGM.getContext().getTypeAlignInChars(E->getType());
   if (llvm::GlobalVariable *Addr =
           CGM.getAddrOfConstantCompoundLiteralIfEmitted(E))
     return ConstantAddress(Addr, Addr->getValueType(), Align);
 
   LangAS addressSpace = E->getType().getAddressSpace();
-
-  ConstantEmitter emitter(CGM, CGF);
   llvm::Constant *C = emitter.tryEmitForInitializer(E->getInitializer(),
                                                     addressSpace, E->getType());
   if (!C) {
@@ -1092,7 +1110,16 @@ public:
                                                              destAS, destTy);
     }
 
-    case CK_LValueToRValue:
+    case CK_LValueToRValue: {
+      // We don't really support doing lvalue-to-rvalue conversions here; any
+      // interesting conversions should be done in Evaluate().  But as a
+      // special case, allow compound literals to support the gcc extension
+      // allowing "struct x {int x;} x = (struct x) {};".
+      if (auto *E = dyn_cast<CompoundLiteralExpr>(subExpr->IgnoreParens()))
+        return Visit(E->getInitializer(), destType);
+      return nullptr;
+    }
+
     case CK_AtomicToNonAtomic:
     case CK_NonAtomicToAtomic:
     case CK_NoOp:
@@ -1367,15 +1394,12 @@ ConstantEmitter::tryEmitAbstract(const APValue &value, QualType destType) {
 llvm::Constant *ConstantEmitter::tryEmitConstantExpr(const ConstantExpr *CE) {
   if (!CE->hasAPValueResult())
     return nullptr;
-  const Expr *Inner = CE->getSubExpr()->IgnoreImplicit();
-  QualType RetType;
-  if (auto *Call = dyn_cast<CallExpr>(Inner))
-    RetType = Call->getCallReturnType(CGM.getContext());
-  else if (auto *Ctor = dyn_cast<CXXConstructExpr>(Inner))
-    RetType = Ctor->getType();
-  llvm::Constant *Res =
-      emitAbstract(CE->getBeginLoc(), CE->getAPValueResult(), RetType);
-  return Res;
+
+  QualType RetType = CE->getType();
+  if (CE->isGLValue())
+    RetType = CGM.getContext().getLValueReferenceType(RetType);
+
+  return emitAbstract(CE->getBeginLoc(), CE->getAPValueResult(), RetType);
 }
 
 llvm::Constant *
@@ -1909,6 +1933,9 @@ ConstantLValueEmitter::tryEmitBase(const APValue::LValueBase &base) {
     if (auto *GD = dyn_cast<MSGuidDecl>(D))
       return CGM.GetAddrOfMSGuidDecl(GD);
 
+    if (auto *GCD = dyn_cast<UnnamedGlobalConstantDecl>(D))
+      return CGM.GetAddrOfUnnamedGlobalConstantDecl(GCD);
+
     if (auto *TPO = dyn_cast<TemplateParamObjectDecl>(D))
       return CGM.GetAddrOfTemplateParamObject(TPO);
 
@@ -1939,7 +1966,9 @@ ConstantLValueEmitter::VisitConstantExpr(const ConstantExpr *E) {
 
 ConstantLValue
 ConstantLValueEmitter::VisitCompoundLiteralExpr(const CompoundLiteralExpr *E) {
-  return tryEmitGlobalCompoundLiteral(CGM, Emitter.CGF, E);
+  ConstantEmitter CompoundLiteralEmitter(CGM, Emitter.CGF);
+  CompoundLiteralEmitter.setInConstantContext(Emitter.isInConstantContext());
+  return tryEmitGlobalCompoundLiteral(CompoundLiteralEmitter, E);
 }
 
 ConstantLValue
@@ -2183,7 +2212,8 @@ void CodeGenModule::setAddrOfConstantCompoundLiteral(
 ConstantAddress
 CodeGenModule::GetAddrOfConstantCompoundLiteral(const CompoundLiteralExpr *E) {
   assert(E->isFileScope() && "not a file-scope compound literal expr");
-  return tryEmitGlobalCompoundLiteral(*this, nullptr, E);
+  ConstantEmitter emitter(*this);
+  return tryEmitGlobalCompoundLiteral(emitter, E);
 }
 
 llvm::Constant *

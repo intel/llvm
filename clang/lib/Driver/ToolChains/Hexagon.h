@@ -94,9 +94,6 @@ public:
                            llvm::opt::ArgStringList &CmdArgs) const override;
 
   StringRef GetGCCLibAndIncVersion() const { return GCCLibAndIncVersion.Text; }
-  bool IsIntegratedAssemblerDefault() const override {
-    return true;
-  }
 
   std::string getHexagonTargetDir(
       const std::string &InstalledDir,
@@ -110,8 +107,8 @@ public:
   static StringRef GetDefaultCPU();
   static StringRef GetTargetCPUVersion(const llvm::opt::ArgList &Args);
 
-  static Optional<unsigned> getSmallDataThreshold(
-      const llvm::opt::ArgList &Args);
+  static std::optional<unsigned>
+  getSmallDataThreshold(const llvm::opt::ArgList &Args);
 };
 
 } // end namespace toolchains

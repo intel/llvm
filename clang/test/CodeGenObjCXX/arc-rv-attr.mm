@@ -3,8 +3,8 @@
 id foo(void);
 
 // CHECK-LABEL: define{{.*}} void @_Z14test_list_initv(
-// CHECK: %[[CALL1:.*]] = call noundef i8* @_Z3foov() [ "clang.arc.attachedcall"(i8* (i8*)* @llvm.objc.retainAutoreleasedReturnValue) ]
-// CHECK: call i8* @llvm.objc.retain(i8* %[[CALL1]])
+// CHECK: %[[CALL1:.*]] = call noundef ptr @_Z3foov() [ "clang.arc.attachedcall"(ptr @llvm.objc.retainAutoreleasedReturnValue) ]
+// CHECK: call ptr @llvm.objc.retain(ptr %[[CALL1]])
 
 void test_list_init() {
   auto t = id{foo()};

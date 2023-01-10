@@ -9,9 +9,8 @@
 #define MLIR_CONVERSION_GPUCOMMON_OPTOFUNCCALLLOWERING_H_
 
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
-#include "mlir/Dialect/GPU/GPUDialect.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 
 namespace mlir {
@@ -24,7 +23,7 @@ namespace mlir {
 /// function called and then the result casted back.
 ///
 /// Example with NVVM:
-///   %exp_f32 = std.exp %arg_f32 : f32
+///   %exp_f32 = math.exp %arg_f32 : f32
 ///
 /// will be transformed into
 ///   llvm.call @__nv_expf(%arg_f32) : (f32) -> f32
@@ -61,17 +60,17 @@ public:
       return failure();
 
     LLVMFuncOp funcOp = appendOrGetFuncOp(funcName, funcType, op);
-    auto callOp = rewriter.create<LLVM::CallOp>(
-        op->getLoc(), resultType, SymbolRefAttr::get(funcOp), castedOperands);
+    auto callOp =
+        rewriter.create<LLVM::CallOp>(op->getLoc(), funcOp, castedOperands);
 
     if (resultType == adaptor.getOperands().front().getType()) {
-      rewriter.replaceOp(op, {callOp.getResult(0)});
+      rewriter.replaceOp(op, {callOp.getResult()});
       return success();
     }
 
     Value truncated = rewriter.create<LLVM::FPTruncOp>(
         op->getLoc(), adaptor.getOperands().front().getType(),
-        callOp.getResult(0));
+        callOp.getResult());
     rewriter.replaceOp(op, {truncated});
     return success();
   }

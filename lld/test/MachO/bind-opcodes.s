@@ -71,8 +71,8 @@
 
 # RUN: llvm-mc -filetype=obj -triple=arm64_32-apple-darwin %t/foo.s -o %t/foo.o
 # RUN: llvm-mc -filetype=obj -triple=arm64_32-apple-darwin --defsym PTR32=0 %t/test.s -o %t/test.o
-# RUN: %lld -arch arm64_32 -O2 -dylib %t/foo.o -o %t/libfoo.dylib
-# RUN: %lld -arch arm64_32 -O2 -dylib %t/test.o %t/libfoo.dylib -o %t/libtest-arm64_32.dylib
+# RUN: %lld-watchos -O2 -dylib %t/foo.o -o %t/libfoo.dylib
+# RUN: %lld-watchos -O2 -dylib %t/test.o %t/libfoo.dylib -o %t/libtest-arm64_32.dylib
 
 ## Test (32-bit):
 ## 1/ We emit exactly one BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM per symbol.
@@ -89,7 +89,7 @@
 # CHECK32-NEXT:   Imm:             1
 # CHECK32-NEXT:   Symbol:          ''
 # CHECK32-NEXT:   Opcode:          BIND_OPCODE_SET_DYLIB_ORDINAL_IMM
-# CHECK32-NEXT:   Imm:             1
+# CHECK32-NEXT:   Imm:             2
 # CHECK32-NEXT:   Symbol:          ''
 # CHECK32-NEXT:   Opcode:          BIND_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB
 # CHECK32-NEXT:   Imm:             1

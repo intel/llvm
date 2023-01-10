@@ -14,6 +14,8 @@
 #define TOY_OPS
 
 include "mlir/IR/OpBase.td"
+include "mlir/IR/FunctionInterfaces.td"
+include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
 // Provide a definition of the 'toy' dialect in the ODS framework so that we
@@ -35,11 +37,15 @@ class Toy_Op<string mnemonic, list<Trait> traits = []> :
 // Toy Operations
 //===----------------------------------------------------------------------===//
 
+//===----------------------------------------------------------------------===//
+// ConstantOp
+//===----------------------------------------------------------------------===//
+
 // We define a toy operation by inheriting from our base 'Toy_Op' class above.
 // Here we provide the mnemonic and a list of traits for the operation. The
-// constant operation is marked as 'NoSideEffect' as it is a pure operation
+// constant operation is marked as 'Pure' as it is a pure operation
 // and may be removed if dead.
-def ConstantOp : Toy_Op<"constant", [NoSideEffect]> {
+def ConstantOp : Toy_Op<"constant", [Pure]> {
   // Provide a summary and description for this operation. This can be used to
   // auto-generate documentation of the operations within our dialect.
   let summary = "constant";
@@ -79,6 +85,10 @@ def ConstantOp : Toy_Op<"constant", [NoSideEffect]> {
   let hasVerifier = 1;
 }
 
+//===----------------------------------------------------------------------===//
+// AddOp
+//===----------------------------------------------------------------------===//
+
 def AddOp : Toy_Op<"add"> {
   let summary = "element-wise addition operation";
   let description = [{
@@ -97,6 +107,61 @@ def AddOp : Toy_Op<"add"> {
     OpBuilder<(ins "Value":$lhs, "Value":$rhs)>
   ];
 }
+
+//===----------------------------------------------------------------------===//
+// FuncOp
+//===----------------------------------------------------------------------===//
+
+def FuncOp : Toy_Op<"func", [
+    FunctionOpInterface, IsolatedFromAbove, Symbol
+  ]> {
+  let summary = "user defined function operation";
+  let description = [{
+    The "toy.func" operation represents a user defined function. These are
+    callable SSA-region operations that contain toy computations.
+
+    Example:
+
+    ```mlir
+    toy.func @main() {
+      %0 = toy.constant dense<5.500000e+00> : tensor<f64>
+      %1 = toy.reshape(%0 : tensor<f64>) to tensor<2x2xf64>
+      toy.print %1 : tensor<2x2xf64>
+      toy.return
+    }
+    ```
+  }];
+
+  let arguments = (ins
+    SymbolNameAttr:$sym_name,
+    TypeAttrOf<FunctionType>:$function_type,
+    OptionalAttr<DictArrayAttr>:$arg_attrs,
+    OptionalAttr<DictArrayAttr>:$res_attrs
+  );
+  let regions = (region AnyRegion:$body);
+
+  let builders = [OpBuilder<(ins
+    "StringRef":$name, "FunctionType":$type,
+    CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)
+  >];
+  let extraClassDeclaration = [{
+    //===------------------------------------------------------------------===//
+    // FunctionOpInterface Methods
+    //===------------------------------------------------------------------===//
+
+    /// Returns the argument types of this function.
+    ArrayRef<Type> getArgumentTypes() { return getFunctionType().getInputs(); }
+
+    /// Returns the result types of this function.
+    ArrayRef<Type> getResultTypes() { return getFunctionType().getResults(); }
+  }];
+  let hasCustomAssemblyFormat = 1;
+  let skipDefaultBuilders = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// GenericCallOp
+//===----------------------------------------------------------------------===//
 
 def GenericCallOp : Toy_Op<"generic_call"> {
   let summary = "generic call operation";
@@ -133,6 +198,10 @@ def GenericCallOp : Toy_Op<"generic_call"> {
   ];
 }
 
+//===----------------------------------------------------------------------===//
+// MulOp
+//===----------------------------------------------------------------------===//
+
 def MulOp : Toy_Op<"mul"> {
   let summary = "element-wise multiplication operation";
   let description = [{
@@ -152,6 +221,10 @@ def MulOp : Toy_Op<"mul"> {
   ];
 }
 
+//===----------------------------------------------------------------------===//
+// PrintOp
+//===----------------------------------------------------------------------===//
+
 def PrintOp : Toy_Op<"print"> {
   let summary = "print operation";
   let description = [{
@@ -164,6 +237,10 @@ def PrintOp : Toy_Op<"print"> {
 
   let assemblyFormat = "$input attr-dict `:` type($input)";
 }
+
+//===----------------------------------------------------------------------===//
+// ReshapeOp
+//===----------------------------------------------------------------------===//
 
 def ReshapeOp : Toy_Op<"reshape"> {
   let summary = "tensor reshape operation";
@@ -186,7 +263,11 @@ def ReshapeOp : Toy_Op<"reshape"> {
   }];
 }
 
-def ReturnOp : Toy_Op<"return", [NoSideEffect, HasParent<"FuncOp">,
+//===----------------------------------------------------------------------===//
+// ReturnOp
+//===----------------------------------------------------------------------===//
+
+def ReturnOp : Toy_Op<"return", [Pure, HasParent<"FuncOp">,
                                  Terminator]> {
   let summary = "return operation";
   let description = [{
@@ -196,7 +277,7 @@ def ReturnOp : Toy_Op<"return", [NoSideEffect, HasParent<"FuncOp">,
     the operation. For example:
 
     ```mlir
-      func @foo() -> tensor<2xf64> {
+      toy.func @foo() -> tensor<2xf64> {
         ...
         toy.return %0 : tensor<2xf64>
       }
@@ -212,7 +293,7 @@ def ReturnOp : Toy_Op<"return", [NoSideEffect, HasParent<"FuncOp">,
 
   // Allow building a ReturnOp with no return operand.
   let builders = [
-    OpBuilder<(ins), [{ build($_builder, $_state, llvm::None); }]>
+    OpBuilder<(ins), [{ build($_builder, $_state, std::nullopt); }]>
   ];
 
   // Provide extra utility definitions on the c++ operation class definition.
@@ -223,6 +304,10 @@ def ReturnOp : Toy_Op<"return", [NoSideEffect, HasParent<"FuncOp">,
   // Invoke a static verify method to verify this return operation.
   let hasVerifier = 1;
 }
+
+//===----------------------------------------------------------------------===//
+// TransposeOp
+//===----------------------------------------------------------------------===//
 
 def TransposeOp : Toy_Op<"transpose"> {
   let summary = "transpose operation";

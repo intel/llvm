@@ -43,6 +43,7 @@
 #define SPIRV_OCLTYPETOSPIRV_H
 
 #include "LLVMSPIRVLib.h"
+#include "SPIRVBuiltinHelper.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/PassManager.h"
@@ -51,40 +52,39 @@
 #include <map>
 #include <set>
 
-using namespace llvm;
-
 namespace SPIRV {
 
-class OCLTypeToSPIRVBase {
+class OCLTypeToSPIRVBase : protected BuiltinCallHelper {
 public:
   OCLTypeToSPIRVBase();
 
-  bool runOCLTypeToSPIRV(Module &M);
-  /// \return Adapted type based on kernel argument metadata. If \p V is
-  ///   a function, returns function type.
-  /// E.g. for a function with argument of read only opencl.image_2d_t* type
-  /// returns a function with argument of type opencl.image2d_t.read_only*.
-  Type *getAdaptedType(Value *V);
+  bool runOCLTypeToSPIRV(llvm::Module &M);
+
+  /// Returns the adapted type of the corresponding argument for a function. If
+  /// the type is a pointer type, it will return a TypedPointerType instead.
+  llvm::Type *getAdaptedArgumentType(llvm::Function *F, unsigned ArgNo);
 
 private:
-  Module *M;
-  LLVMContext *Ctx;
-  std::map<Value *, Type *> AdaptedTy; // Adapted types for values
-  std::set<Function *> WorkSet;        // Functions to be adapted
+  llvm::Module *M;
+  llvm::LLVMContext *Ctx;
+  // Map of argument/Function -> adapted type (probably TypedPointerType)
+  std::map<llvm::Value *, llvm::Type *> AdaptedTy;
+  std::set<llvm::Function *> WorkSet; // Functions to be adapted
 
-  void adaptFunctionArguments(Function *F);
-  void adaptArgumentsByMetadata(Function *F);
-  void adaptArgumentsBySamplerUse(Module &M);
-  void adaptFunction(Function *F);
-  void addAdaptedType(Value *V, Type *T);
-  void addWork(Function *F);
+  void adaptFunctionArguments(llvm::Function *F);
+  void adaptArgumentsByMetadata(llvm::Function *F);
+  void adaptArgumentsBySamplerUse(llvm::Module &M);
+  void adaptFunction(llvm::Function *F);
+  void addAdaptedType(llvm::Value *V, llvm::Type *Ty);
+  void addWork(llvm::Function *F);
 };
 
-class OCLTypeToSPIRVLegacy : public OCLTypeToSPIRVBase, public ModulePass {
+class OCLTypeToSPIRVLegacy : public OCLTypeToSPIRVBase,
+                             public llvm::ModulePass {
 public:
   OCLTypeToSPIRVLegacy();
-  void getAnalysisUsage(AnalysisUsage &AU) const override;
-  bool runOnModule(Module &M) override;
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
+  bool runOnModule(llvm::Module &M) override;
   static char ID;
 };
 
@@ -93,7 +93,7 @@ class OCLTypeToSPIRVPass : public OCLTypeToSPIRVBase,
 public:
   using Result = OCLTypeToSPIRVBase;
   static llvm::AnalysisKey Key;
-  OCLTypeToSPIRVBase run(llvm::Module &F, llvm::ModuleAnalysisManager &MAM);
+  OCLTypeToSPIRVBase &run(llvm::Module &F, llvm::ModuleAnalysisManager &MAM);
 };
 
 } // namespace SPIRV

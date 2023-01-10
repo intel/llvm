@@ -10,7 +10,6 @@
 #include "ELFObject.h"
 #include "llvm/ADT/BitmaskEnum.h"
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -53,8 +52,7 @@ using namespace llvm::object;
 using SectionPred = std::function<bool(const SectionBase &Sec)>;
 
 static bool isDebugSection(const SectionBase &Sec) {
-  return StringRef(Sec.Name).startswith(".debug") ||
-         StringRef(Sec.Name).startswith(".zdebug") || Sec.Name == ".gdb_index";
+  return StringRef(Sec.Name).startswith(".debug") || Sec.Name == ".gdb_index";
 }
 
 static bool isDWOSection(const SectionBase &Sec) {
@@ -302,10 +300,11 @@ static Error updateAndRemoveSymbols(const CommonConfig &Config,
         Sym.getShndx() != SHN_UNDEF)
       Sym.Binding = STB_GLOBAL;
 
-    if (Config.SymbolsToWeaken.matches(Sym.Name) && Sym.Binding == STB_GLOBAL)
+    // SymbolsToWeaken applies to both STB_GLOBAL and STB_GNU_UNIQUE.
+    if (Config.SymbolsToWeaken.matches(Sym.Name) && Sym.Binding != STB_LOCAL)
       Sym.Binding = STB_WEAK;
 
-    if (Config.Weaken && Sym.Binding == STB_GLOBAL &&
+    if (Config.Weaken && Sym.Binding != STB_LOCAL &&
         Sym.getShndx() != SHN_UNDEF)
       Sym.Binding = STB_WEAK;
 
@@ -509,12 +508,8 @@ static Error replaceAndRemoveSections(const CommonConfig &Config,
     if (Error Err = replaceDebugSections(
             Obj, isCompressable,
             [&Config, &Obj](const SectionBase *S) -> Expected<SectionBase *> {
-              Expected<CompressedSection> NewSection =
-                  CompressedSection::create(*S, Config.CompressionType);
-              if (!NewSection)
-                return NewSection.takeError();
-
-              return &Obj.addSection<CompressedSection>(std::move(*NewSection));
+              return &Obj.addSection<CompressedSection>(
+                  CompressedSection(*S, Config.CompressionType, Obj.Is64Bits));
             }))
       return Err;
   } else if (Config.DecompressDebugSections) {
@@ -586,19 +581,12 @@ static void addSymbol(Object &Obj, const NewSymbolInfo &SymInfo,
 }
 
 static Error
-handleUserSection(StringRef Flag,
+handleUserSection(const NewSectionInfo &NewSection,
                   function_ref<Error(StringRef, ArrayRef<uint8_t>)> F) {
-  std::pair<StringRef, StringRef> SecPair = Flag.split("=");
-  StringRef SecName = SecPair.first;
-  StringRef File = SecPair.second;
-  ErrorOr<std::unique_ptr<MemoryBuffer>> BufOrErr = MemoryBuffer::getFile(File);
-  if (!BufOrErr)
-    return createFileError(File, errorCodeToError(BufOrErr.getError()));
-  std::unique_ptr<MemoryBuffer> Buf = std::move(*BufOrErr);
-  ArrayRef<uint8_t> Data(
-      reinterpret_cast<const uint8_t *>(Buf->getBufferStart()),
-      Buf->getBufferSize());
-  return F(SecName, Data);
+  ArrayRef<uint8_t> Data(reinterpret_cast<const uint8_t *>(
+                             NewSection.SectionData->getBufferStart()),
+                         NewSection.SectionData->getBufferSize());
+  return F(NewSection.SectionName, Data);
 }
 
 // This function handles the high level operations of GNU objcopy including
@@ -611,8 +599,8 @@ handleUserSection(StringRef Flag,
 static Error handleArgs(const CommonConfig &Config, const ELFConfig &ELFConfig,
                         Object &Obj) {
   if (Config.OutputArch) {
-    Obj.Machine = Config.OutputArch.getValue().EMachine;
-    Obj.OSABI = Config.OutputArch.getValue().OSABI;
+    Obj.Machine = Config.OutputArch.value().EMachine;
+    Obj.OSABI = Config.OutputArch.value().OSABI;
   }
 
   if (!Config.SplitDWO.empty() && Config.ExtractDWO) {
@@ -640,6 +628,66 @@ static Error handleArgs(const CommonConfig &Config, const ELFConfig &ELFConfig,
   if (Error E = updateAndRemoveSymbols(Config, ELFConfig, Obj))
     return E;
 
+  if (!Config.SetSectionAlignment.empty()) {
+    for (SectionBase &Sec : Obj.sections()) {
+      auto I = Config.SetSectionAlignment.find(Sec.Name);
+      if (I != Config.SetSectionAlignment.end())
+        Sec.Align = I->second;
+    }
+  }
+
+  if (Config.OnlyKeepDebug)
+    for (auto &Sec : Obj.sections())
+      if (Sec.Flags & SHF_ALLOC && Sec.Type != SHT_NOTE)
+        Sec.Type = SHT_NOBITS;
+
+  for (const NewSectionInfo &AddedSection : Config.AddSection) {
+    auto AddSection = [&](StringRef Name, ArrayRef<uint8_t> Data) {
+      OwnedDataSection &NewSection =
+          Obj.addSection<OwnedDataSection>(Name, Data);
+      if (Name.startswith(".note") && Name != ".note.GNU-stack")
+        NewSection.Type = SHT_NOTE;
+      return Error::success();
+    };
+    if (Error E = handleUserSection(AddedSection, AddSection))
+      return E;
+  }
+
+  for (const NewSectionInfo &NewSection : Config.UpdateSection) {
+    auto UpdateSection = [&](StringRef Name, ArrayRef<uint8_t> Data) {
+      return Obj.updateSection(Name, Data);
+    };
+    if (Error E = handleUserSection(NewSection, UpdateSection))
+      return E;
+  }
+
+  if (!Config.AddGnuDebugLink.empty())
+    Obj.addSection<GnuDebugLinkSection>(Config.AddGnuDebugLink,
+                                        Config.GnuDebugLinkCRC32);
+
+  // If the symbol table was previously removed, we need to create a new one
+  // before adding new symbols.
+  if (!Obj.SymbolTable && !Config.SymbolsToAdd.empty())
+    if (Error E = Obj.addNewSymbolTable())
+      return E;
+
+  for (const NewSymbolInfo &SI : Config.SymbolsToAdd)
+    addSymbol(Obj, SI, ELFConfig.NewSymbolVisibility);
+
+  // --set-section-{flags,type} work with sections added by --add-section.
+  if (!Config.SetSectionFlags.empty() || !Config.SetSectionType.empty()) {
+    for (auto &Sec : Obj.sections()) {
+      const auto Iter = Config.SetSectionFlags.find(Sec.Name);
+      if (Iter != Config.SetSectionFlags.end()) {
+        const SectionFlagsUpdate &SFU = Iter->second;
+        setSectionFlagsAndType(Sec, SFU.NewFlags);
+      }
+      auto It2 = Config.SetSectionType.find(Sec.Name);
+      if (It2 != Config.SetSectionType.end())
+        Sec.Type = It2->second;
+    }
+  }
+
   if (!Config.SectionsToRename.empty()) {
     std::vector<RelocationSectionBase *> RelocSections;
     DenseSet<SectionBase *> RenamedSections;
@@ -649,8 +697,8 @@ static Error handleArgs(const CommonConfig &Config, const ELFConfig &ELFConfig,
       if (Iter != Config.SectionsToRename.end()) {
         const SectionRename &SR = Iter->second;
         Sec.Name = std::string(SR.NewName);
-        if (SR.NewFlags.hasValue())
-          setSectionFlagsAndType(Sec, SR.NewFlags.getValue());
+        if (SR.NewFlags)
+          setSectionFlagsAndType(Sec, SR.NewFlags.value());
         RenamedSections.insert(&Sec);
       } else if (RelocSec && !(Sec.Flags & SHF_ALLOC))
         // Postpone processing relocation sections which are not specified in
@@ -704,63 +752,6 @@ static Error handleArgs(const CommonConfig &Config, const ELFConfig &ELFConfig,
     }
   }
 
-  if (!Config.SetSectionAlignment.empty()) {
-    for (SectionBase &Sec : Obj.sections()) {
-      auto I = Config.SetSectionAlignment.find(Sec.Name);
-      if (I != Config.SetSectionAlignment.end())
-        Sec.Align = I->second;
-    }
-  }
-
-  if (Config.OnlyKeepDebug)
-    for (auto &Sec : Obj.sections())
-      if (Sec.Flags & SHF_ALLOC && Sec.Type != SHT_NOTE)
-        Sec.Type = SHT_NOBITS;
-
-  for (const auto &Flag : Config.AddSection) {
-    auto AddSection = [&](StringRef Name, ArrayRef<uint8_t> Data) {
-      OwnedDataSection &NewSection =
-          Obj.addSection<OwnedDataSection>(Name, Data);
-      if (Name.startswith(".note") && Name != ".note.GNU-stack")
-        NewSection.Type = SHT_NOTE;
-      return Error::success();
-    };
-    if (Error E = handleUserSection(Flag, AddSection))
-      return E;
-  }
-
-  for (StringRef Flag : Config.UpdateSection) {
-    auto UpdateSection = [&](StringRef Name, ArrayRef<uint8_t> Data) {
-      return Obj.updateSection(Name, Data);
-    };
-    if (Error E = handleUserSection(Flag, UpdateSection))
-      return E;
-  }
-
-  if (!Config.AddGnuDebugLink.empty())
-    Obj.addSection<GnuDebugLinkSection>(Config.AddGnuDebugLink,
-                                        Config.GnuDebugLinkCRC32);
-
-  // If the symbol table was previously removed, we need to create a new one
-  // before adding new symbols.
-  if (!Obj.SymbolTable && !Config.SymbolsToAdd.empty())
-    if (Error E = Obj.addNewSymbolTable())
-      return E;
-
-  for (const NewSymbolInfo &SI : Config.SymbolsToAdd)
-    addSymbol(Obj, SI, ELFConfig.NewSymbolVisibility);
-
-  // --set-section-flags works with sections added by --add-section.
-  if (!Config.SetSectionFlags.empty()) {
-    for (auto &Sec : Obj.sections()) {
-      const auto Iter = Config.SetSectionFlags.find(Sec.Name);
-      if (Iter != Config.SetSectionFlags.end()) {
-        const SectionFlagsUpdate &SFU = Iter->second;
-        setSectionFlagsAndType(Sec, SFU.NewFlags);
-      }
-    }
-  }
-
   if (ELFConfig.EntryExpr)
     Obj.Entry = ELFConfig.EntryExpr(Obj.Entry);
   return Error::success();
@@ -784,7 +775,7 @@ Error objcopy::elf::executeObjcopyOnIHex(const CommonConfig &Config,
     return Obj.takeError();
 
   const ElfType OutputElfType =
-      getOutputElfType(Config.OutputArch.getValueOr(MachineInfo()));
+      getOutputElfType(Config.OutputArch.value_or(MachineInfo()));
   if (Error E = handleArgs(Config, ELFConfig, **Obj))
     return E;
   return writeOutput(Config, **Obj, Out, OutputElfType);
@@ -802,7 +793,7 @@ Error objcopy::elf::executeObjcopyOnRawBinary(const CommonConfig &Config,
   // Prefer OutputArch (-O<format>) if set, otherwise fallback to BinaryArch
   // (-B<arch>).
   const ElfType OutputElfType =
-      getOutputElfType(Config.OutputArch.getValueOr(MachineInfo()));
+      getOutputElfType(Config.OutputArch.value_or(MachineInfo()));
   if (Error E = handleArgs(Config, ELFConfig, **Obj))
     return E;
   return writeOutput(Config, **Obj, Out, OutputElfType);
@@ -819,7 +810,7 @@ Error objcopy::elf::executeObjcopyOnBinary(const CommonConfig &Config,
     return Obj.takeError();
   // Prefer OutputArch (-O<format>) if set, otherwise infer it from the input.
   const ElfType OutputElfType =
-      Config.OutputArch ? getOutputElfType(Config.OutputArch.getValue())
+      Config.OutputArch ? getOutputElfType(Config.OutputArch.value())
                         : getOutputElfType(In);
 
   if (Error E = handleArgs(Config, ELFConfig, **Obj))

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.13.4)
 
 if(NOT DEFINED BASE_LLVM_VERSION)
-  set (BASE_LLVM_VERSION 15.0.0)
+  set (BASE_LLVM_VERSION 16.0.0)
 endif(NOT DEFINED BASE_LLVM_VERSION)
 set(LLVM_SPIRV_VERSION ${BASE_LLVM_VERSION}.0)
 
@@ -18,6 +18,11 @@ if (NOT DEFINED LLVM_SPIRV_BUILD_EXTERNAL)
     set(LLVM_SPIRV_BUILD_EXTERNAL YES)
   endif(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 endif (NOT DEFINED LLVM_SPIRV_BUILD_EXTERNAL)
+
+if(LLVM_SPIRV_BUILD_EXTERNAL)
+  # Make sure llvm-spirv gets built when building outside the llvm tree.
+  set(LLVM_BUILD_TOOLS ON)
+endif(LLVM_SPIRV_BUILD_EXTERNAL)
 
 # Download spirv.hpp from the official SPIRV-Headers repository.
 # One can skip this step by manually setting
@@ -64,7 +69,7 @@ if(LLVM_SPIRV_BUILD_EXTERNAL)
       C
   )
 
-  set(CMAKE_CXX_STANDARD 14)
+  set(CMAKE_CXX_STANDARD 17)
   set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
   if(LLVM_SPIRV_INCLUDE_TESTS)
@@ -81,6 +86,7 @@ if(LLVM_SPIRV_BUILD_EXTERNAL)
       BitWriter
       CodeGen
       Core
+      Passes
       Support
       TransformUtils
       ${LLVM_TEST_COMPONENTS}
@@ -105,11 +111,24 @@ endif()
 
 set(LLVM_SPIRV_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
+# first try locating SPIRV-Tools via pkgconfig (the old way)
 pkg_search_module(SPIRV_TOOLS SPIRV-Tools)
-if(NOT SPIRV_TOOLS_FOUND)
+if (NOT SPIRV_TOOLS_FOUND)
+  # then try locating SPIRV-Tools via cmake (the new way)
+  find_package(SPIRV-Tools)
+  find_package(SPIRV-Tools-tools)
+  if (SPIRV-Tools_FOUND AND SPIRV-Tools-tools_FOUND)
+    set(SPIRV_TOOLS_FOUND TRUE)
+    set(SPIRV_TOOLS_LDFLAGS SPIRV-Tools-shared)
+    get_target_property(SPIRV_TOOLS_INCLUDE_DIRS SPIRV-Tools-shared INTERFACE_INCLUDE_DIRECTORIES)
+  endif()
+endif()
+
+if (NOT SPIRV_TOOLS_FOUND)
   message(STATUS "SPIRV-Tools not found; project will be built without "
           "--spirv-tools-dis support.")
-endif(NOT SPIRV_TOOLS_FOUND)
+endif()
+
 
 add_subdirectory(lib/SPIRV)
 add_subdirectory(tools/llvm-spirv)

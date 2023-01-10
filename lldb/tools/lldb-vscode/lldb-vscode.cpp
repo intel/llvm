@@ -65,11 +65,6 @@
 #define PATH_MAX MAX_PATH
 #endif
 typedef int socklen_t;
-constexpr const char *dev_null_path = "nul";
-
-#else
-constexpr const char *dev_null_path = "/dev/null";
-
 #endif
 
 using namespace lldb_vscode;
@@ -88,7 +83,7 @@ enum ID {
 #include "Options.inc"
 #undef PREFIX
 
-static const llvm::opt::OptTable::Info InfoTable[] = {
+static constexpr llvm::opt::OptTable::Info InfoTable[] = {
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
   {PREFIX,      NAME,      HELPTEXT,                                           \
@@ -209,7 +204,7 @@ void SendTerminatedEvent() {
     g_vsc.sent_terminated_event = true;
     g_vsc.RunTerminateCommands();
     // Send a "terminated" event
-    llvm::json::Object event(CreateEventObject("terminated"));
+    llvm::json::Object event(CreateTerminatedEventObject());
     g_vsc.SendJSON(llvm::json::Value(std::move(event)));
   }
 }
@@ -449,10 +444,18 @@ void EventThreadFunction() {
           case lldb::eStateSuspended:
             break;
           case lldb::eStateStopped:
-            // Only report a stopped event if the process was not restarted.
-            if (!lldb::SBProcess::GetRestartedFromEvent(event)) {
-              SendStdOutStdErr(process);
-              SendThreadStoppedEvent();
+            // We launch and attach in synchronous mode then the first stop
+            // event will not be delivered. If we use "launchCommands" during a
+            // launch or "attachCommands" during an attach we might some process
+            // stop events which we do not want to send an event for. We will
+            // manually send a stopped event in request_configurationDone(...)
+            // so don't send any before then.
+            if (g_vsc.configuration_done_sent) {
+              // Only report a stopped event if the process was not restarted.
+              if (!lldb::SBProcess::GetRestartedFromEvent(event)) {
+                SendStdOutStdErr(process);
+                SendThreadStoppedEvent();
+              }
             }
             break;
           case lldb::eStateRunning:
@@ -600,6 +603,7 @@ void request_attach(const llvm::json::Object &request) {
   g_vsc.terminate_commands = GetStrings(arguments, "terminateCommands");
   auto attachCommands = GetStrings(arguments, "attachCommands");
   llvm::StringRef core_file = GetString(arguments, "coreFile");
+  const uint64_t timeout_seconds = GetUnsigned(arguments, "timeout", 30);
   g_vsc.stop_at_entry =
       core_file.empty() ? GetBoolean(arguments, "stopOnEntry", false) : true;
   std::vector<std::string> postRunCommands =
@@ -657,6 +661,10 @@ void request_attach(const llvm::json::Object &request) {
     // The custom commands might have created a new target so we should use the
     // selected target after these commands are run.
     g_vsc.target = g_vsc.debugger.GetSelectedTarget();
+
+    // Make sure the process is attached and stopped before proceeding as the
+    // the launch commands are not run using the synchronous mode.
+    error = g_vsc.WaitForProcessToStop(timeout_seconds);
   }
 
   if (error.Success() && core_file.empty()) {
@@ -787,6 +795,7 @@ void request_configurationDone(const llvm::json::Object &request) {
   llvm::json::Object response;
   FillResponse(request, response);
   g_vsc.SendJSON(llvm::json::Value(std::move(response)));
+  g_vsc.configuration_done_sent = true;
   if (g_vsc.stop_at_entry)
     SendThreadStoppedEvent();
   else
@@ -1432,22 +1441,19 @@ void request_modules(const llvm::json::Object &request) {
 //   }]
 // }
 void request_initialize(const llvm::json::Object &request) {
-  g_vsc.debugger = lldb::SBDebugger::Create(true /*source_init_files*/);
-  g_vsc.progress_event_thread = std::thread(ProgressEventThreadFunction);
+  auto log_cb = [](const char *buf, void *baton) -> void {
+    g_vsc.SendOutput(OutputType::Console, llvm::StringRef{buf});
+  };
 
-  // Create an empty target right away since we might get breakpoint requests
-  // before we are given an executable to launch in a "launch" request, or a
-  // executable when attaching to a process by process ID in a "attach"
-  // request.
-  FILE *out = llvm::sys::RetryAfterSignal(nullptr, fopen, dev_null_path, "w");
-  if (out) {
-    // Set the output and error file handles to redirect into nothing otherwise
-    // if any code in LLDB prints to the debugger file handles, the output and
-    // error file handles are initialized to STDOUT and STDERR and any output
-    // will kill our debug session.
-    g_vsc.debugger.SetOutputFileHandle(out, true);
-    g_vsc.debugger.SetErrorFileHandle(out, false);
-  }
+  auto arguments = request.getObject("arguments");
+  // sourceInitFile option is not from formal DAP specification. It is only
+  // used by unit tests to prevent sourcing .lldbinit files from environment
+  // which may affect the outcome of tests.
+  bool source_init_file = GetBoolean(arguments, "sourceInitFile", true);
+
+  g_vsc.debugger =
+      lldb::SBDebugger::Create(source_init_file, log_cb, nullptr);
+  g_vsc.progress_event_thread = std::thread(ProgressEventThreadFunction);
 
   // Start our event thread so we can receive events from the debugger, target,
   // process and more.
@@ -1533,6 +1539,8 @@ void request_initialize(const llvm::json::Object &request) {
   body.try_emplace("supportsLoadedSourcesRequest", false);
   // The debug adapter supports sending progress reporting events.
   body.try_emplace("supportsProgressReporting", true);
+  // The debug adapter supports 'logMessage' in breakpoint.
+  body.try_emplace("supportsLogPoints", true);
 
   response.try_emplace("body", std::move(body));
   g_vsc.SendJSON(llvm::json::Value(std::move(response)));
@@ -1652,6 +1660,7 @@ void request_launch(const llvm::json::Object &request) {
       GetStrings(arguments, "postRunCommands");
   g_vsc.stop_at_entry = GetBoolean(arguments, "stopOnEntry", false);
   const llvm::StringRef debuggerRoot = GetString(arguments, "debuggerRoot");
+  const uint64_t timeout_seconds = GetUnsigned(arguments, "timeout", 30);
 
   // This is a hack for loading DWARF in .o files on Mac where the .o files
   // in the debug map of the main executable have relative paths which require
@@ -1726,6 +1735,10 @@ void request_launch(const llvm::json::Object &request) {
     // The custom commands might have created a new target so we should use the
     // selected target after these commands are run.
     g_vsc.target = g_vsc.debugger.GetSelectedTarget();
+    // Make sure the process is launched and stopped at the entry point before
+    // proceeding as the the launch commands are not run using the synchronous
+    // mode.
+    error = g_vsc.WaitForProcessToStop(timeout_seconds);
   }
 
   if (error.Fail()) {
@@ -2075,9 +2088,10 @@ void request_setBreakpoints(const llvm::json::Object &request) {
           }
         }
         // At this point the breakpoint is new
-        src_bp.SetBreakpoint(path.data());
-        AppendBreakpoint(src_bp.bp, response_breakpoints, path, src_bp.line);
-        g_vsc.source_breakpoints[path][src_bp.line] = std::move(src_bp);
+        g_vsc.source_breakpoints[path][src_bp.line] = src_bp;
+        SourceBreakpoint &new_bp = g_vsc.source_breakpoints[path][src_bp.line];
+        new_bp.SetBreakpoint(path.data());
+        AppendBreakpoint(new_bp.bp, response_breakpoints, path, new_bp.line);
       }
     }
   }
@@ -2300,10 +2314,11 @@ void request_setFunctionBreakpoints(const llvm::json::Object &request) {
   // Any breakpoints that are left in "request_bps" are breakpoints that
   // need to be set.
   for (auto &pair : request_bps) {
-    pair.second.SetBreakpoint();
     // Add this breakpoint info to the response
-    AppendBreakpoint(pair.second.bp, response_breakpoints);
     g_vsc.function_breakpoints[pair.first()] = std::move(pair.second);
+    FunctionBreakpoint &new_bp = g_vsc.function_breakpoints[pair.first()];
+    new_bp.SetBreakpoint();
+    AppendBreakpoint(new_bp.bp, response_breakpoints);
   }
 
   llvm::json::Object body;
@@ -2925,7 +2940,51 @@ void request_variables(const llvm::json::Object &request) {
     int64_t start_idx = 0;
     int64_t num_children = 0;
 
+    if (variablesReference == VARREF_REGS) {
+      // Change the default format of any pointer sized registers in the first
+      // register set to be the lldb::eFormatAddressInfo so we show the pointer
+      // and resolve what the pointer resolves to. Only change the format if the
+      // format was set to the default format or if it was hex as some registers
+      // have formats set for them.
+      const uint32_t addr_size = g_vsc.target.GetProcess().GetAddressByteSize();
+      lldb::SBValue reg_set = g_vsc.variables.registers.GetValueAtIndex(0);
+      const uint32_t num_regs = reg_set.GetNumChildren();
+      for (uint32_t reg_idx = 0; reg_idx < num_regs; ++reg_idx) {
+        lldb::SBValue reg = reg_set.GetChildAtIndex(reg_idx);
+        const lldb::Format format = reg.GetFormat();
+        if (format == lldb::eFormatDefault || format == lldb::eFormatHex) {
+          if (reg.GetByteSize() == addr_size)
+            reg.SetFormat(lldb::eFormatAddressInfo);
+        }
+      }
+    }
+
     num_children = top_scope->GetSize();
+    if (num_children == 0 && variablesReference == VARREF_LOCALS) {
+      // Check for an error in the SBValueList that might explain why we don't
+      // have locals. If we have an error display it as the sole value in the
+      // the locals.
+
+      // "error" owns the error string so we must keep it alive as long as we
+      // want to use the returns "const char *"
+      lldb::SBError error = top_scope->GetError();
+      const char *var_err = error.GetCString();
+      if (var_err) {
+        // Create a fake variable named "error" to explain why variables were
+        // not available. This new error will help let users know when there was
+        // a problem that kept variables from being available for display and
+        // allow users to fix this issue instead of seeing no variables. The
+        // errors are only set when there is a problem that the user could
+        // fix, so no error will show up when you have no debug info, only when
+        // we do have debug info and something that is fixable can be done.
+        llvm::json::Object object;
+        EmplaceSafeString(object, "name", "<error>");
+        EmplaceSafeString(object, "type", "const char *");
+        EmplaceSafeString(object, "value", var_err);
+        object.try_emplace("variablesReference", (int64_t)0);
+        variables.emplace_back(std::move(object));
+      }
+    }
     const int64_t end_idx = start_idx + ((count == 0) ? num_children : count);
 
     // We first find out which variable names are duplicated
@@ -3128,18 +3187,25 @@ void redirection_test() {
 /// \return
 ///     A fd pointing to the original stdout.
 int SetupStdoutStderrRedirection() {
-  int new_stdout_fd = dup(fileno(stdout));
-  auto stdout_err_redirector_callback = [&](llvm::StringRef data) {
-    g_vsc.SendOutput(OutputType::Console, data);
+  int stdoutfd = fileno(stdout);
+  int new_stdout_fd = dup(stdoutfd);
+  auto output_callback_stderr = [](llvm::StringRef data) {
+    g_vsc.SendOutput(OutputType::Stderr, data);
   };
-
-  for (int fd : {fileno(stdout), fileno(stderr)}) {
-    if (llvm::Error err = RedirectFd(fd, stdout_err_redirector_callback)) {
-      std::string error_message = llvm::toString(std::move(err));
-      if (g_vsc.log)
-        *g_vsc.log << error_message << std::endl;
-      stdout_err_redirector_callback(error_message);
-    }
+  auto output_callback_stdout = [](llvm::StringRef data) {
+    g_vsc.SendOutput(OutputType::Stdout, data);
+  };
+  if (llvm::Error err = RedirectFd(stdoutfd, output_callback_stdout)) {
+    std::string error_message = llvm::toString(std::move(err));
+    if (g_vsc.log)
+      *g_vsc.log << error_message << std::endl;
+    output_callback_stderr(error_message);
+  }
+  if (llvm::Error err = RedirectFd(fileno(stderr), output_callback_stderr)) {
+    std::string error_message = llvm::toString(std::move(err));
+    if (g_vsc.log)
+      *g_vsc.log << error_message << std::endl;
+    output_callback_stderr(error_message);
   }
 
   /// used only by TestVSCode_redirection_to_console.py
@@ -3227,7 +3293,6 @@ int main(int argc, char *argv[]) {
     g_vsc.output.descriptor = StreamDescriptor::from_file(new_stdout_fd, false);
   }
 
-  uint32_t packet_idx = 0;
   while (!g_vsc.sent_terminated_event) {
     llvm::json::Object object;
     lldb_vscode::PacketStatus status = g_vsc.GetNextObject(object);
@@ -3238,7 +3303,6 @@ int main(int argc, char *argv[]) {
 
     if (!g_vsc.HandleObject(object))
       return 1;
-    ++packet_idx;
   }
 
   return EXIT_SUCCESS;

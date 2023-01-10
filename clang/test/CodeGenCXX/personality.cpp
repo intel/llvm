@@ -17,14 +17,14 @@
 
 extern void g();
 
-// CHECK-GNU: personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*)
-// CHECK-GNU-DWARF: personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*)
-// CHECK-GNU-SEH: personality i8* bitcast (i32 (...)* @__gxx_personality_seh0 to i8*)
-// CHECK-GNU-SJLJ: personality i8* bitcast (i32 (...)* @__gxx_personality_sj0 to i8*)
+// CHECK-GNU: personality ptr @__gxx_personality_v0
+// CHECK-GNU-DWARF: personality ptr @__gxx_personality_v0
+// CHECK-GNU-SEH: personality ptr @__gxx_personality_seh0
+// CHECK-GNU-SJLJ: personality ptr @__gxx_personality_sj0
 
-// CHECK-WIN: personality i8* bitcast (i32 (...)* @__CxxFrameHandler3 to i8*)
+// CHECK-WIN: personality ptr @__CxxFrameHandler3
 
-// CHECK-AIX: personality i8* bitcast (i32 (...)* @__xlcxx_personality_v1 to i8*)
+// CHECK-AIX: personality ptr @__xlcxx_personality_v1
 
 void f() {
   try {
@@ -34,8 +34,8 @@ void f() {
 }
 
 #if defined(__SEH_EXCEPTIONS__)
-// CHECK-WIN-SEH-X86: personality i8* bitcast (i32 (...)* @_except_handler3 to i8*)
-// CHECK-WIN-SEH-X64: personality i8* bitcast (i32 (...)* @__C_specific_handler to i8*)
+// CHECK-WIN-SEH-X86: personality ptr @_except_handler3
+// CHECK-WIN-SEH-X64: personality ptr @__C_specific_handler
 
 void h(void) {
   __try {

@@ -1,5 +1,5 @@
-// Test the driver's control over the PIC behavior. These consist of tests of
-// the relocation model flags and the pic level flags passed to CC1.
+// Test the driver's control over the PIC behavior. These mainly consist of
+// tests of the relocation model flags and the pic level flags passed to CC1.
 //
 // CHECK-NO-PIC: "-mrelocation-model" "static"
 // CHECK-NO-PIC-NOT: "-pic-level"
@@ -44,6 +44,11 @@
 // CHECK-NO-PIE-NOT: "-pie"
 //
 // CHECK-NO-UNUSED-ARG-NOT: argument unused during compilation
+//
+// CHECK-NO-PIC-DATA-TEXT-REL: "-mcmodel=medium"
+// CHECK-PIC-DATA-TEXT-REL-NOT: "-mcmodel=medium"
+// CHECK-NO-PIC-DATA-TEXT-REL-NON-SYSTEMZ: error: unsupported option '-mno-pic-data-is-text-relative' for target 'arm-arm-none-eabi'
+// CHECK-PIC-DATA-TEXT-REL-NON-SYSTEMZ: error: unsupported option '-mpic-data-is-text-relative' for target 'arm-arm-none-eabi'
 //
 // RUN: %clang -c %s -target i386-unknown-unknown -### 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CHECK-NO-PIC
@@ -231,6 +236,8 @@
 // RUN:   | FileCheck %s --check-prefix=CHECK-NO-STATIC
 // RUN: %clang -c %s -target armv7k-apple-watchos1 -fapple-kext -### 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CHECK-PIC2
+// RUN: %clang -c %s -target x86_64-apple-driverkit -fapple-kext -### 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=CHECK-PIC2
 // RUN: %clang -c %s -target armv7-apple-ios5 -fapple-kext -### 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CHECK-NO-PIC
 // RUN: %clang -c %s -target armv7-apple-ios6 -fapple-kext -static -### 2>&1 \
@@ -311,3 +318,12 @@
 // RUN:   | FileCheck %s --check-prefix=CHECK-PIC2
 // RUN: %clang -fPIC -c %s -target armv7-pc-windows-gnu -### 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CHECK-NO-PIC
+
+// RUN: %clang -fpic -c --target=s390x-linux-gnu -mno-pic-data-is-text-relative %s \
+// RUN:   -### 2>&1 | FileCheck %s --check-prefix=CHECK-NO-PIC-DATA-TEXT-REL
+// RUN: %clang -fpic -c --target=s390x-linux-gnu -mpic-data-is-text-relative %s -### \
+// RUN:   2>&1 | FileCheck %s --check-prefix=CHECK-PIC-DATA-TEXT-REL
+// RUN: %clang -fpic -c --target=arm-arm-none-eabi -mno-pic-data-is-text-relative %s \
+// RUN:   -### 2>&1 | FileCheck %s --check-prefix=CHECK-NO-PIC-DATA-TEXT-REL-NON-SYSTEMZ
+// RUN: %clang -fpic -c --target=arm-arm-none-eabi -mpic-data-is-text-relative %s \
+// RUN:   -### 2>&1 | FileCheck %s --check-prefix=CHECK-PIC-DATA-TEXT-REL-NON-SYSTEMZ

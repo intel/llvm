@@ -6,26 +6,28 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/device_selector.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/platform.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
-#include <detail/force_device.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
+#include <sycl/device.hpp>
+#include <sycl/device_selector.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/platform.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
-platform::platform() : impl(detail::platform_impl::getHostPlatformImpl()) {}
+platform::platform() : platform(default_selector_v) {}
 
 platform::platform(cl_platform_id PlatformId) {
   impl = detail::platform_impl::getOrMakePlatformImpl(
       detail::pi::cast<detail::RT::PiPlatform>(PlatformId),
       detail::RT::getPlugin<backend::opencl>());
 }
+
+// protected constructor for internal use
+platform::platform(const device &Device) { *this = Device.get_platform(); }
 
 platform::platform(const device_selector &dev_selector) {
   *this = dev_selector.select_device().get_platform();
@@ -37,7 +39,12 @@ bool platform::has_extension(const std::string &ExtensionName) const {
   return impl->has_extension(ExtensionName);
 }
 
-bool platform::is_host() const { return impl->is_host(); }
+bool platform::is_host() const {
+  bool IsHost = impl->is_host();
+  assert(!IsHost &&
+         "platform::is_host should not be called in implementation.");
+  return IsHost;
+}
 
 std::vector<device> platform::get_devices(info::device_type DeviceType) const {
   return impl->get_devices(DeviceType);
@@ -49,22 +56,21 @@ std::vector<platform> platform::get_platforms() {
 
 backend platform::get_backend() const noexcept { return getImplBackend(impl); }
 
-template <info::platform param>
-typename info::param_traits<info::platform, param>::return_type
+template <typename Param>
+typename detail::is_platform_info_desc<Param>::return_type
 platform::get_info() const {
-  return impl->get_info<param>();
+  return impl->get_info<Param>();
 }
 
 pi_native_handle platform::getNative() const { return impl->getNative(); }
 
 bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
-  template __SYCL_EXPORT ret_type                                              \
-  platform::get_info<info::param_type::param>() const;
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+  template __SYCL_EXPORT ReturnT platform::get_info<info::platform::Desc>()    \
+      const;
 
-#include <CL/sycl/info/platform_traits.def>
-
+#include <sycl/info/platform_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 context platform::ext_oneapi_get_default_context() const {
@@ -77,8 +83,9 @@ context platform::ext_oneapi_get_default_context() const {
       &PlatformToDefaultContextCache =
           detail::GlobalHandler::instance().getPlatformToDefaultContextCache();
 
-  std::lock_guard Lock{detail::GlobalHandler::instance()
-                           .getPlatformToDefaultContextCacheMutex()};
+  std::lock_guard<std::mutex> Lock{
+      detail::GlobalHandler::instance()
+          .getPlatformToDefaultContextCacheMutex()};
 
   auto It = PlatformToDefaultContextCache.find(impl);
   if (PlatformToDefaultContextCache.end() == It)
@@ -88,5 +95,5 @@ context platform::ext_oneapi_get_default_context() const {
   return detail::createSyclObjFromImpl<context>(It->second);
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

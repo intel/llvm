@@ -1588,6 +1588,18 @@ const char *SBTarget::GetTriple() {
   return nullptr;
 }
 
+const char *SBTarget::GetABIName() {
+  LLDB_INSTRUMENT_VA(this);
+  
+  TargetSP target_sp(GetSP());
+  if (target_sp) {
+    std::string abi_name(target_sp->GetABIName().str());
+    ConstString const_name(abi_name.c_str());
+    return const_name.GetCString();
+  }
+  return nullptr;
+}
+
 uint32_t SBTarget::GetDataByteSize() {
   LLDB_INSTRUMENT_VA(this);
 
@@ -1754,7 +1766,7 @@ lldb::SBType SBTarget::FindFirstType(const char *typename_cstr) {
       }
     }
 
-    // Didn't find the type in the symbols; Try the loaded language runtimes
+    // Didn't find the type in the symbols; Try the loaded language runtimes.
     if (auto process_sp = target_sp->GetProcessSP()) {
       for (auto *runtime : process_sp->GetLanguageRuntimes()) {
         if (auto vendor = runtime->GetDeclVendor()) {
@@ -1765,9 +1777,9 @@ lldb::SBType SBTarget::FindFirstType(const char *typename_cstr) {
       }
     }
 
-    // No matches, search for basic typename matches
-    for (auto *type_system : target_sp->GetScratchTypeSystems())
-      if (auto type = type_system->GetBuiltinTypeByName(const_typename))
+    // No matches, search for basic typename matches.
+    for (auto type_system_sp : target_sp->GetScratchTypeSystems())
+      if (auto type = type_system_sp->GetBuiltinTypeByName(const_typename))
         return SBType(type);
   }
 
@@ -1779,8 +1791,8 @@ SBType SBTarget::GetBasicType(lldb::BasicType type) {
 
   TargetSP target_sp(GetSP());
   if (target_sp) {
-    for (auto *type_system : target_sp->GetScratchTypeSystems())
-      if (auto compiler_type = type_system->GetBasicTypeFromAST(type))
+    for (auto type_system_sp : target_sp->GetScratchTypeSystems())
+      if (auto compiler_type = type_system_sp->GetBasicTypeFromAST(type))
         return SBType(compiler_type);
   }
   return SBType();
@@ -1820,9 +1832,9 @@ lldb::SBTypeList SBTarget::FindTypes(const char *typename_cstr) {
 
     if (sb_type_list.GetSize() == 0) {
       // No matches, search for basic typename matches
-      for (auto *type_system : target_sp->GetScratchTypeSystems())
+      for (auto type_system_sp : target_sp->GetScratchTypeSystems())
         if (auto compiler_type =
-                type_system->GetBuiltinTypeByName(const_typename))
+                type_system_sp->GetBuiltinTypeByName(const_typename))
           sb_type_list.Append(SBType(compiler_type));
     }
   }

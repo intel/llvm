@@ -37,8 +37,8 @@ __kernel void test_legacy_atomics(__global int *p, int val) {
 //
 // CHECK-LLVM-LABEL: define spir_kernel void @test_legacy_atomics
 // Note: the translator generates the OpenCL C 1.1 function name exclusively!
-// CHECK-LLVM: call spir_func i32 @_Z10atomic_addPU3AS1Vii
-// CHECK-LLVM: call spir_func i32 @_Z10atomic_addPU3AS1Vii
+// CHECK-LLVM: call spir_func i32 @_Z10atomic_addPU3AS1Vii(
+// CHECK-LLVM: call spir_func i32 @_Z10atomic_addPU3AS1Vii(
 
 // References:
 // [1]: https://www.khronos.org/registry/OpenCL/specs/3.0-unified/html/OpenCL_C.html#atomic-legacy

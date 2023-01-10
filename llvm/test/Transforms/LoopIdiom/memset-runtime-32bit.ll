@@ -2,9 +2,9 @@
 ; RUN: opt -passes="function(loop(indvars,loop-idiom,loop-deletion),simplifycfg)" -S < %s | FileCheck %s
 ; Compile command:
 ; $ clang -m32 -fno-discard-value-names -O0 -S -emit-llvm -Xclang -disable-O0-optnone Code.c
-; $ bin/opt -S -basic-aa -mem2reg -loop-simplify -lcssa -loop-rotate \
-;   -licm -simple-loop-unswitch -enable-nontrivial-unswitch -loop-simplify \
-;   -loop-deletion -simplifycfg -indvars Code.ll > CodeOpt.ll
+; $ bin/opt -S -passes=mem2reg,loop-simplify,lcssa,loop-rotate \
+; -passes=licm,simple-loop-unswitch -enable-nontrivial-unswitch -passes=loop-simplify \
+; -passes=loop-deletion,simplifycfg,indvars Code.ll > CodeOpt.ll
 target datalayout = "e-m:e-p:32:32-p270:32:32-p271:32:32-p272:64:64-f64:32:64-f80:32-n8:16:32-S128"
 ; void PositiveFor32(int *ar, int n, int m)
 ; {
@@ -239,7 +239,7 @@ define dso_local void @NegativeFor64(i32* %ar, i64 %n, i64 %m) #0 {
 ; CHECK-NEXT:    [[MUL3:%.*]] = mul nsw i64 [[M:%.*]], 4
 ; CHECK-NEXT:    [[CONV4:%.*]] = trunc i64 [[MUL3]] to i32
 ; CHECK-NEXT:    [[TMP0:%.*]] = trunc i64 [[M]] to i32
-; CHECK-NEXT:    [[TMP1:%.*]] = sub i32 [[CONV]], -1
+; CHECK-NEXT:    [[TMP1:%.*]] = trunc i64 [[N]] to i32
 ; CHECK-NEXT:    [[TMP2:%.*]] = mul i32 [[TMP0]], [[TMP1]]
 ; CHECK-NEXT:    [[TMP3:%.*]] = shl i32 [[TMP2]], 2
 ; CHECK-NEXT:    call void @llvm.memset.p0i8.i32(i8* align 4 [[AR1]], i8 0, i32 [[TMP3]], i1 false)

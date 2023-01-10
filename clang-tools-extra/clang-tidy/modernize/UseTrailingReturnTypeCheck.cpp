@@ -97,7 +97,9 @@ public:
     if (TL.getQualifierLoc() &&
         !TraverseNestedNameSpecifierLoc(TL.getQualifierLoc()))
       return false;
-    return TraverseTypeLoc(TL.getNamedTypeLoc(), true);
+    const auto *T = TL.getTypePtr();
+    return TraverseTypeLoc(TL.getNamedTypeLoc(),
+                           T->getKeyword() != ETK_None || T->getQualifier());
   }
 
   bool VisitDeclRefExpr(DeclRefExpr *S) {
@@ -210,7 +212,7 @@ classifyToken(const FunctionDecl &F, Preprocessor &PP, Token Tok) {
   // If the Token/Macro contains more than one type of tokens, we would need
   // to split the macro in order to move parts to the trailing return type.
   if (ContainsQualifiers + ContainsSpecifiers + ContainsSomethingElse > 1)
-    return llvm::None;
+    return std::nullopt;
 
   return CT;
 }
@@ -241,7 +243,7 @@ UseTrailingReturnTypeCheck::classifyTokensBeforeFunctionName(
         if (!MI || MI->isFunctionLike()) {
           // Cannot handle function style macros.
           diag(F.getLocation(), Message);
-          return llvm::None;
+          return std::nullopt;
         }
       }
 
@@ -253,7 +255,7 @@ UseTrailingReturnTypeCheck::classifyTokensBeforeFunctionName(
       ClassifiedTokens.push_back(*CT);
     else {
       diag(F.getLocation(), Message);
-      return llvm::None;
+      return std::nullopt;
     }
   }
 

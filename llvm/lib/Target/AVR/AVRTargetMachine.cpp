@@ -23,6 +23,8 @@
 #include "MCTargetDesc/AVRMCTargetDesc.h"
 #include "TargetInfo/AVRTargetInfo.h"
 
+#include <optional>
+
 namespace llvm {
 
 static const char *AVRDataLayout =
@@ -37,15 +39,15 @@ static StringRef getCPU(StringRef CPU) {
   return CPU;
 }
 
-static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
-  return RM.getValueOr(Reloc::Static);
+static Reloc::Model getEffectiveRelocModel(std::optional<Reloc::Model> RM) {
+  return RM.value_or(Reloc::Static);
 }
 
 AVRTargetMachine::AVRTargetMachine(const Target &T, const Triple &TT,
                                    StringRef CPU, StringRef FS,
                                    const TargetOptions &Options,
-                                   Optional<Reloc::Model> RM,
-                                   Optional<CodeModel::Model> CM,
+                                   std::optional<Reloc::Model> RM,
+                                   std::optional<CodeModel::Model> CM,
                                    CodeGenOpt::Level OL, bool JIT)
     : LLVMTargetMachine(T, AVRDataLayout, TT, getCPU(CPU), FS, Options,
                         getEffectiveRelocModel(RM),
@@ -92,7 +94,6 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAVRTarget() {
 
   auto &PR = *PassRegistry::getPassRegistry();
   initializeAVRExpandPseudoPass(PR);
-  initializeAVRRelaxMemPass(PR);
   initializeAVRShiftExpandPass(PR);
 }
 
@@ -118,7 +119,6 @@ bool AVRPassConfig::addInstSelector() {
 }
 
 void AVRPassConfig::addPreSched2() {
-  addPass(createAVRRelaxMemPass());
   addPass(createAVRExpandPseudoPass());
 }
 

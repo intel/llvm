@@ -18,7 +18,8 @@
 #cmakedefine LLVM_ENABLE_DUMP
 
 /* Target triple LLVM will generate code for by default */
-#cmakedefine LLVM_DEFAULT_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}"
+/* Doesn't use `cmakedefine` because it is allowed to be empty. */
+#define LLVM_DEFAULT_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}"
 
 /* Define if threads enabled */
 #cmakedefine01 LLVM_ENABLE_THREADS
@@ -88,17 +89,23 @@
 /* Define if we have curl and want to use it */
 #cmakedefine LLVM_ENABLE_CURL ${LLVM_ENABLE_CURL}
 
+/* Define if we have cpp-httplib and want to use it */
+#cmakedefine LLVM_ENABLE_HTTPLIB ${LLVM_ENABLE_HTTPLIB}
+
 /* Define if zlib compression is available */
 #cmakedefine01 LLVM_ENABLE_ZLIB
+
+/* Define if zstd compression is available */
+#cmakedefine01 LLVM_ENABLE_ZSTD
 
 /* Define if LLVM was built with a dependency to the libtensorflow dynamic library */
 #cmakedefine LLVM_HAVE_TF_API
 
+/* Define if LLVM is using tflite instead of libtensorflow */
+#cmakedefine LLVM_HAVE_TFLITE
+
 /* Define to 1 if you have the <sysexits.h> header file. */
 #cmakedefine HAVE_SYSEXITS_H ${HAVE_SYSEXITS_H}
-
-/* Define to 1 to enable the experimental new pass manager by default */
-#cmakedefine01 LLVM_ENABLE_NEW_PASS_MANAGER
 
 /* Define if the xar_open() function is supported on this platform. */
 #cmakedefine LLVM_HAVE_LIBXAR ${LLVM_HAVE_LIBXAR}
@@ -111,5 +118,12 @@
 
 /* Define if building LLVM with LLVM_FORCE_USE_OLD_TOOLCHAIN_LIBS */
 #cmakedefine LLVM_FORCE_USE_OLD_TOOLCHAIN ${LLVM_FORCE_USE_OLD_TOOLCHAIN}
+
+/* Define if llvm_unreachable should be optimized with undefined behavior
+ * in non assert builds */
+#cmakedefine01 LLVM_UNREACHABLE_OPTIMIZE
+
+/* Define to 1 if you have the DIA SDK installed, and to 0 if you don't. */
+#cmakedefine01 LLVM_ENABLE_DIA_SDK
 
 #endif

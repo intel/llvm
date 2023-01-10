@@ -16,6 +16,7 @@
 #include "mlir/Rewrite/FrozenRewritePatternSet.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/StringMap.h"
+#include <type_traits>
 
 namespace mlir {
 
@@ -90,15 +91,15 @@ public:
   /// to any of the following forms(where `T` is a class derived from `Type`:
   ///   * Optional<Type>(T)
   ///     - This form represents a 1-1 type conversion. It should return nullptr
-  ///       or `llvm::None` to signify failure. If `llvm::None` is returned, the
-  ///       converter is allowed to try another conversion function to perform
-  ///       the conversion.
+  ///       or `std::nullopt` to signify failure. If `std::nullopt` is returned,
+  ///       the converter is allowed to try another conversion function to
+  ///       perform the conversion.
   ///   * Optional<LogicalResult>(T, SmallVectorImpl<Type> &)
   ///     - This form represents a 1-N type conversion. It should return
-  ///       `failure` or `llvm::None` to signify a failed conversion. If the new
-  ///       set of types is empty, the type is removed and any usages of the
+  ///       `failure` or `std::nullopt` to signify a failed conversion. If the
+  ///       new set of types is empty, the type is removed and any usages of the
   ///       existing value are expected to be removed during conversion. If
-  ///       `llvm::None` is returned, the converter is allowed to try another
+  ///       `std::nullopt` is returned, the converter is allowed to try another
   ///       conversion function to perform the conversion.
   ///   * Optional<LogicalResult>(T, SmallVectorImpl<Type> &, ArrayRef<Type>)
   ///     - This form represents a 1-N type conversion supporting recursive
@@ -122,7 +123,7 @@ public:
   /// where `T` is any subclass of `Type`. This function is responsible for
   /// creating an operation, using the OpBuilder and Location provided, that
   /// "casts" a range of values into a single value of the given type `T`. It
-  /// must return a Value of the converted type on success, an `llvm::None` if
+  /// must return a Value of the converted type on success, an `std::nullopt` if
   /// it failed but other materialization can be attempted, and `nullptr` on
   /// unrecoverable failure. It will only be called for (sub)types of `T`.
   /// Materialization functions must be provided when a type conversion may
@@ -201,7 +202,7 @@ public:
 
   /// This function converts the type signature of the given block, by invoking
   /// 'convertSignatureArg' for each argument. This function should return a
-  /// valid conversion for the signature on success, None otherwise.
+  /// valid conversion for the signature on success, std::nullopt otherwise.
   Optional<SignatureConversion> convertBlockSignature(Block *block);
 
   /// Materialize a conversion from a set of types into one result type by
@@ -245,15 +246,15 @@ private:
   /// different callback forms, that all compose into a single version.
   /// With callback of form: `Optional<Type>(T)`
   template <typename T, typename FnT>
-  std::enable_if_t<llvm::is_invocable<FnT, T>::value, ConversionCallbackFn>
+  std::enable_if_t<std::is_invocable_v<FnT, T>, ConversionCallbackFn>
   wrapCallback(FnT &&callback) {
     return wrapCallback<T>(
         [callback = std::forward<FnT>(callback)](
             T type, SmallVectorImpl<Type> &results, ArrayRef<Type>) {
           if (Optional<Type> resultOpt = callback(type)) {
-            bool wasSuccess = static_cast<bool>(resultOpt.getValue());
+            bool wasSuccess = static_cast<bool>(resultOpt.value());
             if (wasSuccess)
-              results.push_back(resultOpt.getValue());
+              results.push_back(resultOpt.value());
             return Optional<LogicalResult>(success(wasSuccess));
           }
           return Optional<LogicalResult>();
@@ -262,7 +263,7 @@ private:
   /// With callback of form: `Optional<LogicalResult>(T, SmallVectorImpl<Type>
   /// &)`
   template <typename T, typename FnT>
-  std::enable_if_t<llvm::is_invocable<FnT, T, SmallVectorImpl<Type> &>::value,
+  std::enable_if_t<std::is_invocable_v<FnT, T, SmallVectorImpl<Type> &>,
                    ConversionCallbackFn>
   wrapCallback(FnT &&callback) {
     return wrapCallback<T>(
@@ -274,16 +275,16 @@ private:
   /// With callback of form: `Optional<LogicalResult>(T, SmallVectorImpl<Type>
   /// &, ArrayRef<Type>)`.
   template <typename T, typename FnT>
-  std::enable_if_t<llvm::is_invocable<FnT, T, SmallVectorImpl<Type> &,
-                                      ArrayRef<Type>>::value,
-                   ConversionCallbackFn>
+  std::enable_if_t<
+      std::is_invocable_v<FnT, T, SmallVectorImpl<Type> &, ArrayRef<Type>>,
+      ConversionCallbackFn>
   wrapCallback(FnT &&callback) {
     return [callback = std::forward<FnT>(callback)](
                Type type, SmallVectorImpl<Type> &results,
                ArrayRef<Type> callStack) -> Optional<LogicalResult> {
       T derivedType = type.dyn_cast<T>();
       if (!derivedType)
-        return llvm::None;
+        return std::nullopt;
       return callback(derivedType, results, callStack);
     };
   }
@@ -305,7 +306,7 @@ private:
                Location loc) -> Optional<Value> {
       if (T derivedType = resultType.dyn_cast<T>())
         return callback(builder, derivedType, inputs, loc);
-      return llvm::None;
+      return std::nullopt;
     };
   }
 
@@ -506,6 +507,9 @@ void populateFunctionOpInterfaceTypeConversionPattern(
                                                    patterns, converter);
 }
 
+void populateAnyFunctionOpInterfaceTypeConversionPattern(
+    RewritePatternSet &patterns, TypeConverter &converter);
+
 //===----------------------------------------------------------------------===//
 // Conversion PatternRewriter
 //===----------------------------------------------------------------------===//
@@ -570,6 +574,11 @@ public:
   // PatternRewriter Hooks
   //===--------------------------------------------------------------------===//
 
+  /// Indicate that the conversion rewriter can recover from rewrite failure.
+  /// Recovery is supported via rollback, allowing for continued processing of
+  /// patterns even if a failure is encountered during the rewrite step.
+  bool canRecoverFromRewriteFailure() const override { return true; }
+
   /// PatternRewriter hook for replacing the results of an operation when the
   /// given functor returns true.
   void replaceOpWithIf(
@@ -629,7 +638,7 @@ public:
 
   /// PatternRewriter hook for notifying match failure reasons.
   LogicalResult
-  notifyMatchFailure(Operation *op,
+  notifyMatchFailure(Location loc,
                      function_ref<void(Diagnostic &)> reasonCallback) override;
   using PatternRewriter::notifyMatchFailure;
 
@@ -689,9 +698,12 @@ public:
   }
 
   /// Register the given operations as legal.
+  void addLegalOp(OperationName op) {
+    setOpAction(op, LegalizationAction::Legal);
+  }
   template <typename OpT>
   void addLegalOp() {
-    setOpAction<OpT>(LegalizationAction::Legal);
+    addLegalOp(OperationName(OpT::getOperationName(), &ctx));
   }
   template <typename OpT, typename OpT2, typename... OpTs>
   void addLegalOp() {
@@ -701,11 +713,15 @@ public:
 
   /// Register the given operation as dynamically legal and set the dynamic
   /// legalization callback to the one provided.
+  void addDynamicallyLegalOp(OperationName op,
+                             const DynamicLegalityCallbackFn &callback) {
+    setOpAction(op, LegalizationAction::Dynamic);
+    setLegalityCallback(op, callback);
+  }
   template <typename OpT>
   void addDynamicallyLegalOp(const DynamicLegalityCallbackFn &callback) {
-    OperationName opName(OpT::getOperationName(), &ctx);
-    setOpAction(opName, LegalizationAction::Dynamic);
-    setLegalityCallback(opName, callback);
+    addDynamicallyLegalOp(OperationName(OpT::getOperationName(), &ctx),
+                          callback);
   }
   template <typename OpT, typename OpT2, typename... OpTs>
   void addDynamicallyLegalOp(const DynamicLegalityCallbackFn &callback) {
@@ -713,8 +729,7 @@ public:
     addDynamicallyLegalOp<OpT2, OpTs...>(callback);
   }
   template <typename OpT, class Callable>
-  typename std::enable_if<
-      !llvm::is_invocable<Callable, Operation *>::value>::type
+  std::enable_if_t<!std::is_invocable_v<Callable, Operation *>>
   addDynamicallyLegalOp(Callable &&callback) {
     addDynamicallyLegalOp<OpT>(
         [=](Operation *op) { return callback(cast<OpT>(op)); });
@@ -722,9 +737,12 @@ public:
 
   /// Register the given operation as illegal, i.e. this operation is known to
   /// not be supported by this target.
+  void addIllegalOp(OperationName op) {
+    setOpAction(op, LegalizationAction::Illegal);
+  }
   template <typename OpT>
   void addIllegalOp() {
-    setOpAction<OpT>(LegalizationAction::Illegal);
+    addIllegalOp(OperationName(OpT::getOperationName(), &ctx));
   }
   template <typename OpT, typename OpT2, typename... OpTs>
   void addIllegalOp() {
@@ -737,6 +755,8 @@ public:
   /// addition to the operation itself, all of the operations nested within are
   /// also considered legal. An optional dynamic legality callback may be
   /// provided to mark subsets of legal instances as recursively legal.
+  void markOpRecursivelyLegal(OperationName name,
+                              const DynamicLegalityCallbackFn &callback);
   template <typename OpT>
   void markOpRecursivelyLegal(const DynamicLegalityCallbackFn &callback = {}) {
     OperationName opName(OpT::getOperationName(), &ctx);
@@ -748,8 +768,7 @@ public:
     markOpRecursivelyLegal<OpT2, OpTs...>(callback);
   }
   template <typename OpT, class Callable>
-  typename std::enable_if<
-      !llvm::is_invocable<Callable, Operation *>::value>::type
+  std::enable_if_t<!std::is_invocable_v<Callable, Operation *>>
   markOpRecursivelyLegal(Callable &&callback) {
     markOpRecursivelyLegal<OpT>(
         [=](Operation *op) { return callback(cast<OpT>(op)); });
@@ -815,8 +834,9 @@ public:
 
   /// If the given operation instance is legal on this target, a structure
   /// containing legality information is returned. If the operation is not
-  /// legal, None is returned. Also returns None is operation legality wasn't
-  /// registered by user or dynamic legality callbacks returned None.
+  /// legal, std::nullopt is returned. Also returns std::nullopt if operation
+  /// legality wasn't registered by user or dynamic legality callbacks returned
+  /// None.
   ///
   /// Note: Legality is actually a 4-state: Legal(recursive=true),
   /// Legal(recursive=false), Illegal or Unknown, where Unknown is treated
@@ -839,11 +859,6 @@ private:
 
   /// Set the dynamic legality callback for the unknown ops.
   void setLegalityCallback(const DynamicLegalityCallbackFn &callback);
-
-  /// Set the recursive legality callback for the given operation and mark the
-  /// operation as recursively legal.
-  void markOpRecursivelyLegal(OperationName name,
-                              const DynamicLegalityCallbackFn &callback);
 
   /// The set of information that configures the legalization of an operation.
   struct LegalizationInfo {
@@ -881,6 +896,35 @@ private:
   /// The current context this target applies to.
   MLIRContext &ctx;
 };
+
+//===----------------------------------------------------------------------===//
+// PDL Configuration
+//===----------------------------------------------------------------------===//
+
+/// A PDL configuration that is used to supported dialect conversion
+/// functionality.
+class PDLConversionConfig final
+    : public PDLPatternConfigBase<PDLConversionConfig> {
+public:
+  PDLConversionConfig(TypeConverter *converter) : converter(converter) {}
+  ~PDLConversionConfig() final = default;
+
+  /// Return the type converter used by this configuration, which may be nullptr
+  /// if no type conversions are expected.
+  TypeConverter *getTypeConverter() const { return converter; }
+
+  /// Hooks that are invoked at the beginning and end of a rewrite of a matched
+  /// pattern.
+  void notifyRewriteBegin(PatternRewriter &rewriter) final;
+  void notifyRewriteEnd(PatternRewriter &rewriter) final;
+
+private:
+  /// An optional type converter to use for the pattern.
+  TypeConverter *converter;
+};
+
+/// Register the dialect conversion PDL functions with the given pattern set.
+void registerConversionPDLFunctions(RewritePatternSet &patterns);
 
 //===----------------------------------------------------------------------===//
 // Op Conversion Entry Points

@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -sycl-std=1.2.1 -fsycl-targets=%sycl_triple -fsyntax-only %s
 //==------------ aliases.cpp - SYCL type aliases test ----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -7,12 +7,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <type_traits>
 
 using std::is_same;
-namespace s = cl::sycl;
+namespace s = sycl;
 
 // Test to verify requirements from 4.10.2.2 Aliases
 

@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/locked.hpp>
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/util.hpp>
 #include <detail/platform_impl.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/locked.hpp>
+#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/detail/util.hpp>
 
 #include <atomic>
 #include <condition_variable>
@@ -24,21 +24,19 @@
 // For testing purposes
 class MockKernelProgramCache;
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 class context_impl;
 class KernelProgramCache {
 public:
-  /// Denotes build error data. The data is filled in from cl::sycl::exception
+  /// Denotes build error data. The data is filled in from sycl::exception
   /// class instance.
   struct BuildError {
     std::string Msg;
     pi_int32 Code;
 
-    bool isFilledIn() const {
-      return !Msg.empty();
-    }
+    bool isFilledIn() const { return !Msg.empty(); }
   };
 
   /// Denotes pointer to some entity with its general state and build error.
@@ -64,13 +62,13 @@ public:
     /// A mutex to be employed along with MBuildCV.
     std::mutex MBuildResultMutex;
 
-    BuildResult(T* P, int S) : Ptr{P}, State{S}, Error{"", 0} {}
+    BuildResult(T *P, int S) : Ptr{P}, State{S}, Error{"", 0} {}
   };
 
   using PiProgramT = std::remove_pointer<RT::PiProgram>::type;
   using PiProgramPtrT = std::atomic<PiProgramT *>;
   using ProgramWithBuildStateT = BuildResult<PiProgramT>;
-  using ProgramCacheKeyT = std::pair<std::pair<SerializedObj, KernelSetId>,
+  using ProgramCacheKeyT = std::pair<std::pair<SerializedObj, std::uintptr_t>,
                                      std::pair<RT::PiDevice, std::string>>;
   using ProgramCacheT = std::map<ProgramCacheKeyT, ProgramWithBuildStateT>;
   using ContextPtr = context_impl *;
@@ -152,5 +150,5 @@ private:
   friend class ::MockKernelProgramCache;
 };
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

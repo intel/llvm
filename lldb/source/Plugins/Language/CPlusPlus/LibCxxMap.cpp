@@ -165,8 +165,8 @@ private:
   }
 
   MapEntry m_entry;
-  size_t m_max_depth;
-  bool m_error;
+  size_t m_max_depth = 0;
+  bool m_error = false;
 };
 
 namespace lldb_private {
@@ -192,11 +192,11 @@ private:
 
   void GetValueOffset(const lldb::ValueObjectSP &node);
 
-  ValueObject *m_tree;
-  ValueObject *m_root_node;
+  ValueObject *m_tree = nullptr;
+  ValueObject *m_root_node = nullptr;
   CompilerType m_element_type;
-  uint32_t m_skip_size;
-  size_t m_count;
+  uint32_t m_skip_size = UINT32_MAX;
+  size_t m_count = UINT32_MAX;
   std::map<size_t, MapIterator> m_iterators;
 };
 } // namespace formatters
@@ -204,9 +204,7 @@ private:
 
 lldb_private::formatters::LibcxxStdMapSyntheticFrontEnd::
     LibcxxStdMapSyntheticFrontEnd(lldb::ValueObjectSP valobj_sp)
-    : SyntheticChildrenFrontEnd(*valobj_sp), m_tree(nullptr),
-      m_root_node(nullptr), m_element_type(), m_skip_size(UINT32_MAX),
-      m_count(UINT32_MAX), m_iterators() {
+    : SyntheticChildrenFrontEnd(*valobj_sp), m_element_type(), m_iterators() {
   if (valobj_sp)
     Update();
 }
@@ -251,7 +249,7 @@ bool lldb_private::formatters::LibcxxStdMapSyntheticFrontEnd::GetDataType() {
   static ConstString g_tree_("__tree_");
   static ConstString g_pair3("__pair3_");
 
-  if (m_element_type.GetOpaqueQualType() && m_element_type.GetTypeSystem())
+  if (m_element_type.IsValid())
     return true;
   m_element_type.Clear();
   ValueObjectSP deref;
@@ -297,8 +295,7 @@ void lldb_private::formatters::LibcxxStdMapSyntheticFrontEnd::GetValueOffset(
       UINT32_MAX) {
     m_skip_size = bit_offset / 8u;
   } else {
-    TypeSystemClang *ast_ctx =
-        llvm::dyn_cast_or_null<TypeSystemClang>(node_type.GetTypeSystem());
+    auto ast_ctx = node_type.GetTypeSystem().dyn_cast_or_null<TypeSystemClang>();
     if (!ast_ctx)
       return;
     CompilerType tree_node_type = ast_ctx->CreateStructForIdentifier(
@@ -330,7 +327,7 @@ void lldb_private::formatters::LibcxxStdMapSyntheticFrontEnd::GetValueOffset(
 lldb::ValueObjectSP
 lldb_private::formatters::LibcxxStdMapSyntheticFrontEnd::GetChildAtIndex(
     size_t idx) {
-  static ConstString g_cc("__cc");
+  static ConstString g_cc_("__cc_"), g_cc("__cc");
   static ConstString g_nc("__nc");
   static ConstString g_value_("__value_");
 
@@ -416,15 +413,17 @@ lldb_private::formatters::LibcxxStdMapSyntheticFrontEnd::GetChildAtIndex(
     switch (potential_child_sp->GetNumChildren()) {
     case 1: {
       auto child0_sp = potential_child_sp->GetChildAtIndex(0, true);
-      if (child0_sp && child0_sp->GetName() == g_cc)
+      if (child0_sp &&
+          (child0_sp->GetName() == g_cc_ || child0_sp->GetName() == g_cc))
         potential_child_sp = child0_sp->Clone(ConstString(name.GetString()));
       break;
     }
     case 2: {
       auto child0_sp = potential_child_sp->GetChildAtIndex(0, true);
       auto child1_sp = potential_child_sp->GetChildAtIndex(1, true);
-      if (child0_sp && child0_sp->GetName() == g_cc && child1_sp &&
-          child1_sp->GetName() == g_nc)
+      if (child0_sp &&
+          (child0_sp->GetName() == g_cc_ || child0_sp->GetName() == g_cc) &&
+          child1_sp && child1_sp->GetName() == g_nc)
         potential_child_sp = child0_sp->Clone(ConstString(name.GetString()));
       break;
     }

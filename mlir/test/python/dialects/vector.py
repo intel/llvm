@@ -2,7 +2,7 @@
 
 from mlir.ir import *
 import mlir.dialects.builtin as builtin
-import mlir.dialects.std as std
+import mlir.dialects.func as func
 import mlir.dialects.vector as vector
 
 def run(f):
@@ -17,7 +17,7 @@ def testPrintOp():
   module = Module.create()
   with InsertionPoint(module.body):
 
-    @builtin.FuncOp.from_py_func(VectorType.get((12, 5), F32Type.get()))
+    @func.FuncOp.from_py_func(VectorType.get((12, 5), F32Type.get()))
     def print_vector(arg):
       return vector.PrintOp(arg)
 
@@ -35,21 +35,23 @@ def testTransferReadOp():
   module = Module.create()
   with InsertionPoint(module.body):
     vector_type = VectorType.get([2, 3], F32Type.get())
-    memref_type = MemRefType.get([-1, -1], F32Type.get())
+    memref_type = MemRefType.get(
+        [ShapedType.get_dynamic_size(),
+         ShapedType.get_dynamic_size()], F32Type.get())
     index_type = IndexType.get()
     mask_type = VectorType.get(vector_type.shape, IntegerType.get_signless(1))
     identity_map = AffineMap.get_identity(vector_type.rank)
     identity_map_attr = AffineMapAttr.get(identity_map)
-    func = builtin.FuncOp("transfer_read",
+    f = func.FuncOp("transfer_read",
                           ([memref_type, index_type,
                             F32Type.get(), mask_type], []))
-    with InsertionPoint(func.add_entry_block()):
-      A, zero, padding, mask = func.arguments
+    with InsertionPoint(f.add_entry_block()):
+      A, zero, padding, mask = f.arguments
       vector.TransferReadOp(vector_type, A, [zero, zero], identity_map_attr,
-                            padding, mask, None)
+                            padding, mask=mask)
       vector.TransferReadOp(vector_type, A, [zero, zero], identity_map_attr,
-                            padding, None, None)
-      std.ReturnOp([])
+                            padding)
+      func.ReturnOp([])
 
   # CHECK: @transfer_read(%[[MEM:.*]]: memref<?x?xf32>, %[[IDX:.*]]: index,
   # CHECK: %[[PAD:.*]]: f32, %[[MASK:.*]]: vector<2x3xi1>)

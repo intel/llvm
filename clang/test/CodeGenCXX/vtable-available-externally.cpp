@@ -442,7 +442,7 @@ void testcaseB() {
 namespace Test18 {
 // Here vtable will be only emitted because it is referenced by assume-load
 // after the Derived construction.
-// CHECK-FORCE-EMIT-DAG: @_ZTVN6Test187DerivedE = linkonce_odr unnamed_addr constant {{.*}} @_ZTIN6Test187DerivedE {{.*}} @_ZN6Test184Base3funEv {{.*}} @_ZN6Test184BaseD2Ev {{.*}} @_ZN6Test187DerivedD0Ev
+// CHECK-FORCE-EMIT-DAG: @_ZTVN6Test187DerivedE = linkonce_odr unnamed_addr constant {{.*}} @_ZTIN6Test187DerivedE, {{.*}} @_ZN6Test184Base3funEv, {{.*}} @_ZN6Test184BaseD2Ev, {{.*}} @_ZN6Test187DerivedD0Ev
 // CHECK-FORCE-EMIT-DAG: define linkonce_odr void @_ZN6Test187DerivedD0Ev
 // CHECK-FORCE-EMIT-DAG: define linkonce_odr void @_ZN6Test184BaseD2Ev
 // CHECK-FORCE-EMIT-DAG: define linkonce_odr noundef i32 @_ZN6Test184Base3funEv
@@ -465,7 +465,7 @@ int foo() {
 
 namespace TestTemplates {
 
-// CHECK-FORCE-EMIT-DAG: @_ZTVN13TestTemplates8TemplateIiEE = linkonce_odr unnamed_addr constant {{.*}} @_ZTIN13TestTemplates8TemplateIiEE {{.*}} @_ZN13TestTemplates8TemplateIiE3fooEi {{.*}}@_ZN13TestTemplates8TemplateIiE22thisShouldBeEmittedTooEi {{.*}}@_ZN13TestTemplates8TemplateIiED1Ev {{.*}}@_ZN13TestTemplates8TemplateIiED0Ev
+// CHECK-FORCE-EMIT-DAG: @_ZTVN13TestTemplates8TemplateIiEE = linkonce_odr unnamed_addr constant {{.*}} @_ZTIN13TestTemplates8TemplateIiEE, {{.*}} @_ZN13TestTemplates8TemplateIiE3fooEi, {{.*}}@_ZN13TestTemplates8TemplateIiE22thisShouldBeEmittedTooEi, {{.*}}@_ZN13TestTemplates8TemplateIiED1Ev, {{.*}}@_ZN13TestTemplates8TemplateIiED0Ev
 // CHECK-FORCE-EMIT-DAG: define linkonce_odr noundef i32 @_ZN13TestTemplates8TemplateIiE22thisShouldBeEmittedTooEi
 
 template<class T>
@@ -487,7 +487,7 @@ struct NonTemplate {
   virtual ~NonTemplate();
 };
 
-// CHECK-FORCE-EMIT-DAG: @_ZTVN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiEE = linkonce_odr {{.*}} @_ZTIN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiEE {{.*}} @_ZN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiE3fooEi {{.*}} @_ZN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiE22thisShouldBeEmittedTooEi {{.*}} @_ZN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiED1Ev {{.*}} @_ZN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiED0Ev
+// CHECK-FORCE-EMIT-DAG: @_ZTVN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiEE = linkonce_odr {{.*}} @_ZTIN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiEE, {{.*}} @_ZN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiE3fooEi, {{.*}} @_ZN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiE22thisShouldBeEmittedTooEi, {{.*}} @_ZN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiED1Ev, {{.*}} @_ZN13TestTemplates16OuterNonTemplate27NestedTemplateInNonTemplateIiED0Ev
 
 struct OuterNonTemplate {
   template<class T>

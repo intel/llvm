@@ -155,13 +155,9 @@ private:
   CreateOutputFile(CompilerInstance &CI, StringRef InFile) override;
 };
 
-class GenerateHeaderModuleAction : public GenerateModuleAction {
-  /// The synthesized module input buffer for the current compilation.
-  std::unique_ptr<llvm::MemoryBuffer> Buffer;
-  std::vector<std::string> ModuleHeaders;
+class GenerateHeaderUnitAction : public GenerateModuleAction {
 
 private:
-  bool PrepareToExecuteAction(CompilerInstance &CI) override;
   bool BeginSourceFileAction(CompilerInstance &CI) override;
 
   std::unique_ptr<raw_pwrite_stream>
@@ -181,6 +177,10 @@ public:
 /// Dump information about the given module file, to be used for
 /// basic debugging and discovery.
 class DumpModuleInfoAction : public ASTFrontendAction {
+public:
+  // Allow other tools (ex lldb) to direct output for their use.
+  llvm::raw_ostream *OutputStream = nullptr;
+
 protected:
   std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
                                                  StringRef InFile) override;
@@ -269,12 +269,6 @@ protected:
   }
 
   bool usesPreprocessorOnly() const override { return true; }
-};
-
-class ExtractAPIAction : public ASTFrontendAction {
-protected:
-  std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
-                                                 StringRef InFile) override;
 };
 
 //===----------------------------------------------------------------------===//

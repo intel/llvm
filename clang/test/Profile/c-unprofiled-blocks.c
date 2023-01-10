@@ -62,7 +62,7 @@ int dead_code(int i) {
   return 2;
 }
 
-// PGOUSE-LABEL: @main(i32 noundef %argc, i8** noundef %argv)
+// PGOUSE-LABEL: @main(i32 noundef %argc, ptr noundef %argv)
 int main(int argc, const char *argv[]) {
   dead_code(0);
   return 0;

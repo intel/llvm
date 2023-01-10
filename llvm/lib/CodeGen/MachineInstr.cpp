@@ -11,19 +11,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CodeGen/MachineInstr.h"
-#include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallBitVector.h"
-#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/AliasAnalysis.h"
-#include "llvm/Analysis/Loads.h"
 #include "llvm/Analysis/MemoryLocation.h"
-#include "llvm/CodeGen/GlobalISel/RegisterBank.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -38,42 +32,30 @@
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
-#include "llvm/Config/llvm-config.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DebugLoc.h"
-#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InlineAsm.h"
-#include "llvm/IR/InstrTypes.h"
-#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/ModuleSlotTracker.h"
 #include "llvm/IR/Operator.h"
-#include "llvm/IR/Type.h"
-#include "llvm/IR/Value.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/MC/MCRegisterInfo.h"
-#include "llvm/MC/MCSymbol.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/LowLevelTypeImpl.h"
-#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Target/TargetIntrinsicInfo.h"
 #include "llvm/Target/TargetMachine.h"
 #include <algorithm>
 #include <cassert>
-#include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <iterator>
 #include <utility>
 
 using namespace llvm;
@@ -146,6 +128,14 @@ MachineInstr::MachineInstr(MachineFunction &MF, const MachineInstr &MI)
   for (const MachineOperand &MO : MI.operands())
     addOperand(MF, MO);
 
+  // Replicate ties between the operands, which addOperand was not
+  // able to do reliably.
+  for (unsigned i = 0, e = getNumOperands(); i < e; ++i) {
+    MachineOperand &NewMO = getOperand(i);
+    const MachineOperand &OrigMO = MI.getOperand(i);
+    NewMO.TiedTo = OrigMO.TiedTo;
+  }
+
   // Copy all the sensible flags.
   setFlags(MI.Flags);
 }
@@ -163,19 +153,13 @@ MachineRegisterInfo *MachineInstr::getRegInfo() {
   return nullptr;
 }
 
-/// RemoveRegOperandsFromUseLists - Unlink all of the register operands in
-/// this instruction from their respective use lists.  This requires that the
-/// operands already be on their use lists.
-void MachineInstr::RemoveRegOperandsFromUseLists(MachineRegisterInfo &MRI) {
+void MachineInstr::removeRegOperandsFromUseLists(MachineRegisterInfo &MRI) {
   for (MachineOperand &MO : operands())
     if (MO.isReg())
       MRI.removeRegOperandFromUseList(&MO);
 }
 
-/// AddRegOperandsToUseLists - Add all of the register operands in
-/// this instruction from their respective use lists.  This requires that the
-/// operands not be on their use lists yet.
-void MachineInstr::AddRegOperandsToUseLists(MachineRegisterInfo &MRI) {
+void MachineInstr::addRegOperandsToUseLists(MachineRegisterInfo &MRI) {
   for (MachineOperand &MO : operands())
     if (MO.isReg())
       MRI.addRegOperandToUseList(&MO);
@@ -296,10 +280,7 @@ void MachineInstr::addOperand(MachineFunction &MF, const MachineOperand &Op) {
   }
 }
 
-/// RemoveOperand - Erase an operand  from an instruction, leaving it with one
-/// fewer operand than it started with.
-///
-void MachineInstr::RemoveOperand(unsigned OpNo) {
+void MachineInstr::removeOperand(unsigned OpNo) {
   assert(OpNo < getNumOperands() && "Invalid operand number");
   untieRegOperand(OpNo);
 
@@ -327,12 +308,15 @@ void MachineInstr::setExtraInfo(MachineFunction &MF,
                                 ArrayRef<MachineMemOperand *> MMOs,
                                 MCSymbol *PreInstrSymbol,
                                 MCSymbol *PostInstrSymbol,
-                                MDNode *HeapAllocMarker) {
+                                MDNode *HeapAllocMarker, MDNode *PCSections,
+                                uint32_t CFIType) {
   bool HasPreInstrSymbol = PreInstrSymbol != nullptr;
   bool HasPostInstrSymbol = PostInstrSymbol != nullptr;
   bool HasHeapAllocMarker = HeapAllocMarker != nullptr;
-  int NumPointers =
-      MMOs.size() + HasPreInstrSymbol + HasPostInstrSymbol + HasHeapAllocMarker;
+  bool HasPCSections = PCSections != nullptr;
+  bool HasCFIType = CFIType != 0;
+  int NumPointers = MMOs.size() + HasPreInstrSymbol + HasPostInstrSymbol +
+                    HasHeapAllocMarker + HasPCSections + HasCFIType;
 
   // Drop all extra info if there is none.
   if (NumPointers <= 0) {
@@ -344,9 +328,11 @@ void MachineInstr::setExtraInfo(MachineFunction &MF,
   // out of line because PointerSumType cannot hold more than 4 tag types with
   // 32-bit pointers.
   // FIXME: Maybe we should make the symbols in the extra info mutable?
-  else if (NumPointers > 1 || HasHeapAllocMarker) {
-    Info.set<EIIK_OutOfLine>(MF.createMIExtraInfo(
-        MMOs, PreInstrSymbol, PostInstrSymbol, HeapAllocMarker));
+  else if (NumPointers > 1 || HasHeapAllocMarker || HasPCSections ||
+           HasCFIType) {
+    Info.set<EIIK_OutOfLine>(
+        MF.createMIExtraInfo(MMOs, PreInstrSymbol, PostInstrSymbol,
+                             HeapAllocMarker, PCSections, CFIType));
     return;
   }
 
@@ -364,7 +350,7 @@ void MachineInstr::dropMemRefs(MachineFunction &MF) {
     return;
 
   setExtraInfo(MF, {}, getPreInstrSymbol(), getPostInstrSymbol(),
-               getHeapAllocMarker());
+               getHeapAllocMarker(), getPCSections(), getCFIType());
 }
 
 void MachineInstr::setMemRefs(MachineFunction &MF,
@@ -375,7 +361,7 @@ void MachineInstr::setMemRefs(MachineFunction &MF,
   }
 
   setExtraInfo(MF, MMOs, getPreInstrSymbol(), getPostInstrSymbol(),
-               getHeapAllocMarker());
+               getHeapAllocMarker(), getPCSections(), getCFIType());
 }
 
 void MachineInstr::addMemOperand(MachineFunction &MF,
@@ -398,7 +384,8 @@ void MachineInstr::cloneMemRefs(MachineFunction &MF, const MachineInstr &MI) {
   // are the same (including null).
   if (getPreInstrSymbol() == MI.getPreInstrSymbol() &&
       getPostInstrSymbol() == MI.getPostInstrSymbol() &&
-      getHeapAllocMarker() == MI.getHeapAllocMarker()) {
+      getHeapAllocMarker() == MI.getHeapAllocMarker() &&
+      getPCSections() == MI.getPCSections()) {
     Info = MI.Info;
     return;
   }
@@ -483,7 +470,7 @@ void MachineInstr::setPreInstrSymbol(MachineFunction &MF, MCSymbol *Symbol) {
   }
 
   setExtraInfo(MF, memoperands(), Symbol, getPostInstrSymbol(),
-               getHeapAllocMarker());
+               getHeapAllocMarker(), getPCSections(), getCFIType());
 }
 
 void MachineInstr::setPostInstrSymbol(MachineFunction &MF, MCSymbol *Symbol) {
@@ -498,7 +485,7 @@ void MachineInstr::setPostInstrSymbol(MachineFunction &MF, MCSymbol *Symbol) {
   }
 
   setExtraInfo(MF, memoperands(), getPreInstrSymbol(), Symbol,
-               getHeapAllocMarker());
+               getHeapAllocMarker(), getPCSections(), getCFIType());
 }
 
 void MachineInstr::setHeapAllocMarker(MachineFunction &MF, MDNode *Marker) {
@@ -507,7 +494,25 @@ void MachineInstr::setHeapAllocMarker(MachineFunction &MF, MDNode *Marker) {
     return;
 
   setExtraInfo(MF, memoperands(), getPreInstrSymbol(), getPostInstrSymbol(),
-               Marker);
+               Marker, getPCSections(), getCFIType());
+}
+
+void MachineInstr::setPCSections(MachineFunction &MF, MDNode *PCSections) {
+  // Do nothing if old and new symbols are the same.
+  if (PCSections == getPCSections())
+    return;
+
+  setExtraInfo(MF, memoperands(), getPreInstrSymbol(), getPostInstrSymbol(),
+               getHeapAllocMarker(), PCSections, getCFIType());
+}
+
+void MachineInstr::setCFIType(MachineFunction &MF, uint32_t Type) {
+  // Do nothing if old and new types are the same.
+  if (Type == getCFIType())
+    return;
+
+  setExtraInfo(MF, memoperands(), getPreInstrSymbol(), getPostInstrSymbol(),
+               getHeapAllocMarker(), getPCSections(), Type);
 }
 
 void MachineInstr::cloneInstrSymbols(MachineFunction &MF,
@@ -522,6 +527,7 @@ void MachineInstr::cloneInstrSymbols(MachineFunction &MF,
   setPreInstrSymbol(MF, MI.getPreInstrSymbol());
   setPostInstrSymbol(MF, MI.getPostInstrSymbol());
   setHeapAllocMarker(MF, MI.getHeapAllocMarker());
+  setPCSections(MF, MI.getPCSections());
 }
 
 uint16_t MachineInstr::mergeFlagsWith(const MachineInstr &Other) const {
@@ -656,6 +662,15 @@ bool MachineInstr::isIdenticalTo(const MachineInstr &Other,
     if (getDebugLoc() && Other.getDebugLoc() &&
         getDebugLoc() != Other.getDebugLoc())
       return false;
+  // If pre- or post-instruction symbols do not match then the two instructions
+  // are not identical.
+  if (getPreInstrSymbol() != Other.getPreInstrSymbol() ||
+      getPostInstrSymbol() != Other.getPostInstrSymbol())
+    return false;
+  // Call instructions with different CFI types are not identical.
+  if (isCall() && getCFIType() != Other.getCFIType())
+    return false;
+
   return true;
 }
 
@@ -1229,7 +1244,7 @@ bool MachineInstr::isSafeToMove(AAResults *AA, bool &SawStore) const {
   // destination. The check for isInvariantLoad gives the target the chance to
   // classify the load as always returning a constant, e.g. a constant pool
   // load.
-  if (mayLoad() && !isDereferenceableInvariantLoad(AA))
+  if (mayLoad() && !isDereferenceableInvariantLoad())
     // Otherwise, this is a real load.  If there is a store between the load and
     // end of block, we can't move it.
     return !SawStore;
@@ -1374,7 +1389,7 @@ bool MachineInstr::hasOrderedMemoryRef() const {
 /// isDereferenceableInvariantLoad - Return true if this instruction will never
 /// trap and is loading from a location whose value is invariant across a run of
 /// this function.
-bool MachineInstr::isDereferenceableInvariantLoad(AAResults *AA) const {
+bool MachineInstr::isDereferenceableInvariantLoad() const {
   // If the instruction doesn't load at all, it isn't an invariant load.
   if (!mayLoad())
     return false;
@@ -1397,15 +1412,8 @@ bool MachineInstr::isDereferenceableInvariantLoad(AAResults *AA) const {
       continue;
 
     // A load from a constant PseudoSourceValue is invariant.
-    if (const PseudoSourceValue *PSV = MMO->getPseudoValue())
+    if (const PseudoSourceValue *PSV = MMO->getPseudoValue()) {
       if (PSV->isConstant(&MFI))
-        continue;
-
-    if (const Value *V = MMO->getValue()) {
-      // If we have an AliasAnalysis, ask it whether the memory is constant.
-      if (AA &&
-          AA->pointsToConstantMemory(
-              MemoryLocation(V, MMO->getSize(), MMO->getAAInfo())))
         continue;
     }
 
@@ -1781,6 +1789,19 @@ void MachineInstr::print(raw_ostream &OS, ModuleSlotTracker &MST,
     OS << " heap-alloc-marker ";
     HeapAllocMarker->printAsOperand(OS, MST);
   }
+  if (MDNode *PCSections = getPCSections()) {
+    if (!FirstOp) {
+      FirstOp = false;
+      OS << ',';
+    }
+    OS << " pcsections ";
+    PCSections->printAsOperand(OS, MST);
+  }
+  if (uint32_t CFIType = getCFIType()) {
+    if (!FirstOp)
+      OS << ',';
+    OS << " cfi-type " << CFIType;
+  }
 
   if (DebugInstrNum) {
     if (!FirstOp)
@@ -1900,7 +1921,7 @@ bool MachineInstr::addRegisterKilled(Register IncomingReg,
     unsigned OpIdx = DeadOps.back();
     if (getOperand(OpIdx).isImplicit() &&
         (!isInlineAsm() || findInlineAsmFlagIdx(OpIdx) < 0))
-      RemoveOperand(OpIdx);
+      removeOperand(OpIdx);
     else
       getOperand(OpIdx).setIsKill(false);
     DeadOps.pop_back();
@@ -1965,7 +1986,7 @@ bool MachineInstr::addRegisterDead(Register Reg,
     unsigned OpIdx = DeadOps.back();
     if (getOperand(OpIdx).isImplicit() &&
         (!isInlineAsm() || findInlineAsmFlagIdx(OpIdx) < 0))
-      RemoveOperand(OpIdx);
+      removeOperand(OpIdx);
     else
       getOperand(OpIdx).setIsDead(false);
     DeadOps.pop_back();
@@ -2300,7 +2321,7 @@ using MMOList = SmallVector<const MachineMemOperand *, 2>;
 static unsigned getSpillSlotSize(const MMOList &Accesses,
                                  const MachineFrameInfo &MFI) {
   unsigned Size = 0;
-  for (auto A : Accesses)
+  for (const auto *A : Accesses)
     if (MFI.isSpillSlotObjectIndex(
             cast<FixedStackPseudoSourceValue>(A->getPseudoValue())
                 ->getFrameIndex()))
@@ -2316,7 +2337,7 @@ MachineInstr::getSpillSize(const TargetInstrInfo *TII) const {
     if (MFI.isSpillSlotObjectIndex(FI))
       return (*memoperands_begin())->getSize();
   }
-  return None;
+  return std::nullopt;
 }
 
 Optional<unsigned>
@@ -2324,7 +2345,7 @@ MachineInstr::getFoldedSpillSize(const TargetInstrInfo *TII) const {
   MMOList Accesses;
   if (TII->hasStoreToStackSlot(*this, Accesses))
     return getSpillSlotSize(Accesses, getMF()->getFrameInfo());
-  return None;
+  return std::nullopt;
 }
 
 Optional<unsigned>
@@ -2335,7 +2356,7 @@ MachineInstr::getRestoreSize(const TargetInstrInfo *TII) const {
     if (MFI.isSpillSlotObjectIndex(FI))
       return (*memoperands_begin())->getSize();
   }
-  return None;
+  return std::nullopt;
 }
 
 Optional<unsigned>
@@ -2343,7 +2364,7 @@ MachineInstr::getFoldedRestoreSize(const TargetInstrInfo *TII) const {
   MMOList Accesses;
   if (TII->hasLoadFromStackSlot(*this, Accesses))
     return getSpillSlotSize(Accesses, getMF()->getFrameInfo());
-  return None;
+  return std::nullopt;
 }
 
 unsigned MachineInstr::getDebugInstrNum() {

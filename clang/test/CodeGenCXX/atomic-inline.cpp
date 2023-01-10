@@ -28,9 +28,9 @@ void store8() {
 bool cmpxchg8() {
   AM8 am;
   // CHECK-LABEL: @_Z8cmpxchg8v
-  // CHECK: cmpxchg i64* {{.*}} monotonic, align 8
+  // CHECK: cmpxchg ptr {{.*}} monotonic, align 8
   // CORE2-LABEL: @_Z8cmpxchg8v
-  // CORE2: cmpxchg i64* {{.*}} monotonic, align 8
+  // CORE2: cmpxchg ptr {{.*}} monotonic, align 8
   return __atomic_compare_exchange(&m8, &s8, &am, 0, 0, 0);
 }
 
@@ -63,6 +63,6 @@ bool cmpxchg16() {
   // CHECK-LABEL: @_Z9cmpxchg16v
   // CHECK: call noundef zeroext i1 @__atomic_compare_exchange
   // CORE2-LABEL: @_Z9cmpxchg16v
-  // CORE2: cmpxchg i128* {{.*}} monotonic monotonic, align 16
+  // CORE2: cmpxchg ptr {{.*}} monotonic monotonic, align 16
   return __atomic_compare_exchange(&m16, &s16, &am, 0, 0, 0);
 }

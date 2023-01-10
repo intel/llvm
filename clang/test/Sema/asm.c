@@ -50,8 +50,9 @@ void test3(void) {
 // <rdar://problem/6156893>
 void test4(const volatile void *addr)
 {
-    asm ("nop" : : "r"(*addr)); // expected-error {{invalid type 'const volatile void' in asm input for constraint 'r'}}
-    asm ("nop" : : "m"(*addr));
+    asm ("nop" : : "r"(*addr)); /* expected-error {{invalid type 'const volatile void' in asm input for constraint 'r'}}
+                                   expected-warning {{ISO C does not allow indirection on operand of type 'const volatile void *'}} */
+    asm ("nop" : : "m"(*addr)); // expected-warning {{ISO C does not allow indirection on operand of type 'const volatile void *'}}
 
     asm ("nop" : : "r"(test4(addr))); // expected-error {{invalid type 'void' in asm input for constraint 'r'}}
     asm ("nop" : : "m"(test4(addr))); // expected-error {{invalid lvalue in asm input for constraint 'm'}}
@@ -312,4 +313,55 @@ lab2:;
   // expected-error@+1 {{invalid operand number in inline asm string}}
   asm ("jne %l0":::);
   asm goto ("jne %l0"::::lab);
+}
+
+typedef struct _st_size64 {
+  int a;
+  char b;
+} st_size64;
+
+typedef struct _st_size96 {
+  int a;
+  int b;
+  int c;
+} st_size96;
+
+typedef struct _st_size16 {
+  char a;
+  char b;
+} st_size16;
+
+typedef struct _st_size32 {
+  char a;
+  char b;
+  char c;
+  char d;
+} st_size32;
+
+typedef struct _st_size128 {
+  int a;
+  int b;
+  int c;
+  int d;
+} st_size128;
+
+void test19(long long x)
+{
+  st_size64 a;
+  st_size96 b;
+  st_size16 c;
+  st_size32 d;
+  st_size128 e;
+  asm ("" : "=rm" (a): "0" (1)); // no-error
+  asm ("" : "=rm" (d): "0" (1)); // no-error
+  asm ("" : "=rm" (c): "0" (x)); // no-error
+  // FIXME: This case is actually supported by codegen.
+  asm ("" : "=rm" (x): "0" (a)); // expected-error {{unsupported inline asm: input with type 'st_size64' (aka 'struct _st_size64') matching output with type 'long long'}}
+  // FIXME: This case is actually supported by codegen.
+  asm ("" : "=rm" (a): "0" (d)); // expected-error {{unsupported inline asm: input with type 'st_size32' (aka 'struct _st_size32') matching output with type 'st_size64' (aka 'struct _st_size64')}}
+  asm ("" : "=rm" (b): "0" (1)); // expected-error {{impossible constraint in asm: can't store value into a register}}
+  // FIXME: This case should be supported by codegen, but it fails now.
+  asm ("" : "=rm" (e): "0" (1)); // no-error
+  // FIXME: This case should be supported by codegen, but it fails now.
+  asm ("" : "=rm" (x): "0" (e)); // expected-error {{unsupported inline asm: input with type 'st_size128' (aka 'struct _st_size128') matching output with type 'long long'}}
 }

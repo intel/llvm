@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This pass goes through input module's function list to detect all SYCL
+// This function goes through input module's function list to detect all SYCL
 // devicelib functions invoked. Each devicelib function invoked is included in
 // one 'fallback' SPIR-V library loaded by SYCL runtime. After scanning all
 // functions in input module, a mask telling which SPIR-V libraries are needed
@@ -16,11 +16,11 @@
 
 #pragma once
 
-#include "llvm/Pass.h"
-
 #include <cstdint>
 
 namespace llvm {
+
+class Module;
 
 // DeviceLibExt is shared between sycl-post-link tool and sycl runtime.
 // If any change is made here, need to sync with DeviceLibExt definition
@@ -32,17 +32,12 @@ enum class DeviceLibExt : std::uint32_t {
   cl_intel_devicelib_complex,
   cl_intel_devicelib_complex_fp64,
   cl_intel_devicelib_cstring,
+  cl_intel_devicelib_imf,
+  cl_intel_devicelib_imf_fp64,
+  cl_intel_devicelib_imf_bf16,
+  cl_intel_devicelib_bfloat16,
 };
 
-class SYCLDeviceLibReqMaskPass : public ModulePass {
-public:
-  static char ID;
-  SYCLDeviceLibReqMaskPass() : ModulePass(ID) { MReqMask = 0; }
-  bool runOnModule(Module &M) override;
-  uint32_t getSYCLDeviceLibReqMask() { return MReqMask; }
-
-private:
-  uint32_t MReqMask;
-};
+uint32_t getSYCLDeviceLibReqMask(const Module &M);
 
 } // namespace llvm

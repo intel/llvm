@@ -401,8 +401,8 @@ struct MockPassInstrumentationCallbacks {
 
 template <typename IRUnitT>
 using ExtraMockPassHandle =
-    std::conditional_t<std::is_same<IRUnitT, Loop>::value,
-                       MockPassHandle<LoopNest>, MockPassHandle<IRUnitT>>;
+    std::conditional_t<std::is_same_v<IRUnitT, Loop>, MockPassHandle<LoopNest>,
+                       MockPassHandle<IRUnitT>>;
 
 template <typename PassManagerT> class PassBuilderCallbacksTest;
 
@@ -462,8 +462,8 @@ protected:
                   "exit:\n"
                   "  ret void\n"
                   "}\n")),
-        CallbacksHandle(),
-        PB(nullptr, PipelineTuningOptions(), None, &CallbacksHandle.Callbacks),
+        CallbacksHandle(), PB(nullptr, PipelineTuningOptions(), std::nullopt,
+                              &CallbacksHandle.Callbacks),
         PM(), LAM(), FAM(), CGAM(), AM() {
 
     EXPECT_TRUE(&CallbacksHandle.Callbacks ==

@@ -1,21 +1,11 @@
-// RUN: mlir-opt %s -convert-vector-to-scf -lower-affine -convert-scf-to-cf -convert-vector-to-llvm -convert-memref-to-llvm -convert-std-to-llvm -reconcile-unrealized-casts | \
+// RUN: mlir-opt %s -pass-pipeline="builtin.module(func.func(convert-vector-to-scf,expand-strided-metadata,lower-affine,convert-arith-to-llvm,convert-scf-to-cf),convert-vector-to-llvm,convert-memref-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts)" | \
 // RUN: mlir-cpu-runner -e entry -entry-point-result=void  \
-// RUN:   -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
+// RUN:   -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 
-// RUN: mlir-opt %s -convert-vector-to-scf='lower-permutation-maps=true' -lower-affine -convert-scf-to-cf -convert-vector-to-llvm -convert-memref-to-llvm -convert-std-to-llvm -reconcile-unrealized-casts | \
+// RUN: mlir-opt %s -pass-pipeline="builtin.module(func.func(convert-vector-to-scf{full-unroll=true},expand-strided-metadata,lower-affine,convert-arith-to-llvm,convert-scf-to-cf),convert-vector-to-llvm,convert-memref-to-llvm,convert-func-to-llvm,reconcile-unrealized-casts)" | \
 // RUN: mlir-cpu-runner -e entry -entry-point-result=void  \
-// RUN:   -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
-
-// RUN: mlir-opt %s -convert-vector-to-scf='full-unroll=true' -lower-affine -convert-scf-to-cf -convert-vector-to-llvm -convert-memref-to-llvm -convert-std-to-llvm -reconcile-unrealized-casts | \
-// RUN: mlir-cpu-runner -e entry -entry-point-result=void  \
-// RUN:   -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
-// RUN: FileCheck %s
-
-// RUN: mlir-opt %s -convert-vector-to-scf='full-unroll=true lower-permutation-maps=true' -lower-affine -convert-scf-to-cf -convert-vector-to-llvm -convert-memref-to-llvm -convert-std-to-llvm -reconcile-unrealized-casts | \
-// RUN: mlir-cpu-runner -e entry -entry-point-result=void  \
-// RUN:   -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
+// RUN:   -shared-libs=%mlir_lib_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 
 // Test for special cases of 1D vector transfer ops.
@@ -28,7 +18,7 @@ memref.global "private" @gv : memref<5x6xf32> =
            [40., 41., 42., 43., 44., 45.]]>
 
 // Non-contiguous, strided load.
-func @transfer_read_1d(%A : memref<?x?xf32>, %base1 : index, %base2 : index) {
+func.func @transfer_read_1d(%A : memref<?x?xf32>, %base1 : index, %base2 : index) {
   %fm42 = arith.constant -42.0: f32
   %f = vector.transfer_read %A[%base1, %base2], %fm42
       {permutation_map = affine_map<(d0, d1) -> (d0)>}
@@ -37,11 +27,8 @@ func @transfer_read_1d(%A : memref<?x?xf32>, %base1 : index, %base2 : index) {
   return
 }
 
-#map0 = affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>
-#map1 = affine_map<(d0, d1) -> (6 * d0 + 2 * d1)>
-
 // Vector load with unit stride only on last dim.
-func @transfer_read_1d_unit_stride(%A : memref<?x?xf32>) {
+func.func @transfer_read_1d_unit_stride(%A : memref<?x?xf32>) {
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
   %c2 = arith.constant 2 : index
@@ -53,9 +40,9 @@ func @transfer_read_1d_unit_stride(%A : memref<?x?xf32>) {
   scf.for %arg2 = %c1 to %c5 step %c2 {
     scf.for %arg3 = %c0 to %c6 step %c3 {
       %0 = memref.subview %A[%arg2, %arg3] [1, 2] [1, 1]
-          : memref<?x?xf32> to memref<1x2xf32, #map0>
+          : memref<?x?xf32> to memref<1x2xf32, strided<[?, 1], offset: ?>>
       %1 = vector.transfer_read %0[%c0, %c0], %fm42 {in_bounds=[true]}
-          : memref<1x2xf32, #map0>, vector<2xf32>
+          : memref<1x2xf32, strided<[?, 1], offset: ?>>, vector<2xf32>
       vector.print %1 : vector<2xf32>
     }
   }
@@ -64,33 +51,33 @@ func @transfer_read_1d_unit_stride(%A : memref<?x?xf32>) {
 
 // Vector load with unit stride only on last dim. Strides are not static, so
 // codegen must go through VectorToSCF 1D lowering.
-func @transfer_read_1d_non_static_unit_stride(%A : memref<?x?xf32>) {
+func.func @transfer_read_1d_non_static_unit_stride(%A : memref<?x?xf32>) {
   %c1 = arith.constant 1 : index
   %c2 = arith.constant 2 : index
   %c6 = arith.constant 6 : index
   %fm42 = arith.constant -42.0: f32
   %1 = memref.reinterpret_cast %A to offset: [%c6], sizes: [%c1, %c2],  strides: [%c6, %c1]
-      : memref<?x?xf32> to memref<?x?xf32, offset: ?, strides: [?, ?]>
+      : memref<?x?xf32> to memref<?x?xf32, strided<[?, ?], offset: ?>>
   %2 = vector.transfer_read %1[%c2, %c1], %fm42 {in_bounds=[true]}
-      : memref<?x?xf32, offset: ?, strides: [?, ?]>, vector<4xf32>
+      : memref<?x?xf32, strided<[?, ?], offset: ?>>, vector<4xf32>
   vector.print %2 : vector<4xf32>
   return
 }
 
 // Vector load where last dim has non-unit stride.
-func @transfer_read_1d_non_unit_stride(%A : memref<?x?xf32>) {
+func.func @transfer_read_1d_non_unit_stride(%A : memref<?x?xf32>) {
   %B = memref.reinterpret_cast %A to offset: [0], sizes: [4, 3], strides: [6, 2]
-      : memref<?x?xf32> to memref<4x3xf32, #map1>
+      : memref<?x?xf32> to memref<4x3xf32, strided<[6, 2]>>
   %c1 = arith.constant 1 : index
   %c2 = arith.constant 2 : index
   %fm42 = arith.constant -42.0: f32
-  %vec = vector.transfer_read %B[%c2, %c1], %fm42 {in_bounds=[false]} : memref<4x3xf32, #map1>, vector<3xf32>
+  %vec = vector.transfer_read %B[%c2, %c1], %fm42 {in_bounds=[false]} : memref<4x3xf32, strided<[6, 2]>>, vector<3xf32>
   vector.print %vec : vector<3xf32>
   return
 }
 
 // Broadcast.
-func @transfer_read_1d_broadcast(
+func.func @transfer_read_1d_broadcast(
     %A : memref<?x?xf32>, %base1 : index, %base2 : index) {
   %fm42 = arith.constant -42.0: f32
   %f = vector.transfer_read %A[%base1, %base2], %fm42
@@ -101,7 +88,7 @@ func @transfer_read_1d_broadcast(
 }
 
 // Non-contiguous, strided load.
-func @transfer_read_1d_in_bounds(
+func.func @transfer_read_1d_in_bounds(
     %A : memref<?x?xf32>, %base1 : index, %base2 : index) {
   %fm42 = arith.constant -42.0: f32
   %f = vector.transfer_read %A[%base1, %base2], %fm42
@@ -112,7 +99,7 @@ func @transfer_read_1d_in_bounds(
 }
 
 // Non-contiguous, strided load.
-func @transfer_read_1d_mask(
+func.func @transfer_read_1d_mask(
     %A : memref<?x?xf32>, %base1 : index, %base2 : index) {
   %fm42 = arith.constant -42.0: f32
   %mask = arith.constant dense<[1, 0, 1, 0, 1, 1, 1, 0, 1]> : vector<9xi1>
@@ -124,7 +111,7 @@ func @transfer_read_1d_mask(
 }
 
 // Non-contiguous, strided load.
-func @transfer_read_1d_mask_in_bounds(
+func.func @transfer_read_1d_mask_in_bounds(
     %A : memref<?x?xf32>, %base1 : index, %base2 : index) {
   %fm42 = arith.constant -42.0: f32
   %mask = arith.constant dense<[1, 0, 1]> : vector<3xi1>
@@ -136,7 +123,7 @@ func @transfer_read_1d_mask_in_bounds(
 }
 
 // Non-contiguous, strided store.
-func @transfer_write_1d(%A : memref<?x?xf32>, %base1 : index, %base2 : index) {
+func.func @transfer_write_1d(%A : memref<?x?xf32>, %base1 : index, %base2 : index) {
   %fn1 = arith.constant -1.0 : f32
   %vf0 = vector.splat %fn1 : vector<7xf32>
   vector.transfer_write %vf0, %A[%base1, %base2]
@@ -146,7 +133,7 @@ func @transfer_write_1d(%A : memref<?x?xf32>, %base1 : index, %base2 : index) {
 }
 
 // Non-contiguous, strided store.
-func @transfer_write_1d_mask(%A : memref<?x?xf32>, %base1 : index, %base2 : index) {
+func.func @transfer_write_1d_mask(%A : memref<?x?xf32>, %base1 : index, %base2 : index) {
   %fn1 = arith.constant -2.0 : f32
   %vf0 = vector.splat %fn1 : vector<7xf32>
   %mask = arith.constant dense<[1, 0, 1, 0, 1, 1, 1]> : vector<7xi1>
@@ -156,7 +143,7 @@ func @transfer_write_1d_mask(%A : memref<?x?xf32>, %base1 : index, %base2 : inde
   return
 }
 
-func @entry() {
+func.func @entry() {
   %c0 = arith.constant 0: index
   %c1 = arith.constant 1: index
   %c2 = arith.constant 2: index

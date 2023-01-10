@@ -8,6 +8,7 @@
 
 #include "lldb/Symbol/SymbolContext.h"
 
+#include "lldb/Core/Debugger.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Host/Host.h"
@@ -31,7 +32,7 @@ SymbolContext::SymbolContext() : target_sp(), module_sp(), line_entry() {}
 SymbolContext::SymbolContext(const ModuleSP &m, CompileUnit *cu, Function *f,
                              Block *b, LineEntry *le, Symbol *s)
     : target_sp(), module_sp(m), comp_unit(cu), function(f), block(b),
-      line_entry(), symbol(s), variable(nullptr) {
+      line_entry(), symbol(s) {
   if (le)
     line_entry = *le;
 }
@@ -40,14 +41,13 @@ SymbolContext::SymbolContext(const TargetSP &t, const ModuleSP &m,
                              CompileUnit *cu, Function *f, Block *b,
                              LineEntry *le, Symbol *s)
     : target_sp(t), module_sp(m), comp_unit(cu), function(f), block(b),
-      line_entry(), symbol(s), variable(nullptr) {
+      line_entry(), symbol(s) {
   if (le)
     line_entry = *le;
 }
 
 SymbolContext::SymbolContext(SymbolContextScope *sc_scope)
-    : target_sp(), module_sp(), comp_unit(nullptr), function(nullptr),
-      block(nullptr), line_entry(), symbol(nullptr), variable(nullptr) {
+    : target_sp(), module_sp(), line_entry() {
   sc_scope->CalculateSymbolContext(this);
 }
 
@@ -495,20 +495,16 @@ bool SymbolContext::GetParentOfInlinedScope(const Address &curr_frame_pc,
               objfile = symbol_file->GetObjectFile();
           }
           if (objfile) {
-            Host::SystemLog(
-                Host::eSystemLogWarning,
-                "warning: inlined block 0x%8.8" PRIx64
-                " doesn't have a range that contains file address 0x%" PRIx64
-                " in %s\n",
+            Debugger::ReportWarning(llvm::formatv(
+                "inlined block {0:x} doesn't have a range that contains file "
+                "address {1:x} in {2}",
                 curr_inlined_block->GetID(), curr_frame_pc.GetFileAddress(),
-                objfile->GetFileSpec().GetPath().c_str());
+                objfile->GetFileSpec().GetPath()));
           } else {
-            Host::SystemLog(
-                Host::eSystemLogWarning,
-                "warning: inlined block 0x%8.8" PRIx64
-                " doesn't have a range that contains file address 0x%" PRIx64
-                "\n",
-                curr_inlined_block->GetID(), curr_frame_pc.GetFileAddress());
+            Debugger::ReportWarning(llvm::formatv(
+                "inlined block {0:x} doesn't have a range that contains file "
+                "address {1:x}",
+                curr_inlined_block->GetID(), curr_frame_pc.GetFileAddress()));
           }
         }
 #endif
@@ -816,9 +812,7 @@ const Symbol *SymbolContext::FindBestGlobalDataSymbol(ConstString name,
                 reexport_module_sp =
                     target.GetImages().FindFirstModule(reexport_module_spec);
                 if (!reexport_module_sp) {
-                  reexport_module_spec.GetPlatformFileSpec()
-                      .GetDirectory()
-                      .Clear();
+                  reexport_module_spec.GetPlatformFileSpec().ClearDirectory();
                   reexport_module_sp =
                       target.GetImages().FindFirstModule(reexport_module_spec);
                 }
@@ -961,8 +955,9 @@ bool SymbolContextSpecifier::AddSpecification(const char *spec_string,
     // See if we can find the Module, if so stick it in the SymbolContext.
     FileSpec module_file_spec(spec_string);
     ModuleSpec module_spec(module_file_spec);
-    lldb::ModuleSP module_sp(
-        m_target_sp->GetImages().FindFirstModule(module_spec));
+    lldb::ModuleSP module_sp =
+        m_target_sp ? m_target_sp->GetImages().FindFirstModule(module_spec)
+                    : nullptr;
     m_type |= eModuleSpecified;
     if (module_sp)
       m_module_sp = module_sp;

@@ -95,9 +95,9 @@ public:
   void SelectIndexedStore(StoreSDNode *ST, const SDLoc &dl);
   void SelectStore(SDNode *N);
   void SelectSHL(SDNode *N);
-  void SelectZeroExtend(SDNode *N);
   void SelectIntrinsicWChain(SDNode *N);
   void SelectIntrinsicWOChain(SDNode *N);
+  void SelectExtractSubvector(SDNode *N);
   void SelectConstant(SDNode *N);
   void SelectConstantFP(SDNode *N);
   void SelectV65Gather(SDNode *N);
@@ -127,10 +127,6 @@ private:
     return SDValue(U, 0);
   }
 
-  void SelectHvxShuffle(SDNode *N);
-  void SelectHvxRor(SDNode *N);
-  void SelectHvxVAlign(SDNode *N);
-
   bool keepsLowBits(const SDValue &Val, unsigned NumBits, SDValue &Src);
   bool isAlignedMemNode(const MemSDNode *N) const;
   bool isSmallStackStore(const StoreSDNode *N) const;
@@ -138,10 +134,17 @@ private:
   bool hasOneUse(const SDNode *N) const;
 
   // DAG preprocessing functions.
+  void PreprocessHvxISelDAG();
   void ppSimplifyOrSelect0(std::vector<SDNode*> &&Nodes);
   void ppAddrReorderAddShl(std::vector<SDNode*> &&Nodes);
   void ppAddrRewriteAndSrl(std::vector<SDNode*> &&Nodes);
   void ppHoistZextI1(std::vector<SDNode*> &&Nodes);
+  void ppHvxShuffleOfShuffle(std::vector<SDNode*> &&Nodes);
+
+  void SelectHvxExtractSubvector(SDNode *N);
+  void SelectHvxShuffle(SDNode *N);
+  void SelectHvxRor(SDNode *N);
+  void SelectHvxVAlign(SDNode *N);
 
   // Function postprocessing.
   void updateAligna();

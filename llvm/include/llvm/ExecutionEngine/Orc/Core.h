@@ -192,7 +192,7 @@ public:
       std::initializer_list<SymbolStringPtr> Names,
       SymbolLookupFlags Flags = SymbolLookupFlags::RequiredSymbol) {
     Symbols.reserve(Names.size());
-    for (auto &Name : Names)
+    for (const auto &Name : Names)
       add(std::move(Name), Flags);
   }
 
@@ -331,7 +331,7 @@ public:
   SymbolNameVector getSymbolNames() const {
     SymbolNameVector Names;
     Names.reserve(Symbols.size());
-    for (auto &KV : Symbols)
+    for (const auto &KV : Symbols)
       Names.push_back(KV.first);
     return Names;
   }
@@ -339,11 +339,7 @@ public:
   /// Sort the lookup set by pointer value. This sort is fast but sensitive to
   /// allocation order and so should not be used where a consistent order is
   /// required.
-  void sortByAddress() {
-    llvm::sort(Symbols, [](const value_type &LHS, const value_type &RHS) {
-      return LHS.first < RHS.first;
-    });
-  }
+  void sortByAddress() { llvm::sort(Symbols, llvm::less_first()); }
 
   /// Sort the lookup set lexicographically. This sort is slow but the order
   /// is unaffected by allocation order.
@@ -420,12 +416,15 @@ class FailedToMaterialize : public ErrorInfo<FailedToMaterialize> {
 public:
   static char ID;
 
-  FailedToMaterialize(std::shared_ptr<SymbolDependenceMap> Symbols);
+  FailedToMaterialize(std::shared_ptr<SymbolStringPool> SSP,
+                      std::shared_ptr<SymbolDependenceMap> Symbols);
+  ~FailedToMaterialize();
   std::error_code convertToErrorCode() const override;
   void log(raw_ostream &OS) const override;
   const SymbolDependenceMap &getSymbols() const { return *Symbols; }
 
 private:
+  std::shared_ptr<SymbolStringPool> SSP;
   std::shared_ptr<SymbolDependenceMap> Symbols;
 };
 
@@ -708,6 +707,13 @@ public:
   /// has been overridden.
   void doDiscard(const JITDylib &JD, const SymbolStringPtr &Name) {
     SymbolFlags.erase(Name);
+    if (InitSymbol == Name) {
+      DEBUG_WITH_TYPE("orc", {
+        dbgs() << "In " << getName() << ": discarding init symbol \""
+               << *Name << "\"\n";
+      });
+      InitSymbol = nullptr;
+    }
     discard(JD, std::move(Name));
   }
 
@@ -1331,7 +1337,7 @@ public:
   lookupInitSymbols(ExecutionSession &ES,
                     const DenseMap<JITDylib *, SymbolLookupSet> &InitSyms);
 
-  /// Performs an async lookup for the the given symbols in each of the given
+  /// Performs an async lookup for the given symbols in each of the given
   /// JITDylibs, calling the given handler once all lookups have completed.
   static void
   lookupInitSymbolsAsync(unique_function<void(Error)> OnComplete,
@@ -1389,8 +1395,12 @@ public:
   /// object.
   ExecutionSession(std::unique_ptr<ExecutorProcessControl> EPC);
 
+  /// Destroy an ExecutionSession. Verifies that endSession was called prior to
+  /// destruction.
+  ~ExecutionSession();
+
   /// End the session. Closes all JITDylibs and disconnects from the
-  /// executor.
+  /// executor. Clients must call this method before destroying the session.
   Error endSession();
 
   /// Get the ExecutorProcessControl object associated with this
@@ -1523,7 +1533,7 @@ public:
   /// after resolution, the function will return a success value, but the
   /// error will be reported via reportErrors.
   Expected<SymbolMap> lookup(const JITDylibSearchOrder &SearchOrder,
-                             const SymbolLookupSet &Symbols,
+                             SymbolLookupSet Symbols,
                              LookupKind K = LookupKind::Static,
                              SymbolState RequiredState = SymbolState::Ready,
                              RegisterDependenciesFunction RegisterDependencies =

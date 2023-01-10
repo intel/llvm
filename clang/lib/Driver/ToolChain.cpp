@@ -68,8 +68,9 @@ static ToolChain::RTTIMode CalculateRTTIMode(const ArgList &Args,
       return ToolChain::RM_Disabled;
   }
 
-  // -frtti is default, except for the PS4 CPU.
-  return (Triple.isPS4CPU()) ? ToolChain::RM_Disabled : ToolChain::RM_Enabled;
+  // -frtti is default, except for the PS4/PS5 and DriverKit.
+  bool NoRTTI = Triple.isPS() || Triple.isDriverKit();
+  return NoRTTI ? ToolChain::RM_Disabled : ToolChain::RM_Enabled;
 }
 
 ToolChain::ToolChain(const Driver &D, const llvm::Triple &T,
@@ -104,6 +105,34 @@ bool ToolChain::useIntegratedAs() const {
   return Args.hasFlag(options::OPT_fintegrated_as,
                       options::OPT_fno_integrated_as,
                       IsIntegratedAssemblerDefault());
+}
+
+bool ToolChain::useIntegratedBackend() const {
+  assert(
+      ((IsIntegratedBackendDefault() && IsIntegratedBackendSupported()) ||
+       (!IsIntegratedBackendDefault() || IsNonIntegratedBackendSupported())) &&
+      "(Non-)integrated backend set incorrectly!");
+
+  bool IBackend = Args.hasFlag(options::OPT_fintegrated_objemitter,
+                               options::OPT_fno_integrated_objemitter,
+                               IsIntegratedBackendDefault());
+
+  // Diagnose when integrated-objemitter options are not supported by this
+  // toolchain.
+  unsigned DiagID;
+  if ((IBackend && !IsIntegratedBackendSupported()) ||
+      (!IBackend && !IsNonIntegratedBackendSupported()))
+    DiagID = clang::diag::err_drv_unsupported_opt_for_target;
+  else
+    DiagID = clang::diag::warn_drv_unsupported_opt_for_target;
+  Arg *A = Args.getLastArg(options::OPT_fno_integrated_objemitter);
+  if (A && !IsNonIntegratedBackendSupported())
+    D.Diag(DiagID) << A->getAsString(Args) << Triple.getTriple();
+  A = Args.getLastArg(options::OPT_fintegrated_objemitter);
+  if (A && !IsIntegratedBackendSupported())
+    D.Diag(DiagID) << A->getAsString(Args) << Triple.getTriple();
+
+  return IBackend;
 }
 
 bool ToolChain::useRelaxRelocations() const {
@@ -154,13 +183,14 @@ static const DriverSuffix *FindDriverSuffix(StringRef ProgName, size_t &Pos) {
       {"cl", "--driver-mode=cl"},
       {"++", "--driver-mode=g++"},
       {"flang", "--driver-mode=flang"},
+      {"clang-dxc", "--driver-mode=dxc"},
   };
 
-  for (size_t i = 0; i < llvm::array_lengthof(DriverSuffixes); ++i) {
-    StringRef Suffix(DriverSuffixes[i].Suffix);
+  for (const auto &DS : DriverSuffixes) {
+    StringRef Suffix(DS.Suffix);
     if (ProgName.endswith(Suffix)) {
       Pos = ProgName.size() - Suffix.size();
-      return &DriverSuffixes[i];
+      return &DS;
     }
   }
   return nullptr;
@@ -169,7 +199,7 @@ static const DriverSuffix *FindDriverSuffix(StringRef ProgName, size_t &Pos) {
 /// Normalize the program name from argv[0] by stripping the file extension if
 /// present and lower-casing the string on Windows.
 static std::string normalizeProgramName(llvm::StringRef Argv0) {
-  std::string ProgName = std::string(llvm::sys::path::stem(Argv0));
+  std::string ProgName = std::string(llvm::sys::path::filename(Argv0));
   if (is_style_windows(llvm::sys::path::Style::native)) {
     // Transform to lowercase for case insensitive file systems.
     std::transform(ProgName.begin(), ProgName.end(), ProgName.begin(),
@@ -187,6 +217,13 @@ static const DriverSuffix *parseDriverSuffix(StringRef ProgName, size_t &Pos) {
   // prefix "x86_64-linux". If such a target prefix is found, it may be
   // added via -target as implicit first argument.
   const DriverSuffix *DS = FindDriverSuffix(ProgName, Pos);
+
+  if (!DS && ProgName.endswith(".exe")) {
+    // Try again after stripping the executable suffix:
+    // clang++.exe -> clang++
+    ProgName = ProgName.drop_back(StringRef(".exe").size());
+    DS = FindDriverSuffix(ProgName, Pos);
+  }
 
   if (!DS) {
     // Try again after stripping any trailing version number:
@@ -258,8 +295,9 @@ std::string ToolChain::getInputFilename(const InputInfo &Input) const {
   return Input.getFilename();
 }
 
-bool ToolChain::IsUnwindTablesDefault(const ArgList &Args) const {
-  return false;
+ToolChain::UnwindTableLevel
+ToolChain::getDefaultUnwindTableLevel(const ArgList &Args) const {
+  return UnwindTableLevel::None;
 }
 
 Tool *ToolChain::getClang() const {
@@ -330,6 +368,12 @@ Tool *ToolChain::getOffloadWrapper() const {
   if (!OffloadWrapper)
     OffloadWrapper.reset(new tools::OffloadWrapper(*this));
   return OffloadWrapper.get();
+}
+
+Tool *ToolChain::getOffloadPackager() const {
+  if (!OffloadPackager)
+    OffloadPackager.reset(new tools::OffloadPackager(*this));
+  return OffloadPackager.get();
 }
 
 Tool *ToolChain::getOffloadDeps() const {
@@ -411,8 +455,8 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
 
   case Action::CompileJobClass:
   case Action::PrecompileJobClass:
-  case Action::HeaderModulePrecompileJobClass:
   case Action::PreprocessJobClass:
+  case Action::ExtractAPIJobClass:
   case Action::AnalyzeJobClass:
   case Action::MigrateJobClass:
   case Action::VerifyPCHJobClass:
@@ -425,6 +469,8 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
 
   case Action::OffloadWrapperJobClass:
     return getOffloadWrapper();
+  case Action::OffloadPackagerJobClass:
+    return getOffloadPackager();
 
   case Action::OffloadDepsJobClass:
     return getOffloadDeps();
@@ -461,6 +507,9 @@ static StringRef getArchNameForCompilerRTLib(const ToolChain &TC,
                                              const ArgList &Args) {
   const llvm::Triple &Triple = TC.getTriple();
   bool IsWindows = Triple.isOSWindows();
+
+  if (TC.isBareMetal())
+    return Triple.getArchName();
 
   if (TC.getArch() == llvm::Triple::arm || TC.getArch() == llvm::Triple::armeb)
     return (arm::getARMFloatABI(TC, Args) == arm::FloatABI::Hard && !IsWindows)
@@ -499,7 +548,10 @@ StringRef ToolChain::getOSLibName() const {
 
 std::string ToolChain::getCompilerRTPath() const {
   SmallString<128> Path(getDriver().ResourceDir);
-  if (Triple.isOSUnknown()) {
+  if (isBareMetal()) {
+    llvm::sys::path::append(Path, "lib", getOSLibName());
+    Path += SelectedMultilib.gccSuffix();
+  } else if (Triple.isOSUnknown()) {
     llvm::sys::path::append(Path, "lib");
   } else {
     llvm::sys::path::append(Path, "lib", getOSLibName());
@@ -662,13 +714,18 @@ std::string ToolChain::GetLinkerPath(bool *LinkerIsLLD) const {
   // --ld-path= takes precedence over -fuse-ld= and specifies the executable
   // name. -B, COMPILER_PATH and PATH and consulted if the value does not
   // contain a path component separator.
+  // -fuse-ld=lld can be used with --ld-path= to inform clang that the binary
+  // that --ld-path= points to is lld.
   if (const Arg *A = Args.getLastArg(options::OPT_ld_path_EQ)) {
     std::string Path(A->getValue());
     if (!Path.empty()) {
       if (llvm::sys::path::parent_path(Path).empty())
         Path = GetProgramPath(A->getValue());
-      if (llvm::sys::fs::can_execute(Path))
+      if (llvm::sys::fs::can_execute(Path)) {
+        if (LinkerIsLLD)
+          *LinkerIsLLD = UseLinker == "lld";
         return std::string(Path);
+      }
     }
     getDriver().Diag(diag::err_drv_invalid_linker_name) << A->getAsString(Args);
     return GetProgramPath(getDefaultLinker());
@@ -845,6 +902,9 @@ void ToolChain::addClangTargetOptions(
     const ArgList &DriverArgs, ArgStringList &CC1Args,
     Action::OffloadKind DeviceOffloadKind) const {}
 
+void ToolChain::addClangCC1ASTargetOptions(const ArgList &Args,
+                                           ArgStringList &CC1ASArgs) const {}
+
 void ToolChain::addClangWarningOptions(ArgStringList &CC1Args) const {}
 
 void ToolChain::addProfileRTLibs(const llvm::opt::ArgList &Args,
@@ -982,6 +1042,14 @@ void ToolChain::addExternCSystemIncludeIfExists(const ArgList &DriverArgs,
   }
 }
 
+/*static*/ std::string ToolChain::concat(StringRef Path, const Twine &A,
+                                         const Twine &B, const Twine &C,
+                                         const Twine &D) {
+  SmallString<128> Result(Path);
+  llvm::sys::path::append(Result, llvm::sys::path::Style::posix, A, B, C, D);
+  return std::string(Result);
+}
+
 std::string ToolChain::detectLibcxxVersion(StringRef IncludePath) const {
   std::error_code EC;
   int MaxVersion = 0;
@@ -1023,8 +1091,15 @@ void ToolChain::AddClangCXXStdlibIsystemArgs(
     const llvm::opt::ArgList &DriverArgs,
     llvm::opt::ArgStringList &CC1Args) const {
   DriverArgs.ClaimAllArgs(options::OPT_stdlibxx_isystem);
-  if (!DriverArgs.hasArg(options::OPT_nostdinc, options::OPT_nostdincxx,
-                         options::OPT_nostdlibinc))
+  // This intentionally only looks at -nostdinc++, and not -nostdinc or
+  // -nostdlibinc. The purpose of -stdlib++-isystem is to support toolchain
+  // setups with non-standard search logic for the C++ headers, while still
+  // allowing users of the toolchain to bring their own C++ headers. Such a
+  // toolchain likely also has non-standard search logic for the C headers and
+  // uses -nostdinc to suppress the default logic, but -stdlib++-isystem should
+  // still work in that case and only be suppressed by an explicit -nostdinc++
+  // in a project using the toolchain.
+  if (!DriverArgs.hasArg(options::OPT_nostdincxx))
     for (const auto &P :
          DriverArgs.getAllArgValues(options::OPT_stdlibxx_isystem))
       addSystemInclude(DriverArgs, CC1Args, P);
@@ -1045,6 +1120,8 @@ void ToolChain::AddCXXStdlibLibArgs(const ArgList &Args,
   switch (Type) {
   case ToolChain::CST_Libcxx:
     CmdArgs.push_back("-lc++");
+    if (Args.hasArg(options::OPT_fexperimental_library))
+      CmdArgs.push_back("-lc++experimental");
     break;
 
   case ToolChain::CST_Libstdcxx:
@@ -1105,13 +1182,13 @@ SanitizerMask ToolChain::getSupportedSanitizers() const {
        ~SanitizerKind::Function) |
       (SanitizerKind::CFI & ~SanitizerKind::CFIICall) |
       SanitizerKind::CFICastStrict | SanitizerKind::FloatDivideByZero |
-      SanitizerKind::UnsignedIntegerOverflow |
+      SanitizerKind::KCFI | SanitizerKind::UnsignedIntegerOverflow |
       SanitizerKind::UnsignedShiftBase | SanitizerKind::ImplicitConversion |
       SanitizerKind::Nullability | SanitizerKind::LocalBounds;
   if (getTriple().getArch() == llvm::Triple::x86 ||
       getTriple().getArch() == llvm::Triple::x86_64 ||
       getTriple().getArch() == llvm::Triple::arm || getTriple().isWasm() ||
-      getTriple().isAArch64())
+      getTriple().isAArch64() || getTriple().isRISCV())
     Res |= SanitizerKind::CFIICall;
   if (getTriple().getArch() == llvm::Triple::x86_64 ||
       getTriple().isAArch64(64) || getTriple().isRISCV())
@@ -1128,7 +1205,7 @@ void ToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
                                   ArgStringList &CC1Args) const {}
 
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
-ToolChain::getHIPDeviceLibs(
+ToolChain::getDeviceLibs(
     const ArgList &DriverArgs,
     const Action::OffloadKind DeviceOffloadingKind) const {
   return {};
@@ -1212,10 +1289,17 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
       // AMD GPU is a special case, as -mcpu is required for the device
       // compilation, except for SYCL which uses --offload-arch.
       if (SameTripleAsHost || (getTriple().getArch() == llvm::Triple::amdgcn &&
-                               DeviceOffloadKind != Action::OFK_SYCL))
+                               DeviceOffloadKind != Action::OFK_SYCL)) {
         DAL->append(A);
-      else
-        Modified = true;
+        continue;
+      }
+      // SPIR-V special case for -mlong-double
+      if (getTriple().isSPIR() &&
+          A->getOption().matches(options::OPT_LongDouble_Group)) {
+        DAL->append(A);
+        continue;
+      }
+      Modified = true;
       continue;
     }
 
@@ -1285,7 +1369,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
       // improved upon
       auto SingleTargetTripleCount = [&Args](OptSpecifier Opt) {
         const Arg *TargetArg = Args.getLastArg(Opt);
-        if (TargetArg && TargetArg->getValues().size() == 1)
+        if (!TargetArg || TargetArg->getValues().size() == 1)
           return true;
         return false;
       };

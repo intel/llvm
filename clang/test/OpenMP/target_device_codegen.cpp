@@ -27,38 +27,40 @@
 
 void foo(int n) {
 
-  // CHECK:       [[N:%.+]] = load i32, i32* [[N_ADDR:%.+]],
-  // CHECK:       store i32 [[N]], i32* [[DEVICE_CAP:%.+]],
-  // CHECK:       [[DEV:%.+]] = load i32, i32* [[DEVICE_CAP]],
-  // CHECK:       [[DEVICE:%.+]] = sext i32 [[DEV]] to i64
-  // CHECK:       [[RET:%.+]] = call i32 @__tgt_target_mapper(%struct.ident_t* @{{.+}}, i64 [[DEVICE]], i8* @{{[^,]+}}, i32 0, i8** null, i8** null, i64* null, i64* null, i8** null, i8** null)
-  // CHECK-NEXT:  [[ERROR:%.+]] = icmp ne i32 [[RET]], 0
-  // CHECK-NEXT:  br i1 [[ERROR]], label %[[FAIL:[^,]+]], label %[[END:[^,]+]]
-  // CHECK:       [[FAIL]]
-  // CHECK:       call void [[HVT0:@.+]]()
-  // CHECK-NEXT:  br label %[[END]]
-  // CHECK:       [[END]]
-  #pragma omp target device(n)
+// CHECK:       [[N:%.+]] = load i32, ptr [[N_ADDR:%.+]],
+// CHECK:       store i32 [[N]], ptr [[DEVICE_CAP:%.+]],
+// CHECK:       [[DEV:%.+]] = load i32, ptr [[DEVICE_CAP]],
+// CHECK:       [[DEVICE:%.+]] = sext i32 [[DEV]] to i64
+// CHECK:       [[RET:%.+]] = call i32 @__tgt_target_kernel(ptr @{{.+}}, i64 [[DEVICE]], i32 -1, i32 0, ptr @.[[TGT_REGION:.+]].region_id, ptr %[[KERNEL_ARGS:.+]])
+// CHECK-NEXT:  [[ERROR:%.+]] = icmp ne i32 [[RET]], 0
+// CHECK-NEXT:  br i1 [[ERROR]], label %[[FAIL:[^,]+]], label %[[END:[^,]+]]
+// CHECK:       [[FAIL]]
+// CHECK:       call void [[HVT0:@.+]]()
+// CHECK-NEXT:  br label %[[END]]
+// CHECK:       [[END]]
+#pragma omp target device(n)
   ;
-  // CHECK:       [[N:%.+]] = load i32, i32* [[N_ADDR]],
-  // CHECK:       store i32 [[N]], i32* [[DEVICE_CAP:%.+]],
-  // CHECK:       [[DEV:%.+]] = load i32, i32* [[DEVICE_CAP]],
-  // CHECK:       [[DEVICE:%.+]] = sext i32 [[DEV]] to i64
-  // CHECK:       [[RET:%.+]] = call i32 @__tgt_target_mapper(%struct.ident_t* @{{.+}}, i64 [[DEVICE]], i8* @{{[^,]+}}, i32 0, i8** null, i8** null, i64* null, i64* null, i8** null, i8** null)
-  // CHECK-NEXT:  [[ERROR:%.+]] = icmp ne i32 [[RET]], 0
-  // CHECK-NEXT:  br i1 [[ERROR]], label %[[FAIL:[^,]+]], label %[[END:[^,]+]]
-  // CHECK:       [[FAIL]]
-  // CHECK:       call void [[HVT0:@.+]]()
-  // CHECK-NEXT:  br label %[[END]]
-  // CHECK:       [[END]]
-  #pragma omp target device(device_num: n)
+// CHECK:       [[N:%.+]] = load i32, ptr [[N_ADDR]],
+// CHECK:       store i32 [[N]], ptr [[DEVICE_CAP:%.+]],
+// CHECK:       [[DEV:%.+]] = load i32, ptr [[DEVICE_CAP]],
+// CHECK:       [[DEVICE:%.+]] = sext i32 [[DEV]] to i64
+// CHECK:       [[RET:%.+]] = call i32 @__tgt_target_kernel(ptr @{{.+}}, i64 [[DEVICE]], i32 -1, i32 0, ptr @.[[TGT_REGION:.+]].region_id, ptr %[[KERNEL_ARGS:.+]])
+// CHECK-NEXT:  [[ERROR:%.+]] = icmp ne i32 [[RET]], 0
+// CHECK-NEXT:  br i1 [[ERROR]], label %[[FAIL:[^,]+]], label %[[END:[^,]+]]
+// CHECK:       [[FAIL]]
+// CHECK:       call void [[HVT0:@.+]]()
+// CHECK-NEXT:  br label %[[END]]
+// CHECK:       [[END]]
+#pragma omp target device(device_num \
+                          : n)
   ;
 
 #ifdef OMP99
-  // REV-NOT:   call i32 @__tgt_target_mapper(%struct.ident_t* @{{.+}},
-  // REV:       call void @__omp_offloading_{{.+}}_l61()
-  // REV-NOT:   call i32 @__tgt_target_mapper(%struct.ident_t* @{{.+}},
-  #pragma omp target device(ancestor: n)
+// REV-NOT:   call i32 @__tgt_target_kernel(ptr @{{.+}},
+// REV:       call void @__omp_offloading_{{.+}}_l62()
+// REV-NOT:   call i32 @__tgt_target_kernel(ptr @{{.+}},
+#pragma omp target device(ancestor \
+                          : n)
   ;
 #endif
 }

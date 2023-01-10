@@ -1,7 +1,6 @@
 ; REQUIRES: asserts
 ; RUN: opt < %s -aa-pipeline=basic-aa -passes=loop-vectorize,instcombine -S -debug-only=loop-vectorize -disable-output -print-after=instcombine 2>&1 | FileCheck %s
-; RUN: opt < %s -loop-vectorize -instcombine -S -debug-only=loop-vectorize -disable-output -print-after=instcombine -enable-new-pm=0 2>&1 | FileCheck %s
-; RUN: opt < %s -loop-vectorize -force-vector-width=2 -S | FileCheck %s -check-prefix=FORCE
+; RUN: opt < %s -passes=loop-vectorize -force-vector-width=2 -S | FileCheck %s -check-prefix=FORCE
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
@@ -19,6 +18,7 @@ target triple = "x86_64-unknown-linux-gnu"
 ; CHECK-NOT:   LV: Found uniform instruction: %tmp3 = getelementptr inbounds %data, %data* %d, i64 0, i32 0, i64 %i
 ; CHECK-NOT:   LV: Found uniform instruction: %i = phi i64 [ %i.next, %for.body ], [ 0, %entry ]
 ; CHECK-NOT:   LV: Found uniform instruction: %i.next = add nuw nsw i64 %i, 5
+; CHECK:       define void @PR31671(
 ; CHECK:       vector.ph:
 ; CHECK-NEXT:    [[BROADCAST_SPLATINSERT:%.*]] = insertelement <16 x float> poison, float %x, i64 0
 ; CHECK-NEXT:    [[BROADCAST_SPLAT:%.*]] = shufflevector <16 x float> [[BROADCAST_SPLATINSERT]], <16 x float> poison, <16 x i32> zeroinitializer
@@ -95,23 +95,15 @@ attributes #0 = { "target-cpu"="knl" }
 ; FORCE:       pred.load.if:
 ; FORCE-NEXT:    [[TMP0:%.*]] = add i32 [[INDEX]], 0
 ; FORCE-NEXT:    store i32 [[TMP0]], i32* @b, align 1
-; FORCE-NEXT:    [[TMP6:%.*]] = getelementptr inbounds [3 x i32], [3 x i32]* @a, i32 0, i32 [[TMP0]]
-; FORCE-NEXT:    [[TMP7:%.*]] = load i32, i32* [[TMP6]], align 1
-; FORCE-NEXT:    [[TMP8:%.*]] = insertelement <2 x i32> poison, i32 [[TMP7]], i32 0
 ; FORCE-NEXT:    br label [[PRED_LOAD_CONTINUE]]
 ; FORCE:       pred.load.continue:
-; FORCE-NEXT:    [[TMP9:%.*]] = phi <2 x i32> [ poison, [[VECTOR_BODY]] ], [ [[TMP8]], [[PRED_LOAD_IF]] ]
 ; FORCE-NEXT:    [[TMP10:%.*]] = extractelement <2 x i1> [[TMP2]], i32 1
 ; FORCE-NEXT:    br i1 [[TMP10]], label [[PRED_LOAD_IF3:%.*]], label [[PRED_LOAD_CONTINUE4]]
 ; FORCE:       pred.load.if1:
 ; FORCE-NEXT:    [[TMP1:%.*]] = add i32 [[INDEX]], 1
 ; FORCE-NEXT:    store i32 [[TMP1]], i32* @b, align 1
-; FORCE-NEXT:    [[TMP11:%.*]] = getelementptr inbounds [3 x i32], [3 x i32]* @a, i32 0, i32 [[TMP1]]
-; FORCE-NEXT:    [[TMP12:%.*]] = load i32, i32* [[TMP11]], align 1
-; FORCE-NEXT:    [[TMP13:%.*]] = insertelement <2 x i32> [[TMP9]], i32 [[TMP12]], i32 1
 ; FORCE-NEXT:    br label [[PRED_LOAD_CONTINUE4]]
 ; FORCE:       pred.load.continue2:
-; FORCE-NEXT:    [[TMP14:%.*]] = phi <2 x i32> [ [[TMP9]], [[PRED_LOAD_CONTINUE]] ], [ [[TMP13]], [[PRED_LOAD_IF3]] ]
 ; FORCE-NEXT:    [[INDEX_NEXT]] = add i32 [[INDEX]], 2
 ; FORCE-NEXT:    [[VEC_IND_NEXT]] = add <2 x i32> [[VEC_IND]], <i32 2, i32 2>
 ; FORCE-NEXT:    [[TMP15:%.*]] = icmp eq i32 [[INDEX_NEXT]], 4

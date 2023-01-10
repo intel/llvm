@@ -48,6 +48,7 @@ def CompoundTypeA : Test_Type<"CompoundA"> {
   let extraClassDeclaration = [{
     struct SomeCppStruct {};
   }];
+  let hasCustomAssemblyFormat = 1;
 }
 
 // A more complex and nested parameterized type.
@@ -92,12 +93,8 @@ def IntegerType : Test_Type<"TestInteger"> {
     "::test::TestIntegerType::SignednessSemantics":$signedness
   );
 
-  // We define the printer inline.
-  let printer = [{
-    $_printer << "<";
-    printSignedness($_printer, getImpl()->signedness);
-    $_printer << ", " << getImpl()->width << ">";
-  }];
+  // Indicate we use a custom format.
+  let hasCustomAssemblyFormat = 1;
 
   // Define custom builder methods.
   let builders = [
@@ -107,19 +104,6 @@ def IntegerType : Test_Type<"TestInteger"> {
     }]>
   ];
   let skipDefaultBuilders = 1;
-
-  // The parser is defined here also.
-  let parser = [{
-    if ($_parser.parseLess()) return Type();
-    SignednessSemantics signedness;
-    if (parseSignedness($_parser, signedness)) return Type();
-    if ($_parser.parseComma()) return Type();
-    int width;
-    if ($_parser.parseInteger(width)) return Type();
-    if ($_parser.parseGreater()) return Type();
-    Location loc = $_parser.getEncodedSourceLoc($_parser.getNameLoc());
-    return getChecked(loc, loc.getContext(), width, signedness);
-  }];
 
   // Any extra code one wants in the type's class declaration.
   let extraClassDeclaration = [{
@@ -150,37 +134,7 @@ class FieldInfo_Type<string name> : Test_Type<name> {
       "::test::FieldInfo", // FieldInfo is defined/declared in TestTypes.h.
       "Models struct fields">: $fields
   );
-
-  // Prints the type in this format:
-  //   struct<[{field1Name, field1Type}, {field2Name, field2Type}]
-  let printer = [{
-    $_printer << "<";
-    for (size_t i=0, e = getImpl()->fields.size(); i < e; i++) {
-      const auto& field = getImpl()->fields[i];
-      $_printer << "{" << field.name << "," << field.type << "}";
-      if (i < getImpl()->fields.size() - 1)
-          $_printer << ",";
-    }
-    $_printer << ">";
-  }];
-
-  // Parses the above format
-  let parser = [{
-    llvm::SmallVector<FieldInfo, 4> parameters;
-    if ($_parser.parseLess()) return Type();
-    while (mlir::succeeded($_parser.parseOptionalLBrace())) {
-      llvm::StringRef name;
-      if ($_parser.parseKeyword(&name)) return Type();
-      if ($_parser.parseComma()) return Type();
-      Type type;
-      if ($_parser.parseType(type)) return Type();
-      if ($_parser.parseRBrace()) return Type();
-      parameters.push_back(FieldInfo {name, type});
-      if ($_parser.parseOptionalComma()) break;
-    }
-    if ($_parser.parseGreater()) return Type();
-    return get($_ctxt, parameters);
-  }];
+  let hasCustomAssemblyFormat = 1;
 }
 
 def StructType : FieldInfo_Type<"Struct"> {
@@ -208,6 +162,7 @@ def TestTypeWithLayoutType : Test_Type<"TestTypeWithLayout", [
 
   public:
   }];
+  let hasCustomAssemblyFormat = 1;
 }
 
 def TestMemRefElementType : Test_Type<"TestMemRefElementType",
@@ -331,19 +286,17 @@ def TestTypeSpaces : Test_Type<"TestTypeSpaceS"> {
 }
 
 class DefaultValuedAPFloat<string value>
-    : DefaultValuedParameter<"llvm::Optional<llvm::APFloat>",
-                             "llvm::Optional<llvm::APFloat>(" # value # ")"> {
-  let comparator = "$_lhs->bitwiseIsEqual(*$_rhs)";
-  let parser = [{ [&]() -> mlir::FailureOr<llvm::Optional<llvm::APFloat>> {
+    : DefaultValuedParameter<"llvm::APFloat", "llvm::APFloat(" # value # ")"> {
+  let comparator = "$_lhs.bitwiseIsEqual($_rhs)";
+  let parser = [{ [&]() -> mlir::FailureOr<llvm::APFloat> {
     mlir::FloatAttr attr;
     auto result = $_parser.parseOptionalAttribute(attr);
-    if (result.hasValue() && mlir::succeeded(*result))
-      return {attr.getValue()};
-    if (!result.hasValue())
-      return llvm::Optional<llvm::APFloat>();
+    if (result.has_value() && mlir::succeeded(*result))
+      return attr.getValue();
+    if (!result.has_value())
+      return llvm::APFloat(}] # value # [{);
     return mlir::failure();
   }() }];
-  let printer = "$_printer << *$_self";
 }
 
 def TestTypeAPFloat : Test_Type<"TestTypeAPFloat"> {
@@ -357,10 +310,44 @@ def TestTypeAPFloat : Test_Type<"TestTypeAPFloat"> {
 def TestTypeDefaultValuedType : Test_Type<"TestTypeDefaultValuedType"> {
   let parameters = (ins
     DefaultValuedParameter<"mlir::IntegerType",
-                           "mlir::IntegerType::get($_ctx, 32)">:$type
+                           "mlir::IntegerType::get($_ctxt, 32)">:$type
   );
   let mnemonic = "default_valued_type";
   let assemblyFormat = "`<` (`(` $type^ `)`)? `>`";
+}
+
+def TestTypeCustom : Test_Type<"TestTypeCustom"> {
+  let parameters = (ins "int":$a, OptionalParameter<"mlir::Optional<int>">:$b);
+  let mnemonic = "custom_type";
+  let assemblyFormat = [{ `<` custom<CustomTypeA>($a) ``
+                              custom<CustomTypeB>(ref($a), $b) `>` }];
+}
+
+def TestTypeCustomSpacing : Test_Type<"TestTypeCustomSpacing"> {
+  let parameters = (ins "int":$a, "int":$b);
+  let mnemonic = "custom_type_spacing";
+  let assemblyFormat = [{ `<` custom<CustomTypeA>($a)
+                              custom<CustomTypeA>($b) `>` }];
+}
+
+def TestTypeCustomString : Test_Type<"TestTypeCustomString"> {
+  let parameters = (ins StringRefParameter<>:$foo);
+  let mnemonic = "custom_type_string";
+  let assemblyFormat = [{ `<` custom<FooString>($foo)
+                              custom<BarString>(ref($foo)) `>` }];
+}
+
+def TestTypeElseAnchor : Test_Type<"TestTypeElseAnchor"> {
+  let parameters = (ins OptionalParameter<"mlir::Optional<int>">:$a);
+  let mnemonic = "else_anchor";
+  let assemblyFormat = "`<` (`?`) : ($a^)? `>`";
+}
+
+def TestTypeElseAnchorStruct : Test_Type<"TestTypeElseAnchorStruct"> {
+  let parameters = (ins OptionalParameter<"mlir::Optional<int>">:$a,
+                        OptionalParameter<"mlir::Optional<int>">:$b);
+  let mnemonic = "else_anchor_struct";
+  let assemblyFormat = "`<` (`?`) : (struct($a, $b)^)? `>`";
 }
 
 #endif // TEST_TYPEDEFS

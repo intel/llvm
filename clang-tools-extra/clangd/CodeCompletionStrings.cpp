@@ -8,7 +8,6 @@
 
 #include "CodeCompletionStrings.h"
 #include "clang/AST/ASTContext.h"
-#include "clang/AST/DeclObjC.h"
 #include "clang/AST/RawCommentList.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Sema/CodeCompleteConsumer.h"
@@ -193,11 +192,15 @@ void getSignature(const CodeCompletionString &CCS, std::string *Signature,
     case CodeCompletionString::CK_Placeholder:
       *Signature += Chunk.Text;
       ++SnippetArg;
-      *Snippet +=
-          "${" +
-          std::to_string(SnippetArg == CursorSnippetArg ? 0 : SnippetArg) + ':';
-      appendEscapeSnippet(Chunk.Text, Snippet);
-      *Snippet += '}';
+      if (SnippetArg == CursorSnippetArg) {
+        // We'd like to make $0 a placeholder too, but vscode does not support
+        // this (https://github.com/microsoft/vscode/issues/152837).
+        *Snippet += "$0";
+      } else {
+        *Snippet += "${" + std::to_string(SnippetArg) + ':';
+        appendEscapeSnippet(Chunk.Text, Snippet);
+        *Snippet += '}';
+      }
       break;
     case CodeCompletionString::CK_Informative:
       HadInformativeChunks = true;

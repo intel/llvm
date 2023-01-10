@@ -1,5 +1,4 @@
 ; REQUIRES: asserts
-; RUN: opt < %s -loop-vectorize -force-vector-width=2 -force-vector-interleave=1 -instcombine -debug-only=loop-vectorize -disable-output -print-after=instcombine -enable-new-pm=0 2>&1 | FileCheck %s
 ; RUN: opt < %s -passes='function(loop-vectorize,instcombine)' -force-vector-width=2 -force-vector-interleave=1 -debug-only=loop-vectorize -disable-output -print-after=instcombine 2>&1 | FileCheck %s
 
 target datalayout = "e-m:e-i64:64-i128:128-n32:64-S128"
@@ -7,6 +6,7 @@ target datalayout = "e-m:e-i64:64-i128:128-n32:64-S128"
 ; CHECK-LABEL: phi_two_incoming_values
 ; CHECK:       LV: Found an estimated cost of 1 for VF 2 For instruction: %i = phi i64 [ %i.next, %if.end ], [ 0, %entry ]
 ; CHECK:       LV: Found an estimated cost of 1 for VF 2 For instruction: %tmp5 = phi i32 [ %tmp1, %for.body ], [ %tmp4, %if.then ]
+; CHECK:       define void @phi_two_incoming_values(
 ; CHECK:       vector.body:
 ; CHECK-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %vector.ph ], [ [[INDEX_NEXT:%.*]], %vector.body ]
 ; CHECK:         [[WIDE_LOAD:%.*]] = load <2 x i32>, <2 x i32>* {{.*}}
@@ -46,6 +46,7 @@ for.end:
 ; CHECK-LABEL: phi_three_incoming_values
 ; CHECK:       LV: Found an estimated cost of 1 for VF 2 For instruction: %i = phi i64 [ %i.next, %if.end ], [ 0, %entry ]
 ; CHECK:       LV: Found an estimated cost of 2 for VF 2 For instruction: %tmp8 = phi i32 [ 9, %for.body ], [ 3, %if.then ], [ %tmp7, %if.else ]
+; CHECK:       define void @phi_three_incoming_values(
 ; CHECK:       vector.body:
 ; CHECK-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %vector.ph ], [ [[INDEX_NEXT:%.*]], %vector.body ]
 ; CHECK:         [[PREDPHI:%.*]] = select <2 x i1> {{.*}}, <2 x i32> <i32 3, i32 3>, <2 x i32> <i32 9, i32 9>

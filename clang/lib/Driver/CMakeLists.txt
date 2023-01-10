@@ -1,6 +1,10 @@
 set(LLVM_LINK_COMPONENTS
   BinaryFormat
+  BitWriter
+  Core
+  IRReader
   MC
+  Object
   Option
   ProfileData
   Support
@@ -12,6 +16,10 @@ if(WIN32)
   set(system_libs version)
 endif()
 
+# This must be in sync with llvm/sycl/CMakeLists.txt.
+SET_SOURCE_FILES_PROPERTIES( ToolChains/MSVC.cpp ToolChains/Clang.cpp
+  PROPERTIES COMPILE_DEFINITIONS SYCL_MAJOR_VERSION="6" )
+
 add_clang_library(clangDriver
   Action.cpp
   Compilation.cpp
@@ -20,6 +28,7 @@ add_clang_library(clangDriver
   DriverOptions.cpp
   Job.cpp
   Multilib.cpp
+  OffloadBundler.cpp
   OptionUtils.cpp
   Phases.cpp
   SanitizerArgs.cpp
@@ -27,6 +36,8 @@ add_clang_library(clangDriver
   ToolChain.cpp
   ToolChains/Arch/AArch64.cpp
   ToolChains/Arch/ARM.cpp
+  ToolChains/Arch/CSKY.cpp
+  ToolChains/Arch/LoongArch.cpp
   ToolChains/Arch/M68k.cpp
   ToolChains/Arch/Mips.cpp
   ToolChains/Arch/PPC.cpp
@@ -46,6 +57,7 @@ add_clang_library(clangDriver
   ToolChains/CommonArgs.cpp
   ToolChains/Contiki.cpp
   ToolChains/CrossWindows.cpp
+  ToolChains/CSKYToolChain.cpp
   ToolChains/Cuda.cpp
   ToolChains/Darwin.cpp
   ToolChains/DragonFly.cpp
@@ -58,6 +70,7 @@ add_clang_library(clangDriver
   ToolChains/HIPAMD.cpp
   ToolChains/HIPSPV.cpp
   ToolChains/Hexagon.cpp
+  ToolChains/HLSL.cpp
   ToolChains/Hurd.cpp
   ToolChains/Linux.cpp
   ToolChains/MipsLinux.cpp

@@ -40,7 +40,6 @@
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TypeTraits.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/StringRef.h"
@@ -730,6 +729,11 @@ public:
   explicit CXXBoolLiteralExpr(EmptyShell Empty)
       : Expr(CXXBoolLiteralExprClass, Empty) {}
 
+  static CXXBoolLiteralExpr *Create(const ASTContext &C, bool Val, QualType Ty,
+                                    SourceLocation Loc) {
+    return new (C) CXXBoolLiteralExpr(Val, Ty, Loc);
+  }
+
   bool getValue() const { return CXXBoolLiteralExprBits.Value; }
   void setValue(bool V) { CXXBoolLiteralExprBits.Value = V; }
 
@@ -756,6 +760,8 @@ public:
 /// The null pointer literal (C++11 [lex.nullptr])
 ///
 /// Introduced in C++11, the only literal of type \c nullptr_t is \c nullptr.
+/// This also implements the null pointer literal in C2x (C2x 6.4.1) which is
+/// intended to have the same semantics as the feature in C++.
 class CXXNullPtrLiteralExpr : public Expr {
 public:
   CXXNullPtrLiteralExpr(QualType Ty, SourceLocation Loc)
@@ -2261,32 +2267,32 @@ public:
 
   bool isArray() const { return CXXNewExprBits.IsArray; }
 
-  /// This might return None even if isArray() returns true,
+  /// This might return std::nullopt even if isArray() returns true,
   /// since there might not be an array size expression.
   /// If the result is not-None, it will never wrap a nullptr.
   Optional<Expr *> getArraySize() {
     if (!isArray())
-      return None;
+      return std::nullopt;
 
     if (auto *Result =
             cast_or_null<Expr>(getTrailingObjects<Stmt *>()[arraySizeOffset()]))
       return Result;
 
-    return None;
+    return std::nullopt;
   }
 
-  /// This might return None even if isArray() returns true,
+  /// This might return std::nullopt even if isArray() returns true,
   /// since there might not be an array size expression.
   /// If the result is not-None, it will never wrap a nullptr.
   Optional<const Expr *> getArraySize() const {
     if (!isArray())
-      return None;
+      return std::nullopt;
 
     if (auto *Result =
             cast_or_null<Expr>(getTrailingObjects<Stmt *>()[arraySizeOffset()]))
       return Result;
 
-    return None;
+    return std::nullopt;
   }
 
   unsigned getNumPlacementArgs() const {
@@ -4109,7 +4115,7 @@ public:
     if (NumExpansions)
       return NumExpansions - 1;
 
-    return None;
+    return std::nullopt;
   }
 
   SourceLocation getBeginLoc() const LLVM_READONLY {
@@ -4194,11 +4200,11 @@ class SizeOfPackExpr final
       : Expr(SizeOfPackExprClass, Empty), Length(NumPartialArgs) {}
 
 public:
-  static SizeOfPackExpr *Create(ASTContext &Context, SourceLocation OperatorLoc,
-                                NamedDecl *Pack, SourceLocation PackLoc,
-                                SourceLocation RParenLoc,
-                                Optional<unsigned> Length = None,
-                                ArrayRef<TemplateArgument> PartialArgs = None);
+  static SizeOfPackExpr *
+  Create(ASTContext &Context, SourceLocation OperatorLoc, NamedDecl *Pack,
+         SourceLocation PackLoc, SourceLocation RParenLoc,
+         Optional<unsigned> Length = std::nullopt,
+         ArrayRef<TemplateArgument> PartialArgs = std::nullopt);
   static SizeOfPackExpr *CreateDeserialized(ASTContext &Context,
                                             unsigned NumPartialArgs);
 
@@ -4263,24 +4269,30 @@ class SubstNonTypeTemplateParmExpr : public Expr {
   friend class ASTReader;
   friend class ASTStmtReader;
 
-  /// The replaced parameter and a flag indicating if it was a reference
-  /// parameter. For class NTTPs, we can't determine that based on the value
-  /// category alone.
-  llvm::PointerIntPair<NonTypeTemplateParmDecl*, 1, bool> ParamAndRef;
-
   /// The replacement expression.
   Stmt *Replacement;
+
+  /// The associated declaration and a flag indicating if it was a reference
+  /// parameter. For class NTTPs, we can't determine that based on the value
+  /// category alone.
+  llvm::PointerIntPair<Decl *, 1, bool> AssociatedDeclAndRef;
+
+  unsigned Index : 15;
+  unsigned PackIndex : 16;
 
   explicit SubstNonTypeTemplateParmExpr(EmptyShell Empty)
       : Expr(SubstNonTypeTemplateParmExprClass, Empty) {}
 
 public:
   SubstNonTypeTemplateParmExpr(QualType Ty, ExprValueKind ValueKind,
-                               SourceLocation Loc,
-                               NonTypeTemplateParmDecl *Param, bool RefParam,
-                               Expr *Replacement)
+                               SourceLocation Loc, Expr *Replacement,
+                               Decl *AssociatedDecl, unsigned Index,
+                               Optional<unsigned> PackIndex, bool RefParam)
       : Expr(SubstNonTypeTemplateParmExprClass, Ty, ValueKind, OK_Ordinary),
-        ParamAndRef(Param, RefParam), Replacement(Replacement) {
+        Replacement(Replacement),
+        AssociatedDeclAndRef(AssociatedDecl, RefParam), Index(Index),
+        PackIndex(PackIndex ? *PackIndex + 1 : 0) {
+    assert(AssociatedDecl != nullptr);
     SubstNonTypeTemplateParmExprBits.NameLoc = Loc;
     setDependence(computeDependence(this));
   }
@@ -4293,11 +4305,23 @@ public:
 
   Expr *getReplacement() const { return cast<Expr>(Replacement); }
 
-  NonTypeTemplateParmDecl *getParameter() const {
-    return ParamAndRef.getPointer();
+  /// A template-like entity which owns the whole pattern being substituted.
+  /// This will own a set of template parameters.
+  Decl *getAssociatedDecl() const { return AssociatedDeclAndRef.getPointer(); }
+
+  /// Returns the index of the replaced parameter in the associated declaration.
+  /// This should match the result of `getParameter()->getIndex()`.
+  unsigned getIndex() const { return Index; }
+
+  Optional<unsigned> getPackIndex() const {
+    if (PackIndex == 0)
+      return std::nullopt;
+    return PackIndex - 1;
   }
 
-  bool isReferenceParameter() const { return ParamAndRef.getInt(); }
+  NonTypeTemplateParmDecl *getParameter() const;
+
+  bool isReferenceParameter() const { return AssociatedDeclAndRef.getInt(); }
 
   /// Determine the substituted type of the template parameter.
   QualType getParameterType(const ASTContext &Ctx) const;
@@ -4331,14 +4355,16 @@ class SubstNonTypeTemplateParmPackExpr : public Expr {
   friend class ASTStmtReader;
 
   /// The non-type template parameter pack itself.
-  NonTypeTemplateParmDecl *Param;
+  Decl *AssociatedDecl;
 
   /// A pointer to the set of template arguments that this
   /// parameter pack is instantiated with.
   const TemplateArgument *Arguments;
 
   /// The number of template arguments in \c Arguments.
-  unsigned NumArguments;
+  unsigned NumArguments : 16;
+
+  unsigned Index : 16;
 
   /// The location of the non-type template parameter pack reference.
   SourceLocation NameLoc;
@@ -4347,14 +4373,21 @@ class SubstNonTypeTemplateParmPackExpr : public Expr {
       : Expr(SubstNonTypeTemplateParmPackExprClass, Empty) {}
 
 public:
-  SubstNonTypeTemplateParmPackExpr(QualType T,
-                                   ExprValueKind ValueKind,
-                                   NonTypeTemplateParmDecl *Param,
+  SubstNonTypeTemplateParmPackExpr(QualType T, ExprValueKind ValueKind,
                                    SourceLocation NameLoc,
-                                   const TemplateArgument &ArgPack);
+                                   const TemplateArgument &ArgPack,
+                                   Decl *AssociatedDecl, unsigned Index);
+
+  /// A template-like entity which owns the whole pattern being substituted.
+  /// This will own a set of template parameters.
+  Decl *getAssociatedDecl() const { return AssociatedDecl; }
+
+  /// Returns the index of the replaced parameter in the associated declaration.
+  /// This should match the result of `getParameterPack()->getIndex()`.
+  unsigned getIndex() const { return Index; }
 
   /// Retrieve the non-type template parameter pack being substituted.
-  NonTypeTemplateParmDecl *getParameterPack() const { return Param; }
+  NonTypeTemplateParmDecl *getParameterPack() const;
 
   /// Retrieve the location of the parameter pack name.
   SourceLocation getParameterPackLocation() const { return NameLoc; }
@@ -4647,7 +4680,7 @@ public:
   Optional<unsigned> getNumExpansions() const {
     if (NumExpansions)
       return NumExpansions - 1;
-    return None;
+    return std::nullopt;
   }
 
   SourceLocation getBeginLoc() const LLVM_READONLY {
@@ -4698,18 +4731,19 @@ class CoroutineSuspendExpr : public Expr {
 
   SourceLocation KeywordLoc;
 
-  enum SubExpr { Common, Ready, Suspend, Resume, Count };
+  enum SubExpr { Operand, Common, Ready, Suspend, Resume, Count };
 
   Stmt *SubExprs[SubExpr::Count];
   OpaqueValueExpr *OpaqueValue = nullptr;
 
 public:
-  CoroutineSuspendExpr(StmtClass SC, SourceLocation KeywordLoc, Expr *Common,
-                       Expr *Ready, Expr *Suspend, Expr *Resume,
+  CoroutineSuspendExpr(StmtClass SC, SourceLocation KeywordLoc, Expr *Operand,
+                       Expr *Common, Expr *Ready, Expr *Suspend, Expr *Resume,
                        OpaqueValueExpr *OpaqueValue)
       : Expr(SC, Resume->getType(), Resume->getValueKind(),
              Resume->getObjectKind()),
         KeywordLoc(KeywordLoc), OpaqueValue(OpaqueValue) {
+    SubExprs[SubExpr::Operand] = Operand;
     SubExprs[SubExpr::Common] = Common;
     SubExprs[SubExpr::Ready] = Ready;
     SubExprs[SubExpr::Suspend] = Suspend;
@@ -4718,10 +4752,11 @@ public:
   }
 
   CoroutineSuspendExpr(StmtClass SC, SourceLocation KeywordLoc, QualType Ty,
-                       Expr *Common)
+                       Expr *Operand, Expr *Common)
       : Expr(SC, Ty, VK_PRValue, OK_Ordinary), KeywordLoc(KeywordLoc) {
     assert(Common->isTypeDependent() && Ty->isDependentType() &&
            "wrong constructor for non-dependent co_await/co_yield expression");
+    SubExprs[SubExpr::Operand] = Operand;
     SubExprs[SubExpr::Common] = Common;
     SubExprs[SubExpr::Ready] = nullptr;
     SubExprs[SubExpr::Suspend] = nullptr;
@@ -4730,13 +4765,12 @@ public:
   }
 
   CoroutineSuspendExpr(StmtClass SC, EmptyShell Empty) : Expr(SC, Empty) {
+    SubExprs[SubExpr::Operand] = nullptr;
     SubExprs[SubExpr::Common] = nullptr;
     SubExprs[SubExpr::Ready] = nullptr;
     SubExprs[SubExpr::Suspend] = nullptr;
     SubExprs[SubExpr::Resume] = nullptr;
   }
-
-  SourceLocation getKeywordLoc() const { return KeywordLoc; }
 
   Expr *getCommonExpr() const {
     return static_cast<Expr*>(SubExprs[SubExpr::Common]);
@@ -4757,10 +4791,17 @@ public:
     return static_cast<Expr*>(SubExprs[SubExpr::Resume]);
   }
 
+  // The syntactic operand written in the code
+  Expr *getOperand() const {
+    return static_cast<Expr *>(SubExprs[SubExpr::Operand]);
+  }
+
+  SourceLocation getKeywordLoc() const { return KeywordLoc; }
+
   SourceLocation getBeginLoc() const LLVM_READONLY { return KeywordLoc; }
 
   SourceLocation getEndLoc() const LLVM_READONLY {
-    return getCommonExpr()->getEndLoc();
+    return getOperand()->getEndLoc();
   }
 
   child_range children() {
@@ -4782,27 +4823,23 @@ class CoawaitExpr : public CoroutineSuspendExpr {
   friend class ASTStmtReader;
 
 public:
-  CoawaitExpr(SourceLocation CoawaitLoc, Expr *Operand, Expr *Ready,
-              Expr *Suspend, Expr *Resume, OpaqueValueExpr *OpaqueValue,
-              bool IsImplicit = false)
-      : CoroutineSuspendExpr(CoawaitExprClass, CoawaitLoc, Operand, Ready,
-                             Suspend, Resume, OpaqueValue) {
+  CoawaitExpr(SourceLocation CoawaitLoc, Expr *Operand, Expr *Common,
+              Expr *Ready, Expr *Suspend, Expr *Resume,
+              OpaqueValueExpr *OpaqueValue, bool IsImplicit = false)
+      : CoroutineSuspendExpr(CoawaitExprClass, CoawaitLoc, Operand, Common,
+                             Ready, Suspend, Resume, OpaqueValue) {
     CoawaitBits.IsImplicit = IsImplicit;
   }
 
   CoawaitExpr(SourceLocation CoawaitLoc, QualType Ty, Expr *Operand,
-              bool IsImplicit = false)
-      : CoroutineSuspendExpr(CoawaitExprClass, CoawaitLoc, Ty, Operand) {
+              Expr *Common, bool IsImplicit = false)
+      : CoroutineSuspendExpr(CoawaitExprClass, CoawaitLoc, Ty, Operand,
+                             Common) {
     CoawaitBits.IsImplicit = IsImplicit;
   }
 
   CoawaitExpr(EmptyShell Empty)
       : CoroutineSuspendExpr(CoawaitExprClass, Empty) {}
-
-  Expr *getOperand() const {
-    // FIXME: Dig out the actual operand or store it.
-    return getCommonExpr();
-  }
 
   bool isImplicit() const { return CoawaitBits.IsImplicit; }
   void setIsImplicit(bool value = true) { CoawaitBits.IsImplicit = value; }
@@ -4867,19 +4904,17 @@ class CoyieldExpr : public CoroutineSuspendExpr {
   friend class ASTStmtReader;
 
 public:
-  CoyieldExpr(SourceLocation CoyieldLoc, Expr *Operand, Expr *Ready,
-              Expr *Suspend, Expr *Resume, OpaqueValueExpr *OpaqueValue)
-      : CoroutineSuspendExpr(CoyieldExprClass, CoyieldLoc, Operand, Ready,
-                             Suspend, Resume, OpaqueValue) {}
-  CoyieldExpr(SourceLocation CoyieldLoc, QualType Ty, Expr *Operand)
-      : CoroutineSuspendExpr(CoyieldExprClass, CoyieldLoc, Ty, Operand) {}
+  CoyieldExpr(SourceLocation CoyieldLoc, Expr *Operand, Expr *Common,
+              Expr *Ready, Expr *Suspend, Expr *Resume,
+              OpaqueValueExpr *OpaqueValue)
+      : CoroutineSuspendExpr(CoyieldExprClass, CoyieldLoc, Operand, Common,
+                             Ready, Suspend, Resume, OpaqueValue) {}
+  CoyieldExpr(SourceLocation CoyieldLoc, QualType Ty, Expr *Operand,
+              Expr *Common)
+      : CoroutineSuspendExpr(CoyieldExprClass, CoyieldLoc, Ty, Operand,
+                             Common) {}
   CoyieldExpr(EmptyShell Empty)
       : CoroutineSuspendExpr(CoyieldExprClass, Empty) {}
-
-  Expr *getOperand() const {
-    // FIXME: Dig out the actual operand or store it.
-    return getCommonExpr();
-  }
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CoyieldExprClass;

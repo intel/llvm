@@ -30,7 +30,7 @@ void *memalign_test(size_t n, size_t a) {
 
 // CHECK: @malloc(i64 noundef) #1
 // CHECK: @calloc(i64 noundef, i64 noundef) #2
-// CHECK: @realloc(i8* noundef, i64 noundef) #3
+// CHECK: @realloc(ptr noundef, i64 noundef) #3
 // CHECK: @aligned_alloc(i64 noundef, i64 noundef) #3
 // CHECK: @memalign(i64 noundef, i64 noundef) #3
 

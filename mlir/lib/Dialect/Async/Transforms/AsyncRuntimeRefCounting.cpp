@@ -11,21 +11,27 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
+#include "mlir/Dialect/Async/Passes.h"
+
 #include "mlir/Analysis/Liveness.h"
 #include "mlir/Dialect/Async/IR/Async.h"
-#include "mlir/Dialect/Async/Passes.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/SmallSet.h"
 
-using namespace mlir;
-using namespace mlir::async;
+namespace mlir {
+#define GEN_PASS_DEF_ASYNCRUNTIMEREFCOUNTING
+#define GEN_PASS_DEF_ASYNCRUNTIMEPOLICYBASEDREFCOUNTING
+#include "mlir/Dialect/Async/Passes.h.inc"
+} // namespace mlir
 
 #define DEBUG_TYPE "async-runtime-ref-counting"
+
+using namespace mlir;
+using namespace mlir::async;
 
 //===----------------------------------------------------------------------===//
 // Utility functions shared by reference counting passes.
@@ -103,7 +109,7 @@ static LogicalResult walkReferenceCountedValues(
 namespace {
 
 class AsyncRuntimeRefCountingPass
-    : public AsyncRuntimeRefCountingBase<AsyncRuntimeRefCountingPass> {
+    : public impl::AsyncRuntimeRefCountingBase<AsyncRuntimeRefCountingPass> {
 public:
   AsyncRuntimeRefCountingPass() = default;
   void runOnOperation() override;
@@ -317,7 +323,7 @@ AsyncRuntimeRefCountingPass::addAddRefBeforeFunctionCall(Value value) {
   Location loc = value.getLoc();
 
   for (Operation *user : value.getUsers()) {
-    if (!isa<CallOp>(user))
+    if (!isa<func::CallOp>(user))
       continue;
 
     // Add a reference before the function call to pass the value at `+1`
@@ -462,7 +468,7 @@ void AsyncRuntimeRefCountingPass::runOnOperation() {
 namespace {
 
 class AsyncRuntimePolicyBasedRefCountingPass
-    : public AsyncRuntimePolicyBasedRefCountingBase<
+    : public impl::AsyncRuntimePolicyBasedRefCountingBase<
           AsyncRuntimePolicyBasedRefCountingPass> {
 public:
   AsyncRuntimePolicyBasedRefCountingPass() { initializeDefaultPolicy(); }
@@ -498,7 +504,7 @@ AsyncRuntimePolicyBasedRefCountingPass::addRefCounting(Value value) {
       if (failed(refCount))
         return failure();
 
-      int cnt = refCount.getValue();
+      int cnt = *refCount;
 
       // Create `add_ref` operation before the operand owner.
       if (cnt > 0) {

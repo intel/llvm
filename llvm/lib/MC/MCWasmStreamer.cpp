@@ -26,7 +26,6 @@
 #include "llvm/MC/MCSymbolWasm.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -122,6 +121,7 @@ bool MCWasmStreamer::emitSymbolAttribute(MCSymbol *S, MCSymbolAttr Attribute) {
   case MCSA_Invalid:
   case MCSA_IndirectSymbol:
   case MCSA_Protected:
+  case MCSA_Exported:
     return false;
 
   case MCSA_Hidden:
@@ -164,7 +164,7 @@ bool MCWasmStreamer::emitSymbolAttribute(MCSymbol *S, MCSymbolAttr Attribute) {
 }
 
 void MCWasmStreamer::emitCommonSymbol(MCSymbol *S, uint64_t Size,
-                                      unsigned ByteAlignment) {
+                                      Align ByteAlignment) {
   llvm_unreachable("Common symbols are not yet implemented for Wasm");
 }
 
@@ -173,7 +173,7 @@ void MCWasmStreamer::emitELFSize(MCSymbol *Symbol, const MCExpr *Value) {
 }
 
 void MCWasmStreamer::emitLocalCommonSymbol(MCSymbol *S, uint64_t Size,
-                                           unsigned ByteAlignment) {
+                                           Align ByteAlignment) {
   llvm_unreachable("Local common symbols are not yet implemented for Wasm");
 }
 
@@ -263,13 +263,13 @@ void MCWasmStreamer::emitSymbolDesc(MCSymbol *Symbol, unsigned DescValue) {
 }
 
 void MCWasmStreamer::emitZerofill(MCSection *Section, MCSymbol *Symbol,
-                                  uint64_t Size, unsigned ByteAlignment,
+                                  uint64_t Size, Align ByteAlignment,
                                   SMLoc Loc) {
   llvm_unreachable("Wasm doesn't support this directive");
 }
 
 void MCWasmStreamer::emitTBSSSymbol(MCSection *Section, MCSymbol *Symbol,
-                                    uint64_t Size, unsigned ByteAlignment) {
+                                    uint64_t Size, Align ByteAlignment) {
   llvm_unreachable("Wasm doesn't support this directive");
 }
 

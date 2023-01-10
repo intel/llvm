@@ -18,6 +18,7 @@
 #include "clang/Lex/Preprocessor.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/raw_ostream.h"
+#include <optional>
 
 using namespace clang;
 using namespace llvm;
@@ -72,9 +73,9 @@ private:
                    SrcMgr::CharacteristicKind FileType) override;
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                           StringRef FileName, bool IsAngled,
-                          CharSourceRange FilenameRange, const FileEntry *File,
-                          StringRef SearchPath, StringRef RelativePath,
-                          const Module *Imported,
+                          CharSourceRange FilenameRange,
+                          Optional<FileEntryRef> File, StringRef SearchPath,
+                          StringRef RelativePath, const Module *Imported,
                           SrcMgr::CharacteristicKind FileType) override;
   void If(SourceLocation Loc, SourceRange ConditionRange,
           ConditionValueKind ConditionValue) override;
@@ -186,7 +187,7 @@ void InclusionRewriter::InclusionDirective(SourceLocation HashLoc,
                                            StringRef /*FileName*/,
                                            bool /*IsAngled*/,
                                            CharSourceRange /*FilenameRange*/,
-                                           const FileEntry * /*File*/,
+                                           Optional<FileEntryRef> /*File*/,
                                            StringRef /*SearchPath*/,
                                            StringRef /*RelativePath*/,
                                            const Module *Imported,
@@ -252,7 +253,8 @@ bool InclusionRewriter::IsIfAtLocationTrue(SourceLocation Loc) const {
 }
 
 void InclusionRewriter::detectMainFileEOL() {
-  Optional<MemoryBufferRef> FromFile = *SM.getBufferOrNone(SM.getMainFileID());
+  std::optional<MemoryBufferRef> FromFile =
+      *SM.getBufferOrNone(SM.getMainFileID());
   assert(FromFile);
   if (!FromFile)
     return; // Should never happen, but whatever.

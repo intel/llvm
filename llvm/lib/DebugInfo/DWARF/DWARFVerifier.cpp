@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "llvm/DebugInfo/DWARF/DWARFVerifier.h"
+#include "llvm/ADT/IntervalMap.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/DebugInfo/DWARF/DWARFAbbreviationDeclaration.h"
@@ -42,7 +43,7 @@ namespace llvm {
 class DWARFDebugInfoEntry;
 }
 
-Optional<DWARFAddressRange>
+std::optional<DWARFAddressRange>
 DWARFVerifier::DieRangeInfo::insert(const DWARFAddressRange &R) {
   auto Begin = Ranges.begin();
   auto End = Ranges.end();
@@ -61,7 +62,7 @@ DWARFVerifier::DieRangeInfo::insert(const DWARFAddressRange &R) {
   }
 
   Ranges.insert(Pos, R);
-  return None;
+  return std::nullopt;
 }
 
 DWARFVerifier::DieRangeInfo::die_range_info_iterator
@@ -283,11 +284,10 @@ unsigned DWARFVerifier::verifyDebugInfoCallSite(const DWARFDie &Die) {
     return 1;
   }
 
-  Optional<DWARFFormValue> CallAttr =
-      Curr.find({DW_AT_call_all_calls, DW_AT_call_all_source_calls,
-                 DW_AT_call_all_tail_calls, DW_AT_GNU_all_call_sites,
-                 DW_AT_GNU_all_source_call_sites,
-                 DW_AT_GNU_all_tail_call_sites});
+  std::optional<DWARFFormValue> CallAttr = Curr.find(
+      {DW_AT_call_all_calls, DW_AT_call_all_source_calls,
+       DW_AT_call_all_tail_calls, DW_AT_GNU_all_call_sites,
+       DW_AT_GNU_all_source_call_sites, DW_AT_GNU_all_tail_call_sites});
   if (!CallAttr) {
     error() << "Subprogram with call site entry has no DW_AT_call attribute:";
     Curr.dump(OS);
@@ -393,6 +393,59 @@ unsigned DWARFVerifier::verifyUnitSection(const DWARFSection &S) {
   if (!isHeaderChainValid)
     ++NumDebugInfoErrors;
   return NumDebugInfoErrors;
+}
+
+unsigned DWARFVerifier::verifyIndex(StringRef Name,
+                                    DWARFSectionKind InfoColumnKind,
+                                    StringRef IndexStr) {
+  if (IndexStr.empty())
+    return 0;
+  OS << "Verifying " << Name << "...\n";
+  DWARFUnitIndex Index(InfoColumnKind);
+  DataExtractor D(IndexStr, DCtx.isLittleEndian(), 0);
+  if (!Index.parse(D))
+    return 1;
+  using MapType = IntervalMap<uint32_t, uint64_t>;
+  MapType::Allocator Alloc;
+  std::vector<std::unique_ptr<MapType>> Sections(Index.getColumnKinds().size());
+  for (const DWARFUnitIndex::Entry &E : Index.getRows()) {
+    uint64_t Sig = E.getSignature();
+    if (!E.getContributions())
+      continue;
+    for (auto E : enumerate(InfoColumnKind == DW_SECT_INFO
+                                ? makeArrayRef(E.getContributions(),
+                                               Index.getColumnKinds().size())
+                                : makeArrayRef(E.getContribution(), 1))) {
+      const DWARFUnitIndex::Entry::SectionContribution &SC = E.value();
+      int Col = E.index();
+      if (SC.Length == 0)
+        continue;
+      if (!Sections[Col])
+        Sections[Col] = std::make_unique<MapType>(Alloc);
+      auto &M = *Sections[Col];
+      auto I = M.find(SC.Offset);
+      if (I != M.end() && I.start() < (SC.Offset + SC.Length)) {
+        error() << llvm::formatv(
+            "overlapping index entries for entries {0:x16} "
+            "and {1:x16} for column {2}\n",
+            *I, Sig, toString(Index.getColumnKinds()[Col]));
+        return 1;
+      }
+      M.insert(SC.Offset, SC.Offset + SC.Length - 1, Sig);
+    }
+  }
+
+  return 0;
+}
+
+bool DWARFVerifier::handleDebugCUIndex() {
+  return verifyIndex(".debug_cu_index", DWARFSectionKind::DW_SECT_INFO,
+                     DCtx.getDWARFObj().getCUIndexSection()) == 0;
+}
+
+bool DWARFVerifier::handleDebugTUIndex() {
+  return verifyIndex(".debug_tu_index", DWARFSectionKind::DW_SECT_EXT_TYPES,
+                     DCtx.getDWARFObj().getTUIndexSection()) == 0;
 }
 
 bool DWARFVerifier::handleDebugInfo() {
@@ -625,7 +678,8 @@ unsigned DWARFVerifier::verifyDebugInfoAttribute(const DWARFDie &Die,
       if (LT) {
         if (!LT->hasFileAtIndex(*FileIdx)) {
           bool IsZeroIndexed = LT->Prologue.getVersion() >= 5;
-          if (Optional<uint64_t> LastFileIdx = LT->getLastValidFileIndex()) {
+          if (std::optional<uint64_t> LastFileIdx =
+                  LT->getLastValidFileIndex()) {
             ReportError("DIE has " + AttributeString(Attr) +
                         " with an invalid file index " +
                         llvm::formatv("{0}", *FileIdx) +
@@ -645,6 +699,14 @@ unsigned DWARFVerifier::verifyDebugInfoAttribute(const DWARFDie &Die,
                     " and the compile unit has no line table");
       }
     } else {
+      ReportError("DIE has " + AttributeString(Attr) +
+                  " with invalid encoding");
+    }
+    break;
+  }
+  case DW_AT_call_line:
+  case DW_AT_decl_line: {
+    if (!AttrValue.Value.getAsUnsignedConstant()) {
       ReportError("DIE has " + AttributeString(Attr) +
                   " with invalid encoding");
     }
@@ -670,7 +732,7 @@ unsigned DWARFVerifier::verifyDebugInfoForm(const DWARFDie &Die,
   case DW_FORM_ref8:
   case DW_FORM_ref_udata: {
     // Verify all CU relative references are valid CU offsets.
-    Optional<uint64_t> RefVal = AttrValue.Value.getAsReference();
+    std::optional<uint64_t> RefVal = AttrValue.Value.getAsReference();
     assert(RefVal);
     if (RefVal) {
       auto CUSize = DieCU->getNextUnitOffset() - DieCU->getOffset();
@@ -694,7 +756,7 @@ unsigned DWARFVerifier::verifyDebugInfoForm(const DWARFDie &Die,
   case DW_FORM_ref_addr: {
     // Verify all absolute DIE references have valid offsets in the
     // .debug_info section.
-    Optional<uint64_t> RefVal = AttrValue.Value.getAsReference();
+    std::optional<uint64_t> RefVal = AttrValue.Value.getAsReference();
     assert(RefVal);
     if (RefVal) {
       if (*RefVal >= DieCU->getInfoSection().Data.size()) {

@@ -121,6 +121,7 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationPerPrimitiveNV, "PerPrimitiveNV");
   add(DecorationPerViewNV, "PerViewNV");
   add(DecorationPerTaskNV, "PerTaskNV");
+  add(DecorationPerVertexKHR, "PerVertexKHR");
   add(DecorationPerVertexNV, "PerVertexNV");
   add(DecorationNonUniform, "NonUniform");
   add(DecorationNonUniformEXT, "NonUniformEXT");
@@ -128,6 +129,10 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationRestrictPointerEXT, "RestrictPointerEXT");
   add(DecorationAliasedPointer, "AliasedPointer");
   add(DecorationAliasedPointerEXT, "AliasedPointerEXT");
+  add(DecorationBindlessSamplerNV, "BindlessSamplerNV");
+  add(DecorationBindlessImageNV, "BindlessImageNV");
+  add(DecorationBoundSamplerNV, "BoundSamplerNV");
+  add(DecorationBoundImageNV, "BoundImageNV");
   add(DecorationSIMTCallINTEL, "SIMTCallINTEL");
   add(DecorationReferencedIndirectlyINTEL, "ReferencedIndirectlyINTEL");
   add(DecorationClobberINTEL, "ClobberINTEL");
@@ -162,6 +167,8 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationPrefetchINTEL, "PrefetchINTEL");
   add(DecorationStallEnableINTEL, "StallEnableINTEL");
   add(DecorationFuseLoopsInFunctionINTEL, "FuseLoopsInFunctionINTEL");
+  add(DecorationAliasScopeINTEL, "AliasScopeINTEL");
+  add(DecorationNoAliasINTEL, "NoAliasINTEL");
   add(DecorationBufferLocationINTEL, "BufferLocationINTEL");
   add(DecorationIOPipeStorageINTEL, "IOPipeStorageINTEL");
   add(DecorationFunctionFloatingPointModeINTEL,
@@ -172,15 +179,15 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationMediaBlockIOINTEL, "MediaBlockIOINTEL");
   add(DecorationAliasScopeINTEL, "AliasScopeINTEL");
   add(DecorationNoAliasINTEL, "NoAliasINTEL");
+  add(DecorationMathOpDSPModeINTEL, "MathOpDSPModeINTEL");
+  add(DecorationInitiationIntervalINTEL, "InitiationIntervalINTEL");
+  add(DecorationMaxConcurrencyINTEL, "MaxConcurrencyINTEL");
+  add(DecorationPipelineEnableINTEL, "PipelineEnableINTEL");
 
   // From spirv_internal.hpp
   add(internal::DecorationFuncParamKindINTEL, "FuncParamKindINTEL");
   add(internal::DecorationFuncParamDescINTEL, "FuncParamDescINTEL");
   add(internal::DecorationCallableFunctionINTEL, "CallableFunctionINTEL");
-  add(internal::DecorationMathOpDSPModeINTEL, "MathOpDSPModeINTEL");
-  add(internal::DecorationInitiationIntervalINTEL, "InitiationIntervalINTEL");
-  add(internal::DecorationMaxConcurrencyINTEL, "MaxConcurrencyINTEL");
-  add(internal::DecorationPipelineEnableINTEL, "PipelineEnableINTEL");
   add(internal::DecorationRuntimeAlignedINTEL, "RuntimeAlignedINTEL");
   add(internal::DecorationHostAccessINTEL, "HostAccessINTEL");
   add(internal::DecorationInitModeINTEL, "InitModeINTEL");
@@ -272,7 +279,9 @@ template <> inline void SPIRVMap<BuiltIn, std::string>::init() {
   add(BuiltInLayerPerViewNV, "BuiltInLayerPerViewNV");
   add(BuiltInMeshViewCountNV, "BuiltInMeshViewCountNV");
   add(BuiltInMeshViewIndicesNV, "BuiltInMeshViewIndicesNV");
+  add(BuiltInBaryCoordKHR, "BuiltInBaryCoordKHR");
   add(BuiltInBaryCoordNV, "BuiltInBaryCoordNV");
+  add(BuiltInBaryCoordNoPerspKHR, "BuiltInBaryCoordNoPerspKHR");
   add(BuiltInBaryCoordNoPerspNV, "BuiltInBaryCoordNoPerspNV");
   add(BuiltInFragSizeEXT, "BuiltInFragSizeEXT");
   add(BuiltInFragmentSizeNV, "BuiltInFragmentSizeNV");
@@ -303,6 +312,7 @@ template <> inline void SPIRVMap<BuiltIn, std::string>::init() {
   add(BuiltInHitTNV, "BuiltInHitTNV");
   add(BuiltInHitKindKHR, "BuiltInHitKindKHR");
   add(BuiltInHitKindNV, "BuiltInHitKindNV");
+  add(BuiltInCurrentRayTimeNV, "BuiltInCurrentRayTimeNV");
   add(BuiltInIncomingRayFlagsKHR, "BuiltInIncomingRayFlagsKHR");
   add(BuiltInIncomingRayFlagsNV, "BuiltInIncomingRayFlagsNV");
   add(BuiltInRayGeometryIndexKHR, "BuiltInRayGeometryIndexKHR");
@@ -310,6 +320,7 @@ template <> inline void SPIRVMap<BuiltIn, std::string>::init() {
   add(BuiltInSMCountNV, "BuiltInSMCountNV");
   add(BuiltInWarpIDNV, "BuiltInWarpIDNV");
   add(BuiltInSMIDNV, "BuiltInSMIDNV");
+  add(BuiltInCullMaskKHR, "BuiltInCullMaskKHR");
   add(BuiltInMax, "BuiltInMax");
   add(internal::BuiltInSubDeviceIDINTEL, "BuiltInSubDeviceIDINTEL");
   add(internal::BuiltInGlobalHWThreadIDINTEL, "BuiltInGlobalHWThreadIDINTEL");
@@ -392,6 +403,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityGroupNonUniformQuad, "GroupNonUniformQuad");
   add(CapabilityShaderLayer, "ShaderLayer");
   add(CapabilityShaderViewportIndex, "ShaderViewportIndex");
+  add(CapabilityUniformDecoration, "UniformDecoration");
   add(CapabilityFragmentShadingRateKHR, "FragmentShadingRateKHR");
   add(CapabilitySubgroupBallotKHR, "SubgroupBallotKHR");
   add(CapabilityDrawParameters, "DrawParameters");
@@ -446,6 +458,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityFragmentFullyCoveredEXT, "FragmentFullyCoveredEXT");
   add(CapabilityMeshShadingNV, "MeshShadingNV");
   add(CapabilityImageFootprintNV, "ImageFootprintNV");
+  add(CapabilityFragmentBarycentricKHR, "FragmentBarycentricKHR");
   add(CapabilityFragmentBarycentricNV, "FragmentBarycentricNV");
   add(CapabilityComputeDerivativeGroupQuadsNV, "ComputeDerivativeGroupQuadsNV");
   add(CapabilityFragmentDensityEXT, "FragmentDensityEXT");
@@ -496,6 +509,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityStorageTexelBufferArrayNonUniformIndexingEXT,
       "StorageTexelBufferArrayNonUniformIndexingEXT");
   add(CapabilityRayTracingNV, "RayTracingNV");
+  add(CapabilityRayTracingMotionBlurNV, "RayTracingMotionBlurNV");
   add(CapabilityVulkanMemoryModel, "VulkanMemoryModel");
   add(CapabilityVulkanMemoryModelKHR, "VulkanMemoryModelKHR");
   add(CapabilityVulkanMemoryModelDeviceScope, "VulkanMemoryModelDeviceScope");
@@ -516,7 +530,9 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityShaderSMBuiltinsNV, "ShaderSMBuiltinsNV");
   add(CapabilityFragmentShaderPixelInterlockEXT,
       "FragmentShaderPixelInterlockEXT");
+  add(CapabilityDemoteToHelperInvocation, "DemoteToHelperInvocation");
   add(CapabilityDemoteToHelperInvocationEXT, "DemoteToHelperInvocationEXT");
+  add(CapabilityBindlessTextureNV, "BindlessTextureNV");
   add(CapabilitySubgroupShuffleINTEL, "SubgroupShuffleINTEL");
   add(CapabilitySubgroupBufferBlockIOINTEL, "SubgroupBufferBlockIOINTEL");
   add(CapabilitySubgroupImageBlockIOINTEL, "SubgroupImageBlockIOINTEL");
@@ -555,6 +571,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityFPGAMemoryAccessesINTEL, "FPGAMemoryAccessesINTEL");
   add(CapabilityFPGAClusterAttributesINTEL, "FPGAClusterAttributesINTEL");
   add(CapabilityLoopFuseINTEL, "LoopFuseINTEL");
+  add(CapabilityMemoryAccessAliasingINTEL, "MemoryAccessAliasingINTEL");
   add(CapabilityFPGABufferLocationINTEL, "FPGABufferLocationINTEL");
   add(CapabilityArbitraryPrecisionFixedPointINTEL,
       "ArbitraryPrecisionFixedPointINTEL");
@@ -562,35 +579,48 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityIOPipesINTEL, "IOPipeINTEL");
   add(CapabilityBlockingPipesINTEL, "BlockingPipesINTEL");
   add(CapabilityFPGARegINTEL, "FPGARegINTEL");
+  add(CapabilityDotProductInputAll, "DotProductInputAll");
   add(CapabilityDotProductInputAllKHR, "DotProductInputAllKHR");
+  add(CapabilityDotProductInput4x8Bit, "DotProductInput4x8Bit");
   add(CapabilityDotProductInput4x8BitKHR, "DotProductInput4x8BitKHR");
+  add(CapabilityDotProductInput4x8BitPacked, "DotProductInput4x8BitPacked");
   add(CapabilityDotProductInput4x8BitPackedKHR,
       "DotProductInput4x8BitPackedKHR");
+  add(CapabilityDotProduct, "DotProduct");
   add(CapabilityDotProductKHR, "DotProductKHR");
+  add(CapabilityRayCullMaskKHR, "RayCullMaskKHR");
   add(CapabilityBitInstructions, "BitInstructions");
+  add(CapabilityGroupNonUniformRotateKHR, "GroupNonUniformRotateKHR");
   add(CapabilityAtomicFloat32AddEXT, "AtomicFloat32AddEXT");
   add(CapabilityAtomicFloat64AddEXT, "AtomicFloat64AddEXT");
   add(CapabilityLongConstantCompositeINTEL, "LongConstantCompositeINTEL");
+  add(CapabilityOptNoneINTEL, "OptNoneINTEL");
   add(CapabilityAtomicFloat16AddEXT, "AtomicFloat16AddEXT");
   add(CapabilityDebugInfoModuleINTEL, "DebugInfoModuleINTEL");
-  add(CapabilityMemoryAccessAliasingINTEL, "MemoryAccessAliasingINTEL");
+  add(CapabilitySplitBarrierINTEL, "SplitBarrierINTEL");
+  add(CapabilityGroupUniformArithmeticKHR, "GroupUniformArithmeticKHR");
+  add(CapabilityFPGADSPControlINTEL, "FPGADSPControlINTEL");
+  add(CapabilityFPGAInvocationPipeliningAttributesINTEL,
+      "FPGAInvocationPipeliningAttributesINTEL");
+  add(CapabilityRuntimeAlignedAttributeINTEL, "RuntimeAlignedAttributeINTEL");
+  add(CapabilityMax, "Max");
 
   // From spirv_internal.hpp
-  add(internal::CapabilityFPGADSPControlINTEL, "FPGADSPControlINTEL");
   add(internal::CapabilityFastCompositeINTEL, "FastCompositeINTEL");
   add(internal::CapabilityOptNoneINTEL, "OptNoneINTEL");
-  add(internal::CapabilityFPGAInvocationPipeliningAttributesINTEL,
-      "FPGAInvocationPipeliningAttributesINTEL");
   add(internal::CapabilityTokenTypeINTEL, "TokenTypeINTEL");
-  add(internal::CapabilityRuntimeAlignedAttributeINTEL,
-      "RuntimeAlignedAttributeINTEL");
-  add(CapabilityMax, "Max");
   add(internal::CapabilityFPArithmeticFenceINTEL, "FPArithmeticFenceINTEL");
   add(internal::CapabilityBfloat16ConversionINTEL, "Bfloat16ConversionINTEL");
   add(internal::CapabilityJointMatrixINTEL, "JointMatrixINTEL");
   add(internal::CapabilityHWThreadQueryINTEL, "HWThreadQueryINTEL");
   add(internal::CapabilityGlobalVariableDecorationsINTEL,
       "GlobalVariableDecorationsINTEL");
+  add(internal::CapabilityNonConstantAddrspacePrintfINTEL,
+      "NonConstantAddrspacePrintfINTEL");
+  add(internal::CapabilityComplexFloatMulDivINTEL, "ComplexFloatMulDivINTEL");
+  add(internal::CapabilityMaskedGatherScatterINTEL, "MaskedGatherScatterINTEL");
+  add(internal::CapabilityTensorFloat32ConversionINTEL,
+      "TensorFloat32ConversionINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 

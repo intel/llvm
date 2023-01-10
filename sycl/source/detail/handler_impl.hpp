@@ -10,8 +10,8 @@
 
 #include <detail/kernel_bundle_impl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 using KernelBundleImplPtr = std::shared_ptr<detail::kernel_bundle_impl>;
@@ -65,8 +65,21 @@ public:
   /// equal to the queue associated with the handler if the corresponding
   /// submission is a fallback from a previous submission.
   std::shared_ptr<queue_impl> MSubmissionSecondaryQueue;
+
+  // Stores auxiliary resources used by internal operations.
+  std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
+
+  std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
+
+  pi_mem_advice MAdvice;
+
+  // 2D memory operation information.
+  size_t MSrcPitch;
+  size_t MDstPitch;
+  size_t MWidth;
+  size_t MHeight;
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

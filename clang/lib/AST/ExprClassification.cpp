@@ -160,7 +160,6 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   case Expr::CXXPseudoDestructorExprClass:
   case Expr::UnaryExprOrTypeTraitExprClass:
   case Expr::CXXNewExprClass:
-  case Expr::CXXThisExprClass:
   case Expr::CXXNullPtrLiteralExprClass:
   case Expr::ImaginaryLiteralClass:
   case Expr::GNUNullExprClass:
@@ -208,6 +207,10 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   case Expr::SYCLBuiltinNumBasesExprClass:
   case Expr::SYCLBuiltinBaseTypeExprClass:
     return Cl::CL_PRValue;
+
+  // Make HLSL this reference-like
+  case Expr::CXXThisExprClass:
+    return Lang.HLSL ? Cl::CL_LValue : Cl::CL_PRValue;
 
   case Expr::ConstantExprClass:
     return ClassifyInternal(Ctx, cast<ConstantExpr>(E)->getSubExpr());
@@ -470,14 +473,11 @@ static Cl::Kinds ClassifyDecl(ASTContext &Ctx, const Decl *D) {
     islvalue = NTTParm->getType()->isReferenceType() ||
                NTTParm->getType()->isRecordType();
   else
-    islvalue = isa<VarDecl>(D) || isa<FieldDecl>(D) ||
-               isa<IndirectFieldDecl>(D) ||
-               isa<BindingDecl>(D) ||
-               isa<MSGuidDecl>(D) ||
-               isa<TemplateParamObjectDecl>(D) ||
-               (Ctx.getLangOpts().CPlusPlus &&
-                (isa<FunctionDecl>(D) || isa<MSPropertyDecl>(D) ||
-                 isa<FunctionTemplateDecl>(D)));
+    islvalue =
+        isa<VarDecl, FieldDecl, IndirectFieldDecl, BindingDecl, MSGuidDecl,
+            UnnamedGlobalConstantDecl, TemplateParamObjectDecl>(D) ||
+        (Ctx.getLangOpts().CPlusPlus &&
+         (isa<FunctionDecl, MSPropertyDecl, FunctionTemplateDecl>(D)));
 
   return islvalue ? Cl::CL_LValue : Cl::CL_PRValue;
 }

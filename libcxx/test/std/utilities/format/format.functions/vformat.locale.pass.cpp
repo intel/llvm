@@ -6,11 +6,10 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: libcpp-has-no-localization
+// UNSUPPORTED: no-localization
 // UNSUPPORTED: libcpp-has-no-incomplete-format
-// TODO FMT Evaluate gcc-11 status
-// UNSUPPORTED: gcc-11
+// TODO FMT Evaluate gcc-12 status
+// UNSUPPORTED: gcc-12
 
 // <format>
 
@@ -23,29 +22,30 @@
 
 #include "test_macros.h"
 #include "format_tests.h"
+#include "string_literal.h"
 
-auto test = []<class CharT, class... Args>(std::basic_string_view<CharT> expected, std::basic_string_view<CharT> fmt,
-                                           const Args&... args) {
+auto test = []<class CharT, class... Args>(
+                std::basic_string_view<CharT> expected, std::basic_string_view<CharT> fmt, Args&&... args) constexpr {
   std::basic_string<CharT> out = std::vformat(std::locale(), fmt, std::make_format_args<context_t<CharT>>(args...));
   assert(out == expected);
 };
 
-auto test_exception = []<class CharT, class... Args>(std::string_view what, std::basic_string_view<CharT> fmt,
-                                                     const Args&... args) {
+auto test_exception =
+    []<class CharT, class... Args>(
+        [[maybe_unused]] std::string_view what,
+        [[maybe_unused]] std::basic_string_view<CharT> fmt,
+        [[maybe_unused]] Args&&... args) {
 #ifndef TEST_HAS_NO_EXCEPTIONS
-  try {
-    (void)std::vformat(std::locale(), fmt, std::make_format_args<context_t<CharT>>(args...));
-    assert(false);
-  } catch ([[maybe_unused]] const std::format_error& e) {
-    LIBCPP_ASSERT(e.what() == what);
-    return;
-  }
-  assert(false);
+      try {
+        (void)std::vformat(std::locale(), fmt, std::make_format_args<context_t<CharT>>(args...));
+        assert(false);
+      } catch ([[maybe_unused]] const std::format_error& e) {
+        LIBCPP_ASSERT(e.what() == what);
+        return;
+      }
+      assert(false);
 #endif
-  (void)what;
-  (void)fmt;
-  (void)sizeof...(args);
-};
+    };
 
 int main(int, char**) {
   format_tests<char>(test, test_exception);

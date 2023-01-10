@@ -218,6 +218,10 @@ bool SPIRVType::isTypeVectorOrScalarBool() const {
   return isTypeBool() || isTypeVectorBool();
 }
 
+bool SPIRVType::isTypeVectorPointer() const {
+  return isTypeVector() && getVectorComponentType()->isTypePointer();
+}
+
 bool SPIRVType::isTypeSubgroupAvcINTEL() const {
   return isSubgroupAvcINTELTypeOpCode(OpCode);
 }
@@ -266,26 +270,32 @@ SPIRVConstant *SPIRVTypeArray::getLength() const {
 _SPIRV_IMP_ENCDEC3(SPIRVTypeArray, Id, ElemType, Length)
 
 void SPIRVTypeForwardPointer::encode(spv_ostream &O) const {
-  getEncoder(O) << Pointer << SC;
+  getEncoder(O) << PointerId << SC;
 }
 
 void SPIRVTypeForwardPointer::decode(std::istream &I) {
   auto Decoder = getDecoder(I);
-  SPIRVId PointerId;
   Decoder >> PointerId >> SC;
 }
 
 SPIRVTypeJointMatrixINTEL::SPIRVTypeJointMatrixINTEL(
-    SPIRVModule *M, SPIRVId TheId, SPIRVType *CompType, SPIRVValue *Rows,
-    SPIRVValue *Columns, SPIRVValue *Layout, SPIRVValue *Scope)
-    : SPIRVType(M, FixedWC, OC, TheId), CompType(CompType), Rows(Rows),
-      Columns(Columns), Layout(Layout), Scope(Scope) {}
+    SPIRVModule *M, SPIRVId TheId, SPIRVType *CompType,
+    std::vector<SPIRVValue *> Args)
+    : SPIRVType(M, FixedWC + Args.size(), OC, TheId), CompType(CompType),
+      Args(Args) {}
 
 SPIRVTypeJointMatrixINTEL::SPIRVTypeJointMatrixINTEL()
-    : SPIRVType(OC), CompType(nullptr), Rows(nullptr), Columns(nullptr),
-      Layout(nullptr), Scope(nullptr) {}
+    : SPIRVType(OC), CompType(nullptr),
+      Args({nullptr, nullptr, nullptr, nullptr}) {}
 
-_SPIRV_IMP_ENCDEC6(SPIRVTypeJointMatrixINTEL, Id, CompType, Rows, Columns,
-                   Layout, Scope)
+void SPIRVTypeJointMatrixINTEL::encode(spv_ostream &O) const {
+  auto Encoder = getEncoder(O);
+  Encoder << Id << CompType << Args;
+}
+
+void SPIRVTypeJointMatrixINTEL::decode(std::istream &I) {
+  auto Decoder = getDecoder(I);
+  Decoder >> Id >> CompType >> Args;
+}
 
 } // namespace SPIRV

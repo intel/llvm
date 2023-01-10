@@ -51,10 +51,9 @@ define <2 x i32> @vec_undef(i1 %cond) {
 ; CHECK:       A:
 ; CHECK-NEXT:    br label [[C:%.*]]
 ; CHECK:       B:
-; CHECK-NEXT:    [[PHI_FR:%.*]] = freeze <2 x i32> <i32 2, i32 undef>
 ; CHECK-NEXT:    br label [[C]]
 ; CHECK:       C:
-; CHECK-NEXT:    [[Y:%.*]] = phi <2 x i32> [ <i32 0, i32 1>, [[A]] ], [ [[PHI_FR]], [[B]] ]
+; CHECK-NEXT:    [[Y:%.*]] = phi <2 x i32> [ <i32 0, i32 1>, [[A]] ], [ <i32 2, i32 0>, [[B]] ]
 ; CHECK-NEXT:    ret <2 x i32> [[Y]]
 ;
   br i1 %cond, label %A, label %B
@@ -188,7 +187,7 @@ define i32 @one_constexpr(i8 %cond, i32 %x) {
 ; CHECK-NEXT:    i8 1, label [[C:%.*]]
 ; CHECK-NEXT:    ]
 ; CHECK:       A:
-; CHECK-NEXT:    [[PHI_FR:%.*]] = freeze i32 ptrtoint (i8* getelementptr inbounds (i8, i8* @glb, i64 2) to i32)
+; CHECK-NEXT:    [[PHI_FR:%.*]] = freeze i32 ptrtoint (ptr getelementptr inbounds (i8, ptr @glb, i64 2) to i32)
 ; CHECK-NEXT:    br label [[D:%.*]]
 ; CHECK:       B:
 ; CHECK-NEXT:    br label [[D]]
@@ -209,7 +208,7 @@ B:
 C:
   br label %D
 D:
-  %y = phi i32 [ptrtoint (i8* getelementptr inbounds (i8, i8* @glb, i64 2) to i32), %A], [32, %B], [0, %C]
+  %y = phi i32 [ptrtoint (ptr getelementptr inbounds (i8, ptr @glb, i64 2) to i32), %A], [32, %B], [0, %C]
   %y.fr = freeze i32 %y
   ret i32 %y.fr
 }

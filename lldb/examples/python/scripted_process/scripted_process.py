@@ -1,10 +1,8 @@
 from abc import ABCMeta, abstractmethod
-import six
 
 import lldb
 
-@six.add_metaclass(ABCMeta)
-class ScriptedProcess:
+class ScriptedProcess(metaclass=ABCMeta):
 
     """
     The base class for a scripted process.
@@ -17,9 +15,9 @@ class ScriptedProcess:
     """
 
     memory_regions = None
-    stack_memory_dump = None
     loaded_images = None
-    threads = {}
+    threads = None
+    metadata = None
 
     @abstractmethod
     def __init__(self, target, args):
@@ -41,6 +39,9 @@ class ScriptedProcess:
             self.dbg = target.GetDebugger()
         if isinstance(args, lldb.SBStructuredData) and args.IsValid():
             self.args = args
+        self.threads = {}
+        self.loaded_images = []
+        self.metadata = {}
 
     @abstractmethod
     def get_memory_region_containing_address(self, addr):
@@ -97,13 +98,14 @@ class ScriptedProcess:
         pass
 
     @abstractmethod
-    def read_memory_at_address(self, addr, size):
+    def read_memory_at_address(self, addr, size, error):
         """ Get a memory buffer from the scripted process at a certain address,
             of a certain size.
 
         Args:
             addr (int): Address from which we should start reading.
             size (int): Size of the memory to read.
+            error (lldb.SBError): Error object.
 
         Returns:
             lldb.SBData: An `lldb.SBData` buffer with the target byte size and
@@ -115,18 +117,17 @@ class ScriptedProcess:
         """ Get the list of loaded images for the scripted process.
 
         ```
-        class ScriptedProcessImage:
-            def __init__(name, file_spec, uuid, load_address):
-              self.name = name
-              self.file_spec = file_spec
-              self.uuid = uuid
-              self.load_address = load_address
+        scripted_image = {
+            uuid = "c6ea2b64-f77c-3d27-9528-74f507b9078b",
+            path = "/usr/lib/dyld"
+            load_addr = 0xbadc0ffee
+        }
         ```
 
         Returns:
-            List[ScriptedProcessImage]: A list of `ScriptedProcessImage`
-                containing for each entry, the name of the library, a UUID,
-                an `lldb.SBFileSpec` and a load address.
+            List[scripted_image]: A list of `scripted_image` dictionaries
+                containing for each entry the library UUID or its file path
+                and its load address.
                 None if the list is empty.
         """
         return self.loaded_images
@@ -138,7 +139,6 @@ class ScriptedProcess:
             int: The scripted process identifier.
         """
         return 0
-
 
     def launch(self):
         """ Simulate the scripted process launch.
@@ -192,8 +192,16 @@ class ScriptedProcess:
         """
         return None
 
-@six.add_metaclass(ABCMeta)
-class ScriptedThread:
+    def get_process_metadata(self):
+        """ Get some metadata for the scripted process.
+
+        Returns:
+            Dict: A dictionary containing metadata for the scripted process.
+                  None is the process as no metadata.
+        """
+        return self.metadata
+
+class ScriptedThread(metaclass=ABCMeta):
 
     """
     The base class for a scripted thread.
@@ -218,8 +226,8 @@ class ScriptedThread:
         self.scripted_process = None
         self.process = None
         self.args = None
-
-        self.id = None
+        self.idx = 0
+        self.tid = 0
         self.idx = None
         self.name = None
         self.queue = None
@@ -228,6 +236,7 @@ class ScriptedThread:
         self.register_info = None
         self.register_ctx = {}
         self.frames = []
+        self.extended_info = []
 
         if isinstance(scripted_process, ScriptedProcess):
             self.target = scripted_process.target
@@ -235,24 +244,29 @@ class ScriptedThread:
             self.process = self.target.GetProcess()
             self.get_register_info()
 
+    def get_thread_idx(self):
+        """ Get the scripted thread index.
 
-    @abstractmethod
+        Returns:
+            int: The index of the scripted thread in the scripted process.
+        """
+        return self.idx
+
     def get_thread_id(self):
         """ Get the scripted thread identifier.
 
         Returns:
             int: The identifier of the scripted thread.
         """
-        pass
+        return self.tid
 
-    @abstractmethod
     def get_name(self):
         """ Get the scripted thread name.
 
         Returns:
             str: The name of the scripted thread.
         """
-        pass
+        return self.name
 
     def get_state(self):
         """ Get the scripted thread state type.
@@ -276,7 +290,7 @@ class ScriptedThread:
         Returns:
             str: The queue name associated with the scripted thread.
         """
-        pass
+        return self.queue
 
     @abstractmethod
     def get_stop_reason(self):
@@ -293,19 +307,16 @@ class ScriptedThread:
         """ Get the list of stack frames for the scripted thread.
 
         ```
-        class ScriptedStackFrame:
-            def __init__(idx, cfa, pc, symbol_ctx):
-                self.idx = idx
-                self.cfa = cfa
-                self.pc = pc
-                self.symbol_ctx = symbol_ctx
+        scripted_frame = {
+            idx = 0,
+            pc = 0xbadc0ffee
+        }
         ```
 
         Returns:
-            List[ScriptedFrame]: A list of `ScriptedStackFrame`
-                containing for each entry, the frame index, the canonical
-                frame address, the program counter value for that frame
-                and a symbol context.
+            List[scripted_frame]: A list of `scripted_frame` dictionaries
+                containing at least for each entry, the frame index and
+                the program counter value for that frame.
                 The list can be empty.
         """
         return self.frames
@@ -330,6 +341,15 @@ class ScriptedThread:
             str: A byte representing all register's value.
         """
         pass
+
+    def get_extended_info(self):
+        """ Get scripted thread extended information.
+
+        Returns:
+            List: A list containing the extended information for the scripted process.
+                  None is the thread as no extended information.
+        """
+        return self.extended_info
 
 ARM64_GPR = [ {'name': 'x0',   'bitsize': 64, 'offset': 0,   'encoding': 'uint', 'format': 'hex', 'set': 0, 'gcc': 0,  'dwarf': 0,  'generic': 'arg0', 'alt-name': 'arg0'},
               {'name': 'x1',   'bitsize': 64, 'offset': 8,   'encoding': 'uint', 'format': 'hex', 'set': 0, 'gcc': 1,  'dwarf': 1,  'generic': 'arg1', 'alt-name': 'arg1'},

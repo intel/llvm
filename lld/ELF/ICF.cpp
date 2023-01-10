@@ -313,7 +313,7 @@ bool ICF<ELFT>::constantEq(const InputSection *secA, ArrayRef<RelTy> ra,
 template <class ELFT>
 bool ICF<ELFT>::equalsConstant(const InputSection *a, const InputSection *b) {
   if (a->flags != b->flags || a->getSize() != b->getSize() ||
-      a->rawData != b->rawData)
+      a->content() != b->content())
     return false;
 
   // If two sections have different output sections, we cannot merge them.
@@ -422,11 +422,11 @@ void ICF<ELFT>::forEachClass(llvm::function_ref<void(size_t, size_t)> fn) {
   boundaries[0] = 0;
   boundaries[numShards] = sections.size();
 
-  parallelForEachN(1, numShards, [&](size_t i) {
+  parallelFor(1, numShards, [&](size_t i) {
     boundaries[i] = findBoundary((i - 1) * step, sections.size());
   });
 
-  parallelForEachN(1, numShards + 1, [&](size_t i) {
+  parallelFor(1, numShards + 1, [&](size_t i) {
     if (boundaries[i - 1] < boundaries[i])
       forEachClassRange(boundaries[i - 1], boundaries[i], fn);
   });
@@ -460,7 +460,7 @@ template <class ELFT> void ICF<ELFT>::run() {
   // cannot be merged with the later computeIsPreemptible() pass which is used
   // by scanRelocations().
   if (config->hasDynSymTab)
-    for (Symbol *sym : symtab->symbols())
+    for (Symbol *sym : symtab.getSymbols())
       sym->isPreemptible = computeIsPreemptible(*sym);
 
   // Two text sections may have identical content and relocations but different
@@ -477,9 +477,9 @@ template <class ELFT> void ICF<ELFT>::run() {
         [&](InputSection &s) { s.eqClass[0] = s.eqClass[1] = ++uniqueId; });
 
   // Collect sections to merge.
-  for (InputSectionBase *sec : inputSections) {
-    auto *s = cast<InputSection>(sec);
-    if (s->eqClass[0] == 0) {
+  for (InputSectionBase *sec : ctx.inputSections) {
+    auto *s = dyn_cast<InputSection>(sec);
+    if (s && s->eqClass[0] == 0) {
       if (isEligible(s))
         sections.push_back(s);
       else
@@ -492,7 +492,7 @@ template <class ELFT> void ICF<ELFT>::run() {
   // Initially, we use hash values to partition sections.
   parallelForEach(sections, [&](InputSection *s) {
     // Set MSB to 1 to avoid collisions with unique IDs.
-    s->eqClass[0] = xxHash64(s->rawData) | (1U << 31);
+    s->eqClass[0] = xxHash64(s->content()) | (1U << 31);
   });
 
   // Perform 2 rounds of relocation hash propagation. 2 is an empirical value to
@@ -558,9 +558,9 @@ template <class ELFT> void ICF<ELFT>::run() {
           d->folded = true;
         }
   };
-  for (Symbol *sym : symtab->symbols())
+  for (Symbol *sym : symtab.getSymbols())
     fold(sym);
-  parallelForEach(objectFiles, [&](ELFFileBase *file) {
+  parallelForEach(ctx.objectFiles, [&](ELFFileBase *file) {
     for (Symbol *sym : file->getLocalSymbols())
       fold(sym);
   });
@@ -568,8 +568,8 @@ template <class ELFT> void ICF<ELFT>::run() {
   // InputSectionDescription::sections is populated by processSectionCommands().
   // ICF may fold some input sections assigned to output sections. Remove them.
   for (SectionCommand *cmd : script->sectionCommands)
-    if (auto *sec = dyn_cast<OutputSection>(cmd))
-      for (SectionCommand *subCmd : sec->commands)
+    if (auto *osd = dyn_cast<OutputDesc>(cmd))
+      for (SectionCommand *subCmd : osd->osec.commands)
         if (auto *isd = dyn_cast<InputSectionDescription>(subCmd))
           llvm::erase_if(isd->sections,
                          [](InputSection *isec) { return !isec->isLive(); });

@@ -14,18 +14,26 @@
 #define LLVM_ASMPARSER_LLPARSER_H
 
 #include "LLLexer.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/AsmParser/Parser.h"
 #include "llvm/IR/Attributes.h"
+#include "llvm/IR/FMF.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/ModuleSummaryIndex.h"
-#include "llvm/IR/Operator.h"
-#include "llvm/IR/Type.h"
 #include <map>
+#include <optional>
 
 namespace llvm {
   class Module;
+  class ConstantRange;
+  class FunctionType;
+  class GlobalObject;
+  class SMDiagnostic;
+  class SMLoc;
+  class SourceMgr;
+  class Type;
+  struct MaybeAlign;
+  template <typename T> class Optional;
   class Function;
   class Value;
   class BasicBlock;
@@ -35,6 +43,7 @@ namespace llvm {
   class Comdat;
   class MDString;
   class MDNode;
+  class MemoryEffects;
   struct SlotMapping;
 
   /// ValID - Represents a reference of a definition of some sort with no type.
@@ -74,6 +83,7 @@ namespace llvm {
     }
 
     bool operator<(const ValID &RHS) const {
+      assert(Kind == RHS.Kind && "Comparing ValIDs of different kinds");
       if (Kind == t_LocalID || Kind == t_GlobalID)
         return UIntVal < RHS.UIntVal;
       assert((Kind == t_LocalName || Kind == t_GlobalName ||
@@ -88,6 +98,8 @@ namespace llvm {
     typedef LLLexer::LocTy LocTy;
   private:
     LLVMContext &Context;
+    // Lexer to determine whether to use opaque pointers or not.
+    LLLexer OPLex;
     LLLexer Lex;
     // Module being parsed, null if we are only parsing summary index.
     Module *M;
@@ -96,6 +108,12 @@ namespace llvm {
     SlotMapping *Slots;
 
     SmallVector<Instruction*, 64> InstsWithTBAATag;
+
+    /// DIAssignID metadata does not support temporary RAUW so we cannot use
+    /// the normal metadata forward reference resolution method. Instead,
+    /// non-temporary DIAssignID are attached to instructions (recorded here)
+    /// then replaced later.
+    DenseMap<MDNode *, SmallVector<Instruction *, 2>> TempDIAssignIDAttachments;
 
     // Type resolution handling data structures.  The location is set when we
     // have processed a use of the type but not a definition yet.
@@ -121,6 +139,14 @@ namespace llvm {
     /// forward-referenced by blockaddress instructions within the same
     /// function.
     PerFunctionState *BlockAddressPFS;
+
+    // References to dso_local_equivalent. The key is the global's ValID, the
+    // value is a placeholder value that will be replaced. Note there are two
+    // maps for tracking ValIDs that are GlobalNames and ValIDs that are
+    // GlobalIDs. These are needed because "operator<" doesn't discriminate
+    // between the two.
+    std::map<ValID, GlobalValue *> ForwardRefDSOLocalEquivalentNames;
+    std::map<ValID, GlobalValue *> ForwardRefDSOLocalEquivalentIDs;
 
     // Attribute builder reference information.
     std::map<Value*, std::vector<unsigned> > ForwardRefAttrGroups;
@@ -150,11 +176,12 @@ namespace llvm {
     LLParser(StringRef F, SourceMgr &SM, SMDiagnostic &Err, Module *M,
              ModuleSummaryIndex *Index, LLVMContext &Context,
              SlotMapping *Slots = nullptr)
-        : Context(Context), Lex(F, SM, Err, Context), M(M), Index(Index),
-          Slots(Slots), BlockAddressPFS(nullptr) {}
+        : Context(Context), OPLex(F, SM, Err, Context),
+          Lex(F, SM, Err, Context), M(M), Index(Index), Slots(Slots),
+          BlockAddressPFS(nullptr) {}
     bool Run(
         bool UpgradeDebugInfo, DataLayoutCallbackTy DataLayoutCallback =
-                                   [](StringRef) { return None; });
+                                   [](StringRef) { return std::nullopt; });
 
     bool parseStandaloneConstantValue(Constant *&C, const SlotMapping *Slots);
 
@@ -264,6 +291,8 @@ namespace llvm {
                                 bool AllowParens = false);
     bool parseOptionalDerefAttrBytes(lltok::Kind AttrKind, uint64_t &Bytes);
     bool parseOptionalUWTableKind(UWTableKind &Kind);
+    bool parseAllocKind(AllocFnKind &Kind);
+    Optional<MemoryEffects> parseMemoryAttr();
     bool parseScopeAndOrdering(bool IsAtomic, SyncScope::ID &SSID,
                                AtomicOrdering &Ordering);
     bool parseScope(SyncScope::ID &SSID);
@@ -273,7 +302,7 @@ namespace llvm {
     bool parseOptionalCommaAddrSpace(unsigned &AddrSpace, LocTy &Loc,
                                      bool &AteExtraComma);
     bool parseAllocSizeArguments(unsigned &BaseSizeArg,
-                                 Optional<unsigned> &HowManyArg);
+                                 std::optional<unsigned> &HowManyArg);
     bool parseVScaleRangeArguments(unsigned &MinValue, unsigned &MaxValue);
     bool parseIndexList(SmallVectorImpl<unsigned> &Indices,
                         bool &AteExtraComma);
@@ -378,6 +407,10 @@ namespace llvm {
     void addGlobalValueToIndex(std::string Name, GlobalValue::GUID,
                                GlobalValue::LinkageTypes Linkage, unsigned ID,
                                std::unique_ptr<GlobalValueSummary> Summary);
+    bool parseOptionalAllocs(std::vector<AllocInfo> &Allocs);
+    bool parseMemProfs(std::vector<MIBInfo> &MIBs);
+    bool parseAllocType(uint8_t &AllocType);
+    bool parseOptionalCallsites(std::vector<CallsiteInfo> &Callsites);
 
     // Type Parsing.
     bool parseType(Type *&Result, const Twine &Msg, bool AllowVoid = false);
@@ -496,14 +529,19 @@ namespace llvm {
     bool parseExceptionArgs(SmallVectorImpl<Value *> &Args,
                             PerFunctionState &PFS);
 
+    bool resolveFunctionType(Type *RetType,
+                             const SmallVector<ParamInfo, 16> &ArgList,
+                             FunctionType *&FuncTy);
+
     // Constant Parsing.
     bool parseValID(ValID &ID, PerFunctionState *PFS,
                     Type *ExpectedTy = nullptr);
     bool parseGlobalValue(Type *Ty, Constant *&C);
     bool parseGlobalTypeAndValue(Constant *&V);
     bool parseGlobalValueVector(SmallVectorImpl<Constant *> &Elts,
-                                Optional<unsigned> *InRangeOp = nullptr);
+                                std::optional<unsigned> *InRangeOp = nullptr);
     bool parseOptionalComdat(StringRef GlobalName, Comdat *&C);
+    bool parseSanitizer(GlobalVariable *GV);
     bool parseMetadataAsValue(Value *&V, PerFunctionState &PFS);
     bool parseValueAsMetadata(Metadata *&MD, const Twine &TypeMsg,
                               PerFunctionState *PFS);

@@ -1,4 +1,4 @@
-; RUN: opt %loadPolly -pass-remarks-missed="polly-detect" -polly-detect-track-failures -polly-detect -analyze < %s 2>&1| FileCheck %s
+; RUN: opt %loadPolly -pass-remarks-missed="polly-detect" -polly-detect-track-failures -polly-print-detect -disable-output < %s 2>&1| FileCheck %s
 
 ; struct b {
 ;   double **b;
@@ -12,7 +12,7 @@
 ; The loads are currently just adds %7 to the list of required invariant loads
 ; and only -polly-scops checks whether it is actionally possible the be load
 ; hoisted. The SCoP is still rejected by -polly-detect because it may alias
-; with %A and is not considered to be eligble for runtime alias checking.
+; with %A and is not considered to be eligible for runtime alias checking.
 
 ; CHECK: remark: ReportVariantBasePtr01.c:6:8: The following errors keep this region from being a Scop.
 ; CHECK: remark: ReportVariantBasePtr01.c:7:5: Accesses to the arrays "A", " <unknown> " may access the same memory.

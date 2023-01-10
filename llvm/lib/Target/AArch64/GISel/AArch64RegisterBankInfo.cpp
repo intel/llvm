@@ -12,20 +12,19 @@
 //===----------------------------------------------------------------------===//
 
 #include "AArch64RegisterBankInfo.h"
-#include "AArch64InstrInfo.h"
 #include "AArch64RegisterInfo.h"
 #include "MCTargetDesc/AArch64MCTargetDesc.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
-#include "llvm/CodeGen/GlobalISel/RegisterBank.h"
-#include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
 #include "llvm/CodeGen/LowLevelType.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/RegisterBank.h"
+#include "llvm/CodeGen/RegisterBankInfo.h"
 #include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
@@ -42,8 +41,8 @@
 
 using namespace llvm;
 
-AArch64RegisterBankInfo::AArch64RegisterBankInfo(const TargetRegisterInfo &TRI)
-    : AArch64GenRegisterBankInfo() {
+AArch64RegisterBankInfo::AArch64RegisterBankInfo(
+    const TargetRegisterInfo &TRI) {
   static llvm::once_flag InitializeRegisterBankFlag;
 
   static auto InitializeRegisterBankOnce = [&]() {
@@ -273,7 +272,9 @@ AArch64RegisterBankInfo::getRegBankFromRegClass(const TargetRegisterClass &RC,
   case AArch64::rtcGPR64RegClassID:
   case AArch64::WSeqPairsClassRegClassID:
   case AArch64::XSeqPairsClassRegClassID:
+  case AArch64::MatrixIndexGPR32_8_11RegClassID:
   case AArch64::MatrixIndexGPR32_12_15RegClassID:
+  case AArch64::GPR64_with_sub_32_in_MatrixIndexGPR32_8_11RegClassID:
   case AArch64::GPR64_with_sub_32_in_MatrixIndexGPR32_12_15RegClassID:
     return getRegBank(AArch64::GPRRegBankID);
   case AArch64::CCRRegClassID:
@@ -649,7 +650,7 @@ AArch64RegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
           /*NumOperands*/ 1);
     }
     // Both registers are generic, use G_BITCAST.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   }
   case TargetOpcode::G_BITCAST: {
     LLT DstTy = MRI.getType(MI.getOperand(0).getReg());
@@ -682,6 +683,8 @@ AArch64RegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       continue;
 
     LLT Ty = MRI.getType(MO.getReg());
+    if (!Ty.isValid())
+      continue;
     OpSize[Idx] = Ty.getSizeInBits();
 
     // As a top-level guess, vectors go in FPRs, scalars and pointers in GPRs.
@@ -990,6 +993,9 @@ AArch64RegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   SmallVector<const ValueMapping *, 8> OpdsMapping(NumOperands);
   for (unsigned Idx = 0; Idx < NumOperands; ++Idx) {
     if (MI.getOperand(Idx).isReg() && MI.getOperand(Idx).getReg()) {
+      LLT Ty = MRI.getType(MI.getOperand(Idx).getReg());
+      if (!Ty.isValid())
+        continue;
       auto Mapping = getValueMapping(OpRegBankIdx[Idx], OpSize[Idx]);
       if (!Mapping->isValid())
         return getInvalidInstructionMapping();

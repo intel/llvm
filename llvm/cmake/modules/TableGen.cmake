@@ -2,8 +2,10 @@
 # while LLVM_TARGET_DEPENDS may contain additional file dependencies.
 # Extra parameters for `tblgen' may come after `ofn' parameter.
 # Adds the name of the generated file to TABLEGEN_OUTPUT.
+include(LLVMDistributionSupport)
 
 function(tablegen project ofn)
+  cmake_parse_arguments(ARG "" "" "DEPENDS;EXTRA_INCLUDES" ${ARGN})
   # Validate calling context.
   if(NOT ${project}_TABLEGEN_EXE)
     message(FATAL_ERROR "${project}_TABLEGEN_EXE not set")
@@ -91,13 +93,16 @@ function(tablegen project ofn)
   # ("${${project}_TABLEGEN_TARGET}" STREQUAL "${${project}_TABLEGEN_EXE}")
   # but lets us having smaller and cleaner code here.
   get_directory_property(tblgen_includes INCLUDE_DIRECTORIES)
+  list(APPEND tblgen_includes ${ARG_EXTRA_INCLUDES})
+  # Filter out empty items before prepending each entry with -I
+  list(REMOVE_ITEM tblgen_includes "")
   list(TRANSFORM tblgen_includes PREPEND -I)
 
   set(tablegen_exe ${${project}_TABLEGEN_EXE})
   set(tablegen_depends ${${project}_TABLEGEN_TARGET} ${tablegen_exe})
 
   add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${ofn}
-    COMMAND ${tablegen_exe} ${ARGN} -I ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMAND ${tablegen_exe} ${ARG_UNPARSED_ARGUMENTS} -I ${CMAKE_CURRENT_SOURCE_DIR}
     ${tblgen_includes}
     ${LLVM_TABLEGEN_FLAGS}
     ${LLVM_TARGET_DEFINITIONS_ABSOLUTE}
@@ -106,7 +111,7 @@ function(tablegen project ofn)
     # The file in LLVM_TARGET_DEFINITIONS may be not in the current
     # directory and local_tds may not contain it, so we must
     # explicitly list it here:
-    DEPENDS ${tablegen_depends}
+    DEPENDS ${ARG_DEPENDS} ${tablegen_depends}
       ${local_tds} ${global_tds}
     ${LLVM_TARGET_DEFINITIONS_ABSOLUTE}
     ${LLVM_TARGET_DEPENDS}
@@ -136,6 +141,8 @@ function(add_public_tablegen_target target)
 endfunction()
 
 macro(add_tablegen target project)
+  cmake_parse_arguments(ADD_TABLEGEN "" "DESTINATION;EXPORT" "" ${ARGN})
+
   set(${target}_OLD_LLVM_LINK_COMPONENTS ${LLVM_LINK_COMPONENTS})
   set(LLVM_LINK_COMPONENTS ${LLVM_LINK_COMPONENTS} TableGen)
 
@@ -145,7 +152,8 @@ macro(add_tablegen target project)
     set(LLVM_ENABLE_OBJLIB ON)
   endif()
 
-  add_llvm_executable(${target} DISABLE_LLVM_LINK_LLVM_DYLIB ${ARGN})
+  add_llvm_executable(${target} DISABLE_LLVM_LINK_LLVM_DYLIB
+    ${ADD_TABLEGEN_UNPARSED_ARGUMENTS})
   set(LLVM_LINK_COMPONENTS ${${target}_OLD_LLVM_LINK_COMPONENTS})
 
   set(${project}_TABLEGEN "${target}" CACHE
@@ -182,22 +190,23 @@ macro(add_tablegen target project)
     endif()
   endif()
 
-  if ((${project} STREQUAL LLVM OR ${project} STREQUAL MLIR) AND NOT LLVM_INSTALL_TOOLCHAIN_ONLY AND LLVM_BUILD_UTILS)
-    set(export_to_llvmexports)
-    if(${target} IN_LIST LLVM_DISTRIBUTION_COMPONENTS OR
-        NOT LLVM_DISTRIBUTION_COMPONENTS)
-      set(export_to_llvmexports EXPORT LLVMExports)
+  if (ADD_TABLEGEN_DESTINATION AND NOT LLVM_INSTALL_TOOLCHAIN_ONLY AND LLVM_BUILD_UTILS)
+    set(export_arg)
+    if(ADD_TABLEGEN_EXPORT)
+      get_target_export_arg(${target} ${ADD_TABLEGEN_EXPORT} export_arg)
     endif()
-
     install(TARGETS ${target}
-            ${export_to_llvmexports}
+            ${export_arg}
             COMPONENT ${target}
-            RUNTIME DESTINATION ${LLVM_TOOLS_INSTALL_DIR})
+            RUNTIME DESTINATION "${ADD_TABLEGEN_DESTINATION}")
     if(NOT LLVM_ENABLE_IDE)
       add_llvm_install_targets("install-${target}"
                                DEPENDS ${target}
                                COMPONENT ${target})
     endif()
   endif()
-  set_property(GLOBAL APPEND PROPERTY LLVM_EXPORTS ${target})
+  if(ADD_TABLEGEN_EXPORT)
+    string(TOUPPER ${ADD_TABLEGEN_EXPORT} export_upper)
+    set_property(GLOBAL APPEND PROPERTY ${export_upper}_EXPORTS ${target})
+  endif()
 endmacro()

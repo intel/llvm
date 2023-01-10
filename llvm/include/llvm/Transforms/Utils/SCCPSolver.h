@@ -15,23 +15,44 @@
 #define LLVM_TRANSFORMS_UTILS_SCCPSOLVER_H
 
 #include "llvm/ADT/MapVector.h"
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/DomTreeUpdater.h"
-#include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/Analysis/ValueLattice.h"
-#include "llvm/Analysis/ValueLatticeUtils.h"
-#include "llvm/IR/InstVisitor.h"
 #include "llvm/Transforms/Utils/PredicateInfo.h"
-#include <cassert>
-#include <utility>
 #include <vector>
 
 namespace llvm {
+class Argument;
+class BasicBlock;
+class CallInst;
+class Constant;
+class DataLayout;
+class DominatorTree;
+class Function;
+class GlobalVariable;
+class Instruction;
+class LLVMContext;
+class LoopInfo;
+class PostDominatorTree;
+class StructType;
+class TargetLibraryInfo;
+class Value;
+class ValueLatticeElement;
 
 /// Helper struct for bundling up the analysis results per function for IPSCCP.
 struct AnalysisResultsForFn {
   std::unique_ptr<PredicateInfo> PredInfo;
   DominatorTree *DT;
   PostDominatorTree *PDT;
+  LoopInfo *LI;
+};
+
+/// Helper struct shared between Function Specialization and SCCP Solver.
+struct ArgInfo {
+  Argument *Formal; // The Formal argument being analysed.
+  Constant *Actual; // A corresponding actual constant argument.
+
+  ArgInfo(Argument *F, Constant *A) : Formal(F), Actual(A){};
 };
 
 class SCCPInstVisitor;
@@ -59,6 +80,8 @@ public:
   bool markBlockExecutable(BasicBlock *BB);
 
   const PredicateBase *getPredicateInfoFor(Instruction *I);
+
+  const LoopInfo &getLoopInfo(Function &F);
 
   DomTreeUpdater getDTU(Function &F);
 
@@ -94,6 +117,10 @@ public:
   /// method should be use to handle this.  If this returns true, the solver
   /// should be rerun.
   bool resolvedUndefsIn(Function &F);
+
+  void solveWhileResolvedUndefsIn(Module &M);
+
+  void solveWhileResolvedUndefsIn(SmallVectorImpl<Function *> &WorkList);
 
   bool isBlockExecutable(BasicBlock *BB) const;
 
@@ -134,11 +161,14 @@ public:
   /// Return a reference to the set of argument tracked functions.
   SmallPtrSetImpl<Function *> &getArgumentTrackedFunctions();
 
-  /// Mark argument \p A constant with value \p C in a new function
-  /// specialization. The argument's parent function is a specialization of the
-  /// original function \p F. All other arguments of the specialization inherit
-  /// the lattice state of their corresponding values in the original function.
-  void markArgInFuncSpecialization(Function *F, Argument *A, Constant *C);
+  /// Mark the constant arguments of a new function specialization. \p F points
+  /// to the cloned function and \p Args contains a list of constant arguments
+  /// represented as pairs of {formal,actual} values (the formal argument is
+  /// associated with the original function definition). All other arguments of
+  /// the specialization inherit the lattice state of their corresponding values
+  /// in the original function.
+  void markArgInFuncSpecialization(Function *F,
+                                   const SmallVectorImpl<ArgInfo> &Args);
 
   /// Mark all of the blocks in function \p F non-executable. Clients can used
   /// this method to erase a function from the module (e.g., if it has been
@@ -149,6 +179,24 @@ public:
   void visitCall(CallInst &I);
 };
 
+//===----------------------------------------------------------------------===//
+//
+/// Helper functions used by the SCCP and IPSCCP passes.
+//
+bool isConstant(const ValueLatticeElement &LV);
+
+bool isOverdefined(const ValueLatticeElement &LV);
+
+bool simplifyInstsInBlock(SCCPSolver &Solver, BasicBlock &BB,
+                          SmallPtrSetImpl<Value *> &InsertedValues,
+                          Statistic &InstRemovedStat,
+                          Statistic &InstReplacedStat);
+
+bool tryToReplaceWithConstant(SCCPSolver &Solver, Value *V);
+
+bool removeNonFeasibleEdges(const llvm::SCCPSolver &Solver, BasicBlock *BB,
+                            DomTreeUpdater &DTU,
+                            BasicBlock *&NewUnreachableBB);
 } // namespace llvm
 
 #endif // LLVM_TRANSFORMS_UTILS_SCCPSOLVER_H

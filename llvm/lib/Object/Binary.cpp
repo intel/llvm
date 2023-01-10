@@ -18,6 +18,7 @@
 #include "llvm/Object/MachOUniversal.h"
 #include "llvm/Object/Minidump.h"
 #include "llvm/Object/ObjectFile.h"
+#include "llvm/Object/OffloadBinary.h"
 #include "llvm/Object/TapiUniversal.h"
 #include "llvm/Object/WindowsResource.h"
 #include "llvm/Support/Error.h"
@@ -66,6 +67,7 @@ Expected<std::unique_ptr<Binary>> object::createBinary(MemoryBufferRef Buffer,
   case file_magic::macho_dynamically_linked_shared_lib_stub:
   case file_magic::macho_dsym_companion:
   case file_magic::macho_kext_bundle:
+  case file_magic::macho_file_set:
   case file_magic::coff_object:
   case file_magic::coff_import_library:
   case file_magic::pecoff_executable:
@@ -82,9 +84,13 @@ Expected<std::unique_ptr<Binary>> object::createBinary(MemoryBufferRef Buffer,
     // PDB does not support the Binary interface.
     return errorCodeToError(object_error::invalid_file_type);
   case file_magic::unknown:
+  case file_magic::cuda_fatbinary:
   case file_magic::coff_cl_gl_object:
+  case file_magic::dxcontainer_object:
     // Unrecognized object file format.
     return errorCodeToError(object_error::invalid_file_type);
+  case file_magic::offload_binary:
+    return OffloadBinary::create(Buffer);
   case file_magic::minidump:
     return MinidumpFile::create(Buffer);
   case file_magic::tapi_file:

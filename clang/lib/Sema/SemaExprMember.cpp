@@ -249,7 +249,7 @@ ExprResult Sema::BuildPossibleImplicitMemberExpr(
   case IMA_Field_Uneval_Context:
     Diag(R.getNameLoc(), diag::warn_cxx98_compat_non_static_member_use)
       << R.getLookupNameInfo().getName();
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case IMA_Static:
   case IMA_Abstract:
   case IMA_Mixed_StaticContext:
@@ -940,7 +940,7 @@ static bool IsInFnTryBlockHandler(const Scope *S) {
   // function scope. If a FnTryCatchScope is found, check whether the TryScope
   // flag is set. If it is not, it's a function-try-block handler.
   for (; S != S->getFnParent(); S = S->getParent()) {
-    if (S->getFlags() & Scope::FnTryCatchScope)
+    if (S->isFnTryCatchScope())
       return (S->getFlags() & Scope::TryScope) != Scope::TryScope;
   }
   return false;
@@ -1161,10 +1161,10 @@ Sema::BuildMemberReferenceExpr(Expr *BaseExpr, QualType BaseExprType,
     if (!Var->getTemplateSpecializationKind())
       Var->setTemplateSpecializationKind(TSK_ImplicitInstantiation, MemberLoc);
 
-    return BuildMemberExpr(
-        BaseExpr, IsArrow, OpLoc, &SS, TemplateKWLoc, Var, FoundDecl,
-        /*HadMultipleCandidates=*/false, MemberNameInfo,
-        Var->getType().getNonReferenceType(), VK_LValue, OK_Ordinary);
+    return BuildMemberExpr(BaseExpr, IsArrow, OpLoc, &SS, TemplateKWLoc, Var,
+                           FoundDecl, /*HadMultipleCandidates=*/false,
+                           MemberNameInfo, Var->getType().getNonReferenceType(),
+                           VK_LValue, OK_Ordinary, TemplateArgs);
   }
 
   // We found something that we didn't expect. Complain.
@@ -1290,6 +1290,21 @@ static ExprResult LookupMemberExpr(Sema &S, LookupResult &R,
         << BaseType << BaseExpr.get()->getSourceRange();
       return ExprError();
     }
+  }
+
+  // If the base type is an atomic type, this access is undefined behavior per
+  // C11 6.5.2.3p5. Instead of giving a typecheck error, we'll warn the user
+  // about the UB and recover by converting the atomic lvalue into a non-atomic
+  // lvalue. Because this is inherently unsafe as an atomic operation, the
+  // warning defaults to an error.
+  if (const auto *ATy = BaseType->getAs<AtomicType>()) {
+    S.DiagRuntimeBehavior(OpLoc, nullptr,
+                          S.PDiag(diag::warn_atomic_member_access));
+    BaseType = ATy->getValueType().getUnqualifiedType();
+    BaseExpr = ImplicitCastExpr::Create(
+        S.Context, IsArrow ? S.Context.getPointerType(BaseType) : BaseType,
+        CK_AtomicToNonAtomic, BaseExpr.get(), nullptr,
+        BaseExpr.get()->getValueKind(), FPOptionsOverride());
   }
 
   // Handle field access to simple records.
@@ -1592,20 +1607,21 @@ static ExprResult LookupMemberExpr(Sema &S, LookupResult &R,
                                        false);
   }
 
+  if (BaseType->isExtVectorBoolType()) {
+    // We disallow element access for ext_vector_type bool.  There is no way to
+    // materialize a reference to a vector element as a pointer (each element is
+    // one bit in the vector).
+    S.Diag(R.getNameLoc(), diag::err_ext_vector_component_name_illegal)
+        << MemberName
+        << (BaseExpr.get() ? BaseExpr.get()->getSourceRange() : SourceRange());
+    return ExprError();
+  }
+
   // Handle 'field access' to vectors, such as 'V.xx'.
   if (BaseType->isExtVectorType()) {
     // FIXME: this expr should store IsArrow.
     IdentifierInfo *Member = MemberName.getAsIdentifierInfo();
-    ExprValueKind VK;
-    if (IsArrow)
-      VK = VK_LValue;
-    else {
-      if (PseudoObjectExpr *POE = dyn_cast<PseudoObjectExpr>(BaseExpr.get()))
-        VK = POE->getSyntacticForm()->getValueKind();
-      else
-        VK = BaseExpr.get()->getValueKind();
-    }
-
+    ExprValueKind VK = (IsArrow ? VK_LValue : BaseExpr.get()->getValueKind());
     QualType ret = CheckExtVectorComponent(S, BaseType, VK, OpLoc,
                                            Member, MemberLoc);
     if (ret.isNull())
@@ -1710,6 +1726,9 @@ ExprResult Sema::ActOnMemberAccessExpr(Scope *S, Expr *Base,
 
   DeclarationName Name = NameInfo.getName();
   bool IsArrow = (OpKind == tok::arrow);
+
+  if (getLangOpts().HLSL && IsArrow)
+    return ExprError(Diag(OpLoc, diag::err_hlsl_operator_unsupported) << 2);
 
   NamedDecl *FirstQualifierInScope
     = (!SS.isSet() ? nullptr : FindFirstQualifierInScope(S, SS.getScopeRep()));
@@ -1875,6 +1894,14 @@ Sema::BuildImplicitMemberExpr(const CXXScopeSpec &SS,
     if (SS.getRange().isValid())
       Loc = SS.getRange().getBegin();
     baseExpr = BuildCXXThisExpr(loc, ThisTy, /*IsImplicit=*/true);
+    if (getLangOpts().HLSL && ThisTy.getTypePtr()->isPointerType()) {
+      ThisTy = ThisTy.getTypePtr()->getPointeeType();
+      return BuildMemberReferenceExpr(baseExpr, ThisTy,
+                                      /*OpLoc*/ SourceLocation(),
+                                      /*IsArrow*/ false, SS, TemplateKWLoc,
+                                      /*FirstQualifierInScope*/ nullptr, R,
+                                      TemplateArgs, S);
+    }
   }
 
   return BuildMemberReferenceExpr(baseExpr, ThisTy,

@@ -29,15 +29,15 @@ define void @parent_func_missing_inputs() #0 {
 ; FIXEDABI-NEXT:    s_add_u32 s16, s16, requires_all_inputs@rel32@lo+4
 ; FIXEDABI-NEXT:    s_addc_u32 s17, s17, requires_all_inputs@rel32@hi+12
 ; FIXEDABI-NEXT:    s_swappc_b64 s[30:31], s[16:17]
-; FIXEDABI-NEXT:    v_readlane_b32 s4, v40, 0
-; FIXEDABI-NEXT:    v_readlane_b32 s5, v40, 1
+; FIXEDABI-NEXT:    v_readlane_b32 s31, v40, 1
+; FIXEDABI-NEXT:    v_readlane_b32 s30, v40, 0
 ; FIXEDABI-NEXT:    s_addk_i32 s32, 0xfc00
 ; FIXEDABI-NEXT:    v_readlane_b32 s33, v40, 2
-; FIXEDABI-NEXT:    s_or_saveexec_b64 s[6:7], -1
+; FIXEDABI-NEXT:    s_or_saveexec_b64 s[4:5], -1
 ; FIXEDABI-NEXT:    buffer_load_dword v40, off, s[0:3], s32 ; 4-byte Folded Reload
-; FIXEDABI-NEXT:    s_mov_b64 exec, s[6:7]
+; FIXEDABI-NEXT:    s_mov_b64 exec, s[4:5]
 ; FIXEDABI-NEXT:    s_waitcnt vmcnt(0)
-; FIXEDABI-NEXT:    s_setpc_b64 s[4:5]
+; FIXEDABI-NEXT:    s_setpc_b64 s[30:31]
   call void @requires_all_inputs()
   ret void
 }
@@ -274,14 +274,13 @@ define void @addrspacecast_requires_queue_ptr(i32 addrspace(5)* %ptr.private, i3
 ; FIXEDABI-SDAG-LABEL: addrspacecast_requires_queue_ptr:
 ; FIXEDABI-SDAG:       ; %bb.0:
 ; FIXEDABI-SDAG-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; FIXEDABI-SDAG-NEXT:    s_load_dword s4, s[6:7], 0x44
-; FIXEDABI-SDAG-NEXT:    s_load_dword s5, s[6:7], 0x40
+; FIXEDABI-SDAG-NEXT:    s_load_dwordx2 s[4:5], s[6:7], 0x40
 ; FIXEDABI-SDAG-NEXT:    v_cmp_ne_u32_e32 vcc, -1, v0
 ; FIXEDABI-SDAG-NEXT:    s_waitcnt lgkmcnt(0)
-; FIXEDABI-SDAG-NEXT:    v_mov_b32_e32 v2, s4
+; FIXEDABI-SDAG-NEXT:    v_mov_b32_e32 v2, s5
 ; FIXEDABI-SDAG-NEXT:    v_cndmask_b32_e32 v3, 0, v2, vcc
 ; FIXEDABI-SDAG-NEXT:    v_cndmask_b32_e32 v2, 0, v0, vcc
-; FIXEDABI-SDAG-NEXT:    v_mov_b32_e32 v0, s5
+; FIXEDABI-SDAG-NEXT:    v_mov_b32_e32 v0, s4
 ; FIXEDABI-SDAG-NEXT:    v_cmp_ne_u32_e32 vcc, -1, v1
 ; FIXEDABI-SDAG-NEXT:    v_cndmask_b32_e32 v5, 0, v0, vcc
 ; FIXEDABI-SDAG-NEXT:    v_mov_b32_e32 v0, 1
@@ -296,14 +295,13 @@ define void @addrspacecast_requires_queue_ptr(i32 addrspace(5)* %ptr.private, i3
 ; FIXEDABI-GISEL-LABEL: addrspacecast_requires_queue_ptr:
 ; FIXEDABI-GISEL:       ; %bb.0:
 ; FIXEDABI-GISEL-NEXT:    s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
-; FIXEDABI-GISEL-NEXT:    s_load_dword s4, s[6:7], 0x44
-; FIXEDABI-GISEL-NEXT:    s_load_dword s5, s[6:7], 0x40
+; FIXEDABI-GISEL-NEXT:    s_load_dwordx2 s[4:5], s[6:7], 0x40
 ; FIXEDABI-GISEL-NEXT:    v_cmp_ne_u32_e32 vcc, -1, v0
 ; FIXEDABI-GISEL-NEXT:    v_cndmask_b32_e32 v2, 0, v0, vcc
 ; FIXEDABI-GISEL-NEXT:    s_waitcnt lgkmcnt(0)
-; FIXEDABI-GISEL-NEXT:    v_mov_b32_e32 v3, s4
-; FIXEDABI-GISEL-NEXT:    v_cndmask_b32_e32 v3, 0, v3, vcc
-; FIXEDABI-GISEL-NEXT:    v_mov_b32_e32 v4, s5
+; FIXEDABI-GISEL-NEXT:    v_mov_b32_e32 v0, s5
+; FIXEDABI-GISEL-NEXT:    v_cndmask_b32_e32 v3, 0, v0, vcc
+; FIXEDABI-GISEL-NEXT:    v_mov_b32_e32 v4, s4
 ; FIXEDABI-GISEL-NEXT:    v_cmp_ne_u32_e32 vcc, -1, v1
 ; FIXEDABI-GISEL-NEXT:    v_cndmask_b32_e32 v0, 0, v1, vcc
 ; FIXEDABI-GISEL-NEXT:    v_cndmask_b32_e32 v1, 0, v4, vcc
@@ -389,4 +387,4 @@ declare i1 @llvm.amdgcn.is.private(i8*)
 declare void @llvm.trap()
 declare void @llvm.debugtrap()
 
-attributes #0 = { "amdgpu-no-dispatch-id" "amdgpu-no-dispatch-ptr" "amdgpu-no-implicitarg-ptr" "amdgpu-no-queue-ptr" "amdgpu-no-work-group-id-x" "amdgpu-no-work-group-id-y" "amdgpu-no-work-group-id-z" "amdgpu-no-work-item-id-x" "amdgpu-no-work-item-id-y" "amdgpu-no-work-item-id-z" }
+attributes #0 = { "amdgpu-no-dispatch-id" "amdgpu-no-dispatch-ptr" "amdgpu-no-implicitarg-ptr" "amdgpu-no-lds-kernel-id" "amdgpu-no-queue-ptr" "amdgpu-no-work-group-id-x" "amdgpu-no-work-group-id-y" "amdgpu-no-work-group-id-z" "amdgpu-no-work-item-id-x" "amdgpu-no-work-item-id-y" "amdgpu-no-work-item-id-z" }

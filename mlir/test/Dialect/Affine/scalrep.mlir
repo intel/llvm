@@ -1,13 +1,13 @@
 // RUN: mlir-opt -allow-unregistered-dialect %s -affine-scalrep | FileCheck %s
 
-// CHECK-DAG: [[$MAP0:#map[0-9]+]] = affine_map<(d0, d1) -> (d1 + 1)>
-// CHECK-DAG: [[$MAP1:#map[0-9]+]] = affine_map<(d0, d1) -> (d0)>
-// CHECK-DAG: [[$MAP2:#map[0-9]+]] = affine_map<(d0, d1) -> (d1)>
-// CHECK-DAG: [[$MAP3:#map[0-9]+]] = affine_map<(d0, d1) -> (d0 - 1)>
-// CHECK-DAG: [[$MAP4:#map[0-9]+]] = affine_map<(d0) -> (d0 + 1)>
+// CHECK-DAG: [[$MAP0:#map[0-9]*]] = affine_map<(d0, d1) -> (d1 + 1)>
+// CHECK-DAG: [[$MAP1:#map[0-9]*]] = affine_map<(d0, d1) -> (d0)>
+// CHECK-DAG: [[$MAP2:#map[0-9]*]] = affine_map<(d0, d1) -> (d1)>
+// CHECK-DAG: [[$MAP3:#map[0-9]*]] = affine_map<(d0, d1) -> (d0 - 1)>
+// CHECK-DAG: [[$MAP4:#map[0-9]*]] = affine_map<(d0) -> (d0 + 1)>
 
 // CHECK-LABEL: func @simple_store_load() {
-func @simple_store_load() {
+func.func @simple_store_load() {
   %cf7 = arith.constant 7.0 : f32
   %m = memref.alloc() : memref<10xf32>
   affine.for %i0 = 0 to 10 {
@@ -15,21 +15,21 @@ func @simple_store_load() {
     %v0 = affine.load %m[%i0] : memref<10xf32>
     %v1 = arith.addf %v0, %v0 : f32
   }
+  memref.dealloc %m : memref<10xf32>
   return
-// CHECK:       %{{.*}} = arith.constant 7.000000e+00 : f32
+// CHECK:       %[[C7:.*]] = arith.constant 7.000000e+00 : f32
 // CHECK-NEXT:  affine.for %{{.*}} = 0 to 10 {
-// CHECK-NEXT:    %{{.*}} = arith.addf %{{.*}}, %{{.*}} : f32
+// CHECK-NEXT:    arith.addf %[[C7]], %[[C7]] : f32
 // CHECK-NEXT:  }
 // CHECK-NEXT:  return
 }
 
 // CHECK-LABEL: func @multi_store_load() {
-func @multi_store_load() {
-  %c0 = arith.constant 0 : index
+func.func @multi_store_load() {
   %cf7 = arith.constant 7.0 : f32
   %cf8 = arith.constant 8.0 : f32
   %cf9 = arith.constant 9.0 : f32
-  %m = memref.alloc() : memref<10xf32>
+  %m = gpu.alloc() : memref<10xf32>
   affine.for %i0 = 0 to 10 {
     affine.store %cf7, %m[%i0] : memref<10xf32>
     %v0 = affine.load %m[%i0] : memref<10xf32>
@@ -40,23 +40,22 @@ func @multi_store_load() {
     %v3 = affine.load %m[%i0] : memref<10xf32>
     %v4 = arith.mulf %v2, %v3 : f32
   }
+  gpu.dealloc %m : memref<10xf32>
   return
-// CHECK:       %{{.*}} = arith.constant 0 : index
-// CHECK-NEXT:  %{{.*}} = arith.constant 7.000000e+00 : f32
-// CHECK-NEXT:  %{{.*}} = arith.constant 8.000000e+00 : f32
-// CHECK-NEXT:  %{{.*}} = arith.constant 9.000000e+00 : f32
+// CHECK-NEXT:  %[[C7:.*]] = arith.constant 7.000000e+00 : f32
+// CHECK-NEXT:  arith.constant 8.000000e+00 : f32
+// CHECK-NEXT:  %[[C9:.*]] = arith.constant 9.000000e+00 : f32
 // CHECK-NEXT:  affine.for %{{.*}} = 0 to 10 {
-// CHECK-NEXT:    %{{.*}} = arith.addf %{{.*}}, %{{.*}} : f32
-// CHECK-NEXT:    %{{.*}} = arith.mulf %{{.*}}, %{{.*}} : f32
+// CHECK-NEXT:    arith.addf %[[C7]], %[[C7]] : f32
+// CHECK-NEXT:    arith.mulf %[[C9]], %[[C9]] : f32
 // CHECK-NEXT:  }
 // CHECK-NEXT:  return
-
 }
 
 // The store-load forwarding can see through affine apply's since it relies on
 // dependence information.
 // CHECK-LABEL: func @store_load_affine_apply
-func @store_load_affine_apply() -> memref<10x10xf32> {
+func.func @store_load_affine_apply() -> memref<10x10xf32> {
   %cf7 = arith.constant 7.0 : f32
   %m = memref.alloc() : memref<10x10xf32>
   affine.for %i0 = 0 to 10 {
@@ -89,7 +88,7 @@ func @store_load_affine_apply() -> memref<10x10xf32> {
 }
 
 // CHECK-LABEL: func @store_load_nested
-func @store_load_nested(%N : index) {
+func.func @store_load_nested(%N : index) {
   %cf7 = arith.constant 7.0 : f32
   %m = memref.alloc() : memref<10xf32>
   affine.for %i0 = 0 to 10 {
@@ -113,7 +112,7 @@ func @store_load_nested(%N : index) {
 // writer; store/load forwarding will however be possible here once loop live
 // out SSA scalars are available.
 // CHECK-LABEL: func @multi_store_load_nested_no_fwd
-func @multi_store_load_nested_no_fwd(%N : index) {
+func.func @multi_store_load_nested_no_fwd(%N : index) {
   %cf7 = arith.constant 7.0 : f32
   %cf8 = arith.constant 8.0 : f32
   %m = memref.alloc() : memref<10xf32>
@@ -134,7 +133,7 @@ func @multi_store_load_nested_no_fwd(%N : index) {
 // No forwarding happens here since both stores have a value going into
 // the load.
 // CHECK-LABEL: func @store_load_store_nested_no_fwd
-func @store_load_store_nested_no_fwd(%N : index) {
+func.func @store_load_store_nested_no_fwd(%N : index) {
   %cf7 = arith.constant 7.0 : f32
   %cf9 = arith.constant 9.0 : f32
   %m = memref.alloc() : memref<10xf32>
@@ -153,7 +152,7 @@ func @store_load_store_nested_no_fwd(%N : index) {
 // Forwarding happens here since the last store postdominates all other stores
 // and other forwarding criteria are satisfied.
 // CHECK-LABEL: func @multi_store_load_nested_fwd
-func @multi_store_load_nested_fwd(%N : index) {
+func.func @multi_store_load_nested_fwd(%N : index) {
   %cf7 = arith.constant 7.0 : f32
   %cf8 = arith.constant 8.0 : f32
   %cf9 = arith.constant 9.0 : f32
@@ -179,14 +178,14 @@ func @multi_store_load_nested_fwd(%N : index) {
 
 // There is no unique load location for the store to forward to.
 // CHECK-LABEL: func @store_load_no_fwd
-func @store_load_no_fwd() {
+func.func @store_load_no_fwd() {
   %cf7 = arith.constant 7.0 : f32
   %m = memref.alloc() : memref<10xf32>
   affine.for %i0 = 0 to 10 {
     affine.store %cf7, %m[%i0] : memref<10xf32>
     affine.for %i1 = 0 to 10 {
       affine.for %i2 = 0 to 10 {
-        // CHECK: affine.load %{{[0-9]+}}
+        // CHECK: affine.load
         %v0 = affine.load %m[%i2] : memref<10xf32>
         %v1 = arith.addf %v0, %v0 : f32
       }
@@ -197,7 +196,7 @@ func @store_load_no_fwd() {
 
 // Forwarding happens here as there is a one-to-one store-load correspondence.
 // CHECK-LABEL: func @store_load_fwd
-func @store_load_fwd() {
+func.func @store_load_fwd() {
   %cf7 = arith.constant 7.0 : f32
   %c0 = arith.constant 0 : index
   %m = memref.alloc() : memref<10xf32>
@@ -217,7 +216,7 @@ func @store_load_fwd() {
 // Although there is a dependence from the second store to the load, it is
 // satisfied by the outer surrounding loop, and does not prevent the first
 // store to be forwarded to the load.
-func @store_load_store_nested_fwd(%N : index) -> f32 {
+func.func @store_load_store_nested_fwd(%N : index) -> f32 {
   %cf7 = arith.constant 7.0 : f32
   %cf9 = arith.constant 9.0 : f32
   %c0 = arith.constant 0 : index
@@ -249,7 +248,7 @@ func @store_load_store_nested_fwd(%N : index) -> f32 {
 }
 
 // CHECK-LABEL: func @should_not_fwd
-func @should_not_fwd(%A: memref<100xf32>, %M : index, %N : index) -> f32 {
+func.func @should_not_fwd(%A: memref<100xf32>, %M : index, %N : index) -> f32 {
   %cf = arith.constant 0.0 : f32
   affine.store %cf, %A[%M] : memref<100xf32>
   // CHECK: affine.load %{{.*}}[%{{.*}}]
@@ -259,7 +258,7 @@ func @should_not_fwd(%A: memref<100xf32>, %M : index, %N : index) -> f32 {
 
 // Can store forward to A[%j, %i], but no forwarding to load on %A[%i, %j]
 // CHECK-LABEL: func @refs_not_known_to_be_equal
-func @refs_not_known_to_be_equal(%A : memref<100 x 100 x f32>, %M : index) {
+func.func @refs_not_known_to_be_equal(%A : memref<100 x 100 x f32>, %M : index) {
   %N = affine.apply affine_map<(d0) -> (d0 + 1)> (%M)
   %cf1 = arith.constant 1.0 : f32
   affine.for %i = 0 to 100 {
@@ -284,7 +283,7 @@ func @refs_not_known_to_be_equal(%A : memref<100 x 100 x f32>, %M : index) {
 // The test checks for value forwarding from vector stores to vector loads.
 // The value loaded from %in can directly be stored to %out by eliminating
 // store and load from %tmp.
-func @vector_forwarding(%in : memref<512xf32>, %out : memref<512xf32>) {
+func.func @vector_forwarding(%in : memref<512xf32>, %out : memref<512xf32>) {
   %tmp = memref.alloc() : memref<512xf32>
   affine.for %i = 0 to 16 {
     %ld0 = affine.vector_load %in[32*%i] : memref<512xf32>, vector<32xf32>
@@ -301,7 +300,7 @@ func @vector_forwarding(%in : memref<512xf32>, %out : memref<512xf32>) {
 // CHECK-NEXT:   affine.vector_store %[[LDVAL]],{{.*}}
 // CHECK-NEXT: }
 
-func @vector_no_forwarding(%in : memref<512xf32>, %out : memref<512xf32>) {
+func.func @vector_no_forwarding(%in : memref<512xf32>, %out : memref<512xf32>) {
   %tmp = memref.alloc() : memref<512xf32>
   affine.for %i = 0 to 16 {
     %ld0 = affine.vector_load %in[32*%i] : memref<512xf32>, vector<32xf32>
@@ -321,7 +320,7 @@ func @vector_no_forwarding(%in : memref<512xf32>, %out : memref<512xf32>) {
 // CHECK-NEXT: }
 
 // CHECK-LABEL: func @simple_three_loads
-func @simple_three_loads(%in : memref<10xf32>) {
+func.func @simple_three_loads(%in : memref<10xf32>) {
   affine.for %i0 = 0 to 10 {
     // CHECK:       affine.load
     %v0 = affine.load %in[%i0] : memref<10xf32>
@@ -335,7 +334,7 @@ func @simple_three_loads(%in : memref<10xf32>) {
 }
 
 // CHECK-LABEL: func @nested_loads_const_index
-func @nested_loads_const_index(%in : memref<10xf32>) {
+func.func @nested_loads_const_index(%in : memref<10xf32>) {
   %c0 = arith.constant 0 : index
   // CHECK:       affine.load
   %v0 = affine.load %in[%c0] : memref<10xf32>
@@ -352,7 +351,7 @@ func @nested_loads_const_index(%in : memref<10xf32>) {
 }
 
 // CHECK-LABEL: func @nested_loads
-func @nested_loads(%N : index, %in : memref<10xf32>) {
+func.func @nested_loads(%N : index, %in : memref<10xf32>) {
   affine.for %i0 = 0 to 10 {
     // CHECK:       affine.load
     %v0 = affine.load %in[%i0] : memref<10xf32>
@@ -366,7 +365,7 @@ func @nested_loads(%N : index, %in : memref<10xf32>) {
 }
 
 // CHECK-LABEL: func @nested_loads_different_memref_accesses_no_cse
-func @nested_loads_different_memref_accesses_no_cse(%in : memref<10xf32>) {
+func.func @nested_loads_different_memref_accesses_no_cse(%in : memref<10xf32>) {
   affine.for %i0 = 0 to 10 {
     // CHECK:       affine.load
     %v0 = affine.load %in[%i0] : memref<10xf32>
@@ -380,7 +379,7 @@ func @nested_loads_different_memref_accesses_no_cse(%in : memref<10xf32>) {
 }
 
 // CHECK-LABEL: func @load_load_store
-func @load_load_store(%m : memref<10xf32>) {
+func.func @load_load_store(%m : memref<10xf32>) {
   affine.for %i0 = 0 to 10 {
     // CHECK:       affine.load
     %v0 = affine.load %m[%i0] : memref<10xf32>
@@ -393,7 +392,7 @@ func @load_load_store(%m : memref<10xf32>) {
 }
 
 // CHECK-LABEL: func @load_load_store_2_loops_no_cse
-func @load_load_store_2_loops_no_cse(%N : index, %m : memref<10xf32>) {
+func.func @load_load_store_2_loops_no_cse(%N : index, %m : memref<10xf32>) {
   affine.for %i0 = 0 to 10 {
     // CHECK:       affine.load
     %v0 = affine.load %m[%i0] : memref<10xf32>
@@ -408,7 +407,7 @@ func @load_load_store_2_loops_no_cse(%N : index, %m : memref<10xf32>) {
 }
 
 // CHECK-LABEL: func @load_load_store_3_loops_no_cse
-func @load_load_store_3_loops_no_cse(%m : memref<10xf32>) {
+func.func @load_load_store_3_loops_no_cse(%m : memref<10xf32>) {
 %cf1 = arith.constant 1.0 : f32
   affine.for %i0 = 0 to 10 {
     // CHECK:       affine.load
@@ -426,7 +425,7 @@ func @load_load_store_3_loops_no_cse(%m : memref<10xf32>) {
 }
 
 // CHECK-LABEL: func @load_load_store_3_loops
-func @load_load_store_3_loops(%m : memref<10xf32>) {
+func.func @load_load_store_3_loops(%m : memref<10xf32>) {
 %cf1 = arith.constant 1.0 : f32
   affine.for %i0 = 0 to 10 {
     affine.for %i1 = 0 to 20 {
@@ -444,7 +443,7 @@ func @load_load_store_3_loops(%m : memref<10xf32>) {
 }
 
 // CHECK-LABEL: func @loads_in_sibling_loops_const_index_no_cse
-func @loads_in_sibling_loops_const_index_no_cse(%m : memref<10xf32>) {
+func.func @loads_in_sibling_loops_const_index_no_cse(%m : memref<10xf32>) {
   %c0 = arith.constant 0 : index
   affine.for %i0 = 0 to 10 {
     // CHECK:       affine.load
@@ -459,7 +458,7 @@ func @loads_in_sibling_loops_const_index_no_cse(%m : memref<10xf32>) {
 }
 
 // CHECK-LABEL: func @load_load_affine_apply
-func @load_load_affine_apply(%in : memref<10x10xf32>) {
+func.func @load_load_affine_apply(%in : memref<10x10xf32>) {
   affine.for %i0 = 0 to 10 {
     affine.for %i1 = 0 to 10 {
       %t0 = affine.apply affine_map<(d0, d1) -> (d1 + 1)>(%i0, %i1)
@@ -477,7 +476,7 @@ func @load_load_affine_apply(%in : memref<10x10xf32>) {
 }
 
 // CHECK-LABEL: func @vector_loads
-func @vector_loads(%in : memref<512xf32>, %out : memref<512xf32>) {
+func.func @vector_loads(%in : memref<512xf32>, %out : memref<512xf32>) {
   affine.for %i = 0 to 16 {
     // CHECK:       affine.vector_load
     %ld0 = affine.vector_load %in[32*%i] : memref<512xf32>, vector<32xf32>
@@ -490,7 +489,7 @@ func @vector_loads(%in : memref<512xf32>, %out : memref<512xf32>) {
 }
 
 // CHECK-LABEL: func @vector_loads_no_cse
-func @vector_loads_no_cse(%in : memref<512xf32>, %out : memref<512xf32>) {
+func.func @vector_loads_no_cse(%in : memref<512xf32>, %out : memref<512xf32>) {
   affine.for %i = 0 to 16 {
     // CHECK:       affine.vector_load
     %ld0 = affine.vector_load %in[32*%i] : memref<512xf32>, vector<32xf32>
@@ -502,7 +501,7 @@ func @vector_loads_no_cse(%in : memref<512xf32>, %out : memref<512xf32>) {
 }
 
 // CHECK-LABEL: func @vector_load_store_load_no_cse
-func @vector_load_store_load_no_cse(%in : memref<512xf32>, %out : memref<512xf32>) {
+func.func @vector_load_store_load_no_cse(%in : memref<512xf32>, %out : memref<512xf32>) {
   affine.for %i = 0 to 16 {
     // CHECK:       affine.vector_load
     %ld0 = affine.vector_load %in[32*%i] : memref<512xf32>, vector<32xf32>
@@ -516,7 +515,7 @@ func @vector_load_store_load_no_cse(%in : memref<512xf32>, %out : memref<512xf32
 }
 
 // CHECK-LABEL: func @reduction_multi_store
-func @reduction_multi_store() -> memref<1xf32> {
+func.func @reduction_multi_store() -> memref<1xf32> {
   %A = memref.alloc() : memref<1xf32>
   %cf0 = arith.constant 0.0 : f32
   %cf5 = arith.constant 5.0 : f32
@@ -540,7 +539,7 @@ func @reduction_multi_store() -> memref<1xf32> {
 }
 
 // CHECK-LABEL: func @vector_load_affine_apply_store_load
-func @vector_load_affine_apply_store_load(%in : memref<512xf32>, %out : memref<512xf32>) {
+func.func @vector_load_affine_apply_store_load(%in : memref<512xf32>, %out : memref<512xf32>) {
   %cf1 = arith.constant 1: index
   affine.for %i = 0 to 15 {
     // CHECK:       affine.vector_load
@@ -557,7 +556,7 @@ func @vector_load_affine_apply_store_load(%in : memref<512xf32>, %out : memref<5
 
 // CHECK-LABEL: func @external_no_forward_load
 
-func @external_no_forward_load(%in : memref<512xf32>, %out : memref<512xf32>) {
+func.func @external_no_forward_load(%in : memref<512xf32>, %out : memref<512xf32>) {
   affine.for %i = 0 to 16 {
     %ld0 = affine.load %in[32*%i] : memref<512xf32>
     affine.store %ld0, %out[32*%i] : memref<512xf32>
@@ -574,7 +573,7 @@ func @external_no_forward_load(%in : memref<512xf32>, %out : memref<512xf32>) {
 
 // CHECK-LABEL: func @external_no_forward_store
 
-func @external_no_forward_store(%in : memref<512xf32>, %out : memref<512xf32>) {
+func.func @external_no_forward_store(%in : memref<512xf32>, %out : memref<512xf32>) {
   %cf1 = arith.constant 1.0 : f32
   affine.for %i = 0 to 16 {
     affine.store %cf1, %in[32*%i] : memref<512xf32>
@@ -590,7 +589,7 @@ func @external_no_forward_store(%in : memref<512xf32>, %out : memref<512xf32>) {
 
 // CHECK-LABEL: func @no_forward_cast
 
-func @no_forward_cast(%in : memref<512xf32>, %out : memref<512xf32>) {
+func.func @no_forward_cast(%in : memref<512xf32>, %out : memref<512xf32>) {
   %cf1 = arith.constant 1.0 : f32
   %cf2 = arith.constant 2.0 : f32
   %m2 = memref.cast %in : memref<512xf32> to memref<?xf32>
@@ -612,7 +611,7 @@ func @no_forward_cast(%in : memref<512xf32>, %out : memref<512xf32>) {
 // store to be forwarded to the load.
 
 // CHECK-LABEL: func @overlap_no_fwd
-func @overlap_no_fwd(%N : index) -> f32 {
+func.func @overlap_no_fwd(%N : index) -> f32 {
   %cf7 = arith.constant 7.0 : f32
   %cf9 = arith.constant 9.0 : f32
   %c0 = arith.constant 0 : index
@@ -644,7 +643,7 @@ func @overlap_no_fwd(%N : index) -> f32 {
 
 // CHECK-LABEL: func @redundant_store_elim
 
-func @redundant_store_elim(%out : memref<512xf32>) {
+func.func @redundant_store_elim(%out : memref<512xf32>) {
   %cf1 = arith.constant 1.0 : f32
   %cf2 = arith.constant 2.0 : f32
   affine.for %i = 0 to 16 {
@@ -660,7 +659,7 @@ func @redundant_store_elim(%out : memref<512xf32>) {
 
 // CHECK-LABEL: func @redundant_store_elim_fail
 
-func @redundant_store_elim_fail(%out : memref<512xf32>) {
+func.func @redundant_store_elim_fail(%out : memref<512xf32>) {
   %cf1 = arith.constant 1.0 : f32
   %cf2 = arith.constant 2.0 : f32
   affine.for %i = 0 to 16 {
@@ -677,7 +676,7 @@ func @redundant_store_elim_fail(%out : memref<512xf32>) {
 // CHECK-NEXT: }
 
 // CHECK-LABEL: @with_inner_ops
-func @with_inner_ops(%arg0: memref<?xf64>, %arg1: memref<?xf64>, %arg2: i1) {
+func.func @with_inner_ops(%arg0: memref<?xf64>, %arg1: memref<?xf64>, %arg2: i1) {
   %cst = arith.constant 0.000000e+00 : f64
   %cst_0 = arith.constant 3.140000e+00 : f64
   %cst_1 = arith.constant 1.000000e+00 : f64
@@ -701,3 +700,149 @@ func @with_inner_ops(%arg0: memref<?xf64>, %arg1: memref<?xf64>, %arg2: i1) {
 // CHECK:      } else {
 // CHECK:        scf.yield %[[pi]] : f64
 // CHECK:      }
+
+// Check if scalar replacement works correctly when affine memory ops are in the
+// body of an scf.for.
+
+// CHECK-LABEL: func @affine_store_load_in_scope
+func.func @affine_store_load_in_scope(%memref: memref<1x4094x510x1xf32>, %memref_2: memref<4x4x1x64xf32>, %memref_0: memref<1x2046x254x1x64xf32>) {
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %c2 = arith.constant 2 : index
+  %c64 = arith.constant 64 : index
+  %c768 = arith.constant 768 : index
+  scf.for %i = %c0 to %c768 step %c1 {
+    %9 = arith.remsi %i, %c64 : index
+    %10 = arith.divsi %i, %c64 : index
+    %11 = arith.remsi %10, %c2 : index
+    %12 = arith.divsi %10, %c2 : index
+    test.affine_scope {
+      %14 = arith.muli %12, %c2 : index
+      %15 = arith.addi %c2, %14 : index
+      %16 = arith.addi %15, %c0 : index
+      %18 = arith.muli %11, %c2 : index
+      %19 = arith.addi %c2, %18 : index
+      %20 = affine.load %memref[0, symbol(%16), symbol(%19), 0] : memref<1x4094x510x1xf32>
+      %21 = affine.load %memref_2[0, 0, 0, symbol(%9)] : memref<4x4x1x64xf32>
+      %24 = affine.load %memref_0[0, symbol(%12), symbol(%11), 0, symbol(%9)] : memref<1x2046x254x1x64xf32>
+      %25 = arith.mulf %20, %21 : f32
+      %26 = arith.addf %24, %25 : f32
+      // CHECK: %[[A:.*]] = arith.addf
+      affine.store %26, %memref_0[0, symbol(%12), symbol(%11), 0, symbol(%9)] : memref<1x2046x254x1x64xf32>
+      %27 = arith.addi %19, %c1 : index
+      %28 = affine.load %memref[0, symbol(%16), symbol(%27), 0] : memref<1x4094x510x1xf32>
+      %29 = affine.load %memref_2[0, 1, 0, symbol(%9)] : memref<4x4x1x64xf32>
+      %30 = affine.load %memref_0[0, symbol(%12), symbol(%11), 0, symbol(%9)] : memref<1x2046x254x1x64xf32>
+      %31 = arith.mulf %28, %29 : f32
+      %32 = arith.addf %30, %31 : f32
+      // The addf above will get the forwarded value from the store on
+      // %memref_0 above which is being loaded into %30..
+      // CHECK: arith.addf %[[A]],
+      "terminate"() : () -> ()
+    }
+  }
+  return
+}
+
+// No scalrep will be performed here but we ensure dependence correctly fails.
+
+// CHECK-LABEL: func @affine_load_store_in_different_scopes
+func.func @affine_load_store_in_different_scopes() -> memref<1xf32> {
+  %A = memref.alloc() : memref<1xf32>
+  %cf0 = arith.constant 0.0 : f32
+  %cf5 = arith.constant 5.0 : f32
+
+  affine.store %cf0, %A[0] : memref<1xf32>
+  test.affine_scope {
+    affine.store %cf5, %A[0] : memref<1xf32>
+    "test.terminate"() : () -> ()
+  }
+  %v = affine.load %A[0] : memref<1xf32>
+  // CHECK:      affine.store
+  // CHECK-NEXT: test.affine_scope
+  // CHECK:        affine.store
+  // CHECK:      affine.load
+  return %A : memref<1xf32>
+}
+
+// No forwarding should again happen here.
+
+// CHECK-LABEL: func.func @no_forwarding_across_scopes
+func.func @no_forwarding_across_scopes() -> memref<1xf32> {
+  %A = memref.alloc() : memref<1xf32>
+  %cf0 = arith.constant 0.0 : f32
+  %cf5 = arith.constant 5.0 : f32
+  %c0 = arith.constant 0 : index
+  %c100 = arith.constant 100 : index
+  %c1 = arith.constant 1 : index
+
+  // Store shouldn't be forwarded to the load.
+  affine.store %cf0, %A[0] : memref<1xf32>
+  // CHECK:      test.affine_scope
+  // CHECK-NEXT:   affine.load
+  test.affine_scope {
+    %l = affine.load %A[0] : memref<1xf32>
+    %s = arith.addf %l, %cf5 : f32
+    affine.store %s, %A[0] : memref<1xf32>
+    "terminator"() : () -> ()
+  }
+  return %A : memref<1xf32>
+}
+
+// CHECK-LABEL: func @parallel_store_load() {
+func.func @parallel_store_load() {
+  %cf7 = arith.constant 7.0 : f32
+  %m = memref.alloc() : memref<10xf32>
+  affine.parallel (%i0) = (0) to (10) {
+    affine.store %cf7, %m[%i0] : memref<10xf32>
+    %v0 = affine.load %m[%i0] : memref<10xf32>
+    %v1 = arith.addf %v0, %v0 : f32
+  }
+  memref.dealloc %m : memref<10xf32>
+  return
+// CHECK:       %[[C7:.*]] = arith.constant 7.000000e+00 : f32
+// CHECK-NEXT:  affine.parallel (%{{.*}}) = (0) to (10) {
+// CHECK-NEXT:    arith.addf %[[C7]], %[[C7]] : f32
+// CHECK-NEXT:  }
+// CHECK-NEXT:  return
+}
+
+func.func @non_constant_parallel_store_load(%N : index) {
+  %cf7 = arith.constant 7.0 : f32
+  %m = memref.alloc() : memref<10xf32>
+  affine.parallel (%i0) = (0) to (%N) {
+    affine.store %cf7, %m[%i0] : memref<10xf32>
+    %v0 = affine.load %m[%i0] : memref<10xf32>
+    %v1 = arith.addf %v0, %v0 : f32
+  }
+  memref.dealloc %m : memref<10xf32>
+  return
+}
+// CHECK: func.func @non_constant_parallel_store_load(%[[ARG0:.*]]: index) {
+// CHECK-NEXT:  %[[C7:.*]] = arith.constant 7.000000e+00 : f32
+// CHECK-NEXT:  affine.parallel (%{{.*}}) = (0) to (%[[ARG0]]) {
+// CHECK-NEXT:    arith.addf %[[C7]], %[[C7]] : f32
+// CHECK-NEXT:  }
+// CHECK-NEXT:  return
+
+// CHECK-LABEL: func @parallel_surrounding_for() {
+func.func @parallel_surrounding_for() {
+  %cf7 = arith.constant 7.0 : f32
+  %m = memref.alloc() : memref<10x10xf32>
+  affine.parallel (%i0) = (0) to (10) {
+    affine.for %i1 = 0 to 10 {
+      affine.store %cf7, %m[%i0,%i1] : memref<10x10xf32>
+      %v0 = affine.load %m[%i0,%i1] : memref<10x10xf32>
+      %v1 = arith.addf %v0, %v0 : f32
+    }
+  }
+  memref.dealloc %m : memref<10x10xf32>
+  return
+// CHECK:       %[[C7:.*]] = arith.constant 7.000000e+00 : f32
+// CHECK-NEXT:  affine.parallel (%{{.*}}) = (0) to (10) {
+// CHECK-NEXT:    affine.for %{{.*}} = 0 to 10 {
+// CHECK-NEXT:      arith.addf %[[C7]], %[[C7]] : f32
+// CHECK-NEXT:    }
+// CHECK-NEXT:  }
+// CHECK-NEXT:  return
+}

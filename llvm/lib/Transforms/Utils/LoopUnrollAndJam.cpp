@@ -13,9 +13,7 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
@@ -39,7 +37,6 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
 #include "llvm/IR/ValueHandle.h"
@@ -358,7 +355,7 @@ llvm::UnrollAndJamLoop(Loop *L, unsigned Count, unsigned TripCount,
           if (const DILocation *DIL = I.getDebugLoc()) {
             auto NewDIL = DIL->cloneByMultiplyingDuplicationFactor(Count);
             if (NewDIL)
-              I.setDebugLoc(NewDIL.getValue());
+              I.setDebugLoc(*NewDIL);
             else
               LLVM_DEBUG(dbgs()
                          << "Failed to create new discriminator: "
@@ -499,7 +496,7 @@ llvm::UnrollAndJamLoop(Loop *L, unsigned Count, unsigned TripCount,
   if (CompletelyUnroll) {
     while (PHINode *Phi = dyn_cast<PHINode>(ForeBlocksFirst[0]->begin())) {
       Phi->replaceAllUsesWith(Phi->getIncomingValueForBlock(Preheader));
-      Phi->getParent()->getInstList().erase(Phi);
+      Phi->eraseFromParent();
     }
   } else {
     // Update the PHI values to point to the last aft block

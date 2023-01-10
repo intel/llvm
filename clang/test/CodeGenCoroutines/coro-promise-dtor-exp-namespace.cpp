@@ -32,7 +32,7 @@ coro_t f() {
 
 // CHECK-LABEL: define dso_local void @"?f@@YA?AUcoro_t@@XZ"(
 
-// CHECK:  invoke noundef %"struct.coro_t::promise_type"* @"??0promise_type@coro_t@@QEAA@XZ"(
+// CHECK:  invoke noundef ptr @"??0promise_type@coro_t@@QEAA@XZ"(
 // CHECK:  invoke void @"?get_return_object@promise_type@coro_t@@QEAA?AU2@XZ"(
 
 // CHECK:  call void @"??1promise_type@coro_t@@QEAA@XZ"

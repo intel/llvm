@@ -51,7 +51,7 @@
 
 ; RUN: llvm-spirv %s -to-binary -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-LLVM: %.splatinsert = insertelement <4 x double> poison, double %{{[0-9]*}}, i32 0

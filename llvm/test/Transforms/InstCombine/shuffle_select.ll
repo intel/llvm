@@ -1390,6 +1390,54 @@ define <4 x i32> @shl_mul_2_vars(<4 x i32> %v0, <4 x i32> %v1) {
   ret <4 x i32> %t3
 }
 
+; Negate can be converted to mul to enable the fold.
+
+define <4 x i32> @mul_neg(<4 x i32> %x) {
+; CHECK-LABEL: @mul_neg(
+; CHECK-NEXT:    [[TMP1:%.*]] = mul <4 x i32> [[X:%.*]], <i32 257, i32 -3, i32 -1, i32 -9>
+; CHECK-NEXT:    ret <4 x i32> [[TMP1]]
+;
+  %m = mul <4 x i32> %x, <i32 257, i32 -3, i32 poison, i32 -9>
+  %n = sub <4 x i32> <i32 poison, i32 poison, i32 0, i32 poison>, %x
+  %r = shufflevector <4 x i32> %m, <4 x i32> %n, <4 x i32> <i32 0, i32 1, i32 6, i32 3>
+  ret <4 x i32> %r
+}
+
+define <3 x i79> @neg_mul(<3 x i79> %x) {
+; CHECK-LABEL: @neg_mul(
+; CHECK-NEXT:    [[TMP1:%.*]] = mul nsw <3 x i79> [[X:%.*]], <i79 -1, i79 -3, i79 -1>
+; CHECK-NEXT:    ret <3 x i79> [[TMP1]]
+;
+  %n = sub nsw <3 x i79> <i79 0, i79 poison, i79 0>, %x
+  %m = mul nsw <3 x i79> %x, <i79 poison, i79 -3, i79 poison>
+  %r = shufflevector <3 x i79> %n, <3 x i79> %m, <3 x i32> <i32 0, i32 4, i32 2>
+  ret <3 x i79> %r
+}
+
+define <4 x i32> @mul_neg_2_vars(<4 x i32> %x, <4 x i32> %y) {
+; CHECK-LABEL: @mul_neg_2_vars(
+; CHECK-NEXT:    [[TMP1:%.*]] = shufflevector <4 x i32> [[X:%.*]], <4 x i32> [[Y:%.*]], <4 x i32> <i32 0, i32 5, i32 6, i32 3>
+; CHECK-NEXT:    [[TMP2:%.*]] = mul <4 x i32> [[TMP1]], <i32 42, i32 -1, i32 -1, i32 6>
+; CHECK-NEXT:    ret <4 x i32> [[TMP2]]
+;
+  %m = mul nuw <4 x i32> %x, <i32 42, i32 poison, i32 poison, i32 6>
+  %n = sub nsw <4 x i32> <i32 poison, i32 0, i32 0, i32 poison>, %y
+  %r = shufflevector <4 x i32> %m, <4 x i32> %n, <4 x i32> <i32 0, i32 5, i32 6, i32 3>
+  ret <4 x i32> %r
+}
+
+define <4 x i32> @neg_mul_2_vars(<4 x i32> %x, <4 x i32> %y) {
+; CHECK-LABEL: @neg_mul_2_vars(
+; CHECK-NEXT:    [[TMP1:%.*]] = shufflevector <4 x i32> [[Y:%.*]], <4 x i32> [[X:%.*]], <4 x i32> <i32 0, i32 5, i32 2, i32 7>
+; CHECK-NEXT:    [[TMP2:%.*]] = mul nsw <4 x i32> [[TMP1]], <i32 -1, i32 42, i32 -1, i32 6>
+; CHECK-NEXT:    ret <4 x i32> [[TMP2]]
+;
+  %n = sub nsw <4 x i32> <i32 0, i32 poison, i32 0, i32 poison>, %y
+  %m = mul nuw nsw <4 x i32> %x, <i32 poison, i32 42, i32 poison, i32 6>
+  %r = shufflevector <4 x i32> %n, <4 x i32> %m, <4 x i32> <i32 0, i32 5, i32 2, i32 7>
+  ret <4 x i32> %r
+}
+
 ; Or with constant can be converted to add to enable the fold.
 ; The 'shl' is here to allow analysis to determine that the 'or' can be transformed to 'add'.
 ; TODO: The 'or' constant is limited to a splat.
@@ -1480,3 +1528,106 @@ define <4 x i32> @PR41419(<4 x i32> %v) {
   ret <4 x i32> %s
 }
 
+; The shuffle masks in the next 4 tests are identical to make it easier
+; to see that we are choosing the correct elements in the new shuffle.
+
+define <5 x i4> @sel_common_op_commute0(<5 x i4> %x, <5 x i4> %y) {
+; CHECK-LABEL: @sel_common_op_commute0(
+; CHECK-NEXT:    [[S2:%.*]] = shufflevector <5 x i4> [[X:%.*]], <5 x i4> [[Y:%.*]], <5 x i32> <i32 0, i32 6, i32 2, i32 3, i32 4>
+; CHECK-NEXT:    ret <5 x i4> [[S2]]
+;
+  %s1 = shufflevector <5 x i4> %x, <5 x i4> %y, <5 x i32> <i32 0, i32 6, i32 2, i32 3, i32 9>
+  %s2 = shufflevector <5 x i4> %x, <5 x i4> %s1, <5 x i32> <i32 0, i32 6, i32 7, i32 3, i32 4>
+  ret <5 x i4> %s2
+}
+
+define <5 x i4> @sel_common_op_commute1(<5 x i4> %x, <5 x i4> %y) {
+; CHECK-LABEL: @sel_common_op_commute1(
+; CHECK-NEXT:    [[S2:%.*]] = shufflevector <5 x i4> [[X:%.*]], <5 x i4> [[Y:%.*]], <5 x i32> <i32 0, i32 1, i32 7, i32 3, i32 4>
+; CHECK-NEXT:    ret <5 x i4> [[S2]]
+;
+  %s1 = shufflevector <5 x i4> %y, <5 x i4> %x, <5 x i32> <i32 0, i32 6, i32 2, i32 3, i32 9>
+  %s2 = shufflevector <5 x i4> %x, <5 x i4> %s1, <5 x i32> <i32 0, i32 6, i32 7, i32 3, i32 4>
+  ret <5 x i4> %s2
+}
+
+define <5 x i4> @sel_common_op_commute2(<5 x i4> %x, <5 x i4> %y) {
+; CHECK-LABEL: @sel_common_op_commute2(
+; CHECK-NEXT:    [[S2:%.*]] = shufflevector <5 x i4> [[X:%.*]], <5 x i4> [[Y:%.*]], <5 x i32> <i32 0, i32 1, i32 2, i32 3, i32 9>
+; CHECK-NEXT:    ret <5 x i4> [[S2]]
+;
+  %s1 = shufflevector <5 x i4> %x, <5 x i4> %y, <5 x i32> <i32 0, i32 6, i32 2, i32 3, i32 9>
+  %s2 = shufflevector <5 x i4> %s1, <5 x i4> %x, <5 x i32> <i32 0, i32 6, i32 7, i32 3, i32 4>
+  ret <5 x i4> %s2
+}
+
+define <5 x i4> @sel_common_op_commute3(<5 x i4> %x, <5 x i4> %y) {
+; CHECK-LABEL: @sel_common_op_commute3(
+; CHECK-NEXT:    [[S2:%.*]] = shufflevector <5 x i4> [[Y:%.*]], <5 x i4> [[X:%.*]], <5 x i32> <i32 0, i32 6, i32 7, i32 3, i32 9>
+; CHECK-NEXT:    ret <5 x i4> [[S2]]
+;
+  %s1 = shufflevector <5 x i4> %y, <5 x i4> %x, <5 x i32> <i32 0, i32 6, i32 2, i32 3, i32 9>
+  %s2 = shufflevector <5 x i4> %s1, <5 x i4> %x, <5 x i32> <i32 0, i32 6, i32 7, i32 3, i32 4>
+  ret <5 x i4> %s2
+}
+
+define <5 x i4> @sel_common_op_commute3_poison_mask_elts(<5 x i4> %x, <5 x i4> %y) {
+; CHECK-LABEL: @sel_common_op_commute3_poison_mask_elts(
+; CHECK-NEXT:    [[S2:%.*]] = shufflevector <5 x i4> [[Y:%.*]], <5 x i4> [[X:%.*]], <5 x i32> <i32 0, i32 6, i32 undef, i32 undef, i32 9>
+; CHECK-NEXT:    ret <5 x i4> [[S2]]
+;
+  %s1 = shufflevector <5 x i4> %y, <5 x i4> %x, <5 x i32> <i32 0, i32 6, i32 2, i32 poison, i32 9>
+  %s2 = shufflevector <5 x i4> %s1, <5 x i4> %x, <5 x i32> <i32 0, i32 6, i32 poison, i32 3, i32 4>
+  ret <5 x i4> %s2
+}
+
+; negative test - need shared operand
+
+define <5 x i4> @sel_not_common_op_commute3(<5 x i4> %x, <5 x i4> %y, <5 x i4> %z) {
+; CHECK-LABEL: @sel_not_common_op_commute3(
+; CHECK-NEXT:    [[S1:%.*]] = shufflevector <5 x i4> [[Y:%.*]], <5 x i4> [[Z:%.*]], <5 x i32> <i32 0, i32 undef, i32 undef, i32 3, i32 9>
+; CHECK-NEXT:    [[S2:%.*]] = shufflevector <5 x i4> [[S1]], <5 x i4> [[X:%.*]], <5 x i32> <i32 0, i32 6, i32 7, i32 3, i32 4>
+; CHECK-NEXT:    ret <5 x i4> [[S2]]
+;
+  %s1 = shufflevector <5 x i4> %y, <5 x i4> %z, <5 x i32> <i32 0, i32 6, i32 2, i32 3, i32 9>
+  %s2 = shufflevector <5 x i4> %s1, <5 x i4> %x, <5 x i32> <i32 0, i32 6, i32 7, i32 3, i32 4>
+  ret <5 x i4> %s2
+}
+
+; negative test - need "select" shuffle, no lane changes
+
+define <5 x i4> @not_sel_common_op(<5 x i4> %x, <5 x i4> %y) {
+; CHECK-LABEL: @not_sel_common_op(
+; CHECK-NEXT:    [[S1:%.*]] = shufflevector <5 x i4> [[Y:%.*]], <5 x i4> [[X:%.*]], <5 x i32> <i32 undef, i32 6, i32 undef, i32 3, i32 9>
+; CHECK-NEXT:    [[S2:%.*]] = shufflevector <5 x i4> [[S1]], <5 x i4> [[X]], <5 x i32> <i32 1, i32 6, i32 7, i32 3, i32 4>
+; CHECK-NEXT:    ret <5 x i4> [[S2]]
+;
+  %s1 = shufflevector <5 x i4> %y, <5 x i4> %x, <5 x i32> <i32 0, i32 6, i32 2, i32 3, i32 9>
+  %s2 = shufflevector <5 x i4> %s1, <5 x i4> %x, <5 x i32> <i32 1, i32 6, i32 7, i32 3, i32 4>
+  ret <5 x i4> %s2
+}
+
+; extra use is ok
+
+define <4 x i32> @sel_common_op_extra_use(<4 x i32> %x, <4 x i32> %y) {
+; CHECK-LABEL: @sel_common_op_extra_use(
+; CHECK-NEXT:    [[S1:%.*]] = shufflevector <4 x i32> [[Y:%.*]], <4 x i32> [[X:%.*]], <4 x i32> <i32 0, i32 5, i32 2, i32 7>
+; CHECK-NEXT:    call void @use_v4i32(<4 x i32> [[S1]])
+; CHECK-NEXT:    [[S2:%.*]] = shufflevector <4 x i32> [[Y]], <4 x i32> [[X]], <4 x i32> <i32 0, i32 5, i32 6, i32 7>
+; CHECK-NEXT:    ret <4 x i32> [[S2]]
+;
+  %s1 = shufflevector <4 x i32> %y, <4 x i32> %x, <4 x i32> <i32 0, i32 5, i32 2, i32 7>
+  call void @use_v4i32(<4 x i32> %s1)
+  %s2 = shufflevector <4 x i32> %s1, <4 x i32> %x, <4 x i32> <i32 0, i32 1, i32 6, i32 7>
+  ret <4 x i32> %s2
+}
+
+define <4 x float> @identity_mask(<4 x float>%x, <4 x float> %y) {
+; CHECK-LABEL: @identity_mask(
+; CHECK-NEXT:    [[S2:%.*]] = shufflevector <4 x float> [[X:%.*]], <4 x float> poison, <4 x i32> <i32 0, i32 undef, i32 2, i32 3>
+; CHECK-NEXT:    ret <4 x float> [[S2]]
+;
+  %s1 = shufflevector <4 x float> %x, <4 x float> %y, <4 x i32> <i32 0, i32 5, i32 undef, i32 undef>
+  %s2 = shufflevector <4 x float> %s1, <4 x float> %x, <4 x i32> <i32 0, i32 undef, i32 6, i32 7>
+  ret <4 x float> %s2
+}

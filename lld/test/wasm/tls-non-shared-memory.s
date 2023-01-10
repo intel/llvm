@@ -51,6 +51,9 @@ tls1:
 # RUN: wasm-ld --experimental-pic --no-gc-sections --no-entry -pie -o %t-pie.wasm %t.o
 # RUN: obj2yaml %t-pie.wasm | FileCheck %s --check-prefixes=PIE,PIC
 
+# RUN: wasm-ld --experimental-pic --features=atomics,bulk-memory,extended-const --no-gc-sections --no-entry -pie -o %t-extended-const.wasm %t.o
+# RUN: obj2yaml %t-extended-const.wasm | FileCheck %s --check-prefixes=EXT-CONST
+
 #      CHECK:   - Type:            GLOBAL
 # __stack_pointer
 # CHECK-NEXT:     Globals:
@@ -124,6 +127,9 @@ tls1:
 # PIE-NEXT:       - Name:            memory
 # PIE-NEXT:         Kind:            MEMORY
 # PIE-NEXT:         Index:           0
+# PIE-NEXT:       - Name:            __wasm_apply_data_relocs
+# PIE-NEXT:         Kind:            FUNCTION
+# PIE-NEXT:         Index:           1
 # PIE-NEXT:   - Type:
 
 # .tdata and .data are combined into single segment in PIC mode.
@@ -136,3 +142,24 @@ tls1:
 # PIC-NEXT:          Index:           {{\d*}}
 # PIC-NEXT:        Content:         2B0000002A000000
 # PIC-NEXT:  - Type:            CUSTOM
+
+# Unless we have extended-const, in which case the merging is not needed.
+# The first segment is placed directly at `__memory_base` and the second
+# one is offset from `__memory_base` using `i32.add` and a constant.
+
+#      EXT-CONST:  - Type:            DATA
+# EXT-CONST-NEXT:    Segments:
+# EXT-CONST-NEXT:      - SectionOffset:   6
+# EXT-CONST-NEXT:        InitFlags:       0
+# EXT-CONST-NEXT:        Offset:
+# EXT-CONST-NEXT:          Opcode:          GLOBAL_GET
+# EXT-CONST-NEXT:          Index:           1
+# EXT-CONST-NEXT:        Content:         2B000000
+# EXT-CONST-NEXT:      - SectionOffset:   18
+# EXT-CONST-NEXT:        InitFlags:       0
+# EXT-CONST-NEXT:        Offset:
+# EXT-CONST-NEXT:          Extended:        true
+# This instruction sequence decodes to:
+# (global.get[0x23] 0x1 i32.const[0x41] 0x04 i32.add[0x6A] end[0x0b])
+# EXT-CONST-NEXT:          Body:            230141046A0B
+# EXT-CONST-NEXT:        Content:         2A000000

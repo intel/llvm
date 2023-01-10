@@ -9,7 +9,7 @@ name: Out-of-tree build & tests
 on:
   push:
     branches:
-      - master
+      - main
       - llvm_release_*
     paths-ignore: # no need to check build for:
       - 'docs/**' # documentation
@@ -18,7 +18,7 @@ on:
       - '**/check-in-tree-build.yml' # check-in-tree-build workflow
   pull_request:
     branches:
-      - master
+      - main
       - llvm_release_*
     paths-ignore: # no need to check build for:
       - 'docs/**' # documentation
@@ -29,7 +29,7 @@ on:
     - cron: 0 0 * * *
 
 env:
-  LLVM_VERSION: 15
+  LLVM_VERSION: 16
 
 jobs:
   build_and_test:
@@ -38,20 +38,20 @@ jobs:
       matrix:
         build_type: [Release, Debug]
       fail-fast: false
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
       - name: Install dependencies
         run: |
           curl -L "https://apt.llvm.org/llvm-snapshot.gpg.key" | sudo apt-key add -
           curl -L "https://packages.lunarg.com/lunarg-signing-key-pub.asc" | sudo apt-key add -
-          echo "deb https://apt.llvm.org/bionic/ llvm-toolchain-bionic main" | sudo tee -a /etc/apt/sources.list
-          echo "deb https://packages.lunarg.com/vulkan bionic main" | sudo tee -a /etc/apt/sources.list
+          echo "deb https://apt.llvm.org/focal/ llvm-toolchain-focal main" | sudo tee -a /etc/apt/sources.list
+          echo "deb https://packages.lunarg.com/vulkan focal main" | sudo tee -a /etc/apt/sources.list
           sudo apt-get update
           sudo apt-get -yq --no-install-suggests --no-install-recommends install \
             clang-${{ env.LLVM_VERSION }} \
             llvm-${{ env.LLVM_VERSION }}-dev \
-            libomp-${{ env.LLVM_VERSION }}-dev \
             llvm-${{ env.LLVM_VERSION }}-tools \
+            mlir-${{ env.LLVM_VERSION }}-tools \
             spirv-tools
           # Linux systems in GitHub Actions already have older versions of clang
           # pre-installed. Make sure to override these with the relevant version.

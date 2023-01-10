@@ -13,14 +13,12 @@ extern const void *b;
 extern void *c;
 
 // CHECK-LABEL: @test_popcntb(
-// CHECK:    [[TMP0:%.*]] = load i64, i64* @a, align 8
-// CHECK-NEXT:    [[TMP1:%.*]] = load i64, i64* @a, align 8
+// CHECK:    [[TMP0:%.*]] = load i64, ptr @a, align 8
 // CHECK-NEXT:    [[POPCNTB:%.*]] = call i64 @llvm.ppc.popcntb.i64.i64(i64 [[TMP0]])
 // CHECK-NEXT:    ret i64 [[POPCNTB]]
 //
 // CHECK-32-LABEL: @test_popcntb(
-// CHECK-32:    [[TMP0:%.*]] = load i32, i32* @a, align 4
-// CHECK-32-NEXT:    [[TMP1:%.*]] = load i32, i32* @a, align 4
+// CHECK-32:    [[TMP0:%.*]] = load i32, ptr @a, align 4
 // CHECK-32-NEXT:    [[POPCNTB:%.*]] = call i32 @llvm.ppc.popcntb.i32.i32(i32 [[TMP0]])
 // CHECK-32-NEXT:    ret i32 [[POPCNTB]]
 //
@@ -113,13 +111,13 @@ void test_iospace_sync() {
 }
 
 // CHECK-LABEL: @test_dcbfl(
-// CHECK:    [[TMP0:%.*]] = load i8*, i8** @b, align 8
-// CHECK-NEXT:    call void @llvm.ppc.dcbfl(i8* [[TMP0]])
+// CHECK:    [[TMP0:%.*]] = load ptr, ptr @b, align 8
+// CHECK-NEXT:    call void @llvm.ppc.dcbfl(ptr [[TMP0]])
 // CHECK-NEXT:    ret void
 //
 // CHECK-32-LABEL: @test_dcbfl(
-// CHECK-32:    [[TMP0:%.*]] = load i8*, i8** @b, align 4
-// CHECK-32-NEXT:    call void @llvm.ppc.dcbfl(i8* [[TMP0]])
+// CHECK-32:    [[TMP0:%.*]] = load ptr, ptr @b, align 4
+// CHECK-32-NEXT:    call void @llvm.ppc.dcbfl(ptr [[TMP0]])
 // CHECK-32-NEXT:    ret void
 //
 void test_dcbfl() {
@@ -127,13 +125,13 @@ void test_dcbfl() {
 }
 
 // CHECK-LABEL: @test_dcbflp(
-// CHECK:    [[TMP0:%.*]] = load i8*, i8** @b, align 8
-// CHECK-NEXT:    call void @llvm.ppc.dcbflp(i8* [[TMP0]])
+// CHECK:    [[TMP0:%.*]] = load ptr, ptr @b, align 8
+// CHECK-NEXT:    call void @llvm.ppc.dcbflp(ptr [[TMP0]])
 // CHECK-NEXT:    ret void
 //
 // CHECK-32-LABEL: @test_dcbflp(
-// CHECK-32:    [[TMP0:%.*]] = load i8*, i8** @b, align 4
-// CHECK-32-NEXT:    call void @llvm.ppc.dcbflp(i8* [[TMP0]])
+// CHECK-32:    [[TMP0:%.*]] = load ptr, ptr @b, align 4
+// CHECK-32-NEXT:    call void @llvm.ppc.dcbflp(ptr [[TMP0]])
 // CHECK-32-NEXT:    ret void
 //
 void test_dcbflp() {
@@ -141,13 +139,13 @@ void test_dcbflp() {
 }
 
 // CHECK-LABEL: @test_dcbst(
-// CHECK:    [[TMP0:%.*]] = load i8*, i8** @b, align 8
-// CHECK-NEXT:    call void @llvm.ppc.dcbst(i8* [[TMP0]])
+// CHECK:    [[TMP0:%.*]] = load ptr, ptr @b, align 8
+// CHECK-NEXT:    call void @llvm.ppc.dcbst(ptr [[TMP0]])
 // CHECK-NEXT:    ret void
 //
 // CHECK-32-LABEL: @test_dcbst(
-// CHECK-32:    [[TMP0:%.*]] = load i8*, i8** @b, align 4
-// CHECK-32-NEXT:    call void @llvm.ppc.dcbst(i8* [[TMP0]])
+// CHECK-32:    [[TMP0:%.*]] = load ptr, ptr @b, align 4
+// CHECK-32-NEXT:    call void @llvm.ppc.dcbst(ptr [[TMP0]])
 // CHECK-32-NEXT:    ret void
 //
 void test_dcbst() {
@@ -155,13 +153,13 @@ void test_dcbst() {
 }
 
 // CHECK-LABEL: @test_dcbt(
-// CHECK:    [[TMP0:%.*]] = load i8*, i8** @c, align 8
-// CHECK-NEXT:    call void @llvm.ppc.dcbt(i8* [[TMP0]])
+// CHECK:    [[TMP0:%.*]] = load ptr, ptr @c, align 8
+// CHECK-NEXT:    call void @llvm.ppc.dcbt(ptr [[TMP0]])
 // CHECK-NEXT:    ret void
 //
 // CHECK-32-LABEL: @test_dcbt(
-// CHECK-32:    [[TMP0:%.*]] = load i8*, i8** @c, align 4
-// CHECK-32-NEXT:    call void @llvm.ppc.dcbt(i8* [[TMP0]])
+// CHECK-32:    [[TMP0:%.*]] = load ptr, ptr @c, align 4
+// CHECK-32-NEXT:    call void @llvm.ppc.dcbt(ptr [[TMP0]])
 // CHECK-32-NEXT:    ret void
 //
 void test_dcbt() {
@@ -169,13 +167,13 @@ void test_dcbt() {
 }
 
 // CHECK-LABEL: @test_dcbtst(
-// CHECK:    [[TMP0:%.*]] = load i8*, i8** @c, align 8
-// CHECK-NEXT:    call void @llvm.ppc.dcbtst(i8* [[TMP0]])
+// CHECK:    [[TMP0:%.*]] = load ptr, ptr @c, align 8
+// CHECK-NEXT:    call void @llvm.ppc.dcbtst(ptr [[TMP0]])
 // CHECK-NEXT:    ret void
 //
 // CHECK-32-LABEL: @test_dcbtst(
-// CHECK-32:    [[TMP0:%.*]] = load i8*, i8** @c, align 4
-// CHECK-32-NEXT:    call void @llvm.ppc.dcbtst(i8* [[TMP0]])
+// CHECK-32:    [[TMP0:%.*]] = load ptr, ptr @c, align 4
+// CHECK-32-NEXT:    call void @llvm.ppc.dcbtst(ptr [[TMP0]])
 // CHECK-32-NEXT:    ret void
 //
 void test_dcbtst() {
@@ -183,13 +181,13 @@ void test_dcbtst() {
 }
 
 // CHECK-LABEL: @test_dcbz(
-// CHECK:    [[TMP0:%.*]] = load i8*, i8** @c, align 8
-// CHECK-NEXT:    call void @llvm.ppc.dcbz(i8* [[TMP0]])
+// CHECK:    [[TMP0:%.*]] = load ptr, ptr @c, align 8
+// CHECK-NEXT:    call void @llvm.ppc.dcbz(ptr [[TMP0]])
 // CHECK-NEXT:    ret void
 //
 // CHECK-32-LABEL: @test_dcbz(
-// CHECK-32:    [[TMP0:%.*]] = load i8*, i8** @c, align 4
-// CHECK-32-NEXT:    call void @llvm.ppc.dcbz(i8* [[TMP0]])
+// CHECK-32:    [[TMP0:%.*]] = load ptr, ptr @c, align 4
+// CHECK-32-NEXT:    call void @llvm.ppc.dcbz(ptr [[TMP0]])
 // CHECK-32-NEXT:    ret void
 //
 void test_dcbz() {
@@ -197,14 +195,12 @@ void test_dcbz() {
 }
 
 // CHECK-LABEL: @test_builtin_ppc_popcntb(
-// CHECK:    [[TMP0:%.*]] = load i64, i64* @a, align 8
-// CHECK-NEXT:    [[TMP1:%.*]] = load i64, i64* @a, align 8
+// CHECK:    [[TMP0:%.*]] = load i64, ptr @a, align 8
 // CHECK-NEXT:    [[POPCNTB:%.*]] = call i64 @llvm.ppc.popcntb.i64.i64(i64 [[TMP0]])
 // CHECK-NEXT:    ret i64 [[POPCNTB]]
 //
 // CHECK-32-LABEL: @test_builtin_ppc_popcntb(
-// CHECK-32:    [[TMP0:%.*]] = load i32, i32* @a, align 4
-// CHECK-32-NEXT:    [[TMP1:%.*]] = load i32, i32* @a, align 4
+// CHECK-32:    [[TMP0:%.*]] = load i32, ptr @a, align 4
 // CHECK-32-NEXT:    [[POPCNTB:%.*]] = call i32 @llvm.ppc.popcntb.i32.i32(i32 [[TMP0]])
 // CHECK-32-NEXT:    ret i32 [[POPCNTB]]
 //
@@ -297,13 +293,13 @@ void test_builtin_ppc_iospace_sync() {
 }
 
 // CHECK-LABEL: @test_builtin_ppc_dcbfl(
-// CHECK:    [[TMP0:%.*]] = load i8*, i8** @b, align 8
-// CHECK-NEXT:    call void @llvm.ppc.dcbfl(i8* [[TMP0]])
+// CHECK:    [[TMP0:%.*]] = load ptr, ptr @b, align 8
+// CHECK-NEXT:    call void @llvm.ppc.dcbfl(ptr [[TMP0]])
 // CHECK-NEXT:    ret void
 //
 // CHECK-32-LABEL: @test_builtin_ppc_dcbfl(
-// CHECK-32:    [[TMP0:%.*]] = load i8*, i8** @b, align 4
-// CHECK-32-NEXT:    call void @llvm.ppc.dcbfl(i8* [[TMP0]])
+// CHECK-32:    [[TMP0:%.*]] = load ptr, ptr @b, align 4
+// CHECK-32-NEXT:    call void @llvm.ppc.dcbfl(ptr [[TMP0]])
 // CHECK-32-NEXT:    ret void
 //
 void test_builtin_ppc_dcbfl() {
@@ -311,13 +307,13 @@ void test_builtin_ppc_dcbfl() {
 }
 
 // CHECK-LABEL: @test_builtin_ppc_dcbflp(
-// CHECK:    [[TMP0:%.*]] = load i8*, i8** @b, align 8
-// CHECK-NEXT:    call void @llvm.ppc.dcbflp(i8* [[TMP0]])
+// CHECK:    [[TMP0:%.*]] = load ptr, ptr @b, align 8
+// CHECK-NEXT:    call void @llvm.ppc.dcbflp(ptr [[TMP0]])
 // CHECK-NEXT:    ret void
 //
 // CHECK-32-LABEL: @test_builtin_ppc_dcbflp(
-// CHECK-32:    [[TMP0:%.*]] = load i8*, i8** @b, align 4
-// CHECK-32-NEXT:    call void @llvm.ppc.dcbflp(i8* [[TMP0]])
+// CHECK-32:    [[TMP0:%.*]] = load ptr, ptr @b, align 4
+// CHECK-32-NEXT:    call void @llvm.ppc.dcbflp(ptr [[TMP0]])
 // CHECK-32-NEXT:    ret void
 //
 void test_builtin_ppc_dcbflp() {
@@ -325,13 +321,13 @@ void test_builtin_ppc_dcbflp() {
 }
 
 // CHECK-LABEL: @test_builtin_ppc_dcbst(
-// CHECK:    [[TMP0:%.*]] = load i8*, i8** @b, align 8
-// CHECK-NEXT:    call void @llvm.ppc.dcbst(i8* [[TMP0]])
+// CHECK:    [[TMP0:%.*]] = load ptr, ptr @b, align 8
+// CHECK-NEXT:    call void @llvm.ppc.dcbst(ptr [[TMP0]])
 // CHECK-NEXT:    ret void
 //
 // CHECK-32-LABEL: @test_builtin_ppc_dcbst(
-// CHECK-32:    [[TMP0:%.*]] = load i8*, i8** @b, align 4
-// CHECK-32-NEXT:    call void @llvm.ppc.dcbst(i8* [[TMP0]])
+// CHECK-32:    [[TMP0:%.*]] = load ptr, ptr @b, align 4
+// CHECK-32-NEXT:    call void @llvm.ppc.dcbst(ptr [[TMP0]])
 // CHECK-32-NEXT:    ret void
 //
 void test_builtin_ppc_dcbst() {
@@ -339,13 +335,13 @@ void test_builtin_ppc_dcbst() {
 }
 
 // CHECK-LABEL: @test_builtin_ppc_dcbt(
-// CHECK:    [[TMP0:%.*]] = load i8*, i8** @c, align 8
-// CHECK-NEXT:    call void @llvm.ppc.dcbt(i8* [[TMP0]])
+// CHECK:    [[TMP0:%.*]] = load ptr, ptr @c, align 8
+// CHECK-NEXT:    call void @llvm.ppc.dcbt(ptr [[TMP0]])
 // CHECK-NEXT:    ret void
 //
 // CHECK-32-LABEL: @test_builtin_ppc_dcbt(
-// CHECK-32:    [[TMP0:%.*]] = load i8*, i8** @c, align 4
-// CHECK-32-NEXT:    call void @llvm.ppc.dcbt(i8* [[TMP0]])
+// CHECK-32:    [[TMP0:%.*]] = load ptr, ptr @c, align 4
+// CHECK-32-NEXT:    call void @llvm.ppc.dcbt(ptr [[TMP0]])
 // CHECK-32-NEXT:    ret void
 //
 void test_builtin_ppc_dcbt() {
@@ -353,13 +349,13 @@ void test_builtin_ppc_dcbt() {
 }
 
 // CHECK-LABEL: @test_builtin_ppc_dcbtst(
-// CHECK:    [[TMP0:%.*]] = load i8*, i8** @c, align 8
-// CHECK-NEXT:    call void @llvm.ppc.dcbtst(i8* [[TMP0]])
+// CHECK:    [[TMP0:%.*]] = load ptr, ptr @c, align 8
+// CHECK-NEXT:    call void @llvm.ppc.dcbtst(ptr [[TMP0]])
 // CHECK-NEXT:    ret void
 //
 // CHECK-32-LABEL: @test_builtin_ppc_dcbtst(
-// CHECK-32:    [[TMP0:%.*]] = load i8*, i8** @c, align 4
-// CHECK-32-NEXT:    call void @llvm.ppc.dcbtst(i8* [[TMP0]])
+// CHECK-32:    [[TMP0:%.*]] = load ptr, ptr @c, align 4
+// CHECK-32-NEXT:    call void @llvm.ppc.dcbtst(ptr [[TMP0]])
 // CHECK-32-NEXT:    ret void
 //
 void test_builtin_ppc_dcbtst() {
@@ -367,13 +363,13 @@ void test_builtin_ppc_dcbtst() {
 }
 
 // CHECK-LABEL: @test_builtin_ppc_dcbz(
-// CHECK:    [[TMP0:%.*]] = load i8*, i8** @c, align 8
-// CHECK-NEXT:    call void @llvm.ppc.dcbz(i8* [[TMP0]])
+// CHECK:    [[TMP0:%.*]] = load ptr, ptr @c, align 8
+// CHECK-NEXT:    call void @llvm.ppc.dcbz(ptr [[TMP0]])
 // CHECK-NEXT:    ret void
 //
 // CHECK-32-LABEL: @test_builtin_ppc_dcbz(
-// CHECK-32:    [[TMP0:%.*]] = load i8*, i8** @c, align 4
-// CHECK-32-NEXT:    call void @llvm.ppc.dcbz(i8* [[TMP0]])
+// CHECK-32:    [[TMP0:%.*]] = load ptr, ptr @c, align 4
+// CHECK-32-NEXT:    call void @llvm.ppc.dcbz(ptr [[TMP0]])
 // CHECK-32-NEXT:    ret void
 //
 void test_builtin_ppc_dcbz() {

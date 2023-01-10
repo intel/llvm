@@ -10,5 +10,5 @@ struct B {
 B::B() {
 }
 
-// CHECK: @_ZN1BC1Ev ={{.*}} unnamed_addr alias void (%struct.B*), void (%struct.B*)* @_ZN1BC2Ev
-// NO-ALIAS-NOT: @_ZN1BC1Ev ={{.*}} unnamed_addr alias void (%struct.B*), void (%struct.B*)* @_ZN1BC2Ev
+// CHECK: @_ZN1BC1Ev ={{.*}} unnamed_addr alias void (ptr), ptr @_ZN1BC2Ev
+// NO-ALIAS-NOT: @_ZN1BC1Ev ={{.*}} unnamed_addr alias void (ptr), ptr @_ZN1BC2Ev

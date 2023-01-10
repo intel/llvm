@@ -42,7 +42,7 @@ class MlirOptKernel(Kernel):
 
     ```mlir
     // configuration: --pass
-    func @foo(%tensor: tensor<2x3xf64>) -> tensor<3x2xf64> { ... }
+    func.func @foo(%tensor: tensor<2x3xf64>) -> tensor<3x2xf64> { ... }
     ```
 
     ```mlir
@@ -128,8 +128,6 @@ class MlirOptKernel(Kernel):
                     '-o',
                     '-'
                 ]
-                if code.startswith('// configuration:'):
-                    command.append('--run-reproducer')
                 # Simple handling of repeating last line.
                 if code.endswith('\n_'):
                     if not self._:

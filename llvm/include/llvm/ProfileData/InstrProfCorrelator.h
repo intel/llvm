@@ -13,16 +13,19 @@
 #define LLVM_PROFILEDATA_INSTRPROFCORRELATOR_H
 
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/DebugInfo/DWARF/DWARFContext.h"
-#include "llvm/Object/Binary.h"
-#include "llvm/Object/ObjectFile.h"
 #include "llvm/ProfileData/InstrProf.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/YAMLTraits.h"
+#include <optional>
 #include <vector>
 
 namespace llvm {
+class DWARFContext;
+class DWARFDie;
+namespace object {
+class ObjectFile;
+}
 
 /// InstrProfCorrelator - A base class used to create raw instrumentation data
 /// to their functions.
@@ -35,8 +38,11 @@ public:
   /// to their functions.
   virtual Error correlateProfileData() = 0;
 
+  /// Process debug info and dump the correlation data.
+  virtual Error dumpYaml(raw_ostream &OS) = 0;
+
   /// Return the number of ProfileData elements.
-  llvm::Optional<size_t> getDataSize() const;
+  std::optional<size_t> getDataSize() const;
 
   /// Return a pointer to the names string that this class constructs.
   const char *getNamesPointer() const { return Names.c_str(); }
@@ -68,13 +74,31 @@ protected:
     /// True if target and host have different endian orders.
     bool ShouldSwapBytes;
   };
-  const std::unique_ptr<InstrProfCorrelator::Context> Ctx;
+  const std::unique_ptr<Context> Ctx;
 
   InstrProfCorrelator(InstrProfCorrelatorKind K, std::unique_ptr<Context> Ctx)
       : Ctx(std::move(Ctx)), Kind(K) {}
 
   std::string Names;
   std::vector<std::string> NamesVec;
+
+  struct Probe {
+    std::string FunctionName;
+    std::optional<std::string> LinkageName;
+    yaml::Hex64 CFGHash;
+    yaml::Hex64 CounterOffset;
+    uint32_t NumCounters;
+    std::optional<std::string> FilePath;
+    std::optional<int> LineNumber;
+  };
+
+  struct CorrelationData {
+    std::vector<Probe> Probes;
+  };
+
+  friend struct yaml::MappingTraits<Probe>;
+  friend struct yaml::SequenceElementTraits<Probe>;
+  friend struct yaml::MappingTraits<CorrelationData>;
 
 private:
   static llvm::Expected<std::unique_ptr<InstrProfCorrelator>>
@@ -108,7 +132,10 @@ protected:
   std::vector<RawInstrProf::ProfileData<IntPtrT>> Data;
 
   Error correlateProfileData() override;
-  virtual void correlateProfileDataImpl() = 0;
+  virtual void correlateProfileDataImpl(
+      InstrProfCorrelator::CorrelationData *Data = nullptr) = 0;
+
+  Error dumpYaml(raw_ostream &OS) override;
 
   void addProbe(StringRef FunctionName, uint64_t CFGHash, IntPtrT CounterOffset,
                 IntPtrT FunctionPtr, uint32_t NumCounters);
@@ -139,7 +166,7 @@ private:
   std::unique_ptr<DWARFContext> DICtx;
 
   /// Return the address of the object that the provided DIE symbolizes.
-  llvm::Optional<uint64_t> getLocation(const DWARFDie &Die) const;
+  std::optional<uint64_t> getLocation(const DWARFDie &Die) const;
 
   /// Returns true if the provided DIE symbolizes an instrumentation probe
   /// symbol.
@@ -170,7 +197,8 @@ private:
   ///       NULL
   ///     NULL
   /// \endcode
-  void correlateProfileDataImpl() override;
+  void correlateProfileDataImpl(
+      InstrProfCorrelator::CorrelationData *Data = nullptr) override;
 };
 
 } // end namespace llvm

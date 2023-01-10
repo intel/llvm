@@ -2,9 +2,9 @@
 ; RUN: opt -passes="function(loop(indvars,loop-idiom,loop-deletion),simplifycfg)" -S < %s | FileCheck %s
 ; Compile command:
 ; $ clang -m64 -fno-discard-value-names -O0 -S -emit-llvm -Xclang -disable-O0-optnone Code.c
-; $ bin/opt -S -basic-aa -mem2reg -loop-simplify -lcssa -loop-rotate \
-;   -licm -simple-loop-unswitch -enable-nontrivial-unswitch -loop-simplify \
-;   -loop-deletion -simplifycfg -indvars Code.ll > CodeOpt.ll
+; $ bin/opt -S -passes=mem2reg,loop-simplify,lcssa,loop-rotate \
+; -passes=licm,simple-loop-unswitch -enable-nontrivial-unswitch -passes=loop-simplify \
+; -passes=loop-deletion,simplifycfg,indvars Code.ll > CodeOpt.ll
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 ; void PositiveFor64(int *ar, long long n, long long m)
 ; {
@@ -235,7 +235,7 @@ define void @Negative32(i32* %ar, i32 %n, i32 %m) {
 ; CHECK-NEXT:    [[CONV1:%.*]] = sext i32 [[M:%.*]] to i64
 ; CHECK-NEXT:    [[CONV2:%.*]] = sext i32 [[M]] to i64
 ; CHECK-NEXT:    [[MUL3:%.*]] = mul i64 [[CONV2]], 4
-; CHECK-NEXT:    [[TMP0:%.*]] = sub i64 [[CONV]], -1
+; CHECK-NEXT:    [[TMP0:%.*]] = sext i32 [[N]] to i64
 ; CHECK-NEXT:    [[TMP1:%.*]] = mul i64 [[CONV1]], [[TMP0]]
 ; CHECK-NEXT:    [[TMP2:%.*]] = shl i64 [[TMP1]], 2
 ; CHECK-NEXT:    call void @llvm.memset.p0i8.i64(i8* align 4 [[AR1]], i8 0, i64 [[TMP2]], i1 false)

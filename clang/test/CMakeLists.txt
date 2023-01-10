@@ -1,24 +1,18 @@
 # Test runner infrastructure for Clang. This configures the Clang test trees
 # for use by Lit, and delegates to LLVM's lit test handlers.
 
-if (CMAKE_CFG_INTDIR STREQUAL ".")
-  set(LLVM_BUILD_MODE ".")
-else ()
-  set(LLVM_BUILD_MODE "%(build_mode)s")
-endif ()
-
-string(REPLACE ${CMAKE_CFG_INTDIR} ${LLVM_BUILD_MODE} CLANG_TOOLS_DIR ${LLVM_RUNTIME_OUTPUT_INTDIR})
-
 llvm_canonicalize_cmake_booleans(
   CLANG_BUILD_EXAMPLES
+  CLANG_BUILT_STANDALONE
   CLANG_DEFAULT_PIE_ON_LINUX
+  CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL
   CLANG_ENABLE_ARCMT
   CLANG_ENABLE_STATIC_ANALYZER
   CLANG_PLUGIN_SUPPORT
   CLANG_SPAWN_CC1
   ENABLE_BACKTRACES
-  LLVM_ENABLE_NEW_PASS_MANAGER
   LLVM_ENABLE_ZLIB
+  LLVM_ENABLE_ZSTD
   LLVM_ENABLE_PER_TARGET_RUNTIME_DIR
   LLVM_ENABLE_THREADS
   LLVM_WITH_Z3
@@ -39,7 +33,7 @@ configure_lit_site_cfg(
   "LLVM_EXTERNAL_LIT"
   "CLANG_BINARY_DIR"
   "CLANG_SOURCE_DIR"
-  "CLANG_TOOLS_DIR"
+  "CURRENT_TOOLS_DIR"
   "CMAKE_LIBRARY_OUTPUT_DIRECTORY"
   )
 
@@ -66,6 +60,7 @@ list(APPEND CLANG_TEST_DEPS
   apinotes-test
   c-index-test
   clang
+  clang-fuzzer-dictionary
   clang-resource-headers
   clang-format
   clang-tblgen
@@ -75,10 +70,8 @@ list(APPEND CLANG_TEST_DEPS
   clang-import-test
   clang-rename
   clang-refactor
-  clang-repl
   clang-diff
   clang-scan-deps
-  clang-pseudo
   diagtool
   hmaptool
   )
@@ -159,6 +152,12 @@ if(CLANG_ENABLE_STATIC_ANALYZER)
   endif()
 endif()
 
+if (HAVE_CLANG_REPL_SUPPORT)
+  list(APPEND CLANG_TEST_DEPS
+    clang-repl
+    )
+endif()
+
 # Copy gen_ast_dump_json_test.py to the clang build dir. This allows invoking
 # it without having to pass the --clang= argument
 configure_file(AST/gen_ast_dump_json_test.py
@@ -179,6 +178,7 @@ set_target_properties(check-clang PROPERTIES FOLDER "Clang tests")
 add_lit_testsuites(CLANG ${CMAKE_CURRENT_SOURCE_DIR}
   PARAMS ${CLANG_TEST_PARAMS}
   DEPENDS ${CLANG_TEST_DEPS}
+  FOLDER "Clang tests/Suites"
 )
 
 # Add a legacy target spelling: clang-test

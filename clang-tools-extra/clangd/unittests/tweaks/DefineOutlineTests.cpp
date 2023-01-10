@@ -6,9 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "TestTU.h"
+#include "TestFS.h"
 #include "TweakTesting.h"
-#include "gmock/gmock-matchers.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -116,6 +115,11 @@ TEST_F(DefineOutlineTest, ApplyTest) {
           "void fo^o(int x, int y = 5, int = 2, int (*foo)(int) = nullptr) {}",
           "void foo(int x, int y = 5, int = 2, int (*foo)(int) = nullptr) ;",
           "void foo(int x, int y , int , int (*foo)(int) ) {}",
+      },
+      {
+          "struct Bar{Bar();}; void fo^o(Bar x = {}) {}",
+          "struct Bar{Bar();}; void foo(Bar x = {}) ;",
+          "void foo(Bar x ) {}",
       },
       // Constructors
       {

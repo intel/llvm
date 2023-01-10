@@ -75,9 +75,9 @@ void SPIRVToLLVMDbgTran::addDbgInfoVersion() {
                    DEBUG_METADATA_VERSION);
 }
 
-DIFile *
-SPIRVToLLVMDbgTran::getDIFile(const std::string &FileName,
-                              Optional<DIFile::ChecksumInfo<StringRef>> CS) {
+DIFile *SPIRVToLLVMDbgTran::getDIFile(
+    const std::string &FileName,
+    std::optional<DIFile::ChecksumInfo<StringRef>> CS) {
   return getOrInsert(FileMap, FileName, [=]() {
     SplitFileName Split(FileName);
     if (!Split.BaseName.empty())
@@ -166,7 +166,7 @@ DIType *SPIRVToLLVMDbgTran::transTypePointer(const SPIRVExtInst *DebugInst) {
   DIType *PointeeTy = nullptr;
   if (BM->getEntry(Ops[BaseTypeIdx])->getOpCode() != OpTypeVoid)
     PointeeTy = transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[BaseTypeIdx]));
-  Optional<unsigned> AS;
+  std::optional<unsigned> AS;
   if (Ops[StorageClassIdx] != ~0U) {
     auto SC = static_cast<SPIRVStorageClassKind>(Ops[StorageClassIdx]);
     AS = SPIRSPIRVAddrSpaceMap::rmap(SC);
@@ -237,7 +237,8 @@ SPIRVToLLVMDbgTran::transTypeArray(const SPIRVExtInst *DebugInst) {
         Subscripts.push_back(
             Builder.getOrCreateSubrange(CountAsMD, nullptr, nullptr, nullptr));
       }
-      TotalCount *= static_cast<uint64_t>(Count);
+      // Count = -1 means that the array is empty
+      TotalCount *= Count > 0 ? static_cast<size_t>(Count) : 0;
       continue;
     }
   }
@@ -1102,11 +1103,11 @@ std::string SPIRVToLLVMDbgTran::findModuleProducer() {
   return "spirv";
 }
 
-Optional<DIFile::ChecksumInfo<StringRef>>
+std::optional<DIFile::ChecksumInfo<StringRef>>
 SPIRVToLLVMDbgTran::ParseChecksum(StringRef Text) {
   // Example of "Text" variable:
   // "SomeInfo//__CSK_MD5:7bb56387968a9caa6e9e35fff94eaf7b:OtherInfo"
-  Optional<DIFile::ChecksumInfo<StringRef>> CS;
+  std::optional<DIFile::ChecksumInfo<StringRef>> CS;
   auto KindPos = Text.find(SPIRVDebug::ChecksumKindPrefx);
   if (KindPos != StringRef::npos) {
     auto ColonPos = Text.find(":", KindPos);
@@ -1115,7 +1116,7 @@ SPIRVToLLVMDbgTran::ParseChecksum(StringRef Text) {
     auto Checksum = Text.substr(ColonPos).ltrim(':');
     if (auto Kind = DIFile::getChecksumKind(KindStr)) {
       size_t ChecksumEndPos = Checksum.find_if_not(llvm::isHexDigit);
-      CS.emplace(Kind.getValue(), Checksum.substr(0, ChecksumEndPos));
+      CS.emplace(Kind.value(), Checksum.substr(0, ChecksumEndPos));
     }
   }
   return CS;

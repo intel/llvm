@@ -12,11 +12,24 @@
 // Required for size_t. Usually found in stddef.h.
 typedef __SIZE_TYPE__ size_t;
 
+// BOTH-LABEL: @testabs(
+// BOTH-NEXT:  entry:
+// BOTH-NEXT:    [[A_ADDR:%.*]] = alloca i32, align 4
+// BOTH-NEXT:    store i32 [[A:%.*]], ptr [[A_ADDR]], align 4
+// BOTH-NEXT:    [[TMP0:%.*]] = load i32, ptr [[A_ADDR]], align 4
+// BOTH-NEXT:    [[NEG:%.*]] = sub nsw i32 0, [[TMP0]]
+// BOTH-NEXT:    [[ABSCOND:%.*]] = icmp slt i32 [[TMP0]], 0
+// BOTH-NEXT:    [[ABS:%.*]] = select i1 [[ABSCOND]], i32 [[NEG]], i32 [[TMP0]]
+// BOTH-NEXT:    ret i32 [[ABS]]
+signed int testabs(signed int a) {
+  return __abs(a);
+}
+
 // 64BIT-LABEL: @testlabs(
 // 64BIT-NEXT:  entry:
 // 64BIT-NEXT:    [[A_ADDR:%.*]] = alloca i64, align 8
-// 64BIT-NEXT:    store i64 [[A:%.*]], i64* [[A_ADDR]], align 8
-// 64BIT-NEXT:    [[TMP0:%.*]] = load i64, i64* [[A_ADDR]], align 8
+// 64BIT-NEXT:    store i64 [[A:%.*]], ptr [[A_ADDR]], align 8
+// 64BIT-NEXT:    [[TMP0:%.*]] = load i64, ptr [[A_ADDR]], align 8
 // 64BIT-NEXT:    [[NEG:%.*]] = sub nsw i64 0, [[TMP0]]
 // 64BIT-NEXT:    [[ABSCOND:%.*]] = icmp slt i64 [[TMP0]], 0
 // 64BIT-NEXT:    [[ABS:%.*]] = select i1 [[ABSCOND]], i64 [[NEG]], i64 [[TMP0]]
@@ -25,8 +38,8 @@ typedef __SIZE_TYPE__ size_t;
 // 32BIT-LABEL: @testlabs(
 // 32BIT-NEXT:  entry:
 // 32BIT-NEXT:    [[A_ADDR:%.*]] = alloca i32, align 4
-// 32BIT-NEXT:    store i32 [[A:%.*]], i32* [[A_ADDR]], align 4
-// 32BIT-NEXT:    [[TMP0:%.*]] = load i32, i32* [[A_ADDR]], align 4
+// 32BIT-NEXT:    store i32 [[A:%.*]], ptr [[A_ADDR]], align 4
+// 32BIT-NEXT:    [[TMP0:%.*]] = load i32, ptr [[A_ADDR]], align 4
 // 32BIT-NEXT:    [[NEG:%.*]] = sub nsw i32 0, [[TMP0]]
 // 32BIT-NEXT:    [[ABSCOND:%.*]] = icmp slt i32 [[TMP0]], 0
 // 32BIT-NEXT:    [[ABS:%.*]] = select i1 [[ABSCOND]], i32 [[NEG]], i32 [[TMP0]]
@@ -39,8 +52,8 @@ signed long testlabs(signed long a) {
 // 64BIT-LABEL: @testllabs(
 // 64BIT-NEXT:  entry:
 // 64BIT-NEXT:    [[A_ADDR:%.*]] = alloca i64, align 8
-// 64BIT-NEXT:    store i64 [[A:%.*]], i64* [[A_ADDR]], align 8
-// 64BIT-NEXT:    [[TMP0:%.*]] = load i64, i64* [[A_ADDR]], align 8
+// 64BIT-NEXT:    store i64 [[A:%.*]], ptr [[A_ADDR]], align 8
+// 64BIT-NEXT:    [[TMP0:%.*]] = load i64, ptr [[A_ADDR]], align 8
 // 64BIT-NEXT:    [[NEG:%.*]] = sub nsw i64 0, [[TMP0]]
 // 64BIT-NEXT:    [[ABSCOND:%.*]] = icmp slt i64 [[TMP0]], 0
 // 64BIT-NEXT:    [[ABS:%.*]] = select i1 [[ABSCOND]], i64 [[NEG]], i64 [[TMP0]]
@@ -49,8 +62,8 @@ signed long testlabs(signed long a) {
 // 32BIT-LABEL: @testllabs(
 // 32BIT-NEXT:  entry:
 // 32BIT-NEXT:    [[A_ADDR:%.*]] = alloca i64, align 8
-// 32BIT-NEXT:    store i64 [[A:%.*]], i64* [[A_ADDR]], align 8
-// 32BIT-NEXT:    [[TMP0:%.*]] = load i64, i64* [[A_ADDR]], align 8
+// 32BIT-NEXT:    store i64 [[A:%.*]], ptr [[A_ADDR]], align 8
+// 32BIT-NEXT:    [[TMP0:%.*]] = load i64, ptr [[A_ADDR]], align 8
 // 32BIT-NEXT:    [[NEG:%.*]] = sub nsw i64 0, [[TMP0]]
 // 32BIT-NEXT:    [[ABSCOND:%.*]] = icmp slt i64 [[TMP0]], 0
 // 32BIT-NEXT:    [[ABS:%.*]] = select i1 [[ABSCOND]], i64 [[NEG]], i64 [[TMP0]]
@@ -62,11 +75,11 @@ signed long long testllabs(signed long long a) {
 
 // 64BIT-LABEL: @testalloca(
 // 64BIT:         [[TMP1:%.*]] = alloca i8, i64
-// 64BIT-NEXT:    ret i8* [[TMP1]]
+// 64BIT-NEXT:    ret ptr [[TMP1]]
 //
 // 32BIT-LABEL: @testalloca(
 // 32BIT:         [[TMP1:%.*]] = alloca i8, i32
-// 32BIT-NEXT:    ret i8* [[TMP1]]
+// 32BIT-NEXT:    ret ptr [[TMP1]]
 //
 void *testalloca(size_t size) {
   return __alloca(size);
@@ -142,11 +155,11 @@ extern void bcopy(const void *__src, void *__dest, size_t __n);
 extern void bzero(void *__s, size_t __n);
 
 // 64BIT-LABEL: @testalignx(
-// 64BIT:         call void @llvm.assume(i1 true) [ "align"(i8* {{%.*}}, i64 16) ]
+// 64BIT:         call void @llvm.assume(i1 true) [ "align"(ptr {{%.*}}, i64 16) ]
 // 64BIT-NEXT:    ret void
 //
 // 32BIT-LABEL: @testalignx(
-// 32BIT:         call void @llvm.assume(i1 true) [ "align"(i8* {{%.*}}, i32 16) ]
+// 32BIT:         call void @llvm.assume(i1 true) [ "align"(ptr {{%.*}}, i32 16) ]
 // 32BIT-NEXT:    ret void
 //
 void testalignx(const void *pointer) {
@@ -154,11 +167,11 @@ void testalignx(const void *pointer) {
 }
 
 // 64BIT-LABEL: @testbcopy(
-// 64BIT:         call void @bcopy(i8* noundef {{%.*}}, i8* noundef {{%.*}}, i64 noundef {{%.*}})
+// 64BIT:         call void @bcopy(ptr noundef {{%.*}}, ptr noundef {{%.*}}, i64 noundef {{%.*}})
 // 64BIT-NEXT:    ret void
 //
 // 32BIT-LABEL: @testbcopy(
-// 32BIT:         call void @bcopy(i8* noundef {{%.*}}, i8* noundef {{%.*}}, i32 noundef {{%.*}})
+// 32BIT:         call void @bcopy(ptr noundef {{%.*}}, ptr noundef {{%.*}}, i32 noundef {{%.*}})
 // 32BIT-NEXT:    ret void
 //
 void testbcopy(const void *src, void *dest, size_t n) {
@@ -166,11 +179,11 @@ void testbcopy(const void *src, void *dest, size_t n) {
 }
 
 // 64BIT-LABEL: @testbzero(
-// 64BIT:         call void @llvm.memset.p0i8.i64(i8* align 1 {{%.*}}, i8 0, i64 {{%.*}}, i1 false)
+// 64BIT:         call void @llvm.memset.p0.i64(ptr align 1 {{%.*}}, i8 0, i64 {{%.*}}, i1 false)
 // 64BIT-NEXT:    ret void
 //
 // 32BIT-LABEL: @testbzero(
-// 32BIT:         call void @llvm.memset.p0i8.i32(i8* align 1 {{%.*}}, i8 0, i32 {{%.*}}, i1 false)
+// 32BIT:         call void @llvm.memset.p0.i32(ptr align 1 {{%.*}}, i8 0, i32 {{%.*}}, i1 false)
 // 32BIT-NEXT:    ret void
 //
 void testbzero(void *s, size_t n) {
@@ -178,11 +191,11 @@ void testbzero(void *s, size_t n) {
 }
 
 // 64BIT-LABEL: @testdcbf(
-// 64BIT:         call void @llvm.ppc.dcbf(i8* {{%.*}})
+// 64BIT:         call void @llvm.ppc.dcbf(ptr {{%.*}})
 // 64BIT-NEXT:    ret void
 //
 // 32BIT-LABEL: @testdcbf(
-// 32BIT:         call void @llvm.ppc.dcbf(i8* {{%.*}})
+// 32BIT:         call void @llvm.ppc.dcbf(ptr {{%.*}})
 // 32BIT-NEXT:    ret void
 //
 void testdcbf(const void *addr) {

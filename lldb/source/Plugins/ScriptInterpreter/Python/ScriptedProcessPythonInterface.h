@@ -49,13 +49,15 @@ public:
   lldb::DataExtractorSP ReadMemoryAtAddress(lldb::addr_t address, size_t size,
                                             Status &error) override;
 
-  StructuredData::DictionarySP GetLoadedImages() override;
+  StructuredData::ArraySP GetLoadedImages() override;
 
   lldb::pid_t GetProcessID() override;
 
   bool IsAlive() override;
 
   llvm::Optional<std::string> GetScriptedThreadPluginName() override;
+
+  StructuredData::DictionarySP GetMetadata() override;
 
 private:
   lldb::ScriptedThreadInterfaceSP CreateScriptedThreadInterface() override;

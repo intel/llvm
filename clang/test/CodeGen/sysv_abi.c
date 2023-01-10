@@ -18,8 +18,8 @@ void callit(void) {
   take_stringref(s);
 }
 // CHECK: define {{(dso_local )?}}void @callit()
-// CHECK: call {{(x86_64_sysvcc )?}}void @take_stringref(i8* {{[^,]*}}, i64 {{[^,]*}})
-// CHECK: declare {{(dso_local )?}}{{(x86_64_sysvcc )?}}void @take_stringref(i8*, i64)
+// CHECK: call {{(x86_64_sysvcc )?}}void @take_stringref(ptr {{[^,]*}}, i64 {{[^,]*}})
+// CHECK: declare {{(dso_local )?}}{{(x86_64_sysvcc )?}}void @take_stringref(ptr, i64)
 
 // Check that we pass vectors directly if the target feature is enabled, and
 // not otherwise.
@@ -44,6 +44,6 @@ void use_vectors(void) {
 // AVX: call {{(x86_64_sysvcc )?}}<16 x float> @get_m512()
 // AVX: call {{(x86_64_sysvcc )?}}void @take_m512(<16 x float> noundef %{{.*}})
 // NOAVX: call {{(x86_64_sysvcc )?}}<8 x float> @get_m256()
-// NOAVX: call {{(x86_64_sysvcc )?}}void @take_m256(<8 x float>* noundef byval(<8 x float>) align 32 %{{.*}})
+// NOAVX: call {{(x86_64_sysvcc )?}}void @take_m256(ptr noundef byval(<8 x float>) align 32 %{{.*}})
 // NOAVX: call {{(x86_64_sysvcc )?}}<16 x float> @get_m512()
-// NOAVX: call {{(x86_64_sysvcc )?}}void @take_m512(<16 x float>* noundef byval(<16 x float>) align 64 %{{.*}})
+// NOAVX: call {{(x86_64_sysvcc )?}}void @take_m512(ptr noundef byval(<16 x float>) align 64 %{{.*}})

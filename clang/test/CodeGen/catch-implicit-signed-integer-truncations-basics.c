@@ -75,7 +75,7 @@ unsigned int convert_signed_int_to_unsigned_int(signed int x) {
 
 // CHECK-LABEL: @convert_signed_int_to_unsigned_char
 unsigned char convert_signed_int_to_unsigned_char(signed int x) {
-  // CHECK: call void @__ubsan_handle_implicit_conversion(i8* bitcast ({ {{{.*}}}, {{{.*}}}*, {{{.*}}}*, i8 }* @[[LINE_1100_SIGNED_TRUNCATION]] to i8*)
+  // CHECK: call void @__ubsan_handle_implicit_conversion(ptr @[[LINE_1100_SIGNED_TRUNCATION]]
 #line 1100
   return x;
 }
@@ -100,14 +100,14 @@ unsigned int convert_signed_char_to_unsigned_int(signed char x) {
 
 // CHECK-LABEL: @convert_unsigned_int_to_signed_char
 signed char convert_unsigned_int_to_signed_char(unsigned int x) {
-  // CHECK: call void @__ubsan_handle_implicit_conversion(i8* bitcast ({ {{{.*}}}, {{{.*}}}*, {{{.*}}}*, i8 }* @[[LINE_1500_SIGNED_TRUNCATION]] to i8*)
+  // CHECK: call void @__ubsan_handle_implicit_conversion(ptr @[[LINE_1500_SIGNED_TRUNCATION]]
 #line 1500
   return x;
 }
 
 // CHECK-LABEL: @convert_signed_int_to_signed_char
 signed char convert_signed_int_to_signed_char(signed int x) {
-  // CHECK: call void @__ubsan_handle_implicit_conversion(i8* bitcast ({ {{{.*}}}, {{{.*}}}*, {{{.*}}}*, i8 }* @[[LINE_1600_SIGNED_TRUNCATION]] to i8*)
+  // CHECK: call void @__ubsan_handle_implicit_conversion(ptr @[[LINE_1600_SIGNED_TRUNCATION]]
 #line 1600
   return x;
 }

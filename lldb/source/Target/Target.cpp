@@ -26,6 +26,7 @@
 #include "lldb/Core/StreamFile.h"
 #include "lldb/Core/StructuredDataImpl.h"
 #include "lldb/Core/ValueObject.h"
+#include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/Expression/DiagnosticManager.h"
 #include "lldb/Expression/ExpressionVariable.h"
 #include "lldb/Expression/REPL.h"
@@ -51,6 +52,7 @@
 #include "lldb/Target/SystemRuntime.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Target/ThreadSpec.h"
+#include "lldb/Target/UnixSignals.h"
 #include "lldb/Utility/Event.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/LLDBAssert.h"
@@ -139,14 +141,14 @@ void Target::PrimeFromDummyTarget(Target &target) {
     AddBreakpoint(std::move(new_bp), false);
   }
 
-  for (auto bp_name_entry : target.m_breakpoint_names) {
-
-    BreakpointName *new_bp_name = new BreakpointName(*bp_name_entry.second);
-    AddBreakpointName(new_bp_name);
+  for (const auto &bp_name_entry : target.m_breakpoint_names) {
+    AddBreakpointName(std::make_unique<BreakpointName>(*bp_name_entry.second));
   }
 
   m_frame_recognizer_manager_up = std::make_unique<StackFrameRecognizerManager>(
       *target.m_frame_recognizer_manager_up);
+
+  m_dummy_signals = target.m_dummy_signals;
 }
 
 void Target::Dump(Stream *s, lldb::DescriptionLevel description_level) {
@@ -174,6 +176,7 @@ void Target::CleanupProcess() {
   // clean up needs some help from the process.
   m_breakpoint_list.ClearAllBreakpointSites();
   m_internal_breakpoint_list.ClearAllBreakpointSites();
+  ResetBreakpointHitCounts();
   // Disable watchpoints just on the debugger side.
   std::unique_lock<std::recursive_mutex> lock;
   this->GetWatchpointList().GetListMutex(lock);
@@ -185,6 +188,8 @@ void Target::CleanupProcess() {
 
 void Target::DeleteCurrentProcess() {
   if (m_process_sp) {
+    // We dispose any active tracing sessions on the current process
+    m_trace_sp.reset();
     m_section_load_history.Clear();
     if (m_process_sp->IsAlive())
       m_process_sp->Destroy(false);
@@ -279,12 +284,26 @@ void Target::Destroy() {
   m_breakpoint_list.RemoveAll(notify);
   m_internal_breakpoint_list.RemoveAll(notify);
   m_last_created_breakpoint.reset();
+  m_watchpoint_list.RemoveAll(notify);
   m_last_created_watchpoint.reset();
   m_search_filter_sp.reset();
   m_image_search_paths.Clear(notify);
   m_stop_hooks.clear();
   m_stop_hook_next_id = 0;
   m_suppress_stop_hooks = false;
+  Args signal_args;
+  ClearDummySignals(signal_args);
+}
+
+llvm::StringRef Target::GetABIName() const {
+  lldb::ABISP abi_sp;
+  if (m_process_sp)
+    abi_sp = m_process_sp->GetABI();
+  if (!abi_sp)
+    abi_sp = ABI::FindPlugin(ProcessSP(), GetArchitecture());
+  if (abi_sp)
+      return abi_sp->GetPluginName();
+  return {};
 }
 
 BreakpointList &Target::GetBreakpointList(bool internal) {
@@ -337,7 +356,9 @@ BreakpointSP Target::CreateBreakpoint(const FileSpecList *containingModules,
                                       bool hardware,
                                       LazyBool move_to_nearest_code) {
   FileSpec remapped_file;
-  if (!GetSourcePathMap().ReverseRemapPath(file, remapped_file))
+  llvm::Optional<llvm::StringRef> removed_prefix_opt =
+      GetSourcePathMap().ReverseRemapPath(file, remapped_file);
+  if (!removed_prefix_opt)
     remapped_file = file;
 
   if (check_inlines == eLazyBoolCalculate) {
@@ -381,7 +402,7 @@ BreakpointSP Target::CreateBreakpoint(const FileSpecList *containingModules,
     return nullptr;
 
   BreakpointResolverSP resolver_sp(new BreakpointResolverFileLine(
-      nullptr, offset, skip_prologue, location_spec));
+      nullptr, offset, skip_prologue, location_spec, removed_prefix_opt));
   return CreateBreakpoint(filter_sp, resolver_sp, internal, hardware, true);
 }
 
@@ -689,8 +710,9 @@ void Target::AddNameToBreakpoint(BreakpointSP &bp_sp, const char *name,
   bp_sp->AddName(name);
 }
 
-void Target::AddBreakpointName(BreakpointName *bp_name) {
-  m_breakpoint_names.insert(std::make_pair(bp_name->GetName(), bp_name));
+void Target::AddBreakpointName(std::unique_ptr<BreakpointName> bp_name) {
+  m_breakpoint_names.insert(
+      std::make_pair(bp_name->GetName(), std::move(bp_name)));
 }
 
 BreakpointName *Target::FindBreakpointName(ConstString name, bool can_create,
@@ -700,19 +722,20 @@ BreakpointName *Target::FindBreakpointName(ConstString name, bool can_create,
     return nullptr;
 
   BreakpointNameList::iterator iter = m_breakpoint_names.find(name);
-  if (iter == m_breakpoint_names.end()) {
-    if (!can_create) {
-      error.SetErrorStringWithFormat("Breakpoint name \"%s\" doesn't exist and "
-                                     "can_create is false.",
-                                     name.AsCString());
-      return nullptr;
-    }
-
-    iter = m_breakpoint_names
-               .insert(std::make_pair(name, new BreakpointName(name)))
-               .first;
+  if (iter != m_breakpoint_names.end()) {
+    return iter->second.get();
   }
-  return (iter->second);
+
+  if (!can_create) {
+    error.SetErrorStringWithFormat("Breakpoint name \"%s\" doesn't exist and "
+                                   "can_create is false.",
+                                   name.AsCString());
+    return nullptr;
+  }
+
+  return m_breakpoint_names
+      .insert(std::make_pair(name, std::make_unique<BreakpointName>(name)))
+      .first->second.get();
 }
 
 void Target::DeleteBreakpointName(ConstString name) {
@@ -755,10 +778,10 @@ void Target::ApplyNameToBreakpoints(BreakpointName &bp_name) {
 
 void Target::GetBreakpointNames(std::vector<std::string> &names) {
   names.clear();
-  for (auto bp_name : m_breakpoint_names) {
-    names.push_back(bp_name.first.AsCString());
+  for (const auto& bp_name_entry : m_breakpoint_names) {
+    names.push_back(bp_name_entry.first.AsCString());
   }
-  llvm::sort(names.begin(), names.end());
+  llvm::sort(names);
 }
 
 bool Target::ProcessIsValid() {
@@ -982,6 +1005,10 @@ bool Target::EnableBreakpointByID(break_id_t break_id) {
     return true;
   }
   return false;
+}
+
+void Target::ResetBreakpointHitCounts() {
+  GetBreakpointList().ResetHitCounts();
 }
 
 Status Target::SerializeBreakpointsToFile(const FileSpec &file,
@@ -1409,7 +1436,8 @@ void Target::SetExecutableModule(ModuleSP &executable_sp,
     if (!m_arch.GetSpec().IsValid()) {
       m_arch = executable_sp->GetArchitecture();
       LLDB_LOG(log,
-               "setting architecture to {0} ({1}) based on executable file",
+               "Target::SetExecutableModule setting architecture to {0} ({1}) "
+               "based on executable file",
                m_arch.GetSpec().GetArchitectureName(),
                m_arch.GetSpec().GetTriple().getTriple());
     }
@@ -1456,7 +1484,8 @@ void Target::SetExecutableModule(ModuleSP &executable_sp,
   }
 }
 
-bool Target::SetArchitecture(const ArchSpec &arch_spec, bool set_platform) {
+bool Target::SetArchitecture(const ArchSpec &arch_spec, bool set_platform,
+                             bool merge) {
   Log *log = GetLog(LLDBLog::Target);
   bool missing_local_arch = !m_arch.GetSpec().IsValid();
   bool replace_local_arch = true;
@@ -1469,12 +1498,12 @@ bool Target::SetArchitecture(const ArchSpec &arch_spec, bool set_platform) {
   if (set_platform) {
     if (other.IsValid()) {
       auto platform_sp = GetPlatform();
-      if (!platform_sp ||
-          !platform_sp->IsCompatibleArchitecture(other, false, nullptr)) {
+      if (!platform_sp || !platform_sp->IsCompatibleArchitecture(
+                              other, {}, ArchSpec::CompatibleMatch, nullptr)) {
         ArchSpec platform_arch;
-        auto arch_platform_sp =
-            Platform::GetPlatformForArchitecture(other, &platform_arch);
-        if (arch_platform_sp) {
+        if (PlatformSP arch_platform_sp =
+                GetDebugger().GetPlatformList().GetOrCreate(other, {},
+                                                            &platform_arch)) {
           SetPlatform(arch_platform_sp);
           if (platform_arch.IsValid())
             other = platform_arch;
@@ -1484,7 +1513,7 @@ bool Target::SetArchitecture(const ArchSpec &arch_spec, bool set_platform) {
   }
 
   if (!missing_local_arch) {
-    if (m_arch.GetSpec().IsCompatibleMatch(arch_spec)) {
+    if (merge && m_arch.GetSpec().IsCompatibleMatch(arch_spec)) {
       other.MergeFrom(m_arch.GetSpec());
 
       if (m_arch.GetSpec().IsCompatibleMatch(other)) {
@@ -1508,7 +1537,9 @@ bool Target::SetArchitecture(const ArchSpec &arch_spec, bool set_platform) {
     // specified
     if (replace_local_arch)
       m_arch = other;
-    LLDB_LOG(log, "set architecture to {0} ({1})",
+    LLDB_LOG(log,
+             "Target::SetArchitecture merging compatible arch; arch "
+             "is now {0} ({1})",
              m_arch.GetSpec().GetArchitectureName(),
              m_arch.GetSpec().GetTriple().getTriple());
     return true;
@@ -1516,9 +1547,13 @@ bool Target::SetArchitecture(const ArchSpec &arch_spec, bool set_platform) {
 
   // If we have an executable file, try to reset the executable to the desired
   // architecture
-  LLDB_LOGF(log, "Target::SetArchitecture changing architecture to %s (%s)",
-            arch_spec.GetArchitectureName(),
-            arch_spec.GetTriple().getTriple().c_str());
+  LLDB_LOGF(
+      log,
+      "Target::SetArchitecture changing architecture to %s (%s) from %s (%s)",
+      arch_spec.GetArchitectureName(),
+      arch_spec.GetTriple().getTriple().c_str(),
+      m_arch.GetSpec().GetArchitectureName(),
+      m_arch.GetSpec().GetTriple().getTriple().c_str());
   m_arch = other;
   ModuleSP executable_sp = GetExecutableModule();
 
@@ -1642,11 +1677,39 @@ void Target::SymbolsDidLoad(ModuleList &module_list) {
 void Target::ModulesDidUnload(ModuleList &module_list, bool delete_locations) {
   if (m_valid && module_list.GetSize()) {
     UnloadModuleSections(module_list);
+    BroadcastEvent(eBroadcastBitModulesUnloaded,
+                   new TargetEventData(this->shared_from_this(), module_list));
     m_breakpoint_list.UpdateBreakpoints(module_list, false, delete_locations);
     m_internal_breakpoint_list.UpdateBreakpoints(module_list, false,
                                                  delete_locations);
-    BroadcastEvent(eBroadcastBitModulesUnloaded,
-                   new TargetEventData(this->shared_from_this(), module_list));
+
+    // If a module was torn down it will have torn down the 'TypeSystemClang's
+    // that we used as source 'ASTContext's for the persistent variables in
+    // the current target. Those would now be unsafe to access because the
+    // 'DeclOrigin' are now possibly stale. Thus clear all persistent
+    // variables. We only want to flush 'TypeSystem's if the module being
+    // unloaded was capable of describing a source type. JITted module unloads
+    // happen frequently for Objective-C utility functions or the REPL and rely
+    // on the persistent variables to stick around.
+    const bool should_flush_type_systems =
+        module_list.AnyOf([](lldb_private::Module &module) {
+          auto *object_file = module.GetObjectFile();
+
+          if (!object_file)
+            return false;
+
+          auto type = object_file->GetType();
+
+          // eTypeExecutable: when debugged binary was rebuilt
+          // eTypeSharedLibrary: if dylib was re-loaded
+          return module.FileHasChanged() &&
+                 (type == ObjectFile::eTypeObjectFile ||
+                  type == ObjectFile::eTypeExecutable ||
+                  type == ObjectFile::eTypeSharedLibrary);
+        });
+
+    if (should_flush_type_systems)
+      m_scratch_type_system_map.Clear();
   }
 }
 
@@ -1684,7 +1747,6 @@ bool Target::ModuleIsExcludedForUnconstrainedSearches(
 
 size_t Target::ReadMemoryFromFileCache(const Address &addr, void *dst,
                                        size_t dst_len, Status &error) {
-  LLDB_SCOPED_TIMER();
   SectionSP section_sp(addr.GetSection());
   if (section_sp) {
     // If the contents of this section are encrypted, the on-disk file is
@@ -1720,6 +1782,12 @@ size_t Target::ReadMemory(const Address &addr, void *dst, size_t dst_len,
                           lldb::addr_t *load_addr_ptr) {
   error.Clear();
 
+  Address fixed_addr = addr;
+  if (ProcessIsValid())
+    if (const ABISP &abi = m_process_sp->GetABI())
+      fixed_addr.SetLoadAddress(abi->FixAnyAddress(addr.GetLoadAddress(this)),
+                                this);
+
   // if we end up reading this from process memory, we will fill this with the
   // actual load address
   if (load_addr_ptr)
@@ -1730,26 +1798,28 @@ size_t Target::ReadMemory(const Address &addr, void *dst, size_t dst_len,
   addr_t load_addr = LLDB_INVALID_ADDRESS;
   addr_t file_addr = LLDB_INVALID_ADDRESS;
   Address resolved_addr;
-  if (!addr.IsSectionOffset()) {
+  if (!fixed_addr.IsSectionOffset()) {
     SectionLoadList &section_load_list = GetSectionLoadList();
     if (section_load_list.IsEmpty()) {
       // No sections are loaded, so we must assume we are not running yet and
       // anything we are given is a file address.
-      file_addr = addr.GetOffset(); // "addr" doesn't have a section, so its
-                                    // offset is the file address
+      file_addr =
+          fixed_addr.GetOffset(); // "fixed_addr" doesn't have a section, so
+                                  // its offset is the file address
       m_images.ResolveFileAddress(file_addr, resolved_addr);
     } else {
       // We have at least one section loaded. This can be because we have
       // manually loaded some sections with "target modules load ..." or
       // because we have have a live process that has sections loaded through
       // the dynamic loader
-      load_addr = addr.GetOffset(); // "addr" doesn't have a section, so its
-                                    // offset is the load address
+      load_addr =
+          fixed_addr.GetOffset(); // "fixed_addr" doesn't have a section, so
+                                  // its offset is the load address
       section_load_list.ResolveLoadAddress(load_addr, resolved_addr);
     }
   }
   if (!resolved_addr.IsValid())
-    resolved_addr = addr;
+    resolved_addr = fixed_addr;
 
   // If we read from the file cache but can't get as many bytes as requested,
   // we keep the result around in this buffer, in case this result is the
@@ -2060,11 +2130,12 @@ ModuleSP Target::GetOrCreateModule(const ModuleSpec &module_spec, bool notify,
     // a suitable image.
     if (m_image_search_paths.GetSize()) {
       ModuleSpec transformed_spec(module_spec);
+      ConstString transformed_dir;
       if (m_image_search_paths.RemapPath(
-              module_spec.GetFileSpec().GetDirectory(),
-              transformed_spec.GetFileSpec().GetDirectory())) {
-        transformed_spec.GetFileSpec().GetFilename() =
-            module_spec.GetFileSpec().GetFilename();
+              module_spec.GetFileSpec().GetDirectory(), transformed_dir)) {
+        transformed_spec.GetFileSpec().SetDirectory(transformed_dir);
+        transformed_spec.GetFileSpec().SetFilename(
+              module_spec.GetFileSpec().GetFilename());
         error = ModuleList::GetSharedModule(transformed_spec, module_sp,
                                             &search_paths, &old_modules,
                                             &did_create_module);
@@ -2258,7 +2329,7 @@ void Target::ImageSearchPathsChanged(const PathMappingList &path_list,
     target->SetExecutableModule(exe_module_sp, eLoadDependentsYes);
 }
 
-llvm::Expected<TypeSystem &>
+llvm::Expected<lldb::TypeSystemSP>
 Target::GetScratchTypeSystemForLanguage(lldb::LanguageType language,
                                         bool create_on_demand) {
   if (!m_valid)
@@ -2287,14 +2358,15 @@ Target::GetScratchTypeSystemForLanguage(lldb::LanguageType language,
                                                             create_on_demand);
 }
 
-std::vector<TypeSystem *> Target::GetScratchTypeSystems(bool create_on_demand) {
+std::vector<lldb::TypeSystemSP>
+Target::GetScratchTypeSystems(bool create_on_demand) {
   if (!m_valid)
     return {};
 
   // Some TypeSystem instances are associated with several LanguageTypes so
   // they will show up several times in the loop below. The SetVector filters
   // out all duplicates as they serve no use for the caller.
-  llvm::SetVector<TypeSystem *> scratch_type_systems;
+  std::vector<lldb::TypeSystemSP> scratch_type_systems;
 
   LanguageSet languages_for_expressions =
       Language::GetLanguagesSupportingTypeSystemsForExpressions();
@@ -2309,10 +2381,17 @@ std::vector<TypeSystem *> Target::GetScratchTypeSystems(bool create_on_demand) {
                      "system available",
                      Language::GetNameForLanguageType(language));
     else
-      scratch_type_systems.insert(&type_system_or_err.get());
+      if (auto ts = *type_system_or_err)
+        scratch_type_systems.push_back(ts);
   }
-
-  return scratch_type_systems.takeVector();
+  std::sort(scratch_type_systems.begin(), scratch_type_systems.end(),
+            [](lldb::TypeSystemSP a, lldb::TypeSystemSP b) {
+              return a.get() <= b.get();
+            });
+  scratch_type_systems.erase(
+      std::unique(scratch_type_systems.begin(), scratch_type_systems.end()),
+      scratch_type_systems.end());
+  return scratch_type_systems;
 }
 
 PersistentExpressionState *
@@ -2326,7 +2405,13 @@ Target::GetPersistentExpressionStateForLanguage(lldb::LanguageType language) {
     return nullptr;
   }
 
-  return type_system_or_err->GetPersistentExpressionState();
+  if (auto ts = *type_system_or_err)
+    return ts->GetPersistentExpressionState();
+
+  LLDB_LOG(GetLog(LLDBLog::Target),
+           "Unable to get persistent expression state for language {}",
+           Language::GetNameForLanguageType(language));
+  return nullptr;
 }
 
 UserExpression *Target::GetUserExpressionForLanguage(
@@ -2343,8 +2428,16 @@ UserExpression *Target::GetUserExpressionForLanguage(
     return nullptr;
   }
 
-  auto *user_expr = type_system_or_err->GetUserExpression(
-      expr, prefix, language, desired_type, options, ctx_obj);
+  auto ts = *type_system_or_err;
+  if (!ts) {
+    error.SetErrorStringWithFormat(
+        "Type system for language %s is no longer live",
+        Language::GetNameForLanguageType(language));
+    return nullptr;
+  }
+
+  auto *user_expr = ts->GetUserExpression(expr, prefix, language, desired_type,
+                                          options, ctx_obj);
   if (!user_expr)
     error.SetErrorStringWithFormat(
         "Could not create an expression for language %s",
@@ -2365,9 +2458,15 @@ FunctionCaller *Target::GetFunctionCallerForLanguage(
         llvm::toString(std::move(err)).c_str());
     return nullptr;
   }
-
-  auto *persistent_fn = type_system_or_err->GetFunctionCaller(
-      return_type, function_address, arg_value_list, name);
+  auto ts = *type_system_or_err;
+  if (!ts) {
+    error.SetErrorStringWithFormat(
+        "Type system for language %s is no longer live",
+        Language::GetNameForLanguageType(language));
+    return nullptr;
+  }
+  auto *persistent_fn = ts->GetFunctionCaller(return_type, function_address,
+                                              arg_value_list, name);
   if (!persistent_fn)
     error.SetErrorStringWithFormat(
         "Could not create an expression for language %s",
@@ -2383,10 +2482,15 @@ Target::CreateUtilityFunction(std::string expression, std::string name,
   auto type_system_or_err = GetScratchTypeSystemForLanguage(language);
   if (!type_system_or_err)
     return type_system_or_err.takeError();
-
+  auto ts = *type_system_or_err;
+  if (!ts)
+    return llvm::make_error<llvm::StringError>(
+        llvm::StringRef("Type system for language ") +
+            Language::GetNameForLanguageType(language) +
+            llvm::StringRef(" is no longer live"),
+        llvm::inconvertibleErrorCode());
   std::unique_ptr<UtilityFunction> utility_fn =
-      type_system_or_err->CreateUtilityFunction(std::move(expression),
-                                                std::move(name));
+      ts->CreateUtilityFunction(std::move(expression), std::move(name));
   if (!utility_fn)
     return llvm::make_error<llvm::StringError>(
         llvm::StringRef("Could not create an expression for language") +
@@ -2480,8 +2584,13 @@ ExpressionResults Target::EvaluateExpression(
       LLDB_LOG_ERROR(GetLog(LLDBLog::Target), std::move(err),
                      "Unable to get scratch type system");
     } else {
-      persistent_var_sp =
-          type_system_or_err->GetPersistentExpressionState()->GetVariable(expr);
+      auto ts = *type_system_or_err;
+      if (!ts)
+        LLDB_LOG_ERROR(GetLog(LLDBLog::Target), std::move(err),
+                       "Scratch type system is no longer live");
+      else
+        persistent_var_sp =
+            ts->GetPersistentExpressionState()->GetVariable(expr);
     }
   }
   if (persistent_var_sp) {
@@ -2493,6 +2602,10 @@ ExpressionResults Target::EvaluateExpression(
     execution_results = UserExpression::Evaluate(exe_ctx, options, expr, prefix,
                                                  result_valobj_sp, error,
                                                  fixed_expression, ctx_obj);
+    // Pass up the error by wrapping it inside an error result.
+    if (error.Fail() && !result_valobj_sp)
+      result_valobj_sp = ValueObjectConstResult::Create(
+          exe_ctx.GetBestExecutionContextScope(), error);
   }
 
   if (execution_results == eExpressionCompleted)
@@ -2505,9 +2618,12 @@ ExpressionResults Target::EvaluateExpression(
 lldb::ExpressionVariableSP Target::GetPersistentVariable(ConstString name) {
   lldb::ExpressionVariableSP variable_sp;
   m_scratch_type_system_map.ForEach(
-      [name, &variable_sp](TypeSystem *type_system) -> bool {
+      [name, &variable_sp](TypeSystemSP type_system) -> bool {
+        auto ts = type_system.get();
+        if (!ts)
+          return true;
         if (PersistentExpressionState *persistent_state =
-                type_system->GetPersistentExpressionState()) {
+                ts->GetPersistentExpressionState()) {
           variable_sp = persistent_state->GetVariable(name);
 
           if (variable_sp)
@@ -2522,9 +2638,13 @@ lldb::addr_t Target::GetPersistentSymbol(ConstString name) {
   lldb::addr_t address = LLDB_INVALID_ADDRESS;
 
   m_scratch_type_system_map.ForEach(
-      [name, &address](TypeSystem *type_system) -> bool {
+      [name, &address](lldb::TypeSystemSP type_system) -> bool {
+        auto ts = type_system.get();
+        if (!ts)
+          return true;
+
         if (PersistentExpressionState *persistent_state =
-                type_system->GetPersistentExpressionState()) {
+                ts->GetPersistentExpressionState()) {
           address = persistent_state->LookupSymbol(name);
           if (address != LLDB_INVALID_ADDRESS)
             return false; // Stop iterating the ForEach
@@ -3084,7 +3204,7 @@ Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
   assert(launch_info.GetHijackListener());
 
   EventSP first_stop_event_sp;
-  state = m_process_sp->WaitForProcessToStop(llvm::None, &first_stop_event_sp,
+  state = m_process_sp->WaitForProcessToStop(std::nullopt, &first_stop_event_sp,
                                              rebroadcast_first_stop,
                                              launch_info.GetHijackListener());
   m_process_sp->RestoreProcessEvents();
@@ -3194,8 +3314,8 @@ Status Target::Attach(ProcessAttachInfo &attach_info, Stream *stream) {
   // the process to attach to by default
   if (!attach_info.ProcessInfoSpecified()) {
     if (old_exec_module_sp)
-      attach_info.GetExecutableFile().GetFilename() =
-          old_exec_module_sp->GetPlatformFileSpec().GetFilename();
+      attach_info.GetExecutableFile().SetFilename(
+            old_exec_module_sp->GetPlatformFileSpec().GetFilename());
 
     if (!attach_info.ProcessInfoSpecified()) {
       return Status("no process specified, create a target with a file, or "
@@ -3240,8 +3360,9 @@ Status Target::Attach(ProcessAttachInfo &attach_info, Stream *stream) {
     if (async) {
       process_sp->RestoreProcessEvents();
     } else {
-      state = process_sp->WaitForProcessToStop(
-          llvm::None, nullptr, false, attach_info.GetHijackListener(), stream);
+      state = process_sp->WaitForProcessToStop(std::nullopt, nullptr, false,
+                                               attach_info.GetHijackListener(),
+                                               stream);
       process_sp->RestoreProcessEvents();
 
       if (state != eStateStopped) {
@@ -3333,6 +3454,130 @@ void Target::FinalizeFileActions(ProcessLaunchInfo &info) {
         llvm::Error Err = info.SetUpPtyRedirection();
         LLDB_LOG_ERROR(log, std::move(Err), "SetUpPtyRedirection failed: {0}");
       }
+    }
+  }
+}
+
+void Target::AddDummySignal(llvm::StringRef name, LazyBool pass, LazyBool notify,
+                            LazyBool stop) {
+    if (name.empty())
+      return;
+    // Don't add a signal if all the actions are trivial:
+    if (pass == eLazyBoolCalculate && notify == eLazyBoolCalculate
+        && stop == eLazyBoolCalculate)
+      return;
+
+    auto& elem = m_dummy_signals[name];
+    elem.pass = pass;
+    elem.notify = notify;
+    elem.stop = stop;
+}
+
+bool Target::UpdateSignalFromDummy(UnixSignalsSP signals_sp,
+                                          const DummySignalElement &elem) {
+  if (!signals_sp)
+    return false;
+
+  int32_t signo
+      = signals_sp->GetSignalNumberFromName(elem.first().str().c_str());
+  if (signo == LLDB_INVALID_SIGNAL_NUMBER)
+    return false;
+
+  if (elem.second.pass == eLazyBoolYes)
+    signals_sp->SetShouldSuppress(signo, false);
+  else if (elem.second.pass == eLazyBoolNo)
+    signals_sp->SetShouldSuppress(signo, true);
+
+  if (elem.second.notify == eLazyBoolYes)
+    signals_sp->SetShouldNotify(signo, true);
+  else if (elem.second.notify == eLazyBoolNo)
+    signals_sp->SetShouldNotify(signo, false);
+
+  if (elem.second.stop == eLazyBoolYes)
+    signals_sp->SetShouldStop(signo, true);
+  else if (elem.second.stop == eLazyBoolNo)
+    signals_sp->SetShouldStop(signo, false);
+  return true;
+}
+
+bool Target::ResetSignalFromDummy(UnixSignalsSP signals_sp,
+                                          const DummySignalElement &elem) {
+  if (!signals_sp)
+    return false;
+  int32_t signo
+      = signals_sp->GetSignalNumberFromName(elem.first().str().c_str());
+  if (signo == LLDB_INVALID_SIGNAL_NUMBER)
+    return false;
+  bool do_pass = elem.second.pass != eLazyBoolCalculate;
+  bool do_stop = elem.second.stop != eLazyBoolCalculate;
+  bool do_notify = elem.second.notify != eLazyBoolCalculate;
+  signals_sp->ResetSignal(signo, do_stop, do_notify, do_pass);
+  return true;
+}
+
+void Target::UpdateSignalsFromDummy(UnixSignalsSP signals_sp,
+                                    StreamSP warning_stream_sp) {
+  if (!signals_sp)
+    return;
+
+  for (const auto &elem : m_dummy_signals) {
+    if (!UpdateSignalFromDummy(signals_sp, elem))
+      warning_stream_sp->Printf("Target signal '%s' not found in process\n",
+          elem.first().str().c_str());
+  }
+}
+
+void Target::ClearDummySignals(Args &signal_names) {
+  ProcessSP process_sp = GetProcessSP();
+  // The simplest case, delete them all with no process to update.
+  if (signal_names.GetArgumentCount() == 0 && !process_sp) {
+    m_dummy_signals.clear();
+    return;
+  }
+  UnixSignalsSP signals_sp;
+  if (process_sp)
+    signals_sp = process_sp->GetUnixSignals();
+
+  for (const Args::ArgEntry &entry : signal_names) {
+    const char *signal_name = entry.c_str();
+    auto elem = m_dummy_signals.find(signal_name);
+    // If we didn't find it go on.
+    // FIXME: Should I pipe error handling through here?
+    if (elem == m_dummy_signals.end()) {
+      continue;
+    }
+    if (signals_sp)
+      ResetSignalFromDummy(signals_sp, *elem);
+    m_dummy_signals.erase(elem);
+  }
+}
+
+void Target::PrintDummySignals(Stream &strm, Args &signal_args) {
+  strm.Printf("NAME         PASS     STOP     NOTIFY\n");
+  strm.Printf("===========  =======  =======  =======\n");
+
+  auto str_for_lazy = [] (LazyBool lazy) -> const char * {
+    switch (lazy) {
+      case eLazyBoolCalculate: return "not set";
+      case eLazyBoolYes: return "true   ";
+      case eLazyBoolNo: return "false  ";
+    }
+    llvm_unreachable("Fully covered switch above!");
+  };
+  size_t num_args = signal_args.GetArgumentCount();
+  for (const auto &elem : m_dummy_signals) {
+    bool print_it = false;
+    for (size_t idx = 0; idx < num_args; idx++) {
+      if (elem.first() == signal_args.GetArgumentAtIndex(idx)) {
+        print_it = true;
+        break;
+      }
+    }
+    if (print_it) {
+      strm.Printf("%-11s  ", elem.first().str().c_str());
+      strm.Printf("%s  %s  %s\n", str_for_lazy(elem.second.pass),
+                  str_for_lazy(elem.second.stop),
+                  str_for_lazy(elem.second.notify));
     }
   }
 }
@@ -3652,6 +3897,22 @@ static constexpr OptionEnumValueElement g_import_std_module_value_types[] = {
     },
 };
 
+static constexpr OptionEnumValueElement
+    g_dynamic_class_info_helper_value_types[] = {
+        {
+            eDynamicClassInfoHelperAuto,
+            "auto",
+            "Automatically determine the most appropriate method for the "
+            "target OS.",
+        },
+        {eDynamicClassInfoHelperRealizedClassesStruct, "RealizedClassesStruct",
+         "Prefer using the realized classes struct."},
+        {eDynamicClassInfoHelperCopyRealizedClassList, "CopyRealizedClassList",
+         "Prefer using the CopyRealizedClassList API."},
+        {eDynamicClassInfoHelperGetRealizedClassList, "GetRealizedClassList",
+         "Prefer using the GetRealizedClassList API."},
+};
+
 static constexpr OptionEnumValueElement g_hex_immediate_style_values[] = {
     {
         Disassembler::eHexStyleC,
@@ -3814,6 +4075,8 @@ TargetProperties::TargetProperties(Target *target)
     m_collection_sp->SetValueChangedCallback(
         ePropertyDisableSTDIO, [this] { DisableSTDIOValueChangedCallback(); });
 
+    m_collection_sp->SetValueChangedCallback(
+        ePropertySaveObjectsDir, [this] { CheckJITObjectsDir(); });
     m_experimental_properties_up =
         std::make_unique<TargetExperimentalProperties>();
     m_collection_sp->AppendProperty(
@@ -3835,6 +4098,8 @@ TargetProperties::TargetProperties(Target *target)
     m_collection_sp->AppendProperty(
         ConstString("process"), ConstString("Settings specific to processes."),
         true, Process::GetGlobalProperties().GetValueProperties());
+    m_collection_sp->SetValueChangedCallback(
+        ePropertySaveObjectsDir, [this] { CheckJITObjectsDir(); });
   }
 }
 
@@ -4098,6 +4363,12 @@ PathMappingList &TargetProperties::GetSourcePathMap() const {
   return option_value->GetCurrentValue();
 }
 
+bool TargetProperties::GetAutoSourceMapRelative() const {
+  const uint32_t idx = ePropertyAutoSourceMapRelative;
+  return m_collection_sp->GetPropertyAtIndexAsBoolean(
+      nullptr, idx, g_target_properties[idx].default_uint_value != 0);
+}
+
 void TargetProperties::AppendExecutableSearchPaths(const FileSpec &dir) {
   const uint32_t idx = ePropertyExecutableSearchPaths;
   OptionValueFileSpecList *option_value =
@@ -4146,6 +4417,13 @@ ImportStdModule TargetProperties::GetImportStdModule() const {
       nullptr, idx, g_target_properties[idx].default_uint_value);
 }
 
+DynamicClassInfoHelper TargetProperties::GetDynamicClassInfoHelper() const {
+  const uint32_t idx = ePropertyDynamicClassInfoHelper;
+  return (DynamicClassInfoHelper)
+      m_collection_sp->GetPropertyAtIndexAsEnumeration(
+          nullptr, idx, g_target_properties[idx].default_uint_value);
+}
+
 bool TargetProperties::GetEnableAutoApplyFixIts() const {
   const uint32_t idx = ePropertyAutoApplyFixIts;
   return m_collection_sp->GetPropertyAtIndexAsBoolean(
@@ -4164,10 +4442,42 @@ bool TargetProperties::GetEnableNotifyAboutFixIts() const {
       nullptr, idx, g_target_properties[idx].default_uint_value != 0);
 }
 
-bool TargetProperties::GetEnableSaveObjects() const {
-  const uint32_t idx = ePropertySaveObjects;
-  return m_collection_sp->GetPropertyAtIndexAsBoolean(
-      nullptr, idx, g_target_properties[idx].default_uint_value != 0);
+FileSpec TargetProperties::GetSaveJITObjectsDir() const {
+  const uint32_t idx = ePropertySaveObjectsDir;
+  return m_collection_sp->GetPropertyAtIndexAsFileSpec(nullptr, idx);
+}
+
+void TargetProperties::CheckJITObjectsDir() {
+  FileSpec new_dir = GetSaveJITObjectsDir();
+  if (!new_dir)
+    return;
+
+  const FileSystem &instance = FileSystem::Instance();
+  bool exists = instance.Exists(new_dir);
+  bool is_directory = instance.IsDirectory(new_dir);
+  std::string path = new_dir.GetPath(true);
+  bool writable = llvm::sys::fs::can_write(path);
+  if (exists && is_directory && writable)
+    return;
+
+  m_collection_sp->GetPropertyAtIndex(nullptr, true, ePropertySaveObjectsDir)
+      ->GetValue()
+      ->Clear();
+
+  std::string buffer;
+  llvm::raw_string_ostream os(buffer);
+  os << "JIT object dir '" << path << "' ";
+  if (!exists)
+    os << "does not exist";
+  else if (!is_directory)
+    os << "is not a directory";
+  else if (!writable)
+    os << "is not writable";
+
+  llvm::Optional<lldb::user_id_t> debugger_id;
+  if (m_target)
+    debugger_id = m_target->GetDebugger().GetID();
+  Debugger::ReportError(os.str(), debugger_id);
 }
 
 bool TargetProperties::GetEnableSyntheticValue() const {
@@ -4186,6 +4496,15 @@ uint32_t TargetProperties::GetMaximumNumberOfChildrenToDisplay() const {
   const uint32_t idx = ePropertyMaxChildrenCount;
   return m_collection_sp->GetPropertyAtIndexAsSInt64(
       nullptr, idx, g_target_properties[idx].default_uint_value);
+}
+
+std::pair<uint32_t, bool>
+TargetProperties::GetMaximumDepthOfChildrenToDisplay() const {
+  const uint32_t idx = ePropertyMaxChildrenDepth;
+  auto *option_value =
+      m_collection_sp->GetPropertyAtIndexAsOptionValueUInt64(nullptr, idx);
+  bool is_default = !option_value->OptionWasSet();
+  return {option_value->GetCurrentValue(), is_default};
 }
 
 uint32_t TargetProperties::GetMaximumSizeOfStringSummary() const {

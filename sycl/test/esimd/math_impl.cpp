@@ -3,13 +3,13 @@
 // This test checks the codegen for the following ESIMD APIs:
 // sin, cos, exp, log.
 
-#include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
-#include <CL/sycl/builtins_esimd.hpp>
+#include <sycl/builtins_esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
-using namespace sycl::ext::intel::experimental;
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl;
+using namespace sycl::ext::intel;
+using namespace sycl::ext::intel::esimd;
 
 // Math sin,cos,log,exp functions are translated into scalar __spirv_ocl_ calls
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> sycl_math(simd<float, 16> x) {

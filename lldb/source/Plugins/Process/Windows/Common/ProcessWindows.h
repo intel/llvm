@@ -36,9 +36,6 @@ public:
 
   static llvm::StringRef GetPluginDescriptionStatic();
 
-  // Constructors and destructors
-  ProcessWindows(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp);
-
   ~ProcessWindows();
 
   size_t GetSTDOUT(char *buf, size_t buf_size, Status &error) override;
@@ -71,6 +68,8 @@ public:
                           ThreadList &new_thread_list) override;
   bool IsAlive() override;
 
+  ArchSpec GetSystemArchitecture() override;
+
   size_t DoReadMemory(lldb::addr_t vm_addr, void *buf, size_t size,
                       Status &error) override;
   size_t DoWriteMemory(lldb::addr_t vm_addr, const void *buf, size_t size,
@@ -102,6 +101,8 @@ public:
   Status DisableWatchpoint(Watchpoint *wp, bool notify = true) override;
 
 protected:
+  ProcessWindows(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp);
+
   Status DoGetMemoryRegionInfo(lldb::addr_t vm_addr,
                                MemoryRegionInfo &info) override;
 

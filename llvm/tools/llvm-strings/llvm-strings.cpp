@@ -43,7 +43,7 @@ enum ID {
 #include "Opts.inc"
 #undef PREFIX
 
-const opt::OptTable::Info InfoTable[] = {
+static constexpr opt::OptTable::Info InfoTable[] = {
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
   {                                                                            \
@@ -64,8 +64,7 @@ public:
 static StringRef ToolName;
 
 static cl::list<std::string> InputFileNames(cl::Positional,
-                                            cl::desc("<input object files>"),
-                                            cl::ZeroOrMore);
+                                            cl::desc("<input object files>"));
 
 static int MinLength = 4;
 static bool PrintFileName;

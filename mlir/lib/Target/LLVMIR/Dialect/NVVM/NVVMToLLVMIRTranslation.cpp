@@ -13,7 +13,9 @@
 
 #include "mlir/Target/LLVMIR/Dialect/NVVM/NVVMToLLVMIRTranslation.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
+#include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/Support/LogicalResult.h"
 #include "mlir/Target/LLVMIR/ModuleTranslation.h"
 
 #include "llvm/IR/IRBuilder.h"
@@ -64,6 +66,35 @@ static llvm::Intrinsic::ID getShflIntrinsicId(llvm::Type *resultType,
   llvm_unreachable("unknown shuffle kind");
 }
 
+/// Return the intrinsic ID associated with ldmatrix for the given paramters.
+static llvm::Intrinsic::ID getLdMatrixIntrinsicId(NVVM::MMALayout layout,
+                                                  int32_t num) {
+  if (layout == NVVM::MMALayout::row) {
+    switch (num) {
+    case 1:
+      return llvm::Intrinsic::nvvm_ldmatrix_sync_aligned_m8n8_x1_b16;
+    case 2:
+      return llvm::Intrinsic::nvvm_ldmatrix_sync_aligned_m8n8_x2_b16;
+    case 4:
+      return llvm::Intrinsic::nvvm_ldmatrix_sync_aligned_m8n8_x4_b16;
+    default:
+      llvm_unreachable("unsupported number of matrix");
+    }
+
+  } else {
+    switch (num) {
+    case 1:
+      return llvm::Intrinsic::nvvm_ldmatrix_sync_aligned_m8n8_x1_trans_b16;
+    case 2:
+      return llvm::Intrinsic::nvvm_ldmatrix_sync_aligned_m8n8_x2_trans_b16;
+    case 4:
+      return llvm::Intrinsic::nvvm_ldmatrix_sync_aligned_m8n8_x4_trans_b16;
+    default:
+      llvm_unreachable("unsupported number of matrix");
+    }
+  }
+}
+
 namespace {
 /// Implementation of the dialect interface that converts operations belonging
 /// to the NVVM dialect to LLVM IR.
@@ -87,21 +118,59 @@ public:
   LogicalResult
   amendOperation(Operation *op, NamedAttribute attribute,
                  LLVM::ModuleTranslation &moduleTranslation) const final {
-    if (attribute.getName() == NVVM::NVVMDialect::getKernelFuncAttrName()) {
-      auto func = dyn_cast<LLVM::LLVMFuncOp>(op);
-      if (!func)
-        return failure();
+    auto func = dyn_cast<LLVM::LLVMFuncOp>(op);
+    if (!func)
+      return failure();
+    llvm::LLVMContext &llvmContext = moduleTranslation.getLLVMContext();
+    llvm::Function *llvmFunc = moduleTranslation.lookupFunction(func.getName());
 
-      llvm::LLVMContext &llvmContext = moduleTranslation.getLLVMContext();
-      llvm::Function *llvmFunc =
-          moduleTranslation.lookupFunction(func.getName());
+    auto generateMetadata = [&](int dim, StringRef name) {
       llvm::Metadata *llvmMetadata[] = {
+          llvm::ValueAsMetadata::get(llvmFunc),
+          llvm::MDString::get(llvmContext, name),
+          llvm::ValueAsMetadata::get(llvm::ConstantInt::get(
+              llvm::Type::getInt32Ty(llvmContext), dim))};
+      llvm::MDNode *llvmMetadataNode =
+          llvm::MDNode::get(llvmContext, llvmMetadata);
+      moduleTranslation.getOrInsertNamedModuleMetadata("nvvm.annotations")
+          ->addOperand(llvmMetadataNode);
+    };
+    if (attribute.getName() == NVVM::NVVMDialect::getMaxntidAttrName()) {
+      if (!attribute.getValue().dyn_cast<ArrayAttr>())
+        return failure();
+      SmallVector<int64_t> values =
+          extractFromI64ArrayAttr(attribute.getValue());
+      generateMetadata(values[0], NVVM::NVVMDialect::getMaxntidXName());
+      if (values.size() > 1)
+        generateMetadata(values[1], NVVM::NVVMDialect::getMaxntidYName());
+      if (values.size() > 2)
+        generateMetadata(values[2], NVVM::NVVMDialect::getMaxntidZName());
+    } else if (attribute.getName() == NVVM::NVVMDialect::getReqntidAttrName()) {
+      if (!attribute.getValue().dyn_cast<ArrayAttr>())
+        return failure();
+      SmallVector<int64_t> values =
+          extractFromI64ArrayAttr(attribute.getValue());
+      generateMetadata(values[0], NVVM::NVVMDialect::getReqntidXName());
+      if (values.size() > 1)
+        generateMetadata(values[1], NVVM::NVVMDialect::getReqntidYName());
+      if (values.size() > 2)
+        generateMetadata(values[2], NVVM::NVVMDialect::getReqntidZName());
+    } else if (attribute.getName() ==
+               NVVM::NVVMDialect::getMinctasmAttrName()) {
+      auto value = attribute.getValue().dyn_cast<IntegerAttr>();
+      generateMetadata(value.getInt(), "minctasm");
+    } else if (attribute.getName() == NVVM::NVVMDialect::getMaxnregAttrName()) {
+      auto value = attribute.getValue().dyn_cast<IntegerAttr>();
+      generateMetadata(value.getInt(), "maxnreg");
+    } else if (attribute.getName() ==
+               NVVM::NVVMDialect::getKernelFuncAttrName()) {
+      llvm::Metadata *llvmMetadataKernel[] = {
           llvm::ValueAsMetadata::get(llvmFunc),
           llvm::MDString::get(llvmContext, "kernel"),
           llvm::ValueAsMetadata::get(
               llvm::ConstantInt::get(llvm::Type::getInt32Ty(llvmContext), 1))};
       llvm::MDNode *llvmMetadataNode =
-          llvm::MDNode::get(llvmContext, llvmMetadata);
+          llvm::MDNode::get(llvmContext, llvmMetadataKernel);
       moduleTranslation.getOrInsertNamedModuleMetadata("nvvm.annotations")
           ->addOperand(llvmMetadataNode);
     }
@@ -112,8 +181,9 @@ public:
 
 void mlir::registerNVVMDialectTranslation(DialectRegistry &registry) {
   registry.insert<NVVM::NVVMDialect>();
-  registry.addDialectInterface<NVVM::NVVMDialect,
-                               NVVMDialectLLVMIRTranslationInterface>();
+  registry.addExtension(+[](MLIRContext *ctx, NVVM::NVVMDialect *dialect) {
+    dialect->addInterfaces<NVVMDialectLLVMIRTranslationInterface>();
+  });
 }
 
 void mlir::registerNVVMDialectTranslation(MLIRContext &context) {

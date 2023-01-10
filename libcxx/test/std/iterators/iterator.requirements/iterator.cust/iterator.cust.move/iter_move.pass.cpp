@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 
 // template<class I>
 // unspecified iter_move;
@@ -50,6 +49,9 @@ public:
 private:
   I base_ = I{};
 };
+
+template <class I>
+iterator_wrapper(I) -> iterator_wrapper<I>;
 
 template <typename It, typename Out>
 constexpr void unqualified_lookup_move(It first_, It last_, Out result_first_, Out result_last_) {

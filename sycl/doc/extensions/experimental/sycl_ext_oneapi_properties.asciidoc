@@ -444,15 +444,16 @@ a|
 template<typename PropertyT>
 PropertyT get_property() const;
 ``` | Returns a copy of the property value contained in the property list.
-Must produce a compile error if the property list does not contain a PropertyT property.
-Available only if `PropertyT` is a runtime property.
+Available only if `PropertyT` is a runtime property and the property list
+contains a `PropertyT` property.
 a|
 ```c++
 template<typename PropertyKeyT>
 static constexpr auto get_property();
 ``` | Returns a copy of the property value contained in the property list.
-Must produce a compile error if the property_list does not contain a property with the `PropertyKeyT` key.
-Available only if `PropertyKeyT` is the property key class of a compile-time constant property.
+Available only if `PropertyKeyT` is the property key class of a compile-time
+constant property and the property list contains a property with the
+`PropertyKeyT` key.
 |===
 --
 

@@ -1,4 +1,4 @@
-add_mlir_dialect_library(MLIRBufferization
+add_mlir_dialect_library(MLIRBufferizationDialect
   AllocationOpInterface.cpp
   BufferizableOpInterface.cpp
   BufferizationOps.cpp
@@ -10,10 +10,15 @@ add_mlir_dialect_library(MLIRBufferization
   DEPENDS
   MLIRAllocationOpInterfaceIncGen
   MLIRBufferizationOpsIncGen
+  MLIRBufferizationEnumsIncGen
 
   LINK_LIBS PUBLIC
+  MLIRAffineDialect
+  MLIRDestinationStyleOpInterface
   MLIRDialect
+  MLIRFuncDialect
   MLIRIR
-  MLIRTensor
-  MLIRMemRef
+  MLIRSparseTensorDialect
+  MLIRTensorDialect
+  MLIRMemRefDialect
   )

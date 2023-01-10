@@ -11,7 +11,7 @@ void test_eh_return_data_regno(void)
 
 void *test_extract_return_address(void)
 {
-  // CHECK,CHECKV9: getelementptr i8, i8* %0, i32 8
+  // CHECK,CHECKV9: getelementptr i8, ptr %0, i32 8
   return __builtin_extract_return_addr(__builtin_return_address(0));
 }
 
@@ -22,8 +22,8 @@ struct s {
 struct s test_extract_struct_return_address(void)
 {
   struct s s;
-  // CHECK:    getelementptr i8, i8* %0, i32 12
-  // CHECK-V9: getelementptr i8, i8* %0, i32 8
+  // CHECK:    getelementptr i8, ptr %0, i32 12
+  // CHECK-V9: getelementptr i8, ptr %0, i32 8
   s.p = __builtin_extract_return_addr(__builtin_return_address(0));
   return s;
 }

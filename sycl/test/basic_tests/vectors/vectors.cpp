@@ -9,7 +9,9 @@
 //===----------------------------------------------------------------------===//
 
 #define SYCL_SIMPLE_SWIZZLES
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
+
+#include <cstddef>
 
 void check_vectors(sycl::int4 a, sycl::int4 b, sycl::int4 c, sycl::int4 gold) {
   sycl::int4 result = a * (sycl::int4)b.y() + c;
@@ -100,17 +102,17 @@ int main() {
   auto asVec = inputVec.template swizzle<sycl::elem::s0, sycl::elem::s1>()
                    .template as<sycl::vec<int16_t, 1>>();
 
-  // Check that [u]long[n] type aliases match vec<[unsigned] long, n> types.
-  assert((std::is_same<sycl::vec<long, 2>, sycl::long2>::value));
-  assert((std::is_same<sycl::vec<long, 3>, sycl::long3>::value));
-  assert((std::is_same<sycl::vec<long, 4>, sycl::long4>::value));
-  assert((std::is_same<sycl::vec<long, 8>, sycl::long8>::value));
-  assert((std::is_same<sycl::vec<long, 16>, sycl::long16>::value));
-  assert((std::is_same<sycl::vec<unsigned long, 2>, sycl::ulong2>::value));
-  assert((std::is_same<sycl::vec<unsigned long, 3>, sycl::ulong3>::value));
-  assert((std::is_same<sycl::vec<unsigned long, 4>, sycl::ulong4>::value));
-  assert((std::is_same<sycl::vec<unsigned long, 8>, sycl::ulong8>::value));
-  assert((std::is_same<sycl::vec<unsigned long, 16>, sycl::ulong16>::value));
+  // Check that [u]long[n] type aliases match vec<[u]int64_t, n> types.
+  assert((std::is_same<sycl::vec<std::int64_t, 2>, sycl::long2>::value));
+  assert((std::is_same<sycl::vec<std::int64_t, 3>, sycl::long3>::value));
+  assert((std::is_same<sycl::vec<std::int64_t, 4>, sycl::long4>::value));
+  assert((std::is_same<sycl::vec<std::int64_t, 8>, sycl::long8>::value));
+  assert((std::is_same<sycl::vec<std::int64_t, 16>, sycl::long16>::value));
+  assert((std::is_same<sycl::vec<std::uint64_t, 2>, sycl::ulong2>::value));
+  assert((std::is_same<sycl::vec<std::uint64_t, 3>, sycl::ulong3>::value));
+  assert((std::is_same<sycl::vec<std::uint64_t, 4>, sycl::ulong4>::value));
+  assert((std::is_same<sycl::vec<std::uint64_t, 8>, sycl::ulong8>::value));
+  assert((std::is_same<sycl::vec<std::uint64_t, 16>, sycl::ulong16>::value));
 
   // Check convert() from and to various types.
   check_convert_from<int8_t>();

@@ -105,7 +105,7 @@ define zeroext i1 @any_sign_bits_clear(i32 %P, i32 %Q) nounwind {
 }
 
 ; PR3351 - (P == 0) & (Q == 0) -> (P|Q) == 0
-define i32 @all_bits_clear_branch(i32* %P, i32* %Q) nounwind {
+define i32 @all_bits_clear_branch(ptr %P, ptr %Q) nounwind {
 ; CHECK-LABEL: all_bits_clear_branch:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    orq %rsi, %rdi
@@ -117,8 +117,8 @@ define i32 @all_bits_clear_branch(i32* %P, i32* %Q) nounwind {
 ; CHECK-NEXT:    movl $192, %eax
 ; CHECK-NEXT:    retq
 entry:
-  %a = icmp eq i32* %P, null
-  %b = icmp eq i32* %Q, null
+  %a = icmp eq ptr %P, null
+  %b = icmp eq ptr %Q, null
   %c = and i1 %a, %b
   br i1 %c, label %bb1, label %return
 
@@ -211,7 +211,7 @@ return:
 }
 
 ; PR3351 - (P != 0) | (Q != 0) -> (P|Q) != 0
-define i32 @any_bits_set_branch(i32* %P, i32* %Q) nounwind {
+define i32 @any_bits_set_branch(ptr %P, ptr %Q) nounwind {
 ; CHECK-LABEL: any_bits_set_branch:
 ; CHECK:       # %bb.0: # %entry
 ; CHECK-NEXT:    orq %rsi, %rdi
@@ -223,8 +223,8 @@ define i32 @any_bits_set_branch(i32* %P, i32* %Q) nounwind {
 ; CHECK-NEXT:    movl $192, %eax
 ; CHECK-NEXT:    retq
 entry:
-  %a = icmp ne i32* %P, null
-  %b = icmp ne i32* %Q, null
+  %a = icmp ne ptr %P, null
+  %b = icmp ne ptr %Q, null
   %c = or i1 %a, %b
   br i1 %c, label %bb1, label %return
 
@@ -523,6 +523,21 @@ define i1 @or_icmps_const_1bit_diff(i8 %x) {
   ret i1 %r
 }
 
+define <4 x i32> @or_icmps_const_1bit_diff_vec(<4 x i32> %x) {
+; CHECK-LABEL: or_icmps_const_1bit_diff_vec:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    movdqa {{.*#+}} xmm1 = [43,45,43,45]
+; CHECK-NEXT:    pcmpeqd %xmm0, %xmm1
+; CHECK-NEXT:    pcmpeqd {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
+; CHECK-NEXT:    por %xmm1, %xmm0
+; CHECK-NEXT:    retq
+  %a = icmp eq <4 x i32> %x, <i32 43, i32 45, i32 43, i32 45>
+  %b = icmp eq <4 x i32> %x, <i32 45, i32 43, i32 45, i32 43>
+  %t = or <4 x i1> %a, %b
+  %r = sext <4 x i1> %t to <4 x i32>
+  ret <4 x i32> %r
+}
+
 define i1 @and_icmps_const_1bit_diff(i32 %x) {
 ; CHECK-LABEL: and_icmps_const_1bit_diff:
 ; CHECK:       # %bb.0:
@@ -536,9 +551,27 @@ define i1 @and_icmps_const_1bit_diff(i32 %x) {
   ret i1 %r
 }
 
+define <4 x i32> @and_icmps_const_1bit_diff_vec(<4 x i32> %x) {
+; CHECK-LABEL: and_icmps_const_1bit_diff_vec:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    movdqa {{.*#+}} xmm1 = [44,60,44,60]
+; CHECK-NEXT:    pcmpeqd %xmm0, %xmm1
+; CHECK-NEXT:    pcmpeqd {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
+; CHECK-NEXT:    pcmpeqd %xmm2, %xmm2
+; CHECK-NEXT:    pxor %xmm0, %xmm2
+; CHECK-NEXT:    pandn %xmm2, %xmm1
+; CHECK-NEXT:    movdqa %xmm1, %xmm0
+; CHECK-NEXT:    retq
+  %a = icmp ne <4 x i32> %x, <i32 44, i32 60, i32 44, i32 60>
+  %b = icmp ne <4 x i32> %x, <i32 60, i32 44, i32 60, i32 44>
+  %t = and <4 x i1> %a, %b
+  %r = sext <4 x i1> %t to <4 x i32>
+  ret <4 x i32> %r
+}
+
 ; Negative test - extra use prevents optimization
 
-define i1 @or_icmps_const_1bit_diff_extra_use(i8 %x, i8* %p) {
+define i1 @or_icmps_const_1bit_diff_extra_use(i8 %x, ptr %p) {
 ; CHECK-LABEL: or_icmps_const_1bit_diff_extra_use:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    cmpb $45, %dil
@@ -552,7 +585,7 @@ define i1 @or_icmps_const_1bit_diff_extra_use(i8 %x, i8* %p) {
   %b = icmp eq i8 %x, 45
   %r = or i1 %a, %b
   %z = zext i1 %a to i8
-  store i8 %z, i8* %p
+  store i8 %z, ptr %p
   ret i1 %r
 }
 

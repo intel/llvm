@@ -305,8 +305,6 @@ define i32 @uabdl4s_rdx_i32(<4 x i16> %a, <4 x i16> %b) {
 ; GISEL-NEXT:    usubl.4s v0, v0, v1
 ; GISEL-NEXT:    cmgt.4s v1, v2, v0
 ; GISEL-NEXT:    neg.4s v2, v0
-; GISEL-NEXT:    shl.4s v1, v1, #31
-; GISEL-NEXT:    sshr.4s v1, v1, #31
 ; GISEL-NEXT:    bit.16b v0, v2, v1
 ; GISEL-NEXT:    addv.4s s0, v0
 ; GISEL-NEXT:    fmov w0, s0
@@ -378,8 +376,6 @@ define i64 @uabdl2d_rdx_i64(<2 x i32> %a, <2 x i32> %b) {
 ; GISEL-NEXT:    usubl.2d v0, v0, v1
 ; GISEL-NEXT:    cmgt.2d v1, v2, v0
 ; GISEL-NEXT:    neg.2d v2, v0
-; GISEL-NEXT:    shl.2d v1, v1, #63
-; GISEL-NEXT:    sshr.2d v1, v1, #63
 ; GISEL-NEXT:    bit.16b v0, v2, v1
 ; GISEL-NEXT:    addp.2d d0, v0
 ; GISEL-NEXT:    fmov x0, d0
@@ -1575,8 +1571,6 @@ define <2 x i32> @abspattern1(<2 x i32> %a) nounwind {
 ; GISEL-NEXT:    movi.2d v1, #0000000000000000
 ; GISEL-NEXT:    neg.2s v2, v0
 ; GISEL-NEXT:    cmge.2s v1, v0, v1
-; GISEL-NEXT:    shl.2s v1, v1, #31
-; GISEL-NEXT:    sshr.2s v1, v1, #31
 ; GISEL-NEXT:    bif.8b v0, v2, v1
 ; GISEL-NEXT:    ret
 
@@ -1597,8 +1591,6 @@ define <4 x i16> @abspattern2(<4 x i16> %a) nounwind {
 ; GISEL-NEXT:    movi.2d v1, #0000000000000000
 ; GISEL-NEXT:    neg.4h v2, v0
 ; GISEL-NEXT:    cmgt.4h v1, v0, v1
-; GISEL-NEXT:    shl.4h v1, v1, #15
-; GISEL-NEXT:    sshr.4h v1, v1, #15
 ; GISEL-NEXT:    bif.8b v0, v2, v1
 ; GISEL-NEXT:    ret
 ; For GlobalISel, this generates terrible code until we can pattern match this to abs.
@@ -1620,8 +1612,6 @@ define <8 x i8> @abspattern3(<8 x i8> %a) nounwind {
 ; GISEL-NEXT:    movi.2d v1, #0000000000000000
 ; GISEL-NEXT:    neg.8b v2, v0
 ; GISEL-NEXT:    cmgt.8b v1, v1, v0
-; GISEL-NEXT:    shl.8b v1, v1, #7
-; GISEL-NEXT:    sshr.8b v1, v1, #7
 ; GISEL-NEXT:    bit.8b v0, v2, v1
 ; GISEL-NEXT:    ret
 
@@ -1642,8 +1632,6 @@ define <4 x i32> @abspattern4(<4 x i32> %a) nounwind {
 ; GISEL-NEXT:    movi.2d v1, #0000000000000000
 ; GISEL-NEXT:    neg.4s v2, v0
 ; GISEL-NEXT:    cmge.4s v1, v0, v1
-; GISEL-NEXT:    shl.4s v1, v1, #31
-; GISEL-NEXT:    sshr.4s v1, v1, #31
 ; GISEL-NEXT:    bif.16b v0, v2, v1
 ; GISEL-NEXT:    ret
 
@@ -1664,8 +1652,6 @@ define <8 x i16> @abspattern5(<8 x i16> %a) nounwind {
 ; GISEL-NEXT:    movi.2d v1, #0000000000000000
 ; GISEL-NEXT:    neg.8h v2, v0
 ; GISEL-NEXT:    cmgt.8h v1, v0, v1
-; GISEL-NEXT:    shl.8h v1, v1, #15
-; GISEL-NEXT:    sshr.8h v1, v1, #15
 ; GISEL-NEXT:    bif.16b v0, v2, v1
 ; GISEL-NEXT:    ret
 
@@ -1686,8 +1672,6 @@ define <16 x i8> @abspattern6(<16 x i8> %a) nounwind {
 ; GISEL-NEXT:    movi.2d v1, #0000000000000000
 ; GISEL-NEXT:    neg.16b v2, v0
 ; GISEL-NEXT:    cmgt.16b v1, v1, v0
-; GISEL-NEXT:    shl.16b v1, v1, #7
-; GISEL-NEXT:    sshr.16b v1, v1, #7
 ; GISEL-NEXT:    bit.16b v0, v2, v1
 ; GISEL-NEXT:    ret
 
@@ -1708,8 +1692,6 @@ define <2 x i64> @abspattern7(<2 x i64> %a) nounwind {
 ; GISEL-NEXT:    movi.2d v1, #0000000000000000
 ; GISEL-NEXT:    neg.2d v2, v0
 ; GISEL-NEXT:    cmge.2d v1, v1, v0
-; GISEL-NEXT:    shl.2d v1, v1, #63
-; GISEL-NEXT:    sshr.2d v1, v1, #63
 ; GISEL-NEXT:    bit.16b v0, v2, v1
 ; GISEL-NEXT:    ret
 
@@ -1731,8 +1713,6 @@ define <2 x i64> @uabd_i32(<2 x i32> %a, <2 x i32> %b) {
 ; GISEL-NEXT:    ssubl.2d v0, v0, v1
 ; GISEL-NEXT:    cmgt.2d v1, v2, v0
 ; GISEL-NEXT:    neg.2d v2, v0
-; GISEL-NEXT:    shl.2d v1, v1, #63
-; GISEL-NEXT:    sshr.2d v1, v1, #63
 ; GISEL-NEXT:    bit.16b v0, v2, v1
 ; GISEL-NEXT:    ret
   %aext = sext <2 x i32> %a to <2 x i64>
@@ -1748,28 +1728,28 @@ define <2 x i64> @uabd_i32(<2 x i32> %a, <2 x i32> %b) {
 define <2 x i128> @uabd_i64(<2 x i64> %a, <2 x i64> %b) {
 ; CHECK-LABEL: uabd_i64:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    fmov x9, d0
-; CHECK-NEXT:    fmov x11, d1
 ; CHECK-NEXT:    mov.d x8, v0[1]
+; CHECK-NEXT:    fmov x9, d0
 ; CHECK-NEXT:    mov.d x10, v1[1]
+; CHECK-NEXT:    fmov x11, d1
 ; CHECK-NEXT:    asr x12, x9, #63
 ; CHECK-NEXT:    asr x13, x11, #63
 ; CHECK-NEXT:    subs x9, x9, x11
-; CHECK-NEXT:    sbcs x11, x12, x13
+; CHECK-NEXT:    sbc x11, x12, x13
 ; CHECK-NEXT:    asr x12, x8, #63
 ; CHECK-NEXT:    asr x13, x10, #63
 ; CHECK-NEXT:    subs x8, x8, x10
-; CHECK-NEXT:    sbcs x10, x12, x13
-; CHECK-NEXT:    negs x12, x8
-; CHECK-NEXT:    ngcs x13, x10
-; CHECK-NEXT:    cmp x10, #0
-; CHECK-NEXT:    csel x2, x12, x8, lt
-; CHECK-NEXT:    csel x3, x13, x10, lt
-; CHECK-NEXT:    negs x8, x9
-; CHECK-NEXT:    ngcs x10, x11
-; CHECK-NEXT:    cmp x11, #0
-; CHECK-NEXT:    csel x8, x8, x9, lt
-; CHECK-NEXT:    csel x1, x10, x11, lt
+; CHECK-NEXT:    sbc x10, x12, x13
+; CHECK-NEXT:    asr x12, x11, #63
+; CHECK-NEXT:    asr x13, x10, #63
+; CHECK-NEXT:    eor x9, x9, x12
+; CHECK-NEXT:    eor x8, x8, x13
+; CHECK-NEXT:    eor x10, x10, x13
+; CHECK-NEXT:    subs x2, x8, x13
+; CHECK-NEXT:    sbc x3, x10, x13
+; CHECK-NEXT:    subs x8, x9, x12
+; CHECK-NEXT:    eor x9, x11, x12
+; CHECK-NEXT:    sbc x1, x9, x12
 ; CHECK-NEXT:    fmov d0, x8
 ; CHECK-NEXT:    mov.d v0[1], x1
 ; CHECK-NEXT:    fmov x0, d0
@@ -1782,3 +1762,5 @@ define <2 x i128> @uabd_i64(<2 x i64> %a, <2 x i64> %b) {
   %absel = select <2 x i1> %abcmp, <2 x i128> %ababs, <2 x i128> %abdiff
   ret <2 x i128> %absel
 }
+;; NOTE: These prefixes are unused and the list is autogenerated. Do not add tests below this line:
+; FALLBACK: {{.*}}

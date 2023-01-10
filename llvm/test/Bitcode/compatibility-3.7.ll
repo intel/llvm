@@ -1022,7 +1022,7 @@ exit:
   ; CHECK: select <2 x i1> <i1 true, i1 false>, <2 x i8> <i8 2, i8 3>, <2 x i8> <i8 3, i8 2>
 
   call void @f.nobuiltin() builtin
-  ; CHECK: call void @f.nobuiltin() #38
+  ; CHECK: call void @f.nobuiltin() #39
 
   call fastcc noalias i32* @f.noalias() noinline
   ; CHECK: call fastcc noalias i32* @f.noalias() #12
@@ -1229,8 +1229,8 @@ define void @misc.metadata() {
 ; CHECK: attributes #16 = { nounwind }
 ; CHECK: attributes #17 = { noinline optnone }
 ; CHECK: attributes #18 = { optsize }
-; CHECK: attributes #19 = { readnone }
-; CHECK: attributes #20 = { readonly }
+; CHECK: attributes #19 = { memory(none) }
+; CHECK: attributes #20 = { memory(read) }
 ; CHECK: attributes #21 = { returns_twice }
 ; CHECK: attributes #22 = { safestack }
 ; CHECK: attributes #23 = { sanitize_address }
@@ -1242,13 +1242,14 @@ define void @misc.metadata() {
 ; CHECK: attributes #29 = { "thunk" }
 ; CHECK: attributes #30 = { uwtable }
 ; CHECK: attributes #31 = { "cpu"="cortex-a8" }
-; CHECK: attributes #32 = { nofree nosync nounwind readnone willreturn }
-; CHECK: attributes #33 = { nofree nosync nounwind willreturn }
-; CHECK: attributes #34 = { argmemonly nounwind readonly }
-; CHECK: attributes #35 = { argmemonly nounwind }
-; CHECK: attributes #36 = { nounwind readonly }
-; CHECK: attributes #37 = { inaccessiblemem_or_argmemonly nofree nosync nounwind willreturn }
-; CHECK: attributes #38 = { builtin }
+; CHECK: attributes #32 = { nocallback nofree nosync nounwind willreturn memory(none) }
+; CHECK: attributes #33 = { nocallback nofree nosync nounwind willreturn }
+; CHECK: attributes #34 = { nounwind memory(argmem: read) }
+; CHECK: attributes #35 = { nounwind memory(argmem: readwrite) }
+; CHECK: attributes #36 = { nocallback nofree nosync nounwind willreturn memory(read) }
+; CHECK: attributes #37 = { nocallback nounwind }
+; CHECK: attributes #38 = { nocallback nofree nosync nounwind willreturn memory(argmem: readwrite, inaccessiblemem: readwrite) }
+; CHECK: attributes #39 = { builtin }
 
 ;; Metadata
 

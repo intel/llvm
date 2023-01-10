@@ -16,8 +16,8 @@
 #include <unordered_map>
 #include <utility>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 struct MemObjRecord;
@@ -156,12 +156,20 @@ private:
   friend class IteratorT<false>;
 
   template <bool IsConst, typename T> struct Ref;
-  template <typename T> struct Ref<true, T> { using type = const T &; };
-  template <typename T> struct Ref<false, T> { using type = T &; };
+  template <typename T> struct Ref<true, T> {
+    using type = const T &;
+  };
+  template <typename T> struct Ref<false, T> {
+    using type = T &;
+  };
 
   template <bool IsConst, typename T> struct Ptr;
-  template <typename T> struct Ptr<true, T> { using type = const T *; };
-  template <typename T> struct Ptr<false, T> { using type = T *; };
+  template <typename T> struct Ptr<true, T> {
+    using type = const T *;
+  };
+  template <typename T> struct Ptr<false, T> {
+    using type = T *;
+  };
 
 public:
   // iterate over generic commands in the first place and over host accessors
@@ -264,5 +272,5 @@ public:
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

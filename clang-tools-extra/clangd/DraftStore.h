@@ -9,7 +9,6 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_DRAFTSTORE_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_DRAFTSTORE_H
 
-#include "Protocol.h"
 #include "support/Path.h"
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/StringMap.h"
@@ -33,7 +32,7 @@ public:
   };
 
   /// \return Contents of the stored document.
-  /// For untracked files, a llvm::None is returned.
+  /// For untracked files, a std::nullopt is returned.
   llvm::Optional<Draft> getDraft(PathRef File) const;
 
   /// \return List of names of the drafts in this store.

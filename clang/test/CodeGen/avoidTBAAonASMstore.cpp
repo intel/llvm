@@ -5,7 +5,7 @@ double foo(double z) {
   unsigned short ControlWord;
   __asm { fnstcw word ptr[ControlWord]}
   ;
-  // STORE-LINE: store i64 %{{.*}}, i64* %{{.*}},
+  // STORE-LINE: store i64 %{{.*}}, ptr %{{.*}},
   // STORE-LINE-NOT: align 4, !tbaa
   // STORE-LINE-SAME: align 4
   return z;

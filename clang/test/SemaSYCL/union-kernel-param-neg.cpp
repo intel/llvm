@@ -4,11 +4,11 @@
 // accessor/sampler as SYCL kernel parameter inside union.
 
 #include "Inputs/sycl.hpp"
-using namespace cl::sycl;
+using namespace sycl;
 
 union union_with_sampler {
-  cl::sycl::sampler smpl;
-  // expected-error@-1 {{'cl::sycl::sampler' cannot be used inside a union kernel parameter}}
+  sycl::sampler smpl;
+  // expected-error@-1 {{'sycl::sampler' cannot be a data member of a union kernel parameter}}
 };
 
 template <typename name, typename Func>
@@ -23,7 +23,7 @@ int main() {
 
   union union_with_accessor {
     Accessor member_acc[1];
-    // expected-error@-1 {{'Accessor' (aka 'accessor<int, 1, access::mode::read_write, access::target::global_buffer>') cannot be used inside a union kernel parameter}}
+    // expected-error@-1 {{'Accessor' (aka 'accessor<int, 1, access::mode::read_write, access::target::global_buffer>') cannot be a data member of a union kernel parameter}}
   } union_acc;
 
   union_with_sampler Sampler;

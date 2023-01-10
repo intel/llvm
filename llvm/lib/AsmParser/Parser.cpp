@@ -11,13 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/AsmParser/Parser.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/AsmParser/LLParser.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/ModuleSummaryIndex.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SourceMgr.h"
-#include <cstring>
 #include <system_error>
 
 using namespace llvm;
@@ -95,7 +93,7 @@ ParsedModuleAndIndex llvm::parseAssemblyWithIndex(MemoryBufferRef F,
                                                   SlotMapping *Slots) {
   return ::parseAssemblyWithIndex(F, Err, Context, Slots,
                                   /*UpgradeDebugInfo*/ true,
-                                  [](StringRef) { return None; });
+                                  [](StringRef) { return std::nullopt; });
 }
 
 static ParsedModuleAndIndex
@@ -152,7 +150,7 @@ static bool parseSummaryIndexAssemblyInto(MemoryBufferRef F,
   // index, but we need to initialize it.
   LLVMContext unusedContext;
   return LLParser(F.getBuffer(), SM, Err, nullptr, &Index, unusedContext)
-      .Run(true, [](StringRef) { return None; });
+      .Run(true, [](StringRef) { return std::nullopt; });
 }
 
 std::unique_ptr<ModuleSummaryIndex>
@@ -177,6 +175,12 @@ llvm::parseSummaryIndexAssemblyFile(StringRef Filename, SMDiagnostic &Err) {
   }
 
   return parseSummaryIndexAssembly(FileOrErr.get()->getMemBufferRef(), Err);
+}
+
+std::unique_ptr<ModuleSummaryIndex>
+llvm::parseSummaryIndexAssemblyString(StringRef AsmString, SMDiagnostic &Err) {
+  MemoryBufferRef F(AsmString, "<string>");
+  return parseSummaryIndexAssembly(F, Err);
 }
 
 Constant *llvm::parseConstantValue(StringRef Asm, SMDiagnostic &Err,

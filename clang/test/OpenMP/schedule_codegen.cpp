@@ -134,15 +134,15 @@ int main() {
 // CHECK: !llvm.access.group
 #pragma omp for simd schedule(nonmonotonic: dynamic)
   for(int i = 0; i < 10; ++i);
-// CHECK: call void @__kmpc_for_static_init_4(%struct.ident_t* {{.+}}, i32 %{{.+}}, i32 1073741858,
+// CHECK: call void @__kmpc_for_static_init_4(ptr {{.+}}, i32 %{{.+}}, i32 1073741858,
 // CHECK: !llvm.access.group
 #pragma omp for simd schedule(nonmonotonic: static)
   for(int i = 0; i < 10; ++i);
-// CHECK: call void @__kmpc_dispatch_init_4(%struct.ident_t* {{.+}}, i32 %{{.+}}, i32 1073741862,
+// CHECK: call void @__kmpc_dispatch_init_4(ptr {{.+}}, i32 %{{.+}}, i32 1073741862,
 // CHECK: !llvm.access.group
 #pragma omp for schedule(nonmonotonic: auto)
   for(int i = 0; i < 10; ++i);
-// CHECK: call void @__kmpc_dispatch_init_4(%struct.ident_t* {{.+}}, i32 %{{.+}}, i32 1073741861,
+// CHECK: call void @__kmpc_dispatch_init_4(ptr {{.+}}, i32 %{{.+}}, i32 1073741861,
 // CHECK: !llvm.access.group
 #pragma omp for simd schedule(nonmonotonic: runtime)
   for(int i = 0; i < 10; ++i);

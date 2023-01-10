@@ -4,45 +4,100 @@
       "config": "l0_gen9",
       "name": "L0 GEN9 LLVM Test Suite",
       "runs-on": [
+        "Linux",
         "gen9"
       ],
       "image": "${{ inputs.intel_drivers_image }}",
-      "container_options": "-u 1001 --device=/dev/dri",
-      "check_sycl_all": "level_zero:gpu,host",
+      "container_options": "-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN",
+      "check_sycl_all": "level_zero:gpu",
       "cmake_args": ""
     },
     {
       "config": "ocl_gen9",
       "name": "OCL GEN9 LLVM Test Suite",
       "runs-on": [
+        "Linux",
         "gen9"
       ],
       "image": "${{ inputs.intel_drivers_image }}",
-      "container_options": "-u 1001 --device=/dev/dri",
-      "check_sycl_all": "opencl:gpu,host",
+      "container_options": "-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN",
+      "check_sycl_all": "opencl:gpu",
       "cmake_args": ""
     },
     {
       "config": "ocl_x64",
       "name": "OCL x64 LLVM Test Suite",
       "runs-on": [
+        "Linux",
         "x64"
       ],
       "image": "${{ inputs.intel_drivers_image }}",
       "container_options": "-u 1001",
-      "check_sycl_all": "opencl:cpu,host",
+      "check_sycl_all": "opencl:cpu",
+      "cmake_args": ""
+    },
+    {
+      "config": "esimd_emu",
+      "name": "ESIMD Emu LLVM Test Suite",
+      "runs-on": [
+        "Linux",
+        "x64"
+      ],
+      "image": "${{ inputs.intel_drivers_image }}",
+      "container_options": "-u 1001",
+      "check_sycl_all": "ext_intel_esimd_emulator:gpu",
       "cmake_args": ""
     },
     {
       "config": "hip_amdgpu",
       "name": "HIP AMDGPU LLVM Test Suite",
       "runs-on": [
+        "Linux",
         "amdgpu"
       ],
       "image": "${{ inputs.amdgpu_image }}",
       "container_options": "--device=/dev/dri --device=/dev/kfd",
-      "check_sycl_all": "hip:gpu,host",
+      "check_sycl_all": "hip:gpu",
       "cmake_args": "-DHIP_PLATFORM=\"AMD\" -DAMD_ARCH=\"gfx1031\""
+    },
+    {
+      "config": "cuda",
+      "name": "CUDA LLVM Test Suite",
+      "runs-on": [
+        "Linux",
+        "cuda"
+      ],
+      "image": "${{ inputs.cuda_image }}",
+      "container_options": "--gpus all",
+      "check_sycl_all": "cuda:gpu",
+      "cmake_args": ""
+    },
+    {
+      "config": "cuda_aws",
+      "name": "[AWS] CUDA LLVM Test Suite",
+      "runs-on": "aws-cuda_${{ inputs.uniq }}",
+      "aws-ami": "ami-01cb0573cb039ab24",
+      "aws-type": [ "g5.2xlarge", "g5.4xlarge" ],
+      "aws-disk": "/dev/sda1:64",
+      "aws-spot": "false",
+      "image": "${{ inputs.cuda_image }}",
+      "container_options": "--gpus all",
+      "check_sycl_all": "cuda:gpu",
+      "cmake_args": ""
+    }
+  ],
+  "cts": [
+    {
+      "config": "cuda",
+      "name": "CUDA SYCL CTS",
+      "runs-on": [
+        "Linux",
+        "cuda"
+      ],
+      "image": "${{ inputs.cuda_image }}",
+      "container_options": "--gpus all",
+      "sycl_device_filter": "ext_oneapi_cuda:gpu",
+      "cmake_args": "-DDPCPP_TARGET_TRIPLES=nvptx64-nvidia-cuda"
     }
   ]
 }

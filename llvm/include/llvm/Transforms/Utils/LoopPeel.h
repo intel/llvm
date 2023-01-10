@@ -18,7 +18,7 @@
 
 namespace llvm {
 
-bool canPeel(Loop *L);
+bool canPeel(const Loop *L);
 
 bool peelLoop(Loop *L, unsigned PeelCount, LoopInfo *LI, ScalarEvolution *SE,
               DominatorTree &DT, AssumptionCache *AC, bool PreserveLCSSA);
@@ -26,14 +26,15 @@ bool peelLoop(Loop *L, unsigned PeelCount, LoopInfo *LI, ScalarEvolution *SE,
 TargetTransformInfo::PeelingPreferences
 gatherPeelingPreferences(Loop *L, ScalarEvolution &SE,
                          const TargetTransformInfo &TTI,
-                         Optional<bool> UserAllowPeeling,
-                         Optional<bool> UserAllowProfileBasedPeeling,
+                         std::optional<bool> UserAllowPeeling,
+                         std::optional<bool> UserAllowProfileBasedPeeling,
                          bool UnrollingSpecficValues = false);
 
 void computePeelCount(Loop *L, unsigned LoopSize,
                       TargetTransformInfo::PeelingPreferences &PP,
                       unsigned TripCount, DominatorTree &DT,
-                      ScalarEvolution &SE, unsigned Threshold = UINT_MAX);
+                      ScalarEvolution &SE, AssumptionCache *AC = nullptr,
+                      unsigned Threshold = UINT_MAX);
 
 } // end namespace llvm
 

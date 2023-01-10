@@ -50,7 +50,9 @@ static constexpr std::pair<ImplicitArgumentMask,
 // TODO: We should not add the attributes if the known compile time workgroup
 // size is 1 for y/z.
 static ImplicitArgumentMask
-intrinsicToAttrMask(Intrinsic::ID ID, bool &NonKernelOnly, bool &IsQueuePtr) {
+intrinsicToAttrMask(Intrinsic::ID ID, bool &NonKernelOnly, bool &NeedsImplicit,
+                    bool HasApertureRegs, bool SupportsGetDoorBellID) {
+  unsigned CodeObjectVersion = AMDGPU::getAmdhsaCodeObjectVersion();
   switch (ID) {
   case Intrinsic::amdgcn_workitem_id_x:
     NonKernelOnly = true;
@@ -70,19 +72,31 @@ intrinsicToAttrMask(Intrinsic::ID ID, bool &NonKernelOnly, bool &IsQueuePtr) {
   case Intrinsic::amdgcn_workgroup_id_z:
   case Intrinsic::r600_read_tgid_z:
     return WORKGROUP_ID_Z;
+  case Intrinsic::amdgcn_lds_kernel_id:
+    return LDS_KERNEL_ID;
   case Intrinsic::amdgcn_dispatch_ptr:
     return DISPATCH_PTR;
   case Intrinsic::amdgcn_dispatch_id:
     return DISPATCH_ID;
   case Intrinsic::amdgcn_implicitarg_ptr:
     return IMPLICIT_ARG_PTR;
+  // Need queue_ptr anyway. But under V5, we also need implicitarg_ptr to access
+  // queue_ptr.
   case Intrinsic::amdgcn_queue_ptr:
+    NeedsImplicit = (CodeObjectVersion == 5);
+    return QUEUE_PTR;
   case Intrinsic::amdgcn_is_shared:
   case Intrinsic::amdgcn_is_private:
-    // TODO: Does not require the queue pointer on gfx9+
+    if (HasApertureRegs)
+      return NOT_IMPLICIT_INPUT;
+    // Under V5, we need implicitarg_ptr + offsets to access private_base or
+    // shared_base. For pre-V5, however, need to access them through queue_ptr +
+    // offsets.
+    return CodeObjectVersion == 5 ? IMPLICIT_ARG_PTR : QUEUE_PTR;
   case Intrinsic::trap:
-  case Intrinsic::debugtrap:
-    IsQueuePtr = true;
+    if (SupportsGetDoorBellID) // GetDoorbellID support implemented since V4.
+      return CodeObjectVersion >= 4 ? NOT_IMPLICIT_INPUT : QUEUE_PTR;
+    NeedsImplicit = (CodeObjectVersion == 5); // Need impicitarg_ptr under V5.
     return QUEUE_PTR;
   default:
     return NOT_IMPLICIT_INPUT;
@@ -127,6 +141,12 @@ public:
   bool hasApertureRegs(Function &F) {
     const GCNSubtarget &ST = TM.getSubtarget<GCNSubtarget>(F);
     return ST.hasApertureRegs();
+  }
+
+  /// Check if the subtarget supports GetDoorbellID.
+  bool supportsGetDoorbellID(Function &F) {
+    const GCNSubtarget &ST = TM.getSubtarget<GCNSubtarget>(F);
+    return ST.supportsGetDoorbellID();
   }
 
   std::pair<unsigned, unsigned> getFlatWorkGroupSizes(const Function &F) {
@@ -381,7 +401,10 @@ struct AAAMDAttributesFunction : public AAAMDAttributes {
 
     bool IsNonEntryFunc = !AMDGPU::isEntryFunctionCC(F->getCallingConv());
 
-    bool NeedsQueuePtr = false;
+    bool NeedsImplicit = false;
+    auto &InfoCache = static_cast<AMDGPUInformationCache &>(A.getInfoCache());
+    bool HasApertureRegs = InfoCache.hasApertureRegs(*F);
+    bool SupportsGetDoorbellID = InfoCache.supportsGetDoorbellID(*F);
 
     for (Function *Callee : AAEdges.getOptimisticEdges()) {
       Intrinsic::ID IID = Callee->getIntrinsicID();
@@ -394,24 +417,50 @@ struct AAAMDAttributesFunction : public AAAMDAttributes {
 
       bool NonKernelOnly = false;
       ImplicitArgumentMask AttrMask =
-          intrinsicToAttrMask(IID, NonKernelOnly, NeedsQueuePtr);
+          intrinsicToAttrMask(IID, NonKernelOnly, NeedsImplicit,
+                              HasApertureRegs, SupportsGetDoorbellID);
       if (AttrMask != NOT_IMPLICIT_INPUT) {
         if ((IsNonEntryFunc || !NonKernelOnly))
           removeAssumedBits(AttrMask);
       }
     }
 
-    if (!NeedsQueuePtr) {
-      NeedsQueuePtr = checkForQueuePtr(A);
+    // Need implicitarg_ptr to acess queue_ptr, private_base, and shared_base.
+    if (NeedsImplicit)
+      removeAssumedBits(IMPLICIT_ARG_PTR);
+
+    if (isAssumed(QUEUE_PTR) && checkForQueuePtr(A)) {
+      // Under V5, we need implicitarg_ptr + offsets to access private_base or
+      // shared_base. We do not actually need queue_ptr.
+      if (AMDGPU::getAmdhsaCodeObjectVersion() == 5)
+        removeAssumedBits(IMPLICIT_ARG_PTR);
+      else
+        removeAssumedBits(QUEUE_PTR);
     }
 
-    if (NeedsQueuePtr) {
-      removeAssumedBits(QUEUE_PTR);
+    if (funcRetrievesMultigridSyncArg(A)) {
+      assert(!isAssumed(IMPLICIT_ARG_PTR) &&
+             "multigrid_sync_arg needs implicitarg_ptr");
+      removeAssumedBits(MULTIGRID_SYNC_ARG);
     }
 
     if (funcRetrievesHostcallPtr(A)) {
-      removeAssumedBits(IMPLICIT_ARG_PTR);
+      assert(!isAssumed(IMPLICIT_ARG_PTR) && "hostcall needs implicitarg_ptr");
       removeAssumedBits(HOSTCALL_PTR);
+    }
+
+    if (funcRetrievesHeapPtr(A)) {
+      assert(!isAssumed(IMPLICIT_ARG_PTR) && "heap_ptr needs implicitarg_ptr");
+      removeAssumedBits(HEAP_PTR);
+    }
+
+    if (isAssumed(QUEUE_PTR) && funcRetrievesQueuePtr(A)) {
+      assert(!isAssumed(IMPLICIT_ARG_PTR) && "queue_ptr needs implicitarg_ptr");
+      removeAssumedBits(QUEUE_PTR);
+    }
+
+    if (isAssumed(LDS_KERNEL_ID) && funcRetrievesLDSKernelId(A)) {
+      removeAssumedBits(LDS_KERNEL_ID);
     }
 
     return getAssumed() != OrigAssumed ? ChangeStatus::CHANGED
@@ -496,16 +545,40 @@ private:
     return false;
   }
 
+  bool funcRetrievesMultigridSyncArg(Attributor &A) {
+    auto Pos = llvm::AMDGPU::getMultigridSyncArgImplicitArgPosition();
+    AA::RangeTy Range(Pos, 8);
+    return funcRetrievesImplicitKernelArg(A, Range);
+  }
+
   bool funcRetrievesHostcallPtr(Attributor &A) {
     auto Pos = llvm::AMDGPU::getHostcallImplicitArgPosition();
+    AA::RangeTy Range(Pos, 8);
+    return funcRetrievesImplicitKernelArg(A, Range);
+  }
 
+  bool funcRetrievesHeapPtr(Attributor &A) {
+    if (AMDGPU::getAmdhsaCodeObjectVersion() != 5)
+      return false;
+    AA::RangeTy Range(AMDGPU::ImplicitArg::HEAP_PTR_OFFSET, 8);
+    return funcRetrievesImplicitKernelArg(A, Range);
+  }
+
+  bool funcRetrievesQueuePtr(Attributor &A) {
+    if (AMDGPU::getAmdhsaCodeObjectVersion() != 5)
+      return false;
+    AA::RangeTy Range(AMDGPU::ImplicitArg::QUEUE_PTR_OFFSET, 8);
+    return funcRetrievesImplicitKernelArg(A, Range);
+  }
+
+  bool funcRetrievesImplicitKernelArg(Attributor &A, AA::RangeTy Range) {
     // Check if this is a call to the implicitarg_ptr builtin and it
     // is used to retrieve the hostcall pointer. The implicit arg for
     // hostcall is not used only if every use of the implicitarg_ptr
     // is a load that clearly does not retrieve any byte of the
     // hostcall pointer. We check this by tracing all the uses of the
     // initial call to the implicitarg_ptr intrinsic.
-    auto DoesNotLeadToHostcallPtr = [&](Instruction &I) {
+    auto DoesNotLeadToKernelArgLoc = [&](Instruction &I) {
       auto &Call = cast<CallBase>(I);
       if (Call.getIntrinsicID() != Intrinsic::amdgcn_implicitarg_ptr)
         return true;
@@ -513,15 +586,24 @@ private:
       const auto &PointerInfoAA = A.getAAFor<AAPointerInfo>(
           *this, IRPosition::callsite_returned(Call), DepClassTy::REQUIRED);
 
-      AAPointerInfo::OffsetAndSize OAS(Pos, 8);
       return PointerInfoAA.forallInterferingAccesses(
-          OAS, [](const AAPointerInfo::Access &Acc, bool IsExact) {
+          Range, [](const AAPointerInfo::Access &Acc, bool IsExact) {
             return Acc.getRemoteInst()->isDroppable();
           });
     };
 
     bool UsedAssumedInformation = false;
-    return !A.checkForAllCallLikeInstructions(DoesNotLeadToHostcallPtr, *this,
+    return !A.checkForAllCallLikeInstructions(DoesNotLeadToKernelArgLoc, *this,
+                                              UsedAssumedInformation);
+  }
+
+  bool funcRetrievesLDSKernelId(Attributor &A) {
+    auto DoesNotRetrieve = [&](Instruction &I) {
+      auto &Call = cast<CallBase>(I);
+      return Call.getIntrinsicID() != Intrinsic::amdgcn_lds_kernel_id;
+    };
+    bool UsedAssumedInformation = false;
+    return !A.checkForAllCallLikeInstructions(DoesNotRetrieve, *this,
                                               UsedAssumedInformation);
   }
 };
@@ -676,9 +758,15 @@ public:
     AMDGPUInformationCache InfoCache(M, AG, Allocator, nullptr, *TM);
     DenseSet<const char *> Allowed(
         {&AAAMDAttributes::ID, &AAUniformWorkGroupSize::ID,
-         &AAAMDFlatWorkGroupSize::ID, &AACallEdges::ID, &AAPointerInfo::ID});
+         &AAPotentialValues::ID, &AAAMDFlatWorkGroupSize::ID, &AACallEdges::ID,
+         &AAPointerInfo::ID});
 
-    Attributor A(Functions, InfoCache, CGUpdater, &Allowed);
+    AttributorConfig AC(CGUpdater);
+    AC.Allowed = &Allowed;
+    AC.IsModulePass = true;
+    AC.DefaultInitializeLiveInternals = false;
+
+    Attributor A(Functions, InfoCache, AC);
 
     for (Function &F : M) {
       if (!F.isIntrinsic()) {

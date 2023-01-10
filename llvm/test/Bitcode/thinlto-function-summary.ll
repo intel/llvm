@@ -1,4 +1,3 @@
-; RUN: opt -name-anon-globals -module-summary < %s | llvm-bcanalyzer -dump | FileCheck %s -check-prefix=BC
 ; RUN: opt -passes=name-anon-globals -module-summary < %s | llvm-bcanalyzer -dump | FileCheck %s -check-prefix=BC
 ; Check for summary block/records.
 
@@ -31,7 +30,9 @@
 ; BC-NEXT: blob data = 'hfoobaranon.{{................................}}.0variadicllvm.va_startf{{.*}}'
 
 
-; RUN: opt -name-anon-globals -module-summary < %s | llvm-dis | FileCheck %s
+; RUN: opt -passes=name-anon-globals -module-summary < %s | llvm-dis | FileCheck %s
+; RUN: opt -passes=name-anon-globals -module-summary -S < %s | FileCheck %s
+; RUN: opt -passes=name-anon-globals -module-summary -S < %s | llvm-as | llvm-dis | FileCheck %s
 ; Check that this round-trips correctly.
 
 ; ModuleID = '<stdin>'

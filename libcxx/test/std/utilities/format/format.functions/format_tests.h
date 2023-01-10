@@ -11,11 +11,14 @@
 #include <format>
 
 #include <algorithm>
+#include <cassert>
 #include <charconv>
 #include <cmath>
 #include <cstdint>
+#include <iterator>
 
 #include "make_string.h"
+#include "string_literal.h"
 #include "test_macros.h"
 
 // In this file the following template types are used:
@@ -52,7 +55,7 @@ template <class CharT>
 struct std::formatter<status, CharT> {
   int type = 0;
 
-  constexpr auto parse(auto& parse_ctx) -> decltype(parse_ctx.begin()) {
+  constexpr auto parse(basic_format_parse_context<CharT>& parse_ctx) -> decltype(parse_ctx.begin()) {
     auto begin = parse_ctx.begin();
     auto end = parse_ctx.end();
     if (begin == end)
@@ -80,17 +83,19 @@ struct std::formatter<status, CharT> {
     return begin;
   }
 
-  auto format(status s, auto& ctx) -> decltype(ctx.out()) {
+  template <class Out>
+  auto format(status s, basic_format_context<Out, CharT>& ctx) const -> decltype(ctx.out()) {
     const char* names[] = {"foo", "bar", "foobar"};
-    char buffer[6];
-    const char* begin;
-    const char* end;
+    char buffer[7];
+    const char* begin = names[0];
+    const char* end = names[0];
     switch (type) {
     case 0:
       begin = buffer;
       buffer[0] = '0';
       buffer[1] = 'x';
       end = std::to_chars(&buffer[2], std::end(buffer), static_cast<uint16_t>(s), 16).ptr;
+      buffer[6] = '\0';
       break;
 
     case 1:
@@ -98,7 +103,9 @@ struct std::formatter<status, CharT> {
       buffer[0] = '0';
       buffer[1] = 'X';
       end = std::to_chars(&buffer[2], std::end(buffer), static_cast<uint16_t>(s), 16).ptr;
-      std::transform(static_cast<const char*>(&buffer[2]), end, &buffer[2], [](char c) { return std::toupper(c); });
+      std::transform(static_cast<const char*>(&buffer[2]), end, &buffer[2], [](char c) {
+        return static_cast<char>(std::toupper(c)); });
+      buffer[6] = '\0';
       break;
 
     case 2:
@@ -122,7 +129,7 @@ struct std::formatter<status, CharT> {
 
 private:
   void throw_format_error(const char* s) {
-#ifndef _LIBCPP_NO_EXCEPTIONS
+#ifndef TEST_HAS_NO_EXCEPTIONS
     throw std::format_error(s);
 #else
     (void)s;
@@ -132,7 +139,7 @@ private:
 };
 
 template <class CharT>
-std::vector<std::basic_string_view<CharT>> invalid_types(std::string valid) {
+std::vector<std::basic_string_view<CharT>> invalid_types(std::string_view valid) {
   std::vector<std::basic_string_view<CharT>> result;
 
 #define CASE(T)                                                                                                        \
@@ -140,7 +147,13 @@ case #T[0]:                                                                     
   result.push_back(SV("Invalid formatter type {:" #T "}"));                                                            \
   break;
 
-  for (auto type : "aAbBcdeEfFgGopsxX") {
+#if TEST_STD_VER > 20
+  constexpr std::string_view types = "aAbBcdeEfFgGopsxX?";
+#else
+  constexpr std::string_view types = "aAbBcdeEfFgGopsxX";
+#endif
+
+  for (auto type : types) {
     if (valid.find(type) != std::string::npos)
       continue;
 
@@ -162,6 +175,7 @@ case #T[0]:                                                                     
       CASE(s)
       CASE(x)
       CASE(X)
+      CASE(?)
     case 0:
       break;
     default:
@@ -173,11 +187,13 @@ case #T[0]:                                                                     
   return result;
 }
 
-template <class CharT, class T, class TestFunction, class ExceptionTest>
-void format_test_string(T world, T universe, TestFunction check, ExceptionTest check_exception) {
+// Using a const ref for world and universe so a string literal will be a character array.
+// When passed as character array W and U have different types.
+template <class CharT, class W, class U, class TestFunction, class ExceptionTest>
+void format_test_string(const W& world, const U& universe, TestFunction check, ExceptionTest check_exception) {
 
   // *** Valid input tests ***
-  // Unsed argument is ignored. TODO FMT what does the Standard mandate?
+  // Unused argument is ignored. TODO FMT what does the Standard mandate?
   check(SV("hello world"), SV("hello {}"), world, universe);
   check(SV("hello world and universe"), SV("hello {} and {}"), world, universe);
   check(SV("hello world"), SV("hello {0}"), world, universe);
@@ -185,6 +201,7 @@ void format_test_string(T world, T universe, TestFunction check, ExceptionTest c
   check(SV("hello universe and world"), SV("hello {1} and {0}"), world, universe);
 
   check(SV("hello world"), SV("hello {:_>}"), world);
+  check(SV("hello world   "), SV("hello {:8}"), world);
   check(SV("hello    world"), SV("hello {:>8}"), world);
   check(SV("hello ___world"), SV("hello {:_>8}"), world);
   check(SV("hello _world__"), SV("hello {:_^8}"), world);
@@ -232,6 +249,9 @@ void format_test_string(T world, T universe, TestFunction check, ExceptionTest c
   check_exception("A format-spec width field shouldn't have a leading zero", SV("hello {:0}"), world);
 
   // *** width ***
+  // Width 0 allowed, but not useful for string arguments.
+  check(SV("hello world"), SV("hello {:{}}"), world, 0);
+
 #ifdef _LIBCPP_VERSION
   // This limit isn't specified in the Standard.
   static_assert(std::__format::__number_max == 2'147'483'647, "Update the assert and the test.");
@@ -240,7 +260,6 @@ void format_test_string(T world, T universe, TestFunction check, ExceptionTest c
   check_exception("The numeric value of the format-spec is too large", SV("{:10000000000}"), world);
 #endif
 
-  check_exception("A format-spec width field replacement should have a positive value", SV("hello {:{}}"), world, 0);
   check_exception("A format-spec arg-id replacement shouldn't have a negative value", SV("hello {:{}}"), world, -1);
   check_exception("A format-spec arg-id replacement exceeds the maximum supported value", SV("hello {:{}}"), world,
                   unsigned(-1));
@@ -282,14 +301,57 @@ void format_test_string(T world, T universe, TestFunction check, ExceptionTest c
   check_exception("The format-spec should consume the input or end with a '}'", SV("hello {:L}"), world);
 
   // *** type ***
-  for (const auto& fmt : invalid_types<CharT>("s"))
+#if TEST_STD_VER > 20
+  const char* valid_types = "s?";
+#else
+  const char* valid_types = "s";
+#endif
+  for (const auto& fmt : invalid_types<CharT>(valid_types))
     check_exception("The format-spec type has a type not supported for a string argument", fmt, world);
 }
 
 template <class CharT, class TestFunction>
-void format_test_string_unicode(TestFunction check) {
-  (void)check;
+void format_test_string_unicode([[maybe_unused]] TestFunction check) {
+  // unicode.pass.cpp and ascii.pass.cpp have additional tests.
 #ifndef TEST_HAS_NO_UNICODE
+  // Make sure all possible types are tested. For clarity don't use macros.
+  if constexpr (std::same_as<CharT, char>) {
+    const char* c_string = "aßc";
+    check(SV("*aßc*"), SV("{:*^5}"), c_string);
+    check(SV("*aß*"), SV("{:*^4.2}"), c_string);
+
+    check(SV("*aßc*"), SV("{:*^5}"), const_cast<char*>(c_string));
+    check(SV("*aß*"), SV("{:*^4.2}"), const_cast<char*>(c_string));
+
+    check(SV("*aßc*"), SV("{:*^5}"), "aßc");
+    check(SV("*aß*"), SV("{:*^4.2}"), "aßc");
+
+    check(SV("*aßc*"), SV("{:*^5}"), std::string("aßc"));
+    check(SV("*aß*"), SV("{:*^4.2}"), std::string("aßc"));
+
+    check(SV("*aßc*"), SV("{:*^5}"), std::string_view("aßc"));
+    check(SV("*aß*"), SV("{:*^4.2}"), std::string_view("aßc"));
+  }
+#  ifndef TEST_HAS_NO_WIDE_CHARACTERS
+  else {
+    const wchar_t* c_string = L"aßc";
+    check(SV("*aßc*"), SV("{:*^5}"), c_string);
+    check(SV("*aß*"), SV("{:*^4.2}"), c_string);
+
+    check(SV("*aßc*"), SV("{:*^5}"), const_cast<wchar_t*>(c_string));
+    check(SV("*aß*"), SV("{:*^4.2}"), const_cast<wchar_t*>(c_string));
+
+    check(SV("*aßc*"), SV("{:*^5}"), L"aßc");
+    check(SV("*aß*"), SV("{:*^4.2}"), L"aßc");
+
+    check(SV("*aßc*"), SV("{:*^5}"), std::wstring(L"aßc"));
+    check(SV("*aß*"), SV("{:*^4.2}"), std::wstring(L"aßc"));
+
+    check(SV("*aßc*"), SV("{:*^5}"), std::wstring_view(L"aßc"));
+    check(SV("*aß*"), SV("{:*^4.2}"), std::wstring_view(L"aßc"));
+  }
+#  endif // TEST_HAS_NO_WIDE_CHARACTERS
+
   // ß requires one column
   check(SV("aßc"), SV("{}"), STR("aßc"));
 
@@ -321,6 +383,25 @@ void format_test_string_unicode(TestFunction check) {
   check(SV("a\u1110c---"), SV("{:-<7}"), STR("a\u1110c"));
   check(SV("-a\u1110c--"), SV("{:-^7}"), STR("a\u1110c"));
   check(SV("---a\u1110c"), SV("{:->7}"), STR("a\u1110c"));
+
+  // Examples used in P1868R2
+  check(SV("*\u0041*"), SV("{:*^3}"), STR("\u0041")); // { LATIN CAPITAL LETTER A }
+  check(SV("*\u00c1*"), SV("{:*^3}"), STR("\u00c1")); // { LATIN CAPITAL LETTER A WITH ACUTE }
+  check(SV("*\u0041\u0301*"),
+        SV("{:*^3}"),
+        STR("\u0041\u0301"));                         // { LATIN CAPITAL LETTER A } { COMBINING ACUTE ACCENT }
+  check(SV("*\u0132*"), SV("{:*^3}"), STR("\u0132")); // { LATIN CAPITAL LIGATURE IJ }
+  check(SV("*\u0394*"), SV("{:*^3}"), STR("\u0394")); // { GREEK CAPITAL LETTER DELTA }
+
+  check(SV("*\u0429*"), SV("{:*^3}"), STR("\u0429"));         // { CYRILLIC CAPITAL LETTER SHCHA }
+  check(SV("*\u05d0*"), SV("{:*^3}"), STR("\u05d0"));         // { HEBREW LETTER ALEF }
+  check(SV("*\u0634*"), SV("{:*^3}"), STR("\u0634"));         // { ARABIC LETTER SHEEN }
+  check(SV("*\u3009*"), SV("{:*^4}"), STR("\u3009"));         // { RIGHT-POINTING ANGLE BRACKET }
+  check(SV("*\u754c*"), SV("{:*^4}"), STR("\u754c"));         // { CJK Unified Ideograph-754C }
+  check(SV("*\U0001f921*"), SV("{:*^4}"), STR("\U0001f921")); // { UNICORN FACE }
+  check(SV("*\U0001f468\u200d\U0001F469\u200d\U0001F467\u200d\U0001F466*"),
+        SV("{:*^4}"),
+        STR("\U0001f468\u200d\U0001F469\u200d\U0001F467\u200d\U0001F466")); // { Family: Man, Woman, Girl, Boy }
 #endif // TEST_HAS_NO_UNICODE
 }
 
@@ -329,9 +410,14 @@ void format_string_tests(TestFunction check, ExceptionTest check_exception) {
   std::basic_string<CharT> world = STR("world");
   std::basic_string<CharT> universe = STR("universe");
 
-  // Testing the char const[] is a bit tricky due to array to pointer decay.
-  // Since there are separate tests in format.formatter.spec the array is not
-  // tested here.
+  // Test a string literal in a way it won't decay to a pointer.
+  if constexpr (std::same_as<CharT, char>)
+    format_test_string<CharT>("world", "universe", check, check_exception);
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
+  else
+    format_test_string<CharT>(L"world", L"universe", check, check_exception);
+#endif
+
   format_test_string<CharT>(world.c_str(), universe.c_str(), check, check_exception);
   format_test_string<CharT>(const_cast<CharT*>(world.c_str()), const_cast<CharT*>(universe.c_str()), check,
                             check_exception);
@@ -653,19 +739,16 @@ void format_test_integer_as_char(TestFunction check, ExceptionTest check_excepti
     check_exception("The format-spec type has a type not supported for an integer argument", fmt, I(42));
 
   // *** Validate range ***
-  // TODO FMT Update test after adding 128-bit support.
-  if constexpr (sizeof(I) <= sizeof(long long)) {
-    // The code has some duplications to keep the if statement readable.
-    if constexpr (std::signed_integral<CharT>) {
-      if constexpr (std::signed_integral<I> && sizeof(I) > sizeof(CharT)) {
-        check_exception("Integral value outside the range of the char type", SV("{:c}"), std::numeric_limits<I>::min());
-        check_exception("Integral value outside the range of the char type", SV("{:c}"), std::numeric_limits<I>::max());
-      } else if constexpr (std::unsigned_integral<I> && sizeof(I) >= sizeof(CharT)) {
-        check_exception("Integral value outside the range of the char type", SV("{:c}"), std::numeric_limits<I>::max());
-      }
-    } else if constexpr (sizeof(I) > sizeof(CharT)) {
+  // The code has some duplications to keep the if statement readable.
+  if constexpr (std::signed_integral<CharT>) {
+    if constexpr (std::signed_integral<I> && sizeof(I) > sizeof(CharT)) {
+      check_exception("Integral value outside the range of the char type", SV("{:c}"), std::numeric_limits<I>::min());
+      check_exception("Integral value outside the range of the char type", SV("{:c}"), std::numeric_limits<I>::max());
+    } else if constexpr (std::unsigned_integral<I> && sizeof(I) >= sizeof(CharT)) {
       check_exception("Integral value outside the range of the char type", SV("{:c}"), std::numeric_limits<I>::max());
     }
+  } else if constexpr (sizeof(I) > sizeof(CharT)) {
+    check_exception("Integral value outside the range of the char type", SV("{:c}"), std::numeric_limits<I>::max());
   }
 }
 
@@ -701,11 +784,22 @@ void format_test_signed_integer(TestFunction check, ExceptionTest check_exceptio
   check(SV("-2147483648"), SV("{:#}"), std::numeric_limits<int32_t>::min());
   check(SV("-0x80000000"), SV("{:#x}"), std::numeric_limits<int32_t>::min());
 
-  check(SV("-0b1000000000000000000000000000000000000000000000000000000000000000"), SV("{:#b}"),
+  check(SV("-0b1000000000000000000000000000000000000000000000000000000000000000"),
+        SV("{:#b}"),
         std::numeric_limits<int64_t>::min());
   check(SV("-01000000000000000000000"), SV("{:#o}"), std::numeric_limits<int64_t>::min());
   check(SV("-9223372036854775808"), SV("{:#}"), std::numeric_limits<int64_t>::min());
   check(SV("-0x8000000000000000"), SV("{:#x}"), std::numeric_limits<int64_t>::min());
+
+#ifndef TEST_HAS_NO_INT128
+  check(SV("-0b1000000000000000000000000000000000000000000000000000000000000000"
+           "0000000000000000000000000000000000000000000000000000000000000000"),
+        SV("{:#b}"),
+        std::numeric_limits<__int128_t>::min());
+  check(SV("-02000000000000000000000000000000000000000000"), SV("{:#o}"), std::numeric_limits<__int128_t>::min());
+  check(SV("-170141183460469231731687303715884105728"), SV("{:#}"), std::numeric_limits<__int128_t>::min());
+  check(SV("-0x80000000000000000000000000000000"), SV("{:#x}"), std::numeric_limits<__int128_t>::min());
+#endif
 
   check(SV("0b1111111"), SV("{:#b}"), std::numeric_limits<int8_t>::max());
   check(SV("0177"), SV("{:#o}"), std::numeric_limits<int8_t>::max());
@@ -722,13 +816,22 @@ void format_test_signed_integer(TestFunction check, ExceptionTest check_exceptio
   check(SV("2147483647"), SV("{:#}"), std::numeric_limits<int32_t>::max());
   check(SV("0x7fffffff"), SV("{:#x}"), std::numeric_limits<int32_t>::max());
 
-  check(SV("0b111111111111111111111111111111111111111111111111111111111111111"), SV("{:#b}"),
+  check(SV("0b111111111111111111111111111111111111111111111111111111111111111"),
+        SV("{:#b}"),
         std::numeric_limits<int64_t>::max());
   check(SV("0777777777777777777777"), SV("{:#o}"), std::numeric_limits<int64_t>::max());
   check(SV("9223372036854775807"), SV("{:#}"), std::numeric_limits<int64_t>::max());
   check(SV("0x7fffffffffffffff"), SV("{:#x}"), std::numeric_limits<int64_t>::max());
 
-  // TODO FMT Add __int128_t test after implementing full range.
+#ifndef TEST_HAS_NO_INT128
+  check(SV("0b111111111111111111111111111111111111111111111111111111111111111"
+           "1111111111111111111111111111111111111111111111111111111111111111"),
+        SV("{:#b}"),
+        std::numeric_limits<__int128_t>::max());
+  check(SV("01777777777777777777777777777777777777777777"), SV("{:#o}"), std::numeric_limits<__int128_t>::max());
+  check(SV("170141183460469231731687303715884105727"), SV("{:#}"), std::numeric_limits<__int128_t>::max());
+  check(SV("0x7fffffffffffffffffffffffffffffff"), SV("{:#x}"), std::numeric_limits<__int128_t>::max());
+#endif
 }
 
 template <class CharT, class TestFunction, class ExceptionTest>
@@ -757,13 +860,22 @@ void format_test_unsigned_integer(TestFunction check, ExceptionTest check_except
   check(SV("4294967295"), SV("{:#}"), std::numeric_limits<uint32_t>::max());
   check(SV("0xffffffff"), SV("{:#x}"), std::numeric_limits<uint32_t>::max());
 
-  check(SV("0b1111111111111111111111111111111111111111111111111111111111111111"), SV("{:#b}"),
+  check(SV("0b1111111111111111111111111111111111111111111111111111111111111111"),
+        SV("{:#b}"),
         std::numeric_limits<uint64_t>::max());
   check(SV("01777777777777777777777"), SV("{:#o}"), std::numeric_limits<uint64_t>::max());
   check(SV("18446744073709551615"), SV("{:#}"), std::numeric_limits<uint64_t>::max());
   check(SV("0xffffffffffffffff"), SV("{:#x}"), std::numeric_limits<uint64_t>::max());
 
-  // TODO FMT Add __uint128_t test after implementing full range.
+#ifndef TEST_HAS_NO_INT128
+  check(SV("0b1111111111111111111111111111111111111111111111111111111111111111"
+           "1111111111111111111111111111111111111111111111111111111111111111"),
+        SV("{:#b}"),
+        std::numeric_limits<__uint128_t>::max());
+  check(SV("03777777777777777777777777777777777777777777"), SV("{:#o}"), std::numeric_limits<__uint128_t>::max());
+  check(SV("340282366920938463463374607431768211455"), SV("{:#}"), std::numeric_limits<__uint128_t>::max());
+  check(SV("0xffffffffffffffffffffffffffffffff"), SV("{:#x}"), std::numeric_limits<__uint128_t>::max());
+#endif
 }
 
 template <class CharT, class TestFunction, class ExceptionTest>
@@ -821,7 +933,12 @@ void format_test_char(TestFunction check, ExceptionTest check_exception) {
   check(SV("answer is '*'"), SV("answer is '{:Lc}'"), '*');
 
   // *** type ***
-  for (const auto& fmt : invalid_types<CharT>("bBcdoxX"))
+#if TEST_STD_VER > 20
+  const char* valid_types = "bBcdoxX?";
+#else
+  const char* valid_types = "bBcdoxX";
+#endif
+  for (const auto& fmt : invalid_types<CharT>(valid_types))
     check_exception("The format-spec type has a type not supported for a char argument", fmt, CharT('*'));
 }
 
@@ -887,14 +1004,19 @@ void format_test_char_as_integer(TestFunction check, ExceptionTest check_excepti
   // See locale-specific_form.pass.cpp
 
   // *** type ***
-  for (const auto& fmt : invalid_types<CharT>("bBcdoxX"))
+#if TEST_STD_VER > 20
+  const char* valid_types = "bBcdoxX?";
+#else
+  const char* valid_types = "bBcdoxX";
+#endif
+  for (const auto& fmt : invalid_types<CharT>(valid_types))
     check_exception("The format-spec type has a type not supported for a char argument", fmt, '*');
 }
 
 template <class F, class CharT, class TestFunction>
 void format_test_floating_point_hex_lower_case(TestFunction check) {
-  auto nan_pos = std::numeric_limits<F>::quiet_NaN(); // "nan"
-  auto nan_neg = std::copysign(nan_pos, -1.0);        // "-nan"
+  auto nan_pos = std::numeric_limits<F>::quiet_NaN();                          // "nan"
+  auto nan_neg = std::copysign(nan_pos, static_cast<decltype(nan_pos)>(-1.0)); // "-nan"
 
   // Test whether the hexadecimal letters are the proper case.
   // The precision is too large for float, so two tests are used.
@@ -1018,8 +1140,8 @@ void format_test_floating_point_hex_lower_case(TestFunction check) {
 
 template <class F, class CharT, class TestFunction>
 void format_test_floating_point_hex_upper_case(TestFunction check) {
-  auto nan_pos = std::numeric_limits<F>::quiet_NaN(); // "nan"
-  auto nan_neg = std::copysign(nan_pos, -1.0);        // "-nan"
+  auto nan_pos = std::numeric_limits<F>::quiet_NaN();                          // "nan"
+  auto nan_neg = std::copysign(nan_pos, static_cast<decltype(nan_pos)>(-1.0)); // "-nan"
 
   // Test whether the hexadecimal letters are the proper case.
   // The precision is too large for float, so two tests are used.
@@ -1143,8 +1265,8 @@ void format_test_floating_point_hex_upper_case(TestFunction check) {
 
 template <class F, class CharT, class TestFunction>
 void format_test_floating_point_hex_lower_case_precision(TestFunction check) {
-  auto nan_pos = std::numeric_limits<F>::quiet_NaN(); // "nan"
-  auto nan_neg = std::copysign(nan_pos, -1.0);        // "-nan"
+  auto nan_pos = std::numeric_limits<F>::quiet_NaN();                          // "nan"
+  auto nan_neg = std::copysign(nan_pos, static_cast<decltype(nan_pos)>(-1.0)); // "-nan"
 
   // *** align-fill & width ***
   check(SV("answer is '   1.000000p-2'"), SV("answer is '{:14.6a}'"), F(0.25));
@@ -1254,8 +1376,8 @@ void format_test_floating_point_hex_lower_case_precision(TestFunction check) {
 
 template <class F, class CharT, class TestFunction>
 void format_test_floating_point_hex_upper_case_precision(TestFunction check) {
-  auto nan_pos = std::numeric_limits<F>::quiet_NaN(); // "nan"
-  auto nan_neg = std::copysign(nan_pos, -1.0);        // "-nan"
+  auto nan_pos = std::numeric_limits<F>::quiet_NaN();                          // "nan"
+  auto nan_neg = std::copysign(nan_pos, static_cast<decltype(nan_pos)>(-1.0)); // "-nan"
 
   // *** align-fill & width ***
   check(SV("answer is '   1.000000P-2'"), SV("answer is '{:14.6A}'"), F(0.25));
@@ -1365,8 +1487,8 @@ void format_test_floating_point_hex_upper_case_precision(TestFunction check) {
 
 template <class F, class CharT, class TestFunction>
 void format_test_floating_point_scientific_lower_case(TestFunction check) {
-  auto nan_pos = std::numeric_limits<F>::quiet_NaN(); // "nan"
-  auto nan_neg = std::copysign(nan_pos, -1.0);        // "-nan"
+  auto nan_pos = std::numeric_limits<F>::quiet_NaN();                          // "nan"
+  auto nan_neg = std::copysign(nan_pos, static_cast<decltype(nan_pos)>(-1.0)); // "-nan"
 
   // *** align-fill & width ***
   check(SV("answer is '   2.500000e-01'"), SV("answer is '{:15e}'"), F(0.25));
@@ -1488,8 +1610,8 @@ void format_test_floating_point_scientific_lower_case(TestFunction check) {
 
 template <class F, class CharT, class TestFunction>
 void format_test_floating_point_scientific_upper_case(TestFunction check) {
-  auto nan_pos = std::numeric_limits<F>::quiet_NaN(); // "nan"
-  auto nan_neg = std::copysign(nan_pos, -1.0);        // "-nan"
+  auto nan_pos = std::numeric_limits<F>::quiet_NaN();                          // "nan"
+  auto nan_neg = std::copysign(nan_pos, static_cast<decltype(nan_pos)>(-1.0)); // "-nan"
 
   // *** align-fill & width ***
   check(SV("answer is '   2.500000E-01'"), SV("answer is '{:15E}'"), F(0.25));
@@ -1611,8 +1733,8 @@ void format_test_floating_point_scientific_upper_case(TestFunction check) {
 
 template <class F, class CharT, class TestFunction>
 void format_test_floating_point_fixed_lower_case(TestFunction check) {
-  auto nan_pos = std::numeric_limits<F>::quiet_NaN(); // "nan"
-  auto nan_neg = std::copysign(nan_pos, -1.0);        // "-nan"
+  auto nan_pos = std::numeric_limits<F>::quiet_NaN();                          // "nan"
+  auto nan_neg = std::copysign(nan_pos, static_cast<decltype(nan_pos)>(-1.0)); // "-nan"
 
   // *** align-fill & width ***
   check(SV("answer is '   0.250000'"), SV("answer is '{:11f}'"), F(0.25));
@@ -1734,8 +1856,8 @@ void format_test_floating_point_fixed_lower_case(TestFunction check) {
 
 template <class F, class CharT, class TestFunction>
 void format_test_floating_point_fixed_upper_case(TestFunction check) {
-  auto nan_pos = std::numeric_limits<F>::quiet_NaN(); // "nan"
-  auto nan_neg = std::copysign(nan_pos, -1.0);        // "-nan"
+  auto nan_pos = std::numeric_limits<F>::quiet_NaN();                          // "nan"
+  auto nan_neg = std::copysign(nan_pos, static_cast<decltype(nan_pos)>(-1.0)); // "-nan"
 
   // *** align-fill & width ***
   check(SV("answer is '   0.250000'"), SV("answer is '{:11F}'"), F(0.25));
@@ -1857,8 +1979,8 @@ void format_test_floating_point_fixed_upper_case(TestFunction check) {
 
 template <class F, class CharT, class TestFunction>
 void format_test_floating_point_general_lower_case(TestFunction check) {
-  auto nan_pos = std::numeric_limits<F>::quiet_NaN(); // "nan"
-  auto nan_neg = std::copysign(nan_pos, -1.0);        // "-nan"
+  auto nan_pos = std::numeric_limits<F>::quiet_NaN();                          // "nan"
+  auto nan_neg = std::copysign(nan_pos, static_cast<decltype(nan_pos)>(-1.0)); // "-nan"
 
   // *** align-fill & width ***
   check(SV("answer is '   0.25'"), SV("answer is '{:7g}'"), F(0.25));
@@ -1928,8 +2050,8 @@ void format_test_floating_point_general_lower_case(TestFunction check) {
   check(SV("answer is '0'"), SV("answer is '{:.0g}'"), F(0));
   check(SV("answer is '0.'"), SV("answer is '{:#.0g}'"), F(0));
 
-  check(SV("answer is '0.'"), SV("answer is '{:#g}'"), F(0));
-  check(SV("answer is '2.5'"), SV("answer is '{:#g}'"), F(2.5));
+  check(SV("answer is '0.00000'"), SV("answer is '{:#g}'"), F(0));
+  check(SV("answer is '2.50000'"), SV("answer is '{:#g}'"), F(2.5));
 
   check(SV("answer is 'inf'"), SV("answer is '{:#g}'"), std::numeric_limits<F>::infinity());
   check(SV("answer is '-inf'"), SV("answer is '{:#g}'"), -std::numeric_limits<F>::infinity());
@@ -1977,14 +2099,41 @@ void format_test_floating_point_general_lower_case(TestFunction check) {
   check(SV("answer is '0.03125'"), SV("answer is '{:.5g}'"), 0.03125);
   check(SV("answer is '0.03125'"), SV("answer is '{:.10g}'"), 0.03125);
 
+  // *** precision & alternate form ***
+
+  // Output validated with  printf("%#xg")
+  check(SV("answer is '1.'"), SV("answer is '{:#.{}g}'"), 1.2, 0);
+  check(SV("answer is '1.'"), SV("answer is '{:#.{}g}'"), 1.2, 1);
+  check(SV("answer is '1.2'"), SV("answer is '{:#.{}g}'"), 1.2, 2);
+  check(SV("answer is '1.20'"), SV("answer is '{:#.{}g}'"), 1.2, 3);
+  check(SV("answer is '1.200'"), SV("answer is '{:#.{}g}'"), 1.2, 4);
+  check(SV("answer is '1.2000'"), SV("answer is '{:#.{}g}'"), 1.2, 5);
+  check(SV("answer is '1.20000'"), SV("answer is '{:#.{}g}'"), 1.2, 6);
+
+  check(SV("answer is '1.e+03'"), SV("answer is '{:#.{}g}'"), 1200.0, 0);
+  check(SV("answer is '1.e+03'"), SV("answer is '{:#.{}g}'"), 1200.0, 1);
+  check(SV("answer is '1.2e+03'"), SV("answer is '{:#.{}g}'"), 1200.0, 2);
+  check(SV("answer is '1.20e+03'"), SV("answer is '{:#.{}g}'"), 1200.0, 3);
+  check(SV("answer is '1200.'"), SV("answer is '{:#.{}g}'"), 1200.0, 4);
+  check(SV("answer is '1200.0'"), SV("answer is '{:#.{}g}'"), 1200.0, 5);
+  check(SV("answer is '1200.00'"), SV("answer is '{:#.{}g}'"), 1200.0, 6);
+
+  check(SV("answer is '1.e+06'"), SV("answer is '{:#.{}g}'"), 1200000.0, 0);
+  check(SV("answer is '1.e+06'"), SV("answer is '{:#.{}g}'"), 1200000.0, 1);
+  check(SV("answer is '1.2e+06'"), SV("answer is '{:#.{}g}'"), 1200000.0, 2);
+  check(SV("answer is '1.20e+06'"), SV("answer is '{:#.{}g}'"), 1200000.0, 3);
+  check(SV("answer is '1.200e+06'"), SV("answer is '{:#.{}g}'"), 1200000.0, 4);
+  check(SV("answer is '1.2000e+06'"), SV("answer is '{:#.{}g}'"), 1200000.0, 5);
+  check(SV("answer is '1.20000e+06'"), SV("answer is '{:#.{}g}'"), 1200000.0, 6);
+
   // *** locale-specific form ***
   // See locale-specific_form.pass.cpp
 }
 
 template <class F, class CharT, class TestFunction>
 void format_test_floating_point_general_upper_case(TestFunction check) {
-  auto nan_pos = std::numeric_limits<F>::quiet_NaN(); // "nan"
-  auto nan_neg = std::copysign(nan_pos, -1.0);        // "-nan"
+  auto nan_pos = std::numeric_limits<F>::quiet_NaN();                          // "nan"
+  auto nan_neg = std::copysign(nan_pos, static_cast<decltype(nan_pos)>(-1.0)); // "-nan"
 
   // *** align-fill & width ***
   check(SV("answer is '   0.25'"), SV("answer is '{:7G}'"), F(0.25));
@@ -2054,8 +2203,8 @@ void format_test_floating_point_general_upper_case(TestFunction check) {
   check(SV("answer is '0'"), SV("answer is '{:.0G}'"), F(0));
   check(SV("answer is '0.'"), SV("answer is '{:#.0G}'"), F(0));
 
-  check(SV("answer is '0.'"), SV("answer is '{:#G}'"), F(0));
-  check(SV("answer is '2.5'"), SV("answer is '{:#G}'"), F(2.5));
+  check(SV("answer is '0.00000'"), SV("answer is '{:#G}'"), F(0));
+  check(SV("answer is '2.50000'"), SV("answer is '{:#G}'"), F(2.5));
 
   check(SV("answer is 'INF'"), SV("answer is '{:#G}'"), std::numeric_limits<F>::infinity());
   check(SV("answer is '-INF'"), SV("answer is '{:#G}'"), -std::numeric_limits<F>::infinity());
@@ -2103,14 +2252,41 @@ void format_test_floating_point_general_upper_case(TestFunction check) {
   check(SV("answer is '0.03125'"), SV("answer is '{:.5G}'"), 0.03125);
   check(SV("answer is '0.03125'"), SV("answer is '{:.10G}'"), 0.03125);
 
+  // *** precision & alternate form ***
+
+  // Output validated with  printf("%#xg")
+  check(SV("answer is '1.'"), SV("answer is '{:#.{}G}'"), 1.2, 0);
+  check(SV("answer is '1.'"), SV("answer is '{:#.{}G}'"), 1.2, 1);
+  check(SV("answer is '1.2'"), SV("answer is '{:#.{}G}'"), 1.2, 2);
+  check(SV("answer is '1.20'"), SV("answer is '{:#.{}G}'"), 1.2, 3);
+  check(SV("answer is '1.200'"), SV("answer is '{:#.{}G}'"), 1.2, 4);
+  check(SV("answer is '1.2000'"), SV("answer is '{:#.{}G}'"), 1.2, 5);
+  check(SV("answer is '1.20000'"), SV("answer is '{:#.{}G}'"), 1.2, 6);
+
+  check(SV("answer is '1.E+03'"), SV("answer is '{:#.{}G}'"), 1200.0, 0);
+  check(SV("answer is '1.E+03'"), SV("answer is '{:#.{}G}'"), 1200.0, 1);
+  check(SV("answer is '1.2E+03'"), SV("answer is '{:#.{}G}'"), 1200.0, 2);
+  check(SV("answer is '1.20E+03'"), SV("answer is '{:#.{}G}'"), 1200.0, 3);
+  check(SV("answer is '1200.'"), SV("answer is '{:#.{}G}'"), 1200.0, 4);
+  check(SV("answer is '1200.0'"), SV("answer is '{:#.{}G}'"), 1200.0, 5);
+  check(SV("answer is '1200.00'"), SV("answer is '{:#.{}G}'"), 1200.0, 6);
+
+  check(SV("answer is '1.E+06'"), SV("answer is '{:#.{}G}'"), 1200000.0, 0);
+  check(SV("answer is '1.E+06'"), SV("answer is '{:#.{}G}'"), 1200000.0, 1);
+  check(SV("answer is '1.2E+06'"), SV("answer is '{:#.{}G}'"), 1200000.0, 2);
+  check(SV("answer is '1.20E+06'"), SV("answer is '{:#.{}G}'"), 1200000.0, 3);
+  check(SV("answer is '1.200E+06'"), SV("answer is '{:#.{}G}'"), 1200000.0, 4);
+  check(SV("answer is '1.2000E+06'"), SV("answer is '{:#.{}G}'"), 1200000.0, 5);
+  check(SV("answer is '1.20000E+06'"), SV("answer is '{:#.{}G}'"), 1200000.0, 6);
+
   // *** locale-specific form ***
   // See locale-specific_form.pass.cpp
 }
 
 template <class F, class CharT, class TestFunction>
 void format_test_floating_point_default(TestFunction check) {
-  auto nan_pos = std::numeric_limits<F>::quiet_NaN(); // "nan"
-  auto nan_neg = std::copysign(nan_pos, -1.0);        // "-nan"
+  auto nan_pos = std::numeric_limits<F>::quiet_NaN();                          // "nan"
+  auto nan_neg = std::copysign(nan_pos, static_cast<decltype(nan_pos)>(-1.0)); // "-nan"
 
   // *** align-fill & width ***
   check(SV("answer is '   0.25'"), SV("answer is '{:7}'"), F(0.25));
@@ -2226,8 +2402,8 @@ void format_test_floating_point_default(TestFunction check) {
 template <class F, class CharT, class TestFunction>
 void format_test_floating_point_default_precision(TestFunction check) {
 
-  auto nan_pos = std::numeric_limits<F>::quiet_NaN(); // "nan"
-  auto nan_neg = std::copysign(nan_pos, -1.0);        // "-nan"
+  auto nan_pos = std::numeric_limits<F>::quiet_NaN();                          // "nan"
+  auto nan_neg = std::copysign(nan_pos, static_cast<decltype(nan_pos)>(-1.0)); // "-nan"
 
   // *** align-fill & width ***
   check(SV("answer is '   0.25'"), SV("answer is '{:7.6}'"), F(0.25));
@@ -2346,6 +2522,32 @@ void format_test_floating_point_default_precision(TestFunction check) {
   check(SV("answer is '0.03125'"), SV("answer is '{:.5}'"), 0.03125);
   check(SV("answer is '0.03125'"), SV("answer is '{:.10}'"), 0.03125);
 
+  // *** precision & alternate form ***
+
+  check(SV("answer is '1.'"), SV("answer is '{:#.{}}'"), 1.2, 0);
+  check(SV("answer is '1.'"), SV("answer is '{:#.{}}'"), 1.2, 1);
+  check(SV("answer is '1.2'"), SV("answer is '{:#.{}}'"), 1.2, 2);
+  check(SV("answer is '1.2'"), SV("answer is '{:#.{}}'"), 1.2, 3);
+  check(SV("answer is '1.2'"), SV("answer is '{:#.{}}'"), 1.2, 4);
+  check(SV("answer is '1.2'"), SV("answer is '{:#.{}}'"), 1.2, 5);
+  check(SV("answer is '1.2'"), SV("answer is '{:#.{}}'"), 1.2, 6);
+
+  check(SV("answer is '1.e+03'"), SV("answer is '{:#.{}}'"), 1200.0, 0);
+  check(SV("answer is '1.e+03'"), SV("answer is '{:#.{}}'"), 1200.0, 1);
+  check(SV("answer is '1.2e+03'"), SV("answer is '{:#.{}}'"), 1200.0, 2);
+  check(SV("answer is '1.2e+03'"), SV("answer is '{:#.{}}'"), 1200.0, 3);
+  check(SV("answer is '1200.'"), SV("answer is '{:#.{}}'"), 1200.0, 4);
+  check(SV("answer is '1200.'"), SV("answer is '{:#.{}}'"), 1200.0, 5);
+  check(SV("answer is '1200.'"), SV("answer is '{:#.{}}'"), 1200.0, 6);
+
+  check(SV("answer is '1.e+06'"), SV("answer is '{:#.{}}'"), 1200000.0, 0);
+  check(SV("answer is '1.e+06'"), SV("answer is '{:#.{}}'"), 1200000.0, 1);
+  check(SV("answer is '1.2e+06'"), SV("answer is '{:#.{}}'"), 1200000.0, 2);
+  check(SV("answer is '1.2e+06'"), SV("answer is '{:#.{}}'"), 1200000.0, 3);
+  check(SV("answer is '1.2e+06'"), SV("answer is '{:#.{}}'"), 1200000.0, 4);
+  check(SV("answer is '1.2e+06'"), SV("answer is '{:#.{}}'"), 1200000.0, 5);
+  check(SV("answer is '1.2e+06'"), SV("answer is '{:#.{}}'"), 1200000.0, 6);
+
   // *** locale-specific form ***
   // See locale-specific_form.pass.cpp
 }
@@ -2433,6 +2635,11 @@ void format_test_handle(TestFunction check, ExceptionTest check_exception) {
   check(SV("answer is '0XAA55'"), SV("answer is '{:X}'"), status::foobar);
   check(SV("answer is 'foobar'"), SV("answer is '{:s}'"), status::foobar);
 
+  // P2418 Changed the argument from a const reference to a forwarding reference.
+  // This mainly affects handle classes, however since we use an abstraction
+  // layer here it's "tricky" to verify whether this test would do the "right"
+  // thing. So these tests are done separately.
+
   // *** type ***
   for (const auto& fmt : invalid_types<CharT>("xXs"))
     check_exception("The format-spec type has a type not supported for a status argument", fmt, status::foo);
@@ -2445,15 +2652,116 @@ void format_test_pointer(TestFunction check, ExceptionTest check_exception) {
   format_test_pointer<const void*, CharT>(check, check_exception);
 }
 
+/// Tests special buffer functions with a "large" input.
+///
+/// This is a test specific for libc++, however the code should behave the same
+/// on all implementations.
+/// In \c __format::__output_buffer there are some special functions to optimize
+/// outputting multiple characters, \c __copy, \c __transform, \c __fill. This
+/// test validates whether the functions behave properly when the output size
+/// doesn't fit in its internal buffer.
+template <class CharT, class TestFunction>
+void format_test_buffer_optimizations(TestFunction check) {
+#ifdef _LIBCPP_VERSION
+  // Used to validate our test sets are the proper size.
+  // To test the chunked operations it needs to be larger than the internal
+  // buffer. Picked a nice looking number.
+  constexpr int minimum = 3 * std::__format::__internal_storage<CharT>::__buffer_size;
+#else
+  constexpr int minimum = 1;
+#endif
+
+  // Copy
+  std::basic_string<CharT> str = STR(
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog."
+      "The quick brown fox jumps over the lazy dog.");
+  assert(str.size() > minimum);
+  check(std::basic_string_view<CharT>{str}, SV("{}"), str);
+
+  // Fill
+  std::basic_string<CharT> fill(minimum, CharT('*'));
+  check(std::basic_string_view<CharT>{str + fill}, SV("{:*<{}}"), str, str.size() + minimum);
+  check(std::basic_string_view<CharT>{fill + str + fill}, SV("{:*^{}}"), str, minimum + str.size() + minimum);
+  check(std::basic_string_view<CharT>{fill + str}, SV("{:*>{}}"), str, minimum + str.size());
+}
+
 template <class CharT, class TestFunction, class ExceptionTest>
 void format_tests(TestFunction check, ExceptionTest check_exception) {
   // *** Test escaping  ***
+
   check(SV("{"), SV("{{"));
   check(SV("}"), SV("}}"));
 
   // *** Test argument ID ***
   check(SV("hello false true"), SV("hello {0:} {1:}"), false, true);
   check(SV("hello true false"), SV("hello {1:} {0:}"), false, true);
+
+  // *** Test many arguments ***
+
+  // [format.args]/1
+  // An instance of basic_format_args provides access to formatting arguments.
+  // Implementations should optimize the representation of basic_format_args
+  // for a small number of formatting arguments.
+  //
+  // These's no guidances what "a small number of formatting arguments" is.
+  // - fmtlib uses a 15 elements
+  // - libc++ uses 12 elements
+  // - MSVC STL uses a different approach regardless of the number of arguments
+  // - libstdc++ has no implementation yet
+  // fmtlib and libc++ use a similar approach, this approach can support 16
+  // elements (based on design choices both support less elements). This test
+  // makes sure "the large number of formatting arguments" code path is tested.
+  check(
+      SV("1234567890\t1234567890"),
+      SV("{}{}{}{}{}{}{}{}{}{}\t{}{}{}{}{}{}{}{}{}{}"),
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      0);
 
   // ** Test invalid format strings ***
   check_exception("The format string terminates at a '{'", SV("{"));
@@ -2471,9 +2779,15 @@ void format_tests(TestFunction check, ExceptionTest check_exception) {
 
   // *** Test char format argument ***
   // The `char` to `wchar_t` formatting is tested separately.
-  check(SV("hello 09azAZ!"), SV("hello {}{}{}{}{}{}{}"), CharT('0'), CharT('9'), CharT('a'), CharT('z'), CharT('A'),
-        CharT('Z'), CharT('!'));
-
+  check(SV("hello 09azAZ!"),
+        SV("hello {}{}{}{}{}{}{}"),
+        CharT('0'),
+        CharT('9'),
+        CharT('a'),
+        CharT('z'),
+        CharT('A'),
+        CharT('Z'),
+        CharT('!'));
   format_test_char<CharT>(check, check_exception);
   format_test_char_as_integer<CharT>(check, check_exception);
 
@@ -2513,18 +2827,6 @@ void format_tests(TestFunction check, ExceptionTest check_exception) {
   check(SV("hello 42"), SV("hello {}"), static_cast<long long>(42));
 #ifndef TEST_HAS_NO_INT128
   check(SV("hello 42"), SV("hello {}"), static_cast<__int128_t>(42));
-  {
-    // Note 128-bit support is only partly implemented test the range
-    // conditions here.
-    std::basic_string<CharT> min = std::format(STR("{}"), std::numeric_limits<long long>::min());
-    check(std::basic_string_view<CharT>(min), SV("{}"), static_cast<__int128_t>(std::numeric_limits<long long>::min()));
-    std::basic_string<CharT> max = std::format(STR("{}"), std::numeric_limits<long long>::max());
-    check(std::basic_string_view<CharT>(max), SV("{}"), static_cast<__int128_t>(std::numeric_limits<long long>::max()));
-    check_exception("128-bit value is outside of implemented range", SV("{}"),
-                    static_cast<__int128_t>(std::numeric_limits<long long>::min()) - 1);
-    check_exception("128-bit value is outside of implemented range", SV("{}"),
-                    static_cast<__int128_t>(std::numeric_limits<long long>::max()) + 1);
-  }
 #endif
   format_test_signed_integer<CharT>(check, check_exception);
 
@@ -2536,15 +2838,6 @@ void format_tests(TestFunction check, ExceptionTest check_exception) {
   check(SV("hello 42"), SV("hello {}"), static_cast<unsigned long long>(42));
 #ifndef TEST_HAS_NO_INT128
   check(SV("hello 42"), SV("hello {}"), static_cast<__uint128_t>(42));
-  {
-    // Note 128-bit support is only partly implemented test the range
-    // conditions here.
-    std::basic_string<CharT> max = std::format(STR("{}"), std::numeric_limits<unsigned long long>::max());
-    check(std::basic_string_view<CharT>(max), SV("{}"),
-          static_cast<__uint128_t>(std::numeric_limits<unsigned long long>::max()));
-    check_exception("128-bit value is outside of implemented range", SV("{}"),
-                    static_cast<__uint128_t>(std::numeric_limits<unsigned long long>::max()) + 1);
-  }
 #endif
   format_test_unsigned_integer<CharT>(check, check_exception);
 
@@ -2562,6 +2855,9 @@ void format_tests(TestFunction check, ExceptionTest check_exception) {
 
   // *** Test handle formatter argument ***
   format_test_handle<CharT>(check, check_exception);
+
+  // *** Test the interal buffer optimizations ***
+  format_test_buffer_optimizations<CharT>(check);
 }
 
 #ifndef TEST_HAS_NO_WIDE_CHARACTERS

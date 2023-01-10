@@ -6,14 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/Arithmetic/Utils/Utils.h"
-#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Passes.h"
+
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Arith/Utils/Utils.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
-#include "mlir/Dialect/SCF/Transforms.h"
+#include "mlir/Dialect/SCF/Transforms/Transforms.h"
 #include "mlir/Dialect/SCF/Utils/AffineCanonicalizationUtils.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
@@ -23,6 +25,13 @@
 #include "mlir/Transforms/FoldUtils.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/TypeSwitch.h"
+
+namespace mlir {
+#define GEN_PASS_DEF_LINALGLOWERTOAFFINELOOPS
+#define GEN_PASS_DEF_LINALGLOWERTOLOOPS
+#define GEN_PASS_DEF_LINALGLOWERTOPARALLELLOOPS
+#include "mlir/Dialect/Linalg/Passes.h.inc"
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::linalg;
@@ -77,7 +86,7 @@ template <typename SingleInputPoolingOp>
 static InputAndOutputIndices
 getInputAndOutputIndices(OpBuilder &b, Location loc, ArrayRef<Value> allIvs,
                          SingleInputPoolingOp op) {
-  auto mapsRange = op.indexing_maps().template getAsRange<AffineMapAttr>();
+  auto mapsRange = op.getIndexingMapsArray();
   auto maps = llvm::to_vector<8>(
       llvm::map_range(mapsRange, [](AffineMapAttr a) { return a.getValue(); }));
   return InputAndOutputIndices{
@@ -122,27 +131,27 @@ static void emitScalarImplementation(OpBuilder &b, Location loc,
   assert(linalgOp.hasBufferSemantics() &&
          "expected linalg op with buffer semantics");
   SmallVector<Value> indexedValues;
-  indexedValues.reserve(linalgOp.getNumInputsAndOutputs());
+  indexedValues.reserve(linalgOp->getNumOperands());
 
   auto allIvsPlusDims = SmallVector<Value>(allIvs.begin(), allIvs.end());
 
   // TODO: Avoid the loads if the corresponding argument of the
   // region has no uses.
   // 1.a. Emit load from input operand or for scalars access the operand itself.
-  for (OpOperand *inputOperand : linalgOp.getInputOperands()) {
+  for (OpOperand *inputOperand : linalgOp.getDpsInputOperands()) {
     if (linalgOp.isScalar(inputOperand)) {
       indexedValues.push_back(inputOperand->get());
       continue;
     }
     auto indexing = makeCanonicalAffineApplies(
-        b, loc, linalgOp.getTiedIndexingMap(inputOperand), allIvsPlusDims);
+        b, loc, linalgOp.getMatchingIndexingMap(inputOperand), allIvsPlusDims);
     indexedValues.push_back(
         b.create<LoadOpTy>(loc, inputOperand->get(), indexing));
   }
   // 1.b. Emit load from output views.
-  for (OpOperand *outputOperand : linalgOp.getOutputOperands()) {
+  for (OpOperand *outputOperand : linalgOp.getDpsInitOperands()) {
     SmallVector<Value> indexing = makeCanonicalAffineApplies(
-        b, loc, linalgOp.getTiedIndexingMap(outputOperand), allIvsPlusDims);
+        b, loc, linalgOp.getMatchingIndexingMap(outputOperand), allIvsPlusDims);
     indexedValues.push_back(
         b.create<LoadOpTy>(loc, outputOperand->get(), indexing));
   }
@@ -152,9 +161,12 @@ static void emitScalarImplementation(OpBuilder &b, Location loc,
   // 3. Emit store.
   SmallVector<SmallVector<Value>, 8> indexing;
   SmallVector<Value> outputBuffers;
-  for (OpOperand *outputOperand : linalgOp.getOutputBufferOperands()) {
+  for (OpOperand *outputOperand : linalgOp.getDpsInitOperands()) {
+    if (!outputOperand->get().getType().isa<MemRefType>())
+      continue;
     indexing.push_back(makeCanonicalAffineApplies(
-        b, loc, linalgOp.getTiedIndexingMap(outputOperand), allIvsPlusDims));
+        b, loc, linalgOp.getMatchingIndexingMap(outputOperand),
+        allIvsPlusDims));
     outputBuffers.push_back(outputOperand->get());
   }
   inlineRegionAndEmitStore<LoadOpTy, StoreOpTy>(b, loc, linalgOp, indexedValues,
@@ -189,19 +201,17 @@ static void replaceIndexOpsByInductionVariables(LinalgOp linalgOp,
     LoopLikeOpInterface loopOp = loopOps.back();
     for (IndexOp indexOp :
          llvm::make_early_inc_range(loopOp.getLoopBody().getOps<IndexOp>()))
-      rewriter.replaceOp(indexOp, allIvs[indexOp.dim()]);
+      rewriter.replaceOp(indexOp, allIvs[indexOp.getDim()]);
   }
 }
 
 template <typename LoopTy>
 static FailureOr<LinalgLoops> linalgOpToLoopsImpl(PatternRewriter &rewriter,
                                                   LinalgOp linalgOp) {
-  using LoadOpTy =
-      typename std::conditional<std::is_same<LoopTy, AffineForOp>::value,
-                                AffineLoadOp, memref::LoadOp>::type;
-  using StoreOpTy =
-      typename std::conditional<std::is_same<LoopTy, AffineForOp>::value,
-                                AffineStoreOp, memref::StoreOp>::type;
+  using LoadOpTy = std::conditional_t<std::is_same<LoopTy, AffineForOp>::value,
+                                      AffineLoadOp, memref::LoadOp>;
+  using StoreOpTy = std::conditional_t<std::is_same<LoopTy, AffineForOp>::value,
+                                       AffineStoreOp, memref::StoreOp>;
 
   // The flattened loopToOperandRangesMaps is expected to be an invertible
   // permutation map (which is asserted in the inverse calculation).
@@ -209,7 +219,7 @@ static FailureOr<LinalgLoops> linalgOpToLoopsImpl(PatternRewriter &rewriter,
          "expected linalg op with buffer semantics");
 
   auto loopRanges = linalgOp.createLoopRanges(rewriter, linalgOp.getLoc());
-  auto iteratorTypes = llvm::to_vector<4>(linalgOp.iterator_types().getValue());
+  auto iteratorTypes = linalgOp.getIteratorTypesArray();
 
   SmallVector<Value> allIvs;
   GenerateLoopNest<LoopTy>::doit(
@@ -260,72 +270,6 @@ public:
   }
 };
 
-/// Converts tiled_loop to SCF loop nests. All parallel dimensions are collected
-/// into an scf.parallel loop and all sequential dimensions will result in the
-/// nested scf.for loop nest. The pattern assumes that a tiled loop with
-/// iterator_types ["reduction", "parallel", "reduction"] can be reordered. It
-/// is true for the tiling that is currently suppported by Linalg.
-struct TiledLoopToSCFPattern : public OpRewritePattern<TiledLoopOp> {
-  using OpRewritePattern<TiledLoopOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(TiledLoopOp tiledLoop,
-                                PatternRewriter &rewriter) const override {
-    // Fail conversion if the `tiled_loop` has not been bufferized.
-    if (!tiledLoop.hasBufferSemantics())
-      return failure();
-
-    // Collect loop control parameters for parallel and sequential dimensions.
-    SmallVector<Value, 3> seqLBs, seqUBs, seqSteps, seqIVs;
-    SmallVector<Value, 3> parLBs, parUBs, parSteps, parIVs;
-    for (const auto &en : llvm::enumerate(
-             llvm::zip(tiledLoop.lowerBound(), tiledLoop.upperBound(),
-                       tiledLoop.step(), tiledLoop.getInductionVars()))) {
-      Value lb, ub, step, iv;
-      std::tie(lb, ub, step, iv) = en.value();
-      if (tiledLoop.isParallelDimension(en.index())) {
-        parLBs.push_back(lb);
-        parUBs.push_back(ub);
-        parSteps.push_back(step);
-        parIVs.push_back(iv);
-      } else {
-        seqLBs.push_back(lb);
-        seqUBs.push_back(ub);
-        seqSteps.push_back(step);
-        seqIVs.push_back(iv);
-      }
-    }
-
-    Location loc = tiledLoop.getLoc();
-    auto generateForLoopNestAndCloneBody = [&](OpBuilder &builder, Location loc,
-                                               ValueRange ivs) {
-      BlockAndValueMapping bvm;
-      bvm.map(parIVs, ivs);
-      bvm.map(tiledLoop.getRegionInputArgs(), tiledLoop.inputs());
-      bvm.map(tiledLoop.getRegionOutputArgs(), tiledLoop.outputs());
-
-      // If not all dimensions of the tiled loop are parallel, an scf.for loop
-      // nest is generated.
-      if (!seqIVs.empty()) {
-        scf::LoopNest nest =
-            scf::buildLoopNest(builder, loc, seqLBs, seqUBs, seqSteps,
-                               [&](OpBuilder &builder, Location loc,
-                                   ValueRange ivs) { bvm.map(seqIVs, ivs); });
-        builder.setInsertionPointToStart(nest.loops.back().getBody());
-      }
-      for (auto &op : tiledLoop.getBody()->without_terminator())
-        builder.clone(op, bvm);
-    };
-
-    if (parIVs.empty())
-      generateForLoopNestAndCloneBody(rewriter, loc, llvm::None);
-    else
-      rewriter.create<scf::ParallelOp>(loc, parLBs, parUBs, parSteps,
-                                       generateForLoopNestAndCloneBody);
-    rewriter.eraseOp(tiledLoop);
-    return success();
-  }
-};
-
 /// Local folding pattern for AffineApplyOp that we can apply greedily.
 /// This replaces AffineApplyOp by the proper value in cases where the
 /// associated map is trivial.
@@ -364,7 +308,7 @@ struct FoldAffineOp : public RewritePattern {
 };
 
 template <typename LoopType>
-static void lowerLinalgToLoopsImpl(FuncOp funcOp) {
+static void lowerLinalgToLoopsImpl(func::FuncOp funcOp) {
   MLIRContext *context = funcOp.getContext();
   RewritePatternSet patterns(context);
   patterns.add<LinalgRewritePattern<LoopType>>(context);
@@ -377,7 +321,7 @@ static void lowerLinalgToLoopsImpl(FuncOp funcOp) {
 }
 
 struct LowerToAffineLoops
-    : public LinalgLowerToAffineLoopsBase<LowerToAffineLoops> {
+    : public impl::LinalgLowerToAffineLoopsBase<LowerToAffineLoops> {
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<memref::MemRefDialect>();
   }
@@ -386,7 +330,7 @@ struct LowerToAffineLoops
   }
 };
 
-struct LowerToLoops : public LinalgLowerToLoopsBase<LowerToLoops> {
+struct LowerToLoops : public impl::LinalgLowerToLoopsBase<LowerToLoops> {
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<memref::MemRefDialect, scf::SCFDialect>();
   }
@@ -396,152 +340,25 @@ struct LowerToLoops : public LinalgLowerToLoopsBase<LowerToLoops> {
 };
 
 struct LowerToParallelLoops
-    : public LinalgLowerToParallelLoopsBase<LowerToParallelLoops> {
+    : public impl::LinalgLowerToParallelLoopsBase<LowerToParallelLoops> {
   void runOnOperation() override {
     lowerLinalgToLoopsImpl<scf::ParallelOp>(getOperation());
   }
 };
 
-struct LowerTiledLoopsToSCF
-    : public LinalgLowerTiledLoopsToSCFBase<LowerTiledLoopsToSCF> {
-  void runOnOperation() override {
-    MLIRContext *context = &getContext();
-    RewritePatternSet patterns(context);
-    populateTiledLoopToSCFPattern(patterns);
-    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
-  }
-};
 } // namespace
 
-/// Rewrite a TiledLoopOp with bounds/step that potentially do not divide evenly
-/// into two TiledLoopOps: One where the step divides the iteration space
-/// evenly, followed another one for the last (partial) iteration (if any). This
-/// function only rewrites the `idx`-th loop of the loop nest represented by
-/// the TiledLoopOp. To peel the entire loop nest, this function must be called
-/// multiple times.
-///
-/// This function rewrites the given TiledLoopOp in-place and creates a new
-/// TiledLoopOp for the last iteration. It replaces all uses of the original
-/// TiledLoopOp with the results of the newly generated one.
-///
-/// The newly generated TiledLoopOp is returned via `result`. The boundary
-/// at which the loop is split (new upper bound) is returned via `splitBound`.
-/// The return value indicates whether the TiledLoopOp was rewritten or not.
-static LogicalResult peelTiledLoop(RewriterBase &b, TiledLoopOp loopOp,
-                                   int64_t idx, TiledLoopOp &result,
-                                   Value &splitBound) {
-  Value lb = loopOp.lowerBound()[idx], ub = loopOp.upperBound()[idx],
-        step = loopOp.step()[idx];
-  auto ubInt = getConstantIntValue(ub);
-
-  auto loc = loopOp.getLoc();
-  AffineExpr exprLb, exprUb, exprStep;
-  bindSymbols(b.getContext(), exprLb, exprUb, exprStep);
-  // New upper bound: %ub - (%ub - %lb) mod %step
-  auto modMap = AffineMap::get(0, 3, {exprUb - ((exprUb - exprLb) % exprStep)});
-  SmallVector<Value> operands{lb, ub, step};
-  mlir::canonicalizeMapAndOperands(&modMap, &operands);
-  modMap = mlir::simplifyAffineMap(modMap);
-  RewriterBase::InsertionGuard guard(b);
-  b.setInsertionPoint(loopOp);
-  splitBound = b.createOrFold<AffineApplyOp>(loc, modMap, operands);
-  // No specialization necessary if step already divides upper bound evenly.
-  if (splitBound == ub || (ubInt && ubInt == getConstantIntValue(splitBound)))
-    return failure();
-
-  // Create remainder loop.
-  b.setInsertionPointAfter(loopOp);
-  auto remainderLoop = cast<TiledLoopOp>(b.clone(*loopOp.getOperation()));
-  loopOp.replaceAllUsesWith(remainderLoop->getResults());
-  // Outputs: Take tensors from main loop's results. Take memrefs from main
-  // loop's outputs.
-  SmallVector<Value> remainderOutputs;
-  for (unsigned o = 0, t = 0; o < loopOp.getNumOutputs(); ++o) {
-    remainderOutputs.push_back(loopOp.outputs()[o].getType().isa<MemRefType>()
-                                   ? loopOp.outputs()[o]
-                                   : loopOp->getResult(t++));
-  }
-  remainderLoop.outputsMutable().assign(remainderOutputs);
-
-  // Set new loop bounds.
-  b.updateRootInPlace(loopOp, [&]() {
-    SmallVector<Value> ubs = loopOp.upperBound();
-    ubs[idx] = splitBound;
-    loopOp.upperBoundMutable().assign(ubs);
-  });
-  SmallVector<Value> lbs = remainderLoop.lowerBound();
-  lbs[idx] = splitBound;
-  remainderLoop.lowerBoundMutable().assign(lbs);
-
-  result = remainderLoop;
-  return success();
-}
-
-template <typename OpTy, bool IsMin>
-static void
-rewriteAffineOpAfterPeeling(RewriterBase &rewriter, TiledLoopOp mainLoop,
-                            TiledLoopOp remainderLoop, Value mainIv,
-                            Value remainderIv, Value ub, Value step) {
-  mainLoop.walk([&](OpTy affineOp) {
-    AffineMap map = affineOp.getAffineMap();
-    (void)scf::rewritePeeledMinMaxOp(rewriter, affineOp, map,
-                                     affineOp.operands(), IsMin, mainIv, ub,
-                                     step, /*insideLoop=*/true);
-  });
-  remainderLoop.walk([&](OpTy affineOp) {
-    AffineMap map = affineOp.getAffineMap();
-    (void)scf::rewritePeeledMinMaxOp(rewriter, affineOp, map,
-                                     affineOp.operands(), IsMin, remainderIv,
-                                     ub, step, /*insideLoop=*/false);
-  });
-}
-
-LogicalResult mlir::linalg::peelAndCanonicalizeTiledLoop(RewriterBase &rewriter,
-                                                         TiledLoopOp loopOp,
-                                                         int64_t idx,
-                                                         TiledLoopOp &result) {
-  int64_t numLoops = loopOp.iterator_types().size();
-  if (idx < 0 || numLoops <= idx)
-    return failure();
-
-  Value ub = loopOp.upperBound()[idx];
-  TiledLoopOp remainderLoop;
-  Value splitBound;
-  if (failed(peelTiledLoop(rewriter, loopOp, idx, remainderLoop, splitBound)))
-    return failure();
-
-  // Rewrite affine.min and affine.max ops.
-  Value mainIv = loopOp.getInductionVars()[idx], step = loopOp.step()[idx],
-        remainderIv = remainderLoop.getInductionVars()[idx];
-
-  rewriteAffineOpAfterPeeling<AffineMinOp, /*IsMin=*/true>(
-      rewriter, loopOp, remainderLoop, mainIv, remainderIv, ub, step);
-  rewriteAffineOpAfterPeeling<AffineMaxOp, /*IsMin=*/false>(
-      rewriter, loopOp, remainderLoop, mainIv, remainderIv, ub, step);
-
-  result = remainderLoop;
-  return success();
-}
-
-void mlir::linalg::populateTiledLoopToSCFPattern(RewritePatternSet &patterns) {
-  patterns.add<TiledLoopToSCFPattern>(patterns.getContext());
-}
-
-std::unique_ptr<OperationPass<FuncOp>>
-mlir::createConvertLinalgTiledLoopsToSCFPass() {
-  return std::make_unique<LowerTiledLoopsToSCF>();
-}
-
-std::unique_ptr<OperationPass<FuncOp>> mlir::createConvertLinalgToLoopsPass() {
+std::unique_ptr<OperationPass<func::FuncOp>>
+mlir::createConvertLinalgToLoopsPass() {
   return std::make_unique<LowerToLoops>();
 }
 
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::createConvertLinalgToParallelLoopsPass() {
   return std::make_unique<LowerToParallelLoops>();
 }
 
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::createConvertLinalgToAffineLoopsPass() {
   return std::make_unique<LowerToAffineLoops>();
 }

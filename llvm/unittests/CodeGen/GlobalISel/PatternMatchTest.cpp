@@ -51,6 +51,25 @@ TEST_F(AArch64GISelMITest, MatchIntConstantRegister) {
   EXPECT_EQ(Src0->VReg, MIBCst.getReg(0));
 }
 
+TEST_F(AArch64GISelMITest, MatchIntConstantSplat) {
+  setUp();
+  if (!TM)
+    return;
+
+  LLT s64 = LLT::scalar(64);
+  LLT v4s64 = LLT::fixed_vector(4, s64);
+
+  MachineInstrBuilder FortyTwoSplat =
+      B.buildSplatVector(v4s64, B.buildConstant(s64, 42));
+  int64_t Cst;
+  EXPECT_TRUE(mi_match(FortyTwoSplat.getReg(0), *MRI, m_ICstOrSplat(Cst)));
+  EXPECT_EQ(Cst, 42);
+
+  MachineInstrBuilder NonConstantSplat =
+      B.buildBuildVector(v4s64, {Copies[0], Copies[0], Copies[0], Copies[0]});
+  EXPECT_FALSE(mi_match(NonConstantSplat.getReg(0), *MRI, m_ICstOrSplat(Cst)));
+}
+
 TEST_F(AArch64GISelMITest, MachineInstrPtrBind) {
   setUp();
   if (!TM)
@@ -302,6 +321,64 @@ TEST_F(AArch64GISelMITest, MatchFCmp) {
   EXPECT_EQ(CmpInst::FCMP_OEQ, Pred);
   EXPECT_EQ(Copies[0], Reg0);
   EXPECT_EQ(Copies[1], Reg1);
+}
+
+TEST_F(AArch64GISelMITest, MatcCommutativeICmp) {
+  setUp();
+  if (!TM)
+    return;
+  const LLT s1 = LLT::scalar(1);
+  Register LHS = Copies[0];
+  Register RHS = Copies[1];
+  CmpInst::Predicate MatchedPred;
+  bool Match = false;
+  for (unsigned P = CmpInst::Predicate::FIRST_ICMP_PREDICATE;
+       P < CmpInst::Predicate::LAST_ICMP_PREDICATE; ++P) {
+    auto CurrPred = static_cast<CmpInst::Predicate>(P);
+    auto Cmp = B.buildICmp(CurrPred, s1, LHS, RHS);
+    // Basic matching.
+    Match = mi_match(
+        Cmp.getReg(0), *MRI,
+        m_c_GICmp(m_Pred(MatchedPred), m_SpecificReg(LHS), m_SpecificReg(RHS)));
+    EXPECT_TRUE(Match);
+    EXPECT_EQ(MatchedPred, CurrPred);
+    // Commuting operands should still match, but the predicate should be
+    // swapped.
+    Match = mi_match(
+        Cmp.getReg(0), *MRI,
+        m_c_GICmp(m_Pred(MatchedPred), m_SpecificReg(RHS), m_SpecificReg(LHS)));
+    EXPECT_TRUE(Match);
+    EXPECT_EQ(MatchedPred, CmpInst::getSwappedPredicate(CurrPred));
+  }
+}
+
+TEST_F(AArch64GISelMITest, MatcCommutativeFCmp) {
+  setUp();
+  if (!TM)
+    return;
+  const LLT s1 = LLT::scalar(1);
+  Register LHS = Copies[0];
+  Register RHS = Copies[1];
+  CmpInst::Predicate MatchedPred;
+  bool Match = false;
+  for (unsigned P = CmpInst::Predicate::FIRST_FCMP_PREDICATE;
+       P < CmpInst::Predicate::LAST_FCMP_PREDICATE; ++P) {
+    auto CurrPred = static_cast<CmpInst::Predicate>(P);
+    auto Cmp = B.buildFCmp(CurrPred, s1, LHS, RHS);
+    // Basic matching.
+    Match = mi_match(
+        Cmp.getReg(0), *MRI,
+        m_c_GFCmp(m_Pred(MatchedPred), m_SpecificReg(LHS), m_SpecificReg(RHS)));
+    EXPECT_TRUE(Match);
+    EXPECT_EQ(MatchedPred, CurrPred);
+    // Commuting operands should still match, but the predicate should be
+    // swapped.
+    Match = mi_match(
+        Cmp.getReg(0), *MRI,
+        m_c_GFCmp(m_Pred(MatchedPred), m_SpecificReg(RHS), m_SpecificReg(LHS)));
+    EXPECT_TRUE(Match);
+    EXPECT_EQ(MatchedPred, CmpInst::getSwappedPredicate(CurrPred));
+  }
 }
 
 TEST_F(AArch64GISelMITest, MatchFPUnaryOp) {
@@ -750,6 +827,23 @@ TEST_F(AArch64GISelMITest, MatchNot) {
   EXPECT_TRUE(mi_match(AddInst.getReg(2), *MRI, m_Not(m_Reg(NotReg))));
   EXPECT_EQ(NotReg, Copies[0]);
 }
+
+TEST_F(AArch64GISelMITest, MatchSpecificReg) {
+  setUp();
+  if (!TM)
+    return;
+  auto Cst1 = B.buildConstant(LLT::scalar(64), 42);
+  auto Cst2 = B.buildConstant(LLT::scalar(64), 314);
+  Register Reg = Cst1.getReg(0);
+  // Basic case: Same register twice.
+  EXPECT_TRUE(mi_match(Reg, *MRI, m_SpecificReg(Reg)));
+  // Basic case: Two explicitly different registers.
+  EXPECT_FALSE(mi_match(Reg, *MRI, m_SpecificReg(Cst2.getReg(0))));
+  // Check that we can tell that an instruction uses a specific register.
+  auto Add = B.buildAdd(LLT::scalar(64), Cst1, Cst2);
+  EXPECT_TRUE(mi_match(Add.getReg(0), *MRI, m_GAdd(m_SpecificReg(Reg), m_Reg())));
+}
+
 } // namespace
 
 int main(int argc, char **argv) {

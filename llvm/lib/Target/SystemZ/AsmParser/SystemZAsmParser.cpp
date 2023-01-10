@@ -432,6 +432,7 @@ private:
 
   bool ParseDirectiveInsn(SMLoc L);
   bool ParseDirectiveMachine(SMLoc L);
+  bool ParseGNUAttribute(SMLoc L);
 
   OperandMatchResultTy parseAddress(OperandVector &Operands,
                                     MemoryKind MemKind,
@@ -1224,6 +1225,8 @@ bool SystemZAsmParser::ParseDirective(AsmToken DirectiveID) {
     return ParseDirectiveInsn(DirectiveID.getLoc());
   if (IDVal == ".machine")
     return ParseDirectiveMachine(DirectiveID.getLoc());
+  if (IDVal.startswith(".gnu_attribute"))
+    return ParseGNUAttribute(DirectiveID.getLoc());
 
   return true;
 }
@@ -1356,6 +1359,24 @@ bool SystemZAsmParser::ParseDirectiveMachine(SMLoc L) {
   getTargetStreamer().emitMachine(CPU);
 
   return false;
+}
+
+bool SystemZAsmParser::ParseGNUAttribute(SMLoc L) {
+  int64_t Tag;
+  int64_t IntegerValue;
+  if (!Parser.parseGNUAttribute(L, Tag, IntegerValue))
+    return false;
+
+  // Tag_GNU_S390_ABI_Vector tag is '8' and can be 0, 1, or 2.
+  if (Tag != 8 || (IntegerValue < 0 || IntegerValue > 2)) {
+    Error(Parser.getTok().getLoc(),
+          "Unrecognized .gnu_attribute tag/value pair.");
+    return false;
+  }
+
+  Parser.getStreamer().emitGNUAttribute(Tag, IntegerValue);
+
+  return true;
 }
 
 bool SystemZAsmParser::ParseRegister(unsigned &RegNo, SMLoc &StartLoc,
@@ -1590,9 +1611,11 @@ SystemZAsmParser::parsePCRel(OperandVector &Operands, int64_t MinVal,
   if (getParser().parseExpression(Expr))
     return MatchOperand_NoMatch;
 
-  auto isOutOfRangeConstant = [&](const MCExpr *E) -> bool {
+  auto isOutOfRangeConstant = [&](const MCExpr *E, bool Negate) -> bool {
     if (auto *CE = dyn_cast<MCConstantExpr>(E)) {
       int64_t Value = CE->getValue();
+      if (Negate)
+        Value = -Value;
       if ((Value & 1) || Value < MinVal || Value > MaxVal)
         return true;
     }
@@ -1606,7 +1629,7 @@ SystemZAsmParser::parsePCRel(OperandVector &Operands, int64_t MinVal,
       Error(StartLoc, "Expected PC-relative expression");
       return MatchOperand_ParseFail;
     }
-    if (isOutOfRangeConstant(CE)) {
+    if (isOutOfRangeConstant(CE, false)) {
       Error(StartLoc, "offset out of range");
       return MatchOperand_ParseFail;
     }
@@ -1621,8 +1644,9 @@ SystemZAsmParser::parsePCRel(OperandVector &Operands, int64_t MinVal,
   // For consistency with the GNU assembler, conservatively assume that a
   // constant offset must by itself be within the given size range.
   if (const auto *BE = dyn_cast<MCBinaryExpr>(Expr))
-    if (isOutOfRangeConstant(BE->getLHS()) ||
-        isOutOfRangeConstant(BE->getRHS())) {
+    if (isOutOfRangeConstant(BE->getLHS(), false) ||
+        isOutOfRangeConstant(BE->getRHS(),
+                             BE->getOpcode() == MCBinaryExpr::Sub)) {
       Error(StartLoc, "offset out of range");
       return MatchOperand_ParseFail;
     }

@@ -22,6 +22,6 @@ void bar(void) {
 }
 
 // CHECK-LABEL: define{{.*}} void @bar()
-// CHECK:         call void @foo(i8* %{{[0-9]+}})
+// CHECK:         call void @foo(ptr %{{[0-9]+}})
 
-// CHECK: declare void @foo(i8*)
+// CHECK: declare void @foo(ptr)

@@ -24,6 +24,12 @@ namespace VEISD {
 enum NodeType : unsigned {
   FIRST_NUMBER = ISD::BUILTIN_OP_END,
 
+  CMPI, // Compare between two signed integer values.
+  CMPU, // Compare between two unsigned integer values.
+  CMPF, // Compare between two floating-point values.
+  CMPQ, // Compare between two quad floating-point values.
+  CMOV, // Select between two values using the result of comparison.
+
   CALL,                   // A call instruction.
   EH_SJLJ_LONGJMP,        // SjLj exception handling longjmp.
   EH_SJLJ_SETJMP,         // SjLj exception handling setjmp.
@@ -186,8 +192,13 @@ public:
 
   /// VVP Lowering {
   SDValue lowerToVVP(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerVVP_LOAD_STORE(SDValue Op, VECustomDAG &) const;
+  SDValue lowerVVP_GATHER_SCATTER(SDValue Op, VECustomDAG &) const;
+
   SDValue legalizeInternalVectorOp(SDValue Op, SelectionDAG &DAG) const;
+  SDValue legalizeInternalLoadStoreOp(SDValue Op, VECustomDAG &CDAG) const;
   SDValue splitVectorOp(SDValue Op, VECustomDAG &CDAG) const;
+  SDValue splitPackedLoadStore(SDValue Op, VECustomDAG &CDAG) const;
   SDValue legalizePackedAVL(SDValue Op, VECustomDAG &CDAG) const;
   SDValue splitMaskArithmetic(SDValue Op, SelectionDAG &DAG) const;
   /// } VVPLowering
@@ -195,6 +206,8 @@ public:
   /// Custom DAGCombine {
   SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
 
+  SDValue combineSelect(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue combineSelectCC(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue combineTRUNCATE(SDNode *N, DAGCombinerInfo &DCI) const;
   /// } Custom DAGCombine
 
@@ -210,7 +223,7 @@ public:
   /// specified type.
   bool allowsMisalignedMemoryAccesses(EVT VT, unsigned AS, Align A,
                                       MachineMemOperand::Flags Flags,
-                                      bool *Fast) const override;
+                                      unsigned *Fast) const override;
 
   /// Inline Assembly {
 
@@ -231,7 +244,7 @@ public:
   // VE doesn't have rem.
   bool hasStandaloneRem(EVT) const override { return false; }
   // VE LDZ instruction returns 64 if the input is zero.
-  bool isCheapToSpeculateCtlz() const override { return true; }
+  bool isCheapToSpeculateCtlz(Type *) const override { return true; }
   // VE LDZ instruction is fast.
   bool isCtlzFast() const override { return true; }
   // VE has NND instruction.

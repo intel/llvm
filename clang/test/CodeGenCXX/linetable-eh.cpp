@@ -6,7 +6,7 @@
 // CHECK: call void @llvm.dbg.declare
 // CHECK: call void @llvm.dbg.declare(metadata {{.*}}, metadata ![[CURRENT_ADDR:.*]], metadata !{{.*}}), !dbg ![[DBG1:.*]]
 // CHECK: unwind label %{{.*}}, !dbg ![[DBG1]]
-// CHECK: store i64 %{{.*}}, i64* %current_address, align 8, !dbg ![[DBG4:.*]]
+// CHECK: store i64 %{{.*}}, ptr %current_address, align 8, !dbg ![[DBG4:.*]]
 // CHECK-NEXT: call void @llvm.dbg.declare(metadata {{.*}}, metadata ![[FOUND_IT:.*]], metadata !{{.*}}), !dbg ![[DBG2:.*]]
 // CHECK: = landingpad
 // CHECK-NEXT: cleanup, !dbg ![[DBG3:.*]]

@@ -1,5 +1,5 @@
-; RUN: opt < %s  -tbaa -basic-aa -loop-vectorize -force-vector-interleave=1 -force-vector-width=4 -dce -instcombine -simplifycfg -simplifycfg-require-and-preserve-domtree=1 -S | FileCheck %s
-; RUN: opt < %s  -basic-aa -loop-vectorize -force-vector-interleave=1 -force-vector-width=4 -dce -instcombine -simplifycfg -simplifycfg-require-and-preserve-domtree=1 -S | FileCheck %s --check-prefix=CHECK-NOTBAA
+; RUN: opt < %s  -aa-pipeline=tbaa,basic-aa -passes=loop-vectorize,dce,instcombine,simplifycfg -force-vector-interleave=1 -force-vector-width=4 -simplifycfg-require-and-preserve-domtree=1 -S | FileCheck %s
+; RUN: opt < %s  -aa-pipeline=basic-aa -passes=loop-vectorize,dce,instcombine,simplifycfg -force-vector-interleave=1 -force-vector-width=4 -simplifycfg-require-and-preserve-domtree=1 -S | FileCheck %s --check-prefix=CHECK-NOTBAA
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
 ; TBAA partitions the accesses in this loop, so it can be vectorized without
@@ -17,8 +17,7 @@ define i32 @test1(i32* nocapture %a, float* nocapture readonly %b) {
 
 ; CHECK-NOTBAA-LABEL: @test1
 ; CHECK-NOTBAA: entry:
-; CHECK-NOTBAA: icmp ugt i32*
-; CHECK-NOTBAA: icmp ugt float*
+; CHECK-NOTBAA: icmp ult i64
 ; CHECK-NOTBAA-NOT: icmp
 ; CHECK-NOTBAA: br i1 {{.+}}, label %for.body, label %vector.body
 
@@ -50,9 +49,8 @@ for.end:                                          ; preds = %for.body
 define i32 @test2(i32* nocapture readonly %a, float* nocapture readonly %b, float* nocapture %c) {
 ; CHECK-LABEL: @test2
 ; CHECK: entry:
-; CHECK: icmp ugt float*
-; CHECK: icmp ugt float*
-; CHECK-NOT: icmp uge i32*
+; CHECK: icmp ult i64
+; CHECK-NOT: icmp
 ; CHECK: br i1 {{.+}}, label %for.body, label %vector.body
 
 ; CHECK: load <4 x float>, <4 x float>* %{{.*}}, align 4, !tbaa
@@ -62,10 +60,8 @@ define i32 @test2(i32* nocapture readonly %a, float* nocapture readonly %b, floa
 
 ; CHECK-NOTBAA-LABEL: @test2
 ; CHECK-NOTBAA: entry:
-; CHECK-NOTBAA: icmp ugt float*
-; CHECK-NOTBAA: icmp ugt float*
-; CHECK-NOTBAA-DAG: icmp ugt float*
-; CHECK-NOTBAA-DAG: icmp ugt i32*
+; CHECK-NOTBAA: icmp ult i64
+; CHECK-NOTBAA: icmp ult i64
 ; CHECK-NOTBAA-NOT: icmp
 ; CHECK-NOTBAA: br i1 {{.+}}, label %for.body, label %vector.body
 

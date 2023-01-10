@@ -9,7 +9,9 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
+#include <detail/buffer_impl.hpp>
 #include <detail/config.hpp>
+#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
 
 #include <algorithm>
@@ -17,7 +19,7 @@
 #include <memory>
 #include <vector>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 inline constexpr auto DisablePostEnqueueCleanupName =
     "SYCL_DISABLE_POST_ENQUEUE_CLEANUP";
@@ -26,12 +28,16 @@ inline constexpr auto DisablePostEnqueueCleanupName =
 // correctly with dependency tracking when leaf-limit for generic commands is
 // overflowed.
 TEST_F(SchedulerTest, LeafLimit) {
+  sycl::unittest::PiMock Mock;
+  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+
   // All of the mock commands are owned on the test side, prevent post enqueue
   // cleanup from deleting some of them.
   unittest::ScopedEnvVar DisabledCleanup{
       DisablePostEnqueueCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
-  cl::sycl::queue HQueue(host_selector{});
+  sycl::queue HQueue(detail::createSyclObjFromImpl<device>(
+      detail::device_impl::getHostDeviceImpl()));
   MockScheduler MS;
   std::vector<std::unique_ptr<MockCommand>> LeavesToAdd;
   std::unique_ptr<MockCommand> MockDepCmd;
@@ -40,16 +46,16 @@ TEST_F(SchedulerTest, LeafLimit) {
   detail::Requirement MockReq = getMockRequirement(Buf);
 
   MockDepCmd =
-      std::make_unique<MockCommand>(detail::getSyclObjImpl(MQueue), MockReq);
+      std::make_unique<MockCommand>(detail::getSyclObjImpl(Q), MockReq);
   std::vector<detail::Command *> AuxCmds;
-  detail::MemObjRecord *Rec = MS.getOrInsertMemObjRecord(
-      detail::getSyclObjImpl(MQueue), &MockReq, AuxCmds);
+  detail::MemObjRecord *Rec =
+      MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(Q), &MockReq, AuxCmds);
 
   // Create commands that will be added as leaves exceeding the limit by 1
   for (std::size_t i = 0; i < Rec->MWriteLeaves.genericCommandsCapacity() + 1;
        ++i) {
     LeavesToAdd.push_back(
-        std::make_unique<MockCommand>(detail::getSyclObjImpl(MQueue), MockReq));
+        std::make_unique<MockCommand>(detail::getSyclObjImpl(Q), MockReq));
   }
   // Create edges: all soon-to-be leaves are direct users of MockDep
   std::vector<detail::Command *> ToCleanUp;
@@ -59,7 +65,7 @@ TEST_F(SchedulerTest, LeafLimit) {
         detail::DepDesc{MockDepCmd.get(), Leaf->getRequirement(), nullptr},
         ToCleanUp);
   }
-  std::vector<cl::sycl::detail::Command *> ToEnqueue;
+  std::vector<sycl::detail::Command *> ToEnqueue;
   // Add edges as leaves and exceed the leaf limit
   for (auto &LeafPtr : LeavesToAdd) {
     MS.addNodeToLeaves(Rec, LeafPtr.get(), access::mode::write, ToEnqueue);
@@ -82,4 +88,8 @@ TEST_F(SchedulerTest, LeafLimit) {
   EXPECT_TRUE(std::any_of(
       NewestLeaf->MDeps.begin(), NewestLeaf->MDeps.end(),
       [&](const detail::DepDesc &DD) { return DD.MDepCommand == OldestLeaf; }));
+  MS.cleanupCommandsForRecord(Rec);
+  auto MemObj = static_cast<sycl::detail::SYCLMemObjI *>(
+      detail::getSyclObjImpl(Buf).get());
+  MS.removeRecordForMemObj(MemObj);
 }

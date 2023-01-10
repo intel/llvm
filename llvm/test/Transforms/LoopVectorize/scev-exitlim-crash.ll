@@ -1,4 +1,4 @@
-; RUN: opt < %s -loop-vectorize -force-vector-interleave=2 -force-vector-width=8 -S | FileCheck %s
+; RUN: opt < %s -passes=loop-vectorize -force-vector-interleave=2 -force-vector-width=8 -S | FileCheck %s
 
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128"
 
@@ -18,7 +18,9 @@ entry:
 for.cond:                                         ; preds = %for.cond, %entry
   %i.0 = phi i32 [ undef, %entry ], [ %inc, %for.cond ]
   %cmp = icmp slt i32 %i.0, 0
-  %call = tail call i32 @fn2(double fadd (double fsub (double undef, double undef), double 1.000000e+00)) #2
+  %fsub = fsub double undef, undef
+  %fadd = fadd double %fsub, 1.000000e+00
+  %call = tail call i32 @fn2(double %fadd) #2
   %inc = add nsw i32 %i.0, 1
   br i1 %cmp, label %for.cond, label %for.cond4.preheader
 

@@ -3,8 +3,9 @@
 // This test checks compilation of various ESIMD enum types. Those which are
 // deprecated must produce deprecation messages.
 
-#include <sycl/ext/intel/experimental/esimd/common.hpp>
+#include <sycl/ext/intel/esimd/common.hpp>
 
+using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental::esimd;
 
 void foo() SYCL_ESIMD_FUNCTION {

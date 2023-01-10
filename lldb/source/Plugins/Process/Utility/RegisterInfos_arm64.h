@@ -484,6 +484,8 @@ static uint32_t g_d31_invalidates[] = {fpu_v31, fpu_s31, LLDB_INVALID_REGNUM};
 #define MISC_FPU_KIND(lldb_kind) LLDB_KIND(lldb_kind)
 #define MISC_EXC_KIND(lldb_kind) LLDB_KIND(lldb_kind)
 
+// clang-format off
+
 // Defines a 64-bit general purpose register
 #define DEFINE_GPR64(reg, generic_kind)                                        \
   {                                                                            \
@@ -784,10 +786,5 @@ static lldb_private::RegisterInfo g_register_infos_arm64_le[] = {
     {DEFINE_DBG(wcr, 15)}
 };
 // clang-format on
-static lldb_private::RegisterInfo g_register_infos_pauth[] = {
-    DEFINE_EXTENSION_REG(data_mask), DEFINE_EXTENSION_REG(code_mask)};
-
-static lldb_private::RegisterInfo g_register_infos_mte[] = {
-    DEFINE_EXTENSION_REG(mte_ctrl)};
 
 #endif // DECLARE_REGISTER_INFOS_ARM64_STRUCT

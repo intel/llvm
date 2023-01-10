@@ -29,6 +29,19 @@
 //     `sycl::ext::oneapi::experimental::detail::IsCompileTimeProperty` for the
 //     new property key class. This specialization should derive from
 //     `std::true_type`.
+//  7. If the property needs an LLVM IR attribute, specialize
+//     `sycl::ext::oneapi::experimental::detail::PropertyMetaInfo` for the new
+//     `value_t` of the property key class. The specialization must have a
+//     `static constexpr const char *name` member with a value equal to the
+//     expected LLVM IR attribute name. The common naming scheme for these is
+//     the name of the property with "_" replaced with "-" and "sycl-" appended,
+//     for example a property `foo_bar` would have an LLVM IR attribute name
+//     "sycl-foo-bar". Likewise, the specialization must have a `static
+//     constexpr T value` member where `T` is either an integer, a floating
+//     point, a boolean, an enum, a char, or a `const char *`, or a
+//     `std::nullptr_t`. This will be the value of the generated LLVM IR
+//     attribute. If `std::nullptr_t` is used the attribute will not have a
+//     value.
 /******************************** EXAMPLE **************************************
 ------------- sycl/include/sycl/ext/oneapi/properties/property.hpp -------------
 // (1.)
@@ -62,6 +75,12 @@ template <> struct PropertyToKind<bar_key> {
 
 // (6.)
 template <> struct IsCompileTimeProperty<bar_key> : std::true_type {};
+
+// (7.)
+template <> struct PropertyMetaInfo<bar_key::value_t> {
+  static constexpr const char *value = "sycl-bar";
+  static constexpr int value = 5;
+};
 
 } // namespace detail
 } // namespace sycl::ext::oneapi::experimental
@@ -135,8 +154,8 @@ template <> struct IsRuntimeProperty<foo> : std::true_type {};
 
 #pragma once
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -148,7 +167,17 @@ enum PropKind : uint32_t {
   HostAccess = 1,
   InitMode = 2,
   ImplementInCSR = 3,
-  PropKindSize = 4,
+  LatencyAnchorID = 4,
+  LatencyConstraint = 5,
+  WorkGroupSize = 6,
+  WorkGroupSizeHint = 7,
+  SubGroupSize = 8,
+  DeviceHas = 9,
+  StreamingInterface = 10,
+  RegisterMapInterface = 11,
+  Pipelined = 12,
+  // PropKindSize must always be the last value.
+  PropKindSize = 13,
 };
 
 // This trait must be specialized for all properties and must have a unique
@@ -167,6 +196,14 @@ template <typename PropertyT> struct IsRuntimeProperty : std::false_type {};
 // Trait for identifying compile-time properties.
 template <typename PropertyT> struct IsCompileTimeProperty : std::false_type {};
 
+// Trait for property compile-time meta names and values.
+template <typename PropertyT> struct PropertyMetaInfo {
+  // Some properties don't have meaningful compile-time values.
+  // Default to empty, as those will be ignored anyway.
+  static constexpr const char *name = "";
+  static constexpr std::nullptr_t value = nullptr;
+};
+
 } // namespace detail
 
 template <typename> struct is_property_key : std::false_type {};
@@ -175,5 +212,5 @@ template <typename, typename> struct is_property_key_of : std::false_type {};
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

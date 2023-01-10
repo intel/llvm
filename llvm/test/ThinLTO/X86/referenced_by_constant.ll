@@ -1,6 +1,6 @@
 ; Do setup work for all below tests: generate bitcode and combined index
-; RUN: opt -module-summary %s -o %t.bc
-; RUN: opt -module-summary %p/Inputs/referenced_by_constant.ll -o %t2.bc
+; RUN: opt -opaque-pointers -module-summary %s -o %t.bc
+; RUN: opt -opaque-pointers -module-summary %p/Inputs/referenced_by_constant.ll -o %t2.bc
 ; RUN: llvm-lto -thinlto-action=thinlink -o %t3.bc %t.bc %t2.bc
 
 ; Check the import side: we currently import bar() and also promote/import
@@ -8,8 +8,8 @@
 ; can make a local copy of someglobal and someglobal2 because they are both
 ; 'unnamed_addr' constants. This should eventually be done as well.
 ; RUN: llvm-lto -thinlto-action=import -import-constants-with-refs %t.bc -thinlto-index=%t3.bc -o - | llvm-dis -o -   | FileCheck %s --check-prefix=IMPORT
-; IMPORT: @someglobal.llvm.0 = available_externally hidden unnamed_addr constant i8* bitcast (void ()* @referencedbyglobal to i8*)
-; IMPORT: @someglobal2.llvm.0 = available_externally hidden unnamed_addr constant i8* bitcast (void ()* @localreferencedbyglobal.llvm.0 to i8*)
+; IMPORT: @someglobal.llvm.0 = available_externally hidden unnamed_addr constant ptr @referencedbyglobal
+; IMPORT: @someglobal2.llvm.0 = available_externally hidden unnamed_addr constant ptr @localreferencedbyglobal.llvm.0
 ; IMPORT: define available_externally void @bar()
 
 ; Check the export side: we currently only export bar(), which causes

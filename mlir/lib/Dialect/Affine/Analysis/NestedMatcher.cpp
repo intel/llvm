@@ -10,7 +10,6 @@
 
 #include "mlir/Dialect/Affine/Analysis/NestedMatcher.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
@@ -57,12 +56,12 @@ void NestedPattern::freeNested() {
 
 NestedPattern::NestedPattern(ArrayRef<NestedPattern> nested,
                              FilterFunctionType filter)
-    : nestedPatterns(), filter(std::move(filter)), skip(nullptr) {
+    : filter(std::move(filter)), skip(nullptr) {
   copyNestedToThis(nested);
 }
 
 NestedPattern::NestedPattern(const NestedPattern &other)
-    : nestedPatterns(), filter(other.filter), skip(other.skip) {
+    : filter(other.filter), skip(other.skip) {
   copyNestedToThis(other.nestedPatterns);
 }
 

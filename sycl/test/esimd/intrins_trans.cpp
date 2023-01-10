@@ -5,11 +5,11 @@
 // Checks ESIMD intrinsic translation.
 // NOTE: must be run in -O0, as optimizer optimizes away some of the code
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/detail/image_ocl_types.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/detail/image_ocl_types.hpp>
+#include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 
 ESIMD_PRIVATE
 detail::vector_type_t<int, 32> vc;
@@ -62,10 +62,10 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
   // CHECK: call void @llvm.genx.svm.block.st.i64.v32i32(i64 %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}})
 
   simd<uint32_t, VL> v01 =
-      __esimd_svm_gather<uint32_t, VL>(v_addr.data(), 0, pred.data());
+      __esimd_svm_gather<uint32_t, VL>(v_addr.data(), pred.data());
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.gather.v32i32.v32i1.v32i64(<32 x i1> %{{[0-9a-zA-Z_.]+}}, i32 0, <32 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i32> undef)
 
-  __esimd_svm_scatter<uint32_t, VL>(v_addr.data(), v01.data(), 0, pred.data());
+  __esimd_svm_scatter<uint32_t, VL>(v_addr.data(), v01.data(), pred.data());
   // CHECK: call void @llvm.genx.svm.scatter.v32i1.v32i64.v32i32(<32 x i1> %{{[0-9a-zA-Z_.]+}}, i32 0, <32 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}})
 
   simd<short, 16> mina(0, 1);
@@ -84,13 +84,13 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
 
   simd<float, 16> c(0.0f);
 
-  using PH = cl::sycl::access::placeholder;
+  using PH = sycl::access::placeholder;
 
-  cl::sycl::accessor<cl::sycl::cl_int4, 2, cl::sycl::access::mode::read,
-                     cl::sycl::access::target::image, PH::false_t>
+  sycl::accessor<sycl::cl_int4, 2, sycl::access::mode::read,
+                 sycl::access::target::image, PH::false_t>
       pA;
-  cl::sycl::accessor<cl::sycl::cl_int4, 2, cl::sycl::access::mode::write,
-                     cl::sycl::access::target::image, PH::false_t>
+  sycl::accessor<sycl::cl_int4, 2, sycl::access::mode::write,
+                 sycl::access::target::image, PH::false_t>
       pB;
 
   auto d = __esimd_wrregion<float, 16 /*ret size*/, 8 /*write size*/,
@@ -228,12 +228,12 @@ test_mem_intrins(uint64_t addr, const vec<float, 8> &xf,
     // CHECK-LABEL: call void @llvm.genx.svm.block.st.i64.v8i32(i64 %{{[a-zA-Z0-9.]+}}, <8 x i32> %{{[a-zA-Z0-9.]+}})
   }
   {
-    auto x = __esimd_svm_gather<unsigned char, 8>(get8ui64(), 0, get8ui16());
+    auto x = __esimd_svm_gather<unsigned char, 8>(get8ui64(), get8ui16());
     // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x i8> @llvm.genx.svm.gather.v8i8.v8i1.v8i64(<8 x i1> %{{[a-zA-Z0-9.]+}}, i32 0, <8 x i64> %{{[a-zA-Z0-9.]+}}, <8 x i8> undef)
     use(x);
   }
   {
-    __esimd_svm_scatter<unsigned char, 8>(get8ui64(), get8ui8(), 0, get8ui16());
+    __esimd_svm_scatter<unsigned char, 8>(get8ui64(), get8ui8(), get8ui16());
     // CHECK-LABEL: call void @llvm.genx.svm.scatter.v8i1.v8i64.v8i8(<8 x i1> %{{[a-zA-Z0-9.]+}}, i32 0, <8 x i64> %{{[a-zA-Z0-9.]+}}, <8 x i8> %{{[a-zA-Z0-9.]+}})
   }
   {

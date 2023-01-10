@@ -105,6 +105,23 @@ struct FieldParser<std::string> {
   }
 };
 
+/// Parse an Optional integer.
+template <typename IntT>
+struct FieldParser<
+    llvm::Optional<IntT>,
+    std::enable_if_t<std::is_integral<IntT>::value, Optional<IntT>>> {
+  static FailureOr<Optional<IntT>> parse(AsmParser &parser) {
+    IntT value;
+    OptionalParseResult result = parser.parseOptionalInteger(value);
+    if (result.has_value()) {
+      if (succeeded(*result))
+        return {Optional<IntT>(value)};
+      return failure();
+    }
+    return {std::nullopt};
+  }
+};
+
 /// Parse any container that supports back insertion as a list.
 template <typename ContainerT>
 struct FieldParser<
@@ -118,12 +135,23 @@ struct FieldParser<
       auto element = FieldParser<ElementT>::parse(parser);
       if (failed(element))
         return failure();
-      elements.push_back(element.getValue());
+      elements.push_back(*element);
       return success();
     };
     if (parser.parseCommaSeparatedList(elementParser))
       return failure();
     return elements;
+  }
+};
+
+/// Parse an affine map.
+template <>
+struct FieldParser<AffineMap> {
+  static FailureOr<AffineMap> parse(AsmParser &parser) {
+    AffineMap map;
+    if (failed(parser.parseAffineMap(map)))
+      return failure();
+    return map;
   }
 };
 

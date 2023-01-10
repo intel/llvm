@@ -3,6 +3,8 @@
 
 ; Make sure that opaque pointer intrinsic remangling upgrade works.
 
+%int8x16x2_t = type { <16 x i8>, <16 x i8> }
+
 declare i32* @fake_personality_function()
 declare void @func()
 
@@ -36,12 +38,29 @@ unwind_dest:
 
 define i8* @test_ptr_annotation(i8* %p) {
 ; CHECK-LABEL: @test_ptr_annotation(
-; CHECK-NEXT:    [[P2:%.*]] = call ptr @llvm.ptr.annotation.p0(ptr [[P:%.*]], ptr undef, ptr undef, i32 undef, ptr undef)
+; CHECK-NEXT:    [[P2:%.*]] = call ptr @llvm.ptr.annotation.p0.p0(ptr [[P:%.*]], ptr undef, ptr undef, i32 undef, ptr undef)
 ; CHECK-NEXT:    ret ptr [[P2]]
 ;
   %p2 = call i8* @llvm.ptr.annotation.p0i8(i8* %p, i8* undef, i8* undef, i32 undef, i8* undef)
   ret i8* %p2
 }
 
+
+define void @test_struct_return(%int8x16x2_t* %res.p, i8* %a) {
+; CHECK-LABEL: @test_struct_return(
+; CHECK-NEXT:    [[TMP1:%.*]] = call { <16 x i8>, <16 x i8> } @llvm.aarch64.neon.ld1x2.v16i8.p0(ptr [[A:%.*]])
+; CHECK-NEXT:    [[TMP2:%.*]] = extractvalue { <16 x i8>, <16 x i8> } [[TMP1]], 0
+; CHECK-NEXT:    [[TMP3:%.*]] = insertvalue [[INT8X16X2_T:%.*]] poison, <16 x i8> [[TMP2]], 0
+; CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <16 x i8>, <16 x i8> } [[TMP1]], 1
+; CHECK-NEXT:    [[TMP5:%.*]] = insertvalue [[INT8X16X2_T]] [[TMP3]], <16 x i8> [[TMP4]], 1
+; CHECK-NEXT:    store [[INT8X16X2_T]] [[TMP5]], ptr [[RES_P:%.*]], align 16
+; CHECK-NEXT:    ret void
+;
+  %res = call %int8x16x2_t @llvm.aarch64.neon.ld1x2.v16i8.p0i8(i8* %a)
+  store %int8x16x2_t %res, %int8x16x2_t* %res.p
+  ret void
+}
+
 declare token @llvm.experimental.gc.statepoint.p0f_isVoidf(i64, i32, void ()*, i32, i32, ...)
 declare i8* @llvm.ptr.annotation.p0i8(i8*, i8*, i8*, i32, i8*)
+declare %int8x16x2_t @llvm.aarch64.neon.ld1x2.v16i8.p0i8(i8*)

@@ -9,47 +9,62 @@
 #include "Symbols.h"
 #include "InputFiles.h"
 #include "SyntheticSections.h"
-#include "lld/Common/Strings.h"
+#include "llvm/Demangle/Demangle.h"
 
 using namespace llvm;
 using namespace lld;
 using namespace lld::macho;
 
-static_assert(sizeof(void *) != 8 || sizeof(Symbol) == 48,
+static_assert(sizeof(void *) != 8 || sizeof(Symbol) == 56,
               "Try to minimize Symbol's size; we create many instances");
 
 // The Microsoft ABI doesn't support using parent class tail padding for child
 // members, hence the _MSC_VER check.
 #if !defined(_MSC_VER)
-static_assert(sizeof(void *) != 8 || sizeof(Defined) == 80,
+static_assert(sizeof(void *) != 8 || sizeof(Defined) == 88,
               "Try to minimize Defined's size; we create many instances");
 #endif
 
 static_assert(sizeof(SymbolUnion) == sizeof(Defined),
               "Defined should be the largest Symbol kind");
 
+// Returns a symbol name for an error message.
+static std::string maybeDemangleSymbol(StringRef symName) {
+  if (config->demangle) {
+    symName.consume_front("_");
+    return demangle(symName.str());
+  }
+  return symName.str();
+}
+
 std::string lld::toString(const Symbol &sym) {
-  return demangle(sym.getName(), config->demangle);
+  return maybeDemangleSymbol(sym.getName());
 }
 
 std::string lld::toMachOString(const object::Archive::Symbol &b) {
-  return demangle(b.getName(), config->demangle);
+  return maybeDemangleSymbol(b.getName());
 }
 
 uint64_t Symbol::getStubVA() const { return in.stubs->getVA(stubsIndex); }
+uint64_t Symbol::getLazyPtrVA() const {
+  return in.lazyPointers->getVA(stubsIndex);
+}
 uint64_t Symbol::getGotVA() const { return in.got->getVA(gotIndex); }
 uint64_t Symbol::getTlvVA() const { return in.tlvPointers->getVA(gotIndex); }
 
 Defined::Defined(StringRefZ name, InputFile *file, InputSection *isec,
                  uint64_t value, uint64_t size, bool isWeakDef, bool isExternal,
-                 bool isPrivateExtern, bool isThumb,
+                 bool isPrivateExtern, bool includeInSymtab, bool isThumb,
                  bool isReferencedDynamically, bool noDeadStrip,
-                 bool canOverrideWeakDef, bool isWeakDefCanBeHidden)
+                 bool canOverrideWeakDef, bool isWeakDefCanBeHidden,
+                 bool interposable)
     : Symbol(DefinedKind, name, file), overridesWeakDef(canOverrideWeakDef),
-      privateExtern(isPrivateExtern), includeInSymtab(true), thumb(isThumb),
+      privateExtern(isPrivateExtern), includeInSymtab(includeInSymtab),
+      wasIdenticalCodeFolded(false), thumb(isThumb),
       referencedDynamically(isReferencedDynamically), noDeadStrip(noDeadStrip),
-      weakDefCanBeHidden(isWeakDefCanBeHidden), weakDef(isWeakDef),
-      external(isExternal), isec(isec), value(value), size(size) {
+      interposable(interposable), weakDefCanBeHidden(isWeakDefCanBeHidden),
+      weakDef(isWeakDef), external(isExternal), isec(isec), value(value),
+      size(size) {
   if (isec) {
     isec->symbols.push_back(this);
     // Maintain sorted order.
@@ -90,11 +105,21 @@ uint64_t Defined::getVA() const {
   return isec->getVA(value);
 }
 
+ObjFile *Defined::getObjectFile() const {
+  return isec ? dyn_cast_or_null<ObjFile>(isec->getFile()) : nullptr;
+}
+
 void Defined::canonicalize() {
   if (unwindEntry)
     unwindEntry = unwindEntry->canonical();
   if (isec)
     isec = isec->canonical();
+}
+
+std::string Defined::getSourceLocation() {
+  if (!isec)
+    return {};
+  return isec->getSourceLocation(value);
 }
 
 uint64_t DylibSymbol::getVA() const {

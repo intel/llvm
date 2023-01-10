@@ -6,6 +6,11 @@ def LLVMLibcExt : StandardSpec<"llvm_libc_ext"> {
       [], // Enumerations
       [
           FunctionSpec<
+              "bcopy",
+              RetValSpec<VoidType>,
+              [ArgSpec<ConstVoidPtr>, ArgSpec<VoidPtr>, ArgSpec<SizeTType>]
+          >,
+          FunctionSpec<
               "bzero",
               RetValSpec<VoidType>,
               [ArgSpec<VoidPtr>, ArgSpec<SizeTType>]
@@ -28,29 +33,27 @@ def LLVMLibcExt : StandardSpec<"llvm_libc_ext"> {
               "__assert_fail",
               RetValSpec<NoReturn>,
               [ArgSpec<ConstCharPtr>, ArgSpec<ConstCharPtr>, ArgSpec<UnsignedType>, ArgSpec<ConstCharPtr>]
-
           >,
       ]
   >;
-
-  HeaderSpec Errno = HeaderSpec<
-      "errno.h",
+  
+  HeaderSpec Sched = HeaderSpec<
+      "sched.h",
       [], // Macros
-      [], // Types
+      [PidT, SizeTType, CpuSetT], // Types
       [], // Enumerations
       [
-          FunctionSpec<
-              "__errno_location",
-              RetValSpec<IntPtr>,
-              [ArgSpec<VoidType>]
-
-          >,
+        FunctionSpec<
+            "__sched_getcpucount",
+            RetValSpec<IntType>,
+            [ArgSpec<SizeTType>, ArgSpec<ConstCpuSetPtr>]
+        >,
       ]
   >;
 
   let Headers = [
     String,
+    Sched,
     Assert,
-    Errno,
   ];
 }

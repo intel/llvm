@@ -12,4 +12,4 @@ int func(void) {
 }
 
 // CHECK: @g = external global %struct.T, align 4
-// CHECK: %{{.*}} = load i64, i64* bitcast (%struct.T* @g to i64*), align 4
+// CHECK: %{{.*}} = load i64, ptr @g, align 4

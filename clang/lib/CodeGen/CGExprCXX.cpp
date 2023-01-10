@@ -646,7 +646,7 @@ CodeGenFunction::EmitCXXConstructExpr(const CXXConstructExpr *E,
 
      case CXXConstructExpr::CK_VirtualBase:
       ForVirtualBase = true;
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
 
      case CXXConstructExpr::CK_NonVirtualBase:
       Type = Ctor_Base;
@@ -1573,7 +1573,7 @@ llvm::Value *CodeGenFunction::EmitCXXNewExpr(const CXXNewExpr *E) {
   llvm::Value *allocSize =
     EmitCXXNewAllocSize(*this, E, minElements, numElements,
                         allocSizeWithoutCookie);
-  CharUnits allocAlign = getContext().getPreferredTypeAlignInChars(allocType);
+  CharUnits allocAlign = getContext().getTypeAlignInChars(allocType);
 
   // Emit the allocation call.  If the allocator is a global placement
   // operator, just "inline" it directly.

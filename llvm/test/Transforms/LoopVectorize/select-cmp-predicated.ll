@@ -1,5 +1,5 @@
-; RUN: opt -loop-vectorize -force-vector-interleave=1 -force-vector-width=2 -S < %s | FileCheck %s --check-prefix=CHECK-VF2IC1
-; RUN: opt -loop-vectorize -force-vector-interleave=2 -force-vector-width=1 -S < %s | FileCheck %s --check-prefix=CHECK-VF1IC2
+; RUN: opt -passes=loop-vectorize -force-vector-interleave=1 -force-vector-width=2 -S < %s | FileCheck %s --check-prefix=CHECK-VF2IC1
+; RUN: opt -passes=loop-vectorize -force-vector-interleave=2 -force-vector-width=1 -S < %s | FileCheck %s --check-prefix=CHECK-VF1IC2
 
 define i32 @pred_select_const_i32_from_icmp(i32* noalias nocapture readonly %src1, i32* noalias nocapture readonly %src2, i64 %n) {
 ; CHECK-VF2IC1-LABEL: @pred_select_const_i32_from_icmp(
@@ -56,8 +56,8 @@ define i32 @pred_select_const_i32_from_icmp(i32* noalias nocapture readonly %src
 ;
 ; CHECK-VF1IC2-LABEL: @pred_select_const_i32_from_icmp(
 ; CHECK-VF1IC2:       vector.body:
-; CHECK-VF1IC2:         [[VEC_PHI:%.*]] = phi i32 [ 0, %vector.ph ], [ [[PREDPHI:%.*]], %pred.load.continue4 ]
-; CHECK-VF1IC2-NEXT:    [[VEC_PHI2:%.*]] = phi i32 [ 0, %vector.ph ], [ [[PREDPHI5:%.*]], %pred.load.continue4 ]
+; CHECK-VF1IC2:         [[VEC_PHI:%.*]] = phi i32 [ 0, %vector.ph ], [ [[PREDPHI:%.*]], %pred.load.continue3 ]
+; CHECK-VF1IC2-NEXT:    [[VEC_PHI2:%.*]] = phi i32 [ 0, %vector.ph ], [ [[PREDPHI5:%.*]], %pred.load.continue3 ]
 ; CHECK-VF1IC2:         [[TMP0:%.*]] = getelementptr inbounds i32, i32* [[SRC1:%.*]], i64 {{%.*}}
 ; CHECK-VF1IC2-NEXT:    [[TMP1:%.*]] = getelementptr inbounds i32, i32* [[SRC1]], i64 {{%.*}}
 ; CHECK-VF1IC2-NEXT:    [[TMP2:%.*]] = load i32, i32* [[TMP0]], align 4
@@ -71,13 +71,13 @@ define i32 @pred_select_const_i32_from_icmp(i32* noalias nocapture readonly %src
 ; CHECK-VF1IC2-NEXT:    br label %pred.load.continue
 ; CHECK-VF1IC2:       pred.load.continue:
 ; CHECK-VF1IC2-NEXT:    [[TMP8:%.*]] = phi i32 [ poison, %vector.body ], [ [[TMP7]], %pred.load.if ]
-; CHECK-VF1IC2-NEXT:    br i1 [[TMP5]], label %pred.load.if3, label %pred.load.continue4
-; CHECK-VF1IC2:       pred.load.if3:
+; CHECK-VF1IC2-NEXT:    br i1 [[TMP5]], label %pred.load.if2, label %pred.load.continue3
+; CHECK-VF1IC2:       pred.load.if2:
 ; CHECK-VF1IC2-NEXT:    [[TMP9:%.*]] = getelementptr inbounds i32, i32* [[SRC2]], i64 {{%.*}}
 ; CHECK-VF1IC2-NEXT:    [[TMP10:%.*]] = load i32, i32* [[TMP9]], align 4
-; CHECK-VF1IC2-NEXT:    br label %pred.load.continue4
-; CHECK-VF1IC2:       pred.load.continue4:
-; CHECK-VF1IC2-NEXT:    [[TMP11:%.*]] = phi i32 [ poison, %pred.load.continue ], [ [[TMP10]], %pred.load.if3 ]
+; CHECK-VF1IC2-NEXT:    br label %pred.load.continue3
+; CHECK-VF1IC2:       pred.load.continue3:
+; CHECK-VF1IC2-NEXT:    [[TMP11:%.*]] = phi i32 [ poison, %pred.load.continue ], [ [[TMP10]], %pred.load.if2 ]
 ; CHECK-VF1IC2-NEXT:    [[TMP12:%.*]] = icmp eq i32 [[TMP8]], 2
 ; CHECK-VF1IC2-NEXT:    [[TMP13:%.*]] = icmp eq i32 [[TMP11]], 2
 ; CHECK-VF1IC2-NEXT:    [[TMP14:%.*]] = select i1 [[TMP12]], i32 1, i32 [[VEC_PHI]]

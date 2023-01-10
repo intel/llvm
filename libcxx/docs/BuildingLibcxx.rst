@@ -95,11 +95,11 @@ it is the simplest way to build.
 
 .. code-block:: batch
 
-  > cmake -G "Visual Studio 16 2019" -S libcxx -B build ^
-          -T "ClangCL"                                  ^
-          -DLIBCXX_ENABLE_SHARED=YES                    ^
-          -DLIBCXX_ENABLE_STATIC=NO                     ^
-          -DLIBCXX_ENABLE_EXPERIMENTAL_LIBRARY=NO
+  > cmake -G "Visual Studio 16 2019" -S runtimes -B build ^
+          -T "ClangCL"                                    ^
+          -DLLVM_ENABLE_RUNTIMES=libcxx                   ^
+          -DLIBCXX_ENABLE_SHARED=YES                      ^
+          -DLIBCXX_ENABLE_STATIC=NO
   > cmake --build build
 
 CMake + ninja (MSVC)
@@ -127,16 +127,16 @@ In either case, then run:
 
 .. code-block:: batch
 
-  > cmake -G Ninja -S libcxx -B build                                                 ^
+  > cmake -G Ninja -S runtimes -B build                                               ^
           -DCMAKE_C_COMPILER=clang-cl                                                 ^
           -DCMAKE_CXX_COMPILER=clang-cl                                               ^
-          -DLIBCXX_ENABLE_EXPERIMENTAL_LIBRARY=NO
+          -DLLVM_ENABLE_RUNTIMES=libcxx
   > ninja -C build cxx
   > ninja -C build check-cxx
 
 If you are running in an MSYS2 shell and you have installed the
 MSYS2-provided clang package (which defaults to a non-MSVC target), you
-should add e.g. ``-DLIBCXX_TARGET_TRIPLE=x86_64-windows-msvc`` (replacing
+should add e.g. ``-DCMAKE_CXX_COMPILER_TARGET=x86_64-windows-msvc`` (replacing
 ``x86_64`` with the architecture you're targeting) to the ``cmake`` command
 line above. This will instruct ``check-cxx`` to use the right target triple
 when invoking ``clang++``.
@@ -153,12 +153,11 @@ e.g. the ``mingw-w64-x86_64-clang`` package), together with CMake and ninja.
 
 .. code-block:: bash
 
-  > cmake -G Ninja -S libcxx -B build                                                 \
+  > cmake -G Ninja -S runtimes -B build                                               \
           -DCMAKE_C_COMPILER=clang                                                    \
           -DCMAKE_CXX_COMPILER=clang++                                                \
-          -DLIBCXX_HAS_WIN32_THREAD_API=ON                                            \
-          -DLIBCXX_CXX_ABI=libstdc++                                                  \
-          -DLIBCXX_TARGET_INFO="libcxx.test.target_info.MingwLocalTI"
+          -DLLVM_ENABLE_RUNTIMES=libcxx                                               \
+          -DLIBCXX_CXX_ABI=libstdc++
   > ninja -C build cxx
   > cp /mingw64/bin/{libstdc++-6,libgcc_s_seh-1,libwinpthread-1}.dll lib
   > ninja -C build check-cxx
@@ -216,7 +215,10 @@ libc++ specific options
 
   **Default**: ``OFF``
 
-  Build libc++ with assertions enabled.
+  Build libc++ with assertions enabled in the compiled library, and enable assertions
+  by default when building user code as well. Assertions can be turned off by users
+  by defining ``_LIBCPP_ENABLE_ASSERTIONS=0``. For details, see
+  :ref:`the documentation <assertions-mode>`.
 
 .. option:: LIBCXX_ENABLE_SHARED:BOOL
 
@@ -262,15 +264,6 @@ libc++ specific options
    support for ``wchar_t``. This is especially useful in embedded settings where
    C Standard Libraries don't always provide all the usual bells and whistles.
 
-.. option:: LIBCXX_ENABLE_INCOMPLETE_FEATURES:BOOL
-
-  **Default**: ``ON``
-
-  Whether to enable support for incomplete library features. Incomplete features
-  are new library features under development. These features don't guarantee
-  ABI stability nor the quality of completed library features. Vendors
-  shipping the library may want to disable this option.
-
 .. option:: LIBCXX_INSTALL_LIBRARY_DIR:PATH
 
   **Default**: ``lib${LIBCXX_LIBDIR_SUFFIX}``
@@ -293,22 +286,23 @@ libc++ specific options
   Path where target-specific libc++ headers should be installed. If a relative
   path, relative to ``CMAKE_INSTALL_PREFIX``.
 
-.. _libc++experimental options:
+.. option:: LIBCXX_SHARED_OUTPUT_NAME:STRING
 
-libc++experimental Specific Options
-------------------------------------
+  **Default**: ``c++``
 
-.. option:: LIBCXX_ENABLE_EXPERIMENTAL_LIBRARY:BOOL
+  Output name for the shared libc++ runtime library.
 
-  **Default**: ``ON``
+.. option:: LIBCXX_ADDITIONAL_COMPILE_FLAGS:STRING
 
-  Build and test libc++experimental.a.
+  **Default**: ``""``
 
-.. option:: LIBCXX_INSTALL_EXPERIMENTAL_LIBRARY:BOOL
+  Additional Compile only flags which can be provided in cache.
 
-  **Default**: ``LIBCXX_ENABLE_EXPERIMENTAL_LIBRARY AND LIBCXX_INSTALL_LIBRARY``
+.. option:: LIBCXX_ADDITIONAL_LIBRARIES:STRING
 
-  Install libc++experimental.a alongside libc++.
+  **Default**: ``""``
+
+  Additional libraries libc++ is linked to which can be provided in cache.
 
 
 .. _ABI Library Specific Options:
@@ -318,7 +312,7 @@ ABI Library Specific Options
 
 .. option:: LIBCXX_CXX_ABI:STRING
 
-  **Values**: ``none``, ``libcxxabi``, ``libcxxrt``, ``libstdc++``, ``libsupc++``.
+  **Values**: ``none``, ``libcxxabi``, ``system-libcxxabi``, ``libcxxrt``, ``libstdc++``, ``libsupc++``, ``vcruntime``.
 
   Select the ABI library to build libc++ against.
 
@@ -328,7 +322,8 @@ ABI Library Specific Options
 
 .. option:: LIBCXX_CXX_ABI_LIBRARY_PATH:PATH
 
-  Provide the path to the ABI library that libc++ should link against.
+  Provide the path to the ABI library that libc++ should link against. This is only
+  useful when linking against an out-of-tree ABI library.
 
 .. option:: LIBCXX_ENABLE_STATIC_ABI_LIBRARY:BOOL
 
@@ -351,6 +346,18 @@ ABI Library Specific Options
 
   Build and use the LLVM unwinder. Note: This option can only be used when
   libc++abi is the C++ ABI library used.
+
+.. option:: LIBCXXABI_ADDITIONAL_COMPILE_FLAGS:STRING
+
+  **Default**: ``""``
+
+  Additional Compile only flags which can be provided in cache.
+
+.. option:: LIBCXXABI_ADDITIONAL_LIBRARIES:STRING
+
+  **Default**: ``""``
+
+  Additional libraries libc++abi is linked to which can be provided in cache.
 
 
 libc++ Feature Options
@@ -405,15 +412,6 @@ libc++ Feature Options
 
   Use the specified GCC toolchain and standard library when building the native
   stdlib benchmark tests.
-
-.. option:: LIBCXX_HIDE_FROM_ABI_PER_TU_BY_DEFAULT:BOOL
-
-  **Default**: ``OFF``
-
-  Pick the default for whether to constrain ABI-unstable symbols to
-  each individual translation unit. This setting controls whether
-  `_LIBCPP_HIDE_FROM_ABI_PER_TU_BY_DEFAULT` is defined by default --
-  see the documentation of that macro for details.
 
 
 libc++ ABI Feature Options

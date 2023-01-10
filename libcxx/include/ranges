@@ -120,6 +120,14 @@ namespace std::ranges {
     requires is_object_v<T>
   class empty_view;
 
+  template<class T>
+    inline constexpr bool enable_borrowed_range<empty_view<T>> = true;
+
+  namespace views {
+    template<class T>
+      inline constexpr empty_view<T> empty{};
+  }
+
   // [range.all], all view
   namespace views {
     inline constexpr unspecified all = unspecified;
@@ -142,12 +150,33 @@ namespace std::ranges {
   template<class T>
     inline constexpr bool enable_borrowed_range<owning_view<T>> = enable_borrowed_range<T>;
 
+  // [range.filter], filter view
+  template<input_range V, indirect_unary_predicate<iterator_t<V>> Pred>
+    requires view<V> && is_object_v<Pred>
+  class filter_view;
+
+  namespace views {
+    inline constexpr unspecified filter = unspecified;
+  }
+
   // [range.drop], drop view
   template<view V>
     class drop_view;
 
   template<class T>
     inline constexpr bool enable_borrowed_range<drop_view<T>> = enable_borrowed_range<T>;
+
+  // [range.drop.while], drop while view
+  template<view V, class Pred>
+    requires input_range<V> && is_object_v<Pred> &&
+             indirect_unary_predicate<const Pred, iterator_t<V>>
+    class drop_while_view;
+
+  template<class T, class Pred>
+    inline constexpr bool enable_borrowed_range<drop_while_view<T, Pred>> =
+      enable_borrowed_range<T>;
+
+  namespace views { inline constexpr unspecified drop_while = unspecified; }
 
   // [range.transform], transform view
   template<input_range V, copy_constructible F>
@@ -181,6 +210,14 @@ namespace std::ranges {
   template<class T>
   inline constexpr bool enable_borrowed_range<take_view<T>> = enable_borrowed_range<T>;
 
+    // [range.take.while], take while view
+  template<view V, class Pred>
+    requires input_range<V> && is_object_v<Pred> &&
+             indirect_unary_predicate<const Pred, iterator_t<V>>
+    class take_while_view;
+
+  namespace views { inline constexpr unspecified take_while = unspecified; }
+
   template<copy_constructible T>
     requires is_object_v<T>
   class single_view;
@@ -196,6 +233,44 @@ namespace std::ranges {
   template<input_range V>
     requires view<V> && input_range<range_reference_t<V>>
   class join_view;
+
+  // [range.lazy.split], lazy split view
+  template<class R>
+    concept tiny-range = see below;   // exposition only
+
+  template<input_range V, forward_range Pattern>
+    requires view<V> && view<Pattern> &&
+             indirectly_comparable<iterator_t<V>, iterator_t<Pattern>, ranges::equal_to> &&
+             (forward_range<V> || tiny-range<Pattern>)
+  class lazy_split_view;
+
+  namespace views {
+    inline constexpr unspecified lazy_split = unspecified;
+  }
+
+  // [range.istream], istream view
+  template<movable Val, class CharT, class Traits = char_traits<CharT>>
+    requires see below
+  class basic_istream_view;
+
+  template<class Val>
+    using istream_view = basic_istream_view<Val, char>;
+
+  template<class Val>
+    using wistream_view = basic_istream_view<Val, wchar_t>;
+
+  namespace views { template<class T> inline constexpr unspecified istream = unspecified; }
+
+  // [range.zip], zip view
+  template<input_range... Views>
+    requires (view<Views> && ...) && (sizeof...(Views) > 0)
+  class zip_view;        // C++2b
+
+  template<class... Views>
+    inline constexpr bool enable_borrowed_range<zip_view<Views...>> =    // C++2b
+      (enable_borrowed_range<Views> && ...);
+
+  namespace views { inline constexpr unspecified zip = unspecified; }    // C++2b
 }
 
 namespace std {
@@ -230,6 +305,7 @@ namespace std {
 }
 */
 
+#include <__assert> // all public C++ headers provide the assertion handler
 #include <__config>
 #include <__ranges/access.h>
 #include <__ranges/all.h>
@@ -239,12 +315,15 @@ namespace std {
 #include <__ranges/dangling.h>
 #include <__ranges/data.h>
 #include <__ranges/drop_view.h>
+#include <__ranges/drop_while_view.h>
 #include <__ranges/empty.h>
 #include <__ranges/empty_view.h>
 #include <__ranges/enable_borrowed_range.h>
 #include <__ranges/enable_view.h>
+#include <__ranges/filter_view.h>
 #include <__ranges/iota_view.h>
 #include <__ranges/join_view.h>
+#include <__ranges/lazy_split_view.h>
 #include <__ranges/rbegin.h>
 #include <__ranges/ref_view.h>
 #include <__ranges/rend.h>
@@ -253,14 +332,28 @@ namespace std {
 #include <__ranges/size.h>
 #include <__ranges/subrange.h>
 #include <__ranges/take_view.h>
+#include <__ranges/take_while_view.h>
 #include <__ranges/transform_view.h>
 #include <__ranges/view_interface.h>
 #include <__ranges/views.h>
-#include <compare>          // Required by the standard.
-#include <initializer_list> // Required by the standard.
-#include <iterator>         // Required by the standard.
+#include <__ranges/zip_view.h>
 #include <type_traits>
 #include <version>
+
+#if !defined(_LIBCPP_HAS_NO_LOCALIZATION)
+#include <__ranges/istream_view.h>
+#endif
+
+// standard-mandated includes
+
+// [ranges.syn]
+#include <compare>
+#include <initializer_list>
+#include <iterator>
+
+// [tuple.helper]
+#include <__tuple/tuple_element.h>
+#include <__tuple/tuple_size.h>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header

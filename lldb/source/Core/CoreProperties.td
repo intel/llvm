@@ -5,6 +5,10 @@ let Definition = "modulelist" in {
     Global,
     DefaultTrue,
     Desc<"Control the use of external tools and repositories to locate symbol files. Directories listed in target.debug-file-search-paths and directory of the executable are always checked first for separate debug info files. Then depending on this setting: On macOS, Spotlight would be also used to locate a matching .dSYM bundle based on the UUID of the executable. On NetBSD, directory /usr/libdata/debug would be also searched. On platforms other than NetBSD directory /usr/lib/debug would be also searched.">;
+  def EnableBackgroundLookup: Property<"enable-background-lookup", "Boolean">,
+    Global,
+    DefaultFalse,
+    Desc<"On macOS, enable calling dsymForUUID (or an equivalent script/binary) in the background to locate symbol files that weren't found.">;
   def ClangModulesCachePath: Property<"clang-modules-cache-path", "FileSpec">,
     Global,
     DefaultStringValue<"">,
@@ -33,6 +37,10 @@ let Definition = "modulelist" in {
     Global,
     DefaultUnsignedValue<7>,
     Desc<"The expiration time in days for a file. When a file hasn't been accessed for the specified amount of days, it is removed from the cache. A value of 0 disables the expiration-based pruning.">;
+  def LoadSymbolOnDemand: Property<"load-on-demand", "Boolean">,
+    Global,
+    DefaultFalse,
+    Desc<"Enable on demand symbol loading in LLDB. LLDB will load debug info on demand for each module based on various conditions (e.g. matched breakpoint, resolved stack frame addresses and matched global variables/function symbols in symbol table) to improve performance. Please refer to docs/use/ondemand.rst for details.">;
 }
 
 let Definition = "debugger" in {
@@ -98,19 +106,19 @@ let Definition = "debugger" in {
   def StopShowColumnAnsiPrefix: Property<"stop-show-column-ansi-prefix", "String">,
     Global,
     DefaultStringValue<"${ansi.underline}">,
-    Desc<"When displaying the column marker in a color-enabled (i.e. ANSI) terminal, use the ANSI terminal code specified in this format at the immediately before the column to be marked.">;
+    Desc<"When displaying the column marker in a color-enabled terminal, use the ANSI terminal code specified in this format at the immediately before the column to be marked.">;
   def StopShowColumnAnsiSuffix: Property<"stop-show-column-ansi-suffix", "String">,
     Global,
     DefaultStringValue<"${ansi.normal}">,
-    Desc<"When displaying the column marker in a color-enabled (i.e. ANSI) terminal, use the ANSI terminal code specified in this format immediately after the column to be marked.">;
+    Desc<"When displaying the column marker in a color-enabled terminal, use the ANSI terminal code specified in this format immediately after the column to be marked.">;
   def StopShowLineMarkerAnsiPrefix: Property<"stop-show-line-ansi-prefix", "String">,
     Global,
     DefaultStringValue<"${ansi.fg.yellow}">,
-    Desc<"When displaying the line marker in a color-enabled (i.e. ANSI) terminal, use the ANSI terminal code specified in this format at the immediately before the line to be marked.">;
+    Desc<"When displaying the line marker in a color-enabled terminal, use the ANSI terminal code specified in this format at the immediately before the line to be marked.">;
   def StopShowLineMarkerAnsiSuffix: Property<"stop-show-line-ansi-suffix", "String">,
     Global,
     DefaultStringValue<"${ansi.normal}">,
-    Desc<"When displaying the line marker in a color-enabled (i.e. ANSI) terminal, use the ANSI terminal code specified in this format immediately after the line to be marked.">;
+    Desc<"When displaying the line marker in a color-enabled terminal, use the ANSI terminal code specified in this format immediately after the line to be marked.">;
   def TerminalWidth: Property<"term-width", "SInt64">,
     Global,
     DefaultUnsignedValue<80>,
@@ -131,6 +139,18 @@ let Definition = "debugger" in {
     Global,
     DefaultTrue,
     Desc<"Whether to use Ansi color codes or not.">;
+  def ShowProgress: Property<"show-progress", "Boolean">,
+    Global,
+    DefaultTrue,
+    Desc<"Whether to show progress or not if the debugger's output is an interactive color-enabled terminal.">;
+  def ShowProgressAnsiPrefix: Property<"show-progress-ansi-prefix", "String">,
+    Global,
+    DefaultStringValue<"${ansi.faint}">,
+    Desc<"When displaying progress in a color-enabled terminal, use the ANSI terminal code specified in this format immediately before the progress message.">;
+  def ShowProgressAnsiSuffix: Property<"show-progress-ansi-suffix", "String">,
+    Global,
+    DefaultStringValue<"${ansi.normal}">,
+    Desc<"When displaying progress in a color-enabled terminal, use the ANSI terminal code specified in this format immediately after the progress message.">;
   def UseSourceCache: Property<"use-source-cache", "Boolean">,
     Global,
     DefaultTrue,
@@ -158,9 +178,22 @@ let Definition = "debugger" in {
   def FrameFormatUnique: Property<"frame-format-unique", "FormatEntity">,
     Global,
     DefaultStringValue<"frame #${frame.index}: ${ansi.fg.yellow}${frame.pc}${ansi.normal}{ ${module.file.basename}{`${function.name-without-args}{${frame.no-debug}${function.pc-offset}}}}{ at ${ansi.fg.cyan}${line.file.basename}${ansi.normal}:${ansi.fg.yellow}${line.number}${ansi.normal}{:${ansi.fg.yellow}${line.column}${ansi.normal}}}{${function.is-optimized} [opt]}{${frame.is-artificial} [artificial]}\\\\n">,
-    Desc<"The default frame format string to use when displaying stack frameinformation for threads from thread backtrace unique.">;
+    Desc<"The default frame format string to use when displaying stack frame information for threads from thread backtrace unique.">;
   def ShowAutosuggestion: Property<"show-autosuggestion", "Boolean">,
     Global,
     DefaultFalse,
     Desc<"If true, LLDB will show suggestions to complete the command the user typed. Suggestions may be accepted using Ctrl-F.">;
+  def ShowAutosuggestionAnsiPrefix: Property<"show-autosuggestion-ansi-prefix", "String">,
+    Global,
+    DefaultStringValue<"${ansi.faint}">,
+    Desc<"When displaying suggestion in a color-enabled terminal, use the ANSI terminal code specified in this format immediately before the suggestion.">;
+  def ShowAutosuggestionAnsiSuffix: Property<"show-autosuggestion-ansi-suffix", "String">,
+    Global,
+    DefaultStringValue<"${ansi.normal}">,
+    Desc<"When displaying suggestion in a color-enabled terminal, use the ANSI terminal code specified in this format immediately after the suggestion.">;
+  def DWIMPrintVerbosity: Property<"dwim-print-verbosity", "Enum">,
+    Global,
+    DefaultEnumValue<"eDWIMPrintVerbosityExpression">,
+    EnumValues<"OptionEnumValues(g_dwim_print_verbosities)">,
+    Desc<"The verbosity level used by dwim-print.">;
 }

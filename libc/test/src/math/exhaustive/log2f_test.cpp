@@ -17,35 +17,37 @@ using FPBits = __llvm_libc::fputil::FPBits<float>;
 namespace mpfr = __llvm_libc::testing::mpfr;
 
 struct LlvmLibcLog2fExhaustiveTest : public LlvmLibcExhaustiveTest<uint32_t> {
-  void check(uint32_t start, uint32_t stop,
+  bool check(uint32_t start, uint32_t stop,
              mpfr::RoundingMode rounding) override {
     mpfr::ForceRoundingMode r(rounding);
     uint32_t bits = start;
+    bool result = true;
     do {
       FPBits xbits(bits);
       float x = float(xbits);
-      EXPECT_MPFR_MATCH(mpfr::Operation::Log2, x, __llvm_libc::log2f(x), 0.5,
-                        rounding);
+      result &= EXPECT_MPFR_MATCH(mpfr::Operation::Log2, x,
+                                  __llvm_libc::log2f(x), 0.5, rounding);
     } while (bits++ < stop);
+    return result;
   }
 };
 
 TEST_F(LlvmLibcLog2fExhaustiveTest, RoundNearestTieToEven) {
-  test_full_range(/*start=*/0U, /*stop=*/0x7f80'0000U, /*nthreads=*/16,
+  test_full_range(/*start=*/0U, /*stop=*/0x7f80'0000U,
                   mpfr::RoundingMode::Nearest);
 }
 
 TEST_F(LlvmLibcLog2fExhaustiveTest, RoundUp) {
-  test_full_range(/*start=*/0U, /*stop=*/0x7f80'0000U, /*nthreads=*/16,
+  test_full_range(/*start=*/0U, /*stop=*/0x7f80'0000U,
                   mpfr::RoundingMode::Upward);
 }
 
 TEST_F(LlvmLibcLog2fExhaustiveTest, RoundDown) {
-  test_full_range(/*start=*/0U, /*stop=*/0x7f80'0000U, /*nthreads=*/16,
+  test_full_range(/*start=*/0U, /*stop=*/0x7f80'0000U,
                   mpfr::RoundingMode::Downward);
 }
 
 TEST_F(LlvmLibcLog2fExhaustiveTest, RoundTowardZero) {
-  test_full_range(/*start=*/0U, /*stop=*/0x7f80'0000U, /*nthreads=*/16,
+  test_full_range(/*start=*/0U, /*stop=*/0x7f80'0000U,
                   mpfr::RoundingMode::TowardZero);
 }

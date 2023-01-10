@@ -260,6 +260,7 @@ class CXXRecordDecl : public RecordDecl {
   friend class ASTWriter;
   friend class DeclContext;
   friend class LambdaExpr;
+  friend class ODRDiagsEmitter;
 
   friend void FunctionDecl::setPure(bool);
   friend void TagDecl::startDefinition();
@@ -275,6 +276,14 @@ class CXXRecordDecl : public RecordDecl {
     SMF_All = 0x3f
   };
 
+public:
+  enum LambdaDependencyKind {
+    LDK_Unknown = 0,
+    LDK_AlwaysDependent,
+    LDK_NeverDependent,
+  };
+
+private:
   struct DefinitionData {
     #define FIELD(Name, Width, Merge) \
     unsigned Name : Width;
@@ -374,7 +383,7 @@ class CXXRecordDecl : public RecordDecl {
     /// lambda will have been created with the enclosing context as its
     /// declaration context, rather than function. This is an unfortunate
     /// artifact of having to parse the default arguments before.
-    unsigned Dependent : 1;
+    unsigned DependencyKind : 2;
 
     /// Whether this lambda is a generic lambda.
     unsigned IsGenericLambda : 1;
@@ -401,16 +410,18 @@ class CXXRecordDecl : public RecordDecl {
     /// or within a data member initializer.
     LazyDeclPtr ContextDecl;
 
-    /// The list of captures, both explicit and implicit, for this
-    /// lambda.
-    Capture *Captures = nullptr;
+    /// The lists of captures, both explicit and implicit, for this
+    /// lambda. One list is provided for each merged copy of the lambda.
+    /// The first list corresponds to the canonical definition.
+    /// The destructor is registered by AddCaptureList when necessary.
+    llvm::TinyPtrVector<Capture*> Captures;
 
     /// The type of the call method.
     TypeSourceInfo *MethodTyInfo;
 
-    LambdaDefinitionData(CXXRecordDecl *D, TypeSourceInfo *Info, bool Dependent,
+    LambdaDefinitionData(CXXRecordDecl *D, TypeSourceInfo *Info, unsigned DK,
                          bool IsGeneric, LambdaCaptureDefault CaptureDefault)
-        : DefinitionData(D), Dependent(Dependent), IsGenericLambda(IsGeneric),
+        : DefinitionData(D), DependencyKind(DK), IsGenericLambda(IsGeneric),
           CaptureDefault(CaptureDefault), NumCaptures(0),
           NumExplicitCaptures(0), HasKnownInternalLinkage(0), ManglingNumber(0),
           MethodTyInfo(Info) {
@@ -421,6 +432,9 @@ class CXXRecordDecl : public RecordDecl {
       Aggregate = false;
       PlainOldData = false;
     }
+
+    // Add a list of captures.
+    void AddCaptureList(ASTContext &Ctx, Capture *CaptureList);
   };
 
   struct DefinitionData *dataPtr() const {
@@ -547,7 +561,7 @@ public:
                                bool DelayTypeCreation = false);
   static CXXRecordDecl *CreateLambda(const ASTContext &C, DeclContext *DC,
                                      TypeSourceInfo *Info, SourceLocation Loc,
-                                     bool DependentLambda, bool IsGeneric,
+                                     unsigned DependencyKind, bool IsGeneric,
                                      LambdaCaptureDefault CaptureDefault);
   static CXXRecordDecl *CreateDeserialized(const ASTContext &C, unsigned ID);
 
@@ -1049,8 +1063,14 @@ public:
   ///
   /// \note No entries will be added for init-captures, as they do not capture
   /// variables.
-  void getCaptureFields(llvm::DenseMap<const VarDecl *, FieldDecl *> &Captures,
-                        FieldDecl *&ThisCapture) const;
+  ///
+  /// \note If multiple versions of the lambda are merged together, they may
+  /// have different variable declarations corresponding to the same capture.
+  /// In that case, all of those variable declarations will be added to the
+  /// Captures list, so it may have more than one variable listed per field.
+  void
+  getCaptureFields(llvm::DenseMap<const ValueDecl *, FieldDecl *> &Captures,
+                   FieldDecl *&ThisCapture) const;
 
   using capture_const_iterator = const LambdaCapture *;
   using capture_const_range = llvm::iterator_range<capture_const_iterator>;
@@ -1060,7 +1080,9 @@ public:
   }
 
   capture_const_iterator captures_begin() const {
-    return isLambda() ? getLambdaData().Captures : nullptr;
+    if (!isLambda()) return nullptr;
+    LambdaDefinitionData &LambdaData = getLambdaData();
+    return LambdaData.Captures.empty() ? nullptr : LambdaData.Captures.front();
   }
 
   capture_const_iterator captures_end() const {
@@ -1162,7 +1184,7 @@ public:
 
   /// Determine whether this class has a pure virtual function.
   ///
-  /// The class is is abstract per (C++ [class.abstract]p2) if it declares
+  /// The class is abstract per (C++ [class.abstract]p2) if it declares
   /// a pure virtual function or inherits a pure virtual function that is
   /// not overridden.
   bool isAbstract() const { return data().Abstract; }
@@ -1413,6 +1435,19 @@ public:
   bool isStructural() const {
     return isLiteral() && data().StructuralIfLiteral;
   }
+
+  /// Notify the class that this destructor is now selected.
+  /// 
+  /// Important properties of the class depend on destructor properties. Since
+  /// C++20, it is possible to have multiple destructor declarations in a class
+  /// out of which one will be selected at the end.
+  /// This is called separately from addedMember because it has to be deferred
+  /// to the completion of the class.
+  void addedSelectedDestructor(CXXDestructorDecl *DD);
+
+  /// Notify the class that an eligible SMF has been added.
+  /// This updates triviality and destructor based properties of the class accordingly.
+  void addedEligibleSpecialMemberFunction(const CXXMethodDecl *MD, unsigned SMKind);
 
   /// If this record is an instantiation of a member class,
   /// retrieves the member class from which it was instantiated.
@@ -1774,7 +1809,17 @@ public:
   /// function declaration itself is dependent. This flag indicates when we
   /// know that the lambda is dependent despite that.
   bool isDependentLambda() const {
-    return isLambda() && getLambdaData().Dependent;
+    return isLambda() && getLambdaData().DependencyKind == LDK_AlwaysDependent;
+  }
+
+  bool isNeverDependentLambda() const {
+    return isLambda() && getLambdaData().DependencyKind == LDK_NeverDependent;
+  }
+
+  unsigned getLambdaDependencyKind() const {
+    if (!isLambda())
+      return LDK_Unknown;
+    return getLambdaData().DependencyKind;
   }
 
   TypeSourceInfo *getLambdaTypeInfo() const {
@@ -1885,7 +1930,7 @@ public:
   ExplicitSpecifier getExplicitSpecifier() { return ExplicitSpec; }
   const ExplicitSpecifier getExplicitSpecifier() const { return ExplicitSpec; }
 
-  /// Return true if the declartion is already resolved to be explicit.
+  /// Return true if the declaration is already resolved to be explicit.
   bool isExplicit() const { return ExplicitSpec.isExplicit(); }
 
   /// Get the template for which this guide performs deduction.
@@ -2481,7 +2526,7 @@ public:
     return getCanonicalDecl()->getExplicitSpecifierInternal();
   }
 
-  /// Return true if the declartion is already resolved to be explicit.
+  /// Return true if the declaration is already resolved to be explicit.
   bool isExplicit() const { return getExplicitSpecifier().isExplicit(); }
 
   /// Iterates through the member/base initializer list.
@@ -2765,7 +2810,7 @@ public:
     return getCanonicalDecl()->ExplicitSpec;
   }
 
-  /// Return true if the declartion is already resolved to be explicit.
+  /// Return true if the declaration is already resolved to be explicit.
   bool isExplicit() const { return getExplicitSpecifier().isExplicit(); }
   void setExplicitSpecifier(ExplicitSpecifier ES) { ExplicitSpec = ES; }
 
@@ -3581,17 +3626,15 @@ public:
 class UsingEnumDecl : public BaseUsingDecl, public Mergeable<UsingEnumDecl> {
   /// The source location of the 'using' keyword itself.
   SourceLocation UsingLocation;
-
-  /// Location of the 'enum' keyword.
+  /// The source location of the 'enum' keyword.
   SourceLocation EnumLocation;
-
-  /// The enum
-  EnumDecl *Enum;
+  /// 'qual::SomeEnum' as an EnumType, possibly with Elaborated/Typedef sugar.
+  TypeSourceInfo *EnumType;
 
   UsingEnumDecl(DeclContext *DC, DeclarationName DN, SourceLocation UL,
-                SourceLocation EL, SourceLocation NL, EnumDecl *ED)
-      : BaseUsingDecl(UsingEnum, DC, NL, DN), UsingLocation(UL),
-        EnumLocation(EL), Enum(ED) {}
+                SourceLocation EL, SourceLocation NL, TypeSourceInfo *EnumType)
+      : BaseUsingDecl(UsingEnum, DC, NL, DN), UsingLocation(UL), EnumLocation(EL),
+        EnumType(EnumType){}
 
   void anchor() override;
 
@@ -3606,13 +3649,29 @@ public:
   /// The source location of the 'enum' keyword.
   SourceLocation getEnumLoc() const { return EnumLocation; }
   void setEnumLoc(SourceLocation L) { EnumLocation = L; }
+  NestedNameSpecifier *getQualifier() const {
+    return getQualifierLoc().getNestedNameSpecifier();
+  }
+  NestedNameSpecifierLoc getQualifierLoc() const {
+    if (auto ETL = EnumType->getTypeLoc().getAs<ElaboratedTypeLoc>())
+      return ETL.getQualifierLoc();
+    return NestedNameSpecifierLoc();
+  }
+  // Returns the "qualifier::Name" part as a TypeLoc.
+  TypeLoc getEnumTypeLoc() const {
+    return EnumType->getTypeLoc();
+  }
+  TypeSourceInfo *getEnumType() const {
+    return EnumType;
+  }
+  void setEnumType(TypeSourceInfo *TSI) { EnumType = TSI; }
 
 public:
-  EnumDecl *getEnumDecl() const { return Enum; }
+  EnumDecl *getEnumDecl() const { return cast<EnumDecl>(EnumType->getType()->getAsTagDecl()); }
 
   static UsingEnumDecl *Create(ASTContext &C, DeclContext *DC,
                                SourceLocation UsingL, SourceLocation EnumL,
-                               SourceLocation NameL, EnumDecl *ED);
+                               SourceLocation NameL, TypeSourceInfo *EnumType);
 
   static UsingEnumDecl *CreateDeserialized(ASTContext &C, unsigned ID);
 
@@ -4053,7 +4112,7 @@ public:
     return llvm::makeArrayRef(getTrailingObjects<BindingDecl *>(), NumBindings);
   }
 
-  void printName(raw_ostream &os) const override;
+  void printName(raw_ostream &OS, const PrintingPolicy &Policy) const override;
 
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
   static bool classofKind(Kind K) { return K == Decomposition; }
@@ -4166,7 +4225,8 @@ private:
 
 public:
   /// Print this UUID in a human-readable format.
-  void printName(llvm::raw_ostream &OS) const override;
+  void printName(llvm::raw_ostream &OS,
+                 const PrintingPolicy &Policy) const override;
 
   /// Get the decomposed parts of this declaration.
   Parts getParts() const { return PartVal; }
@@ -4186,6 +4246,55 @@ public:
 
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
   static bool classofKind(Kind K) { return K == Decl::MSGuid; }
+};
+
+/// An artificial decl, representing a global anonymous constant value which is
+/// uniquified by value within a translation unit.
+///
+/// These is currently only used to back the LValue returned by
+/// __builtin_source_location, but could potentially be used for other similar
+/// situations in the future.
+class UnnamedGlobalConstantDecl : public ValueDecl,
+                                  public Mergeable<UnnamedGlobalConstantDecl>,
+                                  public llvm::FoldingSetNode {
+
+  // The constant value of this global.
+  APValue Value;
+
+  void anchor() override;
+
+  UnnamedGlobalConstantDecl(const ASTContext &C, DeclContext *DC, QualType T,
+                            const APValue &Val);
+
+  static UnnamedGlobalConstantDecl *Create(const ASTContext &C, QualType T,
+                                           const APValue &APVal);
+  static UnnamedGlobalConstantDecl *CreateDeserialized(ASTContext &C,
+                                                       unsigned ID);
+
+  // Only ASTContext::getUnnamedGlobalConstantDecl and deserialization create
+  // these.
+  friend class ASTContext;
+  friend class ASTReader;
+  friend class ASTDeclReader;
+
+public:
+  /// Print this in a human-readable format.
+  void printName(llvm::raw_ostream &OS,
+                 const PrintingPolicy &Policy) const override;
+
+  const APValue &getValue() const { return Value; }
+
+  static void Profile(llvm::FoldingSetNodeID &ID, QualType Ty,
+                      const APValue &APVal) {
+    Ty.Profile(ID);
+    APVal.Profile(ID);
+  }
+  void Profile(llvm::FoldingSetNodeID &ID) {
+    Profile(ID, getType(), getValue());
+  }
+
+  static bool classof(const Decl *D) { return classofKind(D->getKind()); }
+  static bool classofKind(Kind K) { return K == Decl::UnnamedGlobalConstant; }
 };
 
 /// Insertion operator for diagnostics.  This allows sending an AccessSpecifier

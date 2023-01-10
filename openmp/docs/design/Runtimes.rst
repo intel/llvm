@@ -299,6 +299,7 @@ and any affinity API calls.
 * ``respect`` (default) and ``norespect`` - determine whether to respect the original process affinity mask.
 * ``verbose`` and ``noverbose`` (default) - determine whether to display affinity information.
 * ``warnings`` (default) and ``nowarnings`` - determine whether to display warnings during affinity detection.
+* ``reset`` and ``noreset`` (default) - determine whether to reset primary thread's affinity after outermost parallel region(s)
 * ``granularity=<specifier>`` - takes the following specifiers ``thread``, ``core`` (default), ``tile``,
   ``socket``, ``die``, ``group`` (Windows only).
   The granularity describes the lowest topology levels that OpenMP threads are allowed to float within a topology map.
@@ -372,6 +373,24 @@ The ``offset`` specifier indicates the starting position for thread assignment.
     will be set to ``granularity=group``. For example, if two processor groups exist
     across one socket, and ``granularity=socket`` the runtime will shift the
     granularity down to group since that is the largest granularity allowed by the OS.
+
+KMP_HIDDEN_HELPER_AFFINITY (Windows, Linux)
+"""""""""""""""""""""""""""""
+
+Enables run-time library to bind hidden helper threads to physical processing units.
+This environment variable has the same syntax and semantics as ``KMP_AFFINIY`` but only
+applies to the hidden helper team.
+
+You must set this environment variable before the first parallel region, or
+certain API calls including ``omp_get_max_threads()``, ``omp_get_num_procs()``
+and any affinity API calls.
+
+**Syntax:** Same as ``KMP_AFFINITY``
+
+The following ``modifiers`` are ignored in ``KMP_HIDDEN_HELPER_AFFINITY`` and are only valid
+for ``KMP_AFFINITY``:
+* ``respect`` and ``norespect``
+* ``reset`` and ``noreset``
 
 KMP_ALL_THREADS
 """""""""""""""
@@ -706,16 +725,15 @@ displayed. This feature is only availible if ``libomptarget`` was built with
 
 LIBOMPTARGET_PROFILE
 """"""""""""""""""""
+
 ``LIBOMPTARGET_PROFILE`` allows ``libomptarget`` to generate time profile output
 similar to Clang's ``-ftime-trace`` option. This generates a JSON file based on
 `Chrome Tracing`_ that can be viewed with ``chrome://tracing`` or the
-`Speedscope App`_. Building this feature depends on the `LLVM Support Library`_
-for time trace output. Using this library is enabled by default when building
-using the CMake option ``OPENMP_ENABLE_LIBOMPTARGET_PROFILING``. The output will
-be saved to the filename specified by the environment variable. For multi-threaded
-applications, profiling in ``libomp`` is also needed. Setting the CMake option
-``OPENMP_ENABLE_LIBOMP_PROFILING=ON`` to enable the feature. Note that this will
-turn ``libomp`` into a C++ library.
+`Speedscope App`_. The output will be saved to the filename specified by the
+environment variable. For multi-threaded applications, profiling in ``libomp``
+is also needed. Setting the CMake option ``OPENMP_ENABLE_LIBOMP_PROFILING=ON``
+to enable the feature. This feature depends on the `LLVM Support Library`_
+for time trace output. Note that this will turn ``libomp`` into a C++ library.
 
 .. _`Chrome Tracing`: https://www.chromium.org/developers/how-tos/trace-event-profiling-tool
 
@@ -763,7 +781,7 @@ with ``CUDA`` information, run the following ``bash`` command.
 
 .. code-block:: console
 
-   $ env LIBOMPTARGET_INFO=$((1 << 0x1 | 1 << 0x10)) ./your-application
+   $ env LIBOMPTARGET_INFO=$((0x1 | 0x10)) ./your-application
 
 Or, to enable every flag run with every bit set.
 
@@ -1006,9 +1024,9 @@ LIBOMPTARGET_SHARED_MEMORY_SIZE
 """""""""""""""""""""""""""""""
 
 This environment variable sets the amount of dynamic shared memory in bytes used
-by the kernel once it is launched. A pointer to the dynamic memory buffer can
-currently only be accessed using the ``__kmpc_get_dynamic_shared`` device
-runtime call.
+by the kernel once it is launched. A pointer to the dynamic memory buffer can be
+accessed using the ``llvm_omp_target_dynamic_shared_alloc`` function. An example
+is shown in :ref:`libomptarget_dynamic_shared`.
 
 .. toctree::
    :hidden:
@@ -1104,6 +1122,40 @@ The target device runtime is an LLVM bitcode library that implements OpenMP
 runtime functions on the target device. It is linked with the device code's LLVM
 IR during compilation.
 
+.. _libomptarget_dynamic_shared:
+
+Dynamic Shared Memory
+^^^^^^^^^^^^^^^^^^^^^
+
+The target device runtime contains a pointer to the dynamic shared memory
+buffer. This pointer can be obtained using the
+``llvm_omp_target_dynamic_shared_alloc`` extension. If this function is called
+from the host it will simply return a null pointer. In order to use this buffer
+the kernel must be launched with an adequate amount of dynamic shared memory
+allocated. Currently this is done using the ``LIBOMPTARGET_SHARED_MEMORY_SIZE``
+environment variable. An example is given below.
+
+.. code-block:: c++
+
+    void foo() {
+      int x;
+    #pragma omp target parallel map(from : x)
+      {
+        int *buf = llvm_omp_target_dynamic_shared_alloc();
+    #pragma omp barrier
+        if (omp_get_thread_num() == 0)
+          *buf = 1;
+    #pragma omp barrier
+        if (omp_get_thread_num() == 1)
+          x = *buf;
+      }
+    }
+
+.. code-block:: console
+
+    $ clang++ -fopenmp -fopenmp-targets=nvptx64 shared.c
+    $ env LIBOMPTARGET_SHARED_MEMORY_SIZE=256 ./shared
+
 .. _libomptarget_device_debugging:
 
 Debugging
@@ -1135,8 +1187,7 @@ provide the following output from the device runtime library.
 
 .. code-block:: console
 
-    $ clang++ -fopenmp -fopenmp-targets=nvptx64 -fopenmp-target-new-runtime \
-      -fopenmp-target-debug=3
+    $ clang++ -fopenmp -fopenmp-targets=nvptx64 -fopenmp-target-debug=3
     $ env LIBOMPTARGET_DEVICE_RTL_DEBUG=3 ./zaxpy
 
 .. code-block:: text

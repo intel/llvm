@@ -246,44 +246,22 @@ static bool isValidCoroutineContext(Sema &S, SourceLocation Loc,
   return !Diagnosed;
 }
 
-static ExprResult buildOperatorCoawaitLookupExpr(Sema &SemaRef, Scope *S,
-                                                 SourceLocation Loc) {
-  DeclarationName OpName =
-      SemaRef.Context.DeclarationNames.getCXXOperatorName(OO_Coawait);
-  LookupResult Operators(SemaRef, OpName, SourceLocation(),
-                         Sema::LookupOperatorName);
-  SemaRef.LookupName(Operators, S);
-
-  assert(!Operators.isAmbiguous() && "Operator lookup cannot be ambiguous");
-  const auto &Functions = Operators.asUnresolvedSet();
-  bool IsOverloaded =
-      Functions.size() > 1 ||
-      (Functions.size() == 1 && isa<FunctionTemplateDecl>(*Functions.begin()));
-  Expr *CoawaitOp = UnresolvedLookupExpr::Create(
-      SemaRef.Context, /*NamingClass*/ nullptr, NestedNameSpecifierLoc(),
-      DeclarationNameInfo(OpName, Loc), /*RequiresADL*/ true, IsOverloaded,
-      Functions.begin(), Functions.end());
-  assert(CoawaitOp);
-  return CoawaitOp;
-}
-
 /// Build a call to 'operator co_await' if there is a suitable operator for
 /// the given expression.
-static ExprResult buildOperatorCoawaitCall(Sema &SemaRef, SourceLocation Loc,
-                                           Expr *E,
-                                           UnresolvedLookupExpr *Lookup) {
+ExprResult Sema::BuildOperatorCoawaitCall(SourceLocation Loc, Expr *E,
+                                          UnresolvedLookupExpr *Lookup) {
   UnresolvedSet<16> Functions;
   Functions.append(Lookup->decls_begin(), Lookup->decls_end());
-  return SemaRef.CreateOverloadedUnaryOp(Loc, UO_Coawait, Functions, E);
+  return CreateOverloadedUnaryOp(Loc, UO_Coawait, Functions, E);
 }
 
 static ExprResult buildOperatorCoawaitCall(Sema &SemaRef, Scope *S,
                                            SourceLocation Loc, Expr *E) {
-  ExprResult R = buildOperatorCoawaitLookupExpr(SemaRef, S, Loc);
+  ExprResult R = SemaRef.BuildOperatorCoawaitLookupExpr(S, Loc);
   if (R.isInvalid())
     return ExprError();
-  return buildOperatorCoawaitCall(SemaRef, Loc, E,
-                                  cast<UnresolvedLookupExpr>(R.get()));
+  return SemaRef.BuildOperatorCoawaitCall(Loc, E,
+                                          cast<UnresolvedLookupExpr>(R.get()));
 }
 
 static ExprResult buildCoroutineHandle(Sema &S, QualType PromiseType,
@@ -361,7 +339,7 @@ static Expr *maybeTailCall(Sema &S, QualType RetType, Expr *E,
   // EvaluateBinaryTypeTrait(BTT_IsConvertible, ...) which is at the moment
   // a private function in SemaExprCXX.cpp
 
-  ExprResult AddressExpr = buildMemberCall(S, E, Loc, "address", None);
+  ExprResult AddressExpr = buildMemberCall(S, E, Loc, "address", std::nullopt);
   if (AddressExpr.isInvalid())
     return nullptr;
 
@@ -417,8 +395,8 @@ static ReadySuspendResumeResult buildCoawaitCalls(Sema &S, VarDecl *CoroPromise,
     return Result.get();
   };
 
-  CallExpr *AwaitReady =
-      cast_or_null<CallExpr>(BuildSubExpr(ACT::ACT_Ready, "await_ready", None));
+  CallExpr *AwaitReady = cast_or_null<CallExpr>(
+      BuildSubExpr(ACT::ACT_Ready, "await_ready", std::nullopt));
   if (!AwaitReady)
     return Calls;
   if (!AwaitReady->getType()->isDependentType()) {
@@ -479,7 +457,7 @@ static ReadySuspendResumeResult buildCoawaitCalls(Sema &S, VarDecl *CoroPromise,
     }
   }
 
-  BuildSubExpr(ACT::ACT_Resume, "await_resume", None);
+  BuildSubExpr(ACT::ACT_Resume, "await_resume", std::nullopt);
 
   // Make sure the awaiter object gets a chance to be cleaned up.
   S.Cleanup.setExprNeedsCleanups(true);
@@ -727,14 +705,15 @@ bool Sema::ActOnCoroutineBodyStart(Scope *SC, SourceLocation KWLoc,
   SourceLocation Loc = Fn->getLocation();
   // Build the initial suspend point
   auto buildSuspends = [&](StringRef Name) mutable -> StmtResult {
+    ExprResult Operand = buildPromiseCall(*this, ScopeInfo->CoroutinePromise,
+                                          Loc, Name, std::nullopt);
+    if (Operand.isInvalid())
+      return StmtError();
     ExprResult Suspend =
-        buildPromiseCall(*this, ScopeInfo->CoroutinePromise, Loc, Name, None);
+        buildOperatorCoawaitCall(*this, SC, Loc, Operand.get());
     if (Suspend.isInvalid())
       return StmtError();
-    Suspend = buildOperatorCoawaitCall(*this, SC, Loc, Suspend.get());
-    if (Suspend.isInvalid())
-      return StmtError();
-    Suspend = BuildResolvedCoawaitExpr(Loc, Suspend.get(),
+    Suspend = BuildResolvedCoawaitExpr(Loc, Operand.get(), Suspend.get(),
                                        /*IsImplicit*/ true);
     Suspend = ActOnFinishFullExpr(Suspend.get(), /*DiscardedValue*/ false);
     if (Suspend.isInvalid()) {
@@ -776,8 +755,8 @@ static bool isWithinCatchScope(Scope *S) {
   //     }();
   //   }
   // }
-  while (S && !(S->getFlags() & Scope::FnScope)) {
-    if (S->getFlags() & Scope::CatchScope)
+  while (S && !S->isFunctionScope()) {
+    if (S->isCatchScope())
       return true;
     S = S->getParent();
   }
@@ -789,125 +768,157 @@ static bool isWithinCatchScope(Scope *S) {
 // function-body *outside of a handler* [...] A context within a function
 // where an await-expression can appear is called a suspension context of the
 // function."
-static void checkSuspensionContext(Sema &S, SourceLocation Loc,
+static bool checkSuspensionContext(Sema &S, SourceLocation Loc,
                                    StringRef Keyword) {
   // First emphasis of [expr.await]p2: must be a potentially evaluated context.
   // That is, 'co_await' and 'co_yield' cannot appear in subexpressions of
   // \c sizeof.
-  if (S.isUnevaluatedContext())
+  if (S.isUnevaluatedContext()) {
     S.Diag(Loc, diag::err_coroutine_unevaluated_context) << Keyword;
+    return false;
+  }
 
   // Second emphasis of [expr.await]p2: must be outside of an exception handler.
-  if (isWithinCatchScope(S.getCurScope()))
+  if (isWithinCatchScope(S.getCurScope())) {
     S.Diag(Loc, diag::err_coroutine_within_handler) << Keyword;
+    return false;
+  }
+
+  return true;
 }
 
 ExprResult Sema::ActOnCoawaitExpr(Scope *S, SourceLocation Loc, Expr *E) {
+  if (!checkSuspensionContext(*this, Loc, "co_await"))
+    return ExprError();
+
   if (!ActOnCoroutineBodyStart(S, Loc, "co_await")) {
     CorrectDelayedTyposInExpr(E);
     return ExprError();
   }
-
-  checkSuspensionContext(*this, Loc, "co_await");
 
   if (E->hasPlaceholderType()) {
     ExprResult R = CheckPlaceholderExpr(E);
     if (R.isInvalid()) return ExprError();
     E = R.get();
   }
-  ExprResult Lookup = buildOperatorCoawaitLookupExpr(*this, S, Loc);
+  ExprResult Lookup = BuildOperatorCoawaitLookupExpr(S, Loc);
   if (Lookup.isInvalid())
     return ExprError();
   return BuildUnresolvedCoawaitExpr(Loc, E,
                                    cast<UnresolvedLookupExpr>(Lookup.get()));
 }
 
-ExprResult Sema::BuildUnresolvedCoawaitExpr(SourceLocation Loc, Expr *E,
+ExprResult Sema::BuildOperatorCoawaitLookupExpr(Scope *S, SourceLocation Loc) {
+  DeclarationName OpName =
+      Context.DeclarationNames.getCXXOperatorName(OO_Coawait);
+  LookupResult Operators(*this, OpName, SourceLocation(),
+                         Sema::LookupOperatorName);
+  LookupName(Operators, S);
+
+  assert(!Operators.isAmbiguous() && "Operator lookup cannot be ambiguous");
+  const auto &Functions = Operators.asUnresolvedSet();
+  bool IsOverloaded =
+      Functions.size() > 1 ||
+      (Functions.size() == 1 && isa<FunctionTemplateDecl>(*Functions.begin()));
+  Expr *CoawaitOp = UnresolvedLookupExpr::Create(
+      Context, /*NamingClass*/ nullptr, NestedNameSpecifierLoc(),
+      DeclarationNameInfo(OpName, Loc), /*RequiresADL*/ true, IsOverloaded,
+      Functions.begin(), Functions.end());
+  assert(CoawaitOp);
+  return CoawaitOp;
+}
+
+// Attempts to resolve and build a CoawaitExpr from "raw" inputs, bailing out to
+// DependentCoawaitExpr if needed.
+ExprResult Sema::BuildUnresolvedCoawaitExpr(SourceLocation Loc, Expr *Operand,
                                             UnresolvedLookupExpr *Lookup) {
   auto *FSI = checkCoroutineContext(*this, Loc, "co_await");
   if (!FSI)
     return ExprError();
 
-  if (E->hasPlaceholderType()) {
-    ExprResult R = CheckPlaceholderExpr(E);
+  if (Operand->hasPlaceholderType()) {
+    ExprResult R = CheckPlaceholderExpr(Operand);
     if (R.isInvalid())
       return ExprError();
-    E = R.get();
+    Operand = R.get();
   }
 
   auto *Promise = FSI->CoroutinePromise;
   if (Promise->getType()->isDependentType()) {
-    Expr *Res =
-        new (Context) DependentCoawaitExpr(Loc, Context.DependentTy, E, Lookup);
+    Expr *Res = new (Context)
+        DependentCoawaitExpr(Loc, Context.DependentTy, Operand, Lookup);
     return Res;
   }
 
   auto *RD = Promise->getType()->getAsCXXRecordDecl();
+  auto *Transformed = Operand;
   if (lookupMember(*this, "await_transform", RD, Loc)) {
-    ExprResult R = buildPromiseCall(*this, Promise, Loc, "await_transform", E);
+    ExprResult R =
+        buildPromiseCall(*this, Promise, Loc, "await_transform", Operand);
     if (R.isInvalid()) {
       Diag(Loc,
            diag::note_coroutine_promise_implicit_await_transform_required_here)
-          << E->getSourceRange();
+          << Operand->getSourceRange();
       return ExprError();
     }
-    E = R.get();
+    Transformed = R.get();
   }
-  ExprResult Awaitable = buildOperatorCoawaitCall(*this, Loc, E, Lookup);
-  if (Awaitable.isInvalid())
+  ExprResult Awaiter = BuildOperatorCoawaitCall(Loc, Transformed, Lookup);
+  if (Awaiter.isInvalid())
     return ExprError();
 
-  return BuildResolvedCoawaitExpr(Loc, Awaitable.get());
+  return BuildResolvedCoawaitExpr(Loc, Operand, Awaiter.get());
 }
 
-ExprResult Sema::BuildResolvedCoawaitExpr(SourceLocation Loc, Expr *E,
-                                  bool IsImplicit) {
+ExprResult Sema::BuildResolvedCoawaitExpr(SourceLocation Loc, Expr *Operand,
+                                          Expr *Awaiter, bool IsImplicit) {
   auto *Coroutine = checkCoroutineContext(*this, Loc, "co_await", IsImplicit);
   if (!Coroutine)
     return ExprError();
 
-  if (E->hasPlaceholderType()) {
-    ExprResult R = CheckPlaceholderExpr(E);
+  if (Awaiter->hasPlaceholderType()) {
+    ExprResult R = CheckPlaceholderExpr(Awaiter);
     if (R.isInvalid()) return ExprError();
-    E = R.get();
+    Awaiter = R.get();
   }
 
-  if (E->getType()->isDependentType()) {
+  if (Awaiter->getType()->isDependentType()) {
     Expr *Res = new (Context)
-        CoawaitExpr(Loc, Context.DependentTy, E, IsImplicit);
+        CoawaitExpr(Loc, Context.DependentTy, Operand, Awaiter, IsImplicit);
     return Res;
   }
 
   // If the expression is a temporary, materialize it as an lvalue so that we
   // can use it multiple times.
-  if (E->isPRValue())
-    E = CreateMaterializeTemporaryExpr(E->getType(), E, true);
+  if (Awaiter->isPRValue())
+    Awaiter = CreateMaterializeTemporaryExpr(Awaiter->getType(), Awaiter, true);
 
   // The location of the `co_await` token cannot be used when constructing
   // the member call expressions since it's before the location of `Expr`, which
   // is used as the start of the member call expression.
-  SourceLocation CallLoc = E->getExprLoc();
+  SourceLocation CallLoc = Awaiter->getExprLoc();
 
   // Build the await_ready, await_suspend, await_resume calls.
-  ReadySuspendResumeResult RSS = buildCoawaitCalls(
-      *this, Coroutine->CoroutinePromise, CallLoc, E);
+  ReadySuspendResumeResult RSS =
+      buildCoawaitCalls(*this, Coroutine->CoroutinePromise, CallLoc, Awaiter);
   if (RSS.IsInvalid)
     return ExprError();
 
-  Expr *Res =
-      new (Context) CoawaitExpr(Loc, E, RSS.Results[0], RSS.Results[1],
-                                RSS.Results[2], RSS.OpaqueValue, IsImplicit);
+  Expr *Res = new (Context)
+      CoawaitExpr(Loc, Operand, Awaiter, RSS.Results[0], RSS.Results[1],
+                  RSS.Results[2], RSS.OpaqueValue, IsImplicit);
 
   return Res;
 }
 
 ExprResult Sema::ActOnCoyieldExpr(Scope *S, SourceLocation Loc, Expr *E) {
+  if (!checkSuspensionContext(*this, Loc, "co_yield"))
+    return ExprError();
+
   if (!ActOnCoroutineBodyStart(S, Loc, "co_yield")) {
     CorrectDelayedTyposInExpr(E);
     return ExprError();
   }
-
-  checkSuspensionContext(*this, Loc, "co_yield");
 
   // Build yield_value call.
   ExprResult Awaitable = buildPromiseCall(
@@ -933,8 +944,10 @@ ExprResult Sema::BuildCoyieldExpr(SourceLocation Loc, Expr *E) {
     E = R.get();
   }
 
+  Expr *Operand = E;
+
   if (E->getType()->isDependentType()) {
-    Expr *Res = new (Context) CoyieldExpr(Loc, Context.DependentTy, E);
+    Expr *Res = new (Context) CoyieldExpr(Loc, Context.DependentTy, Operand, E);
     return Res;
   }
 
@@ -950,7 +963,7 @@ ExprResult Sema::BuildCoyieldExpr(SourceLocation Loc, Expr *E) {
     return ExprError();
 
   Expr *Res =
-      new (Context) CoyieldExpr(Loc, E, RSS.Results[0], RSS.Results[1],
+      new (Context) CoyieldExpr(Loc, Operand, E, RSS.Results[0], RSS.Results[1],
                                 RSS.Results[2], RSS.OpaqueValue);
 
   return Res;
@@ -984,7 +997,7 @@ StmtResult Sema::BuildCoreturnStmt(SourceLocation Loc, Expr *E,
     PC = buildPromiseCall(*this, Promise, Loc, "return_value", E);
   } else {
     E = MakeFullDiscardedValueExpr(E).get();
-    PC = buildPromiseCall(*this, Promise, Loc, "return_void", None);
+    PC = buildPromiseCall(*this, Promise, Loc, "return_void", std::nullopt);
   }
   if (PC.isInvalid())
     return StmtError();
@@ -1025,41 +1038,55 @@ static Expr *buildStdNoThrowDeclRef(Sema &S, SourceLocation Loc) {
   return DR.get();
 }
 
-// Find an appropriate delete for the promise.
-static FunctionDecl *findDeleteForPromise(Sema &S, SourceLocation Loc,
-                                          QualType PromiseType) {
-  FunctionDecl *OperatorDelete = nullptr;
+static TypeSourceInfo *getTypeSourceInfoForStdAlignValT(Sema &S,
+                                                        SourceLocation Loc) {
+  EnumDecl *StdAlignValT = S.getStdAlignValT();
+  QualType StdAlignValDecl = S.Context.getTypeDeclType(StdAlignValT);
+  return S.Context.getTrivialTypeSourceInfo(StdAlignValDecl);
+}
 
+// Find an appropriate delete for the promise.
+static bool findDeleteForPromise(Sema &S, SourceLocation Loc, QualType PromiseType,
+                                 FunctionDecl *&OperatorDelete) {
   DeclarationName DeleteName =
       S.Context.DeclarationNames.getCXXOperatorName(OO_Delete);
 
   auto *PointeeRD = PromiseType->getAsCXXRecordDecl();
   assert(PointeeRD && "PromiseType must be a CxxRecordDecl type");
 
+  const bool Overaligned = S.getLangOpts().CoroAlignedAllocation;
+
   // [dcl.fct.def.coroutine]p12
   // The deallocation function's name is looked up by searching for it in the
   // scope of the promise type. If nothing is found, a search is performed in
   // the global scope.
-  if (S.FindDeallocationFunction(Loc, PointeeRD, DeleteName, OperatorDelete))
-    return nullptr;
+  if (S.FindDeallocationFunction(Loc, PointeeRD, DeleteName, OperatorDelete,
+                                 /*Diagnose*/ true, /*WantSize*/ true,
+                                 /*WantAligned*/ Overaligned))
+    return false;
 
-  // FIXME: We didn't implement following selection:
   // [dcl.fct.def.coroutine]p12
   //   If both a usual deallocation function with only a pointer parameter and a
   //   usual deallocation function with both a pointer parameter and a size
   //   parameter are found, then the selected deallocation function shall be the
   //   one with two parameters. Otherwise, the selected deallocation function
   //   shall be the function with one parameter.
-
   if (!OperatorDelete) {
     // Look for a global declaration.
-    const bool CanProvideSize = S.isCompleteType(Loc, PromiseType);
-    const bool Overaligned = false;
+    // Coroutines can always provide their required size.
+    const bool CanProvideSize = true;
+    // Sema::FindUsualDeallocationFunction will try to find the one with two
+    // parameters first. It will return the deallocation function with one
+    // parameter if failed.
     OperatorDelete = S.FindUsualDeallocationFunction(Loc, CanProvideSize,
                                                      Overaligned, DeleteName);
+
+    if (!OperatorDelete)
+      return false;
   }
+
   S.MarkFunctionReferenced(Loc, OperatorDelete);
-  return OperatorDelete;
+  return true;
 }
 
 
@@ -1234,6 +1261,41 @@ bool CoroutineStmtBuilder::makeReturnOnAllocFailure() {
   return true;
 }
 
+// Collect placement arguments for allocation function of coroutine FD.
+// Return true if we collect placement arguments succesfully. Return false,
+// otherwise.
+static bool collectPlacementArgs(Sema &S, FunctionDecl &FD, SourceLocation Loc,
+                                 SmallVectorImpl<Expr *> &PlacementArgs) {
+  if (auto *MD = dyn_cast<CXXMethodDecl>(&FD)) {
+    if (MD->isInstance() && !isLambdaCallOperator(MD)) {
+      ExprResult ThisExpr = S.ActOnCXXThis(Loc);
+      if (ThisExpr.isInvalid())
+        return false;
+      ThisExpr = S.CreateBuiltinUnaryOp(Loc, UO_Deref, ThisExpr.get());
+      if (ThisExpr.isInvalid())
+        return false;
+      PlacementArgs.push_back(ThisExpr.get());
+    }
+  }
+
+  for (auto *PD : FD.parameters()) {
+    if (PD->getType()->isDependentType())
+      continue;
+
+    // Build a reference to the parameter.
+    auto PDLoc = PD->getLocation();
+    ExprResult PDRefExpr =
+        S.BuildDeclRefExpr(PD, PD->getOriginalType().getNonReferenceType(),
+                           ExprValueKind::VK_LValue, PDLoc);
+    if (PDRefExpr.isInvalid())
+      return false;
+
+    PlacementArgs.push_back(PDRefExpr.get());
+  }
+
+  return true;
+}
+
 bool CoroutineStmtBuilder::makeNewAndDeleteExpr() {
   // Form and check allocation and deallocation calls.
   assert(!IsPromiseDependentType &&
@@ -1250,13 +1312,7 @@ bool CoroutineStmtBuilder::makeNewAndDeleteExpr() {
   // allocated, followed by the coroutine function's arguments. If a matching
   // allocation function exists, use it. Otherwise, use an allocation function
   // that just takes the requested size.
-
-  FunctionDecl *OperatorNew = nullptr;
-  FunctionDecl *OperatorDelete = nullptr;
-  FunctionDecl *UnusedResult = nullptr;
-  bool PassAlignment = false;
-  SmallVector<Expr *, 1> PlacementArgs;
-
+  //
   // [dcl.fct.def.coroutine]p9
   //   An implementation may need to allocate additional storage for a
   //   coroutine.
@@ -1283,59 +1339,106 @@ bool CoroutineStmtBuilder::makeNewAndDeleteExpr() {
   // and p_i denotes the i-th function parameter otherwise. For a non-static
   // member function, q_1 is an lvalue that denotes *this; any other q_i is an
   // lvalue that denotes the parameter copy corresponding to p_i.
-  if (auto *MD = dyn_cast<CXXMethodDecl>(&FD)) {
-    if (MD->isInstance() && !isLambdaCallOperator(MD)) {
-      ExprResult ThisExpr = S.ActOnCXXThis(Loc);
-      if (ThisExpr.isInvalid())
-        return false;
-      ThisExpr = S.CreateBuiltinUnaryOp(Loc, UO_Deref, ThisExpr.get());
-      if (ThisExpr.isInvalid())
-        return false;
-      PlacementArgs.push_back(ThisExpr.get());
-    }
-  }
-  for (auto *PD : FD.parameters()) {
-    if (PD->getType()->isDependentType())
-      continue;
 
-    // Build a reference to the parameter.
-    auto PDLoc = PD->getLocation();
-    ExprResult PDRefExpr =
-        S.BuildDeclRefExpr(PD, PD->getOriginalType().getNonReferenceType(),
-                           ExprValueKind::VK_LValue, PDLoc);
-    if (PDRefExpr.isInvalid())
-      return false;
+  FunctionDecl *OperatorNew = nullptr;
+  SmallVector<Expr *, 1> PlacementArgs;
 
-    PlacementArgs.push_back(PDRefExpr.get());
-  }
-  S.FindAllocationFunctions(Loc, SourceRange(), /*NewScope*/ Sema::AFS_Class,
-                            /*DeleteScope*/ Sema::AFS_Both, PromiseType,
-                            /*isArray*/ false, PassAlignment, PlacementArgs,
-                            OperatorNew, UnusedResult, /*Diagnose*/ false);
+  const bool PromiseContainsNew = [this, &PromiseType]() -> bool {
+    DeclarationName NewName =
+        S.getASTContext().DeclarationNames.getCXXOperatorName(OO_New);
+    LookupResult R(S, NewName, Loc, Sema::LookupOrdinaryName);
 
-  // [dcl.fct.def.coroutine]p9
-  //   If no viable function is found ([over.match.viable]), overload resolution
-  // is performed again on a function call created by passing just the amount of
-  // space required as an argument of type std::size_t.
-  if (!OperatorNew && !PlacementArgs.empty()) {
-    PlacementArgs.clear();
-    S.FindAllocationFunctions(Loc, SourceRange(), /*NewScope*/ Sema::AFS_Class,
+    if (PromiseType->isRecordType())
+      S.LookupQualifiedName(R, PromiseType->getAsCXXRecordDecl());
+
+    return !R.empty() && !R.isAmbiguous();
+  }();
+
+  // Helper function to indicate whether the last lookup found the aligned
+  // allocation function.
+  bool PassAlignment = S.getLangOpts().CoroAlignedAllocation;
+  auto LookupAllocationFunction = [&](Sema::AllocationFunctionScope NewScope =
+                                          Sema::AFS_Both,
+                                      bool WithoutPlacementArgs = false,
+                                      bool ForceNonAligned = false) {
+    // [dcl.fct.def.coroutine]p9
+    //   The allocation function's name is looked up by searching for it in the
+    // scope of the promise type.
+    // - If any declarations are found, ...
+    // - If no declarations are found in the scope of the promise type, a search
+    // is performed in the global scope.
+    if (NewScope == Sema::AFS_Both)
+      NewScope = PromiseContainsNew ? Sema::AFS_Class : Sema::AFS_Global;
+
+    PassAlignment = !ForceNonAligned && S.getLangOpts().CoroAlignedAllocation;
+    FunctionDecl *UnusedResult = nullptr;
+    S.FindAllocationFunctions(Loc, SourceRange(), NewScope,
                               /*DeleteScope*/ Sema::AFS_Both, PromiseType,
-                              /*isArray*/ false, PassAlignment, PlacementArgs,
+                              /*isArray*/ false, PassAlignment,
+                              WithoutPlacementArgs ? MultiExprArg{}
+                                                   : PlacementArgs,
                               OperatorNew, UnusedResult, /*Diagnose*/ false);
+  };
+
+  // We don't expect to call to global operator new with (size, p0, …, pn).
+  // So if we choose to lookup the allocation function in global scope, we
+  // shouldn't lookup placement arguments.
+  if (PromiseContainsNew && !collectPlacementArgs(S, FD, Loc, PlacementArgs))
+    return false;
+
+  LookupAllocationFunction();
+
+  if (PromiseContainsNew && !PlacementArgs.empty()) {
+    // [dcl.fct.def.coroutine]p9
+    //   If no viable function is found ([over.match.viable]), overload
+    //   resolution
+    // is performed again on a function call created by passing just the amount
+    // of space required as an argument of type std::size_t.
+    //
+    // Proposed Change of [dcl.fct.def.coroutine]p9 in P2014R0:
+    //   Otherwise, overload resolution is performed again on a function call
+    //   created
+    // by passing the amount of space requested as an argument of type
+    // std::size_t as the first argument, and the requested alignment as
+    // an argument of type std:align_val_t as the second argument.
+    if (!OperatorNew ||
+        (S.getLangOpts().CoroAlignedAllocation && !PassAlignment))
+      LookupAllocationFunction(/*NewScope*/ Sema::AFS_Class,
+                               /*WithoutPlacementArgs*/ true);
   }
 
-  // [dcl.fct.def.coroutine]p9
-  //   The allocation function's name is looked up by searching for it in the
-  // scope of the promise type.
-  // - If any declarations are found, ...
-  // - Otherwise, a search is performed in the global scope.
-  if (!OperatorNew) {
-    S.FindAllocationFunctions(Loc, SourceRange(), /*NewScope*/ Sema::AFS_Global,
-                              /*DeleteScope*/ Sema::AFS_Both, PromiseType,
-                              /*isArray*/ false, PassAlignment, PlacementArgs,
-                              OperatorNew, UnusedResult);
-  }
+  // Proposed Change of [dcl.fct.def.coroutine]p12 in P2014R0:
+  //   Otherwise, overload resolution is performed again on a function call
+  //   created
+  // by passing the amount of space requested as an argument of type
+  // std::size_t as the first argument, and the lvalues p1 ... pn as the
+  // succeeding arguments. Otherwise, overload resolution is performed again
+  // on a function call created by passing just the amount of space required as
+  // an argument of type std::size_t.
+  //
+  // So within the proposed change in P2014RO, the priority order of aligned
+  // allocation functions wiht promise_type is:
+  //
+  //    void* operator new( std::size_t, std::align_val_t, placement_args... );
+  //    void* operator new( std::size_t, std::align_val_t);
+  //    void* operator new( std::size_t, placement_args... );
+  //    void* operator new( std::size_t);
+
+  // Helper variable to emit warnings.
+  bool FoundNonAlignedInPromise = false;
+  if (PromiseContainsNew && S.getLangOpts().CoroAlignedAllocation)
+    if (!OperatorNew || !PassAlignment) {
+      FoundNonAlignedInPromise = OperatorNew;
+
+      LookupAllocationFunction(/*NewScope*/ Sema::AFS_Class,
+                               /*WithoutPlacementArgs*/ false,
+                               /*ForceNonAligned*/ true);
+
+      if (!OperatorNew && !PlacementArgs.empty())
+        LookupAllocationFunction(/*NewScope*/ Sema::AFS_Class,
+                                 /*WithoutPlacementArgs*/ true,
+                                 /*ForceNonAligned*/ true);
+    }
 
   bool IsGlobalOverload =
       OperatorNew && !isa<CXXRecordDecl>(OperatorNew->getDeclContext());
@@ -1348,14 +1451,27 @@ bool CoroutineStmtBuilder::makeNewAndDeleteExpr() {
       return false;
     PlacementArgs = {StdNoThrow};
     OperatorNew = nullptr;
-    S.FindAllocationFunctions(Loc, SourceRange(), /*NewScope*/ Sema::AFS_Both,
-                              /*DeleteScope*/ Sema::AFS_Both, PromiseType,
-                              /*isArray*/ false, PassAlignment, PlacementArgs,
-                              OperatorNew, UnusedResult);
+    LookupAllocationFunction(Sema::AFS_Global);
   }
 
-  if (!OperatorNew)
+  // If we found a non-aligned allocation function in the promise_type,
+  // it indicates the user forgot to update the allocation function. Let's emit
+  // a warning here.
+  if (FoundNonAlignedInPromise) {
+    S.Diag(OperatorNew->getLocation(),
+           diag::warn_non_aligned_allocation_function)
+        << &FD;
+  }
+
+  if (!OperatorNew) {
+    if (PromiseContainsNew)
+      S.Diag(Loc, diag::err_coroutine_unusable_new) << PromiseType << &FD;
+    else if (RequiresNoThrowAlloc)
+      S.Diag(Loc, diag::err_coroutine_unfound_nothrow_new)
+          << &FD << S.getLangOpts().CoroAlignedAllocation;
+
     return false;
+  }
 
   if (RequiresNoThrowAlloc) {
     const auto *FT = OperatorNew->getType()->castAs<FunctionProtoType>();
@@ -1369,7 +1485,8 @@ bool CoroutineStmtBuilder::makeNewAndDeleteExpr() {
     }
   }
 
-  if ((OperatorDelete = findDeleteForPromise(S, Loc, PromiseType)) == nullptr) {
+  FunctionDecl *OperatorDelete = nullptr;
+  if (!findDeleteForPromise(S, Loc, PromiseType, OperatorDelete)) {
     // FIXME: We should add an error here. According to:
     // [dcl.fct.def.coroutine]p12
     //   If no usual deallocation function is found, the program is ill-formed.
@@ -1382,16 +1499,34 @@ bool CoroutineStmtBuilder::makeNewAndDeleteExpr() {
   Expr *FrameSize =
       S.BuildBuiltinCallExpr(Loc, Builtin::BI__builtin_coro_size, {});
 
-  // Make new call.
+  Expr *FrameAlignment = nullptr;
 
+  if (S.getLangOpts().CoroAlignedAllocation) {
+    FrameAlignment =
+        S.BuildBuiltinCallExpr(Loc, Builtin::BI__builtin_coro_align, {});
+
+    TypeSourceInfo *AlignValTy = getTypeSourceInfoForStdAlignValT(S, Loc);
+    if (!AlignValTy)
+      return false;
+
+    FrameAlignment = S.BuildCXXNamedCast(Loc, tok::kw_static_cast, AlignValTy,
+                                         FrameAlignment, SourceRange(Loc, Loc),
+                                         SourceRange(Loc, Loc))
+                         .get();
+  }
+
+  // Make new call.
   ExprResult NewRef =
       S.BuildDeclRefExpr(OperatorNew, OperatorNew->getType(), VK_LValue, Loc);
   if (NewRef.isInvalid())
     return false;
 
   SmallVector<Expr *, 2> NewArgs(1, FrameSize);
-  for (auto Arg : PlacementArgs)
-    NewArgs.push_back(Arg);
+  if (S.getLangOpts().CoroAlignedAllocation && PassAlignment)
+    NewArgs.push_back(FrameAlignment);
+
+  if (OperatorNew->getNumParams() > NewArgs.size())
+    llvm::append_range(NewArgs, PlacementArgs);
 
   ExprResult NewExpr =
       S.BuildCallExpr(S.getCurScope(), NewRef.get(), Loc, NewArgs, Loc);
@@ -1420,8 +1555,28 @@ bool CoroutineStmtBuilder::makeNewAndDeleteExpr() {
   //   used, the size of the block is passed as the corresponding argument.
   const auto *OpDeleteType =
       OpDeleteQualType.getTypePtr()->castAs<FunctionProtoType>();
-  if (OpDeleteType->getNumParams() > 1)
+  if (OpDeleteType->getNumParams() > DeleteArgs.size() &&
+      S.getASTContext().hasSameType(
+          OpDeleteType->getParamType(DeleteArgs.size()), FrameSize->getType()))
     DeleteArgs.push_back(FrameSize);
+
+  // Proposed Change of [dcl.fct.def.coroutine]p12 in P2014R0:
+  //   If deallocation function lookup finds a usual deallocation function with
+  //   a pointer parameter, size parameter and alignment parameter then this
+  //   will be the selected deallocation function, otherwise if lookup finds a
+  //   usual deallocation function with both a pointer parameter and a size
+  //   parameter, then this will be the selected deallocation function.
+  //   Otherwise, if lookup finds a usual deallocation function with only a
+  //   pointer parameter, then this will be the selected deallocation
+  //   function.
+  //
+  // So we are not forced to pass alignment to the deallocation function.
+  if (S.getLangOpts().CoroAlignedAllocation &&
+      OpDeleteType->getNumParams() > DeleteArgs.size() &&
+      S.getASTContext().hasSameType(
+          OpDeleteType->getParamType(DeleteArgs.size()),
+          FrameAlignment->getType()))
+    DeleteArgs.push_back(FrameAlignment);
 
   ExprResult DeleteExpr =
       S.BuildCallExpr(S.getCurScope(), DeleteRef.get(), Loc, DeleteArgs, Loc);
@@ -1515,8 +1670,8 @@ bool CoroutineStmtBuilder::makeOnException() {
   if (!S.getLangOpts().CXXExceptions)
     return true;
 
-  ExprResult UnhandledException = buildPromiseCall(S, Fn.CoroutinePromise, Loc,
-                                                   "unhandled_exception", None);
+  ExprResult UnhandledException = buildPromiseCall(
+      S, Fn.CoroutinePromise, Loc, "unhandled_exception", std::nullopt);
   UnhandledException = S.ActOnFinishFullExpr(UnhandledException.get(), Loc,
                                              /*DiscardedValue*/ false);
   if (UnhandledException.isInvalid())
@@ -1539,8 +1694,8 @@ bool CoroutineStmtBuilder::makeReturnObject() {
   // [dcl.fct.def.coroutine]p7
   // The expression promise.get_return_object() is used to initialize the
   // returned reference or prvalue result object of a call to a coroutine.
-  ExprResult ReturnObject =
-      buildPromiseCall(S, Fn.CoroutinePromise, Loc, "get_return_object", None);
+  ExprResult ReturnObject = buildPromiseCall(S, Fn.CoroutinePromise, Loc,
+                                             "get_return_object", std::nullopt);
   if (ReturnObject.isInvalid())
     return false;
 
@@ -1660,7 +1815,7 @@ bool Sema::buildCoroutineParameterMoves(SourceLocation Loc) {
     // [dcl.fct.def.coroutine]p13
     //   The initialization and destruction of each parameter copy occurs in the
     //   context of the called coroutine.
-    auto D = buildVarDecl(*this, Loc, PD->getType(), PD->getIdentifier());
+    auto *D = buildVarDecl(*this, Loc, PD->getType(), PD->getIdentifier());
     AddInitializerToDecl(D, CExpr, /*DirectInit=*/true);
 
     // Convert decl to a statement.
@@ -1690,7 +1845,8 @@ ClassTemplateDecl *Sema::lookupCoroutineTraits(SourceLocation KwLoc,
     // discovered.
     // TODO: Become stricter when <experimental/coroutine> is removed.
 
-    auto const &TraitIdent = PP.getIdentifierTable().get("coroutine_traits");
+    IdentifierInfo const &TraitIdent =
+        PP.getIdentifierTable().get("coroutine_traits");
 
     NamespaceDecl *StdSpace = getStdNamespace();
     LookupResult ResStd(*this, &TraitIdent, FuncLoc, LookupOrdinaryName);
@@ -1708,7 +1864,7 @@ ClassTemplateDecl *Sema::lookupCoroutineTraits(SourceLocation KwLoc,
     }
 
     // Prefer ::std to std::experimental.
-    auto &Result = InStd ? ResStd : ResExp;
+    LookupResult &Result = InStd ? ResStd : ResExp;
     CoroTraitsNamespaceCache = InStd ? StdSpace : ExpSpace;
 
     // coroutine_traits is required to be a class template.
@@ -1725,7 +1881,7 @@ ClassTemplateDecl *Sema::lookupCoroutineTraits(SourceLocation KwLoc,
       Diag(KwLoc, diag::warn_deprecated_coroutine_namespace)
           << "coroutine_traits";
       ResExp.suppressDiagnostics();
-      auto *Found = *ResExp.begin();
+      NamedDecl *Found = *ResExp.begin();
       Diag(Found->getLocation(), diag::note_entity_declared_at) << Found;
 
       if (InStd &&

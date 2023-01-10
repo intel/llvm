@@ -1,3 +1,7 @@
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${LIBC_TARGET_OS})
+  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/${LIBC_TARGET_OS})
+endif()
+
 add_object_library(
   time_utils
   SRCS
@@ -7,7 +11,7 @@ add_object_library(
   DEPENDS
     libc.include.errno
     libc.include.time
-    libc.src.errno.__errno_location
+    libc.src.errno.errno
 )
 
 add_entrypoint_object(
@@ -30,6 +34,44 @@ add_entrypoint_object(
   DEPENDS
     .time_utils
     libc.include.time
+)
+
+add_entrypoint_object(
+  clock_gettime
+  SRCS
+    clock_gettime.cpp
+  HDRS
+    clock_gettime.h
+  DEPENDS
+    libc.include.time
+    libc.include.sys_syscall
+    libc.src.__support.OSUtil.osutil
+    libc.src.errno.errno
+)
+
+add_entrypoint_object(
+  difftime
+  SRCS
+    difftime.cpp
+  HDRS
+    difftime.h
+  DEPENDS
+    libc.include.time
+)
+
+add_entrypoint_object(
+  gettimeofday
+  SRCS
+    gettimeofday.cpp
+  HDRS
+    gettimeofday.h
+  DEPENDS
+    .clock_gettime
+    libc.include.errno
+    libc.include.time
+    libc.include.sys_syscall
+    libc.src.__support.OSUtil.osutil
+    libc.src.errno.errno
 )
 
 add_entrypoint_object(
@@ -64,5 +106,33 @@ add_entrypoint_object(
     .time_utils
     libc.include.errno
     libc.include.time
-    libc.src.errno.__errno_location
+    libc.src.errno.errno
+)
+
+add_entrypoint_object(
+  nanosleep
+  SRCS
+    nanosleep.cpp
+  HDRS
+    nanosleep.h
+  DEPENDS
+    libc.include.errno
+    libc.include.time
+    libc.include.sys_syscall
+    libc.src.__support.OSUtil.osutil
+    libc.src.errno.errno
+)
+
+add_entrypoint_object(
+  time
+  ALIAS
+  DEPENDS
+    .${LIBC_TARGET_OS}.time
+)
+
+add_entrypoint_object(
+  clock
+  ALIAS
+  DEPENDS
+    .${LIBC_TARGET_OS}.clock
 )

@@ -1242,11 +1242,12 @@ static void **mk_hbw_preferred_hugetlb;
 static void **mk_dax_kmem;
 static void **mk_dax_kmem_all;
 static void **mk_dax_kmem_preferred;
-// Preview of target memory support
 static void *(*kmp_target_alloc_host)(size_t size, int device);
 static void *(*kmp_target_alloc_shared)(size_t size, int device);
 static void *(*kmp_target_alloc_device)(size_t size, int device);
-static void *(*kmp_target_free)(void *ptr, int device);
+static void *(*kmp_target_free_host)(void *ptr, int device);
+static void *(*kmp_target_free_shared)(void *ptr, int device);
+static void *(*kmp_target_free_device)(void *ptr, int device);
 static bool __kmp_target_mem_available;
 #define KMP_IS_TARGET_MEM_SPACE(MS)                                            \
   (MS == llvm_omp_target_host_mem_space ||                                     \
@@ -1257,7 +1258,7 @@ static bool __kmp_target_mem_available;
    MA == llvm_omp_target_shared_mem_alloc ||                                   \
    MA == llvm_omp_target_device_mem_alloc)
 
-#if KMP_OS_UNIX && KMP_DYNAMIC_LIB
+#if KMP_OS_UNIX && KMP_DYNAMIC_LIB && !KMP_OS_DARWIN
 static inline void chk_kind(void ***pkind) {
   KMP_DEBUG_ASSERT(pkind);
   if (*pkind) // symbol found
@@ -1268,7 +1269,7 @@ static inline void chk_kind(void ***pkind) {
 
 void __kmp_init_memkind() {
 // as of 2018-07-31 memkind does not support Windows*, exclude it for now
-#if KMP_OS_UNIX && KMP_DYNAMIC_LIB
+#if KMP_OS_UNIX && KMP_DYNAMIC_LIB && !KMP_OS_DARWIN
   // use of statically linked memkind is problematic, as it depends on libnuma
   kmp_mk_lib_name = "libmemkind.so";
   h_memkind = dlopen(kmp_mk_lib_name, RTLD_LAZY);
@@ -1352,17 +1353,22 @@ void __kmp_fini_memkind() {
   mk_dax_kmem_preferred = NULL;
 #endif
 }
-// Preview of target memory support
+
 void __kmp_init_target_mem() {
   *(void **)(&kmp_target_alloc_host) = KMP_DLSYM("llvm_omp_target_alloc_host");
   *(void **)(&kmp_target_alloc_shared) =
       KMP_DLSYM("llvm_omp_target_alloc_shared");
   *(void **)(&kmp_target_alloc_device) =
       KMP_DLSYM("llvm_omp_target_alloc_device");
-  *(void **)(&kmp_target_free) = KMP_DLSYM("omp_target_free");
-  __kmp_target_mem_available = kmp_target_alloc_host &&
-                               kmp_target_alloc_shared &&
-                               kmp_target_alloc_device && kmp_target_free;
+  *(void **)(&kmp_target_free_host) = KMP_DLSYM("llvm_omp_target_free_host");
+  *(void **)(&kmp_target_free_shared) =
+      KMP_DLSYM("llvm_omp_target_free_shared");
+  *(void **)(&kmp_target_free_device) =
+      KMP_DLSYM("llvm_omp_target_free_device");
+  __kmp_target_mem_available =
+      kmp_target_alloc_host && kmp_target_alloc_shared &&
+      kmp_target_alloc_device && kmp_target_free_host &&
+      kmp_target_free_shared && kmp_target_free_device;
 }
 
 omp_allocator_handle_t __kmpc_init_allocator(int gtid, omp_memspace_handle_t ms,
@@ -1555,6 +1561,9 @@ void *__kmp_alloc(int gtid, size_t algn, size_t size,
   desc.size_orig = size;
   desc.size_a = size + sz_desc + align;
 
+  // Use default allocator if libmemkind is not available
+  int use_default_allocator = (__kmp_memkind_available) ? false : true;
+
   if (__kmp_memkind_available) {
     if (allocator < kmp_max_mem_alloc) {
       // pre-defined allocator
@@ -1633,11 +1642,25 @@ void *__kmp_alloc(int gtid, size_t algn, size_t size,
 
     // pre-defined allocator
     if (allocator == omp_high_bw_mem_alloc) {
-      // ptr = NULL;
+      KMP_WARNING(OmpNoAllocator, "omp_high_bw_mem_alloc");
     } else if (allocator == omp_large_cap_mem_alloc) {
-      // warnings?
-    } else {
+      KMP_WARNING(OmpNoAllocator, "omp_large_cap_mem_alloc");
+    } else if (allocator == omp_const_mem_alloc) {
+      KMP_WARNING(OmpNoAllocator, "omp_const_mem_alloc");
+    } else if (allocator == omp_low_lat_mem_alloc) {
+      KMP_WARNING(OmpNoAllocator, "omp_low_lat_mem_alloc");
+    } else if (allocator == omp_cgroup_mem_alloc) {
+      KMP_WARNING(OmpNoAllocator, "omp_cgroup_mem_alloc");
+    } else if (allocator == omp_pteam_mem_alloc) {
+      KMP_WARNING(OmpNoAllocator, "omp_pteam_mem_alloc");
+    } else if (allocator == omp_thread_mem_alloc) {
+      KMP_WARNING(OmpNoAllocator, "omp_thread_mem_alloc");
+    } else { // default allocator requested
+      use_default_allocator = true;
+    }
+    if (use_default_allocator) {
       ptr = __kmp_thread_malloc(__kmp_thread_from_gtid(gtid), desc.size_a);
+      use_default_allocator = false;
     }
   } else if (KMP_IS_TARGET_MEM_SPACE(al->memspace)) {
     if (__kmp_target_mem_available) {
@@ -1775,13 +1798,18 @@ void ___kmpc_free(int gtid, void *ptr, omp_allocator_handle_t allocator) {
   kmp_mem_desc_t desc;
   kmp_uintptr_t addr_align; // address to return to caller
   kmp_uintptr_t addr_descr; // address of memory block descriptor
-  if (KMP_IS_TARGET_MEM_ALLOC(allocator) ||
-      (allocator > kmp_max_mem_alloc &&
-       KMP_IS_TARGET_MEM_SPACE(al->memspace))) {
-    KMP_DEBUG_ASSERT(kmp_target_free);
+  if (__kmp_target_mem_available && (KMP_IS_TARGET_MEM_ALLOC(allocator) ||
+                                     (allocator > kmp_max_mem_alloc &&
+                                      KMP_IS_TARGET_MEM_SPACE(al->memspace)))) {
     kmp_int32 device =
         __kmp_threads[gtid]->th.th_current_task->td_icvs.default_device;
-    kmp_target_free(ptr, device);
+    if (allocator == llvm_omp_target_host_mem_alloc) {
+      kmp_target_free_host(ptr, device);
+    } else if (allocator == llvm_omp_target_shared_mem_alloc) {
+      kmp_target_free_shared(ptr, device);
+    } else if (allocator == llvm_omp_target_device_mem_alloc) {
+      kmp_target_free_device(ptr, device);
+    }
     return;
   }
 

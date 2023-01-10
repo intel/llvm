@@ -78,5 +78,5 @@ vec_int2 lax_vector_compare2(long long x, vec_int2 y) {
   return y;
 }
 
-// CHECK: define{{.*}} void @lax_vector_compare2(<2 x i32>* {{.*sret.*}}, i64 {{.*}}, i64 {{.*}})
+// CHECK: define{{.*}} void @lax_vector_compare2(ptr {{.*sret.*}}, i64 {{.*}}, i64 {{.*}})
 // CHECK: icmp eq <2 x i32>
