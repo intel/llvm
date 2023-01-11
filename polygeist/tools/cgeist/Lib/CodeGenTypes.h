@@ -23,10 +23,10 @@ class ASTContext;
 class CodeGenOptions;
 class FunctionDecl;
 class GlobalDecl;
-class RecordType;
 class RecordDecl;
 class BuiltinType;
 class QualType;
+class RecordType;
 class Type;
 
 namespace CodeGen {

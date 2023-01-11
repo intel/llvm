@@ -1658,13 +1658,6 @@ mlir::Type CodeGenTypes::getMLIRType(const clang::BuiltinType *BT) const {
   case BuiltinType::Float16:
   case BuiltinType::Half:
   case BuiltinType::BFloat16:
-    CGEIST_WARNING({
-      if (CGM.getTarget().shouldEmitFloat16WithExcessPrecision()) {
-        llvm::WithColor::warning() << "Experimental usage of _Float16. Code "
-                                      "generated will be illegal "
-                                      "for this target. Use with caution.\n";
-      }
-    });
     return Builder.getF16Type();
 
   case BuiltinType::Float:

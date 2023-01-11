@@ -3,7 +3,6 @@
 
 // COM: sapphirerapids supports _Float16 natively
 
-// CHECK-EXTEND: warning: Experimental usage of _Float16.
 // CHECK-NATIVE-NOT: warning: Experimental usage of _Float16.
 
 // CHECK-EXTEND-LABEL:  func.func @type(%arg0: f16) -> f16
