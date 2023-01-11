@@ -1,6 +1,3 @@
-; FIXME: disabled to unblock PD, working on a fix
-; XFAIL: *
-
 ; REQUIRES: plugins
 ; RUN: bugpoint -load %llvmshlibdir/BugpointPasses%pluginext %s -output-prefix %t -bugpoint-crashcalls -silence-passes -disable-namedmd-remove -disable-strip-debuginfo -disable-strip-debug-types -opt-args -opaque-pointers > /dev/null
 ; RUN: llvm-dis -opaque-pointers %t-reduced-simplified.bc -o - | FileCheck %s
