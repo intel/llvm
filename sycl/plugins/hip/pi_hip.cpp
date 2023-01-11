@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <chrono>
 #include <hip/hip_runtime.h>
 #include <limits>
 #include <memory>
@@ -605,7 +606,7 @@ pi_uint64 _pi_event::get_start_time() const {
   assert(is_started());
 
   PI_CHECK_ERROR(
-      hipEventElapsedTime(&miliSeconds, context_->evBase_, evStart_));
+      hipEventElapsedTime(&miliSeconds, _pi_platform::evBase_, evStart_));
   return static_cast<pi_uint64>(miliSeconds * 1.0e6);
 }
 
@@ -613,7 +614,8 @@ pi_uint64 _pi_event::get_end_time() const {
   float miliSeconds = 0.0f;
   assert(is_started() && is_recorded());
 
-  PI_CHECK_ERROR(hipEventElapsedTime(&miliSeconds, context_->evBase_, evEnd_));
+  PI_CHECK_ERROR(
+      hipEventElapsedTime(&miliSeconds, _pi_platform::evBase_, evEnd_));
   return static_cast<pi_uint64>(miliSeconds * 1.0e6);
 }
 
@@ -1988,10 +1990,16 @@ pi_result hip_piContextCreate(const pi_context_properties *properties,
           _pi_context::kind::user_defined, newContext, *devices});
     }
 
-    // Use default stream to record base event counter
-    PI_CHECK_ERROR(
-        hipEventCreateWithFlags(&piContextPtr->evBase_, hipEventDefault));
-    PI_CHECK_ERROR(hipEventRecord(piContextPtr->evBase_, 0));
+    static std::once_flag initFlag;
+    std::call_once(
+        initFlag,
+        [](pi_result &err) {
+          // Use default stream to record base event counter
+          PI_CHECK_ERROR(
+              hipEventCreateWithFlags(&_pi_platform::evBase_, hipEventDefault));
+          PI_CHECK_ERROR(hipEventRecord(_pi_platform::evBase_, 0));
+        },
+        errcode_ret);
 
     // For non-primary scoped contexts keep the last active on top of the stack
     // as `cuCtxCreate` replaces it implicitly otherwise.
@@ -2020,8 +2028,6 @@ pi_result hip_piContextRelease(pi_context ctxt) {
   ctxt->invoke_extended_deleters();
 
   std::unique_ptr<_pi_context> context{ctxt};
-
-  PI_CHECK_ERROR(hipEventDestroy(context->evBase_));
 
   if (!ctxt->is_primary()) {
     hipCtx_t hipCtxt = ctxt->get();
@@ -3728,6 +3734,7 @@ pi_result hip_piEventGetProfilingInfo(pi_event event,
   switch (param_name) {
   case PI_PROFILING_INFO_COMMAND_QUEUED:
   case PI_PROFILING_INFO_COMMAND_SUBMIT:
+    // Note: No user for this case
     return getInfo<pi_uint64>(param_value_size, param_value,
                               param_value_size_ret, event->get_queued_time());
   case PI_PROFILING_INFO_COMMAND_START:
@@ -5229,6 +5236,34 @@ pi_result hip_piTearDown(void *PluginParameter) {
   return PI_SUCCESS;
 }
 
+pi_result hip_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
+                                      uint64_t *HostTime) {
+  _pi_event::native_type event;
+
+  ScopedContext active(Device->get_context());
+
+  if (DeviceTime) {
+    PI_CHECK_ERROR(hipEventCreateWithFlags(&event, hipEventDefault));
+    PI_CHECK_ERROR(hipEventRecord(event));
+  }
+  if (HostTime) {
+    using namespace std::chrono;
+    *HostTime =
+        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
+            .count();
+  }
+
+  if (DeviceTime) {
+    PI_CHECK_ERROR(hipEventSynchronize(event));
+
+    float elapsedTime = 0.0f;
+    PI_CHECK_ERROR(
+        hipEventElapsedTime(&elapsedTime, _pi_platform::evBase_, event));
+    *DeviceTime = (uint64_t)(elapsedTime * (double)1e6);
+  }
+  return PI_SUCCESS;
+}
+
 const char SupportedVersion[] = _PI_HIP_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -5371,6 +5406,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextKernelSetArgSampler, hip_piextKernelSetArgSampler)
   _PI_CL(piPluginGetLastError, hip_piPluginGetLastError)
   _PI_CL(piTearDown, hip_piTearDown)
+  _PI_CL(piGetDeviceAndHostTimer, hip_piGetDeviceAndHostTimer)
 
 #undef _PI_CL
 
@@ -5378,3 +5414,5 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 }
 
 } // extern "C"
+
+hipEvent_t _pi_platform::evBase_{nullptr};
