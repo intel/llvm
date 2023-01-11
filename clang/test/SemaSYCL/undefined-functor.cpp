@@ -19,7 +19,6 @@ class FunctorWithCallOpDefined {
 };
 
 class FunctorWithCallOpTemplated {
-  int x;
   public:
   template <int x = 0>
   void operator()() const {}
