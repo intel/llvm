@@ -1052,8 +1052,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       // call.
       MPM.addPass(SYCLLowerWGLocalMemoryPass());
 
-      if (CodeGenOpts.DisableSYCLEarlyOpts)
-        MPM.addPass(CompileTimePropertiesPass());
+      // Process properties and annotations
+      MPM.addPass(CompileTimePropertiesPass());
     }
   }
 
