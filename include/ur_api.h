@@ -3305,15 +3305,12 @@ urDeviceCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pDeviceTimestamp`
-///         + `NULL == pHostTimestamp`
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceGetGlobalTimestamps(
     ur_device_handle_t hDevice,                     ///< [in] handle of the device instance
-    uint64_t* pDeviceTimestamp,                     ///< [out] pointer to the Device's global timestamp that 
+    uint64_t* pDeviceTimestamp,                     ///< [out][optional] pointer to the Device's global timestamp that 
                                                     ///< correlates with the Host's global timestamp value
-    uint64_t* pHostTimestamp                        ///< [out] pointer to the Host's global timestamp that 
+    uint64_t* pHostTimestamp                        ///< [out][optional] pointer to the Host's global timestamp that 
                                                     ///< correlates with the Device's global timestamp value
     );
 
