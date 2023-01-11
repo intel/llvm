@@ -145,8 +145,8 @@ hint, which can be ignored.
 [options="header"]
 |====
 2+^| Layout ^| Enabling capability 
-| 0 | *ColumnMajor*            |  *{capability_name}*
-| 1 | *RowMajor*               |  *{capability_name}*
+| 0 | *RowMajor*            |  *{capability_name}*
+| 1 | *ColumnMajor*               |  *{capability_name}*
 | 2 | *Packed* +
 Suitable for VNNI instructions | *{capability_name}*
 | 3 | *Unused* +
