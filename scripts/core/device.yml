@@ -592,10 +592,10 @@ params:
     - type: "uint64_t*"
       name: pDeviceTimestamp
       desc: | 
-            [out] pointer to the Device's global timestamp that 
+            [out][optional] pointer to the Device's global timestamp that 
             correlates with the Host's global timestamp value
     - type: "uint64_t*"
       name: pHostTimestamp
       desc: |
-            [out] pointer to the Host's global timestamp that 
+            [out][optional] pointer to the Host's global timestamp that 
             correlates with the Device's global timestamp value
