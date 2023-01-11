@@ -120,7 +120,7 @@ SPIRVLLVMTranslator::loadSPIRVKernel(llvm::LLVMContext &LLVMCtx,
   return std::move(NewMod);
 }
 
-Expected<jit_compiler::SPIRVBinary *>
+Expected<jit_compiler::KernelBinary *>
 SPIRVLLVMTranslator::translateLLVMtoSPIRV(Module &Mod, JITContext &JITCtx) {
   std::ostringstream BinaryStream;
   std::string ErrMsg;
@@ -131,5 +131,5 @@ SPIRVLLVMTranslator::translateLLVMtoSPIRV(Module &Mod, JITContext &JITCtx) {
         "Translation of LLVM IR to SPIR-V failed with error %s",
         ErrMsg.c_str());
   }
-  return &JITCtx.emplaceSPIRVBinary(BinaryStream.str());
+  return &JITCtx.emplaceSPIRVBinary(BinaryStream.str(), BinaryFormat::SPIRV);
 }

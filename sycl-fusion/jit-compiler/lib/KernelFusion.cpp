@@ -15,7 +15,7 @@
 #include "fusion/FusionPipeline.h"
 #include "helper/ConfigHelper.h"
 #include "helper/ErrorHandling.h"
-#include "translation/LoadKernels.h"
+#include "translation/KernelTranslation.h"
 #include "translation/SPIRVLLVMTranslation.h"
 #include <llvm/Support/Error.h>
 #include <sstream>
@@ -98,8 +98,8 @@ FusionResult KernelFusion::fuseKernels(
   // Load all input kernels from their respective SPIR-V modules into a single
   // LLVM IR module.
   llvm::Expected<std::unique_ptr<llvm::Module>> ModOrError =
-      translation::KernelLoader::loadKernels(*JITCtx.getLLVMContext(),
-                                             ModuleInfo.kernels());
+      translation::KernelTranslator::loadKernels(*JITCtx.getLLVMContext(),
+                                                 ModuleInfo.kernels());
   if (auto Error = ModOrError.takeError()) {
     return errorToFusionResult(std::move(Error), "SPIR-V translation failed");
   }
@@ -137,14 +137,14 @@ FusionResult KernelFusion::fuseKernels(
 
   SYCLKernelInfo &FusedKernelInfo = *NewModInfo->getKernelFor(FusedKernelName);
 
-  // Translate the LLVM IR module resulting from the fusion pass into SPIR-V.
-  llvm::Expected<jit_compiler::SPIRVBinary *> BinaryOrError =
-      translation::SPIRVLLVMTranslator::translateLLVMtoSPIRV(*NewMod, JITCtx);
-  if (auto Error = BinaryOrError.takeError()) {
+  // TODO
+  BinaryFormat TargetFormat = ConfigHelper::get<option::JITTargetFormat>();
+
+  if (auto Error = translation::KernelTranslator::translateKernel(
+          FusedKernelInfo, *NewMod, JITCtx, TargetFormat)) {
     return errorToFusionResult(std::move(Error),
-                               "Translation to SPIR-V failed");
+                               "Translation to output format failed");
   }
-  jit_compiler::SPIRVBinary *SPIRVBin = *BinaryOrError;
 
   FusedKernelInfo.NDR = FusedKernel.FusedNDRange;
 

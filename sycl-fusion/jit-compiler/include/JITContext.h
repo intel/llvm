@@ -36,17 +36,21 @@ using CacheKeyT =
                std::optional<std::vector<NDRange>>>;
 
 ///
-/// Wrapper around a SPIR-V binary.
-class SPIRVBinary {
+/// Wrapper around a kernel binary.
+class KernelBinary {
 public:
-  explicit SPIRVBinary(std::string Binary);
+  explicit KernelBinary(std::string Binary, BinaryFormat Format);
 
   jit_compiler::BinaryAddress address() const;
 
   size_t size() const;
 
+  BinaryFormat format() const;
+
 private:
   std::string Blob;
+
+  BinaryFormat Format;
 };
 
 ///
@@ -61,7 +65,8 @@ public:
 
   llvm::LLVMContext *getLLVMContext();
 
-  SPIRVBinary &emplaceSPIRVBinary(std::string Binary);
+  KernelBinary &emplaceSPIRVBinary(std::string Binary,
+                                   BinaryFormat Format);
 
   std::optional<SYCLKernelInfo> getCacheEntry(CacheKeyT &Identifier) const;
 
@@ -79,11 +84,12 @@ private:
 
   MutexT BinariesMutex;
 
-  std::vector<SPIRVBinary> Binaries;
+  std::vector<KernelBinary> Binaries;
 
   mutable MutexT CacheMutex;
 
   std::unordered_map<CacheKeyT, SYCLKernelInfo> Cache;
+  
 };
 } // namespace jit_compiler
 

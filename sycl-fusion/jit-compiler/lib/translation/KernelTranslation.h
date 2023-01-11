@@ -1,4 +1,4 @@
-//==-- LoadKernels.h - Load LLVM IR for SYCL kernels in different formats  -==//
+//==- KernelTranslation - Translate SYCL kernels between different formats -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "JITContext.h"
 #include "Kernel.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
@@ -15,11 +16,14 @@
 namespace jit_compiler {
 namespace translation {
 
-class KernelLoader {
+class KernelTranslator {
 
 public:
   static llvm::Expected<std::unique_ptr<llvm::Module>>
   loadKernels(llvm::LLVMContext &LLVMCtx, std::vector<SYCLKernelInfo> &Kernels);
+
+  static llvm::Error translateKernel(SYCLKernelInfo &Kernel, llvm::Module &Mod,
+                              JITContext &JITCtx, BinaryFormat Format);
 
 private:
   ///
@@ -31,6 +35,12 @@ private:
 
   static llvm::Expected<std::unique_ptr<llvm::Module>>
   loadSPIRVKernel(llvm::LLVMContext &LLVMCtx, SYCLKernelInfo &Kernel);
+
+  static llvm::Expected<KernelBinary *> translateToSPIRV(llvm::Module &Mod,
+                                                         JITContext &JITCtx);
+
+  static llvm::Expected<KernelBinary *> translateToPTX(llvm::Module &Mod,
+                                                       JITContext &JITCtx);
 };
 } // namespace translation
 } // namespace jit_compiler

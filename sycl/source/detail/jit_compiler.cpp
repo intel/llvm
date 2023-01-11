@@ -39,6 +39,21 @@ translateBinaryImageFormat(pi::PiDeviceBinaryType Type) {
   }
 }
 
+::jit_compiler::BinaryFormat getTargetFormat(QueueImplPtr &Queue) {
+  auto Backend = Queue->getDeviceImplPtr()->getPlugin().getBackend();
+  switch (Backend) {
+  case backend::ext_oneapi_level_zero:
+  case backend::opencl:
+    return ::jit_compiler::BinaryFormat::SPIRV;
+  case backend::ext_oneapi_cuda:
+    return ::jit_compiler::BinaryFormat::PTX;
+  default:
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Backend unsupported by kernel fusion");
+  }
+}
+
 std::pair<const RTDeviceBinaryImage *, RT::PiProgram>
 retrieveKernelBinary(QueueImplPtr &Queue, CGExecKernel *KernelCG) {
   auto KernelName = KernelCG->getKernelName();
@@ -796,6 +811,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   JITConfig.set<::jit_compiler::option::JITEnableVerbose>(DebugEnabled);
   JITConfig.set<::jit_compiler::option::JITEnableCaching>(
       detail::SYCLConfig<detail::SYCL_ENABLE_FUSION_CACHING>::get());
+  JITConfig.set<::jit_compiler::option::JITTargetFormat>(
+      getTargetFormat(Queue));
 
   auto FusionResult = ::jit_compiler::KernelFusion::fuseKernels(
       *MJITContext, std::move(JITConfig), InputKernelInfo, InputKernelNames,

@@ -2,7 +2,7 @@
 add_llvm_library(sycl-fusion
    lib/KernelFusion.cpp
    lib/JITContext.cpp
-   lib/translation/LoadKernels.cpp
+   lib/translation/KernelTranslation.cpp
    lib/translation/SPIRVLLVMTranslation.cpp
    lib/fusion/FusionPipeline.cpp
    lib/fusion/FusionHelper.cpp
@@ -20,6 +20,10 @@ add_llvm_library(sycl-fusion
    Linker
    ScalarOpts
    InstCombine
+   Target
+   NVPTX
+   X86
+   MC
 )
 
 target_include_directories(sycl-fusion

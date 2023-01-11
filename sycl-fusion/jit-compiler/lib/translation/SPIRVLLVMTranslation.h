@@ -30,7 +30,7 @@ public:
   ///
   /// Translate the LLVM IR module Mod to SPIR-V, store it in the JITContext and
   /// return a pointer to its container.
-  static llvm::Expected<SPIRVBinary *> translateLLVMtoSPIRV(llvm::Module &Mod,
+  static llvm::Expected<KernelBinary *> translateLLVMtoSPIRV(llvm::Module &Mod,
                                                             JITContext &JITCtx);
 
 private:

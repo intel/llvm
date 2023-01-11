@@ -1,4 +1,4 @@
-//==-------------------------- LoadKernels.cpp  ----------------------------==//
+//==----------------------- KernelTranslation.cpp  -------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,19 +6,24 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "LoadKernels.h"
+#include "KernelTranslation.h"
 #include "SPIRVLLVMTranslation.h"
 #include "llvm/Bitcode/BitcodeReader.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Linker/Linker.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/TargetSelect.h"
+#include "llvm/Target/TargetMachine.h"
+#include "llvm/Target/TargetOptions.h"
 
 using namespace jit_compiler;
 using namespace jit_compiler::translation;
 using namespace llvm;
 
 llvm::Expected<std::unique_ptr<llvm::Module>>
-KernelLoader::loadKernels(llvm::LLVMContext &LLVMCtx,
-                          std::vector<SYCLKernelInfo> &Kernels) {
+KernelTranslator::loadKernels(llvm::LLVMContext &LLVMCtx,
+                              std::vector<SYCLKernelInfo> &Kernels) {
   std::unique_ptr<Module> Result{nullptr};
   bool First = true;
   DenseSet<BinaryBlob> ParsedBinaries;
@@ -100,8 +105,8 @@ KernelLoader::loadKernels(llvm::LLVMContext &LLVMCtx,
 }
 
 llvm::Expected<std::unique_ptr<llvm::Module>>
-KernelLoader::loadLLVMKernel(llvm::LLVMContext &LLVMCtx,
-                             SYCLKernelInfo &Kernel) {
+KernelTranslator::loadLLVMKernel(llvm::LLVMContext &LLVMCtx,
+                                 SYCLKernelInfo &Kernel) {
   auto &BinInfo = Kernel.BinaryInfo;
   llvm::StringRef RawData(reinterpret_cast<const char *>(BinInfo.BinaryStart),
                           BinInfo.BinarySize);
@@ -110,7 +115,107 @@ KernelLoader::loadLLVMKernel(llvm::LLVMContext &LLVMCtx,
 }
 
 llvm::Expected<std::unique_ptr<llvm::Module>>
-KernelLoader::loadSPIRVKernel(llvm::LLVMContext &LLVMCtx,
-                              SYCLKernelInfo &Kernel) {
+KernelTranslator::loadSPIRVKernel(llvm::LLVMContext &LLVMCtx,
+                                  SYCLKernelInfo &Kernel) {
   return SPIRVLLVMTranslator::loadSPIRVKernel(LLVMCtx, Kernel);
+}
+
+llvm::Error KernelTranslator::translateKernel(SYCLKernelInfo &Kernel,
+                                              llvm::Module &Mod,
+                                              JITContext &JITCtx,
+                                              BinaryFormat Format) {
+
+  KernelBinary *KernelBin = nullptr;
+  switch (Format) {
+  case BinaryFormat::SPIRV: {
+    llvm::Expected<KernelBinary *> BinaryOrError =
+        translateToSPIRV(Mod, JITCtx);
+    if (auto Error = BinaryOrError.takeError()) {
+      return Error;
+    }
+    KernelBin = *BinaryOrError;
+    break;
+  }
+  case BinaryFormat::PTX: {
+    llvm::Expected<KernelBinary *> BinaryOrError = translateToPTX(Mod, JITCtx);
+    if (auto Error = BinaryOrError.takeError()) {
+      return Error;
+    }
+    KernelBin = *BinaryOrError;
+    break;
+  }
+  default: {
+    return createStringError(
+        inconvertibleErrorCode(),
+        "Failed to translate kernel to unsupported output format");
+  }
+  }
+
+  // Update the KernelInfo for the fused kernel with the address and size of the
+  // SPIR-V binary resulting from translation.
+  SYCLKernelBinaryInfo &FusedBinaryInfo = Kernel.BinaryInfo;
+  FusedBinaryInfo.Format = Format;
+  // Output SPIR-V should use the same number of address bits as the input
+  // SPIR-V. SPIR-V translation requires all modules to use the same number of
+  // address bits, so it's safe to take the value from the first one.
+  FusedBinaryInfo.AddressBits = Mod.getDataLayout().getPointerSizeInBits();
+  FusedBinaryInfo.BinaryStart = KernelBin->address();
+  FusedBinaryInfo.BinarySize = KernelBin->size();
+  return Error::success();
+}
+
+llvm::Expected<KernelBinary *>
+KernelTranslator::translateToSPIRV(llvm::Module &Mod, JITContext &JITCtx) {
+  return SPIRVLLVMTranslator::translateLLVMtoSPIRV(Mod, JITCtx);
+}
+
+llvm::Expected<KernelBinary *>
+KernelTranslator::translateToPTX(llvm::Module &Mod, JITContext &JITCtx) {
+  // FIXME: Can we limit this to the NVPTX specific target?
+  llvm::InitializeAllTargets();
+  llvm::InitializeAllAsmParsers();
+  llvm::InitializeAllAsmPrinters();
+  llvm::InitializeAllTargetMCs();
+
+  std::string TargetTriple{"nvptx64-nvidia-cuda"};
+
+  std::string ErrorMessage;
+  const auto *Target =
+      llvm::TargetRegistry::lookupTarget(TargetTriple, ErrorMessage);
+
+  if (!Target) {
+    return createStringError(
+        inconvertibleErrorCode(),
+        "Failed to load and translate SPIR-V module with error %s",
+        ErrorMessage.c_str());
+  }
+
+  // FIXME: Check whether we can provide more accurate target information here
+  auto *TargetMachine = Target->createTargetMachine(
+      TargetTriple, "sm_50", "+sm_50,+ptx76", {}, llvm::Reloc::PIC_,
+      std::nullopt, llvm::CodeGenOpt::Default);
+
+  llvm::legacy::PassManager PM;
+
+  std::string PTXASM;
+
+  {
+    llvm::raw_string_ostream ASMStream{PTXASM};
+    llvm::buffer_ostream BufferedASM{ASMStream};
+
+    if (TargetMachine->addPassesToEmitFile(PM, BufferedASM, nullptr,
+                                           llvm::CGFT_AssemblyFile)) {
+      return createStringError(
+          inconvertibleErrorCode(),
+          "Failed to construct pass pipeline to emit output");
+    }
+
+    PM.run(Mod);
+    ASMStream.flush();
+  }
+
+  llvm::dbgs() << "PTX size: " << PTXASM.size() << "\n";
+  llvm::dbgs() << "PTX:\n" << PTXASM << "\n";
+
+  return &JITCtx.emplaceSPIRVBinary(PTXASM, BinaryFormat::PTX);
 }
