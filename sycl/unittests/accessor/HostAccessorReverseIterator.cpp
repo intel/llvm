@@ -7,7 +7,7 @@
 #include <type_traits>
 #include <vector>
 
-class AccessorReverseIteratorTest : public ::testing::Test {
+class HostAccessorReverseIteratorTest : public ::testing::Test {
 public:
   template <int Dimensions, typename T = int>
   void checkWriteThroughIterator(const sycl::range<Dimensions> &fullShape,
@@ -176,16 +176,16 @@ private:
 
 // FIXME: consider turning this into parameterized test to check various
 // accessor types
-TEST_F(AccessorReverseIteratorTest, IteratorTraits) {
-  using IteratorT = sycl::accessor<int>::reverse_iterator;
+TEST_F(HostAccessorReverseIteratorTest, IteratorTraits) {
+  using IteratorT = sycl::host_accessor<int>::reverse_iterator;
   ASSERT_TRUE(
-      (std::is_same_v<sycl::accessor<int>::difference_type,
+      (std::is_same_v<sycl::host_accessor<int>::difference_type,
                       std::iterator_traits<IteratorT>::difference_type>));
-  ASSERT_TRUE((std::is_same_v<sycl::accessor<int>::value_type,
+  ASSERT_TRUE((std::is_same_v<sycl::host_accessor<int>::value_type,
                               std::iterator_traits<IteratorT>::value_type>));
-  ASSERT_TRUE((std::is_same_v<sycl::accessor<int>::value_type *,
+  ASSERT_TRUE((std::is_same_v<sycl::host_accessor<int>::value_type *,
                               std::iterator_traits<IteratorT>::pointer>));
-  ASSERT_TRUE((std::is_same_v<sycl::accessor<int>::reference,
+  ASSERT_TRUE((std::is_same_v<sycl::host_accessor<int>::reference,
                               std::iterator_traits<IteratorT>::reference>));
   ASSERT_TRUE(
       (std::is_same_v<std::random_access_iterator_tag,
@@ -194,8 +194,9 @@ TEST_F(AccessorReverseIteratorTest, IteratorTraits) {
 
 // Based on requirements listed at
 // https://en.cppreference.com/w/cpp/named_req/RandomAccessIterator
-TEST_F(AccessorReverseIteratorTest, LegacyRandomAccessIteratorRequirements) {
-  using IteratorT = sycl::accessor<int>::reverse_iterator;
+TEST_F(HostAccessorReverseIteratorTest,
+       LegacyRandomAccessIteratorRequirements) {
+  using IteratorT = sycl::host_accessor<int>::reverse_iterator;
   IteratorT It;
   auto &RefToIt = It;
   ASSERT_TRUE((std::is_same_v<IteratorT &, decltype(RefToIt += 3)>));
@@ -217,7 +218,8 @@ TEST_F(AccessorReverseIteratorTest, LegacyRandomAccessIteratorRequirements) {
 
 // Based on notes listed at
 // https://en.cppreference.com/w/cpp/named_req/RandomAccessIterator
-TEST_F(AccessorReverseIteratorTest, LegacyRandomAccessIteratorRequirementsExtra) {
+TEST_F(HostAccessorReverseIteratorTest,
+       LegacyRandomAccessIteratorRequirementsExtra) {
   std::vector<int> reference(6);
   std::iota(reference.begin(), reference.end(), 0);
   sycl::buffer<int> buffer(reference.data(), sycl::range<1>{reference.size()});
@@ -296,8 +298,9 @@ TEST_F(AccessorReverseIteratorTest, LegacyRandomAccessIteratorRequirementsExtra)
 
 // Based on requirements listed at
 // https://en.cppreference.com/w/cpp/named_req/BidirectionalIterator
-TEST_F(AccessorReverseIteratorTest, LegacyBidirectionalIteratorRequirements) {
-  using IteratorT = sycl::accessor<int>::reverse_iterator;
+TEST_F(HostAccessorReverseIteratorTest,
+       LegacyBidirectionalIteratorRequirements) {
+  using IteratorT = sycl::host_accessor<int>::reverse_iterator;
   IteratorT It;
   ASSERT_TRUE((std::is_same_v<IteratorT &, decltype(--It)>));
   ASSERT_TRUE((std::is_convertible_v<decltype(It--), const IteratorT &>));
@@ -307,8 +310,8 @@ TEST_F(AccessorReverseIteratorTest, LegacyBidirectionalIteratorRequirements) {
 
 // Based on requirements listed at
 // https://en.cppreference.com/w/cpp/named_req/ForwardIterator
-TEST_F(AccessorReverseIteratorTest, LegacyForwardIteratorRequirements) {
-  using IteratorT = sycl::accessor<int>::reverse_iterator;
+TEST_F(HostAccessorReverseIteratorTest, LegacyForwardIteratorRequirements) {
+  using IteratorT = sycl::host_accessor<int>::reverse_iterator;
   ASSERT_TRUE(std::is_default_constructible_v<IteratorT>);
   IteratorT It;
   ASSERT_TRUE((std::is_same_v<IteratorT, decltype(It++)>));
@@ -319,7 +322,7 @@ TEST_F(AccessorReverseIteratorTest, LegacyForwardIteratorRequirements) {
   ASSERT_TRUE((std::is_convertible_v<decltype(It != It2), bool>));
 }
 
-TEST_F(AccessorReverseIteratorTest, MultipassGuarantee) {
+TEST_F(HostAccessorReverseIteratorTest, MultipassGuarantee) {
   std::vector<int> reference(5);
   std::iota(reference.begin(), reference.end(), 0);
   sycl::buffer<int> buffer(reference.data(), sycl::range<1>{reference.size()});
@@ -340,8 +343,8 @@ TEST_F(AccessorReverseIteratorTest, MultipassGuarantee) {
 
 // Based on requirements listead at
 // https://en.cppreference.com/w/cpp/named_req/Iterator
-TEST_F(AccessorReverseIteratorTest, LegacyIteratorRequirements) {
-  using IteratorT = sycl::accessor<int>::reverse_iterator;
+TEST_F(HostAccessorReverseIteratorTest, LegacyIteratorRequirements) {
+  using IteratorT = sycl::host_accessor<int>::reverse_iterator;
   ASSERT_TRUE(std::is_copy_constructible_v<IteratorT>);
   ASSERT_TRUE(std::is_copy_assignable_v<IteratorT>);
   ASSERT_TRUE(std::is_destructible_v<IteratorT>);
@@ -352,18 +355,18 @@ TEST_F(AccessorReverseIteratorTest, LegacyIteratorRequirements) {
                               decltype(*It)>));
 }
 
-TEST_F(AccessorReverseIteratorTest, FullCopy1D) {
+TEST_F(HostAccessorReverseIteratorTest, FullCopy1D) {
   ASSERT_NO_FATAL_FAILURE(checkFullCopyThroughIterator(sycl::range<1>{10}));
 }
 
-TEST_F(AccessorReverseIteratorTest, FullCopy2D) {
+TEST_F(HostAccessorReverseIteratorTest, FullCopy2D) {
   ASSERT_NO_FATAL_FAILURE(checkFullCopyThroughIterator(sycl::range<2>{2, 5}));
   ASSERT_NO_FATAL_FAILURE(checkFullCopyThroughIterator(sycl::range<2>{5, 2}));
   ASSERT_NO_FATAL_FAILURE(checkFullCopyThroughIterator(sycl::range<2>{1, 10}));
   ASSERT_NO_FATAL_FAILURE(checkFullCopyThroughIterator(sycl::range<2>{10, 1}));
 }
 
-TEST_F(AccessorReverseIteratorTest, FullCopy3D) {
+TEST_F(HostAccessorReverseIteratorTest, FullCopy3D) {
   ASSERT_NO_FATAL_FAILURE(
       checkFullCopyThroughIterator(sycl::range<3>{3, 3, 3}));
   ASSERT_NO_FATAL_FAILURE(
@@ -374,14 +377,14 @@ TEST_F(AccessorReverseIteratorTest, FullCopy3D) {
       checkFullCopyThroughIterator(sycl::range<3>{3, 3, 1}));
 }
 
-TEST_F(AccessorReverseIteratorTest, PartialCopyWithoutOffset1D) {
+TEST_F(HostAccessorReverseIteratorTest, PartialCopyWithoutOffset1D) {
   ASSERT_NO_FATAL_FAILURE(
       checkPartialCopyThroughIterator(sycl::range<1>{10}, sycl::range<1>{5}));
   ASSERT_NO_FATAL_FAILURE(
       checkPartialCopyThroughIterator(sycl::range<1>{10}, sycl::range<1>{10}));
 }
 
-TEST_F(AccessorReverseIteratorTest, PartialCopyWithoutOffset2D) {
+TEST_F(HostAccessorReverseIteratorTest, PartialCopyWithoutOffset2D) {
   ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
       sycl::range<2>{5, 5}, sycl::range<2>{3, 3}));
   ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
@@ -394,7 +397,7 @@ TEST_F(AccessorReverseIteratorTest, PartialCopyWithoutOffset2D) {
       sycl::range<2>{5, 5}, sycl::range<2>{3, 2}));
 }
 
-TEST_F(AccessorReverseIteratorTest, PartialCopyWithoutOffset3D) {
+TEST_F(HostAccessorReverseIteratorTest, PartialCopyWithoutOffset3D) {
   ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
       sycl::range<3>{5, 5, 5}, sycl::range<3>{3, 3, 3}));
   ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
@@ -409,14 +412,14 @@ TEST_F(AccessorReverseIteratorTest, PartialCopyWithoutOffset3D) {
       sycl::range<3>{5, 5, 5}, sycl::range<3>{1, 2, 3}));
 }
 
-TEST_F(AccessorReverseIteratorTest, PartialCopyWithOffset1D) {
+TEST_F(HostAccessorReverseIteratorTest, PartialCopyWithOffset1D) {
   ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
       sycl::range<1>{10}, sycl::range<1>{5}, sycl::id<1>{3}));
   ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
       sycl::range<1>{10}, sycl::range<1>{5}, sycl::id<1>{5}));
 }
 
-TEST_F(AccessorReverseIteratorTest, PartialCopyWithOffset2D) {
+TEST_F(HostAccessorReverseIteratorTest, PartialCopyWithOffset2D) {
   ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
       sycl::range<2>{10, 10}, sycl::range<2>{5, 5}, sycl::id<2>{3, 3}));
   ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
@@ -431,7 +434,7 @@ TEST_F(AccessorReverseIteratorTest, PartialCopyWithOffset2D) {
       sycl::range<2>{10, 5}, sycl::range<2>{5, 3}, sycl::id<2>{5, 1}));
 }
 
-TEST_F(AccessorReverseIteratorTest, PartialCopyWithOffset3D) {
+TEST_F(HostAccessorReverseIteratorTest, PartialCopyWithOffset3D) {
   ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
       sycl::range<3>{7, 7, 7}, sycl::range<3>{3, 3, 3}, sycl::id<3>{2, 2, 2}));
   ASSERT_NO_FATAL_FAILURE(checkPartialCopyThroughIterator(
@@ -444,12 +447,12 @@ TEST_F(AccessorReverseIteratorTest, PartialCopyWithOffset3D) {
       sycl::range<3>{9, 8, 7}, sycl::range<3>{3, 4, 5}, sycl::id<3>{3, 2, 1}));
 }
 
-TEST_F(AccessorReverseIteratorTest, FullWrite1D) {
+TEST_F(HostAccessorReverseIteratorTest, FullWrite1D) {
   ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
       sycl::range<1>{10}, sycl::range<1>{10}, sycl::id<1>{0}));
 }
 
-TEST_F(AccessorReverseIteratorTest, FullWrite2D) {
+TEST_F(HostAccessorReverseIteratorTest, FullWrite2D) {
   ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
       sycl::range<2>{5, 5}, sycl::range<2>{5, 5}, sycl::id<2>{0, 0}));
   ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
@@ -458,7 +461,7 @@ TEST_F(AccessorReverseIteratorTest, FullWrite2D) {
       sycl::range<2>{5, 2}, sycl::range<2>{5, 2}, sycl::id<2>{0, 0}));
 }
 
-TEST_F(AccessorReverseIteratorTest, FullWrite3D) {
+TEST_F(HostAccessorReverseIteratorTest, FullWrite3D) {
   ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
       sycl::range<3>{5, 5, 5}, sycl::range<3>{5, 5, 5}, sycl::id<3>{0, 0, 0}));
   ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
@@ -471,12 +474,12 @@ TEST_F(AccessorReverseIteratorTest, FullWrite3D) {
       sycl::range<3>{3, 6, 4}, sycl::range<3>{3, 6, 4}, sycl::id<3>{0, 0, 0}));
 }
 
-TEST_F(AccessorReverseIteratorTest, PartialWriteWithoutOffset1D) {
+TEST_F(HostAccessorReverseIteratorTest, PartialWriteWithoutOffset1D) {
   ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
       sycl::range<1>{10}, sycl::range<1>{5}, sycl::id<1>{0}));
 }
 
-TEST_F(AccessorReverseIteratorTest, PartialWriteWithoutOffset2D) {
+TEST_F(HostAccessorReverseIteratorTest, PartialWriteWithoutOffset2D) {
   ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
       sycl::range<2>{5, 5}, sycl::range<2>{3, 3}, sycl::id<2>{0, 0}));
   ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
@@ -485,7 +488,7 @@ TEST_F(AccessorReverseIteratorTest, PartialWriteWithoutOffset2D) {
       sycl::range<2>{5, 2}, sycl::range<2>{3, 1}, sycl::id<2>{0, 0}));
 }
 
-TEST_F(AccessorReverseIteratorTest, PartialWriteWithoutOffset3D) {
+TEST_F(HostAccessorReverseIteratorTest, PartialWriteWithoutOffset3D) {
   ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
       sycl::range<3>{5, 5, 5}, sycl::range<3>{3, 3, 3}, sycl::id<3>{0, 0, 0}));
   ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
@@ -498,12 +501,12 @@ TEST_F(AccessorReverseIteratorTest, PartialWriteWithoutOffset3D) {
       sycl::range<3>{3, 6, 4}, sycl::range<3>{1, 3, 2}, sycl::id<3>{0, 0, 0}));
 }
 
-TEST_F(AccessorReverseIteratorTest, PartialWriteWithOffset1D) {
+TEST_F(HostAccessorReverseIteratorTest, PartialWriteWithOffset1D) {
   ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
       sycl::range<1>{10}, sycl::range<1>{5}, sycl::id<1>{3}));
 }
 
-TEST_F(AccessorReverseIteratorTest, PartialWriteWithOffset2D) {
+TEST_F(HostAccessorReverseIteratorTest, PartialWriteWithOffset2D) {
   ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
       sycl::range<2>{5, 5}, sycl::range<2>{3, 3}, sycl::id<2>{1, 1}));
   ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
@@ -512,7 +515,7 @@ TEST_F(AccessorReverseIteratorTest, PartialWriteWithOffset2D) {
       sycl::range<2>{5, 3}, sycl::range<2>{3, 1}, sycl::id<2>{1, 1}));
 }
 
-TEST_F(AccessorReverseIteratorTest, PartialWriteWithOffset3D) {
+TEST_F(HostAccessorReverseIteratorTest, PartialWriteWithOffset3D) {
   ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
       sycl::range<3>{5, 5, 5}, sycl::range<3>{3, 3, 3}, sycl::id<3>{1, 1, 1}));
   ASSERT_NO_FATAL_FAILURE(checkWriteThroughIterator(
@@ -525,7 +528,7 @@ TEST_F(AccessorReverseIteratorTest, PartialWriteWithOffset3D) {
       sycl::range<3>{3, 6, 4}, sycl::range<3>{1, 3, 2}, sycl::id<3>{1, 3, 2}));
 }
 
-TEST_F(AccessorReverseIteratorTest, IteratorEquivalentIncrements) {
+TEST_F(HostAccessorReverseIteratorTest, IteratorEquivalentIncrements) {
   std::vector<int> reference(6);
   std::iota(reference.rbegin(), reference.rend(), 0);
   sycl::buffer<int> buffer(reference.data(), sycl::range<1>{reference.size()});
@@ -537,7 +540,7 @@ TEST_F(AccessorReverseIteratorTest, IteratorEquivalentIncrements) {
   ASSERT_TRUE(a == b);
 }
 
-TEST_F(AccessorReverseIteratorTest, IteratorEquivalentDecrements) {
+TEST_F(HostAccessorReverseIteratorTest, IteratorEquivalentDecrements) {
   std::vector<int> reference(6);
   std::iota(reference.rbegin(), reference.rend(), 0);
   sycl::buffer<int> buffer(reference.data(), sycl::range<1>{reference.size()});
@@ -549,7 +552,7 @@ TEST_F(AccessorReverseIteratorTest, IteratorEquivalentDecrements) {
   ASSERT_TRUE(a == b);
 }
 
-TEST_F(AccessorReverseIteratorTest, IteratorSubscriptOperator) {
+TEST_F(HostAccessorReverseIteratorTest, IteratorSubscriptOperator) {
   std::vector<int> reference(6);
   std::iota(reference.rbegin(), reference.rend(), 0);
   sycl::buffer<int> buffer(reference.data(), sycl::range<1>{reference.size()});
@@ -559,7 +562,7 @@ TEST_F(AccessorReverseIteratorTest, IteratorSubscriptOperator) {
   ASSERT_TRUE(a[3] == *(3 + b));
 }
 
-TEST_F(AccessorReverseIteratorTest, IteratorInequalitiesOperators) {
+TEST_F(HostAccessorReverseIteratorTest, IteratorInequalitiesOperators) {
   std::vector<int> reference(6);
   std::iota(reference.rbegin(), reference.rend(), 0);
   sycl::buffer<int> buffer(reference.data(), sycl::range<1>{reference.size()});
