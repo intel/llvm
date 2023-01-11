@@ -56,7 +56,7 @@
 #include "SPIRVLowerConstExpr.h"
 #include "SPIRVLowerMemmove.h"
 #include "SPIRVLowerOCLBlocks.h"
-#include "SPIRVLowerSaddIntrinsics.h"
+#include "SPIRVLowerSaddWithOverflow.h"
 #include "SPIRVMDWalker.h"
 #include "SPIRVMemAliasingINTEL.h"
 #include "SPIRVModule.h"
@@ -3801,19 +3801,25 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     return BM->addBinaryInst(OpFAdd, Ty, Mul,
                              transValue(II->getArgOperand(2), BB), BB);
   }
-  case Intrinsic::usub_sat: {
-    // usub.sat(a, b) -> (a > b) ? a - b : 0
-    SPIRVType *Ty = transType(II->getType());
-    Type *BoolTy = IntegerType::getInt1Ty(M->getContext());
-    SPIRVValue *FirstArgVal = transValue(II->getArgOperand(0), BB);
-    SPIRVValue *SecondArgVal = transValue(II->getArgOperand(1), BB);
+  case Intrinsic::uadd_sat:
+  case Intrinsic::usub_sat:
+  case Intrinsic::sadd_sat:
+  case Intrinsic::ssub_sat: {
+    SPIRVWord ExtOp;
+    if (IID == Intrinsic::uadd_sat)
+      ExtOp = OpenCLLIB::UAdd_sat;
+    else if (IID == Intrinsic::usub_sat)
+      ExtOp = OpenCLLIB::USub_sat;
+    else if (IID == Intrinsic::sadd_sat)
+      ExtOp = OpenCLLIB::SAdd_sat;
+    else
+      ExtOp = OpenCLLIB::SSub_sat;
 
-    SPIRVValue *Sub =
-        BM->addBinaryInst(OpISub, Ty, FirstArgVal, SecondArgVal, BB);
-    SPIRVValue *Cmp = BM->addCmpInst(OpUGreaterThan, transType(BoolTy),
-                                     FirstArgVal, SecondArgVal, BB);
-    SPIRVValue *Zero = transValue(Constant::getNullValue(II->getType()), BB);
-    return BM->addSelectInst(Cmp, Sub, Zero, BB);
+    SPIRVType *Ty = transType(II->getType());
+    std::vector<SPIRVValue *> Operands = {transValue(II->getArgOperand(0), BB),
+                                          transValue(II->getArgOperand(1), BB)};
+    return BM->addExtInst(Ty, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp,
+                          std::move(Operands), BB);
   }
   case Intrinsic::memset: {
     // Generally there is no direct mapping of memset to SPIR-V.  But it turns
@@ -5598,7 +5604,7 @@ void addPassesForSPIRV(ModulePassManager &PassMgr,
   PassMgr.addPass(SPIRVLowerConstExprPass());
   PassMgr.addPass(SPIRVLowerBoolPass());
   PassMgr.addPass(SPIRVLowerMemmovePass());
-  PassMgr.addPass(SPIRVLowerSaddIntrinsicsPass());
+  PassMgr.addPass(SPIRVLowerSaddWithOverflowPass());
   PassMgr.addPass(createModuleToFunctionPassAdaptor(
       SPIRVLowerBitCastToNonStandardTypePass(Opts)));
 }
