@@ -9,7 +9,6 @@
 #ifndef UR_UTIL_H
 #define UR_UTIL_H 1
 
-#include <stdlib.h>
 #include <string.h>
 #include <string>
 
