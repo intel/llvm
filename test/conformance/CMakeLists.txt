@@ -46,7 +46,7 @@ endfunction()
 add_subdirectory(testing)
 
 add_subdirectory(platform)
-# add_subdirectory(device)
+add_subdirectory(device)
 # add_subdirectory(context)
 # add_subdirectory(memory)
 # add_subdirectory(usm)
