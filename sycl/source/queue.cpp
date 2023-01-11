@@ -212,5 +212,10 @@ bool queue::device_has(aspect Aspect) const {
   // avoid creating sycl object from impl
   return impl->getDeviceImplPtr()->has(Aspect);
 }
+
+template __SYCL_EXPORT bool
+queue::has_property<ext::oneapi::property::queue::lazy_execution>() const;
+template __SYCL_EXPORT ext::oneapi::property::queue::lazy_execution
+queue::get_property<ext::oneapi::property::queue::lazy_execution>() const;
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
