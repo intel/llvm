@@ -3,7 +3,11 @@ workitem/get_global_offset.ll
 group/group_ballot.cl
 group/collectives.cl
 group/collectives_helpers.ll
-atomic/loadstore_helpers.ll
+atomic/atomic_add.cl
+atomic/atomic_load.cl
+atomic/atomic_store.cl
+atomic/atomic_max.cl
+atomic/atomic_min.cl
 cl_khr_int64_extended_atomics/minmax_helpers.ll
 synchronization/barrier.cl
 math/acos.cl

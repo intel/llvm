@@ -588,16 +588,18 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
   if (LangOpts.HIP) {
     Builder.defineMacro("__HIP__");
     Builder.defineMacro("__HIPCC__");
-    Builder.defineMacro("__HIP_MEMORY_SCOPE_SINGLETHREAD", "1");
-    Builder.defineMacro("__HIP_MEMORY_SCOPE_WAVEFRONT", "2");
-    Builder.defineMacro("__HIP_MEMORY_SCOPE_WORKGROUP", "3");
-    Builder.defineMacro("__HIP_MEMORY_SCOPE_AGENT", "4");
-    Builder.defineMacro("__HIP_MEMORY_SCOPE_SYSTEM", "5");
     if (LangOpts.CUDAIsDevice)
       Builder.defineMacro("__HIP_DEVICE_COMPILE__");
     if (LangOpts.GPUDefaultStream ==
         LangOptions::GPUDefaultStreamKind::PerThread)
       Builder.defineMacro("HIP_API_PER_THREAD_DEFAULT_STREAM");
+  }
+  if (LangOpts.HIP || (LangOpts.OpenCL && TI.getTriple().isAMDGPU())) {
+    Builder.defineMacro("__HIP_MEMORY_SCOPE_SINGLETHREAD", "1");
+    Builder.defineMacro("__HIP_MEMORY_SCOPE_WAVEFRONT", "2");
+    Builder.defineMacro("__HIP_MEMORY_SCOPE_WORKGROUP", "3");
+    Builder.defineMacro("__HIP_MEMORY_SCOPE_AGENT", "4");
+    Builder.defineMacro("__HIP_MEMORY_SCOPE_SYSTEM", "5");
   }
 }
 
