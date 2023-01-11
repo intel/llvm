@@ -41,6 +41,7 @@ piEventRetain
 piEventSetCallback
 piEventSetStatus
 piEventsWait
+piGetDeviceAndHostTimer
 piKernelCreate
 piKernelGetGroupInfo
 piKernelGetInfo
