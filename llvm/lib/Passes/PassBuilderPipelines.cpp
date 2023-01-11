@@ -2079,6 +2079,7 @@ void PassBuilder::addDefaultSYCLFrameworkOptimizationPipeline(
   MPM.addPass(sycl::RemoveFuncAttrsFromSYCLFrameworkFuncs());
   addSYCLFrameworkSimplificationPipeline(MPM);
   addSYCLFrameworkOptimizationPipeline(MPM);
+  MPM.addPass(sycl::AddFuncAttrsFromSYCLFrameworkFuncs());
 
   // TODO: add manual Inliner Pass.
 }

@@ -25,3 +25,15 @@ RemoveFuncAttrsFromSYCLFrameworkFuncs::run(Module &M, ModuleAnalysisManager &) {
 
   return PreservedAnalyses::all();
 }
+
+PreservedAnalyses
+AddFuncAttrsFromSYCLFrameworkFuncs::run(Module &M, ModuleAnalysisManager &) {
+  for (Function &F : M) {
+    if (F.hasMetadata("sycl-framework")) {
+      F.addFnAttr(Attribute::NoInline);
+      F.addFnAttr(Attribute::OptimizeNone);
+    }
+  }
+
+  return PreservedAnalyses::all();
+}

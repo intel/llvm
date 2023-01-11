@@ -26,6 +26,12 @@ public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };
 
+class AddFuncAttrsFromSYCLFrameworkFuncs
+    : public PassInfoMixin<AddFuncAttrsFromSYCLFrameworkFuncs> {
+public:
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+};
+
 } // namespace sycl
 } // namespace llvm
 
