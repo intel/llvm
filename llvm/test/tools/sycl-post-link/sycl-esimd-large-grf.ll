@@ -58,6 +58,8 @@ entry:
 declare dso_local spir_func void @_Z28__sycl_set_kernel_propertiesi(i32 noundef)
 
 define weak_odr dso_local spir_kernel void @__ESIMD_large_grf_kernel() #0 !sycl_explicit_simd !0 !intel_reqd_sub_group_size !1 {
+; CHECK-ESIMD-LargeGRF-IR: @__ESIMD_large_grf_kernel() {{.*}} !RegisterAllocMode ![[MetadataArg:[0-9]+]]
+; CHECK-ESIMD-LargeGRF-IR: ![[MetadataArg]] = !{i32 2}
 entry:
   call spir_func void @_Z17large_grf_markerv()
   ret void
