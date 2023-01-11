@@ -65,6 +65,7 @@ GlobalHandler::GlobalHandler() = default;
 GlobalHandler::~GlobalHandler() = default;
 
 void GlobalHandler::InitXPTIStuff() {
+  std::cout << "InitXPTIStuff" << std::endl;
   // Let subscribers know a new stream is being initialized
   getXPTIRegistry().initializeStream(SYCL_SYCLCALL_STREAM_NAME, GMajVer,
                                      GMinVer, GVerStr);
@@ -101,6 +102,7 @@ std::string BuildPayloadStr(const xpti::payload_t &Payload) {
   if (Result.empty()) {
     Result = "No code location data is available.";
   }
+  std::cout << "BuildPayloadStr = " << Result << std::endl;
   return Result;
 }
 
@@ -110,6 +112,9 @@ void GlobalHandler::TraceEventXPTI() {
     uint64_t Uid = xptiGetUniqueId(); // Gets the UID from TLS
     auto Payload = xptiQueryPayloadByUID(Uid);
     uint8_t StreamID = xptiRegisterStream(SYCL_SYCLCALL_STREAM_NAME);
+    std::cout << "TraceEventXPTI StreamID = " << StreamID << " trace type = "
+              << (uint16_t)xpti::trace_point_type_t::diagnostics << std::endl;
+
     xptiNotifySubscribers(
         StreamID, (uint16_t)xpti::trace_point_type_t::diagnostics,
         GSYCLCallEvent, nullptr, Uid,

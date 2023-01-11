@@ -40,6 +40,7 @@ enum functions_t {
   XPTI_TRACE_ENABLED,
   XPTI_REGISTER_PAYLOAD,
   XPTI_QUERY_PAYLOAD_BY_UID,
+  // XPTI_TRACE_TRY_TO_ENABLE,
 
   // All additional functions need to appear before
   // the XPTI_FW_API_COUNT enum
@@ -74,7 +75,8 @@ class ProxyLoader {
       {XPTI_NOTIFY_SUBSCRIBERS, "xptiNotifySubscribers"},
       {XPTI_ADD_METADATA, "xptiAddMetadata"},
       {XPTI_QUERY_METADATA, "xptiQueryMetadata"},
-      {XPTI_TRACE_ENABLED, "xptiTraceEnabled"}};
+      {XPTI_TRACE_ENABLED, "xptiTraceEnabled"},
+      /*{XPTI_TRACE_TRY_TO_ENABLE, "xptiTraceTryToEnable"}*/};
 
 public:
   typedef std::vector<xpti_plugin_function_t> dispatch_table_t;
@@ -86,33 +88,8 @@ public:
     // see if it has been set. If not, all methods in
     // the proxy should end up being close to no-ops
     //
-    std::string env =
-        m_loader.getEnvironmentVariable("XPTI_FRAMEWORK_DISPATCHER");
-    if (env.empty())
-      return;
-    std::string error;
-    m_fw_plugin_handle = m_loader.loadLibrary(env.c_str(), error);
-    if (m_fw_plugin_handle) {
-      // We will defer changing m_loaded = true until the
-      // end of this block after we are able to resolve
-      // all of the entry points
-      //
-      m_dispatch_table.resize(XPTI_FW_API_COUNT);
-      for (auto &func_name : m_function_names) {
-        xpti_plugin_function_t func =
-            m_loader.findFunction(m_fw_plugin_handle, func_name.second);
-        if (!func) { // Return if we fail on even one function
-          m_loader.unloadLibrary(m_fw_plugin_handle);
-          m_fw_plugin_handle = nullptr;
-          return;
-        }
-        m_dispatch_table[func_name.first] = func;
-      }
-      // Only if all the functions are found and loaded,
-      // do we set the m_loaded = true
-      //
-      m_loaded = true;
-    }
+    std::cout << "quering var" << std::endl;
+    tryToEnable();
   }
 
   ~ProxyLoader() {
@@ -138,6 +115,38 @@ public:
   static ProxyLoader &instance() {
     static ProxyLoader *loader = new ProxyLoader();
     return *loader;
+  }
+  // needed for testing
+  void tryToEnable() {
+    if (m_loaded)
+      return;
+    std::string env =
+        m_loader.getEnvironmentVariable("XPTI_FRAMEWORK_DISPATCHER");
+    if (!env.empty()) {
+      std::string error;
+      m_fw_plugin_handle = m_loader.loadLibrary(env.c_str(), error);
+      if (m_fw_plugin_handle) {
+        // We will defer changing m_loaded = true until the
+        // end of this block after we are able to resolve
+        // all of the entry points
+        //
+        m_dispatch_table.resize(XPTI_FW_API_COUNT);
+        for (auto &func_name : m_function_names) {
+          xpti_plugin_function_t func =
+              m_loader.findFunction(m_fw_plugin_handle, func_name.second);
+          if (!func) { // Return if we fail on even one function
+            m_loader.unloadLibrary(m_fw_plugin_handle);
+            m_fw_plugin_handle = nullptr;
+            return;
+          }
+          m_dispatch_table[func_name.first] = func;
+        }
+        // Only if all the functions are found and loaded,
+        // do we set the m_loaded = true
+        //
+        m_loaded = true;
+      }
+    }
   }
 
 private:
@@ -418,6 +427,10 @@ XPTI_EXPORT_API bool xptiTraceEnabled() {
     }
   }
   return false;
+}
+
+XPTI_EXPORT_API void xptiTraceTryToEnable() {
+  xpti::ProxyLoader::instance().tryToEnable();
 }
 
 XPTI_EXPORT_API xpti::result_t xptiAddMetadata(xpti::trace_event_data_t *e,

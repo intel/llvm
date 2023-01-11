@@ -813,6 +813,10 @@ public:
       : MUniversalIDs(0), MTracepoints(MStringTableRef), MTraceEnabled(false) {
     //  Load all subscribers on construction
     MSubscribers.loadFromEnvironmentVariable();
+    std::cout << "g_helper.checkTraceEnv() " << g_helper.checkTraceEnv()
+              << std::endl;
+    std::cout << "MSubscribers.hasValidSubscribers() "
+              << MSubscribers.hasValidSubscribers() << std::endl;
     MTraceEnabled =
         (g_helper.checkTraceEnv() && MSubscribers.hasValidSubscribers());
   }
@@ -959,9 +963,10 @@ public:
       // have 'nullptr' for both the Parent and Object only if UserData is
       // provided and the trace_point_type is function_begin/function_end.
       // This allows us to trace function calls without too much effort.
-      std::array<trace_point_type_t, 13> AllowedTypes = {
+      std::array<trace_point_type_t, 14> AllowedTypes = {
           trace_point_type_t::function_begin,
           trace_point_type_t::function_end,
+          trace_point_type_t::diagnostics,
           trace_point_type_t::function_with_args_begin,
           trace_point_type_t::function_with_args_end,
           trace_point_type_t::mem_alloc_begin,

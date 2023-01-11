@@ -457,6 +457,8 @@ xptiQueryMetadata(xpti::trace_event_data_t *e);
 /// @return bool that indicates whether it is enabled or not
 XPTI_EXPORT_API bool xptiTraceEnabled();
 
+XPTI_EXPORT_API void xptiTraceTryToEnable();
+
 /// @brief Resets internal state
 /// @details This method is currently ONLY used by the tests and is NOT
 /// recommended for use in the instrumentation of applications or runtimes.
