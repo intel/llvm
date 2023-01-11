@@ -1,8 +1,8 @@
 ; FIXME: disabled to unblock PD, working on a fix
 ; XFAIL: *
 
-; RUN: bugpoint -load %llvmshlibdir/BugpointPasses%pluginext %s -output-prefix %t -bugpoint-crashcalls -silence-passes
-; RUN: llvm-dis %t-reduced-simplified.bc -o - | FileCheck %s
+; RUN: bugpoint -load %llvmshlibdir/BugpointPasses%pluginext %s -output-prefix %t -bugpoint-crashcalls -silence-passes -opt-args -opaque-pointers
+; RUN: llvm-dis -opaque-pointers %t-reduced-simplified.bc -o - | FileCheck %s
 ; REQUIRES: plugins
 
 ; Test to make sure that arguments are removed from the function if they are
