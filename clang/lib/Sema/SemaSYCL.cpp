@@ -531,7 +531,7 @@ static void collectSYCLAttributes(Sema &S, FunctionDecl *FD,
     llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
       // FIXME: Make this list self-adapt as new SYCL attributes are added.
       return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
-                 SYCLReqdWorkGroupSizeAttr, WorkGroupSizeHintAttr,
+                 SYCLReqdWorkGroupSizeAttr, SYCLWorkGroupSizeHintAttr,
                  SYCLIntelKernelArgsRestrictAttr, SYCLIntelNumSimdWorkItemsAttr,
                  SYCLIntelSchedulerTargetFmaxMhzAttr,
                  SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
@@ -4383,9 +4383,9 @@ static void PropagateAndDiagnoseDeviceAttr(
     }
     break;
   }
-  case attr::Kind::WorkGroupSizeHint: {
-    auto *WGSH = cast<WorkGroupSizeHintAttr>(A);
-    if (auto *Existing = SYCLKernel->getAttr<WorkGroupSizeHintAttr>()) {
+  case attr::Kind::SYCLWorkGroupSizeHint: {
+    auto *WGSH = cast<SYCLWorkGroupSizeHintAttr>(A);
+    if (auto *Existing = SYCLKernel->getAttr<SYCLWorkGroupSizeHintAttr>()) {
       if (S.AnyWorkGroupSizesDiffer(Existing->getXDim(), Existing->getYDim(),
                                     Existing->getZDim(), WGSH->getXDim(),
                                     WGSH->getYDim(), WGSH->getZDim())) {

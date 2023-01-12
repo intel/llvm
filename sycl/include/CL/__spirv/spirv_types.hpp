@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/detail/defines.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 
 #include <cstddef>
