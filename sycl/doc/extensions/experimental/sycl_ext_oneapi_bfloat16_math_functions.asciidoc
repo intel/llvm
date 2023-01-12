@@ -111,6 +111,7 @@ namespace sycl::ext::oneapi::experimental {
 
 template <typename T>
 bool isnan(T x);
+
 template <size_t N>
 sycl::marray<bool, N> isnan(sycl::marray<bfloat16, N> x);
 } // namespace sycl::ext::oneapi::experimental
