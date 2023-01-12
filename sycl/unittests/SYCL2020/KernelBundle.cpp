@@ -659,3 +659,36 @@ TEST(KernelBundle, CheckExceptionIfKernelIncompatible) {
   }
   EXPECT_EQ(msg, "Kernel is incompatible with all devices in devs");
 }
+
+TEST(KernelBundle, HasKernelForSubDevice) {
+  sycl::unittest::PiMock Mock;
+
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+      redefinedDeviceGetInfoAfter);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDevicePartition>(
+      redefinedDevicePartitionAfter);
+
+  sycl::platform Plt = Mock.getPlatform();
+  const sycl::device Dev = Plt.get_devices()[0];
+
+  PiPlatform = sycl::detail::getSyclObjImpl(Plt)->getHandleRef();
+  ParentDevice = sycl::detail::getSyclObjImpl(Dev)->getHandleRef();
+
+  sycl::kernel_bundle<sycl::bundle_state::executable> Bundle =
+      sycl::get_kernel_bundle<sycl::bundle_state::executable>(
+          sycl::context(Dev), {Dev});
+  sycl::kernel_id KernelId = sycl::get_kernel_id<TestKernel>();
+
+  EXPECT_TRUE(Bundle.has_kernel(KernelId));
+
+  sycl::device SubDev =
+      Dev.create_sub_devices<sycl::info::partition_property::partition_equally>(
+          2)[0];
+
+  std::vector<sycl::device> BundleDevs = Bundle.get_devices();
+  EXPECT_EQ(std::find(BundleDevs.begin(), BundleDevs.end(), SubDev),
+            BundleDevs.end())
+      << "Sub-device should not be in the devices of the kernel bundle.";
+  EXPECT_FALSE(getSyclObjImpl(SubDev)->isRootDevice());
+  EXPECT_TRUE(Bundle.has_kernel(KernelId, SubDev));
+}
