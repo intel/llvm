@@ -136,10 +136,11 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
         return AliasResult::OverridableAlias;
       })
       .Case<mlir::sycl::AssertHappenedType, mlir::sycl::BFloat16Type,
-            mlir::sycl::KernelHandlerType>([&](auto Ty) {
-        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_";
-        return AliasResult::FinalAlias;
-      })
+            mlir::sycl::KernelHandlerType, mlir::sycl::StreamType>(
+          [&](auto Ty) {
+            OS << "sycl_" << decltype(Ty)::getMnemonic() << "_";
+            return AliasResult::FinalAlias;
+          })
       .Case<mlir::sycl::AtomicType>([&](auto Ty) {
         OS << "sycl_" << decltype(Ty)::getMnemonic() << "_" << Ty.getDataType()
            << "_" << mlir::sycl::accessAddressSpaceAsString(Ty.getAddrSpace())
@@ -182,10 +183,6 @@ SYCLOpAsmInterface::getAlias(mlir::Type Type, llvm::raw_ostream &OS) const {
                << Ty.getDataType() << "_";
             return AliasResult::FinalAlias;
           })
-      .Case<mlir::sycl::StreamType>([&](auto Ty) {
-        OS << "sycl_" << decltype(Ty)::getMnemonic() << "_";
-        return AliasResult::OverridableAlias;
-      })
       .Case<mlir::sycl::SwizzledVecType>([&](auto Ty) {
         const auto VecTy = Ty.getVecType();
         OS << "sycl_" << decltype(Ty)::getMnemonic() << "_"
