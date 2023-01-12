@@ -325,7 +325,9 @@ template<>
 class command_graph<graph_state::modifiable> {
 public:
   command_graph(const property_list& propList = {});
-  command_graph<graph_state::executable> finalize(const context& syclContext) const;
+
+  command_graph<graph_state::executable>
+  finalize(const context& syclContext, const property_list& propList = {}) const;
 
   bool begin_recording(queue recordingQueue);
   bool begin_recording(const std::vector<queue>& recordingQueues);
@@ -594,7 +596,8 @@ Exceptions:
 [source,c++]
 ----
 using namespace ext::oneapi::experimental;
-command_graph<graph_state::executable> finalize(const context& syclContext) const;
+command_graph<graph_state::executable>
+finalize(const context& syclContext, const property_list& propList = {}) const;
 ----
 
 |Synchronous operation that creates a new graph in the executable state with a
@@ -613,6 +616,9 @@ Parameters:
 
 * `syclContext` - The context associated with the queues to which the
   executable graph will be able to be submitted.
+
+* `propList` - Optional parameter for passing properties. No finalization
+  properties are defined by this extension.
 
 Returns: A new executable graph object which can be submitted to a queue.
 
