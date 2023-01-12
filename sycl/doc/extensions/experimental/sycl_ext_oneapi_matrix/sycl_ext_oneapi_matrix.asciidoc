@@ -216,9 +216,7 @@ We introduce a new function `get_wi_data` that provides a view of the portion of
 
 Using `get_wi_data`, it is not possible to know which portions of data are owned by each thread in the group as this is implementation defined and changes from one backend to the other. For general piece-wise operations such as summing the rows of a matrix, the WI data to joint matrix mapping coordinates information must be known in order to reason about the matrix view and extract the relevant piece. However, for element-wise operations where the same operation is performed on all the elements of the matrix, having all the WIs in the group apply the operation inside a loop iterating over the `length` of `wi_data` guarantees the whole matrix element-wise operation.   
 
-Therefore, this extension currently only supports class 1 of operations because the mapping between `get_wi_data` and `joint_matrix` elements is not required to be known for these operations. However, general piece-wise operations will be supported in the future as a new API will be provided to convey the mapping from `joint_matrix` domain to WI Domain (See Section "WI data to joint matrix mapping coordinates information for piece-wise operations for more information").
-
-Also, note that `get_wi_data` cannot return a fixed size array length because the length of the WI portion is a runtime variable for the following reasons:
+Note that `get_wi_data` cannot return a fixed size array length because the length of the WI portion is a runtime variable for the following reasons:
 
 1- The main compilation mode of SYCL is JIT compilation and partitioning among WIs is implementation defined.
 
@@ -241,7 +239,8 @@ template <typename T, size_t Rows, size_t Cols,
 class wi_element {
   operator T();
   wi_element &operator=(const T &rhs);
-…
+  // other operators overloading (+, -, etc)
+  std::tuple<size_t, size_t> get_coord();	
 };
 }
 ```
@@ -258,7 +257,21 @@ for (int i = 0; i < wi_data_c.length(); i++)
 
 IMPORTANT: In the current implementation, only the `sub_group` scope is supported.
 
-IMPORTANT: The WI data to joint matrix mapping coordinates information is not implemented yet.
+##### Work-item data to joint matrix mapping coordinates
+The `wi_data` and `wi_element` classes provide access to the matrix elements that are local to the calling work-item. However, the distribution of matrix elements to each work-item is implementation-defined, so application code cannot assume any fixed distribution. Instead, application code can use the `get_coord` method to query the matrix coordinates of an individual `wi_element`.
+
+`get_coord` returns [row,col] coordinates of the current object `wi_element` of the joint matrix.  The code above results into the following:
+
+```c++
+auto data = get_wi_data(sg, tA);
+// each WI calculates local sum of rows
+for (int i = 0; i < data.length(); ++i) {
+  auto [row, col] = data[i].get_coord();
+  sum_of_local_rows[row] += data[i];
+}  
+```
+
+IMPORTANT: `get_coord` is not implemented yet.
 
 ## Example using int8_t type
 ```c++
@@ -282,22 +295,27 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
    joint_matrix<sub_group, int32_t, use::accumulator, tM, tN> tC;
    joint_matrix_fill(sg, tC, 0);
    for (int k = 0; k < K; k += tK) {
-     joint_matrix_load(sg, tA, memA + sg_startx * tM * K + k, K);
-     joint_matrix_load(sg, tB, memB + k * N + sg_starty/SG_SIZE*tN, N); 
+     joint_matrix_load(sg, tA,
+          multi_ptr<int8_t, sycl::access::address_space::global_space>(memA) +
+	  sg_startx * tM * K + k, K);
+     joint_matrix_load(sg, tB,
+          multi_ptr<int8_t, sycl::access::address_space::global_space>(memB) +
+	  k * N + sg_starty/SG_SIZE*tN, N); 
      tC = joint_matrix_mad(sg, tA, tB, tC);
    }
    auto wi_data_c = get_wi_data(sg, tC);
    for (int i = 0; i < wi_data_c.length(); i++)
-     wi_data_c[i] *= alpha; // The indexing here "i" is in the vector owned by a WI, not in the matrix C
-   joint_matrix_store(sg, tC, memC + sg_startx * tM * N + sg_starty/SG_SIZE*tN, N, layout::row_major);
+     wi_data_c[i] *= alpha; 
+   joint_matrix_store(sg, tC,
+        multi_ptr<int32_t, sycl::access::address_space::global_space>(memC) +
+	sg_startx * tM * N + sg_starty/SG_SIZE*tN, N, layout::row_major);
 }).wait();
 ```
 
 == Query Interface
-Intel AMX, Intel XMX and Nvidia TPUs support different sizes and types.
-The query interface is used to validate user code and inform them about supported types, sizes, scope, and layouts by the implementation.
-This also offers development and tuning productivity by both scientists and library developers. The query interface we are proposing here is a compile-time query, 
-so there will be no runtime errors.
+Intel AMX, Intel XMX and Nvidia TPUs support different sizes and types (see Appendix: Supported Combinations Per Hardware). The query interface is used to validate user code and inform them about supported types, sizes, scope, and layouts by the implementation.
+This also offers development and tuning productivity by both scientists and library developers. The query interface we are proposing here is a compile-time query, so there will be no runtime errors.
+
 The query interface proposed here consists of three functionalities:
 
 - Validation: at compile time, the validation functionality informs the user whether a specific combination is valid or not. This takes place when the user specifies all template parameters.
@@ -329,8 +347,6 @@ The table below provides a description for each of the member variables and type
 |`combinations`    | validation, default values, general query| tells the set of supported matrix sizes and types according to the template parameters that are provided. In the "general query" form, the user provides only the TPU type, so the combinations array contains all supported tile sizes and element types for that TPU. In the "default values" form, the user provides the TPU type and element types, so the combinations array contains only those supported matrix sizes and element types that match those element types on that TPU. In the "validation" form, the user provides the TPU type, element types, and element sizes so only this specific combination is returned in the combinations array. 
 |`num_combinations`|  validation, default values, general query|indicates number of combinations supported by the TPU implementation which corresponds to the size of the `combinations` array
 |======================
-
-
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -472,7 +488,6 @@ struct tpu_params<tpu::amx, void, void, void, sM, sN, sK> {
       sizeof(combinations) / sizeof(combination);
 };
 
-
 enum class tpu {
   xmx8,
   xmx16,
@@ -505,8 +520,6 @@ enum class scope_t {
 };
 }
 ```
-
-
 === Validation Example:
 ```c++
 // User can provide sizes besides the types and tpu_params can assert if they are supported or not
@@ -546,6 +559,29 @@ joint_matrix<sub_group, int, use::accumulator, msize, nsize> sub_c;
 //Remainder handling
 ```
 
+## Appendix: Supported Combinations Per Hardware
+
+The table below provides a list of the combinations that `joint_matrix` implementations support on each of Intel AMX and Intel XMX hardware. Note that these can be returned in a parametrized way using the `tpu_params` query class.
+
+### Intel AMX Supported Combinations
+
+[frame="none",options="header"]
+|======================
+| A type | B type | Accumulator type | M | N | K
+| (u)int8_t  | (u)int8_t |  int32_t  |  +<=+ 16 |  +<=+ 16 |  +<=+ 64
+|  bf16       |  bf16   |   fp32   |  +<=+ 16 |  +<=+ 16   |  +<=+ 32
+|======================
+
+### Intel XMX Supported Combinations
+
+[frame="none",options="header"]
+|======================
+| A type | B type | Accumulator type | M | N | K
+| (u)int8_t  | (u)int8_t |  int32_t  |  +<=+ 8 |  16 |  32
+|  fp16       |  fp16   |   fp32   |  +<=+ 8 |  16   |  16
+|  bf16       |  bf16   |   fp32   |  +<=+ 8 |  16   |  16
+|======================
+
 
 ## Revision History
 
@@ -556,5 +592,6 @@ joint_matrix<sub_group, int, use::accumulator, msize, nsize> sub_c;
 |2   |2021-10-05 |Dounia Khaldi |JIT implementation on both Intel AMX and DPAS
 |3   |2022-05-16 |Dounia Khaldi |Add matrix fill and piece-wise operations support
 |4   |2022-08-25 |Dounia Khaldi |Update the matrix spec by adding the new matrix use parameter and remove reference to the AOT AMX initial implementation 
-|5   |2022-11-07 |Dounia Khaldi |Update the matrix spec by making it portable across Intel AMX, Intel XMX and Nvidia tensor Cores, and move the Intel-specifics to a separate extension document.  
+|5   |2022-11-07 |Dounia Khaldi |Update the matrix spec by making it portable across Intel AMX, Intel XMX and Nvidia tensor Cores, and move the Intel-specifics to a separate extension document.
+|6   |2023-01-09 |Dounia Khaldi |Add `get_coord` API and supported combinations appendix.
 |======================
