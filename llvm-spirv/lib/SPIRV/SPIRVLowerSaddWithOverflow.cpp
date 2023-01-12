@@ -94,7 +94,7 @@ void SPIRVLowerSaddWithOverflowBase::visitIntrinsicInst(CallInst &I) {
   auto MB = MemoryBuffer::getMemBuffer(LLVMSaddWithOverflow);
   auto SaddWithOverflowModule =
       parseIR(MB->getMemBufferRef(), Err, *Context,
-              [&](StringRef) { return Mod->getDataLayoutStr(); });
+              [&](StringRef, StringRef) { return Mod->getDataLayoutStr(); });
   if (!SaddWithOverflowModule) {
     std::string ErrMsg;
     raw_string_ostream ErrStream(ErrMsg);
