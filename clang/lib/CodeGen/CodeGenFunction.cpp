@@ -617,10 +617,31 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
 
   if (const WorkGroupSizeHintAttr *A = FD->getAttr<WorkGroupSizeHintAttr>()) {
     llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(Builder.getInt(*A->getXDimVal())),
-        llvm::ConstantAsMetadata::get(Builder.getInt(*A->getYDimVal())),
-        llvm::ConstantAsMetadata::get(Builder.getInt(*A->getZDimVal()))};
+        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getXDim())),
+        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getYDim())),
+        llvm::ConstantAsMetadata::get(Builder.getInt32(A->getZDim()))};
     Fn->setMetadata("work_group_size_hint", llvm::MDNode::get(Context, AttrMDArgs));
+  }
+
+  if (const SYCLWorkGroupSizeHintAttr *A =
+          FD->getAttr<SYCLWorkGroupSizeHintAttr>()) {
+    llvm::Optional<llvm::APSInt> XDimVal = A->getXDimVal();
+    llvm::Optional<llvm::APSInt> YDimVal = A->getYDimVal();
+    llvm::Optional<llvm::APSInt> ZDimVal = A->getZDimVal();
+    llvm::SmallVector<llvm::Metadata *, 3> AttrMDArgs;
+
+    // On SYCL target the dimensions are reversed if present.
+    if (ZDimVal)
+      AttrMDArgs.push_back(
+          llvm::ConstantAsMetadata::get(Builder.getInt(*ZDimVal)));
+    if (YDimVal)
+      AttrMDArgs.push_back(
+          llvm::ConstantAsMetadata::get(Builder.getInt(*YDimVal)));
+    AttrMDArgs.push_back(
+        llvm::ConstantAsMetadata::get(Builder.getInt(*XDimVal)));
+
+    Fn->setMetadata("work_group_size_hint",
+                    llvm::MDNode::get(Context, AttrMDArgs));
   }
 
   if (const ReqdWorkGroupSizeAttr *A = FD->getAttr<ReqdWorkGroupSizeAttr>()) {
