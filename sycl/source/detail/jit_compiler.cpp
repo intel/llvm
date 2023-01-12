@@ -811,8 +811,9 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   JITConfig.set<::jit_compiler::option::JITEnableVerbose>(DebugEnabled);
   JITConfig.set<::jit_compiler::option::JITEnableCaching>(
       detail::SYCLConfig<detail::SYCL_ENABLE_FUSION_CACHING>::get());
-  JITConfig.set<::jit_compiler::option::JITTargetFormat>(
-      getTargetFormat(Queue));
+      
+  ::jit_compiler::BinaryFormat TargetFormat = getTargetFormat(Queue);
+  JITConfig.set<::jit_compiler::option::JITTargetFormat>(TargetFormat);
 
   auto FusionResult = ::jit_compiler::KernelFusion::fuseKernels(
       *MJITContext, std::move(JITConfig), InputKernelInfo, InputKernelNames,
@@ -854,7 +855,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   updatePromotedArgs(FusedKernelInfo, NDRDesc, FusedArgs, ArgsStorage);
 
   if (!FusionResult.cached()) {
-    auto PIDeviceBinaries = createPIDeviceBinary(FusedKernelInfo);
+    auto PIDeviceBinaries = createPIDeviceBinary(FusedKernelInfo, TargetFormat);
     detail::ProgramManager::getInstance().addImages(PIDeviceBinaries);
   } else if (DebugEnabled) {
     std::cerr << "INFO: Re-using existing device binary for fused kernel\n";
@@ -866,9 +867,11 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       FusedKernelInfo.Name);
   std::vector<std::shared_ptr<const void>> RawExtendedMembers;
 
-  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
-      detail::getSyclObjImpl(get_kernel_bundle<bundle_state::executable>(
-          Queue->get_context(), {Queue->get_device()}, {FusedKernelId}));
+  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr;
+  if (TargetFormat == ::jit_compiler::BinaryFormat::SPIRV) {
+    detail::getSyclObjImpl(get_kernel_bundle<bundle_state::executable>(
+        Queue->get_context(), {Queue->get_device()}, {FusedKernelId}));
+  }
 
   std::unique_ptr<detail::CG> FusedCG;
   FusedCG.reset(new detail::CGExecKernel(
@@ -881,7 +884,25 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
 }
 
 pi_device_binaries jit_compiler::createPIDeviceBinary(
-    const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo) {
+    const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
+    ::jit_compiler::BinaryFormat Format) {
+
+  const char *TargetSpec = nullptr;
+  switch (Format) {
+  case ::jit_compiler::BinaryFormat::PTX: {
+    TargetSpec = __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64;
+    break;
+  }
+  case ::jit_compiler::BinaryFormat::SPIRV: {
+    TargetSpec = (FusedKernelInfo.BinaryInfo.AddressBits == 64)
+                     ? __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64
+                     : __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32;
+    break;
+  }
+  default:
+    sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                    "Invalid output format");
+  }
 
   DeviceBinaryContainer Binary;
 
@@ -909,8 +930,7 @@ pi_device_binaries jit_compiler::createPIDeviceBinary(
   DeviceBinariesCollection Collection;
   Collection.addDeviceBinary(std::move(Binary),
                              FusedKernelInfo.BinaryInfo.BinaryStart,
-                             FusedKernelInfo.BinaryInfo.BinarySize,
-                             FusedKernelInfo.BinaryInfo.AddressBits);
+                             FusedKernelInfo.BinaryInfo.BinarySize, TargetSpec);
 
   JITDeviceBinaries.push_back(std::move(Collection));
   return JITDeviceBinaries.back().getPIDeviceStruct();

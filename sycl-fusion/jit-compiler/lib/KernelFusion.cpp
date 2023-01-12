@@ -148,18 +148,6 @@ FusionResult KernelFusion::fuseKernels(
 
   FusedKernelInfo.NDR = FusedKernel.FusedNDRange;
 
-  // Update the KernelInfo for the fused kernel with the address and size of the
-  // SPIR-V binary resulting from translation.
-  SYCLKernelBinaryInfo &FusedBinaryInfo = FusedKernelInfo.BinaryInfo;
-  FusedBinaryInfo.Format = BinaryFormat::SPIRV;
-  // Output SPIR-V should use the same number of address bits as the input
-  // SPIR-V. SPIR-V translation requires all modules to use the same number of
-  // address bits, so it's safe to take the value from the first one.
-  FusedBinaryInfo.AddressBits =
-      ModuleInfo.kernels().front().BinaryInfo.AddressBits;
-  FusedBinaryInfo.BinaryStart = SPIRVBin->address();
-  FusedBinaryInfo.BinarySize = SPIRVBin->size();
-
   if (CachingEnabled) {
     JITCtx.addCacheEntry(CacheKey, FusedKernelInfo);
   }

@@ -111,7 +111,7 @@ public:
 
   pi_device_binary_struct getPIDeviceBinary(const unsigned char *BinaryStart,
                                             size_t BinarySize,
-                                            size_t AddressBits);
+                                            const char* TargetSpec);
 
 private:
   bool Fused = true;
@@ -138,7 +138,7 @@ public:
 
   void addDeviceBinary(DeviceBinaryContainer &&Cont,
                        const unsigned char *BinaryStart, size_t BinarySize,
-                       size_t AddressBits);
+                       const char* TargetSpec);
   pi_device_binaries getPIDeviceStruct();
 
 private:

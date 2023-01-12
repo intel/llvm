@@ -13,6 +13,7 @@
 #include <detail/scheduler/scheduler.hpp>
 
 namespace jit_compiler {
+enum class BinaryFormat;
 class JITContext;
 struct SYCLKernelInfo;
 using ArgUsageMask = std::vector<unsigned char>;
@@ -46,7 +47,7 @@ private:
   jit_compiler &operator=(const jit_compiler &&) = delete;
 
   pi_device_binaries
-  createPIDeviceBinary(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo);
+  createPIDeviceBinary(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo, ::jit_compiler::BinaryFormat Format);
 
   std::vector<uint8_t>
   encodeArgUsageMask(const ::jit_compiler::ArgUsageMask &Mask) const;
