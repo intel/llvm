@@ -1,6 +1,3 @@
-; FIXME: disabled to unblock PD, working on a fix
-; XFAIL: *
-
 ; This reuses llvm/test/tools/llvm-reduce/operands-skip.ll
 ; REQUIRES: thread_support
 

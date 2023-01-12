@@ -1,6 +1,3 @@
-# FIXME: disabled to unblock PD, working on a fix
-# XFAIL: *
-
 # RUN: rm -f reduced.ll reduced.bc
 
 # RUN: llvm-as -o test-output-format.bc %p/Inputs/test-output-format.ll
