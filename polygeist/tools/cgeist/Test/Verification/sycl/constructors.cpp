@@ -261,7 +261,7 @@ extern "C" SYCL_EXTERNAL void cons_9(const sycl::vec<sycl::cl_char, 3>::vector_t
 // CHECK:       func.func @[[VEC_INITLIST_VEC_CTR]](%{{.*}}: memref<?x!sycl_vec_i64_16_, 4> {{{.*}}}, %{{.*}}: memref<?x!sycl_vec_i64_8_, 4> {{{.*}}}, %{{.*}}: memref<?x!sycl_vec_i64_4_, 4> {{{.*}}}, %{{.*}}: memref<?x!sycl_vec_i64_2_, 4> {{{.*}}}, %{{.*}}: memref<?xi64, 4> {{{.*}}}, %{{.*}}: memref<?xi64, 4> {{{.*}}}) attributes {[[SPIR_FUNCCC]], [[LINKONCE]], {{.*}}}
 
 // CHECK-LLVM-LABEL: define spir_func void @cons_10(
-// CHECK-LLVM-SAME:                                 %"class.sycl::_V1::vec.5" addrspace(4)* noundef align 64 %[[ARG0:.*]], %"class.sycl::_V1::vec.6" addrspace(4)* noundef align 32 %[[ARG1:.*]], %"class.sycl::_V1::vec.7" addrspace(4)* noundef align 16 %[[ARG2:.*]], i64 noundef %{{.*}}, i64 noundef %{{.*}}) #1 {
+// CHECK-LLVM-SAME:                                 %"class.sycl::_V1::vec.5" addrspace(4)* noundef align 64 %[[ARG0:.*]], %"class.sycl::_V1::vec.6" addrspace(4)* noundef align 32 %[[ARG1:.*]], %"class.sycl::_V1::vec.7" addrspace(4)* noundef align 16 %[[ARG2:.*]], i64 noundef %{{.*}}, i64 noundef %{{.*}}) #[[FUNCATTRS]] {
 // CHECK-LLVM:         call spir_func void @[[VEC_INITLIST_VEC_CTR:.*]](%"class.sycl::_V1::vec.4" addrspace(4)* %{{.*}}, %"class.sycl::_V1::vec.5" addrspace(4)* %[[ARG0]], %"class.sycl::_V1::vec.6" addrspace(4)* %[[ARG1]], %"class.sycl::_V1::vec.7" addrspace(4)* %[[ARG2]], i64 addrspace(4)* %{{.*}}, i64 addrspace(4)* %{{.*}})
 // CHECK-LLVM:       define linkonce_odr spir_func void @[[VEC_INITLIST_VEC_CTR]](%"class.sycl::_V1::vec.4" addrspace(4)* noundef align 128 %{{.*}}, %"class.sycl::_V1::vec.5" addrspace(4)* noundef align 64 %{{.*}}, %"class.sycl::_V1::vec.6" addrspace(4)* noundef align 32 %{{.*}}, %"class.sycl::_V1::vec.7" addrspace(4)* noundef align 16 %{{.*}}, i64 addrspace(4)* noundef align 8 %{{.*}}, i64 addrspace(4)* noundef align 8 %{{.*}}) #[[FUNCATTRS]] {
 
@@ -294,4 +294,4 @@ extern "C" SYCL_EXTERNAL void cons_11() {
 }
 
 // Keep at the end.
-// CHECK-LLVM: attributes #[[FUNCATTRS]] = { convergent mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/Test/Verification/sycl/constructors.cpp" }
+// CHECK-LLVM: attributes #[[FUNCATTRS]] = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/Test/Verification/sycl/constructors.cpp" }

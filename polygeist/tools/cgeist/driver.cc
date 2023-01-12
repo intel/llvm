@@ -916,6 +916,7 @@ splitCommandLineOptions(int argc, char **argv,
                         SmallVector<const char *> &MLIRArgs) {
   bool SYCLIsDevice = false;
   bool LinkOnly = false;
+  bool ClangOption = false;
   llvm::OptimizationLevel OptimizationLevel =
       CgeistOptions::getDefaultOptimizationLevel();
 
@@ -946,9 +947,14 @@ splitCommandLineOptions(int argc, char **argv,
       } else if (Ref == "-fsycl-is-device") {
         SYCLIsDevice = true;
         MLIRArgs.push_back(argv[I]);
+      } else if (Ref == "--args") {
+        ClangOption = true;
+        MLIRArgs.push_back(argv[I]);
       } else if (Ref.consume_front("-O") || Ref.consume_front("--optimize")) {
         // If several flags are passed, we keep the last one.
         OptimizationLevel = ExitOnErr(parseOptimizationLevel(Ref));
+        if (ClangOption)
+          MLIRArgs.push_back(argv[I]);
         LinkageArgs.push_back(argv[I]);
       } else if (Ref == "-g")
         LinkageArgs.push_back(argv[I]);
