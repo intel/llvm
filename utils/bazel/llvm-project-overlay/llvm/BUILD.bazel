@@ -10,7 +10,10 @@ load(":targets.bzl", "llvm_targets")
 load(":enum_targets_gen.bzl", "enum_targets_gen")
 load(":binary_alias.bzl", "binary_alias")
 
-package(default_visibility = ["//visibility:public"])
+package(
+    default_visibility = ["//visibility:public"],
+    features = ["layering_check"],
+)
 
 licenses(["notice"])
 
@@ -2834,7 +2837,10 @@ cc_library(
     ]),
     hdrs = glob(["tools/llvm-exegesis/lib/*.h"]),
     copts = llvm_copts,
-    features = ["-header_modules"],
+    features = [
+        "-header_modules",
+        "-layering_check",
+    ],
     strip_include_prefix = "tools/llvm-exegesis/lib",
     deps = [
         ":AllTargetsAsmParsers",
@@ -2972,6 +2978,7 @@ cc_binary(
         ":MCJIT",
         ":Object",
         ":OrcJIT",
+        ":OrcTargetProcess",
         ":Support",
         ":config",
     ],
@@ -3457,12 +3464,17 @@ cc_binary(
         ":AllTargetsCodeGens",
         ":AllTargetsDisassemblers",
         ":AsmParser",
+        ":BinaryFormat",
         ":BitReader",
         ":CodeGen",
         ":ExecutionEngine",
+        ":MC",
+        ":MCDisassembler",
         ":MCJIT",
         ":Object",
         ":OrcJIT",
+        ":OrcShared",
+        ":OrcTargetProcess",
         ":Support",
         ":config",
     ],
@@ -4019,6 +4031,10 @@ cc_binary(
     deps = [
         ":AllTargetsCodeGens",
         ":AllTargetsDisassemblers",
+        ":Core",
+        ":Demangle",
+        ":MC",
+        ":ProfileData",
         ":Support",
         ":Symbolize",
     ],
@@ -4729,8 +4745,10 @@ cc_binary(
         ":Core",
         ":Coroutines",
         ":FuzzMutate",
+        ":MC",
         ":Passes",
         ":Support",
+        ":Target",
     ],
 )
 
