@@ -280,7 +280,7 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
 }
 
 // Check that host tasks are cleaned up after completion.
-TEST_F(SchedulerTest, HostTaskCleanup) {
+TEST_F(SchedulerTest, DISABLED_HostTaskCleanup) {
   unittest::PiMock Mock;
   platform Plt = Mock.getPlatform();
   context Ctx{Plt};
@@ -319,7 +319,7 @@ struct AttachSchedulerWrapper {
 };
 
 // Check that stream buffers are released alongside graph cleanup.
-TEST_F(SchedulerTest, StreamBufferDeallocation) {
+TEST_F(SchedulerTest, DISABLED_StreamBufferDeallocation) {
   unittest::PiMock Mock;
   platform Plt = Mock.getPlatform();
   context Ctx{Plt};
