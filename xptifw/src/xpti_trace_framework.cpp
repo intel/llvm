@@ -813,10 +813,6 @@ public:
       : MUniversalIDs(0), MTracepoints(MStringTableRef), MTraceEnabled(false) {
     //  Load all subscribers on construction
     MSubscribers.loadFromEnvironmentVariable();
-    std::cout << "g_helper.checkTraceEnv() " << g_helper.checkTraceEnv()
-              << std::endl;
-    std::cout << "MSubscribers.hasValidSubscribers() "
-              << MSubscribers.hasValidSubscribers() << std::endl;
     MTraceEnabled =
         (g_helper.checkTraceEnv() && MSubscribers.hasValidSubscribers());
   }

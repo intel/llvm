@@ -23,7 +23,6 @@
 extern sycl::detail::SpinLock GlobalLock;
 
 extern bool HasSYPrinter;
-extern bool HasPIPrinter;
 
 bool PrintSyVerbose = false;
 

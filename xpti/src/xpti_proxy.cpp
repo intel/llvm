@@ -88,7 +88,6 @@ public:
     // see if it has been set. If not, all methods in
     // the proxy should end up being close to no-ops
     //
-    std::cout << "quering var" << std::endl;
     tryToEnable();
   }
 
