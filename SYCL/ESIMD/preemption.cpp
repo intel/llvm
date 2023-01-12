@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu && linux
-// UNSUPPORTED: cuda || hip
-// UNSUPPORTED: esimd_emulator, gpu-intel-dg2
+// UNSUPPORTED: cuda || hip || esimd_emulator || gpu-intel-dg2 || gpu-intel-pvc
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER IGC_DumpToCustomDir=%t.dump IGC_ShaderDumpEnable=1 %t.out
 // RUN: grep enablePreemption %t.dump/*.asm
