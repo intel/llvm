@@ -28,8 +28,13 @@ using namespace PatternMatch;
 
 #define DEBUG_TYPE "instcombine"
 
-STATISTIC(NumDeadStore,    "Number of dead stores eliminated");
+STATISTIC(NumDeadStore, "Number of dead stores eliminated");
 STATISTIC(NumGlobalCopies, "Number of allocas copied from constant global");
+
+static cl::opt<unsigned> MaxCopiedFromConstantUsers(
+    "instcombine-max-copied-from-constant-users", cl::init(128),
+    cl::desc("Maximum users to visit in copy from constant transform"),
+    cl::Hidden);
 
 /// isOnlyCopiedFromConstantMemory - Recursively walk the uses of a (derived)
 /// pointer to an alloca.  Ignore any reads of the pointer, return false if we
@@ -46,10 +51,18 @@ isOnlyCopiedFromConstantMemory(AAResults *AA, AllocaInst *V,
   // ahead and replace the value with the memory location, this lets the caller
   // quickly eliminate the markers.
 
-  SmallVector<PointerIntPair<Value *, 1, bool>, 35> ValuesToInspect;
-  ValuesToInspect.emplace_back(V, false);
-  while (!ValuesToInspect.empty()) {
-    const auto [Value, IsOffset] = ValuesToInspect.pop_back_val();
+  using ValueAndIsOffset = PointerIntPair<Value *, 1, bool>;
+  SmallVector<ValueAndIsOffset, 32> Worklist;
+  SmallPtrSet<ValueAndIsOffset, 32> Visited;
+  Worklist.emplace_back(V, false);
+  while (!Worklist.empty()) {
+    ValueAndIsOffset Elem = Worklist.pop_back_val();
+    if (!Visited.insert(Elem).second)
+      continue;
+    if (Visited.size() > MaxCopiedFromConstantUsers)
+      return false;
+
+    const auto [Value, IsOffset] = Elem;
     for (auto &U : Value->uses()) {
       auto *I = cast<Instruction>(U.getUser());
 
@@ -59,15 +72,22 @@ isOnlyCopiedFromConstantMemory(AAResults *AA, AllocaInst *V,
         continue;
       }
 
+      if (isa<PHINode>(I)) {
+        // We set IsOffset=true, to forbid the memcpy from occurring after the
+        // phi: If one of the phi operands is not based on the alloca, we
+        // would incorrectly omit a write.
+        Worklist.emplace_back(I, true);
+        continue;
+      }
       if (isa<BitCastInst>(I) || isa<AddrSpaceCastInst>(I)) {
         // If uses of the bitcast are ok, we are ok.
-        ValuesToInspect.emplace_back(I, IsOffset);
+        Worklist.emplace_back(I, IsOffset);
         continue;
       }
       if (auto *GEP = dyn_cast<GetElementPtrInst>(I)) {
         // If the GEP has all zero indices, it doesn't offset the pointer. If it
         // doesn't, it does.
-        ValuesToInspect.emplace_back(I, IsOffset || !GEP->hasAllZeroIndices());
+        Worklist.emplace_back(I, IsOffset || !GEP->hasAllZeroIndices());
         continue;
       }
 
