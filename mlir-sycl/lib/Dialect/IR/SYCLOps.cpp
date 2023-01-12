@@ -119,10 +119,7 @@ LogicalResult SYCLAccessorSubscriptOp::verify() {
   };
 
   return TypeSwitch<Type, LogicalResult>(getOperand(1).getType())
-      .Case<MemRefType>([&](auto MemRefTy) {
-        Type ElemTy = MemRefTy.getElementType();
-        auto IDTy = ElemTy.dyn_cast<IDType>();
-        assert(IDTy && "Unhandled input memref type");
+      .Case<IDType>([&](auto IDTy) {
         return (IDTy.getDimension() != Dimensions)
                    ? emitOpError(
                          "Both the index and the accessor must have the same "

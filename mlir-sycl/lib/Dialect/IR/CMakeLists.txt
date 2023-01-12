@@ -9,6 +9,7 @@ if (TARGET MLIRArithmetic)
     MLIRVectorInterfaces
     MLIRStandard
     MLIRMemRef
+    MLIRPolygeist
     MLIRSCF
     )
 else()
@@ -22,6 +23,7 @@ else()
     MLIRVectorInterfaces
     MLIRLLVMDialect
     MLIRMemRefDialect
+    MLIRPolygeist
     MLIRSCFDialect
     )
 endif()
@@ -31,6 +33,7 @@ add_mlir_dialect_library(MLIRSYCLDialect
   SYCLOps.cpp
   SYCLOpsDialect.cpp
   SYCLOpsTypes.cpp
+  MethodUtils.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_SYCL_SOURCE_DIR}/mlir/Dialect/SYCL
