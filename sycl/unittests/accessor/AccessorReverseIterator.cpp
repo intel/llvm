@@ -217,7 +217,8 @@ TEST_F(AccessorReverseIteratorTest, LegacyRandomAccessIteratorRequirements) {
 
 // Based on notes listed at
 // https://en.cppreference.com/w/cpp/named_req/RandomAccessIterator
-TEST_F(AccessorReverseIteratorTest, LegacyRandomAccessIteratorRequirementsExtra) {
+TEST_F(AccessorReverseIteratorTest,
+       LegacyRandomAccessIteratorRequirementsExtra) {
   std::vector<int> reference(6);
   std::iota(reference.begin(), reference.end(), 0);
   sycl::buffer<int> buffer(reference.data(), sycl::range<1>{reference.size()});
