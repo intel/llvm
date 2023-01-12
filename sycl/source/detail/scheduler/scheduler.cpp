@@ -137,6 +137,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       NewEvent = Result.NewEvent;
       ShouldEnqueue = Result.ShouldEnqueue;
     }
+    NewEvent->setSubmissionTime();
   }
 
   if (ShouldEnqueue) {
@@ -392,11 +393,6 @@ Scheduler::~Scheduler() { DefaultHostQueue.reset(); }
 
 void Scheduler::releaseResources() {
 #ifndef _WIN32
-  if (DefaultHostQueue) {
-    DefaultHostQueue->wait();
-  }
-  GlobalHandler::instance().drainThreadPool();
-
   //  There might be some commands scheduled for post enqueue cleanup that
   //  haven't been freed because of the graph mutex being locked at the time,
   //  clean them up now.

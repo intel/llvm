@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <chrono>
 #include <cuda.h>
 #include <cuda_device_runtime_api.h>
 #include <limits>
@@ -277,23 +278,32 @@ int getAttribute(pi_device device, CUdevice_attribute attribute) {
 // Determine local work sizes that result in uniform work groups.
 // The default threadsPerBlock only require handling the first work_dim
 // dimension.
-void guessLocalWorkSize(size_t *threadsPerBlock, const size_t *global_work_size,
+void guessLocalWorkSize(_pi_device *device, size_t *threadsPerBlock,
+                        const size_t *global_work_size,
                         const size_t maxThreadsPerBlock[3], pi_kernel kernel,
                         pi_uint32 local_size) {
   assert(threadsPerBlock != nullptr);
   assert(global_work_size != nullptr);
   assert(kernel != nullptr);
-  int recommendedBlockSize, minGrid;
+  int minGrid, maxBlockSize, gridDim[3];
+
+  cuDeviceGetAttribute(&gridDim[1], CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y,
+                       device->get());
+  cuDeviceGetAttribute(&gridDim[2], CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z,
+                       device->get());
+
+  threadsPerBlock[1] = ((global_work_size[1] - 1) / gridDim[1]) + 1;
+  threadsPerBlock[2] = ((global_work_size[2] - 1) / gridDim[2]) + 1;
 
   PI_CHECK_ERROR(cuOccupancyMaxPotentialBlockSize(
-      &minGrid, &recommendedBlockSize, kernel->get(), NULL, local_size,
+      &minGrid, &maxBlockSize, kernel->get(), NULL, local_size,
       maxThreadsPerBlock[0]));
 
-  (void)minGrid; // Not used, avoid warnings
+  gridDim[0] = maxBlockSize / (threadsPerBlock[1] * threadsPerBlock[2]);
 
-  threadsPerBlock[0] = std::min(
-      maxThreadsPerBlock[0],
-      std::min(global_work_size[0], static_cast<size_t>(recommendedBlockSize)));
+  threadsPerBlock[0] =
+      std::min(maxThreadsPerBlock[0],
+               std::min(global_work_size[0], static_cast<size_t>(gridDim[0])));
 
   // Find a local work group size that is a divisor of the global
   // work group size to produce uniform work groups.
@@ -1931,11 +1941,27 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
 
   case PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY: {
+    // Check the device of the currently set context uses the same device.
+    // CUDA_ERROR_INVALID_CONTEXT signifies the absence of an active context.
+    CUdevice current_ctx_device;
+    CUresult current_ctx_device_ret = cuCtxGetDevice(&current_ctx_device);
+    if (current_ctx_device_ret != CUDA_ERROR_INVALID_CONTEXT)
+      PI_CHECK_ERROR(current_ctx_device_ret);
+    bool need_primary_ctx = current_ctx_device_ret == CUDA_ERROR_INVALID_CONTEXT ||
+                            current_ctx_device != device->get();
+    if (need_primary_ctx) {
+      // Use the primary context for the device if no context with the device is set.
+      CUcontext primary_context;
+      PI_CHECK_ERROR(cuDevicePrimaryCtxRetain(&primary_context, device->get()));
+      PI_CHECK_ERROR(cuCtxSetCurrent(primary_context));
+    }
     size_t FreeMemory = 0;
     size_t TotalMemory = 0;
     sycl::detail::pi::assertion(cuMemGetInfo(&FreeMemory, &TotalMemory) ==
                                     CUDA_SUCCESS,
                                 "failed cuMemGetInfo() API.");
+    if (need_primary_ctx)
+      PI_CHECK_ERROR(cuDevicePrimaryCtxRelease(device->get()));
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    FreeMemory);
   }
@@ -2134,7 +2160,6 @@ pi_result cuda_piContextCreate(const pi_context_properties *properties,
       piContextPtr = std::unique_ptr<_pi_context>(new _pi_context{
           _pi_context::kind::user_defined, newContext, *devices});
     }
-
     static std::once_flag initFlag;
     std::call_once(
         initFlag,
@@ -3108,8 +3133,9 @@ pi_result cuda_piEnqueueKernelLaunch(
             return err;
         }
       } else {
-        guessLocalWorkSize(threadsPerBlock, global_work_size,
-                           maxThreadsPerBlock, kernel, local_size);
+        guessLocalWorkSize(command_queue->device_, threadsPerBlock,
+                           global_work_size, maxThreadsPerBlock, kernel,
+                           local_size);
       }
     }
 
@@ -3889,6 +3915,7 @@ pi_result cuda_piEventGetProfilingInfo(pi_event event,
   switch (param_name) {
   case PI_PROFILING_INFO_COMMAND_QUEUED:
   case PI_PROFILING_INFO_COMMAND_SUBMIT:
+    // Note: No user for this case
     return getInfo<pi_uint64>(param_value_size, param_value,
                               param_value_size_ret, event->get_queued_time());
   case PI_PROFILING_INFO_COMMAND_START:
@@ -5486,6 +5513,35 @@ pi_result cuda_piTearDown(void *) {
   return PI_SUCCESS;
 }
 
+pi_result cuda_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
+                                       uint64_t *HostTime) {
+  _pi_event::native_type event;
+  ScopedContext active(Device->get_context());
+
+  if (DeviceTime) {
+    PI_CHECK_ERROR(cuEventCreate(&event, CU_EVENT_DEFAULT));
+    PI_CHECK_ERROR(cuEventRecord(event, 0));
+  }
+  if (HostTime) {
+
+    using namespace std::chrono;
+    *HostTime =
+        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
+            .count();
+  }
+
+  if (DeviceTime) {
+    PI_CHECK_ERROR(cuEventSynchronize(event));
+
+    float elapsedTime = 0.0f;
+    PI_CHECK_ERROR(
+        cuEventElapsedTime(&elapsedTime, _pi_platform::evBase_, event));
+    *DeviceTime = (uint64_t)(elapsedTime * (double)1e6);
+  }
+
+  return PI_SUCCESS;
+}
+
 const char SupportedVersion[] = _PI_CUDA_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -5634,6 +5690,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextKernelSetArgSampler, cuda_piextKernelSetArgSampler)
   _PI_CL(piPluginGetLastError, cuda_piPluginGetLastError)
   _PI_CL(piTearDown, cuda_piTearDown)
+  _PI_CL(piGetDeviceAndHostTimer, cuda_piGetDeviceAndHostTimer)
 
 #undef _PI_CL
 

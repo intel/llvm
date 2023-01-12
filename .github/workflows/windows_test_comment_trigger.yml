@@ -56,9 +56,10 @@ jobs:
   windows_test_completion:
     runs-on: ubuntu-latest
     needs: [windows_test_preparation, windows_default]
+    if: always()
     steps:
     - name: update_pr_status_success
-      if: always() && success()
+      if: needs.windows_default.result == 'success'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         OWNER: ${{ github.repository_owner }}
@@ -67,7 +68,7 @@ jobs:
       run: |
           gh api --method POST -H "Accept: application/vnd.github+json" /repos/$OWNER/$REPO/statuses/$SHA -f state='success' -f target_url='${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}' -f description='The operation completed successfully' -f context='Windows pre-commit'
     - name: update_pr_status_failure
-      if: failure()
+      if: needs.windows_default.result == 'failure'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         OWNER: ${{ github.repository_owner }}

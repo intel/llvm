@@ -14,6 +14,7 @@
 #include <sycl/detail/pi.hpp>
 
 #include <atomic>
+#include <chrono>
 #include <cstring>
 
 // Helpers for dummy handles
@@ -1092,5 +1093,23 @@ inline pi_result mock_piextPluginGetOpaqueData(void *opaque_data_param,
 inline pi_result mock_piTearDown(void *PluginParameter) { return PI_SUCCESS; }
 
 inline pi_result mock_piPluginGetLastError(char **message) {
+  return PI_SUCCESS;
+}
+
+// Returns the wall-clock timestamp of host for deviceTime and hostTime
+inline pi_result mock_piGetDeviceAndHostTimer(pi_device device,
+                                              uint64_t *deviceTime,
+                                              uint64_t *hostTime) {
+
+  using namespace std::chrono;
+  auto timeNanoseconds =
+      duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
+          .count();
+  if (deviceTime) {
+    *deviceTime = timeNanoseconds;
+  }
+  if (hostTime) {
+    *hostTime = timeNanoseconds;
+  }
   return PI_SUCCESS;
 }
