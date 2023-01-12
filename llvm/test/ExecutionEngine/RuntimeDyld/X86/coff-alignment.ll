@@ -1,5 +1,5 @@
 ; REQUIRES: system-windows
-; RUN: opt -mtriple=x86_64-pc-win32-coff %s -o - | lli
+; RUN: opt -mtriple=x86_64-pc-win32-coff %s -o - | lli --opaque-pointers
 
 @o = common global i32 0, align 4
 
