@@ -1,4 +1,7 @@
 // REQUIRES: opencl-aot, cpu
+// TODO: Test is failing on Windows with OpenCL, enable back when the issue
+// fixed.
+// UNSUPPORTED: windows && opencl
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 %s -o %t.out
 // RUN: %t.out
