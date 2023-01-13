@@ -2894,14 +2894,6 @@ defm sycl_esimd_force_stateless_mem : BoolFOption<"sycl-esimd-force-stateless-me
             "Disabled by default. (experimental)">,
     NegFlag<SetFalse, [], "Do not enforce using stateless memory accesses. (experimental)">,
     BothFlags<[CC1Option, CoreOption], "">>;
-def fsycl_disable_fine_grained_bitfield_accesses : 
-  Flag<["-"], "fsycl-disable-fine-grained-bitfield-accesses">,
-  Group<sycl_Group>, HelpText<"Disables the addition of `-ffine-grained-bitfeld-accesses` "
-                               "option for SPIR based targets">;
-def fno_sycl_disable_fine_grained_bitfield_accesses :
-  Flag<["-"], "fno-sycl-disable-fine-grained-bitfield-accesses">,
-  Group<sycl_Group>, HelpText<"Do not disable the addition of `-ffine-grained-bitfeld-accesses` "
-                               "option for SPIR based targets">;
 def fsycl_targets_EQ : CommaJoined<["-"], "fsycl-targets=">, Flags<[NoXarchOption, CC1Option, CoreOption]>,
   HelpText<"Specify comma-separated list of triples SYCL offloading targets to be supported">;
 def fsycl_add_targets_EQ : CommaJoined<["-"], "fsycl-add-targets=">,

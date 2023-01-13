@@ -410,11 +410,6 @@ and not recommended to use in production environment.
     Also, some of Intel GPUs or GPU run-time/drivers may support only
     "stateless" memory accesses.
 
-**`-fsycl-disable-fine-grained-bitfield-accesses`**
-
-    Disables the addition of `-ffine-grained-bitfeld-accesses` option for
-    SPIR based targets.
-
 # Example: SYCL device code compilation
 
 To invoke SYCL device compiler set `-fsycl-device-only` flag.

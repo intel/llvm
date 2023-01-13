@@ -5049,13 +5049,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                       !DisableSYCLForceInlineKernelLambda))
       CmdArgs.push_back("-fno-sycl-force-inline-kernel-lambda");
 
-    // Add -ffine-grained-bitfield-accesses option to cc1. This will be added
-    // only if user has not specified
-    // -fsycl-disable-fine-grained-bitfield-accesses.
-    if (!Args.hasFlag(
-            options::OPT_fsycl_disable_fine_grained_bitfield_accesses,
-            options::OPT_fno_sycl_disable_fine_grained_bitfield_accesses,
-            false))
+    // Add -ffine-grained-bitfield-accesses option. This will be added
+    // only for SPIR based targets.
+    if (Triple.isSPIR())
       CmdArgs.push_back("-ffine-grained-bitfield-accesses");
 
     if (!Args.hasFlag(options::OPT_fsycl_unnamed_lambda,
