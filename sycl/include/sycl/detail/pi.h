@@ -74,9 +74,10 @@
 // PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT, and
 // PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT context info query
 // descriptors.
+// 12.22 Add piGetDeviceAndHostTimer to query device wall-clock timestamp
 
 #define _PI_H_VERSION_MAJOR 12
-#define _PI_H_VERSION_MINOR 21
+#define _PI_H_VERSION_MINOR 22
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -1898,8 +1899,23 @@ __SYCL_EXPORT pi_result piTearDown(void *PluginParameter);
 ///
 /// \return PI_SUCCESS if plugin is indicating non-fatal warning. Any other
 /// error code indicates that plugin considers this to be a fatal error and the
-/// runtime must handle it or end the application.
+/// Returns the global timestamp from \param device , and syncronized host
+/// timestamp
 __SYCL_EXPORT pi_result piPluginGetLastError(char **message);
+
+/// Queries  device for it's global timestamp in nanoseconds, and updates
+/// HostTime  with the value of the host timer at the closest possible point in
+/// time to that at which DeviceTime was returned.
+///
+/// \param Device device to query for timestamp
+/// \param DeviceTime pointer to store device timestamp in nanoseconds. Optional
+/// argument, can be nullptr
+/// \param HostTime  pointer to store host timestamp in
+/// nanoseconds. Optional argurment, can be nullptr in which case timestamp will
+/// not be written
+__SYCL_EXPORT pi_result piGetDeviceAndHostTimer(pi_device Device,
+                                                uint64_t *DeviceTime,
+                                                uint64_t *HostTime);
 
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin

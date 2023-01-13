@@ -4066,11 +4066,19 @@ static void GenerateLangOptRequirements(const Record &R,
   // ParseKind name with other attributes. Attributes like these are considered
   // valid for a given language option if any of the attributes they share
   // ParseKind with accepts it.
-  if (R.isSubClassOf("LanguageOptionsSpecificAttr") &&
-      !R.isValueUnset("ParseKind")) {
+  if (R.isSubClassOf("LanguageOptionsSpecificAttr")) {
+    assert(!R.isValueUnset("ParseKind") &&
+           "Attributes deriving from LanguageOptionsSpecificAttr must all "
+           "define a ParseKind string value.");
+    assert(!R.isValueUnset("LangOpts") &&
+           "Attributes deriving from LanguageOptionsSpecificAttr must all "
+           "define a LangOpts list.");
     const StringRef APK = R.getValueAsString("ParseKind");
     for (const auto &I : Dupes) {
       if (I.first == APK) {
+        assert(!I.second->isValueUnset("LangOpts") &&
+               "Attributes deriving from LanguageOptionsSpecificAttr must all "
+               "define a LangOpts list.");
         std::vector<Record *> LO = I.second->getValueAsListOfDefs("LangOpts");
         LangOpts.insert(LangOpts.end(), LO.begin(), LO.end());
       }
