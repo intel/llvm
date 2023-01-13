@@ -88,9 +88,14 @@ TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefault) {
     RawBufferImplPtr = BufImpl.get();
     MockCmd = addCommandToBuffer(Buf, Q);
   }
+#ifdef __SYCL_DEFER_MEM_OBJ_DESTRUCTION
   ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 1u);
   EXPECT_EQ(MockSchedulerPtr->MDeferredMemObjRelease[0].get(),
             RawBufferImplPtr);
+  
+#else
+  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
+#endif
   EXPECT_CALL(*MockCmd, Release).Times(1);
 }
 
@@ -126,9 +131,14 @@ TEST_F(BufferDestructionCheck, BufferWithSizeOnlyNonDefaultAllocator) {
     MockCmd = addCommandToBuffer(Buf, Q);
     EXPECT_CALL(*MockCmd, Release).Times(1);
   }
+#ifdef __SYCL_DEFER_MEM_OBJ_DESTRUCTION
   ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 1u);
   EXPECT_EQ(MockSchedulerPtr->MDeferredMemObjRelease[0].get(),
             RawBufferImplPtr);
+#else
+  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
+#endif
+  
 }
 
 TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefaultAllocator) {
@@ -147,9 +157,14 @@ TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefaultAllocator) {
     MockCmd = addCommandToBuffer(Buf, Q);
     EXPECT_CALL(*MockCmd, Release).Times(1);
   }
+#ifdef __SYCL_DEFER_MEM_OBJ_DESTRUCTION
   ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 1u);
   EXPECT_EQ(MockSchedulerPtr->MDeferredMemObjRelease[0].get(),
             RawBufferImplPtr);
+#else
+  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
+#endif
+ 
 }
 
 TEST_F(BufferDestructionCheck, BufferWithRawHostPtr) {
@@ -254,9 +269,14 @@ TEST_F(BufferDestructionCheck, BufferWithIterators) {
     MockCmd = addCommandToBuffer(Buf, Q);
     EXPECT_CALL(*MockCmd, Release).Times(1);
   }
+#ifdef __SYCL_DEFER_MEM_OBJ_DESTRUCTION
   ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 1u);
   EXPECT_EQ(MockSchedulerPtr->MDeferredMemObjRelease[0].get(),
             RawBufferImplPtr);
+#else
+  ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
+#endif
+  
 }
 
 std::map<pi_event, pi_int32> ExpectedEventStatus;

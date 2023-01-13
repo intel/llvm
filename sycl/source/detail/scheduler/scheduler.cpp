@@ -392,13 +392,14 @@ Scheduler::Scheduler() {
 Scheduler::~Scheduler() { DefaultHostQueue.reset(); }
 
 void Scheduler::releaseResources() {
-#ifndef _WIN32
+#ifdef __SYCL_DEFER_MEM_OBJ_DESTRUCTION
   //  There might be some commands scheduled for post enqueue cleanup that
   //  haven't been freed because of the graph mutex being locked at the time,
   //  clean them up now.
   cleanupCommands({});
 
   cleanupAuxiliaryResources(BlockingT::BLOCKING);
+  
   // We need loop since sometimes we may need new objects to be added to
   // deferred mem objects storage during cleanup. Known example is: we cleanup
   // existing deferred mem objects under write lock, during this process we

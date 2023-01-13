@@ -175,15 +175,6 @@ void GlobalHandler::releaseDefaultContexts() {
 #endif
 }
 
-struct DefaultContextReleaseHandler {
-  ~DefaultContextReleaseHandler() {
-    GlobalHandler::instance().releaseDefaultContexts();
-  }
-};
-
-void GlobalHandler::registerDefaultContextReleaseHandler() {
-  static DefaultContextReleaseHandler handler{};
-}
 
 // Note: Split from shutdown so it is available to the unittests for ensuring
 //       that the mock plugin is the lone plugin.

@@ -305,7 +305,10 @@ TEST_F(SchedulerTest, HostTaskCleanup) {
   // submitted to the thread pool, shortly after the event is marked
   // as complete.
   detail::GlobalHandler::instance().drainThreadPool();
+#ifndef _WIN32
+  // Windows drainThreadPool does nothing at this time.
   ASSERT_EQ(EventImpl->getCommand(), nullptr);
+#endif
 }
 
 struct AttachSchedulerWrapper {
