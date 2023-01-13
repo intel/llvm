@@ -259,6 +259,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 	endif()
 
 	if( ${ARCH} STREQUAL r600 OR ${ARCH} STREQUAL amdgcn )
+
 		list( APPEND dirs amdgpu )
 	endif()
 
@@ -336,8 +337,11 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 				# Disables NVVM reflection to defer to after linking
 				set( flags "SHELL:-Xclang -target-feature" "SHELL:-Xclang +ptx72"
 						 "SHELL:-march=sm_86" "SHELL:-mllvm --nvvm-reflect-enable=false")
-                        else()
-                                set ( flags )
+			elseif( ${ARCH} STREQUAL amdgcn )
+				# AMDGCN needs generic address space for atomics
+				set( flags "SHELL:-Xclang -cl-std=CL2.0")
+			else()
+				set ( flags )
 			endif()
 			set( arch_suffix "${t}" )
 		else()

@@ -1853,9 +1853,9 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
 
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    pi_memory_order_capabilities capabilities =
-        PI_MEMORY_ORDER_RELAXED | PI_MEMORY_ORDER_ACQUIRE |
-        PI_MEMORY_ORDER_RELEASE | PI_MEMORY_ORDER_ACQ_REL;
+    pi_memory_order_capabilities capabilities = PI_MEMORY_ORDER_RELAXED |
+                                                PI_MEMORY_ORDER_ACQUIRE |
+                                                PI_MEMORY_ORDER_RELEASE;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capabilities);
   }

@@ -10,30 +10,32 @@
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 
-#define AMDGPU_ATOMIC_LOAD(FUNC_NAME, TYPE, TYPE_MANGLED, AS, AS_MANGLED)                           \
-  _CLC_DEF TYPE                                                                                     \
-      FUNC_NAME##PU3##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE( \
-          const volatile AS TYPE *p, enum Scope scope,                                              \
-          enum MemorySemanticsMask semantics) {                                                     \
-    int atomic_scope = 0, memory_order = 0;                                                         \
-    GET_ATOMIC_SCOPE_AND_ORDER(scope, atomic_scope, semantics, memory_order)                        \
-    TYPE res = __hip_atomic_load(p, memory_order, atomic_scope);                                    \
-    return *(TYPE *)&res;                                                                           \
+#define AMDGPU_ATOMIC_LOAD_IMPL(TYPE, TYPE_MANGLED, AS, AS_MANGLED)                                          \
+  _CLC_DEF TYPE                                                                                              \
+      _Z18__spirv_AtomicLoadP##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE( \
+          const volatile AS TYPE *p, enum Scope scope,                                                       \
+          enum MemorySemanticsMask semantics) {                                                              \
+    int atomic_scope = 0, memory_order = 0;                                                                  \
+    GET_ATOMIC_SCOPE_AND_ORDER(scope, atomic_scope, semantics, memory_order)                                 \
+    TYPE res = __hip_atomic_load(p, memory_order, atomic_scope);                                             \
+    return *(TYPE *)&res;                                                                                    \
   }
 
-AMDGPU_ATOMIC_LOAD(_Z18__spirv_AtomicLoad, int, Ki, global, AS1)
-AMDGPU_ATOMIC_LOAD(_Z18__spirv_AtomicLoad, unsigned int, Kj, global, AS1)
-AMDGPU_ATOMIC_LOAD(_Z18__spirv_AtomicLoad, int, Ki, local, AS3)
-AMDGPU_ATOMIC_LOAD(_Z18__spirv_AtomicLoad, unsigned int, Kj, local, AS3)
+#define AMDGPU_ATOMIC_LOAD(TYPE, TYPE_MANGLED)                                 \
+  AMDGPU_ATOMIC_LOAD_IMPL(TYPE, TYPE_MANGLED, global, U3AS1)                   \
+  AMDGPU_ATOMIC_LOAD_IMPL(TYPE, TYPE_MANGLED, local, U3AS3)                    \
+  AMDGPU_ATOMIC_LOAD_IMPL(TYPE, TYPE_MANGLED, , )
 
-AMDGPU_ATOMIC_LOAD(_Z18__spirv_AtomicLoad, long, Kl, global, AS1)
-AMDGPU_ATOMIC_LOAD(_Z18__spirv_AtomicLoad, unsigned long, Km, global, AS1)
-AMDGPU_ATOMIC_LOAD(_Z18__spirv_AtomicLoad, long, Kl, local, AS3)
-AMDGPU_ATOMIC_LOAD(_Z18__spirv_AtomicLoad, unsigned long, Km, local, AS3)
-
-AMDGPU_ATOMIC_LOAD(_Z18__spirv_AtomicLoad, float, Kf, global, AS1)
-AMDGPU_ATOMIC_LOAD(_Z18__spirv_AtomicLoad, float, Kf, local, AS3)
+AMDGPU_ATOMIC_LOAD(int, Ki)
+AMDGPU_ATOMIC_LOAD(unsigned int, Kj)
+AMDGPU_ATOMIC_LOAD(long, Kl)
+AMDGPU_ATOMIC_LOAD(unsigned long, Km)
+AMDGPU_ATOMIC_LOAD(float, Kf)
 
 // TODO implement for fp64
 
 #undef AMDGPU_ATOMIC
+#undef AMDGPU_ATOMIC_IMPL
+#undef AMDGPU_ATOMIC_LOAD
+#undef AMDGPU_ATOMIC_LOAD_IMPL
+#undef GET_ATOMIC_SCOPE_AND_ORDER

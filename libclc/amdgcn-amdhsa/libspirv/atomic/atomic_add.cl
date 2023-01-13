@@ -10,29 +10,14 @@
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 
-AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, int, i, global, AS1,
-              __hip_atomic_fetch_add)
-AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, unsigned int, j, global, AS1,
-              __hip_atomic_fetch_add)
-AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, int, i, local, AS3,
-              __hip_atomic_fetch_add)
-AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, unsigned int, j, local, AS3,
-              __hip_atomic_fetch_add)
-
-AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, long, l, global, AS1,
-              __hip_atomic_fetch_add)
-AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, unsigned long, m, global, AS1,
-              __hip_atomic_fetch_add)
-AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, long, l, local, AS3,
-              __hip_atomic_fetch_add)
-AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, unsigned long, m, local, AS3,
-              __hip_atomic_fetch_add)
-
-AMDGPU_ATOMIC(_Z21__spirv_AtomicFAddEXT, float, f, global, AS1,
-              __hip_atomic_fetch_add)
-AMDGPU_ATOMIC(_Z21__spirv_AtomicFAddEXT, float, f, local, AS3,
-              __hip_atomic_fetch_add)
+AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, int, i, __hip_atomic_fetch_add)
+AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, unsigned int, j, __hip_atomic_fetch_add)
+AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, long, l, __hip_atomic_fetch_add)
+AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, unsigned long, m, __hip_atomic_fetch_add)
+AMDGPU_ATOMIC(_Z21__spirv_AtomicFAddEXT, float, f, __hip_atomic_fetch_add)
 
 // TODO implement for fp64
 
 #undef AMDGPU_ATOMIC
+#undef AMDGPU_ATOMIC_IMPL
+#undef GET_ATOMIC_SCOPE_AND_ORDER

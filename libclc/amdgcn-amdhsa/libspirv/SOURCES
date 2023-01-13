@@ -4,8 +4,10 @@ group/group_ballot.cl
 group/collectives.cl
 group/collectives_helpers.ll
 atomic/atomic_add.cl
+atomic/atomic_cmpxchg.cl
 atomic/atomic_xchg.cl
 atomic/atomic_load.cl
+atomic/atomic_sub.cl
 atomic/atomic_store.cl
 cl_khr_int64_extended_atomics/minmax_helpers.ll
 synchronization/barrier.cl
