@@ -1,5 +1,5 @@
 // for CUDA and HIP the failure happens at compile time, not during runtime
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: cuda || hip || ze_debug4 || ze_debug-1
 
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DSYCL_DISABLE_FALLBACK_ASSERT=1 %s -o %t.out
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DSYCL_DISABLE_FALLBACK_ASSERT=1 -DGPU %s -o %t_gpu.out
