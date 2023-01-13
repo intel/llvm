@@ -33,7 +33,9 @@ jobs:
           python-version: 3.9
 
       - name: Install apt package
-        run: sudo apt-get install -y doxygen
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y doxygen
 
       - name: Install prerequisites
         run: python3 -m pip install -r third_party/requirements.txt
