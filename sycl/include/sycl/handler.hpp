@@ -653,8 +653,14 @@ private:
   template <typename KernelName, typename KernelType, int Dims,
             typename LambdaArgType>
   void StoreLambda(KernelType KernelFunc) {
-    using KI = detail::KernelInfo<KernelName>;
-
+    using KI = sycl::detail::KernelInfo<KernelName>;
+    /*
+      static constexpr const char *getName() { return ""; }
+    */
+    constexpr detail::code_location CodeLoc(
+        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
+        KI::getColumnNumber());
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     constexpr bool IsCallableWithKernelHandler =
         detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                  LambdaArgType>::value;
@@ -668,7 +674,6 @@ private:
     KernelType *KernelPtr =
         ResetHostKernel<KernelType, LambdaArgType, Dims>(KernelFunc);
 
-    using KI = sycl::detail::KernelInfo<KernelName>;
     constexpr bool KernelHasName =
         KI::getName() != nullptr && KI::getName()[0] != '\0';
 

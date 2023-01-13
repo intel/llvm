@@ -32,19 +32,13 @@ pi_result redefinedEnqueueKernelLaunch(
   return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
 }
 
-class QueueApiFailures : public ::testing::Test
-{
-  protected:
-  void SetUp()
-  {
-      xptiTraceTryToEnable();
-  }
+class QueueApiFailures : public ::testing::Test {
+protected:
+  void SetUp() { xptiTraceTryToEnable(); }
 
-  void TearDown()
-  {
+  void TearDown() {}
 
-  }
-  public:
+public:
   unittest::ScopedEnvVar XPTIenabling{"XPTI_TRACE_ENABLE", "1", [] {}};
   unittest::ScopedEnvVar PathToXPTIFW{"XPTI_FRAMEWORK_DISPATCHER",
                                       "libxptifw.so", [] {}};
@@ -56,27 +50,46 @@ class QueueApiFailures : public ::testing::Test
   static constexpr char FunctionName[] = "TestCaseExecution";
   static constexpr unsigned int LineNumber = 8;
   static constexpr unsigned int ColumnNumber = 13;
-  static constexpr sycl::detail::code_location TestCodeLocation = { FileName, FunctionName, LineNumber, ColumnNumber};
+  static constexpr sycl::detail::code_location TestCodeLocation = {
+      FileName, FunctionName, LineNumber, ColumnNumber};
   static const std::string TestCodeLocationMessage;
+  static const std::string TestKernelLocationMessage;
+  static const size_t KernelSize = 1;
 };
 
-const std::string QueueApiFailures::TestCodeLocationMessage = {std::string(FileName).append(":").append(FunctionName).append(":ln").append(std::to_string(LineNumber)).append(":col").append(std::to_string(ColumnNumber))};
+const std::string QueueApiFailures::TestCodeLocationMessage = {
+    std::string(FileName)
+        .append(":")
+        .append(FunctionName)
+        .append(":ln")
+        .append(std::to_string(LineNumber))
+        .append(":col")
+        .append(std::to_string(ColumnNumber))};
+const std::string QueueApiFailures::TestKernelLocationMessage = {
+    std::string(detail::KernelInfo<TestKernel<KernelSize>>::getFileName())
+        .append(":")
+        .append(detail::KernelInfo<TestKernel<KernelSize>>::getFunctionName())
+        .append(":ln")
+        .append(std::to_string(
+            detail::KernelInfo<TestKernel<KernelSize>>::getLineNumber()))
+        .append(":col")
+        .append(std::to_string(
+            detail::KernelInfo<TestKernel<KernelSize>>::getColumnNumber()))};
 
 TEST_F(QueueApiFailures, QueueSubmit) {
   MockPlugin.redefine<detail::PiApiKind::piEnqueueKernelLaunch>(
-        redefinedEnqueueKernelLaunch);
+      redefinedEnqueueKernelLaunch);
   MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
-        redefinedPluginGetLastError);
+      redefinedPluginGetLastError);
   sycl::queue Q;
-  buffer<int, 1> buf{range<1>(1)};
   bool ExceptionCaught = false;
   try {
-    Q.submit([&](handler &Cgh) {
-      auto Acc = buf.template get_access<access::mode::read_write>(Cgh);
-      constexpr size_t KS = sizeof(decltype(Acc));
-      Cgh.single_task<TestKernel<KS>>([=]() { Acc[0] = 4; });
-    }, TestCodeLocation);
-  } catch (sycl::exception& e) {
+    Q.submit(
+        [&](handler &Cgh) {
+          Cgh.single_task<TestKernel<KernelSize>>([=]() {});
+        },
+        TestCodeLocation);
+  } catch (sycl::exception &e) {
     ExceptionCaught = true;
   }
   Q.wait();
@@ -110,13 +123,13 @@ TEST_F(QueueApiFailures, QueueMemset) {
   MockPlugin.redefine<detail::PiApiKind::piextUSMEnqueueMemset>(
       redefinedUSMEnqueueMemset);
   MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
-        redefinedPluginGetLastError);
+      redefinedPluginGetLastError);
   sycl::queue Q;
   bool ExceptionCaught = false;
   unsigned char *HostAlloc = (unsigned char *)sycl::malloc_host(1, Q);
   try {
     Q.memset(HostAlloc, 42, 1);
-  } catch (sycl::exception& e) {
+  } catch (sycl::exception &e) {
     ExceptionCaught = true;
   }
   Q.wait();
@@ -134,13 +147,13 @@ TEST_F(QueueApiFailures, QueueFill) {
   MockPlugin.redefine<detail::PiApiKind::piEnqueueMemBufferFill>(
       redefinedEnqueueMemBufferFill);
   MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
-        redefinedPluginGetLastError);
+      redefinedPluginGetLastError);
   sycl::queue Q;
   bool ExceptionCaught = false;
   unsigned char *HostAlloc = (unsigned char *)sycl::malloc_host(1, Q);
   try {
     Q.fill(HostAlloc, 42, 1);
-  } catch (sycl::exception& e) {
+  } catch (sycl::exception &e) {
     ExceptionCaught = true;
   }
   Q.wait();
@@ -151,5 +164,28 @@ TEST_F(QueueApiFailures, QueueFill) {
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
   EXPECT_EQ(Message, "No code location data is available.");
+  EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
+}
+
+TEST_F(QueueApiFailures, QueueParallelFor) {
+  MockPlugin.redefine<detail::PiApiKind::piEnqueueKernelLaunch>(
+      redefinedEnqueueKernelLaunch);
+  MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
+      redefinedPluginGetLastError);
+  sycl::queue Q;
+  bool ExceptionCaught = false;
+  const int globalWIs{512};
+  try {
+    Q.parallel_for<TestKernel<KernelSize>>(globalWIs, [=](sycl::id<1> idx) {});
+  } catch (sycl::exception &e) {
+    ExceptionCaught = true;
+  }
+  Q.wait();
+  EXPECT_TRUE(ExceptionCaught);
+  uint16_t TraceType = 0;
+  std::string Message;
+  EXPECT_TRUE(queryReceivedNotifications(TraceType, Message));
+  EXPECT_EQ(TraceType, xpti::trace_diagnostics);
+  EXPECT_EQ(Message, TestKernelLocationMessage);
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
