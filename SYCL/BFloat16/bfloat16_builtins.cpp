@@ -29,6 +29,8 @@ bool check(float a, float b) {
   return fabs(2 * (a - b) / (a + b)) > bf16_eps * 2;
 }
 
+bool check(bool a, bool b) { return (a == b); }
+
 #define TEST_BUILTIN_1_SCAL_IMPL(NAME)                                         \
   {                                                                            \
     buffer<float> a_buf(&a[0], N);                                             \
@@ -46,7 +48,7 @@ bool check(float a, float b) {
   }                                                                            \
   assert(err == 0);
 
-#define TEST_BUILTIN_1_ARR_IMPL(NAME, SZ)                                      \
+#define TEST_BUILTIN_1_ARR_IMPL(NAME, SZ, RETTY)                               \
   {                                                                            \
     buffer<float, 2> a_buf{range<2>{N / SZ, SZ}};                              \
     buffer<int> err_buf(&err, 1);                                              \
@@ -59,7 +61,7 @@ bool check(float a, float b) {
         for (int i = 0; i < SZ; i++) {                                         \
           arg[i] = A[index][i];                                                \
         }                                                                      \
-        marray<bfloat16, SZ> res = NAME(arg);                                  \
+        marray<RETTY, SZ> res = NAME(arg);                                     \
         for (int i = 0; i < SZ; i++) {                                         \
           if (check(res[i], NAME(A[index][i]))) {                              \
             ERR[0] = 1;                                                        \
@@ -70,13 +72,13 @@ bool check(float a, float b) {
   }                                                                            \
   assert(err == 0);
 
-#define TEST_BUILTIN_1(NAME)                                                   \
+#define TEST_BUILTIN_1(NAME, RETTY)                                            \
   TEST_BUILTIN_1_SCAL_IMPL(NAME)                                               \
-  TEST_BUILTIN_1_ARR_IMPL(NAME, 1)                                             \
-  TEST_BUILTIN_1_ARR_IMPL(NAME, 2)                                             \
-  TEST_BUILTIN_1_ARR_IMPL(NAME, 3)                                             \
-  TEST_BUILTIN_1_ARR_IMPL(NAME, 4)                                             \
-  TEST_BUILTIN_1_ARR_IMPL(NAME, 5)
+  TEST_BUILTIN_1_ARR_IMPL(NAME, 1, RETTY)                                      \
+  TEST_BUILTIN_1_ARR_IMPL(NAME, 2, RETTY)                                      \
+  TEST_BUILTIN_1_ARR_IMPL(NAME, 3, RETTY)                                      \
+  TEST_BUILTIN_1_ARR_IMPL(NAME, 4, RETTY)                                      \
+  TEST_BUILTIN_1_ARR_IMPL(NAME, 5, RETTY)
 
 #define TEST_BUILTIN_2_SCAL_IMPL(NAME)                                         \
   {                                                                            \
@@ -233,7 +235,7 @@ int main() {
       c[i] = (float)(3 * i);
     }
 
-    TEST_BUILTIN_1(fabs);
+    TEST_BUILTIN_1(fabs, bfloat16);
     TEST_BUILTIN_2(fmin);
     TEST_BUILTIN_2(fmax);
     TEST_BUILTIN_3(fma);
@@ -241,6 +243,10 @@ int main() {
     float check_nan = 0;
     TEST_BUILTIN_2_NAN(fmin);
     TEST_BUILTIN_2_NAN(fmax);
+
+    // Insert NAN value in a to test isnan
+    a[0] = a[N - 1] = NAN;
+    TEST_BUILTIN_1(isnan, bool);
   }
   return 0;
 }
