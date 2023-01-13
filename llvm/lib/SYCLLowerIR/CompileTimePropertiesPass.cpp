@@ -266,6 +266,13 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
                                               HostAccessDecorValue, VarName));
     }
 
+    if (isHostPipeVariable(GV)) {
+      auto VarName = getGlobalVariableUniqueId(GV);
+      MDOps.push_back(buildSpirvDecorMetadata(Ctx, SPIRV_HOST_ACCESS_DECOR,
+                                              SPIRV_HOST_ACCESS_DEFAULT_VALUE, 
+                                              VarName));
+    }
+
     // Add the generated metadata to the variable
     if (!MDOps.empty()) {
       GV.addMetadata(MDKindID, *MDNode::get(Ctx, MDOps));

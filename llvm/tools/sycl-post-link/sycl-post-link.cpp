@@ -207,6 +207,11 @@ cl::opt<bool> DeviceGlobals{
     cl::desc("Lower and generate information about device global variables"),
     cl::cat(PostLinkCat)};
 
+cl::opt<bool> HostPipes{
+    "host-pipes",
+    cl::desc("Lower and generate information about host pipe variables"),
+    cl::cat(PostLinkCat)};
+
 struct GlobalBinImageProps {
   bool EmitKernelParamInfo;
   bool EmitProgramMetadata;
@@ -970,10 +975,11 @@ int main(int argc, char **argv) {
   bool DoProgMetadata = EmitProgramMetadata.getNumOccurrences() > 0;
   bool DoExportedSyms = EmitExportedSymbols.getNumOccurrences() > 0;
   bool DoDeviceGlobals = DeviceGlobals.getNumOccurrences() > 0;
+  bool DoHostPipes = HostPipes.getNumOccurrences() > 0;
 
   if (!DoSplit && !DoSpecConst && !DoSymGen && !DoParamInfo &&
       !DoProgMetadata && !DoSplitEsimd && !DoExportedSyms && !DoDeviceGlobals &&
-      !DoLowerEsimd) {
+      !DoLowerEsimd && !DoHostPipes) {
     errs() << "no actions specified; try --help for usage info\n";
     return 1;
   }

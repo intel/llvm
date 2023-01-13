@@ -5512,9 +5512,10 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
     // type.
     if (RD && RD->hasAttr<SYCLAddIRAttributesGlobalVariableAttr>())
       AddGlobalSYCLIRAttributes(GV, RD);
-    // If VarDecl has a type decorated with SYCL device_global attribute, emit
-    // IR attribute 'sycl-unique-id'.
-    if (RD && RD->hasAttr<SYCLDeviceGlobalAttr>())
+    // If VarDecl has a type decorated with SYCL device_global attribute or
+    // SYCL host_pipe attribute, emit IR attribute 'sycl-unique-id'.
+    if (RD && (RD->hasAttr<SYCLDeviceGlobalAttr>() || 
+               RD->hasAttr<SYCLHostPipeAttr>()))
       addSYCLUniqueID(GV, D, Context);
   }
 
