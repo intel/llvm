@@ -305,7 +305,10 @@ TEST_F(SchedulerTest, HostTaskCleanup) {
   // submitted to the thread pool, shortly after the event is marked
   // as complete.
   detail::GlobalHandler::instance().drainThreadPool();
+#ifndef _WIN32
+  // Windows drainThreadPool does nothing at this time.
   ASSERT_EQ(EventImpl->getCommand(), nullptr);
+#endif
 }
 
 struct AttachSchedulerWrapper {
@@ -419,6 +422,7 @@ TEST_F(SchedulerTest, AuxiliaryResourcesDeallocation) {
   ASSERT_FALSE(MockAuxResourceDeleted);
 
   EventCompleted = true;
+#ifdef __SYCL_DEFER_MEM_OBJ_DESTRUCTION
   // Acquire lock to keep deferred mem obj from releasing so that they can be
   // checked.
   {
@@ -427,6 +431,7 @@ TEST_F(SchedulerTest, AuxiliaryResourcesDeallocation) {
     ASSERT_TRUE(MockAuxResourceDeleted);
     ASSERT_EQ(MSPtr->MDeferredMemObjRelease.size(), 1u);
   }
+#endif
 
   MSPtr->cleanupCommands({});
   ASSERT_EQ(MSPtr->MDeferredMemObjRelease.size(), 0u);
