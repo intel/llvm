@@ -81,10 +81,11 @@ void DeviceBinaryContainer::addProperty(PropertySetContainer &&Cont) {
 }
 
 pi_device_binary_struct DeviceBinaryContainer::getPIDeviceBinary(
-    const unsigned char *BinaryStart, size_t BinarySize, const char* TargetSpec) {
+    const unsigned char *BinaryStart, size_t BinarySize, const char* TargetSpec, pi_device_binary_type Format) {
   pi_device_binary_struct DeviceBinary;
   DeviceBinary.Version = PI_DEVICE_BINARY_VERSION;
   DeviceBinary.Kind = PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
+  DeviceBinary.Format = Format;
   DeviceBinary.CompileOptions = "";
   DeviceBinary.LinkOptions = "";
   DeviceBinary.ManifestStart = nullptr;
@@ -93,7 +94,6 @@ pi_device_binary_struct DeviceBinaryContainer::getPIDeviceBinary(
   // the JITContext.
   DeviceBinary.BinaryStart = BinaryStart;
   DeviceBinary.BinaryEnd = BinaryStart + BinarySize;
-  DeviceBinary.Format = PI_DEVICE_BINARY_TYPE_SPIRV;
   DeviceBinary.DeviceTargetSpec = TargetSpec;
   DeviceBinary.EntriesBegin = PIOffloadEntries.data();
   DeviceBinary.EntriesEnd = PIOffloadEntries.data() + PIOffloadEntries.size();
@@ -106,14 +106,14 @@ pi_device_binary_struct DeviceBinaryContainer::getPIDeviceBinary(
 void DeviceBinariesCollection::addDeviceBinary(DeviceBinaryContainer &&Cont,
                                                const unsigned char *BinaryStart,
                                                size_t BinarySize,
-                                               const char* TargetSpec) {
+                                               const char* TargetSpec, pi_device_binary_type Format) {
   // Adding to the vectors might trigger reallocation, which would invalidate
   // the pointers used for PI structs if a PI struct has already been created
   // via getPIDeviceStruct(). Forbid calls to this method after the first PI
   // struct has been created.
   assert(Fused && "Adding to container would invalidate existing PI structs");
   PIBinaries.push_back(
-      Cont.getPIDeviceBinary(BinaryStart, BinarySize, TargetSpec));
+      Cont.getPIDeviceBinary(BinaryStart, BinarySize, TargetSpec, Format));
   Binaries.push_back(std::move(Cont));
 }
 
