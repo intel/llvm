@@ -772,27 +772,27 @@ pi_result _pi_context::initialize() {
   // Helper lambda to create various USM allocators for a device.
   // For SubDevices, create a shared pointer.
   auto createUSMAllocators = [this](pi_device Device) {
-
     SharedMemAllocContexts.emplace(
         std::piecewise_construct, std::make_tuple(Device),
-        std::make_tuple(std::make_shared<USMAllocContext>(
-        std::unique_ptr<SystemMemory>(new USMSharedMemoryAlloc(this, Device)))));
+        std::make_tuple(
+            std::make_shared<USMAllocContext>(std::unique_ptr<SystemMemory>(
+                new USMSharedMemoryAlloc(this, Device)))));
 
     SharedReadOnlyMemAllocContexts.emplace(
         std::piecewise_construct, std::make_tuple(Device),
-        std::make_tuple(std::make_shared<USMAllocContext>(
-        std::unique_ptr<SystemMemory>(new USMSharedReadOnlyMemoryAlloc(this, Device)))));
+        std::make_tuple(
+            std::make_shared<USMAllocContext>(std::unique_ptr<SystemMemory>(
+                new USMSharedReadOnlyMemoryAlloc(this, Device)))));
 
     DeviceMemAllocContexts.emplace(
         std::piecewise_construct, std::make_tuple(Device),
         std::make_tuple(std::make_shared<USMAllocContext>(
-        std::unique_ptr<USMDeviceMemoryAlloc>(new USMDeviceMemoryAlloc(
-            this, Device)))));
+            std::unique_ptr<USMDeviceMemoryAlloc>(
+                new USMDeviceMemoryAlloc(this, Device)))));
   };
 
-  auto copyUSMAllocatorOfSubDeviceToCCS =
-       [this](pi_device CCS, pi_device SubDevice) {
-
+  auto copyUSMAllocatorOfSubDeviceToCCS = [this](pi_device CCS,
+                                                 pi_device SubDevice) {
     if (SharedMemAllocContexts.find(SubDevice) !=
         SharedMemAllocContexts.end()) {
       SharedMemAllocContexts.emplace(
@@ -8467,7 +8467,8 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr,
 
     auto DeallocationHelper =
         [Context, Device, Ptr, OwnZeMemHandle](
-            std::unordered_map<pi_device, std::shared_ptr<USMAllocContext>> &AllocContextMap) {
+            std::unordered_map<pi_device, std::shared_ptr<USMAllocContext>>
+                &AllocContextMap) {
           try {
             auto It = AllocContextMap.find(Device);
             if (It == AllocContextMap.end())
