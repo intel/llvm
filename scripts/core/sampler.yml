@@ -44,6 +44,22 @@ etors:
     - name: FILTER_MODE
       desc: "Sampler filter mode"
 --- #--------------------------------------------------------------------------
+type: enum
+desc: "Sampler addressing mode"
+class: $xSampler
+name: $x_sampler_addressing_mode_t
+etors:
+    - name: MIRRORED_REPEAT
+      desc: "Mirrored Repeat"
+    - name: REPEAT
+      desc: "Repeat"
+    - name: CLAMP
+      desc: "Clamp"
+    - name: CLAMP_TO_EDGE
+      desc: "Clamp to edge"
+    - name: NONE
+      desc: "None"
+--- #--------------------------------------------------------------------------
 type: struct
 desc: "Sampler properties <name, value> pair"
 class: $xSampler
