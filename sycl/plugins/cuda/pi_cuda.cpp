@@ -278,23 +278,32 @@ int getAttribute(pi_device device, CUdevice_attribute attribute) {
 // Determine local work sizes that result in uniform work groups.
 // The default threadsPerBlock only require handling the first work_dim
 // dimension.
-void guessLocalWorkSize(size_t *threadsPerBlock, const size_t *global_work_size,
+void guessLocalWorkSize(_pi_device *device, size_t *threadsPerBlock,
+                        const size_t *global_work_size,
                         const size_t maxThreadsPerBlock[3], pi_kernel kernel,
                         pi_uint32 local_size) {
   assert(threadsPerBlock != nullptr);
   assert(global_work_size != nullptr);
   assert(kernel != nullptr);
-  int recommendedBlockSize, minGrid;
+  int minGrid, maxBlockSize, gridDim[3];
+
+  cuDeviceGetAttribute(&gridDim[1], CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y,
+                       device->get());
+  cuDeviceGetAttribute(&gridDim[2], CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z,
+                       device->get());
+
+  threadsPerBlock[1] = ((global_work_size[1] - 1) / gridDim[1]) + 1;
+  threadsPerBlock[2] = ((global_work_size[2] - 1) / gridDim[2]) + 1;
 
   PI_CHECK_ERROR(cuOccupancyMaxPotentialBlockSize(
-      &minGrid, &recommendedBlockSize, kernel->get(), NULL, local_size,
+      &minGrid, &maxBlockSize, kernel->get(), NULL, local_size,
       maxThreadsPerBlock[0]));
 
-  (void)minGrid; // Not used, avoid warnings
+  gridDim[0] = maxBlockSize / (threadsPerBlock[1] * threadsPerBlock[2]);
 
-  threadsPerBlock[0] = std::min(
-      maxThreadsPerBlock[0],
-      std::min(global_work_size[0], static_cast<size_t>(recommendedBlockSize)));
+  threadsPerBlock[0] =
+      std::min(maxThreadsPerBlock[0],
+               std::min(global_work_size[0], static_cast<size_t>(gridDim[0])));
 
   // Find a local work group size that is a divisor of the global
   // work group size to produce uniform work groups.
@@ -661,17 +670,13 @@ _pi_program::_pi_program(pi_context ctxt)
 
 _pi_program::~_pi_program() { cuda_piContextRelease(context_); }
 
-bool get_kernel_metadata(std::string metadataName, const char *tag,
-                         std::string &kernelName) {
-  const size_t tagLength = strlen(tag);
-  const size_t metadataNameLength = metadataName.length();
-  if (metadataNameLength >= tagLength &&
-      metadataName.compare(metadataNameLength - tagLength, tagLength, tag) ==
-          0) {
-    kernelName = metadataName.substr(0, metadataNameLength - tagLength);
-    return true;
-  }
-  return false;
+std::pair<std::string, std::string>
+splitMetadataName(const std::string &metadataName) {
+  size_t splitPos = metadataName.rfind('@');
+  if (splitPos == std::string::npos)
+    return std::make_pair(metadataName, std::string{});
+  return std::make_pair(metadataName.substr(0, splitPos),
+                        metadataName.substr(splitPos, metadataName.length()));
 }
 
 pi_result _pi_program::set_metadata(const pi_device_binary_property *metadata,
@@ -679,13 +684,12 @@ pi_result _pi_program::set_metadata(const pi_device_binary_property *metadata,
   for (size_t i = 0; i < length; ++i) {
     const pi_device_binary_property metadataElement = metadata[i];
     std::string metadataElementName{metadataElement->Name};
-    std::string kernelName;
 
-    // If metadata is reqd_work_group_size record it for the corresponding
-    // kernel name.
-    if (get_kernel_metadata(metadataElementName,
-                            __SYCL_PI_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE,
-                            kernelName)) {
+    auto [prefix, tag] = splitMetadataName(metadataElementName);
+
+    if (tag == __SYCL_PI_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE) {
+      // If metadata is reqd_work_group_size, record it for the corresponding
+      // kernel name.
       size_t MDElemsSize = metadataElement->ValSize - sizeof(std::uint64_t);
 
       // Expect between 1 and 3 32-bit integer values.
@@ -700,9 +704,16 @@ pi_result _pi_program::set_metadata(const pi_device_binary_property *metadata,
       // Read values and pad with 1's for values not present.
       std::uint32_t reqdWorkGroupElements[] = {1, 1, 1};
       std::memcpy(reqdWorkGroupElements, ValuePtr, MDElemsSize);
-      kernelReqdWorkGroupSizeMD_[kernelName] =
+      kernelReqdWorkGroupSizeMD_[prefix] =
           std::make_tuple(reqdWorkGroupElements[0], reqdWorkGroupElements[1],
                           reqdWorkGroupElements[2]);
+    } else if (tag == __SYCL_PI_PROGRAM_METADATA_GLOBAL_ID_MAPPING) {
+      const char *metadataValPtr =
+          reinterpret_cast<const char *>(metadataElement->ValAddr) +
+          sizeof(std::uint64_t);
+      const char *metadataValPtrEnd =
+          metadataValPtr + metadataElement->ValSize - sizeof(std::uint64_t);
+      globalIDMD_[prefix] = std::string{metadataValPtr, metadataValPtrEnd};
     }
   }
   return PI_SUCCESS;
@@ -3124,8 +3135,9 @@ pi_result cuda_piEnqueueKernelLaunch(
             return err;
         }
       } else {
-        guessLocalWorkSize(threadsPerBlock, global_work_size,
-                           maxThreadsPerBlock, kernel, local_size);
+        guessLocalWorkSize(command_queue->device_, threadsPerBlock,
+                           global_work_size, maxThreadsPerBlock, kernel,
+                           local_size);
       }
     }
 
@@ -5495,6 +5507,82 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   return result;
 }
 
+pi_result cuda_piextEnqueueDeviceGlobalVariableWrite(
+    pi_queue queue, pi_program program, const char *name,
+    pi_bool blocking_write, size_t count, size_t offset, const void *src,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event) {
+  assert(queue != nullptr);
+  assert(program != nullptr);
+
+  if (name == nullptr || src == nullptr)
+    return PI_ERROR_INVALID_VALUE;
+
+  // Since CUDA requires a the global variable to be referenced by name, we use
+  // metadata to find the correct name to access it by.
+  auto device_global_name_it = program->globalIDMD_.find(name);
+  if (device_global_name_it == program->globalIDMD_.end())
+    return PI_ERROR_INVALID_VALUE;
+  std::string device_global_name = device_global_name_it->second;
+
+  pi_result result = PI_SUCCESS;
+  try {
+    CUdeviceptr device_global = 0;
+    size_t device_global_size = 0;
+    result = PI_CHECK_ERROR(
+        cuModuleGetGlobal(&device_global, &device_global_size, program->get(),
+                          device_global_name.c_str()));
+
+    if (offset + count > device_global_size)
+      return PI_ERROR_INVALID_VALUE;
+
+    return cuda_piextUSMEnqueueMemcpy(
+        queue, blocking_write, reinterpret_cast<void *>(device_global + offset),
+        src, count, num_events_in_wait_list, event_wait_list, event);
+  } catch (pi_result error) {
+    result = error;
+  }
+  return result;
+}
+
+pi_result cuda_piextEnqueueDeviceGlobalVariableRead(
+    pi_queue queue, pi_program program, const char *name, pi_bool blocking_read,
+    size_t count, size_t offset, void *dst, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event) {
+  assert(queue != nullptr);
+  assert(program != nullptr);
+
+  if (name == nullptr || dst == nullptr)
+    return PI_ERROR_INVALID_VALUE;
+
+  // Since CUDA requires a the global variable to be referenced by name, we use
+  // metadata to find the correct name to access it by.
+  auto device_global_name_it = program->globalIDMD_.find(name);
+  if (device_global_name_it == program->globalIDMD_.end())
+    return PI_ERROR_INVALID_VALUE;
+  std::string device_global_name = device_global_name_it->second;
+
+  pi_result result = PI_SUCCESS;
+  try {
+    CUdeviceptr device_global = 0;
+    size_t device_global_size = 0;
+    result = PI_CHECK_ERROR(
+        cuModuleGetGlobal(&device_global, &device_global_size, program->get(),
+                          device_global_name.c_str()));
+
+    if (offset + count > device_global_size)
+      return PI_ERROR_INVALID_VALUE;
+
+    return cuda_piextUSMEnqueueMemcpy(
+        queue, blocking_read, dst,
+        reinterpret_cast<const void *>(device_global + offset), count,
+        num_events_in_wait_list, event_wait_list, event);
+  } catch (pi_result error) {
+    result = error;
+  }
+  return result;
+}
+
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
 // TODO: add a global variable lifetime management code here (see
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
@@ -5675,6 +5763,11 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueueMemset2D, cuda_piextUSMEnqueueMemset2D)
   _PI_CL(piextUSMEnqueueMemcpy2D, cuda_piextUSMEnqueueMemcpy2D)
   _PI_CL(piextUSMGetMemAllocInfo, cuda_piextUSMGetMemAllocInfo)
+  // Device global variable
+  _PI_CL(piextEnqueueDeviceGlobalVariableWrite,
+         cuda_piextEnqueueDeviceGlobalVariableWrite)
+  _PI_CL(piextEnqueueDeviceGlobalVariableRead,
+         cuda_piextEnqueueDeviceGlobalVariableRead)
 
   _PI_CL(piextKernelSetArgMemObj, cuda_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, cuda_piextKernelSetArgSampler)

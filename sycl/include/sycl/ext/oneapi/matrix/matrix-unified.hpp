@@ -96,6 +96,8 @@ get_wi_data(Group sg, joint_matrix<Group, T, Use, Rows, Cols, Layout> &jm) {
   std::ignore = sg;
   return wi_data(jm);
 #else
+  std::ignore = sg;
+  std::ignore = jm;
   if constexpr (std::is_same_v<T, precision::tf32>) {
     marray<float, 1> unused{};
     return wi_data<float, 1>(unused);
@@ -181,6 +183,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
   std::ignore = res;
   std::ignore = src;
   std::ignore = stride;
+  std::ignore = Layout;
   throw runtime_error("joint matrix is not supported on host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
@@ -270,6 +273,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
   std::ignore = src;
   std::ignore = dst;
   std::ignore = stride;
+  std::ignore = Layout;
   throw runtime_error("joint matrix is not supported on host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__)
@@ -337,7 +341,8 @@ inline __SYCL_ALWAYS_INLINE float round_to_tf32(float &a) {
   uint32_t tmp_uint = reinterpret_cast<uint32_t &>(a);
   tmp_uint += 0x1000u;
   tmp_uint &= 0xFFFFE000u;
-  float ret = reinterpret_cast<float &>(tmp_uint);
+  float ret = 0;
+  std::memcpy(&ret, &tmp_uint, sizeof(float));
   return ret;
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }

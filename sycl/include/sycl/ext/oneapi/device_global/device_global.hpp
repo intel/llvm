@@ -135,13 +135,6 @@ public:
   static_assert(is_property_list<property_list_t>::value,
                 "Property list is invalid.");
 
-  // TODO: Remove when support has been added for device_global without the
-  // device_image_scope property.
-  static_assert(
-      property_list_t::template has_property<device_image_scope_key>(),
-      "device_global without the device_image_scope property is currently "
-      "unavailable.");
-
   device_global() = default;
 
   device_global(const device_global &) = delete;
