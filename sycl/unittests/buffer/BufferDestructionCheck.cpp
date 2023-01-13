@@ -92,7 +92,7 @@ TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefault) {
   ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 1u);
   EXPECT_EQ(MockSchedulerPtr->MDeferredMemObjRelease[0].get(),
             RawBufferImplPtr);
-  
+
 #else
   testing::Mock::AllowLeak(MockCmd);
   ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
@@ -139,7 +139,7 @@ TEST_F(BufferDestructionCheck, BufferWithSizeOnlyNonDefaultAllocator) {
 #else
   ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
 #endif
-  
+
 }
 
 TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefaultAllocator) {
@@ -165,7 +165,7 @@ TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefaultAllocator) {
 #else
   ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
 #endif
- 
+
 }
 
 TEST_F(BufferDestructionCheck, BufferWithRawHostPtr) {
@@ -277,7 +277,7 @@ TEST_F(BufferDestructionCheck, BufferWithIterators) {
 #else
   ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 0u);
 #endif
-  
+
 }
 
 std::map<pi_event, pi_int32> ExpectedEventStatus;

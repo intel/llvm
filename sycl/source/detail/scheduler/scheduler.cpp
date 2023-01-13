@@ -404,7 +404,7 @@ void Scheduler::releaseResources() {
   cleanupCommands({});
 
   cleanupAuxiliaryResources(blockValue);
-  
+
   // We need loop since sometimes we may need new objects to be added to
   // deferred mem objects storage during cleanup. Known example is: we cleanup
   // existing deferred mem objects under write lock, during this process we
