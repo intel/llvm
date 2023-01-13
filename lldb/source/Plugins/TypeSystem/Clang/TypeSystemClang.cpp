@@ -4968,6 +4968,21 @@ lldb::Encoding TypeSystemClang::GetEncoding(lldb::opaque_compiler_type_t type,
     case clang::BuiltinType::OCLIntelSubgroupAVCImeDualRefStreamin:
       break;
 
+    // SPIRV builtin types.
+    case clang::BuiltinType::SampledOCLImage1dRO:
+    case clang::BuiltinType::SampledOCLImage1dArrayRO:
+    case clang::BuiltinType::SampledOCLImage1dBufferRO:
+    case clang::BuiltinType::SampledOCLImage2dRO:
+    case clang::BuiltinType::SampledOCLImage2dArrayRO:
+    case clang::BuiltinType::SampledOCLImage2dDepthRO:
+    case clang::BuiltinType::SampledOCLImage2dArrayDepthRO:
+    case clang::BuiltinType::SampledOCLImage2dMSAARO:
+    case clang::BuiltinType::SampledOCLImage2dArrayMSAARO:
+    case clang::BuiltinType::SampledOCLImage2dMSAADepthRO:
+    case clang::BuiltinType::SampledOCLImage2dArrayMSAADepthRO:
+    case clang::BuiltinType::SampledOCLImage3dRO:
+      break;
+
     // PowerPC -- Matrix Multiply Assist
     case clang::BuiltinType::VectorPair:
     case clang::BuiltinType::VectorQuad:
