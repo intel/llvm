@@ -579,6 +579,20 @@ class ur_sampler_properties_t(c_int):
 
 
 ###############################################################################
+## @brief Sampler addressing mode
+class ur_sampler_addressing_mode_v(IntEnum):
+    MIRRORED_REPEAT = 0                             ## Mirrored Repeat
+    REPEAT = 1                                      ## Repeat
+    CLAMP = 2                                       ## Clamp
+    CLAMP_TO_EDGE = 3                               ## Clamp to edge
+    NONE = 4                                        ## None
+
+class ur_sampler_addressing_mode_t(c_int):
+    def __str__(self):
+        return str(ur_sampler_addressing_mode_v(self.value))
+
+
+###############################################################################
 ## @brief Sampler properties <name, value> pair
 class ur_sampler_property_value_t(Structure):
     _fields_ = [
