@@ -75,9 +75,11 @@
 // PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT context info query
 // descriptors.
 // 12.22 Add piGetDeviceAndHostTimer to query device wall-clock timestamp
+// 12.23 Added new piextEnqueueDeviceGlobalVariableWrite and
+// piextEnqueueDeviceGlobalVariableRead functions.
 
 #define _PI_H_VERSION_MAJOR 12
-#define _PI_H_VERSION_MINOR 22
+#define _PI_H_VERSION_MINOR 23
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -435,7 +437,9 @@ typedef enum {
   PI_COMMAND_TYPE_SVM_MEMCPY = 0x120A,
   PI_COMMAND_TYPE_SVM_MEMFILL = 0x120B,
   PI_COMMAND_TYPE_SVM_MAP = 0x120C,
-  PI_COMMAND_TYPE_SVM_UNMAP = 0x120D
+  PI_COMMAND_TYPE_SVM_UNMAP = 0x120D,
+  PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_READ = 0x418E,
+  PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_WRITE = 0x418F
 } _pi_command_type;
 
 typedef enum {
@@ -808,6 +812,7 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 /// must appear after the kernel name.
 #define __SYCL_PI_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE                    \
   "@reqd_work_group_size"
+#define __SYCL_PI_PROGRAM_METADATA_GLOBAL_ID_MAPPING "@global_id_mapping"
 
 /// This struct is a record of the device binary information. If the Kind field
 /// denotes a portable binary type (SPIR-V or LLVM IR), the DeviceTargetSpec
@@ -1875,6 +1880,51 @@ __SYCL_EXPORT pi_result piextUSMEnqueueMemcpy2D(
     const void *src_ptr, size_t src_pitch, size_t width, size_t height,
     pi_uint32 num_events_in_waitlist, const pi_event *events_waitlist,
     pi_event *event);
+
+///
+/// Device global variable
+///
+
+/// API for writing data from host to a device global variable.
+///
+/// \param queue is the queue
+/// \param program is the program containing the device global variable
+/// \param blocking_write is true if the write should block
+/// \param name is the unique identifier for the device global variable
+/// \param count is the number of bytes to copy
+/// \param offset is the byte offset into the device global variable to start
+/// copying
+/// \param src is a pointer to where the data must be copied from
+/// \param num_events_in_wait_list is a number of events in the wait list
+/// \param event_wait_list is the wait list
+/// \param event is the resulting event
+pi_result piextEnqueueDeviceGlobalVariableWrite(
+    pi_queue queue, pi_program program, const char *name,
+    pi_bool blocking_write, size_t count, size_t offset, const void *src,
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    pi_event *event);
+
+/// API reading data from a device global variable to host.
+///
+/// \param queue is the queue
+/// \param program is the program containing the device global variable
+/// \param blocking_read is true if the read should block
+/// \param name is the unique identifier for the device global variable
+/// \param count is the number of bytes to copy
+/// \param offset is the byte offset into the device global variable to start
+/// copying
+/// \param dst is a pointer to where the data must be copied to
+/// \param num_events_in_wait_list is a number of events in the wait list
+/// \param event_wait_list is the wait list
+/// \param event is the resulting event
+pi_result piextEnqueueDeviceGlobalVariableRead(
+    pi_queue queue, pi_program program, const char *name, pi_bool blocking_read,
+    size_t count, size_t offset, void *dst, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event);
+
+///
+/// Plugin
+///
 
 /// API to get Plugin internal data, opaque to SYCL RT. Some devices whose
 /// device code is compiled by the host compiler (e.g. CPU emulators) may use it
