@@ -191,7 +191,6 @@ public:
         getFlags()->GWP_ASAN_MaxSimultaneousAllocations;
     Opt.SampleRate = getFlags()->GWP_ASAN_SampleRate;
     Opt.InstallSignalHandlers = getFlags()->GWP_ASAN_InstallSignalHandlers;
-    Opt.Recoverable = getFlags()->GWP_ASAN_Recoverable;
     // Embedded GWP-ASan is locked through the Scudo atfork handler (via
     // Allocator::disable calling GWPASan.disable). Disable GWP-ASan's atfork
     // handler.
@@ -203,8 +202,7 @@ public:
       gwp_asan::segv_handler::installSignalHandlers(
           &GuardedAlloc, Printf,
           gwp_asan::backtrace::getPrintBacktraceFunction(),
-          gwp_asan::backtrace::getSegvBacktraceFunction(),
-          Opt.Recoverable);
+          gwp_asan::backtrace::getSegvBacktraceFunction());
 
     GuardedAllocSlotSize =
         GuardedAlloc.getAllocatorState()->maximumAllocationSize();
@@ -936,7 +934,7 @@ public:
 
   const char *getRingBufferAddress() {
     initThreadMaybe();
-    return reinterpret_cast<const char *>(getRingBuffer());
+    return RawRingBuffer;
   }
 
   uptr getRingBufferSize() {
@@ -1500,7 +1498,8 @@ private:
       AllocationRingBufferSize = 1;
     MapPlatformData Data = {};
     RawRingBuffer = static_cast<char *>(
-        map(/*Addr=*/nullptr, ringBufferSizeInBytes(AllocationRingBufferSize),
+        map(/*Addr=*/nullptr,
+            roundUpTo(ringBufferSizeInBytes(AllocationRingBufferSize), getPageSizeCached()),
             "AllocatorRingBuffer", /*Flags=*/0, &Data));
     auto *RingBuffer = reinterpret_cast<AllocationRingBuffer *>(RawRingBuffer);
     RingBuffer->Size = AllocationRingBufferSize;
