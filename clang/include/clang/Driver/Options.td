@@ -3000,7 +3000,7 @@ def fsycl_max_parallel_jobs_EQ : Joined<["-"], "fsycl-max-parallel-link-jobs=">,
   "or AOT compilation of each device image.">;
 def : Flag<["-"], "fsycl-rdc">, Flags<[CoreOption]>, Alias<fgpu_rdc>;
 def : Flag<["-"], "fno-sycl-rdc">, Flags<[CoreOption]>, Alias<fno_gpu_rdc>;
-def fsycl_optimize_framework : Flag<["-"], "fsycl-optimize-framework">,
+def fsycl_optimize_non_user_code : Flag<["-"], "fsycl-optimize-non-user-code">,
   Flags<[CC1Option, CoreOption]>, MarshallingInfoFlag<CodeGenOpts<"OptimizeSYCLFramework">>,
   HelpText<"Option used in conjunction with -O0 flag to "
   "optimize SYCL framework utility functions and leave unoptimized user kernel code. (experimental)">;

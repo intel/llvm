@@ -1,7 +1,7 @@
 // Test checks that !sycl-framework metadata is emitted only to functions
 // whose topmost namespace is sycl.
 
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -O0 -fsycl-optimize-non-user-code -internal-isystem %S/Inputs -triple spir64-unknown-unknown -emit-llvm %s -o - | FileCheck %s
 
 #include "sycl.hpp"
 
