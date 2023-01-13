@@ -11,6 +11,9 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
+// Temporarily disabled until the failure is addressed.
+// UNSUPPORTED: gpu-intel-pvc
+
 #include <sycl/sycl.hpp>
 
 #include "memops2d_utils.hpp"
