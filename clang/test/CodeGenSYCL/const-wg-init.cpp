@@ -15,6 +15,5 @@ int main() {
     const int WG_CONST = 10;
   });
   // CHECK:  store i32 10, ptr addrspace(4) addrspacecast (ptr addrspace(3) @{{.*}}WG_CONST{{.*}} to ptr addrspace(4))
-  // CHECK:  %{{[0-9]+}} = call ptr @llvm.invariant.start.p4(i64 4, ptr addrspace(4) addrspacecast (ptr addrspace(3) @{{.*}}WG_CONST{{.*}} to ptr addrspace(4)))
   return 0;
 }

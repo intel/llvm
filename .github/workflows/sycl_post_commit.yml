@@ -19,12 +19,14 @@ jobs:
   # This job generates matrix of tests for LLVM Test Suite
   test_matrix:
     name: Generate Test Matrix
+    if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
       lts_config: "l0_gen9"
       cts_config: "cuda"
   linux_default:
     name: Linux Default
+    if: github.repository == 'intel/llvm'
     needs: test_matrix
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     secrets: inherit
@@ -37,6 +39,7 @@ jobs:
       build_configure_extra_args: --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON"
   linux_no_assert:
     name: Linux (no assert)
+    if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     secrets: inherit
     with:
