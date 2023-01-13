@@ -991,12 +991,26 @@ static QualType GetSYCLKernelObjectType(const FunctionDecl *KernelCaller) {
   return KernelParamTy.getUnqualifiedType();
 }
 
-static CXXMethodDecl *getOperatorParens(const CXXRecordDecl *Rec) {
-  for (auto *MD : Rec->methods()) {
-    if (MD->getOverloadedOperator() == OO_Call)
-      return MD;
-  }
-  return nullptr;
+// Get the call operator function associated with the function object
+// for both templated and non-templated operator()().
+
+static CXXMethodDecl *getFunctorCallOperator(const CXXRecordDecl *RD) {
+  DeclarationName Name =
+      RD->getASTContext().DeclarationNames.getCXXOperatorName(OO_Call);
+  DeclContext::lookup_result Calls = RD->lookup(Name);
+
+  if (Calls.empty())
+    return nullptr;
+
+  NamedDecl *CallOp = Calls.front();
+
+  if (CallOp == nullptr)
+    return nullptr;
+
+  if (const auto *CallOpTmpl = dyn_cast<FunctionTemplateDecl>(CallOp))
+    return cast<CXXMethodDecl>(CallOpTmpl->getTemplatedDecl());
+
+  return cast<CXXMethodDecl>(CallOp);
 }
 
 // Fetch the associated call operator of the kernel object
@@ -1009,7 +1023,7 @@ GetCallOperatorOfKernelObject(const CXXRecordDecl *KernelObjType) {
   if (KernelObjType->isLambda())
     CallOperator = KernelObjType->getLambdaCallOperator();
   else
-    CallOperator = getOperatorParens(KernelObjType);
+    CallOperator = getFunctorCallOperator(KernelObjType);
   return CallOperator;
 }
 
@@ -2802,7 +2816,7 @@ public:
 };
 
 static bool isESIMDKernelType(const CXXRecordDecl *KernelObjType) {
-  const CXXMethodDecl *OpParens = getOperatorParens(KernelObjType);
+  const CXXMethodDecl *OpParens = getFunctorCallOperator(KernelObjType);
   return (OpParens != nullptr) && OpParens->hasAttr<SYCLSimdAttr>();
 }
 
@@ -4041,7 +4055,7 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
 // kernel to wrapped kernel.
 void Sema::copySYCLKernelAttrs(const CXXRecordDecl *KernelObj) {
   // Get the operator() function of the wrapper.
-  CXXMethodDecl *OpParens = getOperatorParens(KernelObj);
+  CXXMethodDecl *OpParens = getFunctorCallOperator(KernelObj);
   assert(OpParens && "invalid kernel object");
 
   typedef std::pair<FunctionDecl *, FunctionDecl *> ChildParentPair;
