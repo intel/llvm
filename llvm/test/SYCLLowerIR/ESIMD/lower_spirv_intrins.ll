@@ -62,6 +62,8 @@ define spir_kernel void @"__spirv_GlobalInvocationId_xyz"(i64 addrspace(1)* %_ar
 ; CHECK-NEXT:    store i64 [[ADD]], i64 addrspace(4)* [[PTRIDX_ASCAST_I_I]], align 8
 ; CHECK-NEXT:    ret void
 ;
+; Verify that the attribute is deleted from GenX declaration
+; CHECK-NOT: readnone
 entry:
   %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*), align 32
   %1 = extractelement <3 x i64> %0, i64 0
