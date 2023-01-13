@@ -3275,6 +3275,9 @@ static void handleWeakImportAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 // Handles reqd_work_group_size and work_group_size_hint.
 template <typename WorkGroupAttr>
 static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (!AL.checkExactlyNumArgs(S, 3))
+    return;
+
   uint32_t WGSize[3];
   for (unsigned i = 0; i < 3; ++i) {
     const Expr *E = AL.getArgAsExpr(i);
@@ -3348,24 +3351,24 @@ bool Sema::AllWorkGroupSizesSame(const Expr *LHSXDim, const Expr *LHSYDim,
                       [](DupArgResult V) { return V == DupArgResult::Same; });
 }
 
-void Sema::AddWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
-                                    Expr *XDim, Expr *YDim, Expr *ZDim) {
+void Sema::AddSYCLWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
+                                        Expr *XDim, Expr *YDim, Expr *ZDim) {
   // Returns nullptr if diagnosing, otherwise returns the original expression
   // or the original expression converted to a constant expression.
-  auto CheckAndConvertArg = [&](Expr *E) -> Expr * {
+  auto CheckAndConvertArg = [&](Expr *E) -> Optional<Expr *> {
     // We can only check if the expression is not value dependent.
-    if (!E->isValueDependent()) {
+    if (E && !E->isValueDependent()) {
       llvm::APSInt ArgVal;
       ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
       if (Res.isInvalid())
-        return nullptr;
+        return std::nullopt;
       E = Res.get();
 
       // This attribute requires a strictly positive value.
       if (ArgVal <= 0) {
         Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
             << CI << /*positive*/ 0;
-        return nullptr;
+        return std::nullopt;
       }
     }
 
@@ -3374,15 +3377,18 @@ void Sema::AddWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
 
   // Check all three argument values, and if any are bad, bail out. This will
   // convert the given expressions into constant expressions when possible.
-  XDim = CheckAndConvertArg(XDim);
-  YDim = CheckAndConvertArg(YDim);
-  ZDim = CheckAndConvertArg(ZDim);
-  if (!XDim || !YDim || !ZDim)
+  Optional<Expr *> XDimConvert = CheckAndConvertArg(XDim);
+  Optional<Expr *> YDimConvert = CheckAndConvertArg(YDim);
+  Optional<Expr *> ZDimConvert = CheckAndConvertArg(ZDim);
+  if (!XDimConvert || !YDimConvert || !ZDimConvert)
     return;
+  XDim = XDimConvert.value();
+  YDim = YDimConvert.value();
+  ZDim = ZDimConvert.value();
 
   // If the attribute was already applied with different arguments, then
   // diagnose the second attribute as a duplicate and don't add it.
-  if (const auto *Existing = D->getAttr<WorkGroupSizeHintAttr>()) {
+  if (const auto *Existing = D->getAttr<SYCLWorkGroupSizeHintAttr>()) {
     // If any of the results are known to be different, we can diagnose at this
     // point and drop the attribute.
     if (AnyWorkGroupSizesDiffer(XDim, YDim, ZDim, Existing->getXDim(),
@@ -3400,13 +3406,14 @@ void Sema::AddWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
   }
 
   D->addAttr(::new (Context)
-                 WorkGroupSizeHintAttr(Context, CI, XDim, YDim, ZDim));
+                 SYCLWorkGroupSizeHintAttr(Context, CI, XDim, YDim, ZDim));
 }
 
-WorkGroupSizeHintAttr *
-Sema::MergeWorkGroupSizeHintAttr(Decl *D, const WorkGroupSizeHintAttr &A) {
+SYCLWorkGroupSizeHintAttr *
+Sema::MergeSYCLWorkGroupSizeHintAttr(Decl *D,
+                                     const SYCLWorkGroupSizeHintAttr &A) {
   // Check to see if there's a duplicate attribute already applied.
-  if (const auto *DeclAttr = D->getAttr<WorkGroupSizeHintAttr>()) {
+  if (const auto *DeclAttr = D->getAttr<SYCLWorkGroupSizeHintAttr>()) {
     // If any of the results are known to be different, we can diagnose at this
     // point and drop the attribute.
     if (AnyWorkGroupSizesDiffer(DeclAttr->getXDim(), DeclAttr->getYDim(),
@@ -3424,12 +3431,13 @@ Sema::MergeWorkGroupSizeHintAttr(Decl *D, const WorkGroupSizeHintAttr &A) {
                               A.getZDim()))
       return nullptr;
   }
-  return ::new (Context)
-      WorkGroupSizeHintAttr(Context, A, A.getXDim(), A.getYDim(), A.getZDim());
+  return ::new (Context) SYCLWorkGroupSizeHintAttr(Context, A, A.getXDim(),
+                                                   A.getYDim(), A.getZDim());
 }
 
-// Handles work_group_size_hint.
-static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
+// Handles SYCL work_group_size_hint.
+static void handleSYCLWorkGroupSizeHint(Sema &S, Decl *D,
+                                        const ParsedAttr &AL) {
   S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
   // __attribute__((work_group_size_hint) requires exactly three arguments.
@@ -3437,27 +3445,22 @@ static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
       (AL.hasScope() && !AL.getScopeName()->isStr("sycl"))) {
     if (!AL.checkExactlyNumArgs(S, 3))
       return;
-  }
-
-  // FIXME: NumArgs checking is disabled in Attr.td to keep consistent
-  // disgnostics with OpenCL C that does not have optional values here.
-  if (!AL.checkAtLeastNumArgs(S, 1) || !AL.checkAtMostNumArgs(S, 3))
+  } else if (!AL.checkAtLeastNumArgs(S, 1) || !AL.checkAtMostNumArgs(S, 3))
     return;
 
-  // Handles default arguments in [[sycl::work_group_size_hint]] attribute.
-  auto SetDefaultValue = [](Sema &S, const ParsedAttr &AL) {
-    assert(AL.getKind() == ParsedAttr::AT_WorkGroupSizeHint && AL.hasScope() &&
-           AL.getScopeName()->isStr("sycl"));
-    return IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
-                                  S.Context.IntTy, AL.getLoc());
-  };
+  size_t NumArgs = AL.getNumArgs();
+  Expr *XDimExpr = NumArgs > 0 ? AL.getArgAsExpr(0) : nullptr;
+  Expr *YDimExpr = NumArgs > 1 ? AL.getArgAsExpr(1) : nullptr;
+  Expr *ZDimExpr = NumArgs > 2 ? AL.getArgAsExpr(2) : nullptr;
+  S.AddSYCLWorkGroupSizeHintAttr(D, AL, XDimExpr, YDimExpr, ZDimExpr);
+}
 
-  Expr *XDimExpr = AL.getArgAsExpr(0);
-  Expr *YDimExpr =
-      AL.isArgExpr(1) ? AL.getArgAsExpr(1) : SetDefaultValue(S, AL);
-  Expr *ZDimExpr =
-      AL.isArgExpr(2) ? AL.getArgAsExpr(2) : SetDefaultValue(S, AL);
-  S.AddWorkGroupSizeHintAttr(D, AL, XDimExpr, YDimExpr, ZDimExpr);
+static void handleWorkGroupSizeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
+  // Handle the attribute based on whether we are targeting SYCL or not.
+  if (S.getLangOpts().SYCLIsDevice || S.getLangOpts().SYCLIsHost)
+    handleSYCLWorkGroupSizeHint(S, D, AL);
+  else
+    handleWorkGroupSize<WorkGroupSizeHintAttr>(S, D, AL);
 }
 
 // Checks correctness of mutual usage of different work_group_size attributes:
@@ -4060,6 +4063,7 @@ static void handleIntelNamedSubGroupSize(Sema &S, Decl *D,
   if (!IntelNamedSubGroupSizeAttr::ConvertStrToSubGroupSizeType(SizeStr,
                                                                 SizeType)) {
     S.Diag(Loc, diag::warn_attribute_type_not_supported) << AL << SizeStr;
+    return;
   }
   D->addAttr(IntelNamedSubGroupSizeAttr::Create(S.Context, SizeType, AL));
 }
@@ -7911,7 +7915,7 @@ void Sema::CheckSYCLAddIRAttributesFunctionAttrConflicts(Decl *D) {
   for (const auto *Attr : std::vector<AttributeCommonInfo *>{
            D->getAttr<SYCLReqdWorkGroupSizeAttr>(),
            D->getAttr<IntelReqdSubGroupSizeAttr>(),
-           D->getAttr<WorkGroupSizeHintAttr>(),
+           D->getAttr<SYCLWorkGroupSizeHintAttr>(),
            D->getAttr<SYCLDeviceHasAttr>()})
     if (Attr)
       Diag(Attr->getLoc(), diag::warn_sycl_old_and_new_kernel_attributes)
@@ -10710,6 +10714,11 @@ void Sema::AddSYCLDeviceHasAttr(Decl *D, const AttributeCommonInfo &CI,
 }
 
 static void handleSYCLDeviceHasAttr(Sema &S, Decl *D, const ParsedAttr &A) {
+  // Ignore the attribute if compiling for the host side because aspects may not
+  // be marked properly for such compilation
+  if (!S.Context.getLangOpts().SYCLIsDevice)
+    return;
+
   SmallVector<Expr *, 5> Args;
   for (unsigned I = 0; I < A.getNumArgs(); ++I)
     Args.push_back(A.getArgAsExpr(I));
@@ -10751,6 +10760,11 @@ void Sema::AddSYCLUsesAspectsAttr(Decl *D, const AttributeCommonInfo &CI,
 }
 
 static void handleSYCLUsesAspectsAttr(Sema &S, Decl *D, const ParsedAttr &A) {
+  // Ignore the attribute if compiling for the host because aspects may not be
+  // marked properly for such compilation
+  if (!S.Context.getLangOpts().SYCLIsDevice)
+    return;
+
   SmallVector<Expr *, 5> Args;
   for (unsigned I = 0; I < A.getNumArgs(); ++I)
     Args.push_back(A.getArgAsExpr(I));
@@ -12044,6 +12058,9 @@ void Sema::ProcessDeclAttributeList(
       Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
       D->setInvalidDecl();
     } else if (const auto *A = D->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
+      Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
+      D->setInvalidDecl();
+    } else if (const auto *A = D->getAttr<SYCLWorkGroupSizeHintAttr>()) {
       Diag(D->getLocation(), diag::err_opencl_kernel_attr) << A;
       D->setInvalidDecl();
     } else if (const auto *A = D->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {

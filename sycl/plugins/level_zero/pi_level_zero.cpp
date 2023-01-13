@@ -1175,9 +1175,9 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
         CopyQueueGroup.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
             CopyQueueGroup.ZeQueues.size(), CommandListMap.end());
       }
-      CopyQueueGroupsByTID.insert({TID, CopyQueueGroup});
     }
   }
+  CopyQueueGroupsByTID.insert({TID, CopyQueueGroup});
 
   // Initialize compute/copy command batches.
   ComputeCommandBatch.OpenCommandList = CommandListMap.end();
@@ -2004,27 +2004,38 @@ pi_result _pi_queue::insertActiveBarriers(pi_command_list_ptr_t &CmdList,
   if (ActiveBarriers.empty())
     return PI_SUCCESS;
 
-  // Create a wait-list and retain events. This will filter out finished events.
+  // Create a wait-list and retain events.
   _pi_ze_event_list_t ActiveBarriersWaitList;
   if (auto Res = ActiveBarriersWaitList.createAndRetainPiZeEventList(
-          ActiveBarriers.size(), ActiveBarriers.data(), this, UseCopyEngine))
+          ActiveBarriers.vector().size(), ActiveBarriers.vector().data(), this,
+          UseCopyEngine))
     return Res;
 
-  // We can now release all the active barriers and replace them with the ones
-  // in the wait list.
-  for (pi_event &BarrierEvent : ActiveBarriers)
-    PI_CALL(piEventReleaseInternal(BarrierEvent));
+  // We can now replace active barriers with the ones in the wait list.
   ActiveBarriers.clear();
-  ActiveBarriers.insert(
-      ActiveBarriers.end(), ActiveBarriersWaitList.PiEventList,
-      ActiveBarriersWaitList.PiEventList + ActiveBarriersWaitList.Length);
+
+  if (ActiveBarriersWaitList.Length == 0) {
+    return PI_SUCCESS;
+  }
+
+  for (pi_uint32 I = 0; I < ActiveBarriersWaitList.Length; ++I) {
+    auto &Event = ActiveBarriersWaitList.PiEventList[I];
+    ActiveBarriers.add(Event);
+  }
+
+  pi_event Event = nullptr;
+  if (auto Res = createEventAndAssociateQueue(
+          this, &Event, PI_COMMAND_TYPE_USER, CmdList, /*IsInternal*/ true))
+    return Res;
+
+  Event->WaitList = ActiveBarriersWaitList;
+  Event->OwnZeEvent = true;
 
   // If there are more active barriers, insert a barrier on the command-list. We
   // do not need an event for finishing so we pass nullptr.
-  if (!ActiveBarriers.empty())
-    ZE_CALL(zeCommandListAppendBarrier,
-            (CmdList->first, nullptr, ActiveBarriersWaitList.Length,
-             ActiveBarriersWaitList.ZeEventList));
+  ZE_CALL(zeCommandListAppendBarrier,
+          (CmdList->first, nullptr, ActiveBarriersWaitList.Length,
+           ActiveBarriersWaitList.ZeEventList));
   return PI_SUCCESS;
 }
 
@@ -5938,7 +5949,10 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   }
   case PI_PROFILING_INFO_COMMAND_QUEUED:
   case PI_PROFILING_INFO_COMMAND_SUBMIT:
-    // TODO: Support these when Level Zero supported is added.
+    // Note: No users for this case
+    // TODO: Implement commmand submission time when needed,
+    //        by recording device timestamp (using zeDeviceGetGlobalTimestamps)
+    //        before submitting command to device
     return ReturnValue(uint64_t{0});
   default:
     zePrint("piEventGetProfilingInfo: not supported ParamName\n");
@@ -6189,6 +6203,17 @@ pi_result piEventRelease(pi_event Event) {
   Event->RefCountExternal--;
   PI_CALL(piEventReleaseInternal(Event));
   return PI_SUCCESS;
+}
+
+void _pi_queue::active_barriers::add(pi_event &Event) {
+  Event->RefCount.increment();
+  Events.push_back(Event);
+}
+
+void _pi_queue::active_barriers::clear() {
+  for (const auto &Event : Events)
+    piEventReleaseInternal(Event);
+  Events.clear();
 }
 
 static pi_result piEventReleaseInternal(pi_event Event) {
@@ -6561,6 +6586,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
         if (auto Res = createEventAndAssociateQueue(
                 Queue, &Event, PI_COMMAND_TYPE_USER, CmdList, IsInternal))
           return Res;
+
         Event->WaitList = EventWaitList;
         ZE_CALL(zeCommandListAppendBarrier,
                 (CmdList->first, Event->ZeEvent, EventWaitList.Length,
@@ -6611,21 +6637,13 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     // Because of the dependency between commands in the in-order queue we don't
     // need to keep track of any active barriers if we have in-order queue.
     if (UseMultipleCmdlistBarriers && !Queue->isInOrderQueue()) {
-      // Retain and save the resulting event for future commands.
-      (*Event)->RefCount.increment();
-      Queue->ActiveBarriers.push_back(*Event);
+      Queue->ActiveBarriers.add(*Event);
     }
     return PI_SUCCESS;
   }
 
   // Since there are no events to explicitly create a barrier for, we are
-  // inserting a queue-wide barrier. As such, the barrier will also encapsulate
-  // the active barriers, so we can release and clear the active barriers list.
-  // Doing it early prevents potential additional barriers from implicitly being
-  // appended.
-  for (pi_event &E : Queue->ActiveBarriers)
-    PI_CALL(piEventReleaseInternal(E));
-  Queue->ActiveBarriers.clear();
+  // inserting a queue-wide barrier.
 
   // Command list(s) for putting barriers.
   std::vector<pi_command_list_ptr_t> CmdLists;
@@ -6688,11 +6706,12 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     // Insert a barrier into each unique command queue using the available
     // command-lists.
     std::vector<pi_event> EventWaitVector(CmdLists.size());
-    for (size_t I = 0; I < CmdLists.size(); ++I)
-      if (auto Res = insertBarrierIntoCmdList(
-              CmdLists[I], _pi_ze_event_list_t{}, EventWaitVector[I], false))
+    for (size_t I = 0; I < CmdLists.size(); ++I) {
+      if (auto Res =
+              insertBarrierIntoCmdList(CmdLists[I], _pi_ze_event_list_t{},
+                                       EventWaitVector[I], /*IsInternal*/ true))
         return Res;
-
+    }
     // If there were multiple queues we need to create a "convergence" event to
     // be our active barrier. This convergence event is signalled by a barrier
     // on all the events from the barriers we have inserted into each queue.
@@ -6706,8 +6725,6 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
             EventWaitVector.size(), EventWaitVector.data(), Queue,
             ConvergenceCmdList->second.isCopy(Queue)))
       return Res;
-    for (pi_event &E : EventWaitVector)
-      PI_CALL(piEventReleaseInternal(E));
 
     // Insert a barrier with the events from each command-queue into the
     // convergence command list. The resulting event signals the convergence of
@@ -6729,9 +6746,8 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     if (auto Res = Queue->executeCommandList(CmdList, false, OkToBatch))
       return Res;
 
-  // We must keep the event internally to use if new command lists are created.
-  (*Event)->RefCount.increment();
-  Queue->ActiveBarriers.push_back(*Event);
+  Queue->ActiveBarriers.clear();
+  Queue->ActiveBarriers.add(*Event);
   return PI_SUCCESS;
 }
 
@@ -6838,10 +6854,7 @@ pi_result _pi_queue::synchronize() {
 
   // With the entire queue synchronized, the active barriers must be done so we
   // can remove them.
-  for (pi_event &BarrierEvent : ActiveBarriers)
-    PI_CALL(piEventReleaseInternal(BarrierEvent));
   ActiveBarriers.clear();
-
   return PI_SUCCESS;
 }
 
@@ -8873,6 +8886,96 @@ pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
   return PI_SUCCESS;
 }
 
+/// API for writing data from host to a device global variable.
+///
+/// \param Queue is the queue
+/// \param Program is the program containing the device global variable
+/// \param Name is the unique identifier for the device global variable
+/// \param BlockingWrite is true if the write should block
+/// \param Count is the number of bytes to copy
+/// \param Offset is the byte offset into the device global variable to start
+/// copying
+/// \param Src is a pointer to where the data must be copied from
+/// \param NumEventsInWaitList is a number of events in the wait list
+/// \param EventWaitList is the wait list
+/// \param Event is the resulting event
+pi_result piextEnqueueDeviceGlobalVariableWrite(
+    pi_queue Queue, pi_program Program, const char *Name, pi_bool BlockingWrite,
+    size_t Count, size_t Offset, const void *Src, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *Event) {
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+
+  std::scoped_lock<pi_shared_mutex> lock(Queue->Mutex);
+
+  // Find global variable pointer
+  size_t GlobalVarSize = 0;
+  void *GlobalVarPtr = nullptr;
+  ZE_CALL(zeModuleGetGlobalPointer,
+          (Program->ZeModule, Name, &GlobalVarSize, &GlobalVarPtr));
+  if (GlobalVarSize < Offset + Count) {
+    setErrorMessage("Write device global variable is out of range.",
+                    PI_ERROR_INVALID_VALUE);
+    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+  }
+
+  // Copy engine is preferred only for host to device transfer.
+  // Device to device transfers run faster on compute engines.
+  bool PreferCopyEngine = !IsDevicePointer(Queue->Context, Src);
+
+  // Temporary option added to use copy engine for D2D copy
+  PreferCopyEngine |= UseCopyEngineForD2DCopy;
+
+  return enqueueMemCopyHelper(PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_WRITE,
+                              Queue, pi_cast<char *>(GlobalVarPtr) + Offset,
+                              BlockingWrite, Count, Src, NumEventsInWaitList,
+                              EventsWaitList, Event, PreferCopyEngine);
+}
+
+/// API reading data from a device global variable to host.
+///
+/// \param Queue is the queue
+/// \param Program is the program containing the device global variable
+/// \param Name is the unique identifier for the device global variable
+/// \param BlockingRead is true if the read should block
+/// \param Count is the number of bytes to copy
+/// \param Offset is the byte offset into the device global variable to start
+/// copying
+/// \param Dst is a pointer to where the data must be copied to
+/// \param NumEventsInWaitList is a number of events in the wait list
+/// \param EventWaitList is the wait list
+/// \param Event is the resulting event
+pi_result piextEnqueueDeviceGlobalVariableRead(
+    pi_queue Queue, pi_program Program, const char *Name, pi_bool BlockingRead,
+    size_t Count, size_t Offset, void *Dst, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *Event) {
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+
+  std::scoped_lock<pi_shared_mutex> lock(Queue->Mutex);
+
+  // Find global variable pointer
+  size_t GlobalVarSize = 0;
+  void *GlobalVarPtr = nullptr;
+  ZE_CALL(zeModuleGetGlobalPointer,
+          (Program->ZeModule, Name, &GlobalVarSize, &GlobalVarPtr));
+  if (GlobalVarSize < Offset + Count) {
+    setErrorMessage("Read from device global variable is out of range.",
+                    PI_ERROR_INVALID_VALUE);
+    return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+  }
+
+  // Copy engine is preferred only for host to device transfer.
+  // Device to device transfers run faster on compute engines.
+  bool PreferCopyEngine = !IsDevicePointer(Queue->Context, Dst);
+
+  // Temporary option added to use copy engine for D2D copy
+  PreferCopyEngine |= UseCopyEngineForD2DCopy;
+
+  return enqueueMemCopyHelper(
+      PI_COMMAND_TYPE_DEVICE_GLOBAL_VARIABLE_READ, Queue, Dst, BlockingRead,
+      Count, pi_cast<char *>(GlobalVarPtr) + Offset, NumEventsInWaitList,
+      EventsWaitList, Event, PreferCopyEngine);
+}
+
 pi_result piKernelSetExecInfo(pi_kernel Kernel, pi_kernel_exec_info ParamName,
                               size_t ParamValueSize, const void *ParamValue) {
   (void)ParamValueSize;
@@ -9311,4 +9414,22 @@ pi_result _pi_buffer::free() {
   return PI_SUCCESS;
 }
 
+pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
+                                  uint64_t *HostTime) {
+  const uint64_t &ZeTimerResolution =
+      Device->ZeDeviceProperties->timerResolution;
+  const uint64_t TimestampMaxCount =
+      ((1ULL << Device->ZeDeviceProperties->kernelTimestampValidBits) - 1ULL);
+  uint64_t DeviceClockCount, Dummy;
+
+  ZE_CALL(zeDeviceGetGlobalTimestamps,
+          (Device->ZeDevice, HostTime == nullptr ? &Dummy : HostTime,
+           &DeviceClockCount));
+
+  if (DeviceTime != nullptr) {
+
+    *DeviceTime = (DeviceClockCount & TimestampMaxCount) * ZeTimerResolution;
+  }
+  return PI_SUCCESS;
+}
 } // extern "C"

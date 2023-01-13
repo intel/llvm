@@ -2971,8 +2971,8 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.MergeSYCLIntelForcePow2DepthAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelInitiationIntervalAttr>(Attr))
     NewAttr = S.MergeSYCLIntelInitiationIntervalAttr(D, *A);
-  else if (const auto *A = dyn_cast<WorkGroupSizeHintAttr>(Attr))
-    NewAttr = S.MergeWorkGroupSizeHintAttr(D, *A);
+  else if (const auto *A = dyn_cast<SYCLWorkGroupSizeHintAttr>(Attr))
+    NewAttr = S.MergeSYCLWorkGroupSizeHintAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelMaxGlobalWorkDimAttr>(Attr))
     NewAttr = S.MergeSYCLIntelMaxGlobalWorkDimAttr(D, *A);
   else if (const auto *BTFA = dyn_cast<BTFDeclTagAttr>(Attr))
@@ -16056,7 +16056,9 @@ void Sema::AddKnownFunctionAttributes(FunctionDecl *FD) {
       // Add the appropriate attribute, depending on the CUDA compilation mode
       // and which target the builtin belongs to. For example, during host
       // compilation, aux builtins are __device__, while the rest are __host__.
-      if (getLangOpts().CUDAIsDevice !=
+      if (((getLangOpts().SYCLIsDevice && getLangOpts().CUDA &&
+            !getLangOpts().CUDAIsDevice) ||
+           getLangOpts().CUDAIsDevice) !=
           Context.BuiltinInfo.isAuxBuiltinID(BuiltinID))
         FD->addAttr(CUDADeviceAttr::CreateImplicit(Context, FD->getLocation()));
       else

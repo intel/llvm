@@ -513,6 +513,8 @@ CODEGENOPT(OpaquePointers, 1, 0)
 /// non-deleting destructors. (No effect on Microsoft ABI.)
 CODEGENOPT(CtorDtorReturnThis, 1, 0)
 
+/// Whether to disable the standard optimization pipeline for the SYCL device compiler.
+CODEGENOPT(DisableSYCLEarlyOpts, 1, 0)
 
 /// Optimize SYCL Framework functions. These are functions
 /// which do not contain "user" code.

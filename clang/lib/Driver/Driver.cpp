@@ -4954,10 +4954,6 @@ class OffloadingActionBuilder final {
       if (auto *IA = dyn_cast<InputAction>(HostAction)) {
         SYCLDeviceActions.clear();
 
-        // Skip CUDA Actions
-        if (IA->getType() == types::TY_CUDA)
-          return ABRT_Inactive;
-
         // Options that are considered LinkerInput are not valid input actions
         // to the device tool chain.
         if (IA->getInputArg().getOption().hasFlag(options::LinkerInput))
@@ -5050,18 +5046,32 @@ class OffloadingActionBuilder final {
 
           OffloadAction::DeviceDependences Dep;
           Dep.add(*A, *TargetInfo.TC, TargetInfo.BoundArch, Action::OFK_SYCL);
-          AL.push_back(C.MakeAction<OffloadAction>(Dep, A->getType()));
+          if (ExternalCudaAction) {
+            assert(
+                SYCLTargetInfoList.size() == 1 &&
+                "Number of SYCL actions and toolchains/boundarch pairs do not "
+                "match.");
+
+            // Link with external CUDA action.
+            ActionList LinkObjects;
+            LinkObjects.push_back(
+                C.MakeAction<OffloadAction>(Dep, A->getType()));
+            LinkObjects.push_back(ExternalCudaAction);
+            Action *DeviceLinkAction =
+                C.MakeAction<LinkJobAction>(LinkObjects, types::TY_LLVM_BC);
+
+            OffloadAction::DeviceDependences DDep;
+            DDep.add(*DeviceLinkAction, *TargetInfo.TC, TargetInfo.BoundArch,
+                     Action::OFK_SYCL);
+            AL.push_back(C.MakeAction<OffloadAction>(DDep, A->getType()));
+
+            ExternalCudaAction = nullptr;
+          } else {
+            AL.push_back(C.MakeAction<OffloadAction>(Dep, A->getType()));
+          }
         }
         // We no longer need the action stored in this builder.
         SYCLDeviceActions.clear();
-      }
-
-      if (ExternalCudaAction) {
-        assert(SYCLTargetInfoList.size() == 1 &&
-               "Number of SYCL actions and toolchains/boundarch pairs do not "
-               "match.");
-        AL.push_back(ExternalCudaAction);
-        ExternalCudaAction = nullptr;
       }
     }
 
@@ -6298,6 +6308,14 @@ public:
     if (DDeps.getActions().empty())
       return HostAction;
 
+    // Add host-cuda-sycl offload kind for the SYCL compilation of .cu files
+    if (OffloadKind == (Action::OFK_Cuda | Action::OFK_SYCL)) {
+      OffloadAction::HostDependence HDep(
+          *HostAction, *C.getSingleOffloadToolChain<Action::OFK_Host>(),
+          /*BoundArch=*/nullptr, Action::OFK_SYCL | Action::OFK_Cuda);
+      return C.MakeAction<OffloadAction>(HDep, DDeps);
+    }
+
     // We have dependences we need to bundle together. We use an offload action
     // for that.
     OffloadAction::HostDependence HDep(
@@ -6859,17 +6877,15 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     }
     for (auto &I : Inputs) {
       std::string SrcFileName(I.second->getAsString(Args));
-      if (I.first != types::TY_CUDA) {
-        if ((I.first == types::TY_PP_C || I.first == types::TY_PP_CXX ||
-             types::isSrcFile(I.first))) {
-          // Unique ID is generated for source files and preprocessed files.
-          SmallString<128> ResultID;
-          llvm::sys::fs::createUniquePath("%%%%%%%%%%%%%%%%", ResultID, false);
-          addSYCLUniqueID(Args.MakeArgString(ResultID.str()), SrcFileName);
-        }
-        if (!types::isSrcFile(I.first))
-          continue;
+      if ((I.first == types::TY_PP_C || I.first == types::TY_PP_CXX ||
+           types::isSrcFile(I.first))) {
+        // Unique ID is generated for source files and preprocessed files.
+        SmallString<128> ResultID;
+        llvm::sys::fs::createUniquePath("%%%%%%%%%%%%%%%%", ResultID, false);
+        addSYCLUniqueID(Args.MakeArgString(ResultID.str()), SrcFileName);
       }
+      if (!types::isSrcFile(I.first))
+        continue;
 
       std::string TmpFileNameHeader;
       std::string TmpFileNameFooter;
@@ -6971,11 +6987,9 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       // When performing -fsycl based compilations and generating dependency
       // information, perform a specific dependency generation compilation which
       // is not based on the source + footer compilation.
-      // TODO: Support SYCL offloading with CUDA files
       if (Phase == phases::Preprocess && Args.hasArg(options::OPT_fsycl) &&
           Args.hasArg(options::OPT_M_Group) &&
-          !Args.hasArg(options::OPT_fno_sycl_use_footer) &&
-          I.first != types::TY_CUDA) {
+          !Args.hasArg(options::OPT_fno_sycl_use_footer)) {
         Action *PreprocessAction =
             C.MakeAction<PreprocessJobAction>(Current, types::TY_Dependencies);
         PreprocessAction->propagateHostOffloadInfo(Action::OFK_SYCL,
@@ -7512,16 +7526,14 @@ Action *Driver::ConstructPhaseAction(
              "Cannot preprocess this input type!");
     }
     types::ID HostPPType = types::getPreprocessedType(Input->getType());
-    // TODO: Support SYCL offloading with CUDA files
     if (Args.hasArg(options::OPT_fsycl) && HostPPType != types::TY_INVALID &&
         !Args.hasArg(options::OPT_fno_sycl_use_footer) &&
         TargetDeviceOffloadKind == Action::OFK_None &&
-        Input->getType() != types::TY_CUDA &&
         Input->getType() != types::TY_CUDA_DEVICE) {
       // Performing a host compilation with -fsycl.  Append the integration
       // footer to the source file.
       auto *AppendFooter =
-          C.MakeAction<AppendFooterJobAction>(Input, types::TY_CXX);
+          C.MakeAction<AppendFooterJobAction>(Input, Input->getType());
       // FIXME: There are 2 issues with dependency generation in regards to
       // the integration footer that need to be addressed.
       // 1) Input file referenced on the RHS of a dependency is based on the
@@ -9003,7 +9015,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   if (isSaveTempsEnabled()) {
     // If we're saving temps and the temp file conflicts with any
     // input/resulting file, then avoid overwriting.
-    if (!AtTopLevel) {
+    if (!AtTopLevel && NamedOutput == BaseName) {
       bool SameFile = false;
       SmallString<256> Result;
       llvm::sys::fs::current_path(Result);

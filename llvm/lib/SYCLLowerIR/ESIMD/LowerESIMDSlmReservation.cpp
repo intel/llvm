@@ -135,7 +135,6 @@ CallInst *isSlmFreeCall(const CallInst *CI) {
 // -1 is returned.
 int getSLMUsage(const CallInst *SLMReserveCall) {
   assert(isSlmInitCall(SLMReserveCall) || isSlmAllocCall(SLMReserveCall));
-  StringRef Name = SLMReserveCall->getCalledFunction()->getName();
   auto *ArgV = SLMReserveCall->getArgOperand(0);
 
   if (!isa<ConstantInt>(ArgV)) {
@@ -208,6 +207,7 @@ public:
       llvm::errs() << "}\n";
     }
 #endif
+    virtual ~Node() {}
   };
 
   // A function node of the scoped callgraph.
