@@ -126,6 +126,12 @@ class atomic_ref_base {
       detail::IsValidDefaultOrder<DefaultOrder>::value,
       "Invalid default memory_order for atomics.  Valid defaults are: "
       "relaxed, acq_rel, seq_cst");
+#ifdef __AMDGPU__
+  // FIXME should this query device's memory capabilities at runtime?
+  static_assert("seq_cst memory order is not supported on AMDGPU" &&
+                DefaultOrder != sycl::memory_order::seq_cst);
+#endif
+
 
 public:
   using value_type = T;

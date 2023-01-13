@@ -26,12 +26,10 @@ AMDGPU_ATOMIC_LOAD(_Z18__spirv_AtomicLoad, unsigned int, Kj, global, AS1)
 AMDGPU_ATOMIC_LOAD(_Z18__spirv_AtomicLoad, int, Ki, local, AS3)
 AMDGPU_ATOMIC_LOAD(_Z18__spirv_AtomicLoad, unsigned int, Kj, local, AS3)
 
-#ifdef cl_khr_int64_base_atomics
 AMDGPU_ATOMIC_LOAD(_Z18__spirv_AtomicLoad, long, Kl, global, AS1)
 AMDGPU_ATOMIC_LOAD(_Z18__spirv_AtomicLoad, unsigned long, Km, global, AS1)
 AMDGPU_ATOMIC_LOAD(_Z18__spirv_AtomicLoad, long, Kl, local, AS3)
 AMDGPU_ATOMIC_LOAD(_Z18__spirv_AtomicLoad, unsigned long, Km, local, AS3)
-#endif
 
 AMDGPU_ATOMIC_LOAD(_Z18__spirv_AtomicLoad, float, Kf, global, AS1)
 AMDGPU_ATOMIC_LOAD(_Z18__spirv_AtomicLoad, float, Kf, local, AS3)

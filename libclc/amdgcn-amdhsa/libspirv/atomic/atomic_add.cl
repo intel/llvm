@@ -19,7 +19,6 @@ AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, int, i, local, AS3,
 AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, unsigned int, j, local, AS3,
               __hip_atomic_fetch_add)
 
-#ifdef cl_khr_int64_base_atomics
 AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, long, l, global, AS1,
               __hip_atomic_fetch_add)
 AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, unsigned long, m, global, AS1,
@@ -28,7 +27,6 @@ AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, long, l, local, AS3,
               __hip_atomic_fetch_add)
 AMDGPU_ATOMIC(_Z18__spirv_AtomicIAdd, unsigned long, m, local, AS3,
               __hip_atomic_fetch_add)
-#endif
 
 AMDGPU_ATOMIC(_Z21__spirv_AtomicFAddEXT, float, f, global, AS1,
               __hip_atomic_fetch_add)

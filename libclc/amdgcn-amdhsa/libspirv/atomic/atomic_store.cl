@@ -26,12 +26,10 @@ AMDGPU_ATOMIC_STORE(_Z19__spirv_AtomicStore, unsigned int, j, global, AS1)
 AMDGPU_ATOMIC_STORE(_Z19__spirv_AtomicStore, int, i, local, AS3)
 AMDGPU_ATOMIC_STORE(_Z19__spirv_AtomicStore, unsigned int, j, local, AS3)
 
-#ifdef cl_khr_int64_base_atomics
 AMDGPU_ATOMIC_STORE(_Z19__spirv_AtomicStore, long, l, global, AS1)
 AMDGPU_ATOMIC_STORE(_Z19__spirv_AtomicStore, unsigned long, m, global, AS1)
 AMDGPU_ATOMIC_STORE(_Z19__spirv_AtomicStore, long, l, local, AS3)
 AMDGPU_ATOMIC_STORE(_Z19__spirv_AtomicStore, unsigned long, m, local, AS3)
-#endif
 
 AMDGPU_ATOMIC_STORE(_Z19__spirv_AtomicStore, float, f, global, AS1)
 AMDGPU_ATOMIC_STORE(_Z19__spirv_AtomicStore, float, f, local, AS3)
