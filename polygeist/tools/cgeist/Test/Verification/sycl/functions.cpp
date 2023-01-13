@@ -16,8 +16,8 @@
 // CHECK-MLIR-DAG: !sycl_range_2_ = !sycl.range<[2], (!sycl_array_2_)>
 // CHECK-MLIR-DAG: !sycl_accessor_impl_device_1_ = !sycl.accessor_impl_device<[1], (!sycl_id_1_, !sycl_range_1_, !sycl_range_1_)>
 // CHECK-MLIR-DAG: !sycl_accessor_impl_device_2_ = !sycl.accessor_impl_device<[2], (!sycl_id_2_, !sycl_range_2_, !sycl_range_2_)>
-// CHECK-MLIR-DAG: !sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<i32, 1>)>)>
-// CHECK-MLIR-DAG: !sycl_accessor_2_i32_rw_gb = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(ptr<i32, 1>)>)>
+// CHECK-MLIR-DAG: !sycl_accessor_1_i32_rw_gb = !sycl.accessor<[1, i32, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(memref<?xi32, 1>)>)>
+// CHECK-MLIR-DAG: !sycl_accessor_2_i32_rw_gb = !sycl.accessor<[2, i32, read_write, global_buffer], (!sycl_accessor_impl_device_2_, !llvm.struct<(memref<?xi32, 1>)>)>
 // CHECK-MLIR-DAG: ![[ACC_STRUCT:.*]] = !sycl.accessor<[1, !llvm.struct<(i32)>, read_write, global_buffer], (!sycl_accessor_impl_device_1_, !llvm.struct<(ptr<struct<(i32)>, 1>)>)>
 // CHECK-MLIR-DAG: ![[ACC_SUBSCRIPT:.*]] = !sycl.accessor_subscript<[1], (!sycl_id_2_, !sycl_accessor_2_i32_rw_gb)>
 // CHECK-MLIR-DAG: ![[ITEM_BASE1:.*]] = !sycl.item_base<[1, true], (!sycl_range_1_, !sycl_id_1_, !sycl_id_1_)
