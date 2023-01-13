@@ -503,9 +503,9 @@ public:
         *this, CommandGroupHandler, {}, CodeLoc);
   }
 
-  __SYCL2020_DEPRECATED("get_access() for host_accessor is deprecated, please "
-                        "use get_host_access() instead")
   template <access::mode mode>
+  __SYCL2020_DEPRECATED("get_access for host_accessor is deprecated, please "
+                        "use get_host_access instead")
   accessor<T, dimensions, mode, access::target::host_buffer,
            access::placeholder::false_t, ext::oneapi::accessor_property_list<>>
   get_access(
@@ -532,10 +532,9 @@ public:
         *this, commandGroupHandler, accessRange, accessOffset, {}, CodeLoc);
   }
 
-  __SYCL2020_DEPRECATED(
-      "get_access(range<Dimensions>, id<Dimensions>) for host_accessor is "
-      "deprecated, please use get_host_access() instead")
   template <access::mode mode>
+  __SYCL2020_DEPRECATED("get_access for host_accessor is deprecated, please "
+                        "use get_host_access instead")
   accessor<T, dimensions, mode, access::target::host_buffer,
            access::placeholder::false_t, ext::oneapi::accessor_property_list<>>
   get_access(
