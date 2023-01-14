@@ -165,7 +165,7 @@ SYCL_EXTERNAL void range_size(sycl::range<2> r) {
 // CHECK-LLVM: %{{.*}} = call spir_func %"class.sycl::_V1::range.2" @_ZNK4sycl3_V18nd_rangeILi2EE16get_global_rangeEv(%"class.sycl::_V1::nd_range.2" addrspace(4)* %{{.*}})
 
 // VAL_3 has incorrect type. Issue 7972 open in GitHub to address this.
-// CHECK-LLVM: define linkonce_odr spir_func %"class.sycl::_V1::range.2" @_ZNK4sycl3_V18nd_rangeILi2EE16get_global_rangeEv(%"class.sycl::_V1::nd_range.2" addrspace(4)* noundef align 8 [[VAL_0:%.*]]) #1 {
+// CHECK-LLVM: define linkonce_odr spir_func %"class.sycl::_V1::range.2" @_ZNK4sycl3_V18nd_rangeILi2EE16get_global_rangeEv(%"class.sycl::_V1::nd_range.2" addrspace(4)* noundef align 8 [[VAL_0:%.*]]) #[[FUNCATTRS]] {
 // CHECK-LLVM-NEXT:   [[VAL_2:%.*]] = alloca %"class.sycl::_V1::range.2", align 8
 // CHECK-LLVM-NEXT:   [[VAL_3:%.*]] = getelementptr %"class.sycl::_V1::nd_range.2", %"class.sycl::_V1::nd_range.2" addrspace(4)* [[VAL_0]], i32 0, i32 0
 // CHECK-LLVM-NEXT:   [[VAL_4:%.*]] = addrspacecast %"class.sycl::_V1::range.2"* [[VAL_2]] to %"class.sycl::_V1::range.2" addrspace(4)*
@@ -728,4 +728,4 @@ SYCL_EXTERNAL void static_1(sycl::id<2> a, sycl::id<2> b) {
   auto abs = sycl::abs(a.get(0) + a.get(1));
 }
 
-// CHECK-LLVM: attributes #[[FUNCATTRS]] = { convergent mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}polygeist/tools/cgeist/Test/Verification/sycl/functions.cpp" }
+// CHECK-LLVM: attributes #[[FUNCATTRS]] = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}polygeist/tools/cgeist/Test/Verification/sycl/functions.cpp" }

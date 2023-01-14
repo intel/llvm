@@ -16,13 +16,13 @@
 // CHECK-MLIR-NEXT: [[RESULT:%.*]] = arith.addf [[V1]], [[V2]] : f32
 // CHECK-MLIR:      affine.store [[RESULT]], {{.*}}[0] : memref<?xf32, 4>
 
-// CHECK-LLVM:       define internal spir_func void [[FUNC:@_ZZZ21vec_add_device_simpleRSt5arrayIfLm32EES1_S1_ENKUlRN4sycl3_V17handlerEE_clES5_ENKUlNS3_2idILi1EEEE_clES8_]]({{.*}}) #[[FUNCATTRS2:[0-9]+]]
+// CHECK-LLVM:       define internal spir_func void [[FUNC:@_ZZZ21vec_add_device_simpleRSt5arrayIfLm32EES1_S1_ENKUlRN4sycl3_V17handlerEE_clES5_ENKUlNS3_2idILi1EEEE_clES8_]]({{.*}}) #[[FUNCATTRS:[0-9]+]]
 // CHECK-LLVM-DAG:   [[V1:%.*]] = load float, float addrspace(4)* {{.*}}, align 4
 // CHECK-LLVM-DAG:   [[V2:%.*]] = load float, float addrspace(4)* {{.*}}, align 4
 // CHECK-LLVM:       [[RESULT:%.*]] = fadd float [[V1]], [[V2]]
 // CHECK-LLVM:       store float [[RESULT]], float addrspace(4)* {{.*}}, align 4
 
-// CHECK-LLVM:       define weak_odr spir_kernel void @{{.*}}vec_add_simple({{.*}}) #[[FUNCATTRS1:[0-9]+]]
+// CHECK-LLVM:       define weak_odr spir_kernel void @{{.*}}vec_add_simple({{.*}}) #[[FUNCATTRS]]
 // CHECK-LLVM:       call spir_func void [[FUNC]]
 
 void vec_add_device_simple(std::array<float, N> &VA, std::array<float, N> &VB,
@@ -95,5 +95,4 @@ int main() {
 }
 
 // Keep at the end of the file.
-// CHECK-LLVM-DAG: attributes #[[FUNCATTRS1]] = { convergent mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/vec_add.cpp" }
-// CHECK-LLVM-DAG: attributes #[[FUNCATTRS2]] = { convergent inlinehint mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/vec_add.cpp" }
+// CHECK-LLVM: attributes #[[FUNCATTRS]] = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/vec_add.cpp" }
