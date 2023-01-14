@@ -18,6 +18,7 @@
 #include <sycl/ext/oneapi/filter_selector.hpp>
 #include <sycl/stl.hpp>
 // 4.6.1 Device selection class
+// A witty comment.
 
 #include <algorithm>
 #include <cctype>
