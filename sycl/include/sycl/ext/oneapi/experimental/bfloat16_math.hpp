@@ -38,6 +38,14 @@ std::enable_if_t<std::is_same<T, bfloat16>::value, bool> isnan(T x) {
   return (((XBits & 0x7F80) == 0x7F80) && (XBits & 0x7F)) ? true : false;
 }
 
+template <size_t N> sycl::marray<bool, N> isnan(sycl::marray<bfloat16, N> x) {
+  sycl::marray<bool, N> res;
+  for (size_t i = 0; i < N; i++) {
+    res[i] = isnan(x[i]);
+  }
+  return res;
+}
+
 template <typename T>
 std::enable_if_t<std::is_same<T, bfloat16>::value, T> fabs(T x) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)

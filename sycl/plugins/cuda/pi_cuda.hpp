@@ -773,6 +773,7 @@ struct _pi_program {
   // Metadata
   std::unordered_map<std::string, std::tuple<uint32_t, uint32_t, uint32_t>>
       kernelReqdWorkGroupSizeMD_;
+  std::unordered_map<std::string, std::string> globalIDMD_;
 
   constexpr static size_t MAX_LOG_SIZE = 8192u;
 

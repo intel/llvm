@@ -95,7 +95,9 @@ public:
 
   annotated_arg(T *_ptr,
                 const property_list_t &PropList = properties{}) noexcept
-      : obj(global_pointer_t(_ptr)) {}
+      : obj(global_pointer_t(_ptr)) {
+    (void)PropList;
+  }
 
   // Constructs an annotated_arg object from a raw pointer and variadic
   // properties. The new property set contains all properties of the input
@@ -140,6 +142,7 @@ public:
   explicit annotated_arg(const annotated_arg<T2, PropertyListU> &other,
                          const PropertyListV &proplist) noexcept
       : obj(other.obj) {
+    (void)proplist;
     static_assert(std::is_convertible<T2, T *>::value,
                   "The underlying data type of the input annotated_arg is not "
                   "compatible");
@@ -196,7 +199,9 @@ public:
 
   annotated_arg(const T &_obj,
                 const property_list_t &PropList = properties{}) noexcept
-      : obj(_obj) {}
+      : obj(_obj) {
+    (void)PropList;
+  }
 
   // Constructs an annotated_arg object from a raw pointer and variadic
   // properties. The new property set contains all properties of the input
@@ -240,6 +245,7 @@ public:
   explicit annotated_arg(const annotated_arg<T2, PropertyListU> &other,
                          const PropertyListV &proplist) noexcept
       : obj(other.obj) {
+    (void)proplist;
     static_assert(std::is_convertible<T2, T>::value,
                   "The underlying data type of the input annotated_arg is not "
                   "compatible");

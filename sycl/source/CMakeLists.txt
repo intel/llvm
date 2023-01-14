@@ -135,6 +135,7 @@ set(SYCL_SOURCES
     "detail/device_binary_image.cpp"
     "detail/device_filter.cpp"
     "detail/device_global_map.cpp"
+    "detail/device_global_map_entry.cpp"
     "detail/device_impl.cpp"
     "detail/error_handling/enqueue_kernel.cpp"
     "detail/event_impl.cpp"
