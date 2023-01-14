@@ -23,6 +23,11 @@ def do_configure(args):
     libclc_amd_target_names = ';amdgcn--;amdgcn--amdhsa'
     libclc_nvidia_target_names = ';nvptx64--;nvptx64--nvidiacl'
 
+    sycl_enable_fusion = "OFF"
+    if not args.disable_fusion:
+        llvm_external_projects += ";sycl-fusion"
+        sycl_enable_fusion = "ON"
+
     if args.llvm_external_projects:
         llvm_external_projects += ";" + args.llvm_external_projects.replace(",", ";")
 
@@ -35,6 +40,7 @@ def do_configure(args):
     mlir_dir = os.path.join(abs_src_dir, "mlir")
     mlir_sycl_dir = os.path.join(abs_src_dir, "mlir-sycl")
     polygeist_dir = os.path.join(abs_src_dir, "polygeist")
+    fusion_dir = os.path.join(abs_src_dir, "sycl-fusion")
     llvm_targets_to_build = args.host_target
     llvm_enable_projects = 'clang;' + llvm_external_projects
     libclc_targets_to_build = ''
@@ -164,6 +170,7 @@ def do_configure(args):
         "-DLLVM_EXTERNAL_MLIR_SOURCE_DIR={}".format(mlir_dir),
         "-DLLVM_EXTERNAL_MLIR_SYCL_SOURCE_DIR={}".format(mlir_sycl_dir),
         "-DLLVM_EXTERNAL_POLYGEIST_SOURCE_DIR={}".format(polygeist_dir),
+        "-DLLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR={}".format(fusion_dir),
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
         "-DLIBCLC_TARGETS_TO_BUILD={}".format(libclc_targets_to_build),
         "-DLIBCLC_GENERATE_REMANGLED_VARIANTS={}".format(libclc_gen_remangled_variants),
@@ -182,7 +189,8 @@ def do_configure(args):
         "-DSYCL_ENABLE_PLUGINS={}".format(';'.join(set(sycl_enabled_plugins))),
         "-DCMAKE_C_COMPILER={}".format(build_compiler_c),
         "-DCMAKE_CXX_COMPILER={}".format(build_compiler_cpp),
-        "-DCMAKE_VERBOSE_MAKEFILE={}".format(verbose)
+        "-DCMAKE_VERBOSE_MAKEFILE={}".format(verbose),
+        "-DSYCL_ENABLE_KERNEL_FUSION={}".format(sycl_enable_fusion)
     ]
 
     if args.l0_headers and args.l0_loader:
@@ -262,8 +270,9 @@ def main():
     parser.add_argument("--ci-defaults", action="store_true", help="Enable default CI parameters")
     parser.add_argument("--enable-plugin", action='append', help="Enable SYCL plugin")
     parser.add_argument("--build-compiler-c", metavar="BUILD_COMPILER_C", help="C compiler to use to build the project")
-    parser.add_argument("--build-compiler-cpp", metavar="BUILD_COMPILER_CPP", help="C++ compiler to use to build the project"),
-    parser.add_argument("--verbose", default='OFF', help="Verbose build"),
+    parser.add_argument("--build-compiler-cpp", metavar="BUILD_COMPILER_CPP", help="C++ compiler to use to build the project")
+    parser.add_argument("--verbose", default='OFF', help="Verbose build")
+    parser.add_argument("--disable-fusion", action="store_true", help="Disable the kernel fusion JIT compiler")
 
     args = parser.parse_args()
 

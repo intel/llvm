@@ -10,6 +10,7 @@
 #define SYCL_FUSION_JIT_COMPILER_JITCONTEXT_H
 
 #include "llvm/IR/LLVMContext.h"
+#include <mutex>
 #include <shared_mutex>
 #include <unordered_map>
 
