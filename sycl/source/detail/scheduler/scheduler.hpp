@@ -197,7 +197,7 @@ using FusionMap = std::unordered_map<QueueIdT, FusionList>;
 // draining the thread pool on Windows (b.c. that may result
 // in premature destruction of Scheduler)
 // TODO: re-enable both thread-pool draining and deferredMemObj
-// detruction on Windows.
+// destruction on Windows.
 #define __SYCL_DEFER_MEM_OBJ_DESTRUCTION 1
 #endif
 
