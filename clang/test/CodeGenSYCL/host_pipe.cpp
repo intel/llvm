@@ -5,8 +5,6 @@
 // global variable whose type is decorated with host_pipe attribute, and that a
 // unique string is generated.
 
-// XFAIL:*
-
 using namespace sycl::ext::intel::experimental;
 using namespace sycl;
 queue q;
