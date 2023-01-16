@@ -102,13 +102,26 @@ TEST_F(QueueApiFailures, QueueSubmit) {
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
-pi_result redefinedEnqueueMemBufferFill(pi_queue Queue, pi_mem Buffer,
-                                        const void *Pattern, size_t PatternSize,
-                                        size_t Offset, size_t Size,
-                                        pi_uint32 NumEventsInWaitList,
-                                        const pi_event *EventWaitList,
-                                        pi_event *Event) {
-  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+TEST_F(QueueApiFailures, QueueSingleTask) {
+  MockPlugin.redefine<detail::PiApiKind::piEnqueueKernelLaunch>(
+      redefinedEnqueueKernelLaunch);
+  MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
+      redefinedPluginGetLastError);
+  sycl::queue Q;
+  bool ExceptionCaught = false;
+  try {
+    Q.single_task<TestKernel<KernelSize>>([=]() {}, TestCodeLocation);
+  } catch (sycl::exception &e) {
+    ExceptionCaught = true;
+  }
+  Q.wait();
+  EXPECT_TRUE(ExceptionCaught);
+  uint16_t TraceType = 0;
+  std::string Message;
+  EXPECT_TRUE(queryReceivedNotifications(TraceType, Message));
+  EXPECT_EQ(TraceType, xpti::trace_diagnostics);
+  EXPECT_EQ(Message, TestCodeLocationMessage);
+  EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
 pi_result redefinedUSMEnqueueMemset(pi_queue Queue, void *Ptr, pi_int32 Value,
@@ -143,6 +156,76 @@ TEST_F(QueueApiFailures, QueueMemset) {
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
+pi_result redefinedUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
+                                    void *dst_ptr, const void *src_ptr,
+                                    size_t size,
+                                    pi_uint32 num_events_in_waitlist,
+                                    const pi_event *events_waitlist,
+                                    pi_event *event) {
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+}
+
+TEST_F(QueueApiFailures, QueueMemcpy) {
+  MockPlugin.redefine<detail::PiApiKind::piextUSMEnqueueMemcpy>(
+      redefinedUSMEnqueueMemcpy);
+  MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
+      redefinedPluginGetLastError);
+  sycl::queue Q;
+  bool ExceptionCaught = false;
+  unsigned char *HostAllocSrc = (unsigned char *)sycl::malloc_host(1, Q);
+  unsigned char *HostAllocDst = (unsigned char *)sycl::malloc_host(1, Q);
+  try {
+    Q.memcpy(HostAllocDst, HostAllocSrc, 1);
+  } catch (sycl::exception &e) {
+    ExceptionCaught = true;
+  }
+  Q.wait();
+  sycl::free(HostAllocSrc, Q);
+  sycl::free(HostAllocDst, Q);
+  EXPECT_TRUE(ExceptionCaught);
+  uint16_t TraceType = 0;
+  std::string Message;
+  ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
+  EXPECT_EQ(TraceType, xpti::trace_diagnostics);
+  EXPECT_EQ(Message, "No code location data is available.");
+  EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
+}
+
+TEST_F(QueueApiFailures, QueueCopy) {
+  MockPlugin.redefine<detail::PiApiKind::piextUSMEnqueueMemcpy>(
+      redefinedUSMEnqueueMemcpy);
+  MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
+      redefinedPluginGetLastError);
+  sycl::queue Q;
+  bool ExceptionCaught = false;
+  unsigned char *HostAllocSrc = (unsigned char *)sycl::malloc_host(1, Q);
+  unsigned char *HostAllocDst = (unsigned char *)sycl::malloc_host(1, Q);
+  try {
+    Q.copy(HostAllocDst, HostAllocSrc, 1, TestCodeLocation);
+  } catch (sycl::exception &e) {
+    ExceptionCaught = true;
+  }
+  Q.wait();
+  sycl::free(HostAllocSrc, Q);
+  sycl::free(HostAllocDst, Q);
+  EXPECT_TRUE(ExceptionCaught);
+  uint16_t TraceType = 0;
+  std::string Message;
+  ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
+  EXPECT_EQ(TraceType, xpti::trace_diagnostics);
+  EXPECT_EQ(Message, TestCodeLocationMessage);
+  EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
+}
+
+pi_result redefinedEnqueueMemBufferFill(pi_queue Queue, pi_mem Buffer,
+                                        const void *Pattern, size_t PatternSize,
+                                        size_t Offset, size_t Size,
+                                        pi_uint32 NumEventsInWaitList,
+                                        const pi_event *EventWaitList,
+                                        pi_event *Event) {
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+}
+
 TEST_F(QueueApiFailures, QueueFill) {
   MockPlugin.redefine<detail::PiApiKind::piEnqueueMemBufferFill>(
       redefinedEnqueueMemBufferFill);
@@ -153,6 +236,70 @@ TEST_F(QueueApiFailures, QueueFill) {
   unsigned char *HostAlloc = (unsigned char *)sycl::malloc_host(1, Q);
   try {
     Q.fill(HostAlloc, 42, 1);
+  } catch (sycl::exception &e) {
+    ExceptionCaught = true;
+  }
+  Q.wait();
+  sycl::free(HostAlloc, Q);
+  EXPECT_TRUE(ExceptionCaught);
+  uint16_t TraceType = 0;
+  std::string Message;
+  ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
+  EXPECT_EQ(TraceType, xpti::trace_diagnostics);
+  EXPECT_EQ(Message, "No code location data is available.");
+  EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
+}
+
+inline pi_result redefinedUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
+                                             size_t size,
+                                             pi_usm_migration_flags flags,
+                                             pi_uint32 num_events_in_waitlist,
+                                             const pi_event *events_waitlist,
+                                             pi_event *event) {
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+}
+
+TEST_F(QueueApiFailures, QueuePrefetch) {
+  MockPlugin.redefine<detail::PiApiKind::piextUSMEnqueuePrefetch>(
+      redefinedUSMEnqueuePrefetch);
+  MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
+      redefinedPluginGetLastError);
+  sycl::queue Q;
+  bool ExceptionCaught = false;
+  unsigned char *HostAlloc = (unsigned char *)sycl::malloc_host(4, Q);
+  try {
+    Q.prefetch(HostAlloc, 2);
+  } catch (sycl::exception &e) {
+    ExceptionCaught = true;
+  }
+  Q.wait();
+  sycl::free(HostAlloc, Q);
+  EXPECT_TRUE(ExceptionCaught);
+  uint16_t TraceType = 0;
+  std::string Message;
+  ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
+  EXPECT_EQ(TraceType, xpti::trace_diagnostics);
+  EXPECT_EQ(Message, "No code location data is available.");
+  EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
+}
+
+inline pi_result redefinedUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
+                                              size_t length,
+                                              pi_mem_advice advice,
+                                              pi_event *event) {
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+}
+
+TEST_F(QueueApiFailures, QueueMemAdvise) {
+  MockPlugin.redefine<detail::PiApiKind::piextUSMEnqueueMemAdvise>(
+      redefinedUSMEnqueueMemAdvise);
+  MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
+      redefinedPluginGetLastError);
+  sycl::queue Q;
+  bool ExceptionCaught = false;
+  unsigned char *HostAlloc = (unsigned char *)sycl::malloc_host(1, Q);
+  try {
+    Q.mem_advise(HostAlloc, 1, 0 /*default*/);
   } catch (sycl::exception &e) {
     ExceptionCaught = true;
   }
