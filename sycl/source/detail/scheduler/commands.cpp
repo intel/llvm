@@ -824,6 +824,21 @@ const char *Command::getBlockReason() const {
   return "Unknown block reason";
 }
 
+void Command::copySubmissionCodeLocation() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  detail::tls_code_loc_t Tls;
+  auto TData = Tls.query();
+  if (TData.fileName())
+    MSubmissionFileName = {TData.fileName()};
+  if (TData.functionName())
+    MSubmissionFunctionName = {TData.functionName()};
+  if (MSubmissionFileName.size() || MSubmissionFunctionName.size())
+    MSubmissionCodeLocation = {
+        MSubmissionFileName.c_str(), MSubmissionFunctionName.c_str(),
+        (int)TData.lineNumber(), (int)TData.columnNumber()};
+#endif
+}
+
 AllocaCommandBase::AllocaCommandBase(CommandType Type, QueueImplPtr Queue,
                                      Requirement Req,
                                      AllocaCommandBase *LinkedAllocaCmd,
@@ -2535,6 +2550,10 @@ pi_int32 ExecCGCommand::enqueueImp() {
       std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
       std::sort(std::begin(ReqToMem), std::end(ReqToMem));
     }
+
+    // Host task is executed asynchronously so we should record where it was
+    // submitted to report exception origin properly.
+    copySubmissionCodeLocation();
 
     MQueue->getThreadPool().submit<DispatchHostTask>(
         DispatchHostTask(this, std::move(ReqToMem)));

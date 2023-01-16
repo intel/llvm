@@ -59,6 +59,10 @@ bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
       const EventImplPtr &RootCmdEvent = RootCommand->getEvent();
       Cmd->addBlockedUserUnique(RootCmdEvent);
       EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
+
+      // Blocked command will be enqueued asynchronously from submission so we
+      // need to keep current root code location to report failure properly.
+      RootCommand->copySubmissionCodeLocation();
       return false;
     }
   }

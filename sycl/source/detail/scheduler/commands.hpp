@@ -277,6 +277,10 @@ public:
     return MPreparedDepsEvents;
   }
 
+  // XPTI instrumentation. Copy code location details to the internal struct.
+  // Memory is allocated in this method and released in destructor.
+  void copySubmissionCodeLocation();
+
   /// Contains list of dependencies(edges)
   std::vector<DepDesc> MDeps;
   /// Contains list of commands that depend on the command.
@@ -303,7 +307,7 @@ public:
   /// Describes the status of the command.
   std::atomic<EnqueueResultT::ResultT> MEnqueueStatus;
 
-  // All member variable defined here  are needed for the SYCL instrumentation
+  // All member variable defined here are needed for the SYCL instrumentation
   // layer. Do not guard these variables below with XPTI_ENABLE_INSTRUMENTATION
   // to ensure we have the same object layout when the macro in the library and
   // SYCL app are not the same.
@@ -329,6 +333,14 @@ public:
   bool MFirstInstance = false;
   /// Instance ID tracked for the command.
   uint64_t MInstanceID = 0;
+  /// Code location of command submission to sycl is available.
+  /// Assigned with the valid value only if command execution is async (host
+  /// task) or delayed (blocked by host task).
+  code_location MSubmissionCodeLocation;
+  /// Introduces string to handle memory management since code_location struct
+  /// works with raw car arrays.
+  std::string MSubmissionFileName;
+  std::string MSubmissionFunctionName;
 
   // This flag allows to control whether host event should be set complete
   // after successfull enqueue of command. Event is considered as host event if
