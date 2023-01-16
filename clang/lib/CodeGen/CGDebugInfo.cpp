@@ -355,7 +355,7 @@ CGDebugInfo::computeChecksum(FileID FID, SmallString<64> &Checksum) const {
     return std::nullopt;
 
   SourceManager &SM = CGM.getContext().getSourceManager();
-  Optional<llvm::MemoryBufferRef> MemBuffer = SM.getBufferOrNone(FID);
+  std::optional<llvm::MemoryBufferRef> MemBuffer = SM.getBufferOrNone(FID);
   if (!MemBuffer)
     return std::nullopt;
 
@@ -2031,7 +2031,7 @@ void CGDebugInfo::CollectCXXBasesAux(
 }
 
 llvm::DINodeArray
-CGDebugInfo::CollectTemplateParams(Optional<TemplateArgs> OArgs,
+CGDebugInfo::CollectTemplateParams(std::optional<TemplateArgs> OArgs,
                                    llvm::DIFile *Unit) {
   if (!OArgs)
     return llvm::DINodeArray();
@@ -2162,7 +2162,7 @@ CGDebugInfo::CollectTemplateParams(Optional<TemplateArgs> OArgs,
   return DBuilder.getOrCreateArray(TemplateParams);
 }
 
-Optional<CGDebugInfo::TemplateArgs>
+std::optional<CGDebugInfo::TemplateArgs>
 CGDebugInfo::GetTemplateArgs(const FunctionDecl *FD) const {
   if (FD->getTemplatedKind() ==
       FunctionDecl::TK_FunctionTemplateSpecialization) {
@@ -2173,7 +2173,7 @@ CGDebugInfo::GetTemplateArgs(const FunctionDecl *FD) const {
   }
   return std::nullopt;
 }
-Optional<CGDebugInfo::TemplateArgs>
+std::optional<CGDebugInfo::TemplateArgs>
 CGDebugInfo::GetTemplateArgs(const VarDecl *VD) const {
   // Always get the full list of parameters, not just the ones from the
   // specialization. A partial specialization may have fewer parameters than
@@ -2186,7 +2186,7 @@ CGDebugInfo::GetTemplateArgs(const VarDecl *VD) const {
   auto TA = TS->getTemplateArgs().asArray();
   return {{TList, TA}};
 }
-Optional<CGDebugInfo::TemplateArgs>
+std::optional<CGDebugInfo::TemplateArgs>
 CGDebugInfo::GetTemplateArgs(const RecordDecl *RD) const {
   if (auto *TSpecial = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
     // Always get the full list of parameters, not just the ones from the
@@ -4477,7 +4477,7 @@ CGDebugInfo::EmitTypeForVarWithBlocksAttr(const VarDecl *VD,
 
 llvm::DILocalVariable *CGDebugInfo::EmitDeclare(const VarDecl *VD,
                                                 llvm::Value *Storage,
-                                                llvm::Optional<unsigned> ArgNo,
+                                                std::optional<unsigned> ArgNo,
                                                 CGBuilderTy &Builder,
                                                 const bool UsePointerValue) {
   assert(CGM.getCodeGenOpts().hasReducedDebugInfo());
@@ -4657,7 +4657,7 @@ llvm::DILocalVariable *CGDebugInfo::EmitDeclare(const VarDecl *VD,
 
 llvm::DILocalVariable *CGDebugInfo::EmitDeclare(const BindingDecl *BD,
                                                 llvm::Value *Storage,
-                                                llvm::Optional<unsigned> ArgNo,
+                                                std::optional<unsigned> ArgNo,
                                                 CGBuilderTy &Builder,
                                                 const bool UsePointerValue) {
   assert(CGM.getCodeGenOpts().hasReducedDebugInfo());
@@ -5203,7 +5203,7 @@ std::string CGDebugInfo::GetName(const Decl *D, bool Qualified) const {
   if (!CGM.getCodeGenOpts().hasReducedDebugInfo())
     TemplateNamesKind = codegenoptions::DebugTemplateNamesKind::Full;
 
-  Optional<TemplateArgs> Args;
+  std::optional<TemplateArgs> Args;
 
   bool IsOperatorOverload = false; // isa<CXXConversionDecl>(ND);
   if (auto *RD = dyn_cast<CXXRecordDecl>(ND)) {
