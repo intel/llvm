@@ -39,6 +39,18 @@ protected:
   void TearDown() {}
 
 public:
+  static std::string BuildCodeLocationMessage(const char *FileName,
+                                              const char *FunctionName,
+                                              int LineNumber,
+                                              int ColumnNumber) {
+    std::string Result(FileName);
+    Result += ':';
+    Result += FunctionName;
+    Result += ":ln" + std::to_string(LineNumber) + ":col" +
+              std::to_string(ColumnNumber);
+    return Result;
+  }
+
   unittest::ScopedEnvVar XPTIenabling{"XPTI_TRACE_ENABLE", "1", [] {}};
   unittest::ScopedEnvVar PathToXPTIFW{"XPTI_FRAMEWORK_DISPATCHER",
                                       "libxptifw.so", [] {}};
@@ -48,34 +60,21 @@ public:
 
   static constexpr char FileName[] = "QueueApiFailures.cpp";
   static constexpr char FunctionName[] = "TestCaseExecution";
-  static constexpr unsigned int LineNumber = 8;
-  static constexpr unsigned int ColumnNumber = 13;
-  static constexpr sycl::detail::code_location TestCodeLocation = {
+  static constexpr int LineNumber = 8;
+  static constexpr int ColumnNumber = 13;
+  const sycl::detail::code_location TestCodeLocation = {
       FileName, FunctionName, LineNumber, ColumnNumber};
-  static const std::string TestCodeLocationMessage;
-  static const std::string TestKernelLocationMessage;
-  static const size_t KernelSize = 1;
-  static constexpr char UnknownCodeLocation[] = "unknown";
-};
 
-const std::string QueueApiFailures::TestCodeLocationMessage = {
-    std::string(FileName)
-        .append(":")
-        .append(FunctionName)
-        .append(":ln")
-        .append(std::to_string(LineNumber))
-        .append(":col")
-        .append(std::to_string(ColumnNumber))};
-const std::string QueueApiFailures::TestKernelLocationMessage = {
-    std::string(detail::KernelInfo<TestKernel<KernelSize>>::getFileName())
-        .append(":")
-        .append(detail::KernelInfo<TestKernel<KernelSize>>::getFunctionName())
-        .append(":ln")
-        .append(std::to_string(
-            detail::KernelInfo<TestKernel<KernelSize>>::getLineNumber()))
-        .append(":col")
-        .append(std::to_string(
-            detail::KernelInfo<TestKernel<KernelSize>>::getColumnNumber()))};
+  static constexpr size_t KernelSize = 1;
+  using TestKI = detail::KernelInfo<TestKernel<KernelSize>>;
+
+  const std::string TestCodeLocationMessage = BuildCodeLocationMessage(
+      FileName, FunctionName, LineNumber, ColumnNumber);
+  const std::string TestKernelLocationMessage = BuildCodeLocationMessage(
+      TestKI::getFileName(), TestKI::getFunctionName(), TestKI::getLineNumber(),
+      TestKI::getColumnNumber());
+  const std::string UnknownCodeLocation = "unknown";
+};
 
 TEST_F(QueueApiFailures, QueueSubmit) {
   MockPlugin.redefine<detail::PiApiKind::piEnqueueKernelLaunch>(

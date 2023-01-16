@@ -81,18 +81,16 @@ std::string BuildPayloadStr(const code_location &Payload,
   const char Separator[] = ":";
   auto FileName = Payload.fileName();
   auto FunctionName = Payload.functionName();
-  if (FileName) {
+  if (FileName && FileName[0] != '\0') {
     Result.append(FileName);
     Result.append(Separator);
   }
-  if (FunctionName) {
+  if (FunctionName && FunctionName[0] != '\0') {
     Result.append(FunctionName);
     Result.append(Separator);
-    Result.append("ln");
-    Result += std::to_string(Payload.lineNumber());
-    Result.append(Separator);
-    Result.append("col");
-    Result += std::to_string(Payload.columnNumber());
+
+    Result += "ln" + std::to_string(Payload.lineNumber()) + Separator;
+    Result += "col" + std::to_string(Payload.columnNumber());
   }
   if (Result.empty()) {
     Result = "unknown";
