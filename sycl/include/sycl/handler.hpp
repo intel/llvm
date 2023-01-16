@@ -653,7 +653,7 @@ private:
   template <typename KernelName, typename KernelType, int Dims,
             typename LambdaArgType>
   void StoreLambda(KernelType KernelFunc) {
-    using KI = sycl::detail::KernelInfo<KernelName>;
+    using KI = detail::KernelInfo<KernelName>;
     constexpr bool IsCallableWithKernelHandler =
         detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                  LambdaArgType>::value;
