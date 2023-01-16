@@ -79,7 +79,9 @@ public:
   void releaseDefaultContexts();
   void drainThreadPool();
   void InitXPTIStuff();
-  void TraceEventXPTI(const std::shared_ptr<std::string> &Message);
+  void
+  TraceEventXPTI(const char *Message,
+                 const code_location *const SubmissionCodeLocation = nullptr);
 
   // For testing purposes only
   void attachScheduler(Scheduler *Scheduler);

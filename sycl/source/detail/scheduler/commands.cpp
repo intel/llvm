@@ -299,11 +299,12 @@ public:
 
     pi_result WaitResult = waitForEvents();
     if (WaitResult != PI_SUCCESS) {
-      std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
-          std::string("Couldn't wait for host-task's dependencies"),
-          WaitResult));
+      std::string Message("Couldn't wait for host-task's dependencies");
+      std::exception_ptr EPtr =
+          std::make_exception_ptr(sycl::runtime_error(Message, WaitResult));
       HostTask.MQueue->reportAsyncException(EPtr);
-
+      GlobalHandler::instance().TraceEventXPTI(
+          Message.c_str(), &MThisCmd->MSubmissionCodeLocation);
       // reset host-task's lambda and quit
       HostTask.MHostTask.reset();
       return;
@@ -320,7 +321,10 @@ public:
       } else
         HostTask.MHostTask->call();
     } catch (...) {
-      HostTask.MQueue->reportAsyncException(std::current_exception());
+      auto CurrentException = std::current_exception();
+      // GlobalHandler::TraceEventXPTI(CurrentException->what(),
+      // &MThisCmd->MSubmissionCodeLocation);
+      HostTask.MQueue->reportAsyncException(CurrentException);
     }
 
     HostTask.MHostTask.reset();

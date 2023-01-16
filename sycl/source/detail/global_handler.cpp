@@ -75,8 +75,7 @@ void GlobalHandler::InitXPTIStuff() {
                     xpti_at::active, &SYCLInstanceNo);
 }
 
-std::string BuildPayloadStr(const code_location &Payload,
-                            const std::shared_ptr<std::string> &Message) {
+std::string BuildPayloadStr(const code_location &Payload, const char *Message) {
   std::string Result;
   const char Separator[] = ":";
   auto FileName = Payload.fileName();
@@ -95,24 +94,31 @@ std::string BuildPayloadStr(const code_location &Payload,
   if (Result.empty()) {
     Result = "unknown";
   }
-  if (!Message->empty()) {
-    Result += ":" + *Message;
+  if (Message && Message[0] != '\0') {
+    Result += ":";
+    Result += Message;
   }
   return Result;
 }
 
 void GlobalHandler::TraceEventXPTI(
-    const std::shared_ptr<std::string> &Message) {
+    const char *Message, const code_location *const SubmissionCodeLocation) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
     uint64_t Uid = xptiGetUniqueId(); // Gets the UID from TLS
     uint8_t StreamID = xptiRegisterStream(SYCL_SYCLCALL_STREAM_NAME);
-    detail::tls_code_loc_t Tls;
-    auto TData = Tls.query();
-    xptiNotifySubscribers(
-        StreamID, (uint16_t)xpti::trace_point_type_t::diagnostics,
-        GSYCLCallEvent, nullptr, Uid,
-        static_cast<const void *>(BuildPayloadStr(TData, Message).c_str()));
+    std::string PayloadStr;
+    if (SubmissionCodeLocation) {
+      PayloadStr = BuildPayloadStr(*SubmissionCodeLocation, Message);
+    } else {
+      detail::tls_code_loc_t Tls;
+      PayloadStr = BuildPayloadStr(Tls.query(), Message);
+    }
+
+    xptiNotifySubscribers(StreamID,
+                          (uint16_t)xpti::trace_point_type_t::diagnostics,
+                          GSYCLCallEvent, nullptr, Uid,
+                          static_cast<const void *>(PayloadStr.c_str()));
   }
 
 #endif

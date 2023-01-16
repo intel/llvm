@@ -60,16 +60,21 @@ public:
 
   static constexpr char FileName[] = "QueueApiFailures.cpp";
   static constexpr char FunctionName[] = "TestCaseExecution";
+  static constexpr char ExtraFunctionName[] = "ExtraTestCaseExecution";
   static constexpr int LineNumber = 8;
+  static constexpr int ExtraLineNumber = 7;
   static constexpr int ColumnNumber = 13;
   const sycl::detail::code_location TestCodeLocation = {
       FileName, FunctionName, LineNumber, ColumnNumber};
-
+  const sycl::detail::code_location ExtraTestCodeLocation = {
+      FileName, ExtraFunctionName, ExtraLineNumber, ColumnNumber};
   static constexpr size_t KernelSize = 1;
   using TestKI = detail::KernelInfo<TestKernel<KernelSize>>;
 
   const std::string TestCodeLocationMessage = BuildCodeLocationMessage(
       FileName, FunctionName, LineNumber, ColumnNumber);
+  const std::string ExtraTestCodeLocationMessage = BuildCodeLocationMessage(
+      FileName, ExtraFunctionName, ExtraLineNumber, ColumnNumber);
   const std::string TestKernelLocationMessage = BuildCodeLocationMessage(
       TestKI::getFileName(), TestKI::getFunctionName(), TestKI::getLineNumber(),
       TestKI::getColumnNumber());
@@ -334,5 +339,46 @@ TEST_F(QueueApiFailures, QueueParallelFor) {
   EXPECT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
   EXPECT_TRUE(Message.find(TestKernelLocationMessage) == 0);
+  EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
+}
+
+inline pi_result redefinedEventsWait(pi_uint32 num_events,
+                                     const pi_event *event_list) {
+  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+}
+
+TEST_F(QueueApiFailures, QueueHostTask) {
+  MockPlugin.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
+  MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
+      redefinedPluginGetLastError);
+  sycl::queue Q;
+  bool ExceptionCaught = false;
+  event EventToDepend;
+  try {
+    EventToDepend =
+        Q.single_task<TestKernel<KernelSize>>([=]() {}, TestCodeLocation);
+  } catch (sycl::exception &e) {
+    ExceptionCaught = true;
+  }
+  EXPECT_FALSE(ExceptionCaught);
+  try {
+    Q.submit(
+        [&](handler &Cgh) {
+          Cgh.depends_on(EventToDepend);
+          Cgh.host_task(
+              [=]() { throw std::runtime_error("Host task exception"); });
+        },
+        ExtraTestCodeLocation);
+  } catch (sycl::exception &e) {
+    ExceptionCaught = true;
+  }
+  EXPECT_FALSE(ExceptionCaught);
+  Q.wait_and_throw();
+
+  uint16_t TraceType = 0;
+  std::string Message;
+  EXPECT_TRUE(queryReceivedNotifications(TraceType, Message));
+  EXPECT_EQ(TraceType, xpti::trace_diagnostics);
+  EXPECT_TRUE(Message.find(ExtraTestCodeLocationMessage) == 0);
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }

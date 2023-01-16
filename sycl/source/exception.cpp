@@ -62,7 +62,7 @@ exception::exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
                      const std::string &WhatArg)
     : MMsg(std::make_shared<std::string>(WhatArg)),
       MPIErr(PI_ERROR_INVALID_VALUE), MContext(SharedPtrCtx), MErrC(EC) {
-  detail::GlobalHandler::instance().TraceEventXPTI(MMsg);
+  detail::GlobalHandler::instance().TraceEventXPTI(MMsg->c_str());
 }
 
 const std::error_code &exception::code() const noexcept { return MErrC; }
