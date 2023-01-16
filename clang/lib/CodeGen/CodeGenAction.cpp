@@ -51,6 +51,7 @@
 #include "llvm/Transforms/IPO/Internalize.h"
 
 #include <memory>
+#include <optional>
 using namespace clang;
 using namespace llvm;
 
