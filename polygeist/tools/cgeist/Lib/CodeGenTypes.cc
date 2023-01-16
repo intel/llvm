@@ -1766,6 +1766,8 @@ mlir::Type CodeGenTypes::getMLIRType(const clang::BuiltinType *BT) const {
 #include "clang/AST/BuiltinTypes.def"
     llvm_unreachable("Unexpected placeholder builtin type!");
   }
+
+  llvm_unreachable("Unexpected builtin type!");
 }
 
 // Note: In principle we should always create a memref here because we want to
