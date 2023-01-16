@@ -12,6 +12,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
     - [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
     - [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
     - [Build DPC++ toolchain with support for ESIMD CPU Emulation](#build-dpc-toolchain-with-support-for-esimd-emulator)
+    - [Build DPC++ toolchain with support for runtime kernel fusion](#build-dpc-toolchain-with-support-for-runtime-kernel-fusion)
     - [Build Doxygen documentation](#build-doxygen-documentation)
     - [Deployment](#deployment)
   - [Use DPC++ toolchain](#use-dpc-toolchain)
@@ -297,6 +298,16 @@ Enabling this flag requires following packages installed.
 
 Currently, this feature was tested and verified on Ubuntu 20.04
 environment.
+
+### Build DPC++ toolchain with support for runtime kernel fusion
+
+Support for the experimental SYCL extension for user-driven kernel fusion 
+at runtime is enabled by default. 
+
+To disable support for this feature, follow the instructions for the 
+Linux DPC++ toolchain, but add the `--disable-fusion` flag.
+
+Kernel fusion is currently not yet supported on the Windows platform.
 
 ### Build Doxygen documentation
 
