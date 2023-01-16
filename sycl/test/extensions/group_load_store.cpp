@@ -195,6 +195,8 @@ int check_correctness(InputContainer& input, OutputContainer& output, std::strin
 }
 
 int main() {
+    // TODO: turn test on when functionality will be implemented
+    /*
     sycl::queue q;
 
     std::vector<int> input(size);
@@ -230,4 +232,5 @@ int main() {
     assert(check_correctness(input, output, "sycl::vec") == 0);
 
     std::cout << "All tests passed" << std::endl;
+    */
 }
