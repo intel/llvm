@@ -8229,7 +8229,7 @@ pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
     if (It == Context->DeviceMemAllocContexts.end())
       return PI_ERROR_INVALID_VALUE;
 
-    *ResultPtr = It->second.get()->allocate(Size, Alignment);
+    *ResultPtr = It->second->allocate(Size, Alignment);
     if (IndirectAccessTrackingEnabled) {
       // Keep track of all memory allocations in the context
       Context->MemAllocs.emplace(std::piecewise_construct,
@@ -8307,7 +8307,7 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
     if (It == Allocator.end())
       return PI_ERROR_INVALID_VALUE;
 
-    *ResultPtr = It->second.get()->allocate(Size, Alignment);
+    *ResultPtr = It->second->allocate(Size, Alignment);
     if (DeviceReadOnly) {
       Context->SharedReadOnlyAllocs.insert(*ResultPtr);
     }
@@ -8475,7 +8475,7 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr,
               return PI_ERROR_INVALID_VALUE;
 
             // The right context is found, deallocate the pointer
-            It->second.get()->deallocate(Ptr, OwnZeMemHandle);
+            It->second->deallocate(Ptr, OwnZeMemHandle);
           } catch (const UsmAllocationException &Ex) {
             return Ex.getError();
           }
