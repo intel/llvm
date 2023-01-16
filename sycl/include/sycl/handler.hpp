@@ -654,13 +654,6 @@ private:
             typename LambdaArgType>
   void StoreLambda(KernelType KernelFunc) {
     using KI = sycl::detail::KernelInfo<KernelName>;
-    /*
-      static constexpr const char *getName() { return ""; }
-    */
-    constexpr detail::code_location CodeLoc(
-        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
-        KI::getColumnNumber());
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     constexpr bool IsCallableWithKernelHandler =
         detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                  LambdaArgType>::value;
