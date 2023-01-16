@@ -460,7 +460,7 @@ void ModuleSplitterBase::verifyNoCrossModuleDeviceGlobalUsage() {
     if (!isDeviceGlobalVariable(GV) || !hasDeviceImageScopeProperty(GV))
       continue;
 
-    Optional<StringRef> VarEntryPointModule{};
+    std::optional<StringRef> VarEntryPointModule{};
     auto CheckEntryPointModule = [&VarEntryPointModule, &EntryPointModules,
                                   &GV](const auto *F) {
       auto EntryPointModulesIt = EntryPointModules.find(F);
