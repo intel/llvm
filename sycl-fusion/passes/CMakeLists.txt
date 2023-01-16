@@ -35,6 +35,7 @@ add_llvm_library(SYCLKernelFusionPasses
   syclcp/SYCLCP.cpp
   cleanup/Cleanup.cpp
   debug/PassDebug.cpp
+  target/TargetFusionInfo.cpp
 
   DEPENDS
   intrinsics_gen
