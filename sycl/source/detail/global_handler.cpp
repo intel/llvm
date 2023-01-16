@@ -75,7 +75,8 @@ void GlobalHandler::InitXPTIStuff() {
                     xpti_at::active, &SYCLInstanceNo);
 }
 
-std::string BuildPayloadStr(const code_location &Payload) {
+std::string BuildPayloadStr(const code_location &Payload,
+                            const std::shared_ptr<std::string> &Message) {
   std::string Result;
   const char Separator[] = ":";
   auto FileName = Payload.fileName();
@@ -84,8 +85,7 @@ std::string BuildPayloadStr(const code_location &Payload) {
     Result.append(FileName);
     Result.append(Separator);
   }
-  if (FunctionName)
-  {
+  if (FunctionName) {
     Result.append(FunctionName);
     Result.append(Separator);
     Result.append("ln");
@@ -95,12 +95,16 @@ std::string BuildPayloadStr(const code_location &Payload) {
     Result += std::to_string(Payload.columnNumber());
   }
   if (Result.empty()) {
-    Result = "No code location data is available.";
+    Result = "unknown";
+  }
+  if (!Message->empty()) {
+    Result += ":" + *Message;
   }
   return Result;
 }
 
-void GlobalHandler::TraceEventXPTI() {
+void GlobalHandler::TraceEventXPTI(
+    const std::shared_ptr<std::string> &Message) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
     uint64_t Uid = xptiGetUniqueId(); // Gets the UID from TLS
@@ -110,7 +114,7 @@ void GlobalHandler::TraceEventXPTI() {
     xptiNotifySubscribers(
         StreamID, (uint16_t)xpti::trace_point_type_t::diagnostics,
         GSYCLCallEvent, nullptr, Uid,
-        static_cast<const void *>(BuildPayloadStr(TData).c_str()));
+        static_cast<const void *>(BuildPayloadStr(TData, Message).c_str()));
   }
 
 #endif

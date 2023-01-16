@@ -79,7 +79,7 @@ public:
   void releaseDefaultContexts();
   void drainThreadPool();
   void InitXPTIStuff();
-  void TraceEventXPTI();
+  void TraceEventXPTI(const std::shared_ptr<std::string> &Message);
 
   // For testing purposes only
   void attachScheduler(Scheduler *Scheduler);
@@ -87,7 +87,6 @@ public:
 private:
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   xpti_td *GSYCLCallEvent = nullptr;
-  xpti_td *GSYCLArgCallEvent = nullptr;
 #endif
 
   friend void shutdown();

@@ -55,6 +55,7 @@ public:
   static const std::string TestCodeLocationMessage;
   static const std::string TestKernelLocationMessage;
   static const size_t KernelSize = 1;
+  static constexpr char UnknownCodeLocation[] = "unknown";
 };
 
 const std::string QueueApiFailures::TestCodeLocationMessage = {
@@ -98,7 +99,7 @@ TEST_F(QueueApiFailures, QueueSubmit) {
   std::string Message;
   EXPECT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_EQ(Message, TestCodeLocationMessage);
+  EXPECT_TRUE(Message.find(TestCodeLocationMessage) == 0);
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -120,7 +121,7 @@ TEST_F(QueueApiFailures, QueueSingleTask) {
   std::string Message;
   EXPECT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_EQ(Message, TestCodeLocationMessage);
+  EXPECT_TRUE(Message.find(TestCodeLocationMessage) == 0);
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -152,7 +153,7 @@ TEST_F(QueueApiFailures, QueueMemset) {
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_EQ(Message, "No code location data is available.");
+  EXPECT_TRUE(Message.find(UnknownCodeLocation) == 0);
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -187,7 +188,7 @@ TEST_F(QueueApiFailures, QueueMemcpy) {
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_EQ(Message, "No code location data is available.");
+  EXPECT_TRUE(Message.find(UnknownCodeLocation) == 0);
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -213,7 +214,7 @@ TEST_F(QueueApiFailures, QueueCopy) {
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_EQ(Message, TestCodeLocationMessage);
+  EXPECT_TRUE(Message.find(TestCodeLocationMessage) == 0);
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -246,7 +247,7 @@ TEST_F(QueueApiFailures, QueueFill) {
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_EQ(Message, "No code location data is available.");
+  EXPECT_TRUE(Message.find(UnknownCodeLocation) == 0);
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -279,7 +280,7 @@ TEST_F(QueueApiFailures, QueuePrefetch) {
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_EQ(Message, "No code location data is available.");
+  EXPECT_TRUE(Message.find(UnknownCodeLocation) == 0);
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -310,7 +311,7 @@ TEST_F(QueueApiFailures, QueueMemAdvise) {
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_EQ(Message, "No code location data is available.");
+  EXPECT_TRUE(Message.find(UnknownCodeLocation) == 0);
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -333,6 +334,6 @@ TEST_F(QueueApiFailures, QueueParallelFor) {
   std::string Message;
   EXPECT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_EQ(Message, TestKernelLocationMessage);
+  EXPECT_TRUE(Message.find(TestKernelLocationMessage) == 0);
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
