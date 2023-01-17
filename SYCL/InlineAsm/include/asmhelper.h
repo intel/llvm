@@ -91,7 +91,8 @@ auto exception_handler = [](sycl::exception_list exceptions) {
 };
 
 template <typename F>
-bool launchInlineASMTestImpl(F &f, bool requires_particular_sg_size = true) {
+bool launchInlineASMTestImpl(F &f, bool requires_particular_sg_size = true,
+                             std::vector<int> RequiredSGSizes = {}) {
   sycl::queue deviceQueue(sycl::gpu_selector_v, exception_handler);
   sycl::device device = deviceQueue.get_device();
 
@@ -108,6 +109,16 @@ bool launchInlineASMTestImpl(F &f, bool requires_particular_sg_size = true) {
     return false;
   }
 
+  auto sg_sizes = device.get_info<sycl::info::device::sub_group_sizes>();
+  if (std::any_of(RequiredSGSizes.begin(), RequiredSGSizes.end(),
+                  [&](size_t RequiredSGSize) {
+                    return std::find(sg_sizes.begin(), sg_sizes.end(),
+                                     RequiredSGSize) == sg_sizes.end();
+                  })) {
+    std::cout << "Skipping test\n";
+    return false;
+  }
+
   deviceQueue.submit(f).wait_and_throw();
 
   return true;
@@ -118,10 +129,12 @@ bool launchInlineASMTestImpl(F &f, bool requires_particular_sg_size = true) {
 /// \returns false if test wasn't launched (i.e.was skipped) and true otherwise
 template <typename F>
 bool launchInlineASMTest(F &f, bool requires_particular_sg_size = true,
-                         bool exception_expected = false) {
+                         bool exception_expected = false,
+                         std::vector<int> RequiredSGSizes = {}) {
   bool result = false;
   try {
-    result = launchInlineASMTestImpl(f, requires_particular_sg_size);
+    result = launchInlineASMTestImpl(f, requires_particular_sg_size,
+                                     RequiredSGSizes);
   } catch (sycl::exception &e) {
     std::string what = e.what();
     if (exception_expected &&

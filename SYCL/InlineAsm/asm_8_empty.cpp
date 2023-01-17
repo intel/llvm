@@ -30,7 +30,7 @@ template <typename T = dataType> struct KernelFunctor : WithOutputBuffer<T> {
 
 int main() {
   KernelFunctor<> f(DEFAULT_PROBLEM_SIZE);
-  if (!launchInlineASMTest(f))
+  if (!launchInlineASMTest(f, true, false, {8}))
     return 0;
 
   if (verify_all_the_same(f.getOutputBufferData(), 43))
