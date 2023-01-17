@@ -1,6 +1,3 @@
-// Disabled to unblock the PD
-// XFAIL: *
-
 // REQUIRES: x86-registered-target
 // REQUIRES: nvptx-registered-target
 // REQUIRES: amdgpu-registered-target
