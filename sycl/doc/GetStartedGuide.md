@@ -11,7 +11,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
     - [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
     - [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
     - [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
-    - [Build DPC++ toolchain with support for ESIMD CPU Emulation](#build-dpc-toolchain-with-support-for-esimd-emulator)
+    - [Build DPC++ toolchain with support for ESIMD CPU Emulation](#build-dpc-toolchain-with-support-for-esimd-cpu-emulation)
     - [Build DPC++ toolchain with support for runtime kernel fusion](#build-dpc-toolchain-with-support-for-runtime-kernel-fusion)
     - [Build Doxygen documentation](#build-doxygen-documentation)
     - [Deployment](#deployment)
