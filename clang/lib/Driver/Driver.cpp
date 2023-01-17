@@ -5093,8 +5093,10 @@ class OffloadingActionBuilder final {
 
         if (A->getOption().matches(options::OPT_fsycl_targets_EQ)) {
           // spir64 target is actually JIT compilation, so we defer selection of
-          // bfloat16 libraries to runtime. For AOT we need libraries.
-          needLibs = TC->getTriple().getSubArch() != llvm::Triple::NoSubArch;
+          // bfloat16 libraries to runtime. For AOT we need libraries, but skip
+          // for Nvidia.
+          needLibs = TC->getTriple().getSubArch() != llvm::Triple::NoSubArch &&
+                     !TC->getTriple().isNVPTX();
           TargetBE = GetTripleIt(A->getValue(0));
           if (TargetBE)
             TargetOpt = A->getValue(0);
