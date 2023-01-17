@@ -296,6 +296,21 @@ public:
     assert(MThisCmd->getCG().getType() == CG::CGTYPE::CodeplayHostTask);
 
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
+  #ifdef XPTI_ENABLE_INSTRUMENTATION
+    std::unique_ptr<detail::tls_code_loc_t> AsyncCodeLocationPtr;
+    if (xptiTraceEnabled()) {
+      bool SetLocation = false;
+      {
+        detail::tls_code_loc_t Tls;
+        auto CodeLoc = Tls.query();
+        auto FileName = CodeLoc.fileName();
+        auto FunctionName = CodeLoc.functionName();
+        SetLocation =  (!FileName || FileName[0] == '\0') && (!FunctionName || FunctionName[0] == '\0');
+      }
+      if (SetLocation)
+        AsyncCodeLocationPtr.reset(new detail::tls_code_loc_t(MThisCmd->MSubmissionCodeLocation));
+    }
+  #endif
 
     pi_result WaitResult = waitForEvents();
     if (WaitResult != PI_SUCCESS) {
@@ -303,10 +318,9 @@ public:
       std::exception_ptr EPtr =
           std::make_exception_ptr(sycl::runtime_error(Message, WaitResult));
       HostTask.MQueue->reportAsyncException(EPtr);
-      GlobalHandler::instance().TraceEventXPTI(
-          Message.c_str(), &MThisCmd->MSubmissionCodeLocation);
       // reset host-task's lambda and quit
       HostTask.MHostTask.reset();
+      Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
       return;
     }
 
@@ -322,8 +336,6 @@ public:
         HostTask.MHostTask->call();
     } catch (...) {
       auto CurrentException = std::current_exception();
-      // GlobalHandler::TraceEventXPTI(CurrentException->what(),
-      // &MThisCmd->MSubmissionCodeLocation);
       HostTask.MQueue->reportAsyncException(CurrentException);
     }
 

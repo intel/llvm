@@ -13,12 +13,15 @@
 #include <detail/xpti_registry.hpp>
 
 #include <gtest/gtest.h>
+#include <gmock/gmock.h>
 
 #include <sycl/sycl.hpp>
 
+using ::testing::HasSubstr;
 using namespace sycl;
 XPTI_CALLBACK_API bool queryReceivedNotifications(uint16_t &TraceType,
                                                   std::string &Message);
+XPTI_CALLBACK_API void resetReceivedNotifications();
 
 inline pi_result redefinedPluginGetLastError(char **message) {
   return PI_ERROR_INVALID_VALUE;
@@ -36,7 +39,7 @@ class QueueApiFailures : public ::testing::Test {
 protected:
   void SetUp() { xptiTraceTryToEnable(); }
 
-  void TearDown() {}
+  void TearDown() { resetReceivedNotifications(); }
 
 public:
   static std::string BuildCodeLocationMessage(const char *FileName,
@@ -103,7 +106,7 @@ TEST_F(QueueApiFailures, QueueSubmit) {
   std::string Message;
   EXPECT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_TRUE(Message.find(TestCodeLocationMessage) == 0);
+  EXPECT_THAT(Message, HasSubstr(TestCodeLocationMessage));
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -125,7 +128,7 @@ TEST_F(QueueApiFailures, QueueSingleTask) {
   std::string Message;
   EXPECT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_TRUE(Message.find(TestCodeLocationMessage) == 0);
+  EXPECT_THAT(Message, HasSubstr(TestCodeLocationMessage));
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -157,7 +160,7 @@ TEST_F(QueueApiFailures, QueueMemset) {
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_TRUE(Message.find(UnknownCodeLocation) == 0);
+  EXPECT_THAT(Message, HasSubstr(UnknownCodeLocation));
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -192,7 +195,7 @@ TEST_F(QueueApiFailures, QueueMemcpy) {
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_TRUE(Message.find(UnknownCodeLocation) == 0);
+  EXPECT_THAT(Message, HasSubstr(UnknownCodeLocation));
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -218,7 +221,7 @@ TEST_F(QueueApiFailures, QueueCopy) {
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_TRUE(Message.find(TestCodeLocationMessage) == 0);
+  EXPECT_THAT(Message, HasSubstr(TestCodeLocationMessage));
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -251,7 +254,7 @@ TEST_F(QueueApiFailures, QueueFill) {
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_TRUE(Message.find(UnknownCodeLocation) == 0);
+  EXPECT_THAT(Message, HasSubstr(UnknownCodeLocation));
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -284,7 +287,7 @@ TEST_F(QueueApiFailures, QueuePrefetch) {
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_TRUE(Message.find(UnknownCodeLocation) == 0);
+  EXPECT_THAT(Message, HasSubstr(UnknownCodeLocation));
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -315,7 +318,7 @@ TEST_F(QueueApiFailures, QueueMemAdvise) {
   std::string Message;
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_TRUE(Message.find(UnknownCodeLocation) == 0);
+  EXPECT_THAT(Message, HasSubstr(UnknownCodeLocation));
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -338,7 +341,7 @@ TEST_F(QueueApiFailures, QueueParallelFor) {
   std::string Message;
   EXPECT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_TRUE(Message.find(TestKernelLocationMessage) == 0);
+  EXPECT_THAT(Message, HasSubstr(TestKernelLocationMessage));
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
@@ -347,11 +350,15 @@ inline pi_result redefinedEventsWait(pi_uint32 num_events,
   return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
 }
 
-TEST_F(QueueApiFailures, QueueHostTask) {
+inline void silentAsyncHandler(exception_list Exceptions) {
+  std::ignore = Exceptions;
+}
+
+TEST_F(QueueApiFailures, QueueHostTaskWaitFail) {
   MockPlugin.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
   MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
       redefinedPluginGetLastError);
-  sycl::queue Q;
+  sycl::queue Q(default_selector(), silentAsyncHandler);
   bool ExceptionCaught = false;
   event EventToDepend;
   try {
@@ -373,12 +380,62 @@ TEST_F(QueueApiFailures, QueueHostTask) {
     ExceptionCaught = true;
   }
   EXPECT_FALSE(ExceptionCaught);
-  Q.wait_and_throw();
+  Q.wait();
 
   uint16_t TraceType = 0;
   std::string Message;
   EXPECT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
-  EXPECT_TRUE(Message.find(ExtraTestCodeLocationMessage) == 0);
-  EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
+  EXPECT_THAT(Message, HasSubstr(ExtraTestCodeLocationMessage));
+}
+
+TEST_F(QueueApiFailures, QueueHostTaskFail) {
+  MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
+      redefinedPluginGetLastError);
+  enum ExceptionType
+  {
+    STD_EXCEPTION = 0,
+    SYCL_EXCEPTION
+  };
+  auto Test = [&](ExceptionType ExType){
+    sycl::queue Q(default_selector(), silentAsyncHandler);
+    bool ExceptionCaught = false;
+    event EventToDepend;
+    const std::string HostTaskExeptionStr = "Host task exception";
+    try {
+      EventToDepend =
+          Q.single_task<TestKernel<KernelSize>>([=]() {}, TestCodeLocation);
+    } catch (sycl::exception &e) {
+      ExceptionCaught = true;
+    }
+    EXPECT_FALSE(ExceptionCaught);
+    try {
+      Q.submit(
+          [&](handler &Cgh) {
+            Cgh.depends_on(EventToDepend);
+            Cgh.host_task(
+                [=]() { 
+                  if (ExType == SYCL_EXCEPTION)
+                    throw sycl::exception(sycl::make_error_code(errc::invalid), HostTaskExeptionStr);
+                  else
+                    throw std::runtime_error(HostTaskExeptionStr);
+                  });
+          },
+          ExtraTestCodeLocation);
+    } catch (sycl::exception &e) {
+      ExceptionCaught = true;
+    }
+    EXPECT_FALSE(ExceptionCaught);
+    Q.wait();
+
+    uint16_t TraceType = 0;
+    std::string Message;
+    EXPECT_TRUE(queryReceivedNotifications(TraceType, Message));
+    EXPECT_EQ(TraceType, xpti::trace_diagnostics);
+    EXPECT_THAT(Message, HasSubstr(ExtraTestCodeLocationMessage));
+    EXPECT_THAT(Message, HasSubstr(HostTaskExeptionStr));
+    resetReceivedNotifications();
+  };
+  Test(SYCL_EXCEPTION);
+  Test(STD_EXCEPTION);
 }

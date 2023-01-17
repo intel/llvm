@@ -102,18 +102,14 @@ std::string BuildPayloadStr(const code_location &Payload, const char *Message) {
 }
 
 void GlobalHandler::TraceEventXPTI(
-    const char *Message, const code_location *const SubmissionCodeLocation) {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (xptiTraceEnabled()) {
+    const char *Message) {
+  #ifdef XPTI_ENABLE_INSTRUMENTATION
+    if (xptiTraceEnabled()) {
     uint64_t Uid = xptiGetUniqueId(); // Gets the UID from TLS
     uint8_t StreamID = xptiRegisterStream(SYCL_SYCLCALL_STREAM_NAME);
     std::string PayloadStr;
-    if (SubmissionCodeLocation) {
-      PayloadStr = BuildPayloadStr(*SubmissionCodeLocation, Message);
-    } else {
-      detail::tls_code_loc_t Tls;
-      PayloadStr = BuildPayloadStr(Tls.query(), Message);
-    }
+    detail::tls_code_loc_t Tls;
+    PayloadStr = BuildPayloadStr(Tls.query(), Message);
 
     xptiNotifySubscribers(StreamID,
                           (uint16_t)xpti::trace_point_type_t::diagnostics,

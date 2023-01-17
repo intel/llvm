@@ -80,8 +80,7 @@ public:
   void drainThreadPool();
   void InitXPTIStuff();
   void
-  TraceEventXPTI(const char *Message,
-                 const code_location *const SubmissionCodeLocation = nullptr);
+  TraceEventXPTI(const char *Message);
 
   // For testing purposes only
   void attachScheduler(Scheduler *Scheduler);

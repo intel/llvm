@@ -48,3 +48,7 @@ XPTI_CALLBACK_API bool queryReceivedNotifications(uint16_t &TraceType,
   GReceivedNotifications.pop_front();
   return true;
 }
+
+XPTI_CALLBACK_API void resetReceivedNotifications() {
+  GReceivedNotifications.clear();
+}
