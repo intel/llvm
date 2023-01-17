@@ -13,7 +13,7 @@ struct with_bitfield {
     unsigned int d : 32;
 };
 
-#include <sycl/sycl.hpp>
+#include "sycl.hpp"
 
 using namespace sycl;
 
