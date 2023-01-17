@@ -1255,7 +1255,7 @@ mlir::Type CodeGenTypes::getMLIRTypeForMem(clang::QualType QT,
   // TODO: Check for the boolean vector case.
 
   // If this is a bool type map this integer to the target-specified size.
-  if (R.isInteger(1))
+  if (!QT->isBitIntType() && R.isInteger(1))
     return mlir::IntegerType::get(TheModule->getContext(),
                                   Context.getTypeSize(QT));
 
