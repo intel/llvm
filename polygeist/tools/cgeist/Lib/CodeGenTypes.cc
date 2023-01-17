@@ -1305,8 +1305,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
         SmallVector<int64_t, 4> Shape;
         clang::QualType ElemTy;
         getConstantArrayShapeAndElemType(OrigTy, Shape, ElemTy);
-        return mlir::MemRefType::get(
-            Shape, getMLIRTypeForMem(ElemTy, ImplicitRef, AllowMerge));
+        return mlir::MemRefType::get(Shape, getMLIRTypeForMem(ElemTy));
       }
 
       // If -memref-fullrank is unset or it cannot be fulfilled.
