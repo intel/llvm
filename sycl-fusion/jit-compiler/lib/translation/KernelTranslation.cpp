@@ -111,7 +111,10 @@ KernelTranslator::loadLLVMKernel(llvm::LLVMContext &LLVMCtx,
   llvm::StringRef RawData(reinterpret_cast<const char *>(BinInfo.BinaryStart),
                           BinInfo.BinarySize);
   return llvm::parseBitcodeFile(
-      MemoryBuffer::getMemBuffer(RawData)->getMemBufferRef(), LLVMCtx);
+      MemoryBuffer::getMemBuffer(RawData, Kernel.Name,
+                                 /* RequiresNullTermnator*/ false)
+          ->getMemBufferRef(),
+      LLVMCtx);
 }
 
 llvm::Expected<std::unique_ptr<llvm::Module>>
