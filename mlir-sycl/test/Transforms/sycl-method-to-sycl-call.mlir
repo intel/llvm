@@ -10,19 +10,22 @@
 
 // CHECK-LABEL:   func.func @accessor_subscript_operator(
 // CHECK-SAME:                                           %[[VAL_0:.*]]: !sycl_accessor_2_i32_rw_gb,
-// CHECK-SAME:                                           %[[VAL_1:.*]]: memref<?x!sycl_id_2_>) -> memref<?xi32, 4> {
+// CHECK-SAME:                                           %[[VAL_1:.*]]: !sycl_id_2_) -> memref<?xi32, 4> {
 // CHECK-NEXT:      %[[VAL_2:.*]] = arith.constant 0 : index
-// CHECK-NEXT:      %[[VAL_3:.*]] = memref.alloca() : memref<1x!sycl_accessor_2_i32_rw_gb>
+// CHECK-DAG:       %[[ID_ALLOCA:.*]] = memref.alloca() : memref<1x!sycl_id_2_>
+// CHECK-DAG:       %[[VAL_3:.*]] = memref.alloca() : memref<1x!sycl_accessor_2_i32_rw_gb>
 // CHECK-NEXT:      memref.store %[[VAL_0]], %[[VAL_3]]{{\[}}%[[VAL_2]]] : memref<1x!sycl_accessor_2_i32_rw_gb>
 // CHECK-NEXT:      %[[VAL_4:.*]] = "polygeist.memref2pointer"(%[[VAL_3]]) : (memref<1x!sycl_accessor_2_i32_rw_gb>) -> !llvm.ptr<!sycl_accessor_2_i32_rw_gb>
 // CHECK-NEXT:      %[[VAL_5:.*]] = llvm.addrspacecast %[[VAL_4]] : !llvm.ptr<!sycl_accessor_2_i32_rw_gb> to !llvm.ptr<!sycl_accessor_2_i32_rw_gb, 4>
 // CHECK-NEXT:      %[[VAL_6:.*]] = "polygeist.pointer2memref"(%[[VAL_5]]) : (!llvm.ptr<!sycl_accessor_2_i32_rw_gb, 4>) -> memref<?x!sycl_accessor_2_i32_rw_gb, 4>
-// CHECK-NEXT:      %[[VAL_7:.*]] = sycl.call(%[[VAL_6]], %[[VAL_1]]) {FunctionName = @"operator[]", MangledFunctionName = @_ZNK4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi2EvEERiNS0_2idILi2EEE, TypeName = @accessor} : (memref<?x!sycl_accessor_2_i32_rw_gb, 4>, memref<?x!sycl_id_2_>) -> memref<?xi32, 4>
+// CHECK-NEXT:      memref.store %[[VAL_1]], %[[ID_ALLOCA]]{{\[}}%[[VAL_2]]] : memref<1x!sycl_id_2_>
+// CHECK-NEXT:      %[[ID_CAST:.*]] = memref.cast %[[ID_ALLOCA]] : memref<1x!sycl_id_2_> to memref<?x!sycl_id_2_>
+// CHECK-NEXT:      %[[VAL_7:.*]] = sycl.call(%[[VAL_6]], %[[ID_CAST]]) {FunctionName = @"operator[]", MangledFunctionName = @_ZNK4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi2EvEERiNS0_2idILi2EEE, TypeName = @accessor} : (memref<?x!sycl_accessor_2_i32_rw_gb, 4>, memref<?x!sycl_id_2_>) -> memref<?xi32, 4>
 // CHECK-NEXT:      return %[[VAL_7]] : memref<?xi32, 4>
 // CHECK-NEXT:    }
 
-func.func @accessor_subscript_operator(%arg0: !sycl_accessor_2_i32_rw_gb, %arg1: memref<?x!sycl_id_2_>) -> memref<?xi32, 4> {
-  %0 = sycl.accessor.subscript %arg0[%arg1] {BaseType = memref<?x!sycl_accessor_2_i32_rw_gb, 4>, FunctionName = @"operator[]", MangledFunctionName = @_ZNK4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi2EvEERiNS0_2idILi2EEE, TypeName = @accessor} : (!sycl_accessor_2_i32_rw_gb, memref<?x!sycl_id_2_>) -> memref<?xi32, 4>
+func.func @accessor_subscript_operator(%arg0: !sycl_accessor_2_i32_rw_gb, %arg1: !sycl_id_2_) -> memref<?xi32, 4> {
+  %0 = sycl.accessor.subscript %arg0[%arg1] {ArgumentTypes = [memref<?x!sycl_accessor_2_i32_rw_gb, 4>, memref<?x!sycl_id_2_>], FunctionName = @"operator[]", MangledFunctionName = @_ZNK4sycl3_V18accessorIiLi2ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEixILi2EvEERiNS0_2idILi2EEE, TypeName = @accessor} : (!sycl_accessor_2_i32_rw_gb, !sycl_id_2_) -> memref<?xi32, 4>
   return %0 : memref<?xi32, 4>
 }
 
@@ -41,7 +44,7 @@ func.func @accessor_subscript_operator(%arg0: !sycl_accessor_2_i32_rw_gb, %arg1:
 // CHECK-NEXT:    }
 
 func.func @range_get(%arg0: !sycl_range_2_, %arg1: i32) -> i64 {
-  %0 = "sycl.range.get"(%arg0, %arg1) {BaseType = memref<?x!sycl_array_2_, 4>, FunctionName = @get, MangledFunctionName = @_ZNK4sycl3_V16detail5arrayILi2EE3getEi, TypeName = @array} : (!sycl_range_2_, i32) -> i64
+  %0 = "sycl.range.get"(%arg0, %arg1) {ArgumentTypes = [memref<?x!sycl_array_2_, 4>, i32], FunctionName = @get, MangledFunctionName = @_ZNK4sycl3_V16detail5arrayILi2EE3getEi, TypeName = @array} : (!sycl_range_2_, i32) -> i64
   return %0 : i64
 }
 
@@ -58,7 +61,7 @@ func.func @range_get(%arg0: !sycl_range_2_, %arg1: i32) -> i64 {
 // CHECK-NEXT:    }
 
 func.func @range_size(%arg0: !sycl_range_2_) -> i64 {
-  %0 = "sycl.range.size"(%arg0) {BaseType = memref<?x!sycl_range_2_, 4>, FunctionName = @size, MangledFunctionName = @_ZNK4sycl3_V15rangeILi2EE4sizeEv, TypeName = @range} : (!sycl_range_2_) -> i64
+  %0 = "sycl.range.size"(%arg0) {ArgumentTypes = [memref<?x!sycl_range_2_, 4>], FunctionName = @size, MangledFunctionName = @_ZNK4sycl3_V15rangeILi2EE4sizeEv, TypeName = @range} : (!sycl_range_2_) -> i64
   return %0 : i64
 }
 
@@ -75,6 +78,6 @@ func.func @range_size(%arg0: !sycl_range_2_) -> i64 {
 // CHECK-NEXT:    }
 
 func.func @sycl_item_get_id(%arg0: !sycl_item_1_) -> !sycl_id_1_ {
-  %0 = "sycl.item.get_id"(%arg0) {BaseType = memref<?x!sycl_item_1_, 4>, FunctionName = @get_id, MangledFunctionName = @_ZNK4sycl3_V14itemILi1ELb1EE6get_idEv, TypeName = @item} : (!sycl_item_1_) -> !sycl_id_1_
+  %0 = "sycl.item.get_id"(%arg0) {ArgumentTypes = [memref<?x!sycl_item_1_, 4>], FunctionName = @get_id, MangledFunctionName = @_ZNK4sycl3_V14itemILi1ELb1EE6get_idEv, TypeName = @item} : (!sycl_item_1_) -> !sycl_id_1_
   return %0 : !sycl_id_1_
 }

@@ -261,7 +261,9 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
       const IdentifierInfo *Id = FDecl->getIdentifier();
       if ((getEmissionReason(FDecl) == Sema::DeviceDiagnosticReason::Sycl) &&
           Id && !Id->getName().startswith("__spirv_") &&
-          !Id->getName().startswith("__sycl_")) {
+          !Id->getName().startswith("__sycl_") &&
+          !Id->getName().startswith("__devicelib_ConvertBF16ToFINTEL") &&
+          !Id->getName().startswith("__devicelib_ConvertFToBF16INTEL")) {
         SYCLDiagIfDeviceCode(
             *Locs.begin(), diag::err_sycl_device_function_is_called_from_esimd,
             Sema::DeviceDiagnosticReason::Esimd);

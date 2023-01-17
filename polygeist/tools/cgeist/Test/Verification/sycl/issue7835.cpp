@@ -1,5 +1,5 @@
 // RUN: clang++ -fsycl -fsycl-device-only -O0 -w -emit-mlir %s -o - | FileCheck %s --check-prefix=CHECK-MLIR
-// RUN: clang++ -fsycl -fsycl-device-only -O3 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: clang++ -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 #include <sycl/sycl.hpp>
 
@@ -31,26 +31,30 @@
 
 // CHECK-LLVM-LABEL: define weak_odr spir_kernel void @_ZTSN4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EE
 // CHECK-LLVM-SAME:     (%"class.sycl::_V1::range.1"* noundef byval(%"class.sycl::_V1::range.1") align 8 %0, 
-// CHECK-LLVM-SAME:     { i32 addrspace(1)* }* noundef byval({ i32 addrspace(1)* }) align 8 %1) local_unnamed_addr #0 {
-// CHECK-LLVM-NEXT:  %3 = addrspacecast %"class.sycl::_V1::range.1"* %0 to %"class.sycl::_V1::range.1" addrspace(4)*
-// CHECK-LLVM-NEXT:  %4 = getelementptr %"class.sycl::_V1::range.1", %"class.sycl::_V1::range.1" addrspace(4)* %3, i64 0, i32 0, i32 0, i64 0
-// CHECK-LLVM-NEXT:  %5 = load i64, i64 addrspace(4)* %4, align 8
-// CHECK-LLVM-NEXT:  %6 = bitcast { i32 addrspace(1)* }* %1 to i32 addrspace(4)**
-// CHECK-LLVM-NEXT:  %7 = addrspacecast i32 addrspace(4)** %6 to i32 addrspace(4)* addrspace(4)*
-// CHECK-LLVM-NEXT:  %.val = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* %7, align 8
-// CHECK-LLVM-NEXT:  %8 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*), align 32
-// CHECK-LLVM-NEXT:  %9 = extractelement <3 x i64> %8, i64 0
-// CHECK-LLVM-NEXT:  %10 = icmp slt i64 %9, 2147483648
-// CHECK-LLVM-NEXT:  tail call void @llvm.assume(i1 %10)
-// CHECK-LLVM-NEXT:  %.not = icmp slt i64 %9, %5
-// CHECK-LLVM-NEXT:  br i1 %.not, label %11, label %14
-// CHECK-LLVM:       11: 
-// CHECK-LLVM-NEXT:    %12 = trunc i64 %9 to i32
-// CHECK-LLVM-NEXT:    %13 = getelementptr i32, i32 addrspace(4)* %.val, i64 %9
-// CHECK-LLVM-NEXT:    store i32 %12, i32 addrspace(4)* %13, align 4
-// CHECK-LLVM-NEXT:    br label %14
-// CHECK-LLVM:       14:
-// CHECK-LLVM-NEXT:    ret void
+// CHECK-LLVM-SAME:     { i32 addrspace(1)* }* noundef byval({ i32 addrspace(1)* }) align 8 %1) #0 {
+// CHECK-LLVM-NEXT:  %3 = alloca %"class.sycl::_V1::item.1.true", align 8
+// CHECK-LLVM-NEXT:  %4 = alloca { i32 addrspace(4)* }, i64 1, align 8
+// CHECK-LLVM-NEXT:  %5 = alloca %"class.sycl::_V1::range.1", align 8
+// CHECK-LLVM-NEXT:  %6 = alloca { %"class.sycl::_V1::range.1", { i32 addrspace(4)* } }, align 8
+// CHECK-LLVM-NEXT:  %7 = getelementptr { %"class.sycl::_V1::range.1", { i32 addrspace(4)* } }, { %"class.sycl::_V1::range.1", { i32 addrspace(4)* } }* %6, i32 0, i32 0
+// CHECK-LLVM-NEXT:  %8 = addrspacecast %"class.sycl::_V1::range.1"* %5 to %"class.sycl::_V1::range.1" addrspace(4)*
+// CHECK-LLVM-NEXT:  %9 = addrspacecast %"class.sycl::_V1::range.1"* %0 to %"class.sycl::_V1::range.1" addrspace(4)*
+// CHECK-LLVM-NEXT:  call spir_func void @_ZN4sycl3_V15rangeILi1EEC1ERKS2_(%"class.sycl::_V1::range.1" addrspace(4)* %8, %"class.sycl::_V1::range.1" addrspace(4)* %9)
+// CHECK-LLVM-NEXT:  %10 = load %"class.sycl::_V1::range.1", %"class.sycl::_V1::range.1"* %5, align 8
+// CHECK-LLVM-NEXT:  store %"class.sycl::_V1::range.1" %10, %"class.sycl::_V1::range.1"* %7, align 8
+// CHECK-LLVM-NEXT:  %11 = getelementptr { %"class.sycl::_V1::range.1", { i32 addrspace(4)* } }, { %"class.sycl::_V1::range.1", { i32 addrspace(4)* } }* %6, i32 0, i32 1
+// CHECK-LLVM-NEXT:  %12 = bitcast { i32 addrspace(1)* }* %1 to { i32 addrspace(4)* }*
+// CHECK-LLVM-NEXT:  %13 = addrspacecast { i32 addrspace(4)* }* %4 to { i32 addrspace(4)* } addrspace(4)*
+// CHECK-LLVM-NEXT:  %14 = addrspacecast { i32 addrspace(4)* }* %12 to { i32 addrspace(4)* } addrspace(4)*
+// CHECK-LLVM-NEXT:  call spir_func void @_ZZ4testRN4sycl3_V15queueEENUlNS0_2idILi1EEEE_C1ERKS5_({ i32 addrspace(4)* } addrspace(4)* %13, { i32 addrspace(4)* } addrspace(4)* %14)
+// CHECK-LLVM-NEXT:  %15 = load { i32 addrspace(4)* }, { i32 addrspace(4)* }* %4, align 8
+// CHECK-LLVM-NEXT:  store { i32 addrspace(4)* } %15, { i32 addrspace(4)* }* %11, align 8
+// CHECK-LLVM-NEXT:  %16 = call spir_func %"class.sycl::_V1::item.1.true" addrspace(4)* @_ZN4sycl3_V16detail7declptrINS0_4itemILi1ELb1EEEEEPT_v()
+// CHECK-LLVM-NEXT:  %17 = call spir_func %"class.sycl::_V1::item.1.true" @_ZN4sycl3_V16detail7Builder10getElementILi1ELb1EEEDTcl7getItemIXT_EXT0_EEEEPNS0_4itemIXT_EXT0_EEE(%"class.sycl::_V1::item.1.true" addrspace(4)* %16)
+// CHECK-LLVM-NEXT:  %18 = addrspacecast { %"class.sycl::_V1::range.1", { i32 addrspace(4)* } }* %6 to { %"class.sycl::_V1::range.1", { i32 addrspace(4)* } } addrspace(4)*
+// CHECK-LLVM-NEXT:  store %"class.sycl::_V1::item.1.true" %17, %"class.sycl::_V1::item.1.true"* %3, align 8
+// CHECK-LLVM-NEXT:  call spir_func void @_ZNK4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EclES4_({ %"class.sycl::_V1::range.1", { i32 addrspace(4)* } } addrspace(4)* %18, %"class.sycl::_V1::item.1.true"* %3)
+// CHECK-LLVM-NEXT:  ret void
 
 int test(sycl::queue &q) {
   int *x = sycl::malloc_device<int>(10, q);

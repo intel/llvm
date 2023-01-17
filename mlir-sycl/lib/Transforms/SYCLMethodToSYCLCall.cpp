@@ -16,6 +16,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOpsDialect.h"
+#include "mlir/Dialect/SYCL/MethodUtils.h"
 #include "mlir/Dialect/SYCL/Transforms/Passes.h"
 
 #include "PassDetail.h"
@@ -32,13 +33,18 @@
 using namespace mlir;
 using namespace sycl;
 
-static mlir::Value castToBaseType(PatternRewriter &Rewriter, mlir::Location Loc,
-                                  mlir::Value Original,
-                                  mlir::MemRefType BaseType) {
+static mlir::Value adaptArgumentForSYCLCall(OpBuilder &Rewriter,
+                                            mlir::Location Loc,
+                                            mlir::Value Original,
+                                            mlir::Type TargetType) {
+  if (Original.getType() == TargetType)
+    return Original;
+
+  const auto MT = TargetType.cast<MemRefType>();
   const Type ThisType = Original.getType();
-  const llvm::ArrayRef<int64_t> TargetShape = BaseType.getShape();
-  const mlir::Type TargetElementType = BaseType.getElementType();
-  const unsigned TargetMemSpace = BaseType.getMemorySpaceAsInt();
+  const llvm::ArrayRef<int64_t> TargetShape = MT.getShape();
+  const mlir::Type TargetElementType = MT.getElementType();
+  const unsigned TargetMemSpace = MT.getMemorySpaceAsInt();
 
   const auto CreateAlloca = [=](OpBuilder &Builder) -> memref::AllocaOp {
     OpBuilder::InsertionGuard Guard{Builder};
@@ -67,7 +73,7 @@ static mlir::Value castToBaseType(PatternRewriter &Rewriter, mlir::Location Loc,
       Loc, MemRefType::get(TargetShape, ThisType), Alloca);
 
   if (Alloca.getType().cast<MemRefType>().getMemorySpaceAsInt() !=
-      BaseType.getMemorySpaceAsInt()) {
+      MT.getMemorySpaceAsInt()) {
     // Cast to the required memspace
     Alloca = Rewriter.create<polygeist::Memref2PointerOp>(
         Loc, LLVM::LLVMPointerType::get(ThisType), Alloca);
@@ -78,7 +84,7 @@ static mlir::Value castToBaseType(PatternRewriter &Rewriter, mlir::Location Loc,
         Alloca);
   }
 
-  if (Alloca.getType() == BaseType) {
+  if (Alloca.getType() == MT) {
     LLVM_DEBUG(llvm::dbgs()
                << "  No cast needed; alloca inserted: " << Alloca << "\n");
     return Alloca;
@@ -93,16 +99,27 @@ static mlir::Value castToBaseType(PatternRewriter &Rewriter, mlir::Location Loc,
   return Cast;
 }
 
+static SmallVector<Value>
+adaptArgumentsForSYCLCall(OpBuilder &Builder, SYCLMethodOpInterface Method) {
+  SmallVector<Value> Transformed;
+  Transformed.reserve(Method->getNumOperands());
+  const auto Loc = Method.getLoc();
+  const auto TargetTypes = Method.getArgumentTypes();
+  std::transform(Method->operand_begin(), Method->operand_end(),
+                 TargetTypes.begin(), std::back_inserter(Transformed),
+                 [&](auto Val, auto Ty) {
+                   return adaptArgumentForSYCLCall(Builder, Loc, Val, Ty);
+                 });
+  assert(ValueRange{Transformed}.getTypes() == TargetTypes);
+  return Transformed;
+}
+
 static LogicalResult convertMethod(SYCLMethodOpInterface method,
                                    PatternRewriter &rewriter) {
   LLVM_DEBUG(llvm::dbgs() << "SYCLMethodToSYCLCallPass: SYCLMethodOpLowering: ";
              method.dump(); llvm::dbgs() << "\n");
 
-  SmallVector<mlir::Value> Args(method->getOperands());
-
-  const auto BaseType = method.getBaseType().cast<MemRefType>();
-  if (BaseType != Args[0].getType())
-    Args[0] = castToBaseType(rewriter, method->getLoc(), Args[0], BaseType);
+  const auto Transformed = adaptArgumentsForSYCLCall(rewriter, method);
 
   const auto ResTyOrNone = [=]() -> llvm::Optional<mlir::Type> {
     const auto ResTys = method->getResultTypes();
@@ -125,7 +142,7 @@ static LogicalResult convertMethod(SYCLMethodOpInterface method,
     auto Func = Dialect->lookupMethodDefinition(
         method.getFunctionName(),
         mlir::FunctionType::get(Dialect->getContext(),
-                                ValueRange(Args).getTypes(),
+                                ValueRange{Transformed}.getTypes(),
                                 method->getResultTypes()));
     if (!Func) {
       return method->emitError(
@@ -150,7 +167,7 @@ static LogicalResult convertMethod(SYCLMethodOpInterface method,
 
   auto CallOp = rewriter.replaceOpWithNewOp<sycl::SYCLCallOp>(
       method, ResTyOrNone(), method.getTypeName(), method.getFunctionName(),
-      *MangledFunctionName, Args);
+      *MangledFunctionName, Transformed);
 
   LLVM_DEBUG(llvm::dbgs() << "  Converted to: " << CallOp << "\n");
 

@@ -8,6 +8,7 @@
 
 #include "TypeUtils.h"
 #include "clang-mlir.h"
+#include "mlir/Dialect/SYCL/MethodUtils.h"
 #include "utils.h"
 
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
@@ -1039,13 +1040,13 @@ const clang::FunctionDecl *MLIRScanner::EmitCallee(const Expr *E) {
 }
 
 static NamedAttrList getSYCLMethodOpAttrs(OpBuilder &Builder,
-                                          mlir::Type BaseType,
+                                          TypeRange ArgumentTypes,
                                           llvm::StringRef TypeName,
                                           llvm::StringRef FunctionName,
                                           llvm::StringRef MangledFunctionName) {
   NamedAttrList Attrs;
-  Attrs.set(mlir::sycl::SYCLDialect::getBaseTypeAttrName(),
-            mlir::TypeAttr::get(BaseType));
+  Attrs.set(mlir::sycl::SYCLDialect::getArgumentTypesAttrName(),
+            Builder.getTypeArrayAttr(ArgumentTypes));
   Attrs.set(mlir::sycl::SYCLDialect::getFunctionNameAttrName(),
             FlatSymbolRefAttr::get(Builder.getStringAttr(FunctionName)));
   if (!OmitOptionalMangledFunctionName)
@@ -1056,28 +1057,6 @@ static NamedAttrList getSYCLMethodOpAttrs(OpBuilder &Builder,
   Attrs.set(mlir::sycl::SYCLDialect::getTypeNameAttrName(),
             FlatSymbolRefAttr::get(Builder.getStringAttr(TypeName)));
   return Attrs;
-}
-
-/// Returns the SYCL cast originating this value if such operation exists; None
-/// otherwise.
-///
-/// This function relies on how arguments are casted to perform a function call.
-/// Should be updated if this changes.
-static Operation *trackCasts(Value Val) {
-  auto *const DefiningOp = Val.getDefiningOp();
-  if (!DefiningOp)
-    return nullptr;
-
-  return TypeSwitch<Operation *, Operation *>(DefiningOp)
-      .Case<mlir::sycl::SYCLCastOp, mlir::polygeist::Memref2PointerOp>(
-          [](Operation *Op) {
-            if (auto *Res = trackCasts(Op->getOperand(0)))
-              return Res;
-            return Op;
-          })
-      .Case<mlir::polygeist::Pointer2MemrefOp, mlir::LLVM::AddrSpaceCastOp>(
-          [](Operation *Op) { return trackCasts(Op->getOperand(0)); })
-      .Default(static_cast<Operation *>(nullptr));
 }
 
 llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
@@ -1096,14 +1075,9 @@ llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
   // Need to copy to avoid overriding elements in the input argument.
   SmallVector<mlir::Value> OperandsCpy(Operands);
 
-  // SYCLCastOps are abstracted to avoid missing method calls due to
+  // Cast operations are abstracted to avoid missing method calls due to
   // implementation details.
-  if (Operation *Cast = trackCasts(OperandsCpy[0])) {
-    auto NewArg = Cast->getOperand(0);
-    OperandsCpy[0] = NewArg;
-    LLVM_DEBUG(llvm::dbgs() << "Abstracting cast to " << NewArg.getType()
-                            << " to insert a SYCL method\n");
-  }
+  OperandsCpy[0] = sycl::abstractCasts(OperandsCpy[0]);
 
   auto BaseType = OperandsCpy[0].getType().cast<MemRefType>();
   const llvm::Optional<llvm::StringRef> OptOpName = SYCLDialect->findMethod(
@@ -1118,15 +1092,12 @@ llvm::Optional<sycl::SYCLMethodOpInterface> MLIRScanner::createSYCLMethodOp(
   LLVM_DEBUG(llvm::dbgs() << "Inserting operation " << OptOpName
                           << " to replace SYCL method call.\n");
 
-  OperandsCpy[0] = Builder.createOrFold<memref::LoadOp>(
-      Loc, OperandsCpy[0],
-      Builder.createOrFold<arith::ConstantIndexOp>(Loc, 0));
-
   return static_cast<sycl::SYCLMethodOpInterface>(Builder.create(
-      Loc, Builder.getStringAttr(*OptOpName), OperandsCpy,
+      Loc, Builder.getStringAttr(*OptOpName),
+      sycl::adaptSYCLMethodOpArguments(Builder, Loc, OperandsCpy),
       ReturnType ? mlir::TypeRange{*ReturnType} : mlir::TypeRange{},
-      getSYCLMethodOpAttrs(Builder, Operands[0].getType(), TypeName,
-                           FunctionName, MangledFunctionName)));
+      getSYCLMethodOpAttrs(Builder, Operands.getTypes(), TypeName, FunctionName,
+                           MangledFunctionName)));
 }
 
 mlir::Operation *

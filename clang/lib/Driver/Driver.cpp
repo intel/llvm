@@ -9021,7 +9021,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
   if (isSaveTempsEnabled()) {
     // If we're saving temps and the temp file conflicts with any
     // input/resulting file, then avoid overwriting.
-    if (!AtTopLevel) {
+    if (!AtTopLevel && NamedOutput == BaseName) {
       bool SameFile = false;
       SmallString<256> Result;
       llvm::sys::fs::current_path(Result);
