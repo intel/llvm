@@ -452,6 +452,8 @@ Improvements to Clang's diagnostics
 - Add ``-Wreturn-local-addr``, a GCC alias for ``-Wreturn-stack-address``.
 - Clang now suppresses ``-Wlogical-op-parentheses`` on ``(x && a || b)`` and ``(a || b && x)``
   only when ``x`` is a string literal.
+- Clang will now reject the GNU extension address of label in coroutines explicitly.
+  This fixes `Issue 56436 <https://github.com/llvm/llvm-project/issues/56436>`_.
 
 Non-comprehensive list of changes in this release
 -------------------------------------------------
@@ -536,6 +538,11 @@ New Compiler Flags
       int a;
       int b[0]; // NOT a flexible array member.
     };
+
+- Added ``-fmodule-output`` to enable the one-phase compilation model for
+  standard C++ modules. See
+  `Standard C++ Modules <https://clang.llvm.org/docs/StandardCPlusPlusModules.html>`_
+  for more information.
 
 Deprecated Compiler Flags
 -------------------------
@@ -670,9 +677,6 @@ C2x Feature Support
       va_start(list); // Invalid in C17 and earlier, valid in C2x and later.
       va_end(list);
     }
-    
-- Reject type definitions in the ``type`` argument of ``__builtin_offsetof`` 
-  according to `WG14 N2350 <https://www.open-std.org/jtc1/sc22/wg14/www/docs/n2350.htm>`_.
 
 C++ Language Changes in Clang
 -----------------------------

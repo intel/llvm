@@ -1686,8 +1686,6 @@ def err_type_defined_in_condition : Error<
   "%0 cannot be defined in a condition">;
 def err_type_defined_in_enum : Error<
   "%0 cannot be defined in an enumeration">;
-def err_type_defined_in_offsetof : Error<
-  "%0 cannot be defined in '%select{__builtin_offsetof|offsetof}1'">;
 
 def note_pure_virtual_function : Note<
   "unimplemented pure virtual method %0 in %1">;
@@ -11436,6 +11434,9 @@ def warn_non_aligned_allocation_function : Warning <
   InGroup<CoroNonAlignedAllocationFunction>;
 def err_conflicting_aligned_options : Error <
   "conflicting option '-fcoro-aligned-allocation' and '-fno-aligned-allocation'"
+>;
+def err_coro_invalid_addr_of_label : Error<
+  "the GNU address of label extension is not allowed in coroutines."
 >;
 } // end of coroutines issue category
 
