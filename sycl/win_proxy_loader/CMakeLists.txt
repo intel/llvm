@@ -1,6 +1,11 @@
 
 project(win_proxy_loader)
 add_library(win_proxy_loader SHARED  win_proxy_loader.cpp)
+if (WIN32)
+  install(TARGETS win_proxy_loader
+          RUNTIME DESTINATION "bin"
+  )
+endif()
 
 if (MSVC)
   # MSVC provides two incompatible build variants for its CRT: release and debug
@@ -47,4 +52,11 @@ if (MSVC)
   target_compile_options(win_proxy_loader PRIVATE ${WINUNLOAD_CXX_FLAGS_RELEASE})
   target_link_libraries(win_proxy_loaderd PRIVATE shlwapi)
   target_link_libraries(win_proxy_loader PRIVATE shlwapi)
+  if (WIN32)
+     install(TARGETS win_proxy_loaderd
+             RUNTIME DESTINATION "bin"
+  )
+  endif()
 endif()
+
+
