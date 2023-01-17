@@ -423,8 +423,7 @@ Error SYCLKernelFusion::fuseKernel(
       ++ParamIndex;
     }
     // Add the metadata corresponding to the used arguments to the different
-    // lists. NOTE: We do not collect the "kernel_arg_name" metadata, because
-    // the kernel arguments receive new names in the fused kernel.
+    // lists.
     MDCollection.collectFromFunction(FF, UsedArgsMask);
 
     // Update the fused kernel's KernelInfo with information from this input
@@ -484,16 +483,12 @@ Error SYCLKernelFusion::fuseKernel(
   }
 
   // Attach names to the arguments. The name includes a prefix for the kernel
-  // from which this argument came. The names are also attached as metadata
-  // with kind "kernel_arg_name".
-  // NOTE: While the kernel_arg_name metadata is required, naming the
-  // parameters themselves is not necessary for functionality, it just improves
-  // readibility for debugging purposes.
-  SmallVector<Metadata *, 16> KernelArgNames;
+  // from which this argument came. Naming the parameters themselves is not
+  // necessary for functionality, it just improves readibility for debugging
+  // purposes.
   for (const auto &AI : llvm::enumerate(FusedFunction->args())) {
     auto &ArgName = FusedArgNames[AI.index()];
     AI.value().setName(ArgName);
-    KernelArgNames.push_back(MDString::get(LLVMCtx, ArgName));
   }
   // Attach the fused metadata collected from the different input
   // kernels to the fused function.

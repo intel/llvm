@@ -217,8 +217,5 @@ KernelTranslator::translateToPTX(llvm::Module &Mod, JITContext &JITCtx) {
     ASMStream.flush();
   }
 
-  llvm::dbgs() << "PTX size: " << PTXASM.size() << "\n";
-  llvm::dbgs() << "PTX:\n" << PTXASM << "\n";
-
   return &JITCtx.emplaceSPIRVBinary(PTXASM, BinaryFormat::PTX);
 }

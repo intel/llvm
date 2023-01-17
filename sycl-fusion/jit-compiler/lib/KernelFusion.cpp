@@ -137,7 +137,6 @@ FusionResult KernelFusion::fuseKernels(
 
   SYCLKernelInfo &FusedKernelInfo = *NewModInfo->getKernelFor(FusedKernelName);
 
-  // TODO
   BinaryFormat TargetFormat = ConfigHelper::get<option::JITTargetFormat>();
 
   if (auto Error = translation::KernelTranslator::translateKernel(

@@ -25,7 +25,7 @@ TargetFusionInfo TargetFusionInfo::getTargetFusionInfo(llvm::Module *Mod) {
     return TargetFusionInfo(
         std::shared_ptr<NVPTXTargetFusionInfo>(new NVPTXTargetFusionInfo(Mod)));
   }
-  if (Tri.isSPIRV()) {
+  if (Tri.isSPIRV() || Tri.isSPIR()) {
     return TargetFusionInfo(
         std::shared_ptr<SPIRVTargetFusionInfo>(new SPIRVTargetFusionInfo(Mod)));
   }
@@ -36,18 +36,28 @@ TargetFusionInfo TargetFusionInfo::getTargetFusionInfo(llvm::Module *Mod) {
 // SPIRVTargetFusionInfo
 //
 
-void SPIRVTargetFusionInfo::addKernelFunction(Function *KernelFunc) {
+void SPIRVTargetFusionInfo::addKernelFunction(Function *KernelFunc) const {
   KernelFunc->setCallingConv(CallingConv::SPIR_KERNEL);
 }
 
-ArrayRef<StringRef> SPIRVTargetFusionInfo::getKernelMetadataKeys() {
+ArrayRef<StringRef> SPIRVTargetFusionInfo::getKernelMetadataKeys() const {
+  // NOTE: We do not collect the "kernel_arg_name" metadata, because
+  // the kernel arguments receive new names in the fused kernel.
   static SmallVector<StringRef> Keys{
       {"kernel_arg_addr_space", "kernel_arg_access_qual", "kernel_arg_type",
        "kernel_arg_base_type", "kernel_arg_type_qual"}};
   return Keys;
 }
 
-void SPIRVTargetFusionInfo::postProcessKernel(Function *KernelFunc) {
+void SPIRVTargetFusionInfo::postProcessKernel(Function *KernelFunc) const {
+  // Attach the kernel_arg_name metadata.
+  SmallVector<Metadata *, 16> KernelArgNames;
+  for (auto &P : KernelFunc->args()) {
+    KernelArgNames.push_back(MDString::get(LLVMMod->getContext(), P.getName()));
+  }
+  auto *ArgNameMD = MDTuple::get(LLVMMod->getContext(), KernelArgNames);
+  KernelFunc->setMetadata("kernel_arg_name", ArgNameMD);
+
   static constexpr auto ITTStartWrapper = "__itt_offload_wi_start_wrapper";
   static constexpr auto ITTFinishWrapper = "__itt_offload_wi_finish_wrapper";
   // Remove all existing calls of the ITT instrumentation functions. Insert new
@@ -93,7 +103,7 @@ void SPIRVTargetFusionInfo::postProcessKernel(Function *KernelFunc) {
 }
 
 void SPIRVTargetFusionInfo::createBarrierCall(IRBuilderBase &Builder,
-                                              int BarrierFlags) {
+                                              int BarrierFlags) const {
   if (BarrierFlags == -1) {
     return;
   }
@@ -137,12 +147,44 @@ void SPIRVTargetFusionInfo::createBarrierCall(IRBuilderBase &Builder,
   BarrierCallInst->setCallingConv(CallingConv::SPIR_FUNC);
 }
 
+void SPIRVTargetFusionInfo::updateAddressSpaceMetadata(
+    Function *KernelFunc, ArrayRef<size_t> LocalSize,
+    unsigned AddressSpace) const {
+  static constexpr unsigned AddressSpaceBitWidth{32};
+  static constexpr StringLiteral KernelArgAddrSpaceMD{"kernel_arg_addr_space"};
+
+  auto *NewAddrspace = ConstantAsMetadata::get(ConstantInt::get(
+      IntegerType::get(LLVMMod->getContext(), AddressSpaceBitWidth),
+      AddressSpace));
+  if (auto *AddrspaceMD = dyn_cast_or_null<MDNode>(
+          KernelFunc->getMetadata(KernelArgAddrSpaceMD))) {
+    // If we have kernel_arg_addr_space metadata in the original function,
+    // we should update it in the new one.
+    SmallVector<Metadata *> NewInfo{AddrspaceMD->op_begin(),
+                                    AddrspaceMD->op_end()};
+    for (auto I : enumerate(LocalSize)) {
+      if (I.value() == 0) {
+        continue;
+      }
+      const auto Index = I.index();
+      if (const auto *PtrTy =
+              dyn_cast<PointerType>(KernelFunc->getArg(Index)->getType())) {
+        if (PtrTy->getAddressSpace() == getLocalAddressSpace()) {
+          NewInfo[Index] = NewAddrspace;
+        }
+      }
+    }
+    KernelFunc->setMetadata(KernelArgAddrSpaceMD,
+                            MDNode::get(KernelFunc->getContext(), NewInfo));
+  }
+}
+
 //
 // NVPTXTargetFusionInfo
 //
 
 void NVPTXTargetFusionInfo::notifyFunctionsDelete(
-    llvm::ArrayRef<Function *> Funcs) {
+    llvm::ArrayRef<Function *> Funcs) const {
   SmallPtrSet<Constant *, 8> DeletedFuncs{Funcs.begin(), Funcs.end()};
   SmallVector<MDNode *> ValidKernels;
   auto *OldAnnotations = LLVMMod->getNamedMetadata("nvvm.annotations");
@@ -165,7 +207,7 @@ void NVPTXTargetFusionInfo::notifyFunctionsDelete(
   }
 }
 
-void NVPTXTargetFusionInfo::addKernelFunction(Function *KernelFunc) {
+void NVPTXTargetFusionInfo::addKernelFunction(Function *KernelFunc) const {
   auto *NVVMAnnotations = LLVMMod->getOrInsertNamedMetadata("nvvm.annotations");
   auto *MDOne = ConstantAsMetadata::get(
       ConstantInt::get(Type::getInt32Ty(LLVMMod->getContext()), 1));
@@ -176,7 +218,7 @@ void NVPTXTargetFusionInfo::addKernelFunction(Function *KernelFunc) {
   NVVMAnnotations->addOperand(Tuple);
 }
 
-ArrayRef<StringRef> NVPTXTargetFusionInfo::getKernelMetadataKeys() {
+ArrayRef<StringRef> NVPTXTargetFusionInfo::getKernelMetadataKeys() const {
   // FIXME: Check whether we need to take care of sycl_fixed_targets.
   static SmallVector<StringRef> Keys{{"kernel_arg_buffer_location",
                                       "kernel_arg_runtime_aligned",
@@ -185,7 +227,7 @@ ArrayRef<StringRef> NVPTXTargetFusionInfo::getKernelMetadataKeys() {
 }
 
 void NVPTXTargetFusionInfo::createBarrierCall(IRBuilderBase &Builder,
-                                              int BarrierFlags) {
+                                              int BarrierFlags) const {
   if (BarrierFlags == -1) {
     return;
   }
