@@ -1,6 +1,3 @@
-; FIXME: Disabled until we support opaque pointers by default, so llvm-c-test
-; is able to read it
-; XFAIL: *
 ; RUN: llvm-as -opaque-pointers < %s | llvm-c-test --module-list-globals | FileCheck %s
 
 @foo = constant [7 x i8] c"foobar\00", align 1
