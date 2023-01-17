@@ -129,6 +129,15 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
               builder.create<LLVM::NullOp>(nt.getLoc(), pt.getElementType());
       }
     }
+
+    if (Index) {
+      auto VT = pt.getElementType().cast<mlir::VectorType>().getElementType();
+      assert(VT == toStore.getType() && "Vector insertion element mismatch");
+      ValueCategory Vec{builder.create<mlir::LLVM::LoadOp>(loc, val), false};
+      Vec = Vec.InsertElement(builder, loc, toStore, *Index);
+      toStore = Vec.val;
+    }
+
     if (toStore.getType() != pt.getElementType()) {
       if (auto mt = toStore.getType().dyn_cast<MemRefType>()) {
         if (auto spt =
