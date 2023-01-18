@@ -255,6 +255,10 @@ void LLVMContextImpl::setOptPassGate(OptPassGate& OPG) {
   this->OPG = &OPG;
 }
 
+bool LLVMContextImpl::hasOpaquePointersValue() {
+  return OpaquePointers.has_value();
+}
+
 bool LLVMContextImpl::getOpaquePointers() {
   if (LLVM_UNLIKELY(!OpaquePointers))
     OpaquePointers = OpaquePointersCL;
