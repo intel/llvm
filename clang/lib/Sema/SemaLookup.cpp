@@ -966,6 +966,14 @@ bool Sema::LookupBuiltin(LookupResult &R) {
 
       // Check if this is a SPIR-V Builtin, and if so, insert its overloads.
       if (getLangOpts().DeclareSPIRVBuiltins) {
+        if (unsigned BuiltinID = II->getBuiltinID()) {
+          if (NamedDecl *D =
+                  LazilyCreateBuiltin(II, BuiltinID, TUScope,
+                                      R.isForRedeclaration(), R.getNameLoc())) {
+            R.addDecl(D);
+            return true;
+          }
+        }
         auto Index = SPIRVBuiltin::isBuiltin(II->getName());
         if (Index.first) {
           InsertBuiltinDeclarationsFromTable<SPIRVBuiltin>(
