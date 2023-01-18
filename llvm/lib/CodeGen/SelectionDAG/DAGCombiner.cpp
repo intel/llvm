@@ -577,6 +577,7 @@ namespace {
     SDValue CombineExtLoad(SDNode *N);
     SDValue CombineZExtLogicopShiftLoad(SDNode *N);
     SDValue combineRepeatedFPDivisors(SDNode *N);
+    SDValue mergeInsertEltWithShuffle(SDNode *N, unsigned InsIndex);
     SDValue combineInsertEltToShuffle(SDNode *N, unsigned InsIndex);
     SDValue ConstantFoldBITCASTofBUILD_VECTOR(SDNode *, EVT);
     SDValue BuildSDIV(SDNode *N);
@@ -3788,6 +3789,24 @@ SDValue DAGCombiner::visitSUB(SDNode *N) {
         return DAG.getNode(ISD::XOR, DL, VT, N1, N0);
     }
   }
+
+  // max(a,b) - min(a,b) --> abd(a,b)
+  auto MatchSubMaxMin = [&](unsigned Max, unsigned Min, unsigned Abd) {
+    if (N0.getOpcode() != Max || N1.getOpcode() != Min)
+      return SDValue();
+    if ((N0.getOperand(0) != N1.getOperand(0) ||
+         N0.getOperand(1) != N1.getOperand(1)) &&
+        (N0.getOperand(0) != N1.getOperand(1) ||
+         N0.getOperand(1) != N1.getOperand(0)))
+      return SDValue();
+    if (!TLI.isOperationLegalOrCustom(Abd, VT))
+      return SDValue();
+    return DAG.getNode(Abd, DL, VT, N0.getOperand(0), N0.getOperand(1));
+  };
+  if (SDValue R = MatchSubMaxMin(ISD::SMAX, ISD::SMIN, ISD::ABDS))
+    return R;
+  if (SDValue R = MatchSubMaxMin(ISD::UMAX, ISD::UMIN, ISD::ABDU))
+    return R;
 
   return SDValue();
 }
@@ -19947,94 +19966,103 @@ SDValue DAGCombiner::splitMergedValStore(StoreSDNode *ST) {
   return St1;
 }
 
-/// Convert a disguised subvector insertion into a shuffle:
-SDValue DAGCombiner::combineInsertEltToShuffle(SDNode *N, unsigned InsIndex) {
+// Merge an insertion into an existing shuffle:
+// (insert_vector_elt (vector_shuffle X, Y), (extract_vector_elt X, N),
+// InsIndex)
+//   --> (vector_shuffle X, Y) and variations where shuffle operands may be
+//   CONCAT_VECTORS.
+SDValue DAGCombiner::mergeInsertEltWithShuffle(SDNode *N, unsigned InsIndex) {
   assert(N->getOpcode() == ISD::INSERT_VECTOR_ELT &&
          "Expected extract_vector_elt");
   SDValue InsertVal = N->getOperand(1);
   SDValue Vec = N->getOperand(0);
 
-  // (insert_vector_elt (vector_shuffle X, Y), (extract_vector_elt X, N),
-  // InsIndex)
-  //   --> (vector_shuffle X, Y) and variations where shuffle operands may be
-  //   CONCAT_VECTORS.
-  if (Vec.getOpcode() == ISD::VECTOR_SHUFFLE && Vec.hasOneUse() &&
-      InsertVal.getOpcode() == ISD::EXTRACT_VECTOR_ELT &&
-      isa<ConstantSDNode>(InsertVal.getOperand(1))) {
-    ShuffleVectorSDNode *SVN = cast<ShuffleVectorSDNode>(Vec.getNode());
-    ArrayRef<int> Mask = SVN->getMask();
+  if (Vec.getOpcode() != ISD::VECTOR_SHUFFLE ||
+      InsertVal.getOpcode() != ISD::EXTRACT_VECTOR_ELT ||
+      !isa<ConstantSDNode>(InsertVal.getOperand(1)) || !Vec.hasOneUse())
+    return SDValue();
 
-    SDValue X = Vec.getOperand(0);
-    SDValue Y = Vec.getOperand(1);
+  auto *SVN = cast<ShuffleVectorSDNode>(Vec.getNode());
+  ArrayRef<int> Mask = SVN->getMask();
 
-    // Vec's operand 0 is using indices from 0 to N-1 and
-    // operand 1 from N to 2N - 1, where N is the number of
-    // elements in the vectors.
-    SDValue InsertVal0 = InsertVal.getOperand(0);
-    int ElementOffset = -1;
+  SDValue X = Vec.getOperand(0);
+  SDValue Y = Vec.getOperand(1);
 
-    // We explore the inputs of the shuffle in order to see if we find the
-    // source of the extract_vector_elt. If so, we can use it to modify the
-    // shuffle rather than perform an insert_vector_elt.
-    SmallVector<std::pair<int, SDValue>, 8> ArgWorkList;
-    ArgWorkList.emplace_back(Mask.size(), Y);
-    ArgWorkList.emplace_back(0, X);
+  // Vec's operand 0 is using indices from 0 to N-1 and
+  // operand 1 from N to 2N - 1, where N is the number of
+  // elements in the vectors.
+  SDValue InsertVal0 = InsertVal.getOperand(0);
+  int ElementOffset = -1;
 
-    while (!ArgWorkList.empty()) {
-      int ArgOffset;
-      SDValue ArgVal;
-      std::tie(ArgOffset, ArgVal) = ArgWorkList.pop_back_val();
+  // We explore the inputs of the shuffle in order to see if we find the
+  // source of the extract_vector_elt. If so, we can use it to modify the
+  // shuffle rather than perform an insert_vector_elt.
+  SmallVector<std::pair<int, SDValue>, 8> ArgWorkList;
+  ArgWorkList.emplace_back(Mask.size(), Y);
+  ArgWorkList.emplace_back(0, X);
 
-      if (ArgVal == InsertVal0) {
-        ElementOffset = ArgOffset;
-        break;
-      }
+  while (!ArgWorkList.empty()) {
+    int ArgOffset;
+    SDValue ArgVal;
+    std::tie(ArgOffset, ArgVal) = ArgWorkList.pop_back_val();
 
-      // Peek through concat_vector.
-      if (ArgVal.getOpcode() == ISD::CONCAT_VECTORS) {
-        int CurrentArgOffset =
-            ArgOffset + ArgVal.getValueType().getVectorNumElements();
-        int Step = ArgVal.getOperand(0).getValueType().getVectorNumElements();
-        for (SDValue Op : reverse(ArgVal->ops())) {
-          CurrentArgOffset -= Step;
-          ArgWorkList.emplace_back(CurrentArgOffset, Op);
-        }
-
-        // Make sure we went through all the elements and did not screw up index
-        // computation.
-        assert(CurrentArgOffset == ArgOffset);
-      }
+    if (ArgVal == InsertVal0) {
+      ElementOffset = ArgOffset;
+      break;
     }
 
-    // If we failed to find a match, see if we can replace an UNDEF shuffle
-    // operand.
-    if (ElementOffset == -1 && Y.isUndef() &&
-        InsertVal0.getValueType() == Y.getValueType()) {
-      ElementOffset = Mask.size();
-      Y = InsertVal0;
-    }
+    // Peek through concat_vector.
+    if (ArgVal.getOpcode() == ISD::CONCAT_VECTORS) {
+      int CurrentArgOffset =
+          ArgOffset + ArgVal.getValueType().getVectorNumElements();
+      int Step = ArgVal.getOperand(0).getValueType().getVectorNumElements();
+      for (SDValue Op : reverse(ArgVal->ops())) {
+        CurrentArgOffset -= Step;
+        ArgWorkList.emplace_back(CurrentArgOffset, Op);
+      }
 
-    if (ElementOffset != -1) {
-      SmallVector<int, 16> NewMask(Mask);
-
-      auto *ExtrIndex = cast<ConstantSDNode>(InsertVal.getOperand(1));
-      NewMask[InsIndex] = ElementOffset + ExtrIndex->getZExtValue();
-      assert(NewMask[InsIndex] <
-                 (int)(2 * Vec.getValueType().getVectorNumElements()) &&
-             NewMask[InsIndex] >= 0 && "NewMask[InsIndex] is out of bound");
-
-      SDValue LegalShuffle =
-              TLI.buildLegalVectorShuffle(Vec.getValueType(), SDLoc(N), X,
-                                          Y, NewMask, DAG);
-      if (LegalShuffle)
-        return LegalShuffle;
+      // Make sure we went through all the elements and did not screw up index
+      // computation.
+      assert(CurrentArgOffset == ArgOffset);
     }
   }
 
-  // insert_vector_elt V, (bitcast X from vector type), IdxC -->
-  // bitcast(shuffle (bitcast V), (extended X), Mask)
-  // Note: We do not use an insert_subvector node because that requires a
-  // legal subvector type.
+  // If we failed to find a match, see if we can replace an UNDEF shuffle
+  // operand.
+  if (ElementOffset == -1 && Y.isUndef() &&
+      InsertVal0.getValueType() == Y.getValueType()) {
+    ElementOffset = Mask.size();
+    Y = InsertVal0;
+  }
+
+  if (ElementOffset != -1) {
+    SmallVector<int, 16> NewMask(Mask);
+
+    auto *ExtrIndex = cast<ConstantSDNode>(InsertVal.getOperand(1));
+    NewMask[InsIndex] = ElementOffset + ExtrIndex->getZExtValue();
+    assert(NewMask[InsIndex] <
+               (int)(2 * Vec.getValueType().getVectorNumElements()) &&
+           NewMask[InsIndex] >= 0 && "NewMask[InsIndex] is out of bound");
+
+    SDValue LegalShuffle = TLI.buildLegalVectorShuffle(
+        Vec.getValueType(), SDLoc(N), X, Y, NewMask, DAG);
+    if (LegalShuffle)
+      return LegalShuffle;
+  }
+
+  return SDValue();
+}
+
+// Convert a disguised subvector insertion into a shuffle:
+// insert_vector_elt V, (bitcast X from vector type), IdxC -->
+// bitcast(shuffle (bitcast V), (extended X), Mask)
+// Note: We do not use an insert_subvector node because that requires a
+// legal subvector type.
+SDValue DAGCombiner::combineInsertEltToShuffle(SDNode *N, unsigned InsIndex) {
+  assert(N->getOpcode() == ISD::INSERT_VECTOR_ELT &&
+         "Expected extract_vector_elt");
+  SDValue InsertVal = N->getOperand(1);
+
   if (InsertVal.getOpcode() != ISD::BITCAST || !InsertVal.hasOneUse() ||
       !InsertVal.getOperand(0).getValueType().isVector())
     return SDValue();
@@ -20121,6 +20149,9 @@ SDValue DAGCombiner::visitINSERT_VECTOR_ELT(SDNode *N) {
 
   // We must know which element is being inserted for folds below here.
   unsigned Elt = IndexC->getZExtValue();
+
+  if (SDValue Shuf = mergeInsertEltWithShuffle(N, Elt))
+    return Shuf;
 
   if (SDValue Shuf = combineInsertEltToShuffle(N, Elt))
     return Shuf;
