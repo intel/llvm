@@ -35,5 +35,6 @@ add_llvm_component_library(LLVMLTO
   Support
   SYCLLowerIR
   Target
+  TargetParser
   TransformUtils
 )

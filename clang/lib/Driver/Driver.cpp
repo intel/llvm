@@ -4008,6 +4008,17 @@ class OffloadingActionBuilder final {
           if (A->getOption().matches(options::OPT_no_offload_arch_EQ) &&
               ArchStr == "all") {
             GpuArchs.clear();
+          } else if (ArchStr == "native" &&
+                     ToolChains.front()->getTriple().isAMDGPU()) {
+            auto *TC = static_cast<const toolchains::HIPAMDToolChain *>(
+                ToolChains.front());
+            SmallVector<std::string, 1> GPUs;
+            auto Err = TC->detectSystemGPUs(Args, GPUs);
+            if (!Err) {
+              for (auto GPU : GPUs)
+                GpuArchs.insert(Args.MakeArgString(GPU));
+            } else
+              llvm::consumeError(std::move(Err));
           } else {
             ArchStr = getCanonicalOffloadArch(ArchStr);
             if (ArchStr.empty()) {
@@ -4363,7 +4374,7 @@ class OffloadingActionBuilder final {
                                                AssociatedOffloadKind);
 
       if (CompileDeviceOnly && CurPhase == FinalPhase && BundleOutput &&
-          BundleOutput.value()) {
+          *BundleOutput) {
         for (unsigned I = 0, E = GpuArchList.size(); I != E; ++I) {
           OffloadAction::DeviceDependences DDep;
           DDep.add(*CudaDeviceActions[I], *ToolChains.front(), GpuArchList[I],
