@@ -474,6 +474,10 @@ TEST_F(QueueApiFailures, QueueKernelAsync) {
   }
   EXPECT_FALSE(ExceptionCaught);
   TestLock.unlock();
+
+  // Need to wait till host task enqueue kernek to check code location report.
+  using namespace std::chrono_literals;
+  std::this_thread::sleep_for(10ms);
   try {
     Q.wait();
   } catch (...) {
