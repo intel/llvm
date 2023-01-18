@@ -346,8 +346,7 @@ protected:
     template <int CurDims = SubDims,
               typename = detail::enable_if_t<
                   CurDims == 1 && (IsAccessReadOnly || IsAccessAnyWrite)>>
-    typename AccType::reference
-    operator[](size_t Index) const {
+    typename AccType::reference operator[](size_t Index) const {
       MIDs[Dims - CurDims] = Index;
       return MAccessor[MIDs];
     }
@@ -1966,7 +1965,8 @@ public:
   }
 
   template <int Dims = Dimensions, typename RefT = RefType,
-            typename = detail::enable_if_t<Dims == 0 && (IsAccessAnyWrite || IsAccessReadOnly)>>
+            typename = detail::enable_if_t<Dims == 0 && (IsAccessAnyWrite ||
+                                                         IsAccessReadOnly)>>
   operator reference() const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
     return *(getQualifiedPtr() + LinearIndex);
