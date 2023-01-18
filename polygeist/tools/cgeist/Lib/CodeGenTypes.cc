@@ -1474,7 +1474,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     bool SubRef = false;
     auto ET = getMLIRType(AT->getElementType(), &SubRef, AllowMerge);
     int64_t Size = AT->getNumElements();
-    if (isa<clang::ExtVectorType>(T))
+    if (isa<clang::VectorType>(T) || isa<clang::ExtVectorType>(T))
       return mlir::VectorType::get(Size, ET);
 
     if (MemRefABI && SubRef) {

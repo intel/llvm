@@ -5,11 +5,11 @@
 using namespace sycl;
 
 // CHECK-LABEL: func.func @_Z13opencl_float2Dv2_f(
-// CHECK:         %arg0: memref<?x2xf32> {llvm.noundef})
+// CHECK:         %arg0: vector<2xf32> {llvm.noundef})
 SYCL_EXTERNAL void opencl_float2(__cl_float2 var) {}
 
 // CHECK-LABEL: func.func @_Z13opencl_float4Dv4_f(
-// CHECK:         %arg0: memref<?x4xf32> {llvm.noundef})
+// CHECK:         %arg0: vector<4xf32> {llvm.noundef})
 SYCL_EXTERNAL void opencl_float4(__cl_float4 var) {}
 
 // CHECK-LABEL: func.func @_Z15scalable_vec2_tN4sycl3_V13vecIfLi2EEE(
