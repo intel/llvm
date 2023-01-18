@@ -109,8 +109,7 @@ The following functions are only available when `T` is `bfloat16` or
 ```c++
 namespace sycl::ext::oneapi::experimental {
 
-template <typename T>
-bool isnan(T x);
+bool isnan(bfloat16 x);
 
 template <size_t N>
 sycl::marray<bool, N> isnan(sycl::marray<bfloat16, N> x);
