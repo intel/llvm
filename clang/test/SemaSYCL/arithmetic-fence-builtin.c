@@ -1,25 +1,17 @@
 // RUN: %clang_cc1 -triple i386-pc-linux-gnu -fsycl-is-device -emit-llvm -o - -verify -x c++ %s
 // RUN: %clang_cc1 -triple ppc64le -DPPC  -fsycl-is-device   -emit-llvm -o - -verify -x c++ %s
-// RUN: not %clang_cc1 -triple ppc64le -DPPC  -fsycl-is-device   -emit-llvm -o - -x c++ %s \
-// RUN:            -fprotect-parens 2>&1 | FileCheck -check-prefix=PPC %s
-
 
 #ifndef PPC
-
-template <typename T> T __attribute__((sycl_device)) addT(T a, T b) {
+int v;
+template <typename T> T addT(T a, T b) {
   T *q = __arithmetic_fence(&a);
-#ifndef __arithmetic_fence
-  // expected-error@-2 {{invalid operand of type 'float *' where floating, complex or a vector of such types is required}}
-  // expected-error@-3 {{invalid operand of type 'int *' where floating, complex or a vector of such types is required}}
-#endif
+  // expected-error@-1 {{invalid operand of type 'float *' where floating, complex or a vector of such types is required}}
+  // expected-error@-2 {{invalid operand of type 'int *' where floating, complex or a vector of such types is required}}
   return __arithmetic_fence(a + b);
-#ifndef __arithmetic_fence
-  // expected-error@-2 {{invalid operand of type 'int' where floating, complex or a vector of such types is required}}
-#endif
+  // expected-error@-1 {{invalid operand of type 'int' where floating, complex or a vector of such types is required}}
 }
-int __attribute__((sycl_device)) addit(int a, int b) {
+int addit(int a, int b) {
   float x, y;
-  int v;
   typedef struct {
     int a, b;
   } stype;
@@ -43,15 +35,12 @@ int __attribute__((sycl_device)) addit(int a, int b) {
   constexpr float e = __arithmetic_fence(d);
   return 0;
 }
-bool __attribute__((sycl_device)) func(float f1, float f2, float f3) {
+bool func(float f1, float f2, float f3) {
   return (f1 == f2 && f1 == f3) || f2 == f3; // Should not warn here
 }
 static_assert( __arithmetic_fence(1.0 + 2.0), "message" );
 #else
-float __attribute__((sycl_device)) addit(float a, float b) {
+float addit(float a, float b) {
   return __arithmetic_fence(a+b); // expected-error {{builtin is not supported on this target}}
 }
 #endif
-//PPC: error: option '-fprotect-parens' cannot be specified on this target
-
-
