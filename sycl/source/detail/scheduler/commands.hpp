@@ -27,6 +27,10 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+bool CurrentCodeLocationValid();
+#endif
+
 class queue_impl;
 class event_impl;
 class context_impl;

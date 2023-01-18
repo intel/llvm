@@ -54,6 +54,15 @@ namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Global graph for the application
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
+
+bool CurrentCodeLocationValid() {
+  detail::tls_code_loc_t Tls;
+  auto CodeLoc = Tls.query();
+  auto FileName = CodeLoc.fileName();
+  auto FunctionName = CodeLoc.functionName();
+  return (FileName && FileName[0] != '\0') ||
+         (FunctionName && FunctionName[0] != '\0');
+}
 #endif
 
 #ifdef __SYCL_ENABLE_GNU_DEMANGLING
@@ -298,19 +307,9 @@ public:
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     std::unique_ptr<detail::tls_code_loc_t> AsyncCodeLocationPtr;
-    if (xptiTraceEnabled()) {
-      bool SetLocation = false;
-      {
-        detail::tls_code_loc_t Tls;
-        auto CodeLoc = Tls.query();
-        auto FileName = CodeLoc.fileName();
-        auto FunctionName = CodeLoc.functionName();
-        SetLocation = (!FileName || FileName[0] == '\0') &&
-                      (!FunctionName || FunctionName[0] == '\0');
-      }
-      if (SetLocation)
-        AsyncCodeLocationPtr.reset(
-            new detail::tls_code_loc_t(MThisCmd->MSubmissionCodeLocation));
+    if (xptiTraceEnabled() && !CurrentCodeLocationValid()) {
+      AsyncCodeLocationPtr.reset(
+          new detail::tls_code_loc_t(MThisCmd->MSubmissionCodeLocation));
     }
 #endif
 
@@ -342,9 +341,9 @@ public:
       if (xptiTraceEnabled()) {
         try {
           rethrow_exception(CurrentException);
-        } catch (sycl::exception &SyclException) {
+        } catch (const sycl::exception &) {
           // it is already traced, nothing to care about
-        } catch (std::exception &StdException) {
+        } catch (const std::exception &StdException) {
           GlobalHandler::instance().TraceEventXPTI(StdException.what());
         } catch (...) {
           GlobalHandler::instance().TraceEventXPTI(
@@ -356,8 +355,18 @@ public:
     }
 
     HostTask.MHostTask.reset();
+    // Host Task is done, clear its submittion location to not interfere with
+    // following dependent kernels submission.
+    AsyncCodeLocationPtr.reset();
 
-    Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
+    try {
+      // If we enqueue blocked users - pi level could throw exception that
+      // should be treated as async now.
+      Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
+    } catch (...) {
+      auto CurrentException = std::current_exception();
+      HostTask.MQueue->reportAsyncException(CurrentException);
+    }
   }
 };
 
@@ -725,6 +734,13 @@ void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
 
 bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
                       std::vector<Command *> &ToCleanUp) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  std::unique_ptr<detail::tls_code_loc_t> AsyncCodeLocationPtr;
+  if (xptiTraceEnabled() && !CurrentCodeLocationValid()) {
+    AsyncCodeLocationPtr.reset(
+        new detail::tls_code_loc_t(MSubmissionCodeLocation));
+  }
+#endif
   // Exit if already enqueued
   if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
     return true;

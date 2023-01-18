@@ -12,8 +12,8 @@
 
 #include <detail/xpti_registry.hpp>
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
 #include <sycl/sycl.hpp>
 
@@ -392,12 +392,8 @@ TEST_F(QueueApiFailures, QueueHostTaskWaitFail) {
 TEST_F(QueueApiFailures, QueueHostTaskFail) {
   MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
       redefinedPluginGetLastError);
-  enum ExceptionType
-  {
-    STD_EXCEPTION = 0,
-    SYCL_EXCEPTION
-  };
-  auto Test = [&](ExceptionType ExType){
+  enum ExceptionType { STD_EXCEPTION = 0, SYCL_EXCEPTION };
+  auto Test = [&](ExceptionType ExType) {
     sycl::queue Q(default_selector(), silentAsyncHandler);
     bool ExceptionCaught = false;
     event EventToDepend;
@@ -413,13 +409,13 @@ TEST_F(QueueApiFailures, QueueHostTaskFail) {
       Q.submit(
           [&](handler &Cgh) {
             Cgh.depends_on(EventToDepend);
-            Cgh.host_task(
-                [=]() { 
-                  if (ExType == SYCL_EXCEPTION)
-                    throw sycl::exception(sycl::make_error_code(errc::invalid), HostTaskExeptionStr);
-                  else
-                    throw std::runtime_error(HostTaskExeptionStr);
-                  });
+            Cgh.host_task([=]() {
+              if (ExType == SYCL_EXCEPTION)
+                throw sycl::exception(sycl::make_error_code(errc::invalid),
+                                      HostTaskExeptionStr);
+              else
+                throw std::runtime_error(HostTaskExeptionStr);
+            });
           },
           ExtraTestCodeLocation);
     } catch (sycl::exception &e) {
@@ -438,4 +434,55 @@ TEST_F(QueueApiFailures, QueueHostTaskFail) {
   };
   Test(SYCL_EXCEPTION);
   Test(STD_EXCEPTION);
+}
+
+TEST_F(QueueApiFailures, QueueKernelAsync) {
+  MockPlugin.redefine<detail::PiApiKind::piEnqueueKernelLaunch>(
+      redefinedEnqueueKernelLaunch);
+  MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
+      redefinedPluginGetLastError);
+  sycl::queue Q(default_selector(), silentAsyncHandler);
+  bool ExceptionCaught = false;
+  event EventToDepend;
+
+  std::mutex m;
+  std::function<void()> CustomHostLambda = [&m]() {
+    std::unique_lock<std::mutex> InsideHostTaskLock(m);
+  };
+  std::unique_lock<std::mutex> TestLock(m, std::defer_lock);
+  TestLock.lock();
+  try {
+    EventToDepend = Q.submit(
+        [&](handler &Cgh) {
+          Cgh.depends_on(EventToDepend);
+          Cgh.host_task(CustomHostLambda);
+        },
+        TestCodeLocation);
+  } catch (sycl::exception &e) {
+    ExceptionCaught = true;
+  }
+  EXPECT_FALSE(ExceptionCaught);
+  try {
+    Q.submit(
+        [&](handler &Cgh) {
+          Cgh.depends_on(EventToDepend);
+          Cgh.single_task<TestKernel<KernelSize>>([=]() {});
+        },
+        ExtraTestCodeLocation);
+  } catch (sycl::exception &e) {
+    ExceptionCaught = true;
+  }
+  EXPECT_FALSE(ExceptionCaught);
+  TestLock.unlock();
+  try {
+    Q.wait();
+  } catch (...) {
+    // kernel enqueue leads to exception throw
+  }
+
+  uint16_t TraceType = 0;
+  std::string Message;
+  EXPECT_TRUE(queryReceivedNotifications(TraceType, Message));
+  EXPECT_EQ(TraceType, xpti::trace_diagnostics);
+  EXPECT_THAT(Message, HasSubstr(ExtraTestCodeLocationMessage));
 }
