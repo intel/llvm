@@ -14,3 +14,14 @@ struct with_bitfield {
 SYCL_EXTERNAL unsigned int foo(with_bitfield A) {
   return A.a + A.b + A.c + A.d;
 }
+
+struct with_bitfield_small_ints {
+    unsigned int a : 5;
+    unsigned int b : 7;
+    unsigned int c : 20;
+    unsigned int d : 32;
+};
+
+SYCL_EXTERNAL unsigned int boo(with_bitfield_small_ints A) {
+  return A.a + A.b + A.c + A.d;
+}
