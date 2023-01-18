@@ -157,6 +157,6 @@
 // NO_CHECK_SECTION-NOT: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocr_emu-intel-unknown"{{.*}} "-check-section"
 
 /// Check -fsycl-targets=spir64 enables addition of -ffine-grained-bitfield-accesses option
-// RUN:   %clangxx -### -fsycl -fsycl-targets=spir64 %s 2>&1 | FileCheck -check-prefixes=CHECK_BITFIELD_OPTION %s
+// RUN:   %clangxx -### -fsycl-device-only %s 2>&1 | FileCheck -check-prefixes=CHECK_BITFIELD_OPTION %s
 // CHECK_BITFIELD_OPTION: clang{{.*}} "-ffine-grained-bitfield-accesses"
 
