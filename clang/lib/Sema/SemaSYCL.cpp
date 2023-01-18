@@ -5377,7 +5377,7 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
     return;
   // Step 1: ensure that this is of the correct type template specialization.
   if (!isSyclType(VD->getType(), SYCLTypeAttr::specialization_id) &&
-      !S.isTypeDecoratedWithDeclAttribute<SYCLHostPipeAttr>(VD->getType()) &&
+      !isSyclType(VD->getType(), SYCLTypeAttr::host_pipe) &&
       !S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
           VD->getType())) {
     // Handle the case where this could be a deduced type, such as a deduction
@@ -5563,9 +5563,8 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     // Skip if this isn't a SpecIdType, DeviceGlobal, or HostPipe.  This 
     // can happen if it was a deduced type.
     if (!isSyclType(VD->getType(), SYCLTypeAttr::specialization_id) &&
+        !isSyclType(VD->getType(), SYCLTypeAttr::host_pipe) && 
         !S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-            VD->getType()) &&
-        !S.isTypeDecoratedWithDeclAttribute<SYCLHostPipeAttr>(
             VD->getType()))
       continue;
 
@@ -5595,8 +5594,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
       DeviceGlobOS << SYCLUniqueStableIdExpr::ComputeName(S.getASTContext(),
                                                           VD);
       DeviceGlobOS << "\");\n";
-    } else if (S.isTypeDecoratedWithDeclAttribute<SYCLHostPipeAttr>(
-            VD->getType())) {
+    } else if (isSyclType(VD->getType(), SYCLTypeAttr::host_pipe)) {
       HostPipesEmitted = true;
       HostPipesOS << "host_pipe_map::add(";
       HostPipesOS << "(void *)&";

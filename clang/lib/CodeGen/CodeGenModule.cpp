@@ -110,6 +110,23 @@ static bool SYCLCUDAIsSYCLDevice(const clang::LangOptions &LangOpts) {
   return LangOpts.SYCLIsDevice && LangOpts.CUDA && !LangOpts.CUDAIsDevice;
 }
 
+static bool isSyclType(QualType Ty, SYCLTypeAttr::SYCLType TypeName) {
+  const auto *RD = Ty->getAsCXXRecordDecl();
+  if (!RD)
+    return false;
+
+  if (const auto *Attr = RD->getAttr<SYCLTypeAttr>())
+    return Attr->getType() == TypeName;
+
+  if (const auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RD))
+    if (CXXRecordDecl *TemplateDecl =
+            CTSD->getSpecializedTemplate()->getTemplatedDecl())
+      if (const auto *Attr = TemplateDecl->getAttr<SYCLTypeAttr>())
+        return Attr->getType() == TypeName;
+
+  return false;
+}
+
 CodeGenModule::CodeGenModule(ASTContext &C,
                              IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
                              const HeaderSearchOptions &HSO,
@@ -5512,10 +5529,15 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
     // type.
     if (RD && RD->hasAttr<SYCLAddIRAttributesGlobalVariableAttr>())
       AddGlobalSYCLIRAttributes(GV, RD);
-    // If VarDecl has a type decorated with SYCL device_global attribute or
-    // SYCL host_pipe attribute, emit IR attribute 'sycl-unique-id'.
-    if (RD && (RD->hasAttr<SYCLDeviceGlobalAttr>() || 
-               RD->hasAttr<SYCLHostPipeAttr>()))
+    // If VarDecl has a type decorated with SYCL device_global attribute 
+    // emit IR attribute 'sycl-unique-id'.
+    if (RD && (RD->hasAttr<SYCLDeviceGlobalAttr>()))
+      addSYCLUniqueID(GV, D, Context);
+
+    // If VarDecl type is SYCLTypeAttr::host_pipe, emit the IR attribute 
+    // 'sycl-unique-id'.
+    auto Ty = D->getType();
+    if (isSyclType(Ty, SYCLTypeAttr::host_pipe))
       addSYCLUniqueID(GV, D, Context);
   }
 

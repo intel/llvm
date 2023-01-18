@@ -163,9 +163,7 @@ host_pipe {
 public:
   struct
 #ifdef __SYCL_DEVICE_ONLY__
-  // [[ __sycl_detail__::add_ir_attributes_global_variable(
-    // "sycl-host-pipe", nullptr)]] [[__sycl_detail__::host_pipe]]
-  [[__sycl_detail__::host_pipe]]
+  [[__sycl_detail__::sycl_type(host_pipe)]]
 #endif
   __pipeType { const char __p; };
 

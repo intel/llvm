@@ -3124,26 +3124,6 @@ so we have this attribute in sycl_detail namespace.
   }];
 }
 
-def SYCLHostPipeAttrDocs : Documentation {
-  let Category = DocCatType;
-  let Heading = "__sycl_detail__::host_pipe";
-  let Content = [{
-This attribute is part of support for SYCL host_pipe feature.
-Global or static variables of type decorated with this attribute have
-`sycl-unique-id`, an LLVM IR attribute, added to the definition of each such
-variable, which provides a unique string identifier using
-__builtin_sycl_unique_stable_id.
-We do not intend to support this as a general attribute that user code can use,
-so we have this attribute in sycl_detail namespace.
-
-.. code-block:: c++
-  struct
-  [[__sycl_detail__::host_pipe]] __pipeType {}
-
-  __pipeType __pipe;
-  }];
-}
-
 def SYCLGlobalVariableAllowedAttrDocs : Documentation {
   let Category = DocCatType;
   let Heading = "__sycl_detail__::global_variable_allowed";
