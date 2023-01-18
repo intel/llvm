@@ -4,6 +4,16 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
+// CHECK-LABEL:    memref.global "private" @arr_no_init : memref<2xi8> = dense<0> {alignment = 1 : i64}
+// CHECK-LABEL:    memref.global "private" @arr : memref<2xi8> = dense<[-1, 0]> {alignment = 1 : i64}
+// CHECK-LABEL:    memref.global "private" @"static_arr_local_no_init@static@arr" : memref<10xi8> = dense<0> {alignment = 1 : i64}
+// CHECK-LABEL:    memref.global "private" @"static_arr_local@static@arr@init" : memref<i1> = dense<true>
+// CHECK-LABEL:    memref.global "private" @"static_arr_local@static@arr" : memref<2xi8> = dense<[-1, 0]> {alignment = 1 : i64}
+// CHECK-LABEL:    memref.global "private" @x_no_init : memref<i8> = dense<0> {alignment = 1 : i64}
+// CHECK-LABEL:    memref.global "private" @x : memref<i8> = dense<0> {alignment = 1 : i64}
+// CHECK-LABEL:    memref.global "private" @"get_local_static@static@x@init" : memref<i1> = dense<true>
+// CHECK-LABEL:    memref.global "private" @"get_local_static@static@x" : memref<i8> = dense<1> {alignment = 1 : i64}
+
 // CHECK-LABEL:   func.func @array_get(
 // CHECK-SAME:                         %[[VAL_0:.*]]: memref<?xi8>,
 // CHECK-SAME:                         %[[VAL_1:.*]]: i64) -> i1
@@ -220,7 +230,6 @@ bool get_global_static_no_init() {
 // CHECK-NEXT:      call @keep(%[[VAL_8]]) : (memref<?xi8>) -> ()
 // CHECK-NEXT:      return
 // CHECK-NEXT:    }
-
 void static_arr_local() {
   static bool arr[2] = {true, false};
   keep(arr);
@@ -232,7 +241,6 @@ void static_arr_local() {
 // CHECK-NEXT:      call @keep(%[[VAL_1]]) : (memref<?xi8>) -> ()
 // CHECK-NEXT:      return
 // CHECK-NEXT:    }
-
 void static_arr_local_no_init() {
   static bool arr[10];
   keep(arr);
@@ -246,7 +254,6 @@ static bool arr[2] = {true, false};
 // CHECK-NEXT:      %[[VAL_2:.*]] = arith.trunci %[[VAL_1]] : i8 to i1
 // CHECK-NEXT:      return %[[VAL_2]] : i1
 // CHECK-NEXT:    }
-
 bool static_arr_global() {
   return arr[0];
 }
@@ -259,7 +266,6 @@ static bool arr_no_init[2];
 // CHECK-NEXT:      %[[VAL_2:.*]] = arith.trunci %[[VAL_1]] : i8 to i1
 // CHECK-NEXT:      return %[[VAL_2]] : i1
 // CHECK-NEXT:    }
-
 bool static_arr_global_no_init() {
   return arr_no_init[0];
 }

@@ -14,7 +14,6 @@
 // CHECK-NEXT:      llvm.store %[[VAL_1]], %[[VAL_6]] : !llvm.ptr<memref<?xi8>>
 // CHECK-NEXT:      return
 // CHECK-NEXT:    }
-
 void lambda_capture(bool x, bool &y) {
   const auto f = [x, &y]() { y = !x; };
 }
