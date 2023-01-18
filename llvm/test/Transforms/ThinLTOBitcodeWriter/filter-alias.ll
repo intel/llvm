@@ -5,11 +5,11 @@
 ; Added -opaque-pointers.
 ; FIXME: Align with the community code when project is ready to enable opaque
 ; pointers by default
-; RUN: llvm-modextract -opaque-pointers -n 0 -o - %t | llvm-dis -opaque-pointers | FileCheck --check-prefix=CHECK0 %s
+; RUN: llvm-modextract -n 0 -o - %t | llvm-dis -opaque-pointers | FileCheck --check-prefix=CHECK0 %s
 ; Added -opaque-pointers.
 ; FIXME: Align with the community code when project is ready to enable opaque
 ; pointers by default
-; RUN: llvm-modextract -opaque-pointers -n 1 -o - %t | llvm-dis -opaque-pointers | FileCheck --check-prefix=CHECK1 %s
+; RUN: llvm-modextract -n 1 -o - %t | llvm-dis -opaque-pointers | FileCheck --check-prefix=CHECK1 %s
 ; CHECK0-NOT: @{{.*}}anon{{.*}}=
 ; CHECK0: @al = external global ptr
 ; CHECK0-NOT: @{{.*}}anon{{.*}}=
