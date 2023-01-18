@@ -9,6 +9,7 @@
 #ifndef SYCL_FUSION_JIT_COMPILER_JITCONTEXT_H
 #define SYCL_FUSION_JIT_COMPILER_JITCONTEXT_H
 
+#include <memory>
 #include <mutex>
 #include <shared_mutex>
 #include <unordered_map>
