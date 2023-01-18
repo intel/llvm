@@ -2,10 +2,7 @@
 ; RUN: llvm-spirv -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -opaque-pointers -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: Decorate [[PARAM:[0-9]+]] FuncParamAttr 6
 ; CHECK-SPIRV: FunctionParameter {{.*}} [[PARAM]]

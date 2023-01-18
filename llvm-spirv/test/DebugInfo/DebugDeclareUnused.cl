@@ -1,21 +1,9 @@
 // Check that we can translate llvm.dbg.declare for a local variable which was
 // deleted by mem2reg pass(disabled by default in llvm-spirv)
 
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: %clang_cc1 %s -triple spir -disable-llvm-passes -debug-info-kind=standalone -emit-llvm-bc -o - | llvm-spirv -opaque-pointers -spirv-mem2reg -o %t.spv
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: llvm-spirv -opaque-pointers %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: llvm-spirv -opaque-pointers -r -emit-opaque-pointers %t.spv -o - | llvm-dis -opaque-pointers -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: %clang_cc1 %s -triple spir -disable-llvm-passes -debug-info-kind=standalone -emit-llvm-bc -o - | llvm-spirv -spirv-mem2reg -o %t.spv
+// RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+// RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 
 void foo() {

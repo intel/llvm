@@ -1,37 +1,16 @@
 ; RUN: llvm-as %s -o %t.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-spirv -opaque-pointers %t.bc -spirv-text -o %t.spv.txt
+; RUN: llvm-spirv %t.bc -spirv-text -o %t.spv.txt
 ; RUN: FileCheck < %t.spv.txt %s --check-prefix=CHECK-SPIRV
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-spirv -opaque-pointers %t.bc -o %t.spv
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-spirv -opaque-pointers -r -emit-opaque-pointers %t.spv -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-spirv -opaque-pointers -r -emit-opaque-pointers %t.spv --spirv-target-env=SPV-IR -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv --spirv-target-env=SPV-IR -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM-SPV
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-spirv -opaque-pointers %t.rev.bc -spirv-text -o %t.spt
+; RUN: llvm-spirv %t.rev.bc -spirv-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
 ; CHECK-SPIRV-DAG: BuildNDRange {{[0-9]+}} {{[0-9]+}} [[GWS:[0-9]+]] [[LWS:[0-9]+]] [[GWO:[0-9]+]]

@@ -19,39 +19,18 @@
 ;; bash$ $PATH_TO_GEN/bin/clang -cc1 -x cl -cl-std=CL2.0 -triple spir64-unknown-unknown -emit-llvm  -include opencl-20.h  BuildNDRange_2.cl -o BuildNDRange_2.ll
 
 ; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-spirv -opaque-pointers %t.bc -opaque-pointers=0 -spirv-text -o %t.spv.txt
+; RUN: llvm-spirv %t.bc -opaque-pointers=0 -spirv-text -o %t.spv.txt
 ; RUN: FileCheck < %t.spv.txt %s --check-prefix=CHECK-SPIRV
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-spirv -opaque-pointers %t.bc -opaque-pointers=0 -o %t.spv
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-spirv -opaque-pointers -r -emit-opaque-pointers %t.spv -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.rev.bc
+; RUN: llvm-spirv %t.bc -opaque-pointers=0 -o %t.spv
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-spirv -opaque-pointers -r -emit-opaque-pointers %t.spv --spirv-target-env=SPV-IR -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv --spirv-target-env=SPV-IR -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM-SPV
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-spirv -opaque-pointers %t.rev.bc -spirv-text -o %t.spt
+; RUN: llvm-spirv %t.rev.bc -spirv-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
 ; CHECK-SPIRV-DAG:     Constant {{[0-9]+}} [[LEN2_ID:[0-9]+]] 2

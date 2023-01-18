@@ -3,10 +3,7 @@
 
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_unstructured_loop_controls --spirv-ext=+SPV_INTEL_fpga_loop_controls -o %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: 2 Capability UnstructuredLoopControlsINTEL
 ; CHECK-SPIRV: 2 Capability FPGALoopControlsINTEL

@@ -1,10 +1,7 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.rev.bc -o - | FileCheck %s
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s
 
 ; ModuleID = 'sycl_array_zero_init.cpp'
 source_filename = "sycl_array_zero_init.cpp"

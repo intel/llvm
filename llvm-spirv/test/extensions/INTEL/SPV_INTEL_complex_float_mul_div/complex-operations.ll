@@ -4,10 +4,7 @@
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv %t.spv -o %t.rev.bc -r -emit-opaque-pointers
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.rev.bc -o %t.rev.ll
+; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
 
 ; RUN: not llvm-spirv %t.bc 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR

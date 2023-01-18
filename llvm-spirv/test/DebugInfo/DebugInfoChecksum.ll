@@ -14,10 +14,7 @@
 ; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.rev.bc -o %t.rev.ll
+; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck %s --input-file %t.rev.ll --check-prefix CHECK-LLVM
 
 ; ModuleID = 'source.bc'

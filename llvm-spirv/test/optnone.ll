@@ -3,20 +3,14 @@
 
 ; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_optnone %t.bc -o %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; Check that optnone is correctly ignored when extension is not enabled
 ; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV-NO-EXT
 
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-NO-EXT
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-NO-EXT
 
 ; CHECK-SPIRV: Capability OptNoneINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_optnone"

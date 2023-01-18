@@ -3,15 +3,9 @@
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 ; RUN: llvm-spirv -r -emit-opaque-pointers -spec-const "0:i1:1 1:i8:11 2:i16:22 3:i32:33 4:i64:4609589727908835759 5:f16:5.5 6:f32:6.6 7:f64:7.7" %t.spv -o %t.rev.spec.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.rev.spec.bc | FileCheck %s --check-prefix=CHECK-LLVM-SPEC
+; RUN: llvm-dis < %t.rev.spec.bc | FileCheck %s --check-prefix=CHECK-LLVM-SPEC
 
 ; CHECK-SPIRV-NOT: Capability Matrix
 ; CHECK-SPIRV-NOT: Capability Shader

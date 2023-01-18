@@ -4,10 +4,7 @@
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-LLVM: @test_atomic_fn.L = internal addrspace(3) global [64 x i32] undef, align 4
 

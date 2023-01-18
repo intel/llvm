@@ -4,21 +4,9 @@
 // - Parent operand of DebugFunction is DebugCompileUnit, not an OpString, even
 //   if in LLVM IR it points to a DIFile instead of DICompileUnit.
 
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: %clang_cc1 %s -cl-std=clc++ -emit-llvm-bc -triple spir -debug-info-kind=line-tables-only -O0 -o - | llvm-spirv -opaque-pointers -o %t.spv
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: llvm-spirv -opaque-pointers %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: llvm-spirv -opaque-pointers -r -emit-opaque-pointers %t.spv -o - | llvm-dis -opaque-pointers -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: %clang_cc1 %s -cl-std=clc++ -emit-llvm-bc -triple spir -debug-info-kind=line-tables-only -O0 -o - | llvm-spirv -o %t.spv
+// RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+// RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 float foo(int i) {
     return i * 3.14;

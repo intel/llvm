@@ -2,10 +2,7 @@
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_INTEL_variable_length_array
 ; RUN: llvm-spirv -to-text %t.spv -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv  --spec-const=0:i64:28 -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; The IR was generated from the following source:
 ; #include <CL/sycl.hpp>
@@ -42,10 +39,7 @@
 ; Command line(clang and sycl-post-link from https://github.com/intel/llvm):
 ; clang -fsycl -fsycl-device-only vla_spec_const.cpp -c
 ; sycl-post-link vla_spec_const.bc -spec-const=rt
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; llvm-dis -opaque-pointers vla_spec_const_0.bc -o vla_spec_const.ll
+; llvm-dis vla_spec_const_0.bc -o vla_spec_const.ll
 
 ; CHECK-SPIRV: Capability VariableLengthArrayINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_variable_length_array"

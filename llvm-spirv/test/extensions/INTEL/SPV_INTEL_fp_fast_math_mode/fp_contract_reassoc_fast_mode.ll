@@ -2,10 +2,7 @@
 ; RUN: llvm-spirv -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-SPIRV-OFF
 ; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_fp_fast_math_mode -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-SPIRV-ON
 ; RUN: llvm-spirv  --spirv-ext=+SPV_INTEL_fp_fast_math_mode %t.bc -o %t.spv
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -opaque-pointers -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
  
 ; CHECK-SPIRV-ON: 2 Capability FPFastMathModeINTEL
 ; CHECK-SPIRV-ON: 3 Name [[mu:[0-9]+]] "mul"

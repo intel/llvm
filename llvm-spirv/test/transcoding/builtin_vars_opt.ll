@@ -1,35 +1,14 @@
 ; RUN: llvm-as < %s -o %t.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-spirv -opaque-pointers %t.bc -o %t.spv
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-spirv -opaque-pointers %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-spirv -opaque-pointers %t.spv -r -emit-opaque-pointers -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.rev.bc -o - | FileCheck %s --check-prefixes=CHECK-LLVM,CHECK-LLVM-OCL
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-spirv -opaque-pointers %t.spv -r -emit-opaque-pointers --spirv-target-env=SPV-IR -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.rev.bc -o - | FileCheck %s --check-prefixes=CHECK-LLVM,CHECK-LLVM-SPV
+; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llvm-spirv %t.spv -r -emit-opaque-pointers -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefixes=CHECK-LLVM,CHECK-LLVM-OCL
+; RUN: llvm-spirv %t.spv -r -emit-opaque-pointers --spirv-target-env=SPV-IR -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefixes=CHECK-LLVM,CHECK-LLVM-SPV
 
 ; Check that produced builtin-call-based SPV-IR is recognized by the translator
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-spirv -opaque-pointers %t.rev.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llvm-spirv %t.rev.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
 ; The IR was generated from the following source:
 ; #include <CL/sycl.hpp>
@@ -58,10 +37,7 @@
 ; }
 ; Command line:
 ; clang -fsycl -fsycl-device-only -Xclang -fsycl-enable-optimizations tmp.cpp -o tmp.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; llvm-spirv -opaque-pointers tmp.bc -s -o builtin_vars_opt.ll
+; llvm-spirv tmp.bc -s -o builtin_vars_opt.ll
 
 ; CHECK-SPIRV-DAG: Decorate [[#SG_MaxSize_BI:]] BuiltIn 37
 ; CHECK-SPIRV-DAG: Decorate [[#SG_MaxSize_BI:]] Constant

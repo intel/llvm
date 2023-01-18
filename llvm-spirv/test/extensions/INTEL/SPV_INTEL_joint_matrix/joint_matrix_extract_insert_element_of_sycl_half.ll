@@ -1,10 +1,7 @@
 ; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
 
 ; RUN: llvm-spirv -s %t.bc -opaque-pointers=0 -o %t.regularized.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -opaque-pointers=0 %t.regularized.bc -o %t.regularized.ll
+; RUN: llvm-dis -opaque-pointers=0 %t.regularized.bc -o %t.regularized.ll
 ; RUN: FileCheck < %t.regularized.ll %s --check-prefix=CHECK-REGULARIZED
 
 ; RUN: llvm-spirv %t.bc -opaque-pointers=0 --spirv-ext=+SPV_INTEL_joint_matrix -o %t.spv
@@ -12,10 +9,7 @@
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.rev.bc -o %t.rev.ll
+; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
 
 ; CHECK-REGULARIZED: %[[#ExtractElementCall:]] = call spir_func half @_Z28__spirv_VectorExtractDynamicIN2cl4sycl6detail9half_impl4halfELm8ELm16ELN5__spv12MatrixLayoutE0ELNS5_5Scope4FlagE3EET_PNS5_24__spirv_JointMatrixINTELIS9_XT0_EXT1_EXT2_EXT3_EEEm(%spirv.JointMatrixINTEL._half_8_16_0_3 addrspace(4)* align 2{{.*}}, i64{{.*}})

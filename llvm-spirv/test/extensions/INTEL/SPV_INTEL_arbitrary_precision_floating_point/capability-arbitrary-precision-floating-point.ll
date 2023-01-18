@@ -414,10 +414,7 @@
 ; CHECK-ERROR: Floating point instructions can't be translated correctly without enabled SPV_INTEL_arbitrary_precision_floating_point extension!
 
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.r.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.r.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis < %t.r.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: 2 Capability Kernel
 ; CHECK-SPIRV: 2 Capability ArbitraryPrecisionIntegersINTEL

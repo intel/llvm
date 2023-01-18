@@ -1,8 +1,5 @@
 ; RUN: llvm-as %s -o - | llvm-spirv -o %t.spv
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-spirv %t.spv -spirv-gen-kernel-arg-name-md -r -emit-opaque-pointers -o - | llvm-dis -opaque-pointers -o - | FileCheck %s
+; RUN: llvm-spirv %t.spv -spirv-gen-kernel-arg-name-md -r -emit-opaque-pointers -o - | llvm-dis -o - | FileCheck %s
 
 ; CHECK: spir_kernel void @named_arg(float %f) {{.*}} !kernel_arg_name ![[MD_named:[0-9]+]]
 ; CHECK: spir_kernel void @unnamed_arg(float{{.*}}) {{.*}} !kernel_arg_name ![[MD_unnamed:[0-9]+]]

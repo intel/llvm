@@ -7,10 +7,7 @@
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.rev.bc -o %t.rev.ll
+; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
 
 ; CHECK-WO-EXT: RequiresExtension: Feature requires the following SPIR-V extension:

@@ -1,9 +1,6 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_INTEL_variable_length_array
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -opaque-pointers -o %t.ll
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc < %t.ll -O0 -mtriple x86_64-apple-darwin | FileCheck %s
 ; RUN: llc < %t.ll -O0 -mtriple x86_64-apple-darwin -filetype=obj \

@@ -12,18 +12,12 @@
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_no_integer_wrap_decoration -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv --spirv-ext=+SPV_KHR_no_integer_wrap_decoration -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 ;
 ; During consumption, any SPIR-V extension must be accepted by default
 ;
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 ;
 ; Negative tests:
 ;
@@ -36,18 +30,12 @@
 ; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV-NOEXT
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-NOEXT
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-NOEXT
 ;
 ; RUN: llvm-spirv %t.bc --spirv-ext=-SPV_KHR_no_integer_wrap_decoration -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV-NOEXT
 ; RUN: llvm-spirv %t.bc --spirv-ext=-SPV_KHR_no_integer_wrap_decoration -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-NOEXT
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-NOEXT
 
 ; CHECK-SPIRV: Extension "SPV_KHR_no_integer_wrap_decoration"
 ; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} NoSignedWrap

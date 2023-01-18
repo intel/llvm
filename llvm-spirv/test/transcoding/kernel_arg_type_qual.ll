@@ -3,16 +3,10 @@
 ; RUN: llvm-spirv %t.bc -o - -spirv-text | FileCheck %s --check-prefix=CHECK-SPIRV-NEGATIVE
 ; RUN: llvm-spirv -preserve-ocl-kernel-arg-type-metadata-through-string %t.bc -o %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers -preserve-ocl-kernel-arg-type-metadata-through-string %t.spv -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-WORKAROUND
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-WORKAROUND
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-WORKAROUND-NEGATIVE
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-WORKAROUND-NEGATIVE
 
 ; ModuleID = 'test.cl'
 source_filename = "test.cl"

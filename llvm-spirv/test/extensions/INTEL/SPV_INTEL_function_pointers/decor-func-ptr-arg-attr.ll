@@ -4,10 +4,7 @@
 
 ; RUN: llvm-spirv %t.spt -o %t.spv -to-binary
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.rev.bc -o %t.rev.ll
+; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix CHECK-LLVM
 
 ; CHECK-SPIRV: Capability FunctionPointersINTEL

@@ -1,10 +1,7 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-ext=+SPV_INTEL_function_pointers -o %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.r.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.r.bc -o %t.r.ll
+; RUN: llvm-dis %t.r.bc -o %t.r.ll
 ; RUN: FileCheck < %t.r.ll %s --check-prefix=CHECK-LLVM
 
 ; ModuleID = 't.bc'

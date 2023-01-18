@@ -3,10 +3,7 @@
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -to-binary %t.spt -o %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.rev.bc -o %t.rev.ll
+; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM "--implicit-check-not={{(shl|lshr|or|and) i(16|32|64)}}"
 
 ; CHECK-SPIRV: Name [[#FuncNameInt16:]] "spirv.llvm_bswap_i16"

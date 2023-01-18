@@ -20,10 +20,7 @@
 ; RUN: FileCheck < %t.spv.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -opaque-pointers=0 -o %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
 
 source_filename = "kernel_query.cl"

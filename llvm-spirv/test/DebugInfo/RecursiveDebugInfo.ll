@@ -39,10 +39,7 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.rev.bc | FileCheck %s
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s
 
 ; CHECK: [[IT_VEC:![0-9]+]] = !DICompositeType(tag: DW_TAG_structure_type, name: "iterator<vector>", {{.+}}, templateParams: [[TMPL_P:![0-9]+]]
 ; CHECK: [[TMPL_P]] = !{[[TMPL_P1:![0-9]+]]}

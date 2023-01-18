@@ -1,9 +1,6 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -opaque-pointers -o %t.ll
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple -filetype=asm -asm-verbose=0 -O0 < %t.ll | FileCheck %s
 ; RUN: llc -mtriple=%triple -filetype=obj -O0 < %t.ll | llvm-dwarfdump -debug-line - | FileCheck %s --check-prefix=INT

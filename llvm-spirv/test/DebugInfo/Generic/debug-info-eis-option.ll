@@ -1,9 +1,6 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=legacy
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -opaque-pointers -o %t.ll
+; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple -stop-before=finalize-isel -pre-RA-sched=linearize < %t.ll -experimental-debug-variable-locations=false | FileCheck %s
 

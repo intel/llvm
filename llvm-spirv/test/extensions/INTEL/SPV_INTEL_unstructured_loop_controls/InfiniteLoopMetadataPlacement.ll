@@ -3,10 +3,7 @@
 ; RUN: llvm-spirv %t.spv --to-text -o - | FileCheck %s --check-prefix=CHECK-SPV
 
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-REV-LLVM
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-REV-LLVM
 
 ; ModuleID = 'llvm_loop_test.cpp'
 source_filename = "llvm_loop_test.cpp"
