@@ -188,15 +188,17 @@ template <typename PropertyT> PropertyT queue::get_property() const {
   return impl->get_property<PropertyT>();
 }
 
-template __SYCL_EXPORT bool
-queue::has_property<property::queue::enable_profiling>() const noexcept;
-template __SYCL_EXPORT property::queue::enable_profiling
-queue::get_property<property::queue::enable_profiling>() const;
 
-template __SYCL_EXPORT bool
-queue::has_property<property::queue::in_order>() const;
-template __SYCL_EXPORT property::queue::in_order
-queue::get_property<property::queue::in_order>() const;
+#define SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                    \
+  template __SYCL_EXPORT bool queue::has_property<NS_QUALIFIER::PROP_NAME>()   \
+      const noexcept;                                                          \
+  template __SYCL_EXPORT NS_QUALIFIER::PROP_NAME                               \
+  queue::get_property<NS_QUALIFIER::PROP_NAME>() const;
+
+#define SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)                 \
+  SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+
+#include <sycl/properties/queue_properties.def>
 
 bool queue::is_in_order() const {
   return impl->has_property<property::queue::in_order>();
