@@ -1,5 +1,11 @@
-// RUN: %clang_cc1 -verify -internal-isystem %S/Inputs/include -fopenmp -x c++ -triple x86_64-unknown-unknown -fopenmp-targets=amdgcn-amd-amdhsa -emit-llvm-bc %s -o %t-x86-host.bc
-// RUN: %clang_cc1 -verify -internal-isystem %S/../../lib/Headers/openmp_wrappers -include __clang_openmp_device_functions.h -internal-isystem %S/Inputs/include -fopenmp -x c++ -triple amdgcn-amd-amdhsa -fopenmp-targets=amdgcn-amd-amdhsa -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-x86-host.bc -aux-triple x86_64-unknown-unknown -o - | FileCheck %s
+// Added -opaque-pointers.
+// FIXME: Align with the community code when project is ready to enable opaque
+// pointers by default
+// RUN: %clang_cc1 -mllvm -opaque-pointers -verify -internal-isystem %S/Inputs/include -fopenmp -x c++ -triple x86_64-unknown-unknown -fopenmp-targets=amdgcn-amd-amdhsa -emit-llvm-bc %s -o %t-x86-host.bc
+// Added -opaque-pointers.
+// FIXME: Align with the community code when project is ready to enable opaque
+// pointers by default
+// RUN: %clang_cc1 -mllvm -opaque-pointers -verify -internal-isystem %S/../../lib/Headers/openmp_wrappers -include __clang_openmp_device_functions.h -internal-isystem %S/Inputs/include -fopenmp -x c++ -triple amdgcn-amd-amdhsa -fopenmp-targets=amdgcn-amd-amdhsa -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-x86-host.bc -aux-triple x86_64-unknown-unknown -o - | FileCheck %s
 // expected-no-diagnostics
 
 #include <cmath>

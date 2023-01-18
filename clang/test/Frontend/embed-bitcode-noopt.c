@@ -5,7 +5,10 @@
 // RUN: llvm-objcopy --dump-section=.llvmbc=%t.bc %t.o /dev/null
 
 // Also check that the .llvmcmd section captures the optimization options.
-// RUN: llvm-dis %t.bc -o - | FileCheck %s --check-prefix=CHECK-BC
+// Added -opaque-pointers.
+// FIXME: Align with the community code when project is ready to enable opaque
+// pointers by default
+// RUN: llvm-dis -opaque-pointers %t.bc -o - | FileCheck %s --check-prefix=CHECK-BC
 // RUN: llvm-objcopy --dump-section=.llvmcmd=- %t.o /dev/null | FileCheck %s --check-prefix=CHECK-CMD
 
 // CHECK-BC-LABEL: define{{.*}} void @bar() #0 {
