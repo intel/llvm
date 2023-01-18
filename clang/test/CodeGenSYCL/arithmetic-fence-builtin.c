@@ -1,3 +1,7 @@
+// Test if the llvm.arithmetic.fence intrinsic is created. The intrinsic
+// is generated only when in unsafe math mode.
+
+// Fast math
 // RUN: %clang_cc1 -triple x86_64-linux-gnu -fsycl-is-device -DFAST \
 // RUN: -disable-llvm-passes -emit-llvm -mreassociate -opaque-pointers \
 // RUN: -o - %s | FileCheck --check-prefixes CHECK,CHECKFAST %s
@@ -6,6 +10,7 @@
 // RUN: -disable-llvm-passes -emit-llvm -mreassociate -opaque-pointers \
 // RUN: -o - %s | FileCheck --check-prefixes CHECK,CHECKFAST %s
 
+// No fast math: intrinsic not created.
 // RUN: %clang_cc1 -triple x86_64-linux-gnu -fsycl-is-device -emit-llvm \
 // RUN: -disable-llvm-passes -o - %s -opaque-pointers \
 // RUN: | FileCheck --implicit-check-not="llvm.arithmetic.fence" %s
