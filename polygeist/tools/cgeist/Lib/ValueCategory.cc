@@ -131,8 +131,10 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
     }
 
     if (Index) {
-      auto VT = pt.getElementType().cast<mlir::VectorType>().getElementType();
-      assert(VT == toStore.getType() && "Vector insertion element mismatch");
+      auto ElemTy =
+          pt.getElementType().cast<mlir::VectorType>().getElementType();
+      assert(ElemTy == toStore.getType() &&
+             "Vector insertion element mismatch");
       ValueCategory Vec{builder.create<mlir::LLVM::LoadOp>(loc, val), false};
       Vec = Vec.InsertElement(builder, loc, toStore, *Index);
       toStore = Vec.val;
@@ -166,8 +168,10 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
     assert(mt.getShape().size() == 1 && "must have size 1");
 
     if (Index) {
-      auto VT = mt.getElementType().cast<mlir::VectorType>().getElementType();
-      assert(VT == toStore.getType() && "Vector insertion element mismatch");
+      auto ElemTy =
+          mt.getElementType().cast<mlir::VectorType>().getElementType();
+      assert(ElemTy == toStore.getType() &&
+             "Vector insertion element mismatch");
       const auto C0 = builder.createOrFold<arith::ConstantIntOp>(
           loc, 0, builder.getI64Type());
       ValueCategory Vec{builder.createOrFold<memref::LoadOp>(loc, val, C0),
