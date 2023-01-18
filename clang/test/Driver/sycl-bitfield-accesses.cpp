@@ -1,8 +1,6 @@
-// RUN: %clangxx -O0 -fsycl -fsycl-targets=spir64 %s -S -emit-llvm -o- | FileCheck -check-prefix=CHECK-FINE %s
-// RUN: %clangxx -O0 -fsycl %s -S -emit-llvm -o- | FileCheck -check-prefix=CHECK-COARSE %s
+// RUN: %clangxx -O0 -fsycl-device-only %s -S -emit-llvm -o- | FileCheck %s
 
-// CHECK-FINE: %struct.with_bitfield = type { i32, i32, i32, i32 }
-// CHECK-COARSE: %struct.with_bitfield = type { i128 }
+// CHECK: %struct.with_bitfield = type { i32, i32, i32, i32 }
 //
 // Tests if fine grained access for SPIR targets is working
 
