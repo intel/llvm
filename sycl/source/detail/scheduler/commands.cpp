@@ -296,7 +296,7 @@ public:
     assert(MThisCmd->getCG().getType() == CG::CGTYPE::CodeplayHostTask);
 
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
-  #ifdef XPTI_ENABLE_INSTRUMENTATION
+#ifdef XPTI_ENABLE_INSTRUMENTATION
     std::unique_ptr<detail::tls_code_loc_t> AsyncCodeLocationPtr;
     if (xptiTraceEnabled()) {
       bool SetLocation = false;
@@ -305,12 +305,14 @@ public:
         auto CodeLoc = Tls.query();
         auto FileName = CodeLoc.fileName();
         auto FunctionName = CodeLoc.functionName();
-        SetLocation =  (!FileName || FileName[0] == '\0') && (!FunctionName || FunctionName[0] == '\0');
+        SetLocation = (!FileName || FileName[0] == '\0') &&
+                      (!FunctionName || FunctionName[0] == '\0');
       }
       if (SetLocation)
-        AsyncCodeLocationPtr.reset(new detail::tls_code_loc_t(MThisCmd->MSubmissionCodeLocation));
+        AsyncCodeLocationPtr.reset(
+            new detail::tls_code_loc_t(MThisCmd->MSubmissionCodeLocation));
     }
-  #endif
+#endif
 
     pi_result WaitResult = waitForEvents();
     if (WaitResult != PI_SUCCESS) {
@@ -336,6 +338,20 @@ public:
         HostTask.MHostTask->call();
     } catch (...) {
       auto CurrentException = std::current_exception();
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+      if (xptiTraceEnabled()) {
+        try {
+          rethrow_exception(CurrentException);
+        } catch (sycl::exception &SyclException) {
+          // it is already traced, nothing to care about
+        } catch (std::exception &StdException) {
+          GlobalHandler::instance().TraceEventXPTI(StdException.what());
+        } catch (...) {
+          GlobalHandler::instance().TraceEventXPTI(
+              "Host task lambda thrown non standard exception");
+        }
+      }
+#endif
       HostTask.MQueue->reportAsyncException(CurrentException);
     }
 
