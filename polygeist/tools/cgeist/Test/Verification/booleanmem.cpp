@@ -1,7 +1,5 @@
 // RUN: cgeist %s -w -O0 --function=* -S | FileCheck %s
 
-#include <functional>
-
 // CHECK-LABEL:   func.func @_Z14lambda_capturebb(
 // CHECK-SAME:                                     %[[VAL_0:.*]]: i1,
 // CHECK-SAME:                                     %[[VAL_1:.*]]: i1)
