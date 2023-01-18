@@ -10,17 +10,11 @@
 
 ; The available_externally copy should not get vTableFuncs information in its
 ; summary entry, but the external def should.
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -o - %t3.o | FileCheck %s --check-prefix=AVAILEXTERNAL
+; RUN: llvm-dis -o - %t3.o | FileCheck %s --check-prefix=AVAILEXTERNAL
 ; AVAILEXTERNAL: gv: (name: "_ZTV1D"
 ; AVAILEXTERNAL-NOT: vTableFuncs
 ; AVAILEXTERNAL-SAME: ; guid =
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -o - %t4.o | FileCheck %s --check-prefix=EXTERNAL
+; RUN: llvm-dis -o - %t4.o | FileCheck %s --check-prefix=EXTERNAL
 ; EXTERNAL: gv: (name: "_ZTV1D", {{.*}} vTableFuncs: ((virtFunc:
 
 ; RUN: llvm-lto2 run -opaque-pointers %t3.o %t4.o -save-temps -pass-remarks=. \
@@ -33,10 +27,7 @@
 ; RUN:   -r=%t4.o,_ZN1D1mEi,p \
 ; RUN:   -r=%t4.o,_ZTV1D,px \
 ; RUN:   2>&1 | FileCheck %s --check-prefix=REMARK --check-prefix=PRINT
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t5.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR1
+; RUN: llvm-dis %t5.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR1
 ; RUN: llvm-nm %t5.1 | FileCheck %s --check-prefix=NM-INDEX1
 ; RUN: llvm-nm %t5.2 | FileCheck %s --check-prefix=NM-INDEX2
 

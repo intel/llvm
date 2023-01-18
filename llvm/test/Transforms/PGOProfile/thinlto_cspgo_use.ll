@@ -11,10 +11,7 @@
 ; RUN:   -r=%t2.bc,clobber,pl \
 ; RUN:   -r=%t2.bc,odd,pl \
 ; RUN:   -r=%t2.bc,even,pl
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.1.4.opt.bc -o - | FileCheck %s --check-prefix=CSUSE
+; RUN: llvm-dis %t.1.4.opt.bc -o - | FileCheck %s --check-prefix=CSUSE
 
 ; CSUSE: {{![0-9]+}} = !{i32 1, !"ProfileSummary", {{![0-9]+}}}
 ; CSUSE: {{![0-9]+}} = !{i32 1, !"CSProfileSummary", {{![0-9]+}}}

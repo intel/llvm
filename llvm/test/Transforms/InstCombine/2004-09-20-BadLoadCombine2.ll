@@ -1,8 +1,5 @@
 ; RUN: opt < %s -passes=instcombine,mem2reg,simplifycfg -simplifycfg-require-and-preserve-domtree=1 | \
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN:   llvm-dis -opaque-pointers | grep -v store | not grep "i32 1"
+; RUN:   llvm-dis | grep -v store | not grep "i32 1"
 
 ; Test to make sure that instcombine does not accidentally propagate the load
 ; into the PHI, which would break the program.

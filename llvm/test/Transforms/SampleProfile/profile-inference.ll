@@ -1,11 +1,5 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers < %s -passes=pseudo-probe,sample-profile -sample-profile-use-profi -sample-profile-file=%S/Inputs/profile-inference.prof | opt -opaque-pointers -passes='print<branch-prob>' -disable-output 2>&1 | FileCheck %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers < %s -passes=pseudo-probe,sample-profile -sample-profile-use-profi -sample-profile-file=%S/Inputs/profile-inference.prof | opt -opaque-pointers -passes='print<block-freq>' -disable-output 2>&1 | FileCheck %s --check-prefix=CHECK2
+; RUN: opt < %s -passes=pseudo-probe,sample-profile -sample-profile-use-profi -sample-profile-file=%S/Inputs/profile-inference.prof | opt -passes='print<branch-prob>' -disable-output 2>&1 | FileCheck %s
+; RUN: opt < %s -passes=pseudo-probe,sample-profile -sample-profile-use-profi -sample-profile-file=%S/Inputs/profile-inference.prof | opt -passes='print<block-freq>' -disable-output 2>&1 | FileCheck %s --check-prefix=CHECK2
 
 ; The test verifies that profile inference correctly builds branch probabilities
 ; from sampling-based block counts.

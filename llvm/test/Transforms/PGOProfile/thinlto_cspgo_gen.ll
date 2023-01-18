@@ -13,14 +13,8 @@
 ; RUN:   -r=%t2.bc,even,pl \
 ; RUN:   -r=%t2.bc,__llvm_profile_filename,x \
 ; RUN:   -r=%t2.bc,__llvm_profile_raw_version,x
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.1.4.opt.bc -o - | FileCheck %s --check-prefixes=CSGEN,PREVAILING
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.2.4.opt.bc -o - | FileCheck %s --check-prefixes=CSGEN,NOPREVAILING
+; RUN: llvm-dis %t.1.4.opt.bc -o - | FileCheck %s --check-prefixes=CSGEN,PREVAILING
+; RUN: llvm-dis %t.2.4.opt.bc -o - | FileCheck %s --check-prefixes=CSGEN,NOPREVAILING
 
 ;; Prevailing __llvm_profile_raw_version is kept by LTO.
 ; PREVAILING: @__llvm_profile_raw_version = hidden constant i64

@@ -1,9 +1,6 @@
 ; RUN: llvm-as < %s > %t1
 ; RUN: llvm-as < %p/Inputs/remangle_intrinsics.ll > %t2
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -opaque-pointers %t1 %t2 | FileCheck %s
+; RUN: llvm-lto %t1 %t2 | FileCheck %s
 
 ; We have "struct.rtx_def" type in both modules being LTOed. Both modules use
 ; an overloaded intrinsic which has this type in its signature/name. When

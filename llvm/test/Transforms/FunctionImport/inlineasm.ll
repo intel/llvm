@@ -1,21 +1,12 @@
 ; Do setup work for all below tests: generate bitcode and combined index
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -module-summary %s -o %t.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -module-summary %p/Inputs/inlineasm.ll -o %t2.bc
+; RUN: opt -module-summary %s -o %t.bc
+; RUN: opt -module-summary %p/Inputs/inlineasm.ll -o %t2.bc
 ; RUN: llvm-lto -thinlto -o %t3 %t.bc %t2.bc
 
 ; Attempt the import now, ensure below that file containing inline assembly
 ; is not imported from. Otherwise we would need to promote its local variable
 ; used in the inline assembly, which would not see the rename.
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -passes=function-import -summary-file %t3.thinlto.bc %t.bc -S 2>&1 | FileCheck %s
+; RUN: opt -passes=function-import -summary-file %t3.thinlto.bc %t.bc -S 2>&1 | FileCheck %s
 
 define i32 @main() #0 {
 entry:

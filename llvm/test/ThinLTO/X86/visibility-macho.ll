@@ -11,14 +11,8 @@
 ; RUN:   -r=%tb.bc,_var1,plx -r=%tb.bc,_var2,plx \
 ; RUN:   -r=%tb.bc,_hidden_def_weak_def,pl -r=%tb.bc,_not_imported,pl -r=%tb.bc,_hidden_def_ref,pl \
 ; RUN:   -r=%tb.bc,_hidden_def_weak_ref,pl
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t1.bc.1.3.import.bc | FileCheck %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t1.bc.2.1.promote.bc | FileCheck %s --check-prefix=CHECK2
+; RUN: llvm-dis < %t1.bc.1.3.import.bc | FileCheck %s
+; RUN: llvm-dis < %t1.bc.2.1.promote.bc | FileCheck %s --check-prefix=CHECK2
 
 ;--- a.ll
 target datalayout = "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"

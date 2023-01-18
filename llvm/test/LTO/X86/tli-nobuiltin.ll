@@ -2,18 +2,12 @@
 ; RUN: llvm-as < %s > %t.bc
 
 ; Regular run: expects fprintf to be turned into fwrite
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -opaque-pointers %t.bc -exported-symbol=_foo -o %t.o
+; RUN: llvm-lto %t.bc -exported-symbol=_foo -o %t.o
 ; RUN: llvm-nm %t.o | FileCheck %s --check-prefix=LTO
 ; LTO: fwrite
 
 ; Freestanding run: expects fprintf to NOT be turned into fwrite
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -opaque-pointers %t.bc -lto-freestanding -exported-symbol=_foo -o %t.o
+; RUN: llvm-lto %t.bc -lto-freestanding -exported-symbol=_foo -o %t.o
 ; RUN: llvm-nm %t.o | FileCheck %s --check-prefix=LTO-FREESTANDING
 ; LTO-FREESTANDING: fprintf
 

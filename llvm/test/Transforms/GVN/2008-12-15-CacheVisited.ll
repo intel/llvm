@@ -1,7 +1,4 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt < %s -passes=gvn | llvm-dis -opaque-pointers
+; RUN: opt < %s -passes=gvn | llvm-dis
 ; Cached results must be added to and verified against the visited sets.
 ; PR3217
 

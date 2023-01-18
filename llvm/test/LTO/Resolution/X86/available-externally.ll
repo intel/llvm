@@ -1,11 +1,5 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -module-summary -o %t.bc %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto2 run -opaque-pointers %t.bc -r %t.bc,foo,px -r %t.bc,bar, -o %t2
+; RUN: opt -module-summary -o %t.bc %s
+; RUN: llvm-lto2 run %t.bc -r %t.bc,foo,px -r %t.bc,bar, -o %t2
 ; RUN: llvm-nm %t2.1 | FileCheck %s
 
 ; CHECK: U bar

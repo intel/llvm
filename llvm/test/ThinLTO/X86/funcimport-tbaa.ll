@@ -1,28 +1,13 @@
 ; We generate invalid TBAA, hence -disable-verify, but this is a convenient way
 ; to trigger a metadata lazyloading crash
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -module-summary %s -o %t.bc -bitcode-mdindex-threshold=0 -disable-verify
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -module-summary %p/Inputs/funcimport-tbaa.ll -o %t2.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -opaque-pointers -thinlto-action=thinlink -o %t3.bc %t.bc %t2.bc
+; RUN: opt -module-summary %s -o %t.bc -bitcode-mdindex-threshold=0 -disable-verify
+; RUN: opt -module-summary %p/Inputs/funcimport-tbaa.ll -o %t2.bc
+; RUN: llvm-lto -thinlto-action=thinlink -o %t3.bc %t.bc %t2.bc
 
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -opaque-pointers -thinlto-action=import %t2.bc -thinlto-index=%t3.bc -o - \
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN:  | llvm-dis -opaque-pointers -o - | FileCheck %s --check-prefix=IMPORTGLOB1
+; RUN: llvm-lto -thinlto-action=import %t2.bc -thinlto-index=%t3.bc -o - \
+; RUN:  | llvm-dis -o - | FileCheck %s --check-prefix=IMPORTGLOB1
 ; IMPORTGLOB1: define available_externally float @globalfunc1
 
 target datalayout = "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"

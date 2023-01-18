@@ -2,10 +2,7 @@
 ; RUN: opt -thinlto-bc %s -thin-link-bitcode-file=%t1.thinlink.bc -o %t1.bc
 ; RUN: llvm-lto2 run -disable-thinlto-funcattrs=0 %t1.bc -opaque-pointers -o %t.o -save-temps \
 ; RUN:    -r %t1.bc,indirect,px -r %t1.bc,inlineasm,px -r %t1.bc,selectcallee,px -r %t1.bc,f, -r %t1.bc,g, -r %t1.bc,global,
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -o - %t.o.1.3.import.bc | FileCheck %s
+; RUN: llvm-dis -o - %t.o.1.3.import.bc | FileCheck %s
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"

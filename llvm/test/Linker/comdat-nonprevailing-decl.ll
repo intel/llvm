@@ -1,8 +1,5 @@
 ; RUN: rm -rf %t && split-file %s %t
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-link -opaque-pointers -S %t/1.ll %t/1-aux.ll -o - | FileCheck %s
+; RUN: llvm-link -S %t/1.ll %t/1-aux.ll -o - | FileCheck %s
 
 ;--- 1.ll
 $c = comdat any

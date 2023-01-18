@@ -1,15 +1,6 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-as < %s | llvm-dis -opaque-pointers | FileCheck -strict-whitespace %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -S < %s | FileCheck -strict-whitespace %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: verify-uselistorder -opaque-pointers %s
+; RUN: llvm-as < %s | llvm-dis | FileCheck -strict-whitespace %s
+; RUN: opt -S < %s | FileCheck -strict-whitespace %s
+; RUN: verify-uselistorder %s
 
 @addr   = external global i64
 @select = external global i1

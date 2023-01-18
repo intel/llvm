@@ -1,12 +1,6 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-as < %s | llvm-dis -opaque-pointers | \
+; RUN: llvm-as < %s | llvm-dis | \
 ; RUN:   not grep "getelementptr.*getelementptr"
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: verify-uselistorder -opaque-pointers %s
+; RUN: verify-uselistorder %s
 
 %struct.TTriangleItem = type { ptr, ptr, [3 x %struct.TUVVertex] }
 %struct.TUVVertex = type { i16, i16, i16, i16 }

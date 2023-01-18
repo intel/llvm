@@ -15,10 +15,7 @@
 
 ; CHECK-COUNT-2: single-impl: devirtualized a call to _ZN1B3fooEv
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.out.1.4.opt.bc -o - | FileCheck %s --check-prefix=IR
+; RUN: llvm-dis %t.out.1.4.opt.bc -o - | FileCheck %s --check-prefix=IR
 ; IR-NOT: tail call void %
 
 ; ModuleID = 'devirt_multiple_type_test.o'

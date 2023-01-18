@@ -9,15 +9,9 @@
 ; Check that we have module flag showing splitting enabled, and that we don't
 ; generate summary information needed for index-based WPD.
 ; RUN: llvm-modextract -b -n=0 %t2.o -o %t2.o.0
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -o - %t2.o.0 | FileCheck %s --check-prefix=ENABLESPLITFLAG --implicit-check-not=vTableFuncs --implicit-check-not=typeidCompatibleVTable
+; RUN: llvm-dis -o - %t2.o.0 | FileCheck %s --check-prefix=ENABLESPLITFLAG --implicit-check-not=vTableFuncs --implicit-check-not=typeidCompatibleVTable
 ; RUN: llvm-modextract -b -n=1 %t2.o -o %t2.o.1
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -o - %t2.o.1 | FileCheck %s --check-prefix=ENABLESPLITFLAG --implicit-check-not=vTableFuncs --implicit-check-not=typeidCompatibleVTable
+; RUN: llvm-dis -o - %t2.o.1 | FileCheck %s --check-prefix=ENABLESPLITFLAG --implicit-check-not=vTableFuncs --implicit-check-not=typeidCompatibleVTable
 ; ENABLESPLITFLAG: !{i32 1, !"EnableSplitLTOUnit", i32 1}
 
 ; Generate unsplit module with summary for ThinLTO index-based WPD.
@@ -28,10 +22,7 @@
 
 ; Check that we don't have module flag when splitting not enabled for ThinLTO,
 ; and that we generate summary information needed for index-based WPD.
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -o - %t4.o | FileCheck %s --check-prefix=NOENABLESPLITFLAG
+; RUN: llvm-dis -o - %t4.o | FileCheck %s --check-prefix=NOENABLESPLITFLAG
 ; NOENABLESPLITFLAG-DAG: !{i32 1, !"EnableSplitLTOUnit", i32 0}
 ; NOENABLESPLITFLAG-DAG: [[An:\^[0-9]+]] = gv: (name: "_ZN1A1nEi"
 ; NOENABLESPLITFLAG-DAG: [[Bf:\^[0-9]+]] = gv: (name: "_ZN1B1fEi"
@@ -65,14 +56,8 @@
 ; RUN:   -r=%t4.o,_ZTV1C,px \
 ; RUN:   -r=%t4.o,_ZTV1D,px \
 ; RUN:   -r=%t4.o,_ZTV1E,px 2>&1 | FileCheck %s --check-prefix=REMARK --check-prefix=PRINT
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t5.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR1
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t5.2.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR2
+; RUN: llvm-dis %t5.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR1
+; RUN: llvm-dis %t5.2.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR2
 ; RUN: llvm-nm %t5.1 | FileCheck %s --check-prefix=NM-INDEX1
 ; RUN: llvm-nm %t5.2 | FileCheck %s --check-prefix=NM-INDEX2
 
@@ -143,14 +128,8 @@
 ; RUN:   -r=%t2.o,_ZTV1C,px \
 ; RUN:   -r=%t2.o,_ZTV1D,px \
 ; RUN:   -r=%t2.o,_ZTV1E,px 2>&1 | FileCheck %s --check-prefix=REMARK
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t5.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR1
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t5.2.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR2
+; RUN: llvm-dis %t5.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR1
+; RUN: llvm-dis %t5.2.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR2
 ; RUN: llvm-nm %t5.1 | FileCheck %s --check-prefix=NM-HYBRID1
 ; RUN: llvm-nm %t5.2 | FileCheck %s --check-prefix=NM-HYBRID2
 

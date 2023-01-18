@@ -1,7 +1,4 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-as < %s | llvm-dis -opaque-pointers | not grep ptrtoint
+; RUN: llvm-as < %s | llvm-dis | not grep ptrtoint
 ; PR4424
 @G = external global i32
 @test5 = constant i32 lshr (i32 0, i32 ptrtoint (ptr @G to i32))

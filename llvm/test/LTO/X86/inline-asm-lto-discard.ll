@@ -11,10 +11,7 @@
 ; RUN:  -r %t1,foo,px \
 ; RUN:  -r %t2,foo, \
 ; RUN:  -r %t2,bar,pl
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %to1.0.0.preopt.bc | FileCheck %s --check-prefix=ASM1
+; RUN: llvm-dis < %to1.0.0.preopt.bc | FileCheck %s --check-prefix=ASM1
 ; RUN: llvm-nm %to1.0 | FileCheck %s --check-prefix=SYM
 ; RUN: llvm-objdump --no-print-imm-hex -d --disassemble-symbols=foo %to1.0 \
 ; RUN:   | FileCheck %s --check-prefix=DEF
@@ -23,10 +20,7 @@
 ; RUN:  -r %t2,foo, \
 ; RUN:  -r %t2,bar,pl \
 ; RUN:  -r %t3,foo,px
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %to2.0.0.preopt.bc | FileCheck %s --check-prefix=ASM2
+; RUN: llvm-dis < %to2.0.0.preopt.bc | FileCheck %s --check-prefix=ASM2
 ; RUN: llvm-nm %to2.0 | FileCheck %s --check-prefix=SYM
 ; RUN: llvm-objdump --no-print-imm-hex -d --disassemble-symbols=foo %to2.0 \
 ; RUN:   | FileCheck %s --check-prefix=DEF
@@ -36,10 +30,7 @@
 ; RUN:  -r %t4,bar, \
 ; RUN:  -r %t4,foo, \
 ; RUN:  -r %t4,foo@@VER1,px
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %to3.0.0.preopt.bc | FileCheck %s --check-prefix=ASM3
+; RUN: llvm-dis < %to3.0.0.preopt.bc | FileCheck %s --check-prefix=ASM3
 
 ; ASM1:      module asm ".lto_discard foo"
 ; ASM1-NEXT: module asm ".weak foo"

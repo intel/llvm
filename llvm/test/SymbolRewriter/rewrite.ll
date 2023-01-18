@@ -1,8 +1,5 @@
 ; RUN: opt -mtriple i686-win32 -passes='rewrite-symbols' -rewrite-map-file %p/rewrite.map \
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN:   %s -o - | llvm-dis -opaque-pointers | FileCheck %s
+; RUN:   %s -o - | llvm-dis | FileCheck %s
 
 declare void @source_function()
 @source_variable = external global i32

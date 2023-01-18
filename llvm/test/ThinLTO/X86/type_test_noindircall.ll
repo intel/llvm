@@ -4,39 +4,21 @@
 
 ; REQUIRES: x86-registered-target
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -thinlto-bc -o %t.o %s
+; RUN: opt -thinlto-bc -o %t.o %s
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto2 run -opaque-pointers %t.o -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run %t.o -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
 ; RUN:	 -r=%t.o,_ZTVN12_GLOBAL__N_18RealFileE,px \
 ; RUN:   -o %t2
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t2.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
+; RUN: llvm-dis %t2.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
 
 ; Try again without LTO unit splitting.
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -thinlto-bc -thinlto-split-lto-unit=false -o %t3.o %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto2 run -opaque-pointers %t.o -save-temps -pass-remarks=. \
+; RUN: opt -thinlto-bc -thinlto-split-lto-unit=false -o %t3.o %s
+; RUN: llvm-lto2 run %t.o -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
 ; RUN:	 -r=%t.o,_ZTVN12_GLOBAL__N_18RealFileE,px \
 ; RUN:   -o %t4
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t4.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
+; RUN: llvm-dis %t4.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-grtev4-linux-gnu"

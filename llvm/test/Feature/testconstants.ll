@@ -1,11 +1,5 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-as < %s | llvm-dis -opaque-pointers > %t1.ll
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-as %t1.ll -o - | llvm-dis -opaque-pointers > %t2.ll
+; RUN: llvm-as < %s | llvm-dis > %t1.ll
+; RUN: llvm-as %t1.ll -o - | llvm-dis > %t2.ll
 ; RUN: diff %t1.ll %t2.ll
 
 @somestr = constant [11 x i8] c"hello world"            ; <ptr> [#uses=1]

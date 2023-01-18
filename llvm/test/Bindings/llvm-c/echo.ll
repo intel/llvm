@@ -1,7 +1,4 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-as < %s | llvm-dis -opaque-pointers > %t.orig
+; RUN: llvm-as < %s | llvm-dis > %t.orig
 ; RUN: llvm-as < %s | llvm-c-test --echo > %t.echo
 ; RUN: diff -w %t.orig %t.echo
 ;

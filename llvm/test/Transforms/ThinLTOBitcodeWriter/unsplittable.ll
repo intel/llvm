@@ -1,8 +1,5 @@
 ; RUN: opt -thinlto-bc -thin-link-bitcode-file=%t2 -thinlto-split-lto-unit -o %t %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -o - %t | FileCheck %s
+; RUN: llvm-dis -o - %t | FileCheck %s
 ; RUN: llvm-bcanalyzer -dump %t | FileCheck --check-prefix=BCA %s
 ; When not splitting the module, the thin link bitcode file should simply be a
 ; copy of the regular module.

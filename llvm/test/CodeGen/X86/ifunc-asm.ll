@@ -1,7 +1,4 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-as < %s -o - | llc -opaque-pointers -filetype=asm | FileCheck %s
+; RUN: llvm-as < %s -o - | llc -filetype=asm | FileCheck %s
 
 target triple = "x86_64-unknown-linux-gnu"
 

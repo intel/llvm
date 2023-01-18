@@ -1,13 +1,7 @@
 ; Test to ensure that non-prevailing weak aliasee is kept as a weak definition
 ; when the alias is not dead.
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -module-summary %s -o %t1.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc \
+; RUN: opt -module-summary %s -o %t1.bc
+; RUN: llvm-lto2 run %t1.bc \
 ; RUN:	 -r=%t1.bc,__a,lx \
 ; RUN:	 -r=%t1.bc,__b,l \
 ; RUN:	 -r=%t1.bc,a,plx \
@@ -16,10 +10,7 @@
 
 ; Check that __a is kept as a weak def. __b can be dropped since its alias is
 ; not live and will also be dropped.
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t2.o.1.1.promote.bc -o - | FileCheck %s
+; RUN: llvm-dis %t2.o.1.1.promote.bc -o - | FileCheck %s
 ; CHECK: define weak hidden void @__a
 ; CHECK: declare hidden void @__b
 ; CHECK: declare void @b

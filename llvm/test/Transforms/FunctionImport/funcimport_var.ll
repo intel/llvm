@@ -1,30 +1,12 @@
 ; This test makes sure a static var is not selected as a callee target
 ; (which will crash compilation).
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -module-summary %s -o %t.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -module-summary %p/Inputs/funcimport_var2.ll -o %t2.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -opaque-pointers -thinlto -thinlto-action=thinlink -o %t3 %t.bc %t2.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -opaque-pointers -thinlto -thinlto-action=import -thinlto-index=%t3 %t.bc %t2.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -opaque-pointers -thinlto -thinlto-action=run %t.bc %t2.bc -exported-symbol=_Z4LinkPKcS0_
+; RUN: opt -module-summary %s -o %t.bc
+; RUN: opt -module-summary %p/Inputs/funcimport_var2.ll -o %t2.bc
+; RUN: llvm-lto -thinlto -thinlto-action=thinlink -o %t3 %t.bc %t2.bc
+; RUN: llvm-lto -thinlto -thinlto-action=import -thinlto-index=%t3 %t.bc %t2.bc
+; RUN: llvm-lto -thinlto -thinlto-action=run %t.bc %t2.bc -exported-symbol=_Z4LinkPKcS0_
 ; RUN: llvm-nm %t.bc.thinlto.o | FileCheck %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto2 run -opaque-pointers %t.bc %t2.bc -o %t.out \
+; RUN: llvm-lto2 run %t.bc %t2.bc -o %t.out \
 ; RUN:   -r %t.bc,_Z4LinkPKcS0_,plx \
 ; RUN:   -r %t.bc,link,l \
 ; RUN:   -r %t2.bc,get_link,plx

@@ -1,25 +1,10 @@
 ; Test to ensure that the legacy LTO API lowers @llvm.public.type.test.
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -module-summary %s -o %t.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -opaque-pointers --thinlto-action=run -exported-symbol=_main %t.bc --thinlto-save-temps=%t2
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -o - %t20.2.internalized.bc | FileCheck %s --check-prefix=PUBLIC
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -opaque-pointers --thinlto-action=run -exported-symbol=_main %t.bc --thinlto-save-temps=%t2 --whole-program-visibility
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -o - %t20.2.internalized.bc | FileCheck %s --check-prefix=HIDDEN
+; RUN: opt -module-summary %s -o %t.bc
+; RUN: llvm-lto --thinlto-action=run -exported-symbol=_main %t.bc --thinlto-save-temps=%t2
+; RUN: llvm-dis -o - %t20.2.internalized.bc | FileCheck %s --check-prefix=PUBLIC
+; RUN: llvm-lto --thinlto-action=run -exported-symbol=_main %t.bc --thinlto-save-temps=%t2 --whole-program-visibility
+; RUN: llvm-dis -o - %t20.2.internalized.bc | FileCheck %s --check-prefix=HIDDEN
 
 ; PUBLIC-NOT: call {{.*}}@llvm.public.type.test
 ; PUBLIC-NOT: call {{.*}}@llvm.type.test

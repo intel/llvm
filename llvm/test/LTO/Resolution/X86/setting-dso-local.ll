@@ -1,8 +1,5 @@
 ; RUN: llvm-as -o %t.o %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto2 run -opaque-pointers -o %t2.o %t.o -r=%t.o,_start,plx -r=%t.o,foobar,x
+; RUN: llvm-lto2 run -o %t2.o %t.o -r=%t.o,_start,plx -r=%t.o,foobar,x
 ; RUN: llvm-readelf --symbols %t2.o.0 | FileCheck %s
 
 ; We used to fail the verifier by clearing dso_local from foobar

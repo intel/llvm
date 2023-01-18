@@ -17,10 +17,7 @@
 ; RUN: llvm-dwarfdump %t.o -o - | FileCheck %s -check-prefix=OBJ -implicit-check-not=DW_TAG_call -implicit-check-not=DW_AT_call
 ; RUN: llvm-dwarfdump -verify %t.o 2>&1 | FileCheck %s -check-prefix=VERIFY
 ; RUN: llvm-dwarfdump -statistics %t.o | FileCheck %s -check-prefix=STATS
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-as < %s | llvm-dis -opaque-pointers | llvm-as | llvm-dis -opaque-pointers -o /dev/null
+; RUN: llvm-as < %s | llvm-dis | llvm-as | llvm-dis -o /dev/null
 
 ; VERIFY: No errors.
 ; STATS: "#call site DIEs": 6,

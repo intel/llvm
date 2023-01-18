@@ -1,8 +1,5 @@
 ; Verify that forward declarations from call instructions work even with non-zero AS
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-as %s -o - | llvm-dis -opaque-pointers - | FileCheck %s
+; RUN: llvm-as %s -o - | llvm-dis - | FileCheck %s
 
 define void @call_named() {
 entry:

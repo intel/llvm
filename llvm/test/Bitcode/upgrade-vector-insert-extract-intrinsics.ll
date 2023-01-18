@@ -1,8 +1,5 @@
 ; RUN: opt -S < %s | FileCheck %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %s.bc | FileCheck %s
+; RUN: llvm-dis < %s.bc | FileCheck %s
 
 define <vscale x 16 x i8> @insert(<vscale x 16 x i8> %a, <4 x i8> %b) {
 ; CHECK-LABEL: @insert

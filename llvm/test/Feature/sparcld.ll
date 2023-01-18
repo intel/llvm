@@ -1,11 +1,5 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-as < %s | llvm-dis -opaque-pointers > %t
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-as < %t | llvm-dis -opaque-pointers > %t2
+; RUN: llvm-as < %s | llvm-dis > %t
+; RUN: llvm-as < %t | llvm-dis > %t2
 ; RUN: diff %t %t2
 ; ModuleID = '<stdin>'
 @ld = external global fp128		; <ptr> [#uses=1]

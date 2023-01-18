@@ -1,8 +1,5 @@
 ; RUN: llvm-as < %s >%t1
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -opaque-pointers -o %t2 -dso-symbol=foo1 -dso-symbol=foo2 -dso-symbol=foo3 \
+; RUN: llvm-lto -o %t2 -dso-symbol=foo1 -dso-symbol=foo2 -dso-symbol=foo3 \
 ; RUN:     -dso-symbol=v1 -dso-symbol=v2 -dso-symbol=v3 \
 ; RUN:     -dso-symbol=v4 -dso-symbol=v5 -dso-symbol=v6 %t1 -O0
 ; RUN: llvm-nm %t2 | FileCheck %s

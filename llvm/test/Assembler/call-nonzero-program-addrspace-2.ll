@@ -1,8 +1,5 @@
 ; RUN: not llvm-as %s -o /dev/null 2>&1 | FileCheck %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-as %s -data-layout=P42 -o - | llvm-dis -opaque-pointers - -o - | FileCheck %s -check-prefix PROGAS42
+; RUN: llvm-as %s -data-layout=P42 -o - | llvm-dis - -o - | FileCheck %s -check-prefix PROGAS42
 
 ; Check that numbered variables in a nonzero program address space 200 can be used in a call instruction
 

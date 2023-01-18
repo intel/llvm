@@ -1,32 +1,11 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -module-summary %s -o %t1.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -module-summary %p/Inputs/globals-import-cf-baz.ll -o %t2.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -opaque-pointers -thinlto-action=thinlink %t1.bc %t2.bc -o %t3.index.bc
+; RUN: opt -module-summary %s -o %t1.bc
+; RUN: opt -module-summary %p/Inputs/globals-import-cf-baz.ll -o %t2.bc
+; RUN: llvm-lto -thinlto-action=thinlink %t1.bc %t2.bc -o %t3.index.bc
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -opaque-pointers -thinlto-action=import -exported-symbol=main %t1.bc -thinlto-index=%t3.index.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t1.bc.thinlto.imported.bc -o - | FileCheck --check-prefix=IMPORT %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -opaque-pointers -thinlto-action=optimize %t1.bc.thinlto.imported.bc -o %t1.bc.thinlto.opt.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t1.bc.thinlto.opt.bc -o - | FileCheck --check-prefix=OPTIMIZE %s
+; RUN: llvm-lto -thinlto-action=import -exported-symbol=main %t1.bc -thinlto-index=%t3.index.bc
+; RUN: llvm-dis %t1.bc.thinlto.imported.bc -o - | FileCheck --check-prefix=IMPORT %s
+; RUN: llvm-lto -thinlto-action=optimize %t1.bc.thinlto.imported.bc -o %t1.bc.thinlto.opt.bc
+; RUN: llvm-dis %t1.bc.thinlto.opt.bc -o - | FileCheck --check-prefix=OPTIMIZE %s
 
 ; IMPORT: @baz = internal local_unnamed_addr constant i32 10
 

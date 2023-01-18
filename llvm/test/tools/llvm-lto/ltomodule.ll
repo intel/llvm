@@ -1,28 +1,16 @@
 # RUN: rm -rf %t && split-file %s %t
 ; REQUIRES: default_triple
 ; RUN: llvm-as < %t/hasCtor.ll > %t.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -opaque-pointers %t.bc -query-hasCtorDtor | FileCheck %s --check-prefixes=POSITIVE
+; RUN: llvm-lto %t.bc -query-hasCtorDtor | FileCheck %s --check-prefixes=POSITIVE
 
 ; RUN: llvm-as < %t/hasDtor.ll > %t.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -opaque-pointers %t.bc -query-hasCtorDtor | FileCheck %s --check-prefixes=POSITIVE
+; RUN: llvm-lto %t.bc -query-hasCtorDtor | FileCheck %s --check-prefixes=POSITIVE
 
 ; RUN: llvm-as < %t/hasBoth.ll > %t.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -opaque-pointers %t.bc -query-hasCtorDtor | FileCheck %s --check-prefixes=POSITIVE
+; RUN: llvm-lto %t.bc -query-hasCtorDtor | FileCheck %s --check-prefixes=POSITIVE
 
 ; RUN: llvm-as < %t/hasNone.ll > %t.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -opaque-pointers %t.bc -query-hasCtorDtor | FileCheck %s --check-prefixes=NEGATIVE
+; RUN: llvm-lto %t.bc -query-hasCtorDtor | FileCheck %s --check-prefixes=NEGATIVE
 
 ; POSITIVE: .bc: hasCtorDtor = true
 ; NEGATIVE: .bc: hasCtorDtor = false

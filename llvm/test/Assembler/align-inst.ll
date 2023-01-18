@@ -1,8 +1,5 @@
 ; RUN: llvm-as %s -o /dev/null
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: verify-uselistorder -opaque-pointers %s
+; RUN: verify-uselistorder %s
 
 @A = global i1 0, align 4294967296
 

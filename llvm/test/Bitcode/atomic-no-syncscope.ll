@@ -1,7 +1,4 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -o - %s.bc | FileCheck %s
+; RUN: llvm-dis -o - %s.bc | FileCheck %s
 
 ; Backwards compatibility test: make sure we can process bitcode without
 ; synchronization scope names encoded in it.

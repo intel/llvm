@@ -1,11 +1,5 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers < %s -S | FileCheck %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers < %s  | opt -opaque-pointers -S -discard-value-names | FileCheck --check-prefix=NONAME %s
+; RUN: opt < %s -S | FileCheck %s
+; RUN: opt < %s  | opt -S -discard-value-names | FileCheck --check-prefix=NONAME %s
 
 
 ; CHECK: @GlobalValueName

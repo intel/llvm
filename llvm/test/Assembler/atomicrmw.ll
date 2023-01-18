@@ -1,7 +1,4 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-as %s -o - | llvm-dis -opaque-pointers | FileCheck %s
+; RUN: llvm-as %s -o - | llvm-dis | FileCheck %s
 
 ; Make sure that we can parse an atomicrmw with an operand defined later in the function.
 

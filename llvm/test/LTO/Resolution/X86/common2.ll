@@ -4,89 +4,53 @@
 ; Test that the common merging (size + alignment) is properly handled
 
 ; Client marked the "large with little alignment" one as prevailing
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -o %t.o -save-temps \
+; RUN: llvm-lto2 run %t1.bc %t2.bc -o %t.o -save-temps \
 ; RUN:  -r %t1.bc,v,x \
 ; RUN:  -r %t2.bc,v,px \
 ; RUN:  -r %t1.bc,foo,px \
 ; RUN:  -r %t2.bc,bar,px
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.o.0.0.preopt.bc | FileCheck %s --check-prefix=LARGE-PREVAILED
+; RUN: llvm-dis < %t.o.0.0.preopt.bc | FileCheck %s --check-prefix=LARGE-PREVAILED
 
 ; Same as before, but reversing the order of the inputs
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto2 run -opaque-pointers %t2.bc %t1.bc -o %t.o -save-temps \
+; RUN: llvm-lto2 run %t2.bc %t1.bc -o %t.o -save-temps \
 ; RUN:  -r %t1.bc,v,x \
 ; RUN:  -r %t2.bc,v,px \
 ; RUN:  -r %t1.bc,foo,px \
 ; RUN:  -r %t2.bc,bar,px
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.o.0.0.preopt.bc | FileCheck %s --check-prefix=LARGE-PREVAILED
+; RUN: llvm-dis < %t.o.0.0.preopt.bc | FileCheck %s --check-prefix=LARGE-PREVAILED
 
 ; Client marked the "small with large alignment" one as prevailing
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -o %t.o -save-temps \
+; RUN: llvm-lto2 run %t1.bc %t2.bc -o %t.o -save-temps \
 ; RUN:  -r %t1.bc,v,px \
 ; RUN:  -r %t2.bc,v,x \
 ; RUN:  -r %t1.bc,foo,px \
 ; RUN:  -r %t2.bc,bar,px
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.o.0.0.preopt.bc | FileCheck %s --check-prefix=SMALL-PREVAILED
+; RUN: llvm-dis < %t.o.0.0.preopt.bc | FileCheck %s --check-prefix=SMALL-PREVAILED
 
 ; Same as before, but reversing the order of the inputs
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto2 run -opaque-pointers %t2.bc %t1.bc -o %t.o -save-temps \
+; RUN: llvm-lto2 run %t2.bc %t1.bc -o %t.o -save-temps \
 ; RUN:  -r %t1.bc,v,px \
 ; RUN:  -r %t2.bc,v,x \
 ; RUN:  -r %t1.bc,foo,px \
 ; RUN:  -r %t2.bc,bar,px
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.o.0.0.preopt.bc | FileCheck  %s --check-prefix=SMALL-PREVAILED
+; RUN: llvm-dis < %t.o.0.0.preopt.bc | FileCheck  %s --check-prefix=SMALL-PREVAILED
 
 
 ; Client didn't mark any as prevailing, we keep the first one we see as "external"
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -o %t.o -save-temps \
+; RUN: llvm-lto2 run %t1.bc %t2.bc -o %t.o -save-temps \
 ; RUN:  -r %t1.bc,v,x \
 ; RUN:  -r %t2.bc,v,x \
 ; RUN:  -r %t1.bc,foo,px \
 ; RUN:  -r %t2.bc,bar,px
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.o.0.0.preopt.bc | FileCheck  %s --check-prefix=NONE-PREVAILED1
+; RUN: llvm-dis < %t.o.0.0.preopt.bc | FileCheck  %s --check-prefix=NONE-PREVAILED1
 
 ; Same as before, but reversing the order of the inputs
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto2 run -opaque-pointers %t2.bc %t1.bc -o %t.o -save-temps \
+; RUN: llvm-lto2 run %t2.bc %t1.bc -o %t.o -save-temps \
 ; RUN:  -r %t1.bc,v,x \
 ; RUN:  -r %t2.bc,v,x \
 ; RUN:  -r %t1.bc,foo,px \
 ; RUN:  -r %t2.bc,bar,px
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.o.0.0.preopt.bc | FileCheck  %s --check-prefix=NONE-PREVAILED2
+; RUN: llvm-dis < %t.o.0.0.preopt.bc | FileCheck  %s --check-prefix=NONE-PREVAILED2
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"

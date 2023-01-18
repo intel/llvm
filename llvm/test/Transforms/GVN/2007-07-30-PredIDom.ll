@@ -1,7 +1,4 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt < %s -passes=gvn | llvm-dis -opaque-pointers
+; RUN: opt < %s -passes=gvn | llvm-dis
 
 	%"struct.Block::$_16" = type { i32 }
 	%struct.Exp = type { ptr, i32, i32, i32, ptr, ptr, %"struct.Exp::$_10", %"struct.Block::$_16", %"struct.Exp::$_12" }

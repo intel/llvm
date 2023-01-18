@@ -1,11 +1,5 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-as < %s | llvm-dis -opaque-pointers | grep "align 1024"
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: verify-uselistorder -opaque-pointers %s
+; RUN: llvm-as < %s | llvm-dis | grep "align 1024"
+; RUN: verify-uselistorder %s
 
 define void @test(ptr %arg) {
 entry:

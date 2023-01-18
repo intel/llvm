@@ -13,20 +13,11 @@
 ; RUN:  -r=%t1.bc,baz, \
 ; RUN:  -r=%t1.bc,gBar, \
 ; RUN:  -o %t3
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t3.1.3.import.bc -o - | FileCheck %s --check-prefix=IMPORT
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t3.1.5.precodegen.bc -o - | FileCheck %s --check-prefix=CODEGEN
+; RUN: llvm-dis %t3.1.3.import.bc -o - | FileCheck %s --check-prefix=IMPORT
+; RUN: llvm-dis %t3.1.5.precodegen.bc -o - | FileCheck %s --check-prefix=CODEGEN
 ; Check that gFoo and gBar were eliminated from source module together
 ; with corresponsing stores
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t3.2.5.precodegen.bc -o - | FileCheck %s --check-prefix=CODEGEN-SRC
+; RUN: llvm-dis %t3.2.5.precodegen.bc -o - | FileCheck %s --check-prefix=CODEGEN-SRC
 
 ; IMPORT:       @gBar = internal local_unnamed_addr global i32 0, align 4
 ; IMPORT-NEXT:  @gFoo.llvm.0 = internal unnamed_addr global i32 0, align 4

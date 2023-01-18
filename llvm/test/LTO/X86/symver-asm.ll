@@ -3,10 +3,7 @@
 ; RUN: llvm-nm %t2 | FileCheck %s
 ; RUN: llvm-lto2 run -opaque-pointers -r %t1,io_cancel_0_4,plx -r %t1,io_cancel_0_4,lx -r %t1,io_cancel_local_0_4,plx -r %t1,io_cancel_weak_0_4,plx -r %t1,io_cancel_weak_0_4,lx -r %t1,io_cancel@@LIBAIO_0.4,plx -r %t1,io_cancel_weak@@LIBAIO_0.4,plx -r %t1,io_cancel_weak@@LIBAIO_0.4.1,plx -r %t1,foo,plx -r %t1,foo,lx -r %t1,foo@@VER1,plx -o %t3 %t1 -save-temps
 ; RUN: llvm-nm %t3.0 | FileCheck %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t3.0.2.internalize.bc -o - | FileCheck %s --check-prefix=INTERN
+; RUN: llvm-dis %t3.0.2.internalize.bc -o - | FileCheck %s --check-prefix=INTERN
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"

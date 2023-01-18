@@ -4,10 +4,7 @@
 ;      the IR used to generate the bitcode, and may need to be updated.
 
 ; RUN: opt -passes=verify -disable-output < %s.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %s.bc | FileCheck %s
+; RUN: llvm-dis < %s.bc | FileCheck %s
 
 target datalayout = "E"
 ; CHECK: target datalayout = "E"

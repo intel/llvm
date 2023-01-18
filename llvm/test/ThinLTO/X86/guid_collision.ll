@@ -1,31 +1,16 @@
 ; Make sure LTO succeeds even if %t.bc contains a GlobalVariable F and
 ; %t2.bc cointains a Function F with the same GUID.
 ;
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -module-summary %s -o %t.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -module-summary %p/Inputs/guid_collision.ll -o %t2.bc
+; RUN: opt -module-summary %s -o %t.bc
+; RUN: opt -module-summary %p/Inputs/guid_collision.ll -o %t2.bc
 ; RUN: llvm-lto2 run -opaque-pointers %t.bc %t2.bc -o %t.out -save-temps \
 ; RUN: -r=%t.bc,H,px -r=%t.bc,G, -r=%t2.bc,G,px
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -o - %t.out.1.3.import.bc | FileCheck %s
+; RUN: llvm-dis -o - %t.out.1.3.import.bc | FileCheck %s
 
 ; RUN: llvm-lto2 run -opaque-pointers %t.bc %t2.bc -o %t.out -thinlto-distributed-indexes \
 ; RUN: -r=%t.bc,H,px -r=%t.bc,G, -r=%t2.bc,G,px
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -passes=function-import -import-all-index -summary-file %t.bc.thinlto.bc %t.bc -o %t.out
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -o - %t.out | FileCheck %s
+; RUN: opt -passes=function-import -import-all-index -summary-file %t.bc.thinlto.bc %t.bc -o %t.out
+; RUN: llvm-dis -o - %t.out | FileCheck %s
 
 ; Validate that G was imported
 ; CHECK: define available_externally i64 @G

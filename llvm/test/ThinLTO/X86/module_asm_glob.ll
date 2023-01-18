@@ -1,16 +1,7 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -module-summary %s -o %t1.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -module-summary %p/Inputs/module_asm.ll -o %t2.bc
+; RUN: opt -module-summary %s -o %t1.bc
+; RUN: opt -module-summary %p/Inputs/module_asm.ll -o %t2.bc
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -opaque-pointers -thinlto-action=run -exported-symbol=main %t1.bc %t2.bc
+; RUN: llvm-lto -thinlto-action=run -exported-symbol=main %t1.bc %t2.bc
 ; RUN: llvm-nm %t1.bc.thinlto.o | FileCheck  %s --check-prefix=NM0
 ; RUN: llvm-nm %t2.bc.thinlto.o | FileCheck  %s --check-prefix=NM1
 

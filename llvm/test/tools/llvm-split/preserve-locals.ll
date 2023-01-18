@@ -1,12 +1,6 @@
 ; RUN: llvm-split -preserve-locals -o %t %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -o - %t0 | FileCheck --check-prefix=CHECK0 %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -o - %t1 | FileCheck --check-prefix=CHECK1 %s
+; RUN: llvm-dis -o - %t0 | FileCheck --check-prefix=CHECK0 %s
+; RUN: llvm-dis -o - %t1 | FileCheck --check-prefix=CHECK1 %s
 
 ; The local_var and local_func must not be separated.
 ; CHECK0: @local_var

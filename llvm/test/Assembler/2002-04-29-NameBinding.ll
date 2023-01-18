@@ -4,16 +4,10 @@
 ; Check by running globaldce, which will remove the constant if there are
 ; no references to it!
 ; 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers < %s -passes=globaldce -S | \
+; RUN: opt < %s -passes=globaldce -S | \
 ; RUN:   not grep constant
 ;
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: verify-uselistorder -opaque-pointers %s
+; RUN: verify-uselistorder %s
 
 @v1 = internal constant i32 5           
 

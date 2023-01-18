@@ -1,21 +1,12 @@
 ; Test to ensure that dead alias are dropped by converting to a declaration
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -module-summary %s -o %t1.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc -r %t1.bc,barAlias,x \
+; RUN: opt -module-summary %s -o %t1.bc
+; RUN: llvm-lto2 run %t1.bc -r %t1.bc,barAlias,x \
 ; RUN:   -r %t1.bc,bar,x -r %t1.bc,zed,px \
 ; RUN:   -r %t1.bc,var,x -r %t1.bc,varAlias,x \
 ; RUN:   -o %t2.o -save-temps
 
 ; Check that bar and barAlias were dropped to declarations
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t2.o.1.1.promote.bc -o - | FileCheck %s --check-prefix=DROP
+; RUN: llvm-dis %t2.o.1.1.promote.bc -o - | FileCheck %s --check-prefix=DROP
 ; DROP-DAG: declare void @bar()
 ; DROP-DAG: declare void @barAlias()
 ; DROP-DAG: @var = external global i32

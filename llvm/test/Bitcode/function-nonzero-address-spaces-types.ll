@@ -1,8 +1,5 @@
 ; Verify that we accept calls to variables in the program AS:
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-as -data-layout "P40" %s -o - | llvm-dis -opaque-pointers - | FileCheck %s
+; RUN: llvm-as -data-layout "P40" %s -o - | llvm-dis - | FileCheck %s
 ; CHECK: target datalayout = "P40"
 
 ; We should get a sensible error for a non-program address call:

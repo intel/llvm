@@ -1,19 +1,10 @@
 ; Check that bitcast in "CG Profile" related metadata nodes (in this test case,
 ; generated during function importing in IRMover's RAUW operations) are accepted
 ; by verifier.
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -passes=cg-profile -module-summary %s -o %t.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -module-summary %p/Inputs/cg_profile.ll -o %t2.bc
+; RUN: opt -passes=cg-profile -module-summary %s -o %t.bc
+; RUN: opt -module-summary %p/Inputs/cg_profile.ll -o %t2.bc
 ; RUN: llvm-lto -thinlto -o %t3 %t.bc %t2.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -passes=function-import -print-imports -summary-file %t3.thinlto.bc %t.bc \
+; RUN: opt -passes=function-import -print-imports -summary-file %t3.thinlto.bc %t.bc \
 ; RUN:   -S 2>&1 | FileCheck %s
 
 ; CHECK:      !0 = !{i32 1, !"EnableSplitLTOUnit", i32 0}

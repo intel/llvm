@@ -1,7 +1,4 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: not lli -opaque-pointers -no-process-syms -emulated-tls -jit-kind=orc-lazy %s 2>&1 \
+; RUN: not lli -no-process-syms -emulated-tls -jit-kind=orc-lazy %s 2>&1 \
 ; RUN:   | FileCheck %s
 ;
 ; Test that emulated-tls does not generate any unexpected errors.

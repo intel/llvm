@@ -4,16 +4,10 @@
 ; RUN: opt -module-summary %t/a.ll -o %ta.bc
 ; RUN: opt -module-summary %t/b.ll -o %tb.bc
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -o - %ta.bc | FileCheck %s --check-prefix=PRELINKDISA
+; RUN: llvm-dis -o - %ta.bc | FileCheck %s --check-prefix=PRELINKDISA
 ; PRELINKDISA: gv: (name: "main", {{.*}} callsites: ((callee: ^2, clones: (0), stackIds: (8632435727821051414)), (callee: ^2, clones: (0), stackIds: (15025054523792398438)))))) ; guid = 15822663052811949562
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -o - %tb.bc | FileCheck %s --check-prefix=PRELINKDISB
+; RUN: llvm-dis -o - %tb.bc | FileCheck %s --check-prefix=PRELINKDISB
 ; PRELINKDISB: gv: (name: "_Z3foov", {{.*}} callsites: ((callee: ^2, clones: (0), stackIds: (2732490490862098848)))))) ; guid = 9191153033785521275
 ; PRELINKDISB: gv: (name: "_Z3bazv", {{.*}} callsites: ((callee: ^3, clones: (0), stackIds: (12481870273128938184)))))) ; guid = 15176620447596392000
 ; PRELINKDISB: gv: (name: "_Z3barv", {{.*}} allocs: ((versions: (none), memProf: ((type: notcold, stackIds: (12481870273128938184, 2732490490862098848, 8632435727821051414)), (type: cold, stackIds: (12481870273128938184, 2732490490862098848, 15025054523792398438)))))))) ; guid = 17377440600225628772
@@ -35,10 +29,7 @@
 ; RUN:     -r=%tb.bc,_Z3barv,pl \
 ; RUN:     -r=%tb.bc,_Z3bazv,pl
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -o - %t.index.bc | FileCheck %s --check-prefix=COMBINEDDIS
+; RUN: llvm-dis -o - %t.index.bc | FileCheck %s --check-prefix=COMBINEDDIS
 ; COMBINEDDIS: gv: (guid: 9191153033785521275, {{.*}} callsites: ((callee: ^3, clones: (0), stackIds: (2732490490862098848))))))
 ; COMBINEDDIS: gv: (guid: 15176620447596392000, {{.*}} callsites: ((callee: ^5, clones: (0), stackIds: (12481870273128938184))))))
 ; COMBINEDDIS: gv: (guid: 15822663052811949562, {{.*}} callsites: ((callee: ^2, clones: (0), stackIds: (8632435727821051414)), (callee: ^2, clones: (0), stackIds: (15025054523792398438))))))
@@ -47,17 +38,11 @@
 ; RUN: llvm-bcanalyzer -dump %t.index.bc | FileCheck %s --check-prefix=COMBINEDBCAN
 ; COMBINEDBCAN: <STACK_IDS abbrevid=4 op0=8632435727821051414 op1=-3421689549917153178 op2=-5964873800580613432 op3=2732490490862098848/>
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -o - %ta.bc.thinlto.bc | FileCheck %s --check-prefix=DISTRIBUTEDDISA
+; RUN: llvm-dis -o - %ta.bc.thinlto.bc | FileCheck %s --check-prefix=DISTRIBUTEDDISA
 ; DISTRIBUTEDDISA: gv: (guid: 9191153033785521275, {{.*}} callsites: ((callee: null, clones: (0), stackIds: (2732490490862098848))))))
 ; DISTRIBUTEDDISA: gv: (guid: 15822663052811949562, {{.*}} callsites: ((callee: ^2, clones: (0), stackIds: (8632435727821051414)), (callee: ^2, clones: (0), stackIds: (15025054523792398438))))))
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -o - %tb.bc.thinlto.bc | FileCheck %s --check-prefix=DISTRIBUTEDDISB
+; RUN: llvm-dis -o - %tb.bc.thinlto.bc | FileCheck %s --check-prefix=DISTRIBUTEDDISB
 ; DISTRIBUTEDDISB: gv: (guid: 9191153033785521275, {{.*}} callsites: ((callee: ^2, clones: (0), stackIds: (2732490490862098848))))))
 ; DISTRIBUTEDDISB: gv: (guid: 15176620447596392000, {{.*}} callsites: ((callee: ^3, clones: (0), stackIds: (12481870273128938184))))))
 ; DISTRIBUTEDDISB: gv: (guid: 17377440600225628772, {{.*}} allocs: ((versions: (none), memProf: ((type: notcold, stackIds: (12481870273128938184, 2732490490862098848, 8632435727821051414)), (type: cold, stackIds: (12481870273128938184, 2732490490862098848, 15025054523792398438))))))))

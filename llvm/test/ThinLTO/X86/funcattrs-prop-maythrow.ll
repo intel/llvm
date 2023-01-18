@@ -5,14 +5,8 @@
 ; RUN: llvm-lto2 run -opaque-pointers -disable-thinlto-funcattrs=0 %t1.bc %t2.bc -o %t.o -r %t1.bc,caller,px -r %t1.bc,caller1,px -r %t1.bc,caller2,px -r %t1.bc,caller_nounwind,px  \
 ; RUN:               -r %t1.bc,cleanupret,l -r %t1.bc,catchret,l -r %t1.bc,resume,l -r %t1.bc,cleanupret_nounwind,l \
 ; RUN:               -r %t2.bc,cleanupret,px -r %t2.bc,catchret,px -r %t2.bc,resume,px -r %t2.bc,cleanupret_nounwind,px -r %t2.bc,nonThrowing,px -r %t2.bc,__gxx_personality_v0,px -save-temps
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -o - %t2.bc | FileCheck %s --check-prefix=SUMMARY
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -o - %t.o.1.3.import.bc | FileCheck %s
+; RUN: llvm-dis -o - %t2.bc | FileCheck %s --check-prefix=SUMMARY
+; RUN: llvm-dis -o - %t.o.1.3.import.bc | FileCheck %s
 
 ;--- main.ll
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"

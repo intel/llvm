@@ -4,14 +4,8 @@
 ; RUN: opt -thinlto-bc -thinlto-split-lto-unit -o %t %s
 ; RUN: llvm-modextract -b -n 0 -o %t0.bc %t
 ; RUN: llvm-modextract -b -n 1 -o %t1.bc %t
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -o - %t0.bc | FileCheck --check-prefix=M0 %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers -o - %t1.bc | FileCheck --check-prefix=M1 %s
+; RUN: llvm-dis -o - %t0.bc | FileCheck --check-prefix=M0 %s
+; RUN: llvm-dis -o - %t1.bc | FileCheck --check-prefix=M1 %s
 
 ; M0: @g1 = external global i8
 ; M0: @g2 = external global i8

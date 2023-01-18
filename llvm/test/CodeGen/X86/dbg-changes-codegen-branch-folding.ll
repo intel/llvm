@@ -1,14 +1,5 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llc -opaque-pointers -mtriple=x86_64-linux < %s | FileCheck %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -strip-debug < %s | llc -opaque-pointers -mtriple=x86_64-linux | FileCheck %s
+; RUN: llc -mtriple=x86_64-linux < %s | FileCheck %s
+; RUN: opt -strip-debug < %s | llc -mtriple=x86_64-linux | FileCheck %s
 ; http://llvm.org/PR19051. Minor code-motion difference with -g.
 ; Presence of debug info shouldn't affect the codegen. Make sure that
 ; we generated the same code sequence with and without debug info. 

@@ -1,11 +1,5 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -S -preserve-ll-uselistorder < %s | FileCheck %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: verify-uselistorder -opaque-pointers %s
+; RUN: opt -S -preserve-ll-uselistorder < %s | FileCheck %s
+; RUN: verify-uselistorder %s
 
 ; CHECK: @g = external global i32
 ; CHECK: define void @func1() {

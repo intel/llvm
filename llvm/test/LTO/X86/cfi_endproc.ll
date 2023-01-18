@@ -1,13 +1,7 @@
 ; RUN: llvm-as < %s >%t1
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -opaque-pointers -o %t2 %t1
+; RUN: llvm-lto -o %t2 %t1
 ; RUN: llvm-nm %t2 | FileCheck %s -check-prefix=NOEXPORT
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -opaque-pointers -o %t3 -exported-symbol=main %t1
+; RUN: llvm-lto -o %t3 -exported-symbol=main %t1
 ; RUN: llvm-nm %t3 | FileCheck %s -check-prefix=EXPORT
 
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128"
@@ -31,10 +25,7 @@ define i32 @main(i32 %argc, ptr %argv) {
   ret i32 0
 }
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -opaque-pointers -o %t -dso-symbol=zed1 -dso-symbol=zed2 %t1 -O0
+; RUN: llvm-lto -o %t -dso-symbol=zed1 -dso-symbol=zed2 %t1 -O0
 ; RUN: llvm-nm %t | FileCheck %s -check-prefix=ZED1_AND_ZED2
 ; ZED1_AND_ZED2: V zed1
 @zed1 = linkonce_odr global i32 42

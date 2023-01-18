@@ -1,12 +1,6 @@
 ; RUN: llvm-as < %s -o %t.bc 2>&1 >/dev/null | FileCheck -check-prefix=WARN %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.bc | FileCheck %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: verify-uselistorder -opaque-pointers < %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s
+; RUN: verify-uselistorder < %t.bc
 
 define i32 @main() !dbg !4 {
 entry:

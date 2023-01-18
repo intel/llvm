@@ -1,8 +1,5 @@
 ; RUN: llvm-as %s -o %t.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-link -opaque-pointers %t.bc -S | FileCheck %s
+; RUN: llvm-link %t.bc -S | FileCheck %s
 
 declare void @f(ptr)
 

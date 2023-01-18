@@ -1,7 +1,4 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-as < %s | opt -opaque-pointers -passes=globalopt -opaque-pointers -disable-output
+; RUN: llvm-as < %s | opt -passes=globalopt -disable-output
 ; NOTE: This needs to run through 'llvm-as' first to reproduce the error!
 ; PR15440
 

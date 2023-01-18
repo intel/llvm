@@ -1,10 +1,7 @@
 ; RUN: llvm-as < %s -disable-output 2>&1 | FileCheck %s -allow-empty
 ; CHECK-NOT: error
 ; CHECK-NOT: warning
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: verify-uselistorder -opaque-pointers < %s
+; RUN: verify-uselistorder < %s
 
 @a = global [4 x i1] [i1 0, i1 1, i1 0, i1 1]
 @b = alias i1, getelementptr ([4 x i1], ptr @a, i64 0, i64 2)

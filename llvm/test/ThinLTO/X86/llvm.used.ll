@@ -4,10 +4,7 @@
 ; RUN: llvm-lto -thinlto-action=thinlink -opaque-pointers -o %t3.bc %t.bc %t2.bc
 
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -thinlto-action=import -opaque-pointers %t2.bc -thinlto-index=%t3.bc -o - | llvm-dis -opaque-pointers -o - | FileCheck %s
+; RUN: llvm-lto -thinlto-action=import -opaque-pointers %t2.bc -thinlto-index=%t3.bc -o - | llvm-dis -o - | FileCheck %s
 ; CHECK: define available_externally void @globalfunc
 
 

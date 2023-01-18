@@ -1,7 +1,4 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-as -o - %s | llvm-dis -opaque-pointers -o - 2>&1 | FileCheck %s
+; RUN: llvm-as -o - %s | llvm-dis -o - 2>&1 | FileCheck %s
 
 ; Make sure we can assemble and disassemble IR containing intrinsics with
 ; unnamed types.

@@ -1,32 +1,17 @@
 ; Do setup work for all below tests: generate bitcode and combined index
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -module-summary %s -o %t.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -module-summary %p/Inputs/funcimport_comdat.ll -o %t2.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -opaque-pointers -thinlto -o %t3 %t.bc %t2.bc
+; RUN: opt -module-summary %s -o %t.bc
+; RUN: opt -module-summary %p/Inputs/funcimport_comdat.ll -o %t2.bc
+; RUN: llvm-lto -thinlto -o %t3 %t.bc %t2.bc
 
 ; Ensure linking of comdat containing external linkage global and function
 ; removes the imported available_externally defs from comdat.
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-link -opaque-pointers %t2.bc -summary-index=%t3.thinlto.bc -import=comdat1_func1:%t.bc -S | FileCheck %s --check-prefix=IMPORTCOMDAT
+; RUN: llvm-link %t2.bc -summary-index=%t3.thinlto.bc -import=comdat1_func1:%t.bc -S | FileCheck %s --check-prefix=IMPORTCOMDAT
 ; IMPORTCOMDAT-NOT: $comdat1 = comdat any
 ; IMPORTCOMDAT-NOT: comdat($comdat1)
 
 ; Ensure linking of comdat containing internal linkage function with alias
 ; removes the imported and promoted available_externally defs from comdat.
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-link -opaque-pointers %t2.bc -summary-index=%t3.thinlto.bc -import=comdat2_func1:%t.bc -S | FileCheck %s --check-prefix=IMPORTCOMDAT2
+; RUN: llvm-link %t2.bc -summary-index=%t3.thinlto.bc -import=comdat2_func1:%t.bc -S | FileCheck %s --check-prefix=IMPORTCOMDAT2
 ; IMPORTCOMDAT2-NOT: $comdat2 = comdat any
 ; IMPORTCOMDAT2-NOT: comdat($comdat2)
 

@@ -4,16 +4,10 @@
 ; RUN: llvm-lto -thinlto-action=thinlink -opaque-pointers -o %t3.bc %t.bc %t2.bc
 
 ; Check that we don't promote 'var_with_section'
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -thinlto-action=promote -opaque-pointers %t2.bc -thinlto-index=%t3.bc -o - | llvm-dis -opaque-pointers -o - | FileCheck %s --check-prefix=PROMOTE
+; RUN: llvm-lto -thinlto-action=promote -opaque-pointers %t2.bc -thinlto-index=%t3.bc -o - | llvm-dis -o - | FileCheck %s --check-prefix=PROMOTE
 ; PROMOTE: @var_with_section = internal global i32 0, section "some_section"
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -thinlto-action=import -opaque-pointers %t.bc -thinlto-index=%t3.bc -o - | llvm-dis -opaque-pointers -o - | FileCheck %s --check-prefix=IMPORT
+; RUN: llvm-lto -thinlto-action=import -opaque-pointers %t.bc -thinlto-index=%t3.bc -o - | llvm-dis -o - | FileCheck %s --check-prefix=IMPORT
 ; Check that section prevent import of @reference_gv_with_section.
 ; IMPORT: declare void @reference_gv_with_section()
 ; Canary to check that importing is correctly set up.

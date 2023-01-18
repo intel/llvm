@@ -1,9 +1,6 @@
 ; Make sure this doesn't turn into an infinite loop
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt < %s -passes=simplifycfg,instsimplify,simplifycfg -simplifycfg-require-and-preserve-domtree=1 | llvm-dis -opaque-pointers | FileCheck %s
+; RUN: opt < %s -passes=simplifycfg,instsimplify,simplifycfg -simplifycfg-require-and-preserve-domtree=1 | llvm-dis | FileCheck %s
 
 %struct.anon = type { i32, i32, i32, i32, [1024 x i8] }
 @_zero_ = external global ptr		; <ptr> [#uses=2]

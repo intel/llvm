@@ -1,8 +1,5 @@
 ; RUN: llvm-as %s -o /dev/null
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: verify-uselistorder -opaque-pointers %s
+; RUN: verify-uselistorder %s
 
 define ptr @t1(ptr %X) {
         %W = getelementptr { float, i32 }, ptr %X, i32 20, i32 1            ; <ptr> [#uses=0]

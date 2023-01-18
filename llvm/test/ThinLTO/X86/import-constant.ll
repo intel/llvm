@@ -11,18 +11,9 @@
 ; RUN:    -r=%t2.bc,_Z6getObjv,pl \
 ; RUN:    -r=%t2.bc,val,pl \
 ; RUN:    -r=%t2.bc,outer,pl
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t-out.2.1.promote.bc -o - | FileCheck %s --check-prefix=PROMOTE
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t-out.1.3.import.bc -o - | FileCheck %s --check-prefix=IMPORT
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t-out.1.4.opt.bc -o - | FileCheck %s --check-prefix=OPT
+; RUN: llvm-dis %t-out.2.1.promote.bc -o - | FileCheck %s --check-prefix=PROMOTE
+; RUN: llvm-dis %t-out.1.3.import.bc -o - | FileCheck %s --check-prefix=IMPORT
+; RUN: llvm-dis %t-out.1.4.opt.bc -o - | FileCheck %s --check-prefix=OPT
 
 ; Check when importing references is prohibited
 ; RUN: llvm-lto2 run -save-temps %t1.bc %t2.bc -o %t-out-norefs \
@@ -33,10 +24,7 @@
 ; RUN:    -r=%t2.bc,_Z6getObjv,pl \
 ; RUN:    -r=%t2.bc,val,pl \
 ; RUN:    -r=%t2.bc,outer,pl
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t-out-norefs.1.3.import.bc -o - | FileCheck %s --check-prefix=NOREFS
+; RUN: llvm-dis %t-out-norefs.1.3.import.bc -o - | FileCheck %s --check-prefix=NOREFS
 
 ; Check that variable has been promoted in the source module
 ; PROMOTE: @_ZL3Obj.llvm.{{.*}} = hidden constant %struct.S { i32 4, i32 8, ptr @val }

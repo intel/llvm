@@ -14,10 +14,7 @@
 ; RUN:   -r=%t1a.o,_ZN1B1fEi,p \
 ; RUN:   -r=%t1a.o,__cxa_pure_virtual, \
 ; RUN:   2>&1 | FileCheck %s --check-prefix=REMARK
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t3a.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
+; RUN: llvm-dis %t3a.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
 
 ;; Hybrid WPD
 ;; Generate split module with summary for hybrid Thin/Regular LTO WPD.
@@ -38,10 +35,7 @@
 ; RUN:   -r=%t1b.o,_ZN1B1fEi, \
 ; RUN:   -r=%t1b.o,__cxa_pure_virtual, \
 ; RUN:   2>&1 | FileCheck %s --check-prefix=REMARK
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t3b.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
+; RUN: llvm-dis %t3b.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
 
 ;; Regular LTO WPD
 ; RUN: opt -o %t1c.o %s
@@ -56,10 +50,7 @@
 ; RUN:   -r=%t1c.o,_ZN1B1fEi,p \
 ; RUN:   -r=%t1c.o,__cxa_pure_virtual, \
 ; RUN:   2>&1 | FileCheck %s --check-prefix=REMARK
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t3c.0.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
+; RUN: llvm-dis %t3c.0.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
 
 ; REMARK-DAG: single-impl: devirtualized a call to _ZN1A1nEi
 

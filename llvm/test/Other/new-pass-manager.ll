@@ -81,10 +81,7 @@
 
 ; Round trip through bitcode.
 ; RUN: opt -f -o - -passes='no-op-module,no-op-module' %s \
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN:     | llvm-dis -opaque-pointers \
+; RUN:     | llvm-dis \
 ; RUN:     | FileCheck %s --check-prefix=CHECK-NOOP
 
 ; RUN: opt -disable-output -debug-pass-manager -disable-verify -verify-cfg-preserved=1 -passes='no-op-module,function(no-op-function)' %s 2>&1 \

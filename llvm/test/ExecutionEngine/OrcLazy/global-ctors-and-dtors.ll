@@ -1,17 +1,11 @@
 ; Test that global constructors and destructors are run:
 ;
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: lli -opaque-pointers -jit-kind=orc-lazy -orc-lazy-debug=funcs-to-stdout -extra-module %s \
+; RUN: lli -jit-kind=orc-lazy -orc-lazy-debug=funcs-to-stdout -extra-module %s \
 ; RUN:   %S/Inputs/noop-main.ll | FileCheck %s
 ;
 ; Test that this is true for global constructors and destructors in other
 ; JITDylibs.
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: lli -opaque-pointers -jit-kind=orc-lazy -orc-lazy-debug=funcs-to-stdout \
+; RUN: lli -jit-kind=orc-lazy -orc-lazy-debug=funcs-to-stdout \
 ; RUN:   -jd extra -extra-module %s -jd main %S/Inputs/noop-main.ll | FileCheck %s
 ;
 ; CHECK: Hello from constructor

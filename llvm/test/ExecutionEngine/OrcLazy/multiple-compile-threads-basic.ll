@@ -1,7 +1,4 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: lli -opaque-pointers -jit-kind=orc-lazy -compile-threads=2 -thread-entry hello %s | FileCheck %s
+; RUN: lli -jit-kind=orc-lazy -compile-threads=2 -thread-entry hello %s | FileCheck %s
 ; REQUIRES: thread_support
 ;
 ; FIXME: Something hangs here.

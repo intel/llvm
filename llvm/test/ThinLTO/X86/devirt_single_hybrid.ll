@@ -20,14 +20,8 @@
 ; RUN:    -r=%t-bar.bc,_ZNK1A1fEv, \
 ; RUN:    -r=%t-bar.bc,_ZTV1A,pl \
 ; RUN:    -r=%t-bar.bc,_ZTI1A, 2>&1 | FileCheck %s --check-prefix=REMARK
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.1.3.import.bc -o - | FileCheck %s --check-prefix=IMPORT
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.1.5.precodegen.bc -o - | FileCheck %s --check-prefix=CODEGEN
+; RUN: llvm-dis %t.1.3.import.bc -o - | FileCheck %s --check-prefix=IMPORT
+; RUN: llvm-dis %t.1.5.precodegen.bc -o - | FileCheck %s --check-prefix=CODEGEN
 
 ; REMARK-COUNT-3: single-impl: devirtualized a call to _ZNK1A1fEv
 

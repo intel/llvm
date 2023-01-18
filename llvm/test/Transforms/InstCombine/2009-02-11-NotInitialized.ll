@@ -1,7 +1,4 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt < %s -passes=inline,instcombine,function-attrs | llvm-dis -opaque-pointers
+; RUN: opt < %s -passes=inline,instcombine,function-attrs | llvm-dis
 ;
 ; Check that nocapture attributes are added when run after an SCC pass.
 ; PR3520

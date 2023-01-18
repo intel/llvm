@@ -1,16 +1,7 @@
 ; RUN: llvm-as < %s -o %t.bc -data-layout=A5 2>&1 | FileCheck -check-prefixes=AS %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.bc | FileCheck -check-prefixes=DIS %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers < %s -S -data-layout=A5 2>&1 | FileCheck -check-prefixes=AS %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers < %t.bc -S | FileCheck -check-prefixes=DIS %s
+; RUN: llvm-dis < %t.bc | FileCheck -check-prefixes=DIS %s
+; RUN: opt < %s -S -data-layout=A5 2>&1 | FileCheck -check-prefixes=AS %s
+; RUN: opt < %t.bc -S | FileCheck -check-prefixes=DIS %s
 
 define void @foo() {
 entry:

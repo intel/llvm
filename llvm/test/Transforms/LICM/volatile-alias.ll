@@ -1,11 +1,5 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -passes='sroa,loop(loop-rotate)' %s | opt -opaque-pointers -aa-pipeline=basic-aa -passes='require<aa>,require<targetir>,require<scalar-evolution>,require<opt-remark-emit>,loop-mssa(licm)' -S | FileCheck %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -passes='sroa,loop(loop-rotate),loop-mssa(licm)' -verify-memoryssa -S < %s | FileCheck %s
+; RUN: opt -passes='sroa,loop(loop-rotate)' %s | opt -aa-pipeline=basic-aa -passes='require<aa>,require<targetir>,require<scalar-evolution>,require<opt-remark-emit>,loop-mssa(licm)' -S | FileCheck %s
+; RUN: opt -passes='sroa,loop(loop-rotate),loop-mssa(licm)' -verify-memoryssa -S < %s | FileCheck %s
 ; The objects *p and *q are aliased to each other, but even though *q is
 ; volatile, *p can be considered invariant in the loop. Check if it is moved
 ; out of the loop.

@@ -1,7 +1,4 @@
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-as < %s | llvm-dis -opaque-pointers | FileCheck %s
+; RUN: llvm-as < %s | llvm-dis | FileCheck %s
 
 ; Make sure some masked/load store intrinsics have the expected attributes
 ; Specifically `nocapture' should be added to the pointer paramters for the loads/stores

@@ -8,46 +8,31 @@
 ; conservative way that avoids assumptions about which specific passes
 ; will be disabled.
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -disable-output -disable-verify \
+; RUN: opt -disable-output -disable-verify \
 ; RUN:     -passes=inferattrs -opt-bisect-limit=-1 %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefix=CHECK-MODULE-PASS
 ; CHECK-MODULE-PASS: BISECT: running pass (1) InferFunctionAttrsPass on [module]
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -disable-output -disable-verify \
+; RUN: opt -disable-output -disable-verify \
 ; RUN:     -passes=inferattrs -opt-bisect-limit=0 %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefix=CHECK-LIMIT-MODULE-PASS
 ; CHECK-LIMIT-MODULE-PASS: BISECT: NOT running pass (1) InferFunctionAttrsPass on [module]
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -disable-output -debug-pass-manager \
+; RUN: opt -disable-output -debug-pass-manager \
 ; RUN:     -passes=inferattrs -opt-bisect-limit=-1 %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefix=CHECK-REQUIRED-PASS
 ; CHECK-REQUIRED-PASS: BISECT: running pass (1) InferFunctionAttrsPass on [module]
 ; CHECK-REQUIRED-PASS-NOT: BISECT: {{.*}}VerifierPass
 ; CHECK-REQUIRED-PASS: Running pass: VerifierPass
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -disable-output -debug-pass-manager \
+; RUN: opt -disable-output -debug-pass-manager \
 ; RUN:     -passes=inferattrs -opt-bisect-limit=0 %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefix=CHECK-LIMIT-REQUIRED-PASS
 ; CHECK-LIMIT-REQUIRED-PASS: BISECT: NOT running pass (1) InferFunctionAttrsPass on [module]
 ; CHECK-LIMIT-REQUIRED-PASS-NOT: BISECT: {{.*}}VerifierPass
 ; CHECK-LIMIT-REQUIRED-PASS: Running pass: VerifierPass
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -disable-output -disable-verify \
+; RUN: opt -disable-output -disable-verify \
 ; RUN:     -passes=early-cse -opt-bisect-limit=-1 %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefix=CHECK-FUNCTION-PASS
 ; CHECK-FUNCTION-PASS: BISECT: running pass (1) EarlyCSEPass on f1
@@ -55,10 +40,7 @@
 ; CHECK-FUNCTION-PASS: BISECT: running pass (3) EarlyCSEPass on f3
 ; CHECK-FUNCTION-PASS: BISECT: running pass (4) EarlyCSEPass on f4
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -disable-output -disable-verify \
+; RUN: opt -disable-output -disable-verify \
 ; RUN:     -passes=early-cse -opt-bisect-limit=2 %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefix=CHECK-LIMIT-FUNCTION-PASS
 ; CHECK-LIMIT-FUNCTION-PASS: BISECT: running pass (1) EarlyCSEPass on f1
@@ -66,10 +48,7 @@
 ; CHECK-LIMIT-FUNCTION-PASS: BISECT: NOT running pass (3) EarlyCSEPass on f3
 ; CHECK-LIMIT-FUNCTION-PASS: BISECT: NOT running pass (4) EarlyCSEPass on f4
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -disable-output -disable-verify \
+; RUN: opt -disable-output -disable-verify \
 ; RUN:     -passes=function-attrs -opt-bisect-limit=-1 %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefix=CHECK-CGSCC-PASS
 ; CHECK-CGSCC-PASS: BISECT: running pass (1) PostOrderFunctionAttrsPass on (f1)
@@ -77,10 +56,7 @@
 ; CHECK-CGSCC-PASS: BISECT: running pass (3) PostOrderFunctionAttrsPass on (f3)
 ; CHECK-CGSCC-PASS: BISECT: running pass (4) PostOrderFunctionAttrsPass on (f4)
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -disable-output -disable-verify \
+; RUN: opt -disable-output -disable-verify \
 ; RUN:     -passes=function-attrs -opt-bisect-limit=3 %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefix=CHECK-LIMIT-CGSCC-PASS
 ; CHECK-LIMIT-CGSCC-PASS: BISECT: running pass (1) PostOrderFunctionAttrsPass on (f1)
@@ -88,10 +64,7 @@
 ; CHECK-LIMIT-CGSCC-PASS: BISECT: running pass (3) PostOrderFunctionAttrsPass on (f3)
 ; CHECK-LIMIT-CGSCC-PASS: BISECT: NOT running pass (4) PostOrderFunctionAttrsPass on (f4)
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -disable-output -disable-verify -opt-bisect-limit=-1 \
+; RUN: opt -disable-output -disable-verify -opt-bisect-limit=-1 \
 ; RUN:     -passes='inferattrs,cgscc(function-attrs,function(early-cse))' %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefix=CHECK-MULTI-PASS
 ; CHECK-MULTI-PASS: BISECT: running pass (1) InferFunctionAttrsPass on [module]
@@ -104,10 +77,7 @@
 ; CHECK-MULTI-PASS: BISECT: running pass (8) PostOrderFunctionAttrsPass on (f4)
 ; CHECK-MULTI-PASS: BISECT: running pass (9) EarlyCSEPass on f4
 
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers -disable-output -disable-verify -opt-bisect-limit=7 \
+; RUN: opt -disable-output -disable-verify -opt-bisect-limit=7 \
 ; RUN:     -passes='inferattrs,cgscc(function-attrs,function(early-cse))' %s 2>&1 \
 ; RUN:     | FileCheck %s --check-prefix=CHECK-LIMIT-MULTI-PASS
 ; CHECK-LIMIT-MULTI-PASS: BISECT: running pass (1) InferFunctionAttrsPass on [module]
@@ -121,21 +91,12 @@
 ; CHECK-LIMIT-MULTI-PASS: BISECT: NOT running pass (9) EarlyCSEPass on f4
 
 ; Make sure we don't skip writing the output to stdout.
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers %s -opt-bisect-limit=0 -passes=early-cse | opt -opaque-pointers -S | FileCheck %s -check-prefix=CHECK-OUTPUT
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers %s -opt-bisect-limit=0 -passes=early-cse -S | FileCheck %s -check-prefix=CHECK-OUTPUT
+; RUN: opt %s -opt-bisect-limit=0 -passes=early-cse | opt -S | FileCheck %s -check-prefix=CHECK-OUTPUT
+; RUN: opt %s -opt-bisect-limit=0 -passes=early-cse -S | FileCheck %s -check-prefix=CHECK-OUTPUT
 ; CHECK-OUTPUT: define void @f1
 
 ; Make sure we write ThinLTO bitcode
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: opt -opaque-pointers %s -opt-bisect-limit=0 -disable-verify -thinlto-bc -o /dev/null 2>&1 | FileCheck --allow-empty %s -check-prefix=CHECK-THINLTO
+; RUN: opt %s -opt-bisect-limit=0 -disable-verify -thinlto-bc -o /dev/null 2>&1 | FileCheck --allow-empty %s -check-prefix=CHECK-THINLTO
 ; CHECK-THINLTO-NOT: NOT running pass
 
 declare i32 @g()

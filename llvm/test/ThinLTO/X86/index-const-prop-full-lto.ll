@@ -4,10 +4,7 @@
 ; RUN: llvm-lto2 run -save-temps -opaque-pointers %t2.bc -r=%t2.bc,g,pl \
 ; RUN:                 %t1.bc -r=%t1.bc,foo,l -r=%t1.bc,main,plx -r=%t1.bc,g, \
 ; RUN:                 %t3.bc -r=%t3.bc,foo,pl -r=%t3.bc,g, -o %t4
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t4.2.3.import.bc -o - | FileCheck %s
+; RUN: llvm-dis %t4.2.3.import.bc -o - | FileCheck %s
 
 ; All references from functions in full LTO module are not constant.
 ; We cannot internalize @g

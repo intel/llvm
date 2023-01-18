@@ -1,7 +1,4 @@
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-RUN: llvm-dis -opaque-pointers %p/Inputs/auto_upgrade_flt_rounds.bc -o - | FileCheck %s
+RUN: llvm-dis %p/Inputs/auto_upgrade_flt_rounds.bc -o - | FileCheck %s
 
 CHECK-LABEL: define signext i32 @get_rounds()
 CHECK: tail call i32 @llvm.get.rounding()

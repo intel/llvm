@@ -1,9 +1,6 @@
 ; RUN: llvm-as %S/Inputs/2003-01-30-LinkerRename.ll -o %t.1.bc
 ; RUN: llvm-as %s -o %t.2.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-link -opaque-pointers %t.1.bc %t.2.bc -S | FileCheck %s
+; RUN: llvm-link %t.1.bc %t.2.bc -S | FileCheck %s
 
 ; CHECK: @bar = global ptr @foo.2
 

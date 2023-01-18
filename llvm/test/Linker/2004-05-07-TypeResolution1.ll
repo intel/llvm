@@ -1,9 +1,6 @@
 ; RUN: llvm-as %s -o %t1.bc
 ; RUN: llvm-as < %p/2004-05-07-TypeResolution2.ll -o %t2.bc
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-link -opaque-pointers -o %t3.bc %t1.bc %t2.bc
+; RUN: llvm-link -o %t3.bc %t1.bc %t2.bc
 
 target datalayout = "e-p:32:32"
 	%myint = type opaque

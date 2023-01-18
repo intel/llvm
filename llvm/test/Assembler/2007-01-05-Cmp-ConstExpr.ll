@@ -1,9 +1,6 @@
 ; Test Case for PR1080
 ; RUN: llvm-as %s -o /dev/null
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: verify-uselistorder -opaque-pointers %s
+; RUN: verify-uselistorder %s
 
 @str = internal constant [4 x i8] c"-ga\00"             ; <ptr> [#uses=2]
 

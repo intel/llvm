@@ -1,10 +1,7 @@
 ; RUN: llvm-as < %s -disable-output 2>&1 | FileCheck %s -allow-empty
 ; CHECK-NOT: error
 ; CHECK-NOT: warning
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: verify-uselistorder -opaque-pointers < %s
+; RUN: verify-uselistorder < %s
 
 @ba1 = constant ptr blockaddress (@bafunc1, %bb)
 @ba2 = constant ptr getelementptr (i8, ptr blockaddress (@bafunc2, %bb), i61 0)

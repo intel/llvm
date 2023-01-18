@@ -8,14 +8,8 @@
 ; RUN:               -r=%t1.bc,main,plx \
 ; RUN:               -r=%t1.bc,G \
 ; RUN:               -r=%t2.bc,G,pl
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.out.1.3.import.bc -o -  | FileCheck %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t.out.2.3.import.bc -o -  | FileCheck %s
+; RUN: llvm-dis %t.out.1.3.import.bc -o -  | FileCheck %s
+; RUN: llvm-dis %t.out.2.3.import.bc -o -  | FileCheck %s
 
 ; Test that a non-prevailing def with interposable linkage doesn't prevent
 ; importing a suitable definition from a prevailing module.

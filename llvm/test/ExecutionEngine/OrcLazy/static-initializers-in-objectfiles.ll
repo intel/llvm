@@ -1,13 +1,7 @@
 ; RUN: rm -rf %t
 ; RUN: mkdir -p %t
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: lli -opaque-pointers -jit-kind=orc-lazy -enable-cache-manager -object-cache-dir=%t %s
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: lli -opaque-pointers -jit-kind=orc-lazy -enable-cache-manager -object-cache-dir=%t %s
+; RUN: lli -jit-kind=orc-lazy -enable-cache-manager -object-cache-dir=%t %s
+; RUN: lli -jit-kind=orc-lazy -enable-cache-manager -object-cache-dir=%t %s
 ;
 ; Verify that LLJIT Platforms respect static initializers in cached objects.
 ; This IR file contains a static initializer that must execute for main to exit

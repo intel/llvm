@@ -21,10 +21,7 @@
 ; IMPORTS2-NOT: Import _ZL3barv
 ; RUN: llvm-nm %t3.2 | FileCheck %s --check-prefix=NM
 ; NM: _ZL3barv
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t3.3.2.internalize.bc | FileCheck %s --check-prefix=INTERNALIZE
+; RUN: llvm-dis < %t3.3.2.internalize.bc | FileCheck %s --check-prefix=INTERNALIZE
 ; INTERNALIZE: define dso_local void @_ZL3barv
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"

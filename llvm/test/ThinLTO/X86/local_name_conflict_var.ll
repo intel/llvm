@@ -11,10 +11,7 @@
 ; This module will import a() and b() which should cause the read only copy
 ; of baz from each of those modules to be imported. Check that the both are
 ; imported as local copies.
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-lto -thinlto-action=import -exported-symbol=main -opaque-pointers %t.bc -thinlto-index=%t4.bc -o - | llvm-dis -opaque-pointers -o - | FileCheck %s --check-prefix=IMPORT
+; RUN: llvm-lto -thinlto-action=import -exported-symbol=main -opaque-pointers %t.bc -thinlto-index=%t4.bc -o - | llvm-dis -o - | FileCheck %s --check-prefix=IMPORT
 ; IMPORT: @baz.llvm.{{.*}} = internal global i32 10
 ; IMPORT: @baz.llvm.{{.*}} = internal global i32 10
 

@@ -18,10 +18,7 @@
 ; RUN:   -r=%t2.o,_ZN1A1nEi,p \
 ; RUN:   -r=%t2.o,_ZN1B1fEi,p \
 ; RUN:   -r=%t2.o,_ZTV1B,px 2>&1 | FileCheck %s --check-prefix=REMARK
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK --check-prefix=TRAP
+; RUN: llvm-dis %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK --check-prefix=TRAP
 
 ; Check next in fallback mode.
 ; RUN: llvm-lto2 run %t2.o -save-temps -pass-remarks=. \
@@ -32,10 +29,7 @@
 ; RUN:   -r=%t2.o,_ZN1A1nEi,p \
 ; RUN:   -r=%t2.o,_ZN1B1fEi,p \
 ; RUN:   -r=%t2.o,_ZTV1B,px 2>&1 | FileCheck %s --check-prefix=REMARK
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK --check-prefix=FALLBACK
+; RUN: llvm-dis %t3.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK --check-prefix=FALLBACK
 
 ; REMARK-DAG: single-impl: devirtualized a call to _ZN1A1nEi
 

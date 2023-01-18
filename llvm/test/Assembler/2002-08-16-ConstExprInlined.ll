@@ -8,14 +8,8 @@
 ; reader should NEVER produce a program "successfully" with placeholders still
 ; around!
 ;
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-as < %s | llvm-dis -opaque-pointers | llvm-as
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: verify-uselistorder -opaque-pointers %s
+; RUN: llvm-as < %s | llvm-dis | llvm-as
+; RUN: verify-uselistorder %s
 
 @.LC0 = internal global [4 x i8] c"foo\00"		; <ptr> [#uses=1]
 @X = global ptr null		; <ptr> [#uses=0]

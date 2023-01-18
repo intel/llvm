@@ -15,20 +15,14 @@ target datalayout = "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16
 target triple = "x86_64-apple-macosx10.11.0"
 
 ; We shouldn't promote the private because it has a section
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.o.1.2.internalize.bc | FileCheck  %s --check-prefix=PROMOTE
+; RUN: llvm-dis < %t.o.1.2.internalize.bc | FileCheck  %s --check-prefix=PROMOTE
 ; PROMOTE: @a = private global i8 0, section "__TEXT,__cstring,cstring_literals"
 @a = private global i8 0, section "__TEXT,__cstring,cstring_literals"
 @b = global ptr@a
 
 
 ; We want foo to be imported in the main module!
-; Added -opaque-pointers.
-; FIXME: Align with the community code when project is ready to enable opaque
-; pointers by default
-; RUN: llvm-dis -opaque-pointers < %t.o.2.3.import.bc  | FileCheck  %s --check-prefix=IMPORT
+; RUN: llvm-dis < %t.o.2.3.import.bc  | FileCheck  %s --check-prefix=IMPORT
 ; IMPORT: define available_externally dso_local ptr @foo()
 define ptr@foo() {
 	ret ptr@b
