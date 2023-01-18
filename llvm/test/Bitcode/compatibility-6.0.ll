@@ -4,7 +4,7 @@
 ;      the IR used to generate the bitcode, and may need to be updated.
 
 ; RUN: opt -passes=verify -disable-output < %s.bc
-; RUN: llvm-dis < %s.bc | FileCheck %s
+; RUN: llvm-dis -opaque-pointers < %s.bc | FileCheck %s
 
 target datalayout = "E"
 ; CHECK: target datalayout = "E"

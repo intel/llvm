@@ -1,4 +1,4 @@
-; RUN: llvm-as < %s | llvm-dis | FileCheck %s
+; RUN: llvm-as < %s | llvm-dis -opaque-pointers | FileCheck %s
 ; RUN: verify-uselistorder < %s
 
 define <2 x i32> @main() {
