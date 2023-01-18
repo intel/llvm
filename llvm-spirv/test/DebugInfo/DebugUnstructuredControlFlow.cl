@@ -28,8 +28,7 @@ void sample() {
 }
 
 // Check that all Line items are retained
-// FIXME: Due to shift in lines, DILocation line moved 15 -> 27
-// CHECK-SPIRV: Line [[File:[0-9]+]] 27 0
+// CHECK-SPIRV: Line [[File:[0-9]+]] 15 0
 // Loop control
 // CHECK-SPIRV: LoopControlINTEL 257 1
 // CHECK-SPIRV-NEXT: Branch
