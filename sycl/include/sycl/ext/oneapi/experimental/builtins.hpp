@@ -114,22 +114,22 @@ inline __SYCL_ALWAYS_INLINE
     tanh(sycl::marray<T, N> x) __NOEXC {
   sycl::marray<T, N> res;
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-#define FUNC_VEC native::tanh
-#define FUNC FUNC_VEC
+#define Func_VEC native::tanh
+#define Func Func_VEC
 #else
-#define FUNC_VEC __sycl_std::__invoke_tanh<sycl::vec<T, 2>>
-#define FUNC __sycl_std::__invoke_tanh<T>
+#define Func_VEC __sycl_std::__invoke_tanh<sycl::vec<T, 2>>
+#define Func __sycl_std::__invoke_tanh<T>
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 
   for (size_t i = 0; i < N / 2; i++) {
-    auto partial_res = FUNC_VEC(sycl::detail::to_vec2(x, i * 2));
+    auto partial_res = Func_VEC(sycl::detail::to_vec2(x, i * 2));
     std::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));
   }
   if (N % 2) {
-    res[N - 1] = FUNC(x[N - 1]);
+    res[N - 1] = Func(x[N - 1]);
   }
-#undef FUNC_VEC
-#undef FUNC
+#undef Func_VEC
+#undef Func
   return res;
 }
 
@@ -156,22 +156,22 @@ inline __SYCL_ALWAYS_INLINE sycl::marray<half, N>
 exp2(sycl::marray<half, N> x) __NOEXC {
   sycl::marray<half, N> res;
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-#define FUNC_VEC native::exp2
-#define FUNC FUNC_VEC
+#define Func_VEC native::exp2
+#define Func Func_VEC
 #else
-#define FUNC_VEC __sycl_std::__invoke_exp2<sycl::vec<half, 2>>
-#define FUNC __sycl_std::__invoke_exp2<half>
+#define Func_VEC __sycl_std::__invoke_exp2<sycl::vec<half, 2>>
+#define Func __sycl_std::__invoke_exp2<half>
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 
   for (size_t i = 0; i < N / 2; i++) {
-    auto partial_res = FUNC_VEC(sycl::detail::to_vec2(x, i * 2));
+    auto partial_res = Func_VEC(sycl::detail::to_vec2(x, i * 2));
     std::memcpy(&res[i * 2], &partial_res, sizeof(vec<half, 2>));
   }
   if (N % 2) {
-    res[N - 1] = FUNC(x[N - 1]);
+    res[N - 1] = Func(x[N - 1]);
   }
-#undef FUNC_VEC
-#undef FUNC
+#undef Func_VEC
+#undef Func
   return res;
 }
 
