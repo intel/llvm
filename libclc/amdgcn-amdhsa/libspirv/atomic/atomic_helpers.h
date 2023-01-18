@@ -53,9 +53,9 @@
   }
 
 #define AMDGPU_ATOMIC_IMPL(FUNC_NAME, TYPE, TYPE_MANGLED, AS, AS_MANGLED,                                                     \
-                           NOT_GENERIC, BUILTIN)                                                                              \
+                           SUB1, BUILTIN)                                                                              \
   _CLC_DEF TYPE                                                                                                               \
-      FUNC_NAME##P##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS##NOT_GENERIC##_19MemorySemanticsMask4FlagE##TYPE_MANGLED( \
+      FUNC_NAME##P##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS##SUB1##_19MemorySemanticsMask4FlagE##TYPE_MANGLED( \
           volatile AS TYPE *p, enum Scope scope,                                                                              \
           enum MemorySemanticsMask semantics, TYPE val) {                                                                     \
     int atomic_scope = 0, memory_order = 0;                                                                                   \
