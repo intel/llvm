@@ -4,11 +4,6 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-struct foo {
-  int dummy;
-  bool x;
-};
-
 // CHECK-LABEL:   func.func @array_get(
 // CHECK-SAME:                         %[[VAL_0:.*]]: memref<?xi8>,
 // CHECK-SAME:                         %[[VAL_1:.*]]: i64) -> i1
@@ -76,6 +71,11 @@ bool ptr_get(bool *arr, size_t i) {
   return arr[i];
 }
 
+struct foo {
+  int dummy;
+  bool x;
+};
+
 // CHECK-LABEL:   func.func @struct_get(
 // CHECK-SAME:                          %[[VAL_0:.*]]: !llvm.struct<(i32, i8)>) -> i1
 // CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 1 : i64
@@ -118,4 +118,148 @@ bool struct_get(struct foo s) {
 // CHECK-FULLRANK-NEXT:    }
 bool struct_ptr_get(struct foo *s) {
   return s->x;
+}
+
+void keep(bool *);
+
+// CHECK-LABEL:   func.func @get_addr()
+// CHECK-NEXT:      %[[VAL_0:.*]] = arith.constant 0 : i8
+// CHECK-NEXT:      %[[VAL_1:.*]] = memref.alloca() : memref<1xi8>
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.undef : i8
+// CHECK-NEXT:      affine.store %[[VAL_0]], %[[VAL_1]][0] : memref<1xi8>
+// CHECK-NEXT:      %[[VAL_3:.*]] = memref.cast %[[VAL_1]] : memref<1xi8> to memref<?xi8>
+// CHECK-NEXT:      call @keep(%[[VAL_3]]) : (memref<?xi8>) -> ()
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }
+void get_addr() {
+  bool a = false;
+  keep(&a);
+}
+
+// CHECK-LABEL:   func.func @decay_to_ptr()
+// CHECK-NEXT:      %[[VAL_0:.*]] = arith.constant 0 : i8
+// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 1 : i8
+// CHECK-NEXT:      %[[VAL_2:.*]] = memref.alloca() : memref<2xi8>
+// CHECK-NEXT:      affine.store %[[VAL_1]], %[[VAL_2]][0] : memref<2xi8>
+// CHECK-NEXT:      affine.store %[[VAL_0]], %[[VAL_2]][1] : memref<2xi8>
+// CHECK-NEXT:      %[[VAL_3:.*]] = memref.cast %[[VAL_2]] : memref<2xi8> to memref<?xi8>
+// CHECK-NEXT:      call @keep(%[[VAL_3]]) : (memref<?xi8>) -> ()
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }
+void decay_to_ptr() {
+  bool a[2] = {true, false};
+  keep(a);
+}
+
+// CHECK-LABEL:   func.func @get_local_static() -> i1
+// CHECK-NEXT:      %[[VAL_0:.*]] = arith.constant 1 : i8
+// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant false
+// CHECK-NEXT:      %[[VAL_2:.*]] = memref.get_global @"get_local_static@static@x" : memref<i8>
+// CHECK-NEXT:      %[[VAL_3:.*]] = memref.alloca() : memref<1xindex>
+// CHECK-NEXT:      %[[VAL_4:.*]] = memref.reshape %[[VAL_2]](%[[VAL_3]]) : (memref<i8>, memref<1xindex>) -> memref<1xi8>
+// CHECK-NEXT:      %[[VAL_5:.*]] = memref.get_global @"get_local_static@static@x@init" : memref<i1>
+// CHECK-NEXT:      %[[VAL_6:.*]] = memref.alloca() : memref<1xindex>
+// CHECK-NEXT:      %[[VAL_7:.*]] = memref.reshape %[[VAL_5]](%[[VAL_6]]) : (memref<i1>, memref<1xindex>) -> memref<1xi1>
+// CHECK-NEXT:      %[[VAL_8:.*]] = affine.load %[[VAL_7]][0] : memref<1xi1>
+// CHECK-NEXT:      scf.if %[[VAL_8]] {
+// CHECK-NEXT:        affine.store %[[VAL_1]], %[[VAL_7]][0] : memref<1xi1>
+// CHECK-NEXT:        affine.store %[[VAL_0]], %[[VAL_4]][0] : memref<1xi8>
+// CHECK-NEXT:      }
+// CHECK-NEXT:      %[[VAL_9:.*]] = affine.load %[[VAL_4]][0] : memref<1xi8>
+// CHECK-NEXT:      %[[VAL_10:.*]] = arith.trunci %[[VAL_9]] : i8 to i1
+// CHECK-NEXT:      return %[[VAL_10]] : i1
+// CHECK-NEXT:    }
+bool get_local_static() {
+  static bool x = true;
+  return x;
+}
+
+static bool x = false;
+
+// CHECK-LABEL:   func.func @get_global_static() -> i1
+// CHECK-NEXT:      %[[VAL_0:.*]] = memref.get_global @x : memref<i8>
+// CHECK-NEXT:      %[[VAL_1:.*]] = memref.alloca() : memref<1xindex>
+// CHECK-NEXT:      %[[VAL_2:.*]] = memref.reshape %[[VAL_0]](%[[VAL_1]]) : (memref<i8>, memref<1xindex>) -> memref<1xi8>
+// CHECK-NEXT:      %[[VAL_3:.*]] = affine.load %[[VAL_2]][0] : memref<1xi8>
+// CHECK-NEXT:      %[[VAL_4:.*]] = arith.trunci %[[VAL_3]] : i8 to i1
+// CHECK-NEXT:      return %[[VAL_4]] : i1
+// CHECK-NEXT:    }
+bool get_global_static() {
+  return x;
+}
+
+static bool x_no_init;
+
+// CHECK-LABEL:   func.func @get_global_static_no_init() -> i1
+// CHECK-NEXT:      %[[VAL_0:.*]] = memref.get_global @x_no_init : memref<i8>
+// CHECK-NEXT:      %[[VAL_1:.*]] = memref.alloca() : memref<1xindex>
+// CHECK-NEXT:      %[[VAL_2:.*]] = memref.reshape %[[VAL_0]](%[[VAL_1]]) : (memref<i8>, memref<1xindex>) -> memref<1xi8>
+// CHECK-NEXT:      %[[VAL_3:.*]] = affine.load %[[VAL_2]][0] : memref<1xi8>
+// CHECK-NEXT:      %[[VAL_4:.*]] = arith.trunci %[[VAL_3]] : i8 to i1
+// CHECK-NEXT:      return %[[VAL_4]] : i1
+// CHECK-NEXT:    }
+bool get_global_static_no_init() {
+  return x_no_init;
+}
+
+// CHECK-LABEL:   func.func @static_arr_local()
+// CHECK-NEXT:      %[[VAL_0:.*]] = arith.constant 0 : i8
+// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 1 : i8
+// CHECK-NEXT:      %[[VAL_2:.*]] = arith.constant false
+// CHECK-NEXT:      %[[VAL_3:.*]] = memref.get_global @"static_arr_local@static@arr" : memref<2xi8>
+// CHECK-NEXT:      %[[VAL_4:.*]] = memref.get_global @"static_arr_local@static@arr@init" : memref<i1>
+// CHECK-NEXT:      %[[VAL_5:.*]] = memref.alloca() : memref<1xindex>
+// CHECK-NEXT:      %[[VAL_6:.*]] = memref.reshape %[[VAL_4]](%[[VAL_5]]) : (memref<i1>, memref<1xindex>) -> memref<1xi1>
+// CHECK-NEXT:      %[[VAL_7:.*]] = affine.load %[[VAL_6]][0] : memref<1xi1>
+// CHECK-NEXT:      scf.if %[[VAL_7]] {
+// CHECK-NEXT:        affine.store %[[VAL_2]], %[[VAL_6]][0] : memref<1xi1>
+// CHECK-NEXT:        affine.store %[[VAL_1]], %[[VAL_3]][0] : memref<2xi8>
+// CHECK-NEXT:        affine.store %[[VAL_0]], %[[VAL_3]][1] : memref<2xi8>
+// CHECK-NEXT:      }
+// CHECK-NEXT:      %[[VAL_8:.*]] = memref.cast %[[VAL_3]] : memref<2xi8> to memref<?xi8>
+// CHECK-NEXT:      call @keep(%[[VAL_8]]) : (memref<?xi8>) -> ()
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }
+
+void static_arr_local() {
+  static bool arr[2] = {true, false};
+  keep(arr);
+}
+
+// CHECK-LABEL:   func.func @static_arr_local_no_init()
+// CHECK-NEXT:      %[[VAL_0:.*]] = memref.get_global @"static_arr_local_no_init@static@arr" : memref<10xi8>
+// CHECK-NEXT:      %[[VAL_1:.*]] = memref.cast %[[VAL_0]] : memref<10xi8> to memref<?xi8>
+// CHECK-NEXT:      call @keep(%[[VAL_1]]) : (memref<?xi8>) -> ()
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }
+
+void static_arr_local_no_init() {
+  static bool arr[10];
+  keep(arr);
+}
+
+static bool arr[2] = {true, false};
+
+// CHECK-LABEL:   func.func @static_arr_global() -> i1
+// CHECK-NEXT:      %[[VAL_0:.*]] = memref.get_global @arr : memref<2xi8>
+// CHECK-NEXT:      %[[VAL_1:.*]] = affine.load %[[VAL_0]][0] : memref<2xi8>
+// CHECK-NEXT:      %[[VAL_2:.*]] = arith.trunci %[[VAL_1]] : i8 to i1
+// CHECK-NEXT:      return %[[VAL_2]] : i1
+// CHECK-NEXT:    }
+
+bool static_arr_global() {
+  return arr[0];
+}
+
+static bool arr_no_init[2];
+
+// CHECK-LABEL:   func.func @static_arr_global_no_init() -> i1
+// CHECK-NEXT:      %[[VAL_0:.*]] = memref.get_global @arr_no_init : memref<2xi8>
+// CHECK-NEXT:      %[[VAL_1:.*]] = affine.load %[[VAL_0]][0] : memref<2xi8>
+// CHECK-NEXT:      %[[VAL_2:.*]] = arith.trunci %[[VAL_1]] : i8 to i1
+// CHECK-NEXT:      return %[[VAL_2]] : i1
+// CHECK-NEXT:    }
+
+bool static_arr_global_no_init() {
+  return arr_no_init[0];
 }

@@ -338,11 +338,14 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
     ValueCategory(ToInit, /*isReference*/ true).store(Builder, Sub, IsArray);
     if (!Sub.isReference)
       if (auto MT = ToInit.getType().dyn_cast<MemRefType>()) {
-        if (auto Cop = Sub.val.getDefiningOp<arith::ConstantIntOp>())
-          return DenseElementsAttr::get(
-              RankedTensorType::get(std::vector<int64_t>({1}),
-                                    MT.getElementType()),
-              Cop.getValue());
+        if (auto Cop = Sub.val.getDefiningOp<arith::ConstantIntOp>()) {
+          const auto C = Cop.getValue();
+          const auto CT = C.getType();
+          const auto ET = MT.getElementType();
+          assert((CT == ET || (CT.isInteger(1) && ET.isInteger(8))) &&
+                 "Expecting same width but for boolean values");
+          return DenseElementsAttr::get(RankedTensorType::get(1, CT), C);
+        }
         if (auto Cop = Sub.val.getDefiningOp<arith::ConstantFloatOp>())
           return DenseElementsAttr::get(
               RankedTensorType::get(std::vector<int64_t>({1}),

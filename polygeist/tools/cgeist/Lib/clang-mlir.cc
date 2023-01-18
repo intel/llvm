@@ -1740,7 +1740,7 @@ MLIRASTConsumer::getOrCreateGlobal(const clang::ValueDecl &VD,
     return Globals[Name];
 
   const bool IsArray = isa<clang::ArrayType>(VD.getType());
-  const Type MLIRType = getTypes().getMLIRType(VD.getType());
+  const Type MLIRType = getTypes().getMLIRTypeForMem(VD.getType());
   const clang::VarDecl *Var = cast<clang::VarDecl>(VD).getCanonicalDecl();
   const unsigned MemSpace =
       CGM.getContext().getTargetAddressSpace(CGM.GetGlobalVarAddressSpace(Var));
@@ -1840,10 +1840,18 @@ MLIRASTConsumer::getOrCreateGlobal(const clang::ValueDecl &VD,
 
       auto Op = VC.val.getDefiningOp<arith::ConstantOp>();
       assert(Op && "Could not find the initializer constant expression");
+      const auto IT = Op.getType();
+      const auto ET = VarTy.getElementType();
+      if (IT != ET) {
+        assert(IT.isInteger(1) && ET.isInteger(8) &&
+               "Expecting same width but for boolean values");
+        Op = VC.IntCast(Builder, Op.getLoc(), ET, false)
+                 .val.getDefiningOp<arith::ConstantOp>();
+        assert(Op && "Folding failed");
+      }
 
       auto InitialVal = SplatElementsAttr::get(
-          RankedTensorType::get(VarTy.getShape(), VarTy.getElementType()),
-          Op.getValue());
+          RankedTensorType::get(VarTy.getShape(), ET), Op.getValue());
       GlobalOp.setInitialValueAttr(InitialVal);
     }
   }

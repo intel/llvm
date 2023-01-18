@@ -26,7 +26,7 @@ using namespace mlir;
 
 ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *Decl) {
   Decl = Decl->getCanonicalDecl();
-  mlir::Type SubType = Glob.getTypes().getMLIRType(Decl->getType());
+  mlir::Type SubType = Glob.getTypes().getMLIRTypeForMem(Decl->getType());
   const unsigned MemType = Decl->hasAttr<clang::CUDASharedAttr>() ? 5 : 0;
   bool LLVMABI = false, IsArray = false;
 
@@ -72,7 +72,12 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *Decl) {
           Init->dump();
           assert(false);
         }
-        SubType = InitExpr.val.getType();
+        const auto InitType = InitExpr.val.getType();
+        const auto IsNotBoolean = !InitType.isInteger(1);
+        assert((IsNotBoolean || SubType.isInteger(8)) &&
+               "Wrong Boolean initialization");
+        if (IsNotBoolean)
+          SubType = InitType;
       }
     }
   } else if (auto *Ava = Decl->getAttr<clang::AlignValueAttr>()) {
