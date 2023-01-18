@@ -9,13 +9,17 @@
 #ifndef SYCL_FUSION_JIT_COMPILER_JITCONTEXT_H
 #define SYCL_FUSION_JIT_COMPILER_JITCONTEXT_H
 
-#include "llvm/IR/LLVMContext.h"
+#include <memory>
 #include <mutex>
 #include <shared_mutex>
 #include <unordered_map>
 
 #include "Kernel.h"
 #include "Parameter.h"
+
+namespace llvm {
+class LLVMContext;
+} // namespace llvm
 
 namespace jit_compiler {
 

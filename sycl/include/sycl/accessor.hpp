@@ -1219,6 +1219,8 @@ public:
   using iterator = typename detail::accessor_iterator<value_type, Dimensions>;
   using const_iterator =
       typename detail::accessor_iterator<const value_type, Dimensions>;
+  using reverse_iterator = std::reverse_iterator<iterator>;
+  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
   using difference_type =
       typename std::iterator_traits<iterator>::difference_type;
 
@@ -2127,6 +2129,16 @@ public:
         get_pointer(),
         detail::convertToArrayOfN<Dimensions, 1>(getMemoryRange()), get_range(),
         get_offset());
+  }
+
+  reverse_iterator rbegin() const noexcept { return reverse_iterator(end()); }
+  reverse_iterator rend() const noexcept { return reverse_iterator(begin()); }
+
+  const_reverse_iterator crbegin() const noexcept {
+    return const_reverse_iterator(cend());
+  }
+  const_reverse_iterator crend() const noexcept {
+    return const_reverse_iterator(cbegin());
   }
 
 private:
