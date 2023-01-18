@@ -6080,6 +6080,21 @@ static void fillAttributedTypeLoc(AttributedTypeLoc TL,
   TL.setAttr(State.takeAttrForAttributedType(TL.getTypePtr()));
 }
 
+static void fillMatrixTypeLoc(MatrixTypeLoc MTL,
+                              const ParsedAttributesView &Attrs) {
+  for (const ParsedAttr &AL : Attrs) {
+    if (AL.getKind() == ParsedAttr::AT_MatrixType) {
+      MTL.setAttrNameLoc(AL.getLoc());
+      MTL.setAttrRowOperand(AL.getArgAsExpr(0));
+      MTL.setAttrColumnOperand(AL.getArgAsExpr(1));
+      MTL.setAttrOperandParensRange(SourceRange());
+      return;
+    }
+  }
+
+  llvm_unreachable("no matrix_type attribute found at the expected location!");
+}
+
 namespace {
   class TypeSpecLocFiller : public TypeLocVisitor<TypeSpecLocFiller> {
     Sema &SemaRef;
@@ -6446,6 +6461,9 @@ namespace {
     VisitDependentSizedExtVectorTypeLoc(DependentSizedExtVectorTypeLoc TL) {
       TL.setNameLoc(Chunk.Loc);
     }
+    void VisitMatrixTypeLoc(MatrixTypeLoc TL) {
+      fillMatrixTypeLoc(TL, Chunk.getAttrs());
+    }
 
     void VisitTypeLoc(TypeLoc TL) {
       llvm_unreachable("unsupported TypeLoc kind in declarator!");
@@ -6491,21 +6509,6 @@ fillDependentAddressSpaceTypeLoc(DependentAddressSpaceTypeLoc DASTL,
 
   llvm_unreachable(
       "no address_space attribute found at the expected location!");
-}
-
-static void fillMatrixTypeLoc(MatrixTypeLoc MTL,
-                              const ParsedAttributesView &Attrs) {
-  for (const ParsedAttr &AL : Attrs) {
-    if (AL.getKind() == ParsedAttr::AT_MatrixType) {
-      MTL.setAttrNameLoc(AL.getLoc());
-      MTL.setAttrRowOperand(AL.getArgAsExpr(0));
-      MTL.setAttrColumnOperand(AL.getArgAsExpr(1));
-      MTL.setAttrOperandParensRange(SourceRange());
-      return;
-    }
-  }
-
-  llvm_unreachable("no matrix_type attribute found at the expected location!");
 }
 
 /// Create and instantiate a TypeSourceInfo with type source information.
@@ -6558,9 +6561,6 @@ GetTypeSourceInfoForDeclarator(TypeProcessingState &State,
       fillDependentAddressSpaceTypeLoc(TL, D.getTypeObject(i).getAttrs());
       CurrTL = TL.getPointeeTypeLoc().getUnqualifiedLoc();
     }
-
-    if (MatrixTypeLoc TL = CurrTL.getAs<MatrixTypeLoc>())
-      fillMatrixTypeLoc(TL, D.getTypeObject(i).getAttrs());
 
     // FIXME: Ordering here?
     while (AdjustedTypeLoc TL = CurrTL.getAs<AdjustedTypeLoc>())
