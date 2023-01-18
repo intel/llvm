@@ -2,7 +2,7 @@
 
 // RUN: %clang_cc1 -mllvm -opaque-pointers -fopenmp -x c++ -std=c++11 -triple x86_64-unknown-unknown -fopenmp-targets=amdgcn-amd-amdhsa -emit-llvm-bc %s -o %t-ppc-host.bc
 // RUN: %clang_cc1 -mllvm -opaque-pointers -fopenmp -x c++ -std=c++11 -triple amdgcn-amd-amdhsa -fopenmp-targets=amdgcn-amd-amdhsa -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - | FileCheck %s
-// RUN: llvm-dis --opaque-pointers < %t-ppc-host.bc | FileCheck %s -check-prefix=HOST
+// RUN: llvm-dis < %t-ppc-host.bc | FileCheck %s -check-prefix=HOST
 
 // device side declarations
 #pragma omp declare target
