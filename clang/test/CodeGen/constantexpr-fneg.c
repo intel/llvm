@@ -1,8 +1,5 @@
 // RUN: %clang_cc1 -emit-llvm-bc -disable-llvm-passes -o %t.bc %s
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: llvm-dis -opaque-pointers %t.bc -o - | FileCheck %s
+// RUN: llvm-dis %t.bc -o - | FileCheck %s
 
 // Test case for PR45426. Make sure we do not crash while writing bitcode
 // containing a simplify-able fneg constant expression.

@@ -1,70 +1,22 @@
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: %clang_cc1 -mllvm -opaque-pointers -verify -fopenmp -fopenmp-version=45 -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-ppc-host.bc -DGPU
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: %clang_cc1 -mllvm -opaque-pointers -verify -fopenmp -fopenmp-version=45 -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - -DGPU | FileCheck %s --implicit-check-not='ret i32 {{6|7|9|10|12|14|17|18|20|21|22|23|24|26}}'
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: %clang_cc1 -mllvm -opaque-pointers -verify -fopenmp -fopenmp-version=45 -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -emit-pch -o %t -DGPU
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: %clang_cc1 -mllvm -opaque-pointers -verify -fopenmp -fopenmp-version=45 -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -include-pch %t -o - -DGPU | FileCheck %s --implicit-check-not='ret i32 {{6|7|9|10|12|14|17|18|20|21|22|23|24|26}}'
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-ppc-host.bc -DGPU
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - -DGPU | FileCheck %s --implicit-check-not='ret i32 {{6|7|9|10|12|14|17|18|20|21|22|23|24|26}}'
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -emit-pch -o %t -DGPU
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -include-pch %t -o - -DGPU | FileCheck %s --implicit-check-not='ret i32 {{6|7|9|10|12|14|17|18|20|21|22|23|24|26}}'
 
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: %clang_cc1 -mllvm -opaque-pointers -verify -fopenmp -fopenmp-version=45 -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-ppc-host.bc -DNOHOST
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: %clang_cc1 -mllvm -opaque-pointers -verify -fopenmp -fopenmp-version=45 -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - -DNOHOST | FileCheck %s --implicit-check-not='ret i32 {{6|7|9|10|12|14|17|18|20|21|22|23|24|26}}'
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: %clang_cc1 -mllvm -opaque-pointers -verify -fopenmp -fopenmp-version=45 -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -emit-pch -o %t -DNOHOST
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: %clang_cc1 -mllvm -opaque-pointers -verify -fopenmp -fopenmp-version=45 -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -include-pch %t -o - -DNOHOST | FileCheck %s --implicit-check-not='ret i32 {{6|7|9|10|12|14|17|18|20|21|22|23|24|26}}'
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-ppc-host.bc -DNOHOST
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - -DNOHOST | FileCheck %s --implicit-check-not='ret i32 {{6|7|9|10|12|14|17|18|20|21|22|23|24|26}}'
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -emit-pch -o %t -DNOHOST
+// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -include-pch %t -o - -DNOHOST | FileCheck %s --implicit-check-not='ret i32 {{6|7|9|10|12|14|17|18|20|21|22|23|24|26}}'
 
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: %clang_cc1 -mllvm -opaque-pointers -verify -fopenmp -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-ppc-host.bc -DGPU
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: %clang_cc1 -mllvm -opaque-pointers -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - -DGPU | FileCheck %s --implicit-check-not='ret i32 {{6|7|9|10|12|14|17|18|20|21|22|23|24|26}}'
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: %clang_cc1 -mllvm -opaque-pointers -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -emit-pch -o %t -DGPU
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: %clang_cc1 -mllvm -opaque-pointers -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -include-pch %t -o - -DGPU | FileCheck %s --implicit-check-not='ret i32 {{6|7|9|10|12|14|17|18|20|21|22|23|24|26}}'
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-ppc-host.bc -DGPU
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - -DGPU | FileCheck %s --implicit-check-not='ret i32 {{6|7|9|10|12|14|17|18|20|21|22|23|24|26}}'
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -emit-pch -o %t -DGPU
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -include-pch %t -o - -DGPU | FileCheck %s --implicit-check-not='ret i32 {{6|7|9|10|12|14|17|18|20|21|22|23|24|26}}'
 
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: %clang_cc1 -mllvm -opaque-pointers -verify -fopenmp -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-ppc-host.bc -DNOHOST
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: %clang_cc1 -mllvm -opaque-pointers -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - -DNOHOST | FileCheck %s --implicit-check-not='ret i32 {{6|7|9|10|12|14|17|18|20|21|22|23|24|26}}'
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: %clang_cc1 -mllvm -opaque-pointers -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -emit-pch -o %t -DNOHOST
-// Added -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
-// RUN: %clang_cc1 -mllvm -opaque-pointers -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -include-pch %t -o - -DNOHOST | FileCheck %s --implicit-check-not='ret i32 {{6|7|9|10|12|14|17|18|20|21|22|23|24|26}}'
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple powerpc64le-unknown-unknown -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm-bc %s -o %t-ppc-host.bc -DNOHOST
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - -DNOHOST | FileCheck %s --implicit-check-not='ret i32 {{6|7|9|10|12|14|17|18|20|21|22|23|24|26}}'
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -emit-pch -o %t -DNOHOST
+// RUN: %clang_cc1 -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown -aux-triple powerpc64le-unknown-unknown -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -include-pch %t -o - -DNOHOST | FileCheck %s --implicit-check-not='ret i32 {{6|7|9|10|12|14|17|18|20|21|22|23|24|26}}'
 // expected-no-diagnostics
 
 // CHECK-DAG: ret i32 2
