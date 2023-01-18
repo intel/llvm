@@ -1474,29 +1474,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     bool SubRef = false;
     auto ET = getMLIRType(AT->getElementType(), &SubRef, AllowMerge);
     int64_t Size = AT->getNumElements();
-    if (isa<clang::VectorType>(T) || isa<clang::ExtVectorType>(T))
-      return mlir::VectorType::get(Size, ET);
-
-    if (MemRefABI && SubRef) {
-      auto MT = ET.cast<MemRefType>();
-      auto Shape2 = std::vector<int64_t>(MT.getShape());
-      Shape2.insert(Shape2.begin(), Size);
-      if (ImplicitRef)
-        *ImplicitRef = true;
-      return mlir::MemRefType::get(Shape2, MT.getElementType(),
-                                   MemRefLayoutAttrInterface(),
-                                   MT.getMemorySpace());
-    }
-
-    if (!MemRefABI || !AllowMerge ||
-        ET.isa<LLVM::LLVMPointerType, LLVM::LLVMArrayType,
-               LLVM::LLVMFunctionType, LLVM::LLVMStructType>())
-      return LLVM::LLVMFixedVectorType::get(ET, Size);
-
-    if (ImplicitRef)
-      *ImplicitRef = true;
-
-    return mlir::MemRefType::get({Size}, ET);
+    return mlir::VectorType::get(Size, ET);
   }
 
   if (const auto *FT = dyn_cast<clang::FunctionProtoType>(T)) {
