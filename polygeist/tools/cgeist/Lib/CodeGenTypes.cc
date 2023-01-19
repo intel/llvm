@@ -1736,12 +1736,7 @@ mlir::Type CodeGenTypes::getMLIRType(const clang::BuiltinType *BT) const {
   case BuiltinType::SveBFloat16x2:
   case BuiltinType::SveBFloat16x3:
   case BuiltinType::SveBFloat16x4: {
-    ASTContext::BuiltinVectorTypeInfo Info =
-        Context.getBuiltinVectorTypeInfo(BT);
-    llvm::Type *Ty = llvm::ScalableVectorType::get(
-        CGM.getTypes().ConvertType(Info.ElementType),
-        Info.EC.getKnownMinValue() * Info.NumVectors);
-    return TypeTranslator.translateType(Ty);
+    llvm_unreachable("Unexpected ARM type");
   }
 
 #define PPC_VECTOR_TYPE(Name, Id, Size) case BuiltinType::Id:
