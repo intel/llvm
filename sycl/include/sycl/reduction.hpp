@@ -989,7 +989,7 @@ struct NDRangeReduction<
         // Signal this work-group has finished after all values are reduced
         if (LID == 0) {
           auto NFinished =
-              sycl::atomic_ref<int, memory_order::relaxed, memory_scope::device,
+              sycl::atomic_ref<int, memory_order::acq_rel, memory_scope::device,
                                access::address_space::global_space>(
                   NWorkGroupsFinished[0]);
           DoReducePartialSumsInLastWG[0] = ++NFinished == NWorkGroups;
@@ -1107,7 +1107,7 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
       // Signal this work-group has finished after all values are reduced
       if (LID == 0) {
         auto NFinished =
-            sycl::atomic_ref<int, memory_order::relaxed, memory_scope::device,
+            sycl::atomic_ref<int, memory_order::acq_rel, memory_scope::device,
                              access::address_space::global_space>(
                 NWorkGroupsFinished[0]);
         DoReducePartialSumsInLastWG[0] =
