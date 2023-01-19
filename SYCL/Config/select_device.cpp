@@ -1,6 +1,3 @@
-// Temporarily disabled due to flaky behavior
-// REQUIRES: TEMPORARY_DISABLED
-
 // RUN: %clangxx -fsycl %s -o %t.out
 //
 // RUN: env WRITE_DEVICE_INFO=1 %GPU_RUN_PLACEHOLDER %t.out
