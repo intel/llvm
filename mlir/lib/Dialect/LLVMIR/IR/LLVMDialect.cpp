@@ -2591,10 +2591,10 @@ namespace {
 struct LLVMInlinerInterface : public DialectInlinerInterface {
   using DialectInlinerInterface::DialectInlinerInterface;
 
-  /// Conservatively only allow inlining of pure ops.
+  /// All operations in the LLVM dialect are legal to inline.
   bool isLegalToInline(Operation *op, Region *, bool,
                        BlockAndValueMapping &) const final {
-    return isPure(op);
+    return true;
   }
 };
 } // end anonymous namespace
