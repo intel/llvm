@@ -336,7 +336,8 @@ OpFoldResult MultiDimReductionOp::fold(ArrayRef<Attribute> operands) {
   return {};
 }
 
-Optional<SmallVector<int64_t, 4>> MultiDimReductionOp::getShapeForUnroll() {
+std::optional<SmallVector<int64_t, 4>>
+MultiDimReductionOp::getShapeForUnroll() {
   return llvm::to_vector<4>(getSourceVectorType().getShape());
 }
 
@@ -468,6 +469,15 @@ void ReductionOp::print(OpAsmPrinter &p) {
   p << " : " << getVector().getType() << " into " << getDest().getType();
 }
 
+// MaskableOpInterface methods.
+
+/// Returns the mask type expected by this operation.
+Type ReductionOp::getExpectedMaskType() {
+  auto vecType = getVectorType();
+  return vecType.cloneWith(std::nullopt,
+                           IntegerType::get(vecType.getContext(), /*width=*/1));
+}
+
 Value mlir::vector::getVectorReductionOp(arith::AtomicRMWKind op,
                                          OpBuilder &builder, Location loc,
                                          Value vector) {
@@ -512,7 +522,7 @@ Value mlir::vector::getVectorReductionOp(arith::AtomicRMWKind op,
   return nullptr;
 }
 
-Optional<SmallVector<int64_t, 4>> ReductionOp::getShapeForUnroll() {
+std::optional<SmallVector<int64_t, 4>> ReductionOp::getShapeForUnroll() {
   return llvm::to_vector<4>(getVectorType().getShape());
 }
 
@@ -951,7 +961,7 @@ std::vector<std::pair<int64_t, int64_t>> ContractionOp::getBatchDimMap() {
                    getContext());
 }
 
-Optional<SmallVector<int64_t, 4>> ContractionOp::getShapeForUnroll() {
+std::optional<SmallVector<int64_t, 4>> ContractionOp::getShapeForUnroll() {
   SmallVector<int64_t, 4> shape;
   getIterationBounds(shape);
   return shape;
@@ -1058,6 +1068,11 @@ OpFoldResult vector::ExtractElementOp::fold(ArrayRef<Attribute> operands) {
   if (auto splat = getVector().getDefiningOp<vector::SplatOp>())
     return splat.getInput();
 
+  // Fold extractelement(broadcast(X)) -> X.
+  if (auto broadcast = getVector().getDefiningOp<vector::BroadcastOp>())
+    if (!broadcast.getSource().getType().isa<VectorType>())
+      return broadcast.getSource();
+
   if (!pos || !src)
     return {};
 
@@ -1089,7 +1104,7 @@ void vector::ExtractOp::build(OpBuilder &builder, OperationState &result,
 }
 
 LogicalResult
-ExtractOp::inferReturnTypes(MLIRContext *, Optional<Location>,
+ExtractOp::inferReturnTypes(MLIRContext *, std::optional<Location>,
                             ValueRange operands, DictionaryAttr attributes,
                             RegionRange,
                             SmallVectorImpl<Type> &inferredReturnTypes) {
@@ -1302,7 +1317,7 @@ ExtractFromInsertTransposeChainState::handleInsertOpWithMatchingPos(
   // Case 2.a. early-exit fold.
   res = nextInsertOp.getSource();
   // Case 2.b. if internal transposition is present, canFold will be false.
-  return success();
+  return success(canFold());
 }
 
 /// Case 3: if inserted position is a prefix of extractPosition,
@@ -1733,7 +1748,7 @@ static void populateFromInt64AttrArray(ArrayAttr arrayAttr,
 // FmaOp
 //===----------------------------------------------------------------------===//
 
-Optional<SmallVector<int64_t, 4>> FMAOp::getShapeForUnroll() {
+std::optional<SmallVector<int64_t, 4>> FMAOp::getShapeForUnroll() {
   return llvm::to_vector<4>(getVectorType().getShape());
 }
 
@@ -2013,7 +2028,7 @@ LogicalResult ShuffleOp::verify() {
 }
 
 LogicalResult
-ShuffleOp::inferReturnTypes(MLIRContext *, Optional<Location>,
+ShuffleOp::inferReturnTypes(MLIRContext *, std::optional<Location>,
                             ValueRange operands, DictionaryAttr attributes,
                             RegionRange,
                             SmallVectorImpl<Type> &inferredReturnTypes) {
@@ -2983,12 +2998,16 @@ public:
     SmallVector<int64_t, 4> sliceMaskDimSizes;
     sliceMaskDimSizes.reserve(maskDimSizes.size());
     for (auto [maskDimSize, sliceOffset, sliceSize] :
-         llvm::zip_equal(maskDimSizes, sliceOffsets, sliceSizes)) {
+         llvm::zip(maskDimSizes, sliceOffsets, sliceSizes)) {
       int64_t sliceMaskDimSize = std::max(
           static_cast<int64_t>(0),
           std::min(sliceOffset + sliceSize, maskDimSize) - sliceOffset);
       sliceMaskDimSizes.push_back(sliceMaskDimSize);
     }
+    // Add unchanged dimensions.
+    if (sliceMaskDimSizes.size() < maskDimSizes.size())
+      for (size_t i = sliceMaskDimSizes.size(); i < maskDimSizes.size(); ++i)
+        sliceMaskDimSizes.push_back(maskDimSizes[i]);
     // If any of 'sliceMaskDimSizes' are zero, then set all to zero (masked
     // region is a conjunction of mask dim intervals).
     if (llvm::is_contained(sliceMaskDimSizes, 0))
@@ -3186,7 +3205,7 @@ void TransferReadOp::build(OpBuilder &builder, OperationState &result,
 void TransferReadOp::build(OpBuilder &builder, OperationState &result,
                            VectorType vectorType, Value source,
                            ValueRange indices, AffineMap permutationMap,
-                           Optional<ArrayRef<bool>> inBounds) {
+                           std::optional<ArrayRef<bool>> inBounds) {
   auto permutationMapAttr = AffineMapAttr::get(permutationMap);
   auto inBoundsAttr = (inBounds && !inBounds.value().empty())
                           ? builder.getBoolArrayAttr(inBounds.value())
@@ -3199,7 +3218,7 @@ void TransferReadOp::build(OpBuilder &builder, OperationState &result,
 void TransferReadOp::build(OpBuilder &builder, OperationState &result,
                            VectorType vectorType, Value source,
                            ValueRange indices, Value padding,
-                           Optional<ArrayRef<bool>> inBounds) {
+                           std::optional<ArrayRef<bool>> inBounds) {
   AffineMap permutationMap = getTransferMinorIdentityMap(
       source.getType().cast<ShapedType>(), vectorType);
   auto permutationMapAttr = AffineMapAttr::get(permutationMap);
@@ -3216,7 +3235,7 @@ void TransferReadOp::build(OpBuilder &builder, OperationState &result,
 void TransferReadOp::build(OpBuilder &builder, OperationState &result,
                            VectorType vectorType, Value source,
                            ValueRange indices,
-                           Optional<ArrayRef<bool>> inBounds) {
+                           std::optional<ArrayRef<bool>> inBounds) {
   Type elemType = source.getType().cast<ShapedType>().getElementType();
   Value padding = builder.create<arith::ConstantOp>(
       result.location, elemType, builder.getZeroAttr(elemType));
@@ -3482,6 +3501,14 @@ LogicalResult TransferReadOp::verify() {
                               [&](Twine t) { return emitOpError(t); });
 }
 
+// MaskableOpInterface methods.
+
+/// Returns the mask type expected by this operation. Mostly used for
+/// verification purposes. It requires the operation to be vectorized."
+Type TransferReadOp::getExpectedMaskType() {
+  return inferTransferReadMaskType(getVectorType(), getPermutationMap());
+}
+
 template <typename TransferOp>
 static bool isInBounds(TransferOp op, int64_t resultIdx, int64_t indicesIdx) {
   // TODO: support more aggressive createOrFold on:
@@ -3573,7 +3600,7 @@ OpFoldResult TransferReadOp::fold(ArrayRef<Attribute>) {
   return OpFoldResult();
 }
 
-Optional<SmallVector<int64_t, 4>> TransferReadOp::getShapeForUnroll() {
+std::optional<SmallVector<int64_t, 4>> TransferReadOp::getShapeForUnroll() {
   return llvm::to_vector<4>(getVectorType().getShape());
 }
 
@@ -3800,7 +3827,7 @@ void TransferWriteOp::build(OpBuilder &builder, OperationState &result,
 void TransferWriteOp::build(OpBuilder &builder, OperationState &result,
                             Value vector, Value dest, ValueRange indices,
                             AffineMap permutationMap,
-                            Optional<ArrayRef<bool>> inBounds) {
+                            std::optional<ArrayRef<bool>> inBounds) {
   auto permutationMapAttr = AffineMapAttr::get(permutationMap);
   auto inBoundsAttr = (inBounds && !inBounds.value().empty())
                           ? builder.getBoolArrayAttr(inBounds.value())
@@ -3813,7 +3840,7 @@ void TransferWriteOp::build(OpBuilder &builder, OperationState &result,
 ///    map to 'getMinorIdentityMap'.
 void TransferWriteOp::build(OpBuilder &builder, OperationState &result,
                             Value vector, Value dest, ValueRange indices,
-                            Optional<ArrayRef<bool>> inBounds) {
+                            std::optional<ArrayRef<bool>> inBounds) {
   auto vectorType = vector.getType().cast<VectorType>();
   AffineMap permutationMap = getTransferMinorIdentityMap(
       dest.getType().cast<ShapedType>(), vectorType);
@@ -3922,6 +3949,14 @@ LogicalResult TransferWriteOp::verify() {
 
   return verifyPermutationMap(permutationMap,
                               [&](Twine t) { return emitOpError(t); });
+}
+
+// MaskableOpInterface methods.
+
+/// Returns the mask type expected by this operation. Mostly used for
+/// verification purposes.
+Type TransferWriteOp::getExpectedMaskType() {
+  return inferTransferWriteMaskType(getVectorType(), getPermutationMap());
 }
 
 /// Fold:
@@ -4038,7 +4073,7 @@ LogicalResult TransferWriteOp::fold(ArrayRef<Attribute> operands,
   return memref::foldMemRefCast(*this);
 }
 
-Optional<SmallVector<int64_t, 4>> TransferWriteOp::getShapeForUnroll() {
+std::optional<SmallVector<int64_t, 4>> TransferWriteOp::getShapeForUnroll() {
   return llvm::to_vector<4>(getVectorType().getShape());
 }
 
@@ -5029,7 +5064,7 @@ LogicalResult vector::TransposeOp::verify() {
   return success();
 }
 
-Optional<SmallVector<int64_t, 4>> TransposeOp::getShapeForUnroll() {
+std::optional<SmallVector<int64_t, 4>> TransposeOp::getShapeForUnroll() {
   return llvm::to_vector<4>(getResultType().getShape());
 }
 
@@ -5398,9 +5433,10 @@ LogicalResult MaskOp::verify() {
         "expects result type to match maskable operation result type");
 
   // Mask checks.
-  if (getMask().getType() != maskableOp.getExpectedMaskType())
-    return emitOpError("expects a ") << maskableOp.getExpectedMaskType()
-                                     << " mask for the maskable operation";
+  Type expectedMaskType = maskableOp.getExpectedMaskType();
+  if (getMask().getType() != expectedMaskType)
+    return emitOpError("expects a ")
+           << expectedMaskType << " mask for the maskable operation";
 
   // Passthru checks.
   Value passthru = getPassthru();
@@ -5571,7 +5607,7 @@ ParseResult WarpExecuteOnLane0Op::parse(OpAsmParser &parser,
 }
 
 void WarpExecuteOnLane0Op::getSuccessorRegions(
-    Optional<unsigned> index, ArrayRef<Attribute> operands,
+    std::optional<unsigned> index, ArrayRef<Attribute> operands,
     SmallVectorImpl<RegionSuccessor> &regions) {
   if (index) {
     regions.push_back(RegionSuccessor(getResults()));

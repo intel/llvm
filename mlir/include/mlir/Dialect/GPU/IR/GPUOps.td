@@ -705,7 +705,8 @@ def GPU_AllReduceOperationAttr : EnumAttr<GPU_Dialect, GPU_AllReduceOperation,
 def GPU_AllReduceOp : GPU_Op<"all_reduce",
     [SameOperandsAndResultType, IsolatedFromAbove]>,
     Arguments<(ins AnyType:$value,
-               OptionalAttr<GPU_AllReduceOperationAttr>:$op)>,
+               OptionalAttr<GPU_AllReduceOperationAttr>:$op,
+               UnitAttr:$uniform)>,
     Results<(outs AnyType)> {
   let summary = "Reduce values among workgroup.";
   let description = [{
@@ -728,11 +729,12 @@ def GPU_AllReduceOp : GPU_Op<"all_reduce",
     accumulation as code region. The accumulation operation must be one of:
     `add`, `and`, `max`, `min`, `mul`, `or`, `xor`.
 
-    Either none or all work items of a workgroup need to execute this op
-    in convergence.
+    If `uniform` flag is set either none or all work items of a workgroup
+    need to execute this op in convergence.
   }];
   let regions = (region AnyRegion:$body);
-  let assemblyFormat = [{ custom<AllReduceOperation>($op) $value $body attr-dict
+  let assemblyFormat = [{ custom<AllReduceOperation>($op) $value
+                          (`uniform` $uniform^)? $body attr-dict
                           `:` functional-type(operands, results) }];
   let hasRegionVerifier = 1;
 }
@@ -740,7 +742,8 @@ def GPU_AllReduceOp : GPU_Op<"all_reduce",
 def GPU_SubgroupReduceOp : GPU_Op<"subgroup_reduce",
     [SameOperandsAndResultType]>,
     Arguments<(ins AnyType:$value,
-               GPU_AllReduceOperationAttr:$op)>,
+               GPU_AllReduceOperationAttr:$op,
+               UnitAttr:$uniform)>,
     Results<(outs AnyType)> {
   let summary = "Reduce values among subgroup.";
   let description = [{
@@ -753,10 +756,11 @@ def GPU_SubgroupReduceOp : GPU_Op<"subgroup_reduce",
     %1 = gpu.subgroup_reduce add %0 : (f32) -> (f32)
     ```
 
-    Either none or all work items of a subgroup need to execute this op
-    in convergence.
+    If `uniform` flag is set either none or all work items of a subgroup
+    need to execute this op in convergence.
   }];
-  let assemblyFormat = [{ custom<AllReduceOperation>($op) $value attr-dict
+  let assemblyFormat = [{ custom<AllReduceOperation>($op) $value
+                          (`uniform` $uniform^)? attr-dict
                           `:` functional-type(operands, results) }];
   let hasVerifier = 1;
 }

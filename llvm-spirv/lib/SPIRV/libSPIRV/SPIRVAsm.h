@@ -89,8 +89,8 @@ protected:
     assert(WordCount > FixedWC);
     assert(OpCode == OC);
   }
-  SPIRVAsmTargetINTEL *Target;
-  SPIRVTypeFunction *FunctionType;
+  SPIRVAsmTargetINTEL *Target = nullptr;
+  SPIRVTypeFunction *FunctionType = nullptr;
   std::string Instructions;
   std::string Constraints;
 };
@@ -134,7 +134,7 @@ protected:
     assert(getBasicBlock() && "Invalid BB");
     assert(getBasicBlock()->getModule() == Asm->getModule());
   }
-  SPIRVAsmINTEL *Asm;
+  SPIRVAsmINTEL *Asm = nullptr;
   std::vector<SPIRVWord> Args;
 };
 

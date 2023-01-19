@@ -2200,6 +2200,9 @@ def err_init_list_bad_dest_type : Error<
 def warn_cxx20_compat_aggregate_init_with_ctors : Warning<
   "aggregate initialization of type %0 with user-declared constructors "
   "is incompatible with C++20">, DefaultIgnore, InGroup<CXX20Compat>;
+def warn_cxx17_compat_aggregate_init_paren_list : Warning<
+  "aggregate initialization of type %0 from a parenthesized list of values "
+  "is a C++20 extension">, DefaultIgnore, InGroup<CXX20>;
 
 def err_reference_bind_to_bitfield : Error<
   "%select{non-const|volatile}0 reference cannot bind to "
@@ -2926,7 +2929,7 @@ def note_type_requirement_substitution_error : Note<
 def note_type_requirement_unknown_substitution_error : Note<
   "%select{and|because}0 '%1' would be invalid">;
 def note_nested_requirement_substitution_error : Note<
-  "%select{and|because}0 '%1' would be invalid: %2">;
+  "%select{and|because}0 '%1' would be invalid%2">;
 def note_nested_requirement_unknown_substitution_error : Note<
   "%select{and|because}0 '%1' would be invalid">;
 def note_ambiguous_atomic_constraints : Note<
@@ -3095,8 +3098,8 @@ def warn_unsupported_branch_protection_spec : Warning<
 
 def warn_unsupported_target_attribute
     : Warning<"%select{unsupported|duplicate|unknown}0%select{| CPU|"
-              " tune CPU}1 '%2' in the '%select{target|target_clones}3' "
-              "attribute string; '%select{target|target_clones}3' "
+              " tune CPU}1 '%2' in the '%select{target|target_clones|target_version}3' "
+              "attribute string; '%select{target|target_clones|target_version}3' "
               "attribute ignored">,
       InGroup<IgnoredAttributes>;
 def err_attribute_unsupported
@@ -5730,6 +5733,12 @@ def err_new_abi_tag_on_redeclaration : Error<
   "'abi_tag' %0 missing in original declaration">;
 def note_use_ifdef_guards : Note<
   "unguarded header; consider using #ifdef guards or #pragma once">;
+
+def warn_var_decl_not_read_only : Warning<
+  "object of type %0 cannot be placed in read-only memory">,
+  InGroup<ReadOnlyPlacementChecks>;
+def note_enforce_read_only_placement : Note<"type was declared read-only here">;
+
 
 def note_deleted_dtor_no_operator_delete : Note<
   "virtual destructor requires an unambiguous, accessible 'operator delete'">;
@@ -10799,6 +10808,8 @@ def note_omp_nested_statement_here : Note<
   "%select{statement|directive}0 outside teams construct here">;
 def err_omp_single_copyprivate_with_nowait : Error<
   "the 'copyprivate' clause must not be used with the 'nowait' clause">;
+def err_omp_nowait_clause_without_depend: Error<
+  "directive '#pragma omp taskwait' cannot use 'nowait' clause without 'depend' clause">;
 def note_omp_nowait_clause_here : Note<
   "'nowait' clause is here">;
 def err_omp_single_decl_in_declare_simd_variant : Error<
@@ -11577,7 +11588,7 @@ def note_shadow_field : Note<"declared here">;
 
 def err_multiversion_required_in_redecl : Error<
   "function declaration is missing %select{'target'|'cpu_specific' or "
-  "'cpu_dispatch'}0 attribute in a multiversioned function">;
+  "'cpu_dispatch'|'target_version'}0 attribute in a multiversioned function">;
 def note_multiversioning_caused_here : Note<
   "function multiversioning caused by this declaration">;
 def err_multiversion_after_used : Error<
@@ -11592,7 +11603,7 @@ def err_multiversion_noproto : Error<
   "multiversioned function must have a prototype">;
 def err_multiversion_disallowed_other_attr
     : Error<"attribute "
-            "'%select{|target|cpu_specific|cpu_dispatch|target_clones}0' "
+            "'%select{|target|cpu_specific|cpu_dispatch|target_clones|target_version}0' "
             "multiversioning cannot be combined"
             " with attribute %1">;
 def err_multiversion_diff : Error<
@@ -11601,7 +11612,7 @@ def err_multiversion_diff : Error<
   "language linkage}0">;
 def err_multiversion_doesnt_support
     : Error<"attribute "
-            "'%select{|target|cpu_specific|cpu_dispatch|target_clones}0' "
+            "'%select{|target|cpu_specific|cpu_dispatch|target_clones|target_version}0' "
             "multiversioned functions do not "
             "yet support %select{function templates|virtual functions|"
             "deduced return types|constructors|destructors|deleted functions|"
@@ -11635,6 +11646,9 @@ def warn_target_clone_mixed_values
       InGroup<TargetClonesMixedSpecifiers>;
 def warn_target_clone_duplicate_options
     : Warning<"version list contains duplicate entries">,
+      InGroup<FunctionMultiVersioning>;
+def warn_target_clone_no_impact_options
+    : Warning<"version list contains entries that don't impact code generation">,
       InGroup<FunctionMultiVersioning>;
 
 // three-way comparison operator diagnostics
@@ -11992,7 +12006,10 @@ def err_loongarch_builtin_requires_la64 : Error<
   "this builtin requires target: loongarch64">;
 
 // Unsafe buffer usage diagnostics.
-def warn_unsafe_buffer_usage : Warning<
+def warn_unsafe_buffer_expression : Warning<
   "unchecked operation on raw buffer in expression">,
-  InGroup<DiagGroup<"unsafe-buffer-usage">>, DefaultIgnore;
+  InGroup<UnsafeBufferUsage>, DefaultIgnore;
+def warn_unsafe_buffer_variable : Warning<
+  "variable %0 participates in unchecked buffer operations">,
+  InGroup<UnsafeBufferUsage>, DefaultIgnore;
 } // end of sema component.
