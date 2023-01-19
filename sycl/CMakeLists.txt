@@ -309,6 +309,7 @@ add_custom_target( sycl-toolchain
   DEPENDS sycl-runtime-libraries
           sycl-compiler
           sycl-ls
+	  win_proxy_loader
           ${XPTIFW_LIBS}
   COMMENT "Building SYCL compiler toolchain..."
 )

@@ -3,7 +3,7 @@ project(win_proxy_loader)
 add_library(win_proxy_loader SHARED  win_proxy_loader.cpp)
 if (WIN32)
   install(TARGETS win_proxy_loader
-          RUNTIME DESTINATION "bin"
+          RUNTIME DESTINATION "bin" COMPONENT win_proxy_loader
   )
 endif()
 
@@ -54,7 +54,7 @@ if (MSVC)
   target_link_libraries(win_proxy_loader PRIVATE shlwapi)
   if (WIN32)
      install(TARGETS win_proxy_loaderd
-             RUNTIME DESTINATION "bin"
+             RUNTIME DESTINATION "bin" COMPONENT win_proxy_loader
   )
   endif()
 endif()
