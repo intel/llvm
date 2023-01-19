@@ -147,8 +147,8 @@ public:
 
   template <typename ExceptionT, typename RetT>
   RetT *waitUntilBuilt(BuildResult<RetT> *BuildResult) {
-    // any thread which will find nullptr in cache will wait until the pointer
-    // is not null anymore
+    // Any thread which will find nullptr in cache will wait until the pointer
+    // is not null anymore.
     waitUntilBuilt(*BuildResult, [BuildResult]() {
       int State = BuildResult->State.load();
       return State == BuildState::BS_Done || State == BuildState::BS_Failed;

@@ -61,9 +61,7 @@ struct DeviceGlobalMapEntry {
   // Constructor for only initializing ID and pointer. The other members will
   // be initialized later.
   DeviceGlobalMapEntry(std::string UniqueId, const void *DeviceGlobalPtr)
-      : MUniqueId(UniqueId), MDeviceGlobalPtr(DeviceGlobalPtr),
-        MImageIdentifiers(), MKSIds(), MDeviceGlobalTSize(0),
-        MIsDeviceImageScopeDecorated(false) {}
+      : MUniqueId(UniqueId), MDeviceGlobalPtr(DeviceGlobalPtr) {}
 
   // Constructor for only initializing ID, type size, and device image scope
   // flag. The pointer to the device global will be initialized later.

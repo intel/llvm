@@ -329,7 +329,7 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUseFull) {
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
   EXPECT_TRUE(!DeviceGlobalFillEvent.has_value());
 
-  Q.single_task<DeviceGlobalTestKernel>([]() {});
+  Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 
   // The device global should now have its USM memory pointer written, but fill
   // should still not have happened as an explicit write have happened to the
@@ -364,7 +364,7 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUseFull) {
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
   EXPECT_TRUE(!DeviceGlobalFillEvent.has_value());
 
-  Q.single_task<DeviceGlobalTestKernel>([]() {});
+  Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 
   // The device global should now have its USM memory pointer written, but fill
   // should still not have happened as an explicit write have happened to the
@@ -399,7 +399,7 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialNoOffset) {
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
   EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
 
-  Q.single_task<DeviceGlobalTestKernel>([]() {});
+  Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 
   // The device global should now have its USM memory pointer written.
   EXPECT_TRUE(DeviceGlobalWriteEvent.has_value());
@@ -431,7 +431,7 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUsePartialNoOffset) {
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
   EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
 
-  Q.single_task<DeviceGlobalTestKernel>([]() {});
+  Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 
   // The device global should now have its USM memory pointer written.
   EXPECT_TRUE(DeviceGlobalWriteEvent.has_value());
@@ -463,7 +463,7 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialWithOffset) {
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
   EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
 
-  Q.single_task<DeviceGlobalTestKernel>([]() {});
+  Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 
   // The device global should now have its USM memory pointer written.
   EXPECT_TRUE(DeviceGlobalWriteEvent.has_value());
@@ -495,7 +495,7 @@ TEST(DeviceGlobalTest, DeviceGlobalInitBeforeMemcpyToPartialWithOffset) {
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
   EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
 
-  Q.single_task<DeviceGlobalTestKernel>([]() {});
+  Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 
   // The device global should now have its USM memory pointer written.
   EXPECT_TRUE(DeviceGlobalWriteEvent.has_value());
@@ -520,7 +520,7 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyFromBeforeUse) {
   sycl::queue Q{C, sycl::default_selector_v};
 
   int Vals[2] = {42, 1234};
-  Q.copy(DeviceGlobal, Vals);
+  Q.copy(DeviceGlobal, Vals).wait();
 
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
   EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
@@ -545,7 +545,7 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyFromBeforeUse) {
   sycl::queue Q{C, sycl::default_selector_v};
 
   int Vals[2] = {42, 1234};
-  Q.memcpy(Vals, DeviceGlobal);
+  Q.memcpy(Vals, DeviceGlobal).wait();
 
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
   EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
@@ -578,7 +578,7 @@ TEST(DeviceGlobalTest, DeviceGlobalUseBeforeCopyTo) {
   int Vals[2] = {42, 1234};
   Q.copy(Vals, DeviceGlobal).wait();
 
-  Q.single_task<DeviceGlobalTestKernel>([]() {});
+  Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalUseBeforeMemcpyTo) {
@@ -599,7 +599,7 @@ TEST(DeviceGlobalTest, DeviceGlobalUseBeforeMemcpyTo) {
   sycl::context C{Plt.get_devices()[0]};
   sycl::queue Q{C, sycl::default_selector_v};
 
-  Q.single_task<DeviceGlobalTestKernel>([]() {});
+  Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 
   // Device global will have been initialized at this point.
   EXPECT_TRUE(DeviceGlobalWriteEvent.has_value());
@@ -610,7 +610,7 @@ TEST(DeviceGlobalTest, DeviceGlobalUseBeforeMemcpyTo) {
   int Vals[2] = {42, 1234};
   Q.memcpy(DeviceGlobal, Vals).wait();
 
-  Q.single_task<DeviceGlobalTestKernel>([]() {});
+  Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalImgScopeCopyToBeforeUse) {
@@ -633,7 +633,7 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeCopyToBeforeUse) {
   int Vals[2] = {42, 1234};
   Q.copy(Vals, DeviceGlobalImgScope).wait();
 
-  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {});
+  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 
   EXPECT_EQ(DeviceGlobalWriteCounter, 1u);
   EXPECT_EQ(DeviceGlobalReadCounter, 0u);
@@ -659,7 +659,7 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeMemcpyToBeforeUse) {
   int Vals[2] = {42, 1234};
   Q.memcpy(DeviceGlobalImgScope, Vals).wait();
 
-  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {});
+  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 
   EXPECT_EQ(DeviceGlobalWriteCounter, 1u);
   EXPECT_EQ(DeviceGlobalReadCounter, 0u);
@@ -685,7 +685,7 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeCopyFromBeforeUse) {
   int Vals[2] = {42, 1234};
   Q.copy(DeviceGlobalImgScope, Vals).wait();
 
-  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {});
+  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 
   EXPECT_EQ(DeviceGlobalWriteCounter, 0u);
   EXPECT_EQ(DeviceGlobalReadCounter, 1u);
@@ -711,7 +711,7 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeMemcpyFromBeforeUse) {
   int Vals[2] = {42, 1234};
   Q.memcpy(Vals, DeviceGlobalImgScope).wait();
 
-  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {});
+  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 
   EXPECT_EQ(DeviceGlobalWriteCounter, 0u);
   EXPECT_EQ(DeviceGlobalReadCounter, 1u);
@@ -734,7 +734,7 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeCopyTo) {
   sycl::context C{Plt.get_devices()[0]};
   sycl::queue Q{C, sycl::default_selector_v};
 
-  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {});
+  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 
   // Register the cached program as expected for device global memory operation.
   auto CtxImpl = sycl::detail::getSyclObjImpl(C);
@@ -772,7 +772,7 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeMemcpyTo) {
   sycl::context C{Plt.get_devices()[0]};
   sycl::queue Q{C, sycl::default_selector_v};
 
-  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {});
+  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 
   // Register the cached program as expected for device global memory operation.
   auto CtxImpl = sycl::detail::getSyclObjImpl(C);
@@ -810,7 +810,7 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeCopyFrom) {
   sycl::context C{Plt.get_devices()[0]};
   sycl::queue Q{C, sycl::default_selector_v};
 
-  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {});
+  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 
   // Register the cached program as expected for device global memory operation.
   auto CtxImpl = sycl::detail::getSyclObjImpl(C);
@@ -848,7 +848,7 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeMemcpyFrom) {
   sycl::context C{Plt.get_devices()[0]};
   sycl::queue Q{C, sycl::default_selector_v};
 
-  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {});
+  Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 
   // Register the cached program as expected for device global memory operation.
   auto CtxImpl = sycl::detail::getSyclObjImpl(C);
