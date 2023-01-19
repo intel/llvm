@@ -1735,9 +1735,8 @@ mlir::Type CodeGenTypes::getMLIRType(const clang::BuiltinType *BT) const {
   case BuiltinType::SveBFloat16:
   case BuiltinType::SveBFloat16x2:
   case BuiltinType::SveBFloat16x3:
-  case BuiltinType::SveBFloat16x4: {
+  case BuiltinType::SveBFloat16x4:
     llvm_unreachable("Unexpected ARM type");
-  }
 
 #define PPC_VECTOR_TYPE(Name, Id, Size) case BuiltinType::Id:
 #include "clang/Basic/PPCTypes.def"
