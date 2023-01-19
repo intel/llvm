@@ -9,9 +9,11 @@
 #pragma once
 
 #include <memory>
+#include <vector>
+
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
-#include <vector>
+#include <sycl/property_list.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -51,7 +53,7 @@ private:
 template <graph_state State = graph_state::modifiable>
 class __SYCL_EXPORT command_graph {
 public:
-  command_graph();
+  command_graph(const property_list &propList = {});
 
   // Adding empty node with [0..n] predecessors:
   node add(const std::vector<node> &dep = {});
@@ -65,7 +67,8 @@ public:
   void make_edge(node sender, node receiver);
 
   command_graph<graph_state::executable>
-  finalize(const sycl::context &syclContext) const;
+  finalize(const sycl::context &syclContext,
+           const property_list &propList = {}) const;
 
 private:
   command_graph(detail::graph_ptr Impl) : impl(Impl) {}
