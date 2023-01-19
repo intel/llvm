@@ -329,11 +329,15 @@ std::vector<RT::PiEvent> context_impl::initializeDeviceGlobals(
                                                           /*ZeroInit=*/true);
 
       // If the device global still has a zero-initialization event it should be
-      // added to the initialization events list.
+      // added to the initialization events list. Since initialization events
+      // are cleaned up separately from cleaning up the device global USM memory
+      // this must retain the event.
       std::optional<RT::PiEvent> ZIEvent =
           DeviceGlobalUSM.getZeroInitEvent(Plugin);
-      if (ZIEvent.has_value())
+      if (ZIEvent.has_value()) {
+        Plugin.call<PiApiKind::piEventRetain>(*ZIEvent);
         InitEventsRef.push_back(*ZIEvent);
+      }
 
       // Write the pointer to the device global and store the event in the
       // initialize events list.
