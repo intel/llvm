@@ -1711,7 +1711,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
 
     for (const sycl::device &Dev : Devs) {
       if (!compatibleWithDevice(BinImage, Dev) ||
-          !doesDevSupportImgAspects(Dev, *BinImage))
+          !doesDevSupportDeviceRequirements(Dev, *BinImage))
         continue;
 
       std::shared_ptr<std::vector<sycl::kernel_id>> KernelIDs;
@@ -2178,19 +2178,30 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
                         &(BuildResult->MBuildResultMutex));
 }
 
-bool doesDevSupportImgAspects(const device &Dev,
-                              const RTDeviceBinaryImage &Img) {
-  const RTDeviceBinaryImage::PropertyRange &PropRange =
-      Img.getDeviceRequirements();
-  RTDeviceBinaryImage::PropertyRange::ConstIterator PropIt = std::find_if(
-      PropRange.begin(), PropRange.end(),
-      [](RTDeviceBinaryImage::PropertyRange::ConstIterator &&Prop) {
-        using namespace std::literals;
-        return (*Prop)->Name == "aspects"sv;
-      });
-  if (PropIt == PropRange.end())
+bool doesDevSupportDeviceRequirements(const device &Dev,
+                                      const RTDeviceBinaryImage &Img) {
+  auto getPropValue = [&Img](std::string PropName) {
+    const RTDeviceBinaryImage::PropertyRange &PropRange =
+        Img.getDeviceRequirements();
+    RTDeviceBinaryImage::PropertyRange::ConstIterator PropIt = std::find_if(
+        PropRange.begin(), PropRange.end(),
+        [&PropName](RTDeviceBinaryImage::PropertyRange::ConstIterator &&Prop) {
+          return (*Prop)->Name == PropName;
+        });
+    bool IsRangeEnd = false;
+    if (PropIt == PropRange.end())
+      IsRangeEnd = true;
+    return std::make_pair(IsRangeEnd, *PropIt);
+  };
+
+  enum { IS_RANGE_END, PROP_VAL };
+
+  // Checking if device supports defined aspects
+  auto AspectsPropVal = getPropValue("aspects");
+  if (std::get<IS_RANGE_END>(AspectsPropVal))
     return true;
-  ByteArray Aspects = DeviceBinaryProperty(*PropIt).asByteArray();
+  ByteArray Aspects =
+      DeviceBinaryProperty(std::get<PROP_VAL>(AspectsPropVal)).asByteArray();
   // Drop 8 bytes describing the size of the byte array.
   Aspects.dropBytes(8);
   while (!Aspects.empty()) {
@@ -2198,6 +2209,23 @@ bool doesDevSupportImgAspects(const device &Dev,
     if (!Dev.has(Aspect))
       return false;
   }
+
+  // Checking if device supports defined required work group size
+  auto ReqdWGSizePropVal = getPropValue("reqd_work_group_size");
+  if (std::get<IS_RANGE_END>(ReqdWGSizePropVal))
+    return true;
+  ByteArray ReqdWGSize =
+      DeviceBinaryProperty(std::get<PROP_VAL>(ReqdWGSizePropVal)).asByteArray();
+  // Drop 8 bytes describing the size of the byte array.
+  ReqdWGSize.dropBytes(8);
+  int ReqdWGSizeAllDimsSum = 0;
+  while (!ReqdWGSize.empty()) {
+    ReqdWGSizeAllDimsSum += ReqdWGSize.consume<int>();
+  }
+  if (static_cast<long unsigned int>(ReqdWGSizeAllDimsSum) >
+      Dev.get_info<info::device::max_work_group_size>())
+    return false;
+
   return true;
 }
 

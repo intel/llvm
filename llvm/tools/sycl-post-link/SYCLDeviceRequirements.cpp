@@ -30,7 +30,9 @@ void llvm::getSYCLDeviceRequirements(
   // Scan the module and if the metadata is present fill the corresponing
   // property with metadata's aspects
   constexpr std::pair<const char *, const char *> ReqdMDs[] = {
-      {"sycl_used_aspects", "aspects"}, {"sycl_fixed_targets", "fixed_target"}};
+      {"sycl_used_aspects", "aspects"},
+      {"sycl_fixed_targets", "fixed_target"},
+      {"reqd_work_group_size", "reqd_work_group_size"}};
 
   for (const auto &MD : ReqdMDs) {
     std::set<uint32_t> Aspects;
