@@ -877,7 +877,7 @@ constexpr void check_atomic() {
 /// \c atomic_op::add, \c atomic_op::sub, \c atomic_op::min, \c atomic_op::max,
 /// \c atomic_op::xchg, \c atomic_op::bit_and, \c atomic_op::bit_or,
 /// \c atomic_op::bit_xor, \c atomic_op::minsint, \c atomic_op::maxsint,
-/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::save.
+/// \c atomic_op::fmax, \c atomic_op::fmin, \c atomic_op::store.
 /// @tparam Tx The vector element type.
 /// @tparam N The number of memory locations to update.
 /// @param p The USM pointer.
@@ -892,6 +892,15 @@ template <atomic_op Op, typename Tx, int N, typename Toffset>
 __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
                                       simd<Tx, N> src0, simd_mask<N> mask) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(Op == atomic_op::add || Op == atomic_op::sub ||
+                    Op == atomic_op::min || Op == atomic_op::max ||
+                    Op == atomic_op::xchg || Op == atomic_op::bit_and ||
+                    Op == atomic_op::bit_or || Op == atomic_op::bit_xor ||
+                    Op == atomic_op::minsint || Op == atomic_op::maxsint ||
+                    Op == atomic_op::fmax || Op == atomic_op::fmin ||
+                    Op == atomic_op::store,
+                "Incorrect operation");
+  detail::check_atomic<Op, Tx, N, 1>();
   if constexpr ((Op == atomic_op::fmin) || (Op == atomic_op::fmax) ||
                 (Op == atomic_op::fadd) || (Op == atomic_op::fsub)) {
     // Auto-convert FP atomics to LSC version. Warning is given - see enum.
@@ -900,7 +909,6 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
   } else if constexpr (Op == atomic_op::store) {
     return atomic_update<atomic_op::xchg, Tx, N>(p, offset, src0, mask);
   } else {
-    detail::check_atomic<Op, Tx, N, 1>();
     simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
     simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
     vAddr += offset_i1;
@@ -934,11 +942,14 @@ template <atomic_op Op, typename Tx, int N, typename Toffset>
 __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
                                       simd_mask<N> mask) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(Op == atomic_op::inc || Op == atomic_op::dec ||
+                    Op == atomic_op::load,
+                "Incorrect operation");
+  detail::check_atomic<Op, Tx, N, 0>();
   if constexpr (Op == atomic_op::load) {
     return atomic_update<atomic_op::bit_or, Tx, N>(p, offset, simd<Tx, N>(0),
                                                    mask);
   } else {
-    detail::check_atomic<Op, Tx, N, 0>();
     simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
     simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
     vAddr += offset_i1;
@@ -1022,12 +1033,14 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
                                       simd<Tx, N> src0, simd<Tx, N> src1,
                                       simd_mask<N> mask) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  static_assert(Op == atomic_op::cmpxchg || Op == atomic_op::fcmpwr,
+                "Incorrect operation");
+  detail::check_atomic<Op, Tx, N, 2>();
   if constexpr (Op == atomic_op::fcmpwr) {
     // Auto-convert FP atomics to LSC version. Warning is given - see enum.
     return atomic_update<detail::to_lsc_atomic_op<Op>(), Tx, N>(p, offset, src0,
                                                                 src1, mask);
   } else {
-    detail::check_atomic<Op, Tx, N, 2>();
     simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
     simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(offset);
     vAddr += offset_i1;
