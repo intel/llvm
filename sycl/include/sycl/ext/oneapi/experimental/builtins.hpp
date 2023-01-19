@@ -113,23 +113,24 @@ inline __SYCL_ALWAYS_INLINE
                      sycl::marray<T, N>>
     tanh(sycl::marray<T, N> x) __NOEXC {
   sycl::marray<T, N> res;
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-#define Func_VEC native::tanh
-#define Func Func_VEC
-#else
-#define Func_VEC __sycl_std::__invoke_tanh<sycl::vec<T, 2>>
-#define Func __sycl_std::__invoke_tanh<T>
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 
   for (size_t i = 0; i < N / 2; i++) {
-    auto partial_res = Func_VEC(sycl::detail::to_vec2(x, i * 2));
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+    auto partial_res = native::tanh(sycl::detail::to_vec2(x, i * 2));
+#else
+    auto partial_res = __sycl_std::__invoke_tanh<sycl::vec<T, 2>>(
+        sycl::detail::to_vec2(x, i * 2));
+#endif
     std::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));
   }
   if (N % 2) {
-    res[N - 1] = Func(x[N - 1]);
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+    res[N - 1] = native::tanh(x[N - 1]);
+#else
+    res[N - 1] = __sycl_std::__invoke_tanh<T>(x[N - 1]);
+#endif
   }
-#undef Func_VEC
-#undef Func
+
   return res;
 }
 
