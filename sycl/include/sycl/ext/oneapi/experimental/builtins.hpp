@@ -155,23 +155,23 @@ template <size_t N>
 inline __SYCL_ALWAYS_INLINE sycl::marray<half, N>
 exp2(sycl::marray<half, N> x) __NOEXC {
   sycl::marray<half, N> res;
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-#define Func_VEC native::exp2
-#define Func Func_VEC
-#else
-#define Func_VEC __sycl_std::__invoke_exp2<sycl::vec<half, 2>>
-#define Func __sycl_std::__invoke_exp2<half>
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 
   for (size_t i = 0; i < N / 2; i++) {
-    auto partial_res = Func_VEC(sycl::detail::to_vec2(x, i * 2));
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+    auto partial_res = native::exp2(sycl::detail::to_vec2(x, i * 2));
+#else
+    auto partial_res = __sycl_std::__invoke_exp2<sycl::vec<half, 2>>(
+        sycl::detail::to_vec2(x, i * 2));
+#endif
     std::memcpy(&res[i * 2], &partial_res, sizeof(vec<half, 2>));
   }
   if (N % 2) {
-    res[N - 1] = Func(x[N - 1]);
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+    res[N - 1] = native::exp2(x[N - 1]);
+#else
+    res[N - 1] = __sycl_std::__invoke_exp2<half>(x[N - 1]);
+#endif
   }
-#undef Func_VEC
-#undef Func
   return res;
 }
 
