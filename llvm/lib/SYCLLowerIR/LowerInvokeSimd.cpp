@@ -365,8 +365,7 @@ bool processInvokeSimdCall(CallInst *InvokeSimd,
     assert(InvokeSimdF && "Unexpected IR for invoke_simd");
     // - type of the obsolete (unmodified) helper:
     PointerType *HelperArgTy =
-        dyn_cast<PointerType>(InvokeSimdF->getArg(HelperArgNo)->getType());
-    assert(HelperArgTy && "Unexpected IR for invoke_simd");
+        cast<PointerType>(InvokeSimdF->getArg(HelperArgNo)->getType());
     unsigned AS = HelperArgTy->getAddressSpace();
     FunctionType *InvokeSimdFTy = InvokeSimdF->getFunctionType();
     // - create the list of new formal parameter types (the old one, with the
