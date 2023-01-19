@@ -5145,8 +5145,10 @@ class OffloadingActionBuilder final {
 
         if (A->getOption().matches(options::OPT_fsycl_targets_EQ)) {
           // spir64 target is actually JIT compilation, so we defer selection of
-          // bfloat16 libraries to runtime. For AOT we need libraries.
-          needLibs = TC->getTriple().getSubArch() != llvm::Triple::NoSubArch;
+          // bfloat16 libraries to runtime. For AOT we need libraries, but skip
+          // for Nvidia.
+          needLibs = TC->getTriple().getSubArch() != llvm::Triple::NoSubArch &&
+                     !TC->getTriple().isNVPTX();
           TargetBE = GetTripleIt(A->getValue(0));
           if (TargetBE)
             TargetOpt = A->getValue(0);
@@ -5208,9 +5210,9 @@ class OffloadingActionBuilder final {
       // Currently, all SYCL device libraries will be linked by default. Linkage
       // of "internal" libraries cannot be affected via -fno-sycl-device-lib.
       llvm::StringMap<bool> devicelib_link_info = {
-          {"libc", true},        {"libm-fp32", true},   {"libm-fp64", true},
-          {"libimf-fp32", true}, {"libimf-fp64", true}, {"libimf-bf16", true},
-          {"internal", true}};
+          {"libc", true},          {"libm-fp32", true},   {"libm-fp64", true},
+          {"libimf-fp32", true},   {"libimf-fp64", true}, {"libimf-bf16", true},
+          {"libm-bfloat16", true}, {"internal", true}};
       if (Arg *A = Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
                                    options::OPT_fno_sycl_device_lib_EQ)) {
         if (A->getValues().size() == 0)

@@ -50,7 +50,7 @@ llvm_config.use_clang(use_installed=True)
 
 config.substitutions.append(('%PATH%', config.environment['PATH']))
 
-tool_dirs = [config.llvm_tools_dir, config.llvm_spirv_dir]
+tool_dirs = [config.llvm_spirv_dir, config.llvm_tools_dir]
 
 tools = ['llvm-as', 'llvm-dis', 'llvm-spirv', 'not']
 if not config.spirv_skip_debug_info_tests:
