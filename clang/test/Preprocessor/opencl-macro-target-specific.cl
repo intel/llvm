@@ -1,3 +1,5 @@
+// This test checks for the presence of target specific macros for openCL
+//
 // RUN: %clang_cc1 %s -E -dM -triple amdgcn-amdhsa-amdhsa \
 // RUN: | FileCheck --check-prefix=CHECK-AMDGPU %s
 // CHECK-AMDGPU: #define __HIP_MEMORY_SCOPE_AGENT

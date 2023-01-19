@@ -259,7 +259,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 	endif()
 
 	if( ${ARCH} STREQUAL r600 OR ${ARCH} STREQUAL amdgcn )
-
 		list( APPEND dirs amdgpu )
 	endif()
 

@@ -1,3 +1,5 @@
+// This test checks for the presence of target specific macros for SYCL
+//
 // RUN: %clang_cc1 %s -fsycl-is-device -triple nvptx64-nvidia-nvcl -E -dM \
 // RUN: | FileCheck --check-prefix=CHECK-NVPTX %s
 // RUN: %clang_cc1 %s -fsycl-is-device -triple spir64-unknown-unknown -E -dM \
