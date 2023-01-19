@@ -76,6 +76,8 @@ namespace option {
 
 struct JITEnableVerbose : public OptionBase<OptionID::VerboseOutput, bool> {};
 
+struct JITEnableCaching : public OptionBase<OptionID::EnableCaching, bool> {};
+
 } // namespace option
 } // namespace jit_compiler
 

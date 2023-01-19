@@ -49,6 +49,19 @@ FusionResult KernelFusion::fuseKernels(
   // available (on a per-thread basis).
   ConfigHelper::setConfig(std::move(JITConfig));
 
+  bool CachingEnabled = ConfigHelper::get<option::JITEnableCaching>();
+  CacheKeyT CacheKey{KernelsToFuse, Identities, BarriersFlags, Internalization,
+                     Constants};
+  if (CachingEnabled) {
+    std::optional<SYCLKernelInfo> CachedKernel = JITCtx.getCacheEntry(CacheKey);
+    if (CachedKernel) {
+      helper::printDebugMessage("Re-using cached JIT kernel");
+      return FusionResult{*CachedKernel, /*Cached*/ true};
+    }
+    helper::printDebugMessage(
+        "Compiling new kernel, no suitable cached kernel found");
+  }
+
   SYCLModuleInfo ModuleInfo;
   // Copy the kernel information for the input kernels to the module
   // information. We could remove the copy, if we removed the const from the
@@ -114,6 +127,10 @@ FusionResult KernelFusion::fuseKernels(
       ModuleInfo.kernels().front().BinaryInfo.AddressBits;
   FusedBinaryInfo.BinaryStart = SPIRVBin->address();
   FusedBinaryInfo.BinarySize = SPIRVBin->size();
+
+  if (CachingEnabled) {
+    JITCtx.addCacheEntry(CacheKey, FusedKernelInfo);
+  }
 
   return FusionResult{FusedKernelInfo};
 }
