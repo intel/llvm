@@ -20,11 +20,11 @@
 #include <atomic>
 #include <climits>
 #include <mutex>
+#include <pi2ur.hpp>
 #include <regex>
 #include <shared_mutex>
 #include <string>
 #include <sycl/detail/pi.h>
-#include <pi2ur.hpp>
 // This version should be incremented for any change made to this file or its
 // corresponding .cpp file.
 #define _PI_OPENCL_PLUGIN_VERSION 1
