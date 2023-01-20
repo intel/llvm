@@ -413,7 +413,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
         return ReturnHelper(PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN);
       }
       case _pi_device::SUBDEVICE: {
-        // find out number of CCSes
+        // Find out number of CCSes.
         bool supported = false;
         cl_int ret_err = CL_SUCCESS;
         ret_err =
@@ -449,8 +449,6 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
         PI_DEVICE_AFFINITY_DOMAIN_NUMA |
         PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE});
   case PI_DEVICE_INFO_PARTITION_TYPE: {
-    if (device->level == _pi_device::INVALID) // level not updated yet
-      device->level = getLevel(device);
     // For root-device there is no partitioning to report.
     if (device->isRootDevice())
       return ReturnValue(pi_device_partition_property{0});
