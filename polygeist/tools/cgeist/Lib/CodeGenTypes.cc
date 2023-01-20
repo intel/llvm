@@ -14,6 +14,7 @@
 #include "TypeUtils.h"
 #include "utils.h"
 
+#include "clang/../../lib/CodeGen/CGOpenCLRuntime.h"
 #include "clang/../../lib/CodeGen/CodeGenModule.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
@@ -1430,11 +1431,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     return LLVM::LLVMStructType::getLiteral(TheModule->getContext(), Types);
   }
 
-  const auto *T = QT->getUnqualifiedDesugaredType();
-  if (T->isVoidType()) {
-    mlir::OpBuilder Builder(TheModule->getContext());
-    return Builder.getNoneType();
-  }
+  const clang::Type *T = QT->getUnqualifiedDesugaredType();
 
   if (const auto *AT = dyn_cast<clang::ArrayType>(T)) {
     const auto *PTT = AT->getElementType()->getUnqualifiedDesugaredType();
@@ -1477,29 +1474,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     bool SubRef = false;
     auto ET = getMLIRType(AT->getElementType(), &SubRef, AllowMerge);
     int64_t Size = AT->getNumElements();
-    if (isa<clang::ExtVectorType>(T))
-      return mlir::VectorType::get(Size, ET);
-
-    if (MemRefABI && SubRef) {
-      auto MT = ET.cast<MemRefType>();
-      auto Shape2 = std::vector<int64_t>(MT.getShape());
-      Shape2.insert(Shape2.begin(), Size);
-      if (ImplicitRef)
-        *ImplicitRef = true;
-      return mlir::MemRefType::get(Shape2, MT.getElementType(),
-                                   MemRefLayoutAttrInterface(),
-                                   MT.getMemorySpace());
-    }
-
-    if (!MemRefABI || !AllowMerge ||
-        ET.isa<LLVM::LLVMPointerType, LLVM::LLVMArrayType,
-               LLVM::LLVMFunctionType, LLVM::LLVMStructType>())
-      return LLVM::LLVMFixedVectorType::get(ET, Size);
-
-    if (ImplicitRef)
-      *ImplicitRef = true;
-
-    return mlir::MemRefType::get({Size}, ET);
+    return mlir::VectorType::get(Size, ET);
   }
 
   if (const auto *FT = dyn_cast<clang::FunctionProtoType>(T)) {
@@ -1595,41 +1570,188 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
         CGM.getContext().getTargetAddressSpace(PointeeType.getAddressSpace()));
   }
 
-  if (T->isBuiltinType() || isa<clang::EnumType>(T)) {
-    if (T->isBooleanType()) {
-      OpBuilder Builder(TheModule->getContext());
-      return Builder.getIntegerType(8);
-    }
-
-    llvm::Type *Ty = CGM.getTypes().ConvertType(QualType(T, 0));
+  if (isa<clang::EnumType>(T)) {
     mlir::OpBuilder Builder(TheModule->getContext());
-    if (Ty->isVoidTy())
-      return Builder.getNoneType();
-    if (Ty->isFloatTy())
-      return Builder.getF32Type();
-    if (Ty->isDoubleTy())
-      return Builder.getF64Type();
-    if (Ty->isX86_FP80Ty())
-      return Builder.getF80Type();
-    if (Ty->isFP128Ty())
-      return Builder.getF128Type();
-    if (Ty->is16bitFPTy()) {
-      CGEIST_WARNING({
-        if (CGM.getTarget().shouldEmitFloat16WithExcessPrecision()) {
-          llvm::WithColor::warning() << "Experimental usage of _Float16. Code "
-                                        "generated will be illegal "
-                                        "for this target. Use with caution.\n";
-        }
-      });
-      return Builder.getF16Type();
-    }
-
-    if (auto *IT = dyn_cast<llvm::IntegerType>(Ty))
-      return Builder.getIntegerType(IT->getBitWidth());
+    llvm::Type *Ty = CGM.getTypes().ConvertType(QualType(T, 0));
+    return Builder.getIntegerType(cast<llvm::IntegerType>(Ty)->getBitWidth());
   }
+
+  if (T->isBuiltinType())
+    return getMLIRType(cast<clang::BuiltinType>(T));
 
   LLVM_DEBUG(llvm::dbgs() << "QT: "; QT->dump(); llvm::dbgs() << "\n");
   llvm_unreachable("unhandled type");
+}
+
+mlir::Type CodeGenTypes::getMLIRType(const clang::BuiltinType *BT) const {
+  assert(BT && "Expecting valid pointer");
+
+  mlir::OpBuilder Builder(TheModule->getContext());
+  mlir::LLVM::TypeFromLLVMIRTranslator TypeTranslator(*TheModule->getContext());
+
+  switch (BT->getKind()) {
+  case BuiltinType::Void:
+    return Builder.getNoneType();
+
+  case BuiltinType::ObjCId:
+  case BuiltinType::ObjCClass:
+  case BuiltinType::ObjCSel:
+    return Builder.getIntegerType(8);
+
+  case BuiltinType::Bool:
+    // TODO: boolean types should be represented as i1 rather than i8.
+    return Builder.getIntegerType(8);
+
+  case BuiltinType::Char_S:
+  case BuiltinType::Char_U:
+  case BuiltinType::SChar:
+  case BuiltinType::UChar:
+  case BuiltinType::Short:
+  case BuiltinType::UShort:
+  case BuiltinType::Int:
+  case BuiltinType::UInt:
+  case BuiltinType::Long:
+  case BuiltinType::ULong:
+  case BuiltinType::LongLong:
+  case BuiltinType::ULongLong:
+  case BuiltinType::WChar_S:
+  case BuiltinType::WChar_U:
+  case BuiltinType::Char8:
+  case BuiltinType::Char16:
+  case BuiltinType::Char32:
+  case BuiltinType::ShortAccum:
+  case BuiltinType::Accum:
+  case BuiltinType::LongAccum:
+  case BuiltinType::UShortAccum:
+  case BuiltinType::UAccum:
+  case BuiltinType::ULongAccum:
+  case BuiltinType::ShortFract:
+  case BuiltinType::Fract:
+  case BuiltinType::LongFract:
+  case BuiltinType::UShortFract:
+  case BuiltinType::UFract:
+  case BuiltinType::ULongFract:
+  case BuiltinType::SatShortAccum:
+  case BuiltinType::SatAccum:
+  case BuiltinType::SatLongAccum:
+  case BuiltinType::SatUShortAccum:
+  case BuiltinType::SatUAccum:
+  case BuiltinType::SatULongAccum:
+  case BuiltinType::SatShortFract:
+  case BuiltinType::SatFract:
+  case BuiltinType::SatLongFract:
+  case BuiltinType::SatUShortFract:
+  case BuiltinType::SatUFract:
+  case BuiltinType::SatULongFract:
+    return Builder.getIntegerType(Context.getTypeSize(BT));
+
+  case BuiltinType::Float16:
+  case BuiltinType::Half:
+  case BuiltinType::BFloat16:
+    return Builder.getF16Type();
+
+  case BuiltinType::Float:
+    return Builder.getF32Type();
+
+  case BuiltinType::Double:
+    return Builder.getF64Type();
+
+  case BuiltinType::LongDouble:
+  case BuiltinType::Float128:
+  case BuiltinType::Ibm128:
+    return Builder.getF128Type();
+
+  case BuiltinType::NullPtr:
+    // Model std::nullptr_t as i8*
+    return getPointerOrMemRefType(Builder.getIntegerType(8), 0);
+
+  case BuiltinType::UInt128:
+  case BuiltinType::Int128:
+    return Builder.getIntegerType(128);
+
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  case BuiltinType::Id:
+#include "clang/Basic/OpenCLImageTypes.def"
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  case BuiltinType::Sampled##Id:
+#define IMAGE_WRITE_TYPE(Type, Id, Ext)
+#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
+#include "clang/Basic/OpenCLImageTypes.def"
+#define EXT_OPAQUE_TYPE(ExtType, Id, Ext) case BuiltinType::Id:
+#include "clang/Basic/OpenCLExtensionTypes.def"
+  case BuiltinType::OCLSampler:
+  case BuiltinType::OCLEvent:
+  case BuiltinType::OCLClkEvent:
+  case BuiltinType::OCLQueue:
+  case BuiltinType::OCLReserveID:
+    return TypeTranslator.translateType(
+        CGM.getOpenCLRuntime().convertOpenCLSpecificType(BT));
+
+  case BuiltinType::SveInt8:
+  case BuiltinType::SveUint8:
+  case BuiltinType::SveInt8x2:
+  case BuiltinType::SveUint8x2:
+  case BuiltinType::SveInt8x3:
+  case BuiltinType::SveUint8x3:
+  case BuiltinType::SveInt8x4:
+  case BuiltinType::SveUint8x4:
+  case BuiltinType::SveInt16:
+  case BuiltinType::SveUint16:
+  case BuiltinType::SveInt16x2:
+  case BuiltinType::SveUint16x2:
+  case BuiltinType::SveInt16x3:
+  case BuiltinType::SveUint16x3:
+  case BuiltinType::SveInt16x4:
+  case BuiltinType::SveUint16x4:
+  case BuiltinType::SveInt32:
+  case BuiltinType::SveUint32:
+  case BuiltinType::SveInt32x2:
+  case BuiltinType::SveUint32x2:
+  case BuiltinType::SveInt32x3:
+  case BuiltinType::SveUint32x3:
+  case BuiltinType::SveInt32x4:
+  case BuiltinType::SveUint32x4:
+  case BuiltinType::SveInt64:
+  case BuiltinType::SveUint64:
+  case BuiltinType::SveInt64x2:
+  case BuiltinType::SveUint64x2:
+  case BuiltinType::SveInt64x3:
+  case BuiltinType::SveUint64x3:
+  case BuiltinType::SveInt64x4:
+  case BuiltinType::SveUint64x4:
+  case BuiltinType::SveBool:
+  case BuiltinType::SveFloat16:
+  case BuiltinType::SveFloat16x2:
+  case BuiltinType::SveFloat16x3:
+  case BuiltinType::SveFloat16x4:
+  case BuiltinType::SveFloat32:
+  case BuiltinType::SveFloat32x2:
+  case BuiltinType::SveFloat32x3:
+  case BuiltinType::SveFloat32x4:
+  case BuiltinType::SveFloat64:
+  case BuiltinType::SveFloat64x2:
+  case BuiltinType::SveFloat64x3:
+  case BuiltinType::SveFloat64x4:
+  case BuiltinType::SveBFloat16:
+  case BuiltinType::SveBFloat16x2:
+  case BuiltinType::SveBFloat16x3:
+  case BuiltinType::SveBFloat16x4:
+    llvm_unreachable("Unexpected ARM type");
+
+#define PPC_VECTOR_TYPE(Name, Id, Size) case BuiltinType::Id:
+#include "clang/Basic/PPCTypes.def"
+#define RVV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
+#include "clang/Basic/RISCVVTypes.def"
+    llvm_unreachable("Unexpected PPC type");
+
+  case BuiltinType::Dependent:
+#define BUILTIN_TYPE(Id, SingletonId)
+#define PLACEHOLDER_TYPE(Id, SingletonId) case BuiltinType::Id:
+#include "clang/AST/BuiltinTypes.def"
+    llvm_unreachable("Unexpected placeholder builtin type!");
+  }
+
+  llvm_unreachable("Unexpected builtin type!");
 }
 
 // Note: In principle we should always create a memref here because we want to

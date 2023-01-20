@@ -22,11 +22,12 @@ namespace clang {
 class ASTContext;
 class CodeGenOptions;
 class FunctionDecl;
+class GlobalDecl;
+class RecordDecl;
+class BuiltinType;
 class QualType;
 class RecordType;
-class RecordDecl;
 class Type;
-class GlobalDecl;
 
 namespace CodeGen {
 class ABIInfo;
@@ -104,6 +105,8 @@ private:
 
   bool getCPUAndFeaturesAttributes(clang::GlobalDecl GD,
                                    AttrBuilder &Attrs) const;
+
+  mlir::Type getMLIRType(const clang::BuiltinType *BT) const;
 };
 
 } // namespace CodeGen
