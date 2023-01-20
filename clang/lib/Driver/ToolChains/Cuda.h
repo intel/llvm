@@ -96,6 +96,19 @@ public:
 
 // Runs fatbinary, which combines GPU object files ("cubin" files) and/or PTX
 // assembly into a single output file.
+class LLVM_LIBRARY_VISIBILITY FatBinary : public Tool {
+public:
+  FatBinary(const ToolChain &TC) : Tool("NVPTX::Linker", "fatbinary", TC) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
+// Runs nvlink, which links GPU object files ("cubin" files) into a single file.
 class LLVM_LIBRARY_VISIBILITY Linker : public Tool {
 public:
   Linker(const ToolChain &TC) : Tool("NVPTX::Linker", "fatbinary", TC) {}
@@ -143,7 +156,48 @@ void getNVPTXTargetFeatures(const Driver &D, const llvm::Triple &Triple,
 
 namespace toolchains {
 
-class LLVM_LIBRARY_VISIBILITY CudaToolChain : public ToolChain {
+class LLVM_LIBRARY_VISIBILITY NVPTXToolChain : public ToolChain {
+public:
+  NVPTXToolChain(const Driver &D, const llvm::Triple &Triple,
+                 const llvm::Triple &HostTriple,
+                 const llvm::opt::ArgList &Args);
+
+  NVPTXToolChain(const Driver &D, const llvm::Triple &Triple,
+                 const llvm::opt::ArgList &Args);
+
+  llvm::opt::DerivedArgList *
+  TranslateArgs(const llvm::opt::DerivedArgList &Args, StringRef BoundArch,
+                Action::OffloadKind DeviceOffloadKind) const override;
+
+  // Never try to use the integrated assembler with CUDA; always fork out to
+  // ptxas.
+  bool useIntegratedAs() const override { return false; }
+  bool isCrossCompiling() const override { return true; }
+  bool isPICDefault() const override { return false; }
+  bool isPIEDefault(const llvm::opt::ArgList &Args) const override {
+    return false;
+  }
+  bool isPICDefaultForced() const override { return false; }
+  bool SupportsProfiling() const override { return false; }
+
+  bool IsMathErrnoDefault() const override { return false; }
+
+  bool supportsDebugInfoOption(const llvm::opt::Arg *A) const override;
+  void adjustDebugInfoKind(codegenoptions::DebugInfoKind &DebugInfoKind,
+                           const llvm::opt::ArgList &Args) const override;
+
+  // NVPTX supports only DWARF2.
+  unsigned GetDefaultDwarfVersion() const override { return 2; }
+  unsigned getMaxDwarfVersion() const override { return 2; }
+
+  CudaInstallationDetector CudaInstallation;
+
+protected:
+  Tool *buildAssembler() const override; // ptxas.
+  Tool *buildLinker() const override;    // nvlink.
+};
+
+class LLVM_LIBRARY_VISIBILITY CudaToolChain : public NVPTXToolChain {
 public:
   CudaToolChain(const Driver &D, const llvm::Triple &Triple,
                 const ToolChain &HostTC, const llvm::opt::ArgList &Args,
@@ -166,20 +220,6 @@ public:
   llvm::DenormalMode getDefaultDenormalModeForType(
       const llvm::opt::ArgList &DriverArgs, const JobAction &JA,
       const llvm::fltSemantics *FPType = nullptr) const override;
-
-  // Never try to use the integrated assembler with CUDA; always fork out to
-  // ptxas.
-  bool useIntegratedAs() const override { return false; }
-  bool isCrossCompiling() const override { return true; }
-  bool isPICDefault() const override { return false; }
-  bool isPIEDefault(const llvm::opt::ArgList &Args) const override {
-    return false;
-  }
-  bool isPICDefaultForced() const override { return false; }
-  bool SupportsProfiling() const override { return false; }
-  bool supportsDebugInfoOption(const llvm::opt::Arg *A) const override;
-  void adjustDebugInfoKind(codegenoptions::DebugInfoKind &DebugInfoKind,
-                           const llvm::opt::ArgList &Args) const override;
 
   // math-errno should be the default for SYCL but not other OFK using CUDA TC
   bool IsMathErrnoDefault() const override { return OK == Action::OFK_SYCL; }
@@ -204,14 +244,8 @@ public:
   computeMSVCVersion(const Driver *D,
                      const llvm::opt::ArgList &Args) const override;
 
-  unsigned GetDefaultDwarfVersion() const override { return 2; }
-  // NVPTX supports only DWARF2.
-  unsigned getMaxDwarfVersion() const override { return 2; }
-
   Tool *SelectTool(const JobAction &JA) const override;
-
   const ToolChain &HostTC;
-  CudaInstallationDetector CudaInstallation;
 
   /// Uses nvptx-arch tool to get arch of the system GPU. Will return error
   /// if unable to find one.
