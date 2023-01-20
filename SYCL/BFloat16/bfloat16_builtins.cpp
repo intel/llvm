@@ -222,26 +222,6 @@ bool check(bool a, bool b) { return (a == b); }
   assert(err == 0);                                                            \
   assert(std::isnan(check_nan));
 
-// The intention to introduce a proxy function for isnan is to bypass a compfail
-// on Win64 platform. If we simply pass 'isnan' to testing macro, compiler will
-// report 'ambiguous call' error. This is becayse MSVC header correct_math.h
-// includes an isnan definition too. In order to bypass this without modifying
-// current test infrastructure, we add proxy function for 'isnan' and uses full
-// name to avoid amibiguity.
-bool isnan_test_proxy(sycl::ext::oneapi::bfloat16 x) {
-  return sycl::ext::oneapi::experimental::isnan(x);
-}
-template <size_t N>
-sycl::marray<bool, N>
-isnan_test_proxy(sycl::marray<sycl::ext::oneapi::bfloat16, N> x) {
-  return sycl::ext::oneapi::experimental::isnan(x);
-}
-bool isnan_test_proxy(float x) { return sycl::isnan(x); }
-template <size_t N>
-sycl::marray<bool, N> isnan_test_proxy(sycl::marray<float, N> x) {
-  return sycl::isnan(x);
-}
-
 int main() {
   queue q;
 
@@ -266,7 +246,7 @@ int main() {
 
     // Insert NAN value in a to test isnan
     a[0] = a[N - 1] = NAN;
-    TEST_BUILTIN_1(isnan_test_proxy, bool);
+    TEST_BUILTIN_1(isnan, bool);
   }
   return 0;
 }
