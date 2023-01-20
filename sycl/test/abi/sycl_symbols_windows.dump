@@ -1014,6 +1014,8 @@
 ?has_kernel@device_image_plain@detail@_V1@sycl@@QEBA_NAEBVkernel_id@34@AEBVdevice@34@@Z
 ?has_kernel@kernel_bundle_plain@detail@_V1@sycl@@QEBA_NAEBVkernel_id@34@@Z
 ?has_kernel@kernel_bundle_plain@detail@_V1@sycl@@QEBA_NAEBVkernel_id@34@AEBVdevice@34@@Z
+?has_kernel_impl@kernel_bundle_plain@detail@_V1@sycl@@IEBA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEBVdevice@34@@Z
+?has_kernel_impl@kernel_bundle_plain@detail@_V1@sycl@@IEBA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z  
 ?has_kernel_bundle_impl@detail@_V1@sycl@@YA_NAEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@AEBV?$vector@Vkernel_id@_V1@sycl@@V?$allocator@Vkernel_id@_V1@sycl@@@std@@@6@W4bundle_state@23@@Z
 ?has_kernel_bundle_impl@detail@_V1@sycl@@YA_NAEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@W4bundle_state@23@@Z
 ?has_specialization_constant_impl@kernel_bundle_plain@detail@_V1@sycl@@IEBA_NPEBD@Z
