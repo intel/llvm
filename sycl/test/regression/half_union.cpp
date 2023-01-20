@@ -5,7 +5,7 @@
 
 typedef union _u16_to_half {
   unsigned short u;
-  sycl::half h;
+  sycl::half h = 0.0;
 } u16_to_sycl_half;
 
 int main() {
