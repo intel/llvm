@@ -137,7 +137,7 @@ namespace host_half_impl {
 // The main host half class
 class __SYCL_EXPORT half {
 public:
-  constexpr half() {}
+  constexpr half() = default;
 
   constexpr half(const half &) = default;
   constexpr half(half &&) = default;
@@ -273,7 +273,7 @@ class half {
 class [[__sycl_detail__::__uses_aspects__(aspect::fp16)]] half {
 #endif
 public:
-  constexpr half() {}
+  constexpr half() = default;
   constexpr half(const half &) = default;
   constexpr half(half &&) = default;
 
