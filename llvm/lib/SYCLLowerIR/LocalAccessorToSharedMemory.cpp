@@ -68,7 +68,7 @@ LocalAccessorToSharedMemoryPass::run(Module &M, ModuleAnalysisManager &) {
     return PreservedAnalyses::all();
 
   // Process the function and if changed, update the metadata.
-  for (auto K : Kernels) {
+  for (const auto &K : Kernels) {
     auto *NewKernel = processKernel(M, K.Kernel);
     if (NewKernel)
       NewToOldKernels.push_back(std::make_pair(NewKernel, K));
@@ -196,7 +196,7 @@ Function *LocalAccessorToSharedMemoryPass::processKernel(Module &M,
   // Clone metadata of the old function, including debug info descriptor.
   SmallVector<std::pair<unsigned, MDNode *>, 1> MDs;
   F->getAllMetadata(MDs);
-  for (auto MD : MDs)
+  for (const auto &MD : MDs)
     NF->addMetadata(MD.first, *MD.second);
 
   // Now that the old function is dead, delete it.

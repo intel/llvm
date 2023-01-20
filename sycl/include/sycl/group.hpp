@@ -432,15 +432,15 @@ private:
   typename detail::enable_if_t<(dims == 2), size_t>
   get_local_linear_id_impl() const {
     id<Dimensions> localId = get_local_id();
-    return localId[0] * groupRange[1] + localId[1];
+    return localId[0] * localRange[1] + localId[1];
   }
 
   template <int dims = Dimensions>
   typename detail::enable_if_t<(dims == 3), size_t>
   get_local_linear_id_impl() const {
     id<Dimensions> localId = get_local_id();
-    return (localId[0] * groupRange[1] * groupRange[2]) +
-           (localId[1] * groupRange[2]) + localId[2];
+    return (localId[0] * localRange[1] * localRange[2]) +
+           (localId[1] * localRange[2]) + localId[2];
   }
 
   template <int dims = Dimensions>
