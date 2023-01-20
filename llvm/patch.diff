@@ -1,0 +1,659 @@
+diff --git a/clang/include/clang/Basic/CodeGenOptions.def b/clang/include/clang/Basic/CodeGenOptions.def
+index 2042ee23702e..baf1f8fc5e52 100644
+--- a/clang/include/clang/Basic/CodeGenOptions.def
++++ b/clang/include/clang/Basic/CodeGenOptions.def
+@@ -516,6 +516,10 @@ CODEGENOPT(CtorDtorReturnThis, 1, 0)
+ /// Whether to disable the standard optimization pipeline for the SYCL device compiler.
+ CODEGENOPT(DisableSYCLEarlyOpts, 1, 0)
+ 
++/// Optimize SYCL Framework functions. These are functions
++/// which do not contain "user" code.
++CODEGENOPT(OptimizeSYCLFramework, 1, 0)
++
+ #undef CODEGENOPT
+ #undef ENUM_CODEGENOPT
+ #undef VALUE_CODEGENOPT
+diff --git a/clang/include/clang/Basic/DiagnosticDriverKinds.td b/clang/include/clang/Basic/DiagnosticDriverKinds.td
+index d1ad00d0aa56..b23958a4ec90 100644
+--- a/clang/include/clang/Basic/DiagnosticDriverKinds.td
++++ b/clang/include/clang/Basic/DiagnosticDriverKinds.td
+@@ -354,6 +354,8 @@ def warn_drv_sycl_target_missing : Warning<
+   InGroup<SyclTarget>;
+ def err_drv_no_rdc_sycl_target_missing : Error<
+   "linked binaries do not contain expected '%0' target; found targets: '%1', this is not supported with '-fno-sycl-rdc'">;
++def err_drv_fsycl_wrong_optimization_options : Error<
++  "-fsycl-optimize-non-user-code option can be used only in conjunction with %0 option">;
+ def err_drv_multiple_target_with_forced_target : Error<
+   "multiple target usage with '%0' is not supported with '%1'">;
+ def err_drv_failed_to_deduce_target_from_arch : Error<
+diff --git a/clang/include/clang/Driver/Options.td b/clang/include/clang/Driver/Options.td
+index cf607985d57c..0ffb071b4ce8 100644
+--- a/clang/include/clang/Driver/Options.td
++++ b/clang/include/clang/Driver/Options.td
+@@ -3000,6 +3000,10 @@ def fsycl_max_parallel_jobs_EQ : Joined<["-"], "fsycl-max-parallel-link-jobs=">,
+   "or AOT compilation of each device image.">;
+ def : Flag<["-"], "fsycl-rdc">, Flags<[CoreOption]>, Alias<fgpu_rdc>;
+ def : Flag<["-"], "fno-sycl-rdc">, Flags<[CoreOption]>, Alias<fno_gpu_rdc>;
++def fsycl_optimize_non_user_code : Flag<["-"], "fsycl-optimize-non-user-code">,
++  Flags<[CC1Option, CoreOption]>, MarshallingInfoFlag<CodeGenOpts<"OptimizeSYCLFramework">>,
++  HelpText<"Option used in conjunction with -O0 flag to "
++  "optimize SYCL framework utility functions and leave unoptimized user kernel code. (experimental)">;
+ def fsyntax_only : Flag<["-"], "fsyntax-only">,
+   Flags<[NoXarchOption,CoreOption,CC1Option,FC1Option,FlangOption]>, Group<Action_Group>,
+   HelpText<"Run the preprocessor, parser and semantic analysis stages">;
+diff --git a/clang/lib/CodeGen/BackendUtil.cpp b/clang/lib/CodeGen/BackendUtil.cpp
+index 05e66f57a354..b39d78b99f5a 100644
+--- a/clang/lib/CodeGen/BackendUtil.cpp
++++ b/clang/lib/CodeGen/BackendUtil.cpp
+@@ -850,6 +850,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
+   // Only enable CGProfilePass when using integrated assembler, since
+   // non-integrated assemblers don't recognize .cgprofile section.
+   PTO.CallGraphProfile = !CodeGenOpts.DisableIntegratedAS;
++  PTO.OptimizeSYCLFramework = CodeGenOpts.OptimizeSYCLFramework;
+ 
+   LoopAnalysisManager LAM;
+   FunctionAnalysisManager FAM;
+diff --git a/clang/lib/CodeGen/CodeGenFunction.cpp b/clang/lib/CodeGen/CodeGenFunction.cpp
+index b2c01eb0181d..bab7c90a5a4b 100644
+--- a/clang/lib/CodeGen/CodeGenFunction.cpp
++++ b/clang/lib/CodeGen/CodeGenFunction.cpp
+@@ -857,6 +857,23 @@ static llvm::Constant *getPrologueSignature(CodeGenModule &CGM,
+   return CGM.getTargetCodeGenInfo().getUBSanFunctionSignature(CGM);
+ }
+ 
++/// Function checks whether given DeclContext contains a topmost
++/// namespace with name "sycl"
++static bool checkIfDeclaredInSYCLNamespace(const Decl *D) {
++  const DeclContext *DC = D->getDeclContext()->getEnclosingNamespaceContext();
++  const auto *ND = dyn_cast<NamespaceDecl>(DC);
++  if (!ND)
++    return false;
++
++  while (const DeclContext *Parent = ND->getParent()) {
++    if (!isa<NamespaceDecl>(Parent))
++      break;
++    ND = cast<NamespaceDecl>(Parent);
++  }
++
++  return ND && ND->getName() == "sycl";
++}
++
+ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
+                                     llvm::Function *Fn,
+                                     const CGFunctionInfo &FnInfo,
+@@ -1158,6 +1175,12 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
+     Fn->addFnAttrs(FnAttrBuilder);
+   }
+ 
++  if (getLangOpts().SYCLIsDevice &&
++      CGM.getCodeGenOpts().OptimizeSYCLFramework && D &&
++      checkIfDeclaredInSYCLNamespace(D)) {
++    Fn->setMetadata("sycl-framework", llvm::MDNode::get(getLLVMContext(), {}));
++  }
++
+   if (FD && (getLangOpts().OpenCL ||
+              (getLangOpts().HIP && getLangOpts().CUDAIsDevice) ||
+              getLangOpts().SYCLIsDevice)) {
+diff --git a/clang/lib/Driver/ToolChains/Clang.cpp b/clang/lib/Driver/ToolChains/Clang.cpp
+index 5aa4e8f06013..3d6f6e0a111f 100644
+--- a/clang/lib/Driver/ToolChains/Clang.cpp
++++ b/clang/lib/Driver/ToolChains/Clang.cpp
+@@ -5023,6 +5023,18 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
+ 
+     // Forward -fsycl-default-sub-group-size if in SYCL mode.
+     Args.AddLastArg(CmdArgs, options::OPT_fsycl_default_sub_group_size);
++
++    if (Args.hasArg(options::OPT_fsycl_optimize_non_user_code)) {
++      const Arg *OArg = Args.getLastArg(options::OPT_O_Group);
++      if (!OArg || !OArg->getOption().matches(options::OPT_O0)) {
++        bool isCLMode = C.getDriver().IsCLMode();
++        // Linux and Windows have different debug options.
++        const StringRef Option = isCLMode ? "-Od" : "-O0";
++        D.Diag(diag::err_drv_fsycl_wrong_optimization_options) << Option;
++      }
++
++      CmdArgs.push_back("-fsycl-optimize-non-user-code");
++    }
+   }
+ 
+   if (IsSYCL) {
+diff --git a/clang/test/CodeGenSYCL/sycl-framework-metadata1.cpp b/clang/test/CodeGenSYCL/sycl-framework-metadata1.cpp
+new file mode 100644
+index 000000000000..d01e3a79d245
+--- /dev/null
++++ b/clang/test/CodeGenSYCL/sycl-framework-metadata1.cpp
+@@ -0,0 +1,44 @@
++// Test checks that !sycl-framework metadata is emitted only to functions
++// whose topmost namespace is sycl.
++
++// RUN: %clang_cc1 -fsycl-is-device -O0 -fsycl-optimize-non-user-code -internal-isystem %S/Inputs -triple spir64-unknown-unknown -emit-llvm %s -o - | FileCheck %s
++
++#include "sycl.hpp"
++
++// Check that all functions on sycl::* namespace are marked with !sycl-framework metadata
++namespace sycl {
++  // CHECK: @_ZN4sycl4bar1Ev() {{.*}} !sycl-framework
++  void bar1() {}
++
++  namespace V1 {
++    // CHECK: @_ZN4sycl2V14bar2Ev() {{.*}} !sycl-framework
++    void bar2() {}
++  }
++}
++
++// Check that V1::sycl::* functions are not marked with !sycl-framework
++// metadata since topmost namespace is V1 instead of sycl.
++namespace V1 {
++  namespace sycl {
++    // CHECK-NOT: @_ZN2V14sycl4bar3Ev() {{.*}} !sycl-framework
++    void bar3() {}
++  }
++}
++
++// Check that user code is not marked with !sycl-framework metadata
++// CHECK-NOT: @_Z3foov() {{.*}} !sycl-framework
++int foo() {
++  return 123;
++}
++
++// Check that kernel is not marked with !sycl-framework metadata
++// CHECK-NOT: spir_kernel {{.*}} !sycl-framework
++
++int main() {
++  sycl::kernel_single_task<class kernel>([]() {
++    foo();
++    sycl::bar1();
++    sycl::V1::bar2();
++    V1::sycl::bar3();
++  });
++}
+diff --git a/clang/test/CodeGenSYCL/sycl-framework-metadata2.cpp b/clang/test/CodeGenSYCL/sycl-framework-metadata2.cpp
+new file mode 100644
+index 000000000000..98f3d0d96571
+--- /dev/null
++++ b/clang/test/CodeGenSYCL/sycl-framework-metadata2.cpp
+@@ -0,0 +1,27 @@
++// Test checks that !sycl-framework metadata is emitted only to functions
++// whose topmost namespace is sycl.
++
++// RUN: %clang_cc1 -fsycl-is-device -O0 -fsycl-optimize-non-user-code -triple spir64-unknown-unknown -emit-llvm %s -o - | FileCheck %s
++
++// Check that 'anonymous namespace'::sycl::* functions are not marked with
++// !sycl-framework metadata since topmost namespace is anonymous
++// instead of sycl.
++namespace {
++  namespace sycl {
++    // CHECK-NOT: @_ZN2V14sycl4bar4Ev() {{.*}} !sycl-framework
++    void bar4() {}
++  }
++}
++
++// Check that kernel is not marked with !sycl-framework metadata
++// CHECK-NOT: @_ZTSZ4mainE6kernel() {{.*}} !sycl-framework
++template <typename name, typename Func>
++__attribute__((sycl_kernel)) void kernel_single_task(const Func &func) {
++  func();
++}
++
++int main() {
++  kernel_single_task<class kernel>([]() {
++    sycl::bar4();
++  });
++}
+\ No newline at end of file
+diff --git a/clang/test/Driver/sycl-optimize-framework.cpp b/clang/test/Driver/sycl-optimize-framework.cpp
+new file mode 100644
+index 000000000000..2fafd52c365a
+--- /dev/null
++++ b/clang/test/Driver/sycl-optimize-framework.cpp
+@@ -0,0 +1,20 @@
++// RUN: %clangxx -fsycl -O0 -### %s 2>&1 | FileCheck %s -check-prefix=NO-OPT-CHECK
++// NO-OPT-CHECK-NOT: fsycl-optimize-non-user-code
++
++// RUN: %clangxx -fsycl -O0 -fsycl-optimize-non-user-code -### %s 2>&1 | FileCheck %s -check-prefix=OPT-CHECK
++// OPT-CHECK: fsycl-optimize-non-user-code
++
++// RUN: not %clangxx -fsycl -O1 -fsycl-optimize-non-user-code %s 2>&1  | FileCheck %s -check-prefix=CHECK-ERROR
++// RUN: not %clangxx -fsycl -fsycl-optimize-non-user-code %s 2>&1 | FileCheck %s -check-prefix=CHECK-ERROR
++// CHECK-ERROR: error: -fsycl-optimize-non-user-code option can be used only in conjunction with -O0 option
++
++// Check cases for Microsoft Windows Driver.
++// RUN: %clang_cl -fsycl -Od -### %s 2>&1 | FileCheck %s -check-prefix=NO-OPT-WIN-CHECK
++// NO-OPT-WIN-CHECK-NOT: fsycl-optimize-non-user-code
++
++// RUN: %clang_cl -fsycl -Od -fsycl-optimize-non-user-codek -### %s 2>&1 | FileCheck %s -check-prefix=OPT-WIN-CHECK
++// OPT-WIN-CHECK: fsycl-optimize-non-user-code
++
++// RUN: not %clang_cl -fsycl -O1 -fsycl-optimize-non-user-code %s 2>&1  | FileCheck %s -check-prefix=CHECK-WIN-ERROR
++// RUN: not %clang_cl -fsycl -fsycl-optimize-non-user-code %s 2>&1 | FileCheck %s -check-prefix=CHECK-WIN-ERROR
++// CHECK-WIN-ERROR: error: -fsycl-optimize-non-user-code option can be used only in conjunction with -Od option
+diff --git a/llvm/include/llvm/Passes/PassBuilder.h b/llvm/include/llvm/Passes/PassBuilder.h
+index b7e6764d428b..fab4efca5b4b 100644
+--- a/llvm/include/llvm/Passes/PassBuilder.h
++++ b/llvm/include/llvm/Passes/PassBuilder.h
+@@ -85,6 +85,10 @@ public:
+   // analyses after various module->function or cgscc->function adaptors in the
+   // default pipelines.
+   bool EagerlyInvalidateAnalyses;
++
++  /// Tuning option to enable a subset of optimizations in O0 optimization
++  /// mode for non-user SYCL code.
++  bool OptimizeSYCLFramework = false;
+ };
+ 
+ /// This class provides access to building LLVM's passes.
+@@ -298,6 +302,24 @@ public:
+   ModulePassManager buildO0DefaultPipeline(OptimizationLevel Level,
+                                            bool LTOPreLink = false);
+ 
++  /// Constructs a optimization pipeline of a SYCL framework part of code
++  /// and appends it to the given MPM.
++  void addDefaultSYCLFrameworkOptimizationPipeline(ModulePassManager &MPM);
++
++  /// Constructs a simplification pipeline which operates only on
++  /// "SYCL framework" functions and appends it to the given MPM.
++  /// Mostly a copy-paste of buildModuleSimplificationPipeline.
++  /// Module Passes from buildModuleSimplificationPipeline are excluded
++  /// here because they can't skip non "SYCL framework" functions.
++  void addSYCLFrameworkSimplificationPipeline(ModulePassManager &MPM);
++
++  /// Constructs an optimization pipeline which operates only on
++  /// "SYCL framework" functions and appends it to the given MPM.
++  /// Mostly a copy-paste of buildModuleOptimizationPipeline.
++  /// Module Passes from buildModuleOptimizationPipeline are excluded
++  /// here because they can't skip non "SYCL framework" functions.
++  void addSYCLFrameworkOptimizationPipeline(ModulePassManager &MPM);
++
+   /// Build the default `AAManager` with the default alias analysis pipeline
+   /// registered.
+   ///
+diff --git a/llvm/include/llvm/SYCLLowerIR/IR/PassAdaptors.h b/llvm/include/llvm/SYCLLowerIR/IR/PassAdaptors.h
+new file mode 100644
+index 000000000000..cd5f67485384
+--- /dev/null
++++ b/llvm/include/llvm/SYCLLowerIR/IR/PassAdaptors.h
+@@ -0,0 +1,72 @@
++//===--------------- PassAdaptors.h - SYCL Pass Adaptors ----------------- ===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++/// \file
++/// This header defines Pass Adaptors which allows to run Function Passes
++/// on a subset of functions from given Module.
++/// LLVM does not provide a default utility for this purpose.
++//===----------------------------------------------------------------------===//
++
++#include "llvm/IR/PassManager.h"
++#include "llvm/IR/PassManagerInternal.h"
++#include "llvm/Support/raw_ostream.h"
++#include <memory>
++
++#ifndef LLVM_SYCL_IR_PASS_ADAPTORS
++#define LLVM_SYCL_IR_PASS_ADAPTORS
++
++namespace llvm {
++
++/// Trivial adaptor that maps from a module to functions marked
++/// by "sycl-framework" metadata. The implementation is mostly a copy-paste
++/// of LLVM ModuleToFunctionPassAdaptor class.
++///
++/// Designed to allow composition of a FunctionPass(Manager) and
++/// a ModulePassManager, by running the FunctionPass(Manager) over every
++/// "sycl-framework "function in the module.
++class ModuleToSYCLFrameworkFunctionPassAdaptor
++    : public PassInfoMixin<ModuleToSYCLFrameworkFunctionPassAdaptor> {
++public:
++  using PassConceptT = detail::PassConcept<Function, FunctionAnalysisManager>;
++
++  explicit ModuleToSYCLFrameworkFunctionPassAdaptor(
++      std::unique_ptr<PassConceptT> Pass, bool EagerlyInvalidate)
++      : Pass(std::move(Pass)), EagerlyInvalidate(EagerlyInvalidate) {}
++
++  /// Runs the function pass across every "sycl-framework" function in the
++  /// module.
++  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
++  void printPipeline(raw_ostream &OS,
++                     function_ref<StringRef(StringRef)> MapClassName2PassName);
++
++  static bool isRequired() { return true; }
++
++private:
++  std::unique_ptr<PassConceptT> Pass;
++  bool EagerlyInvalidate;
++};
++
++/// A function to deduce a function pass type and wrap it in the
++/// templated adaptor.
++template <typename FunctionPassT>
++ModuleToSYCLFrameworkFunctionPassAdaptor
++createModuleToSYCLFrameworkFunctionPassAdaptor(FunctionPassT &&Pass,
++                                               bool EagerlyInvalidate = false) {
++  using PassModelT =
++      detail::PassModel<Function, FunctionPassT, PreservedAnalyses,
++                        FunctionAnalysisManager>;
++  // Do not use make_unique, it causes too many template instantiations,
++  // causing terrible compile times.
++  return ModuleToSYCLFrameworkFunctionPassAdaptor(
++      std::unique_ptr<ModuleToSYCLFrameworkFunctionPassAdaptor::PassConceptT>(
++          new PassModelT(std::forward<FunctionPassT>(Pass))),
++      EagerlyInvalidate);
++}
++
++} // end namespace llvm
++
++#endif // LLVM_SYCL_IR_PASS_ADAPTORS
+diff --git a/llvm/include/llvm/SYCLLowerIR/SYCLFrameworkOptimization.h b/llvm/include/llvm/SYCLLowerIR/SYCLFrameworkOptimization.h
+new file mode 100644
+index 000000000000..94485f9836e9
+--- /dev/null
++++ b/llvm/include/llvm/SYCLLowerIR/SYCLFrameworkOptimization.h
+@@ -0,0 +1,38 @@
++//== SYCLFrameworkOptimization.h - Utility Pass for SYCL framework optimization
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++/// \file
++/// This header defines utility pass for SYCL framework optimization removing
++/// optnone and noinline attributes from function marked with
++/// "!sycl-framework" metadata.
++///
++//===----------------------------------------------------------------------===//
++//
++#ifndef LLVM_SYCL_FRAMEWORK_OPTIMIZATION_H
++#define LLVM_SYCL_FRAMEWORK_OPTIMIZATION_H
++
++#include "llvm/IR/PassManager.h"
++
++namespace llvm {
++namespace sycl {
++
++class RemoveFuncAttrsFromSYCLFrameworkFuncs
++    : public PassInfoMixin<RemoveFuncAttrsFromSYCLFrameworkFuncs> {
++public:
++  PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
++};
++
++class AddFuncAttrsFromSYCLFrameworkFuncs
++    : public PassInfoMixin<AddFuncAttrsFromSYCLFrameworkFuncs> {
++public:
++  PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
++};
++
++} // namespace sycl
++} // namespace llvm
++
++#endif // LLVM_SYCL_FRAMEWORK_OPTIMIZATION_H
+diff --git a/llvm/lib/Passes/PassBuilderPipelines.cpp b/llvm/lib/Passes/PassBuilderPipelines.cpp
+index 0d6ff42d6e35..eafdf6007164 100644
+--- a/llvm/lib/Passes/PassBuilderPipelines.cpp
++++ b/llvm/lib/Passes/PassBuilderPipelines.cpp
+@@ -26,6 +26,8 @@
+ #include "llvm/IR/PassManager.h"
+ #include "llvm/Passes/OptimizationLevel.h"
+ #include "llvm/Passes/PassBuilder.h"
++#include "llvm/SYCLLowerIR/IR/PassAdaptors.h"
++#include "llvm/SYCLLowerIR/SYCLFrameworkOptimization.h"
+ #include "llvm/Support/CommandLine.h"
+ #include "llvm/Support/ErrorHandling.h"
+ #include "llvm/Support/PGOOptions.h"
+@@ -1985,9 +1987,117 @@ ModulePassManager PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
+ 
+   MPM.addPass(createModuleToFunctionPassAdaptor(AnnotationRemarksPass()));
+ 
++  if (PTO.OptimizeSYCLFramework) {
++    assert(Level == OptimizationLevel::O0 &&
++           "Optimization of sycl framework should be used only with O0 "
++           "optimization level");
++    addDefaultSYCLFrameworkOptimizationPipeline(MPM);
++  }
++
+   return MPM;
+ }
+ 
++void PassBuilder::addSYCLFrameworkSimplificationPipeline(
++    ModulePassManager &MPM) {
++  FunctionPassManager EarlyFPM;
++  // Lower llvm.expect to metadata before attempting transforms.
++  // Compare/branch metadata may alter the behavior of passes like SimplifyCFG.
++  EarlyFPM.addPass(LowerExpectIntrinsicPass());
++  EarlyFPM.addPass(SimplifyCFGPass());
++  EarlyFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
++  EarlyFPM.addPass(EarlyCSEPass());
++  MPM.addPass(
++      createModuleToSYCLFrameworkFunctionPassAdaptor(std::move(EarlyFPM)));
++
++  MPM.addPass(createModuleToSYCLFrameworkFunctionPassAdaptor(PromotePass()));
++
++  FunctionPassManager GlobalCleanupPM;
++  GlobalCleanupPM.addPass(InstCombinePass());
++  invokePeepholeEPCallbacks(GlobalCleanupPM, OptimizationLevel::O2);
++  GlobalCleanupPM.addPass(
++      SimplifyCFGPass(SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
++  MPM.addPass(createModuleToSYCLFrameworkFunctionPassAdaptor(std::move(GlobalCleanupPM),
++                                                             PTO.EagerlyInvalidateAnalyses));
++
++  MPM.addPass(buildInlinerPipeline(OptimizationLevel::O2, ThinOrFullLTOPhase::None));
++}
++
++void PassBuilder::addSYCLFrameworkOptimizationPipeline(ModulePassManager &MPM) {
++  FunctionPassManager OptimizePM;
++  OptimizePM.addPass(Float2IntPass());
++  OptimizePM.addPass(LowerConstantIntrinsicsPass());
++
++  if (EnableMatrix) {
++    OptimizePM.addPass(LowerMatrixIntrinsicsPass());
++    OptimizePM.addPass(EarlyCSEPass());
++  }
++
++  for (auto &C : VectorizerStartEPCallbacks)
++    C(OptimizePM, OptimizationLevel::O2);
++
++  if (!SYCLOptimizationMode) {
++    LoopPassManager LPM;
++    LPM.addPass(LoopRotatePass(/*EnableHeaderDuplication*/ true,
++                               /*PrepareForLTO*/ false));
++    // Some loops may have become dead by now. Try to delete them.
++    LPM.addPass(LoopDeletionPass());
++    OptimizePM.addPass(
++        createFunctionToLoopPassAdaptor(std::move(LPM), /*UseMemorySSA=*/false,
++                                        /*UseBlockFrequencyInfo=*/false));
++
++    // Distribute loops to allow partial vectorization. I.e. isolate dependences
++    // into separate loop that would otherwise inhibit vectorization. This is
++    // currently only performed for loops marked with the metadata
++    // llvm.loop.distribute=true or when -enable-loop-distribute is specified.
++    OptimizePM.addPass(LoopDistributePass());
++
++    // Populates the VFABI attribute with the scalar-to-vector mappings
++    // from the TargetLibraryInfo.
++    OptimizePM.addPass(InjectTLIMappings());
++
++    addVectorPasses(OptimizationLevel::O2, OptimizePM, /* IsFullLTO */ false);
++  }
++
++  // LoopSink pass sinks instructions hoisted by LICM, which serves as a
++  // canonicalization pass that enables other optimizations. As a result,
++  // LoopSink pass needs to be a very late IR pass to avoid undoing LICM
++  // result too early.
++  OptimizePM.addPass(LoopSinkPass());
++
++  // And finally clean up LCSSA form before generating code.
++  OptimizePM.addPass(InstSimplifyPass());
++
++  // This hoists/decomposes div/rem ops. It should run after other sink/hoist
++  // passes to avoid re-sinking, but before SimplifyCFG because it can allow
++  // flattening of blocks.
++  OptimizePM.addPass(DivRemPairsPass());
++
++  // Try to annotate calls that were created during optimization.
++  OptimizePM.addPass(TailCallElimPass());
++
++  // LoopSink (and other loop passes since the last simplifyCFG) might have
++  // resulted in single-entry-single-exit or empty blocks. Clean up the CFG.
++  OptimizePM.addPass(
++      SimplifyCFGPass(SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
++
++  // Add the core optimizing pipeline.
++  MPM.addPass(createModuleToSYCLFrameworkFunctionPassAdaptor(
++      std::move(OptimizePM), PTO.EagerlyInvalidateAnalyses));
++
++  for (auto &C : OptimizerLastEPCallbacks)
++    C(MPM, OptimizationLevel::O2);
++}
++
++void PassBuilder::addDefaultSYCLFrameworkOptimizationPipeline(
++    ModulePassManager &MPM) {
++  MPM.addPass(sycl::RemoveFuncAttrsFromSYCLFrameworkFuncs());
++  addSYCLFrameworkSimplificationPipeline(MPM);
++  addSYCLFrameworkOptimizationPipeline(MPM);
++  MPM.addPass(sycl::AddFuncAttrsFromSYCLFrameworkFuncs());
++
++  // TODO: add manual Inliner Pass.
++}
++
+ AAManager PassBuilder::buildDefaultAAPipeline() {
+   AAManager AA;
+ 
+diff --git a/llvm/lib/SYCLLowerIR/CMakeLists.txt b/llvm/lib/SYCLLowerIR/CMakeLists.txt
+index b8cd03351319..115c7aeda578 100644
+--- a/llvm/lib/SYCLLowerIR/CMakeLists.txt
++++ b/llvm/lib/SYCLLowerIR/CMakeLists.txt
+@@ -55,11 +55,13 @@ add_llvm_component_library(LLVMSYCLLowerIR
+   ESIMD/LowerESIMDVecArg.cpp
+   ESIMD/LowerESIMDVLoadVStore.cpp
+   ESIMD/LowerESIMDSlmReservation.cpp
++  IR/PassAdaptors.cpp
+   LowerInvokeSimd.cpp
+   LowerKernelProps.cpp
+   LowerWGLocalMemory.cpp
+   LowerWGScope.cpp
+   MutatePrintfAddrspace.cpp
++  SYCLFrameworkOptimization.cpp
+   SYCLPropagateAspectsUsage.cpp
+   SYCLUtils.cpp
+ 
+diff --git a/llvm/lib/SYCLLowerIR/IR/PassAdaptors.cpp b/llvm/lib/SYCLLowerIR/IR/PassAdaptors.cpp
+new file mode 100644
+index 000000000000..0c99331d1b33
+--- /dev/null
++++ b/llvm/lib/SYCLLowerIR/IR/PassAdaptors.cpp
+@@ -0,0 +1,68 @@
++//===------------------- PassAdaptors.cpp - SYCL Pass Adaptors
++//-------------===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#include "llvm/SYCLLowerIR/IR/PassAdaptors.h"
++
++namespace llvm {
++
++PreservedAnalyses
++ModuleToSYCLFrameworkFunctionPassAdaptor::run(Module &M,
++                                              ModuleAnalysisManager &AM) {
++  FunctionAnalysisManager &FAM =
++      AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
++
++  // Request PassInstrumentation from analysis manager, will use it to run
++  // instrumenting callbacks for the passes later.
++  PassInstrumentation PI = AM.getResult<PassInstrumentationAnalysis>(M);
++
++  PreservedAnalyses PA = PreservedAnalyses::all();
++  for (Function &F : M) {
++    if (F.isDeclaration() || !F.hasMetadata("sycl-framework"))
++      continue;
++
++    // Check the PassInstrumentation's BeforePass callbacks before running the
++    // pass, skip its execution completely if asked to (callback returns
++    // false).
++    if (!PI.runBeforePass<Function>(*Pass, F))
++      continue;
++
++    PreservedAnalyses PassPA = Pass->run(F, FAM);
++    PI.runAfterPass(*Pass, F, PassPA);
++
++    // We know that the function pass couldn't have invalidated any other
++    // function's analyses (that's the contract of a function pass), so
++    // directly handle the function analysis manager's invalidation here.
++    FAM.invalidate(F, EagerlyInvalidate ? PreservedAnalyses::none() : PassPA);
++
++    // Then intersect the preserved set so that invalidation of module
++    // analyses will eventually occur when the module pass completes.
++    PA.intersect(std::move(PassPA));
++  }
++
++  // The FunctionAnalysisManagerModuleProxy is preserved because (we assume)
++  // the function passes we ran didn't add or remove any functions.
++  //
++  // We also preserve all analyses on Functions, because we did all the
++  // invalidation we needed to do above.
++  PA.preserveSet<AllAnalysesOn<Function>>();
++  PA.preserve<FunctionAnalysisManagerModuleProxy>();
++  return PA;
++}
++
++void ModuleToSYCLFrameworkFunctionPassAdaptor::printPipeline(
++    raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
++  OS << "function";
++  if (EagerlyInvalidate)
++    OS << "<eager-inv>";
++  OS << "(";
++  Pass->printPipeline(OS, MapClassName2PassName);
++  OS << ")";
++}
++
++} // end namespace llvm
+diff --git a/llvm/lib/SYCLLowerIR/SYCLFrameworkOptimization.cpp b/llvm/lib/SYCLLowerIR/SYCLFrameworkOptimization.cpp
+new file mode 100644
+index 000000000000..69634f620eaf
+--- /dev/null
++++ b/llvm/lib/SYCLLowerIR/SYCLFrameworkOptimization.cpp
+@@ -0,0 +1,39 @@
++//=== SYCLFrameworkOptimization.cpp - Utility pass for framework optimization //
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#include "llvm/SYCLLowerIR/SYCLFrameworkOptimization.h"
++
++#include "llvm/IR/Module.h"
++#include "llvm/Pass.h"
++
++using namespace llvm;
++using namespace sycl;
++
++PreservedAnalyses
++RemoveFuncAttrsFromSYCLFrameworkFuncs::run(Module &M, ModuleAnalysisManager &) {
++  for (Function &F : M) {
++    if (F.hasMetadata("sycl-framework")) {
++      F.removeFnAttr(Attribute::NoInline);
++      F.removeFnAttr(Attribute::OptimizeNone);
++    }
++  }
++
++  return PreservedAnalyses::all();
++}
++
++PreservedAnalyses
++AddFuncAttrsFromSYCLFrameworkFuncs::run(Module &M, ModuleAnalysisManager &) {
++  for (Function &F : M) {
++    if (F.hasMetadata("sycl-framework")) {
++      F.addFnAttr(Attribute::NoInline);
++      F.addFnAttr(Attribute::OptimizeNone);
++    }
++  }
++
++  return PreservedAnalyses::all();
++}

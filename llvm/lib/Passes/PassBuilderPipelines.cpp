@@ -2016,10 +2016,11 @@ void PassBuilder::addSYCLFrameworkSimplificationPipeline(
   invokePeepholeEPCallbacks(GlobalCleanupPM, OptimizationLevel::O2);
   GlobalCleanupPM.addPass(
       SimplifyCFGPass(SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
-  MPM.addPass(createModuleToSYCLFrameworkFunctionPassAdaptor(std::move(GlobalCleanupPM),
-                                                             PTO.EagerlyInvalidateAnalyses));
+  MPM.addPass(createModuleToSYCLFrameworkFunctionPassAdaptor(
+      std::move(GlobalCleanupPM), PTO.EagerlyInvalidateAnalyses));
 
-  MPM.addPass(buildInlinerPipeline(OptimizationLevel::O2, ThinOrFullLTOPhase::None));
+  MPM.addPass(
+      buildInlinerPipeline(OptimizationLevel::O2, ThinOrFullLTOPhase::None));
 }
 
 void PassBuilder::addSYCLFrameworkOptimizationPipeline(ModulePassManager &MPM) {
