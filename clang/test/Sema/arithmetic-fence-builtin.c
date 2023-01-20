@@ -2,16 +2,29 @@
 // RUN: %clang_cc1 -triple ppc64le -DPPC     -emit-llvm -o - -verify -x c++ %s
 // RUN: not %clang_cc1 -triple ppc64le -DPPC     -emit-llvm -o - -x c++ %s \
 // RUN:            -fprotect-parens 2>&1 | FileCheck -check-prefix=PPC %s
+// RUN: %clang_cc1 -triple spir64-unknown-unknown  -emit-llvm -fsycl-is-device \
+// RUN: -DSYCLD -o - -verify -x c++ %s
+
 #ifndef PPC
-int v;
-template <typename T> T addT(T a, T b) {
+#ifdef SYCLD
+template <typename T> T __attribute__((sycl_device)) addT(T a, T b)
+#else
+template <typename T> T addT(T a, T b)
+#endif
+{
   T *q = __arithmetic_fence(&a);
   // expected-error@-1 {{invalid operand of type 'float *' where floating, complex or a vector of such types is required}}
   // expected-error@-2 {{invalid operand of type 'int *' where floating, complex or a vector of such types is required}}
   return __arithmetic_fence(a + b);
   // expected-error@-1 {{invalid operand of type 'int' where floating, complex or a vector of such types is required}}
 }
-int addit(int a, int b) {
+#ifdef SYCLD
+int __attribute__((sycl_device)) addit(int a, int b)
+#else
+int  addit(int a, int b)
+#endif
+{
+  int v;
   float x, y;
   typedef struct {
     int a, b;
