@@ -892,14 +892,6 @@ template <atomic_op Op, typename Tx, int N, typename Toffset>
 __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
                                       simd<Tx, N> src0, simd_mask<N> mask) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
-  static_assert(Op == atomic_op::add || Op == atomic_op::sub ||
-                    Op == atomic_op::min || Op == atomic_op::max ||
-                    Op == atomic_op::xchg || Op == atomic_op::bit_and ||
-                    Op == atomic_op::bit_or || Op == atomic_op::bit_xor ||
-                    Op == atomic_op::minsint || Op == atomic_op::maxsint ||
-                    Op == atomic_op::fmax || Op == atomic_op::fmin ||
-                    Op == atomic_op::store,
-                "Incorrect operation");
   detail::check_atomic<Op, Tx, N, 1>();
   if constexpr ((Op == atomic_op::fmin) || (Op == atomic_op::fmax) ||
                 (Op == atomic_op::fadd) || (Op == atomic_op::fsub)) {
@@ -942,9 +934,6 @@ template <atomic_op Op, typename Tx, int N, typename Toffset>
 __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
                                       simd_mask<N> mask) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
-  static_assert(Op == atomic_op::inc || Op == atomic_op::dec ||
-                    Op == atomic_op::load,
-                "Incorrect operation");
   detail::check_atomic<Op, Tx, N, 0>();
   if constexpr (Op == atomic_op::load) {
     return atomic_update<atomic_op::bit_or, Tx, N>(p, offset, simd<Tx, N>(0),
@@ -1033,8 +1022,6 @@ __ESIMD_API simd<Tx, N> atomic_update(Tx *p, simd<Toffset, N> offset,
                                       simd<Tx, N> src0, simd<Tx, N> src1,
                                       simd_mask<N> mask) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
-  static_assert(Op == atomic_op::cmpxchg || Op == atomic_op::fcmpwr,
-                "Incorrect operation");
   detail::check_atomic<Op, Tx, N, 2>();
   if constexpr (Op == atomic_op::fcmpwr) {
     // Auto-convert FP atomics to LSC version. Warning is given - see enum.
