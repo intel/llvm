@@ -33,14 +33,6 @@
 #include <thread>
 #include <vector>
 
-#include "pi_utils.hpp"
-
-static const bool ExposeCSliceInAffinityPartitioning = [] {
-  const char *Flag =
-      std::getenv("SYCL_PI_OPENCL_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING");
-  return Flag ? std::atoi(Flag) != 0 : false;
-}();
-
 #define PI_ASSERT(condition, error)                                            \
   if (!(condition))                                                            \
     return error;
@@ -429,12 +421,8 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
                                   {"cl_intel_command_queue_families"}, supported);
         if (ret_err != CL_SUCCESS)
           return static_cast<pi_result>(ret_err);
-        if (!supported) {
-          std::cout
-              << "This device does not support cl_intel_command_queue_families"
-              << std::endl;
+        if (!supported)
           return ReturnValue(pi_device_partition_property{0});
-        }
         cl_queue_family_properties_intel qfprops[3];
         size_t qsize = 0;
         clGetDeviceInfo(
@@ -449,10 +437,6 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
         }
         if (numSubDevices < 2) {
           return ReturnValue(pi_device_partition_property{0});
-        }
-        if (ExposeCSliceInAffinityPartitioning) {
-          return ReturnHelper(PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE,
-                              PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN);
         }
         return ReturnHelper(PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE);
       }
@@ -540,11 +524,9 @@ pi_result piDevicePartition(pi_device device,
         out_devices[i]->index = i % (*out_num_devices);
       }
     }
-    return PI_SUCCESS;
   }
-  // Absorb the CL_DEVICE_NOT_FOUND and just return 0 in out_num_devices
+  // Absorb the CL_DEVICE_NOT_FOUND and just return 0 in out_num_devices.
   if (result == CL_DEVICE_NOT_FOUND) {
-    std::cout << "Device not found\n";
     assert(out_num_devices != 0);
     *out_num_devices = 0;
     return PI_SUCCESS;

@@ -14,11 +14,18 @@ find_package(Threads REQUIRED)
 
 add_sycl_plugin(opencl
   SOURCES
+    "../unified_runtime/pi2ur.hpp"
+    "../unified_runtime/pi2ur.cpp"
+    "../unified_runtime/ur/ur.hpp"
+    "../unified_runtime/ur/ur.cpp"
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "pi_opencl.cpp"
+  INCLUDE_DIRS
+    ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime # for Unified Runtime
   LIBRARIES
     OpenCL-ICD
     Threads::Threads
+    UnifiedRuntime-Headers
 )
 
 set_target_properties(pi_opencl PROPERTIES LINKER_LANGUAGE CXX)
