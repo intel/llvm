@@ -21,11 +21,12 @@ AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
                                    access::mode AccessMode, void *SYCLMemObject,
                                    int Dims, int ElemSize, int OffsetInBytes,
                                    bool IsSubBuffer,
-                                   const property_list &PropertyList) {
+                                   const property_list &PropertyList,
+                                   bool IsPlaceH) {
   impl = std::shared_ptr<AccessorImplHost>(
       new AccessorImplHost(Offset, AccessRange, MemoryRange, AccessMode,
                            (detail::SYCLMemObjI *)SYCLMemObject, Dims, ElemSize,
-                           OffsetInBytes, IsSubBuffer, PropertyList));
+                           OffsetInBytes, IsSubBuffer, PropertyList, IsPlaceH));
 }
 
 id<3> &AccessorBaseHost::getOffset() { return impl->MOffset; }
@@ -53,6 +54,8 @@ void *AccessorBaseHost::getPtr() const {
 }
 
 void *AccessorBaseHost::getMemoryObject() const { return impl->MSYCLMemObj; }
+
+bool AccessorBaseHost::isPlaceholder() const { return impl->MIsPlaceH; }
 
 LocalAccessorBaseHost::LocalAccessorBaseHost(
     sycl::range<3> Size, int Dims, int ElemSize,

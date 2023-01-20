@@ -45,11 +45,13 @@ public:
                    access::mode AccessMode, void *SYCLMemObject, int Dims,
                    int ElemSize, int OffsetInBytes = 0,
                    bool IsSubBuffer = false,
-                   const property_list &PropertyList = {})
+                   const property_list &PropertyList = {},
+                   bool IsPlaceH = false)
       : MAccData(Offset, AccessRange, MemoryRange), MAccessMode(AccessMode),
         MSYCLMemObj((detail::SYCLMemObjI *)SYCLMemObject), MDims(Dims),
         MElemSize(ElemSize), MOffsetInBytes(OffsetInBytes),
-        MIsSubBuffer(IsSubBuffer), MPropertyList(PropertyList) {}
+        MIsSubBuffer(IsSubBuffer), MPropertyList(PropertyList),
+        MIsPlaceH(IsPlaceH) {}
 
   ~AccessorImplHost();
 
@@ -57,7 +59,8 @@ public:
       : MAccData(Other.MAccData), MAccessMode(Other.MAccessMode),
         MSYCLMemObj(Other.MSYCLMemObj), MDims(Other.MDims),
         MElemSize(Other.MElemSize), MOffsetInBytes(Other.MOffsetInBytes),
-        MIsSubBuffer(Other.MIsSubBuffer), MPropertyList(Other.MPropertyList) {}
+        MIsSubBuffer(Other.MIsSubBuffer), MPropertyList(Other.MPropertyList),
+        MIsPlaceH(Other.MIsPlaceH) {}
 
   AccessorImplHost &operator=(const AccessorImplHost &Other) {
     MAccData = Other.MAccData;
@@ -68,6 +71,7 @@ public:
     MOffsetInBytes = Other.MOffsetInBytes;
     MIsSubBuffer = Other.MIsSubBuffer;
     MPropertyList = Other.MPropertyList;
+    MIsPlaceH = Other.MIsPlaceH;
     return *this;
   }
 
@@ -106,6 +110,9 @@ public:
 
   // To preserve runtime properties
   property_list MPropertyList;
+
+  // Placeholder flag
+  bool MIsPlaceH;
 };
 
 using AccessorImplPtr = std::shared_ptr<AccessorImplHost>;

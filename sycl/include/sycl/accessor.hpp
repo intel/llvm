@@ -283,10 +283,20 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
           typename PropertyListT = ext::oneapi::accessor_property_list<>>
 class accessor_common {
 protected:
-  constexpr static bool IsPlaceH = IsPlaceholder == access::placeholder::true_t;
   constexpr static access::address_space AS = TargetToAS<AccessTarget>::AS;
 
   constexpr static bool IsHostBuf = AccessTarget == access::target::host_buffer;
+  // SYCL2020 4.7.6.9.4.3
+  // IsPlaceHolder template parameter has no bearing on whether the accessor
+  // instance is a placeholder. This is determined solely by the constructor
+  // The rule seems to be: if the constructor receives a CommandGroupHandler
+  // it is NOT a placeholder. Otherwise, it is a placeholder.
+  // used. However, according to 4.7.6.9.4.6. accessor specialization with
+  // target::host_buffer is never a placeholder. So, if the constructor
+  // used receives a CommandGroupHandler, the accessor will never be a
+  // placeholder. If it doesn't, but IsHostBuf is true, it won't be a
+  // placeholder either. Otherwise, the accessor is a placeholder.
+  constexpr static bool IsPlaceH = !IsHostBuf;
 
   // TODO: SYCL 2020 deprecates four of the target enum values
   // and replaces them with 2 (device and host_task). May want
@@ -469,7 +479,8 @@ public:
                    access::mode AccessMode, void *SYCLMemObject, int Dims,
                    int ElemSize, int OffsetInBytes = 0,
                    bool IsSubBuffer = false,
-                   const property_list &PropertyList = {});
+                   const property_list &PropertyList = {},
+                   bool IsPlaceH = false);
 
 public:
   id<3> &getOffset();
@@ -482,6 +493,7 @@ public:
   const range<3> &getAccessRange() const;
   const range<3> &getMemoryRange() const;
   void *getPtr() const;
+  bool isPlaceholder() const;
 
   detail::AccHostDataT &getAccData();
 
@@ -1252,8 +1264,7 @@ public:
             typename detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 std::is_same<T, DataT>::value && Dims == 0 &&
-                ((!IsPlaceH && IsHostBuf) ||
-                 (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))> * = nullptr>
+                ((IsHostBuf) || ((IsGlobalBuf || IsConstantBuf)))> * = nullptr>
   accessor(
       buffer<T, 1, AllocatorT> &BufferRef,
       const property_list &PropertyList = {},
@@ -1267,9 +1278,10 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList,
+            !IsPlaceH) {
     preScreenAccessor(BufferRef.size(), PropertyList);
-    if (!IsPlaceH)
+    if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1284,8 +1296,7 @@ public:
             typename detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 std::is_same<T, DataT>::value && Dims == 0 &&
-                ((!IsPlaceH && IsHostBuf) ||
-                 (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))> * = nullptr>
+                ((IsHostBuf) || ((IsGlobalBuf || IsConstantBuf)))> * = nullptr>
   accessor(
       buffer<T, 1, AllocatorT> &BufferRef,
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
@@ -1300,9 +1311,10 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList,
+            !IsPlaceH) {
     preScreenAccessor(BufferRef.size(), PropertyList);
-    if (!IsPlaceH)
+    if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1316,7 +1328,7 @@ public:
             typename = typename detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 std::is_same<T, DataT>::value && (Dims == 0) &&
-                (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
+                ((IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
   accessor(
       buffer<T, 1, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       const property_list &PropertyList = {},
@@ -1348,7 +1360,7 @@ public:
             typename = typename detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 std::is_same<T, DataT>::value && (Dims == 0) &&
-                (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
+                ((IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
   accessor(
       buffer<T, 1, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
@@ -1380,8 +1392,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                ((!IsPlaceH && IsHostBuf) ||
-                 (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
+                ((IsHostBuf) || ((IsGlobalBuf || IsConstantBuf)))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef,
       const property_list &PropertyList = {},
@@ -1397,9 +1408,10 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList,
+            IsPlaceH) {
     preScreenAccessor(BufferRef.size(), PropertyList);
-    if (!IsPlaceH)
+    if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1414,8 +1426,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                ((!IsPlaceH && IsHostBuf) ||
-                 (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
+                ((IsHostBuf) || ((IsGlobalBuf || IsConstantBuf)))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef,
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
@@ -1432,9 +1443,10 @@ public:
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
-            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+            BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList,
+            IsPlaceH) {
     preScreenAccessor(BufferRef.size(), PropertyList);
-    if (!IsPlaceH)
+    if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1449,7 +1461,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, TagT,
       const property_list &PropertyList = {},
@@ -1463,7 +1475,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, TagT,
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
@@ -1477,7 +1489,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
+                ((IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       const property_list &PropertyList = {},
@@ -1510,7 +1522,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
+                ((IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
@@ -1544,7 +1556,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                !IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       TagT, const property_list &PropertyList = {},
@@ -1558,7 +1570,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                !IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       TagT,
@@ -1573,8 +1585,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                ((!IsPlaceH && IsHostBuf) ||
-                 (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
+                ((IsHostBuf) || ((IsGlobalBuf || IsConstantBuf)))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       const property_list &PropertyList = {},
@@ -1586,8 +1597,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                ((!IsPlaceH && IsHostBuf) ||
-                 (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
+                ((IsHostBuf) || ((IsGlobalBuf || IsConstantBuf)))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       const ext::oneapi::accessor_property_list<PropTypes...> &PropertyList =
@@ -1600,7 +1610,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
+                (IsGlobalBuf || IsConstantBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       TagT, const property_list &PropertyList = {},
@@ -1614,7 +1624,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
+                (IsGlobalBuf || IsConstantBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       TagT,
@@ -1629,7 +1639,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
+                ((IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange, const property_list &PropertyList = {},
@@ -1642,7 +1652,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
+                ((IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange,
@@ -1657,7 +1667,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                !IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange, TagT,
@@ -1673,7 +1683,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                !IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange, TagT,
@@ -1689,8 +1699,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                ((!IsPlaceH && IsHostBuf) ||
-                 (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
+                ((IsHostBuf) || ((IsGlobalBuf || IsConstantBuf)))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       id<Dimensions> AccessOffset, const property_list &PropertyList = {},
@@ -1706,8 +1715,10 @@ public:
                          getAdjustedMode(PropertyList),
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
-                         BufferRef.IsSubBuffer, PropertyList) {
+                         BufferRef.IsSubBuffer, PropertyList, IsPlaceH) {
     preScreenAccessor(BufferRef.size(), PropertyList);
+    if (!AccessorBaseHost::isPlaceholder())
+      addHostAccessorAndWait(AccessorBaseHost::impl.get());
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
       throw sycl::invalid_object_error(
@@ -1715,8 +1726,6 @@ public:
           "the buffer",
           PI_ERROR_INVALID_VALUE);
 
-    if (!IsPlaceH)
-      addHostAccessorAndWait(AccessorBaseHost::impl.get());
     initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
                                     detail::AccessorBaseHost::impl.get(),
@@ -1730,8 +1739,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                ((!IsPlaceH && IsHostBuf) ||
-                 (IsPlaceH && (IsGlobalBuf || IsConstantBuf)))>>
+                ((IsHostBuf) || ((IsGlobalBuf || IsConstantBuf)))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       id<Dimensions> AccessOffset,
@@ -1749,8 +1757,10 @@ public:
                          getAdjustedMode(PropertyList),
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
-                         BufferRef.IsSubBuffer, PropertyList) {
+                         BufferRef.IsSubBuffer, PropertyList, IsPlaceH) {
     preScreenAccessor(BufferRef.size(), PropertyList);
+    if (!AccessorBaseHost::isPlaceholder())
+      addHostAccessorAndWait(AccessorBaseHost::impl.get());
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
       throw sycl::invalid_object_error(
@@ -1758,8 +1768,6 @@ public:
           "the buffer",
           PI_ERROR_INVALID_VALUE);
 
-    if (!IsPlaceH)
-      addHostAccessorAndWait(AccessorBaseHost::impl.get());
     initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
                                     detail::AccessorBaseHost::impl.get(),
@@ -1773,7 +1781,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
+                (IsGlobalBuf || IsConstantBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       id<Dimensions> AccessOffset, TagT, const property_list &PropertyList = {},
@@ -1787,7 +1795,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                IsPlaceH && (IsGlobalBuf || IsConstantBuf)>>
+                (IsGlobalBuf || IsConstantBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, range<Dimensions> AccessRange,
       id<Dimensions> AccessOffset, TagT,
@@ -1802,7 +1810,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
+                ((IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
@@ -1843,7 +1851,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value &&
-                (!IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
+                ((IsGlobalBuf || IsConstantBuf || IsHostBuf))>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange, id<Dimensions> AccessOffset,
@@ -1885,7 +1893,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsRunTimePropertyListT<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                !IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange, id<Dimensions> AccessOffset, TagT,
@@ -1901,7 +1909,7 @@ public:
             typename = detail::enable_if_t<
                 detail::IsCxPropertyList<PropertyListT>::value &&
                 IsSameAsBuffer<T, Dims>::value && IsValidTag<TagT>::value &&
-                !IsPlaceH && (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
+                (IsGlobalBuf || IsConstantBuf || IsHostBuf)>>
   accessor(
       buffer<T, Dims, AllocatorT> &BufferRef, handler &CommandGroupHandler,
       range<Dimensions> AccessRange, id<Dimensions> AccessOffset, TagT,
@@ -1942,7 +1950,13 @@ public:
 #endif
   }
 
-  constexpr bool is_placeholder() const { return IsPlaceH; }
+  bool is_placeholder() const {
+#ifdef __SYCL_DEVICE_ONLY__
+    return false;
+#else
+    return detail::AccessorBaseHost::isPlaceholder();
+#endif
+  }
 
   size_t get_size() const { return getAccessRange().size() * sizeof(DataT); }
 
