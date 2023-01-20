@@ -168,6 +168,11 @@ public:
   bool native_specialization_constant() const noexcept;
 
 protected:
+
+  bool has_kernel_impl(const std::string &KernelName) const noexcept;
+
+  bool has_kernel_impl(const std::string &KernelName, const device &Dev) const noexcept;
+
   // \returns a kernel object which represents the kernel identified by
   // kernel_id passed
   kernel get_kernel(const kernel_id &KernelID) const;
@@ -234,6 +239,19 @@ public:
   /// specified
   bool has_kernel(const kernel_id &KernelID, const device &Dev) const noexcept {
     return kernel_bundle_plain::has_kernel(KernelID, Dev);
+  }
+
+  /// \returns true only if the kernel bundle contains the kernel identified by KernelName.
+  template <typename KernelName> bool has_kernel() const noexcept {
+    using KI = sycl::detail::KernelInfo<KernelName>;
+    return has_kernel_impl(KI::getName());
+  }
+
+  /// \returns true only if the kernel bundle contains the kernel identified by KernelName and if that kernel is compatible with the device dev.
+  template <typename KernelName>
+  bool has_kernel(const device& Dev) const noexcept {
+    using KI = sycl::detail::KernelInfo<KernelName>;
+    return has_kernel_impl(KI::getName(), Dev);
   }
 
   /// \returns a vector of kernel_id's that contained in the kernel_bundle
