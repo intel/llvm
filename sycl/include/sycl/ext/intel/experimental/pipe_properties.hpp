@@ -44,13 +44,6 @@ struct uses_valid_key {
                                            std::bool_constant<Valid>>;
 };
 
-struct uses_ready_key {
-  template <bool Ready>
-  using value_t =
-      oneapi::experimental::property_value<uses_ready_key,
-                                           std::bool_constant<Ready>>;
-};
-
 struct in_csr_key {
   template <bool Enable>
   using value_t =
@@ -65,7 +58,12 @@ struct first_symbol_in_high_order_bits_key {
                                            std::bool_constant<HighOrder>>;
 };
 
-enum class protocol_name : std::uint16_t { AVALON, AXI };
+enum class protocol_name : std::uint16_t { 
+  AVALON_STREAMING = 0,
+  AVALON_STREAMING_USES_READY = 1,
+  AVALON_MM = 2,
+  AVALON_MM_USES_READY = 3 };
+
 struct protocol_key {
   template <protocol_name Protocol>
   using value_t = oneapi::experimental::property_value<
@@ -86,11 +84,6 @@ inline constexpr uses_valid_key::value_t<Valid> uses_valid;
 inline constexpr uses_valid_key::value_t<true> uses_valid_on;
 inline constexpr uses_valid_key::value_t<false> uses_valid_off;
 
-template <bool Ready>
-inline constexpr uses_ready_key::value_t<Ready> uses_ready;
-inline constexpr uses_ready_key::value_t<true> uses_ready_on;
-inline constexpr uses_ready_key::value_t<false> uses_ready_off;
-
 template <bool Enable> inline constexpr in_csr_key::value_t<Enable> in_csr;
 inline constexpr in_csr_key::value_t<true> in_csr_on;
 inline constexpr in_csr_key::value_t<false> in_csr_off;
@@ -105,8 +98,10 @@ inline constexpr first_symbol_in_high_order_bits_key::value_t<false>
 
 template <protocol_name Protocol>
 inline constexpr protocol_key::value_t<Protocol> protocol;
-inline constexpr protocol_key::value_t<protocol_name::AVALON> protocol_avalon;
-inline constexpr protocol_key::value_t<protocol_name::AXI> protocol_axi;
+inline constexpr protocol_key::value_t<protocol_name::AVALON_STREAMING> protocol_avalon_streaming;
+inline constexpr protocol_key::value_t<protocol_name::AVALON_STREAMING_USES_READY> protocol_avalon_streaming_uses_ready;
+inline constexpr protocol_key::value_t<protocol_name::AVALON_MM> protocol_avalon_mm;
+inline constexpr protocol_key::value_t<protocol_name::AVALON_MM_USES_READY> protocol_avalon_mm_uses_ready;
 
 } // namespace experimental
 } // namespace intel
@@ -125,8 +120,6 @@ struct is_property_key<intel::experimental::bits_per_symbol_key>
     : std::true_type {};
 template <>
 struct is_property_key<intel::experimental::uses_valid_key> : std::true_type {};
-template <>
-struct is_property_key<intel::experimental::uses_ready_key> : std::true_type {};
 template <>
 struct is_property_key<intel::experimental::in_csr_key> : std::true_type {};
 template <>
@@ -147,9 +140,6 @@ template <> struct PropertyToKind<intel::experimental::bits_per_symbol_key> {
 };
 template <> struct PropertyToKind<intel::experimental::uses_valid_key> {
   static constexpr PropKind Kind = PropKind::UsesValid;
-};
-template <> struct PropertyToKind<intel::experimental::uses_ready_key> {
-  static constexpr PropKind Kind = PropKind::UsesReady;
 };
 template <> struct PropertyToKind<intel::experimental::in_csr_key> {
   static constexpr PropKind Kind = PropKind::ImplementInCSR;
@@ -174,9 +164,6 @@ struct IsCompileTimeProperty<intel::experimental::bits_per_symbol_key>
     : std::true_type {};
 template <>
 struct IsCompileTimeProperty<intel::experimental::uses_valid_key>
-    : std::true_type {};
-template <>
-struct IsCompileTimeProperty<intel::experimental::uses_ready_key>
     : std::true_type {};
 template <>
 struct IsCompileTimeProperty<intel::experimental::in_csr_key> : std::true_type {

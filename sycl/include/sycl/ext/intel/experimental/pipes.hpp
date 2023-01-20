@@ -9,6 +9,7 @@
 #pragma once
 
 #include "fpga_utils.hpp"
+#include "pipe_properties.hpp"
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
@@ -19,21 +20,52 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::intel::experimental {
 
+namespace detail {
+template <typename Properties, typename PropertyKey, typename Cond = void>
+struct ValueOrDefault {
+  template <typename ValT> static constexpr ValT get(ValT Default) {
+    return Default;
+  }
+};
+
+template <typename Properties, typename PropertyKey>
+struct ValueOrDefault<
+    Properties, PropertyKey,
+    std::enable_if_t<
+        sycl::ext::oneapi::experimental::is_property_list_v<Properties> &&
+        Properties::template has_property<PropertyKey>()>> {
+  template <typename ValT> static constexpr ValT get(ValT) {
+    return Properties::template get_property<PropertyKey>().value;
+  }
+};
+} // namespace detail
+
 template <class _name, class _dataT, int32_t _min_capacity = 0,
           class _propertiesT = decltype(oneapi::experimental::properties{}),
           class = void>
 class pipe {
-  static_assert(std::is_same_v<_propertiesT,
-                               decltype(oneapi::experimental::properties{})>,
-                "experimental pipe properties are not yet implemented");
-};
-
-template <class _name, class _dataT, int32_t _min_capacity, class _propertiesT>
-class pipe<_name, _dataT, _min_capacity, _propertiesT,
-           std::enable_if_t<std::is_same_v<
-               _propertiesT, decltype(oneapi::experimental::properties{})>>> {
 public:
+#ifdef __SYCL_DEVICE_ONLY__
+  struct 
+  [[__sycl_detail__::add_ir_attributes_global_variable(
+    "sycl-host-pipe", nullptr)]][[__sycl_detail__::sycl_type(host_pipe)]]
+  ConstantPipeStorageExp : ConstantPipeStorage {
+    int32_t _ReadyLatency;
+    int32_t _BitsPerSymbol;
+    bool _UsesValid;
+    bool _FirstSymInHighOrderBits;
+    protocol_name _Protocol;
+  };
+#endif
+
   // Non-blocking pipes
+
+  // Host API
+  static _dataT read(queue & q, bool &success_code, 
+                     memory_order order = memory_order::seq_cst);
+  static void write(queue & q, const _dataT &data, bool &success_code, 
+                    memory_order order = memory_order::seq_cst);
+
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
   template <typename _functionPropertiesT>
@@ -133,6 +165,12 @@ public:
   }
 
   // Blocking pipes
+
+  // Host API
+  static _dataT read(queue & q, memory_order order = memory_order::seq_cst);
+  static void write(queue & q, const _dataT &data,
+                    memory_order order = memory_order::seq_cst);
+  
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V
   // friendly LLVM IR.
   template <typename _functionPropertiesT>
@@ -230,9 +268,20 @@ private:
   static constexpr int32_t m_Size = sizeof(_dataT);
   static constexpr int32_t m_Alignment = alignof(_dataT);
   static constexpr int32_t m_Capacity = _min_capacity;
+
+  static constexpr int32_t m_ready_latency = detail::ValueOrDefault<_propertiesT, ready_latency_key>::template get<int32_t>(0);
+  static constexpr int32_t m_bits_per_symbol = detail::ValueOrDefault<_propertiesT, bits_per_symbol_key>::template get<int32_t>(0);
+  static constexpr bool m_uses_valid = detail::ValueOrDefault<_propertiesT, uses_valid_key>::template get<bool>(0);
+  static constexpr bool m_first_symbol_in_high_order_bits = detail::ValueOrDefault<_propertiesT, first_symbol_in_high_order_bits_key>::template get<int32_t>(0);
+  static constexpr protocol_name m_protocol = detail::ValueOrDefault<_propertiesT, protocol_key>::template get<protocol_name>(protocol_name::AVALON_STREAMING);
+
+
 #ifdef __SYCL_DEVICE_ONLY__
-  static constexpr struct ConstantPipeStorage m_Storage = {m_Size, m_Alignment,
-                                                           m_Capacity};
+  static constexpr struct ConstantPipeStorageExp m_Storage = { { m_Size, m_Alignment,
+                                                           m_Capacity}, m_ready_latency,
+                                                           m_bits_per_symbol, m_uses_valid,
+                                                           m_first_symbol_in_high_order_bits,
+                                                           m_protocol };
 
   // FPGA BE will recognize this function and extract its arguments.
   // TODO: Pass latency control parameters via the __spirv_* builtin when ready.
