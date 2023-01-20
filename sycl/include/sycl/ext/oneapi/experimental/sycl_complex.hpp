@@ -578,8 +578,9 @@ template <class _Tp>
 _SYCL_EXT_CPLX_INLINE_VISIBILITY
     typename cplx::detail::__libcpp_complex_overload_traits<_Tp>::_ComplexType
     conj(_Tp __re) {
-  typedef typename cplx::detail::__libcpp_complex_overload_traits<
-      _Tp>::_ComplexType _ComplexType;
+  typedef
+      typename cplx::detail::__libcpp_complex_overload_traits<_Tp>::_ComplexType
+          _ComplexType;
   return _ComplexType(__re);
 }
 
@@ -597,8 +598,9 @@ template <class _Tp>
 _SYCL_EXT_CPLX_INLINE_VISIBILITY
     typename cplx::detail::__libcpp_complex_overload_traits<_Tp>::_ComplexType
     proj(_Tp __re) {
-  typedef typename cplx::detail::__libcpp_complex_overload_traits<
-      _Tp>::_ComplexType _ComplexType;
+  typedef
+      typename cplx::detail::__libcpp_complex_overload_traits<_Tp>::_ComplexType
+          _ComplexType;
 
   if constexpr (!std::is_integral_v<_Tp>) {
     if (sycl::isinf(__re))
@@ -701,8 +703,7 @@ template <class _Tp, class _Up,
 _SYCL_EXT_CPLX_INLINE_VISIBILITY
     complex<typename cplx::detail::__promote<_Tp, _Up>::type>
     pow(const complex<_Tp> &__x, const complex<_Up> &__y) {
-  typedef complex<typename cplx::detail::__promote<_Tp, _Up>::type>
-      result_type;
+  typedef complex<typename cplx::detail::__promote<_Tp, _Up>::type> result_type;
   return pow(result_type(__x), result_type(__y));
 }
 
@@ -712,8 +713,7 @@ _SYCL_EXT_CPLX_INLINE_VISIBILITY typename std::enable_if<
     is_genfloat<_Up>::value,
     complex<typename cplx::detail::__promote<_Tp, _Up>::type>>::type
 pow(const complex<_Tp> &__x, const _Up &__y) {
-  typedef complex<typename cplx::detail::__promote<_Tp, _Up>::type>
-      result_type;
+  typedef complex<typename cplx::detail::__promote<_Tp, _Up>::type> result_type;
   return pow(result_type(__x), result_type(__y));
 }
 
@@ -723,8 +723,7 @@ _SYCL_EXT_CPLX_INLINE_VISIBILITY typename std::enable_if<
     is_genfloat<_Up>::value,
     complex<typename cplx::detail::__promote<_Tp, _Up>::type>>::type
 pow(const _Tp &__x, const complex<_Up> &__y) {
-  typedef complex<typename cplx::detail::__promote<_Tp, _Up>::type>
-      result_type;
+  typedef complex<typename cplx::detail::__promote<_Tp, _Up>::type> result_type;
   return pow(result_type(__x), result_type(__y));
 }
 
