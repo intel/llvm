@@ -989,7 +989,7 @@ struct NDRangeReduction<
         // Signal this work-group has finished after all values are reduced
         if (LID == 0) {
           auto NFinished =
-              sycl::atomic_ref<int, memory_order::relaxed, memory_scope::device,
+              sycl::atomic_ref<int, memory_order::acq_rel, memory_scope::device,
                                access::address_space::global_space>(
                   NWorkGroupsFinished[0]);
           DoReducePartialSumsInLastWG[0] = ++NFinished == NWorkGroups;
@@ -1107,7 +1107,7 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
       // Signal this work-group has finished after all values are reduced
       if (LID == 0) {
         auto NFinished =
-            sycl::atomic_ref<int, memory_order::relaxed, memory_scope::device,
+            sycl::atomic_ref<int, memory_order::acq_rel, memory_scope::device,
                              access::address_space::global_space>(
                 NWorkGroupsFinished[0]);
         DoReducePartialSumsInLastWG[0] =
@@ -2321,6 +2321,11 @@ void reduction_parallel_for(handler &CGH, range<Dims> Range,
       if constexpr (Strategy != reduction::strategy::auto_select)
         return Strategy;
 
+      // TODO: Both group_reduce_and_last_wg_detection and range_basic require
+      // memory_order::acq_rel support that isn't guaranteed by the
+      // specification. However, implementing run-time check for that would
+      // result in an extra kernel compilation(s). We probably need to
+      // investigate if the usage of kernel_bundles can mitigate that.
       if constexpr (Reduction::has_fast_reduce)
         return reduction::strategy::group_reduce_and_last_wg_detection;
       else if constexpr (Reduction::has_fast_atomics)
