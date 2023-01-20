@@ -2755,15 +2755,15 @@ public:
 #endif
   }
 
-  template <int Dims = Dimensions,
-            typename = detail::enable_if_t<!std::is_const_v<DataT> && Dims == 0>>
+  template <int Dims = Dimensions, typename = detail::enable_if_t<
+                                       !std::is_const_v<DataT> && Dims == 0>>
   const local_accessor &operator=(const value_type &Other) const {
     *local_acc::getQualifiedPtr() = Other;
     return *this;
   }
 
-  template <int Dims = Dimensions,
-            typename = detail::enable_if_t<!std::is_const_v<DataT> && Dims == 0>>
+  template <int Dims = Dimensions, typename = detail::enable_if_t<
+                                       !std::is_const_v<DataT> && Dims == 0>>
   const local_accessor &operator=(value_type &&Other) const {
     *local_acc::getQualifiedPtr() = std::move(Other);
     return *this;
