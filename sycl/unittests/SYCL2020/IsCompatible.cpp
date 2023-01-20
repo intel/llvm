@@ -155,7 +155,7 @@ static pi_result redefinedDeviceGetInfoCPU(pi_device device,
     *Result = PI_DEVICE_TYPE_CPU;
   }
   if (param_name == PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE) {
-    auto *Result = reinterpret_cast<int *>(param_value);
+    auto *Result = reinterpret_cast<size_t *>(param_value);
     *Result = 256;
   }
   return PI_SUCCESS;
