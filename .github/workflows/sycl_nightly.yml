@@ -61,6 +61,29 @@ jobs:
       build_configure_extra_args: "--hip --cuda --enable-esimd-emulator --cmake-opt=-DDPCPP_ENABLE_OPAQUE_POINTERS=TRUE"
       build_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
 
+  ubuntu2004_opaque_pointers_full_build_test:
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl_linux_build_and_test.yml
+    needs: test_matrix
+    secrets: inherit
+    with:
+      build_cache_root: "/__w/"
+      build_cache_suffix: opaque_pointers_full
+      build_artifact_suffix: opaque_pointers_full
+      build_configure_extra_args: "--hip --cuda --enable-esimd-emulator --cmake-opt=-DDPCPP_ENABLE_OPAQUE_POINTERS=TRUE -DSPIRV_ENABLE_OPAQUE_POINTERS=TRUE"
+
+  ubuntu2204_opaque_pointers_full_build_test:
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl_linux_build_and_test.yml
+    needs: test_matrix
+    secrets: inherit
+    with:
+      build_cache_root: "/__w/"
+      build_cache_suffix: opaque_pointers_full
+      build_artifact_suffix: opaque_pointers_full
+      build_configure_extra_args: "--hip --cuda --enable-esimd-emulator --cmake-opt=-DDPCPP_ENABLE_OPAQUE_POINTERS=TRUE -DSPIRV_ENABLE_OPAQUE_POINTERS=TRUE"
+      build_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
+
   windows_default:
     name: Windows
     if: github.repository == 'intel/llvm'
