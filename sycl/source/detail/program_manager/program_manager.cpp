@@ -2198,16 +2198,19 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
   auto ReqdWGSizePropIt = getPropIt("reqd_work_group_size");
 
   if (!AspectsPropIt && !ReqdWGSizePropIt) {
+    std::cout << "1\n";
     return true;
   }
 
   // Checking if device supports defined aspects
   if (AspectsPropIt) {
+    std::cout << "2\n";
     ByteArray Aspects =
         DeviceBinaryProperty(*(AspectsPropIt.value())).asByteArray();
     // Drop 8 bytes describing the size of the byte array.
     Aspects.dropBytes(8);
     while (!Aspects.empty()) {
+      std::cout << "3\n";
       aspect Aspect = Aspects.consume<aspect>();
       if (!Dev.has(Aspect))
         return false;
@@ -2216,19 +2219,23 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
 
   // Checking if device supports defined required work group size
   if (ReqdWGSizePropIt) {
+    std::cout << "4\n";
     ByteArray ReqdWGSize =
         DeviceBinaryProperty(*(ReqdWGSizePropIt.value())).asByteArray();
     // Drop 8 bytes describing the size of the byte array.
     ReqdWGSize.dropBytes(8);
     int ReqdWGSizeAllDimsTotal = 1;
     while (!ReqdWGSize.empty()) {
+      std::cout << "5\n";
       ReqdWGSizeAllDimsTotal *= ReqdWGSize.consume<int>();
     }
     if (static_cast<long unsigned int>(ReqdWGSizeAllDimsTotal) >
-        Dev.get_info<info::device::max_work_group_size>())
+        Dev.get_info<info::device::max_work_group_size>()) {
+      std::cout << "6\n";
       return false;
+    }
   }
-
+  std::cout << "7\n";
   return true;
 }
 
