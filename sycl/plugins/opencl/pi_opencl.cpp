@@ -522,6 +522,7 @@ pi_result piDevicePartition(pi_device device,
         out_devices[i]->index = i % (*out_num_devices);
       }
     }
+    return PI_SUCCESS;
   }
   // Absorb the CL_DEVICE_NOT_FOUND and just return 0 in out_num_devices.
   if (result == CL_DEVICE_NOT_FOUND) {
