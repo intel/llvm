@@ -2229,6 +2229,10 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
       std::cout << "5\n";
       ReqdWGSizeAllDimsTotal *= ReqdWGSize.consume<int>();
     }
+    std::cout << "-- " << static_cast<long unsigned int>(ReqdWGSizeAllDimsTotal)
+              << "\n";
+    std::cout << "-- " << Dev.get_info<info::device::max_work_group_size>()
+              << "\n";
     if (static_cast<long unsigned int>(ReqdWGSizeAllDimsTotal) >
         Dev.get_info<info::device::max_work_group_size>()) {
       std::cout << "6\n";
