@@ -49,6 +49,7 @@ Implemented Papers
 - P2438R2 - ``std::string::substr() &&``
 - P0600R1 - ``nodiscard`` in the library
 - P0339R6 - ``polymorphic_allocator<>`` as a vocabulary type
+- P1169R4 - ``static operator()``
 
 Improvements and New Features
 -----------------------------
@@ -66,6 +67,7 @@ Deprecations and Removals
   includes are removed based on the language version used. Incidental transitive
   inclusions of the following headers have been removed:
 
+  - C++11, C++14, and C++17: ``chrono``
   - C++20: ``chrono``
   - C++2b: ``algorithm``, ``array``, ``atomic``, ``bit``, ``chrono``,
     ``climits``, ``cmath``, ``compare``, ``concepts``, ``cstdarg``, ``cstddef``,

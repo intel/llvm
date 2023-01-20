@@ -6018,6 +6018,16 @@ Address AArch64ABIInfo::EmitAAPCSVAArg(Address VAListAddr, QualType Ty,
                                        CodeGenFunction &CGF) const {
   ABIArgInfo AI = classifyArgumentType(Ty, /*IsVariadic=*/true,
                                        CGF.CurFnInfo->getCallingConvention());
+  // Empty records are ignored for parameter passing purposes.
+  if (AI.isIgnore()) {
+    uint64_t PointerSize = getTarget().getPointerWidth(LangAS::Default) / 8;
+    CharUnits SlotSize = CharUnits::fromQuantity(PointerSize);
+    VAListAddr = CGF.Builder.CreateElementBitCast(VAListAddr, CGF.Int8PtrTy);
+    auto *Load = CGF.Builder.CreateLoad(VAListAddr);
+    Address Addr = Address(Load, CGF.Int8Ty, SlotSize);
+    return CGF.Builder.CreateElementBitCast(Addr, CGF.ConvertTypeForMem(Ty));
+  }
+
   bool IsIndirect = AI.isIndirect();
 
   llvm::Type *BaseTy = CGF.ConvertType(Ty);
@@ -8444,6 +8454,10 @@ public:
       LargeRet = true;
       return getNaturalAlignIndirect(Ty);
     }
+    // An i8 return value should not be extended to i16, since AVR has 8-bit
+    // registers.
+    if (Ty->isIntegralOrEnumerationType() && getContext().getTypeSize(Ty) <= 8)
+      return ABIArgInfo::getDirect();
     // Otherwise we follow the default way which is compatible.
     return DefaultABIInfo::classifyReturnType(Ty);
   }
