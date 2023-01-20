@@ -207,7 +207,7 @@ Function *ESIMDLowerVecArgPass::rewriteFunc(Function &F) {
     OldNewInst.push_back(std::make_pair(Call, NewCallInst));
   }
 
-  for (auto InstPair : OldNewInst) {
+  for (auto &InstPair : OldNewInst) {
     auto OldInst = InstPair.first;
     auto NewInst = InstPair.second;
     ReplaceInstWithInst(OldInst, NewInst);
