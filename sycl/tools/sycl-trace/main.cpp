@@ -14,7 +14,7 @@
 
 using namespace llvm;
 
-enum ModeKind { PI, ZE, CU, SY };
+enum ModeKind { PI, ZE, CU, SYCL };
 enum PrintFormatKind { PRETTY_COMPACT, PRETTY_VERBOSE, CLASSIC };
 
 int main(int argc, char **argv, char *env[]) {
@@ -25,7 +25,7 @@ int main(int argc, char **argv, char *env[]) {
           clEnumValN(PI, "plugin", "Trace Plugin Interface calls"),
           clEnumValN(ZE, "level_zero", "Trace Level Zero calls"),
           clEnumValN(CU, "cuda", "Trace CUDA Driver API calls"),
-          clEnumValN(SY, "sycl", "Trace SYCL API calls")));
+          clEnumValN(SYCL, "sycl", "Trace SYCL API calls")));
   cl::opt<PrintFormatKind> PrintFormat(
       "print-format", cl::desc("Print format"),
       cl::values(
@@ -68,8 +68,8 @@ int main(int argc, char **argv, char *env[]) {
   const auto EnableCUTrace = [&]() {
     NewEnv.push_back("SYCL_TRACE_CU_ENABLE=1");
   };
-  const auto EnableSYTrace = [&]() {
-    NewEnv.push_back("SYCL_TRACE_SY_ENABLE=1");
+  const auto EnableSYCLTrace = [&]() {
+    NewEnv.push_back("SYCL_TRACE_API_ENABLE=1");
   };
 
   for (auto Mode : Modes) {
@@ -83,8 +83,8 @@ int main(int argc, char **argv, char *env[]) {
     case CU:
       EnableCUTrace();
       break;
-    case SY:
-      EnableSYTrace();
+    case SYCL:
+      EnableSYCLTrace();
       break;
     }
   }

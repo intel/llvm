@@ -22,11 +22,11 @@
 
 extern sycl::detail::SpinLock GlobalLock;
 
-extern bool HasSYPrinter;
+extern bool HasSYCLPrinter;
 
-bool PrintSyVerbose = false;
+bool PrintSyclVerbose = false;
 
-XPTI_CALLBACK_API void syCallback(uint16_t TraceType,
+XPTI_CALLBACK_API void syclCallback(uint16_t TraceType,
                                   xpti::trace_event_data_t * /*Parent*/,
                                   xpti::trace_event_data_t * /*Event*/,
                                   uint64_t /*Instance*/, const void *UserData) {
@@ -38,18 +38,18 @@ XPTI_CALLBACK_API void syCallback(uint16_t TraceType,
               << std::endl;
 }
 
-void syPrintersInit() {
-  HasSYPrinter = true;
+void syclPrintersInit() {
+  HasSYCLPrinter = true;
 
   std::string_view PrinterType(std::getenv("SYCL_TRACE_PRINT_FORMAT"));
   if (PrinterType == "classic") {
     std::cerr << "Classic output is not supported yet for SYCL API\n";
   } else if (PrinterType == "verbose") {
-    PrintSyVerbose = true;
+    PrintSyclVerbose = true;
   } else if (PrinterType == "compact") {
-    PrintSyVerbose = false;
+    PrintSyclVerbose = false;
   }
 }
 
 // For unification purpose
-void syPrintersFinish() {}
+void syclPrintersFinish() {}
