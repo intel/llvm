@@ -142,21 +142,19 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
 
     if (toStore.getType() != pt.getElementType()) {
       if (auto mt = toStore.getType().dyn_cast<MemRefType>()) {
-        if (auto spt =
-                pt.getElementType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-          CGEIST_WARNING({
-            if (mt.getElementType() != spt.getElementType()) {
-              // llvm::errs() << " func: " <<
-              // val.getDefiningOp()->getParentOfType<FuncOp>() << "\n";
-              llvm::WithColor::warning()
-                  << "potential store type mismatch:\n"
-                  << "val: " << val << " tosval: " << toStore << "\n"
-                  << "mt: " << mt << "spt: " << spt << "\n";
-            }
-          });
-          toStore =
-              builder.create<polygeist::Memref2PointerOp>(loc, spt, toStore);
-        }
+        auto spt = pt.getElementType().cast<mlir::LLVM::LLVMPointerType>();
+        CGEIST_WARNING({
+          if (mt.getElementType() != spt.getElementType()) {
+            // llvm::errs() << " func: " <<
+            // val.getDefiningOp()->getParentOfType<FuncOp>() << "\n";
+            llvm::WithColor::warning()
+                << "potential store type mismatch:\n"
+                << "val: " << val << " tosval: " << toStore << "\n"
+                << "mt: " << mt << "spt: " << spt << "\n";
+          }
+        });
+        toStore =
+            builder.create<polygeist::Memref2PointerOp>(loc, spt, toStore);
       }
     } else { // toStore.getType() == pt.getElementType()
       assert(toStore.getType() == pt.getElementType() && "expect same type");
