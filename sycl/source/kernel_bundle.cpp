@@ -90,11 +90,13 @@ bool kernel_bundle_plain::has_kernel(const kernel_id &KernelID,
   return impl->has_kernel(KernelID, Dev);
 }
 
-bool kernel_bundle_plain::has_kernel_impl(const std::string &KernelName) const noexcept {
+bool kernel_bundle_plain::has_kernel_impl(
+    const std::string &KernelName) const noexcept {
   return impl->has_kernel(get_kernel_id_impl(KernelName));
 }
 
-bool kernel_bundle_plain::has_kernel_impl(const std::string &KernelName, const device &Dev) const noexcept {
+bool kernel_bundle_plain::has_kernel_impl(const std::string &KernelName,
+                                          const device &Dev) const noexcept {
   return impl->has_kernel(get_kernel_id_impl(KernelName), Dev);
 }
 

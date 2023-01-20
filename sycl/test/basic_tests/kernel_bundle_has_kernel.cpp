@@ -8,11 +8,11 @@ int main() {
   using KernelName = class KernelA;
 
   Queue.submit(
-    [&](sycl::handler &cgh) {
-      cgh.single_task<KernelName>([=]() {});
-  });
+      [&](sycl::handler &cgh) { cgh.single_task<KernelName>([=]() {}); });
 
-  auto Bundle = sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(Queue.get_context());
+  auto Bundle =
+      sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(
+          Queue.get_context());
 
   assert(Bundle.has_kernel<KernelA>());
 }
