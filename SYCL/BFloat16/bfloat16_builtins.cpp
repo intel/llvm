@@ -1,11 +1,11 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %if cuda %{ -Xsycl-target-backend --cuda-gpu-arch=sm_80 %} %s -o %t.out
-
-// Currently the feature isn't supported on FPGA.
-
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// TODO: add test execution on FPGA
+// REQUIRES: cuda
 //
+// Currently this test fails to compile for backends other than cuda.
+// Other backends could use this test when bfloat16 math function support is
+// added.
+//
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out -Xsycl-target-backend --cuda-gpu-arch=sm_80
+// RUN: %t.out
 #include <sycl/sycl.hpp>
 
 #include <cmath>
