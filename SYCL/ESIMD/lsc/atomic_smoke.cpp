@@ -604,10 +604,10 @@ int main(void) {
 #endif // USE_DWORD_ATOMICS
 #endif // CMPXCHG_TEST
 
-#ifndef USE_DWORD_ATOMICS
   // Check load/store operations
   passed &= test_int_types<8, ImplLoad>(q, cfg);
   passed &= test_int_types<8, ImplStore>(q, cfg);
+#ifndef USE_DWORD_ATOMICS
   passed &= test<float, 8, ImplStore>(q, cfg);
 #endif // USE_DWORD_ATOMICS
   // TODO: check double other vector lengths in LSC mode.
