@@ -593,14 +593,8 @@ If the target device is PVC (`N` aka `execution size` must be 16):
 
 | Result | C | B | A |
 |--------|---|---|---|
-| float | float | half | half
 | float, half | float, half | half | half
-|
-| float | float | bfloat16 | bfloat16
-| float | bfloat16 | bfloat16 | bfloat16
-| bfloat16 | float | bfloat16 | bfloat16
-| bfloat16 | bfloat16 | bfloat16 | bfloat16
-|
+| float, bfloat16 | float, bfloat16 | bfloat16 | bfloat16
 | float | float | tfloat32 | tfloat32
 | unsigned int, int | unsigned int, int | u8,s8,u4,s4,u2,s2 | u8,s8,u4,s4,u2,s2 |
 
