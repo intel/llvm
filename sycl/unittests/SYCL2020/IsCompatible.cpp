@@ -136,8 +136,10 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
 
 static sycl::unittest::PiImage Imgs[5] = {
     generateDefaultImage({"TestKernelCPU"}, {sycl::aspect::cpu}, {32}),
-    generateDefaultImage({"TestKernelCPUInvalidReqdWGSize1D"}, {sycl::aspect::cpu}, {257}),
-    generateDefaultImage({"TestKernelCPUInvalidReqdWGSize2D"}, {sycl::aspect::cpu}, {129, 129}),
+    generateDefaultImage({"TestKernelCPUInvalidReqdWGSize1D"},
+                         {sycl::aspect::cpu}, {257}), // 257 > 256
+    generateDefaultImage({"TestKernelCPUInvalidReqdWGSize2D"},
+                         {sycl::aspect::cpu}, {32, 9}), // 32*9=288 > 256
     generateDefaultImage({"TestKernelGPU"}, {sycl::aspect::gpu}),
     generateDefaultImage({"TestKernelACC"}, {sycl::aspect::accelerator})};
 
