@@ -78,6 +78,8 @@ public:
   void unloadPlugins();
   void releaseDefaultContexts();
   void drainThreadPool();
+  void prepareSchedulerToRelease();
+
   void InitXPTIStuff();
   void
   TraceEventXPTI(const char *Message);
@@ -91,6 +93,9 @@ private:
 #endif
 
   friend void shutdown();
+  friend class ObjectUsageCounter;
+  static GlobalHandler *&getInstancePtr();
+  static SpinLock MSyclGlobalHandlerProtector;
 
   // Constructor and destructor are declared out-of-line to allow incomplete
   // types as template arguments to unique_ptr.
