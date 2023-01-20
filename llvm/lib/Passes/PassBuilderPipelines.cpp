@@ -2008,7 +2008,18 @@ void PassBuilder::addSYCLFrameworkSimplificationPipeline(
   EarlyFPM.addPass(EarlyCSEPass());
   MPM.addPass(
       createModuleToSYCLFrameworkFunctionPassAdaptor(std::move(EarlyFPM)));
+
   MPM.addPass(createModuleToSYCLFrameworkFunctionPassAdaptor(PromotePass()));
+
+  FunctionPassManager GlobalCleanupPM;
+  GlobalCleanupPM.addPass(InstCombinePass());
+  invokePeepholeEPCallbacks(GlobalCleanupPM, OptimizationLevel::O2);
+  GlobalCleanupPM.addPass(
+      SimplifyCFGPass(SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
+  MPM.addPass(createModuleToSYCLFrameworkFunctionPassAdaptor(std::move(GlobalCleanupPM),
+                                                             PTO.EagerlyInvalidateAnalyses));
+
+  MPM.addPass(buildInlinerPipeline(OptimizationLevel::O2, ThinOrFullLTOPhase::None));
 }
 
 void PassBuilder::addSYCLFrameworkOptimizationPipeline(ModulePassManager &MPM) {
@@ -2072,6 +2083,9 @@ void PassBuilder::addSYCLFrameworkOptimizationPipeline(ModulePassManager &MPM) {
   // Add the core optimizing pipeline.
   MPM.addPass(createModuleToSYCLFrameworkFunctionPassAdaptor(
       std::move(OptimizePM), PTO.EagerlyInvalidateAnalyses));
+
+  for (auto &C : OptimizerLastEPCallbacks)
+    C(MPM, OptimizationLevel::O2);
 }
 
 void PassBuilder::addDefaultSYCLFrameworkOptimizationPipeline(
