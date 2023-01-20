@@ -1408,8 +1408,11 @@ public:
           ext::oneapi::experimental::is_property_list<PropertiesT>::value,
       event>
   parallel_for(nd_range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
-    // Actual code location needs to be captured from KernelInfo object.
-    const detail::code_location CodeLoc = {};
+    using KI = sycl::detail::KernelInfo<KernelName>;
+    constexpr detail::code_location CodeLoc(
+        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
+        KI::getColumnNumber());
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
@@ -1442,8 +1445,12 @@ public:
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
   event parallel_for(nd_range<Dims> Range, event DepEvent, RestT &&...Rest) {
-    // Actual code location needs to be captured from KernelInfo object.
-    const detail::code_location CodeLoc = {};
+    using KI = sycl::detail::KernelInfo<KernelName>;
+    constexpr detail::code_location CodeLoc(
+        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
+        KI::getColumnNumber());
+    std::cout << "KI::getFileName() = " << KI::getFileName() << std::endl;
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvent);
@@ -1464,8 +1471,11 @@ public:
             typename... RestT>
   event parallel_for(nd_range<Dims> Range, const std::vector<event> &DepEvents,
                      RestT &&...Rest) {
-    // Actual code location needs to be captured from KernelInfo object.
-    const detail::code_location CodeLoc = {};
+    using KI = sycl::detail::KernelInfo<KernelName>;
+    constexpr detail::code_location CodeLoc(
+        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
+        KI::getColumnNumber());
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
           CGH.depends_on(DepEvents);
