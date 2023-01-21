@@ -11,6 +11,8 @@ piContextCreate
 piContextGetInfo
 piDeviceGetInfo
 piDevicePartition
+piDeviceRelease
+piDeviceRetain
 piDevicesGet
 piEnqueueMemBufferMap
 piEventCreate

@@ -24,6 +24,7 @@
 #include <regex>
 #include <shared_mutex>
 #include <string>
+#include <sycl/detail/cl.h>
 #include <sycl/detail/pi.h>
 // This version should be incremented for any change made to this file or its
 // corresponding .cpp file.
@@ -129,12 +130,12 @@ struct _pi_device : _pi_object {
     SUBSUBDEVICE = 2,
     INVALID = -1
   };
-  _pi_device(pi_platform Plt) : Platform{Plt} {
+  _pi_device(cl_device_id cl_dev) : cl_device{cl_dev} {
     level = INVALID;
     family = index = 0;
   }
   // PI platform to which this device belongs.
-  pi_platform Platform;
+  cl_device_id cl_device;
 
   // Info stored for sub-sub device queue creation
   device_level level;
@@ -143,7 +144,7 @@ struct _pi_device : _pi_object {
 
   bool isRootDevice(void) { return level == ROOTDEVICE; }
   bool isSubDevice(void) { return level == SUBDEVICE; }
-  bool isSubSubDevice(void) { return level == SUBSUBDEVICE; }
+  bool isCCS(void) { return level == SUBSUBDEVICE; }
 };
 
 #endif // PI_OPENCL_HPP

@@ -17,7 +17,6 @@
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS
 
 #include <pi_opencl.hpp>
-#include <sycl/detail/cl.h>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/detail/spinlock.hpp>
@@ -265,48 +264,23 @@ static pi_result USMSetIndirectAccess(pi_kernel kernel) {
 extern "C" {
 
 // Helper function
-static _pi_device::device_level nextLevel(const _pi_device::device_level currLevel) {
+static _pi_device::device_level
+nextLevel(const _pi_device::device_level currLevel) {
   switch (currLevel) {
-    case _pi_device::ROOTDEVICE :
-      return _pi_device::SUBDEVICE;
-    case _pi_device::SUBDEVICE:
-      return _pi_device::SUBSUBDEVICE; 
-    default:
-      return _pi_device::INVALID;
-  }
-}
-
-// Return device level
-// _pi_device::ROOTDEVICE -> root device
-// _pi_device::SUBDEVICE -> sub-device
-// _pi_device::SUBSUBDEVICE -> sub-sub-device (CCS)
-// _pi_device::INVALID -> invalid device
-_pi_device::device_level getLevel(pi_device device) {
-  if (!device)
-    return _pi_device::INVALID;
-  cl_device_id parentId = nullptr;
-  clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_PARENT_DEVICE,
-                  sizeof(cl_device_id), &parentId, NULL);
-  if (parentId == nullptr)
-    return _pi_device::ROOTDEVICE;
-  cl_device_id parentParentId = nullptr;
-  clGetDeviceInfo(parentId, CL_DEVICE_PARENT_DEVICE, sizeof(cl_device_id),
-                  &parentParentId, NULL);
-  if (parentParentId == nullptr)
+  case _pi_device::ROOTDEVICE:
     return _pi_device::SUBDEVICE;
-  cl_device_id parentParentParentId = nullptr;
-  clGetDeviceInfo(parentParentId, CL_DEVICE_PARENT_DEVICE, sizeof(cl_device_id),
-                  &parentParentParentId, NULL);
-  if (parentParentParentId == nullptr)
+  case _pi_device::SUBDEVICE:
     return _pi_device::SUBSUBDEVICE;
-  return _pi_device::INVALID;
+  default:
+    return _pi_device::INVALID;
+  }
 }
 
 pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
                           size_t paramValueSize, void *paramValue,
                           size_t *paramValueSizeRet) {
   PI_ASSERT(device, PI_ERROR_INVALID_DEVICE);
-  ReturnHelper ReturnValue(paramValueSize, paramValue, paramValueSizeRet);
+  ReturnHelper return_value(paramValueSize, paramValue, paramValueSizeRet);
   switch (paramName) {
     // TODO: Check regularly to see if support in enabled in OpenCL.
     // Intel GPU EU device-specific information extensions.
@@ -333,7 +307,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     bool supported = false;
 
     ret_err = checkDeviceExtensions(
-        cast<cl_device_id>(device),
+        device->cl_device,
         {"cl_khr_int64_base_atomics", "cl_khr_int64_extended_atomics"},
         supported);
     if (ret_err != CL_SUCCESS)
@@ -356,7 +330,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   }
   case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE: {
     cl_device_type devType = CL_DEVICE_TYPE_DEFAULT;
-    cl_int res = clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_TYPE,
+    cl_int res = clGetDeviceInfo(device->cl_device, CL_DEVICE_TYPE,
                                  sizeof(cl_device_type), &devType, nullptr);
 
     // FIXME: here we assume that program built for a root GPU device can be
@@ -391,88 +365,120 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   case PI_DEVICE_INFO_PARTITION_PROPERTIES: {
     // SYCL spec says: if this SYCL device cannot be partitioned into at least
     // two sub devices then the returned vector must be empty.
-    pi_uint32 numSubDevices = 0;
-    if (device->level == _pi_device::INVALID) // level not yet updated
-      device->level = getLevel(device);
+    pi_uint32 num_sub_devices = 0;
 
     auto ReturnHelper = [&](auto... Partitions) {
       struct {
-        pi_device_partition_property Arr[sizeof...(Partitions) + 1];
-      } PartitionProperties = {{Partitions..., 0}};
-      return ReturnValue(PartitionProperties);
+        pi_device_partition_property arr[sizeof...(Partitions) + 1];
+      } partition_properties = {{Partitions..., 0}};
+      return return_value(partition_properties);
     };
 
-    switch (device->level) {
-      case _pi_device::ROOTDEVICE: {
-        clGetDeviceInfo(
-          cast<cl_device_id>(device), CL_DEVICE_PARTITION_MAX_SUB_DEVICES,
-          sizeof(numSubDevices), &numSubDevices, nullptr);
-        if (numSubDevices < 2) {
-          return ReturnValue(pi_device_partition_property{0});
-        }
-        return ReturnHelper(PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN);
+    clGetDeviceInfo(device->cl_device, CL_DEVICE_PARTITION_MAX_SUB_DEVICES,
+                    sizeof(num_sub_devices), &num_sub_devices, nullptr);
+    cl_device_type device_type;
+    cl_int res = clGetDeviceInfo(device->cl_device, CL_DEVICE_TYPE,
+                                 sizeof(cl_device_type), &device_type, nullptr);
+    cl_bool is_gpu = (res == CL_SUCCESS) && (device_type == CL_DEVICE_TYPE_GPU);
+
+    // Partition property for CPU
+    if (!is_gpu) {
+      if (num_sub_devices < 2)
+        return return_value(pi_device_partition_property{0});
+      cl_device_partition_property props[2] = {0, 0};
+      size_t props_ret_size = 0;
+      clGetDeviceInfo(device->cl_device, CL_DEVICE_PARTITION_PROPERTIES,
+                      sizeof(props), &props, &props_ret_size);
+      switch (props_ret_size) {
+      case 0:
+        return return_value(pi_device_partition_property{0});
+      case 1: {
+        struct {
+          pi_device_partition_property arr[2];
+        } partition_properties = {
+            {cast<pi_device_partition_property>(props[0]), 0}};
+        return return_value(partition_properties);
       }
-      case _pi_device::SUBDEVICE: {
-        // Find out number of CCSes.
-        bool supported = false;
-        cl_int ret_err = CL_SUCCESS;
-        ret_err =
-            checkDeviceExtensions(cast<cl_device_id>(device),
-                                  {"cl_intel_command_queue_families"}, supported);
-        if (ret_err != CL_SUCCESS)
-          return static_cast<pi_result>(ret_err);
-        if (!supported)
-          return ReturnValue(pi_device_partition_property{0});
-        cl_queue_family_properties_intel qfprops[3];
-        size_t qsize = 0;
-        clGetDeviceInfo(
-            cast<cl_device_id>(device), CL_DEVICE_QUEUE_FAMILY_PROPERTIES_INTEL,
-            sizeof(qfprops), qfprops, &qsize);
-        qsize = qsize / sizeof(cl_queue_family_properties_intel);
-        for (size_t q = 0; q < qsize; q++) {
-          if (qfprops[q].capabilities == CL_QUEUE_DEFAULT_CAPABILITIES_INTEL &&
-              qfprops[q].count > numSubDevices) {
-            numSubDevices = qfprops[q].count;
-          }
-        }
-        if (numSubDevices < 2) {
-          return ReturnValue(pi_device_partition_property{0});
-        }
-        return ReturnHelper(PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE);
+      case 2: {
+        struct {
+          pi_device_partition_property arr[3];
+        } partition_properties = {{cast<pi_device_partition_property>(props[0]),
+                                   cast<pi_device_partition_property>(props[1]),
+                                   0}};
+        return return_value(partition_properties);
       }
       default:
-        return ReturnValue(pi_device_partition_property{0});
+        return PI_ERROR_INVALID_VALUE;
+      }
+    }
+
+    // Partition property for GPU
+    switch (device->level) {
+    case _pi_device::ROOTDEVICE: {
+      if (num_sub_devices < 2)
+        return return_value(pi_device_partition_property{0});
+      return ReturnHelper(PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN);
+    }
+    case _pi_device::SUBDEVICE: {
+      // Find out number of CCSes.
+      bool supported = false;
+      cl_int ret_err = CL_SUCCESS;
+      ret_err = checkDeviceExtensions(
+          device->cl_device, {"cl_intel_command_queue_families"}, supported);
+      if (ret_err != CL_SUCCESS)
+        return static_cast<pi_result>(ret_err);
+      if (!supported)
+        return return_value(pi_device_partition_property{0});
+      cl_queue_family_properties_intel qfprops[3];
+      size_t qsize = 0;
+      clGetDeviceInfo(device->cl_device,
+                      CL_DEVICE_QUEUE_FAMILY_PROPERTIES_INTEL, sizeof(qfprops),
+                      qfprops, &qsize);
+      qsize = qsize / sizeof(cl_queue_family_properties_intel);
+      for (size_t q = 0; q < qsize; q++) {
+        if (qfprops[q].capabilities == CL_QUEUE_DEFAULT_CAPABILITIES_INTEL &&
+            qfprops[q].count > num_sub_devices) {
+          num_sub_devices = qfprops[q].count;
+        }
+      }
+      if (num_sub_devices < 2) {
+        return return_value(pi_device_partition_property{0});
+      }
+      return ReturnHelper(PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE);
+    }
+    default:
+      return return_value(pi_device_partition_property{0});
     }
   }
   case PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN:
-    return ReturnValue(pi_device_affinity_domain{
+    return return_value(pi_device_affinity_domain{
         PI_DEVICE_AFFINITY_DOMAIN_NUMA |
         PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE});
   case PI_DEVICE_INFO_PARTITION_TYPE: {
     // For root-device there is no partitioning to report.
     if (device->isRootDevice())
-      return ReturnValue(pi_device_partition_property{0});
+      return return_value(pi_device_partition_property{0});
     if (device->isSubDevice()) {
       struct {
-        pi_device_partition_property Arr[3];
-      } PartitionProperties = {{PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
-                                PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE,
-                                0}};
-      return ReturnValue(PartitionProperties);
+        pi_device_partition_property arr[3];
+      } partition_properties = {{PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
+                                 PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE,
+                                 0}};
+      return return_value(partition_properties);
     }
-    if (device->isSubSubDevice()) {
+    if (device->isCCS()) {
       struct {
-        pi_device_partition_property Arr[2];
-      } PartitionProperties = {{PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE, 0}};
-      return ReturnValue(PartitionProperties);
+        pi_device_partition_property arr[2];
+      } partition_properties = {{PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE, 0}};
+      return return_value(partition_properties);
     }
-    return ReturnValue(pi_device_partition_property{0});
+    return return_value(pi_device_partition_property{0});
   }
 
   default:
-    cl_int result = clGetDeviceInfo(
-        cast<cl_device_id>(device), cast<cl_device_info>(paramName),
-        paramValueSize, paramValue, paramValueSizeRet);
+    cl_int result =
+        clGetDeviceInfo(device->cl_device, cast<cl_device_info>(paramName),
+                        paramValueSize, paramValue, paramValueSizeRet);
     return static_cast<pi_result>(result);
   }
 }
@@ -482,17 +488,15 @@ pi_result piDevicePartition(pi_device device,
                             pi_uint32 num_devices, pi_device *out_devices,
                             pi_uint32 *out_num_devices) {
   cl_int result = CL_DEVICE_NOT_FOUND;
-  if (device->level == _pi_device::INVALID) // level not updated yet
-    device->level = getLevel(device);
-  // For root-device there is no partitioning to report.
+  std::vector<cl_device_id> cl_devices(num_devices);
   if (device->isRootDevice()) {
     result = clCreateSubDevices(
-        cast<cl_device_id>(device),
+        device->cl_device,
         cast<const cl_device_partition_property *>(properties),
-        cast<cl_uint>(num_devices), cast<cl_device_id *>(out_devices),
-        cast<cl_uint *>(out_num_devices));
+        cast<cl_uint>(num_devices), cl_devices.data(), out_num_devices);
     if (out_devices) {
       for (uint32_t i = 0; i < *out_num_devices; ++i) {
+        out_devices[i] = new _pi_device(cl_devices[i]);
         out_devices[i]->level = nextLevel(device->level);
       }
     }
@@ -500,23 +504,21 @@ pi_result piDevicePartition(pi_device device,
     cl_queue_family_properties_intel qfprops[3];
     size_t qsize = 0;
     pi_uint32 family = 0;
-    cl_uint partitionMaxSubDevices = 0;
-    clGetDeviceInfo(
-        cast<cl_device_id>(device), CL_DEVICE_QUEUE_FAMILY_PROPERTIES_INTEL,
-        sizeof(qfprops), qfprops, &qsize);
+    cl_uint sub_device_count = 0;
+    clGetDeviceInfo(device->cl_device, CL_DEVICE_QUEUE_FAMILY_PROPERTIES_INTEL,
+                    sizeof(qfprops), qfprops, &qsize);
     qsize = qsize / sizeof(cl_queue_family_properties_intel);
     for (size_t q = 0; q < qsize; q++) {
       if (qfprops[q].capabilities == CL_QUEUE_DEFAULT_CAPABILITIES_INTEL &&
-          qfprops[q].count > partitionMaxSubDevices) {
+          qfprops[q].count > sub_device_count) {
         family = q;
-        partitionMaxSubDevices = qfprops[q].count;
+        sub_device_count = qfprops[q].count;
       }
     }
-    *out_num_devices = partitionMaxSubDevices;
+    *out_num_devices = sub_device_count;
     if (out_devices) {
       for (uint32_t i = 0; i < *out_num_devices; ++i) {
-        pi_device cloneDevice(device);
-        out_devices[i] = cloneDevice;
+        out_devices[i] = new _pi_device(device->cl_device);
         out_devices[i]->level = nextLevel(device->level);
         out_devices[i]->family = family;
         out_devices[i]->index = i % (*out_num_devices);
@@ -530,6 +532,16 @@ pi_result piDevicePartition(pi_device device,
     *out_num_devices = 0;
     return PI_SUCCESS;
   }
+  return cast<pi_result>(result);
+}
+
+pi_result piDeviceRetain(pi_device device) {
+  cl_int result = clRetainDevice(device->cl_device);
+  return cast<pi_result>(result);
+}
+
+pi_result piDeviceRelease(pi_device device) {
+  cl_int result = clReleaseDevice(device->cl_device);
   return cast<pi_result>(result);
 }
 
@@ -559,12 +571,13 @@ pi_result piextPlatformCreateWithNativeHandle(pi_native_handle nativeHandle,
 pi_result piDevicesGet(pi_platform platform, pi_device_type device_type,
                        pi_uint32 num_entries, pi_device *devices,
                        pi_uint32 *num_devices) {
-  cl_int result = clGetDeviceIDs(
-      cast<cl_platform_id>(platform), cast<cl_device_type>(device_type),
-      cast<cl_uint>(num_entries), cast<cl_device_id *>(devices),
-      cast<cl_uint *>(num_devices));
-
+  std::vector<cl_device_id> cl_devices(num_entries);
+  cl_int result = clGetDeviceIDs(cast<cl_platform_id>(platform),
+                                 cast<cl_device_type>(device_type),
+                                 cast<cl_uint>(num_entries), cl_devices.data(),
+                                 cast<cl_uint *>(num_devices));
   for (pi_uint32 i = 0; i < num_entries; ++i) {
+    devices[i] = new _pi_device(cl_devices[i]);
     devices[i]->level = _pi_device::ROOTDEVICE;
   }
   // Absorb the CL_DEVICE_NOT_FOUND and just return 0 in num_devices
@@ -599,8 +612,8 @@ pi_result piextDeviceSelectBinary(pi_device device, pi_device_binary *images,
   cl_device_type device_type;
   constexpr pi_uint32 invalid_ind = std::numeric_limits<pi_uint32>::max();
   cl_int ret_err =
-      clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_TYPE,
-                      sizeof(cl_device_type), &device_type, nullptr);
+      clGetDeviceInfo(device->cl_device, CL_DEVICE_TYPE, sizeof(cl_device_type),
+                      &device_type, nullptr);
   if (ret_err != CL_SUCCESS) {
     *selected_image_ind = invalid_ind;
     return cast<pi_result>(ret_err);
@@ -675,7 +688,7 @@ pi_result piQueueCreate(pi_context context, pi_device device,
 
   cl_platform_id curPlatform;
   cl_int ret_err =
-      clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_PLATFORM,
+      clGetDeviceInfo(device->cl_device, CL_DEVICE_PLATFORM,
                       sizeof(cl_platform_id), &curPlatform, nullptr);
 
   CHECK_ERR_SET_NULL_RET(ret_err, queue, ret_err);
@@ -699,7 +712,7 @@ pi_result piQueueCreate(pi_context context, pi_device device,
 
   if (version >= OCLV::V2_0) {
     *queue = cast<pi_queue>(clCreateCommandQueue(
-        cast<cl_context>(context), cast<cl_device_id>(device),
+        cast<cl_context>(context), device->cl_device,
         cast<cl_command_queue_properties>(properties) & SupportByOpenCL,
         &ret_err));
     return cast<pi_result>(ret_err);
@@ -715,15 +728,15 @@ pi_result piQueueCreate(pi_context context, pi_device device,
         device->index,
         0};
     *queue = cast<pi_queue>(clCreateCommandQueueWithProperties(
-        cast<cl_context>(context), cast<cl_device_id>(device),
-        CreationFlagProperties, &ret_err));
+        cast<cl_context>(context), device->cl_device, CreationFlagProperties,
+        &ret_err));
   } else {
     cl_queue_properties CreationFlagProperties[] = {
         CL_QUEUE_PROPERTIES,
         cast<cl_command_queue_properties>(properties) & SupportByOpenCL, 0};
     *queue = cast<pi_queue>(clCreateCommandQueueWithProperties(
-        cast<cl_context>(context), cast<cl_device_id>(device),
-        CreationFlagProperties, &ret_err));
+        cast<cl_context>(context), device->cl_device, CreationFlagProperties,
+        &ret_err));
   }
   return cast<pi_result>(ret_err);
 }
@@ -991,9 +1004,9 @@ pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
 
   // If clGetDeviceFunctionPointer is in list of extensions
   if (FuncT) {
-    pi_ret_err = cast<pi_result>(FuncT(cast<cl_device_id>(device),
-                                       cast<cl_program>(program), func_name,
-                                       function_pointer_ret));
+    pi_ret_err =
+        cast<pi_result>(FuncT(device->cl_device, cast<cl_program>(program),
+                              func_name, function_pointer_ret));
     // GPU runtime sometimes returns PI_ERROR_INVALID_ARG_VALUE if func address
     // cannot be found even if kernel exits. As the kernel does exist return
     // that the address is not available
@@ -1184,7 +1197,7 @@ pi_result piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
     return PI_ERROR_INVALID_VALUE;
   default:
     cl_int result = clGetKernelWorkGroupInfo(
-        cast<cl_kernel>(kernel), cast<cl_device_id>(device),
+        cast<cl_kernel>(kernel), device->cl_device,
         cast<cl_kernel_work_group_info>(param_name), param_value_size,
         param_value, param_value_size_ret);
     return static_cast<pi_result>(result);
@@ -1226,7 +1239,7 @@ pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,
   }
 
   ret_err = cast<pi_result>(clGetKernelSubGroupInfo(
-      cast<cl_kernel>(kernel), cast<cl_device_id>(device),
+      cast<cl_kernel>(kernel), device->cl_device,
       cast<cl_kernel_sub_group_info>(param_name), input_value_size, input_value,
       sizeof(size_t), &ret_val, param_value_size_ret));
 
@@ -1347,7 +1360,7 @@ pi_result piextUSMDeviceAlloc(void **result_ptr, pi_context context,
           context, &FuncPtr);
 
   if (FuncPtr) {
-    Ptr = FuncPtr(cast<cl_context>(context), cast<cl_device_id>(device),
+    Ptr = FuncPtr(cast<cl_context>(context), device->cl_device,
                   cast<cl_mem_properties_intel *>(properties), size, alignment,
                   cast<cl_int *>(&RetVal));
   }
@@ -1385,7 +1398,7 @@ pi_result piextUSMSharedAlloc(void **result_ptr, pi_context context,
           context, &FuncPtr);
 
   if (FuncPtr) {
-    Ptr = FuncPtr(cast<cl_context>(context), cast<cl_device_id>(device),
+    Ptr = FuncPtr(cast<cl_context>(context), device->cl_device,
                   cast<cl_mem_properties_intel *>(properties), size, alignment,
                   cast<cl_int *>(&RetVal));
   }
@@ -1891,8 +1904,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piDevicesGet, piDevicesGet)
   _PI_CL(piDeviceGetInfo, piDeviceGetInfo)
   _PI_CL(piDevicePartition, piDevicePartition)
-  _PI_CL(piDeviceRetain, clRetainDevice)
-  _PI_CL(piDeviceRelease, clReleaseDevice)
+  _PI_CL(piDeviceRetain, piDeviceRetain)
+  _PI_CL(piDeviceRelease, piDeviceRelease)
   _PI_CL(piextDeviceSelectBinary, piextDeviceSelectBinary)
   _PI_CL(piextGetDeviceFunctionPointer, piextGetDeviceFunctionPointer)
   _PI_CL(piextDeviceGetNativeHandle, piextDeviceGetNativeHandle)
