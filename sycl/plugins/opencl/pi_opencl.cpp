@@ -1015,10 +1015,12 @@ pi_result piContextCreate(const pi_context_properties *properties,
                                              size_t cb, void *user_data1),
                           void *user_data, pi_context *retcontext) {
   pi_result ret = PI_ERROR_INVALID_OPERATION;
+  std::vector<cl_device_id> cl_devices(num_devices);
+  for (size_t i = 0; i < num_devices; ++i)
+    cl_devices[i] = devices[i]->cl_device;
   *retcontext = cast<pi_context>(
-      clCreateContext(properties, cast<cl_uint>(num_devices),
-                      cast<const cl_device_id *>(devices), pfn_notify,
-                      user_data, cast<cl_int *>(&ret)));
+      clCreateContext(properties, cast<cl_uint>(num_devices), cl_devices.data(),
+                      pfn_notify, user_data, cast<cl_int *>(&ret)));
 
   return ret;
 }
@@ -1140,10 +1142,13 @@ pi_result piProgramCreateWithBinary(
   (void)num_metadata_entries;
 
   pi_result ret_err = PI_ERROR_INVALID_OPERATION;
+  std::vector<cl_device_id> cl_devices(num_devices);
+  for (size_t i = 0; i < num_devices; ++i)
+    cl_devices[i] = device_list[i]->cl_device;
   *ret_program = cast<pi_program>(clCreateProgramWithBinary(
-      cast<cl_context>(context), cast<cl_uint>(num_devices),
-      cast<const cl_device_id *>(device_list), lengths, binaries,
-      cast<cl_int *>(binary_status), cast<cl_int *>(&ret_err)));
+      cast<cl_context>(context), cast<cl_uint>(num_devices), cl_devices.data(),
+      lengths, binaries, cast<cl_int *>(binary_status),
+      cast<cl_int *>(&ret_err)));
   return ret_err;
 }
 
@@ -1155,13 +1160,15 @@ pi_result piProgramLink(pi_context context, pi_uint32 num_devices,
                         void *user_data, pi_program *ret_program) {
 
   pi_result ret_err = PI_ERROR_INVALID_OPERATION;
-  *ret_program = cast<pi_program>(
-      clLinkProgram(cast<cl_context>(context), cast<cl_uint>(num_devices),
-                    cast<const cl_device_id *>(device_list), options,
-                    cast<cl_uint>(num_input_programs),
-                    cast<const cl_program *>(input_programs),
-                    cast<void (*)(cl_program, void *)>(pfn_notify), user_data,
-                    cast<cl_int *>(&ret_err)));
+  std::vector<cl_device_id> cl_devices(num_devices);
+  for (size_t i = 0; i < num_devices; ++i)
+    cl_devices[i] = device_list[i]->cl_device;
+  *ret_program = cast<pi_program>(clLinkProgram(
+      cast<cl_context>(context), cast<cl_uint>(num_devices), cl_devices.data(),
+      options, cast<cl_uint>(num_input_programs),
+      cast<const cl_program *>(input_programs),
+      cast<void (*)(cl_program, void *)>(pfn_notify), user_data,
+      cast<cl_int *>(&ret_err)));
   return ret_err;
 }
 
