@@ -7,6 +7,9 @@ add_llvm_library(SYCLKernelFusion MODULE
   syclcp/SYCLCP.cpp
   cleanup/Cleanup.cpp
   debug/PassDebug.cpp
+
+  DEPENDS
+  intrinsics_gen
 )
 
 target_include_directories(SYCLKernelFusion
@@ -25,6 +28,9 @@ add_llvm_library(SYCLKernelFusionPasses
   syclcp/SYCLCP.cpp
   cleanup/Cleanup.cpp
   debug/PassDebug.cpp
+
+  DEPENDS
+  intrinsics_gen
 
   LINK_COMPONENTS
   Core
