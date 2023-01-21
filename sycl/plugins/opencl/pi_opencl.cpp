@@ -19,7 +19,6 @@
 #include <pi_opencl.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/pi.h>
-#include <sycl/detail/spinlock.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -29,12 +28,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
-#include <thread>
 #include <vector>
-
-#define PI_ASSERT(condition, error)                                            \
-  if (!(condition))                                                            \
-    return error;
 
 #define CHECK_ERR_SET_NULL_RET(err, ptr, reterr)                               \
   if (err != CL_SUCCESS) {                                                     \
@@ -366,7 +360,11 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     // SYCL spec says: if this SYCL device cannot be partitioned into at least
     // two sub devices then the returned vector must be empty.
     pi_uint32 num_sub_devices = 0;
+    clGetDeviceInfo(device->cl_device, CL_DEVICE_PARTITION_MAX_SUB_DEVICES,
+                    sizeof(num_sub_devices), &num_sub_devices, nullptr);
+    // Check is done later for devices at root level.
 
+    // Helper function to populate property and return success/failure.
     auto ReturnHelper = [&](auto... Partitions) {
       struct {
         pi_device_partition_property arr[sizeof...(Partitions) + 1];
@@ -374,14 +372,15 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
       return return_value(partition_properties);
     };
 
-    clGetDeviceInfo(device->cl_device, CL_DEVICE_PARTITION_MAX_SUB_DEVICES,
-                    sizeof(num_sub_devices), &num_sub_devices, nullptr);
+    // Identify device type.
     cl_device_type device_type;
     cl_int res = clGetDeviceInfo(device->cl_device, CL_DEVICE_TYPE,
                                  sizeof(cl_device_type), &device_type, nullptr);
     cl_bool is_gpu = (res == CL_SUCCESS) && (device_type == CL_DEVICE_TYPE_GPU);
 
-    // Partition property for CPU
+    // Partition property for non GPU backends.
+    // For non-GPU backends, partition property are obtained by calling
+    // clGetDeviceInfo.
     if (!is_gpu) {
       if (num_sub_devices < 2)
         return return_value(pi_device_partition_property{0});
@@ -392,21 +391,12 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
       switch (props_ret_size) {
       case 0:
         return return_value(pi_device_partition_property{0});
-      case 1: {
-        struct {
-          pi_device_partition_property arr[2];
-        } partition_properties = {
-            {cast<pi_device_partition_property>(props[0]), 0}};
-        return return_value(partition_properties);
-      }
-      case 2: {
-        struct {
-          pi_device_partition_property arr[3];
-        } partition_properties = {{cast<pi_device_partition_property>(props[0]),
-                                   cast<pi_device_partition_property>(props[1]),
-                                   0}};
-        return return_value(partition_properties);
-      }
+      case 1:
+        ReturnHelper(props[0]);
+        [[fallthrough]];
+      case 2:
+        ReturnHelper(props[0], props[1]);
+        [[fallthrough]];
       default:
         return PI_ERROR_INVALID_VALUE;
       }
