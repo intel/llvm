@@ -4917,10 +4917,13 @@ public:
   llvm::Error isValidSectionSpecifier(StringRef Str);
   bool checkSectionName(SourceLocation LiteralLoc, StringRef Str);
   bool checkTargetAttr(SourceLocation LiteralLoc, StringRef Str);
-  bool checkTargetClonesAttrString(SourceLocation LiteralLoc, StringRef Str,
-                                   const StringLiteral *Literal,
-                                   bool &HasDefault, bool &HasCommas,
-                                   SmallVectorImpl<StringRef> &Strings);
+  bool checkTargetVersionAttr(SourceLocation LiteralLoc, StringRef &Str,
+                              bool &isDefault);
+  bool
+  checkTargetClonesAttrString(SourceLocation LiteralLoc, StringRef Str,
+                              const StringLiteral *Literal, bool &HasDefault,
+                              bool &HasCommas, bool &HasNotDefault,
+                              SmallVectorImpl<SmallString<64>> &StringsBuffer);
   bool checkMSInheritanceAttrOnDefinition(
       CXXRecordDecl *RD, SourceRange Range, bool BestCase,
       MSInheritanceModel SemanticSpelling);
@@ -8781,8 +8784,8 @@ public:
       concepts::Requirement::SubstitutionDiagnostic *SubstDiag);
   concepts::NestedRequirement *BuildNestedRequirement(Expr *E);
   concepts::NestedRequirement *
-  BuildNestedRequirement(
-      concepts::Requirement::SubstitutionDiagnostic *SubstDiag);
+  BuildNestedRequirement(StringRef InvalidConstraintEntity,
+                         const ASTConstraintSatisfaction &Satisfaction);
   ExprResult ActOnRequiresExpr(SourceLocation RequiresKWLoc,
                                RequiresExprBodyDecl *Body,
                                ArrayRef<ParmVarDecl *> LocalParameters,
@@ -10997,10 +11000,10 @@ public:
   bool AllWorkGroupSizesSame(const Expr *LHSXDim, const Expr *LHSYDim,
                              const Expr *LHSZDim, const Expr *RHSXDim,
                              const Expr *RHSYDim, const Expr *RHSZDim);
-  void AddWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
-                                Expr *XDim, Expr *YDim, Expr *ZDim);
-  WorkGroupSizeHintAttr *
-  MergeWorkGroupSizeHintAttr(Decl *D, const WorkGroupSizeHintAttr &A);
+  void AddSYCLWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
+                                    Expr *XDim, Expr *YDim, Expr *ZDim);
+  SYCLWorkGroupSizeHintAttr *
+  MergeSYCLWorkGroupSizeHintAttr(Decl *D, const SYCLWorkGroupSizeHintAttr &A);
   void AddIntelReqdSubGroupSize(Decl *D, const AttributeCommonInfo &CI,
                                 Expr *E);
   IntelReqdSubGroupSizeAttr *
