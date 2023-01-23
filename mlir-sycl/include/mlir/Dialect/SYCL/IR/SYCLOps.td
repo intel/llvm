@@ -367,12 +367,14 @@ def ItemMemRef : MemRefOf<[SYCL_ItemType]>;
 def LocalAccessorBaseDeviceMemRef : MemRefOf<[SYCL_LocalAccessorBaseDeviceType]>;
 def LocalAccessorBaseMemRef : MemRefOf<[SYCL_LocalAccessorBaseType]>;
 def LocalAccessorMemRef : MemRefOf<[SYCL_LocalAccessorType]>;
+def MinimumMemRef : MemRefOf<[SYCL_MinimumType]>;
 def MultiPtrMemRef : MemRefOf<[SYCL_MultiPtrType]>;
 def NDItemMemRef : MemRefOf<[SYCL_NdItemType]>;
 def NDRangeMemRef : MemRefOf<[SYCL_NdRangeType]>;
 def OwnerLessBaseMemRef : MemRefOf<[SYCL_OwnerLessBaseType]>;
 def RangeMemRef : MemRefOf<[SYCL_RangeType]>;
 def StreamMemRef : MemRefOf<[SYCL_StreamType]>;
+def SubGroupMemRef : MemRefOf<[SYCL_SubGroupType]>;
 def SwizzledVecMemRef : MemRefOf<[SYCL_SwizzledVecType]>;
 def VecMemRef : MemRefOf<[SYCL_VecType]>;
 
@@ -393,13 +395,15 @@ def SYCLMemref : AnyTypeOf<[
   LocalAccessorBaseDeviceMemRef,
   LocalAccessorBaseMemRef,
   LocalAccessorMemRef,
+  MinimumMemRef,
   MultiPtrMemRef,
   NDItemMemRef,
   NDRangeMemRef,
   OwnerLessBaseMemRef,
   RangeMemRef,
-  SwizzledVecMemRef,
   StreamMemRef,
+  SubGroupMemRef,
+  SwizzledVecMemRef,
   VecMemRef
 ]>;
 
