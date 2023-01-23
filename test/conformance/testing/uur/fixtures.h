@@ -136,7 +136,7 @@ template <class T> struct urContextTestWithParam : urDeviceTestWithParam<T> {
 
   void TearDown() override {
     EXPECT_SUCCESS(urContextRelease(context));
-    UUR_RETURN_ON_FATAL_FAILURE(urDeviceTest::TearDown());
+    UUR_RETURN_ON_FATAL_FAILURE(urDeviceTestWithParam<T>::TearDown());
   }
   ur_context_handle_t context;
 };
