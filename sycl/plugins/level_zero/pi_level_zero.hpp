@@ -802,7 +802,7 @@ struct _pi_queue : _pi_object {
   struct active_barriers {
     std::vector<pi_event> Events;
     void add(pi_event &Event);
-    void clear();
+    pi_result clear();
     bool empty() { return Events.empty(); }
     std::vector<pi_event> &vector() { return Events; }
   };

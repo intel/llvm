@@ -2012,7 +2012,8 @@ pi_result _pi_queue::insertActiveBarriers(pi_command_list_ptr_t &CmdList,
     return Res;
 
   // We can now replace active barriers with the ones in the wait list.
-  ActiveBarriers.clear();
+  if (auto Res = ActiveBarriers.clear())
+    return Res;
 
   if (ActiveBarriersWaitList.Length == 0) {
     return PI_SUCCESS;
@@ -6210,10 +6211,11 @@ void _pi_queue::active_barriers::add(pi_event &Event) {
   Events.push_back(Event);
 }
 
-void _pi_queue::active_barriers::clear() {
+pi_result _pi_queue::active_barriers::clear() {
   for (const auto &Event : Events)
-    piEventReleaseInternal(Event);
+    PI_CALL(piEventReleaseInternal(Event));
   Events.clear();
+  return PI_SUCCESS;
 }
 
 static pi_result piEventReleaseInternal(pi_event Event) {
@@ -6746,7 +6748,8 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     if (auto Res = Queue->executeCommandList(CmdList, false, OkToBatch))
       return Res;
 
-  Queue->ActiveBarriers.clear();
+  if (auto Res = Queue->ActiveBarriers.clear())
+    return Res;
   Queue->ActiveBarriers.add(*Event);
   return PI_SUCCESS;
 }
@@ -6854,7 +6857,9 @@ pi_result _pi_queue::synchronize() {
 
   // With the entire queue synchronized, the active barriers must be done so we
   // can remove them.
-  ActiveBarriers.clear();
+  if (auto Res = ActiveBarriers.clear())
+    return Res;
+
   return PI_SUCCESS;
 }
 
