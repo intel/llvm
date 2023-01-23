@@ -76,6 +76,10 @@ context_t::context_t() {
          uint32_t NumEntries, ur_device_handle_t *phDevices,
          uint32_t *pNumDevices) {
         (void)DevicesType;
+        if (hPlatform == nullptr)
+          return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        if (UR_DEVICE_TYPE_VPU < DevicesType)
+          return UR_RESULT_ERROR_INVALID_ENUMERATION;
         if (phDevices != nullptr && NumEntries != 1)
           return UR_RESULT_ERROR_INVALID_SIZE;
         if (pNumDevices != nullptr)

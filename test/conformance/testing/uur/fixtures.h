@@ -25,6 +25,48 @@ struct urPlatformTest : ::testing::Test {
   ur_platform_handle_t platform = nullptr;
 };
 
+inline std::pair<bool, std::vector<ur_device_handle_t>>
+GetDevices(ur_platform_handle_t platform) {
+  uint32_t count = 0;
+  if (urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count)) {
+    return {false, {}};
+  }
+  if (count == 0) {
+    return {false, {}};
+  }
+  std::vector<ur_device_handle_t> devices(count);
+  if (urDeviceGet(platform, UR_DEVICE_TYPE_ALL, count, devices.data(),
+                  nullptr)) {
+    return {false, {}};
+  }
+  return {true, devices};
+}
+
+inline bool
+hasDevicePartitionSupport(ur_device_handle_t device,
+                          const ur_device_partition_property_flags_t property) {
+  ur_device_partition_property_flags_t flags = 0;
+  auto result = urDeviceGetInfo(device, UR_DEVICE_INFO_PARTITION_PROPERTIES,
+                                sizeof(flags), &flags, nullptr);
+  if (result != UR_RESULT_SUCCESS) {
+    return false;
+  }
+  return (flags & property);
+}
+
+struct urAllDevicesTest : urPlatformTest {
+
+  void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::SetUp());
+    auto devicesPair = GetDevices(platform);
+    if (!devicesPair.first) {
+      FAIL() << "Failed to get devices";
+    }
+    devices = std::move(devicesPair.second);
+  }
+  std::vector<ur_device_handle_t> devices;
+};
+
 struct urDeviceTest : urPlatformTest,
                       ::testing::WithParamInterface<ur_device_handle_t> {
 
