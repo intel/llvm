@@ -15,3 +15,15 @@ func.func @TestConstructorII32Ptr(%arg0: memref<?x!sycl_id_1_, 4>, %arg1: memref
   sycl.constructor(%arg0, %arg1) {MangledFunctionName = @_ZN4sycl3_V19multi_ptrIjLNS0_6access13address_spaceE1ELNS2_9decoratedE1EEC1EPU3AS1j, TypeName = @multi_ptr} : (memref<?x!sycl_id_1_, 4>, memref<?xi32, 1>) -> ()
   return
 }
+
+// CHECK-LABEL: func.func @SubGroupConstructor
+func.func @SubGroupConstructor(%arg0: memref<?x!sycl.sub_group, 4>, %arg1: memref<?x!sycl.sub_group, 4>) {
+  sycl.constructor(%arg0, %arg1) {MangledFunctionName = @_ZN4sycl3_V13ext6oneapi9sub_groupC1ERKS3_, TypeName = @sub_group} : (memref<?x!sycl.sub_group, 4>, memref<?x!sycl.sub_group, 4>) -> ()
+  return
+}
+
+// CHECK-LABEL: func.func @MinimumConstructor
+func.func @MinimumConstructor(%arg0: memref<?x!sycl.minimum<i32>, 4>, %arg1: memref<?x!sycl.minimum<i32>, 4>) {
+  sycl.constructor(%arg0, %arg1) {MangledFunctionName = @_ZN4sycl3_V17minimumIiEC1ERKS2_, TypeName = @minimum} : (memref<?x!sycl.minimum<i32>, 4>, memref<?x!sycl.minimum<i32>, 4>) -> ()
+  return
+}
