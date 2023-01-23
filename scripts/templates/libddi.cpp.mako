@@ -16,7 +16,7 @@ from templates import helper as th
  * @file ${name}.cpp
  *
  */
-#include "${x}_lib.h"
+#include "${x}_lib.hpp"
 #ifndef DYNAMIC_LOAD_LOADER
 #include "${n}_ddi.h"
 #endif

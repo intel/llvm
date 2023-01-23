@@ -6,8 +6,8 @@
  *
  */
 
-#include "platform_discovery.h"
-#include "ur_util.h"
+#include "platform_discovery.hpp"
+#include "ur_util.hpp"
 
 #include <Windows.h>
 

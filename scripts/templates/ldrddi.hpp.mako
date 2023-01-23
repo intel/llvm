@@ -13,7 +13,7 @@ from templates import helper as th
  *
  * SPDX-License-Identifier: MIT
  *
- * @file ${name}.h
+ * @file ${name}.hpp
  *
  */
 #ifndef UR_LOADER_LDRDDI_H

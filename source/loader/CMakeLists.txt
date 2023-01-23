@@ -60,14 +60,14 @@ install(TARGETS loader
 
 target_sources(loader
     PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/ur_object.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/ur_loader.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/ur_object.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/ur_loader.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_loader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_ldrddi.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/ur_ldrddi.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/ur_ldrddi.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_libapi.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_libddi.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/ur_lib.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/ur_lib.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_lib.cpp
 )
 

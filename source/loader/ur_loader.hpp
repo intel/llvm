@@ -13,9 +13,9 @@
 
 #include "ur_ddi.h"
 
-#include "ur_object.h"
+#include "ur_object.hpp"
 
-#include "ur_ldrddi.h"
+#include "ur_ldrddi.hpp"
 
 namespace loader {
 //////////////////////////////////////////////////////////////////////////
