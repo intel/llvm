@@ -77,36 +77,43 @@ void GlobalHandler::InitXPTIStuff() {
                     xpti_at::active, &SYCLInstanceNo);
 }
 
+bool hasValue(const char *Value) { return Value && Value[0] != '\0'; }
+// Expected format: [key1:value1; key2:value2; key3:"value3";...] message.
+// Example if code location exists: [filename:value1; funcname:value2;
+// ln:value3; col:value4] exception message. Example if not: [filename:unknown]
+// exception message.
 std::string BuildPayloadStr(const code_location &Payload, const char *Message) {
-  std::string Result;
-  const char Separator[] = ":";
-  auto FileName = Payload.fileName();
-  auto FunctionName = Payload.functionName();
-  if (FileName && FileName[0] != '\0') {
-    Result.append(FileName);
-    Result.append(Separator);
-  }
-  if (FunctionName && FunctionName[0] != '\0') {
-    Result.append(FunctionName);
-    Result.append(Separator);
+  const char PairSeparator = ';';
+  const std::string FileNameHeader = "filename:";
+  const std::string FuncNameHeader = "funcname:";
+  const std::string LnHeader = "ln:";
+  const std::string ColHeader = "col:";
 
-    Result += "ln" + std::to_string(Payload.lineNumber()) + Separator;
-    Result += "col" + std::to_string(Payload.columnNumber());
+  std::string Result("[");
+  auto FileName = Payload.fileName();
+  auto FuncName = Payload.functionName();
+  if (hasValue(FileName) & hasValue(FuncName)) {
+    Result += FileNameHeader + FileName + PairSeparator;
+    Result += FuncNameHeader + FuncName + PairSeparator;
+
+    Result += LnHeader + std::to_string(Payload.lineNumber()) + PairSeparator;
+    Result +=
+        ColHeader + std::to_string(Payload.columnNumber()) + PairSeparator;
+  } else {
+    Result = FileNameHeader + "unknown";
   }
-  if (Result.empty()) {
-    Result = "unknown";
-  }
-  if (Message && Message[0] != '\0') {
-    Result += ":";
+  Result += "]";
+
+  if (hasValue(Message)) {
     Result += Message;
   }
+
   return Result;
 }
 
-void GlobalHandler::TraceEventXPTI(
-    const char *Message) {
+void GlobalHandler::TraceEventXPTI(const char *Message) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-    if (xptiTraceEnabled()) {
+  if (xptiTraceEnabled()) {
     uint64_t Uid = xptiGetUniqueId(); // Gets the UID from TLS
     uint8_t StreamID = xptiRegisterStream(SYCL_SYCLCALL_STREAM_NAME);
     std::string PayloadStr;
@@ -134,8 +141,7 @@ GlobalHandler &GlobalHandler::instance() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   static std::once_flag InitXPTI;
   if (xptiTraceEnabled()) {
-    std::call_once(InitXPTI,
-                   [&]() { RTGlobalObjHandler->InitXPTIStuff(); });
+    std::call_once(InitXPTI, [&]() { RTGlobalObjHandler->InitXPTIStuff(); });
   }
 #endif
   return *RTGlobalObjHandler;

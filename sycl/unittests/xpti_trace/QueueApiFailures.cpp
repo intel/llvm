@@ -46,11 +46,12 @@ public:
                                               const char *FunctionName,
                                               int LineNumber,
                                               int ColumnNumber) {
-    std::string Result(FileName);
-    Result += ':';
+    std::string Result("filename:");
+    Result += FileName;
+    Result += ";funcname:";
     Result += FunctionName;
-    Result += ":ln" + std::to_string(LineNumber) + ":col" +
-              std::to_string(ColumnNumber);
+    Result += ";ln:" + std::to_string(LineNumber) +
+              ";col:" + std::to_string(ColumnNumber);
     return Result;
   }
 
@@ -81,7 +82,7 @@ public:
   const std::string TestKernelLocationMessage = BuildCodeLocationMessage(
       TestKI::getFileName(), TestKI::getFunctionName(), TestKI::getLineNumber(),
       TestKI::getColumnNumber());
-  const std::string UnknownCodeLocation = "unknown";
+  const std::string UnknownCodeLocation = "filename:unknown";
 };
 
 TEST_F(QueueApiFailures, QueueSubmit) {
