@@ -95,5 +95,7 @@ def SYCLGetID : SYCLOpTrait<"SYCLGetID">;
 def SYCLGetComponent : SYCLOpTrait<"SYCLGetComponent">;
 def SYCLGetRange : SYCLOpTrait<"SYCLGetRange">;
 def SYCLGetGroup : SYCLOpTrait<"SYCLGetGroup">;
+def SYCLIndexSpaceGetID : SYCLOpTrait<"SYCLIndexSpaceGetID">;
+def SYCLIndexSpaceGetRange : SYCLOpTrait<"SYCLIndexSpaceGetRange">;
 
 #endif // SYCL_OP_INTERFACES
