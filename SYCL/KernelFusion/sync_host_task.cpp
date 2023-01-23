@@ -1,9 +1,12 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: env SYCL_RT_WARNING_LEVEL=1 %CPU_RUN_PLACEHOLDER %t.out 2>&1\
+// RUN: %CPU_CHECK_PLACEHOLDER
+// RUN: env SYCL_RT_WARNING_LEVEL=1 %GPU_RUN_PLACEHOLDER %t.out 2>&1\
+// RUN: %GPU_CHECK_PLACEHOLDER
 // UNSUPPORTED: cuda || hip
 
-// Test cancel fusion
+// Test fusion cancellation on host task submission happening before
+// complete_fusion.
 
 #include <sycl/sycl.hpp>
 
@@ -36,8 +39,8 @@ int main() {
     assert(fw.is_in_fusion_mode() && "Queue should be in fusion mode");
 
     q.submit([&](handler &cgh) {
-      auto accIn1 = bIn1.get_access(cgh);
-      auto accIn2 = bIn2.get_access(cgh);
+      auto accIn1 = bIn1.get_access<access::mode::read>(cgh);
+      auto accIn2 = bIn2.get_access<access::mode::read>(cgh);
       auto accTmp = bTmp.get_access(cgh);
       cgh.parallel_for<class KernelOne>(
           dataSize, [=](id<1> i) { accTmp[i] = accIn1[i] + accIn2[i]; });
@@ -51,16 +54,31 @@ int main() {
           dataSize, [=](id<1> i) { accOut[i] = accTmp[i] * accIn3[i]; });
     });
 
-    fw.cancel_fusion();
+    // This host task requests access to bOut, which is accessed by one of
+    // the kernels in the fusion list, creating a requirement for one of the
+    // kernels in the fusion list. This should lead to cancellation of the
+    // fusion.
+    q.submit([&](handler &cgh) {
+      auto accOut = bOut.get_access(cgh);
+      cgh.host_task([=]() { accOut[256] = 42; });
+    });
 
     assert(!fw.is_in_fusion_mode() &&
            "Queue should not be in fusion mode anymore");
+
+    fw.complete_fusion({ext::codeplay::experimental::property::no_barriers{}});
   }
 
   // Check the results
   for (size_t i = 0; i < dataSize; ++i) {
-    assert(out[i] == (20 * i * i) && "Computation error");
+    if (i == 256) {
+      assert(out[i] == 42 && "Computation error");
+    } else {
+      assert(out[i] == (20 * i * i) && "Computation error");
+    }
   }
 
   return 0;
 }
+
+// CHECK: WARNING: Aborting fusion because synchronization with one of the kernels in the fusion list was requested
