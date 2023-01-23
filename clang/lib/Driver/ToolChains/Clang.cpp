@@ -3360,6 +3360,12 @@ static void RenderSSPOptions(const Driver &D, const ToolChain &TC,
       StackProtectorLevel = LangOptions::SSPStrong;
     else if (A->getOption().matches(options::OPT_fstack_protector_all))
       StackProtectorLevel = LangOptions::SSPReq;
+
+    if (EffectiveTriple.isBPF() && StackProtectorLevel != LangOptions::SSPOff) {
+      D.Diag(diag::warn_drv_unsupported_option_for_target)
+          << A->getSpelling() << EffectiveTriple.getTriple();
+      StackProtectorLevel = DefaultStackProtectorLevel;
+    }
   } else {
     StackProtectorLevel = DefaultStackProtectorLevel;
   }
@@ -4340,9 +4346,11 @@ static void renderDebugOptions(const ToolChain &TC, const Driver &D,
     CmdArgs.push_back("-gno-column-info");
 
   // FIXME: Move backend command line options to the module.
-  // If -gline-tables-only or -gline-directives-only is the last option it wins.
-  if (const Arg *A = Args.getLastArg(options::OPT_gmodules))
-    if (checkDebugInfoOption(A, Args, D, TC)) {
+  if (Args.hasFlag(options::OPT_gmodules, options::OPT_gno_modules, false)) {
+    // If -gline-tables-only or -gline-directives-only is the last option it
+    // wins.
+    if (checkDebugInfoOption(Args.getLastArg(options::OPT_gmodules), Args, D,
+                             TC)) {
       if (DebugInfoKind != codegenoptions::DebugLineTablesOnly &&
           DebugInfoKind != codegenoptions::DebugDirectivesOnly) {
         DebugInfoKind = codegenoptions::DebugInfoConstructor;
@@ -4350,6 +4358,7 @@ static void renderDebugOptions(const ToolChain &TC, const Driver &D,
         CmdArgs.push_back("-fmodule-format=obj");
       }
     }
+  }
 
   if (T.isOSBinFormatELF() && SplitDWARFInlining)
     CmdArgs.push_back("-fsplit-dwarf-inlining");
@@ -5721,7 +5730,26 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  Args.AddLastArg(CmdArgs, options::OPT_fveclib);
+  if (Arg *A = Args.getLastArg(options::OPT_fveclib)) {
+    StringRef Name = A->getValue();
+    if (Name == "SVML") {
+      if (Triple.getArch() != llvm::Triple::x86 &&
+          Triple.getArch() != llvm::Triple::x86_64)
+        D.Diag(diag::err_drv_unsupported_opt_for_target)
+            << Name << Triple.getArchName();
+    } else if (Name == "LIBMVEC-X86") {
+      if (Triple.getArch() != llvm::Triple::x86 &&
+          Triple.getArch() != llvm::Triple::x86_64)
+        D.Diag(diag::err_drv_unsupported_opt_for_target)
+            << Name << Triple.getArchName();
+    } else if (Name == "SLEEF") {
+      if (Triple.getArch() != llvm::Triple::aarch64 &&
+          Triple.getArch() != llvm::Triple::aarch64_be)
+        D.Diag(diag::err_drv_unsupported_opt_for_target)
+            << Name << Triple.getArchName();
+    }
+    A->render(Args, CmdArgs);
+  }
 
   if (Args.hasFlag(options::OPT_fmerge_all_constants,
                    options::OPT_fno_merge_all_constants, false))
@@ -7605,11 +7633,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         !isa<PreprocessJobAction>(JA)) {
       if (StringRef(Arg->getValue()) == "-finclude-default-header")
         continue;
-    }
-    if (StringRef(Arg->getValue()) == "-fexperimental-assignment-tracking") {
-      // Add the llvm version of this flag too.
-      CmdArgs.push_back("-mllvm");
-      CmdArgs.push_back("-experimental-assignment-tracking");
     }
     CmdArgs.push_back(Arg->getValue());
   }

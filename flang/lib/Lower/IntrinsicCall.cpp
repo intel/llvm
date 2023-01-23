@@ -19,10 +19,12 @@
 #include "flang/Lower/Runtime.h"
 #include "flang/Lower/StatementContext.h"
 #include "flang/Lower/SymbolMap.h"
+#include "flang/Optimizer/Builder/BoxValue.h"
 #include "flang/Optimizer/Builder/Character.h"
 #include "flang/Optimizer/Builder/Complex.h"
 #include "flang/Optimizer/Builder/FIRBuilder.h"
 #include "flang/Optimizer/Builder/MutableBox.h"
+#include "flang/Optimizer/Builder/Runtime/Allocatable.h"
 #include "flang/Optimizer/Builder/Runtime/Character.h"
 #include "flang/Optimizer/Builder/Runtime/Command.h"
 #include "flang/Optimizer/Builder/Runtime/Derived.h"
@@ -267,6 +269,7 @@ struct IntrinsicLibrary {
   fir::ExtendedValue genMinval(mlir::Type, llvm::ArrayRef<fir::ExtendedValue>);
   mlir::Value genMod(mlir::Type, llvm::ArrayRef<mlir::Value>);
   mlir::Value genModulo(mlir::Type, llvm::ArrayRef<mlir::Value>);
+  void genMoveAlloc(llvm::ArrayRef<fir::ExtendedValue>);
   void genMvbits(llvm::ArrayRef<fir::ExtendedValue>);
   mlir::Value genNearest(mlir::Type, llvm::ArrayRef<mlir::Value>);
   mlir::Value genNint(mlir::Type, llvm::ArrayRef<mlir::Value>);
@@ -695,6 +698,13 @@ static constexpr IntrinsicHandler handlers[]{
      /*isElemental=*/false},
     {"mod", &I::genMod},
     {"modulo", &I::genModulo},
+    {"move_alloc",
+     &I::genMoveAlloc,
+     {{{"from", asInquired},
+       {"to", asInquired},
+       {"status", asAddr, handleDynamicOptional},
+       {"errMsg", asBox, handleDynamicOptional}}},
+     /*isElemental=*/false},
     {"mvbits",
      &I::genMvbits,
      {{{"from", asValue},
@@ -3900,6 +3910,46 @@ mlir::Value IntrinsicLibrary::genModulo(mlir::Type resultType,
                                                remainder);
 }
 
+void IntrinsicLibrary::genMoveAlloc(llvm::ArrayRef<fir::ExtendedValue> args) {
+  assert(args.size() == 4);
+
+  const fir::ExtendedValue &from = args[0];
+  const fir::ExtendedValue &to = args[1];
+  const fir::ExtendedValue &status = args[2];
+  const fir::ExtendedValue &errMsg = args[3];
+
+  mlir::Type boxNoneTy = fir::BoxType::get(builder.getNoneType());
+  mlir::Value errBox =
+      isStaticallyPresent(errMsg)
+          ? fir::getBase(errMsg)
+          : builder.create<fir::AbsentOp>(loc, boxNoneTy).getResult();
+
+  const fir::MutableBoxValue *fromBox = from.getBoxOf<fir::MutableBoxValue>();
+  const fir::MutableBoxValue *toBox = to.getBoxOf<fir::MutableBoxValue>();
+
+  assert(fromBox && toBox && "move_alloc parameters must be mutable arrays");
+
+  mlir::Value fromAddr = fir::factory::getMutableIRBox(builder, loc, *fromBox);
+  mlir::Value toAddr = fir::factory::getMutableIRBox(builder, loc, *toBox);
+
+  mlir::Value hasStat = builder.createBool(loc, isStaticallyPresent(status));
+
+  mlir::Value stat = fir::runtime::genMoveAlloc(builder, loc, toAddr, fromAddr,
+                                                hasStat, errBox);
+
+  fir::factory::syncMutableBoxFromIRBox(builder, loc, *fromBox);
+  fir::factory::syncMutableBoxFromIRBox(builder, loc, *toBox);
+
+  if (isStaticallyPresent(status)) {
+    mlir::Value statAddr = fir::getBase(status);
+    mlir::Value statIsPresentAtRuntime =
+        builder.genIsNotNullAddr(loc, statAddr);
+    builder.genIfThen(loc, statIsPresentAtRuntime)
+        .genThen([&]() { builder.createStoreWithConvert(loc, stat, statAddr); })
+        .end();
+  }
+}
+
 // MVBITS
 void IntrinsicLibrary::genMvbits(llvm::ArrayRef<fir::ExtendedValue> args) {
   // A conformant MVBITS(FROM,FROMPOS,LEN,TO,TOPOS) call satisfies:
@@ -4222,8 +4272,9 @@ IntrinsicLibrary::genReshape(mlir::Type resultType,
 
   // Create mutable fir.box to be passed to the runtime for the result.
   mlir::Type type = builder.getVarLenSeqTy(resultType, resultRank);
-  fir::MutableBoxValue resultMutableBox =
-      fir::factory::createTempMutableBox(builder, loc, type);
+  fir::MutableBoxValue resultMutableBox = fir::factory::createTempMutableBox(
+      builder, loc, type, {},
+      fir::isPolymorphicType(source.getType()) ? source : mlir::Value{});
 
   mlir::Value resultIrBox =
       fir::factory::getMutableIRBox(builder, loc, resultMutableBox);

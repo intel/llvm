@@ -2752,6 +2752,7 @@ void llvm::copyMetadataForLoad(LoadInst &Dest, const LoadInst &Source) {
     case LLVMContext::MD_nontemporal:
     case LLVMContext::MD_mem_parallel_loop_access:
     case LLVMContext::MD_access_group:
+    case LLVMContext::MD_noundef:
       // All of these directly apply.
       Dest.setMetadata(ID, N);
       break;
@@ -2915,6 +2916,11 @@ void llvm::copyNonnullMetadata(const LoadInst &OldLI, MDNode *N,
 void llvm::copyRangeMetadata(const DataLayout &DL, const LoadInst &OldLI,
                              MDNode *N, LoadInst &NewLI) {
   auto *NewTy = NewLI.getType();
+  // Simply copy the metadata if the type did not change.
+  if (NewTy == OldLI.getType()) {
+    NewLI.setMetadata(LLVMContext::MD_range, N);
+    return;
+  }
 
   // Give up unless it is converted to a pointer where there is a single very
   // valuable mapping we can do reliably.

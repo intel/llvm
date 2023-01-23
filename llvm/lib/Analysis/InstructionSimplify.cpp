@@ -4607,6 +4607,15 @@ static Value *simplifySelectInst(Value *Cond, Value *TrueVal, Value *FalseVal,
           match(Cond, m_c_LogicalOr(m_Specific(X), m_Specific(Y))))
         return X;
     }
+
+    if (match(TrueVal, m_One())) {
+      // (X && Y) || Y --> Y (commuted 2 ways)
+      if (match(Cond, m_c_LogicalAnd(m_Specific(FalseVal), m_Value())))
+        return FalseVal;
+      // Y || (X && Y) --> Y (commuted 2 ways)
+      if (match(FalseVal, m_c_LogicalAnd(m_Specific(Cond), m_Value())))
+        return Cond;
+    }
   }
 
   // select ?, X, X -> X
@@ -5928,6 +5937,10 @@ static Value *simplifyUnaryIntrinsic(Function *F, Value *Op0,
       return X;
     break;
   case Intrinsic::ctpop: {
+    // ctpop(X) -> 1 iff X is non-zero power of 2.
+    if (isKnownToBeAPowerOfTwo(Op0, Q.DL, /*OrZero*/ false, 0, Q.AC, Q.CxtI,
+                               Q.DT))
+      return ConstantInt::get(Op0->getType(), 1);
     // If everything but the lowest bit is zero, that bit is the pop-count. Ex:
     // ctpop(and X, 1) --> and X, 1
     unsigned BitWidth = Op0->getType()->getScalarSizeInBits();

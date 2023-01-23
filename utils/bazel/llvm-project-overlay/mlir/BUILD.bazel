@@ -1900,6 +1900,7 @@ td_library(
     includes = ["include"],
     deps = [
         ":ControlFlowInterfacesTdFiles",
+        ":InferTypeOpInterfaceTdFiles",
         ":LoopLikeInterfaceTdFiles",
         ":ParallelCombiningOpInterfaceTdFiles",
         ":SideEffectInterfacesTdFiles",
@@ -2929,6 +2930,7 @@ cc_library(
         ":ControlFlowInterfaces",
         ":FuncDialect",
         ":IR",
+        ":InferTypeOpInterface",
         ":LoopLikeInterface",
         ":MemRefDialect",
         ":ParallelCombiningOpInterface",
@@ -2968,6 +2970,20 @@ cc_library(
         ":SideEffectInterfaces",
         ":Support",
         ":Transforms",
+        "//llvm:Support",
+    ],
+)
+
+cc_library(
+    name = "InferIntRangeCommon",
+    srcs = [
+        "lib/Interfaces/Utils/InferIntRangeCommon.cpp",
+    ],
+    hdrs = ["include/mlir/Interfaces/Utils/InferIntRangeCommon.h"],
+    includes = ["include"],
+    deps = [
+        ":IR",
+        ":InferIntRangeInterface",
         "//llvm:Support",
     ],
 )
@@ -4363,9 +4379,8 @@ cc_library(
         ":IR",
         ":LLVMCommonConversion",
         ":LLVMDialect",
+        ":MemRefDialect",
         ":MemRefToLLVM",
-        ":NVVMToLLVMIRTranslation",
-        ":Pass",
         ":Support",
         ":VectorToLLVM",
         "//llvm:Support",
@@ -7873,6 +7888,7 @@ td_library(
     includes = ["include"],
     deps = [
         ":CastInterfacesTdFiles",
+        ":InferIntRangeInterfaceTdFiles",
         ":InferTypeOpInterfaceTdFiles",
         ":OpBaseTdFiles",
         ":SideEffectInterfacesTdFiles",
@@ -7985,6 +8001,8 @@ cc_library(
         ":IR",
         ":IndexEnumsIncGen",
         ":IndexOpsIncGen",
+        ":InferIntRangeCommon",
+        ":InferIntRangeInterface",
         ":InferTypeOpInterface",
         "//llvm:Support",
     ],
@@ -8348,6 +8366,7 @@ cc_library(
         ":ArithDialect",
         ":AsmParser",
         ":ControlFlowDialect",
+        ":DialectUtils",
         ":GPUDialect",
         ":IR",
         ":LinalgDialect",
@@ -8357,6 +8376,7 @@ cc_library(
         ":Parser",
         ":SCFTransforms",
         ":SideEffectInterfaces",
+        ":TensorDialect",
         ":TilingInterface",
         ":TransformDialect",
         ":TransformDialectUtils",
@@ -9582,6 +9602,7 @@ cc_library(
         ":ArithOpsInterfacesIncGen",
         ":CommonFolders",
         ":IR",
+        ":InferIntRangeCommon",
         ":InferIntRangeInterface",
         ":InferTypeOpInterface",
         ":SideEffectInterfaces",

@@ -10458,7 +10458,7 @@ public:
       ArrayRef<ParsedType> SuperTypeArgs, SourceRange SuperTypeArgsRange,
       Decl *const *ProtoRefs, unsigned NumProtoRefs,
       const SourceLocation *ProtoLocs, SourceLocation EndProtoLoc,
-      const ParsedAttributesView &AttrList);
+      const ParsedAttributesView &AttrList, SkipBodyInfo *SkipBody);
 
   void ActOnSuperClassOfClassInterface(Scope *S,
                                        SourceLocation AtInterfaceLoc,
@@ -11619,6 +11619,7 @@ public:
                                                       QualType MapperType,
                                                       SourceLocation StartLoc,
                                                       DeclarationName VN);
+  void ActOnOpenMPIteratorVarDecl(VarDecl *VD);
   bool isOpenMPDeclareMapperVarDeclAllowed(const VarDecl *VD) const;
   const ValueDecl *getOpenMPDeclareMapperVarName() const;
 
@@ -12363,6 +12364,7 @@ public:
   /// Data used for processing a list of variables in OpenMP clauses.
   struct OpenMPVarListDataTy final {
     Expr *DepModOrTailExpr = nullptr;
+    Expr *IteratorExpr = nullptr;
     SourceLocation ColonLoc;
     SourceLocation RLoc;
     CXXScopeSpec ReductionOrMapperIdScopeSpec;
@@ -12489,7 +12491,7 @@ public:
                                      SourceLocation EndLoc);
   /// Called on well-formed 'map' clause.
   OMPClause *ActOnOpenMPMapClause(
-      ArrayRef<OpenMPMapModifierKind> MapTypeModifiers,
+      Expr *IteratorModifier, ArrayRef<OpenMPMapModifierKind> MapTypeModifiers,
       ArrayRef<SourceLocation> MapTypeModifiersLoc,
       CXXScopeSpec &MapperIdScopeSpec, DeclarationNameInfo &MapperId,
       OpenMPMapClauseKind MapType, bool IsMapTypeImplicit,
