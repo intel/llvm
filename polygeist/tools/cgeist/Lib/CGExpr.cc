@@ -2645,7 +2645,7 @@ ValueCategory MLIRScanner::EmitPointerArithmetic(const BinOpInfo &Info) {
     return Result.BitCast(Builder, Loc, Pointer.val.getType());
   }
 
-  auto ElemTy = Glob.getTypes().getMLIRType(ElementType);
+  auto ElemTy = Glob.getTypes().getMLIRTypeForMem(ElementType);
   if (CGM.getLangOpts().isSignedOverflowDefined()) {
     if (Optional<Value> NewIndex =
             castSubIndexOpIndex(Builder, Loc, Pointer, Index.val, IsSigned))
