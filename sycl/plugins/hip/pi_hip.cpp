@@ -1000,7 +1000,6 @@ pi_result hip_piContextGetInfo(pi_context context, pi_context_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    context->get_reference_count());
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
-    // 2D USM memcpy is supported.
     return getInfo<pi_bool>(param_value_size, param_value, param_value_size_ret,
                             true);
   case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
@@ -5158,7 +5157,7 @@ pi_result hip_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
                                event_wait_list);
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue, hipStream));
+          PI_COMMAND_TYPE_MEM_BUFFER_COPY_RECT, queue, hipStream));
       retImplEv->start();
     }
 

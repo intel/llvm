@@ -5422,7 +5422,7 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
                                event_wait_list);
     if (event) {
       event_ptr = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue, cuStream));
+          PI_COMMAND_TYPE_MEM_BUFFER_COPY_RECT, queue, cuStream));
       event_ptr->start();
     }
 
@@ -5450,7 +5450,7 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
     cpyDesc.srcY = 0;
     cpyDesc.srcMemoryType = src_type;
     cpyDesc.srcDevice = src_type == CU_MEMORYTYPE_DEVICE
-                            ? *static_cast<const CUdeviceptr *>(src_ptr)
+                            ? reinterpret_cast<CUdeviceptr>(src_ptr)
                             : 0;
     cpyDesc.srcHost = src_type == CU_MEMORYTYPE_HOST ? src_ptr : nullptr;
     cpyDesc.srcArray = nullptr;
@@ -5460,7 +5460,7 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
     cpyDesc.dstY = 0;
     cpyDesc.dstMemoryType = dst_type;
     cpyDesc.dstDevice = dst_type == CU_MEMORYTYPE_DEVICE
-                            ? *static_cast<CUdeviceptr *>(dst_ptr)
+                            ? reinterpret_cast<CUdeviceptr>(dst_ptr)
                             : 0;
     cpyDesc.dstHost = dst_type == CU_MEMORYTYPE_HOST ? dst_ptr : nullptr;
     cpyDesc.dstArray = nullptr;
