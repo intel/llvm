@@ -1027,7 +1027,7 @@ static bool isLoopNestPassName(StringRef Name, CallbacksT &Callbacks,
   if (parseRepeatPassName(Name))
     return true;
 
-  if (Name == "lnicm") {
+  if (checkParametrizedPassName(Name, "lnicm")) {
     UseMemorySSA = true;
     return true;
   }
@@ -1049,7 +1049,7 @@ static bool isLoopPassName(StringRef Name, CallbacksT &Callbacks,
   if (parseRepeatPassName(Name))
     return true;
 
-  if (Name == "licm") {
+  if (checkParametrizedPassName(Name, "licm")) {
     UseMemorySSA = true;
     return true;
   }
