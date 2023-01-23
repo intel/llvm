@@ -13,7 +13,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-#define SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)                 \
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
   namespace NS_QUALIFIER {                                                     \
   class PROP_NAME                                                              \
       : public sycl::detail::DataLessProperty<sycl::detail::ENUM_VAL> {};      \
@@ -43,15 +43,14 @@ private:
 };
 } // namespace ext::intel::property::queue
 
-
 // Queue property trait specializations.
 class queue;
 
-#define SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                    \
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
   template <>                                                                  \
   struct is_property_of<NS_QUALIFIER::PROP_NAME, queue> : std::true_type {};
-#define SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)                 \
-  SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
 
 #include <sycl/properties/queue_properties.def>
 

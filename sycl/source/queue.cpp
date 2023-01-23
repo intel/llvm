@@ -188,15 +188,14 @@ template <typename PropertyT> PropertyT queue::get_property() const {
   return impl->get_property<PropertyT>();
 }
 
-
-#define SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                    \
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
   template __SYCL_EXPORT bool queue::has_property<NS_QUALIFIER::PROP_NAME>()   \
       const noexcept;                                                          \
   template __SYCL_EXPORT NS_QUALIFIER::PROP_NAME                               \
   queue::get_property<NS_QUALIFIER::PROP_NAME>() const;
 
-#define SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)                 \
-  SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
 
 #include <sycl/properties/queue_properties.def>
 
