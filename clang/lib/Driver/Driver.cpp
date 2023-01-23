@@ -4263,7 +4263,7 @@ class OffloadingActionBuilder final {
                      const Driver::InputList &Inputs,
                      OffloadingActionBuilder &OAB)
         : CudaActionBuilderBase(C, Args, Inputs, Action::OFK_HIP, OAB) {
-      DefaultCudaArch = CudaArch::GFX803;
+      DefaultCudaArch = CudaArch::GFX906;
       if (Args.hasArg(options::OPT_gpu_bundle_output,
                       options::OPT_no_gpu_bundle_output))
         BundleOutput = Args.hasFlag(options::OPT_gpu_bundle_output,
