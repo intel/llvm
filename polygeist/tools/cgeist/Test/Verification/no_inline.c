@@ -11,7 +11,7 @@ void foo(int A[10]) {
 // CHECK-LABEL: func @main()
 // CHECK: call @foo
 // OPT1-LABEL: func @main()
-// OPT1: call @foo
+// OPT1-NOT: call @foo
 int main() {
   int A[10];
   foo(A);

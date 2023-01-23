@@ -1,4 +1,4 @@
-// RUN: cgeist %s -O2 --function=* -S | FileCheck %s
+// RUN: cgeist %s -O0 --function=* -S | FileCheck %s
 
 class M {
 };

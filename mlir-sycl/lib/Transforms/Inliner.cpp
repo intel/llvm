@@ -742,11 +742,11 @@ void Inliner::collectCallOps(CallGraphNode &SrcNode, CallGraph &CG,
       return true;
     case sycl::InlineMode::Aggressive:
       return isa<sycl::SYCLCallOp, sycl::SYCLConstructorOp,
-                 sycl::SYCLMethodOpInterface>(Call);
+                 sycl::SYCLMethodOpInterface, func::CallOp>(Call);
     case sycl::InlineMode::Simple:
-      return isa<sycl::SYCLCallOp, sycl::SYCLConstructorOp>(Call);
+      return isa<sycl::SYCLCallOp, sycl::SYCLConstructorOp, func::CallOp>(Call);
     case sycl::InlineMode::AlwaysInline:
-      return isa<sycl::SYCLCallOp>(Call);
+      return isa<sycl::SYCLCallOp, func::CallOp>(Call);
     }
   };
 
