@@ -1614,8 +1614,8 @@ mlir::Type CodeGenTypes::getMLIRType(const clang::BuiltinType *BT) const {
     return Builder.getIntegerType(8);
 
   case BuiltinType::Bool:
-    // TODO: boolean types should be represented as i1 rather than i8.
-    return Builder.getIntegerType(8);
+    // Note that we always return bool as i1 for use as a scalar type.
+    return Builder.getIntegerType(1);
 
   case BuiltinType::Char_S:
   case BuiltinType::Char_U:
