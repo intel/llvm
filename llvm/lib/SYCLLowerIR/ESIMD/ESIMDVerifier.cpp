@@ -118,6 +118,14 @@ public:
           if (!NameNode) // Can it be null?
             continue;
 
+          // Skip local names, which are functions whose type
+          // is not exposed outside of the current function,
+          // such as lambdas or local classes. Note we will
+          // still analyze functions called by these constructs,
+          // assuming they are marked as ESIMD functions.
+          if (NameNode->getKind() == id::Node::KLocalName)
+            continue;
+
           id::OutputBuffer NameBuf;
           NameNode->print(NameBuf);
           StringRef Name(NameBuf.getBuffer(), NameBuf.getCurrentPosition());

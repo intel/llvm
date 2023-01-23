@@ -1059,11 +1059,21 @@ Instruction *InstCombinerImpl::visitShl(BinaryOperator &I) {
     }
   }
 
-  // (1 << (C - x)) -> ((1 << C) >> x) if C is bitwidth - 1
-  if (match(Op0, m_One()) &&
-      match(Op1, m_Sub(m_SpecificInt(BitWidth - 1), m_Value(X))))
-    return BinaryOperator::CreateLShr(
-        ConstantInt::get(Ty, APInt::getSignMask(BitWidth)), X);
+  if (match(Op0, m_One())) {
+    // (1 << (C - x)) -> ((1 << C) >> x) if C is bitwidth - 1
+    if (match(Op1, m_Sub(m_SpecificInt(BitWidth - 1), m_Value(X))))
+      return BinaryOperator::CreateLShr(
+          ConstantInt::get(Ty, APInt::getSignMask(BitWidth)), X);
+
+    // The only way to shift out the 1 is with an over-shift, so that would
+    // be poison with or without "nuw". Undef is excluded because (undef << X)
+    // is not undef (it is zero).
+    Constant *ConstantOne = cast<Constant>(Op0);
+    if (!I.hasNoUnsignedWrap() && !ConstantOne->containsUndefElement()) {
+      I.setHasNoUnsignedWrap();
+      return &I;
+    }
+  }
 
   return nullptr;
 }

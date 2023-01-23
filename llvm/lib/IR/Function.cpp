@@ -368,6 +368,23 @@ void Function::eraseFromParent() {
   getParent()->getFunctionList().erase(getIterator());
 }
 
+void Function::splice(Function::iterator ToIt, Function *FromF,
+                      Function::iterator FromBeginIt,
+                      Function::iterator FromEndIt) {
+#ifdef EXPENSIVE_CHECKS
+  // Check that FromBeginIt is before FromEndIt.
+  auto FromFEnd = FromF->end();
+  for (auto It = FromBeginIt; It != FromEndIt; ++It)
+    assert(It != FromFEnd && "FromBeginIt not before FromEndIt!");
+#endif // EXPENSIVE_CHECKS
+  BasicBlocks.splice(ToIt, FromF->BasicBlocks, FromBeginIt, FromEndIt);
+}
+
+Function::iterator Function::erase(Function::iterator FromIt,
+                                   Function::iterator ToIt) {
+  return BasicBlocks.erase(FromIt, ToIt);
+}
+
 //===----------------------------------------------------------------------===//
 // Function Implementation
 //===----------------------------------------------------------------------===//
@@ -659,6 +676,19 @@ Attribute Function::getFnAttribute(StringRef Kind) const {
   return AttributeSets.getFnAttr(Kind);
 }
 
+uint64_t Function::getFnAttributeAsParsedInteger(StringRef Name,
+                                                 uint64_t Default) const {
+  Attribute A = getFnAttribute(Name);
+  uint64_t Result = Default;
+  if (A.isStringAttribute()) {
+    StringRef Str = A.getValueAsString();
+    if (Str.getAsInteger(0, Result))
+      getContext().emitError("cannot parse integer attribute " + Name);
+  }
+
+  return Result;
+}
+
 /// gets the specified attribute from the list of attributes.
 Attribute Function::getParamAttribute(unsigned ArgNo,
                                       Attribute::AttrKind Kind) const {
@@ -911,6 +941,15 @@ static std::string getMangledTypeStr(Type *Ty, bool &HasUnnamedType) {
       Result += "nx";
     Result += "v" + utostr(EC.getKnownMinValue()) +
               getMangledTypeStr(VTy->getElementType(), HasUnnamedType);
+  } else if (TargetExtType *TETy = dyn_cast<TargetExtType>(Ty)) {
+    Result += "t";
+    Result += TETy->getName();
+    for (Type *ParamTy : TETy->type_params())
+      Result += "_" + getMangledTypeStr(ParamTy, HasUnnamedType);
+    for (unsigned IntParam : TETy->int_params())
+      Result += "_" + utostr(IntParam);
+    // Ensure nested target extension types are distinguishable.
+    Result += "t";
   } else if (Ty) {
     switch (Ty->getTypeID()) {
     default: llvm_unreachable("Unhandled type");
@@ -1896,21 +1935,19 @@ bool Function::hasAddressTaken(const User **PutOffender,
 
     const auto *Call = dyn_cast<CallBase>(FU);
     if (!Call) {
-      if (IgnoreAssumeLikeCalls) {
-        if (const auto *FI = dyn_cast<Instruction>(FU)) {
-          if (FI->isCast() && !FI->user_empty() &&
-              llvm::all_of(FU->users(), [](const User *U) {
-                if (const auto *I = dyn_cast<IntrinsicInst>(U))
-                  return I->isAssumeLikeIntrinsic();
-                return false;
-              }))
-            continue;
-        }
+      if (IgnoreAssumeLikeCalls &&
+          isa<BitCastOperator, AddrSpaceCastOperator>(FU) &&
+          all_of(FU->users(), [](const User *U) {
+            if (const auto *I = dyn_cast<IntrinsicInst>(U))
+              return I->isAssumeLikeIntrinsic();
+            return false;
+          })) {
+        continue;
       }
       if (IgnoreLLVMUsed && !FU->user_empty()) {
         const User *FUU = FU;
-        if (isa<BitCastOperator>(FU) && FU->hasOneUse() &&
-            !FU->user_begin()->user_empty())
+        if (isa<BitCastOperator, AddrSpaceCastOperator>(FU) &&
+            FU->hasOneUse() && !FU->user_begin()->user_empty())
           FUU = *FU->user_begin();
         if (llvm::all_of(FUU->users(), [](const User *U) {
               if (const auto *GV = dyn_cast<GlobalVariable>(U))

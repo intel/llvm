@@ -34,11 +34,8 @@ void foo(int A[10], int a) {
 // CHECK-LABEL:   func.func @xor_i8(
 // CHECK-SAME:                      %[[VAL_0:.*]]: i8,
 // CHECK-SAME:                      %[[VAL_1:.*]]: i8) -> i8
-// CHECK-NEXT:      %[[VAL_2:.*]] = arith.extsi %[[VAL_0]] : i8 to i32
-// CHECK-NEXT:      %[[VAL_3:.*]] = arith.extsi %[[VAL_1]] : i8 to i32
-// CHECK-NEXT:      %[[VAL_4:.*]] = arith.xori %[[VAL_2]], %[[VAL_3]] : i32
-// CHECK-NEXT:      %[[VAL_5:.*]] = arith.trunci %[[VAL_4]] : i32 to i8
-// CHECK-NEXT:      return %[[VAL_5]] : i8
+// CHECK-NEXT:      %[[VAL_2:.*]] = arith.xori %[[VAL_0]], %[[VAL_1]] : i8
+// CHECK-NEXT:      return %[[VAL_2]] : i8
 // CHECK-NEXT:    }
 char xor_i8(char a, char b) {
   return a ^ b;
@@ -47,11 +44,8 @@ char xor_i8(char a, char b) {
 // CHECK-LABEL:   func.func @xor_i16(
 // CHECK-SAME:                       %[[VAL_0:.*]]: i16,
 // CHECK-SAME:                       %[[VAL_1:.*]]: i16) -> i16
-// CHECK-NEXT:      %[[VAL_2:.*]] = arith.extsi %[[VAL_0]] : i16 to i32
-// CHECK-NEXT:      %[[VAL_3:.*]] = arith.extsi %[[VAL_1]] : i16 to i32
-// CHECK-NEXT:      %[[VAL_4:.*]] = arith.xori %[[VAL_2]], %[[VAL_3]] : i32
-// CHECK-NEXT:      %[[VAL_5:.*]] = arith.trunci %[[VAL_4]] : i32 to i16
-// CHECK-NEXT:      return %[[VAL_5]] : i16
+// CHECK-NEXT:      %[[VAL_2:.*]] = arith.xori %[[VAL_0]], %[[VAL_1]] : i16
+// CHECK-NEXT:      return %[[VAL_2]] : i16
 // CHECK-NEXT:    }
 short xor_i16(short a, short b) {
   return a ^ b;
@@ -83,11 +77,8 @@ long xor_i64(long a, long b) {
 // CHECK-LABEL:   func.func @xor_ui8(
 // CHECK-SAME:                       %[[VAL_0:.*]]: i8,
 // CHECK-SAME:                       %[[VAL_1:.*]]: i8) -> i8
-// CHECK-NEXT:      %[[VAL_2:.*]] = arith.extui %[[VAL_0]] : i8 to i32
-// CHECK-NEXT:      %[[VAL_3:.*]] = arith.extui %[[VAL_1]] : i8 to i32
-// CHECK-NEXT:      %[[VAL_4:.*]] = arith.xori %[[VAL_2]], %[[VAL_3]] : i32
-// CHECK-NEXT:      %[[VAL_5:.*]] = arith.trunci %[[VAL_4]] : i32 to i8
-// CHECK-NEXT:      return %[[VAL_5]] : i8
+// CHECK-NEXT:      %[[VAL_2:.*]] = arith.xori %[[VAL_0]], %[[VAL_1]] : i8
+// CHECK-NEXT:      return %[[VAL_2]] : i8
 // CHECK-NEXT:    }
 unsigned char xor_ui8(unsigned char a, unsigned char b) {
   return a ^ b;
@@ -97,11 +88,8 @@ unsigned char xor_ui8(unsigned char a, unsigned char b) {
 // CHECK-LABEL:   func.func @xor_ui16(
 // CHECK-SAME:                        %[[VAL_0:.*]]: i16,
 // CHECK-SAME:                        %[[VAL_1:.*]]: i16) -> i16
-// CHECK-NEXT:      %[[VAL_2:.*]] = arith.extui %[[VAL_0]] : i16 to i32
-// CHECK-NEXT:      %[[VAL_3:.*]] = arith.extui %[[VAL_1]] : i16 to i32
-// CHECK-NEXT:      %[[VAL_4:.*]] = arith.xori %[[VAL_2]], %[[VAL_3]] : i32
-// CHECK-NEXT:      %[[VAL_5:.*]] = arith.trunci %[[VAL_4]] : i32 to i16
-// CHECK-NEXT:      return %[[VAL_5]] : i16
+// CHECK-NEXT:      %[[VAL_2:.*]] = arith.xori %[[VAL_0]], %[[VAL_1]] : i16
+// CHECK-NEXT:      return %[[VAL_2]] : i16
 // CHECK-NEXT:    }
 unsigned short xor_ui16(unsigned short a, unsigned short b) {
   return a ^ b;

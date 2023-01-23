@@ -194,8 +194,10 @@ struct AllocMemrefOpLowering : public ConvertOpToLLVMPattern<memref::AllocOp> {
     getMemRefDescriptorSizes(loc, memrefType, adaptor.getOperands(), rewriter,
                              sizes, strides, sizeBytes);
 
-    const auto alignment = allocOp.getAlignment().transform(
-        [&](auto val) { return createIndexConstant(rewriter, loc, val); });
+    const auto alignment =
+        llvm::transformOptional(allocOp.getAlignment(), [&](auto val) {
+          return createIndexConstant(rewriter, loc, val);
+        });
     if (alignment) {
       // Adjust the allocation size to consider alignment.
       sizeBytes = rewriter.create<LLVM::AddOp>(loc, sizeBytes, *alignment);

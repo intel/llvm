@@ -156,7 +156,7 @@ Function *LocalAccessorToSharedMemoryPass::processKernel(Module &M,
   NF->takeName(F);
 
   // Splice the body of the old function right into the new function.
-  NF->getBasicBlockList().splice(NF->begin(), F->getBasicBlockList());
+  NF->splice(NF->begin(), F);
 
   unsigned i = 0;
   for (Function::arg_iterator FA = F->arg_begin(), FE = F->arg_end(),
