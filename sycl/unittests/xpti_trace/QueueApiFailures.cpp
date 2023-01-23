@@ -369,12 +369,13 @@ TEST_F(QueueApiFailures, QueueHostTaskWaitFail) {
     ExceptionCaught = true;
   }
   EXPECT_FALSE(ExceptionCaught);
+  const std::string HostTaskExceptionStr = "Host task exception";
   try {
     Q.submit(
         [&](handler &Cgh) {
           Cgh.depends_on(EventToDepend);
           Cgh.host_task(
-              [=]() { throw std::runtime_error("Host task exception"); });
+              [=]() { throw std::runtime_error(HostTaskExceptionStr); });
         },
         ExtraTestCodeLocation);
   } catch (sycl::exception &e) {
@@ -388,6 +389,7 @@ TEST_F(QueueApiFailures, QueueHostTaskWaitFail) {
   EXPECT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
   EXPECT_THAT(Message, HasSubstr(ExtraTestCodeLocationMessage));
+  EXPECT_THAT(Message, Not(HasSubstr(HostTaskExceptionStr)));
 }
 
 TEST_F(QueueApiFailures, QueueHostTaskFail) {
