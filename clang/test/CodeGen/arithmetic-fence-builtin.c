@@ -1,22 +1,22 @@
 // Test with fast math
 // RUN: %clang_cc1 -triple i386-pc-linux-gnu -emit-llvm -DFAST \
 // RUN: -mreassociate \
-// RUN: -o - %s | FileCheck --check-prefixes CHECK,CHECKFAST,CHECKPREC,CHECKNP %s
+// RUN: -o - %s | FileCheck --check-prefixes CHECK,CHECKFAST,CHECKPRECISION,CHECKNP %s
 //
 // Test with fast math and fprotect-parens
 // RUN: %clang_cc1 -triple i386-pc-linux-gnu -emit-llvm -DFAST \
 // RUN: -mreassociate -fprotect-parens -ffp-contract=on\
-// RUN: -o - %s | FileCheck --check-prefixes CHECK,CHECKFAST,CHECKPREC,CHECKPP %s
+// RUN: -o - %s | FileCheck --check-prefixes CHECK,CHECKFAST,CHECKPRECISION,CHECKPP %s
 //
 // Test without fast math: llvm intrinsic not created
 // RUN: %clang_cc1 -triple i386-pc-linux-gnu -emit-llvm -fprotect-parens\
 // RUN: -o - %s | FileCheck --implicit-check-not="llvm.arithmetic.fence" %s
 //
 // RUN: %clang_cc1 -triple spir64-unknown-unknown  -emit-llvm -fsycl-is-device \
-// RUN: -disable-llvm-passes -mreassociate -opaque-pointers -DSYCLD \
+// RUN: -mreassociate -opaque-pointers -DSYCL_DEVICE \
 // RUN: -o - %s | FileCheck --check-prefixes CHECKS,CHECKFAST,CHECKPPS %s
 
-#ifdef SYCLD
+#ifdef SYCL_DEVICE
 int __attribute__((sycl_device)) addit(float a, float b)
 #else
 int  addit(float a, float b)
@@ -71,11 +71,11 @@ int  addit(float a, float b)
   // CHECK-NEXT ret i32 0
 }
 
-#ifdef SYCLD
+#ifdef SYCL_DEVICE
 int __attribute__((sycl_device)) addit1(int a, int b)
 #else
 int  addit1(int a, int b)
-  #endif
+#endif
 {
   int v;
   // CHECK: define {{.*}}@addit1(i32 noundef %a, i32 noundef %b{{.*}}
@@ -87,7 +87,7 @@ int  addit1(int a, int b)
 #ifdef FAST
 #pragma float_control(precise, on)
 int subit(float a, float b, float *fp) {
-  // CHECKPREC: define {{.*}}@subit(float noundef %a, float noundef %b{{.*}}
+  // CHECKPRECISION: define {{.*}}@subit(float noundef %a, float noundef %b{{.*}}
   *fp = __arithmetic_fence(a - b);
   *fp = (a + b);
   // CHECK-NOT: call{{.*}} float @llvm.arithmetic.fence.f32(float noundef %add)
