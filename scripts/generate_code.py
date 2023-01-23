@@ -166,11 +166,11 @@ def _mako_lib_cpp(path, namespace, tags, version, specs, meta):
 def _mako_loader_cpp(path, namespace, tags, version, specs, meta):
     print("make_loader_cpp path %s namespace %s version %s\n" %(path, namespace, version))
     loc = 0
-    template = "ldrddi.h.mako"
+    template = "ldrddi.hpp.mako"
     fin = os.path.join(loader_templates_dir, template)
 
     name = "%s_ldrddi"%(namespace)
-    filename = "%s.h"%(name)
+    filename = "%s.hpp"%(name)
     fout = os.path.join(path, filename)
 
     print("Generating %s..."%fout)

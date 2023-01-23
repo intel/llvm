@@ -26,7 +26,7 @@ def define_dbg(obj, tags):
  * @brief C++ library for ${n}
  *
  */
-#include "${x}_lib.h"
+#include "${x}_lib.hpp"
 
 extern "C" {
 
