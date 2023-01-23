@@ -6085,10 +6085,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // the command line.  This is to allow for CMake based builds using the
   // Linux based driver on Windows to correctly pull in the expected debug
   // library.
-  if (!D.IsCLMode() && TC.getTriple().isWindowsMSVCEnvironment() &&
-      Args.hasArg(options::OPT_fsycl)) {
-    if (isDependentLibAdded(Args, "msvcrtd"))
-      CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION "d");
+  if (Args.hasArg(options::OPT_fsycl) && !Args.hasArg(options::OPT_nolibsycl)) {
+    if (!D.IsCLMode() && TC.getTriple().isWindowsMSVCEnvironment()) {
+      if (isDependentLibAdded(Args, "msvcrtd"))
+        CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION "d");
+    } else if (!D.IsCLMode() && TC.getTriple().isWindowsGNUEnvironment()) {
+      CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION ".dll");
+    }
+    CmdArgs.push_back("--dependent-lib=sycl-devicelib-host");
   }
 
   DwarfFissionKind DwarfFission = DwarfFissionKind::None;
