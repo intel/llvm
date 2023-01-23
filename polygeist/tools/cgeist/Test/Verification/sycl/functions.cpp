@@ -655,14 +655,14 @@ SYCL_EXTERNAL void group_get_local_linear_range(sycl::group<1> group) {
 // CHECK-MLIR-NEXT: %0 = "polygeist.memref2pointer"(%arg0) : (memref<?x![[ITEM2]]>) -> !llvm.ptr<![[ITEM2]]>
 // CHECK-MLIR-NEXT: %1 = llvm.addrspacecast %0 : !llvm.ptr<![[ITEM2]]> to !llvm.ptr<![[ITEM2]], 4>
 // CHECK-MLIR-NEXT: %2 = "polygeist.pointer2memref"(%1) : (!llvm.ptr<![[ITEM2]], 4>) -> memref<?x![[ITEM2]], 4>
-// CHECK-MLIR-NEXT: %3 = sycl.call(%2, %2) {FunctionName = @"operator==", MangledFunctionName = @_ZNK4sycl3_V14itemILi2ELb1EEeqERKS2_, TypeName = @item} : (memref<?x![[ITEM2]], 4>, memref<?x![[ITEM2]], 4>) -> i8
+// CHECK-MLIR-NEXT: %3 = sycl.call(%2, %2) {FunctionName = @"operator==", MangledFunctionName = @_ZNK4sycl3_V14itemILi2ELb1EEeqERKS2_, TypeName = @item} : (memref<?x![[ITEM2]], 4>, memref<?x![[ITEM2]], 4>) -> i1
 // CHECK-MLIR-NEXT: return
 // CHECK-MLIR-NEXT: }
 
 // CHECK-LLVM-LABEL: define spir_func void @_Z8method_2N4sycl3_V14itemILi2ELb1EEE(
 // CHECK-LLVM:           %"class.sycl::_V1::item.2.true"* noundef byval(%"class.sycl::_V1::item.2.true") align 8 %0) #[[FUNCATTRS]]
 // CHECK-LLVM-NEXT:  %2 = addrspacecast %"class.sycl::_V1::item.2.true"* %0 to %"class.sycl::_V1::item.2.true" addrspace(4)*
-// CHECK-LLVM-NEXT:  %3 = call spir_func i8 @_ZNK4sycl3_V14itemILi2ELb1EEeqERKS2_(%"class.sycl::_V1::item.2.true" addrspace(4)* %2, %"class.sycl::_V1::item.2.true" addrspace(4)* %2)
+// CHECK-LLVM-NEXT:  %3 = call spir_func i1 @_ZNK4sycl3_V14itemILi2ELb1EEeqERKS2_(%"class.sycl::_V1::item.2.true" addrspace(4)* %2, %"class.sycl::_V1::item.2.true" addrspace(4)* %2)
 // CHECK-LLVM-NEXT:  ret void
 // CHECK-LLVM-NEXT: }
 
@@ -678,7 +678,7 @@ SYCL_EXTERNAL void method_2(sycl::item<2, true> item) {
 // CHECK-MLIR-NEXT: %3 = "polygeist.memref2pointer"(%arg1) : (memref<?x!sycl_id_2_>) -> !llvm.ptr<!sycl_id_2_>
 // CHECK-MLIR-NEXT: %4 = llvm.addrspacecast %3 : !llvm.ptr<!sycl_id_2_> to !llvm.ptr<!sycl_id_2_, 4>
 // CHECK-MLIR-NEXT: %5 = "polygeist.pointer2memref"(%4) : (!llvm.ptr<!sycl_id_2_, 4>) -> memref<?x!sycl_id_2_, 4>
-// CHECK-MLIR-NEXT: %6 = sycl.call(%2, %5) {FunctionName = @"operator==", MangledFunctionName = @_ZNK4sycl3_V12idILi2EEeqERKS2_, TypeName = @id} : (memref<?x!sycl_id_2_, 4>, memref<?x!sycl_id_2_, 4>) -> i8
+// CHECK-MLIR-NEXT: %6 = sycl.call(%2, %5) {FunctionName = @"operator==", MangledFunctionName = @_ZNK4sycl3_V12idILi2EEeqERKS2_, TypeName = @id} : (memref<?x!sycl_id_2_, 4>, memref<?x!sycl_id_2_, 4>) -> i1
 // CHECK-MLIR-NEXT: return
 // CHECK-MLIR-NEXT: }
 
@@ -686,7 +686,7 @@ SYCL_EXTERNAL void method_2(sycl::item<2, true> item) {
 // CHECK-LLVM            %"class.sycl::_V1::id.2"* noundef byval(%"class.sycl::_V1::id.2") align 8 %0, %"class.sycl::_V1::id.2"* noundef byval(%"class.sycl::_V1::id.2") align 8 %1) #[[FUNCATTRS]]
 // CHECK-LLVM-NEXT: %3 = addrspacecast %"class.sycl::_V1::id.2"* %0 to %"class.sycl::_V1::id.2" addrspace(4)*
 // CHECK-LLVM-NEXT: %4 = addrspacecast %"class.sycl::_V1::id.2"* %1 to %"class.sycl::_V1::id.2" addrspace(4)*
-// CHECK-LLVM-NEXT: %5 = call spir_func i8 @_ZNK4sycl3_V12idILi2EEeqERKS2_(%"class.sycl::_V1::id.2" addrspace(4)* %3, %"class.sycl::_V1::id.2" addrspace(4)* %4)
+// CHECK-LLVM-NEXT: %5 = call spir_func i1 @_ZNK4sycl3_V12idILi2EEeqERKS2_(%"class.sycl::_V1::id.2" addrspace(4)* %3, %"class.sycl::_V1::id.2" addrspace(4)* %4)
 // CHECK-LLVM-NEXT: ret void
 // CHECK-LLVM-NEXT: }
 

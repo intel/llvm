@@ -83,6 +83,14 @@ public:
                               unsigned &CallingConv, bool AttrOnCallSite,
                               bool IsThunk);
 
+  /// Convert type T into an mlir::Type.
+  ///
+  /// This differs from getMLIRType in that it is used to convert to the memory
+  /// representation for a type.  For example, the scalar representation for
+  /// _Bool is i1, but the memory representation is usually i8 or i32, depending
+  /// on the target.
+  mlir::Type getMLIRTypeForMem(clang::QualType QT, bool *ImplicitRef = nullptr,
+                               bool AllowMerge = true);
   // TODO: Possibly create a SYCLTypeCache
   mlir::Type getMLIRType(clang::QualType QT, bool *ImplicitRef = nullptr,
                          bool AllowMerge = true);

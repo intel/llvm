@@ -176,7 +176,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
   llvm::SmallVector<mlir::Type, 4> Body;
 
   for (const auto *Field : RD->fields())
-    Body.push_back(CGT.getMLIRType(Field->getType()));
+    Body.push_back(CGT.getMLIRTypeForMem(Field->getType()));
 
   if (const auto *CTS =
           llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(RD)) {
@@ -193,7 +193,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     }
     case TypeEnum::Accessor: {
       const auto Type =
-          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+          CGT.getMLIRTypeForMem(CTS->getTemplateArgs().get(0).getAsType());
       const auto Dim =
           CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
       const auto MemAccessMode = static_cast<mlir::sycl::MemoryAccessMode>(
@@ -206,7 +206,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
       // TODO: we should push the non-empty base classes in a more general way.
       if (MemTargetMode == mlir::sycl::MemoryTargetMode::Local) {
         assert(Body.empty());
-        Body.push_back(CGT.getMLIRType(CTS->bases_begin()->getType()));
+        Body.push_back(CGT.getMLIRTypeForMem(CTS->bases_begin()->getType()));
       }
 
       return mlir::sycl::AccessorType::get(CGT.getModule()->getContext(), Type,
@@ -227,7 +227,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     }
     case TypeEnum::Atomic: {
       const auto Type =
-          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+          CGT.getMLIRTypeForMem(CTS->getTemplateArgs().get(0).getAsType());
       const int AddrSpace =
           CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
       return mlir::sycl::AtomicType::get(
@@ -236,12 +236,12 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     }
     case TypeEnum::GetOp: {
       const auto Type =
-          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+          CGT.getMLIRTypeForMem(CTS->getTemplateArgs().get(0).getAsType());
       return mlir::sycl::GetOpType::get(CGT.getModule()->getContext(), Type);
     }
     case TypeEnum::GetScalarOp: {
       const auto Type =
-          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+          CGT.getMLIRTypeForMem(CTS->getTemplateArgs().get(0).getAsType());
       return mlir::sycl::GetScalarOpType::get(CGT.getModule()->getContext(),
                                               Type, Body);
     }
@@ -260,7 +260,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     case TypeEnum::ID: {
       const auto Dim =
           CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
-      Body.push_back(CGT.getMLIRType(CTS->bases_begin()->getType()));
+      Body.push_back(CGT.getMLIRTypeForMem(CTS->bases_begin()->getType()));
       return mlir::sycl::IDType::get(CGT.getModule()->getContext(), Dim, Body);
     }
     case TypeEnum::ItemBase: {
@@ -287,7 +287,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     }
     case TypeEnum::LocalAccessorBase: {
       const auto Type =
-          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+          CGT.getMLIRTypeForMem(CTS->getTemplateArgs().get(0).getAsType());
       const auto Dim =
           CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
       const auto MemAccessMode = static_cast<mlir::sycl::MemoryAccessMode>(
@@ -297,10 +297,10 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     }
     case TypeEnum::LocalAccessor: {
       const auto Type =
-          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+          CGT.getMLIRTypeForMem(CTS->getTemplateArgs().get(0).getAsType());
       const auto Dim =
           CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
-      Body.push_back(CGT.getMLIRType(CTS->bases_begin()->getType()));
+      Body.push_back(CGT.getMLIRTypeForMem(CTS->bases_begin()->getType()));
       return mlir::sycl::LocalAccessorType::get(CGT.getModule()->getContext(),
                                                 Type, Dim, Body);
     }
@@ -316,7 +316,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     }
     case TypeEnum::MultiPtr: {
       const auto Type =
-          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+          CGT.getMLIRTypeForMem(CTS->getTemplateArgs().get(0).getAsType());
       const int AddrSpace =
           CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
       const int DecAccess =
@@ -343,28 +343,28 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     case TypeEnum::Range: {
       const auto Dim =
           CTS->getTemplateArgs().get(0).getAsIntegral().getExtValue();
-      Body.push_back(CGT.getMLIRType(CTS->bases_begin()->getType()));
+      Body.push_back(CGT.getMLIRTypeForMem(CTS->bases_begin()->getType()));
       return mlir::sycl::RangeType::get(CGT.getModule()->getContext(), Dim,
                                         Body);
     }
     case TypeEnum::TupleCopyAssignableValueHolder: {
       const auto Type =
-          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+          CGT.getMLIRTypeForMem(CTS->getTemplateArgs().get(0).getAsType());
       const auto IsTriviallyCopyAssignable =
           CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
-      Body.push_back(CGT.getMLIRType(CTS->bases_begin()->getType()));
+      Body.push_back(CGT.getMLIRTypeForMem(CTS->bases_begin()->getType()));
       return mlir::sycl::TupleCopyAssignableValueHolderType::get(
           CGT.getModule()->getContext(), Type, IsTriviallyCopyAssignable, Body);
     }
     case TypeEnum::TupleValueHolder: {
       const auto Type =
-          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+          CGT.getMLIRTypeForMem(CTS->getTemplateArgs().get(0).getAsType());
       return mlir::sycl::TupleValueHolderType::get(
           CGT.getModule()->getContext(), Type, Body);
     }
     case TypeEnum::Vec: {
       const auto ElemType =
-          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType());
+          CGT.getMLIRTypeForMem(CTS->getTemplateArgs().get(0).getAsType());
       const auto NumElems =
           CTS->getTemplateArgs().get(1).getAsIntegral().getExtValue();
       return mlir::sycl::VecType::get(CGT.getModule()->getContext(), ElemType,
@@ -372,7 +372,7 @@ mlir::Type getSYCLType(const clang::RecordType *RT,
     }
     case TypeEnum::SwizzleOp: {
       const auto VecType =
-          CGT.getMLIRType(CTS->getTemplateArgs().get(0).getAsType())
+          CGT.getMLIRTypeForMem(CTS->getTemplateArgs().get(0).getAsType())
               .cast<mlir::sycl::VecType>();
       const auto IndexesArgs = CTS->getTemplateArgs().get(4).getPackAsArray();
       SmallVector<int> Indexes;

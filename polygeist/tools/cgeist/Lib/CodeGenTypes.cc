@@ -1246,6 +1246,23 @@ void CodeGenTypes::constructAttributeList(
   AttrList.addAttrs(FuncAttrsBuilder, RetAttrsBuilder, ArgAttrs);
 }
 
+mlir::Type CodeGenTypes::getMLIRTypeForMem(clang::QualType QT,
+                                           bool *ImplicitRef, bool AllowMerge) {
+  assert(!QT->isConstantMatrixType() && "Unsupported type");
+
+  const auto R = getMLIRType(QT, ImplicitRef, AllowMerge);
+
+  // TODO: Check for the boolean vector case.
+
+  // If this is a bool type map this integer to the target-specified size.
+  if (!QT->isBitIntType() && R.isInteger(1))
+    return mlir::IntegerType::get(TheModule->getContext(),
+                                  Context.getTypeSize(QT));
+
+  // Else, don't map it.
+  return R;
+}
+
 mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
                                      bool AllowMerge) {
   if (const auto *ET = dyn_cast<clang::ElaboratedType>(QT))
@@ -1274,7 +1291,8 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
 
   if (const auto *DT = dyn_cast<clang::DecayedType>(QT)) {
     bool AssumeRef = false;
-    auto MLIRTy = getMLIRType(DT->getOriginalType(), &AssumeRef, AllowMerge);
+    clang::QualType OrigTy = DT->getOriginalType();
+    auto MLIRTy = getMLIRType(OrigTy, &AssumeRef, AllowMerge);
     if (MemRefABI && AssumeRef) {
       // Constant array types like `int A[30][20]` will be converted to LLVM
       // type `[20 x i32]* %0`, which has the outermost dimension size erased,
@@ -1283,14 +1301,11 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       // specifically handle this case by unwrapping the clang-adjusted
       // type, to get the corresponding ConstantArrayType with the full
       // dimensions.
-      if (MemRefFullRank) {
-        clang::QualType OrigTy = DT->getOriginalType();
-        if (OrigTy->isConstantArrayType()) {
-          SmallVector<int64_t, 4> Shape;
-          clang::QualType ElemTy;
-          getConstantArrayShapeAndElemType(OrigTy, Shape, ElemTy);
-          return mlir::MemRefType::get(Shape, getMLIRType(ElemTy));
-        }
+      if (MemRefFullRank && OrigTy->isConstantArrayType()) {
+        SmallVector<int64_t, 4> Shape;
+        clang::QualType ElemTy;
+        getConstantArrayShapeAndElemType(OrigTy, Shape, ElemTy);
+        return mlir::MemRefType::get(Shape, getMLIRTypeForMem(ElemTy));
       }
 
       // If -memref-fullrank is unset or it cannot be fulfilled.
@@ -1400,7 +1415,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     if (CXRD) {
       for (auto F : CXRD->bases()) {
         bool SubRef = false;
-        auto Ty = getMLIRType(F.getType(), &SubRef, /*AllowMerge*/ false);
+        auto Ty = getMLIRTypeForMem(F.getType(), &SubRef, /*AllowMerge*/ false);
         assert(!SubRef);
         InnerLLVM |= Ty.isa<LLVM::LLVMPointerType, LLVM::LLVMStructType,
                             LLVM::LLVMArrayType>();
@@ -1410,7 +1425,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
 
     for (auto *F : RT->getDecl()->fields()) {
       bool SubRef = false;
-      auto Ty = getMLIRType(F->getType(), &SubRef, /*AllowMerge*/ false);
+      auto Ty = getMLIRTypeForMem(F->getType(), &SubRef, /*AllowMerge*/ false);
       assert(!SubRef);
       InnerLLVM |= Ty.isa<LLVM::LLVMPointerType, LLVM::LLVMStructType,
                           LLVM::LLVMArrayType>();
@@ -1441,7 +1456,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     }
 
     bool SubRef = false;
-    auto ET = getMLIRType(AT->getElementType(), &SubRef, AllowMerge);
+    auto ET = getMLIRTypeForMem(AT->getElementType(), &SubRef, AllowMerge);
     int64_t Size = ShapedType::kDynamic;
     if (const auto *CAT = dyn_cast<clang::ConstantArrayType>(AT))
       Size = CAT->getSize().getZExtValue();
@@ -1508,7 +1523,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     }
 
     bool SubRef = false;
-    auto SubType = getMLIRType(PointeeType, &SubRef, /*AllowMerge*/ true);
+    auto SubType = getMLIRTypeForMem(PointeeType, &SubRef, /*AllowMerge*/ true);
 
     if (!MemRefABI ||
         SubType.isa<LLVM::LLVMArrayType, LLVM::LLVMStructType,
@@ -1599,8 +1614,8 @@ mlir::Type CodeGenTypes::getMLIRType(const clang::BuiltinType *BT) const {
     return Builder.getIntegerType(8);
 
   case BuiltinType::Bool:
-    // TODO: boolean types should be represented as i1 rather than i8.
-    return Builder.getIntegerType(8);
+    // Note that we always return bool as i1 for use as a scalar type.
+    return Builder.getIntegerType(1);
 
   case BuiltinType::Char_S:
   case BuiltinType::Char_U:

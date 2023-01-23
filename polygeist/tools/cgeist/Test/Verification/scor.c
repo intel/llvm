@@ -29,10 +29,10 @@ void kernel_correlation(double out[28], double stddev[28], _Bool cmp)
 
 }
 
-// CHECK:   func @kernel_correlation(%arg0: memref<?xf64>, %arg1: memref<?xf64>, %arg2: i8)
+// CHECK:   func @kernel_correlation(%arg0: memref<?xf64>, %arg1: memref<?xf64>, %arg2: i1)
 // CHECK-DAG:     %[[cst:.+]] = arith.constant 1.000000e+00 : f64
 // CHECK-DAG:     %[[cst_0:.+]] = arith.constant 3.140000e+00 : f64
-// CHECK:     %[[sel:.+]] = arith.select %{{.*}}, %[[cst]], %[[cst_0]] : f64
+// CHECK-NEXT:    %[[sel:.+]] = arith.select %arg2, %[[cst]], %[[cst_0]] : f64
 // CHECK-NEXT:     affine.for %arg3 = 0 to 28 {
 // CHECK-NEXT:       affine.store %[[cst_0]], %arg1[%arg3] : memref<?xf64>
 // CHECK-NEXT:       affine.store %[[sel]], %arg0[%arg3] : memref<?xf64>
@@ -40,4 +40,4 @@ void kernel_correlation(double out[28], double stddev[28], _Bool cmp)
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 
-// FULLRANK: func @kernel_correlation(%{{.*}}: memref<28xf64>, %{{.*}}: memref<28xf64>, %{{.*}}: i8)
+// FULLRANK: func @kernel_correlation(%{{.*}}: memref<28xf64>, %{{.*}}: memref<28xf64>, %{{.*}}: i1)

@@ -176,7 +176,7 @@ unsigned f12(unsigned *a, unsigned b) {
 
 // CHECK-LABEL:   func.func @f13(
 // CHECK-SAME:                   %[[VAL_0:.*]]: memref<?xi8>,
-// CHECK-SAME:                   %[[VAL_1:.*]]: i32) -> i8
+// CHECK-SAME:                   %[[VAL_1:.*]]: i32) -> i1
 // CHECK:           %[[VAL_2:.*]] = arith.constant 0 : i32
 // CHECK:           %[[VAL_3:.*]] = affine.load %[[VAL_0]][0] : memref<?xi8>
 // CHECK:           %[[VAL_4:.*]] = arith.extui %[[VAL_3]] : i8 to i32
@@ -184,7 +184,7 @@ unsigned f12(unsigned *a, unsigned b) {
 // CHECK:           %[[VAL_6:.*]] = arith.cmpi ne, %[[VAL_5]], %[[VAL_2]] : i32
 // CHECK:           %[[VAL_7:.*]] = arith.extui %[[VAL_6]] : i1 to i8
 // CHECK:           affine.store %[[VAL_7]], %[[VAL_0]][0] : memref<?xi8>
-// CHECK:           return %[[VAL_7]] : i8
+// CHECK:           return %[[VAL_6]] : i1
 // CHECK:         }
 
 bool f13(bool *a, unsigned b) {
@@ -193,7 +193,7 @@ bool f13(bool *a, unsigned b) {
 
 // CHECK-LABEL:   func.func @f14(
 // CHECK-SAME:                   %[[VAL_0:.*]]: memref<?xi8>,
-// CHECK-SAME:                   %[[VAL_1:.*]]: f32) -> i8
+// CHECK-SAME:                   %[[VAL_1:.*]]: f32) -> i1
 // CHECK:           %[[VAL_2:.*]] = arith.constant 0.000000e+00 : f32
 // CHECK:           %[[VAL_3:.*]] = affine.load %[[VAL_0]][0] : memref<?xi8>
 // CHECK:           %[[VAL_4:.*]] = arith.uitofp %[[VAL_3]] : i8 to f32
@@ -201,7 +201,7 @@ bool f13(bool *a, unsigned b) {
 // CHECK:           %[[VAL_6:.*]] = arith.cmpf une, %[[VAL_5]], %[[VAL_2]] : f32
 // CHECK:           %[[VAL_7:.*]] = arith.extui %[[VAL_6]] : i1 to i8
 // CHECK:           affine.store %[[VAL_7]], %[[VAL_0]][0] : memref<?xi8>
-// CHECK:           return %[[VAL_7]] : i8
+// CHECK:           return %[[VAL_6]] : i1
 // CHECK:         }
 
 bool f14(bool *a, float b) {
@@ -210,7 +210,7 @@ bool f14(bool *a, float b) {
 
 // CHECK-LABEL:   func.func @f15(
 // CHECK-SAME:                   %[[VAL_0:.*]]: memref<?xi8>,
-// CHECK-SAME:                   %[[VAL_1:.*]]: f64) -> i8
+// CHECK-SAME:                   %[[VAL_1:.*]]: f64) -> i1
 // CHECK:           %[[VAL_2:.*]] = arith.constant 0.000000e+00 : f64
 // CHECK:           %[[VAL_3:.*]] = affine.load %[[VAL_0]][0] : memref<?xi8>
 // CHECK:           %[[VAL_4:.*]] = arith.uitofp %[[VAL_3]] : i8 to f64
@@ -218,7 +218,7 @@ bool f14(bool *a, float b) {
 // CHECK:           %[[VAL_6:.*]] = arith.cmpf une, %[[VAL_5]], %[[VAL_2]] : f64
 // CHECK:           %[[VAL_7:.*]] = arith.extui %[[VAL_6]] : i1 to i8
 // CHECK:           affine.store %[[VAL_7]], %[[VAL_0]][0] : memref<?xi8>
-// CHECK:           return %[[VAL_7]] : i8
+// CHECK:           return %[[VAL_6]] : i1
 // CHECK:         }
 
 bool f15(bool *a, double b) {

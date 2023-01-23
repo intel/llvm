@@ -338,11 +338,14 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
     ValueCategory(ToInit, /*isReference*/ true).store(Builder, Sub, IsArray);
     if (!Sub.isReference)
       if (auto MT = ToInit.getType().dyn_cast<MemRefType>()) {
-        if (auto Cop = Sub.val.getDefiningOp<arith::ConstantIntOp>())
-          return DenseElementsAttr::get(
-              RankedTensorType::get(std::vector<int64_t>({1}),
-                                    MT.getElementType()),
-              Cop.getValue());
+        if (auto Cop = Sub.val.getDefiningOp<arith::ConstantIntOp>()) {
+          const auto C = Cop.getValue();
+          const auto CT = C.getType();
+          const auto ET = MT.getElementType();
+          assert((CT == ET || (CT.isInteger(1) && ET.isInteger(8))) &&
+                 "Expecting same width but for boolean values");
+          return DenseElementsAttr::get(RankedTensorType::get(1, CT), C);
+        }
         if (auto Cop = Sub.val.getDefiningOp<arith::ConstantFloatOp>())
           return DenseElementsAttr::get(
               RankedTensorType::get(std::vector<int64_t>({1}),
@@ -648,12 +651,24 @@ ValueCategory MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *Expr) {
       auto Val = Result.val;
 
       if (auto MT = Val.getType().dyn_cast<MemRefType>()) {
+        auto ET = MT.getElementType();
+        if (ET.isInteger(1)) {
+          ET = Builder.getIntegerType(8);
+          const auto Zero = getConstantIndex(0);
+          const auto Scalar =
+              ValueCategory(Builder.create<memref::LoadOp>(Loc, Val, Zero),
+                            /*IsReference*/ false)
+                  .IntCast(Builder, Loc, ET, /*IsSigned*/ false);
+          Val = Builder.create<memref::AllocaOp>(
+              Loc, MemRefType::get(1, ET, MT.getLayout(), MT.getMemorySpace()));
+          Builder.create<memref::StoreOp>(Loc, Scalar.val, Val, Zero);
+        }
         auto Shape = std::vector<int64_t>(MT.getShape());
         Shape[0] = ShapedType::kDynamic;
         Val = Builder.create<memref::CastOp>(
             Loc,
-            MemRefType::get(Shape, MT.getElementType(),
-                            MemRefLayoutAttrInterface(), MT.getMemorySpace()),
+            MemRefType::get(Shape, ET, MemRefLayoutAttrInterface(),
+                            MT.getMemorySpace()),
             Val);
       }
 
@@ -2630,7 +2645,7 @@ ValueCategory MLIRScanner::EmitPointerArithmetic(const BinOpInfo &Info) {
     return Result.BitCast(Builder, Loc, Pointer.val.getType());
   }
 
-  auto ElemTy = Glob.getTypes().getMLIRType(ElementType);
+  auto ElemTy = Glob.getTypes().getMLIRTypeForMem(ElementType);
   if (CGM.getLangOpts().isSignedOverflowDefined()) {
     if (Optional<Value> NewIndex =
             castSubIndexOpIndex(Builder, Loc, Pointer, Index.val, IsSigned))
