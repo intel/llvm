@@ -44,14 +44,14 @@ class LLVM_ArithmeticOpBase<Type type, string mnemonic,
   let builders = [LLVM_OneResultOpBuilder];
   let assemblyFormat = "$lhs `,` $rhs custom<LLVMOpAttrs>(attr-dict) `:` type($res)";
   string llvmInstName = instName;
-  string mlirBuilder = [{
-    $res = $_builder.create<$_qualCppClassName>($_location, $lhs, $rhs);
-  }];
 }
 class LLVM_IntArithmeticOp<string mnemonic, string instName,
                            list<Trait> traits = []> :
     LLVM_ArithmeticOpBase<AnyInteger, mnemonic, instName, traits> {
   let arguments = commonArgs;
+  string mlirBuilder = [{
+    $res = $_builder.create<$_qualCppClassName>($_location, $lhs, $rhs);
+  }];
 }
 class LLVM_FloatArithmeticOp<string mnemonic, string instName,
                              list<Trait> traits = []> :
@@ -60,6 +60,11 @@ class LLVM_FloatArithmeticOp<string mnemonic, string instName,
   dag fmfArg = (
     ins DefaultValuedAttr<LLVM_FastmathFlagsAttr, "{}">:$fastmathFlags);
   let arguments = !con(commonArgs, fmfArg);
+  string mlirBuilder = [{
+    auto op = $_builder.create<$_qualCppClassName>($_location, $lhs, $rhs);
+    setFastmathFlagsAttr(inst, op);
+    $res = op;
+  }];
 }
 
 // Class for arithmetic unary operations.
@@ -76,8 +81,10 @@ class LLVM_UnaryFloatArithmeticOp<Type type, string mnemonic,
   let assemblyFormat = "$operand custom<LLVMOpAttrs>(attr-dict) `:` type($res)";
   string llvmInstName = instName;
   string mlirBuilder = [{
-    $res = $_builder.create<$_qualCppClassName>($_location, $operand);
-  }];
+    auto op = $_builder.create<$_qualCppClassName>($_location, $operand);
+    setFastmathFlagsAttr(inst, op);
+    $res = op;
+   }];
 }
 
 // Integer binary operations.
@@ -146,11 +153,12 @@ def LLVM_FCmpOp : LLVM_ArithmeticCmpOp<"fcmp", [
   string llvmBuilder = [{
     $res = builder.CreateFCmp(getLLVMCmpPredicate($predicate), $lhs, $rhs);
   }];
-  // FIXME: Import fastmath flags.
   string mlirBuilder = [{
     auto *fCmpInst = cast<llvm::FCmpInst>(inst);
-    $res = $_builder.create<$_qualCppClassName>(
+    auto op = $_builder.create<$_qualCppClassName>(
       $_location, getFCmpPredicate(fCmpInst->getPredicate()), $lhs, $rhs);
+    setFastmathFlagsAttr(inst, op);
+    $res = op;
   }];
   // Set the $predicate index to -1 to indicate there is no matching operand
   // and decrement the following indices.
@@ -171,7 +179,7 @@ def LLVM_FNegOp : LLVM_UnaryFloatArithmeticOp<
 class MemoryOpWithAlignmentBase {
   code setAlignmentCode = [{
     if ($alignment.has_value()) {
-      auto align = $alignment.value();
+      auto align = *$alignment;
       if (align != 0)
         inst->setAlignment(llvm::Align(align));
     }
@@ -257,7 +265,8 @@ def LLVM_GEPOp : LLVM_Op<"getelementptr", [Pure]> {
   let arguments = (ins LLVM_ScalarOrVectorOf<LLVM_AnyPointer>:$base,
                    Variadic<LLVM_ScalarOrVectorOf<AnyInteger>>:$dynamicIndices,
                    DenseI32ArrayAttr:$rawConstantIndices,
-                   OptionalAttr<TypeAttr>:$elem_type);
+                   OptionalAttr<TypeAttr>:$elem_type,
+                   UnitAttr:$inbounds);
   let results = (outs LLVM_ScalarOrVectorOf<LLVM_AnyPointer>:$res);
   let skipDefaultBuilders = 1;
 
@@ -269,14 +278,17 @@ def LLVM_GEPOp : LLVM_Op<"getelementptr", [Pure]> {
     as indices. In the case of indexing within a structure, it is required to
     either use constant indices directly, or supply a constant SSA value.
 
+    An optional 'inbounds' attribute specifies the low-level pointer arithmetic
+    overflow behavior that LLVM uses after lowering the operation to LLVM IR.
+
     Examples:
 
     ```mlir
     // GEP with an SSA value offset
     %0 = llvm.getelementptr %1[%2] : (!llvm.ptr<f32>, i64) -> !llvm.ptr<f32>
 
-    // GEP with a constant offset
-    %0 = llvm.getelementptr %1[3] : (!llvm.ptr<f32>) -> !llvm.ptr<f32>
+    // GEP with a constant offset and the inbounds attribute set
+    %0 = llvm.getelementptr inbounds %1[3] : (!llvm.ptr<f32>) -> !llvm.ptr<f32>
 
     // GEP with constant offsets into a structure
     %0 = llvm.getelementptr %1[0, 1]
@@ -286,14 +298,16 @@ def LLVM_GEPOp : LLVM_Op<"getelementptr", [Pure]> {
 
   let builders = [
     OpBuilder<(ins "Type":$resultType, "Type":$basePtrType, "Value":$basePtr,
-               "ValueRange":$indices,
+               "ValueRange":$indices, CArg<"bool", "false">:$inbounds,
                CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>,
-    OpBuilder<(ins "Type":$resultType, "Value":$basePtr, "ValueRange":$indices,
+    OpBuilder<(ins "Type":$resultType, "Value":$basePtr,
+               "ValueRange":$indices, CArg<"bool", "false">:$inbounds,
                CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>,
-    OpBuilder<(ins "Type":$resultType, "Value":$basePtr, "ArrayRef<GEPArg>":$indices,
+    OpBuilder<(ins "Type":$resultType, "Value":$basePtr,
+               "ArrayRef<GEPArg>":$indices, CArg<"bool", "false">:$inbounds,
                CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>,
     OpBuilder<(ins "Type":$resultType, "Type":$basePtrType, "Value":$basePtr,
-               "ArrayRef<GEPArg>":$indices,
+               "ArrayRef<GEPArg>":$indices, CArg<"bool", "false">:$inbounds,
                CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>,
   ];
   let llvmBuilder = [{
@@ -310,9 +324,10 @@ def LLVM_GEPOp : LLVM_Op<"getelementptr", [Pure]> {
     }
     Type baseElementType = op.getSourceElementType();
     llvm::Type *elementType = moduleTranslation.convertType(baseElementType);
-    $res = builder.CreateGEP(elementType, $base, indices);
+    $res = builder.CreateGEP(elementType, $base, indices, "", $inbounds);
   }];
   let assemblyFormat = [{
+    (`inbounds` $inbounds^)?
     $base `[` custom<GEPIndices>($dynamicIndices, $rawConstantIndices) `]` attr-dict
     `:` functional-type(operands, results) (`,` $elem_type^)?
   }];
@@ -732,7 +747,7 @@ def LLVM_FreezeOp : LLVM_Op<"freeze", [SameOperandsAndResultType]> {
   let builders = [LLVM_OneResultOpBuilder];
   let assemblyFormat = "$val attr-dict `:` type($val)";
   string llvmInstName = "Freeze";
-  string llvmBuilder = "builder.CreateFreeze($val);";
+  string llvmBuilder = "$res = builder.CreateFreeze($val);";
   string mlirBuilder = [{
     $res = $_builder.create<LLVM::FreezeOp>($_location, $val);
   }];
@@ -790,7 +805,7 @@ def LLVM_CondBrOp : LLVM_TerminatorOp<"cond_br",
 // ReturnOp
 //===----------------------------------------------------------------------===//
 
-def LLVM_ReturnOp : LLVM_TerminatorOp<"return", [Pure]> {
+def LLVM_ReturnOp : LLVM_TerminatorOp<"return", [Pure, ReturnLike]> {
   let arguments = (ins Optional<LLVM_Type>:$arg);
   let assemblyFormat = "attr-dict ($arg^ `:` type($arg))?";
 
@@ -810,7 +825,10 @@ def LLVM_ReturnOp : LLVM_TerminatorOp<"return", [Pure]> {
       builder.CreateRetVoid();
   }];
   string mlirBuilder = [{
-    $_builder.create<LLVM::ReturnOp>($_location, processValues(llvmOperands));
+    FailureOr<SmallVector<Value>> mlirOperands = convertValues(llvmOperands);
+    if (failed(mlirOperands))
+      return failure();
+    $_builder.create<LLVM::ReturnOp>($_location, *mlirOperands);
   }];
 }
 
@@ -1308,7 +1326,9 @@ def LLVM_LLVMFuncOp : LLVM_Op<"func", [
     DefaultValuedAttr<CConv, "CConv::C">:$CConv,
     OptionalAttr<FlatSymbolRefAttr>:$personality,
     OptionalAttr<StrAttr>:$garbageCollector,
-    OptionalAttr<ArrayAttr>:$passthrough
+    OptionalAttr<ArrayAttr>:$passthrough,
+    OptionalAttr<DictArrayAttr>:$arg_attrs,
+    OptionalAttr<DictArrayAttr>:$res_attrs
   );
 
   let regions = (region AnyRegion:$body);
@@ -1337,8 +1357,9 @@ def LLVM_LLVMFuncOp : LLVM_Op<"func", [
     /// Returns the result types of this function.
     ArrayRef<Type> getResultTypes() { return getFunctionType().getReturnTypes(); }
 
-    /// Returns the callable region, which is the function body.
-    Region *getCallableRegion() { return &getBody(); }
+    /// Returns the callable region, which is the function body. If the function
+    /// is external, returns null.
+    Region *getCallableRegion();
 
     /// Returns the callable result type, which is the function return type.
     ArrayRef<Type> getCallableResults() { return getFunctionType().getReturnTypes(); }

@@ -180,10 +180,10 @@ struct LowerGpuOpsToNVVMOpsPass
     // memory allocations as local `alloca`s in the default address space. This
     // converter drops the private memory space to support the use case above.
     LLVMTypeConverter converter(m.getContext(), options);
-    converter.addConversion([&](MemRefType type) -> Optional<Type> {
+    converter.addConversion([&](MemRefType type) -> std::optional<Type> {
       if (type.getMemorySpaceAsInt() !=
           gpu::GPUDialect::getPrivateAddressSpace())
-        return llvm::None;
+        return std::nullopt;
       return converter.convertType(MemRefType::Builder(type).setMemorySpace(
           IntegerAttr::get(IntegerType::get(m.getContext(), 64), 0)));
     });

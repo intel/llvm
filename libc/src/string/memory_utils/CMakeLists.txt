@@ -4,9 +4,9 @@ add_header_library(
   HDRS
     bcmp_implementations.h
     bzero_implementations.h
-    elements.h
     memcmp_implementations.h
     memcpy_implementations.h
+    memmove_implementations.h
     memset_implementations.h
     op_aarch64.h
     op_builtin.h
@@ -15,6 +15,7 @@ add_header_library(
     utils.h
   DEPS
     libc.src.__support.common
+    libc.src.__support.compiler_features
     libc.src.__support.CPP.bit
     libc.src.__support.CPP.cstddef
     libc.src.__support.CPP.type_traits
@@ -24,6 +25,14 @@ add_header_library(
   memcpy_implementation
   HDRS
     memcpy_implementations.h
+  DEPS
+    .memory_utils
+)
+
+add_header_library(
+  memmove_implementation
+  HDRS
+    memmove_implementations.h
   DEPS
     .memory_utils
 )

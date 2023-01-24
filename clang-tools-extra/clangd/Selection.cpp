@@ -395,7 +395,7 @@ private:
           // Implausible if upperbound(Tok) < First.
           if (auto Offset = LastAffectedToken(Tok.location()))
             return *Offset < First;
-          // A prefix of the expanded tokens may be from an an implicit
+          // A prefix of the expanded tokens may be from an implicit
           // inclusion (e.g. preamble patch, or command-line -include).
           return true;
         });
@@ -517,7 +517,7 @@ private:
     // But SourceLocations for a file are numerically contiguous, so we
     // can use cheap integer operations instead.
     if (Loc < SelFileBounds.getBegin() || Loc >= SelFileBounds.getEnd())
-      return llvm::None;
+      return std::nullopt;
     // FIXME: subtracting getRawEncoding() is dubious, move this logic into SM.
     return Loc.getRawEncoding() - SelFileBounds.getBegin().getRawEncoding();
   }

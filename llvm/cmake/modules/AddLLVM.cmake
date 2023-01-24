@@ -103,7 +103,13 @@ function(add_llvm_symbol_exports target_name export_file)
     # FIXME: Don't write the "local:" line on OpenBSD.
     # in the export file, also add a linker script to version LLVM symbols (form: LLVM_N.M)
     add_custom_command(OUTPUT ${native_export_file}
-      COMMAND "${Python3_EXECUTABLE}" ${LLVM_MAIN_SRC_DIR}/utils/add_llvm_symbol_exports.py ${LLVM_VERSION_MAJOR} ${export_file} ${native_export_file}
+      COMMAND "${Python3_EXECUTABLE}" "-c"
+      "import sys; \
+       lines = ['    ' + l.rstrip() for l in sys.stdin] + ['  local: *;']; \
+       print('LLVM_${LLVM_VERSION_MAJOR} {'); \
+       print('  global:') if len(lines) > 1 else None; \
+       print(';\\n'.join(lines) + '\\n};')"
+      < ${export_file} > ${native_export_file}
       DEPENDS ${export_file}
       VERBATIM
       COMMENT "Creating export file for ${target_name}")
@@ -219,6 +225,7 @@ if (NOT DEFINED LLVM_LINKER_DETECTED AND NOT WIN32)
   else()
     if("${stdout}" MATCHES "^mold")
       set(LLVM_LINKER_DETECTED YES CACHE INTERNAL "")
+      set(LLVM_LINKER_IS_MOLD YES CACHE INTERNAL "")
       message(STATUS "Linker detection: mold")
     elseif("${stdout}" MATCHES "GNU gold")
       set(LLVM_LINKER_DETECTED YES CACHE INTERNAL "")
@@ -1119,7 +1126,8 @@ function(process_llvm_pass_plugins)
           message(FATAL_ERROR "LLVM_INSTALL_PACKAGE_DIR must be defined and writable. GEN_CONFIG should only be passe when building LLVM proper.")
       endif()
       # LLVM_INSTALL_PACKAGE_DIR might be absolute, so don't reuse below.
-      set(llvm_cmake_builddir "${LLVM_LIBRARY_DIR}/cmake/llvm")
+      string(REPLACE "${CMAKE_CFG_INTDIR}" "." llvm_cmake_builddir  "${LLVM_LIBRARY_DIR}")
+      set(llvm_cmake_builddir "${llvm_cmake_builddir}/cmake/llvm")
       file(WRITE
           "${llvm_cmake_builddir}/LLVMConfigExtensions.cmake"
           "set(LLVM_STATIC_EXTENSIONS ${LLVM_STATIC_EXTENSIONS})")

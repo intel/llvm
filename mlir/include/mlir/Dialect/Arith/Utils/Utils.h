@@ -54,9 +54,9 @@ public:
     SmallVector<OpFoldResult> mixedOffsets(op.getMixedOffsets());
     SmallVector<OpFoldResult> mixedSizes(op.getMixedSizes());
     SmallVector<OpFoldResult> mixedStrides(op.getMixedStrides());
-    canonicalizeSubViewPart(mixedOffsets, ShapedType::isDynamicStrideOrOffset);
+    canonicalizeSubViewPart(mixedOffsets, ShapedType::isDynamic);
     canonicalizeSubViewPart(mixedSizes, ShapedType::isDynamic);
-    canonicalizeSubViewPart(mixedStrides, ShapedType::isDynamicStrideOrOffset);
+    canonicalizeSubViewPart(mixedStrides, ShapedType::isDynamic);
 
     // Create the new op in canonical form.
     ResultTypeFunc resultTypeFunc;
@@ -91,6 +91,12 @@ Value getValueOrCreateCastToIndexLike(OpBuilder &b, Location loc,
 SmallVector<Value>
 getValueOrCreateConstantIndexOp(OpBuilder &b, Location loc,
                                 ArrayRef<OpFoldResult> valueOrAttrVec);
+
+/// Converts a scalar value `operand` to type `toType`. If the value doesn't
+/// convert, a warning will be issued and the operand is returned as is (which
+/// will presumably yield a verification issue downstream).
+Value convertScalarToDtype(OpBuilder &b, Location loc, Value operand,
+                           Type toType, bool isUnsignedCast);
 
 /// Helper struct to build simple arithmetic quantities with minimal type
 /// inference support.

@@ -118,10 +118,10 @@ def ConvertArithToSPIRV : Pass<"convert-arith-to-spirv"> {
   let constructor = "mlir::arith::createConvertArithToSPIRVPass()";
   let dependentDialects = ["spirv::SPIRVDialect"];
   let options = [
-    Option<"emulateNon32BitScalarTypes", "emulate-non-32-bit-scalar-types",
+    Option<"emulateLT32BitScalarTypes", "emulate-lt-32-bit-scalar-types",
            "bool", /*default=*/"true",
-           "Emulate non-32-bit scalar types with 32-bit ones if "
-           "missing native support">,
+           "Emulate narrower scalar types with 32-bit ones if not supported by "
+           "the target">,
     Option<"enableFastMath", "enable-fast-math",
            "bool", /*default=*/"false",
            "Enable fast math mode (assuming no NaN and infinity for floating "
@@ -155,6 +155,7 @@ def ConvertAsyncToLLVM : Pass<"convert-async-to-llvm", "ModuleOp"> {
     "arith::ArithDialect",
     "async::AsyncDialect",
     "LLVM::LLVMDialect",
+    "func::FuncDialect",
   ];
 }
 
@@ -259,10 +260,10 @@ def ConvertControlFlowToSPIRV : Pass<"convert-cf-to-spirv"> {
   let constructor = "mlir::createConvertControlFlowToSPIRVPass()";
   let dependentDialects = ["spirv::SPIRVDialect"];
   let options = [
-    Option<"emulateNon32BitScalarTypes", "emulate-non-32-bit-scalar-types",
+    Option<"emulateLT32BitScalarTypes", "emulate-lt-32-bit-scalar-types",
            "bool", /*default=*/"true",
-           "Emulate non-32-bit scalar types with 32-bit ones if "
-           "missing native support">
+           "Emulate narrower scalar types with 32-bit ones if not supported by"
+           " the target">
   ];
 }
 
@@ -320,10 +321,10 @@ def ConvertFuncToSPIRV : Pass<"convert-func-to-spirv"> {
   let constructor = "mlir::createConvertFuncToSPIRVPass()";
   let dependentDialects = ["spirv::SPIRVDialect"];
   let options = [
-    Option<"emulateNon32BitScalarTypes", "emulate-non-32-bit-scalar-types",
+    Option<"emulateLT32BitScalarTypes", "emulate-lt-32-bit-scalar-types",
            "bool", /*default=*/"true",
-           "Emulate non-32-bit scalar types with 32-bit ones if "
-           "missing native support">
+           "Emulate narrower scalar types with 32-bit ones if not supported by"
+           " the target">
   ];
 }
 
@@ -485,20 +486,6 @@ def ConvertLinalgToStandard : Pass<"convert-linalg-to-std", "ModuleOp"> {
 }
 
 //===----------------------------------------------------------------------===//
-// LinalgToSPIRV
-//===----------------------------------------------------------------------===//
-
-def ConvertLinalgToSPIRV : Pass<"convert-linalg-to-spirv", "ModuleOp"> {
-  let summary = "Convert Linalg dialect to SPIR-V dialect";
-  let description = [{
-    This pass converts supported Linalg ops to SPIR-V ops. It's quite
-    experimental and are expected to migrate to other proper conversions.
-  }];
-  let constructor = "mlir::createLinalgToSPIRVPass()";
-  let dependentDialects = ["spirv::SPIRVDialect"];
-}
-
-//===----------------------------------------------------------------------===//
 // MathToLibm
 //===----------------------------------------------------------------------===//
 
@@ -549,13 +536,18 @@ def ConvertMathToFuncs : Pass<"convert-math-to-funcs", "ModuleOp"> {
     functions implementing these operations in software.
     The LLVM dialect is used for LinkonceODR linkage of the generated functions.
   }];
-  let constructor = "mlir::createConvertMathToFuncsPass()";
   let dependentDialects = [
     "arith::ArithDialect",
     "cf::ControlFlowDialect",
     "func::FuncDialect",
     "vector::VectorDialect",
     "LLVM::LLVMDialect",
+  ];
+  let options = [
+    Option<"minWidthOfFPowIExponent", "min-width-of-fpowi-exponent", "unsigned",
+           /*default=*/"1",
+           "Convert FPowI only if the width of its exponent's integer type "
+           "is greater than or equal to this value">
   ];
 }
 
@@ -815,10 +807,10 @@ def ConvertTensorToSPIRV : Pass<"convert-tensor-to-spirv"> {
   let constructor = "mlir::createConvertTensorToSPIRVPass()";
   let dependentDialects = ["spirv::SPIRVDialect"];
   let options = [
-    Option<"emulateNon32BitScalarTypes", "emulate-non-32-bit-scalar-types",
+    Option<"emulateLT32BitScalarTypes", "emulate-lt-32-bit-scalar-types",
            "bool", /*default=*/"true",
-           "Emulate non-32-bit scalar types with 32-bit ones if "
-           "missing native support">
+           "Emulate narrower scalar types with 32-bit ones if not supported by"
+           " the target">
   ];
 }
 
@@ -948,9 +940,6 @@ def ConvertVectorToSCF : Pass<"convert-vector-to-scf"> {
            "Perform full unrolling when converting vector transfers to SCF">,
     Option<"targetRank", "target-rank", "unsigned", /*default=*/"1",
            "Target vector rank to which transfer ops should be lowered">,
-    Option<"lowerPermutationMaps", "lower-permutation-maps", "bool",
-           /*default=*/"false", "Replace permutation maps with vector "
-           "transposes/broadcasts before lowering transfer ops">,
     Option<"lowerTensors", "lower-tensors", "bool", /*default=*/"false",
            "Lower transfer ops that operate on tensors">
   ];

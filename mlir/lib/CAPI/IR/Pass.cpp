@@ -86,10 +86,14 @@ void mlirPrintPassPipeline(MlirOpPassManager passManager,
 }
 
 MlirLogicalResult mlirParsePassPipeline(MlirOpPassManager passManager,
-                                        MlirStringRef pipeline) {
-  // TODO: errors are sent to std::errs() at the moment, we should pass in a
-  // stream and redirect to a diagnostic.
-  return wrap(mlir::parsePassPipeline(unwrap(pipeline), *unwrap(passManager)));
+                                        MlirStringRef pipeline,
+                                        MlirStringCallback callback,
+                                        void *userData) {
+  detail::CallbackOstream stream(callback, userData);
+  FailureOr<OpPassManager> pm = parsePassPipeline(unwrap(pipeline), stream);
+  if (succeeded(pm))
+    *unwrap(passManager) = std::move(*pm);
+  return wrap(pm);
 }
 
 //===----------------------------------------------------------------------===//
@@ -174,7 +178,7 @@ MlirPass mlirCreateExternalPass(MlirTypeID passID, MlirStringRef name,
                                 void *userData) {
   return wrap(static_cast<mlir::Pass *>(new mlir::ExternalPass(
       unwrap(passID), unwrap(name), unwrap(argument), unwrap(description),
-      opName.length > 0 ? Optional<StringRef>(unwrap(opName)) : None,
+      opName.length > 0 ? Optional<StringRef>(unwrap(opName)) : std::nullopt,
       {dependentDialects, static_cast<size_t>(nDependentDialects)}, callbacks,
       userData)));
 }

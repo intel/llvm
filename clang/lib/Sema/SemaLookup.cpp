@@ -992,11 +992,9 @@ bool Sema::LookupBuiltin(LookupResult &R) {
 
       // If this is a builtin on this (or all) targets, create the decl.
       if (unsigned BuiltinID = II->getBuiltinID()) {
-        // In C++, C2x, and OpenCL (spec v1.2 s6.9.f), we don't have any
-        // predefined library functions like 'malloc'. Instead, we'll just
-        // error.
-        if ((getLangOpts().CPlusPlus || getLangOpts().OpenCL ||
-             getLangOpts().C2x) &&
+        // In C++ and OpenCL (spec v1.2 s6.9.f), we don't have any predefined
+        // library functions like 'malloc'. Instead, we'll just error.
+        if ((getLangOpts().CPlusPlus || getLangOpts().OpenCL) &&
             Context.BuiltinInfo.isPredefinedLibFunction(BuiltinID))
           return false;
 
@@ -1232,9 +1230,8 @@ static bool LookupDirect(Sema &S, LookupResult &R, const DeclContext *DC) {
     FunctionProtoType::ExtProtoInfo EPI = ConvProto->getExtProtoInfo();
     EPI.ExtInfo = EPI.ExtInfo.withCallingConv(CC_C);
     EPI.ExceptionSpec = EST_None;
-    QualType ExpectedType
-      = R.getSema().Context.getFunctionType(R.getLookupName().getCXXNameType(),
-                                            None, EPI);
+    QualType ExpectedType = R.getSema().Context.getFunctionType(
+        R.getLookupName().getCXXNameType(), std::nullopt, EPI);
 
     // Perform template argument deduction against the type that we would
     // expect the function to have.

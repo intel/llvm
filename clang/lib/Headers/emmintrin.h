@@ -44,8 +44,10 @@ typedef _Float16 __v8hf __attribute__((__vector_size__(16), __aligned__(16)));
 typedef _Float16 __m128h __attribute__((__vector_size__(16), __aligned__(16)));
 typedef _Float16 __m128h_u __attribute__((__vector_size__(16), __aligned__(1)));
 
+#ifndef __SYCL_DEVICE_ONLY__
 typedef __bf16 __v8bf __attribute__((__vector_size__(16), __aligned__(16)));
 typedef __bf16 __m128bh __attribute__((__vector_size__(16), __aligned__(16)));
+#endif
 #endif
 
 /* Define the default attributes for the functions in this file. */
@@ -1819,7 +1821,7 @@ static __inline__ __m128d __DEFAULT_FN_ATTRS _mm_setr_pd(double __w,
 /// \returns An initialized 128-bit floating-point vector of [2 x double] with
 ///    all elements set to zero.
 static __inline__ __m128d __DEFAULT_FN_ATTRS _mm_setzero_pd(void) {
-  return __extension__(__m128d){0, 0};
+  return __extension__(__m128d){0.0, 0.0};
 }
 
 /// Constructs a 128-bit floating-point vector of [2 x double]. The lower

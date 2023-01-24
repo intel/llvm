@@ -64,11 +64,11 @@ add_libc_unittest(
 )
 
 add_libc_unittest(
-  uint128_test
+  uint_test
   SUITE
     libc_support_unittests
   SRCS
-    uint128_test.cpp
+    uint_test.cpp
   DEPENDS
     libc.src.__support.uint
     libc.src.__support.CPP.optional
@@ -111,3 +111,4 @@ add_custom_command(TARGET libc_str_to_float_comparison_test
 add_subdirectory(CPP)
 add_subdirectory(File)
 add_subdirectory(OSUtil)
+add_subdirectory(FPUtil)

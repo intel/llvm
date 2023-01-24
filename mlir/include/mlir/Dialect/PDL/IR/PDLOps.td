@@ -354,11 +354,11 @@ def PDL_OperationOp : PDL_Op<"operation", [AttrSizedOperandSegments]> {
   }];
 
   let builders = [
-    OpBuilder<(ins CArg<"Optional<StringRef>", "llvm::None">:$name,
-      CArg<"ValueRange", "llvm::None">:$operandValues,
-      CArg<"ArrayRef<StringRef>", "llvm::None">:$attrNames,
-      CArg<"ValueRange", "llvm::None">:$attrValues,
-      CArg<"ValueRange", "llvm::None">:$resultTypes), [{
+    OpBuilder<(ins CArg<"Optional<StringRef>", "std::nullopt">:$name,
+      CArg<"ValueRange", "std::nullopt">:$operandValues,
+      CArg<"ArrayRef<StringRef>", "std::nullopt">:$attrNames,
+      CArg<"ValueRange", "std::nullopt">:$attrValues,
+      CArg<"ValueRange", "std::nullopt">:$resultTypes), [{
       auto nameAttr = name ? $_builder.getStringAttr(*name) : StringAttr();
       build($_builder, $_state, $_builder.getType<OperationType>(), nameAttr,
             operandValues, attrValues, $_builder.getStrArrayAttr(attrNames),
@@ -420,7 +420,7 @@ def PDL_PatternOp : PDL_Op<"pattern", [
 
   let builders = [
     OpBuilder<(ins CArg<"Optional<uint16_t>", "1">:$benefit,
-                   CArg<"Optional<StringRef>", "llvm::None">:$name)>,
+                   CArg<"Optional<StringRef>", "std::nullopt">:$name)>,
   ];
   let extraClassDeclaration = [{
     //===------------------------------------------------------------------===//
@@ -434,6 +434,48 @@ def PDL_PatternOp : PDL_Op<"pattern", [
     RewriteOp getRewriter();
   }];
   let hasRegionVerifier = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// pdl::RangeOp
+//===----------------------------------------------------------------------===//
+
+def PDL_RangeOp : PDL_Op<"range", [Pure, HasParent<"pdl::RewriteOp">]> {
+  let summary = "Construct a range of pdl entities";
+  let description = [{
+    `pdl.range` operations construct a range from a given set of PDL entities,
+    which all share the same underlying element type. For example, a
+    `!pdl.range<value>` may be constructed from a list of `!pdl.value`
+    or `!pdl.range<value>` entities.
+
+    Example:
+
+    ```mlir
+    // Construct a range of values.
+    %valueRange = pdl.range %inputValue, %inputRange : !pdl.value, !pdl.range<value>
+
+    // Construct a range of types.
+    %typeRange = pdl.range %inputType, %inputRange : !pdl.type, !pdl.range<type>
+
+    // Construct an empty range of types.
+    %valueRange = pdl.range : !pdl.range<type>
+    ```
+
+    TODO: Range construction is currently limited to rewrites, but it could
+    be extended to constraints under certain circustances; i.e., if we can
+    determine how to extract the underlying elements. If we can't, e.g. if
+    there are multiple sub ranges used for construction, we won't be able
+    to determine their sizes during constraint time.
+  }];
+
+  let arguments = (ins Variadic<PDL_AnyType>:$arguments);
+  let results = (outs PDL_RangeOf<AnyTypeOf<[PDL_Type, PDL_Value]>>:$result);
+  let assemblyFormat = [{
+    ($arguments^ `:` type($arguments))?
+    custom<RangeType>(ref(type($arguments)), type($result))
+    attr-dict
+  }];
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//

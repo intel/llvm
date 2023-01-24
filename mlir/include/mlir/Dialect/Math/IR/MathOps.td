@@ -9,6 +9,8 @@
 #ifndef MATH_OPS
 #define MATH_OPS
 
+include "mlir/Dialect/Arith/IR/ArithBase.td"
+include "mlir/Dialect/Arith/IR/ArithOpsInterfaces.td"
 include "mlir/Dialect/Math/IR/MathBase.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/VectorInterfaces.td"
@@ -36,11 +38,16 @@ class Math_IntegerUnaryOp<string mnemonic, list<Trait> traits = []> :
 // operand and result of the same type. This type can be a floating point type,
 // vector or tensor thereof.
 class Math_FloatUnaryOp<string mnemonic, list<Trait> traits = []> :
-    Math_Op<mnemonic, traits # [SameOperandsAndResultType]> {
-  let arguments = (ins FloatLike:$operand);
+    Math_Op<mnemonic,
+        traits # [SameOperandsAndResultType,
+                  DeclareOpInterfaceMethods<ArithFastMathInterface>]> {
+  let arguments = (ins FloatLike:$operand,
+      DefaultValuedAttr<Arith_FastMathAttr,
+                        "::mlir::arith::FastMathFlags::none">:$fastmath);
   let results = (outs FloatLike:$result);
 
-  let assemblyFormat = "$operand attr-dict `:` type($result)";
+  let assemblyFormat = [{ $operand (`fastmath` `` $fastmath^)?
+                          attr-dict `:` type($result) }];
 }
 
 // Base class for binary math operations on integer types. Require two
@@ -58,22 +65,32 @@ class Math_IntegerBinaryOp<string mnemonic, list<Trait> traits = []> :
 // operands and one result of the same type. This type can be a floating point
 // type, vector or tensor thereof.
 class Math_FloatBinaryOp<string mnemonic, list<Trait> traits = []> :
-    Math_Op<mnemonic, traits # [SameOperandsAndResultType]> {
-  let arguments = (ins FloatLike:$lhs, FloatLike:$rhs);
+    Math_Op<mnemonic,
+        traits # [SameOperandsAndResultType,
+                  DeclareOpInterfaceMethods<ArithFastMathInterface>]> {
+  let arguments = (ins FloatLike:$lhs, FloatLike:$rhs,
+      DefaultValuedAttr<Arith_FastMathAttr,
+                        "::mlir::arith::FastMathFlags::none">:$fastmath);
   let results = (outs FloatLike:$result);
 
-  let assemblyFormat = "$lhs `,` $rhs attr-dict `:` type($result)";
+  let assemblyFormat = [{ $lhs `,` $rhs (`fastmath` `` $fastmath^)?
+                          attr-dict `:` type($result) }];
 }
 
 // Base class for floating point ternary operations. Require three operands and
 // one result of the same type. This type can be a floating point type, vector
 // or tensor thereof.
 class Math_FloatTernaryOp<string mnemonic, list<Trait> traits = []> :
-    Math_Op<mnemonic, traits # [SameOperandsAndResultType]> {
-  let arguments = (ins FloatLike:$a, FloatLike:$b, FloatLike:$c);
+    Math_Op<mnemonic,
+        traits # [SameOperandsAndResultType,
+                  DeclareOpInterfaceMethods<ArithFastMathInterface>]> {
+  let arguments = (ins FloatLike:$a, FloatLike:$b, FloatLike:$c,
+      DefaultValuedAttr<Arith_FastMathAttr,
+                        "::mlir::arith::FastMathFlags::none">:$fastmath);
   let results = (outs FloatLike:$result);
 
-  let assemblyFormat = "$a `,` $b `,` $c attr-dict `:` type($result)";
+  let assemblyFormat = [{ $a `,` $b `,` $c (`fastmath` `` $fastmath^)?
+                          attr-dict `:` type($result) }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -840,7 +857,8 @@ def Math_TruncOp : Math_FloatUnaryOp<"trunc"> {
 //===----------------------------------------------------------------------===//
 
 def Math_FPowIOp : Math_Op<"fpowi",
-    [SameOperandsAndResultShape, AllTypesMatch<["lhs", "result"]>]> {
+    [SameOperandsAndResultShape, AllTypesMatch<["lhs", "result"]>,
+     DeclareOpInterfaceMethods<ArithFastMathInterface>]> {
   let summary = "floating point raised to the signed integer power";
   let description = [{
     Syntax:
@@ -873,9 +891,12 @@ def Math_FPowIOp : Math_Op<"fpowi",
     ```
   }];
 
-  let arguments = (ins FloatLike:$lhs, SignlessIntegerLike:$rhs);
+  let arguments = (ins FloatLike:$lhs, SignlessIntegerLike:$rhs,
+      DefaultValuedAttr<Arith_FastMathAttr,
+                        "::mlir::arith::FastMathFlags::none">:$fastmath);
   let results = (outs FloatLike:$result);
-  let assemblyFormat = "$lhs `,` $rhs attr-dict `:` type($lhs) `,` type($rhs)";
+  let assemblyFormat = [{ $lhs `,` $rhs (`fastmath` `` $fastmath^)?
+                          attr-dict `:` type($lhs) `,` type($rhs) }];
 
   // TODO: add a constant folder using pow[f] for cases, when
   //       the power argument is exactly representable in floating

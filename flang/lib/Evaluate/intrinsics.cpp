@@ -574,8 +574,8 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
         DefaultLogical},
     {"llt", {{"string_a", SameCharNoLen}, {"string_b", SameCharNoLen}},
         DefaultLogical},
-    {"loc", {{"loc_argument", Addressable, Rank::anyOrAssumedRank}},
-        SubscriptInt, Rank::scalar},
+    {"loc", {{"x", Addressable, Rank::anyOrAssumedRank}}, SubscriptInt,
+        Rank::scalar},
     {"log", {{"x", SameFloating}}, SameFloating},
     {"log10", {{"x", SameReal}}, SameReal},
     {"logical", {{"l", AnyLogical}, DefaultingKIND}, KINDLogical},
@@ -917,7 +917,7 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
 // TODO: Coarray intrinsic functions
 //  IMAGE_INDEX, COSHAPE
 // TODO: Non-standard intrinsic functions
-//  LSHIFT, RSHIFT, SHIFT,
+//  SHIFT,
 //  COMPL, EQV, NEQV, INT8, JINT, JNINT, KNINT,
 //  QCMPLX, QEXT, QFLOAT, QREAL, DNUM,
 //  INUM, JNUM, KNUM, QNUM, RNUM, RAN, RANF, ILEN,
@@ -934,7 +934,9 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
 static const std::pair<const char *, const char *> genericAlias[]{
     {"and", "iand"},
     {"imag", "aimag"},
+    {"lshift", "shiftl"},
     {"or", "ior"},
+    {"rshift", "shifta"},
     {"xor", "ieor"},
     {"__builtin_ieee_selected_real_kind", "selected_real_kind"},
 };
@@ -1232,6 +1234,14 @@ static const IntrinsicInterface intrinsicSubroutine[]{
             {"stat", AnyInt, Rank::scalar, Optionality::optional,
                 common::Intent::Out}},
         {}, Rank::elemental, IntrinsicClass::atomicSubroutine},
+    {"atomic_xor",
+        {{"atom", AtomicInt, Rank::atom, Optionality::required,
+             common::Intent::InOut},
+            {"value", AnyInt, Rank::scalar, Optionality::required,
+                common::Intent::In},
+            {"stat", AnyInt, Rank::scalar, Optionality::optional,
+                common::Intent::Out}},
+        {}, Rank::elemental, IntrinsicClass::atomicSubroutine},
     {"co_broadcast",
         {{"a", AnyData, Rank::anyOrAssumedRank, Optionality::required,
              common::Intent::InOut},
@@ -1373,7 +1383,7 @@ static const IntrinsicInterface intrinsicSubroutine[]{
 };
 
 // TODO: Intrinsic subroutine EVENT_QUERY
-// TODO: Atomic intrinsic subroutines: ATOMIC_ADD &al.
+// TODO: Atomic intrinsic subroutines: ATOMIC_ADD
 // TODO: Collective intrinsic subroutines: co_reduce
 
 // Finds a built-in derived type and returns it as a DynamicType.
@@ -1452,6 +1462,37 @@ static bool CheckMaxMinArgument(std::optional<parser::CharBlock> keyword,
     }
   }
   return true;
+}
+
+static void CheckMaxMinA1A2Argument(const ActualArguments &arguments,
+    std::set<parser::CharBlock> &set, parser::ContextualMessages &messages) {
+  parser::CharBlock kwA1{"a1", 2};
+  parser::CharBlock kwA2{"a2", 2};
+  bool missingA1{set.find(kwA1) == set.end()};
+  bool missingA2{set.find(kwA2) == set.end()};
+
+  if (arguments.size() > 1) {
+    if (arguments.at(0)->keyword()) {
+      // If the keyword is specified in the first argument, the following
+      // arguments must have the keywords.
+      if (missingA1 && missingA2) {
+        messages.Say("missing mandatory '%s=' and '%s=' arguments"_err_en_US,
+            kwA1.ToString(), kwA2.ToString());
+      } else if (missingA1 && !missingA2) {
+        messages.Say(
+            "missing mandatory '%s=' argument"_err_en_US, kwA1.ToString());
+      } else if (!missingA1 && missingA2) {
+        messages.Say(
+            "missing mandatory '%s=' argument"_err_en_US, kwA2.ToString());
+      }
+    } else if (arguments.at(1)->keyword()) {
+      // No keyword is specified in the first argument.
+      if (missingA1 && missingA2) {
+        messages.Say(
+            "missing mandatory '%s=' argument"_err_en_US, kwA2.ToString());
+      }
+    }
+  }
 }
 
 static bool CheckAtomicKind(const ActualArgument &arg,
@@ -1562,6 +1603,17 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
     }
   }
 
+  if (isMaxMin) {
+    int nArgs{0};
+    // max() / max(x) is invalid
+    while ((arguments.size() + nArgs) < 2) {
+      actualForDummy.push_back(nullptr);
+      nArgs++;
+    }
+
+    CheckMaxMinA1A2Argument(arguments, maxMinKeywords, messages);
+  }
+
   std::size_t dummies{actualForDummy.size()};
 
   // Check types and kinds of the actual arguments against the intrinsic's
@@ -1572,7 +1624,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
   const ActualArgument *operandArg{nullptr};
   const IntrinsicDummyArgument *kindDummyArg{nullptr};
   const ActualArgument *kindArg{nullptr};
-  bool hasDimArg{false};
+  std::optional<int> dimArg;
   for (std::size_t j{0}; j < dummies; ++j) {
     const IntrinsicDummyArgument &d{dummy[std::min(j, dummyArgPatterns - 1)]};
     if (d.typePattern.kindCode == KindCode::kindArg) {
@@ -1582,12 +1634,29 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
     const ActualArgument *arg{actualForDummy[j]};
     if (!arg) {
       if (d.optionality == Optionality::required) {
-        messages.Say("missing mandatory '%s=' argument"_err_en_US, d.keyword);
+        std::string kw{d.keyword};
+        if (isMaxMin && maxMinKeywords.size() == 1) {
+          // max(a1=x) or max(a2=x)
+          const auto kwA1{dummy[0].keyword};
+          const auto kwA2{dummy[1].keyword};
+          if (maxMinKeywords.begin()->ToString().compare(kwA1) == 0) {
+            messages.Say("missing mandatory 'a2=' argument"_err_en_US);
+          } else if (maxMinKeywords.begin()->ToString().compare(kwA2) == 0) {
+            messages.Say("missing mandatory 'a1=' argument"_err_en_US);
+          } else {
+            messages.Say(
+                "missing mandatory 'a1=' and 'a2=' arguments"_err_en_US);
+          }
+        } else {
+          messages.Say(
+              "missing mandatory '%s=' argument"_err_en_US, kw.c_str());
+        }
         return std::nullopt; // missing non-OPTIONAL argument
       } else {
         continue;
       }
-    } else if (d.optionality == Optionality::missing) {
+    }
+    if (d.optionality == Optionality::missing) {
       messages.Say(arg->sourceLocation(), "unexpected '%s=' argument"_err_en_US,
           d.keyword);
       return std::nullopt;
@@ -1696,7 +1765,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
       break;
     case KindCode::dimArg:
       CHECK(type->category() == TypeCategory::Integer);
-      hasDimArg = true;
+      dimArg = j;
       argOk = true;
       break;
     case KindCode::same:
@@ -1786,7 +1855,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
   int elementalRank{0};
   for (std::size_t j{0}; j < dummies; ++j) {
     const IntrinsicDummyArgument &d{dummy[std::min(j, dummyArgPatterns - 1)]};
-    if (const ActualArgument * arg{actualForDummy[j]}) {
+    if (const ActualArgument *arg{actualForDummy[j]}) {
       bool isAssumedRank{IsAssumedRank(*arg)};
       if (isAssumedRank && d.rank != Rank::anyOrAssumedRank) {
         messages.Say(arg->sourceLocation(),
@@ -1866,7 +1935,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
         argOk = rank == knownArg->Rank();
         break;
       case Rank::anyOrAssumedRank:
-        if (!hasDimArg && rank > 0 && !isAssumedRank &&
+        if (!dimArg && rank > 0 && !isAssumedRank &&
             (std::strcmp(name, "shape") == 0 ||
                 std::strcmp(name, "size") == 0 ||
                 std::strcmp(name, "ubound") == 0)) {
@@ -2073,6 +2142,49 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
     CHECK(result.kindCode == KindCode::none);
   }
 
+  // Emit warnings when the syntactic presence of a DIM= argument determines
+  // the semantics of the call but the associated actual argument may not be
+  // present at execution time.
+  if (dimArg) {
+    std::optional<int> arrayRank;
+    if (arrayArg) {
+      arrayRank = arrayArg->Rank();
+      if (auto dimVal{ToInt64(actualForDummy[*dimArg])}) {
+        if (*dimVal < 1) {
+          messages.Say(
+              "The value of DIM= (%jd) may not be less than 1"_err_en_US,
+              static_cast<std::intmax_t>(*dimVal));
+        } else if (*dimVal > *arrayRank) {
+          messages.Say(
+              "The value of DIM= (%jd) may not be greater than %d"_err_en_US,
+              static_cast<std::intmax_t>(*dimVal), *arrayRank);
+        }
+      }
+    }
+    switch (rank) {
+    case Rank::dimReduced:
+    case Rank::dimRemovedOrScalar:
+    case Rank::locReduced:
+    case Rank::scalarIfDim:
+      if (dummy[*dimArg].optionality == Optionality::required) {
+        if (const Symbol *whole{
+                UnwrapWholeSymbolOrComponentDataRef(actualForDummy[*dimArg])}) {
+          if (IsOptional(*whole) || IsAllocatableOrPointer(*whole)) {
+            if (rank == Rank::scalarIfDim || arrayRank.value_or(-1) == 1) {
+              messages.Say(
+                  "The actual argument for DIM= is optional, pointer, or allocatable, and it is assumed to be present and equal to 1 at execution time"_port_en_US);
+            } else {
+              messages.Say(
+                  "The actual argument for DIM= is optional, pointer, or allocatable, and may not be absent during execution; parenthesize to silence this warning"_warn_en_US);
+            }
+          }
+        }
+      }
+      break;
+    default:;
+    }
+  }
+
   // At this point, the call is acceptable.
   // Determine the rank of the function result.
   int resultRank{0};
@@ -2095,11 +2207,11 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
     break;
   case Rank::dimReduced:
     CHECK(arrayArg);
-    resultRank = hasDimArg ? arrayArg->Rank() - 1 : 0;
+    resultRank = dimArg ? arrayArg->Rank() - 1 : 0;
     break;
   case Rank::locReduced:
     CHECK(arrayArg);
-    resultRank = hasDimArg ? arrayArg->Rank() - 1 : 1;
+    resultRank = dimArg ? arrayArg->Rank() - 1 : 1;
     break;
   case Rank::rankPlus1:
     CHECK(knownArg);
@@ -2110,7 +2222,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
     resultRank = *shapeArgSize;
     break;
   case Rank::scalarIfDim:
-    resultRank = hasDimArg ? 0 : 1;
+    resultRank = dimArg ? 0 : 1;
     break;
   case Rank::elementalOrBOZ:
   case Rank::shape:
@@ -2129,7 +2241,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
   // Rearrange the actual arguments into dummy argument order.
   ActualArguments rearranged(dummies);
   for (std::size_t j{0}; j < dummies; ++j) {
-    if (ActualArgument * arg{actualForDummy[j]}) {
+    if (ActualArgument *arg{actualForDummy[j]}) {
       rearranged[j] = std::move(*arg);
     }
   }
@@ -2504,6 +2616,20 @@ IntrinsicProcTable::Implementation::HandleC_F_Pointer(
       } else if (!arguments[2] && fptrRank > 0) {
         context.messages().Say(
             "SHAPE= argument to C_F_POINTER() must appear when FPTR= is an array"_err_en_US);
+      } else if (arguments[2]) {
+        if (const auto *argExpr{arguments[2].value().UnwrapExpr()}) {
+          if (argExpr->Rank() > 1) {
+            context.messages().Say(arguments[2]->sourceLocation(),
+                "SHAPE= argument to C_F_POINTER() must be a rank-one array."_err_en_US);
+          } else if (argExpr->Rank() == 1) {
+            if (auto constShape{GetConstantShape(context, *argExpr)}) {
+              if (constShape->At(ConstantSubscripts{1}).ToInt64() != fptrRank) {
+                context.messages().Say(arguments[2]->sourceLocation(),
+                    "SHAPE= argument to C_F_POINTER() must have size equal to the rank of FPTR="_err_en_US);
+              }
+            }
+          }
+        }
       }
     }
   }
@@ -2534,7 +2660,7 @@ static bool CheckAssociated(SpecificCall &call, FoldingContext &context) {
   bool ok{true};
   if (const auto &pointerArg{call.arguments[0]}) {
     if (const auto *pointerExpr{pointerArg->UnwrapExpr()}) {
-      if (const Symbol * pointerSymbol{GetLastSymbol(*pointerExpr)}) {
+      if (const Symbol *pointerSymbol{GetLastSymbol(*pointerExpr)}) {
         if (!pointerSymbol->attrs().test(semantics::Attr::POINTER)) {
           AttachDeclaration(context.messages().Say(pointerArg->sourceLocation(),
                                 "POINTER= argument of ASSOCIATED() must be a "
@@ -2563,8 +2689,8 @@ static bool CheckAssociated(SpecificCall &call, FoldingContext &context) {
                     *targetProcDesignator, context);
                 targetName = targetProcDesignator->GetName();
               } else if (targetSymbol) {
-                // proc that's not a call
                 if (IsProcedure(*targetSymbol)) {
+                  // proc that's not a call
                   targetProc = characteristics::Procedure::Characterize(
                       *targetSymbol, context);
                 }
@@ -2625,6 +2751,11 @@ static bool CheckAssociated(SpecificCall &call, FoldingContext &context) {
                   for (SymbolRef ref : symbols) {
                     msg = AttachDeclaration(msg, *ref);
                   }
+                } else if (HasVectorSubscript(*targetExpr) ||
+                    ExtractCoarrayRef(*targetExpr)) {
+                  context.messages().Say(targetArg->sourceLocation(),
+                      "TARGET= argument '%s' may not have a vector subscript or coindexing"_err_en_US,
+                      targetExpr->AsFortran());
                 }
                 if (const auto pointerType{pointerArg->GetType()}) {
                   if (const auto targetType{targetArg->GetType()}) {
@@ -2761,7 +2892,8 @@ static bool ApplySpecificChecks(SpecificCall &call, FoldingContext &context) {
     }
   } else if (name == "associated") {
     return CheckAssociated(call, context);
-  } else if (name == "atomic_and" || name == "atomic_or") {
+  } else if (name == "atomic_and" || name == "atomic_or" ||
+      name == "atomic_xor") {
     return CheckForCoindexedObject(context, call.arguments[2], name, "stat");
   } else if (name == "atomic_cas") {
     return CheckForCoindexedObject(context, call.arguments[4], name, "stat");
@@ -2786,24 +2918,6 @@ static bool ApplySpecificChecks(SpecificCall &call, FoldingContext &context) {
     if (const auto &arg{call.arguments[0]}) {
       ok = CheckForNonPositiveValues(context, *arg, name, "image");
     }
-  } else if (name == "ishftc") {
-    if (const auto &sizeArg{call.arguments[2]}) {
-      ok = CheckForNonPositiveValues(context, *sizeArg, name, "size");
-      if (ok) {
-        if (auto sizeVal{ToInt64(sizeArg->UnwrapExpr())}) {
-          if (const auto &shiftArg{call.arguments[1]}) {
-            if (auto shiftVal{ToInt64(shiftArg->UnwrapExpr())}) {
-              if (std::abs(*shiftVal) > *sizeVal) {
-                ok = false;
-                context.messages().Say(shiftArg->sourceLocation(),
-                    "The absolute value of the 'shift=' argument for intrinsic '%s' must be less than or equal to the 'size=' argument"_err_en_US,
-                    name);
-              }
-            }
-          }
-        }
-      }
-    }
   } else if (name == "lcobound") {
     return CheckDimAgainstCorank(call, context);
   } else if (name == "loc") {
@@ -2822,7 +2936,7 @@ static bool ApplySpecificChecks(SpecificCall &call, FoldingContext &context) {
     ok &= CheckForCoindexedObject(context, call.arguments[3], name, "errmsg");
     if (call.arguments[0] && call.arguments[1]) {
       for (int j{0}; j < 2; ++j) {
-        if (const Symbol * last{GetLastSymbol(call.arguments[j])};
+        if (const Symbol *last{GetLastSymbol(call.arguments[j])};
             last && !IsAllocatable(last->GetUltimate())) {
           context.messages().Say(call.arguments[j]->sourceLocation(),
               "Argument #%d to MOVE_ALLOC must be allocatable"_err_en_US,
@@ -2842,7 +2956,7 @@ static bool ApplySpecificChecks(SpecificCall &call, FoldingContext &context) {
     const auto &arg{call.arguments[0]};
     if (arg) {
       if (const auto *expr{arg->UnwrapExpr()}) {
-        if (const Symbol * symbol{UnwrapWholeSymbolDataRef(*expr)}) {
+        if (const Symbol *symbol{UnwrapWholeSymbolDataRef(*expr)}) {
           ok = symbol->attrs().test(semantics::Attr::OPTIONAL);
         }
       }
@@ -2932,6 +3046,44 @@ static bool ApplySpecificChecks(SpecificCall &call, FoldingContext &context) {
             ok = false;
             context.messages().Say(at,
                 "If either argument of the OPERATION= procedure of REDUCE() has the ASYNCHRONOUS, VOLATILE, or TARGET attribute, both must have that attribute"_err_en_US);
+          }
+        }
+      }
+    }
+  } else if (name == "transfer") { // 16.9.193
+    if (call.arguments.size() >= 2) {
+      auto source{characteristics::TypeAndShape::Characterize(
+          call.arguments[0], context)};
+      auto mold{characteristics::TypeAndShape::Characterize(
+          call.arguments[1], context)};
+      if (source && mold && mold->Rank() > 0 &&
+          evaluate::ToInt64(
+              evaluate::Fold(
+                  context, mold->MeasureElementSizeInBytes(context, false)))
+                  .value_or(1) == 0) {
+        if (auto sourceSize{evaluate::ToInt64(evaluate::Fold(
+                context, source->MeasureSizeInBytes(context)))}) {
+          if (*sourceSize > 0) {
+            context.messages().Say(
+                "Element size of MOLD= array may not be zero when SOURCE= is not empty"_err_en_US);
+            ok = false;
+          }
+        } else {
+          context.messages().Say(
+              "Element size of MOLD= array may not be zero unless SOURCE= is empty"_warn_en_US);
+        }
+      }
+      if (call.arguments.size() > 2) {
+        if (const Symbol *whole{
+                UnwrapWholeSymbolOrComponentDataRef(call.arguments[2])}) {
+          if (IsOptional(*whole)) {
+            context.messages().Say(
+                "SIZE= argument may not be the optional dummy argument '%s'"_err_en_US,
+                whole->name());
+            ok = false;
+          } else if (IsAllocatableOrPointer(*whole)) {
+            context.messages().Say(
+                "SIZE= argument that is allocatable or pointer must be present at execution; parenthesize to silence this warning"_warn_en_US);
           }
         }
       }

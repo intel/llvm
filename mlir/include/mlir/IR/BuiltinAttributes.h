@@ -784,7 +784,7 @@ public:
   get(ShapedType type, StringRef blobName, AsmResourceBlob blob);
 
   /// Return the data of this attribute as an ArrayRef<T> if it is present,
-  /// returns None otherwise.
+  /// returns std::nullopt otherwise.
   Optional<ArrayRef<T>> tryGetAsArrayRef() const;
 
   /// Support for isa<>/cast<>.
@@ -1034,7 +1034,7 @@ inline bool operator!=(StringRef lhs, StringAttr rhs) { return !(lhs == rhs); }
 
 namespace mlir {
 
-/// Given a list of strides (in which MemRefType::getDynamicStrideOrOffset()
+/// Given a list of strides (in which ShapedType::kDynamic
 /// represents a dynamic value), return the single result AffineMap which
 /// represents the linearized strided layout map. Dimensions correspond to the
 /// offset followed by the strides in order. Symbols are inserted for each

@@ -254,6 +254,9 @@ void CodeGenFunction::EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs) {
   case Stmt::OMPTaskyieldDirectiveClass:
     EmitOMPTaskyieldDirective(cast<OMPTaskyieldDirective>(*S));
     break;
+  case Stmt::OMPErrorDirectiveClass:
+    EmitOMPErrorDirective(cast<OMPErrorDirective>(*S));
+    break;
   case Stmt::OMPBarrierDirectiveClass:
     EmitOMPBarrierDirective(cast<OMPBarrierDirective>(*S));
     break;
@@ -571,9 +574,9 @@ void CodeGenFunction::EmitBlock(llvm::BasicBlock *BB, bool IsFinished) {
   // Place the block after the current block, if possible, or else at
   // the end of the function.
   if (CurBB && CurBB->getParent())
-    CurFn->getBasicBlockList().insertAfter(CurBB->getIterator(), BB);
+    CurFn->insert(std::next(CurBB->getIterator()), BB);
   else
-    CurFn->getBasicBlockList().push_back(BB);
+    CurFn->insert(CurFn->end(), BB);
   Builder.SetInsertPoint(BB);
 }
 
@@ -598,15 +601,14 @@ void CodeGenFunction::EmitBlockAfterUses(llvm::BasicBlock *block) {
   bool inserted = false;
   for (llvm::User *u : block->users()) {
     if (llvm::Instruction *insn = dyn_cast<llvm::Instruction>(u)) {
-      CurFn->getBasicBlockList().insertAfter(insn->getParent()->getIterator(),
-                                             block);
+      CurFn->insert(std::next(insn->getParent()->getIterator()), block);
       inserted = true;
       break;
     }
   }
 
   if (!inserted)
-    CurFn->getBasicBlockList().push_back(block);
+    CurFn->insert(CurFn->end(), block);
 
   Builder.SetInsertPoint(block);
 }
@@ -718,11 +720,10 @@ void CodeGenFunction::EmitAttributedStmt(const AttributedStmt &S) {
       break;
     }
   }
-  SaveAndRestore<bool> save_nomerge(InNoMergeAttributedStmt, nomerge);
-  SaveAndRestore<bool> save_noinline(InNoInlineAttributedStmt, noinline);
-  SaveAndRestore<bool> save_alwaysinline(InAlwaysInlineAttributedStmt,
-                                         alwaysinline);
-  SaveAndRestore<const CallExpr *> save_musttail(MustTailCall, musttail);
+  SaveAndRestore save_nomerge(InNoMergeAttributedStmt, nomerge);
+  SaveAndRestore save_noinline(InNoInlineAttributedStmt, noinline);
+  SaveAndRestore save_alwaysinline(InAlwaysInlineAttributedStmt, alwaysinline);
+  SaveAndRestore save_musttail(MustTailCall, musttail);
   EmitStmt(S.getSubStmt(), S.getAttrs());
 }
 
@@ -1467,7 +1468,7 @@ void CodeGenFunction::EmitCaseStmtRange(const CaseStmt &S,
   llvm::BasicBlock *FalseDest = CaseRangeBlock;
   CaseRangeBlock = createBasicBlock("sw.caserange");
 
-  CurFn->getBasicBlockList().push_back(CaseRangeBlock);
+  CurFn->insert(CurFn->end(), CaseRangeBlock);
   Builder.SetInsertPoint(CaseRangeBlock);
 
   // Emit range check.
@@ -1871,7 +1872,7 @@ static Optional<SmallVector<uint64_t, 16>>
 getLikelihoodWeights(ArrayRef<Stmt::Likelihood> Likelihoods) {
   // Are there enough branches to weight them?
   if (Likelihoods.size() <= 1)
-    return None;
+    return std::nullopt;
 
   uint64_t NumUnlikely = 0;
   uint64_t NumNone = 0;
@@ -1892,7 +1893,7 @@ getLikelihoodWeights(ArrayRef<Stmt::Likelihood> Likelihoods) {
 
   // Is there a likelihood attribute used?
   if (NumUnlikely == 0 && NumLikely == 0)
-    return None;
+    return std::nullopt;
 
   // When multiple cases share the same code they can be combined during
   // optimization. In that case the weights of the branch will be the sum of

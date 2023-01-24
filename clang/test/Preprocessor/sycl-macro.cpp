@@ -9,6 +9,8 @@
 // RUNx: %clang_cc1 %s -fsycl-id-queries-fit-in-int -fsycl-is-device -E -dM -fms-compatibility | FileCheck --check-prefix=CHECK-MSVC %s
 // RUN: %clang_cc1 -fno-sycl-id-queries-fit-in-int %s -E -dM | FileCheck \
 // RUN: --check-prefix=CHECK-NO-SYCL_FIT_IN_INT %s
+// RUN: %clang_cc1 %s  -triple nvptx64-nvidia-cuda -target-cpu sm_80 -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-CUDA %s
+// RUN: %clang_cc1 %s  -triple amdgcn-amd-amdhsa -target-cpu gfx906 -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-HIP %s
 
 // CHECK-NOT:#define __SYCL_DEVICE_ONLY__ 1
 // CHECK-NOT:#define SYCL_EXTERNAL
@@ -30,3 +32,7 @@
 
 // CHECK-NO-SYCL_FIT_IN_INT-NOT:#define __SYCL_ID_QUERIES_FIT_IN_INT__ 1
 // CHECK-SYCL-ID:#define __SYCL_ID_QUERIES_FIT_IN_INT__ 1
+
+// CHECK-CUDA:#define __CUDA_ARCH__ 800
+
+// CHECK-HIP:#define __CUDA_ARCH__ 0

@@ -41,7 +41,7 @@ class RefPropertyType<string className> : PropertyType<className # "*"> {
   let PackOptional =
     "value ? *value : nullptr";
   let UnpackOptional =
-    "value ? llvm::Optional<" # CXXName # ">(value) : llvm::None";
+    "value ? llvm::Optional<" # CXXName # ">(value) : std::nullopt";
 }
 
 /// Property types that correspond to a specific subclass of another type.
@@ -58,7 +58,7 @@ class DefaultValuePropertyType<string typeName = ""> : PropertyType<typeName> {
   let PackOptional =
     "value ? *value : " # CXXName # "()";
   let UnpackOptional =
-    "value.isNull() ? llvm::None : llvm::Optional<" # CXXName # ">(value)";
+    "value.isNull() ? std::nullopt : llvm::Optional<" # CXXName # ">(value)";
 }
 
 /// Property types that correspond to integer types and support optional
@@ -67,7 +67,7 @@ class CountPropertyType<string typeName = ""> : PropertyType<typeName> {
   let PackOptional =
     "value ? *value + 1 : 0";
   let UnpackOptional =
-    "value ? llvm::Optional<" # CXXName # ">(value - 1) : llvm::None";
+    "value ? llvm::Optional<" # CXXName # ">(value - 1) : std::nullopt";
 }
 
 def APInt : PropertyType<"llvm::APInt"> { let PassByReference = 1; }
@@ -521,15 +521,15 @@ let Class = PropertyTypeCase<APValue, "LValue"> in {
     if (hasBase) {
       if (isTypeInfo) {
         base = APValue::LValueBase::getTypeInfo(
-            TypeInfoLValue(typeInfo.value().getTypePtr()), type.value());
+            TypeInfoLValue(typeInfo->getTypePtr()), *type);
         elemTy = base.getTypeInfoType();
       } else if (isExpr) {
-        base = APValue::LValueBase(cast<Expr>(stmt.value()),
-                                   callIndex.value(), version.value());
+        base = APValue::LValueBase(cast<Expr>(*stmt),
+                                   *callIndex, *version);
         elemTy = base.get<const Expr *>()->getType();
       } else {
-        base = APValue::LValueBase(cast<ValueDecl>(decl.value()),
-                                   callIndex.value(), version.value());
+        base = APValue::LValueBase(cast<ValueDecl>(*decl),
+                                   *callIndex, *version);
         elemTy = base.get<const ValueDecl *>()->getType();
       }
     }
@@ -799,13 +799,14 @@ let Class = PropertyTypeCase<TemplateArgument, "TemplateExpansion"> in {
   def : Property<"numExpansions", Optional<UInt32>> {
     let Read = [{
       // Translate unsigned -> uint32_t just in case.
-      node.getNumTemplateExpansions().transform(
-        [](unsigned i) { return uint32_t(i); })
+      llvm::transformOptional(node.getNumTemplateExpansions(),
+                              [](unsigned i) { return uint32_t(i); })
     }];
   }
   def : Creator<[{
-    auto numExpansionsUnsigned =
-      numExpansions.transform([](uint32_t i) { return unsigned(i); });
+    auto numExpansionsUnsigned = llvm::transformOptional(
+        numExpansions, [](uint32_t i) { return unsigned(i); });
+
     return TemplateArgument(name, numExpansionsUnsigned);
   }]>;
 }

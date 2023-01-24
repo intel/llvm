@@ -16,6 +16,7 @@
 include "mlir/Dialect/DLTI/DLTIBase.td"
 include "mlir/Dialect/GPU/IR/GPUBase.td"
 include "mlir/Dialect/GPU/IR/ParallelLoopMapperAttr.td"
+include "mlir/Dialect/GPU/TransformOps/GPUDeviceMappingAttr.td"
 include "mlir/IR/EnumAttr.td"
 include "mlir/IR/FunctionInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
@@ -241,7 +242,9 @@ def GPU_GPUFuncOp : GPU_Op<"func", [
     attribution.
   }];
 
-  let arguments = (ins TypeAttrOf<FunctionType>:$function_type);
+  let arguments = (ins TypeAttrOf<FunctionType>:$function_type,
+                       OptionalAttr<DictArrayAttr>:$arg_attrs,
+                       OptionalAttr<DictArrayAttr>:$res_attrs);
   let regions = (region AnyRegion:$body);
 
   let skipDefaultBuilders = 1;
@@ -685,7 +688,8 @@ def GPU_AllReduceOperationAttr : EnumAttr<GPU_Dialect, GPU_AllReduceOperation,
 def GPU_AllReduceOp : GPU_Op<"all_reduce",
     [SameOperandsAndResultType, IsolatedFromAbove]>,
     Arguments<(ins AnyType:$value,
-               OptionalAttr<GPU_AllReduceOperationAttr>:$op)>,
+               OptionalAttr<GPU_AllReduceOperationAttr>:$op,
+               UnitAttr:$uniform)>,
     Results<(outs AnyType)> {
   let summary = "Reduce values among workgroup.";
   let description = [{
@@ -708,11 +712,12 @@ def GPU_AllReduceOp : GPU_Op<"all_reduce",
     accumulation as code region. The accumulation operation must be one of:
     `add`, `and`, `max`, `min`, `mul`, `or`, `xor`.
 
-    Either none or all work items of a workgroup need to execute this op
-    in convergence.
+    If `uniform` flag is set either none or all work items of a workgroup
+    need to execute this op in convergence.
   }];
   let regions = (region AnyRegion:$body);
-  let assemblyFormat = [{ custom<AllReduceOperation>($op) $value $body attr-dict
+  let assemblyFormat = [{ custom<AllReduceOperation>($op) $value
+                          (`uniform` $uniform^)? $body attr-dict
                           `:` functional-type(operands, results) }];
   let hasRegionVerifier = 1;
 }
@@ -720,7 +725,8 @@ def GPU_AllReduceOp : GPU_Op<"all_reduce",
 def GPU_SubgroupReduceOp : GPU_Op<"subgroup_reduce",
     [SameOperandsAndResultType]>,
     Arguments<(ins AnyType:$value,
-               GPU_AllReduceOperationAttr:$op)>,
+               GPU_AllReduceOperationAttr:$op,
+               UnitAttr:$uniform)>,
     Results<(outs AnyType)> {
   let summary = "Reduce values among subgroup.";
   let description = [{
@@ -733,10 +739,11 @@ def GPU_SubgroupReduceOp : GPU_Op<"subgroup_reduce",
     %1 = gpu.subgroup_reduce add %0 : (f32) -> (f32)
     ```
 
-    Either none or all work items of a subgroup need to execute this op
-    in convergence.
+    If `uniform` flag is set either none or all work items of a subgroup
+    need to execute this op in convergence.
   }];
-  let assemblyFormat = [{ custom<AllReduceOperation>($op) $value attr-dict
+  let assemblyFormat = [{ custom<AllReduceOperation>($op) $value
+                          (`uniform` $uniform^)? attr-dict
                           `:` functional-type(operands, results) }];
   let hasVerifier = 1;
 }
@@ -1101,7 +1108,7 @@ def GPU_SubgroupMmaLoadMatrixOp : GPU_Op<"subgroup_mma_load_matrix",
     determined using `indices`. The matrix being loaded into is the result.  The
     `leadDimension` attribute specifies the leading dimension size of the source
     matrix which eventually allows the lowering to determine the size of each
-    row.
+    row.  If the `transpose` attribute is present then the op does a transposed load.
 
     This op is often meant to be used along with `gpu.subgroup_mma_store_matrix` and
     `gpu.subgroup_mma_compute`.
@@ -1116,7 +1123,8 @@ def GPU_SubgroupMmaLoadMatrixOp : GPU_Op<"subgroup_mma_load_matrix",
 
   let arguments = (ins Arg<GPU_MMAMemRef, "", [MemRead]>:$srcMemref,
                   Variadic<Index>:$indices,
-                  IndexAttr:$leadDimension);
+                  IndexAttr:$leadDimension,
+                  OptionalAttr<UnitAttr>:$transpose);
 
   let results = (outs GPU_MMAMatrix:$res);
 
@@ -1139,7 +1147,8 @@ def GPU_SubgroupMmaStoreMatrixOp : GPU_Op<"subgroup_mma_store_matrix",
     `!gpu.mma_matrix` is the source value containing the data to be stored into the
     destination memref which can be in global or shared memory.  The store address
     is determined using the indices provided. The `leadDimension` attribute
-    specifies the leading dimension of the destination matrix.
+    specifies the leading dimension of the destination matrix. If the
+    `transpose` attribute is present then the op does a transposed store.
 
     This op is often meant to be used along with `gpu.subgroup_mma_load_matrix` and
     `gpu.subgroup_mma_compute`.
@@ -1155,7 +1164,8 @@ def GPU_SubgroupMmaStoreMatrixOp : GPU_Op<"subgroup_mma_store_matrix",
   let arguments = (ins Arg<MMAMatrixOf<[F16, F32]>>:$src,
                   Arg<GPU_MMAMemRef, "",[MemWrite]>:$dstMemref,
                   Variadic<Index>:$indices,
-                  IndexAttr:$leadDimension);
+                  IndexAttr:$leadDimension,
+                  OptionalAttr<UnitAttr>:$transpose);
 
   let assemblyFormat = [{
     $src`,` $dstMemref`[`$indices`]` attr-dict `:` type($src)`,` type($dstMemref)
@@ -1163,8 +1173,8 @@ def GPU_SubgroupMmaStoreMatrixOp : GPU_Op<"subgroup_mma_store_matrix",
   let hasVerifier = 1;
 }
 
-def GPU_SubgroupMmaComputeOp : GPU_Op<"subgroup_mma_compute",
-   [Pure, AllTypesMatch<["opC", "res"]>]>{
+def GPU_SubgroupMmaComputeOp
+    : GPU_Op<"subgroup_mma_compute", [Pure, AllTypesMatch<["opC", "res"]>]> {
 
   let summary = "GPU warp synchronous matrix multiply accumulate";
 
@@ -1173,9 +1183,14 @@ def GPU_SubgroupMmaComputeOp : GPU_Op<"subgroup_mma_compute",
     operation using all the threads in a subgroup.
 
     This operation takes three `!gpu.mma_matrix`s as arguments: these hold `A`,
-     `B` and `C`operands for the mma operation. The operation performed is represented
+    `B` and `C`operands for the mma operation. The operation performed is represented
     as `C += A * B`. The op returns a `!gpu.mma_matrix` which contains the result of
-    the operation held by all threads in a subgroup.
+    the operation held by all threads in a subgroup. `a_transpose` or
+    `b_transpose` if present, signify that the respective operand was loaded in a
+    transposed manner. The transpose opernads are required to map to correct
+    underlying intrisics but they currently do not seem to affect correctness
+    even if they are absent given that the operands were loaded correctly using
+    the `transpose` attribute in `gpu.subgroup_mma_load_matrix` op.
 
     This op is meant to be used along with `gpu.subgroup_mma_store_matrix` and
     `gpu.subgroup_mma_load_matrix` ops.
@@ -1191,9 +1206,11 @@ def GPU_SubgroupMmaComputeOp : GPU_Op<"subgroup_mma_compute",
 
   let arguments = (ins Arg<MMAMatrixOf<[F16, F32]>>:$opA,
                   Arg<MMAMatrixOf<[F16, F32]>>:$opB,
-                  Arg<MMAMatrixOf<[F16, F32]>>:$opC);
+                  Arg<MMAMatrixOf<[F16, F32]>>:$opC,
+                  OptionalAttr<UnitAttr>:$a_transpose,
+                  OptionalAttr<UnitAttr>:$b_transpose);
 
-  let results = (outs GPU_MMAMatrix:$res);
+  let results = (outs GPU_MMAMatrix : $res);
 
   let assemblyFormat = [{
     $opA`,` $opB`,` $opC attr-dict `:` type($opA)`,` type($opB) `->` type($res)
@@ -1213,11 +1230,11 @@ def GPU_SubgroupMmaConstantMatrixOp : GPU_Op<"subgroup_mma_constant_matrix",
     The `gpu.subgroup_mma_constant_matrix` creates a `!gpu.mma_matrix` with
     constant elements.
 
-    The operation takes a scalar input and return a `!gpu.mma_matrix` where each
-    element of is equal to the operand constant. The destination mma_matrix type
-    must have elememt type equal to the constant type. Since the layout of
-    `!gpu.mma_matrix` is opaque this only support setting all the elements to
-    the same value.
+    The operation takes a scalar input and return a `!gpu.mma_matrix` where
+    each element of is equal to the operand constant. The destination
+    mma_matrix type must have elememt type equal to the constant type. Since
+    the layout of `!gpu.mma_matrix` is opaque this only support setting all the
+    elements to the same value.
 
     This op is meant to be used along with `gpu.subgroup_mma_compute`.
 

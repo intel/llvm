@@ -124,6 +124,7 @@
 #include <limits>
 #include <map>
 #include <numeric>
+#include <optional>
 #include <utility>
 
 using namespace llvm;
@@ -1267,7 +1268,7 @@ static unsigned getSetupCost(const SCEV *Reg, unsigned Depth) {
   if (auto S = dyn_cast<SCEVIntegralCastExpr>(Reg))
     return getSetupCost(S->getOperand(), Depth - 1);
   if (auto S = dyn_cast<SCEVNAryExpr>(Reg))
-    return std::accumulate(S->op_begin(), S->op_end(), 0,
+    return std::accumulate(S->operands().begin(), S->operands().end(), 0,
                            [&](unsigned i, const SCEV *Reg) {
                              return i + getSetupCost(Reg, Depth - 1);
                            });
@@ -2534,7 +2535,7 @@ LSRInstance::OptimizeLoopTermCond() {
         ICmpInst *OldCond = Cond;
         Cond = cast<ICmpInst>(Cond->clone());
         Cond->setName(L->getHeader()->getName() + ".termcond");
-        ExitingBlock->getInstList().insert(TermBr->getIterator(), Cond);
+        Cond->insertInto(ExitingBlock, TermBr->getIterator());
 
         // Clone the IVUse, as the old use still exists!
         CondUse = &IU.AddUser(Cond, CondUse->getOperandValToReplace());
@@ -2722,7 +2723,7 @@ void LSRInstance::CollectInterestingTypesAndFactors() {
           Strides.insert(AR->getStepRecurrence(SE));
         Worklist.push_back(AR->getStart());
       } else if (const SCEVAddExpr *Add = dyn_cast<SCEVAddExpr>(S)) {
-        Worklist.append(Add->op_begin(), Add->op_end());
+        append_range(Worklist, Add->operands());
       }
     } while (!Worklist.empty());
   }
@@ -3489,7 +3490,7 @@ LSRInstance::CollectLoopInvariantFixupsAndFormulae() {
       continue;
 
     if (const SCEVNAryExpr *N = dyn_cast<SCEVNAryExpr>(S))
-      Worklist.append(N->op_begin(), N->op_end());
+      append_range(Worklist, N->operands());
     else if (const SCEVIntegralCastExpr *C = dyn_cast<SCEVIntegralCastExpr>(S))
       Worklist.push_back(C->getOperand());
     else if (const SCEVUDivExpr *D = dyn_cast<SCEVUDivExpr>(S)) {
@@ -6435,11 +6436,10 @@ static bool SalvageDVI(llvm::Loop *L, ScalarEvolution &SE,
 
     // Create an offset-based salvage expression if possible, as it requires
     // less DWARF ops than an iteration count-based expression.
-    if (Optional<APInt> Offset =
+    if (std::optional<APInt> Offset =
             SE.computeConstantDifference(DVIRec.SCEVs[i], SCEVInductionVar)) {
-      if (Offset.value().getMinSignedBits() <= 64)
-        SalvageExpr->createOffsetExpr(Offset.value().getSExtValue(),
-                                      LSRInductionVar);
+      if (Offset->getMinSignedBits() <= 64)
+        SalvageExpr->createOffsetExpr(Offset->getSExtValue(), LSRInductionVar);
     } else if (!SalvageExpr->createIterCountExpr(DVIRec.SCEVs[i], IterCountExpr,
                                                  SE))
       return false;
@@ -6614,22 +6614,22 @@ static llvm::PHINode *GetInductionVariable(const Loop &L, ScalarEvolution &SE,
   return nullptr;
 }
 
-static Optional<std::pair<PHINode *, PHINode *>>
+static std::optional<std::pair<PHINode *, std::pair<PHINode *, const SCEV *>>>
 canFoldTermCondOfLoop(Loop *L, ScalarEvolution &SE, DominatorTree &DT,
                       const LoopInfo &LI) {
   if (!L->isInnermost()) {
     LLVM_DEBUG(dbgs() << "Cannot fold on non-innermost loop\n");
-    return None;
+    return std::nullopt;
   }
   // Only inspect on simple loop structure
   if (!L->isLoopSimplifyForm()) {
     LLVM_DEBUG(dbgs() << "Cannot fold on non-simple loop\n");
-    return None;
+    return std::nullopt;
   }
 
   if (!SE.hasLoopInvariantBackedgeTakenCount(L)) {
     LLVM_DEBUG(dbgs() << "Cannot fold on backedge that is loop variant\n");
-    return None;
+    return std::nullopt;
   }
 
   BasicBlock *LoopPreheader = L->getLoopPreheader();
@@ -6639,18 +6639,18 @@ canFoldTermCondOfLoop(Loop *L, ScalarEvolution &SE, DominatorTree &DT,
   // Terminating condition is foldable when it is an eq/ne icmp
   BranchInst *BI = cast<BranchInst>(LoopLatch->getTerminator());
   if (BI->isUnconditional())
-    return None;
+    return std::nullopt;
   Value *TermCond = BI->getCondition();
   if (!isa<ICmpInst>(TermCond) || !cast<ICmpInst>(TermCond)->isEquality()) {
     LLVM_DEBUG(dbgs() << "Cannot fold on branching condition that is not an "
                          "ICmpInst::eq / ICmpInst::ne\n");
-    return None;
+    return std::nullopt;
   }
   if (!TermCond->hasOneUse()) {
     LLVM_DEBUG(
         dbgs()
         << "Cannot replace terminating condition with more than one use\n");
-    return None;
+    return std::nullopt;
   }
 
   // For `IsToFold`, a primary IV can be replaced by other affine AddRec when it
@@ -6699,16 +6699,37 @@ canFoldTermCondOfLoop(Loop *L, ScalarEvolution &SE, DominatorTree &DT,
 
   // For `IsToHelpFold`, other IV that is an affine AddRec will be sufficient to
   // replace the terminating condition
-  auto IsToHelpFold = [&](PHINode &PN) -> bool {
+  auto IsToHelpFold = [&](PHINode &PN) -> std::pair<bool, const SCEV *> {
+    const SCEVAddRecExpr *AddRec = cast<SCEVAddRecExpr>(SE.getSCEV(&PN));
+    const SCEV *BECount = SE.getBackedgeTakenCount(L);
+    const SCEV *TermValueS = SE.getAddExpr(
+        AddRec->getOperand(0),
+        SE.getTruncateOrZeroExtend(
+            SE.getMulExpr(
+                AddRec->getOperand(1),
+                SE.getTruncateOrZeroExtend(
+                    SE.getAddExpr(BECount, SE.getOne(BECount->getType())),
+                    AddRec->getOperand(1)->getType())),
+            AddRec->getOperand(0)->getType()));
+    const DataLayout &DL = L->getHeader()->getModule()->getDataLayout();
+    SCEVExpander Expander(SE, DL, "lsr_fold_term_cond");
+    if (!Expander.isSafeToExpand(TermValueS)) {
+      LLVM_DEBUG(
+          dbgs() << "Is not safe to expand terminating value for phi node" << PN
+                 << "\n");
+      return {false, nullptr};
+    }
     // TODO: Right now we limit the phi node to help the folding be of a start
     // value of getelementptr. We can extend to any kinds of IV as long as it is
     // an affine AddRec. Add a switch to cover more types of instructions here
     // and down in the actual transformation.
-    return isa<GetElementPtrInst>(PN.getIncomingValueForBlock(LoopPreheader));
+    return {isa<GetElementPtrInst>(PN.getIncomingValueForBlock(LoopPreheader)),
+            TermValueS};
   };
 
   PHINode *ToFold = nullptr;
   PHINode *ToHelpFold = nullptr;
+  const SCEV *TermValueS = nullptr;
 
   for (PHINode &PN : L->getHeader()->phis()) {
     if (!SE.isSCEVable(PN.getType())) {
@@ -6729,8 +6750,10 @@ canFoldTermCondOfLoop(Loop *L, ScalarEvolution &SE, DominatorTree &DT,
 
     if (IsToFold(PN))
       ToFold = &PN;
-    else if (IsToHelpFold(PN))
+    else if (auto P = IsToHelpFold(PN); P.first) {
       ToHelpFold = &PN;
+      TermValueS = P.second;
+    }
   }
 
   LLVM_DEBUG(if (ToFold && !ToHelpFold) dbgs()
@@ -6745,8 +6768,8 @@ canFoldTermCondOfLoop(Loop *L, ScalarEvolution &SE, DominatorTree &DT,
              << "  ToHelpFold: " << *ToHelpFold << "\n");
 
   if (!ToFold || !ToHelpFold)
-    return None;
-  return {{ToFold, ToHelpFold}};
+    return std::nullopt;
+  return {{ToFold, {ToHelpFold, TermValueS}}};
 }
 
 static bool ReduceLoopStrength(Loop *L, IVUsers &IU, ScalarEvolution &SE,
@@ -6810,11 +6833,14 @@ static bool ReduceLoopStrength(Loop *L, IVUsers &IU, ScalarEvolution &SE,
   if (AllowTerminatingConditionFoldingAfterLSR) {
     auto CanFoldTerminatingCondition = canFoldTermCondOfLoop(L, SE, DT, LI);
     if (CanFoldTerminatingCondition) {
+      Changed = true;
+      NumTermFold++;
+
       BasicBlock *LoopPreheader = L->getLoopPreheader();
       BasicBlock *LoopLatch = L->getLoopLatch();
 
       PHINode *ToFold = CanFoldTerminatingCondition->first;
-      PHINode *ToHelpFold = CanFoldTerminatingCondition->second;
+      PHINode *ToHelpFold = CanFoldTerminatingCondition->second.first;
 
       (void)ToFold;
       LLVM_DEBUG(dbgs() << "To fold phi-node:\n"
@@ -6834,56 +6860,35 @@ static bool ReduceLoopStrength(Loop *L, IVUsers &IU, ScalarEvolution &SE,
       GetElementPtrInst *StartValueGEP = cast<GetElementPtrInst>(StartValue);
       Type *PtrTy = StartValueGEP->getPointerOperand()->getType();
 
-      const SCEV *BECount = SE.getBackedgeTakenCount(L);
-      const SCEVAddRecExpr *AddRec =
-          cast<SCEVAddRecExpr>(SE.getSCEV(ToHelpFold));
+      const SCEV *TermValueS = CanFoldTerminatingCondition->second.second;
+      assert(
+          Expander.isSafeToExpand(TermValueS) &&
+          "Terminating value was checked safe in canFoldTerminatingCondition");
 
-      // TermValue = Start + Stride * (BackedgeCount + 1)
-      const SCEV *TermValueS = SE.getAddExpr(
-          AddRec->getOperand(0),
-          SE.getTruncateOrZeroExtend(
-              SE.getMulExpr(
-                  AddRec->getOperand(1),
-                  SE.getTruncateOrZeroExtend(
-                      SE.getAddExpr(BECount, SE.getOne(BECount->getType())),
-                      AddRec->getOperand(1)->getType())),
-              AddRec->getOperand(0)->getType()));
+      Value *TermValue = Expander.expandCodeFor(TermValueS, PtrTy,
+                                                LoopPreheader->getTerminator());
 
-      // NOTE: If this is triggered, we should add this into predicate
-      if (!Expander.isSafeToExpand(TermValueS)) {
-        LLVMContext &Ctx = L->getHeader()->getContext();
-        Ctx.emitError(
-            "Terminating value is not safe to expand, need to add it to "
-            "predicate");
-      } else { // Now we replace the condition with ToHelpFold and remove ToFold
-        Changed = true;
-        NumTermFold++;
+      LLVM_DEBUG(dbgs() << "Start value of new term-cond phi-node:\n"
+                        << *StartValue << "\n"
+                        << "Terminating value of new term-cond phi-node:\n"
+                        << *TermValue << "\n");
 
-        Value *TermValue = Expander.expandCodeFor(
-            TermValueS, PtrTy, LoopPreheader->getTerminator());
+      // Create new terminating condition at loop latch
+      BranchInst *BI = cast<BranchInst>(LoopLatch->getTerminator());
+      ICmpInst *OldTermCond = cast<ICmpInst>(BI->getCondition());
+      IRBuilder<> LatchBuilder(LoopLatch->getTerminator());
+      Value *NewTermCond = LatchBuilder.CreateICmp(
+          OldTermCond->getPredicate(), LoopValue, TermValue,
+          "lsr_fold_term_cond.replaced_term_cond");
 
-        LLVM_DEBUG(dbgs() << "Start value of new term-cond phi-node:\n"
-                          << *StartValue << "\n"
-                          << "Terminating value of new term-cond phi-node:\n"
-                          << *TermValue << "\n");
+      LLVM_DEBUG(dbgs() << "Old term-cond:\n"
+                        << *OldTermCond << "\n"
+                        << "New term-cond:\b" << *NewTermCond << "\n");
 
-        // Create new terminating condition at loop latch
-        BranchInst *BI = cast<BranchInst>(LoopLatch->getTerminator());
-        ICmpInst *OldTermCond = cast<ICmpInst>(BI->getCondition());
-        IRBuilder<> LatchBuilder(LoopLatch->getTerminator());
-        Value *NewTermCond = LatchBuilder.CreateICmp(
-            OldTermCond->getPredicate(), LoopValue, TermValue,
-            "lsr_fold_term_cond.replaced_term_cond");
+      BI->setCondition(NewTermCond);
 
-        LLVM_DEBUG(dbgs() << "Old term-cond:\n"
-                          << *OldTermCond << "\n"
-                          << "New term-cond:\b" << *NewTermCond << "\n");
-
-        BI->setCondition(NewTermCond);
-
-        OldTermCond->eraseFromParent();
-        DeleteDeadPHIs(L->getHeader(), &TLI, MSSAU.get());
-      }
+      OldTermCond->eraseFromParent();
+      DeleteDeadPHIs(L->getHeader(), &TLI, MSSAU.get());
 
       ExpCleaner.markResultUsed();
     }

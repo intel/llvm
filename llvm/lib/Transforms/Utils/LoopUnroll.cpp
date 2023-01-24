@@ -17,7 +17,6 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
@@ -509,7 +508,8 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
 
   // When a FSDiscriminator is enabled, we don't need to add the multiply
   // factors to the discriminators.
-  if (Header->getParent()->isDebugInfoForProfiling() && !EnableFSDiscriminator)
+  if (Header->getParent()->shouldEmitDebugInfoForProfiling() &&
+      !EnableFSDiscriminator)
     for (BasicBlock *BB : L->getBlocks())
       for (Instruction &I : *BB)
         if (!isa<DbgInfoIntrinsic>(&I))
@@ -540,7 +540,7 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
     for (LoopBlocksDFS::RPOIterator BB = BlockBegin; BB != BlockEnd; ++BB) {
       ValueToValueMapTy VMap;
       BasicBlock *New = CloneBasicBlock(*BB, VMap, "." + Twine(It));
-      Header->getParent()->getBasicBlockList().insert(BlockInsertPt, New);
+      Header->getParent()->insert(BlockInsertPt, New);
 
       assert((*BB != Header || LI->getLoopFor(*BB) == L) &&
              "Header should not be in a sub-loop");
@@ -559,7 +559,7 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
             if (It > 1 && L->contains(InValI))
               InVal = LastValueMap[InValI];
           VMap[OrigPHI] = InVal;
-          New->getInstList().erase(NewPHI);
+          NewPHI->eraseFromParent();
         }
 
       // Update our running map of newest clones
@@ -633,7 +633,7 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
   for (PHINode *PN : OrigPHINode) {
     if (CompletelyUnroll) {
       PN->replaceAllUsesWith(PN->getIncomingValueForBlock(Preheader));
-      Header->getInstList().erase(PN);
+      PN->eraseFromParent();
     } else if (ULO.Count > 1) {
       Value *InVal = PN->removeIncomingValue(LatchBlock, false);
       // If this value was defined in the loop, take the value defined by the
@@ -699,11 +699,11 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
   };
 
   auto WillExit = [&](const ExitInfo &Info, unsigned i, unsigned j,
-                      bool IsLatch) -> Optional<bool> {
+                      bool IsLatch) -> std::optional<bool> {
     if (CompletelyUnroll) {
       if (PreserveOnlyFirst) {
         if (i == 0)
-          return None;
+          return std::nullopt;
         return j == 0;
       }
       // Complete (but possibly inexact) unrolling
@@ -711,7 +711,7 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
         return true;
       if (Info.TripCount && j != Info.TripCount)
         return false;
-      return None;
+      return std::nullopt;
     }
 
     if (ULO.Runtime) {
@@ -719,7 +719,7 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
       // exits may be stale.
       if (IsLatch && j != 0)
         return false;
-      return None;
+      return std::nullopt;
     }
 
     if (j != Info.BreakoutTrip &&
@@ -728,7 +728,7 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
       // unconditional branch for some iterations.
       return false;
     }
-    return None;
+    return std::nullopt;
   };
 
   // Fold branches for iterations where we know that they will exit or not
@@ -739,7 +739,7 @@ LoopUnrollResult llvm::UnrollLoop(Loop *L, UnrollLoopOptions ULO, LoopInfo *LI,
       // The branch destination.
       unsigned j = (i + 1) % e;
       bool IsLatch = Pair.first == LatchBlock;
-      Optional<bool> KnownWillExit = WillExit(Info, i, j, IsLatch);
+      std::optional<bool> KnownWillExit = WillExit(Info, i, j, IsLatch);
       if (!KnownWillExit)
         continue;
 

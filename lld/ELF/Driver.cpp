@@ -176,12 +176,15 @@ static std::tuple<ELFKind, uint16_t, uint8_t> parseEmulation(StringRef emul) {
           .Case("elf_iamcu", {ELF32LEKind, EM_IAMCU})
           .Case("elf64_sparc", {ELF64BEKind, EM_SPARCV9})
           .Case("msp430elf", {ELF32LEKind, EM_MSP430})
+          .Case("elf64_amdgpu", {ELF64LEKind, EM_AMDGPU})
           .Default({ELFNoneKind, EM_NONE});
 
   if (ret.first == ELFNoneKind)
     error("unknown emulation: " + emul);
   if (ret.second == EM_MSP430)
     osabi = ELFOSABI_STANDALONE;
+  else if (ret.second == EM_AMDGPU)
+    osabi = ELFOSABI_AMDGPU_HSA;
   return std::make_tuple(ret.first, ret.second, osabi);
 }
 
@@ -224,7 +227,7 @@ static bool isBitcode(MemoryBufferRef mb) {
 void LinkerDriver::addFile(StringRef path, bool withLOption) {
   using namespace sys::fs;
 
-  Optional<MemoryBufferRef> buffer = readFile(path);
+  std::optional<MemoryBufferRef> buffer = readFile(path);
   if (!buffer)
     return;
   MemoryBufferRef mbref = *buffer;
@@ -311,7 +314,7 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
 
 // Add a given library by searching it from input search paths.
 void LinkerDriver::addLibrary(StringRef name) {
-  if (Optional<std::string> path = searchLibrary(name))
+  if (std::optional<std::string> path = searchLibrary(name))
     addFile(saver().save(*path), /*withLOption=*/true);
   else
     error("unable to find library -l" + name, ErrorTag::LibNotFound, {name});
@@ -1249,7 +1252,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->trace = args.hasArg(OPT_trace);
   config->undefined = args::getStrings(args, OPT_undefined);
   config->undefinedVersion =
-      args.hasFlag(OPT_undefined_version, OPT_no_undefined_version, true);
+      args.hasFlag(OPT_undefined_version, OPT_no_undefined_version, false);
   config->unique = args.hasArg(OPT_unique);
   config->useAndroidRelrTags = args.hasFlag(
       OPT_use_android_relr_tags, OPT_no_use_android_relr_tags, false);
@@ -1365,17 +1368,20 @@ static void readConfigs(opt::InputArgList &args) {
     parseClangOption(std::string("-") + arg->getValue(), arg->getSpelling());
 
   // GCC collect2 passes -plugin-opt=path/to/lto-wrapper with an absolute or
-  // relative path. Just ignore. If not ended with "lto-wrapper", consider it an
+  // relative path. Just ignore. If not ended with "lto-wrapper" (or
+  // "lto-wrapper.exe" for GCC cross-compiled for Windows), consider it an
   // unsupported LLVMgold.so option and error.
-  for (opt::Arg *arg : args.filtered(OPT_plugin_opt_eq))
-    if (!StringRef(arg->getValue()).endswith("lto-wrapper"))
+  for (opt::Arg *arg : args.filtered(OPT_plugin_opt_eq)) {
+    StringRef v(arg->getValue());
+    if (!v.endswith("lto-wrapper") && !v.endswith("lto-wrapper.exe"))
       error(arg->getSpelling() + ": unknown plugin option '" + arg->getValue() +
             "'");
+  }
 
   config->passPlugins = args::getStrings(args, OPT_load_pass_plugins);
 
   // Parse -mllvm options.
-  for (auto *arg : args.filtered(OPT_mllvm)) {
+  for (const auto *arg : args.filtered(OPT_mllvm)) {
     parseClangOption(arg->getValue(), arg->getSpelling());
     config->mllvmOpts.emplace_back(arg->getValue());
   }
@@ -1391,7 +1397,7 @@ static void readConfigs(opt::InputArgList &args) {
     parallel::strategy = hardware_concurrency(threads);
     config->thinLTOJobs = v;
   }
-  if (auto *arg = args.getLastArg(OPT_thinlto_jobs))
+  if (auto *arg = args.getLastArg(OPT_thinlto_jobs_eq))
     config->thinLTOJobs = arg->getValue();
   config->threadCount = parallel::strategy.compute_thread_count();
 
@@ -1459,7 +1465,7 @@ static void readConfigs(opt::InputArgList &args) {
     if (args.hasArg(OPT_call_graph_ordering_file))
       error("--symbol-ordering-file and --call-graph-order-file "
             "may not be used together");
-    if (Optional<MemoryBufferRef> buffer = readFile(arg->getValue())){
+    if (std::optional<MemoryBufferRef> buffer = readFile(arg->getValue())) {
       config->symbolOrderingFile = getSymbolOrderingFile(*buffer);
       // Also need to disable CallGraphProfileSort to prevent
       // LLD order symbols with CGProfile
@@ -1478,7 +1484,7 @@ static void readConfigs(opt::InputArgList &args) {
   if (auto *arg = args.getLastArg(OPT_retain_symbols_file)) {
     config->versionDefinitions[VER_NDX_LOCAL].nonLocalPatterns.push_back(
         {"*", /*isExternCpp=*/false, /*hasWildcard=*/true});
-    if (Optional<MemoryBufferRef> buffer = readFile(arg->getValue()))
+    if (std::optional<MemoryBufferRef> buffer = readFile(arg->getValue()))
       for (StringRef s : args::getLines(*buffer))
         config->versionDefinitions[VER_NDX_GLOBAL].nonLocalPatterns.push_back(
             {s, /*isExternCpp=*/false, /*hasWildcard=*/false});
@@ -1509,12 +1515,12 @@ static void readConfigs(opt::InputArgList &args) {
       config->bsymbolic == BsymbolicKind::All || args.hasArg(OPT_dynamic_list);
   for (auto *arg :
        args.filtered(OPT_dynamic_list, OPT_export_dynamic_symbol_list))
-    if (Optional<MemoryBufferRef> buffer = readFile(arg->getValue()))
+    if (std::optional<MemoryBufferRef> buffer = readFile(arg->getValue()))
       readDynamicList(*buffer);
 
   for (auto *arg : args.filtered(OPT_version_script))
-    if (Optional<std::string> path = searchScript(arg->getValue())) {
-      if (Optional<MemoryBufferRef> buffer = readFile(*path))
+    if (std::optional<std::string> path = searchScript(arg->getValue())) {
+      if (std::optional<MemoryBufferRef> buffer = readFile(*path))
         readVersionScript(*buffer);
     } else {
       error(Twine("cannot find version script ") + arg->getValue());
@@ -1621,8 +1627,8 @@ void LinkerDriver::createFiles(opt::InputArgList &args) {
       break;
     }
     case OPT_script:
-      if (Optional<std::string> path = searchScript(arg->getValue())) {
-        if (Optional<MemoryBufferRef> mb = readFile(*path))
+      if (std::optional<std::string> path = searchScript(arg->getValue())) {
+        if (std::optional<MemoryBufferRef> mb = readFile(*path))
           readLinkerScript(*mb);
         break;
       }
@@ -1652,7 +1658,7 @@ void LinkerDriver::createFiles(opt::InputArgList &args) {
       inWholeArchive = false;
       break;
     case OPT_just_symbols:
-      if (Optional<MemoryBufferRef> mb = readFile(arg->getValue())) {
+      if (std::optional<MemoryBufferRef> mb = readFile(arg->getValue())) {
         files.push_back(createObjFile(*mb));
         files.back()->justSymbols = true;
       }
@@ -1756,12 +1762,12 @@ static uint64_t getCommonPageSize(opt::InputArgList &args) {
 }
 
 // Parses --image-base option.
-static Optional<uint64_t> getImageBase(opt::InputArgList &args) {
+static std::optional<uint64_t> getImageBase(opt::InputArgList &args) {
   // Because we are using "Config->maxPageSize" here, this function has to be
   // called after the variable is initialized.
   auto *arg = args.getLastArg(OPT_image_base);
   if (!arg)
-    return None;
+    return std::nullopt;
 
   StringRef s = arg->getValue();
   uint64_t v;
@@ -2125,7 +2131,7 @@ static void readSymbolPartitionSection(InputSectionBase *s) {
   if (!isa<Defined>(sym) || !sym->includeInDynsym())
     return;
 
-  StringRef partName = reinterpret_cast<const char *>(s->rawData.data());
+  StringRef partName = reinterpret_cast<const char *>(s->content().data());
   for (Partition &part : partitions) {
     if (part.name == partName) {
       sym->partition = part.getNumber();
@@ -2785,15 +2791,6 @@ void LinkerDriver::link(opt::InputArgList &args) {
 
   config->imageBase = getImageBase(args);
 
-  if (config->emachine == EM_ARM) {
-    // FIXME: These warnings can be removed when lld only uses these features
-    // when the input objects have been compiled with an architecture that
-    // supports them.
-    if (config->armHasBlx == false)
-      warn("lld uses blx instruction, no object with architecture supporting "
-           "feature detected");
-  }
-
   // This adds a .comment section containing a version string.
   if (!config->relocatable)
     ctx.inputSections.push_back(createCommentSection());
@@ -2818,6 +2815,10 @@ void LinkerDriver::link(opt::InputArgList &args) {
   // output sections in the usual way.
   if (!config->relocatable)
     combineEhSections();
+
+  // Merge .riscv.attributes sections.
+  if (config->emachine == EM_RISCV)
+    mergeRISCVAttributesSections();
 
   {
     llvm::TimeTraceScope timeScope("Assign sections");
@@ -2854,7 +2855,7 @@ void LinkerDriver::link(opt::InputArgList &args) {
   // Read the callgraph now that we know what was gced or icfed
   if (config->callGraphProfileSort) {
     if (auto *arg = args.getLastArg(OPT_call_graph_ordering_file))
-      if (Optional<MemoryBufferRef> buffer = readFile(arg->getValue()))
+      if (std::optional<MemoryBufferRef> buffer = readFile(arg->getValue()))
         readCallGraph(*buffer);
     invokeELFT(readCallGraphsFromObjectFiles);
   }

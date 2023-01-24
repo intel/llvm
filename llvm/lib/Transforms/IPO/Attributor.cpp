@@ -54,6 +54,7 @@
 #endif
 
 #include <cassert>
+#include <optional>
 #include <string>
 
 using namespace llvm;
@@ -225,7 +226,7 @@ bool AA::isDynamicallyUnique(Attributor &A, const AbstractAttribute &QueryingAA,
 Constant *AA::getInitialValueForObj(Value &Obj, Type &Ty,
                                     const TargetLibraryInfo *TLI,
                                     const DataLayout &DL,
-                                    AA::OffsetAndSize *OASPtr) {
+                                    AA::RangeTy *RangePtr) {
   if (isa<AllocaInst>(Obj))
     return UndefValue::get(&Ty);
   if (Constant *Init = getInitialValueOfAllocation(&Obj, TLI, &Ty))
@@ -238,8 +239,8 @@ Constant *AA::getInitialValueForObj(Value &Obj, Type &Ty,
   if (!GV->hasInitializer())
     return UndefValue::get(&Ty);
 
-  if (OASPtr && !OASPtr->offsetOrSizeAreUnknown()) {
-    APInt Offset = APInt(64, OASPtr->Offset);
+  if (RangePtr && !RangePtr->offsetOrSizeAreUnknown()) {
+    APInt Offset = APInt(64, RangePtr->Offset);
     return ConstantFoldLoadFromConst(GV->getInitializer(), &Ty, Offset, DL);
   }
 
@@ -304,9 +305,10 @@ Value *AA::getWithType(Value &V, Type &Ty) {
   return nullptr;
 }
 
-Optional<Value *>
-AA::combineOptionalValuesInAAValueLatice(const Optional<Value *> &A,
-                                         const Optional<Value *> &B, Type *Ty) {
+std::optional<Value *>
+AA::combineOptionalValuesInAAValueLatice(const std::optional<Value *> &A,
+                                         const std::optional<Value *> &B,
+                                         Type *Ty) {
   if (A == B)
     return A;
   if (!B)
@@ -390,7 +392,8 @@ static bool getPotentialCopiesOfMemoryValue(
 
     bool NullOnly = true;
     bool NullRequired = false;
-    auto CheckForNullOnlyAndUndef = [&](Optional<Value *> V, bool IsExact) {
+    auto CheckForNullOnlyAndUndef = [&](std::optional<Value *> V,
+                                        bool IsExact) {
       if (!V || *V == nullptr)
         NullOnly = false;
       else if (isa<UndefValue>(*V))
@@ -402,7 +405,7 @@ static bool getPotentialCopiesOfMemoryValue(
     };
 
     auto CheckAccess = [&](const AAPointerInfo::Access &Acc, bool IsExact) {
-      if ((IsLoad && !Acc.isWrite()) || (!IsLoad && !Acc.isRead()))
+      if ((IsLoad && !Acc.isWriteOrAssumption()) || (!IsLoad && !Acc.isRead()))
         return true;
       if (IsLoad && Acc.isWrittenValueYetUndetermined())
         return true;
@@ -453,11 +456,11 @@ static bool getPotentialCopiesOfMemoryValue(
     // object.
     bool HasBeenWrittenTo = false;
 
-    AA::OffsetAndSize OAS;
+    AA::RangeTy Range;
     auto &PI = A.getAAFor<AAPointerInfo>(QueryingAA, IRPosition::value(*Obj),
                                          DepClassTy::NONE);
     if (!PI.forallInterferingAccesses(A, QueryingAA, I, CheckAccess,
-                                      HasBeenWrittenTo, OAS)) {
+                                      HasBeenWrittenTo, Range)) {
       LLVM_DEBUG(
           dbgs()
           << "Failed to verify all interfering accesses for underlying object: "
@@ -465,10 +468,10 @@ static bool getPotentialCopiesOfMemoryValue(
       return false;
     }
 
-    if (IsLoad && !HasBeenWrittenTo && !OAS.isUnassigned()) {
+    if (IsLoad && !HasBeenWrittenTo && !Range.isUnassigned()) {
       const DataLayout &DL = A.getDataLayout();
       Value *InitialValue =
-          AA::getInitialValueForObj(*Obj, *I.getType(), TLI, DL, &OAS);
+          AA::getInitialValueForObj(*Obj, *I.getType(), TLI, DL, &Range);
       if (!InitialValue) {
         LLVM_DEBUG(dbgs() << "Could not determine required initial value of "
                              "underlying object, abort!\n");
@@ -737,7 +740,7 @@ Argument *IRPosition::getAssociatedArgument() const {
   // values and the ones in callbacks. If a callback was found that makes use
   // of the underlying call site operand, we want the corresponding callback
   // callee argument and not the direct callee argument.
-  Optional<Argument *> CBCandidateArg;
+  std::optional<Argument *> CBCandidateArg;
   SmallVector<const Use *, 4> CallbackUses;
   const auto &CB = cast<CallBase>(getAnchorValue());
   AbstractCallSite::getCallbackUses(CB, CallbackUses);
@@ -765,8 +768,8 @@ Argument *IRPosition::getAssociatedArgument() const {
   }
 
   // If we found a unique callback candidate argument, return it.
-  if (CBCandidateArg && CBCandidateArg.value())
-    return CBCandidateArg.value();
+  if (CBCandidateArg && *CBCandidateArg)
+    return *CBCandidateArg;
 
   // If no callbacks were found, or none used the underlying call site operand
   // exclusively, use the direct callee argument if available.
@@ -1068,17 +1071,17 @@ void IRPosition::verify() {
 #endif
 }
 
-Optional<Constant *>
+std::optional<Constant *>
 Attributor::getAssumedConstant(const IRPosition &IRP,
                                const AbstractAttribute &AA,
                                bool &UsedAssumedInformation) {
   // First check all callbacks provided by outside AAs. If any of them returns
-  // a non-null value that is different from the associated value, or None, we
-  // assume it's simplified.
+  // a non-null value that is different from the associated value, or
+  // std::nullopt, we assume it's simplified.
   for (auto &CB : SimplificationCallbacks.lookup(IRP)) {
-    Optional<Value *> SimplifiedV = CB(IRP, &AA, UsedAssumedInformation);
+    std::optional<Value *> SimplifiedV = CB(IRP, &AA, UsedAssumedInformation);
     if (!SimplifiedV)
-      return llvm::None;
+      return std::nullopt;
     if (isa_and_nonnull<Constant>(*SimplifiedV))
       return cast<Constant>(*SimplifiedV);
     return nullptr;
@@ -1090,7 +1093,7 @@ Attributor::getAssumedConstant(const IRPosition &IRP,
                                  AA::ValueScope::Interprocedural,
                                  UsedAssumedInformation)) {
     if (Values.empty())
-      return llvm::None;
+      return std::nullopt;
     if (auto *C = dyn_cast_or_null<Constant>(
             AAPotentialValues::getSingleValue(*this, AA, IRP, Values)))
       return C;
@@ -1098,13 +1101,12 @@ Attributor::getAssumedConstant(const IRPosition &IRP,
   return nullptr;
 }
 
-Optional<Value *> Attributor::getAssumedSimplified(const IRPosition &IRP,
-                                                   const AbstractAttribute *AA,
-                                                   bool &UsedAssumedInformation,
-                                                   AA::ValueScope S) {
+std::optional<Value *> Attributor::getAssumedSimplified(
+    const IRPosition &IRP, const AbstractAttribute *AA,
+    bool &UsedAssumedInformation, AA::ValueScope S) {
   // First check all callbacks provided by outside AAs. If any of them returns
-  // a non-null value that is different from the associated value, or None, we
-  // assume it's simplified.
+  // a non-null value that is different from the associated value, or
+  // std::nullopt, we assume it's simplified.
   for (auto &CB : SimplificationCallbacks.lookup(IRP))
     return CB(IRP, AA, UsedAssumedInformation);
 
@@ -1112,7 +1114,7 @@ Optional<Value *> Attributor::getAssumedSimplified(const IRPosition &IRP,
   if (!getAssumedSimplifiedValues(IRP, AA, Values, S, UsedAssumedInformation))
     return &IRP.getAssociatedValue();
   if (Values.empty())
-    return llvm::None;
+    return std::nullopt;
   if (AA)
     if (Value *V = AAPotentialValues::getSingleValue(*this, *AA, IRP, Values))
       return V;
@@ -1127,14 +1129,14 @@ bool Attributor::getAssumedSimplifiedValues(
     SmallVectorImpl<AA::ValueAndContext> &Values, AA::ValueScope S,
     bool &UsedAssumedInformation) {
   // First check all callbacks provided by outside AAs. If any of them returns
-  // a non-null value that is different from the associated value, or None, we
-  // assume it's simplified.
+  // a non-null value that is different from the associated value, or
+  // std::nullopt, we assume it's simplified.
   const auto &SimplificationCBs = SimplificationCallbacks.lookup(IRP);
   for (const auto &CB : SimplificationCBs) {
-    Optional<Value *> CBResult = CB(IRP, AA, UsedAssumedInformation);
+    std::optional<Value *> CBResult = CB(IRP, AA, UsedAssumedInformation);
     if (!CBResult.has_value())
       continue;
-    Value *V = CBResult.value();
+    Value *V = *CBResult;
     if (!V)
       return false;
     if ((S & AA::ValueScope::Interprocedural) ||
@@ -1155,8 +1157,8 @@ bool Attributor::getAssumedSimplifiedValues(
   return true;
 }
 
-Optional<Value *> Attributor::translateArgumentToCallSiteContent(
-    Optional<Value *> V, CallBase &CB, const AbstractAttribute &AA,
+std::optional<Value *> Attributor::translateArgumentToCallSiteContent(
+    std::optional<Value *> V, CallBase &CB, const AbstractAttribute &AA,
     bool &UsedAssumedInformation) {
   if (!V)
     return V;
@@ -1174,8 +1176,8 @@ Optional<Value *> Attributor::translateArgumentToCallSiteContent(
 Attributor::~Attributor() {
   // The abstract attributes are allocated via the BumpPtrAllocator Allocator,
   // thus we cannot delete them. We can, and want to, destruct them though.
-  for (auto &DepAA : DG.SyntheticRoot.Deps) {
-    AbstractAttribute *AA = cast<AbstractAttribute>(DepAA.getPointer());
+  for (auto &It : AAMap) {
+    AbstractAttribute *AA = It.getSecond();
     AA->~AbstractAttribute();
   }
 }
@@ -2025,9 +2027,9 @@ ChangeStatus Attributor::cleanupIR() {
     // If we plan to replace NewV we need to update it at this point.
     do {
       const auto &Entry = ToBeChangedValues.lookup(NewV);
-      if (!Entry.first)
+      if (!get<0>(Entry))
         break;
-      NewV = Entry.first;
+      NewV = get<0>(Entry);
     } while (true);
 
     Instruction *I = dyn_cast<Instruction>(U->getUser());
@@ -2091,11 +2093,10 @@ ChangeStatus Attributor::cleanupIR() {
   SmallVector<Use *, 4> Uses;
   for (auto &It : ToBeChangedValues) {
     Value *OldV = It.first;
-    auto &Entry = It.second;
-    Value *NewV = Entry.first;
+    auto [NewV, Done] = It.second;
     Uses.clear();
     for (auto &U : OldV->uses())
-      if (Entry.second || !U.getUser()->isDroppable())
+      if (Done || !U.getUser()->isDroppable())
         Uses.push_back(&U);
     for (Use *U : Uses) {
       if (auto *I = dyn_cast<Instruction>(U->getUser()))
@@ -2635,8 +2636,7 @@ ChangeStatus Attributor::rewriteFunctionSignatures(
     // Since we have now created the new function, splice the body of the old
     // function right into the new function, leaving the old rotting hulk of the
     // function empty.
-    NewFn->getBasicBlockList().splice(NewFn->begin(),
-                                      OldFn->getBasicBlockList());
+    NewFn->splice(NewFn->begin(), OldFn);
 
     // Fixup block addresses to reference new function.
     SmallVector<BlockAddress *, 8u> BlockAddresses;
@@ -2779,7 +2779,7 @@ void InformationCache::initializeInformationCache(const Function &CF,
   // queried by abstract attributes during their initialization or update.
   // This has to happen before we create attributes.
 
-  DenseMap<const Value *, Optional<short>> AssumeUsesMap;
+  DenseMap<const Value *, std::optional<short>> AssumeUsesMap;
 
   // Add \p V to the assume uses map which track the number of uses outside of
   // "visited" assumes. If no outside uses are left the value is added to the
@@ -2790,11 +2790,11 @@ void InformationCache::initializeInformationCache(const Function &CF,
       Worklist.push_back(I);
     while (!Worklist.empty()) {
       const Instruction *I = Worklist.pop_back_val();
-      Optional<short> &NumUses = AssumeUsesMap[I];
+      std::optional<short> &NumUses = AssumeUsesMap[I];
       if (!NumUses)
         NumUses = I->getNumUses();
-      NumUses = NumUses.value() - /* this assume */ 1;
-      if (NumUses.value() != 0)
+      NumUses = *NumUses - /* this assume */ 1;
+      if (*NumUses != 0)
         continue;
       AssumeOnlyValues.insert(I);
       for (const Value *Op : I->operands())
@@ -2822,6 +2822,7 @@ void InformationCache::initializeInformationCache(const Function &CF,
       // For `llvm.assume` calls we also fill the KnowledgeMap as we find them.
       // For `must-tail` calls we remember the caller and callee.
       if (auto *Assume = dyn_cast<AssumeInst>(&I)) {
+        AssumeOnlyValues.insert(Assume);
         fillMapFromAssume(*Assume, KnowledgeMap);
         AddToAssumeUsesMap(*Assume->getArgOperand(0));
       } else if (cast<CallInst>(I).isMustTailCall()) {

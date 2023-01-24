@@ -310,6 +310,14 @@ TEST(ELFObjectFileTest, MachineTestForCSKY) {
     checkFormatAndArch(D, Formats[I++], Triple::csky);
 }
 
+TEST(ELFObjectFileTest, MachineTestForXtensa) {
+  std::array<StringRef, 4> Formats = {"elf32-xtensa", "elf32-xtensa",
+                                      "elf64-unknown", "elf64-unknown"};
+  size_t I = 0;
+  for (const DataForTest &D : generateData(ELF::EM_XTENSA))
+    checkFormatAndArch(D, Formats[I++], Triple::xtensa);
+}
+
 // ELF relative relocation type test.
 TEST(ELFObjectFileTest, RelativeRelocationTypeTest) {
   EXPECT_EQ(ELF::R_CKCORE_RELATIVE, getELFRelativeRelocationType(ELF::EM_CSKY));
@@ -672,7 +680,7 @@ Sections:
   std::vector<BBAddrMap> AllBBAddrMaps = {E1, E2, E3};
 
   auto DoCheckSucceeds = [&](StringRef YamlString,
-                             Optional<unsigned> TextSectionIndex,
+                             std::optional<unsigned> TextSectionIndex,
                              std::vector<BBAddrMap> ExpectedResult) {
     SmallString<0> Storage;
     Expected<ELFObjectFile<ELF64LE>> ElfOrErr =
@@ -688,7 +696,7 @@ Sections:
   };
 
   auto DoCheckFails = [&](StringRef YamlString,
-                          Optional<unsigned> TextSectionIndex,
+                          std::optional<unsigned> TextSectionIndex,
                           const char *ErrMsg) {
     SmallString<0> Storage;
     Expected<ELFObjectFile<ELF64LE>> ElfOrErr =
@@ -703,7 +711,8 @@ Sections:
   };
 
   // Check that we can retrieve the data in the normal case.
-  DoCheckSucceeds(CommonYamlString, /*TextSectionIndex=*/None, AllBBAddrMaps);
+  DoCheckSucceeds(CommonYamlString, /*TextSectionIndex=*/std::nullopt,
+                  AllBBAddrMaps);
   DoCheckSucceeds(CommonYamlString, /*TextSectionIndex=*/0, Section0BBAddrMaps);
   DoCheckSucceeds(CommonYamlString, /*TextSectionIndex=*/1, Section1BBAddrMaps);
   // Check that when no bb-address-map section is found for a text section,
@@ -723,7 +732,7 @@ Sections:
                "index: 10");
   // Linked sections are not checked when we don't target a specific text
   // section.
-  DoCheckSucceeds(InvalidLinkedYamlString, /*TextSectionIndex=*/None,
+  DoCheckSucceeds(InvalidLinkedYamlString, /*TextSectionIndex=*/std::nullopt,
                   AllBBAddrMaps);
 
   // Check that we can detect when bb-address-map decoding fails.
@@ -732,7 +741,7 @@ Sections:
     ShSize: 0x8
 )";
 
-  DoCheckFails(TruncatedYamlString, /*TextSectionIndex=*/None,
+  DoCheckFails(TruncatedYamlString, /*TextSectionIndex=*/std::nullopt,
                "unable to read SHT_LLVM_BB_ADDR_MAP_V0 section with index 3: "
                "unable to decode LEB128 at offset 0x00000008: malformed "
                "uleb128, extends past end");

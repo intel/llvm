@@ -1,6 +1,10 @@
 // RUN: %clang_cc1 -fexperimental-new-constant-interpreter -std=c++20 -verify %s
 // RUN: %clang_cc1 -std=c++20 -verify=ref %s
 
+void test_alignas_operand() {
+  alignas(8) char dummy;
+  static_assert(__alignof(dummy) == 8);
+}
 
 constexpr int getMinus5() {
   int a = 10;
@@ -86,3 +90,29 @@ constexpr int f() {
 }
 static_assert(f());
 #endif
+
+/// Distinct literals have disctinct addresses.
+/// see https://github.com/llvm/llvm-project/issues/58754
+constexpr auto foo(const char *p) { return p; }
+constexpr auto p1 = "test1";
+constexpr auto p2 = "test2";
+
+constexpr bool b1 = foo(p1) == foo(p1);
+static_assert(b1);
+
+constexpr bool b2 = foo(p1) == foo(p2); // ref-error {{must be initialized by a constant expression}} \
+                                        // ref-note {{comparison of addresses of literals}} \
+                                        // ref-note {{declared here}}
+static_assert(!b2); // ref-error {{not an integral constant expression}} \
+                    // ref-note {{not a constant expression}}
+
+constexpr auto name1() { return "name1"; }
+constexpr auto name2() { return "name2"; }
+
+constexpr auto b3 = name1() == name1();
+static_assert(b3);
+constexpr auto b4 = name1() == name2(); // ref-error {{must be initialized by a constant expression}} \
+                                        // ref-note {{has unspecified value}} \
+                                        // ref-note {{declared here}}
+static_assert(!b4); // ref-error {{not an integral constant expression}} \
+                    // ref-note {{not a constant expression}}

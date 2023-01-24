@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #ifndef LIBCXXABI_SRC_INCLUDE_CXA_GUARD_IMPL_H
 #define LIBCXXABI_SRC_INCLUDE_CXA_GUARD_IMPL_H
 
@@ -55,6 +56,7 @@
 #endif
 
 #include <__threading_support>
+#include <cstdint>
 #include <cstring>
 #include <limits.h>
 #include <stdlib.h>

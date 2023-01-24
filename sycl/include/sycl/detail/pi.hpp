@@ -62,16 +62,27 @@ enum TraceLevel {
 bool trace(TraceLevel level);
 
 #ifdef __SYCL_RT_OS_WINDOWS
+#ifdef MSVC
 #define __SYCL_OPENCL_PLUGIN_NAME "pi_opencl.dll"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "pi_level_zero.dll"
 #define __SYCL_CUDA_PLUGIN_NAME "pi_cuda.dll"
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "pi_esimd_emulator.dll"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
+#define __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME "pi_unified_runtime.dll"
+#else
+#define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.dll"
+#define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.dll"
+#define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.dll"
+#define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.dll"
+#define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dll"
+#define __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME "libpi_unified_runtime.dll"
+#endif
 #elif defined(__SYCL_RT_OS_LINUX)
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.so"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "libpi_level_zero.so"
 #define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.so"
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.so"
+#define __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME "libpi_unified_runtime.so"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.so"
 #elif defined(__SYCL_RT_OS_DARWIN)
 #define __SYCL_OPENCL_PLUGIN_NAME "libpi_opencl.dylib"
@@ -79,6 +90,7 @@ bool trace(TraceLevel level);
 #define __SYCL_CUDA_PLUGIN_NAME "libpi_cuda.dylib"
 #define __SYCL_ESIMD_EMULATOR_PLUGIN_NAME "libpi_esimd_emulator.dylib"
 #define __SYCL_HIP_PLUGIN_NAME "libpi_hip.dylib"
+#define __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME "libpi_unified_runtime.dylib"
 #else
 #error "Unsupported OS"
 #endif
@@ -112,6 +124,7 @@ using PiDeviceType = ::pi_device_type;
 using PiDeviceInfo = ::pi_device_info;
 using PiDeviceBinaryType = ::pi_device_binary_type;
 using PiContext = ::pi_context;
+using PiContextInfo = ::pi_context_info;
 using PiProgram = ::pi_program;
 using PiKernel = ::pi_kernel;
 using PiQueue = ::pi_queue;

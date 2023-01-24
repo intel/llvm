@@ -21,6 +21,7 @@
 #include <__memory/addressof.h>
 #include <__memory/allocation_guard.h>
 #include <__memory/allocator.h>
+#include <__memory/allocator_destructor.h>
 #include <__memory/allocator_traits.h>
 #include <__memory/auto_ptr.h>
 #include <__memory/compressed_pair.h>
@@ -36,37 +37,16 @@
 #include <iosfwd>
 #include <new>
 #include <stdexcept>
-#include <type_traits>
 #include <typeinfo>
 #if !defined(_LIBCPP_HAS_NO_ATOMIC_HEADER)
 #  include <atomic>
 #endif
-
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
-
-template <class _Alloc>
-class __allocator_destructor
-{
-    typedef _LIBCPP_NODEBUG allocator_traits<_Alloc> __alloc_traits;
-public:
-    typedef _LIBCPP_NODEBUG typename __alloc_traits::pointer pointer;
-    typedef _LIBCPP_NODEBUG typename __alloc_traits::size_type size_type;
-private:
-    _Alloc& __alloc_;
-    size_type __s_;
-public:
-    _LIBCPP_INLINE_VISIBILITY __allocator_destructor(_Alloc& __a, size_type __s)
-             _NOEXCEPT
-        : __alloc_(__a), __s_(__s) {}
-    _LIBCPP_INLINE_VISIBILITY
-    void operator()(pointer __p) _NOEXCEPT
-        {__alloc_traits::deallocate(__alloc_, __p, __s_);}
-};
 
 // NOTE: Relaxed and acq/rel atomics (for increment and decrement respectively)
 // should be sufficient for thread safety.
@@ -401,7 +381,7 @@ template <class, class>
 static false_type __well_formed_deleter_test(...);
 
 template <class _Dp, class _Pt>
-struct __well_formed_deleter : decltype(__well_formed_deleter_test<_Dp, _Pt>(0)) {};
+struct __well_formed_deleter : decltype(std::__well_formed_deleter_test<_Dp, _Pt>(0)) {};
 
 template<class _Dp, class _Tp, class _Yp>
 struct __shared_ptr_deleter_ctor_reqs
@@ -1829,7 +1809,7 @@ _LIBCPP_AVAILABILITY_ATOMIC_SHARED_PTR
 _LIBCPP_HIDE_FROM_ABI shared_ptr<_Tp>
 atomic_load(const shared_ptr<_Tp>* __p)
 {
-    __sp_mut& __m = __get_sp_mut(__p);
+    __sp_mut& __m = std::__get_sp_mut(__p);
     __m.lock();
     shared_ptr<_Tp> __q = *__p;
     __m.unlock();
@@ -1842,7 +1822,7 @@ _LIBCPP_AVAILABILITY_ATOMIC_SHARED_PTR
 shared_ptr<_Tp>
 atomic_load_explicit(const shared_ptr<_Tp>* __p, memory_order)
 {
-    return atomic_load(__p);
+    return std::atomic_load(__p);
 }
 
 template <class _Tp>
@@ -1850,7 +1830,7 @@ _LIBCPP_AVAILABILITY_ATOMIC_SHARED_PTR
 _LIBCPP_HIDE_FROM_ABI void
 atomic_store(shared_ptr<_Tp>* __p, shared_ptr<_Tp> __r)
 {
-    __sp_mut& __m = __get_sp_mut(__p);
+    __sp_mut& __m = std::__get_sp_mut(__p);
     __m.lock();
     __p->swap(__r);
     __m.unlock();
@@ -1862,7 +1842,7 @@ _LIBCPP_AVAILABILITY_ATOMIC_SHARED_PTR
 void
 atomic_store_explicit(shared_ptr<_Tp>* __p, shared_ptr<_Tp> __r, memory_order)
 {
-    atomic_store(__p, __r);
+    std::atomic_store(__p, __r);
 }
 
 template <class _Tp>
@@ -1870,7 +1850,7 @@ _LIBCPP_AVAILABILITY_ATOMIC_SHARED_PTR
 _LIBCPP_HIDE_FROM_ABI shared_ptr<_Tp>
 atomic_exchange(shared_ptr<_Tp>* __p, shared_ptr<_Tp> __r)
 {
-    __sp_mut& __m = __get_sp_mut(__p);
+    __sp_mut& __m = std::__get_sp_mut(__p);
     __m.lock();
     __p->swap(__r);
     __m.unlock();
@@ -1883,7 +1863,7 @@ _LIBCPP_AVAILABILITY_ATOMIC_SHARED_PTR
 shared_ptr<_Tp>
 atomic_exchange_explicit(shared_ptr<_Tp>* __p, shared_ptr<_Tp> __r, memory_order)
 {
-    return atomic_exchange(__p, __r);
+    return std::atomic_exchange(__p, __r);
 }
 
 template <class _Tp>
@@ -1892,7 +1872,7 @@ _LIBCPP_HIDE_FROM_ABI bool
 atomic_compare_exchange_strong(shared_ptr<_Tp>* __p, shared_ptr<_Tp>* __v, shared_ptr<_Tp> __w)
 {
     shared_ptr<_Tp> __temp;
-    __sp_mut& __m = __get_sp_mut(__p);
+    __sp_mut& __m = std::__get_sp_mut(__p);
     __m.lock();
     if (__p->__owner_equivalent(*__v))
     {
@@ -1913,7 +1893,7 @@ _LIBCPP_AVAILABILITY_ATOMIC_SHARED_PTR
 bool
 atomic_compare_exchange_weak(shared_ptr<_Tp>* __p, shared_ptr<_Tp>* __v, shared_ptr<_Tp> __w)
 {
-    return atomic_compare_exchange_strong(__p, __v, __w);
+    return std::atomic_compare_exchange_strong(__p, __v, __w);
 }
 
 template <class _Tp>
@@ -1923,7 +1903,7 @@ bool
 atomic_compare_exchange_strong_explicit(shared_ptr<_Tp>* __p, shared_ptr<_Tp>* __v,
                                         shared_ptr<_Tp> __w, memory_order, memory_order)
 {
-    return atomic_compare_exchange_strong(__p, __v, __w);
+    return std::atomic_compare_exchange_strong(__p, __v, __w);
 }
 
 template <class _Tp>
@@ -1933,7 +1913,7 @@ bool
 atomic_compare_exchange_weak_explicit(shared_ptr<_Tp>* __p, shared_ptr<_Tp>* __v,
                                       shared_ptr<_Tp> __w, memory_order, memory_order)
 {
-    return atomic_compare_exchange_weak(__p, __v, __w);
+    return std::atomic_compare_exchange_weak(__p, __v, __w);
 }
 
 #endif // !defined(_LIBCPP_HAS_NO_THREADS)

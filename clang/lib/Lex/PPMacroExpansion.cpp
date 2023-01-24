@@ -37,7 +37,6 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/FoldingSet.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
@@ -285,7 +284,8 @@ void Preprocessor::dumpMacroInfo(const IdentifierInfo *II) {
 
   // Dump module macros.
   llvm::DenseSet<ModuleMacro*> Active;
-  for (auto *MM : State ? State->getActiveModuleMacros(*this, II) : None)
+  for (auto *MM :
+       State ? State->getActiveModuleMacros(*this, II) : std::nullopt)
     Active.insert(MM);
   llvm::DenseSet<ModuleMacro*> Visited;
   llvm::SmallVector<ModuleMacro *, 16> Worklist(Leaf.begin(), Leaf.end());
@@ -1249,7 +1249,7 @@ static bool EvaluateHasIncludeCommon(Token &Tok, IdentifierInfo *II,
     return false;
 
   // Search include directories.
-  Optional<FileEntryRef> File =
+  OptionalFileEntryRef File =
       PP.LookupFile(FilenameLoc, Filename, isAngled, LookupFrom, LookupFromFile,
                     nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
 
@@ -1345,10 +1345,10 @@ already_lexed:
         // The last ')' has been reached; return the value if one found or
         // a diagnostic and a dummy value.
         if (Result) {
-          OS << Result.value();
+          OS << *Result;
           // For strict conformance to __has_cpp_attribute rules, use 'L'
           // suffix for dated literals.
-          if (Result.value() > 1)
+          if (*Result > 1)
             OS << 'L';
         } else {
           OS << 0;
@@ -1447,6 +1447,11 @@ static bool isTargetEnvironment(const TargetInfo &TI,
                                 const IdentifierInfo *II) {
   std::string EnvName = (llvm::Twine("---") + II->getName().lower()).str();
   llvm::Triple Env(EnvName);
+  // The unknown environment is matched only if
+  // '__is_target_environment(unknown)' is used.
+  if (Env.getEnvironment() == llvm::Triple::UnknownEnvironment &&
+      EnvName != "---unknown")
+    return false;
   return TI.getTriple().getEnvironment() == Env.getEnvironment();
 }
 

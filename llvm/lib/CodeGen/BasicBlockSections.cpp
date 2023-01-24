@@ -68,7 +68,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/BasicBlockSectionsProfileReader.h"
@@ -79,6 +78,7 @@
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Target/TargetMachine.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -167,7 +167,7 @@ static void updateBranches(
 bool getBBClusterInfoForFunction(
     const MachineFunction &MF,
     BasicBlockSectionsProfileReader *BBSectionsProfileReader,
-    std::vector<Optional<BBClusterInfo>> &V) {
+    std::vector<std::optional<BBClusterInfo>> &V) {
 
   // Find the assoicated cluster information.
   std::pair<bool, SmallVector<BBClusterInfo, 4>> P =
@@ -201,14 +201,14 @@ bool getBBClusterInfoForFunction(
 // and "Cold" succeeding all other clusters.
 // FuncBBClusterInfo represent the cluster information for basic blocks. If this
 // is empty, it means unique sections for all basic blocks in the function.
-static void
-assignSections(MachineFunction &MF,
-               const std::vector<Optional<BBClusterInfo>> &FuncBBClusterInfo) {
+static void assignSections(
+    MachineFunction &MF,
+    const std::vector<std::optional<BBClusterInfo>> &FuncBBClusterInfo) {
   assert(MF.hasBBSections() && "BB Sections is not set for function.");
   // This variable stores the section ID of the cluster containing eh_pads (if
   // all eh_pads are one cluster). If more than one cluster contain eh_pads, we
   // set it equal to ExceptionSectionID.
-  Optional<MBBSectionID> EHPadsSectionID;
+  std::optional<MBBSectionID> EHPadsSectionID;
 
   for (auto &MBB : MF) {
     // With the 'all' option, every basic block is placed in a unique section.
@@ -331,7 +331,7 @@ bool BasicBlockSections::runOnMachineFunction(MachineFunction &MF) {
 
   BBSectionsProfileReader = &getAnalysis<BasicBlockSectionsProfileReader>();
 
-  std::vector<Optional<BBClusterInfo>> FuncBBClusterInfo;
+  std::vector<std::optional<BBClusterInfo>> FuncBBClusterInfo;
   if (BBSectionsType == BasicBlockSection::List &&
       !getBBClusterInfoForFunction(MF, BBSectionsProfileReader,
                                    FuncBBClusterInfo))

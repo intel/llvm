@@ -45,8 +45,10 @@ typedef _Float16 __v16hf __attribute__((__vector_size__(32), __aligned__(32)));
 typedef _Float16 __m256h __attribute__((__vector_size__(32), __aligned__(32)));
 typedef _Float16 __m256h_u __attribute__((__vector_size__(32), __aligned__(1)));
 
+#ifndef __SYCL_DEVICE_ONLY__
 typedef __bf16 __v16bf __attribute__((__vector_size__(32), __aligned__(32)));
 typedef __bf16 __m256bh __attribute__((__vector_size__(32), __aligned__(32)));
+#endif
 #endif
 
 /* Define the default attributes for the functions in this file. */
@@ -4298,7 +4300,7 @@ _mm256_set1_epi64x(long long __q)
 static __inline __m256d __DEFAULT_FN_ATTRS
 _mm256_setzero_pd(void)
 {
-  return __extension__ (__m256d){ 0, 0, 0, 0 };
+  return __extension__ (__m256d){ 0.0, 0.0, 0.0, 0.0 };
 }
 
 /// Constructs a 256-bit floating-point vector of [8 x float] with all
@@ -4312,7 +4314,7 @@ _mm256_setzero_pd(void)
 static __inline __m256 __DEFAULT_FN_ATTRS
 _mm256_setzero_ps(void)
 {
-  return __extension__ (__m256){ 0, 0, 0, 0, 0, 0, 0, 0 };
+  return __extension__ (__m256){ 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
 }
 
 /// Constructs a 256-bit integer vector initialized to zero.

@@ -71,14 +71,14 @@ static llvm::Optional<TestMatch> matchStmt(StringRef StatementCode,
                                           {"-Wno-unused-value"});
   if (AstUnit == nullptr) {
     ADD_FAILURE() << "AST construction failed";
-    return llvm::None;
+    return std::nullopt;
   }
   ASTContext &Context = AstUnit->getASTContext();
   auto Matches = ast_matchers::match(wrapMatcher(Matcher), Context);
   // We expect a single, exact match for the statement.
   if (Matches.size() != 1) {
     ADD_FAILURE() << "Wrong number of matches: " << Matches.size();
-    return llvm::None;
+    return std::nullopt;
   }
   return TestMatch{std::move(AstUnit), MatchResult(Matches[0], &Context)};
 }
@@ -188,7 +188,7 @@ TEST(SourceCodeBuildersTest, isKnownPointerLikeTypeNormalTypeFalse) {
 }
 
 static void testBuilder(
-    llvm::Optional<std::string> (*Builder)(const Expr &, const ASTContext &),
+    std::optional<std::string> (*Builder)(const Expr &, const ASTContext &),
     StringRef Snippet, StringRef Expected) {
   auto StmtMatch = matchStmt(Snippet, expr().bind("expr"));
   ASSERT_TRUE(StmtMatch);

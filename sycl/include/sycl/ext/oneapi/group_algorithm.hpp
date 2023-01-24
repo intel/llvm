@@ -21,8 +21,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
+namespace ext::oneapi {
 
 // EnableIf shorthands for algorithms that depend only on type
 template <typename T>
@@ -167,7 +166,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                                  typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
   T result;
-  for (int s = 0; s < x.get_size(); ++s) {
+  for (int s = 0; s < x.size(); ++s) {
     result[s] = broadcast(g, x[s], local_id);
   }
   return result;
@@ -212,7 +211,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                                      linear_local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
   T result;
-  for (int s = 0; s < x.get_size(); ++s) {
+  for (int s = 0; s < x.size(); ++s) {
     result[s] = broadcast(g, x[s], linear_local_id);
   }
   return result;
@@ -250,7 +249,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
                     T> broadcast(Group g, T x) {
 #ifdef __SYCL_DEVICE_ONLY__
   T result;
-  for (int s = 0; s < x.get_size(); ++s) {
+  for (int s = 0; s < x.size(); ++s) {
     result[s] = broadcast(g, x[s]);
   }
   return result;
@@ -532,8 +531,11 @@ detail::enable_if_t<
 }
 
 template <typename Group>
-detail::enable_if_t<detail::is_generic_group<Group>::value, bool>
-leader(Group g) {
+__SYCL2020_DEPRECATED(
+    "ext::oneapi::leader free function is deprecated. Use member function "
+    "leader of the sycl::group/sycl::sub_group instead.")
+detail::enable_if_t<detail::is_generic_group<Group>::value, bool> leader(
+    Group g) {
 #ifdef __SYCL_DEVICE_ONLY__
   typename Group::linear_id_type linear_id =
       sycl::detail::get_local_linear_id(g);
@@ -545,8 +547,7 @@ leader(Group g) {
 #endif
 }
 
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi
 
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

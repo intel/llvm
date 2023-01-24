@@ -647,23 +647,23 @@ computeUnlikelySuccessors(const BasicBlock *BB, Loop *L,
   }
 }
 
-Optional<uint32_t>
+std::optional<uint32_t>
 BranchProbabilityInfo::getEstimatedBlockWeight(const BasicBlock *BB) const {
   auto WeightIt = EstimatedBlockWeight.find(BB);
   if (WeightIt == EstimatedBlockWeight.end())
-    return None;
+    return std::nullopt;
   return WeightIt->second;
 }
 
-Optional<uint32_t>
+std::optional<uint32_t>
 BranchProbabilityInfo::getEstimatedLoopWeight(const LoopData &L) const {
   auto WeightIt = EstimatedLoopWeight.find(L);
   if (WeightIt == EstimatedLoopWeight.end())
-    return None;
+    return std::nullopt;
   return WeightIt->second;
 }
 
-Optional<uint32_t>
+std::optional<uint32_t>
 BranchProbabilityInfo::getEstimatedEdgeWeight(const LoopEdge &Edge) const {
   // For edges entering a loop take weight of a loop rather than an individual
   // block in the loop.
@@ -673,16 +673,16 @@ BranchProbabilityInfo::getEstimatedEdgeWeight(const LoopEdge &Edge) const {
 }
 
 template <class IterT>
-Optional<uint32_t> BranchProbabilityInfo::getMaxEstimatedEdgeWeight(
+std::optional<uint32_t> BranchProbabilityInfo::getMaxEstimatedEdgeWeight(
     const LoopBlock &SrcLoopBB, iterator_range<IterT> Successors) const {
   SmallVector<uint32_t, 4> Weights;
-  Optional<uint32_t> MaxWeight;
+  std::optional<uint32_t> MaxWeight;
   for (const BasicBlock *DstBB : Successors) {
     const LoopBlock DstLoopBB = getLoopBlock(DstBB);
     auto Weight = getEstimatedEdgeWeight({SrcLoopBB, DstLoopBB});
 
     if (!Weight)
-      return None;
+      return std::nullopt;
 
     if (!MaxWeight || *MaxWeight < *Weight)
       MaxWeight = Weight;
@@ -767,8 +767,8 @@ void BranchProbabilityInfo::propagateEstimatedBlockWeight(
   }
 }
 
-Optional<uint32_t> BranchProbabilityInfo::getInitialEstimatedBlockWeight(
-    const BasicBlock *BB) {
+std::optional<uint32_t>
+BranchProbabilityInfo::getInitialEstimatedBlockWeight(const BasicBlock *BB) {
   // Returns true if \p BB has call marked with "NoReturn" attribute.
   auto hasNoReturn = [&](const BasicBlock *BB) {
     for (const auto &I : reverse(*BB))
@@ -805,7 +805,7 @@ Optional<uint32_t> BranchProbabilityInfo::getInitialEstimatedBlockWeight(
       if (CI->hasFnAttr(Attribute::Cold))
         return static_cast<uint32_t>(BlockExecWeight::COLD);
 
-  return None;
+  return std::nullopt;
 }
 
 // Does RPO traversal over all blocks in \p F and assigns weights to
@@ -823,7 +823,7 @@ void BranchProbabilityInfo::computeEestimateBlockWeight(
     if (auto BBWeight = getInitialEstimatedBlockWeight(BB))
       // If we were able to find estimated weight for the block set it to this
       // block and propagate up the IR.
-      propagateEstimatedBlockWeight(getLoopBlock(BB), DT, PDT, BBWeight.value(),
+      propagateEstimatedBlockWeight(getLoopBlock(BB), DT, PDT, *BBWeight,
                                     BlockWorkList, LoopWorkList);
 
   // BlockWorklist/LoopWorkList contains blocks/loops with at least one
@@ -895,7 +895,7 @@ bool BranchProbabilityInfo::calcEstimatedHeuristics(const BasicBlock *BB) {
   uint64_t TotalWeight = 0;
   // Go over all successors of BB and put their weights into SuccWeights.
   for (const BasicBlock *SuccBB : successors(BB)) {
-    Optional<uint32_t> Weight;
+    std::optional<uint32_t> Weight;
     const LoopBlock SuccLoopBB = getLoopBlock(SuccBB);
     const LoopEdge Edge{LoopBB, SuccLoopBB};
 

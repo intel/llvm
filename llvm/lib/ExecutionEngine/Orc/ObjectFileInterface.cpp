@@ -15,6 +15,7 @@
 #include "llvm/Object/MachO.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/Debug.h"
+#include <optional>
 
 #define DEBUG_TYPE "orc"
 
@@ -151,7 +152,7 @@ static Expected<MaterializationUnit::Interface>
 getCOFFObjectFileSymbolInfo(ExecutionSession &ES,
                             const object::COFFObjectFile &Obj) {
   MaterializationUnit::Interface I;
-  std::vector<Optional<object::coff_aux_section_definition>> ComdatDefs(
+  std::vector<std::optional<object::coff_aux_section_definition>> ComdatDefs(
       Obj.getNumberOfSections() + 1);
   for (auto &Sym : Obj.symbols()) {
     Expected<uint32_t> SymFlagsOrErr = Sym.getFlags();
@@ -178,7 +179,7 @@ getCOFFObjectFileSymbolInfo(ExecutionSession &ES,
       if (Def->Selection != COFF::IMAGE_COMDAT_SELECT_NODUPLICATES) {
         IsWeak = true;
       }
-      ComdatDefs[COFFSym.getSectionNumber()] = None;
+      ComdatDefs[COFFSym.getSectionNumber()] = std::nullopt;
     } else {
       // Skip symbols not defined in this object file.
       if (*SymFlagsOrErr & object::BasicSymbolRef::SF_Undefined)
@@ -284,6 +285,23 @@ getObjectFileInterface(ExecutionSession &ES, MemoryBufferRef ObjBuffer) {
     return getCOFFObjectFileSymbolInfo(ES, *COFFObj);
 
   return getGenericObjectFileSymbolInfo(ES, **Obj);
+}
+
+bool hasInitializerSection(jitlink::LinkGraph &G) {
+  bool IsMachO = G.getTargetTriple().isOSBinFormatMachO();
+  bool IsElf = G.getTargetTriple().isOSBinFormatELF();
+  if (!IsMachO && !IsElf)
+    return false;
+
+  for (auto &Sec : G.sections()) {
+    if (IsMachO && std::apply(MachOPlatform::isInitializerSection,
+                              Sec.getName().split(",")))
+      return true;
+    if (IsElf && ELFNixPlatform::isInitializerSection(Sec.getName()))
+      return true;
+  }
+
+  return false;
 }
 
 } // End namespace orc.

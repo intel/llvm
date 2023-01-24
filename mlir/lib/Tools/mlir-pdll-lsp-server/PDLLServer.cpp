@@ -79,7 +79,7 @@ getLspDiagnoticFromDiag(llvm::SourceMgr &sourceMgr, const ast::Diagnostic &diag,
 
   // Skip diagnostics that weren't emitted within the main file.
   if (loc.uri != uri)
-    return llvm::None;
+    return std::nullopt;
 
   // Convert the severity for the diagnostic.
   switch (diag.getSeverity()) {
@@ -282,10 +282,10 @@ struct PDLDocument {
   // Hover
   //===--------------------------------------------------------------------===//
 
-  Optional<lsp::Hover> findHover(const lsp::URIForFile &uri,
-                                 const lsp::Position &hoverPos);
-  Optional<lsp::Hover> findHover(const ast::Decl *decl,
-                                 const SMRange &hoverRange);
+  std::optional<lsp::Hover> findHover(const lsp::URIForFile &uri,
+                                      const lsp::Position &hoverPos);
+  std::optional<lsp::Hover> findHover(const ast::Decl *decl,
+                                      const SMRange &hoverRange);
   lsp::Hover buildHoverForOpName(const ods::Operation *op,
                                  const SMRange &hoverRange);
   lsp::Hover buildHoverForVariable(const ast::VariableDecl *varDecl,
@@ -447,8 +447,9 @@ void PDLDocument::getDocumentLinks(const lsp::URIForFile &uri,
 // PDLDocument: Hover
 //===----------------------------------------------------------------------===//
 
-Optional<lsp::Hover> PDLDocument::findHover(const lsp::URIForFile &uri,
-                                            const lsp::Position &hoverPos) {
+std::optional<lsp::Hover>
+PDLDocument::findHover(const lsp::URIForFile &uri,
+                       const lsp::Position &hoverPos) {
   SMLoc posLoc = hoverPos.getAsSMLoc(sourceMgr);
 
   // Check for a reference to an include.
@@ -460,7 +461,7 @@ Optional<lsp::Hover> PDLDocument::findHover(const lsp::URIForFile &uri,
   SMRange hoverRange;
   const PDLIndexSymbol *symbol = index.lookup(posLoc, &hoverRange);
   if (!symbol)
-    return llvm::None;
+    return std::nullopt;
 
   // Add hover for operation names.
   if (const auto *op = symbol->definition.dyn_cast<const ods::Operation *>())
@@ -469,8 +470,8 @@ Optional<lsp::Hover> PDLDocument::findHover(const lsp::URIForFile &uri,
   return findHover(decl, hoverRange);
 }
 
-Optional<lsp::Hover> PDLDocument::findHover(const ast::Decl *decl,
-                                            const SMRange &hoverRange) {
+std::optional<lsp::Hover> PDLDocument::findHover(const ast::Decl *decl,
+                                                 const SMRange &hoverRange) {
   // Add hover for variables.
   if (const auto *varDecl = dyn_cast<ast::VariableDecl>(decl))
     return buildHoverForVariable(varDecl, hoverRange);
@@ -491,7 +492,7 @@ Optional<lsp::Hover> PDLDocument::findHover(const ast::Decl *decl,
   if (const auto *rewrite = dyn_cast<ast::UserRewriteDecl>(decl))
     return buildHoverForUserConstraintOrRewrite("Rewrite", rewrite, hoverRange);
 
-  return llvm::None;
+  return std::nullopt;
 }
 
 lsp::Hover PDLDocument::buildHoverForOpName(const ods::Operation *op,
@@ -552,7 +553,7 @@ PDLDocument::buildHoverForCoreConstraint(const ast::CoreConstraintDecl *decl,
         .Case([&](const ast::OpConstraintDecl *opCst) {
           hoverOS << "Op";
           if (Optional<StringRef> name = opCst->getName())
-            hoverOS << "<" << name << ">";
+            hoverOS << "<" << *name << ">";
         })
         .Case([&](const ast::TypeConstraintDecl *) { hoverOS << "Type"; })
         .Case([&](const ast::TypeRangeConstraintDecl *) {
@@ -760,7 +761,6 @@ public:
   }
 
   void codeCompleteConstraintName(ast::Type currentType,
-                                  bool allowNonCoreConstraints,
                                   bool allowInlineTypeConstraints,
                                   const ast::DeclScope *scope) final {
     auto addCoreConstraint = [&](StringRef constraint, StringRef mlirType,
@@ -808,9 +808,6 @@ public:
     while (scope) {
       for (const ast::Decl *decl : scope->getDecls()) {
         if (const auto *cst = dyn_cast<ast::UserConstraintDecl>(decl)) {
-          if (!allowNonCoreConstraints)
-            continue;
-
           lsp::CompletionItem item;
           item.label = cst->getName().getName().str();
           item.kind = lsp::CompletionItemKind::Interface;
@@ -1041,7 +1038,7 @@ public:
     const ods::Operation *odsOp =
         opName ? odsContext.lookupOperation(*opName) : nullptr;
     codeCompleteOperationOperandOrResultSignature(
-        opName, odsOp, odsOp ? odsOp->getOperands() : llvm::None,
+        opName, odsOp, odsOp ? odsOp->getOperands() : std::nullopt,
         currentNumOperands, "operand", "Value");
   }
 
@@ -1050,7 +1047,7 @@ public:
     const ods::Operation *odsOp =
         opName ? odsContext.lookupOperation(*opName) : nullptr;
     codeCompleteOperationOperandOrResultSignature(
-        opName, odsOp, odsOp ? odsOp->getResults() : llvm::None,
+        opName, odsOp, odsOp ? odsOp->getResults() : std::nullopt,
         currentNumResults, "result", "Type");
   }
 
@@ -1392,8 +1389,8 @@ public:
                         std::vector<lsp::Location> &references);
   void getDocumentLinks(const lsp::URIForFile &uri,
                         std::vector<lsp::DocumentLink> &links);
-  Optional<lsp::Hover> findHover(const lsp::URIForFile &uri,
-                                 lsp::Position hoverPos);
+  std::optional<lsp::Hover> findHover(const lsp::URIForFile &uri,
+                                      lsp::Position hoverPos);
   void findDocumentSymbols(std::vector<lsp::DocumentSymbol> &symbols);
   lsp::CompletionList getCodeCompletion(const lsp::URIForFile &uri,
                                         lsp::Position completePos);
@@ -1501,10 +1498,10 @@ void PDLTextFile::getDocumentLinks(const lsp::URIForFile &uri,
   }
 }
 
-Optional<lsp::Hover> PDLTextFile::findHover(const lsp::URIForFile &uri,
-                                            lsp::Position hoverPos) {
+std::optional<lsp::Hover> PDLTextFile::findHover(const lsp::URIForFile &uri,
+                                                 lsp::Position hoverPos) {
   PDLTextFileChunk &chunk = getChunkFor(hoverPos);
-  Optional<lsp::Hover> hoverInfo = chunk.document.findHover(uri, hoverPos);
+  std::optional<lsp::Hover> hoverInfo = chunk.document.findHover(uri, hoverPos);
 
   // Adjust any locations within this file for the offset of this chunk.
   if (chunk.lineOffset != 0 && hoverInfo && hoverInfo->range)
@@ -1736,7 +1733,7 @@ void lsp::PDLLServer::updateDocument(
 Optional<int64_t> lsp::PDLLServer::removeDocument(const URIForFile &uri) {
   auto it = impl->files.find(uri.file());
   if (it == impl->files.end())
-    return llvm::None;
+    return std::nullopt;
 
   int64_t version = it->second->getVersion();
   impl->files.erase(it);
@@ -1766,12 +1763,12 @@ void lsp::PDLLServer::getDocumentLinks(
     return fileIt->second->getDocumentLinks(uri, documentLinks);
 }
 
-Optional<lsp::Hover> lsp::PDLLServer::findHover(const URIForFile &uri,
-                                                const Position &hoverPos) {
+std::optional<lsp::Hover> lsp::PDLLServer::findHover(const URIForFile &uri,
+                                                     const Position &hoverPos) {
   auto fileIt = impl->files.find(uri.file());
   if (fileIt != impl->files.end())
     return fileIt->second->findHover(uri, hoverPos);
-  return llvm::None;
+  return std::nullopt;
 }
 
 void lsp::PDLLServer::findDocumentSymbols(
@@ -1811,11 +1808,11 @@ void lsp::PDLLServer::getInlayHints(const URIForFile &uri, const Range &range,
                    inlayHints.end());
 }
 
-Optional<lsp::PDLLViewOutputResult>
+std::optional<lsp::PDLLViewOutputResult>
 lsp::PDLLServer::getPDLLViewOutput(const URIForFile &uri,
                                    PDLLViewOutputKind kind) {
   auto fileIt = impl->files.find(uri.file());
   if (fileIt != impl->files.end())
     return fileIt->second->getPDLLViewOutput(kind);
-  return llvm::None;
+  return std::nullopt;
 }

@@ -112,7 +112,7 @@ LogicalResult ApplyNativeRewriteOp::verify() {
 
 LogicalResult AttributeOp::verify() {
   Value attrType = getValueType();
-  Optional<Attribute> attrValue = getValue();
+  std::optional<Attribute> attrValue = getValue();
 
   if (!attrValue) {
     if (isa<RewriteOp>((*this)->getParentOp()))
@@ -203,7 +203,7 @@ static LogicalResult verifyResultTypesAreInferrable(OperationOp op,
   if (resultTypes.empty()) {
     // If we don't know the concrete operation, don't attempt any verification.
     // We can't make assumptions if we don't know the concrete operation.
-    Optional<StringRef> rawOpName = op.getOpName();
+    std::optional<StringRef> rawOpName = op.getOpName();
     if (!rawOpName)
       return success();
     Optional<RegisteredOperationName> opName =
@@ -290,7 +290,7 @@ LogicalResult OperationOp::verify() {
 }
 
 bool OperationOp::hasTypeInference() {
-  if (Optional<StringRef> rawOpName = getOpName()) {
+  if (std::optional<StringRef> rawOpName = getOpName()) {
     OperationName opName(*rawOpName, getContext());
     return opName.hasInterface<InferTypeOpInterface>();
   }
@@ -298,7 +298,7 @@ bool OperationOp::hasTypeInference() {
 }
 
 bool OperationOp::mightHaveTypeInference() {
-  if (Optional<StringRef> rawOpName = getOpName()) {
+  if (std::optional<StringRef> rawOpName = getOpName()) {
     OperationName opName(*rawOpName, getContext());
     return opName.mightHaveInterface<InferTypeOpInterface>();
   }
@@ -395,6 +395,39 @@ RewriteOp PatternOp::getRewriter() {
 /// The default dialect is `pdl`.
 StringRef PatternOp::getDefaultDialect() {
   return PDLDialect::getDialectNamespace();
+}
+
+//===----------------------------------------------------------------------===//
+// pdl::RangeOp
+//===----------------------------------------------------------------------===//
+
+static ParseResult parseRangeType(OpAsmParser &p, TypeRange argumentTypes,
+                                  Type &resultType) {
+  // If arguments were provided, infer the result type from the argument list.
+  if (!argumentTypes.empty()) {
+    resultType = RangeType::get(getRangeElementTypeOrSelf(argumentTypes[0]));
+    return success();
+  }
+  // Otherwise, parse the type as a trailing type.
+  return p.parseColonType(resultType);
+}
+
+static void printRangeType(OpAsmPrinter &p, RangeOp op, TypeRange argumentTypes,
+                           Type resultType) {
+  if (argumentTypes.empty())
+    p << ": " << resultType;
+}
+
+LogicalResult RangeOp::verify() {
+  Type elementType = getType().getElementType();
+  for (Type operandType : getOperandTypes()) {
+    Type operandElementType = getRangeElementTypeOrSelf(operandType);
+    if (operandElementType != elementType) {
+      return emitOpError("expected operand to have element type ")
+             << elementType << ", but got " << operandElementType;
+    }
+  }
+  return success();
 }
 
 //===----------------------------------------------------------------------===//

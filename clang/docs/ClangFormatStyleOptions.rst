@@ -1,7 +1,7 @@
 .. raw:: html
 
       <style type="text/css">
-        .versionbadge { background-color: #1c913d; height: 20px; display: inline-block; width: 120px; text-align: center; border-radius: 5px; color: #FFFFFF; font-family="Verdana,Geneva,DejaVu Sans,sans-serif" }
+        .versionbadge { background-color: #1c913d; height: 20px; display: inline-block; width: 120px; text-align: center; border-radius: 5px; color: #FFFFFF; font-family: "Verdana,Geneva,DejaVu Sans,sans-serif"; }
       </style>
 
 .. role:: versionbadge
@@ -865,7 +865,7 @@ the configuration (without a prefix: ``Auto``).
   Alignment options
 
   * ``TrailingCommentsAlignmentKinds Kind``
-    Specifies the way to align trailing comments
+    Specifies the way to align trailing comments.
 
     Possible values:
 
@@ -903,8 +903,9 @@ the configuration (without a prefix: ``Auto``).
         int abcd; // comment
 
 
-  * ``unsigned OverEmptyLines`` How many empty lines to apply alignment
-    With ``MaxEmptyLinesToKeep`` is 2 and ``OverEmptyLines`` is 2,
+  * ``unsigned OverEmptyLines`` How many empty lines to apply alignment.
+    When both ``MaxEmptyLinesToKeep`` and ``OverEmptyLines`` are set to 2,
+    it formats like below.
 
     .. code-block:: c++
 
@@ -915,7 +916,8 @@ the configuration (without a prefix: ``Auto``).
 
       int abcdef; // aligned
 
-    And with ``MaxEmptyLinesToKeep`` is 2 and ``OverEmptyLines`` is 1,
+    When ``MaxEmptyLinesToKeep`` is set to 2 and ``OverEmptyLines`` is set
+    to 1, it formats like below.
 
     .. code-block:: c++
 
@@ -1189,14 +1191,14 @@ the configuration (without a prefix: ``Auto``).
       };
 
   * ``SLS_Inline`` (in configuration: ``Inline``)
-    Merge lambda into a single line if argument of a function.
+    Merge lambda into a single line if the lambda is argument of a function.
 
     .. code-block:: c++
 
-      auto lambda = [](int a) {
-          return a;
+      auto lambda = [](int x, int y) {
+          return x < y;
       };
-      sort(a.begin(), a.end(), []() { return x < y; });
+      sort(a.begin(), a.end(), [](int x, int y) { return x < y; });
 
   * ``SLS_All`` (in configuration: ``All``)
     Merge all lambdas fitting on a single line.
@@ -2315,6 +2317,40 @@ the configuration (without a prefix: ``Auto``).
 
 
 
+**BreakBeforeInlineASMColon** (``BreakBeforeInlineASMColonStyle``) :versionbadge:`clang-format 16`
+  The inline ASM colon style to use.
+
+  Possible values:
+
+  * ``BBIAS_Never`` (in configuration: ``Never``)
+    No break before inline ASM colon.
+
+    .. code-block:: c++
+
+       asm volatile("string", : : val);
+
+  * ``BBIAS_OnlyMultiline`` (in configuration: ``OnlyMultiline``)
+    Break before inline ASM colon if the line length is longer than column
+    limit.
+
+    .. code-block:: c++
+
+       asm volatile("string", : : val);
+       asm("cmoveq %1, %2, %[result]"
+           : [result] "=r"(result)
+           : "r"(test), "r"(new), "[result]"(old));
+
+  * ``BBIAS_Always`` (in configuration: ``Always``)
+    Always break before inline ASM colon.
+
+    .. code-block:: c++
+
+       asm volatile("string",
+                    :
+                    : val);
+
+
+
 **BreakBeforeTernaryOperators** (``Boolean``) :versionbadge:`clang-format 3.7`
   If ``true``, ternary operators will be placed after line breaks.
 
@@ -2660,16 +2696,19 @@ the configuration (without a prefix: ``Auto``).
 
 **FixNamespaceComments** (``Boolean``) :versionbadge:`clang-format 5`
   If ``true``, clang-format adds missing namespace end comments for
-  short namespaces and fixes invalid existing ones. Short ones are
-  controlled by "ShortNamespaceLines".
+  namespaces and fixes invalid existing ones. This doesn't affect short
+  namespaces, which are controlled by ``ShortNamespaceLines``.
 
   .. code-block:: c++
 
      true:                                  false:
-     namespace a {                  vs.     namespace a {
-     foo();                                 foo();
-     bar();                                 bar();
+     namespace longNamespace {      vs.     namespace longNamespace {
+     void foo();                            void foo();
+     void bar();                            void bar();
      } // namespace a                       }
+     namespace shortNamespace {             namespace shortNamespace {
+     void baz();                            void baz();
+     }                                      }
 
 **ForEachMacros** (``List of Strings``) :versionbadge:`clang-format 3.7`
   A vector of macros that should be interpreted as foreach loops
@@ -3581,8 +3620,7 @@ the configuration (without a prefix: ``Auto``).
   (counted relative to leading non-whitespace column).
 
 **PenaltyReturnTypeOnItsOwnLine** (``Unsigned``) :versionbadge:`clang-format 3.7`
-  Penalty for putting the return type of a function onto its own
-  line.
+  Penalty for putting the return type of a function onto its own line.
 
 **PointerAlignment** (``PointerAlignmentStyle``) :versionbadge:`clang-format 3.7`
   Pointer and reference alignment style.
@@ -3674,6 +3712,7 @@ the configuration (without a prefix: ``Auto``).
     * const
     * inline
     * static
+    * friend
     * constexpr
     * volatile
     * restrict
@@ -3760,7 +3799,9 @@ the configuration (without a prefix: ``Auto``).
 
 
 **ReflowComments** (``Boolean``) :versionbadge:`clang-format 3.8`
-  If ``true``, clang-format will attempt to re-flow comments.
+  If ``true``, clang-format will attempt to re-flow comments. That is it
+  will touch a comment and *reflow* long comments into new lines, trying to
+  obey the ``ColumnLimit``.
 
   .. code-block:: c++
 
@@ -4575,9 +4616,11 @@ the configuration (without a prefix: ``Auto``).
     ///  - Foo                                /// - Foo
     ///    - Bar                              ///   - Bar
 
+  This option has only effect if ``ReflowComments`` is set to ``true``.
+
   Nested configuration flags:
 
-  Control of spaces within a single line comment
+  Control of spaces within a single line comment.
 
   * ``unsigned Minimum`` The minimum number of spaces at the start of the comment.
 

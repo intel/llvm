@@ -9,6 +9,9 @@ on:
     - '.github/ISSUE_TEMPLATE/**'
     - '.github/CODEOWNERS'
     - '.github/workflows/sycl_update_gpu_driver.yml'
+    - '.github/workflows/sycl_containers.yaml'
+    - '.github/workflows/sycl_nightly.yml'
+    - '.github/workflows/sycl_post_commit.yml'
     - '.github/workflows/sycl_windows_build_and_test.yml'
     - '.github/workflows/sycl_macos_build_and_test.yml'
     - 'devops/containers/**'
@@ -45,7 +48,7 @@ jobs:
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
       ref: ${{ github.event.pull_request.head.sha }}
-      lts_config: "hip_amdgpu;ocl_x64;ocl_gen9;l0_gen9;esimd_emu;cuda"
+      lts_config: "hip_amdgpu;ocl_x64;ocl_gen9;l0_gen9;esimd_emu;cuda_aws"
 
   linux_default:
     name: Linux

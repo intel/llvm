@@ -538,6 +538,20 @@ bool llvm::widenShuffleMaskElts(int Scale, ArrayRef<int> Mask,
   return true;
 }
 
+void llvm::getShuffleMaskWithWidestElts(ArrayRef<int> Mask,
+                                        SmallVectorImpl<int> &ScaledMask) {
+  std::array<SmallVector<int, 16>, 2> TmpMasks;
+  SmallVectorImpl<int> *Output = &TmpMasks[0], *Tmp = &TmpMasks[1];
+  ArrayRef<int> InputMask = Mask;
+  for (unsigned Scale = 2; Scale <= InputMask.size(); ++Scale) {
+    while (widenShuffleMaskElts(Scale, InputMask, *Output)) {
+      InputMask = *Output;
+      std::swap(Output, Tmp);
+    }
+  }
+  ScaledMask.assign(InputMask.begin(), InputMask.end());
+}
+
 void llvm::processShuffleMasks(
     ArrayRef<int> Mask, unsigned NumOfSrcRegs, unsigned NumOfDestRegs,
     unsigned NumOfUsedRegs, function_ref<void()> NoInputAction,
@@ -1147,6 +1161,12 @@ void InterleavedAccessInfo::collectConstStrideAccesses(
         continue;
       Type *ElementTy = getLoadStoreType(&I);
 
+      // Currently, codegen doesn't support cases where the type size doesn't
+      // match the alloc size. Skip them for now.
+      uint64_t Size = DL.getTypeAllocSize(ElementTy);
+      if (Size * 8 != DL.getTypeSizeInBits(ElementTy))
+        continue;
+
       // We don't check wrapping here because we don't know yet if Ptr will be
       // part of a full group or a group with gaps. Checking wrapping for all
       // pointers (even those that end up in groups with no gaps) will be overly
@@ -1159,7 +1179,6 @@ void InterleavedAccessInfo::collectConstStrideAccesses(
                      /*Assume=*/true, /*ShouldCheckWrap=*/false).value_or(0);
 
       const SCEV *Scev = replaceSymbolicStrideSCEV(PSE, Strides, Ptr);
-      uint64_t Size = DL.getTypeAllocSize(ElementTy);
       AccessStrideInfo[&I] = StrideDescriptor(Stride, Scev, Size,
                                               getLoadStoreAlignment(&I));
     }
@@ -1538,9 +1557,10 @@ void VFABI::getVectorVariantNames(
   for (const auto &S : SetVector<StringRef>(ListAttr.begin(), ListAttr.end())) {
 #ifndef NDEBUG
     LLVM_DEBUG(dbgs() << "VFABI: adding mapping '" << S << "'\n");
-    Optional<VFInfo> Info = VFABI::tryDemangleForVFABI(S, *(CI.getModule()));
+    std::optional<VFInfo> Info =
+        VFABI::tryDemangleForVFABI(S, *(CI.getModule()));
     assert(Info && "Invalid name for a VFABI variant.");
-    assert(CI.getModule()->getFunction(Info.value().VectorName) &&
+    assert(CI.getModule()->getFunction(Info->VectorName) &&
            "Vector function is missing.");
 #endif
     VariantMappings.push_back(std::string(S));

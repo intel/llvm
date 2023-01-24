@@ -1214,7 +1214,9 @@ static void genOMP(Fortran::lower::AbstractConverter &converter,
     TypeRange resultType;
     auto SimdLoopOp = firOpBuilder.create<mlir::omp::SimdLoopOp>(
         currentLocation, resultType, lowerBound, upperBound, step, alignedVars,
-        nullptr, ifClauseOperand, simdlenClauseOperand, safelenClauseOperand,
+        nullptr, ifClauseOperand,
+        orderClauseOperand.dyn_cast_or_null<omp::ClauseOrderKindAttr>(),
+        simdlenClauseOperand, safelenClauseOperand,
         /*inclusive=*/firOpBuilder.getUnitAttr());
     createBodyOfOp<omp::SimdLoopOp>(SimdLoopOp, converter, currentLocation,
                                     eval, &loopOpClauseList, iv);
@@ -1814,6 +1816,10 @@ void Fortran::lower::genOpenMPDeclarativeConstruct(
                   &declareTargetConstruct) {
             TODO(converter.getCurrentLocation(),
                  "OpenMPDeclareTargetConstruct");
+          },
+          [&](const Fortran::parser::OpenMPRequiresConstruct
+                  &requiresConstruct) {
+            TODO(converter.getCurrentLocation(), "OpenMPRequiresConstruct");
           },
           [&](const Fortran::parser::OpenMPThreadprivate &threadprivate) {
             // The directive is lowered when instantiating the variable to

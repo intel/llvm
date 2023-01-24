@@ -1,6 +1,6 @@
 function(add_sycl_library LIB_NAME TYPE)
   cmake_parse_arguments("ARG"
-    "TOOLCHAIN"
+    ""
     "LINKER_SCRIPT"
     "SOURCES;INCLUDE_DIRS;LIBRARIES"
     ${ARGN}
@@ -9,9 +9,7 @@ function(add_sycl_library LIB_NAME TYPE)
   target_include_directories(${LIB_NAME} PRIVATE ${ARG_INCLUDE_DIRS})
   target_link_libraries(${LIB_NAME} PRIVATE ${ARG_LIBRARIES})
 
-  if (ARG_TOOLCHAIN)
-    add_dependencies(sycl-toolchain ${LIB_NAME})
-  endif()
+  add_dependencies(sycl-runtime-libraries ${LIB_NAME})
 
   if (ARG_LINKER_SCRIPT AND UNIX AND NOT APPLE)
     target_link_libraries(${LIB_NAME} PRIVATE
@@ -34,12 +32,11 @@ function(add_sycl_plugin PLUGIN_NAME)
   cmake_parse_arguments("ARG"
     ""
     ""
-    "SOURCES;INCLUDE_DIRS;LIBRARIES"
+    "SOURCES;INCLUDE_DIRS;LIBRARIES;HEADER"
     ${ARGN}
   )
 
   add_sycl_library("pi_${PLUGIN_NAME}" SHARED
-    TOOLCHAIN
     LINKER_SCRIPT "${PROJECT_SOURCE_DIR}/plugins/ld-version-script.txt"
     SOURCES ${ARG_SOURCES}
     INCLUDE_DIRS
@@ -49,6 +46,19 @@ function(add_sycl_plugin PLUGIN_NAME)
       ${ARG_LIBRARIES}
       OpenCL-Headers
   )
+
+  # Install feature test header
+  if (NOT "${ARG_HEADER}" STREQUAL "")
+    get_filename_component(HEADER_NAME ${ARG_HEADER} NAME)
+    configure_file(
+      ${ARG_HEADER}
+      ${SYCL_INCLUDE_BUILD_DIR}/sycl/detail/plugins/${PLUGIN_NAME}/${HEADER_NAME}
+      COPYONLY)
+
+    install(FILES ${ARG_HEADER}
+            DESTINATION ${SYCL_INCLUDE_DIR}/sycl/detail/plugins/${PLUGIN_NAME}
+            COMPONENT pi_${PLUGIN_NAME})
+  endif()
 
   install(TARGETS pi_${PLUGIN_NAME}
     LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT pi_${PLUGIN_NAME}

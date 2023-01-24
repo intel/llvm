@@ -98,6 +98,7 @@
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -287,7 +288,7 @@ using SetOfInstrs = SmallPtrSet<Instruction *, 16>;
 using TypeIsSExt = PointerIntPair<Type *, 2, ExtType>;
 using InstrToOrigTy = DenseMap<Instruction *, TypeIsSExt>;
 using SExts = SmallVector<Instruction *, 16>;
-using ValueToSExts = DenseMap<Value *, SExts>;
+using ValueToSExts = MapVector<Value *, SExts>;
 
 class TypePromotionTransaction;
 
@@ -1432,21 +1433,21 @@ bool matchIncrement(const Instruction *IVInc, Instruction *&LHS,
 
 /// If given \p PN is an inductive variable with value IVInc coming from the
 /// backedge, and on each iteration it gets increased by Step, return pair
-/// <IVInc, Step>. Otherwise, return None.
-static Optional<std::pair<Instruction *, Constant *>>
+/// <IVInc, Step>. Otherwise, return std::nullopt.
+static std::optional<std::pair<Instruction *, Constant *>>
 getIVIncrement(const PHINode *PN, const LoopInfo *LI) {
   const Loop *L = LI->getLoopFor(PN->getParent());
   if (!L || L->getHeader() != PN->getParent() || !L->getLoopLatch())
-    return None;
+    return std::nullopt;
   auto *IVInc =
       dyn_cast<Instruction>(PN->getIncomingValueForBlock(L->getLoopLatch()));
   if (!IVInc || LI->getLoopFor(IVInc->getParent()) != L)
-    return None;
+    return std::nullopt;
   Instruction *LHS = nullptr;
   Constant *Step = nullptr;
   if (matchIncrement(IVInc, LHS, Step) && LHS == PN)
     return std::make_pair(IVInc, Step);
-  return None;
+  return std::nullopt;
 }
 
 static bool isIVIncrement(const Value *V, const LoopInfo *LI) {
@@ -2252,19 +2253,19 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, ModifyDT &ModifiedDT) {
           DL->getTypeAllocSize(GV->getValueType()) >= MinSize + Offset2)
         GV->setAlignment(PrefAlign);
     }
-    // If this is a memcpy (or similar) then we may be able to improve the
-    // alignment
-    if (MemIntrinsic *MI = dyn_cast<MemIntrinsic>(CI)) {
-      Align DestAlign = getKnownAlignment(MI->getDest(), *DL);
-      MaybeAlign MIDestAlign = MI->getDestAlign();
-      if (!MIDestAlign || DestAlign > *MIDestAlign)
-        MI->setDestAlignment(DestAlign);
-      if (MemTransferInst *MTI = dyn_cast<MemTransferInst>(MI)) {
-        MaybeAlign MTISrcAlign = MTI->getSourceAlign();
-        Align SrcAlign = getKnownAlignment(MTI->getSource(), *DL);
-        if (!MTISrcAlign || SrcAlign > *MTISrcAlign)
-          MTI->setSourceAlignment(SrcAlign);
-      }
+  }
+  // If this is a memcpy (or similar) then we may be able to improve the
+  // alignment.
+  if (MemIntrinsic *MI = dyn_cast<MemIntrinsic>(CI)) {
+    Align DestAlign = getKnownAlignment(MI->getDest(), *DL);
+    MaybeAlign MIDestAlign = MI->getDestAlign();
+    if (!MIDestAlign || DestAlign > *MIDestAlign)
+      MI->setDestAlignment(DestAlign);
+    if (MemTransferInst *MTI = dyn_cast<MemTransferInst>(MI)) {
+      MaybeAlign MTISrcAlign = MTI->getSourceAlign();
+      Align SrcAlign = getKnownAlignment(MTI->getSource(), *DL);
+      if (!MTISrcAlign || SrcAlign > *MTISrcAlign)
+        MTI->setSourceAlignment(SrcAlign);
     }
   }
 
@@ -2345,6 +2346,7 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, ModifyDT &ModifiedDT) {
     case Intrinsic::fshl:
     case Intrinsic::fshr:
       return optimizeFunnelShift(II);
+    case Intrinsic::dbg_assign:
     case Intrinsic::dbg_value:
       return fixupDbgValue(II);
     case Intrinsic::vscale: {
@@ -4015,25 +4017,25 @@ bool AddressingModeMatcher::matchScaledValue(Value *ScaleReg, int64_t Scale,
   // If this is an add recurrence with a constant step, return the increment
   // instruction and the canonicalized step.
   auto GetConstantStep =
-      [this](const Value *V) -> Optional<std::pair<Instruction *, APInt>> {
+      [this](const Value *V) -> std::optional<std::pair<Instruction *, APInt>> {
     auto *PN = dyn_cast<PHINode>(V);
     if (!PN)
-      return None;
+      return std::nullopt;
     auto IVInc = getIVIncrement(PN, &LI);
     if (!IVInc)
-      return None;
-    // TODO: The result of the intrinsics above is two-compliment. However when
+      return std::nullopt;
+    // TODO: The result of the intrinsics above is two-complement. However when
     // IV inc is expressed as add or sub, iv.next is potentially a poison value.
     // If it has nuw or nsw flags, we need to make sure that these flags are
     // inferrable at the point of memory instruction. Otherwise we are replacing
-    // well-defined two-compliment computation with poison. Currently, to avoid
+    // well-defined two-complement computation with poison. Currently, to avoid
     // potentially complex analysis needed to prove this, we reject such cases.
     if (auto *OIVInc = dyn_cast<OverflowingBinaryOperator>(IVInc->first))
       if (OIVInc->hasNoSignedWrap() || OIVInc->hasNoUnsignedWrap())
-        return None;
+        return std::nullopt;
     if (auto *ConstantStep = dyn_cast<ConstantInt>(IVInc->second))
       return std::make_pair(IVInc->first, ConstantStep->getValue());
-    return None;
+    return std::nullopt;
   };
 
   // Try to account for the following special case:

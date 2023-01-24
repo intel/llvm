@@ -675,7 +675,11 @@ void kmp_topology_t::print(const char *env_var) const {
   kmp_hw_t print_types[KMP_HW_LAST + 2];
 
   // Num Available Threads
-  KMP_INFORM(AvailableOSProc, env_var, num_hw_threads);
+  if (num_hw_threads) {
+    KMP_INFORM(AvailableOSProc, env_var, num_hw_threads);
+  } else {
+    KMP_INFORM(AvailableOSProc, env_var, __kmp_xproc);
+  }
 
   // Uniform or not
   if (is_uniform()) {
@@ -2939,6 +2943,17 @@ static bool __kmp_affinity_create_cpuinfo_map(int *line,
       }
       (*line)++;
 
+#if KMP_ARCH_LOONGARCH64
+      // The parsing logic of /proc/cpuinfo in this function highly depends on
+      // the blank lines between each processor info block. But on LoongArch a
+      // blank line exists before the first processor info block (i.e. after the
+      // "system type" line). This blank line was added because the "system
+      // type" line is unrelated to any of the CPUs. We must skip this line so
+      // that the original logic works on LoongArch.
+      if (*buf == '\n' && *line == 2)
+        continue;
+#endif
+
       char s1[] = "processor";
       if (strncmp(buf, s1, sizeof(s1) - 1) == 0) {
         CHECK_LINE;
@@ -3062,7 +3077,8 @@ static bool __kmp_affinity_create_cpuinfo_map(int *line,
       }
 
       // Skip this proc if it is not included in the machine model.
-      if (!KMP_CPU_ISSET(threadInfo[num_avail][osIdIndex],
+      if (KMP_AFFINITY_CAPABLE() &&
+          !KMP_CPU_ISSET(threadInfo[num_avail][osIdIndex],
                          __kmp_affin_fullMask)) {
         INIT_PROC_INFO(threadInfo[num_avail]);
         continue;
@@ -4525,6 +4541,9 @@ void __kmp_affinity_uninitialize(void) {
     *affinity = KMP_AFFINITY_INIT(affinity->env_var);
   }
   if (__kmp_affin_origMask != NULL) {
+    if (KMP_AFFINITY_CAPABLE()) {
+      __kmp_set_system_affinity(__kmp_affin_origMask, FALSE);
+    }
     KMP_CPU_FREE(__kmp_affin_origMask);
     __kmp_affin_origMask = NULL;
   }

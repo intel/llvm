@@ -76,6 +76,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <optional>
 #include <utility>
 
 using namespace llvm;
@@ -579,12 +580,12 @@ uint32_t GVNPass::ValueTable::lookupOrAdd(Value *V) {
   if (VI != valueNumbering.end())
     return VI->second;
 
-  if (!isa<Instruction>(V)) {
+  auto *I = dyn_cast<Instruction>(V);
+  if (!I) {
     valueNumbering[V] = nextValueNumber;
     return nextValueNumber++;
   }
 
-  Instruction* I = cast<Instruction>(V);
   Expression exp;
   switch (I->getOpcode()) {
     case Instruction::Call:
@@ -762,15 +763,15 @@ void GVNPass::printPipeline(
       OS, MapClassName2PassName);
 
   OS << "<";
-  if (Options.AllowPRE != None)
-    OS << (Options.AllowPRE.value() ? "" : "no-") << "pre;";
-  if (Options.AllowLoadPRE != None)
-    OS << (Options.AllowLoadPRE.value() ? "" : "no-") << "load-pre;";
-  if (Options.AllowLoadPRESplitBackedge != None)
-    OS << (Options.AllowLoadPRESplitBackedge.value() ? "" : "no-")
+  if (Options.AllowPRE != std::nullopt)
+    OS << (*Options.AllowPRE ? "" : "no-") << "pre;";
+  if (Options.AllowLoadPRE != std::nullopt)
+    OS << (*Options.AllowLoadPRE ? "" : "no-") << "load-pre;";
+  if (Options.AllowLoadPRESplitBackedge != std::nullopt)
+    OS << (*Options.AllowLoadPRESplitBackedge ? "" : "no-")
        << "split-backedge-load-pre;";
-  if (Options.AllowMemDep != None)
-    OS << (Options.AllowMemDep.value() ? "" : "no-") << "memdep";
+  if (Options.AllowMemDep != std::nullopt)
+    OS << (*Options.AllowMemDep ? "" : "no-") << "memdep";
   OS << ">";
 }
 
@@ -809,7 +810,7 @@ static bool IsValueFullyAvailableInBlock(
     BasicBlock *BB,
     DenseMap<BasicBlock *, AvailabilityState> &FullyAvailableBlocks) {
   SmallVector<BasicBlock *, 32> Worklist;
-  Optional<BasicBlock *> UnavailableBB;
+  std::optional<BasicBlock *> UnavailableBB;
 
   // The number of times we didn't find an entry for a block in a map and
   // optimistically inserted an entry marking block as speculatively available.
@@ -1059,25 +1060,25 @@ static void reportMayClobberedLoad(LoadInst *Load, MemDepResult DepInfo,
                                    OptimizationRemarkEmitter *ORE) {
   using namespace ore;
 
-  User *OtherAccess = nullptr;
+  Instruction *OtherAccess = nullptr;
 
   OptimizationRemarkMissed R(DEBUG_TYPE, "LoadClobbered", Load);
   R << "load of type " << NV("Type", Load->getType()) << " not eliminated"
     << setExtraArgs();
 
   for (auto *U : Load->getPointerOperand()->users()) {
-    if (U != Load && (isa<LoadInst>(U) || isa<StoreInst>(U)) &&
-        cast<Instruction>(U)->getFunction() == Load->getFunction() &&
-        DT->dominates(cast<Instruction>(U), Load)) {
-      // Use the most immediately dominating value
-      if (OtherAccess) {
-        if (DT->dominates(cast<Instruction>(OtherAccess), cast<Instruction>(U)))
-          OtherAccess = U;
-        else
-          assert(U == OtherAccess || DT->dominates(cast<Instruction>(U),
-                                                   cast<Instruction>(OtherAccess)));
-      } else
-        OtherAccess = U;
+    if (U != Load && (isa<LoadInst>(U) || isa<StoreInst>(U))) {
+      auto *I = cast<Instruction>(U);
+      if (I->getFunction() == Load->getFunction() && DT->dominates(I, Load)) {
+        // Use the most immediately dominating value
+        if (OtherAccess) {
+          if (DT->dominates(OtherAccess, I))
+            OtherAccess = I;
+          else
+            assert(U == OtherAccess || DT->dominates(I, OtherAccess));
+        } else
+          OtherAccess = I;
+      }
     }
   }
 
@@ -1085,22 +1086,22 @@ static void reportMayClobberedLoad(LoadInst *Load, MemDepResult DepInfo,
     // There is no dominating use, check if we can find a closest non-dominating
     // use that lies between any other potentially available use and Load.
     for (auto *U : Load->getPointerOperand()->users()) {
-      if (U != Load && (isa<LoadInst>(U) || isa<StoreInst>(U)) &&
-          cast<Instruction>(U)->getFunction() == Load->getFunction() &&
-          isPotentiallyReachable(cast<Instruction>(U), Load, nullptr, DT)) {
-        if (OtherAccess) {
-          if (liesBetween(cast<Instruction>(OtherAccess), cast<Instruction>(U),
-                          Load, DT)) {
-            OtherAccess = U;
-          } else if (!liesBetween(cast<Instruction>(U),
-                                  cast<Instruction>(OtherAccess), Load, DT)) {
-            // These uses are both partially available at Load were it not for
-            // the clobber, but neither lies strictly after the other.
-            OtherAccess = nullptr;
-            break;
-          } // else: keep current OtherAccess since it lies between U and Load
-        } else {
-          OtherAccess = U;
+      if (U != Load && (isa<LoadInst>(U) || isa<StoreInst>(U))) {
+        auto *I = cast<Instruction>(U);
+        if (I->getFunction() == Load->getFunction() &&
+            isPotentiallyReachable(I, Load, nullptr, DT)) {
+          if (OtherAccess) {
+            if (liesBetween(OtherAccess, I, Load, DT)) {
+              OtherAccess = I;
+            } else if (!liesBetween(I, OtherAccess, Load, DT)) {
+              // These uses are both partially available at Load were it not for
+              // the clobber, but neither lies strictly after the other.
+              OtherAccess = nullptr;
+              break;
+            } // else: keep current OtherAccess since it lies between U and Load
+          } else {
+            OtherAccess = I;
+          }
         }
       }
     }
@@ -1121,19 +1122,19 @@ static void reportMayClobberedLoad(LoadInst *Load, MemDepResult DepInfo,
 /// basic block, before the pointer select.
 /// 3. There must be no instructions between the found loads and \p End that may
 /// clobber the loads.
-static Optional<AvailableValue>
+static std::optional<AvailableValue>
 tryToConvertLoadOfPtrSelect(BasicBlock *DepBB, BasicBlock::iterator End,
                             Value *Address, Type *LoadTy, DominatorTree &DT,
                             AAResults *AA) {
 
   auto *Sel = dyn_cast_or_null<SelectInst>(Address);
   if (!Sel || DepBB != Sel->getParent())
-    return None;
+    return std::nullopt;
 
   LoadInst *L1 = findDominatingLoad(Sel->getOperand(1), LoadTy, Sel, DT);
   LoadInst *L2 = findDominatingLoad(Sel->getOperand(2), LoadTy, Sel, DT);
   if (!L1 || !L2)
-    return None;
+    return std::nullopt;
 
   // Ensure there are no accesses that may modify the locations referenced by
   // either L1 or L2 between L1, L2 and the specified End iterator.
@@ -1144,7 +1145,7 @@ tryToConvertLoadOfPtrSelect(BasicBlock *DepBB, BasicBlock::iterator End,
         return isModSet(AA->getModRefInfo(&I, L1Loc)) ||
                isModSet(AA->getModRefInfo(&I, L2Loc));
       }))
-    return None;
+    return std::nullopt;
 
   return AvailableValue::getSelect(Sel);
 }
@@ -1203,7 +1204,9 @@ bool GVNPass::AnalyzeLoadAvailability(LoadInst *Load, MemDepResult DepInfo,
             canCoerceMustAliasedValueToLoad(DepLoad, LoadType, DL)) {
           const auto ClobberOff = MD->getClobberOffset(DepLoad);
           // GVN has no deal with a negative offset.
-          Offset = (ClobberOff == None || *ClobberOff < 0) ? -1 : *ClobberOff;
+          Offset = (ClobberOff == std::nullopt || *ClobberOff < 0)
+                       ? -1
+                       : *ClobberOff;
         }
         if (Offset == -1)
           Offset =
@@ -1887,11 +1890,10 @@ static bool impliesEquivalanceIfFalse(CmpInst* Cmp) {
 
 
 static bool hasUsersIn(Value *V, BasicBlock *BB) {
-  for (User *U : V->users())
-    if (isa<Instruction>(U) &&
-        cast<Instruction>(U)->getParent() == BB)
-      return true;
-  return false;
+  return llvm::any_of(V->users(), [BB](User *U) {
+    auto *I = dyn_cast<Instruction>(U);
+    return I && I->getParent() == BB;
+  });
 }
 
 bool GVNPass::processAssumeIntrinsic(AssumeInst *IntrinsicI) {
@@ -2828,17 +2830,10 @@ bool GVNPass::performScalarPRE(Instruction *CurInst) {
       NumWithout = 2;
       break;
     }
-    // It is not safe to do PRE when P->CurrentBlock is a loop backedge, and
-    // when CurInst has operand defined in CurrentBlock (so it may be defined
-    // by phi in the loop header).
+    // It is not safe to do PRE when P->CurrentBlock is a loop backedge.
     assert(BlockRPONumber.count(P) && BlockRPONumber.count(CurrentBlock) &&
            "Invalid BlockRPONumber map.");
-    if (BlockRPONumber[P] >= BlockRPONumber[CurrentBlock] &&
-        llvm::any_of(CurInst->operands(), [&](const Use &U) {
-          if (auto *Inst = dyn_cast<Instruction>(U.get()))
-            return Inst->getParent() == CurrentBlock;
-          return false;
-        })) {
+    if (BlockRPONumber[P] >= BlockRPONumber[CurrentBlock]) {
       NumWithout = 2;
       break;
     }

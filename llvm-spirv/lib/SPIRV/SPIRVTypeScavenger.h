@@ -105,6 +105,10 @@ class SPIRVTypeScavenger {
   /// Compute pointer element types for all pertinent values in the module.
   void typeModule(Module &M);
 
+  /// This stores a list of instructions whose pointer element types are
+  /// currently being investigated, to avoid the possibility of infinite cycles.
+  std::vector<Value *> VisitStack;
+
 public:
   explicit SPIRVTypeScavenger(Module &M) { typeModule(M); }
 

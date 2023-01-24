@@ -57,7 +57,8 @@ public:
         MInteropContext(nullptr), MInteropMemObject(nullptr),
         MOpenCLInterop(false), MHostPtrReadOnly(false), MNeedWriteBack(true),
         MSizeInBytes(SizeInBytes), MUserPtr(nullptr), MShadowCopy(nullptr),
-        MUploadDataFunctor(nullptr), MSharedPtrStorage(nullptr) {}
+        MUploadDataFunctor(nullptr), MSharedPtrStorage(nullptr),
+        MHostPtrProvided(false) {}
 
   SYCLMemObjT(const property_list &Props,
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
@@ -134,6 +135,7 @@ public:
         updateHostMemory(FinalData);
       }
     };
+    MHostPtrProvided = true;
   }
 
   void set_final_data(
@@ -144,6 +146,7 @@ public:
     MUploadDataFunctor = [FinalDataFunc, UpdateFunc]() {
       FinalDataFunc(UpdateFunc);
     };
+    MHostPtrProvided = true;
   }
 
 protected:
@@ -169,6 +172,7 @@ public:
   }
 
   void handleHostData(void *HostPtr, const size_t RequiredAlign) {
+    MHostPtrProvided = true;
     if (!MHostPtrReadOnly && HostPtr) {
       set_final_data([HostPtr](const std::function<void(void *const Ptr)> &F) {
         F(HostPtr);
@@ -192,6 +196,7 @@ public:
 
   void handleHostData(const std::shared_ptr<void> &HostPtr,
                       const size_t RequiredAlign, bool IsConstPtr) {
+    MHostPtrProvided = true;
     MSharedPtrStorage = HostPtr;
     MHostPtrReadOnly = IsConstPtr;
     if (HostPtr) {
@@ -264,6 +269,8 @@ public:
 
   bool isHostPointerReadOnly() const { return MHostPtrReadOnly; }
 
+  void detachMemoryObject(const std::shared_ptr<SYCLMemObjT> &Self) const;
+
 protected:
   // An allocateMem helper that determines which host ptr to use
   void determineHostPtr(const ContextImplPtr &Context, bool InitFromUserData,
@@ -299,8 +306,12 @@ protected:
   // Field which holds user's shared_ptr in case of memory object is created
   // using constructor with shared_ptr.
   std::shared_ptr<const void> MSharedPtrStorage;
+  // Field to identify if dtor is not necessarily blocking.
+  // check for MUploadDataFunctor is not enough to define it since for case when
+  // we have read only HostPtr - MUploadDataFunctor is empty but delayed release
+  // must be not allowed.
+  bool MHostPtrProvided;
 };
-
 } // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

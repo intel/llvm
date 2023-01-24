@@ -23,7 +23,6 @@
 #include "llvm/Support/Error.h"
 
 namespace clang {
-class FunctionDecl;
 namespace interp {
 class Context;
 class Function;
@@ -97,7 +96,7 @@ private:
   // value which is mapped to the location of the opcode being evaluated.
   CodePtr OpPC;
   /// Location of a failure.
-  llvm::Optional<SourceLocation> BailLocation;
+  std::optional<SourceLocation> BailLocation;
   /// Location of the current instruction.
   SourceInfo CurrentSource;
 

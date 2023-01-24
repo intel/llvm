@@ -15,10 +15,7 @@
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace ext {
-namespace oneapi {
-
-#if __cplusplus >= 201703L
+namespace ext::oneapi {
 
 template <memory_order> struct order_tag_t {
   explicit order_tag_t() = default;
@@ -37,8 +34,6 @@ inline constexpr scope_tag_t<memory_scope::sub_group> sub_group_scope{};
 inline constexpr scope_tag_t<memory_scope::work_group> work_group_scope{};
 inline constexpr scope_tag_t<memory_scope::device> device_scope{};
 inline constexpr scope_tag_t<memory_scope::system> system_scope{};
-
-#endif
 
 template <typename DataT, int Dimensions, memory_order DefaultOrder,
           memory_scope DefaultScope,
@@ -70,8 +65,6 @@ public:
 
   using AccessorT::AccessorT;
 
-#if __cplusplus >= 201703L
-
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             memory_order Order, memory_scope Scope>
   atomic_accessor(buffer<T, Dims, AllocatorT> &BufferRef, order_tag_t<Order>,
@@ -84,8 +77,6 @@ public:
                   handler &CommandGroupHandler, order_tag_t<Order>,
                   scope_tag_t<Scope>, const property_list &PropertyList = {})
       : atomic_accessor(BufferRef, CommandGroupHandler, PropertyList) {}
-
-#endif
 
   // Override subscript operators and conversions to wrap in an atomic_ref
   template <int Dims = Dimensions>
@@ -109,8 +100,6 @@ public:
   }
 };
 
-#if __cplusplus >= 201703L
-
 template <typename DataT, int Dimensions, typename AllocatorT,
           memory_order Order, memory_scope Scope>
 atomic_accessor(buffer<DataT, Dimensions, AllocatorT>, order_tag_t<Order>,
@@ -124,11 +113,6 @@ atomic_accessor(buffer<DataT, Dimensions, AllocatorT>, handler,
                 order_tag_t<Order>, scope_tag_t<Scope>, property_list = {})
     -> atomic_accessor<DataT, Dimensions, Order, Scope, target::device,
                        access::placeholder::false_t>;
-
-#endif
-
-} // namespace oneapi
-} // namespace ext
-
+} // namespace ext::oneapi
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

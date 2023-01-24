@@ -914,7 +914,7 @@ bool AMDGPURegisterBankInfo::executeInWaterfallLoop(
       Op.setReg(CurrentLaneReg);
 
       // Make sure we don't re-process this register again.
-      WaterfalledRegMap.insert(std::make_pair(OldReg, Op.getReg()));
+      WaterfalledRegMap.insert(std::pair(OldReg, Op.getReg()));
     }
   }
 
@@ -1252,7 +1252,8 @@ static unsigned setBufferOffsets(MachineIRBuilder &B,
   const LLT S32 = LLT::scalar(32);
   MachineRegisterInfo *MRI = B.getMRI();
 
-  if (Optional<int64_t> Imm = getIConstantVRegSExtVal(CombinedOffset, *MRI)) {
+  if (std::optional<int64_t> Imm =
+          getIConstantVRegSExtVal(CombinedOffset, *MRI)) {
     uint32_t SOffset, ImmOffset;
     if (AMDGPU::splitMUBUFOffset(*Imm, SOffset, ImmOffset, &RBI.Subtarget,
                                  Alignment)) {
@@ -1732,17 +1733,17 @@ unpackV2S16ToS32(MachineIRBuilder &B, Register Src, unsigned ExtOpcode) {
   if (ExtOpcode == TargetOpcode::G_SEXT) {
     auto ExtLo = B.buildSExtInReg(S32, Bitcast, 16);
     auto ShiftHi = B.buildAShr(S32, Bitcast, B.buildConstant(S32, 16));
-    return std::make_pair(ExtLo.getReg(0), ShiftHi.getReg(0));
+    return std::pair(ExtLo.getReg(0), ShiftHi.getReg(0));
   }
 
   auto ShiftHi = B.buildLShr(S32, Bitcast, B.buildConstant(S32, 16));
   if (ExtOpcode == TargetOpcode::G_ZEXT) {
     auto ExtLo = B.buildAnd(S32, Bitcast, B.buildConstant(S32, 0xffff));
-    return std::make_pair(ExtLo.getReg(0), ShiftHi.getReg(0));
+    return std::pair(ExtLo.getReg(0), ShiftHi.getReg(0));
   }
 
   assert(ExtOpcode == TargetOpcode::G_ANYEXT);
-  return std::make_pair(Bitcast.getReg(0), ShiftHi.getReg(0));
+  return std::pair(Bitcast.getReg(0), ShiftHi.getReg(0));
 }
 
 // For cases where only a single copy is inserted for matching register banks.
@@ -1788,14 +1789,14 @@ static std::pair<Register, unsigned>
 getBaseWithConstantOffset(MachineRegisterInfo &MRI, Register Reg) {
   int64_t Const;
   if (mi_match(Reg, MRI, m_ICst(Const)))
-    return std::make_pair(Register(), Const);
+    return std::pair(Register(), Const);
 
   Register Base;
   if (mi_match(Reg, MRI, m_GAdd(m_Reg(Base), m_ICst(Const))))
-    return std::make_pair(Base, Const);
+    return std::pair(Base, Const);
 
   // TODO: Handle G_OR used for add case
-  return std::make_pair(Reg, 0);
+  return std::pair(Reg, 0);
 }
 
 std::pair<Register, unsigned>
@@ -2447,17 +2448,21 @@ void AMDGPURegisterBankInfo::applyMappingImpl(
 
     int Amt = MI.getOperand(2).getImm();
     if (Amt <= 32) {
+      // Downstream users have expectations for the high bit behavior, so freeze
+      // incoming undefined bits.
       if (Amt == 32) {
         // The low bits are unchanged.
-        B.buildCopy(DstRegs[0], SrcRegs[0]);
+        B.buildFreeze(DstRegs[0], SrcRegs[0]);
       } else {
+        auto Freeze = B.buildFreeze(S32, SrcRegs[0]);
         // Extend in the low bits and propagate the sign bit to the high half.
-        B.buildSExtInReg(DstRegs[0], SrcRegs[0], Amt);
+        B.buildSExtInReg(DstRegs[0], Freeze, Amt);
       }
 
       B.buildAShr(DstRegs[1], DstRegs[0], B.buildConstant(S32, 31));
     } else {
       // The low bits are unchanged, and extend in the high bits.
+      // No freeze required
       B.buildCopy(DstRegs[0], SrcRegs[0]);
       B.buildSExtInReg(DstRegs[1], DstRegs[0], Amt - 32);
     }
@@ -2873,6 +2878,7 @@ void AMDGPURegisterBankInfo::applyMappingImpl(
   case AMDGPU::G_AMDGPU_BUFFER_LOAD_UBYTE:
   case AMDGPU::G_AMDGPU_BUFFER_LOAD_SBYTE:
   case AMDGPU::G_AMDGPU_BUFFER_LOAD_FORMAT:
+  case AMDGPU::G_AMDGPU_BUFFER_LOAD_FORMAT_TFE:
   case AMDGPU::G_AMDGPU_BUFFER_LOAD_FORMAT_D16:
   case AMDGPU::G_AMDGPU_TBUFFER_LOAD_FORMAT:
   case AMDGPU::G_AMDGPU_TBUFFER_LOAD_FORMAT_D16:
@@ -3506,7 +3512,8 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
       DstBank = SrcBank;
 
     unsigned Size = getSizeInBits(MI.getOperand(0).getReg(), MRI, *TRI);
-    if (cannotCopy(*DstBank, *SrcBank, Size))
+    if (MI.getOpcode() != AMDGPU::G_FREEZE &&
+        cannotCopy(*DstBank, *SrcBank, Size))
       return getInvalidInstructionMapping();
 
     const ValueMapping &ValMap = getValueMapping(0, Size, *DstBank);
@@ -3710,6 +3717,10 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   case AMDGPU::G_FMAXNUM_IEEE:
   case AMDGPU::G_FCANONICALIZE:
   case AMDGPU::G_INTRINSIC_TRUNC:
+  case AMDGPU::G_STRICT_FADD:
+  case AMDGPU::G_STRICT_FSUB:
+  case AMDGPU::G_STRICT_FMUL:
+  case AMDGPU::G_STRICT_FMA:
   case AMDGPU::G_BSWAP: // TODO: Somehow expand for scalar?
   case AMDGPU::G_FSHR: // TODO: Expand for scalar
   case AMDGPU::G_AMDGPU_FMIN_LEGACY:
@@ -3936,6 +3947,14 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     OpdsMapping[3] = AMDGPU::getValueMapping(AMDGPU::VGPRRegBankID, Size);
     break;
   }
+  case AMDGPU::G_IS_FPCLASS: {
+    Register SrcReg = MI.getOperand(1).getReg();
+    unsigned SrcSize = MRI.getType(SrcReg).getSizeInBits();
+    unsigned DstSize = MRI.getType(MI.getOperand(0).getReg()).getSizeInBits();
+    OpdsMapping[0] = AMDGPU::getValueMapping(AMDGPU::VCCRegBankID, DstSize);
+    OpdsMapping[1] = AMDGPU::getValueMapping(AMDGPU::VGPRRegBankID, SrcSize);
+    break;
+  }
   case AMDGPU::G_STORE: {
     assert(MI.getOperand(0).isReg());
     unsigned Size = MRI.getType(MI.getOperand(0).getReg()).getSizeInBits();
@@ -4038,6 +4057,7 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   case AMDGPU::G_AMDGPU_BUFFER_LOAD_USHORT:
   case AMDGPU::G_AMDGPU_BUFFER_LOAD_SSHORT:
   case AMDGPU::G_AMDGPU_BUFFER_LOAD_FORMAT:
+  case AMDGPU::G_AMDGPU_BUFFER_LOAD_FORMAT_TFE:
   case AMDGPU::G_AMDGPU_BUFFER_LOAD_FORMAT_D16:
   case AMDGPU::G_AMDGPU_TBUFFER_LOAD_FORMAT:
   case AMDGPU::G_AMDGPU_TBUFFER_LOAD_FORMAT_D16:

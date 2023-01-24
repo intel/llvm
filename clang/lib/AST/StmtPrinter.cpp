@@ -843,6 +843,11 @@ void StmtPrinter::VisitOMPTaskwaitDirective(OMPTaskwaitDirective *Node) {
   PrintOMPExecutableDirective(Node);
 }
 
+void StmtPrinter::VisitOMPErrorDirective(OMPErrorDirective *Node) {
+  Indent() << "#pragma omp error";
+  PrintOMPExecutableDirective(Node);
+}
+
 void StmtPrinter::VisitOMPTaskgroupDirective(OMPTaskgroupDirective *Node) {
   Indent() << "#pragma omp taskgroup";
   PrintOMPExecutableDirective(Node);
@@ -2494,6 +2499,13 @@ void StmtPrinter::VisitCXXFoldExpr(CXXFoldExpr *E) {
   OS << ")";
 }
 
+void StmtPrinter::VisitCXXParenListInitExpr(CXXParenListInitExpr *Node) {
+  OS << "(";
+  llvm::interleaveComma(Node->getInitExprs(), OS,
+                        [&](Expr *E) { PrintExpr(E); });
+  OS << ")";
+}
+
 void StmtPrinter::VisitConceptSpecializationExpr(ConceptSpecializationExpr *E) {
   NestedNameSpecifierLoc NNS = E->getNestedNameSpecifierLoc();
   if (NNS)
@@ -2550,7 +2562,7 @@ void StmtPrinter::VisitRequiresExpr(RequiresExpr *E) {
     } else {
       auto *NestedReq = cast<concepts::NestedRequirement>(Req);
       OS << "requires ";
-      if (NestedReq->isSubstitutionFailure())
+      if (NestedReq->hasInvalidConstraint())
         OS << "<<error-expression>>";
       else
         PrintExpr(NestedReq->getConstraintExpr());

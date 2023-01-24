@@ -24,7 +24,6 @@
 #include "clang/Analysis/FlowSensitive/DataflowEnvironment.h"
 #include "clang/Analysis/FlowSensitive/DataflowLattice.h"
 #include "clang/Analysis/FlowSensitive/MapLattice.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
@@ -61,9 +60,10 @@ struct ValueLattice {
   // When `None`, the lattice is either at top or bottom, based on `State`.
   llvm::Optional<int64_t> Value;
 
-  constexpr ValueLattice() : State(ValueState::Undefined), Value(llvm::None) {}
+  constexpr ValueLattice()
+      : State(ValueState::Undefined), Value(std::nullopt) {}
   constexpr ValueLattice(int64_t V) : State(ValueState::Defined), Value(V) {}
-  constexpr ValueLattice(ValueState S) : State(S), Value(llvm::None) {}
+  constexpr ValueLattice(ValueState S) : State(S), Value(std::nullopt) {}
 
   static constexpr ValueLattice bottom() {
     return ValueLattice(ValueState::Undefined);

@@ -794,6 +794,7 @@ void JSONNodeDumper::VisitTypeAliasDecl(const TypeAliasDecl *TAD) {
 void JSONNodeDumper::VisitNamespaceDecl(const NamespaceDecl *ND) {
   VisitNamedDecl(ND);
   attributeOnlyIfTrue("isInline", ND->isInline());
+  attributeOnlyIfTrue("isNested", ND->isNested());
   if (!ND->isOriginalNamespace())
     JOS.attribute("originalNamespace",
                   createBareDeclRef(ND->getOriginalNamespace()));
@@ -849,6 +850,9 @@ void JSONNodeDumper::VisitVarDecl(const VarDecl *VD) {
     case VarDecl::CInit: JOS.attribute("init", "c");  break;
     case VarDecl::CallInit: JOS.attribute("init", "call"); break;
     case VarDecl::ListInit: JOS.attribute("init", "list"); break;
+    case VarDecl::ParenListInit:
+      JOS.attribute("init", "paren-list");
+      break;
     }
   }
   attributeOnlyIfTrue("isParameterPack", VD->isParameterPack());

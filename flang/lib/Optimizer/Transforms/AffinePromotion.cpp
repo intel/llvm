@@ -179,7 +179,7 @@ struct AffineIfCondition {
 
   mlir::IntegerSet getIntegerSet() const {
     assert(hasIntegerSet() && "integer set is missing");
-    return integerSet.value();
+    return *integerSet;
   }
 
   mlir::ValueRange getAffineArgs() const { return affineArgs; }
@@ -411,7 +411,7 @@ createAffineOps(mlir::Value arrayRef, mlir::PatternRewriter &rewriter) {
                                                           affineMap, indexArgs);
   auto arrayElementType = coordinateArrayElement(acoOp);
   auto newType =
-      mlir::MemRefType::get({mlir::ShapedType::kDynamicSize}, arrayElementType);
+      mlir::MemRefType::get({mlir::ShapedType::kDynamic}, arrayElementType);
   auto arrayConvert = rewriter.create<fir::ConvertOp>(acoOp.getLoc(), newType,
                                                       acoOp.getMemref());
   return std::make_pair(affineApply, arrayConvert);

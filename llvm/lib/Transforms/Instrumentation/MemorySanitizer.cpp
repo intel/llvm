@@ -435,10 +435,10 @@ static const MemoryMapParams Linux_S390X_MemoryMapParams = {
 
 // aarch64 Linux
 static const MemoryMapParams Linux_AArch64_MemoryMapParams = {
-    0,             // AndMask (not used)
-    0x06000000000, // XorMask
-    0,             // ShadowBase (not used)
-    0x01000000000, // OriginBase
+    0,               // AndMask (not used)
+    0x0B00000000000, // XorMask
+    0,               // ShadowBase (not used)
+    0x0200000000000, // OriginBase
 };
 
 // aarch64 FreeBSD
@@ -4074,12 +4074,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       // will become a non-readonly function after it is instrumented by us. To
       // prevent this code from being optimized out, mark that function
       // non-readonly in advance.
+      // TODO: We can likely do better than dropping memory() completely here.
       AttributeMask B;
-      B.addAttribute(Attribute::ReadOnly)
-          .addAttribute(Attribute::ReadNone)
-          .addAttribute(Attribute::WriteOnly)
-          .addAttribute(Attribute::ArgMemOnly)
-          .addAttribute(Attribute::Speculatable);
+      B.addAttribute(Attribute::Memory).addAttribute(Attribute::Speculatable);
 
       Call->removeFnAttrs(B);
       if (Function *Func = Call->getCalledFunction()) {
@@ -4131,7 +4128,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
           if (ArgOffset + Size > kParamTLSSize)
             break;
           const MaybeAlign ParamAlignment(CB.getParamAlign(i));
-          MaybeAlign Alignment = llvm::None;
+          MaybeAlign Alignment = std::nullopt;
           if (ParamAlignment)
             Alignment = std::min(*ParamAlignment, kShadowTLSAlignment);
           Value *AShadowPtr, *AOriginPtr;
@@ -5769,13 +5766,9 @@ bool MemorySanitizer::sanitizeFunction(Function &F, TargetLibraryInfo &TLI) {
 
   MemorySanitizerVisitor Visitor(F, *this, TLI);
 
-  // Clear out readonly/readnone attributes.
+  // Clear out memory attributes.
   AttributeMask B;
-  B.addAttribute(Attribute::ReadOnly)
-      .addAttribute(Attribute::ReadNone)
-      .addAttribute(Attribute::WriteOnly)
-      .addAttribute(Attribute::ArgMemOnly)
-      .addAttribute(Attribute::Speculatable);
+  B.addAttribute(Attribute::Memory).addAttribute(Attribute::Speculatable);
   F.removeFnAttrs(B);
 
   return Visitor.runOnFunction();

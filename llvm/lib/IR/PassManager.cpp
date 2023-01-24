@@ -8,8 +8,8 @@
 
 #include "llvm/IR/PassManager.h"
 #include "llvm/ADT/DenseMapInfo.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/IR/PassManagerImpl.h"
+#include <optional>
 
 using namespace llvm;
 
@@ -54,7 +54,7 @@ bool FunctionAnalysisManagerModuleProxy::Result::invalidate(
   // Now walk all the functions to see if any inner analysis invalidation is
   // necessary.
   for (Function &F : M) {
-    Optional<PreservedAnalyses> FunctionPA;
+    std::optional<PreservedAnalyses> FunctionPA;
 
     // Check to see whether the preserved set needs to be pruned based on
     // module-level analysis invalidation that triggers deferred invalidation

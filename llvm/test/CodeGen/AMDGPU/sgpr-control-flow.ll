@@ -8,7 +8,7 @@
 ; threads will execute the same code paths, so we don't need to worry
 ; about instructions in different blocks overwriting each other.
 
-define amdgpu_kernel void @sgpr_if_else_salu_br(i32 addrspace(1)* %out, i32 %a, i32 %b, i32 %c, i32 %d, i32 %e) {
+define amdgpu_kernel void @sgpr_if_else_salu_br(ptr addrspace(1) %out, i32 %a, i32 %b, i32 %c, i32 %d, i32 %e) {
 ; SI-LABEL: sgpr_if_else_salu_br:
 ; SI:       ; %bb.0: ; %entry
 ; SI-NEXT:    s_load_dwordx4 s[4:7], s[0:1], 0xb
@@ -49,11 +49,11 @@ else:
 endif:
   %3 = phi i32 [%1, %if], [%2, %else]
   %4 = add i32 %3, %a
-  store i32 %4, i32 addrspace(1)* %out
+  store i32 %4, ptr addrspace(1) %out
   ret void
 }
 
-define amdgpu_kernel void @sgpr_if_else_salu_br_opt(i32 addrspace(1)* %out, [8 x i32], i32 %a, [8 x i32], i32 %b, [8 x i32], i32 %c, [8 x i32], i32 %d, [8 x i32], i32 %e) {
+define amdgpu_kernel void @sgpr_if_else_salu_br_opt(ptr addrspace(1) %out, [8 x i32], i32 %a, [8 x i32], i32 %b, [8 x i32], i32 %c, [8 x i32], i32 %d, [8 x i32], i32 %e) {
 ; SI-LABEL: sgpr_if_else_salu_br_opt:
 ; SI:       ; %bb.0: ; %entry
 ; SI-NEXT:    s_load_dword s4, s[0:1], 0x13
@@ -99,13 +99,13 @@ else:
 endif:
   %phi = phi i32 [%add0, %if], [%add1, %else]
   %add2 = add i32 %phi, %a
-  store i32 %add2, i32 addrspace(1)* %out
+  store i32 %add2, ptr addrspace(1) %out
   ret void
 }
 
 ; The two S_ADD instructions should write to different registers, since
 ; different threads will take different control flow paths.
-define amdgpu_kernel void @sgpr_if_else_valu_br(i32 addrspace(1)* %out, float %a, i32 %b, i32 %c, i32 %d, i32 %e) {
+define amdgpu_kernel void @sgpr_if_else_valu_br(ptr addrspace(1) %out, float %a, i32 %b, i32 %c, i32 %d, i32 %e) {
 ; SI-LABEL: sgpr_if_else_valu_br:
 ; SI:       ; %bb.0: ; %entry
 ; SI-NEXT:    s_load_dwordx4 s[4:7], s[0:1], 0xc
@@ -151,24 +151,24 @@ else:
 
 endif:
   %tmp4 = phi i32 [%tmp2, %if], [%tmp3, %else]
-  store i32 %tmp4, i32 addrspace(1)* %out
+  store i32 %tmp4, ptr addrspace(1) %out
   ret void
 }
 
-define amdgpu_kernel void @sgpr_if_else_valu_cmp_phi_br(i32 addrspace(1)* %out, i32 addrspace(1)* %a, i32 addrspace(1)* %b) {
+define amdgpu_kernel void @sgpr_if_else_valu_cmp_phi_br(ptr addrspace(1) %out, ptr addrspace(1) %a, ptr addrspace(1) %b) {
 ; SI-LABEL: sgpr_if_else_valu_cmp_phi_br:
 ; SI:       ; %bb.0: ; %entry
 ; SI-NEXT:    s_load_dwordx4 s[4:7], s[0:1], 0x9
 ; SI-NEXT:    s_load_dwordx2 s[0:1], s[0:1], 0xd
 ; SI-NEXT:    s_mov_b32 s2, 0
 ; SI-NEXT:    v_cmp_ne_u32_e32 vcc, 0, v0
+; SI-NEXT:    v_lshlrev_b32_e32 v0, 2, v0
 ; SI-NEXT:    ; implicit-def: $sgpr8_sgpr9
 ; SI-NEXT:    s_and_saveexec_b64 s[10:11], vcc
 ; SI-NEXT:    s_xor_b64 s[10:11], exec, s[10:11]
 ; SI-NEXT:    s_cbranch_execz .LBB3_2
 ; SI-NEXT:  ; %bb.1: ; %else
 ; SI-NEXT:    s_mov_b32 s3, 0xf000
-; SI-NEXT:    v_lshlrev_b32_e32 v0, 2, v0
 ; SI-NEXT:    v_mov_b32_e32 v1, 0
 ; SI-NEXT:    s_waitcnt lgkmcnt(0)
 ; SI-NEXT:    buffer_load_dword v0, v[0:1], s[0:3], 0 addr64
@@ -184,7 +184,6 @@ define amdgpu_kernel void @sgpr_if_else_valu_cmp_phi_br(i32 addrspace(1)* %out, 
 ; SI-NEXT:    s_mov_b32 s15, 0xf000
 ; SI-NEXT:    s_mov_b32 s14, 0
 ; SI-NEXT:    s_mov_b64 s[12:13], s[6:7]
-; SI-NEXT:    v_lshlrev_b32_e32 v0, 2, v0
 ; SI-NEXT:    v_mov_b32_e32 v1, 0
 ; SI-NEXT:    buffer_load_dword v0, v[0:1], s[12:15], 0 addr64
 ; SI-NEXT:    s_andn2_b64 s[2:3], s[8:9], exec
@@ -205,21 +204,21 @@ entry:
   br i1 %tmp1, label %if, label %else
 
 if:
-  %gep.if = getelementptr i32, i32 addrspace(1)* %a, i32 %tid
-  %a.val = load i32, i32 addrspace(1)* %gep.if
+  %gep.if = getelementptr i32, ptr addrspace(1) %a, i32 %tid
+  %a.val = load i32, ptr addrspace(1) %gep.if
   %cmp.if = icmp eq i32 %a.val, 0
   br label %endif
 
 else:
-  %gep.else = getelementptr i32, i32 addrspace(1)* %b, i32 %tid
-  %b.val = load i32, i32 addrspace(1)* %gep.else
+  %gep.else = getelementptr i32, ptr addrspace(1) %b, i32 %tid
+  %b.val = load i32, ptr addrspace(1) %gep.else
   %cmp.else = icmp slt i32 %b.val, 0
   br label %endif
 
 endif:
   %tmp4 = phi i1 [%cmp.if, %if], [%cmp.else, %else]
   %ext = sext i1 %tmp4 to i32
-  store i32 %ext, i32 addrspace(1)* %out
+  store i32 %ext, ptr addrspace(1) %out
   ret void
 }
 

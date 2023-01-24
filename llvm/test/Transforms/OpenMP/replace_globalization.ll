@@ -25,19 +25,19 @@ target triple = "nvptx64"
 
 define dso_local void @foo() "kernel" {
 entry:
-  %c = call i32 @__kmpc_target_init(%struct.ident_t* @1, i8 1, i1 true, i1 true)
+  %c = call i32 @__kmpc_target_init(%struct.ident_t* @1, i8 1, i1 true)
   %x = call align 4 i8* @__kmpc_alloc_shared(i64 4)
   call void @unknown_no_openmp()
   %x_on_stack = bitcast i8* %x to i32*
   %0 = bitcast i32* %x_on_stack to i8*
   call void @use(i8* %0)
   call void @__kmpc_free_shared(i8* %x, i64 4)
-  call void @__kmpc_target_deinit(%struct.ident_t* @1, i8 1, i1 true)
+  call void @__kmpc_target_deinit(%struct.ident_t* @1, i8 1)
   ret void
 }
 
 define void @bar() "kernel" {
-  %c = call i32 @__kmpc_target_init(%struct.ident_t* @1, i8 1, i1 true, i1 true)
+  %c = call i32 @__kmpc_target_init(%struct.ident_t* @1, i8 1, i1 true)
   call void @unknown_no_openmp()
   %cmp = icmp eq i32 %c, -1
   br i1 %cmp, label %master1, label %exit
@@ -60,12 +60,12 @@ master2:
   call void @__kmpc_free_shared(i8* %y, i64 4)
   br label %exit
 exit:
-  call void @__kmpc_target_deinit(%struct.ident_t* @1, i8 1, i1 true)
+  call void @__kmpc_target_deinit(%struct.ident_t* @1, i8 1)
   ret void
 }
 
 define void @baz_spmd() "kernel" {
-  %c = call i32 @__kmpc_target_init(%struct.ident_t* @1, i8 2, i1 true, i1 true)
+  %c = call i32 @__kmpc_target_init(%struct.ident_t* @1, i8 2, i1 true)
   call void @unknown_no_openmp()
   %c0 = icmp eq i32 %c, -1
   br i1 %c0, label %master3, label %exit
@@ -77,7 +77,7 @@ master3:
   call void @__kmpc_free_shared(i8* %z, i64 24)
   br label %exit
 exit:
-  call void @__kmpc_target_deinit(%struct.ident_t* @1, i8 2, i1 true)
+  call void @__kmpc_target_deinit(%struct.ident_t* @1, i8 2)
   ret void
 }
 
@@ -106,11 +106,11 @@ declare i32 @llvm.nvvm.read.ptx.sreg.ntid.x()
 declare i32 @llvm.nvvm.read.ptx.sreg.warpsize()
 
 ; Make it a weak definition so we will apply custom state machine rewriting but can't use the body in the reasoning.
-define weak i32 @__kmpc_target_init(%struct.ident_t*, i8, i1, i1) {
+define weak i32 @__kmpc_target_init(%struct.ident_t*, i8, i1) {
   ret i32 0
 }
 
-declare void @__kmpc_target_deinit(%struct.ident_t*, i8, i1)
+declare void @__kmpc_target_deinit(%struct.ident_t*, i8)
 
 declare void @unknown_no_openmp() "llvm.assume"="omp_no_openmp"
 
@@ -147,53 +147,53 @@ declare void @unknown_no_openmp() "llvm.assume"="omp_no_openmp"
 ; CHECK-LABEL: define {{[^@]+}}@foo
 ; CHECK-SAME: () #[[ATTR0:[0-9]+]] {
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[C:%.*]] = call i32 @__kmpc_target_init(%struct.ident_t* @[[GLOB1]], i8 1, i1 false, i1 true)
+; CHECK-NEXT:    [[C:%.*]] = call i32 @__kmpc_target_init(%struct.ident_t* @[[GLOB1]], i8 1, i1 false)
 ; CHECK-NEXT:    [[X:%.*]] = call align 4 i8* @__kmpc_alloc_shared(i64 4) #[[ATTR6:[0-9]+]]
 ; CHECK-NEXT:    call void @unknown_no_openmp()
-; CHECK-NEXT:    call void @use.internalized(i8* nofree [[X]]) #[[ATTR7:[0-9]+]]
-; CHECK-NEXT:    call void @__kmpc_free_shared(i8* [[X]], i64 4) #[[ATTR8:[0-9]+]]
-; CHECK-NEXT:    call void @__kmpc_target_deinit(%struct.ident_t* @[[GLOB1]], i8 1, i1 true)
+; CHECK-NEXT:    call void @use.internalized(i8* nofree [[X]]) #[[ATTR6]]
+; CHECK-NEXT:    call void @__kmpc_free_shared(i8* [[X]], i64 4) #[[ATTR6]]
+; CHECK-NEXT:    call void @__kmpc_target_deinit(%struct.ident_t* @[[GLOB1]], i8 1)
 ; CHECK-NEXT:    ret void
 ;
 ;
 ; CHECK-LABEL: define {{[^@]+}}@bar
 ; CHECK-SAME: () #[[ATTR0]] {
-; CHECK-NEXT:    [[C:%.*]] = call i32 @__kmpc_target_init(%struct.ident_t* @[[GLOB1]], i8 1, i1 false, i1 true)
+; CHECK-NEXT:    [[C:%.*]] = call i32 @__kmpc_target_init(%struct.ident_t* @[[GLOB1]], i8 1, i1 false)
 ; CHECK-NEXT:    call void @unknown_no_openmp()
 ; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[C]], -1
 ; CHECK-NEXT:    br i1 [[CMP]], label [[MASTER1:%.*]], label [[EXIT:%.*]]
 ; CHECK:       master1:
-; CHECK-NEXT:    call void @use.internalized(i8* nofree addrspacecast (i8 addrspace(3)* getelementptr inbounds ([16 x i8], [16 x i8] addrspace(3)* @x_shared, i32 0, i32 0) to i8*)) #[[ATTR7]]
+; CHECK-NEXT:    call void @use.internalized(i8* nofree addrspacecast (i8 addrspace(3)* getelementptr inbounds ([16 x i8], [16 x i8] addrspace(3)* @x_shared, i32 0, i32 0) to i8*)) #[[ATTR6]]
 ; CHECK-NEXT:    br label [[NEXT:%.*]]
 ; CHECK:       next:
 ; CHECK-NEXT:    call void @unknown_no_openmp()
 ; CHECK-NEXT:    [[B0:%.*]] = icmp eq i32 [[C]], -1
 ; CHECK-NEXT:    br i1 [[B0]], label [[MASTER2:%.*]], label [[EXIT]]
 ; CHECK:       master2:
-; CHECK-NEXT:    call void @use.internalized(i8* nofree addrspacecast (i8 addrspace(3)* getelementptr inbounds ([4 x i8], [4 x i8] addrspace(3)* @y_shared, i32 0, i32 0) to i8*)) #[[ATTR7]]
+; CHECK-NEXT:    call void @use.internalized(i8* nofree addrspacecast (i8 addrspace(3)* getelementptr inbounds ([4 x i8], [4 x i8] addrspace(3)* @y_shared, i32 0, i32 0) to i8*)) #[[ATTR6]]
 ; CHECK-NEXT:    br label [[EXIT]]
 ; CHECK:       exit:
-; CHECK-NEXT:    call void @__kmpc_target_deinit(%struct.ident_t* @[[GLOB1]], i8 1, i1 true)
+; CHECK-NEXT:    call void @__kmpc_target_deinit(%struct.ident_t* @[[GLOB1]], i8 1)
 ; CHECK-NEXT:    ret void
 ;
 ;
 ; CHECK-LABEL: define {{[^@]+}}@baz_spmd
 ; CHECK-SAME: () #[[ATTR0]] {
-; CHECK-NEXT:    [[C:%.*]] = call i32 @__kmpc_target_init(%struct.ident_t* @[[GLOB1]], i8 2, i1 true, i1 true)
+; CHECK-NEXT:    [[C:%.*]] = call i32 @__kmpc_target_init(%struct.ident_t* @[[GLOB1]], i8 2, i1 true)
 ; CHECK-NEXT:    call void @unknown_no_openmp()
 ; CHECK-NEXT:    [[C0:%.*]] = icmp eq i32 [[C]], -1
 ; CHECK-NEXT:    br i1 [[C0]], label [[MASTER3:%.*]], label [[EXIT:%.*]]
 ; CHECK:       master3:
 ; CHECK-NEXT:    [[Z:%.*]] = call align 4 i8* @__kmpc_alloc_shared(i64 24) #[[ATTR6]], !dbg [[DBG10:![0-9]+]]
-; CHECK-NEXT:    call void @use.internalized(i8* nofree [[Z]]) #[[ATTR7]]
-; CHECK-NEXT:    call void @__kmpc_free_shared(i8* [[Z]], i64 24) #[[ATTR8]]
+; CHECK-NEXT:    call void @use.internalized(i8* nofree [[Z]]) #[[ATTR6]]
+; CHECK-NEXT:    call void @__kmpc_free_shared(i8* [[Z]], i64 24) #[[ATTR6]]
 ; CHECK-NEXT:    br label [[EXIT]]
 ; CHECK:       exit:
-; CHECK-NEXT:    call void @__kmpc_target_deinit(%struct.ident_t* @[[GLOB1]], i8 2, i1 true)
+; CHECK-NEXT:    call void @__kmpc_target_deinit(%struct.ident_t* @[[GLOB1]], i8 2)
 ; CHECK-NEXT:    ret void
 ;
 ;
-; CHECK: Function Attrs: nofree norecurse nounwind writeonly
+; CHECK: Function Attrs: nofree norecurse nounwind memory(write)
 ; CHECK-LABEL: define {{[^@]+}}@use.internalized
 ; CHECK-SAME: (i8* nofree [[X:%.*]]) #[[ATTR1:[0-9]+]] {
 ; CHECK-NEXT:  entry:
@@ -208,22 +208,26 @@ declare void @unknown_no_openmp() "llvm.assume"="omp_no_openmp"
 ; CHECK-NEXT:    ret void
 ;
 ;
+; CHECK: Function Attrs: nosync nounwind allocsize(0) memory(read)
 ; CHECK-LABEL: define {{[^@]+}}@__kmpc_alloc_shared
 ; CHECK-SAME: (i64 [[TMP0:%.*]]) #[[ATTR2:[0-9]+]] {
 ; CHECK-NEXT:    [[L:%.*]] = load i32, i32* @offset, align 4
 ; CHECK-NEXT:    [[GEP:%.*]] = getelementptr i8, i8* addrspacecast (i8 addrspace(3)* getelementptr inbounds ([1024 x i8], [1024 x i8] addrspace(3)* @stack, i32 0, i32 0) to i8*), i32 [[L]]
 ; CHECK-NEXT:    ret i8* [[GEP]]
 ;
+;
+; CHECK-LABEL: define {{[^@]+}}@__kmpc_target_init
+; CHECK-SAME: (%struct.ident_t* [[TMP0:%.*]], i8 [[TMP1:%.*]], i1 [[TMP2:%.*]]) {
+; CHECK-NEXT:    ret i32 0
+;
 ;.
 ; CHECK: attributes #[[ATTR0]] = { "kernel" }
-; CHECK: attributes #[[ATTR1]] = { nofree norecurse nounwind writeonly }
-; CHECK: attributes #[[ATTR2]] = { nosync nounwind readonly allocsize(0) }
+; CHECK: attributes #[[ATTR1]] = { nofree norecurse nounwind memory(write) }
+; CHECK: attributes #[[ATTR2]] = { nosync nounwind allocsize(0) memory(read) }
 ; CHECK: attributes #[[ATTR3:[0-9]+]] = { nosync nounwind }
-; CHECK: attributes #[[ATTR4:[0-9]+]] = { nocallback nofree nosync nounwind readnone speculatable willreturn }
+; CHECK: attributes #[[ATTR4:[0-9]+]] = { nocallback nofree nosync nounwind speculatable willreturn memory(none) }
 ; CHECK: attributes #[[ATTR5:[0-9]+]] = { "llvm.assume"="omp_no_openmp" }
-; CHECK: attributes #[[ATTR6]] = { nounwind readonly }
-; CHECK: attributes #[[ATTR7]] = { nounwind writeonly }
-; CHECK: attributes #[[ATTR8]] = { nounwind }
+; CHECK: attributes #[[ATTR6]] = { nounwind }
 ;.
 ; CHECK: [[META0:![0-9]+]] = distinct !DICompileUnit(language: DW_LANG_C99, file: !1, producer: "clang version 12.0.0", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, enums: !2, splitDebugInlining: false, nameTableKind: None)
 ; CHECK: [[META1:![0-9]+]] = !DIFile(filename: "replace_globalization.c", directory: "/tmp/replace_globalization.c")
@@ -239,3 +243,6 @@ declare void @unknown_no_openmp() "llvm.assume"="omp_no_openmp"
 ; CHECK: [[META11:![0-9]+]] = distinct !DISubprogram(name: "bar", scope: !1, file: !1, line: 1, type: !12, scopeLine: 1, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, retainedNodes: !2)
 ; CHECK: [[META12:![0-9]+]] = !DISubroutineType(types: !2)
 ;.
+;; NOTE: These prefixes are unused and the list is autogenerated. Do not add tests below this line:
+; CHECK-LIMIT: {{.*}}
+; CHECK-REMARKS: {{.*}}

@@ -37,6 +37,7 @@ def riscv_brev8  : SDNode<"RISCVISD::BREV8",  SDTIntUnaryOp>;
 def riscv_orc_b  : SDNode<"RISCVISD::ORC_B",  SDTIntUnaryOp>;
 def riscv_zip    : SDNode<"RISCVISD::ZIP",    SDTIntUnaryOp>;
 def riscv_unzip  : SDNode<"RISCVISD::UNZIP",  SDTIntUnaryOp>;
+def riscv_absw   : SDNode<"RISCVISD::ABSW",   SDTIntUnaryOp>;
 
 def UImmLog2XLenHalfAsmOperand : AsmOperandClass {
   let Name = "UImmLog2XLenHalf";
@@ -99,12 +100,6 @@ def BSETINVTwoBitsMask : PatLeaf<(imm), [{
     return false;
   // The immediate must have exactly two bits set.
   return countPopulation(N->getZExtValue()) == 2;
-}]>;
-
-def TrailingZerosXForm : SDNodeXForm<imm, [{
-  uint64_t I = N->getZExtValue();
-  return CurDAG->getTargetConstant(countTrailingZeros(I), SDLoc(N),
-                                   N->getValueType(0));
 }]>;
 
 def BSETINVTwoBitsMaskHigh : SDNodeXForm<imm, [{
@@ -248,9 +243,23 @@ def non_imm12 : PatLeaf<(XLenVT GPR:$a), [{
   return !C || !isInt<12>(C->getSExtValue());
 }]>;
 
-def sh1add_op : ComplexPattern<XLenVT, 1, "selectSH1ADDOp", [], [], 6>;
-def sh2add_op : ComplexPattern<XLenVT, 1, "selectSH2ADDOp", [], [], 6>;
-def sh3add_op : ComplexPattern<XLenVT, 1, "selectSH3ADDOp", [], [], 6>;
+def Shifted32OnesMask : PatLeaf<(imm), [{
+  uint64_t Imm = N->getZExtValue();
+  if (!isShiftedMask_64(Imm))
+    return false;
+
+  unsigned TrailingZeros = countTrailingZeros(Imm);
+  return TrailingZeros > 0 && TrailingZeros < 32 &&
+         Imm == UINT64_C(0xFFFFFFFF) << TrailingZeros;
+}], TrailingZeros>;
+
+def sh1add_op : ComplexPattern<XLenVT, 1, "selectSHXADDOp<1>", [], [], 6>;
+def sh2add_op : ComplexPattern<XLenVT, 1, "selectSHXADDOp<2>", [], [], 6>;
+def sh3add_op : ComplexPattern<XLenVT, 1, "selectSHXADDOp<3>", [], [], 6>;
+
+def sh1add_uw_op : ComplexPattern<XLenVT, 1, "selectSHXADD_UWOp<1>", [], [], 6>;
+def sh2add_uw_op : ComplexPattern<XLenVT, 1, "selectSHXADD_UWOp<2>", [], [], 6>;
+def sh3add_uw_op : ComplexPattern<XLenVT, 1, "selectSHXADD_UWOp<3>", [], [], 6>;
 
 //===----------------------------------------------------------------------===//
 // Instruction class templates
@@ -340,7 +349,7 @@ def RORI  : RVBShift_ri<0b01100, 0b101, OPC_OP_IMM, "rori">,
             Sched<[WriteRotateImm, ReadRotateImm]>;
 } // Predicates = [HasStdExtZbbOrZbkb]
 
-let Predicates = [HasStdExtZbbOrZbkb, IsRV64] in {
+let Predicates = [HasStdExtZbbOrZbkb, IsRV64], IsSignExtendingOpW = 1 in {
 def ROLW  : ALUW_rr<0b0110000, 0b001, "rolw">,
             Sched<[WriteRotateReg32, ReadRotateReg32, ReadRotateReg32]>;
 def RORW  : ALUW_rr<0b0110000, 0b101, "rorw">,
@@ -357,6 +366,7 @@ def BSET : ALU_rr<0b0010100, 0b001, "bset">,
            Sched<[WriteSingleBit, ReadSingleBit, ReadSingleBit]>;
 def BINV : ALU_rr<0b0110100, 0b001, "binv">,
            Sched<[WriteSingleBit, ReadSingleBit, ReadSingleBit]>;
+let IsSignExtendingOpW = 1 in
 def BEXT : ALU_rr<0b0100100, 0b101, "bext">,
            Sched<[WriteSingleBit, ReadSingleBit, ReadSingleBit]>;
 
@@ -366,6 +376,7 @@ def BSETI : RVBShift_ri<0b00101, 0b001, OPC_OP_IMM, "bseti">,
             Sched<[WriteSingleBitImm, ReadSingleBitImm]>;
 def BINVI : RVBShift_ri<0b01101, 0b001, OPC_OP_IMM, "binvi">,
             Sched<[WriteSingleBitImm, ReadSingleBitImm]>;
+let IsSignExtendingOpW = 1 in
 def BEXTI : RVBShift_ri<0b01001, 0b101, OPC_OP_IMM, "bexti">,
             Sched<[WriteSingleBitImm, ReadSingleBitImm]>;
 } // Predicates = [HasStdExtZbs]
@@ -380,7 +391,7 @@ def XPERM8 : ALU_rr<0b0010100, 0b100, "xperm8">,
              Sched<[WriteXPERM, ReadXPERM, ReadXPERM]>;
 } // Predicates = [HasStdExtZbkx]
 
-let Predicates = [HasStdExtZbb] in {
+let Predicates = [HasStdExtZbb], IsSignExtendingOpW = 1 in {
 def CLZ  : RVBUnary<0b0110000, 0b00000, 0b001, OPC_OP_IMM, "clz">,
            Sched<[WriteCLZ, ReadCLZ]>;
 def CTZ  : RVBUnary<0b0110000, 0b00001, 0b001, OPC_OP_IMM, "ctz">,
@@ -389,7 +400,7 @@ def CPOP : RVBUnary<0b0110000, 0b00010, 0b001, OPC_OP_IMM, "cpop">,
            Sched<[WriteCPOP, ReadCPOP]>;
 } // Predicates = [HasStdExtZbb]
 
-let Predicates = [HasStdExtZbb, IsRV64] in {
+let Predicates = [HasStdExtZbb, IsRV64], IsSignExtendingOpW = 1 in {
 def CLZW   : RVBUnary<0b0110000, 0b00000, 0b001, OPC_OP_IMM_32, "clzw">,
              Sched<[WriteCLZ32, ReadCLZ32]>;
 def CTZW   : RVBUnary<0b0110000, 0b00001, 0b001, OPC_OP_IMM_32, "ctzw">,
@@ -398,7 +409,7 @@ def CPOPW  : RVBUnary<0b0110000, 0b00010, 0b001, OPC_OP_IMM_32, "cpopw">,
              Sched<[WriteCPOP32, ReadCPOP32]>;
 } // Predicates = [HasStdExtZbb, IsRV64]
 
-let Predicates = [HasStdExtZbb] in {
+let Predicates = [HasStdExtZbb], IsSignExtendingOpW = 1 in {
 def SEXT_B : RVBUnary<0b0110000, 0b00100, 0b001, OPC_OP_IMM, "sext.b">,
              Sched<[WriteIALU, ReadIALU]>;
 def SEXT_H : RVBUnary<0b0110000, 0b00101, 0b001, OPC_OP_IMM, "sext.h">,
@@ -431,11 +442,12 @@ def MAXU : ALU_rr<0b0000101, 0b111, "maxu", /*Commutable*/1>,
 let Predicates = [HasStdExtZbkb] in {
 def PACK  : ALU_rr<0b0000100, 0b100, "pack">,
             Sched<[WritePACK, ReadPACK, ReadPACK]>;
+let IsSignExtendingOpW = 1 in
 def PACKH : ALU_rr<0b0000100, 0b111, "packh">,
             Sched<[WritePACK, ReadPACK, ReadPACK]>;
 } // Predicates = [HasStdExtZbkb]
 
-let Predicates = [HasStdExtZbkb, IsRV64] in
+let Predicates = [HasStdExtZbkb, IsRV64], IsSignExtendingOpW = 1 in
 def PACKW  : ALUW_rr<0b0000100, 0b100, "packw">,
              Sched<[WritePACK32, ReadPACK32, ReadPACK32]>;
 
@@ -444,7 +456,7 @@ def ZEXT_H_RV32 : RVBUnary<0b0000100, 0b00000, 0b100, OPC_OP, "zext.h">,
                   Sched<[WriteIALU, ReadIALU]>;
 } // Predicates = [HasStdExtZbb, IsRV32]
 
-let Predicates = [HasStdExtZbb, IsRV64] in {
+let Predicates = [HasStdExtZbb, IsRV64], IsSignExtendingOpW = 1 in {
 def ZEXT_H_RV64 : RVBUnary<0b0000100, 0b00000, 0b100, OPC_OP_32, "zext.h">,
                   Sched<[WriteIALU, ReadIALU]>;
 } // Predicates = [HasStdExtZbb, IsRV64]
@@ -562,10 +574,10 @@ def : Pat<(seteq (and GPR:$rs1, SingleBitSetMask:$mask), 0),
           (BEXTI (XORI GPR:$rs1, -1), SingleBitSetMask:$mask)>;
 
 def : Pat<(or GPR:$r, BSETINVTwoBitsMask:$i),
-          (BSETI (BSETI GPR:$r, (TrailingZerosXForm BSETINVTwoBitsMask:$i)),
+          (BSETI (BSETI GPR:$r, (TrailingZeros BSETINVTwoBitsMask:$i)),
                  (BSETINVTwoBitsMaskHigh BSETINVTwoBitsMask:$i))>;
 def : Pat<(xor GPR:$r, BSETINVTwoBitsMask:$i),
-          (BINVI (BINVI GPR:$r, (TrailingZerosXForm BSETINVTwoBitsMask:$i)),
+          (BINVI (BINVI GPR:$r, (TrailingZeros BSETINVTwoBitsMask:$i)),
                  (BSETINVTwoBitsMaskHigh BSETINVTwoBitsMask:$i))>;
 def : Pat<(or GPR:$r, BSETINVORIMask:$i),
           (BSETI (ORI GPR:$r, (BSETINVORIMaskLow BSETINVORIMask:$i)),
@@ -605,6 +617,9 @@ let Predicates = [HasStdExtZbb, IsRV64] in {
 def : PatGpr<riscv_clzw, CLZW>;
 def : PatGpr<riscv_ctzw, CTZW>;
 def : Pat<(i64 (ctpop (i64 (zexti32 (i64 GPR:$rs1))))), (CPOPW GPR:$rs1)>;
+
+def : Pat<(i64 (riscv_absw GPR:$rs1)),
+          (MAX GPR:$rs1, (SUBW X0, GPR:$rs1))>;
 } // Predicates = [HasStdExtZbb, IsRV64]
 
 let Predicates = [HasStdExtZbb] in {
@@ -629,27 +644,29 @@ def : Pat<(i64 (bswap GPR:$rs1)), (REV8_RV64 GPR:$rs1)>;
 
 let Predicates = [HasStdExtZbkb] in {
 def : Pat<(or (and (shl GPR:$rs2, (XLenVT 8)), 0xFFFF),
-              (and GPR:$rs1, 0x00FF)),
+              (zexti8 GPR:$rs1)),
           (PACKH GPR:$rs1, GPR:$rs2)>;
-def : Pat<(or (shl (and GPR:$rs2, 0x00FF), (XLenVT 8)),
-              (and GPR:$rs1, 0x00FF)),
+def : Pat<(or (shl (zexti8 GPR:$rs2), (XLenVT 8)),
+              (zexti8 GPR:$rs1)),
+          (PACKH GPR:$rs1, GPR:$rs2)>;
+def : Pat<(and (or (shl GPR:$rs2, (XLenVT 8)),
+                   (zexti8 GPR:$rs1)), 0xFFFF),
           (PACKH GPR:$rs1, GPR:$rs2)>;
 } // Predicates = [HasStdExtZbkb]
 
 let Predicates = [HasStdExtZbkb, IsRV32] in
-def : Pat<(i32 (or (and GPR:$rs1, 0x0000FFFF), (shl GPR:$rs2, (i32 16)))),
+def : Pat<(i32 (or (zexti16 GPR:$rs1), (shl GPR:$rs2, (i32 16)))),
           (PACK GPR:$rs1, GPR:$rs2)>;
 
 let Predicates = [HasStdExtZbkb, IsRV64] in {
-def : Pat<(i64 (or (and GPR:$rs1, 0x00000000FFFFFFFF), (shl GPR:$rs2, (i64 32)))),
+def : Pat<(i64 (or (zexti32 GPR:$rs1), (shl GPR:$rs2, (i64 32)))),
           (PACK GPR:$rs1, GPR:$rs2)>;
 
-def : Pat<(i64 (sext_inreg (or (shl GPR:$rs2, (i64 16)),
-                               (and GPR:$rs1, 0x000000000000FFFF)),
-                           i32)),
+def : Pat<(binop_allwusers<or> (shl GPR:$rs2, (i64 16)),
+                               (zexti16 GPR:$rs1)),
           (PACKW GPR:$rs1, GPR:$rs2)>;
 def : Pat<(i64 (or (sext_inreg (shl GPR:$rs2, (i64 16)), i32),
-                   (and GPR:$rs1, 0x000000000000FFFF))),
+                   (zexti16 GPR:$rs1))),
           (PACKW GPR:$rs1, GPR:$rs2)>;
 } // Predicates = [HasStdExtZbkb, IsRV64]
 
@@ -702,13 +719,13 @@ def : Pat<(add GPR:$r, CSImm12MulBy8:$i),
 
 def : Pat<(mul GPR:$r, C3LeftShift:$i),
           (SLLI (SH1ADD GPR:$r, GPR:$r),
-                (TrailingZerosXForm C3LeftShift:$i))>;
+                (TrailingZeros C3LeftShift:$i))>;
 def : Pat<(mul GPR:$r, C5LeftShift:$i),
           (SLLI (SH2ADD GPR:$r, GPR:$r),
-                (TrailingZerosXForm C5LeftShift:$i))>;
+                (TrailingZeros C5LeftShift:$i))>;
 def : Pat<(mul GPR:$r, C9LeftShift:$i),
           (SLLI (SH3ADD GPR:$r, GPR:$r),
-                (TrailingZerosXForm C9LeftShift:$i))>;
+                (TrailingZeros C9LeftShift:$i))>;
 
 def : Pat<(mul_const_oneuse GPR:$r, (XLenVT 11)),
           (SH1ADD (SH2ADD GPR:$r, GPR:$r), GPR:$r)>;
@@ -737,6 +754,12 @@ def : Pat<(mul_const_oneuse GPR:$r, (XLenVT 81)),
 let Predicates = [HasStdExtZba, IsRV64] in {
 def : Pat<(i64 (shl (and GPR:$rs1, 0xFFFFFFFF), uimm5:$shamt)),
           (SLLI_UW GPR:$rs1, uimm5:$shamt)>;
+// Match a shifted 0xffffffff mask. Use SRLI to clear the LSBs and SLLI_UW to
+// mask and shift.
+def : Pat<(i64 (and GPR:$rs1, Shifted32OnesMask:$mask)),
+          (SLLI_UW (SRLI GPR:$rs1, Shifted32OnesMask:$mask),
+                   Shifted32OnesMask:$mask)>;
+
 def : Pat<(i64 (add (and GPR:$rs1, 0xFFFFFFFF), non_imm12:$rs2)),
           (ADD_UW GPR:$rs1, GPR:$rs2)>;
 def : Pat<(i64 (and GPR:$rs, 0xFFFFFFFF)), (ADD_UW GPR:$rs, X0)>;
@@ -755,6 +778,14 @@ def : Pat<(i64 (add (and (shl GPR:$rs1, (i64 2)), 0x3FFFFFFFF), non_imm12:$rs2))
 def : Pat<(i64 (add (and (shl GPR:$rs1, (i64 3)), 0x7FFFFFFFF), non_imm12:$rs2)),
           (SH3ADD_UW GPR:$rs1, GPR:$rs2)>;
 
+// More complex cases use a ComplexPattern.
+def : Pat<(add sh1add_uw_op:$rs1, non_imm12:$rs2),
+          (SH1ADD_UW sh1add_uw_op:$rs1, GPR:$rs2)>;
+def : Pat<(add sh2add_uw_op:$rs1, non_imm12:$rs2),
+          (SH2ADD_UW sh2add_uw_op:$rs1, GPR:$rs2)>;
+def : Pat<(add sh3add_uw_op:$rs1, non_imm12:$rs2),
+          (SH3ADD_UW sh3add_uw_op:$rs1, GPR:$rs2)>;
+
 def : Pat<(i64 (add (and GPR:$rs1, 0xFFFFFFFE), non_imm12:$rs2)),
           (SH1ADD (SRLIW GPR:$rs1, 1), GPR:$rs2)>;
 def : Pat<(i64 (add (and GPR:$rs1, 0xFFFFFFFC), non_imm12:$rs2)),
@@ -771,14 +802,14 @@ def : Pat<(i64 (add (and GPR:$rs1, 0x7FFFFFFF8), non_imm12:$rs2)),
           (SH3ADD_UW (SRLI GPR:$rs1, 3), GPR:$rs2)>;
 
 def : Pat<(mul (binop_oneuse<and> GPR:$r, 0xFFFFFFFF), C3LeftShiftUW:$i),
-          (SH1ADD (SLLI_UW GPR:$r, (TrailingZerosXForm C3LeftShiftUW:$i)),
-                  (SLLI_UW GPR:$r, (TrailingZerosXForm C3LeftShiftUW:$i)))>;
+          (SH1ADD (SLLI_UW GPR:$r, (TrailingZeros C3LeftShiftUW:$i)),
+                  (SLLI_UW GPR:$r, (TrailingZeros C3LeftShiftUW:$i)))>;
 def : Pat<(mul (binop_oneuse<and> GPR:$r, 0xFFFFFFFF), C5LeftShiftUW:$i),
-          (SH2ADD (SLLI_UW GPR:$r, (TrailingZerosXForm C5LeftShiftUW:$i)),
-                  (SLLI_UW GPR:$r, (TrailingZerosXForm C5LeftShiftUW:$i)))>;
+          (SH2ADD (SLLI_UW GPR:$r, (TrailingZeros C5LeftShiftUW:$i)),
+                  (SLLI_UW GPR:$r, (TrailingZeros C5LeftShiftUW:$i)))>;
 def : Pat<(mul (binop_oneuse<and> GPR:$r, 0xFFFFFFFF), C9LeftShiftUW:$i),
-          (SH3ADD (SLLI_UW GPR:$r, (TrailingZerosXForm C9LeftShiftUW:$i)),
-                  (SLLI_UW GPR:$r, (TrailingZerosXForm C9LeftShiftUW:$i)))>;
+          (SH3ADD (SLLI_UW GPR:$r, (TrailingZeros C9LeftShiftUW:$i)),
+                  (SLLI_UW GPR:$r, (TrailingZeros C9LeftShiftUW:$i)))>;
 } // Predicates = [HasStdExtZba, IsRV64]
 
 let Predicates = [HasStdExtZbcOrZbkc] in {

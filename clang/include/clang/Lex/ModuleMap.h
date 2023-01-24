@@ -333,7 +333,7 @@ private:
   /// \param NeedsFramework If M is not a framework but a missing header would
   ///        be found in case M was, set it to true. False otherwise.
   /// \return The resolved file, if any.
-  Optional<FileEntryRef>
+  OptionalFileEntryRef
   findHeader(Module *M, const Module::UnresolvedHeaderDirective &Header,
              SmallVectorImpl<char> &RelativePathName, bool &NeedsFramework);
 
@@ -564,11 +564,7 @@ public:
   /// Note that this also sets the current module to the newly-created module.
   ///
   /// \returns The newly-created module.
-  Module *createModuleForInterfaceUnit(SourceLocation Loc, StringRef Name,
-                                       Module *GlobalModule);
-
-  /// Create a header module from the specified list of headers.
-  Module *createHeaderModule(StringRef Name, ArrayRef<Module::Header> Headers);
+  Module *createModuleForInterfaceUnit(SourceLocation Loc, StringRef Name);
 
   /// Create a C++20 header unit.
   Module *createHeaderUnit(SourceLocation Loc, StringRef Name,
@@ -610,7 +606,7 @@ public:
   ///
   /// \returns The file entry for the module map file containing the given
   /// module, or nullptr if the module definition was inferred.
-  Optional<FileEntryRef> getContainingModuleMapFile(const Module *Module) const;
+  OptionalFileEntryRef getContainingModuleMapFile(const Module *Module) const;
 
   /// Get the module map file that (along with the module name) uniquely
   /// identifies this module.
@@ -621,7 +617,7 @@ public:
   /// of inferred modules, returns the module map that allowed the inference
   /// (e.g. contained 'module *'). Otherwise, returns
   /// getContainingModuleMapFile().
-  Optional<FileEntryRef> getModuleMapFileForUniquing(const Module *M) const;
+  OptionalFileEntryRef getModuleMapFileForUniquing(const Module *M) const;
 
   void setInferredModuleAllowedBy(Module *M, const FileEntry *ModMap);
 
@@ -739,7 +735,7 @@ public:
   llvm::Optional<Module *> getCachedModuleLoad(const IdentifierInfo &II) {
     auto I = CachedModuleLoads.find(&II);
     if (I == CachedModuleLoads.end())
-      return None;
+      return std::nullopt;
     return I->second;
   }
 };

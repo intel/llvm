@@ -99,9 +99,10 @@ struct MachineFunctionInfo {
   /// supplied allocator.
   ///
   /// This function can be overridden in a derive class.
-  template<typename Ty>
-  static Ty *create(BumpPtrAllocator &Allocator, MachineFunction &MF) {
-    return new (Allocator.Allocate<Ty>()) Ty(MF);
+  template <typename FuncInfoTy, typename SubtargetTy = TargetSubtargetInfo>
+  static FuncInfoTy *create(BumpPtrAllocator &Allocator, const Function &F,
+                            const SubtargetTy *STI) {
+    return new (Allocator.Allocate<FuncInfoTy>()) FuncInfoTy(F, STI);
   }
 
   template <typename Ty>
@@ -280,6 +281,7 @@ class LLVM_EXTERNAL_VISIBILITY MachineFunction {
   // Keep track of the function section.
   MCSection *Section = nullptr;
 
+  // Catchpad unwind destination info for wasm EH.
   // Keeps track of Wasm exception handling related data. This will be null for
   // functions that aren't using a wasm EH personality.
   WasmEHFuncInfo *WasmEHInfo = nullptr;
@@ -752,14 +754,12 @@ public:
   ///
   template<typename Ty>
   Ty *getInfo() {
-    if (!MFInfo)
-      MFInfo = Ty::template create<Ty>(Allocator, *this);
     return static_cast<Ty*>(MFInfo);
   }
 
   template<typename Ty>
   const Ty *getInfo() const {
-     return const_cast<MachineFunction*>(this)->getInfo<Ty>();
+    return static_cast<const Ty *>(MFInfo);
   }
 
   template <typename Ty> Ty *cloneInfo(const Ty &Old) {
@@ -767,6 +767,9 @@ public:
     MFInfo = Ty::template create<Ty>(Allocator, Old);
     return static_cast<Ty *>(MFInfo);
   }
+
+  /// Initialize the target specific MachineFunctionInfo
+  void initTargetMachineFunctionInfo(const TargetSubtargetInfo &STI);
 
   MachineFunctionInfo *cloneInfoFrom(
       const MachineFunction &OrigMF,

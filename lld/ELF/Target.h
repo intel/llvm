@@ -148,7 +148,7 @@ public:
 
   // Stores the NOP instructions of different sizes for the target and is used
   // to pad sections that are relaxed.
-  llvm::Optional<std::vector<std::vector<uint8_t>>> nopInstrs;
+  std::optional<std::vector<std::vector<uint8_t>>> nopInstrs;
 
   // If a target needs to rewrite calls to __morestack to instead call
   // __morestack_non_split when a split-stack enabled caller calls a
@@ -216,6 +216,7 @@ void addPPC64SaveRestore();
 uint64_t getPPC64TocBase();
 uint64_t getAArch64Page(uint64_t expr);
 void riscvFinalizeRelax(int passes);
+void mergeRISCVAttributesSections();
 
 LLVM_LIBRARY_VISIBILITY extern const TargetInfo *target;
 TargetInfo *getTarget();

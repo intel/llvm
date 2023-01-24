@@ -14,6 +14,7 @@
 #include "LoongArchMachineFunctionInfo.h"
 #include "LoongArchSubtarget.h"
 #include "MCTargetDesc/LoongArchBaseInfo.h"
+#include "MCTargetDesc/LoongArchMCTargetDesc.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -118,24 +119,61 @@ void LoongArchFrameLowering::determineFrameLayout(MachineFunction &MF) const {
   MFI.setStackSize(FrameSize);
 }
 
+static uint64_t estimateFunctionSizeInBytes(const LoongArchInstrInfo *TII,
+                                            const MachineFunction &MF) {
+  uint64_t FuncSize = 0;
+  for (auto &MBB : MF)
+    for (auto &MI : MBB)
+      FuncSize += TII->getInstSizeInBytes(MI);
+  return FuncSize;
+}
+
+static bool needScavSlotForCFR(MachineFunction &MF) {
+  if (!MF.getSubtarget<LoongArchSubtarget>().hasBasicF())
+    return false;
+  for (auto &MBB : MF)
+    for (auto &MI : MBB)
+      if (MI.getOpcode() == LoongArch::PseudoST_CFR)
+        return true;
+  return false;
+}
+
 void LoongArchFrameLowering::processFunctionBeforeFrameFinalized(
     MachineFunction &MF, RegScavenger *RS) const {
   const LoongArchRegisterInfo *RI = STI.getRegisterInfo();
   const TargetRegisterClass &RC = LoongArch::GPRRegClass;
+  const LoongArchInstrInfo *TII = STI.getInstrInfo();
+  LoongArchMachineFunctionInfo *LAFI =
+      MF.getInfo<LoongArchMachineFunctionInfo>();
   MachineFrameInfo &MFI = MF.getFrameInfo();
+
+  unsigned ScavSlotsNum = 0;
+
+  // Far branches beyond 27-bit offset require a spill slot for scratch register.
+  bool IsLargeFunction = !isInt<27>(estimateFunctionSizeInBytes(TII, MF));
+  if (IsLargeFunction)
+    ScavSlotsNum = 1;
 
   // estimateStackSize has been observed to under-estimate the final stack
   // size, so give ourselves wiggle-room by checking for stack size
   // representable an 11-bit signed field rather than 12-bits.
-  if (isInt<11>(MFI.estimateStackSize(MF)))
-    return;
+  if (!isInt<11>(MFI.estimateStackSize(MF)))
+    ScavSlotsNum = std::max(ScavSlotsNum, 1u);
 
-  // Create an emergency spill slot.
-  int FI =
-      MFI.CreateStackObject(RI->getSpillSize(RC), RI->getSpillAlign(RC), false);
-  RS->addScavengingFrameIndex(FI);
-  LLVM_DEBUG(dbgs() << "Allocated FI(" << FI
-                    << ") as the emergency spill slot.\n");
+  // For CFR spill.
+  if (needScavSlotForCFR(MF))
+    ++ScavSlotsNum;
+
+  // Create emergency spill slots.
+  for (unsigned i = 0; i < ScavSlotsNum; ++i) {
+    int FI = MFI.CreateStackObject(RI->getSpillSize(RC), RI->getSpillAlign(RC),
+                                   false);
+    RS->addScavengingFrameIndex(FI);
+    if (IsLargeFunction && LAFI->getBranchRelaxationSpillFrameIndex() == -1)
+      LAFI->setBranchRelaxationSpillFrameIndex(FI);
+    LLVM_DEBUG(dbgs() << "Allocated FI(" << FI
+                      << ") as the emergency spill slot.\n");
+  }
 }
 
 void LoongArchFrameLowering::emitPrologue(MachineFunction &MF,
@@ -153,7 +191,10 @@ void LoongArchFrameLowering::emitPrologue(MachineFunction &MF,
   // Debug location must be unknown since the first debug location is used
   // to determine the end of the prologue.
   DebugLoc DL;
-
+  // All calls are tail calls in GHC calling conv, and functions have no
+  // prologue/epilogue.
+  if (MF.getFunction().getCallingConv() == CallingConv::GHC)
+    return;
   // Determine the correct frame layout
   determineFrameLayout(MF);
 
@@ -284,7 +325,10 @@ void LoongArchFrameLowering::emitEpilogue(MachineFunction &MF,
   MachineFrameInfo &MFI = MF.getFrameInfo();
   auto *LoongArchFI = MF.getInfo<LoongArchMachineFunctionInfo>();
   Register SPReg = LoongArch::R3;
-
+  // All calls are tail calls in GHC calling conv, and functions have no
+  // prologue/epilogue.
+  if (MF.getFunction().getCallingConv() == CallingConv::GHC)
+    return;
   MachineBasicBlock::iterator MBBI = MBB.getFirstTerminator();
   DebugLoc DL = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
 
@@ -404,6 +448,30 @@ LoongArchFrameLowering::eliminateCallFramePseudoInstr(
   }
 
   return MBB.erase(MI);
+}
+
+bool LoongArchFrameLowering::spillCalleeSavedRegisters(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
+    ArrayRef<CalleeSavedInfo> CSI, const TargetRegisterInfo *TRI) const {
+  if (CSI.empty())
+    return true;
+
+  MachineFunction *MF = MBB.getParent();
+  const TargetInstrInfo &TII = *MF->getSubtarget().getInstrInfo();
+
+  // Insert the spill to the stack frame.
+  for (auto &CS : CSI) {
+    Register Reg = CS.getReg();
+    // If the register is RA and the return address is taken by method
+    // LoongArchTargetLowering::lowerRETURNADDR, don't set kill flag.
+    bool IsKill =
+        !(Reg == LoongArch::R1 && MF->getFrameInfo().isReturnAddressTaken());
+    const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
+    TII.storeRegToStackSlot(MBB, MI, Reg, IsKill, CS.getFrameIdx(), RC, TRI,
+                            Register());
+  }
+
+  return true;
 }
 
 StackOffset LoongArchFrameLowering::getFrameIndexReference(

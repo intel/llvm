@@ -228,6 +228,7 @@
     __kmpc_for_static_init_4                136
     __kmpc_for_static_init_8                137
     __kmpc_fork_call                        138
+    __kmpc_fork_call_if                     294
     __kmpc_global_num_threads               140
     __kmpc_global_thread_num                141
     __kmpc_in_parallel                      142
@@ -345,6 +346,7 @@ kmpc_set_defaults                           224
         __kmpc_fork_teams                   241
         __kmpc_omp_task_with_deps           242
         __kmpc_omp_wait_deps                243
+        __kmpc_omp_taskwait_deps_51         292
         __kmpc_cancel                       244
         __kmpc_cancellationpoint            245
         __kmpc_cancel_barrier               246
@@ -817,10 +819,7 @@ kmp_set_disp_num_buffers                    890
 
     %endif
 
-    # These are specific to x86 and x64
-    %ifdef IS_IA_ARCH
-
-        # ATOMIC extensions for OpenMP 3.1 spec (x86 and x64 only)
+        # ATOMIC extensions for OpenMP 3.1 spec
 
         __kmpc_atomic_fixed1_rd                2265
         __kmpc_atomic_fixed2_rd                2266
@@ -1047,6 +1046,9 @@ kmp_set_disp_num_buffers                    890
         __kmpc_atomic_float10_div_cpt_fp
         %endif
 
+            # These are specific to x86 and x64
+            %ifdef IS_IA_ARCH
+
             # ATOMIC extensions for OpenMP 4.0 spec (x86 and x64 only)
 
             __kmpc_atomic_fixed1_swp           2412
@@ -1243,7 +1245,6 @@ kmp_set_disp_num_buffers                    890
     %ifdef IS_IA_ARCH
     __kmpc_atomic_float10_max              2139
     __kmpc_atomic_float10_min              2140
-    %endif
     __kmpc_atomic_float10_max_cpt          2141
     __kmpc_atomic_float10_min_cpt          2142
 
@@ -1263,6 +1264,7 @@ kmp_set_disp_num_buffers                    890
     __kmpc_atomic_val_2_cas_cpt            2156
     __kmpc_atomic_val_4_cas_cpt            2157
     __kmpc_atomic_val_8_cas_cpt            2158
+    %endif
 
 %endif
 

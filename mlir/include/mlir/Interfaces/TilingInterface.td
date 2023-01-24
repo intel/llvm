@@ -110,7 +110,7 @@ def TilingInterface : OpInterface<"TilingInterface"> {
           result required. This method enables fusion by using tile
           and fuse. The method returns failure if the operation can't be
           tiled to generate the result tile. In practical terms this
-          implies it cannot be tiled and fused with its consumers.        
+          implies it cannot be tiled and fused with its consumers.
 
           - `offsets` provides the offset of the tile in the coordinate system
             of the original iteration space, i.e., if an iteration space
@@ -133,13 +133,13 @@ def TilingInterface : OpInterface<"TilingInterface"> {
       >,
       InterfaceMethod<
         /*desc=*/[{
-          Generates the scalar implementation of the operation. 
+          Generates the scalar implementation of the operation.
 
           Given the list `ivs` that represent points in the iteration space
           (as specified by `getIterationDomain()`) returns the scalar operations
           that represent the computation at that point in the iteration space.
           This method is typically used as the "exit path", i.e. once all
-          transformations are done, this method can be used to lower to scalar 
+          transformations are done, this method can be used to lower to scalar
           code that can then be lowered to LLVM or SPIR-V dialects.
         }],
         /*retType=*/"LogicalResult",
@@ -153,6 +153,74 @@ def TilingInterface : OpInterface<"TilingInterface"> {
           return failure();
         }]
       >
-  ];  
+  ];
+}
+
+def PartialReductionOpInterface : OpInterface<"PartialReductionOpInterface"> {
+  let description = [{
+    Interface for allowing operations to expose information needed to
+    tile reductions using partial reduction followed by merge. This is
+    complementary to TilingInterface to tile reductions.
+  }];
+  let cppNamespace = "::mlir";
+  let methods = [
+      InterfaceMethod<
+        /*desc=*/[{
+          Method to generate a tensor initalized with the identity value of the
+          operation reduction. The tensor shape is equal to operation result
+          shape with new dimension for each non zero tile size.
+        }],
+        /*retType=*/"FailureOr<Operation*>",
+        /*methodName=*/"generateInitialTensorForPartialReduction",
+        /*args=*/(ins
+            "OpBuilder &":$b,
+            "Location ":$loc,
+            "ArrayRef<OpFoldResult>":$sizes,
+            "ArrayRef<int>":$reductionDim),
+        /*methodBody=*/"",
+        /*defaultImplementation=*/[{
+          return failure();
+        }]
+      >,
+      InterfaceMethod<
+        /*desc=*/[{
+          Method to generate a tiled version of the operation where the tiled
+          reduction dimension are converted to parallel dimensions with a size
+          less or equal to the tile size. This is meant to be used with
+          `mergeReductions` method which will combine the partial reductions.
+        }],
+        /*retType=*/"Operation*",
+        /*methodName=*/"tileToPartialReduction",
+        /*args=*/(ins
+            "OpBuilder &":$b,
+            "Location ":$loc,
+            "ValueRange":$init,
+            "ArrayRef<OpFoldResult>":$offsets,
+            "ArrayRef<OpFoldResult>":$sizes,
+            "ArrayRef<int>":$reductionDims),
+        /*methodBody=*/"",
+        /*defaultImplementation=*/[{
+          return nullptr;
+        }]
+      >,
+      InterfaceMethod<
+        /*desc=*/[{
+          Method to merge partial reductions for an operation that has been
+          tiled along the reduction dimensions. This will only apply the
+          reduction the operation.
+        }],
+        /*retType=*/"Operation*",
+        /*methodName=*/"mergeReductions",
+        /*args=*/(ins
+            "OpBuilder &":$b,
+            "Location ":$loc,
+            "ValueRange":$partialReduce,
+            "ArrayRef<int>":$reductionDim),
+        /*methodBody=*/"",
+        /*defaultImplementation=*/[{
+          return nullptr;
+        }]
+      >
+  ];
 }
 #endif // MLIR_TILINGINTERFACE

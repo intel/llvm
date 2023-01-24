@@ -201,7 +201,7 @@ bool CGUseList::isDead(CallGraphNode *node) const {
   // If the parent operation isn't a symbol, simply check normal SSA deadness.
   Operation *nodeOp = node->getCallableRegion()->getParentOp();
   if (!isa<SymbolOpInterface>(nodeOp))
-    return MemoryEffectOpInterface::hasNoEffect(nodeOp) && nodeOp->use_empty();
+    return isMemoryEffectFree(nodeOp) && nodeOp->use_empty();
 
   // Otherwise, check the number of symbol uses.
   auto symbolIt = discardableSymNodeUses.find(node);
@@ -212,7 +212,7 @@ bool CGUseList::hasOneUseAndDiscardable(CallGraphNode *node) const {
   // If this isn't a symbol node, check for side-effects and SSA use count.
   Operation *nodeOp = node->getCallableRegion()->getParentOp();
   if (!isa<SymbolOpInterface>(nodeOp))
-    return MemoryEffectOpInterface::hasNoEffect(nodeOp) && nodeOp->hasOneUse();
+    return isMemoryEffectFree(nodeOp) && nodeOp->hasOneUse();
 
   // Otherwise, check the number of symbol uses.
   auto symbolIt = discardableSymNodeUses.find(node);
@@ -382,15 +382,15 @@ static std::string getNodeName(CallOpInterface op) {
 /// Return true if the specified `inlineHistoryID`  indicates an inline history
 /// that already includes `node`.
 static bool inlineHistoryIncludes(
-    CallGraphNode *node, Optional<size_t> inlineHistoryID,
-    MutableArrayRef<std::pair<CallGraphNode *, Optional<size_t>>>
+    CallGraphNode *node, std::optional<size_t> inlineHistoryID,
+    MutableArrayRef<std::pair<CallGraphNode *, std::optional<size_t>>>
         inlineHistory) {
   while (inlineHistoryID.has_value()) {
-    assert(inlineHistoryID.value() < inlineHistory.size() &&
+    assert(*inlineHistoryID < inlineHistory.size() &&
            "Invalid inline history ID");
-    if (inlineHistory[inlineHistoryID.value()].first == node)
+    if (inlineHistory[*inlineHistoryID].first == node)
       return true;
-    inlineHistoryID = inlineHistory[inlineHistoryID.value()].second;
+    inlineHistoryID = inlineHistory[*inlineHistoryID].second;
   }
   return false;
 }
@@ -488,7 +488,7 @@ static LogicalResult inlineCallsInSCC(Inliner &inliner, CGUseList &useList,
   // When inlining a callee produces new call sites, we want to keep track of
   // the fact that they were inlined from the callee. This allows us to avoid
   // infinite inlining.
-  using InlineHistoryT = Optional<size_t>;
+  using InlineHistoryT = std::optional<size_t>;
   SmallVector<std::pair<CallGraphNode *, InlineHistoryT>, 8> inlineHistory;
   std::vector<InlineHistoryT> callHistory(calls.size(), InlineHistoryT{});
 
@@ -543,7 +543,7 @@ static LogicalResult inlineCallsInSCC(Inliner &inliner, CGUseList &useList,
     inlineHistory.push_back(std::make_pair(it.targetNode, inlineHistoryID));
 
     auto historyToString = [](InlineHistoryT h) {
-      return h.has_value() ? std::to_string(h.value()) : "root";
+      return h.has_value() ? std::to_string(*h) : "root";
     };
     (void)historyToString;
     LLVM_DEBUG(llvm::dbgs()

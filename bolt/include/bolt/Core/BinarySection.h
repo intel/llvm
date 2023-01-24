@@ -157,7 +157,7 @@ public:
   BinarySection(BinaryContext &BC, SectionRef Section)
       : BC(BC), Name(getName(Section)), Section(Section),
         Contents(getContents(Section)), Address(Section.getAddress()),
-        Size(Section.getSize()), Alignment(Section.getAlignment()),
+        Size(Section.getSize()), Alignment(Section.getAlignment().value()),
         OutputName(Name), SectionNumber(++Count) {
     if (isELF()) {
       ELFType = ELFSectionRef(Section).getType();
@@ -254,6 +254,7 @@ public:
   uint64_t getEndAddress() const { return Address + Size; }
   uint64_t getSize() const { return Size; }
   uint64_t getInputFileOffset() const { return InputFileOffset; }
+  Align getAlign() const { return Align(Alignment); }
   uint64_t getAlignment() const { return Alignment; }
   bool isText() const {
     if (isELF())

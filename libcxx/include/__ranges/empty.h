@@ -6,6 +6,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #ifndef _LIBCPP___RANGES_EMPTY_H
 #define _LIBCPP___RANGES_EMPTY_H
 
@@ -14,7 +15,6 @@
 #include <__iterator/concepts.h>
 #include <__ranges/access.h>
 #include <__ranges/size.h>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header

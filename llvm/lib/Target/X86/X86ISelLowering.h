@@ -1005,7 +1005,7 @@ namespace llvm {
     /// specified type. Returns whether it is "fast" in the last argument.
     bool allowsMisalignedMemoryAccesses(EVT VT, unsigned AS, Align Alignment,
                                         MachineMemOperand::Flags Flags,
-                                        bool *Fast) const override;
+                                        unsigned *Fast) const override;
 
     /// Provide custom lowering hooks for some operations.
     ///
@@ -1514,6 +1514,12 @@ namespace llvm {
 
     Align getPrefLoopAlignment(MachineLoop *ML) const override;
 
+    EVT getTypeToTransformTo(LLVMContext &Context, EVT VT) const override {
+      if (VT == MVT::f80)
+        return EVT::getIntegerVT(Context, 96);
+      return TargetLoweringBase::getTypeToTransformTo(Context, VT);
+    }
+
   protected:
     std::pair<const TargetRegisterClass *, uint8_t>
     findRepresentativeClass(const TargetRegisterInfo *TRI,
@@ -1613,7 +1619,7 @@ namespace llvm {
     SDValue lowerEH_SJLJ_LONGJMP(SDValue Op, SelectionDAG &DAG) const;
     SDValue lowerEH_SJLJ_SETUP_DISPATCH(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerINIT_TRAMPOLINE(SDValue Op, SelectionDAG &DAG) const;
-    SDValue LowerFLT_ROUNDS_(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerGET_ROUNDING(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSET_ROUNDING(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerWin64_i128OP(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerWin64_FP_TO_INT128(SDValue Op, SelectionDAG &DAG,
@@ -1648,16 +1654,15 @@ namespace llvm {
       MachineBasicBlock *Entry,
       const SmallVectorImpl<MachineBasicBlock *> &Exits) const override;
 
-    bool
-    splitValueIntoRegisterParts(SelectionDAG &DAG, const SDLoc &DL, SDValue Val,
-                                SDValue *Parts, unsigned NumParts, MVT PartVT,
-                                Optional<CallingConv::ID> CC) const override;
+    bool splitValueIntoRegisterParts(
+        SelectionDAG & DAG, const SDLoc &DL, SDValue Val, SDValue *Parts,
+        unsigned NumParts, MVT PartVT, std::optional<CallingConv::ID> CC)
+        const override;
 
-    SDValue
-    joinRegisterPartsIntoValue(SelectionDAG &DAG, const SDLoc &DL,
-                               const SDValue *Parts, unsigned NumParts,
-                               MVT PartVT, EVT ValueVT,
-                               Optional<CallingConv::ID> CC) const override;
+    SDValue joinRegisterPartsIntoValue(
+        SelectionDAG & DAG, const SDLoc &DL, const SDValue *Parts,
+        unsigned NumParts, MVT PartVT, EVT ValueVT,
+        std::optional<CallingConv::ID> CC) const override;
 
     bool isUsedByReturnOnly(SDNode *N, SDValue &Chain) const override;
 
@@ -1682,6 +1687,7 @@ namespace llvm {
     TargetLoweringBase::AtomicExpansionKind
     shouldExpandLogicAtomicRMWInIR(AtomicRMWInst *AI) const;
     void emitBitTestAtomicRMWIntrinsic(AtomicRMWInst *AI) const override;
+    void emitCmpArithAtomicRMWIntrinsic(AtomicRMWInst *AI) const override;
 
     LoadInst *
     lowerIdempotentRMWIntoFencedLoad(AtomicRMWInst *AI) const override;

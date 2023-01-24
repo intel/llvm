@@ -36,11 +36,10 @@ attributes #2 = { convergent norecurse "frame-pointer"="all" "min-legal-vector-w
 !3 = !{i32 1, !"wchar_size", i32 4}
 !4 = !{i32 7, !"frame-pointer", i32 2}
 
-; Note that work-group sizes are padded with 1's after being reversed.
 ; CHECK-IR-DAG: ![[SGSizeMD0]] = !{i32 3}
-; CHECK-IR-DAG: ![[WGSizeMD0]] = !{i{{[0-9]+}} 1, i{{[0-9]+}} 1, i{{[0-9]+}} 1}
-; CHECK-IR-DAG: ![[WGSizeHintMD0]] = !{i{{[0-9]+}} 2, i{{[0-9]+}} 1, i{{[0-9]+}} 1}
-; CHECK-IR-DAG: ![[WGSizeMD1]] = !{i{{[0-9]+}} 5, i{{[0-9]+}} 4, i{{[0-9]+}} 1}
-; CHECK-IR-DAG: ![[WGSizeHintMD1]] = !{i{{[0-9]+}} 7, i{{[0-9]+}} 6, i{{[0-9]+}} 1}
+; CHECK-IR-DAG: ![[WGSizeMD0]] = !{i{{[0-9]+}} 1}
+; CHECK-IR-DAG: ![[WGSizeHintMD0]] = !{i{{[0-9]+}} 2}
+; CHECK-IR-DAG: ![[WGSizeMD1]] = !{i{{[0-9]+}} 5, i{{[0-9]+}} 4}
+; CHECK-IR-DAG: ![[WGSizeHintMD1]] = !{i{{[0-9]+}} 7, i{{[0-9]+}} 6}
 ; CHECK-IR-DAG: ![[WGSizeMD2]] = !{i{{[0-9]+}} 10, i{{[0-9]+}} 9, i{{[0-9]+}} 8}
 ; CHECK-IR-DAG: ![[WGSizeHintMD2]] = !{i{{[0-9]+}} 13, i{{[0-9]+}} 12, i{{[0-9]+}} 11}

@@ -644,8 +644,9 @@ std::string SYCLUniqueStableNameExpr::ComputeName(ASTContext &Context) const {
 static llvm::Optional<unsigned>
 UniqueStableNameDiscriminator(ASTContext &, const NamedDecl *ND) {
   if (const auto *RD = dyn_cast<CXXRecordDecl>(ND))
-    return RD->getDeviceLambdaManglingNumber();
-  return llvm::None;
+    if (RD->isLambda())
+      return RD->getDeviceLambdaManglingNumber();
+  return std::nullopt;
 }
 
 std::string SYCLUniqueStableNameExpr::ComputeName(ASTContext &Context,
@@ -3703,6 +3704,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case ShuffleVectorExprClass:
   case ConvertVectorExprClass:
   case AsTypeExprClass:
+  case CXXParenListInitExprClass:
     // These have a side-effect if any subexpression does.
     break;
 
@@ -4592,7 +4594,8 @@ DesignatedInitUpdateExpr::DesignatedInitUpdateExpr(const ASTContext &C,
            OK_Ordinary) {
   BaseAndUpdaterExprs[0] = baseExpr;
 
-  InitListExpr *ILE = new (C) InitListExpr(C, lBraceLoc, None, rBraceLoc);
+  InitListExpr *ILE =
+      new (C) InitListExpr(C, lBraceLoc, std::nullopt, rBraceLoc);
   ILE->setType(baseExpr->getType());
   BaseAndUpdaterExprs[1] = ILE;
 

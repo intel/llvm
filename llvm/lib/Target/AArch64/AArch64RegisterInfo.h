@@ -94,7 +94,7 @@ public:
 
   BitVector getStrictlyReservedRegs(const MachineFunction &MF) const;
   BitVector getReservedRegs(const MachineFunction &MF) const override;
-  llvm::Optional<std::string>
+  std::optional<std::string>
   explainReservedReg(const MachineFunction &MF,
                      MCRegister PhysReg) const override;
   bool isAsmClobberable(const MachineFunction &MF,
@@ -116,7 +116,7 @@ public:
                                         int64_t Offset) const override;
   void resolveFrameIndex(MachineInstr &MI, Register BaseReg,
                          int64_t Offset) const override;
-  void eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj,
+  bool eliminateFrameIndex(MachineBasicBlock::iterator II, int SPAdj,
                            unsigned FIOperandNum,
                            RegScavenger *RS = nullptr) const override;
   bool cannotEliminateFrame(const MachineFunction &MF) const;

@@ -59,7 +59,7 @@ getLspDiagnoticFromDiag(const llvm::SMDiagnostic &diag,
                         const lsp::URIForFile &uri) {
   auto *sourceMgr = const_cast<llvm::SourceMgr *>(diag.getSourceMgr());
   if (!sourceMgr || !diag.getLoc().isValid())
-    return llvm::None;
+    return std::nullopt;
 
   lsp::Diagnostic lspDiag;
   lspDiag.source = "tablegen";
@@ -71,7 +71,7 @@ getLspDiagnoticFromDiag(const llvm::SMDiagnostic &diag,
 
   // Skip diagnostics that weren't emitted within the main file.
   if (loc.uri != uri)
-    return llvm::None;
+    return std::nullopt;
 
   // Convert the severity for the diagnostic.
   switch (diag.getKind()) {
@@ -354,8 +354,8 @@ public:
   // Hover
   //===--------------------------------------------------------------------===//
 
-  Optional<lsp::Hover> findHover(const lsp::URIForFile &uri,
-                                 const lsp::Position &hoverPos);
+  std::optional<lsp::Hover> findHover(const lsp::URIForFile &uri,
+                                      const lsp::Position &hoverPos);
   lsp::Hover buildHoverForRecord(const llvm::Record *record,
                                  const SMRange &hoverRange);
   lsp::Hover buildHoverForTemplateArg(const llvm::Record *record,
@@ -518,7 +518,7 @@ void TableGenTextFile::getDocumentLinks(const lsp::URIForFile &uri,
 // TableGenTextFile: Hover
 //===----------------------------------------------------------------------===//
 
-Optional<lsp::Hover>
+std::optional<lsp::Hover>
 TableGenTextFile::findHover(const lsp::URIForFile &uri,
                             const lsp::Position &hoverPos) {
   // Check for a reference to an include.
@@ -531,7 +531,7 @@ TableGenTextFile::findHover(const lsp::URIForFile &uri,
   SMLoc posLoc = hoverPos.getAsSMLoc(sourceMgr);
   const TableGenIndexSymbol *symbol = index.lookup(posLoc, &hoverRange);
   if (!symbol)
-    return llvm::None;
+    return std::nullopt;
 
   // Build hover for a Record.
   if (auto *record = dyn_cast<TableGenRecordSymbol>(symbol))
@@ -693,7 +693,7 @@ void lsp::TableGenServer::updateDocument(
 Optional<int64_t> lsp::TableGenServer::removeDocument(const URIForFile &uri) {
   auto it = impl->files.find(uri.file());
   if (it == impl->files.end())
-    return llvm::None;
+    return std::nullopt;
 
   int64_t version = it->second->getVersion();
   impl->files.erase(it);
@@ -723,10 +723,11 @@ void lsp::TableGenServer::getDocumentLinks(
     return fileIt->second->getDocumentLinks(uri, documentLinks);
 }
 
-Optional<lsp::Hover> lsp::TableGenServer::findHover(const URIForFile &uri,
-                                                    const Position &hoverPos) {
+std::optional<lsp::Hover>
+lsp::TableGenServer::findHover(const URIForFile &uri,
+                               const Position &hoverPos) {
   auto fileIt = impl->files.find(uri.file());
   if (fileIt != impl->files.end())
     return fileIt->second->findHover(uri, hoverPos);
-  return llvm::None;
+  return std::nullopt;
 }

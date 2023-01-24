@@ -62,7 +62,7 @@ private:
     if (range.empty())
       return;
     elementIndentStack.reserve(elementIndentStack.size() + 1);
-    llvm::SaveAndRestore<bool> lastElement(elementIndentStack.back(), true);
+    llvm::SaveAndRestore lastElement(elementIndentStack.back(), true);
 
     printIndent();
     os << label << "`\n";
@@ -84,6 +84,7 @@ private:
   void printImpl(const DeclRefExpr *expr);
   void printImpl(const MemberAccessExpr *expr);
   void printImpl(const OperationExpr *expr);
+  void printImpl(const RangeExpr *expr);
   void printImpl(const TupleExpr *expr);
   void printImpl(const TypeExpr *expr);
 
@@ -169,8 +170,8 @@ void NodePrinter::print(const Node *node) {
 
           // Expressions.
           const AttributeExpr, const CallExpr, const DeclRefExpr,
-          const MemberAccessExpr, const OperationExpr, const TupleExpr,
-          const TypeExpr,
+          const MemberAccessExpr, const OperationExpr, const RangeExpr,
+          const TupleExpr, const TypeExpr,
 
           // Decls.
           const AttrConstraintDecl, const OpConstraintDecl,
@@ -254,6 +255,14 @@ void NodePrinter::printImpl(const OperationExpr *expr) {
   printChildren("Attributes", expr->getAttributes());
 }
 
+void NodePrinter::printImpl(const RangeExpr *expr) {
+  os << "RangeExpr " << expr << " Type<";
+  print(expr->getType());
+  os << ">\n";
+
+  printChildren(expr->getElements());
+}
+
 void NodePrinter::printImpl(const TupleExpr *expr) {
   os << "TupleExpr " << expr << " Type<";
   print(expr->getType());
@@ -321,7 +330,7 @@ void NodePrinter::printImpl(const NamedAttributeDecl *decl) {
 void NodePrinter::printImpl(const OpNameDecl *decl) {
   os << "OpNameDecl " << decl;
   if (Optional<StringRef> name = decl->getName())
-    os << " Name<" << name << ">";
+    os << " Name<" << *name << ">";
   os << "\n";
 }
 

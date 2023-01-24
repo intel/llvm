@@ -905,9 +905,17 @@ void ASTStmtReader::VisitRequiresExpr(RequiresExpr *E) {
                   std::move(*Req));
       } break;
       case concepts::Requirement::RK_Nested: {
-        if (/* IsSubstitutionDiagnostic */Record.readInt()) {
+        bool HasInvalidConstraint = Record.readInt();
+        if (HasInvalidConstraint) {
+          std::string InvalidConstraint = Record.readString();
+          char *InvalidConstraintBuf =
+              new (Record.getContext()) char[InvalidConstraint.size()];
+          std::copy(InvalidConstraint.begin(), InvalidConstraint.end(),
+                    InvalidConstraintBuf);
           R = new (Record.getContext()) concepts::NestedRequirement(
-              readSubstitutionDiagnostic(Record));
+              Record.getContext(),
+              StringRef(InvalidConstraintBuf, InvalidConstraint.size()),
+              readConstraintSatisfaction(Record));
           break;
         }
         Expr *E = Record.readExpr();
@@ -2199,6 +2207,26 @@ void ASTStmtReader::VisitCXXFoldExpr(CXXFoldExpr *E) {
   E->Opcode = (BinaryOperatorKind)Record.readInt();
 }
 
+void ASTStmtReader::VisitCXXParenListInitExpr(CXXParenListInitExpr *E) {
+  VisitExpr(E);
+  unsigned ExpectedNumExprs = Record.readInt();
+  assert(E->NumExprs == ExpectedNumExprs &&
+         "expected number of expressions does not equal the actual number of "
+         "serialized expressions.");
+  E->NumUserSpecifiedExprs = Record.readInt();
+  E->InitLoc = readSourceLocation();
+  E->LParenLoc = readSourceLocation();
+  E->RParenLoc = readSourceLocation();
+  for (unsigned I = 0; I < ExpectedNumExprs; I++)
+    E->getTrailingObjects<Expr *>()[I] = Record.readSubExpr();
+
+  bool HasArrayFiller = Record.readBool();
+  if (HasArrayFiller) {
+    E->setArrayFiller(Record.readSubExpr());
+  }
+  E->updateDependence();
+}
+
 void ASTStmtReader::VisitOpaqueValueExpr(OpaqueValueExpr *E) {
   VisitExpr(E);
   E->SourceExpr = Record.readSubExpr();
@@ -2438,6 +2466,13 @@ void ASTStmtReader::VisitOMPBarrierDirective(OMPBarrierDirective *D) {
 }
 
 void ASTStmtReader::VisitOMPTaskwaitDirective(OMPTaskwaitDirective *D) {
+  VisitStmt(D);
+  // The NumClauses field was read in ReadStmtFromStream.
+  Record.skipInts(1);
+  VisitOMPExecutableDirective(D);
+}
+
+void ASTStmtReader::VisitOMPErrorDirective(OMPErrorDirective *D) {
   VisitStmt(D);
   // The NumClauses field was read in ReadStmtFromStream.
   Record.skipInts(1);
@@ -3395,6 +3430,11 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
           Context, Record[ASTStmtReader::NumStmtFields], Empty);
       break;
 
+    case STMT_OMP_ERROR_DIRECTIVE:
+      S = OMPErrorDirective::CreateEmpty(
+          Context, Record[ASTStmtReader::NumStmtFields], Empty);
+      break;
+
     case STMT_OMP_TASKGROUP_DIRECTIVE:
       S = OMPTaskgroupDirective::CreateEmpty(
           Context, Record[ASTStmtReader::NumStmtFields], Empty);
@@ -3996,6 +4036,11 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case EXPR_CXX_FOLD:
       S = new (Context) CXXFoldExpr(Empty);
+      break;
+
+    case EXPR_CXX_PAREN_LIST_INIT:
+      S = CXXParenListInitExpr::CreateEmpty(
+          Context, /*numExprs=*/Record[ASTStmtReader::NumExprFields], Empty);
       break;
 
     case EXPR_OPAQUE_VALUE:

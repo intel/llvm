@@ -18,6 +18,7 @@
 
 #include <memory>
 #include <mutex>
+#include <utility>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -173,6 +174,16 @@ public:
   std::vector<device>
   create_sub_devices(info::partition_affinity_domain AffinityDomain) const;
 
+  /// Partition device into sub devices
+  ///
+  /// If this SYCL device does not support
+  /// info::partition_property::ext_intel_partition_by_cslice a
+  /// feature_not_supported exception must be thrown.
+  ///
+  /// \return a vector class of sub devices partitioned from this SYCL
+  /// device at a granularity of "cslice" (compute slice).
+  std::vector<device> create_sub_devices() const;
+
   /// Check if desired partition property supported by device
   ///
   /// \param Prop is one of info::partition_property::(partition_equally,
@@ -228,6 +239,10 @@ public:
 
   std::string getDeviceName() const;
 
+  /// Gets the current device timestamp
+  /// @throw sycl::feature_not_supported if feature is not supported on device
+  uint64_t getCurrentDeviceTime();
+
 private:
   explicit device_impl(pi_native_handle InteropDevice, RT::PiDevice Device,
                        PlatformImplPtr Platform, const plugin &Plugin);
@@ -247,6 +262,7 @@ private:
                       const std::shared_ptr<context_impl> &Ctx1,
                       const std::shared_ptr<device_impl> &Dev2,
                       const std::shared_ptr<context_impl> &Ctx2);
+  std::pair<uint64_t, uint64_t> MDeviceHostBaseTime;
 }; // class device_impl
 
 } // namespace detail

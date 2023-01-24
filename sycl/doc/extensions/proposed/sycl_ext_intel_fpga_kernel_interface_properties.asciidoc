@@ -111,7 +111,7 @@ struct register_map_interface_key {
 };
 
 struct pipelined_key {
-  template <size_t pipeline_directive_or_initiation_interval>
+  template <int pipeline_directive_or_initiation_interval>
   using value_t = sycl::ext::oneapi::properties::property_value<
     pipelined_key,
     std::integral_constant<size_t, pipeline_directive_or_initiation_interval>>;
@@ -140,7 +140,7 @@ inline constexpr register_map_interface_key::value_t<
   register_map_interface_options_enum::do_not_wait_for_done_write>
     register_map_interface_do_not_wait_for_done_write;
 
-template<size_t pipeline_directive_or_initiation_interval>
+template<int pipeline_directive_or_initiation_interval>
 inline constexpr pipelined_key::value_t<
   pipeline_directive_or_initiation_interval> pipelined;
 
@@ -192,22 +192,32 @@ inline constexpr pipelined_key::value_t<
  `register_map_interface_do_not_wait_for_done_write`.
 
 |`pipelined`
-|An unsigned integer value is accepted as property parameter.
+|A signed integer value is accepted as property parameter.
 
  When the parameter is set to a non zero value, the property directs the
  compiler to pipeline calls to the kernel such that multiple invocations of the
- kernel can be in flight simultaneously. The parameter value also specifies the
- minimum number of cycles between successive invocations of the kernel. Example:
+ kernel can be in flight simultaneously.
 
- * `pipelined<N>` - The compiler will pipeline multiple kernel invocations such
- that an invocation can be launched every `N` cycles if one is available.
- 
+ When the parameter is a positive value, the value specifies the 'initiation
+ interval' (II) of the kernel i.e., the minimum number of cycles between successive
+ invocations. Example:
+
+ * `pipelined<N>` - For `N > 0`, the compiler will pipeline multiple kernel
+ invocations such that an invocation can be launched every `N` cycles if one is
+ available.
+
+ When the parameter is set to `-1`, the compiler will determine the II and
+ pipeline the kernel invocations.
+
  When the parameter is set to `0`, the compiler will not pipeline kernel
  invocations.
 
  If the `pipelined` property is not specified, the default behavior is
  equivalent to a combination of the property parameter values listed above, but
  the choice is implementation defined.
+
+ If the property parameter (N) is not specified, the default value is `-1`.
+ Valid values for `N` are values greater than or equal to `-1`.
 |===
 
 Device compilers that do not support this extension may accept and ignore these
@@ -287,4 +297,5 @@ q.single_task(KernelFunctor{a, b, c}).wait();
 |========================================
 |Rev|Date|Author|Changes
 |1|2022-03-01|Abhishek Tiwari|*Initial public working draft*
+|2|2022-12-05|Abhishek Tiwari|*Make pipelined property parameter a signed int*
 |========================================

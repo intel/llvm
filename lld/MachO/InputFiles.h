@@ -269,6 +269,8 @@ private:
   void handleLDHideSymbol(StringRef name, StringRef originalName);
   void checkAppExtensionSafety(bool dylibIsAppExtensionSafe) const;
   void parseExportedSymbols(uint32_t offset, uint32_t size);
+  void loadReexport(StringRef path, DylibFile *umbrella,
+                    const llvm::MachO::InterfaceFile *currentTopLevelTapi);
 
   llvm::DenseSet<llvm::CachedHashStringRef> hiddenSymbols;
 };
@@ -313,7 +315,7 @@ private:
 extern llvm::SetVector<InputFile *> inputFiles;
 extern llvm::DenseMap<llvm::CachedHashStringRef, MemoryBufferRef> cachedReads;
 
-llvm::Optional<MemoryBufferRef> readFile(StringRef path);
+std::optional<MemoryBufferRef> readFile(StringRef path);
 
 void extract(InputFile &file, StringRef reason);
 

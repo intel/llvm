@@ -483,7 +483,7 @@ def MemRef_CastOp : MemRef_Op<"cast", [
 // CopyOp
 //===----------------------------------------------------------------------===//
 
-def CopyOp : MemRef_Op<"copy", [CopyOpInterface, SameOperandsElementType, 
+def CopyOp : MemRef_Op<"copy", [CopyOpInterface, SameOperandsElementType,
     SameOperandsShape]> {
 
   let description = [{
@@ -586,7 +586,7 @@ def MemRef_DimOp : MemRef_Op<"dim", [
 
   let extraClassDeclaration = [{
     /// Helper function to get the index as a simple integer if it is constant.
-    Optional<int64_t> getConstantIndex();
+    std::optional<int64_t> getConstantIndex();
 
     /// Interface method of ShapedDimOpInterface: Return the source memref.
     Value getShapedValue() { return getSource(); }
@@ -809,10 +809,10 @@ def MemRef_DmaWaitOp : MemRef_Op<"dma_wait"> {
 // ExtractAlignedPointerAsIndexOp
 //===----------------------------------------------------------------------===//
 
-def MemRef_ExtractAlignedPointerAsIndexOp : 
+def MemRef_ExtractAlignedPointerAsIndexOp :
   MemRef_Op<"extract_aligned_pointer_as_index", [
     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
-    Pure, 
+    Pure,
     SameVariadicResultSize]> {
   let summary = "Extracts a memref's underlying aligned pointer as an index";
   let description = [{
@@ -852,7 +852,7 @@ def MemRef_ExtractAlignedPointerAsIndexOp :
 
 def MemRef_ExtractStridedMetadataOp : MemRef_Op<"extract_strided_metadata", [
     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
-    Pure, 
+    Pure,
     SameVariadicResultSize,
     DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
   let summary = "Extracts a buffer base with offset and strides";
@@ -866,18 +866,18 @@ def MemRef_ExtractStridedMetadataOp : MemRef_Op<"extract_strided_metadata", [
 
     This operation is also useful for completeness to the existing memref.dim op.
     While accessing strides, offsets and the base pointer independently is not
-    available, this is useful for composing with its natural complement op: 
+    available, this is useful for composing with its natural complement op:
     `memref.reinterpret_cast`.
 
     Intended Use Cases:
 
     The main use case is to expose the logic for manipulate memref metadata at a
-    higher level than the LLVM dialect. 
+    higher level than the LLVM dialect.
     This makes lowering more progressive and brings the following benefits:
       - not all users of MLIR want to lower to LLVM and the information to e.g.
         lower to library calls---like libxsmm---or to SPIR-V was not available.
-      - foldings and canonicalizations can happen at a higher level in MLIR: 
-        before this op existed, lowering to LLVM would create large amounts of 
+      - foldings and canonicalizations can happen at a higher level in MLIR:
+        before this op existed, lowering to LLVM would create large amounts of
         LLVMIR. Even when LLVM does a good job at folding the low-level IR from
         a performance perspective, it is unnecessarily opaque and inefficient to
         send unkempt IR to LLVM.
@@ -885,11 +885,11 @@ def MemRef_ExtractStridedMetadataOp : MemRef_Op<"extract_strided_metadata", [
     Example:
 
     ```mlir
-      %base, %offset, %sizes:2, %strides:2 = 
-        memref.extract_strided_metadata %memref : 
+      %base, %offset, %sizes:2, %strides:2 =
+        memref.extract_strided_metadata %memref :
           memref<10x?xf32>, index, index, index, index, index
 
-      // After folding, the type of %m2 can be memref<10x?xf32> and further 
+      // After folding, the type of %m2 can be memref<10x?xf32> and further
       // folded to %memref.
       %m2 = memref.reinterpret_cast %base to
           offset: [%offset],
@@ -911,6 +911,23 @@ def MemRef_ExtractStridedMetadataOp : MemRef_Op<"extract_strided_metadata", [
 
   let assemblyFormat = [{
     $source `:` type($source) `->` type(results) attr-dict
+  }];
+
+  let extraClassDeclaration = [{
+    /// Return a vector of all the static or dynamic sizes of the op, while
+    /// statically inferring the sizes of the dynamic sizes, when possible.
+    /// This is best effort.
+    /// E.g., if `getSizes` returns `[%dyn_size0, %dyn_size1]`, but the
+    /// source memref type is `memref<2x8xi16>`, this method will
+    /// return `[2, 8]`.
+    /// Similarly if the resulting memref type is `memref<2x?xi16>`, but
+    /// `%dyn_size1` can statically be pinned to a constant value, this
+    /// constant value is returned instead of `%dyn_size`.
+    SmallVector<OpFoldResult> getConstifiedMixedSizes();
+    /// Similar to `getConstifiedMixedSizes` but for strides.
+    SmallVector<OpFoldResult> getConstifiedMixedStrides();
+    /// Similar to `getConstifiedMixedSizes` but for the offset.
+    OpFoldResult getConstifiedMixedOffset();
   }];
 
   let hasFolder = 1;
@@ -1213,10 +1230,10 @@ def MemRef_PrefetchOp : MemRef_Op<"prefetch"> {
 def MemRef_ReinterpretCastOp
   : MemRef_OpWithOffsetSizesAndStrides<"reinterpret_cast", [
       DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
-      AttrSizedOperandSegments, 
+      AttrSizedOperandSegments,
       MemRefsNormalizable,
-      Pure, 
-      OffsetSizeAndStrideOpInterface, 
+      Pure,
+      OffsetSizeAndStrideOpInterface,
       ViewLikeOpInterface
     ]> {
   let summary = "memref reinterpret cast operation";
@@ -1243,21 +1260,18 @@ def MemRef_ReinterpretCastOp
                        Variadic<Index>:$offsets,
                        Variadic<Index>:$sizes,
                        Variadic<Index>:$strides,
-                       I64ArrayAttr:$static_offsets,
-                       I64ArrayAttr:$static_sizes,
-                       I64ArrayAttr:$static_strides);
+                       DenseI64ArrayAttr:$static_offsets,
+                       DenseI64ArrayAttr:$static_sizes,
+                       DenseI64ArrayAttr:$static_strides);
   let results = (outs AnyMemRef:$result);
 
   let assemblyFormat = [{
     $source `to` `offset` `` `:`
-    custom<DynamicIndexList>($offsets, $static_offsets,
-                               "ShapedType::kDynamicStrideOrOffset")
+    custom<DynamicIndexList>($offsets, $static_offsets)
     `` `,` `sizes` `` `:`
-    custom<DynamicIndexList>($sizes, $static_sizes,
-                               "ShapedType::kDynamicSize")
+    custom<DynamicIndexList>($sizes, $static_sizes)
     `` `,` `strides` `` `:`
-    custom<DynamicIndexList>($strides, $static_strides,
-                               "ShapedType::kDynamicStrideOrOffset")
+    custom<DynamicIndexList>($strides, $static_strides)
     attr-dict `:` type($source) `to` type($result)
   }];
 
@@ -1301,6 +1315,20 @@ def MemRef_ReinterpretCastOp
     /// Return the number of leading operands before the `offsets`, `sizes` and
     /// and `strides` operands.
     static unsigned getOffsetSizeAndStrideStartOperandIndex() { return 1; }
+
+    /// Return a vector of all the static or dynamic sizes of the op, while
+    /// statically inferring the sizes of the dynamic sizes, when possible.
+    /// This is best effort.
+    /// E.g., if `getMixedSizes` returns `[2, %dyn_size]`, but the resulting
+    /// memref type is `memref<2x8xi16>`, this method will return `[2, 8]`.
+    /// Similarly if the resulting memref type is `memref<2x?xi16>`, but
+    /// `%dyn_size` can statically be pinned to a constant value, this
+    /// constant value is returned instead of `%dyn_size`.
+    SmallVector<OpFoldResult> getConstifiedMixedSizes();
+    /// Similar to `getConstifiedMixedSizes` but for strides.
+    SmallVector<OpFoldResult> getConstifiedMixedStrides();
+    /// Similar to `getConstifiedMixedSizes` but for the offset.
+    OpFoldResult getConstifiedMixedOffset();
   }];
 
   let hasFolder = 1;
@@ -1448,7 +1476,7 @@ def MemRef_ExpandShapeOp : MemRef_ReassociativeReshapeOp<"expand_shape", [
     or copies.
 
     A reassociation is defined as a grouping of dimensions and is represented
-    with an array of I64ArrayAttr attributes.
+    with an array of DenseI64ArrayAttr attributes.
 
     Example:
 
@@ -1535,7 +1563,7 @@ def MemRef_CollapseShapeOp : MemRef_ReassociativeReshapeOp<"collapse_shape", [
     type.
 
     A reassociation is defined as a continuous grouping of dimensions and is
-    represented with an array of I64ArrayAttr attribute.
+    represented with an array of DenseI64ArrayAttr attribute.
 
     Note: Only the dimensions within a reassociation group must be contiguous.
     The remaining dimensions may be non-contiguous.
@@ -1708,8 +1736,8 @@ def SubViewOp : MemRef_OpWithOffsetSizesAndStrides<"subview", [
     The representation based on offsets, sizes and strides support a
     partially-static specification via attributes specified through the
     `static_offsets`, `static_sizes` and `static_strides` arguments. A special
-    sentinel value ShapedType::kDynamicSize and
-    ShapedType::kDynamicStrideOrOffset encodes that the corresponding entry has
+    sentinel value ShapedType::kDynamic and
+    ShapedType::kDynamic encodes that the corresponding entry has
     a dynamic value.
 
     A subview operation may additionally reduce the rank of the resulting view
@@ -1827,19 +1855,16 @@ def SubViewOp : MemRef_OpWithOffsetSizesAndStrides<"subview", [
                        Variadic<Index>:$offsets,
                        Variadic<Index>:$sizes,
                        Variadic<Index>:$strides,
-                       I64ArrayAttr:$static_offsets,
-                       I64ArrayAttr:$static_sizes,
-                       I64ArrayAttr:$static_strides);
+                       DenseI64ArrayAttr:$static_offsets,
+                       DenseI64ArrayAttr:$static_sizes,
+                       DenseI64ArrayAttr:$static_strides);
   let results = (outs AnyMemRef:$result);
 
   let assemblyFormat = [{
     $source ``
-    custom<DynamicIndexList>($offsets, $static_offsets,
-                               "ShapedType::kDynamicStrideOrOffset")
-    custom<DynamicIndexList>($sizes, $static_sizes,
-                               "ShapedType::kDynamicSize")
-    custom<DynamicIndexList>($strides, $static_strides,
-                               "ShapedType::kDynamicStrideOrOffset")
+    custom<DynamicIndexList>($offsets, $static_offsets)
+    custom<DynamicIndexList>($sizes, $static_sizes)
+    custom<DynamicIndexList>($strides, $static_strides)
     attr-dict `:` type($source) `to` type($result)
   }];
 
@@ -1929,6 +1954,15 @@ def SubViewOp : MemRef_OpWithOffsetSizesAndStrides<"subview", [
     /// Return the dimensions of the source type that are dropped when
     /// the result is rank-reduced.
     llvm::SmallBitVector getDroppedDims();
+
+    /// Given a `value`, asserted to be of MemRefType, build a SubViewOp that
+    /// results in a rank reduction to the desired memref shape and return the
+    /// new value created.
+    /// If the shape of `value` is already the `desiredShape`, just return
+    /// `value`.
+    /// If the shape of `value` cannot be rank-reduced to `desiredShape`, fail.
+    static FailureOr<Value> rankReduceIfNeeded(
+      OpBuilder &b, Location loc, Value value, ArrayRef<int64_t> desiredShape);
   }];
 
   let hasCanonicalizer = 1;
@@ -2008,7 +2042,7 @@ def MemRef_TransposeOp : MemRef_Op<"transpose", [
 
 def MemRef_ViewOp : MemRef_Op<"view", [
     DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
-    DeclareOpInterfaceMethods<ViewLikeOpInterface>, 
+    DeclareOpInterfaceMethods<ViewLikeOpInterface>,
     Pure]> {
   let summary = "memref view operation";
   let description = [{

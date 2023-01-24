@@ -42,6 +42,7 @@
 
 #include "LLVMSPIRVLib.h"
 #include "libSPIRV/SPIRVOpCode.h"
+#include "libSPIRV/SPIRVType.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/IRBuilder.h"
@@ -80,7 +81,7 @@ class BuiltinCallMutator {
   // The arguments for the new call instruction.
   llvm::SmallVector<llvm::Value *, 8> Args;
   // The pointer element types for the new call instruction.
-  llvm::SmallVector<llvm::TypedPointerType *, 8> PointerTypes;
+  llvm::SmallVector<llvm::Type *, 8> PointerTypes;
   // The mangler rules to use for the new call instruction.
   ManglingRules Rules;
 
@@ -116,11 +117,14 @@ public:
   /// Get the corresponding argument for the new call.
   llvm::Value *getArg(unsigned Index) const { return Args[Index]; }
 
+  llvm::Type *getType(unsigned Index) const { return PointerTypes[Index]; }
+
   /// Return the pointer element type of the corresponding index, or nullptr if
   /// it is not a pointer.
   llvm::Type *getPointerElementType(unsigned Index) const {
-    llvm::TypedPointerType *ElTy = PointerTypes[Index];
-    return ElTy ? ElTy->getElementType() : nullptr;
+    if (auto *TPT = llvm::dyn_cast<llvm::TypedPointerType>(PointerTypes[Index]))
+      return TPT->getElementType();
+    return nullptr;
   }
 
   /// A pair representing both the LLVM value of an argument and its
@@ -128,7 +132,7 @@ public:
   /// implicit conversion from an LLVM value object (but only if it is not of
   /// pointer type), or by the appropriate std::pair type.
   struct ValueTypePair : public std::pair<llvm::Value *, llvm::Type *> {
-    ValueTypePair(llvm::Value *V) : pair(V, nullptr) {
+    ValueTypePair(llvm::Value *V) : pair(V, V->getType()) {
       assert(!V->getType()->isPointerTy() &&
              "Must specify a pointer element type if value is a pointer.");
     }
@@ -181,7 +185,7 @@ public:
   BuiltinCallMutator &moveArg(unsigned FromIndex, unsigned ToIndex) {
     if (FromIndex == ToIndex)
       return *this;
-    ValueTypePair Pair(Args[FromIndex], getPointerElementType(FromIndex));
+    ValueTypePair Pair(Args[FromIndex], getType(FromIndex));
     removeArg(FromIndex);
     insertArg(ToIndex, Pair);
     return *this;
@@ -200,15 +204,15 @@ public:
   /// When present, the IRBuilder parameter corresponds to a builder that is set
   /// to insert immediately before the new call instruction. The Value parameter
   /// corresponds to the argument to be mutated. The Type parameter, when
-  /// present, corresponds to the pointer element type of the argument, or null
-  /// when it is not present.
+  /// present, will be either a TypedPointerType representing the "true" type of
+  /// the value, or the argument's type otherwise.
   template <typename FnType>
   BuiltinCallMutator &mapArg(unsigned Index, FnType Func) {
     using namespace llvm;
     using std::is_invocable;
     IRBuilder<> Builder(CI);
     Value *V = Args[Index];
-    [[maybe_unused]] Type *T = getPointerElementType(Index);
+    [[maybe_unused]] Type *T = getType(Index);
 
     // Dispatch the function call as appropriate, based on the types that the
     // function may be called with.
@@ -272,6 +276,86 @@ public:
   /// to the given SPIR-V opcode (whose name is used in the lookup map of
   /// getSPIRVFuncName).
   BuiltinCallMutator mutateCallInst(llvm::CallInst *CI, spv::Op Opcode);
+
+  /// Create a call to a SPIR-V builtin function (specified via opcode).
+  /// The return type and argument types may be TypedPointerType, if the actual
+  /// LLVM type is a pointer type.
+  llvm::Value *addSPIRVCall(llvm::IRBuilder<> &Builder, spv::Op Opcode,
+                            llvm::Type *ReturnTy,
+                            llvm::ArrayRef<llvm::Value *> Args,
+                            llvm::ArrayRef<llvm::Type *> ArgTys,
+                            const llvm::Twine &Name = "");
+
+  /// Create a call to a SPIR-V builtin function, returning a value and type
+  /// pair suitable for use in BuiltinCallMutator::replaceArg and similar
+  /// functions.
+  BuiltinCallMutator::ValueTypePair
+  addSPIRVCallPair(llvm::IRBuilder<> &Builder, spv::Op Opcode,
+                   llvm::Type *ReturnTy, llvm::ArrayRef<llvm::Value *> Args,
+                   llvm::ArrayRef<llvm::Type *> ArgTys,
+                   const llvm::Twine &Name = "") {
+    llvm::Value *V =
+        addSPIRVCall(Builder, Opcode, ReturnTy, Args, ArgTys, Name);
+    return BuiltinCallMutator::ValueTypePair(V, ReturnTy);
+  }
+
+  /// Adapt the various SPIR-V image types, for example changing a "spirv.Image"
+  /// type into a "spirv.SampledImage" type with identical parameters.
+  ///
+  /// The input type is expected to be a TypedPointerType to either a
+  /// "spirv.*" or "opencl.*" struct type. In the case of "opencl.*" struct
+  /// types, it will first convert it into the corresponding "spirv.Image"
+  /// struct type.
+  ///
+  /// If the image type does not match OldImageKind, this method will abort.
+  llvm::Type *adjustImageType(llvm::Type *T, llvm::StringRef OldImageKind,
+                              llvm::StringRef NewImageKind);
+
+  /// Create a new type representing a SPIR-V opaque type that takes no
+  /// parameters (such as sampler types).
+  ///
+  /// If UseRealType is false, a typed pointer type may be returned; if it is
+  /// true, a pointer type will be used instead.
+  llvm::Type *getSPIRVType(spv::Op TypeOpcode, bool UseRealType = false);
+
+  /// Create a new type representing a SPIR-V opaque type that takes only an
+  /// access qualifier (such as pipe types).
+  ///
+  /// If UseRealType is false, a typed pointer type may be returned; if it is
+  /// true, a pointer type will be used instead.
+  llvm::Type *getSPIRVType(spv::Op TypeOpcode, spv::AccessQualifier Access,
+                           bool UseRealType = false);
+
+  /// Create a new type representing a SPIR-V opaque type that is an image type
+  /// of some kind.
+  ///
+  /// If UseRealType is false, a typed pointer type may be returned; if it is
+  /// true, a pointer type will be used instead.
+  llvm::Type *getSPIRVType(spv::Op TypeOpcode, llvm::Type *InnerType,
+                           SPIRVTypeImageDescriptor Desc,
+                           std::optional<spv::AccessQualifier> Access,
+                           bool UseRealType = false);
+
+  /// Create a new type representing a SPIR-V opaque type that takes arbitrary
+  /// parameters.
+  ///
+  /// If UseRealType is false, a typed pointer type may be returned; if it is
+  /// true, a pointer type will be used instead.
+  llvm::Type *getSPIRVType(spv::Op TypeOpcode, llvm::StringRef InnerTypeName,
+                           llvm::ArrayRef<unsigned> Parameters,
+                           bool UseRealType = false);
+
+private:
+  llvm::SmallVector<llvm::Type *, 4> CachedParameterTypes;
+  llvm::Function *CachedFunc = nullptr;
+
+public:
+  BuiltinCallMutator::ValueTypePair getCallValue(llvm::CallInst *CI,
+                                                 unsigned ArgNo);
+
+  llvm::Type *getCallValueType(llvm::CallInst *CI, unsigned ArgNo) {
+    return getCallValue(CI, ArgNo).second;
+  }
 };
 
 } // namespace SPIRV

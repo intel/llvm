@@ -65,6 +65,14 @@ def int_aarch64_hint : DefaultAttrsIntrinsic<[], [llvm_i32_ty]>;
 def int_aarch64_break : Intrinsic<[], [llvm_i32_ty],
     [IntrNoMem, IntrHasSideEffects, IntrNoReturn, IntrCold, ImmArg<ArgIndex<0>>]>;
 
+
+def int_aarch64_prefetch : Intrinsic<[],
+    [llvm_ptr_ty, llvm_i32_ty, llvm_i32_ty, llvm_i32_ty, llvm_i32_ty],
+    [IntrInaccessibleMemOrArgMemOnly, IntrWillReturn, ReadOnly<ArgIndex<0>>,
+     ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>, ImmArg<ArgIndex<3>>, ImmArg<ArgIndex<4>>
+     ]>,
+    ClangBuiltin<"__builtin_arm_prefetch">;
+
 //===----------------------------------------------------------------------===//
 // Data Barrier Instructions
 
@@ -1516,7 +1524,7 @@ class SVE_4Vec_BF16
 
 class SVE_4Vec_BF16_Indexed
     : DefaultAttrsIntrinsic<[llvm_nxv4f32_ty],
-                [llvm_nxv4f32_ty, llvm_nxv8bf16_ty, llvm_nxv8bf16_ty, llvm_i64_ty],
+                [llvm_nxv4f32_ty, llvm_nxv8bf16_ty, llvm_nxv8bf16_ty, llvm_i32_ty],
                 [IntrNoMem, ImmArg<ArgIndex<3>>]>;
 
 //
@@ -2519,9 +2527,9 @@ def int_aarch64_sve_bfmlalt : SVE_4Vec_BF16;
 
 def int_aarch64_sve_bfmmla  : SVE_4Vec_BF16;
 
-def int_aarch64_sve_bfdot_lane   : SVE_4Vec_BF16_Indexed;
-def int_aarch64_sve_bfmlalb_lane : SVE_4Vec_BF16_Indexed;
-def int_aarch64_sve_bfmlalt_lane : SVE_4Vec_BF16_Indexed;
+def int_aarch64_sve_bfdot_lane_v2   : SVE_4Vec_BF16_Indexed;
+def int_aarch64_sve_bfmlalb_lane_v2 : SVE_4Vec_BF16_Indexed;
+def int_aarch64_sve_bfmlalt_lane_v2 : SVE_4Vec_BF16_Indexed;
 }
 
 //

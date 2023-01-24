@@ -20,7 +20,8 @@ _msvcVersion  = lambda cfg: (int(compilerMacros(cfg)['_MSC_VER']) // 100, int(co
 
 def _hasSuitableClangTidy(cfg):
   try:
-    return int(re.search('[0-9]+', commandOutput(cfg, ['clang-tidy --version'])).group()) >= 13
+    return int(re.search('[0-9]+', commandOutput(cfg, ['clang-tidy --version'])).group()) >= 13 and runScriptExitCode(
+      cfg, ['stat %{test-tools}/clang_tidy_checks/libcxx-tidy.plugin']) == 0
   except ConfigurationRuntimeError:
     return False
 
@@ -206,6 +207,7 @@ macros = {
   '_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY': 'no-filesystem',
   '_LIBCPP_HAS_NO_RANDOM_DEVICE': 'no-random-device',
   '_LIBCPP_HAS_NO_LOCALIZATION': 'no-localization',
+  '_LIBCPP_HAS_NO_FSTREAM': 'no-fstream',
   '_LIBCPP_HAS_NO_WIDE_CHARACTERS': 'no-wide-characters',
   '_LIBCPP_HAS_NO_UNICODE': 'libcpp-has-no-unicode',
   '_LIBCPP_ENABLE_DEBUG_MODE': 'libcpp-has-debug-mode',

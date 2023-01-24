@@ -380,6 +380,10 @@ static void convertUnprimedAccPHIs(const PPCInstrInfo *TII,
     for (auto RegMBB : PHIOps)
       NewPHI.add(RegMBB.first).add(RegMBB.second);
     ChangedPHIMap[PHI] = NewPHI.getInstr();
+    LLVM_DEBUG(dbgs() << "Converting PHI: ");
+    LLVM_DEBUG(PHI->dump());
+    LLVM_DEBUG(dbgs() << "To: ");
+    LLVM_DEBUG(NewPHI.getInstr()->dump());
   }
 }
 
@@ -425,6 +429,8 @@ bool PPCMIPeephole::simplifyCode() {
       // If the previous instruction was marked for elimination,
       // remove it now.
       if (ToErase) {
+        LLVM_DEBUG(dbgs() << "Deleting instruction: ");
+        LLVM_DEBUG(ToErase->dump());
         ToErase->eraseFromParent();
         ToErase = nullptr;
       }
@@ -837,7 +843,7 @@ bool PPCMIPeephole::simplifyCode() {
           if (SrcMI->getOperand(1).isGlobal()) {
             const GlobalObject *GO =
                 dyn_cast<GlobalObject>(SrcMI->getOperand(1).getGlobal());
-            if (GO && GO->getAlignment() >= 4)
+            if (GO && GO->getAlign() && *GO->getAlign() >= 4)
               IsWordAligned = true;
           } else if (SrcMI->getOperand(1).isImm()) {
             int64_t Value = SrcMI->getOperand(1).getImm();

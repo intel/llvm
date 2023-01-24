@@ -1537,7 +1537,7 @@ void PPCLinuxAsmPrinter::emitInstruction(const MachineInstr *MI) {
     //
     // Update compiler-rt/lib/xray/xray_powerpc64.cc accordingly when number
     // of instructions change.
-    OutStreamer->emitCodeAlignment(8, &getSubtargetInfo());
+    OutStreamer->emitCodeAlignment(Align(8), &getSubtargetInfo());
     MCSymbol *BeginOfSled = OutContext.createTempSymbol();
     OutStreamer->emitLabel(BeginOfSled);
     EmitToStreamer(*OutStreamer, RetInst);
@@ -1572,9 +1572,7 @@ void PPCLinuxAsmPrinter::emitStartOfAsmFile(Module &M) {
   if (static_cast<const PPCTargetMachine &>(TM).isELFv2ABI()) {
     PPCTargetStreamer *TS =
       static_cast<PPCTargetStreamer *>(OutStreamer->getTargetStreamer());
-
-    if (TS)
-      TS->emitAbiVersion(2);
+    TS->emitAbiVersion(2);
   }
 
   if (static_cast<const PPCTargetMachine &>(TM).isPPC64() ||
@@ -1661,7 +1659,7 @@ void PPCLinuxAsmPrinter::emitFunctionEntryLabel() {
       ".opd", ELF::SHT_PROGBITS, ELF::SHF_WRITE | ELF::SHF_ALLOC);
   OutStreamer->switchSection(Section);
   OutStreamer->emitLabel(CurrentFnSym);
-  OutStreamer->emitValueToAlignment(8);
+  OutStreamer->emitValueToAlignment(Align(8));
   MCSymbol *Symbol1 = CurrentFnSymForSize;
   // Generates a R_PPC64_ADDR64 (from FK_DATA_8) relocation for the function
   // entry point.
@@ -1693,14 +1691,14 @@ void PPCLinuxAsmPrinter::emitEndOfAsmFile(Module &M) {
         Name, ELF::SHT_PROGBITS, ELF::SHF_WRITE | ELF::SHF_ALLOC);
     OutStreamer->switchSection(Section);
     if (!isPPC64)
-      OutStreamer->emitValueToAlignment(4);
+      OutStreamer->emitValueToAlignment(Align(4));
 
     for (const auto &TOCMapPair : TOC) {
       const MCSymbol *const TOCEntryTarget = TOCMapPair.first.first;
       MCSymbol *const TOCEntryLabel = TOCMapPair.second;
 
       OutStreamer->emitLabel(TOCEntryLabel);
-      if (isPPC64 && TS != nullptr)
+      if (isPPC64)
         TS->emitTCEntry(*TOCEntryTarget, TOCMapPair.first.second);
       else
         OutStreamer->emitSymbolValue(TOCEntryTarget, 4);
@@ -1806,9 +1804,7 @@ void PPCLinuxAsmPrinter::emitFunctionBodyStart() {
 
     PPCTargetStreamer *TS =
       static_cast<PPCTargetStreamer *>(OutStreamer->getTargetStreamer());
-
-    if (TS)
-      TS->emitLocalEntry(cast<MCSymbolELF>(CurrentFnSym), LocalOffsetExp);
+    TS->emitLocalEntry(cast<MCSymbolELF>(CurrentFnSym), LocalOffsetExp);
   } else if (Subtarget->isUsingPCRelativeCalls()) {
     // When generating the entry point for a function we have a few scenarios
     // based on whether or not that function uses R2 and whether or not that
@@ -1835,9 +1831,8 @@ void PPCLinuxAsmPrinter::emitFunctionBodyStart() {
         MF->hasInlineAsm() || (!PPCFI->usesTOCBasePtr() && UsesX2OrR2)) {
       PPCTargetStreamer *TS =
           static_cast<PPCTargetStreamer *>(OutStreamer->getTargetStreamer());
-      if (TS)
-        TS->emitLocalEntry(cast<MCSymbolELF>(CurrentFnSym),
-                           MCConstantExpr::create(1, OutContext));
+      TS->emitLocalEntry(cast<MCSymbolELF>(CurrentFnSym),
+                         MCConstantExpr::create(1, OutContext));
     }
   }
 }
@@ -1974,7 +1969,7 @@ void PPCAIXAsmPrinter::emitFunctionBodyEnd() {
     const DataLayout &DL = MMI->getModule()->getDataLayout();
     const unsigned PointerSize = DL.getPointerSize();
     // Add necessary paddings in 64 bit mode.
-    OutStreamer->emitValueToAlignment(PointerSize);
+    OutStreamer->emitValueToAlignment(Align(PointerSize));
 
     OutStreamer->emitIntValue(0, PointerSize);
     OutStreamer->emitIntValue(0, PointerSize);
@@ -2325,7 +2320,7 @@ void PPCAIXAsmPrinter::emitTracebackTable() {
                                 MCSymbolRefExpr::create(TOCBaseSym, Ctx), Ctx);
 
     const DataLayout &DL = getDataLayout();
-    OutStreamer->emitValueToAlignment(4);
+    OutStreamer->emitValueToAlignment(Align(4));
     OutStreamer->AddComment("EHInfo Table");
     OutStreamer->emitValue(Exp, DL.getPointerSize());
   }
@@ -2432,9 +2427,9 @@ void PPCAIXAsmPrinter::emitGlobalVariableHelper(const GlobalVariable *GV) {
     if (GVKind.isBSSLocal() || GVKind.isThreadBSSLocal())
       OutStreamer->emitXCOFFLocalCommonSymbol(
           OutContext.getOrCreateSymbol(GVSym->getSymbolTableName()), Size,
-          GVSym, Alignment.value());
+          GVSym, Alignment);
     else
-      OutStreamer->emitCommonSymbol(GVSym, Size, Alignment.value());
+      OutStreamer->emitCommonSymbol(GVSym, Size, Alignment);
     return;
   }
 
@@ -2568,8 +2563,7 @@ void PPCAIXAsmPrinter::emitEndOfAsmFile(Module &M) {
     OutStreamer->switchSection(TCEntry);
 
     OutStreamer->emitLabel(I.second);
-    if (TS != nullptr)
-      TS->emitTCEntry(*I.first.first, I.first.second);
+    TS->emitTCEntry(*I.first.first, I.first.second);
   }
 
   for (const auto *GV : TOCDataGlobalVars)
@@ -2589,8 +2583,7 @@ bool PPCAIXAsmPrinter::doInitialization(Module &M) {
         getObjFileLowering().SectionForGlobal(GO, GOKind, TM));
 
     Align GOAlign = getGVAlignment(GO, GO->getParent()->getDataLayout());
-    if (GOAlign > Csect->getAlignment())
-      Csect->setAlignment(GOAlign);
+    Csect->ensureMinAlignment(GOAlign);
   };
 
   // We need to know, up front, the alignment of csects for the assembly path,

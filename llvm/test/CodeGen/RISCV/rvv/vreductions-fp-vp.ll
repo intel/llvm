@@ -9,7 +9,7 @@ declare half @llvm.vp.reduce.fadd.nxv1f16(half, <vscale x 1 x half>, <vscale x 1
 define half @vpreduce_fadd_nxv1f16(half %s, <vscale x 1 x half> %v, <vscale x 1 x i1> %m, i32 zeroext %evl) {
 ; CHECK-LABEL: vpreduce_fadd_nxv1f16:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetivli zero, 1, e16, m1, ta, ma
+; CHECK-NEXT:    vsetivli zero, 1, e16, mf4, ta, ma
 ; CHECK-NEXT:    vfmv.s.f v9, fa0
 ; CHECK-NEXT:    vsetvli zero, a0, e16, mf4, tu, ma
 ; CHECK-NEXT:    vfredusum.vs v9, v8, v9, v0.t
@@ -22,7 +22,7 @@ define half @vpreduce_fadd_nxv1f16(half %s, <vscale x 1 x half> %v, <vscale x 1 
 define half @vpreduce_ord_fadd_nxv1f16(half %s, <vscale x 1 x half> %v, <vscale x 1 x i1> %m, i32 zeroext %evl) {
 ; CHECK-LABEL: vpreduce_ord_fadd_nxv1f16:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetivli zero, 1, e16, m1, ta, ma
+; CHECK-NEXT:    vsetivli zero, 1, e16, mf4, ta, ma
 ; CHECK-NEXT:    vfmv.s.f v9, fa0
 ; CHECK-NEXT:    vsetvli zero, a0, e16, mf4, tu, ma
 ; CHECK-NEXT:    vfredosum.vs v9, v8, v9, v0.t
@@ -37,7 +37,7 @@ declare half @llvm.vp.reduce.fadd.nxv2f16(half, <vscale x 2 x half>, <vscale x 2
 define half @vpreduce_fadd_nxv2f16(half %s, <vscale x 2 x half> %v, <vscale x 2 x i1> %m, i32 zeroext %evl) {
 ; CHECK-LABEL: vpreduce_fadd_nxv2f16:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetivli zero, 1, e16, m1, ta, ma
+; CHECK-NEXT:    vsetivli zero, 1, e16, mf2, ta, ma
 ; CHECK-NEXT:    vfmv.s.f v9, fa0
 ; CHECK-NEXT:    vsetvli zero, a0, e16, mf2, tu, ma
 ; CHECK-NEXT:    vfredusum.vs v9, v8, v9, v0.t
@@ -50,7 +50,7 @@ define half @vpreduce_fadd_nxv2f16(half %s, <vscale x 2 x half> %v, <vscale x 2 
 define half @vpreduce_ord_fadd_nxv2f16(half %s, <vscale x 2 x half> %v, <vscale x 2 x i1> %m, i32 zeroext %evl) {
 ; CHECK-LABEL: vpreduce_ord_fadd_nxv2f16:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetivli zero, 1, e16, m1, ta, ma
+; CHECK-NEXT:    vsetivli zero, 1, e16, mf2, ta, ma
 ; CHECK-NEXT:    vfmv.s.f v9, fa0
 ; CHECK-NEXT:    vsetvli zero, a0, e16, mf2, tu, ma
 ; CHECK-NEXT:    vfredosum.vs v9, v8, v9, v0.t
@@ -93,11 +93,11 @@ declare half @llvm.vp.reduce.fadd.nxv64f16(half, <vscale x 64 x half>, <vscale x
 define half @vpreduce_fadd_nxv64f16(half %s, <vscale x 64 x half> %v, <vscale x 64 x i1> %m, i32 zeroext %evl) {
 ; CHECK-LABEL: vpreduce_fadd_nxv64f16:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    csrr a1, vlenb
-; CHECK-NEXT:    srli a2, a1, 1
+; CHECK-NEXT:    csrr a2, vlenb
+; CHECK-NEXT:    srli a1, a2, 1
 ; CHECK-NEXT:    vsetvli a3, zero, e8, m1, ta, ma
-; CHECK-NEXT:    vslidedown.vx v24, v0, a2
-; CHECK-NEXT:    slli a2, a1, 2
+; CHECK-NEXT:    vslidedown.vx v24, v0, a1
+; CHECK-NEXT:    slli a2, a2, 2
 ; CHECK-NEXT:    sub a1, a0, a2
 ; CHECK-NEXT:    sltu a3, a0, a1
 ; CHECK-NEXT:    addi a3, a3, -1
@@ -125,11 +125,11 @@ define half @vpreduce_fadd_nxv64f16(half %s, <vscale x 64 x half> %v, <vscale x 
 define half @vpreduce_ord_fadd_nxv64f16(half %s, <vscale x 64 x half> %v, <vscale x 64 x i1> %m, i32 zeroext %evl) {
 ; CHECK-LABEL: vpreduce_ord_fadd_nxv64f16:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    csrr a1, vlenb
-; CHECK-NEXT:    srli a2, a1, 1
+; CHECK-NEXT:    csrr a2, vlenb
+; CHECK-NEXT:    srli a1, a2, 1
 ; CHECK-NEXT:    vsetvli a3, zero, e8, m1, ta, ma
-; CHECK-NEXT:    vslidedown.vx v24, v0, a2
-; CHECK-NEXT:    slli a2, a1, 2
+; CHECK-NEXT:    vslidedown.vx v24, v0, a1
+; CHECK-NEXT:    slli a2, a2, 2
 ; CHECK-NEXT:    sub a1, a0, a2
 ; CHECK-NEXT:    sltu a3, a0, a1
 ; CHECK-NEXT:    addi a3, a3, -1
@@ -159,7 +159,7 @@ declare float @llvm.vp.reduce.fadd.nxv1f32(float, <vscale x 1 x float>, <vscale 
 define float @vpreduce_fadd_nxv1f32(float %s, <vscale x 1 x float> %v, <vscale x 1 x i1> %m, i32 zeroext %evl) {
 ; CHECK-LABEL: vpreduce_fadd_nxv1f32:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetivli zero, 1, e32, m1, ta, ma
+; CHECK-NEXT:    vsetivli zero, 1, e32, mf2, ta, ma
 ; CHECK-NEXT:    vfmv.s.f v9, fa0
 ; CHECK-NEXT:    vsetvli zero, a0, e32, mf2, tu, ma
 ; CHECK-NEXT:    vfredusum.vs v9, v8, v9, v0.t
@@ -172,7 +172,7 @@ define float @vpreduce_fadd_nxv1f32(float %s, <vscale x 1 x float> %v, <vscale x
 define float @vpreduce_ord_fadd_nxv1f32(float %s, <vscale x 1 x float> %v, <vscale x 1 x i1> %m, i32 zeroext %evl) {
 ; CHECK-LABEL: vpreduce_ord_fadd_nxv1f32:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetivli zero, 1, e32, m1, ta, ma
+; CHECK-NEXT:    vsetivli zero, 1, e32, mf2, ta, ma
 ; CHECK-NEXT:    vfmv.s.f v9, fa0
 ; CHECK-NEXT:    vsetvli zero, a0, e32, mf2, tu, ma
 ; CHECK-NEXT:    vfredosum.vs v9, v8, v9, v0.t

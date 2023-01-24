@@ -16,7 +16,9 @@
 #ifndef FORTRAN_OPTIMIZER_BUILDER_FIRBUILDER_H
 #define FORTRAN_OPTIMIZER_BUILDER_FIRBUILDER_H
 
+#include "flang/Common/MathOptionsBase.h"
 #include "flang/Optimizer/Dialect/FIROps.h"
+#include "flang/Optimizer/Dialect/FIROpsSupport.h"
 #include "flang/Optimizer/Dialect/FIRType.h"
 #include "flang/Optimizer/Support/KindMapping.h"
 #include "mlir/IR/Builders.h"
@@ -35,13 +37,22 @@ class BoxValue;
 
 /// Extends the MLIR OpBuilder to provide methods for building common FIR
 /// patterns.
-class FirOpBuilder : public mlir::OpBuilder {
+class FirOpBuilder : public mlir::OpBuilder, public mlir::OpBuilder::Listener {
 public:
   explicit FirOpBuilder(mlir::Operation *op, const fir::KindMapping &kindMap)
-      : OpBuilder{op}, kindMap{kindMap} {}
+      : OpBuilder{op, /*listener=*/this}, kindMap{kindMap} {}
   explicit FirOpBuilder(mlir::OpBuilder &builder,
                         const fir::KindMapping &kindMap)
-      : OpBuilder{builder}, kindMap{kindMap} {}
+      : OpBuilder{builder}, kindMap{kindMap} {
+    setListener(this);
+  }
+
+  // The listener self-reference has to be updated in case of copy-construction.
+  FirOpBuilder(const FirOpBuilder &other)
+      : OpBuilder{other}, kindMap{other.kindMap}, fastMathFlags{
+                                                      other.fastMathFlags} {
+    setListener(this);
+  }
 
   /// Get the current Region of the insertion point.
   mlir::Region &getRegion() { return *getBlock()->getParent(); }
@@ -172,6 +183,13 @@ public:
     return createTemporary(loc, type, name, {}, {}, attrs);
   }
 
+  /// Create a temporary on the heap.
+  mlir::Value
+  createHeapTemporary(mlir::Location loc, mlir::Type type,
+                      llvm::StringRef name = {}, mlir::ValueRange shape = {},
+                      mlir::ValueRange lenParams = {},
+                      llvm::ArrayRef<mlir::NamedAttribute> attrs = {});
+
   /// Create a global value.
   fir::GlobalOp createGlobal(mlir::Location loc, mlir::Type type,
                              llvm::StringRef name,
@@ -201,6 +219,11 @@ public:
     return createGlobal(loc, type, name, /*isConst=*/true, /*isTarget=*/false,
                         bodyBuilder, linkage);
   }
+
+  /// Create a fir::DispatchTable operation.
+  fir::DispatchTableOp createDispatchTableOp(mlir::Location loc,
+                                             llvm::StringRef name,
+                                             llvm::StringRef parentName);
 
   /// Convert a StringRef string into a fir::StringLitOp.
   fir::StringLitOp createStringLitOp(mlir::Location loc,
@@ -370,14 +393,14 @@ public:
   /// Create an IfOp with no "else" region, and no result values.
   /// Usage: genIfThen(loc, cdt).genThen(lambda).end();
   IfBuilder genIfThen(mlir::Location loc, mlir::Value cdt) {
-    auto op = create<fir::IfOp>(loc, llvm::None, cdt, false);
+    auto op = create<fir::IfOp>(loc, std::nullopt, cdt, false);
     return IfBuilder(op, *this);
   }
 
   /// Create an IfOp with an "else" region, and no result values.
   /// Usage: genIfThenElse(loc, cdt).genThen(lambda).genElse(lambda).end();
   IfBuilder genIfThenElse(mlir::Location loc, mlir::Value cdt) {
-    auto op = create<fir::IfOp>(loc, llvm::None, cdt, true);
+    auto op = create<fir::IfOp>(loc, std::nullopt, cdt, true);
     return IfBuilder(op, *this);
   }
 
@@ -393,11 +416,38 @@ public:
                                    mlir::Value ub, mlir::Value step,
                                    mlir::Type type);
 
+  /// Set default FastMathFlags value for all operations
+  /// supporting mlir::arith::FastMathAttr that will be created
+  /// by this builder.
+  void setFastMathFlags(mlir::arith::FastMathFlags flags) {
+    fastMathFlags = flags;
+  }
+
+  /// Set default FastMathFlags value from the passed MathOptionsBase
+  /// config.
+  void setFastMathFlags(Fortran::common::MathOptionsBase options);
+
+  /// Get current FastMathFlags value.
+  mlir::arith::FastMathFlags getFastMathFlags() const { return fastMathFlags; }
+
   /// Dump the current function. (debug)
   LLVM_DUMP_METHOD void dumpFunc();
 
+  /// FirOpBuilder hook for creating new operation.
+  void notifyOperationInserted(mlir::Operation *op) override {
+    setCommonAttributes(op);
+  }
+
 private:
+  /// Set attributes (e.g. FastMathAttr) to \p op operation
+  /// based on the current attributes setting.
+  void setCommonAttributes(mlir::Operation *op) const;
+
   const KindMapping &kindMap;
+
+  /// FastMathFlags that need to be set for operations that support
+  /// mlir::arith::FastMathAttr.
+  mlir::arith::FastMathFlags fastMathFlags{};
 };
 
 } // namespace fir
@@ -543,9 +593,6 @@ mlir::Value genLenOfCharacter(fir::FirOpBuilder &builder, mlir::Location loc,
 /// for logical types).
 mlir::Value createZeroValue(fir::FirOpBuilder &builder, mlir::Location loc,
                             mlir::Type type);
-
-/// Unwrap integer constant from an mlir::Value.
-llvm::Optional<std::int64_t> getIntIfConstant(mlir::Value value);
 
 /// Get the integer constants of triplet and compute the extent.
 llvm::Optional<std::int64_t>

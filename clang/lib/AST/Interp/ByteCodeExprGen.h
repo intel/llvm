@@ -22,7 +22,6 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Basic/TargetInfo.h"
-#include "llvm/ADT/Optional.h"
 
 namespace clang {
 class QualType;
@@ -64,6 +63,7 @@ public:
   bool VisitIntegerLiteral(const IntegerLiteral *E);
   bool VisitParenExpr(const ParenExpr *E);
   bool VisitBinaryOperator(const BinaryOperator *E);
+  bool VisitPointerArithBinOp(const BinaryOperator *E);
   bool VisitCXXDefaultArgExpr(const CXXDefaultArgExpr *E);
   bool VisitCallExpr(const CallExpr *E);
   bool VisitCXXMemberCallExpr(const CXXMemberCallExpr *E);
@@ -119,10 +119,10 @@ protected:
   }
 
   /// Classifies a type.
-  llvm::Optional<PrimType> classify(const Expr *E) const {
+  std::optional<PrimType> classify(const Expr *E) const {
     return E->isGLValue() ? PT_Ptr : classify(E->getType());
   }
-  llvm::Optional<PrimType> classify(QualType Ty) const {
+  std::optional<PrimType> classify(QualType Ty) const {
     return Ctx.classify(Ty);
   }
 
@@ -191,8 +191,7 @@ protected:
                                   bool IsExtended = false);
 
   /// Allocates a space storing a local given its type.
-  llvm::Optional<unsigned> allocateLocal(DeclTy &&Decl,
-                                         bool IsExtended = false);
+  std::optional<unsigned> allocateLocal(DeclTy &&Decl, bool IsExtended = false);
 
 private:
   friend class VariableScope<Emitter>;
@@ -228,16 +227,14 @@ private:
                       DerefKind AK, llvm::function_ref<bool(PrimType)> Direct,
                       llvm::function_ref<bool(PrimType)> Indirect);
 
-  /// Emits an APInt constant.
-  bool emitConst(PrimType T, const llvm::APInt &Value, const Expr *E);
+  /// Emits an APSInt constant.
+  bool emitConst(const APSInt &Value, const Expr *E);
+  bool emitConst(const APInt &Value, const Expr *E) {
+    return emitConst(static_cast<APSInt>(Value), E);
+  }
 
   /// Emits an integer constant.
-  template <typename T> bool emitConst(const Expr *E, T Value) {
-    QualType Ty = E->getType();
-    APInt WrappedValue(getIntWidth(Ty), static_cast<uint64_t>(Value),
-                       std::is_signed<T>::value);
-    return emitConst(*Ctx.classify(Ty), WrappedValue, E);
-  }
+  template <typename T> bool emitConst(T Value, const Expr *E);
 
   /// Emits the initialized pointer.
   bool emitInitFn() {
@@ -265,13 +262,13 @@ protected:
   VariableScope<Emitter> *VarScope = nullptr;
 
   /// Current argument index. Needed to emit ArrayInitIndexExpr.
-  llvm::Optional<uint64_t> ArrayIndex;
+  std::optional<uint64_t> ArrayIndex;
 
   /// Flag indicating if return value is to be discarded.
   bool DiscardResult = false;
 
   /// Expression being initialized.
-  llvm::Optional<InitFnRef> InitFn = {};
+  std::optional<InitFnRef> InitFn = {};
 };
 
 extern template class ByteCodeExprGen<ByteCodeEmitter>;
@@ -342,7 +339,7 @@ public:
 
 protected:
   /// Index of the scope in the chain.
-  Optional<unsigned> Idx;
+  std::optional<unsigned> Idx;
 };
 
 /// Scope for storage declared in a compound statement.
@@ -377,7 +374,7 @@ public:
 
 private:
   ByteCodeExprGen<Emitter> *Ctx;
-  Optional<uint64_t> OldArrayIndex;
+  std::optional<uint64_t> OldArrayIndex;
 };
 
 } // namespace interp

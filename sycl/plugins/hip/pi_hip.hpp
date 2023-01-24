@@ -65,6 +65,7 @@ using _pi_stream_guard = std::unique_lock<std::mutex>;
 ///  when devices are used.
 ///
 struct _pi_platform {
+  static hipEvent_t evBase_; // HIP event used as base counter
   std::vector<std::unique_ptr<_pi_device>> devices_;
 };
 
@@ -80,6 +81,7 @@ private:
   native_type cuDevice_;
   std::atomic_uint32_t refCount_;
   pi_platform platform_;
+  pi_context context_;
 
 public:
   _pi_device(native_type cuDevice, pi_platform platform)
@@ -90,6 +92,10 @@ public:
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
 
   pi_platform get_platform() const noexcept { return platform_; };
+
+  void set_context(pi_context ctx) { context_ = ctx; };
+
+  pi_context get_context() { return context_; };
 };
 
 /// PI context mapping to a HIP context object.
@@ -146,11 +152,9 @@ struct _pi_context {
   _pi_device *deviceId_;
   std::atomic_uint32_t refCount_;
 
-  hipEvent_t evBase_; // HIP event used as base counter
-
   _pi_context(kind k, hipCtx_t ctxt, _pi_device *devId)
-      : kind_{k}, hipContext_{ctxt}, deviceId_{devId}, refCount_{1},
-        evBase_(nullptr) {
+      : kind_{k}, hipContext_{ctxt}, deviceId_{devId}, refCount_{1} {
+    deviceId_->set_context(this);
     hip_piDeviceRetain(deviceId_);
   };
 
@@ -476,6 +480,28 @@ struct _pi_queue {
     // barrier before any work we are about to enqueue to the stream will start,
     // so the event does not need to be synchronized with.
     return is_last_command && !has_been_synchronized(stream_token);
+  }
+
+  template <typename T> bool all_of(T &&f) {
+    {
+      std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
+      unsigned int end =
+          std::min(static_cast<unsigned int>(compute_streams_.size()),
+                   num_compute_streams_);
+      if (!std::all_of(compute_streams_.begin(), compute_streams_.begin() + end,
+                       f))
+        return false;
+    }
+    {
+      std::lock_guard<std::mutex> transfer_guard(transfer_stream_mutex_);
+      unsigned int end =
+          std::min(static_cast<unsigned int>(transfer_streams_.size()),
+                   num_transfer_streams_);
+      if (!std::all_of(transfer_streams_.begin(),
+                       transfer_streams_.begin() + end, f))
+        return false;
+    }
+    return true;
   }
 
   template <typename T> void for_each_stream(T &&f) {

@@ -212,6 +212,11 @@ def call_target : Operand<iPTR> {
 // A 16-bit address (which can lead to an R_AVR_16 relocation).
 def imm16 : Operand<i16> { let EncoderMethod = "encodeImm<AVR::fixup_16, 2>"; }
 
+// A 7-bit address (which can lead to an R_AVR_LDS_STS_16 relocation).
+def imm7tiny : Operand<i16> {
+  let EncoderMethod = "encodeImm<AVR::fixup_lds_sts_16, 0>";
+}
+
 /// A 6-bit immediate used in the ADIW/SBIW instructions.
 def imm_arith6 : Operand<i16> {
   let EncoderMethod = "encodeImm<AVR::fixup_6_adiw, 0>";
@@ -319,6 +324,9 @@ def HasBREAK : Predicate<"Subtarget->hasBREAK()">,
 
 def HasTinyEncoding : Predicate<"Subtarget->hasTinyEncoding()">,
                       AssemblerPredicate<(all_of FeatureTinyEncoding)>;
+
+def HasNonTinyEncoding : Predicate<"!Subtarget->hasTinyEncoding()">,
+                         AssemblerPredicate<(any_of (not FeatureTinyEncoding))>;
 
 // AVR specific condition code. These correspond to AVR_*_COND in
 // AVRInstrInfo.td. They must be kept in synch.
@@ -915,16 +923,11 @@ let Constraints = "$src = $rd", Defs = [SREG] in {
   // neg Rd+1
   // neg Rd
   // sbc Rd+1, r1
-  let Uses = [R1] in
-  def NEGWRd : Pseudo<(outs DREGS
-                       : $rd),
-                      (ins DREGS
-                       : $src),
+  let hasSideEffects=0 in
+  def NEGWRd : Pseudo<(outs DREGS:$rd),
+                      (ins DREGS:$src, GPR8:$zero),
                       "negw\t$rd",
-                      [(set i16
-                        : $rd, (ineg i16
-                                : $src)),
-                       (implicit SREG)]>;
+                      []>;
 }
 
 // TST Rd
@@ -1288,7 +1291,13 @@ let canFoldAsLoad = 1, isReMaterializable = 1 in {
                      "lds\t$rd, $k", [(set i8
                                        : $rd, (load imm
                                                : $k))]>,
-               Requires<[HasSRAM]>;
+               Requires<[HasSRAM, HasNonTinyEncoding]>;
+
+  // Load from data space into register, which is only available on AVRTiny.
+  def LDSRdKTiny : FLDSSTSTINY<0b0, (outs LD8:$rd), (ins imm7tiny:$k),
+                               "lds\t$rd, $k",
+                               [(set i8:$rd, (load imm:$k))]>,
+                   Requires<[HasSRAM, HasTinyEncoding]>;
 
   // LDSW Rd+1:Rd, K+1:K
   //
@@ -1302,7 +1311,7 @@ let canFoldAsLoad = 1, isReMaterializable = 1 in {
                        "ldsw\t$dst, $src", [(set i16
                                              : $dst, (load imm
                                                       : $src))]>,
-                Requires<[HasSRAM]>;
+                Requires<[HasSRAM, HasNonTinyEncoding]>;
 }
 
 // Indirect loads.
@@ -1320,8 +1329,12 @@ let canFoldAsLoad = 1, isReMaterializable = 1 in {
   // LDW Rd+1:Rd, P
   //
   // Expands to:
-  // ld  Rd,   P
-  // ldd Rd+1, P+1
+  //   ld  Rd,   P
+  //   ldd Rd+1, P+1
+  // On reduced tiny cores, this instruction expands to:
+  //   ld    Rd,   P+
+  //   ld    Rd+1, P+
+  //   subiw P,    2
   let Constraints = "@earlyclobber $reg" in def LDWRdPtr
       : Pseudo<(outs DREGS
                 : $reg),
@@ -1391,13 +1404,18 @@ let canFoldAsLoad = 1, isReMaterializable = 1 in {
                 "ldd\t$reg, $memri", [(set i8
                                        : $reg, (load addr
                                                 : $memri))]>,
-      Requires<[HasSRAM]>;
+      Requires<[HasSRAM, HasNonTinyEncoding]>;
 
   // LDDW Rd+1:Rd, P+q
   //
   // Expands to:
-  // ldd Rd,   P+q
-  // ldd Rd+1, P+q+1
+  //   ldd Rd,   P+q
+  //   ldd Rd+1, P+q+1
+  // On reduced tiny cores, this instruction expands to:
+  //   subiw P,    -q
+  //   ld    Rd,   P+
+  //   ld    Rd+1, P+
+  //   subiw P,    q+2
   let Constraints = "@earlyclobber $dst" in def LDDWRdPtrQ
       : Pseudo<(outs DREGS
                 : $dst),
@@ -1497,7 +1515,12 @@ def STSKRr : F32DM<0b1, (outs),
                    "sts\t$k, $rd", [(store i8
                                      : $rd, imm
                                      : $k)]>,
-             Requires<[HasSRAM]>;
+             Requires<[HasSRAM, HasNonTinyEncoding]>;
+
+// Store from register to data space, which is only available on AVRTiny.
+def STSKRrTiny : FLDSSTSTINY<0b1, (outs), (ins imm7tiny:$k, LD8:$rd),
+                             "sts\t$k, $rd", [(store i8:$rd, imm:$k)]>,
+                 Requires<[HasSRAM, HasTinyEncoding]>;
 
 // STSW K+1:K, Rr+1:Rr
 //
@@ -1511,7 +1534,7 @@ def STSWKRr : Pseudo<(outs),
                      "stsw\t$dst, $src", [(store i16
                                            : $src, imm
                                            : $dst)]>,
-              Requires<[HasSRAM]>;
+              Requires<[HasSRAM, HasNonTinyEncoding]>;
 
 // Indirect stores.
 // ST P, Rr
@@ -1529,8 +1552,12 @@ def STPtrRr : FSTLD<1, 0b00, (outs),
 // Stores the value of Rr into the location addressed by pointer P.
 //
 // Expands to:
-// st P, Rr
-// std P+1, Rr+1
+//   st P, Rr
+//   std P+1, Rr+1
+// On reduced tiny cores, this instruction expands to:
+//   st    P+, Rr
+//   st    P+, Rr+1
+//   subiw P,  q+2
 def STWPtrRr : Pseudo<(outs),
                       (ins PTRDISPREGS
                        : $ptrreg, DREGS
@@ -1629,15 +1656,20 @@ def STDPtrQRr : FSTDLDD<1, (outs),
                         "std\t$memri, $reg", [(store i8
                                                : $reg, addr
                                                : $memri)]>,
-                Requires<[HasSRAM]>;
+                Requires<[HasSRAM, HasNonTinyEncoding]>;
 
 // STDW P+q, Rr+1:Rr
 // Stores the value of Rr into the location addressed by pointer P with a
 // displacement of q. Does not modify P.
 //
 // Expands to:
-// std P+q,   Rr
-// std P+q+1, Rr+1
+//   std P+q,   Rr
+//   std P+q+1, Rr+1
+// On reduced tiny cores, this instruction expands to:
+//   subiw P,  -q
+//   st    P+, Rr
+//   st    P+, Rr+1
+//   subiw P,  q+2
 def STDWPtrQRr : Pseudo<(outs),
                         (ins memri
                          : $memri, DREGS
@@ -1673,6 +1705,7 @@ let canFoldAsLoad = 1, isReMaterializable = 1, mayLoad = 1,
                          "lpm\t$rd, $z+", []>,
                    Requires<[HasLPMX]>;
 
+    let Constraints = "@earlyclobber $dst" in
     def LPMWRdZ : Pseudo<(outs DREGS
                           : $dst),
                          (ins ZREG
@@ -1712,6 +1745,7 @@ let mayLoad = 1, hasSideEffects = 0 in {
                           "elpmb\t$dst, $z, $p", []>,
                    Requires<[HasELPMX]>;
 
+    let Constraints = "@earlyclobber $dst" in
     def ELPMWRdZ : Pseudo<(outs DREGS:$dst), (ins ZREG:$z, LD8:$p),
                           "elpmw\t$dst, $z, $p", []>,
                    Requires<[HasELPMX]>;
@@ -1987,16 +2021,12 @@ let Constraints = "$src = $rd", Defs = [SREG] in {
   def ASRWLoRd : Pseudo<(outs DREGS:$rd), (ins DREGS:$src), "asrwlo\t$rd",
                         [(set i16:$rd, (AVRasrlo i16:$src)), (implicit SREG)]>;
 
-  let Uses = [R1] in
+  let hasSideEffects=0 in
   def ROLBRd : Pseudo<(outs GPR8
                        : $rd),
-                      (ins GPR8
-                       : $src),
+                      (ins GPR8:$src, GPR8:$zero),
                       "rolb\t$rd",
-                      [(set i8
-                        : $rd, (AVRrol i8
-                                : $src)),
-                       (implicit SREG)]>;
+                      []>;
 
   def RORBRd : Pseudo<(outs GPR8
                        : $rd),
@@ -2387,9 +2417,9 @@ def Asr16 : ShiftPseudo<(outs DREGS
                                                      : $src, i8
                                                      : $cnt))]>;
 
-// lowered to a copy from R1, which contains the value zero.
+// lowered to a copy from the zero register.
 let usesCustomInserter=1 in
-def CopyR1 : Pseudo<(outs GPR8:$rd), (ins), "clrz\t$rd", [(set i8:$rd, 0)]>;
+def CopyZero : Pseudo<(outs GPR8:$rd), (ins), "clrz\t$rd", [(set i8:$rd, 0)]>;
 
 //===----------------------------------------------------------------------===//
 // Non-Instruction Patterns
@@ -2420,7 +2450,8 @@ def : Pat<(add i16
            : $src2),
           (SBIWRdK i16
            : $src1, (imm0_63_neg
-                     : $src2))>;
+                     : $src2))>,
+          Requires<[HasADDSUBIW]>;
 def : Pat<(add i16
            : $src1, imm
            : $src2),
@@ -2453,6 +2484,10 @@ def : Pat<(adde i8
            : $src1, (imm8_neg_XFORM imm
                      : $src2))>;
 
+// Emit NEGWRd with an extra zero register operand.
+def : Pat<(ineg i16:$src),
+          (NEGWRd i16:$src, (CopyZero))>;
+
 // Calls.
 let Predicates = [HasJMPCALL] in {
   def : Pat<(AVRcall(i16 tglobaladdr:$dst)), (CALLk tglobaladdr:$dst)>;
@@ -2484,26 +2519,24 @@ def : Pat<(add i16
           (SUBIWRdK i16
            : $src, tglobaladdr
            : $src2)>;
-def : Pat<(i8(load(AVRWrapper tglobaladdr
-                   : $dst))),
-          (LDSRdK tglobaladdr
-           : $dst)>;
-def : Pat<(i16(load(AVRWrapper tglobaladdr
-                    : $dst))),
-          (LDSWRdK tglobaladdr
-           : $dst)>;
-def : Pat<(store i8
-           : $src, (i16(AVRWrapper tglobaladdr
-                        : $dst))),
-          (STSKRr tglobaladdr
-           : $dst, i8
-           : $src)>;
-def : Pat<(store i16
-           : $src, (i16(AVRWrapper tglobaladdr
-                        : $dst))),
-          (STSWKRr tglobaladdr
-           : $dst, i16
-           : $src)>;
+def : Pat<(i8(load(AVRWrapper tglobaladdr:$dst))),
+          (LDSRdK tglobaladdr:$dst)>,
+          Requires<[HasSRAM, HasNonTinyEncoding]>;
+def : Pat<(i8(load(AVRWrapper tglobaladdr:$dst))),
+          (LDSRdKTiny tglobaladdr:$dst)>,
+          Requires<[HasSRAM, HasTinyEncoding]>;
+def : Pat<(i16(load(AVRWrapper tglobaladdr:$dst))),
+          (LDSWRdK tglobaladdr:$dst)>,
+          Requires<[HasSRAM, HasNonTinyEncoding]>;
+def : Pat<(store i8:$src, (i16(AVRWrapper tglobaladdr:$dst))),
+          (STSKRr tglobaladdr:$dst, i8:$src)>,
+          Requires<[HasSRAM, HasNonTinyEncoding]>;
+def : Pat<(store i8:$src, (i16(AVRWrapper tglobaladdr:$dst))),
+          (STSKRrTiny tglobaladdr:$dst, i8:$src)>,
+          Requires<[HasSRAM, HasTinyEncoding]>;
+def : Pat<(store i16:$src, (i16(AVRWrapper tglobaladdr:$dst))),
+          (STSWKRr tglobaladdr:$dst, i16:$src)>,
+          Requires<[HasSRAM, HasNonTinyEncoding]>;
 
 // BlockAddress
 def : Pat<(i16(AVRWrapper tblockaddress

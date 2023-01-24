@@ -140,7 +140,7 @@ static Value *foldMulSelectToNegate(BinaryOperator &I,
   return nullptr;
 }
 
-/// Reduce integer multiplication patterns that contain a (1 << Z) factor.
+/// Reduce integer multiplication patterns that contain a (+/-1 << Z) factor.
 /// Callers are expected to call this twice to handle commuted patterns.
 static Value *foldMulShl1(BinaryOperator &Mul, bool CommuteOperands,
                           InstCombiner::BuilderTy &Builder) {
@@ -169,6 +169,17 @@ static Value *foldMulShl1(BinaryOperator &Mul, bool CommuteOperands,
     Value *FrX = Builder.CreateFreeze(X, X->getName() + ".fr");
     Value *Shl = Builder.CreateShl(FrX, Z, "mulshl", HasNUW, PropagateNSW);
     return Builder.CreateAdd(Shl, FrX, Mul.getName(), HasNUW, PropagateNSW);
+  }
+
+  // Similar to above, but a decrement of the shifted value is disguised as
+  // 'not' and becomes a sub:
+  // X * (~(-1 << Z)) --> X * ((1 << Z) - 1) --> (X << Z) - X
+  // This increases uses of X, so it may require a freeze, but that is still
+  // expected to be an improvement because it removes the multiply.
+  if (match(Y, m_OneUse(m_Not(m_OneUse(m_Shl(m_AllOnes(), m_Value(Z))))))) {
+    Value *FrX = Builder.CreateFreeze(X, X->getName() + ".fr");
+    Value *Shl = Builder.CreateShl(FrX, Z, "mulshl");
+    return Builder.CreateSub(Shl, FrX, Mul.getName());
   }
 
   return nullptr;
@@ -877,9 +888,13 @@ static Instruction *foldIDivShl(BinaryOperator &I,
     auto *Shl0 = cast<OverflowingBinaryOperator>(Op0);
     auto *Shl1 = cast<OverflowingBinaryOperator>(Op1);
 
-    // For unsigned div, we need 'nuw' on both shifts.
+    // For unsigned div, we need 'nuw' on both shifts or
+    // 'nsw' on both shifts + 'nuw' on the dividend.
     // (X << Z) / (Y << Z) --> X / Y
-    if (!IsSigned && Shl0->hasNoUnsignedWrap() && Shl1->hasNoUnsignedWrap())
+    if (!IsSigned &&
+        ((Shl0->hasNoUnsignedWrap() && Shl1->hasNoUnsignedWrap()) ||
+         (Shl0->hasNoUnsignedWrap() && Shl0->hasNoSignedWrap() &&
+          Shl1->hasNoSignedWrap())))
       Ret = BinaryOperator::CreateUDiv(X, Y);
 
     // For signed div, we need 'nsw' on both shifts + 'nuw' on the divisor.
@@ -1392,7 +1407,7 @@ Instruction *InstCombinerImpl::visitSDiv(BinaryOperator &I) {
 }
 
 /// Remove negation and try to convert division into multiplication.
-static Instruction *foldFDivConstantDivisor(BinaryOperator &I) {
+Instruction *InstCombinerImpl::foldFDivConstantDivisor(BinaryOperator &I) {
   Constant *C;
   if (!match(I.getOperand(1), m_Constant(C)))
     return nullptr;
@@ -1403,6 +1418,17 @@ static Instruction *foldFDivConstantDivisor(BinaryOperator &I) {
   if (match(I.getOperand(0), m_FNeg(m_Value(X))))
     if (Constant *NegC = ConstantFoldUnaryOpOperand(Instruction::FNeg, C, DL))
       return BinaryOperator::CreateFDivFMF(X, NegC, &I);
+
+  // nnan X / +0.0 -> copysign(inf, X)
+  if (I.hasNoNaNs() && match(I.getOperand(1), m_Zero())) {
+    IRBuilder<> B(&I);
+    // TODO: nnan nsz X / -0.0 -> copysign(inf, X)
+    CallInst *CopySign = B.CreateIntrinsic(
+        Intrinsic::copysign, {C->getType()},
+        {ConstantFP::getInfinity(I.getType()), I.getOperand(0)}, &I);
+    CopySign->takeName(&I);
+    return replaceInstUsesWith(I, CopySign);
+  }
 
   // If the constant divisor has an exact inverse, this is always safe. If not,
   // then we can still create a reciprocal if fast-math-flags allow it and the

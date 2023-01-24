@@ -17,6 +17,7 @@
 #include "llvm/Analysis/CmpInstAnalysis.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/InstructionSimplify.h"
+#include "llvm/Analysis/VectorUtils.h"
 #include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/GetElementPtrTypeIterator.h"
@@ -403,108 +404,6 @@ Instruction *InstCombinerImpl::foldCmpLoadFromIndexedGlobal(
   return nullptr;
 }
 
-/// Return a value that can be used to compare the *offset* implied by a GEP to
-/// zero. For example, if we have &A[i], we want to return 'i' for
-/// "icmp ne i, 0". Note that, in general, indices can be complex, and scales
-/// are involved. The above expression would also be legal to codegen as
-/// "icmp ne (i*4), 0" (assuming A is a pointer to i32).
-/// This latter form is less amenable to optimization though, and we are allowed
-/// to generate the first by knowing that pointer arithmetic doesn't overflow.
-///
-/// If we can't emit an optimized form for this expression, this returns null.
-///
-static Value *evaluateGEPOffsetExpression(User *GEP, InstCombinerImpl &IC,
-                                          const DataLayout &DL) {
-  gep_type_iterator GTI = gep_type_begin(GEP);
-
-  // Check to see if this gep only has a single variable index.  If so, and if
-  // any constant indices are a multiple of its scale, then we can compute this
-  // in terms of the scale of the variable index.  For example, if the GEP
-  // implies an offset of "12 + i*4", then we can codegen this as "3 + i",
-  // because the expression will cross zero at the same point.
-  unsigned i, e = GEP->getNumOperands();
-  int64_t Offset = 0;
-  for (i = 1; i != e; ++i, ++GTI) {
-    if (ConstantInt *CI = dyn_cast<ConstantInt>(GEP->getOperand(i))) {
-      // Compute the aggregate offset of constant indices.
-      if (CI->isZero()) continue;
-
-      // Handle a struct index, which adds its field offset to the pointer.
-      if (StructType *STy = GTI.getStructTypeOrNull()) {
-        Offset += DL.getStructLayout(STy)->getElementOffset(CI->getZExtValue());
-      } else {
-        uint64_t Size = DL.getTypeAllocSize(GTI.getIndexedType());
-        Offset += Size*CI->getSExtValue();
-      }
-    } else {
-      // Found our variable index.
-      break;
-    }
-  }
-
-  // If there are no variable indices, we must have a constant offset, just
-  // evaluate it the general way.
-  if (i == e) return nullptr;
-
-  Value *VariableIdx = GEP->getOperand(i);
-  // Determine the scale factor of the variable element.  For example, this is
-  // 4 if the variable index is into an array of i32.
-  uint64_t VariableScale = DL.getTypeAllocSize(GTI.getIndexedType());
-
-  // Verify that there are no other variable indices.  If so, emit the hard way.
-  for (++i, ++GTI; i != e; ++i, ++GTI) {
-    ConstantInt *CI = dyn_cast<ConstantInt>(GEP->getOperand(i));
-    if (!CI) return nullptr;
-
-    // Compute the aggregate offset of constant indices.
-    if (CI->isZero()) continue;
-
-    // Handle a struct index, which adds its field offset to the pointer.
-    if (StructType *STy = GTI.getStructTypeOrNull()) {
-      Offset += DL.getStructLayout(STy)->getElementOffset(CI->getZExtValue());
-    } else {
-      uint64_t Size = DL.getTypeAllocSize(GTI.getIndexedType());
-      Offset += Size*CI->getSExtValue();
-    }
-  }
-
-  // Okay, we know we have a single variable index, which must be a
-  // pointer/array/vector index.  If there is no offset, life is simple, return
-  // the index.
-  Type *IntPtrTy = DL.getIntPtrType(GEP->getOperand(0)->getType());
-  unsigned IntPtrWidth = IntPtrTy->getIntegerBitWidth();
-  if (Offset == 0) {
-    // Cast to intptrty in case a truncation occurs.  If an extension is needed,
-    // we don't need to bother extending: the extension won't affect where the
-    // computation crosses zero.
-    if (VariableIdx->getType()->getPrimitiveSizeInBits().getFixedSize() >
-        IntPtrWidth) {
-      VariableIdx = IC.Builder.CreateTrunc(VariableIdx, IntPtrTy);
-    }
-    return VariableIdx;
-  }
-
-  // Otherwise, there is an index.  The computation we will do will be modulo
-  // the pointer size.
-  Offset = SignExtend64(Offset, IntPtrWidth);
-  VariableScale = SignExtend64(VariableScale, IntPtrWidth);
-
-  // To do this transformation, any constant index must be a multiple of the
-  // variable scale factor.  For example, we can evaluate "12 + 4*i" as "3 + i",
-  // but we can't evaluate "10 + 3*i" in terms of i.  Check that the offset is a
-  // multiple of the variable scale.
-  int64_t NewOffs = Offset / (int64_t)VariableScale;
-  if (Offset != NewOffs*(int64_t)VariableScale)
-    return nullptr;
-
-  // Okay, we can do this evaluation.  Start by converting the index to intptr.
-  if (VariableIdx->getType() != IntPtrTy)
-    VariableIdx = IC.Builder.CreateIntCast(VariableIdx, IntPtrTy,
-                                            true /*Signed*/);
-  Constant *OffsetVal = ConstantInt::get(IntPtrTy, NewOffs);
-  return IC.Builder.CreateAdd(VariableIdx, OffsetVal, "offset");
-}
-
 /// Returns true if we can rewrite Start as a GEP with pointer Base
 /// and some integer offset. The nodes that need to be re-written
 /// for this transformation will be added to Explored.
@@ -845,14 +744,7 @@ Instruction *InstCombinerImpl::foldGEPICmp(GEPOperator *GEPLHS, Value *RHS,
   if (PtrBase == RHS && GEPLHS->isInBounds() &&
       !GEPLHS->getType()->isVectorTy()) {
     // ((gep Ptr, OFFSET) cmp Ptr)   ---> (OFFSET cmp 0).
-    // This transformation (ignoring the base and scales) is valid because we
-    // know pointers can't overflow since the gep is inbounds.  See if we can
-    // output an optimized form.
-    Value *Offset = evaluateGEPOffsetExpression(GEPLHS, *this, DL);
-
-    // If not, synthesize the offset the hard way.
-    if (!Offset)
-      Offset = EmitGEPOffset(GEPLHS);
+    Value *Offset = EmitGEPOffset(GEPLHS);
     return new ICmpInst(ICmpInst::getSignedPredicate(Cond), Offset,
                         Constant::getNullValue(Offset->getType()));
   }
@@ -1480,7 +1372,8 @@ Instruction *InstCombinerImpl::foldICmpWithDominatingICmp(ICmpInst &Cmp) {
     return nullptr;
 
   // Try to simplify this compare to T/F based on the dominating condition.
-  Optional<bool> Imp = isImpliedCondition(DomCond, &Cmp, DL, TrueBB == CmpBB);
+  std::optional<bool> Imp =
+      isImpliedCondition(DomCond, &Cmp, DL, TrueBB == CmpBB);
   if (Imp)
     return replaceInstUsesWith(Cmp, ConstantInt::get(Cmp.getType(), *Imp));
 
@@ -3672,8 +3565,8 @@ Instruction *InstCombinerImpl::foldSelectICmp(ICmpInst::Predicate Pred,
   auto SimplifyOp = [&](Value *Op, bool SelectCondIsTrue) -> Value * {
     if (Value *Res = simplifyICmpInst(Pred, Op, RHS, SQ))
       return Res;
-    if (Optional<bool> Impl = isImpliedCondition(SI->getCondition(), Pred, Op,
-                                                 RHS, DL, SelectCondIsTrue))
+    if (std::optional<bool> Impl = isImpliedCondition(
+            SI->getCondition(), Pred, Op, RHS, DL, SelectCondIsTrue))
       return ConstantInt::get(I.getType(), *Impl);
     return nullptr;
   };
@@ -5850,7 +5743,7 @@ static Instruction *foldICmpUsingBoolRange(ICmpInst &I,
   return nullptr;
 }
 
-llvm::Optional<std::pair<CmpInst::Predicate, Constant *>>
+std::optional<std::pair<CmpInst::Predicate, Constant *>>
 InstCombiner::getFlippedStrictnessPredicateAndConstant(CmpInst::Predicate Pred,
                                                        Constant *C) {
   assert(ICmpInst::isRelational(Pred) && ICmpInst::isIntPredicate(Pred) &&
@@ -5873,13 +5766,13 @@ InstCombiner::getFlippedStrictnessPredicateAndConstant(CmpInst::Predicate Pred,
   if (auto *CI = dyn_cast<ConstantInt>(C)) {
     // Bail out if the constant can't be safely incremented/decremented.
     if (!ConstantIsOk(CI))
-      return llvm::None;
+      return std::nullopt;
   } else if (auto *FVTy = dyn_cast<FixedVectorType>(Type)) {
     unsigned NumElts = FVTy->getNumElements();
     for (unsigned i = 0; i != NumElts; ++i) {
       Constant *Elt = C->getAggregateElement(i);
       if (!Elt)
-        return llvm::None;
+        return std::nullopt;
 
       if (isa<UndefValue>(Elt))
         continue;
@@ -5888,14 +5781,14 @@ InstCombiner::getFlippedStrictnessPredicateAndConstant(CmpInst::Predicate Pred,
       // know that this constant is min/max.
       auto *CI = dyn_cast<ConstantInt>(Elt);
       if (!CI || !ConstantIsOk(CI))
-        return llvm::None;
+        return std::nullopt;
 
       if (!SafeReplacementConstant)
         SafeReplacementConstant = CI;
     }
   } else {
     // ConstantExpr?
-    return llvm::None;
+    return std::nullopt;
   }
 
   // It may not be safe to change a compare predicate in the presence of
@@ -6090,6 +5983,31 @@ static Instruction *foldVectorCmp(CmpInst &Cmp,
   const CmpInst::Predicate Pred = Cmp.getPredicate();
   Value *LHS = Cmp.getOperand(0), *RHS = Cmp.getOperand(1);
   Value *V1, *V2;
+
+  auto createCmpReverse = [&](CmpInst::Predicate Pred, Value *X, Value *Y) {
+    Value *V = Builder.CreateCmp(Pred, X, Y, Cmp.getName());
+    if (auto *I = dyn_cast<Instruction>(V))
+      I->copyIRFlags(&Cmp);
+    Module *M = Cmp.getModule();
+    Function *F = Intrinsic::getDeclaration(
+        M, Intrinsic::experimental_vector_reverse, V->getType());
+    return CallInst::Create(F, V);
+  };
+
+  if (match(LHS, m_VecReverse(m_Value(V1)))) {
+    // cmp Pred, rev(V1), rev(V2) --> rev(cmp Pred, V1, V2)
+    if (match(RHS, m_VecReverse(m_Value(V2))) &&
+        (LHS->hasOneUse() || RHS->hasOneUse()))
+      return createCmpReverse(Pred, V1, V2);
+
+    // cmp Pred, rev(V1), RHSSplat --> rev(cmp Pred, V1, RHSSplat)
+    if (LHS->hasOneUse() && isSplatValue(RHS))
+      return createCmpReverse(Pred, V1, RHS);
+  }
+  // cmp Pred, LHSSplat, rev(V2) --> rev(cmp Pred, LHSSplat, V2)
+  else if (isSplatValue(LHS) && match(RHS, m_OneUse(m_VecReverse(m_Value(V2)))))
+    return createCmpReverse(Pred, LHS, V2);
+
   ArrayRef<int> M;
   if (!match(LHS, m_Shuffle(m_Value(V1), m_Undef(), m_Mask(M))))
     return nullptr;
@@ -6772,9 +6690,47 @@ static Instruction *foldFCmpReciprocalAndZero(FCmpInst &I, Instruction *LHSI,
 /// Optimize fabs(X) compared with zero.
 static Instruction *foldFabsWithFcmpZero(FCmpInst &I, InstCombinerImpl &IC) {
   Value *X;
-  if (!match(I.getOperand(0), m_FAbs(m_Value(X))) ||
-      !match(I.getOperand(1), m_PosZeroFP()))
+  if (!match(I.getOperand(0), m_FAbs(m_Value(X))))
     return nullptr;
+
+  const APFloat *C;
+  if (!match(I.getOperand(1), m_APFloat(C)))
+    return nullptr;
+
+  if (!C->isPosZero()) {
+    if (!C->isSmallestNormalized())
+      return nullptr;
+
+    const Function *F = I.getFunction();
+    DenormalMode Mode = F->getDenormalMode(C->getSemantics());
+    if (Mode.Input == DenormalMode::PreserveSign ||
+        Mode.Input == DenormalMode::PositiveZero) {
+
+      auto replaceFCmp = [](FCmpInst *I, FCmpInst::Predicate P, Value *X) {
+        Constant *Zero = ConstantFP::getNullValue(X->getType());
+        return new FCmpInst(P, X, Zero, "", I);
+      };
+
+      switch (I.getPredicate()) {
+      case FCmpInst::FCMP_OLT:
+        // fcmp olt fabs(x), smallest_normalized_number -> fcmp oeq x, 0.0
+        return replaceFCmp(&I, FCmpInst::FCMP_OEQ, X);
+      case FCmpInst::FCMP_UGE:
+        // fcmp uge fabs(x), smallest_normalized_number -> fcmp une x, 0.0
+        return replaceFCmp(&I, FCmpInst::FCMP_UNE, X);
+      case FCmpInst::FCMP_OGE:
+        // fcmp oge fabs(x), smallest_normalized_number -> fcmp one x, 0.0
+        return replaceFCmp(&I, FCmpInst::FCMP_ONE, X);
+      case FCmpInst::FCMP_ULT:
+        // fcmp ult fabs(x), smallest_normalized_number -> fcmp ueq x, 0.0
+        return replaceFCmp(&I, FCmpInst::FCMP_UEQ, X);
+      default:
+        break;
+      }
+    }
+
+    return nullptr;
+  }
 
   auto replacePredAndOp0 = [&IC](FCmpInst *I, FCmpInst::Predicate P, Value *X) {
     I->setPredicate(P);
@@ -7038,7 +6994,7 @@ Instruction *InstCombinerImpl::visitFCmpInst(FCmpInst &I) {
       APFloat Fabs = TruncC;
       Fabs.clearSign();
       if (!Lossy &&
-          (!(Fabs < APFloat::getSmallestNormalized(FPSem)) || Fabs.isZero())) {
+          (Fabs.isZero() || !(Fabs < APFloat::getSmallestNormalized(FPSem)))) {
         Constant *NewC = ConstantFP::get(X->getType(), TruncC);
         return new FCmpInst(Pred, X, NewC, "", &I);
       }
@@ -7063,6 +7019,24 @@ Instruction *InstCombinerImpl::visitFCmpInst(FCmpInst &I) {
       return new ICmpInst(ICmpInst::ICMP_SLT, IntX,
                           ConstantInt::getNullValue(IntType));
     }
+  }
+
+  {
+    Value *CanonLHS = nullptr, *CanonRHS = nullptr;
+    match(Op0, m_Intrinsic<Intrinsic::canonicalize>(m_Value(CanonLHS)));
+    match(Op1, m_Intrinsic<Intrinsic::canonicalize>(m_Value(CanonRHS)));
+
+    // (canonicalize(x) == x) => (x == x)
+    if (CanonLHS == Op1)
+      return new FCmpInst(Pred, Op1, Op1, "", &I);
+
+    // (x == canonicalize(x)) => (x == x)
+    if (CanonRHS == Op0)
+      return new FCmpInst(Pred, Op0, Op0, "", &I);
+
+    // (canonicalize(x) == canonicalize(y)) => (x == y)
+    if (CanonLHS && CanonRHS)
+      return new FCmpInst(Pred, CanonLHS, CanonRHS, "", &I);
   }
 
   if (I.getType()->isVectorTy())

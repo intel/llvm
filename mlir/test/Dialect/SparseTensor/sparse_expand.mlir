@@ -46,10 +46,11 @@
 // CHECK-SPARSE: return %[[RET]]
 //
 // CHECK-CONVERT-LABEL: func @kernel(
-// CHECK-CONVERT: %[[C:.*]] = arith.constant 0 : index
-// CHECK-CONVERT: %{{.*}} = call @sparseDimSize
-// CHECK-CONVERT: %[[N:.*]] = call @newSparseTensor
-// CHECK-CONVERT: %[[S:.*]] = call @sparseDimSize(%[[N]], %[[C]])
+// CHECK-CONVERT-SAME: %[[A:.*]]: !llvm.ptr<i8>) -> !llvm.ptr<i8>
+// CHECK-CONVERT: %[[C0:.*]] = arith.constant 0 : index
+// CHECK-CONVERT: %[[N:.*]] = call @sparseDimSize(%[[A]], %[[C0]])
+// CHECK-CONVERT: %[[V:.*]] = call @newSparseTensor
+// CHECK-CONVERT: %[[S:.*]] = call @sparseLvlSize(%[[V]], %[[C0]])
 // CHECK-CONVERT: %[[A:.*]] = memref.alloc(%[[S]]) : memref<?xf64>
 // CHECK-CONVERT: %[[B:.*]] = memref.alloc(%[[S]]) : memref<?xi1>
 // CHECK-CONVERT: %[[C:.*]] = memref.alloc(%[[S]]) : memref<?xindex>

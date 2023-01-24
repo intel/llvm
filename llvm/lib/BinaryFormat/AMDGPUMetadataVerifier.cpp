@@ -14,7 +14,6 @@
 #include "llvm/BinaryFormat/AMDGPUMetadataVerifier.h"
 
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/STLForwardCompat.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/BinaryFormat/MsgPackDocument.h"
 
@@ -57,7 +56,7 @@ bool MetadataVerifier::verifyInteger(msgpack::DocNode &Node) {
 
 bool MetadataVerifier::verifyArray(
     msgpack::DocNode &Node, function_ref<bool(msgpack::DocNode &)> verifyNode,
-    Optional<size_t> Size) {
+    std::optional<size_t> Size) {
   if (!Node.isArray())
     return false;
   auto &Array = Node.getArray();
@@ -262,6 +261,8 @@ bool MetadataVerifier::verifyKernel(msgpack::DocNode &Node) {
     return false;
   if (!verifyScalarEntry(KernelMap, ".uses_dynamic_stack", false,
                          msgpack::Type::Boolean))
+    return false;
+  if (!verifyIntegerEntry(KernelMap, ".workgroup_processor_mode", false))
     return false;
   if (!verifyIntegerEntry(KernelMap, ".kernarg_segment_align", true))
     return false;

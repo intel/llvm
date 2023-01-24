@@ -144,12 +144,12 @@ public:
     return t;
   }
 
-  /// Convert to the specified ProgramPoint type, returning None if this
+  /// Convert to the specified ProgramPoint type, returning std::nullopt if this
   /// ProgramPoint is not of the desired type.
   template<typename T>
   Optional<T> getAs() const {
     if (!T::isKind(*this))
-      return None;
+      return std::nullopt;
     T t;
     ProgramPoint& PP = t;
     PP = *this;

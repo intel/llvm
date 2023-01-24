@@ -40,7 +40,6 @@
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TypeTraits.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/StringRef.h"
@@ -2268,32 +2267,32 @@ public:
 
   bool isArray() const { return CXXNewExprBits.IsArray; }
 
-  /// This might return None even if isArray() returns true,
+  /// This might return std::nullopt even if isArray() returns true,
   /// since there might not be an array size expression.
   /// If the result is not-None, it will never wrap a nullptr.
   Optional<Expr *> getArraySize() {
     if (!isArray())
-      return None;
+      return std::nullopt;
 
     if (auto *Result =
             cast_or_null<Expr>(getTrailingObjects<Stmt *>()[arraySizeOffset()]))
       return Result;
 
-    return None;
+    return std::nullopt;
   }
 
-  /// This might return None even if isArray() returns true,
+  /// This might return std::nullopt even if isArray() returns true,
   /// since there might not be an array size expression.
   /// If the result is not-None, it will never wrap a nullptr.
   Optional<const Expr *> getArraySize() const {
     if (!isArray())
-      return None;
+      return std::nullopt;
 
     if (auto *Result =
             cast_or_null<Expr>(getTrailingObjects<Stmt *>()[arraySizeOffset()]))
       return Result;
 
-    return None;
+    return std::nullopt;
   }
 
   unsigned getNumPlacementArgs() const {
@@ -4116,7 +4115,7 @@ public:
     if (NumExpansions)
       return NumExpansions - 1;
 
-    return None;
+    return std::nullopt;
   }
 
   SourceLocation getBeginLoc() const LLVM_READONLY {
@@ -4201,11 +4200,11 @@ class SizeOfPackExpr final
       : Expr(SizeOfPackExprClass, Empty), Length(NumPartialArgs) {}
 
 public:
-  static SizeOfPackExpr *Create(ASTContext &Context, SourceLocation OperatorLoc,
-                                NamedDecl *Pack, SourceLocation PackLoc,
-                                SourceLocation RParenLoc,
-                                Optional<unsigned> Length = None,
-                                ArrayRef<TemplateArgument> PartialArgs = None);
+  static SizeOfPackExpr *
+  Create(ASTContext &Context, SourceLocation OperatorLoc, NamedDecl *Pack,
+         SourceLocation PackLoc, SourceLocation RParenLoc,
+         Optional<unsigned> Length = std::nullopt,
+         ArrayRef<TemplateArgument> PartialArgs = std::nullopt);
   static SizeOfPackExpr *CreateDeserialized(ASTContext &Context,
                                             unsigned NumPartialArgs);
 
@@ -4316,7 +4315,7 @@ public:
 
   Optional<unsigned> getPackIndex() const {
     if (PackIndex == 0)
-      return None;
+      return std::nullopt;
     return PackIndex - 1;
   }
 
@@ -4681,7 +4680,7 @@ public:
   Optional<unsigned> getNumExpansions() const {
     if (NumExpansions)
       return NumExpansions - 1;
-    return None;
+    return std::nullopt;
   }
 
   SourceLocation getBeginLoc() const LLVM_READONLY {
@@ -4711,6 +4710,130 @@ public:
 
   const_child_range children() const {
     return const_child_range(SubExprs, SubExprs + SubExpr::Count);
+  }
+};
+
+/// Represents a list-initialization with parenthesis.
+///
+/// As per P0960R3, this is a C++20 feature that allows aggregate to
+/// be initialized with a parenthesized list of values:
+/// ```
+/// struct A {
+///   int a;
+///   double b;
+/// };
+///
+/// void foo() {
+///   A a1(0);        // Well-formed in C++20
+///   A a2(1.5, 1.0); // Well-formed in C++20
+/// }
+/// ```
+/// It has some sort of similiarity to braced
+/// list-initialization, with some differences such as
+/// it allows narrowing conversion whilst braced
+/// list-initialization doesn't.
+/// ```
+/// struct A {
+///   char a;
+/// };
+/// void foo() {
+///   A a(1.5); // Well-formed in C++20
+///   A b{1.5}; // Ill-formed !
+/// }
+/// ```
+class CXXParenListInitExpr final
+    : public Expr,
+      private llvm::TrailingObjects<CXXParenListInitExpr, Expr *> {
+  friend class TrailingObjects;
+  friend class ASTStmtReader;
+  friend class ASTStmtWriter;
+
+  unsigned NumExprs;
+  unsigned NumUserSpecifiedExprs;
+  SourceLocation InitLoc, LParenLoc, RParenLoc;
+  Expr *ArrayFiller = nullptr;
+
+  CXXParenListInitExpr(ArrayRef<Expr *> Args, QualType T,
+                       unsigned NumUserSpecifiedExprs, SourceLocation InitLoc,
+                       SourceLocation LParenLoc, SourceLocation RParenLoc)
+      : Expr(CXXParenListInitExprClass, T,
+             T->isLValueReferenceType()   ? VK_LValue
+             : T->isRValueReferenceType() ? VK_XValue
+                                          : VK_PRValue,
+             OK_Ordinary),
+        NumExprs(Args.size()), NumUserSpecifiedExprs(NumUserSpecifiedExprs),
+        InitLoc(InitLoc), LParenLoc(LParenLoc), RParenLoc(RParenLoc) {
+    std::copy(Args.begin(), Args.end(), getTrailingObjects<Expr *>());
+    assert(NumExprs >= NumUserSpecifiedExprs &&
+           "number of user specified inits is greater than the number of "
+           "passed inits");
+    setDependence(computeDependence(this));
+  }
+
+  size_t numTrailingObjects(OverloadToken<Expr *>) const { return NumExprs; }
+
+public:
+  static CXXParenListInitExpr *
+  Create(ASTContext &C, ArrayRef<Expr *> Args, QualType T,
+         unsigned NumUserSpecifiedExprs, SourceLocation InitLoc,
+         SourceLocation LParenLoc, SourceLocation RParenLoc);
+
+  static CXXParenListInitExpr *CreateEmpty(ASTContext &C, unsigned numExprs,
+                                           EmptyShell Empty);
+
+  explicit CXXParenListInitExpr(EmptyShell Empty, unsigned NumExprs)
+      : Expr(CXXParenListInitExprClass, Empty), NumExprs(NumExprs),
+        NumUserSpecifiedExprs(0) {}
+
+  void updateDependence() { setDependence(computeDependence(this)); }
+
+  ArrayRef<Expr *> getInitExprs() {
+    return llvm::makeArrayRef(getTrailingObjects<Expr *>(), NumExprs);
+  }
+
+  const ArrayRef<Expr *> getInitExprs() const {
+    return llvm::makeArrayRef(getTrailingObjects<Expr *>(), NumExprs);
+  }
+
+  ArrayRef<Expr *> getUserSpecifiedInitExprs() {
+    return llvm::makeArrayRef(getTrailingObjects<Expr *>(),
+                              NumUserSpecifiedExprs);
+  }
+
+  const ArrayRef<Expr *> getUserSpecifiedInitExprs() const {
+    return llvm::makeArrayRef(getTrailingObjects<Expr *>(),
+                              NumUserSpecifiedExprs);
+  }
+
+  SourceLocation getBeginLoc() const LLVM_READONLY { return LParenLoc; }
+
+  SourceLocation getEndLoc() const LLVM_READONLY { return RParenLoc; }
+
+  SourceLocation getInitLoc() const LLVM_READONLY { return InitLoc; }
+
+  SourceRange getSourceRange() const LLVM_READONLY {
+    return SourceRange(getBeginLoc(), getEndLoc());
+  }
+
+  void setArrayFiller(Expr *E) { ArrayFiller = E; }
+
+  Expr *getArrayFiller() { return ArrayFiller; }
+
+  const Expr *getArrayFiller() const { return ArrayFiller; }
+
+  child_range children() {
+    Stmt **Begin = reinterpret_cast<Stmt **>(getTrailingObjects<Expr *>());
+    return child_range(Begin, Begin + NumExprs);
+  }
+
+  const_child_range children() const {
+    Stmt *const *Begin =
+        reinterpret_cast<Stmt *const *>(getTrailingObjects<Expr *>());
+    return const_child_range(Begin, Begin + NumExprs);
+  }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == CXXParenListInitExprClass;
   }
 };
 

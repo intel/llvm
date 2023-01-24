@@ -70,7 +70,7 @@ llvm::Optional<WaitStatus> NativeProcessProtocol::GetExitStatus() {
   if (m_state == lldb::eStateExited)
     return m_exit_status;
 
-  return llvm::None;
+  return std::nullopt;
 }
 
 bool NativeProcessProtocol::SetExitStatus(WaitStatus status,
@@ -136,7 +136,7 @@ NativeProcessProtocol::GetHardwareDebugSupportInfo() const {
       const_cast<NativeProcessProtocol *>(this)->GetThreadAtIndex(0));
   if (!thread) {
     LLDB_LOG(log, "failed to find a thread to grab a NativeRegisterContext!");
-    return llvm::None;
+    return std::nullopt;
   }
 
   NativeRegisterContext &reg_ctx = thread->GetRegisterContext();
@@ -245,7 +245,7 @@ Status NativeProcessProtocol::SetHardwareBreakpoint(lldb::addr_t addr,
   // Exit here if target does not have required hardware breakpoint capability.
   auto hw_debug_cap = GetHardwareDebugSupportInfo();
 
-  if (hw_debug_cap == llvm::None || hw_debug_cap->first == 0 ||
+  if (hw_debug_cap == std::nullopt || hw_debug_cap->first == 0 ||
       hw_debug_cap->first <= m_hw_breakpoints_map.size())
     return Status("Target does not have required no of hardware breakpoints");
 
@@ -507,6 +507,8 @@ NativeProcessProtocol::GetSoftwareBreakpointTrapOpcode(size_t size_hint) {
   static const uint8_t g_ppcle_opcode[] = {0x08, 0x00, 0xe0, 0x7f}; // trap
   static const uint8_t g_riscv_opcode[] = {0x73, 0x00, 0x10, 0x00}; // ebreak
   static const uint8_t g_riscv_opcode_c[] = {0x02, 0x90};           // c.ebreak
+  static const uint8_t g_loongarch_opcode[] = {0x05, 0x00, 0x2a,
+                                               0x00}; // break 0x5
 
   switch (GetArchitecture().GetMachine()) {
   case llvm::Triple::aarch64:
@@ -541,6 +543,10 @@ NativeProcessProtocol::GetSoftwareBreakpointTrapOpcode(size_t size_hint) {
                           : llvm::makeArrayRef(g_riscv_opcode);
   }
 
+  case llvm::Triple::loongarch32:
+  case llvm::Triple::loongarch64:
+    return llvm::makeArrayRef(g_loongarch_opcode);
+
   default:
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "CPU type not supported!");
@@ -567,6 +573,8 @@ size_t NativeProcessProtocol::GetSoftwareBreakpointPCOffset() {
   case llvm::Triple::ppc64le:
   case llvm::Triple::riscv32:
   case llvm::Triple::riscv64:
+  case llvm::Triple::loongarch32:
+  case llvm::Triple::loongarch64:
     // On these architectures the PC doesn't get updated for breakpoint hits.
     return 0;
 

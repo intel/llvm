@@ -19,7 +19,7 @@ def err_drv_unsupported_opt_for_target : Error<
 def err_drv_unsupported_opt_for_language_mode : Error<
   "unsupported option '%0' for language mode '%1'">;
 def err_drv_unsupported_option_argument : Error<
-  "unsupported argument '%1' to option '-%0'">;
+  "unsupported argument '%1' to option '%0'">;
 def err_drv_unknown_stdin_type : Error<
   "-E or -x required when input is from standard input">;
 def err_drv_unknown_stdin_type_clang_cl : Error<
@@ -96,6 +96,10 @@ def err_drv_cuda_host_arch : Error<
 def err_drv_no_sycl_libspirv : Error<
   "cannot find '%0'; provide path to libspirv library via '-fsycl-libspirv-path', or "
   "pass '-fno-sycl-libspirv' to build without linking with libspirv">;
+def warn_flag_no_sycl_libspirv
+    : Warning<"'-fno-sycl-libspirv' should not be used with target '%0'; "
+              "libspirv is required for correct behavior">,
+      InGroup<NoLibspirvHipCuda>;
 def err_drv_mix_cuda_hip : Error<
   "mixed CUDA and HIP compilation is not supported">;
 def err_drv_bad_target_id : Error<
@@ -218,8 +222,6 @@ def warn_drv_missing_plugin_name : Warning<
 def warn_drv_missing_plugin_arg : Warning<
   "missing plugin argument for plugin %0 in %1">,
   InGroup<InvalidCommandLineArgument>;
-def err_drv_invalid_libcxx_deployment : Error<
-  "invalid deployment target for -stdlib=libc++ (requires %0 or later)">;
 def err_drv_invalid_argument_to_option : Error<
   "invalid argument '%0' to -%1">;
 def err_drv_missing_sanitizer_ignorelist : Error<
@@ -240,8 +242,6 @@ def note_drv_config_file_searched_in : Note<
   "was searched for in the directory: %0">;
 def err_drv_cannot_read_config_file : Error<
   "cannot read configuration file '%0': %1">;
-def err_drv_nested_config_file: Error<
-  "option '--config' is not allowed inside configuration file">;
 def err_drv_arg_requires_bitcode_input: Error<
   "option '%0' requires input to be LLVM bitcode">;
 
@@ -350,6 +350,8 @@ def warn_drv_sycl_offload_target_duplicate : Warning<
 def warn_drv_sycl_target_missing : Warning<
   "linked binaries do not contain expected '%0' target; found targets: '%1'">,
   InGroup<SyclTarget>;
+def err_drv_no_rdc_sycl_target_missing : Error<
+  "linked binaries do not contain expected '%0' target; found targets: '%1', this is not supported with '-fno-sycl-rdc'">;
 def err_drv_multiple_target_with_forced_target : Error<
   "multiple target usage with '%0' is not supported with '%1'">;
 def err_drv_failed_to_deduce_target_from_arch : Error<
@@ -376,6 +378,13 @@ def err_drv_small_columns : Error<
 
 def err_drv_invalid_malign_branch_EQ : Error<
   "invalid argument '%0' to -malign-branch=; each element must be one of: %1">;
+
+def err_drv_print_header_env_var : Error<
+  "environment variable CC_PRINT_HEADERS_%select{FORMAT|FILTERING}0 has invalid value %1">;
+def err_drv_print_header_env_var_combination : Error<
+  "unsupported combination: CC_PRINT_HEADERS_FORMAT=%0 and CC_PRINT_HEADERS_FILTERING=%1">;
+def err_drv_print_header_env_var_combination_cc1 : Error<
+  "unsupported combination: -header-include-format=%0 and -header-include-filtering=%1">;
 
 def warn_O4_is_O3 : Warning<"-O4 is equivalent to -O3">, InGroup<Deprecated>;
 def warn_drv_optimization_value : Warning<"optimization level '%0' is not supported; using '%1%2' instead">,
@@ -499,6 +508,10 @@ def err_analyzer_not_built_with_z3 : Error<
 def warn_analyzer_deprecated_option : Warning<
   "analyzer option '%0' is deprecated. This flag will be removed in %1, and "
   "passing this option will be an error.">,
+  InGroup<DeprecatedStaticAnalyzerFlag>;
+def warn_analyzer_deprecated_option_with_alternative : Warning<
+  "analyzer option '%0' is deprecated. This flag will be removed in %1, and "
+  "passing this option will be an error. Use '%2' instead.">,
   InGroup<DeprecatedStaticAnalyzerFlag>;
 
 def warn_drv_needs_hvx : Warning<
@@ -733,4 +746,7 @@ def warn_drv_sarif_format_unstable : Warning<
 
 def err_drv_riscv_unsupported_with_linker_relaxation : Error<
   "%0 is unsupported with RISC-V linker relaxation (-mrelax)">;
+
+def err_drv_loongarch_invalid_mfpu_EQ : Error<
+  "invalid argument '%0' to -mfpu=; must be one of: 64, 32, none, 0 (alias for none)">;
 }

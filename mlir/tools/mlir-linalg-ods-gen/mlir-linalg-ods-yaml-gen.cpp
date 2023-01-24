@@ -27,6 +27,7 @@
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/YAMLTraits.h"
+#include <optional>
 
 using namespace mlir;
 
@@ -52,7 +53,7 @@ struct LinalgYAMLContext {
 struct LinalgOpMetadata {
   std::string name;
   std::string cppClassName;
-  Optional<std::string> doc;
+  std::optional<std::string> doc;
   SmallVector<std::string> implements;
   SmallVector<std::string> defines;
 };
@@ -76,11 +77,11 @@ enum class LinalgOperandDefKind {
 struct LinalgOperandDef {
   std::string name;
   LinalgOperandDefKind kind;
-  Optional<std::string> typeVar;
-  Optional<SerializedAffineMap> shapeMap;
-  Optional<SerializedAffineMap> indexAttrMap;
-  Optional<SmallVector<int64_t>> defaultIndices;
-  Optional<std::string> defaultFn;
+  std::optional<std::string> typeVar;
+  std::optional<SerializedAffineMap> shapeMap;
+  std::optional<SerializedAffineMap> indexAttrMap;
+  std::optional<SmallVector<int64_t>> defaultIndices;
+  std::optional<std::string> defaultFn;
 };
 
 enum class LinalgIteratorTypeDef {
@@ -89,7 +90,7 @@ enum class LinalgIteratorTypeDef {
 };
 
 struct LinalgIndexingMapsConfig {
-  Optional<SmallVector<SerializedAffineMap>> staticIndexingMaps;
+  std::optional<SmallVector<SerializedAffineMap>> staticIndexingMaps;
 };
 
 struct ScalarExpression;
@@ -98,19 +99,19 @@ enum class ScalarFnKind { Unary, Binary, Type };
 
 struct ScalarFn {
   ScalarFnKind kind;
-  Optional<std::string> fnName;
-  Optional<std::string> attrName;
-  Optional<std::string> typeVar;
+  std::optional<std::string> fnName;
+  std::optional<std::string> attrName;
+  std::optional<std::string> typeVar;
   // NOTE: This must be of arity 1, but to break the self-referential cycle,
   // we use a heap allocated vector.
   std::vector<ScalarExpression> operands;
 };
 
 struct ScalarExpression {
-  Optional<std::string> arg;
-  Optional<std::string> constant;
-  Optional<int64_t> index;
-  Optional<ScalarFn> scalarFn;
+  std::optional<std::string> arg;
+  std::optional<std::string> constant;
+  std::optional<int64_t> index;
+  std::optional<ScalarFn> scalarFn;
 };
 
 struct ScalarAssign {
@@ -126,8 +127,8 @@ struct LinalgStructuredOpConfig {
 };
 
 struct LinalgOpConfig {
-  Optional<LinalgOpMetadata> metadata;
-  Optional<LinalgStructuredOpConfig> structuredOp;
+  std::optional<LinalgOpMetadata> metadata;
+  std::optional<LinalgStructuredOpConfig> structuredOp;
 };
 
 } // namespace
@@ -398,7 +399,7 @@ findTensorDefArgIndex(StringRef name, SmallVectorImpl<LinalgOperandDef> &args) {
     if (it.value().name == name)
       return it.index();
   }
-  return None;
+  return std::nullopt;
 }
 
 // Try to map the TypeVar to a predefined or an argument type.
@@ -425,7 +426,7 @@ findTypeValue(StringRef typeVar, SmallVectorImpl<LinalgOperandDef> &args) {
           .str();
   }
 
-  return None;
+  return std::nullopt;
 }
 
 static ScalarAssign *findAssignment(StringRef name,
@@ -525,7 +526,7 @@ def {0} : LinalgStructuredBase_Op<"{1}", !listconcat([AttrSizedOperandSegments],
       (ins "ValueRange":$inputs, "ValueRange":$outputs,
             CArg<"ArrayRef<NamedAttribute>", "{{}">:$attributes),
       [{{
-        buildStructuredOp($_builder, $_state, llvm::None, inputs, outputs,
+        buildStructuredOp($_builder, $_state, std::nullopt, inputs, outputs,
           attributes, {0}::getRegionBuilder());
       }]>,
       OpBuilder<
@@ -553,7 +554,7 @@ def {0} : LinalgStructuredBase_Op<"{1}", !listconcat([AttrSizedOperandSegments],
 
     let extraClassDeclaration = structuredOpsBaseDecls # [{{
       // Auto-generated.
-      SmallVector<StringRef> getIteratorTypesArray();
+      SmallVector<utils::IteratorType> getIteratorTypesArray();
       ArrayAttr getIndexingMaps();
       static void regionBuilder(ImplicitLocOpBuilder &b,
                                 Block &block, ArrayRef<NamedAttribute> attrs);
@@ -597,8 +598,8 @@ static const char structuredOpBuilderFormat[] = R"FMT(
 // {1}: Comma interleaved iterator type names.
 static const char structuredOpIteratorTypesFormat[] =
     R"FMT(
-SmallVector<StringRef> {0}::getIteratorTypesArray() {{
-  return SmallVector<StringRef>{{ {1} };
+SmallVector<utils::IteratorType> {0}::getIteratorTypesArray() {{
+  return SmallVector<utils::IteratorType>{{ {1} };
 }
 )FMT";
 
@@ -607,9 +608,9 @@ SmallVector<StringRef> {0}::getIteratorTypesArray() {{
 // {0}: Class name
 static const char rankPolyStructuredOpIteratorTypesFormat[] =
     R"FMT(
-SmallVector<StringRef> {0}::getIteratorTypesArray() {{
+SmallVector<utils::IteratorType> {0}::getIteratorTypesArray() {{
   int64_t rank = getRank(getDpsInitOperand(0));
-  return SmallVector<StringRef>(rank, getParallelIteratorTypeName());
+  return SmallVector<utils::IteratorType>(rank, utils::IteratorType::parallel);
 }
 )FMT";
 
@@ -739,14 +740,14 @@ static LogicalResult generateNamedGenericOpOds(LinalgOpConfig &opConfig,
         assert(arg.indexAttrMap.has_value());
         assert(arg.defaultIndices.has_value());
         size_t size = arg.indexAttrMap->affineMap().getNumResults();
-        assert(arg.defaultIndices.value().size() == size);
+        assert(arg.defaultIndices->size() == size);
         static const char typeFmt[] = "RankedI64ElementsAttr<[{0}]>";
         static const char defFmt[] =
             "DefaultValuedOptionalAttr<{0}, \"{ {1} }\">:${2}";
         std::string defaultVals;
         llvm::raw_string_ostream ss(defaultVals);
         llvm::interleave(
-            arg.defaultIndices.value(), ss,
+            *arg.defaultIndices, ss,
             [&](int64_t val) { ss << "static_cast<int64_t>(" << val << ")"; },
             ", ");
         attrDefs.push_back(llvm::formatv(defFmt, llvm::formatv(typeFmt, size),
@@ -812,10 +813,10 @@ generateNamedGenericOpDefns(LinalgOpConfig &opConfig,
                           [&](LinalgIteratorTypeDef it) {
                             switch (it) {
                             case LinalgIteratorTypeDef::parallel:
-                              ss << "getParallelIteratorTypeName()";
+                              ss << "utils::IteratorType::parallel";
                               break;
                             case LinalgIteratorTypeDef::reduction:
-                              ss << "getReductionIteratorTypeName()";
+                              ss << "utils::IteratorType::reduction";
                               break;
                             }
                           });
@@ -1064,7 +1065,7 @@ if ({1}Iter != attrs.end()) {{
           if (!argIndex) {
             emitError(genContext.getLoc())
                 << "scalar argument not defined on the op: " << *expression.arg;
-            return None;
+            return std::nullopt;
           }
           return std::string(
               llvm::formatv("block.getArgument({0})", *argIndex));
@@ -1097,11 +1098,10 @@ if ({1}Iter != attrs.end()) {{
           if (expression.scalarFn->attrName) {
             if (llvm::none_of(args, [&](LinalgOperandDef &arg) {
                   return isFunctionAttribute(arg.kind) &&
-                         arg.name == expression.scalarFn->attrName.value();
+                         arg.name == *expression.scalarFn->attrName;
                 })) {
-              emitError(genContext.getLoc())
-                  << "missing function attribute "
-                  << expression.scalarFn->attrName.value();
+              emitError(genContext.getLoc()) << "missing function attribute "
+                                             << *expression.scalarFn->attrName;
             }
             funcType = llvm::formatv("{0}Val", *expression.scalarFn->attrName);
           }
@@ -1112,22 +1112,22 @@ if ({1}Iter != attrs.end()) {{
           if (expression.scalarFn->kind == ScalarFnKind::Type) {
             assert(expression.scalarFn->typeVar.has_value());
             Optional<std::string> typeCppValue =
-                findTypeValue(expression.scalarFn->typeVar.value(), args);
+                findTypeValue(*expression.scalarFn->typeVar, args);
             if (!typeCppValue) {
               emitError(genContext.getLoc())
-                  << "type variable " << expression.scalarFn->typeVar.value()
+                  << "type variable " << *expression.scalarFn->typeVar
                   << ", used in a type conversion, must map to a predefined or "
                   << "an argument type but it does not";
-              return None;
+              return std::nullopt;
             }
-            operandCppValues.push_back(typeCppValue.value());
+            operandCppValues.push_back(*typeCppValue);
           }
 
           // Collect the scalar operands.
           for (ScalarExpression &operand : expression.scalarFn->operands) {
             auto operandCppValue = generateExpression(operand);
             if (!operandCppValue)
-              return None;
+              return std::nullopt;
             operandCppValues.push_back(*operandCppValue);
           }
 
@@ -1139,12 +1139,12 @@ if ({1}Iter != attrs.end()) {{
           return cppIdent;
         }
         emitError(genContext.getLoc()) << "unknown ScalarExpression type";
-        return None;
+        return std::nullopt;
       };
       Optional<std::string> cppValue = generateExpression(assignment->value);
       if (!cppValue)
         return failure();
-      stmts.push_back(llvm::formatv("yields.push_back({0});", cppValue));
+      stmts.push_back(llvm::formatv("yields.push_back({0});", *cppValue));
     }
 
     if (generatedAssignmentCount != assignments.size())

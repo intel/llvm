@@ -257,11 +257,11 @@ void CPlusPlusLanguage::MethodName::Parse() {
     } else {
       CPlusPlusNameParser parser(m_full.GetStringRef());
       if (auto function = parser.ParseAsFunctionDefinition()) {
-        m_basename = function.value().name.basename;
-        m_context = function.value().name.context;
-        m_arguments = function.value().arguments;
-        m_qualifiers = function.value().qualifiers;
-        m_return_type = function.value().return_type;
+        m_basename = function->name.basename;
+        m_context = function->name.context;
+        m_arguments = function->arguments;
+        m_qualifiers = function->qualifiers;
+        m_return_type = function->return_type;
         m_parse_error = false;
       } else {
         m_parse_error = true;
@@ -402,8 +402,8 @@ bool CPlusPlusLanguage::ExtractContextAndIdentifier(
 
   CPlusPlusNameParser parser(name);
   if (auto full_name = parser.ParseAsFullName()) {
-    identifier = full_name.value().basename;
-    context = full_name.value().context;
+    identifier = full_name->basename;
+    context = full_name->context;
     return true;
   }
   return false;
@@ -835,6 +835,12 @@ static void LoadLibCxxFormatters(lldb::TypeCategoryImplSP cpp_category_sp) {
       "libc++ std::span synthetic children",
       ConstString("^std::__[[:alnum:]]+::span<.+>(( )?&)?$"), stl_deref_flags,
       true);
+  AddCXXSynthetic(
+      cpp_category_sp,
+      lldb_private::formatters::LibcxxStdRangesRefViewSyntheticFrontEndCreator,
+      "libc++ std::ranges::ref_view synthetic children",
+      ConstString("^std::__[[:alnum:]]+::ranges::ref_view<.+>(( )?&)?$"),
+      stl_deref_flags, true);
 
   cpp_category_sp->AddTypeSynthetic(
       "^(std::__[[:alnum:]]+::)deque<.+>(( )?&)?$", eFormatterMatchRegex,

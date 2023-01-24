@@ -7,11 +7,31 @@
 // MCPU-ROCKET64: "-nostdsysteminc" "-target-cpu" "rocket-rv64"
 // MCPU-ROCKET64: "-target-feature" "+64bit"
 
+// RUN: %clang --target=riscv32 -### -c %s 2>&1 -mcpu=syntacore-scr1-base | FileCheck -check-prefix=MCPU-SYNTACORE-SCR1-BASE %s
+// MCPU-SYNTACORE-SCR1-BASE: "-target-cpu" "syntacore-scr1-base"
+// MCPU-SYNTACORE-SCR1-BASE: "-target-feature" "+c" "-target-feature" "-64bit"
+// MCPU-SYNTACORE-SCR1-BASE: "-target-abi" "ilp32"
+
+// RUN: %clang --target=riscv32 -### -c %s 2>&1 -mcpu=syntacore-scr1-max | FileCheck -check-prefix=MCPU-SYNTACORE-SCR1-MAX %s
+// MCPU-SYNTACORE-SCR1-MAX: "-target-cpu" "syntacore-scr1-max"
+// MCPU-SYNTACORE-SCR1-MAX: "-target-feature" "+m" "-target-feature" "+c" "-target-feature" "-64bit"
+// MCPU-SYNTACORE-SCR1-MAX: "-target-abi" "ilp32"
+
+// We cannot check much for -mcpu=native, but it should be replaced by a valid CPU string.
+// RUN: %clang --target=riscv64 -### -c %s 2>&1 -mcpu=native | FileCheck -check-prefix=MCPU-NATIVE %s
+// MCPU-NATIVE-NOT: "-target-cpu" "native"
+
 // RUN: %clang --target=riscv32 -### -c %s 2>&1 -mtune=rocket-rv32 | FileCheck -check-prefix=MTUNE-ROCKET32 %s
 // MTUNE-ROCKET32: "-tune-cpu" "rocket-rv32"
 
 // RUN: %clang --target=riscv64 -### -c %s 2>&1 -mtune=rocket-rv64 | FileCheck -check-prefix=MTUNE-ROCKET64 %s
 // MTUNE-ROCKET64: "-tune-cpu" "rocket-rv64"
+
+// RUN: %clang --target=riscv32 -### -c %s 2>&1 -mtune=syntacore-scr1-base | FileCheck -check-prefix=MTUNE-SYNTACORE-SCR1-BASE %s
+// MTUNE-SYNTACORE-SCR1-BASE: "-tune-cpu" "syntacore-scr1-base"
+
+// RUN: %clang --target=riscv32 -### -c %s 2>&1 -mtune=syntacore-scr1-max | FileCheck -check-prefix=MTUNE-SYNTACORE-SCR1-MAX %s
+// MTUNE-SYNTACORE-SCR1-MAX: "-tune-cpu" "syntacore-scr1-max"
 
 // Check mtune alias CPU has resolved to the right CPU according XLEN.
 // RUN: %clang --target=riscv32 -### -c %s 2>&1 -mtune=generic | FileCheck -check-prefix=MTUNE-GENERIC-32 %s
@@ -25,6 +45,10 @@
 
 // RUN: %clang --target=riscv64 -### -c %s 2>&1 -mtune=rocket | FileCheck -check-prefix=MTUNE-ROCKET-64 %s
 // MTUNE-ROCKET-64: "-tune-cpu" "rocket"
+
+// We cannot check much for -mtune=native, but it should be replaced by a valid CPU string.
+// RUN: %clang --target=riscv64 -### -c %s 2>&1 -mtune=native | FileCheck -check-prefix=MTUNE-NATIVE %s
+// MTUNE-NATIVE-NOT: "-tune-cpu" "native"
 
 // mcpu with default march
 // RUN: %clang --target=riscv64 -### -c %s 2>&1 -mcpu=sifive-e20 | FileCheck -check-prefix=MCPU-SIFIVE-E20 %s
@@ -130,10 +154,10 @@
 // Check failed cases
 
 // RUN: %clang --target=riscv32 -### -c %s 2>&1 -mcpu=generic-rv321 | FileCheck -check-prefix=FAIL-MCPU-NAME %s
-// FAIL-MCPU-NAME: error: the clang compiler does not support '-mcpu=generic-rv321'
+// FAIL-MCPU-NAME: error: unsupported argument 'generic-rv321' to option '-mcpu='
 
 // RUN: %clang --target=riscv32 -### -c %s 2>&1 -mcpu=generic-rv32 -march=rv64i | FileCheck -check-prefix=MISMATCH-ARCH %s
-// MISMATCH-ARCH: error: the clang compiler does not support '-mcpu=generic-rv32'
+// MISMATCH-ARCH: error: unsupported argument 'generic-rv32' to option '-mcpu='
 
 // RUN: %clang --target=riscv32 -### -c %s 2>&1 -mcpu=generic-rv64 | FileCheck -check-prefix=MISMATCH-MCPU %s
-// MISMATCH-MCPU: error: the clang compiler does not support '-mcpu=generic-rv64'
+// MISMATCH-MCPU: error: unsupported argument 'generic-rv64' to option '-mcpu='

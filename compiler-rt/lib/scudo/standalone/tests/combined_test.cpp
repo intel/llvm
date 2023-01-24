@@ -153,7 +153,7 @@ void ScudoCombinedTest<Config>::BasicTest(scudo::uptr SizeLog) {
   for (scudo::uptr AlignLog = MinAlignLog; AlignLog <= 16U; AlignLog++) {
     const scudo::uptr Align = 1U << AlignLog;
     for (scudo::sptr Delta = -32; Delta <= 32; Delta++) {
-      if (static_cast<scudo::sptr>(1U << SizeLog) + Delta <= 0)
+      if (static_cast<scudo::sptr>(1U << SizeLog) + Delta < 0)
         continue;
       const scudo::uptr Size = (1U << SizeLog) + Delta;
       void *P = Allocator->allocate(Size, Origin, Align);
@@ -730,4 +730,42 @@ TEST(ScudoCombinedTest, BasicTrustyConfig) {
 }
 
 #endif
+#endif
+
+#if SCUDO_LINUX
+
+SCUDO_TYPED_TEST(ScudoCombinedTest, SoftRssLimit) {
+  auto *Allocator = this->Allocator.get();
+  Allocator->setRssLimitsTestOnly(1, 0, true);
+
+  size_t Megabyte = 1024 * 1024;
+  size_t ChunkSize = 16;
+  size_t Error = 256;
+
+  std::vector<void *> Ptrs;
+  for (size_t index = 0; index < Megabyte + Error; index += ChunkSize) {
+    void *Ptr = Allocator->allocate(ChunkSize, Origin);
+    Ptrs.push_back(Ptr);
+  }
+
+  EXPECT_EQ(nullptr, Allocator->allocate(ChunkSize, Origin));
+
+  for (void *Ptr : Ptrs)
+    Allocator->deallocate(Ptr, Origin);
+}
+
+SCUDO_TYPED_TEST(ScudoCombinedTest, HardRssLimit) {
+  auto *Allocator = this->Allocator.get();
+  Allocator->setRssLimitsTestOnly(0, 1, false);
+
+  size_t Megabyte = 1024 * 1024;
+
+  EXPECT_DEATH(
+      {
+        disableDebuggerdMaybe();
+        Allocator->allocate(Megabyte, Origin);
+      },
+      "");
+}
+
 #endif

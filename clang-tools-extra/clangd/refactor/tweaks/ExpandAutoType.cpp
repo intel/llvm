@@ -11,7 +11,6 @@
 #include "clang/AST/Type.h"
 #include "clang/AST/TypeLoc.h"
 #include "clang/Basic/LLVM.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/Support/Error.h"
 #include <AST.h>
@@ -118,7 +117,7 @@ Expected<Tweak::Effect> ExpandAutoType::apply(const Selection& Inputs) {
       getDeducedType(Inputs.AST->getASTContext(), AutoRange.getBegin());
 
   // if we can't resolve the type, return an error message
-  if (DeducedType == llvm::None || (*DeducedType)->isUndeducedAutoType())
+  if (DeducedType == std::nullopt || (*DeducedType)->isUndeducedAutoType())
     return error("Could not deduce type for 'auto' type");
 
   // if it's a lambda expression, return an error message

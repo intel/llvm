@@ -244,7 +244,7 @@ public:
   /// Attaches a note to this diagnostic. A new location may be optionally
   /// provided, if not, then the location defaults to the one specified for this
   /// diagnostic. Notes may not be attached to other notes.
-  Diagnostic &attachNote(Optional<Location> noteLoc = llvm::None);
+  Diagnostic &attachNote(Optional<Location> noteLoc = std::nullopt);
 
   using note_iterator = llvm::pointee_iterator<NoteVector::iterator>;
   using const_note_iterator =
@@ -342,10 +342,14 @@ public:
   }
 
   /// Attaches a note to this diagnostic.
-  Diagnostic &attachNote(Optional<Location> noteLoc = llvm::None) {
+  Diagnostic &attachNote(Optional<Location> noteLoc = std::nullopt) {
     assert(isActive() && "diagnostic not active");
     return impl->attachNote(noteLoc);
   }
+
+  /// Returns the underlying diagnostic or nullptr if this diagnostic isn't
+  /// active.
+  Diagnostic *getUnderlyingDiagnostic() { return impl ? &*impl : nullptr; }
 
   /// Reports the diagnostic to the engine.
   void report();
@@ -483,19 +487,19 @@ InFlightDiagnostic emitRemark(Location loc, const Twine &message);
 /// the diagnostic arguments directly instead of relying on the returned
 /// InFlightDiagnostic.
 template <typename... Args>
-LogicalResult emitOptionalError(Optional<Location> loc, Args &&...args) {
+LogicalResult emitOptionalError(std::optional<Location> loc, Args &&...args) {
   if (loc)
     return emitError(*loc).append(std::forward<Args>(args)...);
   return failure();
 }
 template <typename... Args>
-LogicalResult emitOptionalWarning(Optional<Location> loc, Args &&...args) {
+LogicalResult emitOptionalWarning(std::optional<Location> loc, Args &&...args) {
   if (loc)
     return emitWarning(*loc).append(std::forward<Args>(args)...);
   return failure();
 }
 template <typename... Args>
-LogicalResult emitOptionalRemark(Optional<Location> loc, Args &&...args) {
+LogicalResult emitOptionalRemark(std::optional<Location> loc, Args &&...args) {
   if (loc)
     return emitRemark(*loc).append(std::forward<Args>(args)...);
   return failure();

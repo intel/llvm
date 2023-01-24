@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -c -fno-color-diagnostics -Xclang -fdump-record-layouts %s | FileCheck %s
+// RUN: %clangxx -fsycl -c -fno-color-diagnostics -Xclang -fdump-record-layouts %s -o %t.out | FileCheck %s
 // REQUIRES: linux
 // UNSUPPORTED: libcxx
 
@@ -17,16 +17,16 @@ void foo() {
 // The order of field declarations and their types are important.
 // CHECK: 0 | class sycl::handler
 // CHECK-NEXT: 0 |   class std::shared_ptr<class sycl::detail::handler_impl> MImpl
-// CHECK-NEXT: 0 |     class std::__shared_ptr<class sycl::detail::handler_impl, __gnu_cxx::_S_atomic> (base)
+// CHECK-NEXT: 0 |     class std::__shared_ptr<class sycl::detail::handler_impl> (base)
 // CHECK-NEXT: 0 |       class std::__shared_ptr_access<class sycl::detail::handler_impl, __gnu_cxx::_S_atomic, false, false> (base) (empty)
 // CHECK-NEXT: 0 |       element_type * _M_ptr
-// CHECK-NEXT: 8 |       class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
+// CHECK-NEXT: 8 |       class std::__shared_count<> _M_refcount
 // CHECK-NEXT: 8 |         _Sp_counted_base<(_Lock_policy)2U> * _M_pi
 // CHECK-NEXT: 16 |   class std::shared_ptr<class sycl::detail::queue_impl> MQueue
-// CHECK-NEXT: 16 |     class std::__shared_ptr<class sycl::detail::queue_impl, __gnu_cxx::_S_atomic> (base)
+// CHECK-NEXT: 16 |     class std::__shared_ptr<class sycl::detail::queue_impl> (base)
 // CHECK-NEXT: 16 |       class std::__shared_ptr_access<class sycl::detail::queue_impl, __gnu_cxx::_S_atomic, false, false> (base) (empty)
 // CHECK-NEXT: 16 |       element_type * _M_ptr
-// CHECK-NEXT: 24 |       class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
+// CHECK-NEXT: 24 |       class std::__shared_count<> _M_refcount
 // CHECK-NEXT: 24 |         _Sp_counted_base<(_Lock_policy)2U> * _M_pi
 // CHECK-NEXT: 32 |   class std::vector<class std::vector<char> > MArgsStorage
 // CHECK-NEXT: 32 |     struct std::_Vector_base<class std::vector<char>, class std::allocator<class std::vector<char> > > (base)
@@ -116,10 +116,10 @@ void foo() {
 // CHECK-NEXT: 344 |       char[16] _M_local_buf
 // CHECK-NEXT: 344 |       size_type _M_allocated_capacity
 // CHECK-NEXT: 360 |   class std::shared_ptr<class sycl::detail::kernel_impl> MKernel
-// CHECK-NEXT: 360 |     class std::__shared_ptr<class sycl::detail::kernel_impl, __gnu_cxx::_S_atomic> (base)
+// CHECK-NEXT: 360 |     class std::__shared_ptr<class sycl::detail::kernel_impl> (base)
 // CHECK-NEXT: 360 |       class std::__shared_ptr_access<class sycl::detail::kernel_impl, __gnu_cxx::_S_atomic, false, false> (base) (empty)
 // CHECK-NEXT: 360 |       element_type * _M_ptr
-// CHECK-NEXT: 368 |       class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
+// CHECK-NEXT: 368 |       class std::__shared_count<> _M_refcount
 // CHECK-NEXT: 368 |         _Sp_counted_base<(_Lock_policy)2U> * _M_pi
 // CHECK-NEXT: 376 |   detail::class CG::CGTYPE MCGType
 // CHECK-NEXT: 384 |   void * MSrcPtr
@@ -185,11 +185,12 @@ void foo() {
 // CHECK-NEXT: 544 |     unsigned long MColumnNo
 // CHECK-NEXT: 552 |   _Bool MIsFinalized
 // CHECK-NEXT: 560 |   class sycl::event MLastEvent
+// CHECK-NEXT: 560 | class sycl::detail::OwnerLessBase<class sycl::event> (base) (empty)
 // CHECK-NEXT: 560 |     class std::shared_ptr<class sycl::detail::event_impl> impl
-// CHECK-NEXT: 560 |       class std::__shared_ptr<class sycl::detail::event_impl, __gnu_cxx::_S_atomic> (base)
+// CHECK-NEXT: 560 |       class std::__shared_ptr<class sycl::detail::event_impl> (base)
 // CHECK-NEXT: 560 |         class std::__shared_ptr_access<class sycl::detail::event_impl, __gnu_cxx::_S_atomic, false, false> (base) (empty)
 // CHECK-NEXT: 560 |         element_type * _M_ptr
-// CHECK-NEXT: 568 |         class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
+// CHECK-NEXT: 568 |         class std::__shared_count<> _M_refcount
 // CHECK-NEXT: 568 |           _Sp_counted_base<(_Lock_policy)2U> * _M_pi
 // CHECK-NEXT:     | [sizeof=576, dsize=576, align=8,
 // CHECK-NEXT:     |  nvsize=576, nvalign=8]

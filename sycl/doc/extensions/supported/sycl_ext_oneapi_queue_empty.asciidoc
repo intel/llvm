@@ -1,0 +1,113 @@
+= sycl_ext_oneapi_queue_empty
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 6 specification. All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This extension is supported by {dpcpp} on all backends except OpenCL.
+[NOTE]
+====
+Currently support for OpenCL backend is limited, API introduced by this extension
+can be called only for in-order queues which doesn't have `discard_events` property.
+Exception is thrown if new API is called on other type of queue. OpenCL currently
+doesn't have an API to get queue status.
+====
+
+
+== Overview
+
+:cuda-stream: https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__STREAM.html#group__CUDART__STREAM_1g2021adeb17905c7ec2a3c1bf125c5435
+
+This extension adds a new API that tells whether a `queue` is empty, similar to
+the CUDA function {cuda-stream}[CudaStreamQuery].
+
+
+== Specification
+
+This extension provides a feature-test macro as described in the core SYCL
+specification. An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_QUEUE_EMPTY` to one of the values defined in the table
+below. Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="2,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== New queue member function
+
+This extension adds the following new member function to the `queue` class.
+
+[source,c++]
+----
+namespace sycl {
+
+class queue {
+ bool ext_oneapi_empty() const;
+};
+
+} // namespace sycl
+----
+
+The semantics of the new function are:
+
+[frame="topbot",options="header"]
+|===
+|Function |Description
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+bool ext_oneapi_empty() const
+----
+|
+Returns `true` if all commands previously submitted to this queue have
+completed at the point when this function is called.
+
+|===

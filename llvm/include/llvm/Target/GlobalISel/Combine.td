@@ -131,6 +131,18 @@ def copy_prop : GICombineRule<
          [{ return Helper.matchCombineCopy(*${mi}); }]),
   (apply [{ Helper.applyCombineCopy(*${mi}); }])>;
 
+// idempotent operations
+// Fold (freeze (freeze x)) -> (freeze x).
+// Fold (fabs (fabs x)) -> (fabs x).
+// Fold (fcanonicalize (fcanonicalize x)) -> (fcanonicalize x).
+def idempotent_prop : GICombineRule<
+   (defs root:$mi),
+   (match (wip_match_opcode G_FREEZE, G_FABS, G_FCANONICALIZE):$mi,
+          [{ return MRI.getVRegDef(${mi}->getOperand(1).getReg())->getOpcode() ==
+                    ${mi}->getOpcode(); }]),
+   (apply [{ Helper.replaceSingleDefInstWithOperand(*${mi}, 1); }])>;
+
+
 def extending_loads : GICombineRule<
   (defs root:$root, extending_load_matchdata:$matchinfo),
   (match (wip_match_opcode G_LOAD, G_SEXTLOAD, G_ZEXTLOAD):$root,
@@ -156,6 +168,22 @@ def sext_inreg_of_load : GICombineRule<
   (match (wip_match_opcode G_SEXT_INREG):$root,
          [{ return Helper.matchSextInRegOfLoad(*${root}, ${matchinfo}); }]),
   (apply [{ Helper.applySextInRegOfLoad(*${root}, ${matchinfo}); }])>;
+
+def sext_inreg_to_zext_inreg : GICombineRule<
+  (defs root:$dst),
+  (match
+    (G_SEXT_INREG $dst, $src, $imm):$root,
+      [{
+        unsigned BitWidth = MRI.getType(${src}.getReg()).getScalarSizeInBits();
+        return Helper.getKnownBits()->maskedValueIsZero(${src}.getReg(),
+                 APInt::getOneBitSet(BitWidth, ${imm}.getImm() - 1)); }]),
+    (apply [{
+      Helper.getBuilder().setInstrAndDebugLoc(*${root});
+      Helper.getBuilder().buildZExtInReg(${dst}, ${src}, ${imm}.getImm());
+      ${root}->eraseFromParent();
+      return true;
+  }])
+>;
 
 def combine_indexed_load_store : GICombineRule<
   (defs root:$root, indexed_load_store_matchdata:$matchinfo),
@@ -409,7 +437,7 @@ def simplify_add_to_sub: GICombineRule <
 >;
 
 // Fold fp_op(cst) to the constant result of the floating point operation.
-def constant_fp_op_matchinfo: GIDefMatchData<"Optional<APFloat>">;
+def constant_fp_op_matchinfo: GIDefMatchData<"std::optional<APFloat>">;
 def constant_fp_op: GICombineRule <
   (defs root:$root, constant_fp_op_matchinfo:$info),
   (match (wip_match_opcode G_FNEG, G_FABS, G_FPTRUNC, G_FSQRT, G_FLOG2):$root,
@@ -565,15 +593,6 @@ def merge_unmerge : GICombineRule<
   (apply [{ Helper.replaceSingleDefInstWithReg(*${d}, ${matchinfo}); }])
 >;
 
-// Fold (fabs (fabs x)) -> (fabs x).
-def fabs_fabs_fold: GICombineRule<
-  (defs root:$dst, register_matchinfo:$matchinfo),
-  (match (G_FABS $abs, $src),
-         (G_FABS $dst, $abs):$mi,
-         [{ ${matchinfo} = ${abs}.getReg(); }]),
-  (apply [{ return Helper.replaceSingleDefInstWithReg(*${mi}, ${matchinfo}); }])
->;
-
 // Fold (fabs (fneg x)) -> (fabs x).
 def fabs_fneg_fold: GICombineRule <
   (defs root:$root, build_fn_matchinfo:$matchinfo),
@@ -623,13 +642,15 @@ def trunc_ext_fold: GICombineRule <
   (apply [{ Helper.applyCombineTruncOfExt(*${root}, ${matchinfo}); }])
 >;
 
-// Fold trunc (shl x, K) -> shl (trunc x), K => K < VT.getScalarSizeInBits().
-def trunc_shl_matchinfo : GIDefMatchData<"std::pair<Register, Register>">;
-def trunc_shl: GICombineRule <
-  (defs root:$root, trunc_shl_matchinfo:$matchinfo),
+// Under certain conditions, transform:
+//  trunc (shl x, K)     -> shl (trunc x), K//
+//  trunc ([al]shr x, K) -> (trunc ([al]shr (trunc x), K))
+def trunc_shift_matchinfo : GIDefMatchData<"std::pair<MachineInstr*, LLT>">;
+def trunc_shift: GICombineRule <
+  (defs root:$root, trunc_shift_matchinfo:$matchinfo),
   (match (wip_match_opcode G_TRUNC):$root,
-         [{ return Helper.matchCombineTruncOfShl(*${root}, ${matchinfo}); }]),
-  (apply [{ Helper.applyCombineTruncOfShl(*${root}, ${matchinfo}); }])
+         [{ return Helper.matchCombineTruncOfShift(*${root}, ${matchinfo}); }]),
+  (apply [{ Helper.applyCombineTruncOfShift(*${root}, ${matchinfo}); }])
 >;
 
 // Transform (mul x, -1) -> (sub 0, x)
@@ -856,6 +877,13 @@ def redundant_neg_operands: GICombineRule<
     [{ return Helper.matchRedundantNegOperands(*${root}, ${matchinfo}); }]),
   (apply [{ Helper.applyBuildFnNoErase(*${root}, ${matchinfo}); }])>;
 
+// Transform (fsub +-0.0, X) -> (fneg X)
+def fsub_to_fneg: GICombineRule<
+  (defs root:$root, register_matchinfo:$matchinfo),
+  (match (wip_match_opcode G_FSUB):$root,
+    [{ return Helper.matchFsubToFneg(*${root}, ${matchinfo}); }]),
+  (apply [{ Helper.applyFsubToFneg(*${root}, ${matchinfo}); }])>;
+
 // Transform (fadd x, (fmul y, z)) -> (fma y, z, x)
 //           (fadd x, (fmul y, z)) -> (fmad y, z, x)
 // Transform (fadd (fmul x, y), z) -> (fma x, y, z)
@@ -1020,7 +1048,8 @@ def const_combines : GICombineGroup<[constant_fp_op, const_ptradd_to_i2p,
 
 def known_bits_simplifications : GICombineGroup<[
   redundant_and, redundant_sext_inreg, redundant_or, urem_pow2_to_mask,
-  zext_trunc_fold, icmp_to_true_false_known_bits, icmp_to_lhs_known_bits]>;
+  zext_trunc_fold, icmp_to_true_false_known_bits, icmp_to_lhs_known_bits,
+  sext_inreg_to_zext_inreg]>;
 
 def width_reduction_combines : GICombineGroup<[reduce_shl_of_extend,
                                                narrow_binop_feeding_and]>;
@@ -1031,7 +1060,7 @@ def select_combines : GICombineGroup<[select_undef_cmp, select_constant_cmp,
                                       select_to_logical]>;
 
 def trivial_combines : GICombineGroup<[copy_prop, mul_to_shl, add_p2i_to_ptradd,
-                                       mul_by_neg_one]>;
+                                       mul_by_neg_one, idempotent_prop]>;
 
 def fma_combines : GICombineGroup<[combine_fadd_fmul_to_fmad_or_fma,
   combine_fadd_fpext_fmul_to_fmad_or_fma, combine_fadd_fma_fmul_to_fmad_or_fma,
@@ -1048,15 +1077,16 @@ def all_combines : GICombineGroup<[trivial_combines, insert_vec_elt_combines,
     width_reduction_combines, select_combines,
     known_bits_simplifications, ext_ext_fold,
     not_cmp_fold, opt_brcond_by_inverting_cond,
-    unmerge_merge, fabs_fabs_fold, unmerge_cst, unmerge_dead_to_trunc,
-    unmerge_zext_to_zext, merge_unmerge, trunc_ext_fold, trunc_shl,
+    unmerge_merge, unmerge_cst, unmerge_dead_to_trunc,
+    unmerge_zext_to_zext, merge_unmerge, trunc_ext_fold, trunc_shift,
     const_combines, xor_of_and_with_same_reg, ptr_add_with_zero,
     shift_immed_chain, shift_of_shifted_logic_chain, load_or_combine,
     truncstore_merge, div_rem_to_divrem, funnel_shift_combines,
     form_bitfield_extract, constant_fold, fabs_fneg_fold,
     intdiv_combines, mulh_combines, redundant_neg_operands,
     and_or_disjoint_mask, fma_combines, fold_binop_into_select,
-    sub_add_reg, select_to_minmax, redundant_binop_in_equality]>;
+    sub_add_reg, select_to_minmax, redundant_binop_in_equality,
+    fsub_to_fneg]>;
 
 // A combine group used to for prelegalizer combiners at -O0. The combines in
 // this group have been selected based on experiments to balance code size and

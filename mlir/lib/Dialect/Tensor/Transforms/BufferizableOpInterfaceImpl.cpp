@@ -70,9 +70,8 @@ struct CastOpInterface
         layout = rankedMemRefType.getLayout();
 
     // Compute the new memref type.
-    Type resultMemRefType =
-        getMemRefType(castOp.getResult(), options, layout,
-                      sourceMemRefType.getMemorySpaceAsInt());
+    Type resultMemRefType = getMemRefType(castOp.getResult(), options, layout,
+                                          sourceMemRefType.getMemorySpace());
 
     // Replace the op with a memref.cast.
     assert(memref::CastOp::areCastCompatible(resultBuffer->getType(),
@@ -127,7 +126,7 @@ struct CollapseShapeOpInterface
       // If dims cannot be collapsed, this op bufferizes to a new allocation.
       RankedTensorType tensorResultType = collapseShapeOp.getResultType();
       return bufferization::getMemRefTypeWithStaticIdentityLayout(
-          tensorResultType, srcBufferType.getMemorySpaceAsInt());
+          tensorResultType, srcBufferType.getMemorySpace());
     }
 
     return memref::CollapseShapeOp::computeCollapsedType(
@@ -188,7 +187,7 @@ struct CollapseShapeOpInterface
       auto memrefType =
           MemRefType::get(collapseShapeOp.getSrcType().getShape(),
                           collapseShapeOp.getSrcType().getElementType(),
-                          AffineMap(), bufferType.getMemorySpaceAsInt());
+                          AffineMap(), bufferType.getMemorySpace());
       buffer = rewriter.create<bufferization::ToMemrefOp>(
           op->getLoc(), memrefType, *tensorAlloc);
     }
@@ -206,7 +205,8 @@ struct DimOpInterface
                                                     tensor::DimOp> {
   bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
                               const AnalysisState &state) const {
-    return true;
+    // The op reads the tensor's metadata but not its contents.
+    return false;
   }
 
   bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand,
@@ -228,6 +228,24 @@ struct DimOpInterface
     replaceOpWithNewBufferizedOp<memref::DimOp>(rewriter, op, *v,
                                                 dimOp.getIndex());
     return success();
+  }
+};
+
+/// Bufferization of tensor.empty. This op does not bufferize, but we need an
+/// interface implementation, so that the result of this op is considered
+/// "writable" (default impl. of `isWritable`). Results of ops that do not
+/// implement `BufferizableOpInterface` are not writable.
+struct EmptyOpInterface
+    : public BufferizableOpInterface::ExternalModel<EmptyOpInterface,
+                                                    tensor::EmptyOp> {
+  LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
+                          const BufferizationOptions &options) const {
+    // tensor.empty ops are used to indicate the shape of a tensor. They have
+    // no defined contents and cannot be bufferized. However, they can be
+    // converted to bufferization.alloc_tensor ops, which then bufferize to an
+    // allocation (--empty-tensor-to-alloc-tensor).
+    return op->emitOpError("cannot be bufferized, but can be converted to "
+                           "bufferization.alloc_tensor");
   }
 };
 
@@ -436,7 +454,7 @@ struct FromElementsOpInterface
         fromElementsOp.getResult().cast<OpResult>(), options);
 
     // TODO: Implement memory space for this op.
-    if (options.defaultMemorySpace != static_cast<unsigned>(0))
+    if (options.defaultMemorySpace != Attribute())
       return op->emitError("memory space not implemented yet");
 
     // Allocate a buffer for the result.
@@ -556,7 +574,7 @@ struct GenerateOpInterface
         generateOp.getResult().cast<OpResult>(), options);
 
     // TODO: Implement memory space for this op.
-    if (options.defaultMemorySpace != static_cast<unsigned>(0))
+    if (options.defaultMemorySpace != Attribute())
       return op->emitError("memory space not implemented yet");
 
     // Allocate memory.
@@ -616,8 +634,8 @@ static bool areEquivalentSlices(const AnalysisState &state,
   return true;
 }
 
-/// Return true if `value` is originating from the InsertSliceOp's destination
-/// or an ExtractSliceOp that matches the given InsertSliceOp.
+/// Return true if `value` is originating from an ExtractSliceOp that matches
+/// the given InsertSliceOp.
 template <typename OpTy>
 static bool matchesInsertDestination(const AnalysisState &state, Value value,
                                      OpTy insertSliceOp) {
@@ -630,15 +648,6 @@ static bool matchesInsertDestination(const AnalysisState &state, Value value,
   };
   if (llvm::all_of(state.findValueInReverseUseDefChain(value, matchesSlice),
                    matchesSlice))
-    return true;
-
-  // Look for equivalent values.
-  auto isEquivalent = [&](Value val) {
-    return state.areEquivalentBufferizedValues(val, insertSliceOp.getDest());
-  };
-  if (llvm::all_of(state.findValueInReverseUseDefChain(
-                       value, isEquivalent, /*followEquivalentOnly=*/true),
-                   isEquivalent))
     return true;
   return false;
 }
@@ -728,6 +737,36 @@ static bool isNotConflictingInsertSliceLikeOp(Operation *op, OpOperand *uRead,
 struct InsertSliceOpInterface
     : public DstBufferizableOpInterfaceExternalModel<InsertSliceOpInterface,
                                                      tensor::InsertSliceOp> {
+  bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
+                              const AnalysisState &state) const {
+    auto insertSliceOp = cast<tensor::InsertSliceOp>(op);
+    RankedTensorType destType = insertSliceOp.getDestType();
+
+    // The source is always read.
+    if (&opOperand == &op->getOpOperand(0) /*src*/)
+      return true;
+
+    // For the destination, it depends...
+    assert(&opOperand == &insertSliceOp->getOpOperand(1) && "expected dest");
+
+    // Dest is not read if it is entirely overwritten. E.g.:
+    // tensor.insert_slice %a into %t[0][10][1] : ... into tensor<10xf32>
+    bool allOffsetsZero =
+        llvm::all_of(insertSliceOp.getMixedOffsets(), [](OpFoldResult ofr) {
+          return isConstantIntValue(ofr, 0);
+        });
+    bool sizesMatchDestSizes = llvm::all_of(
+        llvm::enumerate(insertSliceOp.getMixedSizes()), [&](auto &it) {
+          return getConstantIntValue(it.value()) ==
+                 destType.getDimSize(it.index());
+        });
+    bool allStridesOne =
+        llvm::all_of(insertSliceOp.getMixedStrides(), [](OpFoldResult ofr) {
+          return isConstantIntValue(ofr, 1);
+        });
+    return !(allOffsetsZero && sizesMatchDestSizes && allStridesOne);
+  }
+
   bool isNotConflicting(Operation *op, OpOperand *uRead,
                         OpOperand *uConflictingWrite,
                         const AnalysisState &state) const {
@@ -889,7 +928,8 @@ struct RankOpInterface
                                                     tensor::RankOp> {
   bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
                               const AnalysisState &state) const {
-    return true;
+    // The op reads the tensor's metadata but not its contents.
+    return false;
   }
 
   bool bufferizesToMemoryWrite(Operation *op, OpOperand &opOperand,
@@ -951,7 +991,7 @@ struct ReshapeOpInterface
       return failure();
     auto resultMemRefType = getMemRefType(
         reshapeOp.getResult(), options, /*layout=*/{},
-        srcBuffer->getType().cast<BaseMemRefType>().getMemorySpaceAsInt());
+        srcBuffer->getType().cast<BaseMemRefType>().getMemorySpace());
     replaceOpWithNewBufferizedOp<memref::ReshapeOp>(
         rewriter, op, resultMemRefType, *srcBuffer, *shapeBuffer);
     return success();
@@ -1040,6 +1080,7 @@ void mlir::tensor::registerBufferizableOpInterfaceExternalModels(
     CastOp::attachInterface<CastOpInterface>(*ctx);
     CollapseShapeOp::attachInterface<CollapseShapeOpInterface>(*ctx);
     DimOp::attachInterface<DimOpInterface>(*ctx);
+    EmptyOp::attachInterface<EmptyOpInterface>(*ctx);
     ExpandShapeOp::attachInterface<ExpandShapeOpInterface>(*ctx);
     ExtractSliceOp::attachInterface<ExtractSliceOpInterface>(*ctx);
     ExtractOp::attachInterface<ExtractOpInterface>(*ctx);

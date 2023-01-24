@@ -229,6 +229,7 @@ public:
                                              Type type = {});
   OptionalParseResult parseOptionalAttribute(ArrayAttr &attribute, Type type);
   OptionalParseResult parseOptionalAttribute(StringAttr &attribute, Type type);
+  OptionalParseResult parseOptionalAttribute(SymbolRefAttr &result, Type type);
 
   /// Parse an optional attribute that is demarcated by a specific token.
   template <typename AttributeT>
@@ -236,7 +237,7 @@ public:
                                                       AttributeT &attr,
                                                       Type type = {}) {
     if (getToken().isNot(kind))
-      return llvm::None;
+      return std::nullopt;
 
     if (Attribute parsedAttr = parseAttribute(type)) {
       attr = parsedAttr.cast<AttributeT>();

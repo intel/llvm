@@ -15,7 +15,6 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/MapVector.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -417,7 +416,7 @@ bool InlineSpiller::hoistSpillInsideBB(LiveInterval &SpillLI,
   MachineInstrSpan MIS(MII, MBB);
   // Insert spill without kill flag immediately after def.
   TII.storeRegToStackSlot(*MBB, MII, SrcReg, false, StackSlot,
-                          MRI.getRegClass(SrcReg), &TRI);
+                          MRI.getRegClass(SrcReg), &TRI, Register());
   LIS.InsertMachineInstrRangeInMaps(MIS.begin(), MII);
   for (const MachineInstr &MI : make_range(MIS.begin(), MII))
     getVDefInterval(MI, LIS);
@@ -993,7 +992,7 @@ void InlineSpiller::insertReload(Register NewVReg,
 
   MachineInstrSpan MIS(MI, &MBB);
   TII.loadRegFromStackSlot(MBB, MI, NewVReg, StackSlot,
-                           MRI.getRegClass(NewVReg), &TRI);
+                           MRI.getRegClass(NewVReg), &TRI, Register());
 
   LIS.InsertMachineInstrRangeInMaps(MIS.begin(), MI);
 
@@ -1030,7 +1029,7 @@ void InlineSpiller::insertSpill(Register NewVReg, bool isKill,
 
   if (IsRealSpill)
     TII.storeRegToStackSlot(MBB, SpillBefore, NewVReg, isKill, StackSlot,
-                            MRI.getRegClass(NewVReg), &TRI);
+                            MRI.getRegClass(NewVReg), &TRI, Register());
   else
     // Don't spill undef value.
     // Anything works for undef, in particular keeping the memory
@@ -1596,7 +1595,7 @@ void HoistSpillHelper::hoistAllSpills() {
       MachineBasicBlock::iterator MII = IPA.getLastInsertPointIter(OrigLI, *BB);
       MachineInstrSpan MIS(MII, BB);
       TII.storeRegToStackSlot(*BB, MII, LiveReg, false, Slot,
-                              MRI.getRegClass(LiveReg), &TRI);
+                              MRI.getRegClass(LiveReg), &TRI, Register());
       LIS.InsertMachineInstrRangeInMaps(MIS.begin(), MII);
       for (const MachineInstr &MI : make_range(MIS.begin(), MII))
         getVDefInterval(MI, LIS);
@@ -1613,7 +1612,7 @@ void HoistSpillHelper::hoistAllSpills() {
           RMEnt->removeOperand(i - 1);
       }
     }
-    Edit.eliminateDeadDefs(SpillsToRm, None);
+    Edit.eliminateDeadDefs(SpillsToRm, std::nullopt);
   }
 }
 

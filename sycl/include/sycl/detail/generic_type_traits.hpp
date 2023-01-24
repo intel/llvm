@@ -27,13 +27,22 @@ template <typename T> using is_floatn = is_contained<T, gtl::vector_float_list>;
 template <typename T> using is_genfloatf = is_contained<T, gtl::float_list>;
 
 template <typename T>
+using is_svgenfloatf = is_contained<T, gtl::scalar_vector_float_list>;
+
+template <typename T>
 using is_doublen = is_contained<T, gtl::vector_double_list>;
 
 template <typename T> using is_genfloatd = is_contained<T, gtl::double_list>;
 
+template <typename T>
+using is_svgenfloatd = is_contained<T, gtl::scalar_vector_double_list>;
+
 template <typename T> using is_halfn = is_contained<T, gtl::vector_half_list>;
 
 template <typename T> using is_genfloath = is_contained<T, gtl::half_list>;
+
+template <typename T>
+using is_svgenfloath = is_contained<T, gtl::scalar_vector_half_list>;
 
 template <typename T> using is_genfloat = is_contained<T, gtl::floating_list>;
 
@@ -42,6 +51,9 @@ using is_sgenfloat = is_contained<T, gtl::scalar_floating_list>;
 
 template <typename T>
 using is_vgenfloat = is_contained<T, gtl::vector_floating_list>;
+
+template <typename T>
+using is_svgenfloat = is_contained<T, gtl::scalar_vector_floating_list>;
 
 template <typename T>
 using is_gengeofloat = is_contained<T, gtl::geo_float_list>;
@@ -115,17 +127,6 @@ template <typename T>
 using is_intn = is_contained<T, gtl::vector_signed_int_list>;
 
 template <typename T> using is_genint = is_contained<T, gtl::signed_int_list>;
-
-template <typename T>
-using is_ulongn = is_contained<T, gtl::vector_unsigned_long_list>;
-
-template <typename T>
-using is_ugenlong = is_contained<T, gtl::unsigned_long_list>;
-
-template <typename T>
-using is_longn = is_contained<T, gtl::vector_signed_long_list>;
-
-template <typename T> using is_genlong = is_contained<T, gtl::signed_long_list>;
 
 template <typename T>
 using is_ulonglongn = is_contained<T, gtl::vector_unsigned_longlong_list>;
@@ -502,7 +503,7 @@ template <typename T> struct TypeHelper {
   using RetType = T;
 };
 
-#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <> struct TypeHelper<std::byte> {
   using RetType = std::uint8_t;
 };
@@ -572,9 +573,37 @@ template <typename T> inline constexpr bool msbIsSet(const T x) {
   return (x & msbMask(x));
 }
 
+#if defined(SYCL2020_CONFORMANT_APIS) && SYCL_LANGUAGE_VERSION >= 202001
+// SYCL 2020 4.17.9 (Relation functions), e.g. table 178
+//
+//  genbool isequal (genfloatf x, genfloatf y)
+//  genbool isequal (genfloatd x, genfloatd y)
+//
+// TODO: marray support isn't implemented yet.
+template <typename T>
+using common_rel_ret_t =
+    conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>, bool>;
+
+// TODO: Remove this when common_rel_ret_t is promoted.
+template <typename T>
+using internal_host_rel_ret_t =
+    conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>, int>;
+#else
+// SYCL 1.2.1 4.13.7 (Relation functions), e.g.
+//
+//   igeninteger32bit isequal (genfloatf x, genfloatf y)
+//   igeninteger64bit isequal (genfloatd x, genfloatd y)
+//
+// However, we have pre-existing bug so
+//
+//   igeninteger32bit isequal (genfloatd x, genfloatd y)
+//
+// Fixing it would be an ABI-breaking change so isn't done.
 template <typename T>
 using common_rel_ret_t =
     conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>, int>;
+template <typename T> using internal_host_rel_ret_t = common_rel_ret_t<T>;
+#endif
 
 // forward declaration
 template <int N> struct Boolean;
@@ -598,11 +627,21 @@ template <typename T> struct RelationalReturnType {
 #ifdef __SYCL_DEVICE_ONLY__
   using type = Boolean<TryToGetNumElements<T>::value>;
 #else
-  using type = common_rel_ret_t<T>;
+  // After changing the return type of scalar relational operations to boolean
+  // we keep the old representation of the internal implementation of the
+  // host-side builtins to avoid ABI-breaks.
+  // TODO: Use common_rel_ret_t when ABI break is allowed and the boolean return
+  //       type for relationals are promoted out of SYCL2020_CONFORMANT_APIS.
+  //       The scalar relational builtins in
+  //       sycl/source/detail/builtins_relational.cpp should likewise be updated
+  //       to return boolean values.
+  using type = internal_host_rel_ret_t<T>;
 #endif
 };
 
-template <typename T> using rel_ret_t = typename RelationalReturnType<T>::type;
+// Type representing the internal return type of relational builtins.
+template <typename T>
+using internal_rel_ret_t = typename RelationalReturnType<T>::type;
 
 // Used for any and all built-in functions
 template <typename T> struct RelationalTestForSignBitType {
@@ -634,7 +673,7 @@ struct RelConverter<
   using ret_t = common_rel_ret_t<T>;
 #else
   using bool_t = Boolean<N>;
-  using ret_t = rel_ret_t<T>;
+  using ret_t = internal_rel_ret_t<T>;
 #endif
 
   static ret_t apply(bool_t value) {
@@ -653,7 +692,7 @@ struct RelConverter<
 template <typename T>
 struct RelConverter<
     T, typename detail::enable_if_t<!TryToGetElementType<T>::value>> {
-  using R = rel_ret_t<T>;
+  using R = internal_rel_ret_t<T>;
 #ifdef __SYCL_DEVICE_ONLY__
   using value_t = bool;
 #else

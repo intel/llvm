@@ -252,9 +252,8 @@ void AMDGPUAsmPrinter::emitFunctionBodyEnd() {
 
   // CP microcode requires the kernel descriptor to be allocated on 64 byte
   // alignment.
-  Streamer.emitValueToAlignment(64, 0, 1, 0);
-  if (ReadOnlySection.getAlignment() < 64)
-    ReadOnlySection.setAlignment(Align(64));
+  Streamer.emitValueToAlignment(Align(64), 0, 1, 0);
+  ReadOnlySection.ensureMinAlignment(Align(64));
 
   const GCNSubtarget &STM = MF->getSubtarget<GCNSubtarget>();
 
@@ -361,13 +360,9 @@ bool AMDGPUAsmPrinter::doFinalization(Module &M) {
 
 // Print comments that apply to both callable functions and entry points.
 void AMDGPUAsmPrinter::emitCommonFunctionComments(
-  uint32_t NumVGPR,
-  Optional<uint32_t> NumAGPR,
-  uint32_t TotalNumVGPR,
-  uint32_t NumSGPR,
-  uint64_t ScratchSize,
-  uint64_t CodeSize,
-  const AMDGPUMachineFunction *MFI) {
+    uint32_t NumVGPR, std::optional<uint32_t> NumAGPR, uint32_t TotalNumVGPR,
+    uint32_t NumSGPR, uint64_t ScratchSize, uint64_t CodeSize,
+    const AMDGPUMachineFunction *MFI) {
   OutStreamer->emitRawComment(" codeLenInByte = " + Twine(CodeSize), false);
   OutStreamer->emitRawComment(" NumSgprs: " + Twine(NumSGPR), false);
   OutStreamer->emitRawComment(" NumVgprs: " + Twine(NumVGPR), false);
@@ -524,24 +519,21 @@ bool AMDGPUAsmPrinter::runOnMachineFunction(MachineFunction &MF) {
       const AMDGPUResourceUsageAnalysis::SIFunctionResourceInfo &Info =
           ResourceUsage->getResourceInfo(&MF.getFunction());
       emitCommonFunctionComments(
-        Info.NumVGPR,
-        STM.hasMAIInsts() ? Info.NumAGPR : Optional<uint32_t>(),
-        Info.getTotalNumVGPRs(STM),
-        Info.getTotalNumSGPRs(MF.getSubtarget<GCNSubtarget>()),
-        Info.PrivateSegmentSize,
-        getFunctionCodeSize(MF), MFI);
+          Info.NumVGPR,
+          STM.hasMAIInsts() ? Info.NumAGPR : std::optional<uint32_t>(),
+          Info.getTotalNumVGPRs(STM),
+          Info.getTotalNumSGPRs(MF.getSubtarget<GCNSubtarget>()),
+          Info.PrivateSegmentSize, getFunctionCodeSize(MF), MFI);
       return false;
     }
 
     OutStreamer->emitRawComment(" Kernel info:", false);
-    emitCommonFunctionComments(CurrentProgramInfo.NumArchVGPR,
-                               STM.hasMAIInsts()
-                                 ? CurrentProgramInfo.NumAccVGPR
-                                 : Optional<uint32_t>(),
-                               CurrentProgramInfo.NumVGPR,
-                               CurrentProgramInfo.NumSGPR,
-                               CurrentProgramInfo.ScratchSize,
-                               getFunctionCodeSize(MF), MFI);
+    emitCommonFunctionComments(
+        CurrentProgramInfo.NumArchVGPR,
+        STM.hasMAIInsts() ? CurrentProgramInfo.NumAccVGPR
+                          : std::optional<uint32_t>(),
+        CurrentProgramInfo.NumVGPR, CurrentProgramInfo.NumSGPR,
+        CurrentProgramInfo.ScratchSize, getFunctionCodeSize(MF), MFI);
 
     OutStreamer->emitRawComment(
       " FloatMode: " + Twine(CurrentProgramInfo.FloatMode), false);

@@ -943,6 +943,12 @@ def ProcessorFeatures {
   list<SubtargetFeature> SPRFeatures =
     !listconcat(ICXFeatures, SPRAdditionalFeatures);
 
+  // Graniterapids
+  list<SubtargetFeature> GNRAdditionalFeatures = [FeatureAMXFP16,
+                                                  FeaturePREFETCHI];
+  list<SubtargetFeature> GNRFeatures =
+    !listconcat(SPRFeatures, GNRAdditionalFeatures);
+
   // Atom
   list<SubtargetFeature> AtomFeatures = [FeatureX87,
                                          FeatureCX8,
@@ -1049,6 +1055,19 @@ def ProcessorFeatures {
   list<SubtargetFeature> ADLTuning = !listconcat(SKLTuning, ADLAdditionalTuning);
   list<SubtargetFeature> ADLFeatures =
     !listconcat(TRMFeatures, ADLAdditionalFeatures);
+
+  // Sierraforest
+  list<SubtargetFeature> SRFAdditionalFeatures = [FeatureCMPCCXADD,
+                                                  FeatureAVXIFMA,
+                                                  FeatureAVXNECONVERT,
+                                                  FeatureAVXVNNIINT8];
+  list<SubtargetFeature> SRFFeatures =
+    !listconcat(ADLFeatures, SRFAdditionalFeatures);
+
+  // Grandridge
+  list<SubtargetFeature> GRRAdditionalFeatures = [FeatureRAOINT];
+  list<SubtargetFeature> GRRFeatures =
+    !listconcat(SRFFeatures, GRRAdditionalFeatures);
 
   // Knights Landing
   list<SubtargetFeature> KNLFeatures = [FeatureX87,
@@ -1276,6 +1295,23 @@ def ProcessorFeatures {
     !listconcat(ZN2Tuning, ZN3AdditionalTuning);
   list<SubtargetFeature> ZN3Features =
     !listconcat(ZN2Features, ZN3AdditionalFeatures);
+  list<SubtargetFeature> ZN4Tuning = ZN3Tuning;
+  list<SubtargetFeature> ZN4AdditionalFeatures = [FeatureAVX512,
+                                                  FeatureCDI,
+                                                  FeatureDQI,
+                                                  FeatureBWI,
+                                                  FeatureVLX,
+                                                  FeatureVBMI,
+                                                  FeatureVBMI2,
+                                                  FeatureIFMA,
+                                                  FeatureVNNI,
+                                                  FeatureBITALG,
+                                                  FeatureGFNI,
+                                                  FeatureBF16,
+                                                  FeatureSHSTK,
+                                                  FeatureVPOPCNTDQ];
+  list<SubtargetFeature> ZN4Features =
+    !listconcat(ZN3Features, ZN4AdditionalFeatures);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1441,6 +1477,10 @@ def : ProcModel<"goldmont-plus", SLMModel, ProcessorFeatures.GLPFeatures,
                 ProcessorFeatures.GLPTuning>;
 def : ProcModel<"tremont", SLMModel, ProcessorFeatures.TRMFeatures,
                 ProcessorFeatures.TRMTuning>;
+def : ProcModel<"sierraforest", AlderlakePModel, ProcessorFeatures.SRFFeatures,
+                ProcessorFeatures.TRMTuning>;
+def : ProcModel<"grandridge", AlderlakePModel, ProcessorFeatures.GRRFeatures,
+                ProcessorFeatures.TRMTuning>;
 
 // "Arrandale" along with corei3 and corei5
 foreach P = ["nehalem", "corei7"] in {
@@ -1502,6 +1542,12 @@ def : ProcModel<"sapphirerapids", SkylakeServerModel,
                 ProcessorFeatures.SPRFeatures, ProcessorFeatures.SPRTuning>;
 def : ProcModel<"alderlake", AlderlakePModel,
                 ProcessorFeatures.ADLFeatures, ProcessorFeatures.ADLTuning>;
+def : ProcModel<"raptorlake", AlderlakePModel,
+                ProcessorFeatures.ADLFeatures, ProcessorFeatures.ADLTuning>;
+def : ProcModel<"meteorlake", AlderlakePModel,
+                ProcessorFeatures.ADLFeatures, ProcessorFeatures.ADLTuning>;
+def : ProcModel<"graniterapids", SkylakeServerModel,
+                ProcessorFeatures.GNRFeatures, ProcessorFeatures.SPRTuning>;
 
 // AMD CPUs.
 
@@ -1570,6 +1616,8 @@ def : ProcModel<"znver2", Znver2Model, ProcessorFeatures.ZN2Features,
                 ProcessorFeatures.ZN2Tuning>;
 def : ProcModel<"znver3", Znver3Model, ProcessorFeatures.ZN3Features,
                 ProcessorFeatures.ZN3Tuning>;
+def : Proc<"znver4",ProcessorFeatures.ZN4Features,
+           ProcessorFeatures.ZN4Tuning>;
 
 def : Proc<"geode",           [FeatureX87, FeatureCX8, Feature3DNowA],
                               [TuningSlowUAMem16, TuningInsertVZEROUPPER]>;

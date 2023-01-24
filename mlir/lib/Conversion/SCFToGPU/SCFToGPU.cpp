@@ -24,6 +24,7 @@
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
@@ -178,7 +179,7 @@ static bool isConstantOne(Value value) {
 // mapping a loop nest of depth "numLoops" rooted at "forOp" to a GPU kernel.
 // This may fail if the IR for computing loop bounds cannot be constructed, for
 // example if an affine loop uses semi-affine maps. Return the last loop to be
-// mapped on success, llvm::None on failure.
+// mapped on success, std::nullopt on failure.
 Optional<AffineForOp>
 AffineLoopToGpuConverter::collectBounds(AffineForOp forOp, unsigned numLoops) {
   OpBuilder builder(forOp.getOperation());
@@ -191,7 +192,7 @@ AffineLoopToGpuConverter::collectBounds(AffineForOp forOp, unsigned numLoops) {
     Value lowerBound = getOrEmitLowerBound(currentLoop, builder);
     Value upperBound = getOrEmitUpperBound(currentLoop, builder);
     if (!lowerBound || !upperBound) {
-      return llvm::None;
+      return std::nullopt;
     }
 
     Value range = builder.create<arith::SubIOp>(currentLoop.getLoc(),
@@ -247,7 +248,7 @@ void AffineLoopToGpuConverter::createLaunch(AffineForOp rootForOp,
   Location terminatorLoc = terminator.getLoc();
   terminator.erase();
   builder.setInsertionPointToEnd(innermostForOp.getBody());
-  builder.create<gpu::TerminatorOp>(terminatorLoc, llvm::None);
+  builder.create<gpu::TerminatorOp>(terminatorLoc, std::nullopt);
   launchOp.getBody().front().getOperations().splice(
       launchOp.getBody().front().begin(),
       innermostForOp.getBody()->getOperations());
@@ -656,8 +657,8 @@ ParallelToGpuLaunchLowering::matchAndRewrite(ParallelOp parallelOp,
       cloningMap.map(op->getResults(), clone->getResults());
       // Check for side effects.
       // TODO: Handle region side effects properly.
-      seenSideeffects |= !MemoryEffectOpInterface::hasNoEffect(clone) ||
-                         clone->getNumRegions() != 0;
+      seenSideeffects |=
+          !isMemoryEffectFree(clone) || clone->getNumRegions() != 0;
       // If we are no longer in the innermost scope, sideeffects are disallowed.
       if (seenSideeffects && leftNestingScope)
         return failure();

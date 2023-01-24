@@ -269,6 +269,10 @@ set(files
   __debug
   __debug_utils/randomize_range.h
   __errc
+  __expected/bad_expected_access.h
+  __expected/expected.h
+  __expected/unexpect.h
+  __expected/unexpected.h
   __filesystem/copy_options.h
   __filesystem/directory_entry.h
   __filesystem/directory_iterator.h
@@ -309,7 +313,9 @@ set(files
   __format/formatter_output.h
   __format/formatter_pointer.h
   __format/formatter_string.h
+  __format/formatter_tuple.h
   __format/parser_std_format_spec.h
+  __format/range_default_formatter.h
   __format/unicode.h
   __functional/binary_function.h
   __functional/binary_negate.h
@@ -396,6 +402,7 @@ set(files
   __memory/allocation_guard.h
   __memory/allocator.h
   __memory/allocator_arg_t.h
+  __memory/allocator_destructor.h
   __memory/allocator_traits.h
   __memory/assume_aligned.h
   __memory/auto_ptr.h
@@ -534,14 +541,14 @@ set(files
   __thread/timed_backoff_policy.h
   __threading_support
   __tree
-  __tuple/apply_cv.h
-  __tuple/make_tuple_types.h
-  __tuple/sfinae_helpers.h
-  __tuple/tuple_element.h
-  __tuple/tuple_indices.h
-  __tuple/tuple_like.h
-  __tuple/tuple_size.h
-  __tuple/tuple_types.h
+  __tuple_dir/apply_cv.h
+  __tuple_dir/make_tuple_types.h
+  __tuple_dir/sfinae_helpers.h
+  __tuple_dir/tuple_element.h
+  __tuple_dir/tuple_indices.h
+  __tuple_dir/tuple_like.h
+  __tuple_dir/tuple_size.h
+  __tuple_dir/tuple_types.h
   __type_traits/add_const.h
   __type_traits/add_cv.h
   __type_traits/add_lvalue_reference.h
@@ -625,6 +632,7 @@ set(files
   __type_traits/is_scoped_enum.h
   __type_traits/is_signed.h
   __type_traits/is_signed_integer.h
+  __type_traits/is_specialization.h
   __type_traits/is_standard_layout.h
   __type_traits/is_swappable.h
   __type_traits/is_trivial.h
@@ -665,6 +673,7 @@ set(files
   __type_traits/remove_reference.h
   __type_traits/remove_volatile.h
   __type_traits/result_of.h
+  __type_traits/strip_signature.h
   __type_traits/type_identity.h
   __type_traits/type_list.h
   __type_traits/underlying_type.h
@@ -737,6 +746,7 @@ set(files
   errno.h
   exception
   execution
+  expected
   experimental/__config
   experimental/__memory
   experimental/algorithm
@@ -778,6 +788,7 @@ set(files
   istream
   iterator
   latch
+  libcxx.imp
   limits
   limits.h
   list
@@ -837,7 +848,7 @@ set(files
   wctype.h
   )
 
-foreach(feature LIBCXX_ENABLE_FILESYSTEM LIBCXX_ENABLE_LOCALIZATION LIBCXX_ENABLE_THREADS LIBCXX_ENABLE_WIDE_CHARACTERS)
+foreach(feature LIBCXX_ENABLE_FILESYSTEM LIBCXX_ENABLE_LOCALIZATION LIBCXX_ENABLE_FSTREAM LIBCXX_ENABLE_THREADS LIBCXX_ENABLE_WIDE_CHARACTERS)
   if (NOT ${${feature}})
     set(requires_${feature} "requires LIBCXX_CONFIGURED_WITHOUT_SUPPORT_FOR_THIS_HEADER")
   endif()

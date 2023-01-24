@@ -52,6 +52,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 
+#include <optional>
 #include <string>
 
 using namespace clang;
@@ -296,13 +297,13 @@ class StdLibraryFunctionsChecker
   //   // Here, ptr is the buffer, and its minimum size is `size * nmemb`.
   class BufferSizeConstraint : public ValueConstraint {
     // The concrete value which is the minimum size for the buffer.
-    llvm::Optional<llvm::APSInt> ConcreteSize;
+    std::optional<llvm::APSInt> ConcreteSize;
     // The argument which holds the size of the buffer.
-    llvm::Optional<ArgNo> SizeArgN;
+    std::optional<ArgNo> SizeArgN;
     // The argument which is a multiplier to size. This is set in case of
     // `fread` like functions where the size is computed as a multiplication of
     // two arguments.
-    llvm::Optional<ArgNo> SizeMultiplierArgN;
+    std::optional<ArgNo> SizeMultiplierArgN;
     // The operator we use in apply. This is negated in negate().
     BinaryOperator::Opcode Op = BO_LE;
 
@@ -950,7 +951,7 @@ void StdLibraryFunctionsChecker::checkPreCall(const CallEvent &Call,
         Constraint->negate()->apply(NewState, Call, Summary, C);
     // The argument constraint is not satisfied.
     if (FailureSt && !SuccessSt) {
-      if (ExplodedNode *N = C.generateErrorNode(NewState))
+      if (ExplodedNode *N = C.generateErrorNode(NewState, NewNode))
         reportBug(Call, N, Constraint.get(), Summary, C);
       break;
     }
@@ -1095,13 +1096,13 @@ Optional<StdLibraryFunctionsChecker::Summary>
 StdLibraryFunctionsChecker::findFunctionSummary(const FunctionDecl *FD,
                                                 CheckerContext &C) const {
   if (!FD)
-    return None;
+    return std::nullopt;
 
   initFunctionSummaries(C);
 
   auto FSMI = FunctionSummaryMap.find(FD->getCanonicalDecl());
   if (FSMI == FunctionSummaryMap.end())
-    return None;
+    return std::nullopt;
   return FSMI->second;
 }
 
@@ -1110,7 +1111,7 @@ StdLibraryFunctionsChecker::findFunctionSummary(const CallEvent &Call,
                                                 CheckerContext &C) const {
   const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(Call.getDecl());
   if (!FD)
-    return None;
+    return std::nullopt;
   return findFunctionSummary(FD, C);
 }
 
@@ -1135,7 +1136,7 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
       IdentifierInfo &II = ACtx.Idents.get(Name);
       auto LookupRes = ACtx.getTranslationUnitDecl()->lookup(&II);
       if (LookupRes.empty())
-        return None;
+        return std::nullopt;
 
       // Prioritze typedef declarations.
       // This is needed in case of C struct typedefs. E.g.:
@@ -1153,7 +1154,7 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
       for (Decl *D : LookupRes)
         if (auto *TD = dyn_cast<TypeDecl>(D))
           return ACtx.getTypeDeclType(TD).getCanonicalType();
-      return None;
+      return std::nullopt;
     }
   } lookupTy(ACtx);
 
@@ -1170,7 +1171,7 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
     Optional<QualType> operator()(Optional<QualType> Ty) {
       if (Ty)
         return operator()(*Ty);
-      return None;
+      return std::nullopt;
     }
   } getRestrictTy(ACtx);
   class GetPointerTy {
@@ -1182,13 +1183,13 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
     Optional<QualType> operator()(Optional<QualType> Ty) {
       if (Ty)
         return operator()(*Ty);
-      return None;
+      return std::nullopt;
     }
   } getPointerTy(ACtx);
   class {
   public:
     Optional<QualType> operator()(Optional<QualType> Ty) {
-      return Ty ? Optional<QualType>(Ty->withConst()) : None;
+      return Ty ? Optional<QualType>(Ty->withConst()) : std::nullopt;
     }
     QualType operator()(QualType Ty) { return Ty.withConst(); }
   } getConstTy;
@@ -1204,7 +1205,7 @@ void StdLibraryFunctionsChecker::initFunctionSummaries(
       if (Ty) {
         return operator()(*Ty);
       }
-      return None;
+      return std::nullopt;
     }
   } getMaxValue(BVF);
 

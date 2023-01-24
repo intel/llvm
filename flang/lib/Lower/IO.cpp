@@ -17,6 +17,7 @@
 #include "flang/Lower/Bridge.h"
 #include "flang/Lower/ConvertExpr.h"
 #include "flang/Lower/ConvertVariable.h"
+#include "flang/Lower/Mangler.h"
 #include "flang/Lower/PFTBuilder.h"
 #include "flang/Lower/Runtime.h"
 #include "flang/Lower/StatementContext.h"
@@ -269,7 +270,7 @@ getNamelistGroup(Fortran::lower::AbstractConverter &converter,
                                              symbol.name().ToString() + '\0');
   };
 
-  // Define object names, and static descriptors for global objects.
+  // Define variable names, and static descriptors for global variables.
   bool groupIsLocal = false;
   stringAddress(symbol);
   for (const Fortran::semantics::Symbol &s : details.objects()) {
@@ -278,18 +279,20 @@ getNamelistGroup(Fortran::lower::AbstractConverter &converter,
       groupIsLocal = true;
       continue;
     }
-    // We know we have a global item.  It it's not a pointer or allocatable,
-    // create a static pointer to it.
+    // A global pointer or allocatable variable has a descriptor for typical
+    // accesses. Variables in multiple namelist groups may already have one.
+    // Create descriptors for other cases.
     if (!IsAllocatableOrPointer(s)) {
-      std::string mangleName = converter.mangleName(s) + ".desc";
+      std::string mangleName =
+          Fortran::lower::mangle::globalNamelistDescriptorName(s);
       if (builder.getNamedGlobal(mangleName))
         continue;
       const auto expr = Fortran::evaluate::AsGenericExpr(s);
       fir::BoxType boxTy =
           fir::BoxType::get(fir::PointerType::get(converter.genType(s)));
       auto descFunc = [&](fir::FirOpBuilder &b) {
-        auto box =
-            Fortran::lower::genInitialDataTarget(converter, loc, boxTy, *expr);
+        auto box = Fortran::lower::genInitialDataTarget(
+            converter, loc, boxTy, *expr, /*couldBeInEquivalence=*/true);
         b.create<fir::HasValueOp>(loc, box);
       };
       builder.createGlobalConstant(loc, boxTy, mangleName, descFunc, linkOnce);
@@ -316,10 +319,8 @@ getNamelistGroup(Fortran::lower::AbstractConverter &converter,
                                                 builder.getArrayAttr(idx));
       idx[1] = one;
       mlir::Value descAddr;
-      // Items that we created end in ".desc".
-      std::string suffix = IsAllocatableOrPointer(s) ? "" : ".desc";
-      if (auto desc =
-              builder.getNamedGlobal(converter.mangleName(s) + suffix)) {
+      if (auto desc = builder.getNamedGlobal(
+              Fortran::lower::mangle::globalNamelistDescriptorName(s))) {
         descAddr = builder.create<fir::AddrOfOp>(loc, desc.resultType(),
                                                  desc.getSymbol());
       } else if (Fortran::semantics::FindCommonBlockContaining(s) &&
@@ -352,7 +353,7 @@ getNamelistGroup(Fortran::lower::AbstractConverter &converter,
         descAddr = builder.createTemporary(loc, boxType);
         fir::MutableBoxValue box = fir::MutableBoxValue(descAddr, {}, {});
         fir::factory::associateMutableBox(builder, loc, box, exv,
-                                          /*lbounds=*/llvm::None);
+                                          /*lbounds=*/std::nullopt);
       }
       descAddr = builder.createConvert(loc, descRefTy, descAddr);
       list = builder.create<fir::InsertValueOp>(loc, listTy, list, descAddr,
@@ -599,9 +600,9 @@ static mlir::Value createIoRuntimeCallForItem(mlir::Location loc,
                                               const fir::ExtendedValue &item) {
   mlir::Type argType = inputFunc.getFunctionType().getInput(1);
   llvm::SmallVector<mlir::Value> inputFuncArgs = {cookie};
-  if (argType.isa<fir::BoxType>()) {
+  if (argType.isa<fir::BaseBoxType>()) {
     mlir::Value box = fir::getBase(item);
-    assert(box.getType().isa<fir::BoxType>() && "must be previously emboxed");
+    assert(box.getType().isa<fir::BaseBoxType>() && "must be previously emboxed");
     inputFuncArgs.push_back(builder.createConvert(loc, argType, box));
   } else {
     mlir::Value itemAddr = fir::getBase(item);
@@ -1348,7 +1349,7 @@ static llvm::Optional<fir::ExtendedValue> getVariableBufferRequiredDescriptor(
     return varBox;
   if (fir::factory::CharacterExprHelper::isArray(varAddr.getType()))
     return varBox;
-  return llvm::None;
+  return std::nullopt;
 }
 
 template <typename A>
@@ -1362,14 +1363,14 @@ maybeGetInternalIODescriptor(Fortran::lower::AbstractConverter &converter,
   if (auto *unit = getIOControl<Fortran::parser::IoUnit>(stmt))
     if (auto *var = std::get_if<Fortran::parser::Variable>(&unit->u))
       return getVariableBufferRequiredDescriptor(converter, loc, *var, stmtCtx);
-  return llvm::None;
+  return std::nullopt;
 }
 template <>
 inline llvm::Optional<fir::ExtendedValue>
 maybeGetInternalIODescriptor<Fortran::parser::PrintStmt>(
     Fortran::lower::AbstractConverter &, mlir::Location loc,
     const Fortran::parser::PrintStmt &, Fortran::lower::StatementContext &) {
-  return llvm::None;
+  return std::nullopt;
 }
 
 template <typename A>
@@ -1955,7 +1956,7 @@ genDataTransferStmt(Fortran::lower::AbstractConverter &converter,
   const bool isInternal = isDataTransferInternal(stmt);
   llvm::Optional<fir::ExtendedValue> descRef =
       isInternal ? maybeGetInternalIODescriptor(converter, loc, stmt, stmtCtx)
-                 : llvm::None;
+                 : std::nullopt;
   const bool isInternalWithDesc = descRef.has_value();
   const bool isAsync = isDataTransferAsynchronous(loc, stmt);
   const bool isNml = isDataTransferNamelist(stmt);
@@ -2091,10 +2092,10 @@ mlir::Value genInquireSpec<Fortran::parser::InquireSpec::CharVar>(
       builder.createConvert(loc, specFuncTy.getInput(0), cookie),
       builder.createIntegerConstant(
           loc, specFuncTy.getInput(1),
-          Fortran::runtime::io::HashInquiryKeyword(
+          Fortran::runtime::io::HashInquiryKeyword(std::string{
               Fortran::parser::InquireSpec::CharVar::EnumToString(
-                  std::get<Fortran::parser::InquireSpec::CharVar::Kind>(var.t))
-                  .c_str())),
+                  std::get<Fortran::parser::InquireSpec::CharVar::Kind>(var.t))}
+                                                       .c_str())),
       builder.createConvert(loc, specFuncTy.getInput(2), fir::getBase(str)),
       builder.createConvert(loc, specFuncTy.getInput(3), fir::getLen(str))};
   return builder.create<fir::CallOp>(loc, specFunc, args).getResult(0);
@@ -2128,10 +2129,10 @@ mlir::Value genInquireSpec<Fortran::parser::InquireSpec::IntVar>(
       builder.createConvert(loc, specFuncTy.getInput(0), cookie),
       builder.createIntegerConstant(
           loc, specFuncTy.getInput(1),
-          Fortran::runtime::io::HashInquiryKeyword(
+          Fortran::runtime::io::HashInquiryKeyword(std::string{
               Fortran::parser::InquireSpec::IntVar::EnumToString(
-                  std::get<Fortran::parser::InquireSpec::IntVar::Kind>(var.t))
-                  .c_str())),
+                  std::get<Fortran::parser::InquireSpec::IntVar::Kind>(var.t))}
+                                                       .c_str())),
       builder.createConvert(loc, specFuncTy.getInput(2), addr),
       builder.createConvert(loc, specFuncTy.getInput(3), kind)};
   return builder.create<fir::CallOp>(loc, specFunc, args).getResult(0);
@@ -2165,9 +2166,9 @@ mlir::Value genInquireSpec<Fortran::parser::InquireSpec::LogVar>(
   else
     args.push_back(builder.createIntegerConstant(
         loc, specFuncTy.getInput(1),
-        Fortran::runtime::io::HashInquiryKeyword(
-            Fortran::parser::InquireSpec::LogVar::EnumToString(logVarKind)
-                .c_str())));
+        Fortran::runtime::io::HashInquiryKeyword(std::string{
+            Fortran::parser::InquireSpec::LogVar::EnumToString(logVarKind)}
+                                                     .c_str())));
   args.push_back(builder.createConvert(loc, specFuncTy.getInput(2), addr));
   auto call = builder.create<fir::CallOp>(loc, specFunc, args);
   boolRefToLogical(loc, builder, addr);

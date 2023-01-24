@@ -17,7 +17,6 @@
 #include "Utils/ARMBaseInfo.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -429,15 +428,15 @@ class ARMAsmParser : public MCTargetAsmParser {
       VPTState.CurPosition = ~0U;
   }
 
-  void Note(SMLoc L, const Twine &Msg, SMRange Range = None) {
+  void Note(SMLoc L, const Twine &Msg, SMRange Range = std::nullopt) {
     return getParser().Note(L, Msg, Range);
   }
 
-  bool Warning(SMLoc L, const Twine &Msg, SMRange Range = None) {
+  bool Warning(SMLoc L, const Twine &Msg, SMRange Range = std::nullopt) {
     return getParser().Warning(L, Msg, Range);
   }
 
-  bool Error(SMLoc L, const Twine &Msg, SMRange Range = None) {
+  bool Error(SMLoc L, const Twine &Msg, SMRange Range = std::nullopt) {
     return getParser().Error(L, Msg, Range);
   }
 
@@ -701,8 +700,9 @@ public:
   }
 
   // Implementation of the MCTargetAsmParser interface:
-  bool ParseRegister(unsigned &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) override;
-  OperandMatchResultTy tryParseRegister(unsigned &RegNo, SMLoc &StartLoc,
+  bool parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
+                     SMLoc &EndLoc) override;
+  OperandMatchResultTy tryParseRegister(MCRegister &RegNo, SMLoc &StartLoc,
                                         SMLoc &EndLoc) override;
   bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
                         SMLoc NameLoc, OperandVector &Operands) override;
@@ -4061,8 +4061,8 @@ static unsigned MatchRegisterName(StringRef Name);
 
 /// }
 
-bool ARMAsmParser::ParseRegister(unsigned &RegNo,
-                                 SMLoc &StartLoc, SMLoc &EndLoc) {
+bool ARMAsmParser::parseRegister(MCRegister &RegNo, SMLoc &StartLoc,
+                                 SMLoc &EndLoc) {
   const AsmToken &Tok = getParser().getTok();
   StartLoc = Tok.getLoc();
   EndLoc = Tok.getEndLoc();
@@ -4071,10 +4071,10 @@ bool ARMAsmParser::ParseRegister(unsigned &RegNo,
   return (RegNo == (unsigned)-1);
 }
 
-OperandMatchResultTy ARMAsmParser::tryParseRegister(unsigned &RegNo,
+OperandMatchResultTy ARMAsmParser::tryParseRegister(MCRegister &RegNo,
                                                     SMLoc &StartLoc,
                                                     SMLoc &EndLoc) {
-  if (ParseRegister(RegNo, StartLoc, EndLoc))
+  if (parseRegister(RegNo, StartLoc, EndLoc))
     return MatchOperand_NoMatch;
   return MatchOperand_Success;
 }
@@ -11318,9 +11318,9 @@ bool ARMAsmParser::parseDirectiveCode(SMLoc L) {
 bool ARMAsmParser::parseDirectiveReq(StringRef Name, SMLoc L) {
   MCAsmParser &Parser = getParser();
   Parser.Lex(); // Eat the '.req' token.
-  unsigned Reg;
+  MCRegister Reg;
   SMLoc SRegLoc, ERegLoc;
-  if (check(ParseRegister(Reg, SRegLoc, ERegLoc), SRegLoc,
+  if (check(parseRegister(Reg, SRegLoc, ERegLoc), SRegLoc,
             "register name expected") ||
       parseEOL())
     return true;
@@ -11399,7 +11399,7 @@ bool ARMAsmParser::parseDirectiveEabiAttr(SMLoc L) {
   TagLoc = Parser.getTok().getLoc();
   if (Parser.getTok().is(AsmToken::Identifier)) {
     StringRef Name = Parser.getTok().getIdentifier();
-    Optional<unsigned> Ret = ELFAttrs::attrTypeFromString(
+    std::optional<unsigned> Ret = ELFAttrs::attrTypeFromString(
         Name, ARMBuildAttrs::getARMAttributeTags());
     if (!Ret) {
       Error(TagLoc, "attribute name not recognised: " + Name);
@@ -11856,9 +11856,9 @@ bool ARMAsmParser::parseDirectiveEven(SMLoc L) {
 
   assert(Section && "must have section to emit alignment");
   if (Section->useCodeAlign())
-    getStreamer().emitCodeAlignment(2, &getSTI());
+    getStreamer().emitCodeAlignment(Align(2), &getSTI());
   else
-    getStreamer().emitValueToAlignment(2);
+    getStreamer().emitValueToAlignment(Align(2));
 
   return false;
 }
@@ -12054,9 +12054,9 @@ bool ARMAsmParser::parseDirectiveAlign(SMLoc L) {
     const MCSection *Section = getStreamer().getCurrentSectionOnly();
     assert(Section && "must have section to emit alignment");
     if (Section->useCodeAlign())
-      getStreamer().emitCodeAlignment(4, &getSTI(), 0);
+      getStreamer().emitCodeAlignment(Align(4), &getSTI(), 0);
     else
-      getStreamer().emitValueToAlignment(4, 0, 1, 0);
+      getStreamer().emitValueToAlignment(Align(4), 0, 1, 0);
     return false;
   }
   return true;

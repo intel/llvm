@@ -575,6 +575,21 @@ func.func @wrong_terminator_op(%in: tensor<100xf32>, %out: tensor<100xf32>) {
 
 // -----
 
+func.func @mismatched_mapping(%x: memref<2 x 32 x f32>, %y: memref<2 x 32 x f32>, %t: memref<32 x f32>, %alpha : f32, %stream : !gpu.async.token) -> memref<2 x 32 x f32> {
+  %one = arith.constant 1 : index
+  %c65535 = arith.constant 65535 : index
+  // expected-error @below {{'scf.foreach_thread' op mapping attribute size must match op rank}}
+  scf.foreach_thread (%i, %j) in (%c65535, %c65535) {
+      %4 = memref.load %x[%i, %j] : memref<2 x 32 x f32>
+      %5 = memref.load %y[%i, %j] : memref<2 x 32 x f32>
+      %6 = math.fma %alpha, %4, %5 : f32
+      memref.store %6, %y[%i, %j] : memref<2 x 32 x f32>
+  }  { mapping = [#gpu.block<x>, #gpu.block<y>, #gpu.block<z>] }
+  return %y : memref<2 x 32 x f32>
+}
+
+// -----
+
 func.func @switch_wrong_case_count(%arg0: index) {
   // expected-error @below {{'scf.index_switch' op has 0 case regions but 1 case values}}
   "scf.index_switch"(%arg0) ({
@@ -625,4 +640,15 @@ func.func @switch_wrong_types(%arg0: index, %arg1: i32) {
     scf.yield %arg0 : index
   }
   return
+}
+
+// -----
+
+func.func @switch_missing_terminator(%arg0: index, %arg1: i32) {
+  // expected-error @below {{'scf.index_switch' op expected region to end with scf.yield, but got func.return}}
+  "scf.index_switch"(%arg0) ({
+    "scf.yield"() : () -> ()
+  }, {
+    return
+  }) {cases = array<i64: 1>} : (index) -> ()
 }

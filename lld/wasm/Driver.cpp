@@ -101,12 +101,15 @@ bool link(ArrayRef<const char *> args, llvm::raw_ostream &stdoutOS,
 }
 
 // Create prefix string literals used in Options.td
-#define PREFIX(NAME, VALUE) const char *const NAME[] = VALUE;
+#define PREFIX(NAME, VALUE)                                                    \
+  static constexpr StringLiteral NAME##_init[] = VALUE;                        \
+  static constexpr ArrayRef<StringLiteral> NAME(NAME##_init,                   \
+                                                std::size(NAME##_init) - 1);
 #include "Options.inc"
 #undef PREFIX
 
 // Create table mapping all options defined in Options.td
-static const opt::OptTable::Info optInfo[] = {
+static constexpr opt::OptTable::Info optInfo[] = {
 #define OPTION(X1, X2, ID, KIND, GROUP, ALIAS, X7, X8, X9, X10, X11, X12)      \
   {X1, X2, X10,         X11,         OPT_##ID, opt::Option::KIND##Class,       \
    X9, X8, OPT_##GROUP, OPT_##ALIAS, X7,       X12},
@@ -164,7 +167,7 @@ static Optional<std::string> findFile(StringRef path1, const Twine &path2) {
   path::append(s, path1, path2);
   if (fs::exists(s))
     return std::string(s);
-  return None;
+  return std::nullopt;
 }
 
 opt::InputArgList WasmOptTable::parse(ArrayRef<const char *> argv) {
@@ -283,7 +286,7 @@ static Optional<std::string> findFromSearchPaths(StringRef path) {
   for (StringRef dir : config->searchPaths)
     if (Optional<std::string> s = findFile(dir, path))
       return s;
-  return None;
+  return std::nullopt;
 }
 
 // This is for -l<basename>. We'll look for lib<basename>.a from
@@ -298,7 +301,7 @@ static Optional<std::string> searchLibraryBaseName(StringRef name) {
     if (Optional<std::string> s = findFile(dir, "lib" + name + ".a"))
       return s;
   }
-  return None;
+  return std::nullopt;
 }
 
 // This is for -l<namespec>.
@@ -618,6 +621,12 @@ static void checkOptions(opt::InputArgList &args) {
   }
 }
 
+static const char *getReproduceOption(opt::InputArgList &args) {
+  if (auto *arg = args.getLastArg(OPT_reproduce))
+    return arg->getValue();
+  return getenv("LLD_REPRODUCE");
+}
+
 // Force Sym to be entered in the output. Used for -u or equivalent.
 static Symbol *handleUndefined(StringRef name) {
   Symbol *sym = symtab->find(name);
@@ -653,9 +662,9 @@ static void demoteLazySymbols() {
       if (s->signature) {
         LLVM_DEBUG(llvm::dbgs()
                    << "demoting lazy func: " << s->getName() << "\n");
-        replaceSymbol<UndefinedFunction>(s, s->getName(), None, None,
-                                         WASM_SYMBOL_BINDING_WEAK, s->getFile(),
-                                         s->signature);
+        replaceSymbol<UndefinedFunction>(s, s->getName(), std::nullopt,
+                                         std::nullopt, WASM_SYMBOL_BINDING_WEAK,
+                                         s->getFile(), s->signature);
       }
     }
   }
@@ -664,7 +673,7 @@ static void demoteLazySymbols() {
 static UndefinedGlobal *
 createUndefinedGlobal(StringRef name, llvm::wasm::WasmGlobalType *type) {
   auto *sym = cast<UndefinedGlobal>(symtab->addUndefinedGlobal(
-      name, None, None, WASM_SYMBOL_UNDEFINED, nullptr, type));
+      name, std::nullopt, std::nullopt, WASM_SYMBOL_UNDEFINED, nullptr, type));
   config->allowUndefinedSymbols.insert(sym->getName());
   sym->isUsedInRegularObj = true;
   return sym;
@@ -838,8 +847,9 @@ struct WrappedSymbol {
 };
 
 static Symbol *addUndefined(StringRef name) {
-  return symtab->addUndefinedFunction(name, None, None, WASM_SYMBOL_UNDEFINED,
-                                      nullptr, nullptr, false);
+  return symtab->addUndefinedFunction(name, std::nullopt, std::nullopt,
+                                      WASM_SYMBOL_UNDEFINED, nullptr, nullptr,
+                                      false);
 }
 
 // Handles -wrap option.
@@ -955,8 +965,7 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   }
 
   // Handle --reproduce
-  if (auto *arg = args.getLastArg(OPT_reproduce)) {
-    StringRef path = arg->getValue();
+  if (const char *path = getReproduceOption(args)) {
     Expected<std::unique_ptr<TarWriter>> errOrWriter =
         TarWriter::create(path, path::stem(path));
     if (errOrWriter) {

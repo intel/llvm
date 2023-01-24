@@ -219,7 +219,7 @@ Streams:
                     llvm::Succeeded());
   llvm::Optional<lldb::pid_t> pid = parser->GetPid();
   ASSERT_TRUE(pid.has_value());
-  ASSERT_EQ(16001UL, pid.value());
+  ASSERT_EQ(16001UL, *pid);
 }
 
 TEST_F(MinidumpParserTest, GetFilteredModuleList) {
@@ -278,17 +278,17 @@ Streams:
 ...
 )"),
                     llvm::Succeeded());
-  EXPECT_EQ(llvm::None, parser->FindMemoryRange(0x00));
-  EXPECT_EQ(llvm::None, parser->FindMemoryRange(0x2a));
+  EXPECT_EQ(std::nullopt, parser->FindMemoryRange(0x00));
+  EXPECT_EQ(std::nullopt, parser->FindMemoryRange(0x2a));
   EXPECT_EQ((minidump::Range{0x401d46, llvm::ArrayRef<uint8_t>{0x54, 0x21}}),
             parser->FindMemoryRange(0x401d46));
-  EXPECT_EQ(llvm::None, parser->FindMemoryRange(0x401d46 + 2));
+  EXPECT_EQ(std::nullopt, parser->FindMemoryRange(0x401d46 + 2));
 
   EXPECT_EQ(
       (minidump::Range{0x7ffceb34a000,
                        llvm::ArrayRef<uint8_t>{0xc8, 0x4d, 0x04, 0xbc, 0xe9}}),
       parser->FindMemoryRange(0x7ffceb34a000 + 2));
-  EXPECT_EQ(llvm::None, parser->FindMemoryRange(0x7ffceb34a000 + 5));
+  EXPECT_EQ(std::nullopt, parser->FindMemoryRange(0x7ffceb34a000 + 5));
 }
 
 TEST_F(MinidumpParserTest, GetMemory) {
@@ -536,7 +536,7 @@ Streams:
 ...
 )"),
                     llvm::Succeeded());
-  EXPECT_EQ(llvm::None, parser->GetLinuxProcStatus());
+  EXPECT_EQ(std::nullopt, parser->GetLinuxProcStatus());
 }
 
 TEST_F(MinidumpParserTest, GetMiscInfoWindows) {
@@ -545,14 +545,14 @@ TEST_F(MinidumpParserTest, GetMiscInfoWindows) {
   ASSERT_NE(nullptr, misc_info);
   llvm::Optional<lldb::pid_t> pid = misc_info->GetPid();
   ASSERT_TRUE(pid.has_value());
-  ASSERT_EQ(4440UL, pid.value());
+  ASSERT_EQ(4440UL, *pid);
 }
 
 TEST_F(MinidumpParserTest, GetPidWindows) {
   SetUpData("fizzbuzz_no_heap.dmp");
   llvm::Optional<lldb::pid_t> pid = parser->GetPid();
   ASSERT_TRUE(pid.has_value());
-  ASSERT_EQ(4440UL, pid.value());
+  ASSERT_EQ(4440UL, *pid);
 }
 
 // wow64
@@ -560,7 +560,7 @@ TEST_F(MinidumpParserTest, GetPidWow64) {
   SetUpData("fizzbuzz_wow64.dmp");
   llvm::Optional<lldb::pid_t> pid = parser->GetPid();
   ASSERT_TRUE(pid.has_value());
-  ASSERT_EQ(7836UL, pid.value());
+  ASSERT_EQ(7836UL, *pid);
 }
 
 // Register tests

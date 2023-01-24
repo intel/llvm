@@ -48,7 +48,6 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/MapVector.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
@@ -68,6 +67,7 @@
 #include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -108,6 +108,7 @@
 #include <cassert>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -471,6 +472,7 @@ private:
   void visitCallStackMetadata(MDNode *MD);
   void visitMemProfMetadata(Instruction &I, MDNode *MD);
   void visitCallsiteMetadata(Instruction &I, MDNode *MD);
+  void visitDIAssignIDMetadata(Instruction &I, MDNode *MD);
   void visitAnnotationMetadata(MDNode *Annotation);
   void visitAliasScopeMetadata(const MDNode *MD);
   void visitAliasScopeListMetadata(const MDNode *MD);
@@ -740,7 +742,7 @@ void Verifier::visitGlobalVariable(const GlobalVariable &GV) {
             "wrong type for intrinsic global variable", &GV);
       Check(STy->getNumElements() == 3,
             "the third field of the element type is mandatory, "
-            "specify i8* null to migrate from the obsoleted 2-field form");
+            "specify ptr null to migrate from the obsoleted 2-field form");
       Type *ETy = STy->getTypeAtIndex(2);
       Type *Int8Ty = Type::getInt8Ty(ETy->getContext());
       Check(ETy->isPointerTy() &&
@@ -796,6 +798,13 @@ void Verifier::visitGlobalVariable(const GlobalVariable &GV) {
     Check(!STy->containsScalableVectorType(),
           "Globals cannot contain scalable vectors", &GV);
 
+  // Check if it's a target extension type that disallows being used as a
+  // global.
+  if (auto *TTy = dyn_cast<TargetExtType>(GV.getValueType()))
+    Check(TTy->hasProperty(TargetExtType::CanBeGlobal),
+          "Global @" + GV.getName() + " has illegal target extension type",
+          TTy);
+
   if (!GV.hasInitializer()) {
     visitGlobalValue(GV);
     return;
@@ -815,9 +824,18 @@ void Verifier::visitAliaseeSubExpr(const GlobalAlias &GA, const Constant &C) {
 
 void Verifier::visitAliaseeSubExpr(SmallPtrSetImpl<const GlobalAlias*> &Visited,
                                    const GlobalAlias &GA, const Constant &C) {
-  if (const auto *GV = dyn_cast<GlobalValue>(&C)) {
-    Check(!GV->isDeclarationForLinker(), "Alias must point to a definition",
+  if (GA.hasAvailableExternallyLinkage()) {
+    Check(isa<GlobalValue>(C) &&
+              cast<GlobalValue>(C).hasAvailableExternallyLinkage(),
+          "available_externally alias must point to available_externally "
+          "global value",
           &GA);
+  }
+  if (const auto *GV = dyn_cast<GlobalValue>(&C)) {
+    if (!GA.hasAvailableExternallyLinkage()) {
+      Check(!GV->isDeclarationForLinker(), "Alias must point to a definition",
+            &GA);
+    }
 
     if (const auto *GA2 = dyn_cast<GlobalAlias>(GV)) {
       Check(Visited.insert(GA2).second, "Aliases cannot form a cycle", &GA);
@@ -846,7 +864,7 @@ void Verifier::visitAliaseeSubExpr(SmallPtrSetImpl<const GlobalAlias*> &Visited,
 void Verifier::visitGlobalAlias(const GlobalAlias &GA) {
   Check(GlobalAlias::isValidLinkage(GA.getLinkage()),
         "Alias should have private, internal, linkonce, weak, linkonce_odr, "
-        "weak_odr, or external linkage!",
+        "weak_odr, external, or available_externally linkage!",
         &GA);
   const Constant *Aliasee = GA.getAliasee();
   Check(Aliasee, "Aliasee cannot be NULL!", &GA);
@@ -876,9 +894,13 @@ void Verifier::visitGlobalIFunc(const GlobalIFunc &GI) {
   // Check that the immediate resolver operand (prior to any bitcasts) has the
   // correct type.
   const Type *ResolverTy = GI.getResolver()->getType();
+
+  Check(isa<PointerType>(Resolver->getFunctionType()->getReturnType()),
+        "IFunc resolver must return a pointer", &GI);
+
   const Type *ResolverFuncTy =
       GlobalIFunc::getResolverFunctionType(GI.getValueType());
-  Check(ResolverTy == ResolverFuncTy->getPointerTo(),
+  Check(ResolverTy == ResolverFuncTy->getPointerTo(GI.getAddressSpace()),
         "IFunc resolver has incorrect type", &GI);
 }
 
@@ -1225,7 +1247,7 @@ void Verifier::visitDISubroutineType(const DISubroutineType &N) {
 
 void Verifier::visitDIFile(const DIFile &N) {
   CheckDI(N.getTag() == dwarf::DW_TAG_file_type, "invalid tag", &N);
-  Optional<DIFile::ChecksumInfo<StringRef>> Checksum = N.getChecksum();
+  std::optional<DIFile::ChecksumInfo<StringRef>> Checksum = N.getChecksum();
   if (Checksum) {
     CheckDI(Checksum->Kind <= DIFile::ChecksumKind::CSK_Last,
             "invalid checksum kind", &N);
@@ -1481,6 +1503,11 @@ void Verifier::visitDILocalVariable(const DILocalVariable &N) {
           "local variable requires a valid scope", &N, N.getRawScope());
   if (auto Ty = N.getType())
     CheckDI(!isa<DISubroutineType>(Ty), "invalid type", &N, N.getType());
+}
+
+void Verifier::visitDIAssignID(const DIAssignID &N) {
+  CheckDI(!N.getNumOperands(), "DIAssignID has no arguments", &N);
+  CheckDI(N.isDistinct(), "DIAssignID must be distinct", &N);
 }
 
 void Verifier::visitDILabel(const DILabel &N) {
@@ -2021,28 +2048,6 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
               "' does not apply to functions!",
           V);
 
-  Check(!(Attrs.hasFnAttr(Attribute::ReadNone) &&
-          Attrs.hasFnAttr(Attribute::ReadOnly)),
-        "Attributes 'readnone and readonly' are incompatible!", V);
-
-  Check(!(Attrs.hasFnAttr(Attribute::ReadNone) &&
-          Attrs.hasFnAttr(Attribute::WriteOnly)),
-        "Attributes 'readnone and writeonly' are incompatible!", V);
-
-  Check(!(Attrs.hasFnAttr(Attribute::ReadOnly) &&
-          Attrs.hasFnAttr(Attribute::WriteOnly)),
-        "Attributes 'readonly and writeonly' are incompatible!", V);
-
-  Check(!(Attrs.hasFnAttr(Attribute::ReadNone) &&
-          Attrs.hasFnAttr(Attribute::InaccessibleMemOrArgMemOnly)),
-        "Attributes 'readnone and inaccessiblemem_or_argmemonly' are "
-        "incompatible!",
-        V);
-
-  Check(!(Attrs.hasFnAttr(Attribute::ReadNone) &&
-          Attrs.hasFnAttr(Attribute::InaccessibleMemOnly)),
-        "Attributes 'readnone and inaccessiblememonly' are incompatible!", V);
-
   Check(!(Attrs.hasFnAttr(Attribute::NoInline) &&
           Attrs.hasFnAttr(Attribute::AlwaysInline)),
         "Attributes 'noinline and alwaysinline' are incompatible!", V);
@@ -2131,7 +2136,7 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
     if (VScaleMin == 0)
       CheckFailed("'vscale_range' minimum must be greater than 0", V);
 
-    Optional<unsigned> VScaleMax = Attrs.getFnAttrs().getVScaleRangeMax();
+    std::optional<unsigned> VScaleMax = Attrs.getFnAttrs().getVScaleRangeMax();
     if (VScaleMax && VScaleMin > VScaleMax)
       CheckFailed("'vscale_range' minimum cannot be greater than maximum", V);
   }
@@ -2879,6 +2884,8 @@ void Verifier::visitSwitchInst(SwitchInst &SI) {
   Type *SwitchTy = SI.getCondition()->getType();
   SmallPtrSet<ConstantInt*, 32> Constants;
   for (auto &Case : SI.cases()) {
+    Check(isa<ConstantInt>(SI.getOperand(Case.getCaseIndex() * 2 + 2)),
+          "Case value is not a constant integer.", &SI);
     Check(Case.getCaseValue()->getType() == SwitchTy,
           "Switch constants must all be same type as switch value!", &SI);
     Check(Constants.insert(Case.getCaseValue()).second,
@@ -4549,6 +4556,27 @@ void Verifier::visitProfMetadata(Instruction &I, MDNode *MD) {
   }
 }
 
+void Verifier::visitDIAssignIDMetadata(Instruction &I, MDNode *MD) {
+  assert(I.hasMetadata(LLVMContext::MD_DIAssignID));
+  bool ExpectedInstTy =
+      isa<AllocaInst>(I) || isa<StoreInst>(I) || isa<MemIntrinsic>(I);
+  CheckDI(ExpectedInstTy, "!DIAssignID attached to unexpected instruction kind",
+          I, MD);
+  // Iterate over the MetadataAsValue uses of the DIAssignID - these should
+  // only be found as DbgAssignIntrinsic operands.
+  if (auto *AsValue = MetadataAsValue::getIfExists(Context, MD)) {
+    for (auto *User : AsValue->users()) {
+      CheckDI(isa<DbgAssignIntrinsic>(User),
+              "!DIAssignID should only be used by llvm.dbg.assign intrinsics",
+              MD, User);
+      // All of the dbg.assign intrinsics should be in the same function as I.
+      if (auto *DAI = dyn_cast<DbgAssignIntrinsic>(User))
+        CheckDI(DAI->getFunction() == I.getFunction(),
+                "dbg.assign not in same function as inst", DAI, &I);
+    }
+  }
+}
+
 void Verifier::visitCallStackMetadata(MDNode *MD) {
   // Call stack metadata should consist of a list of at least 1 constant int
   // (representing a hash of the location).
@@ -4850,6 +4878,9 @@ void Verifier::visitInstruction(Instruction &I) {
   if (MDNode *MD = I.getMetadata(LLVMContext::MD_callsite))
     visitCallsiteMetadata(I, MD);
 
+  if (MDNode *MD = I.getMetadata(LLVMContext::MD_DIAssignID))
+    visitDIAssignIDMetadata(I, MD);
+
   if (MDNode *Annotation = I.getMetadata(LLVMContext::MD_annotation))
     visitAnnotationMetadata(Annotation);
 
@@ -4939,12 +4970,23 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
     break;
   case Intrinsic::assume: {
     for (auto &Elem : Call.bundle_op_infos()) {
+      unsigned ArgCount = Elem.End - Elem.Begin;
+      // Separate storage assumptions are special insofar as they're the only
+      // operand bundles allowed on assumes that aren't parameter attributes.
+      if (Elem.Tag->getKey() == "separate_storage") {
+        Check(ArgCount == 2,
+              "separate_storage assumptions should have 2 arguments", Call);
+        Check(Call.getOperand(Elem.Begin)->getType()->isPointerTy() &&
+                  Call.getOperand(Elem.Begin + 1)->getType()->isPointerTy(),
+              "arguments to separate_storage assumptions should be pointers",
+              Call);
+        return;
+      }
       Check(Elem.Tag->getKey() == "ignore" ||
                 Attribute::isExistingAttribute(Elem.Tag->getKey()),
             "tags must be valid attribute names", Call);
       Attribute::AttrKind Kind =
           Attribute::getAttrKindFromName(Elem.Tag->getKey());
-      unsigned ArgCount = Elem.End - Elem.Begin;
       if (Kind == Attribute::Alignment) {
         Check(ArgCount <= 3 && ArgCount >= 2,
               "alignment assumptions should have 2 or 3 arguments", Call);
@@ -4986,6 +5028,12 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
           "an array");
     break;
   }
+  case Intrinsic::is_fpclass: {
+    const ConstantInt *TestMask = cast<ConstantInt>(Call.getOperand(1));
+    Check((TestMask->getZExtValue() & ~fcAllFlags) == 0,
+          "unsupported bits for llvm.is.fpclass test mask");
+    break;
+  }
   case Intrinsic::fptrunc_round: {
     // Check the rounding mode
     Metadata *MD = nullptr;
@@ -5000,7 +5048,7 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
            " (the operand should be a string)"),
           MD);
 
-    Optional<RoundingMode> RoundMode =
+    std::optional<RoundingMode> RoundMode =
         convertStrToRoundingMode(cast<MDString>(MD)->getString());
     Check(RoundMode && *RoundMode != RoundingMode::Dynamic,
           "unsupported rounding mode argument", Call);
@@ -5025,6 +5073,9 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
     break;
   case Intrinsic::dbg_value: // llvm.dbg.value
     visitDbgIntrinsic("value", cast<DbgVariableIntrinsic>(Call));
+    break;
+  case Intrinsic::dbg_assign: // llvm.dbg.assign
+    visitDbgIntrinsic("assign", cast<DbgVariableIntrinsic>(Call));
     break;
   case Intrinsic::dbg_label: // llvm.dbg.label
     visitDbgLabelIntrinsic("label", cast<DbgLabelInst>(Call));
@@ -5721,6 +5772,17 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
           &Call);
     break;
   }
+  case Intrinsic::aarch64_prefetch: {
+    Check(cast<ConstantInt>(Call.getArgOperand(1))->getZExtValue() < 2,
+          "write argument to llvm.aarch64.prefetch must be 0 or 1", Call);
+    Check(cast<ConstantInt>(Call.getArgOperand(2))->getZExtValue() < 4,
+          "target argument to llvm.aarch64.prefetch must be 0-3", Call);
+    Check(cast<ConstantInt>(Call.getArgOperand(3))->getZExtValue() < 2,
+          "stream argument to llvm.aarch64.prefetch must be 0 or 1", Call);
+    Check(cast<ConstantInt>(Call.getArgOperand(4))->getZExtValue() < 2,
+          "isdata argument to llvm.aarch64.prefetch must be 0 or 1", Call);
+    break;
+  }
   };
 }
 
@@ -5988,6 +6050,22 @@ void Verifier::visitDbgIntrinsic(StringRef Kind, DbgVariableIntrinsic &DII) {
   CheckDI(isa<DIExpression>(DII.getRawExpression()),
           "invalid llvm.dbg." + Kind + " intrinsic expression", &DII,
           DII.getRawExpression());
+
+  if (auto *DAI = dyn_cast<DbgAssignIntrinsic>(&DII)) {
+    CheckDI(isa<DIAssignID>(DAI->getRawAssignID()),
+            "invalid llvm.dbg.assign intrinsic DIAssignID", &DII,
+            DAI->getRawAssignID());
+    CheckDI(isa<ValueAsMetadata>(DAI->getRawAddress()),
+            "invalid llvm.dbg.assign intrinsic address)", &DII,
+            DAI->getRawAddress());
+    CheckDI(isa<DIExpression>(DAI->getRawAddressExpression()),
+            "invalid llvm.dbg.assign intrinsic address expression", &DII,
+            DAI->getRawAddressExpression());
+    // All of the linked instructions should be in the same function as DII.
+    for (Instruction *I : at::getAssignmentInsts(DAI))
+      CheckDI(DAI->getFunction() == I->getFunction(),
+              "inst not in same function as dbg.assign", I, DAI);
+  }
 
   // Ignore broken !dbg attachments; they're checked elsewhere.
   if (MDNode *N = DII.getDebugLoc().getAsMDNode())
@@ -6431,7 +6509,7 @@ TBAAVerifier::verifyTBAABaseNodeImpl(Instruction &I, const MDNode *BaseNode,
 
   bool Failed = false;
 
-  Optional<APInt> PrevOffset;
+  std::optional<APInt> PrevOffset;
   unsigned BitWidth = ~0u;
 
   // We've already checked that BaseNode is not a degenerate root node with one

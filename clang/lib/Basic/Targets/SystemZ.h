@@ -23,7 +23,6 @@ namespace targets {
 
 class LLVM_LIBRARY_VISIBILITY SystemZTargetInfo : public TargetInfo {
 
-  static const Builtin::Info BuiltinInfo[];
   static const char *const GCCRegNames[];
   std::string CPU;
   int ISARevision;
@@ -71,7 +70,7 @@ public:
 
   ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override {
     // No aliases.
-    return None;
+    return std::nullopt;
   }
 
   ArrayRef<TargetInfo::AddlRegName> getGCCAddlRegNames() const override;

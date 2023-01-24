@@ -1,5 +1,5 @@
-; RUN: llvm-as %s -o %t.o
-; RUN: llvm-lto2 run -r %t.o,_start,px %t.o -o %t.s
+; RUN: llvm-as -opaque-pointers=1 %s -o %t.o
+; RUN: llvm-lto2 run -opaque-pointers -r %t.o,_start,px %t.o -o %t.s
 ; RUN: llvm-objdump -d %t.s.0 | FileCheck %s --check-prefix=CHECK-SMALL
 
 target triple = "x86_64-unknown-linux-gnu"
@@ -12,9 +12,9 @@ target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16
 
 @data = internal constant [0 x i32] []
 
-define i32* @_start() nounwind readonly {
+define ptr @_start() nounwind readonly {
 entry:
 ; CHECK-SMALL-LABEL:  <_start>:
 ; CHECK-SMALL: leaq    (%rip), %rax
-    ret i32* getelementptr ([0 x i32], [0 x i32]* @data, i64 0, i64 0)
+    ret ptr @data
 }

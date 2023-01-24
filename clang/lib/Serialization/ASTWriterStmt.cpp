@@ -493,12 +493,12 @@ void ASTStmtWriter::VisitRequiresExpr(RequiresExpr *E) {
     } else {
       auto *NestedReq = cast<concepts::NestedRequirement>(R);
       Record.push_back(concepts::Requirement::RK_Nested);
-      Record.push_back(NestedReq->isSubstitutionFailure());
-      if (NestedReq->isSubstitutionFailure()){
-        addSubstitutionDiagnostic(Record,
-                                  NestedReq->getSubstitutionDiagnostic());
+      Record.push_back(NestedReq->hasInvalidConstraint());
+      if (NestedReq->hasInvalidConstraint()) {
+        Record.AddString(NestedReq->getInvalidConstraintEntity());
+        addConstraintSatisfaction(Record, *NestedReq->Satisfaction);
       } else {
-        Record.AddStmt(NestedReq->Value.get<Expr *>());
+        Record.AddStmt(NestedReq->getConstraintExpr());
         if (!NestedReq->isDependent())
           addConstraintSatisfaction(Record, *NestedReq->Satisfaction);
       }
@@ -2118,6 +2118,23 @@ void ASTStmtWriter::VisitCXXFoldExpr(CXXFoldExpr *E) {
   Code = serialization::EXPR_CXX_FOLD;
 }
 
+void ASTStmtWriter::VisitCXXParenListInitExpr(CXXParenListInitExpr *E) {
+  VisitExpr(E);
+  ArrayRef<Expr *> InitExprs = E->getInitExprs();
+  Record.push_back(InitExprs.size());
+  Record.push_back(E->getUserSpecifiedInitExprs().size());
+  Record.AddSourceLocation(E->getInitLoc());
+  Record.AddSourceLocation(E->getBeginLoc());
+  Record.AddSourceLocation(E->getEndLoc());
+  for (Expr *InitExpr : E->getInitExprs())
+    Record.AddStmt(InitExpr);
+  bool HasArrayFiller = E->getArrayFiller();
+  Record.push_back(HasArrayFiller);
+  if (HasArrayFiller)
+    Record.AddStmt(E->getArrayFiller());
+  Code = serialization::EXPR_CXX_PAREN_LIST_INIT;
+}
+
 void ASTStmtWriter::VisitOpaqueValueExpr(OpaqueValueExpr *E) {
   VisitExpr(E);
   Record.AddStmt(E->getSourceExpr());
@@ -2431,6 +2448,13 @@ void ASTStmtWriter::VisitOMPTaskwaitDirective(OMPTaskwaitDirective *D) {
   Record.push_back(D->getNumClauses());
   VisitOMPExecutableDirective(D);
   Code = serialization::STMT_OMP_TASKWAIT_DIRECTIVE;
+}
+
+void ASTStmtWriter::VisitOMPErrorDirective(OMPErrorDirective *D) {
+  VisitStmt(D);
+  Record.push_back(D->getNumClauses());
+  VisitOMPExecutableDirective(D);
+  Code = serialization::STMT_OMP_ERROR_DIRECTIVE;
 }
 
 void ASTStmtWriter::VisitOMPTaskgroupDirective(OMPTaskgroupDirective *D) {

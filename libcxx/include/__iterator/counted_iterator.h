@@ -6,10 +6,16 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #ifndef _LIBCPP___ITERATOR_COUNTED_ITERATOR_H
 #define _LIBCPP___ITERATOR_COUNTED_ITERATOR_H
 
 #include <__assert>
+#include <__concepts/assignable.h>
+#include <__concepts/common_with.h>
+#include <__concepts/constructible.h>
+#include <__concepts/convertible_to.h>
+#include <__concepts/same_as.h>
 #include <__config>
 #include <__iterator/concepts.h>
 #include <__iterator/default_sentinel.h>
@@ -19,10 +25,10 @@
 #include <__iterator/iterator_traits.h>
 #include <__iterator/readable_traits.h>
 #include <__memory/pointer_traits.h>
+#include <__type_traits/add_pointer.h>
+#include <__type_traits/conditional.h>
 #include <__utility/move.h>
 #include <compare>
-#include <concepts>
-#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header

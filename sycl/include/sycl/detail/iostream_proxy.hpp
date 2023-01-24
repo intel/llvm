@@ -9,7 +9,7 @@ _LIBCPP_BEGIN_NAMESPACE_STD
 namespace std {
 #endif
 
-#if defined(_MT) && defined(_DLL)
+#if defined(MSVC) && defined(_MT) && defined(_DLL)
 #define __SYCL_EXTERN_STREAM_ATTRS __declspec(dllimport)
 #else
 #define __SYCL_EXTERN_STREAM_ATTRS

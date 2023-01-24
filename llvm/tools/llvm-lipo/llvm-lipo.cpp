@@ -31,6 +31,7 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/TextAPI/Architecture.h"
+#include <optional>
 
 using namespace llvm;
 using namespace llvm::object;
@@ -72,26 +73,29 @@ enum LipoID {
 #undef OPTION
 };
 
-// LipoInfoTable below references LIPO_##PREFIX. OptionGroup has prefix nullptr.
-const char *const *LIPO_nullptr = nullptr;
-#define PREFIX(NAME, VALUE) const char *const LIPO_##NAME[] = VALUE;
+namespace lipo {
+#define PREFIX(NAME, VALUE)                                                    \
+  static constexpr llvm::StringLiteral NAME##_init[] = VALUE;                  \
+  static constexpr llvm::ArrayRef<llvm::StringLiteral> NAME(                   \
+      NAME##_init, std::size(NAME##_init) - 1);
 #include "LipoOpts.inc"
 #undef PREFIX
 
-const opt::OptTable::Info LipoInfoTable[] = {
+static constexpr opt::OptTable::Info LipoInfoTable[] = {
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
-  {LIPO_##PREFIX, NAME,      HELPTEXT,                                         \
-   METAVAR,       LIPO_##ID, opt::Option::KIND##Class,                         \
-   PARAM,         FLAGS,     LIPO_##GROUP,                                     \
-   LIPO_##ALIAS,  ALIASARGS, VALUES},
+  {PREFIX,       NAME,      HELPTEXT,                                          \
+   METAVAR,      LIPO_##ID, opt::Option::KIND##Class,                          \
+   PARAM,        FLAGS,     LIPO_##GROUP,                                      \
+   LIPO_##ALIAS, ALIASARGS, VALUES},
 #include "LipoOpts.inc"
 #undef OPTION
 };
+} // namespace lipo
 
 class LipoOptTable : public opt::OptTable {
 public:
-  LipoOptTable() : OptTable(LipoInfoTable) {}
+  LipoOptTable() : OptTable(lipo::LipoInfoTable) {}
 };
 
 enum class LipoAction {
@@ -105,7 +109,7 @@ enum class LipoAction {
 };
 
 struct InputFile {
-  Optional<StringRef> ArchType;
+  std::optional<StringRef> ArchType;
   StringRef FileName;
 };
 
@@ -181,7 +185,7 @@ static Config parseLipoOptions(ArrayRef<const char *> ArgsArr) {
     reportError("unknown argument '" + Arg->getAsString(InputArgs) + "'");
 
   for (auto *Arg : InputArgs.filtered(LIPO_INPUT))
-    C.InputFiles.push_back({None, Arg->getValue()});
+    C.InputFiles.push_back({std::nullopt, Arg->getValue()});
   for (auto *Arg : InputArgs.filtered(LIPO_arch)) {
     validateArchitectureName(Arg->getValue(0));
     assert(Arg->getValue(1) && "file_name is missing");

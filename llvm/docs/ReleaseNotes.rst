@@ -64,13 +64,49 @@ and there is no way to suppress this error.
 * Apple Clang >= 10.0
 * Visual Studio 2019 >= 16.7
 
+With LLVM 16.x we will raise the version requirement of CMake used to build
+LLVM. The new requirements are as follows:
+
+* CMake >= 3.20.0
+
+In LLVM 16.x this requirement will be "soft", there will only be a diagnostic.
+
+With the release of LLVM 17.x this requirement will be hard and LLVM developers
+can start using CMake 3.20.0 features, making it impossible to build with older
+versions of CMake.
+
 Changes to the LLVM IR
 ----------------------
+
+* The ``readnone``, ``readonly``, ``writeonly``, ``argmemonly``,
+  ``inaccessiblememonly`` and ``inaccessiblemem_or_argmemonly`` function
+  attributes have been replaced by a single ``memory(...)`` attribute. The
+  old attributes may be mapped to the new one as follows:
+
+  * ``readnone`` -> ``memory(none)``
+  * ``readonly`` -> ``memory(read)``
+  * ``writeonly`` -> ``memory(write)``
+  * ``argmemonly`` -> ``memory(argmem: readwrite)``
+  * ``argmemonly readonly`` -> ``memory(argmem: read)``
+  * ``argmemonly writeonly`` -> ``memory(argmem: write)``
+  * ``inaccessiblememonly`` -> ``memory(inaccessiblemem: readwrite)``
+  * ``inaccessiblememonly readonly`` -> ``memory(inaccessiblemem: read)``
+  * ``inaccessiblememonly writeonly`` -> ``memory(inaccessiblemem: write)``
+  * ``inaccessiblemem_or_argmemonly`` ->
+    ``memory(argmem: readwrite, inaccessiblemem: readwrite)``
+  * ``inaccessiblemem_or_argmemonly readonly`` ->
+    ``memory(argmem: read, inaccessiblemem: read)``
+  * ``inaccessiblemem_or_argmemonly writeonly`` ->
+    ``memory(argmem: write, inaccessiblemem: write)``
 
 * The constant expression variants of the following instructions has been
   removed:
 
   * ``fneg``
+
+* Target extension types have been added, which allow targets to have
+  types that need to be preserved through the optimizer, but otherwise are not
+  introspectable by target-independent optimizations.
 
 Changes to building LLVM
 ------------------------
@@ -80,6 +116,10 @@ Changes to TableGen
 
 Changes to the AArch64 Backend
 ------------------------------
+
+* Added support for the Cortex-A715 CPU.
+* Added support for the Cortex-X3 CPU.
+* Added support for assembly for RME MEC (Memory Encryption Contexts).
 
 Changes to the AMDGPU Backend
 -----------------------------
@@ -146,6 +186,8 @@ Changes to the X86 Backend
 * Support ISA of ``AVX-IFMA``.
 * Support ISA of ``AVX-VNNI-INT8``.
 * Support ISA of ``AVX-NE-CONVERT``.
+* ``-mcpu=raptorlake`` and ``-mcpu=meteorlake`` are now supported.
+* ``-mcpu=sierraforest``, ``-mcpu=graniterapids`` and ``-mcpu=grandridge`` are now supported.
 
 Changes to the OCaml bindings
 -----------------------------
@@ -160,6 +202,22 @@ Changes to the C API
   constant fold the operands if possible and create an instruction otherwise:
 
   * ``LLVMConstFNeg``
+
+
+* The following deprecated functions have been removed, because they are
+  incompatible with opaque pointers. Use the new functions accepting a separate
+  function/element type instead.
+
+  * ``LLVMBuildLoad`` -> ``LLVMBuildLoad2``
+  * ``LLVMBuildCall`` -> ``LLVMBuildCall2``
+  * ``LLVMBuildInvoke`` -> ``LLVMBuildInvoke2``
+  * ``LLVMBuildGEP`` -> ``LLVMBuildGEP2``
+  * ``LLVMBuildInBoundsGEP`` -> ``LLVMBuildInBoundsGEP2``
+  * ``LLVMBuildStructGEP`` -> ``LLVMBuildStructGEP2``
+  * ``LLVMBuildPtrDiff`` -> ``LLVMBuildPtrDiff2``
+  * ``LLVMConstGEP`` -> ``LLVMConstGEP2``
+  * ``LLVMConstInBoundsGEP`` -> ``LLVMConstInBoundsGEP2``
+  * ``LLVMAddAlias`` -> ``LLVMAddAlias2``
 
 Changes to the Go bindings
 --------------------------

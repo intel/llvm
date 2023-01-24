@@ -3,7 +3,7 @@
 
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; Check that even when FPGA memory extensions are enabled - yet we have
 ; UserSemantic decoration be generated
@@ -23,14 +23,14 @@
 ; CHECK-LLVM: @[[StrB:[0-9_.]+]] = {{.*}}"var_annotation_b\00"
 ; CHECK-LLVM: %[[#StructMember:]] = alloca %class.Sample, align 4
 ; CHECK-LLVM: %[[#GEP1:]] = getelementptr inbounds %class.Sample, %class.Sample* %[[#StructMember]], i32 0, i32 0
-; CHECK-LLVM: call i32* @llvm.ptr.annotation.p0i32(i32* %[[#GEP1:]], i8* getelementptr inbounds ([19 x i8], [19 x i8]* @[[StrStructA]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
+; CHECK-LLVM: call i32* @llvm.ptr.annotation.p0i32.p0i8(i32* %[[#GEP1:]], i8* getelementptr inbounds ([19 x i8], [19 x i8]* @[[StrStructA]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
 ; CHECK-LLVM: %[[#GEP2:]] = getelementptr inbounds %class.Sample, %class.Sample* %[[#StructMember]], i32 0, i32 0
-; CHECK-LLVM: call i32* @llvm.ptr.annotation.p0i32(i32* %[[#GEP2]], i8* getelementptr inbounds ([19 x i8], [19 x i8]* @[[StrStructB]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
+; CHECK-LLVM: call i32* @llvm.ptr.annotation.p0i32.p0i8(i32* %[[#GEP2]], i8* getelementptr inbounds ([19 x i8], [19 x i8]* @[[StrStructB]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
 ; CHECK-LLVM: [[#Var:]] = alloca i32, align 4
 ; CHECK-LLVM: [[#Bitcast1:]] = bitcast i32* %[[#Var]] to i8*
-; CHECK-LLVM: call void @llvm.var.annotation(i8* %[[#Bitcast1]], i8* getelementptr inbounds ([17 x i8], [17 x i8]* @[[StrA]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
+; CHECK-LLVM: call void @llvm.var.annotation.p0i8.p0i8(i8* %[[#Bitcast1]], i8* getelementptr inbounds ([17 x i8], [17 x i8]* @[[StrA]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
 ; CHECK-LLVM: [[#Bitcast2:]] = bitcast i32* %[[#Var]] to i8*
-; CHECK-LLVM: call void @llvm.var.annotation(i8* %[[#Bitcast2]], i8* getelementptr inbounds ([17 x i8], [17 x i8]* @[[StrB]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
+; CHECK-LLVM: call void @llvm.var.annotation.p0i8.p0i8(i8* %[[#Bitcast2]], i8* getelementptr inbounds ([17 x i8], [17 x i8]* @[[StrB]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
 
 
 source_filename = "llvm-link"
@@ -53,8 +53,8 @@ define spir_func void @test() {
   %5 = call ptr @llvm.ptr.annotation.p0(ptr %4, ptr @.str.2, ptr @.str.1, i32 3, ptr null)
   %6 = load i32, ptr %5, align 4
   call void @_Z3fooi(i32 noundef %6)
-  call void @llvm.var.annotation(ptr %2, ptr @.str.3, ptr @.str.1, i32 11, ptr null)
-  call void @llvm.var.annotation(ptr %2, ptr @.str.4, ptr @.str.1, i32 11, ptr null)
+  call void @llvm.var.annotation.p0.p0(ptr %2, ptr @.str.3, ptr @.str.1, i32 11, ptr null)
+  call void @llvm.var.annotation.p0.p0(ptr %2, ptr @.str.4, ptr @.str.1, i32 11, ptr null)
   store i32 0, ptr %2, align 4
   %7 = load i32, ptr %2, align 4
   call void @_Z3fooi(i32 noundef %7)
@@ -65,4 +65,4 @@ declare dso_local void @_Z3fooi(i32 noundef)
 
 declare ptr @llvm.ptr.annotation.p0(ptr, ptr, ptr, i32, ptr)
 
-declare void @llvm.var.annotation(ptr, ptr, ptr, i32, ptr)
+declare void @llvm.var.annotation.p0.p0(ptr, ptr, ptr, i32, ptr)

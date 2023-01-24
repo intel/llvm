@@ -371,8 +371,7 @@ extern "C" SANITIZER_WEAK_ATTRIBUTE void __libc_iterate_dynamic_tls(
 
 static void ProcessThreadRegistry(Frontier *frontier) {
   InternalMmapVector<uptr> ptrs;
-  GetThreadRegistryLocked()->RunCallbackForEachThreadLocked(
-      GetAdditionalThreadContextPtrs, &ptrs);
+  RunCallbackForEachThreadLocked(GetAdditionalThreadContextPtrs, &ptrs);
 
   for (uptr i = 0; i < ptrs.size(); ++i) {
     void *ptr = reinterpret_cast<void *>(ptrs[i]);
@@ -697,8 +696,7 @@ static void ReportUnsuspendedThreads(
 
   Sort(threads.data(), threads.size());
 
-  GetThreadRegistryLocked()->RunCallbackForEachThreadLocked(
-      &ReportIfNotSuspended, &threads);
+  RunCallbackForEachThreadLocked(&ReportIfNotSuspended, &threads);
 }
 
 #  endif  // !SANITIZER_FUCHSIA
@@ -741,8 +739,11 @@ static bool PrintResults(LeakReport &report) {
 }
 
 static bool CheckForLeaks() {
-  if (&__lsan_is_turned_off && __lsan_is_turned_off())
+  if (&__lsan_is_turned_off && __lsan_is_turned_off()) {
+    VReport(1, "LeakSanitizer is disabled");
     return false;
+  }
+  VReport(1, "LeakSanitizer: checking for leaks");
   // Inside LockStuffAndStopTheWorld we can't run symbolizer, so we can't match
   // suppressions. However if a stack id was previously suppressed, it should be
   // suppressed in future checks as well.

@@ -886,8 +886,9 @@ Syntax::
               [, partition "name"]
 
 The linkage must be one of ``private``, ``internal``, ``linkonce``, ``weak``,
-``linkonce_odr``, ``weak_odr``, ``external``. Note that some system linkers
-might not correctly handle dropping a weak symbol that is aliased.
+``linkonce_odr``, ``weak_odr``, ``external``, ``available_externally``. Note
+that some system linkers might not correctly handle dropping a weak symbol that
+is aliased.
 
 Aliases that are not ``unnamed_addr`` are guaranteed to have the same address as
 the aliasee expression. ``unnamed_addr`` ones are only guaranteed to point
@@ -906,8 +907,10 @@ some can only be checked when producing an object file:
   intermediate alias being overridden cannot be represented in an
   object file.
 
-* No global value in the expression can be a declaration, since that
-  would require a relocation, which is not possible.
+* If the alias has the ``available_externally`` linkage, the aliasee must be an
+  ``available_externally`` global value; otherwise the aliasee can be an
+  expression but no global value in the expression can be a declaration, since
+  that would require a relocation, which is not possible.
 
 * If either the alias or the aliasee may be replaced by a symbol outside the
   module at link time or runtime, any optimization cannot replace the alias with
@@ -1414,6 +1417,30 @@ Currently, only the following parameter attributes are defined:
     same address may be returned), for a free-like function the
     pointer will always be invalidated.
 
+``readnone``
+    This attribute indicates that the function does not dereference that
+    pointer argument, even though it may read or write the memory that the
+    pointer points to if accessed through other pointers.
+
+    If a function reads from or writes to a readnone pointer argument, the
+    behavior is undefined.
+
+``readonly``
+    This attribute indicates that the function does not write through this
+    pointer argument, even though it may write to the memory that the pointer
+    points to.
+
+    If a function writes to a readonly pointer argument, the behavior is
+    undefined.
+
+``writeonly``
+    This attribute indicates that the function may write to, but does not read
+    through this pointer argument (even though it may read from the memory that
+    the pointer points to).
+
+    If a function reads from a writeonly pointer argument, the behavior is
+    undefined.
+
 .. _gc:
 
 Garbage Collector Strategy Names
@@ -1701,22 +1728,6 @@ example:
     the profile information. By marking a function ``hot``, users can work
     around the cases where the training input does not have good coverage
     on all the hot functions.
-``inaccessiblememonly``
-    This attribute indicates that the function may only access memory that
-    is not accessible by the module being compiled before return from the
-    function. This is a weaker form of ``readnone``. If the function reads
-    or writes other memory, the behavior is undefined.
-
-    For clarity, note that such functions are allowed to return new memory
-    which is ``noalias`` with respect to memory already accessible from
-    the module.  That is, a function can be both ``inaccessiblememonly`` and
-    have a ``noalias`` return which introduces a new, potentially initialized,
-    allocation.
-``inaccessiblemem_or_argmemonly``
-    This attribute indicates that the function may only access memory that is
-    either not accessible by the module being compiled, or is pointed to
-    by its pointer arguments. This is a weaker form of  ``argmemonly``. If the
-    function reads or writes other memory, the behavior is undefined.
 ``inlinehint``
     This attribute indicates that the source code contained a hint that
     inlining this function is desirable (such as the "inline" keyword in
@@ -1794,6 +1805,13 @@ example:
     with equivalent code based on the semantics of the built-in function, unless
     the call site uses the ``builtin`` attribute. This is valid at call sites
     and on function declarations and definitions.
+``nocallback``
+    This attribute indicates that the function is only allowed to jump back into
+    caller's module by a return or an exception, and is not allowed to jump back
+    by invoking a callback function, a direct, possibly transitive, external
+    function call, use of ``longjmp``, or other means. It is a compiler hint that
+    is used at module level to improve dataflow analysis, dropped during linking,
+    and has no effect on functions defined in the current module.
 ``noduplicate``
     This attribute indicates that calls to the function cannot be
     duplicated. A call to a ``noduplicate`` function may be moved
@@ -1974,45 +1992,6 @@ example:
     function that has a ``"probe-stack"`` attribute is inlined into a
     function that has no ``"probe-stack"`` attribute at all, the resulting
     function has the ``"probe-stack"`` attribute of the callee.
-``readnone``
-    On a function, this attribute indicates that the function computes its
-    result (or decides to unwind an exception) based strictly on its arguments,
-    without dereferencing any pointer arguments or otherwise accessing
-    any mutable state (e.g. memory, control registers, etc) visible outside the
-    ``readnone`` function. It does not write through any pointer arguments
-    (including ``byval`` arguments) and never changes any state visible to
-    callers. This means while it cannot unwind exceptions by calling the ``C++``
-    exception throwing methods (since they write to memory), there may be
-    non-``C++`` mechanisms that throw exceptions without writing to LLVM visible
-    memory.
-
-    On an argument, this attribute indicates that the function does not
-    dereference that pointer argument, even though it may read or write the
-    memory that the pointer points to if accessed through other pointers.
-
-    If a readnone function reads or writes memory visible outside the function,
-    or has other side-effects, the behavior is undefined. If a
-    function reads from or writes to a readnone pointer argument, the behavior
-    is undefined.
-``readonly``
-    On a function, this attribute indicates that the function does not write
-    through any pointer arguments (including ``byval`` arguments) or otherwise
-    modify any state (e.g. memory, control registers, etc) visible outside the
-    ``readonly`` function. It may dereference pointer arguments and read
-    state that may be set in the caller. A readonly function always
-    returns the same value (or unwinds an exception identically) when
-    called with the same set of arguments and global state.  This means while it
-    cannot unwind exceptions by calling the ``C++`` exception throwing methods
-    (since they write to memory), there may be non-``C++`` mechanisms that throw
-    exceptions without writing to LLVM visible memory.
-
-    On an argument, this attribute indicates that the function does not write
-    through this pointer argument, even though it may write to the memory that
-    the pointer points to.
-
-    If a readonly function writes memory visible outside the function, or has
-    other side-effects, the behavior is undefined. If a function writes to a
-    readonly pointer argument, the behavior is undefined.
 ``"stack-probe-size"``
     This attribute controls the behavior of stack probes: either
     the ``"probe-stack"`` attribute, or ABI-required stack probes, if any.
@@ -2030,29 +2009,6 @@ example:
     of the callee.
 ``"no-stack-arg-probe"``
     This attribute disables ABI-required stack probes, if any.
-``writeonly``
-    On a function, this attribute indicates that the function may write to but
-    does not read from memory visible outside the ``writeonly`` function.
-
-    On an argument, this attribute indicates that the function may write to but
-    does not read through this pointer argument (even though it may read from
-    the memory that the pointer points to).
-
-    If a writeonly function reads memory visible outside the function or has
-    other side-effects, the behavior is undefined. If a function reads
-    from a writeonly pointer argument, the behavior is undefined.
-``argmemonly``
-    This attribute indicates that the only memory accesses inside function are
-    loads and stores from objects pointed to by its pointer-typed arguments,
-    with arbitrary offsets. Or in other words, all memory operations in the
-    function can refer to memory only using pointers based on its function
-    arguments.
-
-    Note that ``argmemonly`` can be used together with ``readonly`` attribute
-    in order to specify that function reads only from its arguments.
-
-    If an argmemonly function reads or writes memory other than the pointer
-    arguments, or has other side-effects, the behavior is undefined.
 ``returns_twice``
     This attribute indicates that this function can return twice. The C
     ``setjmp`` is an example of such a function. The compiler disables
@@ -2283,14 +2239,9 @@ example:
     unbounded. If the optional max value is omitted then max is set to the
     value of min. If the attribute is not present, no assumptions are made
     about the range of vscale.
-``"min-legal-vector-width"="<size>"``
-    This attribute indicates the minimum legal vector width required by the
-    calling convension. It is the maximum width of vector arguments and
-    returnings in the function and functions called by this function. Because
-    all the vectors are supposed to be legal type for compatibility.
-    Backends are free to ignore the attribute if they don't need to support
-    different maximum legal vector types or such information can be inferred by
-    other attributes.
+``"nooutline"``
+    This attribute indicates that outlining passes should not modify the
+    function.
 
 Call Site Attributes
 ----------------------
@@ -2563,12 +2514,19 @@ Assume Operand Bundles
 ^^^^^^^^^^^^^^^^^^^^^^
 
 Operand bundles on an :ref:`llvm.assume <int_assume>` allows representing
-assumptions that a :ref:`parameter attribute <paramattrs>` or a
+assumptions, such as that a :ref:`parameter attribute <paramattrs>` or a
 :ref:`function attribute <fnattrs>` holds for a certain value at a certain
 location. Operand bundles enable assumptions that are either hard or impossible
 to represent as a boolean argument of an :ref:`llvm.assume <int_assume>`.
 
 An assume operand bundle has the form:
+
+::
+
+      "<tag>"([ <arguments>] ])
+
+In the case of function or parameter attributes, the operand bundle has the
+restricted form:
 
 ::
 
@@ -2611,9 +2569,20 @@ provided a dynamic value, for example:
 If the operand bundle value violates any requirements on the attribute value,
 the behavior is undefined, unless one of the following exceptions applies:
 
-* ``"assume"`` operand bundles may specify a non-power-of-two alignment
+* ``"align"`` operand bundles may specify a non-power-of-two alignment
   (including a zero alignment). If this is the case, then the pointer value
   must be a null pointer, otherwise the behavior is undefined.
+
+In addition to allowing operand bundles encoding function and parameter
+attributes, an assume operand bundle my also encode a ``separate_storage``
+operand bundle. This has the form:
+
+.. code-block:: llvm
+
+    separate_storage(<val1>, <val2>)``
+
+This indicates that no pointer :ref:`based <pointeraliasing>` on one of its
+arguments can alias any pointer based on the other.
 
 Even if the assumed property can be encoded as a boolean value, like
 ``nonnull``, using operand bundles to express the property can still have
@@ -3641,6 +3610,11 @@ commonly used to reference objects in memory.
 Pointer types may have an optional address space attribute defining
 the numbered address space where the pointed-to object resides. For
 example, ``ptr addrspace(5)`` is a pointer to address space 5.
+In addition to integer constants, ``addrspace`` can also reference one of the
+address spaces defined in the :ref:`datalayout string<langref_datalayout>`.
+``addrspace("A")`` will use the alloca address space, ``addrspace("G")``
+the default globals address space and ``addrspace("P")`` the program address
+space.
 
 The default address space is number zero.
 
@@ -3648,7 +3622,7 @@ The semantics of non-zero address spaces are target-specific. Memory
 access through a non-dereferenceable pointer is undefined behavior in
 any address space. Pointers with the bit-value 0 are only assumed to
 be non-dereferenceable in address space 0, unless the function is
-marked with the ``null_pointer_is_valid attribute``.
+marked with the ``null_pointer_is_valid`` attribute.
 
 If an object can be proven accessible through a pointer with a
 different address space, the access may be modified to use that
@@ -3658,6 +3632,53 @@ Prior to LLVM 15, pointer types also specified a pointee type, such as
 ``i8*``, ``[4 x i32]*`` or ``i32 (i32*)*``. In LLVM 15, such "typed
 pointers" are still supported under non-default options. See the
 `opaque pointers document <OpaquePointers.html>`__ for more information.
+
+.. _t_target_type:
+
+Target Extension Type
+"""""""""""""""""""""
+
+:Overview:
+
+Target extension types represent types that must be preserved through
+optimization, but are otherwise generally opaque to the compiler. They may be
+used as function parameters or arguments, and in :ref:`phi <i_phi>` or
+:ref:`select <i_select>` instructions. Some types may be also used in
+:ref:`alloca <i_alloca>` instructions or as global values, and correspondingly
+it is legal to use :ref:`load <i_load>` and :ref:`store <i_store>` instructions
+on them. Full semantics for these types are defined by the target.
+
+The only constants that target extension types may have are ``zeroinitializer``,
+``undef``, and ``poison``. Other possible values for target extension types may
+arise from target-specific intrinsics and functions.
+
+These types cannot be converted to other types. As such, it is not legal to use
+them in :ref:`bitcast <i_bitcast>` instructions (as a source or target type),
+nor is it legal to use them in :ref:`ptrtoint <i_ptrtoint>` or
+:ref:`inttoptr <i_inttoptr>` instructions. Similarly, they are not legal to use
+in an :ref:`icmp <i_icmp>` instruction.
+
+Target extension types have a name and optional type or integer parameters. The
+meanings of name and parameters are defined by the target. When being defined in
+LLVM IR, all of the type parameters must precede all of the integer parameters.
+
+Specific target extension types are registered with LLVM as having specific
+properties. These properties can be used to restrict the type from appearing in
+certain contexts, such as being the type of a global variable or having a
+``zeroinitializer`` constant be valid. A complete list of type properties may be
+found in the documentation for ``llvm::TargetExtType::Property`` (`doxygen
+<https://llvm.org/doxygen/classllvm_1_1TargetExtType.html>`_).
+
+:Syntax:
+
+.. code-block:: llvm
+
+      target("label")
+      target("label", void)
+      target("label", void, i32)
+      target("label", 0, 1, 2)
+      target("label", void, i32, 0, 1, 2)
+
 
 .. _t_vector:
 
@@ -4337,14 +4358,13 @@ of the function containing ``%block`` (usually ``addrspace(0)``).
 Taking the address of the entry block is illegal.
 
 This value only has defined behavior when used as an operand to the
-':ref:`indirectbr <i_indirectbr>`' or ':ref:`callbr <i_callbr>`'instruction, or
-for comparisons against null. Pointer equality tests between labels addresses
-results in undefined behavior --- though, again, comparison against null is ok,
-and no label is equal to the null pointer. This may be passed around as an
-opaque pointer sized value as long as the bits are not inspected. This
-allows ``ptrtoint`` and arithmetic to be performed on these values so
-long as the original value is reconstituted before the ``indirectbr`` or
-``callbr`` instruction.
+':ref:`indirectbr <i_indirectbr>`' or for comparisons against null. Pointer
+equality tests between labels addresses results in undefined behavior ---
+though, again, comparison against null is ok, and no label is equal to the null
+pointer. This may be passed around as an opaque pointer sized value as long as
+the bits are not inspected. This allows ``ptrtoint`` and arithmetic to be
+performed on these values so long as the original value is reconstituted before
+the ``indirectbr`` instruction.
 
 Finally, some targets may provide defined semantics when using the value
 as the operand to an inline assembly, but that is target specific.
@@ -4929,12 +4949,29 @@ ARM's Thumb1 mode:
 - ``x``: A 32, 64, or 128-bit floating-point/SIMD register in the ranges
   ``s0-s15``, ``d0-d7``, or ``q0-q3``, respectively.
 
-
 Hexagon:
 
 - ``o``, ``v``: A memory address operand, treated the same as constraint ``m``,
   at the moment.
 - ``r``: A 32 or 64-bit register.
+
+LoongArch:
+
+- ``f``: A floating-point register (if available).
+- ``k``: A memory operand whose address is formed by a base register and
+  (optionally scaled) index register.
+- ``l``: A signed 16-bit constant.
+- ``m``: A memory operand whose address is formed by a base register and
+  offset that is suitable for use in instructions with the same addressing
+  mode as st.w and ld.w.
+- ``I``: A signed 12-bit constant (for arithmetic instructions).
+- ``J``: An immediate integer zero.
+- ``K``: An unsigned 12-bit constant (for logic instructions).
+- ``ZB``: An address that is held in a general-purpose register. The offset
+  is zero.
+- ``ZC``: A memory operand whose address is formed by a base register and
+  offset that is suitable for use in instructions with the same addressing
+  mode as ll.w and sc.w.
 
 MSP430:
 
@@ -5159,6 +5196,10 @@ Hexagon:
 
 - ``I``: Print the letter 'i' if the operand is an integer constant, otherwise
   nothing. Used to print 'addi' vs 'add' instructions.
+
+LoongArch:
+
+- ``z``: Print $zero register if operand is zero, otherwise print it normally.
 
 MSP430:
 
@@ -14958,6 +14999,8 @@ Semantics:
 This function returns the same values as the libm ``rint`` functions
 would, and handles error conditions in the same way.
 
+.. _int_nearbyint:
+
 '``llvm.nearbyint.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -15111,8 +15154,10 @@ type.
 Semantics:
 """"""""""
 
-This function returns the same values as the libm ``lround``
-functions would, but without setting errno.
+This function returns the same values as the libm ``lround`` functions
+would, but without setting errno. If the rounded value is too large to
+be stored in the result type, the return value is a non-deterministic
+value (equivalent to `freeze poison`).
 
 '``llvm.llround.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -15147,7 +15192,9 @@ Semantics:
 """"""""""
 
 This function returns the same values as the libm ``llround``
-functions would, but without setting errno.
+functions would, but without setting errno. If the rounded value is
+too large to be stored in the result type, the return value is a
+non-deterministic value (equivalent to `freeze poison`).
 
 '``llvm.lrint.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -15188,8 +15235,10 @@ type.
 Semantics:
 """"""""""
 
-This function returns the same values as the libm ``lrint``
-functions would, but without setting errno.
+This function returns the same values as the libm ``lrint`` functions
+would, but without setting errno. If the rounded value is too large to
+be stored in the result type, the return value is a non-deterministic
+value (equivalent to `freeze poison`).
 
 '``llvm.llrint.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -15223,14 +15272,18 @@ type.
 Semantics:
 """"""""""
 
-This function returns the same values as the libm ``llrint``
-functions would, but without setting errno.
+This function returns the same values as the libm ``llrint`` functions
+would, but without setting errno. If the rounded value is too large to
+be stored in the result type, the return value is a non-deterministic
+value (equivalent to `freeze poison`).
 
 Bit Manipulation Intrinsics
 ---------------------------
 
 LLVM provides intrinsics for a few important bit manipulation
 operations. These allow efficient code generation for some algorithms.
+
+.. _int_bitreverse:
 
 '``llvm.bitreverse.*``' Intrinsics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -15262,6 +15315,8 @@ The ``llvm.bitreverse.iN`` intrinsic returns an iN value that has bit
 ``M`` in the input moved to bit ``N-M-1`` in the output. The vector
 intrinsics, such as ``llvm.bitreverse.v4i32``, operate on a per-element
 basis and the element order is not affected.
+
+.. _int_bswap:
 
 '``llvm.bswap.*``' Intrinsics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -15298,6 +15353,8 @@ returned i32 will have its bytes in 3, 2, 1, 0 order. The
 concept to additional even-byte lengths (6 bytes, 8 bytes and more,
 respectively). The vector intrinsics, such as ``llvm.bswap.v4i32``,
 operate on a per-element basis and the element order is not affected.
+
+.. _int_ctpop:
 
 '``llvm.ctpop.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -15427,6 +15484,8 @@ then the result is the size in bits of the type of ``src`` if
 
 .. _int_overflow:
 
+.. _int_fshl:
+
 '``llvm.fshl.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -15472,6 +15531,8 @@ Example:
       %r = call i8 @llvm.fshl.i8(i8 255, i8 0, i8 15)  ; %r = i8: 128 (0b10000000)
       %r = call i8 @llvm.fshl.i8(i8 15, i8 15, i8 11)  ; %r = i8: 120 (0b01111000)
       %r = call i8 @llvm.fshl.i8(i8 0, i8 255, i8 8)   ; %r = i8: 0   (0b00000000)
+
+.. _int_fshr:
 
 '``llvm.fshr.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -16766,7 +16827,7 @@ that the compiler does not constant fold the operation. Likewise, division by
 ``@llvm.canonicalize`` must preserve the equality relation. That is:
 
 - ``(@llvm.canonicalize(x) == x)`` is equivalent to ``(x == x)``
-- ``(@llvm.canonicalize(x) == @llvm.canonicalize(y))`` is equivalent to
+- ``(@llvm.canonicalize(x) == @llvm.canonicalize(y))`` is equivalent
   to ``(x == y)``
 
 Additionally, the sign of zero must be conserved:
@@ -21888,6 +21949,53 @@ Examples:
       %t = call <4 x float> @llvm.rint.v4f32(<4 x float> %a)
       %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> poison
 
+.. _int_vp_nearbyint:
+
+'``llvm.vp.nearbyint.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x float>  @llvm.vp.nearbyint.v16f32 (<16 x float> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x float>  @llvm.vp.nearbyint.nxv4f32 (<vscale x 4 x float> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x double>  @llvm.vp.nearbyint.v256f64 (<256 x double> <op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+Predicated floating-point nearbyint of a vector of floating-point values.
+
+
+Arguments:
+""""""""""
+
+The first operand and the result have the same vector of floating-point type.
+The second operand is the vector mask and has the same number of elements as the
+result vector type. The third operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.nearbyint``' intrinsic performs floating-point nearbyint
+(:ref:`nearbyint <int_nearbyint>`) of the first vector operand on each enabled lane.
+The result on disabled lanes is a :ref:`poison value <poisonvalues>`.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x float> @llvm.vp.nearbyint.v4f32(<4 x float> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = call <4 x float> @llvm.nearbyint.v4f32(<4 x float> %a)
+      %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> poison
+
 .. _int_vp_round:
 
 '``llvm.vp.round.*``' Intrinsics
@@ -22028,6 +22136,241 @@ Examples:
 
       %t = call <4 x float> @llvm.trunc.v4f32(<4 x float> %a)
       %also.r = select <4 x i1> %mask, <4 x float> %t, <4 x float> poison
+
+.. _int_vp_bitreverse:
+
+'``llvm.vp.bitreverse.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x i32>  @llvm.vp.bitreverse.v16i32 (<16 x i32> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x i32>  @llvm.vp.bitreverse.nxv4i32 (<vscale x 4 x i32> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x i64>  @llvm.vp.bitreverse.v256i64 (<256 x i64> <op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+Predicated bitreverse of a vector of integers.
+
+
+Arguments:
+""""""""""
+
+The first operand and the result have the same vector of integer type. The
+second operand is the vector mask and has the same number of elements as the
+result vector type. The third operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.bitreverse``' intrinsic performs bitreverse (:ref:`bitreverse <int_bitreverse>`) of the first operand on each
+enabled lane.  The result on disabled lanes is a :ref:`poison value <poisonvalues>`.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i32> @llvm.vp.bitreverse.v4i32(<4 x i32> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = call <4 x i32> @llvm.bitreverse.v4i32(<4 x i32> %a)
+      %also.r = select <4 x i1> %mask, <4 x i32> %t, <4 x i32> poison
+
+
+.. _int_vp_bswap:
+
+'``llvm.vp.bswap.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x i32>  @llvm.vp.bswap.v16i32 (<16 x i32> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x i32>  @llvm.vp.bswap.nxv4i32 (<vscale x 4 x i32> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x i64>  @llvm.vp.bswap.v256i64 (<256 x i64> <op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+Predicated bswap of a vector of integers.
+
+
+Arguments:
+""""""""""
+
+The first operand and the result have the same vector of integer type. The
+second operand is the vector mask and has the same number of elements as the
+result vector type. The third operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.bswap``' intrinsic performs bswap (:ref:`bswap <int_bswap>`) of the first operand on each
+enabled lane.  The result on disabled lanes is a :ref:`poison value <poisonvalues>`.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i32> @llvm.vp.bswap.v4i32(<4 x i32> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = call <4 x i32> @llvm.bswap.v4i32(<4 x i32> %a)
+      %also.r = select <4 x i1> %mask, <4 x i32> %t, <4 x i32> poison
+
+
+.. _int_vp_ctpop:
+
+'``llvm.vp.ctpop.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x i32>  @llvm.vp.ctpop.v16i32 (<16 x i32> <op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x i32>  @llvm.vp.ctpop.nxv4i32 (<vscale x 4 x i32> <op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x i64>  @llvm.vp.ctpop.v256i64 (<256 x i64> <op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+Predicated ctpop of a vector of integers.
+
+
+Arguments:
+""""""""""
+
+The first operand and the result have the same vector of integer type. The
+second operand is the vector mask and has the same number of elements as the
+result vector type. The third operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.ctpop``' intrinsic performs ctpop (:ref:`ctpop <int_ctpop>`) of the first operand on each
+enabled lane.  The result on disabled lanes is a :ref:`poison value <poisonvalues>`.
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i32> @llvm.vp.ctpop.v4i32(<4 x i32> %a, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = call <4 x i32> @llvm.ctpop.v4i32(<4 x i32> %a)
+      %also.r = select <4 x i1> %mask, <4 x i32> %t, <4 x i32> poison
+
+
+.. _int_vp_fshl:
+
+'``llvm.vp.fshl.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x i32>  @llvm.vp.fshl.v16i32 (<16 x i32> <left_op>, <16 x i32> <middle_op>, <16 x i32> <right_op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x i32>  @llvm.vp.fshl.nxv4i32  (<vscale x 4 x i32> <left_op>, <vscale x 4 x i32> <middle_op>, <vscale x 4 x i32> <right_op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x i64>  @llvm.vp.fshl.v256i64 (<256 x i64> <left_op>, <256 x i64> <middle_op>, <256 x i64> <right_op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+Predicated fshl of three vectors of integers.
+
+
+Arguments:
+""""""""""
+
+The first three operand and the result have the same vector of integer type. The
+fourth operand is the vector mask and has the same number of elements as the
+result vector type. The fifth operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.fshl``' intrinsic performs fshl (:ref:`fshl <int_fshl>`) of the first, second, and third
+vector operand on each enabled lane. The result on disabled lanes is a :ref:`poison value <poisonvalues>`.
+
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i32> @llvm.vp.fshl.v4i32(<4 x i32> %a, <4 x i32> %b, <4 x i32> %c, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = call <4 x i32> @llvm.fshl.v4i32(<4 x i32> %a, <4 x i32> %b, <4 x i32> %c)
+      %also.r = select <4 x i1> %mask, <4 x i32> %t, <4 x i32> poison
+
+
+'``llvm.vp.fshr.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x i32>  @llvm.vp.fshr.v16i32 (<16 x i32> <left_op>, <16 x i32> <middle_op>, <16 x i32> <right_op>, <16 x i1> <mask>, i32 <vector_length>)
+      declare <vscale x 4 x i32>  @llvm.vp.fshr.nxv4i32  (<vscale x 4 x i32> <left_op>, <vscale x 4 x i32> <middle_op>, <vscale x 4 x i32> <right_op>, <vscale x 4 x i1> <mask>, i32 <vector_length>)
+      declare <256 x i64>  @llvm.vp.fshr.v256i64 (<256 x i64> <left_op>, <256 x i64> <middle_op>, <256 x i64> <right_op>, <256 x i1> <mask>, i32 <vector_length>)
+
+Overview:
+"""""""""
+
+Predicated fshr of three vectors of integers.
+
+
+Arguments:
+""""""""""
+
+The first three operand and the result have the same vector of integer type. The
+fourth operand is the vector mask and has the same number of elements as the
+result vector type. The fifth operand is the explicit vector length of the
+operation.
+
+Semantics:
+""""""""""
+
+The '``llvm.vp.fshr``' intrinsic performs fshr (:ref:`fshr <int_fshr>`) of the first, second, and third
+vector operand on each enabled lane. The result on disabled lanes is a :ref:`poison value <poisonvalues>`.
+
+
+Examples:
+"""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i32> @llvm.vp.fshr.v4i32(<4 x i32> %a, <4 x i32> %b, <4 x i32> %c, <4 x i1> %mask, i32 %evl)
+      ;; For all lanes below %evl, %r is lane-wise equivalent to %also.r
+
+      %t = call <4 x i32> @llvm.fshr.v4i32(<4 x i32> %a, <4 x i32> %b, <4 x i32> %c)
+      %also.r = select <4 x i1> %mask, <4 x i32> %t, <4 x i32> poison
+
 
 .. _int_mload_mstore:
 
@@ -24304,25 +24647,25 @@ These functions read or write floating point environment, such as rounding
 mode or state of floating point exceptions. Altering the floating point
 environment requires special care. See :ref:`Floating Point Environment <floatenv>`.
 
-'``llvm.flt.rounds``' Intrinsic
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'``llvm.get.rounding``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Syntax:
 """""""
 
 ::
 
-      declare i32 @llvm.flt.rounds()
+      declare i32 @llvm.get.rounding()
 
 Overview:
 """""""""
 
-The '``llvm.flt.rounds``' intrinsic reads the current rounding mode.
+The '``llvm.get.rounding``' intrinsic reads the current rounding mode.
 
 Semantics:
 """"""""""
 
-The '``llvm.flt.rounds``' intrinsic returns the current rounding mode.
+The '``llvm.get.rounding``' intrinsic returns the current rounding mode.
 Encoding of the returned values is same as the result of ``FLT_ROUNDS``,
 specified by C standard:
 
@@ -24336,7 +24679,6 @@ specified by C standard:
 
 Other values may be used to represent additional rounding modes, supported by a
 target. These values are target-specific.
-
 
 '``llvm.set.rounding``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -24357,7 +24699,7 @@ Arguments:
 """"""""""
 
 The argument is the required rounding mode. Encoding of rounding mode is
-the same as used by '``llvm.flt.rounds``'.
+the same as used by '``llvm.get.rounding``'.
 
 Semantics:
 """"""""""

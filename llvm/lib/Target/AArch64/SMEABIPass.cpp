@@ -39,14 +39,11 @@ struct SMEABI : public FunctionPass {
   }
 
   bool runOnFunction(Function &F) override;
-  void getAnalysisUsage(AnalysisUsage &AU) const override;
 
 private:
   bool updateNewZAFunctions(Module *M, Function *F, IRBuilder<> &Builder);
 };
 } // end anonymous namespace
-
-void SMEABI::getAnalysisUsage(AnalysisUsage &AU) const { AU.setPreservesCFG(); }
 
 char SMEABI::ID = 0;
 static const char *name = "SME ABI Pass";
@@ -116,7 +113,7 @@ bool SMEABI::updateNewZAFunctions(Module *M, Function *F,
   Builder.CreateCall(EnableZAIntr->getFunctionType(), EnableZAIntr);
 
   // Before returning, disable pstate.za
-  for (BasicBlock &BB : F->getBasicBlockList()) {
+  for (BasicBlock &BB : *F) {
     Instruction *T = BB.getTerminator();
     if (!T || !isa<ReturnInst>(T))
       continue;

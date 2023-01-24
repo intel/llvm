@@ -22,7 +22,7 @@ namespace __llvm_libc {
 
 [[maybe_unused]] inline static void
 inline_memset_embedded_tiny(Ptr dst, uint8_t value, size_t count) {
-#pragma nounroll
+  LLVM_LIBC_LOOP_NOUNROLL
   for (size_t offset = 0; offset < count; ++offset)
     generic::Memset<1, 1>::block(dst + offset, value);
 }
@@ -105,6 +105,8 @@ inline static void inline_memset(Ptr dst, uint8_t value, size_t count) {
   static constexpr size_t kMaxSize = aarch64::kNeon ? 16 : 8;
   return inline_memset_aarch64<kMaxSize>(dst, value, count);
 #elif defined(LLVM_LIBC_ARCH_ARM)
+  return inline_memset_embedded_tiny(dst, value, count);
+#elif defined(LLVM_LIBC_ARCH_GPU)
   return inline_memset_embedded_tiny(dst, value, count);
 #else
 #error "Unsupported platform"

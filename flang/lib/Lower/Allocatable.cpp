@@ -481,8 +481,45 @@ private:
     // used.
     if (!typeSpec)
       typeSpec = &alloc.type;
-
     assert(typeSpec && "type spec missing for polymorphic allocation");
+
+    // Set up the descriptor for allocation for intrinsic type spec on
+    // unlimited polymorphic entity.
+    if (typeSpec->AsIntrinsic() &&
+        fir::isUnlimitedPolymorphicType(fir::getBase(box).getType())) {
+      mlir::func::FuncOp callee =
+          box.isPointer()
+              ? fir::runtime::getRuntimeFunc<mkRTKey(PointerNullifyIntrinsic)>(
+                    loc, builder)
+              : fir::runtime::getRuntimeFunc<mkRTKey(AllocatableInitIntrinsic)>(
+                    loc, builder);
+
+      llvm::ArrayRef<mlir::Type> inputTypes =
+          callee.getFunctionType().getInputs();
+      llvm::SmallVector<mlir::Value> args;
+      args.push_back(builder.createConvert(loc, inputTypes[0], box.getAddr()));
+      mlir::Value category = builder.createIntegerConstant(
+          loc, inputTypes[1],
+          static_cast<int32_t>(typeSpec->AsIntrinsic()->category()));
+      mlir::Value kind = builder.createIntegerConstant(
+          loc, inputTypes[2],
+          Fortran::evaluate::ToInt64(typeSpec->AsIntrinsic()->kind()).value());
+      mlir::Value rank = builder.createIntegerConstant(
+          loc, inputTypes[3], alloc.getSymbol().Rank());
+      mlir::Value corank = builder.createIntegerConstant(loc, inputTypes[4], 0);
+      args.push_back(category);
+      args.push_back(kind);
+      args.push_back(rank);
+      args.push_back(corank);
+      builder.create<fir::CallOp>(loc, callee, args);
+      return;
+    }
+
+    // Do not generate calls for non derived-type type spec.
+    if (!typeSpec->AsDerived())
+      return;
+
+    // Set up descriptor for allocation with derived type spec.
     std::string typeName =
         Fortran::lower::mangle::mangleName(typeSpec->derivedTypeSpec());
     std::string typeDescName =
@@ -509,9 +546,9 @@ private:
     args.push_back(builder.createConvert(loc, inputTypes[1], typeDescAddr));
     mlir::Value rank = builder.createIntegerConstant(loc, inputTypes[2],
                                                      alloc.getSymbol().Rank());
-    mlir::Value c0 = builder.createIntegerConstant(loc, inputTypes[3], 0);
+    mlir::Value corank = builder.createIntegerConstant(loc, inputTypes[3], 0);
     args.push_back(rank);
-    args.push_back(c0);
+    args.push_back(corank);
     builder.create<fir::CallOp>(loc, callee, args);
   }
 
@@ -688,19 +725,19 @@ createMutableProperties(Fortran::lower::AbstractConverter &converter,
     baseAddrTy = boxType.getEleTy();
   // Allocate and set a variable to hold the address.
   // It will be set to null in setUnallocatedStatus.
-  mutableProperties.addr =
-      builder.allocateLocal(loc, baseAddrTy, name + ".addr", "",
-                            /*shape=*/llvm::None, /*typeparams=*/llvm::None);
+  mutableProperties.addr = builder.allocateLocal(
+      loc, baseAddrTy, name + ".addr", "",
+      /*shape=*/std::nullopt, /*typeparams=*/std::nullopt);
   // Allocate variables to hold lower bounds and extents.
   int rank = sym.Rank();
   mlir::Type idxTy = builder.getIndexType();
   for (decltype(rank) i = 0; i < rank; ++i) {
-    mlir::Value lboundVar =
-        builder.allocateLocal(loc, idxTy, name + ".lb" + std::to_string(i), "",
-                              /*shape=*/llvm::None, /*typeparams=*/llvm::None);
-    mlir::Value extentVar =
-        builder.allocateLocal(loc, idxTy, name + ".ext" + std::to_string(i), "",
-                              /*shape=*/llvm::None, /*typeparams=*/llvm::None);
+    mlir::Value lboundVar = builder.allocateLocal(
+        loc, idxTy, name + ".lb" + std::to_string(i), "",
+        /*shape=*/std::nullopt, /*typeparams=*/std::nullopt);
+    mlir::Value extentVar = builder.allocateLocal(
+        loc, idxTy, name + ".ext" + std::to_string(i), "",
+        /*shape=*/std::nullopt, /*typeparams=*/std::nullopt);
     mutableProperties.lbounds.emplace_back(lboundVar);
     mutableProperties.extents.emplace_back(extentVar);
   }
@@ -717,8 +754,8 @@ createMutableProperties(Fortran::lower::AbstractConverter &converter,
   if (fir::isa_char(eleTy) && nonDeferredParams.empty()) {
     mlir::Value lenVar =
         builder.allocateLocal(loc, builder.getCharacterLengthType(),
-                              name + ".len", "", /*shape=*/llvm::None,
-                              /*typeparams=*/llvm::None);
+                              name + ".len", "", /*shape=*/std::nullopt,
+                              /*typeparams=*/std::nullopt);
     mutableProperties.deferredParams.emplace_back(lenVar);
   }
   return mutableProperties;

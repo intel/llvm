@@ -111,7 +111,7 @@ private:
     // Arguments type are uniformly unranked tensors.
     llvm::SmallVector<mlir::Type, 4> argTypes(proto.getArgs().size(),
                                               getType(VarType{}));
-    auto funcType = builder.getFunctionType(argTypes, llvm::None);
+    auto funcType = builder.getFunctionType(argTypes, std::nullopt);
     return builder.create<mlir::toy::FuncOp>(location, proto.getName(),
                                              funcType);
   }
@@ -221,7 +221,7 @@ private:
     // 'return' takes an optional expression, handle that case here.
     mlir::Value expr = nullptr;
     if (ret.getExpr().has_value()) {
-      if (!(expr = mlirGen(*ret.getExpr().value())))
+      if (!(expr = mlirGen(**ret.getExpr())))
         return mlir::failure();
     }
 

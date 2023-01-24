@@ -58,7 +58,7 @@ ClangTidyCheck::OptionsView::get(StringRef LocalName) const {
   const auto &Iter = CheckOptions.find((NamePrefix + LocalName).str());
   if (Iter != CheckOptions.end())
     return StringRef(Iter->getValue().Value);
-  return None;
+  return std::nullopt;
 }
 
 static ClangTidyOptions::OptionMap::const_iterator
@@ -86,20 +86,20 @@ ClangTidyCheck::OptionsView::getLocalOrGlobal(StringRef LocalName) const {
                                  Context->getOptionsCollector());
   if (Iter != CheckOptions.end())
     return StringRef(Iter->getValue().Value);
-  return None;
+  return std::nullopt;
 }
 
 static Optional<bool> getAsBool(StringRef Value,
                                 const llvm::Twine &LookupName) {
 
-  if (llvm::Optional<bool> Parsed = llvm::yaml::parseBool(Value))
+  if (std::optional<bool> Parsed = llvm::yaml::parseBool(Value))
     return *Parsed;
   // To maintain backwards compatability, we support parsing numbers as
   // booleans, even though its not supported in YAML.
   long long Number;
   if (!Value.getAsInteger(10, Number))
     return Number != 0;
-  return None;
+  return std::nullopt;
 }
 
 template <>
@@ -110,7 +110,7 @@ ClangTidyCheck::OptionsView::get<bool>(StringRef LocalName) const {
       return Result;
     diagnoseBadBooleanOption(NamePrefix + LocalName, *ValueOr);
   }
-  return None;
+  return std::nullopt;
 }
 
 template <>
@@ -123,7 +123,7 @@ ClangTidyCheck::OptionsView::getLocalOrGlobal<bool>(StringRef LocalName) const {
       return Result;
     diagnoseBadBooleanOption(Iter->getKey(), Iter->getValue().Value);
   }
-  return None;
+  return std::nullopt;
 }
 
 void ClangTidyCheck::OptionsView::store(ClangTidyOptions::OptionMap &Options,
@@ -155,7 +155,7 @@ llvm::Optional<int64_t> ClangTidyCheck::OptionsView::getEnumInt(
                                        Context->getOptionsCollector())
                   : CheckOptions.find((NamePrefix + LocalName).str());
   if (Iter == CheckOptions.end())
-    return None;
+    return std::nullopt;
 
   StringRef Value = Iter->getValue().Value;
   StringRef Closest;
@@ -182,7 +182,7 @@ llvm::Optional<int64_t> ClangTidyCheck::OptionsView::getEnumInt(
     diagnoseBadEnumOption(Iter->getKey(), Iter->getValue().Value, Closest);
   else
     diagnoseBadEnumOption(Iter->getKey(), Iter->getValue().Value);
-  return None;
+  return std::nullopt;
 }
 
 static constexpr llvm::StringLiteral ConfigWarning(

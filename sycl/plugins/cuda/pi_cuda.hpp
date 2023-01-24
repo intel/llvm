@@ -26,6 +26,7 @@
   _PI_PLUGIN_VERSION_STRING(_PI_CUDA_PLUGIN_VERSION)
 
 #include "sycl/detail/pi.h"
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cassert>
@@ -87,6 +88,7 @@ private:
   native_type cuDevice_;
   std::atomic_uint32_t refCount_;
   pi_platform platform_;
+  pi_context context_;
 
   static constexpr pi_uint32 max_work_item_dimensions = 3u;
   size_t max_work_item_sizes[max_work_item_dimensions];
@@ -101,6 +103,10 @@ public:
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
 
   pi_platform get_platform() const noexcept { return platform_; };
+
+  void set_context(pi_context ctx) { context_ = ctx; };
+
+  pi_context get_context() { return context_; };
 
   void save_max_work_item_sizes(size_t size,
                                 size_t *save_max_work_item_sizes) noexcept {
@@ -180,6 +186,7 @@ struct _pi_context {
       : kind_{k}, cuContexts_{std::move(ctxts)}, deviceIds_{std::move(devIds)},
         refCount_{1}, has_ownership{backend_owns} {
     for (pi_device dev : deviceIds_) {
+      dev->set_context(this);
       cuda_piDeviceRetain(dev);
     }
   };
@@ -528,6 +535,28 @@ struct _pi_queue {
     return is_last_command && !has_been_synchronized(stream_token);
   }
 
+  template <typename T> bool all_of(T &&f) {
+    {
+      std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
+      unsigned int end =
+          std::min(static_cast<unsigned int>(compute_streams_.size()),
+                   num_compute_streams_);
+      if (!std::all_of(compute_streams_.begin(), compute_streams_.begin() + end,
+                       f))
+        return false;
+    }
+    {
+      std::lock_guard<std::mutex> transfer_guard(transfer_stream_mutex_);
+      unsigned int end =
+          std::min(static_cast<unsigned int>(transfer_streams_.size()),
+                   num_transfer_streams_);
+      if (!std::all_of(transfer_streams_.begin(),
+                       transfer_streams_.begin() + end, f))
+        return false;
+    }
+    return true;
+  }
+
   template <typename T> void for_each_stream(T &&f) {
     {
       std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
@@ -785,6 +814,7 @@ struct _pi_program {
   // Metadata
   std::unordered_map<std::string, std::tuple<uint32_t, uint32_t, uint32_t>>
       kernelReqdWorkGroupSizeMD_;
+  std::unordered_map<std::string, std::string> globalIDMD_;
 
   constexpr static size_t MAX_LOG_SIZE = 8192u;
 

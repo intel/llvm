@@ -30,14 +30,14 @@ using namespace mlir;
 /// or splat vector bool constant.
 static Optional<bool> getScalarOrSplatBoolAttr(Attribute attr) {
   if (!attr)
-    return llvm::None;
+    return std::nullopt;
 
   if (auto boolAttr = attr.dyn_cast<BoolAttr>())
     return boolAttr.getValue();
   if (auto splatAttr = attr.dyn_cast<SplatElementsAttr>())
     if (splatAttr.getElementType().isInteger(1))
       return splatAttr.getSplatValue<bool>();
-  return llvm::None;
+  return std::nullopt;
 }
 
 // Extracts an element from the given `composite` by following the given
@@ -116,9 +116,23 @@ void spirv::AccessChainOp::getCanonicalizationPatterns(
 // spirv.BitcastOp
 //===----------------------------------------------------------------------===//
 
-void spirv::BitcastOp::getCanonicalizationPatterns(RewritePatternSet &results,
-                                                   MLIRContext *context) {
-  results.add<ConvertChainedBitcast>(context);
+OpFoldResult spirv::BitcastOp::fold(ArrayRef<Attribute> /*operands*/) {
+  Value curInput = getOperand();
+  if (getType() == curInput.getType())
+    return curInput;
+
+  // Look through nested bitcasts.
+  if (auto prevCast = curInput.getDefiningOp<spirv::BitcastOp>()) {
+    Value prevInput = prevCast.getOperand();
+    if (prevInput.getType() == getType())
+      return prevInput;
+
+    getOperandMutable().assign(prevInput);
+    return getResult();
+  }
+
+  // TODO(kuhar): Consider constant-folding the operand attribute.
+  return {};
 }
 
 //===----------------------------------------------------------------------===//
@@ -226,11 +240,11 @@ OpFoldResult spirv::LogicalAndOp::fold(ArrayRef<Attribute> operands) {
 
   if (Optional<bool> rhs = getScalarOrSplatBoolAttr(operands.back())) {
     // x && true = x
-    if (rhs.value())
+    if (*rhs)
       return getOperand1();
 
     // x && false = false
-    if (!rhs.value())
+    if (!*rhs)
       return operands.back();
   }
 
@@ -257,12 +271,12 @@ OpFoldResult spirv::LogicalOrOp::fold(ArrayRef<Attribute> operands) {
   assert(operands.size() == 2 && "spirv.LogicalOr should take two operands");
 
   if (auto rhs = getScalarOrSplatBoolAttr(operands.back())) {
-    if (rhs.value())
+    if (*rhs)
       // x || true = true
       return operands.back();
 
     // x || false = x
-    if (!rhs.value())
+    if (!*rhs)
       return getOperand1();
   }
 

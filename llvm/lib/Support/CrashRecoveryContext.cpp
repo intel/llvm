@@ -518,8 +518,8 @@ bool CrashRecoveryContext::RunSafelyOnThread(function_ref<void()> Fn,
   bool UseBackgroundPriority = hasThreadBackgroundPriority();
   RunSafelyOnThreadInfo Info = { Fn, this, UseBackgroundPriority, false };
   llvm::thread Thread(RequestedStackSize == 0
-                          ? llvm::None
-                          : llvm::Optional<unsigned>(RequestedStackSize),
+                          ? std::nullopt
+                          : std::optional<unsigned>(RequestedStackSize),
                       RunSafelyOnThread_Dispatch, &Info);
   Thread.join();
 

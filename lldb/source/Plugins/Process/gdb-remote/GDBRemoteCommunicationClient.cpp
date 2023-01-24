@@ -613,6 +613,19 @@ bool GDBRemoteCommunicationClient::GetSharedCacheInfoSupported() {
   return m_supports_jGetSharedCacheInfo;
 }
 
+bool GDBRemoteCommunicationClient::GetDynamicLoaderProcessStateSupported() {
+  if (m_supports_jGetDyldProcessState == eLazyBoolCalculate) {
+    StringExtractorGDBRemote response;
+    m_supports_jGetDyldProcessState = eLazyBoolNo;
+    if (SendPacketAndWaitForResponse("jGetDyldProcessState", response) ==
+        PacketResult::Success) {
+      if (!response.IsUnsupportedResponse())
+        m_supports_jGetDyldProcessState = eLazyBoolYes;
+    }
+  }
+  return m_supports_jGetDyldProcessState;
+}
+
 bool GDBRemoteCommunicationClient::GetMemoryTaggingSupported() {
   if (m_supports_memory_tagging == eLazyBoolCalculate) {
     GetRemoteQSupported();
@@ -947,7 +960,7 @@ llvm::Optional<std::string> GDBRemoteCommunicationClient::GetOSBuildString() {
     if (!m_os_build.empty())
       return m_os_build;
   }
-  return llvm::None;
+  return std::nullopt;
 }
 
 llvm::Optional<std::string>
@@ -956,7 +969,7 @@ GDBRemoteCommunicationClient::GetOSKernelDescription() {
     if (!m_os_kernel.empty())
       return m_os_kernel;
   }
-  return llvm::None;
+  return std::nullopt;
 }
 
 bool GDBRemoteCommunicationClient::GetHostname(std::string &s) {
@@ -1527,8 +1540,14 @@ Status GDBRemoteCommunicationClient::GetMemoryRegionInfo(
           if (!value.getAsInteger(16, addr_value))
             region_info.GetRange().SetRangeBase(addr_value);
         } else if (name.equals("size")) {
-          if (!value.getAsInteger(16, addr_value))
+          if (!value.getAsInteger(16, addr_value)) {
             region_info.GetRange().SetByteSize(addr_value);
+            if (region_info.GetRange().GetRangeEnd() <
+                region_info.GetRange().GetRangeBase()) {
+              // Range size overflowed, truncate it.
+              region_info.GetRange().SetRangeEnd(LLDB_INVALID_ADDRESS);
+            }
+          }
         } else if (name.equals("permissions") &&
                    region_info.GetRange().IsValid()) {
           saw_permissions = true;
@@ -2700,7 +2719,7 @@ GDBRemoteCommunicationClient::SendSetCurrentThreadPacket(uint64_t tid,
     if (response.IsUnsupportedResponse() && IsConnected())
       return {{1, 1}};
   }
-  return llvm::None;
+  return std::nullopt;
 }
 
 bool GDBRemoteCommunicationClient::SetCurrentThread(uint64_t tid,
@@ -3076,20 +3095,20 @@ GDBRemoteCommunicationClient::FStat(lldb::user_id_t fd) {
   if (SendPacketAndWaitForResponse(stream.GetString(), response) ==
       PacketResult::Success) {
     if (response.GetChar() != 'F')
-      return llvm::None;
+      return std::nullopt;
     int64_t size = response.GetS64(-1, 16);
     if (size > 0 && response.GetChar() == ';') {
       std::string buffer;
       if (response.GetEscapedBinaryData(buffer)) {
         GDBRemoteFStatData out;
         if (buffer.size() != sizeof(out))
-          return llvm::None;
+          return std::nullopt;
         memcpy(&out, buffer.data(), sizeof(out));
         return out;
       }
     }
   }
-  return llvm::None;
+  return std::nullopt;
 }
 
 llvm::Optional<GDBRemoteFStatData>
@@ -3097,7 +3116,7 @@ GDBRemoteCommunicationClient::Stat(const lldb_private::FileSpec &file_spec) {
   Status error;
   lldb::user_id_t fd = OpenFile(file_spec, File::eOpenOptionReadOnly, 0, error);
   if (fd == UINT64_MAX)
-    return llvm::None;
+    return std::nullopt;
   llvm::Optional<GDBRemoteFStatData> st = FStat(fd);
   CloseFile(fd, error);
   return st;
@@ -3704,9 +3723,9 @@ llvm::Optional<QOffsets> GDBRemoteCommunicationClient::GetQOffsets() {
   StringExtractorGDBRemote response;
   if (SendPacketAndWaitForResponse("qOffsets", response) !=
       PacketResult::Success)
-    return llvm::None;
+    return std::nullopt;
   if (!response.IsNormalResponse())
-    return llvm::None;
+    return std::nullopt;
 
   QOffsets result;
   llvm::StringRef ref = response.GetStringRef();
@@ -3721,9 +3740,9 @@ llvm::Optional<QOffsets> GDBRemoteCommunicationClient::GetQOffsets() {
   if (ref.consume_front("Text=")) {
     result.segments = false;
     if (!GetOffset())
-      return llvm::None;
+      return std::nullopt;
     if (!ref.consume_front(";Data=") || !GetOffset())
-      return llvm::None;
+      return std::nullopt;
     if (ref.empty())
       return result;
     if (ref.consume_front(";Bss=") && GetOffset() && ref.empty())
@@ -3731,13 +3750,13 @@ llvm::Optional<QOffsets> GDBRemoteCommunicationClient::GetQOffsets() {
   } else if (ref.consume_front("TextSeg=")) {
     result.segments = true;
     if (!GetOffset())
-      return llvm::None;
+      return std::nullopt;
     if (ref.empty())
       return result;
     if (ref.consume_front(";DataSeg=") && GetOffset() && ref.empty())
       return result;
   }
-  return llvm::None;
+  return std::nullopt;
 }
 
 bool GDBRemoteCommunicationClient::GetModuleInfo(
@@ -3810,30 +3829,30 @@ static llvm::Optional<ModuleSpec>
 ParseModuleSpec(StructuredData::Dictionary *dict) {
   ModuleSpec result;
   if (!dict)
-    return llvm::None;
+    return std::nullopt;
 
   llvm::StringRef string;
   uint64_t integer;
 
   if (!dict->GetValueForKeyAsString("uuid", string))
-    return llvm::None;
+    return std::nullopt;
   if (!result.GetUUID().SetFromStringRef(string))
-    return llvm::None;
+    return std::nullopt;
 
   if (!dict->GetValueForKeyAsInteger("file_offset", integer))
-    return llvm::None;
+    return std::nullopt;
   result.SetObjectOffset(integer);
 
   if (!dict->GetValueForKeyAsInteger("file_size", integer))
-    return llvm::None;
+    return std::nullopt;
   result.SetObjectSize(integer);
 
   if (!dict->GetValueForKeyAsString("triple", string))
-    return llvm::None;
+    return std::nullopt;
   result.GetArchitecture().SetTriple(string);
 
   if (!dict->GetValueForKeyAsString("file_path", string))
-    return llvm::None;
+    return std::nullopt;
   result.GetFileSpec() = FileSpec(string, result.GetArchitecture().GetTriple());
 
   return result;
@@ -3845,7 +3864,7 @@ GDBRemoteCommunicationClient::GetModulesInfo(
   namespace json = llvm::json;
 
   if (!m_supports_jModulesInfo)
-    return llvm::None;
+    return std::nullopt;
 
   json::Array module_array;
   for (const FileSpec &module_file_spec : module_file_specs) {
@@ -3868,21 +3887,21 @@ GDBRemoteCommunicationClient::GetModulesInfo(
   if (SendPacketAndWaitForResponse(payload.GetString(), response) !=
           PacketResult::Success ||
       response.IsErrorResponse())
-    return llvm::None;
+    return std::nullopt;
 
   if (response.IsUnsupportedResponse()) {
     m_supports_jModulesInfo = false;
-    return llvm::None;
+    return std::nullopt;
   }
 
   StructuredData::ObjectSP response_object_sp =
       StructuredData::ParseJSON(std::string(response.GetStringRef()));
   if (!response_object_sp)
-    return llvm::None;
+    return std::nullopt;
 
   StructuredData::Array *response_array = response_object_sp->GetAsArray();
   if (!response_array)
-    return llvm::None;
+    return std::nullopt;
 
   std::vector<ModuleSpec> result;
   for (size_t i = 0; i < response_array->GetSize(); ++i) {

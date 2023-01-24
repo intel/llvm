@@ -346,7 +346,7 @@ static void emitAvailabilityQueryForIntEnum(const Record &enumDef,
   for (const auto &classCasePair : classCaseMap) {
     Availability avail = classCasePair.getValue().front().second;
 
-    os << formatv("llvm::Optional<{0}> {1}({2} value) {{\n",
+    os << formatv("std::optional<{0}> {1}({2} value) {{\n",
                   avail.getMergeInstanceType(), avail.getQueryFnName(),
                   enumName);
 
@@ -362,7 +362,7 @@ static void emitAvailabilityQueryForIntEnum(const Record &enumDef,
     if (classCasePair.getValue().size() < enumAttr.getAllCases().size())
       os << "  default: break;\n";
     os << "  }\n"
-       << "  return llvm::None;\n"
+       << "  return std::nullopt;\n"
        << "}\n";
   }
 }
@@ -388,7 +388,7 @@ static void emitAvailabilityQueryForBitEnum(const Record &enumDef,
   for (const auto &classCasePair : classCaseMap) {
     Availability avail = classCasePair.getValue().front().second;
 
-    os << formatv("llvm::Optional<{0}> {1}({2} value) {{\n",
+    os << formatv("std::optional<{0}> {1}({2} value) {{\n",
                   avail.getMergeInstanceType(), avail.getQueryFnName(),
                   enumName);
 
@@ -407,7 +407,7 @@ static void emitAvailabilityQueryForBitEnum(const Record &enumDef,
     }
     os << "  default: break;\n";
     os << "  }\n"
-       << "  return llvm::None;\n"
+       << "  return std::nullopt;\n"
        << "}\n";
   }
 }
@@ -433,7 +433,7 @@ static void emitEnumDecl(const Record &enumDef, raw_ostream &os) {
       StringRef className = avail.getClass();
       if (handledClasses.count(className))
         continue;
-      os << formatv("llvm::Optional<{0}> {1}({2} value);\n",
+      os << formatv("std::optional<{0}> {1}({2} value);\n",
                     avail.getMergeInstanceType(), avail.getQueryFnName(),
                     enumName);
       handledClasses.insert(className);
@@ -1395,7 +1395,8 @@ static bool emitAvailabilityImpl(const RecordKeeper &recordKeeper,
   auto defs = recordKeeper.getAllDerivedDefinitions("SPIRV_Op");
   for (const auto *def : defs) {
     Operator op(def);
-    emitAvailabilityImpl(op, os);
+    if (def->getValueAsBit("autogenAvailability"))
+      emitAvailabilityImpl(op, os);
   }
   return false;
 }

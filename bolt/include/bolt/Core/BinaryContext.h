@@ -37,12 +37,12 @@
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/ErrorOr.h"
+#include "llvm/Support/RWMutex.h"
 #include "llvm/Support/raw_ostream.h"
 #include <functional>
 #include <list>
 #include <map>
 #include <set>
-#include <shared_mutex>
 #include <string>
 #include <system_error>
 #include <type_traits>
@@ -152,7 +152,7 @@ class BinaryContext {
   std::string Filename;
 
   /// Unique build ID if available for the binary.
-  Optional<std::string> FileBuildID;
+  std::optional<std::string> FileBuildID;
 
   /// Set of all sections.
   struct CompareSections {
@@ -190,7 +190,7 @@ class BinaryContext {
   std::map<uint64_t, BinaryFunction> BinaryFunctions;
 
   /// A mutex that is used to control parallel accesses to BinaryFunctions
-  mutable std::shared_timed_mutex BinaryFunctionsMutex;
+  mutable llvm::sys::RWMutex BinaryFunctionsMutex;
 
   /// Functions injected by BOLT
   std::vector<BinaryFunction *> InjectedBinaryFunctions;
@@ -259,7 +259,7 @@ public:
   void clearFragmentsToSkip() { FragmentsToSkip.clear(); }
 
   /// Given DWOId returns CU if it exists in DWOCUs.
-  Optional<DWARFUnit *> getDWOCU(uint64_t DWOId);
+  std::optional<DWARFUnit *> getDWOCU(uint64_t DWOId);
 
   /// Returns DWOContext if it exists.
   DWARFContext *getDWOContext() const;
@@ -283,9 +283,9 @@ public:
 
   Expected<unsigned> getDwarfFile(StringRef Directory, StringRef FileName,
                                   unsigned FileNumber,
-                                  Optional<MD5::MD5Result> Checksum,
-                                  Optional<StringRef> Source, unsigned CUID,
-                                  unsigned DWARFVersion);
+                                  std::optional<MD5::MD5Result> Checksum,
+                                  std::optional<StringRef> Source,
+                                  unsigned CUID, unsigned DWARFVersion);
 
   /// [start memory address] -> [segment info] mapping.
   std::map<uint64_t, SegmentInfo> SegmentMapInfo;
@@ -319,11 +319,11 @@ public:
   StringRef getFilename() const { return Filename; }
   void setFilename(StringRef Name) { Filename = std::string(Name); }
 
-  Optional<StringRef> getFileBuildID() const {
+  std::optional<StringRef> getFileBuildID() const {
     if (FileBuildID)
       return StringRef(*FileBuildID);
 
-    return NoneType();
+    return std::nullopt;
   }
   void setFileBuildID(StringRef ID) { FileBuildID = std::string(ID); }
 
@@ -420,7 +420,7 @@ public:
   std::unordered_map<const MCSymbol *, BinaryFunction *> SymbolToFunctionMap;
 
   /// A mutex that is used to control parallel accesses to SymbolToFunctionMap
-  mutable std::shared_timed_mutex SymbolToFunctionMapMutex;
+  mutable llvm::sys::RWMutex SymbolToFunctionMapMutex;
 
   /// Look up the symbol entry that contains the given \p Address (based on
   /// the start address and size for each symbol).  Returns a pointer to
@@ -556,9 +556,9 @@ public:
   std::unique_ptr<MCContext> Ctx;
 
   /// A mutex that is used to control parallel accesses to Ctx
-  mutable std::shared_timed_mutex CtxMutex;
-  std::unique_lock<std::shared_timed_mutex> scopeLock() const {
-    return std::unique_lock<std::shared_timed_mutex>(CtxMutex);
+  mutable llvm::sys::RWMutex CtxMutex;
+  std::unique_lock<llvm::sys::RWMutex> scopeLock() const {
+    return std::unique_lock<llvm::sys::RWMutex>(CtxMutex);
   }
 
   std::unique_ptr<DWARFContext> DwCtx;
@@ -1063,9 +1063,9 @@ public:
   /// segments was mapped. \p FileOffset is the offset in the file of the
   /// mapping. Note that \p FileOffset should be page-aligned and could be
   /// different from the file offset of the segment which could be unaligned.
-  /// If no segment is found that matches \p FileOffset, return NoneType().
-  Optional<uint64_t> getBaseAddressForMapping(uint64_t MMapAddress,
-                                              uint64_t FileOffset) const;
+  /// If no segment is found that matches \p FileOffset, return std::nullopt.
+  std::optional<uint64_t> getBaseAddressForMapping(uint64_t MMapAddress,
+                                                   uint64_t FileOffset) const;
 
   /// Check if the address belongs to this binary's static allocation space.
   bool containsAddress(uint64_t Address) const {

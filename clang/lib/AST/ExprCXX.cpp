@@ -1216,11 +1216,11 @@ bool LambdaExpr::isInitCapture(const LambdaCapture *C) const {
 }
 
 LambdaExpr::capture_iterator LambdaExpr::capture_begin() const {
-  return getLambdaClass()->getLambdaData().Captures;
+  return getLambdaClass()->captures_begin();
 }
 
 LambdaExpr::capture_iterator LambdaExpr::capture_end() const {
-  return capture_begin() + capture_size();
+  return getLambdaClass()->captures_end();
 }
 
 LambdaExpr::capture_range LambdaExpr::captures() const {
@@ -1232,9 +1232,8 @@ LambdaExpr::capture_iterator LambdaExpr::explicit_capture_begin() const {
 }
 
 LambdaExpr::capture_iterator LambdaExpr::explicit_capture_end() const {
-  struct CXXRecordDecl::LambdaDefinitionData &Data
-    = getLambdaClass()->getLambdaData();
-  return Data.Captures + Data.NumExplicitCaptures;
+  return capture_begin() +
+         getLambdaClass()->getLambdaData().NumExplicitCaptures;
 }
 
 LambdaExpr::capture_range LambdaExpr::explicit_captures() const {
@@ -1757,4 +1756,22 @@ CUDAKernelCallExpr *CUDAKernelCallExpr::CreateEmpty(const ASTContext &Ctx,
   void *Mem = Ctx.Allocate(sizeof(CUDAKernelCallExpr) + SizeOfTrailingObjects,
                            alignof(CUDAKernelCallExpr));
   return new (Mem) CUDAKernelCallExpr(NumArgs, HasFPFeatures, Empty);
+}
+
+CXXParenListInitExpr *
+CXXParenListInitExpr::Create(ASTContext &C, ArrayRef<Expr *> Args, QualType T,
+                             unsigned NumUserSpecifiedExprs,
+                             SourceLocation InitLoc, SourceLocation LParenLoc,
+                             SourceLocation RParenLoc) {
+  void *Mem = C.Allocate(totalSizeToAlloc<Expr *>(Args.size()));
+  return new (Mem) CXXParenListInitExpr(Args, T, NumUserSpecifiedExprs, InitLoc,
+                                        LParenLoc, RParenLoc);
+}
+
+CXXParenListInitExpr *CXXParenListInitExpr::CreateEmpty(ASTContext &C,
+                                                        unsigned NumExprs,
+                                                        EmptyShell Empty) {
+  void *Mem = C.Allocate(totalSizeToAlloc<Expr *>(NumExprs),
+                         alignof(CXXParenListInitExpr));
+  return new (Mem) CXXParenListInitExpr(Empty, NumExprs);
 }

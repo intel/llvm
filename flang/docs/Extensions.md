@@ -240,6 +240,22 @@ end
 * The legacy extension intrinsic functions `IZEXT` and `JZEXT`
   are supported; `ZEXT` has different behavior with various older
   compilers, so it is not supported.
+* f18 doesn't impose a limit on the number of continuation lines
+  allowed for a single statement.
+* When a type-bound procedure declaration statement has neither interface
+  nor attributes, the "::" before the bindings is optional, even
+  if a binding has renaming with "=> proc".
+  The colons are not necessary for an unambiguous parse, C768
+  notwithstanding.
+* A type-bound procedure binding can be passed as an actual
+  argument corresponding to a dummy procedure and can be used as
+  the target of a procedure pointer assignment statement.
+* An explicit `INTERFACE` can declare the interface of a
+  procedure pointer even if it is not a dummy argument.
+* A `NOPASS` type-bound procedure binding is required by C1529
+  to apply only to a scalar data-ref, but most compilers don't
+  enforce it and the constraint is not necessary for a correct
+  implementation.
 
 ### Extensions supported when enabled by options
 
@@ -350,6 +366,19 @@ end
   pointer-valued function reference.
   No other Fortran compiler seems to handle this correctly for
   `ASSOCIATE`, though NAG gets it right for `SELECT TYPE`.
+* The standard doesn't explicitly require that a named constant that
+  appears as part of a complex-literal-constant be a scalar, but
+  most compilers emit an error when an array appears.
+  f18 supports them with a portability warning.
+* f18 does not enforce a blanket prohibition against generic
+  interfaces containing a mixture of functions and subroutines.
+  Apart from some contexts in which the standard requires all of
+  a particular generic interface to have only all functions or
+  all subroutines as its specific procedures, we allow both to
+  appear, unlike several other Fortran compilers.
+  This is especially desirable when two generics of the same
+  name are combined due to USE association and the mixture may
+  be inadvertent.
 
 ## Behavior in cases where the standard is ambiguous or indefinite
 
@@ -490,3 +519,15 @@ end module
   application codes that expect exterior symbols whose names match
   components to be visible in a derived-type definition's default initialization
   expressions, and so f18 follows that precedent.
+
+* 19.3.1p1 "Within its scope, a local identifier of an entity of class (1)
+  or class (4) shall not be the same as a global identifier used in that scope..."
+  is read so as to allow the name of a module, submodule, main program,
+  or `BLOCK DATA` subprogram to also be the name of an local entity in its
+  scope, with a portability warning, since that global name is not actually
+  capable of being "used" in its scope.
+
+## De Facto Standard Features
+
+* `EXTENDS_TYPE_OF()` returns `.TRUE.` if both of its arguments have the
+  same type, a case that is technically implementation-defined.

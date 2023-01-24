@@ -44,11 +44,29 @@ during ESIMD_EMULATOR plug-in software module generation. Details on
 building CM_EMU library for ESIMD_EMULATOR such as required packages
 are described in [ESIMD CPU Emulation](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#build-dpc-toolchain-with-support-for-esimd-cpu-emulation)
 
-## Command line option / environment variable options
+## Environment variable
 
-There is no special command line option or environment variable
-required for building and running ESIMD kernels with ESIMD_EMULATOR
-backend.
+For running ESIMD kernels with the ESIMD_EMULATOR backend, the CM_EMU
+library requires 'CM_RT_PLATFORM' environment variable set in order to
+specify the target platform you want to emulate.
+
+> `$ export CM_RT_PLATFORM=SKL`
+
+List of target platforms supported by CM_EMU is as follows
+
+- SKL
+- BXT
+- KBL
+- ICLLP
+- TGLLP
+- RKL
+- DG1
+- ADLP
+- ADLS
+- ADLN
+- DG2
+- MTL
+- PVC
 
 ## Running ESIMD code under emulation mode
 
@@ -64,15 +82,15 @@ To compile using Intel(R) OneAPI Toolkit:
 > `$ dpcpp vadd_usm.cpp`
 
 To run under emulation through ESIMD_EMULATOR backend:
-> `$ SYCL_DEVICE_FILTER=ext_intel_esimd_emulator:gpu ./a.out`
+> `$ ONEAPI_DEVICE_SELECTOR=ext_intel_esimd_emulator:gpu ./a.out`
 
 Please note that ESIMD_EMULATOR backend cannot be picked up as default
 device automatically. To enable it, `ext_intel_esimd_emulator:gpu` device must
-be specified among other devices explicitly in `SYCL_DEVICE_FILTER` environment
+be specified among other devices explicitly in `ONEAPI_DEVICE_SELECTOR` environment
 variable. The emulator device effectively replaces any Intel GPU device for SYCL runtime,
 so they can't be used simultaneously by a SYCL offload application process. On the other
 hand, it is OK to mix the emulator with non-Intel GPU devices or CPU device in
-`SYCL_DEVICE_FILTER`.
+`ONEAPI_DEVICE_SELECTOR`.
 
 ## Running ESIMD examples from [ESIMD test suite](https://github.com/intel/llvm-test-suite/tree/intel/SYCL/ESIMD) on github with ESIMD_EMULATOR backend
 
@@ -108,7 +126,7 @@ ninja check
 
 Note that only [ESIMD Kernels](https://github.com/intel/llvm-test-suite/tree/intel/SYCL/ESIMD) are
 tested with above command examples due to ESIMD_EMULATOR's limitations
-below.
+below. And, if 'CM_RT_PLATFORM' is not set, 'skl' is set by default.
 
 ## Limitation
 - The emulator is available only on Linux for now. Windows support is WIP.

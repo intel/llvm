@@ -44,6 +44,7 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/WithColor.h"
 #include <ctime>
+#include <optional>
 
 using namespace llvm;
 using namespace llvm::opt;
@@ -59,11 +60,14 @@ enum ID {
 #undef OPTION
 };
 
-#define PREFIX(NAME, VALUE) const char *const NAME[] = VALUE;
+#define PREFIX(NAME, VALUE)                                                    \
+  static constexpr StringLiteral NAME##_init[] = VALUE;                        \
+  static constexpr ArrayRef<StringLiteral> NAME(NAME##_init,                   \
+                                                std::size(NAME##_init) - 1);
 #include "Opts.inc"
 #undef PREFIX
 
-const opt::OptTable::Info InfoTable[] = {
+static constexpr opt::OptTable::Info InfoTable[] = {
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
   {                                                                            \
@@ -303,7 +307,7 @@ int main(int Argc, char **Argv) {
   std::vector<std::string> IncludeDirs =
       InputArgs.getAllArgValues(OPT_include_path);
   if (!InputArgs.hasArg(OPT_ignore_include_envvar)) {
-    if (llvm::Optional<std::string> IncludeEnvVar =
+    if (std::optional<std::string> IncludeEnvVar =
             llvm::sys::Process::GetEnv("INCLUDE")) {
       SmallVector<StringRef, 8> Dirs;
       StringRef(*IncludeEnvVar)

@@ -229,13 +229,13 @@ void SPIRVTypeScavenger::deduceFunctionType(Function &F) {
   // If the function is a mangled name, try to recover types from the Itanium
   // name mangling.
   if (F.getName().startswith("_Z")) {
-    SmallVector<Type *, 8> ParameterTypes;
-    getParameterTypes(&F, ParameterTypes);
+    SmallVector<Type *, 8> ParamTypes;
+    getParameterTypes(&F, ParamTypes);
     for (Argument *Arg : PointerArgs) {
-      if (auto *Ty = ParameterTypes[Arg->getArgNo()]) {
-        DeducedTypes[Arg] = Ty;
+      if (auto *Ty = dyn_cast<TypedPointerType>(ParamTypes[Arg->getArgNo()])) {
+        DeducedTypes[Arg] = Ty->getElementType();
         LLVM_DEBUG(dbgs() << "Arg " << Arg->getArgNo() << " of " << F.getName()
-                          << " has type " << *Ty << "\n");
+                          << " has type " << *Ty->getElementType() << "\n");
       }
     }
   }
@@ -267,6 +267,9 @@ SPIRVTypeScavenger::computePointerElementType(Value *V) {
   if (Ty) {
     return Ty;
   }
+
+  assert(!is_contained(VisitStack, V) && "Found cycle in type scavenger");
+  VisitStack.push_back(V);
 
   // There are basically three categories of pointer-typed values:
   // 1. Values that have a well-defined pointee type (e.g., alloca). Return the
@@ -322,8 +325,22 @@ SPIRVTypeScavenger::computePointerElementType(Value *V) {
   // when we handle uses anyways.
   else if (auto *Select = dyn_cast<SelectInst>(V))
     Ty = PropagateType(Select->getTrueValue());
-  else if (auto *Phi = dyn_cast<PHINode>(V))
-    Ty = PropagateType(Phi->getIncomingValue(0));
+  else if (auto *Phi = dyn_cast<PHINode>(V)) {
+    // If we specifically tried the first argument (or any particular argument),
+    // we could end up in a situation where we get caught in a cycle:
+    // %a = phi(%b, %c)
+    // %b = phi(%a, %d)
+    // So pick the first argument that whose type we are not trying to compute
+    // right now. In the rare case that we have an unreachable block, we could
+    // exhaust all possible options, in which case we'll fall through to having
+    // an unknown type.
+    for (Value *Arg : Phi->incoming_values()) {
+      if (!is_contained(VisitStack, Arg)) {
+        Ty = PropagateType(Arg);
+        break;
+      }
+    }
+  }
 
   else if (auto *Arg = dyn_cast<Argument>(V)) {
     // Check for an sret/byval/etc. attribute on the argument. If it doesn't
@@ -355,6 +372,7 @@ SPIRVTypeScavenger::computePointerElementType(Value *V) {
     Ty = Deferred;
   }
 
+  VisitStack.pop_back();
   return Ty;
 }
 
@@ -504,19 +522,19 @@ void SPIRVTypeScavenger::correctUseTypes(Instruction &I) {
       } else if (auto *DeferredUseTy = dyn_cast<DeferredType *>(UsedTy)) {
         // Source type is fixed, use type is deferred: set the deferred type to
         // the fixed type.
-        fixType(*DeferredUseTy, FixedTy);
         ReplaceTypeInOperands(DeferredUseTy, FixedTy);
+        fixType(*DeferredUseTy, FixedTy);
       }
     } else if (auto *DeferredTy = dyn_cast<DeferredType *>(SourceTy)) {
       if (auto *FixedUseTy = dyn_cast<Type *>(UsedTy)) {
         // Source type is fixed, use type is deferred: set the deferred type to
         // the fixed type.
-        fixType(*DeferredTy, FixedUseTy);
         ReplaceTypeInOperands(DeferredTy, FixedUseTy);
+        fixType(*DeferredTy, FixedUseTy);
       } else if (auto *DeferredUseTy = dyn_cast<DeferredType *>(UsedTy)) {
         // If they're both deferred, merge the two types together.
-        mergeType(DeferredTy, DeferredUseTy);
         ReplaceTypeInOperands(DeferredUseTy, DeferredTy);
+        mergeType(DeferredTy, DeferredUseTy);
       }
     }
   }

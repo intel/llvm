@@ -192,7 +192,7 @@ getDesignators(const InitListExpr *Syn) {
 class InlayHintVisitor : public RecursiveASTVisitor<InlayHintVisitor> {
 public:
   InlayHintVisitor(std::vector<InlayHint> &Results, ParsedAST &AST,
-                   const Config &Cfg, llvm::Optional<Range> RestrictRange)
+                   const Config &Cfg, std::optional<Range> RestrictRange)
       : Results(Results), AST(AST.getASTContext()), Tokens(AST.getTokens()),
         Cfg(Cfg), RestrictRange(std::move(RestrictRange)),
         MainFileID(AST.getSourceManager().getMainFileID()),
@@ -216,6 +216,13 @@ public:
     // SuppressDefaultTemplateArgs (set by default) to have an effect.
     StructuredBindingPolicy = TypeHintPolicy;
     StructuredBindingPolicy.PrintCanonicalTypes = true;
+  }
+
+  bool VisitTypeLoc(TypeLoc TL) {
+    if (const auto *DT = llvm::dyn_cast<DecltypeType>(TL.getType()))
+      if (QualType UT = DT->getUnderlyingType(); !UT->isDependentType())
+        addTypeHint(TL.getSourceRange(), UT, ": ");
+    return true;
   }
 
   bool VisitCXXConstructExpr(CXXConstructExpr *E) {
@@ -646,11 +653,11 @@ private:
     // TokenBuffer will return null if e.g. R corresponds to only part of a
     // macro expansion.
     if (!Spelled || Spelled->empty())
-      return llvm::None;
+      return std::nullopt;
     // Hint must be within the main file, not e.g. a non-preamble include.
     if (SM.getFileID(Spelled->front().location()) != SM.getMainFileID() ||
         SM.getFileID(Spelled->back().location()) != SM.getMainFileID())
-      return llvm::None;
+      return std::nullopt;
     return Range{sourceLocToPosition(SM, Spelled->front().location()),
                  sourceLocToPosition(SM, Spelled->back().endLocation())};
   }
@@ -679,7 +686,7 @@ private:
   ASTContext &AST;
   const syntax::TokenBuffer &Tokens;
   const Config &Cfg;
-  llvm::Optional<Range> RestrictRange;
+  std::optional<Range> RestrictRange;
   FileID MainFileID;
   StringRef MainFileBuf;
   const HeuristicResolver *Resolver;
@@ -698,7 +705,7 @@ private:
 } // namespace
 
 std::vector<InlayHint> inlayHints(ParsedAST &AST,
-                                  llvm::Optional<Range> RestrictRange) {
+                                  std::optional<Range> RestrictRange) {
   std::vector<InlayHint> Results;
   const auto &Cfg = Config::current();
   if (!Cfg.InlayHints.Enabled)

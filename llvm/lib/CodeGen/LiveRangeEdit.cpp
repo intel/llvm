@@ -33,7 +33,7 @@ void LiveRangeEdit::Delegate::anchor() { }
 
 LiveInterval &LiveRangeEdit::createEmptyIntervalFrom(Register OldReg,
                                                      bool createSubRanges) {
-  Register VReg = MRI.createVirtualRegister(MRI.getRegClass(OldReg));
+  Register VReg = MRI.cloneVirtualRegister(OldReg);
   if (VRM)
     VRM->setIsSplitFromReg(VReg, VRM->getOriginal(OldReg));
 
@@ -53,7 +53,7 @@ LiveInterval &LiveRangeEdit::createEmptyIntervalFrom(Register OldReg,
 }
 
 Register LiveRangeEdit::createFrom(Register OldReg) {
-  Register VReg = MRI.createVirtualRegister(MRI.getRegClass(OldReg));
+  Register VReg = MRI.cloneVirtualRegister(OldReg);
   if (VRM) {
     VRM->setIsSplitFromReg(VReg, VRM->getOriginal(OldReg));
   }
@@ -318,7 +318,7 @@ void LiveRangeEdit::eliminateDeadDef(MachineInstr *MI, ToShrinkSet &ToShrink) {
       MI->getDesc().getNumDefs() == 1) {
     Dest = MI->getOperand(0).getReg();
     DestSubReg = MI->getOperand(0).getSubReg();
-    unsigned Original = VRM->getOriginal(Dest);
+    Register Original = VRM->getOriginal(Dest);
     LiveInterval &OrigLI = LIS.getInterval(Original);
     VNInfo *OrigVNI = OrigLI.getVNInfoAt(Idx);
     // The original live-range may have been shrunk to
@@ -448,7 +448,7 @@ void LiveRangeEdit::eliminateDeadDefs(SmallVectorImpl<MachineInstr *> &Dead,
     LiveInterval *LI = ToShrink.pop_back_val();
     if (foldAsLoad(LI, Dead))
       continue;
-    unsigned VReg = LI->reg();
+    Register VReg = LI->reg();
     if (TheDelegate)
       TheDelegate->LRE_WillShrinkVirtReg(VReg);
     if (!LIS.shrinkToUses(LI, &Dead))

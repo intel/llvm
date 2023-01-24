@@ -25,7 +25,10 @@ class OwningOpRef;
 /// should create a new MLIR Operation in the given context and return a
 /// pointer to it, or a nullptr in case of any error.
 using TranslateSourceMgrToMLIRFunction = std::function<OwningOpRef<Operation *>(
-    llvm::SourceMgr &sourceMgr, MLIRContext *)>;
+    const std::shared_ptr<llvm::SourceMgr> &sourceMgr, MLIRContext *)>;
+using TranslateRawSourceMgrToMLIRFunction =
+    std::function<OwningOpRef<Operation *>(llvm::SourceMgr &sourceMgr,
+                                           MLIRContext *)>;
 
 /// Interface of the function that translates the given string to MLIR. The
 /// implementation should create a new MLIR Operation in the given context. If
@@ -45,11 +48,47 @@ using TranslateFromMLIRFunction =
 /// all MLIR constructs needed during the process inside the given context. This
 /// can be used for round-tripping external formats through the MLIR system.
 using TranslateFunction = std::function<LogicalResult(
-    llvm::SourceMgr &sourceMgr, llvm::raw_ostream &output, MLIRContext *)>;
+    const std::shared_ptr<llvm::SourceMgr> &sourceMgr,
+    llvm::raw_ostream &output, MLIRContext *)>;
+
+/// This class contains all of the components necessary for performing a
+/// translation.
+class Translation {
+public:
+  Translation() = default;
+  Translation(TranslateFunction function, StringRef description,
+              Optional<llvm::Align> inputAlignment)
+      : function(std::move(function)), description(description),
+        inputAlignment(inputAlignment) {}
+
+  /// Return the description of this translation.
+  StringRef getDescription() const { return description; }
+
+  /// Return the optional alignment desired for the input of the translation.
+  Optional<llvm::Align> getInputAlignment() const { return inputAlignment; }
+
+  /// Invoke the translation function with the given input and output streams.
+  LogicalResult operator()(const std::shared_ptr<llvm::SourceMgr> &sourceMgr,
+                           llvm::raw_ostream &output,
+                           MLIRContext *context) const {
+    return function(sourceMgr, output, context);
+  }
+
+private:
+  /// The underlying translation function.
+  TranslateFunction function;
+
+  /// The description of the translation.
+  StringRef description;
+
+  /// An optional alignment desired for the input of the translation.
+  Optional<llvm::Align> inputAlignment;
+};
 
 /// Use Translate[ToMLIR|FromMLIR]Registration as an initializer that
 /// registers a function and associates it with name. This requires that a
-/// translation has not been registered to a given name.
+/// translation has not been registered to a given name. `inputAlign` is an
+/// optional expected alignment for the input data.
 ///
 /// Usage:
 ///
@@ -62,10 +101,18 @@ using TranslateFunction = std::function<LogicalResult(
 ///
 /// \{
 struct TranslateToMLIRRegistration {
-  TranslateToMLIRRegistration(llvm::StringRef name, llvm::StringRef description,
-                              const TranslateSourceMgrToMLIRFunction &function);
-  TranslateToMLIRRegistration(llvm::StringRef name, llvm::StringRef description,
-                              const TranslateStringRefToMLIRFunction &function);
+  TranslateToMLIRRegistration(
+      llvm::StringRef name, llvm::StringRef description,
+      const TranslateSourceMgrToMLIRFunction &function,
+      Optional<llvm::Align> inputAlignment = std::nullopt);
+  TranslateToMLIRRegistration(
+      llvm::StringRef name, llvm::StringRef description,
+      const TranslateRawSourceMgrToMLIRFunction &function,
+      Optional<llvm::Align> inputAlignment = std::nullopt);
+  TranslateToMLIRRegistration(
+      llvm::StringRef name, llvm::StringRef description,
+      const TranslateStringRefToMLIRFunction &function,
+      Optional<llvm::Align> inputAlignment = std::nullopt);
 };
 
 struct TranslateFromMLIRRegistration {
@@ -99,7 +146,7 @@ struct TranslateRegistration {
 /// \}
 
 /// A command line parser for translation functions.
-struct TranslationParser : public llvm::cl::parser<const TranslateFunction *> {
+struct TranslationParser : public llvm::cl::parser<const Translation *> {
   TranslationParser(llvm::cl::Option &opt);
 
   void printOptionInfo(const llvm::cl::Option &o,

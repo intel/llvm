@@ -49,6 +49,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/Allocator.h"
 #include <algorithm>
+#include <optional>
 #include <utility>
 
 namespace llvm {
@@ -664,8 +665,8 @@ public:
     /// - the final value of the induction variable can be found
     ///
     /// Else None.
-    static Optional<Loop::LoopBounds> getBounds(const Loop &L, PHINode &IndVar,
-                                                ScalarEvolution &SE);
+    static std::optional<Loop::LoopBounds>
+    getBounds(const Loop &L, PHINode &IndVar, ScalarEvolution &SE);
 
     /// Get the initial value of the loop induction variable.
     Value &getInitialIVValue() const { return InitialIVValue; }
@@ -749,8 +750,8 @@ public:
   };
 
   /// Return the struct LoopBounds collected if all struct members are found,
-  /// else None.
-  Optional<LoopBounds> getBounds(ScalarEvolution &SE) const;
+  /// else std::nullopt.
+  std::optional<LoopBounds> getBounds(ScalarEvolution &SE) const;
 
   /// Return the loop induction variable if found, else return nullptr.
   /// An instruction is considered as the loop induction variable if
@@ -1326,15 +1327,15 @@ MDNode *findOptionMDForLoopID(MDNode *LoopID, StringRef Name);
 /// found, return nullptr.
 MDNode *findOptionMDForLoop(const Loop *TheLoop, StringRef Name);
 
-Optional<bool> getOptionalBoolLoopAttribute(const Loop *TheLoop,
-                                            StringRef Name);
-  
+std::optional<bool> getOptionalBoolLoopAttribute(const Loop *TheLoop,
+                                                 StringRef Name);
+
 /// Returns true if Name is applied to TheLoop and enabled.
 bool getBooleanLoopAttribute(const Loop *TheLoop, StringRef Name);
 
 /// Find named metadata for a loop with an integer value.
-llvm::Optional<int>
-getOptionalIntLoopAttribute(const Loop *TheLoop, StringRef Name);
+std::optional<int> getOptionalIntLoopAttribute(const Loop *TheLoop,
+                                               StringRef Name);
 
 /// Find named metadata for a loop with an integer value. Return \p Default if
 /// not set.
@@ -1345,8 +1346,8 @@ int getIntLoopAttribute(const Loop *TheLoop, StringRef Name, int Default = 0);
 /// If it has a value (e.g. {"llvm.distribute", 1} return the value as an
 /// operand or null otherwise.  If the string metadata is not found return
 /// Optional's not-a-value.
-Optional<const MDOperand *> findStringMetadataForLoop(const Loop *TheLoop,
-                                                      StringRef Name);
+std::optional<const MDOperand *> findStringMetadataForLoop(const Loop *TheLoop,
+                                                           StringRef Name);
 
 /// Look for the loop attribute that requires progress within the loop.
 /// Note: Most consumers probably want "isMustProgress" which checks

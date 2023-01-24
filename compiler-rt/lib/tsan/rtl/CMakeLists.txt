@@ -6,6 +6,8 @@ append_list_if(SANITIZER_LIMIT_FRAME_SIZE -Wframe-larger-than=530
                TSAN_RTL_CFLAGS)
 append_list_if(COMPILER_RT_HAS_WGLOBAL_CONSTRUCTORS_FLAG -Wglobal-constructors
                TSAN_RTL_CFLAGS)
+append_list_if(COMPILER_RT_INTERCEPT_LIBDISPATCH ${COMPILER_RT_LIBDISPATCH_CFLAGS}
+               TSAN_RTL_CFLAGS)
 
 set(TSAN_RTL_DYNAMIC_CFLAGS ${TSAN_RTL_CFLAGS})
 list(REMOVE_ITEM TSAN_RTL_DYNAMIC_CFLAGS -fPIE)
@@ -75,7 +77,6 @@ if(COMPILER_RT_INTERCEPT_LIBDISPATCH)
   list(APPEND TSAN_SOURCES
     tsan_interceptors_libdispatch.cpp
     )
-  list(APPEND TSAN_RTL_CFLAGS ${COMPILER_RT_LIBDISPATCH_CFLAGS})
 endif()
 
 set(TSAN_HEADERS
@@ -210,6 +211,10 @@ else()
 	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../go
 	COMMENT "Checking TSan Go runtime..."
 	VERBATIM)
+    elseif(arch MATCHES "loongarch64")
+      add_asm_sources(TSAN_ASM_SOURCES
+        tsan_rtl_loongarch64.S
+        )
     elseif(arch MATCHES "mips64|mips64le")
       add_asm_sources(TSAN_ASM_SOURCES
         tsan_rtl_mips64.S

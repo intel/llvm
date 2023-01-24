@@ -478,6 +478,17 @@ __asan::AsanThread *GetAsanThreadByOsIDLocked(tid_t os_id) {
 
 // --- Implementation of LSan-specific functions --- {{{1
 namespace __lsan {
+void LockThreadRegistry() { __asan::asanThreadRegistry().Lock(); }
+
+void UnlockThreadRegistry() { __asan::asanThreadRegistry().Unlock(); }
+
+static ThreadRegistry *GetAsanThreadRegistryLocked() {
+  __asan::asanThreadRegistry().CheckLocked();
+  return &__asan::asanThreadRegistry();
+}
+
+void EnsureMainThreadIDIsCorrect() { __asan::EnsureMainThreadIDIsCorrect(); }
+
 bool GetThreadRangesLocked(tid_t os_id, uptr *stack_begin, uptr *stack_end,
                            uptr *tls_begin, uptr *tls_end, uptr *cache_begin,
                            uptr *cache_end, DTLS **dtls) {
@@ -507,22 +518,15 @@ void ForEachExtraStackRange(tid_t os_id, RangeIteratorCallback callback,
   fake_stack->ForEachFakeFrame(callback, arg);
 }
 
-void LockThreadRegistry() {
-  __asan::asanThreadRegistry().Lock();
+void RunCallbackForEachThreadLocked(__sanitizer::ThreadRegistry::ThreadCallback cb,
+                                    void *arg) {
+  GetAsanThreadRegistryLocked()->RunCallbackForEachThreadLocked(cb, arg);
 }
 
-void UnlockThreadRegistry() {
-  __asan::asanThreadRegistry().Unlock();
+void FinishThreadLocked(u32 tid) {
+  GetAsanThreadRegistryLocked()->FinishThread(tid);
 }
 
-ThreadRegistry *GetThreadRegistryLocked() {
-  __asan::asanThreadRegistry().CheckLocked();
-  return &__asan::asanThreadRegistry();
-}
-
-void EnsureMainThreadIDIsCorrect() {
-  __asan::EnsureMainThreadIDIsCorrect();
-}
 } // namespace __lsan
 
 // ---------------------- Interface ---------------- {{{1

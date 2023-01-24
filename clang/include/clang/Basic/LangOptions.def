@@ -293,6 +293,8 @@ LANGOPT(
 LANGOPT(SYCLDisableRangeRounding, 1, 0, "Disable parallel for range rounding")
 LANGOPT(SYCLEnableIntHeaderDiags, 1, 0, "Enable diagnostics that require the "
         "SYCL integration header")
+LANGOPT(SYCLAllowVirtualFunctions, 1, 0,
+        "Allow virtual functions calls in code for SYCL device")
 
 LANGOPT(HIPUseNewLaunchAPI, 1, 0, "Use new kernel launching API for HIP")
 
@@ -483,6 +485,11 @@ VALUE_LANGOPT(FuchsiaAPILevel, 32, 0, "Fuchsia API level")
 // supports all operations (like division or float-to-integer conversion)
 // on large _BitInts.
 BENIGN_VALUE_LANGOPT(MaxBitIntWidth, 32, 128, "Maximum width of a _BitInt")
+
+LANGOPT(IncrementalExtensions, 1, 0, " True if we want to process statements"
+        "on the global scope, ignore EOF token and continue later on (thus "
+        "avoid tearing the Lexer and etc. down). Controlled by "
+        "-fincremental-extensions.")
 
 #undef LANGOPT
 #undef COMPATIBLE_LANGOPT

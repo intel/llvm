@@ -464,6 +464,9 @@ public:
 
   typedef Sema::FullExprArg FullExprArg;
 
+  /// A SmallVector of statements.
+  typedef SmallVector<Stmt *, 32> StmtVector;
+
   // Parsing methods.
 
   /// Initialize - Warm up the parser.
@@ -1602,15 +1605,16 @@ private:
 
   //===--------------------------------------------------------------------===//
   // C99 6.9: External Definitions.
-  DeclGroupPtrTy ParseExternalDeclaration(ParsedAttributes &Attrs,
+  DeclGroupPtrTy ParseExternalDeclaration(ParsedAttributes &DeclAttrs,
+                                          ParsedAttributes &DeclSpecAttrs,
                                           ParsingDeclSpec *DS = nullptr);
   bool isDeclarationAfterDeclarator();
   bool isStartOfFunctionDefinition(const ParsingDeclarator &Declarator);
-  DeclGroupPtrTy
-  ParseDeclarationOrFunctionDefinition(ParsedAttributes &Attrs,
-                                       ParsingDeclSpec *DS = nullptr,
-                                       AccessSpecifier AS = AS_none);
+  DeclGroupPtrTy ParseDeclarationOrFunctionDefinition(
+      ParsedAttributes &DeclAttrs, ParsedAttributes &DeclSpecAttrs,
+      ParsingDeclSpec *DS = nullptr, AccessSpecifier AS = AS_none);
   DeclGroupPtrTy ParseDeclOrFunctionDefInternal(ParsedAttributes &Attrs,
+                                                ParsedAttributes &DeclSpecAttrs,
                                                 ParsingDeclSpec &DS,
                                                 AccessSpecifier AS);
 
@@ -1625,7 +1629,8 @@ private:
 
   // Objective-C External Declarations
   void MaybeSkipAttributes(tok::ObjCKeywordKind Kind);
-  DeclGroupPtrTy ParseObjCAtDirectives(ParsedAttributes &Attrs);
+  DeclGroupPtrTy ParseObjCAtDirectives(ParsedAttributes &DeclAttrs,
+                                       ParsedAttributes &DeclSpecAttrs);
   DeclGroupPtrTy ParseObjCAtClassDeclaration(SourceLocation atLoc);
   Decl *ParseObjCAtInterfaceDeclaration(SourceLocation AtLoc,
                                         ParsedAttributes &prefixAttrs);
@@ -1763,7 +1768,7 @@ public:
   ExprResult ParseExpression(TypeCastState isTypeCast = NotTypeCast);
   ExprResult ParseConstantExpressionInExprEvalContext(
       TypeCastState isTypeCast = NotTypeCast);
-  ExprResult ParseConstantExpression(TypeCastState isTypeCast = NotTypeCast);
+  ExprResult ParseConstantExpression();
   ExprResult ParseCaseExpression(SourceLocation CaseLoc);
   ExprResult ParseConstraintExpression();
   ExprResult
@@ -1836,11 +1841,8 @@ private:
                                                      ParsedType &CastTy,
                                                      SourceRange &CastRange);
 
-  typedef SmallVector<SourceLocation, 20> CommaLocsTy;
-
   /// ParseExpressionList - Used for C/C++ (argument-)expression-list.
   bool ParseExpressionList(SmallVectorImpl<Expr *> &Exprs,
-                           SmallVectorImpl<SourceLocation> &CommaLocs,
                            llvm::function_ref<void()> ExpressionStarts =
                                llvm::function_ref<void()>(),
                            bool FailImmediatelyOnInvalidExpr = false,
@@ -1848,9 +1850,7 @@ private:
 
   /// ParseSimpleExpressionList - A simple comma-separated list of expressions,
   /// used for misc language extensions.
-  bool ParseSimpleExpressionList(SmallVectorImpl<Expr*> &Exprs,
-                                 SmallVectorImpl<SourceLocation> &CommaLocs);
-
+  bool ParseSimpleExpressionList(SmallVectorImpl<Expr *> &Exprs);
 
   /// ParenParseOption - Control what ParseParenExpression will parse.
   enum ParenParseOption {
@@ -2075,13 +2075,8 @@ private:
   //===--------------------------------------------------------------------===//
   // C99 6.8: Statements and Blocks.
 
-  /// A SmallVector of statements, with stack size 32 (as that is the only one
-  /// used.)
-  typedef SmallVector<Stmt*, 32> StmtVector;
-  /// A SmallVector of expressions, with stack size 12 (the maximum used.)
+  /// A SmallVector of expressions.
   typedef SmallVector<Expr*, 12> ExprVector;
-  /// A SmallVector of types.
-  typedef SmallVector<ParsedType, 12> TypeVector;
 
   StmtResult
   ParseStatement(SourceLocation *TrailingElseLoc = nullptr,
@@ -2110,8 +2105,8 @@ private:
   bool ParseParenExprOrCondition(StmtResult *InitStmt,
                                  Sema::ConditionResult &CondResult,
                                  SourceLocation Loc, Sema::ConditionKind CK,
-                                 bool MissingOK, SourceLocation *LParenLoc,
-                                 SourceLocation *RParenLoc);
+                                 SourceLocation &LParenLoc,
+                                 SourceLocation &RParenLoc);
   StmtResult ParseIfStatement(SourceLocation *TrailingElseLoc);
   StmtResult ParseSwitchStatement(SourceLocation *TrailingElseLoc);
   StmtResult ParseWhileStatement(SourceLocation *TrailingElseLoc);
@@ -2457,6 +2452,8 @@ private:
       ParsingDeclSpec &DS,
       llvm::function_ref<void(ParsingFieldDeclarator &)> FieldsCallback);
 
+  DeclGroupPtrTy ParseTopLevelStmtDecl();
+
   bool isDeclarationSpecifier(ImplicitTypenameContext AllowImplicitTypename,
                               bool DisambiguatingWithExpression = false);
   bool isTypeSpecifierQualifier();
@@ -2478,10 +2475,13 @@ private:
 
   /// isDeclarationStatement - Disambiguates between a declaration or an
   /// expression statement, when parsing function bodies.
+  ///
+  /// \param DisambiguatingWithExpression - True to indicate that the purpose of
+  /// this check is to disambiguate between an expression and a declaration.
   /// Returns true for declaration, false for expression.
-  bool isDeclarationStatement() {
+  bool isDeclarationStatement(bool DisambiguatingWithExpression = false) {
     if (getLangOpts().CPlusPlus)
-      return isCXXDeclarationStatement();
+      return isCXXDeclarationStatement(DisambiguatingWithExpression);
     return isDeclarationSpecifier(ImplicitTypenameContext::No, true);
   }
 
@@ -2548,7 +2548,7 @@ private:
   /// isCXXDeclarationStatement - C++-specialized function that disambiguates
   /// between a declaration or an expression statement, when parsing function
   /// bodies. Returns true for declaration, false for expression.
-  bool isCXXDeclarationStatement();
+  bool isCXXDeclarationStatement(bool DisambiguatingWithExpression = false);
 
   /// isCXXSimpleDeclaration - C++-specialized function that disambiguates
   /// between a simple-declaration or an expression-statement.
@@ -3067,7 +3067,8 @@ private:
   void ParseTypeQualifierListOpt(
       DeclSpec &DS, unsigned AttrReqs = AR_AllAttributesParsed,
       bool AtomicAllowed = true, bool IdentifierRequired = false,
-      Optional<llvm::function_ref<void()>> CodeCompletionHandler = None);
+      Optional<llvm::function_ref<void()>> CodeCompletionHandler =
+          std::nullopt);
   void ParseDirectDeclarator(Declarator &D);
   void ParseDecompositionDeclarator(Declarator &D);
   void ParseParenDeclarator(Declarator &D);
@@ -3293,6 +3294,15 @@ private:
 
   /// Parse 'omp end assumes' directive.
   void ParseOpenMPEndAssumesDirective(SourceLocation Loc);
+
+  /// Parses clauses for directive.
+  ///
+  /// \param DKind Kind of current directive.
+  /// \param clauses for current directive.
+  /// \param start location for clauses of current directive
+  void ParseOpenMPClauses(OpenMPDirectiveKind DKind,
+                          SmallVectorImpl<clang::OMPClause *> &Clauses,
+                          SourceLocation Loc);
 
   /// Parse clauses for '#pragma omp [begin] declare target'.
   void ParseOMPDeclareTargetClauses(Sema::DeclareTargetContextInfo &DTCI);

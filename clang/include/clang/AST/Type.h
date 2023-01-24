@@ -34,7 +34,6 @@
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/FoldingSet.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/PointerUnion.h"
@@ -2554,7 +2553,7 @@ public:
   /// Note that nullability is only captured as sugar within the type
   /// system, not as part of the canonical type, so nullability will
   /// be lost by canonicalization and desugaring.
-  Optional<NullabilityKind> getNullability(const ASTContext &context) const;
+  Optional<NullabilityKind> getNullability() const;
 
   /// Determine whether the given type can have a nullability
   /// specifier applied to it, i.e., if it is any kind of pointer type.
@@ -2599,6 +2598,7 @@ public:
 /// This will check for a TypedefType by removing any existing sugar
 /// until it reaches a TypedefType or a non-sugared type.
 template <> const TypedefType *Type::getAs() const;
+template <> const UsingType *Type::getAs() const;
 
 /// This will check for a TemplateSpecializationType by removing any
 /// existing sugar until it reaches a TemplateSpecializationType or a
@@ -5123,7 +5123,7 @@ public:
 
   Optional<unsigned> getPackIndex() const {
     if (SubstTemplateTypeParmTypeBits.PackIndex == 0)
-      return None;
+      return std::nullopt;
     return SubstTemplateTypeParmTypeBits.PackIndex - 1;
   }
 
@@ -5470,6 +5470,13 @@ void printTemplateArgumentList(raw_ostream &OS,
                                const TemplateArgumentListInfo &Args,
                                const PrintingPolicy &Policy,
                                const TemplateParameterList *TPL = nullptr);
+
+/// Make a best-effort determination of whether the type T can be produced by
+/// substituting Args into the default argument of Param.
+bool isSubstitutedDefaultArgument(ASTContext &Ctx, TemplateArgument Arg,
+                                  const NamedDecl *Param,
+                                  ArrayRef<TemplateArgument> Args,
+                                  unsigned Depth);
 
 /// The injected class name of a C++ class template or class
 /// template partial specialization.  Used to record that a type was
@@ -5865,7 +5872,7 @@ public:
   Optional<unsigned> getNumExpansions() const {
     if (PackExpansionTypeBits.NumExpansions)
       return PackExpansionTypeBits.NumExpansions - 1;
-    return None;
+    return std::nullopt;
   }
 
   bool isSugared() const { return false; }

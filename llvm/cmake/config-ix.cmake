@@ -71,7 +71,7 @@ if(APPLE)
   CHECK_C_SOURCE_COMPILES("
      static const char *__crashreporter_info__ = 0;
      asm(\".desc ___crashreporter_info__, 0x10\");
-     int main() { return 0; }"
+     int main(void) { return 0; }"
     HAVE_CRASHREPORTER_INFO)
 endif()
 
@@ -324,16 +324,6 @@ if( PURE_WINDOWS )
   check_function_exists(__main HAVE___MAIN)
   check_function_exists(__cmpdi2 HAVE___CMPDI2)
 endif()
-if( HAVE_DLFCN_H )
-  if( HAVE_LIBDL )
-    list(APPEND CMAKE_REQUIRED_LIBRARIES dl)
-  endif()
-  check_symbol_exists(dlopen dlfcn.h HAVE_DLOPEN)
-  check_symbol_exists(dladdr dlfcn.h HAVE_DLADDR)
-  if( HAVE_LIBDL )
-    list(REMOVE_ITEM CMAKE_REQUIRED_LIBRARIES dl)
-  endif()
-endif()
 
 CHECK_STRUCT_HAS_MEMBER("struct stat" st_mtimespec.tv_nsec
     "sys/types.h;sys/stat.h" HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC)
@@ -348,10 +338,11 @@ endif()
 
 check_symbol_exists(__GLIBC__ stdio.h LLVM_USING_GLIBC)
 if( LLVM_USING_GLIBC )
-  add_definitions( -D_GNU_SOURCE )
+  add_compile_definitions(_GNU_SOURCE)
   list(APPEND CMAKE_REQUIRED_DEFINITIONS "-D_GNU_SOURCE")
 endif()
-# This check requires _GNU_SOURCE
+
+# This check requires _GNU_SOURCE.
 if (NOT PURE_WINDOWS)
   if (LLVM_PTHREAD_LIB)
     list(APPEND CMAKE_REQUIRED_LIBRARIES ${LLVM_PTHREAD_LIB})
@@ -360,6 +351,18 @@ if (NOT PURE_WINDOWS)
   check_symbol_exists(pthread_setname_np pthread.h HAVE_PTHREAD_SETNAME_NP)
   if (LLVM_PTHREAD_LIB)
     list(REMOVE_ITEM CMAKE_REQUIRED_LIBRARIES ${LLVM_PTHREAD_LIB})
+  endif()
+endif()
+
+# This check requires _GNU_SOURCE.
+if( HAVE_DLFCN_H )
+  if( HAVE_LIBDL )
+    list(APPEND CMAKE_REQUIRED_LIBRARIES dl)
+  endif()
+  check_symbol_exists(dlopen dlfcn.h HAVE_DLOPEN)
+  check_symbol_exists(dladdr dlfcn.h HAVE_DLADDR)
+  if( HAVE_LIBDL )
+    list(REMOVE_ITEM CMAKE_REQUIRED_LIBRARIES dl)
   endif()
 endif()
 
@@ -622,15 +625,17 @@ if(CMAKE_GENERATOR MATCHES "Ninja" AND
 endif()
 
 if(CMAKE_HOST_APPLE AND APPLE)
-  if(NOT CMAKE_XCRUN)
-    find_program(CMAKE_XCRUN NAMES xcrun)
-  endif()
-  if(CMAKE_XCRUN)
-    execute_process(COMMAND ${CMAKE_XCRUN} -find ld
-      OUTPUT_VARIABLE LD64_EXECUTABLE
-      OUTPUT_STRIP_TRAILING_WHITESPACE)
-  else()
-    find_program(LD64_EXECUTABLE NAMES ld DOC "The ld64 linker")
+  if(NOT LD64_EXECUTABLE)
+    if(NOT CMAKE_XCRUN)
+      find_program(CMAKE_XCRUN NAMES xcrun)
+    endif()
+    if(CMAKE_XCRUN)
+      execute_process(COMMAND ${CMAKE_XCRUN} -find ld
+        OUTPUT_VARIABLE LD64_EXECUTABLE
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
+    else()
+      find_program(LD64_EXECUTABLE NAMES ld DOC "The ld64 linker")
+    endif()
   endif()
 
   if(LD64_EXECUTABLE)

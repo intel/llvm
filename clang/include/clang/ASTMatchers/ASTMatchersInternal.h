@@ -52,7 +52,6 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -122,7 +121,7 @@ template <typename T> struct TypeListContainsSuperOf<EmptyTypeList, T> {
 template <typename ResultT, typename ArgT,
           ResultT (*Func)(ArrayRef<const ArgT *>)>
 struct VariadicFunction {
-  ResultT operator()() const { return Func(None); }
+  ResultT operator()() const { return Func(std::nullopt); }
 
   template <typename... ArgsT>
   ResultT operator()(const ArgT &Arg1, const ArgsT &... Args) const {
@@ -351,8 +350,8 @@ public:
   virtual bool dynMatches(const DynTypedNode &DynNode, ASTMatchFinder *Finder,
                           BoundNodesTreeBuilder *Builder) const = 0;
 
-  virtual llvm::Optional<clang::TraversalKind> TraversalKind() const {
-    return llvm::None;
+  virtual std::optional<clang::TraversalKind> TraversalKind() const {
+    return std::nullopt;
   }
 };
 
@@ -464,7 +463,7 @@ public:
   ///   restricts the node types for \p Kind.
   DynTypedMatcher dynCastTo(const ASTNodeKind Kind) const;
 
-  /// Return a matcher that that points to the same implementation, but sets the
+  /// Return a matcher that points to the same implementation, but sets the
   ///   traversal kind.
   ///
   /// If the traversal kind is already set, then \c TK overrides it.
@@ -536,8 +535,8 @@ public:
   /// Returns the \c TraversalKind respected by calls to `match()`, if any.
   ///
   /// Most matchers will not have a traversal kind set, instead relying on the
-  /// surrounding context. For those, \c llvm::None is returned.
-  llvm::Optional<clang::TraversalKind> getTraversalKind() const {
+  /// surrounding context. For those, \c std::nullopt is returned.
+  std::optional<clang::TraversalKind> getTraversalKind() const {
     return Implementation->TraversalKind();
   }
 
@@ -649,7 +648,7 @@ public:
                                         Builder);
     }
 
-    llvm::Optional<clang::TraversalKind> TraversalKind() const override {
+    std::optional<clang::TraversalKind> TraversalKind() const override {
       return this->InnerMatcher.getTraversalKind();
     }
   };
@@ -1516,7 +1515,7 @@ public:
                                       Builder);
   }
 
-  llvm::Optional<clang::TraversalKind> TraversalKind() const override {
+  std::optional<clang::TraversalKind> TraversalKind() const override {
     if (auto NestedKind = this->InnerMatcher.getTraversalKind())
       return NestedKind;
     return Traversal;
@@ -1983,10 +1982,10 @@ template <>
 inline Optional<BinaryOperatorKind>
 equivalentBinaryOperator<CXXOperatorCallExpr>(const CXXOperatorCallExpr &Node) {
   if (Node.getNumArgs() != 2)
-    return None;
+    return std::nullopt;
   switch (Node.getOperator()) {
   default:
-    return None;
+    return std::nullopt;
   case OO_ArrowStar:
     return BO_PtrMemI;
   case OO_Star:
@@ -2065,10 +2064,10 @@ inline Optional<UnaryOperatorKind>
 equivalentUnaryOperator<CXXOperatorCallExpr>(const CXXOperatorCallExpr &Node) {
   if (Node.getNumArgs() != 1 && Node.getOperator() != OO_PlusPlus &&
       Node.getOperator() != OO_MinusMinus)
-    return None;
+    return std::nullopt;
   switch (Node.getOperator()) {
   default:
-    return None;
+    return std::nullopt;
   case OO_Plus:
     return UO_Plus;
   case OO_Minus:
@@ -2084,13 +2083,13 @@ equivalentUnaryOperator<CXXOperatorCallExpr>(const CXXOperatorCallExpr &Node) {
   case OO_PlusPlus: {
     const auto *FD = Node.getDirectCallee();
     if (!FD)
-      return None;
+      return std::nullopt;
     return FD->getNumParams() > 0 ? UO_PostInc : UO_PreInc;
   }
   case OO_MinusMinus: {
     const auto *FD = Node.getDirectCallee();
     if (!FD)
-      return None;
+      return std::nullopt;
     return FD->getNumParams() > 0 ? UO_PostDec : UO_PreDec;
   }
   case OO_Coawait:
@@ -2191,7 +2190,7 @@ inline Optional<StringRef> getOpName(const CXXOperatorCallExpr &Node) {
   if (!optBinaryOpcode) {
     auto optUnaryOpcode = equivalentUnaryOperator(Node);
     if (!optUnaryOpcode)
-      return None;
+      return std::nullopt;
     return UnaryOperator::getOpcodeStr(*optUnaryOpcode);
   }
   return BinaryOperator::getOpcodeStr(*optBinaryOpcode);
@@ -2236,7 +2235,7 @@ private:
     if (!optBinaryOpcode) {
       auto optUnaryOpcode = equivalentUnaryOperator(Node);
       if (!optUnaryOpcode)
-        return None;
+        return std::nullopt;
       return UnaryOperator::getOpcodeStr(*optUnaryOpcode);
     }
     return BinaryOperator::getOpcodeStr(*optBinaryOpcode);

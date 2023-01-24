@@ -44,7 +44,7 @@ using llvm::MapVector;
 static Value allocBuffer(ImplicitLocOpBuilder &b,
                          const LinalgPromotionOptions &options,
                          Type elementType, Value allocSize, DataLayout &layout,
-                         Optional<unsigned> alignment = None) {
+                         std::optional<unsigned> alignment = std::nullopt) {
   auto width = layout.getTypeSize(elementType);
 
   IntegerAttr alignmentAttr;
@@ -65,7 +65,7 @@ static Value allocBuffer(ImplicitLocOpBuilder &b,
 
   // Fallback dynamic buffer.
   auto dynamicBufferType =
-      MemRefType::get(ShapedType::kDynamicSize, b.getIntegerType(8));
+      MemRefType::get(ShapedType::kDynamic, b.getIntegerType(8));
   Value mul = b.createOrFold<arith::MulIOp>(
       b.create<arith::ConstantIndexOp>(width), allocSize);
   if (options.useAlloca)
@@ -77,11 +77,10 @@ static Value allocBuffer(ImplicitLocOpBuilder &b,
 /// no call back to do so is provided. The default is to allocate a
 /// memref<..xi8> and return a view to get a memref type of shape
 /// boundingSubViewSize.
-static Optional<Value>
-defaultAllocBufferCallBack(const LinalgPromotionOptions &options,
-                           OpBuilder &builder, memref::SubViewOp subView,
-                           ArrayRef<Value> boundingSubViewSize,
-                           Optional<unsigned> alignment, DataLayout &layout) {
+static std::optional<Value> defaultAllocBufferCallBack(
+    const LinalgPromotionOptions &options, OpBuilder &builder,
+    memref::SubViewOp subView, ArrayRef<Value> boundingSubViewSize,
+    std::optional<unsigned> alignment, DataLayout &layout) {
   ShapedType viewType = subView.getType();
   ImplicitLocOpBuilder b(subView.getLoc(), builder);
   auto zero = b.createOrFold<arith::ConstantIndexOp>(0);
@@ -93,7 +92,7 @@ defaultAllocBufferCallBack(const LinalgPromotionOptions &options,
   Value buffer = allocBuffer(b, options, viewType.getElementType(), allocSize,
                              layout, alignment);
   SmallVector<int64_t, 4> dynSizes(boundingSubViewSize.size(),
-                                   ShapedType::kDynamicSize);
+                                   ShapedType::kDynamic);
   Value view = b.createOrFold<memref::ViewOp>(
       MemRefType::get(dynSizes, viewType.getElementType()), buffer, zero,
       boundingSubViewSize);
@@ -136,7 +135,7 @@ struct LinalgOpInstancePromotionOptions {
   CopyCallbackFn copyOutFn;
 
   /// Alignment of promoted buffer.
-  Optional<unsigned> alignment;
+  std::optional<unsigned> alignment;
 };
 } // namespace
 
@@ -166,7 +165,7 @@ LinalgOpInstancePromotionOptions::LinalgOpInstancePromotionOptions(
   } else {
     allocationFn = [&](OpBuilder &b, memref::SubViewOp subViewOp,
                        ArrayRef<Value> boundingSubViewSize,
-                       DataLayout &layout) -> Optional<Value> {
+                       DataLayout &layout) -> std::optional<Value> {
       return defaultAllocBufferCallBack(options, b, subViewOp,
                                         boundingSubViewSize, alignment, layout);
     };
@@ -236,17 +235,18 @@ FailureOr<PromotionInfo> mlir::linalg::promoteSubviewAsNewBuffer(
           getConstantUpperBoundForIndex(materializedSize);
       size = failed(upperBound)
                  ? materializedSize
-                 : b.create<arith::ConstantIndexOp>(loc, upperBound.value());
+                 : b.create<arith::ConstantIndexOp>(loc, *upperBound);
     }
     LLVM_DEBUG(llvm::dbgs() << "Extracted tightest: " << size << "\n");
     fullSizes.push_back(size);
     partialSizes.push_back(
         b.createOrFold<memref::DimOp>(loc, subView, resultDimIdx++));
   }
-  SmallVector<int64_t, 4> dynSizes(fullSizes.size(), ShapedType::kDynamicSize);
+  SmallVector<int64_t, 4> dynSizes(fullSizes.size(), ShapedType::kDynamic);
   // If a callback is not specified, then use the default implementation for
   // allocating the promoted buffer.
-  Optional<Value> fullLocalView = allocationFn(b, subView, fullSizes, layout);
+  std::optional<Value> fullLocalView =
+      allocationFn(b, subView, fullSizes, layout);
   if (!fullLocalView)
     return failure();
   SmallVector<OpFoldResult, 4> zeros(fullSizes.size(), b.getIndexAttr(0));

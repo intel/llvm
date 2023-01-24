@@ -27,6 +27,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/JSON.h"
+#include <optional>
 
 #define DEBUG_TYPE "debugify"
 
@@ -114,7 +115,8 @@ bool llvm::applyDebugifyMetadata(
       continue;
 
     bool InsertedDbgVal = false;
-    auto SPType = DIB.createSubroutineType(DIB.getOrCreateTypeArray(None));
+    auto SPType =
+        DIB.createSubroutineType(DIB.getOrCreateTypeArray(std::nullopt));
     DISubprogram::DISPFlags SPFlags =
         DISubprogram::SPFlagDefinition | DISubprogram::SPFlagOptimized;
     if (F.hasPrivateLinkage() || F.hasInternalLinkage())
@@ -243,10 +245,15 @@ applyDebugify(Module &M,
 bool llvm::stripDebugifyMetadata(Module &M) {
   bool Changed = false;
 
-  // Remove the llvm.debugify module-level named metadata.
+  // Remove the llvm.debugify and llvm.mir.debugify module-level named metadata.
   NamedMDNode *DebugifyMD = M.getNamedMetadata("llvm.debugify");
   if (DebugifyMD) {
     M.eraseNamedMetadata(DebugifyMD);
+    Changed = true;
+  }
+
+  if (auto *MIRDebugifyMD = M.getNamedMetadata("llvm.mir.debugify")) {
+    M.eraseNamedMetadata(MIRDebugifyMD);
     Changed = true;
   }
 
@@ -674,7 +681,7 @@ bool diagnoseMisSizedDbgValue(Module &M, DbgValueInst *DVI) {
 
   Type *Ty = V->getType();
   uint64_t ValueOperandSize = getAllocSizeInBits(M, Ty);
-  Optional<uint64_t> DbgVarSize = DVI->getFragmentSizeInBits();
+  std::optional<uint64_t> DbgVarSize = DVI->getFragmentSizeInBits();
   if (!ValueOperandSize || !DbgVarSize)
     return false;
 
@@ -1024,19 +1031,19 @@ void DebugifyEachInstrumentation::registerCallbacks(
   PIC.registerBeforeNonSkippedPassCallback([this](StringRef P, Any IR) {
     if (isIgnoredPass(P))
       return;
-    if (any_isa<const Function *>(IR))
-      applyDebugify(*const_cast<Function *>(any_cast<const Function *>(IR)),
+    if (const auto **F = any_cast<const Function *>(&IR))
+      applyDebugify(*const_cast<Function *>(*F),
                     Mode, DebugInfoBeforePass, P);
-    else if (any_isa<const Module *>(IR))
-      applyDebugify(*const_cast<Module *>(any_cast<const Module *>(IR)),
+    else if (const auto **M = any_cast<const Module *>(&IR))
+      applyDebugify(*const_cast<Module *>(*M),
                     Mode, DebugInfoBeforePass, P);
   });
   PIC.registerAfterPassCallback([this](StringRef P, Any IR,
                                        const PreservedAnalyses &PassPA) {
     if (isIgnoredPass(P))
       return;
-    if (any_isa<const Function *>(IR)) {
-      auto &F = *const_cast<Function *>(any_cast<const Function *>(IR));
+    if (const auto **CF = any_cast<const Function *>(&IR)) {
+      auto &F = *const_cast<Function *>(*CF);
       Module &M = *F.getParent();
       auto It = F.getIterator();
       if (Mode == DebugifyMode::SyntheticDebugInfo)
@@ -1047,8 +1054,8 @@ void DebugifyEachInstrumentation::registerCallbacks(
           M, make_range(It, std::next(It)), *DebugInfoBeforePass,
           "CheckModuleDebugify (original debuginfo)",
           P, OrigDIVerifyBugsReportFilePath);
-    } else if (any_isa<const Module *>(IR)) {
-      auto &M = *const_cast<Module *>(any_cast<const Module *>(IR));
+    } else if (const auto **CM = any_cast<const Module *>(&IR)) {
+      auto &M = *const_cast<Module *>(*CM);
       if (Mode == DebugifyMode::SyntheticDebugInfo)
        checkDebugifyMetadata(M, M.functions(), P, "CheckModuleDebugify",
                             /*Strip=*/true, DIStatsMap);

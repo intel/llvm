@@ -9,14 +9,14 @@
 
 ; RUN: sycl-post-link -split=source -symbols -split-esimd -lower-esimd -S %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table
-; RUN: FileCheck %s -input-file=%t_large_grf_0.ll --check-prefixes CHECK-LARGE-GRF-IR
-; RUN: FileCheck %s -input-file=%t_large_grf_0.prop --check-prefixes CHECK-LARGE-GRF-PROP
+; RUN: FileCheck %s -input-file=%t_large_grf_1.ll --check-prefixes CHECK-LARGE-GRF-IR
+; RUN: FileCheck %s -input-file=%t_large_grf_1.prop --check-prefixes CHECK-LARGE-GRF-PROP
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYCL-SYM
-; RUN: FileCheck %s -input-file=%t_large_grf_0.sym --check-prefixes CHECK-LARGE-GRF-SYM
+; RUN: FileCheck %s -input-file=%t_large_grf_1.sym --check-prefixes CHECK-LARGE-GRF-SYM
 
 ; CHECK: [Code|Properties|Symbols]
-; CHECK: {{.*}}_large_grf_0.ll|{{.*}}_large_grf_0.prop|{{.*}}_large_grf_0.sym
 ; CHECK: {{.*}}_0.ll|{{.*}}_0.prop|{{.*}}_0.sym
+; CHECK: {{.*}}_large_grf_1.ll|{{.*}}_large_grf_1.prop|{{.*}}_large_grf_1.sym
 
 ; CHECK-LARGE-GRF-PROP: isLargeGRF=1|1
 
@@ -47,6 +47,8 @@ entry:
 declare dso_local spir_func void @_Z28__sycl_set_kernel_propertiesi(i32 noundef)
 
 define weak_odr dso_local spir_kernel void @__large_grf_kernel() #0 {
+; CHECK-LARGE-GRF-IR: @__large_grf_kernel() {{.*}} !RegisterAllocMode ![[MetadataArg:[0-9]+]]
+; CHECK-LARGE-GRF-IR: ![[MetadataArg]] = !{i32 2}
 entry:
   call spir_func void @_Z17large_grf_markerv()
   ret void

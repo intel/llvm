@@ -219,12 +219,25 @@ bool AffineExpr::isPureAffine() const {
 int64_t AffineExpr::getLargestKnownDivisor() const {
   AffineBinaryOpExpr binExpr(nullptr);
   switch (getKind()) {
-  case AffineExprKind::CeilDiv:
-    [[fallthrough]];
   case AffineExprKind::DimId:
-  case AffineExprKind::FloorDiv:
+    [[fallthrough]];
   case AffineExprKind::SymbolId:
     return 1;
+  case AffineExprKind::CeilDiv:
+    [[fallthrough]];
+  case AffineExprKind::FloorDiv: {
+    // If the RHS is a constant and divides the known divisor on the LHS, the
+    // quotient is a known divisor of the expression.
+    binExpr = this->cast<AffineBinaryOpExpr>();
+    auto rhs = binExpr.getRHS().dyn_cast<AffineConstantExpr>();
+    // Leave alone undefined expressions.
+    if (rhs && rhs.getValue() != 0) {
+      int64_t lhsDiv = binExpr.getLHS().getLargestKnownDivisor();
+      if (lhsDiv % rhs.getValue() == 0)
+        return lhsDiv / rhs.getValue();
+    }
+    return 1;
+  }
   case AffineExprKind::Constant:
     return std::abs(this->cast<AffineConstantExpr>().getValue());
   case AffineExprKind::Mul: {
@@ -986,18 +999,9 @@ static AffineExpr getSemiAffineExprFromFlatForm(ArrayRef<int64_t> flatExprs,
   // constant coefficient corresponding to the indices in `coefficients` map,
   // and affine expression corresponding to indices in `indexToExprMap` map.
 
-  for (unsigned j = 0; j < numDims; ++j) {
-    if (flatExprs[j] == 0)
-      continue;
-    // For dimensional expressions we set the index as <position number of the
-    // dimension, 0>, as we want dimensional expressions to appear before
-    // symbolic ones and products of dimensional and symbolic expressions
-    // having the dimension with the same position number.
-    std::pair<unsigned, signed> indexEntry(j, -1);
-    addEntry(indexEntry, flatExprs[j], getAffineDimExpr(j, context));
-  }
   // Ensure we do not have duplicate keys in `indexToExpr` map.
-  unsigned offset = 0;
+  unsigned offsetSym = 0;
+  signed offsetDim = -1;
   for (unsigned j = numDims; j < numDims + numSymbols; ++j) {
     if (flatExprs[j] == 0)
       continue;
@@ -1006,7 +1010,7 @@ static AffineExpr getSemiAffineExprFromFlatForm(ArrayRef<int64_t> flatExprs,
     // as we want symbolic expressions with the same positional number to
     // appear after dimensional expressions having the same positional number.
     std::pair<unsigned, signed> indexEntry(
-        j - numDims, std::max(numDims, numSymbols) + offset++);
+        j - numDims, std::max(numDims, numSymbols) + offsetSym++);
     addEntry(indexEntry, flatExprs[j],
              getAffineSymbolExpr(j - numDims, context));
   }
@@ -1038,13 +1042,13 @@ static AffineExpr getSemiAffineExprFromFlatForm(ArrayRef<int64_t> flatExprs,
       // constructing. When rhs is constant, we place 0 in place of keyB.
       if (lhs.isa<AffineDimExpr>()) {
         lhsPos = lhs.cast<AffineDimExpr>().getPosition();
-        std::pair<unsigned, signed> indexEntry(lhsPos, -1);
+        std::pair<unsigned, signed> indexEntry(lhsPos, offsetDim--);
         addEntry(indexEntry, flatExprs[numDims + numSymbols + it.index()],
                  expr);
       } else {
         lhsPos = lhs.cast<AffineSymbolExpr>().getPosition();
         std::pair<unsigned, signed> indexEntry(
-            lhsPos, std::max(numDims, numSymbols) + offset++);
+            lhsPos, std::max(numDims, numSymbols) + offsetSym++);
         addEntry(indexEntry, flatExprs[numDims + numSymbols + it.index()],
                  expr);
       }
@@ -1066,10 +1070,21 @@ static AffineExpr getSemiAffineExprFromFlatForm(ArrayRef<int64_t> flatExprs,
       lhsPos = lhs.cast<AffineSymbolExpr>().getPosition();
       rhsPos = rhs.cast<AffineSymbolExpr>().getPosition();
       std::pair<unsigned, signed> indexEntry(
-          lhsPos, std::max(numDims, numSymbols) + offset++);
+          lhsPos, std::max(numDims, numSymbols) + offsetSym++);
       addEntry(indexEntry, flatExprs[numDims + numSymbols + it.index()], expr);
     }
     addedToMap[it.index()] = true;
+  }
+
+  for (unsigned j = 0; j < numDims; ++j) {
+    if (flatExprs[j] == 0)
+      continue;
+    // For dimensional expressions we set the index as <position number of the
+    // dimension, 0>, as we want dimensional expressions to appear before
+    // symbolic ones and products of dimensional and symbolic expressions
+    // having the dimension with the same position number.
+    std::pair<unsigned, signed> indexEntry(j, offsetDim--);
+    addEntry(indexEntry, flatExprs[j], getAffineDimExpr(j, context));
   }
 
   // Constructing the simplified semi-affine sum of product/division/mod

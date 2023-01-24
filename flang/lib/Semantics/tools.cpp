@@ -280,9 +280,9 @@ bool IsPointerDummy(const Symbol &symbol) {
 
 bool IsBindCProcedure(const Symbol &symbol) {
   if (const auto *procDetails{symbol.detailsIf<ProcEntityDetails>()}) {
-    if (const Symbol * procInterface{procDetails->interface().symbol()}) {
+    if (procDetails->procInterface()) {
       // procedure component with a BIND(C) interface
-      return IsBindCProcedure(*procInterface);
+      return IsBindCProcedure(*procDetails->procInterface());
     }
   }
   return symbol.attrs().test(Attr::BIND_C) && IsProcedure(symbol);
@@ -457,7 +457,7 @@ const Symbol *FindInterface(const Symbol &symbol) {
       common::visitors{
           [](const ProcEntityDetails &details) {
             const Symbol *interface {
-              details.interface().symbol()
+              details.procInterface()
             };
             return interface ? FindInterface(*interface) : nullptr;
           },
@@ -484,8 +484,8 @@ const Symbol *FindSubprogram(const Symbol &symbol) {
   return common::visit(
       common::visitors{
           [&](const ProcEntityDetails &details) -> const Symbol * {
-            if (const Symbol * interface{details.interface().symbol()}) {
-              return FindSubprogram(*interface);
+            if (details.procInterface()) {
+              return FindSubprogram(*details.procInterface());
             } else {
               return &symbol;
             }
@@ -515,6 +515,36 @@ const Symbol *FindOverriddenBinding(const Symbol &symbol) {
       if (const DerivedTypeSpec * parentDerived{parentType->AsDerived()}) {
         if (const Scope * parentScope{parentDerived->typeSymbol().scope()}) {
           return parentScope->FindComponent(symbol.name());
+        }
+      }
+    }
+  }
+  return nullptr;
+}
+
+const Symbol *FindGlobal(const Symbol &original) {
+  const Symbol &ultimate{original.GetUltimate()};
+  if (ultimate.owner().IsGlobal()) {
+    return &ultimate;
+  }
+  bool isLocal{false};
+  if (IsDummy(ultimate)) {
+  } else if (IsPointer(ultimate)) {
+  } else if (ultimate.has<ProcEntityDetails>()) {
+    isLocal = IsExternal(ultimate);
+  } else if (const auto *subp{ultimate.detailsIf<SubprogramDetails>()}) {
+    isLocal = subp->isInterface();
+  }
+  if (isLocal) {
+    const std::string *bind{ultimate.GetBindName()};
+    if (!bind || ultimate.name() == *bind) {
+      const Scope &globalScope{ultimate.owner().context().globalScope()};
+      if (auto iter{globalScope.find(ultimate.name())};
+          iter != globalScope.end()) {
+        const Symbol &global{*iter->second};
+        const std::string *globalBind{global.GetBindName()};
+        if (!globalBind || global.name() == *globalBind) {
+          return &global;
         }
       }
     }
@@ -778,34 +808,6 @@ bool IsModuleProcedure(const Symbol &symbol) {
   return ClassifyProcedure(symbol) == ProcedureDefinitionClass::Module;
 }
 
-PotentialComponentIterator::const_iterator FindPolymorphicPotentialComponent(
-    const DerivedTypeSpec &derived) {
-  PotentialComponentIterator potentials{derived};
-  return std::find_if(
-      potentials.begin(), potentials.end(), [](const Symbol &component) {
-        if (const auto *details{component.detailsIf<ObjectEntityDetails>()}) {
-          const DeclTypeSpec *type{details->type()};
-          return type && type->IsPolymorphic();
-        }
-        return false;
-      });
-}
-
-bool IsOrContainsPolymorphicComponent(const Symbol &original) {
-  const Symbol &symbol{ResolveAssociations(original)};
-  if (const auto *details{symbol.detailsIf<ObjectEntityDetails>()}) {
-    if (const DeclTypeSpec * type{details->type()}) {
-      if (type->IsPolymorphic()) {
-        return true;
-      }
-      if (const DerivedTypeSpec * derived{type->AsDerived()}) {
-        return (bool)FindPolymorphicPotentialComponent(*derived);
-      }
-    }
-  }
-  return false;
-}
-
 class ImageControlStmtHelper {
   using ImageControlStmts =
       std::variant<parser::ChangeTeamConstruct, parser::CriticalConstruct,
@@ -963,9 +965,8 @@ bool IsPolymorphicAllocatable(const Symbol &symbol) {
   return IsAllocatable(symbol) && IsPolymorphic(symbol);
 }
 
-std::optional<parser::MessageFormattedText> CheckAccessibleComponent(
+std::optional<parser::MessageFormattedText> CheckAccessibleSymbol(
     const Scope &scope, const Symbol &symbol) {
-  CHECK(symbol.owner().IsDerivedType()); // symbol must be a component
   if (symbol.attrs().test(Attr::PRIVATE)) {
     if (FindModuleFileContaining(scope)) {
       // Don't enforce component accessibility checks in module files;
@@ -975,7 +976,7 @@ std::optional<parser::MessageFormattedText> CheckAccessibleComponent(
         moduleScope{FindModuleContaining(symbol.owner())}) {
       if (!moduleScope->Contains(scope)) {
         return parser::MessageFormattedText{
-            "PRIVATE component '%s' is only accessible within module '%s'"_err_en_US,
+            "PRIVATE name '%s' is only accessible within module '%s'"_err_en_US,
             symbol.name(), moduleScope->GetName().value()};
       }
     }
@@ -1103,6 +1104,9 @@ ComponentIterator<componentKind>::const_iterator::PlanComponentTraversal(
           traverse = !IsPointer(component);
         } else if constexpr (componentKind == ComponentKind::Scope) {
           traverse = !IsAllocatableOrPointer(component);
+        } else if constexpr (componentKind ==
+            ComponentKind::PotentialAndPointer) {
+          traverse = !IsPointer(component);
         }
         if (traverse) {
           const Symbol &newTypeSymbol{derived->typeSymbol()};
@@ -1138,6 +1142,8 @@ static bool StopAtComponentPre(const Symbol &component) {
             component.get<ObjectEntityDetails>().type()->AsIntrinsic());
   } else if constexpr (componentKind == ComponentKind::Potential) {
     return !IsPointer(component);
+  } else if constexpr (componentKind == ComponentKind::PotentialAndPointer) {
+    return true;
   }
 }
 
@@ -1206,6 +1212,7 @@ template class ComponentIterator<ComponentKind::Direct>;
 template class ComponentIterator<ComponentKind::Ultimate>;
 template class ComponentIterator<ComponentKind::Potential>;
 template class ComponentIterator<ComponentKind::Scope>;
+template class ComponentIterator<ComponentKind::PotentialAndPointer>;
 
 UltimateComponentIterator::const_iterator FindCoarrayUltimateComponent(
     const DerivedTypeSpec &derived) {
@@ -1484,33 +1491,6 @@ bool HasDefinedIo(GenericKind::DefinedIo which, const DerivedTypeSpec &derived,
     }
   }
   return false;
-}
-
-const Symbol *FindUnsafeIoDirectComponent(GenericKind::DefinedIo which,
-    const DerivedTypeSpec &derived, const Scope *scope) {
-  if (HasDefinedIo(which, derived, scope)) {
-    return nullptr;
-  }
-  if (const Scope * dtScope{derived.scope()}) {
-    for (const auto &pair : *dtScope) {
-      const Symbol &symbol{*pair.second};
-      if (IsAllocatableOrPointer(symbol)) {
-        return &symbol;
-      }
-      if (const auto *details{symbol.detailsIf<ObjectEntityDetails>()}) {
-        if (const DeclTypeSpec * type{details->type()}) {
-          if (type->category() == DeclTypeSpec::Category::TypeDerived) {
-            if (const Symbol *
-                bad{FindUnsafeIoDirectComponent(
-                    which, type->derivedTypeSpec(), scope)}) {
-              return bad;
-            }
-          }
-        }
-      }
-    }
-  }
-  return nullptr;
 }
 
 } // namespace Fortran::semantics

@@ -16,6 +16,7 @@
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/Support/Debug.h"
+#include <optional>
 using namespace llvm;
 
 #define DEBUG_TYPE "NVPTXtti"
@@ -139,10 +140,10 @@ static Instruction *simplifyNvvmIntrinsic(IntrinsicInst *II, InstCombiner &IC) {
   // represents how to replace an NVVM intrinsic with target-generic LLVM IR.
   struct SimplifyAction {
     // Invariant: At most one of these Optionals has a value.
-    Optional<Intrinsic::ID> IID;
-    Optional<Instruction::CastOps> CastOp;
-    Optional<Instruction::BinaryOps> BinaryOp;
-    Optional<SpecialCase> Special;
+    std::optional<Intrinsic::ID> IID;
+    std::optional<Instruction::CastOps> CastOp;
+    std::optional<Instruction::BinaryOps> BinaryOp;
+    std::optional<SpecialCase> Special;
 
     FtzRequirementTy FtzRequirement = FTZ_Any;
     // Denormal handling is guarded by different attributes depending on the
@@ -368,12 +369,10 @@ static Instruction *simplifyNvvmIntrinsic(IntrinsicInst *II, InstCombiner &IC) {
   // intrinsic, we don't have to look up any module metadata, as
   // FtzRequirementTy will be FTZ_Any.)
   if (Action.FtzRequirement != FTZ_Any) {
-    const char *AttrName =
-        Action.IsHalfTy ? "denormal-fp-math" : "denormal-fp-math-f32";
-    StringRef Attr =
-        II->getFunction()->getFnAttribute(AttrName).getValueAsString();
-    DenormalMode Mode = parseDenormalFPAttribute(Attr);
-    bool FtzEnabled = Mode.Output != DenormalMode::IEEE;
+    // FIXME: Broken for f64
+    DenormalMode Mode = II->getFunction()->getDenormalMode(
+        Action.IsHalfTy ? APFloat::IEEEhalf() : APFloat::IEEEsingle());
+    bool FtzEnabled = Mode.Output == DenormalMode::PreserveSign;
 
     if (FtzEnabled != (Action.FtzRequirement == FTZ_MustBeOn))
       return nullptr;
@@ -413,12 +412,12 @@ static Instruction *simplifyNvvmIntrinsic(IntrinsicInst *II, InstCombiner &IC) {
   llvm_unreachable("All SpecialCase enumerators should be handled in switch.");
 }
 
-Optional<Instruction *>
+std::optional<Instruction *>
 NVPTXTTIImpl::instCombineIntrinsic(InstCombiner &IC, IntrinsicInst &II) const {
   if (Instruction *I = simplifyNvvmIntrinsic(&II, IC)) {
     return I;
   }
-  return None;
+  return std::nullopt;
 }
 
 InstructionCost NVPTXTTIImpl::getArithmeticInstrCost(

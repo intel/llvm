@@ -27,7 +27,6 @@
 
 namespace llvm {
 
-class MCRegisterInfo;
 class MemoryBuffer;
 class AppleAcceleratorTable;
 class DWARFCompileUnit;
@@ -46,7 +45,7 @@ class DWARFUnitIndex;
 /// information parsing. The actual data is supplied through DWARFObj.
 class DWARFContext : public DIContext {
   DWARFUnitVector NormalUnits;
-  Optional<DenseMap<uint64_t, DWARFTypeUnit*>> NormalTypeUnits;
+  std::optional<DenseMap<uint64_t, DWARFTypeUnit *>> NormalTypeUnits;
   std::unique_ptr<DWARFUnitIndex> CUIndex;
   std::unique_ptr<DWARFGdbIndex> GdbIndex;
   std::unique_ptr<DWARFUnitIndex> TUIndex;
@@ -65,7 +64,7 @@ class DWARFContext : public DIContext {
   std::unique_ptr<AppleAcceleratorTable> AppleObjC;
 
   DWARFUnitVector DWOUnits;
-  Optional<DenseMap<uint64_t, DWARFTypeUnit*>> DWOTypeUnits;
+  std::optional<DenseMap<uint64_t, DWARFTypeUnit *>> DWOTypeUnits;
   std::unique_ptr<DWARFDebugAbbrev> AbbrevDWO;
   std::unique_ptr<DWARFDebugMacro> MacinfoDWO;
   std::unique_ptr<DWARFDebugMacro> MacroDWO;
@@ -81,9 +80,6 @@ class DWARFContext : public DIContext {
   std::weak_ptr<DWOFile> DWP;
   bool CheckedForDWP = false;
   std::string DWPName;
-
-  std::unique_ptr<MCRegisterInfo> RegInfo;
-
   std::function<void(Error)> RecoverableErrorHandler =
       WithColor::defaultErrorHandler;
   std::function<void(Error)> WarningHandler = WithColor::defaultWarningHandler;
@@ -132,10 +128,10 @@ public:
   /// Dump a textual representation to \p OS. If any \p DumpOffsets are present,
   /// dump only the record at the specified offset.
   void dump(raw_ostream &OS, DIDumpOptions DumpOpts,
-            std::array<Optional<uint64_t>, DIDT_ID_Count> DumpOffsets);
+            std::array<std::optional<uint64_t>, DIDT_ID_Count> DumpOffsets);
 
   void dump(raw_ostream &OS, DIDumpOptions DumpOpts) override {
-    std::array<Optional<uint64_t>, DIDT_ID_Count> DumpOffsets;
+    std::array<std::optional<uint64_t>, DIDT_ID_Count> DumpOffsets;
     dump(OS, DumpOpts, DumpOffsets);
   }
 
@@ -408,8 +404,6 @@ public:
 
   std::shared_ptr<DWARFContext> getDWOContext(StringRef AbsolutePath);
 
-  const MCRegisterInfo *getRegisterInfo() const { return RegInfo.get(); }
-
   function_ref<void(Error)> getRecoverableErrorHandler() {
     return RecoverableErrorHandler;
   }
@@ -434,11 +428,6 @@ public:
              WithColor::defaultErrorHandler,
          std::function<void(Error)> WarningHandler =
              WithColor::defaultWarningHandler);
-
-  /// Loads register info for the architecture of the provided object file.
-  /// Improves readability of dumped DWARF expressions. Requires the caller to
-  /// have initialized the relevant target descriptions.
-  Error loadRegisterInfo(const object::ObjectFile &Obj);
 
   /// Get address size from CUs.
   /// TODO: refactor compile_units() to make this const.

@@ -18,7 +18,6 @@
 #include <__iterator/back_insert_iterator.h>
 #include <__iterator/concepts.h>
 #include <__utility/move.h>
-#include <concepts>
 #include <cstddef>
 
 #ifndef _LIBCPP_HAS_NO_LOCALIZATION
@@ -85,9 +84,6 @@ public:
   using char_type = _CharT;
   template <class _Tp>
   using formatter_type = formatter<_Tp, _CharT>;
-
-  basic_format_context(const basic_format_context&) = delete;
-  basic_format_context& operator=(const basic_format_context&) = delete;
 
   _LIBCPP_HIDE_FROM_ABI basic_format_arg<basic_format_context>
   arg(size_t __id) const noexcept {

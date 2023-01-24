@@ -184,20 +184,6 @@ LLVMArrayType::getPreferredAlignment(const DataLayout &dataLayout,
 }
 
 //===----------------------------------------------------------------------===//
-// SubElementTypeInterface
-
-void LLVMArrayType::walkImmediateSubElements(
-    function_ref<void(Attribute)> walkAttrsFn,
-    function_ref<void(Type)> walkTypesFn) const {
-  walkTypesFn(getElementType());
-}
-
-Type LLVMArrayType::replaceImmediateSubElements(
-    ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
-  return get(replTypes.front(), getNumElements());
-}
-
-//===----------------------------------------------------------------------===//
 // Function type.
 //===----------------------------------------------------------------------===//
 
@@ -248,22 +234,6 @@ LLVMFunctionType::verify(function_ref<InFlightDiagnostic()> emitError,
 }
 
 //===----------------------------------------------------------------------===//
-// SubElementTypeInterface
-
-void LLVMFunctionType::walkImmediateSubElements(
-    function_ref<void(Attribute)> walkAttrsFn,
-    function_ref<void(Type)> walkTypesFn) const {
-  walkTypesFn(getReturnType());
-  for (Type type : getParams())
-    walkTypesFn(type);
-}
-
-Type LLVMFunctionType::replaceImmediateSubElements(
-    ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
-  return get(replTypes.front(), replTypes.drop_front(), isVarArg());
-}
-
-//===----------------------------------------------------------------------===//
 // LLVMPointerType
 //===----------------------------------------------------------------------===//
 
@@ -301,14 +271,14 @@ Optional<unsigned> mlir::LLVM::extractPointerSpecValue(Attribute attr,
   auto spec = attr.cast<DenseIntElementsAttr>();
   auto idx = static_cast<unsigned>(pos);
   if (idx >= spec.size())
-    return None;
+    return std::nullopt;
   return spec.getValues<unsigned>()[idx];
 }
 
 /// Returns the part of the data layout entry that corresponds to `pos` for the
 /// given `type` by interpreting the list of entries `params`. For the pointer
 /// type in the default address space, returns the default value if the entries
-/// do not provide a custom one, for other address spaces returns None.
+/// do not provide a custom one, for other address spaces returns std::nullopt.
 static Optional<unsigned>
 getPointerDataLayoutEntry(DataLayoutEntryListRef params, LLVMPointerType type,
                           PtrDLEntryPos pos) {
@@ -335,7 +305,7 @@ getPointerDataLayoutEntry(DataLayoutEntryListRef params, LLVMPointerType type,
                                       : kDefaultPointerAlignment;
   }
 
-  return llvm::None;
+  return std::nullopt;
 }
 
 unsigned
@@ -437,20 +407,6 @@ LogicalResult LLVMPointerType::verifyEntries(DataLayoutEntryListRef entries,
     }
   }
   return success();
-}
-
-//===----------------------------------------------------------------------===//
-// SubElementTypeInterface
-
-void LLVMPointerType::walkImmediateSubElements(
-    function_ref<void(Attribute)> walkAttrsFn,
-    function_ref<void(Type)> walkTypesFn) const {
-  walkTypesFn(getElementType());
-}
-
-Type LLVMPointerType::replaceImmediateSubElements(
-    ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
-  return get(getContext(), replTypes.front(), getAddressSpace());
 }
 
 //===----------------------------------------------------------------------===//
@@ -582,7 +538,7 @@ getStructDataLayoutEntry(DataLayoutEntryListRef params, LLVMStructType type,
         return entry.isTypeEntry();
       });
   if (currentEntry == params.end())
-    return llvm::None;
+    return std::nullopt;
 
   auto attr = currentEntry->getValue().cast<DenseIntElementsAttr>();
   if (pos == StructDLEntryPos::Preferred &&
@@ -749,17 +705,6 @@ LLVMFixedVectorType::verify(function_ref<InFlightDiagnostic()> emitError,
       emitError, elementType, numElements);
 }
 
-void LLVMFixedVectorType::walkImmediateSubElements(
-    function_ref<void(Attribute)> walkAttrsFn,
-    function_ref<void(Type)> walkTypesFn) const {
-  walkTypesFn(getElementType());
-}
-
-Type LLVMFixedVectorType::replaceImmediateSubElements(
-    ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
-  return get(replTypes[0], getNumElements());
-}
-
 //===----------------------------------------------------------------------===//
 // LLVMScalableVectorType.
 //===----------------------------------------------------------------------===//
@@ -790,17 +735,6 @@ LLVMScalableVectorType::verify(function_ref<InFlightDiagnostic()> emitError,
                                Type elementType, unsigned numElements) {
   return verifyVectorConstructionInvariants<LLVMScalableVectorType>(
       emitError, elementType, numElements);
-}
-
-void LLVMScalableVectorType::walkImmediateSubElements(
-    function_ref<void(Attribute)> walkAttrsFn,
-    function_ref<void(Type)> walkTypesFn) const {
-  walkTypesFn(getElementType());
-}
-
-Type LLVMScalableVectorType::replaceImmediateSubElements(
-    ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
-  return get(replTypes[0], getMinNumElements());
 }
 
 //===----------------------------------------------------------------------===//

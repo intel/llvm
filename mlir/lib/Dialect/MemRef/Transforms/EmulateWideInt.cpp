@@ -145,7 +145,7 @@ void memref::populateMemRefWideIntEmulationPatterns(
 void memref::populateMemRefWideIntEmulationConversions(
     arith::WideIntEmulationConverter &typeConverter) {
   typeConverter.addConversion(
-      [&typeConverter](MemRefType ty) -> Optional<Type> {
+      [&typeConverter](MemRefType ty) -> std::optional<Type> {
         auto intTy = ty.getElementType().dyn_cast<IntegerType>();
         if (!intTy)
           return ty;
@@ -156,8 +156,8 @@ void memref::populateMemRefWideIntEmulationConversions(
 
         Type newElemTy = typeConverter.convertType(intTy);
         if (!newElemTy)
-          return None;
+          return std::nullopt;
 
-        return ty.cloneWith(None, newElemTy);
+        return ty.cloneWith(std::nullopt, newElemTy);
       });
 }

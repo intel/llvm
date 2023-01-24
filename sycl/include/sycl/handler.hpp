@@ -30,6 +30,7 @@
 #include <sycl/nd_item.hpp>
 #include <sycl/nd_range.hpp>
 #include <sycl/property_list.hpp>
+#include <sycl/reduction_forward.hpp>
 #include <sycl/sampler.hpp>
 #include <sycl/stl.hpp>
 
@@ -59,6 +60,8 @@ template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
 class __fill;
 
 template <typename T> class __usmfill;
+template <typename T> class __usmfill2d;
+template <typename T> class __usmmemcpy2d;
 
 template <typename T_Src, typename T_Dst, int Dims,
           sycl::access::mode AccessMode, sycl::access::target AccessTarget,
@@ -268,43 +271,9 @@ private:
   KernelType KernelFunc;
 };
 
-template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          typename RedOutVar>
-class reduction_impl_algo;
-
 using sycl::detail::enable_if_t;
 using sycl::detail::queue_impl;
 
-// Reductions implementation need access to private members of handler. Those
-// are limited to those below.
-namespace reduction {
-inline void finalizeHandler(handler &CGH);
-template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func);
-} // namespace reduction
-
-template <typename KernelName, int Dims, typename PropertiesT,
-          typename KernelType, typename Reduction>
-void reduction_parallel_for(handler &CGH,
-                            std::shared_ptr<detail::queue_impl> Queue,
-                            range<Dims> Range, PropertiesT Properties,
-                            Reduction Redu, KernelType KernelFunc);
-
-template <typename KernelName, int Dims, typename PropertiesT,
-          typename KernelType, typename Reduction>
-void reduction_parallel_for(handler &CGH,
-                            std::shared_ptr<detail::queue_impl> Queue,
-                            nd_range<Dims> Range, PropertiesT Properties,
-                            Reduction Redu, KernelType KernelFunc);
-
-template <typename KernelName, int Dims, typename PropertiesT,
-          typename... RestT>
-void reduction_parallel_for(handler &CGH,
-                            std::shared_ptr<detail::queue_impl> Queue,
-                            nd_range<Dims> Range, PropertiesT Properties,
-                            RestT... Rest);
-
-template <typename T> struct IsReduction;
-template <typename FirstT, typename... RestT> struct AreAllButLastReductions;
 } // namespace detail
 
 /// Command group handler class.
@@ -1465,7 +1434,6 @@ public:
   handler &operator=(const handler &) = delete;
   handler &operator=(handler &&) = delete;
 
-#if __cplusplus >= 201703L
   template <auto &SpecName>
   void set_specialization_constant(
       typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
@@ -1497,24 +1465,22 @@ public:
         .get_specialization_constant<SpecName>();
   }
 
-#endif
-
   void
   use_kernel_bundle(const kernel_bundle<bundle_state::executable> &ExecBundle);
 
   /// Requires access to the memory object associated with the placeholder
-  /// accessor.
+  /// accessor. Calling this function with a non-placeholder accessor has no
+  /// effect.
   ///
   /// The command group has a requirement to gain access to the given memory
   /// object before executing.
   ///
   /// \param Acc is a SYCL accessor describing required memory region.
   template <typename DataT, int Dims, access::mode AccMode,
-            access::target AccTarget>
-  void
-  require(accessor<DataT, Dims, AccMode, AccTarget, access::placeholder::true_t>
-              Acc) {
-    associateWithHandler(&Acc, AccTarget);
+            access::target AccTarget, access::placeholder isPlaceholder>
+  void require(accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder> Acc) {
+    if (Acc.is_placeholder())
+      associateWithHandler(&Acc, AccTarget);
   }
 
   /// Registers event dependencies on this command group.
@@ -2062,25 +2028,24 @@ public:
 
   /// Reductions @{
 
-  template <typename KernelName = detail::auto_name, typename KernelType,
-            typename PropertiesT, int Dims, typename Reduction>
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename PropertiesT, typename... RestT>
   std::enable_if_t<
-      detail::IsReduction<Reduction>::value &&
+      (sizeof...(RestT) > 1) &&
+      detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  parallel_for(range<Dims> Range, PropertiesT Properties, Reduction Redu,
-               _KERNELFUNCPARAM(KernelFunc)) {
-    detail::reduction_parallel_for<KernelName>(*this, MQueue, Range, Properties,
-                                               Redu, std::move(KernelFunc));
+  parallel_for(range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
+    detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
+                                               std::forward<RestT>(Rest)...);
   }
 
-  template <typename KernelName = detail::auto_name, typename KernelType,
-            int Dims, typename Reduction>
-  std::enable_if_t<detail::IsReduction<Reduction>::value>
-  parallel_for(range<Dims> Range, Reduction Redu,
-               _KERNELFUNCPARAM(KernelFunc)) {
+  template <typename KernelName = detail::auto_name, int Dims,
+            typename... RestT>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+  parallel_for(range<Dims> Range, RestT &&...Rest) {
     parallel_for<KernelName>(
-        Range, ext::oneapi::experimental::detail::empty_properties_t{}, Redu,
-        std::move(KernelFunc));
+        Range, ext::oneapi::experimental::detail::empty_properties_t{},
+        std::forward<RestT>(Rest)...);
   }
 
   template <typename KernelName = detail::auto_name, int Dims,
@@ -2090,7 +2055,7 @@ public:
       detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(nd_range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
-    detail::reduction_parallel_for<KernelName>(*this, MQueue, Range, Properties,
+    detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
 
@@ -2421,8 +2386,9 @@ public:
   __SYCL2020_DEPRECATED("use 'ext_oneapi_barrier' instead")
   void barrier(const std::vector<event> &WaitList);
 
-  /// Copies data from one memory region to another, both pointed by
-  /// USM pointers.
+  /// Copies data from one memory region to another, each is either a host
+  /// pointer or a pointer within USM allocation accessible on this handler's
+  /// device.
   /// No operations is done if \param Count is zero. An exception is thrown
   /// if either \param Dest or \param Src is nullptr. The behavior is undefined
   /// if any of the pointer parameters is invalid.
@@ -2432,8 +2398,9 @@ public:
   /// \param Count is a number of bytes to copy.
   void memcpy(void *Dest, const void *Src, size_t Count);
 
-  /// Copies data from one memory region to another, both pointed by
-  /// USM pointers.
+  /// Copies data from one memory region to another, each is either a host
+  /// pointer or a pointer within USM allocation accessible on this handler's
+  /// device.
   /// No operations is done if \param Count is zero. An exception is thrown
   /// if either \param Dest or \param Src is nullptr. The behavior is undefined
   /// if any of the pointer parameters is invalid.
@@ -2470,6 +2437,144 @@ public:
   /// \param Length is a number of bytes in the allocation.
   /// \param Advice is a device-defined advice for the specified allocation.
   void mem_advise(const void *Ptr, size_t Length, int Advice);
+
+  /// Copies data from one 2D memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than either \param DestPitch or
+  /// \param SrcPitch. The behavior is undefined if any of the pointer
+  /// parameters is invalid.
+  ///
+  /// NOTE: Function is dependent to prevent the fallback kernels from
+  /// materializing without the use of the function.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcPitch is the pitch of the rows in \param Src.
+  /// \param Width is the width in bytes of the 2D region to copy.
+  /// \param Height is the height in number of row of the 2D region to copy.
+  template <typename T = unsigned char,
+            typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
+  void ext_oneapi_memcpy2d(void *Dest, size_t DestPitch, const void *Src,
+                           size_t SrcPitch, size_t Width, size_t Height) {
+    throwIfActionIsCreated();
+    if (Width > DestPitch)
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "Destination pitch must be greater than or equal "
+                            "to the width specified in 'ext_oneapi_memcpy2d'");
+    if (Width > SrcPitch)
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "Source pitch must be greater than or equal "
+                            "to the width specified in 'ext_oneapi_memcpy2d'");
+    // If the backends supports 2D copy we use that. Otherwise we use a fallback
+    // kernel.
+    if (supportsUSMMemcpy2D())
+      ext_oneapi_memcpy2d_impl(Dest, DestPitch, Src, SrcPitch, Width, Height);
+    else
+      commonUSMCopy2DFallbackKernel<T>(Src, SrcPitch, Dest, DestPitch, Width,
+                                       Height);
+  }
+
+  /// Copies data from one 2D memory region to another, both pointed by
+  /// USM pointers.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than either \param DestPitch or
+  /// \param SrcPitch. The behavior is undefined if any of the pointer
+  /// parameters is invalid.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcPitch is the pitch of the rows in \param Src.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Width is the width in number of elements of the 2D region to copy.
+  /// \param Height is the height in number of rows of the 2D region to copy.
+  template <typename T>
+  void ext_oneapi_copy2d(const T *Src, size_t SrcPitch, T *Dest,
+                         size_t DestPitch, size_t Width, size_t Height) {
+    if (Width > DestPitch)
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "Destination pitch must be greater than or equal "
+                            "to the width specified in 'ext_oneapi_copy2d'");
+    if (Width > SrcPitch)
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "Source pitch must be greater than or equal "
+                            "to the width specified in 'ext_oneapi_copy2d'");
+    // If the backends supports 2D copy we use that. Otherwise we use a fallback
+    // kernel.
+    if (supportsUSMMemcpy2D())
+      ext_oneapi_memcpy2d_impl(Dest, DestPitch * sizeof(T), Src,
+                               SrcPitch * sizeof(T), Width * sizeof(T), Height);
+    else
+      commonUSMCopy2DFallbackKernel<T>(Src, SrcPitch, Dest, DestPitch, Width,
+                                       Height);
+  }
+
+  /// Fills the memory pointed by a USM pointer with the value specified.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than \param DestPitch. The behavior is
+  /// undefined if any of the pointer parameters is invalid.
+  ///
+  /// NOTE: Function is dependent to prevent the fallback kernels from
+  /// materializing without the use of the function.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Value is the value to fill into the region in \param Dest. Value is
+  /// cast as an unsigned char.
+  /// \param Width is the width in number of elements of the 2D region to fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
+  template <typename T = unsigned char,
+            typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
+  void ext_oneapi_memset2d(void *Dest, size_t DestPitch, int Value,
+                           size_t Width, size_t Height) {
+    throwIfActionIsCreated();
+    if (Width > DestPitch)
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "Destination pitch must be greater than or equal "
+                            "to the width specified in 'ext_oneapi_memset2d'");
+    T CharVal = static_cast<T>(Value);
+    // If the backends supports 2D fill we use that. Otherwise we use a fallback
+    // kernel.
+    if (supportsUSMMemset2D())
+      ext_oneapi_memset2d_impl(Dest, DestPitch, Value, Width, Height);
+    else
+      commonUSMFill2DFallbackKernel(Dest, DestPitch, CharVal, Width, Height);
+  }
+
+  /// Fills the memory pointed by a USM pointer with the value specified.
+  /// No operations is done if \param Width or \param Height is zero. An
+  /// exception is thrown if either \param Dest or \param Src is nullptr or if
+  /// \param Width is strictly greater than \param DestPitch. The behavior is
+  /// undefined if any of the pointer parameters is invalid.
+  ///
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param Pattern is the pattern to fill into the memory.  T should be
+  /// trivially copyable.
+  /// \param Width is the width in number of elements of the 2D region to fill.
+  /// \param Height is the height in number of rows of the 2D region to fill.
+  template <typename T>
+  void ext_oneapi_fill2d(void *Dest, size_t DestPitch, const T &Pattern,
+                         size_t Width, size_t Height) {
+    throwIfActionIsCreated();
+    static_assert(std::is_trivially_copyable<T>::value,
+                  "Pattern must be trivially copyable");
+    if (Width > DestPitch)
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "Destination pitch must be greater than or equal "
+                            "to the width specified in 'ext_oneapi_fill2d'");
+    // If the backends supports 2D fill we use that. Otherwise we use a fallback
+    // kernel.
+    if (supportsUSMFill2D())
+      ext_oneapi_fill2d_impl(Dest, DestPitch, &Pattern, sizeof(T), Width,
+                             Height);
+    else
+      commonUSMFill2DFallbackKernel(Dest, DestPitch, Pattern, Width, Height);
+  }
 
 private:
   std::shared_ptr<detail::handler_impl> MImpl;
@@ -2552,6 +2657,18 @@ private:
   template <class FunctorTy>
   friend void detail::reduction::withAuxHandler(handler &CGH, FunctorTy Func);
 
+  template <typename KernelName, detail::reduction::strategy Strategy, int Dims,
+            typename PropertiesT, typename... RestT>
+  friend void detail::reduction_parallel_for(handler &CGH, range<Dims> NDRange,
+                                             PropertiesT Properties,
+                                             RestT... Rest);
+
+  template <typename KernelName, detail::reduction::strategy Strategy, int Dims,
+            typename PropertiesT, typename... RestT>
+  friend void
+  detail::reduction_parallel_for(handler &CGH, nd_range<Dims> NDRange,
+                                 PropertiesT Properties, RestT... Rest);
+
 #ifndef __SYCL_DEVICE_ONLY__
   friend void detail::associateWithHandler(handler &,
                                            detail::AccessorBaseHost *,
@@ -2588,6 +2705,75 @@ private:
     return detail::RoundedRangeKernel<TransformedArgType, Dims, KernelType>(
         NumWorkItems, KernelFunc);
   }
+
+  // Checks if 2D memory operations are supported by the underlying platform.
+  bool supportsUSMMemcpy2D();
+  bool supportsUSMFill2D();
+  bool supportsUSMMemset2D();
+
+  // Helper function for getting a loose bound on work-items.
+  id<2> computeFallbackKernelBounds(size_t Width, size_t Height);
+
+  // Common function for launching a 2D USM memcpy kernel to avoid redefinitions
+  // of the kernel from copy and memcpy.
+  template <typename T>
+  void commonUSMCopy2DFallbackKernel(const void *Src, size_t SrcPitch,
+                                     void *Dest, size_t DestPitch, size_t Width,
+                                     size_t Height) {
+    // Limit number of work items to be resistant to big copies.
+    id<2> Chunk = computeFallbackKernelBounds(Height, Width);
+    id<2> Iterations = (Chunk + id<2>{Height, Width} - 1) / Chunk;
+    parallel_for<class __usmmemcpy2d<T>>(
+        range<2>{Chunk[0], Chunk[1]}, [=](id<2> Index) {
+          T *CastedDest = static_cast<T *>(Dest);
+          const T *CastedSrc = static_cast<const T *>(Src);
+          for (uint32_t I = 0; I < Iterations[0]; ++I) {
+            for (uint32_t J = 0; J < Iterations[1]; ++J) {
+              id<2> adjustedIndex = Index + Chunk * id<2>{I, J};
+              if (adjustedIndex[0] < Height && adjustedIndex[1] < Width) {
+                CastedDest[adjustedIndex[0] * DestPitch + adjustedIndex[1]] =
+                    CastedSrc[adjustedIndex[0] * SrcPitch + adjustedIndex[1]];
+              }
+            }
+          }
+        });
+  }
+
+  // Common function for launching a 2D USM fill kernel to avoid redefinitions
+  // of the kernel from memset and fill.
+  template <typename T>
+  void commonUSMFill2DFallbackKernel(void *Dest, size_t DestPitch,
+                                     const T &Pattern, size_t Width,
+                                     size_t Height) {
+    // Limit number of work items to be resistant to big fill operations.
+    id<2> Chunk = computeFallbackKernelBounds(Height, Width);
+    id<2> Iterations = (Chunk + id<2>{Height, Width} - 1) / Chunk;
+    parallel_for<class __usmfill2d<T>>(
+        range<2>{Chunk[0], Chunk[1]}, [=](id<2> Index) {
+          T *CastedDest = static_cast<T *>(Dest);
+          for (uint32_t I = 0; I < Iterations[0]; ++I) {
+            for (uint32_t J = 0; J < Iterations[1]; ++J) {
+              id<2> adjustedIndex = Index + Chunk * id<2>{I, J};
+              if (adjustedIndex[0] < Height && adjustedIndex[1] < Width) {
+                CastedDest[adjustedIndex[0] * DestPitch + adjustedIndex[1]] =
+                    Pattern;
+              }
+            }
+          }
+        });
+  }
+
+  // Implementation of ext_oneapi_memcpy2d using command for native 2D memcpy.
+  void ext_oneapi_memcpy2d_impl(void *Dest, size_t DestPitch, const void *Src,
+                                size_t SrcPitch, size_t Width, size_t Height);
+
+  // Untemplated version of ext_oneapi_fill2d using command for native 2D fill.
+  void ext_oneapi_fill2d_impl(void *Dest, size_t DestPitch, const void *Value,
+                              size_t ValueSize, size_t Width, size_t Height);
+
+  // Implementation of ext_oneapi_memset2d using command for native 2D memset.
+  void ext_oneapi_memset2d_impl(void *Dest, size_t DestPitch, int Value,
+                                size_t Width, size_t Height);
 };
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

@@ -19,9 +19,9 @@
 
 #include "llvm/Frontend/OpenMP/OMPGridValues.h"
 
-using namespace _OMP;
+using namespace ompx;
 
-namespace _OMP {
+namespace ompx {
 namespace impl {
 
 // Forward declarations defined to be defined for AMDGCN and NVPTX.
@@ -79,7 +79,9 @@ uint32_t getKernelSize() { return __builtin_amdgcn_grid_size_x(); }
 
 uint32_t getBlockId() { return __builtin_amdgcn_workgroup_id_x(); }
 
-uint32_t getNumberOfBlocks() { return __builtin_amdgcn_grid_size_x(); }
+uint32_t getNumberOfBlocks() {
+  return __builtin_amdgcn_grid_size_x() / __builtin_amdgcn_workgroup_size_x();
+}
 
 uint32_t getWarpId() {
   return impl::getThreadIdInBlock() / mapping::getWarpSize();
@@ -152,7 +154,7 @@ uint32_t getNumberOfWarpsInBlock() {
 uint32_t getWarpSize() { return getGridValue().GV_Warp_Size; }
 
 } // namespace impl
-} // namespace _OMP
+} // namespace ompx
 
 /// We have to be deliberate about the distinction of `mapping::` and `impl::`
 /// below to avoid repeating assumptions or including irrelevant ones.

@@ -86,7 +86,7 @@ const LangASMap AMDGPUTargetInfo::AMDGPUDefIsPrivMap = {
 } // namespace targets
 } // namespace clang
 
-const Builtin::Info AMDGPUTargetInfo::BuiltinInfo[] = {
+static constexpr Builtin::Info BuiltinInfo[] = {
 #define BUILTIN(ID, TYPE, ATTRS)                                               \
   {#ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr},
 #define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE)                               \
@@ -365,13 +365,19 @@ AMDGPUTargetInfo::AMDGPUTargetInfo(const llvm::Triple &Triple,
                      !isAMDGCN(Triple));
   UseAddrSpaceMapMangling = true;
 
+  if (isAMDGCN(Triple)) {
+    // __bf16 is always available as a load/store only type on AMDGCN.
+    BFloat16Width = BFloat16Align = 16;
+    BFloat16Format = &llvm::APFloat::BFloat();
+  }
+
   HasLegalHalfType = true;
   HasFloat16 = true;
   WavefrontSize = GPUFeatures & llvm::AMDGPU::FEATURE_WAVE32 ? 32 : 64;
   AllowAMDGPUUnsafeFPAtomics = Opts.AllowAMDGPUUnsafeFPAtomics;
 
-  // Set pointer width and alignment for target address space 0.
-  PointerWidth = PointerAlign = getPointerWidthV(Generic);
+  // Set pointer width and alignment for the generic address space.
+  PointerWidth = PointerAlign = getPointerWidthV(LangAS::Default);
   if (getMaxPointerWidth() == 64) {
     LongWidth = LongAlign = 64;
     SizeType = UnsignedLong;
@@ -415,6 +421,7 @@ void AMDGPUTargetInfo::getTargetDefines(const LangOptions &Opts,
       assert(CanonName.startswith("gfx") && "Invalid amdgcn canonical name");
       Builder.defineMacro(Twine("__") + Twine(CanonName.drop_back(2).upper()) +
                           Twine("__"));
+      Builder.defineMacro("__CUDA_ARCH__", "0");
     }
     if (isAMDGCN(getTriple())) {
       Builder.defineMacro("__amdgcn_processor__",

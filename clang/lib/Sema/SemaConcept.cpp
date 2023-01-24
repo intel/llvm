@@ -180,7 +180,8 @@ calculateConstraintSatisfaction(Sema &S, const Expr *ConstraintExpr,
       //    is checked. If that is satisfied, the disjunction is satisfied.
       //    Otherwise, the disjunction is satisfied if and only if the second
       //    operand is satisfied.
-      return BO.recreateBinOp(S, LHSRes);
+      // LHS is instantiated while RHS is not. Skip creating invalid BinaryOp.
+      return LHSRes;
 
     if (BO.isAnd() && !IsLHSSatisfied)
       // [temp.constr.op] p2
@@ -189,7 +190,8 @@ calculateConstraintSatisfaction(Sema &S, const Expr *ConstraintExpr,
       //    is checked. If that is not satisfied, the conjunction is not
       //    satisfied. Otherwise, the conjunction is satisfied if and only if
       //    the second operand is satisfied.
-      return BO.recreateBinOp(S, LHSRes);
+      // LHS is instantiated while RHS is not. Skip creating invalid BinaryOp.
+      return LHSRes;
 
     ExprResult RHSRes = calculateConstraintSatisfaction(
         S, BO.getRHS(), Satisfaction, std::forward<AtomicEvaluator>(Evaluator));
@@ -330,7 +332,8 @@ static ExprResult calculateConstraintSatisfaction(
           // bool if this is the operand of an '&&' or '||'. For example, we
           // might lose an lvalue-to-rvalue conversion here. If so, put it back
           // before we try to evaluate.
-          if (!SubstitutedExpression.isInvalid())
+          if (SubstitutedExpression.isUsable() &&
+              !SubstitutedExpression.isInvalid())
             SubstitutedExpression =
                 S.PerformContextuallyConvertToBool(SubstitutedExpression.get());
           if (SubstitutedExpression.isInvalid() || Trap.hasErrorOccurred()) {
@@ -575,7 +578,7 @@ Sema::SetupConstraintCheckingTemplateArgumentsAndScope(
                                    /*Pattern=*/nullptr,
                                    /*ForConstraintInstantiation=*/true);
   if (SetupConstraintScope(FD, TemplateArgs, MLTAL, Scope))
-    return llvm::None;
+    return std::nullopt;
 
   return MLTAL;
 }
@@ -898,31 +901,28 @@ static void diagnoseUnsatisfiedRequirement(Sema &S,
     return;
   }
 }
+static void diagnoseWellFormedUnsatisfiedConstraintExpr(Sema &S,
+                                                        Expr *SubstExpr,
+                                                        bool First = true);
 
 static void diagnoseUnsatisfiedRequirement(Sema &S,
                                            concepts::NestedRequirement *Req,
                                            bool First) {
-  if (Req->isSubstitutionFailure()) {
-    concepts::Requirement::SubstitutionDiagnostic *SubstDiag =
-        Req->getSubstitutionDiagnostic();
-    if (!SubstDiag->DiagMessage.empty())
-      S.Diag(SubstDiag->DiagLoc,
-             diag::note_nested_requirement_substitution_error)
-             << (int)First << SubstDiag->SubstitutedEntity
-             << SubstDiag->DiagMessage;
+  using SubstitutionDiagnostic = std::pair<SourceLocation, StringRef>;
+  for (auto &Pair : Req->getConstraintSatisfaction()) {
+    if (auto *SubstDiag = Pair.second.dyn_cast<SubstitutionDiagnostic *>())
+      S.Diag(SubstDiag->first, diag::note_nested_requirement_substitution_error)
+          << (int)First << Req->getInvalidConstraintEntity() << SubstDiag->second;
     else
-      S.Diag(SubstDiag->DiagLoc,
-             diag::note_nested_requirement_unknown_substitution_error)
-          << (int)First << SubstDiag->SubstitutedEntity;
-    return;
+      diagnoseWellFormedUnsatisfiedConstraintExpr(
+          S, Pair.second.dyn_cast<Expr *>(), First);
+    First = false;
   }
-  S.DiagnoseUnsatisfiedConstraint(Req->getConstraintSatisfaction(), First);
 }
-
 
 static void diagnoseWellFormedUnsatisfiedConstraintExpr(Sema &S,
                                                         Expr *SubstExpr,
-                                                        bool First = true) {
+                                                        bool First) {
   SubstExpr = SubstExpr->IgnoreParenImpCasts();
   if (BinaryOperator *BO = dyn_cast<BinaryOperator>(SubstExpr)) {
     switch (BO->getOpcode()) {
@@ -1154,11 +1154,11 @@ NormalizedConstraint::fromConstraintExprs(Sema &S, NamedDecl *D,
   assert(E.size() != 0);
   auto Conjunction = fromConstraintExpr(S, D, E[0]);
   if (!Conjunction)
-    return None;
+    return std::nullopt;
   for (unsigned I = 1; I < E.size(); ++I) {
     auto Next = fromConstraintExpr(S, D, E[I]);
     if (!Next)
-      return None;
+      return std::nullopt;
     *Conjunction = NormalizedConstraint(S.Context, std::move(*Conjunction),
                                         std::move(*Next), CCK_Conjunction);
   }
@@ -1183,10 +1183,10 @@ NormalizedConstraint::fromConstraintExpr(Sema &S, NamedDecl *D, const Expr *E) {
   if (LogicalBinOp BO = E) {
     auto LHS = fromConstraintExpr(S, D, BO.getLHS());
     if (!LHS)
-      return None;
+      return std::nullopt;
     auto RHS = fromConstraintExpr(S, D, BO.getRHS());
     if (!RHS)
-      return None;
+      return std::nullopt;
 
     return NormalizedConstraint(S.Context, std::move(*LHS), std::move(*RHS),
                                 BO.isAnd() ? CCK_Conjunction : CCK_Disjunction);
@@ -1210,14 +1210,14 @@ NormalizedConstraint::fromConstraintExpr(Sema &S, NamedDecl *D, const Expr *E) {
       SubNF = S.getNormalizedAssociatedConstraints(CD,
                                                    {CD->getConstraintExpr()});
       if (!SubNF)
-        return None;
+        return std::nullopt;
     }
 
     Optional<NormalizedConstraint> New;
     New.emplace(S.Context, *SubNF);
 
     if (substituteParameterMappings(S, *New, CSE))
-      return None;
+      return std::nullopt;
 
     return New;
   }

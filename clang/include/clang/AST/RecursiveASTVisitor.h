@@ -600,7 +600,7 @@ bool RecursiveASTVisitor<Derived>::TraverseConceptExprRequirement(
 template <typename Derived>
 bool RecursiveASTVisitor<Derived>::TraverseConceptNestedRequirement(
     concepts::NestedRequirement *R) {
-  if (!R->isSubstitutionFailure())
+  if (!R->hasInvalidConstraint())
     return getDerived().TraverseStmt(R->getConstraintExpr());
   return true;
 }
@@ -1542,6 +1542,8 @@ DEF_TRAVERSE_DECL(LifetimeExtendedTemporaryDecl, {
 
 DEF_TRAVERSE_DECL(FileScopeAsmDecl,
                   { TRY_TO(TraverseStmt(D->getAsmString())); })
+
+DEF_TRAVERSE_DECL(TopLevelStmtDecl, { TRY_TO(TraverseStmt(D->getStmt())); })
 
 DEF_TRAVERSE_DECL(ImportDecl, {})
 
@@ -2865,6 +2867,7 @@ DEF_TRAVERSE_STMT(SubstNonTypeTemplateParmExpr, {})
 DEF_TRAVERSE_STMT(FunctionParmPackExpr, {})
 DEF_TRAVERSE_STMT(CXXFoldExpr, {})
 DEF_TRAVERSE_STMT(AtomicExpr, {})
+DEF_TRAVERSE_STMT(CXXParenListInitExpr, {})
 
 DEF_TRAVERSE_STMT(MaterializeTemporaryExpr, {
   if (S->getLifetimeExtendedTemporaryDecl()) {
@@ -3168,6 +3171,10 @@ DEF_TRAVERSE_STMT(OMPParallelGenericLoopDirective,
 
 DEF_TRAVERSE_STMT(OMPTargetParallelGenericLoopDirective,
                   { TRY_TO(TraverseOMPExecutableDirective(S)); })
+
+DEF_TRAVERSE_STMT(OMPErrorDirective,
+                  { TRY_TO(TraverseOMPExecutableDirective(S)); })
+
 // OpenMP clauses.
 template <typename Derived>
 bool RecursiveASTVisitor<Derived>::TraverseOMPClause(OMPClause *C) {
@@ -3318,6 +3325,22 @@ bool RecursiveASTVisitor<Derived>::VisitOMPDynamicAllocatorsClause(
 template <typename Derived>
 bool RecursiveASTVisitor<Derived>::VisitOMPAtomicDefaultMemOrderClause(
     OMPAtomicDefaultMemOrderClause *) {
+  return true;
+}
+
+template <typename Derived>
+bool RecursiveASTVisitor<Derived>::VisitOMPAtClause(OMPAtClause *) {
+  return true;
+}
+
+template <typename Derived>
+bool RecursiveASTVisitor<Derived>::VisitOMPSeverityClause(OMPSeverityClause *) {
+  return true;
+}
+
+template <typename Derived>
+bool RecursiveASTVisitor<Derived>::VisitOMPMessageClause(OMPMessageClause *C) {
+  TRY_TO(TraverseStmt(C->getMessageString()));
   return true;
 }
 

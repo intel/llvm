@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/None.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
@@ -128,7 +127,7 @@ void ArgList::AddAllArgsExcept(ArgStringList &Output,
 /// This is a nicer interface when you don't have a list of Ids to exclude.
 void ArgList::AddAllArgs(ArgStringList &Output,
                          ArrayRef<OptSpecifier> Ids) const {
-  ArrayRef<OptSpecifier> Exclude = None;
+  ArrayRef<OptSpecifier> Exclude = std::nullopt;
   AddAllArgsExcept(Output, Ids, Exclude);
 }
 

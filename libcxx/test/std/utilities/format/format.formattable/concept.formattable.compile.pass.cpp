@@ -81,8 +81,10 @@ void test_P0645() {
   assert_is_formattable<CharT*, CharT>();
   assert_is_formattable<const CharT*, CharT>();
   assert_is_formattable<CharT[42], CharT>();
-  assert_is_formattable<std::basic_string<CharT>, CharT>();
-  assert_is_formattable<std::basic_string_view<CharT>, CharT>();
+  if constexpr (!std::same_as<CharT, int>) { // string and string_view only work with proper character types
+    assert_is_formattable<std::basic_string<CharT>, CharT>();
+    assert_is_formattable<std::basic_string_view<CharT>, CharT>();
+  }
 
   assert_is_formattable<bool, CharT>();
 
@@ -144,19 +146,19 @@ void test_P1361() {
   assert_is_formattable<std::chrono::year, CharT>();
 
   assert_is_formattable<std::chrono::weekday, CharT>();
-  assert_is_not_formattable<std::chrono::weekday_indexed, CharT>();
-  assert_is_not_formattable<std::chrono::weekday_last, CharT>();
+  assert_is_formattable<std::chrono::weekday_indexed, CharT>();
+  assert_is_formattable<std::chrono::weekday_last, CharT>();
 
-  assert_is_not_formattable<std::chrono::month_day, CharT>();
-  assert_is_not_formattable<std::chrono::month_day_last, CharT>();
-  assert_is_not_formattable<std::chrono::month_weekday, CharT>();
-  assert_is_not_formattable<std::chrono::month_weekday_last, CharT>();
+  assert_is_formattable<std::chrono::month_day, CharT>();
+  assert_is_formattable<std::chrono::month_day_last, CharT>();
+  assert_is_formattable<std::chrono::month_weekday, CharT>();
+  assert_is_formattable<std::chrono::month_weekday_last, CharT>();
 
-  assert_is_not_formattable<std::chrono::year_month, CharT>();
-  assert_is_not_formattable<std::chrono::year_month_day, CharT>();
-  assert_is_not_formattable<std::chrono::year_month_day_last, CharT>();
-  assert_is_not_formattable<std::chrono::year_month_weekday, CharT>();
-  assert_is_not_formattable<std::chrono::year_month_weekday_last, CharT>();
+  assert_is_formattable<std::chrono::year_month, CharT>();
+  assert_is_formattable<std::chrono::year_month_day, CharT>();
+  assert_is_formattable<std::chrono::year_month_day_last, CharT>();
+  assert_is_formattable<std::chrono::year_month_weekday, CharT>();
+  assert_is_formattable<std::chrono::year_month_weekday_last, CharT>();
 
   assert_is_not_formattable<std::chrono::hh_mm_ss<std::chrono::microseconds>, CharT>();
 
@@ -183,7 +185,8 @@ void test_P1636() {
 #endif
   assert_is_not_formattable<std::shared_ptr<int>, CharT>();
 #ifndef TEST_HAS_NO_LOCALIZATION
-  assert_is_not_formattable<std::sub_match<CharT*>, CharT>();
+  if constexpr (!std::same_as<CharT, int>) // sub_match only works with proper character types
+    assert_is_not_formattable<std::sub_match<CharT*>, CharT>();
 #endif
 #ifndef TEST_HAS_NO_THREADS
   assert_is_not_formattable<std::thread::id, CharT>();
@@ -221,8 +224,8 @@ void test_P2286() {
 
   assert_is_not_formattable<std::valarray<int>, CharT>();
 
-  assert_is_not_formattable<std::pair<int, int>, CharT>();
-  assert_is_not_formattable<std::tuple<int>, CharT>();
+  assert_is_formattable<std::pair<int, int>, CharT>();
+  assert_is_formattable<std::tuple<int>, CharT>();
 }
 
 class c {

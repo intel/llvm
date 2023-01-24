@@ -115,6 +115,17 @@ Fortran::lower::CallerInterface::getPassArgIndex() const {
     }
     ++passArgIdx;
   }
+  if (!passArg)
+    return passArg;
+  // Take into account result inserted as arguments.
+  if (std::optional<Fortran::lower::CallInterface<
+          Fortran::lower::CallerInterface>::PassedEntity>
+          resultArg = getPassedResult()) {
+    if (resultArg->passBy == PassEntityBy::AddressAndLength)
+      passArg = *passArg + 2;
+    else if (resultArg->passBy == PassEntityBy::BaseAddress)
+      passArg = *passArg + 1;
+  }
   return passArg;
 }
 
@@ -251,7 +262,8 @@ void Fortran::lower::CallerInterface::walkResultLengths(
     if (std::optional<Fortran::evaluate::ExtentExpr> length =
             dynamicType.GetCharLength())
       visitor(toEvExpr(*length));
-  } else if (dynamicType.category() == common::TypeCategory::Derived) {
+  } else if (dynamicType.category() == common::TypeCategory::Derived &&
+             !dynamicType.IsUnlimitedPolymorphic()) {
     const Fortran::semantics::DerivedTypeSpec &derivedTypeSpec =
         dynamicType.GetDerivedTypeSpec();
     if (Fortran::semantics::CountLenParameters(derivedTypeSpec) > 0)
@@ -414,7 +426,7 @@ Fortran::lower::CalleeInterface::addEntryBlockAndMapArguments() {
 }
 
 bool Fortran::lower::CalleeInterface::hasHostAssociated() const {
-  return funit.parentHasHostAssoc();
+  return funit.parentHasTupleHostAssoc();
 }
 
 mlir::Type Fortran::lower::CalleeInterface::getHostAssociatedTy() const {
@@ -425,6 +437,13 @@ mlir::Type Fortran::lower::CalleeInterface::getHostAssociatedTy() const {
 mlir::Value Fortran::lower::CalleeInterface::getHostAssociatedTuple() const {
   assert(hasHostAssociated() || !funit.getHostAssoc().empty());
   return converter.hostAssocTupleValue();
+}
+
+void Fortran::lower::CalleeInterface::setFuncAttrs(
+    mlir::func::FuncOp func) const {
+  if (funit.parentHasHostAssoc())
+    func->setAttr(fir::getInternalProcedureAttrName(),
+                  mlir::UnitAttr::get(func->getContext()));
 }
 
 //===----------------------------------------------------------------------===//
@@ -472,6 +491,7 @@ void Fortran::lower::CallInterface<T>::declare() {
       for (const auto &placeHolder : llvm::enumerate(inputs))
         if (!placeHolder.value().attributes.empty())
           func.setArgAttrs(placeHolder.index(), placeHolder.value().attributes);
+      side().setFuncAttrs(func);
     }
   }
 }
@@ -671,7 +691,7 @@ public:
             &result = procedure.functionResult)
       if (const auto *resultTypeAndShape = result->GetTypeAndShape())
         return resultTypeAndShape->type();
-    return llvm::None;
+    return std::nullopt;
   }
 
   static bool mustPassLengthWithDummyProcedure(
@@ -829,7 +849,7 @@ private:
     if (cat == Fortran::common::TypeCategory::Derived) {
       // TODO is kept under experimental flag until feature is complete.
       if (dynamicType.IsPolymorphic() &&
-          !getConverter().getLoweringOptions().isPolymorphicTypeImplEnabled())
+          !getConverter().getLoweringOptions().getPolymorphicTypeImpl())
         TODO(interface.converter.getCurrentLocation(),
              "support for polymorphic types");
 
@@ -929,13 +949,15 @@ private:
       PassEntityBy passBy = PassEntityBy::BaseAddress;
       Property prop = Property::BaseAddress;
       if (isValueAttr) {
+        bool isBuiltinCptrType = fir::isa_builtin_cptr_type(type);
         if (isBindC || (!type.isa<fir::SequenceType>() &&
                         !obj.attrs.test(Attrs::Optional) &&
-                        dynamicType.category() !=
-                            Fortran::common::TypeCategory::Derived)) {
+                        (dynamicType.category() !=
+                             Fortran::common::TypeCategory::Derived ||
+                         isBuiltinCptrType))) {
           passBy = PassEntityBy::Value;
           prop = Property::Value;
-          if (fir::isa_builtin_cptr_type(type)) {
+          if (isBuiltinCptrType) {
             auto recTy = type.dyn_cast<fir::RecordType>();
             mlir::Type fieldTy = recTy.getTypeList()[0].second;
             passType = fir::ReferenceType::get(fieldTy);
@@ -1046,15 +1068,15 @@ private:
           getConverter().getFoldingContext(), toEvExpr(*expr)));
     return std::nullopt;
   }
-  void
-  addFirOperand(mlir::Type type, int entityPosition, Property p,
-                llvm::ArrayRef<mlir::NamedAttribute> attributes = llvm::None) {
+  void addFirOperand(
+      mlir::Type type, int entityPosition, Property p,
+      llvm::ArrayRef<mlir::NamedAttribute> attributes = std::nullopt) {
     interface.inputs.emplace_back(
         FirPlaceHolder{type, entityPosition, p, attributes});
   }
   void
   addFirResult(mlir::Type type, int entityPosition, Property p,
-               llvm::ArrayRef<mlir::NamedAttribute> attributes = llvm::None) {
+               llvm::ArrayRef<mlir::NamedAttribute> attributes = std::nullopt) {
     interface.outputs.emplace_back(
         FirPlaceHolder{type, entityPosition, p, attributes});
   }
@@ -1096,7 +1118,14 @@ bool Fortran::lower::CallInterface<T>::PassedEntity::mayBeModifiedByCall()
     const {
   if (!characteristics)
     return true;
-  return characteristics->GetIntent() != Fortran::common::Intent::In;
+  if (characteristics->GetIntent() == Fortran::common::Intent::In)
+    return false;
+  const auto *dummy =
+      std::get_if<Fortran::evaluate::characteristics::DummyDataObject>(
+          &characteristics->u);
+  return !dummy ||
+         !dummy->attrs.test(
+             Fortran::evaluate::characteristics::DummyDataObject::Attr::Value);
 }
 template <typename T>
 bool Fortran::lower::CallInterface<T>::PassedEntity::mayBeReadByCall() const {

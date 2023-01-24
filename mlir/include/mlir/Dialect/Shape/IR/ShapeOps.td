@@ -352,7 +352,7 @@ def Shape_DimOp : Shape_Op<"dim",
 
   let extraClassDeclaration = [{
     /// Get the `index` value as integer if it is constant.
-    Optional<int64_t> getConstantIndex();
+    std::optional<int64_t> getConstantIndex();
 
     /// Returns when two result types are compatible for this op; method used by
     /// InferTypeOpInterface
@@ -383,7 +383,7 @@ def Shape_GetExtentOp : Shape_Op<"get_extent",
 
   let extraClassDeclaration = [{
     /// Get the `dim` value as integer if it is constant.
-    Optional<int64_t> getConstantDim();
+    std::optional<int64_t> getConstantDim();
     /// Returns when two result types are compatible for this op; method used by
     /// InferTypeOpInterface
     static bool isCompatibleReturnTypes(TypeRange l, TypeRange r);
@@ -690,7 +690,7 @@ def Shape_ValueAsShapeOp : Shape_Op<"value_as_shape", [Pure]> {
     %shape' = shape.const_shape [1, 2] : !shape.shape
     ```
 
-    This operation is the compliment of `shape_of` wrt ValueShape values.
+    This operation is the complement of `shape_of` wrt ValueShape values.
   }];
 
   let arguments = (ins AnyTypeOf<[1DTensorOf<[AnyInteger, Index]>, Shape_ValueShapeType]>:$arg);
@@ -752,7 +752,7 @@ def Shape_YieldOp : Shape_Op<"yield",
   let arguments = (ins Variadic<AnyType>:$operands);
 
   let builders = [OpBuilder<(ins),
-    [{ build($_builder, $_state, llvm::None); }]>
+    [{ build($_builder, $_state, std::nullopt); }]>
   ];
 
   let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
@@ -1107,6 +1107,8 @@ def Shape_FuncOp : Shape_Op<"func",
 
   let arguments = (ins SymbolNameAttr:$sym_name,
                        TypeAttrOf<FunctionType>:$function_type,
+                       OptionalAttr<DictArrayAttr>:$arg_attrs,
+                       OptionalAttr<DictArrayAttr>:$res_attrs,
                        OptionalAttr<StrAttr>:$sym_visibility);
   let regions = (region AnyRegion:$body);
 

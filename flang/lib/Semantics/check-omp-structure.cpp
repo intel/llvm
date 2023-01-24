@@ -334,9 +334,9 @@ void OmpStructureChecker::CheckHintClause(
           hintClause{
               std::get_if<Fortran::parser::OmpClause::Hint>(&ompClause->u)}) {
         std::optional<std::int64_t> hintValue = GetIntValue(hintClause->v);
-        if (hintValue && hintValue.value() >= 0) {
-          if((hintValue.value() & 0xC) == 0xC /*`omp_sync_hint_nonspeculative` and `omp_lock_hint_speculative`*/ 
-                  || (hintValue.value() & 0x3) == 0x3 /*`omp_sync_hint_uncontended` and omp_sync_hint_contended*/ )
+        if (hintValue && *hintValue >= 0) {
+          if((*hintValue & 0xC) == 0xC /*`omp_sync_hint_nonspeculative` and `omp_lock_hint_speculative`*/ 
+                  || (*hintValue & 0x3) == 0x3 /*`omp_sync_hint_uncontended` and omp_sync_hint_contended*/ )
             context_.Say(clause.source,
                 "Hint clause value "
                 "is not a valid OpenMP synchronization value"_err_en_US);
@@ -1057,6 +1057,15 @@ void OmpStructureChecker::Enter(const parser::OpenMPDeclareSimdConstruct &x) {
 }
 
 void OmpStructureChecker::Leave(const parser::OpenMPDeclareSimdConstruct &) {
+  dirContext_.pop_back();
+}
+
+void OmpStructureChecker::Enter(const parser::OpenMPRequiresConstruct &x) {
+  const auto &dir{std::get<parser::Verbatim>(x.t)};
+  PushContextAndClauseSets(dir.source, llvm::omp::Directive::OMPD_requires);
+}
+
+void OmpStructureChecker::Leave(const parser::OpenMPRequiresConstruct &) {
   dirContext_.pop_back();
 }
 
@@ -1859,6 +1868,9 @@ CHECK_SIMPLE_CLAUSE(Init, OMPC_init)
 CHECK_SIMPLE_CLAUSE(Use, OMPC_use)
 CHECK_SIMPLE_CLAUSE(Novariants, OMPC_novariants)
 CHECK_SIMPLE_CLAUSE(Nocontext, OMPC_nocontext)
+CHECK_SIMPLE_CLAUSE(At, OMPC_at)
+CHECK_SIMPLE_CLAUSE(Severity, OMPC_severity)
+CHECK_SIMPLE_CLAUSE(Message, OMPC_message)
 CHECK_SIMPLE_CLAUSE(Filter, OMPC_filter)
 CHECK_SIMPLE_CLAUSE(When, OMPC_when)
 CHECK_SIMPLE_CLAUSE(AdjustArgs, OMPC_adjust_args)

@@ -52,8 +52,8 @@ static AliasedResourceMap collectAliasedResources(spirv::ModuleOp moduleOp) {
   AliasedResourceMap aliasedResources;
   moduleOp->walk([&aliasedResources](spirv::GlobalVariableOp varOp) {
     if (varOp->getAttrOfType<UnitAttr>("aliased")) {
-      Optional<uint32_t> set = varOp.getDescriptorSet();
-      Optional<uint32_t> binding = varOp.getBinding();
+      std::optional<uint32_t> set = varOp.getDescriptorSet();
+      std::optional<uint32_t> binding = varOp.getBinding();
       if (set && binding)
         aliasedResources[{*set, *binding}].push_back(varOp);
     }
@@ -82,9 +82,10 @@ static Type getRuntimeArrayElementType(Type type) {
 }
 
 /// Given a list of resource element `types`, returns the index of the canonical
-/// resource that all resources should be unified into. Returns llvm::None if
+/// resource that all resources should be unified into. Returns std::nullopt if
 /// unable to unify.
-static Optional<int> deduceCanonicalResource(ArrayRef<spirv::SPIRVType> types) {
+static std::optional<int>
+deduceCanonicalResource(ArrayRef<spirv::SPIRVType> types) {
   // scalarNumBits: contains all resources' scalar types' bit counts.
   // vectorNumBits: only contains resources whose element types are vectors.
   // vectorIndices: each vector's original index in `types`.
@@ -98,11 +99,12 @@ static Optional<int> deduceCanonicalResource(ArrayRef<spirv::SPIRVType> types) {
     assert(type.isScalarOrVector());
     if (auto vectorType = type.dyn_cast<VectorType>()) {
       if (vectorType.getNumElements() % 2 != 0)
-        return llvm::None; // Odd-sized vector has special layout requirements.
+        return std::nullopt; // Odd-sized vector has special layout
+                             // requirements.
 
-      Optional<int64_t> numBytes = type.getSizeInBytes();
+      std::optional<int64_t> numBytes = type.getSizeInBytes();
       if (!numBytes)
-        return llvm::None;
+        return std::nullopt;
 
       scalarNumBits.push_back(
           vectorType.getElementType().getIntOrFloatBitWidth());
@@ -122,7 +124,7 @@ static Optional<int> deduceCanonicalResource(ArrayRef<spirv::SPIRVType> types) {
     // With out this, we cannot properly adjust the index later.
     if (llvm::any_of(vectorNumBits,
                      [&](int bits) { return bits % *minVal != 0; }))
-      return llvm::None;
+      return std::nullopt;
 
     // Require all scalar type bit counts to be a multiple of the chosen
     // vector's primitive type to avoid reading/writing subcomponents.
@@ -130,7 +132,7 @@ static Optional<int> deduceCanonicalResource(ArrayRef<spirv::SPIRVType> types) {
     int baseNumBits = scalarNumBits[index];
     if (llvm::any_of(scalarNumBits,
                      [&](int bits) { return bits % baseNumBits != 0; }))
-      return llvm::None;
+      return std::nullopt;
 
     return index;
   }
@@ -140,7 +142,7 @@ static Optional<int> deduceCanonicalResource(ArrayRef<spirv::SPIRVType> types) {
   auto *minVal = std::min_element(scalarNumBits.begin(), scalarNumBits.end());
   if (llvm::any_of(scalarNumBits,
                    [minVal](int64_t bit) { return bit % *minVal != 0; }))
-    return llvm::None;
+    return std::nullopt;
   return std::distance(scalarNumBits.begin(), minVal);
 }
 
@@ -279,7 +281,7 @@ void ResourceAliasAnalysis::recordIfUnifiable(
     elementTypes.push_back(type);
   }
 
-  Optional<int> index = deduceCanonicalResource(elementTypes);
+  std::optional<int> index = deduceCanonicalResource(elementTypes);
   if (!index)
     return;
 
@@ -549,10 +551,16 @@ void UnifyAliasedResourcePass::runOnOperation() {
   MLIRContext *context = &getContext();
 
   if (getTargetEnvFn) {
-    // This pass is actually only needed for targeting Apple GPUs via MoltenVK,
-    // where we need to translate SPIR-V into MSL. The translation has
-    // limitations.
-    if (getTargetEnvFn(moduleOp).getVendorID() != spirv::Vendor::Apple)
+    // This pass is only needed for targeting WebGPU, Metal, or layering Vulkan
+    // on Metal via MoltenVK, where we need to translate SPIR-V into WGSL or
+    // MSL. The translation has limitations.
+    spirv::TargetEnvAttr targetEnv = getTargetEnvFn(moduleOp);
+    spirv::ClientAPI clientAPI = targetEnv.getClientAPI();
+    bool isVulkanOnAppleDevices =
+        clientAPI == spirv::ClientAPI::Vulkan &&
+        targetEnv.getVendorID() == spirv::Vendor::Apple;
+    if (clientAPI != spirv::ClientAPI::WebGPU &&
+        clientAPI != spirv::ClientAPI::Metal && !isVulkanOnAppleDevices)
       return;
   }
 

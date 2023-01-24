@@ -781,7 +781,7 @@ bool WebAssemblyTargetLowering::isLegalAddressingMode(const DataLayout &DL,
 
 bool WebAssemblyTargetLowering::allowsMisalignedMemoryAccesses(
     EVT /*VT*/, unsigned /*AddrSpace*/, Align /*Align*/,
-    MachineMemOperand::Flags /*Flags*/, bool *Fast) const {
+    MachineMemOperand::Flags /*Flags*/, unsigned *Fast) const {
   // WebAssembly supports unaligned accesses, though it should be declared
   // with the p2align attribute on loads and stores which do so, and there
   // may be a performance impact. We tell LLVM they're "fast" because
@@ -789,7 +789,7 @@ bool WebAssemblyTargetLowering::allowsMisalignedMemoryAccesses(
   // of constants, etc.), WebAssembly implementations will either want the
   // unaligned access or they'll split anyway.
   if (Fast)
-    *Fast = true;
+    *Fast = 1;
   return true;
 }
 
@@ -1449,10 +1449,11 @@ static bool IsWebAssemblyGlobal(SDValue Op) {
   return false;
 }
 
-static Optional<unsigned> IsWebAssemblyLocal(SDValue Op, SelectionDAG &DAG) {
+static std::optional<unsigned> IsWebAssemblyLocal(SDValue Op,
+                                                  SelectionDAG &DAG) {
   const FrameIndexSDNode *FI = dyn_cast<FrameIndexSDNode>(Op);
   if (!FI)
-    return None;
+    return std::nullopt;
 
   auto &MF = DAG.getMachineFunction();
   return WebAssemblyFrameLowering::getLocalForStackObject(MF, FI->getIndex());
@@ -1477,7 +1478,7 @@ SDValue WebAssemblyTargetLowering::LowerStore(SDValue Op,
                                    SN->getMemoryVT(), SN->getMemOperand());
   }
 
-  if (Optional<unsigned> Local = IsWebAssemblyLocal(Base, DAG)) {
+  if (std::optional<unsigned> Local = IsWebAssemblyLocal(Base, DAG)) {
     if (!Offset->isUndef())
       report_fatal_error("unexpected offset when storing to webassembly local",
                          false);
@@ -1514,7 +1515,7 @@ SDValue WebAssemblyTargetLowering::LowerLoad(SDValue Op,
                                    LN->getMemoryVT(), LN->getMemOperand());
   }
 
-  if (Optional<unsigned> Local = IsWebAssemblyLocal(Base, DAG)) {
+  if (std::optional<unsigned> Local = IsWebAssemblyLocal(Base, DAG)) {
     if (!Offset->isUndef())
       report_fatal_error(
           "unexpected offset when loading from webassembly local", false);
@@ -2244,11 +2245,16 @@ WebAssemblyTargetLowering::LowerAccessVectorElement(SDValue Op,
                                                     SelectionDAG &DAG) const {
   // Allow constant lane indices, expand variable lane indices
   SDNode *IdxNode = Op.getOperand(Op.getNumOperands() - 1).getNode();
-  if (isa<ConstantSDNode>(IdxNode) || IdxNode->isUndef())
-    return Op;
-  else
-    // Perform default expansion
-    return SDValue();
+  if (isa<ConstantSDNode>(IdxNode) || IdxNode->isUndef()) {
+    // Ensure the index type is i32 to match the tablegen patterns
+    uint64_t Idx = cast<ConstantSDNode>(IdxNode)->getZExtValue();
+    SmallVector<SDValue, 3> Ops(Op.getNode()->ops());
+    Ops[Op.getNumOperands() - 1] =
+        DAG.getConstant(Idx, SDLoc(IdxNode), MVT::i32);
+    return DAG.getNode(Op.getOpcode(), SDLoc(Op), Op.getValueType(), Ops);
+  }
+  // Perform default expansion
+  return SDValue();
 }
 
 static SDValue unrollVectorShift(SDValue Op, SelectionDAG &DAG) {

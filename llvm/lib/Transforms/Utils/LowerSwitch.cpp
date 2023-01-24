@@ -160,7 +160,7 @@ BasicBlock *NewLeafBlock(CaseRange &Leaf, Value *Val, ConstantInt *LowerBound,
                          BasicBlock *Default) {
   Function *F = OrigBlock->getParent();
   BasicBlock *NewLeaf = BasicBlock::Create(Val->getContext(), "LeafBlock");
-  F->getBasicBlockList().insert(++OrigBlock->getIterator(), NewLeaf);
+  F->insert(++OrigBlock->getIterator(), NewLeaf);
 
   // Emit comparison
   ICmpInst *Comp = nullptr;
@@ -300,8 +300,8 @@ BasicBlock *SwitchConvert(CaseItr Begin, CaseItr End, ConstantInt *LowerBound,
       SwitchConvert(RHS.begin(), RHS.end(), NewLowerBound, UpperBound, Val,
                     NewNode, OrigBlock, Default, UnreachableRanges);
 
-  F->getBasicBlockList().insert(++OrigBlock->getIterator(), NewNode);
-  NewNode->getInstList().push_back(Comp);
+  F->insert(++OrigBlock->getIterator(), NewNode);
+  Comp->insertInto(NewNode, NewNode->end());
 
   BranchInst::Create(LBranch, RBranch, Comp, NewNode);
   return NewNode;
@@ -520,7 +520,7 @@ void ProcessSwitchInst(SwitchInst *SI,
 
   // We are now done with the switch instruction, delete it.
   BasicBlock *OldDefault = SI->getDefaultDest();
-  OrigBlock->getInstList().erase(SI);
+  SI->eraseFromParent();
 
   // If the Default block has no more predecessors just add it to DeleteList.
   if (pred_empty(OldDefault))

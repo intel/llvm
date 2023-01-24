@@ -1,4 +1,4 @@
-import("//llvm/utils/unittest/unittest.gni")
+import("//third-party/unittest/unittest.gni")
 
 unittest("ToolingTests") {
   configs += [ "//llvm/utils/gn/build:clang_code" ]
@@ -21,6 +21,7 @@ unittest("ToolingTests") {
     "//clang/lib/Tooling/Transformer",
     "//llvm/lib/Support",
     "//llvm/lib/Target:TargetsToBuild",
+    "//llvm/lib/TargetParser",
     "//llvm/lib/Testing/Support",
   ]
   sources = [
@@ -32,6 +33,7 @@ unittest("ToolingTests") {
     "DiagnosticsYamlTest.cpp",
     "ExecutionTest.cpp",
     "FixItTest.cpp",
+    "HeaderAnalysisTest.cpp",
     "HeaderIncludesTest.cpp",
     "LexicallyOrderedRecursiveASTVisitorTest.cpp",
     "LookupTest.cpp",

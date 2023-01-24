@@ -16,7 +16,6 @@
 #define LLVM_CODEGEN_TARGETREGISTERINFO_H
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
@@ -531,7 +530,7 @@ public:
   /// The absence of an explanation does not mean that the register is not
   /// reserved (meaning, you should check that PhysReg is in fact reserved
   /// before calling this).
-  virtual llvm::Optional<std::string>
+  virtual std::optional<std::string>
   explainReservedReg(const MachineFunction &MF, MCRegister PhysReg) const {
     return {};
   }
@@ -693,6 +692,14 @@ public:
   /// Debugging helper: dump register in human readable form to dbgs() stream.
   static void dumpReg(Register Reg, unsigned SubRegIndex = 0,
                       const TargetRegisterInfo *TRI = nullptr);
+
+  /// Return target defined base register class for a physical register.
+  /// This is the register class with the lowest BaseClassOrder containing the
+  /// register.
+  /// Will be nullptr if the register is not in any base register class.
+  virtual const TargetRegisterClass *getPhysRegBaseClass(MCRegister Reg) const {
+    return nullptr;
+  }
 
 protected:
   /// Overridden by TableGen in targets that have sub-registers.
@@ -1028,6 +1035,12 @@ public:
     return false;
   }
 
+  /// Process frame indices in reverse block order. This changes the behavior of
+  /// the RegScavenger passed to eliminateFrameIndex. If this is true targets
+  /// should scavengeRegisterBackwards in eliminateFrameIndex. New targets
+  /// should prefer reverse scavenging behavior.
+  virtual bool supportsBackwardScavenger() const { return false; }
+
   /// This method must be overriden to eliminate abstract frame indices from
   /// instructions which may use them. The instruction referenced by the
   /// iterator contains an MO_FrameIndex operand which must be eliminated by
@@ -1035,7 +1048,9 @@ public:
   /// as long as it keeps the iterator pointing at the finished product.
   /// SPAdj is the SP adjustment due to call frame setup instruction.
   /// FIOperandNum is the FI operand number.
-  virtual void eliminateFrameIndex(MachineBasicBlock::iterator MI,
+  /// Returns true if the current instruction was removed and the iterator
+  /// is not longer valid
+  virtual bool eliminateFrameIndex(MachineBasicBlock::iterator MI,
                                    int SPAdj, unsigned FIOperandNum,
                                    RegScavenger *RS = nullptr) const = 0;
 

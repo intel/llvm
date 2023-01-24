@@ -6,8 +6,8 @@
 ; CHECK-SAME:  %[[ARG3:[a-zA-Z0-9]+]]
 ; CHECK-SAME:  %[[ARG4:[a-zA-Z0-9]+]]
 define void @integer_arith(i32 %arg1, i32 %arg2, i64 %arg3, i64 %arg4) {
-  ; CHECK-DAG:  %[[C1:[0-9]+]] = llvm.mlir.constant(-7 : i32) : i32
-  ; CHECK-DAG:  %[[C2:[0-9]+]] = llvm.mlir.constant(42 : i32) : i32
+  ; CHECK:  %[[C1:[0-9]+]] = llvm.mlir.constant(-7 : i32) : i32
+  ; CHECK:  %[[C2:[0-9]+]] = llvm.mlir.constant(42 : i32) : i32
   ; CHECK:  llvm.add %[[ARG1]], %[[C1]] : i32
   %1 = add i32 %arg1, -7
   ; CHECK:  llvm.add %[[C2]], %[[ARG2]] : i32
@@ -75,13 +75,13 @@ define i1 @integer_compare(i32 %arg1, i32 %arg2, <4 x i64> %arg3, <4 x i64> %arg
 ; CHECK-SAME:  %[[ARG3:[a-zA-Z0-9]+]]
 ; CHECK-SAME:  %[[ARG4:[a-zA-Z0-9]+]]
 define void @fp_arith(float %arg1, float %arg2, double %arg3, double %arg4) {
-  ; CHECK:  %[[C1:[0-9]+]] = llvm.mlir.constant(3.030000e+01 : f64) : f64
-  ; CHECK:  %[[C2:[0-9]+]] = llvm.mlir.constant(3.030000e+01 : f32) : f32
-  ; CHECK:  llvm.fadd %[[C2]], %[[ARG1]] : f32
+  ; CHECK:  %[[C1:[0-9]+]] = llvm.mlir.constant(3.030000e+01 : f32) : f32
+  ; CHECK:  %[[C2:[0-9]+]] = llvm.mlir.constant(3.030000e+01 : f64) : f64
+  ; CHECK:  llvm.fadd %[[C1]], %[[ARG1]] : f32
   %1 = fadd float 0x403E4CCCC0000000, %arg1
   ; CHECK:  llvm.fadd %[[ARG1]], %[[ARG2]] : f32
   %2 = fadd float %arg1, %arg2
-  ; CHECK:  llvm.fadd %[[C1]], %[[ARG3]] : f64
+  ; CHECK:  llvm.fadd %[[C2]], %[[ARG3]] : f64
   %3 = fadd double 3.030000e+01, %arg3
   ; CHECK:  llvm.fsub %[[ARG1]], %[[ARG2]] : f32
   %4 = fsub float %arg1, %arg2
@@ -212,8 +212,8 @@ define ptr addrspace(2) @addrspace_casts(ptr addrspace(1) %arg1) {
 ; CHECK-SAME:  %[[ARG3:[a-zA-Z0-9]+]]
 ; CHECK-SAME:  %[[ARG4:[a-zA-Z0-9]+]]
 define void @integer_arith(i32 %arg1, i32 %arg2, i64 %arg3, i64 %arg4) {
-  ; CHECK-DAG:  %[[C1:[0-9]+]] = llvm.mlir.constant(-7 : i32) : i32
-  ; CHECK-DAG:  %[[C2:[0-9]+]] = llvm.mlir.constant(42 : i32) : i32
+  ; CHECK:  %[[C1:[0-9]+]] = llvm.mlir.constant(-7 : i32) : i32
+  ; CHECK:  %[[C2:[0-9]+]] = llvm.mlir.constant(42 : i32) : i32
   ; CHECK:  llvm.add %[[ARG1]], %[[C1]] : i32
   ; CHECK:  llvm.add %[[C2]], %[[ARG2]] : i32
   ; CHECK:  llvm.sub %[[ARG3]], %[[ARG4]] : i64
@@ -407,6 +407,56 @@ define void @atomic_cmpxchg(i32* %ptr1, i32 %val1, i32 %val2) {
   %1 = cmpxchg i32* %ptr1, i32 %val1, i32 %val2 seq_cst seq_cst
   ; CHECK:  llvm.cmpxchg %[[PTR1]], %[[VAL1]], %[[VAL2]] monotonic seq_cst : i32
   %2 = cmpxchg i32* %ptr1, i32 %val1, i32 %val2 monotonic seq_cst
+  ret void
+}
+
+; // -----
+
+; CHECK: llvm.func @fn(i32) -> f32
+declare float @fn(i32)
+
+; CHECK-LABEL: @call_fn
+; CHECK-SAME:  %[[ARG1:[a-zA-Z0-9]+]]
+define float @call_fn(i32 %arg1) {
+  ; CHECK:  llvm.call @fn(%[[ARG1]])
+  %1 = call float @fn(i32 %arg1)
+  ret float %1
+}
+
+; // -----
+
+; CHECK-LABEL: @call_fn_ptr
+; CHECK-SAME:  %[[PTR:[a-zA-Z0-9]+]]
+define void @call_fn_ptr(void (i16) *%fn) {
+  ; CHECK:  %[[C0:[0-9]+]] = llvm.mlir.constant(0 : i16) : i16
+  ; CHECK:  llvm.call %[[PTR]](%[[C0]])
+  call void %fn(i16 0)
+  ret void
+}
+
+; // -----
+
+; CHECK-LABEL: @gep_static_idx
+; CHECK-SAME:  %[[PTR:[a-zA-Z0-9]+]]
+define void @gep_static_idx(float* %ptr) {
+  ; CHECK: %[[IDX:.+]] = llvm.mlir.constant(7 : i32)
+  ; CHECK: llvm.getelementptr inbounds %[[PTR]][%[[IDX]]] : (!llvm.ptr<f32>, i32) -> !llvm.ptr<f32>
+  %1 = getelementptr inbounds float, float* %ptr, i32 7
+  ret void
+}
+
+; // -----
+
+%sub_struct = type { i32, i8 }
+%my_struct = type { %sub_struct, [4 x i32] }
+
+; CHECK-LABEL: @gep_dynamic_idx
+; CHECK-SAME:  %[[PTR:[a-zA-Z0-9]+]]
+; CHECK-SAME:  %[[IDX:[a-zA-Z0-9]+]]
+define void @gep_dynamic_idx(%my_struct* %ptr, i32 %idx) {
+  ; CHECK: %[[C0:.+]] = llvm.mlir.constant(0 : i32)
+  ; CHECK: llvm.getelementptr %[[PTR]][%[[C0]], 1, %[[IDX]]]
+  %1 = getelementptr %my_struct, %my_struct* %ptr, i32 0, i32 1, i32 %idx
   ret void
 }
 

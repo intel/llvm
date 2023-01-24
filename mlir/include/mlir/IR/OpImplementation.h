@@ -181,7 +181,7 @@ public:
   virtual void printSymbolName(StringRef symbolRef);
 
   /// Print a handle to the given dialect resource.
-  void printResourceHandle(const AsmDialectResourceHandle &resource);
+  virtual void printResourceHandle(const AsmDialectResourceHandle &resource);
 
   /// Print an optional arrow followed by a type list.
   template <typename TypeRange>
@@ -577,6 +577,9 @@ public:
   /// Parse a quoted string token if present.
   virtual ParseResult parseOptionalString(std::string *string) = 0;
 
+  /// Parses a Base64 encoded string of bytes.
+  virtual ParseResult parseBase64Bytes(std::vector<char> *bytes) = 0;
+
   /// Parse a `(` token.
   virtual ParseResult parseLParen() = 0;
 
@@ -970,6 +973,10 @@ public:
   virtual OptionalParseResult parseOptionalAttribute(StringAttr &result,
                                                      Type type = {}) = 0;
 
+  /// Parse an optional symbol ref attribute and return it in result.
+  virtual OptionalParseResult parseOptionalAttribute(SymbolRefAttr &result,
+                                                     Type type = {}) = 0;
+
   /// Parse an optional attribute of a specific type and add it to the list with
   /// the specified name.
   template <typename AttrType>
@@ -1331,12 +1338,12 @@ public:
   /// skip parsing that component.
   virtual ParseResult parseGenericOperationAfterOpName(
       OperationState &result,
-      Optional<ArrayRef<UnresolvedOperand>> parsedOperandType = llvm::None,
-      Optional<ArrayRef<Block *>> parsedSuccessors = llvm::None,
+      Optional<ArrayRef<UnresolvedOperand>> parsedOperandType = std::nullopt,
+      Optional<ArrayRef<Block *>> parsedSuccessors = std::nullopt,
       Optional<MutableArrayRef<std::unique_ptr<Region>>> parsedRegions =
-          llvm::None,
-      Optional<ArrayRef<NamedAttribute>> parsedAttributes = llvm::None,
-      Optional<FunctionType> parsedFnType = llvm::None) = 0;
+          std::nullopt,
+      Optional<ArrayRef<NamedAttribute>> parsedAttributes = std::nullopt,
+      Optional<FunctionType> parsedFnType = std::nullopt) = 0;
 
   /// Parse a single SSA value operand name along with a result number if
   /// `allowResultNumber` is true.

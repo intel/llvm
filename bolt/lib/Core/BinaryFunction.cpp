@@ -242,24 +242,21 @@ std::string BinaryFunction::buildColdCodeSectionName(StringRef Name,
 
 uint64_t BinaryFunction::Count = 0;
 
-Optional<StringRef> BinaryFunction::hasNameRegex(const StringRef Name) const {
+std::optional<StringRef>
+BinaryFunction::hasNameRegex(const StringRef Name) const {
   const std::string RegexName = (Twine("^") + StringRef(Name) + "$").str();
   Regex MatchName(RegexName);
-  Optional<StringRef> Match = forEachName(
+  return forEachName(
       [&MatchName](StringRef Name) { return MatchName.match(Name); });
-
-  return Match;
 }
 
-Optional<StringRef>
+std::optional<StringRef>
 BinaryFunction::hasRestoredNameRegex(const StringRef Name) const {
   const std::string RegexName = (Twine("^") + StringRef(Name) + "$").str();
   Regex MatchName(RegexName);
-  Optional<StringRef> Match = forEachName([&MatchName](StringRef Name) {
+  return forEachName([&MatchName](StringRef Name) {
     return MatchName.match(NameResolver::restore(Name));
   });
-
-  return Match;
 }
 
 std::string BinaryFunction::getDemangledName() const {
@@ -395,7 +392,7 @@ bool BinaryFunction::isForwardCall(const MCSymbol *CalleeSymbol) const {
   }
 }
 
-void BinaryFunction::dump(bool PrintInstructions) const {
+void BinaryFunction::dump() const {
   // getDynoStats calls FunctionLayout::updateLayoutIndices and
   // BasicBlock::analyzeBranch. The former cannot be const, but should be
   // removed, the latter should be made const, but seems to require refactoring.
@@ -405,11 +402,10 @@ void BinaryFunction::dump(bool PrintInstructions) const {
   // modified. Only BinaryBasicBlocks are actually modified (if it all) and we
   // have mutable pointers to those regardless whether this function is
   // const-qualified or not.
-  const_cast<BinaryFunction &>(*this).print(dbgs(), "", PrintInstructions);
+  const_cast<BinaryFunction &>(*this).print(dbgs(), "");
 }
 
-void BinaryFunction::print(raw_ostream &OS, std::string Annotation,
-                           bool PrintInstructions) {
+void BinaryFunction::print(raw_ostream &OS, std::string Annotation) {
   if (!opts::shouldPrint(*this))
     return;
 
@@ -488,7 +484,7 @@ void BinaryFunction::print(raw_ostream &OS, std::string Annotation,
 
   OS << "\n}\n";
 
-  if (opts::PrintDynoStatsOnly || !PrintInstructions || !BC.InstPrinter)
+  if (opts::PrintDynoStatsOnly || !BC.InstPrinter)
     return;
 
   // Offset of the instruction in function.
@@ -1548,7 +1544,7 @@ bool BinaryFunction::scanExternalRefs() {
 
     // Create relocation for every fixup.
     for (const MCFixup &Fixup : Fixups) {
-      Optional<Relocation> Rel = BC.MIB->createRelocation(Fixup, *BC.MAB);
+      std::optional<Relocation> Rel = BC.MIB->createRelocation(Fixup, *BC.MAB);
       if (!Rel) {
         Success = false;
         continue;
@@ -1923,7 +1919,8 @@ void BinaryFunction::recomputeLandingPads() {
       if (!BC.MIB->isInvoke(Instr))
         continue;
 
-      const Optional<MCPlus::MCLandingPad> EHInfo = BC.MIB->getEHInfo(Instr);
+      const std::optional<MCPlus::MCLandingPad> EHInfo =
+          BC.MIB->getEHInfo(Instr);
       if (!EHInfo || !EHInfo->first)
         continue;
 
@@ -2280,7 +2277,7 @@ void BinaryFunction::removeConditionalTailCalls() {
     if (!CTCInstr)
       continue;
 
-    Optional<uint64_t> TargetAddressOrNone =
+    std::optional<uint64_t> TargetAddressOrNone =
         BC.MIB->getConditionalTailCall(*CTCInstr);
     if (!TargetAddressOrNone)
       continue;
@@ -2471,7 +2468,8 @@ private:
       CFARule = UNKNOWN;
       break;
     case MCCFIInstruction::OpEscape: {
-      Optional<uint8_t> Reg = readDWARFExpressionTargetReg(Instr.getValues());
+      std::optional<uint8_t> Reg =
+          readDWARFExpressionTargetReg(Instr.getValues());
       // Handle DW_CFA_def_cfa_expression
       if (!Reg) {
         CFARule = RuleNumber;
@@ -2575,7 +2573,8 @@ struct CFISnapshotDiff : public CFISnapshot {
       if (Instr.getOperation() != MCCFIInstruction::OpEscape) {
         Reg = Instr.getRegister();
       } else {
-        Optional<uint8_t> R = readDWARFExpressionTargetReg(Instr.getValues());
+        std::optional<uint8_t> R =
+            readDWARFExpressionTargetReg(Instr.getValues());
         // Handle DW_CFA_def_cfa_expression
         if (!R) {
           if (RestoredCFAReg && RestoredCFAOffset)
@@ -2721,7 +2720,8 @@ BinaryFunction::unwindCFIState(int32_t FromState, int32_t ToState,
       if (Instr.getOperation() != MCCFIInstruction::OpEscape) {
         Reg = Instr.getRegister();
       } else {
-        Optional<uint8_t> R = readDWARFExpressionTargetReg(Instr.getValues());
+        std::optional<uint8_t> R =
+            readDWARFExpressionTargetReg(Instr.getValues());
         // Handle DW_CFA_def_cfa_expression
         if (!R) {
           undoStateDefCfa();

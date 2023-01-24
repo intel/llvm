@@ -41,7 +41,7 @@ namespace serialization {
 /// Version 4 of AST files also requires that the version control branch and
 /// revision match exactly, since there is no backward compatibility of
 /// AST files at this time.
-const unsigned VERSION_MAJOR = 24;
+const unsigned VERSION_MAJOR = 25;
 
 /// AST file minor version number supported by this version of
 /// Clang.
@@ -396,6 +396,9 @@ enum UnhashedControlBlockRecordTypes {
 
   /// Record code for the diagnostic options table.
   DIAGNOSTIC_OPTIONS,
+
+  /// Record code for the headers search paths.
+  HEADER_SEARCH_PATHS,
 
   /// Record code for \#pragma diagnostic mappings.
   DIAG_PRAGMA_MAPPINGS,
@@ -1320,6 +1323,9 @@ enum DeclCode {
   /// A FileScopeAsmDecl record.
   DECL_FILE_SCOPE_ASM,
 
+  /// A TopLevelStmtDecl record.
+  DECL_TOP_LEVEL_STMT_DECL,
+
   /// A BlockDecl record.
   DECL_BLOCK,
 
@@ -1860,6 +1866,9 @@ enum StmtCode {
   /// A CXXBoolLiteralExpr record.
   EXPR_CXX_BOOL_LITERAL,
 
+  /// A CXXParenListInitExpr record.
+  EXPR_CXX_PAREN_LIST_INIT,
+
   EXPR_CXX_NULL_PTR_LITERAL, // CXXNullPtrLiteralExpr
   EXPR_CXX_TYPEID_EXPR,      // CXXTypeidExpr (of expr).
   EXPR_CXX_TYPEID_TYPE,      // CXXTypeidExpr (of type).
@@ -1937,6 +1946,7 @@ enum StmtCode {
   STMT_OMP_PARALLEL_SECTIONS_DIRECTIVE,
   STMT_OMP_TASK_DIRECTIVE,
   STMT_OMP_TASKYIELD_DIRECTIVE,
+  STMT_OMP_ERROR_DIRECTIVE,
   STMT_OMP_BARRIER_DIRECTIVE,
   STMT_OMP_TASKWAIT_DIRECTIVE,
   STMT_OMP_FLUSH_DIRECTIVE,

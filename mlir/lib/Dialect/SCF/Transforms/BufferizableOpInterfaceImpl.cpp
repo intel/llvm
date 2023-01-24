@@ -294,14 +294,12 @@ struct IfOpInterface
       return thenBufferType;
 
     // Memory space mismatch.
-    if (thenBufferType.getMemorySpaceAsInt() !=
-        elseBufferType.getMemorySpaceAsInt())
+    if (thenBufferType.getMemorySpace() != elseBufferType.getMemorySpace())
       return op->emitError("inconsistent memory space on then/else branches");
 
     // Layout maps are different: Promote to fully dynamic layout map.
     return getMemRefTypeWithFullyDynamicLayout(
-        opResult.getType().cast<TensorType>(),
-        thenBufferType.getMemorySpaceAsInt());
+        opResult.getType().cast<TensorType>(), thenBufferType.getMemorySpace());
   }
 
   BufferRelation bufferRelation(Operation *op, OpResult opResult,
@@ -445,19 +443,18 @@ static FailureOr<BaseMemRefType> computeLoopRegionIterArgBufferType(
   auto iterRanked = initArgBufferType->cast<MemRefType>();
   assert(llvm::equal(yieldedRanked.getShape(), iterRanked.getShape()) &&
          "expected same shape");
-  assert(yieldedRanked.getMemorySpaceAsInt() ==
-             iterRanked.getMemorySpaceAsInt() &&
+  assert(yieldedRanked.getMemorySpace() == iterRanked.getMemorySpace() &&
          "expected same memory space");
 #endif // NDEBUG
   return getMemRefTypeWithFullyDynamicLayout(
       iterArg.getType().cast<RankedTensorType>(),
-      yieldedRanked.getMemorySpaceAsInt());
+      yieldedRanked.getMemorySpace());
 }
 
 /// Return `true` if the given loop may have 0 iterations.
 bool mayHaveZeroIterations(scf::ForOp forOp) {
-  Optional<int64_t> lb = getConstantIntValue(forOp.getLowerBound());
-  Optional<int64_t> ub = getConstantIntValue(forOp.getUpperBound());
+  std::optional<int64_t> lb = getConstantIntValue(forOp.getLowerBound());
+  std::optional<int64_t> ub = getConstantIntValue(forOp.getUpperBound());
   if (!lb.has_value() || !ub.has_value())
     return true;
   return *ub <= *lb;
@@ -1058,7 +1055,7 @@ struct YieldOpInterface
 bool mayHaveZeroIterations(scf::ForeachThreadOp foreachThreadOp) {
   int64_t p = 1;
   for (Value v : foreachThreadOp.getNumThreads()) {
-    if (Optional<int64_t> c = getConstantIntValue(v)) {
+    if (std::optional<int64_t> c = getConstantIntValue(v)) {
       p *= *c;
     } else {
       return true;
@@ -1141,10 +1138,11 @@ struct ForeachThreadOpInterface
     // Create new ForeachThreadOp without any results and drop the automatically
     // introduced terminator.
     rewriter.setInsertionPoint(foreachThreadOp);
-    auto newForeachThreadOp = rewriter.create<ForeachThreadOp>(
+    ForeachThreadOp newForeachThreadOp;
+    newForeachThreadOp = rewriter.create<ForeachThreadOp>(
         foreachThreadOp.getLoc(), /*outputs=*/ValueRange(),
-        foreachThreadOp.getNumThreads(),
-        extractFromI64ArrayAttr(foreachThreadOp.getThreadDimMapping()));
+        foreachThreadOp.getNumThreads(), foreachThreadOp.getMapping());
+
     newForeachThreadOp.getBody()->getTerminator()->erase();
 
     // Move over block contents of the old op.

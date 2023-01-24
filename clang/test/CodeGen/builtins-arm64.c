@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -triple arm64-unknown-linux -disable-O0-optnone -emit-llvm -o - %s | opt -S -mem2reg | FileCheck %s --check-prefix=CHECK --check-prefix=CHECK-LINUX
-// RUN: %clang_cc1 -triple aarch64-windows -disable-O0-optnone -S -emit-llvm -o - %s | opt -S -mem2reg | FileCheck %s --check-prefix=CHECK --check-prefix=CHECK-WIN
-// RUN: %clang_cc1 -triple arm64_32-apple-ios13 -disable-O0-optnone -emit-llvm -o - %s | opt -S -mem2reg | FileCheck %s
+// RUN: %clang_cc1 -triple arm64-unknown-linux -disable-O0-optnone -emit-llvm -o - %s | opt -S -passes=mem2reg | FileCheck %s --check-prefix=CHECK --check-prefix=CHECK-LINUX
+// RUN: %clang_cc1 -triple aarch64-windows -disable-O0-optnone -S -emit-llvm -o - %s | opt -S -passes=mem2reg | FileCheck %s --check-prefix=CHECK --check-prefix=CHECK-WIN
+// RUN: %clang_cc1 -triple arm64_32-apple-ios13 -disable-O0-optnone -emit-llvm -o - %s | opt -S -passes=mem2reg | FileCheck %s
 #include <stdint.h>
 
 void f0(void *a, void *b) {
@@ -47,16 +47,19 @@ void barriers(void) {
 
 void prefetch(void) {
   __builtin_arm_prefetch(0, 1, 2, 0, 1); // pstl3keep
-  // CHECK: call {{.*}} @llvm.prefetch.p0(ptr null, i32 1, i32 1, i32 1)
+  // CHECK: call {{.*}} @llvm.aarch64.prefetch(ptr null, i32 1, i32 2, i32 0, i32 1)
 
   __builtin_arm_prefetch(0, 0, 0, 1, 1); // pldl1keep
-  // CHECK: call {{.*}} @llvm.prefetch.p0(ptr null, i32 0, i32 0, i32 1)
+  // CHECK: call {{.*}} @llvm.aarch64.prefetch(ptr null, i32 0, i32 0, i32 1, i32 1)
 
   __builtin_arm_prefetch(0, 0, 0, 1, 1); // pldl1strm
-  // CHECK: call {{.*}} @llvm.prefetch.p0(ptr null, i32 0, i32 0, i32 1)
+  // CHECK: call {{.*}} @llvm.aarch64.prefetch(ptr null, i32 0, i32 0, i32 1, i32 1)
 
   __builtin_arm_prefetch(0, 0, 0, 0, 0); // plil1keep
-  // CHECK: call {{.*}} @llvm.prefetch.p0(ptr null, i32 0, i32 3, i32 0)
+  // CHECK: call {{.*}} @llvm.aarch64.prefetch(ptr null, i32 0, i32 0, i32 0, i32 0)
+
+  __builtin_arm_prefetch(0, 0, 3, 0, 1); // pldslckeep
+  // CHECK: call {{.*}} @llvm.aarch64.prefetch(ptr null, i32 0, i32 3, i32 0, i32 1)
 }
 
 __attribute__((target("v8.5a")))

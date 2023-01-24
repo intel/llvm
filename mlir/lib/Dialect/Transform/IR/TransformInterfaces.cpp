@@ -130,7 +130,7 @@ LogicalResult transform::TransformState::updatePayloadOps(
   if (failed(result.checkAndReport()))
     return failure();
 
-  std::swap(association, updated);
+  it->second = updated;
   return success();
 }
 
@@ -189,7 +189,8 @@ LogicalResult transform::TransformState::checkAndRecordHandleInvalidation(
   for (OpOperand &target : transform->getOpOperands()) {
     // If the operand uses an invalidated handle, report it.
     auto it = invalidatedHandles.find(target.get());
-    if (it != invalidatedHandles.end())
+    if (!transform.allowsRepeatedHandleOperands() &&
+        it != invalidatedHandles.end())
       return it->getSecond()(transform->getLoc()), failure();
 
     // Invalidate handles pointing to the operations nested in the operation
@@ -201,6 +202,7 @@ LogicalResult transform::TransformState::checkAndRecordHandleInvalidation(
     if (llvm::any_of(effects, consumesTarget))
       recordHandleInvalidation(target);
   }
+
   return success();
 }
 
@@ -314,11 +316,11 @@ transform::TransformResults::TransformResults(unsigned numSegments) {
 
 void transform::TransformResults::set(OpResult value,
                                       ArrayRef<Operation *> ops) {
-  unsigned position = value.getResultNumber();
-  assert(position < segments.size() &&
+  int64_t position = value.getResultNumber();
+  assert(position < static_cast<int64_t>(segments.size()) &&
          "setting results for a non-existent handle");
   assert(segments[position].data() == nullptr && "results already set");
-  unsigned start = operations.size();
+  int64_t start = operations.size();
   llvm::append_range(operations, ops);
   segments[position] = makeArrayRef(operations).drop_front(start);
 }

@@ -192,12 +192,11 @@ TEST_F(GDBRemoteCommunicationClientTest, GetModulesInfo) {
   auto result = async_result.get();
   ASSERT_TRUE(result.has_value());
   ASSERT_EQ(1u, result->size());
-  EXPECT_EQ("/foo/bar.so", result.value()[0].GetFileSpec().GetPath());
-  EXPECT_EQ(triple, result.value()[0].GetArchitecture().GetTriple());
-  EXPECT_EQ(UUID("@ABCDEFGHIJKLMNO", 16),
-            result.value()[0].GetUUID());
-  EXPECT_EQ(0u, result.value()[0].GetObjectOffset());
-  EXPECT_EQ(1234u, result.value()[0].GetObjectSize());
+  EXPECT_EQ("/foo/bar.so", (*result)[0].GetFileSpec().GetPath());
+  EXPECT_EQ(triple, (*result)[0].GetArchitecture().GetTriple());
+  EXPECT_EQ(UUID("@ABCDEFGHIJKLMNO", 16), (*result)[0].GetUUID());
+  EXPECT_EQ(0u, (*result)[0].GetObjectOffset());
+  EXPECT_EQ(1234u, (*result)[0].GetObjectSize());
 }
 
 TEST_F(GDBRemoteCommunicationClientTest, GetModulesInfo_UUID20) {
@@ -217,12 +216,11 @@ TEST_F(GDBRemoteCommunicationClientTest, GetModulesInfo_UUID20) {
   auto result = async_result.get();
   ASSERT_TRUE(result.has_value());
   ASSERT_EQ(1u, result->size());
-  EXPECT_EQ("/foo/bar.so", result.value()[0].GetFileSpec().GetPath());
-  EXPECT_EQ(triple, result.value()[0].GetArchitecture().GetTriple());
-  EXPECT_EQ(UUID("@ABCDEFGHIJKLMNOPQRS", 20),
-            result.value()[0].GetUUID());
-  EXPECT_EQ(0u, result.value()[0].GetObjectOffset());
-  EXPECT_EQ(1234u, result.value()[0].GetObjectSize());
+  EXPECT_EQ("/foo/bar.so", (*result)[0].GetFileSpec().GetPath());
+  EXPECT_EQ(triple, (*result)[0].GetArchitecture().GetTriple());
+  EXPECT_EQ(UUID("@ABCDEFGHIJKLMNOPQRS", 20), (*result)[0].GetUUID());
+  EXPECT_EQ(0u, (*result)[0].GetObjectOffset());
+  EXPECT_EQ(1234u, (*result)[0].GetObjectSize());
 }
 
 TEST_F(GDBRemoteCommunicationClientTest, GetModulesInfoInvalidResponse) {
@@ -458,14 +456,14 @@ TEST_F(GDBRemoteCommunicationClientTest, GetQOffsets) {
   EXPECT_EQ((QOffsets{true, {0x1234, 0x2345}}),
             GetQOffsets("TextSeg=1234;DataSeg=2345"));
 
-  EXPECT_EQ(llvm::None, GetQOffsets("E05"));
-  EXPECT_EQ(llvm::None, GetQOffsets("Text=bogus"));
-  EXPECT_EQ(llvm::None, GetQOffsets("Text=1234"));
-  EXPECT_EQ(llvm::None, GetQOffsets("Text=1234;Data=1234;"));
-  EXPECT_EQ(llvm::None, GetQOffsets("Text=1234;Data=1234;Bss=1234;"));
-  EXPECT_EQ(llvm::None, GetQOffsets("TEXTSEG=1234"));
-  EXPECT_EQ(llvm::None, GetQOffsets("TextSeg=0x1234"));
-  EXPECT_EQ(llvm::None, GetQOffsets("TextSeg=12345678123456789"));
+  EXPECT_EQ(std::nullopt, GetQOffsets("E05"));
+  EXPECT_EQ(std::nullopt, GetQOffsets("Text=bogus"));
+  EXPECT_EQ(std::nullopt, GetQOffsets("Text=1234"));
+  EXPECT_EQ(std::nullopt, GetQOffsets("Text=1234;Data=1234;"));
+  EXPECT_EQ(std::nullopt, GetQOffsets("Text=1234;Data=1234;Bss=1234;"));
+  EXPECT_EQ(std::nullopt, GetQOffsets("TEXTSEG=1234"));
+  EXPECT_EQ(std::nullopt, GetQOffsets("TextSeg=0x1234"));
+  EXPECT_EQ(std::nullopt, GetQOffsets("TextSeg=12345678123456789"));
 }
 
 static void
@@ -522,26 +520,28 @@ TEST_F(GDBRemoteCommunicationClientTest, ReadMemoryTags) {
                  std::vector<uint8_t>{0x1, 0x2});
 
   // Empty response is an error
-  check_qmemtags(client, server, 17, 1, "qMemTags:def0,11:1", "", llvm::None);
+  check_qmemtags(client, server, 17, 1, "qMemTags:def0,11:1", "", std::nullopt);
   // Usual error response
   check_qmemtags(client, server, 17, 1, "qMemTags:def0,11:1", "E01",
-                 llvm::None);
+                 std::nullopt);
   // Leading m missing
-  check_qmemtags(client, server, 17, 1, "qMemTags:def0,11:1", "01", llvm::None);
+  check_qmemtags(client, server, 17, 1, "qMemTags:def0,11:1", "01",
+                 std::nullopt);
   // Anything other than m is an error
   check_qmemtags(client, server, 17, 1, "qMemTags:def0,11:1", "z01",
-                 llvm::None);
+                 std::nullopt);
   // Decoding tag data doesn't use all the chars in the packet
   check_qmemtags(client, server, 32, 1, "qMemTags:def0,20:1", "m09zz",
-                 llvm::None);
+                 std::nullopt);
   // Data that is not hex bytes
   check_qmemtags(client, server, 32, 1, "qMemTags:def0,20:1", "mhello",
-                 llvm::None);
+                 std::nullopt);
   // Data is not a complete hex char
-  check_qmemtags(client, server, 32, 1, "qMemTags:def0,20:1", "m9", llvm::None);
+  check_qmemtags(client, server, 32, 1, "qMemTags:def0,20:1", "m9",
+                 std::nullopt);
   // Data has a trailing hex char
   check_qmemtags(client, server, 32, 1, "qMemTags:def0,20:1", "m01020",
-                 llvm::None);
+                 std::nullopt);
 }
 
 static void check_Qmemtags(TestClient &client, MockServer &server,

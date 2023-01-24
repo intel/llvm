@@ -28,7 +28,7 @@ Instruction::Instruction(Type *ty, unsigned it, Use *Ops, unsigned NumOps,
   if (InsertBefore) {
     BasicBlock *BB = InsertBefore->getParent();
     assert(BB && "Instruction to insert before is not in a basic block!");
-    BB->getInstList().insert(InsertBefore->getIterator(), this);
+    insertInto(BB, InsertBefore->getIterator());
   }
 }
 
@@ -38,7 +38,7 @@ Instruction::Instruction(Type *ty, unsigned it, Use *Ops, unsigned NumOps,
 
   // append this instruction into the basic block
   assert(InsertAtEnd && "Basic block to append to may not be NULL!");
-  InsertAtEnd->getInstList().push_back(this);
+  insertInto(InsertAtEnd, InsertAtEnd->end());
 }
 
 Instruction::~Instruction() {
@@ -55,6 +55,10 @@ Instruction::~Instruction() {
   //   instructions in a BasicBlock are deleted).
   if (isUsedByMetadata())
     ValueAsMetadata::handleRAUW(this, UndefValue::get(getType()));
+
+  // Explicitly remove DIAssignID metadata to clear up ID -> Instruction(s)
+  // mapping in LLVMContext.
+  setMetadata(LLVMContext::MD_DIAssignID, nullptr);
 }
 
 
@@ -81,14 +85,21 @@ iplist<Instruction>::iterator Instruction::eraseFromParent() {
 /// Insert an unlinked instruction into a basic block immediately before the
 /// specified instruction.
 void Instruction::insertBefore(Instruction *InsertPos) {
-  InsertPos->getParent()->getInstList().insert(InsertPos->getIterator(), this);
+  insertInto(InsertPos->getParent(), InsertPos->getIterator());
 }
 
 /// Insert an unlinked instruction into a basic block immediately after the
 /// specified instruction.
 void Instruction::insertAfter(Instruction *InsertPos) {
-  InsertPos->getParent()->getInstList().insertAfter(InsertPos->getIterator(),
-                                                    this);
+  insertInto(InsertPos->getParent(), std::next(InsertPos->getIterator()));
+}
+
+BasicBlock::iterator Instruction::insertInto(BasicBlock *ParentBB,
+                                             BasicBlock::iterator It) {
+  assert(getParent() == nullptr && "Expected detached instruction");
+  assert((It == ParentBB->end() || It->getParent() == ParentBB) &&
+         "It not in ParentBB");
+  return ParentBB->getInstList().insert(It, this);
 }
 
 /// Unlink this instruction from its current basic block and insert it into the
@@ -104,7 +115,7 @@ void Instruction::moveAfter(Instruction *MovePos) {
 void Instruction::moveBefore(BasicBlock &BB,
                              SymbolTableList<Instruction>::iterator I) {
   assert(I == BB.end() || I->getParent() == &BB);
-  BB.getInstList().splice(I, getParent()->getInstList(), getIterator());
+  BB.splice(I, getParent(), getIterator());
 }
 
 bool Instruction::comesBefore(const Instruction *Other) const {
@@ -733,11 +744,7 @@ bool Instruction::willReturn() const {
     return !SI->isVolatile();
 
   if (const auto *CB = dyn_cast<CallBase>(this))
-    // FIXME: Temporarily assume that all side-effect free intrinsics will
-    // return. Remove this workaround once all intrinsics are appropriately
-    // annotated.
-    return CB->hasFnAttr(Attribute::WillReturn) ||
-           (isa<IntrinsicInst>(CB) && CB->onlyReadsMemory());
+    return CB->hasFnAttr(Attribute::WillReturn);
   return true;
 }
 

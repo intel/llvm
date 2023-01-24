@@ -730,6 +730,9 @@ void VectorLegalizer::Expand(SDNode *Node, SmallVectorImpl<SDValue> &Results) {
   case ISD::BSWAP:
     Results.push_back(ExpandBSWAP(Node));
     return;
+  case ISD::VP_BSWAP:
+    Results.push_back(TLI.expandVPBSWAP(Node, DAG));
+    return;
   case ISD::VSELECT:
     Results.push_back(ExpandVSELECT(Node));
     return;
@@ -785,8 +788,20 @@ void VectorLegalizer::Expand(SDNode *Node, SmallVectorImpl<SDValue> &Results) {
   case ISD::BITREVERSE:
     ExpandBITREVERSE(Node, Results);
     return;
+  case ISD::VP_BITREVERSE:
+    if (SDValue Expanded = TLI.expandVPBITREVERSE(Node, DAG)) {
+      Results.push_back(Expanded);
+      return;
+    }
+    break;
   case ISD::CTPOP:
     if (SDValue Expanded = TLI.expandCTPOP(Node, DAG)) {
+      Results.push_back(Expanded);
+      return;
+    }
+    break;
+  case ISD::VP_CTPOP:
+    if (SDValue Expanded = TLI.expandVPCTPOP(Node, DAG)) {
       Results.push_back(Expanded);
       return;
     }
@@ -806,7 +821,9 @@ void VectorLegalizer::Expand(SDNode *Node, SmallVectorImpl<SDValue> &Results) {
     }
     break;
   case ISD::FSHL:
+  case ISD::VP_FSHL:
   case ISD::FSHR:
+  case ISD::VP_FSHR:
     if (SDValue Expanded = TLI.expandFunnelShift(Node, DAG)) {
       Results.push_back(Expanded);
       return;

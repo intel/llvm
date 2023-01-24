@@ -83,18 +83,18 @@ bool WebAssemblyAsmTypeCheck::typeError(SMLoc ErrorLoc, const Twine &Msg) {
 }
 
 bool WebAssemblyAsmTypeCheck::popType(SMLoc ErrorLoc,
-                                      Optional<wasm::ValType> EVT) {
+                                      std::optional<wasm::ValType> EVT) {
   if (Stack.empty()) {
     return typeError(ErrorLoc,
                      EVT ? StringRef("empty stack while popping ") +
-                               WebAssembly::typeToString(EVT.value())
+                               WebAssembly::typeToString(*EVT)
                          : StringRef("empty stack while popping value"));
   }
   auto PVT = Stack.pop_back_val();
-  if (EVT && EVT.value() != PVT) {
-    return typeError(
-        ErrorLoc, StringRef("popped ") + WebAssembly::typeToString(PVT) +
-                      ", expected " + WebAssembly::typeToString(EVT.value()));
+  if (EVT && *EVT != PVT) {
+    return typeError(ErrorLoc,
+                     StringRef("popped ") + WebAssembly::typeToString(PVT) +
+                         ", expected " + WebAssembly::typeToString(*EVT));
   }
   return false;
 }

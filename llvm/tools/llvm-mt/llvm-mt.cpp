@@ -41,11 +41,14 @@ enum ID {
 #undef OPTION
 };
 
-#define PREFIX(NAME, VALUE) const char *const NAME[] = VALUE;
+#define PREFIX(NAME, VALUE)                                                    \
+  static constexpr StringLiteral NAME##_init[] = VALUE;                        \
+  static constexpr ArrayRef<StringLiteral> NAME(NAME##_init,                   \
+                                                std::size(NAME##_init) - 1);
 #include "Opts.inc"
 #undef PREFIX
 
-const opt::OptTable::Info InfoTable[] = {
+static constexpr opt::OptTable::Info InfoTable[] = {
 #define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
                HELPTEXT, METAVAR, VALUES)                                      \
 {                                                                              \
@@ -150,9 +153,9 @@ int llvm_mt_main(int Argc, char **Argv) {
     bool Same = false;
     if (OutBuffOrErr) {
       const std::unique_ptr<MemoryBuffer> &FileBuffer = *OutBuffOrErr;
-      Same = std::equal(OutputBuffer->getBufferStart(),
-                        OutputBuffer->getBufferEnd(),
-                        FileBuffer->getBufferStart());
+      Same = std::equal(
+          OutputBuffer->getBufferStart(), OutputBuffer->getBufferEnd(),
+          FileBuffer->getBufferStart(), FileBuffer->getBufferEnd());
     }
     if (!Same) {
 #if LLVM_ON_UNIX

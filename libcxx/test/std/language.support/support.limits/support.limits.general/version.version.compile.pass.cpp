@@ -76,6 +76,7 @@
     __cpp_lib_exchange_function                    201304L [C++14]
     __cpp_lib_execution                            201603L [C++17]
                                                    201902L [C++20]
+    __cpp_lib_expected                             202202L [C++2b]
     __cpp_lib_filesystem                           201703L [C++17]
     __cpp_lib_format                               202106L [C++20]
     __cpp_lib_forward_like                         202207L [C++2b]
@@ -414,6 +415,10 @@
 
 # ifdef __cpp_lib_execution
 #   error "__cpp_lib_execution should not be defined before c++17"
+# endif
+
+# ifdef __cpp_lib_expected
+#   error "__cpp_lib_expected should not be defined before c++2b"
 # endif
 
 # ifdef __cpp_lib_filesystem
@@ -1057,6 +1062,10 @@
 
 # ifdef __cpp_lib_execution
 #   error "__cpp_lib_execution should not be defined before c++17"
+# endif
+
+# ifdef __cpp_lib_expected
+#   error "__cpp_lib_expected should not be defined before c++2b"
 # endif
 
 # ifdef __cpp_lib_filesystem
@@ -1805,6 +1814,10 @@
 #   ifdef __cpp_lib_execution
 #     error "__cpp_lib_execution should not be defined because it is unimplemented in libc++!"
 #   endif
+# endif
+
+# ifdef __cpp_lib_expected
+#   error "__cpp_lib_expected should not be defined before c++2b"
 # endif
 
 # if !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_filesystem)
@@ -2772,17 +2785,11 @@
 #   error "__cpp_lib_constexpr_utility should have the value 201811L in c++20"
 # endif
 
-# if !defined(_LIBCPP_VERSION)
-#   ifndef __cpp_lib_constexpr_vector
-#     error "__cpp_lib_constexpr_vector should be defined in c++20"
-#   endif
-#   if __cpp_lib_constexpr_vector != 201907L
-#     error "__cpp_lib_constexpr_vector should have the value 201907L in c++20"
-#   endif
-# else // _LIBCPP_VERSION
-#   ifdef __cpp_lib_constexpr_vector
-#     error "__cpp_lib_constexpr_vector should not be defined because it is unimplemented in libc++!"
-#   endif
+# ifndef __cpp_lib_constexpr_vector
+#   error "__cpp_lib_constexpr_vector should be defined in c++20"
+# endif
+# if __cpp_lib_constexpr_vector != 201907L
+#   error "__cpp_lib_constexpr_vector should have the value 201907L in c++20"
 # endif
 
 # ifndef __cpp_lib_coroutine
@@ -2844,6 +2851,10 @@
 #   ifdef __cpp_lib_execution
 #     error "__cpp_lib_execution should not be defined because it is unimplemented in libc++!"
 #   endif
+# endif
+
+# ifdef __cpp_lib_expected
+#   error "__cpp_lib_expected should not be defined before c++2b"
 # endif
 
 # if !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_filesystem)
@@ -3214,17 +3225,11 @@
 #   endif
 # endif
 
-# if !defined(_LIBCPP_VERSION)
-#   ifndef __cpp_lib_polymorphic_allocator
-#     error "__cpp_lib_polymorphic_allocator should be defined in c++20"
-#   endif
-#   if __cpp_lib_polymorphic_allocator != 201902L
-#     error "__cpp_lib_polymorphic_allocator should have the value 201902L in c++20"
-#   endif
-# else // _LIBCPP_VERSION
-#   ifdef __cpp_lib_polymorphic_allocator
-#     error "__cpp_lib_polymorphic_allocator should not be defined because it is unimplemented in libc++!"
-#   endif
+# ifndef __cpp_lib_polymorphic_allocator
+#   error "__cpp_lib_polymorphic_allocator should be defined in c++20"
+# endif
+# if __cpp_lib_polymorphic_allocator != 201902L
+#   error "__cpp_lib_polymorphic_allocator should have the value 201902L in c++20"
 # endif
 
 # ifndef __cpp_lib_quoted_string_io
@@ -4015,17 +4020,11 @@
 #   error "__cpp_lib_constexpr_utility should have the value 201811L in c++2b"
 # endif
 
-# if !defined(_LIBCPP_VERSION)
-#   ifndef __cpp_lib_constexpr_vector
-#     error "__cpp_lib_constexpr_vector should be defined in c++2b"
-#   endif
-#   if __cpp_lib_constexpr_vector != 201907L
-#     error "__cpp_lib_constexpr_vector should have the value 201907L in c++2b"
-#   endif
-# else // _LIBCPP_VERSION
-#   ifdef __cpp_lib_constexpr_vector
-#     error "__cpp_lib_constexpr_vector should not be defined because it is unimplemented in libc++!"
-#   endif
+# ifndef __cpp_lib_constexpr_vector
+#   error "__cpp_lib_constexpr_vector should be defined in c++2b"
+# endif
+# if __cpp_lib_constexpr_vector != 201907L
+#   error "__cpp_lib_constexpr_vector should have the value 201907L in c++2b"
 # endif
 
 # ifndef __cpp_lib_coroutine
@@ -4087,6 +4086,13 @@
 #   ifdef __cpp_lib_execution
 #     error "__cpp_lib_execution should not be defined because it is unimplemented in libc++!"
 #   endif
+# endif
+
+# ifndef __cpp_lib_expected
+#   error "__cpp_lib_expected should be defined in c++2b"
+# endif
+# if __cpp_lib_expected != 202202L
+#   error "__cpp_lib_expected should have the value 202202L in c++2b"
 # endif
 
 # if !defined(_LIBCPP_AVAILABILITY_DISABLE_FTM___cpp_lib_filesystem)
@@ -4490,17 +4496,11 @@
 #   endif
 # endif
 
-# if !defined(_LIBCPP_VERSION)
-#   ifndef __cpp_lib_polymorphic_allocator
-#     error "__cpp_lib_polymorphic_allocator should be defined in c++2b"
-#   endif
-#   if __cpp_lib_polymorphic_allocator != 201902L
-#     error "__cpp_lib_polymorphic_allocator should have the value 201902L in c++2b"
-#   endif
-# else // _LIBCPP_VERSION
-#   ifdef __cpp_lib_polymorphic_allocator
-#     error "__cpp_lib_polymorphic_allocator should not be defined because it is unimplemented in libc++!"
-#   endif
+# ifndef __cpp_lib_polymorphic_allocator
+#   error "__cpp_lib_polymorphic_allocator should be defined in c++2b"
+# endif
+# if __cpp_lib_polymorphic_allocator != 201902L
+#   error "__cpp_lib_polymorphic_allocator should have the value 201902L in c++2b"
 # endif
 
 # ifndef __cpp_lib_quoted_string_io
