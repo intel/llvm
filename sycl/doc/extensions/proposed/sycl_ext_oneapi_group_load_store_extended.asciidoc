@@ -62,7 +62,7 @@ void joint_store(Group gh, InputT in,
                       OutputIteratorT out_ptr, Properties = {});
 ----
 
-== Funtions with fixed-size arrays
+== Functions with fixed-size arrays
 
 This APIs provides the following features:
 
