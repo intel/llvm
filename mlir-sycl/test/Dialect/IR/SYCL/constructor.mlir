@@ -22,6 +22,12 @@ func.func @SubGroupConstructor(%arg0: memref<?x!sycl.sub_group, 4>, %arg1: memre
   return
 }
 
+// CHECK-LABEL: func.func @MaximumConstructor
+func.func @MaximumConstructor(%arg0: memref<?x!sycl.maximum<i32>, 4>, %arg1: memref<?x!sycl.maximum<i32>, 4>) {
+  sycl.constructor(%arg0, %arg1) {MangledFunctionName = @_ZN4sycl3_V17maximumIiEC1ERKS2_, TypeName = @maximum} : (memref<?x!sycl.maximum<i32>, 4>, memref<?x!sycl.maximum<i32>, 4>) -> ()
+  return
+}
+
 // CHECK-LABEL: func.func @MinimumConstructor
 func.func @MinimumConstructor(%arg0: memref<?x!sycl.minimum<i32>, 4>, %arg1: memref<?x!sycl.minimum<i32>, 4>) {
   sycl.constructor(%arg0, %arg1) {MangledFunctionName = @_ZN4sycl3_V17minimumIiEC1ERKS2_, TypeName = @minimum} : (memref<?x!sycl.minimum<i32>, 4>, memref<?x!sycl.minimum<i32>, 4>) -> ()

@@ -367,6 +367,7 @@ def ItemMemRef : MemRefOf<[SYCL_ItemType]>;
 def LocalAccessorBaseDeviceMemRef : MemRefOf<[SYCL_LocalAccessorBaseDeviceType]>;
 def LocalAccessorBaseMemRef : MemRefOf<[SYCL_LocalAccessorBaseType]>;
 def LocalAccessorMemRef : MemRefOf<[SYCL_LocalAccessorType]>;
+def MaximumMemRef : MemRefOf<[SYCL_MaximumType]>;
 def MinimumMemRef : MemRefOf<[SYCL_MinimumType]>;
 def MultiPtrMemRef : MemRefOf<[SYCL_MultiPtrType]>;
 def NDItemMemRef : MemRefOf<[SYCL_NdItemType]>;
@@ -395,6 +396,7 @@ def SYCLMemref : AnyTypeOf<[
   LocalAccessorBaseDeviceMemRef,
   LocalAccessorBaseMemRef,
   LocalAccessorMemRef,
+  MaximumMemRef,
   MinimumMemRef,
   MultiPtrMemRef,
   NDItemMemRef,
