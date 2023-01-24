@@ -4,7 +4,7 @@ This is the list of SYCL specific options supported by compiler and some
 examples.
 
 Options marked as [DEPRECATED] are going to be removed in some future updates.
-Options marked as [EXPERIMENTAL] are expected to be used only in limitted cases
+Options marked as [EXPERIMENTAL] are expected to be used only in limited cases
 and not recommended to use in production environment.
 
 ## Generic options
@@ -32,9 +32,9 @@ and not recommended to use in production environment.
       spir64_fpga-unknown-unknown, spir64_gen-unknown-unknown
     Available in special build configuration:
     * nvptx64-nvidia-cuda - generate code ahead of time for CUDA target;
-    Special target values specific to Intel, NVIDIA and AMD Processor Graphics support are
-    accepted, providing a streamlined interface for AOT. Only one of these
-    values at a time is supported.
+    Special target values specific to Intel, NVIDIA and AMD Processor Graphics
+    support are accepted, providing a streamlined interface for AOT. Only one of
+    these values at a time is supported.
     * intel_gpu_pvc - Ponte Vecchio Intel graphics architecture
     * intel_gpu_acm_g12 - Alchemist G12 Intel graphics architecture
     * intel_gpu_acm_g11 - Alchemist G11 Intel graphics architecture
