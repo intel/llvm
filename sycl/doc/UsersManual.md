@@ -98,7 +98,7 @@ and not recommended to use in production environment.
 **`-sycl-std=<value>`** [EXPERIMENTAL]
 
     SYCL language standard to compile for. Possible values:
-    * 121 - SYCL 1.2.1
+    * 121 - SYCL 1.2.1 [DEPRECATED]
     * 2020 - SYCL 2020
     It doesn't guarantee specific standard compliance, but some selected
     compiler features change behavior.
