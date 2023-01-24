@@ -5592,9 +5592,11 @@ pi_result cuda_piextEnqueueDeviceGlobalVariableWrite(
   try {
     CUdeviceptr device_global = 0;
     size_t device_global_size = 0;
-    result = PI_CHECK_ERROR(
-        cuModuleGetGlobal(&device_global, &device_global_size, program->get(),
-                          device_global_name.c_str()));
+    result = PI_CHECK_ERROR(cuModuleGetGlobal(
+        &device_global, &device_global_size,
+        program
+            ->get()[program->get_context()->device_index(queue->get_device())],
+        device_global_name.c_str()));
 
     if (offset + count > device_global_size)
       return PI_ERROR_INVALID_VALUE;
@@ -5629,9 +5631,11 @@ pi_result cuda_piextEnqueueDeviceGlobalVariableRead(
   try {
     CUdeviceptr device_global = 0;
     size_t device_global_size = 0;
-    result = PI_CHECK_ERROR(
-        cuModuleGetGlobal(&device_global, &device_global_size, program->get(),
-                          device_global_name.c_str()));
+    result = PI_CHECK_ERROR(cuModuleGetGlobal(
+        &device_global, &device_global_size,
+        program
+            ->get()[program->get_context()->device_index(queue->get_device())],
+        device_global_name.c_str()));
 
     if (offset + count > device_global_size)
       return PI_ERROR_INVALID_VALUE;
@@ -5657,7 +5661,7 @@ pi_result cuda_piTearDown(void *) {
 pi_result cuda_piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
                                        uint64_t *HostTime) {
   _pi_event::native_type event;
-  ScopedContext active(Device->get_context());
+  ScopedContext active(Device->get_context()->get()[0]);
 
   if (DeviceTime) {
     PI_CHECK_ERROR(cuEventCreate(&event, CU_EVENT_DEFAULT));
