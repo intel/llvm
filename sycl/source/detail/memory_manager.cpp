@@ -931,7 +931,6 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
   if (!DstMem || !SrcMem)
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "NULL pointer argument in 2D memory copy operation.");
-
   const detail::plugin &Plugin = Queue->getPlugin();
   Plugin.call<PiApiKind::piextUSMEnqueueMemcpy2D>(
       Queue->getHandleRef(), /*blocking=*/PI_FALSE, DstMem, DstPitch, SrcMem,
