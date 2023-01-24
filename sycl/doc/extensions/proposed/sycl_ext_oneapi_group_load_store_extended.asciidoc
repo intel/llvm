@@ -82,7 +82,7 @@ namespace sycl::ext::oneapi::experimental {
 template<typename GroupHelper, typename InputIteratorT, typename OutputT,
         std::size_t ElementsPerWorkItem, typename Properties = properties<>>
 void joint_load(GroupHelper gh, InputIteratorT in_ptr,
-                sycl::span<OutputT, ItemsPerWorkItem> out, Properties = {}); (1)
+                sycl::span<OutputT, ElementsPerWorkItem> out, Properties = {}); (1)
 
 
 // Store API
