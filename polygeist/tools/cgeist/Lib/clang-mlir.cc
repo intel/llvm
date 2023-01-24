@@ -1593,7 +1593,8 @@ LLVM::LLVMFuncOp MLIRASTConsumer::getOrCreateFreeFunction() {
 }
 
 LLVM::LLVMFuncOp
-MLIRASTConsumer::getOrCreateLLVMFunction(const clang::FunctionDecl *FD) {
+MLIRASTConsumer::getOrCreateLLVMFunction(const clang::FunctionDecl *FD,
+                                         FunctionContext FuncContext) {
   std::string Name = MLIRScanner::getMangledFuncName(*FD, CGM);
   if (Name != "malloc" && Name != "free")
     Name = (PrefixABI + Name);
@@ -1618,7 +1619,13 @@ MLIRASTConsumer::getOrCreateLLVMFunction(const clang::FunctionDecl *FD) {
                                                 /*isVarArg=*/FD->isVariadic());
   // Insert the function into the body of the parent module.
   OpBuilder Builder(Module->getContext());
-  Builder.setInsertionPointToStart(Module->getBody());
+  if (FuncContext == FunctionContext::SYCLDevice)
+    Builder.setInsertionPointToStart(
+        mlirclang::getDeviceModule(*Module).getBody());
+  else {
+    assert(FuncContext == FunctionContext::Host);
+    Builder.setInsertionPointToStart(Module->getBody());
+  }
 
   return LLVMFunctions[Name] = Builder.create<LLVM::LLVMFuncOp>(
              Module->getLoc(), Name, LLVMFnType,

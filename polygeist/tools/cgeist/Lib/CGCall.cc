@@ -927,6 +927,10 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
       }
     }
 
+  FunctionContext FuncContext =
+      isa<mlir::gpu::GPUModuleOp>(Function->getParentOp())
+          ? FunctionContext::SYCLDevice
+          : FunctionContext::Host;
   if (auto *Ic = dyn_cast<clang::ImplicitCastExpr>(Expr->getCallee()))
     if (auto *Sr = dyn_cast<clang::DeclRefExpr>(Ic->getSubExpr())) {
       if ((Sr->getDecl()->getIdentifier() &&
@@ -938,7 +942,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
            cast<clang::CXXOperatorCallExpr>(Expr)->getOperator() ==
                clang::OO_GreaterGreater)) {
         const auto *ToCall = EmitCallee(Expr->getCallee());
-        auto StrcmpF = Glob.getOrCreateLLVMFunction(ToCall);
+        auto StrcmpF = Glob.getOrCreateLLVMFunction(ToCall, FuncContext);
 
         std::vector<Value> Args;
         std::vector<std::pair<Value, Value>> Ops;
@@ -1057,7 +1061,15 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
         Value Called;
 
         if (Callee) {
-          auto StrcmpF = Glob.getOrCreateLLVMFunction(Callee);
+          auto StrcmpF = Glob.getOrCreateLLVMFunction(Callee, FuncContext);
+          LLVM::LLVMFunctionType FuncTy = StrcmpF.getFunctionType();
+          for (unsigned I = 0; I < FuncTy.getNumParams(); ++I) {
+            Type CallerArgType = Args[I].getType();
+            if (CallerArgType.isa<LLVM::LLVMPointerType>()) {
+              Type CalleeArgType = FuncTy.getParamType(I);
+              Args[I] = castToMemSpaceOfType(Args[I], CalleeArgType);
+            }
+          }
           Called = Builder.create<LLVM::CallOp>(Loc, StrcmpF, Args).getResult();
         } else {
           Args.insert(Args.begin(), GetLLVM(Expr->getCallee()));
@@ -1068,6 +1080,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
             RTs.clear();
           Called = Builder.create<LLVM::CallOp>(Loc, RTs, Args).getResult();
         }
+        if (!Called)
+          return nullptr;
         return ValueCategory(Called, /*isReference*/ Expr->isLValue() ||
                                          Expr->isXValue());
       }
@@ -1081,7 +1095,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
 
     Value Called;
     if (Callee) {
-      auto StrcmpF = Glob.getOrCreateLLVMFunction(Callee);
+      auto StrcmpF = Glob.getOrCreateLLVMFunction(Callee, FuncContext);
       Called = Builder.create<LLVM::CallOp>(Loc, StrcmpF, Args).getResult();
     } else {
       Args.insert(Args.begin(), GetLLVM(Expr->getCallee()));
@@ -1192,7 +1206,10 @@ MLIRScanner::emitGPUCallExpr(clang::CallExpr *Expr) {
 
         if (Arg.getType().isa<LLVM::LLVMPointerType>()) {
           const clang::FunctionDecl *Callee = EmitCallee(Expr->getCallee());
-          LLVM::LLVMFuncOp StrcmpF = Glob.getOrCreateLLVMFunction(Callee);
+          LLVM::LLVMFuncOp StrcmpF = Glob.getOrCreateLLVMFunction(
+              Callee, isa<mlir::gpu::GPUModuleOp>(Function->getParentOp())
+                          ? FunctionContext::SYCLDevice
+                          : FunctionContext::Host);
           Builder.create<LLVM::CallOp>(
               Loc, StrcmpF,
               ValueRange({Builder.create<LLVM::BitcastOp>(
