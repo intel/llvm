@@ -68,7 +68,7 @@ public:
 };
 
 ///  This interface describes an operation returning either a SYCL ID type (for
-///  cardinality 0) or an index type (for cardinality 1).
+///  cardinality 0) or an MLIR index type (for cardinality 1).
 template <typename ConcreteType>
 class SYCLIndexSpaceGetID
     : public OpTrait::TraitBase<ConcreteType, SYCLIndexSpaceGetID> {
@@ -79,7 +79,7 @@ public:
 };
 
 ///  This interface describes an operation returning either a SYCL range type
-///  (for cardinality 0) or an index type (for cardinality 1).
+///  (for cardinality 0) or an MLIR index type (for cardinality 1).
 template <typename ConcreteType>
 class SYCLIndexSpaceGetRange
     : public OpTrait::TraitBase<ConcreteType, SYCLIndexSpaceGetRange> {
