@@ -12,7 +12,7 @@ TEST_F(urDeviceReleaseTest, Success) {
 }
 
 // TODO - re-enable this test - #170
-TEST_F(urDeviceReleaseTest, DISABLED_InvalidNullHandle) {
+TEST_F(urDeviceReleaseTest, InvalidNullHandle) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                    urDeviceRelease(nullptr));
 }
