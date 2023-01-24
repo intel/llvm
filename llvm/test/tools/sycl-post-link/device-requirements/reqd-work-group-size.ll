@@ -33,8 +33,7 @@
 ; CHECK-PROP-AUTO-SPLIT-1-NEXT: aspects=2|AAAAAAAAAAA
 ; CHECK-PROP-AUTO-SPLIT-1-NEXT: reqd_work_group_size=2|gAAAAAAAAAAIAAAA
 
-; ModuleID = '/tmp/source-3b9f8c.bc'
-
+; ModuleID = '/tmp/source-5f7d0d.bc'
 source_filename = "llvm-link"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
@@ -56,67 +55,51 @@ $_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE1_clES2_E7KernelC = comdat any
 ; Function Attrs: norecurse
 define weak_odr dso_local spir_kernel void @_ZTSN4sycl3_V16detail19__pf_kernel_wrapperIZZ4mainENKUlRNS0_7handlerEE_clES4_E7KernelAEE() local_unnamed_addr #0 comdat !srcloc !46 !kernel_arg_buffer_location !47 !reqd_work_group_size !48 !sycl_fixed_targets !49 !sycl_kernel_omit_args !50 {
 entry:
-  call void @__itt_offload_wi_start_wrapper()
   %0 = load <3 x i64>, <3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId, align 32, !noalias !51
   %1 = extractelement <3 x i64> %0, i64 0
   %cmp.i.i = icmp ult i64 %1, 2147483648
   tail call void @llvm.assume(i1 %cmp.i.i)
-  call void @__itt_offload_wi_finish_wrapper()
   ret void
 }
-
-declare void @__itt_offload_wi_start_wrapper()
 
 ; Function Attrs: nocallback nofree nosync nounwind willreturn memory(inaccessiblemem: readwrite)
 declare void @llvm.assume(i1 noundef) #1
 
-declare void @__itt_offload_wi_finish_wrapper()
-
 ; Function Attrs: norecurse
 define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E7KernelA() local_unnamed_addr #0 comdat !srcloc !60 !kernel_arg_buffer_location !49 !reqd_work_group_size !48 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
 entry:
-  call void @__itt_offload_wi_start_wrapper()
-  call void @__itt_offload_wi_finish_wrapper()
   ret void
 }
 
 ; Function Attrs: norecurse
 define weak_odr dso_local spir_kernel void @_ZTSN4sycl3_V16detail19__pf_kernel_wrapperIZZ4mainENKUlRNS0_7handlerEE0_clES4_E7KernelBEE() local_unnamed_addr #0 comdat !srcloc !46 !kernel_arg_buffer_location !47 !reqd_work_group_size !61 !sycl_fixed_targets !49 !sycl_kernel_omit_args !50 {
 entry:
-  call void @__itt_offload_wi_start_wrapper()
   %0 = load <3 x i64>, <3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId, align 32, !noalias !62
   %1 = extractelement <3 x i64> %0, i64 0
   %cmp.i.i = icmp ult i64 %1, 2147483648
   tail call void @llvm.assume(i1 %cmp.i.i)
-  call void @__itt_offload_wi_finish_wrapper()
   ret void
 }
 
 ; Function Attrs: norecurse
 define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E7KernelB() local_unnamed_addr #0 comdat !srcloc !71 !kernel_arg_buffer_location !49 !reqd_work_group_size !61 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
 entry:
-  call void @__itt_offload_wi_start_wrapper()
-  call void @__itt_offload_wi_finish_wrapper()
   ret void
 }
 
 ; Function Attrs: norecurse
 define weak_odr dso_local spir_kernel void @_ZTSN4sycl3_V16detail19__pf_kernel_wrapperIZZ4mainENKUlRNS0_7handlerEE1_clES4_E7KernelCEE() local_unnamed_addr #0 comdat !srcloc !46 !kernel_arg_buffer_location !47 !reqd_work_group_size !48 !sycl_fixed_targets !49 !sycl_kernel_omit_args !50 {
 entry:
-  call void @__itt_offload_wi_start_wrapper()
   %0 = load <3 x i64>, <3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId, align 32, !noalias !72
   %1 = extractelement <3 x i64> %0, i64 0
   %cmp.i.i = icmp ult i64 %1, 2147483648
   tail call void @llvm.assume(i1 %cmp.i.i)
-  call void @__itt_offload_wi_finish_wrapper()
   ret void
 }
 
 ; Function Attrs: norecurse
 define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE1_clES2_E7KernelC() local_unnamed_addr #0 comdat !srcloc !81 !kernel_arg_buffer_location !49 !reqd_work_group_size !48 !sycl_fixed_targets !49 !sycl_kernel_omit_args !49 {
 entry:
-  call void @__itt_offload_wi_start_wrapper()
-  call void @__itt_offload_wi_finish_wrapper()
   ret void
 }
 
@@ -172,7 +155,7 @@ attributes #1 = { nocallback nofree nosync nounwind willreturn memory(inaccessib
 !40 = !{!"int64_base_atomics", i32 7}
 !41 = !{!"int64_extended_atomics", i32 8}
 !42 = !{!"usm_system_allocator", i32 17}
-!43 = !{!"clang version 16.0.0 (https://github.com/dm-vodopyanov/llvm.git fcd33bd5185b7fa1d9c437d75da48f8739fac0f3)"}
+!43 = !{!"clang version 16.0.0"}
 !44 = !{i32 1, !"wchar_size", i32 4}
 !45 = !{i32 7, !"frame-pointer", i32 2}
 !46 = !{i32 8347054}

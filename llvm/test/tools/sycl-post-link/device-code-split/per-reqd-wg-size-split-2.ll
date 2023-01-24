@@ -31,22 +31,22 @@
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-linux"
 
-define dso_local spir_kernel void @kernel0() #0 !sycl_used_aspects !1 {
+define dso_local spir_kernel void @kernel0() #0 !reqd_work_group_size !1 {
 entry:
   ret void
 }
 
-define dso_local spir_kernel void @kernel1() #0 !sycl_used_aspects !2 {
+define dso_local spir_kernel void @kernel1() #0 !reqd_work_group_size !2 {
 entry:
   ret void
 }
 
-define dso_local spir_kernel void @kernel2() #0 !sycl_used_aspects !3 {
+define dso_local spir_kernel void @kernel2() #0 !reqd_work_group_size !3 {
 entry:
   ret void
 }
 
-define dso_local spir_kernel void @kernel3() #0 !sycl_used_aspects !4 {
+define dso_local spir_kernel void @kernel3() #0 !reqd_work_group_size !4 {
 entry:
   ret void
 }
