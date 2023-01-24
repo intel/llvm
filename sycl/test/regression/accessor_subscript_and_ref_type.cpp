@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o -
+// RUN: %clangxx -fsycl -fsyntax-only %s
 
 // Test checks that the subscript operator and reference alias on accessors
 // evaluate to the right types.
