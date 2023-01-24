@@ -5148,7 +5148,6 @@ pi_result hip_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
   assert(queue != nullptr);
 
   pi_result result = PI_SUCCESS;
-  std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
     ScopedContext active(queue->get_context());
@@ -5156,9 +5155,9 @@ pi_result hip_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
     result = enqueueEventsWait(queue, hipStream, num_events_in_wait_list,
                                event_wait_list);
     if (event) {
-      retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_COPY_RECT, queue, hipStream));
-      retImplEv->start();
+      (*event) = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_COPY_RECT,
+                                        queue, hipStream);
+      (*event)->start();
     }
 
     result = PI_CHECK_ERROR(hipMemcpy2DAsync(dst_ptr, dst_pitch, src_ptr,
@@ -5166,13 +5165,10 @@ pi_result hip_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
                                              hipMemcpyDefault, hipStream));
 
     if (event) {
-      result = retImplEv->record();
+      (*event)->record();
     }
     if (blocking) {
       result = PI_CHECK_ERROR(hipStreamSynchronize(hipStream));
-    }
-    if (event) {
-      *event = retImplEv.release();
     }
   } catch (pi_result err) {
     result = err;

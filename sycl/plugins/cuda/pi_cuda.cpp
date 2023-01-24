@@ -5413,7 +5413,6 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
   assert(queue != nullptr);
 
   pi_result result = PI_SUCCESS;
-  std::unique_ptr<_pi_event> event_ptr{nullptr};
 
   try {
     ScopedContext active(queue->get_context());
@@ -5421,9 +5420,9 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
     result = enqueueEventsWait(queue, cuStream, num_events_in_wait_list,
                                event_wait_list);
     if (event) {
-      event_ptr = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_MEM_BUFFER_COPY_RECT, queue, cuStream));
-      event_ptr->start();
+      (*event) = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_COPY_RECT,
+                                        queue, cuStream);
+      (*event)->start();
     }
 
     // Determine the direction of Copy using cuPointerGetAttributes
@@ -5472,13 +5471,10 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
     result = PI_CHECK_ERROR(cuMemcpy2DAsync(&cpyDesc, cuStream));
 
     if (event) {
-      result = event_ptr->record();
+      (*event)->record();
     }
     if (blocking) {
       result = PI_CHECK_ERROR(cuStreamSynchronize(cuStream));
-    }
-    if (event) {
-      *event = event_ptr.release();
     }
   } catch (pi_result err) {
     result = err;

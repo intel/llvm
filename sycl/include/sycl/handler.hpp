@@ -2503,13 +2503,6 @@ public:
                             "Source pitch must be greater than or equal "
                             "to the width specified in 'ext_oneapi_copy2d'");
 
-    if (DestPitch == 0)
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "Dst pitch must not be zero in 'ext_oneapi_copy2d'");
-    if (SrcPitch == 0)
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "Src pitch must not be zero in 'ext_oneapi_copy2d'");
-
     // If the backends supports 2D copy we use that. Otherwise we use a fallback
     // kernel.
     if (supportsUSMMemcpy2D())
