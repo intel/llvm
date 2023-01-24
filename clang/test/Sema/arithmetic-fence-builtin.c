@@ -3,10 +3,10 @@
 // RUN: not %clang_cc1 -triple ppc64le -DPPC     -emit-llvm -o - -x c++ %s \
 // RUN:            -fprotect-parens 2>&1 | FileCheck -check-prefix=PPC %s
 // RUN: %clang_cc1 -triple spir64-unknown-unknown  -emit-llvm -fsycl-is-device \
-// RUN: -DSYCLD -o - -verify -x c++ %s
+// RUN: -DSYCL_DEVICE -o - -verify -x c++ %s
 
 #ifndef PPC
-#ifdef SYCLD
+#ifdef SYCL_DEVICE
 template <typename T> T __attribute__((sycl_device)) addT(T a, T b)
 #else
 template <typename T> T addT(T a, T b)
@@ -18,7 +18,7 @@ template <typename T> T addT(T a, T b)
   return __arithmetic_fence(a + b);
   // expected-error@-1 {{invalid operand of type 'int' where floating, complex or a vector of such types is required}}
 }
-#ifdef SYCLD
+#ifdef SYCL_DEVICE
 int __attribute__((sycl_device)) addit(int a, int b)
 #else
 int  addit(int a, int b)
