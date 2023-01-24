@@ -24,7 +24,7 @@ std::vector<PlatformLibraryPath> discoverEnabledPlatforms() {
   const char *altPlatforms = nullptr;
 
   // UR_ADAPTERS_FORCE_LOAD  is for development/debug only
-  altPlatforms = getenv("UR_ADAPTERS_FORCE_LOAD ");
+  altPlatforms = getenv("UR_ADAPTERS_FORCE_LOAD");
   if (altPlatforms == nullptr) {
     for (auto path : knownPlatformNames) {
       enabledPlatforms.emplace_back(path);
