@@ -64,7 +64,7 @@ void joint_store(Group gh, InputT in,
 
 == Functions with fixed-size arrays
 
-This APIs provides the following features:
+This API provides the following features:
 
 * load/store with temporary memory buffer, which can be passed via GroupHelper
 such as `group_with_scratchpad` link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc#group-helper[group_with_scratchpad description from sort over group proposal]
