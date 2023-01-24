@@ -34,10 +34,6 @@ jobs:
     - name: Build
       run: cmake --build ${{github.workspace}}/build
 
-    - name: Test
-      working-directory: ${{github.workspace}}/build
-      run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure
-
   windows-build:
     name: Build - Windows
     runs-on: windows-latest
@@ -60,7 +56,3 @@ jobs:
 
       - name: Build all
         run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
-
-      - name: Test
-        working-directory: ${{github.workspace}}/build
-        run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure

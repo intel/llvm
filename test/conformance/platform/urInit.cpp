@@ -10,7 +10,7 @@ TEST(urInitTest, Success) {
   ASSERT_SUCCESS(urTearDown(nullptr));
 }
 
-TEST(urInitTest, DISABLED_ErrorInvalidEnumerationPlatformFlags) {
+TEST(urInitTest, ErrorInvalidEnumerationPlatformFlags) {
   const ur_platform_init_flags_t platform_flags =
       UR_PLATFORM_INIT_FLAG_FORCE_UINT32;
   const ur_device_init_flags_t device_flags = 0;
@@ -18,7 +18,7 @@ TEST(urInitTest, DISABLED_ErrorInvalidEnumerationPlatformFlags) {
                    urInit(platform_flags, device_flags));
 }
 
-TEST(urInitTest, DISABLED_ErrorInvalidEnumerationDeviceFlags) {
+TEST(urInitTest, ErrorInvalidEnumerationDeviceFlags) {
   const ur_platform_init_flags_t platform_flags = 0;
   const ur_device_init_flags_t device_flags =
       UR_PLATFORM_INIT_FLAG_FORCE_UINT32;

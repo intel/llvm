@@ -15,8 +15,7 @@ TEST_F(urDeviceSelectBinaryTest, Success) {
   }
 }
 
-// Re-enable this test - See #171
-TEST_F(urDeviceSelectBinaryTest, DISABLED_InvalidNullHandle) {
+TEST_F(urDeviceSelectBinaryTest, InvalidNullHandle) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                    urDeviceSelectBinary(nullptr, nullptr, 0, nullptr));
 }
