@@ -54,13 +54,13 @@ namespace sycl::ext::oneapi::experimental {
 // Load API scalar
 template<typename Group, typename InputIteratorT,
          typename OutputT, typename Properties = properties<>>
-void joint_load(Group g, InputIteratorT in_ptr,
+void group_load(Group g, InputIteratorT in_ptr,
                       OutputT& out, Properties = {}); (1)
 
 // Store API scalar
 template<typename Group, typename InputT,
          typename OutputIteratorT, typename Properties = properties<>>
-void joint_store(Group g, const InputT& in,
+void group_store(Group g, const InputT& in,
                       OutputIteratorT out_ptr, Properties = {}); (2)
 
 }
@@ -92,13 +92,13 @@ namespace sycl::ext::oneapi::experimental {
 // Load API sycl::vec overload
 template<typename Group, typename InputIteratorT,
          typename OutputT, int N, typename Properties = properties<>>
-void joint_load(Group g, InputIteratorT in_ptr,
+void group_load(Group g, InputIteratorT in_ptr,
                       sycl::vec<OutputT, N>& out, Properties = {}); (3)
 
 // Store API sycl::vec overload
 template<typename Group, typename InputT, int N,
          typename OutputIteratorT, typename Properties = properties<>>
-void joint_store(Group g, const sycl::vec<InputT, N>& in,
+void group_store(Group g, const sycl::vec<InputT, N>& in,
                       OutputIteratorT out_ptr, Properties = {}); (4)
 
 }
@@ -140,14 +140,14 @@ namespace sycl::ext::oneapi::experimental {
 // Load API
 template<typename GroupHelper, typename InputIteratorT, typename OutputT,
         std::size_t ElementsPerWorkItem, typename Properties = properties<>>
-void joint_load(GroupHelper gh, InputIteratorT in_ptr,
+void group_load(GroupHelper gh, InputIteratorT in_ptr,
                 sycl::span<OutputT, ElementsPerWorkItem> out, Properties = {}); (6)
 
 
 // Store API
 template<typename GroupHelper, typename OutputIteratorT, typename InputT,
         std::size_t ElementsPerWorkItem, typename Properties = properties<>>
-void joint_store(GroupHelper gh, OutputIteratorT out_ptr,
+void group_store(GroupHelper gh, OutputIteratorT out_ptr,
                   sycl::span<InputT, ItemsPerWorkItem> in, Properties = {}); (7)
 
 
@@ -212,11 +212,11 @@ q.submit([&](sycl::handler& cgh) {
         [=](sycl::nd_item<1> item) {
             T data[items_per_thread];
 
-            sycl_exp::joint_load(item.get_group(), input, sycl::span{ data });
+            sycl_exp::group_load(item.get_group(), input, sycl::span{ data });
 
             // Work with data...
 
-            sycl_exp::joint_store(item.get_group(), output, sycl::span{ data });
+            sycl_exp::group_store(item.get_group(), output, sycl::span{ data });
         });
 });
 ----
@@ -241,11 +241,11 @@ q.submit([&](sycl::handler& cgh) {
             sycl_exp::group_with_scratchpad gh{ item.get_group(),
                                                 sycl::span{ buf_ptr, temp_memory_size } };
 
-            sycl_exp::joint_load(gh, input, sycl::span{ data });
+            sycl_exp::group_load(gh, input, sycl::span{ data });
 
             // Work with data...
 
-            sycl_exp::joint_store(gh, output, sycl::span{ data });
+            sycl_exp::group_store(gh, output, sycl::span{ data });
         });
 });
 ----
@@ -274,12 +274,12 @@ q.submit([&](sycl::handler& cgh) {
             sycl_exp::group_with_scratchpad gh{ item.get_group(),
                                                 sycl::span{ buf_ptr, temp_memory_size } };
 
-            sycl_exp::joint_load(gh, input, sycl::span{ data },
+            sycl_exp::group_load(gh, input, sycl::span{ data },
                                  sycl::properties<sycl_exp::data_placement<sycl_exp::striped>>{});
 
             // Work with data...
 
-            sycl_exp::joint_store(gh, output, sycl::span{ data },
+            sycl_exp::group_store(gh, output, sycl::span{ data },
                                   sycl::properties<sycl_exp::data_placement<sycl_exp::striped>>{});
         });
 });
