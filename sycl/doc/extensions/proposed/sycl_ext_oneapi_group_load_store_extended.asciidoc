@@ -116,7 +116,7 @@ in the group. `out` is a sycl::span made from a pointer of private memory space.
 _Constraints_: Only available if `GroupHelper` was created with a
 work-group or sub-group and some associated scratch space.
 
-_Effects_: Loads `ItemsPerWorkItem` elements from `in_ptr` to `out`
+_Effects_: Loads `ElementsPerWorkItem` elements from `in_ptr` to `out`
 using the `gh` group helper object. Properties can specify data placement.
 
 
