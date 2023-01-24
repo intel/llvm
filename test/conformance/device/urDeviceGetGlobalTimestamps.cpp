@@ -5,7 +5,7 @@
 
 using urDeviceGetGlobalTimestampTest = uur::urAllDevicesTest;
 
-TEST_F(urDeviceGetGlobalTimestampTest, DISABLED_Success) {
+TEST_F(urDeviceGetGlobalTimestampTest, Success) {
   for (auto device : devices) {
     uint64_t device_time = 0;
     uint64_t host_time = 0;
@@ -17,7 +17,7 @@ TEST_F(urDeviceGetGlobalTimestampTest, DISABLED_Success) {
   }
 }
 
-TEST_F(urDeviceGetGlobalTimestampTest, DISABLED_SuccessHostTimer) {
+TEST_F(urDeviceGetGlobalTimestampTest, SuccessHostTimer) {
   for (auto device : devices) {
     uint64_t host_time = 0;
     ASSERT_SUCCESS(urDeviceGetGlobalTimestamps(device, nullptr, &host_time));

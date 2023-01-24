@@ -12,16 +12,14 @@ TEST_F(urDeviceGetNativeHandleTest, Success) {
   }
 }
 
-// TODO - re-enable -- #168
-TEST_F(urDeviceGetNativeHandleTest, DISABLED_InvalidNullDeviceHandle) {
+TEST_F(urDeviceGetNativeHandleTest, InvalidNullDeviceHandle) {
   for (auto device : devices) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urDeviceGetNativeHandle(device, nullptr));
   }
 }
 
-// TODO - re-enable -- #168
-TEST_F(urDeviceGetNativeHandleTest, DISABLED_InvalidNullNativeDeviceHandle) {
+TEST_F(urDeviceGetNativeHandleTest, InvalidNullNativeDeviceHandle) {
   ur_native_handle_t native_handle = nullptr;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                    urDeviceGetNativeHandle(nullptr, &native_handle));

@@ -15,6 +15,6 @@ TEST_F(urTearDownTest, Success) {
   ASSERT_SUCCESS(urTearDown(&tear_down_params));
 }
 
-TEST_F(urTearDownTest, DISABLED_InvalidNullPointerParams) {
+TEST_F(urTearDownTest, InvalidNullPointerParams) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER, urTearDown(nullptr));
 }
