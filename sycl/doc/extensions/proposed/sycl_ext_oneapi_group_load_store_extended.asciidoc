@@ -42,7 +42,7 @@ This extension also depends on the following other SYCL extensions:
 
 == Overview
 
-This extention defines free functions for load/store operations within work
+This extension defines free functions for load/store operations within work
 group scope.
 
 == Single Value Functions
