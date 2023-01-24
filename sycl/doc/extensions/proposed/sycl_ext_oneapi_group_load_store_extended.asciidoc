@@ -121,7 +121,7 @@ using the `gh` group helper object. Properties can specify data placement.
 
 
 (2) _Preconditions_: `out_ptr` must be the same for all work-items
-in the group. `in` is a sycl::span made from a pointer of private memory space.
+in the group. `in` must be a `sycl::span` made from a pointer to the private memory space.
 
 _Constraints_: Only available if `GroupHelper` was created with a
 work-group or sub-group and some associated scratch space.
