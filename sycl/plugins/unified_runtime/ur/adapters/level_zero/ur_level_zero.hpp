@@ -185,7 +185,7 @@ struct _ur_platform_handle_t : public _ur_platform {
 
 struct _ur_device_handle_t : _pi_object {
   _ur_device_handle_t(ze_device_handle_t Device, zer_platform_handle_t Plt,
-             zer_device_handle_t ParentDevice = nullptr)
+                      zer_device_handle_t ParentDevice = nullptr)
       : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
         ImmCommandListsPreferred{false}, ZeDeviceProperties{},
         ZeDeviceComputeProperties{} {
@@ -244,24 +244,27 @@ struct _ur_device_handle_t : _pi_object {
                           int SubSubDeviceIndex = -1);
 
   // Level Zero device handle.
-  // This field is only set at _ur_device_handle_t creation time, and cannot change.
-  // Therefore it can be accessed without holding a lock on this _ur_device_handle_t.
+  // This field is only set at _ur_device_handle_t creation time, and cannot
+  // change. Therefore it can be accessed without holding a lock on this
+  // _ur_device_handle_t.
   const ze_device_handle_t ZeDevice;
 
-  // Keep the subdevices that are partitioned from this ur_device_handle_t for reuse
-  // The order of sub-devices in this vector is repeated from the
+  // Keep the subdevices that are partitioned from this ur_device_handle_t for
+  // reuse The order of sub-devices in this vector is repeated from the
   // ze_device_handle_t array that are returned from zeDeviceGetSubDevices()
   // call, which will always return sub-devices in the fixed same order.
   std::vector<zer_device_handle_t> SubDevices;
 
   // PI platform to which this device belongs.
-  // This field is only set at _ur_device_handle_t creation time, and cannot change.
-  // Therefore it can be accessed without holding a lock on this _ur_device_handle_t.
+  // This field is only set at _ur_device_handle_t creation time, and cannot
+  // change. Therefore it can be accessed without holding a lock on this
+  // _ur_device_handle_t.
   zer_platform_handle_t Platform;
 
   // Root-device of a sub-device, null if this is not a sub-device.
-  // This field is only set at _ur_device_handle_t creation time, and cannot change.
-  // Therefore it can be accessed without holding a lock on this _ur_device_handle_t.
+  // This field is only set at _ur_device_handle_t creation time, and cannot
+  // change. Therefore it can be accessed without holding a lock on this
+  // _ur_device_handle_t.
   const zer_device_handle_t RootDevice;
 
   // Whether to use immediate commandlists for queues on this device.
@@ -287,7 +290,8 @@ struct _ur_device_handle_t : _pi_object {
 
   // Does this device represent a single compute slice?
   bool isCCS() const {
-    return QueueGroup[_ur_device_handle_t::queue_group_info_t::Compute].ZeIndex >= 0;
+    return QueueGroup[_ur_device_handle_t::queue_group_info_t::Compute]
+               .ZeIndex >= 0;
   }
 
   // Cache of the immutable device properties.

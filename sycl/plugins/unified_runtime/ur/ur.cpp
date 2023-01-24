@@ -7,8 +7,8 @@
 //
 //===-----------------------------------------------------------------===//
 
-#include <cassert>
 #include "ur.hpp"
+#include <cassert>
 
 // Controls tracing UR calls from within the UR itself.
 bool PrintTrace = [] {
