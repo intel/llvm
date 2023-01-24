@@ -126,7 +126,7 @@ in the group. `in` is a sycl::span made from a pointer of private memory space.
 _Constraints_: Only available if `GroupHelper` was created with a
 work-group or sub-group and some associated scratch space.
 
-_Effects_: Stores `ItemsPerWorkItem` elements from `in` span to `out_ptr`
+_Effects_: Stores `ElementsPerWorkItem` elements from `in` span to `out_ptr`
 using the `gh` group helper object. Properties can specify data placement.
 
 == Usage Examples
