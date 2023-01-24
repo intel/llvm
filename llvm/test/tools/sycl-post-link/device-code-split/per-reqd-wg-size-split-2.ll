@@ -8,12 +8,12 @@
 ; RUN:     --implicit-check-not kernel0 --implicit-check-not kernel1 \
 ; RUN:     --implicit-check-not kernel2
 ;
-; RUN: FileCheck %s -input-file=%t_1.sym --check-prefix CHECK-M1-SYMS \
+; RUN: FileCheck %s -input-file=%t_1.sym --check-prefix CHECK-M2-SYMS \
+; RUN:     --implicit-check-not kernel0 --implicit-check-not kernel3
+;
+; RUN: FileCheck %s -input-file=%t_2.sym --check-prefix CHECK-M1-SYMS \
 ; RUN:     --implicit-check-not kernel1 --implicit-check-not kernel2 \
 ; RUN:     --implicit-check-not kernel3
-;
-; RUN: FileCheck %s -input-file=%t_2.sym --check-prefix CHECK-M2-SYMS \
-; RUN:     --implicit-check-not kernel0 --implicit-check-not kernel3
 
 ; CHECK-TABLE: Code
 ; CHECK-TABLE-NEXT: _0.sym
