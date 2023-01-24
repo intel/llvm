@@ -49,18 +49,76 @@ group scope.
 
 [source,c++]
 ----
-// Load API
+namespace sycl::ext::oneapi::experimental {
+
+// Load API scalar
 template<typename Group, typename InputIteratorT,
          typename OutputT, typename Properties = properties<>>
-void joint_load(Group gh, InputIteratorT in_ptr,
-                      OutputT& out, Properties = {});
+void joint_load(Group g, InputIteratorT in_ptr,
+                      OutputT& out, Properties = {}); (1)
 
-// Store API
+// Store API scalar
 template<typename Group, typename InputT,
          typename OutputIteratorT, typename Properties = properties<>>
-void joint_store(Group gh, InputT in,
-                      OutputIteratorT out_ptr, Properties = {});
+void joint_store(Group g, const InputT& in,
+                      OutputIteratorT out_ptr, Properties = {}); (2)
+
+}
 ----
+
+(1) _Preconditions_: `in_ptr` must be the same for all work-items
+in the group.
+
+_Constraints_: Only available if `Group` is a work-group or sub-group.
+
+_Effects_: Loads single element from `in_ptr` to `out`.
+Properties TBD (setting boundary values or limiting numbers of work items).
+
+
+(2) _Preconditions_: `out_ptr` must be the same for all work-items
+in the group.
+
+_Constraints_: Only available if `Group` is a work-group or sub-group.
+
+_Effects_: Stores single element `in` to `out_ptr`.
+Properties TBD (setting boundary values or limiting numbers of work items).
+
+== `sycl::vec` Functions
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+// Load API sycl::vec overload
+template<typename Group, typename InputIteratorT,
+         typename OutputT, int N, typename Properties = properties<>>
+void joint_load(Group g, InputIteratorT in_ptr,
+                      sycl::vec<OutputT, N>& out, Properties = {}); (3)
+
+// Store API sycl::vec overload
+template<typename Group, typename InputT, int N,
+         typename OutputIteratorT, typename Properties = properties<>>
+void joint_store(Group g, const sycl::vec<InputT, N>& in,
+                      OutputIteratorT out_ptr, Properties = {}); (4)
+
+}
+----
+
+(3) _Preconditions_: `in_ptr` must be the same for all work-items
+in the group.
+
+_Constraints_: Only available if `Group` is a work-group or sub-group.
+
+_Effects_: Loads `N` elements from `in_ptr` to `out`
+using the `g` group object. Properties can specify data placement.
+
+(4) _Preconditions_: `out_ptr` must be the same for all work-items
+in the group.
+
+_Constraints_: Only available if `Group` is a work-group or sub-group.
+
+_Effects_: Stores `N` elements from `in` vec to `out_ptr`
+using the `g` group object. Properties can specify data placement.
 
 == Functions with fixed-size arrays
 
@@ -71,8 +129,9 @@ such as `group_with_scratchpad` link:https://github.com/intel/llvm/blob/sycl/syc
 
 * load/store flexible amount of elements per work item as sycl::span
 
-* specify data placement type via properties (1) or extra options such as
-setting boundary values or limiting numbers of work items
+* specify data placement type via properties (6) or extra options such as
+setting boundary values or limiting numbers of work items (TODO in design
+considerations)
 
 [source,c++]
 ----
@@ -82,14 +141,14 @@ namespace sycl::ext::oneapi::experimental {
 template<typename GroupHelper, typename InputIteratorT, typename OutputT,
         std::size_t ElementsPerWorkItem, typename Properties = properties<>>
 void joint_load(GroupHelper gh, InputIteratorT in_ptr,
-                sycl::span<OutputT, ElementsPerWorkItem> out, Properties = {}); (1)
+                sycl::span<OutputT, ElementsPerWorkItem> out, Properties = {}); (6)
 
 
 // Store API
 template<typename GroupHelper, typename OutputIteratorT, typename InputT,
         std::size_t ElementsPerWorkItem, typename Properties = properties<>>
 void joint_store(GroupHelper gh, OutputIteratorT out_ptr,
-                  sycl::span<InputT, ItemsPerWorkItem> in, Properties = {}); (2)
+                  sycl::span<InputT, ItemsPerWorkItem> in, Properties = {}); (7)
 
 
 // Properties:
@@ -98,36 +157,44 @@ enum class group_algorithm_data_placement {
   striped
 };
 
-// TO DO: add extra properties for setting boundary values
-
 // Support memory function to define the needed amount of temporary memory
 // needed (name TBD)
 
 template<typename T, std::size_t ElementsPerWorkItem>
 constexpr std::size_t memory_required(sycl::memory_scope scope,
-                                      std::size_t block_size); (3)
+                                      std::size_t block_size); (8)
 
 }
 ----
 
-(1) _Preconditions_: `in_ptr` must be the same for all work-items
+(6) _Preconditions_: `in_ptr` must be the same for all work-items
 in the group. `out` must be a `sycl::span` made from a pointer to the private memory space.
 
-_Constraints_: Only available if `GroupHelper` was created with a
-work-group or sub-group and some associated scratch space.
+_Constraints_: Only available if `GroupHelper` is a
+work-group or sub-group or `GroupHelper` was created with a
+work-group or sub-group and some associated scratch space
+(link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc[`group_with_scratchpad`]).
 
 _Effects_: Loads `ElementsPerWorkItem` elements from `in_ptr` to `out`
 using the `gh` group helper object. Properties can specify data placement.
 
-
-(2) _Preconditions_: `out_ptr` must be the same for all work-items
+(7) _Preconditions_: `out_ptr` must be the same for all work-items
 in the group. `in` must be a `sycl::span` made from a pointer to the private memory space.
 
-_Constraints_: Only available if `GroupHelper` was created with a
-work-group or sub-group and some associated scratch space.
+_Constraints_: Only available if `GroupHelper` is a
+work-group or sub-group or `GroupHelper` was created with a
+work-group or sub-group and some associated scratch space
+(link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc[`group_with_scratchpad`]).
 
 _Effects_: Stores `ElementsPerWorkItem` elements from `in` span to `out_ptr`
 using the `gh` group helper object. Properties can specify data placement.
+
+(8)_Effects_: Returns size of temporary memory (in bytes) that is required for
+scratch space in `GroupHelper`. Result depends on type `T`, `ElementsPerWorkItem`
+and the scope parameter: use sycl::memory_scope::work_group to get memory size
+required for each work-group; use sycl::memory_scope::sub_group to get memory
+size required for each sub-group. If other scope values are passed, behavior is
+unspecified.
 
 == Usage Examples
 
@@ -221,3 +288,6 @@ q.submit([&](sycl::handler& cgh) {
 == Design Considerations
 
 * consider extending sycl::span to std::mdspan for C++23 for 2d and 3d kernels
+
+* TODO: consider adding extra properties for setting boundary values or limiting
+number of work-items
