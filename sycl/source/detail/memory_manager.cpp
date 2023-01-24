@@ -928,16 +928,6 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
     return;
   }
 
-  // Undefined behavior with Pitch of zero
-  if (SrcPitch == 0 || DstPitch == 0)
-    throw sycl::exception(
-        sycl::make_error_code(errc::invalid),
-        "DstPitch/SrcPitch is zero in 2D memory copy operation.");
-  // Width must not exceed either SrcPitch or DstPitch
-  if (Width > SrcPitch || Width > DstPitch)
-    throw sycl::exception(
-        sycl::make_error_code(errc::invalid),
-        "Width must not exceed DstPitch/SrcPitch in 2D memory copy operation.");
   if (!DstMem || !SrcMem)
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "NULL pointer argument in 2D memory copy operation.");
