@@ -131,7 +131,7 @@ using the `gh` group helper object. Properties can specify data placement.
 
 == Usage Examples
 
-1.Example shows the simpliest case without local memory usage of blocked load
+1.Example shows the simplest case without local memory usage of blocked load
 of global memory from `input` to the private array `data` and store it back to
 `output`
 
