@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Conversion/SYCLToLLVM/SYCLToLLVMPass.h"
-#include "../PassDetail.h"
+
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/SYCLToLLVM/SYCLToLLVM.h"
@@ -20,10 +20,15 @@
 
 using namespace mlir;
 
+namespace mlir {
+#define GEN_PASS_DEF_CONVERTSYCLTOLLVM
+#include "mlir/Conversion/SYCLPasses.h.inc"
+} // namespace mlir
+
 namespace {
 /// A pass converting MLIR SYCL operations into LLVM dialect.
 class ConvertSYCLToLLVMPass
-    : public ConvertSYCLToLLVMBase<ConvertSYCLToLLVMPass> {
+    : public impl::ConvertSYCLToLLVMBase<ConvertSYCLToLLVMPass> {
   void runOnOperation() override;
 };
 } // namespace

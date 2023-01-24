@@ -20,6 +20,9 @@ namespace mlir {
 class ModuleOp;
 template <typename T> class OperationPass;
 
+#define GEN_PASS_DECL_CONVERTSYCLTOLLVM
+#include "mlir/Conversion/SYCLPasses.h.inc"
+
 namespace sycl {
 
 /// Creates a pass to convert SYCL operations to the LLVMIR dialect.
