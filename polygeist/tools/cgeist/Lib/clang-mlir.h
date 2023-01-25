@@ -179,7 +179,8 @@ public:
   mlir::FunctionOpInterface getOrCreateMLIRFunction(FunctionToEmit &FTE,
                                                     const bool ShouldEmit,
                                                     bool GetDeviceStub = false);
-  mlir::LLVM::LLVMFuncOp getOrCreateLLVMFunction(const clang::FunctionDecl *FD);
+  mlir::LLVM::LLVMFuncOp getOrCreateLLVMFunction(const clang::FunctionDecl *FD,
+                                                 FunctionContext FuncContext);
   mlir::LLVM::LLVMFuncOp getOrCreateMallocFunction();
   mlir::LLVM::LLVMFuncOp getOrCreateFreeFunction();
 

@@ -1593,7 +1593,8 @@ LLVM::LLVMFuncOp MLIRASTConsumer::getOrCreateFreeFunction() {
 }
 
 LLVM::LLVMFuncOp
-MLIRASTConsumer::getOrCreateLLVMFunction(const clang::FunctionDecl *FD) {
+MLIRASTConsumer::getOrCreateLLVMFunction(const clang::FunctionDecl *FD,
+                                         FunctionContext FuncContext) {
   std::string Name = MLIRScanner::getMangledFuncName(*FD, CGM);
   if (Name != "malloc" && Name != "free")
     Name = (PrefixABI + Name);
@@ -1618,7 +1619,7 @@ MLIRASTConsumer::getOrCreateLLVMFunction(const clang::FunctionDecl *FD) {
                                                 /*isVarArg=*/FD->isVariadic());
   // Insert the function into the body of the parent module.
   OpBuilder Builder(Module->getContext());
-  Builder.setInsertionPointToStart(Module->getBody());
+  mlirclang::setInsertionPoint(Builder, FuncContext, *Module);
 
   return LLVMFunctions[Name] = Builder.create<LLVM::LLVMFuncOp>(
              Module->getLoc(), Name, LLVMFnType,
@@ -1757,13 +1758,7 @@ MLIRASTConsumer::getOrCreateGlobal(const clang::ValueDecl &VD,
   // The insertion point depends on whether the global variable is in the host
   // or the device context.
   OpBuilder Builder(Module->getContext());
-  if (FuncContext == FunctionContext::SYCLDevice)
-    Builder.setInsertionPointToStart(
-        mlirclang::getDeviceModule(*Module).getBody());
-  else {
-    assert(FuncContext == FunctionContext::Host);
-    Builder.setInsertionPointToStart(Module->getBody());
-  }
+  mlirclang::setInsertionPoint(Builder, FuncContext, *Module);
 
   // Create the global.
   clang::VarDecl::DefinitionKind DefKind = Var->isThisDeclarationADefinition();
@@ -1868,15 +1863,7 @@ Value MLIRASTConsumer::getOrCreateGlobalLLVMString(
   // Create the global at the entry of the module.
   if (LLVMStringGlobals.find(Value.str()) == LLVMStringGlobals.end()) {
     OpBuilder::InsertionGuard InsertGuard(Builder);
-    switch (FuncContext) {
-    case FunctionContext::SYCLDevice:
-      Builder.setInsertionPointToStart(
-          mlirclang::getDeviceModule(*Module).getBody());
-      break;
-    case FunctionContext::Host:
-      Builder.setInsertionPointToStart(Module->getBody());
-      break;
-    }
+    mlirclang::setInsertionPoint(Builder, FuncContext, *Module);
 
     auto Type = LLVM::LLVMArrayType::get(
         IntegerType::get(Builder.getContext(), 8), Value.size() + 1);

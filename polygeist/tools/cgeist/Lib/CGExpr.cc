@@ -1275,10 +1275,12 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
     llvm::dbgs() << "\n";
   });
 
+  FunctionContext FuncContext = mlirclang::getFuncContext(Function);
   if (auto *Tocall = dyn_cast<FunctionDecl>(E->getDecl()))
-    return ValueCategory(Builder.create<LLVM::AddressOfOp>(
-                             Loc, Glob.getOrCreateLLVMFunction(Tocall)),
-                         /*isReference*/ true);
+    return ValueCategory(
+        Builder.create<LLVM::AddressOfOp>(
+            Loc, Glob.getOrCreateLLVMFunction(Tocall, FuncContext)),
+        /*isReference*/ true);
 
   if (auto *VD = dyn_cast<VarDecl>(E->getDecl())) {
     if (Captures.find(VD) != Captures.end()) {
@@ -1325,11 +1327,8 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
     // We need to decide where to put the Global.  If we are in a device
     // module, the global should be in the gpu module (which is nested inside
     // another main module).
-    std::pair<mlir::memref::GlobalOp, bool> Gv = Glob.getOrCreateGlobal(
-        *VD, /*prefix=*/"",
-        isa<mlir::gpu::GPUModuleOp>(Function->getParentOp())
-            ? FunctionContext::SYCLDevice
-            : FunctionContext::Host);
+    std::pair<mlir::memref::GlobalOp, bool> Gv =
+        Glob.getOrCreateGlobal(*VD, /*prefix=*/"", FuncContext);
 
     auto Gv2 = Builder.create<memref::GetGlobalOp>(Loc, Gv.first.getType(),
                                                    Gv.first.getName());
