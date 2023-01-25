@@ -290,21 +290,27 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
         } else {
           auto PT = ToInit.getType().cast<LLVM::LLVMPointerType>();
           auto ET = PT.getElementType();
-          mlir::Type NextType;
-          if (auto ST = ET.dyn_cast<LLVM::LLVMStructType>())
-            NextType = ST.getBody()[I];
-          else if (auto AT = ET.dyn_cast<LLVM::LLVMArrayType>())
-            NextType = AT.getElementType();
-          else
-            llvm_unreachable("unknown inner type");
-
-          mlir::Value Idxs[] = {
-              Builder.create<arith::ConstantIntOp>(Loc, 0, 32),
-              Builder.create<arith::ConstantIntOp>(Loc, I, 32),
-          };
-          Next = Builder.create<LLVM::GEPOp>(
-              Loc, LLVM::LLVMPointerType::get(NextType, PT.getAddressSpace()),
-              ToInit, Idxs);
+          Next = TypeSwitch<mlir::Type, mlir::Value>(ET)
+                     .Case<LLVM::LLVMStructType>([=](auto ST) {
+                       return Builder.create<LLVM::GEPOp>(
+                           Loc,
+                           LLVM::LLVMPointerType::get(ST.getBody()[I],
+                                                      PT.getAddressSpace()),
+                           ToInit, llvm::ArrayRef<mlir::LLVM::GEPArg>{0, I});
+                     })
+                     .Case<LLVM::LLVMArrayType>([=](auto AT) {
+                       return Builder.create<LLVM::GEPOp>(
+                           Loc,
+                           LLVM::LLVMPointerType::get(AT.getElementType(),
+                                                      PT.getAddressSpace()),
+                           ToInit, llvm::ArrayRef<mlir::LLVM::GEPArg>{0, I});
+                     })
+                     .Case<IntegerType>([=](auto IT) {
+                       return Builder.create<LLVM::GEPOp>(
+                           Loc,
+                           LLVM::LLVMPointerType::get(IT, PT.getAddressSpace()),
+                           ToInit, llvm::ArrayRef<mlir::LLVM::GEPArg>{I});
+                     });
         }
 
         auto Sub =
