@@ -57,6 +57,14 @@ __SYCL_EXPORT pi_result piDeviceGetInfo(pi_device Device,
                                 ParamValueSizeRet);
 }
 
+// Stub for the not yet supported API
+__SYCL_EXPORT pi_result piextDeviceSelectBinary(pi_device Device,
+                                                pi_device_binary *Binaries,
+                                                pi_uint32 NumBinaries,
+                                                pi_uint32 *SelectedBinaryInd) {
+  return PI_ERROR_INVALID_BINARY;
+}
+
 // This interface is not in Unified Runtime currently
 __SYCL_EXPORT pi_result piTearDown(void *) { return PI_SUCCESS; }
 
@@ -92,6 +100,7 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piDeviceRetain)
   _PI_API(piDeviceRelease)
   _PI_API(piDeviceGetInfo)
+  _PI_API(piextDeviceSelectBinary)
   _PI_API(piTearDown)
 
   return PI_SUCCESS;
