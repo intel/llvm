@@ -38,7 +38,7 @@ function(add_sycl_plugin PLUGIN_NAME)
   cmake_parse_arguments("ARG"
     ""
     ""
-    "SOURCES;INCLUDE_DIRS;LIBRARIES"
+    "SOURCES;INCLUDE_DIRS;LIBRARIES;HEADER"
     ${ARGN}
   )
 
@@ -52,6 +52,19 @@ function(add_sycl_plugin PLUGIN_NAME)
       ${ARG_LIBRARIES}
       OpenCL-Headers
   )
+
+  # Install feature test header
+  if (NOT "${ARG_HEADER}" STREQUAL "")
+    get_filename_component(HEADER_NAME ${ARG_HEADER} NAME)
+    configure_file(
+      ${ARG_HEADER}
+      ${SYCL_INCLUDE_BUILD_DIR}/sycl/detail/plugins/${PLUGIN_NAME}/${HEADER_NAME}
+      COPYONLY)
+
+    install(FILES ${ARG_HEADER}
+            DESTINATION ${SYCL_INCLUDE_DIR}/sycl/detail/plugins/${PLUGIN_NAME}
+            COMPONENT pi_${PLUGIN_NAME})
+  endif()
 
   install(TARGETS pi_${PLUGIN_NAME}
     LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT pi_${PLUGIN_NAME}

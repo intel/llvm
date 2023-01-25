@@ -72,22 +72,25 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_INTERNAL_API )
 
-  if (MSVC)
+  if (WIN32) 
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_BUILD_SYCL_DLL )
     target_link_libraries(${LIB_NAME} PRIVATE shlwapi)
+  endif()
+
+  if (MSVC)
     # Install stripped PDB
     add_stripped_pdb(${LIB_NAME})
   else()
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
                            -fvisibility=hidden -fvisibility-inlines-hidden)
-    if (NOT APPLE)
+    if (UNIX AND NOT APPLE)
       set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
       target_link_libraries(
           ${LIB_NAME} PRIVATE "-Wl,--version-script=${linker_script}")
       set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${linker_script})
     endif()
     if (SYCL_ENABLE_XPTI_TRACING)
-      target_link_libraries(${LIB_NAME} PRIVATE dl)
+      target_link_libraries(${LIB_NAME} PRIVATE ${CMAKE_DL_LIBS})
     endif()
   endif()
 
@@ -152,6 +155,7 @@ set(SYCL_SOURCES
     "detail/device_binary_image.cpp"
     "detail/device_filter.cpp"
     "detail/device_global_map.cpp"
+    "detail/device_global_map_entry.cpp"
     "detail/device_impl.cpp"
     "detail/error_handling/enqueue_kernel.cpp"
     "detail/event_impl.cpp"

@@ -327,8 +327,7 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
     NewFunc->takeName(Func);
 
     // Splice the body of the old function right into the new function.
-    NewFunc->getBasicBlockList().splice(NewFunc->begin(),
-                                        Func->getBasicBlockList());
+    NewFunc->splice(NewFunc->begin(), Func);
 
     for (Function::arg_iterator FuncArg = Func->arg_begin(),
                                 FuncEnd = Func->arg_end(),
@@ -340,7 +339,7 @@ std::pair<Function *, Value *> GlobalOffsetPass::addOffsetArgumentToFunction(
     // Clone metadata of the old function, including debug info descriptor.
     SmallVector<std::pair<unsigned, MDNode *>, 1> MDs;
     Func->getAllMetadata(MDs);
-    for (auto MD : MDs)
+    for (const auto &MD : MDs)
       NewFunc->addMetadata(MD.first, *MD.second);
 
     ImplicitOffset = std::prev(NewFunc->arg_end());
