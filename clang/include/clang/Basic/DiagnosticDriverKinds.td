@@ -470,6 +470,9 @@ def warn_drv_deprecated_option : Warning<
 def warn_drv_deprecated_option_release : Warning<
   "option '%0' is deprecated and will be removed in a future release">,
   InGroup<Deprecated>;
+def warn_drv_deprecated_argument_option_release : Warning<
+  "argument '%0' for option '%1' is deprecated and will be removed in a "
+  "future release">, InGroup<Deprecated>;
 def warn_ignoring_verify_debuginfo_preserve_export : Warning<
   "ignoring -fverify-debuginfo-preserve-export=%0 because "
   "-fverify-debuginfo-preserve wasn't enabled">,
