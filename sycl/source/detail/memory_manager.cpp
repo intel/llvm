@@ -995,7 +995,7 @@ static void memcpyToDeviceGlobalUSM(QueueImplPtr Queue,
                                     DeviceGlobalMapEntry *DeviceGlobalEntry,
                                     size_t NumBytes, size_t Offset,
                                     const void *Src,
-                                    std::vector<RT::PiEvent> DepEvents,
+                                    const std::vector<RT::PiEvent> &DepEvents,
                                     RT::PiEvent *OutEvent) {
   // Zero-initialization is only needed if we do not overwrite the entire
   // device_global.
@@ -1013,10 +1013,18 @@ static void memcpyToDeviceGlobalUSM(QueueImplPtr Queue,
   std::optional<OwnedPiEvent> ZIEvent =
       DeviceGlobalUSM.getZeroInitEvent(Queue->getPlugin());
 
+  // We may need addtional events, so create a non-const dependency events list
+  // to use if we need to modify it.
+  std::vector<RT::PiEvent> AuxDepEventsStorage;
+  const std::vector<RT::PiEvent> &ActualDepEvents =
+      ZIEvent.has_value() ? AuxDepEventsStorage : DepEvents;
+
   // If there is a zero-initializer event the memory operation should wait for
   // it.
-  if (ZIEvent.has_value())
-    DepEvents.push_back(ZIEvent->GetEvent());
+  if (ZIEvent.has_value()) {
+    AuxDepEventsStorage = DepEvents;
+    AuxDepEventsStorage.push_back(ZIEvent->GetEvent());
+  }
 
   MemoryManager::copy_usm(Src, Queue, NumBytes,
                           reinterpret_cast<char *>(Dest) + Offset, DepEvents,
@@ -1027,7 +1035,7 @@ static void memcpyFromDeviceGlobalUSM(QueueImplPtr Queue,
                                       DeviceGlobalMapEntry *DeviceGlobalEntry,
                                       size_t NumBytes, size_t Offset,
                                       void *Dest,
-                                      std::vector<RT::PiEvent> DepEvents,
+                                      const std::vector<RT::PiEvent> &DepEvents,
                                       RT::PiEvent *OutEvent) {
   // Get or allocate USM memory for the device_global. Since we are reading from
   // it, we need it zero-initialized if it has not been yet.
@@ -1040,13 +1048,21 @@ static void memcpyFromDeviceGlobalUSM(QueueImplPtr Queue,
   std::optional<OwnedPiEvent> ZIEvent =
       DeviceGlobalUSM.getZeroInitEvent(Queue->getPlugin());
 
+  // We may need addtional events, so create a non-const dependency events list
+  // to use if we need to modify it.
+  std::vector<RT::PiEvent> AuxDepEventsStorage;
+  const std::vector<RT::PiEvent> &ActualDepEvents =
+      ZIEvent.has_value() ? AuxDepEventsStorage : DepEvents;
+
   // If there is a zero-initializer event the memory operation should wait for
   // it.
-  if (ZIEvent.has_value())
-    DepEvents.push_back(ZIEvent->GetEvent());
+  if (ZIEvent.has_value()) {
+    AuxDepEventsStorage = DepEvents;
+    AuxDepEventsStorage.push_back(ZIEvent->GetEvent());
+  }
 
   MemoryManager::copy_usm(reinterpret_cast<const char *>(Src) + Offset, Queue,
-                          NumBytes, Dest, DepEvents, OutEvent);
+                          NumBytes, Dest, ActualDepEvents, OutEvent);
 }
 
 static RT::PiProgram
@@ -1085,12 +1101,10 @@ getOrBuildProgramForDeviceGlobal(QueueImplPtr Queue,
   return getSyclObjImpl(BuiltImage)->get_program_ref();
 }
 
-static void memcpyToDeviceGlobalDirect(QueueImplPtr Queue,
-                                       DeviceGlobalMapEntry *DeviceGlobalEntry,
-                                       size_t NumBytes, size_t Offset,
-                                       const void *Src, OSModuleHandle M,
-                                       std::vector<RT::PiEvent> DepEvents,
-                                       RT::PiEvent *OutEvent) {
+static void memcpyToDeviceGlobalDirect(
+    QueueImplPtr Queue, DeviceGlobalMapEntry *DeviceGlobalEntry,
+    size_t NumBytes, size_t Offset, const void *Src, OSModuleHandle M,
+    const std::vector<RT::PiEvent> &DepEvents, RT::PiEvent *OutEvent) {
   RT::PiProgram Program =
       getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry, M);
   const detail::plugin &Plugin = Queue->getPlugin();
@@ -1103,7 +1117,7 @@ static void memcpyToDeviceGlobalDirect(QueueImplPtr Queue,
 static void memcpyFromDeviceGlobalDirect(
     QueueImplPtr Queue, DeviceGlobalMapEntry *DeviceGlobalEntry,
     size_t NumBytes, size_t Offset, void *Dest, OSModuleHandle M,
-    std::vector<RT::PiEvent> DepEvents, RT::PiEvent *OutEvent) {
+    const std::vector<RT::PiEvent> &DepEvents, RT::PiEvent *OutEvent) {
   RT::PiProgram Program =
       getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry, M);
   const detail::plugin &Plugin = Queue->getPlugin();
@@ -1116,7 +1130,7 @@ static void memcpyFromDeviceGlobalDirect(
 void MemoryManager::copy_to_device_global(
     const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
     size_t NumBytes, size_t Offset, const void *SrcMem, OSModuleHandle M,
-    std::vector<RT::PiEvent> DepEvents, RT::PiEvent *OutEvent) {
+    const std::vector<RT::PiEvent> &DepEvents, RT::PiEvent *OutEvent) {
   DeviceGlobalMapEntry *DGEntry =
       detail::ProgramManager::getInstance().getDeviceGlobalEntry(
           DeviceGlobalPtr);
@@ -1137,7 +1151,7 @@ void MemoryManager::copy_to_device_global(
 void MemoryManager::copy_from_device_global(
     const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
     size_t NumBytes, size_t Offset, void *DstMem, OSModuleHandle M,
-    std::vector<RT::PiEvent> DepEvents, RT::PiEvent *OutEvent) {
+    const std::vector<RT::PiEvent> &DepEvents, RT::PiEvent *OutEvent) {
   DeviceGlobalMapEntry *DGEntry =
       detail::ProgramManager::getInstance().getDeviceGlobalEntry(
           DeviceGlobalPtr);
