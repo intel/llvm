@@ -1287,10 +1287,6 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
               DeviceGlobalInfo.consume<std::uint32_t, std::uint32_t>();
           assert(DeviceGlobalInfo.empty() && "Extra data left!");
 
-          // Give the image pointer as an identifier for the image the
-          // device-global is associated with.
-          uintptr_t ImgId = reinterpret_cast<uintptr_t>(Img.get());
-
           auto ExistingDeviceGlobal = m_DeviceGlobals.find(DeviceGlobal->Name);
           if (ExistingDeviceGlobal != m_DeviceGlobals.end()) {
             // If it has already been registered we update the information.
