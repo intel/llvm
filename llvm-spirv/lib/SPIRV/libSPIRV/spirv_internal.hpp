@@ -83,7 +83,6 @@ enum InternalFunctionControlMask { IFunctionControlOptNoneINTELMask = 0x10000 };
 
 enum InternalExecutionMode {
   IExecModeFastCompositeKernelINTEL = 6088,
-  IExecModeStreamingInterfaceINTEL = 6154
 };
 
 constexpr LinkageType LinkageTypeInternal =
@@ -169,8 +168,6 @@ constexpr FunctionControlMask FunctionControlOptNoneINTELMask =
 
 constexpr ExecutionMode ExecutionModeFastCompositeKernelINTEL =
     static_cast<ExecutionMode>(IExecModeFastCompositeKernelINTEL);
-constexpr ExecutionMode ExecutionModeStreamingInterfaceINTEL =
-    static_cast<ExecutionMode>(IExecModeStreamingInterfaceINTEL);
 
 } // namespace internal
 } // namespace spv

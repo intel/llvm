@@ -3,7 +3,7 @@
 # DO NOT EDIT IT MANUALLY. Refer to sycl/doc/developer/ABIPolicyGuide.md for more info.
 ################################################################################
 
-# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %sycl_libs_dir/libsycl.so
+# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir %python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %sycl_libs_dir/libsycl.so
 # REQUIRES: linux
 # UNSUPPORTED: libcxx
 
@@ -4323,6 +4323,7 @@ _ZNK4sycl3_V16device8get_infoINS0_4info6device7versionEEENS0_6detail19is_device_
 _ZNK4sycl3_V16device8get_infoINS0_4info6device8atomic64EEENS0_6detail19is_device_info_descIT_E11return_typeEv
 _ZNK4sycl3_V16device8get_infoINS0_4info6device8platformEEENS0_6detail19is_device_info_descIT_E11return_typeEv
 _ZNK4sycl3_V16device8get_infoINS0_4info6device9vendor_idEEENS0_6detail19is_device_info_descIT_E11return_typeEv
+_ZNK4sycl3_V16device8get_infoINS0_4info6device7aspectsEEENS0_6detail19is_device_info_descIT_E11return_typeEv
 _ZNK4sycl3_V16device9getNativeEv
 _ZNK4sycl3_V16kernel11get_backendEv
 _ZNK4sycl3_V16kernel11get_contextEv

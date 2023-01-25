@@ -579,10 +579,9 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
 static unsigned getOptimizationLevel(ArgList &Args, InputKind IK,
                                      DiagnosticsEngine &Diags) {
   unsigned DefaultOpt = llvm::CodeGenOpt::None;
-  if (((IK.getLanguage() == Language::OpenCL ||
-        IK.getLanguage() == Language::OpenCLCXX) &&
-       !Args.hasArg(OPT_cl_opt_disable)) ||
-      Args.hasArg(OPT_fsycl_is_device))
+  if ((IK.getLanguage() == Language::OpenCL ||
+       IK.getLanguage() == Language::OpenCLCXX) &&
+      !Args.hasArg(OPT_cl_opt_disable))
     DefaultOpt = llvm::CodeGenOpt::Default;
 
   if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
@@ -1503,9 +1502,6 @@ void CompilerInvocation::GenerateCodeGenArgs(
   else if (Opts.CFProtectionBranch)
     GenerateArg(Args, OPT_fcf_protection_EQ, "branch", SA);
 
-  if (Opts.IBTSeal)
-    GenerateArg(Args, OPT_mibt_seal, SA);
-
   if (Opts.FunctionReturnThunks)
     GenerateArg(Args, OPT_mfunction_return_EQ, "thunk-extern", SA);
 
@@ -1692,11 +1688,6 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
         {std::string(Split.first), std::string(Split.second)});
   }
 
-  Opts.DisableLLVMPasses =
-      Args.hasArg(OPT_disable_llvm_passes) ||
-      (Args.hasArg(OPT_fsycl_is_device) && T.isSPIR() &&
-       Args.hasArg(OPT_fno_sycl_early_optimizations));
-
   const llvm::Triple::ArchType DebugEntryValueArchs[] = {
       llvm::Triple::x86, llvm::Triple::x86_64, llvm::Triple::aarch64,
       llvm::Triple::arm, llvm::Triple::armeb, llvm::Triple::mips,
@@ -1870,9 +1861,6 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
       Opts.FunctionReturnThunks = static_cast<unsigned>(Val);
   }
 
-  if (Opts.PrepareForLTO && Args.hasArg(OPT_mibt_seal))
-    Opts.IBTSeal = 1;
-
   for (auto *A :
        Args.filtered(OPT_mlink_bitcode_file, OPT_mlink_builtin_bitcode)) {
     CodeGenOptions::BitcodeFileToLink F;
@@ -2012,7 +2000,7 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
     } else {
       Opts.DiagnosticsHotnessThreshold = *ResultOrErr;
       if ((!Opts.DiagnosticsHotnessThreshold ||
-           Opts.DiagnosticsHotnessThreshold.value() > 0) &&
+           *Opts.DiagnosticsHotnessThreshold > 0) &&
           !UsingProfile)
         Diags.Report(diag::warn_drv_diagnostics_hotness_requires_pgo)
             << "-fdiagnostics-hotness-threshold=";
@@ -2029,7 +2017,7 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
     } else {
       Opts.DiagnosticsMisExpectTolerance = *ResultOrErr;
       if ((!Opts.DiagnosticsMisExpectTolerance ||
-           Opts.DiagnosticsMisExpectTolerance.value() > 0) &&
+           *Opts.DiagnosticsMisExpectTolerance > 0) &&
           !UsingProfile)
         Diags.Report(diag::warn_drv_diagnostics_misexpect_requires_pgo)
             << "-fdiagnostics-misexpect-tolerance=";

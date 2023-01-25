@@ -119,10 +119,11 @@ bool VPlanTransforms::sinkScalarOperands(VPlan &Plan) {
         continue;
       for (VPValue *Op : RepR->operands())
         if (auto *Def = Op->getDefiningRecipe())
-          WorkList.insert(std::make_pair(RepR->getParent(), Def));
+          WorkList.insert(std::make_pair(VPBB, Def));
     }
   }
 
+  bool ScalarVFOnly = Plan.hasScalarVFOnly();
   // Try to sink each replicate or scalar IV steps recipe in the worklist.
   while (!WorkList.empty()) {
     VPBasicBlock *SinkTo;
@@ -133,7 +134,7 @@ bool VPlanTransforms::sinkScalarOperands(VPlan &Plan) {
         SinkCandidate->mayReadOrWriteMemory())
       continue;
     if (auto *RepR = dyn_cast<VPReplicateRecipe>(SinkCandidate)) {
-      if (RepR->isUniform())
+      if (!ScalarVFOnly && RepR->isUniform())
         continue;
     } else if (!isa<VPScalarIVStepsRecipe>(SinkCandidate))
       continue;
@@ -159,6 +160,8 @@ bool VPlanTransforms::sinkScalarOperands(VPlan &Plan) {
       continue;
 
     if (NeedsDuplicating) {
+      if (ScalarVFOnly)
+        continue;
       Instruction *I = cast<Instruction>(
           cast<VPReplicateRecipe>(SinkCandidate)->getUnderlyingValue());
       auto *Clone =
@@ -222,7 +225,6 @@ static VPBasicBlock *getPredicatedThenBlock(VPRegionBlock *R) {
 
 bool VPlanTransforms::mergeReplicateRegions(VPlan &Plan) {
   SetVector<VPRegionBlock *> DeletedRegions;
-  bool Changed = false;
 
   // Collect region blocks to process up-front, to avoid iterator invalidation
   // issues while merging regions.
@@ -301,7 +303,35 @@ bool VPlanTransforms::mergeReplicateRegions(VPlan &Plan) {
 
   for (VPRegionBlock *ToDelete : DeletedRegions)
     delete ToDelete;
-  return Changed;
+  return !DeletedRegions.empty();
+}
+
+bool VPlanTransforms::mergeBlocksIntoPredecessors(VPlan &Plan) {
+  SmallVector<VPBasicBlock *> WorkList;
+  for (VPBasicBlock *VPBB : VPBlockUtils::blocksOnly<VPBasicBlock>(depth_first(
+           VPBlockRecursiveTraversalWrapper<VPBlockBase *>(Plan.getEntry())))) {
+    auto *PredVPBB =
+        dyn_cast_or_null<VPBasicBlock>(VPBB->getSinglePredecessor());
+    if (PredVPBB && PredVPBB->getNumSuccessors() == 1)
+      WorkList.push_back(VPBB);
+  }
+
+  for (VPBasicBlock *VPBB : WorkList) {
+    VPBasicBlock *PredVPBB = cast<VPBasicBlock>(VPBB->getSinglePredecessor());
+    for (VPRecipeBase &R : make_early_inc_range(*VPBB))
+      R.moveBefore(*PredVPBB, PredVPBB->end());
+    VPBlockUtils::disconnectBlocks(PredVPBB, VPBB);
+    auto *ParentRegion = cast_or_null<VPRegionBlock>(VPBB->getParent());
+    if (ParentRegion && ParentRegion->getExiting() == VPBB)
+      ParentRegion->setExiting(PredVPBB);
+    SmallVector<VPBlockBase *> Successors(VPBB->successors());
+    for (auto *Succ : Successors) {
+      VPBlockUtils::disconnectBlocks(VPBB, Succ);
+      VPBlockUtils::connectBlocks(PredVPBB, Succ);
+    }
+    delete VPBB;
+  }
+  return !WorkList.empty();
 }
 
 void VPlanTransforms::removeRedundantInductionCasts(VPlan &Plan) {
@@ -447,4 +477,54 @@ void VPlanTransforms::removeRedundantExpandSCEVRecipes(VPlan &Plan) {
     ExpR->replaceAllUsesWith(I.first->second);
     ExpR->eraseFromParent();
   }
+}
+
+static bool canSimplifyBranchOnCond(VPInstruction *Term) {
+  VPInstruction *Not = dyn_cast<VPInstruction>(Term->getOperand(0));
+  if (!Not || Not->getOpcode() != VPInstruction::Not)
+    return false;
+
+  VPInstruction *ALM = dyn_cast<VPInstruction>(Not->getOperand(0));
+  return ALM && ALM->getOpcode() == VPInstruction::ActiveLaneMask;
+}
+
+void VPlanTransforms::optimizeForVFAndUF(VPlan &Plan, ElementCount BestVF,
+                                         unsigned BestUF,
+                                         PredicatedScalarEvolution &PSE) {
+  assert(Plan.hasVF(BestVF) && "BestVF is not available in Plan");
+  assert(Plan.hasUF(BestUF) && "BestUF is not available in Plan");
+  VPBasicBlock *ExitingVPBB =
+      Plan.getVectorLoopRegion()->getExitingBasicBlock();
+  auto *Term = dyn_cast<VPInstruction>(&ExitingVPBB->back());
+  // Try to simplify the branch condition if TC <= VF * UF when preparing to
+  // execute the plan for the main vector loop. We only do this if the
+  // terminator is:
+  //  1. BranchOnCount, or
+  //  2. BranchOnCond where the input is Not(ActiveLaneMask).
+  if (!Term || (Term->getOpcode() != VPInstruction::BranchOnCount &&
+                (Term->getOpcode() != VPInstruction::BranchOnCond ||
+                 !canSimplifyBranchOnCond(Term))))
+    return;
+
+  Type *IdxTy =
+      Plan.getCanonicalIV()->getStartValue()->getLiveInIRValue()->getType();
+  const SCEV *TripCount = createTripCountSCEV(IdxTy, PSE);
+  ScalarEvolution &SE = *PSE.getSE();
+  const SCEV *C =
+      SE.getConstant(TripCount->getType(), BestVF.getKnownMinValue() * BestUF);
+  if (TripCount->isZero() ||
+      !SE.isKnownPredicate(CmpInst::ICMP_ULE, TripCount, C))
+    return;
+
+  LLVMContext &Ctx = SE.getContext();
+  auto *BOC =
+      new VPInstruction(VPInstruction::BranchOnCond,
+                        {Plan.getOrAddExternalDef(ConstantInt::getTrue(Ctx))});
+  Term->eraseFromParent();
+  ExitingVPBB->appendRecipe(BOC);
+  Plan.setVF(BestVF);
+  Plan.setUF(BestUF);
+  // TODO: Further simplifications are possible
+  //      1. Replace inductions with constants.
+  //      2. Replace vector loop region with VPBasicBlock.
 }

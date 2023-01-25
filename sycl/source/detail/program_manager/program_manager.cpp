@@ -360,6 +360,8 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
     NativePrograms[Res] = &Img;
   }
 
+  Ctx->addDeviceGlobalInitializer(Res, {Device}, &Img);
+
   if (DbgProgMgr > 1)
     std::cerr << "created program: " << Res
               << "; image format: " << getFormatStr(Format) << "\n";
@@ -388,7 +390,9 @@ static bool getUint32PropAsBool(const RTDeviceBinaryImage &Img,
 }
 
 static void appendCompileOptionsFromImage(std::string &CompileOpts,
-                                          const RTDeviceBinaryImage &Img) {
+                                          const RTDeviceBinaryImage &Img,
+                                          const std::vector<device> &Devs,
+                                          const detail::plugin &Plugin) {
   // Build options are overridden if environment variables are present.
   // Environment variables are not changed during program lifecycle so it
   // is reasonable to use static here to read them only once.
@@ -421,16 +425,30 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
   if (isLargeGRF) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
-    // TODO: Always use -ze-opt-large-register-file once IGC VC bug ignoring it
-    // is fixed
+    // TODO: Don't check the property or pass these flags after the next ABI
+    // break. The behavior is now controlled through the RegisterAllocMode
+    // metadata.
     CompileOpts += isEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
+  }
+  if ((Plugin.getBackend() == backend::ext_oneapi_level_zero ||
+       Plugin.getBackend() == backend::opencl) &&
+      std::all_of(Devs.begin(), Devs.end(),
+                  [](const device &Dev) { return Dev.is_gpu(); }) &&
+      Img.getDeviceGlobals().size() != 0) {
+    // If the image has device globals we need to add the
+    // -ze-take-global-address option to tell IGC to record addresses of these.
+    if (!CompileOpts.empty())
+      CompileOpts += " ";
+    CompileOpts += "-ze-take-global-address";
   }
 }
 
 static void applyOptionsFromImage(std::string &CompileOpts,
                                   std::string &LinkOpts,
-                                  const RTDeviceBinaryImage &Img) {
-  appendCompileOptionsFromImage(CompileOpts, Img);
+                                  const RTDeviceBinaryImage &Img,
+                                  const std::vector<device> &Devices,
+                                  const detail::plugin &Plugin) {
+  appendCompileOptionsFromImage(CompileOpts, Img, Devices, Plugin);
   appendLinkOptionsFromImage(LinkOpts, Img);
 }
 
@@ -596,9 +614,9 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
 
   auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, Prg, &CompileOpts,
                  &LinkOpts, SpecConsts] {
-    applyOptionsFromImage(CompileOpts, LinkOpts, Img);
-
     const detail::plugin &Plugin = ContextImpl->getPlugin();
+    applyOptionsFromImage(CompileOpts, LinkOpts, Img, {Device}, Plugin);
+
     auto [NativePrg, DeviceCodeWasInCache] = getOrCreatePIProgram(
         Img, Context, Device, CompileOpts + LinkOpts, SpecConsts);
 
@@ -634,6 +652,8 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
       NativePrograms[BuiltProgram.get()] = &Img;
     }
+
+    ContextImpl->addDeviceGlobalInitializer(BuiltProgram.get(), {Device}, &Img);
 
     // Save program to persistent cache if it is not there
     if (!DeviceCodeWasInCache)
@@ -1620,6 +1640,32 @@ ProgramManager::getRawDeviceImages(const std::vector<kernel_id> &KernelIDs) {
   return BinImages;
 }
 
+DeviceGlobalMapEntry *
+ProgramManager::getDeviceGlobalEntry(const void *DeviceGlobalPtr) {
+  std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
+  auto Entry = m_Ptr2DeviceGlobal.find(DeviceGlobalPtr);
+  assert(Entry != m_Ptr2DeviceGlobal.end() && "Device global entry not found");
+  return Entry->second;
+}
+
+std::vector<DeviceGlobalMapEntry *> ProgramManager::getDeviceGlobalEntries(
+    const std::vector<std::string> &UniqueIds,
+    bool ExcludeDeviceImageScopeDecorated) {
+  std::vector<DeviceGlobalMapEntry *> FoundEntries;
+  FoundEntries.reserve(UniqueIds.size());
+
+  std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
+  for (const std::string &UniqueId : UniqueIds) {
+    auto DeviceGlobalEntry = m_DeviceGlobals.find(UniqueId);
+    assert(DeviceGlobalEntry != m_DeviceGlobals.end() &&
+           "Device global not found in map.");
+    if (!ExcludeDeviceImageScopeDecorated ||
+        !DeviceGlobalEntry->second->MIsDeviceImageScopeDecorated)
+      FoundEntries.push_back(DeviceGlobalEntry->second.get());
+  }
+  return FoundEntries;
+}
+
 std::vector<device_image_plain>
 ProgramManager::getSYCLDeviceImagesWithCompatibleState(
     const context &Ctx, const std::vector<device> &Devs,
@@ -1847,8 +1893,8 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   // TODO: Handle zero sized Device list.
   std::string CompileOptions;
   applyCompileOptionsFromEnvironment(CompileOptions);
-  appendCompileOptionsFromImage(CompileOptions,
-                                *(InputImpl->get_bin_image_ref()));
+  appendCompileOptionsFromImage(
+      CompileOptions, *(InputImpl->get_bin_image_ref()), Devs, Plugin);
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piProgramCompile>(
       ObjectImpl->get_program_ref(), /*num devices=*/Devs.size(),
       PIDevices.data(), CompileOptions.c_str(),
@@ -1970,9 +2016,9 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   // TODO: Unify this code with getBuiltPIProgram
   auto BuildF = [this, &Context, &Img, &Devs, &CompileOpts, &LinkOpts,
                  &InputImpl, SpecConsts] {
-    applyOptionsFromImage(CompileOpts, LinkOpts, Img);
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
     const detail::plugin &Plugin = ContextImpl->getPlugin();
+    applyOptionsFromImage(CompileOpts, LinkOpts, Img, Devs, Plugin);
 
     // TODO: Add support for creating non-SPIRV programs from multiple devices.
     if (InputImpl->get_bin_image_ref()->getFormat() !=
@@ -2032,6 +2078,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
       NativePrograms[BuiltProgram.get()] = &Img;
     }
+
+    ContextImpl->addDeviceGlobalInitializer(BuiltProgram.get(), Devs, &Img);
 
     // Save program to persistent cache if it is not there
     if (!DeviceCodeWasInCache)

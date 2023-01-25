@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -sycl-std=2020 -opaque-pointers -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -O2 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -sycl-std=2020 -opaque-pointers -emit-llvm -o - %s | FileCheck %s
 
 // Tests for IR of [[intel::scheduler_target_fmax_mhz()]], [[intel::num_simd_work_items()]],
 // [[intel::no_global_work_offset()]], [[intel::max_global_work_dim()]], [[sycl::reqd_sub_group_size()]],
@@ -367,4 +367,4 @@ int main() {
 // CHECK: ![[NUM32]] = !{i32 16, i32 16, i32 32}
 // CHECK: ![[NUM88]] = !{i32 8, i32 8, i32 8}
 // CHECK: ![[NUM22]] = !{i32 2, i32 2, i32 2}
-// CHECK: ![[NUM123]] = !{i32 1, i32 2, i32 3}
+// CHECK: ![[NUM123]] = !{i32 3, i32 2, i32 1}

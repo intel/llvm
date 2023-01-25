@@ -470,8 +470,8 @@ static void instantiateOMPDeclareVariantAttr(
   if (!DeclVarData)
     return;
 
-  E = DeclVarData.value().second;
-  FD = DeclVarData.value().first;
+  E = DeclVarData->second;
+  FD = DeclVarData->first;
 
   if (auto *VariantDRE = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts())) {
     if (auto *VariantFD = dyn_cast<FunctionDecl>(VariantDRE->getDecl())) {
@@ -842,9 +842,9 @@ static void instantiateSYCLAddIRAnnotationsMemberAttr(
   S.AddSYCLAddIRAnnotationsMemberAttr(New, *A, Args);
 }
 
-static void instantiateWorkGroupSizeHintAttr(
+static void instantiateSYCLWorkGroupSizeHintAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
-    const WorkGroupSizeHintAttr *A, Decl *New) {
+    const SYCLWorkGroupSizeHintAttr *A, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult XResult = S.SubstExpr(A->getXDim(), TemplateArgs);
@@ -857,8 +857,8 @@ static void instantiateWorkGroupSizeHintAttr(
   if (ZResult.isInvalid())
     return;
 
-  S.AddWorkGroupSizeHintAttr(New, *A, XResult.get(), YResult.get(),
-                             ZResult.get());
+  S.AddSYCLWorkGroupSizeHintAttr(New, *A, XResult.get(), YResult.get(),
+                                 ZResult.get());
 }
 
 static void instantiateSYCLIntelMaxWorkGroupSizeAttr(
@@ -1200,8 +1200,8 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
           *this, TemplateArgs, SYCLAddIRAnnotationsMember, New);
       continue;
     }
-    if (const auto *A = dyn_cast<WorkGroupSizeHintAttr>(TmplAttr)) {
-      instantiateWorkGroupSizeHintAttr(*this, TemplateArgs, A, New);
+    if (const auto *A = dyn_cast<SYCLWorkGroupSizeHintAttr>(TmplAttr)) {
+      instantiateSYCLWorkGroupSizeHintAttr(*this, TemplateArgs, A, New);
       continue;
     }
     if (const auto *A = dyn_cast<SYCLDeviceHasAttr>(TmplAttr)) {

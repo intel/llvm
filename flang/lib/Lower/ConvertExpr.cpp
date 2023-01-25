@@ -35,6 +35,7 @@
 #include "flang/Optimizer/Builder/Character.h"
 #include "flang/Optimizer/Builder/Complex.h"
 #include "flang/Optimizer/Builder/Factory.h"
+#include "flang/Optimizer/Builder/Runtime/Assign.h"
 #include "flang/Optimizer/Builder/Runtime/Character.h"
 #include "flang/Optimizer/Builder/Runtime/Derived.h"
 #include "flang/Optimizer/Builder/Runtime/RTBuilder.h"
@@ -104,6 +105,26 @@ static llvm::cl::opt<bool> optimizeTranspose(
     "opt-transpose",
     llvm::cl::desc("lower transpose without using a runtime call"),
     llvm::cl::init(true));
+
+// When copy-in/copy-out is generated for a boxed object we may
+// either produce loops to copy the data or call the Fortran runtime's
+// Assign function. Since the data copy happens under a runtime check
+// (for IsContiguous) the copy loops can hardly provide any value
+// to optimizations, instead, the optimizer just wastes compilation
+// time on these loops.
+//
+// This internal option will force the loops generation, when set
+// to true. It is false by default.
+//
+// Note that for copy-in/copy-out of non-boxed objects (e.g. for passing
+// arguments by value) we always generate loops. Since the memory for
+// such objects is contiguous, it may be better to expose them
+// to the optimizer.
+static llvm::cl::opt<bool> inlineCopyInOutForBoxes(
+    "inline-copyinout-for-boxes",
+    llvm::cl::desc(
+        "generate loops for copy-in/copy-out of objects with descriptors"),
+    llvm::cl::init(false));
 
 /// The various semantics of a program constituent (or a part thereof) as it may
 /// appear in an expression.
@@ -1473,7 +1494,7 @@ public:
     if (con.Rank() > 0)
       return genArrayLit(con);
     if (auto ctor = con.GetScalarValue())
-      return genval(ctor.value());
+      return genval(*ctor);
     fir::emitFatalError(getLoc(),
                         "constant of derived type has no constructor");
   }
@@ -1872,6 +1893,8 @@ public:
   mlir::Type genType(const Fortran::evaluate::DynamicType &dt) {
     if (dt.category() != Fortran::common::TypeCategory::Derived)
       return converter.genType(dt.category(), dt.kind());
+    if (dt.IsUnlimitedPolymorphic())
+      return mlir::NoneType::get(&converter.getMLIRContext());
     return converter.genType(dt.GetDerivedTypeSpec());
   }
 
@@ -2267,8 +2290,20 @@ public:
 
     auto doCopyIn = [&]() -> ExtValue {
       ExtValue temp = genArrayTempFromMold(actualArg, tempName);
-      if (arg.mayBeReadByCall())
+      if (!arg.mayBeReadByCall()) {
+        return temp;
+      }
+      if (!isActualArgBox || inlineCopyInOutForBoxes) {
         genArrayCopy(temp, actualArg);
+        return temp;
+      }
+
+      // Generate Assign() call to copy data from the actualArg
+      // to a temporary.
+      mlir::Value destBox = fir::getBase(builder.createBox(loc, temp));
+      mlir::Value boxRef = builder.createTemporary(loc, destBox.getType());
+      builder.create<fir::StoreOp>(loc, destBox, boxRef);
+      fir::runtime::genAssign(builder, loc, boxRef, fir::getBase(actualArg));
       return temp;
     };
 
@@ -2364,17 +2399,38 @@ public:
   /// has been copied-in into a contiguous temp.
   void genCopyOut(const CopyOutPair &copyOutPair) {
     mlir::Location loc = getLoc();
-    if (!copyOutPair.restrictCopyAndFreeAtRuntime) {
-      if (copyOutPair.argMayBeModifiedByCall)
+    bool isActualArgBox =
+        fir::isa_box_type(fir::getBase(copyOutPair.var).getType());
+    auto doCopyOut = [&]() {
+      if (!copyOutPair.argMayBeModifiedByCall) {
+        return;
+      }
+      if (!isActualArgBox || inlineCopyInOutForBoxes) {
         genArrayCopy(copyOutPair.var, copyOutPair.temp);
+        return;
+      }
+      // Generate Assign() call to copy data from the temporary
+      // to the actualArg. Note that in case the actual argument
+      // is ALLOCATABLE/POINTER the Assign() implementation
+      // should not engage its reallocation, because the temporary
+      // is rank, shape and type compatible with it.
+      mlir::Value srcBox =
+          fir::getBase(builder.createBox(loc, copyOutPair.temp));
+      mlir::Value destBox =
+          fir::getBase(builder.createBox(loc, copyOutPair.var));
+      mlir::Value destBoxRef = builder.createTemporary(loc, destBox.getType());
+      builder.create<fir::StoreOp>(loc, destBox, destBoxRef);
+      fir::runtime::genAssign(builder, loc, destBoxRef, srcBox);
+    };
+    if (!copyOutPair.restrictCopyAndFreeAtRuntime) {
+      doCopyOut();
       builder.create<fir::FreeMemOp>(loc, fir::getBase(copyOutPair.temp));
       return;
     }
 
     builder.genIfThen(loc, *copyOutPair.restrictCopyAndFreeAtRuntime)
         .genThen([&]() {
-          if (copyOutPair.argMayBeModifiedByCall)
-            genArrayCopy(copyOutPair.var, copyOutPair.temp);
+          doCopyOut();
           builder.create<fir::FreeMemOp>(loc, fir::getBase(copyOutPair.temp));
         })
         .end();
@@ -3667,9 +3723,8 @@ public:
       mlir::Value oldInnerArg = modifyOp.getSequence();
       std::size_t offset = explicitSpace->argPosition(oldInnerArg);
       explicitSpace->setInnerArg(offset, fir::getBase(lexv));
-      fir::ExtendedValue exv =
-          arrayModifyToExv(builder, loc, explicitSpace->getLhsLoad(0).value(),
-                           modifyOp.getResult(0));
+      fir::ExtendedValue exv = arrayModifyToExv(
+          builder, loc, *explicitSpace->getLhsLoad(0), modifyOp.getResult(0));
       genScalarUserDefinedAssignmentCall(builder, loc, userAssignment, exv,
                                          elementalExv);
     } else {
@@ -3844,7 +3899,7 @@ private:
     }
     mlir::Value val = builder.createConvert(loc, eleTy, origVal);
     if (isBoundsSpec()) {
-      auto lbs = lbounds.value();
+      auto lbs = *lbounds;
       if (lbs.size() > 0) {
         // Rebox the value with user-specified shift.
         auto shiftTy = fir::ShiftType::get(eleTy.getContext(), lbs.size());
@@ -3853,10 +3908,10 @@ private:
                                            mlir::Value{});
       }
     } else if (isBoundsRemap()) {
-      auto lbs = lbounds.value();
+      auto lbs = *lbounds;
       if (lbs.size() > 0) {
         // Rebox the value with user-specified shift and shape.
-        auto shapeShiftArgs = flatZip(lbs, ubounds.value());
+        auto shapeShiftArgs = flatZip(lbs, *ubounds);
         auto shapeTy = fir::ShapeShiftType::get(eleTy.getContext(), lbs.size());
         mlir::Value shapeShift =
             builder.create<fir::ShapeShiftOp>(loc, shapeTy, shapeShiftArgs);
@@ -4373,8 +4428,7 @@ private:
     llvm::SmallVector<mlir::Value> idxShape;
     for (auto s : shape)
       idxShape.push_back(builder.createConvert(loc, idxTy, s));
-    auto shapeTy = fir::ShapeType::get(builder.getContext(), idxShape.size());
-    return builder.create<fir::ShapeOp>(loc, shapeTy, idxShape);
+    return builder.create<fir::ShapeOp>(loc, idxShape);
   }
 
   fir::ShapeOp genShapeOp(llvm::ArrayRef<mlir::Value> shape) {
@@ -6244,7 +6298,7 @@ private:
         charLen = builder.createTemporary(loc, builder.getI64Type());
         mlir::Value castLen =
             builder.createConvert(loc, builder.getI64Type(), fir::getLen(exv));
-        builder.create<fir::StoreOp>(loc, castLen, charLen.value());
+        builder.create<fir::StoreOp>(loc, castLen, *charLen);
       }
     }
     stmtCtx.finalizeAndPop();
@@ -6258,7 +6312,7 @@ private:
 
     // Convert to extended value.
     if (fir::isa_char(seqTy.getEleTy())) {
-      auto len = builder.create<fir::LoadOp>(loc, charLen.value());
+      auto len = builder.create<fir::LoadOp>(loc, *charLen);
       return {fir::CharArrayBoxValue{mem, len, extents}, /*needCopy=*/false};
     }
     return {fir::ArrayBoxValue{mem, extents}, /*needCopy=*/false};
@@ -6326,7 +6380,7 @@ private:
         charLen = builder.createTemporary(loc, builder.getI64Type());
         mlir::Value castLen =
             builder.createConvert(loc, builder.getI64Type(), fir::getLen(exv));
-        builder.create<fir::StoreOp>(loc, castLen, charLen.value());
+        builder.create<fir::StoreOp>(loc, castLen, *charLen);
       }
     }
     mem = builder.createConvert(loc, fir::HeapType::get(resTy), mem);

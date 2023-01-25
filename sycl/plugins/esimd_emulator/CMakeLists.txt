@@ -113,6 +113,8 @@ add_sycl_plugin(esimd_emulator
     ${LIBIGFXCMRT_EMU}
     #TODO remove cyclic dependency
     sycl
+  HEADER
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/features.hpp
 )
 
 add_dependencies(pi_esimd_emulator cm-emu)
