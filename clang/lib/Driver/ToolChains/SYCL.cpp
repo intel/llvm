@@ -693,6 +693,7 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
                .Case("amd_gpu_gfx1030", "gfx1030")
                .Case("amd_gpu_gfx1031", "gfx1031")
                .Case("amd_gpu_gfx1032", "gfx1032")
+               .Case("amd_gpu_gfx1034", "gfx1034")
                .Default("");
   return Device;
 }
@@ -757,6 +758,7 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
                       .Case("gfx1030", "AMD_GPU_GFX1030")
                       .Case("gfx1031", "AMD_GPU_GFX1031")
                       .Case("gfx1032", "AMD_GPU_GFX1032")
+                      .Case("gfx1034", "AMD_GPU_GFX1034")
                       .Default("");
   if (!Ext.empty()) {
     Macro = "__SYCL_TARGET_";
