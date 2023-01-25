@@ -800,8 +800,8 @@
 ?convertChannelType@detail@_V1@sycl@@YA?AW4image_channel_type@23@W4_pi_image_channel_type@@@Z
 ?copy@MemoryManager@detail@_V1@sycl@@SAXPEAVSYCLMemObjI@234@PEAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@IV?$range@$02@34@3V?$id@$02@34@I12I334IV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@7@AEAPEAU_pi_event@@@Z
 ?copy_2d_usm@MemoryManager@detail@_V1@sycl@@SAXPEBX_KV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@PEAX111V?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
-?copy_from_device_global@MemoryManager@detail@_V1@sycl@@SAXPEBX_NV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_K3PEAX_JV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
-?copy_to_device_global@MemoryManager@detail@_V1@sycl@@SAXPEBX_NV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_K30_JV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
+?copy_from_device_global@MemoryManager@detail@_V1@sycl@@SAXPEBX_NV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_K3PEAX_JAEBV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
+?copy_to_device_global@MemoryManager@detail@_V1@sycl@@SAXPEBX_NV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_K30_JAEBV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
 ?copy_usm@MemoryManager@detail@_V1@sycl@@SAXPEBXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_KPEAXV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
 ?cpu_selector_v@_V1@sycl@@YAHAEBVdevice@12@@Z
 ?default_selector_v@_V1@sycl@@YAHAEBVdevice@12@@Z
