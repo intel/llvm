@@ -24,6 +24,7 @@ option(UR_USE_ASAN "enable AddressSanitizer" OFF)
 option(UR_USE_UBSAN "enable UndefinedBehaviorSanitizer" OFF)
 option(UR_USE_MSAN "enable MemorySanitizer" OFF)
 option(UMA_BUILD_SHARED_LIBRARY "Build UMA as shared library" OFF)
+option(UR_ENABLE_TRACING "enable api tracing through xpti" OFF)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -51,17 +52,41 @@ if(NOT MSVC)
         add_compile_options(-Werror -fno-omit-frame-pointer)
     endif()
 elseif(MSVC)
-    string(REPLACE "/MDd" "/MTd" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
-    string(REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
-    string(REPLACE "/MDd" "/MTd" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
-    string(REPLACE "/MD" "/MT" CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
-
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
     add_compile_options(/MP /W3)
 
     if(UR_DEVELOPER_MODE)
         add_compile_options(/WX)
+    endif()
+endif()
+
+if(UR_ENABLE_TRACING)
+    add_compile_definitions(UR_ENABLE_TRACING)
+
+    # fetch xpti proxy library for the tracing layer
+    FetchContentSparse_Declare(xpti https://github.com/intel/llvm.git "sycl-nightly/20230304" "xpti")
+    FetchContent_MakeAvailable(xpti)
+
+    # set -fPIC for xpti since we are linking it with a shared library
+    set_target_properties(xpti PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+    # fetch the xptifw dispatcher, mostly used for testing
+    # these variables need to be set for xptifw to compile
+    set(XPTI_SOURCE_DIR ${xpti_SOURCE_DIR})
+    set(XPTI_DIR ${xpti_SOURCE_DIR})
+    set(XPTI_ENABLE_TESTS OFF CACHE INTERNAL "Turn off xptifw tests")
+    FetchContentSparse_Declare(xptifw https://github.com/intel/llvm.git "sycl-nightly/20230304" "xptifw")
+    FetchContent_MakeAvailable(xptifw)
+    set_target_properties(xptifw PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+    )
+    if (MSVC)
+        set_property(TARGET xpti PROPERTY MSVC_RUNTIME_LIBRARY "${CMAKE_MSVC_RUNTIME_LIBRARY}")
+        set_property(TARGET xptifw PROPERTY MSVC_RUNTIME_LIBRARY "${CMAKE_MSVC_RUNTIME_LIBRARY}")
+        # disable warning C4267: The compiler detected a conversion from size_t to a smaller type.
+        target_compile_options(xptifw PRIVATE /wd4267)
     endif()
 endif()
 
