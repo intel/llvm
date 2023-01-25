@@ -6,7 +6,7 @@
 
 == Notice
 
-Copyright (c) 2022 Intel Corporation.  All rights reserved.
+Copyright (c) 2023 Intel Corporation.  All rights reserved.
 
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
 trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
@@ -292,7 +292,7 @@ contained by `syclContext` or it must be a descendent device of some
 device that is contained by that context, otherwise this function throws a
 synchronous `exception` with the `errc::invalid` error code.
 
-And error is reported if `propList` contains
+An error is reported if `propList` contains
 a `usm_kind` property with value different than `sycl::usm::alloc::device`.
 
 Available only if `propertyListA` and `propertyListB` are specializations of the `properties` class.
@@ -1556,9 +1556,10 @@ The `sycl::ext::oneapi::experimental::usm_kind` property is supported by `annota
 
 === Deallocation
 
-To avoid memory leaks, USM memory allocated using the USM memory allocation functions with `properties` support defined in this extension, must be deallocated using one of the `sycl::free` functions listed in Table 107 "USM Deallocation Functions" of Section 4.8.3.6 "Memory deallocation functions" of the core SYCL specification.
+This extension introduces two new functions called `sycl::ext::oneapi::experimental::free` that take an `annotated_ptr` as argument. These functions deallocate the memory pointed to by the raw pointer belonging to the `annotated_ptr`. The new deallocation functions are listed in Table <<table.usm.malloc.free>>. These functions belong to the namespace `sycl::ext::oneapi::experimental`.
+To avoid memory leaks, USM memory allocated using the USM memory allocation functions with `properties` support defined in this extension, must be deallocated using `sycl::ext::oneapi::experimental::free` or `sycl::free`.
 
-The following example shows how USM memory allocated using one of the functions defined in this extension should be deallocated, to avoid memory leaks.
+The following example shows how USM memory allocated using one of the functions defined in this extension can be deallocated, to avoid memory leaks.
 
 ==== Example
 
@@ -1566,13 +1567,42 @@ The following example shows how USM memory allocated using one of the functions 
 ----
 using namespace sycl::ext::oneapi::experimental;
 
-properties P1{alignment<512>};
-// APtr is of type annotated_ptr<int*, decltype(properties{alignment<512>, usm_kind<sycl::usm::alloc::device>})>
-auto APtr = annotated_malloc_device<int>(N, q, P1);
+// APtr and BPtr are of type
+// annotated_ptr<int*, decltype(properties{usm_kind<sycl::usm::alloc::device>})>
+auto APtr = annotated_malloc_device<int>(N, q);
+auto BPtr = annotated_malloc_device<int>(N, q);
 
-// Deallocate the memory using the raw pointer of APtr
-sycl::free(APtr.get(), q);
+// Deallocate the memory pointed to by the raw pointer of APtr
+free(APtr, q);
+
+// Deallocate the memory pointed to by the raw pointer of BPtr, using sycl::free 
+free(BPtr.get(), q);
 ----
+
+[[table.usm.malloc.free]]
+.New USM memory deallocation functions introduced by this extension
+[options="header"]
+|====
+|Function|Description
+a|
+[source,c++]
+----
+template<typename T, typename propList>
+void free(annotated_ptr<T, propList> &ptr,
+          const context& syclContext)
+----
+| Frees an allocation. The memory pointed to by the raw pointer belonging to `ptr` must have been allocated using one of the USM memory allocation functions with `properties` support defined in this extension, or one of the
+SYCL USM allocation routines. `syclContext` must be the same `context` that was used to allocate the memory. The memory is freed without waiting for `commands` operating on it to be completed. If `commands` that use this memory
+are in-progress or are enqueued the behavior is undefined. 
+a|
+[source,c++]
+----
+template<typename T, typename propList>
+void free(annotated_ptr<T, propList> &ptr,
+          const queue& syclQueue)
+----
+| Alternate form where `syclQueue` provides the `context`. 
+|====
 
 == Revision History
 
@@ -1581,5 +1611,5 @@ sycl::free(APtr.get(), q);
 [options="header"]
 |========================================
 |Rev|Date|Author|Changes
-|1|2022-12-15|Jessica Davies|*Initial public working draft*
+|1|2023-01-25|Jessica Davies|*Initial public working draft*
 |========================================
