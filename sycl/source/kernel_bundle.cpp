@@ -90,16 +90,6 @@ bool kernel_bundle_plain::has_kernel(const kernel_id &KernelID,
   return impl->has_kernel(KernelID, Dev);
 }
 
-bool kernel_bundle_plain::has_kernel_impl(
-    const std::string &KernelName) const noexcept {
-  return impl->has_kernel(get_kernel_id_impl(KernelName));
-}
-
-bool kernel_bundle_plain::has_kernel_impl(const std::string &KernelName,
-                                          const device &Dev) const noexcept {
-  return impl->has_kernel(get_kernel_id_impl(KernelName), Dev);
-}
-
 bool kernel_bundle_plain::has_specialization_constant_impl(
     const char *SpecName) const noexcept {
   return impl->has_specialization_constant(SpecName);
