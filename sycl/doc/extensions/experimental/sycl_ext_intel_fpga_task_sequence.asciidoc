@@ -8,15 +8,27 @@
 :toc: left
 :encoding: utf-8
 :lang: en
-
-:blank: pass:[ +]
+:dpcpp: pass:[DPC++]
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
 // docbook uses c++ and html5 uses cpp.
 :language: {basebackend@docbook:c++:cpp}
 
-[float]
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
 
 == Contributors
 
@@ -27,42 +39,79 @@ Robert Ho, Intel +
 Tommy Hoffner, Intel +
 Ajaykumar Kannan, Intel +
 Michael Kinsner, Intel +
+Abhishek Tiwari, Intel
 // spell-checker: enable
-
-== Notice
-
-Copyright (c) 2021 Intel Corporation
-
-Intel Confidential
-
-== Status
-
-Working Draft
-
-This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
-
-Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products.
-
-== Version
-
-Built On: {docdate} +
-Revision: C
 
 == Dependencies
 
-This extension is written against the SYCL 2020 specification, revision 3.
+This extension is written against the SYCL 2020 revision 6 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
 
-It depends on the link:./sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties] extension.
+This extension also depends on the following other SYCL extension:
+
+* link:./sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+== Backend support status
+
+*
+TODO: Should we have this section for task sequences since they are only
+supported on FPGA back ends? Although I am not aware of any 'aspects' being
+defined for it. Rest of the text is from the template.
+*
+
+_Sometimes an extension can be used only on certain backends. Your
+extension document should include this section when this is the case._
+
+_Our preference is to tie the extension to a device aspect when it is
+available only on certain backends because it results in a clear error
+if the application mistakenly tries to use it on an unsupported backend.
+When this is the case, include a paragraph like this:_
+
+The APIs in this extension may be used only on a device that has
+`aspect::ext_oneapi_foo`.  The application must check that the device has
+this aspect before submitting a kernel using any of the APIs in this
+extension.  If the application fails to do this, the implementation throws
+a synchronous exception with the `errc::kernel_not_supported` error code
+when the kernel is submitted to the queue.
+
+_Occasionally, an extension is limited to certain backends and there is no
+related device aspect. When this is the case, include a paragraph like:_
+
+This extension is currently implemented in {dpcpp} only for GPU devices and
+only when using the Level Zero backend.  Attempting to use this extension in
+kernels that run on other devices or backends may result in undefined
+behavior.  Be aware that the compiler is not able to issue a diagnostic to
+warn you if this happens.
 
 == Overview
 
-Although SYCL supports task-level parallelism through device kernels, there is no specific mechanism to express parallelism at a sub-kernel level or to invoke additional kernels without involving the host program. In OpenCL 2.0 and beyond, kernel invocations can be initiated without host program interaction through device side enqueue. C++11 also introduced `std::async()` for task-level parallelism. However, neither of these approaches is a good fit for spatial compute platforms, which require a clear mapping of parallel constructs to spatial instances in the hardware.
+Although SYCL supports task-level parallelism through device kernels, there is
+no specific mechanism to express parallelism at a sub-kernel level or to invoke
+additional kernels without involving the host program. In OpenCL 2.0 and beyond,
+kernel invocations can be initiated without host program interaction through
+device side enqueue. C++11 also introduced `std::async()` for task-level
+parallelism. However, neither of these approaches is a good fit for spatial
+compute platforms, which require a clear mapping of parallel constructs to
+spatial instances in the hardware.
 
-Rather than significantly changing the semantics of existing solutions, this extension introduces a sub-kernel task-level parallelism interface to SYCL for use in device code. It provides the class +task_sequence+, which is an abstraction of an asynchronous sequence of invocations of a callable that can be executed asynchronously from the caller, and with which a clear mapping to spatial hardware instances can be reasoned about when developing applications.
+Rather than significantly changing the semantics of existing solutions, this
+extension introduces a sub-kernel task-level parallelism interface to SYCL for
+use in device code. It provides the class +task_sequence+, which is an
+abstraction of an asynchronous sequence of invocations of a callable that can be
+executed asynchronously from the caller, and with which a clear mapping to
+spatial hardware instances can be reasoned about when developing applications.
 
 == Definitions
-
-
 
 == `task_sequence` class
 
@@ -73,7 +122,8 @@ namespace ext {
 namespace intel {
 namespace experimental {
 
-template<auto& f, class propertiesT = decltype(oneapi::experimental::properties{})>
+template<auto& f, class propertiesT =
+   decltype(oneapi::experimental::properties{})>
 struct task_sequence{};
 
 template <typename ReturnT, typename... ArgsT, ReturnT (&f)(ArgsT...),
@@ -110,9 +160,28 @@ public:
 
 ----
 
-`task_sequence` is a class template, parameterized by an `auto` reference to a +Callable+ `f`. The +Callable+ `f` defines the asynchronous task to be associated with the `task_sequence`, and requiring an auto reference ensures that each `f` be statically resolvable at compile time.  Static resolvability by the compiler is desirable when compiling for spatial architectures as it can enable the generation of more efficient hardware. Furthermore, the partial specialization `typename ReturnT, typename ... ArgsT, ReturnT(&f) (ArgsT...)` ensures that the return type `ReturnT` of `f` and the argument types `typename ... ArgsT` of `f` are resolvable and fixed for each definition of `task_sequence`. 
+`task_sequence` is a class template, parameterized by an `auto` reference to a
++Callable+ `f`. The +Callable+ `f` defines the asynchronous task to be
+associated with the `task_sequence`, and requiring an auto reference ensures
+that each `f` be statically resolvable at compile time.  Static resolvability by
+the compiler is desirable when compiling for spatial architectures as it can
+enable the generation of more efficient hardware. Furthermore, the partial
+specialization `typename ReturnT, typename ... ArgsT, ReturnT(&f) (ArgsT...)`
+ensures that the return type `ReturnT` of `f` and the argument types
+`typename ... ArgsT` of `f` are resolvable and fixed for each definition of
+`task_sequence`. 
 
-The `task_sequence` interface consists of two methods, `async` and `get`. The `async` method asynchronously invokes `f`, and stores the return value into a FIFO queue upon completion of `f`.  The `async` function call is non-blocking in that it returns before the asynchronous `f` invocation completes executing, and potentially before `f` even begins executing (return from the `async` provides no implicit information on the execution status of `f`). The `get` method retrieves the oldest result from this logical FIFO queue, and blocks (waits) until a result is available if none are available immediately upon the call to `get`. Both methods may only be invoked on the device on which a `task_sequence` object has been instantiated. Calling `async` or `get` on a different device results in undefined behavior.
+The `task_sequence` interface consists of two methods, `async` and `get`. The
+`async` method asynchronously invokes `f`, and stores the return value into a
+FIFO queue upon completion of `f`.  The `async` function call is non-blocking in
+that it returns before the asynchronous `f` invocation completes executing, and
+potentially before `f` even begins executing (return from the `async` provides
+no implicit information on the execution status of `f`). The `get` method
+retrieves the oldest result from this logical FIFO queue, and blocks (waits)
+until a result is available if none are available immediately upon the call to
+`get`. Both methods may only be invoked on the device on which a `task_sequence`
+object has been instantiated. Calling `async` or `get` on a different device
+results in undefined behavior.
 
 [frame="topbot",options="header"]
 |===
@@ -128,7 +197,9 @@ task_sequence();
 |
 Constructor for `task_sequence`. 
 
-Accepts properties `balanced`, `invocation_capacity`, and `response_capacity` defined below
+Accepts properties `balanced`, `invocation_capacity`, and `response_capacity`
+defined below
+
 // --- ROW BREAK ---
 a|
 [source,c++]
@@ -158,20 +229,51 @@ a|
 |
 Destructor for `task_sequence`. 
 
-Implicitly invokes `get` on all outstanding invocations launched through `async` unless this `task_sequence` object was instantiated with the `balanced` property defined below.
+Implicitly invokes `get` on all outstanding invocations launched through `async
+unless this `task_sequence` object was instantiated with the `balanced` property
+defined below.
 |===
 
 === `task_sequence` Scoping
 
-To allow compilers targeting spatial compute architectures to efficiently reuse hardware, `task_sequence` objects must not have their lifetime extended beyond the scope in which they are declared, and it is undefined behavior if lifetime is otherwise extended. Both move and copy constructors for `task_sequence` are therefore deleted. Additionally, `task_sequence` objects should retire all outstanding `async` invocations before exiting scope - this is performed by the `task_sequence` destructor unless the `balanced` property was specified in which case it is the programmer's responsibility to ensure that `get` has been called for all invocations launched using `async`, before the lifetime of the `task_sequence` object ends.
+To allow compilers targeting spatial compute architectures to efficiently reuse
+hardware, `task_sequence` objects must not have their lifetime extended beyond
+the scope in which they are declared, and it is undefined behavior if lifetime
+is otherwise extended. Both move and copy constructors for `task_sequence` are
+therefore deleted. Additionally, `task_sequence` objects should retire all
+outstanding `async` invocations before exiting scope - this is performed by the
+`task_sequence` destructor unless the `balanced` property was specified in which
+case it is the programmer's responsibility to ensure that `get` has been called
+for all invocations launched using `async`, before the lifetime of the
+`task_sequence` object ends.
 
-In this example implementation below, a count of outstanding `async` invocations is kept by incrementing a private counter upon each `async`, and decrementing upon each `get`. The destructor calls `get` on all `outstanding` `async` invocations remaining, ensuring that no `async` invocations execute beyond the object's lifetime. 
+In this example implementation below, a count of outstanding `async` invocations
+is kept by incrementing a private counter upon each `async`, and decrementing
+upon each `get`. The destructor calls `get` on all `outstanding` `async`
+invocations remaining, ensuring that no `async` invocations execute beyond the
+object's lifetime. 
 
-Although retiring outstanding `async` s in the destructor is necessary to ensure that `async` s do not outlive their `task_sequence`, it is expected that many common coding patterns will guarantee that the number of `async` and `get` calls match (are balanced) before a `task_sequence` object is destroyed, meaning that a simple destructor will be sufficient in these cases. To provide more information to the compiler and to relax the requirement for `get` to be invoked implicitly in the `task_sequence` destructor, the property `balanced` may be specified on a `task_sequence` object, which guarantees that a user will not allow a destructor on that `task_sequence` object to be called when there are outstanding `async` invocations that have not been balanced by a matching `get` call. In the presence of this property, potentially expensive hardware implementing the destructor may be elided. It is undefined behavior to specify the `balanced` property on `task_sequence` and then to allow the `task_sequence` object to be destroyed while there are any `async` invocations for which `get` has not been called.
+Although retiring outstanding `async` s in the destructor is necessary to ensure
+that `async` s do not outlive their `task_sequence`, it is expected that many
+common coding patterns will guarantee that the number of `async` and `get` calls
+match (are balanced) before a `task_sequence` object is destroyed, meaning that
+a simple destructor will be sufficient in these cases. To provide more
+information to the compiler and to relax the requirement for `get` to be invoked
+implicitly in the `task_sequence` destructor, the property `balanced` may be
+specified on a `task_sequence` object, which guarantees that a user will not
+allow a destructor on that `task_sequence` object to be called when there are
+outstanding `async` invocations that have not been balanced by a matching `get`
+call. In the presence of this property, potentially expensive hardware
+implementing the destructor may be elided. It is undefined behavior to specify
+the `balanced` property on `task_sequence` and then to allow the `task_sequence`
+object to be destroyed while there are any `async` invocations for which `get`
+has not been called.
 
 == `task_sequence` Properties
 
-The following code and table describe the "balanced", "invocation_capacity", and "response_capacity" properties that can be provided when declaring a `task_sequence`.
+The following code and table describe the "balanced", "invocation_capacity", and
+"response_capacity" properties that can be provided when declaring a
+`task_sequence`.
 
 [source,c++,linenums]
 ----
@@ -186,12 +288,14 @@ struct balanced {
 
 struct invocation_capacity {
   template <uint32_t Size>
-  using value_t = property_value<invocation_capacity, std::integral_constant<uint32_t, Size>>;
+  using value_t = property_value<invocation_capacity,
+    std::integral_constant<uint32_t, Size>>;
 };
 
 struct response_capacity {
   template <uint32_t Size>
-  using value_t = property_value<response_capacity, std::integral_constant<uint32_t, Size>>;
+  using value_t = property_value<response_capacity,
+    std::integral_constant<uint32_t, Size>>;
 };
 
 inline constexpr balanced::value_t balanced_v;
@@ -212,39 +316,71 @@ inline constexpr response_capacity::value_t<Size> response_capacity_v;
 [options="header"]
 |===
 | Property | Description
-| balanced | The `balanced` property is a guarantee to the SYCL device compiler that the `task_sequence` object will call exactly the same number of `async` s and `get` s over the object's lifetime (i.e. before the `task_sequence` destructor is invoked). 
+| balanced | The `balanced` property is a guarantee to the SYCL device compiler
+that the `task_sequence` object will call exactly the same number of `async` s
+and `get` s over the object's lifetime (i.e. before the `task_sequence`
+destructor is invoked). 
 
-| invocation_capacity | The `invocation_capacity` property defines the minimum required number `Size` of `async` invocations that must be invokable without any `get` being called on that same set.  This number of `async` invocations without a `get` call is the minimum number that will be supported before the `async` member function blocks.
+| invocation_capacity | The `invocation_capacity` property defines the minimum
+required number `Size` of `async` invocations that must be invokable without any
+`get` being called on that same set.  This number of `async` invocations without
+a `get` call is the minimum number that will be supported before the `async`
+member function blocks.
 
-| response_capacity | The `response_capacity` property defines the maximum number `Size` of outstanding `async` invocations such that all outstanding invocations are guaranteed to make forward progress. Further `async` invocations beyond `Size` may block until enough `get` calls are invoked such that the number of outstanding `async` invocations is reduced to `Size`.
+| response_capacity | The `response_capacity` property defines the maximum
+number `Size` of outstanding `async` invocations such that all outstanding
+invocations are guaranteed to make forward progress. Further `async` invocations
+beyond `Size` may block until enough `get` calls are invoked such that the
+number of outstanding `async` invocations is reduced to `Size`.
 |===
 --
 
 === Compatibility with FPGA Kernel Interface Properties
 
-The Callable `f` defining the asynchronous task associated with a `task_sequence` may be declared with the FPGA Kernel Interface `pipelined` property described in link:../proposed/sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties].
+The Callable `f` defining the asynchronous task associated with a
+`task_sequence` may be declared with the FPGA Kernel Interface `pipelined`
+property described in
+link:../proposed/sycl_ext_oneapi_kernel_properties.asciidoc[
+  sycl_ext_oneapi_kernel_properties].
 
 
 == Forward Progress Guarantees and Execution Model
 
-C{plus}{plus} defines a framework for describing the http://eel.is/c++draft/intro.progress[forward progress] of individual threads with respect to one another in a multi-threaded program. 
+C{plus}{plus} defines a framework for describing the
+http://eel.is/c++draft/intro.progress[forward progress] of individual threads
+with respect to one another in a multi-threaded program. 
 
-Applying this framework to `task_sequence`, `async` tasks belonging to the same `task_sequence` object provide a http://eel.is/c++draft/intro.progress#11[weakly parallel forward progress guarantee]. That is, tasks belonging to a `task_sequence` object are not guaranteed to make forward progress with respect to each other. 
+Applying this framework to `task_sequence`, `async` tasks belonging to the same
+`task_sequence` object provide a http://eel.is/c++draft/intro.progress#11[
+weakly parallel forward progress guarantee]. That is, tasks belonging to a
+`task_sequence` object are not guaranteed to make forward progress with respect
+to each other. 
 
-Tasks belonging to different `task_sequence` objects provide a http://eel.is/c++draft/intro.progress#9[parallel forward progress guarantee] with respect to each other. That is, tasks belonging to different `task_sequence` objects are guaranteed to make forward progress with respect to each other once they have been initiated.
+Tasks belonging to different `task_sequence` objects provide a
+http://eel.is/c++draft/intro.progress#9[parallel forward progress guarantee]
+with respect to each other. That is, tasks belonging to different
+`task_sequence` objects are guaranteed to make forward progress with respect to
+each other once they have been initiated.
 
-Tasks belonging to a `task_sequence` object provide a http://eel.is/c++draft/intro.progress#9[parallel forward progress guarantee] with respect to their caller. That is, a `task_sequence`'s tasks are guaranteed to make forward progress with respect to their caller (that invoked `async`).
+Tasks belonging to a `task_sequence` object provide a
+http://eel.is/c++draft/intro.progress#9[parallel forward progress guarantee]
+with respect to their caller. That is, a `task_sequence`'s tasks are guaranteed
+to make forward progress with respect to their caller (that invoked `async`).
 
 == `task_sequence` Example Implementation 
 
-In this section, we document a possible implementation of `task_sequence` that defines underlying intrinsic functions for constructor, destructor, `async`, and `get` calls, as well as a functional implementation of the destructor.
+In this section, we document a possible implementation of `task_sequence` that
+defines underlying intrinsic functions for constructor, destructor, `async`, and
+`get` calls, as well as a functional implementation of the destructor.
 
 [source,c++,linenums]
 ----
-template<auto &f, class propertiesT = decltype(oneapi::experimental::properties{})>
+template<auto &f, class propertiesT =
+  decltype(oneapi::experimental::properties{})>
 class task_sequence {};
 
-template<typename ReturnT, typename ... ArgsT, ReturnT(&f) (ArgsT...), class propertiesT>
+template<typename ReturnT, typename ... ArgsT, ReturnT(&f) (ArgsT...),
+  class propertiesT>
 class task_sequence<f, propertiesT> {
 
     unsigned outstanding = 0;
@@ -263,12 +399,14 @@ public:
     }
     void async(ArgsT... args) {
       ++outstanding;
-      constexpr auto capacity = propertiesT::get_property<invocation_capacity>().invocation_capacity_v;
+      constexpr auto capacity = propertiesT::get_property<
+        invocation_capacity>().invocation_capacity_v;
       __async(this, &f, id, capacity, args...);
     }
     ReturnT get() {
       --outstanding;
-      constexpr auto capacity = propertiesT::get_property<response_capacity>().response_capacity_v;
+      constexpr auto capacity = propertiesT::get_property<
+        response_capacity>().response_capacity_v;
       return __get(this, id, &f, capacity);
     }
     template <typename propertyT>
@@ -286,12 +424,6 @@ public:
     }
 };
 ----
-//. Title
-//+
-//--
-//*RESOLUTION*: Description
-//--
-
 
 == Revision History
 
@@ -301,8 +433,12 @@ public:
 |========================================
 |Rev|Date|Author|Changes
 |A|2021-06-11|Robert Ho|*Initial revision*
-|B|2021-10-25|Robert Ho|Added async_capacity and get_capacity properties. Added \__release_task_sequence intrinsic. Altered __create_task_sequence signature. Added this to all intrinsics.
-|C|2022-06-23|Robert Ho|Added compatibility statement with FPGA Kernel Interface Properties
+|B|2021-10-25|Robert Ho|Added async_capacity and get_capacity properties. Added
+\__release_task_sequence intrinsic. Altered __create_task_sequence signature.
+Added this to all intrinsics.
+|C|2022-06-23|Robert Ho|Added compatibility statement with FPGA Kernel Interface
+Properties
+|D|2023-01-25|Abhishek Tiwari|Format corrections
 |========================================
 
 //************************************************************************
