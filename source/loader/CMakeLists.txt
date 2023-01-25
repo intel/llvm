@@ -4,7 +4,8 @@
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/UrLoaderVersion.rc.in
     ${CMAKE_CURRENT_BINARY_DIR}/UrLoaderVersion.rc
-    @ONLY)
+    @ONLY
+)
 
 add_library(loader
     SHARED
@@ -34,6 +35,12 @@ target_link_libraries(loader PRIVATE
     ${PROJECT_NAME}::headers
     ${CMAKE_DL_LIBS}
 )
+
+if(UR_ENABLE_TRACING)
+    target_link_libraries(loader PRIVATE xpti)
+    target_include_directories(loader PRIVATE ${xpti_SOURCE_DIR}/include)
+    target_compile_definitions(loader PRIVATE XPTI_STATIC_LIBRARY)
+endif()
 
 if (UNIX)
     set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
@@ -75,6 +82,14 @@ target_sources(loader
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/validation/ur_valddi.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/validation/ur_validation_layer.cpp
 )
+
+if(UR_ENABLE_TRACING)
+    target_sources(loader
+        PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/tracing/ur_tracing_layer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/tracing/ur_trcddi.cpp
+    )
+endif()
 
 if(WIN32)
     target_sources(loader

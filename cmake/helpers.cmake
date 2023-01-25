@@ -54,3 +54,25 @@ macro(add_sanitizer_flag flag)
 
     set(CMAKE_REQUIRED_LIBRARIES ${SAVED_CMAKE_REQUIRED_LIBRARIES})
 endmacro()
+
+include(FetchContent)
+
+# A wrapper around FetchContent_Declare that supports git sparse checkout.
+# This is useful for including subprojects from large repositories.
+function(FetchContentSparse_Declare name GIT_REPOSITORY GIT_TAG GIT_DIR)
+    set(content-build-dir ${CMAKE_BINARY_DIR}/content-${name})
+    message(STATUS "Fetching sparse content ${GIT_DIR} from ${GIT_REPOSITORY} ${GIT_TAG}")
+    IF(NOT EXISTS ${content-build-dir})
+        file(MAKE_DIRECTORY ${content-build-dir})
+        execute_process(COMMAND git init -b main
+            WORKING_DIRECTORY ${content-build-dir})
+        execute_process(COMMAND git remote add origin ${GIT_REPOSITORY}
+            WORKING_DIRECTORY ${content-build-dir})
+        execute_process(COMMAND git config core.sparsecheckout true
+            WORKING_DIRECTORY ${content-build-dir})
+        file(APPEND ${content-build-dir}/.git/info/sparse-checkout ${GIT_DIR}/)
+    endif()
+    execute_process(COMMAND git pull --depth=1 origin ${GIT_TAG}
+        WORKING_DIRECTORY ${content-build-dir})
+    FetchContent_Declare(${name} SOURCE_DIR ${content-build-dir}/${GIT_DIR})
+endfunction()

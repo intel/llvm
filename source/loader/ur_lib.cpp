@@ -12,6 +12,10 @@
 #include "ur_proxy_layer.hpp"
 #include "validation/ur_validation_layer.hpp"
 
+#if UR_ENABLE_TRACING
+#include "tracing/ur_tracing_layer.hpp"
+#endif
+
 namespace ur_lib {
 ///////////////////////////////////////////////////////////////////////////////
 context_t *context;
@@ -31,7 +35,12 @@ __urdlllocal ur_result_t context_t::Init(ur_device_init_flags_t device_flags) {
         result = urInit();
     }
 
-    proxy_layer_context_t *layers[] = {&validation_layer::context};
+    proxy_layer_context_t *layers[] = {
+        &validation_layer::context,
+#if UR_ENABLE_TRACING
+        &tracing_layer::context
+#endif
+    };
 
     for (proxy_layer_context_t *l : layers) {
         if (l->isEnabled()) {
