@@ -17,12 +17,10 @@
 #ifndef PI_OPENCL_HPP
 #define PI_OPENCL_HPP
 
-#include <atomic>
 #include <climits>
-#include <mutex>
+#include <map>
 #include <pi2ur.hpp>
 #include <regex>
-#include <shared_mutex>
 #include <string>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/pi.h>
@@ -120,31 +118,35 @@ inline const OpenCLVersion V3_0(3, 0);
 
 } // namespace OCLV
 
-// Define the types that are opaque in pi.h in a manner suitable for OpenCL
-// plugin
+// Following of helper data structures to extend OpenCL plugin behavior.
+// These data structures are persistent during run-time.
+// TODO: Optimizations to clean-up resources during CL objects deletion
+// A longer term solution will be to extend pi_* data structures to add new
+// fields and get rid of these data structures.
 
-struct _pi_device : _pi_object {
-  enum device_level {
-    ROOTDEVICE = 0,
-    SUBDEVICE = 1,
-    SUBSUBDEVICE = 2,
-    INVALID = -1
-  };
-  _pi_device(cl_device_id cl_dev) : cl_device{cl_dev} {
-    level = INVALID;
-    family = index = 0;
-  }
-  // PI platform to which this device belongs.
-  cl_device_id cl_device;
-
-  // Info stored for sub-sub device queue creation
-  device_level level;
-  pi_uint32 family; // SYCL queue family
-  pi_uint32 index;  // SYCL queue index inside a given family of queues
-
-  bool isRootDevice(void) { return level == ROOTDEVICE; }
-  bool isSubDevice(void) { return level == SUBDEVICE; }
-  bool isCCS(void) { return level == SUBSUBDEVICE; }
+// This data structure is used to represent information about cslice subdevices.
+struct csliceSubDevInfo {
+  cl_device_id cl_dev; // device to which the cslice belongs
+  size_t family;
+  size_t index;
 };
+
+// This data structure is used to store all cslice subdevices.
+// For a regular pi_device, cl_device_id can be obtained by a simple typecast.
+// For a cslice subdevice, we explicitly store the cl_device_id and then
+// retrieve it when needed.
+std::map<pi_device, csliceSubDevInfo> cslice_devices;
+
+// This map is used to capture pi_device info during queue creation and retrieve
+// it during getinfo calls.
+std::map<pi_queue, const pi_device> queue2dev;
+
+// This map is used to capture pi_device info during context creation and
+// retrieve it during getinfo calls.
+std::map<pi_context, std::pair<const pi_device *, size_t>> context2devlist;
+
+// This map is used to capture pi_device info during program creation and
+// retrieve it during getinfo calls.
+std::map<pi_program, std::pair<const pi_device *, size_t>> program2devlist;
 
 #endif // PI_OPENCL_HPP
