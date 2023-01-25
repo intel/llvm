@@ -17,6 +17,18 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
+OwnedPiEvent::OwnedPiEvent(RT::PiEvent Event, const plugin &Plugin)
+    : MEvent(Event), MPlugin(Plugin) {
+  // Retain the event to share ownership of it.
+  MPlugin.call<PiApiKind::piEventRetain>(MEvent);
+}
+
+OwnedPiEvent::~OwnedPiEvent() {
+  // Release the event if the ownership was not transferred.
+  if (!MIsOwnershipTransferred)
+    MPlugin.call<PiApiKind::piEventRelease>(MEvent);
+}
+
 DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
   // removeAssociatedResources is expected to have cleaned up both the pointer
   // and the event. When asserts are enabled the values are set, so we check
@@ -26,17 +38,21 @@ DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
          "MZeroInitEvent has not been cleaned up.");
 }
 
-std::optional<RT::PiEvent>
+std::optional<OwnedPiEvent>
 DeviceGlobalUSMMem::getZeroInitEvent(const plugin &Plugin) {
   std::lock_guard<std::mutex> Lock(MZeroInitEventMutex);
   // If there is a zero-init event we can remove it if it is done.
-  if (MZeroInitEvent.has_value() &&
-      get_event_info<info::event::command_execution_status>(
-          *MZeroInitEvent, Plugin) == info::event_command_status::complete) {
-    Plugin.call<PiApiKind::piEventRelease>(*MZeroInitEvent);
-    MZeroInitEvent = {};
+  if (MZeroInitEvent.has_value()) {
+    if (get_event_info<info::event::command_execution_status>(
+            *MZeroInitEvent, Plugin) == info::event_command_status::complete) {
+      Plugin.call<PiApiKind::piEventRelease>(*MZeroInitEvent);
+      MZeroInitEvent = {};
+      return std::nullopt;
+    } else {
+      return std::optional<OwnedPiEvent>(std::move(OwnedPiEvent(*MZeroInitEvent, Plugin)));
+    }
   }
-  return MZeroInitEvent;
+  return std::nullopt;
 }
 
 DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(

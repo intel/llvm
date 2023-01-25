@@ -28,12 +28,45 @@ class device_impl;
 class platform_impl;
 class queue_impl;
 
+// RAII object for keeping ownership of a PI event.
+struct OwnedPiEvent {
+  OwnedPiEvent(RT::PiEvent Event, const plugin &Plugin);
+  ~OwnedPiEvent();
+
+  OwnedPiEvent(OwnedPiEvent &&Other)
+      : MEvent(Other.MEvent), MPlugin(Other.MPlugin),
+        MIsOwnershipTransferred(Other.MIsOwnershipTransferred) {
+    // Any ownership Other had has been transferred with the move, so set the
+    // marker accordingly.
+    Other.MIsOwnershipTransferred = true;
+  }
+
+  // Copy constructor explicitly deleted for simplicity as it is not currently
+  // used. Implement if needed.
+  OwnedPiEvent(const OwnedPiEvent &Other) = delete;
+
+  RT::PiEvent GetEvent() { return MEvent; }
+  bool IsOwnershipTransferred() { return MIsOwnershipTransferred; }
+
+  // Transfers the ownership of the event to the caller. The destructor will
+  // no longer release the event.
+  RT::PiEvent TransferOwnership() {
+    MIsOwnershipTransferred = true;
+    return MEvent;
+  }
+
+private:
+  RT::PiEvent MEvent;
+  const plugin &MPlugin;
+  bool MIsOwnershipTransferred = false;
+};
+
 struct DeviceGlobalUSMMem {
   DeviceGlobalUSMMem(void *Ptr) : MPtr(Ptr) {}
   ~DeviceGlobalUSMMem();
 
   void *getPtr() const noexcept { return MPtr; }
-  std::optional<RT::PiEvent> getZeroInitEvent(const plugin &Plugin);
+  std::optional<OwnedPiEvent> getZeroInitEvent(const plugin &Plugin);
 
 private:
   void *MPtr;

@@ -1007,13 +1007,16 @@ static void memcpyToDeviceGlobalUSM(QueueImplPtr Queue,
           Queue,
           /*ZeroInit=*/NeedZeroInit);
   void *Dest = DeviceGlobalUSM.getPtr();
-  std::optional<RT::PiEvent> ZIEvent =
+
+  // OwnedPiEvent will keep the zero-initialization event alive for the duration
+  // of this function call.
+  std::optional<OwnedPiEvent> ZIEvent =
       DeviceGlobalUSM.getZeroInitEvent(Queue->getPlugin());
 
   // If there is a zero-initializer event the memory operation should wait for
   // it.
   if (ZIEvent.has_value())
-    DepEvents.push_back(*ZIEvent);
+    DepEvents.push_back(ZIEvent->GetEvent());
 
   MemoryManager::copy_usm(Src, Queue, NumBytes,
                           reinterpret_cast<char *>(Dest) + Offset, DepEvents,
@@ -1031,13 +1034,16 @@ static void memcpyFromDeviceGlobalUSM(QueueImplPtr Queue,
   DeviceGlobalUSMMem &DeviceGlobalUSM =
       DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(Queue, /*ZeroInit=*/true);
   void *Src = DeviceGlobalUSM.getPtr();
-  std::optional<RT::PiEvent> ZIEvent =
+
+  // OwnedPiEvent will keep the zero-initialization event alive for the duration
+  // of this function call.
+  std::optional<OwnedPiEvent> ZIEvent =
       DeviceGlobalUSM.getZeroInitEvent(Queue->getPlugin());
 
   // If there is a zero-initializer event the memory operation should wait for
   // it.
   if (ZIEvent.has_value())
-    DepEvents.push_back(*ZIEvent);
+    DepEvents.push_back(ZIEvent->GetEvent());
 
   MemoryManager::copy_usm(reinterpret_cast<const char *>(Src) + Offset, Queue,
                           NumBytes, Dest, DepEvents, OutEvent);
