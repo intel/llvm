@@ -5428,41 +5428,34 @@ pi_result cuda_piextUSMEnqueueMemcpy2D(pi_queue queue, pi_bool blocking,
     // Determine the direction of Copy using cuPointerGetAttributes
     // for both the src_ptr and dst_ptr
     // TODO: Doesn't yet support CU_MEMORYTYPE_UNIFIED
-    bool is_managed;
-    CUmemorytype_enum src_type;
-    void *src_attribute_values[2] = {&is_managed, &src_type};
-    CUpointer_attribute attributes[2] = {CU_POINTER_ATTRIBUTE_IS_MANAGED,
-                                         CU_POINTER_ATTRIBUTE_MEMORY_TYPE};
+    CUpointer_attribute attributes = {CU_POINTER_ATTRIBUTE_MEMORY_TYPE};
+
+    CUmemorytype src_type = static_cast<CUmemorytype>(0);
+    void *src_attribute_values[] = {(void *)(&src_type)};
     result = PI_CHECK_ERROR(cuPointerGetAttributes(
-        2, attributes, src_attribute_values, (CUdeviceptr)src_ptr));
+        1, &attributes, src_attribute_values, (CUdeviceptr)src_ptr));
     assert(src_type == CU_MEMORYTYPE_DEVICE || src_type == CU_MEMORYTYPE_HOST);
 
-    CUmemorytype_enum dst_type;
-    void *dst_attribute_values[2] = {&is_managed, &dst_type};
+    CUmemorytype dst_type = static_cast<CUmemorytype>(0);
+    void *dst_attribute_values[] = {(void *)(&dst_type)};
     result = PI_CHECK_ERROR(cuPointerGetAttributes(
-        2, attributes, dst_attribute_values, (CUdeviceptr)dst_ptr));
+        1, &attributes, dst_attribute_values, (CUdeviceptr)dst_ptr));
     assert(dst_type == CU_MEMORYTYPE_DEVICE || dst_type == CU_MEMORYTYPE_HOST);
 
-    CUDA_MEMCPY2D cpyDesc = {};
+    CUDA_MEMCPY2D cpyDesc = {0};
 
-    cpyDesc.srcXInBytes = 0;
-    cpyDesc.srcY = 0;
     cpyDesc.srcMemoryType = src_type;
-    cpyDesc.srcDevice = src_type == CU_MEMORYTYPE_DEVICE
+    cpyDesc.srcDevice = (src_type == CU_MEMORYTYPE_DEVICE)
                             ? reinterpret_cast<CUdeviceptr>(src_ptr)
                             : 0;
-    cpyDesc.srcHost = src_type == CU_MEMORYTYPE_HOST ? src_ptr : nullptr;
-    cpyDesc.srcArray = nullptr;
+    cpyDesc.srcHost = (src_type == CU_MEMORYTYPE_HOST) ? src_ptr : nullptr;
     cpyDesc.srcPitch = src_pitch;
 
-    cpyDesc.dstXInBytes = 0;
-    cpyDesc.dstY = 0;
     cpyDesc.dstMemoryType = dst_type;
-    cpyDesc.dstDevice = dst_type == CU_MEMORYTYPE_DEVICE
+    cpyDesc.dstDevice = (dst_type == CU_MEMORYTYPE_DEVICE)
                             ? reinterpret_cast<CUdeviceptr>(dst_ptr)
                             : 0;
-    cpyDesc.dstHost = dst_type == CU_MEMORYTYPE_HOST ? dst_ptr : nullptr;
-    cpyDesc.dstArray = nullptr;
+    cpyDesc.dstHost = (dst_type == CU_MEMORYTYPE_HOST) ? dst_ptr : nullptr;
     cpyDesc.dstPitch = dst_pitch;
 
     cpyDesc.WidthInBytes = width;
