@@ -371,6 +371,7 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUseFull) {
 
   Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 
+  // The device global should now have its USM memory pointer written.
   EXPECT_TRUE(DeviceGlobalWriteEvent.has_value());
 }
 
@@ -399,9 +400,7 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUseFull) {
 
   Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 
-  // The device global should now have its USM memory pointer written, but fill
-  // should still not have happened as an explicit write have happened to the
-  // underlying memory.
+  // The device global should now have its USM memory pointer written.
   EXPECT_TRUE(DeviceGlobalWriteEvent.has_value());
 }
 
