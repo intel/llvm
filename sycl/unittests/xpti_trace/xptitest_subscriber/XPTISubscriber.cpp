@@ -18,13 +18,24 @@
 std::deque<std::pair<uint16_t, std::string>> GReceivedNotifications;
 XPTI_CALLBACK_API void testCallback(uint16_t TraceType,
                                     xpti::trace_event_data_t * /*Parent*/,
-                                    xpti::trace_event_data_t * /*Event*/,
+                                    xpti::trace_event_data_t *Event,
                                     uint64_t /*Instance*/,
                                     const void *UserData) {
   if (TraceType == xpti::trace_diagnostics) {
-    const char *message = static_cast<const char *>(UserData);
-    GReceivedNotifications.push_back(
-        std::make_pair(TraceType, std::string(message)));
+    std::string AggregatedData;
+    if (Event && Event->reserved.payload) {
+      auto Payload = Event->reserved.payload;
+      const char Delimiter[] = ";";
+      AggregatedData.append(Payload->name);
+      AggregatedData.append(Delimiter);
+      AggregatedData.append(Payload->source_file);
+      AggregatedData.append(Delimiter);
+      AggregatedData.append(std::to_string(Payload->line_no) + Delimiter +
+                            std::to_string(Payload->column_no) + Delimiter);
+    } else
+      AggregatedData.append("code location unknown;");
+    AggregatedData.append(static_cast<const char *>(UserData));
+    GReceivedNotifications.push_back(std::make_pair(TraceType, AggregatedData));
   }
 }
 

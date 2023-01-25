@@ -46,12 +46,13 @@ public:
                                               const char *FunctionName,
                                               int LineNumber,
                                               int ColumnNumber) {
-    std::string Result("filename:");
-    Result += FileName;
-    Result += ";funcname:";
-    Result += FunctionName;
-    Result += ";ln:" + std::to_string(LineNumber) +
-              ";col:" + std::to_string(ColumnNumber);
+    const char Delimiter[] = ";";
+    std::string Result(FunctionName);
+    Result.append(Delimiter);
+    Result.append(FileName);
+    Result.append(Delimiter);
+    Result.append(std::to_string(LineNumber) + Delimiter +
+                  std::to_string(ColumnNumber));
     return Result;
   }
 
@@ -82,7 +83,8 @@ public:
   const std::string TestKernelLocationMessage = BuildCodeLocationMessage(
       TestKI::getFileName(), TestKI::getFunctionName(), TestKI::getLineNumber(),
       TestKI::getColumnNumber());
-  const std::string UnknownCodeLocation = "filename:unknown";
+  const std::string PiLevelFailMessage = "Native API failed";
+  const std::string UnknownCodeLocation = "code location unknown";
 };
 
 TEST_F(QueueApiFailures, QueueSubmit) {

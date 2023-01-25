@@ -52,6 +52,8 @@ void TraceDiagnosticsMessage(xpti::trace_event_data_t * /*Parent*/,
 
   std::cout << "[SYCL] Runtime reports: " << std::endl;
   std::cout << "what:  " << Message << std::endl;
+  if (!CurrentObject)
+    return;
   std::cout << "where: ";
   if (auto Payload = CurrentObject->reserved.payload) {
     bool HasData = false;
