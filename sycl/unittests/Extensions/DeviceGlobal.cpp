@@ -20,6 +20,8 @@
 #include <algorithm>
 #include <optional>
 
+using sycl::detail::PiApiKind;
+
 class DeviceGlobalTestKernel;
 constexpr const char *DeviceGlobalTestKernelName = "DeviceGlobalTestKernel";
 constexpr const char *DeviceGlobalName = "DeviceGlobalName";
@@ -250,8 +252,6 @@ pi_result after_piEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
   return PI_SUCCESS;
 }
 
-} // namespace
-
 void ResetTrackersAndMarkers() {
   DeviceGlobalWriteEvent = std::nullopt;
   DeviceGlobalFillEvent = std::nullopt;
@@ -263,25 +263,37 @@ void ResetTrackersAndMarkers() {
   ExpectedReadWritePIProgram = std::nullopt;
 }
 
-TEST(DeviceGlobalTest, DeviceGlobalInitBeforeUse) {
+std::pair<sycl::unittest::PiMock, sycl::queue>
+CommonSetup(std::function<void(sycl::unittest::PiMock &)> RedefinitionFunc) {
   ResetTrackersAndMarkers();
 
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
 
-  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMEnqueueMemset>(
-      after_piextUSMEnqueueMemset);
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
-      after_piextEnqueueDeviceGlobalVariableWrite<true>);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
-      after_piEventGetInfo);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEnqueueKernelLaunch>(
-      after_piEnqueueKernelLaunch);
+  RedefinitionFunc(Mock);
 
   // Create new context to isolate device_global initialization.
   sycl::context C{Plt.get_devices()[0]};
-  sycl::queue Q{C, sycl::default_selector_v};
+  sycl::queue Q{C, Plt.get_devices()[0]};
+
+  return std::make_pair(std::move(Mock), std::move(Q));
+}
+
+} // namespace
+
+// Macros for common redefinition calls.
+#define REDEFINE_AFTER(API) redefineAfter<PiApiKind::API>(after_##API)
+#define REDEFINE_AFTER_TEMPLATED(API, ...)                                     \
+  redefineAfter<PiApiKind::API>(after_##API<__VA_ARGS__>)
+
+TEST(DeviceGlobalTest, DeviceGlobalInitBeforeUse) {
+  auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
+    MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
+                                     true);
+    MockRef.REDEFINE_AFTER(piEventGetInfo);
+    MockRef.REDEFINE_AFTER(piEnqueueKernelLaunch);
+  });
 
   // Kernel call 1.
   // First launch should create both init events.
@@ -304,22 +316,12 @@ TEST(DeviceGlobalTest, DeviceGlobalInitBeforeUse) {
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUseFull) {
-  ResetTrackersAndMarkers();
-
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-
-  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMEnqueueMemset>(
-      after_piextUSMEnqueueMemset);
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
-      after_piextEnqueueDeviceGlobalVariableWrite<true>);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
-      after_piEventGetInfo);
-
-  // Create new context to isolate device_global initialization.
-  sycl::context C{Plt.get_devices()[0]};
-  sycl::queue Q{C, sycl::default_selector_v};
+  auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
+    MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
+                                     true);
+    MockRef.REDEFINE_AFTER(piEventGetInfo);
+  });
 
   int Vals[2] = {42, 1234};
   Q.copy(Vals, DeviceGlobal).wait();
@@ -339,22 +341,12 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUseFull) {
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUseFull) {
-  ResetTrackersAndMarkers();
-
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-
-  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMEnqueueMemset>(
-      after_piextUSMEnqueueMemset);
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
-      after_piextEnqueueDeviceGlobalVariableWrite<true>);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
-      after_piEventGetInfo);
-
-  // Create new context to isolate device_global initialization.
-  sycl::context C{Plt.get_devices()[0]};
-  sycl::queue Q{C, sycl::default_selector_v};
+  auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
+    MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
+                                     true);
+    MockRef.REDEFINE_AFTER(piEventGetInfo);
+  });
 
   int Vals[2] = {42, 1234};
   Q.memcpy(DeviceGlobal, Vals).wait();
@@ -374,22 +366,12 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUseFull) {
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialNoOffset) {
-  ResetTrackersAndMarkers();
-
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-
-  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMEnqueueMemset>(
-      after_piextUSMEnqueueMemset);
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
-      after_piextEnqueueDeviceGlobalVariableWrite<true>);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
-      after_piEventGetInfo);
-
-  // Create new context to isolate device_global initialization.
-  sycl::context C{Plt.get_devices()[0]};
-  sycl::queue Q{C, sycl::default_selector_v};
+  auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
+    MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
+                                     true);
+    MockRef.REDEFINE_AFTER(piEventGetInfo);
+  });
 
   int Val = 42;
   Q.copy(&Val, DeviceGlobal, 1).wait();
@@ -406,22 +388,12 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialNoOffset) {
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUsePartialNoOffset) {
-  ResetTrackersAndMarkers();
-
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-
-  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMEnqueueMemset>(
-      after_piextUSMEnqueueMemset);
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
-      after_piextEnqueueDeviceGlobalVariableWrite<true>);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
-      after_piEventGetInfo);
-
-  // Create new context to isolate device_global initialization.
-  sycl::context C{Plt.get_devices()[0]};
-  sycl::queue Q{C, sycl::default_selector_v};
+  auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
+    MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
+                                     true);
+    MockRef.REDEFINE_AFTER(piEventGetInfo);
+  });
 
   int Val = 42;
   Q.memcpy(DeviceGlobal, &Val, sizeof(int)).wait();
@@ -438,22 +410,12 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUsePartialNoOffset) {
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialWithOffset) {
-  ResetTrackersAndMarkers();
-
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-
-  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMEnqueueMemset>(
-      after_piextUSMEnqueueMemset);
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
-      after_piextEnqueueDeviceGlobalVariableWrite<true>);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
-      after_piEventGetInfo);
-
-  // Create new context to isolate device_global initialization.
-  sycl::context C{Plt.get_devices()[0]};
-  sycl::queue Q{C, sycl::default_selector_v};
+  auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
+    MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
+                                     true);
+    MockRef.REDEFINE_AFTER(piEventGetInfo);
+  });
 
   int Val = 42;
   Q.copy(&Val, DeviceGlobal, 1, 1).wait();
@@ -470,22 +432,12 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialWithOffset) {
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalInitBeforeMemcpyToPartialWithOffset) {
-  ResetTrackersAndMarkers();
-
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-
-  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMEnqueueMemset>(
-      after_piextUSMEnqueueMemset);
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
-      after_piextEnqueueDeviceGlobalVariableWrite<true>);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
-      after_piEventGetInfo);
-
-  // Create new context to isolate device_global initialization.
-  sycl::context C{Plt.get_devices()[0]};
-  sycl::queue Q{C, sycl::default_selector_v};
+  auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
+    MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
+                                     true);
+    MockRef.REDEFINE_AFTER(piEventGetInfo);
+  });
 
   int Val = 42;
   Q.memcpy(DeviceGlobal, &Val, sizeof(int), sizeof(int)).wait();
@@ -502,22 +454,12 @@ TEST(DeviceGlobalTest, DeviceGlobalInitBeforeMemcpyToPartialWithOffset) {
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalCopyFromBeforeUse) {
-  ResetTrackersAndMarkers();
-
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-
-  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMEnqueueMemset>(
-      after_piextUSMEnqueueMemset);
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
-      after_piextEnqueueDeviceGlobalVariableWrite<true>);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
-      after_piEventGetInfo);
-
-  // Create new context to isolate device_global initialization.
-  sycl::context C{Plt.get_devices()[0]};
-  sycl::queue Q{C, sycl::default_selector_v};
+  auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
+    MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
+                                     true);
+    MockRef.REDEFINE_AFTER(piEventGetInfo);
+  });
 
   int Vals[2] = {42, 1234};
   Q.copy(DeviceGlobal, Vals).wait();
@@ -527,22 +469,12 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyFromBeforeUse) {
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalMemcpyFromBeforeUse) {
-  ResetTrackersAndMarkers();
-
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-
-  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMEnqueueMemset>(
-      after_piextUSMEnqueueMemset);
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
-      after_piextEnqueueDeviceGlobalVariableWrite<true>);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
-      after_piEventGetInfo);
-
-  // Create new context to isolate device_global initialization.
-  sycl::context C{Plt.get_devices()[0]};
-  sycl::queue Q{C, sycl::default_selector_v};
+  auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
+    MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
+                                     true);
+    MockRef.REDEFINE_AFTER(piEventGetInfo);
+  });
 
   int Vals[2] = {42, 1234};
   Q.memcpy(Vals, DeviceGlobal).wait();
@@ -552,22 +484,12 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyFromBeforeUse) {
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalUseBeforeCopyTo) {
-  ResetTrackersAndMarkers();
-
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-
-  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMEnqueueMemset>(
-      after_piextUSMEnqueueMemset);
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
-      after_piextEnqueueDeviceGlobalVariableWrite<true>);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
-      after_piEventGetInfo);
-
-  // Create new context to isolate device_global initialization.
-  sycl::context C{Plt.get_devices()[0]};
-  sycl::queue Q{C, sycl::default_selector_v};
+  auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
+    MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
+                                     true);
+    MockRef.REDEFINE_AFTER(piEventGetInfo);
+  });
 
   Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 
@@ -582,22 +504,12 @@ TEST(DeviceGlobalTest, DeviceGlobalUseBeforeCopyTo) {
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalUseBeforeMemcpyTo) {
-  ResetTrackersAndMarkers();
-
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-
-  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMEnqueueMemset>(
-      after_piextUSMEnqueueMemset);
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
-      after_piextEnqueueDeviceGlobalVariableWrite<true>);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
-      after_piEventGetInfo);
-
-  // Create new context to isolate device_global initialization.
-  sycl::context C{Plt.get_devices()[0]};
-  sycl::queue Q{C, sycl::default_selector_v};
+  auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
+    MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
+                                     true);
+    MockRef.REDEFINE_AFTER(piEventGetInfo);
+  });
 
   Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 
@@ -614,21 +526,11 @@ TEST(DeviceGlobalTest, DeviceGlobalUseBeforeMemcpyTo) {
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalImgScopeCopyToBeforeUse) {
-  ResetTrackersAndMarkers();
-
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
-      after_piextEnqueueDeviceGlobalVariableWrite<false>);
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableRead>(
-      after_piextEnqueueDeviceGlobalVariableRead);
-
-  // Create new context to isolate device_global initialization.
-  sycl::context C{Plt.get_devices()[0]};
-  sycl::queue Q{C, sycl::default_selector_v};
+  auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
+                                     false);
+    MockRef.REDEFINE_AFTER(piextEnqueueDeviceGlobalVariableRead);
+  });
 
   int Vals[2] = {42, 1234};
   Q.copy(Vals, DeviceGlobalImgScope).wait();
@@ -640,21 +542,11 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeCopyToBeforeUse) {
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalImgScopeMemcpyToBeforeUse) {
-  ResetTrackersAndMarkers();
-
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
-      after_piextEnqueueDeviceGlobalVariableWrite<false>);
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableRead>(
-      after_piextEnqueueDeviceGlobalVariableRead);
-
-  // Create new context to isolate device_global initialization.
-  sycl::context C{Plt.get_devices()[0]};
-  sycl::queue Q{C, sycl::default_selector_v};
+  auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
+                                     false);
+    MockRef.REDEFINE_AFTER(piextEnqueueDeviceGlobalVariableRead);
+  });
 
   int Vals[2] = {42, 1234};
   Q.memcpy(DeviceGlobalImgScope, Vals).wait();
@@ -666,21 +558,11 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeMemcpyToBeforeUse) {
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalImgScopeCopyFromBeforeUse) {
-  ResetTrackersAndMarkers();
-
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
-      after_piextEnqueueDeviceGlobalVariableWrite<false>);
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableRead>(
-      after_piextEnqueueDeviceGlobalVariableRead);
-
-  // Create new context to isolate device_global initialization.
-  sycl::context C{Plt.get_devices()[0]};
-  sycl::queue Q{C, sycl::default_selector_v};
+  auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
+                                     false);
+    MockRef.REDEFINE_AFTER(piextEnqueueDeviceGlobalVariableRead);
+  });
 
   int Vals[2] = {42, 1234};
   Q.copy(DeviceGlobalImgScope, Vals).wait();
@@ -692,21 +574,11 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeCopyFromBeforeUse) {
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalImgScopeMemcpyFromBeforeUse) {
-  ResetTrackersAndMarkers();
-
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
-      after_piextEnqueueDeviceGlobalVariableWrite<false>);
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableRead>(
-      after_piextEnqueueDeviceGlobalVariableRead);
-
-  // Create new context to isolate device_global initialization.
-  sycl::context C{Plt.get_devices()[0]};
-  sycl::queue Q{C, sycl::default_selector_v};
+  auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
+                                     false);
+    MockRef.REDEFINE_AFTER(piextEnqueueDeviceGlobalVariableRead);
+  });
 
   int Vals[2] = {42, 1234};
   Q.memcpy(Vals, DeviceGlobalImgScope).wait();
@@ -718,26 +590,16 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeMemcpyFromBeforeUse) {
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeCopyTo) {
-  ResetTrackersAndMarkers();
-
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
-      after_piextEnqueueDeviceGlobalVariableWrite<false>);
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableRead>(
-      after_piextEnqueueDeviceGlobalVariableRead);
-
-  // Create new context to isolate device_global initialization.
-  sycl::context C{Plt.get_devices()[0]};
-  sycl::queue Q{C, sycl::default_selector_v};
+  auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
+                                     false);
+    MockRef.REDEFINE_AFTER(piextEnqueueDeviceGlobalVariableRead);
+  });
 
   Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 
   // Register the cached program as expected for device global memory operation.
-  auto CtxImpl = sycl::detail::getSyclObjImpl(C);
+  auto CtxImpl = sycl::detail::getSyclObjImpl(Q.get_context());
   sycl::detail::KernelProgramCache::KernelCacheT &KernelCache =
       CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
   ASSERT_EQ(KernelCache.size(), (size_t)1)
@@ -756,26 +618,16 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeCopyTo) {
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeMemcpyTo) {
-  ResetTrackersAndMarkers();
-
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
-      after_piextEnqueueDeviceGlobalVariableWrite<false>);
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableRead>(
-      after_piextEnqueueDeviceGlobalVariableRead);
-
-  // Create new context to isolate device_global initialization.
-  sycl::context C{Plt.get_devices()[0]};
-  sycl::queue Q{C, sycl::default_selector_v};
+  auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
+                                     false);
+    MockRef.REDEFINE_AFTER(piextEnqueueDeviceGlobalVariableRead);
+  });
 
   Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 
   // Register the cached program as expected for device global memory operation.
-  auto CtxImpl = sycl::detail::getSyclObjImpl(C);
+  auto CtxImpl = sycl::detail::getSyclObjImpl(Q.get_context());
   sycl::detail::KernelProgramCache::KernelCacheT &KernelCache =
       CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
   ASSERT_EQ(KernelCache.size(), (size_t)1)
@@ -794,26 +646,16 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeMemcpyTo) {
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeCopyFrom) {
-  ResetTrackersAndMarkers();
-
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
-      after_piextEnqueueDeviceGlobalVariableWrite<false>);
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableRead>(
-      after_piextEnqueueDeviceGlobalVariableRead);
-
-  // Create new context to isolate device_global initialization.
-  sycl::context C{Plt.get_devices()[0]};
-  sycl::queue Q{C, sycl::default_selector_v};
+  auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
+                                     false);
+    MockRef.REDEFINE_AFTER(piextEnqueueDeviceGlobalVariableRead);
+  });
 
   Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 
   // Register the cached program as expected for device global memory operation.
-  auto CtxImpl = sycl::detail::getSyclObjImpl(C);
+  auto CtxImpl = sycl::detail::getSyclObjImpl(Q.get_context());
   sycl::detail::KernelProgramCache::KernelCacheT &KernelCache =
       CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
   ASSERT_EQ(KernelCache.size(), (size_t)1)
@@ -832,26 +674,16 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeCopyFrom) {
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeMemcpyFrom) {
-  ResetTrackersAndMarkers();
-
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
-      after_piextEnqueueDeviceGlobalVariableWrite<false>);
-  Mock.redefineAfter<
-      sycl::detail::PiApiKind::piextEnqueueDeviceGlobalVariableRead>(
-      after_piextEnqueueDeviceGlobalVariableRead);
-
-  // Create new context to isolate device_global initialization.
-  sycl::context C{Plt.get_devices()[0]};
-  sycl::queue Q{C, sycl::default_selector_v};
+  auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
+                                     false);
+    MockRef.REDEFINE_AFTER(piextEnqueueDeviceGlobalVariableRead);
+  });
 
   Q.single_task<DeviceGlobalImgScopeTestKernel>([]() {}).wait();
 
   // Register the cached program as expected for device global memory operation.
-  auto CtxImpl = sycl::detail::getSyclObjImpl(C);
+  auto CtxImpl = sycl::detail::getSyclObjImpl(Q.get_context());
   sycl::detail::KernelProgramCache::KernelCacheT &KernelCache =
       CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
   ASSERT_EQ(KernelCache.size(), (size_t)1)
