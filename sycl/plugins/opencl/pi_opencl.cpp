@@ -265,7 +265,7 @@ static bool isCCS(pi_device device) {
   return cslice_devices.find(device) != cslice_devices.end();
 }
 
-// Returns the underlysing Cl device.
+// Returns the underlying CL device.
 // For a regular pi_device, cl_device_id can be obtained by a simple typecast.
 // For a cslice subdevice, we explicitly store the cl_device_id and then
 // retrieve it when needed.
@@ -688,7 +688,6 @@ pi_result piextQueueCreate(pi_context Context, pi_device Device,
   queue2dev.insert({*Queue, Device});
   return piQueueCreate(Context, Device, Flags, Queue);
 }
-
 pi_result piQueueCreate(pi_context context, pi_device device,
                         pi_queue_properties properties, pi_queue *queue) {
   assert(queue && "piQueueCreate failed, queue argument is null");

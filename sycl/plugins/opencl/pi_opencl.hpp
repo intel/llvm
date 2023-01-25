@@ -118,7 +118,7 @@ inline const OpenCLVersion V3_0(3, 0);
 
 } // namespace OCLV
 
-// Following of helper data structures to extend OpenCL plugin behavior.
+// Following are helper data structures to extend OpenCL plugin behavior.
 // These data structures are persistent during run-time.
 // TODO: Optimizations to clean-up resources during CL objects deletion
 // A longer term solution will be to extend pi_* data structures to add new
