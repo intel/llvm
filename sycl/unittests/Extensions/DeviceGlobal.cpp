@@ -30,10 +30,13 @@ constexpr const char *DeviceGlobalImgScopeTestKernelName =
     "DeviceGlobalImgScopeTestKernel";
 constexpr const char *DeviceGlobalImgScopeName = "DeviceGlobalImgScopeName";
 
-sycl::ext::oneapi::experimental::device_global<int[2]> DeviceGlobal;
+using DeviceGlobalElemType = int[2];
+sycl::ext::oneapi::experimental::device_global<DeviceGlobalElemType>
+    DeviceGlobal;
 sycl::ext::oneapi::experimental::device_global<
-    int[2], decltype(sycl::ext::oneapi::experimental::properties(
-                sycl::ext::oneapi::experimental::device_image_scope))>
+    DeviceGlobalElemType,
+    decltype(sycl::ext::oneapi::experimental::properties(
+        sycl::ext::oneapi::experimental::device_image_scope))>
     DeviceGlobalImgScope;
 
 namespace sycl {
@@ -136,6 +139,8 @@ sycl::unittest::PiImage Imgs[] = {generateDeviceGlobalImage(),
 sycl::unittest::PiImageArray<2> ImgArray{Imgs};
 
 // Trackers.
+thread_local DeviceGlobalElemType MockDeviceGlobalMem;
+thread_local DeviceGlobalElemType MockDeviceGlobalImgScopeMem;
 thread_local std::optional<pi_event> DeviceGlobalFillEvent = std::nullopt;
 thread_local std::optional<pi_event> DeviceGlobalWriteEvent = std::nullopt;
 thread_local unsigned KernelCallCounter = 0;
@@ -148,19 +153,41 @@ thread_local bool TreatDeviceGlobalWriteEventAsCompleted = false;
 thread_local std::optional<pi_program> ExpectedReadWritePIProgram =
     std::nullopt;
 
-static pi_result after_piextUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t,
-                                             pi_uint32, const pi_event *,
-                                             pi_event *event) {
+static pi_result after_piextUSMDeviceAlloc(void **result_ptr, pi_context,
+                                           pi_device, pi_usm_mem_properties *,
+                                           size_t, pi_uint32) {
+  // Use the mock memory.
+  *result_ptr = MockDeviceGlobalMem;
+  return PI_SUCCESS;
+}
+
+static pi_result after_piextUSMEnqueueMemset(pi_queue, void *ptr,
+                                            pi_int32 value, size_t count,
+                                            pi_uint32,
+                                            const pi_event *,
+                                            pi_event *event) {
   EXPECT_FALSE(DeviceGlobalFillEvent.has_value())
       << "piextUSMEnqueueMemset is called multiple times!";
+  std::memset(ptr, value, count);
   DeviceGlobalFillEvent = *event;
+  return PI_SUCCESS;
+}
+
+static pi_result after_piextUSMEnqueueMemcpy(pi_queue, pi_bool,
+                                            void *dst_ptr, const void *src_ptr,
+                                            size_t size,
+                                            pi_uint32,
+                                            const pi_event *,
+                                            pi_event *) {
+  std::memcpy(dst_ptr, src_ptr, size);
   return PI_SUCCESS;
 }
 
 template <bool Exclusive>
 pi_result after_piextEnqueueDeviceGlobalVariableWrite(
-    pi_queue, pi_program program, const char *, pi_bool, size_t, size_t,
-    const void *, pi_uint32, const pi_event *, pi_event *event) {
+    pi_queue, pi_program program, const char *, pi_bool, size_t count,
+    size_t offset, const void *src_ptr, pi_uint32, const pi_event *,
+    pi_event *event) {
   if constexpr (Exclusive) {
     EXPECT_FALSE(DeviceGlobalWriteEvent.has_value())
         << "piextEnqueueDeviceGlobalVariableWrite is called multiple times!";
@@ -170,19 +197,22 @@ pi_result after_piextEnqueueDeviceGlobalVariableWrite(
         << "piextEnqueueDeviceGlobalVariableWrite did not receive the expected "
            "program!";
   }
+  std::memcpy(MockDeviceGlobalImgScopeMem + offset, src_ptr, count);
   DeviceGlobalWriteEvent = *event;
   ++DeviceGlobalWriteCounter;
   return PI_SUCCESS;
 }
 
 pi_result after_piextEnqueueDeviceGlobalVariableRead(
-    pi_queue, pi_program program, const char *, pi_bool, size_t, size_t, void *,
-    pi_uint32, const pi_event *, pi_event *) {
+    pi_queue, pi_program program, const char *, pi_bool, size_t count,
+    size_t offset, void *dst_ptr, pi_uint32, const pi_event *,
+    pi_event *event) {
   if (ExpectedReadWritePIProgram.has_value()) {
     EXPECT_EQ(*ExpectedReadWritePIProgram, program)
         << "piextEnqueueDeviceGlobalVariableRead did not receive the expected "
            "program!";
   }
+  std::memcpy(dst_ptr, MockDeviceGlobalImgScopeMem + offset, count);
   ++DeviceGlobalReadCounter;
   return PI_SUCCESS;
 }
@@ -253,6 +283,8 @@ pi_result after_piEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
 }
 
 void ResetTrackersAndMarkers() {
+  std::memset(MockDeviceGlobalMem, 1, sizeof(DeviceGlobalElemType));
+  std::memset(MockDeviceGlobalImgScopeMem, 0, sizeof(DeviceGlobalElemType));
   DeviceGlobalWriteEvent = std::nullopt;
   DeviceGlobalFillEvent = std::nullopt;
   KernelCallCounter = 0;
@@ -288,7 +320,9 @@ CommonSetup(std::function<void(sycl::unittest::PiMock &)> RedefinitionFunc) {
 
 TEST(DeviceGlobalTest, DeviceGlobalInitBeforeUse) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
+    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
     MockRef.REDEFINE_AFTER(piEventGetInfo);
@@ -317,7 +351,9 @@ TEST(DeviceGlobalTest, DeviceGlobalInitBeforeUse) {
 
 TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUseFull) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
+    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
     MockRef.REDEFINE_AFTER(piEventGetInfo);
@@ -331,6 +367,10 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUseFull) {
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
   EXPECT_TRUE(!DeviceGlobalFillEvent.has_value());
 
+  // Check the mocked memory.
+  EXPECT_EQ(MockDeviceGlobalMem[0], Vals[0]);
+  EXPECT_EQ(MockDeviceGlobalMem[1], Vals[1]);
+
   Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 
   // The device global should now have its USM memory pointer written, but fill
@@ -342,7 +382,9 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUseFull) {
 
 TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUseFull) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
+    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
     MockRef.REDEFINE_AFTER(piEventGetInfo);
@@ -356,6 +398,10 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUseFull) {
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
   EXPECT_TRUE(!DeviceGlobalFillEvent.has_value());
 
+  // Check the mocked memory.
+  EXPECT_EQ(MockDeviceGlobalMem[0], Vals[0]);
+  EXPECT_EQ(MockDeviceGlobalMem[1], Vals[1]);
+
   Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 
   // The device global should now have its USM memory pointer written, but fill
@@ -367,7 +413,9 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUseFull) {
 
 TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialNoOffset) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
+    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
     MockRef.REDEFINE_AFTER(piEventGetInfo);
@@ -381,6 +429,10 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialNoOffset) {
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
   EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
 
+  // Check the mocked memory.
+  EXPECT_EQ(MockDeviceGlobalMem[0], Val);
+  EXPECT_EQ(MockDeviceGlobalMem[1], 0);
+
   Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 
   // The device global should now have its USM memory pointer written.
@@ -389,7 +441,9 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialNoOffset) {
 
 TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUsePartialNoOffset) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
+    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
     MockRef.REDEFINE_AFTER(piEventGetInfo);
@@ -403,6 +457,10 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUsePartialNoOffset) {
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
   EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
 
+  // Check the mocked memory.
+  EXPECT_EQ(MockDeviceGlobalMem[0], Val);
+  EXPECT_EQ(MockDeviceGlobalMem[1], 0);
+
   Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 
   // The device global should now have its USM memory pointer written.
@@ -411,7 +469,9 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyToBeforeUsePartialNoOffset) {
 
 TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialWithOffset) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
+    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
     MockRef.REDEFINE_AFTER(piEventGetInfo);
@@ -425,6 +485,10 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialWithOffset) {
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
   EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
 
+  // Check the mocked memory.
+  EXPECT_EQ(MockDeviceGlobalMem[0], 0);
+  EXPECT_EQ(MockDeviceGlobalMem[1], Val);
+
   Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 
   // The device global should now have its USM memory pointer written.
@@ -433,7 +497,9 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyToBeforeUsePartialWithOffset) {
 
 TEST(DeviceGlobalTest, DeviceGlobalInitBeforeMemcpyToPartialWithOffset) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
+    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
     MockRef.REDEFINE_AFTER(piEventGetInfo);
@@ -447,6 +513,10 @@ TEST(DeviceGlobalTest, DeviceGlobalInitBeforeMemcpyToPartialWithOffset) {
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
   EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
 
+  // Check the mocked memory.
+  EXPECT_EQ(MockDeviceGlobalMem[0], 0);
+  EXPECT_EQ(MockDeviceGlobalMem[1], Val);
+
   Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 
   // The device global should now have its USM memory pointer written.
@@ -455,7 +525,9 @@ TEST(DeviceGlobalTest, DeviceGlobalInitBeforeMemcpyToPartialWithOffset) {
 
 TEST(DeviceGlobalTest, DeviceGlobalCopyFromBeforeUse) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
+    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
     MockRef.REDEFINE_AFTER(piEventGetInfo);
@@ -466,11 +538,17 @@ TEST(DeviceGlobalTest, DeviceGlobalCopyFromBeforeUse) {
 
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
   EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
+
+  // Check the mocked memory.
+  EXPECT_EQ(MockDeviceGlobalMem[0], Vals[0]);
+  EXPECT_EQ(MockDeviceGlobalMem[1], Vals[1]);
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalMemcpyFromBeforeUse) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
+    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
     MockRef.REDEFINE_AFTER(piEventGetInfo);
@@ -481,11 +559,17 @@ TEST(DeviceGlobalTest, DeviceGlobalMemcpyFromBeforeUse) {
 
   EXPECT_TRUE(!DeviceGlobalWriteEvent.has_value());
   EXPECT_TRUE(DeviceGlobalFillEvent.has_value());
+
+  // Check the mocked memory.
+  EXPECT_EQ(MockDeviceGlobalMem[0], Vals[0]);
+  EXPECT_EQ(MockDeviceGlobalMem[1], Vals[1]);
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalUseBeforeCopyTo) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
+    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
     MockRef.REDEFINE_AFTER(piEventGetInfo);
@@ -500,12 +584,18 @@ TEST(DeviceGlobalTest, DeviceGlobalUseBeforeCopyTo) {
   int Vals[2] = {42, 1234};
   Q.copy(Vals, DeviceGlobal).wait();
 
+  // Check the mocked memory.
+  EXPECT_EQ(MockDeviceGlobalMem[0], Vals[0]);
+  EXPECT_EQ(MockDeviceGlobalMem[1], Vals[1]);
+
   Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalUseBeforeMemcpyTo) {
   auto [Mock, Q] = CommonSetup([](sycl::unittest::PiMock &MockRef) {
+    MockRef.REDEFINE_AFTER(piextUSMDeviceAlloc);
     MockRef.REDEFINE_AFTER(piextUSMEnqueueMemset);
+    MockRef.REDEFINE_AFTER(piextUSMEnqueueMemcpy);
     MockRef.REDEFINE_AFTER_TEMPLATED(piextEnqueueDeviceGlobalVariableWrite,
                                      true);
     MockRef.REDEFINE_AFTER(piEventGetInfo);
@@ -521,6 +611,10 @@ TEST(DeviceGlobalTest, DeviceGlobalUseBeforeMemcpyTo) {
   // global happens it should fail here.
   int Vals[2] = {42, 1234};
   Q.memcpy(DeviceGlobal, Vals).wait();
+
+  // Check the mocked memory.
+  EXPECT_EQ(MockDeviceGlobalMem[0], Vals[0]);
+  EXPECT_EQ(MockDeviceGlobalMem[1], Vals[1]);
 
   Q.single_task<DeviceGlobalTestKernel>([]() {}).wait();
 }
@@ -539,6 +633,10 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeCopyToBeforeUse) {
 
   EXPECT_EQ(DeviceGlobalWriteCounter, 1u);
   EXPECT_EQ(DeviceGlobalReadCounter, 0u);
+
+  // Check the mocked memory.
+  EXPECT_EQ(MockDeviceGlobalImgScopeMem[0], Vals[0]);
+  EXPECT_EQ(MockDeviceGlobalImgScopeMem[1], Vals[1]);
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalImgScopeMemcpyToBeforeUse) {
@@ -555,6 +653,10 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeMemcpyToBeforeUse) {
 
   EXPECT_EQ(DeviceGlobalWriteCounter, 1u);
   EXPECT_EQ(DeviceGlobalReadCounter, 0u);
+
+  // Check the mocked memory.
+  EXPECT_EQ(MockDeviceGlobalImgScopeMem[0], Vals[0]);
+  EXPECT_EQ(MockDeviceGlobalImgScopeMem[1], Vals[1]);
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalImgScopeCopyFromBeforeUse) {
@@ -571,6 +673,10 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeCopyFromBeforeUse) {
 
   EXPECT_EQ(DeviceGlobalWriteCounter, 0u);
   EXPECT_EQ(DeviceGlobalReadCounter, 1u);
+
+  // Check the mocked memory.
+  EXPECT_EQ(MockDeviceGlobalImgScopeMem[0], Vals[0]);
+  EXPECT_EQ(MockDeviceGlobalImgScopeMem[1], Vals[1]);
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalImgScopeMemcpyFromBeforeUse) {
@@ -587,6 +693,10 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeMemcpyFromBeforeUse) {
 
   EXPECT_EQ(DeviceGlobalWriteCounter, 0u);
   EXPECT_EQ(DeviceGlobalReadCounter, 1u);
+
+  // Check the mocked memory.
+  EXPECT_EQ(MockDeviceGlobalImgScopeMem[0], Vals[0]);
+  EXPECT_EQ(MockDeviceGlobalImgScopeMem[1], Vals[1]);
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeCopyTo) {
@@ -615,6 +725,10 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeCopyTo) {
 
   EXPECT_EQ(DeviceGlobalWriteCounter, 1u);
   EXPECT_EQ(DeviceGlobalReadCounter, 0u);
+
+  // Check the mocked memory.
+  EXPECT_EQ(MockDeviceGlobalImgScopeMem[0], Vals[0]);
+  EXPECT_EQ(MockDeviceGlobalImgScopeMem[1], Vals[1]);
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeMemcpyTo) {
@@ -643,6 +757,10 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeMemcpyTo) {
 
   EXPECT_EQ(DeviceGlobalWriteCounter, 1u);
   EXPECT_EQ(DeviceGlobalReadCounter, 0u);
+
+  // Check the mocked memory.
+  EXPECT_EQ(MockDeviceGlobalImgScopeMem[0], Vals[0]);
+  EXPECT_EQ(MockDeviceGlobalImgScopeMem[1], Vals[1]);
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeCopyFrom) {
@@ -671,6 +789,10 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeCopyFrom) {
 
   EXPECT_EQ(DeviceGlobalWriteCounter, 0u);
   EXPECT_EQ(DeviceGlobalReadCounter, 1u);
+
+  // Check the mocked memory.
+  EXPECT_EQ(MockDeviceGlobalImgScopeMem[0], Vals[0]);
+  EXPECT_EQ(MockDeviceGlobalImgScopeMem[1], Vals[1]);
 }
 
 TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeMemcpyFrom) {
@@ -699,4 +821,8 @@ TEST(DeviceGlobalTest, DeviceGlobalImgScopeUseBeforeMemcpyFrom) {
 
   EXPECT_EQ(DeviceGlobalWriteCounter, 0u);
   EXPECT_EQ(DeviceGlobalReadCounter, 1u);
+
+  // Check the mocked memory.
+  EXPECT_EQ(MockDeviceGlobalImgScopeMem[0], Vals[0]);
+  EXPECT_EQ(MockDeviceGlobalImgScopeMem[1], Vals[1]);
 }
