@@ -106,10 +106,14 @@ spatial instances in the hardware.
 
 Rather than significantly changing the semantics of existing solutions, this
 extension introduces a sub-kernel task-level parallelism interface to SYCL for
-use in device code. It provides the class +task_sequence+, which is an
+use in device code. It provides the class
+`sycl::ext::intel::experimental::task_sequence`, which is an
 abstraction of an asynchronous sequence of invocations of a callable that can be
 executed asynchronously from the caller, and with which a clear mapping to
 spatial hardware instances can be reasoned about when developing applications.
+
+NOTE: In this document, we use `task_sequence` to indicate the proposed
+`sycl::ext::intel::experimental::task_sequence`
 
 == Definitions
 
@@ -124,7 +128,7 @@ namespace experimental {
 
 template<auto& f, class propertiesT =
    decltype(oneapi::experimental::properties{})>
-struct task_sequence{};
+class task_sequence{};
 
 template <typename ReturnT, typename... ArgsT, ReturnT (&f)(ArgsT...),
           class propertiesT>
@@ -161,7 +165,8 @@ public:
 ----
 
 `task_sequence` is a class template, parameterized by an `auto` reference to a
-+Callable+ `f`. The +Callable+ `f` defines the asynchronous task to be
++Callable+ `f` and by a list of properties `propertiesT`.
+The +Callable+ `f` defines the asynchronous task to be
 associated with the `task_sequence`, and requiring an auto reference ensures
 that each `f` be statically resolvable at compile time.  Static resolvability by
 the compiler is desirable when compiling for spatial architectures as it can
@@ -196,9 +201,6 @@ task_sequence();
 ----
 |
 Constructor for `task_sequence`. 
-
-Accepts properties `balanced`, `invocation_capacity`, and `response_capacity`
-defined below
 
 // --- ROW BREAK ---
 a|
@@ -248,10 +250,10 @@ for all invocations launched using `async`, before the lifetime of the
 `task_sequence` object ends.
 
 In this example implementation below, a count of outstanding `async` invocations
-is kept by incrementing a private counter upon each `async`, and decrementing
-upon each `get`. The destructor calls `get` on all `outstanding` `async`
-invocations remaining, ensuring that no `async` invocations execute beyond the
-object's lifetime. 
+is kept by incrementing a private counter upon each `async` call, and
+decrementing upon each `get` call. The destructor calls `get` on all
+outstanding `async` invocations remaining, ensuring that no `async`
+invocations execute beyond the object's lifetime.
 
 Although retiring outstanding `async` s in the destructor is necessary to ensure
 that `async` s do not outlive their `task_sequence`, it is expected that many
@@ -282,29 +284,52 @@ namespace ext {
 namespace intel {
 namespace experimental {
 
-struct balanced {
-  using value_t = property_value<balanced>;
+struct balanced_key {
+  using value_t = property_value<balanced_key>;
 };
 
-struct invocation_capacity {
+struct invocation_capacity_key {
   template <uint32_t Size>
-  using value_t = property_value<invocation_capacity,
+  using value_t = property_value<invocation_capacity_key,
     std::integral_constant<uint32_t, Size>>;
 };
 
-struct response_capacity {
+struct response_capacity_key {
   template <uint32_t Size>
-  using value_t = property_value<response_capacity,
+  using value_t = property_value<response_capacity_key,
     std::integral_constant<uint32_t, Size>>;
 };
 
-inline constexpr balanced::value_t balanced_v;
+inline constexpr balanced_key::value_t balanced;
+
+template <> struct is_property_key<balanced_key> : std::true_type {};
+
+// TODO: Not sure if the template here should just be
+// template<auto &f, class propertiesT>
+template <typename ReturnT, typename ... ArgsT, ReturnT(&f) (ArgsT...),
+  class propertiesT>
+struct is_property_key_of<balanced_key,
+  task_sequence<f, propertiesT>> : std::true_type {};
 
 template <uint32_t Size>
-inline constexpr invocation_capacity::value_t<Size> invocation_capacity_v;
+inline constexpr invocation_capacity_key::value_t<Size> invocation_capacity;
+
+template <> struct is_property_key<invocation_capacity_key> : std::true_type {};
+
+template <typename ReturnT, typename ... ArgsT, ReturnT(&f) (ArgsT...),
+  class propertiesT>
+struct is_property_key_of<invocation_capacity_key,
+  task_sequence<f, propertiesT>> : std::true_type {};
 
 template <uint32_t Size>
-inline constexpr response_capacity::value_t<Size> response_capacity_v;
+inline constexpr response_capacity_key::value_t<Size> response_capacity;
+
+template <> struct is_property_key<response_capacity_key> : std::true_type {};
+
+template <typename ReturnT, typename ... ArgsT, ReturnT(&f) (ArgsT...),
+  class propertiesT>
+struct is_property_key_of<response_capacity_key,
+  task_sequence<f, propertiesT>> : std::true_type {};
 
 } // namespace experimental
 } // namespace intel
@@ -342,7 +367,8 @@ The Callable `f` defining the asynchronous task associated with a
 property described in
 link:../proposed/sycl_ext_oneapi_kernel_properties.asciidoc[
   sycl_ext_oneapi_kernel_properties].
-
+Normally the `pipelined` property is applicable only on kernels however this
+extension supports applying the property on task sequences.
 
 == Forward Progress Guarantees and Execution Model
 
