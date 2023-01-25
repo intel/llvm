@@ -245,10 +245,10 @@ struct payload_t {
     source_file = sf;
     line_no = line;
     column_no = col;
-    if (kname) {
+    if (kname && kname[0] != '\0') {
       flags = (uint64_t)payload_flag_t::NameAvailable;
     }
-    if (sf) {
+    if (sf && sf[0] != '\0') {
       flags |= (uint64_t)payload_flag_t::SourceFileAvailable |
                (uint64_t)payload_flag_t::LineInfoAvailable |
                (uint64_t)payload_flag_t::ColumnInfoAvailable;

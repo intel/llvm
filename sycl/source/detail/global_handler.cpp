@@ -78,52 +78,27 @@ void GlobalHandler::InitXPTIStuff() {
 }
 
 bool hasValue(const char *Value) { return Value && Value[0] != '\0'; }
-// Expected format: [key1:value1; key2:value2; key3:"value3";...] message.
-// Example if code location exists: [filename:value1; funcname:value2;
-// ln:value3; col:value4] exception message. Example if not: [filename:unknown]
-// exception message.
-std::string BuildPayloadStr(const code_location &Payload, const char *Message) {
-  const char PairSeparator = ';';
-  const std::string FileNameHeader = "filename:";
-  const std::string FuncNameHeader = "funcname:";
-  const std::string LnHeader = "ln:";
-  const std::string ColHeader = "col:";
-
-  std::string Result("[");
-  auto FileName = Payload.fileName();
-  auto FuncName = Payload.functionName();
-  if (hasValue(FileName) & hasValue(FuncName)) {
-    Result += FileNameHeader + FileName + PairSeparator;
-    Result += FuncNameHeader + FuncName + PairSeparator;
-
-    Result += LnHeader + std::to_string(Payload.lineNumber()) + PairSeparator;
-    Result +=
-        ColHeader + std::to_string(Payload.columnNumber()) + PairSeparator;
-  } else {
-    Result = FileNameHeader + "unknown";
-  }
-  Result += "]";
-
-  if (hasValue(Message)) {
-    Result += Message;
-  }
-
-  return Result;
-}
 
 void GlobalHandler::TraceEventXPTI(const char *Message) {
+  if (!Message)
+    return;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (xptiTraceEnabled()) {
     uint64_t Uid = xptiGetUniqueId(); // Gets the UID from TLS
     uint8_t StreamID = xptiRegisterStream(SYCL_SYCLCALL_STREAM_NAME);
-    std::string PayloadStr;
-    detail::tls_code_loc_t Tls;
-    PayloadStr = BuildPayloadStr(Tls.query(), Message);
 
-    xptiNotifySubscribers(StreamID,
-                          (uint16_t)xpti::trace_point_type_t::diagnostics,
-                          GSYCLCallEvent, nullptr, Uid,
-                          static_cast<const void *>(PayloadStr.c_str()));
+    detail::tls_code_loc_t Tls;
+    auto CodeLocation = Tls.query();
+    xpti::payload_t Payload(CodeLocation.functionName(),
+                            CodeLocation.fileName(), CodeLocation.lineNumber(),
+                            CodeLocation.columnNumber(), nullptr);
+
+    uint64_t EventInstanceNo;
+    auto Event =
+        xptiMakeEvent("SYCL RT exception", &Payload, xpti::trace_diagnostics,
+                      xpti_at::active, &EventInstanceNo);
+    xptiNotifySubscribers(StreamID, xpti::trace_diagnostics, GSYCLCallEvent,
+                          Event, Uid, static_cast<const void *>(Message));
   }
 
 #endif
