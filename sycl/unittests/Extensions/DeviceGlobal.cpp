@@ -162,10 +162,9 @@ static pi_result after_piextUSMDeviceAlloc(void **result_ptr, pi_context,
 }
 
 static pi_result after_piextUSMEnqueueMemset(pi_queue, void *ptr,
-                                            pi_int32 value, size_t count,
-                                            pi_uint32,
-                                            const pi_event *,
-                                            pi_event *event) {
+                                             pi_int32 value, size_t count,
+                                             pi_uint32, const pi_event *,
+                                             pi_event *event) {
   EXPECT_FALSE(DeviceGlobalFillEvent.has_value())
       << "piextUSMEnqueueMemset is called multiple times!";
   std::memset(ptr, value, count);
@@ -173,12 +172,10 @@ static pi_result after_piextUSMEnqueueMemset(pi_queue, void *ptr,
   return PI_SUCCESS;
 }
 
-static pi_result after_piextUSMEnqueueMemcpy(pi_queue, pi_bool,
-                                            void *dst_ptr, const void *src_ptr,
-                                            size_t size,
-                                            pi_uint32,
-                                            const pi_event *,
-                                            pi_event *) {
+static pi_result after_piextUSMEnqueueMemcpy(pi_queue, pi_bool, void *dst_ptr,
+                                             const void *src_ptr, size_t size,
+                                             pi_uint32, const pi_event *,
+                                             pi_event *) {
   std::memcpy(dst_ptr, src_ptr, size);
   return PI_SUCCESS;
 }
