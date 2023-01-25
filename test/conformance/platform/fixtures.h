@@ -16,7 +16,10 @@ struct urTest : ::testing::Test {
     ASSERT_SUCCESS(urInit(platform_flags, device_flags));
   }
 
-  void TearDown() override { ASSERT_SUCCESS(urTearDown(nullptr)); }
+  void TearDown() override {
+    ur_tear_down_params_t tear_down_params{};
+    ASSERT_SUCCESS(urTearDown(&tear_down_params));
+  }
 };
 
 struct urPlatformsTest : urTest {

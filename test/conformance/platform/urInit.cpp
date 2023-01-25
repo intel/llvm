@@ -7,7 +7,8 @@ TEST(urInitTest, Success) {
   ur_device_init_flags_t device_flags = 0;
   ASSERT_SUCCESS(urInit(platform_flags, device_flags));
 
-  ASSERT_SUCCESS(urTearDown(nullptr));
+  ur_tear_down_params_t tear_down_params{};
+  ASSERT_SUCCESS(urTearDown(&tear_down_params));
 }
 
 TEST(urInitTest, ErrorInvalidEnumerationPlatformFlags) {
