@@ -62,6 +62,122 @@ public:
   }
 };
 
+// A version of return helper that supports conversion through a map
+class ConvertHelper : public ReturnHelper {
+  using ReturnHelper::ReturnHelper;
+
+public:
+  // Convert the value using a conversion map
+  template <typename TypeUR, typename TypePI>
+  pi_result convert(const std::unordered_map<TypeUR, TypePI> &Map) {
+    // There is no value to convert.
+    if (!param_value)
+      return PI_SUCCESS;
+
+    // Cannot convert to a smaller storage type
+    PI_ASSERT(sizeof(TypePI) >= sizeof(TypeUR), PI_ERROR_UNKNOWN);
+
+    auto It = Map.find(*(TypeUR *)param_value);
+    if (It == Map.end()) {
+      die("ConvertHelper: unhandled value");
+    }
+
+    *(TypePI *)param_value = It->second;
+    *param_value_size_ret = sizeof(TypePI);
+    return PI_SUCCESS;
+  }
+
+  // Convert the bitset using a conversion map
+  template <typename TypeUR, typename TypePI>
+  pi_result convertBitSet(const std::unordered_map<TypeUR, TypePI> &Map) {
+    // There is no value to convert.
+    if (!param_value)
+      return PI_SUCCESS;
+
+    // Cannot handle biteset large than size_t
+    PI_ASSERT(sizeof(TypeUR) <= sizeof(size_t), PI_ERROR_UNKNOWN);
+    size_t In = *(TypeUR *)param_value;
+    TypePI Out = 0;
+
+    size_t Val;
+    while ((Val = In & -In)) { // Val is the rightmost set bit in In
+      In &= In - 1;            // Reset the rightmost set bit
+
+      // Convert the Val alone and merge it into Out
+      *(TypeUR *)param_value = TypeUR(Val);
+      if (auto Res = convert(Map))
+        return Res;
+      Out |= *(TypePI *)param_value;
+    }
+    *(TypePI *)param_value = Out;
+    return PI_SUCCESS;
+  }
+};
+
+// Translate UR info values to PI info values
+inline pi_result ur2piInfoValue(zer_device_info_t ParamName,
+                                size_t ParamValueSizePI,
+                                size_t *ParamValueSizeUR, void *ParamValue) {
+
+  ConvertHelper Value(ParamValueSizePI, ParamValue, ParamValueSizeUR);
+
+  if (ParamName == ZER_DEVICE_INFO_TYPE) {
+    static std::unordered_map<zer_device_type_t, pi_device_type> Map = {
+        {ZER_DEVICE_TYPE_CPU, PI_DEVICE_TYPE_CPU},
+        {ZER_DEVICE_TYPE_GPU, PI_DEVICE_TYPE_GPU},
+        {ZER_DEVICE_TYPE_FPGA, PI_DEVICE_TYPE_ACC},
+    };
+    return Value.convert(Map);
+  } else if (ParamName == ZER_DEVICE_INFO_QUEUE_PROPERTIES) {
+    static std::unordered_map<zer_queue_flag_t, pi_queue_properties> Map = {
+        {ZER_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE,
+         PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE},
+        {ZER_QUEUE_FLAG_PROFILING_ENABLE, PI_QUEUE_FLAG_PROFILING_ENABLE},
+        {ZER_QUEUE_FLAG_ON_DEVICE, PI_QUEUE_FLAG_ON_DEVICE},
+        {ZER_QUEUE_FLAG_ON_DEVICE_DEFAULT, PI_QUEUE_FLAG_ON_DEVICE_DEFAULT},
+    };
+    return Value.convertBitSet(Map);
+  } else if (ParamName == ZER_DEVICE_INFO_EXECUTION_CAPABILITIES) {
+    static std::unordered_map<zer_device_exec_capability_flag_t,
+                              pi_queue_properties>
+        Map = {
+            {ZER_DEVICE_EXEC_CAPABILITY_FLAG_KERNEL,
+             PI_DEVICE_EXEC_CAPABILITIES_KERNEL},
+            {ZER_DEVICE_EXEC_CAPABILITY_FLAG_NATIVE_KERNEL,
+             PI_DEVICE_EXEC_CAPABILITIES_NATIVE_KERNEL},
+        };
+    return Value.convertBitSet(Map);
+  } else if (ParamName == ZER_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN) {
+    static std::unordered_map<zer_device_affinity_domain_flag_t,
+                              pi_device_affinity_domain>
+        Map = {
+            {ZER_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA,
+             PI_DEVICE_AFFINITY_DOMAIN_NUMA},
+            {ZER_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE,
+             PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE},
+        };
+    return Value.convertBitSet(Map);
+  } else if (ParamName == ZER_DEVICE_INFO_PARTITION_PROPERTIES) {
+    static std::unordered_map<zer_device_partition_property_flag_t,
+                              pi_device_partition_property>
+        Map = {
+            {ZER_DEVICE_PARTITION_PROPERTY_FLAG_BY_AFFINITY_DOMAIN,
+             PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN},
+            {(zer_device_partition_property_flag_t)
+                 ZER_EXT_DEVICE_PARTITION_BY_CSLICE,
+             PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE},
+        };
+    return Value.convertBitSet(Map);
+  }
+
+  if (ParamValueSizePI && ParamValueSizePI != *ParamValueSizeUR) {
+    fprintf(stderr, "UR InfoType=%d PI=%d but UR=%d\n", ParamName,
+            (int)ParamValueSizePI, (int)*ParamValueSizeUR);
+    die("ur2piInfoValue: size mismatch");
+  }
+  return PI_SUCCESS;
+}
+
 namespace pi2ur {
 inline pi_result piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
                                 pi_uint32 *num_platforms) {
@@ -324,6 +440,9 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   auto hDevice = reinterpret_cast<zer_device_handle_t>(Device);
   HANDLE_ERRORS(
       zerDeviceGetInfo(hDevice, InfoType->second, &SizeInOut, ParamValue));
+
+  ur2piInfoValue(InfoType->second, ParamValueSize, &SizeInOut, ParamValue);
+
   if (ParamValueSizeRet) {
     *ParamValueSizeRet = SizeInOut;
   }

@@ -501,7 +501,7 @@ ZER_APIEXPORT zer_result_t ZER_APICALL zerDeviceGet(
       Matched = (D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_CPU);
       break;
     case ZER_DEVICE_TYPE_FPGA:
-      Matched = D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_MCA;
+      Matched = D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_FPGA;
       break;
     case ZER_DEVICE_TYPE_MCA:
       Matched = D->ZeDeviceProperties->type == ZE_DEVICE_TYPE_MCA;
