@@ -824,6 +824,35 @@ module polymorphic_test
 ! CHECK: }
 ! CHECK: fir.call @_QMpolymorphic_testPsub_with_poly_array_optional(%[[BOX]]) {{.*}} : (!fir.class<!fir.array<?xnone>>) -> ()
 
+  subroutine pass_poly_pointer_optional(p)
+    class(p1), pointer, optional :: p
+  end subroutine
+
+  subroutine test_poly_pointer_null()
+    call pass_poly_pointer_optional(null())
+  end subroutine
+
+! CHECK-LABEL: func.func @_QMpolymorphic_testPtest_poly_pointer_null() {
+! CHECK: %[[ALLOCA:.*]] = fir.alloca !fir.class<!fir.ptr<!fir.type<_QMpolymorphic_testTp1{a:i32,b:i32}>>>
+! CHECK: %[[ZERO:.*]] = fir.zero_bits !fir.ptr<!fir.type<_QMpolymorphic_testTp1{a:i32,b:i32}>>
+! CHECK: %[[EMBOX:.*]] = fir.embox %[[ZERO]] : (!fir.ptr<!fir.type<_QMpolymorphic_testTp1{a:i32,b:i32}>>) -> !fir.class<!fir.ptr<!fir.type<_QMpolymorphic_testTp1{a:i32,b:i32}>>>
+! CHECK: fir.store %[[EMBOX]] to %[[ALLOCA]] : !fir.ref<!fir.class<!fir.ptr<!fir.type<_QMpolymorphic_testTp1{a:i32,b:i32}>>>>
+! CHECK: fir.call @_QMpolymorphic_testPpass_poly_pointer_optional(%[[ALLOCA]]) fastmath<contract> : (!fir.ref<!fir.class<!fir.ptr<!fir.type<_QMpolymorphic_testTp1{a:i32,b:i32}>>>>) -> ()
+
+  subroutine test_poly_array_component_output(p)
+    class(p1), pointer :: p(:)
+    print*, p(:)%a
+  end subroutine
+
+! CHECK-LABEL: func.func @_QMpolymorphic_testPtest_poly_array_component_output(
+! CHECK-SAME: %[[P]]: !fir.ref<!fir.class<!fir.ptr<!fir.array<?x!fir.type<_QMpolymorphic_testTp1{a:i32,b:i32}>>>>> {fir.bindc_name = "p"}) {
+! CHECK: %[[LOAD_P:.*]] = fir.load %[[P]] : !fir.ref<!fir.class<!fir.ptr<!fir.array<?x!fir.type<_QMpolymorphic_testTp1{a:i32,b:i32}>>>>>
+! CHECK: %[[FIELD_INDEX_A:.*]] = fir.field_index a, !fir.type<_QMpolymorphic_testTp1{a:i32,b:i32}>
+! CHECK: %[[SLICE:.*]] = fir.slice %{{.*}}#0, %{{.*}}, %{{.*}} path %[[FIELD_INDEX_A]] : (index, index, index, !fir.field) -> !fir.slice<1>
+! CHECK: %[[REBOX:.*]] = fir.rebox %[[LOAD_P]](%{{.*}}) [%[[SLICE]]] : (!fir.class<!fir.ptr<!fir.array<?x!fir.type<_QMpolymorphic_testTp1{a:i32,b:i32}>>>>, !fir.shift<1>, !fir.slice<1>) -> !fir.box<!fir.array<?xi32>>
+! CHECK: %[[BOX_NONE:.*]] = fir.convert %[[REBOX]] : (!fir.box<!fir.array<?xi32>>) -> !fir.box<none>
+! CHECK: %{{.*}} = fir.call @_FortranAioOutputDescriptor(%{{.*}}, %[[BOX_NONE]]) fastmath<contract> : (!fir.ref<i8>, !fir.box<none>) -> i1
+
 end module
 
 program test

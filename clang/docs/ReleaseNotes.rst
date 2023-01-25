@@ -838,13 +838,14 @@ ABI Changes in Clang
 
 - GCC doesn't pack non-POD members in packed structs unless the packed
   attribute is also specified on the member. Clang historically did perform
-  such packing. Clang now matches the gcc behavior (except on Darwin and PS4).
+  such packing. Clang now matches the gcc behavior
+  (except on Darwin, PS4 and AIX).
   You can switch back to the old ABI behavior with the flag:
   ``-fclang-abi-compat=15.0``.
 - GCC allows POD types to have defaulted special members. Clang historically
   classified such types as non-POD (for the purposes of Itanium ABI). Clang now
-  matches the gcc behavior (except on Darwin and PS4). You can switch back to
-  the old ABI behavior with the flag: ``-fclang-abi-compat=15.0``.
+  matches the gcc behavior (except on Darwin, PS4, AIX and z/OS). You can switch
+  back to the old ABI behavior with the flag: ``-fclang-abi-compat=15.0``.
 
 OpenMP Support in Clang
 -----------------------
@@ -878,6 +879,8 @@ RISC-V Support in Clang
 - Fix interaction of ``-mcpu`` and ``-march``, RISC-V backend will take the
   architecture extension union of ``-mcpu`` and ``-march`` before, and now will
   take architecture extensions from ``-march`` if both are given.
+- An ABI mismatch between GCC and Clang that related to the
+  sign/zero-extension of integer scalars was fixed.
 
 X86 Support in Clang
 --------------------
