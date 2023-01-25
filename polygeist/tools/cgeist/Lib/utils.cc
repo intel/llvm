@@ -92,4 +92,17 @@ FunctionContext getFuncContext(FunctionOpInterface Function) {
              : FunctionContext::Host;
 }
 
+void setInsertionPoint(OpBuilder &Builder, FunctionContext FuncContext,
+                       ModuleOp Module) {
+  switch (FuncContext) {
+  case FunctionContext::SYCLDevice:
+    Builder.setInsertionPointToStart(
+        mlirclang::getDeviceModule(Module).getBody());
+    break;
+  case FunctionContext::Host:
+    Builder.setInsertionPointToStart(Module.getBody());
+    break;
+  }
+}
+
 } // namespace mlirclang

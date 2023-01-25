@@ -1275,10 +1275,7 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
     llvm::dbgs() << "\n";
   });
 
-  FunctionContext FuncContext =
-      isa<mlir::gpu::GPUModuleOp>(Function->getParentOp())
-          ? FunctionContext::SYCLDevice
-          : FunctionContext::Host;
+  FunctionContext FuncContext = mlirclang::getFuncContext(Function);
   if (auto *Tocall = dyn_cast<FunctionDecl>(E->getDecl()))
     return ValueCategory(
         Builder.create<LLVM::AddressOfOp>(

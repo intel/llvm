@@ -78,6 +78,11 @@ mlir::gpu::GPUModuleOp getDeviceModule(mlir::ModuleOp Module);
 /// Return the function context
 FunctionContext getFuncContext(mlir::FunctionOpInterface Function);
 
+/// Set the OpBuilder \p Builder insertion point depending on the given
+/// FunctionContext \p FuncContext.
+void setInsertionPoint(mlir::OpBuilder &Builder, FunctionContext FuncContext,
+                       mlir::ModuleOp Module);
+
 } // namespace mlirclang
 
 #endif // MLIR_TOOLS_MLIRCLANG_UTILS_H
