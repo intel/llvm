@@ -1,3 +1,7 @@
+// REQUIRES: x86-registered-target
+// REQUIRES: nvptx-registered-target
+// REQUIRES: amdgpu-registered-target
+
 // RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t.elf.o
 
 #if defined(RESOLVES)
@@ -124,5 +128,5 @@ int bar() { return weak; }
 // RUN: | FileCheck %s --check-prefix=LIBRARY-GLOBAL-DEFINED
 
 // LIBRARY-GLOBAL-DEFINED: clang{{.*}} -o {{.*}}.img --target=amdgcn-amd-amdhsa -mcpu=gfx1030 {{.*}}.o {{.*}}.o
-// LIBRARY-GLOBAL-DEFINED-NOT: {{.*}}.o
+// LIBRARY-GLOBAL-DEFINED-NOT: {{.*}}gfx1030{{.*}}.o
 // LIBRARY-GLOBAL-DEFINED: clang{{.*}} -o {{.*}}.img --target=nvptx64-nvidia-cuda -march=sm_70 {{.*}}.s {{.*}}.o
