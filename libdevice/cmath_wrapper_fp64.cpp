@@ -137,7 +137,7 @@ double atanh(double x) { return __devicelib_atanh(x); }
 DEVICE_EXTERN_C_INLINE
 double scalbn(double x, int exp) { return __devicelib_scalbn(x, exp); }
 
-#if defined(MSVC)
+#if defined(_MSC_VER)
 #include <math.h>
 // FLOAT PROPERTIES
 #define _D0 3 // little-endian, small long doubles
