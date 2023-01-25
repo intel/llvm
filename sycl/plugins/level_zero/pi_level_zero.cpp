@@ -1968,19 +1968,19 @@ pi_command_list_ptr_t _pi_queue::eventOpenCommandList(pi_event Event) {
     return CommandListMap.end();
   }
 
-  const auto &ComputeEventList =
-      ComputeCommandBatch.OpenCommandList->second.EventList;
-  if (hasOpenCommandList(IsCopy{false}) &&
-      std::find(ComputeEventList.begin(), ComputeEventList.end(), Event) !=
-          ComputeEventList.end()) {
-    return ComputeCommandBatch.OpenCommandList;
+  if (hasOpenCommandList(IsCopy{false})) {
+    const auto &ComputeEventList =
+        ComputeCommandBatch.OpenCommandList->second.EventList;
+    if (std::find(ComputeEventList.begin(), ComputeEventList.end(), Event) !=
+        ComputeEventList.end())
+      return ComputeCommandBatch.OpenCommandList;
   }
-  const auto &CopyEventList =
-      CopyCommandBatch.OpenCommandList->second.EventList;
-  if (hasOpenCommandList(IsCopy{true}) &&
-      std::find(CopyEventList.begin(), CopyEventList.end(), Event) !=
-          CopyEventList.end()) {
-    return CopyCommandBatch.OpenCommandList;
+  if (hasOpenCommandList(IsCopy{true})) {
+    const auto &CopyEventList =
+        CopyCommandBatch.OpenCommandList->second.EventList;
+    if (std::find(CopyEventList.begin(), CopyEventList.end(), Event) !=
+        CopyEventList.end())
+      return CopyCommandBatch.OpenCommandList;
   }
   return CommandListMap.end();
 }
