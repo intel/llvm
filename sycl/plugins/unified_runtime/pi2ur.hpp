@@ -74,15 +74,18 @@ public:
     if (!param_value)
       return PI_SUCCESS;
 
+    auto pValueUR = static_cast<TypeUR *>(param_value);
+    auto pValuePI = static_cast<TypePI *>(param_value);
+
     // Cannot convert to a smaller storage type
     PI_ASSERT(sizeof(TypePI) >= sizeof(TypeUR), PI_ERROR_UNKNOWN);
 
-    auto It = Map.find(*(TypeUR *)param_value);
+    auto It = Map.find(*pValueUR);
     if (It == Map.end()) {
       die("ConvertHelper: unhandled value");
     }
 
-    *(TypePI *)param_value = It->second;
+    *pValuePI = It->second;
     *param_value_size_ret = sizeof(TypePI);
     return PI_SUCCESS;
   }
@@ -94,9 +97,12 @@ public:
     if (!param_value)
       return PI_SUCCESS;
 
+    auto pValuePI = static_cast<TypePI *>(param_value);
+    auto pValueUR = static_cast<TypeUR *>(param_value);
+
     // Cannot handle biteset large than size_t
     PI_ASSERT(sizeof(TypeUR) <= sizeof(size_t), PI_ERROR_UNKNOWN);
-    size_t In = *(TypeUR *)param_value;
+    size_t In = *pValueUR;
     TypePI Out = 0;
 
     size_t Val;
@@ -104,12 +110,12 @@ public:
       In &= In - 1;            // Reset the rightmost set bit
 
       // Convert the Val alone and merge it into Out
-      *(TypeUR *)param_value = TypeUR(Val);
+      *pValueUR = TypeUR(Val);
       if (auto Res = convert(Map))
         return Res;
-      Out |= *(TypePI *)param_value;
+      Out |= *pValuePI;
     }
-    *(TypePI *)param_value = Out;
+    *pValuePI = TypePI(Out);
     return PI_SUCCESS;
   }
 };
