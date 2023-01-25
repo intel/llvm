@@ -62,7 +62,7 @@ enum TraceLevel {
 bool trace(TraceLevel level);
 
 #ifdef __SYCL_RT_OS_WINDOWS
-#ifdef MSVC
+#ifdef _MSC_VER
 #define __SYCL_OPENCL_PLUGIN_NAME "pi_opencl.dll"
 #define __SYCL_LEVEL_ZERO_PLUGIN_NAME "pi_level_zero.dll"
 #define __SYCL_CUDA_PLUGIN_NAME "pi_cuda.dll"
