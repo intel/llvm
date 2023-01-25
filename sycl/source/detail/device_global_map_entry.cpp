@@ -49,7 +49,8 @@ DeviceGlobalUSMMem::getZeroInitEvent(const plugin &Plugin) {
       MZeroInitEvent = {};
       return std::nullopt;
     } else {
-      return std::optional<OwnedPiEvent>(std::move(OwnedPiEvent(*MZeroInitEvent, Plugin)));
+      return std::optional<OwnedPiEvent>(
+          std::move(OwnedPiEvent(*MZeroInitEvent, Plugin)));
     }
   }
   return std::nullopt;
